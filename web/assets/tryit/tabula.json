@@ -1,0 +1,60 @@
+{
+ "unit": "tabula",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/tabula/dry.mp3",
+ "presets": [
+  {
+   "id": "guitar_rig",
+   "name": [
+    "Guitar rig",
+    "Equipo de guitarra"
+   ],
+   "what": [
+    "The starting board: overdrive, chorus, delay, spring",
+    "La pedalera de inicio: overdrive, chorus, delay, muelle"
+   ],
+   "wet": "/tryit/tabula/guitar_rig.mp3",
+   "level_db": 0.1,
+   "pic": null
+  },
+  {
+   "id": "ab_split",
+   "name": [
+    "A/B split",
+    "División A/B"
+   ],
+   "what": [
+    "The delay on lane A beside the chorus on lane B",
+    "El delay en el carril A junto al chorus en el carril B"
+   ],
+   "wet": "/tryit/tabula/ab_split.mp3",
+   "level_db": 0.1,
+   "pic": null
+  },
+  {
+   "id": "macro_sweep",
+   "name": [
+    "Macro sweep",
+    "Barrido de macro"
+   ],
+   "what": [
+    "One macro raising the drive and the echo together",
+    "Una macro que sube a la vez la saturación y el eco"
+   ],
+   "wet": "/tryit/tabula/macro_sweep.mp3",
+   "level_db": -0.4,
+   "pic": null
+  }
+ ]
+}

@@ -135,6 +135,9 @@ pub fn unit_page(p: &UnitProps) -> Html {
                         <a class="btn btn-primary" href={href(l, "/download")}>{ crate::icons::arrow_down() }{ l.t("Get Cantus, free", "Consigue Cantus, gratis") }</a>
                     </div>
                 </div>
+                if crate::tryit::has(u.file) {
+                    <crate::tryit::TryIt key={u.file} unit={AttrValue::from(u.file)} />
+                }
                 <nav class="uf-pager" aria-label={l.t("Next and previous", "Siguiente y anterior")}>
                     <a href={href(l, &format!("{base}{}", prev.file))}><small>{ l.t("← Previous", "← Anterior") }</small><b>{ prev.name }</b></a>
                     <a href={href(l, &format!("{base}{}", next.file))}><small>{ l.t("Next →", "Siguiente →") }</small><b>{ next.name }</b></a>
@@ -146,8 +149,15 @@ pub fn unit_page(p: &UnitProps) -> Html {
 }
 
 /// `/instruments` and `/effects`: every unit's card (the cards open their page in place).
+#[derive(Properties, PartialEq)]
+pub struct IndexProps {
+    /// `/effects`: the cards, then every effect to try on a guitar (`tryit.rs`).
+    #[prop_or_default]
+    pub effects: bool,
+}
+
 #[function_component(UnitIndex)]
-pub fn unit_index() -> Html {
+pub fn unit_index(p: &IndexProps) -> Html {
     let l = use_lang().lang;
     html! {
         <>
@@ -156,6 +166,7 @@ pub fn unit_index() -> Html {
                 <h1>{ l.t("All its own, all free", "Todos propios, todos gratis") }</h1>
             </div></div>
             <crate::units::Units />
+            if p.effects { <crate::tryit::TryIt /> }
         </>
     }
 }

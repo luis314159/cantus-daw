@@ -42,6 +42,7 @@ mod studio;
 mod theme;
 mod top;
 mod tour;
+mod tryit; // fx:web — a unit's presets on one take, dry or wet, with its editor
 mod unit_text; // r39:web-struct — the units' long text, fetched rather than compiled in
 mod units;
 /// A unit's long text (`units_data.rs`): compiled natively (the pre-renderer writes it to

@@ -1,0 +1,46 @@
+{
+ "unit": "purus",
+ "origin": "dev",
+ "source": [
+  "The CC0 guitar with a synthetic, drifting mains hum",
+  "La guitarra CC0 con un zumbido de red sintético que se desvía"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/purus/dry.mp3",
+ "presets": [
+  {
+   "id": "notches",
+   "name": [
+    "Hum notches",
+    "Muescas de zumbido"
+   ],
+   "what": [
+    "The hum and its harmonics notched out",
+    "El zumbido y sus armónicos quitados con muescas"
+   ],
+   "wet": "/tryit/purus/notches.mp3",
+   "level_db": -0.7,
+   "pic": null
+  },
+  {
+   "id": "gentle",
+   "name": [
+    "Gentle de-hum",
+    "Quitar zumbido suave"
+   ],
+   "what": [
+    "The canceller that learns the hum",
+    "El cancelador que aprende el zumbido"
+   ],
+   "wet": "/tryit/purus/gentle.mp3",
+   "level_db": -0.6,
+   "pic": null
+  }
+ ]
+}

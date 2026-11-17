@@ -132,6 +132,7 @@ fn body_of(page: Page) -> Html {
                 // 3. Instruments and effects
                 <spotlight::Spotlight />
                 <fx::Effects />
+                <More href={format!("{}#try", to(Route::Effects))} label={l.t("Try them on a guitar: each effect's presets, dry or wet", "Pruébalos en una guitarra: los presets de cada efecto, secos o con efecto")} />
                 // 4. Listen
                 <listen::Listen />
                 // 5. Measured
@@ -153,7 +154,8 @@ fn body_of(page: Page) -> Html {
                 <body::Support />
             </>
         },
-        Route::Instruments | Route::Effects => html! { <pages::unit::UnitIndex /> },
+        Route::Instruments => html! { <pages::unit::UnitIndex /> },
+        Route::Effects => html! { <pages::unit::UnitIndex effects=true /> },
         Route::Instrument(name) | Route::Effect(name) => {
             html! { <pages::unit::UnitPage file={name} /> }
         }

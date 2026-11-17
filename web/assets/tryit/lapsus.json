@@ -1,0 +1,74 @@
+{
+ "unit": "lapsus",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/lapsus/dry.mp3",
+ "presets": [
+  {
+   "id": "tape_stop",
+   "name": [
+    "Tape stop",
+    "Parada de cinta"
+   ],
+   "what": [
+    "A quarter-note tape stop",
+    "Una parada de cinta de una negra"
+   ],
+   "wet": "/tryit/lapsus/tape_stop.mp3",
+   "level_db": 0.2,
+   "pic": null
+  },
+  {
+   "id": "half_time",
+   "name": [
+    "Half time",
+    "Medio tiempo"
+   ],
+   "what": [
+    "The guitar at half speed, in time",
+    "La guitarra a media velocidad, a tiempo"
+   ],
+   "wet": "/tryit/lapsus/half_time.mp3",
+   "level_db": -0.4,
+   "pic": null
+  },
+  {
+   "id": "stutter_roll",
+   "name": [
+    "Stutter roll",
+    "Redoble de tartamudeo"
+   ],
+   "what": [
+    "Repeats rolling faster",
+    "Repeticiones cada vez más rápidas"
+   ],
+   "wet": "/tryit/lapsus/stutter_roll.mp3",
+   "level_db": 0.0,
+   "pic": null
+  },
+  {
+   "id": "reverse",
+   "name": [
+    "Reverse",
+    "Reverso"
+   ],
+   "what": [
+    "Half of each bar played backwards",
+    "La mitad de cada compás al revés"
+   ],
+   "wet": "/tryit/lapsus/reverse.mp3",
+   "level_db": -0.1,
+   "pic": null
+  }
+ ]
+}

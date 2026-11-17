@@ -22,7 +22,8 @@
     .uc-li, .m-card, .mx-card, .steps li, .sys-card, .studio-card, .fx-list, .songs,
     .facts li, .promises li, .learn-group, .proof-songs li, .stat, .way, .tiers li,
     .verse, .get-main, .get-side, .platform-card, .spot, .backdrop, .faq details,
-    .uf-shot, .uf-pager a, .reqs > div, .stays-free, .m-method article, .chips li {
+    .uf-shot, .uf-pager a, .reqs > div, .stays-free, .m-method article, .chips li,
+    .try-units, .try-shot, .try-side {
       animation: rise linear both;
       animation-timeline: view();
       animation-range: entry var(--rise-at, 0px) entry calc(var(--rise-at, 0px) + 280px);
@@ -150,6 +151,8 @@
   /* ── Players: a ring breathes out of the button while the sound plays ─────────────────── */
   .song-btn, .ab-play { position: relative; }
   .hear-btn { position: relative; }
+  /* fx:web — Try it: a preset's picture settles in when it is chosen (the img is new). */
+  .try-shot img { animation: fade 0.32s ease-out both; }
   :is(.hear.is-playing .hear-btn, .song.is-playing .song-btn, .ab-play.is-on, .card-play.is-on)::after {
     content: ""; position: absolute; inset: -1px; border-radius: 50%; pointer-events: none;
     box-shadow: 0 0 0 2.5px var(--accent);

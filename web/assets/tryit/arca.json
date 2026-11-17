@@ -1,0 +1,74 @@
+{
+ "unit": "arca",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/arca/dry.mp3",
+ "presets": [
+  {
+   "id": "clean",
+   "name": [
+    "Clean amp",
+    "Amplificador limpio"
+   ],
+   "what": [
+    "The clean amp into its cabinet",
+    "El amplificador limpio en su caja"
+   ],
+   "wet": "/tryit/arca/clean.mp3",
+   "level_db": 0.7,
+   "pic": null
+  },
+  {
+   "id": "crunch",
+   "name": [
+    "Crunch",
+    "Crujiente"
+   ],
+   "what": [
+    "The crunch amp into its 4×12",
+    "El amplificador crujiente en su 4×12"
+   ],
+   "wet": "/tryit/arca/crunch.mp3",
+   "level_db": 2.1,
+   "pic": null
+  },
+  {
+   "id": "chime",
+   "name": [
+    "Chime, driven",
+    "Clase A, empujado"
+   ],
+   "what": [
+    "The class A amp at 80 % gain into its cabinet",
+    "El clase A con la ganancia al 80 % en su caja"
+   ],
+   "wet": "/tryit/arca/chime.mp3",
+   "level_db": 0.2,
+   "pic": null
+  },
+  {
+   "id": "high_gain",
+   "name": [
+    "High gain",
+    "Alta ganancia"
+   ],
+   "what": [
+    "The four-stage high gain into its cabinet",
+    "El alta ganancia de cuatro etapas en su caja"
+   ],
+   "wet": "/tryit/arca/high_gain.mp3",
+   "level_db": 2.1,
+   "pic": null
+  }
+ ]
+}

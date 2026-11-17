@@ -1,0 +1,60 @@
+{
+ "unit": "rota",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/rota/dry.mp3",
+ "presets": [
+  {
+   "id": "slow",
+   "name": [
+    "Slow",
+    "Lento"
+   ],
+   "what": [
+    "The horn and the drum turning slowly",
+    "La bocina y el tambor girando lento"
+   ],
+   "wet": "/tryit/rota/slow.mp3",
+   "level_db": -0.0,
+   "pic": null
+  },
+  {
+   "id": "fast",
+   "name": [
+    "Fast",
+    "Rápido"
+   ],
+   "what": [
+    "Both rotors at full speed",
+    "Los dos rotores a toda velocidad"
+   ],
+   "wet": "/tryit/rota/fast.mp3",
+   "level_db": -0.0,
+   "pic": null
+  },
+  {
+   "id": "switching",
+   "name": [
+    "Slow to fast",
+    "De lento a rápido"
+   ],
+   "what": [
+    "The switch thrown: each rotor ramps at its own pace",
+    "El cambio accionado: cada rotor acelera a su ritmo"
+   ],
+   "wet": "/tryit/rota/switching.mp3",
+   "level_db": -0.1,
+   "pic": null
+  }
+ ]
+}

@@ -1,0 +1,74 @@
+{
+ "unit": "saltus",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/saltus/dry.mp3",
+ "presets": [
+  {
+   "id": "twelve_string",
+   "name": [
+    "Twelve-string",
+    "Doce cuerdas"
+   ],
+   "what": [
+    "An octave up, mixed in (poly)",
+    "Una octava arriba, mezclada (poli)"
+   ],
+   "wet": "/tryit/saltus/twelve_string.mp3",
+   "level_db": 0.1,
+   "pic": null
+  },
+  {
+   "id": "octave_down",
+   "name": [
+    "Octave down",
+    "Octava abajo"
+   ],
+   "what": [
+    "An octave down under the chords",
+    "Una octava abajo bajo los acordes"
+   ],
+   "wet": "/tryit/saltus/octave_down.mp3",
+   "level_db": -0.3,
+   "pic": null
+  },
+  {
+   "id": "fifth_up",
+   "name": [
+    "Fifth up",
+    "Quinta arriba"
+   ],
+   "what": [
+    "A fifth above every chord",
+    "Una quinta sobre cada acorde"
+   ],
+   "wet": "/tryit/saltus/fifth_up.mp3",
+   "level_db": 0.1,
+   "pic": null
+  },
+  {
+   "id": "whammy_chords",
+   "name": [
+    "Whammy chords",
+    "Acordes con whammy"
+   ],
+   "what": [
+    "The whammy rocked on the chords",
+    "El whammy mecido sobre los acordes"
+   ],
+   "wet": "/tryit/saltus/whammy_chords.mp3",
+   "level_db": 0.0,
+   "pic": null
+  }
+ ]
+}

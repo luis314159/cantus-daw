@@ -1,0 +1,74 @@
+{
+ "unit": "caelum",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/caelum/dry.mp3",
+ "presets": [
+  {
+   "id": "octave_shimmer",
+   "name": [
+    "Octave shimmer",
+    "Shimmer de octava"
+   ],
+   "what": [
+    "The tail climbing an octave at a time",
+    "La cola subiendo de octava en octava"
+   ],
+   "wet": "/tryit/caelum/octave_shimmer.mp3",
+   "level_db": -0.1,
+   "pic": null
+  },
+  {
+   "id": "fifth_cathedral",
+   "name": [
+    "Fifth cathedral",
+    "Catedral de quintas"
+   ],
+   "what": [
+    "A long space shimmering a fifth up",
+    "Un espacio largo con shimmer una quinta arriba"
+   ],
+   "wet": "/tryit/caelum/fifth_cathedral.mp3",
+   "level_db": 0.2,
+   "pic": null
+  },
+  {
+   "id": "bloom_pad",
+   "name": [
+    "Bloom pad",
+    "Pad que florece"
+   ],
+   "what": [
+    "Each strum swelling into the space",
+    "Cada rasgueo creciendo hacia el espacio"
+   ],
+   "wet": "/tryit/caelum/bloom_pad.mp3",
+   "level_db": -0.0,
+   "pic": null
+  },
+  {
+   "id": "freeze_swell",
+   "name": [
+    "Freeze swell",
+    "Crecida congelada"
+   ],
+   "what": [
+    "The tank frozen under the chords",
+    "El tanque congelado bajo los acordes"
+   ],
+   "wet": "/tryit/caelum/freeze_swell.mp3",
+   "level_db": 1.6,
+   "pic": null
+  }
+ ]
+}

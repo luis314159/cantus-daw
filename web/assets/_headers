@@ -32,3 +32,5 @@
   Cache-Control: public, max-age=86400
 /fx/*
   Cache-Control: public, max-age=86400
+/tryit/*
+  Cache-Control: public, max-age=86400

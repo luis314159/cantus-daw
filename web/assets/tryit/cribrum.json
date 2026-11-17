@@ -1,0 +1,74 @@
+{
+ "unit": "cribrum",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/cribrum/dry.mp3",
+ "presets": [
+  {
+   "id": "cry_wah",
+   "name": [
+    "Cry wah",
+    "Wah que llora"
+   ],
+   "what": [
+    "An envelope wah",
+    "Un wah por envolvente"
+   ],
+   "wet": "/tryit/cribrum/cry_wah.mp3",
+   "level_db": 0.2,
+   "pic": null
+  },
+  {
+   "id": "funk_wah",
+   "name": [
+    "Funk wah",
+    "Wah funk"
+   ],
+   "what": [
+    "A quicker, tighter wah",
+    "Un wah más rápido y cerrado"
+   ],
+   "wet": "/tryit/cribrum/funk_wah.mp3",
+   "level_db": 0.6,
+   "pic": null
+  },
+  {
+   "id": "synced_sweep",
+   "name": [
+    "Synced sweep",
+    "Barrido sincronizado"
+   ],
+   "what": [
+    "The filter swept on the song's beat",
+    "El filtro barrido al pulso de la canción"
+   ],
+   "wet": "/tryit/cribrum/synced_sweep.mp3",
+   "level_db": 0.0,
+   "pic": null
+  },
+  {
+   "id": "vowel",
+   "name": [
+    "Vowel",
+    "Vocal"
+   ],
+   "what": [
+    "The formant filter: the guitar says vowels",
+    "El filtro de formantes: la guitarra dice vocales"
+   ],
+   "wet": "/tryit/cribrum/vowel.mp3",
+   "level_db": -0.0,
+   "pic": null
+  }
+ ]
+}

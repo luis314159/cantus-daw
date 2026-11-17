@@ -1,0 +1,60 @@
+{
+ "unit": "phasis",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/phasis/dry.mp3",
+ "presets": [
+  {
+   "id": "lamp_chorus",
+   "name": [
+    "Lamp chorus",
+    "Coro de lámpara"
+   ],
+   "what": [
+    "The lamp vibe at half the mix",
+    "El vibe de lámpara a media mezcla"
+   ],
+   "wet": "/tryit/phasis/lamp_chorus.mp3",
+   "level_db": 0.0,
+   "pic": null
+  },
+  {
+   "id": "lamp_vibrato",
+   "name": [
+    "Lamp vibrato",
+    "Vibrato de lámpara"
+   ],
+   "what": [
+    "The lamp vibe with no dry",
+    "El vibe de lámpara sin señal seca"
+   ],
+   "wet": "/tryit/phasis/lamp_vibrato.mp3",
+   "level_db": -0.0,
+   "pic": null
+  },
+  {
+   "id": "slow_lamp",
+   "name": [
+    "Slow lamp",
+    "Lámpara lenta"
+   ],
+   "what": [
+    "The lamp vibe swept slowly",
+    "El vibe de lámpara barrido despacio"
+   ],
+   "wet": "/tryit/phasis/slow_lamp.mp3",
+   "level_db": 0.3,
+   "pic": null
+  }
+ ]
+}

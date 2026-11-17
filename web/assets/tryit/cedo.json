@@ -1,0 +1,60 @@
+{
+ "unit": "cedo",
+ "origin": "dev",
+ "source": [
+  "A synthetic pad with Cantus's own kick, 124 BPM",
+  "Un pad sintético con el bombo de Cantus, 124 BPM"
+ ],
+ "credit": [
+  "Pad: synthetic; kick: Cantus's Pulsus",
+  "Pad: sintético; bombo: Pulsus de Cantus"
+ ],
+ "loop": true,
+ "seconds": 7.742,
+ "lufs": -19.3,
+ "dry": "/tryit/cedo/dry.mp3",
+ "presets": [
+  {
+   "id": "kick_duck",
+   "name": [
+    "Ducked by the kick",
+    "Atenuado por el bombo"
+   ],
+   "what": [
+    "The kick's audio as the key, 12 dB",
+    "El audio del bombo como clave, 12 dB"
+   ],
+   "wet": "/tryit/cedo/kick_duck.mp3",
+   "level_db": -1.2,
+   "pic": null
+  },
+  {
+   "id": "tempo_pump",
+   "name": [
+    "Tempo pump",
+    "Bombeo al tempo"
+   ],
+   "what": [
+    "The shape on every quarter, no audio key",
+    "La forma en cada negra, sin clave de audio"
+   ],
+   "wet": "/tryit/cedo/tempo_pump.mp3",
+   "level_db": -0.7,
+   "pic": null
+  },
+  {
+   "id": "swung",
+   "name": [
+    "Swung eighths",
+    "Corcheas con swing"
+   ],
+   "what": [
+    "The pump on eighths, 50 % swing",
+    "El bombeo en corcheas, 50 % de swing"
+   ],
+   "wet": "/tryit/cedo/swung.mp3",
+   "level_db": -0.6,
+   "pic": null
+  }
+ ]
+}

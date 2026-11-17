@@ -1,0 +1,46 @@
+{
+ "unit": "lenis",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/lenis/dry.mp3",
+ "presets": [
+  {
+   "id": "gentle",
+   "name": [
+    "Gentle",
+    "Suave"
+   ],
+   "what": [
+    "A light hand on the rings",
+    "Una mano ligera sobre las resonancias"
+   ],
+   "wet": "/tryit/lenis/gentle.mp3",
+   "level_db": -0.1,
+   "pic": null
+  },
+  {
+   "id": "strong",
+   "name": [
+    "Strong",
+    "Fuerte"
+   ],
+   "what": [
+    "The rings taken further down",
+    "Las resonancias bajadas más"
+   ],
+   "wet": "/tryit/lenis/strong.mp3",
+   "level_db": -0.2,
+   "pic": null
+  }
+ ]
+}

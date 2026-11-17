@@ -1,0 +1,74 @@
+{
+ "unit": "vetus",
+ "origin": "dev",
+ "source": [
+  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/vetus/dry.mp3",
+ "presets": [
+  {
+   "id": "cassette",
+   "name": [
+    "Cassette",
+    "Casete"
+   ],
+   "what": [
+    "Wow, flutter and a worn tape",
+    "Wow, flutter y una cinta gastada"
+   ],
+   "wet": "/tryit/vetus/cassette.mp3",
+   "level_db": -0.0,
+   "pic": null
+  },
+  {
+   "id": "8_bit",
+   "name": [
+    "8-bit sampler",
+    "Sampler de 8 bits"
+   ],
+   "what": [
+    "A cheap converter's bits and rate",
+    "Los bits y el muestreo de un conversor barato"
+   ],
+   "wet": "/tryit/vetus/8_bit.mp3",
+   "level_db": 0.1,
+   "pic": null
+  },
+  {
+   "id": "am_radio",
+   "name": [
+    "AM radio",
+    "Radio AM"
+   ],
+   "what": [
+    "The band of an AM radio",
+    "La banda de una radio AM"
+   ],
+   "wet": "/tryit/vetus/am_radio.mp3",
+   "level_db": 0.1,
+   "pic": null
+  },
+  {
+   "id": "gramophone",
+   "name": [
+    "Gramophone",
+    "Gramófono"
+   ],
+   "what": [
+    "Crackle and a gramophone's horn",
+    "Crujido y la bocina de un gramófono"
+   ],
+   "wet": "/tryit/vetus/gramophone.mp3",
+   "level_db": 0.2,
+   "pic": null
+  }
+ ]
+}
