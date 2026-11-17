@@ -69,17 +69,79 @@ pub fn track_detail(p: &Project, id: TrackId) -> Value {
 }
 
 pub fn modulator_json(p: &Project, m: &cantus_core::Modulator) -> Value {
-    json!({
+    use cantus_core::modulator::ModSource;
+    let mut source = serde_json::to_value(&m.source).unwrap_or(Value::Null);
+    // fxd: a controller's links are given with each route (its axis and range), in the
+    // targets' agent form, not as the file keeps them.
+    if let Some(inner) = source
+        .as_object_mut()
+        .and_then(|o| o.values_mut().next())
+        .and_then(Value::as_object_mut)
+    {
+        inner.remove("links");
+    }
+    let mut v = json!({
         "id": m.id.0,
         "name": m.name,
-        "kind": snake(&format!("{:?}", m.source.kind())),
-        "source": serde_json::to_value(&m.source).unwrap_or(Value::Null),
+        "kind": super::modulation::kind_id(m.source.kind()),
+        "source": source,
         "amount": num(m.amount),
         "muted": m.muted,
-        "routes": m.routes.iter().map(|r| json!({
-            "target": target_json(p, &r.target), "depth": num(r.depth),
-        })).collect::<Vec<_>>(),
-    })
+        "routes": m.routes.iter().map(|r| {
+            let mut route = json!({"target": target_json(p, &r.target), "depth": num(r.depth)});
+            if let ModSource::XyPad(_) | ModSource::Formula(_) = m.source {
+                let (output, range) = m.source.link(&r.target);
+                if m.source.kind().outputs() > 1 {
+                    route["axis"] = json!(if output == 1 { "y" } else { "x" });
+                }
+                if let Some(r) = range {
+                    route["range"] = json!({"from": num(r.from), "to": num(r.to), "curve": num(r.curve)});
+                }
+            }
+            route
+        }).collect::<Vec<_>>(),
+    });
+    // fxd: the controllers' settings as set_modulator takes them (ADRs 0147, 0148).
+    match &m.source {
+        ModSource::XyPad(x) => {
+            v["settings"] = json!({
+                "x": num(x.x),
+                "y": num(x.y),
+                "unipolar": x.unipolar,
+                "inertia_ms": num(x.inertia_ms),
+                "path": x.path.as_ref().map(|path| json!({
+                    "points": path.points.iter().map(|q| json!([num(q[0]), num(q[1])])).collect::<Vec<_>>(),
+                    "beats": num(path.beats),
+                    "smooth": path.smooth,
+                })),
+                "play_path": x.play_path,
+            });
+        }
+        ModSource::Formula(f) => {
+            let reads = cantus_core::modulator::formula::Program::compile(&f.text)
+                .map(|prog| prog.reads())
+                .unwrap_or_default();
+            let knobs: Vec<&str> = ["a", "b", "c"]
+                .into_iter()
+                .zip(reads.inputs)
+                .filter_map(|(k, r)| r.then_some(k))
+                .collect();
+            v["settings"] = json!({
+                "formula": f.text,
+                "a": num(f.inputs[0]),
+                "b": num(f.inputs[1]),
+                "c": num(f.inputs[2]),
+                "bipolar": f.bipolar,
+                // What moves it: the knobs it reads, and whether it follows the song's time.
+                "reads": {
+                    "knobs": knobs,
+                    "time": reads.time,
+                },
+            });
+        }
+        _ => {}
+    }
+    v
 }
 
 pub fn clip_notes_schema() -> Value {

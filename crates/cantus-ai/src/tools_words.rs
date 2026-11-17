@@ -185,6 +185,26 @@ pub fn modulator(p: &Project, id: ModulatorId) -> Said {
         .arg("n", n)
 }
 
+/// A controller's input by name: the pad's `X` or `Y`, the formula's `knob a`…`knob c`.
+pub fn mod_input(p: &Project, m: ModulatorId, input: u8) -> Said {
+    let kind = p.modulator(m).map(|(_, _, m)| m.source.kind());
+    match (kind, input) {
+        (Some(ModKind::XyPad), 0) => Said::new("ai.phrase.input.x"),
+        (Some(ModKind::XyPad), 1) => Said::new("ai.phrase.input.y"),
+        (Some(ModKind::Formula), 0) => Said::new("ai.phrase.input.a"),
+        (Some(ModKind::Formula), 1) => Said::new("ai.phrase.input.b"),
+        (Some(ModKind::Formula), 2) => Said::new("ai.phrase.input.c"),
+        _ => key(&input.to_string()),
+    }
+}
+
+/// `knob b to 0.25`: an input and the value a call gives it.
+pub fn mod_input_to(p: &Project, m: ModulatorId, input: u8, value: f64) -> Said {
+    Said::new("ai.phrase.input_to")
+        .nested("input", mod_input(p, m, input))
+        .nested("value", num(value))
+}
+
 /// Where a modulator lives.
 pub fn mod_host(p: &Project, h: cantus_core::ModHost) -> Said {
     match h {
@@ -238,11 +258,13 @@ pub fn target(p: &Project, t: &AutoTarget) -> Said {
         AutoTarget::ModAmount(m) => {
             Said::new("ai.phrase.target.mod_amount").nested("modulator", modulator(p, *m))
         }
-        // fxd: a controller's input reads as its modulator's amount does until step 3
-        // gives it its own phrase.
-        AutoTarget::ModInput { modulator: m, .. } => {
-            Said::new("ai.phrase.target.mod_amount").nested("modulator", modulator(p, *m))
-        }
+        // fxd: a controller's input, as itself (`X-Y pad 1 · X`, `Formula 1 · knob b`).
+        AutoTarget::ModInput {
+            modulator: m,
+            input,
+        } => Said::new("ai.phrase.target.mod_input")
+            .nested("modulator", modulator(p, *m))
+            .nested("input", mod_input(p, *m, *input)),
         AutoTarget::NoteFx { track, key: k, .. } => Said::new("ai.phrase.target.notefx")
             .arg("key", k)
             .name("track", tn(*track)),

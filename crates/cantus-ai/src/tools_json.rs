@@ -112,9 +112,18 @@ pub fn target_json(p: &Project, t: &cantus_core::AutoTarget) -> Value {
         T::Plugin { effect, id } => json!({"effect_id": effect.0, "plugin_param": id}),
         T::PluginInstrument { track, id } => json!({"track_id": track.0, "plugin_param": id}),
         T::ModAmount(m) => json!({"modulator_id": m.0, "param": "amount"}),
-        // fxd: a controller's input (ADRs 0147, 0148).
+        // fxd: a controller's input (ADRs 0147, 0148) by its name — the pad's x or y, the
+        // formula's a, b or c — with where it is now (0-1); `target_of` reads it back.
         T::ModInput { modulator, input } => {
-            json!({"modulator_id": modulator.0, "param": "input", "input": input})
+            let mut v =
+                json!({"modulator_id": modulator.0, "param": input_name(p, *modulator, *input)});
+            if let Some(x) = p
+                .modulator(*modulator)
+                .and_then(|(_, _, m)| m.source.input(*input))
+            {
+                v["value"] = num(x);
+            }
+            v
         }
         T::NoteFx { track, effect, key } => {
             json!({"track_id": track.0, "note_effect_id": effect.0, "param": key})
@@ -125,6 +134,24 @@ pub fn target_json(p: &Project, t: &cantus_core::AutoTarget) -> Value {
         v["max"] = num(r.max);
     }
     v
+}
+
+/// A controller input's name as agents write it: `x`/`y` on an X-Y pad, `a`/`b`/`c` on a
+/// formula (the input's number when the modulator is gone).
+pub fn input_name(p: &Project, m: cantus_core::ModulatorId, input: u8) -> String {
+    let kind = p.modulator(m).map(|(_, _, m)| m.source.kind());
+    input_names(kind)
+        .get(usize::from(input))
+        .map_or_else(|| input.to_string(), |n| n.to_string())
+}
+
+/// The inputs a kind of modulator has, by name, in order.
+pub fn input_names(kind: Option<cantus_core::ModKind>) -> &'static [&'static str] {
+    match kind {
+        Some(cantus_core::ModKind::XyPad) => &["x", "y"],
+        Some(cantus_core::ModKind::Formula) => &["a", "b", "c"],
+        _ => &[],
+    }
 }
 
 pub fn note_json(map: &TempoMap, clip: &Clip, n: &Note) -> Value {
@@ -237,6 +264,8 @@ pub fn strip_entry(p: &Project, s: &MixerStrip) -> Value {
         "effects": s.effects.iter().map(effect_entry).collect::<Vec<_>>(),
         "tracks": tracks,
         "frozen": s.frozen.is_some(),
+        // fxd: what moves on the strip (the controllers among them), as get_track's.
+        "modulators": s.modulators.iter().map(|m| super::read::modulator_json(p, m)).collect::<Vec<_>>(),
     })
 }
 
@@ -250,6 +279,7 @@ pub fn mixer_json(p: &Project) -> Value {
             "phase_invert": p.master.phase_invert,
             "fx_enabled": p.master.fx_enabled,
             "effects": p.master.effects.iter().map(effect_entry).collect::<Vec<_>>(),
+            "modulators": p.master.modulators.iter().map(|m| super::read::modulator_json(p, m)).collect::<Vec<_>>(),
         },
         "groups": p.strip_groups.iter().map(|g| json!({
             "id": g.id.0, "name": g.name,

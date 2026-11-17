@@ -69,3 +69,14 @@ ai.phrase.mod.formula = un controlador por fórmula
 ai.phrase.modname.xy = Pad X-Y
 ai.phrase.modname.formula = Fórmula
 fxd.xy.engraving = Tactus · dos ejes · inercia · trayectos
+
+# AI words (fxd step 3)
+ai.phrase.target.mod_input = {modulator} · {input}
+ai.phrase.input.x = X
+ai.phrase.input.y = Y
+ai.phrase.input.a = perilla a
+ai.phrase.input.b = perilla b
+ai.phrase.input.c = perilla c
+ai.phrase.input_to = {input} a {value}
+ai.tools.set_controller_inputs = mover {modulator} {host}: {inputs}
+cmd.ai.set_modulator = ajustar un modulador
