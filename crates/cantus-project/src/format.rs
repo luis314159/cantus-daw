@@ -208,6 +208,12 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     if lanes_repaired > 0 {
         log::warn!("{lanes_repaired} malformed glitch pattern(s) repaired");
     }
+    // fxc:comparatio — Comparatio's references a command would refuse (a hand edit): a path
+    // twice or empty, too many, the one compared missing from the list (ADR 0146).
+    let refs_repaired = cantus_core::fx::comparatio::repair_project(&mut file.project);
+    if refs_repaired > 0 {
+        log::warn!("{refs_repaired} malformed reference list(s) repaired");
+    }
     // Provenance of a file not in the pool (a hand edit) names nothing: dropped. // r34:stems
     let pool: std::collections::BTreeSet<_> =
         file.project.audio_pool.iter().map(|s| s.id).collect(); // r34:stems
@@ -1116,8 +1122,10 @@ fn migrate_64_to_65(_value: &mut Value) -> Result<(), String> {
 
 /// Schema 66 (the fx side round's wave C, ADRs 0145–0146): two new effect kinds — Purus
 /// (repair) and Comparatio (the reference comparator, whose reference track is a file by
-/// path in `EffectSpec::ir`, the field Aula's response has used since schema 60). Nothing
-/// older has either, so nothing is written.
+/// path in `EffectSpec::ir`, the field Aula's response has used since schema 60, and its list
+/// of references in `EffectSpec::refs`, each with the size and hash it was loaded with — its
+/// phase B on the same branch, so still schema 66). Nothing older has either, so nothing is
+/// written.
 // fxc: provisional — renumbered when merged after round 40 (r40 uses 62–70)
 fn migrate_65_to_66(_value: &mut Value) -> Result<(), String> {
     Ok(())
@@ -1642,6 +1650,13 @@ mod tests {
         let r = slots[1].spec.ir.as_deref().expect("the reference");
         assert_eq!(r.path, "references/Reference master.flac");
         assert_eq!(slots[1].spec.get("match"), 1.0);
+        // Phase B: the list of references, the one compared among them with its print.
+        let refs = slots[1].spec.refs.as_deref().expect("the list");
+        assert_eq!(refs.list.len(), 3);
+        let at = refs.find(&r.path).expect("the one compared is listed");
+        assert_eq!(refs.list[at].bytes, 31_457_280);
+        assert_eq!(refs.list[at].hash, "9e3779b97f4a7c15");
+        assert_eq!(slots[1].spec.get("eqamt"), 75.0);
         let old = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p

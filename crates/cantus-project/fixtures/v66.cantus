@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 66,
   "app_version": "fixture",
-  "saved_at": 1794926225,
+  "saved_at": 1794948903,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3455,7 +3455,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "a4e60fbe3b21ce57eb96f7a0587369268ad4ec78a900eba5c8c25a9f3719e52d"
+          "content": "8b6f4c3a6490771c68fa3aca9519abb09323981813bb5e7e5f83db7d0f1b1492"
         }
       },
       {
@@ -4150,6 +4150,8 @@
             "spec": {
               "kind": "Reference",
               "params": {
+                "eqamt": 75.0,
+                "eqmax": 6.0,
                 "fade": 30.0,
                 "lend": 0.0,
                 "listen": 0.0,
@@ -4165,6 +4167,21 @@
               },
               "ir": {
                 "path": "references/Reference master.flac"
+              },
+              "refs": {
+                "list": [
+                  {
+                    "path": "references/Other master.wav"
+                  },
+                  {
+                    "path": "references/Reference master.flac",
+                    "bytes": 31457280,
+                    "hash": "9e3779b97f4a7c15"
+                  },
+                  {
+                    "path": "C:/Music/Album/03 Song.flac"
+                  }
+                ]
               }
             },
             "mix": 1.0,
@@ -6896,5 +6913,5 @@
     ],
     "next_id": 142
   },
-  "integrity": "c4310f509ba47af1a0fcb9f7c87262eec1e5d3dafc81318ff004e4babc8c5849"
+  "integrity": "6dec503c8ec88fdbf8428ec5bd9a95490645cf6b824f98ee60058f53c2b710aa"
 }

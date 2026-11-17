@@ -621,6 +621,17 @@ pub enum Command {
         lane: u8,
         blocks: Vec<crate::fx::fractus::Block>,
     },
+    /// fxc:comparatio — Comparatio's references ([`crate::EffectSpec::refs`], ADR 0146 phase
+    /// B) and the one compared ([`crate::EffectSpec::ir`]), set together; the inverse is the
+    /// pair it replaced. An empty list is written as `None`. Refused for any other kind, a
+    /// list [`crate::fx::comparatio::References::valid`] refuses, and a reference compared
+    /// that the list does not hold.
+    SetReferences {
+        strip: StripId,
+        effect: EffectId,
+        refs: Option<Box<crate::fx::comparatio::References>>,
+        selected: Option<Box<crate::fx::aula::IrFile>>,
+    },
     // fx3:contract — Tabula's board (ADR 0134; `crate::command_board`). Each is refused on
     // a slot that is not a board; each returns its exact inverse.
     /// A pedal into a board at `index` of its signal order, with the macro maps it brings
@@ -1136,6 +1147,7 @@ impl Command {
             SetEffectIr { .. } => "cmd.set_effect_ir", // r39:conv
             SetLapsusPattern { .. } => "cmd.lapsus_pattern", // fx:lapsus
             SetFractusLane { .. } => "cmd.fractus_lane", // fxa:contract
+            SetReferences { .. } => "cmd.comparatio_refs", // fxc:comparatio
             InsertPedal { .. } => "cmd.insert_pedal",  // fx3:contract
             RemovePedal { .. } => "cmd.remove_pedal",  // fx3:contract
             MovePedal { .. } => "cmd.move_pedal",      // fx3:contract
@@ -2688,6 +2700,39 @@ impl Command {
                     effect,
                     lane,
                     blocks: old,
+                })
+            }
+            // fxc:comparatio
+            SetReferences {
+                strip,
+                effect,
+                refs,
+                selected,
+            } => {
+                let e = slot_mut(project, strip, effect)?;
+                if e.spec.kind != crate::EffectKind::Reference {
+                    return Err(CommandError::InvalidValue("references".into()));
+                }
+                let refs = refs.filter(|r| !r.is_empty());
+                if let Some(r) = &refs {
+                    r.valid()
+                        .map_err(|why| CommandError::InvalidValue(why.into()))?;
+                }
+                if let Some(f) = &selected {
+                    let held = refs.as_ref().is_some_and(|r| r.find(&f.path).is_some());
+                    if !held {
+                        return Err(CommandError::InvalidValue(
+                            "a reference compared that the list does not hold".into(),
+                        ));
+                    }
+                }
+                let old_refs = std::mem::replace(&mut e.spec.refs, refs);
+                let old_ir = std::mem::replace(&mut e.spec.ir, selected);
+                Ok(SetReferences {
+                    strip,
+                    effect,
+                    refs: old_refs,
+                    selected: old_ir,
                 })
             }
             // fx3:contract — Tabula's board (`crate::command_board`, the tabula builder's).

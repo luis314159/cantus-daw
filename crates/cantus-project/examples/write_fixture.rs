@@ -1623,7 +1623,7 @@ fn main() {
     // fxc:contract — Schema 66 (the fx side round's wave C, ADRs 0145–0146; provisional —
     // renumbered when merged after round 40; 65 is wave B's): on the second strip a Purus
     // (the de-hum on, the de-reverb on with a far microphone's Direct sound) and a
-    // Comparatio with a reference track by path, matched short-term.
+    // Comparatio with a reference track by path, matched short-term, in a list of three.
     if upto >= 66 {
         let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
         let mut purus = p.make_effect(EffectKind::Repair);
@@ -1635,6 +1635,24 @@ fn main() {
             "references/Reference master.flac",
         )));
         comparatio.spec.set("match", 1.0).unwrap();
+        // Phase B: its list of three references (the one compared among them, with the
+        // size and hash it was loaded with) and the match EQ's amount.
+        {
+            use cantus_core::fx::comparatio::{Reference, References};
+            comparatio.spec.refs = Some(Box::new(References {
+                list: vec![
+                    Reference::new("references/Other master.wav"),
+                    Reference {
+                        path: "references/Reference master.flac".into(),
+                        bytes: 31_457_280,
+                        hash: "9e3779b97f4a7c15".into(),
+                    },
+                    Reference::new("C:/Music/Album/03 Song.flac"),
+                ],
+                eq: None,
+            }));
+        }
+        comparatio.spec.set("eqamt", 75.0).unwrap();
         for e in [purus, comparatio] {
             p.strip_mut(s).unwrap().effects.push(e);
         }

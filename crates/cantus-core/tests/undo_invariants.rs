@@ -1932,7 +1932,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut padded = [[0usize; 2]; PADOUT_KINDS]; // r37:drums
                                                   // fx3:tabula - per kind of `fx3_board_command`, applied and refused.
     let mut boarded = [[0usize; 2]; BOARD_KINDS]; // fx3:tabula
-                                                  // 120 sequences (round 31: one arm more spreads the draws thinner).
+                                                  // fxc:comparatio - Comparatio's reference lists, applied and refused.
+    let mut referenced = [0usize; 2];
+    // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
@@ -1962,6 +1964,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         let mut urng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(54)); // r36:external
         let mut krng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(56)); // r37:drums
         let mut trng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(63)); // fx3:tabula
+        let mut crng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(66)); // fxc:comparatio
         for _ in 0..120 {
             // r36:ara — a clip bound to an ARA plug-in or let go (ADR 0097), from `arng`.
             if arng.below(5) == 0 {
@@ -2079,6 +2082,23 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 bus.reserve_ids(scratch.next_id);
                 let ok = bus.execute(cmd, origins[krng.below(5) as usize]).is_ok();
                 padded[k][usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
+            // fxc:comparatio - Comparatio's references (ADR 0146), from a stream of their own
+            // (`crng`): a Comparatio inserted where there is none, then its list of
+            // references and the one compared set, grown, shrunk, cleared and refused.
+            if crng.below(5) == 0 {
+                let mut scratch = bus.project().clone();
+                let (is_refs, cmd) = fxc_reference_command(&mut crng, &mut scratch);
+                bus.reserve_ids(scratch.next_id);
+                let ok = bus.execute(cmd, origins[crng.below(5) as usize]).is_ok();
+                if is_refs {
+                    referenced[usize::from(!ok)] += 1;
+                }
                 if ok {
                     let mut snap = bus.project().clone();
                     snap.next_id = 0;
@@ -2516,6 +2536,11 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             && boarded[2..7].iter().all(|k| k[1] > 0)
             && boarded[9..11].iter().all(|k| k[1] > 0),
         "the board commands never applied or never refused: {boarded:?}"
+    );
+    // fxc:comparatio - a list of references applied and refused.
+    assert!(
+        referenced[0] > 0 && referenced[1] > 0,
+        "Comparatio's references never applied or never refused: {referenced:?}"
     );
     // r36:mix - every kind applied at least once, and the checked ones refused.
     assert!(
@@ -6796,4 +6821,86 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
         },
     };
     (kind, cmd)
+}
+
+/// fxc:comparatio - a command of Comparatio's references (ADR 0146): a Comparatio inserted
+/// where there is none (or now and then), else a list of references and the one compared
+/// set together - grown, shrunk, re-selected, cleared, the Aequalis its match EQ went to -
+/// and refused (a path twice, an empty one, one compared the list lacks, too many, a kind
+/// that has none). Whether it is a `SetReferences`.
+fn fxc_reference_command(rng: &mut Lcg, project: &mut Project) -> (bool, Command) {
+    use cantus_core::fx::comparatio::{Reference, References};
+    let mut slots: Vec<(StripId, EffectId, EffectKind)> = Vec::new();
+    for s in std::iter::once(StripId::MASTER).chain(project.strips.iter().map(|s| s.id)) {
+        for e in project.effects_of(s).into_iter().flatten() {
+            slots.push((s, e.id, e.spec.kind));
+        }
+    }
+    let ours: Vec<_> = slots
+        .iter()
+        .filter(|(_, _, k)| *k == EffectKind::Reference)
+        .copied()
+        .collect();
+    if ours.is_empty() || rng.below(10) == 0 {
+        let strip = if rng.below(2) == 0 || project.strips.is_empty() {
+            StripId::MASTER
+        } else {
+            project.strips[rng.below(project.strips.len() as u64) as usize].id
+        };
+        let slot = project.make_effect(EffectKind::Reference);
+        let len = project.effects_of(strip).map_or(0, |c| c.len());
+        return (
+            false,
+            Command::InsertEffect {
+                strip,
+                index: len,
+                slot: Box::new(slot),
+            },
+        );
+    }
+    let (strip, effect, _) = if rng.below(12) == 0 && !slots.is_empty() {
+        slots[rng.below(slots.len() as u64) as usize]
+    } else {
+        ours[rng.below(ours.len() as u64) as usize]
+    };
+    let n = rng.below(5) as usize;
+    let mut list: Vec<Reference> = (0..n)
+        .map(|i| Reference {
+            path: format!("references/song {}.wav", (i * 3 + n) % 7),
+            bytes: (i as u64) * 1000,
+            hash: if i % 2 == 0 {
+                format!("{i:x}")
+            } else {
+                String::new()
+            },
+        })
+        .collect();
+    list.dedup_by(|a, b| a.path == b.path);
+    match rng.below(10) {
+        0 if !list.is_empty() => list.push(list[0].clone()),
+        1 => list.push(Reference::new("")),
+        2 => list.extend((0..9).map(|i| Reference::new(format!("{i}.wav")))),
+        _ => {}
+    }
+    let selected = match rng.below(5) {
+        0 => None,
+        1 => Some(Box::new(cantus_core::IrFile::new(
+            "references/elsewhere.wav",
+        ))),
+        _ => list
+            .get(rng.below(list.len().max(1) as u64) as usize)
+            .map(|r| Box::new(r.file())),
+    };
+    let eq = (rng.below(3) == 0).then(|| slots[rng.below(slots.len() as u64) as usize].1);
+    let refs = (!list.is_empty() || eq.is_some() || rng.below(2) == 0)
+        .then(|| Box::new(References { list, eq }));
+    (
+        true,
+        Command::SetReferences {
+            strip,
+            effect,
+            refs,
+            selected,
+        },
+    )
 }

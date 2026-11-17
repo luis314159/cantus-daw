@@ -380,6 +380,7 @@ pub fn touches(cmd: &cantus_core::Command, effect: cantus_core::EffectId) -> boo
         | C::SetEffectIr { effect: e, .. } // r39:conv
         | C::SetLapsusPattern { effect: e, .. } // fx:lapsus
         | C::SetFractusLane { effect: e, .. } // fxa:fractus
+        | C::SetReferences { effect: e, .. } // fxc:comparatio
         | C::SetEffectMix { effect: e, .. }
         | C::SetPluginParam { effect: e, .. }
         | C::SetPluginState { effect: e, .. } => *e == effect,
@@ -413,6 +414,7 @@ impl Drop for DawHost<'_> {
                 lapsus: None,  // fx:lapsus (the bank: phase B)
                 board: None,   // fx3:contract (a board's content: the tabula builder's)
                 fractus: None, // fxa:contract (Fractus's lanes: phase B)
+                refs: None,    // fxc:comparatio
             };
             let spec = std::mem::replace(&mut self.spec, empty);
             self.app.fx.spec_cache = Some((rev, self.effect, spec));

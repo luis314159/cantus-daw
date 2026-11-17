@@ -589,6 +589,11 @@ pub struct EffectSpec {
     /// kind and for a pattern with nothing painted, and then not written. // fxa:contract
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fractus: Option<Box<fx::fractus::Pattern>>,
+    /// Comparatio's references (ADR 0146 phase B; schema 66): the list and the Aequalis its
+    /// match EQ was sent to; the one compared is [`EffectSpec::ir`]. `None` for every other
+    /// kind and for an empty list, and then not written. // fxc:comparatio
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refs: Option<Box<fx::comparatio::References>>,
 }
 
 impl EffectSpec {
@@ -609,6 +614,7 @@ impl EffectSpec {
             lapsus: None,  // fx:lapsus
             board: None,   // fx3:contract
             fractus: None, // fxa:contract
+            refs: None,    // fxc:comparatio
         }
     }
 
@@ -622,6 +628,7 @@ impl EffectSpec {
             lapsus: None,  // fx:lapsus
             board: None,   // fx3:contract
             fractus: None, // fxa:contract
+            refs: None,    // fxc:comparatio
         }
     }
 

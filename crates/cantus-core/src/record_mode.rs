@@ -241,6 +241,7 @@ fn is_master(cmd: &Command) -> bool {
         | SetEffectIr { strip, .. } // r39:conv
         | SetLapsusPattern { strip, .. } // fx:lapsus
         | SetFractusLane { strip, .. } // fxa:contract
+        | SetReferences { strip, .. } // fxc:comparatio
         | InsertPedal { strip, .. } // fx3:contract
         | RemovePedal { strip, .. }
         | MovePedal { strip, .. }
