@@ -2,7 +2,7 @@
 //! [`FxHost`] so the unit's own full editor (`Editor::of(kind)`) runs on one pedal — every
 //! key it reads or writes is the pedal's (`p{id}.{key}` on the board), its undo the board's,
 //! its automation and modulation the board's lanes on those keys, a Lapsus pattern the
-//! pedal's bank.
+//! pedal's bank, a Cedo shape the pedal's (fxb:cedo).
 
 use super::host::{FxHost, Transport};
 use cantus_core::fx::tabula::{pedal_key, PedalId};
@@ -169,6 +169,47 @@ impl FxHost for PedalHost<'_> {
             };
             app.exec(cmd);
         }
+    }
+
+    // fxb:cedo — a Cedo pedal's drawn shape: the pedal's own, one step a gesture in Cantus;
+    // in the exported board, through the host's board (one step there).
+    fn set_cedo_shape(
+        &mut self,
+        shape: Option<cantus_core::fx::cedo::Shape>,
+        gesture: Option<u64>,
+    ) {
+        let pedal = self.pedal;
+        let shape = shape.map(Box::new);
+        self.spec.cedo = shape.clone();
+        if let Some((app, strip, effect)) = self.inner.daw() {
+            let cmd = cantus_core::Command::SetCedoShape {
+                strip,
+                effect,
+                shape,
+                pedal: Some(pedal),
+            };
+            match gesture {
+                Some(g) => {
+                    app.exec_merging(
+                        cmd,
+                        cantus_core::MergeKey::of(&("tabula-cedo", effect.0, pedal.0, g)),
+                    );
+                }
+                None => {
+                    app.exec(cmd);
+                }
+            }
+            return;
+        }
+        self.inner
+            .board_commands("cmd.cedo_shape", &|strip, effect| {
+                vec![cantus_core::Command::SetCedoShape {
+                    strip,
+                    effect,
+                    shape: shape.clone(),
+                    pedal: Some(pedal),
+                }]
+            });
     }
 
     fn sample_rate(&self) -> f32 {

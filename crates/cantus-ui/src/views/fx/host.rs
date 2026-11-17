@@ -185,6 +185,15 @@ pub trait FxHost {
     ) {
     }
 
+    /// fxb:cedo — Cedo's drawn shape (`EffectSpec::cedo`; `None`: the classic pump), as one
+    /// step of undo; the calls of one `gesture` merge into one (a point dragged).
+    fn set_cedo_shape(
+        &mut self,
+        _shape: Option<cantus_core::fx::cedo::Shape>,
+        _gesture: Option<u64>,
+    ) {
+    }
+
     /// fx3:tabula — Tabula's board commands (ADR 0134) for a host that is not Cantus (the
     /// exported plug-in): `build` makes them for a strip and an effect; the host applies the
     /// whole list to its board as one step (`cantus_core::command_board::apply_to_spec`).
@@ -202,6 +211,7 @@ pub trait FxHost {
     fn load(&mut self, params: &std::collections::BTreeMap<String, f32>, label_key: &str) {
         let spec = self.spec();
         let kind = spec.kind;
+        let shape_now = spec.cedo.clone(); // fxb:cedo
         let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
         for info in kind.params() {
             let now = spec.get(info.key);
@@ -218,6 +228,13 @@ pub trait FxHost {
         }
         if !edits.is_empty() {
             self.apply(&edits, label_key, None);
+        }
+        // fxb:cedo — a Cedo preset's shape rides in its map (`cedo::to_flat`).
+        if kind == cantus_core::EffectKind::Ducker {
+            let want = cantus_core::fx::cedo::shape_of_flat(params);
+            if want.as_ref() != shape_now.as_deref() {
+                self.set_cedo_shape(want, None);
+            }
         }
     }
 
@@ -292,11 +309,8 @@ pub trait FxHost {
     /// Save the values as the user's preset `name`.
     fn save_preset(&mut self, name: &str) -> Result<(), String> {
         let spec = self.spec();
-        // fx3:tabula — a board's preset holds its pedals too.
-        if spec.kind == cantus_core::EffectKind::Board {
-            return super::save_user_preset(spec.kind, name, &super::tabula::preset_params(spec));
-        }
-        super::save_user_preset(spec.kind, name, &spec.params)
+        // fx3:tabula — a board's preset holds its pedals too; fxb:cedo — Cedo's its shape.
+        super::save_user_preset(spec.kind, name, &super::preset_map(spec))
     }
     /// Cantus itself, for what only the DAW has (a track's notes playing the gate, the
     /// strips of the desk): the app, the strip and the effect. `None` in a plug-in window.
@@ -351,6 +365,7 @@ pub fn touches(cmd: &cantus_core::Command, effect: cantus_core::EffectId) -> boo
         | C::SetEffectMidiSource { effect: e, .. }
         | C::SetEffectIr { effect: e, .. } // r39:conv
         | C::SetLapsusPattern { effect: e, .. } // fx:lapsus
+        | C::SetCedoShape { effect: e, .. } // fxb:cedo
         | C::SetEffectMix { effect: e, .. }
         | C::SetPluginParam { effect: e, .. }
         | C::SetPluginState { effect: e, .. } => *e == effect,
@@ -749,6 +764,27 @@ impl FxHost for DawHost<'_> {
         }
     }
 
+    // fxb:cedo
+    fn set_cedo_shape(&mut self, shape: Option<cantus_core::fx::cedo::Shape>, gesture: Option<u64>) {
+        let cmd = cantus_core::Command::SetCedoShape {
+            strip: self.strip,
+            effect: self.effect,
+            shape: shape.map(Box::new),
+            pedal: None,
+        };
+        match gesture {
+            Some(g) => {
+                self.app.exec_merging(
+                    cmd,
+                    cantus_core::MergeKey::of(&(self.tag, self.effect.0, "cedo", g)),
+                );
+            }
+            None => {
+                self.app.exec(cmd);
+            }
+        }
+    }
+
     fn context(&self) -> String {
         let project = self.app.project();
         let slot = project
@@ -839,7 +875,7 @@ impl FxHost for DawHost<'_> {
             }
             return;
         }
-        let params = self.spec.params.clone();
+        let params = super::preset_map(&self.spec); // fxb:cedo (its shape too)
         self.app.copy_ab(self.effect, &params);
     }
 
@@ -881,13 +917,9 @@ impl FxHost for DawHost<'_> {
     fn save_preset(&mut self, name: &str) -> Result<(), String> {
         match self.spec.external.as_deref().map(|p| p.id.clone()) {
             Some(id) => crate::views::plugins::save_preset(self.app, self.effect, &id, name),
-            // fx3:tabula — a board's preset holds its pedals too.
-            None if self.spec.kind == cantus_core::EffectKind::Board => super::save_user_preset(
-                self.spec.kind,
-                name,
-                &super::tabula::preset_params(&self.spec),
-            ),
-            None => super::save_user_preset(self.spec.kind, name, &self.spec.params),
+            // fx3:tabula — a board's preset holds its pedals too; fxb:cedo — Cedo's its
+            // shape.
+            None => super::save_user_preset(self.spec.kind, name, &super::preset_map(&self.spec)),
         }
     }
 

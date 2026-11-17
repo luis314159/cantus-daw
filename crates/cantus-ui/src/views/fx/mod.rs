@@ -334,6 +334,19 @@ impl CantusApp {
                 }
             }
         }
+        // fxb:cedo — a Cedo preset's shape rides in its map (`cedo::to_flat`): set in the
+        // same step; a map with none draws the classic pump again.
+        if slot.spec.kind == EffectKind::Ducker {
+            let want = cantus_core::fx::cedo::shape_of_flat(params);
+            if want.as_ref() != slot.spec.cedo.as_deref() {
+                commands.push(Command::SetCedoShape {
+                    strip,
+                    effect,
+                    shape: want.map(Box::new),
+                    pedal: None,
+                });
+            }
+        }
         if !commands.is_empty() {
             self.exec(Command::Batch {
                 label_key: label_key.into(),
@@ -348,7 +361,7 @@ impl CantusApp {
         let Some(current) = self
             .project()
             .effect(strip, effect)
-            .map(|e| e.spec.params.clone())
+            .map(|e| preset_map(&e.spec)) // fxb:cedo (its shape too)
         else {
             return;
         };
@@ -398,6 +411,17 @@ pub fn user_presets(kind: EffectKind) -> Vec<(String, BTreeMap<String, f32>)> {
     }
     out.sort_by(|a, b| a.0.cmp(&b.0));
     out
+}
+
+/// What a preset of `spec` holds (a user's saved one, the other side of A/B): its values,
+/// and the content a flat map carries — a board's pedals (fx3:tabula), Cedo's shape
+/// (fxb:cedo).
+pub fn preset_map(spec: &EffectSpec) -> BTreeMap<String, f32> {
+    match spec.kind {
+        EffectKind::Board => tabula::preset_params(spec),
+        EffectKind::Ducker => cantus_core::fx::cedo::to_flat(&spec.params, spec.cedo.as_deref()),
+        _ => spec.params.clone(),
+    }
 }
 
 /// Save the current parameters as a user preset.

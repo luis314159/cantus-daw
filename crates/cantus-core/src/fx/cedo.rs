@@ -239,6 +239,51 @@ pub fn shape_of_flat(map: &std::collections::BTreeMap<String, f32>) -> Option<Sh
     Some(Shape { points }.sanitized())
 }
 
+/// Whether the flat map draws `shape` (`None`: it draws none), without allocating: what an
+/// editor asks every frame (has the preset been moved?).
+pub fn flat_is(map: &std::collections::BTreeMap<String, f32>, shape: Option<&Shape>) -> bool {
+    use std::ops::Bound;
+    let Some(n) = map.get("shape.n") else {
+        return shape.is_none();
+    };
+    let Some(s) = shape else {
+        return false;
+    };
+    if (*n).max(0.0) as usize != s.points.len() {
+        return false;
+    }
+    let (mut bends, mut segs) = (0usize, 0usize);
+    let from: (Bound<&str>, Bound<&str>) = (Bound::Included(FLAT_PREFIX), Bound::Unbounded);
+    for (k, v) in map.range::<str, _>(from) {
+        if !k.starts_with(FLAT_PREFIX) {
+            break;
+        }
+        let Some((Some(i), field)) = flat_key(k) else {
+            continue;
+        };
+        let Some(q) = s.points.get(i) else {
+            return false;
+        };
+        let want = match field {
+            "x" => q.x,
+            "y" => q.y,
+            "bend" => {
+                bends += usize::from(*v != 0.0);
+                q.t
+            }
+            _ => {
+                segs += usize::from(*v != 0.0);
+                f32::from(q.s)
+            }
+        };
+        if (want - v).abs() > 1e-6 {
+            return false;
+        }
+    }
+    bends == s.points.iter().filter(|q| q.t != 0.0).count()
+        && segs == s.points.iter().filter(|q| q.s != 0).count()
+}
+
 /// `params` with `shape` written in (the module's flat keys; `None` writes none). Any flat
 /// key `params` held is dropped first.
 pub fn to_flat(
@@ -312,12 +357,21 @@ mod tests {
             let flat = to_flat(&params, Some(&s));
             assert_eq!(flat.get("depth"), Some(&9.0));
             assert_eq!(shape_of_flat(&flat), Some(s.clone()));
+            assert!(flat_is(&flat, Some(&s)) && !flat_is(&flat, None));
+            let mut moved = s.clone();
+            moved.points.push(Point::new(0.9, 0.1));
+            assert!(!flat_is(&flat, Some(&moved)));
             assert!(flat
                 .iter()
                 .all(|(k, v)| flat_key(k).is_none() || flat_value_ok(k, *v)));
         }
         let plain = to_flat(&params, None);
         assert_eq!(shape_of_flat(&plain), None, "no shape: the classic pump");
+        assert!(flat_is(&plain, None) && !flat_is(&plain, Some(&classic_pump())));
+        let mut bent = classic_pump();
+        let flat = to_flat(&params, Some(&bent));
+        bent.points[1].t = 0.5;
+        assert!(!flat_is(&flat, Some(&bent)), "a bend the map does not write");
         assert!(!plain.contains_key("shape.7.x"));
         for p in PARAMS {
             assert!(flat_key(p.key).is_none(), "{}", p.key);

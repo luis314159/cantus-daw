@@ -229,7 +229,8 @@ pub fn history(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, feed: &Feed<'_>) {
 }
 
 /// The band strip in `r`: the split's response now and at full depth, the crossover.
-pub fn band(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, feed: &Feed<'_>) {
+/// Returns where the split is written (a click there switches it, fxb:cedo).
+pub fn band(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, feed: &Feed<'_>) -> Rect {
     let k = s.k;
     let spec = feed.spec;
     let which = band_of(spec);
@@ -381,7 +382,7 @@ pub fn band(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, feed: &Feed<'_>) {
         format_args!("\u{2212}{floor:.0}"),
     );
     let Some(dsp) = feed.split else {
-        return;
+        return t3;
     };
     const M: usize = 121;
     let mut full = [Pos2::ZERO; M];
@@ -448,4 +449,5 @@ pub fn band(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, feed: &Feed<'_>) {
         Some(ink.plate),
         format_args!("{xhz:.0} Hz"),
     );
+    t3
 }

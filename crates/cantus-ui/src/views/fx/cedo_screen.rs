@@ -79,12 +79,21 @@ pub fn cycle_ms(spec: &EffectSpec, tempo: f32) -> f32 {
     beats * 60_000.0 / tempo.max(1.0)
 }
 
-/// The screen in `glass` (inside its frame).
-pub fn show(b: &mut Brush, s: &Style, ink: &Ink, glass: Rect, feed: &Feed<'_>) {
-    let k = s.k;
-    canvas::ground_b(b, glass, ink, None);
+/// Where the screen's parts stand in its glass: what the editor's pointer reads too.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Layout {
+    pub inner: Rect,
+    /// The shape over one cycle (Tempo, MIDI) or the envelope on a hit (Sidechain).
+    pub plot: Rect,
+    /// The last four seconds.
+    pub hist: Rect,
+    /// The band strip, in Lows or Highs.
+    pub band: Option<Rect>,
+}
+
+/// The screen's layout in `glass`.
+pub fn layout(glass: Rect, k: f32, banded: bool) -> Layout {
     let inner = glass.shrink2(vec2(14.0 * k, 10.0 * k));
-    let banded = band(feed.spec) != 0;
     // Top to bottom: the header, the plot and its times, the history's title, the history
     // and its seconds, and in a band mode the strip's title, the strip and its hertz.
     let head = 18.0 * k;
@@ -104,6 +113,26 @@ pub fn show(b: &mut Brush, s: &Style, ink: &Ink, glass: Rect, feed: &Feed<'_>) {
     y = plot.bottom() + labels + title;
     let hist = Rect::from_min_max(pos2(x0, y), pos2(x1, y + hh));
     y = hist.bottom() + labels + title;
+    let band = banded.then(|| Rect::from_min_max(pos2(x0, y), pos2(x1, inner.bottom() - labels)));
+    Layout {
+        inner,
+        plot,
+        hist,
+        band,
+    }
+}
+
+/// The screen in `glass` (inside its frame); where the band strip's split is written (a
+/// click there switches it).
+pub fn show(b: &mut Brush, s: &Style, ink: &Ink, glass: Rect, feed: &Feed<'_>) -> Option<Rect> {
+    let k = s.k;
+    canvas::ground_b(b, glass, ink, None);
+    let Layout {
+        inner,
+        plot,
+        hist,
+        band: strip,
+    } = layout(glass, k, band(feed.spec) != 0);
     header(b, s, ink, inner, feed);
     if trigger(feed.spec) == 0 {
         envelope(b, s, ink, plot, feed);
@@ -111,10 +140,7 @@ pub fn show(b: &mut Brush, s: &Style, ink: &Ink, glass: Rect, feed: &Feed<'_>) {
         shape(b, s, ink, plot, feed);
     }
     trace::history(b, s, ink, hist, feed);
-    if banded {
-        let r = Rect::from_min_max(pos2(x0, y), pos2(x1, inner.bottom() - labels));
-        trace::band(b, s, ink, r, feed);
-    }
+    strip.map(|r| trace::band(b, s, ink, r, feed))
 }
 
 /// The header: what the plot shows on the left, the legend on the right.

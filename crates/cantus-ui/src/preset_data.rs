@@ -547,6 +547,16 @@ pub fn check(unit: FileUnit, file: &File, known: &dyn Fn(&str) -> bool) -> Vec<S
             }
             FileUnit::Effect(kind) => {
                 for (k, v) in &p.values {
+                    // fxb:cedo — a Cedo preset's shape rides in its values.
+                    if kind == EffectKind::Ducker && cantus_core::fx::cedo::flat_key(k).is_some() {
+                        if !cantus_core::fx::cedo::flat_value_ok(k, *v) {
+                            bad.push(format!(
+                                "{}: the shape's {k} = {v} is out of its range",
+                                p.key
+                            ));
+                        }
+                        continue;
+                    }
                     match kind.params().iter().find(|i| i.key == k) {
                         None => bad.push(format!("{}: {kind:?} has no value \"{k}\"", p.key)),
                         Some(i) if !(i.min..=i.max).contains(v) => bad.push(format!(

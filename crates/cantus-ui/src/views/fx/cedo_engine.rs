@@ -120,11 +120,38 @@ fn leg_x(y: f32, side: f32) -> f32 {
     PIVOT.x + side * (10.0 + SPREAD * ((y - top) / (GROUND - top)).clamp(0.0, 1.0))
 }
 
-/// The engine in `area`.
-pub fn draw(b: &mut Brush, s: &Style, area: Rect, pose: &Pose<'_>) {
+/// The engine's frame of reference in `area`.
+fn map_of(area: Rect) -> Map {
     let e = (area.width() / W).min(area.height() / H);
     let o = pos2(area.center().x - W * e * 0.5, area.bottom() - H * e);
-    let m = Map { o, e };
+    Map { o, e }
+}
+
+/// The level gauge's enamel card.
+fn gauge_card(m: &Map) -> Rect {
+    let (_, open) = beam_ends(0.0);
+    let (_, shut) = beam_ends(1.0);
+    let (y_open, y_shut) = (open.y + LINK + 5.0, shut.y + LINK + 5.0);
+    Rect::from_min_max(
+        m.p(GAUGE_X - 16.0, y_open - 14.0),
+        m.p(GAUGE_X + 16.0, y_shut + 14.0),
+    )
+}
+
+/// Where the level gauge and the bellows beside it stand in `area`: what a drag turns the
+/// depth with (fxb:cedo, phase B).
+pub fn gauge_rect(area: Rect) -> Rect {
+    let m = map_of(area);
+    let card = gauge_card(&m);
+    Rect::from_min_max(
+        card.min,
+        pos2(m.p(BELLOWS_X + BELLOWS_W * 0.5, 0.0).x, card.bottom()),
+    )
+}
+
+/// The engine in `area`.
+pub fn draw(b: &mut Brush, s: &Style, area: Rect, pose: &Pose<'_>) {
+    let m = map_of(area);
     let f = art::finish(s);
     let lift = pose.lift.clamp(0.0, 1.0);
     let (left, right) = beam_ends(lift);
@@ -870,7 +897,7 @@ fn gauge(b: &mut Brush, s: &Style, m: &Map, f: &pal::Finish, top: f32, pose: &Po
     let (_, shut) = beam_ends(1.0);
     let (y_open, y_shut) = (open.y + LINK + 5.0, shut.y + LINK + 5.0);
     let x = GAUGE_X;
-    let card = Rect::from_min_max(m.p(x - 16.0, y_open - 14.0), m.p(x + 16.0, y_shut + 14.0));
+    let card = gauge_card(m);
     // The post down to the baseplate, its foot bolted.
     let post = Rect::from_min_max(
         pos2(card.center().x - m.d(2.5), card.bottom()),

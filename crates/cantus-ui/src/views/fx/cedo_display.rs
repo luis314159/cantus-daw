@@ -68,6 +68,19 @@ fn lamp_level(view: &View, trig: usize) -> f32 {
     best
 }
 
+/// Where the display drew what the pointer acts on (fxb:cedo, phase B).
+#[derive(Copy, Clone, Debug)]
+pub struct Drawn {
+    /// The screen's parts.
+    pub screen: screen::Layout,
+    /// The band strip's split word (Lows, Highs).
+    pub split_word: Option<Rect>,
+    /// The trigger's readout flag, when it had room.
+    pub trigger_flag: Option<Rect>,
+    /// The level gauge and the bellows (the depth).
+    pub gauge: Rect,
+}
+
 /// The display in `r`.
 #[allow(clippy::too_many_arguments)]
 pub fn show(
@@ -79,7 +92,7 @@ pub fn show(
     view: &View,
     curve: &Curve,
     split: Option<&Split>,
-) {
+) -> Drawn {
     let k = s.k;
     let p = parts(r, k);
     let ink = Ink::of(s);
@@ -126,7 +139,7 @@ pub fn show(
         let name_h = 40.0 * k;
         let mid = r.top() + 31.0 * k;
         let name = plate::nameplate(b, s, pos2(r.left() + 30.0 * k, mid), name_h);
-        flags(b, s, &ink, r, name.right(), mid, spec, now, trig, lamp);
+        let trigger_flag = flags(b, s, &ink, r, name.right(), mid, spec, now, trig, lamp);
         engine::draw(b, s, p.engine, &pose);
         let glass = plate::frame(b, s, p.screen);
         let feed = Feed {
@@ -136,13 +149,19 @@ pub fn show(
             view,
             split: split.map(|x| x.dsp()),
         };
-        screen::show(b, s, &ink, glass, &feed);
+        let split_word = screen::show(b, s, &ink, glass, &feed);
         plate::glass(b, glass, k);
-    });
+        Drawn {
+            screen: screen::layout(glass, k, screen::band(spec) != 0),
+            split_word,
+            trigger_flag,
+            gauge: engine::gauge_rect(p.engine),
+        }
+    })
 }
 
 /// The readout flags and the lamp, right to left from the bed's right; a flag that would
-/// reach the nameplate is left out.
+/// reach the nameplate is left out. Returns the trigger's flag (the last, when it fits).
 #[allow(clippy::too_many_arguments)]
 fn flags(
     b: &mut crate::kit::Brush,
@@ -155,7 +174,7 @@ fn flags(
     now: &Reading,
     trig: usize,
     lamp: f32,
-) {
+) -> Option<Rect> {
     use super::super::frame::tr;
     let k = s.k;
     let light = ink.hue;
@@ -225,12 +244,17 @@ fn flags(
         })
         .to_owned(),
     );
-    for (name, value) in &values {
+    let mut last = None;
+    for (i, (name, value)) in values.iter().enumerate() {
         let w = plate::flag_width(b, k, name, value);
         if x - w < min_x + 20.0 * k {
             break;
         }
         let f = plate::flag(b, s, pos2(x, mid), name, value, light, h);
         x = f.left() - 20.0 * k;
+        if i == 3 {
+            last = Some(f);
+        }
     }
+    last
 }

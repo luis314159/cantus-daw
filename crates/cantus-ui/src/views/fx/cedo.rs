@@ -10,8 +10,9 @@
 //! Key filter and Envelope in Sidechain, Band, Output. Every number from the engine's
 //! telemetry (`cantus_engine::fx::cedo::t`).
 //!
-//! Dragging the shape's points and bends (`Command::SetCedoShape`) belongs to the full
-//! editor, after the sheet is approved.
+//! The display answers the pointer (`edit`, phase B): the shape's points and bends drawn
+//! (`Command::SetCedoShape`), the envelope's handles, the threshold's line, the crossover
+//! and the split, the trigger's flag and the gauge (the depth) — each edit one step of undo.
 
 use super::controls;
 use super::frame;
@@ -29,6 +30,8 @@ use egui::Rect;
 mod art;
 #[path = "cedo_display.rs"]
 mod display;
+#[path = "cedo_edit.rs"]
+pub mod edit;
 #[path = "cedo_engine.rs"]
 mod engine;
 #[path = "cedo_plate.rs"]
@@ -150,6 +153,12 @@ pub struct State {
     pub display: Option<Rect>,
     /// Where the key's or the notes' field was drawn last frame.
     pub source_field: Option<Rect>,
+    /// fxb:cedo — the display's drag, its gesture's number, where its parts were drawn last
+    /// frame, and the trigger's switch on its card.
+    drag: Option<edit::Drag>,
+    gesture: u64,
+    drawn: Option<display::Drawn>,
+    trigger_switch: Option<Rect>,
 }
 
 impl State {
@@ -157,6 +166,84 @@ impl State {
     pub fn history_len(&self) -> usize {
         self.view.len()
     }
+
+    /// The plot (the shape or the envelope) as drawn last frame.
+    pub fn plot(&self) -> Option<Rect> {
+        self.drawn.map(|d| d.screen.plot)
+    }
+
+    /// Where point `i` of `spec`'s shape was drawn.
+    pub fn shape_point(&self, spec: &EffectSpec, i: usize) -> Option<egui::Pos2> {
+        let q = *edit::shape_of(spec).points.get(i)?;
+        Some(edit::point_at(self.plot()?, &q))
+    }
+
+    /// The point on the drawn curve at `u` of the cycle (the engine's own curve).
+    pub fn on_curve(&self, spec: &EffectSpec, u: f32) -> Option<egui::Pos2> {
+        let plot = self.plot()?;
+        let a = shape_amount(spec, u);
+        Some(egui::pos2(
+            plot.left() + plot.width() * u,
+            plot.top() + plot.height() * a,
+        ))
+    }
+
+    /// The envelope's handle `n` (0 attack, 1 hold, 2 release), Sidechain.
+    pub fn env_handle(&self, spec: &EffectSpec, n: usize) -> Option<egui::Pos2> {
+        Some(edit::env_handles(spec, self.plot()?).get(n)?.1)
+    }
+
+    /// The threshold's line in the history, at its middle (Sidechain).
+    pub fn threshold_at(&self, spec: &EffectSpec) -> Option<egui::Pos2> {
+        let h = self.drawn?.screen.hist;
+        Some(egui::pos2(h.center().x, edit::threshold_y(spec, h)))
+    }
+
+    /// The band strip's crossover line, at its middle (Lows, Highs).
+    pub fn crossover_at(&self, spec: &EffectSpec) -> Option<egui::Pos2> {
+        let r = self.drawn?.screen.band?;
+        Some(egui::pos2(edit::strip_x(r, spec.get("xhz")), r.center().y))
+    }
+
+    /// The band strip (Lows, Highs).
+    pub fn band_strip(&self) -> Option<Rect> {
+        self.drawn?.screen.band
+    }
+
+    /// The split's word on the band strip.
+    pub fn split_word(&self) -> Option<Rect> {
+        self.drawn?.split_word
+    }
+
+    /// The trigger's flag on the bed.
+    pub fn trigger_flag(&self) -> Option<Rect> {
+        self.drawn?.trigger_flag
+    }
+
+    /// The level gauge and its bellows.
+    pub fn gauge(&self) -> Option<Rect> {
+        self.drawn.map(|d| d.gauge)
+    }
+
+    /// The trigger's switch on its card: the place of choice `i` (0 Sidechain, 1 Tempo,
+    /// 2 MIDI).
+    pub fn trigger_choice(&self, i: usize) -> Option<egui::Pos2> {
+        let r = self.trigger_switch?;
+        Some(egui::pos2(
+            r.left() + r.width() * (i as f32 + 0.5) / 3.0,
+            r.center().y,
+        ))
+    }
+}
+
+/// The shape's amount at `u` as the engine plays it (the classic pump when the spec has
+/// none), bent by the automation editor's shapes.
+pub fn shape_amount(spec: &EffectSpec, u: f32) -> f32 {
+    let mut pts = [cantus_dsp::fluctus::CurvePoint::default(); cantus_core::fx::cedo::MAX_POINTS];
+    let np = cantus_engine::fx::cedo::shape_points(spec, &mut pts);
+    let mut curve = cantus_dsp::lapsus::Curve::flat(0.0);
+    curve.set(&pts[..np], 0.0, 1.0);
+    screen::amount_at(&curve, u)
 }
 
 /// Cedo's editor in Cantus's own window: the host is the project.
@@ -389,7 +476,9 @@ fn body_ui(
     } else {
         None
     };
-    display::show(ui, s, r1, &spec, reading, &st.view, &curve, split);
+    let drawn = display::show(ui, s, r1, &spec, reading, &st.view, &curve, split);
+    st.drawn = Some(drawn);
+    edit::display(host, st, ui, s, &drawn);
     if reading.seen {
         ui.ctx().request_repaint();
     }
@@ -424,7 +513,15 @@ fn trigger_card(
     let w = source_w(ui);
     controls::card(ui, s, rect, Src::Key("cedo.card.trigger"), None, |ui, _| {
         controls::column(ui, s, w, |ui| {
-            cells::switch(host, ui, s, &TRIGGER);
+            // The switch drawn here, its place kept (the pointer tests click it).
+            controls::caption(ui, s, Src::Key("cedo.l.trigger"), w);
+            let labels: Vec<Src<'_>> = TRIGGERS.iter().map(|c| Src::Key(c)).collect();
+            let before = ui.cursor().min;
+            controls::segmented_param(ui, s, host, "trig", &labels, w);
+            st.trigger_switch = Some(Rect::from_min_max(
+                before,
+                egui::pos2(before.x + w * s.k, ui.min_rect().bottom()),
+            ));
             match trig {
                 0 => {
                     controls::caption(ui, s, Src::Key("cedo.l.key"), w);
@@ -615,6 +712,7 @@ pub fn demo_feed(app: &mut CantusApp) {
             strip,
             effect,
             shape: Some(Box::new(sh)),
+            pedal: None,
         });
     }
     if trig == 0 {

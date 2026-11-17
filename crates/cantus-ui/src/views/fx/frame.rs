@@ -427,6 +427,10 @@ pub fn modified(spec: &cantus_core::EffectSpec, loaded: &Loaded) -> bool {
             return true;
         }
     }
+    // fxb:cedo — Cedo's shape is its preset's too (compared without allocating).
+    if spec.kind == cantus_core::EffectKind::Ducker {
+        return !cantus_core::fx::cedo::flat_is(&loaded.params, spec.cedo.as_deref());
+    }
     false
 }
 
