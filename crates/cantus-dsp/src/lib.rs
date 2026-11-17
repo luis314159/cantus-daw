@@ -109,6 +109,7 @@ pub mod arca; // fx3:contract
 pub mod rota; // fx3:contract
 pub mod saltus; // fx3:contract
 pub mod tabula; // fx3:contract
+pub mod vinculum; // fx:vinculum — the bus compressor (side round, wave B; no contract yet)
 
 // fx-a:loquax — the side round's wave A: Loquax, the vocoder (DSP first).
 pub mod loquax; // fx-a:loquax
