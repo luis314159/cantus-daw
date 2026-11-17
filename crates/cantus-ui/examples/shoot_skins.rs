@@ -227,6 +227,20 @@ const UNITS: &[(&str, &str, What)] = &[
     ("lapsus", "lapsus", What::Fx(EffectKind::TimeShaper)),
     ("vetus", "vetus", What::Fx(EffectKind::LoFi)),
     ("libra", "libra", What::Fx(EffectKind::Utility)),
+    // fx3/fxa: the side round's waves 3 and A (Tabula's pictures are `TABULA_WEB=1
+    // shoot_tabula`'s: the rig playing on the board).
+    ("saltus", "saltus", What::Fx(EffectKind::PitchShift)),
+    ("arca", "arca", What::Fx(EffectKind::Amp)),
+    ("rota", "rota", What::Fx(EffectKind::Rotary)),
+    ("loquax", "loquax", What::Fx(EffectKind::Vocoder)),
+    ("fractus", "fractus", What::Fx(EffectKind::Glitch)),
+    ("caelum", "caelum", What::Fx(EffectKind::Shimmer)),
+    // MERGE (fx/web, docs/round-fx/site.md): waves B and C, once their kinds are in:
+    // ("vinculum", "vinculum", What::Fx(EffectKind::BusCompressor)),
+    // ("lenis", "lenis", What::Fx(EffectKind::ResonanceSuppressor)),
+    // ("cedo", "cedo", What::Fx(EffectKind::Ducker)),
+    // ("purus", "purus", What::Fx(EffectKind::Repair)),
+    // ("comparatio", "comparatio", What::Fx(EffectKind::Reference)),
     ("unda", "unda", What::Inst(InstrumentKind::Wavetable)),
     ("calor", "calor", What::Inst(InstrumentKind::Analog)),
     ("modulus", "modulus", What::Inst(InstrumentKind::Fm)),

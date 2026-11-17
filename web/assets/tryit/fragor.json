@@ -29,7 +29,7 @@
     "El overdrive verde solo"
    ],
    "wet": "/tryit/fragor/green_overdrive.mp3",
-   "level_db": 0.3,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "El fuzz de germanio solo"
    ],
    "wet": "/tryit/fragor/germanium_fuzz.mp3",
-   "level_db": 0.8,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "Un preset de fábrica: dos pedales apilados"
    ],
    "wet": "/tryit/fragor/stacked_lead.mp3",
-   "level_db": 1.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -71,7 +71,7 @@
     "Un preset de fábrica"
    ],
    "wet": "/tryit/fragor/vintage_fuzz.mp3",
-   "level_db": 0.8,
+   "level_db": null,
    "pic": null
   }
  ]

@@ -29,7 +29,7 @@
     "La cola subiendo de octava en octava"
    ],
    "wet": "/tryit/caelum/octave_shimmer.mp3",
-   "level_db": -0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "Un espacio largo con shimmer una quinta arriba"
    ],
    "wet": "/tryit/caelum/fifth_cathedral.mp3",
-   "level_db": 0.2,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "Cada rasgueo creciendo hacia el espacio"
    ],
    "wet": "/tryit/caelum/bloom_pad.mp3",
-   "level_db": -0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -71,7 +71,7 @@
     "El tanque congelado bajo los acordes"
    ],
    "wet": "/tryit/caelum/freeze_swell.mp3",
-   "level_db": 1.6,
+   "level_db": null,
    "pic": null
   }
  ]

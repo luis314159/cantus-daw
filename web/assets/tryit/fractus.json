@@ -29,7 +29,7 @@
     "Reverso, un lanzamiento, una octava y un tartamudeo en dos compases"
    ],
    "wet": "/tryit/fractus/sequenced.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "Una nube de granos junto a la guitarra"
    ],
    "wet": "/tryit/fractus/cloud.mp3",
-   "level_db": 0.0,
+   "level_db": null,
    "pic": null
   }
  ]

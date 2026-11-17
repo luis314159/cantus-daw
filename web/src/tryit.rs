@@ -43,8 +43,8 @@ pub struct Preset {
     pub what: (String, String),
     pub wet: String,
     /// How much louder (+) or quieter the preset leaves the take than the dry, dB, before
-    /// the two were matched.
-    pub level_db: f64,
+    /// the two were matched (none for takes that were not rendered from a preset as it is).
+    pub level_db: Option<f64>,
     /// The pictures' stem (`<pic>-dark.webp`, `-light`, `-es`), or the unit's own.
     pub pic: Option<String>,
 }
@@ -88,7 +88,7 @@ pub fn parse(v: &JsValue) -> Option<Manifest> {
             name: pair(&p, "name"),
             what: pair(&p, "what"),
             wet: text(&p, "wet"),
-            level_db: get(&p, "level_db").as_f64().unwrap_or(0.0),
+            level_db: get(&p, "level_db").as_f64(),
             pic: get(&p, "pic").as_string(),
         })
         .collect::<Vec<_>>();
@@ -432,16 +432,16 @@ pub fn try_it(p: &TryProps) -> Html {
             } else {
                 html! { <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z" fill="currentColor"/></svg> }
             };
-            let level = match l {
+            let level = pr.level_db.map(|v| match l {
                 Lang::En => format!(
                     "The preset's own level: {} against the dry; matched here.",
-                    db(l, pr.level_db)
+                    db(l, v)
                 ),
                 Lang::Es => format!(
                     "El nivel propio del preset: {} frente a la señal seca; igualado aquí.",
-                    db(l, pr.level_db)
+                    db(l, v)
                 ),
-            };
+            });
             html! {
                 <div class="try-body">
                     <figure class="try-shot">
@@ -462,7 +462,7 @@ pub fn try_it(p: &TryProps) -> Html {
                             <div class="ab-bar" aria-hidden="true"><i style={format!("width:{:.1}%", *pos * 100.0)}></i></div>
                             if *loading { <span class="try-wait" role="status">{ l.t("Loading…", "Cargando…") }</span> }
                         </div>
-                        <p class="try-level">{ level }</p>
+                        if let Some(level) = level { <p class="try-level">{ level }</p> }
                         <p class="try-note">{ say(l, &m.source) }{ ". " }{ say(l, &m.note) }{ " " }<span class="try-credit">{ say(l, &m.credit) }{ "." }</span></p>
                     </div>
                 </div>

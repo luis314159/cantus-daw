@@ -29,7 +29,7 @@
     "El VCA de consola trabajando fuerte"
    ],
    "wet": "/tryit/vinculum/vca.mp3",
-   "level_db": 0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "El nivelador de fotocélula a fondo"
    ],
    "wet": "/tryit/vinculum/opto.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "La válvula, con suavidad"
    ],
    "wet": "/tryit/vinculum/varimu.mp3",
-   "level_db": -0.1,
+   "level_db": null,
    "pic": null
   }
  ]

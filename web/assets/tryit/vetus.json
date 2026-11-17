@@ -29,7 +29,7 @@
     "Wow, flutter y una cinta gastada"
    ],
    "wet": "/tryit/vetus/cassette.mp3",
-   "level_db": -0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "Los bits y el muestreo de un conversor barato"
    ],
    "wet": "/tryit/vetus/8_bit.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "La banda de una radio AM"
    ],
    "wet": "/tryit/vetus/am_radio.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -71,7 +71,7 @@
     "Crujido y la bocina de un gramófono"
    ],
    "wet": "/tryit/vetus/gramophone.mp3",
-   "level_db": 0.2,
+   "level_db": null,
    "pic": null
   }
  ]

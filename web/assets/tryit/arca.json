@@ -29,7 +29,7 @@
     "El amplificador limpio en su caja"
    ],
    "wet": "/tryit/arca/clean.mp3",
-   "level_db": 0.7,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "El amplificador crujiente en su 4×12"
    ],
    "wet": "/tryit/arca/crunch.mp3",
-   "level_db": 2.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "El clase A con la ganancia al 80 % en su caja"
    ],
    "wet": "/tryit/arca/chime.mp3",
-   "level_db": 0.2,
+   "level_db": null,
    "pic": null
   },
   {
@@ -71,7 +71,7 @@
     "El alta ganancia de cuatro etapas en su caja"
    ],
    "wet": "/tryit/arca/high_gain.mp3",
-   "level_db": 2.1,
+   "level_db": null,
    "pic": null
   }
  ]

@@ -29,7 +29,7 @@
     "Un wah por envolvente"
    ],
    "wet": "/tryit/cribrum/cry_wah.mp3",
-   "level_db": 0.2,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "Un wah más rápido y cerrado"
    ],
    "wet": "/tryit/cribrum/funk_wah.mp3",
-   "level_db": 0.6,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "El filtro barrido al pulso de la canción"
    ],
    "wet": "/tryit/cribrum/synced_sweep.mp3",
-   "level_db": 0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -71,7 +71,7 @@
     "El filtro de formantes: la guitarra dice vocales"
    ],
    "wet": "/tryit/cribrum/vowel.mp3",
-   "level_db": -0.0,
+   "level_db": null,
    "pic": null
   }
  ]

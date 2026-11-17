@@ -29,7 +29,7 @@
     "Una mano ligera sobre las resonancias"
    ],
    "wet": "/tryit/lenis/gentle.mp3",
-   "level_db": -0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "Las resonancias bajadas más"
    ],
    "wet": "/tryit/lenis/strong.mp3",
-   "level_db": -0.2,
+   "level_db": null,
    "pic": null
   }
  ]

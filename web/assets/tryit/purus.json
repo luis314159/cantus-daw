@@ -29,7 +29,7 @@
     "El zumbido y sus armónicos quitados con muescas"
    ],
    "wet": "/tryit/purus/notches.mp3",
-   "level_db": -0.7,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "El cancelador que aprende el zumbido"
    ],
    "wet": "/tryit/purus/gentle.mp3",
-   "level_db": -0.6,
+   "level_db": null,
    "pic": null
   }
  ]

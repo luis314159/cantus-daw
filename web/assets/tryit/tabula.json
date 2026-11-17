@@ -29,7 +29,7 @@
     "La pedalera de inicio: overdrive, chorus, delay, muelle"
    ],
    "wet": "/tryit/tabula/guitar_rig.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "El delay en el carril A junto al chorus en el carril B"
    ],
    "wet": "/tryit/tabula/ab_split.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "Una macro que sube a la vez la saturación y el eco"
    ],
    "wet": "/tryit/tabula/macro_sweep.mp3",
-   "level_db": -0.4,
+   "level_db": null,
    "pic": null
   }
  ]

@@ -29,7 +29,7 @@
     "El audio del bombo como clave, 12 dB"
    ],
    "wet": "/tryit/cedo/kick_duck.mp3",
-   "level_db": -1.2,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "La forma en cada negra, sin clave de audio"
    ],
    "wet": "/tryit/cedo/tempo_pump.mp3",
-   "level_db": -0.7,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "El bombeo en corcheas, 50 % de swing"
    ],
    "wet": "/tryit/cedo/swung.mp3",
-   "level_db": -0.6,
+   "level_db": null,
    "pic": null
   }
  ]

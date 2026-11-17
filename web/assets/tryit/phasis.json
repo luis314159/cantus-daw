@@ -29,7 +29,7 @@
     "El vibe de lámpara a media mezcla"
    ],
    "wet": "/tryit/phasis/lamp_chorus.mp3",
-   "level_db": 0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "El vibe de lámpara sin señal seca"
    ],
    "wet": "/tryit/phasis/lamp_vibrato.mp3",
-   "level_db": -0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "El vibe de lámpara barrido despacio"
    ],
    "wet": "/tryit/phasis/slow_lamp.mp3",
-   "level_db": 0.3,
+   "level_db": null,
    "pic": null
   }
  ]

@@ -29,7 +29,7 @@
     "Una octava arriba, mezclada (poli)"
    ],
    "wet": "/tryit/saltus/twelve_string.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "Una octava abajo bajo los acordes"
    ],
    "wet": "/tryit/saltus/octave_down.mp3",
-   "level_db": -0.3,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "Una quinta sobre cada acorde"
    ],
    "wet": "/tryit/saltus/fifth_up.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -71,7 +71,7 @@
     "El whammy mecido sobre los acordes"
    ],
    "wet": "/tryit/saltus/whammy_chords.mp3",
-   "level_db": 0.0,
+   "level_db": null,
    "pic": null
   }
  ]

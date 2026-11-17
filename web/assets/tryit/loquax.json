@@ -29,7 +29,7 @@
     "La voz hablando a través del sintetizador"
    ],
    "wet": "/tryit/loquax/robot.mp3",
-   "level_db": -0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "32 bandas, las consonantes pasan"
    ],
    "wet": "/tryit/loquax/clear.mp3",
-   "level_db": -0.1,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "40 bandas, siete voces una octava arriba"
    ],
    "wet": "/tryit/loquax/choir.mp3",
-   "level_db": 0.1,
+   "level_db": null,
    "pic": null
   }
  ]

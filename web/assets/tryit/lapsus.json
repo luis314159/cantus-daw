@@ -29,7 +29,7 @@
     "Una parada de cinta de una negra"
    ],
    "wet": "/tryit/lapsus/tape_stop.mp3",
-   "level_db": 0.2,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "La guitarra a media velocidad, a tiempo"
    ],
    "wet": "/tryit/lapsus/half_time.mp3",
-   "level_db": -0.4,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "Repeticiones cada vez más rápidas"
    ],
    "wet": "/tryit/lapsus/stutter_roll.mp3",
-   "level_db": 0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -71,7 +71,7 @@
     "La mitad de cada compás al revés"
    ],
    "wet": "/tryit/lapsus/reverse.mp3",
-   "level_db": -0.1,
+   "level_db": null,
    "pic": null
   }
  ]

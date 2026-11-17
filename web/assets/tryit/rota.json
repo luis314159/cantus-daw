@@ -29,7 +29,7 @@
     "La bocina y el tambor girando lento"
    ],
    "wet": "/tryit/rota/slow.mp3",
-   "level_db": -0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -43,7 +43,7 @@
     "Los dos rotores a toda velocidad"
    ],
    "wet": "/tryit/rota/fast.mp3",
-   "level_db": -0.0,
+   "level_db": null,
    "pic": null
   },
   {
@@ -57,7 +57,7 @@
     "El cambio accionado: cada rotor acelera a su ritmo"
    ],
    "wet": "/tryit/rota/switching.mp3",
-   "level_db": -0.1,
+   "level_db": null,
    "pic": null
   }
  ]
