@@ -166,6 +166,32 @@ pub fn effect_entry(kind: EffectKind) -> Value {
     let presets: Vec<Value> = crate::views::fx::factory_presets(kind)
         .iter()
         .map(|(label, values)| {
+            // fxa:fractus — a Fractus preset paints its lanes too: its values, and its lanes
+            // as `set_effect`'s `lanes` takes them.
+            if kind == EffectKind::Glitch {
+                let own: Vec<(&str, f32)> = values
+                    .iter()
+                    .filter(|(k, _)| kind.param(k).is_some())
+                    .copied()
+                    .collect();
+                let map: std::collections::BTreeMap<String, f32> =
+                    values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+                let mut lanes = serde_json::Map::new();
+                if let Some(p) = cantus_core::fx::fractus::pattern_of_flat(&map) {
+                    for (l, blocks) in &p.lanes {
+                        let name = cantus_core::fx::fractus::LANE_KEYS[usize::from(*l)];
+                        let list: Vec<Value> = blocks
+                            .iter()
+                            .map(|b| {
+                                json!({"at": b.at, "len": b.len, "amount": b.amount,
+                                    "chance": b.prob})
+                            })
+                            .collect();
+                        lanes.insert(name.to_string(), Value::Array(list));
+                    }
+                }
+                return json!({"name": en(label), "sets": sets(&own), "lanes": lanes});
+            }
             if kind != EffectKind::Board {
                 return json!({"name": en(label), "sets": sets(values)});
             }
