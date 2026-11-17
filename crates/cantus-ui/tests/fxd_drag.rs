@@ -466,7 +466,7 @@ fn the_dials_turn_a_b_c_one_step_a_drag() {
 fn a_preset_chosen_from_the_header_is_one_step_and_named() {
     let (mut r, id) = rig(ModKind::Formula);
     open(&mut r, id);
-    let header = r.app.fx.fxd.header.clone().expect("the header is drawn");
+    let header = r.app.fx.fxd.header.expect("the header is drawn");
     let steps = undo_steps(&r);
     // The well's next arrow: the kind's first preset (the settings match none yet).
     r.click(header.preset_next.expect("the well's arrows").center());
@@ -590,9 +590,9 @@ fn a_formula_longer_than_the_line_keeps_the_caret_in_sight() {
     let shown = |r: &Rig| {
         r.texts
             .iter()
-            .filter(|p| d.contains(p.seen.center()) && p.text.len() > 8)
+            .rev()
+            .find(|p| d.contains(p.seen.center()) && p.text.len() > 8)
             .map(|p| p.text.clone())
-            .last()
             .expect("the line is painted")
     };
     let at_rest = shown(&r);
