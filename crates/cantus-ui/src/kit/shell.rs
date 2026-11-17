@@ -1059,6 +1059,9 @@ pub struct Output {
     pub window: Option<WindowRects>,
     /// Where the footer's chips were drawn, in their order (a chip's hover tip).
     pub chips: Vec<Rect>,
+    /// Where the header's parts were drawn (the preset well, the ⋯ and size keys): a
+    /// pop-up opens beside the part that opened it (GitHub issue #1).
+    pub parts: HeaderRects,
 }
 
 /// The shell as a widget: `Shell::new(id).show(ui, &header, &footer, |ui, style, body| …)`.
@@ -1326,6 +1329,7 @@ impl Shell {
             pending_scale,
             window: r.window,
             chips,
+            parts: r,
         }
     }
 }

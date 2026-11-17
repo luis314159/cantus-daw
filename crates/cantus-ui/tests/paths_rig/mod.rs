@@ -53,6 +53,8 @@ pub struct Painted {
     pub text: String,
     pub rect: Rect,
     pub seen: Rect,
+    /// The clip it was painted in (a scroll area's, a panel's).
+    pub clip: Rect,
     /// Cut short by its room (the galley says so).
     pub elided: bool,
 }
@@ -71,6 +73,35 @@ pub struct Rig {
     shapes: Vec<egui::epaint::ClippedShape>,
     /// The window's size in points: [`SIZE`], unless a test makes it shorter or wider.
     pub size: Vec2,
+    /// A real screen (GitHub issue #1): the window and the monitor in physical pixels and
+    /// the system's scale, fed as egui-winit feeds them — every size in points is the
+    /// pixels divided by the zoom in effect before the pass times the system's scale. None:
+    /// [`Rig::size`] in points at the system's 100 %.
+    pub screen: Option<Physical>,
+    /// A colour painted over the whole window on the last layer beneath the popups (every
+    /// panel, window and editor under it): a popup that lets it show through is not opaque.
+    pub probe: Option<egui::Color32>,
+}
+
+/// A window on a real screen, in physical pixels (what winit reports).
+#[derive(Copy, Clone, Debug)]
+pub struct Physical {
+    pub window: Vec2,
+    pub monitor: Vec2,
+    /// The system's scale (Windows' 200 % is 2.0).
+    pub native: f32,
+}
+
+impl Physical {
+    /// A maximised window on a `monitor` at the system's scale `native`: the work area
+    /// (the taskbar's 48 points off its foot).
+    pub fn maximised(monitor: Vec2, native: f32) -> Physical {
+        Physical {
+            window: Vec2::new(monitor.x, monitor.y - 48.0 * native),
+            monitor,
+            native,
+        }
+    }
 }
 
 /// A data folder of the test binary's own (anything that reads `CANTUS_DATA_DIR`), with a
@@ -108,8 +139,23 @@ impl Rig {
         r
     }
 
+    /// [`Rig::new`] over the real engine, driven by hand: the processor renders what the
+    /// app sends it (`EngineHandle::manual`).
+    pub fn with_engine(project: Project) -> (Rig, cantus_engine::Processor) {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+        let (engine, proc) = EngineHandle::manual(48_000.0);
+        let mut r = Rig::assembled(&dir, Some(project), engine);
+        r._tmp = Some(tmp);
+        (r, proc)
+    }
+
     /// The app assembled over `dir` (a second session over the first one's folder).
     pub fn in_dir(dir: &Path, project: Option<Project>) -> Rig {
+        Rig::assembled(dir, project, EngineHandle::dummy())
+    }
+
+    fn assembled(dir: &Path, project: Option<Project>, engine: EngineHandle) -> Rig {
         let _ = data();
         configure(dir);
         cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
@@ -117,16 +163,7 @@ impl Rig {
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
-        let app = CantusApp::assemble(
-            &ctx,
-            files,
-            project,
-            EngineHandle::dummy(),
-            None,
-            None,
-            None,
-            false,
-        );
+        let app = CantusApp::assemble(&ctx, files, project, engine, None, None, None, false);
         let mut r = Rig {
             app,
             ctx,
@@ -140,6 +177,8 @@ impl Rig {
             tex: Default::default(),
             shapes: Vec::new(),
             size: SIZE,
+            screen: None,
+            probe: None,
         };
         r.idle(4);
         r
@@ -153,15 +192,39 @@ impl Rig {
             Event::PointerMoved(self.pointer),
         ];
         ev.extend(events);
-        let input = egui::RawInput {
+        let mut input = egui::RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
             time: Some(self.t),
             predicted_dt: 1.0 / 60.0,
             events: ev,
             ..Default::default()
         };
+        if let Some(s) = self.screen {
+            // egui-winit's `take_egui_input` and `update_viewport_info`: points from the
+            // zoom in effect before the pass.
+            let ppp = self.ctx.zoom_factor() * s.native;
+            self.size = s.window / ppp;
+            input.screen_rect = Some(Rect::from_min_size(Pos2::ZERO, self.size));
+            let vp = input.viewports.entry(egui::ViewportId::ROOT).or_default();
+            vp.native_pixels_per_point = Some(s.native);
+            vp.monitor_size = Some(s.monitor / ppp);
+            vp.inner_rect = Some(Rect::from_min_size(Pos2::ZERO, self.size));
+            vp.outer_rect = Some(Rect::from_min_size(Pos2::ZERO, self.size));
+            vp.maximized = Some(true);
+            vp.focused = Some(true);
+        }
         let app = &mut self.app;
-        let mut out = self.ctx.run_ui(input, |ui| app.frame(ui));
+        let probe = self.probe;
+        let mut out = self.ctx.run_ui(input, |ui| {
+            app.frame(ui);
+            if let Some(c) = probe {
+                // Not an area: egui draws it after every area of the middle order, before
+                // the foreground's.
+                let layer = egui::LayerId::new(egui::Order::Middle, egui::Id::new("rig-probe"));
+                let screen = ui.ctx().content_rect();
+                ui.ctx().layer_painter(layer).rect_filled(screen, 0.0, c);
+            }
+        });
         self.tex.update(&out.textures_delta);
         out.textures_delta.clear();
         self.texts.clear();
@@ -190,12 +253,24 @@ impl Rig {
         }
     }
 
+    /// The last frame's pixels, at the scale it was drawn at.
+    pub fn canvas(&self) -> cantus_ui::raster::Canvas {
+        let ppp = self.ctx.pixels_per_point();
+        let prims = self.ctx.tessellate(self.shapes.clone(), ppp);
+        let bg = self.ctx.global_style().visuals.panel_fill;
+        let mut c = cantus_ui::raster::Canvas::new(
+            (self.size.x * ppp).round() as usize,
+            (self.size.y * ppp).round() as usize,
+            bg,
+        );
+        c.paint(&prims, &self.tex, ppp);
+        c
+    }
+
     /// The last frame as a PNG at `path` (for looking at what a path shows).
     pub fn shoot(&self, path: &Path) {
-        let prims = self.ctx.tessellate(self.shapes.clone(), 1.0);
-        let bg = self.ctx.global_style().visuals.panel_fill;
-        let mut c = cantus_ui::raster::Canvas::new(self.size.x as usize, self.size.y as usize, bg);
-        c.paint(&prims, &self.tex, 1.0);
+        // At the scale it was drawn at: a real screen's pixels.
+        let c = self.canvas();
         let _ = c.write_png(path);
     }
 
@@ -516,6 +591,7 @@ fn walk(shape: &egui::Shape, clip: Rect, out: &mut Vec<Painted>) {
                 text: t.galley.text().to_string(),
                 rect,
                 seen: rect.intersect(clip),
+                clip,
                 elided: t.galley.elided,
             });
         }

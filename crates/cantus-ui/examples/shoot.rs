@@ -19,6 +19,8 @@ mod auto_scene;
 mod automodes_scene;
 #[path = "shoot_hosted_view/scene.rs"]
 mod hosted_view_scene;
+#[path = "shoot_issue1/scene.rs"]
+mod issue1_scene;
 #[path = "shoot_samples/scene.rs"]
 mod samples_scene;
 use cantus_ui::raster::shoot;
@@ -72,6 +74,14 @@ fn main() {
 
     // `shoot <dir> [scale] [kind…]`: the kinds named, or every editor and the mixer.
     let kinds: Vec<String> = args.collect();
+    // `issue1-menus`: the desk's submenus and an instrument's preset list on a 2 880 × 1 800
+    // screen, `scale` the system's (GitHub issue #1's follow-up, ADR 0149 amendment 1).
+    if kinds.iter().any(|k| k == "issue1-menus") {
+        issue1_scene::shots(&dir, scale);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
     // `audio`: the arrangement with audio clips, and the inspector on one (round 19).
     if kinds.iter().any(|k| k == "audio") {
         audio_scene::shots(&dir, scale);

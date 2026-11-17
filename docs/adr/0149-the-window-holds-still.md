@@ -113,3 +113,60 @@ the remaining 11 settled.
   reaches `NativeOptions` (vsync through `glow_options`, multisampling, the viewport's
   decorations, size, maximise, transparency) or the boot's command list, and the boot and
   `run` go through those tested functions.
+
+## Amendment 1 — menus at a high scale (the same issue's follow-up, 2026-11-17)
+
+The reporter wrote again (beta.14 portable, 2 880 × 1 800 at Windows' 200 %): *"the
+instrument preset selection menus are opening up transparent and far away from where they
+should be … in the right-click context menu on the mixer channels, some of the sub-menus are
+popping up way higher than they're supposed to … everything opens in the right spot when I
+switch scaling back to 100 %. That change doesn't fix the issue with the instrument preset
+menus."* Two bugs, neither a points/pixels mix-up — egui works in points throughout, and
+the scale only made the window 852 points tall instead of 1 752:
+
+- **The desk's submenus** (`views/mixer_menu.rs`, and `views/route_menu.rs` the same way)
+  were one egui `Area` for every submenu of a menu. An area remembers its size; the scroll
+  area inside took that size as its room, so a submenu opened after a shorter one (the
+  colour swatches, *Dock*) was squeezed into a 64-pt scroll — egui's least — while it was
+  **placed by its whole height** (`at.y.min(bottom − 8 − h)`). In a 1 752-pt window that
+  lift mattered only near the foot; in an 852-pt window it threw most submenus hundreds of
+  points above their rows (*Add effect* at 200 %: its row at y 508, its submenu at 186).
+  The emulation measured it at 100 % too (*Send to*: row 1 409, submenu 1 254).
+- **An instrument's pop-ups** (`views/inst/frame.rs`: the preset list, the ⋯ menu, the
+  sizes) opened at a fixed place, `rect.right() − 260 × k` under the header — the window's
+  right edge, wherever the preset well was (it is centred) — and in a bare `Area`.
+  `widgets::menu_list` decided "in a popup, the popup's frame is the sheet" from the layer
+  alone (round 39), so on a bare foreground area its rows were painted on nothing: in
+  Slate and its siblings (the default) the list was **transparent**, at every scale. The
+  same held for every other bare-area list: the audio popover's lists, the settings' lists,
+  the dock tab's menu, the mastering assistant's list, the route menu.
+
+**Decision.**
+
+6. **A menu's scroll is as tall as its list** (at most the window's room), never the room
+   its area offers: the desk's lists, the route menu's and the modulators' list set
+   `max_height` and `min_scrolled_height` to it (as `kit::menu::fit` already did for egui's
+   sizing pass), and **each submenu is an area of its own** (named by its row, or by its
+   kind), so none inherits another's size or scroll; the placement counts the sheet's edge.
+7. **A list opens at the control that opened it**: `kit::menu::place` (the rule
+   `fx::frame::popup_list` had: under it, above it, raised over it, or scrolling) is the
+   kit's, used by the effects' pop-ups and the instruments'. `shell::Output::parts` gives
+   the header's parts where the shell drew them; an instrument's preset list opens under
+   its preset well from its left edge, the ⋯ menu and the sizes end at their keys' right
+   edges, a band's mix field (Chorda's, Tympanum's) opens the list under itself
+   (`InstEditors::popup_from`). The list sits on the kit's popup sheet
+   (`kit::automate::frame`) and scrolls when the window is shorter.
+8. **A menu list paints its own sheet unless it lies on one**: `widgets::sheeted` asks
+   egui's `UiStack` whether the frames up to the area fill it opaquely (an egui popup's
+   menu frame, the kit's sheet), not only which layer it is on.
+
+**What the tests hold.** `tests/menus_at_scale.rs`, through `CantusApp::assemble`, fed as
+egui-winit feeds a 2 880 × 1 800 screen (`paths_rig::Physical`) at the system's 100, 125,
+150 and 200 %, with the zoom the screen-following scale picks at 200 % (0.9) and a user's
+1.25 on top: a strip's right-click menu with each of its seven submenus hovered (scrolled
+to where the window is short) — each beside the menu, level with its row, raised no
+further than the window's foot asks, inside the window, no row hidden behind a scroll; an
+instrument's preset list, ⋯ menu and sizes — each at its control, inside the window, and
+opaque: a colour painted over everything beneath the pop-ups shows through none of their
+points. Both failed on beta.14's code at every scale (see the round's notes for the
+numbers) and pass. What only a real 200 % screen confirms is in `docs/beta-checklist.md`.

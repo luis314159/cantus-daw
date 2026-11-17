@@ -1153,6 +1153,8 @@ fn list(
     let screen = ctx.content_rect();
     let max_h = (screen.height() - 16.0).max(120.0);
     let h = kmenu::height(&items, s.d(1.0)).min(max_h);
+    let sheet = crate::kit::automate::frame();
+    let edge = sheet.total_margin().sum();
     // A submenu that would run off the right goes to its parent's left, never over it
     // (round 25: over it, a click meant for the parent's row picked the submenu's).
     let x = match parent {
@@ -1161,7 +1163,8 @@ fn list(
     };
     let at = pos2(
         x,
-        at.y.min(screen.bottom() - 8.0 - h).max(screen.top() + 8.0),
+        at.y.min(screen.bottom() - 8.0 - h - edge.y)
+            .max(screen.top() + 8.0),
     );
     let mut out = Shown {
         rect: Rect::NOTHING,
@@ -1176,8 +1179,14 @@ fn list(
     // The menu's sheet: in a popup a list paints its rows only (round 39, `des-controls`),
     // and a bare area has no frame of its own to be the sheet. The area holds the sheet's
     // edge too, or the rows would sit a pixel short and show a scroll bar.
-    let sheet = crate::kit::automate::frame();
-    let edge = sheet.total_margin().sum();
+    //
+    // GitHub issue #1 (beta.14 at Windows' 200 %): the scroll area's height is the list's
+    // own — at most the window's — never the room the area offers. Every submenu shared
+    // one area, which remembers the size it had: a submenu opened after a shorter one was
+    // squeezed into a 64-pt scroll (egui's least) while it was placed by its whole height,
+    // so near the window's foot it rose far above its row; in a window 852 pt tall that
+    // was most of them. Each submenu is an area of its own too (`show` names it), so none
+    // inherits another's size or scroll.
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
@@ -1186,7 +1195,8 @@ fn list(
         .show(ctx, |ui| {
             sheet.show(ui, |ui| {
                 egui::ScrollArea::vertical()
-                    .max_height(max_h)
+                    .max_height(h)
+                    .min_scrolled_height(h)
                     .show(ui, |ui| {
                         let (resp, clicks) = crate::kit::widgets::menu_list(ui, &items, width);
                         out.clicked = clicks.clicked;
@@ -1326,8 +1336,9 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
         }
     }
     let mut sub_rect = Rect::NOTHING;
-    if let Some((sub, sat, _)) = v.popups.sub {
-        let sid = base.with("sub");
+    if let Some((sub, sat, row)) = v.popups.sub {
+        // One area per submenu (GitHub issue #1): see `list`.
+        let sid = base.with(("sub", row));
         match sub {
             Sub::Colors(of) => {
                 let (r, a) = swatches(v, app, &ctx, sid, sat, of, &s);

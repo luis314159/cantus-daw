@@ -61,7 +61,7 @@ enum Kind {
 }
 
 /// A submenu, opened from a row with a chevron (one level, as the desk's menus).
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 enum Sub {
     /// A send's level: the usual steps, the current one checked.
     Level(StripId, StripId),
@@ -957,6 +957,9 @@ fn list(
         hovered: None,
     };
     // Its size given, not egui's default area size (400 points tall): see `mixer_menu`.
+    // Its scroll as tall as the list (at most the window), never the room a remembered
+    // area offers (GitHub issue #1: a submenu after a shorter one was squeezed to 64 pt
+    // and placed by its whole height, far above its row).
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
@@ -964,7 +967,8 @@ fn list(
         .constrain(true)
         .show(ctx, |ui| {
             egui::ScrollArea::vertical()
-                .max_height(max_h)
+                .max_height(h)
+                .min_scrolled_height(h)
                 .show(ui, |ui| {
                     let (resp, clicks) = crate::kit::widgets::menu_list(ui, &items, width);
                     out.clicked = clicks.clicked;
@@ -1033,9 +1037,10 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, owner: Id) {
     let mut sub_rect = Rect::NOTHING;
     if let Some((sub, at)) = open.sub {
         let sub_rows = sub_rows(app, sub);
+        // One area per submenu (GitHub issue #1): see `list`.
         let shown = list(
             &ctx,
-            base.with("sub"),
+            base.with(("sub", sub)),
             at,
             Some(top.rect),
             &sub_rows,

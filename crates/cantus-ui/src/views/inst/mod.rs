@@ -115,6 +115,11 @@ pub struct InstEditors {
     /// The pass the pop-up opened on: the click that opened it is not a click elsewhere
     /// (round 37: a click on the preset well opened the list and closed it in one pass).
     pub popup_pass: u64, // r37:library
+    /// The control that opened the pop-up (the preset well, the ⋯ or size key, a band's
+    /// mix field): the list opens beside it, never at a fixed place in the window (GitHub
+    /// issue #1: the preset list opened at the window's right edge). `None`: under the
+    /// header's preset well.
+    pub popup_from: Option<egui::Rect>,
     /// The factory or user preset each track's instrument was last set from.
     pub preset: HashMap<TrackId, String>,
     pub wavetable: wavetable::State,

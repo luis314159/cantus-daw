@@ -587,6 +587,34 @@ Antes de cada paso borra `settings.json` de la carpeta de datos de una copia por
       `docs/troubleshooting-graphics.md` lo detiene. Solo él puede confirmar su Radeon 800M,
       su 25H2 y su panel (probablemente 2880 × 1800, que alternaba en *todas* las escalas).
 
+### Issue #1 (2) — menús a 200 %: submenús del mezclador y presets de instrumento (ADR 0149, enmienda 1) <!-- fix/flicker -->
+
+El usuario volvió a escribir: a 2880 × 1800 con la escala de Windows al **200 %**, los
+submenús del menú contextual de una pista del mezclador se abrían "muy arriba", y la lista
+de presets de un instrumento se abría **transparente y lejos** de su botón (también al
+100 %). Corregido y probado solo en **emulación** (`tests/menus_at_scale.rs` alimenta los
+fotogramas como egui-winit a 100, 125, 150 y 200 %); esto es lo que solo una pantalla real
+confirma. Si tu portátil no llega a 200 % con 1920 × 1080, usa *Configuración ▸ Sistema ▸
+Pantalla ▸ Escala* → *Escala personalizada* 200 (cierra sesión), o un monitor 4K al 200 %.
+
+- [ ] **Submenús del mezclador a 200 %**: abre el mezclador, clic derecho sobre el número o
+      el nombre de una pista. Pasa el ratón por *Color*, *Añadir efecto*, y baja con la
+      rueda hasta *Salida*, *Enviar a*, *Ducking*, *Dock* y *Grupo*: cada submenú se abre
+      **al lado** de su fila (a la derecha del menú, o a la izquierda si no cabe), a su
+      altura — sube solo lo justo para no salirse por abajo —, entero (sin barra de
+      desplazamiento si cabe en la ventana), y nunca muy por encima de la fila.
+- [ ] **Lo mismo en *Adónde va…* (Mayús+F10)** y su submenú *Nuevo retorno ▸*.
+- [ ] **Presets de un instrumento, a 100 % y 200 %**: abre el editor de un instrumento
+      (Unda, Chorda, Tympanum…), clic en el pozo del preset (el nombre en el centro de la
+      cabecera): la lista se abre **justo debajo** del pozo, empezando en su borde
+      izquierdo, **opaca** (no se ve el editor a través), y con rueda si es más larga que
+      la ventana. El menú ⋯ y el de tamaños terminan en el borde derecho de su botón. En
+      Chorda y Tympanum, el campo *Mezcla* de su mezclador abre la lista bajo él.
+- [ ] **Otros temas**: repite el paso anterior con un tema que no sea de la familia Slate
+      (p. ej. *Classic*) y con un tema claro: la lista sigue opaca y en su sitio.
+- [ ] **Si el usuario del issue contesta**: con la versión corregida y su pantalla, ¿se abren
+      en su sitio? Si no, una captura de pantalla con el menú abierto y su escala.
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):
