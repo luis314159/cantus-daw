@@ -184,7 +184,10 @@ fn a_fork_carries_on_from_where_the_unit_is() {
 #[test]
 fn as_a_pedal_it_compresses_its_own_input_and_hears_the_board_s_key() {
     use cantus_core::fx::tabula::{pedal_allowed, Board, Pedal, PedalId};
-    assert!(pedal_allowed(EffectKind::BusCompressor), "Vinculum may be a pedal");
+    assert!(
+        pedal_allowed(EffectKind::BusCompressor),
+        "Vinculum may be a pedal"
+    );
     let kv = [
         ("thr", -30.0),
         ("ratio", 2.0),
@@ -227,12 +230,27 @@ fn as_a_pedal_it_compresses_its_own_input_and_hears_the_board_s_key() {
     let spec = strip_of(&mut alone, 0).effects[0].spec.clone();
     // The same Vinculum as the board's one pedal.
     let p = board_of(spec.clone(), None);
-    assert_null(&own, &render_of(&p), 0.0, "the board = the insert on its own input");
+    assert_null(
+        &own,
+        &render_of(&p),
+        0.0,
+        "the board = the insert on its own input",
+    );
     let p = board_of(spec, Some(bass));
     let keyed = render_of(&p);
-    assert_null(&keyed_alone, &keyed, 0.0, "the board keyed = the insert keyed");
+    assert_null(
+        &keyed_alone,
+        &keyed,
+        0.0,
+        "the board keyed = the insert keyed",
+    );
     let live = realtime(&p, keyed.len() / 2);
-    assert_null(&keyed[..live.len()], &live, 0.0, "the board: live = offline");
+    assert_null(
+        &keyed[..live.len()],
+        &live,
+        0.0,
+        "the board: live = offline",
+    );
     assert!(
         differs(&own, &keyed) > 1e-3,
         "the key changes what the pedal does"

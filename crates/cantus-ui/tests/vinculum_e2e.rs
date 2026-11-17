@@ -113,7 +113,12 @@ fn vinculum_presses_a_bus_is_keyed_by_another_strip_and_undoes_on_the_boot_path(
     let tune = line(
         &mut p,
         "Line",
-        &[(69, 0, 2, 100), (72, 2, 2, 100), (76, 4, 2, 100), (74, 6, 2, 100)],
+        &[
+            (69, 0, 2, 100),
+            (72, 2, 2, 100),
+            (76, 4, 2, 100),
+            (74, 6, 2, 100),
+        ],
     );
     p.tracks.push(tune);
     // The key: a loud bass from beat 2 to 6 (one to three seconds).
@@ -128,7 +133,10 @@ fn vinculum_presses_a_bus_is_keyed_by_another_strip_and_undoes_on_the_boot_path(
         p.strips.push(s);
         for t in 0..2 {
             let sid = p.tracks[t].strip.expect("a strip");
-            p.strips.iter_mut().find(|s| s.id == sid).unwrap().output = Some(id);
+            let s = p.strips.iter_mut().find(|s| s.id == sid).unwrap();
+            s.output = Some(id);
+            // The band well under the bass, so the bass can key what the band cannot.
+            s.gain_db = -18.0;
         }
         app.replace_project(p);
         id
@@ -174,16 +182,9 @@ fn vinculum_presses_a_bus_is_keyed_by_another_strip_and_undoes_on_the_boot_path(
     };
     let band_of = |app: &mut CantusApp| minus(&rendered(app), &bass_alone);
 
-    // The reduction heard on the bus: Glue as inserted brings the peaks closer to the body
-    // (its make-up and output level the loudness back); with the threshold 20 dB under the
-    // band's peak at 10:1 and no make-up, the bus comes out far quieter.
+    // The reduction heard on the bus: with the threshold 20 dB under the band's peak at 10:1
+    // and no make-up, the bus comes out far quieter.
     let glue = band_of(&mut app);
-    let crest = |x: &[f32]| f64::from(peak_db(x)) - db(power(x, 0.0, 4.0));
-    eprintln!(
-        "Glue: crest {:.2} dB against {:.2} dry",
-        crest(&glue),
-        crest(&band_dry)
-    );
     assert!(glue != band_dry, "Glue sounds on the bus");
     set(&mut app, "makeup", 0.0);
     set(&mut app, "out", 0.0);
@@ -240,6 +241,9 @@ fn vinculum_presses_a_bus_is_keyed_by_another_strip_and_undoes_on_the_boot_path(
     // An external key from another strip: the threshold 6 dB over the band's peak, so on its
     // own key the band passes untouched (a gain of exactly one is skipped); the bass routed
     // as the slot's key presses it while the bass plays (1 … 3 s) and not before.
+    // The fastest attack and a 1.2 s release, so the key's notes hold the reduction.
+    set(&mut app, "att", 0.0);
+    set(&mut app, "rel", 3.0);
     set(&mut app, "thr", band_peak + 6.0);
     let own = band_of(&mut app);
     assert_eq!(own, band_dry, "on its own key, over the band: untouched");
@@ -261,7 +265,10 @@ fn vinculum_presses_a_bus_is_keyed_by_another_strip_and_undoes_on_the_boot_path(
     let under_key = db(power(&band_dry, 1.1, 2.9)) - db(power(&keyed, 1.1, 2.9));
     let before = db(power(&band_dry, 0.0, 0.95)) - db(power(&keyed, 0.0, 0.95));
     eprintln!("keyed by the bass: {under_key:.1} dB under it, {before:.2} dB before it");
-    assert!(under_key > 3.0, "the key presses the band: {under_key:.1} dB");
+    assert!(
+        under_key > 3.0,
+        "the key presses the band: {under_key:.1} dB"
+    );
     assert!(before.abs() < 0.01, "before the key plays: {before:.2} dB");
 
     // The high-pass changes the key: at 500 Hz the bass's low end leaves the key, and the
