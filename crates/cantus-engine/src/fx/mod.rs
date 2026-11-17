@@ -44,6 +44,11 @@ pub mod caelum; // fxa:contract
 pub mod fractus; // fxa:contract
 pub mod loquax; // fxa:contract
 
+// fxc:contract — the side round's wave C (provisional ADRs 0145–0146).
+pub mod comparatio; // fxc:contract
+pub mod comparatio_store; // fxc:comparatio
+pub mod purus; // fxc:contract
+
 use crate::effects::EffectUnit;
 use cantus_core::fx::tabula::PedalId;
 
@@ -666,6 +671,8 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::Vocoder => Box::new(loquax::Unit::new(sample_rate)), // fxa:contract
         EffectKind::Glitch => Box::new(fractus::Unit::new(sample_rate)), // fxa:contract
         EffectKind::Shimmer => Box::new(caelum::Unit::new(sample_rate)), // fxa:contract
+        EffectKind::Repair => Box::new(purus::Unit::new(sample_rate)), // fxc:contract
+        EffectKind::Reference => Box::new(comparatio::Unit::new(sample_rate)), // fxc:contract
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })

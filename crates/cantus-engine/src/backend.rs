@@ -852,6 +852,19 @@ impl EngineHandle {
         }
         // Audio clips' sources, at the device's rate (ADR 0025 §9).
         let rate = self.sample_rate.round() as u32;
+        // fxc:comparatio — Comparatio's references, read off the audio thread; a render
+        // hears the mix, never a reference (ADR 0146).
+        let background = self.samples.background();
+        let samples = &self.samples;
+        for (path, err) in crate::fx::comparatio_store::prepare(
+            &mut snapshot,
+            &|p| samples.resolve(p),
+            rate,
+            render,
+            background,
+        ) {
+            log::warn!("reference {}: {err}", path.display());
+        }
         for (path, err) in self.samples.attach_audio(&mut snapshot, rate) {
             log::warn!("audio {}: {err}", path.display());
         }
@@ -1357,8 +1370,11 @@ impl EngineHandle {
                     pedal,
                     need,
                 } => {
-                    let memory =
-                        crate::effects::EffectMemory::build(need.need(), self.sample_rate as f32);
+                    // fxc:comparatio — the live answer: a Comparatio's reference too.
+                    let memory = crate::effects::EffectMemory::build_live(
+                        need.need(),
+                        self.sample_rate as f32,
+                    );
                     self.send(EngineMessage::EffectMemory {
                         effect,
                         pedal,

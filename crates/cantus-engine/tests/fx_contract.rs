@@ -461,6 +461,10 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::Vocoder => (true, true),  // fxa:loquax — its voices released, its banks drained
         EffectKind::Glitch => (true, true), // fxa:fractus — the history, the capture and the echoes silent
         EffectKind::Shimmer => (true, true), // fxa:caelum — finite: the tank drained (infinite or frozen never rests)
+        // fxc:purus — drained: the de-reverb's frames silent, the de-hum's states under 1e-15;
+        // heavy estimates its room's decay, which it keeps (never as new: it does not rest).
+        EffectKind::Repair => (true, false),
+        EffectKind::Reference => (true, true), // fxc:comparatio — no reference here: the mix, its meters' steps closed
         _ => (false, false),
     }
 }
@@ -566,6 +570,8 @@ per_kind! {
     loquax => EffectKind::Vocoder, // fxa:contract
     fractus => EffectKind::Glitch, // fxa:contract
     caelum => EffectKind::Shimmer, // fxa:contract
+    purus => EffectKind::Repair, // fxc:contract
+    comparatio => EffectKind::Reference, // fxc:contract
 }
 
 // fx3:tabula — Tabula (ADR 0134): a board of one pedal is that unit inserted alone, to
@@ -631,6 +637,6 @@ fn a_board_of_one_is_the_unit() {
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists thirty-eight: a new kind must be added there. // fxa:contract
-    assert_eq!(EffectKind::ALL.len(), 38); // fxa:contract: wave A's three
+    // `per_kind!` lists forty: a new kind must be added there. // fxc:contract
+    assert_eq!(EffectKind::ALL.len(), 40); // fxc:contract: wave C's two after wave A's three
 }

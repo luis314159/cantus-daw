@@ -1644,7 +1644,9 @@ mod tests {
         assert_eq!(slots[1].spec.get("match"), 1.0);
         let old = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
-        assert!(p.all_effects().all(|(_, e)| !new_kinds.contains(&e.spec.kind)));
+        assert!(p
+            .all_effects()
+            .all(|(_, e)| !new_kinds.contains(&e.spec.kind)));
     }
 
     /// fx3:contract — a hand-edited board is repaired on load: a nested board and a second

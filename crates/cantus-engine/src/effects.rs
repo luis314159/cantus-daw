@@ -149,6 +149,8 @@ pub enum MemoryNeed {
     Arca(crate::fx::arca::ArcaNeed),
     /// Fractus's whole DSP, its buffers with it (ADR 0140, provisional). // fxa:fractus
     Fractus,
+    /// Comparatio's reference track, by its path's key (ADR 0146, provisional). // fxc:comparatio
+    Comparatio(crate::fx::comparatio::ComparatioNeed),
 }
 
 /// What travels in [`crate::messages::EngineEvent::EffectNeed`]: a [`MemoryNeed`] small
@@ -160,10 +162,11 @@ pub enum MemoryNeed {
 pub enum NeedTicket {
     EqLinear(cantus_dsp::aequalis::Resolution),
     Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
-    Lapsus(usize),                   // fx:lapsus
-    Tabula(usize),                   // fx3:contract
-    Arca(crate::fx::arca::ArcaNeed), // fx3:arca
-    Fractus,                         // fxa:fractus
+    Lapsus(usize),                                     // fx:lapsus
+    Tabula(usize),                                     // fx3:contract
+    Arca(crate::fx::arca::ArcaNeed),                   // fx3:arca
+    Fractus,                                           // fxa:fractus
+    Comparatio(crate::fx::comparatio::ComparatioNeed), // fxc:comparatio
 }
 
 impl NeedTicket {
@@ -176,6 +179,7 @@ impl NeedTicket {
             NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n), // fx3:contract
             NeedTicket::Arca(n) => MemoryNeed::Arca(*n),     // fx3:arca
             NeedTicket::Fractus => MemoryNeed::Fractus,      // fxa:fractus
+            NeedTicket::Comparatio(n) => MemoryNeed::Comparatio(*n), // fxc:comparatio
         }
     }
 }
@@ -195,6 +199,9 @@ pub enum EffectMemory {
     Arca(Box<crate::fx::arca::Memory>),
     /// Fractus's DSP. // fxa:fractus
     Fractus(Box<cantus_dsp::fractus::Fractus>),
+    /// Comparatio's reference, or none (not in the store: a render's compile took it away,
+    /// or it was let go). // fxc:comparatio
+    Comparatio(Option<std::sync::Arc<crate::fx::comparatio_store::RefTrack>>),
 }
 
 /// The mailbox a unit of `kind` asks with, when its requests are too large for the event.
@@ -203,6 +210,19 @@ fn mailbox_for(kind: EffectKind) -> Option<std::sync::Arc<crate::need_mailbox::N
 }
 
 impl EffectMemory {
+    /// [`Self::build`] for the live engine's own requests (`EngineHandle`'s poll): the one
+    /// place a Comparatio is handed its reference track (ADR 0146) — so no render, freeze,
+    /// stem or range render, which answer their units' needs with [`Self::build`], can ever
+    /// hear a reference. // fxc:comparatio
+    pub fn build_live(need: MemoryNeed, sample_rate: f32) -> Self {
+        match need {
+            MemoryNeed::Comparatio(n) => EffectMemory::Comparatio(
+                crate::fx::comparatio_store::get(n.key, sample_rate.round() as u32),
+            ),
+            other => Self::build(other, sample_rate),
+        }
+    }
+
     /// Build what `need` asks for. Allocates: for the UI thread or an offline render.
     pub fn build(need: MemoryNeed, sample_rate: f32) -> Self {
         match need {
@@ -222,6 +242,9 @@ impl EffectMemory {
                 EffectMemory::Arca(Box::new(crate::fx::arca::build(n, sample_rate)))
             } // fx3:arca
             MemoryNeed::Fractus => EffectMemory::Fractus(crate::fx::fractus::build(sample_rate)), // fxa:fractus
+            // fxc:comparatio — never here: a render (and every unit built with `new`) hears
+            // the mix. Only the live engine answers with the reference ([`Self::build_live`]).
+            MemoryNeed::Comparatio(_) => EffectMemory::Comparatio(None),
         }
     }
 }
@@ -307,7 +330,12 @@ impl EffectUnit {
             hint: None,
         };
         unit.configure(&slot.spec);
-        if let Some(need) = unit.memory_need() {
+        // fxc:comparatio — a reference is never built here: the live engine answers the
+        // unit's request (`build_live`), a render answers it with none.
+        if let Some(need) = unit
+            .memory_need()
+            .filter(|n| !matches!(n, MemoryNeed::Comparatio(_)))
+        {
             drop(unit.supply(EffectMemory::build(need, sample_rate)));
         }
         unit.reset();
@@ -347,6 +375,7 @@ impl EffectUnit {
             MemoryNeed::Tabula(n) => NeedTicket::Tabula(n), // fx3:contract
             MemoryNeed::Arca(n) => NeedTicket::Arca(n),     // fx3:arca
             MemoryNeed::Fractus => NeedTicket::Fractus,     // fxa:fractus
+            MemoryNeed::Comparatio(n) => NeedTicket::Comparatio(n), // fxc:comparatio
         };
         self.asked = need;
         Some(ticket)

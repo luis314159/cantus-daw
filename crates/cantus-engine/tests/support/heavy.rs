@@ -450,6 +450,38 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", 6.0),
             ],
         ), // fxa:caelum
+        // fxc:purus — all three modules: the gentle de-hum tracking sixteen harmonics, the
+        // de-click at its cap with the de-crackle, the de-reverb estimating its decay; every
+        // module's level moved (the latency is all three's, 87 ms at 48 kHz).
+        EffectKind::Repair => set(
+            &mut s,
+            &[
+                ("hon", 1.0),
+                ("hmode", 1.0),
+                ("hharm", 16.0),
+                ("hgentle", 1.0),
+                ("hout", -1.0),
+                ("con", 1.0),
+                ("csens", 0.7),
+                ("crackle", 0.5),
+                ("von", 1.0),
+                ("vamount", 18.0),
+                ("vdecay", 1.0),
+                ("vmix", 0.8),
+                ("out", 2.0),
+            ],
+        ), // fxc:purus
+        // fxc:comparatio — the reference asked for, matched short-term with an offset (no
+        // reference loaded here: the mix, to the bit).
+        EffectKind::Reference => set(
+            &mut s,
+            &[
+                ("listen", 1.0),
+                ("match", 1.0),
+                ("offset", -3.0),
+                ("sync", 1.0),
+            ],
+        ), // fxc:comparatio
     }
     s
 }
