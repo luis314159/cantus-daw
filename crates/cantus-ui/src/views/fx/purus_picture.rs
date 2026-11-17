@@ -4,10 +4,11 @@
 //! time, the clicks rebuilt, the decay — and the spectrogram's columns: what is heard in a
 //! warm heat, and what was taken out of each row in the residue's colour.
 //!
-//! The columns come from the slot's signal before and after the unit, cut into
-//! [`ROWS`] logarithmic rows from 20 Hz to 20 kHz: in the design sheet from the real unit
-//! run over a demo take ([`demo`]); live, the slot's scope (step 3 of the round, as
-//! Speculum's). The clicks' lane counts each column's repairs from the telemetry.
+//! The columns come from the slot's signal before and after the unit ([`Live`]: the
+//! engine's analyser tap, the input read as late as the unit's latency), cut into [`ROWS`]
+//! logarithmic rows from 20 Hz to 20 kHz — live from the playing slot, and in the design
+//! sheet from the real unit run over a demo take (`demo`) through the same path. The
+//! clicks' lane counts each column's repairs from the telemetry.
 
 use cantus_engine::fx::purus::t;
 use cantus_engine::fx::TELEMETRY_LEN;
@@ -215,4 +216,146 @@ pub fn heat_cell(db: f32) -> u8 {
 /// The dB taken out as a cell: 0 … 48 dB onto 0 … 255.
 pub fn removed_cell(db: f32) -> u8 {
     ((db / 48.0).clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+/// The live spectrogram: the slot's (input, output) pairs as the engine's analyser tap
+/// gives them (`FxHost::take_pairs`), cut into the screen's columns every [`HOP_S`] — the
+/// output heard, and what fell out of each row: the input **as it was [`Picture::latency`]
+/// samples earlier** (the output's own moment) less the output, where that is 6 dB or more.
+/// The design sheet's demo feeds the same pairs from the real unit, so the sheet draws what
+/// the app draws. Runs on the editor's thread; it allocates only in [`Live::new`].
+pub struct Live {
+    rate: f32,
+    /// The last [`RING`] input and output samples (mono), and where the next goes.
+    input: Vec<f32>,
+    output: Vec<f32>,
+    at: usize,
+    /// Samples since the last column, and samples ever written (to know a full window).
+    since: usize,
+    written: usize,
+    fft: cantus_dsp::aequalis::fft::Fft,
+    window: Vec<f32>,
+    re: Vec<f32>,
+    im: Vec<f32>,
+    cells_in: Vec<u8>,
+    cells_out: Vec<u8>,
+    pairs: Vec<(f32, f32)>,
+}
+
+/// The rings' length: a window and the longest latency (every module on at 192 kHz).
+const RING: usize = 1 << 16;
+use cantus_dsp::denoise::stft::{BINS as FFT_BINS, FLOOR_DB as FFT_FLOOR, N as FFT_N};
+
+impl std::fmt::Debug for Live {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "purus::Live({} Hz)", self.rate)
+    }
+}
+
+impl Live {
+    pub fn new(rate: f32) -> Live {
+        Live {
+            rate,
+            input: vec![0.0; RING],
+            output: vec![0.0; RING],
+            at: 0,
+            since: 0,
+            written: 0,
+            fft: cantus_dsp::aequalis::fft::Fft::new(FFT_N),
+            window: cantus_dsp::denoise::stft::sqrt_hann(FFT_N),
+            re: vec![0.0; FFT_N],
+            im: vec![0.0; FFT_N],
+            cells_in: vec![0; FFT_BINS],
+            cells_out: vec![0; FFT_BINS],
+            pairs: Vec::with_capacity(16_384),
+        }
+    }
+
+    pub fn rate(&self) -> f32 {
+        self.rate
+    }
+
+    /// Take what the host has of the slot's pairs and cut them into columns.
+    pub fn pull(&mut self, host: &mut dyn super::super::host::FxHost, pic: &mut Picture) {
+        let sr = host.sample_rate();
+        if (sr - self.rate).abs() > 0.5 && sr > 1_000.0 {
+            *self = Live::new(sr);
+        }
+        let mut pairs = std::mem::take(&mut self.pairs);
+        pairs.clear();
+        host.take_pairs(&mut pairs);
+        self.feed(&pairs, pic);
+        self.pairs = pairs;
+    }
+
+    /// Cut (input, output) pairs into columns, pushed into `pic` (its latency read now).
+    pub fn feed(&mut self, pairs: &[(f32, f32)], pic: &mut Picture) {
+        let hop = ((HOP_S * self.rate) as usize).max(64);
+        for &(x, y) in pairs {
+            self.input[self.at] = x;
+            self.output[self.at] = y;
+            self.at = (self.at + 1) & (RING - 1);
+            self.written = self.written.saturating_add(1);
+            self.since += 1;
+            if self.since >= hop {
+                self.since = 0;
+                let lat = (pic.latency.max(0.0) as usize).min(RING - FFT_N);
+                if self.written >= FFT_N + lat {
+                    let c = self.column(lat);
+                    pic.push(c);
+                }
+            }
+        }
+    }
+
+    /// A window's cells, ending `ago` samples before the newest, of `ring`.
+    fn cells(&mut self, which: bool, ago: usize) {
+        let ring = if which { &self.input } else { &self.output };
+        let end = self.at.wrapping_sub(ago) & (RING - 1);
+        let start = end.wrapping_sub(FFT_N) & (RING - 1);
+        for i in 0..FFT_N {
+            self.re[i] = ring[(start + i) & (RING - 1)] * self.window[i];
+            self.im[i] = 0.0;
+        }
+        self.fft.run(&mut self.re, &mut self.im, false);
+        // As the editor's spectrogram reads it: a full-scale sine at 0 dB.
+        let norm = 1.0 / (FFT_N as f32 * 0.5 * (2.0 / std::f32::consts::PI));
+        let out = if which {
+            &mut self.cells_in
+        } else {
+            &mut self.cells_out
+        };
+        for (b, o) in out.iter_mut().enumerate() {
+            let m = cantus_dsp::math::hypot(self.re[b], self.im[b]) * norm;
+            let db = if m > 1e-9 {
+                20.0 * cantus_dsp::math::log10(m)
+            } else {
+                FFT_FLOOR
+            };
+            *o = (((db - FFT_FLOOR) / -FFT_FLOOR).clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+        }
+    }
+
+    /// The column now: the output heard, and what fell out of the input of its moment.
+    fn column(&mut self, latency: usize) -> Column {
+        self.cells(false, 0);
+        self.cells(true, latency);
+        let mut i_db = [0.0f32; ROWS];
+        let mut o_db = [0.0f32; ROWS];
+        fold(&self.cells_in, FFT_BINS, self.rate, FFT_FLOOR, &mut i_db);
+        fold(&self.cells_out, FFT_BINS, self.rate, FFT_FLOOR, &mut o_db);
+        let mut c = Column::default();
+        for r in 0..ROWS {
+            c.heard[r] = heat_cell(o_db[r]);
+            // What fell out of the cell, where it is more than a flicker (6 dB).
+            let d = i_db[r] - o_db[r];
+            let gone = if i_db[r] > FFT_FLOOR + 12.0 && d >= 6.0 {
+                d
+            } else {
+                0.0
+            };
+            c.removed[r] = removed_cell(gone);
+        }
+        c
+    }
 }

@@ -60,6 +60,7 @@ impl Lang {
                 // (`pane_words`); their plug-ins are their own builders'.
                 include_str!("../../cantus-ui/locales/fx/fractus.en.txt"),
                 include_str!("../../cantus-ui/locales/fx/caelum.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/purus.en.txt"), // fxc:purus
                 include_str!("../../cantus-ui/locales/fx/delay.en.txt"), // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.en.txt"),
             ],
@@ -103,6 +104,7 @@ impl Lang {
                 // (`pane_words`); their plug-ins are their own builders'.
                 include_str!("../../cantus-ui/locales/fx/fractus.es.txt"),
                 include_str!("../../cantus-ui/locales/fx/caelum.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/purus.es.txt"), // fxc:purus
                 include_str!("../../cantus-ui/locales/fx/delay.es.txt"), // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.es.txt"),
             ],

@@ -35,7 +35,7 @@ pub mod screen;
 
 const KIND: EffectKind = EffectKind::Repair;
 
-/// Factory presets: data (`presets/effects/repair.toml`, ADR 0101).
+/// Factory presets: data (`presets/effects/repair.toml`, ADR 0101) — sixteen.
 pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// Rows of cards in a language (the window grows a row for each more; the screen keeps its
@@ -114,6 +114,10 @@ pub struct State {
     pub rows: usize,
     /// The bench's controls last frame (tests press them).
     pub bench: Option<Bench>,
+    /// Where the room's tail was drawn last frame (its drags read it; tests point at it).
+    pub tail: Option<screen::TailGeom>,
+    /// The live spectrogram's analysis (made at the first frame: its rings are large).
+    live: Option<Box<picture::Live>>,
 }
 
 /// The picture, boxed (it is large).
@@ -283,6 +287,11 @@ fn body_ui(
     st.display = Some(r1);
     let dt = ui.input(|i| i.stable_dt).min(0.1);
     st.pic.0.update(tel, dt);
+    // The live spectrogram: the slot's (input, output) pairs since the last frame.
+    let live = st
+        .live
+        .get_or_insert_with(|| Box::new(picture::Live::new(host.sample_rate())));
+    live.pull(host, &mut st.pic.0);
     display(host, st, ui, s, r1);
     for &(i, j) in &rows {
         let sum: f32 = widths[i..j].iter().sum::<f32>().max(1.0);
@@ -459,7 +468,18 @@ fn lit(spec: &EffectSpec, act: Act) -> bool {
     }
 }
 
-/// The bench in `r`, its controls answering the pointer.
+/// The learn range a key stands for: (rest, value) for a key that sets one value, `None`
+/// for a toggle.
+fn one_of(act: Act) -> Option<(&'static str, f32, f32)> {
+    match act {
+        Act::Toggle(_) => None,
+        Act::Set("hhz", v) => Some(("hhz", if v == 50.0 { 60.0 } else { 50.0 }, v)),
+        Act::Set(key, v) => Some((key, 1.0 - v, v)),
+    }
+}
+
+/// The bench in `r`, its controls answering the pointer: each key and toggle a click (its
+/// menu offers automation and MIDI learn), the comb's needles and the room's tail a drag.
 fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, r: Rect) {
     let k = s.k;
     let ctx = ui.ctx().clone();
@@ -469,7 +489,17 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
     for (i, sp) in bench.spots.iter().enumerate() {
         let id = ui.id().with(("purus-spot", i));
         let resp = ui.interact(sp.rect, id, Sense::click());
-        if resp.clicked() {
+        let key = match sp.act {
+            Act::Toggle(key) | Act::Set(key, _) => key,
+        };
+        let name = frame::tr(sp.name);
+        let learnt = match one_of(sp.act) {
+            Some((key, rest, value)) => {
+                controls::stepped_offer_one(ui, s, host, key, name, &resp, rest, value)
+            }
+            None => controls::stepped_offer(ui, s, host, key, name, &resp),
+        };
+        if resp.clicked() && !learnt {
             let v = match sp.act {
                 Act::Toggle(key) => {
                     if host.spec().get(key) >= 0.5 {
@@ -480,15 +510,16 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
                 }
                 Act::Set(_, v) => v,
             };
-            let key = match sp.act {
-                Act::Toggle(key) | Act::Set(key, _) => key,
-            };
             host.set(key, v, None);
         }
         if resp.hovered() {
             hot = Some(i);
-            hint::set_text(ui.ctx(), frame::tr(sp.name), frame::tr(sp.tip), Caps::NONE);
+            hint::set_text(ui.ctx(), name, frame::tr(sp.tip), Caps::NONE);
         }
+    }
+    drag_comb(host, st, ui, &bench.plot);
+    if let Some(g) = st.tail {
+        drag_tail(host, ui, g);
     }
     let spec = host.spec().clone();
     st.words.update(&spec, &st.pic.0);
@@ -506,6 +537,7 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
             click_on: spec.get("con") >= 0.5,
             verb_on: spec.get("von") >= 0.5,
             keep_ms: spec.get("vkeep"),
+            amount_db: spec.get("vamount"),
             delta: ["hdelta", "cdelta", "vdelta"]
                 .iter()
                 .any(|d| spec.get(d) >= 0.5),
@@ -516,11 +548,141 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
             clicks: &st.words.clicks,
             fork: &st.words.fork,
         };
-        screen::paint(b, s, &bench.plot, &st.pic.0, &shown, &w);
+        st.tail = Some(screen::paint(b, s, &bench.plot, &st.pic.0, &shown, &w));
         cartridges(b, s, &bench, &spec, &st.pic.0, &st.words, hot, t_now);
         foot(b, s, bench.foot, &st.words);
     });
     st.bench = Some(bench);
+}
+
+/// What a drag on the screen holds.
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum Grip {
+    /// The comb by its `n`th needle (1 the fundamental): the fundamental follows it.
+    Comb(usize),
+    /// The tail's mark where the early reflections end.
+    Keep,
+    /// The reduction's handle (anywhere on the tail).
+    Amount,
+}
+
+/// The comb's needles answer the pointer: a press on the rail by a needle takes the comb
+/// by it, and the fundamental follows so that needle sits under the pointer (40 … 70 Hz,
+/// to a tenth). One drag, one step of undo; the cards' pill keeps the fine value.
+fn drag_comb(host: &mut dyn FxHost, st: &State, ui: &mut egui::Ui, plot: &screen::Plot) {
+    let id = ui.id().with("purus-comb");
+    let resp = ui.interact(plot.rail, id, Sense::click_and_drag());
+    let on = host.spec().get("hon") >= 0.5;
+    let harmonics = host.spec().get("hharm").round().clamp(1.0, 16.0) as usize;
+    if (resp.drag_started() || resp.clicked()) && on {
+        let origin = ui.input(|i| i.pointer.press_origin());
+        if let Some(p) = origin.or(resp.interact_pointer_pos()) {
+            let tol = 10.0 * plot.spec.height() / 400.0;
+            let near = (1..=harmonics)
+                .map(|n| (n, (plot.y_of(st.pic.0.hum_hz * n as f32) - p.y).abs()))
+                .filter(|(_, d)| *d <= tol.max(6.0))
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(n, _)| Grip::Comb(n));
+            ui.data_mut(|d| d.insert_temp(id, near));
+        }
+    }
+    let held: Option<Grip> = ui.data(|d| d.get_temp(id)).flatten();
+    if let (Some(Grip::Comb(n)), Some(p)) = (held, resp.interact_pointer_pos()) {
+        if resp.dragged() {
+            let hz = ((plot.hz_at(p.y) / n as f32) * 10.0).round() / 10.0;
+            let hz = hz.clamp(40.0, 70.0);
+            if (host.spec().get("hhz") - hz).abs() > 1e-4 {
+                host.set("hhz", hz, Some("purus-comb"));
+            }
+        }
+    }
+    if resp.drag_stopped() || resp.clicked() {
+        if held.is_some() && resp.drag_stopped() {
+            host.end_gesture();
+        }
+        ui.data_mut(|d| d.insert_temp::<Option<Grip>>(id, None));
+    }
+    if resp.hovered() && on {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("fx.purus.hhz"),
+            frame::tr("purus.tip.comb"),
+            Caps::NONE,
+        );
+    }
+}
+
+/// The room's tail answers the pointer while the room module is on: a press by the mark
+/// where the early reflections end moves it (5 … 200 ms); anywhere else on the tail sets
+/// the reduction to the depth under the pointer (0 at the top, 30 dB half way down, by
+/// half decibels), its handle on the right edge following. One drag, one step of undo.
+fn drag_tail(host: &mut dyn FxHost, ui: &mut egui::Ui, g: screen::TailGeom) {
+    let id = ui.id().with("purus-tail");
+    let zone = Rect::from_min_max(g.plot.min, g.plot.max + vec2(14.0, 0.0));
+    let resp = ui.interact(zone, id, Sense::click_and_drag());
+    let on = host.spec().get("von") >= 0.5;
+    if (resp.drag_started() || resp.clicked()) && on {
+        let origin = ui.input(|i| i.pointer.press_origin());
+        if let Some(p) = origin.or(resp.interact_pointer_pos()) {
+            let keep_x = g.x_of(host.spec().get("vkeep") / 1000.0);
+            let grip = if (p.x - keep_x).abs() <= 7.0 && p.x <= g.plot.right() {
+                Grip::Keep
+            } else {
+                Grip::Amount
+            };
+            ui.data_mut(|d| d.insert_temp(id, Some(grip)));
+        }
+    }
+    let held: Option<Grip> = ui.data(|d| d.get_temp(id)).flatten();
+    if let (Some(grip), Some(p)) = (held, resp.interact_pointer_pos()) {
+        if resp.dragged() || resp.clicked() {
+            let (key, v, gesture) = match grip {
+                Grip::Keep => (
+                    "vkeep",
+                    (g.t_at(p.x) * 1000.0).round().clamp(5.0, 200.0),
+                    "purus-keep",
+                ),
+                _ => (
+                    "vamount",
+                    ((g.db_below_at(p.y) * 2.0).round() / 2.0).clamp(0.0, 30.0),
+                    "purus-amount",
+                ),
+            };
+            if (host.spec().get(key) - v).abs() > 1e-4 {
+                host.set(key, v, (!resp.clicked()).then_some(gesture));
+            }
+        }
+    }
+    if resp.drag_stopped() || resp.clicked() {
+        if held.is_some() && resp.drag_stopped() {
+            host.end_gesture();
+        }
+        ui.data_mut(|d| d.insert_temp::<Option<Grip>>(id, None));
+    }
+    if resp.hovered() && on {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("fx.purus.vamount"),
+            frame::tr("purus.tip.tail"),
+            Caps::NONE,
+        );
+    }
+}
+
+impl State {
+    /// Where the comb's `n`th needle (1 the fundamental) was drawn last frame: on the
+    /// rail, at its frequency (tests point at it).
+    pub fn needle(&self, n: usize) -> Option<Pos2> {
+        let b = self.bench.as_ref()?;
+        let y = b.plot.y_of(self.pic.0.hum_hz * n as f32);
+        Some(pos2(b.plot.rail.right() - 8.0, y))
+    }
+
+    /// The point on the rail at a frequency (tests drag to it).
+    pub fn rail_at(&self, hz: f32) -> Option<Pos2> {
+        let b = self.bench.as_ref()?;
+        Some(pos2(b.plot.rail.right() - 8.0, b.plot.y_of(hz)))
+    }
 }
 
 /// The three cartridges: each its toggle, lamp, name, reading, emblem and keys.

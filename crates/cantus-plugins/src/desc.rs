@@ -56,8 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 36] = [
-    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder; fxa:fractus: 35; fxa:caelum: 36
+pub static ALL: [Descriptor; 37] = [
+    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder; fxa:fractus: 35; fxa:caelum: 36; fxc:purus: 37
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -508,6 +508,21 @@ pub static ALL: [Descriptor; 36] = [
         vst3_categories: "Fx|Reverb",
         description: "Shimmer reverb: tails that climb in pitch, infinite washes, bloom, freeze and ducking by the input or a sidechain key.",
         compiled: cfg!(feature = "caelum"),
+    },
+    // fxc:purus — the fx side round's wave C (provisional ADR 0145). Its latency is the
+    // modules that are on: switching one re-reports it to the host (CLAP's latency changed
+    // through a restart, VST3's restartComponent).
+    Descriptor {
+        kind: EffectKind::Repair,
+        name: "Purus",
+        full_name: "Cantus Purus",
+        slug: "purus",
+        clap_id: "com.github.lalmazan.cantus.purus",
+        vst3_cid: [0xDA7C5C9B, 0x6A2ED1A2, 0xBB147BB2, 0xAC756397],
+        clap_features: &[FX, "restoration", STEREO],
+        vst3_categories: "Fx|Restoration",
+        description: "Real-time repair: mains hum and its harmonics notched or subtracted, clicks and crackle rebuilt, a room's reverberation taken down.",
+        compiled: cfg!(feature = "purus"),
     },
 ];
 

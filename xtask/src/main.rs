@@ -92,6 +92,7 @@ fn feature(d: &Descriptor) -> &'static str {
         "loquax" => "loquax,editor",   // fxa:loquax
         "fractus" => "fractus,editor", // fxa:fractus
         "caelum" => "caelum,editor",   // fxa:caelum
+        "purus" => "purus,editor",     // fxc:purus
         other => panic!("no feature for {other}"),
     }
 }

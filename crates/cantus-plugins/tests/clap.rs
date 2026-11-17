@@ -727,3 +727,51 @@ fn every_plugin_runs_at_any_sample_rate_a_host_may_ask_for() {
         }
     }
 }
+
+/// fxc:purus — Purus's latency is the modules that are on: switching one on in the middle
+/// of a stream asks the host for a restart (once), and on reactivation the plug-in reports
+/// the engine's own latency for the new settings and tells the host it changed — the room
+/// module's transform, the de-click's window, the gentle de-hum's look-ahead, and back.
+#[test]
+fn purus_s_latency_follows_its_modules_and_is_re_reported() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let kind = EffectKind::Repair;
+    let plug = Plug::new(kind);
+    plug.activate(512);
+    assert_eq!(plug.latency(), 0, "the starting preset notches: no latency");
+    let mut values: Vec<(&str, f32)> = Vec::new();
+    let mut last = 0usize;
+    for (key, v) in [("von", 1.0), ("con", 1.0), ("hgentle", 1.0), ("von", 0.0)] {
+        let restarts = plug.host.restarts.load(SeqCst);
+        let told = plug.host.latency_changed.load(SeqCst);
+        let (id, value) = clap_value(kind, key, v);
+        let (mut l, mut r) = signal(512, 3);
+        plug.process(&mut l, &mut r, None, &[(0, id, value)], false);
+        assert_eq!(
+            plug.host.restarts.load(SeqCst),
+            restarts + 1,
+            "{key} {v}: a restart is asked for"
+        );
+        plug.process(&mut l, &mut r, None, &[], false);
+        assert_eq!(plug.host.restarts.load(SeqCst), restarts + 1, "once");
+        plug.deactivate();
+        plug.activate(512);
+        values.push((key, v));
+        let want = engine_unit(&spec_with(kind, &values)).latency();
+        assert_ne!(want, last, "{key} {v} moves the latency");
+        assert_eq!(
+            plug.latency() as usize,
+            want,
+            "{key} {v}: the engine's latency"
+        );
+        assert_eq!(
+            plug.host.latency_changed.load(SeqCst),
+            told + 1,
+            "{key} {v}: the host is told on activation"
+        );
+        last = want;
+    }
+    // The three's latencies at 48 kHz: the de-click's 767, the transform's 1 023, the
+    // look-ahead's 2 400 (the room off again at the end).
+    assert_eq!(last, 767 + 2_400);
+}

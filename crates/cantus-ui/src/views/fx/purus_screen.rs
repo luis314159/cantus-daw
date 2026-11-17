@@ -60,6 +60,13 @@ impl Plot {
     pub fn y_of(&self, hz: f32) -> f32 {
         self.spec.bottom() - frac(hz) * self.spec.height()
     }
+
+    /// The frequency at a y on the spectrogram.
+    pub fn hz_at(&self, y: f32) -> f32 {
+        use super::picture::{HI_HZ, LO_HZ};
+        let f = ((self.spec.bottom() - y) / self.spec.height().max(1.0)).clamp(0.0, 1.0);
+        LO_HZ * (HI_HZ / LO_HZ).powf(f)
+    }
 }
 
 /// The screen's words (made by the editor when what they say changes).
@@ -78,7 +85,39 @@ pub struct Shown {
     pub click_on: bool,
     pub verb_on: bool,
     pub keep_ms: f32,
+    /// The reduction set (`vamount`), dB: the handle on the tail's right edge.
+    pub amount_db: f32,
     pub delta: bool,
+}
+
+/// Where the room's tail was drawn (the editor's drags read it next frame): its plot, the
+/// seconds it spans, and the dB its height spans.
+#[derive(Copy, Clone, Debug)]
+pub struct TailGeom {
+    pub plot: Rect,
+    pub span_s: f32,
+}
+
+impl TailGeom {
+    /// The x of a time after the sound stops, s.
+    pub fn x_of(&self, t: f32) -> f32 {
+        self.plot.left() + self.plot.width() * (t / self.span_s)
+    }
+
+    /// The time at an x, s.
+    pub fn t_at(&self, x: f32) -> f32 {
+        (x - self.plot.left()) / self.plot.width().max(1.0) * self.span_s
+    }
+
+    /// The y of a level, dB (0 at the top, −60 at the foot).
+    pub fn y_of(&self, db: f32) -> f32 {
+        self.plot.top() + self.plot.height() * (-db / 60.0).clamp(0.0, 1.0)
+    }
+
+    /// The level at a y, dB below the top.
+    pub fn db_below_at(&self, y: f32) -> f32 {
+        (y - self.plot.top()) / self.plot.height().max(1.0) * 60.0
+    }
 }
 
 /// The heat's colour for a cell (0 … 255).
@@ -100,7 +139,15 @@ fn put(b: &mut Brush, k: f32, at: Pos2, align: Align2, t: &Text<'_>) -> Rect {
     super::super::canvas::put(b, at, align, t, k, None)
 }
 
-pub fn paint(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, sh: &Shown, w: &Words<'_>) {
+/// Paint the screen; returns where the room's tail was drawn.
+pub fn paint(
+    b: &mut Brush,
+    s: &Style,
+    p: &Plot,
+    pic: &Picture,
+    sh: &Shown,
+    w: &Words<'_>,
+) -> TailGeom {
     let k = s.k;
     let res = residue(s);
     let ndl = needle(s);
@@ -219,12 +266,13 @@ pub fn paint(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, sh: &Shown, w: &
         &Text::key("purus.d.now", Role::Micro, dim()).caps(false),
     );
     clicks(b, s, p, pic, sh, w, res);
-    tail(b, s, p, pic, sh, w, res);
+    let geom = tail(b, s, p, pic, sh, w, res);
     if pic.waiting() {
         let t = Text::key("purus.d.waiting", Role::Label, ink()).caps(false);
         put(b, k, p.spec.center(), Align2::CENTER_CENTER, &t);
     }
     super::art::sheen(b, s, p.glass);
+    geom
 }
 
 /// The head: the legend on the left, every colour named; the hum's reading on the right.
@@ -337,8 +385,9 @@ fn clicks(
 }
 
 /// The room's tail, before and after: level over time (0 to −60 dB), the room's decay as
-/// heard before (a dim line), and after — the early reflections kept, then the tail taken
-/// down by the reduction now — the gap between them in the residue's colour.
+/// heard before (a bright line, so it reads against the glass), and after — the early
+/// reflections kept, then the tail taken down by the reduction now — the gap between them
+/// in the residue's colour; on the right edge the reduction set, a handle a drag moves.
 fn tail(
     b: &mut Brush,
     s: &Style,
@@ -347,7 +396,7 @@ fn tail(
     sh: &Shown,
     w: &Words<'_>,
     res: Color32,
-) {
+) -> TailGeom {
     let k = s.k;
     let r = p.tail;
     b.rrect(r, 4.0 * k, Fill::Solid(with_alpha(c(pal::HEAT[0]), 0.8)));
@@ -374,7 +423,7 @@ fn tail(
     );
     let plot = Rect::from_min_max(
         pos2(r.left() + 34.0 * k, dr.bottom() + 12.0 * k),
-        pos2(r.right() - 10.0 * k, r.bottom() - 46.0 * k),
+        pos2(r.right() - 22.0 * k, r.bottom() - 46.0 * k),
     );
     let grat = with_alpha(c(pal::GRATICULE), 0.6);
     for (i, db) in ["0", "-20", "-40", "-60"].iter().enumerate() {
@@ -391,13 +440,12 @@ fn tail(
     }
     let t60 = pic.decay.max(0.1);
     let span = (t60 * 1.25).max(0.4);
+    let geom = TailGeom { plot, span_s: span };
     let n = 48;
-    let x_of = |t: f32| plot.left() + plot.width() * (t / span);
-    let y_of = |db: f32| plot.top() + plot.height() * (-db / 60.0).clamp(0.0, 1.0);
     let before: Vec<Pos2> = (0..=n)
         .map(|i| {
             let t = span * i as f32 / n as f32;
-            pos2(x_of(t), y_of(-60.0 * t / t60))
+            pos2(geom.x_of(t), geom.y_of(-60.0 * t / t60))
         })
         .collect();
     let cut = if sh.verb_on {
@@ -410,25 +458,49 @@ fn tail(
         .map(|i| {
             let t = span * i as f32 / n as f32;
             let into = ((t - keep) / (0.25 * t60).max(0.05)).clamp(0.0, 1.0);
-            pos2(x_of(t), y_of(-60.0 * t / t60 - cut * into))
+            pos2(geom.x_of(t), geom.y_of(-60.0 * t / t60 - cut * into))
         })
         .collect();
-    b.between(&before, &after, with_alpha(res, 0.28));
-    b.dashed(&before, 0.9 * k, with_alpha(ink(), 0.55), 4.0 * k, 3.0 * k);
-    b.polyline(&after, 1.4 * k, heat(220));
-    // The early reflections kept: a marker at their end.
+    b.between(&before, &after, with_alpha(res, 0.34));
+    // The room as it was: the screen's ink, solid and as heavy as the line after, so the
+    // two read apart by colour (cream against the warm heat) and both stand off the glass.
+    let was = before_ink();
+    b.polyline(&before, 1.5 * k, was);
+    b.polyline(&after, 1.5 * k, heat(220));
+    // The early reflections kept: a marker at their end (a drag moves it).
     if sh.verb_on && keep < span {
-        let x = x_of(keep);
-        b.vline(x, plot.top(), plot.bottom(), 0.7 * k, with_alpha(res, 0.7));
+        let x = geom.x_of(keep);
+        b.vline(x, plot.top(), plot.bottom(), 0.8 * k, with_alpha(res, 0.8));
+        b.circle(pos2(x, plot.bottom()), 2.6 * k, Fill::Solid(res));
+    }
+    // The reduction set: a handle on the right edge, 0 at the top, 30 dB half way down.
+    if sh.verb_on {
+        let y = geom.y_of(-sh.amount_db.clamp(0.0, 30.0));
+        let x = plot.right() + 3.0 * k;
+        b.polygon(
+            &[
+                pos2(x, y),
+                pos2(x + 7.0 * k, y - 4.5 * k),
+                pos2(x + 7.0 * k, y + 4.5 * k),
+            ],
+            res,
+        );
+        b.hline(
+            plot.right() - 10.0 * k,
+            plot.right(),
+            y,
+            1.0 * k,
+            with_alpha(res, 0.9),
+        );
     }
     // The legend under it, each line named.
     let ly = plot.bottom() + 16.0 * k;
-    b.dashed(
-        &[pos2(plot.left(), ly), pos2(plot.left() + 14.0 * k, ly)],
-        0.9 * k,
-        with_alpha(ink(), 0.55),
-        4.0 * k,
-        3.0 * k,
+    b.segment(
+        pos2(plot.left(), ly),
+        pos2(plot.left() + 14.0 * k, ly),
+        1.5 * k,
+        was,
+        false,
     );
     let br = put(
         b,
@@ -468,4 +540,10 @@ fn tail(
         &Text::key("purus.d.kept", Role::Micro, ink()),
     );
     let _ = w.fork;
+    geom
+}
+
+/// The tail before the repair: the screen's cream ink, a touch brighter than its words.
+fn before_ink() -> Color32 {
+    mix(ink(), c(pal::GLINT), 0.3)
 }

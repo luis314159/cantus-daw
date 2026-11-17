@@ -197,3 +197,63 @@ fn the_sensitivity_is_capped_and_the_direct_sound_is_one_constant() {
     );
     assert_eq!(DIRECT_DB_DEFAULT, 6.0);
 }
+
+/// fxc:purus (phase B) — Purus as a pedal on Tabula's board (a de-hum pedal on a guitar's
+/// board): the board with Purus as its one pedal is Purus inserted alone, to the bit,
+/// offline and live — its latency the pedal's, the modules on, and the engine compensating
+/// it the same; switching a module on the pedal moves the board's latency with it.
+#[test]
+fn as_a_pedal_it_is_the_insert_and_its_latency_is_the_board_s() {
+    use cantus_core::fx::tabula::{pedal_allowed, pedal_key, Board, Pedal, PedalId};
+    assert!(pedal_allowed(EffectKind::Repair), "Purus may be a pedal");
+    let kv = [
+        ("hon", 1.0),
+        ("hmode", 1.0),
+        ("hgentle", 1.0),
+        ("con", 1.0),
+        ("von", 1.0),
+    ];
+    // Purus inserted alone.
+    let mut alone = demo_project();
+    let fx = add_effect(&mut alone, EffectKind::Repair);
+    set_all(&mut alone, fx, &kv);
+    let want = render_of(&alone);
+    let spec = strip_of(&mut alone, 0).effects[0].spec.clone();
+    let insert_latency = EffectUnit::new(&slot_of(spec.clone()), SR).latency();
+    assert_eq!(insert_latency, 2_400 + 767 + 1_023);
+    // The same Purus as the board's one pedal.
+    let mut p = demo_project();
+    let fx = add_effect(&mut p, EffectKind::Board);
+    let slot = strip_of(&mut p, 0)
+        .effects
+        .iter_mut()
+        .find(|e| e.id == fx)
+        .unwrap();
+    slot.spec.board = Some(Box::new(Board {
+        pedals: vec![Pedal::new(PedalId(1), spec)],
+        macros: Vec::new(),
+    }));
+    let board_slot = slot.clone();
+    assert_eq!(
+        EffectUnit::new(&board_slot, SR).latency(),
+        insert_latency,
+        "the board's latency is its pedal's"
+    );
+    let board = render_of(&p);
+    assert_null(&want, &board, 0.0, "the board = the insert");
+    let live = realtime(&p, board.len() / 2);
+    assert_null(
+        &board[..live.len()],
+        &live,
+        0.0,
+        "the board: live = offline",
+    );
+    // The room module switched off on the pedal: the board's latency follows.
+    let mut unit = EffectUnit::new(&board_slot, SR);
+    let mut spec = board_slot.spec.clone();
+    spec.set(&pedal_key(PedalId(1), "von"), 0.0)
+        .expect("the pedal's key");
+    cantus_core::fx::tabula::apply_macros(&mut spec);
+    unit.configure(&spec);
+    assert_eq!(unit.latency(), 2_400 + 767, "the room off: its 1 023 gone");
+}

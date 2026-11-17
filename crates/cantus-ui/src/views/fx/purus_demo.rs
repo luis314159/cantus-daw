@@ -3,12 +3,11 @@
 //! 50.2 Hz hum with its harmonics under it, a dozen clicks and a passage of crackle — run
 //! through the real unit (`cantus_engine::fx::purus::Unit`) at the editor's settings, its
 //! telemetry read block by block as the editor reads it, and both sides of it cut into the
-//! screen's columns (the editor's own spectrogram, `cantus_dsp::denoise::stft`).
+//! screen's columns by the live path (`picture::Live`).
 
-use super::picture::{fold, heat_cell, removed_cell, Column, Picture, COLS, HOP_S, ROWS};
+use super::picture::{Live, Picture};
 
 use cantus_core::EffectSpec;
-use cantus_dsp::denoise::stft::{Spectrogram, BINS, FLOOR_DB};
 use cantus_dsp::math::{exp, sin};
 use cantus_engine::fx::{FxUnit, Telemetry};
 use std::f32::consts::TAU;
@@ -109,83 +108,30 @@ pub fn take() -> (Vec<f32>, Vec<f32>) {
     (left, right)
 }
 
-/// The unit at `spec` over the take: its last telemetry and the screen's picture.
+/// The unit at `spec` over the take: its last telemetry and the screen's picture — the
+/// unit's (input, output) pairs and its telemetry fed block by block through the live path
+/// ([`Live`]), as the engine's tap feeds the editor.
 pub fn picture(spec: &EffectSpec) -> (Telemetry, Picture) {
     let (l0, r0) = take();
     let mut unit = cantus_engine::fx::purus::Unit::new(SR);
     unit.configure(spec);
     unit.reset();
-    let n = l0.len();
-    let mut out_l = Vec::with_capacity(n);
-    let mut out_r = Vec::with_capacity(n);
-    let mut tels: Vec<Telemetry> = Vec::new();
+    let mut pic = Picture::default();
+    let mut live = Live::new(SR);
+    let mut last = [0.0; cantus_engine::fx::TELEMETRY_LEN];
+    let mut pairs = Vec::with_capacity(480);
     for (bl, br) in l0.chunks(480).zip(r0.chunks(480)) {
         let mut l = bl.to_vec();
         let mut r = br.to_vec();
         unit.process(&mut l, &mut r, None);
-        out_l.extend_from_slice(&l);
-        out_r.extend_from_slice(&r);
-        tels.push(unit.telemetry());
-    }
-    let lat = unit.latency();
-    let mono = |a: &[f32], b: &[f32], from: usize| -> Vec<f32> {
-        a.iter()
-            .zip(b)
-            .skip(from)
-            .map(|(x, y)| 0.5 * (x + y))
-            .collect()
-    };
-    let hop = (HOP_S * SR) as usize;
-    let input = Spectrogram::of(&mono(&l0, &r0, 0), SR as u32, hop);
-    let output = Spectrogram::of(&mono(&out_l, &out_r, lat), SR as u32, hop);
-    let frames = input.frames.min(output.frames);
-    let first = frames.saturating_sub(COLS);
-    let mut pic = Picture::default();
-    let mut col = first;
-    for (bi, tel) in tels.iter().enumerate() {
-        pic.update(tel, 0.01);
-        let t_end = (bi + 1) * 480;
-        while col < frames && (col + 1) * hop <= t_end {
-            let mut i_db = [0.0f32; ROWS];
-            let mut o_db = [0.0f32; ROWS];
-            fold(
-                &input.cells[col * BINS..(col + 1) * BINS],
-                BINS,
-                SR,
-                FLOOR_DB,
-                &mut i_db,
-            );
-            fold(
-                &output.cells[col * BINS..(col + 1) * BINS],
-                BINS,
-                SR,
-                FLOOR_DB,
-                &mut o_db,
-            );
-            let mut c = Column::default();
-            for r in 0..ROWS {
-                c.heard[r] = heat_cell(o_db[r]);
-                // What fell out of the cell, where it is more than a flicker (6 dB).
-                let gone = if i_db[r] > FLOOR_DB + 12.0 {
-                    let d = i_db[r] - o_db[r];
-                    if d >= 6.0 {
-                        d
-                    } else {
-                        0.0
-                    }
-                } else {
-                    0.0
-                };
-                c.removed[r] = removed_cell(gone);
-            }
-            pic.push(c);
-            col += 1;
+        last = unit.telemetry();
+        pic.update(&last, 0.01);
+        pairs.clear();
+        for i in 0..l.len() {
+            pairs.push((0.5 * (bl[i] + br[i]), 0.5 * (l[i] + r[i])));
         }
+        live.feed(&pairs, &mut pic);
     }
     pic.hold_demo();
-    let last = tels
-        .last()
-        .copied()
-        .unwrap_or([0.0; cantus_engine::fx::TELEMETRY_LEN]);
     (last, pic)
 }

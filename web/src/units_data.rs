@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 37] = [
+pub const EFFECTS: [Unit; 38] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -601,6 +601,28 @@ pub const EFFECTS: [Unit; 37] = [
         ab: None,
         big: (1800, 1209),
         thumb: (640, 430),
+    },
+
+    // fxc:purus — Purus, the real-time repair (ADR 0145, provisional).
+    Unit {
+        file: "purus",
+        name: "Purus",
+        kind: ("Repair", "Restauración"),
+        pitch: ("A restoration bench for a track as it plays: mains hum and its harmonics out, clicks and crackle rebuilt, a room's tail lifted off a voice — and what it takes out drawn in its own colour.", "Un banco de restauración para una pista mientras suena: el zumbido de la red y sus armónicos fuera, los clics y la crepitación reconstruidos, la cola de una sala levantada de una voz — y lo que quita dibujado en su propio color."),
+        what: long!(("Purus cleans a track while it plays, in three modules you switch on as you need them. Hum removal notches the mains at 50 or 60 Hz and up to sixteen harmonics, at the frequency you set, followed as the mains drift, or found by itself — or, gently, learns the hum and subtracts it, holding what it learned while a bass note sits on the same frequencies. Click and crackle removal rebuilds each click from the music around it and takes the crackle out of the high band. Room removal predicts a room's tail from the signal and takes it down, its decay set by hand or measured from the pauses. Each module has a key to hear only what it takes out; the latency is only the modules that are on, and Cantus compensates it. Its window is a restorer's bench: a spectrogram on dark glass with what is heard in a warm heat and what is taken out in a cool residue, the hum's harmonics as a comb of needles you drag, the room's tail before and after, three cartridges with their toggles. At its defaults every module is off and the sound passes untouched.", "Purus limpia una pista mientras suena, en tres módulos que enciendes según los necesites. Quitar zumbido recorta la red a 50 o 60 Hz y hasta dieciséis armónicos, a la frecuencia que pones, seguida cuando la red deriva o hallada sola — o, suave, aprende el zumbido y lo resta, reteniendo lo aprendido mientras una nota grave suena en las mismas frecuencias. Quitar clics y crepitación rehace cada clic con la música que lo rodea y saca la crepitación de la banda alta. Quitar sala predice la cola de una sala a partir de la señal y la baja, su decaimiento puesto a mano o medido en las pausas. Cada módulo tiene una tecla para oír solo lo que quita; la latencia es solo la de los módulos encendidos, y Cantus la compensa. Su ventana es un banco de restaurador: un espectrograma sobre cristal oscuro con lo que se oye en un calor cálido y lo que se quita en un residuo frío, los armónicos del zumbido como un peine de agujas que arrastras, la cola de la sala antes y después, tres cartuchos con sus palancas. En sus valores por defecto todos los módulos están apagados y el sonido pasa intacto.")),
+        features: long!(&[
+            ("Hum and up to 16 harmonics down 37–43 dB; fixed, followed within 2 Hz, or 50/60 found by itself", "El zumbido y hasta 16 armónicos bajados 37–43 dB; fijo, seguido a ±2 Hz o 50/60 hallado solo"),
+            ("Gentle de-hum: a bass on 50, 100 and 150 Hz loses under half a decibel", "Zumbido suave: un bajo en 50, 100 y 150 Hz pierde menos de medio decibelio"),
+            ("Clicks rebuilt from the music around them; crackle taken out of the high band", "Clics rehechos con la música que los rodea; la crepitación sacada de la banda alta"),
+            ("A room's tail taken down 12 dB and more, its decay set or measured", "La cola de una sala bajada 12 dB y más, su decaimiento puesto o medido"),
+            ("Hear what each module removes; the hum's comb and the room's tail dragged on the screen", "Oír lo que quita cada módulo; el peine del zumbido y la cola de la sala arrastrados en la pantalla"),
+            ("Sixteen factory presets; latency only for the modules on; untouched at its defaults", "Dieciséis presets de fábrica; latencia solo de los módulos encendidos; intacto en sus valores por defecto"),
+        ]),
+        presets: Some(16),
+        plugin: true,
+        ab: None,
+        big: (1800, 1263),
+        thumb: (640, 449),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

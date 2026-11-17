@@ -822,6 +822,21 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("duck", 6.0),
             ("out", -3.0),
         ], // fxa:caelum
+        // fxc:purus — every module on: the hum followed and subtracted gently over twelve
+        // harmonics, the de-click with crackle, the room estimated and taken down, the
+        // output moved (its latency the three modules': 50 ms, 767 and 1 023 samples).
+        EffectKind::Repair => vec![
+            ("hon", 1.0),
+            ("hmode", 1.0),
+            ("hharm", 12.0),
+            ("hgentle", 1.0),
+            ("con", 1.0),
+            ("crackle", 0.5),
+            ("von", 1.0),
+            ("vamount", 14.0),
+            ("vdecay", 1.0),
+            ("out", -1.0),
+        ], // fxc:purus
         _ => vec![],
     }
 }
@@ -926,6 +941,8 @@ pub enum Direct {
     Loquax(Box<cantus_dsp::loquax::Loquax>),
     /// fxa:fractus — Fractus, the glitch sequencer: its DSP with the lanes written into
     /// its steps as the engine writes them (`fx::fractus::pattern_into`).
+    /// fxc:purus — Purus, the real-time repair: its DSP (its output level is its own).
+    Purus(Box<cantus_dsp::purus::Purus>),
     /// fxa:caelum — Caelum, the shimmer reverb: its DSP (the pre-delay synced at 120 BPM when
     /// asked, no host transport here) and its output level gliding after it, as the engine's
     /// unit glides it.
@@ -1038,6 +1055,7 @@ impl Direct {
             EffectKind::Rotary => Direct::Rota(Box::new(cantus_dsp::rota::Rota::new(SR))), // fx3:rota
             EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
             EffectKind::Vocoder => Direct::Loquax(Box::new(cantus_dsp::loquax::Loquax::new(SR))), // fxa:loquax
+            EffectKind::Repair => Direct::Purus(Box::new(cantus_dsp::purus::Purus::new(SR))), // fxc:purus
             EffectKind::Shimmer => Direct::Caelum(
                 Box::new(cantus_dsp::caelum::Caelum::new(SR)),
                 cantus_dsp::modfx_line::Glide::new(1.0, 10.0, SR, 1e-6),
@@ -1100,6 +1118,7 @@ impl Direct {
             // fxa:fractus — its values, then its lanes.
             // fxa:caelum — a synced pre-delay at 120 BPM (a host without a transport); the
             // output's target as the engine's unit sets it (0 dB not applied).
+            Direct::Purus(x) => x.set(&fx::purus::settings(spec)), // fxc:purus
             Direct::Caelum(x, out) => {
                 let mut s = fx::caelum::settings(spec);
                 if let Some(beats) = fx::caelum::sync_beats(spec.get("psync")) {
@@ -1177,6 +1196,7 @@ impl Direct {
             Direct::Arca(x) => x.reset(),       // fx3:arca
             Direct::Loquax(x) => x.reset(),     // fxa:loquax
             Direct::Fractus(x, _) => x.reset(), // fxa:fractus
+            Direct::Purus(x) => x.reset(),      // fxc:purus
             Direct::Caelum(x, out) => {
                 out.jump(out.target);
                 x.reset();
@@ -1220,6 +1240,7 @@ impl Direct {
             Direct::Loquax(x) => x.latency(),     // fxa:loquax
             Direct::Fractus(x, _) => x.latency(), // fxa:fractus
             Direct::Caelum(x, _) => x.latency(),  // fxa:caelum
+            Direct::Purus(x) => x.latency(),      // fxc:purus
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1258,6 +1279,7 @@ impl Direct {
             Direct::Arca(x) => x.process(l, r),      // fx3:arca
             Direct::Loquax(x) => x.process(l, r, key, &[]), // fxa:loquax
             Direct::Fractus(x, _) => x.process(l, r), // fxa:fractus
+            Direct::Purus(x) => x.process(l, r),     // fxc:purus
             Direct::Caelum(x, out) => {
                 x.process(l, r, key);
                 if !(out.still() && out.value == 1.0) {
