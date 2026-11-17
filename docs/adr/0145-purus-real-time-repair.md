@@ -70,7 +70,8 @@ A new effect kind, `EffectKind::Repair`, model `cantus_core::fx::purus`, engine 
   pair they choose between).
 - **The room's tail "before"** (the owner's note on sheet v1) is drawn as a solid line in the
   screen's bright cream, as heavy as the line after, so the gap between them reads.
-- **Sixteen factory presets** (`repair.toml`), fitted with `preset_tool fit`; the far-
+- **Sixteen factory presets** (`repair.toml`), fitted with `preset_tool fit` (0 … +4.6 dB,
+  after the calibration below); the far-
   microphone ones (*Far-microphone interview*, *Lecture hall*) set Direct sound 0 dB, as the
   DSP report advised (since the calibration 0 dB is the default too; they keep it written).
 - **Exported** as `Cantus Purus` (CLAP and VST3, the class id by its rule). Its latency
@@ -151,7 +152,7 @@ Phase B: `cantus-ui` `tests/purus_e2e.rs` through `CantusApp::assemble`, five ta
 as a user imports them — the eight harmonics of a 50 Hz hum down 40.0 dB each on the master
 (the music at 440 Hz +0.00 dB); the hum module's delta is the hum (−0.09 dB) with the music
 22.7 dB under it; clicks down 34.1 dB against the clean music, aligned to the sample; a
-reverberant voice's tail down 11.7 dB in the pauses (the syllables −1.6 dB); every module on
+reverberant voice's tail down 11.8 dB in the pauses (the syllables −1.8 dB; 11.7 and −1.6 before the calibration); every module on
 (87 ms) at mix 0, the strip's master is a parallel dry strip's to the bit; an edit heard and
 undone to the bit; live in odd blocks equal to the render; every module off on three strips,
 the master without Purus to the bit. `tests/purus_drag.rs`: every bench toggle and key one

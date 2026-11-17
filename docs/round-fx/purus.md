@@ -497,3 +497,129 @@ and `cargo fmt -p cantus-dsp` is applied.
 
 - In the DSP: the misses above, which are the owner's to judge. The Direct sound default is the owner's choice.
 - The owner's listening.
+
+## Phase B (3), to the finish (2026-11-17): sheet v1 approved
+
+Branch `fx/wave-c` (worktree `C:\projects\daw-fx\wave-a`), from ffc2f0a5. The owner approved
+sheet v1; the integrator's note: make the room tail's "before" visible. Direct sound +6 dB
+stays until the owner listens.
+
+- **The room tail's "before"**: a solid line in the screen's bright cream (the ink mixed a
+  third toward the glint), as heavy as the warm "after" (1.5 px at 100 %), the shaded gap a
+  little stronger (0.34); the legend's sample matches. Re-shot every sheet state (21 PNGs, no
+  cut word): `C:\projects\daw-fx\compartir\purus\design\v2-step3\` (its `index.md`), looked at
+  (Slate English room, Paper Spanish all three).
+- **The live spectrogram** (`purus_picture::Live`): the slot's (input, output) pairs from the
+  engine's analyser tap (`FxHost::take_pairs` — every open editor already has it; the
+  Speculum scope carries the output only, and what is taken out needs the input), the input
+  read **as late as the unit's latency** (the telemetry's) in a 64 k ring, a column every
+  40 ms: two 2 048-point FFTs with the audio editor's window and scale, folded into the 84
+  rows, what fell out drawn where it is 6 dB or more. Editor thread only; the audio thread
+  does nothing new (no allocation, nothing added to it). The demo runs the real unit through
+  the same `Live`, so the sheet draws what the app draws; the plug-in's window reads its own
+  tap the same way.
+- **The pointer** (`tests/purus_drag.rs`, three, real events through the window the app
+  draws): every bench toggle (hum, clicks, room), each *Hear what is removed*, 50 Hz, 60 Hz,
+  Gentle, Set by hand and Estimated — eleven presses, each one undo step; the comb's needles
+  dragged (the fundamental follows the needle held: by the first to 60 Hz, by the second to
+  110 Hz = 55 Hz; to a tenth; one undo step each; none with the hum off); the room's tail
+  (the reduction to the depth under the pointer, 12 → 24 dB; the early-reflections mark
+  50 → 120 ms; one undo step each; none with the room off). The reduction has a handle on
+  the tail's right edge. The comb's width stays on its card (0.5–20 Hz is a few pixels on a
+  three-decade rail: too fine to drag honestly).
+- **learn_everywhere**: Purus's eight stepped keys on the bench (the three toggles, three
+  deltas, Gentle, the decay's pair) now offer automation and learn (`stepped_offer`; the
+  50/60 Hz and Set/Estimated keys `stepped_offer_one`, their pair the range). Only
+  Comparatio's three (`listen`, `seed`, `trial`) stay red — its own step 3.
+- **Presets** sixteen (`repair.toml`): Mains hum 50 Hz (the starting preset), Mains hum
+  60 Hz, Mains hum found by itself (12 harmonics), Guitar amp hum and buzz (16, deeper,
+  wider, found), Live guitar DI hum (gentle, found), Bass DI hum (gentle), Vinyl clicks,
+  Vinyl clicks and crackle, Old cassette, Podcast in a small room (Direct +9), Dialogue in a
+  reverberant room, Far-microphone interview (Direct sound 0 dB, per the DSP report, with
+  the hum found), Lecture hall (Direct 0, 80 ms kept), Field recording, Video call, Strong
+  cleanup. Fitted with `preset_tool fit` (release), again after the de-reverb's
+  calibration (below): 0 … +4.6 dB — the starting preset and the click-only ones within
+  0.3 dB, the hum ones +0.6/+0.7, the room ones +0.9 … +4.6 (the role's audition material is
+  a synthesiser line whose releases decay like a room's tail, and the module takes them as
+  one).
+  Roles vocal/bus/master/creative; the audit's Purus line removed (floor 12). Site card 16.
+- **Export** `Cantus Purus` (CLAP and VST3; class id by its rule, `DA7C5C9B…`; features
+  `restoration`, `Fx|Restoration`): the Direct path (the DSP, its output its own), the
+  bit-identical suites with every module on (`settings`: gentle, de-click with crackle, the
+  room estimated). **The latency moves with the modules and is re-reported**: CLAP asks for a
+  restart once and reports the engine's latency on reactivation with `latency.changed`
+  (`clap::purus_s_latency_follows_its_modules_and_is_re_reported`: room 1 023, + de-click,
+  + gentle, room off → 3 167); VST3's UI-thread tick calls `restartComponent(kLatencyChanged)`
+  once per change and `getLatencySamples` reads it
+  (`vst3::purus_s_latency_follows_its_modules_through_vst3`, the message loop pumped on
+  Windows). *Hear what is removed* is each module's delta, as in Cantus. Ids appended and
+  blessed (`CANTUS_BLESS_IDS=1`).
+- **AI words** (`tools_mixer.rs`'s effect description; `agent_units` already had the
+  table); the MCP tools golden regenerated on purpose (`CANTUS_TOOLS_DUMP=1`).
+- **Site card** (`web/src/units_data.rs`, EFFECTS 38, big 1800 × 1263, thumb 640 × 449).
+- **Tabula**: Purus is a pedal (a de-hum pedal before the drive): face `hhz`, `hharm`,
+  `hdepth`, `hmix`, Standard, the curve motif, "P", hammered. Its latency is the lane's as
+  any pedal's (`fx_purus::as_a_pedal_it_is_the_insert_and_its_latency_is_the_board_s`: the
+  board with Purus alone is Purus inserted alone to the bit, offline and live, 4 190
+  samples; the room switched off on the pedal → 3 167).
+- **Docs**: ADR 0145 phase B (decision, consequences, the tests); `docs/plugins/purus.md`;
+  the manual EN/ES (after Caelum).
+
+### Measured (the e2e, `tests/purus_e2e.rs`, through `CantusApp::assemble`)
+
+Five takes imported as a user imports them (`import_audio`), routed to strips, Purus
+inserted from its starting preset:
+
+| What | Measured |
+|---|---|
+| A 50 Hz hum's eight harmonics on the master (the music at 440, 659, 1 318 Hz) | **40.0 dB down each** (40 dB notches at 2 Hz; the DSP report 37–43); the music +0.00 dB |
+| Hear what is removed (the hum module's delta) | the hum −0.09 dB, the music 22.7 dB under it |
+| 24 clicks against the clean music, aligned to the sample (de-click at mix 1 vs 0) | **34.1 dB down** |
+| A voice in a reverberant room (T60 ≈ 0.8 s, DRR ≈ 0), room module, decay estimated, Direct 0 dB | the tail **11.8 dB down** in the pauses; the syllables −1.8 dB (11.7 / −1.6 before the calibration) |
+| Every module on (87 ms) at mix 0 against a parallel dry strip | **the same master to the bit** |
+| An edit (two harmonics instead of eight) | the 6th harmonic back, undone to the bit |
+| Live in odd blocks (17 … 1 024) against the render, every strip sounding, latency on | **to the bit** |
+| Every module off on three strips against no Purus at all | **to the bit** |
+
+The music's plucks needed a 4 ms attack: an instantaneous one is itself a click, and the
+de-click took it as one (the first run read 6.5 dB).
+
+### Shared files touched (marked `fxc:purus`)
+
+Core: `fx/tabula.rs` (`pedal_allowed`, its test). UI: `views/fx/tabula_faces.rs` (the face),
+tests `preset_audit.rs`. Core tests: `undo_invariants.rs` — the board arm draws a Lapsus one
+time in eight: with Purus among the pedal kinds the random stream never left a Lapsus pedal on
+a board when the Lapsus-pattern arm came (0 applied of 257); test-only. AI: `tools_mixer.rs`;
+golden `mcp-tools-list.json`. Plug-ins: `Cargo.toml`, `build.rs`, `src/desc.rs`, `src/text.rs` (Purus's locale and Comparatio's: `pane_words` wants every kind's choices worded),
+tests `common/mod.rs`, `clap.rs`, `vst3.rs`, `golden/ids.txt`. xtask: `main.rs`. Web:
+`units_data.rs`.
+
+### The de-reverb calibrated to the null (the owner, 2026-11-17)
+
+"The null test is the standard": at Direct sound 0 dB a dry voice lost 2.9 dB; +6 dB had
+been a patch. Now **the room's share is measured before any is taken** (`purus_verb::Share`,
+ADR 0145's phase B): in each octave's free decays (fallen for the early part kept without a
+3 dB rise, 6 dB under their start), a frame where at least half the predicted late tail is
+heard counts for a room; the presence (125 Hz … 8 kHz pooled, ~2 s of decays, from a prior of
+20 frames showing none) maps to the share of the prediction taken — none under 0.6, all at
+0.75, 1.2 where plainest. Then `DIRECT_DB_DEFAULT` = 0 dB (the far-microphone presets keep 0
+written; the podcast's +9 stays).
+
+| Measured | Before, direct 0 dB | Before, +6 dB (old default) | After, 0 dB (default) |
+|---|---|---|---|
+| Real dry voice (Britton Rea, *Gettysburg Address*, public domain): octaves 63 Hz … 8 kHz | −0.7 … −3.8 dB | −0.4 … −1.8 dB | **0.00 dB** |
+| Its residual, level-matched and aligned | 11.5 dB under | 15.8 dB under | **140 dB under** (the round trip) |
+| Decay estimated / 24 dB / direct +6 | 13.4 / 8.4 / 15.8 dB | | 58.2 / 140 / 37.7 dB (octaves ≤ 0.05 dB) |
+| Synthetic room 0.8 s, DRR 0: early-to-late gained at 12 / 24 dB | +4.6 / +6.5 | +2.7 / — | **+4.8 / +6.9** |
+| 24 dB without / with full smoothing | +6.7 / +6.0 | | +7.2 / +6.4 |
+| Room 1.6 s, DRR +6, 24 dB | +5.1 | | +5.1 |
+| The real voice in the 0.8 s room, 12 dB | +5.0 | +2.5 | +4.7 |
+| Musical noise in the tail | −0.001 | | −0.000 |
+
+Costs: Lebart's setting (direct −10) now takes less (+5.0 against +6.3 dB); the first tenth of
+a second of decays is not de-reverberated (the evidence's prior). No golden holds Purus, so
+`DSP_VERSION` stays. The real voice: `C:\projects\daw-fx\compartir\loquax\sound\00-voice-dry.flac`
+(Loquax's, from Wikimedia Commons `File:Gettysburg_by_Britton.ogg`) read as WAV by the ignored
+test `purus_dry_voice_recorded` (`PURUS_VOICE`). Sounds re-rendered: 22–24 and their deltas
+(the tail after the line now 10.9 / 11.4 / 21.3 dB down against 9.8 / 10.4 / 19.8), new 25 (the
+dry line through the defaults, 8.9e-8 from the dry); `compartir\purus\sound\README.md` says so.

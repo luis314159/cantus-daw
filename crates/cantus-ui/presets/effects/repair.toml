@@ -105,7 +105,7 @@ note = "A podcast voice close to the microphone in a small room: the room's tail
 styles = ["film", "pop"]
 roles = ["vocal"]
 [preset.values]
-"out" = 0.7
+"out" = 0.9
 "vamount" = 10
 "vdecay" = 1
 "vdirect" = 9
@@ -117,7 +117,7 @@ note = "Dialogue in a reverberant room: the late tail taken down, the decay meas
 styles = ["film"]
 roles = ["vocal"]
 [preset.values]
-"out" = 1.4
+"out" = 3.6
 "vamount" = 14
 "vdecay" = 1
 "von" = 1
@@ -130,7 +130,7 @@ roles = ["vocal"]
 [preset.values]
 "hmode" = 2
 "hon" = 1
-"out" = 4.5
+"out" = 4.1
 "vamount" = 18
 "vdecay" = 1
 "vdirect" = 0
@@ -170,7 +170,7 @@ roles = ["vocal"]
 [preset.values]
 "hmode" = 2
 "hon" = 1
-"out" = 1.8
+"out" = 3.5
 "vamount" = 12
 "vdecay" = 1
 "von" = 1
@@ -188,7 +188,7 @@ roles = ["vocal", "master"]
 "hharm" = 16
 "hmode" = 2
 "hon" = 1
-"out" = 2.1
+"out" = 4.6
 "vamount" = 18
 "vdecay" = 1
 "von" = 1
