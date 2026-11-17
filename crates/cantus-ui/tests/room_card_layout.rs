@@ -3,8 +3,8 @@
 //! and over the keyboard): Chorda's Play view and Tympanum's Kit view draw the one shared
 //! card, and in each — English and Spanish, 100 % and 150 %, a 1920 × 1080 screen and a
 //! 1280 × 720 one — the card stands inside the picture, its three fields inside the card,
-//! none over another. (Tympanum's card is a popover since the round's polish: opened
-//! from its chip for the sweep.)
+//! none over another. (Both cards are popovers since the round's polish: opened from
+//! their chips for the sweep.)
 //!
 //! Its own test binary: it points `CANTUS_DATA_DIR` at a temporary folder.
 
@@ -34,6 +34,10 @@ fn open(r: &mut Rig, kind: InstrumentKind) {
         let mut lk = cantus_ui::views::inst::tympanum::look(&r.ctx, track);
         lk.room_open = true;
         cantus_ui::views::inst::tympanum::keep(&r.ctx, track, lk);
+    }
+    if kind == InstrumentKind::Chorda {
+        // Chorda's too (the same polish).
+        cantus_ui::views::inst::chorda::view::set_room_open(&mut r.app, track, true);
     }
     r.idle(4);
 }

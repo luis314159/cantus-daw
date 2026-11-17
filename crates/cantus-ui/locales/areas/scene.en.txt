@@ -80,3 +80,4 @@ scene.room.studio_meta = a studio's live room
 scene.room.hall_meta = a concert hall
 scene.room.church_meta = stone, height and light from above
 scene.room.tip = The room the piano stands in, with its floor, walls and rug: the picture only. What you hear is the Room in the mixer.
+scene.room.chip_tip = The room the piano stands in: click to choose it and its floor, walls and rug (the picture only; what you hear is the Room in the mixer). Esc or a click outside closes it.

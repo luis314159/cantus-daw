@@ -9,12 +9,12 @@
 
 use crate::i18n::t;
 use crate::kit::text::Src;
-use crate::kit::{with_brush, Style};
+use crate::kit::{with_brush, Brush, Style};
 use crate::views::inst::inst_mixer::ui::{self as iu, words};
 use crate::views::mixer::look::{Pal, W};
 use cantus_core::inst::room_look::{self, Floor, RoomKind, Rug, Walls};
 use cantus_core::NativeSpec;
-use egui::{pos2, vec2, Align2, Rect, Sense};
+use egui::{pos2, vec2, Align2, Pos2, Rect, Sense};
 
 /// One of the room's looks: the floor, the walls or the rug (the scene's words, schema 69)
 /// — the picture only, never heard.
@@ -385,6 +385,93 @@ fn field(
         *open = None;
     }
     None
+}
+
+// ---- the room chip's marks (round 40 polish: Tympanum's and Chorda's chips) ----
+
+/// A chevron 8 pt wide centred at `c`: down (closed), up (open).
+pub fn chevron(b: &mut Brush, s: &Style, c: Pos2, up: bool, ink: egui::Color32) {
+    let (dx, dy) = (s.s(4.0), s.s(2.2) * if up { -1.0 } else { 1.0 });
+    b.polyline(
+        &[
+            pos2(c.x - dx, c.y - dy),
+            pos2(c.x, c.y + dy),
+            pos2(c.x + dx, c.y - dy),
+        ],
+        s.s(1.4),
+        ink,
+    );
+}
+
+/// A room's glyph, drawn by hand in `g` (14 pt square): the stage a spotlight's cone on
+/// its pool, the booth a box with its window, the studio a room seen into, the hall (and
+/// the church) an arch.
+pub fn room_glyph(b: &mut Brush, g: Rect, k: RoomKind, ink: egui::Color32) {
+    let u = g.width() / 14.0;
+    let lw = (1.2 * u).max(b.px());
+    let at = |x: f32, y: f32| pos2(g.left() + x * u, g.top() + y * u);
+    let oval = |cx: f32, cy: f32, rx: f32, ry: f32, from: f32, span: f32, n: usize| {
+        (0..=n)
+            .map(|i| {
+                let a = from + span * i as f32 / n as f32;
+                at(
+                    cx + rx * cantus_dsp::math::cos(a),
+                    cy + ry * cantus_dsp::math::sin(a),
+                )
+            })
+            .collect::<Vec<Pos2>>()
+    };
+    use std::f32::consts::{PI, TAU};
+    match k {
+        RoomKind::Stage => {
+            b.rrect_stroke(
+                Rect::from_min_max(at(5.0, 1.0), at(9.0, 3.6)),
+                0.8 * u,
+                lw,
+                ink,
+            );
+            b.segment(at(5.6, 3.6), at(2.2, 10.8), lw, ink, false);
+            b.segment(at(8.4, 3.6), at(11.8, 10.8), lw, ink, false);
+            b.polyline(&oval(7.0, 11.2, 5.0, 1.8, 0.0, TAU, 20), lw, ink);
+        }
+        RoomKind::Booth => {
+            b.rrect_stroke(
+                Rect::from_min_max(at(1.5, 2.0), at(12.5, 12.5)),
+                1.0 * u,
+                lw,
+                ink,
+            );
+            b.rrect_stroke(
+                Rect::from_min_max(at(4.5, 4.5), at(9.5, 8.0)),
+                0.6 * u,
+                lw,
+                ink,
+            );
+        }
+        RoomKind::Studio => {
+            b.rrect_stroke(
+                Rect::from_min_max(at(4.5, 4.0), at(9.5, 9.0)),
+                0.4 * u,
+                lw,
+                ink,
+            );
+            for (x0, y0, x1, y1) in [
+                (1.0, 1.0, 4.5, 4.0),
+                (13.0, 1.0, 9.5, 4.0),
+                (1.0, 13.0, 4.5, 9.0),
+                (13.0, 13.0, 9.5, 9.0),
+            ] {
+                b.segment(at(x0, y0), at(x1, y1), lw, ink, false);
+            }
+        }
+        RoomKind::Hall | RoomKind::Church => {
+            let mut arch = vec![at(2.5, 13.0)];
+            arch.extend(oval(7.0, 6.5, 4.5, 4.5, PI, PI, 14));
+            arch.push(at(11.5, 13.0));
+            b.polyline(&arch, lw, ink);
+            b.segment(at(1.0, 13.0), at(13.0, 13.0), lw, ink, false);
+        }
+    }
 }
 
 /// For the tests: every room card drawn while noting, with the picture it stood in.

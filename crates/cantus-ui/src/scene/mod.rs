@@ -451,6 +451,41 @@ pub struct Stats {
     pub instrument: (f32, f32, f32, f32),
 }
 
+/// The points of a 160 × 96 grid over `rect` where `view` draws its instrument — inside
+/// the outline of the piano's body, lid, keys or bench, of a kit's piece, and of a
+/// microphone when the view shows them (round 40 polish: what an overlay must not cover).
+/// For tests.
+pub fn instrument_points(rect: Rect, view: &SceneView) -> Vec<Pos2> {
+    let w = Want::of(view, rect.size(), 1.0);
+    let b = build(&w);
+    let inside = |poly: &[Pos2], q: Pos2| {
+        let mut odd = false;
+        let n = poly.len();
+        for i in 0..n {
+            let (a, c) = (poly[i], poly[(i + n - 1) % n]);
+            if (a.y > q.y) != (c.y > q.y) && q.x < (c.x - a.x) * (q.y - a.y) / (c.y - a.y) + a.x {
+                odd = !odd;
+            }
+        }
+        odd
+    };
+    (0..96)
+        .flat_map(|j| (0..160).map(move |i| (i, j)))
+        .map(|(i, j)| {
+            Pos2::new(
+                (i as f32 + 0.5) / 160.0 * rect.width(),
+                (j as f32 + 0.5) / 96.0 * rect.height(),
+            )
+        })
+        .filter(|q| {
+            b.outlines
+                .iter()
+                .any(|o| o.2.len() >= 3 && inside(&o.2, *q))
+        })
+        .map(|q| q + rect.min.to_vec2())
+        .collect()
+}
+
 /// The [`Stats`] of `view` built `size` points large.
 pub fn stats(view: &SceneView, size: Vec2) -> Stats {
     let w = Want::of(view, size, 1.0);

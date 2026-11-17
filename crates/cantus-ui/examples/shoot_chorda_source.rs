@@ -85,6 +85,19 @@ fn shoot(
     // The Play view's picture (the baked scene until `scene` switches it) built in place too.
     cantus_ui::views::inst::chorda::scene::set_blocking(true);
     cantus_ui::views::inst::demo_setup(&mut app, track, InstrumentKind::Chorda);
+    // Round 40 polish — `CHORDA_SHOT_BODY=upright` (or `grand`, `parlour`, `concert`): the
+    // piano's body.
+    if let Ok(b) = std::env::var("CHORDA_SHOT_BODY") {
+        app.set_inst_text(
+            track,
+            cantus_core::inst::chorda_look::BODY_KEY,
+            Some(b.clone()),
+        );
+    }
+    // Round 40 polish — `CHORDA_SHOT_ROOM_OPEN=1`: the room card open from its chip.
+    if std::env::var("CHORDA_SHOT_ROOM_OPEN").as_deref() == Ok("1") {
+        cantus_ui::views::inst::chorda::view::set_room_open(&mut app, track, true);
+    }
     if what == What::Pack {
         // bitKlavier: the images on disk loaded, the rest offered.
         let set = SourceChoice::Recorded(RecordedPiano {
@@ -182,7 +195,14 @@ fn main() {
         cantus_ui::scene::backend::set_default(cantus_ui::scene::SceneBackend::PerPixel);
     }
     std::fs::create_dir_all(&dir).expect("the folder");
-    let mut whats = vec![What::Play, What::Mixer];
+    // Round 40 polish — `CHORDA_SHOT_PLAY=1`: the Play view only, in English and Spanish
+    // at every theme and scale.
+    let play_only = std::env::var("CHORDA_SHOT_PLAY").as_deref() == Ok("1");
+    let mut whats = if play_only {
+        vec![What::Play]
+    } else {
+        vec![What::Play, What::Mixer]
+    };
     if content.is_some() {
         whats.push(What::Pack);
     }
@@ -199,6 +219,14 @@ fn main() {
                 }
             }
         }
+    }
+    if play_only {
+        for paper in [false, true] {
+            for ppp in [1.0, 1.5] {
+                shoot(&dir, content.as_deref(), paper, ppp, What::Play, true);
+            }
+        }
+        return;
     }
     for &what in &whats {
         shoot(&dir, content.as_deref(), false, 1.0, what, true);

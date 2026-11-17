@@ -80,3 +80,4 @@ scene.room.studio_meta = la sala en vivo de un estudio
 scene.room.hall_meta = una sala de conciertos
 scene.room.church_meta = piedra, altura y luz desde arriba
 scene.room.tip = La sala en que está el piano, con su suelo, sus paredes y su alfombra: solo la imagen. Lo que oyes es la Sala del mezclador.
+scene.room.chip_tip = La sala en que está el piano: haz clic para elegirla con su suelo, sus paredes y su alfombra (solo la imagen; lo que oyes es la Sala del mezclador). Esc o un clic fuera la cierra.

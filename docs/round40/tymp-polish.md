@@ -144,3 +144,57 @@ deleted from the shared `memory/target/debug/deps` — 16.2 GiB — and the suit
 - Chorda's room card still sits over its picture (it was not part of this ask; `room_card::show_in`
   makes the same chip possible there).
 - Verified only in CPU shots and tests, not on the owner's screen.
+
+---
+
+# Chorda: the same polish (2026-11-17, the owner: "its room card still covers the piano")
+
+**What changed** (`views/inst/chorda_scene_view.rs`, `room_card.rs`, `scene/mod.rs`):
+
+- **The room chip.** The room card no longer sits over the picture's lower right. A chip beside
+  *Show mics* — Chorda's own menu field holding the room's hand-drawn glyph (now
+  `room_card::room_glyph`, shared with Tympanum), *Room* and the room's name, the field's chevron —
+  opens the card (`room_card::show_in`) as a popover under it on a soft sheet shadow; open, the chip
+  wears the focus ring. Where the pickers' row leaves no room beside *Show mics* (a small editor
+  window), the chip stands under it. It closes on Esc (`crate::esc`), on a click outside it (a
+  click on the lid still opens or closes the lid as ever; elsewhere it changes nothing) and on the
+  chip. A Floor/Walls/Rug list open takes Esc and the outside click first. When the picture is too
+  small for the open card, the card is left out (as before).
+- **Still the picture only.** Chorda's room is the look (`look.room`), as it was: what is heard is
+  the Room in the mixer. A room chosen in the card is one undo step and leaves `room`/`roomsize`
+  untouched (the e2e test checks it).
+- **View state only**: `Words::room_open` (per track, in the editor's state), no schema change.
+- **Framed window**, as Tympanum's: the picture's corners rounded (`Scene::set_corner`), the
+  hairline frame (`tympanum::stage::frame`, now `pub(crate)`), a soft shadow under it in light
+  themes; the stage's daylight lift is the scene's, shared since the Tympanum polish.
+- **At rest it allocates nothing more**: the chip's words are measured once per words and scale
+  (`Words::chip_w`), what the tests read is written to egui's memory only when it changes, the
+  overlays kept in a fixed array — `chorda_scene_budget::the_scene_card_at_rest_allocates_next_to_nothing`
+  caught a first version at 33 allocations a frame against an empty panel's 25; now 26 (budget +6).
+- Words: `scene.room.chip_tip` (the help line) in English and Spanish; the rest reuse `scene.room`
+  and the card's existing keys.
+
+**Tests**
+
+- `chorda_room_e2e::the_piano_shows_whole_with_the_room_card_closed` — through
+  `CantusApp::assemble`; Grand and Upright, the model and a recorded source (`pack:…`), on 1280 ×
+  720, 1600 × 900 and 1920 × 1080; mics hidden and shown: no point of the piano (inside the
+  outlines of its body, lid, keys, bench and, when shown, its mics — new
+  `scene::instrument_points`) lies under the pickers, *Show mics*, the chip or the tuning's plate;
+  the card is closed by default.
+- `chorda_room_e2e::the_room_chip_opens_the_card_and_the_room_changes_through_it` — the chip opens
+  the card under it, inside the picture; *Studio* (third of five) sets `look.room = studio`, the
+  sound's `room`/`roomsize` unchanged; Esc closes it; a click on the empty floor closes it and
+  changes nothing; a click on the lid (clear of the card) closes it and moves the lid; the chip
+  opens and closes it; undo takes the room back. (In a small editor window the open card covers
+  the whole lid, so this test maximises the editor.)
+- `chorda_scene_view::tests::the_room_chip_reads_in_every_theme` — in all 24 themes, at the
+  picture's style: *Room* in ink 2 on the field's well at rest, ink 1 hovered and open, the room's
+  name in ink 1 — 4.5:1; the glyph 3:1.
+- `room_card_layout` opens both cards from their chips for its sweep (English and Spanish, 100 %
+  and 150 %, two screens): each card inside its picture, its fields inside it.
+  `picker::a_scene_s_thumbnail_waits_for_its_picture` passes.
+
+**Shots** (`F:\projects\daw-r40\compartir\p3\polish-chorda\`): `before\{grand,upright}\` and
+`after\{grand,upright,grand-open,upright-open}\` — Night and Paper, 1× and 1.5×, English and
+Spanish (`chorda-play-*`).
