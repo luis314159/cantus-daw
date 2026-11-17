@@ -307,6 +307,101 @@ fn the_sidechain_keys_the_detector_only_when_asked() {
     }
 }
 
+/// fxb:vinculum — Vinculum's detector keyed by the sidechain input: a quiet input under a
+/// loud key, the threshold between the two. With the plug-in's switch on the external key
+/// the input is pressed down while the key plays, exactly as the DSP keyed by it; on its own
+/// input the quiet input never reaches the threshold and passes untouched.
+#[test]
+fn vinculum_s_external_key_presses_the_input_only_when_asked() {
+    let kind = EffectKind::BusCompressor;
+    let values = [
+        ("thr", -30.0),
+        ("ratio", 2.0),
+        ("att", 0.0),
+        ("rel", 1.0),
+        ("makeup", 0.0),
+        ("out", 0.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        if keyed {
+            configure(&plug, &[(SIDECHAIN_KEY, 1.0)]);
+        }
+        plug.activate(4096);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        plug.run(&mut l, &mut r, Some((&key_l, &key_r)), &[], &[480]);
+
+        let _guard = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Vinculum keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Vinculum keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    assert_identical("unkeyed: the quiet input untouched", &outs[0], &quiet_l);
+    let energy = |x: &[f32]| x[4_800..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) < 0.25 * energy(&outs[0]),
+        "the key presses the input: {} keyed against {} on its own input",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
+}
+
+/// fxb:vinculum — each model through CLAP is its DSP to the bit: the VCA on Auto, the
+/// opto's Limit, the vari-mu's programme position with its colour (the family's settings
+/// cover one; these the other two and the VCA's Auto).
+#[test]
+fn vinculum_s_models_match_the_dsp() {
+    let kind = EffectKind::BusCompressor;
+    let models: [&[(&str, f32)]; 3] = [
+        &[
+            ("model", 0.0),
+            ("thr", -24.0),
+            ("ratio", 1.0),
+            ("rel", 4.0),
+            ("makeup", 4.0),
+        ],
+        &[
+            ("model", 1.0),
+            ("char", 1.0),
+            ("thr", -28.0),
+            ("hpf", 90.0),
+            ("mix", 0.8),
+        ],
+        &[
+            ("model", 2.0),
+            ("char", 1.0),
+            ("time", 5.0),
+            ("colour", 1.0),
+            ("thr", -20.0),
+        ],
+    ];
+    for values in models {
+        let spec = spec_with(kind, values);
+        let plugin = through_plugin(kind, values, &[512], N);
+        let dsp = through_dsp(&spec, N, true);
+        assert_identical(&format!("Vinculum {values:?}"), &plugin, &dsp);
+        let (mut dry, dry_r) = signal(N, 7);
+        dry.extend_from_slice(&dry_r);
+        let moved = plugin.iter().zip(&dry).filter(|(a, b)| a != b).count();
+        assert!(moved > N / 10, "{values:?} changed only {moved} samples");
+    }
+}
+
 #[test]
 fn a_bypass_is_the_input_delayed_by_the_latency() {
     // Terminus has a lookahead: the bypass keeps it, so the host's compensation holds.

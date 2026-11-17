@@ -2321,6 +2321,38 @@ distance and the **Balance** of horn against drum, the cabinet's **back** (open 
 and its valve amp's **Drive**, and the Mix and Output. Thirteen factory presets. At its
 defaults (mix 0) Rota touches no sample; it has no latency.
 
+### Vinculum, the bus compressor
+
+**Vinculum** (Latin for *a bond*) is the compressor that glues a mix, on a bus, a group or
+the master. Insert it from **Add insert ▾ ▸ Dynamics ▸ Vinculum**; it starts as *Glue* (the
+VCA at 4:1, 30 ms attack, Auto release, −18 dB).
+
+**Three models**, chosen on the faceplate's first switch:
+
+- **VCA** — a console's bus compressor: **Ratio** 2:1, 4:1 or 10:1, **Attack** 0.1 to 30 ms
+  and **Release** 0.1 to 1.2 s or **Auto** (a lone hit lets go fast, sustained work slowly,
+  so the mix breathes without pumping).
+- **Opto** — a photocell leveller lit by the output: soft at first, about 3:1 at depth in
+  **Compress**, near 10:1 in **Limit**, letting go slowly after it has worked long.
+- **Vari-mu** — a valve whose ratio rises as it works (to 4:1 in Compress, to 20:1 in
+  Limit), with six **Time constant** positions (5 and 6 follow the programme) and a **Valve colour**
+  on its own card.
+
+**The faceplate** answers a click: a click on an engraved position chooses it, a click on a
+knob steps it, a click on the bat throws Compress or Limit. Its **lamps** are controls too:
+**External key** opens the key's list (its own input, or any strip of the desk), **Auto
+release** lights Auto (a second click gives back the release it had), **Limit** throws the
+character. The two needles show the **gain reduction** and the **output**; between them a
+window shows the model's gain element at work. The screen draws the **transfer curve** with
+the signal's point on it and eight seconds of reduction.
+
+**The cards**: Threshold and Make-up; the **Side chain** — the key (also in its own field)
+and the **High-pass** that keeps the low end from pulling the detector; Valve (the vari-mu's
+colour); **Mix** (parallel compression) and Output. Fourteen factory presets cover every
+model: glue for a bus or the mix, drum smash and parallel drums, a vocal bus, mastering glue
+and a limit on each. At its defaults (the threshold at +24 dB) Vinculum touches no sample; it
+has no latency. As a pedal on **Tabula** it shows Model, Threshold, Make-up and Mix.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

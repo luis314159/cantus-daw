@@ -783,6 +783,20 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("os", 0.0),
             ("out", -6.0),
         ], // fx3:arca
+        // fxb:vinculum — the valve variable-mu working hard, its colour up, half parallel,
+        // the side chain's high-pass in, the output moved. Every model's own sound is in
+        // `clap.rs` (`vinculum_s_models_match_the_dsp`); the external key in `clap.rs` and
+        // `vst3.rs`.
+        EffectKind::BusCompressor => vec![
+            ("model", 2.0),
+            ("thr", -30.0),
+            ("time", 4.0),
+            ("colour", 0.6),
+            ("hpf", 120.0),
+            ("makeup", 6.0),
+            ("mix", 0.5),
+            ("out", -3.0),
+        ], // fxb:vinculum
         _ => vec![],
     }
 }
@@ -883,6 +897,12 @@ pub enum Direct {
     Rota(Box<cantus_dsp::rota::Rota>),
     /// fx3:arca — Arca, the amp and its cabinet.
     Arca(Box<cantus_dsp::arca::Arca>),
+    /// fxb:vinculum — Vinculum, the bus compressor: its DSP keyed by the sidechain when
+    /// asked, and its output level gliding after it, as the engine's unit glides it.
+    Vinculum(
+        Box<cantus_dsp::vinculum::Vinculum>,
+        cantus_dsp::modfx_line::Glide,
+    ),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -983,6 +1003,10 @@ impl Direct {
             EffectKind::PitchShift => Direct::Saltus(Box::new(cantus_dsp::saltus::Saltus::new(SR))), // fx3:saltus
             EffectKind::Rotary => Direct::Rota(Box::new(cantus_dsp::rota::Rota::new(SR))), // fx3:rota
             EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
+            EffectKind::BusCompressor => Direct::Vinculum(
+                Box::new(cantus_dsp::vinculum::Vinculum::new(SR)),
+                cantus_dsp::modfx_line::Glide::new(1.0, 10.0, SR, 1e-6),
+            ), // fxb:vinculum
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -1044,6 +1068,17 @@ impl Direct {
                 }
                 x.set(&s);
             }
+            // fxb:vinculum — the output's target as the engine's unit sets it (0 dB not
+            // applied).
+            Direct::Vinculum(x, out) => {
+                x.set(&fx::vinculum::settings(spec));
+                let db = spec.get("out");
+                out.target = if db == 0.0 {
+                    1.0
+                } else {
+                    cantus_dsp::math::db_to_gain(db.clamp(-24.0, 24.0))
+                };
+            }
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -1090,6 +1125,10 @@ impl Direct {
             Direct::Saltus(x) => x.reset(),  // fx3:saltus
             Direct::Rota(x) => x.reset(),    // fx3:rota
             Direct::Arca(x) => x.reset(),    // fx3:arca
+            Direct::Vinculum(x, out) => {
+                out.jump(out.target);
+                x.reset();
+            } // fxb:vinculum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1119,13 +1158,14 @@ impl Direct {
             Direct::Tonsor(x) => x.latency(),
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
-            Direct::Stub(x) => x.latency(),    // fx:contract
-            Direct::Cribrum(x) => x.latency(), // fx:cribrum
-            Direct::Vetus(x) => x.latency(),   // fx:vetus
-            Direct::Libra(x) => x.latency(),   // fx:libra
-            Direct::Saltus(x) => x.latency(),  // fx3:saltus
-            Direct::Rota(_) => 0,              // fx3:rota
-            Direct::Arca(x) => x.latency(),    // fx3:arca
+            Direct::Stub(x) => x.latency(),        // fx:contract
+            Direct::Cribrum(x) => x.latency(),     // fx:cribrum
+            Direct::Vetus(x) => x.latency(),       // fx:vetus
+            Direct::Libra(x) => x.latency(),       // fx:libra
+            Direct::Saltus(x) => x.latency(),      // fx3:saltus
+            Direct::Rota(_) => 0,                  // fx3:rota
+            Direct::Arca(x) => x.latency(),        // fx3:arca
+            Direct::Vinculum(x, _) => x.latency(), // fxb:vinculum
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1162,6 +1202,16 @@ impl Direct {
             Direct::Saltus(x) => x.process(l, r),    // fx3:saltus
             Direct::Rota(x) => x.process(l, r),      // fx3:rota
             Direct::Arca(x) => x.process(l, r),      // fx3:arca
+            Direct::Vinculum(x, out) => {
+                x.process_keyed(l, r, key);
+                if !(out.still() && out.value == 1.0) {
+                    for (a, b) in l.iter_mut().zip(r.iter_mut()) {
+                        let g = out.next();
+                        *a *= g;
+                        *b *= g;
+                    }
+                }
+            } // fxb:vinculum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

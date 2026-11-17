@@ -7,7 +7,7 @@
 
 /// The cargo feature (as `CARGO_FEATURE_*` spells it) of each plug-in, and its full name
 /// (`desc.rs`; a test keeps the two lists equal).
-const PLUGINS: [(&str, &str); 33] = [
+const PLUGINS: [(&str, &str); 34] = [
     // fx3:contract: 33 with wave 3's four
     ("EQ", "Cantus Aequalis"),
     ("COMPRESSOR", "Cantus Comprimo"),
@@ -32,16 +32,17 @@ const PLUGINS: [(&str, &str); 33] = [
     ("DISCRIMEN", "Cantus Discrimen"),
     ("SPECULUM", "Cantus Speculum"),
     ("TONUS", "Cantus Tonus"),
-    ("AULA", "Cantus Aula"),       // r39:conv
-    ("CRIBRUM", "Cantus Cribrum"), // fx:contract
-    ("FRAGOR", "Cantus Fragor"),   // fx:contract
-    ("LAPSUS", "Cantus Lapsus"),   // fx:contract
-    ("VETUS", "Cantus Vetus"),     // fx:contract
-    ("LIBRA", "Cantus Libra"),     // fx:contract
-    ("TABULA", "Cantus Tabula"),   // fx3:contract
-    ("SALTUS", "Cantus Saltus"),   // fx3:contract
-    ("ROTA", "Cantus Rota"),       // fx3:contract
-    ("ARCA", "Cantus Arca"),       // fx3:contract
+    ("AULA", "Cantus Aula"),         // r39:conv
+    ("CRIBRUM", "Cantus Cribrum"),   // fx:contract
+    ("FRAGOR", "Cantus Fragor"),     // fx:contract
+    ("LAPSUS", "Cantus Lapsus"),     // fx:contract
+    ("VETUS", "Cantus Vetus"),       // fx:contract
+    ("LIBRA", "Cantus Libra"),       // fx:contract
+    ("TABULA", "Cantus Tabula"),     // fx3:contract
+    ("SALTUS", "Cantus Saltus"),     // fx3:contract
+    ("ROTA", "Cantus Rota"),         // fx3:contract
+    ("ARCA", "Cantus Arca"),         // fx3:contract
+    ("VINCULUM", "Cantus Vinculum"), // fxb:vinculum
 ];
 
 fn main() {

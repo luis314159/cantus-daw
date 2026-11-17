@@ -175,3 +175,66 @@ fn a_fork_carries_on_from_where_the_unit_is() {
         }
     }
 }
+
+/// fxb:vinculum (phase B) — Vinculum as a pedal on Tabula's board: unkeyed, the board is
+/// Vinculum inserted alone on its own input, to the bit; keyed, the board takes the key
+/// (because its pedal does) and the key reaches the pedal's detector as it reaches an
+/// insert's — the board keyed by the bass is Vinculum inserted alone keyed by the bass, to
+/// the bit, offline and live.
+#[test]
+fn as_a_pedal_it_compresses_its_own_input_and_hears_the_board_s_key() {
+    use cantus_core::fx::tabula::{pedal_allowed, Board, Pedal, PedalId};
+    assert!(pedal_allowed(EffectKind::BusCompressor), "Vinculum may be a pedal");
+    let kv = [
+        ("thr", -30.0),
+        ("ratio", 2.0),
+        ("att", 1.0),
+        ("rel", 1.0),
+        ("makeup", 6.0),
+        ("hpf", 80.0),
+    ];
+    let board_of = |spec: EffectSpec, key: Option<StripId>| {
+        let mut p = demo_project();
+        let fx = add_effect(&mut p, EffectKind::Board);
+        let slot = strip_of(&mut p, 0)
+            .effects
+            .iter_mut()
+            .find(|e| e.id == fx)
+            .unwrap();
+        slot.spec.board = Some(Box::new(Board {
+            pedals: vec![Pedal::new(PedalId(1), spec)],
+            macros: Vec::new(),
+        }));
+        assert!(
+            slot.spec.takes_sidechain(),
+            "a board with Vinculum takes a key"
+        );
+        slot.sidechain = key;
+        p
+    };
+    // Vinculum inserted alone on its own input, then keyed by the bass.
+    let mut alone = demo_project();
+    let fx = add_effect(&mut alone, EffectKind::BusCompressor);
+    set_all(&mut alone, fx, &kv);
+    let own = render_of(&alone);
+    assert!(
+        differs(&own, &render_of(&demo_project())) > 1e-3,
+        "it compresses"
+    );
+    let bass = alone.strips[1].id;
+    strip_of(&mut alone, 0).effects[0].sidechain = Some(bass);
+    let keyed_alone = render_of(&alone);
+    let spec = strip_of(&mut alone, 0).effects[0].spec.clone();
+    // The same Vinculum as the board's one pedal.
+    let p = board_of(spec.clone(), None);
+    assert_null(&own, &render_of(&p), 0.0, "the board = the insert on its own input");
+    let p = board_of(spec, Some(bass));
+    let keyed = render_of(&p);
+    assert_null(&keyed_alone, &keyed, 0.0, "the board keyed = the insert keyed");
+    let live = realtime(&p, keyed.len() / 2);
+    assert_null(&keyed[..live.len()], &live, 0.0, "the board: live = offline");
+    assert!(
+        differs(&own, &keyed) > 1e-3,
+        "the key changes what the pedal does"
+    );
+}

@@ -327,6 +327,17 @@ pub const FACES: &[Face] = &[
         "A",
         T::Hammered,
     ), // fx3:arca
+    // fxb:vinculum — a compressor pedal: the model, the sustain (the threshold), the level
+    // (the make-up) and the blend (the mix). The Compress/Limit and the times stay on its
+    // editor's faceplate, reached from the pedal.
+    face(
+        K::BusCompressor,
+        &["model", "thr", "makeup", "mix"],
+        S::Standard,
+        M::Needle,
+        "V",
+        T::Smooth,
+    ), // fxb:vinculum
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.

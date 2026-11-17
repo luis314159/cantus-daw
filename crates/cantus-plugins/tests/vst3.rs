@@ -339,6 +339,69 @@ fn through_vst3_is_bit_identical_to_the_dsp() {
     }
 }
 
+/// fxb:vinculum — Vinculum's detector keyed by VST3's sidechain bus (the aux input,
+/// activated as a host does), the plug-in's switch on the external key in its state:
+/// exactly the DSP keyed by the same sound, and the quiet input pressed down where the
+/// unkeyed one passes untouched.
+#[test]
+fn vinculum_s_key_is_the_vst3_sidechain_bus() {
+    let kind = EffectKind::BusCompressor;
+    let values = [
+        ("thr", -30.0),
+        ("ratio", 2.0),
+        ("att", 0.0),
+        ("rel", 1.0),
+        ("makeup", 0.0),
+        ("out", 0.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let mut state: serde_json::Value = serde_json::to_value(&spec).unwrap();
+        state
+            .as_object_mut()
+            .unwrap()
+            .insert("sidechain".into(), keyed.into());
+        let v = V3::new(kind);
+        assert!(v.set_state(&serde_json::to_vec(&state).unwrap()));
+        v.activate(1024);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        for at in (0..n).step_by(1000) {
+            let end = (at + 1000).min(n);
+            v.process(
+                &mut l[at..end],
+                &mut r[at..end],
+                Some((&key_l[at..end], &key_r[at..end])),
+                &[],
+            );
+        }
+        let _g = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Vinculum keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Vinculum keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    assert_identical("unkeyed: the quiet input untouched", &outs[0], &quiet_l);
+    let energy = |x: &[f32]| x[4_800..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) < 0.25 * energy(&outs[0]),
+        "the key presses the input: {} against {}",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
+}
+
 #[test]
 fn vst3_automation_lands_on_the_grid() {
     let kind = EffectKind::Gate;

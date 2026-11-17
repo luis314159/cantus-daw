@@ -55,7 +55,15 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/saltus.en.txt"),  // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/rota.en.txt"),    // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/arca.en.txt"),    // fx3:contract
-                include_str!("../../cantus-ui/locales/fx/delay.en.txt"),   // r39:delay
+                // fxb:vinculum — wave A's and wave B's units, so every kind's choices have
+                // their words (`pane_words`; fx/wave-a adds wave A's three as well).
+                include_str!("../../cantus-ui/locales/fx/loquax.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/fractus.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/caelum.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/vinculum.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/lenis.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/cedo.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/delay.en.txt"), // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.en.txt"),
             ],
             Lang::Es => &[
@@ -93,7 +101,15 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/saltus.es.txt"),  // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/rota.es.txt"),    // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/arca.es.txt"),    // fx3:contract
-                include_str!("../../cantus-ui/locales/fx/delay.es.txt"),   // r39:delay
+                // fxb:vinculum — wave A's and wave B's units, so every kind's choices have
+                // their words (`pane_words`; fx/wave-a adds wave A's three as well).
+                include_str!("../../cantus-ui/locales/fx/loquax.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/fractus.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/caelum.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/vinculum.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/lenis.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/cedo.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/delay.es.txt"), // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.es.txt"),
             ],
         }

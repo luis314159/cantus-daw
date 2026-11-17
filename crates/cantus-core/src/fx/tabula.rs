@@ -196,7 +196,10 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             | EffectKind::Glitch
             | EffectKind::Shimmer
             // fxb:contract — wave B joins the board with its faces (phase B).
-            | EffectKind::BusCompressor
+            // fxb:vinculum — Vinculum is a pedal: a compressor pedal is natural. On a board
+            // it compresses the board's own signal; its detector hears the board's key only
+            // when the board slot is keyed (a board takes a key when a pedal does), as an
+            // insert's hears its slot's (ADR 0142, phase B).
             | EffectKind::ResonanceSuppressor
             | EffectKind::Ducker
     )
@@ -575,7 +578,6 @@ mod tests {
                     | EffectKind::Glitch
                     | EffectKind::Shimmer
                     // fxb:contract — wave B joins the board with its faces (phase B).
-                    | EffectKind::BusCompressor
                     | EffectKind::ResonanceSuppressor
                     | EffectKind::Ducker
             ) {

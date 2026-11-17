@@ -597,6 +597,8 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("shimmer_reverb", EffectKind::Shimmer),       // fxa:contract
     ("bus_compressor", EffectKind::BusCompressor), // fxb:contract
     ("glue", EffectKind::BusCompressor),           // fxb:contract
+    ("vari_mu", EffectKind::BusCompressor),        // fxb:vinculum
+    ("opto", EffectKind::BusCompressor),           // fxb:vinculum
     ("resonance_suppressor", EffectKind::ResonanceSuppressor), // fxb:contract
     ("resonance", EffectKind::ResonanceSuppressor), // fxb:contract
     ("ducker", EffectKind::Ducker),                // fxb:contract

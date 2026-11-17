@@ -2523,6 +2523,41 @@ mueble (abierta o cerrada) y la **Saturación** de su amplificador, y la Mezcla 
 Trece presets de fábrica. En sus valores por defecto (mezcla 0) Rota no toca ninguna
 muestra; no tiene latencia.
 
+### Vinculum, el compresor de bus
+
+**Vinculum** (en latín, *un vínculo*) es el compresor que une una mezcla, en un bus, un grupo
+o el máster. Insértalo desde **Añadir inserto ▾ ▸ Dinámica ▸ Vinculum**; empieza como
+*Pegamento* (el VCA a 4:1, ataque de 30 ms, liberación automática, −18 dB).
+
+**Tres modelos**, elegidos en el primer conmutador de la placa:
+
+- **VCA** — el compresor de bus de una consola: **Proporción** 2:1, 4:1 o 10:1, **Ataque**
+  de 0,1 a 30 ms y **Liberación** de 0,1 a 1,2 s o **Auto** (un golpe aislado se suelta
+  pronto y el trabajo sostenido despacio, de modo que la mezcla respira sin bombear).
+- **Óptico** — un nivelador de fotocélula encendida por la salida: suave al principio, unos
+  3:1 a fondo en **Comprimir**, cerca de 10:1 en **Limitar**, soltando despacio después de
+  trabajar mucho.
+- **Mu variable** — una válvula cuya proporción sube a medida que trabaja (hasta 4:1 en
+  Comprimir, hasta 20:1 en Limitar), con seis posiciones de **Constante de tiempo** (la 5 y la 6 siguen
+  al programa) y un **Color de válvula** en su propia tarjeta.
+
+**La placa** responde a un clic: un clic en una posición grabada la elige, un clic en una
+perilla la hace avanzar, un clic en la palanca cambia entre Comprimir y Limitar. Sus
+**pilotos** también son controles: **Clave externa** abre la lista de la clave (su propia
+entrada o cualquier canal de la mesa), **Liberación automática** enciende Auto (un segundo
+clic devuelve la liberación que tenía), **Limitar** cambia el carácter. Las dos agujas
+muestran la **reducción de ganancia** y la **salida**; entre ellas, una ventana muestra
+trabajando el elemento de ganancia del modelo. La pantalla dibuja la **curva de
+transferencia** con el punto de la señal y ocho segundos de reducción.
+
+**Las tarjetas**: Umbral y Compensación; la **Cadena lateral** — la clave (también en su
+propio campo) y el **Paso alto** que impide que los graves arrastren al detector; Válvula (el
+color del mu variable); **Mezcla** (compresión en paralelo) y Salida. Catorce presets de
+fábrica cubren cada modelo: pegamento para un bus o la mezcla, batería aplastada y en
+paralelo, un bus de voces, pegamento de máster y un límite en cada uno. En sus valores por
+defecto (el umbral a +24 dB) Vinculum no toca ninguna muestra; no tiene latencia. Como pedal
+en **Tabula** muestra Modelo, Umbral, Compensación y Mezcla.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

@@ -56,8 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 33] = [
-    // fx3:contract: 33 with wave 3's four
+pub static ALL: [Descriptor; 34] = [
+    // fx3:contract: 33 with wave 3's four; fxb:vinculum: 34 with the bus compressor
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -464,6 +464,21 @@ pub static ALL: [Descriptor; 33] = [
         vst3_categories: "Fx|Distortion",
         description: "Amp and cabinet: preamp, tone stack and power amp from their circuits, the cabinet by impulse response.",
         compiled: cfg!(feature = "arca"),
+    },
+    // fxb:vinculum — the fx side round's wave B (provisional ADR 0142). Its detector listens
+    // to the sidechain input when the key is chosen (the classic bus compressor's external
+    // key).
+    Descriptor {
+        kind: EffectKind::BusCompressor,
+        name: "Vinculum",
+        full_name: "Cantus Vinculum",
+        slug: "vinculum",
+        clap_id: "com.github.lalmazan.cantus.vinculum",
+        vst3_cid: [0x280AA20C, 0x7FD4D2E5, 0x539CBF2B, 0x5809640B],
+        clap_features: &[FX, "compressor", STEREO],
+        vst3_categories: "Fx|Dynamics",
+        description: "Bus compressor: a console's VCA with Auto release, a photocell leveller and a valve variable-mu, keyed by a sidechain.",
+        compiled: cfg!(feature = "vinculum"),
     },
 ];
 
