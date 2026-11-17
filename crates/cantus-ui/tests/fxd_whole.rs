@@ -76,7 +76,7 @@ fn probe_window(formula: bool, look: u8, k: f32, dark: bool, error: bool) -> Vec
                 draft: error.then(|| "a*Sin(SongTime*Pi*b".to_string()),
                 caret: error.then_some(19),
                 focused: error,
-                links_first: 0,
+                ..fxd_formula::Live::default()
             };
             let c = fxd::Chrome {
                 preset: Some(&preset),
