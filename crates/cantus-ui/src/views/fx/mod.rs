@@ -90,10 +90,14 @@ pub mod libra;
 pub mod arca;
 /// Caelum, the shimmer reverb (fx side round, wave A). // fxa:contract
 pub mod caelum;
+/// Cedo, the ducker (fx side round, wave B). // fxb:contract
+pub mod cedo;
 /// Fractus, the glitch sequencer and grain cloud (fx side round, wave A). // fxa:contract
 pub mod fractus;
 /// What wave A's editors share: cells sized to their words. // fxa
 pub mod fxa_cells;
+/// Lenis, the resonance suppressor (fx side round, wave B). // fxb:contract
+pub mod lenis;
 /// Loquax, the vocoder (fx side round, wave A). // fxa:contract
 pub mod loquax;
 /// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
@@ -121,7 +125,9 @@ pub mod unit_view;
 /// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
 pub mod valve_draw;
 /// Vetus, lo-fi (fx side round). // fx:contract
-pub mod vetus; // fx:vetus — a unit's chosen drawing (Vetus's record or cassette)
+pub mod vetus;
+/// Vinculum, the bus compressor (fx side round, wave B). // fxb:contract
+pub mod vinculum; // fx:vetus — a unit's chosen drawing (Vetus's record or cassette)
 
 /// How many recent (input, output) pairs of the analysed effect are kept for displays.
 pub const PAIRS: usize = 16_384;
@@ -163,20 +169,23 @@ pub struct FxEditors {
     pub discrimen: discrimen::State,
     pub speculum: speculum::State,
     pub tonus: tonus::State,
-    pub aula: aula::State,       // r39:conv
-    pub cribrum: cribrum::State, // fx:contract
-    pub fragor: fragor::State,   // fx:contract
-    pub lapsus: lapsus::State,   // fx:contract
-    pub vetus: vetus::State,     // fx:contract
-    pub libra: libra::State,     // fx:contract
-    pub tabula: tabula::State,   // fx3:contract
-    pub saltus: saltus::State,   // fx3:contract
-    pub rota: rota::State,       // fx3:contract
-    pub arca: arca::State,       // fx3:contract
-    pub loquax: loquax::State,   // fxa:contract
-    pub fractus: fractus::State, // fxa:contract
-    pub caelum: caelum::State,   // fxa:contract
-    pub delay: delay::State,     // r39:delay
+    pub aula: aula::State,         // r39:conv
+    pub cribrum: cribrum::State,   // fx:contract
+    pub fragor: fragor::State,     // fx:contract
+    pub lapsus: lapsus::State,     // fx:contract
+    pub vetus: vetus::State,       // fx:contract
+    pub libra: libra::State,       // fx:contract
+    pub tabula: tabula::State,     // fx3:contract
+    pub saltus: saltus::State,     // fx3:contract
+    pub rota: rota::State,         // fx3:contract
+    pub arca: arca::State,         // fx3:contract
+    pub loquax: loquax::State,     // fxa:contract
+    pub fractus: fractus::State,   // fxa:contract
+    pub caelum: caelum::State,     // fxa:contract
+    pub vinculum: vinculum::State, // fxb:contract
+    pub lenis: lenis::State,       // fxb:contract
+    pub cedo: cedo::State,         // fxb:contract
+    pub delay: delay::State,       // r39:delay
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
     /// The open editor's frame: its preset, its lists.
@@ -456,6 +465,9 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::Vocoder => loquax::FACTORY_PRESETS, // fxa:contract
         EffectKind::Glitch => fractus::FACTORY_PRESETS, // fxa:contract
         EffectKind::Shimmer => caelum::FACTORY_PRESETS, // fxa:contract
+        EffectKind::BusCompressor => vinculum::FACTORY_PRESETS, // fxb:contract
+        EffectKind::ResonanceSuppressor => lenis::FACTORY_PRESETS, // fxb:contract
+        EffectKind::Ducker => cedo::FACTORY_PRESETS, // fxb:contract
         EffectKind::Delay => delay::FACTORY_PRESETS, // r39:delay
         _ => &[],
     }
@@ -560,20 +572,23 @@ pub enum Editor {
     Discrimen(Box<discrimen::State>),
     Speculum(Box<speculum::State>),
     Tonus(Box<tonus::State>),
-    Aula(Box<aula::State>),       // r39:conv
-    Cribrum(Box<cribrum::State>), // fx:contract
-    Fragor(Box<fragor::State>),   // fx:contract
-    Lapsus(Box<lapsus::State>),   // fx:contract
-    Vetus(Box<vetus::State>),     // fx:contract
-    Libra(Box<libra::State>),     // fx:contract
-    Tabula(Box<tabula::State>),   // fx3:contract
-    Saltus(Box<saltus::State>),   // fx3:contract
-    Rota(Box<rota::State>),       // fx3:contract
-    Arca(Box<arca::State>),       // fx3:contract
-    Loquax(Box<loquax::State>),   // fxa:contract
-    Fractus(Box<fractus::State>), // fxa:contract
-    Caelum(Box<caelum::State>),   // fxa:contract
-    Delay(Box<delay::State>),     // r39:delay
+    Aula(Box<aula::State>),         // r39:conv
+    Cribrum(Box<cribrum::State>),   // fx:contract
+    Fragor(Box<fragor::State>),     // fx:contract
+    Lapsus(Box<lapsus::State>),     // fx:contract
+    Vetus(Box<vetus::State>),       // fx:contract
+    Libra(Box<libra::State>),       // fx:contract
+    Tabula(Box<tabula::State>),     // fx3:contract
+    Saltus(Box<saltus::State>),     // fx3:contract
+    Rota(Box<rota::State>),         // fx3:contract
+    Arca(Box<arca::State>),         // fx3:contract
+    Loquax(Box<loquax::State>),     // fxa:contract
+    Fractus(Box<fractus::State>),   // fxa:contract
+    Caelum(Box<caelum::State>),     // fxa:contract
+    Vinculum(Box<vinculum::State>), // fxb:contract
+    Lenis(Box<lenis::State>),       // fxb:contract
+    Cedo(Box<cedo::State>),         // fxb:contract
+    Delay(Box<delay::State>),       // r39:delay
 }
 
 impl Editor {
@@ -616,6 +631,9 @@ impl Editor {
             EffectKind::Vocoder => Some(Editor::Loquax(Box::default())), // fxa:contract
             EffectKind::Glitch => Some(Editor::Fractus(Box::default())), // fxa:contract
             EffectKind::Shimmer => Some(Editor::Caelum(Box::default())), // fxa:contract
+            EffectKind::BusCompressor => Some(Editor::Vinculum(Box::default())), // fxb:contract
+            EffectKind::ResonanceSuppressor => Some(Editor::Lenis(Box::default())), // fxb:contract
+            EffectKind::Ducker => Some(Editor::Cedo(Box::default())), // fxb:contract
             EffectKind::Delay => Some(Editor::Delay(Box::default())), // r39:delay
             _ => None,
         }
@@ -660,6 +678,9 @@ impl Editor {
             Editor::Loquax(st) => loquax::editor(host, st, ui), // fxa:contract
             Editor::Fractus(st) => fractus::editor(host, st, ui), // fxa:contract
             Editor::Caelum(st) => caelum::editor(host, st, ui), // fxa:contract
+            Editor::Vinculum(st) => vinculum::editor(host, st, ui), // fxb:contract
+            Editor::Lenis(st) => lenis::editor(host, st, ui), // fxb:contract
+            Editor::Cedo(st) => cedo::editor(host, st, ui), // fxb:contract
             Editor::Delay(st) => delay::editor(host, st, ui), // r39:delay
         }
     }
@@ -712,6 +733,9 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::Vocoder // fxa:contract
         | EffectKind::Glitch // fxa:contract
         | EffectKind::Shimmer // fxa:contract
+        | EffectKind::BusCompressor // fxb:contract
+        | EffectKind::ResonanceSuppressor // fxb:contract
+        | EffectKind::Ducker // fxb:contract
         | EffectKind::Delay // r39:delay
         | EffectKind::External => {
             let mut pos = app.fx.pos;
@@ -766,6 +790,9 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::Vocoder => loquax::framed(app, ui, strip, effect), // fxa:contract
                     EffectKind::Glitch => fractus::framed(app, ui, strip, effect), // fxa:contract
                     EffectKind::Shimmer => caelum::framed(app, ui, strip, effect), // fxa:contract
+                    EffectKind::BusCompressor => vinculum::framed(app, ui, strip, effect), // fxb:contract
+                    EffectKind::ResonanceSuppressor => lenis::framed(app, ui, strip, effect), // fxb:contract
+                    EffectKind::Ducker => cedo::framed(app, ui, strip, effect), // fxb:contract
                     EffectKind::Delay => delay::framed(app, ui, strip, effect), // r39:delay
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
                 },
@@ -819,6 +846,9 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::Vocoder => loquax::preview(ui, spec), // fxa:contract
         EffectKind::Glitch => fractus::preview(ui, spec), // fxa:contract
         EffectKind::Shimmer => caelum::preview(ui, spec), // fxa:contract
+        EffectKind::BusCompressor => vinculum::preview(ui, spec), // fxb:contract
+        EffectKind::ResonanceSuppressor => lenis::preview(ui, spec), // fxb:contract
+        EffectKind::Ducker => cedo::preview(ui, spec), // fxb:contract
         EffectKind::Delay => delay::preview(ui, spec), // r39:delay
         _ => {
             let s = crate::kit::Style::current();
@@ -866,6 +896,9 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::Vocoder => loquax::demo_setup(app, strip, effect), // fxa:contract
         EffectKind::Glitch => fractus::demo_setup(app, strip, effect), // fxa:contract
         EffectKind::Shimmer => caelum::demo_setup(app, strip, effect), // fxa:contract
+        EffectKind::BusCompressor => vinculum::demo_setup(app, strip, effect), // fxb:contract
+        EffectKind::ResonanceSuppressor => lenis::demo_setup(app, strip, effect), // fxb:contract
+        EffectKind::Ducker => cedo::demo_setup(app, strip, effect), // fxb:contract
         EffectKind::Delay => delay::demo_setup(app, strip, effect), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
         _ => {}
@@ -911,6 +944,9 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::Vocoder => loquax::demo_feed(app), // fxa:contract
         EffectKind::Glitch => fractus::demo_feed(app), // fxa:contract
         EffectKind::Shimmer => caelum::demo_feed(app), // fxa:contract
+        EffectKind::BusCompressor => vinculum::demo_feed(app), // fxb:contract
+        EffectKind::ResonanceSuppressor => lenis::demo_feed(app), // fxb:contract
+        EffectKind::Ducker => cedo::demo_feed(app), // fxb:contract
         EffectKind::Delay => delay::demo_feed(app), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}

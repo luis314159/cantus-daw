@@ -1,0 +1,12 @@
+# Lenis resonance suppressor: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# The fx side round's wave B: the starting preset only until phase B adds the rest.
+# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.lenis.gentle"
+note = "Half of each resonance's bump taken away, the soft curve, from 150 Hz up: the starting preset."
+styles = ["pop", "rock"]
+roles = ["vocal", "bus"]
+[preset.values]
+"depth" = 0.5
+"lo" = 150

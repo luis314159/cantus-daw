@@ -36,3 +36,7 @@ fx.lenis.bon.1 = Encendida
 fx.lenis.bhz = Frecuencia de la banda de enfoque
 fx.lenis.bamt = Cantidad de la banda de enfoque
 fx.lenis.bw = Anchura de la banda de enfoque
+# Las cajas entre las que elige el usuario.
+lenis.colourway.laboratory = Laboratorio
+lenis.colourway.ivory = Marfil
+lenis.colourway.graphite = Grafito

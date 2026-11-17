@@ -384,6 +384,7 @@ impl Drop for DawHost<'_> {
                 lapsus: None,  // fx:lapsus (the bank: phase B)
                 board: None,   // fx3:contract (a board's content: the tabula builder's)
                 fractus: None, // fxa:contract (Fractus's lanes: phase B)
+                cedo: None,    // fxb:contract (Cedo's shape: phase B)
             };
             let spec = std::mem::replace(&mut self.spec, empty);
             self.app.fx.spec_cache = Some((rev, self.effect, spec));

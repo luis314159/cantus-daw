@@ -53,3 +53,7 @@ fx.cedo.listen.2 = Key
 fx.cedo.vel = Velocity
 fx.cedo.vel.0 = Off
 fx.cedo.vel.1 = Scales the depth
+# The bodies the user chooses among.
+cedo.colourway.workshop = Workshop
+cedo.colourway.signal = Signal
+cedo.colourway.midnight = Midnight

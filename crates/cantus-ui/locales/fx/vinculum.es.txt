@@ -44,3 +44,7 @@ fx.vinculum.makeup = Compensación
 fx.vinculum.colour = Color de válvula
 fx.vinculum.mix = Mezcla
 fx.vinculum.out = Salida
+# Los frentes entre los que elige el usuario.
+vinculum.colourway.console = Consola
+vinculum.colourway.broadcast = Radiodifusión
+vinculum.colourway.steel = Acero

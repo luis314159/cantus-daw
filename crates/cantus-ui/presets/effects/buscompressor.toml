@@ -1,0 +1,15 @@
+# Vinculum bus compressor: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# The fx side round's wave B: the starting preset only until phase B adds the rest.
+# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.vinculum.glue"
+note = "The console's glue on a bus: the VCA at 4:1, 30 ms attack, Auto release, 2 dB of make-up: the starting preset."
+styles = ["pop", "rock"]
+roles = ["bus"]
+[preset.values]
+"att" = 5
+"makeup" = 2
+"ratio" = 1
+"rel" = 4
+"thr" = -18

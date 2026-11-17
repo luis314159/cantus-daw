@@ -148,6 +148,9 @@ pub fn hue_of(kind: EffectKind) -> Function {
         EffectKind::Vocoder => Function::Source,    // fxa:contract (loquax: a voice)
         EffectKind::Glitch => Function::Mod,        // fxa:contract (fractus)
         EffectKind::Shimmer => Function::Space,     // fxa:contract (caelum)
+        EffectKind::BusCompressor => Function::Dynamics, // fxb:contract (vinculum)
+        EffectKind::ResonanceSuppressor => Function::Tone, // fxb:contract (lenis)
+        EffectKind::Ducker => Function::Dynamics,   // fxb:contract (cedo)
     }
 }
 
@@ -189,6 +192,9 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Vocoder => Vec2::new(1340.0, 900.0), // fxa:loquax
         EffectKind::Glitch => Vec2::new(1340.0, 720.0),  // fxa:fractus
         EffectKind::Shimmer => Vec2::new(1340.0, 900.0), // fxa:caelum
+        EffectKind::BusCompressor => super::vinculum::DESIGNED_SIZE, // fxb:vinculum
+        EffectKind::ResonanceSuppressor => super::lenis::DESIGNED_SIZE, // fxb:lenis
+        EffectKind::Ducker => super::cedo::DESIGNED_SIZE, // fxb:cedo
         _ => Vec2::new(1000.0, 640.0),
     }
 }

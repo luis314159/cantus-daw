@@ -36,3 +36,7 @@ fx.lenis.bon.1 = On
 fx.lenis.bhz = Focus band frequency
 fx.lenis.bamt = Focus band amount
 fx.lenis.bw = Focus band width
+# The cases the user chooses among.
+lenis.colourway.laboratory = Laboratory
+lenis.colourway.ivory = Ivory
+lenis.colourway.graphite = Graphite

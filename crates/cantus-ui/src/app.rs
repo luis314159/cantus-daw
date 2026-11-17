@@ -1742,6 +1742,9 @@ impl CantusApp {
             "loquax" | "vocoder" => EffectKind::Vocoder, // fxa:contract
             "fractus" | "glitch" => EffectKind::Glitch, // fxa:contract
             "caelum" | "shimmer" => EffectKind::Shimmer, // fxa:contract
+            "vinculum" | "bus_compressor" => EffectKind::BusCompressor, // fxb:contract
+            "lenis" | "resonance" => EffectKind::ResonanceSuppressor, // fxb:contract
+            "cedo" | "ducker" => EffectKind::Ducker,    // fxb:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

@@ -53,3 +53,7 @@ fx.cedo.listen.2 = Clave
 fx.cedo.vel = Velocidad
 fx.cedo.vel.0 = Apagada
 fx.cedo.vel.1 = Escala la profundidad
+# Los cuerpos entre los que elige el usuario.
+cedo.colourway.workshop = Taller
+cedo.colourway.signal = Señal
+cedo.colourway.midnight = Medianoche

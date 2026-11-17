@@ -522,19 +522,22 @@ pub fn effect_names(kind: EffectKind) -> (&'static str, &'static str) {
         K::TransientSplit => ("discrimen", "Discrimen"),
         K::Analyzer => ("speculum", "Speculum"),
         K::AutoTune => ("tonus", "Tonus"),
-        K::Aula => ("aula", "Aula"),             // r39:conv
-        K::AutoFilter => ("cribrum", "Cribrum"), // fx:contract
-        K::Pedal => ("fragor", "Fragor"),        // fx:contract
-        K::TimeShaper => ("lapsus", "Lapsus"),   // fx:contract
-        K::LoFi => ("vetus", "Vetus"),           // fx:contract
-        K::Utility => ("libra", "Libra"),        // fx:contract
-        K::Board => ("tabula", "Tabula"),        // fx3:contract
-        K::PitchShift => ("saltus", "Saltus"),   // fx3:contract
-        K::Rotary => ("rota", "Rota"),           // fx3:contract
-        K::Amp => ("arca", "Arca"),              // fx3:contract
-        K::Vocoder => ("loquax", "Loquax"),      // fxa:contract
-        K::Glitch => ("fractus", "Fractus"),     // fxa:contract
-        K::Shimmer => ("caelum", "Caelum"),      // fxa:contract
+        K::Aula => ("aula", "Aula"),                  // r39:conv
+        K::AutoFilter => ("cribrum", "Cribrum"),      // fx:contract
+        K::Pedal => ("fragor", "Fragor"),             // fx:contract
+        K::TimeShaper => ("lapsus", "Lapsus"),        // fx:contract
+        K::LoFi => ("vetus", "Vetus"),                // fx:contract
+        K::Utility => ("libra", "Libra"),             // fx:contract
+        K::Board => ("tabula", "Tabula"),             // fx3:contract
+        K::PitchShift => ("saltus", "Saltus"),        // fx3:contract
+        K::Rotary => ("rota", "Rota"),                // fx3:contract
+        K::Amp => ("arca", "Arca"),                   // fx3:contract
+        K::Vocoder => ("loquax", "Loquax"),           // fxa:contract
+        K::Glitch => ("fractus", "Fractus"),          // fxa:contract
+        K::Shimmer => ("caelum", "Caelum"),           // fxa:contract
+        K::BusCompressor => ("vinculum", "Vinculum"), // fxb:contract
+        K::ResonanceSuppressor => ("lenis", "Lenis"), // fxb:contract
+        K::Ducker => ("cedo", "Cedo"),                // fxb:contract
     }
 }
 
@@ -567,31 +570,39 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("analyzer", EffectKind::Analyzer),
     ("autotune", EffectKind::AutoTune),
     ("auto_tune", EffectKind::AutoTune),
-    ("convolution", EffectKind::Aula),         // r39:conv
-    ("convolution_reverb", EffectKind::Aula),  // r39:conv
-    ("auto_filter", EffectKind::AutoFilter),   // fx:contract
-    ("pedal", EffectKind::Pedal),              // fx:contract
-    ("time_shaper", EffectKind::TimeShaper),   // fx:contract
-    ("lofi", EffectKind::LoFi),                // fx:contract
-    ("bitcrusher", EffectKind::LoFi),          // fx:contract
-    ("utility", EffectKind::Utility),          // fx:contract
-    ("pedalboard", EffectKind::Board),         // fx3:contract
-    ("board", EffectKind::Board),              // fx3:contract
-    ("pitch_shifter", EffectKind::PitchShift), // fx3:contract
-    ("octaver", EffectKind::PitchShift),       // fx3:contract
-    ("harmonizer", EffectKind::PitchShift),    // fx3:contract
-    ("whammy", EffectKind::PitchShift),        // fx3:contract
-    ("rotary", EffectKind::Rotary),            // fx3:contract
-    ("leslie", EffectKind::Rotary),            // fx3:contract
-    ("amp", EffectKind::Amp),                  // fx3:contract
-    ("amplifier", EffectKind::Amp),            // fx3:contract
-    ("cabinet", EffectKind::Amp),              // fx3:contract
-    ("vocoder", EffectKind::Vocoder),          // fxa:contract
-    ("glitch", EffectKind::Glitch),            // fxa:contract
-    ("stutter", EffectKind::Glitch),           // fxa:contract
-    ("granular", EffectKind::Glitch),          // fxa:contract
-    ("shimmer", EffectKind::Shimmer),          // fxa:contract
-    ("shimmer_reverb", EffectKind::Shimmer),   // fxa:contract
+    ("convolution", EffectKind::Aula),             // r39:conv
+    ("convolution_reverb", EffectKind::Aula),      // r39:conv
+    ("auto_filter", EffectKind::AutoFilter),       // fx:contract
+    ("pedal", EffectKind::Pedal),                  // fx:contract
+    ("time_shaper", EffectKind::TimeShaper),       // fx:contract
+    ("lofi", EffectKind::LoFi),                    // fx:contract
+    ("bitcrusher", EffectKind::LoFi),              // fx:contract
+    ("utility", EffectKind::Utility),              // fx:contract
+    ("pedalboard", EffectKind::Board),             // fx3:contract
+    ("board", EffectKind::Board),                  // fx3:contract
+    ("pitch_shifter", EffectKind::PitchShift),     // fx3:contract
+    ("octaver", EffectKind::PitchShift),           // fx3:contract
+    ("harmonizer", EffectKind::PitchShift),        // fx3:contract
+    ("whammy", EffectKind::PitchShift),            // fx3:contract
+    ("rotary", EffectKind::Rotary),                // fx3:contract
+    ("leslie", EffectKind::Rotary),                // fx3:contract
+    ("amp", EffectKind::Amp),                      // fx3:contract
+    ("amplifier", EffectKind::Amp),                // fx3:contract
+    ("cabinet", EffectKind::Amp),                  // fx3:contract
+    ("vocoder", EffectKind::Vocoder),              // fxa:contract
+    ("glitch", EffectKind::Glitch),                // fxa:contract
+    ("stutter", EffectKind::Glitch),               // fxa:contract
+    ("granular", EffectKind::Glitch),              // fxa:contract
+    ("shimmer", EffectKind::Shimmer),              // fxa:contract
+    ("shimmer_reverb", EffectKind::Shimmer),       // fxa:contract
+    ("bus_compressor", EffectKind::BusCompressor), // fxb:contract
+    ("glue", EffectKind::BusCompressor),           // fxb:contract
+    ("resonance_suppressor", EffectKind::ResonanceSuppressor), // fxb:contract
+    ("resonance", EffectKind::ResonanceSuppressor), // fxb:contract
+    ("soothe", EffectKind::ResonanceSuppressor),   // fxb:contract
+    ("ducker", EffectKind::Ducker),                // fxb:contract
+    ("ducking", EffectKind::Ducker),               // fxb:contract
+    ("pump", EffectKind::Ducker),                  // fxb:contract
 ];
 
 /// A native effect kind offered for a new insert, by its id or one of its

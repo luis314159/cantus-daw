@@ -316,6 +316,21 @@ pub const FILES: &[(FileUnit, &str, &str)] = &[
         "presets/effects/shimmer.toml",
         include_str!("../presets/effects/shimmer.toml"),
     ),
+    (
+        FileUnit::Effect(EffectKind::BusCompressor), // fxb:contract
+        "presets/effects/buscompressor.toml",
+        include_str!("../presets/effects/buscompressor.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::ResonanceSuppressor), // fxb:contract
+        "presets/effects/resonancesuppressor.toml",
+        include_str!("../presets/effects/resonancesuppressor.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Ducker), // fxb:contract
+        "presets/effects/ducker.toml",
+        include_str!("../presets/effects/ducker.toml"),
+    ),
 ];
 
 /// Read one file's text.

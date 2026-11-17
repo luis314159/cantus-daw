@@ -1,0 +1,12 @@
+# Cedo ducker: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# The fx side round's wave B: the starting preset only until phase B adds the rest.
+# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.cedo.classic_pump"
+note = "The classic pump on quarters, 9 dB, fired by the tempo with no routing: the starting preset."
+styles = ["house", "pop"]
+roles = ["creative"]
+[preset.values]
+"depth" = 9
+"trig" = 1

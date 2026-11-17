@@ -44,3 +44,7 @@ fx.vinculum.makeup = Make-up
 fx.vinculum.colour = Valve colour
 fx.vinculum.mix = Mix
 fx.vinculum.out = Output
+# The faceplates the user chooses among.
+vinculum.colourway.console = Console
+vinculum.colourway.broadcast = Broadcast
+vinculum.colourway.steel = Steel
