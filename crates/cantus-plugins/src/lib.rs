@@ -20,6 +20,7 @@
 
 pub mod board_post; // fx3:tabula
 pub mod clap;
+pub mod comparatio_post; // fxc:comparatio
 pub mod desc;
 #[cfg(feature = "editor")]
 pub mod editor;

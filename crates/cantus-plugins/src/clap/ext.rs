@@ -35,6 +35,9 @@ pub(crate) unsafe extern "C" fn get_extension(
         &AUDIO_PORTS as *const clap_plugin_audio_ports as *const c_void
     } else if id == CLAP_EXT_TAIL {
         &TAIL as *const clap_plugin_tail as *const c_void
+    } else if id == clap_sys::ext::render::CLAP_EXT_RENDER && renders_offline_apart(plugin) {
+        // fxc:comparatio — told when the host renders offline: the mix, never a reference.
+        &RENDER as *const clap_sys::ext::render::clap_plugin_render as *const c_void
     } else if id == clap_sys::ext::note_ports::CLAP_EXT_NOTE_PORTS
         && super::notes::hears_notes(plugin)
     {
@@ -42,6 +45,38 @@ pub(crate) unsafe extern "C" fn get_extension(
             as *const c_void
     } else {
         super::gui::extension(plugin, id)
+    }
+}
+
+// ---- Render (fxc:comparatio) ---------------------------------------------------------
+
+/// A plug-in that hears something else in an offline render: Comparatio (its reference is
+/// monitoring only, ADR 0146).
+unsafe fn renders_offline_apart(plugin: *const clap_plugin) -> bool {
+    Instance::from(plugin).is_some_and(|i| i.shared.desc.kind == cantus_core::EffectKind::Reference)
+}
+
+static RENDER: clap_sys::ext::render::clap_plugin_render = clap_sys::ext::render::clap_plugin_render {
+    has_hard_realtime_requirement: Some(render_hard_realtime),
+    set: Some(render_set),
+};
+
+unsafe extern "C" fn render_hard_realtime(_plugin: *const clap_plugin) -> bool {
+    false
+}
+
+unsafe extern "C" fn render_set(
+    plugin: *const clap_plugin,
+    mode: clap_sys::ext::render::clap_plugin_render_mode,
+) -> bool {
+    match Instance::from(plugin) {
+        Some(i) => {
+            i.shared
+                .comparatio
+                .set_offline(mode == clap_sys::ext::render::CLAP_RENDER_OFFLINE);
+            true
+        }
+        None => false,
     }
 }
 

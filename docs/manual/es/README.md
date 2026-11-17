@@ -2772,6 +2772,64 @@ distorsión (la fundamental, los armónicos, la profundidad y la mezcla en su ca
 **En otro DAW** Purus es el plug-in *Cantus Purus* (CLAP y VST3); cuando se enciende o apaga un
 módulo, le dice al anfitrión su nueva latencia.
 
+### Comparatio, el comparador con referencia
+
+**Comparatio** (en latín, *una comparación, poner lado a lado*) pone tu mezcla junto a los
+discos con los que quieres que esté. Insértalo en el **último hueco del máster** desde
+**Añadir inserción ▾ ▸ Masterización ▸ Comparatio** (o Utilidades); empieza en sus valores
+por defecto — se oye tu mezcla, intacta — y mide.
+
+**Carga una referencia**: pulsa **Cargar referencia…** al pie de la consola, o **suelta**
+archivos de audio (WAV, AIFF, FLAC, Ogg) sobre la consola. Hasta ocho referencias quedan en
+la lista, cada una una tecla numerada; pulsa un número para comparar esa, **Quitar** para
+sacarla. Los archivos se leen de tu disco donde están — nunca se copian al proyecto — y cada
+uno guarda su propio análisis, así que su duración, su sonoridad y su tono se ven en cuanto se
+lee. Si un archivo ha desaparecido, o ha cambiado desde que lo cargaste, la tira lo dice en
+rojo: cárgalo de nuevo.
+
+**Compara**: gira el **gran selector** (o pulsa una lámpara, o **A** y **B** en el cajón a
+ciegas) para oír la referencia en lugar de tu mezcla, **a la sonoridad de tu mezcla** — el
+cambio es un fundido corto que no se oye como un clic. Las tarjetas dicen cómo se iguala la
+referencia: *Igualar* **Integrada** (sobre lo que ha sonado, o con *Medida sobre* **El archivo
+entero**, estable desde el primer segundo), **A corto plazo** (siguiendo tu mezcla sección a
+sección) o **A mano**, un *Desfase* en todos los modos, y el *Fundido*. *Reproducción de la
+referencia* la toca con **Su propio cabezal** mientras suena la canción, **Unida a la
+canción** (con *Adelantada*), o **En bucle** — **arrastra sobre la vista general** para
+repetir el tramo que quieras.
+
+**La pantalla** muestra ambos **equilibrios tonales** (el de la referencia de su archivo
+entero, el de tu mezcla mientras suena) y **tu mezcla frente a la referencia** — sobre la
+línea lo que tu mezcla tiene de más, debajo lo que tiene de más la referencia, la banda suave
+cuán segura es la comparación. La línea naranja es la **igualación tonal**: lo que acercaría
+tu mezcla a la referencia, tanto como diga la *Cantidad* de la tarjeta *Igualación tonal* y
+nunca más que el *Mayor realce o corte*. Pulsa **Enviar a Aequalis** y se convierte en un
+Aequalis justo antes de Comparatio, en bandas editables, con la ganancia de salida que deja
+tu mezcla tan sonora como era — un paso de deshacer; envíala otra vez y se actualiza ese
+Aequalis. Debajo, **Dinámica** (los dos histogramas de sonoridad, el factor de cresta, el
+pico frente a la sonoridad, el rango de sonoridad) y **Estéreo** (correlación y anchura, en
+total y en tres bandas). Los dos platos leen la sonoridad a corto plazo, integrada y
+momentánea, el pico real y el rango de sonoridad.
+
+**Prueba a ciegas**: pulsa **X** para oír una de las dos, oculta; responde *X es tu mezcla* o
+*X es la referencia*; cada respuesta enciende una lámpara, y el cajón da tu resultado y la
+probabilidad de lograrlo adivinando. **Nueva prueba** empieza de nuevo en otro orden.
+
+Cada pulsación y cada arrastre es un paso de deshacer; con el botón derecho sobre el selector
+o una lámpara, automatización y aprendizaje MIDI (un pedal para A/B). Catorce preajustes de
+fábrica son maneras de comparar: masterizar por el archivo entero, mezclar sección a sección,
+a mano, la referencia un decibelio más baja, unida a la canción, dos bucles, cambio rápido y
+suave, graves en detalle, una igualación tonal suave y una completa, las canciones de un álbum
+lado a lado, una mezcla de alabanza frente a un disco en vivo.
+
+**Los renders nunca oyen una referencia**: una exportación, una pista separada, una
+congelación o un bounce oyen siempre tu mezcla, diga lo que diga el selector. Comparatio no es
+un pedal en el tablero de Tabula: una referencia es la escucha del máster.
+
+**En otro DAW** Comparatio es el plug-in *Cantus Comparatio* (CLAP y VST3): **Cargar
+referencia…** en su ventana; la sesión guarda la ruta, el tamaño y la huella de cada
+referencia (nunca su audio) y dice cuándo falta un archivo o ha cambiado; el bounce sin
+conexión del anfitrión oye tu mezcla. *Enviar a Aequalis* es solo de Cantus.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

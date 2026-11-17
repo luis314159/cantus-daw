@@ -6,7 +6,7 @@
 //! to be freed. Nothing is allocated, freed, locked or waited for on the audio thread.
 
 use cantus_core::fx::tabula::PedalId;
-use cantus_engine::{EffectMemory, EffectUnit, NeedTicket};
+use cantus_engine::{EffectMemory, EffectUnit, MemoryNeed, NeedTicket};
 use rtrb::{Consumer, Producer, RingBuffer};
 
 /// Room in each ring: needs are asked once each, so a handful is plenty.
@@ -32,6 +32,29 @@ impl std::fmt::Debug for Memory {
     }
 }
 
+/// What a need is answered with. fxc:comparatio — a plug-in is a live host: Comparatio's
+/// reference is handed over once the store has read it (it was asked for on a thread of its
+/// own when the state or the editor named it; this waits for it here, never on the audio
+/// thread, and gives up when the processor goes or the read failed). A host's offline render
+/// is the processor's to keep from it (`crate::comparatio_post`).
+fn build<T>(need: MemoryNeed, sample_rate: f32, rx: &rtrb::Consumer<T>) -> EffectMemory {
+    use cantus_engine::fx::comparatio_store as store;
+    let MemoryNeed::Comparatio(n) = need else {
+        return EffectMemory::build(need, sample_rate);
+    };
+    let rate = sample_rate.round() as u32;
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(300);
+    loop {
+        if let Some(t) = store::wait_for(n.key, rate, std::time::Duration::from_millis(50)) {
+            return EffectMemory::Comparatio(Some(t));
+        }
+        if !store::loading(n.key, rate) || rx.is_abandoned() || std::time::Instant::now() > until
+        {
+            return EffectMemory::Comparatio(None);
+        }
+    }
+}
+
 impl Memory {
     /// The rings and the builder thread, for a unit at `sample_rate`. Main thread.
     pub fn start(sample_rate: f32) -> Memory {
@@ -44,7 +67,7 @@ impl Memory {
                 let mut idle = true;
                 while let Ok((pedal, need)) = need_rx.pop() {
                     idle = false;
-                    let m = (pedal, EffectMemory::build(need.need(), sample_rate));
+                    let m = (pedal, build(need.need(), sample_rate, &need_rx));
                     // The audio thread takes one each block; a full ring waits here.
                     let mut m = Some(m);
                     while let Some(x) = m.take() {

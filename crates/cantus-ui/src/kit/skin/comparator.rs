@@ -88,6 +88,9 @@ pub const SCREEN_DIM: Hsl = hsl(216.0, 0.12, 0.56);
 pub const SHEEN: Hsl = hsl(210.0, 0.30, 0.92);
 /// The difference curve's ink and its uncertainty.
 pub const DIFF: Hsl = hsl(52.0, 0.20, 0.90);
+/// The match EQ's suggestion and its *Send to Aequalis* key (phase B): an orange apart from
+/// every colourway's two voices.
+pub const MATCH: Hsl = hsl(26.0, 0.90, 0.62);
 
 /// Polished chrome (the big selector, the bezels): light, body, shadow, glint.
 pub const CHROME_LIGHT: Hsl = hsl(210.0, 0.10, 0.90);

@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 66,
   "app_version": "fixture",
-  "saved_at": 1794948903,
+  "saved_at": 1794950708,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3455,7 +3455,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "8b6f4c3a6490771c68fa3aca9519abb09323981813bb5e7e5f83db7d0f1b1492"
+          "content": "8bcfb071add6f8f81dc07490a74f79972b54ac0be941100ddfa3b70ff2ada1f2"
         }
       },
       {
@@ -4150,7 +4150,7 @@
             "spec": {
               "kind": "Reference",
               "params": {
-                "eqamt": 75.0,
+                "eqamt": 0.75,
                 "eqmax": 6.0,
                 "fade": 30.0,
                 "lend": 0.0,
@@ -6913,5 +6913,5 @@
     ],
     "next_id": 142
   },
-  "integrity": "6dec503c8ec88fdbf8428ec5bd9a95490645cf6b824f98ee60058f53c2b710aa"
+  "integrity": "fc0bd337cfd3f02842b705521a23ba19520782c3a543ea1e8be8af51ef74b4ce"
 }

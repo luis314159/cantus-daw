@@ -1652,7 +1652,7 @@ fn main() {
                 eq: None,
             }));
         }
-        comparatio.spec.set("eqamt", 75.0).unwrap();
+        comparatio.spec.set("eqamt", 0.75).unwrap();
         for e in [purus, comparatio] {
             p.strip_mut(s).unwrap().effects.push(e);
         }

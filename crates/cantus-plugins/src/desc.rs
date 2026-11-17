@@ -56,8 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 37] = [
-    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder; fxa:fractus: 35; fxa:caelum: 36; fxc:purus: 37
+pub static ALL: [Descriptor; 38] = [
+    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder; fxa:fractus: 35; fxa:caelum: 36; fxc:purus: 37; fxc:comparatio: 38
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -523,6 +523,21 @@ pub static ALL: [Descriptor; 37] = [
         vst3_categories: "Fx|Restoration",
         description: "Real-time repair: mains hum and its harmonics notched or subtracted, clicks and crackle rebuilt, a room's reverberation taken down.",
         compiled: cfg!(feature = "purus"),
+    },
+    // fxc:comparatio — the fx side round's wave C (provisional ADR 0146). Its references are
+    // files by path (with their size and hash) in the state, never their audio; a host's
+    // offline render hears the mix (CLAP `render`, VST3 `processMode`).
+    Descriptor {
+        kind: EffectKind::Reference,
+        name: "Comparatio",
+        full_name: "Cantus Comparatio",
+        slug: "comparatio",
+        clap_id: "com.github.lalmazan.cantus.comparatio",
+        vst3_cid: [0x8C4B6490, 0xE6C57FBF, 0x43D0EFDA, 0xEEFD0F7A],
+        clap_features: &[FX, "analyzer", "utility", STEREO],
+        vst3_categories: "Fx|Analyzer",
+        description: "Reference comparator: your mix beside reference tracks at the same loudness, switched without a click, their tone, loudness, dynamics and stereo compared, and a blind test of your ears.",
+        compiled: cfg!(feature = "comparatio"),
     },
 ];
 

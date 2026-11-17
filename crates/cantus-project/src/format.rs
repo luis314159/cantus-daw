@@ -1656,7 +1656,7 @@ mod tests {
         let at = refs.find(&r.path).expect("the one compared is listed");
         assert_eq!(refs.list[at].bytes, 31_457_280);
         assert_eq!(refs.list[at].hash, "9e3779b97f4a7c15");
-        assert_eq!(slots[1].spec.get("eqamt"), 75.0);
+        assert_eq!(slots[1].spec.get("eqamt"), 0.75);
         let old = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p

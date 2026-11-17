@@ -4,7 +4,8 @@
 //!   its own loudness (level never shows as balance), in their two voices, over a
 //!   logarithmic axis 20 Hz – 20 kHz; under them, on its own zero line, **the difference**
 //!   (mix − reference) with its uncertainty as a soft band, fading where the confidence is
-//!   low.
+//!   low; over it **the match EQ's suggestion** (phase B) — what *Send to Aequalis* would
+//!   put before the unit, drawn before anything is sent — with its key.
 //! - **Dynamics**: the two short-term loudness histograms mirrored on one axis (your mix
 //!   above, the reference below), with the crest factor, peak to loudness and loudness range
 //!   of each.
@@ -78,10 +79,31 @@ fn x_of(r: Rect, hz: f32) -> f32 {
     r.left() + f * r.width()
 }
 
-pub fn paint(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, tonal_res: usize) {
+/// Where *Send to Aequalis* sits: on the difference's title row, at its right.
+pub fn send_rect(ctx: &egui::Context, k: f32, p: &Plot) -> Rect {
+    let t = Text::key("comparatio.d.send", Role::Micro, Color32::TRANSPARENT).caps(true);
+    let w = crate::kit::text::measure(ctx, &t, k).x + 22.0 * k;
+    Rect::from_min_size(
+        pos2(p.diff.right() - w, p.diff.top() - 21.0 * k),
+        vec2(w, 17.0 * k),
+    )
+}
+
+pub fn paint(
+    b: &mut Brush,
+    s: &Style,
+    p: &Plot,
+    pic: &Picture,
+    tonal_res: usize,
+    send: Option<Rect>,
+    send_hot: bool,
+) {
     let k = s.k;
     let (mv, rv) = voices(s);
     tonal(b, s, p, pic, mv, rv, tonal_res);
+    if let Some(r) = send {
+        send_key(b, k, r, send_hot);
+    }
     dynamics(b, s, p.dynamics, pic, mv, rv);
     stereo(b, s, p.stereo, pic, mv, rv);
     let _ = k;
@@ -203,32 +225,60 @@ fn tonal(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, mv: Color32, rv: Col
             .map(|i| pos2(x_of(r, cv.bands.centre[i]), y_of(cv.db[i] - 6.0)))
             .collect()
     };
-    if let (Some(m), Some(rf)) = (&pic.mix_curve, &pic.ref_curve) {
-        let pm = curve_pts(m);
+    // Each curve as it is there: the reference's from its file at once, yours once enough
+    // of it was heard.
+    if let Some(rf) = &pic.ref_curve {
         let pr = curve_pts(rf);
         b.area(&pr, r.bottom(), with_alpha(rv, 0.10));
-        b.area(&pm, r.bottom(), with_alpha(mv, 0.10));
         b.glow_polyline(&pr, 1.6 * k, rv, with_alpha(rv, 0.25), 4.0 * k);
+    }
+    if let Some(m) = &pic.mix_curve {
+        let pm = curve_pts(m);
+        b.area(&pm, r.bottom(), with_alpha(mv, 0.10));
         b.glow_polyline(&pm, 1.6 * k, mv, with_alpha(mv, 0.25), 4.0 * k);
-    } else {
+    }
+    let empty = match (&pic.mix_curve, &pic.ref_curve) {
+        (_, None) => Some("comparatio.d.no_reference"),
+        (None, Some(_)) => Some("comparatio.d.listening"),
+        _ => None,
+    };
+    if let Some(key) = empty {
         put(
             b,
             k,
-            r.center(),
+            pos2(r.center().x, r.top() + 16.0 * k),
             Align2::CENTER_CENTER,
-            &Text::key("comparatio.d.no_reference", Role::Label, dim()).caps(false),
+            &Text::key(key, Role::Label, dim()).caps(false),
         );
     }
     // The difference, on its own zero line: ±12 dB.
     let d = p.diff;
     let zy = d.center().y;
-    put(
+    let dt = put(
         b,
         k,
         pos2(p.glass.left() + 14.0 * k, d.top() - 11.0 * k),
         Align2::LEFT_CENTER,
         &Text::key("comparatio.d.diff_title", Role::Micro, ink()),
     );
+    // The match EQ's legend, when there is one to show.
+    if pic.match_eq.is_some() {
+        let x = dt.right() + 22.0 * k;
+        b.segment(
+            pos2(x, dt.center().y),
+            pos2(x + 14.0 * k, dt.center().y),
+            1.6 * k,
+            c(pal::MATCH),
+            false,
+        );
+        put(
+            b,
+            k,
+            pos2(x + 18.0 * k, dt.center().y),
+            Align2::LEFT_CENTER,
+            &Text::key("comparatio.d.match", Role::Micro, ink()),
+        );
+    }
     for (db, w) in [(12.0f32, "+12"), (0.0, "0"), (-12.0, "-12")] {
         let y = b.snap_mid(zy - db / 12.0 * d.height() * 0.5);
         b.hline(
@@ -283,6 +333,23 @@ fn tonal(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, mv: Color32, rv: Col
                 true,
             );
         }
+        // The match EQ's suggestion: what Aequalis would do to your mix (toward the
+        // reference), on the same scale.
+        if let Some(m) = &pic.match_eq {
+            let pts: Vec<Pos2> = m
+                .points()
+                .iter()
+                .filter(|(hz, _)| (20.0..=20_000.0).contains(hz))
+                .map(|(hz, db)| pos2(x_of(d, *hz), dy(*db)))
+                .collect();
+            b.glow_polyline(
+                &pts,
+                1.4 * k,
+                c(pal::MATCH),
+                with_alpha(c(pal::MATCH), 0.22),
+                3.0 * k,
+            );
+        }
         // Which way: the words at the ends of the zero line.
         put(
             b,
@@ -299,6 +366,19 @@ fn tonal(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, mv: Color32, rv: Col
             &Text::key("comparatio.d.more_ref", Role::Micro, rv).caps(false),
         );
     }
+}
+
+/// *Send to Aequalis*: a small key lit in the match EQ's colour, on the dark glass.
+fn send_key(b: &mut Brush, k: f32, r: Rect, hot: bool) {
+    b.rrect(r, 3.0 * k, Fill::Solid(with_alpha(c(pal::MATCH), if hot { 0.30 } else { 0.16 })));
+    b.rrect_stroke(r, 3.0 * k, 0.8 * k, with_alpha(c(pal::MATCH), 0.85));
+    put(
+        b,
+        k,
+        r.center(),
+        Align2::CENTER_CENTER,
+        &Text::key("comparatio.d.send", Role::Micro, c(pal::MATCH)).caps(true),
+    );
 }
 
 fn dynamics(b: &mut Brush, s: &Style, r: Rect, pic: &Picture, mv: Color32, rv: Color32) {

@@ -25,7 +25,7 @@
 //! | `lstart`, `lend` | the loop's region in the reference (an end at or before the start: to the reference's end) | 0 … 3 600 s |
 //! | `seed`, `trial` | the blind test's order and the trial under way | 0 … 65 535, 0 … 999 |
 //! | `res` | the tonal picture in thirds or sixths of an octave (the display's; no sample changes) | 0 … 1 |
-//! | `eqamt`, `eqmax` | the match EQ's suggestion: how far toward the reference, and the most it boosts or cuts (the display's and Send to Aequalis's; no sample changes) | 0 … 100 %, 1 … 12 dB |
+//! | `eqamt`, `eqmax` | the match EQ's suggestion: how far toward the reference, and the most it boosts or cuts (the display's and Send to Aequalis's; no sample changes) | 0 … 1 (shown in %), 1 … 12 dB |
 //!
 //! **The references** (phase B, ADR 0146): a Comparatio holds a list of reference tracks
 //! ([`References`], `EffectSpec::refs`), each a file by path with its size and a hash taken
@@ -213,7 +213,7 @@ pub const PARAMS: &[EffectParamInfo] = &[
         "eqamt",
         "fx.comparatio.eqamt",
         0.0,
-        100.0,
+        1.0,
         EQ_AMOUNT_DEFAULT,
         "%",
         false,
@@ -232,7 +232,7 @@ pub const PARAMS: &[EffectParamInfo] = &[
 ];
 
 /// The match EQ's defaults: the DSP's (`cantus_dsp::comparatio::match_eq::MatchOptions`).
-pub const EQ_AMOUNT_DEFAULT: f32 = 50.0;
+pub const EQ_AMOUNT_DEFAULT: f32 = 0.5;
 pub const EQ_MAX_DEFAULT: f32 = 6.0;
 
 pub fn params() -> &'static [EffectParamInfo] {
@@ -340,6 +340,14 @@ mod tests {
         };
         assert_eq!(listed(Some(&refs), Some(&ir)).len(), 2);
         assert!(listed(None, None).is_empty());
+    }
+
+    /// Never a Tabula pedal (ADR 0146 phase B): a reference is the master's monitoring, and
+    /// the render guarantee strips Comparatio slots, not pedals inside a board — so a board
+    /// may never hold one (a hand-edited board is repaired the same way).
+    #[test]
+    fn it_is_never_a_pedal() {
+        assert!(!crate::fx::tabula::pedal_allowed(crate::EffectKind::Reference));
     }
 
     #[test]

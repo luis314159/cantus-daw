@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 38] = [
+pub const EFFECTS: [Unit; 39] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -623,6 +623,28 @@ pub const EFFECTS: [Unit; 38] = [
         ab: None,
         big: (1800, 1263),
         thumb: (640, 449),
+    },
+
+    // fxc:comparatio — Comparatio, the reference comparator (ADR 0146, provisional).
+    Unit {
+        file: "comparatio",
+        name: "Comparatio",
+        kind: ("Reference comparator", "Comparador con referencia"),
+        pitch: ("Your mix beside the records you love, at the same loudness: switch without a click, see where the tone, the loudness, the dynamics and the stereo part ways, send the difference to an EQ, and test your ears blind.", "Tu mezcla junto a los discos que admiras, a la misma sonoridad: cambia sin un clic, mira dónde se separan el tono, la sonoridad, la dinámica y el estéreo, manda la diferencia a un ecualizador y pon a prueba tus oídos a ciegas."),
+        what: long!(("Comparatio sits on the master's last insert and holds up to eight reference tracks, each a file read from your disk and never copied into the project. Press the big selector and you hear the reference instead of your mix, matched to your mix's loudness — by its integrated loudness, section by section, or by hand — through a crossfade too smooth to click; press it again and your mix is back, to the bit. Between the two decks, a dark screen draws both tonal balances (the reference's from its whole file, yours as it plays), their difference with how sure it is, and the match EQ that would bring yours toward it, sent to an Aequalis before Comparatio as editable bands with one click. The decks read short-term, integrated and momentary loudness, true peak and loudness range; the screen adds crest factor, peak to loudness, the two loudness histograms, and correlation and width in three bands. A blind drawer runs an ABX test and tells you the chance you were guessing. Renders, exports and freezes always hear your mix, never a reference. Its CLAP and VST3 plug-in loads references by path with their size and hash, and says plainly when a file is missing or changed.", "Comparatio va en el último inserto del máster y guarda hasta ocho pistas de referencia, cada una un archivo leído de tu disco y nunca copiado al proyecto. Pulsa el gran selector y oyes la referencia en lugar de tu mezcla, igualada a la sonoridad de tu mezcla — por su sonoridad integrada, sección a sección, o a mano — con un fundido demasiado suave para hacer clic; púlsalo otra vez y vuelve tu mezcla, bit a bit. Entre los dos platos, una pantalla oscura dibuja ambos equilibrios tonales (el de la referencia de su archivo entero, el tuyo mientras suena), su diferencia con cuán segura es, y la igualación tonal que acercaría el tuyo, enviada a un Aequalis antes de Comparatio como bandas editables con un clic. Los platos leen la sonoridad a corto plazo, integrada y momentánea, el pico real y el rango de sonoridad; la pantalla añade el factor de cresta, el pico frente a la sonoridad, los dos histogramas de sonoridad, y la correlación y la anchura en tres bandas. Un cajón a ciegas hace una prueba ABX y te dice la probabilidad de haber acertado por azar. Los renders, las exportaciones y las congelaciones oyen siempre tu mezcla, nunca una referencia. Su plug-in CLAP y VST3 carga referencias por ruta con su tamaño y su huella, y dice claramente cuándo falta un archivo o ha cambiado.")),
+        features: long!(&[
+            ("Matched within 0.1 LU (integrated, short-term or by hand); a switch at −94 dBFS of click", "Igualada a 0,1 LU (integrada, a corto plazo o a mano); un cambio con un clic de −94 dBFS"),
+            ("Up to eight references, each with its own analysis; drop a file on it or load one", "Hasta ocho referencias, cada una con su análisis; suelta un archivo encima o carga uno"),
+            ("Tonal balance and difference in thirds or sixths of an octave, with how sure it is", "Equilibrio tonal y diferencia en tercios o sextos de octava, con cuán segura es"),
+            ("Match EQ drawn before it is sent; Send to Aequalis puts editable bands before it", "Igualación tonal dibujada antes de enviarla; Enviar a Aequalis pone bandas editables antes"),
+            ("EBU loudness, true peak, crest, histograms, correlation and width in three bands", "Sonoridad EBU, pico real, cresta, histogramas, correlación y anchura en tres bandas"),
+            ("Blind ABX with the exact chance of guessing; renders never hear a reference", "ABX a ciegas con la probabilidad exacta de acertar por azar; los renders nunca oyen una referencia"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 1157),
+        thumb: (640, 411),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

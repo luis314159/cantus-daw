@@ -314,6 +314,9 @@ pub struct Shared {
     pub board: crate::board_post::BoardPost,
     /// fxa:fractus — Fractus's lanes, posted to the processor as Lapsus's banks are.
     pub fractus: crate::lapsus_bank::ContentPost<cantus_core::fx::fractus::Pattern>,
+    /// fxc:comparatio — Comparatio's references: the list, the file compared posted to the
+    /// processor, the host's offline render (`crate::comparatio_post`).
+    pub comparatio: crate::comparatio_post::RefPost,
     /// Frames the analyser tap has taken since the instance was made: an editor's count
     /// of what it drained is measured against it ([`Self::clock_of_drained`]).
     pub tapped: AtomicU64,
@@ -376,6 +379,7 @@ impl Shared {
             lapsus: Default::default(),  // fx:lapsus
             board: Default::default(),   // fx3:tabula
             fractus: Default::default(), // fxa:fractus
+            comparatio: Default::default(), // fxc:comparatio
             tapped: AtomicU64::new(0),
         });
         // fxa:fractus — a fresh Fractus starts on its starting spec's lanes (ADR 0071): the
@@ -585,13 +589,19 @@ impl Shared {
     pub fn save_state(&self) -> Vec<u8> {
         // fx:lapsus — the bank beside the values.
         // fx3:tabula — and the board.
-        crate::state::save_spec_extras(
+        let bytes = crate::state::save_spec_extras(
             self.table,
             &self.values(),
             self.lapsus.get().as_deref(),
             self.board.get().as_deref(),
             self.fractus.get().as_deref(), // fxa:fractus
-        )
+        );
+        // fxc:comparatio — the references by path, size and hash (never their audio).
+        if self.table.kind == cantus_core::EffectKind::Reference {
+            let (refs, ir) = self.comparatio.get();
+            return crate::state::with_references(&bytes, refs.as_ref(), ir.as_ref());
+        }
+        bytes
     }
 
     pub fn load_state(&self, bytes: &[u8]) -> Result<(), String> {
@@ -601,6 +611,11 @@ impl Shared {
         }
         if self.table.kind == cantus_core::EffectKind::Glitch {
             self.fractus.set(crate::state::load_fractus(bytes)); // fxa:fractus
+        }
+        if self.table.kind == cantus_core::EffectKind::Reference {
+            // fxc:comparatio — the references, read again from their paths.
+            let (refs, ir) = crate::state::load_references(bytes);
+            self.comparatio.set(refs, ir);
         }
         if self.table.kind == cantus_core::EffectKind::Board {
             // fx3:tabula — the whole board: its new pedals built here, for the processor.
@@ -636,6 +651,12 @@ impl Shared {
         s.lapsus = self.lapsus.get(); // fx:lapsus
         s.board = self.board.get(); // fx3:tabula
         s.fractus = self.fractus.get(); // fxa:fractus
+        if self.table.kind == cantus_core::EffectKind::Reference {
+            // fxc:comparatio
+            let (refs, ir) = self.comparatio.get();
+            s.refs = refs.map(Box::new);
+            s.ir = ir.map(Box::new);
+        }
         s
     }
 }
@@ -776,6 +797,14 @@ pub struct Processor {
         Producer<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
     )>,
     fractus_held: Option<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
+    /// fxc:comparatio — the file compared's rings while this processor lives, and a post
+    /// that could not go back yet.
+    #[allow(clippy::type_complexity)]
+    comparatio: Option<(
+        rtrb::Consumer<crate::lapsus_bank::Posted<cantus_core::IrFile>>,
+        Producer<crate::lapsus_bank::Posted<cantus_core::IrFile>>,
+    )>,
+    comparatio_held: Option<crate::lapsus_bank::Posted<cantus_core::IrFile>>,
     /// fx3:tabula — the board's rings while this processor lives, and a post that could not
     /// go back yet.
     board: Option<crate::board_post::Lent>,
@@ -810,6 +839,11 @@ impl Drop for Processor {
             self.shared.fractus.give_back(Some(rx), Some(gtx));
         }
         drop(self.fractus_held.take());
+        // fxc:comparatio
+        if let Some((rx, gtx)) = self.comparatio.take() {
+            self.shared.comparatio.file.give_back(Some(rx), Some(gtx));
+        }
+        drop(self.comparatio_held.take());
         // fx3:tabula
         if let Some(l) = self.board.take() {
             self.shared.board.give_back(l);
@@ -828,6 +862,11 @@ impl Processor {
         spec.lapsus = shared.lapsus.get(); // fx:lapsus
         spec.board = shared.board.get(); // fx3:tabula
         spec.fractus = shared.fractus.get(); // fxa:fractus
+        if table.kind == cantus_core::EffectKind::Reference {
+            // fxc:comparatio — the file compared, read at this rate on its own thread.
+            shared.comparatio.activate(sample_rate);
+            spec.ir = shared.comparatio.file.get();
+        }
         cantus_core::fx::tabula::apply_macros(&mut spec); // fx3:tabula
         let slot = EffectSlot {
             id: EffectId(0),
@@ -870,8 +909,20 @@ impl Processor {
         // r39:conv
         let memory = (unit.kind == cantus_core::EffectKind::Aula
             || unit.kind == cantus_core::EffectKind::Board // fx3:tabula
+            || unit.kind == cantus_core::EffectKind::Reference // fxc:comparatio
             || unit.kind == cantus_core::EffectKind::TimeShaper) // fx:lapsus
             .then(|| crate::memory::Memory::start(sample_rate));
+        let mut memory = memory;
+        let comparatio = (unit.kind == cantus_core::EffectKind::Reference)
+            .then(|| shared.comparatio.file.lend())
+            .flatten(); // fxc:comparatio
+        // fxc:comparatio — the reference a state named is asked for at once (the builder
+        // waits on its own thread for the store to have read it).
+        if unit.kind == cantus_core::EffectKind::Reference {
+            if let Some(m) = memory.as_mut() {
+                m.ask(&mut unit);
+            }
+        }
         let lapsus = (unit.kind == cantus_core::EffectKind::TimeShaper)
             .then(|| shared.lapsus.lend())
             .flatten(); // fx:lapsus
@@ -889,6 +940,8 @@ impl Processor {
             lapsus,
             lapsus_held: None,
             fractus,            // fxa:fractus
+            comparatio,         // fxc:comparatio
+            comparatio_held: None,
             fractus_held: None, // fxa:fractus
             transport: None,
             moves: [(0, HostTransport::default()); MOVES],
@@ -1037,6 +1090,17 @@ impl Processor {
                 self.dirty = true;
             }
         }
+        // fxc:comparatio — the file compared, posted by the main thread, swapped in.
+        if let Some((rx, gtx)) = self.comparatio.as_mut() {
+            if crate::lapsus_bank::take_newest(
+                rx,
+                gtx,
+                &mut self.comparatio_held,
+                &mut self.spec.ir,
+            ) {
+                self.dirty = true;
+            }
+        }
         // fxa:fractus — lanes the main thread posted, swapped in (the old ones go back).
         if let Some((rx, gtx)) = self.fractus.as_mut() {
             if crate::lapsus_bank::take_newest(
@@ -1095,6 +1159,11 @@ impl Processor {
             };
         }
         cantus_core::fx::tabula::apply_macros(&mut self.spec); // fx3:tabula — macros win
+        // fxc:comparatio — a host's offline render hears the mix, never the reference (as
+        // every render in Cantus; the key exists, so this writes in place).
+        if table.kind == cantus_core::EffectKind::Reference && self.shared.comparatio.offline() {
+            let _ = self.spec.set("listen", cantus_core::fx::comparatio::LISTEN_MIX);
+        }
         self.unit.configure(&self.spec);
         if let Some(m) = self.memory.as_mut() {
             m.ask(&mut self.unit); // r39:conv

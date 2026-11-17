@@ -25,8 +25,6 @@ fn floor(unit: Unit) -> usize {
         // line when its presets land.
         Unit::Effect(EffectKind::Rotary) => 0, // fx3:contract (rota)
         Unit::Effect(EffectKind::Amp) => 0,    // fx3:contract (arca)
-        // fxc:contract — wave C: Comparatio measures (its presets are views, if any).
-        Unit::Effect(EffectKind::Reference) => 0, // fxc:contract
         Unit::Effect(_) => 12,
     }
 }

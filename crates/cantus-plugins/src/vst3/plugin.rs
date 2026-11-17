@@ -446,6 +446,10 @@ impl IAudioProcessorTrait for Plugin {
             self.sample_rate.set(setup.sampleRate);
         }
         self.max_block.set(setup.maxSamplesPerBlock.max(1));
+        // fxc:comparatio — an offline render hears the mix, never a reference (ADR 0146).
+        self.shared
+            .comparatio
+            .set_offline(setup.processMode == ProcessModes_::kOffline as int32);
         kResultOk
     }
 

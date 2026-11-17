@@ -399,6 +399,26 @@ pub fn wait_for(key: u64, rate: u32, timeout: std::time::Duration) -> Option<Arc
     }
 }
 
+/// Whether the reference `key` at `rate` is being read now.
+pub fn loading(key: u64, rate: u32) -> bool {
+    let s = store().lock().unwrap_or_else(|e| e.into_inner());
+    matches!(
+        s.tracks.iter().rev().find(|(k, _, _)| *k == (key, rate)),
+        Some((_, _, Entry::Loading))
+    )
+}
+
+/// Let go of every reference read whose audio no unit holds but `keep` (a plug-in, which
+/// compiles no snapshot: its references are swept here when the one compared changes). The
+/// summaries stay.
+pub fn keep_only(keep: Option<&str>, rate: u32) {
+    let named: Vec<(u64, u32)> = keep
+        .map(|p| (super::aula_store::file_key(p), rate))
+        .into_iter()
+        .collect();
+    sweep(&named);
+}
+
 /// A Comparatio as a render hears it: the mix, no reference (ADR 0146).
 pub fn strip_for_render(spec: &mut cantus_core::EffectSpec) {
     spec.ir = None;

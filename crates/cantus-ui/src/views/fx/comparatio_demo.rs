@@ -8,7 +8,6 @@
 
 use super::picture::Picture;
 use cantus_core::EffectSpec;
-use cantus_dsp::comparatio::tonal::{Resolution, Tonal};
 use cantus_dsp::math::{exp, sin, tanh};
 use cantus_engine::effects::EffectMemory;
 use cantus_engine::fx::comparatio_store::RefTrack;
@@ -107,26 +106,18 @@ fn mix_in_progress() -> (Vec<f32>, Vec<f32>) {
     (l, r)
 }
 
-/// The unit at `spec` over the demo: its last telemetry and the console's picture.
-pub fn picture(spec: &EffectSpec) -> (Telemetry, Picture) {
+/// The unit at `spec` over the demo: its last telemetry, the console's picture, and the
+/// mix's middle as the slot's analyser tap carries it (the editor measures its curves from
+/// it, as it does live). The reference's summary is in the store (`RefTrack::analyse`).
+pub fn picture(spec: &EffectSpec) -> (Telemetry, Picture, Vec<f32>) {
     let (ml, mr) = mix_in_progress();
     let (rl, rr) = master();
-    let mut tonal_mix = Tonal::new(SR, Resolution::Third);
-    let mut tonal_ref = Tonal::new(SR, Resolution::Third);
-    tonal_mix.push(&ml, &mr);
-    tonal_ref.push(&rl, &rr);
-    let mut overview = Vec::with_capacity(240);
-    let per = rl.len() / 240;
-    for c in rl.chunks(per.max(1)).take(240) {
-        overview.push(c.iter().fold(0f32, |m, v| m.max(v.abs())));
-    }
+    let mid: Vec<f32> = ml.iter().zip(&mr).map(|(a, b)| 0.5 * (a + b)).collect();
     let mut unit = cantus_engine::fx::comparatio::Unit::new(SR);
     let mut spec = spec.clone();
-    spec.ir = Some(Box::new(cantus_core::IrFile::new(
-        "references/Finished master.flac",
-    )));
+    spec.ir = Some(Box::new(cantus_core::IrFile::new(PATH)));
     // The key the unit asks with: the path's.
-    let key = cantus_engine::fx::aula_store::file_key("references/Finished master.flac");
+    let key = cantus_engine::fx::aula_store::file_key(PATH);
     let track = Arc::new(RefTrack::new(key, SR as u32, rl, rr));
     track.analyse();
     unit.configure(&spec);
@@ -153,8 +144,8 @@ pub fn picture(spec: &EffectSpec) -> (Telemetry, Picture) {
         pic.update(&last);
         at += bl.len();
     }
-    pic.set_curves(tonal_mix.curve(), tonal_ref.curve());
-    let top = overview.iter().fold(1e-6f32, |m, v| m.max(*v));
-    pic.overview = overview.iter().map(|v| v / top).collect();
-    (last, pic)
+    (last, pic, mid)
 }
+
+/// The demo's reference, by the path the project names it with.
+pub const PATH: &str = "references/Finished master.flac";

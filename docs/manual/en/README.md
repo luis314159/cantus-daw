@@ -2552,6 +2552,59 @@ fundamental, the harmonics, the depth and the mix on its face).
 **In another DAW** Purus is the plug-in *Cantus Purus* (CLAP and VST3); when a module is
 switched, it tells the host its new latency.
 
+### Comparatio, the reference comparator
+
+**Comparatio** (Latin for *a comparing, a setting side by side*) puts your mix beside the
+records you want it to stand with. Insert it on the **master's last slot** from **Add insert
+▾ ▸ Mastering ▸ Comparatio** (or Utility); it starts at its defaults — your mix heard,
+untouched — and measures.
+
+**Load a reference**: press **Load reference…** on the console's foot, or **drop** audio
+files (WAV, AIFF, FLAC, Ogg) on the console. Up to eight references stay in the list, each a
+numbered key; press a number to compare that one, **Remove** to take it off. The files are
+read from your disk where they are — never copied into the project — and each keeps its own
+analysis, so its length, loudness and tone show as soon as it is read. If a file has gone
+missing, or changed since you loaded it, the strip says so in red: load it again.
+
+**Compare**: turn the **big selector** (or press a lamp, or **A** and **B** in the blind
+drawer) to hear the reference instead of your mix, **at your mix's loudness** — the switch
+is a short crossfade you cannot hear as a click. The cards set how the reference is matched:
+*Match* **Integrated** (over what has played, or with *Measured over* **The whole file**,
+steady from the first second), **Short term** (following your mix section by section) or
+**By hand**, an *Offset* in every mode, and the *Crossfade*. *Reference playback* plays it on
+**Its own playhead** while the song plays, **Locked to the song** (with *Ahead by*), or in a
+**Loop** — **drag across the overview** to loop the stretch you want.
+
+**The screen** shows both **tonal balances** (the reference's from its whole file, your mix's
+as it plays) and **your mix against the reference** — above the line what your mix has more
+of, below what the reference has more of, the soft band how sure the comparison is. The
+orange line is the **match EQ**: what would move your mix toward the reference, as far as
+the *Match EQ* card's *Amount* says and never more than *Most boost or cut*. Press **Send to
+Aequalis** and it becomes an Aequalis just before Comparatio, in editable bands, its output
+gain keeping your mix as loud as it was — one step of undo; send again and that Aequalis is
+updated. Under it, **Dynamics** (the two loudness histograms, crest factor, peak to loudness,
+loudness range) and **Stereo** (correlation and width, whole and in three bands). The two
+decks read short-term, integrated and momentary loudness, true peak and loudness range.
+
+**Blind test**: press **X** to hear one of the two, hidden; answer *X is your mix* or *X is
+the reference*; each answer lights a lamp, and the drawer gives your score and the chance of
+getting it by guessing. **New test** starts again in a new order.
+
+Every press and drag is one step of undo; right-click the selector or a lamp for automation
+and MIDI learn (a footswitch for A/B). Fourteen factory presets are ways of comparing:
+mastering by the whole file, mixing section by section, by hand, the reference one decibel
+down, locked to the song, two loops, quick and smooth switching, low end in detail, a gentle
+and a full match EQ, an album's songs side by side, a worship mix against a live record.
+
+**Renders never hear a reference**: an export, a stem, a freeze or a bounce always hears your
+mix, whatever the selector says. Comparatio is not a pedal on Tabula's board: a reference is
+the master's monitoring.
+
+**In another DAW** Comparatio is the plug-in *Cantus Comparatio* (CLAP and VST3): **Load
+reference…** in its window; the session keeps each reference's path, size and hash (never its
+audio) and says when a file is missing or changed; the host's offline bounce hears your mix.
+*Send to Aequalis* is Cantus's own.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

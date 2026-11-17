@@ -70,6 +70,8 @@ pub struct PluginHost {
     board_gen: u64,
     /// fxa:fractus — the lanes' generation `spec` holds.
     fractus_gen: u64,
+    /// fxc:comparatio — the references' generation `spec` holds.
+    comparatio_gen: u64,
     /// The other side of A/B (the plug-in's values), and whether B is the side showing.
     other: Option<Vec<f32>>,
     on_b: bool,
@@ -97,6 +99,7 @@ impl PluginHost {
             lapsus_gen: u64::MAX,  // fx:lapsus
             board_gen: u64::MAX,   // fx3:tabula
             fractus_gen: u64::MAX, // fxa:fractus
+            comparatio_gen: u64::MAX, // fxc:comparatio
             other: None,
             on_b: false,
         }
@@ -133,6 +136,15 @@ impl PluginHost {
         if g != self.fractus_gen {
             self.fractus_gen = g;
             self.spec.fractus = self.shared.fractus.get();
+            changed = true;
+        }
+        // fxc:comparatio — Comparatio's references, when the main thread has new ones.
+        let g = self.shared.comparatio.file.generation();
+        if g != self.comparatio_gen && self.shared.desc.kind == EffectKind::Reference {
+            self.comparatio_gen = g;
+            let (refs, ir) = self.shared.comparatio.get();
+            self.spec.refs = refs.map(Box::new);
+            self.spec.ir = ir.map(Box::new);
             changed = true;
         }
         // fx3:tabula — Tabula's board, when the main thread has a new one.
@@ -280,6 +292,22 @@ impl FxHost for PluginHost {
         self.fractus_gen = self.shared.fractus.generation();
         self.spec.fractus = self.shared.fractus.get();
         self.revision += 1;
+    }
+
+    // fxc:comparatio — the references are the plug-in's state (paths, never audio): kept,
+    // the one compared read on a thread of its own and posted to the processor.
+    fn set_references(
+        &mut self,
+        refs: Option<cantus_core::fx::comparatio::References>,
+        selected: Option<cantus_core::IrFile>,
+    ) -> bool {
+        if self.shared.desc.kind != EffectKind::Reference {
+            return false;
+        }
+        self.shared.comparatio.set(refs, selected);
+        self.comparatio_gen = u64::MAX;
+        self.refresh();
+        true
     }
 
     fn end_gesture(&mut self) {

@@ -3,11 +3,14 @@
 //! switch's fade, the match gain, both sources' loudness, peaks, dynamics and stereo, and
 //! the two short-term histograms assembled from their ten pages — and the tonal curves:
 //! the reference's from its whole file (analysed off the audio thread when it was read,
-//! `comparatio_store`), your mix's from the slot's signal (step 3, the slot's scope as
-//! Speculum's; in the design sheet the demo's own analysis).
+//! `comparatio_store`), your mix's from the slot's analyser tap ([`Live`], phase B) — both
+//! the signal's middle, so like meets like — with their difference and the match EQ's
+//! suggestion.
 
+use cantus_dsp::comparatio::match_eq::{MatchCurve, MatchOptions};
 use cantus_dsp::comparatio::measure::HIST_BINS;
-use cantus_dsp::comparatio::tonal::{Curve, Difference};
+use cantus_dsp::comparatio::tonal::{Curve, Difference, Resolution, Tonal};
+use cantus_engine::fx::comparatio_store::Summary;
 use cantus_engine::fx::comparatio::{t, R_COUNT};
 use cantus_engine::fx::TELEMETRY_LEN;
 
@@ -46,6 +49,8 @@ pub struct Picture {
     pub mix_curve: Option<Box<Curve>>,
     pub ref_curve: Option<Box<Curve>>,
     pub diff: Option<Box<Difference>>,
+    /// The match EQ's suggestion (phase B): what Send to Aequalis puts before the unit.
+    pub match_eq: Option<Box<MatchCurve>>,
     /// A rough picture of the reference's level over its length (0 … 1, 240 points).
     pub overview: Vec<f32>,
     pub got: bool,
@@ -70,6 +75,7 @@ impl Default for Picture {
             mix_curve: None,
             ref_curve: None,
             diff: None,
+            match_eq: None,
             overview: Vec::new(),
             got: false,
         }
@@ -136,5 +142,146 @@ pub fn num(v: f32, digits: usize, b: &mut String) {
         let _ = write!(b, "{v:.digits$}");
     } else {
         b.push('\u{2014}');
+    }
+}
+
+/// Your mix's long-term tonal curves, live (phase B): the slot's analyser tap carries the
+/// unit's input — the mix, whatever is heard — as its middle `(L + R) / 2`
+/// (`FxHost::take_pairs`, the pair's first), measured here on the editor's thread in thirds
+/// and sixths of an octave by the DSP's own analyser; the reference's curves are the same
+/// middle of its whole file (`comparatio_store::Summary::mid`), so like meets like. The
+/// measurement starts again when the unit's does (its seconds measured go back). The
+/// demo feeds the same path. Allocates only in [`Live::new`].
+pub struct Live {
+    rate: f32,
+    tonal: [Tonal; 2],
+    mid: Vec<f32>,
+    pairs: Vec<(f32, f32)>,
+    /// The unit's seconds measured at the last pull.
+    seconds: f32,
+    /// Frames pushed since the curves were last made.
+    fresh: bool,
+}
+
+impl std::fmt::Debug for Live {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "comparatio::Live({} Hz)", self.rate)
+    }
+}
+
+impl Live {
+    pub fn new(rate: f32) -> Live {
+        Live {
+            rate,
+            tonal: [
+                Tonal::new(rate, Resolution::Third),
+                Tonal::new(rate, Resolution::Sixth),
+            ],
+            mid: Vec::with_capacity(16_384),
+            pairs: Vec::with_capacity(16_384),
+            seconds: 0.0,
+            fresh: false,
+        }
+    }
+
+    /// Take what the host has of the slot's pairs; `measured` is the unit's seconds of the
+    /// mix measured (a restart of the unit's measurement restarts the curves).
+    pub fn pull(&mut self, host: &mut dyn super::super::host::FxHost, measured: f32) {
+        let sr = host.sample_rate();
+        if (sr - self.rate).abs() > 0.5 && sr > 1_000.0 {
+            *self = Live::new(sr);
+        }
+        if measured.is_finite() && measured + 0.5 < self.seconds {
+            self.restart();
+        }
+        if measured.is_finite() {
+            self.seconds = measured;
+        }
+        let mut pairs = std::mem::take(&mut self.pairs);
+        pairs.clear();
+        host.take_pairs(&mut pairs);
+        let mut mid = std::mem::take(&mut self.mid);
+        mid.clear();
+        mid.extend(pairs.iter().map(|p| p.0));
+        self.feed(&mid);
+        self.mid = mid;
+        self.pairs = pairs;
+    }
+
+    /// The mix's middle, as the tap carries it.
+    pub fn feed(&mut self, mid: &[f32]) {
+        if mid.is_empty() {
+            return;
+        }
+        for t in &mut self.tonal {
+            t.push(mid, mid);
+        }
+        self.fresh = true;
+    }
+
+    pub fn restart(&mut self) {
+        for t in &mut self.tonal {
+            t.restart();
+        }
+        self.fresh = true;
+    }
+
+    /// Whether new frames came since the last [`Live::take_fresh`].
+    pub fn take_fresh(&mut self) -> bool {
+        std::mem::take(&mut self.fresh)
+    }
+
+    /// The curve at `res` (0 thirds, 1 sixths), once enough was heard.
+    pub fn curve(&self, res: usize) -> Option<Curve> {
+        let t = &self.tonal[res.min(1)];
+        (t.frames() >= cantus_dsp::comparatio::tonal::MIN_FRAMES).then(|| t.curve())
+    }
+}
+
+/// The reference's side of the picture from the store's summary of the one compared: its
+/// curve at `res` and its overview. Whether one was there.
+pub fn reference_of(pic: &mut Picture, summary: &Summary, res: usize) -> Curve {
+    if pic.overview.len() != summary.overview.len() {
+        pic.overview.clone_from(&summary.overview);
+    } else {
+        pic.overview.copy_from_slice(&summary.overview);
+    }
+    summary.mid[res.min(1)].clone()
+}
+
+impl Picture {
+    /// The curves, their difference and the match EQ's suggestion, made again (no
+    /// allocation once the boxes exist).
+    pub fn set_all(&mut self, mix: Curve, reference: Curve, opts: &MatchOptions) {
+        let d = cantus_dsp::comparatio::tonal::compare(&mix, &reference);
+        let m = cantus_dsp::comparatio::match_eq::suggest(&d, opts);
+        put_box(&mut self.mix_curve, mix);
+        put_box(&mut self.ref_curve, reference);
+        put_box(&mut self.diff, d);
+        put_box(&mut self.match_eq, m);
+    }
+
+    /// No curves (no reference, or not enough heard).
+    pub fn clear_curves(&mut self) {
+        self.mix_curve = None;
+        self.ref_curve = None;
+        self.diff = None;
+        self.match_eq = None;
+    }
+}
+
+fn put_box<T>(slot: &mut Option<Box<T>>, v: T) {
+    match slot {
+        Some(b) => **b = v,
+        None => *slot = Some(Box::new(v)),
+    }
+}
+
+/// The match EQ's options from the unit's keys (`eqamt`, `eqmax`).
+pub fn match_options(spec: &cantus_core::EffectSpec) -> MatchOptions {
+    MatchOptions {
+        amount: spec.get("eqamt").clamp(0.0, 1.0),
+        max_db: spec.get("eqmax").clamp(1.0, 12.0),
+        ..MatchOptions::default()
     }
 }
