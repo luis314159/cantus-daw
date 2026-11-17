@@ -102,19 +102,110 @@ after every other source (their inputs may be modulated). Hosted destinations' i
 points read the pad as a function of time at the control point's inputs; a pad with
 inertia holds its control point's value there.
 
+## Phase B (step 3, 2026-11-17): the window, its gestures, presets, bake, the agents
+
+The owner approved design sheet v1 and the name **Tactus** (Latin *touch*), the polarity's
+default *Both ways* (bipolar). His notes on v1 — the Spanish cards stretched with empty
+space, *What it drives* left a band under its rows — are fixed: a card row's slack is
+shared by item (*Horizontal* and *Vertical* on the Pad card, both cards on one row in
+Spanish too), the window is shorter, and the list is sized to its rows. Shots:
+`compartir/xy/design/v2-step3/`.
+
+- **The window** (`views/fx/fxd_window.rs`, `fxd_xy.rs`, `fxd_edit.rs`): opened from the
+  modulator's row in the inspector (*Window · Open*, or a double-click on its picture) as
+  a floating device window like an effect's editor — moved by its header, closed by its key
+  or `Esc`, minimised to the tray, maximised, scaled from the shell's grip; one controller
+  window at a time, closed when its modulator goes (an undo, a removal). The header's lamp
+  switches the modulator on and off (one step).
+- **The pad's drag** is one `Command::Batch` (`cmd.fxd_set_input`) of two
+  `SetModulatorInput`, X and Y, a frame, merged under the drag's key: **one undo step a
+  drag**, and a pass writing automation (recording, or Write/Touch/Latch armed) writes
+  **two lanes, X and Y** — `record_tweak` writes each member of a batch.
+- **Paths, drawn** (the pencil key on the glass, *Draw path*): the drag's points, each at
+  its share of the drag, over one loop of the path's length (or the *Loop in beats* card's,
+  4 beats at first), resampled to at most 64 points; laid on release with `play_path` on,
+  one step. **Paths, recorded** (the record key, *Record path*): while the song plays the
+  drag is heard as the hand and sampled at the song's beats; on release
+  `XyPath::from_gesture` lays it over the loop it began in, 16 points a beat (8 to 256), so
+  it plays back where it was played — the moves and the path one step. Recording over a
+  path that plays switches the path off for the drag, in the same step, so the hand is
+  heard and not the old path; the new path plays after; a drag that lays nothing gives the
+  old path back. With the song stopped the record key's drag is the hand's and lays nothing.
+- **The cards**: *Pad* (Horizontal, Vertical — the inputs through `SetModulatorInput` —
+  Polarity, Amount) and *Motion* (Inertia 0…10 000 ms, Path *Off*/*Plays*, *Loop in beats*
+  0.25…64 in quarter beats, Line *Straight*/*Smooth*); a knob's drag one step, a switch's
+  click one.
+- **The links edited in *What it drives*** (`fxd_xy::LinkEdit`): each route's row — a
+  click on its X/Y tag swaps the axis it reads, a drag on an end of its bar sets that end
+  of the range (`RouteRange::from`, `to`), a drag on its middle up or down bends it
+  (`curve`, −1…1, the automation's single curve), a double-click gives the whole travel
+  back (no range). Written into the source's `links` by target (a link that reads X whole is
+  no link); a drag one step, an axis click or a reset one each. The list is sized to its
+  rows and scrolls by the wheel. Every removed route takes its link
+  (`Modulator::tidy_links`, wherever a route is taken away — the window, the inspector,
+  the agents, a bake).
+- **The puck from the engine**: `ModTelemetry` tells each pad's puck and where it heads
+  (`pads: [[x, y, heads x, heads y]; MOD_TELEMETRY]`, `pad_mask`, `pad(id)`), written at
+  each control point without allocating. The face draws the puck there, the hand's
+  crosshair where it heads, a 64-point trail (a fixed ring); it asks for frames only while
+  something moves, so a window at rest allocates nothing and repaints nothing.
+- **Presets** (`cantus_core::modulator::presets`, words `fxd.preset.<id>[.what]` in
+  `locales/fx/controllers.*`): *Filter sweep* (`xy.filter_sweep`: puck at x 0.5, y 0, 80 ms;
+  route 1 reads X through 0…1, route 2 Y through 0…0.6 bent 0.4), *Width and pan*
+  (`xy.width_pan`: centred, 120 ms, X and Y as they are), *Figure eight*
+  (`xy.figure_eight`: a 32-point 1:2 Lissajous over 8 beats, smooth, playing), *Performance
+  pad* (`xy.performance`: centred, 400 ms). `apply` keeps the modulator's own (id, name,
+  routes, amount, mute, colourway) and lays the preset's links over the routes in order;
+  `matching` ignores the look, the links and the inputs, so the header keeps the preset's
+  name while the pad is played, and says *Custom* when it matches none. The header's well
+  steps through them (arrows) or lists them with their descriptions (a click on the name);
+  choosing one is one `SetModulator`.
+- **Bake to automation** of a pad (`modulator_bake.rs`): its inputs read from their lanes,
+  the route's axis and range × amount; a pad with inertia, or one whose inputs another
+  modulator drives, is **traced** — `cantus_engine::modulator::trace_route` renders the
+  route's value (both outputs through its link, as the lane hears it) × amount at every
+  control point, and the bake reads that.
+- **The agents** (`cantus-ai`, MCP): `add_modulator` kind `xy_pad` with `x`, `y`,
+  `unipolar`, `inertia_ms` (0…10 000), `path {points, beats, smooth}`, `play_path`; a
+  route's `axis` ("x"/"y") and `range {from, to, curve}`; `set_modulator` takes all of it
+  and `change_routes` (a route's depth, axis, range by target); its `x`/`y` become
+  `SetModulatorInput` (one step a call). A controller input is a target by name,
+  `{modulator_id, param: "x"|"y"}`, that round-trips and reads as itself ("X-Y pad 1 · Y")
+  — **a bug fixed**: `target_of` ignored `param` and `words::target` used the amount's
+  phrase, so a `ModInput` read as the modulator's amount. Reading shows `settings` and
+  each route's axis and range; `get_mixer` lists the strips' and the master's modulators.
+  The tools' golden (`tests/golden/mcp-tools-list.json`) regenerated on purpose: only
+  `automate`, `replace_automation`, `add_modulator`, `set_modulator` and `remove_items`
+  changed.
+- **Exported plug-ins**: nothing. Modulators live in the host's project and engine; the
+  exported CLAP/VST3 effects carry none, and the pad has no DSP of its own to export.
+
 ## Consequences
 
 - Schema 67: `ModSource::XyPad`, `AutoTarget::ModInput`; the migration writes nothing
   (nothing older has either). The v67 fixture: a pad "Sweep" on the master (X on the pan,
   Y on the width through 0…60 % bent 0.4, 250 ms of inertia, a playing four-point smooth
-  path over two bars).
-- The pad's face (its own editor, the puck, the trail, the path drawn) is step 3, after the
-  owner approves the design sheet (`compartir/xy/design/v1`). Until then a pad is reachable
-  through the model, the commands, MCP and the modulator rows' generic handling.
-- Not in this step: *Bake to automation* of a pad with inertia (it is stateful: needs the
-  trace path, `bake::needs_trace` — step 3); the pad's own puck position in the engine's
-  telemetry for the face (step 3); a third axis (FL has two; Kaoss-style corner morphs are
-  the backlog's).
+  path over two bars). Phase B changed no schema: the window, presets and bake are views
+  of what the model already held.
+- Step 1's deferrals are done: the face and its window (Phase B), *Bake to automation* of
+  a pad with inertia (the trace), the puck in the engine's telemetry.
+- **Found by the e2e, older than the pad, not fixed here** (for the integrator and the
+  owner): (1) a native effect unit starts a play or a seek at its *stored* value, not the
+  automated or modulated one, and glides there over its de-zipper (~20 ms for Aequalis) —
+  so a render from bar N differs from the full render on the first note for any automated
+  native effect (plain automation too: a lane holding an EQ band at +9 dB differs by up to
+  5.2e-2 from bar 3), while strip pan/gain and track gain are bit-exact from bar N; fixing
+  it likely changes the goldens (`DSP_VERSION`). (2) Firmus starts its cutoff and gain
+  smoothers at the factory defaults on a render that begins on a note (it snaps only in
+  idle blocks). The e2e proves render-from-bar-N on the strip's pan and fader, and on the
+  EQ from the first full beat.
+- The pad's three colourways (Titanium, Copper, Frost) are in the model (`look`) and the
+  sheets, but the window has no menu to choose one yet — the other units choose theirs in
+  the ⋯ menu; for the integrator.
+- Not here: a third axis (FL has two; Kaoss-style corner morphs are the backlog's); a
+  right-click on the window's own controls for automation and MIDI learn (an axis is
+  automated by a recording pass, or by `Alt+A` after its card knob moved, and learnt by
+  `Alt+Shift+A` the same way — read in the code, not yet tested).
 
 ## What the tests hold
 
@@ -140,3 +231,39 @@ inertia holds its control point's value there.
   `tests/rt_memory.rs::controllers_never_allocate`: a gliding pad on a path, a new
   snapshot, a seek, a stop, a restart — no allocation.
 - `cantus-project` `schema_67_keeps_the_pad_the_formula_and_their_input_lanes`.
+
+Phase B (step 3):
+
+- `cantus-core` `modulator::presets::tests` (9): every preset valid and every formula
+  compiled; `apply` keeps the modulator's own and is matched again; a preset applied over
+  another kind or after playing is still named; `tidy_links` drops what no route reads;
+  the figure-eight loops over two bars (and the formulas' shapes, ADR 0148); both
+  languages name every preset. `modulator_bake` (3 new): a pad bakes the axis and range
+  its route reads with its input lanes; a formula with its automated knob and its compiled
+  program; a pad with inertia or a driven controller is traced.
+- `cantus-engine` `tests/fxd_bake.rs` (5): a pad on its Y through a bent range, a formula
+  with an automated knob, a pad with inertia (from its trace), a formula whose knob an LFO
+  drives (from its trace) — each baked curve within 0.002 of the trace at the control
+  points, the baked render within 1 % of peak of the modulated one, the route audible; the
+  telemetry tells where a gliding puck is and where it heads.
+- `cantus-ui` `tests/fxd_drag.rs` (16, through `CantusApp::assemble` with real pointer and
+  key events): the window opens from the row and a drag sets X and Y in one step; a drag
+  while a pass writes automation writes two lanes; a drawn path is one step; a gesture
+  recorded while the song plays becomes the path; recording over a playing path hears the
+  hand and lays the new path; a link's axis and range set in *What it drives*, one step
+  each; the cards one step each; the puck drawn where the telemetry says; a preset chosen
+  from the header is one step and named; the window closes by its key and `Esc` and opens
+  by a double-click on the picture; many links scroll by the wheel (the formula's own six:
+  ADR 0148). `tests/fxd_whole.rs` (2, step 2's): no cut word in any window, language,
+  scale or colourway.
+- `cantus-ui` `tests/fxd_e2e.rs` (6, through `assemble` and the real engine wiring): a pad
+  linked to two EQ bands, moved, heard on each (±12 dB, the other within 0.1 dB), dry to
+  the bit at rest and after undo; a recorded gesture writes exactly two lanes equal to the
+  hand at all 96 touched ticks, its render block-size independent (64/333/4096) and live =
+  offline at odd blocks 1…1 024, undone to the bit; the figure-eight path followed within
+  0.5 dB over 16 beats, from bar 3 the full render's to the bit on the strip's pan and
+  fader; unlinked controllers and depth-0 routes the dry master to the bit (and the
+  formula's two, ADR 0148).
+- `cantus-ai` `tests/tools_fxd.rs` (5): an agent makes a pad with its settings, axes and
+  ranges; inputs move as the hand moves them, each call one step; a controller input is a
+  target that reads as itself and round-trips; links follow their routes.
