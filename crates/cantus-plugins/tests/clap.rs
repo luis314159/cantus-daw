@@ -238,8 +238,9 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Vocoder => "out",    // fxa:loquax
             EffectKind::Glitch => "out",     // fxa:fractus
             EffectKind::Shimmer => "out",    // fxa:caelum
-            // fxc:purus — the room's reduction: with the room on, it changes the sound.
-            EffectKind::Repair => "vamount",
+            // fxc:purus — its output (the room's reduction takes nothing from the test signal:
+            // no room is evidenced in it, so automating it rightly changes no sample).
+            EffectKind::Repair => "out",
             _ => "thr",
         };
         let table = params::table(kind);

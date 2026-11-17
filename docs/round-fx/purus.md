@@ -623,3 +623,34 @@ a second of decays is not de-reverberated (the evidence's prior). No golden hold
 test `purus_dry_voice_recorded` (`PURUS_VOICE`). Sounds re-rendered: 22–24 and their deltas
 (the tail after the line now 10.9 / 11.4 / 21.3 dB down against 9.8 / 10.4 / 19.8), new 25 (the
 dry line through the defaults, 8.9e-8 from the dry); `compartir\purus\sound\README.md` says so.
+
+### Suites (Windows, 2026-11-17, one crate at a time, clippy `-D warnings --all-targets` on each)
+
+cantus-core 810, cantus-dsp 1 098 (the dry-voice null test added; the recorded voice and the
+guitar ones `#[ignore]`, run by hand: green), cantus-engine 1 306 (+1, Purus as a pedal),
+cantus-project 194, cantus-plugins 91 (+2: Purus's latency re-reported through CLAP and
+VST3), cantus-ai 51, cantus-ui 2 725 of 2 727 (the whole suite once, before the calibration;
+after it, `purus_e2e`, `purus_drag`, `fxc_whole`, `preset_audit`, `clipfx`, `preset_render`
+again, and the engine's `fx_purus`, `fx_contract`, `rt_memory`, and the plug-ins whole). Clippy
+clean on all seven. Red, not Purus's: `learn_everywhere` — Comparatio's own three keys
+(`listen`, `seed`, `trial`), its step 3; `preset_render` — Arca's three high-gain leads' CPU
+(+0.20 … +0.23 of the budget) measured while other builders compiled (Caelum's step 3 saw the
+same and its quiet re-run was green); every Purus preset inside its window and budget
+(0.025 … 0.061). The undo fuzz's board arm fixed (above). Not run: the Linux check (WSL), the
+whole workspace at once, the plug-ins without default features, the listening.
+
+### Verified only in emulation
+
+- No ear has heard Purus in the app; the e2e renders, the engine driven block by block and the
+  DSP's measures are the evidence. The plug-in in our own CLAP/VST3 harness only (the VST3
+  restart through a pumped Windows message loop), not in a third-party DAW.
+- The de-reverb's calibration: one real dry voice and synthetic rooms; a real voice in a real
+  room is still to be heard (`docs/beta-checklist.md`'s entry belongs to the integration).
+
+### Left
+
+- Owner-only: the v2-step3 shots, listening to the sixteen presets and to the re-rendered
+  de-reverb sounds (22–25).
+- At the integration: the site's pictures (`web/assets/units/purus-*.webp`, big 1800 × 1263,
+  thumb 640 × 449) and preset excerpts; renumbering ADR 0145 and schema 66; a beta-checklist
+  entry (a guitar through an amp with a ground loop; speech in a tiled room).
