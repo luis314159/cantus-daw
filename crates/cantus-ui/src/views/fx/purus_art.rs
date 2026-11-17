@@ -118,7 +118,7 @@ pub fn mat(b: &mut Brush, s: &Style, r: Rect) {
             let t = Text::new(w, Role::Micro, ink).caps(false);
             super::super::canvas::put(
                 b,
-                pos2(x + 2.0 * k, r.top() + 3.5 * k),
+                pos2(x + 2.0 * k, r.top() + 12.0 * k),
                 Align2::LEFT_CENTER,
                 &t,
                 k * 0.8,

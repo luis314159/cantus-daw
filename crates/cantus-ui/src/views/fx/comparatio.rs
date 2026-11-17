@@ -50,7 +50,7 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 pub fn card_rows(lang: crate::i18n::Locale) -> usize {
     match lang {
         crate::i18n::Locale::En => 1,
-        crate::i18n::Locale::Es => 2,
+        crate::i18n::Locale::Es => 1,
     }
 }
 
@@ -999,7 +999,7 @@ pub fn demo_feed(app: &mut CantusApp) {
             ..State::default()
         };
     }
-    app.fx.comparatio.pic = Box::new(pic);
+    *app.fx.comparatio.pic = pic;
     // A blind test under way: six trials answered, five right.
     if spec.get("listen").round() as i32 == 2 {
         app.fx.comparatio.blind.answers = vec![true, true, false, true, true, true];

@@ -45,26 +45,26 @@ const fn purus(
     }
 }
 
-/// **Champagne**: champagne anodised aluminium on a green cutting mat; the residue a cool
-/// cyan, the hum's needles amber.
+/// **Champagne**: champagne enamel hammered over metal on a green cutting mat; the residue
+/// a cool blue, the hum's needles amber-yellow.
 pub const PURUS: Skin = purus(
     "fx.purus",
-    Material::Anodised,
+    Material::Hammered,
     Tint {
         hue: 44.0,
         sat: 0.16,
         amount: 0.30,
     },
     Pair {
-        dark: chsl(194.0, 0.70, 0.66),
-        light: chsl(196.0, 0.72, 0.32),
+        dark: chsl(212.0, 0.70, 0.66),
+        light: chsl(212.0, 0.72, 0.32),
     },
     Pair {
-        dark: chsl(36.0, 0.86, 0.62),
-        light: chsl(32.0, 0.80, 0.36),
+        dark: chsl(64.0, 0.86, 0.62),
+        light: chsl(64.0, 0.80, 0.36),
     },
 );
-/// **Surgical**: white enamel on a navy mat; the residue a sea green, the needles coral.
+/// **Surgical**: white enamel on a navy mat; the residue a green, the needles coral.
 pub const PURUS_SURGICAL: Skin = purus(
     "fx.purus.surgical",
     Material::Matte,
@@ -74,12 +74,12 @@ pub const PURUS_SURGICAL: Skin = purus(
         amount: 0.12,
     },
     Pair {
-        dark: chsl(162.0, 0.62, 0.60),
-        light: chsl(164.0, 0.66, 0.28),
+        dark: chsl(128.0, 0.62, 0.60),
+        light: chsl(128.0, 0.66, 0.28),
     },
     Pair {
         dark: chsl(14.0, 0.82, 0.68),
-        light: chsl(12.0, 0.74, 0.40),
+        light: chsl(14.0, 0.74, 0.40),
     },
 );
 /// **Graphite**: graphite carbon on a slate mat; the residue an ice blue, the needles lime.
@@ -92,12 +92,12 @@ pub const PURUS_GRAPHITE: Skin = purus(
         amount: 0.22,
     },
     Pair {
-        dark: chsl(208.0, 0.66, 0.74),
-        light: chsl(210.0, 0.62, 0.36),
+        dark: chsl(214.0, 0.66, 0.74),
+        light: chsl(214.0, 0.62, 0.36),
     },
     Pair {
-        dark: chsl(82.0, 0.70, 0.60),
-        light: chsl(84.0, 0.66, 0.28),
+        dark: chsl(80.0, 0.70, 0.60),
+        light: chsl(80.0, 0.66, 0.28),
     },
 );
 pub const PURUS_COLOURWAYS: [Colourway; 3] = [
@@ -154,7 +154,7 @@ const fn comparatio(
     }
 }
 
-/// **Walnut**: walnut cheeks around a smoked console; your mix amber, the reference blue.
+/// **Walnut**: walnut cheeks around a smoked console; your mix rose, the reference blue.
 pub const COMPARATIO: Skin = comparatio(
     "fx.comparatio",
     Material::Wood,
@@ -164,15 +164,15 @@ pub const COMPARATIO: Skin = comparatio(
         amount: 0.30,
     },
     Pair {
-        dark: chsl(34.0, 0.88, 0.62),
-        light: chsl(30.0, 0.84, 0.36),
+        dark: chsl(338.0, 0.88, 0.62),
+        light: chsl(338.0, 0.84, 0.36),
     },
     Pair {
         dark: chsl(214.0, 0.78, 0.70),
-        light: chsl(216.0, 0.70, 0.40),
+        light: chsl(214.0, 0.70, 0.40),
     },
 );
-/// **Broadcast**: brushed steel, a broadcast desk's; your mix green, the reference magenta.
+/// **Broadcast**: brushed steel, a broadcast desk's; your mix lime, the reference magenta.
 pub const COMPARATIO_BROADCAST: Skin = comparatio(
     "fx.comparatio.broadcast",
     Material::Brushed,
@@ -182,16 +182,16 @@ pub const COMPARATIO_BROADCAST: Skin = comparatio(
         amount: 0.24,
     },
     Pair {
-        dark: chsl(150.0, 0.66, 0.58),
-        light: chsl(152.0, 0.70, 0.27),
+        dark: chsl(78.0, 0.66, 0.58),
+        light: chsl(78.0, 0.70, 0.27),
     },
     Pair {
         dark: chsl(322.0, 0.64, 0.70),
-        light: chsl(324.0, 0.56, 0.40),
+        light: chsl(322.0, 0.56, 0.40),
     },
 );
-/// **Ivory**: an ivory console printed like a vintage meter; your mix red, the reference
-/// teal.
+/// **Ivory**: an ivory console printed like a vintage meter; your mix gold, the reference
+/// green.
 pub const COMPARATIO_IVORY: Skin = comparatio(
     "fx.comparatio.ivory",
     Material::Paper,
@@ -201,12 +201,12 @@ pub const COMPARATIO_IVORY: Skin = comparatio(
         amount: 0.42,
     },
     Pair {
-        dark: chsl(8.0, 0.74, 0.62),
-        light: chsl(6.0, 0.70, 0.40),
+        dark: chsl(70.0, 0.74, 0.62),
+        light: chsl(70.0, 0.70, 0.40),
     },
     Pair {
-        dark: chsl(190.0, 0.66, 0.60),
-        light: chsl(192.0, 0.70, 0.28),
+        dark: chsl(154.0, 0.66, 0.60),
+        light: chsl(154.0, 0.70, 0.28),
     },
 );
 pub const COMPARATIO_COLOURWAYS: [Colourway; 3] = [

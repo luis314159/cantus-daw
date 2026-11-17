@@ -137,11 +137,14 @@ fn the_starting_preset_takes_a_hum_out_and_renders_the_same_every_way() {
         let dry = l.clone();
         u.process(&mut l, &mut r);
         if b >= 300 {
-            before += dry.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>();
-            after += l.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>();
+            before += dry
+                .iter()
+                .map(|v| f64::from(*v) * f64::from(*v))
+                .sum::<f64>();
+            after += l.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>();
         }
     }
-    let db = 10.0 * (after / before).log10();
+    let db = 10.0 * cantus_dsp::math::log10(after / before);
     assert!(db < -25.0, "the hum came down {db:.1} dB");
 }
 

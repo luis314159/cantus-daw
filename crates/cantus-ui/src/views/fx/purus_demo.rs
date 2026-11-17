@@ -42,7 +42,7 @@ pub fn take() -> (Vec<f32>, Vec<f32>) {
                     break;
                 }
                 let a = 0.05 / k as f32;
-                let tau = 1.6 / k as f32;
+                let tau = 0.45 / k as f32;
                 for (i, v) in dry
                     .iter_mut()
                     .enumerate()
@@ -54,7 +54,7 @@ pub fn take() -> (Vec<f32>, Vec<f32>) {
                 }
             }
         }
-        at += (0.75 * SR) as usize;
+        at += (1.4 * SR) as usize;
         chord += 1;
     }
     // The tiled room: four combs and an allpass, its tail about 1.1 s.
@@ -82,7 +82,7 @@ pub fn take() -> (Vec<f32>, Vec<f32>) {
         // The hum: 50.2 Hz, its odd harmonics stronger, about −34 dBFS.
         let mut hum = 0.0;
         for k in 1..=9 {
-            let a = if k % 2 == 1 { 0.045 } else { 0.018 } / (k as f32).sqrt();
+            let a = if k % 2 == 1 { 0.026 } else { 0.010 } / (k as f32).sqrt();
             hum += a * sin(TAU * 50.0 * k as f32 * x + k as f32 * 0.7);
         }
         let room = wet[i];
@@ -165,8 +165,14 @@ pub fn picture(spec: &EffectSpec) -> (Telemetry, Picture) {
             let mut c = Column::default();
             for r in 0..ROWS {
                 c.heard[r] = heat_cell(o_db[r]);
+                // What fell out of the cell, where it is more than a flicker (6 dB).
                 let gone = if i_db[r] > FLOOR_DB + 12.0 {
-                    (i_db[r] - o_db[r]).max(0.0)
+                    let d = i_db[r] - o_db[r];
+                    if d >= 6.0 {
+                        d
+                    } else {
+                        0.0
+                    }
                 } else {
                     0.0
                 };

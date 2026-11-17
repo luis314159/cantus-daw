@@ -156,14 +156,14 @@ fn frames(app: &mut CantusApp, kind: EffectKind, at: Option<egui::Pos2>) {
         &ctx,
         size,
         1.0,
-        6,
+        10,
         None,
         |f, _| match (f, at) {
-            (0, Some(p)) => vec![Event::PointerMoved(p)],
-            (1, Some(p)) | (2, Some(p)) => vec![Event::PointerButton {
+            (4, Some(p)) => vec![Event::PointerMoved(p)],
+            (5, Some(p)) | (6, Some(p)) => vec![Event::PointerButton {
                 pos: p,
                 button: PointerButton::Primary,
-                pressed: f == 1,
+                pressed: f == 5,
                 modifiers: Default::default(),
             }],
             _ => Vec::new(),

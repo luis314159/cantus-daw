@@ -141,7 +141,7 @@ pub fn paint(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, sh: &Shown, w: &
                 b.rect(cell, Fill::Solid(heat(h)));
             }
             if gone > 10 {
-                let a = (f32::from(gone) / 255.0 * 1.6).min(0.9);
+                let a = (f32::from(gone) / 255.0 * 1.2).min(0.72);
                 b.rect(cell, Fill::Solid(with_alpha(res, a)));
             }
         }

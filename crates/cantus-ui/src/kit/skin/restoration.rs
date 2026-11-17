@@ -35,7 +35,7 @@ pub struct Mat {
     pub print: Hsl,
 }
 
-/// Champagne anodised aluminium (Champagne).
+/// Champagne enamel hammered over metal (Champagne).
 pub const CHAMPAGNE: Finish = Finish {
     top: hsl(42.0, 0.30, 0.82),
     face: hsl(40.0, 0.24, 0.68),

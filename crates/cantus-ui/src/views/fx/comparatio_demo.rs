@@ -51,7 +51,7 @@ fn music(bright: f32, width: f32, seed0: u32) -> (Vec<f32>, Vec<f32>) {
             }
         }
         let bass = 0.16 * sin(TAU * ch[0] * 0.5 * x) * exp(-tb * 2.5);
-        let kick = if b % 2 == 0 {
+        let kick = if b.is_multiple_of(2) {
             0.35 * sin(TAU * (55.0 + 90.0 * exp(-tb * 30.0)) * tb) * exp(-tb * 9.0)
         } else {
             0.0
@@ -59,7 +59,7 @@ fn music(bright: f32, width: f32, seed0: u32) -> (Vec<f32>, Vec<f32>) {
         let wn = noise(&mut seed);
         hp = 0.7 * hp + 0.3 * wn;
         let hat = (wn - hp) * 0.08 * exp(-((i % (beat / 2)) as f32 / SR) * 40.0) * (0.4 + bright);
-        let snare = if b % 2 == 1 {
+        let snare = if !b.is_multiple_of(2) {
             wn * 0.12 * exp(-tb * 18.0)
         } else {
             0.0
