@@ -1620,6 +1620,76 @@ fn main() {
             p.strip_mut(s).unwrap().effects.push(e);
         }
     }
+    // fxd:contract — Schema 67 (the fx side round's wave D, ADRs 0147–0148; provisional —
+    // renumbered when merged after round 40): on the master an X-Y pad named "Sweep" — its
+    // X on the master's pan as it is, its Y on the master's width from 0 to 60 % bent
+    // (0.4), 250 ms of inertia, a four-point smooth path over two bars, playing — and a
+    // formula (FL's adjustable sine) on the first strip's fader, unipolar, its knob b
+    // automated by a clip on the first track from 0.2 to 0.8 over four beats.
+    if upto >= 67 {
+        use cantus_core::modulator::{FormulaSource, RouteLink, RouteRange, XyPath};
+        let strip1 = p.tracks[0].strip.expect("the first track's strip");
+        let mut pad = Modulator::new(ModulatorId(p.alloc_id()), ModKind::XyPad);
+        pad.name = "Sweep".into();
+        pad.routes = vec![
+            ModRoute {
+                target: AutoTarget::MasterPan,
+                depth: 0.5,
+            },
+            ModRoute {
+                target: AutoTarget::MasterWidth,
+                depth: 1.0,
+            },
+        ];
+        if let ModSource::XyPad(x) = &mut pad.source {
+            x.x = 0.3;
+            x.y = 0.7;
+            x.inertia_ms = 250.0;
+            x.path = Some(XyPath {
+                points: vec![[0.1, 0.1], [0.9, 0.2], [0.8, 0.9], [0.2, 0.8]],
+                beats: 8.0,
+                smooth: true,
+            });
+            x.play_path = true;
+            x.links = vec![RouteLink {
+                target: AutoTarget::MasterWidth,
+                output: 1,
+                range: Some(RouteRange {
+                    from: 0.0,
+                    to: 0.6,
+                    curve: 0.4,
+                }),
+            }];
+        }
+        p.master.modulators.push(pad);
+        let mut formula = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Formula);
+        formula.source = ModSource::Formula(FormulaSource {
+            text: "a*Sin(SongTime*Pi*b)+c".into(),
+            inputs: [0.5, 0.25, 0.5],
+            bipolar: false,
+            links: Vec::new(),
+        });
+        formula.routes.push(ModRoute {
+            target: AutoTarget::StripGain(strip1),
+            depth: -0.2,
+        });
+        let fid = formula.id;
+        p.master.modulators.push(formula);
+        let knob = p.make_automation_clip(
+            "Knob b",
+            AutoTarget::ModInput {
+                modulator: fid,
+                input: 1,
+            },
+            Ticks::beats(12),
+            Ticks::beats(4),
+            vec![
+                AutoPoint::new(Ticks::ZERO, 0.2),
+                AutoPoint::new(Ticks::beats(4), 0.8),
+            ],
+        );
+        p.tracks[0].clips.push(knob);
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

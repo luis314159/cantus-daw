@@ -1,0 +1,25 @@
+# controllers — ola D de la ronda de efectos: el pad X-Y y el controlador por fórmula (ADR 0147, 0148).
+cmd.fxd_set_input = Mover una entrada de controlador
+mods.kind.xy = Pad X-Y
+mods.kind.formula = Fórmula
+
+# Las entradas.
+fxd.xy.x = Posición horizontal
+fxd.xy.y = Posición vertical
+fxd.formula.a = Perilla a
+fxd.formula.b = Perilla b
+fxd.formula.c = Perilla c
+
+# Por qué se rechaza una fórmula ({at} es el carácter, contado desde 1).
+fxd.formula.err.empty = Escribe una fórmula
+fxd.formula.err.too_long = La fórmula pasa de 512 caracteres
+fxd.formula.err.unexpected = «{what}» no significa nada en el carácter {at}
+fxd.formula.err.end = La fórmula termina donde hace falta un valor
+fxd.formula.err.trailing = Algo sigue a una fórmula completa en el carácter {at}
+fxd.formula.err.unclosed = Un paréntesis abierto en el carácter {at} nunca se cierra
+fxd.formula.err.unknown = No hay ninguna variable ni función llamada «{what}»
+fxd.formula.err.moment = «{what}» depende del momento: un render nunca se repetiría
+fxd.formula.err.unsupported = «{what}» no está disponible: su definición publicada no dice qué calcula
+fxd.formula.err.arguments = «{what}» lleva {n} valores entre paréntesis
+fxd.formula.err.number = El número del carácter {at} no está bien escrito
+fxd.formula.err.complex = La fórmula es demasiado compleja: acórtala o anídala menos

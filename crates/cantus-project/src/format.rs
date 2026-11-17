@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 64; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes); fx: 62 the side round's five kinds, 63 wave 3: Tabula's board and three kinds, 64 wave A: Fractus's lanes and three kinds (all provisional — renumbered when merged after round 40, r40 uses 62–70)
+pub const SCHEMA_VERSION: u32 = 67; // fxd: 65 and 66 are wave B's and wave C's (empty steps here, filled at the merge), 67 wave D: the X-Y pad and the formula controller; r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes); fx: 62 the side round's five kinds, 63 wave 3: Tabula's board and three kinds, 64 wave A: Fractus's lanes and three kinds (all provisional — renumbered when merged after round 40, r40 uses 62–70)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -319,6 +319,9 @@ static MIGRATIONS: &[Migration] = &[
     migrate_61_to_62, // fx: provisional — renumbered when merged after round 40 (r40 uses 62–70)
     migrate_62_to_63, // fx3: provisional — renumbered when merged after round 40 (r40 uses 62–70)
     migrate_63_to_64, // fxa: provisional — renumbered when merged after round 40 (r40 uses 62–70)
+    migrate_64_to_65, // fxd: wave B's number, filled at the merge
+    migrate_65_to_66, // fxd: wave C's number, filled at the merge
+    migrate_66_to_67, // fxd:contract — provisional, renumbered when merged after round 40
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1104,6 +1107,27 @@ fn migrate_63_to_64(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// fxd: wave B's schema number (ADRs 0142–0144), on its own branch; an empty step here so
+/// the chain reaches 67, filled at the merge.
+fn migrate_64_to_65(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// fxd: wave C's schema number (ADRs 0145–0146), on its own branch; an empty step here so
+/// the chain reaches 67, filled at the merge.
+fn migrate_65_to_66(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 67 (the fx side round's wave D, ADRs 0147–0148): two modulator sources — the
+/// X-Y pad (its puck, inertia, path and the links of its routes) and the formula controller
+/// (its text, knobs and links) — and the automation target of their inputs
+/// (`AutoTarget::ModInput`). Nothing older has any of them, so nothing is written.
+// fxd: provisional — renumbered when merged after round 40
+fn migrate_66_to_67(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
     let tracks = value
         .get_mut("project")
@@ -1530,6 +1554,66 @@ mod tests {
             .all(|(_, e)| !new_kinds.contains(&e.spec.kind) && e.spec.board.is_none()));
     }
 
+    /// fxd:contract — Schema 67 (the fx side round's wave D, provisional): the fixture holds
+    /// an X-Y pad (links, a range, inertia, a playing path) and a formula whose knob b a
+    /// clip automates; every older file (64) opens with no controller and no input lane.
+    #[test]
+    fn schema_67_keeps_the_pad_the_formula_and_their_input_lanes() {
+        use cantus_core::automation::AutoTarget;
+        use cantus_core::modulator::{ModKind, ModSource, RouteRange};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v67.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        let kinds: Vec<ModKind> = p.master.modulators.iter().map(|m| m.source.kind()).collect();
+        assert!(kinds.ends_with(&[ModKind::XyPad, ModKind::Formula]), "{kinds:?}");
+        let n = p.master.modulators.len();
+        let pad = &p.master.modulators[n - 2];
+        assert_eq!(pad.name, "Sweep");
+        let ModSource::XyPad(x) = &pad.source else {
+            unreachable!()
+        };
+        assert_eq!((x.x, x.y, x.inertia_ms, x.play_path), (0.3, 0.7, 250.0, true));
+        assert_eq!(x.path.as_ref().unwrap().points.len(), 4);
+        assert_eq!(
+            pad.source.link(&AutoTarget::MasterWidth),
+            (
+                1,
+                Some(RouteRange {
+                    from: 0.0,
+                    to: 0.6,
+                    curve: 0.4
+                })
+            )
+        );
+        assert_eq!(pad.source.link(&AutoTarget::MasterPan), (0, None));
+        let f = &p.master.modulators[n - 1];
+        let ModSource::Formula(src) = &f.source else {
+            unreachable!()
+        };
+        assert_eq!(src.text, "a*Sin(SongTime*Pi*b)+c");
+        assert_eq!(src.inputs, [0.5, 0.25, 0.5]);
+        let lane = AutoTarget::ModInput {
+            modulator: f.id,
+            input: 1,
+        };
+        assert!(p
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .any(|c| c.automation.as_ref().is_some_and(|a| a.target == lane)));
+        // The engine's plan: the pad's two routes linked, the formula compiled, knob b's lane.
+        let s = cantus_core::Snapshot::compile(&p, 1);
+        let fp = s.modulators.iter().find(|m| m.id == f.id).unwrap();
+        assert!(fp.program.is_some() && fp.input_lanes[1].is_some());
+        let old = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .all_modulators()
+            .all(|(_, m)| m.source.kind().inputs() == 0));
+    }
+
     /// fxa:contract — Schema 64 (the fx side round's wave A, provisional): the fixture holds
     /// one insert of each of the three new kinds, the Fractus with two painted lanes; every
     /// older file (63) opens with none of them and no pattern. A hand-edited pattern is
@@ -1543,7 +1627,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // fxd:contract — no longer the newest: migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(64));
         let p = report.file.project;
         let slots: Vec<_> = p.strips[1]
             .effects
@@ -1804,8 +1889,9 @@ mod tests {
         let p = parse(&text, true).unwrap().file.project;
         let mods: Vec<_> = p.all_modulators().map(|(_, m)| m).collect();
         let kinds: Vec<ModKind> = mods.iter().map(|m| m.source.kind()).collect();
-        for k in ModKind::ALL {
-            assert!(kinds.contains(&k), "{k:?} in the fixture");
+        // fxd: the controllers arrived with schema 67 (its own test).
+        for k in ModKind::ALL.iter().filter(|k| !ModKind::CONTROLLERS.contains(k)) {
+            assert!(kinds.contains(k), "{k:?} in the fixture");
         }
         assert!(mods.iter().all(|m| m.is_valid()));
         let lfo = mods

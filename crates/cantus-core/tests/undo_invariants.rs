@@ -1915,6 +1915,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut padded = [[0usize; 2]; PADOUT_KINDS]; // r37:drums
                                                   // fx3:tabula - per kind of `fx3_board_command`, applied and refused.
     let mut boarded = [[0usize; 2]; BOARD_KINDS]; // fx3:tabula
+    let mut controlled = [[0usize; 2]; FXD_KINDS]; // fxd:contract
                                                   // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
@@ -1945,6 +1946,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         let mut urng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(54)); // r36:external
         let mut krng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(56)); // r37:drums
         let mut trng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(63)); // fx3:tabula
+        let mut drng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(67)); // fxd:contract
         for _ in 0..120 {
             // r36:ara — a clip bound to an ARA plug-in or let go (ADR 0097), from `arng`.
             if arng.below(5) == 0 {
@@ -2075,6 +2077,20 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 bus.reserve_ids(scratch.next_id);
                 let ok = bus.execute(cmd, origins[trng.below(5) as usize]).is_ok();
                 boarded[k][usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
+            // fxd:contract - the X-Y pad and the formula controller (ADRs 0147, 0148), from a
+            // stream of their own (`drng`).
+            if drng.below(4) == 0 {
+                let mut scratch = bus.project().clone();
+                let (k, cmd) = fxd_controller_command(&mut drng, &mut scratch);
+                bus.reserve_ids(scratch.next_id);
+                let ok = bus.execute(cmd, origins[drng.below(5) as usize]).is_ok();
+                controlled[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
                     snap.next_id = 0;
@@ -2490,6 +2506,13 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         padded.iter().all(|k| k[0] > 0) && padded[3][1] > 0,
         "round 37's pad outputs never applied or never refused: {padded:?}"
+    );
+    // fxd:contract - every controller command applied at least once but the two that must
+    // be refused, and those always refused.
+    assert!(
+        [0, 1, 2, 4, 6, 7].iter().all(|&k| controlled[k][0] > 0)
+            && [3, 5].iter().all(|&k| controlled[k][0] == 0 && controlled[k][1] > 0),
+        "the controller commands never applied or never refused: {controlled:?}"
     );
     // fx3:tabula - every kind applied at least once but the two that must be refused, and
     // those always refused; an unknown pedal refused for every command that names one.
@@ -6761,4 +6784,215 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
         },
     };
     (kind, cmd)
+}
+
+// fxd:contract — the X-Y pad and the formula controller (ADRs 0147, 0148): pads and
+// formulas made with routes, links, ranges, paths and inertia; a formula's text set (and
+// refused when it does not compile); an input set alone (and refused past its inputs,
+// out of range or on a source with none); a route into a controller's input.
+const FXD_KINDS: usize = 8;
+
+/// Formulas FL's manual publishes, and a few of Cantus's own.
+const FXD_FORMULAS: [&str; 6] = [
+    "0.5*Sin(SongTime*Pi)+0.5",
+    "a*Sin(SongTime*Pi*b)+c",
+    "Round(Frac(SongTime))",
+    "b*SeededRand(Int(SongTime*a))+c",
+    "If(a, saw(beat), tri(beat*2))",
+    "(a+b)=1",
+];
+const FXD_BROKEN: [&str; 4] = ["a*Sin(", "MouseX", "1 +", "foo(1)"];
+
+fn fxd_controller_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    use cantus_core::modulator::*;
+    let controllers: Vec<Modulator> = project
+        .all_modulators()
+        .filter(|(_, m)| m.source.kind().inputs() > 0)
+        .map(|(_, m)| m.clone())
+        .collect();
+    let mut k = rng.below(FXD_KINDS as u64) as usize;
+    if controllers.is_empty() && k >= 2 {
+        k = rng.below(2) as usize;
+    }
+    let routes = |rng: &mut Lcg, project: &Project, m: &mut Modulator| {
+        for _ in 0..1 + rng.below(3) {
+            let target = mod_target(rng, project);
+            if m.route(&target).is_none() && target != AutoTarget::ModAmount(m.id) {
+                m.routes.push(ModRoute {
+                    target,
+                    depth: rng.f32(-1.0, 1.0),
+                });
+            }
+        }
+    };
+    let links = |rng: &mut Lcg, m: &Modulator| -> Vec<RouteLink> {
+        let outputs = m.source.kind().outputs();
+        m.routes
+            .iter()
+            .filter(|_| rng.below(2) == 0)
+            .map(|r| RouteLink {
+                target: r.target.clone(),
+                output: rng.below(u64::from(outputs)) as u8,
+                range: (rng.below(2) == 0).then(|| RouteRange {
+                    from: rng.f32(-1.0, 1.0),
+                    to: rng.f32(-1.0, 1.0),
+                    curve: rng.f32(-1.0, 1.0),
+                }),
+            })
+            .collect()
+    };
+    let path = |rng: &mut Lcg| XyPath {
+        points: (0..2 + rng.below(30))
+            .map(|_| [rng.f32(0.0, 1.0), rng.f32(0.0, 1.0)])
+            .collect(),
+        beats: [0.25, 1.0, 4.0, 16.0][rng.below(4) as usize],
+        smooth: rng.below(2) == 0,
+    };
+    let pick = |rng: &mut Lcg| controllers[rng.below(controllers.len() as u64) as usize].clone();
+    let cmd = match k {
+        0 | 1 => {
+            let kind = if k == 0 { ModKind::XyPad } else { ModKind::Formula };
+            let mut m = Modulator::new(ModulatorId(project.alloc_id()), kind);
+            routes(rng, project, &mut m);
+            let l = links(rng, &m);
+            match &mut m.source {
+                ModSource::XyPad(x) => {
+                    x.x = rng.f32(0.0, 1.0);
+                    x.inertia_ms = [0.0, 50.0, 800.0][rng.below(3) as usize];
+                    x.path = (rng.below(2) == 0).then(|| path(rng));
+                    x.play_path = rng.below(2) == 0;
+                    x.links = l;
+                }
+                ModSource::Formula(f) => {
+                    f.text = FXD_FORMULAS[rng.below(6) as usize].to_string();
+                    f.bipolar = rng.below(2) == 0;
+                    f.links = l;
+                }
+                _ => {}
+            }
+            let host = match rng.below(2) {
+                0 if !project.tracks.is_empty() => ModHost::Track(project.tracks[0].id),
+                _ => ModHost::Master,
+            };
+            let len = project.modulators(host).map_or(0, |l| l.len());
+            Command::InsertModulator {
+                host,
+                index: rng.below(len as u64 + 1) as usize,
+                modulator: Box::new(m),
+            }
+        }
+        2 | 3 => {
+            let mut m = controllers
+                .iter()
+                .find(|m| matches!(m.source, ModSource::Formula(_)))
+                .cloned()
+                .unwrap_or_else(|| pick(rng));
+            if !matches!(m.source, ModSource::Formula(_)) {
+                m.source = ModKind::Formula.source();
+            }
+            if let ModSource::Formula(f) = &mut m.source {
+                f.text = if k == 2 {
+                    FXD_FORMULAS[rng.below(6) as usize].to_string()
+                } else {
+                    FXD_BROKEN[rng.below(4) as usize].to_string()
+                };
+                f.inputs = [rng.f32(0.0, 1.0), rng.f32(0.0, 1.0), rng.f32(0.0, 1.0)];
+            }
+            Command::SetModulator {
+                modulator: Box::new(m),
+            }
+        }
+        4 => {
+            let m = pick(rng);
+            Command::SetModulatorInput {
+                id: m.id,
+                input: rng.below(u64::from(m.source.kind().inputs())) as u8,
+                value: rng.f32(0.0, 1.0),
+            }
+        }
+        5 => {
+            let m = pick(rng);
+            let other = project
+                .all_modulators()
+                .find(|(_, o)| o.source.kind().inputs() == 0)
+                .map(|(_, o)| o.id);
+            match rng.below(4) {
+                0 => Command::SetModulatorInput {
+                    id: m.id,
+                    input: m.source.kind().inputs(),
+                    value: 0.5,
+                },
+                1 => Command::SetModulatorInput {
+                    id: m.id,
+                    input: 0,
+                    value: [1.5, -0.25, f32::NAN][rng.below(3) as usize],
+                },
+                2 => Command::SetModulatorInput {
+                    id: other.unwrap_or(ModulatorId(7_777_777)),
+                    input: 0,
+                    value: 0.5,
+                },
+                _ => Command::SetModulatorInput {
+                    id: ModulatorId(7_777_777),
+                    input: 0,
+                    value: 0.5,
+                },
+            }
+        }
+        6 => {
+            let mut m = pick(rng);
+            routes(rng, project, &mut m);
+            let l = links(rng, &m);
+            if let ModSource::XyPad(x) = &mut m.source {
+                x.inertia_ms = rng.f32(0.0, 2000.0);
+                x.unipolar = rng.below(2) == 0;
+                x.path = Some(path(rng));
+                x.play_path = rng.below(2) == 0;
+            }
+            if let Some(links) = m.source.links_mut() {
+                *links = l;
+            }
+            Command::SetModulator {
+                modulator: Box::new(m),
+            }
+        }
+        _ => {
+            // Another modulator drives a controller's input (one level).
+            let c = pick(rng);
+            let mut m = project
+                .all_modulators()
+                .map(|(_, m)| m.clone())
+                .find(|m| m.id != c.id)
+                .unwrap_or_else(|| {
+                    let mut m = Modulator::new(ModulatorId(project.alloc_id()), ModKind::Lfo);
+                    m.id = c.id;
+                    m
+                });
+            if m.id == c.id {
+                // Only the controller itself: its own input is refused, so drive the master.
+                m = c.clone();
+                m.routes.retain(|r| r.target != AutoTarget::MasterPan);
+                m.routes.push(ModRoute {
+                    target: AutoTarget::MasterPan,
+                    depth: 0.25,
+                });
+            } else {
+                let target = AutoTarget::ModInput {
+                    modulator: c.id,
+                    input: rng.below(u64::from(c.source.kind().inputs())) as u8,
+                };
+                m.routes.retain(|r| r.target != target);
+                if m.routes.len() < MAX_ROUTES {
+                    m.routes.push(ModRoute {
+                        target,
+                        depth: rng.f32(-1.0, 1.0),
+                    });
+                }
+            }
+            Command::SetModulator {
+                modulator: Box::new(m),
+            }
+        }
+    };
+    (k, cmd)
 }

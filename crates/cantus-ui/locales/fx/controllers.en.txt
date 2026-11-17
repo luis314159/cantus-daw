@@ -1,0 +1,25 @@
+# controllers — the fx side round's wave D: the X-Y pad and the formula controller (ADRs 0147, 0148). Every key here needs its twin in controllers.es.txt.
+cmd.fxd_set_input = Move a controller input
+mods.kind.xy = X-Y pad
+mods.kind.formula = Formula
+
+# The inputs.
+fxd.xy.x = Horizontal position
+fxd.xy.y = Vertical position
+fxd.formula.a = Knob a
+fxd.formula.b = Knob b
+fxd.formula.c = Knob c
+
+# Why a formula is refused (shown under the display; {at} is the character, counted from 1).
+fxd.formula.err.empty = Type a formula
+fxd.formula.err.too_long = The formula is longer than 512 characters
+fxd.formula.err.unexpected = "{what}" has no meaning at character {at}
+fxd.formula.err.end = The formula ends where a value is needed
+fxd.formula.err.trailing = Something follows a complete formula at character {at}
+fxd.formula.err.unclosed = A parenthesis opened at character {at} is never closed
+fxd.formula.err.unknown = No variable or function is called "{what}"
+fxd.formula.err.moment = "{what}" depends on the moment, so a render would never repeat
+fxd.formula.err.unsupported = "{what}" is not supported: its published definition does not say what it computes
+fxd.formula.err.arguments = "{what}" takes {n} values in parentheses
+fxd.formula.err.number = The number at character {at} is not written correctly
+fxd.formula.err.complex = The formula is too complex: shorten it or nest it less
