@@ -1,6 +1,10 @@
 {
  "unit": "loquax",
  "origin": "dev",
+ "note": [
+  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
+  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+ ],
  "source": [
   "A spoken voice (the Gettysburg Address read by Britton Rea, public domain)",
   "Una voz hablada (el discurso de Gettysburg leído por Britton Rea, dominio público)"

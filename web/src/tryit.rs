@@ -13,12 +13,10 @@
 //! downloaded before the first Play but the manifest and the picture (`loading="lazy"`).
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use gloo_timers::callback::Interval;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{AudioBuffer, AudioBufferSourceNode, AudioContext, GainNode};
 use yew::prelude::*;
 
 use crate::lang::{use_lang, Lang};
@@ -54,11 +52,10 @@ pub struct Preset {
 /// A unit's manifest.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Manifest {
-    /// `presets`: rendered from the factory presets; `dev`: the unit's development renders.
-    pub origin: String,
+    /// Where the takes come from and how they were matched, in both languages.
+    pub note: (String, String),
     pub source: (String, String),
     pub credit: (String, String),
-    pub lufs: f64,
     pub dry: String,
     pub presets: Vec<Preset>,
 }
@@ -96,10 +93,9 @@ pub fn parse(v: &JsValue) -> Option<Manifest> {
         })
         .collect::<Vec<_>>();
     (!presets.is_empty()).then(|| Manifest {
-        origin: text(v, "origin"),
+        note: pair(v, "note"),
         source: pair(v, "source"),
         credit: pair(v, "credit"),
-        lufs: get(v, "lufs").as_f64().unwrap_or(0.0),
         dry: text(v, "dry"),
         presets,
     })
@@ -114,7 +110,7 @@ fn say(l: Lang, p: &(String, String)) -> String {
 
 thread_local! {
     /// Manifests already fetched, by unit.
-    static MANIFESTS: RefCell<HashMap<String, Rc<Manifest>>> = RefCell::new(HashMap::new());
+    static MANIFESTS: RefCell<Vec<(String, Rc<Manifest>)>> = const { RefCell::new(Vec::new()) };
 }
 
 async fn fetch(url: &str) -> Option<web_sys::Response> {
@@ -129,7 +125,12 @@ async fn fetch(url: &str) -> Option<web_sys::Response> {
 }
 
 async fn manifest(unit: String) -> Option<Rc<Manifest>> {
-    if let Some(m) = MANIFESTS.with(|c| c.borrow().get(&unit).cloned()) {
+    if let Some(m) = MANIFESTS.with(|c| {
+        c.borrow()
+            .iter()
+            .find(|(u, _)| *u == unit)
+            .map(|(_, m)| m.clone())
+    }) {
         return Some(m);
     }
     let r = fetch(&format!("/tryit/{unit}.json")).await?;
@@ -137,180 +138,91 @@ async fn manifest(unit: String) -> Option<Rc<Manifest>> {
         .await
         .ok()?;
     let m = Rc::new(parse(&v)?);
-    MANIFESTS.with(|c| c.borrow_mut().insert(unit, m.clone()));
+    MANIFESTS.with(|c| c.borrow_mut().push((unit, m.clone())));
     Some(m)
 }
 
-/// The two takes playing: both run, only the gains say which is heard.
-struct Voice {
-    dry: (AudioBufferSourceNode, GainNode),
-    wet: (AudioBufferSourceNode, GainNode),
-    /// The context's time at which the loop's start played.
-    t0: f64,
-    len: f64,
+// The player is a few lines of Web Audio in JavaScript (wasm-bindgen's inline snippet): the
+// same calls made from Rust cost the WebAssembly budget ~4 KB of glue for nothing.
+#[wasm_bindgen::prelude::wasm_bindgen(inline_js = r#"
+let ctx = null, takes = new Map(), voice = null, ask = 0;
+const FADE = 0.005;
+function ramp(g, to, at) { g.gain.cancelScheduledValues(at); g.gain.setTargetAtTime(to, at, FADE); }
+function release() {
+  if (!voice) return;
+  const now = ctx.currentTime;
+  for (const [s, g] of [voice.dry, voice.wet]) { ramp(g, 0, now); s.stop(now + 0.12); }
+  voice = null;
 }
-
-/// The panel's sound: one context (made on the first Play, inside the click), the decoded
-/// takes by URL, and what is playing.
-#[derive(Default)]
-struct Engine {
-    ctx: Option<AudioContext>,
-    takes: HashMap<String, AudioBuffer>,
-    voice: Option<Voice>,
-    /// Bumped by every request: a take that arrives after another request is not played.
-    ask: u32,
+async function take(url) {
+  if (takes.has(url)) return takes.get(url);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(url);
+  const b = await ctx.decodeAudioData(await r.arrayBuffer());
+  takes.set(url, b);
+  return b;
 }
-
-/// The crossfade's time constant, s (about 20 ms to silence).
-const FADE: f64 = 0.005;
-
-fn ramp(g: &GainNode, to: f32, at: f64) {
-    let _ = g.gain().cancel_scheduled_values(at);
-    let _ = g.gain().set_target_at_time(to, at, FADE);
+function source(buf, gain, when, offset) {
+  const s = ctx.createBufferSource(), g = ctx.createGain();
+  s.buffer = buf; s.loop = true;
+  g.gain.value = 0; g.gain.setTargetAtTime(gain, when, FADE);
+  s.connect(g); g.connect(ctx.destination);
+  s.start(when, offset);
+  return [s, g];
 }
-
-fn stop_source(s: &AudioBufferSourceNode, at: f64) {
-    let base: &web_sys::AudioScheduledSourceNode = s.as_ref();
-    let _ = base.stop_with_when(at);
+export function try_play(dry, wet, wetOn) {
+  if (!ctx) { try { ctx = new AudioContext(); } catch (e) { return Promise.resolve(false); } }
+  ctx.resume();
+  const mine = ++ask;
+  return Promise.all([take(dry), take(wet)]).then(([d, w]) => {
+    if (mine !== ask) return null;
+    const len = Math.max(0.1, Math.min(d.duration, w.duration));
+    const when = ctx.currentTime + 0.04;
+    const offset = voice ? (((when - voice.t0) / voice.len) % 1 + 1) % 1 * len : 0;
+    release();
+    const on = wetOn();
+    voice = { dry: source(d, on ? 0 : 1, when, offset), wet: source(w, on ? 1 : 0, when, offset), t0: when - offset, len };
+    return true;
+  }, () => false);
 }
-
-impl Engine {
-    fn ctx(&mut self) -> Option<AudioContext> {
-        if self.ctx.is_none() {
-            self.ctx = AudioContext::new().ok();
-        }
-        let c = self.ctx.clone()?;
-        let _ = c.resume();
-        Some(c)
-    }
-
-    fn now(&self) -> f64 {
-        self.ctx.as_ref().map(|c| c.current_time()).unwrap_or(0.0)
-    }
-
+export function try_choose(wetOn) {
+  if (!voice) return;
+  const now = ctx.currentTime;
+  ramp(voice.dry[1], wetOn ? 0 : 1, now);
+  ramp(voice.wet[1], wetOn ? 1 : 0, now);
+}
+export function try_stop() { ask++; if (ctx) release(); }
+export function try_pos() { return voice ? (((ctx.currentTime - voice.t0) / voice.len) % 1 + 1) % 1 : 0; }
+export function try_close() { try_stop(); if (ctx) { ctx.close(); ctx = null; takes.clear(); } }
+"#)]
+extern "C" {
+    /// Fetch and decode the pair (once each), then start both at the point of the loop that
+    /// plays now (from the start when nothing plays), crossfaded over what played; resolves
+    /// to whether it plays (`null` when a later request overtook it). `wet_on` is asked
+    /// when the takes are in, so a switch made while they load is kept.
+    fn try_play(dry: &str, wet: &str, wet_on: &js_sys::Function) -> js_sys::Promise;
+    /// Dry or wet on the running loop (a 20 ms crossfade).
+    fn try_choose(wet_on: bool);
+    fn try_stop();
     /// Where in the loop the music is, 0…1.
-    fn pos(&self) -> f64 {
-        self.voice
-            .as_ref()
-            .map(|v| ((self.now() - v.t0) / v.len).rem_euclid(1.0))
-            .unwrap_or(0.0)
-    }
-
-    /// Fade out what plays.
-    fn release(&mut self) {
-        let now = self.now();
-        if let Some(v) = self.voice.take() {
-            for (s, g) in [&v.dry, &v.wet] {
-                ramp(g, 0.0, now);
-                stop_source(s, now + 0.12);
-            }
-        }
-    }
-
-    fn source(
-        &self,
-        ctx: &AudioContext,
-        take: &AudioBuffer,
-        gain: f32,
-        when: f64,
-        offset: f64,
-    ) -> Option<(AudioBufferSourceNode, GainNode)> {
-        let s = ctx.create_buffer_source().ok()?;
-        s.set_buffer(Some(take));
-        s.set_loop(true);
-        let g = ctx.create_gain().ok()?;
-        g.gain().set_value(0.0);
-        let _ = g.gain().set_target_at_time(gain, when, FADE);
-        s.connect_with_audio_node(&g).ok()?;
-        g.connect_with_audio_node(&ctx.destination()).ok()?;
-        #[allow(deprecated)]
-        s.start_with_when_and_grain_offset(when, offset).ok()?;
-        Some((s, g))
-    }
-
-    /// Start `dry` and `wet` together, at the point of the loop that plays now (from the
-    /// start when nothing plays), crossfaded over what played.
-    fn start(&mut self, dry: &AudioBuffer, wet: &AudioBuffer, wet_on: bool) {
-        let Some(ctx) = self.ctx.clone() else {
-            return;
-        };
-        let len = dry.duration().min(wet.duration()).max(0.1);
-        let when = ctx.current_time() + 0.04;
-        let offset = self
-            .voice
-            .as_ref()
-            .map(|v| ((when - v.t0) / v.len).rem_euclid(1.0) * len)
-            .unwrap_or(0.0);
-        self.release();
-        let (d, w) = if wet_on { (0.0, 1.0) } else { (1.0, 0.0) };
-        let (Some(dry), Some(wet)) = (
-            self.source(&ctx, dry, d, when, offset),
-            self.source(&ctx, wet, w, when, offset),
-        ) else {
-            return;
-        };
-        self.voice = Some(Voice {
-            dry,
-            wet,
-            t0: when - offset,
-            len,
-        });
-    }
-
-    /// Dry or wet, on the running loop.
-    fn choose(&self, wet_on: bool) {
-        if let Some(v) = &self.voice {
-            let now = self.now();
-            ramp(&v.dry.1, if wet_on { 0.0 } else { 1.0 }, now);
-            ramp(&v.wet.1, if wet_on { 1.0 } else { 0.0 }, now);
-        }
-    }
+    fn try_pos() -> f64;
+    /// Stop and free the context and the takes (leaving the page).
+    fn try_close();
 }
 
-/// Decode `url` into the engine's takes (once).
-async fn take(engine: Rc<RefCell<Engine>>, url: String) -> Option<AudioBuffer> {
-    if let Some(t) = engine.borrow().takes.get(&url).cloned() {
-        return Some(t);
-    }
-    let ctx = engine.borrow().ctx.clone()?;
-    let r = fetch(&url).await?;
-    let bytes = wasm_bindgen_futures::JsFuture::from(r.array_buffer().ok()?)
-        .await
-        .ok()?;
-    let bytes: js_sys::ArrayBuffer = bytes.dyn_into().ok()?;
-    let decoded = wasm_bindgen_futures::JsFuture::from(ctx.decode_audio_data(&bytes).ok()?)
-        .await
-        .ok()?;
-    let t: AudioBuffer = decoded.dyn_into().ok()?;
-    engine.borrow_mut().takes.insert(url, t.clone());
-    Some(t)
-}
-
-/// Fetch the pair and play it; `done(true)` when it plays, `done(false)` when it could not.
-fn play(
-    engine: Rc<RefCell<Engine>>,
-    dry: String,
-    wet: String,
-    wet_on: Rc<RefCell<bool>>,
-    done: Callback<bool>,
-) {
-    let ask = {
-        let mut e = engine.borrow_mut();
-        e.ask += 1;
-        e.ask
-    };
+/// Play the pair; `done(true)` when it plays, `done(false)` when it could not (never when a
+/// later request overtook it).
+fn play(dry: &str, wet: &str, wet_now: Rc<RefCell<bool>>, done: Callback<bool>) {
+    let ask = wasm_bindgen::closure::Closure::<dyn Fn() -> bool>::new(move || *wet_now.borrow());
+    let p = try_play(dry, wet, ask.as_ref().unchecked_ref());
     wasm_bindgen_futures::spawn_local(async move {
-        let d = take(engine.clone(), dry).await;
-        let w = take(engine.clone(), wet).await;
-        if engine.borrow().ask != ask {
-            return; // another request came after this one
-        }
-        match (d, w) {
-            (Some(d), Some(w)) => {
-                engine.borrow_mut().start(&d, &w, *wet_on.borrow());
-                done.emit(true);
-            }
-            _ => done.emit(false),
+        let v = wasm_bindgen_futures::JsFuture::from(p).await;
+        drop(ask);
+        // null: a later request overtook this one, and it answers instead.
+        match v {
+            Ok(v) if v.is_null() => {}
+            Ok(v) => done.emit(v.as_bool().unwrap_or(false)),
+            Err(_) => done.emit(false),
         }
     });
 }
@@ -371,21 +283,14 @@ pub fn try_it(p: &TryProps) -> Html {
     let playing = use_state(|| false);
     let loading = use_state(|| false);
     let pos = use_state(|| 0.0f64);
-    let engine = use_mut_ref(Engine::default);
     let file = list.get(*which).copied().unwrap_or_default();
 
     // A unit shown: its manifest (fetched once), what played stopped.
     {
-        let (man, failed, sel, engine, playing) = (
-            man.clone(),
-            failed.clone(),
-            sel.clone(),
-            engine.clone(),
-            playing.clone(),
-        );
+        let (man, failed, sel, playing) =
+            (man.clone(), failed.clone(), sel.clone(), playing.clone());
         use_effect_with(file, move |f| {
-            engine.borrow_mut().release();
-            engine.borrow_mut().ask += 1;
+            try_stop();
             playing.set(false);
             sel.set(0);
             failed.set(false);
@@ -402,25 +307,15 @@ pub fn try_it(p: &TryProps) -> Html {
     }
     // The progress line while it plays.
     {
-        let (engine, pos) = (engine.clone(), pos.clone());
+        let pos = pos.clone();
         use_effect_with(*playing, move |on| {
-            let timer = on.then(|| Interval::new(100, move || pos.set(engine.borrow().pos())));
+            let timer = on.then(|| Interval::new(100, move || pos.set(try_pos())));
             move || drop(timer)
         });
     }
     // Leaving the page silences it.
     {
-        let engine = engine.clone();
-        use_effect_with((), move |_| {
-            move || {
-                let mut e = engine.borrow_mut();
-                e.release();
-                e.ask += 1;
-                if let Some(c) = e.ctx.take() {
-                    let _ = c.close();
-                }
-            }
-        });
+        use_effect_with((), move |_| try_close);
     }
 
     let m = (*man).clone().filter(|_| unit_of(file).is_some());
@@ -432,25 +327,16 @@ pub fn try_it(p: &TryProps) -> Html {
 
     // Play the pair of preset `i` (from where the loop is, if it plays).
     let start = {
-        let (engine, wet_now, playing, loading, m) = (
-            engine.clone(),
-            wet_now.clone(),
-            playing.clone(),
-            loading.clone(),
-            m.clone(),
-        );
+        let (wet_now, playing, loading, m) =
+            (wet_now.clone(), playing.clone(), loading.clone(), m.clone());
         Callback::from(move |i: usize| {
             let Some(m) = m.as_ref() else { return };
             let Some(p) = m.presets.get(i) else { return };
-            if engine.borrow_mut().ctx().is_none() {
-                return;
-            }
             loading.set(true);
             let (playing, loading) = (playing.clone(), loading.clone());
             play(
-                engine.clone(),
-                m.dry.clone(),
-                p.wet.clone(),
+                &m.dry,
+                &p.wet,
                 wet_now.clone(),
                 Callback::from(move |ok: bool| {
                     loading.set(false);
@@ -460,18 +346,10 @@ pub fn try_it(p: &TryProps) -> Html {
         })
     };
     let toggle = {
-        let (engine, playing, start, sel, pos) = (
-            engine.clone(),
-            playing.clone(),
-            start.clone(),
-            sel.clone(),
-            pos.clone(),
-        );
+        let (playing, start, sel, pos) = (playing.clone(), start.clone(), sel.clone(), pos.clone());
         Callback::from(move |_: MouseEvent| {
             if *playing {
-                let mut e = engine.borrow_mut();
-                e.release();
-                e.ask += 1;
+                try_stop();
                 playing.set(false);
                 pos.set(0.0);
             } else {
@@ -480,11 +358,11 @@ pub fn try_it(p: &TryProps) -> Html {
         })
     };
     let choose = |want: bool| {
-        let (engine, wet_on, wet_now) = (engine.clone(), wet_on.clone(), wet_now.clone());
+        let (wet_on, wet_now) = (wet_on.clone(), wet_now.clone());
         Callback::from(move |_: MouseEvent| {
             *wet_now.borrow_mut() = want;
             wet_on.set(want);
-            engine.borrow().choose(want);
+            try_choose(want);
         })
     };
     let pick = {
@@ -554,16 +432,15 @@ pub fn try_it(p: &TryProps) -> Html {
             } else {
                 html! { <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z" fill="currentColor"/></svg> }
             };
-            let origin = if m.origin == "presets" {
-                l.t("Rendered by Cantus from its factory presets on the same take, each matched to one loudness by a gain alone.",
-                    "Renderizado por Cantus desde sus presets de fábrica sobre la misma toma, cada uno igualado a una sonoridad solo con una ganancia.")
-            } else {
-                l.t("Sound examples from the unit's own renders on the same take, each matched to one loudness by a gain alone.",
-                    "Ejemplos de sonido de los propios renders de la unidad sobre la misma toma, cada uno igualado a una sonoridad solo con una ganancia.")
-            };
             let level = match l {
-                Lang::En => format!("As the preset leaves it: {} against the dry. Matched here, so you hear the sound, not the level.", db(l, pr.level_db)),
-                Lang::Es => format!("Tal como lo deja el preset: {} frente a la señal seca. Igualado aquí, para que oigas el sonido y no el volumen.", db(l, pr.level_db)),
+                Lang::En => format!(
+                    "The preset's own level: {} against the dry; matched here.",
+                    db(l, pr.level_db)
+                ),
+                Lang::Es => format!(
+                    "El nivel propio del preset: {} frente a la señal seca; igualado aquí.",
+                    db(l, pr.level_db)
+                ),
             };
             html! {
                 <div class="try-body">
@@ -586,7 +463,7 @@ pub fn try_it(p: &TryProps) -> Html {
                             if *loading { <span class="try-wait" role="status">{ l.t("Loading…", "Cargando…") }</span> }
                         </div>
                         <p class="try-level">{ level }</p>
-                        <p class="try-note">{ say(l, &m.source) }{ ". " }{ origin }{ " " }<span class="try-credit">{ say(l, &m.credit) }{ "." }</span></p>
+                        <p class="try-note">{ say(l, &m.source) }{ ". " }{ say(l, &m.note) }{ " " }<span class="try-credit">{ say(l, &m.credit) }{ "." }</span></p>
                     </div>
                 </div>
             }
@@ -598,14 +475,26 @@ pub fn try_it(p: &TryProps) -> Html {
     };
 
     let (title, lede) = if p.unit.is_some() {
-        (l.t("Try it", "Pruébalo"),
-         l.t("Choose a preset and play: switch between dry and wet while it plays — the music does not move, only the effect comes and goes.",
-             "Elige un preset y reproduce: cambia entre seco y con efecto mientras suena — la música no se mueve, solo entra y sale el efecto."))
+        (
+            l.t("Try it", "Pruébalo"),
+            l.t("Choose a preset and play.", "Elige un preset y reproduce."),
+        )
     } else {
-        (l.t("Try them on a guitar", "Pruébalos en una guitarra"),
-         l.t("One take through each effect's presets, the editor beside it. Switch between dry and wet while it plays — the music does not move, only the effect comes and goes.",
-             "Una misma toma a través de los presets de cada efecto, con su editor al lado. Cambia entre seco y con efecto mientras suena — la música no se mueve, solo entra y sale el efecto."))
+        (
+            l.t("Try them on a guitar", "Pruébalos en una guitarra"),
+            l.t(
+                "One take through each effect's presets.",
+                "Una toma a través de los presets de cada efecto.",
+            ),
+        )
     };
+    let lede = format!(
+        "{lede} {}",
+        l.t(
+            "Switch dry and wet while it plays: only the effect comes and goes.",
+            "Cambia entre seco y con efecto mientras suena: solo entra y sale el efecto."
+        )
+    );
     html! {
         <section class={classes!("try", p.unit.is_none().then_some("section"))} id="try" aria-labelledby="try-title">
             <div class={classes!(p.unit.is_none().then_some("wrap"))}>

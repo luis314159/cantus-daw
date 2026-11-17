@@ -1,9 +1,13 @@
 {
  "unit": "phasis",
  "origin": "dev",
+ "note": [
+  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
+  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+ ],
  "source": [
-  "The owner's progression (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
-  "La progresión del dueño (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+  "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
  ],
  "credit": [
   "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
