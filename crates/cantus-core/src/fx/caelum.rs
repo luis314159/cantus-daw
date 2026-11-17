@@ -11,9 +11,8 @@
 //! |---|---|---|
 //! | `size` | the tank's lines, 15 → 320 ms on average | 0 … 100 % |
 //! | `decay` | the middle band's RT60 | 0.3 … 60 s |
-//! | `inf` | infinite: the middle held for good (the damping still darkens) | 0 … 1 |
-//! | `ishim` | infinite with shimmer: the shimmer climbs out and fades (0), or the tank keeps its level while it climbs (1) | 0 … 1 |
-//! | `ilevel` | an infinite tank's level: 8 dB under an 8 s tank's (0), or an 8 s tank's (1) | 0 … 1 |
+//! | `inf` | infinite: the tail held at the level it has; what comes in layers under a soft ceiling (a tail of the set decay's level) | 0 … 1 |
+//! | `isus` | Sustain: infinite's wash once nothing more comes in — from carried away by the shimmer's climb (0) to held for ever, its tone kept (100 %, the default) | 0 … 100 % |
 //! | `pre`, `psync` | the pre-delay, or a note value at the song's tempo (0: free) | 0 … 1 000 ms, 0 … 8 |
 //! | `diff` | the diffusion | 0 … 100 % |
 //! | `hhz`, `hdec` | the high damping's corner and the highs' decay against the middle's | 1 … 20 kHz, 0.1 … 1 × |
@@ -45,8 +44,6 @@ pub const SYNC_BEATS: [f32; 8] = [0.125, 0.25, 1.0 / 3.0, 0.5, 0.75, 1.0, 1.5, 2
 /// The locale prefix of each stepped parameter's choices, by key (ADR 0020).
 pub const CHOICES: &[(&str, &str)] = &[
     ("inf", "fx.caelum.inf"),
-    ("ishim", "fx.caelum.ishim"),
-    ("ilevel", "fx.caelum.ilevel"),
     ("psync", "fx.caelum.psync"),
     ("freeze", "fx.caelum.freeze"),
     ("lines", "fx.caelum.lines"),
@@ -127,8 +124,7 @@ pub const PARAMS: &[EffectParamInfo] = &[
     hz("mrate", "fx.caelum.mrate", 0.02, 10.0, 0.4),
     hz("slo", "fx.caelum.slo", 20.0, 2_000.0, 300.0),
     hz("shi", "fx.caelum.shi", 1_000.0, 20_000.0, 9_000.0),
-    switch("ishim", "fx.caelum.ishim", 1.0, 0.0),
-    switch("ilevel", "fx.caelum.ilevel", 1.0, 0.0),
+    amount("isus", "fx.caelum.isus", 1.0),
     p("duck", "fx.caelum.duck", 0.0, 48.0, 0.0, "dB", false, false),
     p(
         "dthr",
@@ -153,6 +149,47 @@ pub fn params() -> &'static [EffectParamInfo] {
     PARAMS
 }
 
+/// The keys wave A's first Caelum held and the amendment of ADR 0141 retired (never
+/// released): `ishim` (infinite with the shimmer: 0 fades, 1 sustains) and `ilevel`
+/// (infinite 8 dB lower, or as loud).
+pub const RETIRED: [&str; 2] = ["ishim", "ilevel"];
+
+/// A Caelum spec written before the amendment, made today's: `ishim` becomes the Sustain
+/// it chose (fades 0 %, sustains 100 %); `ilevel` is dropped (engaging Infinite no longer
+/// moves the level, so neither choice has a meaning). `true` when it changed.
+pub fn repair_spec(spec: &mut crate::EffectSpec) -> bool {
+    if spec.kind != crate::EffectKind::Shimmer {
+        return false;
+    }
+    let mut changed = false;
+    if let Some(v) = spec.params.remove("ishim") {
+        spec.params
+            .insert("isus".to_string(), if v >= 0.5 { 1.0 } else { 0.0 });
+        changed = true;
+    }
+    changed |= spec.params.remove("ilevel").is_some();
+    changed
+}
+
+/// [`repair_spec`] over every insert of a project and every pedal on a board. The number
+/// of specs changed.
+pub fn repair_project(project: &mut crate::model::Project) -> usize {
+    let mut changed = 0;
+    for e in project.all_effects_mut() {
+        if repair_spec(&mut e.spec) {
+            changed += 1;
+        }
+        if let Some(board) = e.spec.board.as_deref_mut() {
+            for pedal in &mut board.pedals {
+                if repair_spec(&mut pedal.spec) {
+                    changed += 1;
+                }
+            }
+        }
+    }
+    changed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,5 +210,28 @@ mod tests {
         assert_eq!(sync.max as usize, SYNC_BEATS.len());
         let mix = PARAMS.iter().find(|p| p.key == "mix").unwrap();
         assert_eq!(mix.default, 0.0, "the null: the mix at 0");
+        let sus = PARAMS.iter().find(|p| p.key == "isus").unwrap();
+        assert_eq!(sus.default, 1.0, "infinite means infinite");
+        for k in RETIRED {
+            assert!(PARAMS.iter().all(|p| p.key != k), "{k} is retired");
+        }
+    }
+
+    #[test]
+    fn a_retired_key_becomes_today_s() {
+        let mut s = crate::EffectSpec::new(crate::EffectKind::Shimmer);
+        s.params.insert("ishim".into(), 0.0);
+        s.params.insert("ilevel".into(), 1.0);
+        assert!(repair_spec(&mut s));
+        assert_eq!(s.params.get("isus"), Some(&0.0), "Fades is Sustain 0 %");
+        assert!(!s.params.contains_key("ishim") && !s.params.contains_key("ilevel"));
+        let mut s = crate::EffectSpec::new(crate::EffectKind::Shimmer);
+        s.params.insert("ishim".into(), 1.0);
+        assert!(repair_spec(&mut s));
+        assert_eq!(s.params.get("isus"), Some(&1.0), "Sustains is Sustain 100 %");
+        assert!(!repair_spec(&mut s), "once");
+        let mut other = crate::EffectSpec::new(crate::EffectKind::Glitch);
+        other.params.insert("ishim".into(), 1.0);
+        assert!(!repair_spec(&mut other), "another kind's keys are its own");
     }
 }

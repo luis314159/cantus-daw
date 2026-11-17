@@ -3370,8 +3370,8 @@ fn caelum_never_allocates() {
     for (phase, kv) in [
         ("shimmer", &[("shim", 1.0), ("pblvl", 1.0)][..]),
         (
-            "infinite, sustained",
-            &[("inf", 1.0), ("ishim", 1.0), ("ilevel", 1.0)][..],
+            "infinite, its sustain moved",
+            &[("inf", 1.0), ("isus", 0.4)][..],
         ),
         ("frozen", &[("freeze", 1.0)][..]),
         (

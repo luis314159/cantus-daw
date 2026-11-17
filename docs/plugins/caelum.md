@@ -40,9 +40,11 @@ brass, rose gold, a bronze whose engraving holds verdigris):
   reaches it, so the higher bands appear later as the tail ages; wisps climbing from band to
   band; a dotted line where the light is on average. Infinite writes ∞; frozen frosts the
   glass (the scale's names stay over the frost); the ducking lights a slot in the right rail.
-- **The sill**: Infinite and Freeze as lit pushbuttons, and the two choices an infinite tank
-  makes (its shimmer fades or sustains as it climbs; its level 8 dB lower or as loud) as
-  pairs. A click throws one, one step of undo; the menu offers automation and MIDI learn.
+- **The sill**: Infinite and Freeze as lit pushbuttons, and **Sustain** — a glass gauge with a
+  brass rider, 0 … 100 % (default 100 %): what Infinite's wash does once nothing more comes in,
+  from carried away by the shimmer's climb (0 %, gone in seconds) to held for ever with its
+  tone kept (100 %). A click throws a button, a click or drag moves the rider, one step of
+  undo each; the menus offer automation, modulation and MIDI learn.
 - **The astrolabe**: the voices on a pitch spiral (−36 … +36, every octave on the meridian).
   **Drag the alidade to set the first voice, the slimmer hand to set the second**: the angle
   is the note in the octave, the distance from the centre the octave. A click puts the
@@ -64,7 +66,8 @@ Light shimmer — a test holds them to `cantus_dsp::caelum::presets::factory()`)
 shimmer, Twin octaves, Infinite drone, Guitar ambience, Eighth-note echoes and Dotted rise
 (the pre-delay synced), Shimmer snare and Bus haze. **No preset starts frozen**: a tank frozen
 from its first sample holds silence. *Freeze swell* is infinite and swells in; throw Freeze
-on a chord to hold it. The infinite presets build as you play.
+on a chord to hold it. The infinite presets build as you play under their ceiling; *Endless
+ascent* lets its wash climb away once you stop (Sustain 60 %), *Infinite drone* holds it.
 
 ## Exported
 
@@ -89,7 +92,10 @@ through the board.
 - A shimmer that makes no energy: the decay is the setting's, in every band within 3.1 %.
 - Two voices at any interval, a three-head shifter whose drawn offsets keep a tone within
   13 cents and a diffuse tail free of flutter.
-- Infinite held five minutes within 0.4 dB, Freeze within 0.15 dB; a governor that keeps an
-  infinite tank fed for minutes from running away.
+- Infinite that changes nothing you hear when you engage it (the wash holds at the level the
+  tail had), holds within half a decibel for five minutes fed or not, keeps each octave's
+  level as long (it never turns shrill), and layers new playing under a soft ceiling — the
+  level the set decay's tail would reach — that holds under minutes of loud noise; Freeze
+  within 0.15 dB.
 - The voices dragged on an astrolabe, the decay dragged on its tubes; exact rest when the
   tail has died (the tank drained), so a silent Caelum costs nothing.

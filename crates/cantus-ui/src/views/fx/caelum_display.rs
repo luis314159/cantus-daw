@@ -4,8 +4,8 @@
 //!   a metal frame — the tail on the horizon over the tank's still water, the shimmer's
 //!   octaves rising band by band above it (`caelum_sky.rs`).
 //! - **The sill** under it: the endless controls as lit pushbuttons in their bezels —
-//!   Infinite (its ∞ lamp), Freeze (its crystal lamp), and the two infinite choices
-//!   (`caelum_desk.rs`).
+//!   Infinite (its ∞ lamp), Freeze (its crystal lamp) — and Infinite's Sustain, a glass
+//!   gauge with a brass rider (`caelum_desk.rs`).
 //! - **The astrolabe** (top right): the two voices read on a pitch spiral
 //!   (`caelum_astro.rs`).
 //! - **The decay by octave** (bottom right): eight glass tubes in a rack, each lit to the
@@ -178,17 +178,26 @@ impl View {
         let wb = if on(5) { lvl } else { 0.0 };
         let wsum = wa + wb;
         let rate = spec.get("shim").clamp(0.0, 1.0) * CLIMB;
-        let fades = inf && spec.get("ishim") < 0.5;
+        // Once nothing comes in, an infinite wash's climb slows and what has climbed fades
+        // by what its sustain lets go (`(1 − sustain)²`, as the DSP's settle).
+        let let_go = if inf {
+            let v = 1.0 - spec.get("isus").clamp(0.0, 1.0);
+            v * v
+        } else {
+            1.0
+        };
         let mut s = [0.0f32; LAYERS];
         s[0] = 1.0;
         let mut prev: Option<f32> = None;
         for j in 0..n {
             let rd = self.history[j];
             let e = cantus_dsp::math::db_to_gain(rd.energy_db.max(-150.0)).powi(2);
+            let shut = rd.freeze > 0.5 || rd.input < 0.01;
+            let held = if inf && shut { let_go } else { 1.0 };
             let tau = if rd.freeze > 0.5 || wsum <= 0.0 {
                 0.0
             } else {
-                (rate * dt).min(0.5)
+                (rate * dt).min(0.5) * held
             };
             let mut nx = s;
             let out0 = s[0] * tau;
@@ -205,9 +214,9 @@ impl View {
             for l in [4, 8] {
                 nx[l] -= s[l] * tau * 0.6;
             }
-            if fades {
+            if held < 1.0 {
                 for v in nx.iter_mut().skip(1) {
-                    *v *= 1.0 - 0.6 * dt;
+                    *v *= 1.0 - 0.6 * dt * held;
                 }
             }
             let sum: f32 = nx.iter().sum();
@@ -219,7 +228,6 @@ impl View {
             // What is new enters at the horizon.
             // (Only while something comes in — a tail's own wobble is not new sound — and
             // never into a frozen tank, whose door is shut.)
-            let shut = rd.freeze > 0.5 || rd.input < 0.01;
             let fresh = match prev {
                 _ if shut && prev.is_some() => 0.0,
                 Some(p) if e > 1e-15 => ((e - p * owed) / e).clamp(0.0, 1.0),
@@ -309,6 +317,8 @@ pub fn show(
     let (centre, rad) = astro::dial_of(p.astro, k);
     Drawn {
         endless: sill.keys.map(|key| key.rect),
+        sustain: sill.gauge.rect,
+        sustain_x: [sill.gauge.x_of(0.0), sill.gauge.x_of(1.0)],
         dial: (centre, rad),
         decay: desk::Rack::of(p.tubes, k).plot,
     }
@@ -317,8 +327,11 @@ pub fn show(
 /// Where the display's controls were drawn (tests point at them).
 #[derive(Copy, Clone, Debug)]
 pub struct Drawn {
-    /// The sill's six buttons: Infinite, Freeze, Fades, Sustains, 8 dB lower, As loud.
-    pub endless: [Rect; 6],
+    /// The sill's two buttons: Infinite, Freeze.
+    pub endless: [Rect; 2],
+    /// The Sustain gauge, and where its rider stands at 0 % and at 100 %.
+    pub sustain: Rect,
+    pub sustain_x: [f32; 2],
     /// The astrolabe's centre and radius.
     pub dial: (egui::Pos2, f32),
     /// The decay rack's scale (0.3 s at its foot, 60 s at its top).

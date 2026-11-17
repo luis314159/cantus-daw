@@ -2448,12 +2448,18 @@ fade out at the top instead of piling up.
   water, and the shimmer's octaves as bands of light above it, each lit as the energy reaches
   it — the higher ones later, as the tail ages. Infinite writes ∞ in the glass; Freeze frosts
   it; the ducking lights a slot in the frame's right rail.
-- **The sill** under it holds the endless controls as lit pushbuttons: **Infinite** (the tail
-  never decays; what comes in is added and held, the damping still darkening it), **Freeze**
-  (the tank keeps what it has and lets nothing in; the shimmer stops climbing), and the two
-  ways an infinite tank behaves: its shimmer **Fades** or **Sustains** as it climbs, and its
-  level **8 dB lower** than an eight-second tail or **As loud**. A click throws a button (one
-  step of undo); right-click for automation and MIDI learn.
+- **The sill** under it holds the endless controls: **Infinite**, a lit pushbutton (the tail
+  never decays: it holds at the level it has when you press it — engaging it changes nothing
+  you hear at that moment — and whatever you play next layers in under a soft ceiling, the
+  level a tail of the decay you set would reach on your playing, so it never runs away),
+  **Freeze** (the tank keeps what it has and lets nothing in; the shimmer stops climbing), and
+  **Sustain**, a glass gauge with a brass rider: what Infinite's wash does once you stop
+  playing. At **100 %** (the default — infinite means infinite) it holds for ever and keeps
+  its tone: the shimmer's climb settles into a fixed balance, so the wash never turns shrill,
+  even after ten minutes. Lower, the climb carries it away slowly; at **0 %** it climbs out of
+  hearing in seconds (about −30 dB in ten). A click throws a button and a click or drag on the
+  gauge moves its rider (one step of undo each; a double click puts it back at 100 %);
+  right-click for automation, modulation and MIDI learn.
 - **The astrolabe** sets the voices: **drag the alidade** (the wide rule) to choose the first
   voice and **the slimmer hand** to choose the second. The angle is the note within the octave
   (the twelve semitones round the rim), the distance from the centre the octave on the spiral
@@ -2477,8 +2483,9 @@ sidechain field, as for a compressor): a vocal's shimmer that ducks under the dr
 
 Nineteen factory presets: octave and fifth shimmers, cathedrals, a bloom pad, *Freeze swell*
 (infinite; throw Freeze on a chord to hold it as a pad — no preset starts frozen, since a tank
-frozen from its first sample would hold silence), an endless ascent and an infinite drone that
-build as you play, a ducked vocal shimmer, guitar ambience, pre-delays synced to the song
+frozen from its first sample would hold silence), an endless ascent (its Sustain at 60 %: it
+keeps rising and fades into the top once you stop) and an infinite drone that build as you
+play, a ducked vocal shimmer, guitar ambience, pre-delays synced to the song
 (*Eighth-note echoes*, *Dotted rise*), a sub-octave cloud, plates, a shimmer snare and a bus
 haze. At its defaults (mix 0) Caelum touches no sample; it has no latency.
 

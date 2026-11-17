@@ -6,8 +6,9 @@
 //!
 //! - **the shimmer heard**: the tail's energy an octave and two over the chord grows against
 //!   the same space without the shimmer, and rises as the tail ages;
-//! - **infinite holds**: the tail's level a second and three seconds after the chord within
-//!   a decibel and a half (a finite tail falls far more);
+//! - **infinite holds** (ADR 0141's amendment): thrown live on the dying tail with the
+//!   shimmer on, no jump at the switch (within half a decibel) and the wash held within half a
+//!   decibel to the end; Sustain 0 % lets it go (a finite tail falls far more);
 //! - **freeze holds**: thrown live a second in, the level held to the end while the input
 //!   plays on (a frozen tank takes nothing);
 //! - **ducking keyed by another strip**: the later track as the slot's key steps the tail
@@ -236,20 +237,50 @@ fn caelum_shimmers_holds_freezes_ducks_and_undoes_on_the_boot_path() {
         "live equals the render"
     );
 
-    // Infinite holds (the shimmer off: an infinite shimmer fades as it climbs, the owner's
-    // default): a second and three seconds after the chord within 1.5 dB; the same space
-    // finite falls by far more.
-    set(&mut app, "shim", 0.0);
-    let finite = rendered(&mut app);
+    // Infinite holds (ADR 0141's amendment), the shimmer on and Sustain at its 100 %: thrown
+    // live a second in, on the chord's dying tail, it changes no level — the 400 ms after
+    // the switch within 0.5 dB of the tail's level at it (the 50 ms either side) — and the
+    // wash holds: each second to the end within 0.5 dB of the first. At Sustain 0 % the
+    // climb carries the same wash away; finite, the tail falls by far more.
+    assert_eq!(spec.get("isus"), 1.0, "infinite means infinite");
+    app.seek(Ticks::ZERO);
+    app.sync_engine();
+    proc_.settle();
+    app.toggle_play();
+    let mut held = Vec::new();
+    play(&mut proc_, SR, &mut held);
     set(&mut app, "inf", 1.0);
-    let endless = rendered(&mut app);
-    let held = db(power(&endless, 3.0, 4.0)) - db(power(&endless, 1.0, 2.0));
-    let fell = db(power(&finite, 3.0, 4.0)) - db(power(&finite, 1.0, 2.0));
-    eprintln!("infinite: {held:+.2} dB over two seconds; finite {fell:+.1} dB");
-    assert!(held.abs() < 1.5, "infinite holds: {held:+.2} dB");
-    assert!(fell < -8.0, "a finite tail falls: {fell:+.1} dB");
+    app.sync_engine();
+    play(&mut proc_, 3 * SR, &mut held);
+    app.toggle_play();
+    let at = 0.5 * (db(power(&shimmer, 0.95, 1.0)) + db(power(&shimmer, 1.0, 1.05)));
+    let after = db(power(&held, 1.0, 1.4)) - at;
+    let secs: Vec<f64> = [(1.0, 2.0), (2.0, 3.0), (3.0, 4.0)]
+        .iter()
+        .map(|(a, b)| db(power(&held, *a, *b)))
+        .collect();
+    let drift = secs.iter().fold(0.0f64, |m, d| m.max((d - secs[0]).abs()));
+    let fell = db(power(&shimmer, 3.0, 4.0)) - db(power(&shimmer, 1.0, 2.0));
+    eprintln!(
+        "infinite thrown live at 1 s: the 400 ms after {after:+.2} dB against the tail at the switch; each second against the first {:+.2} {:+.2} dB; finite {fell:+.1} dB",
+        secs[1] - secs[0],
+        secs[2] - secs[0]
+    );
+    assert!(after.abs() <= 0.5, "no jump at the switch: {after:+.2} dB");
+    assert!(drift <= 0.5, "infinite holds: {drift:.2} dB");
+    assert!(fell < -6.0, "a finite tail falls: {fell:+.1} dB");
+    set(&mut app, "isus", 0.0);
+    let away = rendered(&mut app);
+    let gone = db(power(&away, 3.0, 4.0)) - db(power(&away, 1.0, 2.0));
+    let kept = {
+        set(&mut app, "isus", 1.0);
+        let r = rendered(&mut app);
+        db(power(&r, 3.0, 4.0)) - db(power(&r, 1.0, 2.0))
+    };
+    eprintln!("infinite from the start: Sustain 0 % {gone:+.2} dB, 100 % {kept:+.2} dB (1–2 s to 3–4 s)");
+    assert!(gone < kept - 1.0, "Sustain 0 % lets it go: {gone:+.2} against {kept:+.2}");
+    assert!(kept.abs() <= 0.5, "Sustain 100 % holds: {kept:+.2}");
     set(&mut app, "inf", 0.0);
-    set(&mut app, "shim", 0.55);
 
     // Freeze holds: thrown live a second in (the chord over, its tail in the tank), the level
     // held to the end.

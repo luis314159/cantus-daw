@@ -71,9 +71,11 @@ fn settings(unit: &str, state: &str) -> &'static [(&'static str, f32)] {
         ],
         ("fractus", "bars") => &[("bars", 2.0), ("step", 4.0), ("swing", 0.4)],
         ("fractus", "notes") => &[("trig", 2.0)],
-        ("caelum", "infinite") => &[
+        ("caelum", "infinite") => &[("inf", 1.0), ("shim", 0.85), ("pblvl", 0.6), ("mix", 0.6)],
+        // Infinite letting its wash go (ADR 0141's amendment): the Sustain's rider at 40 %.
+        ("caelum", "sustain") => &[
             ("inf", 1.0),
-            ("ishim", 1.0),
+            ("isus", 0.4),
             ("shim", 0.85),
             ("pblvl", 0.6),
             ("mix", 0.6),
@@ -176,7 +178,7 @@ fn main() {
     let states: [(&str, &[&str]); 3] = [
         ("loquax", &["start", "synth", "wide"]),
         ("fractus", &["start", "cloud", "bars", "notes"]),
-        ("caelum", &["start", "infinite", "frozen", "ducked"]),
+        ("caelum", &["start", "infinite", "sustain", "frozen", "ducked"]),
     ];
     let mut shots = Vec::new();
     for (unit, list) in states {

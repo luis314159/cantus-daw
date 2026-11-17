@@ -208,6 +208,12 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     if lanes_repaired > 0 {
         log::warn!("{lanes_repaired} malformed glitch pattern(s) repaired");
     }
+    // fxa:caelum — Caelum's two infinite switches of wave A's first build (never released)
+    // made today's Sustain (ADR 0141's amendment): `ishim` to `isus`, `ilevel` dropped.
+    let caelum_repaired = cantus_core::fx::caelum::repair_project(&mut file.project);
+    if caelum_repaired > 0 {
+        log::warn!("{caelum_repaired} Caelum infinite setting(s) made Sustain");
+    }
     // Provenance of a file not in the pool (a hand edit) names nothing: dropped. // r34:stems
     let pool: std::collections::BTreeSet<_> =
         file.project.audio_pool.iter().map(|s| s.id).collect(); // r34:stems
@@ -1560,6 +1566,11 @@ mod tests {
         assert_eq!(pat.lane(7), [half]);
         assert_eq!(slots[0].spec.get("mix"), 1.0);
         assert_eq!(slots[2].spec.get("shim"), 0.55);
+        // fxa:caelum — the fixture's Caelum was written with the two infinite switches of
+        // wave A's first build (`ishim` 0, Fades; `ilevel` 0): it opens as Sustain 0 %,
+        // the switches gone (ADR 0141's amendment).
+        assert_eq!(slots[2].spec.stored("isus"), Some(0.0));
+        assert!(slots[2].spec.stored("ishim").is_none() && slots[2].spec.stored("ilevel").is_none());
         let old = std::fs::read_to_string(dir.join("v63.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p

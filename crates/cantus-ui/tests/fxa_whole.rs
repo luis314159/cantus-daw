@@ -90,7 +90,7 @@ fn wave_a_s_windows_never_cut_or_clip_a_word() {
         (
             "caelum",
             EffectKind::Shimmer,
-            &[("inf", 1.0), ("ishim", 1.0)],
+            &[("inf", 1.0), ("isus", 0.4)],
         ),
         (
             "caelum",
@@ -223,8 +223,8 @@ fn fractus_s_pages_are_one_row_each() {
 // Caelum's sill answers the pointer as its picture promises (design sheet v2, ADR 0141
 // provisional), driven frame by frame with real pointer events through the editor the app
 // draws: a click on Infinite's lit pushbutton turns the tank infinite and a second click
-// lets it go; Freeze freezes it; "Sustains" and "As loud" choose the infinite tank's two
-// ways; each click is one undo step. // fxa:caelum
+// lets it go; Freeze freezes it; a click on the Sustain gauge puts its rider there (ADR
+// 0141's amendment); each click is one undo step. // fxa:caelum
 
 use cantus_ui::raster::shoot_events;
 use egui::{Event, PointerButton, Pos2};
@@ -288,10 +288,9 @@ fn caelum_s_sill_buttons_throw_the_endless_settings() {
         assert!(at.x > 0.0 && at.y > 0.0, "button {i} is drawn");
         sill_frames(app, &c, size, Some(at));
     };
-    // Today's sound is the default: fades, 8 dB lower (the owner listens before either flips).
+    // Infinite means infinite: the Sustain starts at 100 % (ADR 0141's amendment).
     assert_eq!(sill_value(&app, "inf"), 0.0);
-    assert_eq!(sill_value(&app, "ishim"), 0.0);
-    assert_eq!(sill_value(&app, "ilevel"), 0.0);
+    assert_eq!(sill_value(&app, "isus"), 1.0);
 
     click(&mut app, 0);
     assert_eq!(sill_value(&app, "inf"), 1.0, "Infinite lit");
@@ -302,18 +301,19 @@ fn caelum_s_sill_buttons_throw_the_endless_settings() {
 
     click(&mut app, 1);
     assert_eq!(sill_value(&app, "freeze"), 1.0, "Freeze lit");
-    click(&mut app, 3);
-    assert_eq!(sill_value(&app, "ishim"), 1.0, "Sustains chosen");
-    click(&mut app, 3);
-    assert_eq!(
-        sill_value(&app, "ishim"),
-        1.0,
-        "a chosen button stays chosen"
+
+    // The Sustain gauge: a click puts the rider there, one undo step.
+    let c = sill_ctx();
+    views::fx::frame::shell_of(kind).set_scale(&c, 1.0);
+    sill_frames(&mut app, &c, size, None);
+    let (gauge, x) = app.fx.caelum.sustain_gauge(0.25).expect("the gauge is drawn");
+    assert!(gauge.width() >= 150.0, "the gauge is wide enough to aim");
+    sill_frames(&mut app, &c, size, Some(Pos2::new(x, gauge.center().y)));
+    assert!(
+        (sill_value(&app, "isus") - 0.25).abs() < 0.011,
+        "the rider at a quarter: {}",
+        sill_value(&app, "isus")
     );
-    click(&mut app, 2);
-    assert_eq!(sill_value(&app, "ishim"), 0.0, "Fades chosen");
-    click(&mut app, 5);
-    assert_eq!(sill_value(&app, "ilevel"), 1.0, "As loud chosen");
     app.undo();
-    assert_eq!(sill_value(&app, "ilevel"), 0.0, "one click, one undo step");
+    assert_eq!(sill_value(&app, "isus"), 1.0, "one click, one undo step");
 }

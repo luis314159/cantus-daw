@@ -129,7 +129,7 @@ roles = ["creative"]
 
 [[preset]]
 key = "preset.caelum.endless_ascent"
-note = "Infinite, building as you play: the octaves keep rising and fade into the top; what does not climb is held."
+note = "Infinite, building as you play: the octaves keep rising, and once you stop they fade into the top (Sustain 60 %)."
 styles = ["ambient", "film"]
 roles = ["creative"]
 [preset.values]
@@ -138,6 +138,7 @@ roles = ["creative"]
 "hdec" = 0.6
 "hhz" = 8000
 "inf" = 1
+"isus" = 0.6
 "mdepth" = 0.4
 "mix" = 0.45
 "mrate" = 0.3
@@ -257,7 +258,7 @@ roles = ["creative"]
 
 [[preset]]
 key = "preset.caelum.infinite_drone"
-note = "Infinite and dark, a fifth climbing and kept: play a few notes and let it drone under the song."
+note = "Infinite and dark, a fifth climbing and kept (Sustain 100 %): play a few notes and let it drone under the song; more layer in under its ceiling."
 styles = ["ambient", "film"]
 roles = ["creative"]
 [preset.values]
@@ -266,7 +267,6 @@ roles = ["creative"]
 "hdec" = 0.4
 "hhz" = 3500
 "inf" = 1
-"ishim" = 1
 "lcut" = 60
 "mdepth" = 0.5
 "mix" = 0.5

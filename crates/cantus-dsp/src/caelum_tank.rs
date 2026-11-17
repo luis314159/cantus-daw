@@ -23,10 +23,20 @@
 //!   shelves (a high one at the damping frequency, a low one at the bass frequency), each
 //!   exact at its end of the spectrum, monotonic between. A line `L` samples long loses
 //!   `60·L / (fs·T)` dB a pass in each band's own `T`.
-//! - **Infinite** holds the middle (a gain of one) and keeps the shelves as they would be
-//!   at the longest finite decay, so damping still darkens an endless tail; once nothing
-//!   more comes in, a **hold** keeps the energy where it was (by at most 0.5 % a pass
-//!   either way — what the modulation's interpolation loses, and the rounding).
+//! - **Infinite** (ADR 0141's amendment) holds the middle (a gain of one) and keeps the
+//!   shelves as they would be at the longest finite decay, while the **output reads the
+//!   lines through the set decay's absorption** (and the early taps `ḡ` down once what they
+//!   read was written held), so engaging it changes nothing heard. Engaged on a dying tail,
+//!   each line's reads for one loop are lifted by the decay they still owed (measured from
+//!   the write history), so the wash holds at the level heard at the engage. While sound
+//!   comes in, a **soft ceiling** — the energy a finite tail of the set decay would settle
+//!   at on this input, measured (the input's power over the share a finite loop loses a
+//!   sample, its absorption and the shimmer's exchange) — blends the loop toward the finite
+//!   one as the lines fill (`r·x⁴`), so new sound layers in and nothing runs away. Once
+//!   nothing more comes in, the wash **settles** as far as the sustain lets it: the climb
+//!   slows, the shelves open, the modulation stills (at 100 % fully: nothing climbs out,
+//!   nothing darkens, nothing smears — the tone held) and, at 100 %, a **hold** keeps the
+//!   energy where it was, the settling's own loss made up as it is written.
 //! - **Freeze** cross-fades each line from its absorbed output to its raw output (a loop
 //!   that keeps everything), mutes the shimmer, and holds the level it had 150 ms after
 //!   closing — the input is gated outside the tank.
@@ -68,8 +78,20 @@ pub const INFINITE_SHELF_S: f32 = 60.0;
 pub const FREEZE_GAIN: f32 = 0.999_99;
 /// The hold's largest trim per pass.
 const HOLD_STEP: f32 = 0.005;
-/// How fast a sustained infinite tank's climb settles once nothing more comes in, s.
+/// How fast an infinite tank's wash settles once nothing more comes in (its climb slowed
+/// and its shelves opened as far as the sustain says), s.
 const SETTLE_S: f32 = 1.5;
+/// How long the input's power is averaged over for infinite's soft ceiling, s.
+const CEILING_AVG_S: f32 = 3.0;
+/// How slowly infinite's ceiling comes down to a quieter playing's, s (it rises at once).
+const CEILING_FALL_S: f32 = 60.0;
+/// How much of the lines' modulation a settled wash lets go (its chorus would otherwise
+/// smear a held tone's energy into its neighbours over minutes).
+const MOD_HELD: f32 = 1.0;
+/// How fast the settling wash's own loss is followed (the hold makes it up as it goes), s.
+const DROP_S: f32 = 0.01;
+/// The write history's bins: 2⁶ = 64 samples each.
+const WBIN_SHIFT: usize = 6;
 
 /// How many lines the tank runs.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -277,14 +299,23 @@ pub struct TankDesign {
     pub lengths: [f32; MAX_LINES],
     /// Each line's whole loop: the delay and its all-pass, samples.
     pub loop_len: [f32; MAX_LINES],
-    /// The middle's gain a pass, the high shelf's gain at Nyquist, the low shelf's at DC.
+    /// The middle's gain a pass, the high shelf's gain at Nyquist, the low shelf's at DC —
+    /// the loop's (infinite: the middle held, the shelves as at [`INFINITE_SHELF_S`]).
     pub g_mid: [f32; MAX_LINES],
     pub hi: [f32; MAX_LINES],
     pub lo: [f32; MAX_LINES],
+    /// The same for the set decay as a finite tank has it — what the output reads the lines
+    /// through, infinite or not, so engaging Infinite moves no level; also the soft
+    /// ceiling's leak. Equal to the loop's when finite.
+    pub out_g_mid: [f32; MAX_LINES],
+    pub out_hi: [f32; MAX_LINES],
+    pub out_lo: [f32; MAX_LINES],
     pub high_hz: f32,
     pub low_hz: f32,
     /// The middle's decay, s (infinite: `f32::INFINITY`).
     pub t60: f32,
+    /// The decay as set (what the output's absorption is designed for), s.
+    pub out_t60: f32,
 }
 
 /// The gain a pass of `len` samples loses in a decay of `t60` s.
@@ -313,8 +344,12 @@ impl TankDesign {
             g_mid: [1.0; MAX_LINES],
             hi: [1.0; MAX_LINES],
             lo: [1.0; MAX_LINES],
+            out_g_mid: [1.0; MAX_LINES],
+            out_hi: [1.0; MAX_LINES],
+            out_lo: [1.0; MAX_LINES],
             high_hz: decay.high_hz.clamp(200.0, 0.45 * sample_rate),
             low_hz: decay.low_hz.clamp(20.0, 2_000.0),
+            out_t60: decay.t60_s,
             t60: if decay.infinite {
                 f32::INFINITY
             } else {
@@ -326,6 +361,11 @@ impl TankDesign {
         for i in 0..lines {
             let l = lengths[i] + ap[i] as f32;
             d.loop_len[i] = l;
+            let t = decay.t60_s;
+            let mid = pass_gain(l, t, sample_rate);
+            d.out_g_mid[i] = mid as f32;
+            d.out_hi[i] = (pass_gain(l, t * hr, sample_rate) / mid) as f32;
+            d.out_lo[i] = (pass_gain(l, t * lr, sample_rate) / mid) as f32;
             if decay.infinite {
                 let t = INFINITE_SHELF_S;
                 let mid = pass_gain(l, t, sample_rate);
@@ -333,11 +373,9 @@ impl TankDesign {
                 d.hi[i] = (pass_gain(l, t * hr, sample_rate) / mid) as f32;
                 d.lo[i] = ((pass_gain(l, t * lr, sample_rate) / mid) as f32).min(1.0);
             } else {
-                let t = decay.t60_s;
-                let mid = pass_gain(l, t, sample_rate);
-                d.g_mid[i] = mid as f32;
-                d.hi[i] = (pass_gain(l, t * hr, sample_rate) / mid) as f32;
-                d.lo[i] = (pass_gain(l, t * lr, sample_rate) / mid) as f32;
+                d.g_mid[i] = d.out_g_mid[i];
+                d.hi[i] = d.out_hi[i];
+                d.lo[i] = d.out_lo[i];
             }
         }
         d
@@ -447,6 +485,9 @@ pub struct Tank {
     diff_target: f32,
     hs: [OnePole; MAX_LINES],
     ls: [OnePole; MAX_LINES],
+    /// The infinite loop's own low shelf (its high shelf differs from the output's, so the
+    /// low shelf after it runs on another signal); cleared while finite.
+    ls2: [OnePole; MAX_LINES],
     g_hi: f32,
     g_lo: f32,
     design: TankDesign,
@@ -454,15 +495,46 @@ pub struct Tank {
     freeze_target: f32,
     k_gain: f32,
     infinite: bool,
-    /// Infinite with the shimmer sustains: once nothing more comes in, the shimmer's climb
-    /// settles (its amount glides to nothing over [`SETTLE_S`]) and the hold keeps the wash
-    /// it climbed to (the owner's choice; off, the climb leaves through the loop's tone).
-    sustain: bool,
-    /// The climb's share now (1: as set; toward 0 while a sustained tank holds), its glide,
-    /// and each channel's amount as set.
-    settle: f32,
-    k_settle: f32,
+    /// Infinite's sustain (0…1): once nothing more comes in, the wash **settles** toward
+    /// `held_max = 1 − (1 − sustain)²` over [`SETTLE_S`] — the shimmer's climb slowed to
+    /// `1 − held` of its amount and the loop's shelves opened by `held`, so at 1 nothing
+    /// climbs out and nothing darkens (the tone kept) and the hold keeps the level; at 0
+    /// the climb carries the wash away through the loop's tone.
+    sustain: f32,
+    held_max: f32,
+    held: f32,
+    k_held: f32,
+    /// Each channel's amount as set.
     amount_base: [f32; CHANNELS],
+    /// Infinite's soft ceiling: the input's power, the lines' energy and what the set
+    /// decay's tank loses of it a sample (its absorption on what the lines hold now, and
+    /// the shimmer's exchange) — each averaged over [`CEILING_AVG_S`] and kept always, so
+    /// the engage finds them ready — give the energy a finite tail would settle at on this
+    /// input (`p_in · flux / loss`); the ceiling is the highest such since the engage (or
+    /// the energy then); the leak (0…1) blends the loop toward the finite tank's.
+    p_in: f32,
+    k_pin: f32,
+    a_flux: f32,
+    a_loss: f32,
+    ceil_e: f32,
+    k_fall: f32,
+    leak: f32,
+    /// Sound came in last sample (the engage asks).
+    fed_last: bool,
+    /// Infinite engaged on a decaying tail: for one loop of each line, what it reads was
+    /// written before the engage, each sample a pass's decay quieter than the one before;
+    /// each read is lifted by the decay it was owed (`step` a sample, `gain` now, `left`
+    /// samples to go), so the wash holds at the level it had at the engage instead of a
+    /// pass's decay under it.
+    ramp_left: [u32; MAX_LINES],
+    ramp_gain: [f32; MAX_LINES],
+    ramp_step: [f32; MAX_LINES],
+    ramping: u32,
+    /// What the lines were written with, a bin of 64 samples a slot (each its mean power
+    /// summed over the lines), as far back as the longest line: what the engage reads to
+    /// lift a dying tail to the level it had and to know that level.
+    wbins: Vec<f32>,
+    wacc: f32,
     /// The hold and the governor: the lines' energy (smoothed), the level held, samples
     /// frozen, the ceiling, the trim last applied.
     energy: f32,
@@ -479,6 +551,14 @@ pub struct Tank {
     /// line has gone round once. Outside the loop, so the decay does not see them.
     early: [[f32; MAX_LINES]; 2],
     tap_frac: [f32; MAX_LINES],
+    /// The early taps' level against the lines' (1 when finite). A held loop writes what it
+    /// reads with no loss where a finite one wrote it `ḡ` quieter, so a tap reading what a
+    /// held loop wrote is read `ḡ` down (blended back as the ceiling leaks) — the taps then
+    /// sound as the finite tank's would. Each line's tap changes over when what it reads was
+    /// written after the change (`early_wait` samples on), so its level never steps.
+    early_k: [f32; MAX_LINES],
+    early_wait: [u32; MAX_LINES],
+    early_inf: [bool; MAX_LINES],
     shifters: [Shifter; CHANNELS],
     amount: [f32; CHANNELS],
     amount_target: [f32; CHANNELS],
@@ -495,6 +575,12 @@ pub struct Tank {
     /// The decay owed by the time a sample spends in a shifter (its mean delay, which the
     /// line's absorption does not see): without it a shimmered tail would ring longer.
     sh_loss: f32,
+    /// The same for the set decay (a finite tank's; infinite's soft ceiling blends to it).
+    sh_loss_fin: f32,
+    /// The settling wash's loss a sample (its climb, its shelves), followed over
+    /// [`DROP_S`]; the hold makes it up while a sustained wash settles.
+    drop: f32,
+    k_drop: f32,
     /// What the shimmer gave back last sample (the meter's).
     sh_power: f32,
     zeros: [ZeroRun; MAX_LINES],
@@ -556,6 +642,7 @@ impl Tank {
             diff_target: 0.0,
             hs: [OnePole::default(); MAX_LINES],
             ls: [OnePole::default(); MAX_LINES],
+            ls2: [OnePole::default(); MAX_LINES],
             g_hi: 0.5,
             g_lo: 0.5,
             design,
@@ -563,10 +650,25 @@ impl Tank {
             freeze_target: 0.0,
             k_gain: 1.0 - math::exp(-1.0 / (0.03 * fs)),
             infinite: false,
-            sustain: false,
-            settle: 1.0,
-            k_settle: 1.0 - math::exp(-1.0 / (SETTLE_S * fs)),
+            sustain: 1.0,
+            held_max: 1.0,
+            held: 0.0,
+            k_held: 1.0 - math::exp(-1.0 / (SETTLE_S * fs)),
             amount_base: [0.0; CHANNELS],
+            p_in: 0.0,
+            k_pin: 1.0 - math::exp(-1.0 / (CEILING_AVG_S * fs)),
+            a_flux: 0.0,
+            a_loss: 0.0,
+            ceil_e: 0.0,
+            k_fall: 1.0 - math::exp(-1.0 / (CEILING_FALL_S * fs)),
+            leak: 0.0,
+            fed_last: false,
+            ramp_left: [0; MAX_LINES],
+            ramp_gain: [1.0; MAX_LINES],
+            ramp_step: [1.0; MAX_LINES],
+            ramping: 0,
+            wbins: vec![0.0; (size >> WBIN_SHIFT).max(1)],
+            wacc: 0.0,
             energy: 0.0,
             energy_ref: 0.0,
             k_energy: 1.0 - math::exp(-1.0 / (0.1 * fs)),
@@ -578,6 +680,9 @@ impl Tank {
             rows: [[0.0; MAX_LINES]; CHANNELS],
             early: [[0.0; MAX_LINES]; 2],
             tap_frac: core::array::from_fn(|i| 0.12 + 0.3 * hash01(i as u32, 331)),
+            early_k: [1.0; MAX_LINES],
+            early_wait: [0; MAX_LINES],
+            early_inf: [false; MAX_LINES],
             shifters: [
                 Shifter::with_origin(fs, 0),
                 Shifter::with_origin(fs, 0x5555_0000),
@@ -596,6 +701,9 @@ impl Tank {
             sh_lp_on: false,
             shimmer: Shimmer::default(),
             sh_loss: 1.0,
+            sh_loss_fin: 1.0,
+            drop: 0.0,
+            k_drop: 1.0 - math::exp(-1.0 / (DROP_S * fs)),
             sh_power: 0.0,
             zeros: [ZeroRun::FULL; MAX_LINES],
             ap_zeros: [ZeroRun::FULL; MAX_LINES * STAGES],
@@ -655,6 +763,8 @@ impl Tank {
     /// Every buffer and state cleared; the counts (write positions, phases) kept.
     pub fn clear(&mut self) {
         self.buf.iter_mut().for_each(|x| *x = 0.0);
+        self.wbins.iter_mut().for_each(|x| *x = 0.0);
+        self.wacc = 0.0;
         self.ap_buf.iter_mut().for_each(|x| *x = 0.0);
         self.zeros = [ZeroRun::FULL; MAX_LINES];
         self.ap_zeros = [ZeroRun::FULL; MAX_LINES * STAGES];
@@ -668,7 +778,7 @@ impl Tank {
     /// The small states: what a drain clears every sample.
     fn flush_states(&mut self) {
         self.interp = [0.0; MAX_LINES];
-        for f in self.hs.iter_mut().chain(self.ls.iter_mut()) {
+        for f in self.hs.iter_mut().chain(&mut self.ls).chain(&mut self.ls2) {
             f.clear();
         }
         for f in &mut self.sh_hp {
@@ -686,6 +796,17 @@ impl Tank {
         self.frozen_for = 0;
         self.trim = 1.0;
         self.sh_power = 0.0;
+        self.p_in = 0.0;
+        self.a_flux = 0.0;
+        self.a_loss = 0.0;
+        self.drop = 0.0;
+        self.ceil_e = 0.0;
+        self.leak = 0.0;
+        self.stop_ramp();
+        if self.held != 0.0 {
+            self.held = 0.0;
+            self.settled_targets();
+        }
     }
 
     /// As new: cleared, the counts back to their start, every glide landed.
@@ -703,8 +824,12 @@ impl Tank {
         self.depth = self.depth_target;
         self.diff = self.diff_target;
         self.freeze = self.freeze_target;
-        self.settle = 1.0;
+        self.held = 0.0;
         self.settled_targets();
+        let inf = self.design.t60.is_infinite();
+        self.early_inf = [inf; MAX_LINES];
+        self.early_wait = [0; MAX_LINES];
+        self.early_scale();
         self.amount = self.amount_target;
         self.update_amounts();
     }
@@ -738,10 +863,38 @@ impl Tank {
             self.len = self.len_target;
             self.configured = true;
         }
+        // Infinite engaged: the loop's own low shelf starts where the output's is (so the
+        // loop's first pass is continuous), and the soft ceiling from the energy now (so
+        // nothing the tank holds is leaked). Left: both cleared.
+        let was = self.design.t60.is_infinite();
+        let inf = d.t60.is_infinite();
+        if inf != was {
+            for i in 0..MAX_LINES {
+                self.early_wait[i] = (self.len_target[i] * self.tap_frac[i]) as u32 + 1;
+            }
+        }
+        if inf && !was {
+            self.ls2 = self.ls;
+            self.ceil_e = self.energy.max(self.settles_at());
+            // On a decaying tail (nothing coming in, not frozen), each line's reads for one
+            // loop are lifted by the decay they still owed.
+            if !self.fed_last && self.freeze_target == 0.0 && self.energy > 0.0 {
+                self.engage_on_a_dying_tail(d);
+            }
+        } else if was && !inf {
+            for f in &mut self.ls2 {
+                f.clear();
+            }
+            self.ceil_e = 0.0;
+            self.leak = 0.0;
+            self.stop_ramp();
+        }
+
         self.g_hi = one_pole_g(d.high_hz, self.sr);
         self.g_lo = one_pole_g(d.low_hz, self.sr);
+        self.sh_loss_fin = pass_gain(self.shifters[0].mean_delay(), d.out_t60, self.sr) as f32;
         self.sh_loss = if d.t60.is_finite() {
-            pass_gain(self.shifters[0].mean_delay(), d.t60, self.sr) as f32
+            self.sh_loss_fin
         } else {
             1.0
         };
@@ -770,29 +923,32 @@ impl Tank {
 
     /// The channels' targets: the amounts as set, times the climb's share now.
     fn settled_targets(&mut self) {
+        let share = 1.0 - self.held;
         for ch in 0..CHANNELS {
-            self.amount_target[ch] = self.amount_base[ch] * self.settle;
+            self.amount_target[ch] = self.amount_base[ch] * share;
         }
     }
 
-    /// A sustained infinite tank's climb settles once nothing more comes in and it holds
-    /// sound; otherwise (and as soon as sound comes in again) it returns to its amount.
+    /// An infinite tank holding sound settles once nothing more comes in (toward
+    /// `held_max`); as soon as sound comes in again — or Infinite is off — it returns.
     #[inline]
     fn settling(&mut self, fed: bool) {
-        let want = if self.sustain && self.infinite && !fed && self.energy > 0.0 {
-            0.0
+        let want = if self.infinite && !fed && self.energy > 0.0 {
+            self.held_max
         } else {
-            1.0
+            0.0
         };
-        if self.settle != want {
-            glide(&mut self.settle, want, self.k_settle, 1e-5);
+        if self.held != want {
+            glide(&mut self.held, want, self.k_held, 1e-5);
             self.settled_targets();
         }
     }
 
-    /// Infinite with the shimmer: the climb sustained (true) or let fade (false).
-    pub fn set_sustain(&mut self, on: bool) {
-        self.sustain = on;
+    /// Infinite's sustain, 0…1 (see [`Tank`]'s `sustain`).
+    pub fn set_sustain(&mut self, sustain: f32) {
+        let s = sustain.clamp(0.0, 1.0);
+        self.sustain = s;
+        self.held_max = 1.0 - (1.0 - s) * (1.0 - s);
     }
 
     pub fn set_infinite(&mut self, on: bool) {
@@ -888,13 +1044,28 @@ impl Tank {
                 t = (1.0 + 0.5 * (self.energy_ref / self.energy - 1.0))
                     .clamp(1.0 - HOLD_STEP, 1.0 + HOLD_STEP);
             }
-        } else if self.infinite && self.freeze == 0.0 {
-            if fed || self.energy_ref == 0.0 {
+        } else if self.infinite && self.freeze == 0.0 && self.sustain >= 1.0 {
+            // Sustained for ever: once nothing more comes in, the level held is the level
+            // then (below it the wash fades as the sustain lets it, and nothing holds it).
+            if fed || (self.energy_ref == 0.0 && self.ramping == 0) {
                 // While sound comes in, the level to hold is the level now.
                 self.energy_ref = self.energy;
+            } else if self.ramping > 0 {
+                // The engage's lift runs: the level to hold is the engage's (set then);
+                // only the settling's loss is made up meanwhile.
+                if self.energy > 1e-24 {
+                    t = 1.0 + ((1.0 + self.drop / self.energy).sqrt() - 1.0).clamp(0.0, 0.25);
+                }
             } else if self.energy > 1e-24 {
+                // What the settling wash loses this sample (its climb slowing, its shelves
+                // opening) made up at once, and the rest held to the level.
+                // (The loss is each sample's own as it passes — a climbing component
+                // replaced by its filtered shift loses a share of that sample, up to a tenth
+                // — so the make-up is that sample's, applied as it is written.)
+                let make_up = ((1.0 + self.drop / self.energy).sqrt() - 1.0).clamp(0.0, 0.25);
                 t = (1.0 + 0.5 * (self.energy_ref / self.energy - 1.0))
-                    .clamp(1.0 - HOLD_STEP, 1.0 + HOLD_STEP);
+                    .clamp(1.0 - HOLD_STEP, 1.0 + HOLD_STEP)
+                    + make_up;
             }
         } else if self.frozen_for != 0 || self.energy_ref != 0.0 {
             self.frozen_for = 0;
@@ -920,11 +1091,26 @@ impl Tank {
         let mask = self.mask;
         let w = self.w;
         let ap_w = self.ap_w;
-        glide(&mut self.depth, self.depth_target, self.k_gain, 1e-4);
+        let depth = if self.held > 0.0 {
+            self.depth_target * (1.0 - MOD_HELD * self.held)
+        } else {
+            self.depth_target
+        };
+        glide(&mut self.depth, depth, self.k_gain, 1e-4);
         glide(&mut self.diff, self.diff_target, self.k_gain, 1e-6);
+        self.early_step(1);
         let g = self.diff;
         let mut y = [0.0f32; MAX_LINES];
         let mut peak = 0.0f32;
+        // The input's power, averaged (infinite's soft ceiling reads it; a drain clears it).
+        let p = in_l * in_l + in_r * in_r;
+        if p != 0.0 || self.p_in != 0.0 {
+            self.p_in += (p - self.p_in) * self.k_pin;
+            if self.p_in < 1e-30 {
+                self.p_in = 0.0;
+            }
+        }
+        self.fed_last = fed;
         let (mut el, mut er) = (0.0f32, 0.0f32);
         for i in 0..n {
             glide(&mut self.len[i], self.len_target[i], self.k_len, 1e-3);
@@ -935,7 +1121,7 @@ impl Tank {
                 let base = i * size;
                 let a = self.buf[base + (w.wrapping_sub(k) & mask)];
                 let b = self.buf[base + (w.wrapping_sub(k + 1) & mask)];
-                let x = a + (b - a) * f;
+                let x = (a + (b - a) * f) * self.early_k[i];
                 el += self.early[0][i] * x;
                 er += self.early[1][i] * x;
             }
@@ -977,17 +1163,51 @@ impl Tank {
             }
             y[i] = x;
         }
+        if self.ramping > 0 {
+            self.ramp(&mut y);
+        }
         // Absorption: the high shelf, the low shelf, the middle's gain.
         let mut e = 0.0f32;
+        let mut lost = 0.0f32;
         let mut v = [0.0f32; MAX_LINES];
-        for i in 0..n {
-            let x = y[i];
-            e += x * x;
-            let lp = self.hs[i].lp(x, self.g_hi);
-            let a = lp + self.design.hi[i] * (x - lp);
-            let lp2 = self.ls[i].lp(a, self.g_lo);
-            let b = self.design.lo[i] * lp2 + (a - lp2);
-            v[i] = b * self.design.g_mid[i];
+        // Infinite: the output reads the lines through the set decay's absorption (what a
+        // finite tank would hear, so the engage moves nothing) and the loop runs its own.
+        let inf = self.infinite_loop();
+        let mut vo = [0.0f32; MAX_LINES];
+        if !inf {
+            for i in 0..n {
+                let x = y[i];
+                e += x * x;
+                let lp = self.hs[i].lp(x, self.g_hi);
+                let a = lp + self.design.hi[i] * (x - lp);
+                let lp2 = self.ls[i].lp(a, self.g_lo);
+                let b = self.design.lo[i] * lp2 + (a - lp2);
+                v[i] = b * self.design.g_mid[i];
+                lost += (x - v[i]) * (x + v[i]);
+            }
+        } else {
+            self.ceiling_step(fed);
+            let h = self.held;
+            let lk = self.leak;
+            let d = &self.design;
+            for i in 0..n {
+                let x = y[i];
+                e += x * x;
+                let lp = self.hs[i].lp(x, self.g_hi);
+                let hp = x - lp;
+                let a = lp + d.out_hi[i] * hp;
+                let lp2 = self.ls[i].lp(a, self.g_lo);
+                vo[i] = (d.out_lo[i] * lp2 + (a - lp2)) * d.out_g_mid[i];
+                lost += (x - vo[i]) * (x + vo[i]);
+                // The loop: the middle held, the shelves opened as far as the wash has
+                // settled, the soft ceiling's leak while sound comes in.
+                let hi = d.hi[i] + (1.0 - d.hi[i]) * h;
+                let lo = d.lo[i] + (1.0 - d.lo[i]) * h;
+                let a2 = lp + hi * hp;
+                let lp3 = self.ls2[i].lp(a2, self.g_lo);
+                let b = lo * lp3 + (a2 - lp3);
+                v[i] = if lk > 0.0 { b + (vo[i] - b) * lk } else { b };
+            }
         }
         glide(&mut self.freeze, self.freeze_target, self.k_gain, 1e-5);
         if self.freeze > 0.0 {
@@ -995,15 +1215,31 @@ impl Tank {
             for i in 0..n {
                 v[i] += (y[i] * FREEZE_GAIN - v[i]) * f;
             }
+            if inf {
+                for i in 0..n {
+                    vo[i] += (y[i] * FREEZE_GAIN - vo[i]) * f;
+                }
+            }
         }
+        let read = if inf { &vo } else { &v };
         let mut ol = el;
         let mut or = er;
         for i in 0..n {
-            ol += self.c[0][i] * v[i];
-            or += self.c[1][i] * v[i];
+            ol += self.c[0][i] * read[i];
+            or += self.c[1][i] * read[i];
         }
         self.settling(fed);
-        self.exchange(&mut v, drain);
+        lost -= self.exchange(&mut v, drain);
+        self.loss_step(e, lost);
+        if inf && self.held > 0.0 && self.sustain >= 1.0 {
+            let mut kept = 0.0f32;
+            for i in 0..n {
+                kept += v[i] * v[i];
+            }
+            self.drop += (e - kept - self.drop) * self.k_drop;
+        } else if self.drop != 0.0 {
+            self.drop = 0.0;
+        }
         let t = self.hold(e, fed);
         if t != 1.0 {
             for x in v.iter_mut().take(n) {
@@ -1011,6 +1247,7 @@ impl Tank {
             }
         }
         let mut m = [0.0f32; MAX_LINES];
+        let mut wsum = 0.0f32;
         mix_matrix(&v, n, &mut m);
         for i in 0..n {
             // `+ 0.0` turns a −0.0 into +0.0 (zero is +0.0, bit for bit — ADR 0031 §5.1).
@@ -1020,7 +1257,14 @@ impl Tank {
                 m[i] + self.b[0][i] * in_l + self.b[1][i] * in_r + 0.0
             };
             peak = peak.max(x.abs());
+            wsum += x * x;
             self.buf[i * size + w] = x;
+        }
+        self.wacc += wsum;
+        if (w + 1) & ((1 << WBIN_SHIFT) - 1) == 0 {
+            let nb = self.wbins.len();
+            self.wbins[(w >> WBIN_SHIFT) & (nb - 1)] = self.wacc / (1 << WBIN_SHIFT) as f32;
+            self.wacc = 0.0;
         }
         self.quiet = if peak < SETTLE {
             self.quiet.saturating_add(1)
@@ -1035,11 +1279,191 @@ impl Tank {
         (ol, or)
     }
 
+    /// The write history's mean power `ago` samples back (three bins, so one bin's
+    /// grain does not count).
+    fn written(&self, ago: f32) -> f32 {
+        let nb = self.wbins.len();
+        let at = (self.w + self.size - (ago.max(0.0) as usize).min(self.size - 1)) & self.mask;
+        let b = at >> WBIN_SHIFT;
+        (self.wbins[b & (nb - 1)]
+            + self.wbins[(b + nb - 1) & (nb - 1)]
+            + self.wbins[(b + nb - 2) & (nb - 1)])
+            / 3.0
+    }
+
+    /// Infinite engaged on a dying tail. What is heard at the engage is each line's oldest
+    /// sound through the set decay's absorption (`ḡᵢ²` of its power) and the early taps'
+    /// fresher, quieter sound (`EARLY_GAIN²`); held, both read the lines `ḡᵢ` down. The level
+    /// to hold, `T`, is the lines' power that, the same everywhere, sounds as loud (read from
+    /// what the lines were written with). For one loop each line's reads were written before the engage, the
+    /// newer ones quieter: they are lifted, from unity at the engage (nothing heard moves)
+    /// to `T` for the newest, at most by the set decay's own rate (a tail still holding its
+    /// input is lifted less); the hold then keeps the level at `T`.
+    fn engage_on_a_dying_tail(&mut self, d: &TankDesign) {
+        let n = d.lines;
+        let g2 = EARLY_GAIN * EARLY_GAIN;
+        let recent = self.written(2.0 * (1 << WBIN_SHIFT) as f32);
+        let (mut heard, mut weight) = (0.0f32, 0.0f32);
+        for i in 0..n {
+            let gi = d.out_g_mid[i] * d.out_g_mid[i];
+            let late = self.written(d.loop_len[i]);
+            let early = self.written(self.len[i] * self.tap_frac[i]);
+            heard += gi * late + g2 * early;
+            // Held, the taps read `ḡ` down too (`early_k`).
+            weight += gi * (1.0 + g2);
+        }
+        let target = heard / weight.max(1e-12);
+        self.ramping = 0;
+        for i in 0..n {
+            let l = d.loop_len[i].max(1.0);
+            let nominal = math::powf(d.out_g_mid[i].max(1e-6), -1.0 / l);
+            let want = if recent > 0.0 && target > recent {
+                math::powf(target / recent, 0.5 / l)
+            } else {
+                1.0
+            };
+            self.ramp_step[i] = want.min(nominal).max(1.0);
+            self.ramp_gain[i] = 1.0;
+            self.ramp_left[i] = l as u32;
+            self.ramping += 1;
+        }
+        self.energy_ref = target.max(1e-30);
+    }
+
+    /// The early taps' levels now (see `early_k`).
+    #[inline]
+    fn early_scale(&mut self) {
+        let lk = self.leak;
+        for i in 0..self.n {
+            self.early_k[i] = if self.early_inf[i] {
+                let g = self.design.out_g_mid[i];
+                g + lk * (1.0 - g)
+            } else {
+                1.0
+            };
+        }
+    }
+
+    /// The early taps' change-over, `k` samples on.
+    #[inline]
+    fn early_step(&mut self, k: u32) {
+        let inf = self.design.t60.is_infinite();
+        let mut any = inf;
+        for i in 0..self.n {
+            if self.early_wait[i] > 0 {
+                self.early_wait[i] = self.early_wait[i].saturating_sub(k);
+                if self.early_wait[i] == 0 {
+                    self.early_inf[i] = inf;
+                }
+            }
+            any |= self.early_inf[i];
+        }
+        if any {
+            self.early_scale();
+        }
+    }
+
+    fn stop_ramp(&mut self) {
+        self.ramping = 0;
+        self.ramp_left = [0; MAX_LINES];
+        self.ramp_gain = [1.0; MAX_LINES];
+    }
+
+    /// The engage's lift, one sample (see `ramp_left`).
+    #[inline]
+    fn ramp(&mut self, y: &mut [f32; MAX_LINES]) {
+        for i in 0..self.n {
+            if self.ramp_left[i] > 0 {
+                self.ramp_gain[i] *= self.ramp_step[i];
+                y[i] *= self.ramp_gain[i];
+                self.ramp_left[i] -= 1;
+                if self.ramp_left[i] == 0 {
+                    self.ramp_gain[i] = 1.0;
+                    self.ramping -= 1;
+                }
+            }
+        }
+    }
+
+    /// The averages the ceiling reads, one sample: the lines' energy `e` and what the set
+    /// decay's tank loses of it, `lost`.
+    #[inline]
+    fn loss_step(&mut self, e: f32, lost: f32) {
+        if e == 0.0 && self.a_flux == 0.0 {
+            return;
+        }
+        let k = self.k_pin;
+        self.a_flux += (e - self.a_flux) * k;
+        self.a_loss += (lost - self.a_loss) * k;
+        if self.a_flux < 1e-30 {
+            self.a_flux = 0.0;
+            self.a_loss = 0.0;
+        }
+    }
+
+    /// The lines' energy a tail of the set decay would settle at on the input now: the
+    /// input's power over the share of the energy it loses a sample.
+    #[inline]
+    fn settles_at(&self) -> f32 {
+        if self.a_loss > 0.0 && self.a_flux > 0.0 {
+            self.p_in * self.a_flux / self.a_loss
+        } else {
+            0.0
+        }
+    }
+
+    /// The loop runs infinite's own absorption.
+    #[inline]
+    fn infinite_loop(&self) -> bool {
+        self.design.t60.is_infinite()
+    }
+
+    /// Infinite's soft ceiling, one sample: the input's power averaged, the ceiling raised
+    /// to what a tail of the set decay would hold on it, and the leak — none until the
+    /// lines' energy nears the ceiling, the finite tank's loss at it (so a steady input
+    /// settles where the finite tail would), none once nothing more comes in (the wash
+    /// then holds) or while frozen.
+    #[inline]
+    fn ceiling_step(&mut self, fed: bool) {
+        let want = if fed && self.freeze_target == 0.0 {
+            let c = self.settles_at();
+            if c > self.ceil_e {
+                self.ceil_e = c;
+            } else {
+                self.ceil_e += (c - self.ceil_e) * self.k_fall;
+            }
+            if self.ceil_e > 0.0 {
+                // Full, the tank makes room for what comes in (`r`, the input against the
+                // ceiling's); short of full it keeps nearly all (`x⁴`); past it, it leaks as
+                // the finite tank does.
+                let r = c / self.ceil_e;
+                let x = self.energy / self.ceil_e;
+                let x2 = x * x;
+                (r * x2 * x2).min(1.0)
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+        if self.leak != want {
+            glide(&mut self.leak, want, self.k_gain, 1e-6);
+        }
+    }
+
     /// The shimmer's exchange: each channel's component `s` replaced by `√(1−a)·s + √a·z`.
     #[inline]
-    fn exchange(&mut self, v: &mut [f32; MAX_LINES], drain: bool) {
+    fn exchange(&mut self, v: &mut [f32; MAX_LINES], drain: bool) -> f32 {
         let n = self.n;
         let mut pw = 0.0f32;
+        let mut gained = 0.0f32;
+        // The decay the shifter's delay owes: none while infinite, blended toward the set
+        // decay's as the soft ceiling leaks.
+        let shl = if self.infinite_loop() {
+            1.0 - self.leak * (1.0 - self.sh_loss_fin)
+        } else {
+            self.sh_loss
+        };
         for ch in 0..CHANNELS {
             let target = self.amount_target[ch];
             if self.amount[ch] != target {
@@ -1072,14 +1496,21 @@ impl Tank {
                 z = self.sh_lp[ch].run(z, &self.sh_lp_c).0;
             }
             let give = self.give[ch];
-            z *= self.sh_loss;
+            let zf = z * self.sh_loss_fin;
+            z *= shl;
             let delta = self.keep[ch] * s + give * z;
             pw += give * give * z * z;
+            // The channel's component goes from `s` to `s + delta` (its row is a unit
+            // vector orthogonal to the others'): the energy changes by `delta·(2s + delta)`
+            // — counted as the set decay's tank would change it (the ceiling's measure).
+            let df = self.keep[ch] * s + give * zf;
+            gained += df * (2.0 * s + df);
             for i in 0..n {
                 v[i] += row[i] * delta;
             }
         }
         self.sh_power = pw;
+        gained
     }
 
     /// After a block of `n` ticks: every ring's run of zeros (one comparison a ring while
@@ -1113,7 +1544,14 @@ impl Tank {
         {
             return Some("tank all-passes");
         }
-        if !all_zero(&self.interp) || !self.hs.iter().chain(&self.ls).all(|f| f.is_zero()) {
+        if !all_zero(&self.interp)
+            || !self
+                .hs
+                .iter()
+                .chain(&self.ls)
+                .chain(&self.ls2)
+                .all(|f| f.is_zero())
+        {
             return Some("tank filters");
         }
         if !self.shifters.iter().all(|s| s.is_zero())
@@ -1126,14 +1564,25 @@ impl Tank {
             || self.depth != self.depth_target
             || self.diff != self.diff_target
             || self.amount != self.amount_target
-            || self.settle != 1.0
+            || self.held != 0.0
+            || self.leak != 0.0
+            || self.ramping != 0
         {
             return Some("tank glides");
         }
         if self.freeze != self.freeze_target || self.frozen_for != 0 {
             return Some("freeze");
         }
-        if !z(self.energy) || !z(self.energy_ref) {
+        if !z(self.energy)
+            || !z(self.energy_ref)
+            || !z(self.p_in)
+            || !z(self.ceil_e)
+            || !z(self.a_flux)
+            || !z(self.a_loss)
+            || !z(self.drop)
+            || !z(self.wacc)
+            || !self.wbins.iter().all(|x| z(*x))
+        {
             return Some("hold");
         }
         None
@@ -1150,6 +1599,7 @@ impl Tank {
         for s in &mut self.shifters {
             s.skip(n);
         }
+        self.early_step(n.min(u32::MAX as usize) as u32);
     }
 }
 

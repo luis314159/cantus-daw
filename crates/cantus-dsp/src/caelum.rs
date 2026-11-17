@@ -50,6 +50,9 @@ pub mod tank;
 #[path = "caelum_tests.rs"]
 mod tests;
 #[cfg(test)]
+#[path = "caelum_tests_infinite.rs"]
+mod tests_infinite;
+#[cfg(test)]
 #[path = "caelum_tests_measure.rs"]
 mod tests_measure;
 
@@ -69,10 +72,6 @@ pub const DECAY_MAX_S: f32 = 60.0;
 const LEVEL_MAX_S: f32 = 30.0;
 /// The governor's ceiling: the wet's RMS, linear (−6 dBFS).
 const CEILING_RMS: f32 = 0.5;
-/// An infinite tank's level: an 8 s tank's, 8 dB down — it keeps everything it is fed,
-/// so a bar or two of playing piles up to where an 8 s tail would stand.
-const LEVEL_INFINITE_S: f32 = 8.0;
-const LEVEL_INFINITE_TRIM: f32 = 0.4;
 /// Calibration of the wet's level (see [`late_gain`]), measured on pink noise.
 const LATE_CAL: f32 = 0.89;
 /// Octave centres the meter reports the achieved decay at, Hz.
@@ -92,15 +91,14 @@ pub struct CaelumSettings {
     pub size: f32,
     /// The middle band's RT60, s ([`DECAY_MIN_S`]…[`DECAY_MAX_S`]).
     pub decay_s: f32,
-    /// The middle held for good (the damping still darkens).
+    /// The tail held for good at the level it has (ADR 0141's amendment): engaging it
+    /// changes no level; what comes in layers under a soft ceiling — the level a tail of
+    /// the set decay would reach on what is played — so it never runs away.
     pub infinite: bool,
-    /// Infinite with the shimmer: the tank keeps its level while the shimmer climbs
-    /// (true), or the climb leaves through the loop's tone and the wash fades (false, the
-    /// default — the owner's choice, ADR 0141).
-    pub infinite_sustain: bool,
-    /// An infinite tank as loud as an 8 s one (true), or 8 dB under it (false, the
-    /// default: it keeps all it is fed, so a bar or two piles up to an 8 s tail's level).
-    pub infinite_full: bool,
+    /// Infinite's wash once nothing more comes in, 0…1: at 0 the shimmer's climb carries
+    /// it away (it fades through the loop's tone); at 1 (the default) it holds for ever,
+    /// its climb settled and its tone kept; between, it fades the slower the higher.
+    pub sustain: f32,
     pub predelay_ms: f32,
     /// 0…1: the diffusers' and the lines' all-passes' gain.
     pub diffusion: f32,
@@ -147,8 +145,7 @@ impl Default for CaelumSettings {
             size: 0.6,
             decay_s: 4.0,
             infinite: false,
-            infinite_sustain: false,
-            infinite_full: false,
+            sustain: 1.0,
             predelay_ms: 20.0,
             diffusion: 0.75,
             high_hz: 6_000.0,
@@ -392,27 +389,16 @@ impl Caelum {
         let fs = self.sample_rate;
         let first = !self.configured;
         let ms = fs * 0.001;
-        if first
-            || s.design_key() != self.settings.design_key()
-            || s.infinite_full != self.settings.infinite_full
-        {
+        if first || s.design_key() != self.settings.design_key() {
             let ap = tank::allpass_totals(&tank::allpass_lengths(fs));
             let d = TankDesign::new(fs, s.lines.count(), s.size, &s.decay(), &ap);
             self.tank.set_design(&d);
             for (a, hz) in self.meter.achieved.iter_mut().zip(OCTAVES) {
                 *a = d.achieved_t60(hz);
             }
-            let t = if s.infinite {
-                LEVEL_INFINITE_S
-            } else {
-                s.decay_s
-            };
-            let lg = late_gain(fs, d.lines, d.mean_loop(), t)
-                * if s.infinite && !s.infinite_full {
-                    LEVEL_INFINITE_TRIM
-                } else {
-                    1.0
-                };
+            // Infinite or not, the wet's level is the set decay's: engaging Infinite moves
+            // no level (the tank then reads its lines as the finite tank would).
+            let lg = late_gain(fs, d.lines, d.mean_loop(), s.decay_s);
             self.late_gain.target = lg;
             // The ceiling, in the lines' summed energy: a wet RMS of `CEILING_RMS` on a side
             // is `N · rms² / gain²` of it (each output row sees 1/N of the lines).
@@ -423,7 +409,7 @@ impl Caelum {
             );
         }
         self.tank.set_infinite(s.infinite);
-        self.tank.set_sustain(s.infinite_sustain);
+        self.tank.set_sustain(s.sustain);
         self.tank.set_modulation(
             s.mod_depth.clamp(0.0, 1.0) * tank::MAX_DEPTH_MS * ms,
             s.mod_rate_hz.clamp(0.02, 10.0),

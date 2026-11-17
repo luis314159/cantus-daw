@@ -154,18 +154,15 @@ fn a_fork_carries_on_from_where_the_unit_is() {
     assert_eq!(x, y);
 }
 
-/// The owner's open choices are settings with the DSP's measured behaviour the default:
-/// infinite with the shimmer fades (`ishim` 0) and sits 8 dB under an 8 s tank (`ilevel`
-/// 0); each switch reaches the DSP.
+/// Infinite's Sustain (ADR 0141's amendment) is a parameter whose default holds for ever
+/// (infinite means infinite) and reaches the DSP as set; the retired switches are gone.
 #[test]
-fn the_owner_s_two_choices_are_parameters_with_today_s_behaviour_the_default() {
+fn infinite_s_sustain_is_a_parameter_that_holds_by_default() {
     let mut s = EffectSpec::new(EffectKind::Shimmer);
-    let d = settings(&s);
-    assert!(!d.infinite_sustain && !d.infinite_full);
-    s.set("ishim", 1.0).unwrap();
-    s.set("ilevel", 1.0).unwrap();
-    let d = settings(&s);
-    assert!(d.infinite_sustain && d.infinite_full);
+    assert_eq!(settings(&s).sustain, 1.0);
+    s.set("isus", 0.35).unwrap();
+    assert_eq!(settings(&s).sustain, 0.35);
+    assert!(s.set("ishim", 1.0).is_none() && s.set("ilevel", 1.0).is_none());
 }
 
 fn slot_of(spec: EffectSpec) -> EffectSlot {

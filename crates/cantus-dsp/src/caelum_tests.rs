@@ -135,10 +135,45 @@ fn the_output_does_not_depend_on_the_block_size() {
         ("light (8 lines)", presets::light_shimmer(), false),
     ] {
         let key = keyed.then_some((&kl[..], &kr[..]));
+        block_sizes_agree(name, &s, &l, &r, key, &moved);
+    }
+    // Infinite engaged mid-way, on a playing tail and on a dying one, its sustain moved.
+    let (dl, dr) = (
+        [&l[..20_000], &vec![0.0f32; 52_000][..]].concat(),
+        [&r[..20_000], &vec![0.0f32; 52_000][..]].concat(),
+    );
+    for (name, s, sus) in [
+        ("starting, engaged", presets::starting(), 1.0),
+        ("heavy, engaged at sustain 40 %", heavy(), 0.4),
+    ] {
+        let engaged = CaelumSettings {
+            infinite: true,
+            sustain: sus,
+            ..s
+        };
+        block_sizes_agree(name, &s, &l, &r, None, &engaged);
+        block_sizes_agree(name, &s, &dl, &dr, None, &engaged);
+        let moved = CaelumSettings {
+            sustain: 0.3,
+            ..engaged
+        };
+        block_sizes_agree(name, &engaged, &dl, &dr, None, &moved);
+    }
+}
+
+fn block_sizes_agree(
+    name: &str,
+    s: &CaelumSettings,
+    l: &[f32],
+    r: &[f32],
+    key: Option<(&[f32], &[f32])>,
+    moved: &CaelumSettings,
+) {
+    {
         let mut reference: Option<(Vec<f32>, Vec<f32>)> = None;
         for block in [1usize, 37, 64, 512] {
-            let mut c = unit(&s);
-            let out = render(&mut c, &l, &r, block, key, Some((30_000, &moved)));
+            let mut c = unit(s);
+            let out = render(&mut c, l, r, block, key, Some((30_000, moved)));
             match &reference {
                 None => reference = Some(out),
                 Some(want) => assert!(
@@ -257,6 +292,17 @@ fn it_comes_to_rest_exactly_and_its_twins_agree() {
     twins("bloom pad", &presets::bloom_pad(), 60.0);
     twins("ducked vocal", &presets::ducked_vocal(), 30.0);
     twins("light (8 lines)", &presets::light_shimmer(), 40.0);
+    // An infinite wash let go (Sustain 0 %: the climb carries it out) drains and rests.
+    twins(
+        "infinite at sustain 0",
+        &CaelumSettings {
+            sustain: 0.0,
+            shimmer: 1.0,
+            pitch_b_level: 1.0,
+            ..presets::endless_ascent()
+        },
+        120.0,
+    );
 }
 
 #[test]

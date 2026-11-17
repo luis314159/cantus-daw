@@ -1832,8 +1832,6 @@ caelum mdepth 1557884893
 caelum mrate 1709360186
 caelum slo 1060652319
 caelum shi 1697510293
-caelum ishim 234217605
-caelum ilevel 299595482
 caelum duck 993145720
 caelum dthr 990619775
 caelum datt 1668477942
