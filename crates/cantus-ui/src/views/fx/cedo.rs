@@ -708,8 +708,9 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 }
 
 /// The starting preset (`cantus_core::starting`): the classic pump — Tempo, quarters,
-/// 9 dB (the threshold back at its default after the demo's generic −30).
-pub const DEMO: &[(&str, f32)] = &[("trig", 1.0), ("depth", 9.0), ("thr", -24.0)];
+/// 9 dB, the output fitted to the dry's loudness (+1.4 dB; the threshold back at its default
+/// after the demo's generic −30).
+pub const DEMO: &[(&str, f32)] = &[("trig", 1.0), ("depth", 9.0), ("out", 1.4), ("thr", -24.0)];
 
 /// The settings `--editor cedo` and the screenshot tool open it with: the starting preset.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {

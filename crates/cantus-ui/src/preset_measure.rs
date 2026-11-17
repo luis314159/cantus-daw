@@ -67,6 +67,15 @@ pub fn by_design(id: &str) -> Option<&'static str> {
         "preset.discrimen.only_transients" => Some("a listen: the transients alone"),
         "preset.discrimen.only_body" => Some("a listen: the body alone"),
         "preset.tonus.octave_down" => Some("an octave down reads quieter by its K-weighting"),
+        // fxb:cedo — Cedo's Sidechain presets duck under the key they are given (auditioned
+        // keyed by the material's own drums, they duck the whole of it): no make-up.
+        "preset.cedo.kick_bass_duck"
+        | "preset.cedo.kick_on_lows"
+        | "preset.cedo.edm_sidechain"
+        | "preset.cedo.voice_over"
+        | "preset.cedo.podcast_bed"
+        | "preset.cedo.gentle_radio"
+        | "preset.cedo.snare_room" => Some("ducks under its key: on its source it ducks itself"),
         _ => None,
     }
 }

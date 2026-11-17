@@ -211,7 +211,11 @@ pub fn start_of(kind: EffectKind) -> Start {
         ), // fxb:lenis
         // fxb:cedo — the classic pump on quarters, 9 dB: it sounds on any track with no
         // routing at all (the tempo fires it), the whole band.
-        K::Ducker => preset("preset.cedo.classic_pump", &[("trig", 1.0), ("depth", 9.0)]), // fxb:cedo
+        // Fitted to the dry's loudness (`preset_tool fit`): +1.4 dB.
+        K::Ducker => preset(
+            "preset.cedo.classic_pump",
+            &[("trig", 1.0), ("depth", 9.0), ("out", 1.4)],
+        ), // fxb:cedo
         K::Multiband => preset(
             "mb.preset.glue",
             &[

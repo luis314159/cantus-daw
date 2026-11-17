@@ -2,7 +2,9 @@
 # A preset's shape rides in its values (`cantus_core::fx::cedo::to_flat`): `"shape.n"` the
 # number of points, `"shape.0.x"`, `"shape.0.y"`, `"shape.0.bend"` and `"shape.0.seg"` the first
 # one's; a preset without `"shape.n"` plays the classic pump.
-# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels (the pumps';
+# a Sidechain preset ducks under the key it is given, so its output stays at 0 dB:
+# `preset_measure::by_design`);
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
 [[preset]]
@@ -12,6 +14,7 @@ styles = ["house", "pop"]
 roles = ["bus", "creative"]
 [preset.values]
 "depth" = 9
+"out" = 1.4
 "trig" = 1
 
 [[preset]]
@@ -22,6 +25,7 @@ roles = ["bus", "creative"]
 [preset.values]
 "depth" = 12
 "div" = 5
+"out" = 1.4
 "trig" = 1
 
 [[preset]]
@@ -33,14 +37,15 @@ roles = ["bus", "creative"]
 "depth" = 8
 "div" = 11
 "edge" = 1.5
-"trig" = 1
-"shape.n" = 2
+"out" = 1.1
+"shape.0.bend" = -0.3
 "shape.0.x" = 0
 "shape.0.y" = 1
-"shape.0.bend" = -0.3
+"shape.1.seg" = 2
 "shape.1.x" = 0.5
 "shape.1.y" = 0
-"shape.1.seg" = 2
+"shape.n" = 2
+"trig" = 1
 
 [[preset]]
 key = "preset.cedo.swing_pump"
@@ -50,6 +55,7 @@ roles = ["creative", "bus"]
 [preset.values]
 "depth" = 9
 "div" = 11
+"out" = 1.5
 "swing" = 0.55
 "trig" = 1
 
@@ -62,14 +68,15 @@ roles = ["creative"]
 "depth" = 10
 "div" = 10
 "edge" = 2
-"trig" = 1
-"shape.n" = 2
+"out" = 2
+"shape.0.seg" = 1
 "shape.0.x" = 0
 "shape.0.y" = 1
-"shape.0.seg" = 1
+"shape.1.seg" = 2
 "shape.1.x" = 0.6
 "shape.1.y" = 0
-"shape.1.seg" = 2
+"shape.n" = 2
+"trig" = 1
 
 [[preset]]
 key = "preset.cedo.trance_gate"
@@ -80,14 +87,15 @@ roles = ["creative"]
 "depth" = 30
 "div" = 14
 "edge" = 1.5
-"trig" = 1
-"shape.n" = 2
+"out" = 2.3
+"shape.0.seg" = 2
 "shape.0.x" = 0
 "shape.0.y" = 0
-"shape.0.seg" = 2
+"shape.1.seg" = 2
 "shape.1.x" = 0.5
 "shape.1.y" = 1
-"shape.1.seg" = 2
+"shape.n" = 2
+"trig" = 1
 
 [[preset]]
 key = "preset.cedo.reverse_swell"
@@ -98,14 +106,15 @@ roles = ["creative"]
 "depth" = 24
 "div" = 5
 "edge" = 2
-"trig" = 1
-"shape.n" = 2
+"out" = 7.1
+"shape.0.bend" = 0.4
 "shape.0.x" = 0
 "shape.0.y" = 1
-"shape.0.bend" = 0.4
+"shape.1.seg" = 2
 "shape.1.x" = 0.94
 "shape.1.y" = 0
-"shape.1.seg" = 2
+"shape.n" = 2
+"trig" = 1
 
 [[preset]]
 key = "preset.cedo.lows_only_duck"
@@ -115,6 +124,7 @@ roles = ["bus"]
 [preset.values]
 "band" = 1
 "depth" = 18
+"out" = 1.4
 "trig" = 1
 "xhz" = 120
 
@@ -126,6 +136,7 @@ roles = ["bus", "master"]
 [preset.values]
 "band" = 1
 "depth" = 18
+"out" = 1.4
 "trig" = 1
 "xhz" = 120
 "xover" = 1
@@ -137,6 +148,7 @@ styles = ["house", "trap"]
 roles = ["creative", "bus"]
 [preset.values]
 "depth" = 12
+"out" = 3.2
 "trig" = 2
 "vel" = 1
 
@@ -199,8 +211,8 @@ styles = ["film", "worship", "pop"]
 roles = ["vocal", "bus"]
 [preset.values]
 "att" = 40
-"det" = 1
 "depth" = 9
+"det" = 1
 "hold" = 300
 "kfilt" = 2
 "khz" = 1000
@@ -220,8 +232,8 @@ roles = ["vocal", "bus"]
 [preset.values]
 "att" = 80
 "band" = 2
-"det" = 1
 "depth" = 12
+"det" = 1
 "hold" = 500
 "kfilt" = 2
 "khz" = 1000
@@ -241,8 +253,8 @@ styles = ["pop", "jazz", "worship"]
 roles = ["vocal"]
 [preset.values]
 "att" = 10
-"det" = 1
 "depth" = 6
+"det" = 1
 "hold" = 200
 "look" = 5
 "rel" = 400

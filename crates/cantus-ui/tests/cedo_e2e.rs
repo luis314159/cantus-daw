@@ -208,10 +208,17 @@ fn insert(app: &mut CantusApp, strip: StripId) -> EffectId {
     app.add_effect(strip, EffectKind::Ducker);
     let e = app.project().strip(strip).unwrap().effects[0].clone();
     assert_eq!(
-        (e.spec.get("trig"), e.spec.get("depth")),
-        (1.0, 9.0),
-        "the classic pump: Tempo, 9 dB"
+        (e.spec.get("trig"), e.spec.get("depth"), e.spec.get("out")),
+        (1.0, 9.0, 1.4),
+        "the classic pump: Tempo, 9 dB, its output fitted"
     );
+    // Unity out for the measures that follow.
+    app.exec(Command::SetEffectParam {
+        strip,
+        effect: e.id,
+        key: "out".into(),
+        value: 0.0,
+    });
     e.id
 }
 
