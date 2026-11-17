@@ -14,6 +14,10 @@
 //!   from the **output** (a feedback design), the static curve is explicit backwards — the
 //!   input is `y·(1 + G(y))` — and its local ratio tends to `1 + p` as the reduction
 //!   deepens, with a knee as soft as the panel's turn-on.
+//!   The loop is solved at its equilibrium ([`OptoEquilibrium`]) and the cell moves toward
+//!   it at the published times of the classic electro-optical leveller and its CdS cell
+//!   ([`OptoCell`]: about 10 ms attack, half released in about 60 ms, the rest over
+//!   0.5 – 15 s with the cell's memory; the sources in `vinculum_tests_opto.rs`).
 //! - **Vari-mu** ([`MuLaw`]): a remote-cutoff valve whose gain falls with its grid bias;
 //!   the bias is the rectified **output** over a threshold (a feedback design again), so
 //!   the input is the output plus `GR(o)` dB, `o` the output over the threshold. For a
@@ -26,7 +30,7 @@
 //! optional second, slower stage that charges only while the reduction lasts and holds a
 //! share of it as it lets go — a lone transient comes back at the fast speed, sustained
 //! work at the slow one (the two-capacitor release of the bus compressors' auto release,
-//! the T4's memory, the vari-mu's programme-dependent time constants).
+//! the vari-mu's programme-dependent time constants).
 
 use crate::math;
 
@@ -431,5 +435,187 @@ impl Dual {
 
     pub fn reset(&mut self) {
         *self = Dual::default();
+    }
+}
+
+// fx-b:vinculum (opto, the owner's decision of 2026-11-17) — the opto loop's equilibrium
+// and the photocell's time, after the published measurements (`vinculum_tests_opto.rs`).
+
+/// Intervals in the opto's equilibrium table.
+pub const OPTO_TABLE_N: usize = 512;
+/// How far over the threshold (dB of input) the table reaches; past it the law is the
+/// line of its asymptotic ratio.
+const OPTO_TABLE_TOP_DB: f32 = 64.0;
+
+impl OptoLaw {
+    /// The loop's equilibrium for an input `x` dB over the threshold: the reduction, dB,
+    /// whose output lights the cell to exactly that reduction — the static curve, where
+    /// the input is `y·(1 + G(y))`. That input rises with `y`, so a bisection over the
+    /// output finds it to the float. Exactly 0 where the panel stays dark (`x ≤ u₀`); not
+    /// capped at [`MAX_GR_DB`] (the table interpolates across the cap without a kink and
+    /// caps what it reads).
+    pub fn equilibrium(&self, x_db: f32) -> f32 {
+        let x = math::db_to_gain(x_db);
+        if x <= self.u0 {
+            return 0.0;
+        }
+        let (mut lo, mut hi) = (self.u0, x);
+        for _ in 0..64 {
+            let m = 0.5 * (lo + hi);
+            if m * (1.0 + self.conductance(m)) < x {
+                lo = m;
+            } else {
+                hi = m;
+            }
+        }
+        (20.0 * math::log10(x / (0.5 * (lo + hi)))).max(0.0)
+    }
+}
+
+/// The opto loop's equilibrium ([`OptoLaw::equilibrium`]) as a table over the input level
+/// (dB over the threshold), solved once when the unit is made and interpolated per sample:
+/// from the panel's turn-on to [`OPTO_TABLE_TOP_DB`] (with the threshold at its lowest,
+/// −50 dBFS, an input of +14 dBFS), then the table's last slope — by then within a
+/// hundredth of the cell's asymptotic `p/(p + 1)` dB per dB (the ratio `1 + p`) — to
+/// [`MAX_GR_DB`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct OptoEquilibrium {
+    /// The panel's turn-on: under it (as a mean square over the threshold's) the cell is
+    /// dark.
+    pub on_ms: f32,
+    x0: f32,
+    inv_h: f32,
+    top: f32,
+    tail: f32,
+    c: [f32; OPTO_TABLE_N + 1],
+}
+
+impl OptoEquilibrium {
+    pub fn new(law: &OptoLaw) -> OptoEquilibrium {
+        let x0 = 20.0 * math::log10(law.u0);
+        let h = (OPTO_TABLE_TOP_DB - x0) / OPTO_TABLE_N as f32;
+        let mut c = [0f32; OPTO_TABLE_N + 1];
+        for (i, v) in c.iter_mut().enumerate().skip(1) {
+            *v = law.equilibrium(x0 + h * i as f32);
+        }
+        OptoEquilibrium {
+            on_ms: law.u0 * law.u0,
+            x0,
+            inv_h: 1.0 / h,
+            top: c[OPTO_TABLE_N],
+            tail: (c[OPTO_TABLE_N] - c[OPTO_TABLE_N - 1]) / h,
+            c,
+        }
+    }
+
+    /// The equilibrium reduction, dB, for an input `x` dB over the threshold: exactly 0
+    /// under the panel's turn-on.
+    #[inline]
+    pub fn at(&self, x: f32) -> f32 {
+        if x <= self.x0 {
+            0.0
+        } else if x >= OPTO_TABLE_TOP_DB {
+            (self.top + self.tail * (x - OPTO_TABLE_TOP_DB)).min(MAX_GR_DB)
+        } else {
+            let p = (x - self.x0) * self.inv_h;
+            let i = (p as usize).min(OPTO_TABLE_N - 1);
+            let f = p - i as f32;
+            (self.c[i] + (self.c[i + 1] - self.c[i]) * f).min(MAX_GR_DB)
+        }
+    }
+}
+
+/// The photocell's time, as coefficients for one sample rate (PE, NMHR: the sources named in
+/// `vinculum_tests_opto.rs`).
+///
+/// The cell is three states in the reduction's dB (the CdS cell's resistance is a
+/// power of its light, a straight line in log–log, PE p. 6, so its decibels move
+/// as its light does): a **fast** one — the free carriers — rising toward the loop's
+/// equilibrium at an attack that quickens as the cell is lit harder (PE p. 7,
+/// NMHR §1) and falling at the first stage's release; a **slow** one — the trapped
+/// carriers — that charges toward the fast one while the cell is lit and lets go at a
+/// time set by the **memory**; and the memory itself, which fills toward the slow
+/// stage's depth (how hard) at its own pace (how long) and empties once the cell is dark
+/// (a rested cell recovers fast, PE p. 7: "this effect is reversible"). The cell holds
+/// the larger of the fast stage and a share of the slow one; the share is under a half,
+/// so the first half of every release is the fast stage's at any depth.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct OptoTimes {
+    /// The attack's coefficients dim and fully lit.
+    pub attack_dim: f32,
+    pub attack_lit: f32,
+    /// The first stage's release.
+    pub release: f32,
+    /// The slow stage's charge, and its release when the memory is empty: a coefficient
+    /// `1/(τ·sr)` (τ ≥ 0.5 s, so the exact `1 − e^{−1/(τ·sr)}` differs from it by under
+    /// 3·10⁻⁵ of itself) that the memory divides by up to `e^{ln_span}`.
+    pub charge: f32,
+    pub slow_fresh: f32,
+    pub ln_span: f32,
+    /// The share of the slow stage the cell holds.
+    pub share: f32,
+    /// The memory's fill and rest.
+    pub fill: f32,
+    pub rest: f32,
+    /// `1 / (the reduction, dB, at which the cell is fully lit and the memory full)`.
+    pub inv_full_db: f32,
+    /// A state under this is exactly 0.
+    pub floor: f32,
+}
+
+/// The photocell's state ([`OptoTimes`]): the fast and slow stages, dB, and the memory,
+/// 0 … 1.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct OptoCell {
+    pub fast: f32,
+    pub slow: f32,
+    pub memory: f32,
+}
+
+impl OptoCell {
+    /// One sample toward the loop's equilibrium `target` (dB); what the cell holds.
+    #[inline]
+    pub fn step(&mut self, target: f32, t: &OptoTimes) -> f32 {
+        let k = if target > self.fast {
+            let lit = (target * t.inv_full_db).min(1.0);
+            t.attack_dim + (t.attack_lit - t.attack_dim) * lit
+        } else {
+            t.release
+        };
+        let fast = self.fast + (target - self.fast) * k;
+        self.fast = if fast < t.floor { 0.0 } else { fast };
+        if self.fast > self.slow {
+            self.slow += (self.fast - self.slow) * t.charge;
+        } else if self.slow > 0.0 {
+            let k = if self.memory > 0.0 {
+                t.slow_fresh * math::exp(-t.ln_span * self.memory)
+            } else {
+                t.slow_fresh
+            };
+            let slow = self.slow + (self.fast - self.slow) * k;
+            self.slow = if slow < t.floor { 0.0 } else { slow };
+        }
+        let depth = (self.slow * t.inv_full_db).min(1.0);
+        if depth != self.memory {
+            let k = if depth > self.memory { t.fill } else { t.rest };
+            let m = self.memory + (depth - self.memory) * k;
+            self.memory = if m < t.floor { 0.0 } else { m };
+        }
+        self.held(t)
+    }
+
+    /// What the cell holds: the fast stage, or the share of the slow one if larger.
+    #[inline]
+    pub fn held(&self, t: &OptoTimes) -> f32 {
+        self.fast.max(self.slow * t.share)
+    }
+
+    /// Every state exactly +0.0.
+    pub fn is_zero(&self) -> bool {
+        self.fast.to_bits() == 0 && self.slow.to_bits() == 0 && self.memory.to_bits() == 0
+    }
+
+    pub fn reset(&mut self) {
+        *self = OptoCell::default();
     }
 }

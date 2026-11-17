@@ -6,7 +6,7 @@
 //! | Model | Topology | Detector | Gain law | Time |
 //! |---|---|---|---|---|
 //! | **VCA** (a bus compressor of the console kind) | feed-forward | peak, in dB, after the gain computer (Giannoulis et al. 2012, eq. 17) | threshold, ratio 2 / 4 / 10, a soft knee ([`law::vca_gr_db`]) | attack 0.1 – 30 ms, release 0.1 / 0.3 / 0.6 / 1.2 s or Auto (two stages) |
-//! | **Opto** (a T4-style cell) | feedback | the panel's light, the mean square of the output over 5 ms | `1 / (1 + G)`, `G = c·(u − u₀)^p` ([`law::OptoLaw`]) — Compress or Limit | the cell's own: 10 ms attack, a fast first release and a slow second one that grows with how long the cell was lit |
+//! | **Opto** (a T4-style cell) | feedback, solved at its equilibrium | the panel's light, the mean square of the key over 5 ms | `1 / (1 + G)`, `G = c·(u − u₀)^p` ([`law::OptoLaw`]) — Compress or Limit | the published cell's ([`law::OptoCell`]): about 10 ms attack, half released in about 60 ms, the rest over 0.5 – 15 s, slower the longer and harder it worked |
 //! | **Vari-mu** (a remote-cutoff valve) | feedback | the rectified output peak over a threshold | the valve's bias law, ratio rising with level ([`law::MuLaw`]) — Compress or Limit | six positions, two of them programme-dependent |
 //!
 //! Every model has a side-chain high-pass (the detector only), a mix (parallel
@@ -35,7 +35,7 @@ pub mod law;
 #[path = "vinculum_valve.rs"]
 pub mod valve;
 
-use law::{Ballistics, Dual, MuLaw, OptoLaw};
+use law::{Ballistics, Dual, MuLaw, OptoCell, OptoLaw, OptoTimes};
 
 /// The threshold's range, dBFS. At its top nothing a mix carries is compressed.
 pub const THRESHOLD_MIN_DB: f32 = -50.0;
@@ -51,13 +51,24 @@ pub const AUTO_FAST_MS: f32 = 100.0;
 pub const AUTO_CHARGE_MS: f32 = 400.0;
 pub const AUTO_SLOW_MS: f32 = 1600.0;
 pub const AUTO_SHARE: f32 = 0.6;
-/// The opto cell: the panel's averaging, the attack, the two releases.
+/// The opto cell (fx-b:vinculum, the owner's decision of 2026-11-17: matched to the
+/// published measurements, `vinculum_tests_opto.rs`): the panel's averaging; the attack's
+/// time constant dim and fully lit (the cell quickens with light), which measure about
+/// 10 ms on the reduction; the first stage's release (half of any reduction in about
+/// 60 ms); the slow stage's charge, its release fresh and with a full memory; the share
+/// of it the cell holds; how fast the memory fills and empties; the reduction at which the
+/// cell is fully lit and the memory full.
 pub const OPTO_PANEL_MS: f32 = 5.0;
-pub const OPTO_ATTACK_MS: f32 = 50.0;
-pub const OPTO_FAST_MS: f32 = 55.0;
-pub const OPTO_CHARGE_MS: f32 = 300.0;
-pub const OPTO_SLOW_MS: f32 = 3000.0;
-pub const OPTO_SHARE: f32 = 0.25;
+pub const OPTO_ATTACK_DIM_MS: f32 = 12.0;
+pub const OPTO_ATTACK_LIT_MS: f32 = 6.0;
+pub const OPTO_FAST_MS: f32 = 65.0;
+pub const OPTO_CHARGE_MS: f32 = 100.0;
+pub const OPTO_SLOW_FRESH_MS: f32 = 600.0;
+pub const OPTO_SLOW_FULL_MS: f32 = 12_000.0;
+pub const OPTO_SHARE: f32 = 0.42;
+pub const OPTO_FILL_MS: f32 = 4000.0;
+pub const OPTO_REST_MS: f32 = 3000.0;
+pub const OPTO_FULL_DB: f32 = 12.0;
 
 /// The vari-mu's six time positions: attack, release, and (for the programme-dependent
 /// two) the slow stage's charge, release and share. After the published table of the
@@ -79,7 +90,6 @@ pub const COLOUR_FULL_GR_DB: f32 = 20.0;
 
 /// The floors under which a state is exactly 0 (each in its own domain).
 const FLOOR_DB: f32 = 1e-6;
-const FLOOR_G: f32 = 1e-7;
 const FLOOR_MS: f32 = 1e-24;
 
 /// The circuit.
@@ -257,17 +267,17 @@ pub struct Vinculum {
     thr_inv: f32,
     makeup: f32,
     vca_b: Ballistics,
-    opto_law: OptoLaw,
-    opto_b: Ballistics,
+    opto_times: OptoTimes,
     panel_k: f32,
     mu_b: Ballistics,
     // State.
     hp: [HighPass; 2],
     vca: Dual,
-    opto: Dual,
-    /// The opto panel's mean square, and the gain the cell held after the last sample.
+    opto: OptoCell,
+    /// The opto panel's light: the key's mean square.
     panel: f32,
-    g_prev: f32,
+    /// The opto loop's equilibrium, Compress and Limit (solved once, here).
+    opto_eq: [law::OptoEquilibrium; 2],
     /// The vari-mu loop's equilibrium, Compress and Limit (solved once, here).
     mu_eq: [law::MuEquilibrium; 2],
     mu: Dual,
@@ -285,15 +295,17 @@ impl Vinculum {
             thr_inv: 1.0,
             makeup: 1.0,
             vca_b: Ballistics::single(10.0, 300.0, FLOOR_DB, 48_000.0),
-            opto_law: OptoLaw::compress(),
-            opto_b: Ballistics::single(10.0, 300.0, FLOOR_G, 48_000.0),
+            opto_times: opto_times(48_000.0),
             panel_k: 0.0,
             mu_b: Ballistics::single(0.2, 300.0, FLOOR_DB, 48_000.0),
             hp: [HighPass::default(); 2],
             vca: Dual::default(),
-            opto: Dual::default(),
+            opto: OptoCell::default(),
             panel: 0.0,
-            g_prev: 1.0,
+            opto_eq: [
+                law::OptoEquilibrium::new(&OptoLaw::compress()),
+                law::OptoEquilibrium::new(&OptoLaw::limit()),
+            ],
             mu_eq: [
                 law::MuEquilibrium::new(&MuLaw::compress()),
                 law::MuEquilibrium::new(&MuLaw::limit()),
@@ -350,19 +362,7 @@ impl Vinculum {
         } else {
             Ballistics::single(s.attack_ms, s.release_ms, FLOOR_DB, sr)
         };
-        self.opto_law = match s.character {
-            Character::Compress => OptoLaw::compress(),
-            Character::Limit => OptoLaw::limit(),
-        };
-        self.opto_b = Ballistics::dual(
-            OPTO_ATTACK_MS,
-            OPTO_FAST_MS,
-            OPTO_CHARGE_MS,
-            OPTO_SLOW_MS,
-            OPTO_SHARE,
-            FLOOR_G,
-            sr,
-        );
+        self.opto_times = opto_times(sr);
         self.panel_k = law::coef(OPTO_PANEL_MS, sr);
         let (a, r, c, sl, sh) = MU_TIMES[s.mu_time];
         self.mu_b = if sh > 0.0 {
@@ -390,7 +390,6 @@ impl Vinculum {
         self.vca.reset();
         self.opto.reset();
         self.panel = 0.0;
-        self.g_prev = 1.0;
         self.mu.reset();
         self.valve.reset();
         self.gr_db = 0.0;
@@ -402,7 +401,7 @@ impl Vinculum {
         let hp = self.hp.iter().all(HighPass::is_zero);
         let model = match self.s.model {
             Model::Vca => self.vca.is_zero(),
-            Model::Opto => self.opto.is_zero() && self.panel.to_bits() == 0 && self.g_prev == 1.0,
+            Model::Opto => self.opto.is_zero() && self.panel.to_bits() == 0,
             Model::VariMu => self.mu.is_zero(),
         };
         hp && model && self.valve.is_zero()
@@ -462,23 +461,38 @@ impl Vinculum {
         (g, gr)
     }
 
-    /// The opto's gain for this sample (the one the cell held), and the cell moved on by
-    /// what the output this sample lights.
+    /// The opto's gain. The panel's light is the key's mean square over
+    /// [`OPTO_PANEL_MS`]; the loop's equilibrium for it — the reduction whose output
+    /// lights the cell to exactly that reduction, the static curve of the feedback law —
+    /// is solved at zero delay (tabulated once, [`law::OptoEquilibrium`]), and the cell
+    /// moves toward it at its own time ([`law::OptoCell`]). So the attack and the two
+    /// releases are the published ones measured on the reduction, at any depth and either
+    /// character. (In the loop itself — the cell lit by the output it leaves — an
+    /// eighth-power panel, the Limit, closed a 16 dB step in 0.9 ms, a tenth of the
+    /// published ~10 ms: a feedback loop speeds the cell by its gain, as the vari-mu's
+    /// first pass showed.)
     #[inline]
     fn opto_gain(&mut self, level: f32) -> (f32, f32) {
-        let g = self.g_prev;
-        let y = level * g;
-        let next = self.panel + (y * y - self.panel) * self.panel_k;
+        let next = self.panel + (level * level - self.panel) * self.panel_k;
         self.panel = if next < FLOOR_MS { 0.0 } else { next };
-        let u = self.panel.sqrt() * self.thr_inv;
-        let target = self.opto_law.conductance(u);
-        let cond = self.opto.step(target, &self.opto_b);
-        self.g_prev = if cond == 0.0 {
+        let eq = &self.opto_eq[(self.s.character == Character::Limit) as usize];
+        let lit = self.panel * self.thr_inv * self.thr_inv;
+        let target = if lit > eq.on_ms {
+            eq.at(10.0 * math::log10(lit))
+        } else {
+            0.0
+        };
+        let gr = if target == 0.0 && self.opto.is_zero() {
+            0.0
+        } else {
+            self.opto.step(target, &self.opto_times)
+        };
+        let g = if gr == 0.0 {
             1.0
         } else {
-            OptoLaw::gain(cond)
+            math::db_to_gain(-gr)
         };
-        (g, cond)
+        (g, gr)
     }
 
     /// The vari-mu's gain. The loop's equilibrium — the charge `c` (the reduction, dB)
@@ -516,8 +530,8 @@ impl Vinculum {
     /// Process a stereo block in place, the side chain listening to `key` (another strip's
     /// signal, the classic bus compressor's external key) when given, to the input
     /// otherwise; through the high-pass either way. In the feedback models the key takes
-    /// the input's place in the loop: the opto's panel is lit by the key through the cell,
-    /// the vari-mu's equilibrium is solved on the key. `None` is [`Vinculum::process`] to
+    /// the input's place in the loop: the opto's and the vari-mu's equilibria are solved on the
+    /// key. `None` is [`Vinculum::process`] to
     /// the bit; a key missing samples is silence there. (fx-b:vinculum, phase B)
     pub fn process_keyed(
         &mut self,
@@ -535,7 +549,6 @@ impl Vinculum {
         let makeup = self.makeup;
         let mut peak = self.gr_peak;
         let mut last = self.gr_db;
-        let mut peak_cond = 0f32;
         for i in 0..n {
             let (xl, xr) = (left[i], right[i]);
             let level = match key {
@@ -547,17 +560,11 @@ impl Vinculum {
             };
             let (g, gr) = match self.s.model {
                 Model::Vca => self.vca_gain(level),
-                Model::Opto => {
-                    let (g, cond) = self.opto_gain(level);
-                    peak_cond = peak_cond.max(cond);
-                    (g, cond)
-                }
+                Model::Opto => self.opto_gain(level),
                 Model::VariMu => self.mu_gain(level),
             };
-            if self.s.model != Model::Opto {
-                last = gr;
-                peak = peak.max(gr);
-            }
+            last = gr;
+            peak = peak.max(gr);
             let depth = if colour > 0.0 {
                 colour
                     * (COLOUR_REST_DEPTH
@@ -593,12 +600,25 @@ impl Vinculum {
                 };
             }
         }
-        if self.s.model == Model::Opto {
-            last = OptoLaw::gr_db(self.opto.held(&self.opto_b));
-            peak = peak.max(OptoLaw::gr_db(peak_cond));
-        }
         self.gr_db = last;
         self.gr_peak = peak;
+    }
+}
+
+/// The opto cell's coefficients at a sample rate.
+fn opto_times(sr: f32) -> OptoTimes {
+    OptoTimes {
+        attack_dim: law::coef(OPTO_ATTACK_DIM_MS, sr),
+        attack_lit: law::coef(OPTO_ATTACK_LIT_MS, sr),
+        release: law::coef(OPTO_FAST_MS, sr),
+        charge: law::coef(OPTO_CHARGE_MS, sr),
+        slow_fresh: 1000.0 / (OPTO_SLOW_FRESH_MS * sr),
+        ln_span: math::ln(OPTO_SLOW_FULL_MS / OPTO_SLOW_FRESH_MS),
+        share: OPTO_SHARE,
+        fill: law::coef(OPTO_FILL_MS, sr),
+        rest: law::coef(OPTO_REST_MS, sr),
+        inv_full_db: 1.0 / OPTO_FULL_DB,
+        floor: FLOOR_DB,
     }
 }
 

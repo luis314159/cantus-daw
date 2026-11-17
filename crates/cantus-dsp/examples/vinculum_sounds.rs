@@ -507,5 +507,80 @@ fn main() {
         &m,
         mix_takes,
     );
+    memory(&dir, &mut notes, &m);
     std::fs::write(dir.join("table.md"), notes).unwrap();
+}
+
+/// fx-b:vinculum (opto, 2026-11-17) — the photocell's memory: the same quiet phrase (the
+/// mix's first two bars, 10 dB down) after two seconds of silence, and again straight after
+/// twelve loud seconds of the mix (6 dB up). The opto (Compress) is level-matched on the first
+/// phrase, so the second one is heard against it: it comes in held down and recovers over
+/// seconds. The dry twin has the same timeline.
+fn memory(dir: &Path, notes: &mut String, m: &Stereo) {
+    let bar = (SR * 60.0 / BPM * 4.0) as usize;
+    let (phrase, loud) = (2 * bar, (12.0 * SR) as usize);
+    let fade = (0.01 * SR) as usize;
+    let quiet = math::db_to_gain(-10.0);
+    let mut dry: Stereo = (Vec::new(), Vec::new());
+    let piece = |dry: &mut Stereo, len: usize, gain: f32| {
+        for i in 0..len {
+            let f = (i.min(len - 1 - i) as f32 / fade as f32).min(1.0) * gain;
+            dry.0.push(m.0[i] * f);
+            dry.1.push(m.1[i] * f);
+        }
+    };
+    piece(&mut dry, (2.0 * SR) as usize, 0.0);
+    let a = (dry.0.len(), dry.0.len() + phrase);
+    piece(&mut dry, phrase, quiet);
+    piece(&mut dry, loud, 2.0);
+    let b = (dry.0.len(), dry.0.len() + phrase);
+    piece(&mut dry, phrase, quiet);
+    piece(&mut dry, (3.0 * SR) as usize, 0.0);
+    let s = opto(-34.0, Character::Compress);
+    let mut v = Vinculum::new(SR);
+    v.set(&s);
+    let mut out = dry.clone();
+    let mut gr = Vec::new();
+    for (x, y) in out.0.chunks_mut(480).zip(out.1.chunks_mut(480)) {
+        v.process(x, y);
+        gr.push(v.take_meter().gr_db);
+    }
+    let sec = SR as usize;
+    let mean = |from: usize, to: usize| {
+        let (i, j) = (from / 480, to / 480);
+        gr[i..j].iter().sum::<f32>() / (j - i) as f32
+    };
+    let seg = |x: &Stereo, r: (usize, usize)| -> Stereo {
+        (x.0[r.0..r.1].to_vec(), x.1[r.0..r.1].to_vec())
+    };
+    let g = rms(&seg(&dry, a)) / rms(&seg(&out, a)).max(1e-9);
+    scale(&mut out, g);
+    let p = peak(&out);
+    if p > 0.99 {
+        scale(&mut out, 0.99 / p);
+    }
+    write(dir, "30-mix-opto-memory-dry.wav", &dry);
+    write(dir, "31-mix-opto-memory.wav", &out);
+    // Second by second: the phrase's reduction after silence and after the passage.
+    let per_sec = |r: (usize, usize)| -> Vec<String> {
+        (0..phrase / sec)
+            .map(|k| format!("{:.1}", mean(r.0 + k * sec, r.0 + (k + 1) * sec)))
+            .collect()
+    };
+    notes.push_str("## The opto's memory\n\n");
+    notes.push_str(
+        "`30-mix-opto-memory-dry.wav` — the dry twin: 2 s of silence, the mix's first two \
+         bars 10 dB down (the phrase), twelve loud seconds of the mix (6 dB up), the phrase \
+         again, 3 s of silence.\n\n",
+    );
+    notes.push_str(&format!(
+        "`31-mix-opto-memory.wav` — Opto, {}; level-matched on the first phrase ({:+.1} dB). \
+         The loud passage: {:.1} dB on average. The phrase's reduction, second by second \
+         (dB): after silence {}; after the loud passage {}.\n\n",
+        describe(&s),
+        20.0 * math::log10(g),
+        mean(a.1, b.0),
+        per_sec(a).join(", "),
+        per_sec(b).join(", "),
+    ));
 }

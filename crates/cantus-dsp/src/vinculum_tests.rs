@@ -573,8 +573,44 @@ fn the_meter_reads_each_model() {
 #[path = "vinculum_tests_time.rs"]
 mod time;
 
+// fx-b:vinculum (opto) — the cell against the published measurements.
+#[path = "vinculum_tests_opto.rs"]
+mod opto;
+
 #[path = "vinculum_measure.rs"]
 mod measure;
+
+// fx-b:vinculum (opto)
+#[test]
+fn the_opto_table_is_its_equilibrium() {
+    // The tabulated equilibrium against the cell's law solved again in f64 (the input
+    // is `y·(1 + G(y))`), from the dark panel over the knee to 70 dB over the threshold
+    // (past the table's top at 64 its last slope): within 0.002 dB, and exactly 0 where the
+    // panel is dark.
+    for opto in [OptoLaw::compress(), OptoLaw::limit()] {
+        let eq = law::OptoEquilibrium::new(&opto);
+        let x0 = 20.0 * math::log10(opto.u0 as f64);
+        let (mut worst, mut at) = (0f64, 0f64);
+        for i in 0..=9000 {
+            let x_db = -20.0 + i as f64 * 0.01;
+            let got = eq.at(x_db as f32) as f64;
+            let x = amp(x_db);
+            let want = (20.0 * math::log10(x / opto_out(&opto, 1.0, x))).min(40.0);
+            if (got - want).abs() > worst {
+                worst = (got - want).abs();
+                at = x_db;
+            }
+            if x_db <= x0 {
+                assert_eq!(got.to_bits(), 0, "dark at {x_db} dB");
+            }
+        }
+        println!(
+            "opto table (p {}): worst {worst:.2e} dB at {at:.2} dB",
+            opto.p
+        );
+        assert!(worst < 2e-3, "{worst} dB");
+    }
+}
 
 #[test]
 fn the_vari_mu_table_is_its_equilibrium() {

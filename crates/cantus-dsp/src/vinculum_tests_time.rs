@@ -91,40 +91,8 @@ fn the_vca_auto_release_follows_the_programme() {
     assert!(times[0] < times[1] && times[1] < times[2]);
 }
 
-#[test]
-fn the_opto_meets_the_cells_published_times() {
-    // Published for the T4 cell's classic leveller: attack about 10 ms; release about
-    // 60 ms for the first half, then the rest over 0.5 to 5 s (1 to 15 s in another
-    // telling), longer the longer and harder it has worked.
-    let s = VinculumSettings {
-        model: Model::Opto,
-        threshold_db: -20.0,
-        ..VinculumSettings::default()
-    };
-    let level = crate::math::db_to_gain(-4.0);
-    let mut fulls = Vec::new();
-    for on in [0.1, 1.0, 10.0] {
-        let t = trace(&s, level, on, 15.0);
-        let at = (on * SR) as usize;
-        let gr = t[at - 1];
-        if on == 1.0 {
-            let attack = time_until(&t, 0, |g| g >= 0.632 * gr) * 1000.0;
-            println!("opto: {gr:.1} dB, attack to 63 % {attack:.1} ms");
-            assert!((5.0..=20.0).contains(&attack), "attack {attack} ms");
-        }
-        let half = time_until(&t, at, |g| g <= 0.5 * gr) * 1000.0;
-        let full = time_until(&t, at, |g| g <= 0.1 * gr);
-        println!("opto after {on} s at {gr:.1} dB: half in {half:.0} ms, 90 % in {full:.2} s");
-        assert!(
-            (35.0..=90.0).contains(&half),
-            "half release {half} ms after {on} s"
-        );
-        fulls.push(full);
-    }
-    assert!((0.3..=1.5).contains(&fulls[0]), "short: {} s", fulls[0]);
-    assert!((2.0..=8.0).contains(&fulls[2]), "long: {} s", fulls[2]);
-    assert!(fulls[0] < fulls[1] && fulls[1] < fulls[2]);
-}
+// The opto's times are held against the published measurements in
+// `vinculum_tests_opto.rs` (fx-b:vinculum, 2026-11-17).
 
 #[test]
 fn the_vari_mu_positions_release_as_published() {
@@ -217,32 +185,6 @@ fn the_vari_mu_attacks_are_their_time_constants() {
             }
         }
     }
-}
-
-#[test]
-fn the_opto_limit_keeps_the_cells_times() {
-    let s = VinculumSettings {
-        model: Model::Opto,
-        character: Character::Limit,
-        threshold_db: -20.0,
-        ..VinculumSettings::default()
-    };
-    let level = crate::math::db_to_gain(-4.0);
-    let t = trace(&s, level, 1.0, 15.0);
-    let at = SR as usize;
-    let gr = t[at - 1];
-    let attack = time_until(&t, 0, |g| g >= 0.632 * gr) * 1000.0;
-    let half = time_until(&t, at, |g| g <= 0.5 * gr) * 1000.0;
-    let full = time_until(&t, at, |g| g <= 0.1 * gr);
-    println!(
-        "opto limit: {gr:.1} dB, attack to 63 % {attack:.1} ms, half in {half:.0} ms, 90 % in {full:.2} s"
-    );
-    // The release is the cell's, as in Compress. The attack is quicker: the panel's
-    // eighth power lights the cell far past where it settles, so at 16 dB over the
-    // threshold it gets there in about a millisecond (the published ~10 ms is an
-    // average; this is the steep law's, left for the owner's ear).
-    assert!((0.5..=20.0).contains(&attack), "attack {attack} ms");
-    assert!((35.0..=90.0).contains(&half), "half release {half} ms");
 }
 
 #[test]
