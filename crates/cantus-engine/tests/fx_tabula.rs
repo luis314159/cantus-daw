@@ -1,4 +1,4 @@
-//! Tabula, the pedalboard, through the engine (ADR 0134, provisional): a null when empty and
+//! Tabula, the pedalboard, through the engine (ADR 0131): a null when empty and
 //! when its split is empty, its latency summed and its lanes aligned, a footswitch that never
 //! changes the latency, structural changes (add, remove, reorder, a lane, a footswitch)
 //! that land the same whatever the block size, pedals handed back when they have faded,

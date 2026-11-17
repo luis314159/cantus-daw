@@ -1,4 +1,4 @@
-//! Vetus's converter (ADR 0133, provisional): **bits** (a quantiser) and **rate** (a sample
+//! Vetus's converter (ADR 0130): **bits** (a quantiser) and **rate** (a sample
 //! and hold), the two things a cheap sampler did to a sound.
 //!
 //! - **Bits.** `2^bits` levels over −1 … 1 (a step `q = 2^(1−bits)`, fractional bits a

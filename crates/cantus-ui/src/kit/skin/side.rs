@@ -1,5 +1,5 @@
-//! The fx side round's faces (provisional ADRs 0130–0133): Cribrum, Fragor, Lapsus, Vetus and
-//! Libra, and the colourways the user can choose for them (ADR 0130 §Colourways). The tests
+//! The fx side round's faces (ADRs 0127–0130): Cribrum, Fragor, Lapsus, Vetus and
+//! Libra, and the colourways the user can choose for them (ADR 0127 §Colourways). The tests
 //! below hold every face **and every offered colourway** to the house rule: none shares a
 //! material and an accent within 20° with any other unit's face or colourway, and no two of
 //! the round's sheets speak in the same voices.
@@ -15,13 +15,13 @@ const fn hsl(h: f32, s: f32, l: f32) -> Hsl {
 } // fx:fragor
 use cantus_core::EffectKind;
 
-// fxa — wave A's three faces and their colourways (ADRs 0139–0141, provisional).
+// fxa — wave A's three faces and their colourways (ADRs 0136–0138).
 #[path = "side_fxa.rs"]
 mod fxa;
 pub use fxa::*;
 
-// fx:cribrum — Cribrum's own face (ADR 0130, provisional), in three colourways the user
-// chooses among (ADR 0130 §Colourways); the first, Nocturne, is its face. Every display is
+// fx:cribrum — Cribrum's own face (ADR 0127), in three colourways the user
+// chooses among (ADR 0127 §Colourways); the first, Nocturne, is its face. Every display is
 // a lit screen, dark in both themes (the owner's choice for the round's displays).
 
 const fn chsl(h: f32, s: f32, l: f32) -> Hsl {
@@ -148,7 +148,7 @@ pub const CRIBRUM_COLOURWAYS: [Colourway; 3] = [
     },
 ];
 
-// fx:fragor — Fragor's face (ADR 0131), the owner's pick (palette A, 2026-11-13): a valve
+// fx:fragor — Fragor's face (ADR 0128), the owner's pick (palette A, 2026-11-13): a valve
 // amp at night — warm amber, a tube's glow, on smoked glass; the sound drawn on an amber
 // phosphor screen behind glass (dark in every theme, as a device's screen), a white-hot second
 // voice, skirted knobs, rocker switches, engraved capitals, screws and rules. Its tubes,
@@ -194,7 +194,7 @@ pub const FRAGOR: Skin = Skin {
     },
 }; // fx:fragor
 
-// fx:lapsus — Lapsus's own face (ADR 0132, provisional; v3 after the integration review).
+// fx:lapsus — Lapsus's own face (ADR 0129; v3 after the integration review).
 /// Lapsus, the time shaper (*a slip*): a DJ mixer at midnight — a dark teal-petrol body in
 /// matte rubberised paint (a mixer's top plate), the time curve glowing amber on a
 /// vacuum-fluorescent screen (the old decks' displays), the level and the controls in ice
@@ -254,7 +254,7 @@ pub const LAPSUS: Skin = Skin {
     },
 };
 
-// fx:vetus — Vetus's face (ADR 0133, provisional) in three colourways (ADR 0130
+// fx:vetus — Vetus's face (ADR 0130) in three colourways (ADR 0127
 // §Colourways); the first, Cassette, is its face (the owner's choice, 2026-11-13). The record,
 // the cassette and the spectrum sit on a dark display in every colourway and theme (the
 // round's rule for displays); the objects keep their own colours (`skin/records.rs`).
@@ -378,7 +378,7 @@ pub const VETUS_COLOURWAYS: [Colourway; 3] = [
     },
 ]; // fx:vetus
 
-// fx:libra — Libra's face (ADR 0133, provisional): a measuring instrument — blue-grey
+// fx:libra — Libra's face (ADR 0130): a measuring instrument — blue-grey
 // anodised aluminium, the needle and the cloud a signal green on an oscilloscope's graticule
 // (dark in every theme), the balance and width amber; plain caps, lamp keys, an engraved
 // legend, screws and rules. Green near this hue is wood (Porta) or anodised 40° away
@@ -418,12 +418,12 @@ pub const LIBRA: Skin = Skin {
     },
 }; // fx:libra
 
-// fx3:contract — wave 3's placeholder faces (provisional ADRs 0134–0137): each unit wears
+// fx3:contract — wave 3's placeholder faces (ADRs 0131–0134): each unit wears
 // a tone-family sibling's look under a key of its own (the tests here leave a placeholder
 // out) until its builder draws the real face — one that differs from every other unit's in
 // hue or material, display included.
 
-/// Tabula, the pedalboard (ADR 0134): a pedalboard's case — black vinyl of a fine grain
+/// Tabula, the pedalboard (ADR 0131): a pedalboard's case — black vinyl of a fine grain
 /// (the owner's "más fino": darker, cleaner, never competing with the pedals), brass piping
 /// for its accent (the board's nameplate), chicken-head knobs, bat toggles, a badge and
 /// screws; no vents. Its own face: the only fine vinyl, and no other vinyl unit wears a
@@ -468,7 +468,7 @@ pub const TABULA: Skin = Skin {
     },
 };
 
-// fx3:saltus — Saltus's own face (ADR 0135, provisional).
+// fx3:saltus — Saltus's own face (ADR 0132).
 /// Saltus, pitch (*the leap*): a stage harmoniser at night — graphite anodised aluminium,
 /// cool and nearly grey, the note heard and the first voice a chartreuse light on a
 /// vacuum-fluorescent screen (dark in every theme), the second voice lilac; value rings
@@ -510,7 +510,7 @@ pub const SALTUS: Skin = Skin {
     },
 }; // fx3:saltus
 
-// fx3:rota — Rota's own face (ADR 0136, provisional).
+// fx3:rota — Rota's own face (ADR 0133).
 /// Rota, the rotary speaker: a cabinet of oiled walnut, its display a night-dark cut-away
 /// where the horn turns in pale steel and the drum in vermilion; graduated dials, rocker
 /// switches, spaced capitals on a badge, screws. No wood-faced unit speaks in a steel blue
@@ -606,7 +606,7 @@ pub const ROTA_COLOURWAYS: [Colourway; 3] = [
     },
 ]; // fx3:rota
 
-// fx3:arca — Arca's own face (ADR 0137, provisional).
+// fx3:arca — Arca's own face (ADR 0134).
 /// Arca, amp and cabinet (*the chest*): a control plate of green hammered enamel (the only
 /// unit in that material), copper pointers and readouts, a cream second voice for the
 /// cabinet; its display a dark window into the chassis where the valves glow; skirted
@@ -742,7 +742,7 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
 }
 
 // fx:fragor — the two palettes the owner was shown beside the one he chose (2026-11-13),
-// offered as Fragor's colourways (ADR 0130 §Colourways) after his own, Valve.
+// offered as Fragor's colourways (ADR 0127 §Colourways) after his own, Valve.
 /// **Cream**: cream and brass, vintage — a printed card's cream (paper: brushed metal near
 /// this brass is Aula's and Calor's), the second voice a bottle green (a brick red beside the
 /// brass spoke in Vetus's two voices, and beside Cribrum's Brass body).

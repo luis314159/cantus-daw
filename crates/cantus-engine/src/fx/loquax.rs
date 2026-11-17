@@ -1,4 +1,4 @@
-//! Loquax, the vocoder (ADR 0139, provisional), behind the engine's plug-in contract.
+//! Loquax, the vocoder (ADR 0136), behind the engine's plug-in contract.
 //! Owned by the wave-A builder.
 //!
 //! **Routing.** The strip's own sound is the voice (the modulator). The carrier is the

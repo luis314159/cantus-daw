@@ -1,4 +1,4 @@
-//! Caelum's editor answers the pointer as its picture promises (ADR 0141 provisional, phase
+//! Caelum's editor answers the pointer as its picture promises (ADR 0138, phase
 //! B), driven frame by frame with real pointer events through the window the app draws:
 //! the astrolabe's alidade dragged turns the first voice to the semitone under the pointer
 //! and the slimmer hand the second (the angle the note in the octave, the distance from the

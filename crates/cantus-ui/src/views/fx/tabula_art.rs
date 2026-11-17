@@ -1,4 +1,4 @@
-//! Tabula's artwork (ADR 0134): the illustrations a unit wears when it stands on the board
+//! Tabula's artwork (ADR 0131): the illustrations a unit wears when it stands on the board
 //! as a pedal — the motifs `pedal_art` draws for Fragor's five circuits, extended by the
 //! families of the whole Cantus range: a sine for modulation, repeats fading for echoes,
 //! rings for spaces, a needle for dynamics, a curve for tone, steps for time and rhythm,

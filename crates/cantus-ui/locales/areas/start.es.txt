@@ -1,4 +1,4 @@
-# Los presets de inicio del usuario (ADR 0138, provisional) — fx3:start. Cada clave necesita su gemela en start.en.txt.
+# Los presets de inicio del usuario (ADR 0135) — fx3:start. Cada clave necesita su gemela en start.en.txt.
 start.use = Usar como preset de inicio
 start.use_tip = Las nuevas inserciones de esta unidad empiezan con estos ajustes, en todos los proyectos, en lugar del preset de inicio de fábrica.
 start.reset = Volver al preset de inicio de fábrica

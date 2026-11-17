@@ -1,5 +1,5 @@
 //! Lapsus running: the two cycles on the song, the notes at their samples, and each
-//! sample's read, joins and level (ADR 0132, provisional). See `lapsus.rs` for the rules.
+//! sample's read, joins and level (ADR 0129). See `lapsus.rs` for the rules.
 
 use super::{Cycle, Ghost, Lane, Lapsus, Note, NoteMode, JUMP, SLOTS, SNAP};
 use crate::modfx_clock::{peak_db, peak_of, tel};

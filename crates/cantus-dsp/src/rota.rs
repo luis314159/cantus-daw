@@ -1,4 +1,4 @@
-//! Rota, the rotary speaker (ADR 0136, provisional): Organum's cabinet
+//! Rota, the rotary speaker (ADR 0133): Organum's cabinet
 //! ([`crate::organum::rotary::Rotary`] — horn and drum, Doppler, directivity, the wall's
 //! reflection, two microphones) as an insert for any stereo signal.
 //!

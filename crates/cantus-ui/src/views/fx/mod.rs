@@ -76,7 +76,7 @@ pub mod tremor;
 /// Vibrans, the vibrato (round 28).
 pub mod vibrans;
 
-// fx:contract — the fx side round's five editors (provisional ADRs 0130–0133).
+// fx:contract — the fx side round's five editors (ADRs 0127–0130).
 /// Cribrum, the auto filter (fx side round). // fx:contract
 pub mod cribrum;
 /// Fragor, the distortion and fuzz pedals (fx side round). // fx:contract
@@ -85,7 +85,7 @@ pub mod fragor;
 pub mod lapsus;
 /// Libra, the utility (fx side round). // fx:contract
 pub mod libra;
-// fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+// fx3:contract — the side round's wave 3 (ADRs 0131–0134).
 /// Arca, amp and cabinet (fx side round, wave 3). // fx3:contract
 pub mod arca;
 /// Caelum, the shimmer reverb (fx side round, wave A). // fxa:contract

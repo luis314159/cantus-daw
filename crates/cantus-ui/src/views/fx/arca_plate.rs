@@ -1,4 +1,4 @@
-//! Arca's control plate (ADR 0137, provisional; v2, the owner's "a real faceplate"): the
+//! Arca's control plate (ADR 0134; v2, the owner's "a real faceplate"): the
 //! amp's front in the face's hammered enamel, one plate from end to end under a fine chrome
 //! trim — at its left the jewel pilot lamp (lit with an amp chosen, breathing with how hard it
 //! works) and the two input jacks; then the knobs as an amp has them, each in a printed ring

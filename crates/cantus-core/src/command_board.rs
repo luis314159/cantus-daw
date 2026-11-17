@@ -1,4 +1,4 @@
-//! The bodies of Tabula's board commands (ADR 0134, provisional). Owned by the tabula
+//! The bodies of Tabula's board commands (ADR 0131). Owned by the tabula
 //! builder; `crate::command` dispatches here. Each returns its exact inverse:
 //!
 //! | Command | Inverse |

@@ -1,4 +1,4 @@
-//! Arca's cabinet (ADR 0137, provisional): a dark screen with the cabinet chosen (a list:
+//! Arca's cabinet (ADR 0134): a dark screen with the cabinet chosen (a list:
 //! none, Arca's five, or the loaded file) and the microphone's kind along its top; the
 //! cabinet's front in small, the speaker the microphone faces lit; that speaker's cone drawn
 //! large with **the microphone on it**, dragged from the dust cap to the cone's edge; beside

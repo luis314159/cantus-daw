@@ -2,7 +2,7 @@
 
 *Effect kind `Vocoder`. References: FL Studio's Vocodex (the bar), Arturia's Vocoder V,
 Waves' OVox and Morphoder, the Roland VP-330 and SVC-350, the EMS Vocoder 2000 — read
-about, nothing copied (ADR 0139, provisional number).*
+about, nothing copied (ADR 0136).*
 
 *Loquax* is Latin for the talkative one. A channel vocoder: the voice (the strip's own
 sound) is split into 8 to 64 bands of Butterworth band-passes (order 4, 6 or 8, within
@@ -64,7 +64,7 @@ sidechain input carries once the plug-in's own *Sidechain* switch is on *Sidecha
 
 On Tabula a vocoder needs its carrier: a board has no key of its own and a pedal hears no
 notes, so a Loquax pedal would only ever drone the robot. Loquax stays off the board
-(`pedal_allowed` false) until Tabula routes a key to a pedal (ADR 0139, phase B).
+(`pedal_allowed` false) until Tabula routes a key to a pedal (ADR 0136, phase B).
 
 ## Ours, better
 

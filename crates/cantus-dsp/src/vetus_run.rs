@@ -1,4 +1,4 @@
-//! Vetus's unit at work (ADR 0133, provisional): the grid, the samples, the landing of a
+//! Vetus's unit at work (ADR 0130): the grid, the samples, the landing of a
 //! switch, the rest predicate and the telemetry. A child of `vetus_unit.rs`.
 
 use super::*;

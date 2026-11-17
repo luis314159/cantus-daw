@@ -1,4 +1,4 @@
-//! Arca's chassis (ADR 0137, provisional): a dark window into the amp. Its valves stand on
+//! Arca's chassis (ADR 0134): a dark window into the amp. Its valves stand on
 //! the chassis in the order the signal meets them — the preamp's (one per circuit the model
 //! is cut into), the phase inverter, the power valves — each glowing as hard as it works
 //! (the telemetry's swing of each circuit, the inverter's drive, the power valves' approach

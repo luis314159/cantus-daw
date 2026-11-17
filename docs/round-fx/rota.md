@@ -1,6 +1,6 @@
 # Rota, the rotary speaker — the builder's report (fx side round, wave 3)
 
-Built by the arca builder beside Arca, on branch `fx/arca` (ADR 0136, provisional; Arca's
+Built by the arca builder beside Arca, on branch `fx/arca` (ADR 0133; Arca's
 report is `arca.md`). Plug-in page `docs/plugins/rota.md`.
 
 ## Done
@@ -19,13 +19,13 @@ report is `arca.md`). Plug-in page `docs/plugins/rota.md`.
 - **Presets**: thirteen, levels fitted (`preset_tool fit`, −5.3 … +6.7 dB).
 - **Export**: the direct DSP in the plug-ins' tests; notes through CLAP and VST3; `rpm`, `cm`
   and `×` read back from text; ids blessed (Phase B 1).
-- **Docs**: ADR 0136 (Phase B, Consequences, tests), `docs/plugins/rota.md`, the manual
+- **Docs**: ADR 0133 (Phase B, Consequences, tests), `docs/plugins/rota.md`, the manual
   EN/ES, the AI's unit and effect words, the site's card.
-- **Phasis's lamp vibe** (ADR 0136): its circuit card, three presets.
+- **Phasis's lamp vibe** (ADR 0133): its circuit card, three presets.
 
 ## Tests and what each holds
 
-See ADR 0136 *What the tests hold*. Files: `cantus-dsp/src/rota_tests.rs`;
+See ADR 0133 *What the tests hold*. Files: `cantus-dsp/src/rota_tests.rs`;
 `cantus-engine/tests/fx_rota.rs`, `fx_contract`, `rt_memory`; `cantus-ui/tests/rota_e2e.rs`,
 `arca_rota_drag.rs`, `arca_rota_whole.rs`; `cantus-plugins/tests/notes.rs`, the CLAP/VST3
 suites.
@@ -41,4 +41,4 @@ suites.
 - Owner-only: listening to the presets and files 23 and 33 (re-rendered with the ramps that
   end in finite time).
 - At the integration: the site's pictures (`web/assets/units/rota-*.webp`) and the preset
-  excerpts, as for the round's other units; renumbering ADR 0136.
+  excerpts, as for the round's other units; renumbering ADR 0133.

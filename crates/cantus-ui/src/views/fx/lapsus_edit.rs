@@ -1,4 +1,4 @@
-//! Lapsus's timeline edited by hand (fx side round, ADR 0132 provisional): the curves'
+//! Lapsus's timeline edited by hand (fx side round, ADR 0129): the curves'
 //! points dragged (snapped to the grid's steps, Shift for free), a double-click adds a point
 //! or takes one away, a drag on a segment bends it (its tension), and the pencil paints
 //! held steps a grid cell at a time — every edit one step of undo

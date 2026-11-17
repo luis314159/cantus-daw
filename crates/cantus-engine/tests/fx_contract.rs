@@ -568,7 +568,7 @@ per_kind! {
     caelum => EffectKind::Shimmer, // fxa:contract
 }
 
-// fx3:tabula — Tabula (ADR 0134): a board of one pedal is that unit inserted alone, to
+// fx3:tabula — Tabula (ADR 0131): a board of one pedal is that unit inserted alone, to
 // the bit, for every kind that may be a pedal — at its defaults, its heavy settings and two
 // drawn at random, keyed and hearing notes where the kind does, at blocks of 1, 64 and 1024
 // (the board cuts long blocks into its own pieces) — and reports the same latency.

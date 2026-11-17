@@ -2,7 +2,7 @@
 
 *Effect kind `Rotary`. References: the rotary cabinets of the organ world (as measured by
 Herrera, Hanson & Abel, AES 127, 2009), setBfree, the rotary simulators in organ plug-ins
-and pedals (ADR 0136, provisional number).*
+and pedals (ADR 0133).*
 
 *Rota* is Latin for the wheel. Cantus's organ cabinet (`organum_rotary`) as an effect for any
 track: a horn and a drum, each read at its Doppler delay, with its directivity and the

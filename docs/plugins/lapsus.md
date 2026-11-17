@@ -1,8 +1,7 @@
 # Lapsus — the time shaper
 
 *Effect kind `TimeShaper`. References: FL Studio's Gross Beat (the function), Ableton's Beat
-Repeat, Sugar Bytes' Effectrix, a turntable and a tape machine (the physics). ADR 0132
-(provisional).*
+Repeat, Sugar Bytes' Effectrix, a turntable and a tape machine (the physics). ADR 0129.*
 
 Lapsus bends **time** and **level** to the beat: tape stops and starts, half time, stutters
 and rolls, reverse, scratches, gates and pumps. As Gross Beat does, it holds two banks of

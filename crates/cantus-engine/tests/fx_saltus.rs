@@ -1,4 +1,4 @@
-//! Saltus, the pitch unit, through the whole engine (ADR 0135, provisional): at its defaults
+//! Saltus, the pitch unit, through the whole engine (ADR 0132): at its defaults
 //! the dry mix later by exactly the latency it reports — delay compensation holding the bass
 //! back with the lead — and so the dry of every engine (mono 128, poly 4 095, the analog
 //! octave none); the same render at every block size while it shifts; offline equal to real
@@ -173,7 +173,7 @@ fn live_playback_renders_what_the_offline_render_does() {
     }
 }
 
-/// On Tabula's board (ADR 0134): a board holding one Saltus renders what the insert does,
+/// On Tabula's board (ADR 0131): a board holding one Saltus renders what the insert does,
 /// to the bit, the board's slot hearing the notes for its pedal — and reports its latency.
 #[test]
 fn a_board_of_one_saltus_is_the_insert() {

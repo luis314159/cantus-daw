@@ -1098,7 +1098,7 @@ pub fn card_lamp<R>(
 }
 
 /// fx:vetus — [`card_lamp`] whose controls stay usable while its section is off: dimmed,
-/// but they respond, so a section is set up before it is switched on (the owner, ADR 0133).
+/// but they respond, so a section is set up before it is switched on (the owner, ADR 0130).
 pub fn card_lamp_live<R>(
     ui: &mut Ui,
     s: &Style,

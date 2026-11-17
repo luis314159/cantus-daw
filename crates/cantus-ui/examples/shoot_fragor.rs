@@ -1,4 +1,4 @@
-//! Fragor's window without a screen (the fx side round, ADR 0131): the design sheet.
+//! Fragor's window without a screen (the fx side round, ADR 0128): the design sheet.
 //!
 //! ```text
 //! cargo run -p cantus-ui --example shoot_fragor -- [out-dir] [--colourways]
@@ -8,7 +8,7 @@
 //! triangle muff), and two with a slot free (the silicon distortion and the op-amp
 //! distortion, its footswitch off) — at rest and playing, in Slate (the default look)
 //! and Paper, English and Spanish, at 75 %, 100 %, 150 % and 200 %; and the inspector's
-//! strip. With `--colourways`, the three-pedal board playing in each colourway (ADR 0130
+//! strip. With `--colourways`, the three-pedal board playing in each colourway (ADR 0127
 //! §Colourways), Slate English and Paper Spanish at 100 %, into `<out-dir>/colour/final/`.
 
 use cantus_engine::EngineHandle;
@@ -233,7 +233,7 @@ fn main() {
     }
 }
 
-/// The colourways as the user chooses them (ADR 0130 §Colourways): the three-pedal board
+/// The colourways as the user chooses them (ADR 0127 §Colourways): the three-pedal board
 /// playing in each, Slate English and Paper Spanish at 100 %, into `<dir>/colour/final/`.
 fn colourways(dir: &std::path::Path) {
     use cantus_ui::i18n::Locale;

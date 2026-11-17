@@ -1,4 +1,4 @@
-//! Saltus's whammy pedal (ADR 0135, provisional), drawn in side view beside the keyboard: a
+//! Saltus's whammy pedal (ADR 0132), drawn in side view beside the keyboard: a
 //! treadle with its grip rocking on a wedge base from the heel to the toe, a scale at the
 //! toe from the heel's interval to the toe's with the voice's interval now on it, the
 //! interval large above, and a MIDI lamp when the notes play it. Dragged up and down.

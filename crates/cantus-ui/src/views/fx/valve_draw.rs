@@ -1,4 +1,4 @@
-//! Valve-amp parts, drawn (Fragor's tube strip, ADR 0131 — reusable by any unit with an
+//! Valve-amp parts, drawn (Fragor's tube strip, ADR 0128 — reusable by any unit with an
 //! amplifier's character): vacuum tubes standing before a perforated chassis, their
 //! filaments' glow, amber jewel pilot lights, a brass plate. Vectors at the style's scale,
 //! colours from `kit::skin::pedals`; nothing animates by itself — the caller hands the glow

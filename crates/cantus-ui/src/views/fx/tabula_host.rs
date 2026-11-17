@@ -1,4 +1,4 @@
-//! A board's pedal as an effect of its own (ADR 0134 §5): [`PedalHost`] wraps the board's
+//! A board's pedal as an effect of its own (ADR 0131 §5): [`PedalHost`] wraps the board's
 //! [`FxHost`] so the unit's own full editor (`Editor::of(kind)`) runs on one pedal — every
 //! key it reads or writes is the pedal's (`p{id}.{key}` on the board), its undo the board's,
 //! its automation and modulation the board's lanes on those keys, a Lapsus pattern the

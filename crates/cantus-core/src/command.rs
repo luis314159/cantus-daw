@@ -615,7 +615,7 @@ pub enum Command {
         pedal: Option<crate::fx::tabula::PedalId>,
     },
     /// fx:lapsus — one slot of one of Lapsus's banks ([`crate::EffectSpec::lapsus`], ADR
-    /// 0132): a pattern of its own (sanitized into the bank's ranges), or `None`, the
+    /// 0129): a pattern of its own (sanitized into the bank's ranges), or `None`, the
     /// factory's again. Refused for any other kind and a slot past the bank.
     SetLapsusPattern {
         strip: StripId,
@@ -627,7 +627,7 @@ pub enum Command {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pedal: Option<crate::fx::tabula::PedalId>,
     },
-    /// fxa:contract — one of Fractus's lanes ([`crate::EffectSpec::fractus`], ADR 0140):
+    /// fxa:contract — one of Fractus's lanes ([`crate::EffectSpec::fractus`], ADR 0137):
     /// its blocks replaced (sanitized: sorted, apart, inside the cycle), an empty list
     /// clearing it; the inverse is the lane it replaced. Refused for any other kind and a
     /// lane past the ten.
@@ -637,7 +637,7 @@ pub enum Command {
         lane: u8,
         blocks: Vec<crate::fx::fractus::Block>,
     },
-    // fx3:contract — Tabula's board (ADR 0134; `crate::command_board`). Each is refused on
+    // fx3:contract — Tabula's board (ADR 0131; `crate::command_board`). Each is refused on
     // a slot that is not a board; each returns its exact inverse.
     /// A pedal into a board at `index` of its signal order, with the macro maps it brings
     /// back (`(macro, position in its list, map)`, the inverse of a removal). Refused for an

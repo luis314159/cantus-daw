@@ -1,7 +1,7 @@
-# ADR 0132 — Lapsus, the time shaper
+# ADR 0129 — Lapsus, the time shaper
 
-**Status:** proposed (fx side round, provisional number — renumbered at merge) · **Date:**
-2026-11-13 · **Schema:** 62 (provisional — renumbered when merged after round 40) ·
+**Status:** proposed (fx side round) · **Date:**
+2026-11-13 · **Schema:** 72 ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
 ADR 0020 (our plug-ins outside Cantus), ADR 0022 (memory off the audio thread), ADR 0031
 §5.1 (at rest), ADR 0055 (the family's clock, Fluctus's curve), ADR 0071 (effects that
@@ -34,7 +34,7 @@ palette kept, the display dark in every theme, and the sound heard on a real gui
    host sees eleven, and the engine compares only the slots that are not the factory's.
    **`Command::SetLapsusPattern`** sets one slot of one bank (`None`: the factory's), its
    inverse the slot as it was (an emptied bank goes back to `None`); the undo fuzz, freeze
-   and record-mode arms include it. Schema 62 (the side round's) carries a bank in its
+   and record-mode arms include it. Schema 72 (the side round's) carries a bank in its
    fixture.
 4. **The time curve's value is the delay**, in pattern lengths, behind the live signal:
    flat 0 is the signal as it arrives — and read as a whole sample, the same bits (the
@@ -112,7 +112,7 @@ palette kept, the display dark in every theme, and the sound heard on a real gui
 
 - `cantus-core`: the defaults a null, the keys, the two note ranges apart, both factory banks
   within the model (each pattern but *Through* moves something), a bank holding only what
-  differs; the undo fuzz with `SetLapsusPattern`. `cantus-project`: schema 62 carries a bank.
+  differs; the undo fuzz with `SetLapsusPattern`. `cantus-project`: schema 72 carries a bank.
 - `cantus-dsp` `lapsus::tests` (22): the defaults and a flat curve through the full path
   touch no sample; half time reads at half speed (to 1e-4); a tape stop ends on the bar's
   sample at 60, 120 and 174 BPM; seven pattern families from bar 5 equal bar 5 of the whole

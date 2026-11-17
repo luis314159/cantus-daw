@@ -1,4 +1,4 @@
-//! fx:lapsus — Lapsus's banks in the exported plug-in (ADR 0132, provisional): the
+//! fx:lapsus — Lapsus's banks in the exported plug-in (ADR 0129): the
 //! patterns are content, not parameters (a host sees eleven), so they travel beside the
 //! values. The main thread keeps the bank (the editor's edits, a state loaded) and posts a
 //! copy to the running processor through a lock-free ring; the processor swaps it into its

@@ -55,22 +55,22 @@ tonus = []
 aula = []
 # Round 40 (ADR 0119).
 delay = []
-# fx:contract — the fx side round (provisional ADRs 0130–0133).
+# fx:contract — the fx side round (ADRs 0127–0130).
 cribrum = []
 fragor = []
 lapsus = []
 vetus = []
 libra = []
-# fx3:contract — the fx side round's wave 3 (provisional ADRs 0134–0137).
+# fx3:contract — the fx side round's wave 3 (ADRs 0131–0134).
 tabula = []
 saltus = []
 rota = []
 arca = []
-# fxa:loquax — the fx side round's wave A (provisional ADR 0139).
+# fxa:loquax — the fx side round's wave A (ADR 0136).
 loquax = []
-# fxa:fractus — the fx side round's wave A (provisional ADR 0140).
+# fxa:fractus — the fx side round's wave A (ADR 0137).
 fractus = []
-# fxa:caelum — the fx side round's wave A (provisional ADR 0141).
+# fxa:caelum — the fx side round's wave A (ADR 0138).
 caelum = []
 
 [dependencies]

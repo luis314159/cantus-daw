@@ -1,4 +1,4 @@
-//! Caelum's listening examples (fx side round, wave A; the name is provisional): the
+//! Caelum's listening examples (fx side round, wave A): the
 //! owner's reference guitar progression — Am, F, C, G at 90 BPM, struck on beats 1 and 3,
 //! eight bars, from Carbonthief's CC0 DI strums — through the octave shimmer, the fifth
 //! cathedral, the bloom pad and the infinite freeze swell; a synthesized sung line (the

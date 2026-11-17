@@ -1,4 +1,4 @@
-//! Rota's motif on Tabula's board (ADR 0134's faces, ADR 0136): the wheel — a horn rotor seen
+//! Rota's motif on Tabula's board (ADR 0131's faces, ADR 0133): the wheel — a horn rotor seen
 //! from above, its bell sweeping a ring of speed lines, the sound thrown out in arcs that
 //! crowd on one side and spread on the other (the Doppler shift a rotating horn makes).
 //! Original to Cantus; the same each frame. // fx3:rota

@@ -1,7 +1,7 @@
 # The fx side round, wave 3 — `arca`: Arca (amp and cabinet), Rota (rotary), the Uni-Vibe
 
 **Phase A-1 checkpoint (DSP only, 2026-11-14).** The decisions, values, sources and
-measurements are in ADR 0137 (Arca) and ADR 0136 (Rota and the Uni-Vibe), each under
+measurements are in ADR 0134 (Arca) and ADR 0133 (Rota and the Uni-Vibe), each under
 *Phase A-1*. This file says what exists, where, and what is next.
 
 ## Done (cantus-dsp only)
@@ -18,14 +18,14 @@ measurements are in ADR 0137 (Arca) and ADR 0136 (Rota and the Uni-Vibe), each u
 `arca_table.rs` (the valves tabulated), `arca_fast.rs` (the lean stepper for all-triode
 circuits), the stand-in plate load in `arca_net.rs`; in `fragor_dk.rs` (additive) the
 `Koren::table` field and `Circuit::fused`, a few constants made `pub(crate)`. Numbers in
-ADR 0137 *Phase A-2*; the sounds re-rendered with them.
+ADR 0134 *Phase A-2*; the sounds re-rendered with them.
 
 ## Phase A-3 (2026-11-15): the follower split tried and reverted
 
 `cpu_by_stage` (each circuit's cost in the unit) and `examples/arca_compare.rs` (spectra,
 harmonics, transfer for an A/B between builds) added; the follower split measured against
 `a7afeffa`, found to change the clipping where a follower's grid conducts, and reverted.
-ADR 0137 *Phase A-3* has the table; files 05–20 are `a7afeffa`'s renders again.
+ADR 0134 *Phase A-3* has the table; files 05–20 are `a7afeffa`'s renders again.
 
 ## Verified only in emulation
 
@@ -35,7 +35,7 @@ was measured while other builders loaded the machine.
 ## Next
 
 The engine units and parameter tables, Phasis's two new keys, the editor's design sheets
-for the owner, presets, export, docs, the e2e test — and Arca's CPU (ADR 0137, *Left for
+for the owner, presets, export, docs, the e2e test — and Arca's CPU (ADR 0134, *Left for
 the next phases*).
 
 ## Phase B (2): the design sheets (2026-11-15) — waiting for the owner
@@ -92,7 +92,7 @@ the next phases*).
 - **AI**: the unit words (`agent_units.rs`) and the effect words (`tools_mixer.rs`); the
   MCP tools golden regenerated on purpose.
 - **Site**: the two cards (`web/src/units_data.rs`, `EFFECTS` 34); Phasis's count 15.
-- **Docs**: ADRs 0136 and 0137 (phase B, consequences, tests), `docs/plugins/arca.md`,
+- **Docs**: ADRs 0133 and 0134 (phase B, consequences, tests), `docs/plugins/arca.md`,
   `docs/plugins/rota.md`, the manual EN/ES, `docs/round-fx/rota.md`.
 - **Tests**: `arca_e2e.rs`, `rota_e2e.rs` (through `CantusApp::assemble`),
   `arca_rota_drag.rs` (pointer events), `arca_rota_whole.rs`, the engine's and plug-ins'.
@@ -119,4 +119,4 @@ words, the empty slot on two lines), `tabula.rs`, `tabula_board.rs`, `tabula_fac
 
 - Owner-only: listening to the presets and to files 23 and 33 (re-rendered).
 - At the integration: the site's pictures (`web/assets/units/{arca,rota}-*.webp`) and the
-  preset excerpts; renumbering ADRs 0136/0137; Arca's high-gain CPU on a quiet machine.
+  preset excerpts; renumbering ADRs 0133/0134; Arca's high-gain CPU on a quiet machine.

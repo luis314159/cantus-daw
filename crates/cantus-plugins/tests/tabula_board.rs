@@ -1,4 +1,4 @@
-//! fx3:tabula — Tabula exported (ADR 0134 §4): its board travels in the state (saved and
+//! fx3:tabula — Tabula exported (ADR 0131 §4): its board travels in the state (saved and
 //! loaded whole, as the project saves it), a fresh instance starts on the guitar rig, and a
 //! board loaded while the plug-in plays reaches the audio thread — its new pedals adopted,
 //! the old ones faded and handed back — without one allocation there.

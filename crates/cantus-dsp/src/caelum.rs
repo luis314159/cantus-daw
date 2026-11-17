@@ -1,4 +1,4 @@
-//! **Caelum**, the shimmer reverb (fx side round, wave A; the name is provisional — one
+//! **Caelum**, the shimmer reverb (fx side round, wave A; one
 //! constant, [`NAME`]) — Latin *caelum*, the sky: the reverb for spaces no building holds.
 //! Spatium makes rooms, Aula plays real ones; Caelum makes what neither can — tails that
 //! climb in pitch (**shimmer**), washes that never end (**infinite**), a sound that swells
@@ -59,7 +59,7 @@ use tank::{Decay, Shimmer, Tank, TankDesign};
 
 pub use tank::Lines;
 
-/// The unit's name, in one place (provisional).
+/// The unit's name, in one place.
 pub const NAME: &str = "Caelum";
 
 /// The decay's range, s (above the top is [`CaelumSettings::infinite`]).
@@ -96,7 +96,7 @@ pub struct CaelumSettings {
     pub infinite: bool,
     /// Infinite with the shimmer: the tank keeps its level while the shimmer climbs
     /// (true), or the climb leaves through the loop's tone and the wash fades (false, the
-    /// default — the owner's choice, ADR 0141).
+    /// default — the owner's choice, ADR 0138).
     pub infinite_sustain: bool,
     /// An infinite tank as loud as an 8 s one (true), or 8 dB under it (false, the
     /// default: it keeps all it is fed, so a bar or two piles up to an 8 s tail's level).

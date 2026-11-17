@@ -1,4 +1,4 @@
-//! Tabula end to end (ADR 0134), on the boot path: an app made by `CantusApp::assemble`
+//! Tabula end to end (ADR 0131), on the boot path: an app made by `CantusApp::assemble`
 //! with the real engine handle; Tabula inserted on a playing track's strip the way the
 //! picker inserts it (its starting preset: the guitar rig); the song rendered offline
 //! through the engine's compile — the path export, freeze and stems take — and the rig heard

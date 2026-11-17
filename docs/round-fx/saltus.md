@@ -1,7 +1,7 @@
 # Saltus, pitch — the builder's report (fx side round, wave 3)
 
 Branch `fx/saltus` (from `fx/integration` at the wave-3 contract; `fx/integration` with
-Tabula merged in at `04b7c389`). ADR 0135 (provisional), and ADR 0138 (provisional, the
+Tabula merged in at `04b7c389`). ADR 0132, and ADR 0135 (the
 user's own starting presets — the owner's request in his v2 verdict). Plug-in page
 `docs/plugins/saltus.md`.
 
@@ -20,14 +20,14 @@ user's own starting presets — the owner's request in his v2 verdict). Plug-in 
   its key; the whammy's pedal in depth; the lit mode legends; the engine switch with each
   engine's latency; the mode's cards; the face `SALTUS` (graphite anodised, chartreuse and
   lilac on a VFD); its pedal on Tabula (the leap motif, its knobs' words).
-- **The user's starting preset for every unit** (ADR 0138): *Use as starting preset* /
+- **The user's starting preset for every unit** (ADR 0135): *Use as starting preset* /
   *Reset to factory starting preset* in every preset list, kept in `settings.json`, honoured
   by every insert path; the chosen start on a row of its own (nothing elided).
 - **Presets**: eighteen, in both engines, styles and roles, levels fitted (`preset_tool
   fit`).
 - **Export**: the CLAP/VST3 plug-in (its descriptor from the contract), its ids blessed, its
   DSP named in the tests' direct path, notes through both formats.
-- **Docs**: ADR 0135, ADR 0138, `docs/plugins/saltus.md`, the manual (EN and ES: Saltus and
+- **Docs**: ADR 0132, ADR 0135, `docs/plugins/saltus.md`, the manual (EN and ES: Saltus and
   choosing a starting preset), the AI's unit and effect words, the site's card.
 - **Tabula** (shared, marked `fx3:saltus`): the Leap motif; a pedal's extra parameter with a
   long name takes a wider cell or waits for the full editor (never elided).
@@ -46,7 +46,7 @@ user's own starting presets — the owner's request in his v2 verdict). Plug-in 
 
 ## Tests and what each holds
 
-See ADR 0135 *What the tests hold* and ADR 0138. Files:
+See ADR 0132 *What the tests hold* and ADR 0135. Files:
 `cantus-dsp/src/saltus_tests*.rs`; `cantus-core/src/fx/saltus.rs`,
 `cantus-core/tests/saltus_commands.rs`, `cantus-core/tests/starting_user.rs`;
 `cantus-engine/src/fx/saltus.rs`, `cantus-engine/tests/fx_saltus.rs`, `fx_contract`
@@ -85,4 +85,4 @@ See ADR 0135 *What the tests hold* and ADR 0138. Files:
 - Owner-only: listening to the sound set and the presets.
 - At the integration: the site's pictures (`web/assets/units/saltus-*.webp`, the units
   reshoot) and the preset excerpts (`render_unit_sounds`), as for the round's other units;
-  renumbering ADRs 0135 and 0138.
+  renumbering ADRs 0132 and 0135.

@@ -1,4 +1,4 @@
-//! Fragor, the distortion and fuzz pedals (ADR 0131): its parameter model. Owned by Fragor;
+//! Fragor, the distortion and fuzz pedals (ADR 0128): its parameter model. Owned by Fragor;
 //! nothing else edits this file.
 //!
 //! Keys are forever once shipped (automation, saved projects and the exported plug-ins' ids

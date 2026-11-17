@@ -1,10 +1,10 @@
-# ADR 0139 — Loquax, the vocoder
+# ADR 0136 — Loquax, the vocoder
 
-**Status:** proposed (fx side round wave A, provisional number — renumbered at merge) ·
-**Date:** 2026-11-16 · **Schema:** 64 (provisional — renumbered when merged after round 40) ·
+**Status:** proposed (fx side round wave A) ·
+**Date:** 2026-11-16 · **Schema:** 74 ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
 ADR 0020 (our plug-ins outside Cantus), ADR 0022 (an effect's MIDI source and sidechain),
-ADR 0031 §5.1 (at rest), ADR 0071 (effects that sound on insert), ADR 0134 (Tabula)
+ADR 0031 §5.1 (at rest), ADR 0071 (effects that sound on insert), ADR 0131 (Tabula)
 
 ## Context
 
@@ -63,7 +63,7 @@ A new effect kind, `EffectKind::Vocoder`, model `cantus_core::fx::loquax`, engin
     `views/fx/loquax_objects.rs`; the housing and the base wear each colourway's finish
     (brushed aluminium, black lacquer with chrome lips, the road case's steel corners).
 - **The object is kept per insert, not per user.** Colourways are the user's (settings,
-  ADR 0130); the owner asked for the object *per instance*, so it is a key, `obj` (0 … 2,
+  ADR 0127); the owner asked for the object *per instance*, so it is a key, `obj` (0 … 2,
   appended after `b63`; 101 keys): saved in the song, one step of undo, in the exported
   plug-in's state. It is **a look** — `fx::loquax::LOOK`, `EffectKind::is_look`: never heard
   (the engine ignores it), and a value off a preset's never makes the preset "modified"
@@ -77,7 +77,7 @@ A new effect kind, `EffectKind::Vocoder`, model `cantus_core::fx::loquax`, engin
   saved with; A/B compares the sound and leaves it (`toggle_ab` in Cantus, the plug-in
   editor's `toggle_ab`). The exported
   plug-in lists it among its parameters (a host may automate it; it changes no sample).
-  Schema 64 stays (provisional, unreleased): an older 64 file simply has no `obj` and reads
+  Schema 74 stays (unreleased): an older 74 file simply has no `obj` and reads
   the gooseneck.
 - **The band levels are drawn**: a stroke across the bank's screen sets every band it
   crosses to the level at the pointer's height (−24 … +12 dB in half decibels, snapped to

@@ -1,4 +1,4 @@
-//! Saltus's motif on Tabula's board (ADR 0134's faces, ADR 0135): the leap — a small keyboard
+//! Saltus's motif on Tabula's board (ADR 0131's faces, ADR 0132): the leap — a small keyboard
 //! in fine strokes and, from one of its keys, two arcs leaping up to an octave and to a fifth,
 //! landing on their keys. Original to Cantus; the same each frame. // fx3:saltus
 

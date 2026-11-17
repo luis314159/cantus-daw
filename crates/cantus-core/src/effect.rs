@@ -67,7 +67,7 @@ pub enum EffectKind {
     AutoTune,
     /// Aula, the convolution reverb (`fx::aula`, round 39, ADR 0112). // r39:conv
     Aula,
-    // fx:contract — the fx side round's five (provisional ADRs 0130–0133).
+    // fx:contract — the fx side round's five (ADRs 0127–0130).
     /// Cribrum, the auto filter (`fx::cribrum`, fx side round). // fx:contract
     AutoFilter, // fx:contract
     /// Fragor, the distortion and fuzz pedals (`fx::fragor`, fx side round). // fx:contract
@@ -78,7 +78,7 @@ pub enum EffectKind {
     LoFi, // fx:contract
     /// Libra, the utility: gain, polarity, channels, alignment (`fx::libra`). // fx:contract
     Utility, // fx:contract
-    // fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+    // fx3:contract — the side round's wave 3 (ADRs 0131–0134).
     /// Tabula, the pedalboard: native units as pedals ([`EffectSpec::board`]). // fx3:contract
     Board, // fx3:contract
     /// Saltus, pitch: octaver, shifter, harmoniser, whammy (`fx::saltus`). // fx3:contract
@@ -87,7 +87,7 @@ pub enum EffectKind {
     Rotary, // fx3:contract
     /// Arca, amp and cabinet (`fx::arca`). // fx3:contract
     Amp, // fx3:contract
-    // fxa:contract — the side round's wave A (provisional ADRs 0139–0141).
+    // fxa:contract — the side round's wave A (ADRs 0136–0138).
     /// Loquax, the vocoder (`fx::loquax`). // fxa:contract
     Vocoder, // fxa:contract
     /// Fractus, the glitch sequencer and grain cloud (`fx::fractus`, [`EffectSpec::fractus`]). // fxa:contract
@@ -464,7 +464,7 @@ impl EffectKind {
     }
 
     /// fxa:loquax — a key that is the editor's look, not the sound (Loquax's microphone,
-    /// ADR 0139): kept per insert like any key and never heard. A preset that names it sets
+    /// ADR 0136): kept per insert like any key and never heard. A preset that names it sets
     /// it (each factory preset suggests its object; a user's preset keeps the one it was
     /// saved with), one that does not leaves it; A/B leaves it; and a value off a preset's
     /// does not make the preset "modified".
@@ -565,17 +565,17 @@ pub struct EffectSpec {
     /// kind and for Aula playing one of Cantus's own, and then not written. // r39:conv
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ir: Option<Box<fx::aula::IrFile>>,
-    /// Lapsus's patterns where they differ from its factory bank (ADR 0132, provisional);
+    /// Lapsus's patterns where they differ from its factory bank (ADR 0129);
     /// `None` for every other kind and for a Lapsus on the factory bank, and then not
     /// written. // fx:lapsus
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lapsus: Option<Box<fx::lapsus::Bank>>,
-    /// Tabula's pedals and macros (ADR 0134, provisional; schema 63); `None` for every other
+    /// Tabula's pedals and macros (ADR 0131; schema 73); `None` for every other
     /// kind and for an empty board, and then not written. Its pedals' parameters are
     /// addressed `p{id}.{key}` through the routed API ([`EffectSpec::param`]). // fx3:contract
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub board: Option<Box<fx::tabula::Board>>,
-    /// Fractus's painted lanes (ADR 0140, provisional; schema 64); `None` for every other
+    /// Fractus's painted lanes (ADR 0137; schema 74); `None` for every other
     /// kind and for a pattern with nothing painted, and then not written. // fxa:contract
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fractus: Option<Box<fx::fractus::Pattern>>,
@@ -630,7 +630,7 @@ impl EffectSpec {
         self.kind.takes_notes() || self.pedal_specs().any(|s| s.takes_notes())
     }
 
-    // ---- the routed API (fx3:contract, ADR 0134): a board's `p{id}.{key}` is its pedal's
+    // ---- the routed API (fx3:contract, ADR 0131): a board's `p{id}.{key}` is its pedal's
     // ---- `key`; every other key, and every key of every other kind, is the spec's own.
 
     /// The pedals' specs of a board (none for every other kind).

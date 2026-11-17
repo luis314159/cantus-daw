@@ -1,4 +1,4 @@
-//! Rota, the rotary speaker (ADR 0136, provisional), behind the engine's plug-in contract.
+//! Rota, the rotary speaker (ADR 0133), behind the engine's plug-in contract.
 //! Owned by the rota builder.
 //!
 //! [`settings`] reads the table (`cantus_core::fx::rota`) into the DSP's settings

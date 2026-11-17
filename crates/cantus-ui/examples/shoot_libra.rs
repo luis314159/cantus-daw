@@ -1,5 +1,5 @@
-//! Libra's editor in its device frame, without a screen (fx side round, ADR 0133
-//! provisional): the design sheet's pictures.
+//! Libra's editor in its device frame, without a screen (fx side round, ADR 0130):
+//! the design sheet's pictures.
 //!
 //! ```text
 //! cargo run -p cantus-ui --example shoot_libra -- [out-dir] [scales…] [--colourways]

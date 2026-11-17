@@ -1,5 +1,5 @@
-//! Fractus, the glitch sequencer and grain cloud, through the whole engine (ADR 0140,
-//! provisional): at its defaults the mix untouched, to the bit, no latency, and no memory
+//! Fractus, the glitch sequencer and grain cloud, through the whole engine (ADR 0137):
+//! at its defaults the mix untouched, to the bit, no latency, and no memory
 //! taken; painted, its DSP asked for off the audio thread and played from the sample it
 //! lands; the starting preset sounds; offline equals real time; the notes of another track
 //! play the lanes; a fork carries on as the unit does. // fxa:fractus

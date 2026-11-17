@@ -87,7 +87,7 @@ pub struct EngineHandle {
     send_failures: u64,
     /// Effect ids whose unit currently lives in the engine.
     known_effects: HashSet<EffectId>,
-    /// fx3:tabula — the pedals of the boards the engine runs (ADR 0134).
+    /// fx3:tabula — the pedals of the boards the engine runs (ADR 0131).
     known_pedals: crate::fx::tabula::KnownPedals,
     /// For each track hosting a native or hosted instrument, the kind and serial of the
     /// unit the engine holds (or has been sent) for it.
@@ -1112,7 +1112,7 @@ impl EngineHandle {
                 }
             }
         }
-        // fx3:tabula — Tabula's pedals (ADR 0134): each pedal a board the engine runs lacks,
+        // fx3:tabula — Tabula's pedals (ADR 0131): each pedal a board the engine runs lacks,
         // built here and sent before the snapshot that names it.
         let slots: Vec<&cantus_core::EffectSlot> = snapshot.effect_slots().collect();
         let sr = self.sample_rate as f32;

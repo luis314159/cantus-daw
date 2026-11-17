@@ -1,4 +1,4 @@
-//! Saltus, the pitch unit (ADR 0135, provisional): every control is a `SetEffectParam` with
+//! Saltus, the pitch unit (ADR 0132): every control is a `SetEffectParam` with
 //! an exact inverse — on an insert and on a pedal of Tabula's board (`p{id}.` keys) — and
 //! its starting preset names only its own keys, inside their ranges. The undo fuzz reaches
 //! the same commands at random (`undo_invariants.rs`, every kind's table); this holds each

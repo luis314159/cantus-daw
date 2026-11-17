@@ -1,4 +1,4 @@
-//! Arca, amp and cabinet, through the whole engine (ADR 0137, provisional): at its defaults
+//! Arca, amp and cabinet, through the whole engine (ADR 0134): at its defaults
 //! (no amp, no cabinet) the mix untouched, to the bit; an amp's latency is its oversampler's
 //! and the dry comes out exactly that late; a cabinet alone adds none; the factory cabinet
 //! is built at once for a render; offline equals real time; and on Tabula's board, a board

@@ -1,4 +1,4 @@
-//! Vetus, lo-fi (ADR 0133, provisional): its parameter model. Owned by Vetus; nothing else
+//! Vetus, lo-fi (ADR 0130): its parameter model. Owned by Vetus; nothing else
 //! edits this file.
 //!
 //! Six modules in a fixed order — **bits** and **rate** (the cheap converter), **wobble**

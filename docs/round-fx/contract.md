@@ -1,18 +1,18 @@
 # The effects side round — the contract (`9fe58632`)
 
 One commit on `master` (`dd4ad68b`): five effect kinds as exact pass-through stubs with one
-parameter `out` (dB, default 0 — a null), wired into every list; schema 62 (provisional) and
-`fixtures/v62.cantus` (the five kinds on strip 2, Cribrum's `out` at −3 dB); the ADR stubs
-0130–0133. No golden hash moved, `DSP_VERSION` unchanged. About 5 723 tests green; clippy clean
+parameter `out` (dB, default 0 — a null), wired into every list; schema 72 (62 until the final merge) and
+`fixtures/v72.cantus` (the five kinds on strip 2, Cribrum's `out` at −3 dB); the ADR stubs
+0127–0130. No golden hash moved, `DSP_VERSION` unchanged. About 5 723 tests green; clippy clean
 (workspace, plug-ins with no default features).
 
 | Variant | Stem | Unit | ADR |
 |---|---|---|---|
-| `AutoFilter` | `cribrum` | Cribrum | 0130 |
-| `Pedal` | `fragor` | Fragor | 0131 |
-| `TimeShaper` | `lapsus` | Lapsus | 0132 |
-| `LoFi` | `vetus` | Vetus | 0133 |
-| `Utility` | `libra` | Libra | 0133 |
+| `AutoFilter` | `cribrum` | Cribrum | 0127 |
+| `Pedal` | `fragor` | Fragor | 0128 |
+| `TimeShaper` | `lapsus` | Lapsus | 0129 |
+| `LoFi` | `vetus` | Vetus | 0130 |
+| `Utility` | `libra` | Libra | 0130 |
 
 ## Files each builder owns
 
@@ -32,7 +32,7 @@ Line numbers are as of `9fe58632`; find your line by the marker.
 - **DSP / engine:** `cantus-dsp/src/lib.rs`; `cantus-engine/src/fx/mod.rs` (mod and `make()`
   arm); `tests/support/heavy.rs` (your heavy settings, now `("out", 6.0)`);
   `tests/fx_contract.rs` (`must_rest` and the per-kind line; `ALL.len()` is 31).
-- **Project:** `format.rs` (`SCHEMA_VERSION = 62`, `migrate_61_to_62`, the test
+- **Project:** `format.rs` (`SCHEMA_VERSION = 72`, `migrate_71_to_72`, the test
   `schema_62_keeps_the_fx_side_rounds_kinds`); `examples/write_fixture.rs` (the `upto >= 62`
   block — add your settings there if you need the fixture to carry them); `dawproject/mod.rs`.
 - **UI:** `views/fx/mod.rs` (mods, `FxEditors` fields, `FACTORY_PRESETS`, the `Editor` enum,

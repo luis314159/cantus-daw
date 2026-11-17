@@ -219,13 +219,13 @@ pub struct Settings {
     /// theme's plain look.
     pub unit_faces: bool,
     /// fx:colourways — the colourway each unit kind wears, by unit (`cribrum`) and colourway
-    /// id (`nocturne`); a unit not named wears its default (ADR 0130 §Colourways). A choice
+    /// id (`nocturne`); a unit not named wears its default (ADR 0127 §Colourways). A choice
     /// of how the windows look: never in a song, never heard.
     pub unit_colourways: std::collections::BTreeMap<String, String>,
     /// fx:vetus — the view each unit kind shows, by unit (`vetus`) and view id (`cassette`);
-    /// a unit not named shows its default (ADR 0133). Never in a song, never heard.
+    /// a unit not named shows its default (ADR 0130). Never in a song, never heard.
     pub unit_views: std::collections::BTreeMap<String, String>,
-    /// fx3:start — the units' starting presets the person chose (ADR 0138): new inserts of
+    /// fx3:start — the units' starting presets the person chose (ADR 0135): new inserts of
     /// each start on its choice instead of the factory's. A choice of how to work: never in
     /// a song (a song holds the values it inserted).
     pub starting: Vec<crate::starting_choice::StartingChoice>,

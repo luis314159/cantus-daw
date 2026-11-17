@@ -1,4 +1,4 @@
-//! Arca's motif on Tabula's board (ADR 0134's faces, ADR 0137): the chest — a valve in fine
+//! Arca's motif on Tabula's board (ADR 0131's faces, ADR 0134): the chest — a valve in fine
 //! strokes, its filament lit, standing before a speaker's cone of rings. Original to Cantus;
 //! the same each frame. // fx3:arca
 

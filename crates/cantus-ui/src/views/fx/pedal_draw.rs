@@ -1,4 +1,4 @@
-//! A pedal, drawn: the reusable parts of a pedalboard (Fragor, ADR 0131 — and any board
+//! A pedal, drawn: the reusable parts of a pedalboard (Fragor, ADR 0128 — and any board
 //! that shows effects as pedals). Data in, vectors out: an [`Enclosure`] is a finish
 //! (`kit::skin::pedals`), a name, up to six knobs and a footswitch with its LED; a
 //! [`cable`] joins two jacks; an [`empty_slot`] invites a pedal; a [`drop_marker`] shows

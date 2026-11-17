@@ -1,7 +1,7 @@
-# ADR 0141 — Caelum, the shimmer reverb
+# ADR 0138 — Caelum, the shimmer reverb
 
-**Status:** proposed (fx side round wave A, provisional number — renumbered at merge) ·
-**Date:** 2026-11-16 · **Schema:** 64 (provisional — renumbered when merged after round 40) ·
+**Status:** proposed (fx side round wave A) ·
+**Date:** 2026-11-16 · **Schema:** 74 ·
 **Relates to:** ADR 0005 (the audio thread), ADR 0018 (null defaults), ADR 0022 (an effect's
 sidechain), ADR 0031 §5.1 (at rest), ADR 0071 (effects that sound on insert),
 `cantus_dsp::spatium` (its mix law)

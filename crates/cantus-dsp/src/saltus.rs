@@ -1,4 +1,4 @@
-//! **Saltus**, the pitch unit (ADR 0135, provisional) — Latin *saltus*, the leap: a pitch
+//! **Saltus**, the pitch unit (ADR 0132) — Latin *saltus*, the leap: a pitch
 //! shifter, a harmoniser, an octaver and a whammy in one, each a way of moving the pitch
 //! of what it hears, and each also a pedal on Tabula's board.
 //!

@@ -10,7 +10,7 @@ What the builders left for integration, and findings for elsewhere. Struck when 
   (`web/assets/units/cribrum-*.webp` are referenced by the card and missing).~~ — done at the close-out for all five (`shoot_skins` + `units_pictures.py`, `check_units.py --fix`).
 - ~~The MCP effect-word sentence in `cantus-ai/src/tools_mixer.rs` still says the five units are
   "being built": rewrite once all five land, `CANTUS_TOOLS_DUMP=1` for the tools golden.~~ — done (`5aa385a7`).
-- ~~Colourways (Cribrum's mechanism, ADR 0130 §Colourways, extends ADR 0074 §5): give Fragor
+- ~~Colourways (Cribrum's mechanism, ADR 0127 §Colourways, extends ADR 0074 §5): give Fragor
   its palettes B (cream and brass) and C (steel with one red) as colourways, and Lapsus one
   or two, in `kit/skin/side.rs`.~~ — Fragor's done (Cream, Steel; `069e28ea`); Lapsus's left to the owner (`integration.md`, *Open for the owner*).
 - Fragor's display: the window's UI pass playing was 34.6 → 7.6 ms mean after its worker
@@ -18,8 +18,9 @@ What the builders left for integration, and findings for elsewhere. Struck when 
 - Re-measure the site's LCP on a quiet machine (`side/web` sits at 1.96–2.0 s against 2.0).
 - ~~The trivial merge conflicts from rustfmt re-aligning `fx:contract` comments in
   `engine/tests/support/heavy.rs` and `ui/tests/preset_audit.rs`.~~ — resolved; the stale contract comments taken out (`5aa385a7`).
-- Renumber at the merge after round 40: schema 62 → after r40's last, ADRs 0130–0133 (four
-  ADRs: Vetus and Libra share 0133) — the steps in `integration.md`, *At the merge*.
+- ~~Renumber at the merge after round 40: schema 62 → after r40's last, ADRs 0130–0133 (four
+  ADRs: Vetus and Libra share 0133) — the steps in `integration.md`, *At the merge*.~~ — done
+  at the final merge: schema 72–74, ADRs 0127–0138 (`final-merge.md`, the whole table).
 
 ## Findings for elsewhere (BACKLOG at the merge)
 

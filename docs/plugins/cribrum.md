@@ -1,7 +1,7 @@
 # Cribrum — the auto filter
 
 *Effect kind `AutoFilter`. References: FL Studio's Love Philter and Fruity Filter, Ableton's
-Auto Filter, FabFilter Volcano, Soundtoys FilterFreak (ADR 0130, provisional number).*
+Auto Filter, FabFilter Volcano, Soundtoys FilterFreak (ADR 0127).*
 
 *Cribrum* is Latin for a sieve. Cribrum is two analog-modelled filters, in series or in
 parallel, **moved in time with the song** by three sources summed: an **LFO** (on the song
@@ -16,7 +16,7 @@ octaves), the resonance and the vowel.
 | DSP | `crates/cantus-dsp/src/cribrum.rs`, `cribrum_filter.rs` (the models in their modes, the vowels), `cribrum_mod.rs` (the waves, the follower's map, the curve's smoothing), `cribrum_response.rs` (what the editor draws); tests in `cribrum_tests.rs` |
 | Engine glue | `crates/cantus-engine/src/fx/cribrum.rs` |
 | Editor | `crates/cantus-ui/src/views/fx/cribrum.rs`, `cribrum_display.rs` (what passes), `cribrum_move.rs` (the movement card), `cribrum_curve.rs` (the curve on the lane) |
-| Face | `crates/cantus-ui/src/kit/skin/side.rs`: three colourways the user chooses in the window's ⋯ menu — *Nocturne* (`CRIBRUM`, the face), *Brass*, *Petrol* (ADR 0130 §Colourways) |
+| Face | `crates/cantus-ui/src/kit/skin/side.rs`: three colourways the user chooses in the window's ⋯ menu — *Nocturne* (`CRIBRUM`, the face), *Brass*, *Petrol* (ADR 0127 §Colourways) |
 | Strings | `crates/cantus-ui/locales/fx/cribrum.{en,es}.txt` |
 | Presets | `crates/cantus-ui/presets/effects/autofilter.toml` (eighteen; *Bar sweep* is the starting preset; *Cry wah*, *Classic wah* and *Funk quack* the envelope wahs) |
 | Tests | `crates/cantus-engine/tests/fx_cribrum.rs`, `rt_memory::cribrum_never_allocates`, the family's contract; `crates/cantus-ui/tests/cribrum_e2e.rs`; the CLAP/VST3 tests over every descriptor |

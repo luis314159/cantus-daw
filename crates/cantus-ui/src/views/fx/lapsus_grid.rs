@@ -1,7 +1,7 @@
 //! Lapsus's timeline: the time pattern and the volume pattern playing, over the longer of
 //! their two cycles (the shorter one repeated across it), the time curve over the cycle's
 //! own input and the level curve under it, the playhead and the slip (fx side round, ADR
-//! 0132 provisional).
+//! 0129).
 //!
 //! The time lane reads downwards: its top line is *now* (the music as it arrives), its
 //! bottom one cycle back. x and y share the cycle's length, so a slope is a speed you can

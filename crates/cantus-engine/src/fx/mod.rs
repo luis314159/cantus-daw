@@ -33,13 +33,13 @@ pub mod translatio;
 pub mod tremor;
 pub mod vibrans;
 
-// fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+// fx3:contract — the side round's wave 3 (ADRs 0131–0134).
 pub mod arca; // fx3:contract
 pub mod rota; // fx3:contract
 pub mod saltus; // fx3:contract
 pub mod tabula; // fx3:contract
 
-// fxa:contract — the side round's wave A (provisional ADRs 0139–0141).
+// fxa:contract — the side round's wave A (ADRs 0136–0138).
 pub mod caelum; // fxa:contract
 pub mod fractus; // fxa:contract
 pub mod loquax; // fxa:contract
@@ -47,7 +47,7 @@ pub mod loquax; // fxa:contract
 use crate::effects::EffectUnit;
 use cantus_core::fx::tabula::PedalId;
 
-// fx:contract — the fx side round's five units (provisional ADRs 0130–0133).
+// fx:contract — the fx side round's five units (ADRs 0127–0130).
 pub mod cribrum; // fx:contract
 pub mod fragor; // fx:contract
 pub mod lapsus; // fx:contract
@@ -207,7 +207,7 @@ pub trait FxUnit: Send + std::fmt::Debug {
         Some(memory)
     }
 
-    // fx3:contract — Tabula, the pedalboard (ADR 0134): a unit that holds units. Every one
+    // fx3:contract — Tabula, the pedalboard (ADR 0131): a unit that holds units. Every one
     // has a default, so every other unit ignores them.
 
     /// A pedal built off the audio thread for this board (`EngineMessage::AddPedal`): kept,

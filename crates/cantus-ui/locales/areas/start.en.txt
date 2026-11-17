@@ -1,4 +1,4 @@
-# The user's own starting presets (ADR 0138, provisional) — fx3:start. Every key here needs its twin in start.es.txt.
+# The user's own starting presets (ADR 0135) — fx3:start. Every key here needs its twin in start.es.txt.
 start.use = Use as starting preset
 start.use_tip = New inserts of this unit start on these settings, in every project, instead of the factory's starting preset.
 start.reset = Reset to factory starting preset

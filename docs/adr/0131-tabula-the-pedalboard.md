@@ -1,12 +1,12 @@
-# ADR 0134 — Tabula, the pedalboard
+# ADR 0131 — Tabula, the pedalboard
 
-**Status:** accepted (fx side round wave 3, provisional number — renumbered at merge; the design approved by the owner 2026-11-15) ·
-**Date:** 2026-11-14 · **Schema:** 63 (provisional — renumbered when merged after round 40) ·
+**Status:** accepted (fx side round wave 3; the design approved by the owner 2026-11-15) ·
+**Date:** 2026-11-14 · **Schema:** 73 ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
 ADR 0020 (our plug-ins outside Cantus), ADR 0022 (memory built off the audio thread, notes
 into effects), ADR 0027 (automation), ADR 0031 §5.1 (at rest), ADR 0063 (isolation), ADR 0071
 (effects that sound on insert), ADR 0074 (unit skins), ADR 0101 (presets), ADR 0109 (driven
-controls), ADR 0131 (Fragor's pedals and `pedal_draw`), ADRs 0135–0137 (Saltus, Rota, Arca)
+controls), ADR 0128 (Fragor's pedals and `pedal_draw`), ADRs 0132–0134 (Saltus, Rota, Arca)
 
 ## Context
 
@@ -190,7 +190,7 @@ their dispatch, `cmd.*` strings and guard arms, with bodies that refuse (`"board
 the engine's empty board (`in`/`out` gains — a wire), the `FxUnit` defaults (`adopt`,
 `take_retired`, `pedals_mut`, `set_position_late`, `pedal_telemetry`), the `pedal` field in
 needs and memory, `AddPedal`, `SetAnalysedPedal`, `Meters::fx_pedal`, `MemoryNeed::Tabula`;
-schema 63 and `fixtures/v63.cantus` (a board of Fragor on A and Delay on B, macro 1 named
+schema 73 and `fixtures/v73.cantus` (a board of Fragor on A and Delay on B, macro 1 named
 Drive moving Fragor's drive); a plain kit editor, the placeholder face, the picker on the new
 *Guitar and amp* shelf, the exported descriptor and ids.
 

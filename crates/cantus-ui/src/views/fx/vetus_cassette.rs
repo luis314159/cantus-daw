@@ -1,4 +1,4 @@
-//! Vetus's cassette (ADR 0133, provisional): the display's second object, chosen in the ⋯
+//! Vetus's cassette (ADR 0130): the display's second object, chosen in the ⋯
 //! menu beside the colourway (`unit_view`), a tape that ages with the settings as the record
 //! does.
 //!

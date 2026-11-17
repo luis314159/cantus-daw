@@ -1,4 +1,4 @@
-//! Lapsus through the whole engine (ADR 0132, provisional): a wire at its defaults and at
+//! Lapsus through the whole engine (ADR 0129): a wire at its defaults and at
 //! mix 0 whatever pattern plays, every factory pattern heard, the same render at every block
 //! size, live equal to offline, every pattern of the bank from bar 5 equal to bar 5 of the
 //! whole render, a tape stop ending on the bar's own sample at 60, 120 and 174 BPM, a

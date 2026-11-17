@@ -1,4 +1,4 @@
-//! Tabula on a real guitar (fx side round, wave 3, ADR 0134): the owner's reference
+//! Tabula on a real guitar (fx side round, wave 3, ADR 0131): the owner's reference
 //! progression — Am, F, C, G, one chord a bar at 90 BPM, struck on beats 1 and 3, eight bars —
 //! from Carbonthief's DI strums (CC0), through the engine's own board (each pedal the unit
 //! itself) and written as FLAC beside the dry guitar (`00-guitar-di.flac`, peak −6 dBFS),

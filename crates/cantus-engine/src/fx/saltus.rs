@@ -1,5 +1,5 @@
-//! Saltus, the pitch unit — octaver, pitch shifter and harmoniser, whammy (ADR 0135,
-//! provisional) — behind the engine's plug-in contract. Owned by the saltus builder.
+//! Saltus, the pitch unit — octaver, pitch shifter and harmoniser, whammy (ADR 0132)
+//! — behind the engine's plug-in contract. Owned by the saltus builder.
 //!
 //! [`settings`] reads the parameters (`cantus_core::fx::saltus`) into the DSP's settings
 //! (`cantus_dsp::saltus`); the editor draws from the same reading. The notes of the slot's

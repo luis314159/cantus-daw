@@ -1,7 +1,7 @@
 # Lapsus, the time shaper — the builder's report (fx side round)
 
-Branch `fx/lapsus` (from `fx/integration` c730231c). ADR 0132 (provisional), schema 62 (the
-side round's, provisional). Plug-in page `docs/plugins/lapsus.md`.
+Branch `fx/lapsus` (from `fx/integration` c730231c). ADR 0129, schema 72 (the
+side round's). Plug-in page `docs/plugins/lapsus.md`.
 
 ## Done
 
@@ -30,7 +30,7 @@ side round's, provisional). Plug-in page `docs/plugins/lapsus.md`.
 - **Presets**: seventeen, with styles and roles, levelled to the library (preset_render); **Half time** the starting preset.
 - **The exported CLAP/VST3**: bit-identical to the engine's unit; notes through both formats;
   the banks carried in its state and posted to its processor without locks or allocation.
-- **Docs**: ADR 0132, `docs/plugins/lapsus.md`, the manual (EN and ES), the site's card, the
+- **Docs**: ADR 0129, `docs/plugins/lapsus.md`, the manual (EN and ES), the site's card, the
   AI's description; the showcase's fills through *Beat repeat*.
 
 ## Measured
@@ -73,7 +73,7 @@ compilations ran the whole time (BUILDING: never measure beside a build) — for
 `cantus-core`: `effect.rs` (the field), `command.rs` (the command), `freeze_guard.rs`,
 `record_mode.rs`, `starting.rs`, `tests/undo_invariants.rs`. `cantus-engine`: `effects.rs`
 (the memory arms), `tests/support/heavy.rs`, `tests/rt_memory.rs`. `cantus-project`:
-`examples/write_fixture.rs`, `src/format.rs` (a test), `fixtures/v62.cantus`. `cantus-ui`:
+`examples/write_fixture.rs`, `src/format.rs` (a test), `fixtures/v72.cantus`. `cantus-ui`:
 `views/fx/host.rs` (`set_lapsus_pattern`, `touches`), `views/fx/frame.rs` (designed size),
 `kit/skin/side.rs` (the face), `agent_units.rs`, `demos/heart/desk.rs`, `tests/demos.rs`,
 `tests/preset_audit.rs`. `cantus-plugins`: `lib.rs`, `instance.rs`, `state.rs`, `editor.rs`,
@@ -97,7 +97,7 @@ reverse, each level-matched to `00-guitar-di.flac` (RMS within 0.01 dB).
 
 - Owner-only: listening to the guitar set and the presets' choices; whether *Half time* is
   the right starting preset.
-- A decision for later (ADR 0132 Consequences): patterns count 4/4 bars from the song's start,
+- A decision for later (ADR 0129 Consequences): patterns count 4/4 bars from the song's start,
   so in 3/4 a one-bar pattern does not follow the bars.
 - Optional at integration (the integrator's note): Lapsus colourways in Cribrum's
   mechanism, once merged.

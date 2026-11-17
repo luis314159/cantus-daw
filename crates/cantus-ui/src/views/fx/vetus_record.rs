@@ -1,4 +1,4 @@
-//! Vetus's record (ADR 0133, provisional): the display's object, an LP on a turntable that
+//! Vetus's record (ADR 0130): the display's object, an LP on a turntable that
 //! ages with the settings.
 //!
 //! - **The groove is the music**: the output of the last three turns at 33⅓ (5.4 s) wrapped

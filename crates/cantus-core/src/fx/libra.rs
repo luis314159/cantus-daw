@@ -1,4 +1,4 @@
-//! Libra, the utility (ADR 0133, provisional): its parameter model. Owned by Libra; nothing
+//! Libra, the utility (ADR 0130): its parameter model. Owned by Libra; nothing
 //! else edits this file.
 //!
 //! The everyday corrections of a channel, in this order: **DC removal**, the **channel

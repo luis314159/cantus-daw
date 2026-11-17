@@ -1,4 +1,4 @@
-//! fx3:tabula — Tabula's board in the exported plug-in (ADR 0134 §4): the pedals are
+//! fx3:tabula — Tabula's board in the exported plug-in (ADR 0131 §4): the pedals are
 //! content, not parameters (a host sees the board's twelve: the eight macros, `in`, `out`,
 //! `mix`, `ab`), so the board travels beside the values in the state, as the project saves
 //! it (`EffectSpec::board`).

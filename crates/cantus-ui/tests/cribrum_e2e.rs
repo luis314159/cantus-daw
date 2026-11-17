@@ -1,4 +1,4 @@
-//! Cribrum end to end (fx side round, ADR 0130 provisional), on the boot path: an app made
+//! Cribrum end to end (fx side round, ADR 0127), on the boot path: an app made
 //! by `CantusApp::assemble` with the real engine handle; a bright synth chord playing on a
 //! track; Cribrum inserted on its strip as the picker inserts it (its starting preset, a
 //! resonant ladder swept once a bar); the song rendered offline through the engine's compile

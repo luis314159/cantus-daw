@@ -2,7 +2,7 @@
 
 *Effect kind `Board`. References: Line 6 Helix (Native), Neural DSP's Archetype pages,
 Native Instruments' Guitar Rig, IK Multimedia's AmpliTube, Logic's Pedalboard, FL Studio's
-Distructor (ADR 0134, provisional number).*
+Distructor (ADR 0131).*
 
 Tabula (Latin, *the board*) is a pedalboard of Cantus's own effects: up to sixteen of them as
 pedals, in any order, along one chain with an optional A/B split, eight macros along the

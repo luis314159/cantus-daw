@@ -1,4 +1,4 @@
-//! Libra's balance (ADR 0133, provisional): the display's centre, a brass pair of scales.
+//! Libra's balance (ADR 0130): the display's centre, a brass pair of scales.
 //!
 //! - The **beam tilts with the balance** (the heavier side down, as a balance does) and its
 //!   pointer reads it on a fine scale above the pivot (L 100 … C … R 100).

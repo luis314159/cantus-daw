@@ -1,4 +1,4 @@
-//! Vetus's DSP tests (ADR 0133, provisional).
+//! Vetus's DSP tests (ADR 0130).
 
 use super::digital::{BitsMode, RateFilter};
 use super::*;

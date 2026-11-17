@@ -1,4 +1,4 @@
-//! The user's own starting presets (ADR 0138, provisional): for any unit, the sound an insert
+//! The user's own starting presets (ADR 0135): for any unit, the sound an insert
 //! starts on can be the person's choice instead of the factory's (ADR 0071) — chosen in the
 //! unit's preset menu (*Use as starting preset*), undone there (*Reset to factory starting
 //! preset*), kept in the user's settings (not in a project: a song made with it holds the

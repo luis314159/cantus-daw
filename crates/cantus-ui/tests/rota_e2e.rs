@@ -1,4 +1,4 @@
-//! Rota end to end (fx side round, wave 3, ADR 0136 provisional), on the boot path: an app
+//! Rota end to end (fx side round, wave 3, ADR 0133), on the boot path: an app
 //! made by `CantusApp::assemble` with the real engine handle; notes playing on a track;
 //! Rota inserted on its strip as the picker inserts it — on its starting preset, Chorale:
 //! the rotary heard in the master, with no latency; the switch thrown to fast as the

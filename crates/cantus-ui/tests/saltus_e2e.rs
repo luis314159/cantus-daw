@@ -1,4 +1,4 @@
-//! Saltus end to end (fx side round, wave 3, ADR 0135 provisional), on the boot path: an app
+//! Saltus end to end (fx side round, wave 3, ADR 0132), on the boot path: an app
 //! made by `CantusApp::assemble` with the real engine handle; a line playing on a track;
 //! Saltus inserted on its strip as the picker inserts it — on its starting preset, the poly
 //! twelve-string: the octave is heard in the master, and the master comes late by the poly

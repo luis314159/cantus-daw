@@ -1,4 +1,4 @@
-//! Arca end to end (fx side round, wave 3, ADR 0137 provisional), on the boot path: an app
+//! Arca end to end (fx side round, wave 3, ADR 0134), on the boot path: an app
 //! made by `CantusApp::assemble` with the real engine handle; a line playing on a track;
 //! Arca inserted on its strip as the picker inserts it — on its starting preset, the clean
 //! combo: the amp and its cabinet heard in the master, late by the oversampler's latency;

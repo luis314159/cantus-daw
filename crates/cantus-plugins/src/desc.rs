@@ -367,7 +367,7 @@ pub static ALL: [Descriptor; 37] = [
         description: "Stereo delay: ping-pong, a tone in the feedback, the time free or a note value following the tempo, the echoes drawn in time.",
         compiled: cfg!(feature = "delay"),
     },
-    // fx:contract — the fx side round's five (provisional ADRs 0130–0133); ids are
+    // fx:contract — the fx side round's five (ADRs 0127–0130); ids are
     // forever once released, by the module's rule.
     Descriptor {
         kind: EffectKind::AutoFilter, // fx:contract
@@ -429,7 +429,7 @@ pub static ALL: [Descriptor; 37] = [
         description: "Utility: gain, polarity, channel operations, alignment and a tuner.",
         compiled: cfg!(feature = "libra"),
     },
-    // fx3:contract — the fx side round's wave 3 (provisional ADRs 0134–0137); ids are
+    // fx3:contract — the fx side round's wave 3 (ADRs 0131–0134); ids are
     // forever once released, by the module's rule.
     Descriptor {
         kind: EffectKind::Board, // fx3:contract
@@ -479,7 +479,7 @@ pub static ALL: [Descriptor; 37] = [
         description: "Amp and cabinet: preamp, tone stack and power amp from their circuits, the cabinet by impulse response.",
         compiled: cfg!(feature = "arca"),
     },
-    // fxa:loquax — the fx side round's wave A (provisional ADR 0139). Its carrier is the
+    // fxa:loquax — the fx side round's wave A (ADR 0136). Its carrier is the
     // sidechain input (the plug-in's own switch set to the external key) or the notes the
     // host sends to its note port, which play its synthesiser.
     Descriptor {
@@ -494,7 +494,7 @@ pub static ALL: [Descriptor; 37] = [
         description: "Vocoder: a voice speaks through a synthesiser played by notes or through the sidechain, in 8 to 64 bands.",
         compiled: cfg!(feature = "loquax"),
     },
-    // fxa:fractus — the fx side round's wave A (provisional ADR 0140). Its lanes are content
+    // fxa:fractus — the fx side round's wave A (ADR 0137). Its lanes are content
     // in its state (`state::save_spec_extras`), its sequence follows the host's transport,
     // and the notes the host sends to its note port play the lanes.
     Descriptor {
@@ -509,7 +509,7 @@ pub static ALL: [Descriptor; 37] = [
         description: "Glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and throws painted on lanes in time with the song, played by notes too.",
         compiled: cfg!(feature = "fractus"),
     },
-    // fxa:caelum — the fx side round's wave A (provisional ADR 0141). Its ducking listens to
+    // fxa:caelum — the fx side round's wave A (ADR 0138). Its ducking listens to
     // the sidechain input when the key is chosen; a synced pre-delay follows the host's tempo.
     Descriptor {
         kind: EffectKind::Shimmer,

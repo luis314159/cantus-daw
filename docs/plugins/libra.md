@@ -1,7 +1,7 @@
 # Libra — the utility
 
 *Effect kind `Utility`. References: Ableton Live's Utility and Tuner, FL Studio's Fruity
-Balance and Stereo Shaper, Waves InPhase (ADR 0133, provisional number).*
+Balance and Stereo Shaper, Waves InPhase (ADR 0130).*
 
 *Libra* is Latin for the balance — the scales. Libra holds a channel's everyday
 corrections, in this order: **DC removal**, the **channel operation** (swap, mono, one side

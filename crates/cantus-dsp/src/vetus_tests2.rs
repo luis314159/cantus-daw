@@ -1,4 +1,4 @@
-//! Vetus's measured tests (ADR 0133, provisional): the wobble's pitch, the rate's aliasing
+//! Vetus's measured tests (ADR 0130): the wobble's pitch, the rate's aliasing
 //! and images, the medium's band, Character, the switches and rest.
 
 use super::digital::{BitsMode, RateFilter};

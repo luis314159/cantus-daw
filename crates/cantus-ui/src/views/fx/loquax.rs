@@ -1,4 +1,4 @@
-//! Loquax's editor (ADR 0139, provisional): the vocoder — the bands lit by a voice over
+//! Loquax's editor (ADR 0136): the vocoder — the bands lit by a voice over
 //! its rows of cards. The display is the unit's own picture: the object the voice speaks
 //! into (the gooseneck, the talk-box's tube or the desk microphone — `obj`, chosen in the ⋯
 //! menu with the colourways, kept per insert), every band a column of fine cells lit by what
@@ -113,7 +113,7 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     let mut chips = std::mem::take(&mut st.chips);
     let chip = [chips.latency(0.0, sr)];
     // The ⋯ menu: the object the voice speaks into (this insert's), then the colourways
-    // (ADR 0130 §Colourways, each row with its swatch).
+    // (ADR 0127 §Colourways, each row with its swatch).
     let unit = crate::kit::skin::Unit::Effect(KIND);
     let ways = crate::kit::skin::colourways(unit);
     let wearing = crate::kit::skin::colourway_of(unit).map(|w| w.id);

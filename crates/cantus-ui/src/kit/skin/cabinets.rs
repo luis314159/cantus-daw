@@ -1,5 +1,5 @@
-//! The palette of the objects Arca and Rota draw (the fx side round, wave 3, ADRs 0136 and
-//! 0137 provisional): the amp's chassis and valves' surroundings, a speaker's cone, its
+//! The palette of the objects Arca and Rota draw (the fx side round, wave 3, ADRs 0133 and
+//! 0134): the amp's chassis and valves' surroundings, a speaker's cone, its
 //! cabinet's cloth and covering, a microphone, and the rotary speaker's walnut cabinet,
 //! horn and drum — reviewed data, like a unit's sheet (ADR 0074 §1). The painters
 //! (`views/fx/arca_*.rs`, `views/fx/rota_*.rs`) light these and name no colour of their

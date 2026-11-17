@@ -1,4 +1,4 @@
-//! Loquax, the vocoder, through the whole engine (ADR 0139, provisional): at its defaults
+//! Loquax, the vocoder, through the whole engine (ADR 0136): at its defaults
 //! (mix 0) the mix untouched, to the bit, no latency; the starting preset (the robot)
 //! sounds; offline equals real time; the synthesiser plays the notes of another track
 //! (`midi_from`); the carrier comes from another strip through the sidechain, and `swap`

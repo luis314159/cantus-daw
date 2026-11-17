@@ -1,4 +1,4 @@
-//! Fragor's colourways (ADR 0130 §Colourways, extending ADR 0074 §5): Valve, its face, and the
+//! Fragor's colourways (ADR 0127 §Colourways, extending ADR 0074 §5): Valve, its face, and the
 //! two palettes the owner was shown beside it, Cream and Steel — the user's choice
 //! per unit kind kept in `settings.json`, applied by the boot path (`CantusApp::assemble`)
 //! and surviving a restart; each colourway keeps the themes' contrast promises and paints the

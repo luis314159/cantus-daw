@@ -1,5 +1,5 @@
-//! Rota, the rotary speaker: horn and drum, slow and fast, two microphones (ADR 0136,
-//! provisional): its parameter model. Owned by the rota builder; nothing else edits this
+//! Rota, the rotary speaker: horn and drum, slow and fast, two microphones (ADR 0133):
+//! its parameter model. Owned by the rota builder; nothing else edits this
 //! file.
 //!
 //! Keys are forever once shipped. **Every default leaves the signal untouched, to the

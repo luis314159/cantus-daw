@@ -3090,7 +3090,7 @@ fn tympanum_hybrid_never_allocates() {
     );
 }
 
-// fx:cribrum — Cribrum (ADR 0130, provisional) on the audio thread: both filters, every
+// fx:cribrum — Cribrum (ADR 0127) on the audio thread: both filters, every
 // source moving, oversampling switched while it plays (its state cleared, its latency
 // changed), the mix glided in from 0 and out to it, a seek and a stop. Not one allocation.
 #[test]
@@ -3145,7 +3145,7 @@ fn cribrum_never_allocates() {
     );
 }
 
-// fx:lapsus — Lapsus (ADR 0132, provisional) on the audio thread: patterns switched by the
+// fx:lapsus — Lapsus (ADR 0129) on the audio thread: patterns switched by the
 // slot and by a track's notes (each a join), a pattern with jumps, the lookahead turned on
 // (its history asked for, built off the thread and swapped in, the old one handed back),
 // a seek and a stop. Not one allocation.
@@ -3199,7 +3199,7 @@ fn lapsus_never_allocates() {
     );
 }
 
-// fx:vetus — Vetus (ADR 0133, provisional) on the audio thread: every module on, each switched
+// fx:vetus — Vetus (ADR 0130) on the audio thread: every module on, each switched
 // off and on again while it plays (a module that lands off is made new), the rate and the
 // medium moved, the wow synced and then free, a seek and a stop. Not one allocation.
 #[test]
@@ -3266,7 +3266,7 @@ fn vetus_never_allocates() {
     );
 }
 
-// fx:libra — Libra (ADR 0133, provisional) on the audio thread: every stage at work, the
+// fx:libra — Libra (ADR 0130) on the audio thread: every stage at work, the
 // delays, the channel operation and the mute changed while it plays, a seek and a stop.
 #[test]
 fn libra_never_allocates() {
@@ -3303,7 +3303,7 @@ fn libra_never_allocates() {
     );
 }
 
-// fx3:tabula — Tabula (ADR 0134, provisional) on the audio thread: the guitar rig with a
+// fx3:tabula — Tabula (ADR 0131) on the audio thread: the guitar rig with a
 // linear-phase EQ among its pedals (its lines asked for and swapped in), a footswitch on a
 // latent pedal and on a latency-free one, a reorder (the dip), a pedal onto lane B (the
 // split's alignment), a pedal added (built off the thread, adopted) and one taken out (faded,
@@ -3422,7 +3422,7 @@ fn tabula_never_allocates() {
     );
 }
 
-// fx3:saltus — Saltus (ADR 0135, provisional) on the audio thread: the harmony hearing the
+// fx3:saltus — Saltus (ADR 0132) on the audio thread: the harmony hearing the
 // chords of another track (notes on and off at their samples), then every engine in turn —
 // the poly vocoder, the analog divider, the clean octave, the whammy played by those notes —
 // each change moving the latency, a seek and a stop. Not one allocation.
@@ -3481,7 +3481,7 @@ fn saltus_never_allocates() {
     );
 }
 
-// fx3:arca — Arca (ADR 0137, provisional) on the audio thread: an amp into its cabinet, then
+// fx3:arca — Arca (ADR 0134) on the audio thread: an amp into its cabinet, then
 // every amp in turn (each built in place), the oversampling moved (the latency with it), the
 // microphone moved (a new response asked for and swapped in), the cabinet off, a seek and a
 // stop. Not one allocation.
@@ -3529,7 +3529,7 @@ fn arca_never_allocates() {
     );
 }
 
-// fx3:rota — Rota (ADR 0136, provisional) on the audio thread: notes of another track
+// fx3:rota — Rota (ADR 0133) on the audio thread: notes of another track
 // throwing the switch at their samples, the brake, the drive, a seek and a stop.
 #[test]
 fn rota_never_allocates() {
@@ -3567,7 +3567,7 @@ fn rota_never_allocates() {
     );
 }
 
-// fxa:loquax — Loquax (ADR 0139, provisional) on the audio thread: the synthesiser played
+// fxa:loquax — Loquax (ADR 0136) on the audio thread: the synthesiser played
 // by another track's notes, then the carrier on the sidechain and swapped, 64 bands of
 // order 8, the formant and the hold moving, a seek and a stop.
 #[test]
@@ -3618,7 +3618,7 @@ fn loquax_never_allocates() {
     );
 }
 
-// fxa:fractus — Fractus (ADR 0140, provisional) on the audio thread: inserted empty (no
+// fxa:fractus — Fractus (ADR 0137) on the audio thread: inserted empty (no
 // memory), then painted while playing — its DSP asked for and taken (a pointer moved) —
 // every lane and the cloud, notes playing the lanes, the pattern cleared and painted
 // again, a seek and a stop.
@@ -3679,7 +3679,7 @@ fn fractus_never_allocates() {
     );
 }
 
-// fxa:caelum — Caelum (ADR 0141, provisional) on the audio thread: the starting space,
+// fxa:caelum — Caelum (ADR 0138) on the audio thread: the starting space,
 // the shimmer, infinite and sustained, frozen, a new size and line count (a redesign),
 // the ducking keyed by another strip, the pre-delay synced, a seek and a stop.
 #[test]

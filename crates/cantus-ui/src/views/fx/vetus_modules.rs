@@ -1,4 +1,4 @@
-//! Vetus's six modules (ADR 0133, provisional), in the signal's order: each a card whose
+//! Vetus's six modules (ADR 0130), in the signal's order: each a card whose
 //! lamp is its switch (the stepped parameter's control: its menu, automate, learn), its
 //! knobs and choices inside — and the inspector's picture.
 

@@ -1,4 +1,4 @@
-//! Lapsus, the time shaper (ADR 0132, provisional), behind the engine's plug-in contract.
+//! Lapsus, the time shaper (ADR 0129), behind the engine's plug-in contract.
 //! Owned by Lapsus.
 //!
 //! [`settings`] reads the table (`cantus_core::fx::lapsus`) into the DSP's settings, and

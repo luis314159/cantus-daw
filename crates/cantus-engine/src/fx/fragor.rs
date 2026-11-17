@@ -1,4 +1,4 @@
-//! Fragor (the pedals, ADR 0131) behind the engine's plug-in contract. Owned by Fragor.
+//! Fragor (the pedals, ADR 0128) behind the engine's plug-in contract. Owned by Fragor.
 //!
 //! [`settings`] reads the parameters (`cantus_core::fx::fragor`) into the DSP's terms
 //! (`cantus_dsp::fragor`); the editor draws its pedals and computes its curves from the

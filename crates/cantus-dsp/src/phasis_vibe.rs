@@ -1,4 +1,4 @@
-//! Phasis's Uni-Vibe style (fx3:arca — ADR 0136): four phase stages that a lamp sweeps
+//! Phasis's Uni-Vibe style (fx3:arca — ADR 0133): four phase stages that a lamp sweeps
 //! through light-dependent resistors, after Darabundit, Wedelich & Bischoff, "Digital grey
 //! box model of the Uni-Vibe effects pedal" (DAFx-19), whose Table 1 gives the values used
 //! here.
@@ -12,7 +12,7 @@
 //!   thermal lag, its light grows faster than its current. **The cells** (CdS) follow the
 //!   light quickly as it brightens and slowly as it fades (their well-known asymmetry; the
 //!   paper measures the curves' asymmetry but gives no time constants: those used here
-//!   are typical of CdS cells, marked so in ADR 0136): the sweep rises quickly and falls
+//!   are typical of CdS cells, marked so in ADR 0133): the sweep rises quickly and falls
 //!   slowly, more so as the intensity grows.
 //! - A cell's resistance follows its light on a log scale (a CdS cell's power law): `ln R`
 //!   moves between `ln R_min` and `ln R_max` with the light.

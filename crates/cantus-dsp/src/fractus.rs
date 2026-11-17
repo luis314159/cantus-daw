@@ -1,5 +1,5 @@
-//! Fractus, the glitch sequencer and grain cloud (wave A of the effects side round; name
-//! provisional — [`NAME`]). Effectrix's and Stutter Edit's job — repeats, reverses, tape
+//! Fractus, the glitch sequencer and grain cloud (wave A of the effects side round, ADR 0137;
+//! the name: [`NAME`]). Effectrix's and Stutter Edit's job — repeats, reverses, tape
 //! stops, gates, crushes, filter sweeps, pitch jumps, delay throws and shuffled slices,
 //! each painted on its own lane of a step sequencer synced to the song — with a granular
 //! cloud beside it (Portal's and Granulator's job) that can be painted in too. Lapsus is a
@@ -64,7 +64,7 @@ pub use fx::ThrowSettings;
 pub use fx::{CrushSettings, FilterKind, FilterSettings, GateSettings, PitchSettings};
 pub use read::{RepeatSettings, ReverseSettings, ShuffleSettings, TapeKind, TapeSettings};
 
-/// The unit's name: one constant, provisional.
+/// The unit's name: one constant.
 pub const NAME: &str = "Fractus";
 /// Lanes, one per module.
 pub const LANES: usize = 10;

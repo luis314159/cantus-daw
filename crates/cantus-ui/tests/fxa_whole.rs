@@ -220,8 +220,8 @@ fn fractus_s_pages_are_one_row_each() {
     }
 }
 
-// Caelum's sill answers the pointer as its picture promises (design sheet v2, ADR 0141
-// provisional), driven frame by frame with real pointer events through the editor the app
+// Caelum's sill answers the pointer as its picture promises (design sheet v2, ADR 0138),
+// driven frame by frame with real pointer events through the editor the app
 // draws: a click on Infinite's lit pushbutton turns the tank infinite and a second click
 // lets it go; Freeze freezes it; "Sustains" and "As loud" choose the infinite tank's two
 // ways; each click is one undo step. // fxa:caelum

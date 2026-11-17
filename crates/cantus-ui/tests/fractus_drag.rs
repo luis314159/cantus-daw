@@ -1,4 +1,4 @@
-//! Fractus's editor answers the pointer as its picture promises (ADR 0140 provisional, phase
+//! Fractus's editor answers the pointer as its picture promises (ADR 0137, phase
 //! B), driven frame by frame with real pointer events through the window the app draws:
 //! a block painted on a lane — pressed on a step, dragged along to hold, as tall as the
 //! pointer's height (its amount) — and a Shift stroke setting the chance of the blocks it

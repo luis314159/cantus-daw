@@ -873,7 +873,7 @@ fn popups(
         }
         Popup::Presets => {
             let user = host.user_presets();
-            // fx3:start — the unit's own starting preset (ADR 0138), where the host is Cantus.
+            // fx3:start — the unit's own starting preset (ADR 0135), where the host is Cantus.
             let start = start_state(host);
             // The chosen start on a row of its own under its heading: a long name never
             // shares a band's one line (nothing elided, ES included).
@@ -958,7 +958,7 @@ fn popups(
     more
 }
 
-// fx3:start — the unit's own starting preset (ADR 0138).
+// fx3:start — the unit's own starting preset (ADR 0135).
 const START_USE: usize = usize::MAX - 2;
 const START_RESET: usize = usize::MAX - 3;
 

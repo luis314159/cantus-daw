@@ -1205,7 +1205,7 @@ impl CantusApp {
         crate::kit::skin::set_enabled(self.settings.unit_faces);
     }
 
-    /// fx:colourways — every unit kind wears the colourway the settings name (ADR 0130
+    /// fx:colourways — every unit kind wears the colourway the settings name (ADR 0127
     /// §Colourways), on the thread that draws: at start and whenever one changes.
     pub fn apply_unit_colourways(&mut self) {
         crate::kit::skin::set_colourways(
@@ -1226,7 +1226,7 @@ impl CantusApp {
         self.store_settings();
     }
 
-    /// fx:vetus — the units' chosen views (ADR 0133), worn on the thread that draws.
+    /// fx:vetus — the units' chosen views (ADR 0130), worn on the thread that draws.
     pub fn apply_unit_views(&mut self) {
         crate::views::fx::unit_view::set_views(
             self.settings

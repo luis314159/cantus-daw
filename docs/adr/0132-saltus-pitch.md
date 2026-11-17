@@ -1,15 +1,15 @@
-# ADR 0135 — Saltus, pitch
+# ADR 0132 — Saltus, pitch
 
-**Status:** accepted (fx side round wave 3, provisional number — renumbered at merge) ·
-**Date:** 2026-11-15 · **Schema:** 63 (provisional — renumbered when merged after round 40) ·
+**Status:** accepted (fx side round wave 3) ·
+**Date:** 2026-11-15 · **Schema:** 73 ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
 ADR 0020 (our plug-ins outside Cantus), ADR 0031 §5.1 (at rest), ADR 0053 (Tonus's PSOLA),
-ADR 0071 (effects that sound on insert), ADR 0101 (presets), ADR 0134 (Tabula: every unit is
-also a pedal), ADR 0138 (the user's own starting presets)
+ADR 0071 (effects that sound on insert), ADR 0101 (presets), ADR 0131 (Tabula: every unit is
+also a pedal), ADR 0135 (the user's own starting presets)
 
 ## Context
 
-The owner's pedalboard (ADR 0134) needs an octaver, a pitch shifter and a whammy, and BACKLOG
+The owner's pedalboard (ADR 0131) needs an octaver, a pitch shifter and a whammy, and BACKLOG
 §3b *Pitch and creative* asks for a harmoniser; he asked (2026-11-13) that every new engine
 wave 3 makes be a full unit of the family as well as a pedal, and chose the name Saltus
 (Latin, *the leap*).
@@ -43,7 +43,7 @@ wave 3 makes be a full unit of the family as well as a pedal, and chose the name
   what a host lists and what a pedal's row on Tabula shows after its face's knobs.
 - **Starting preset**: *Octave up, twelve-string* (poly, +12 st at 60 % over the dry) — the
   owner's choice to keep; the factory presets come in both engines (*Fifth up, live* and
-  *Octave down, live* are mono), and the user can choose Saltus's start (ADR 0138).
+  *Octave down, live* are mono), and the user can choose Saltus's start (ADR 0135).
 - **The window**: the leap (a keyboard, the note heard lit and named, an arc to each voice
   labelled with its interval and landing, draggable), a grand staff above it writing the
   last seconds and the notes now, each note falling to its key; the whammy's pedal drawn in

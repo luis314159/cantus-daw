@@ -1,4 +1,4 @@
-//! The preset list's starting-preset rows read whole (ADR 0138, provisional; the house rule:
+//! The preset list's starting-preset rows read whole (ADR 0135; the house rule:
 //! nothing elided in English or Spanish at any scale): Saltus's editor with the person's
 //! start chosen (the longest names the factory list has), its preset list open, drawn at
 //! 75 %, 100 % and 200 % in both languages — the kit's text probe finds no word cut inside

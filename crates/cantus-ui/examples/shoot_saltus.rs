@@ -1,4 +1,4 @@
-//! Saltus's window without a screen (the fx side round, wave 3, ADR 0135 provisional): the
+//! Saltus's window without a screen (the fx side round, wave 3, ADR 0132): the
 //! design sheet.
 //!
 //! ```text

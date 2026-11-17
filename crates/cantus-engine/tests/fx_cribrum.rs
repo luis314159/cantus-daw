@@ -1,4 +1,4 @@
-//! Cribrum through the whole engine (ADR 0130, provisional): a wire at its defaults and at
+//! Cribrum through the whole engine (ADR 0127): a wire at its defaults and at
 //! mix 0 whatever else is set, a synced sweep that follows the song (from the start and
 //! from bar 5), the same render at every block size while it works, live equal to offline,
 //! and its latency compensated when it oversamples.

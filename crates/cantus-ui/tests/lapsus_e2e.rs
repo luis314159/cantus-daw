@@ -1,4 +1,4 @@
-//! Lapsus end to end (fx side round, ADR 0132 provisional), on the boot path: an app made
+//! Lapsus end to end (fx side round, ADR 0129), on the boot path: an app made
 //! by `CantusApp::assemble` with the real engine handle; a riff playing on a track; Lapsus
 //! inserted on its strip as the picker inserts it (its starting preset, half time every
 //! half bar); the song rendered offline through the engine's compile — the path export,

@@ -1,14 +1,13 @@
-# ADR 0133 — Vetus and Libra, lo-fi and utility
+# ADR 0130 — Vetus and Libra, lo-fi and utility
 
 **Status:** accepted — Vetus's design v2 approved by the owner (2026-11-13: "síguele, se ve
-chido"), Libra's balance (v2) his choice (2026-11-14) (fx side round, provisional number —
-renumbered at merge) ·
-**Date:** 2026-11-13 · **Schema:** none of its own (the contract's 62 declared the kinds;
+chido"), Libra's balance (v2) his choice (2026-11-14) (fx side round) ·
+**Date:** 2026-11-13 · **Schema:** none of its own (the contract's 72 declared the kinds;
 Vetus's table is the kind's parameters, read with their defaults from older files) ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
 ADR 0020 (our plug-ins outside Cantus), ADR 0031 §5.1 (at rest), ADR 0055 (the modulation
 family's clock, LFO and line), ADR 0071 (effects that sound on insert), ADR 0074 (a face of
-its own), ADR 0101 (presets by style and role), ADR 0130 §Colourways
+its own), ADR 0101 (presets by style and role), ADR 0127 §Colourways
 
 ## Context
 
@@ -94,7 +93,7 @@ Two new effect kinds: `EffectKind::LoFi` (Latin *vetus*, old), `fx::vetus`, and
     on the label) and *the LP* (its groove the music of its last three turns at 33⅓, off its
     spindle with the wow, the strobe marks swaying, scratched, dusty, the hum's ripple, the
     label dated). The choice is a **user preference per unit kind**, like a colourway (ADR
-    0130 §Colourways): `settings.json`'s `unit_views` (`{ "vetus": "record" }`), applied in
+    0127 §Colourways): `settings.json`'s `unit_views` (`{ "vetus": "record" }`), applied in
     `CantusApp::assemble` and when it changes (`views::fx::unit_view`), chosen in the window's
     ⋯ menu above the colourways; never in a song, never heard. The exported plug-in's window
     keeps a choice for its session.

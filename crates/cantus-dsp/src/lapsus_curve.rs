@@ -1,4 +1,4 @@
-//! Lapsus's curves (ADR 0132, provisional): Fluctus's shape model (ADR 0055) — points across
+//! Lapsus's curves (ADR 0129): Fluctus's shape model (ADR 0055) — points across
 //! one cycle, each segment shaped as the automation editor shapes it, wrapping from the last
 //! point to the first a cycle later — with room for a pencil's steps, and evaluated in `f64`
 //! where it can be: a straight segment of the time curve is a read position, and a read

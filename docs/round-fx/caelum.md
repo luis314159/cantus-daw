@@ -299,7 +299,7 @@ work, so `kit_alloc` is untouched):
   through CLAP's sidechain port and VST3's aux bus, the synced pre-delay on the host's tempo
   (CLAP transport, VST3 `ProcessContext`), its tail (infinite while infinite or frozen), ids
   appended and blessed.
-- **AI** words; the MCP golden regenerated. **Docs**: ADR 0141 phase B, `docs/plugins/caelum.md`,
+- **AI** words; the MCP golden regenerated. **Docs**: ADR 0138 phase B, `docs/plugins/caelum.md`,
   the manual EN/ES.
 - **Tabula**: Caelum is a pedal (decay, shimmer, first voice, mix on its face). A board takes
   a key when a pedal does and hands it to the pedal, so a keyed board ducks Caelum as an
@@ -346,4 +346,4 @@ features, `preset_render` in a quiet release build.
 
 - Owner-only: the v3-step3 shots, listening to the nineteen presets and the infinite choices.
 - At the integration: the site's pictures (`web/assets/units/caelum-*.webp`, big 1800 × 1209,
-  thumb 640 × 430) and preset excerpts; the README's unit grid; renumbering ADR 0141.
+  thumb 640 × 430) and preset excerpts; the README's unit grid; renumbering ADR 0138.

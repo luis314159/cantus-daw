@@ -1,4 +1,4 @@
-//! Lapsus, the time shaper (ADR 0132, provisional): tape stop, half-time, stutter, reverse,
+//! Lapsus, the time shaper (ADR 0129): tape stop, half-time, stutter, reverse,
 //! scratch and gates, drawn as curves over cycles synced to the song — its parameter model
 //! and its two banks of patterns. Owned by Lapsus; nothing else edits this file.
 //!

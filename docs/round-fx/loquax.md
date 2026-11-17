@@ -128,7 +128,7 @@ layer-atlas work, so `kit_alloc` is untouched):
   +0.5 dB with them); the audition gives a vocoder the source's line as notes and key.
 - **Export** `Cantus Loquax`: notes (CLAP note port, VST3 event bus), the sidechain input;
   ids appended. **AI** words; the MCP golden regenerated. **Site** card (EFFECTS 35).
-- **Docs**: ADR 0139 phase B, `docs/plugins/loquax.md`, the manual EN/ES.
+- **Docs**: ADR 0136 phase B, `docs/plugins/loquax.md`, the manual EN/ES.
 - **Tabula**: Loquax stays off the board (no key, no notes on a board: only the robot).
 - **DSP** (`loquax.rs`, one guard): a host's sample rate under 3.6 kHz (clap-validator's
   1 234.6 Hz) panicked in `clamp` (the bank's top above its Nyquist); the bank is now
@@ -166,7 +166,7 @@ plug-ins without default features, `preset_render` in release.
 
 - Owner-only: the three objects' shots (`v3-objects`), listening to the fifteen presets.
 - At the integration: the site's pictures (`web/assets/units/loquax-*.webp`) and preset
-  excerpts; the README's unit grid (Loquax is not in it yet); renumbering ADR 0139.
+  excerpts; the README's unit grid (Loquax is not in it yet); renumbering ADR 0136.
 
 ## Follow-up (2026-11-17, the owner's answers)
 
@@ -194,7 +194,7 @@ plug-ins without default features, `preset_render` in release.
   `load`, `apply_fx_params`); a map that does not name it leaves it. The object stays a look:
   never heard, never a drift from a preset (`frame::modified`), and **A/B leaves it** (Cantus's
   `toggle_ab` and the plug-in editor's). A user's saved preset always writes the object it had
-  (`save_user_preset`), and loading it sets it. `EffectKind::is_look`'s comment and ADR 0139
+  (`save_user_preset`), and loading it sets it. `EffectKind::is_look`'s comment and ADR 0136
   say so; `loquax_e2e::presets_set_the_object_and_neither_the_drift_mark_nor_a_b_sees_it` holds
   it (no earlier test asserted that presets keep the user's object).
 - **Suites**: run with Caelum's step 3 (`docs/round-fx/caelum.md`): all seven crates green, clippy clean.

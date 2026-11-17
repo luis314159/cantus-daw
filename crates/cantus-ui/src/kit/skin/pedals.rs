@@ -1,4 +1,4 @@
-//! The palette of pedals (the fx side round's Fragor, ADR 0131): each enclosure's finish as
+//! The palette of pedals (the fx side round's Fragor, ADR 0128): each enclosure's finish as
 //! reviewed data, like a unit's sheet (ADR 0074 §1) — the painter
 //! (`views/fx/pedal_draw.rs`) lights these and names no colour of its own. Any effect
 //! drawn as a pedal (a future board of every Cantus effect) picks a finish here.

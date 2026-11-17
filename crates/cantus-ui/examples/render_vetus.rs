@@ -1,4 +1,4 @@
-//! Vetus's sound examples (fx side round, ADR 0133 provisional): each beside its dry twin,
+//! Vetus's sound examples (fx side round, ADR 0130): each beside its dry twin,
 //! level-matched within 1 dB, written as FLAC.
 //!
 //! - **The guitar**: the owner's reference progression (Am, F, C, G at 90 BPM, struck on

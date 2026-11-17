@@ -1,4 +1,4 @@
-# The effects side round — `vetus`: Vetus (lo-fi) and Libra (utility) (ADR 0133, provisional)
+# The effects side round — `vetus`: Vetus (lo-fi) and Libra (utility) (ADR 0130)
 
 Branch `fx/vetus` from `fx/integration` 3b6f2eba. Vetus: Phase A (DSP, engine, the design
 sheet, sounds), the owner's verdict (both objects, the Cassette face, controls live while a
@@ -17,7 +17,7 @@ Fragor, Lapsus v3) merged into `fx/vetus` on the way.
 | Engine | `cantus-engine/src/fx/vetus.rs`, `fx/libra.rs`, `tests/fx_vetus.rs`, `tests/fx_libra.rs` | `tests/support/heavy.rs`, `tests/rt_memory.rs` (`vetus_never_allocates`, `libra_never_allocates`), `cantus-bench/src/kernels.rs` (both heavy arms) |
 | UI | `views/fx/vetus.rs`, `vetus_cassette.rs`, `vetus_record.rs`, `vetus_spectrum.rs`, `vetus_modules.rs`, `unit_view.rs` (a unit's chosen view), `libra.rs`, `libra_display.rs`, `kit/skin/records.rs`, locales, presets `lofi.toml` (14), `utility.toml` (14), examples `shoot_vetus.rs`, `render_vetus.rs`, `shoot_libra.rs`, tests `vetus_face.rs`, `vetus_e2e.rs`, `libra_e2e.rs`; `views/fx/libra_balance.rs`, `kit/skin/scales.rs` | `kit/skin.rs` (`pub mod records`), `kit/skin/side.rs` (Vetus's three colourways, Libra's face, the side round's distinctness test), `views/fx/frame.rs` (window sizes), `views/fx/mod.rs` (`unit_view`), `views/fx/controls.rs` (`card_lamp_live`), `settings.rs` (`unit_views`), `app.rs` (`apply_unit_views`, `set_unit_view`, in `assemble`), `agent_units.rs`, `preset_measure.rs` (a utility's level is by design), `demos/heart/desk.rs` (the percussion through *Dusty drums*, the bass through *Bass in mono*), `tests/demos.rs`, `tests/preset_audit.rs` (both floor lines removed) |
 | Plug-ins | — | `tests/golden/ids.txt` (both units' ids appended), `tests/common/mod.rs` (both `Direct` arms and settings lines) |
-| Docs | `docs/adr/0133-…`, `docs/plugins/vetus.md`, `docs/plugins/libra.md`, this file | manual EN/ES (both sections, the list of effects), `web/src/units_data.rs` (both cards) |
+| Docs | `docs/adr/0130-…`, `docs/plugins/vetus.md`, `docs/plugins/libra.md`, this file | manual EN/ES (both sections, the list of effects), `web/src/units_data.rs` (both cards) |
 
 ## Measured
 

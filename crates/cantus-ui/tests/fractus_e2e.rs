@@ -1,4 +1,4 @@
-//! Fractus end to end (fx side round, wave A, ADR 0140 provisional), on the boot path: an app
+//! Fractus end to end (fx side round, wave A, ADR 0137), on the boot path: an app
 //! made by `CantusApp::assemble` with the real engine handle; a riff on its track and a
 //! keyboard whose track is muted (its notes still sent, ADR 0022). Fractus is inserted on the
 //! riff's strip as the picker inserts it — on its starting stutter: the last beat of each bar

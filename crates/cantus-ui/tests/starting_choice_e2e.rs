@@ -1,4 +1,4 @@
-//! The user's own starting presets end to end (ADR 0138, provisional), on the boot path: a
+//! The user's own starting presets end to end (ADR 0135), on the boot path: a
 //! `settings.json` naming Saltus's start as the mono *Fifth up, live* is read by
 //! `CantusApp::assemble`; Saltus inserted as the picker inserts it, as Tabula's *Add pedal*
 //! adds it and as an agent's `add_effect` adds it all start there, and it is heard (the

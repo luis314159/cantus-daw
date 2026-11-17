@@ -1,4 +1,4 @@
-//! Caelum's editor (ADR 0141, provisional; design sheet v2): the shimmer reverb — an
+//! Caelum's editor (ADR 0138; design sheet v2): the shimmer reverb — an
 //! observatory over two rows of cards. The display is the unit's own picture: the sky in a
 //! metal window, the tail glowing on the horizon over the tank's water and the shimmer's
 //! octaves rising band by band above it as the tail ages; the endless controls as lit

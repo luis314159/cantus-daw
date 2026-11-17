@@ -1,4 +1,4 @@
-# The effects side round — `cribrum`: Cribrum, the auto filter (ADR 0130, provisional)
+# The effects side round — `cribrum`: Cribrum, the auto filter (ADR 0127)
 
 Branch `fx/cribrum` from `fx/integration` fd29e27d. Phase A (DSP, engine, design sheet,
 sounds) then, after the owner's verdict, Phase B (his notes, the full editor, presets,
@@ -14,12 +14,12 @@ end-to-end, export, docs).
 | UI | `views/fx/cribrum.rs`, `cribrum_display.rs`, `cribrum_move.rs`, `cribrum_curve.rs`, locales `fx/cribrum.{en,es}.txt`, `presets/effects/autofilter.toml`, examples `shoot_cribrum.rs`, `render_cribrum.rs`, tests `fx_cribrum.rs`, `cribrum_e2e.rs` | `views/fx/frame.rs` (window size), `kit/skin/side.rs` (`CRIBRUM` sheet), `agent_units.rs` (the AI's description), `demos/heart/desk.rs` (the arp through *Bar sweep*), `tests/demos.rs` (range to 27), `tests/preset_audit.rs` (the contract's floor line removed) |
 | Plug-ins | — | `src/params.rs` (the curve points' group), `tests/common/mod.rs` (Cribrum's `Direct` arm and settings) |
 | Colourways | — | `kit/skin.rs` (`Colourway`, `colourways`, `colourway_of`, `set_colourways`, `swatch`; `of` returns the chosen sheet; the digest keyed by the choices), `kit/menu.rs` + `menu_slate.rs` (`Check::Swatch`), `settings.rs` (`unit_colourways`), `app.rs` (`apply_unit_colourways` in `assemble`, `set_unit_colourway`) |
-| Docs | `docs/adr/0130-…`, `docs/plugins/cribrum.md`, this file | manual EN/ES (a section and the list of effects), `web/src/units_data.rs` (the unit card) |
+| Docs | `docs/adr/0127-…`, `docs/plugins/cribrum.md`, this file | manual EN/ES (a section and the list of effects), `web/src/units_data.rs` (the unit card) |
 
 ## The owner's notes (Phase B)
 
 1. **Colour: the user's choice — colourways.** The owner, shown three variants, asked for all
-   three, selectable. A reusable mechanism of the skin system (ADR 0130 §Colourways, extending
+   three, selectable. A reusable mechanism of the skin system (ADR 0127 §Colourways, extending
    ADR 0074 §5): a unit's sheet may declare colourways (`skin::Colourway`, `skin::colourways`),
    its default first; the choice is a user preference per unit kind in `settings.json`
    (`unit_colourways`), applied by `CantusApp::assemble` and whenever it changes, chosen in the
@@ -42,7 +42,7 @@ end-to-end, export, docs).
 
 ## Measured
 
-See ADR 0130 *What the tests hold*: self-oscillation within ±4.5 cents; drawn = heard within
+See ADR 0127 *What the tests hold*: self-oscillation within ±4.5 cents; drawn = heard within
 0.096 dB; aliasing −16.7 / −23.2 / −34.2 dB at 1× / 2× / 4×; vowels within ±2 dB; at rest
 after ~1.5 s at heavy settings; the sound examples level-matched within 1 dB of their dry
 versions.

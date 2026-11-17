@@ -1,5 +1,5 @@
-//! fxa:caelum — the palette of the objects Caelum draws (the fx side round, wave A, ADR 0141
-//! provisional; design sheet v2): the observatory's window and its sill, the astrolabe the
+//! fxa:caelum — the palette of the objects Caelum draws (the fx side round, wave A, ADR 0138;
+//! design sheet v2): the observatory's window and its sill, the astrolabe the
 //! voices are read on, the rack of glass tubes the decay glows in. One metal per colourway
 //! (lacquered brass for Night, rose gold for Dawn, a bronze whose engraving holds verdigris
 //! for Aurora); the glass, the lamps' lenses, the frost. Reviewed data, like a unit's sheet

@@ -1,4 +1,4 @@
-//! Lapsus's memory of the past and how it is read (ADR 0132, provisional).
+//! Lapsus's memory of the past and how it is read (ADR 0129).
 //!
 //! **The history** is a stereo ring the unit writes every input sample into, by its stream
 //! sample; it is built off the audio thread ([`Ring::new`], handed in through the engine's

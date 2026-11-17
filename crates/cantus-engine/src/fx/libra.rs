@@ -1,4 +1,4 @@
-//! Libra, the utility (ADR 0133, provisional), behind the engine's plug-in contract. Owned
+//! Libra, the utility (ADR 0130), behind the engine's plug-in contract. Owned
 //! by Libra.
 //!
 //! [`settings`] reads the table (`cantus_core::fx::libra`) into the DSP's settings

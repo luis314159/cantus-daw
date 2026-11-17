@@ -1,4 +1,4 @@
-//! Cribrum's sound examples (fx side round, ADR 0130 provisional): Cantus's own audition
+//! Cribrum's sound examples (fx side round, ADR 0127): Cantus's own audition
 //! sources (`preset_audition::source_project`) played eight bars through Cribrum on the
 //! master, rendered offline by the engine, written as FLAC with the dry source beside each.
 //!

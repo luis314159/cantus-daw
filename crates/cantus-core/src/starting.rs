@@ -39,7 +39,7 @@ pub enum Neutral {
     Hosted,
 }
 
-/// A starting preset that is more than values (fx3:contract, ADR 0134): a whole spec —
+/// A starting preset that is more than values (fx3:contract, ADR 0131): a whole spec —
 /// a board's pedals — built by a function, with its label key.
 #[derive(Copy, Clone, Debug)]
 pub struct StartingSpec {
@@ -131,7 +131,7 @@ pub fn start_of(kind: EffectKind) -> Start {
         // starting preset would change a level or an image nobody asked to change.
         K::Utility => Start::Neutral(Flat),
         // fx3:contract — Tabula starts as the owner's guitar rig: Fragor's green overdrive at
-        // a low drive, Concentus, Delay and Spatium's spring (ADR 0134).
+        // a low drive, Concentus, Delay and Spatium's spring (ADR 0131).
         K::Board => Start::Spec(StartingSpec {
             label_key: "preset.tabula.guitar_rig",
             spec: crate::fx::tabula::guitar_rig,
@@ -326,7 +326,7 @@ pub fn start_of(kind: EffectKind) -> Start {
 }
 
 /// fx3:start — the label key an insert reports when it started on the person's own choice
-/// (ADR 0138); the choice's own name is [`crate::starting_user::UserStart::label`].
+/// (ADR 0135); the choice's own name is [`crate::starting_user::UserStart::label`].
 pub const USER_START: &str = "start.user";
 
 /// A kind's starting preset, if it has one.
@@ -341,7 +341,7 @@ pub fn starting_preset(kind: EffectKind) -> Option<StartingPreset> {
 /// key the kind does not have is left out (none does: a test holds every key to its
 /// kind). Returns the preset's label key, or `None` for a unit that starts neutral.
 pub fn apply(spec: &mut EffectSpec) -> Option<&'static str> {
-    // fx3:start — the person's own start for this unit, when they chose one (ADR 0138).
+    // fx3:start — the person's own start for this unit, when they chose one (ADR 0135).
     if let Some(u) = crate::starting_user::get(spec.kind) {
         *spec = u.spec;
         return Some(USER_START);

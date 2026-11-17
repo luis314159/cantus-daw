@@ -1,4 +1,4 @@
-//! Wave A's windows without a screen (the fx side round, ADRs 0139–0141 provisional):
+//! Wave A's windows without a screen (the fx side round, ADRs 0136–0138):
 //! Loquax, Fractus and Caelum — the design sheets.
 //!
 //! ```text

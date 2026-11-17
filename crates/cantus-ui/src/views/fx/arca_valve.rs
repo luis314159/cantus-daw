@@ -1,4 +1,4 @@
-//! Arca's valves and chassis parts, drawn (ADR 0137, provisional; the owner's v1 verdict:
+//! Arca's valves and chassis parts, drawn (ADR 0134; the owner's v1 verdict:
 //! "the valves' insides alive, the chassis a real chassis"): a valve whose **heater** glows
 //! as soon as the amp is on and whose **plate** reddens with the work it does, its getter's
 //! silver flash in the dome, micas and rods, the pins in its base, standing in a socket with

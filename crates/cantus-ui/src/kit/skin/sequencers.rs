@@ -1,5 +1,5 @@
-//! fxa:fractus — the palette of the objects Fractus draws (the fx side round, wave A, ADR 0140
-//! provisional): the sequencer's machined chassis (one finish per colourway: black anodised
+//! fxa:fractus — the palette of the objects Fractus draws (the fx side round, wave A, ADR 0137):
+//! the sequencer's machined chassis (one finish per colourway: black anodised
 //! aluminium, white powder-coated steel, violet lacquer with chrome lips), the step pads
 //! behind its glass, the scope's tube, the keys that play the lanes (ivory and ebony), the
 //! ice of a frozen cloud. Reviewed data, like a unit's sheet (ADR 0074 §1): the painter

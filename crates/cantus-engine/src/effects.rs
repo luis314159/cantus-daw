@@ -157,13 +157,13 @@ pub enum MemoryNeed {
     Aula(crate::fx::aula::AulaNeed),
     /// Delay's line for a synced time, in cells (ADR 0119). // r40:delay
     DelayLine(usize),
-    /// Lapsus's history, in frames (ADR 0132, provisional). // fx:lapsus
+    /// Lapsus's history, in frames (ADR 0129). // fx:lapsus
     Lapsus(usize),
-    /// Tabula's alignment and dry lines, in frames (ADR 0134, provisional). // fx3:contract
+    /// Tabula's alignment and dry lines, in frames (ADR 0131). // fx3:contract
     Tabula(usize),
-    /// Arca's cabinet, by what it is made from (ADR 0137, provisional). // fx3:arca
+    /// Arca's cabinet, by what it is made from (ADR 0134). // fx3:arca
     Arca(crate::fx::arca::ArcaNeed),
-    /// Fractus's whole DSP, its buffers with it (ADR 0140, provisional). // fxa:fractus
+    /// Fractus's whole DSP, its buffers with it (ADR 0137). // fxa:fractus
     Fractus,
 }
 
@@ -407,7 +407,7 @@ impl EffectUnit {
         }
     }
 
-    // fx3:contract — a board's pedals (ADR 0134; `FxUnit`'s defaults for every other unit).
+    // fx3:contract — a board's pedals (ADR 0131; `FxUnit`'s defaults for every other unit).
 
     /// A pedal built for this board (`EngineMessage::AddPedal`); what comes back is dropped
     /// off the audio thread. No allocation.

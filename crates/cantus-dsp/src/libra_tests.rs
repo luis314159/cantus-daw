@@ -1,4 +1,4 @@
-//! Libra's tests (ADR 0133, provisional).
+//! Libra's tests (ADR 0130).
 
 use super::*;
 

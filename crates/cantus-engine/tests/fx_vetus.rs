@@ -1,4 +1,4 @@
-//! Vetus through the whole engine (ADR 0133, provisional): a wire at its defaults and with
+//! Vetus through the whole engine (ADR 0130): a wire at its defaults and with
 //! every module off whatever else is set, every module heard, the same render at every block
 //! size, live equal to offline, and the noise and the age from bar 5 what the whole render
 //! has there — to the bit.

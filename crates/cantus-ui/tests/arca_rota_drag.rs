@@ -1,5 +1,5 @@
-//! Arca's and Rota's displays answer the pointer as their pictures promise (ADRs 0136 and
-//! 0137, provisional), driven frame by frame with real pointer events: the microphone
+//! Arca's and Rota's displays answer the pointer as their pictures promise (ADRs 0133 and
+//! 0134), driven frame by frame with real pointer events: the microphone
 //! dragged across Arca's cone from where it is to near the edge moves `micpos` there; dragged
 //! in the side view to the 10 cm mark it moves `micdist` there; a click on Rota's "Fast"
 //! throws the switch; Rota's right microphone dragged further round widens their angle and

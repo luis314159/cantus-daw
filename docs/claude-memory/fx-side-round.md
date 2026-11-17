@@ -35,7 +35,7 @@ Wave 2 closed (fx/integration d80a2444: Win 5 909 + Linux 6 949 + fuzz 1 208 gre
 colourways Valve/Cream/Steel; Petrol/Walnut nudged). Wave 3 started 2026-11-14: names Tabula
 (board), Saltus (pitch), Rota (rotary), Arca (amp+cab); Tabula starts as a guitar rig;
 architecture in C:\projects\daw-fx\tabula-design.md; contract agent running (schema 63,
-ADRs 0134–0137 provisional). Disk: C: ~51 GB free, WSL vhdx 100 GB (compaction needs owner/
+ADRs 0131–0134 provisional). Disk: C: ~51 GB free, WSL vhdx 100 GB (compaction needs owner/
 UAC), F: 96 % (r40's).
 Owner prefs this round: dark displays in both themes; fine strokes; colourways selectable per
 unit (Cribrum first; mechanism reusable).
@@ -44,7 +44,7 @@ unit (Cribrum first; mechanism reusable).
 ADRs up to 0126, 22 worktrees on F:, which is at 91 %).
 
 **How to apply:** worktrees in `C:\projects\daw-fx\` (integration = `fx/integration` from
-master dd4ad68b), branches `fx/*`; schema 62 and ADRs 0130–0133 are provisional, renumbered
+master dd4ad68b), branches `fx/*`; schema 62 and ADRs 0127–0130 are provisional, renumbered
 when merged after r40 lands on master (as round 41 material); max 2 cargo builders (RAM shared
 with r40); wave 1 Cribrum + Fragor, wave 2 Lapsus + Vetus/Libra; never touch F:\projects\cantus
 or daw-r40. Docs in `docs/round-fx/`. See [[round-40]], [[cantus-parallel-builders]],

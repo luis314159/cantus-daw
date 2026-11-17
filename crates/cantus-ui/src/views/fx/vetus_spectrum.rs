@@ -1,4 +1,4 @@
-//! Vetus's output (ADR 0133, provisional): beside the record, **what comes out** — the
+//! Vetus's output (ADR 0130): beside the record, **what comes out** — the
 //! output's spectrum over the input's, with the three limits an old medium sets drawn on it
 //! and dragged there:
 //!

@@ -12,13 +12,13 @@ units, four builders in two waves, one contract (`docs/round-fx/contract.md`), t
 
 ## The five units
 
-| Unit | Kind | What it is | ADR (provisional) | Presets |
+| Unit | Kind | What it is | ADR | Presets |
 |---|---|---|---|---|
-| **Cribrum** | `AutoFilter` | Two analog-modelled filters (SVF, transistor ladder, OTA cascade, diode ladder, Sallen-Key; low/band/high-pass, notch, peak, a talking vowel) in series or parallel, moved by a song-synced LFO, an envelope follower (with sidechain) and a drawn curve; the window draws the music sieved as grains under both responses. Starting preset *Bar sweep*. | 0130 | 18 |
-| **Fragor** | `Pedal` | A board of up to three circuit-modelled distortion and fuzz pedals in any order — green overdrive, op-amp distortion, silicon distortion, germanium fuzz (Bias = a dying battery), triangle muff — each solved from its schematic every sample (DK method), a gate before them, 2×/4×/8× oversampling; a valve amp glowing behind the board, energy along the cables. | 0131 | 15 |
-| **Lapsus** | `TimeShaper` | Gross Beat class: 36 time and 36 volume patterns, chosen apart and played together by knob, pad or note; drawn on the beat (tape stops, half time, stutters, rolls, reverse, scratches, gates, pumps); joins crossfaded, a 32-tap sinc read, a tape stop ending on the bar's sample at any tempo. Starting preset *Half time*. | 0132 | 17 |
-| **Vetus** | `LoFi` | Six modules in a recording's order — bits, sample rate, wow and flutter, age (dropouts, wear), noise (crackle, hiss, hum) and the band of tape, radio, telephone or gramophone — and Character, which ages them all; a cassette or an LP at the centre (a view setting), the spectrum beside it. Starting preset *Worn cassette*. | 0133 | 14 |
-| **Libra** | `Utility` | Gain, balance, width, channel operations (swap, mono, one side, mid, side), polarity, DC removal, a delay per channel in whole samples; a brass balance at the centre (the beam tilts with the balance, the pans hold each channel's level), a tuner and a goniometer around it. Inserts as a wire. | 0133 | 14 |
+| **Cribrum** | `AutoFilter` | Two analog-modelled filters (SVF, transistor ladder, OTA cascade, diode ladder, Sallen-Key; low/band/high-pass, notch, peak, a talking vowel) in series or parallel, moved by a song-synced LFO, an envelope follower (with sidechain) and a drawn curve; the window draws the music sieved as grains under both responses. Starting preset *Bar sweep*. | 0127 | 18 |
+| **Fragor** | `Pedal` | A board of up to three circuit-modelled distortion and fuzz pedals in any order — green overdrive, op-amp distortion, silicon distortion, germanium fuzz (Bias = a dying battery), triangle muff — each solved from its schematic every sample (DK method), a gate before them, 2×/4×/8× oversampling; a valve amp glowing behind the board, energy along the cables. | 0128 | 15 |
+| **Lapsus** | `TimeShaper` | Gross Beat class: 36 time and 36 volume patterns, chosen apart and played together by knob, pad or note; drawn on the beat (tape stops, half time, stutters, rolls, reverse, scratches, gates, pumps); joins crossfaded, a 32-tap sinc read, a tape stop ending on the bar's sample at any tempo. Starting preset *Half time*. | 0129 | 17 |
+| **Vetus** | `LoFi` | Six modules in a recording's order — bits, sample rate, wow and flutter, age (dropouts, wear), noise (crackle, hiss, hum) and the band of tape, radio, telephone or gramophone — and Character, which ages them all; a cassette or an LP at the centre (a view setting), the spectrum beside it. Starting preset *Worn cassette*. | 0130 | 14 |
+| **Libra** | `Utility` | Gain, balance, width, channel operations (swap, mono, one side, mid, side), polarity, DC removal, a delay per channel in whole samples; a brass balance at the centre (the beam tilts with the balance, the pans hold each channel's level), a tuner and a goniometer around it. Inserts as a wire. | 0130 | 14 |
 
 Every unit: a null test at its defaults, the table-driven `fx_contract` (block sizes
 1/37/64/512 at tolerance 0, split invariance, the exact rest twin), no allocation on the audio
@@ -32,8 +32,8 @@ the site's card. What each measured is in its builder's report and ADR.
 ## How it was built
 
 1. **The contract** (`9fe58632`, `docs/round-fx/contract.md`): the five kinds as exact
-   pass-through stubs with one parameter `out` (`ALL[26..31]`, never reordered), schema 62
-   (`fixtures/v62.cantus`), empty locale areas, the stub ADRs 0130–0133.
+   pass-through stubs with one parameter `out` (`ALL[26..31]`, never reordered), schema 72
+   (`fixtures/v72.cantus`), empty locale areas, the stub ADRs 0127–0130.
 2. **Wave 1**, Cribrum and Fragor, merged at `122ada78` and `0abc7763`; **wave 2**, Lapsus
    (`dd7b9edf`), then Vetus and Libra (`fx/vetus`, which took `fx/integration` in at
    `60f45871` and was fast-forwarded to `60cc1be6`).
@@ -50,7 +50,7 @@ All in `C:\projects\daw-fx\compartir\<unit>\` (`verdict.md` and the design folde
 - **Every unit's display stays a dark screen in both themes** (his correction, 2026-11-13);
   **finer strokes** everywhere (*"que se vea muy profesional"*, compared with FL Studio and the
   best plug-ins).
-- **Cribrum**: all three colour variants, selectable — the **colourway** mechanism (ADR 0130
+- **Cribrum**: all three colour variants, selectable — the **colourway** mechanism (ADR 0127
   §Colourways): Nocturne (the face), Brass, Petrol. Kept: the grains, one Filter card, one
   movement source at a time. Of the guitar wahs he chose the *deep* one: *Cry wah*.
 - **Fragor**: palette **A, warm amber** with glowing valves behind the board (*"metele más
@@ -83,7 +83,7 @@ All in `C:\projects\daw-fx\compartir\<unit>\` (`verdict.md` and the design folde
 - **Colourways held to the house rule** (`kit/skin/side.rs`): the tests now hold **every
   colourway offered**, not only the default faces — no material and accent within 20° of
   another unit's face or colourway, no two of the round's sheets in the same two voices (ADR
-  0130 §Colourways 6 amended). Fragor's palettes B and C are now **offered colourways**
+  0127 §Colourways 6 amended). Fragor's palettes B and C are now **offered colourways**
   through Cribrum's mechanism (`unit_colourways`, the window's ⋯ menu; `fragor_colourways`
   through the boot path): **Valve** (the face), **Cream**, **Steel**. What failed, fixed as
   little as it could be:
@@ -167,13 +167,10 @@ All in `C:\projects\daw-fx\compartir\<unit>\` (`verdict.md` and the design folde
 
 ## At the merge after round 40
 
-1. **Renumber**: schema **62** → the next after round 40's last (round 40 used 62–70) —
-   `SCHEMA_VERSION`, the migration, `fixtures/v62.cantus` rewritten under its new number by
-   `write_fixture` (every older fixture still loading), the `upto >= 62` block in
-   `examples/write_fixture.rs`, `schema_62_carries_lapsus_s_bank` and the comments that say 62;
-   ADRs **0130–0133** → after round 40's last (it reached 0126 and beyond): the files, every
-   cross-reference (`grep -rn "013[0-3]"` in `docs/`, `crates/`, `web/`), the BUILDING and the
-   reports. The numbers appear in no user-facing text (BUILDING's rule).
+1. ~~**Renumber**: schema 62 → the next after round 40's last; ADRs 0130–0133 → after round
+   40's last.~~ — done at the final merge (`fx/final`): schema 62/63/64 → 72/73/74, ADRs
+   0130–0141 → 0127–0138, every cross-reference with them (this file's numbers are the final
+   ones); the table in `final-merge.md`.
 2. **The golden ids** (`cantus-plugins/tests/golden/ids.txt`) are append-only: round 40's and
    ours both append — keep both, in merge order.
 3. **The `side/web` branch's site work** (seven commits on top of `master` `dd4ad68b`, its

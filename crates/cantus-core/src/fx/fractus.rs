@@ -1,4 +1,4 @@
-//! Fractus, the glitch sequencer and grain cloud (ADR 0140, provisional): its parameter
+//! Fractus, the glitch sequencer and grain cloud (ADR 0137): its parameter
 //! model and its painted lanes. Owned by the wave-A builder; the DSP is
 //! `cantus_dsp::fractus`, whose report (`docs/round-fx/fractus.md`) says why it is built as
 //! it is.

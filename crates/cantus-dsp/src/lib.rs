@@ -100,14 +100,14 @@ pub mod va;
 pub mod vibrans;
 pub mod voices;
 
-// fx:contract — the fx side round's five units (provisional ADRs 0130–0133).
+// fx:contract — the fx side round's five units (ADRs 0127–0130).
 pub mod cribrum; // fx:contract
 pub mod fragor; // fx:contract
 pub mod lapsus; // fx:contract
 pub mod libra; // fx:contract
 pub mod vetus; // fx:contract
 
-// fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+// fx3:contract — the side round's wave 3 (ADRs 0131–0134).
 pub mod arca; // fx3:contract
 pub mod rota; // fx3:contract
 pub mod saltus; // fx3:contract

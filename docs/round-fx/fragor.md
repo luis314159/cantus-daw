@@ -1,4 +1,4 @@
-# The fx side round — `fragor`: Fragor, the pedals (ADR 0131, provisional)
+# The fx side round — `fragor`: Fragor, the pedals (ADR 0128)
 
 Fragor (`EffectKind::Pedal`): a board of up to three circuit-modelled distortion and fuzz
 pedals in any order — green overdrive (TS808), op-amp distortion (RAT), silicon distortion
@@ -17,7 +17,7 @@ elaborate original pedal art, pedals of any size, energy in the cables; v3 appro
 | Engine | `cantus-engine/src/fx/fragor.rs`, `tests/fx_fragor.rs` | `tests/support/heavy.rs` |
 | UI | `views/fx/fragor.rs` (editor), `fragor_view.rs` (display, its worker thread), `pedal_draw.rs`, `pedal_art.rs`, `valve_draw.rs` (reusable), `kit/skin/pedals.rs` (finishes, shapes, valve colours), locales `fx/fragor.{en,es}.txt`, `presets/effects/pedal.toml` (15), `tests/fragor_e2e.rs`, examples `shoot_fragor.rs`, `fragor_guitar.rs` | `views/fx/mod.rs`, `views/fx/frame.rs` (designed size 1140 × 800; hue Tone), `views/inspector_mini.rs` (hue Tone), `kit/skin.rs` (`pub mod pedals`, `FRAGOR_COLOURWAYS`), `kit/skin/side.rs` (palette A as the face; B and C as data), `agent_units.rs` (the AI's description), `tests/preset_audit.rs` (Pedal's floor line removed), `demos/heart/desk.rs` (Fragor on the showcase's guitar), `tests/demos.rs` (the showcase checks it), `preset_measure.rs` (Fragor's CPU budget, 0.25), `tests/learn_everywhere.rs` (a footswitch of a pedal not on the board draws nothing) |
 | Plug-ins | — | `tests/golden/ids.txt` (ids appended), `tests/common/mod.rs` (Fragor's settings line) |
-| Docs | `docs/adr/0131-fragor-the-pedals.md`, `docs/plugins/fragor.md`, this file | `docs/manual/{en,es}/README.md` (Fragor's section) |
+| Docs | `docs/adr/0128-fragor-the-pedals.md`, `docs/plugins/fragor.md`, this file | `docs/manual/{en,es}/README.md` (Fragor's section) |
 | Site | `web/assets/units/fragor-{dark,light,thumb}{,-es}.webp` | `web/src/units_data.rs` (the card) |
 
 The circuits, the values, the method and what each test holds are in the ADR.

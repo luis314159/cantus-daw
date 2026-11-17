@@ -1,4 +1,4 @@
-//! Tabula's edits from its window (ADR 0134 §2): each gesture on the board is one step of
+//! Tabula's edits from its window (ADR 0131 §2): each gesture on the board is one step of
 //! undo — a footswitch, a pedal added, taken out, moved or onto a lane, a shape, a macro's
 //! maps or name, a randomised board. In Cantus they run through the project's bus; in the
 //! exported plug-in the host applies them to its own board (`FxHost::board_commands`).

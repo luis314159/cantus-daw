@@ -1,4 +1,4 @@
-//! Tabula's window without a screen (the fx side round, wave 3, ADR 0134): the design sheet.
+//! Tabula's window without a screen (the fx side round, wave 3, ADR 0131): the design sheet.
 //!
 //! ```text
 //! cargo run -p cantus-ui --example shoot_tabula -- [out-dir]

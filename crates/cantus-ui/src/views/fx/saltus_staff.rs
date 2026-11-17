@@ -1,4 +1,4 @@
-//! Saltus's staff (ADR 0135, provisional): the band over the leap is a grand staff where the
+//! Saltus's staff (ADR 0132): the band over the leap is a grand staff where the
 //! last seconds are written as they are sung — the pitch heard as a line moving through the
 //! staff (its vibrato, its slides), each voice's line beside it in its colour — and at the
 //! right edge, now, the notes themselves: the note heard and every voice as note heads, with

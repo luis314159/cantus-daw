@@ -1,4 +1,4 @@
-//! fxa — wave A's faces (Loquax, Fractus, Caelum; ADRs 0139–0141, provisional), each with
+//! fxa — wave A's faces (Loquax, Fractus, Caelum; ADRs 0136–0138), each with
 //! its colourways. Every display dark in both themes; fine strokes; no vents. Each face's
 //! voices sit apart from every other unit's of the side round (`side.rs`'s tests).
 

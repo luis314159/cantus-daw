@@ -1,4 +1,4 @@
-//! Libra's editor: the utility (fx side round, ADR 0133 provisional).
+//! Libra's editor: the utility (fx side round, ADR 0130).
 //!
 //! *Libra* is Latin for the balance (the scales). Its display is the measure of a channel:
 //! the **tuner** (a needle on a fine scale, the note large, the reference A dragged), the

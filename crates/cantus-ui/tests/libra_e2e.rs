@@ -1,4 +1,4 @@
-//! Libra end to end (fx side round, ADR 0133 provisional), on the boot path: an app made by
+//! Libra end to end (fx side round, ADR 0130), on the boot path: an app made by
 //! `CantusApp::assemble` with the real engine handle; a chord playing on a track; Libra
 //! inserted on its strip as the picker inserts it (a wire: the master is the dry one, to the
 //! bit); then its gain and its operation changed as the editor changes them — −6 dB and the

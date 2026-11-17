@@ -1,4 +1,4 @@
-//! Libra, the utility (ADR 0133, provisional): a channel's everyday corrections.
+//! Libra, the utility (ADR 0130): a channel's everyday corrections.
 //!
 //! In order: **DC removal** (a 5 Hz first-order high-pass), the **channel operation** (swap,
 //! mono, one side to both, mid or side to both), **polarity** per channel, a **delay** per

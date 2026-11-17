@@ -1,4 +1,4 @@
-//! Arca, amp and cabinet (ADR 0137, provisional): a valve amp solved as its circuit, and
+//! Arca, amp and cabinet (ADR 0134): a valve amp solved as its circuit, and
 //! its cabinet by impulse response.
 //!
 //! ```text

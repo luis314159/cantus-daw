@@ -1,4 +1,4 @@
-//! Saltus's display (ADR 0135, provisional): **the leap**. A keyboard across a dark
+//! Saltus's display (ADR 0132): **the leap**. A keyboard across a dark
 //! vacuum-fluorescent screen; the note heard lit on it and named large; from it an arc to
 //! each voice, up or down by its interval, as thick as the voice is loud, labelled with the
 //! interval's name and the note it lands on — the landing dragged to another key to change

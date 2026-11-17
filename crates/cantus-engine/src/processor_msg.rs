@@ -46,7 +46,7 @@ impl Processor {
                     }
                 }
                 EngineMessage::ReplaceEffect(unit) => self.replace_effect(unit),
-                // fx3:contract — Tabula's pedals (ADR 0134).
+                // fx3:contract — Tabula's pedals (ADR 0131).
                 EngineMessage::AddPedal {
                     effect,
                     pedal,

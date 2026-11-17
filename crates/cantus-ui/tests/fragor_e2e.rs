@@ -1,4 +1,4 @@
-//! Fragor end to end (ADR 0131), on the boot path: an app made by `CantusApp::assemble`
+//! Fragor end to end (ADR 0128), on the boot path: an app made by `CantusApp::assemble`
 //! with the real engine handle; Fragor inserted on a playing track's strip the way the
 //! picker inserts it (its starting preset: the green overdrive on the board); the song
 //! rendered offline through the engine's compile — the path export, freeze and stems take —

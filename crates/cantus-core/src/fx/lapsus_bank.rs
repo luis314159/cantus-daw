@@ -1,4 +1,4 @@
-//! Lapsus's factory banks (ADR 0132, provisional): thirty-six **time** patterns and
+//! Lapsus's factory banks (ADR 0129): thirty-six **time** patterns and
 //! thirty-six **volume** patterns, each bank in six rows of six. Owned by Lapsus. Forever
 //! once shipped: a project that never edited a slot plays these.
 //!

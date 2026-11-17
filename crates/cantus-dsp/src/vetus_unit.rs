@@ -1,4 +1,4 @@
-//! Vetus's unit (ADR 0133, provisional): the six modules in their order, their switches'
+//! Vetus's unit (ADR 0130): the six modules in their order, their switches'
 //! crossfades, the 16-sample grid of the song where coefficients are designed and filters
 //! settled, the rest predicate and the telemetry. The modules' maths are in `vetus_*.rs`.
 

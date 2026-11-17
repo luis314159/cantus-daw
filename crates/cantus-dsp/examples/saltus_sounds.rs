@@ -1,4 +1,4 @@
-//! Saltus's listening examples (fx side round, wave 3; ADR 0135 provisional): the owner's
+//! Saltus's listening examples (fx side round, wave 3; ADR 0132): the owner's
 //! reference guitar progression — Am, F, C, G at 90 BPM, struck on beats 1 and 3, eight
 //! bars, from Carbonthief's CC0 DI strums — through the poly engine (octaves, a fifth, a
 //! doubler, the whammy swept), a synthesized bass line through the octaver, and a

@@ -1,4 +1,4 @@
-//! Rota, the rotary speaker, through the whole engine (ADR 0136, provisional): at its
+//! Rota, the rotary speaker, through the whole engine (ADR 0133): at its
 //! defaults (mix 0) the mix untouched, to the bit, no latency; the starting preset sounds;
 //! offline equals real time; and on Tabula's board, a board of one is the insert, to the
 //! bit. // fx3:rota

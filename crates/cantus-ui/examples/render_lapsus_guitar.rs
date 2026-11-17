@@ -1,4 +1,4 @@
-//! Lapsus on a real guitar (fx side round, ADR 0132 provisional): the owner's reference
+//! Lapsus on a real guitar (fx side round, ADR 0129): the owner's reference
 //! progression — Am, F, C, G, one chord a bar at 90 BPM, struck on beats 1 and 3, eight
 //! bars — built from DI strums read with Cantus's own decoder and resampled to 48 kHz with
 //! its resampler, then played through Lapsus's engine unit on the song's clock and written

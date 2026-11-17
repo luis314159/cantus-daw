@@ -1,7 +1,7 @@
 //! Arca's five amps, each a family of published circuits (generic names in the interface;
 //! no product's name, logo or look). Values are the schematics'; where a text source could
 //! not confirm one, the family's usual value is used and marked *typical* here and in
-//! ADR 0137.
+//! ADR 0134.
 //!
 //! | Model | Family (published schematic) | Preamp | Power |
 //! |---|---|---|---|

@@ -1,4 +1,4 @@
-//! Tabula's editor: the pedalboard (ADR 0134 §5) — native units as pedals on a dark board,
+//! Tabula's editor: the pedalboard (ADR 0131 §5) — native units as pedals on a dark board,
 //! the macro rail along its top, the A/B split's splitter and mixer, the pedal picker, and
 //! each pedal's own full editor opened from the board.
 //!

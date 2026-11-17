@@ -1,5 +1,5 @@
 //! A unit's **view**: which of its drawings its window shows (Vetus's record or cassette,
-//! ADR 0133) — a user preference per unit kind, like a colourway (ADR 0130 §Colourways):
+//! ADR 0130) — a user preference per unit kind, like a colourway (ADR 0127 §Colourways):
 //! never in a song, never heard. `settings.json`'s `unit_views` (`{ "vetus": "cassette" }`)
 //! is applied on the thread that draws by `CantusApp::apply_unit_views` — at start in
 //! `CantusApp::assemble` and whenever one changes; the exported plug-in's window has no

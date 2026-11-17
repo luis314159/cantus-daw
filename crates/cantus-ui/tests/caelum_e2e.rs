@@ -1,4 +1,4 @@
-//! Caelum end to end (fx side round, wave A, ADR 0141 provisional), on the boot path: an app
+//! Caelum end to end (fx side round, wave A, ADR 0138), on the boot path: an app
 //! made by `CantusApp::assemble` with the real engine handle; a chord struck once on its
 //! track (half a second, then silence for the tail) and a second track that plays later (the
 //! key). Caelum is inserted on the chord's strip as the picker inserts it — on its starting

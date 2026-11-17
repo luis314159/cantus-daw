@@ -1,7 +1,7 @@
 # Vetus — lo-fi
 
 *Effect kind `LoFi`. References: XLN RC-20 Retro Color, iZotope Vinyl, FL Studio's Fruity
-Squeeze, Ableton's Redux and Vinyl Distortion (ADR 0133, provisional number).*
+Squeeze, Ableton's Redux and Vinyl Distortion (ADR 0130).*
 
 *Vetus* is Latin for old. Vetus ages a sound as an old medium aged it: six modules in the
 order a recording travels — **bits** and **sample rate** (the cheap converter), **wow and

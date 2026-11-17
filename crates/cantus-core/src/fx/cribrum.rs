@@ -1,4 +1,4 @@
-//! Cribrum, the auto filter (ADR 0130, provisional): its parameter model.
+//! Cribrum, the auto filter (ADR 0127): its parameter model.
 //! Owned by Cribrum; nothing else edits this file.
 //!
 //! Two filters (the synths' zero-delay-feedback models, `cantus_dsp::va::filter`) moved by

@@ -1,4 +1,4 @@
-//! Vetus's age (ADR 0133, provisional): **dropouts** (a worn tape's oxide missing for a
+//! Vetus's age (ADR 0130): **dropouts** (a worn tape's oxide missing for a
 //! moment: the level falls and the top dulls) and **wear** (the level and the brightness
 //! wandering slowly, as an old tape's do).
 //!

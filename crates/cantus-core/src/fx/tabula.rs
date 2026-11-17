@@ -1,4 +1,4 @@
-//! Tabula, the pedalboard (ADR 0134, provisional): its model. Owned by tabula; nothing else
+//! Tabula, the pedalboard (ADR 0131): its model. Owned by tabula; nothing else
 //! edits this file. **The fx side round's wave-3 contract** declared it whole: the board,
 //! its pedals, the A/B split, the macros, how a pedal's parameter is addressed, what may be
 //! a pedal, and the board's own twelve parameters.
@@ -193,12 +193,12 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             | EffectKind::Analyzer
             // fxa:contract — wave A's three join the board with their faces (phase B).
             // fxa:loquax — Loquax stays off: a board has no key and hears no notes, so a
-            // vocoder pedal could only ever drone its robot (ADR 0139, phase B).
+            // vocoder pedal could only ever drone its robot (ADR 0136, phase B).
             | EffectKind::Vocoder
             // fxa:fractus — Fractus stays off too: its lanes are its whole instrument and
             // `SetFractusLane` addresses an insert, not a pedal (no lane could be painted on
             // a board), and a board hears no notes, so its keys and the presets they play
-            // would do nothing (ADR 0140, phase B).
+            // would do nothing (ADR 0137, phase B).
             // fxa:caelum — Caelum is a pedal: a reverb pedal is natural. Its ducking hears
             // the board's key when the slot is keyed (a board takes a key when a pedal does),
             // its own input otherwise; its pre-delay syncs to the song through the board.

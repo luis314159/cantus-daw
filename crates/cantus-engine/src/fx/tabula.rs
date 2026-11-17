@@ -1,4 +1,4 @@
-//! Tabula, the pedalboard (ADR 0134, provisional), behind the engine's plug-in contract.
+//! Tabula, the pedalboard (ADR 0131), behind the engine's plug-in contract.
 //! Owned by the tabula builder.
 //!
 //! A board runs its pedals — each an [`EffectUnit`] of a native kind, built off the audio

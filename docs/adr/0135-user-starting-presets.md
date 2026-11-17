@@ -1,8 +1,7 @@
-# ADR 0138 — The user chooses each unit's starting preset
+# ADR 0135 — The user chooses each unit's starting preset
 
-**Status:** accepted by the owner (2026-11-15), provisional number (fx side round, wave 3 —
-renumbered at the merge after round 40) · **Relates to:** ADR 0071 (effects that sound on
-insert), ADR 0101 (presets), ADR 0134 (Tabula), ADR 0135 (Saltus)
+**Status:** accepted by the owner (2026-11-15) (fx side round, wave 3) · **Relates to:** ADR 0071 (effects that sound on
+insert), ADR 0101 (presets), ADR 0131 (Tabula), ADR 0132 (Saltus)
 
 ## Context
 

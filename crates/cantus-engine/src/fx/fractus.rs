@@ -1,4 +1,4 @@
-//! Fractus, the glitch sequencer and grain cloud (ADR 0140, provisional), behind the
+//! Fractus, the glitch sequencer and grain cloud (ADR 0137), behind the
 //! engine's plug-in contract. Owned by the wave-A builder.
 //!
 //! **Its memory is built off the audio thread.** The DSP holds 8.6 MB at 48 kHz (34 MB at

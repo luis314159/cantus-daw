@@ -1,4 +1,4 @@
-//! Fragor's editor: the pedalboard (ADR 0131).
+//! Fragor's editor: the pedalboard (ADR 0128).
 //!
 //! The window is the board seen from above: up to three pedals standing on it, each in
 //! its own finish with its knobs as the pedal labels them, its footswitch and its LED,
@@ -169,7 +169,7 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
         };
     }
     let out_db = [st.meters.0[1], st.meters.0[1]];
-    // The ⋯ menu's colourways (ADR 0130 §Colourways), each row with its swatch.
+    // The ⋯ menu's colourways (ADR 0127 §Colourways), each row with its swatch.
     let unit = crate::kit::skin::Unit::Effect(KIND);
     let ways = crate::kit::skin::colourways(unit);
     let wearing = crate::kit::skin::colourway_of(unit).map(|w| w.id);

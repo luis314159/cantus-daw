@@ -2,7 +2,7 @@
 
 *Effect kind `Amp`. References: amp simulators of the circuit-modelling kind (Neural DSP,
 Line 6 Helix, Kemper's profiles, Positive Grid), impulse-response loaders, FL Studio's
-Fruity Fast Dist for the opposite end (ADR 0137, provisional number).*
+Fruity Fast Dist for the opposite end (ADR 0134).*
 
 *Arca* is Latin for the chest. Each amp is its schematic solved as a circuit, valve by valve
 (Koren's triodes and pentodes, grid current, coupling and cathode networks, the tone stack

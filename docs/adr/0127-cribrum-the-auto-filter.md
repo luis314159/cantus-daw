@@ -1,7 +1,7 @@
-# ADR 0130 — Cribrum, the auto filter
+# ADR 0127 — Cribrum, the auto filter
 
-**Status:** accepted (fx side round, provisional number — renumbered at merge) · **Date:**
-2026-11-13 · **Schema:** none of its own (the contract's 62 declared the kind; Cribrum's
+**Status:** accepted (fx side round) · **Date:**
+2026-11-13 · **Schema:** none of its own (the contract's 72 declared the kind; Cribrum's
 table is the kind's parameters, sparse, so old projects need no migration) · **Relates to:**
 ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults), ADR 0020 (our
 plug-ins outside Cantus), ADR 0023 (the VA filters), ADR 0031 §5.1 (at rest), ADR 0055 (the

@@ -197,13 +197,13 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
                                                                       // keys, which hold it.
     let lateness_repaired = file.project.repair_lateness();
     // fx3:contract — boards a command would refuse (a hand edit): a nested board, a hosted
-    // pedal, a duplicate id, a map to nothing (ADR 0134). Never to the audio thread.
+    // pedal, a duplicate id, a map to nothing (ADR 0131). Never to the audio thread.
     let boards_repaired = cantus_core::fx::tabula::repair_project(&mut file.project);
     if boards_repaired > 0 {
         log::warn!("{boards_repaired} malformed board entr(ies) repaired");
     }
     // fxa:contract — Fractus's lanes a command would refuse (a hand edit): overlapping or
-    // past the cycle, or on a slot that is not a Fractus (ADR 0140).
+    // past the cycle, or on a slot that is not a Fractus (ADR 0137).
     let lanes_repaired = cantus_core::fx::fractus::repair_project(&mut file.project);
     if lanes_repaired > 0 {
         log::warn!("{lanes_repaired} malformed glitch pattern(s) repaired");

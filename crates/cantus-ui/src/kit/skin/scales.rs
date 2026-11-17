@@ -1,4 +1,4 @@
-//! The palette of Libra's balance (the fx side round, ADR 0133 provisional): a brass pair of
+//! The palette of Libra's balance (the fx side round, ADR 0130): a brass pair of
 //! scales as reviewed data, like a unit's sheet (ADR 0074 §1) — the painter
 //! (`views/fx/libra_balance.rs`) lights these and names no colour of its own. An object, so
 //! — like a display (ADR 0074 §7) — it keeps its colours in every theme, on the dark screen.

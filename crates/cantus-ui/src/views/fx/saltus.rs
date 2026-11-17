@@ -1,4 +1,4 @@
-//! Saltus's editor: the pitch unit (fx side round, wave 3, ADR 0135 provisional).
+//! Saltus's editor: the pitch unit (fx side round, wave 3, ADR 0132).
 //!
 //! *Saltus* is Latin for the leap, and the window draws one: across its dark display a
 //! keyboard, the note it hears lit on it, and from that key **an arc to each voice** — up or

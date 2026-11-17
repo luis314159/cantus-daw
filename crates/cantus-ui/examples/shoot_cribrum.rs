@@ -1,5 +1,5 @@
-//! Cribrum's editor in its device frame, without a screen (fx side round, ADR 0130
-//! provisional): the design sheet's pictures.
+//! Cribrum's editor in its device frame, without a screen (fx side round, ADR 0127):
+//! the design sheet's pictures.
 //!
 //! ```text
 //! cargo run -p cantus-ui --example shoot_cribrum -- [out-dir] [scales…]
@@ -135,7 +135,7 @@ fn main() {
     }
 }
 
-/// The colourways as the user chooses them (ADR 0130 §Colourways): the demo playing in each,
+/// The colourways as the user chooses them (ADR 0127 §Colourways): the demo playing in each,
 /// Slate English and Paper Spanish at 100 %, into `<dir>/colour/final/`.
 fn colourways(dir: &std::path::Path) {
     use cantus_ui::i18n::Locale;

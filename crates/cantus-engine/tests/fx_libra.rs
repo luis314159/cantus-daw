@@ -1,4 +1,4 @@
-//! Libra through the whole engine (ADR 0133, provisional): a wire at its defaults, the gain
+//! Libra through the whole engine (ADR 0130): a wire at its defaults, the gain
 //! heard exactly, a delay exact to the sample, the same render at every block size, live
 //! equal to offline.
 

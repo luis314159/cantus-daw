@@ -1,7 +1,7 @@
 # Tabula, the pedalboard — the builder's report (fx side round, wave 3)
 
-Branch `fx/tabula` from `fx/integration` (`d3b51a09`, the wave-3 contract). ADR 0134
-(provisional number). Phase A (commands, engine, design sheet) and, after the owner's verdict
+Branch `fx/tabula` from `fx/integration` (`d3b51a09`, the wave-3 contract). ADR 0131.
+Phase A (commands, engine, design sheet) and, after the owner's verdict
 (2026-11-15: a finer, subtler vinyl; bigger pedals filling the board, wrapping then
 scrolling; a face of its own without the vents), phase B.
 
@@ -33,7 +33,7 @@ scrolling; a face of its own without the vents), phase B.
   guitar rig, boards posted through rings with their new pedals built off the audio thread
   (`board_post.rs`), the memory builder routing pedals' needs, the editor's pedal edits and
   board commands applied to the instance's board.
-- **Docs**: `docs/plugins/tabula.md`, the manual (EN and ES), ADR 0134 finished, the site's
+- **Docs**: `docs/plugins/tabula.md`, the manual (EN and ES), ADR 0131 finished, the site's
   card, the AI's unit description and effect words.
 
 ## Measured
@@ -48,7 +48,7 @@ scrolling; a face of its own without the vents), phase B.
 
 ## Tests and what each holds
 
-See ADR 0134 *What the tests hold*. Files: `crates/cantus-core/src/command_board_tests.rs`,
+See ADR 0131 *What the tests hold*. Files: `crates/cantus-core/src/command_board_tests.rs`,
 `fx/tabula.rs`, `fx/tabula_presets.rs`, `fx/tabula_random.rs` (unit tests),
 `crates/cantus-core/tests/undo_invariants.rs` (the board's arm),
 `crates/cantus-engine/tests/fx_tabula.rs`, `fx_contract.rs` (`a_board_of_one_is_the_unit`,

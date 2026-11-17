@@ -4,8 +4,8 @@
 //! rows of six, each a small screen with its curve, the playing one lit, the one the knob
 //! sets ringed when a note plays another. Under them the keyboard that plays both: one
 //! range of 36 notes for each bank, coloured as its curve. A click on a pad chooses that
-//! bank's slot (one step of undo, the slot parameter's command). Fx side round, ADR 0132
-//! provisional.
+//! bank's slot (one step of undo, the slot parameter's command). Fx side round, ADR 0129.
+//! 
 
 use super::super::canvas::{self, Ink};
 use super::super::controls;

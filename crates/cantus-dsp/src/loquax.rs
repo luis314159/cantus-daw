@@ -1,4 +1,4 @@
-//! Loquax, the vocoder (provisional ADR; name provisional: [`NAME`]) — Latin *loquax*,
+//! Loquax, the vocoder (ADR 0136; the name: [`NAME`]) — Latin *loquax*,
 //! talkative.
 //!
 //! A voice (the **modulator**) speaks through another sound (the **carrier**): the
@@ -51,7 +51,7 @@ use voicing::Voicing;
 
 pub use carrier::{NoteEvent, NoteKind};
 
-/// The unit's name, in one place (provisional — the owner may rename it).
+/// The unit's name, in one place (approved by the owner, 2026-11-17).
 pub const NAME: &str = "Loquax";
 
 /// Where the carrier comes from.

@@ -1,4 +1,4 @@
-//! Rota's editor: the rotary speaker (fx side round, wave 3, ADR 0136 provisional).
+//! Rota's editor: the rotary speaker (fx side round, wave 3, ADR 0133).
 //!
 //! *Rota* is Latin for the wheel. Its dark display is the cabinet three ways: **cut away**
 //! from the front, the horn turning in the upper chamber and the drum's scoop in the lower,

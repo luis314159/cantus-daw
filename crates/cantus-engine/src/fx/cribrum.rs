@@ -1,4 +1,4 @@
-//! Cribrum, the auto filter (ADR 0130, provisional), behind the engine's plug-in contract.
+//! Cribrum, the auto filter (ADR 0127), behind the engine's plug-in contract.
 //! Owned by Cribrum.
 //!
 //! [`settings`] reads the table (`cantus_core::fx::cribrum`: the globals and the curve's

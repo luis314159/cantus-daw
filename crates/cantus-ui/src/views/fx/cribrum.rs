@@ -1,4 +1,4 @@
-//! Cribrum's editor: the auto filter (fx side round, ADR 0130 provisional).
+//! Cribrum's editor: the auto filter (fx side round, ADR 0127).
 //!
 //! *Cribrum* is Latin for a sieve, and the window is one: the display at the top is **what
 //! passes** — the music's spectrum as grains, lit where the filters let it through and
@@ -112,7 +112,7 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     let chip: Vec<&str> = std::iter::once(chip_lat.as_str())
         .chain(chip_os.as_deref())
         .collect();
-    // The ⋯ menu's colourways (ADR 0130 §Colourways), each row with its swatch.
+    // The ⋯ menu's colourways (ADR 0127 §Colourways), each row with its swatch.
     let unit = crate::kit::skin::Unit::Effect(KIND);
     let ways = crate::kit::skin::colourways(unit);
     let wearing = crate::kit::skin::colourway_of(unit).map(|w| w.id);

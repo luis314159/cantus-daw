@@ -1,4 +1,4 @@
-//! Loquax's editor answers the pointer as its picture promises (ADR 0139 provisional, phase
+//! Loquax's editor answers the pointer as its picture promises (ADR 0136, phase
 //! B), driven frame by frame with real pointer events through the window the app draws:
 //! a stroke dragged across the bank's screen draws the band levels (`b0` … `b63`) — the
 //! band it starts on at the level it was pressed at, the one it ends on at the level it

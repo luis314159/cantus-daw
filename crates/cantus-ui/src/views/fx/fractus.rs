@@ -1,4 +1,4 @@
-//! Fractus's editor (ADR 0140, provisional): the glitch sequencer and grain cloud — the
+//! Fractus's editor (ADR 0137): the glitch sequencer and grain cloud — the
 //! lanes and the cloud over three rows of cards. The display is the unit's own picture:
 //! ten lanes of painted blocks on the song's grid with the playhead, the lanes sounding
 //! lit; the grains sounding where they read and at their pitch; the ten keys that play the

@@ -1,5 +1,5 @@
-//! Saltus, the pitch unit: octaver, pitch shifter and harmoniser, whammy (ADR 0135,
-//! provisional): its parameter model. Owned by the saltus builder; nothing else edits this
+//! Saltus, the pitch unit: octaver, pitch shifter and harmoniser, whammy (ADR 0132):
+//! its parameter model. Owned by the saltus builder; nothing else edits this
 //! file. The DSP is `cantus_dsp::saltus`; the ADR says why it is built as it is.
 //!
 //! Keys are forever once shipped (automation, saved projects and the exported plug-ins' ids

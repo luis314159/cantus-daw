@@ -1,4 +1,4 @@
-//! Caelum, the shimmer reverb, through the whole engine (ADR 0141, provisional): at its
+//! Caelum, the shimmer reverb, through the whole engine (ADR 0138): at its
 //! defaults (mix 0) the mix untouched, to the bit, no latency; the starting preset sounds;
 //! offline equals real time; the ducking hears another strip through the sidechain; a
 //! synced pre-delay is its note at the song's tempo; a fork carries on as the unit does;

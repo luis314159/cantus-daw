@@ -1,5 +1,5 @@
-//! fxa:loquax — the palette of the objects Loquax draws (the fx side round, wave A, ADR 0139
-//! provisional): the vocoder's gooseneck microphone (its satin-black head, the woven grille,
+//! fxa:loquax — the palette of the objects Loquax draws (the fx side round, wave A, ADR 0136):
+//! the vocoder's gooseneck microphone (its satin-black head, the woven grille,
 //! the ribbed neck, the chrome socket), the bezels its screen and meters sit in (one per
 //! colourway: brushed aluminium, black lacquer, the road case's steel), the meter bridge's
 //! smoked faces and needles. Reviewed data, like a unit's sheet (ADR 0074 §1): the painter

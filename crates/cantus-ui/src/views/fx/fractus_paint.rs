@@ -1,4 +1,4 @@
-//! Fractus's lanes under the pointer (ADR 0140, phase B) — the display is the sequencer, so
+//! Fractus's lanes under the pointer (ADR 0137, phase B) — the display is the sequencer, so
 //! it is painted on as one:
 //!
 //! - **Press on a step and drag along the lane**: a block from the step pressed to the step

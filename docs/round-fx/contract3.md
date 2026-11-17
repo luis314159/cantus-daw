@@ -5,17 +5,17 @@ wired into every list, as the design (`C:\projects\daw-fx\tabula-design.md`) lay
 §7. The three units are exact pass-through stubs with one parameter `out` (dB, default 0 — a
 null); the board has its real model, its twelve parameters, the routed spec API with the
 generic callers switched, its command variants (bodies that refuse), the engine's plumbing
-(an empty board — a wire — until its builder writes it); schema 63 (provisional) and
-`fixtures/v63.cantus`; the ADR stubs 0134–0137 (0134 holds the design's decisions). No golden
+(an empty board — a wire — until its builder writes it); schema 73 (63 until the final merge) and
+`fixtures/v73.cantus`; the ADR stubs 0131–0134 (0131 holds the design's decisions). No golden
 hash moved, `DSP_VERSION` unchanged, every old song renders to the bit. Every added line in a
 shared file carries `// fx3:contract` (or `// fx3:<stem>` where it is one builder's line).
 
 | Variant | Stem | Unit | `ALL` | ADR |
 |---|---|---|---|---|
-| `Board` | `tabula` | Tabula, the pedalboard | 31 | 0134 |
-| `PitchShift` | `saltus` | Saltus, pitch | 32 | 0135 |
-| `Rotary` | `rota` | Rota, the rotary speaker | 33 | 0136 |
-| `Amp` | `arca` | Arca, amp and cabinet | 34 | 0137 |
+| `Board` | `tabula` | Tabula, the pedalboard | 31 | 0131 |
+| `PitchShift` | `saltus` | Saltus, pitch | 32 | 0132 |
+| `Rotary` | `rota` | Rota, the rotary speaker | 33 | 0133 |
+| `Amp` | `arca` | Arca, amp and cabinet | 34 | 0134 |
 
 Never reorder `ALL`. Keep each unit's `out` key (its plug-in ids are blessed; the golden ids
 are append-only — add yours with `CANTUS_BLESS_IDS=1 cargo test -p cantus-plugins --test
@@ -48,8 +48,8 @@ ids`). The board's twelve keys are its exported plug-in's whole list, forever.
   passes it back); `MemoryNeed::Tabula(frames)` → `EffectMemory::Tabula(Box<tabula::Lines>)`;
   `fx::tabula::{Kid, Lines, Settings, settings, Unit}`. The engine's automation stores and
   writes through `ensure`/`value_mut`.
-- **Project.** Schema 63 (`migrate_62_to_63` writes nothing), the board repair on load
-  (`tabula::repair_project`), `fixtures/v63.cantus`: on the second strip a board — Fragor's
+- **Project.** Schema 73 (`migrate_72_to_73` writes nothing), the board repair on load
+  (`tabula::repair_project`), `fixtures/v73.cantus`: on the second strip a board — Fragor's
   green overdrive on A (`p0`), Delay at 250 ms on B (`p1`), macro 1 named *Drive* moving
   `od.drive` 20 → 80 %, at 25 % — then one insert each of Saltus, Rota and Arca. Tests
   `schema_63_keeps_a_board_and_wave_3s_kinds`, `a_hand_edited_board_is_repaired_on_load`.
@@ -73,7 +73,7 @@ Files you own: `crates/cantus-core/src/fx/tabula.rs` (and a new `fx/tabula_rando
 `views/fx/tabula_*.rs` (the board view, `PedalHost`), `crates/cantus-ui/src/views/fx/
 tabula_faces.rs` (all but the three `// fx3:<stem>` rows),
 `crates/cantus-ui/locales/fx/tabula.{en,es}.txt`, `crates/cantus-ui/presets/effects/
-board.toml`, `crates/cantus-engine/tests/fx_tabula.rs`, ADR 0134, and any new file under
+board.toml`, `crates/cantus-engine/tests/fx_tabula.rs`, ADR 0131, and any new file under
 your stem's name.
 
 Anchors in shared files (find them by `fx3`):
@@ -110,7 +110,7 @@ Anchors in shared files (find them by `fx3`):
 Files you own: `crates/cantus-core/src/fx/saltus.rs`, `crates/cantus-dsp/src/saltus.rs`,
 `crates/cantus-engine/src/fx/saltus.rs`, `crates/cantus-engine/tests/fx_saltus.rs`,
 `crates/cantus-ui/src/views/fx/saltus.rs`, `crates/cantus-ui/locales/fx/saltus.{en,es}.txt`,
-`crates/cantus-ui/presets/effects/pitchshift.toml`, ADR 0135, any new file under your stem.
+`crates/cantus-ui/presets/effects/pitchshift.toml`, ADR 0132, any new file under your stem.
 
 Anchors (find them by `fx3`, your lines by `fx3:saltus`): `cantus-core/src/fx/saltus.rs`
 (`TAKES_NOTES` — the design's `true`); `starting.rs` (`K::PitchShift`); `fx_contract.rs`
@@ -127,7 +127,7 @@ Files you own: `crates/cantus-core/src/fx/{arca,rota}.rs`, `crates/cantus-dsp/sr
 {arca,rota}.rs`, `crates/cantus-engine/src/fx/{arca,rota}.rs`, `crates/cantus-engine/tests/
 fx_{arca,rota}.rs`, `crates/cantus-ui/src/views/fx/{arca,rota}.rs`,
 `crates/cantus-ui/locales/fx/{arca,rota}.{en,es}.txt`, `crates/cantus-ui/presets/effects/
-{amp,rotary}.toml`, ADRs 0136 and 0137, any new file under either stem.
+{amp,rotary}.toml`, ADRs 0133 and 0134, any new file under either stem.
 
 Anchors (by `fx3`, your lines by `fx3:arca` / `fx3:rota`): `effect.rs` (`takes_ir`: the
 `Amp` line); the same per-unit lines as saltus for each of `Amp` and `Rotary` (starting,

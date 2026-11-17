@@ -1,4 +1,4 @@
-//! Arca's editor: the amp and its cabinet (fx side round, wave 3, ADR 0137 provisional).
+//! Arca's editor: the amp and its cabinet (fx side round, wave 3, ADR 0134).
 //!
 //! *Arca* is Latin for the chest, and the window is one: on the left **the chassis**, a dark
 //! window into the amp where its valves stand and glow as hard as each one works (the

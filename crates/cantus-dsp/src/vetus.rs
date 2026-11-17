@@ -1,4 +1,4 @@
-//! Vetus, lo-fi (ADR 0133, provisional): a sound aged as an old medium ages it.
+//! Vetus, lo-fi (ADR 0130): a sound aged as an old medium ages it.
 //!
 //! Six modules in a fixed order, each with its switch (crossfaded over 10 ms, so a switch
 //! never clicks):

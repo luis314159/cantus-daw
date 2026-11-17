@@ -1,5 +1,5 @@
-//! Arca's and Rota's windows without a screen (the fx side round, wave 3, ADRs 0136 and 0137
-//! provisional), and Phasis's lamp vibe: the design sheets.
+//! Arca's and Rota's windows without a screen (the fx side round, wave 3, ADRs 0133 and 0134),
+//! and Phasis's lamp vibe: the design sheets.
 //!
 //! ```text
 //! cargo run -p cantus-ui --example shoot_arca -- [out-dir]

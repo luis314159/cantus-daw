@@ -1,8 +1,7 @@
 # Saltus — pitch
 
 *Effect kind `PitchShift`. References: FL Studio's Pitch Shifter and Pitcher, DigiTech's
-Whammy, Boss's OC-2 octaver, Eventide's harmonisers, Ableton Live's Shifter (ADR 0135,
-provisional number).*
+Whammy, Boss's OC-2 octaver, Eventide's harmonisers, Ableton Live's Shifter (ADR 0132).*
 
 *Saltus* is Latin for the leap. One unit moves the pitch of what it hears four ways:
 
@@ -25,7 +24,7 @@ line up; formants are kept or move with the pitch, and the *throat* moves them o
 | Editor | `crates/cantus-ui/src/views/fx/saltus.rs` (the cards), `saltus_display.rs` (the leap: the keyboard and its arcs, the legends, the engine switch), `saltus_staff.rs` (the grand staff), `saltus_pedal.rs` (the whammy pedal), `saltus_words.rs` (intervals and notes in words), `saltus_art.rs` (its motif on Tabula) |
 | Face | `crates/cantus-ui/src/kit/skin/side.rs` (`SALTUS`: graphite anodised, chartreuse and lilac on a VFD) |
 | Strings | `crates/cantus-ui/locales/fx/saltus.{en,es}.txt` |
-| Presets | `crates/cantus-ui/presets/effects/pitchshift.toml` (eighteen, in both engines); starts on *Octave up, twelve-string* (poly) — or the start the user chooses (ADR 0138) |
+| Presets | `crates/cantus-ui/presets/effects/pitchshift.toml` (eighteen, in both engines); starts on *Octave up, twelve-string* (poly) — or the start the user chooses (ADR 0135) |
 | Tests | `crates/cantus-engine/tests/fx_saltus.rs`, `rt_memory::saltus_never_allocates`, the family's contract (`fx_contract`: split, rest, a board of one); `crates/cantus-core/tests/saltus_commands.rs`; `crates/cantus-ui/tests/saltus_e2e.rs`; the CLAP/VST3 tests and `notes.rs` |
 | Exported | `Cantus Saltus` (CLAP and VST3), hearing notes on its note port |
 | Examples | `shoot_saltus` (the design sheet), `cantus-dsp/examples/saltus_sounds` (the listening files) |

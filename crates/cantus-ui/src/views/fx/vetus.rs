@@ -1,4 +1,4 @@
-//! Vetus's editor: lo-fi (fx side round, ADR 0133 provisional).
+//! Vetus's editor: lo-fi (fx side round, ADR 0130).
 //!
 //! *Vetus* is Latin for old, and the window is a record player: at its centre **the
 //! record** — the music of its last turns in its groove, worn by every module that is on
@@ -117,7 +117,7 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     let sr = host.sample_rate();
     let mut chips = std::mem::take(&mut st.chips);
     let chip = [chips.latency(0.0, sr)];
-    // The ⋯ menu's colourways (ADR 0130 §Colourways), each row with its swatch.
+    // The ⋯ menu's colourways (ADR 0127 §Colourways), each row with its swatch.
     let unit = crate::kit::skin::Unit::Effect(KIND);
     let ways = crate::kit::skin::colourways(unit);
     let wearing = crate::kit::skin::colourway_of(unit).map(|w| w.id);

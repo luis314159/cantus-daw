@@ -83,25 +83,25 @@ pub mod switches;
 // Chorda's scene: its materials and lights (ADR 0104). r37:scene
 #[path = "skin/scene.rs"]
 pub mod scene;
-// The finishes of pedals (Fragor, ADR 0131; any board of pedals). fx:fragor
+// The finishes of pedals (Fragor, ADR 0128; any board of pedals). fx:fragor
 #[path = "skin/pedals.rs"]
 pub mod pedals;
-// The record Vetus draws (ADR 0133). fx:vetus
+// The record Vetus draws (ADR 0130). fx:vetus
 #[path = "skin/records.rs"]
 pub mod records;
-// The amp, its cabinet and the rotary speaker Arca and Rota draw (ADRs 0136, 0137). fx3:arca
+// The amp, its cabinet and the rotary speaker Arca and Rota draw (ADRs 0133, 0134). fx3:arca
 #[path = "skin/cabinets.rs"]
 pub mod cabinets;
-// The vocoder's microphone, bezels and meters Loquax draws (ADR 0139). fxa:loquax
+// The vocoder's microphone, bezels and meters Loquax draws (ADR 0136). fxa:loquax
 #[path = "skin/consoles.rs"]
 pub mod consoles;
-// The sequencer's chassis, pads, tube and keys Fractus draws (ADR 0140). fxa:fractus
+// The sequencer's chassis, pads, tube and keys Fractus draws (ADR 0137). fxa:fractus
 #[path = "skin/sequencers.rs"]
 pub mod sequencers;
-// The observatory's window, astrolabe and tubes Caelum draws (ADR 0141). fxa:caelum
+// The observatory's window, astrolabe and tubes Caelum draws (ADR 0138). fxa:caelum
 #[path = "skin/observatory.rs"]
 pub mod observatory;
-// The balance Libra draws (ADR 0133). fx:libra
+// The balance Libra draws (ADR 0130). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;
 #[path = "skin/textures.rs"]
@@ -734,7 +734,7 @@ pub fn of(unit: Unit) -> &'static Skin {
     chosen(unit, own) // fx:colourways
 }
 
-// fx:colourways — a unit's face may come in several colourways (the fx side round, ADR 0130
+// fx:colourways — a unit's face may come in several colourways (the fx side round, ADR 0127
 // §Colourways; extends ADR 0074 §5): named palettes over the same face, the first its
 // default (the face the sibling and contrast tests hold), the user's choice per unit kind
 // kept in `settings.json` (`unit_colourways`) and applied on the thread that draws.

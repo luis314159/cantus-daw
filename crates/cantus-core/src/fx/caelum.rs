@@ -1,4 +1,4 @@
-//! Caelum, the shimmer reverb (ADR 0141, provisional): its parameter model. Owned by the
+//! Caelum, the shimmer reverb (ADR 0138): its parameter model. Owned by the
 //! wave-A builder; the DSP is `cantus_dsp::caelum`, whose report (`docs/round-fx/caelum.md`)
 //! says why it is built as it is.
 //!

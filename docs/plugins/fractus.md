@@ -2,7 +2,7 @@
 
 *Effect kind `Glitch`. References: Sugar Bytes' Effectrix and Turnado, iZotope's Stutter
 Edit, Ableton's Beat Repeat, Output's Portal, FL Studio's Gross Beat (Lapsus's job, not
-this one's) — read about, nothing copied (ADR 0140, provisional number).*
+this one's) — read about, nothing copied (ADR 0137).*
 
 *Fractus* is Latin for *broken*. Ten modules, each painted on its own lane of a step
 sequencer that follows the song, and a grain cloud beside them; held notes can play the
@@ -84,7 +84,7 @@ VST3 event bus) play the lanes at their sample. Ids blessed in
 A Fractus pedal on Tabula would play only the lanes it was inserted with:
 `Command::SetFractusLane` addresses an insert, not a pedal, so nothing could be painted on a
 board; and a board hears no notes, so *Played by: Notes* and the presets built on it would
-do nothing. It stays off the board (`pedal_allowed` false) until both are routed (ADR 0140,
+do nothing. It stays off the board (`pedal_allowed` false) until both are routed (ADR 0137,
 phase B).
 
 ## Ours, better

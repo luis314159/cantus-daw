@@ -28,7 +28,8 @@ round 40 lands on master**, as round-41 material. So:
 
 - **Never touch** `F:\projects\cantus` (the owner's tree, with his uncommitted files) or
   anything under `F:\projects\daw-r40\`; never push, never merge, never change a remote.
-- **Schema 62 and ADRs 0130–0133 are provisional**; the integrator renumbers them at the merge.
+- **Schema 62 and ADRs 0130–0133 were provisional**; the integrator renumbered them at the final
+  merge — schema 72 and ADRs 0127–0130, the numbers this file now shows (`final-merge.md`).
   Do not write those numbers into user-facing text (manual, site, help lines).
 - **Stay out of what round 40 is changing**: Delay and its window, Chorda, Tympanum, Pulsus's
   pads, the arrangement's ripple, the scenes, the dancer, memory work. If your unit seems to
@@ -43,10 +44,10 @@ from `fx/integration` once wave 1 is merged into it.
 
 | Builder | Wave | Branch / worktree | Delivers | Schema | ADR |
 |---|---|---|---|---|---|
-| **cribrum** | 1 | `fx/cribrum`, `C:\projects\daw-fx\cribrum` | Cribrum, the auto filter | 62 if needed | 0130 |
-| **fragor** | 1 | `fx/fragor`, `C:\projects\daw-fx\fragor` | Fragor, the pedals (distortion and fuzz) | 62 if needed | 0131 |
-| **lapsus** | 2 | `fx/lapsus`, `C:\projects\daw-fx\lapsus` | Lapsus, the time shaper | 62 if needed | 0132 |
-| **vetus** | 2 | `fx/vetus`, `C:\projects\daw-fx\vetus` | Vetus (lo-fi) and Libra (utility) | 62 if needed | 0133 |
+| **cribrum** | 1 | `fx/cribrum`, `C:\projects\daw-fx\cribrum` | Cribrum, the auto filter | 72 if needed | 0127 |
+| **fragor** | 1 | `fx/fragor`, `C:\projects\daw-fx\fragor` | Fragor, the pedals (distortion and fuzz) | 72 if needed | 0128 |
+| **lapsus** | 2 | `fx/lapsus`, `C:\projects\daw-fx\lapsus` | Lapsus, the time shaper | 72 if needed | 0129 |
+| **vetus** | 2 | `fx/vetus`, `C:\projects\daw-fx\vetus` | Vetus (lo-fi) and Libra (utility) | 72 if needed | 0130 |
 
 The **integrator** (the session that wrote this) merges each branch into `fx/integration`,
 runs a review on it (≤ 6 agents per review step), sends confirmed findings back to their
@@ -56,7 +57,7 @@ leaves `fx/integration`.
 **The contract commit** on `fx/integration` declares the five kinds
 (`EffectKind::{AutoFilter, Pedal, TimeShaper, LoFi, Utility}`, `ALL[26..31]`, never reorder)
 as exact pass-through stubs with one placeholder parameter `out` (dB, default 0 — a null),
-wired into every list, plus schema 62 (`fixtures/v62.cantus`), the per-stem locale files and
+wired into every list, plus schema 72 (`fixtures/v72.cantus`), the per-stem locale files and
 the stub ADRs. Its report (`docs/round-fx/contract.md`) lists, per stem, the files you own and
 the anchor in each shared file. Rewrite `PARAMS` freely but **keep the `out` key** (an output level in dB, default 0): its
 plug-in ids are blessed, and the golden ids are append-only (add yours with

@@ -1,5 +1,5 @@
 //! Arca, amp and cabinet: preamp valves, the tone stack, the power amp, the cabinet by
-//! impulse response (ADR 0137, provisional): its parameter model. Owned by the arca
+//! impulse response (ADR 0134): its parameter model. Owned by the arca
 //! builder; nothing else edits this file.
 //!
 //! Keys are forever once shipped. **The null**: an amp colours by design — no setting of

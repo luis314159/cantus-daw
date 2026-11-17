@@ -1,4 +1,4 @@
-//! Cribrum's editor (fx side round, ADR 0130 provisional): a handle dragged sets the cutoff
+//! Cribrum's editor (fx side round, ADR 0127): a handle dragged sets the cutoff
 //! and the resonance in one undo step, a double-click puts them back; the curve edited on the
 //! movement lane (a point added and taken away, one step each); the factory presets name real
 //! keys in both languages and the starting preset is one of them.

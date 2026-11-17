@@ -6,7 +6,7 @@ named per unit; read it before writing your own, and put shared pieces you write
 `cantus-dsp/src/<stem>_*.rs`. The names are proposals the owner may still change before a
 release (plug-in ids are forever once shipped): keep the name in one constant and the locale.
 
-## cribrum — Cribrum, the auto filter (wave 1, ADR 0130)
+## cribrum — Cribrum, the auto filter (wave 1, ADR 0127)
 
 The filter Cantus has no unit for: FL's Love Philter and Fruity Filter, Ableton's Auto Filter,
 FabFilter Volcano and Soundtoys FilterFreak are the references.
@@ -35,7 +35,7 @@ FabFilter Volcano and Soundtoys FilterFreak are the references.
   the step envelope never clicks (its smoothing tested); presets: wah, dub sweep, sidechain
   pump-filter, vowel talk, telephone, rising build-up, …; the design sheet approved.
 
-## fragor — Fragor, the pedals (wave 1, ADR 0131)
+## fragor — Fragor, the pedals (wave 1, ADR 0128)
 
 BACKLOG §3b asked by name: distortion pedals and fuzz. A pedalboard of circuit models —
 Ibanez TS808 / Tube Screamer, ProCo RAT, Boss DS-1, Dallas Arbiter Fuzz Face, EHX Big Muff Pi
@@ -69,7 +69,7 @@ ADR). Fervor (saturation, `fervor_*.rs`) stays the clean colour unit; Fragor is 
   CPU per pedal measured; presets for guitar, bass, drums, synths and vocals; the design sheet
   approved.
 
-## lapsus — Lapsus, the time shaper (wave 2, ADR 0132)
+## lapsus — Lapsus, the time shaper (wave 2, ADR 0129)
 
 BACKLOG §3b *Time manipulation*: Gross Beat is the reference (FL's best-known effect), with
 Ableton's Beat Repeat and Effectrix ideas on top.
@@ -93,7 +93,7 @@ Ableton's Beat Repeat and Effectrix ideas on top.
   stop at 60, 120 and 174 BPM ends on the bar to the sample; no click at the joins (measured);
   the note switching tested through the exported plug-in too; the design sheet approved.
 
-## vetus — Vetus (lo-fi) and Libra (utility) (wave 2, ADR 0133)
+## vetus — Vetus (lo-fi) and Libra (utility) (wave 2, ADR 0130)
 
 Two units, one builder: the second is small. **Vetus** first.
 
@@ -128,7 +128,7 @@ Bitcrusher roles.
   delay exact to the sample; presets (mono check, flip phase, align 1 ms, …); the design
   sheet approved.
 
-## tabula — the pedalboard, with amp and cabinet (wave 3, ADR 0134; asked 2026-11-13)
+## tabula — the pedalboard, with amp and cabinet (wave 3, ADR 0131; asked 2026-11-13)
 
 *The owner:* "¿el plugin de efectos podría ser como una pedalera simulation, donde adentro
 podamos poner múltiples efectos? … algo gráfico donde quitas, pones, ajustas, cambias orden."

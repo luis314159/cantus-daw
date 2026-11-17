@@ -1,4 +1,4 @@
-//! Arca's words and the facts its window shows (ADR 0137, provisional): each amp's
+//! Arca's words and the facts its window shows (ADR 0134): each amp's
 //! character, its valves, its supply and bias, read from the models the DSP plays — the
 //! window never states a figure the circuit does not have.
 

@@ -1,4 +1,4 @@
-//! The user's own starting presets (ADR 0138, provisional): a unit's chosen start is what
+//! The user's own starting presets (ADR 0135): a unit's chosen start is what
 //! every insert path starts it on — `starting::apply` (the picker, the agents' tools, a
 //! pad's chain) and `starting::starting_spec` (Tabula's *Add pedal*) — a reset brings the
 //! factory's back, a hosted plug-in has none, and the choices at start replace the old ones.

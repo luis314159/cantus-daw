@@ -254,9 +254,9 @@ work, so `kit_alloc` is untouched):
 - **AI**: `set_effect` paints lanes by name (`lanes`), the words name them and the presets;
   MCP golden regenerated.
 - **Site** card (EFFECTS 36, presets 18, big 1800 × 967, thumb 640 × 344 — pictures to make
-  at the integration). **Docs**: ADR 0140 phase B, `docs/plugins/fractus.md`, manual EN/ES.
+  at the integration). **Docs**: ADR 0137 phase B, `docs/plugins/fractus.md`, manual EN/ES.
 - **Tabula**: not a pedal — `SetFractusLane` has no pedal address (nothing could be painted on
-  a board) and a board hears no notes (ADR 0140).
+  a board) and a board hears no notes (ADR 0137).
 
 ### Measured
 

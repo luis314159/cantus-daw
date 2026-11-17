@@ -1,4 +1,4 @@
-//! The palette of Vetus's record (the fx side round, ADR 0133 provisional): the turntable,
+//! The palette of Vetus's record (the fx side round, ADR 0130): the turntable,
 //! the vinyl, its label and the marks of age as reviewed data, like a unit's sheet (ADR 0074
 //! §1) — the painter (`views/fx/vetus_record.rs`) lights these and names no colour of its
 //! own. A record is a physical object, so — like a display (ADR 0074 §7) — it keeps its

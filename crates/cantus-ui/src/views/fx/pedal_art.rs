@@ -1,4 +1,4 @@
-//! The pedals' artwork (Fragor, ADR 0131 — reusable by any pedal drawn with `pedal_draw`):
+//! The pedals' artwork (Fragor, ADR 0128 — reusable by any pedal drawn with `pedal_draw`):
 //! surface textures, large illustrations that own the face, ornamental borders and a
 //! lettering style per pedal. Original to Cantus — no product's graphics, logos or
 //! lettering — and all vectors in fine strokes, crisp from 75 % to 200 %. Deterministic:

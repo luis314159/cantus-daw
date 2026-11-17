@@ -3,7 +3,7 @@
 *Effect kind `Pedal`. References: the Ibanez TS808 Tube Screamer, the ProCo RAT, the Boss
 DS-1, the Dallas Arbiter Fuzz Face, the Electro-Harmonix Big Muff π (their published
 schematics); among plug-ins, Logic's Pedalboard, FL Studio's Hardcore, and circuit-modelled
-pedal plug-ins (ADR 0131, provisional number).*
+pedal plug-ins (ADR 0128).*
 
 Fragor (Latin, *a crash, a roar*) is a pedalboard: up to three distortion and fuzz pedals in
 any order, each modelled from its circuit, a noise gate before them, an input, a mix and an

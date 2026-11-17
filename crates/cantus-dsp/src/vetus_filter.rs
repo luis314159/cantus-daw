@@ -1,4 +1,4 @@
-//! Vetus's filters (ADR 0133, provisional): one trapezoidal state-variable filter (Simper's
+//! Vetus's filters (ADR 0130): one trapezoidal state-variable filter (Simper's
 //! SVF) whose output is a mix of its three taps, so the same two states give a low-pass, a
 //! high-pass, a band-pass or a bell — the anti-alias and smoothing filters of the rate
 //! module, the medium's band and colour, the worn tape's dulling and the crackle's shape.

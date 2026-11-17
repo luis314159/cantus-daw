@@ -1,4 +1,4 @@
-//! Lapsus's editor (fx side round, ADR 0132 provisional), driven by pointer events: a pad
+//! Lapsus's editor (fx side round, ADR 0129), driven by pointer events: a pad
 //! of each bank chooses its pattern (one undo step), a right-click gives a slot the
 //! factory's pattern back; on the timeline a point dragged, a point added and taken away
 //! with double-clicks, the pencil's steps — each one undo step on `SetLapsusPattern`; the

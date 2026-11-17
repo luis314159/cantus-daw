@@ -1,4 +1,4 @@
-//! Loquax, the vocoder (ADR 0139, provisional): its parameter model. Owned by the wave-A
+//! Loquax, the vocoder (ADR 0136): its parameter model. Owned by the wave-A
 //! builder; the DSP is `cantus_dsp::loquax`, whose report (`docs/round-fx/loquax.md`) says
 //! why it is built as it is.
 //!
@@ -62,7 +62,7 @@ pub const CHOICES: &[(&str, &str)] = &[
     ("obj", "fx.loquax.obj"),
 ];
 
-/// The keys that are the editor's look, not the sound (ADR 0139 phase B): presets neither
+/// The keys that are the editor's look, not the sound (ADR 0136 phase B): presets neither
 /// carry nor reset them. `obj`: 0 the gooseneck microphone, 1 the talk-box's tube, 2 the
 /// desk microphone on its weighted base.
 pub const LOOK: &[&str] = &["obj"];

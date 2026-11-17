@@ -1,4 +1,4 @@
-//! Caelum, the shimmer reverb (ADR 0141, provisional), behind the engine's plug-in
+//! Caelum, the shimmer reverb (ADR 0138), behind the engine's plug-in
 //! contract. Owned by the wave-A builder.
 //!
 //! [`settings`] reads the table (`cantus_core::fx::caelum`) into the DSP's settings; a

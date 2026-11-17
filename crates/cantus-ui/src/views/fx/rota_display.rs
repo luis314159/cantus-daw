@@ -1,4 +1,4 @@
-//! Rota's display (ADR 0136, provisional): the rotary cabinet three ways on a night-dark
+//! Rota's display (ADR 0133): the rotary cabinet three ways on a night-dark
 //! screen — **cut away** from the front (the horn's two bells turning on their shaft in the
 //! upper chamber behind the louvres, the motors and the amp's valve on the shelf, the drum's
 //! scoop sweeping round the lower chamber over the bass speaker), **from above** (the horn's

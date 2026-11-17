@@ -1,4 +1,4 @@
-//! Tabula's boards as presets (ADR 0134 §1): a board written as a flat map of numbers, so a
+//! Tabula's boards as presets (ADR 0131 §1): a board written as a flat map of numbers, so a
 //! board preset travels every path a preset does (the menus, the browser, A/B, the agents,
 //! the user's own presets) — and the factory's boards, made with care, for guitar, bass,
 //! synths, drums and vocals.

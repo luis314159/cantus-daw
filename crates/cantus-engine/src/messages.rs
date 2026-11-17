@@ -106,7 +106,7 @@ pub enum EngineMessage {
     /// and handed back, and delay compensation planned again for the new latency.
     ReplaceEffect(Box<EffectUnit>),
     /// fx3:contract — a pedal built off the audio thread for a board the engine runs (ADR
-    /// 0134): the board adopts it (`FxUnit::adopt`), or it comes back as
+    /// 0131): the board adopts it (`FxUnit::adopt`), or it comes back as
     /// [`EngineEvent::GarbageEffect`]. Must precede the snapshot whose board holds it.
     AddPedal {
         effect: EffectId,

@@ -1,4 +1,4 @@
-//! Cribrum, the auto filter (ADR 0130, provisional) — Latin *cribrum*, the sieve.
+//! Cribrum, the auto filter (ADR 0127) — Latin *cribrum*, the sieve.
 //!
 //! Two filters — the synths' zero-delay-feedback models ([`crate::va::filter`], through
 //! [`filter`]) in series or in parallel — moved by three sources summed:

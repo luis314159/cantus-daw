@@ -1,7 +1,7 @@
-# ADR 0131 — Fragor, the pedals
+# ADR 0128 — Fragor, the pedals
 
-**Status:** accepted (the owner's verdicts on the design, v3), pending integration (fx side round, provisional number — renumbered at merge) · **Date:**
-2026-11-13 · **Schema:** none beyond the contract's 62 (the kind's new parameters are read
+**Status:** accepted (the owner's verdicts on the design, v3), pending integration (fx side round) · **Date:**
+2026-11-13 · **Schema:** none beyond the contract's 72 (the kind's new parameters are read
 with their defaults from older files) · **Relates to:** ADR 0004 (commands), ADR 0005 (the
 audio thread), ADR 0018 (null defaults), ADR 0020 (our plug-ins outside Cantus), ADR 0026
 (Fervor: saturation), ADR 0031 §5.1 (at rest), ADR 0071 (effects that sound on insert),
@@ -152,7 +152,7 @@ Newton every oversampled sample cost more than curves.
 ### The editor
 
 Its face is palette A of the three the owner was shown (warm amber, a valve amp's
-character); B and C are offered as its colourways (ADR 0130 §Colourways; the integration,
+character); B and C are offered as its colourways (ADR 0127 §Colourways; the integration,
 2026-11-14), **Cream** (cream and brass, on printed card — brushed metal near this brass is
 Aula's and Calor's — with a bottle-green second voice) and **Steel** (steel with one signal
 red), chosen in the window's ⋯ menu (`kit::skin::FRAGOR_COLOURWAYS`). Its panels are smoked glass,

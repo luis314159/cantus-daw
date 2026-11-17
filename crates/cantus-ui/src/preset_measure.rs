@@ -81,7 +81,7 @@ pub fn budget(unit: Unit) -> f64 {
         // chain (multiband into a limiter) that runs once per song.
         Unit::Instrument(InstrumentKind::Sampler) => 0.15,
         Unit::Effect(EffectKind::Maximizer) => 0.20,
-        // fx:fragor — circuits solved by Newton every oversampled sample (ADR 0131): two
+        // fx:fragor — circuits solved by Newton every oversampled sample (ADR 0128): two
         // pedals, stereo, at 4× (the guitar presets play one circuit, mono, as a pedal does).
         Unit::Effect(EffectKind::Pedal) => 0.25,
         _ => 0.10,

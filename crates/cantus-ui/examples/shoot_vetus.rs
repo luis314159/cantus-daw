@@ -1,5 +1,5 @@
-//! Vetus's editor in its device frame, without a screen (fx side round, ADR 0133
-//! provisional): the design sheet's pictures.
+//! Vetus's editor in its device frame, without a screen (fx side round, ADR 0130):
+//! the design sheet's pictures.
 //!
 //! ```text
 //! cargo run -p cantus-ui --example shoot_vetus -- [out-dir] [scales…] [--colourways]

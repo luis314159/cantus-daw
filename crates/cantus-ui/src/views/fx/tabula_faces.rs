@@ -1,4 +1,4 @@
-//! Tabula's pedal faces (ADR 0134, its faces table): what each native unit shows as a pedal
+//! Tabula's pedal faces (ADR 0131, its faces table): what each native unit shows as a pedal
 //! on the board — up to four knobs, an enclosure shape, a motif, a letter and a texture; the
 //! finish comes from the unit's own skin (and the colourway the user chose for it).
 //!

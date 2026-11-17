@@ -606,7 +606,7 @@ fn stopped_the_steps_rest_and_notes_still_play() {
     assert_eq!(first_diff(&l, &dry), Some(10_000), "only the note shuts it");
 }
 
-/// The owner's choice (warble or clean, ADR 0140), measured on a pure tone a fifth up: the
+/// The owner's choice (warble or clean, ADR 0137), measured on a pure tone a fifth up: the
 /// classic four heads always sound together, their phases weighed by moving windows, so
 /// the pitch wavers period by period — the warble; the clean style plays one head at a
 /// time between its splices, so most periods are the interval's exactly. Measured as the

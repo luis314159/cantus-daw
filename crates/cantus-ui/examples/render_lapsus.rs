@@ -1,4 +1,4 @@
-//! Lapsus's sound examples (fx side round, ADR 0132 provisional): Cantus's own audition
+//! Lapsus's sound examples (fx side round, ADR 0129): Cantus's own audition
 //! sources (`preset_audition::source_project`) played eight bars through Lapsus on the
 //! master, rendered offline by the engine, written as FLAC with the dry source beside each.
 //!

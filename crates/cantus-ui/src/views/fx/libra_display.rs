@@ -1,4 +1,4 @@
-//! Libra's display (ADR 0133, provisional): at its centre **the balance**
+//! Libra's display (ADR 0130): at its centre **the balance**
 //! (`libra_balance.rs`: the beam tilting with the L/R balance, the pans holding each
 //! channel's level, polarity and delay, the arms' reach the width, the correlation along its
 //! foot); around it, as secondary instruments, the **tuner** — a needle on a fine scale of

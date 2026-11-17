@@ -2,7 +2,7 @@
 
 *Effect kind `Shimmer`. References for function: Valhalla Shimmer and SuperMassive, Strymon
 BigSky's Shimmer, Cloud and Bloom, Eventide Blackhole, Soundtoys SuperPlate — read about and
-listened to, nothing copied (ADR 0141, provisional number).*
+listened to, nothing copied (ADR 0138).*
 
 *Caelum* is Latin for the sky. A reverb for spaces no building holds: a tank of 16 (or 8)
 modulated delay lines whose loop carries two **pitch-shifted voices**, so a tail climbs an

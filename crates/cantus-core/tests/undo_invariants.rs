@@ -2068,7 +2068,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     checkpoints.push(snap);
                 }
             }
-            // fx3:tabula - Tabula's boards (ADR 0134), from a stream of their own (`trng`).
+            // fx3:tabula - Tabula's boards (ADR 0131), from a stream of their own (`trng`).
             if trng.below(4) == 0 {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = fx3_board_command(&mut trng, &mut scratch);
@@ -7367,7 +7367,7 @@ fn tympanum_voice_undoes_and_redoes_among_the_others() {
     );
 }
 
-// fx3:tabula — Tabula's board (ADR 0134): its commands, `p` keys, a pedal's response and
+// fx3:tabula — Tabula's board (ADR 0131): its commands, `p` keys, a pedal's response and
 // bank, and what a board refuses (an unknown id, a nested board, a hosted pedal, the
 // seventeenth, a map to a key that is not there).
 const BOARD_KINDS: usize = 13;

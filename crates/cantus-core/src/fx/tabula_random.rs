@@ -1,4 +1,4 @@
-//! Tabula's *Randomise* (ADR 0134 §2): new values for a board's pedals within musical ranges
+//! Tabula's *Randomise* (ADR 0131 §2): new values for a board's pedals within musical ranges
 //! — never a wall of feedback, a mix of nothing, or a delay of a minute — seeded, so the
 //! same seed gives the same board (and the command that sets them is one undo step).
 

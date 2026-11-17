@@ -427,7 +427,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 394),
     },
 
-    // fx:fragor — Fragor, the pedals (ADR 0131, provisional).
+    // fx:fragor — Fragor, the pedals (ADR 0128).
     Unit {
         file: "fragor",
         name: "Fragor",
@@ -449,7 +449,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 449),
     },
 
-    // fx3:tabula — Tabula, the pedalboard (ADR 0134, provisional).
+    // fx3:tabula — Tabula, the pedalboard (ADR 0131).
     Unit {
         file: "tabula",
         name: "Tabula",
@@ -471,7 +471,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 405),
     },
 
-    // fx3:saltus — Saltus, pitch (ADR 0135, provisional).
+    // fx3:saltus — Saltus, pitch (ADR 0132).
     Unit {
         file: "saltus",
         name: "Saltus",
@@ -493,7 +493,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 406),
     },
 
-    // fx3:arca — Arca, the amp and its cabinet (ADR 0137, provisional).
+    // fx3:arca — Arca, the amp and its cabinet (ADR 0134).
     Unit {
         file: "arca",
         name: "Arca",
@@ -515,7 +515,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 359),
     },
 
-    // fx3:rota — Rota, the rotary speaker (ADR 0136, provisional).
+    // fx3:rota — Rota, the rotary speaker (ADR 0133).
     Unit {
         file: "rota",
         name: "Rota",
@@ -537,7 +537,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 356),
     },
 
-    // fxa:loquax — Loquax, the vocoder (ADR 0139, provisional).
+    // fxa:loquax — Loquax, the vocoder (ADR 0136).
     Unit {
         file: "loquax",
         name: "Loquax",
@@ -559,7 +559,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 430),
     },
 
-    // fxa:fractus — Fractus, the glitch sequencer and grain cloud (ADR 0140, provisional).
+    // fxa:fractus — Fractus, the glitch sequencer and grain cloud (ADR 0137).
     Unit {
         file: "fractus",
         name: "Fractus",
@@ -581,7 +581,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 344),
     },
 
-    // fxa:caelum — Caelum, the shimmer reverb (ADR 0141, provisional).
+    // fxa:caelum — Caelum, the shimmer reverb (ADR 0138).
     Unit {
         file: "caelum",
         name: "Caelum",
@@ -603,7 +603,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 430),
     },
 
-    // fx:libra — Libra, the utility (ADR 0133, provisional).
+    // fx:libra — Libra, the utility (ADR 0130).
     Unit {
         file: "libra",
         name: "Libra",
@@ -625,7 +625,7 @@ pub const EFFECTS: [Unit; 37] = [
         thumb: (640, 325),
     },
 
-    // fx:vetus — Vetus, lo-fi (ADR 0133, provisional).
+    // fx:vetus — Vetus, lo-fi (ADR 0130).
     Unit {
         file: "vetus",
         name: "Vetus",

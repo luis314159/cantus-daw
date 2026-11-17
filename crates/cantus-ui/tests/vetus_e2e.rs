@@ -1,4 +1,4 @@
-//! Vetus end to end (fx side round, ADR 0133 provisional), on the boot path: an app made by
+//! Vetus end to end (fx side round, ADR 0130), on the boot path: an app made by
 //! `CantusApp::assemble` with the real engine handle; a clean sine chord playing on a track;
 //! Vetus inserted on its strip as the picker inserts it (its starting preset, a worn
 //! cassette); the song rendered offline through the engine's compile — the path export,

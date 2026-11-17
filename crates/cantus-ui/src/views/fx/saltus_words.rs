@@ -1,4 +1,4 @@
-//! Saltus's words (ADR 0135, provisional): the names of the modes, the keys and scales, an
+//! Saltus's words (ADR 0132): the names of the modes, the keys and scales, an
 //! interval's name in semitones or in degrees, a note's name, and the value pills — shared by
 //! the window, its display, the inspector's line and the pedal on Tabula's board.
 

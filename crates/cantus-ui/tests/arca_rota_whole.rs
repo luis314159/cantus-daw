@@ -1,4 +1,4 @@
-//! Arca's and Rota's windows read whole (ADRs 0136 and 0137, provisional; the house rule:
+//! Arca's and Rota's windows read whole (ADRs 0133 and 0134; the house rule:
 //! nothing elided or abbreviated in English or Spanish at any scale) — and Phasis's window
 //! with its lamp vibe, and every pedal face on Tabula's board: each window drawn playing at
 //! 75 %, 100 %, 150 % and 200 % in both languages, with the settings whose words are longest

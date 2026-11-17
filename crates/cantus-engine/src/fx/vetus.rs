@@ -1,4 +1,4 @@
-//! Vetus, lo-fi (ADR 0133, provisional), behind the engine's plug-in contract. Owned by
+//! Vetus, lo-fi (ADR 0130), behind the engine's plug-in contract. Owned by
 //! Vetus.
 //!
 //! [`settings`] reads the table (`cantus_core::fx::vetus`) into the DSP's settings

@@ -654,7 +654,7 @@ fn cpu_at_eight_and_sixteen_lines() {
     );
 }
 
-/// The owner's two open choices (ADR 0141), each a setting with the measured default kept:
+/// The owner's two open choices (ADR 0138), each a setting with the measured default kept:
 /// infinite with the full shimmer fades (the default) or **sustains** — fed four seconds,
 /// the sustained wash (its climb settling over 1.5 s once nothing more comes in) stays
 /// within 3 dB of its first ten seconds for a minute (measured: +0.2 dB) and never

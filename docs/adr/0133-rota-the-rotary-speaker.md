@@ -1,14 +1,14 @@
-# ADR 0136 — Rota, the rotary speaker
+# ADR 0133 — Rota, the rotary speaker
 
-**Status:** proposed (fx side round wave 3, provisional number — renumbered at merge) ·
-**Date:** 2026-11-14 · **Schema:** 63 (provisional — renumbered when merged after round 40) ·
+**Status:** proposed (fx side round wave 3) ·
+**Date:** 2026-11-14 · **Schema:** 73 ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
 ADR 0020 (our plug-ins outside Cantus), ADR 0031 §5.1 (at rest), ADR 0071 (effects that
-sound on insert), ADR 0101 (presets), ADR 0134 (Tabula: every unit is also a pedal)
+sound on insert), ADR 0101 (presets), ADR 0131 (Tabula: every unit is also a pedal)
 
 ## Context
 
-The rotary speaker lives inside Cantus's organ (`organum_rotary`) but not as an effect (BACKLOG §3b *Still open*); the owner's pedalboard (ADR 0134) wants it, and a Uni-Vibe voicing. He asked (2026-11-13) that every new engine of wave 3 be a full unit as well as a pedal.
+The rotary speaker lives inside Cantus's organ (`organum_rotary`) but not as an effect (BACKLOG §3b *Still open*); the owner's pedalboard (ADR 0131) wants it, and a Uni-Vibe voicing. He asked (2026-11-13) that every new engine of wave 3 be a full unit as well as a pedal.
 
 ## Decision
 
@@ -19,7 +19,7 @@ every list as an exact pass-through stub — one placeholder `out` parameter (0 
 an engine unit that applies it, is always at rest and has no latency, a plain kit editor,
 a placeholder face (a tone-family sibling's look under its own key), its row of Tabula's
 faces (`views/fx/tabula_faces.rs`), its locale pair, an empty preset file, its exported
-CLAP/VST3 descriptor and ids, and schema 63's fixture.
+CLAP/VST3 descriptor and ids, and schema 73's fixture.
 
 ## Phase A-1: the DSP (2026-11-14, `cantus_dsp::rota`, Phasis's Uni-Vibe)
 

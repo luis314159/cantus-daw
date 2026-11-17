@@ -1,4 +1,4 @@
-//! fx3:tabula — what the board costs beside its pedals (ADR 0134 §3: below 1 %): eight
+//! fx3:tabula — what the board costs beside its pedals (ADR 0131 §3: below 1 %): eight
 //! pedals run as eight inserts one after the other, and the same eight on one board, over
 //! the same ten seconds of signal at 48 kHz in blocks of 256; best of seven of each.
 //!

@@ -1,4 +1,4 @@
-//! fxa:fractus — Fractus exported (ADR 0140, phase B): its lanes are content in its state
+//! fxa:fractus — Fractus exported (ADR 0137, phase B): its lanes are content in its state
 //! (saved and loaded whole, as the project saves an insert), a fresh instance starts on its
 //! starting stutter, lanes painted in the plug-in's window reach the audio thread while it
 //! plays — swapped in, the old ones handed back — without one allocation there, and the DSP

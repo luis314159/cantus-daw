@@ -195,7 +195,7 @@ pub trait FxHost {
     ) {
     }
 
-    /// fx3:tabula — Tabula's board commands (ADR 0134) for a host that is not Cantus (the
+    /// fx3:tabula — Tabula's board commands (ADR 0131) for a host that is not Cantus (the
     /// exported plug-in): `build` makes them for a strip and an effect; the host applies the
     /// whole list to its board as one step (`cantus_core::command_board::apply_to_spec`).
     /// `false`: the host keeps no board. Cantus itself runs them through its own bus.

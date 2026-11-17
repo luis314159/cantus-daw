@@ -1,4 +1,4 @@
-//! The user's own starting presets (ADR 0138, provisional), the application's side: the
+//! The user's own starting presets (ADR 0135), the application's side: the
 //! choices kept in the settings (`settings.json`, never a song), handed to
 //! `cantus_core::starting_user` at start and on every change, so every insert path — the
 //! picker, the browser, a drag, a swap, Tabula's *Add pedal*, the agents' tools — starts a

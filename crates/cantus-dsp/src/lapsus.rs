@@ -1,4 +1,4 @@
-//! Lapsus, the time shaper (ADR 0132, provisional): Gross Beat's job — tape stops, half
+//! Lapsus, the time shaper (ADR 0129): Gross Beat's job — tape stops, half
 //! time, stutters, reverse, scratches and gates — drawn as a time curve and a volume curve,
 //! each chosen from its own bank of thirty-six and running on its own cycle synced to the
 //! song, with Ableton's Beat Repeat and Effectrix ideas on top.

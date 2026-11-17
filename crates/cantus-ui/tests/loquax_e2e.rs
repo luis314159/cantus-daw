@@ -1,4 +1,4 @@
-//! Loquax end to end (fx side round, wave A, ADR 0139 provisional), on the boot path: an app
+//! Loquax end to end (fx side round, wave A, ADR 0136), on the boot path: an app
 //! made by `CantusApp::assemble` with the real engine handle; a voice (a line on its track),
 //! a keyboard whose track is muted (its notes still sent, ADR 0022) and a pad. Loquax is
 //! inserted on the voice's strip as the picker inserts it — on its starting preset, Robot:

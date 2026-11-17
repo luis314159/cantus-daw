@@ -1,5 +1,5 @@
 //! Fragor's five pedals as circuits: each netlist transcribed from the published schematic
-//! (the component values are in the code, beside each element, and in ADR 0131), solved by
+//! (the component values are in the code, beside each element, and in ADR 0128), solved by
 //! [`super::dk`].
 //!
 //! | Model | Reference circuit | Stages solved | Ports |

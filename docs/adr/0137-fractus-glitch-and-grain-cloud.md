@@ -1,10 +1,10 @@
-# ADR 0140 — Fractus, the glitch sequencer and grain cloud
+# ADR 0137 — Fractus, the glitch sequencer and grain cloud
 
-**Status:** proposed (fx side round wave A, provisional number — renumbered at merge) ·
-**Date:** 2026-11-16 · **Schema:** 64 (provisional — renumbered when merged after round 40) ·
+**Status:** proposed (fx side round wave A) ·
+**Date:** 2026-11-16 · **Schema:** 74 ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
 ADR 0022 (the memory path; an effect's MIDI source), ADR 0031 §5.1 (at rest), ADR 0071
-(effects that sound on insert), ADR 0083 (a range render's checkpoint), ADR 0132 (Lapsus)
+(effects that sound on insert), ADR 0083 (a range render's checkpoint), ADR 0129 (Lapsus)
 
 ## Context
 
@@ -23,8 +23,8 @@ A new effect kind, `EffectKind::Glitch`, model `cantus_core::fx::fractus`, engin
   into the DSP's fourteen; `vslice`, `ttime` and `grate` keep 0 for their own meaning.
 - **The lanes are content, not parameters:** `EffectSpec::fractus:
   Option<Box<Pattern>>` — per lane a sorted list of blocks `{at, len, amount, prob}`,
-  only the lanes that hold one; `None` when nothing is painted (and not written). Schema 64,
-  `migrate_63_to_64` writes nothing; a hand-edited pattern is repaired on load
+  only the lanes that hold one; `None` when nothing is painted (and not written). Schema 74,
+  `migrate_73_to_74` writes nothing; a hand-edited pattern is repaired on load
   (`fx::fractus::repair_project`). **`Command::SetFractusLane {strip, effect, lane,
   blocks}`** replaces one lane (sanitized: sorted, apart, inside the 256 steps); its exact
   inverse is the lane it replaced; `cmd.fractus_lane`; its undo-fuzz arm.

@@ -1,4 +1,4 @@
-//! Tabula's board (ADR 0134 §5): where the pedals stand and how they are drawn — a top-down
+//! Tabula's board (ADR 0131 §5): where the pedals stand and how they are drawn — a top-down
 //! board of real enclosures (`pedal_draw`), each unit wearing its own finish, the cables
 //! carrying the signal as bright as it is at that point, the A/B split's splitter and
 //! mixer boxes, an empty place to add a pedal, and the pedal picker drawn as a shelf of

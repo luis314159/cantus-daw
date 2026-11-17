@@ -1,4 +1,4 @@
-//! Arca, amp and cabinet (ADR 0137, provisional), behind the engine's plug-in contract.
+//! Arca, amp and cabinet (ADR 0134), behind the engine's plug-in contract.
 //! Owned by the arca builder.
 //!
 //! [`settings`] reads the table (`cantus_core::fx::arca`) into the DSP's settings

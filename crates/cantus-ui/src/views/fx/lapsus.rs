@@ -1,4 +1,4 @@
-//! Lapsus's editor: the time shaper (fx side round, ADR 0132 provisional).
+//! Lapsus's editor: the time shaper (fx side round, ADR 0129).
 //!
 //! *Lapsus* is Latin for a slip, a glide — and the window is a DJ mixer at midnight: an
 //! amber VFD over a matte teal-petrol body, the controls in ice blue. Its centre is **the timeline**: one cycle of the pattern,

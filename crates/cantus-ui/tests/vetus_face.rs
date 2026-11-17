@@ -1,4 +1,4 @@
-//! Vetus's face (ADR 0133, provisional): its own among every unit's, its three colourways
+//! Vetus's face (ADR 0130): its own among every unit's, its three colourways
 //! keeping the themes' contrast and painting the editor.
 
 use cantus_engine::EngineHandle;

@@ -1,4 +1,4 @@
-//! Cribrum's colourways (ADR 0130 §Colourways, extending ADR 0074 §5): the user's choice
+//! Cribrum's colourways (ADR 0127 §Colourways, extending ADR 0074 §5): the user's choice
 //! per unit kind kept in `settings.json`, applied by the boot path (`CantusApp::assemble`)
 //! and surviving a restart; each colourway keeps the themes' contrast promises and paints the
 //! editor; a choice repaints every open window of the kind at once. Its own test binary: it

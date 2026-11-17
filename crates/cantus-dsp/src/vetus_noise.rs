@@ -1,4 +1,4 @@
-//! Vetus's noise (ADR 0133, provisional): what a medium adds — a record's crackle and pops,
+//! Vetus's noise (ADR 0130): what a medium adds — a record's crackle and pops,
 //! the hiss of a tape or of a vinyl surface, the mains' hum and its buzz.
 //!
 //! **The noise is a pure function of the song sample**: every random is a hash of a seed and
