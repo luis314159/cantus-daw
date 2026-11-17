@@ -552,7 +552,7 @@ pub fn param_with(
     format: Option<Pill<'_>>,
 ) -> Response {
     let spec = host.spec();
-    let Some(info) = spec.kind.param(key) else {
+    let Some(info) = spec.param(key) else {
         return ui.allocate_response(Vec2::ZERO, Sense::hover());
     };
     let mut c = Cell::param(info, spec.get(key)).size(size);
@@ -596,7 +596,7 @@ pub fn led_param(
     width: f32,
 ) -> Response {
     let on = host.spec().get(key) >= 0.5;
-    let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
+    let name = host.spec().param(key).map_or("", |i| tr(i.label_key));
     let r = led(ui, s, on, label, name, width);
     let learnt = stepped_offer(ui, s, host, key, name, &r);
     if r.clicked() && !learnt {
@@ -664,7 +664,7 @@ fn stepped_offer_marked(
     {
         return false;
     }
-    let Some(info) = host.spec().kind.param(key) else {
+    let Some(info) = host.spec().param(key) else {
         return false;
     };
     let v = host.spec().get(key);
@@ -780,18 +780,36 @@ pub fn segmented_param(
 ) -> Option<usize> {
     let spec = host.spec();
     let now = spec.get(key).round().max(0.0) as usize;
-    let name = spec.kind.param(key).map_or("", |i| tr(i.label_key));
+    let name = spec.param(key).map_or("", |i| tr(i.label_key));
     let (resp, r) = crate::kit::widgets::Segmented::new(now, labels)
         .name(name)
         .size(width, ROW)
         .style(*s)
         .show(ui);
     let learnt = stepped_offer(ui, s, host, key, name, &resp);
+    SEGMENTED.with(|v| {
+        let mut v = v.borrow_mut();
+        v.retain(|(k, _)| *k != key);
+        v.push((key, resp.rect));
+    });
     let r = r.filter(|_| !learnt);
     if let Some(i) = r {
         host.set(key, i as f32, None);
     }
     r
+}
+
+thread_local! {
+    /// fxa:loquax — where each parameter's segmented switch was drawn last, on this thread
+    /// (tests drive the switches with the pointer).
+    static SEGMENTED: std::cell::RefCell<Vec<(&'static str, egui::Rect)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// fxa:loquax — where `key`'s segmented switch ([`segmented_param`]) was drawn last on this
+/// thread: its choices share it evenly, left to right.
+pub fn segmented_rect(key: &str) -> Option<egui::Rect> {
+    SEGMENTED.with(|v| v.borrow().iter().find(|(k, _)| *k == key).map(|(_, r)| *r))
 }
 
 /// A menu field: a well with `value` and ▾. Returns where its list opens while it is
@@ -1079,6 +1097,24 @@ pub fn card_lamp<R>(
     card_full(ui, s, rect, title, on, None, body)
 }
 
+/// fx:vetus — [`card_lamp`] whose controls stay usable while its section is off: dimmed,
+/// but they respond, so a section is set up before it is switched on (the owner, ADR 0133).
+pub fn card_lamp_live<R>(
+    ui: &mut Ui,
+    s: &Style,
+    rect: Rect,
+    title: Src<'_>,
+    on: bool,
+    body: impl FnOnce(&mut Ui, &CardRects) -> R,
+) -> (R, bool, Option<Response>) {
+    card_full(ui, s, rect, title, Some(on), Some(LIVE), body)
+}
+
+/// fx:vetus — the opacity of a live section's controls while it is off.
+const LIVE_DIM: f32 = 0.55;
+/// fx:vetus — [`card_full`]'s marker for a live section (a display height no card asks).
+const LIVE: f32 = -1.0;
+
 /// The lamp of a [`card_lamp`] as the stepped parameter `key`'s control: its menu, its
 /// mapped mark, the learn mode. `true` while the learn mode has it: the caller then does
 /// not flip it.
@@ -1092,7 +1128,7 @@ pub fn card_lamp_offer(
     let Some(r) = lamp else {
         return false;
     };
-    let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
+    let name = host.spec().param(key).map_or("", |i| tr(i.label_key));
     stepped_offer(ui, s, host, key, name, r)
 }
 
@@ -1120,6 +1156,9 @@ fn card_full<R>(
     display: Option<f32>,
     body: impl FnOnce(&mut Ui, &CardRects) -> R,
 ) -> (R, bool, Option<Response>) {
+    // fx:vetus — a live section (`card_lamp_live`): no display, its controls dimmed.
+    let live = display == Some(LIVE);
+    let display = display.filter(|_| !live);
     let look = CardLook {
         title,
         switchable: on.is_some(),
@@ -1161,7 +1200,11 @@ fn card_full<R>(
         child.spacing_mut().item_spacing = gap;
     }
     if on == Some(false) {
-        child.disable();
+        if live {
+            child.multiply_opacity(LIVE_DIM); // fx:vetus
+        } else {
+            child.disable();
+        }
     }
     let r = body(&mut child, &rects);
     (r, clicked, lamp)

@@ -227,6 +227,18 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::AutoTune => "throat",
             EffectKind::Aula => "mix",       // r39:conv
             EffectKind::Delay => "feedback", // r40:delay
+            EffectKind::AutoFilter => "out", // fx:contract
+            EffectKind::Pedal => "out",      // fx:contract
+            EffectKind::TimeShaper => "out", // fx:contract
+            EffectKind::LoFi => "out",       // fx:contract
+            EffectKind::Utility => "out",    // fx:contract
+            EffectKind::Board => "out",      // fx3:contract
+            EffectKind::PitchShift => "out", // fx3:contract
+            EffectKind::Rotary => "out",     // fx3:contract
+            EffectKind::Amp => "out",        // fx3:contract
+            EffectKind::Vocoder => "out",    // fxa:loquax
+            EffectKind::Glitch => "out",     // fxa:fractus
+            EffectKind::Shimmer => "out",    // fxa:caelum
             _ => "thr",
         };
         let table = params::table(kind);
@@ -297,6 +309,111 @@ fn the_sidechain_keys_the_detector_only_when_asked() {
         assert_identical(&format!("keyed {keyed}, left"), &l, &el);
         assert_identical(&format!("keyed {keyed}, right"), &r, &er);
     }
+}
+
+/// fxa:caelum — Caelum's ducking keyed by the sidechain input: a quiet input under a loud
+/// key, the ducking's threshold between the two. With the plug-in's switch on the external
+/// key the wet steps aside while the key plays, exactly as the DSP keyed by it; on its own
+/// input the quiet input never reaches the threshold and the wet is not ducked.
+#[test]
+fn caelum_s_ducking_is_keyed_by_the_sidechain_input_when_asked() {
+    let kind = EffectKind::Shimmer;
+    let values = [
+        ("mix", 0.5),
+        ("decay", 2.0),
+        ("shim", 0.4),
+        ("duck", 24.0),
+        ("dthr", -30.0),
+        ("datt", 5.0),
+        ("drel", 200.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        if keyed {
+            configure(&plug, &[(SIDECHAIN_KEY, 1.0)]);
+        }
+        plug.activate(4096);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        plug.run(&mut l, &mut r, Some((&key_l, &key_r)), &[], &[480]);
+
+        let _guard = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("keyed {keyed}, right"), &r, &er);
+        // The wet alone: the output less the dry (at unity to half way).
+        let wet: Vec<f32> = l.iter().zip(&quiet_l).map(|(o, i)| o - i).collect();
+        outs.push(wet);
+    }
+    let energy = |x: &[f32]| x[24_000..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) < 0.1 * energy(&outs[0]),
+        "the key ducks the wet: {} keyed against {} on its own input",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
+}
+
+/// fxa:loquax — Loquax's carrier through the sidechain input: with the plug-in's switch on the
+/// external key the voice speaks through the key's sound, exactly as the DSP keyed by it; on
+/// its own input there is no carrier (the synthesiser plays no notes; the consonants' noise
+/// and sibilance are off) — the key heard only when asked for.
+#[test]
+fn loquax_s_carrier_is_the_sidechain_input_when_asked() {
+    let kind = EffectKind::Vocoder;
+    // Off the starting preset's robot, the consonants' noise and sibilance off: only the
+    // key carries.
+    let values = [
+        ("mix", 1.0),
+        ("robot", 0.0),
+        ("src", 0.0),
+        ("bands", 16.0),
+        ("sib", 0.0),
+        ("unv", 0.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 24_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (voice_l, voice_r) = signal(n, 3);
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        if keyed {
+            configure(&plug, &[(SIDECHAIN_KEY, 1.0)]);
+        }
+        plug.activate(4096);
+        let (mut l, mut r) = (voice_l.clone(), voice_r.clone());
+        plug.run(&mut l, &mut r, Some((&key_l, &key_r)), &[], &[480]);
+
+        let _guard = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (voice_l.clone(), voice_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    let energy = |x: &[f32]| x.iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) > 4.0 * energy(&outs[0]) && energy(&outs[1]) > 1.0,
+        "the key carries the voice: {} against {} unkeyed",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
 }
 
 #[test]
@@ -490,7 +607,9 @@ fn the_parameters_are_the_tables() {
             };
             assert_eq!(plug.value(p.id), start, "{kind:?} {}", info.key);
             let text = plug.text(p.id, default);
-            let back = plug.parse(p.id, &text).expect("its own text parses");
+            let back = plug
+                .parse(p.id, &text)
+                .unwrap_or_else(|| panic!("{kind:?} {}: its own text {text:?} parses", info.key));
             let tol = if info.stepped {
                 0.0
             } else {

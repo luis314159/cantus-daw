@@ -1,0 +1,136 @@
+# Tabula (ronda lateral de efectos, ola 3) — del constructor de tabula. Cada clave necesita su gemela en tabula.en.txt.
+effect.tabula = Tabula pedalera
+fx.tabula.about = Una pedalera con los efectos de Cantus: saturaciones, filtros, modulación, retardos, reverberaciones y el amplificador como pedales en cualquier orden, una división A/B y ocho macros.
+picker.dev.tabula.name = Tabula
+picker.dev.tabula.what = Pedalera
+picker.dev.tabula.about = Una pedalera con los efectos de Cantus: saturaciones, filtros, modulación, retardos, reverberaciones y el amplificador como pedales en cualquier orden, una división A/B y ocho macros.
+mixer.chain.tabula = Pedalera
+
+# Los parámetros de la pedalera.
+fx.tabula.m1 = Macro 1
+fx.tabula.m2 = Macro 2
+fx.tabula.m3 = Macro 3
+fx.tabula.m4 = Macro 4
+fx.tabula.m5 = Macro 5
+fx.tabula.m6 = Macro 6
+fx.tabula.m7 = Macro 7
+fx.tabula.m8 = Macro 8
+fx.tabula.in = Entrada
+fx.tabula.out = Salida
+fx.tabula.mix = Mezcla
+fx.tabula.ab = Balance A/B
+
+# El preset de inicio (ADR 0071).
+preset.tabula.guitar_rig = Equipo de guitarra
+
+# Las órdenes de la pedalera, como las nombra el historial.
+cmd.insert_pedal = Añadir un pedal
+cmd.remove_pedal = Quitar un pedal
+cmd.move_pedal = Mover un pedal
+cmd.pedal_on = Encender o apagar un pedal
+cmd.pedal_shape = Cambiar la forma de un pedal
+cmd.macro_maps = Asignar una macro
+cmd.macro_name = Nombrar una macro
+cmd.tabula_randomise = Pedalera al azar
+
+# La ventana de la pedalera (fx3:tabula).
+tabula.card.macros = Macros
+tabula.card.board = Pedalera
+tabula.card.pedal = Pedal
+tabula.learn = Aprender
+tabula.randomise = Al azar
+tabula.split = División
+tabula.mixer = Mezcla
+tabula.mixer.knob = A/B
+tabula.lane.a = A
+tabula.lane.b = B
+tabula.lane.empty = Suelte un pedal aquí
+tabula.add = Añadir pedal
+tabula.jack.in = Entrada
+tabula.jack.out = Salida
+tabula.picker.title = Añadir un pedal a la pedalera
+tabula.back = Volver a la pedalera
+tabula.editing = {name}: el editor completo de este pedal
+tabula.pedal.none = Elija un pedal de la pedalera
+tabula.pedal.size = Tamaño
+tabula.pedal.on = Activado
+tabula.pedal.lane = Lugar en la cadena
+tabula.pedal.open = Abrir su editor completo
+tabula.pedal.remove = Quitar
+tabula.shape.mini = Mini
+tabula.shape.standard = Estándar
+tabula.shape.wide = Ancho
+tabula.shape.double = Doble
+tabula.shape.round = Redondo
+tabula.path.pre = Antes
+tabula.path.post = Después
+tabula.demo.drive = Saturación
+tabula.demo.echo = Eco
+tabula.demo.space = Espacio
+
+# Las palabras bajo las perillas de un pedal.
+tabula.k.time = Tiempo
+tabula.k.repeats = Ecos
+tabula.k.intensity = Color
+tabula.k.mix = Mezcla
+tabula.k.rate = Ritmo
+tabula.k.depth = Amplitud
+tabula.k.drive = Saturación
+tabula.k.tone = Tono
+tabula.k.size = Tamaño
+tabula.k.decay = Caída
+tabula.k.threshold = Umbral
+tabula.k.ratio = Relación
+tabula.k.attack = Ataque
+tabula.k.release = Liberación
+tabula.k.gain = Ganancia
+tabula.k.level = Nivel
+tabula.k.width = Anchura
+tabula.k.range = Rango
+tabula.k.division = División
+tabula.k.knee = Rodilla
+tabula.k.sustain = Sostén
+tabula.k.key = Tonalidad
+tabula.k.scale = Escala
+tabula.k.cutoff = Corte
+tabula.k.resonance = Pico
+tabula.k.time_pattern = Tiempo
+tabula.k.volume_pattern = Volumen
+tabula.k.wow = Wow
+tabula.k.flutter = Flutter
+tabula.k.hiss = Siseo
+tabula.k.pan = Paneo
+tabula.k.body = Cuerpo
+tabula.k.low = Graves
+tabula.k.middle = Medios
+tabula.k.high = Agudos
+tabula.context = pedal {n} de la pedalera · {where}
+tabula.card.place = Su lugar en la pedalera
+tabula.learn.pick = Toque una perilla
+tabula.learn.status = Aprender: toque la perilla de un pedal que esta macro ha de mover
+
+# Las pedaleras de fábrica.
+preset.tabula.blues_crunch = Crujido de blues
+preset.tabula.ambient_swells = Oleadas ambientales
+preset.tabula.fuzz_lead = Solo con fuzz
+preset.tabula.phaser_funk = Funk con phaser
+preset.tabula.wet_dry_wet = Húmedo, seco, húmedo
+preset.tabula.bass_parallel_drive = Bajo: saturación en paralelo
+preset.tabula.bass_chorus = Bajo: chorus
+preset.tabula.synth_space = Sintetizador en el espacio
+preset.tabula.synth_tape = Sintetizador en cinta
+preset.tabula.drum_crush = Batería: aplastada en paralelo
+preset.tabula.drum_room = Batería: una sala
+preset.tabula.vocal_chain = Cadena de voz
+preset.tabula.vocal_doubler = Duplicador de voz
+# Los nombres que las pedaleras de fábrica dan a sus macros.
+tabula.macro.drive = Saturación
+tabula.macro.tone = Tono
+tabula.macro.echo = Eco
+tabula.macro.space = Espacio
+tabula.macro.motion = Movimiento
+tabula.macro.depth = Profundidad
+tabula.macro.width = Anchura
+tabula.macro.punch = Pegada
+tabula.macro.grit = Aspereza
+tabula.macro.blend = Mezcla

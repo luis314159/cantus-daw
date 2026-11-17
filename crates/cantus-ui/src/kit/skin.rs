@@ -66,6 +66,9 @@ mod instruments;
 mod modulation;
 #[path = "skin/tone.rs"]
 mod tone;
+// fx:contract — the fx side round's faces and their colourways.
+#[path = "skin/side.rs"]
+mod side;
 
 #[path = "skin/displays.rs"]
 pub mod displays;
@@ -80,6 +83,27 @@ pub mod switches;
 // Chorda's scene: its materials and lights (ADR 0104). r37:scene
 #[path = "skin/scene.rs"]
 pub mod scene;
+// The finishes of pedals (Fragor, ADR 0131; any board of pedals). fx:fragor
+#[path = "skin/pedals.rs"]
+pub mod pedals;
+// The record Vetus draws (ADR 0133). fx:vetus
+#[path = "skin/records.rs"]
+pub mod records;
+// The amp, its cabinet and the rotary speaker Arca and Rota draw (ADRs 0136, 0137). fx3:arca
+#[path = "skin/cabinets.rs"]
+pub mod cabinets;
+// The vocoder's microphone, bezels and meters Loquax draws (ADR 0139). fxa:loquax
+#[path = "skin/consoles.rs"]
+pub mod consoles;
+// The sequencer's chassis, pads, tube and keys Fractus draws (ADR 0140). fxa:fractus
+#[path = "skin/sequencers.rs"]
+pub mod sequencers;
+// The observatory's window, astrolabe and tubes Caelum draws (ADR 0141). fxa:caelum
+#[path = "skin/observatory.rs"]
+pub mod observatory;
+// The balance Libra draws (ADR 0133). fx:libra
+#[path = "skin/scales.rs"]
+pub mod scales;
 #[path = "skin/textures.rs"]
 mod textures;
 
@@ -149,6 +173,13 @@ pub enum Material {
     /// Vinyl amp covering: an amplifier's pebbled vinyl, a fine texture. (The variant's
     /// name is the code's; users read "vinyl amp covering" — `name()` says "vinyl".)
     Tolex,
+    /// fx3:tabula — vinyl covering of a finer, quieter grain (Tabula's board case, the
+    /// owner's "más fino"): small pebbles, softly lit. Users read "fine vinyl".
+    FineTolex,
+    /// fx3:arca — hammered enamel: a deep paint over metal, dimpled as if beaten, a soft
+    /// sheen (an old instrument's chassis; Arca's control plate). Users read "hammered
+    /// enamel".
+    Hammered,
     /// Smoked glass over a dark ground.
     Glass,
     /// Printed paper or card (a vintage panel's legend plate).
@@ -691,14 +722,118 @@ pub fn of(unit: Unit) -> &'static Skin {
     if let Some(by) = OVERRIDE_BY.with(|o| o.get()) {
         return by(unit);
     }
-    match unit {
+    let own = match unit {
         Unit::Effect(kind) => dynamics::of(kind)
             .or_else(|| modulation::of(kind))
             .or_else(|| tone::of(kind))
+            .or_else(|| side::of(kind)) // fx:contract
             .unwrap_or(&PLAIN),
         Unit::Instrument(kind) => instruments::of(kind),
         Unit::Pulsus => &instruments::PULSUS,
+    };
+    chosen(unit, own) // fx:colourways
+}
+
+// fx:colourways — a unit's face may come in several colourways (the fx side round, ADR 0130
+// §Colourways; extends ADR 0074 §5): named palettes over the same face, the first its
+// default (the face the sibling and contrast tests hold), the user's choice per unit kind
+// kept in `settings.json` (`unit_colourways`) and applied on the thread that draws.
+
+/// One colourway of a unit's face: its id (kept in the settings), its name's locale key and
+/// its sheet (a key of its own, so no cache keyed by a sheet shows one in another's place).
+#[derive(Copy, Clone, Debug)]
+pub struct Colourway {
+    pub id: &'static str,
+    pub name_key: &'static str,
+    pub sheet: &'static Skin,
+}
+
+/// The colourways a unit offers, its default first; empty when it has one face only.
+pub fn colourways(unit: Unit) -> &'static [Colourway] {
+    match unit {
+        Unit::Effect(kind) => side::colourways(kind),
+        _ => &[],
     }
+}
+
+/// The name a unit's colourway choice is kept under: its default sheet's key without the
+/// family (`fx.cribrum` → `cribrum`).
+pub fn colourway_unit(unit: Unit) -> Option<&'static str> {
+    let first = colourways(unit).first()?;
+    Some(
+        first
+            .sheet
+            .key
+            .rsplit('.')
+            .next()
+            .unwrap_or(first.sheet.key),
+    )
+}
+
+/// The colourway a unit wears on this thread: the chosen one, else its default.
+pub fn colourway_of(unit: Unit) -> Option<&'static Colourway> {
+    let all = colourways(unit);
+    let name = colourway_unit(unit)?;
+    let id = COLOURWAYS.with(|c| {
+        c.borrow()
+            .iter()
+            .find(|(u, _)| u == name)
+            .and_then(|(_, id)| all.iter().position(|w| w.id == id))
+    });
+    all.get(id.unwrap_or(0))
+}
+
+/// The user's colourways on this thread, as `(unit, colourway id)`: what
+/// `CantusApp::apply_unit_colourways` sets from the settings at start and when one changes,
+/// and an exported plug-in's window keeps for its session.
+pub fn set_colourways<'a>(choices: impl IntoIterator<Item = (&'a str, &'a str)>) {
+    COLOURWAYS.with(|c| {
+        let mut v = c.borrow_mut();
+        v.clear();
+        v.extend(
+            choices
+                .into_iter()
+                .map(|(u, id)| (u.to_string(), id.to_string())),
+        );
+    });
+    COLOURWAY_EPOCH.with(|e| e.set(e.get().wrapping_add(1)));
+}
+
+/// One unit's colourway on this thread, the others kept.
+pub fn set_colourway(unit: &str, id: &str) {
+    let mut all: Vec<(String, String)> = COLOURWAYS.with(|c| c.borrow().clone());
+    all.retain(|(u, _)| u != unit);
+    all.push((unit.to_string(), id.to_string()));
+    set_colourways(all.iter().map(|(u, i)| (u.as_str(), i.as_str())));
+}
+
+fn chosen(unit: Unit, own: &'static Skin) -> &'static Skin {
+    if COLOURWAY_EPOCH.with(|e| e.get()) == 0 {
+        return own;
+    }
+    match colourway_of(unit) {
+        Some(w) => w.sheet,
+        None => own,
+    }
+}
+
+/// A colourway's swatch: its surface, its accent and its second voice, in a theme.
+pub fn swatch(sheet: &Skin, dark: bool) -> [egui::Color32; 3] {
+    let tint = super::color::Hsl {
+        h: sheet.surface.hue,
+        s: (sheet.surface.sat * 1.6).min(0.9),
+        l: if dark { 0.30 } else { 0.62 },
+    };
+    let acc = |p: Option<Pair>| p.map_or(tint.rgb(), |p| p.get(dark).rgb());
+    [tint.rgb(), acc(sheet.accent), acc(sheet.accent2)]
+}
+
+thread_local! {
+    /// The user's colourways on this thread: (unit, colourway id).
+    static COLOURWAYS: std::cell::RefCell<Vec<(String, String)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+    /// Bumped when the choices change (0: none ever set — every unit its default).
+    static COLOURWAY_EPOCH: Cell<u64> = const { Cell::new(0) };
 }
 
 /// The skin of an effect kind.
@@ -921,7 +1056,8 @@ pub fn sheets_digest() -> u64 {
         .map_or(0, |s| s as *const Skin as usize)
         ^ OVERRIDE_BY
             .with(|o| o.get())
-            .map_or(0, |f| (f as usize).rotate_left(17));
+            .map_or(0, |f| (f as usize).rotate_left(17))
+        ^ (COLOURWAY_EPOCH.with(|e| e.get()) as usize).rotate_left(29); // fx:colourways
     if let Some((e, o, d)) = DIGEST.with(|c| c.get()) {
         if (e, o) == (on, ov) {
             return d;

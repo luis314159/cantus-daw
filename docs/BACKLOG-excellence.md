@@ -266,6 +266,23 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
   pixels (`shoot`), fix the cause, and keep that test in the suite. Must be fixed before the
   new themes of §6d.4 ship.
 - **To verify: bypassing the EQ shifts the song in time (2026-10-09, found while rendering the website's A/B excerpts).** Rendering the demos with every `Aequalis` slot bypassed lines up with the shipped render in *house* and *trap* (lag 0–1 frames) but is shifted by 487–570 frames (10–12 ms) in *ballad*, *funk* and *lofi*, whose EQs run in natural-phase or linear-phase mode. Either the whole mix moves by the plug-in latency when a slot is bypassed (harmless for a render, but a gap when bypass is toggled during playback) or one strip moves against the others (a delay-compensation bug). Write a test: bypass one linear-phase EQ and require the mix's other strips to stay sample-aligned; then say which it is.
+- **Bug: the whole window flickers on both axes — every time (GitHub issue #1 on
+  cantus-daw, opened 2026-11-14 by an outside user; logged 2026-11-17).** beta.14 portable
+  (`0.1.0-beta.14-windows-x64-portable`), Windows 11 Home 25H2, AMD Ryzen AI 9 465 (Radeon
+  800M-series integrated GPU, RDNA 3.5), 32 GB, Behringer UMC204HD on WASAPI. "The user
+  interface keeps flickering along both the horizontal and vertical axes", from the start.
+  Not seen on our machines (NVIDIA). Suspects, to check in this order: (1) a size/scale
+  feedback loop — the window or a panel resized each frame between two layouts (DPI scale
+  factor from the monitor vs our UI zoom, a fractional scale like 125/150 %, the
+  maximise/top-bar layout of ADR 0110, `kit::menu::fit`), seen as shaking on both axes;
+  (2) the wgpu surface on AMD's driver (present mode Fifo/Mailbox/Immediate, a surface
+  reconfigure every frame, the swapchain's size off by one from the window's); (3) the
+  reduced-motion/animation clock or the verse/dancer start overlay. Ask the reporter for: the
+  display scale (Settings → Display), the resolution and refresh rate, one or two monitors,
+  a short screen recording, whether `CANTUS_*` software rendering (if offered) or a
+  different UI zoom stops it, and the log file. Write a test that steps the app's layout
+  for N frames at 100/125/150/175 % scale and requires every frame's window and panel
+  rectangles to be identical once settled. Reply on the issue only when the owner asks.
 - **A small group of beta musicians** (FL, Ableton, Logic users), a public issue tracker,
   a feedback channel inside the app (opt-in, no telemetry by default). *Done when:* ten
   people outside the project have made a song and their reports are triaged.

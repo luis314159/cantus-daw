@@ -33,6 +33,27 @@ pub mod translatio;
 pub mod tremor;
 pub mod vibrans;
 
+// fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+pub mod arca; // fx3:contract
+pub mod rota; // fx3:contract
+pub mod saltus; // fx3:contract
+pub mod tabula; // fx3:contract
+
+// fxa:contract — the side round's wave A (provisional ADRs 0139–0141).
+pub mod caelum; // fxa:contract
+pub mod fractus; // fxa:contract
+pub mod loquax; // fxa:contract
+
+use crate::effects::EffectUnit;
+use cantus_core::fx::tabula::PedalId;
+
+// fx:contract — the fx side round's five units (provisional ADRs 0130–0133).
+pub mod cribrum; // fx:contract
+pub mod fragor; // fx:contract
+pub mod lapsus; // fx:contract
+pub mod libra; // fx:contract
+pub mod vetus; // fx:contract
+
 /// Numbers a plug-in reports to its editor each block: meters, gain reduction per band,
 /// loudness — whatever its display needs. Their meaning is the plug-in's own; they travel
 /// in `Meters::fx` for the effect whose editor is open.
@@ -184,6 +205,45 @@ pub trait FxUnit: Send + std::fmt::Debug {
         memory: crate::effects::EffectMemory,
     ) -> Option<crate::effects::EffectMemory> {
         Some(memory)
+    }
+
+    // fx3:contract — Tabula, the pedalboard (ADR 0134): a unit that holds units. Every one
+    // has a default, so every other unit ignores them.
+
+    /// A pedal built off the audio thread for this board (`EngineMessage::AddPedal`): kept,
+    /// or handed back (`Some`) to be dropped off the audio thread (`GarbageEffect`) — a
+    /// board without room, or any other unit. No allocation. Default: handed back.
+    fn adopt(&mut self, pedal: PedalId, unit: Box<EffectUnit>) -> Option<Box<EffectUnit>> {
+        let _ = pedal;
+        Some(unit)
+    }
+
+    /// A pedal that has faded out since the last call, to be dropped off the audio thread
+    /// (`GarbageEffect`); the processor drains it until `None`. Default: none.
+    fn take_retired(&mut self) -> Option<Box<EffectUnit>> {
+        None
+    }
+
+    /// The units inside this one (a board's pedals), so the processor asks and supplies
+    /// their memory (`EngineEvent::EffectNeed`'s `pedal`). Default: none.
+    fn pedals_mut(&mut self) -> &mut [tabula::Kid] {
+        &mut []
+    }
+
+    /// The song position for a unit that holds others: `late(d)` is the position `d`
+    /// samples later than the board hears it — the board's own lateness plus `d`, the
+    /// latency inside the board before a pedal, exact across tempo maps (`earlier_in`;
+    /// fx3:tabula). Called before each `process` when [`Self::follows_song`]; must not
+    /// allocate. Default: ignored.
+    fn set_position_late(&mut self, late: &dyn Fn(usize) -> SongPosition) {
+        let _ = late;
+    }
+
+    /// What the editor of one pedal draws (`EngineMessage::SetAnalysedPedal`), refreshed
+    /// each block; `None` for a pedal the unit does not hold. Default: none.
+    fn pedal_telemetry(&self, pedal: PedalId) -> Option<Telemetry> {
+        let _ = pedal;
+        None
     }
 }
 
@@ -592,6 +652,20 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::Analyzer => Box::new(speculum::Unit::new(sample_rate)),
         EffectKind::AutoTune => Box::new(tonus::Unit::new(sample_rate)),
         EffectKind::Aula => Box::new(aula::Unit::new(sample_rate)), // r39:conv
+        EffectKind::AutoFilter => Box::new(cribrum::Unit::new(sample_rate)), // fx:contract
+        EffectKind::Pedal => Box::new(fragor::Unit::new(sample_rate)), // fx:contract
+        EffectKind::TimeShaper => Box::new(lapsus::Unit::new(sample_rate)), // fx:contract
+        EffectKind::LoFi => Box::new(vetus::Unit::new(sample_rate)), // fx:contract
+        EffectKind::Utility => Box::new(libra::Unit::new(sample_rate)), // fx:contract
+        // fx3:contract — a board from its kind alone is an empty one (`EffectUnit::new`
+        // builds its pedals with `tabula::Unit::build`).
+        EffectKind::Board => Box::new(tabula::Unit::new(sample_rate)), // fx3:contract
+        EffectKind::PitchShift => Box::new(saltus::Unit::new(sample_rate)), // fx3:contract
+        EffectKind::Rotary => Box::new(rota::Unit::new(sample_rate)),  // fx3:contract
+        EffectKind::Amp => Box::new(arca::Unit::new(sample_rate)),     // fx3:contract
+        EffectKind::Vocoder => Box::new(loquax::Unit::new(sample_rate)), // fxa:contract
+        EffectKind::Glitch => Box::new(fractus::Unit::new(sample_rate)), // fxa:contract
+        EffectKind::Shimmer => Box::new(caelum::Unit::new(sample_rate)), // fxa:contract
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })

@@ -52,10 +52,11 @@ impl FxState {
             kind: e.spec.kind,
             bypass: e.bypass,
             mix: e.mix,
+            // fx3:contract — a board's pedals' values as `p{id}.{key}` beside its own.
             params: if e.spec.external.is_some() {
                 BTreeMap::new()
             } else {
-                e.spec.params.clone()
+                e.spec.flat_params().into_owned()
             },
         }
     }
@@ -71,7 +72,8 @@ impl FxState {
         if exact {
             e.mix = self.mix;
             if e.spec.external.is_none() {
-                e.spec.params = self.params.clone();
+                // fx3:tabula — a board's `p{id}.…` back into its pedals.
+                crate::fx::tabula::put_flat_params(&mut e.spec, &self.params);
             }
             return;
         }
@@ -399,7 +401,8 @@ pub fn changes(
 fn fx_lanes(fx: &FxState, now: Option<&EffectSlot>, out: &mut Vec<(AutoTarget, f32)>) {
     let now = now.filter(|e| e.spec.kind == fx.kind && e.spec.external.is_none());
     // The whole insert unchanged: nothing to look at key by key.
-    if now.is_some_and(|e| e.spec.params == fx.params) {
+    if now.is_some_and(|e| *e.spec.flat_params() == fx.params) {
+        // fx3:contract: a board's pedals included
         return;
     }
     let same = |k: &str, v: f32| now.is_some_and(|e| e.spec.get(k) == v);

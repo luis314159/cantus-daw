@@ -64,6 +64,12 @@ pub struct PluginHost {
     /// Bumped whenever a value changes (the editor's own edits, the host's automation, a
     /// state load): the frame keeps what it formats until then.
     revision: u64,
+    /// fx:lapsus — the bank generation `spec` holds.
+    lapsus_gen: u64,
+    /// fx3:tabula — the board generation `spec` holds.
+    board_gen: u64,
+    /// fxa:fractus — the lanes' generation `spec` holds.
+    fractus_gen: u64,
     /// The other side of A/B (the plug-in's values), and whether B is the side showing.
     other: Option<Vec<f32>>,
     on_b: bool,
@@ -88,6 +94,9 @@ impl PluginHost {
             sink,
             active: Vec::new(),
             revision: 0,
+            lapsus_gen: u64::MAX,  // fx:lapsus
+            board_gen: u64::MAX,   // fx3:tabula
+            fractus_gen: u64::MAX, // fxa:fractus
             other: None,
             on_b: false,
         }
@@ -111,6 +120,27 @@ impl PluginHost {
                     changed = true;
                 }
             }
+        }
+        // fx:lapsus — Lapsus's bank, when the main thread has a new one (a state loaded).
+        let g = self.shared.lapsus.generation();
+        if g != self.lapsus_gen {
+            self.lapsus_gen = g;
+            self.spec.lapsus = self.shared.lapsus.get();
+            changed = true;
+        }
+        // fxa:fractus — Fractus's lanes, when the main thread has new ones.
+        let g = self.shared.fractus.generation();
+        if g != self.fractus_gen {
+            self.fractus_gen = g;
+            self.spec.fractus = self.shared.fractus.get();
+            changed = true;
+        }
+        // fx3:tabula — Tabula's board, when the main thread has a new one.
+        let g = self.shared.board.generation();
+        if g != self.board_gen {
+            self.board_gen = g;
+            self.spec.board = self.shared.board.get();
+            changed = true;
         }
         if changed {
             self.revision += 1;
@@ -168,7 +198,34 @@ impl FxHost for PluginHost {
     fn set(&mut self, key: &str, value: f32, gesture: Option<&str>) {
         if let Some(i) = self.index(key) {
             self.edit(i, value, gesture.is_some());
+        } else if cantus_core::fx::tabula::split_key(key).is_some() {
+            // fx3:tabula — a pedal's knob: the board's content, posted to the processor and
+            // saved in the state (a host automates the macros, not the pedals).
+            if self.spec.set(key, value).is_some() {
+                let sr = self.shared.sample_rate().max(1.0);
+                self.shared.board.set(self.spec.board.clone(), sr);
+                self.board_gen = self.shared.board.generation();
+                self.revision += 1;
+            }
         }
+    }
+
+    // fx3:tabula — the board's commands, applied to the board this instance holds.
+    fn board_commands(
+        &mut self,
+        _label_key: &str,
+        build: &dyn Fn(cantus_core::StripId, cantus_core::EffectId) -> Vec<cantus_core::Command>,
+    ) -> bool {
+        let Ok(spec) = cantus_core::command_board::apply_to_spec(&self.spec, build) else {
+            return false;
+        };
+        // The board's own values the commands set (a randomise sets pedals' only).
+        let sr = self.shared.sample_rate().max(1.0);
+        self.shared.board.set(spec.board.clone(), sr);
+        self.board_gen = self.shared.board.generation();
+        self.spec.board = spec.board;
+        self.revision += 1;
+        true
     }
 
     fn set_many(&mut self, values: &[(&str, f32)], _label_key: &str) {
@@ -190,6 +247,39 @@ impl FxHost for PluginHost {
             let value = v.unwrap_or(p.default);
             self.edit(p.index as u32, value, gesture.is_some());
         }
+    }
+
+    // fx:lapsus — a slot of the bank: kept by the instance, posted to its processor, saved
+    // in its state.
+    fn set_lapsus_pattern(
+        &mut self,
+        lane: cantus_core::fx::lapsus::Lane,
+        slot: u8,
+        pattern: Option<cantus_core::fx::lapsus::Pattern>,
+        _gesture: Option<u64>,
+    ) {
+        self.shared.lapsus.set_pattern(lane, slot, pattern);
+        self.lapsus_gen = self.shared.lapsus.generation();
+        self.spec.lapsus = self.shared.lapsus.get();
+        self.revision += 1;
+    }
+
+    // fxa:fractus — a lane of Fractus: kept by the instance, posted to its processor, saved
+    // in its state (a host automates the values, not the lanes).
+    fn set_fractus_lane(
+        &mut self,
+        lane: u8,
+        blocks: Vec<cantus_core::fx::fractus::Block>,
+        _gesture: Option<u64>,
+    ) {
+        let mut p = self.shared.fractus.get().map(|b| *b).unwrap_or_default();
+        p.replace(lane, &blocks);
+        self.shared
+            .fractus
+            .set((!p.is_empty()).then(|| Box::new(p)));
+        self.fractus_gen = self.shared.fractus.generation();
+        self.spec.fractus = self.shared.fractus.get();
+        self.revision += 1;
     }
 
     fn end_gesture(&mut self) {
@@ -260,7 +350,8 @@ impl FxHost for PluginHost {
             .collect();
         let other = self.other.take().unwrap_or_else(|| now.clone());
         for (i, (a, b)) in now.iter().zip(&other).enumerate() {
-            if a != b {
+            // fxa:loquax — A/B compares the sound: a look (Loquax's microphone) stays.
+            if a != b && !table.kind.is_look(table.params[i].key) {
                 self.edit(table.params[i].index as u32, *b, false);
             }
         }

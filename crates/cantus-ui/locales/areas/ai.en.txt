@@ -297,6 +297,7 @@ ai.field.mix = mix
 ai.field.sidechain = sidechain
 ai.field.reset = defaults
 ai.field.plugin_params = plug-in parameters
+ai.field.lanes = lanes
 ai.tools.comp.swipe = swipe lane {lane} of {track} into the comp ({bars})
 ai.tools.comp.promote_lane = make lane {lane} of {track} the comp
 ai.tools.comp.promote_clip = make the take {clip} the comp

@@ -32,7 +32,7 @@ pub enum SkinPart {
 }
 
 /// How many sheets the skins add.
-pub const COUNT: usize = 6 + 4 + 9 + 6 + 4 + 1;
+pub const COUNT: usize = 6 + 4 + 10 + 6 + 4 + 1 + 1; // fx3:tabula: fine vinyl; fx3:arca: hammered enamel
 
 use super::Part;
 
@@ -71,6 +71,14 @@ pub const PARTS: [(&str, Part); COUNT] = [
     (
         "skin_material_vinyl",
         Part::Skin(SkinPart::Material(Material::Tolex)),
+    ),
+    (
+        "skin_material_fine_vinyl", // fx3:tabula
+        Part::Skin(SkinPart::Material(Material::FineTolex)),
+    ),
+    (
+        "skin_material_hammered", // fx3:arca
+        Part::Skin(SkinPart::Material(Material::Hammered)),
     ),
     (
         "skin_material_glass",
@@ -185,7 +193,7 @@ static SWITCHES: [Skin; 5] = [
     with_switch("gallery.switch.lamp", SwitchShape::Lamp),
 ];
 
-static MATERIALS: [Skin; 10] = [
+static MATERIALS: [Skin; 12] = [
     with_material("gallery.material.plain", Material::Plain),
     with_material("gallery.material.matte", Material::Matte),
     with_material("gallery.material.brushed", Material::Brushed),
@@ -193,6 +201,8 @@ static MATERIALS: [Skin; 10] = [
     with_material("gallery.material.lacquer", Material::Lacquer),
     with_material("gallery.material.wood", Material::Wood),
     with_material("gallery.material.vinyl", Material::Tolex),
+    with_material("gallery.material.fine_vinyl", Material::FineTolex), // fx3:tabula
+    with_material("gallery.material.hammered", Material::Hammered),    // fx3:arca
     with_material("gallery.material.glass", Material::Glass),
     with_material("gallery.material.paper", Material::Paper),
     with_material("gallery.material.carbon", Material::Carbon),

@@ -410,6 +410,13 @@ impl Rotary {
     #[inline]
     pub fn tick(&mut self, x: f32) -> (f32, f32) {
         self.advance();
+        self.tick_moved(x)
+    }
+
+    /// One sample with the rotors where they already are (fx3:rota — Rota, the insert,
+    /// turns them itself, on a fixed-point angle a skip can advance exactly).
+    #[inline]
+    pub fn tick_moved(&mut self, x: f32) -> (f32, f32) {
         let lo = self.lp[0].run(x);
         let lo = self.lp[1].run(lo);
         let hi = self.hp[0].run(x);

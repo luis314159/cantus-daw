@@ -339,7 +339,7 @@ impl CantusApp {
         &self,
         old: EffectId,
         new: EffectId,
-        kind: cantus_core::EffectKind,
+        spec: &cantus_core::EffectSpec,
     ) -> Vec<Command> {
         use cantus_core::controller::MappingTarget as T;
         use cantus_core::AutoTarget as A;
@@ -350,7 +350,7 @@ impl CantusApp {
                 T::EffectBypass(e) if *e == old => T::EffectBypass(new),
                 T::EffectMix(e) if *e == old => T::EffectMix(new),
                 T::Param(A::Effect { effect, key })
-                    if *effect == old && kind.param(key).is_some() =>
+                    if *effect == old && spec.param(key).is_some() =>
                 {
                     T::Param(A::Effect {
                         effect: new,
@@ -380,7 +380,7 @@ impl CantusApp {
         &self,
         old: EffectId,
         new: EffectId,
-        kind: cantus_core::EffectKind,
+        spec: &cantus_core::EffectSpec,
     ) -> Vec<Command> {
         let mut out = Vec::new();
         for t in &self.project().tracks {
@@ -389,7 +389,7 @@ impl CantusApp {
                     continue;
                 };
                 if let cantus_core::AutoTarget::Effect { effect, key } = &a.target {
-                    if *effect == old && kind.param(key).is_some() {
+                    if *effect == old && spec.param(key).is_some() {
                         let mut a = a.clone();
                         a.target = cantus_core::AutoTarget::Effect {
                             effect: new,
@@ -452,16 +452,17 @@ impl CantusApp {
         slot.mix = old.mix;
         slot.bypass = old.bypass;
         slot.sidechain = old.sidechain.filter(|_| slot.spec.takes_sidechain());
-        slot.midi_from = old.midi_from.filter(|_| slot.spec.kind.takes_notes());
+        slot.midi_from = old.midi_from.filter(|_| slot.spec.takes_notes()); // fx3:contract
         let new_id = slot.id;
-        let kind = slot.spec.kind;
+        // fx3:contract — by the new spec: a board's `p{id}.…` keys are its pedals'.
+        let new_spec = slot.spec.clone();
         let was_open = self.effect_window_open(strip, effect);
         // Automation follows the slot (ADR 0027): a lane on a parameter the new kind also
         // has is pointed at the new effect in the same undo step; one on a parameter it
         // lacks keeps its clips and goes quiet.
-        let mut retarget = self.retarget_automation(effect, new_id, kind);
+        let mut retarget = self.retarget_automation(effect, new_id, &new_spec);
         // The controllers follow the slot too (round 29, review 3 of ADR 0062, #54).
-        retarget.extend(self.retarget_mappings(effect, new_id, kind));
+        retarget.extend(self.retarget_mappings(effect, new_id, &new_spec));
         let swap = |slot: &EffectSlot| {
             let mut commands = vec![Command::ReplaceEffect {
                 strip,
@@ -494,13 +495,13 @@ impl CantusApp {
             self.close_eq_editor();
             self.close_comp_editor();
             self.close_fx_editor();
-            if kind.has_editor() {
+            if new_spec.kind.has_editor() {
                 self.open_effect_editor(strip, new_id);
             }
         }
         let name = match choice {
             PickChoice::Hosted(info) => info.name.clone(),
-            _ => t(kind.name_key()),
+            _ => t(new_spec.kind.name_key()),
         };
         self.set_status(tf("swap.status.effect", &[("name", &name)]));
         true

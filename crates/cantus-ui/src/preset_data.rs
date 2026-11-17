@@ -254,6 +254,68 @@ pub const FILES: &[(FileUnit, &str, &str)] = &[
         "presets/effects/aula.toml",
         include_str!("../presets/effects/aula.toml"),
     ),
+    // fx:contract — the fx side round's five (each builder fills its own file).
+    (
+        FileUnit::Effect(EffectKind::AutoFilter), // fx:contract
+        "presets/effects/autofilter.toml",
+        include_str!("../presets/effects/autofilter.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Pedal), // fx:contract
+        "presets/effects/pedal.toml",
+        include_str!("../presets/effects/pedal.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::TimeShaper), // fx:contract
+        "presets/effects/timeshaper.toml",
+        include_str!("../presets/effects/timeshaper.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::LoFi), // fx:contract
+        "presets/effects/lofi.toml",
+        include_str!("../presets/effects/lofi.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Utility), // fx:contract
+        "presets/effects/utility.toml",
+        include_str!("../presets/effects/utility.toml"),
+    ),
+    // fx3:contract — wave 3's four (each builder fills its own file).
+    (
+        FileUnit::Effect(EffectKind::Board), // fx3:contract
+        "presets/effects/board.toml",
+        include_str!("../presets/effects/board.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::PitchShift), // fx3:contract
+        "presets/effects/pitchshift.toml",
+        include_str!("../presets/effects/pitchshift.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Rotary), // fx3:contract
+        "presets/effects/rotary.toml",
+        include_str!("../presets/effects/rotary.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Amp), // fx3:contract
+        "presets/effects/amp.toml",
+        include_str!("../presets/effects/amp.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Vocoder), // fxa:contract
+        "presets/effects/vocoder.toml",
+        include_str!("../presets/effects/vocoder.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Glitch), // fxa:contract
+        "presets/effects/glitch.toml",
+        include_str!("../presets/effects/glitch.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Shimmer), // fxa:contract
+        "presets/effects/shimmer.toml",
+        include_str!("../presets/effects/shimmer.toml"),
+    ),
 ];
 
 /// Read one file's text.
@@ -470,6 +532,17 @@ pub fn check(unit: FileUnit, file: &File, known: &dyn Fn(&str) -> bool) -> Vec<S
             }
             FileUnit::Effect(kind) => {
                 for (k, v) in &p.values {
+                    // fxa:fractus — a Fractus preset's lanes ride in its values.
+                    if kind == EffectKind::Glitch && cantus_core::fx::fractus::lane_key(k).is_some()
+                    {
+                        if !cantus_core::fx::fractus::lane_value_ok(k, *v) {
+                            bad.push(format!(
+                                "{}: the lane's {k} = {v} is out of its range",
+                                p.key
+                            ));
+                        }
+                        continue;
+                    }
                     match kind.params().iter().find(|i| i.key == k) {
                         None => bad.push(format!("{}: {kind:?} has no value \"{k}\"", p.key)),
                         Some(i) if !(i.min..=i.max).contains(v) => bad.push(format!(

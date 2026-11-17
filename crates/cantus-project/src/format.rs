@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 71; // r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 74; // fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -196,6 +196,18 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
                                                                       // A track delay out of range never reaches the plan (review 3); before the frozen
                                                                       // keys, which hold it.
     let lateness_repaired = file.project.repair_lateness();
+    // fx3:contract — boards a command would refuse (a hand edit): a nested board, a hosted
+    // pedal, a duplicate id, a map to nothing (ADR 0134). Never to the audio thread.
+    let boards_repaired = cantus_core::fx::tabula::repair_project(&mut file.project);
+    if boards_repaired > 0 {
+        log::warn!("{boards_repaired} malformed board entr(ies) repaired");
+    }
+    // fxa:contract — Fractus's lanes a command would refuse (a hand edit): overlapping or
+    // past the cycle, or on a slot that is not a Fractus (ADR 0140).
+    let lanes_repaired = cantus_core::fx::fractus::repair_project(&mut file.project);
+    if lanes_repaired > 0 {
+        log::warn!("{lanes_repaired} malformed glitch pattern(s) repaired");
+    }
     // Provenance of a file not in the pool (a hand edit) names nothing: dropped. // r34:stems
     let pool: std::collections::BTreeSet<_> =
         file.project.audio_pool.iter().map(|s| s.id).collect(); // r34:stems
@@ -314,6 +326,9 @@ static MIGRATIONS: &[Migration] = &[
     migrate_68_to_69, // r40:scene — the scene's room, floor, walls and rug (ADR 0126)
     migrate_69_to_70, // r40:tymp-ui — a strip added to an instrument's family (ADR 0123)
     migrate_70_to_71, // r40:drums-hyb — a modelled kit's voice, generated or hybrid (ADR 0124)
+    migrate_71_to_72, // fx — the side round's five kinds (ADRs 0127–0130)
+    migrate_72_to_73, // fx3 — Tabula's board and three kinds (ADRs 0131–0134)
+    migrate_73_to_74, // fxa — Fractus's lanes and three kinds (ADRs 0136–0138)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1149,6 +1164,29 @@ fn migrate_70_to_71(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 72 (the effects side round, ADRs 0127–0130; provisional 62 on its branch): five new effect kinds — Cribrum, Fragor,
+/// Lapsus, Vetus and Libra. Nothing older has any of them, so nothing is written.
+// fx
+fn migrate_71_to_72(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 73 (the effects side round's wave 3, ADRs 0131–0134; provisional 63): Tabula's board
+/// (`EffectSpec::board`, its pedals and macros) and three new effect kinds — Saltus, Rota and
+/// Arca. Nothing older has any of them, so nothing is written.
+// fx3
+fn migrate_72_to_73(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 74 (the effects side round's wave A, ADRs 0136–0138; provisional 64): Fractus's painted lanes
+/// (`EffectSpec::fractus`) and three new effect kinds — Loquax, Fractus and Caelum. Nothing
+/// older has any of them, so nothing is written.
+// fxa
+fn migrate_73_to_74(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
 /// the default character changed, an old song keeps the one it showed).
 fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
@@ -1503,6 +1541,205 @@ mod tests {
             .iter()
             .flat_map(|s| s.effects.iter())
             .all(|e| !new_kinds.contains(&e.spec.kind)));
+    }
+
+    /// fx:contract — Schema 72 (the effects side round): the fixture holds one insert
+    /// of each of the five new kinds, in order, on the second strip; every older file
+    /// (71) opens with none of them.
+    #[test]
+    fn schema_72_keeps_the_fx_side_rounds_kinds() {
+        use cantus_core::EffectKind as K;
+        let new_kinds = &K::ALL[26..31];
+        assert_eq!(
+            new_kinds,
+            [K::AutoFilter, K::Pedal, K::TimeShaper, K::LoFi, K::Utility]
+        );
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v72.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let slots: Vec<_> = p.strips[1]
+            .effects
+            .iter()
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        assert_eq!(slots[0].spec.get("out"), -3.0);
+        assert!(slots[1..].iter().all(|e| e.spec.get("out") == 0.0));
+        let old = std::fs::read_to_string(dir.join("v71.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .strips
+            .iter()
+            .flat_map(|s| s.effects.iter())
+            .all(|e| !new_kinds.contains(&e.spec.kind)));
+    }
+
+    /// fx3:contract — Schema 73 (the effects side round's wave 3): the fixture holds
+    /// a board — Fragor on A and Delay on B (a split), a macro named Drive moving Fragor's
+    /// drive — and one insert of each of the three new kinds; every older file (72) opens
+    /// with none of them and no board.
+    #[test]
+    fn schema_73_keeps_a_board_and_wave_3s_kinds() {
+        use cantus_core::fx::tabula::{Path, PedalId};
+        use cantus_core::EffectKind as K;
+        let new_kinds = &K::ALL[31..35];
+        assert_eq!(new_kinds, [K::Board, K::PitchShift, K::Rotary, K::Amp]);
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v73.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        // fxa:contract — no longer the newest: migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(73));
+        let p = report.file.project;
+        let slots: Vec<_> = p.strips[1]
+            .effects
+            .iter()
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        let board = slots[0].spec.board.as_deref().expect("a board");
+        let pedals: Vec<(K, Path)> = board.pedals.iter().map(|x| (x.spec.kind, x.path)).collect();
+        assert_eq!(pedals, [(K::Pedal, Path::A), (K::Delay, Path::B)]);
+        assert!(board.has_split());
+        assert_eq!(board.macros[0].name.as_deref(), Some("Drive"));
+        assert_eq!(board.macro_of(PedalId(0), "od.drive"), Some(0));
+        assert_eq!(slots[0].spec.get("m1"), 0.25);
+        assert_eq!(
+            slots[0].spec.get("p1.time_ms"),
+            250.0,
+            "a pedal's key, routed"
+        );
+        assert!(slots[1..].iter().all(|e| e.spec.get("out") == 0.0));
+        let old = std::fs::read_to_string(dir.join("v72.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .all_effects()
+            .all(|(_, e)| !new_kinds.contains(&e.spec.kind) && e.spec.board.is_none()));
+    }
+
+    /// fxa:contract — Schema 74 (the effects side round's wave A): the fixture holds
+    /// one insert of each of the three new kinds, the Fractus with two painted lanes; every
+    /// older file (73) opens with none of them and no pattern. A hand-edited pattern is
+    /// repaired: overlapping blocks cut, a pattern on another kind taken off.
+    #[test]
+    fn schema_74_keeps_wave_a_s_kinds_and_fractus_s_lanes() {
+        use cantus_core::fx::fractus::Block;
+        use cantus_core::EffectKind as K;
+        let new_kinds = &K::ALL[35..38];
+        assert_eq!(new_kinds, [K::Vocoder, K::Glitch, K::Shimmer]);
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v74.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        let slots: Vec<_> = p.strips[1]
+            .effects
+            .iter()
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        let pat = slots[1].spec.fractus.as_deref().expect("lanes");
+        assert_eq!(pat.lane(0), [Block::new(12, 4)]);
+        let mut half = Block::new(8, 2);
+        half.amount = 0.5;
+        half.prob = 0.75;
+        assert_eq!(pat.lane(7), [half]);
+        assert_eq!(slots[0].spec.get("mix"), 1.0);
+        assert_eq!(slots[2].spec.get("shim"), 0.55);
+        let old = std::fs::read_to_string(dir.join("v73.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .all_effects()
+            .all(|(_, e)| !new_kinds.contains(&e.spec.kind) && e.spec.fractus.is_none()));
+        // A hand edit: an overlapping block, and a pattern on Caelum.
+        let mut v: Value = serde_json::from_str(&text).unwrap();
+        v.as_object_mut().unwrap().remove("integrity");
+        let fx = v["project"]["strips"][1]["effects"].as_array_mut().unwrap();
+        let at = fx
+            .iter()
+            .position(|e| e["spec"]["kind"] == "Glitch")
+            .unwrap();
+        let lane = fx[at]["spec"]["fractus"]["lanes"]["0"]
+            .as_array_mut()
+            .unwrap();
+        lane.push(serde_json::json!({"at": 14, "len": 4}));
+        let pattern = fx[at]["spec"]["fractus"].clone();
+        let other = fx
+            .iter()
+            .position(|e| e["spec"]["kind"] == "Shimmer")
+            .unwrap();
+        fx[other]["spec"]["fractus"] = pattern;
+        let p = parse(&v.to_string(), true).unwrap().file.project;
+        let all: Vec<_> = p.all_effects().map(|(_, e)| e).collect();
+        let g = all.iter().find(|e| e.spec.kind == K::Glitch).unwrap();
+        assert_eq!(
+            g.spec.fractus.as_ref().unwrap().lane(0),
+            [Block::new(12, 4), Block::new(16, 2)]
+        );
+        assert!(all
+            .iter()
+            .filter(|e| e.spec.kind != K::Glitch)
+            .all(|e| e.spec.fractus.is_none()));
+    }
+
+    /// fx3:contract — a hand-edited board is repaired on load: a nested board and a second
+    /// pedal with the same id are dropped, and a board on a slot that is not one is taken off.
+    #[test]
+    fn a_hand_edited_board_is_repaired_on_load() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v73.cantus")).unwrap();
+        let mut v: Value = serde_json::from_str(&text).unwrap();
+        v.as_object_mut().unwrap().remove("integrity");
+        let fx = v["project"]["strips"][1]["effects"].as_array_mut().unwrap();
+        let at = fx
+            .iter()
+            .position(|e| e["spec"]["kind"] == "Board")
+            .unwrap();
+        let pedals = fx[at]["spec"]["board"]["pedals"].as_array_mut().unwrap();
+        let mut twin = pedals[0].clone();
+        twin["spec"] = serde_json::json!({"kind": "Board", "params": {}});
+        pedals.push(twin);
+        let board = fx[at]["spec"]["board"].clone();
+        let other = fx
+            .iter()
+            .position(|e| e["spec"]["kind"] == "Rotary")
+            .unwrap();
+        fx[other]["spec"]["board"] = board;
+        let p = parse(&v.to_string(), true).unwrap().file.project;
+        let all: Vec<_> = p.all_effects().map(|(_, e)| e).collect();
+        let b = all
+            .iter()
+            .find(|e| e.spec.kind == cantus_core::EffectKind::Board)
+            .unwrap();
+        assert_eq!(b.spec.board.as_ref().unwrap().pedals.len(), 2);
+        assert!(all
+            .iter()
+            .filter(|e| e.spec.kind != cantus_core::EffectKind::Board)
+            .all(|e| e.spec.board.is_none()));
+    }
+
+    /// fx:lapsus — schema 72's Lapsus carries a bank of its own (a volume pattern in slot 5,
+    /// named), read back as written; the others hold none.
+    #[test]
+    fn schema_72_carries_lapsus_s_bank() {
+        use cantus_core::fx::lapsus::Lane;
+        use cantus_core::EffectKind as K;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v72.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let all: Vec<_> = p.strips.iter().flat_map(|s| s.effects.iter()).collect();
+        let lapsus = all.iter().find(|e| e.spec.kind == K::TimeShaper).unwrap();
+        let bank = lapsus.spec.lapsus.as_deref().expect("a bank");
+        assert!(bank.time.is_empty());
+        let mine = bank.pattern(Lane::Vol, 4);
+        assert_eq!((mine.len, mine.points.len()), (1, 2));
+        assert_eq!(mine.name.as_deref(), Some("Half gate"));
+        assert!(all
+            .iter()
+            .filter(|e| e.spec.kind != K::TimeShaper)
+            .all(|e| e.spec.lapsus.is_none()));
     }
 
     /// Schema 26 (round 28, ADR 0052): the fixture's metronome has the woodblock voice and

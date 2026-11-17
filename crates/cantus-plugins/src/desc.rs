@@ -55,8 +55,9 @@ const FX: &str = "audio-effect";
 const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
-/// round 28's, Aula (round 39) and Delay (round 40).
-pub static ALL: [Descriptor; 25] = [ // r39:conv: 24 with Aula; r40:delay: 25 with Delay
+/// round 28's, Aula (round 39), Delay (round 40) and the effects side round's twelve.
+pub static ALL: [Descriptor; 37] = [
+    // r39:conv: 24 with Aula; r40:delay: 25 with Delay; fx3:contract, fxa: 37 with the side round's twelve
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -365,6 +366,162 @@ pub static ALL: [Descriptor; 25] = [ // r39:conv: 24 with Aula; r40:delay: 25 wi
         vst3_categories: "Fx|Delay",
         description: "Stereo delay: ping-pong, a tone in the feedback, the time free or a note value following the tempo, the echoes drawn in time.",
         compiled: cfg!(feature = "delay"),
+    },
+    // fx:contract — the fx side round's five (provisional ADRs 0130–0133); ids are
+    // forever once released, by the module's rule.
+    Descriptor {
+        kind: EffectKind::AutoFilter, // fx:contract
+        name: "Cribrum",
+        full_name: "Cantus Cribrum",
+        slug: "cribrum",
+        clap_id: "com.github.lalmazan.cantus.cribrum",
+        vst3_cid: [0x8280FB5B, 0xB86C9415, 0x7A1AD8E5, 0x364DDEC1],
+        clap_features: &[FX, "filter", STEREO],
+        vst3_categories: "Fx|Filter",
+        description: "Auto filter: analog filter models moved by an envelope, a synced LFO or a follower.",
+        compiled: cfg!(feature = "cribrum"),
+    },
+    Descriptor {
+        kind: EffectKind::Pedal, // fx:contract
+        name: "Fragor",
+        full_name: "Cantus Fragor",
+        slug: "fragor",
+        clap_id: "com.github.lalmazan.cantus.fragor",
+        vst3_cid: [0x60CC77ED, 0x2C45A210, 0x3147B7A4, 0x0E1527BE],
+        clap_features: &[FX, "distortion", STEREO],
+        vst3_categories: "Fx|Distortion",
+        description: "Distortion and fuzz pedals, modelled from their circuits.",
+        compiled: cfg!(feature = "fragor"),
+    },
+    Descriptor {
+        kind: EffectKind::TimeShaper, // fx:contract
+        name: "Lapsus",
+        full_name: "Cantus Lapsus",
+        slug: "lapsus",
+        clap_id: "com.github.lalmazan.cantus.lapsus",
+        vst3_cid: [0x83B3C333, 0x81E2521A, 0x89A21D39, 0xEAA7BF03],
+        clap_features: &[FX, "glitch", STEREO],
+        vst3_categories: "Fx|Modulation",
+        description: "Time and volume shaper: tape stops, half-time, stutters and scratches, synced to the song.",
+        compiled: cfg!(feature = "lapsus"),
+    },
+    Descriptor {
+        kind: EffectKind::LoFi, // fx:contract
+        name: "Vetus",
+        full_name: "Cantus Vetus",
+        slug: "vetus",
+        clap_id: "com.github.lalmazan.cantus.vetus",
+        vst3_cid: [0xAF6ED6C2, 0x8D427D1A, 0xFC4FB59B, 0x1B6199E3],
+        clap_features: &[FX, "distortion", STEREO],
+        vst3_categories: "Fx|Distortion",
+        description: "Lo-fi: fewer bits, a lower sample rate, vinyl and tape wear.",
+        compiled: cfg!(feature = "vetus"),
+    },
+    Descriptor {
+        kind: EffectKind::Utility, // fx:contract
+        name: "Libra",
+        full_name: "Cantus Libra",
+        slug: "libra",
+        clap_id: "com.github.lalmazan.cantus.libra",
+        vst3_cid: [0x035BD1F4, 0x20D86106, 0x99631CB5, 0xBC149313],
+        clap_features: &[FX, "utility", STEREO],
+        vst3_categories: "Fx|Tools",
+        description: "Utility: gain, polarity, channel operations, alignment and a tuner.",
+        compiled: cfg!(feature = "libra"),
+    },
+    // fx3:contract — the fx side round's wave 3 (provisional ADRs 0134–0137); ids are
+    // forever once released, by the module's rule.
+    Descriptor {
+        kind: EffectKind::Board, // fx3:contract
+        name: "Tabula",
+        full_name: "Cantus Tabula",
+        slug: "tabula",
+        clap_id: "com.github.lalmazan.cantus.tabula",
+        vst3_cid: [0xA28BD282, 0xBA48590F, 0x35C8BC62, 0x0CCF7313],
+        clap_features: &[FX, "multi-effects", STEREO],
+        vst3_categories: "Fx",
+        description: "Pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros.",
+        compiled: cfg!(feature = "tabula"),
+    },
+    Descriptor {
+        kind: EffectKind::PitchShift, // fx3:contract
+        name: "Saltus",
+        full_name: "Cantus Saltus",
+        slug: "saltus",
+        clap_id: "com.github.lalmazan.cantus.saltus",
+        vst3_cid: [0xCECA3718, 0xF4DDB4E5, 0xDBABF3C7, 0xFE35322C],
+        clap_features: &[FX, "pitch-shifter", STEREO],
+        vst3_categories: "Fx|Pitch Shift",
+        description: "Pitch: an octaver, a pitch shifter and harmoniser, and a whammy.",
+        compiled: cfg!(feature = "saltus"),
+    },
+    Descriptor {
+        kind: EffectKind::Rotary, // fx3:contract
+        name: "Rota",
+        full_name: "Cantus Rota",
+        slug: "rota",
+        clap_id: "com.github.lalmazan.cantus.rota",
+        vst3_cid: [0xB3A52B72, 0x37C662B9, 0x7C8B54DF, 0x80048288],
+        clap_features: &[FX, "modulation", STEREO],
+        vst3_categories: "Fx|Modulation",
+        description: "Rotary speaker: horn and drum, slow and fast, heard through two microphones.",
+        compiled: cfg!(feature = "rota"),
+    },
+    Descriptor {
+        kind: EffectKind::Amp, // fx3:contract
+        name: "Arca",
+        full_name: "Cantus Arca",
+        slug: "arca",
+        clap_id: "com.github.lalmazan.cantus.arca",
+        vst3_cid: [0x84B3FE43, 0x91BC4B10, 0xB2BE25F4, 0xBCF6F1BC],
+        clap_features: &[FX, "distortion", STEREO],
+        vst3_categories: "Fx|Distortion",
+        description: "Amp and cabinet: preamp, tone stack and power amp from their circuits, the cabinet by impulse response.",
+        compiled: cfg!(feature = "arca"),
+    },
+    // fxa:loquax — the fx side round's wave A (provisional ADR 0139). Its carrier is the
+    // sidechain input (the plug-in's own switch set to the external key) or the notes the
+    // host sends to its note port, which play its synthesiser.
+    Descriptor {
+        kind: EffectKind::Vocoder,
+        name: "Loquax",
+        full_name: "Cantus Loquax",
+        slug: "loquax",
+        clap_id: "com.github.lalmazan.cantus.loquax",
+        vst3_cid: [0xEA91B43C, 0x9B54E866, 0x867C5461, 0x736417E8],
+        clap_features: &[FX, "filter", STEREO],
+        vst3_categories: "Fx|Filter",
+        description: "Vocoder: a voice speaks through a synthesiser played by notes or through the sidechain, in 8 to 64 bands.",
+        compiled: cfg!(feature = "loquax"),
+    },
+    // fxa:fractus — the fx side round's wave A (provisional ADR 0140). Its lanes are content
+    // in its state (`state::save_spec_extras`), its sequence follows the host's transport,
+    // and the notes the host sends to its note port play the lanes.
+    Descriptor {
+        kind: EffectKind::Glitch,
+        name: "Fractus",
+        full_name: "Cantus Fractus",
+        slug: "fractus",
+        clap_id: "com.github.lalmazan.cantus.fractus",
+        vst3_cid: [0xA45BB873, 0x8037DB8F, 0x9F9C9A7F, 0xB80F1099],
+        clap_features: &[FX, "glitch", STEREO],
+        vst3_categories: "Fx|Modulation",
+        description: "Glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and throws painted on lanes in time with the song, played by notes too.",
+        compiled: cfg!(feature = "fractus"),
+    },
+    // fxa:caelum — the fx side round's wave A (provisional ADR 0141). Its ducking listens to
+    // the sidechain input when the key is chosen; a synced pre-delay follows the host's tempo.
+    Descriptor {
+        kind: EffectKind::Shimmer,
+        name: "Caelum",
+        full_name: "Cantus Caelum",
+        slug: "caelum",
+        clap_id: "com.github.lalmazan.cantus.caelum",
+        vst3_cid: [0x1F194B00, 0x720CFAC7, 0x24C62CE1, 0xE499736E],
+        clap_features: &[FX, "reverb", STEREO],
+        vst3_categories: "Fx|Reverb",
+        description: "Shimmer reverb: tails that climb in pitch, infinite washes, bloom, freeze and ducking by the input or a sidechain key.",
+        compiled: cfg!(feature = "caelum"),
     },
 ];
 

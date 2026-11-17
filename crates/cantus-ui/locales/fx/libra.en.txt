@@ -1,0 +1,89 @@
+# Libra (fx side round) — owned by Libra. Every key here needs its twin in libra.es.txt.
+effect.libra = Libra utility
+fx.libra.about = The everyday tools of a channel: gain, balance and width, polarity, channel swaps and mono, a delay to align two microphones, DC removal, a tuner and the stereo image measured.
+picker.dev.libra.name = Libra
+picker.dev.libra.what = Utility
+picker.dev.libra.about = The everyday tools of a channel: gain, balance and width, polarity, channel swaps and mono, a delay to align two microphones, DC removal, a tuner and the stereo image measured.
+mixer.chain.libra = Utility
+
+# Parameters.
+fx.libra.out = Gain
+fx.libra.pan = Balance
+fx.libra.width = Width
+fx.libra.chan = Channels
+fx.libra.pol.l = Left polarity
+fx.libra.pol.r = Right polarity
+fx.libra.dc = DC removal
+fx.libra.delay.l = Left delay
+fx.libra.delay.r = Right delay
+fx.libra.delay.unit = Delays in
+fx.libra.mute = Mute
+fx.libra.tuner.ref = Tuner A
+
+# Choices.
+libra.onoff.0 = Off
+libra.onoff.1 = On
+libra.pol.0 = Normal
+libra.pol.1 = Inverted
+libra.unit.0 = ms
+libra.unit.1 = Samples
+libra.chan.0 = Stereo
+libra.chan.1 = Swap
+libra.chan.2 = Mono
+libra.chan.3 = Left
+libra.chan.4 = Right
+libra.chan.5 = Mid
+libra.chan.6 = Side
+libra.chan.0.tip = Left and right as they come.
+libra.chan.1.tip = Left and right swapped.
+libra.chan.2.tip = Both channels summed to mono (half each): check the mix in mono.
+libra.chan.3.tip = The left channel on both sides.
+libra.chan.4.tip = The right channel on both sides.
+libra.chan.5.tip = The mid (what both sides share) on both sides.
+libra.chan.6.tip = The side (what differs between them) on both sides: listen to the width alone.
+
+# The editor.
+libra.card.measure = The measure
+libra.card.channels = Channels
+libra.card.delays = Delays
+libra.card.image = Image
+libra.card.gain = Gain
+libra.card.switches = Switches
+libra.l.operation = Operation
+libra.l.polarity = Invert polarity
+libra.l.left = Left
+libra.l.right = Right
+libra.l.shown_in = Shown in
+libra.l.tuner_a = Tuner A
+libra.l.dc = DC
+libra.l.mute = Mute
+libra.no_pitch = No pitch
+libra.corr = Correlation
+libra.samples = samples
+libra.cmd.centre = Centre the image
+libra.gonio_tip = The goniometer: the output's mid up, its side across
+libra.gonio_how = Drag across for the balance, up and down for the width. Double-click: centred, as it came.
+libra.tuner_tip = The tuner: the note the output plays and how far off it is, in cents
+libra.tuner_how = Drag up and down to move the reference A (415 to 466 Hz).
+
+# Factory presets.
+preset.libra.mono_check = Mono check
+preset.libra.flip_left = Flip the left
+preset.libra.flip_both = Flip both
+preset.libra.align_1ms = Align 1 ms
+preset.libra.haas_wide = Haas width
+preset.libra.dc_clean = DC clean
+preset.libra.mid_only = Mid only
+preset.libra.side_only = Side only
+preset.libra.swap = Swap the sides
+preset.libra.narrow = Narrower
+preset.libra.wider = Wider
+preset.libra.pad_minus_12 = Pad 12 dB
+preset.libra.left_to_both = Left to both
+preset.libra.bass_mono = Bass in mono
+libra.balance_tip = The balance: the beam tilts with the left and right balance, the arms reach as wide as the image
+libra.balance_how = Drag across for the balance, up and down for the width. Double-click: centred, as it came.
+libra.level = Level
+libra.delay = Delay
+libra.inverted = polarity inverted
+libra.reference = Reference A

@@ -560,6 +560,10 @@ impl CantusApp {
         views::inst::chorda::scene::hybrid::register();
         // The owner's look answers the workspace keeps a copy of (round 40). r40:look
         views::owner_look::apply(&mut app);
+        // fx:colourways — and each unit kind its colourway (ADR 0127 §Colourways).
+        app.apply_unit_colourways();
+        app.apply_unit_views(); // fx:vetus
+        app.apply_starting_choices(); // fx3:start
         // The user's automatic crossfades (round 31, ADR 0070) on the bus.
         app.apply_editing_settings();
         // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
@@ -1201,6 +1205,46 @@ impl CantusApp {
         crate::kit::skin::set_enabled(self.settings.unit_faces);
     }
 
+    /// fx:colourways — every unit kind wears the colourway the settings name (ADR 0130
+    /// §Colourways), on the thread that draws: at start and whenever one changes.
+    pub fn apply_unit_colourways(&mut self) {
+        crate::kit::skin::set_colourways(
+            self.settings
+                .unit_colourways
+                .iter()
+                .map(|(u, id)| (u.as_str(), id.as_str())),
+        );
+    }
+
+    /// fx:colourways — choose `unit`'s colourway: kept in the settings and worn at once by
+    /// every open window of that kind.
+    pub fn set_unit_colourway(&mut self, unit: &str, id: &str) {
+        self.settings
+            .unit_colourways
+            .insert(unit.to_string(), id.to_string());
+        self.apply_unit_colourways();
+        self.store_settings();
+    }
+
+    /// fx:vetus — the units' chosen views (ADR 0133), worn on the thread that draws.
+    pub fn apply_unit_views(&mut self) {
+        crate::views::fx::unit_view::set_views(
+            self.settings
+                .unit_views
+                .iter()
+                .map(|(u, id)| (u.as_str(), id.as_str())),
+        );
+    }
+
+    /// fx:vetus — choose `unit`'s view: kept in the settings and shown at once.
+    pub fn set_unit_view(&mut self, unit: &str, id: &str) {
+        self.settings
+            .unit_views
+            .insert(unit.to_string(), id.to_string());
+        self.apply_unit_views();
+        self.store_settings();
+    }
+
     pub fn store_settings(&mut self) {
         if let Err(e) = self.settings.save(&self.settings_path) {
             log::warn!("cannot write settings file: {e}");
@@ -1739,6 +1783,18 @@ impl CantusApp {
             "speculum" => EffectKind::Analyzer,
             "tonus" => EffectKind::AutoTune,
             "aula" | "convolution" => EffectKind::Aula, // r39:conv
+            "cribrum" | "autofilter" => EffectKind::AutoFilter, // fx:contract
+            "fragor" | "pedal" => EffectKind::Pedal,    // fx:contract
+            "lapsus" | "timeshaper" => EffectKind::TimeShaper, // fx:contract
+            "vetus" | "lofi" => EffectKind::LoFi,       // fx:contract
+            "libra" | "utility" => EffectKind::Utility, // fx:contract
+            "tabula" | "board" | "pedalboard" => EffectKind::Board, // fx3:contract
+            "saltus" | "pitch" => EffectKind::PitchShift, // fx3:contract
+            "rota" | "rotary" => EffectKind::Rotary,    // fx3:contract
+            "arca" | "amp" => EffectKind::Amp,          // fx3:contract
+            "loquax" | "vocoder" => EffectKind::Vocoder, // fxa:contract
+            "fractus" | "glitch" => EffectKind::Glitch, // fxa:contract
+            "caelum" | "shimmer" => EffectKind::Shimmer, // fxa:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

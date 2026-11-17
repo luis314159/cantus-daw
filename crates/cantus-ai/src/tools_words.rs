@@ -111,6 +111,7 @@ pub fn field(k: &str) -> Said {
         "sidechain_strip_id" => "ai.field.sidechain",
         "reset" => "ai.field.reset",
         "plugin_params" => "ai.field.plugin_params",
+        "lanes" => "ai.field.lanes", // fxa:fractus
         other => return key(other),
     };
     Said::new(key)

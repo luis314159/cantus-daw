@@ -1989,7 +1989,8 @@ The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander),
 Fervor (saturation), Latitudo (stereo), Speculum (analyser), Tonus (pitch correction),
 Concentus (chorus), Flexus (flanger), Phasis (phaser), Tremor (tremolo and auto-pan),
 Vibrans (vibrato), Anulus (ring modulator), Translatio (frequency shifter), Fluctus (volume
-shaper), Aula (convolution reverb), Delay and Reverb.
+shaper), Cribrum (auto filter), Fragor (distortion pedals), Lapsus (time shaper), Vetus
+(lo-fi), Libra (utility), Aula (convolution reverb), Delay and Reverb.
 
 ### Each unit's face
 
@@ -2201,6 +2202,366 @@ in a separate process, so a plug-in that crashes while being scanned is blocked,
 fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
 DAWs.
 
+### Cribrum, the auto filter
+
+**Cribrum** (Latin for *a sieve*) is a filter that moves in time with the song: two
+analog-modelled filters — the same five circuits as Cantus's synths (state-variable,
+transistor ladder, OTA cascade, diode ladder, Sallen-Key) — in series or in parallel, moved by
+an **LFO**, an **envelope follower** and a **curve you draw**. Insert it from the picker
+(it is under EQ and under Modulation); it starts on *Bar sweep*, a resonant ladder swept once
+a bar, so it is heard at once.
+
+**What passes.** The window's picture is the music sieved: its spectrum as grains, lit up to
+what comes out of the filters and capped where it went in, under the response of both filters
+as they move. Drag a filter's handle across for its cutoff and up and down for its resonance
+(Shift is finer; a double-click puts both back). The chosen filter's handle sits on a rail
+that shows how far its movement can take it.
+
+**Movement.** Choose the LFO, the follower or the curve on its key: its picture moves on the
+lane in time with the song, its own controls are beside it, and under them its **depths**
+onto the cutoff (in octaves), the resonance and the vowel. The three sources add up. The LFO
+runs on the song from 1/64 to eight bars (dotted and triplet) or free in Hz, in seven waves
+(sample & hold and a smooth *drift* among them), with a stereo phase. The follower hears the
+track or a **sidechain** — a kick opening a pad's filter; its **range** sets how much of the
+level moves the filter (narrow it and only each note's attack opens the filter: the envelope
+wah of the *Cry wah* preset). The curve is drawn as Fluctus's and
+the automation clips are (drag a point, drag a segment to bend it, double-click to add or
+remove one) and smoothed so a step never clicks.
+
+**The filters.** Each has its model, its response (low-, band-, high-pass, notch, peak where
+the model gives it, and a **vowel** filter that talks A-E-I-O-U), 12 or 24 dB/oct, cutoff,
+resonance (every model sings in tune from 95 %), drive and vowel. The second filter can follow
+the movement, ignore it or move the other way. Spread opens the two channels' cutoffs apart.
+
+**Exact.** At 0 % mix Cribrum passes the sound untouched, to the bit. A render from any bar
+moves the filters as the whole render does there; offline equals real time at any buffer size.
+Oversampling (2× or 4×) keeps a driven filter clean; its latency (a sample or two) is
+compensated.
+
+### Vetus, lo-fi
+
+**Vetus** (Latin for *old*) ages a sound the way an old medium aged it. Insert it from the
+picker (under Distortion); it starts on *Worn cassette* — wow and flutter, tape hiss, the
+tape's band and a little wear — so it is heard at once.
+
+**Six modules**, in the order a recording travels — digitised, put on a medium, worn, played
+back — each switched on by the lamp in its card's title (its controls answer while it is off,
+dimmed, so you can set a module up before you hear it):
+
+- **Bits** — 1 to 24 bits (fractional: a sweep never jumps), *Rounding*, *Truncation* (a cheap
+  converter's rougher grit) or *μ-law* (the telephone's: quiet sounds keep more levels), with
+  or without **dither**. At 24 bits without dither it passes the sound untouched.
+- **Sample rate** — down to 1 kHz. *Raw*, what lies above the new Nyquist folds back and the
+  steps ring above it: the sound of an old sampler. *Filtered* puts an anti-alias filter before
+  it (nothing folds back); *Smoothed* adds a filter after it (only the bandwidth is lost).
+- **Wow and flutter** — the slow and the fast swing of a tape's speed, in cents whatever their
+  rate; the wow free or on the song, part of it drifting as a real tape's does.
+- **Age** — dropouts (the level falls and the top dulls for a moment) and wear (the level and
+  the brightness wander slowly).
+- **Noise** — a record's crackle and pops, the hiss of tape or of a vinyl surface, mains hum at
+  50 or 60 Hz. *Follow* lets it play only while the music does.
+- **Tone** — the band of the medium that plays it back: tape, radio, telephone or gramophone,
+  each with its colour (a tape head's bump, a carbon microphone's peak, a horn's resonances).
+  Choosing a medium sets its band; its two edges and their resonance stay yours.
+
+**Character** is the one knob that ages everything at once: every module that is on moves
+towards its oldest (fewer bits, a lower rate, more wow, more crackle, a narrower band) and the
+label prints the year it takes the sound back to. Which modules are on decides the flavour;
+Character, how far back.
+
+**The window.** At the centre, the object that ages — a **cassette** (the reels turning, the
+level window holding the last second of the music, the tape creased with age, a spark at the
+head when a tick falls) or an **LP** on its turntable (the groove holding the music of its
+last turns, off its spindle with the wow, dusty and scratched): choose it in the window's
+**⋯** menu, beside the colourway. Turn the object back (drag round it anticlockwise) to raise
+Character; double-click to make it new. Beside it, **what comes out**: the output's spectrum
+over the input's, with the converter's Nyquist (drag it across for the sample rate), the bits'
+noise floor (drag it up for fewer bits) and the medium's band (drag its edges).
+
+**Exact.** With every module off Vetus passes the sound untouched, to the bit. The noise, the
+dither, the dropouts and the wear are fixed to the song: a render from any bar, offline or
+playing, at any buffer size, has the same crackle in the same places.
+
+### Libra, the utility
+
+**Libra** (Latin for *the balance*) holds a channel's everyday corrections. It inserts as a
+wire — nothing changes until you ask.
+
+**The channels.** *Stereo*, *Swap*, *Mono* (both summed: check a mix in mono), *Left* or
+*Right* on both sides, *Mid* or *Side* alone (listen to the width by itself). **Invert
+polarity** of either channel; **DC removal** takes an offset away; **Mute**.
+
+**The delays** make each channel late by up to 100 ms, in whole samples — two microphones
+on one source brought into line to the sample. Show them in ms or in samples.
+
+**The image and the gain.** The **balance** turns one side down, never the other up (the
+master's balance); **width** from mono (0 %) to twice as wide (200 %); the **gain** ±36 dB.
+
+**The window.** At the centre a brass **balance**: its beam tilts with the balance and reads
+it on a fine scale, its arms reach as wide as the image, each pan holds its channel's level,
+delay and polarity, and the **correlation** runs along its foot (towards −1, the channels
+cancel in mono). Drag it across for the balance and up and down for the width;
+double-click to centre it. Beside it the **tuner** — the note, its cents and its frequency,
+its reference A (415 to 466 Hz) dragged up and down — and the **goniometer**.
+
+### Saltus, pitch
+
+**Saltus** (Latin for *the leap*) moves the pitch of what it hears. Insert it from **Add
+insert ▾ ▸ Pitch ▸ Saltus**; it starts as *Octave up, twelve-string* (the poly engine) — or
+on the starting preset you chose (below).
+
+**Four modes**, the legends along the top of its display:
+
+- **Shift**: two voices at fixed intervals, ±24 semitones and ±100 cents each, with their
+  level and balance, over the dry.
+- **Harmony**: two voices a number of **scale degrees** from the note heard — *two* is a
+  third, *four* a fifth, major or minor as the key says. They count in the **key and
+  scale**, in the **chord held** on MIDI (choose the track whose chords it follows), or sing
+  the **MIDI melody** (the notes held, the singer's own vibrato carried).
+- **Octave**: one and two octaves down and one up. **Analog** is a divider following the
+  note, with no latency; **Clean** moves the note itself, its formants kept.
+- **Whammy**: one voice swept by the **pedal** from the heel's interval to the toe's,
+  followed over the **glide** — rock the pedal on the display, automate it, map it to a
+  controller, or let **MIDI notes** play it: a held note presses the toe.
+
+**Mono or poly.** The switch at the top right of the display shows each engine's latency:
+**Mono** follows one note at a time with a voice's formants kept (2.7 ms — for playing and
+singing through it), **Poly** moves every note of a chord or a whole mix (85 ms — delay
+compensation covers it in a mix). The factory presets come in both.
+
+**Formants** stay where they are (a voice keeps its own) or move with the pitch (the tape
+sped up or slowed); the **throat** moves them on their own.
+
+**The window.** The **leap**: a keyboard, the note heard lit on it and named large, and an
+arc from it to each voice, as thick as the voice is loud, with the interval's name and the
+note it lands on — drag a landing to another key to change its interval. Above it a **grand
+staff** writes the last seconds as they are played, and the notes now at its right edge,
+each falling to its key. In Whammy the pedal is drawn beside the keyboard.
+
+**Choose its starting preset.** Every unit's preset list offers **Use as starting
+preset**: its settings now become what it starts on when you insert it, in every project.
+**Reset to factory starting preset** brings back the factory's. *Settings ▸ Editing ▸ Effects
+▸ On insert ▸ Neutral settings* still inserts every unit at its defaults.
+
+**On Tabula** Saltus is a pedal with the knobs Interval, Level, Dry and Pedal.
+
+### Arca, amp and cabinet
+
+**Arca** (Latin for *the chest*) is a valve amp and its cabinet, for guitar, bass, keys or a
+voice. Insert it from **Add insert ▾ ▸ Distortion ▸ Arca**; it starts as *Clean combo*.
+
+**Five amps**, the legends along the top of its display: **Clean**, **Crunch**, **Chime**,
+**High gain** and **Bass** — each its circuit solved valve by valve, from the input to the
+speaker. **None** leaves only the cabinet (an impulse-response loader). The
+**oversampling** (2×, 4×, 8×) shows the latency each gives; delay compensation covers it.
+
+**The chassis** shows the amp working: the valves stand in the order the signal meets them,
+their heaters lit, each plate reddening as hard as it works, a bar under each; the needle
+at the right shows the **supply sagging** under a loud chord. The amp's power valves, its
+bias and its rectifier are written beside them.
+
+**The faceplate**: Gain; the tone stack's Bass, Middle and Treble; the power amp's Presence
+(on the chime amp, **Cut**, turned the other way), Master and **Sag** (the supply from stiff
+to soft); Mix and Output.
+
+**The cabinet**: choose one of five, or **Loaded file** for your own impulse response (a
+WAV, AIFF, FLAC or OGG). Choose the **microphone** (dynamic, ribbon, condenser), **drag it
+across the cone** — bright at the cap, darker toward the edge — and **back from the grille**
+in the side view (1 to 30 cm: closer, more bass). The response the choice makes is drawn
+under them.
+
+Sixteen factory presets cover every amp, the cabinet alone, keys and a voice. At its
+defaults (no amp, no cabinet) Arca touches no sample. As a pedal on **Tabula** it shows
+Gain, Bass, Treble and Master.
+
+### Rota, the rotary speaker
+
+**Rota** (Latin for *the wheel*) is the rotary cabinet of Cantus's organ, for any track.
+Insert it from **Add insert ▾ ▸ Modulation ▸ Rota**; it starts as *Chorale* (slow).
+
+**The switch** along the top: **Stop** (the brake parks both rotors), **Slow** and
+**Fast**. Each rotor ramps to its new speed at its own pace — the horn in a fraction of a
+second, the drum over seconds; **Ramp** scales those times. With **Switched by notes** on,
+each note played on the track whose notes Rota hears throws the switch, to the sample.
+
+**The display** draws the cabinet **cut away**, the horn and the drum turning as the engine
+turns them (blurred at speed); the cabinet **from above**, where you **drag the
+microphones** round it (their angle) and away from it (their distance); and **the ramps**:
+each rotor's speed since the switch, with a dot where it is now.
+
+The cards set the horn's and the drum's slow and fast speeds, the microphones' angle,
+distance and the **Balance** of horn against drum, the cabinet's **back** (open or closed)
+and its valve amp's **Drive**, and the Mix and Output. Thirteen factory presets. At its
+defaults (mix 0) Rota touches no sample; it has no latency.
+
+### Loquax, the vocoder
+
+**Loquax** (Latin for *the talkative one*) makes a voice speak through another sound. Insert
+it on the voice's track from **Add insert ▾ ▸ Pitch ▸ Loquax**; it starts as *Robot* — the
+synthesiser drones C3 while the voice speaks, so you hear the voice vocoded at once, with no
+notes and no key.
+
+**Who speaks and who sings.** The track's own sound is the **voice** (the modulator). The
+**carrier** is chosen on the *Carrier* card:
+
+- **Synthesiser** — Loquax's own polyphonic synthesiser (saw, pulse and noise, up to seven
+  detuned copies a voice), played by the **notes of the track the slot listens to**: choose
+  it as the effect's MIDI source, like Porta's trigger. A keyboard track can be muted — its
+  notes still play Loquax.
+- **Sidechain** — another track's sound, routed to the slot as its **key** (the sidechain
+  field, as for a compressor): a pad, a guitar (a talk-box), a drum loop.
+- **Both** — the notes and the key together.
+
+**Who speaks** trades them: *Sidechain* speaks and this track is the carrier — drums or a loop
+that talk. **Robot** drones its own note (any note, C1–C7) while the voice is louder than
+its gate, with no notes at all.
+
+**The display.** On the left, **the object the voice speaks into** — the gooseneck
+microphone, the **talk-box's tube** rising from its driver, or the **desk microphone** on
+its weighted base — its on-air lamp and glow following the voice. Choose it in the **⋯** menu,
+under *Microphone*, beside the colourways: it is the insert's own (kept in the song, one
+step of undo) and never heard. Each factory preset suggests its object (*Talk-box* the tube, *Radio* the desk
+microphone, *Robot* the gooseneck) and loading it sets it; a preset of yours keeps the one you
+saved it with. A/B leaves it, and changing it never marks the preset as modified. In the middle, **the bank**:
+every band a column of cells lit by what it says now; **drag across the bands to draw their
+levels** (−24 to +12 dB, one stroke one step of undo). The formant shift is drawn along the
+top. On the right, **the meter bridge**: the voice's needle and the carrier's, the lamps for
+a consonant heard, the hold and the robot.
+
+**The cards**: the carrier and the roles, the raw carrier let **through**; the **bands**
+(8 to 64, slopes of order 4, 6 or 8, their range and width); the **followers** (attack,
+release, **Hold** freezes the vowel); the **character** (formant shift in semitones, band
+shift, tilt, flatten, stereo spread); the **consonants** (the sibilance let through above its
+corner, always or only on consonants, and noise into the carrier on them); the synthesiser's
+oscillators, unison and envelope; the robot; mix and output.
+
+Fifteen factory presets, both carriers among them (*Talk-box* and *Sidechain carrier* use the
+key; *Classic vocoder*, *Choir pad* and *String machine* the notes). In the browser each is
+auditioned with the source's own line as its notes and its key. At its defaults (mix 0)
+Loquax touches no sample; it has no latency.
+
+**In another DAW** Loquax is the plug-in *Cantus Loquax* (CLAP and VST3): it hears the notes
+the host sends to it, and its carrier through the sidechain input once its own *Sidechain*
+switch is set to *Sidechain input*.
+
+### Fractus, the glitch sequencer
+
+**Fractus** (Latin for *broken*) is ten effects on ten lanes of a step sequencer that follows
+the song, with a cloud of grains beside them. Insert it from **Add insert ▾ ▸ Modulation ▸
+Fractus**; it starts as *Last beat stutter* — the last beat of every bar repeats a
+thirty-second, the rest of the bar untouched — so you hear it at once on drums, a loop or a
+strum.
+
+**The lanes**, one per module: **Repeat** (the event's first slice plays and is caught, then
+replayed — each repeat higher or quieter if you ask, and with *Build* the stutter that halves
+each part), **Reverse**, **Tape stop** (or *Start*, up from still), **Shuffle** (slices from up
+to eight back, some backwards), **Pitch jump** (the classic delay-line warble, or *Clean* as its *Style*),
+**Crush**, **Filter sweep**, **Gate**, **Delay throw** (the echoes ring on after the step) and
+**Cloud** (the grains take over for the event). The grid is set on the *Grid* card: steps of
+1/4 to 1/64 (triplets too), one to four bars, swing. Every start, end and jump is
+crossfaded, so nothing clicks: how long (*Joins*) and the *Seed* of every roll are on the
+*Events* card of the *Slicing* page. The delay
+throw's time, feedback, tone, level and **ping-pong** are on the *Sequencer* page.
+
+**Painting.** On the lanes' window:
+
+- **Press on a step and drag along the lane**: a block from the step you pressed to the step
+  under the pointer. **Its height is its amount** — the pad lights from its floor to where you
+  let go (5 % steps); the amount is the module's mix for that event. A block you paint over
+  another takes what it covers.
+- **Shift and drag**: a stroke for **chance** — every block it passes plays that often (the
+  dashed line under a block that may not play).
+- **Right-click a block** to erase it.
+
+Each stroke is one step of undo. A lane's **name** opens the page of cards its module is set
+on; the four **page keys** under the window (*Sequencer*, *Slicing*, *Colour*, *Grain cloud*)
+do the same, their dots showing which lanes are painted and which sound now.
+
+**Played by notes.** On the *Playing* card, *Played by* chooses **Steps**, **Notes** or
+**Both**. With notes, the **notes of the track the slot listens to** (its MIDI source, as for
+Porta and Loquax; the keyboard's track may be muted) play the lanes while they are held: the
+*First key* (C3 by default) plays Repeat, the next key Reverse, and so on up to Cloud.
+*Notes start* **On the step** waits for the next line of the grid; **At once** acts on the
+note's own sample. The keys that play the lanes light on the display.
+
+**The grain cloud.** Its level runs beside the chain at any time (0: off): grains read from
+up to two seconds back, their size, density, spray, pitch (to a scale: chromatic, major,
+minor, pentatonic, fifths, octaves), spread and backwards share, drawn live on the scope — each
+grain where it reads and at its pitch, with its trail. **Frozen** (the lamp over the scope, or
+the cloud card's switch) holds what the cloud has heard for as long as it stays on.
+
+Eighteen factory presets: stutters and builds, tape stops and starts, reverses, gates, filter
+sweeps, delay throws, shuffles, lo-fi fills, grain pads, a cloud to freeze, and sets played by
+notes (*Notes: the whole kit*, *Notes: stutters*, *Steps and keys*). A preset brings its lanes.
+At its defaults — nothing painted, the cloud at 0 — Fractus touches no sample; it has no
+latency.
+
+**In another DAW** Fractus is the plug-in *Cantus Fractus* (CLAP and VST3): its lanes are
+saved in the plug-in's state and painted in its own window, its steps follow the host's tempo
+and position, and the notes the host sends play the lanes.
+
+### Caelum, the shimmer reverb
+
+**Caelum** (Latin for *the sky*) is a reverb for spaces no building holds: its tail climbs in
+pitch as it rings. Insert it from **Add insert ▾ ▸ Space ▸ Caelum**; it starts as *Octave
+shimmer* — a wide space, a third wet, whose tail climbs an octave at a time — so a chord rises
+into the sky as soon as you play it.
+
+**How it climbs.** Each time round the tank, a share of the tail (the *Amount* on the
+*Shimmer* card) is traded for the same sound shifted by the **first voice** (+12 semitones, an
+octave, at first) and, at its own level, the **second voice** (+7, a fifth, silent until you
+raise *Second level*). Each voice can be anything from three octaves down to three up. The
+trade moves the sound's energy and makes none, so the decay you set is the decay you hear,
+shimmer or not. *Shimmer tone* cuts the lows and highs inside the loop: the climbing octaves
+fade out at the top instead of piling up.
+
+**The window** is an observatory at night:
+
+- **The sky** shows the last eight seconds: the tail glowing on the horizon over the tank's
+  water, and the shimmer's octaves as bands of light above it, each lit as the energy reaches
+  it — the higher ones later, as the tail ages. Infinite writes ∞ in the glass; Freeze frosts
+  it; the ducking lights a slot in the frame's right rail.
+- **The sill** under it holds the endless controls as lit pushbuttons: **Infinite** (the tail
+  never decays; what comes in is added and held, the damping still darkening it), **Freeze**
+  (the tank keeps what it has and lets nothing in; the shimmer stops climbing), and the two
+  ways an infinite tank behaves: its shimmer **Fades** or **Sustains** as it climbs, and its
+  level **8 dB lower** than an eight-second tail or **As loud**. A click throws a button (one
+  step of undo); right-click for automation and MIDI learn.
+- **The astrolabe** sets the voices: **drag the alidade** (the wide rule) to choose the first
+  voice and **the slimmer hand** to choose the second. The angle is the note within the octave
+  (the twelve semitones round the rim), the distance from the centre the octave on the spiral
+  (−36 near the pin, +36 at the edge). A click on the plate puts the nearer hand there. Each
+  drag is one step of undo.
+- **Decay by octave**: eight glass tubes, each lit to the decay the tank really reaches at its
+  octave (63 Hz to 8 kHz), shaped by the *Damping* card. The dotted line across them is the
+  decay you set: **drag up or down on the tubes** to set it (one step of undo). While
+  Infinite is on, the tubes read ∞ and take no drag.
+
+**The cards**: *Space* (size, decay, pre-delay — free or a note value at the song's tempo,
+*Sync* — diffusion, and the tank's 8 or 16 lines: eight cost half as much), *Damping* (the
+high and low corners and their decays against the middle's), *Shimmer*, *Shimmer tone*,
+*Motion* (the lines' modulation and **Bloom**, the sound swelling into the space over up to
+four seconds), *Ducking* (range, threshold, attack, release) and *Output* (low and high cut,
+width, mix, output).
+
+**Ducking** steps the reverb aside while the dry plays and lets it bloom in the gaps. It
+listens to the track itself, or to **another track** routed to the slot as its key (the
+sidechain field, as for a compressor): a vocal's shimmer that ducks under the drums.
+
+Nineteen factory presets: octave and fifth shimmers, cathedrals, a bloom pad, *Freeze swell*
+(infinite; throw Freeze on a chord to hold it as a pad — no preset starts frozen, since a tank
+frozen from its first sample would hold silence), an endless ascent and an infinite drone that
+build as you play, a ducked vocal shimmer, guitar ambience, pre-delays synced to the song
+(*Eighth-note echoes*, *Dotted rise*), a sub-octave cloud, plates, a shimmer snare and a bus
+haze. At its defaults (mix 0) Caelum touches no sample; it has no latency.
+
+**On Tabula's board** Caelum is a pedal too (the decay, the shimmer, the first voice and the
+mix on its face); a board with Caelum takes a key, and the key reaches its ducking.
+
+**In another DAW** Caelum is the plug-in *Cantus Caelum* (CLAP and VST3): its ducking hears the
+sidechain input once its own *Sidechain* switch is set to *Sidechain input*, and a synced
+pre-delay follows the host's tempo.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an
@@ -2251,6 +2612,126 @@ and renders stems exactly as it plays. At 0 % mix it passes the sound untouched,
 responses (a plug-in's state holds numbers, not files). Agents set its numbers with
 `set_effect` and load a file with `set_impulse_response` (only once you allowed files, and
 only inside the folders you allowed).
+
+### Fragor, the pedals
+
+**Fragor** (Latin for *a crash, a roar*) is a pedalboard of distortion and fuzz: up to three
+pedals in any order, each modelled from its circuit — the knobs move the circuit's own
+resistors, so every position sounds as the pedal does. Insert it from **Add insert ▾ ▸
+Distortion ▸ Fragor**; it starts with the green overdrive on the board, pushing gently.
+
+**The pedals:**
+
+- **Green overdrive** — Drive, Tone, Level. Soft clipping in an op-amp's loop and a mid
+  hump: the classic push for a lead, and tightening for a distortion after it.
+- **Op-amp distortion** — Distortion, Filter, Volume. A slow op-amp into hard-clipping
+  diodes; turn the Filter up to take the fizz off.
+- **Silicon distortion** — Dist, Tone, Level. A transistor boost and hard clipping, the
+  middle scooped by the tone.
+- **Germanium fuzz** — Fuzz, Bias, Volume. Two germanium transistors; **Bias** is the
+  battery: at 100 % it is fresh, turned down it drains, and below about a third a fading
+  note sputters and gates as on a dying battery.
+- **Triangle muff** — Sustain, Tone, Volume. Two clipping stages for endless sustain, the
+  mid scoop of its tone stack.
+
+**The board:** drag a pedal to another slot (the two swap places); click an empty slot to
+add a pedal; right-click a pedal to put another in its place or take it off the board. The
+footswitch under each pedal bypasses it without a click. Right-click a knob for its menu
+(automate, modulate, learn a controller, reset); double-click resets it.
+
+**Over the board,** the display shows one cycle of the note going in (faint) and coming
+out at the level playing, and its harmonics — odd ones solid, even ones hatched, the
+dominant ones marked — with the total distortion. The valve amp's tubes glow a little
+brighter while sound plays.
+
+**Beside it:** **Gate** (before the pedals: off at −90 dB), **Input** (the level into the
+pedals), **Mix**, **Output**, **Quality** (oversampling 2×, 4× or 8×; more removes more
+aliasing and costs more) and **Stereo / Mono** (one circuit for both channels, as a real
+pedal).
+
+**Its look:** the window's **⋯** menu offers three colourways — **Valve** (the amber of a
+valve amp at night, its face), **Cream** (cream card and brass) and **Steel** (steel with one
+signal red). The choice is yours for every Fragor and is kept between sessions; it never
+changes the sound.
+
+*History:* the five circuits are those of the Ibanez TS808 Tube Screamer, the ProCo RAT,
+the Boss DS-1, the Dallas Arbiter Fuzz Face and the Electro-Harmonix Big Muff π, modelled
+from their published schematics; the names and the pictures in Cantus are its own.
+
+### Tabula, the pedalboard
+
+**Tabula** (Latin for *the board*) is a pedalboard of Cantus's own effects: up to sixteen of
+them as pedals, in any order, with an optional A/B split and eight macros. Every pedal is the
+effect itself, so a board of one pedal sounds exactly as that effect on its own. Insert it
+from **Add insert ▾ ▸ Guitar and amp ▸ Tabula**; it starts on a guitar rig — the green
+overdrive low, a chorus, a delay and a spring reverb — so it is heard at once.
+
+**The board.** The pedals stand on a dark board, cables carrying the signal between them and
+glowing as loud as it is at each point. Turn a pedal's knobs where they are; click its
+footswitch to switch it on or off (a 10 ms crossfade that never changes the latency). Drag a
+pedal to move it (drop it between two others, or onto lane A or B to split the chain).
+Double-click it, or choose *Open its full editor*, to open the effect's own window in place
+of the board; *Back to the board* returns. With many pedals the board wraps into rows, the
+cable running between them.
+
+**Adding and taking off.** *Add pedal* at the end of the chain opens the picker: the shelves
+down its left, the shelf's effects as small pedals; click one and it joins the board,
+sounding at once. Under the board, *Its place on the board* sets the chosen pedal's
+**Size** (mini, standard, wide, double, round), its **Place in the chain** (Before, A, B,
+After) and its footswitch, and *Remove* takes it off.
+
+**The split.** A pedal on lane A or B opens the split: the splitter box feeds both lanes, the
+mixer box joins them, its knob the **A/B** balance (left: A only, right: B only). The shorter
+lane waits for the longer one, so the two never smear (no comb filtering).
+
+**Macros.** Eight knobs along the top. Press **Learn**, touch a macro, then touch a pedal's
+knob: the knob is mapped, from where it stands to the far end of its range, and wears a
+ring. A macro moves everything mapped to it; it wins over automation of the same knob.
+**Randomise** gives every pedal's knobs new values within musical ranges (one undo step).
+
+**Under the board** the chosen pedal's main controls (each with its menu: automate,
+modulate, learn a controller), and the board's **Input**, **Mix** and **Output**.
+
+**The keyboard.** Click the board, then: Tab and Shift+Tab choose a pedal; Space its
+footswitch; Enter its full editor; Delete takes it off; Ctrl+← and Ctrl+→ move it; ← and →
+choose one of its knobs and ↑ and ↓ turn it (with Shift, finely).
+
+**Presets.** Each of Tabula's presets is a whole board: *Guitar rig*, *Blues crunch*,
+*Ambient swells*, *Fuzz lead*, *Phaser funk*, *Wet, dry, wet*, two for bass, two for synths,
+two for drums and two for voice. Your own presets keep the whole board too.
+
+**In another DAW,** the exported Tabula shows the same window; the host automates the
+macros, the input, mix, output and the A/B balance, and the board is saved in its state.
+
+### Lapsus, the time shaper
+
+**Lapsus** (Latin for *a slip*) bends time and level to the beat, as FL Studio's Gross Beat
+does: tape stops and starts, half time, stutters and rolls, reverse, scratches, gates and
+pumps. It holds two banks of thirty-six patterns — **time** patterns and **volume**
+patterns — chosen apart and played together. Insert it from the picker (under Modulation);
+it starts on *Half time* (every half bar's first beat an octave down), so it is heard at once.
+
+**The timeline.** The time curve is drawn above, the level below, over the longer of the two
+patterns' cycles. The time curve's height is **how far behind the music it reads**: flat at
+the top is the music as it comes; a line falling at the diagonal is the tape stopped; half
+that slope is half speed; steeper is reverse; a held step is a repeat. What lies before the
+cycle's start is never read (*Before the cycle: silence*). While it plays, the playhead
+crosses both lanes and **the slip** — the dashed line to the ruler — shows where the music is
+read from. Drag a point (Shift: off the grid), double-click to add or remove one, drag a line
+to bend it; choose *Pencil* to paint steps a grid cell at a time. Every edit is one step of
+undo.
+
+**The banks.** The pads show the time bank or the volume bank (the switch on top names what
+each plays). A click plays a pattern; a right-click gives a slot the factory's pattern back.
+Notes play them too: from *Time note* (C4) up for the time bank, from *Volume note* (C1) up for
+the volume bank — switched until another note, or only while held (*Each note*), and from
+their beginning with *Restart on note*. Route a track's notes to it from the insert's menu.
+
+**Exact.** With both banks on *Through* (pattern 1) Lapsus passes the sound untouched, to the
+bit. Jumps of the time curve are crossfaded (*Crossfade*, 2 ms), the level glides
+(*Smooth*); a tape stop ends on the bar's own sample at any tempo, and a render from any bar
+is the whole render there. *Ahead* lets the time curve read the future at the cost of that
+much latency (compensated).
 
 ### Delay, the stereo delay
 

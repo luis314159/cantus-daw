@@ -53,6 +53,19 @@ pub fn effect_use(kind: EffectKind) -> &'static str {
         K::AutoTune => "Real-time pitch correction to a key and scale, from natural to hard-tuned, with created vibrato.",
         // r39:conv
         K::Aula => "Convolution reverb: a real room from its impulse response — Cantus's own rooms, halls, plates and springs, a WAV the user loads (mono, stereo, true stereo), or a free pack; shape it with stretch, length, decay, damping and cuts, pre-delay and width.",
+        K::AutoFilter => "Auto filter: two analog-modelled filters (SVF, transistor ladder, OTA cascade, diode ladder, Sallen-Key; low/band/high-pass, notch, peak, vowel; 12 or 24 dB/oct) in series or parallel, moved by a song-synced or free LFO (7 waves), an envelope follower on the input or a sidechain, and a drawn curve — each with a depth onto cutoff (octaves), resonance and vowel. Sweeps, wobbles, auto-wah, pump filters, talking vowels, telephone. Starts on a bar-long sweep; mix 0 is a wire.", // fx:cribrum
+        K::Pedal => "A pedalboard of up to three distortion and fuzz pedals in any order, each modelled from its circuit: a green overdrive (soft, mid-forward), an op-amp distortion (thick, with a Filter), a silicon distortion (hard clipping, scooped), a germanium fuzz (round; its Bias starves the battery into a sputtering, gated fuzz) and a triangle muff (endless sustain, scooped mids); a noise gate before them, mix and mono. Slots s1..s3 hold 0 (empty) or 1..5 in that order; each pedal has its footswitch and three knobs.", // fx:fragor
+        K::TimeShaper => "Time shaper, Gross Beat class: two banks of 36 drawn patterns played together — time patterns (how far behind the music it reads: tape stop and start, half and quarter time, stutters and rolls, beat repeats, reverse, rewind, backspin, scratches) and volume patterns (gates, trance gates, pumps, fades, tremolos, cuts) — on cycles of 1/4 to 4 bars synced to the song, chosen by tslot/vslot (automatable) or by notes (time from C4, volume from C1; switch or hold, optional restart). Both on Through (slot 1) is a wire; starts on Half time.", // fx:lapsus
+        K::LoFi => "Lo-fi: six modules, each switched on with its key (bits.on, rate.on, wob.on, age.on, noise.on, tone.on) — bits (1..24, rounding/truncation/mu-law, dither), sample rate (1..48 kHz, raw with its aliasing, filtered, or smoothed), wow and flutter in cents (wow synced or free, part of it drifting), age (tape dropouts and wear), noise (vinyl crackle and pops, tape or vinyl hiss, 50/60 Hz hum, optionally following the music) and tone (the band of tape, radio, telephone or gramophone) — and Character (char), which takes every module that is on towards its oldest. Cassettes, 8-bit, dusty drums, AM radio, telephone, gramophone, VHS. Starts as a worn cassette; every module off is a wire.", // fx:vetus
+        K::Utility => "Utility: gain (out, ±36 dB), balance (pan, −1..1, the master's balance law), width (0..2, 0 is mono), the channel operation (chan: 0 stereo, 1 swap, 2 mono, 3 left to both, 4 right to both, 5 mid, 6 side), polarity per channel (pol.l, pol.r), DC removal (dc), a delay per channel in ms applied in whole samples (delay.l, delay.r — to align two microphones), mute; its window shows a tuner (tuner.ref is its A, 415..466 Hz), a goniometer and the correlation. Mono checks, phase flips, alignment, a pad, listening to mid or side. Inserts as a wire.", // fx:libra
+        // fx3:contract — wave 3 (each builder words its own once its unit is built).
+        K::Board => "A pedalboard: Cantus's own effects as pedals (any of them but a hosted plug-in, Speculum and the old reverb), up to sixteen, in any order along Pre, then an optional A/B split (lane A beside lane B, mixed by ab: 0 A only, 1 B only), then Post. Each pedal is that unit exactly, its parameters addressed p{id}.{key} (p2.time_ms); a footswitch never changes the latency. Eight macros m1..m8 each move pedals' parameters between two values; in/out (dB), mix (dry/wet, the dry aligned to the latency). It starts on a guitar rig: green overdrive, chorus, delay, spring reverb. Its factory presets are whole boards (guitar, bass, synth, drums, vocals).", // fx3:tabula
+        K::PitchShift => "Pitch: four modes (mode) — 0 Shift: two voices at fixed intervals (st1/st2 semitones ±24, ct1/ct2 cents), 1 Harmony: two voices deg1/deg2 scale degrees from the note heard (hsrc 0 in key/scale, 1 in the chord held on MIDI, 2 singing the MIDI melody; key 0..11, scale 0..12), 2 Octave: one down/two down/one up (sub1, sub2, up1; ostyle 0 analog divider with no latency, 1 clean), 3 Whammy: one voice swept by pedal 0..1 from heel to toe (semitones), glided (glide ms), or pressed by held MIDI notes (wsrc 1). engine 0 mono (one note at a time, formants kept, 2.7 ms latency) or 1 poly (chords and whole mixes, 85 ms) for Shift and Whammy; each voice's level (lvl1/lvl2) and balance (pan1/pan2), dry, formant keep/move, throat, a4, out. Starts on Octave up, twelve-string (poly); defaults are the input delayed, a null.", // fx3:saltus
+        K::Rotary => "Rotary speaker: horn and drum turning, two microphones. speed 0 stop (the brake parks both rotors), 1 slow (chorale), 2 fast (tremolo); each rotor ramps to it at its own pace (ramp scales the times, 0.25..4x). hslow/hfast horn rpm (20..80, 300..500), dslow/dfast drum rpm (20..80, 250..450); balance horn against drum dB (-12..12); spread the microphones' angle 0..180 degrees, dist their distance 10..300 cm; open 1 an open back; drive the cabinet's valve amp 0..1; notes 1: a note played on the track toggles slow and fast; mix 0..1 (defaults 0, a null), out dB. No latency. Starts on Chorale (slow, mix 1).", // fx3:rota
+        K::Amp => "Amp and cabinet, valves modelled from their circuits: model 0 none, 1 clean (2x6V6, valve rectifier), 2 crunch (2xEL34), 3 chime (4xEL84 class A, presence works as a cut), 4 high gain (four stages, 4x6L6), 5 bass (2x5881); gain, bass, mid, treble, presence, master (1 = as built), sag (supply softness, 0.5 the amp's own) all 0..1; cab 0 none, 1 1x12 open, 2 2x12 open, 3 4x12 vintage, 4 4x12 modern, 5 4x10 open, 6 the loaded impulse-response file; mic 0 dynamic, 1 ribbon, 2 condenser, micpos 0 cap..1 edge, micdist 1..30 cm; os 0 2x, 1 4x, 2 8x oversampling (latency 1.0..1.2 ms while an amp is chosen); mix 0..1, out dB. Defaults: no amp, no cabinet (a null). Starts on Clean combo. For guitar, bass, keys and voice.", // fx3:arca
+        K::Vocoder => "Vocoder: the track's own sound is the voice; the carrier (src) 0 the sidechain (another strip routed as the slot's key), 1 the built-in synthesiser played by the MIDI notes the slot listens to, 2 both; swap 1: the sidechain speaks through this track. bands 8..64, order 0..2 (slopes of order 4, 6, 8), lo/hi the band range Hz, width 0.5..2, att/rel ms; formant -24..24 st (moves the formants, not the notes), bshift -16..16 bands, tilt dB/oct, flat 0..1 (flatten the carrier), sib/sibhz/sibgate (the sibilance pass-through), unv (noise on consonants), hold 1 (freeze the vowel), spread, cpass (the raw carrier through); the synthesiser: saw, pulse, pw, noise, uni 1..7 copies, detune ct, uspread, oct -3..3, satt/srel ms, slevel dB; robot 1 drones rnote (MIDI 24..96) while the voice is above rgate dB; b0..b63 each band's level dB (-24..12, the bars the user draws on the bank); obj the object drawn in its window, 0 gooseneck, 1 talk-box tube, 2 desk microphone (a look, never heard; presets keep it); mix 0..1 (default 0, a null), out dB. No latency. Fifteen presets, both carriers (talk-box and sidechain carrier use the key; classic, choir, string machine the notes). Starts on Robot (the drone, 16 bands, mix 1, out +0.5 dB).", // fxa:loquax
+        K::Glitch => "Glitch sequencer and grain cloud: ten lanes painted in time with the song (0 repeat, 1 reverse, 2 tape stop, 3 shuffle, 4 pitch jump, 5 crush, 6 filter sweep, 7 gate, 8 delay throw, 9 the cloud); the lanes are the spec's pattern, not parameters: set_effect's lanes paints them by name (blocks {at, len, amount, chance}; a block's amount is the module's mix for that event). step 0..6 (1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32, 1/64), bars 1..4, swing, xfade ms; trig 0 the steps, 1 held notes (key + lane), 2 both; quant 1 a note waits for the next step; seed; repeat rsize (note 0..13: 1/2 .. 1/128), rramp 0..3, rpitch st, rdecay dB, rduty; reverse vslice (0 the step, else a note); tape tkind 0 stop 1 start, ttime, tcurve; shuffle sslice, srange 1..8, srev; pitch psemi ±24, pwin ms, pstyle 0 classic warble 1 clean; crush kbits, krate Hz; filter fkind 0 low 1 high 2 band, ffrom/fto Hz, fres, fcurve; gate grate (0 shut), gduty, gdepth; throw wtime, wfb, wtone Hz, wpp, wlvl; cloud clevel (beside the chain), cpos/cspray/csize ms, cdens grains/s, cpitch/crand st, cscale 0..6, cspread, crev, cwin 0..4, cfreeze; mix, out dB. Nothing painted and clevel 0: a null. No latency. Eighteen presets: stutters and builds, tape stops and starts, reverses, gates, filter sweeps, delay throws, shuffles, lo-fi fills, grain pads and a cloud to freeze, and sets played by notes. Starts on Last beat stutter.", // fxa:fractus
+        K::Shimmer => "Shimmer reverb: size 0..1, decay 0.3..60 s, inf 1 infinite (ishim 0 the shimmer fades as it climbs, 1 sustains; ilevel 0 8 dB under an 8 s tail, 1 as loud), freeze 1, bloom ms (a swell), pre ms or psync 1..8 (1/32, 1/16, 1/8T, 1/8, 1/8., 1/4, 1/4., 1/2 at the song's tempo), diff, hhz/hdec high damping (Hz, x the decay), lhz/ldec low damping, mdepth/mrate modulation; shim 0..1 the shimmer, pa/pb its two voices st (-36..36), pblvl the second's level, slo/shi the loop's tone Hz; duck dB (keyed by the sidechain when routed), dthr, datt, drel; lcut/hcut the wet's tone, width 0..1.5, lines 0 eight 1 sixteen; mix 0..1 (default 0, a null), out dB. No latency. Starts on Octave shimmer.", // fxa:caelum
     }
 }
 
@@ -152,7 +165,58 @@ pub fn effect_entry(kind: EffectKind) -> Value {
         .collect();
     let presets: Vec<Value> = crate::views::fx::factory_presets(kind)
         .iter()
-        .map(|(label, values)| json!({"name": en(label), "sets": sets(values)}))
+        .map(|(label, values)| {
+            // fxa:fractus — a Fractus preset paints its lanes too: its values, and its lanes
+            // as `set_effect`'s `lanes` takes them.
+            if kind == EffectKind::Glitch {
+                let own: Vec<(&str, f32)> = values
+                    .iter()
+                    .filter(|(k, _)| kind.param(k).is_some())
+                    .copied()
+                    .collect();
+                let map: std::collections::BTreeMap<String, f32> =
+                    values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+                let mut lanes = serde_json::Map::new();
+                if let Some(p) = cantus_core::fx::fractus::pattern_of_flat(&map) {
+                    for (l, blocks) in &p.lanes {
+                        let name = cantus_core::fx::fractus::LANE_KEYS[usize::from(*l)];
+                        let list: Vec<Value> = blocks
+                            .iter()
+                            .map(|b| {
+                                json!({"at": b.at, "len": b.len, "amount": b.amount,
+                                    "chance": b.prob})
+                            })
+                            .collect();
+                        lanes.insert(name.to_string(), Value::Array(list));
+                    }
+                }
+                return json!({"name": en(label), "sets": sets(&own), "lanes": lanes});
+            }
+            if kind != EffectKind::Board {
+                return json!({"name": en(label), "sets": sets(values)});
+            }
+            // fx3:tabula — a board preset is a whole board: its own values, and its pedals
+            // in order (loaded whole: what `sets` cannot say).
+            let own: Vec<(&str, f32)> = values
+                .iter()
+                .filter(|(k, _)| kind.param(k).is_some())
+                .copied()
+                .collect();
+            let map: std::collections::BTreeMap<String, f32> =
+                values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+            let pedals: Vec<Value> = cantus_core::fx::tabula_presets::from_flat(&map)
+                .map(|s| {
+                    s.pedals()
+                        .iter()
+                        .map(|p| {
+                            json!({"id": p.id.0, "unit": effect_names(p.spec.kind).0,
+                                "lane": format!("{:?}", p.path).to_lowercase()})
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            json!({"name": en(label), "sets": sets(&own), "pedals": pedals})
+        })
         .collect();
     let user: Vec<String> = crate::views::fx::user_presets(kind)
         .into_iter()
@@ -160,6 +224,8 @@ pub fn effect_entry(kind: EffectKind) -> Value {
         .collect();
     let starting = match start_of(kind) {
         Start::Preset(p) => json!({"preset": en(p.label_key), "sets": sets(p.params)}),
+        // fx3:contract — a whole spec (Tabula's rig): its name.
+        Start::Spec(s) => json!({"preset": en(s.label_key)}),
         Start::Neutral(n) => json!({"neutral": match n {
             Neutral::Flat => "flat by design: the curve or image is yours to make",
             Neutral::Sounds => "its defaults already do the job audibly",

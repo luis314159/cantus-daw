@@ -157,6 +157,14 @@ pub enum MemoryNeed {
     Aula(crate::fx::aula::AulaNeed),
     /// Delay's line for a synced time, in cells (ADR 0119). // r40:delay
     DelayLine(usize),
+    /// Lapsus's history, in frames (ADR 0132, provisional). // fx:lapsus
+    Lapsus(usize),
+    /// Tabula's alignment and dry lines, in frames (ADR 0134, provisional). // fx3:contract
+    Tabula(usize),
+    /// Arca's cabinet, by what it is made from (ADR 0137, provisional). // fx3:arca
+    Arca(crate::fx::arca::ArcaNeed),
+    /// Fractus's whole DSP, its buffers with it (ADR 0140, provisional). // fxa:fractus
+    Fractus,
 }
 
 /// What travels in [`crate::messages::EngineEvent::EffectNeed`]: a [`MemoryNeed`] small
@@ -169,6 +177,10 @@ pub enum NeedTicket {
     EqLinear(cantus_dsp::aequalis::Resolution),
     Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
     DelayLine(usize), // r40:delay
+    Lapsus(usize),                   // fx:lapsus
+    Tabula(usize),                   // fx3:contract
+    Arca(crate::fx::arca::ArcaNeed), // fx3:arca
+    Fractus,                         // fxa:fractus
 }
 
 impl NeedTicket {
@@ -178,6 +190,10 @@ impl NeedTicket {
             NeedTicket::EqLinear(r) => MemoryNeed::EqLinear(*r),
             NeedTicket::Aula(m) => MemoryNeed::Aula(m.read()),
             NeedTicket::DelayLine(n) => MemoryNeed::DelayLine(*n), // r40:delay
+            NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n), // fx:lapsus
+            NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n), // fx3:contract
+            NeedTicket::Arca(n) => MemoryNeed::Arca(*n),     // fx3:arca
+            NeedTicket::Fractus => MemoryNeed::Fractus,      // fxa:fractus
         }
     }
 }
@@ -191,6 +207,14 @@ pub enum EffectMemory {
     Aula(Box<crate::fx::aula::Memory>),
     /// Delay's longer (or the free) line (ADR 0119). // r40:delay
     DelayLine(Box<cantus_dsp::delay::Lines>),
+    /// Lapsus's history. // fx:lapsus
+    Lapsus(Box<cantus_dsp::lapsus::Ring>),
+    /// Tabula's lines. // fx3:contract
+    Tabula(Box<crate::fx::tabula::Lines>),
+    /// Arca's cabinet. // fx3:arca
+    Arca(Box<crate::fx::arca::Memory>),
+    /// Fractus's DSP. // fxa:fractus
+    Fractus(Box<cantus_dsp::fractus::Fractus>),
 }
 
 /// The mailbox a unit of `kind` asks with, when its requests are too large for the event.
@@ -211,6 +235,16 @@ impl EffectMemory {
             MemoryNeed::DelayLine(len) => {
                 EffectMemory::DelayLine(Box::new(cantus_dsp::delay::Lines::new(len)))
             } // r40:delay
+            MemoryNeed::Lapsus(n) => {
+                EffectMemory::Lapsus(Box::new(cantus_dsp::lapsus::Ring::new(n)))
+            } // fx:lapsus
+            MemoryNeed::Tabula(n) => {
+                EffectMemory::Tabula(Box::new(crate::fx::tabula::Lines::new(n)))
+            } // fx3:contract
+            MemoryNeed::Arca(n) => {
+                EffectMemory::Arca(Box::new(crate::fx::arca::build(n, sample_rate)))
+            } // fx3:arca
+            MemoryNeed::Fractus => EffectMemory::Fractus(crate::fx::fractus::build(sample_rate)), // fxa:fractus
         }
     }
 }
@@ -275,6 +309,11 @@ impl EffectUnit {
             EffectKind::Reverb => Dsp::Reverb(Reverb::new(sample_rate)),
             EffectKind::Eq => Dsp::Eq(Box::new(Aequalis::realtime(sample_rate))),
             EffectKind::Compressor => Dsp::Comp(Box::new(Comprimo::new(sample_rate))),
+            // fx3:contract — a board builds its pedals here, off the audio thread.
+            EffectKind::Board => Dsp::Fx(Box::new(crate::fx::tabula::Unit::build(
+                &slot.spec,
+                sample_rate,
+            ))),
             other => Dsp::Fx(
                 crate::fx::make(other, sample_rate).expect("every other kind is a plug-in unit"),
             ),
@@ -330,6 +369,10 @@ impl EffectUnit {
                 m.write(&n);
                 NeedTicket::Aula(m.clone())
             }
+            MemoryNeed::Lapsus(n) => NeedTicket::Lapsus(n), // fx:lapsus
+            MemoryNeed::Tabula(n) => NeedTicket::Tabula(n), // fx3:contract
+            MemoryNeed::Arca(n) => NeedTicket::Arca(n),     // fx3:arca
+            MemoryNeed::Fractus => NeedTicket::Fractus,     // fxa:fractus
         };
         self.asked = need;
         Some(ticket)
@@ -355,14 +398,77 @@ impl EffectUnit {
     pub fn take_spent(&mut self) -> Option<EffectMemory> {
         match &mut self.dsp {
             Dsp::Delay(d) => d.take_spent().map(EffectMemory::DelayLine),
+            // fx/final — a Delay on a board (Tabula) lets go of its old line too.
+            Dsp::Fx(u) => u
+                .pedals_mut()
+                .iter_mut()
+                .find_map(|k| k.unit.take_spent()),
+            _ => None,
+        }
+    }
+
+    // fx3:contract — a board's pedals (ADR 0134; `FxUnit`'s defaults for every other unit).
+
+    /// A pedal built for this board (`EngineMessage::AddPedal`); what comes back is dropped
+    /// off the audio thread. No allocation.
+    pub fn adopt(
+        &mut self,
+        pedal: cantus_core::fx::tabula::PedalId,
+        unit: Box<EffectUnit>,
+    ) -> Option<Box<EffectUnit>> {
+        match &mut self.dsp {
+            Dsp::Fx(u) => u.adopt(pedal, unit),
+            _ => Some(unit),
+        }
+    }
+
+    /// A pedal that has faded out, to be dropped off the audio thread.
+    pub fn take_retired(&mut self) -> Option<Box<EffectUnit>> {
+        match &mut self.dsp {
+            Dsp::Fx(u) => u.take_retired(),
             _ => None,
         }
     }
 
     /// fix-a (A-M3): the unit is moving memory in or clearing it, or holds some to give
     /// back ([`Self::take_spent`]).
-    pub fn busy(&self) -> bool {
-        matches!(&self.dsp, Dsp::Delay(d) if d.busy())
+    pub fn busy(&mut self) -> bool {
+        match &mut self.dsp {
+            Dsp::Delay(d) => d.busy(),
+            // fx/final — and a board while one of its pedals is.
+            Dsp::Fx(u) => u.pedals_mut().iter_mut().any(|k| k.unit.busy()),
+            _ => false,
+        }
+    }
+
+    /// The pedals inside this unit (none but a board's).
+    pub fn pedals_mut(&mut self) -> &mut [crate::fx::tabula::Kid] {
+        match &mut self.dsp {
+            Dsp::Fx(u) => u.pedals_mut(),
+            _ => &mut [],
+        }
+    }
+
+    /// One pedal inside this unit.
+    pub fn pedal_mut(
+        &mut self,
+        pedal: cantus_core::fx::tabula::PedalId,
+    ) -> Option<&mut EffectUnit> {
+        self.pedals_mut()
+            .iter_mut()
+            .find(|k| k.pedal == pedal)
+            .map(|k| &mut *k.unit) // fx3:tabula — a pedal's unit is boxed
+    }
+
+    /// What one pedal's editor draws (`EngineMessage::SetAnalysedPedal`).
+    pub fn pedal_telemetry(
+        &self,
+        pedal: cantus_core::fx::tabula::PedalId,
+    ) -> Option<crate::fx::Telemetry> {
+        match &self.dsp {
+            Dsp::Fx(u) => u.pedal_telemetry(pedal),
+            _ => None,
+        }
     }
 
     /// Hand the unit memory built for it. What comes back — memory it replaced, or what
@@ -445,6 +551,33 @@ impl EffectUnit {
         match &mut self.dsp {
             Dsp::Fx(u) => u.set_position(position),
             Dsp::Delay(d) => d.set_tempo(position.tempo_bpm, position.tempo_inc != 0.0), // r40:delay
+            _ => {}
+        }
+    }
+
+    /// fx3:tabula — tell a unit that follows the song where it is, `self.late` samples
+    /// before `position` (exact across tempo maps): a board tells each of its pedals as late
+    /// as it hears it (`FxUnit::set_position_late`), every other unit hears its own.
+    #[inline]
+    pub fn hear_position(
+        &mut self,
+        position: &crate::fx::SongPosition,
+        sample_rate: f64,
+        map: &cantus_core::TempoMap,
+    ) {
+        if !self.follows_song() {
+            return;
+        }
+        let late = self.late;
+        match &mut self.dsp {
+            Dsp::Fx(u) if self.kind == EffectKind::Board => {
+                u.set_position_late(&|before| position.earlier_in(late + before, sample_rate, map))
+            }
+            Dsp::Fx(u) => u.set_position(&position.earlier_in(late, sample_rate, map)),
+            Dsp::Delay(d) => {
+                let p = position.earlier_in(late, sample_rate, map);
+                d.set_tempo(p.tempo_bpm, p.tempo_inc != 0.0) // r40:delay
+            }
             _ => {}
         }
     }

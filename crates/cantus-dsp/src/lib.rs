@@ -33,6 +33,7 @@ pub mod aula_gen;
 pub mod aula_kernel;
 pub mod aula_shape;
 pub mod beat;
+pub mod caelum; // fx-a:caelum
 pub mod calor;
 pub mod chorda;
 pub mod click;
@@ -98,6 +99,25 @@ pub mod unda;
 pub mod va;
 pub mod vibrans;
 pub mod voices;
+
+// fx:contract — the fx side round's five units (provisional ADRs 0130–0133).
+pub mod cribrum; // fx:contract
+pub mod fragor; // fx:contract
+pub mod lapsus; // fx:contract
+pub mod libra; // fx:contract
+pub mod vetus; // fx:contract
+
+// fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+pub mod arca; // fx3:contract
+pub mod rota; // fx3:contract
+pub mod saltus; // fx3:contract
+pub mod tabula; // fx3:contract
+
+// fx-a:loquax — the side round's wave A: Loquax, the vocoder (DSP first).
+pub mod loquax; // fx-a:loquax
+
+// fx-a:fractus — wave A: the glitch sequencer and grain cloud (its DSP).
+pub mod fractus; // fx-a:fractus
 
 /// The version of the numbers this crate renders. Two builds with the same `DSP_VERSION`
 /// render the same project to the same bits, on any machine; a change that moves any

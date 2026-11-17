@@ -228,6 +228,241 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("mix", 0.5),
             ],
         ),
+        // fx:cribrum — both filters (a driven ladder at 24 dB/oct into three formants), 4×
+        // oversampling, every source on every target.
+        EffectKind::AutoFilter => set(
+            &mut s,
+            &[
+                ("mix", 1.0),
+                ("os", 2.0),
+                ("a.model", 1.0),
+                ("a.slope", 1.0),
+                ("a.cut", 800.0),
+                ("a.res", 0.7),
+                ("a.drive", 12.0),
+                ("b.on", 1.0),
+                ("b.mode", 5.0),
+                ("b.res", 0.5),
+                ("spread", 0.5),
+                ("lfo.shape", 6.0),
+                ("lfo.stereo", 90.0),
+                ("lfo.cut", 2.0),
+                ("lfo.res", 0.2),
+                ("lfo.vowel", 1.0),
+                ("env.cut", 1.5),
+                ("cur.cut", -1.0),
+                ("cur.vowel", 1.0),
+                ("cur.smooth", 10.0),
+                ("out", -3.0),
+            ],
+        ),
+        // fx:fragor — three pedals (the muff, the fuzz on a tired battery, the silicon
+        // distortion), 8x, stereo, the gate on, half wet.
+        EffectKind::Pedal => set(
+            &mut s,
+            &[
+                ("s1", 5.0),
+                ("s2", 4.0),
+                ("s3", 3.0),
+                ("mf.sustain", 0.8),
+                ("ge.fuzz", 0.9),
+                ("ge.bias", 0.5),
+                ("si.dist", 0.8),
+                ("gate", -70.0),
+                ("os", 2.0),
+                ("mix", 0.5),
+                ("out", -6.0),
+            ],
+        ), // fx:fragor
+        // fx:lapsus — the roll build (fifteen jumps a bar, each a join) under a trance gate,
+        // mixed with the dry, a long crossfade and glide, and lookahead (long kernels).
+        EffectKind::TimeShaper => set(
+            &mut s,
+            &[
+                ("tslot", 16.0),
+                ("vslot", 5.0),
+                ("mix", 0.8),
+                ("xfade", 6.0),
+                ("smooth", 4.0),
+                ("ahead", 5.0),
+                ("out", 6.0),
+            ],
+        ),
+        // fx:vetus — every module on: dithered mu-law bits, the hold behind both its filters,
+        // a synced wow, dropouts and wear, every noise (following the music, so it rests),
+        // the gramophone's band, Character half way.
+        EffectKind::LoFi => set(
+            &mut s,
+            &[
+                ("char", 0.5),
+                ("bits.on", 1.0),
+                ("bits.depth", 6.0),
+                ("bits.dither", 1.0),
+                ("bits.mode", 2.0),
+                ("rate.on", 1.0),
+                ("rate.hz", 9_000.0),
+                ("rate.filter", 2.0),
+                ("wob.on", 1.0),
+                ("wow", 30.0),
+                ("wow.sync", 1.0),
+                ("flut", 8.0),
+                ("age.on", 1.0),
+                ("age.drop", 0.7),
+                ("age.wear", 0.6),
+                ("noise.on", 1.0),
+                ("crackle", 0.8),
+                ("hiss", 0.5),
+                ("hum", 0.3),
+                ("noise.follow", 1.0),
+                ("tone.on", 1.0),
+                ("tone.medium", 3.0),
+                ("mix", 0.8),
+                ("out", -3.0),
+            ],
+        ), // fx:vetus
+        // fx:libra — every stage at work: DC removal, the sides swapped, a channel inverted,
+        // both delayed, wider, balanced, gained.
+        EffectKind::Utility => set(
+            &mut s,
+            &[
+                ("dc", 1.0),
+                ("chan", 1.0),
+                ("pol.l", 1.0),
+                ("delay.l", 12.5),
+                ("delay.r", 40.0),
+                ("width", 1.6),
+                ("pan", -0.4),
+                ("out", 6.0),
+            ],
+        ), // fx:libra
+        // fx3:contract — wave 3's stubs: the placeholder's gain; each builder replaces its
+        // own line with its unit's heaviest settings (tabula: a full board).
+        // fx3:tabula — a full board: drive and a linear-phase EQ before a split (a chorus on
+        // A; a phaser and an oversampled saturator on B, so the lanes' latencies differ),
+        // then a linear-phase multiband and a room; the board's own levels moved too.
+        EffectKind::Board => {
+            use cantus_core::fx::tabula::{Board, Path, Pedal, PedalId};
+            let pedal = |id: u16, kind: EffectKind, path: Path| {
+                let mut p = Pedal::new(PedalId(id), heavy(kind));
+                p.path = path;
+                p
+            };
+            let mut room = Pedal::new(PedalId(9), EffectSpec::new(EffectKind::Space));
+            room.path = Path::Post;
+            room.spec.set("mix", 0.3);
+            s.board = Some(Box::new(Board {
+                pedals: vec![
+                    pedal(0, EffectKind::Pedal, Path::Pre),
+                    pedal(1, EffectKind::Eq, Path::Pre),
+                    pedal(2, EffectKind::Chorus, Path::A),
+                    pedal(3, EffectKind::Phaser, Path::B),
+                    pedal(5, EffectKind::Saturator, Path::B),
+                    pedal(7, EffectKind::Multiband, Path::Post),
+                    room,
+                ],
+                macros: Vec::new(),
+            }));
+            set(
+                &mut s,
+                &[("in", -3.0), ("out", 2.0), ("mix", 0.85), ("ab", 0.4)],
+            );
+        }
+        // fx3:saltus — the poly engine (its dearest) with both voices, spread, the dry
+        // under them, formants moved and the throat shifted.
+        EffectKind::PitchShift => set(
+            &mut s,
+            &[
+                ("engine", 1.0),
+                ("st1", 7.0),
+                ("pan1", -0.5),
+                ("st2", -12.0),
+                ("ct2", 15.0),
+                ("lvl2", 0.8),
+                ("pan2", 0.6),
+                ("dry", 0.5),
+                ("formant", 0.0),
+                ("throat", -3.0),
+                ("out", 6.0),
+            ],
+        ), // fx3:saltus
+        // fx3:rota — fast, driven, all wet, the drum ramping (a note's work).
+        EffectKind::Rotary => set(
+            &mut s,
+            &[("mix", 1.0), ("speed", 2.0), ("drive", 0.6), ("out", 6.0)],
+        ), // fx3:rota
+        // fx3:arca — the dearest: the high gain at 8× into a cabinet.
+        EffectKind::Amp => set(
+            &mut s,
+            &[
+                ("model", 4.0),
+                ("gain", 0.8),
+                ("cab", 4.0),
+                ("os", 2.0),
+                ("out", 6.0),
+            ],
+        ), // fx3:arca
+        // fxa:loquax — 64 bands of order 8, the synthesiser in seven copies and the
+        // sidechain both carrying, formant and band shifted, spread, the consonants' help.
+        EffectKind::Vocoder => set(
+            &mut s,
+            &[
+                ("mix", 1.0),
+                ("src", 2.0),
+                ("bands", 64.0),
+                ("order", 2.0),
+                ("formant", 3.0),
+                ("bshift", 0.5),
+                ("spread", 0.7),
+                ("uni", 7.0),
+                ("robot", 1.0),
+                ("cpass", 0.2),
+                ("tilt", 2.0),
+                ("out", 6.0),
+            ],
+        ), // fxa:loquax
+        // fxa:fractus — every lane painted, the stutter build, swing, the cloud beside the
+        // chain at a high density with pitched grains, a throw ringing.
+        EffectKind::Glitch => {
+            use cantus_core::fx::fractus::{Block, Pattern};
+            let mut p = Pattern::default();
+            for lane in 0..10u8 {
+                let at = (u16::from(lane) * 3) % 14;
+                p.replace(lane, &[Block::new(at, 2 + u16::from(lane % 3))]);
+            }
+            s.fractus = Some(Box::new(p));
+            set(
+                &mut s,
+                &[
+                    ("swing", 0.4),
+                    ("rramp", 2.0),
+                    ("rpitch", 1.0),
+                    ("clevel", 0.6),
+                    ("cdens", 120.0),
+                    ("cpitch", 7.0),
+                    ("crand", 12.0),
+                    ("crev", 0.3),
+                    ("wfb", 0.6),
+                    ("out", 3.0),
+                ],
+            );
+        } // fxa:fractus
+        // fxa:caelum — sixteen lines, the vast size, both shimmer voices, bloom, ducking
+        // keyed, modulated deep (finite: an infinite or frozen tank never rests).
+        EffectKind::Shimmer => set(
+            &mut s,
+            &[
+                ("mix", 0.6),
+                ("size", 0.95),
+                ("decay", 12.0),
+                ("shim", 0.8),
+                ("pblvl", 0.6),
+                ("bloom", 1_500.0),
+                ("duck", 12.0),
+                ("mdepth", 0.8),
+                ("width", 1.3),
+                ("out", 6.0),
+            ],
+        ), // fxa:caelum
     }
     s
 }
@@ -355,7 +590,19 @@ pub fn kind_id(kind: EffectKind) -> &'static str {
         EffectKind::TransientSplit => "discrimen",
         EffectKind::Analyzer => "speculum",
         EffectKind::AutoTune => "tonus",
-        EffectKind::Aula => "aula", // r39:conv
+        EffectKind::Aula => "aula",          // r39:conv
+        EffectKind::AutoFilter => "cribrum", // fx:contract
+        EffectKind::Pedal => "fragor",       // fx:contract
+        EffectKind::TimeShaper => "lapsus",  // fx:contract
+        EffectKind::LoFi => "vetus",         // fx:contract
+        EffectKind::Utility => "libra",      // fx:contract
+        EffectKind::Board => "tabula",       // fx3:contract
+        EffectKind::PitchShift => "saltus",  // fx3:contract
+        EffectKind::Rotary => "rota",        // fx3:contract
+        EffectKind::Amp => "arca",           // fx3:contract
+        EffectKind::Vocoder => "loquax",     // fxa:contract
+        EffectKind::Glitch => "fractus",     // fxa:contract
+        EffectKind::Shimmer => "caelum",     // fxa:contract
     }
 }
 

@@ -81,3 +81,20 @@ fn live_playback_renders_what_the_offline_render_does() {
         );
     }
 }
+
+/// fx3:arca — the lamp style: a wire at mix 0, and the same render at every block size
+/// while it works (its lamps stepped by the LFO alone).
+#[test]
+fn the_lamp_style_is_a_wire_at_mix_zero_and_block_size_free() {
+    let reference = render_of(&demo_project());
+    let mut p = demo_project();
+    let fx = add_effect(&mut p, EffectKind::Phaser);
+    set_all(&mut p, fx, &[("style", 1.0), ("intensity", 0.8)]);
+    assert_null(&reference, &render_of(&p), 0.0, "the lamp style at mix 0");
+    set_all(&mut p, fx, &[("mix", 0.5), ("rate", 3.0)]);
+    let a = render_with(&p, 512);
+    assert!(a != render_with(&demo_project(), 512), "it works");
+    for block in [1usize, 64, 1000] {
+        assert_null(&a, &render_with(&p, block), 0.0, &format!("block {block}"));
+    }
+}

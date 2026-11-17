@@ -399,17 +399,40 @@ pub mod probe {
         pub shown: String,
         /// The box it had.
         pub rect: egui::Rect,
-        /// "elided" or "dropped".
+        /// "elided", "dropped" or "clipped" (whole, but partly past its painter's clip), or
+        /// "short", a designed short form ([`take_shorts`]).
         pub how: &'static str,
     }
 
     thread_local! {
         static CUTS: RefCell<Option<Vec<Cut>>> = const { RefCell::new(None) };
+        /// fx3:arca — the designed short forms (`<key>.short`) painted meanwhile.
+        static SHORTS: RefCell<Vec<Cut>> = const { RefCell::new(Vec::new()) };
     }
 
+    thread_local! {
+        /// fxa — also note texts painted partly past their painter's clip ([`start_clipped`]).
+        static CLIPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    /// [`start`], and note as cut every text painted whole but partly past its painter's
+    /// clip — a label run out of its card or out of the window (fxa: the integrator found
+    /// one the plain probe could not see). For a window drawn at its designed size, where
+    /// nothing is scrolled: in a scrolled view a row half out of sight is clipped by design.
+    pub fn start_clipped() {
+        start();
+        CLIPPED.with(|c| c.set(true));
+    }
+
+    /// Whether texts clipped by their painter are noted.
+    pub fn clipped_on() -> bool {
+        on() && CLIPPED.with(|c| c.get())
+    }
     /// Start noting (what was noted before is dropped).
     pub fn start() {
         CUTS.with(|c| *c.borrow_mut() = Some(Vec::new()));
+        SHORTS.with(|c| c.borrow_mut().clear());
+        CLIPPED.with(|c| c.set(false));
     }
 
     /// Whether cuts are being noted.
@@ -429,6 +452,18 @@ pub mod probe {
     pub fn take() -> Vec<Cut> {
         CUTS.with(|c| c.borrow_mut().take()).unwrap_or_default()
     }
+
+    /// fx3:arca — note a designed short form painted in place of the whole word.
+    pub(super) fn note_short(cut: Cut) {
+        SHORTS.with(|c| c.borrow_mut().push(cut));
+    }
+
+    /// fx3:arca — the designed short forms (`<key>.short`, "Realim." for "Realimentación")
+    /// painted since [`start`]: not cuts, but a word not read whole — a window that promises
+    /// every word whole asks for none.
+    pub fn take_shorts() -> Vec<Cut> {
+        SHORTS.with(|c| std::mem::take(&mut *c.borrow_mut()))
+    }
 }
 
 /// Note a cut text while the probe runs: `shown` is what was painted (`None`: nothing).
@@ -441,8 +476,18 @@ fn note_cut(text: &Text<'_>, shown: Option<&Galley>, rect: Rect) {
         Some(g) => (g.text().to_string(), "elided"),
         None => (String::new(), "dropped"),
     };
-    // An abbreviation that fits (`<key>.short`) is a designed form, not a cut.
-    if (how == "elided" && !shown.contains('\u{2026}')) || full.trim().is_empty() {
+    // An abbreviation that fits (`<key>.short`) is a designed form, not a cut (noted apart:
+    // fx3:arca).
+    if how == "elided" && !shown.contains('\u{2026}') && !full.trim().is_empty() {
+        probe::note_short(probe::Cut {
+            full,
+            shown,
+            rect,
+            how: "short",
+        });
+        return;
+    }
+    if full.trim().is_empty() {
         return;
     }
     probe::note(probe::Cut {
@@ -510,6 +555,21 @@ pub fn paint_face(
     }
     let r = text.align.align_size_within_rect(size, rect);
     let pos = Pos2::new(snap(r.min.x), snap(r.min.y));
+    let painted = Rect::from_min_size(pos, size);
+    // A text whole but painted past its painter's clip (a card's, the window's) is read
+    // cut all the same: noted while the probe runs (fxa — the integrator's find).
+    // Wholly outside (scrolled away) is not seen at all, so not a cut.
+    if probe::clipped_on()
+        && brush.clip.intersects(painted)
+        && !brush.clip.expand(1.0).contains_rect(painted)
+    {
+        probe::note(probe::Cut {
+            full: resolve(text.src, text.caps),
+            shown: g.text().to_string(),
+            rect: painted,
+            how: "clipped",
+        });
+    }
     brush.text(pos, g, text.color, 0.0);
     Some(Painted {
         rect: Rect::from_min_size(pos, size),

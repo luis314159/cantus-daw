@@ -91,6 +91,10 @@ pub struct Chrome {
     /// The host's count of presets loaded from elsewhere (the preset browser) when last
     /// looked at: a new one names the loaded preset again. // r37:library
     epoch: u64,
+    /// fxa:loquax — where the header's ⋯ button was drawn last frame, and the rows of the
+    /// ⋯ (or the device) menu while it is open: tests drive the menus with the pointer.
+    pub more_button: Option<Rect>,
+    pub menu_rows: Vec<Rect>,
 }
 
 impl Chrome {
@@ -135,7 +139,19 @@ pub fn hue_of(kind: EffectKind) -> Function {
         }
         EffectKind::Analyzer => Function::Output,
         EffectKind::AutoTune => Function::Source,
-        EffectKind::Aula => Function::Space, // r39:conv
+        EffectKind::Aula => Function::Space,        // r39:conv
+        EffectKind::AutoFilter => Function::Tone,   // fx:contract
+        EffectKind::Pedal => Function::Tone,        // fx:fragor (drive, as Fervor)
+        EffectKind::TimeShaper => Function::Mod,    // fx:contract
+        EffectKind::LoFi => Function::Tone,         // fx:contract
+        EffectKind::Utility => Function::Output,    // fx:contract
+        EffectKind::Board => Function::Tone,        // fx3:contract (tabula)
+        EffectKind::PitchShift => Function::Source, // fx3:contract (saltus)
+        EffectKind::Rotary => Function::Mod,        // fx3:contract (rota)
+        EffectKind::Amp => Function::Tone,          // fx3:contract (arca)
+        EffectKind::Vocoder => Function::Source,    // fxa:contract (loquax: a voice)
+        EffectKind::Glitch => Function::Mod,        // fxa:contract (fractus)
+        EffectKind::Shimmer => Function::Space,     // fxa:contract (caelum)
     }
 }
 
@@ -152,6 +168,33 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Compressor => Vec2::new(crate::views::comp_editor::designed_width(), 780.0),
         // Culmen: gain over time and the loudness, the bands and the curve, two rows of cells.
         EffectKind::Maximizer => Vec2::new(1180.0, 720.0),
+        // Cribrum: the display over the movement card over the filter and output cards.
+        EffectKind::AutoFilter => Vec2::new(1120.0, 800.0), // fx:cribrum
+        // Fragor: the sound over the pedalboard, the board's controls beside it.
+        EffectKind::Pedal => Vec2::new(1140.0, 800.0), // fx:fragor
+        // Lapsus: the timeline and the bank beside it over a row of four cards.
+        EffectKind::TimeShaper => Vec2::new(1180.0, 720.0), // fx:lapsus
+        // Vetus: the record and what comes out beside Character, over six module cards.
+        EffectKind::LoFi => Vec2::new(1120.0, 800.0), // fx:vetus
+        // Libra: the measure (tuner, goniometer, levels) over four small cards.
+        EffectKind::Utility => Vec2::new(1180.0, 600.0), // fx:libra
+        // Tabula: the macro rail over the board (two lanes of pedals at the split) and the
+        // board's column beside it.
+        EffectKind::Board => Vec2::new(1360.0, 860.0), // fx3:tabula
+        // Saltus: the staff over the leap (and the pedal in Whammy), over the mode's cards.
+        EffectKind::PitchShift => Vec2::new(1260.0, 800.0), // fx3:saltus
+        // Arca: the chassis over the control plate, the cabinet beside them.
+        EffectKind::Amp => Vec2::new(1320.0, 740.0), // fx3:arca
+        // Phasis: its circuit card (classic or the lamp vibe) widens the row of cards.
+        EffectKind::Phaser => Vec2::new(1240.0, 640.0), // fx3:arca
+        // Rota: the cabinet cut away, from above and its ramps, over a row of six cards.
+        EffectKind::Rotary => Vec2::new(1260.0, 700.0), // fx3:rota
+        // fxa — the design sheets' windows (v1).
+        // fxa:loquax — the window grows a row where a language's cards need one (the
+        // display keeps its size: the owner's v2 verdict).
+        EffectKind::Vocoder => super::loquax::designed_size(),
+        EffectKind::Glitch => Vec2::new(1340.0, 720.0), // fxa:fractus
+        EffectKind::Shimmer => Vec2::new(1340.0, 900.0), // fxa:caelum
         _ => Vec2::new(1000.0, 640.0),
     }
 }
@@ -236,6 +279,14 @@ pub fn place(
             child.set_clip_rect(rect);
             add(&mut child);
         });
+}
+
+impl Chrome {
+    /// fx3:start — open the preset list as a click on the header would, at `at` under
+    /// `opener` (pictures and tests).
+    pub fn open_presets_at(&mut self, at: Pos2, opener: Rect) {
+        self.popup = Some((Popup::Presets, at, opener));
+    }
 }
 
 // ---- popups ---------------------------------------------------------------------------
@@ -419,12 +470,24 @@ pub fn recognise(spec: &cantus_core::EffectSpec, list: &[Entry]) -> Option<Loade
 /// Whether the effect's values have drifted from the preset that set them: a key it
 /// names holds another value, or a key it leaves out is off its default.
 pub fn modified(spec: &cantus_core::EffectSpec, loaded: &Loaded) -> bool {
-    for info in spec.kind.params() {
+    // fxa:loquax — a look (Loquax's microphone) is no drift from a preset.
+    for info in spec
+        .kind
+        .params()
+        .iter()
+        .filter(|i| !spec.kind.is_look(i.key))
+    {
         let now = spec.get(info.key);
         let want = loaded.params.get(info.key).copied().unwrap_or(info.default);
         if (now - want).abs() > 1e-6 * want.abs().max(1.0) {
             return true;
         }
+    }
+    // fxa:fractus — Fractus's lanes are its preset's too.
+    if spec.kind == cantus_core::EffectKind::Glitch {
+        let want = cantus_core::fx::fractus::pattern_of_flat(&loaded.params);
+        let now = spec.fractus.as_deref().filter(|p| !p.is_empty());
+        return want.as_ref() != now;
     }
     false
 }
@@ -630,6 +693,7 @@ pub fn show(
         host.learn_bypass_spot(ui, br);
     }
     chrome.save_at = out.header.left_bottom() + Vec2::new(24.0, 4.0) * s.k;
+    chrome.more_button = Some(rects.more); // fxa:loquax
     let mut moved = Vec2::ZERO;
     // A part of the header opens its list, or closes it when it is the one open.
     let toggle = |chrome: &mut Chrome, which: Popup, at: Pos2, opener: Rect| {
@@ -784,7 +848,15 @@ fn popups(
             items.push(action(Src::Key("fx.frame.close")));
             acts.push(Act::Close);
             let w = 230.0 * s.k;
-            if let Some(i) = popup_list(ctx, id, at, opener, s, &items, w, &mut close) {
+            let picked = popup_list(ctx, id, at, opener, s, &items, w, &mut close);
+            // fxa:loquax — the rows where they were drawn, for the tests' pointer.
+            chrome.menu_rows.clear();
+            if let Some(area) = ctx.memory(|m| m.area_rect(id)) {
+                chrome
+                    .menu_rows
+                    .extend((0..items.len()).map(|i| menu::row(area, &items, s.d(1.0), i)));
+            }
+            if let Some(i) = picked {
                 close = true;
                 match acts.get(i).copied().unwrap_or(Act::None) {
                     Act::CopyAb => host.copy_ab(),
@@ -801,6 +873,11 @@ fn popups(
         }
         Popup::Presets => {
             let user = host.user_presets();
+            // fx3:start — the unit's own starting preset (ADR 0138), where the host is Cantus.
+            let start = start_state(host);
+            // The chosen start on a row of its own under its heading: a long name never
+            // shares a band's one line (nothing elided, ES included).
+            let start_on = start.as_ref().and_then(|c| c.clone());
             let loaded = chrome.loaded.as_ref().map(|l| l.index);
             let list = chrome.list.get_or_insert_with(|| host.presets());
             let mut items: Vec<Item<'_>> = Vec::with_capacity(list.len() + 5);
@@ -830,6 +907,24 @@ fn popups(
                 items.push(action(Src::Key("fx.frame.save")));
                 rows.push(Some(usize::MAX));
             }
+            // fx3:start
+            if let Some(chosen) = &start {
+                items.push(Item::Separator);
+                rows.push(None);
+                items.push(Item::Band(Src::Key("start.on_title")));
+                rows.push(None);
+                match &start_on {
+                    Some(name) => items.push(radio(Src::Str(name), true)),
+                    None => items.push(radio(Src::Key("start.factory"), true)),
+                }
+                rows.push(None);
+                items.push(action(Src::Key("start.use")));
+                rows.push(Some(START_USE));
+                if chosen.is_some() {
+                    items.push(action(Src::Key("start.reset")));
+                    rows.push(Some(START_RESET));
+                }
+            }
             let w = (shell::PRESET_W * s.k).max(200.0);
             let chosen = popup_list(ctx, id, at, opener, s, &items, w, &mut close);
             drop(items);
@@ -838,6 +933,8 @@ fn popups(
                 match rows.get(i).copied().flatten() {
                     Some(usize::MAX) => chrome.saving = Some(String::new()),
                     Some(n) if n == usize::MAX - 1 => host.browse_presets(), // r37:library
+                    Some(START_USE) => use_as_starting(host, chrome),        // fx3:start
+                    Some(START_RESET) => reset_starting(host),               // fx3:start
                     Some(n) => chrome.load(host, n),
                     None => {}
                 }
@@ -859,6 +956,42 @@ fn popups(
         chrome.popup = None;
     }
     more
+}
+
+// fx3:start — the unit's own starting preset (ADR 0138).
+const START_USE: usize = usize::MAX - 2;
+const START_RESET: usize = usize::MAX - 3;
+
+/// Whether the host offers a starting preset of the person's (`None`: a plug-in in another
+/// DAW, a hosted plug-in), and the name of the one chosen.
+fn start_state(host: &mut dyn FxHost) -> Option<Option<String>> {
+    let kind = host.spec().kind;
+    if !cantus_core::starting_user::choosable(kind) {
+        return None;
+    }
+    let (app, _, _) = host.daw()?;
+    Some(app.starting_choice(kind).map(|c| c.label.clone()))
+}
+
+/// The unit's settings now become its starting preset: named for the preset loaded when
+/// nothing has moved since, else "Your settings".
+fn use_as_starting(host: &mut dyn FxHost, chrome: &Chrome) {
+    let spec = host.spec().clone();
+    let label = match &chrome.loaded {
+        Some(l) if l.params == spec.params => l.name.clone(),
+        _ => t("start.yours"),
+    };
+    if let Some((app, _, _)) = host.daw() {
+        app.use_as_starting(spec, label);
+    }
+}
+
+/// The unit's inserts start on its factory starting preset again.
+fn reset_starting(host: &mut dyn FxHost) {
+    let kind = host.spec().kind;
+    if let Some((app, _, _)) = host.daw() {
+        app.reset_starting(kind);
+    }
 }
 
 /// The name box for saving the current values as a preset: Enter saves, Esc leaves.

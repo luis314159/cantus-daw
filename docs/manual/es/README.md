@@ -2161,7 +2161,8 @@ Tonsor (recortador), Impetus (moldeador de transitorios), Discrimen (divisor de
 transitorios), Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Speculum
 (analizador), Tonus (corrección de afinación), Concentus (chorus), Flexus (flanger), Phasis
 (phaser), Tremor (trémolo y auto-pan), Vibrans (vibrato), Anulus (modulador en anillo),
-Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Aula (reverb de convolución), Delay y Reverb.
+Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Cribrum (filtro automático),
+Fragor (pedales de distorsión), Lapsus (moldeador de tiempo), Vetus (lo-fi), Libra (utilidad), Aula (reverb de convolución), Delay y Reverb.
 
 ### La cara de cada unidad
 
@@ -2391,6 +2392,393 @@ proceso aparte, así que un plug-in que falla al revisarse queda bloqueado, sin 
 Cantus. Los efectos de Cantus se instalan también en tus carpetas CLAP y VST3, para otros
 DAW.
 
+### Cribrum, el filtro automático
+
+**Cribrum** (en latín, *una criba*) es un filtro que se mueve a tempo con la canción: dos
+filtros de modelo analógico — los mismos cinco circuitos que los sintetizadores de Cantus
+(SVF, ladder de transistores, OTA en cascada, diode ladder, Sallen-Key) — en serie o en
+paralelo, movidos por un **LFO**, un **seguidor de envolvente** y una **curva que dibujas**. Se
+inserta desde el selector (está en EQ y en Modulación); empieza en *Barrido de compás*, un
+ladder resonante que sube y baja una vez por compás, para que se oiga al momento.
+
+**Lo que pasa.** La imagen de la ventana es la música cribada: su espectro en granos,
+iluminados hasta lo que sale de los filtros y con una marca donde entró, bajo la respuesta de
+los dos filtros mientras se mueven. Arrastra el tirador de un filtro a lo ancho para su corte y
+arriba y abajo para su resonancia (Mayús es más fino; un doble clic devuelve los dos). El
+tirador del filtro elegido está sobre un riel que muestra hasta dónde puede llevarlo su
+movimiento.
+
+**Movimiento.** Elige el LFO, el seguidor o la curva en su tecla: su imagen se mueve en la pista
+a tempo con la canción, sus controles están al lado y, debajo, sus **profundidades** hacia el
+corte (en octavas), la resonancia y la vocal. Las tres fuentes se suman. El LFO va con la
+canción de 1/64 a ocho compases (con puntillo y tresillo) o libre en Hz, con siete formas
+(entre ellas muestreo y retención y una *deriva* suave) y fase estéreo. El seguidor oye la pista
+o un **sidechain** — un bombo que abre el filtro de un pad; su **rango** decide cuánto del
+nivel mueve el filtro (estrecho, solo el ataque de cada nota lo abre: el wah de envolvente del
+preset *Wah que llora*). La curva se dibuja como la de
+Fluctus y la de los clips de automatización (arrastra un punto, arrastra un tramo para curvarlo,
+doble clic para añadir o quitar uno) y se suaviza para que un escalón nunca haga clic.
+
+**Los filtros.** Cada uno tiene su modelo, su respuesta (paso bajo, paso banda, paso alto,
+notch, pico donde el modelo la da, y un filtro de **vocal** que habla A-E-I-O-U), 12 o
+24 dB/oct, corte, resonancia (todos los modelos cantan afinados desde el 95 %), drive y vocal.
+El segundo filtro puede seguir el movimiento, ignorarlo o moverse al revés. La apertura
+estéreo separa el corte de los dos canales.
+
+**Exacto.** Con la mezcla al 0 % Cribrum deja pasar el sonido intacto, bit a bit. Un render
+desde cualquier compás mueve los filtros como el render completo en ese punto; el render
+offline es igual al tiempo real con cualquier tamaño de búfer. El sobremuestreo (2× o 4×)
+mantiene limpio un filtro con drive; su latencia (una o dos muestras) se compensa.
+
+### Vetus, lo-fi
+
+**Vetus** (en latín, *viejo*) envejece un sonido como lo envejecía un medio antiguo.
+Insértalo desde el selector (en Distorsión); empieza en *Casete gastado* — wow y flutter, el
+siseo de la cinta, su banda y un poco de desgaste — así que se oye enseguida.
+
+**Seis módulos**, en el orden que recorre una grabación — digitalizada, puesta en un medio,
+gastada, reproducida —, cada uno encendido con la luz del título de su tarjeta (sus controles
+responden aunque esté apagado, atenuados, para prepararlo antes de oírlo):
+
+- **Bits** — de 1 a 24 bits (fraccionarios: un barrido nunca salta), *Redondeo*, *Truncado*
+  (la aspereza de un conversor barato) o *Ley μ* (la del teléfono: los sonidos suaves
+  conservan más niveles), con o sin **dither**. A 24 bits sin dither deja el sonido intacto.
+- **Muestreo** — hasta 1 kHz. *Crudo*: lo que pasa del nuevo Nyquist se pliega y los escalones
+  suenan por encima: el sonido de un sampler antiguo. *Filtrado* pone antes un filtro
+  antialias (nada se pliega); *Suavizado* añade otro después (solo se pierde el ancho de banda).
+- **Wow y flutter** — la oscilación lenta y la rápida de la velocidad de una cinta, en cents
+  sea cual sea su ritmo; el wow libre o con la canción, en parte a la deriva como el de una
+  cinta de verdad.
+- **Edad** — cortes (el nivel cae y los agudos se apagan un momento) y desgaste (el nivel y el
+  brillo vagan despacio).
+- **Ruido** — el crujido y los golpes de un disco, el siseo de la cinta o del vinilo, el
+  zumbido de la red a 50 o 60 Hz. *Seguir* hace que solo suene mientras suena la música.
+- **Tono** — la banda del medio que lo reproduce: cinta, radio, teléfono o gramófono, cada uno
+  con su color (el realce del cabezal, el pico del micrófono de carbón, las resonancias de una
+  bocina). Elegir un medio pone su banda; sus dos bordes y su resonancia siguen siendo tuyos.
+
+**Carácter** es el mando que lo envejece todo a la vez: cada módulo encendido se acerca a su
+estado más viejo (menos bits, menos muestreo, más wow, más crujido, una banda más estrecha) y
+la etiqueta imprime el año al que lleva el sonido. Qué módulos están encendidos decide el
+sabor; el Carácter, cuánto atrás.
+
+**La ventana.** En el centro, el objeto que envejece — un **casete** (los carretes girando, la
+ventana de nivel con el último segundo de la música, la cinta arrugada por la edad, una chispa
+en el cabezal cuando cae un chasquido) o un **LP** en su tocadiscos (el surco con la música de
+sus últimas vueltas, descentrado por el wow, con polvo y rayas): elígelo en el menú **⋯** de la
+ventana, junto al acabado. Gira el objeto hacia atrás (arrastra a su alrededor contra las
+agujas del reloj) para subir el Carácter; doble clic para dejarlo nuevo. A su lado, **lo que
+sale**: el espectro de la salida sobre el de la entrada, con el Nyquist del conversor
+(arrástralo a los lados para el muestreo), el suelo de ruido de los bits (arriba, menos bits) y
+la banda del medio (arrastra sus bordes).
+
+**Exacto.** Con todos los módulos apagados Vetus deja pasar el sonido intacto, bit a bit. El
+ruido, el dither, los cortes y el desgaste van fijados a la canción: un render desde cualquier
+compás, offline o en reproducción, con cualquier tamaño de búfer, tiene el mismo crujido en los
+mismos sitios.
+
+### Libra, la utilidad
+
+**Libra** (en latín, *la balanza*) reúne las correcciones de cada día de un canal. Se
+inserta como un cable: nada cambia hasta que lo pides.
+
+**Los canales.** *Estéreo*, *Intercambiar*, *Mono* (los dos sumados: comprueba una mezcla
+en mono), *Izquierdo* o *Derecho* en ambos lados, *Mid* o *Side* solos (escucha la anchura
+por sí sola). **Invierte la polaridad** de cualquiera de los canales; **Quitar DC** elimina
+una continua; **Silencio**.
+
+**Los retardos** atrasan cada canal hasta 100 ms, en muestras enteras: dos micrófonos sobre
+una misma fuente alineados a la muestra. Muéstralos en ms o en muestras.
+
+**La imagen y la ganancia.** El **balance** baja un lado, nunca sube el otro (el balance del
+máster); la **anchura** de mono (0 %) al doble (200 %); la **ganancia** ±36 dB.
+
+**La ventana.** En el centro una **balanza** de latón: su brazo se inclina con el balance y
+lo marca en una escala fina, sus brazos alcanzan tanto como la imagen, cada platillo lleva el
+nivel, el retardo y la polaridad de su canal, y la **correlación** recorre su pie (hacia −1,
+los canales se cancelan en mono). Arrástrala a los lados para el balance y arriba y abajo
+para la anchura; doble clic para centrarla. A su lado el **afinador** — la nota, sus cents y
+su frecuencia, su La de referencia (de 415 a 466 Hz) arrastrado arriba y abajo — y el
+**goniómetro**.
+
+### Saltus, el tono
+
+**Saltus** (en latín, *el salto*) mueve el tono de lo que oye. Insértalo desde **Añadir
+inserción ▾ ▸ Tono ▸ Saltus**; empieza como *Octava arriba, doce cuerdas* (el motor poli)
+— o con el preset de inicio que hayas elegido (abajo).
+
+**Cuatro modos**, las leyendas de lo alto de su pantalla:
+
+- **Desplazar**: dos voces a intervalos fijos, ±24 semitonos y ±100 cents cada una, con su
+  nivel y su balance, sobre el seco.
+- **Armonía**: dos voces a un número de **grados de la escala** desde la nota oída — *dos*
+  es una tercera, *cuatro* una quinta, mayor o menor según la tonalidad. Cuentan en la
+  **tonalidad y escala**, en el **acorde sostenido** por MIDI (elige la pista cuyos acordes
+  sigue) o cantan la **melodía MIDI** (las notas sostenidas, con el vibrato del cantante).
+- **Octava**: una y dos octavas abajo y una arriba. **Analógica** es un divisor que sigue la
+  nota, sin latencia; **Limpia** mueve la nota misma, con sus formantes.
+- **Whammy**: una voz llevada por el **pedal** del intervalo del talón al de la punta,
+  seguida con el **deslizamiento** — mece el pedal en la pantalla, automatízalo, asígnalo a
+  un controlador o deja que lo toquen **notas MIDI**: una nota sostenida pisa la punta.
+
+**Mono o poli.** El selector de arriba a la derecha de la pantalla muestra la latencia de
+cada motor: **Mono** sigue una nota a la vez con los formantes de la voz (2,7 ms — para
+tocar y cantar a través de él), **Poli** mueve cada nota de un acorde o una mezcla entera
+(85 ms — la compensación de latencia lo cubre en una mezcla). Los presets de fábrica vienen
+en ambos.
+
+**Los formantes** se quedan donde están (una voz conserva la suya) o se mueven con el tono
+(la cinta acelerada o frenada); la **garganta** los mueve por sí sola.
+
+**La ventana.** El **salto**: un teclado, la nota oída encendida en él y nombrada en grande,
+y un arco desde ella hasta cada voz, tan grueso como suena la voz, con el nombre del
+intervalo y la nota donde cae — arrastra un aterrizaje a otra tecla para cambiar su
+intervalo. Encima, un **pentagrama doble** escribe los últimos segundos tal como se tocan, y
+las notas de ahora en su borde derecho, cada una cayendo a su tecla. En Whammy el pedal se
+dibuja junto al teclado.
+
+**Elige su preset de inicio.** La lista de presets de cada unidad ofrece **Usar como preset
+de inicio**: sus ajustes de ahora pasan a ser con lo que empieza al insertarla, en todos los
+proyectos. **Volver al preset de inicio de fábrica** trae de vuelta el de fábrica. *Ajustes ▸ Edición
+▸ Efectos ▸ Al insertar ▸ Ajustes neutros* sigue insertando cada unidad en sus valores por
+defecto.
+
+**En Tabula** Saltus es un pedal con las perillas Intervalo, Nivel, Seco y Pedal.
+
+### Arca, amplificador y caja
+
+**Arca** (en latín, *el cofre*) es un amplificador de válvulas y su caja, para guitarra,
+bajo, teclados o voz. Insértalo desde **Añadir inserto ▾ ▸ Distorsión ▸ Arca**; empieza como
+*Combo limpio*.
+
+**Cinco amplificadores**, las leyendas en lo alto de su pantalla: **Limpio**, **Crujiente**,
+**Campanilla**, **Alta ganancia** y **Bajo** — cada uno su circuito resuelto válvula a
+válvula, de la entrada al altavoz. **Ninguno** deja solo la caja (un cargador de respuestas
+al impulso). El **sobremuestreo** (2×, 4×, 8×) muestra la latencia de cada opción; la
+compensación de retardo la cubre.
+
+**El chasis** muestra el amplificador trabajando: las válvulas en el orden en que las
+encuentra la señal, sus filamentos encendidos, cada placa enrojeciendo según trabaja, una
+barra bajo cada una; la aguja de la derecha muestra **la alimentación cediendo** ante un
+acorde fuerte. Junto a ellas, sus válvulas de potencia, su bias y su rectificador.
+
+**El panel**: Ganancia; los Graves, Medios y Agudos de la red de tono; la Presencia de la
+etapa de potencia (en la campanilla, **Corte**, al revés), el Maestro y el **Sag** (la
+alimentación de firme a blanda); Mezcla y Salida.
+
+**La caja**: elige una de cinco, o **Archivo cargado** para tu propia respuesta al impulso
+(WAV, AIFF, FLAC u OGG). Elige el **micrófono** (dinámico, cinta, condensador),
+**arrástralo por el cono** — brillante en el centro, más oscuro hacia el borde — y
+**aléjalo de la rejilla** en la vista lateral (de 1 a 30 cm: más cerca, más graves). Debajo
+se dibuja la respuesta que resulta.
+
+Dieciséis presets de fábrica cubren cada amplificador, la caja sola, teclados y voz. En sus
+valores por defecto (sin amplificador ni caja) Arca no toca ninguna muestra. Como pedal en
+**Tabula** muestra Ganancia, Graves, Agudos y Maestro.
+
+### Rota, el altavoz rotatorio
+
+**Rota** (en latín, *la rueda*) es el mueble rotatorio del órgano de Cantus, para cualquier
+pista. Insértalo desde **Añadir inserto ▾ ▸ Modulación ▸ Rota**; empieza como *Coral*
+(lento).
+
+**El cambio**, arriba: **Parado** (el freno detiene ambos rotores), **Lento** y **Rápido**.
+Cada rotor llega a su nueva velocidad a su ritmo — la bocina en una fracción de segundo, el
+tambor en segundos; la **Rampa** escala esos tiempos. Con **Cambio por notas** activado,
+cada nota de la pista que oye Rota cambia la velocidad, a la muestra.
+
+**La pantalla** dibuja el mueble **en corte**, la bocina y el tambor girando como los gira
+el motor (difuminados a velocidad); el mueble **desde arriba**, donde **arrastras los
+micrófonos** a su alrededor (su ángulo) y lejos de él (su distancia); y **las rampas**: la
+velocidad de cada rotor desde el cambio, con un punto donde está ahora.
+
+Las tarjetas fijan las velocidades lenta y rápida de la bocina y del tambor, el ángulo y la
+distancia de los micrófonos y el **Balance** entre bocina y tambor, la **trasera** del
+mueble (abierta o cerrada) y la **Saturación** de su amplificador, y la Mezcla y la Salida.
+Trece presets de fábrica. En sus valores por defecto (mezcla 0) Rota no toca ninguna
+muestra; no tiene latencia.
+
+### Loquax, el vocoder
+
+**Loquax** (en latín, *el que habla mucho*) hace hablar a una voz a través de otro sonido.
+Insértalo en la pista de la voz desde **Añadir inserción ▾ ▸ Tono ▸ Loquax**; empieza como
+*Robot* — el sintetizador sostiene un Do3 mientras la voz habla, así que la oyes vocodificada
+enseguida, sin notas y sin llave.
+
+**Quién habla y quién canta.** El sonido de la propia pista es la **voz** (la moduladora).
+La **portadora** se elige en la tarjeta *Portadora*:
+
+- **Sintetizador** — el sintetizador polifónico de Loquax (sierra, pulso y ruido, hasta siete
+  copias desafinadas por voz), tocado por **las notas de la pista que escucha la ranura**:
+  elígela como fuente MIDI del efecto, como el disparo de Porta. Una pista de teclado puede
+  estar silenciada — sus notas siguen tocando Loquax.
+- **Cadena lateral** — el sonido de otra pista, enviado a la ranura como su **llave** (el campo de
+  cadena lateral, como en un compresor): un pad, una guitarra (un talk-box), un loop de batería.
+- **Ambas** — las notas y la llave juntas.
+
+**Quién habla** los intercambia: *Cadena lateral* habla y esta pista es la portadora — una batería
+o un loop que hablan. **Robot** sostiene su propia nota (cualquiera, de Do1 a Do7) mientras la
+voz supera su puerta, sin ninguna nota.
+
+**La pantalla.** A la izquierda, **el objeto en el que habla la voz** — el micrófono de
+cuello de cisne, **el tubo del talk-box** que sube desde su motor, o **el micrófono de mesa**
+sobre su base pesada — con su piloto de «en el aire» y su brillo siguiendo a la voz. Elígelo
+en el menú **⋯**, bajo *Micrófono*, junto a los acabados: es de la inserción (se guarda en la
+canción, un paso de deshacer) y nunca se oye. Cada preset de fábrica sugiere su objeto (*Talk-box* el tubo, *Radio* el
+micrófono de mesa, *Robot* el cuello de cisne) y al cargarlo lo pone; un preset tuyo guarda el
+que tenías al guardarlo. A/B no lo toca, y cambiarlo nunca marca el preset como modificado. En el
+centro, **el banco**: cada banda una columna de celdas encendidas por lo que dice ahora;
+**arrastra sobre las bandas para dibujar sus niveles** (de −24 a +12 dB, cada trazo un paso de
+deshacer). El desplazamiento de formantes se dibuja arriba. A la derecha, **el puente de
+medidores**: la aguja de la voz y la de la portadora, los pilotos de consonante, retención y
+robot.
+
+**Las tarjetas**: la portadora y los papeles, la portadora en bruto **directa**; las
+**bandas** (de 8 a 64, pendientes de orden 4, 6 u 8, su rango y su anchura); los
+**seguidores** (ataque, liberación, **Retener** congela la vocal); el **carácter**
+(desplazamiento de formantes en semitonos, de bandas, inclinación, aplanado, abertura
+estéreo); las **consonantes** (la sibilancia que pasa por encima de su esquina, siempre o
+solo en consonantes, y ruido en la portadora en ellas); los osciladores, el unísono y la
+envolvente del sintetizador; el robot; mezcla y salida.
+
+Quince presets de fábrica, con ambas portadoras (*Talk-box* y *Portadora por cadena lateral* usan
+la llave; *Vocoder clásico*, *Coro* y *Máquina de cuerdas* las notas). En el navegador cada
+uno se escucha con la línea de la propia fuente como sus notas y su llave. En sus valores por
+defecto (mezcla 0) Loquax no toca ninguna muestra; no tiene latencia.
+
+**En otro DAW** Loquax es el plug-in *Cantus Loquax* (CLAP y VST3): oye las notas que le
+envía el anfitrión, y su portadora por la entrada de sidechain una vez que su propio
+interruptor *Sidechain* está en *Entrada de sidechain*.
+
+### Fractus, el secuenciador de glitch
+
+**Fractus** (en latín, *roto*) son diez efectos en diez carriles de un secuenciador por pasos
+que sigue a la canción, con una nube de granos a su lado. Insértalo desde **Añadir inserción ▾
+▸ Modulación ▸ Fractus**; empieza como *Tartamudeo del último tiempo* — el último tiempo de cada
+compás repite una fusa, el resto del compás intacto — así que lo oyes enseguida en una batería,
+un loop o un rasgueo.
+
+**Los carriles**, uno por módulo: **Repetición** (el primer trozo del evento suena y se guarda,
+luego se repite — cada repetición más aguda o más baja si lo pides, y con *Aceleración* el
+tartamudeo que parte cada trozo a la mitad), **Reverso**, **Parada de cinta** (o *Arranque*,
+desde quieta), **Barajado** (trozos de hasta ocho atrás, algunos al revés), **Salto de tono**
+(el trémolo clásico de línea de retardo, o *Limpio* en su *Estilo*), **Trituración**, **Barrido de filtro**,
+**Puerta**, **Lanzamiento de eco** (los ecos siguen sonando tras el paso) y **Nube** (los
+granos toman el relevo durante el evento). La rejilla se fija en la tarjeta *Rejilla*: pasos
+de 1/4 a 1/64 (también tresillos), de uno a cuatro compases, swing. Cada comienzo, final y
+salto tiene un fundido cruzado, así que nada chasquea: su duración (*Uniones*) y la *Semilla*
+de cada tirada están en la tarjeta *Eventos* de la página *Cortes*. El tiempo, la realimentación, el tono, el nivel y el **ping-pong** del
+lanzamiento de eco están en la página *Secuenciador*.
+
+**Pintar.** En la ventana de los carriles:
+
+- **Pulsa en un paso y arrastra por el carril**: un bloque desde el paso que pulsaste hasta el
+  paso bajo el puntero. **Su altura es su cantidad** — el pad se enciende desde su suelo hasta
+  donde sueltas (en pasos de 5 %); la cantidad es la mezcla del módulo para ese evento. Un
+  bloque pintado sobre otro se queda con lo que cubre.
+- **Mayús y arrastrar**: un trazo de **probabilidad** — cada bloque por el que pasa suena con
+  esa frecuencia (la línea discontinua bajo un bloque que puede no sonar).
+- **Clic derecho en un bloque** para borrarlo.
+
+Cada trazo es un paso de deshacer. El **nombre** de un carril abre la página de tarjetas donde
+se ajusta su módulo; las cuatro **teclas de página** bajo la ventana (*Secuenciador*,
+*Cortes*, *Color*, *Nube de granos*) hacen lo mismo, y sus puntos muestran qué carriles están
+pintados y cuáles suenan ahora.
+
+**Tocado por notas.** En la tarjeta *Interpretación*, *Tocado por* elige **Pasos**, **Notas** o
+**Ambos**. Con notas, **las notas de la pista que escucha la ranura** (su fuente MIDI, como en
+Porta y Loquax; la pista del teclado puede estar silenciada) tocan los carriles mientras se
+mantienen: la *Primera tecla* (Do3 por defecto) toca Repetición, la siguiente Reverso, y así
+hasta Nube. *Las notas* **En el paso** espera a la siguiente línea de la rejilla;
+**Enseguida** actúa en la muestra de la propia nota. Las teclas que tocan los carriles se
+encienden en la pantalla.
+
+**La nube de granos.** Su nivel corre junto a la cadena en todo momento (0: apagada): granos
+leídos de hasta dos segundos atrás, su tamaño, densidad, dispersión, tono (en una escala:
+cromática, mayor, menor, pentatónica, quintas, octavas), abertura y la parte al revés,
+dibujados en vivo en el osciloscopio — cada grano donde lee y a su tono, con su estela.
+**Congelada** (el piloto sobre el osciloscopio, o el interruptor de la tarjeta de la nube)
+retiene lo que la nube ha oído mientras siga encendida.
+
+Dieciocho presets de fábrica: tartamudeos y subidas, paradas y arranques de cinta, reversos,
+puertas, barridos de filtro, lanzamientos de eco, barajados, redobles lo-fi, pads de granos,
+una nube para congelar y juegos tocados por notas (*Notas: el kit entero*, *Notas:
+tartamudeos*, *Pasos y teclas*). Un preset trae sus carriles. En sus valores por defecto —
+nada pintado, la nube a 0 — Fractus no toca ninguna muestra; no tiene latencia.
+
+**En otro DAW** Fractus es el plug-in *Cantus Fractus* (CLAP y VST3): sus carriles se guardan
+en el estado del plug-in y se pintan en su propia ventana, sus pasos siguen el tempo y la
+posición del anfitrión, y las notas que envía el anfitrión tocan los carriles.
+
+### Caelum, la reverb shimmer
+
+**Caelum** (en latín, *el cielo*) es una reverb para espacios que ningún edificio contiene: su
+cola sube de tono mientras suena. Se inserta desde **Añadir inserción ▾ ▸ Espacio ▸ Caelum**;
+empieza como *Shimmer de octava* — un espacio amplio, un tercio húmedo, cuya cola sube de
+octava en octava — de modo que un acorde sube al cielo en cuanto lo tocas.
+
+**Cómo sube.** En cada vuelta del tanque, una parte de la cola (la *Cantidad* de la tarjeta
+*Shimmer*) se cambia por el mismo sonido transportado por la **primera voz** (+12 semitonos,
+una octava, al principio) y, a su propio nivel, por la **segunda voz** (+7, una quinta, muda
+hasta que subes *Nivel segunda*). Cada voz puede ir de tres octavas abajo a tres arriba. El
+cambio mueve la energía del sonido sin crearla, así que la caída que fijas es la que oyes, con
+shimmer o sin él. *Tono del shimmer* corta los graves y los agudos dentro del bucle: las
+octavas que suben se apagan arriba en vez de amontonarse.
+
+**La ventana** es un observatorio de noche:
+
+- **El cielo** muestra los últimos ocho segundos: la cola brillando en el horizonte sobre el
+  agua del tanque y las octavas del shimmer como bandas de luz sobre ella, cada una encendida
+  cuando la energía la alcanza — las más altas más tarde, mientras la cola envejece. Infinita
+  escribe ∞ en el cristal; Congelar lo escarcha; la atenuación enciende una ranura en el riel
+  derecho del marco.
+- **El alféizar** de abajo tiene los controles sin fin como pulsadores iluminados:
+  **Infinita** (la cola nunca cae; lo que entra se suma y se sostiene, y la amortiguación aún
+  la oscurece), **Congelar** (el tanque guarda lo que tiene y no deja entrar nada; el shimmer
+  deja de subir) y las dos maneras de un tanque infinito: su shimmer **Se apaga** o **Se
+  sostiene** al subir, y su nivel **8 dB menos** que una cola de ocho segundos o **Igual de
+  fuerte**. Un clic acciona un pulsador (un paso de deshacer); el clic derecho, automatización
+  y aprendizaje MIDI.
+- **El astrolabio** fija las voces: **arrastra la alidada** (la regla ancha) para elegir la
+  primera voz y **la aguja fina** para la segunda. El ángulo es la nota dentro de la octava
+  (los doce semitonos alrededor del borde); la distancia al centro, la octava en la espiral
+  (−36 junto al eje, +36 en el borde). Un clic en la lámina lleva allí la aguja más cercana.
+  Cada arrastre es un paso de deshacer.
+- **Caída por octava**: ocho tubos de vidrio, cada uno encendido hasta la caída que el tanque
+  alcanza de verdad en su octava (de 63 Hz a 8 kHz), según la tarjeta *Amortiguación*. La línea
+  de puntos que los cruza es la caída que fijas: **arrastra arriba o abajo sobre los tubos**
+  para fijarla (un paso de deshacer). Con Infinita encendida, los tubos marcan ∞ y no se
+  arrastran.
+
+**Las tarjetas**: *Espacio* (tamaño, caída, pre-retardo — libre o una figura al tempo de la
+canción, *Sincronía* —, difusión y las 8 o 16 líneas del tanque: ocho cuestan la mitad),
+*Amortiguación* (las esquinas aguda y grave y sus caídas frente a la del medio), *Shimmer*,
+*Tono del shimmer*, *Movimiento* (la modulación de las líneas y **Florecer**, el sonido que
+crece hacia el espacio durante hasta cuatro segundos), *Atenuación* (rango, umbral, ataque,
+liberación) y *Salida* (corte de graves y agudos, anchura, mezcla, salida).
+
+**La atenuación** (ducking) aparta la reverb mientras suena la señal seca y la deja florecer
+en los huecos. Escucha a la propia pista o a **otra pista** enviada a la inserción como su
+llave (el campo de cadena lateral, como en un compresor): el shimmer de una voz que se aparta
+bajo la batería.
+
+Diecinueve presets de fábrica: shimmers de octava y de quinta, catedrales, un pad que
+florece, *Crecida para congelar* (infinita; acciona Congelar sobre un acorde para retenerlo
+como un pad — ningún preset empieza congelado, porque un tanque congelado desde su primera
+muestra retendría silencio), un ascenso sin fin y un drone infinito que crecen mientras tocas,
+un shimmer vocal que se aparta, ambiente de guitarra, pre-retardos sincronizados con la
+canción (*Ecos de corchea*, *Subida con puntillo*), una nube una octava abajo, placas, una caja
+con shimmer y una bruma de bus. En sus valores por defecto (mezcla 0) Caelum no toca ninguna
+muestra; no tiene latencia.
+
+**En la pedalera de Tabula** Caelum también es un pedal (la caída, el shimmer, la primera voz
+y la mezcla en su cara); una pedalera con Caelum acepta una llave, y la llave llega a su
+atenuación.
+
+**En otro DAW** Caelum es el plug-in *Cantus Caelum* (CLAP y VST3): su atenuación escucha la
+entrada de sidechain cuando su propio interruptor *Sidechain* está en *Entrada de
+sidechain*, y un pre-retardo sincronizado sigue el tempo del anfitrión.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de
@@ -2442,6 +2830,137 @@ sonido intacto, bit a bit.
 Cantus (el estado de un plug-in guarda números, no archivos). Los agentes ajustan sus números con
 `set_effect` y cargan un archivo con `set_impulse_response` (solo si permitiste los archivos, y
 solo dentro de las carpetas que permitiste).
+
+### Fragor, los pedales
+
+**Fragor** (latín, *estruendo*) es una tabla de pedales de distorsión y fuzz: hasta tres
+pedales en cualquier orden, cada uno modelado a partir de su circuito — las perillas mueven
+las resistencias del propio circuito, así que cada posición suena como el pedal. Insértalo
+desde **Añadir inserto ▾ ▸ Distorsión ▸ Fragor**; empieza con el overdrive verde en la
+tabla, empujando suavemente.
+
+**Los pedales:**
+
+- **Overdrive verde** — Ganancia, Tono, Nivel. Recorte suave en el lazo de un amplificador
+  operacional y medios realzados: el empuje clásico para un solo, y para apretar una
+  distorsión detrás.
+- **Distorsión operacional** — Distorsión, Filtro, Volumen. Un amplificador operacional
+  lento hacia diodos de recorte duro; sube el Filtro para quitar el zumbido agudo.
+- **Distorsión de silicio** — Dist, Tono, Nivel. Un realce de transistor y recorte duro,
+  los medios hundidos por el tono.
+- **Fuzz de germanio** — Fuzz, Bias, Volumen. Dos transistores de germanio; **Bias** es la
+  batería: al 100 % está nueva, al bajarla se agota, y por debajo de un tercio una nota que
+  se apaga chisporrotea y se corta como con una batería moribunda.
+- **Muff triangular** — Sustain, Tono, Volumen. Dos etapas de recorte para un sustain sin
+  fin, los medios hundidos de su control de tono.
+
+**La tabla:** arrastra un pedal a otra posición (los dos se intercambian); haz clic en una
+posición vacía para añadir un pedal; con clic derecho sobre un pedal pones otro en su lugar
+o lo quitas de la tabla. El interruptor de pie de cada pedal lo anula sin chasquido. Clic
+derecho sobre una perilla abre su menú (automatizar, modular, aprender un controlador,
+restablecer); doble clic la restablece.
+
+**Sobre la tabla,** la pantalla muestra un ciclo de la nota que entra (tenue) y que sale al
+nivel que suena, y sus armónicos — los impares macizos, los pares rayados, los dominantes
+marcados — con la distorsión total. Las válvulas del amplificador brillan un poco más
+mientras suena.
+
+**Al lado:** **Puerta** (antes de los pedales: apagada en −90 dB), **Entrada** (el nivel que
+entra a los pedales), **Mezcla**, **Salida**, **Calidad** (sobremuestreo 2×, 4× u 8×; más
+quita más aliasing y cuesta más) y **Estéreo / Mono** (un solo circuito para los dos
+canales, como un pedal de verdad).
+
+**Su aspecto:** el menú **⋯** de la ventana ofrece tres acabados — **Válvula** (el ámbar de
+un amplificador de válvulas de noche, su cara), **Crema** (cartón crema y latón) y **Acero**
+(acero con un solo rojo de señal). La elección es tuya para todos los Fragor y se guarda
+entre sesiones; nunca cambia el sonido.
+
+*Historia:* los cinco circuitos son los del Ibanez TS808 Tube Screamer, el ProCo RAT, el
+Boss DS-1, el Dallas Arbiter Fuzz Face y el Electro-Harmonix Big Muff π, modelados a partir
+de sus esquemas publicados; los nombres y los dibujos en Cantus son propios.
+
+### Tabula, la pedalera
+
+**Tabula** (latín, *la tabla*) es una pedalera de los efectos de Cantus: hasta dieciséis de
+ellos como pedales, en cualquier orden, con una división A/B opcional y ocho macros. Cada
+pedal es el propio efecto, así que una pedalera de un solo pedal suena exactamente como ese
+efecto solo. Insértala desde **Añadir inserto ▾ ▸ Guitarra y amplificador ▸ Tabula**; empieza
+con un equipo de guitarra — el overdrive verde bajo, un chorus, un delay y una reverb de
+muelle — para que se oiga enseguida.
+
+**La pedalera.** Los pedales están sobre una tabla oscura; los cables llevan la señal entre
+ellos y brillan tan fuerte como suena en cada punto. Gira las perillas de un pedal donde
+están; pulsa su interruptor para encenderlo o apagarlo (un fundido de 10 ms que nunca cambia
+la latencia). Arrastra un pedal para moverlo (suéltalo entre otros dos, o sobre el carril A o
+B para dividir la cadena). Haz doble clic en él, o elige *Abrir su editor completo*, para
+abrir la ventana del propio efecto en lugar de la pedalera; *Volver a la pedalera* regresa.
+Con muchos pedales la pedalera se reparte en filas, con el cable corriendo entre ellas.
+
+**Añadir y quitar.** *Añadir pedal*, al final de la cadena, abre el selector: los estantes a
+su izquierda, los efectos del estante como pedales pequeños; haz clic en uno y se suma a la
+pedalera, sonando enseguida. Bajo la pedalera, *Su lugar en la pedalera* fija el
+**Tamaño** del pedal elegido (mini, estándar, ancho, doble, redondo), su **Lugar en la
+cadena** (Antes, A, B, Después) y su interruptor, y *Quitar* lo saca.
+
+**La división.** Un pedal en el carril A o B abre la división: la caja divisora alimenta los
+dos carriles y la caja de mezcla los une, con su perilla **A/B** (a la izquierda solo A, a
+la derecha solo B). El carril más corto espera al más largo, así que nunca se emborronan (no
+hay filtro de peine).
+
+**Macros.** Ocho perillas arriba. Pulsa **Aprender**, toca una macro y luego la perilla de un
+pedal: queda asignada, desde donde está hasta el extremo más lejano de su rango, y lleva un
+anillo. Una macro mueve todo lo asignado a ella y manda sobre la automatización de esa misma
+perilla. **Al azar** da a las perillas de cada pedal valores nuevos dentro de rangos
+musicales (un solo paso de deshacer).
+
+**Bajo la pedalera,** los controles principales del pedal elegido (cada uno con su menú:
+automatizar, modular, aprender un controlador) y la **Entrada**, la **Mezcla** y la
+**Salida** de la pedalera.
+
+**El teclado.** Haz clic en la pedalera y luego: Tab y Mayús+Tab eligen un pedal; Espacio su
+interruptor; Intro su editor completo; Supr lo quita; Ctrl+← y Ctrl+→ lo mueven; ← y →
+eligen una de sus perillas y ↑ y ↓ la giran (con Mayús, finamente).
+
+**Presets.** Cada preset de Tabula es una pedalera entera: *Equipo de guitarra*, *Crujido de
+blues*, *Oleadas ambientales*, *Solo con fuzz*, *Funk con phaser*, *Húmedo, seco, húmedo*,
+dos para bajo, dos para sintetizadores, dos para batería y dos para voz. Tus propios presets
+guardan también la pedalera entera.
+
+**En otro DAW,** la Tabula exportada muestra la misma ventana; el anfitrión automatiza las
+macros, la entrada, la mezcla, la salida y el balance A/B, y la pedalera se guarda en su
+estado.
+
+### Lapsus, el moldeador de tiempo
+
+**Lapsus** (en latín, *un desliz*) dobla el tiempo y el nivel al compás, como el Gross Beat de
+FL Studio: paradas y arranques de cinta, medio tiempo, tartamudeos y redobles, reversa,
+scratch, puertas y bombeos. Tiene dos bancos de treinta y seis patrones — patrones de
+**tiempo** y patrones de **volumen** — elegidos por separado y tocados juntos. Insértalo desde
+el selector (en Modulación); empieza en *Medio tiempo* (el primer tiempo de cada medio compás
+una octava abajo), así que se oye enseguida.
+
+**La línea de tiempo.** La curva de tiempo arriba y el nivel abajo, sobre el ciclo más largo
+de los dos patrones. La altura de la curva de tiempo es **cuánto lee por detrás de la
+música**: plana arriba es la música tal como llega; bajando por la diagonal, la cinta parada;
+la mitad de esa pendiente, media velocidad; más empinada, reversa; un escalón sostenido, una
+repetición. Lo que hay antes del inicio del ciclo nunca se lee (*Antes del ciclo: silencio*).
+Mientras suena, el cursor cruza las dos franjas y **el desliz** — la línea discontinua hasta
+la regla — muestra de dónde se lee la música. Arrastra un punto (Mayús: fuera de la
+rejilla), doble clic para añadir o quitar uno, arrastra una línea para curvarla; elige
+*Lápiz* para pintar escalones de una celda de la rejilla. Cada edición es un paso de deshacer.
+
+**Los bancos.** Los botones muestran el banco de tiempo o el de volumen (el selector de arriba
+nombra lo que toca cada uno). Un clic toca un patrón; un clic derecho devuelve a la ranura el
+patrón de fábrica. Las notas también los tocan: desde *Nota tiempo* (C4) hacia arriba el banco
+de tiempo, desde *Nota volumen* (C1) el de volumen — cambiando hasta la siguiente nota, o solo
+mientras se mantienen (*Cada nota*), y desde su inicio con *Reinicio con nota*. Envíale las
+notas de una pista desde el menú del inserto.
+
+**Exacto.** Con los dos bancos en *Directo* (patrón 1) Lapsus deja pasar el sonido intacto,
+bit a bit. Los saltos de la curva de tiempo se funden (*Fundido*, 2 ms) y el nivel se desliza
+(*Suavizado*); una parada de cinta termina en la muestra exacta del compás a cualquier tempo,
+y un render desde cualquier compás es el render completo ahí. *Anticipo* deja que la curva
+lea el futuro a cambio de esa latencia (compensada).
 
 ### Delay, el delay estéreo
 

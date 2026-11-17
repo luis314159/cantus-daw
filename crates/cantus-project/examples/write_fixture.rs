@@ -1638,6 +1638,107 @@ fn main() {
         let at = p.tracks.len().saturating_sub(1);
         p.tracks.insert(at, drums);
     }
+    // fx:contract — Schema 72 (the effects side round, ADRs 0127–0130; provisional 62 on its
+    // branch): one insert of each of the five new kinds on the second
+    // strip, Cribrum's output at −3 dB; each unit's own settings below.
+    if upto >= 72 {
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        for kind in [
+            EffectKind::AutoFilter,
+            EffectKind::Pedal,
+            EffectKind::TimeShaper,
+            EffectKind::LoFi,
+            EffectKind::Utility,
+        ] {
+            let mut e = p.make_effect(kind);
+            if kind == EffectKind::AutoFilter {
+                e.spec.set("out", -3.0).unwrap();
+            }
+            // fx:lapsus — Lapsus with a volume pattern of its own in slot 5.
+            if kind == EffectKind::TimeShaper {
+                use cantus_core::fx::lapsus::{Bank, Pattern, Point};
+                let mut bank = Bank::default();
+                bank.vol.insert(
+                    4,
+                    Pattern {
+                        len: 1,
+                        points: vec![Point::new(0.0, 1.0).shape(2), Point::new(0.5, 0.25)],
+                        name: Some("Half gate".into()),
+                    },
+                );
+                e.spec.lapsus = Some(Box::new(bank));
+            }
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
+    // fx3:contract — Schema 73 (the effects side round's wave 3, ADRs 0131–0134; provisional
+    // 63): on the second strip a board — Fragor's green
+    // overdrive on A, Delay at 250 ms on B (a split), macro 1 named Drive moving the
+    // overdrive's drive from 20 to 80 %, at 25 % — then one insert of each of Saltus, Rota
+    // and Arca. Each builder adds its own settings here.
+    if upto >= 73 {
+        use cantus_core::fx::tabula::{Board, Macro, MacroMap, Path, Pedal, PedalId};
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        let mut e = p.make_effect(EffectKind::Board);
+        let mut fragor = EffectSpec::new(EffectKind::Pedal);
+        fragor.set("s1", 1.0).unwrap();
+        let mut delay = EffectSpec::new(EffectKind::Delay);
+        delay.set("time_ms", 250.0).unwrap();
+        e.spec.board = Some(Box::new(Board {
+            pedals: vec![
+                Pedal {
+                    path: Path::A,
+                    ..Pedal::new(PedalId(0), fragor)
+                },
+                Pedal {
+                    path: Path::B,
+                    ..Pedal::new(PedalId(1), delay)
+                },
+            ],
+            macros: vec![Macro {
+                name: Some("Drive".into()),
+                maps: vec![MacroMap {
+                    pedal: PedalId(0),
+                    key: "od.drive".into(),
+                    from: 0.2,
+                    to: 0.8,
+                }],
+            }],
+        }));
+        e.spec.set("m1", 0.25).unwrap();
+        p.strip_mut(s).unwrap().effects.push(e);
+        for kind in [EffectKind::PitchShift, EffectKind::Rotary, EffectKind::Amp] {
+            let e = p.make_effect(kind);
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
+    // fxa:contract — Schema 74 (the effects side round's wave A, ADRs 0136–0138; provisional
+    // 64): on the second strip one insert each of
+    // Loquax (its mix up), Fractus (a repeat on the last beat, a half-strength gate on
+    // beat three that plays three times in four) and Caelum (its shimmer up).
+    if upto >= 74 {
+        use cantus_core::fx::fractus::{Block, Pattern};
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        let mut loquax = p.make_effect(EffectKind::Vocoder);
+        loquax.spec.set("mix", 1.0).unwrap();
+        let mut fractus = p.make_effect(EffectKind::Glitch);
+        let mut pat = Pattern::default();
+        pat.replace(0, &[Block::new(12, 4)]);
+        pat.replace(
+            7,
+            &[Block {
+                amount: 0.5,
+                prob: 0.75,
+                ..Block::new(8, 2)
+            }],
+        );
+        fractus.spec.fractus = Some(Box::new(pat));
+        let mut caelum = p.make_effect(EffectKind::Shimmer);
+        caelum.spec.set("shim", 0.55).unwrap();
+        for e in [loquax, fractus, caelum] {
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

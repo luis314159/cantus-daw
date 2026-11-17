@@ -447,6 +447,20 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         // r39:conv — Aula rests once its delay lines are clear (its room's length and the
         // largest partition's slack): about 9 s for the concert hall, 20 s for heavy.
         EffectKind::Aula => (true, true),
+        EffectKind::AutoFilter => (true, true), // fx:contract
+        EffectKind::Pedal => (true, true),      // fx:contract
+        EffectKind::TimeShaper => (true, true), // fx:contract
+        EffectKind::LoFi => (true, true),       // fx:contract
+        EffectKind::Utility => (true, true),    // fx:contract
+        EffectKind::Board => (true, true),      // fx3:tabula
+        EffectKind::PitchShift => (true, true), // fx3:saltus
+        // fx3:rota — a turning rotor is never at rest (its angle is its history); parked,
+        // it is (the twins of the DSP's own tests).
+        EffectKind::Rotary => (false, false), // fx3:rota
+        EffectKind::Amp => (true, true),      // fx3:arca
+        EffectKind::Vocoder => (true, true),  // fxa:loquax — its voices released, its banks drained
+        EffectKind::Glitch => (true, true), // fxa:fractus — the history, the capture and the echoes silent
+        EffectKind::Shimmer => (true, true), // fxa:caelum — finite: the tank drained (infinite or frozen never rests)
         _ => (false, false),
     }
 }
@@ -540,10 +554,83 @@ per_kind! {
     speculum => EffectKind::Analyzer,
     tonus => EffectKind::AutoTune,
     aula => EffectKind::Aula, // r39:conv
+    cribrum => EffectKind::AutoFilter, // fx:contract
+    fragor => EffectKind::Pedal, // fx:contract
+    lapsus => EffectKind::TimeShaper, // fx:contract
+    vetus => EffectKind::LoFi, // fx:contract
+    libra => EffectKind::Utility, // fx:contract
+    tabula => EffectKind::Board, // fx3:contract
+    saltus => EffectKind::PitchShift, // fx3:contract
+    rota => EffectKind::Rotary, // fx3:contract
+    arca => EffectKind::Amp, // fx3:contract
+    loquax => EffectKind::Vocoder, // fxa:contract
+    fractus => EffectKind::Glitch, // fxa:contract
+    caelum => EffectKind::Shimmer, // fxa:contract
+}
+
+// fx3:tabula — Tabula (ADR 0134): a board of one pedal is that unit inserted alone, to
+// the bit, for every kind that may be a pedal — at its defaults, its heavy settings and two
+// drawn at random, keyed and hearing notes where the kind does, at blocks of 1, 64 and 1024
+// (the board cuts long blocks into its own pieces) — and reports the same latency.
+#[test]
+fn a_board_of_one_is_the_unit() {
+    use cantus_core::fx::tabula::{pedal_allowed, Board, Pedal, PedalId};
+    let mut rng = Rng::new(0x7AB_0001);
+    let mut failures = Vec::new();
+    let mut checked = 0;
+    for kind in EffectKind::ALL {
+        if !pedal_allowed(kind) {
+            continue;
+        }
+        for (label, spec) in specs(kind, 2, &mut rng) {
+            let mut board = EffectSpec::new(EffectKind::Board);
+            board.board = Some(Box::new(Board {
+                pedals: vec![Pedal::new(PedalId(5), spec.clone())],
+                macros: Vec::new(),
+            }));
+            let keyed = kind.takes_sidechain();
+            let mut x = Input::music(24_000, keyed, kind.takes_notes(), &mut rng);
+            let tail = Input::silence(12_000, keyed);
+            for (v, t) in [
+                (&mut x.l, &tail.l),
+                (&mut x.r, &tail.r),
+                (&mut x.kl, &tail.kl),
+                (&mut x.kr, &tail.kr),
+            ] {
+                v.extend_from_slice(t);
+            }
+            let (alone, on_board) = (unit(&spec), unit(&board));
+            if alone.latency() != on_board.latency() {
+                failures.push(format!(
+                    "{kind:?} {label}: latency {} alone, {} on a board",
+                    alone.latency(),
+                    on_board.latency()
+                ));
+            }
+            for block in [1usize, 64, 1024] {
+                let a = drive(&mut unit(&spec), &x, || block, |_, _, _| {});
+                let b = drive(&mut unit(&board), &x, || block, |_, _, _| {});
+                if let Some(d) = first_difference(&a, &b) {
+                    failures.push(format!("{kind:?} {label}, blocks of {block}: {d}"));
+                }
+            }
+            checked += 1;
+        }
+    }
+    assert!(checked >= 4 * 30, "only {checked} settings checked");
+    assert!(
+        failures.is_empty(),
+        "a board of one is not its unit:
+{}",
+        failures.join(
+            "
+"
+        )
+    );
 }
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists twenty-six: a new kind must be added there.
-    assert_eq!(EffectKind::ALL.len(), 26); // r39:conv: Aula
+    // `per_kind!` lists thirty-eight: a new kind must be added there. // fxa:contract
+    assert_eq!(EffectKind::ALL.len(), 38); // fxa:contract: wave A's three
 }

@@ -238,7 +238,16 @@ fn is_master(cmd: &Command) -> bool {
         | SetPluginParam { strip, .. }
         | SetPluginState { strip, .. }
         | SetEffectMidiSource { strip, .. }
-        | SetEffectIr { strip, .. } => *strip == StripId::MASTER, // r39:conv
+        | SetEffectIr { strip, .. } // r39:conv
+        | SetLapsusPattern { strip, .. } // fx:lapsus
+        | SetFractusLane { strip, .. } // fxa:contract
+        | InsertPedal { strip, .. } // fx3:contract
+        | RemovePedal { strip, .. }
+        | MovePedal { strip, .. }
+        | SetPedalOn { strip, .. }
+        | SetPedalShape { strip, .. }
+        | SetMacroMaps { strip, .. }
+        | SetMacroName { strip, .. } => *strip == StripId::MASTER,
         SetStripEq { id, .. }
         | SetStripPhaseInvert { id, .. }
         | SetStripSwapChannels { id, .. } => *id == StripId::MASTER,

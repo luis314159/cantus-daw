@@ -133,7 +133,11 @@ fn flush(tap: &mut super::exec::ScopeTap) {
 
 /// The analysed unit's readings, for the meters.
 #[inline]
-pub(crate) fn read_meters(a: &mut Analysis, e: &EffectUnit) {
+pub(crate) fn read_meters(
+    a: &mut Analysis,
+    e: &EffectUnit,
+    pedal: Option<cantus_core::fx::tabula::PedalId>,
+) {
     if let Some(d) = e.eq_deltas() {
         a.eq_deltas = Some(d);
     }
@@ -142,6 +146,10 @@ pub(crate) fn read_meters(a: &mut Analysis, e: &EffectUnit) {
     }
     if let Some(t) = e.telemetry() {
         a.fx = Some(t);
+    }
+    // fx3:contract — the open pedal's editor, inside the analysed board.
+    if let Some(t) = pedal.and_then(|p| e.pedal_telemetry(p)) {
+        a.fx_pedal = Some(t);
     }
 }
 
@@ -286,12 +294,8 @@ pub(crate) fn strip_chain(
         });
         // A unit that follows the song (a hosted plug-in) hears where it is before each
         // call; the others are not told (review 2: nothing to work out for them).
-        if e.follows_song() {
-            e.set_position(
-                &ctx.position
-                    .earlier_in(e.late, ctx.sample_rate, ctx.transport.map()),
-            );
-        }
+        // fx3:tabula — a board tells each pedal as late as it hears it.
+        e.hear_position(&ctx.position, ctx.sample_rate, ctx.transport.map());
         // The unit plays its own detector's input while heard (the compressor); `own` is
         // false for one that has none — the key as it arrives replaces its output below.
         // Asked only of an insert that is or was heard: off, nothing here runs.
@@ -350,7 +354,7 @@ pub(crate) fn strip_chain(
         if let Some(a) = ana.as_mut() {
             analyse(a, l, r);
             if !off {
-                read_meters(a, e);
+                read_meters(a, e, ctx.analysed_pedal);
             }
         }
         // A watched Speculum: its signal to its scope ring (ADR 0056).

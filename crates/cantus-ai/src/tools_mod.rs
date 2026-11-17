@@ -50,8 +50,10 @@ pub fn target_of(p: &Project, v: &Value, k: &str) -> Res<AutoTarget> {
             },
             (None, Some(key)) => {
                 let host = p.effect_host(e).expect("found");
-                let kind = p.effect(host, e).expect("found").spec.kind;
-                if kind.param(key).is_none() {
+                // fx3:contract — routed: a board's `p{id}.…` is its pedal's.
+                let spec = &p.effect(host, e).expect("found").spec;
+                let kind = spec.kind;
+                if spec.param(key).is_none() {
                     return Err(bad(&format!(
                         "{} has no parameter {key:?} (get_unit lists them)",
                         args::effect_names(kind).1

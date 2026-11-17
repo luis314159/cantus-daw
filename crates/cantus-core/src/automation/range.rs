@@ -197,7 +197,7 @@ pub fn range_of(project: &Project, target: &AutoTarget) -> Option<AutoRange> {
         AutoTarget::Effect { effect, key } => {
             let host = project.effect_host(*effect)?;
             let slot = project.effect(host, *effect)?;
-            let i = slot.spec.kind.param(key)?;
+            let i = slot.spec.param(key)?;
             AutoRange::of_info(i.min, i.max, i.default, i.logarithmic, i.stepped)
         }
         AutoTarget::Instrument { track, key } => {
@@ -247,7 +247,7 @@ pub fn base_value(project: &Project, target: &AutoTarget) -> Option<f32> {
         AutoTarget::Effect { effect, key } => {
             let host = project.effect_host(*effect)?;
             let slot = project.effect(host, *effect)?;
-            slot.spec.kind.param(key)?;
+            slot.spec.param(key)?;
             slot.spec.get(key)
         }
         AutoTarget::Instrument { track, key } => {
@@ -282,7 +282,7 @@ pub fn label_key(project: &Project, target: &AutoTarget) -> Option<&'static str>
         AutoTarget::Effect { effect, key } => {
             let host = project.effect_host(*effect)?;
             let slot = project.effect(host, *effect)?;
-            Some(slot.spec.kind.param(key)?.label_key)
+            Some(slot.spec.param(key)?.label_key)
         }
         AutoTarget::Instrument { track, key } => {
             let n = project.track(*track)?.instrument.native()?;

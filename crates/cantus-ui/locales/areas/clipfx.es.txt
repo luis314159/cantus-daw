@@ -39,7 +39,7 @@ clipfx.settings.inserts = Efectos
 clipfx.settings.insert = Al insertar
 clipfx.settings.starting = Preset inicial
 clipfx.settings.neutral = Ajustes neutros
-clipfx.settings.insert_note = Un efecto nuevo carga un preset inicial musical para que se oiga enseguida (un chorus como Juno I, un flanger como Avión a reacción). Con ajustes neutros entra sin hacer nada hasta que lo subas. Los ecualizadores, limitadores y analizadores siempre empiezan neutros.
+clipfx.settings.insert_note = Un efecto nuevo carga un preset inicial musical para que se oiga enseguida (un chorus como Juno I, un flanger como Avión a reacción). Con ajustes neutros entra sin hacer nada hasta que lo subas. Los ecualizadores, limitadores y analizadores empiezan neutros. Cualquier unidad puede empezar con ajustes tuyos: Usar como preset de inicio en su lista de presets.
 
 # DAWproject (lo que su formato no sabe decir, dicho).
 clipfx.report.xfade_curve = Las curvas de los fundidos cruzados de {clip} (vuelven lineales)

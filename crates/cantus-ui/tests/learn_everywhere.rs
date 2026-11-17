@@ -383,6 +383,28 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         // A synced rate's division: shown while synced.
         (_, "div") => Some("the rate shown in beats only while synced"),
         ("Eq", "lp_res") => Some("linear phase only"),
+        // fxa:loquax — the object the voice speaks into: a look (`EffectKind::is_look`),
+        // chosen in the ⋯ menu, never heard — nothing a controller would play.
+        ("Vocoder", "obj") => Some("a look chosen in the menu, never heard"),
+        // fxa:fractus — the cards stand on four pages; the demo opens the first.
+        // `every_fractus_page_offers_its_stepped_parameters` opens the others.
+        ("Glitch", k) if fractus_page(k).is_some_and(|p| p != 0) => {
+            Some("a card on another of Fractus's pages")
+        }
+        // fx:fragor — a footswitch of a pedal not on the board: nothing of it is drawn.
+        ("Pedal", k)
+            if k.ends_with(".on") && {
+                let model = ["od.", "op.", "si.", "ge.", "mf."]
+                    .iter()
+                    .position(|p| k.starts_with(p))
+                    .map(|i| i as f32 + 1.0);
+                !["s1", "s2", "s3"].iter().any(|s| Some(get(s)) == model)
+            } =>
+        {
+            Some("a pedal not on the board draws nothing")
+        }
+        // fx:vetus — the wow's rate in beats: shown while the wow is synced.
+        ("LoFi", "wow.div") => Some("the wow's rate in beats only while synced"),
         ("Saturator", "c.sym") => Some("the curve editor's page"),
         // Drawn by `segmented_param` / `param_with` on a page the demo does not show.
         ("Analyzer", "sync" | "beats") => Some("the analyser's timing page"),
@@ -407,7 +429,32 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         {
             Some("set on the envelope's display")
         }
+        // fx3:saltus — each mode draws its own cards (the demo is Shift);
+        // `every_saltus_mode_offers_its_stepped_parameters` draws the others.
+        ("PitchShift", "ostyle") if get("mode").round() != 2.0 => Some("the octave mode's"),
+        ("PitchShift", "hsrc" | "key" | "scale" | "deg1" | "deg2")
+            if get("mode").round() != 1.0 =>
+        {
+            Some("the harmony mode's")
+        }
+        ("PitchShift", "key" | "scale") if get("hsrc").round() != 0.0 => {
+            Some("the key's, while the harmony counts from it")
+        }
+        ("PitchShift", "heel" | "toe" | "wsrc") if get("mode").round() != 3.0 => {
+            Some("the whammy mode's")
+        }
         ("Sampler", k) if k.ends_with(".gen") => Some("the zone's source, chosen with its sound"),
+        // fx:cribrum — Cribrum shows one filter (A or B) and one movement source at a time;
+        // its curve's points are drawn on the curve's lane.
+        ("AutoFilter", k) if k.starts_with("b.") => Some("filter B's, shown when B is chosen"),
+        ("AutoFilter", "env.key") => Some("the follower's, shown when it is chosen"),
+        ("AutoFilter", "cur.div") => Some("the curve's, shown when it is chosen"),
+        ("AutoFilter", "lfo.div") => Some("the rate shown in beats only while synced"),
+        ("AutoFilter", k)
+            if k.starts_with('c') && k.as_bytes().get(1).is_some_and(u8::is_ascii_digit) =>
+        {
+            Some("a curve point's, drawn on the curve's lane")
+        }
         _ => None,
     }
     .or_else(|| {
@@ -812,4 +859,120 @@ fn short_of(word: &str, drawn: &str) -> bool {
     pairs
         .iter()
         .any(|(long, short)| t(long) == word && t(short) == drawn)
+}
+
+/// fx3:saltus — Saltus draws each mode's cards only in that mode: in each of Harmony,
+/// Octave and Whammy, every stepped key `not_drawn` excuses in the demo's Shift is drawn
+/// with its parameter's offer.
+#[test]
+fn every_saltus_mode_offers_its_stepped_parameters() {
+    let kind = EffectKind::PitchShift;
+    let modes: [(f32, &[&str]); 3] = [
+        (1.0, &["hsrc", "key", "scale", "deg1", "deg2"]),
+        (2.0, &["ostyle"]),
+        (3.0, &["heel", "toe", "wsrc"]),
+    ];
+    let mut bad = Vec::new();
+    for (mode, keys) in modes {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "mode".into(),
+            value: mode,
+        });
+        a.open_effect_editor(s0, fx);
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        for key in keys {
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: (*key).into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("mode {mode}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
+}
+
+/// fxa:fractus — the page of Fractus's cards that draws `key` (`views::fx::fractus::PAGES`).
+fn fractus_page(key: &str) -> Option<usize> {
+    use cantus_ui::views::fx::fxa_cells::Item;
+    cantus_ui::views::fx::fractus::PAGES
+        .iter()
+        .position(|(_, cards)| {
+            cards.iter().flat_map(|(_, items)| items.iter()).any(|i| {
+                let k = match *i {
+                    Item::Knob(k, _)
+                    | Item::Choice(k, _, _)
+                    | Item::Pill(k, _, _)
+                    | Item::Switch(k, _, _) => k,
+                };
+                k == key
+            })
+        })
+}
+
+/// fxa:fractus — Fractus draws one page of cards at a time: on each page, every stepped
+/// key its cards hold is drawn with its parameter's offer; and every stepped key stands on
+/// a page (none left without a control).
+#[test]
+fn every_fractus_page_offers_its_stepped_parameters() {
+    let kind = EffectKind::Glitch;
+    let mut bad = Vec::new();
+    for info in kind.params().iter().filter(|i| i.stepped) {
+        if fractus_page(info.key).is_none() {
+            bad.push(format!("{} on no page", info.key));
+        }
+    }
+    for page in 0..cantus_ui::views::fx::fractus::PAGES.len() {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.open_effect_editor(s0, fx);
+        cantus_ui::views::fx::fractus::show_page(&mut a, page);
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        for info in kind.params().iter().filter(|i| i.stepped) {
+            if fractus_page(info.key) != Some(page) {
+                continue;
+            }
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: info.key.into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("page {page}: {}", info.key));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
 }

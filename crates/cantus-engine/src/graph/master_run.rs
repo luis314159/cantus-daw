@@ -264,9 +264,7 @@ impl Processor {
             for (i, e) in m.effects.iter_mut().enumerate() {
                 if !strip::wire(&m.bypass, m.fx_enabled, &m.ll_off, i, e) {
                     // As in a resting strip: a unit that follows the song hears where it is.
-                    if e.follows_song() {
-                        e.set_position(&position.earlier_in(e.late, rate, map));
-                    }
+                    e.hear_position(position, rate, map); // fx3:tabula
                     e.skip(n);
                 }
             }
@@ -347,13 +345,7 @@ impl Processor {
                 Some(b) if b.pass == pass => (&b.l[..n], &b.r[..n]),
                 _ => (&SILENCE[..n], &SILENCE[..n]),
             });
-            if e.follows_song() {
-                e.set_position(&position.earlier_in(
-                    e.late,
-                    self.sample_rate,
-                    self.transport.map(),
-                ));
-            }
+            e.hear_position(position, self.sample_rate, self.transport.map()); // fx3:tabula
             if mix >= 1.0 && !latent {
                 e.process_keyed(l, r, key);
             } else {
@@ -410,7 +402,7 @@ impl Processor {
                 m.gr = m.gr.max(gr);
             }
             if let Some(a) = ana.as_mut() {
-                read_meters(a, e);
+                read_meters(a, e, self.analysed_pedal);
             }
         }
         self.prof.enter(Node::Engine);

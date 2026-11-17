@@ -50,9 +50,26 @@ fn unit_of(u: FileUnit) -> Unit {
 
 fn header(u: FileUnit) -> String {
     let name = cantus_ui::i18n::t_in(cantus_ui::i18n::Locale::En, unit_of(u).name_key());
+    // fxa:fractus — how a preset's lanes are written among its values.
+    let lanes = if u == FileUnit::Effect(EffectKind::Glitch) {
+        "A preset's lanes ride in its values (`cantus_core::fx::fractus::to_flat`): `\"repeat.12\" = 4`\n\
+         is a block on the repeat lane from step 12, four steps long; `.amount` and `.chance`\n\
+         when they are not whole.\n"
+    } else if u == FileUnit::Effect(EffectKind::Vocoder) {
+        // fxa:loquax — the object each preset suggests.
+        "`obj` is the object a preset suggests (0 the gooseneck, 1 the talk-box, 2 the desk\n\
+         microphone): loading the preset sets it; a look, never heard, never \"modified\".\n"
+    } else if u == FileUnit::Effect(EffectKind::Shimmer) {
+        // fxa:caelum — where the first presets come from, and why none starts frozen.
+        "The first eleven are `cantus_dsp::caelum::presets::factory()` as written (a test compares\n\
+         them, the output aside). No preset starts frozen: a tank frozen from its first sample\n\
+         holds silence (Freeze swell asks for Freeze by hand).\n"
+    } else {
+        ""
+    };
     format!(
         "{name}: factory presets (ADR 0101). Names are locale keys (the unit's locale file).\n\
-         `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;\n\
+         {lanes}`cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;\n\
          the tests check every key, value, style and role (`preset_data`, `preset_render`)."
     )
 }

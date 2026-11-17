@@ -842,6 +842,8 @@ impl Processor {
         };
         for c in rt.effects.iter_mut().filter(|c| c.dirty) {
             c.dirty = false;
+            // fx3:tabula — a board's macros move what they map, over any lane on it.
+            cantus_core::fx::tabula::apply_macros(&mut c.spec);
             match c.at {
                 Some((usize::MAX, i)) => {
                     if let Some(u) = self.master.effects.get_mut(i).filter(|u| u.id == c.effect) {

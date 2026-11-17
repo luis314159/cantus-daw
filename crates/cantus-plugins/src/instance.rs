@@ -308,6 +308,12 @@ pub struct Shared {
     /// Speculum's frames its tap could not take (the editor drained too late), since the
     /// editor last asked (ADR 0056, review 1).
     pub scope_lost: AtomicU64,
+    /// fx:lapsus — Lapsus's banks, posted to the processor (`crate::lapsus_bank`).
+    pub lapsus: crate::lapsus_bank::BankPost,
+    /// fx3:tabula — Tabula's board, posted to the processor (`crate::board_post`).
+    pub board: crate::board_post::BoardPost,
+    /// fxa:fractus — Fractus's lanes, posted to the processor as Lapsus's banks are.
+    pub fractus: crate::lapsus_bank::ContentPost<cantus_core::fx::fractus::Pattern>,
     /// Frames the analyser tap has taken since the instance was made: an editor's count
     /// of what it drained is measured against it ([`Self::clock_of_drained`]).
     pub tapped: AtomicU64,
@@ -327,7 +333,17 @@ impl Shared {
         // insert in Cantus does — another DAW inserting it hears it at once. Each
         // parameter's default (what a host resets to) stays the null of ADR 0018.
         let start = cantus_core::starting::starting_preset(desc.kind);
+        // fxa:fractus — Fractus starts on a whole spec (its lanes too): its values from it.
+        let start_spec = (desc.kind == cantus_core::EffectKind::Glitch)
+            .then(cantus_core::fx::fractus::last_beat_stutter);
         let initial = |p: &params::Param| {
+            if let Some(v) = start_spec
+                .as_ref()
+                .filter(|_| p.role == params::Role::Spec)
+                .and_then(|s| s.params.get(p.key))
+            {
+                return p.clamp(f64::from(*v));
+            }
             start
                 .and_then(|s| {
                     s.params
@@ -336,7 +352,7 @@ impl Shared {
                 })
                 .map_or(p.default, |(_, v)| p.clamp(f64::from(*v)))
         };
-        Arc::new(Shared {
+        let shared = Arc::new(Shared {
             desc,
             table,
             values: table
@@ -357,8 +373,25 @@ impl Shared {
                 Mutex::new((Some(tx), Some(rx)))
             },
             scope_lost: AtomicU64::new(0),
+            lapsus: Default::default(),  // fx:lapsus
+            board: Default::default(),   // fx3:tabula
+            fractus: Default::default(), // fxa:fractus
             tapped: AtomicU64::new(0),
-        })
+        });
+        // fxa:fractus — a fresh Fractus starts on its starting spec's lanes (ADR 0071): the
+        // last beat of each bar stutters.
+        if desc.kind == cantus_core::EffectKind::Glitch {
+            shared
+                .fractus
+                .set(cantus_core::fx::fractus::last_beat_stutter().fractus);
+        }
+        // fx3:tabula — a fresh board starts on the guitar rig (ADR 0071, the owner's).
+        if desc.kind == cantus_core::EffectKind::Board {
+            shared
+                .board
+                .set(cantus_core::fx::tabula::guitar_rig().board, 48_000.0);
+        }
+        shared
     }
 
     /// The consumer end of the analyser tap, for an editor (main thread).
@@ -475,11 +508,15 @@ impl Shared {
     }
 
     /// How long the output goes on after the input stops, samples: the reverb's decay
-    /// (to 90 dB down, half again its 60 dB time), infinite while frozen; the latency for
-    /// the others. `u32::MAX` is infinite in both standards.
+    /// (to 90 dB down, half again its 60 dB time), infinite while frozen (or, Caelum's,
+    /// infinite); the latency for the others. `u32::MAX` is infinite in both standards.
     pub fn tail_samples(&self) -> u32 {
         let latency = self.latency();
-        if self.table.kind != cantus_core::EffectKind::Space {
+        let kind = self.table.kind;
+        if !matches!(
+            kind,
+            cantus_core::EffectKind::Space | cantus_core::EffectKind::Shimmer
+        ) {
             return latency;
         }
         let get = |key: &str| {
@@ -488,10 +525,25 @@ impl Shared {
                 .map(|p| self.value(p.index))
                 .unwrap_or(0.0)
         };
-        if get("freeze") >= 0.5 {
+        if get("freeze") >= 0.5 || get("inf") >= 0.5 {
             return u32::MAX;
         }
-        let seconds = get("decay") * 1.5 + get("predelay") / 1_000.0 + 0.05;
+        let seconds = if kind == cantus_core::EffectKind::Shimmer {
+            // fxa:caelum — the pre-delay (its note at the host's tempo when synced, the
+            // longest note at the slowest tempo a host gives when that is unknown) and the
+            // bloom's swell come before the decay.
+            let pre = match cantus_engine::fx::caelum::sync_beats(get("psync")) {
+                Some(beats) => {
+                    let tempo = f64::from_bits(self.host.tempo.load(Ordering::Relaxed));
+                    let tempo = if tempo > 0.0 { tempo as f32 } else { 20.0 };
+                    cantus_dsp::caelum::sync_ms(beats, tempo)
+                }
+                None => get("pre"),
+            };
+            get("decay") * 1.5 + (pre + get("bloom")) / 1_000.0 + 0.05
+        } else {
+            get("decay") * 1.5 + get("predelay") / 1_000.0 + 0.05
+        };
         let samples = (seconds * self.sample_rate()) as u64 + latency as u64;
         samples.min(i32::MAX as u64 - 1) as u32
     }
@@ -531,11 +583,30 @@ impl Shared {
 
     /// The state to save: `EffectSpec` JSON (`crate::state`).
     pub fn save_state(&self) -> Vec<u8> {
-        crate::state::save(self.table, &self.values())
+        // fx:lapsus — the bank beside the values.
+        // fx3:tabula — and the board.
+        crate::state::save_spec_extras(
+            self.table,
+            &self.values(),
+            self.lapsus.get().as_deref(),
+            self.board.get().as_deref(),
+            self.fractus.get().as_deref(), // fxa:fractus
+        )
     }
 
     pub fn load_state(&self, bytes: &[u8]) -> Result<(), String> {
         let values = crate::state::load(self.table, bytes)?;
+        if self.table.kind == cantus_core::EffectKind::TimeShaper {
+            self.lapsus.set(crate::state::load_bank(bytes)); // fx:lapsus
+        }
+        if self.table.kind == cantus_core::EffectKind::Glitch {
+            self.fractus.set(crate::state::load_fractus(bytes)); // fxa:fractus
+        }
+        if self.table.kind == cantus_core::EffectKind::Board {
+            // fx3:tabula — the whole board: its new pedals built here, for the processor.
+            self.board
+                .set(crate::state::load_board(bytes), self.sample_rate().max(1.0));
+        }
         self.set_all(&values);
         Ok(())
     }
@@ -561,7 +632,11 @@ impl Shared {
 
     /// The spec the current values make — what a DAW slot would hold.
     pub fn spec(&self) -> EffectSpec {
-        spec_of(self.table, &self.values())
+        let mut s = spec_of(self.table, &self.values());
+        s.lapsus = self.lapsus.get(); // fx:lapsus
+        s.board = self.board.get(); // fx3:tabula
+        s.fractus = self.fractus.get(); // fxa:fractus
+        s
     }
 }
 
@@ -577,7 +652,10 @@ fn spec_of(table: &Table, values: &[f32]) -> EffectSpec {
         params,
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
-        ir: None, // r39:conv
+        ir: None,      // r39:conv
+        lapsus: None,  // fx:lapsus (the bank: phase B)
+        board: None,   // fx3:contract (a board's content: the tabula builder's)
+        fractus: None, // fxa:contract (Fractus's lanes: phase B)
     }
 }
 
@@ -682,6 +760,25 @@ pub struct Processor {
     /// Memory built off the audio thread for what the unit asks while it runs (Aula's
     /// kernels, ADR 0112). // r39:conv
     memory: Option<crate::memory::Memory>,
+    /// fx:lapsus — the bank's rings while this processor lives, and a bank that could not
+    /// go back yet.
+    lapsus: Option<(
+        rtrb::Consumer<crate::lapsus_bank::Post>,
+        Producer<crate::lapsus_bank::Post>,
+    )>,
+    lapsus_held: Option<crate::lapsus_bank::Post>,
+    /// fxa:fractus — the lanes' rings while this processor lives, and lanes that could not
+    /// go back yet.
+    #[allow(clippy::type_complexity)]
+    fractus: Option<(
+        rtrb::Consumer<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
+        Producer<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
+    )>,
+    fractus_held: Option<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
+    /// fx3:tabula — the board's rings while this processor lives, and a post that could not
+    /// go back yet.
+    board: Option<crate::board_post::Lent>,
+    board_held: Option<crate::board_post::Post>,
     /// The host's transport at the start of the current block, when it gives one.
     transport: Option<HostTransport>,
     /// Transports the host sent inside the block (CLAP events): offset, transport.
@@ -702,6 +799,21 @@ impl Drop for Processor {
         if let (Some(tx), Ok(mut p)) = (self.pairs.take(), self.shared.pairs.lock()) {
             p.0 = Some(tx);
         }
+        // fx:lapsus
+        if let Some((rx, gtx)) = self.lapsus.take() {
+            self.shared.lapsus.give_back(Some(rx), Some(gtx));
+        }
+        drop(self.lapsus_held.take());
+        // fxa:fractus
+        if let Some((rx, gtx)) = self.fractus.take() {
+            self.shared.fractus.give_back(Some(rx), Some(gtx));
+        }
+        drop(self.fractus_held.take());
+        // fx3:tabula
+        if let Some(l) = self.board.take() {
+            self.shared.board.give_back(l);
+        }
+        drop(self.board_held.take());
     }
 }
 
@@ -711,7 +823,11 @@ impl Processor {
         let table = shared.table;
         let seen_generation = shared.generation.load(Ordering::Acquire);
         let base: Box<[f32]> = shared.values().into_boxed_slice();
-        let spec = spec_of(table, &base);
+        let mut spec = spec_of(table, &base);
+        spec.lapsus = shared.lapsus.get(); // fx:lapsus
+        spec.board = shared.board.get(); // fx3:tabula
+        spec.fractus = shared.fractus.get(); // fxa:fractus
+        cantus_core::fx::tabula::apply_macros(&mut spec); // fx3:tabula
         let slot = EffectSlot {
             id: EffectId(0),
             bypass: false,
@@ -731,6 +847,16 @@ impl Processor {
                 cantus_engine::MemoryNeed::EqLinear(cantus_dsp::aequalis::Resolution::VeryHigh);
             drop(unit.supply(cantus_engine::EffectMemory::build(most, sample_rate)));
         }
+        // fxa:fractus — Fractus's DSP (8.6 MB at 48 kHz: its history, capture and cloud) is
+        // built here, at activation on the main thread, whatever its settings: a host may
+        // paint a lane, raise the cloud or send a note at any sample after, and the audio
+        // thread never builds it. A wire until then costs nothing more than the memory.
+        if unit.kind == cantus_core::EffectKind::Glitch {
+            drop(unit.supply(cantus_engine::EffectMemory::build(
+                cantus_engine::MemoryNeed::Fractus,
+                sample_rate,
+            )));
+        }
         shared
             .sample_rate
             .store(sample_rate.to_bits(), Ordering::Relaxed);
@@ -743,12 +869,30 @@ impl Processor {
         // r39:conv; r40:delay — Delay's longer line for a synced time (ADR 0119).
         let memory = matches!(
             unit.kind,
-            cantus_core::EffectKind::Aula | cantus_core::EffectKind::Delay
+            cantus_core::EffectKind::Aula
+                | cantus_core::EffectKind::Delay
+                | cantus_core::EffectKind::Board // fx3:tabula
+                | cantus_core::EffectKind::TimeShaper // fx:lapsus
         )
         .then(|| crate::memory::Memory::start(sample_rate));
+        let lapsus = (unit.kind == cantus_core::EffectKind::TimeShaper)
+            .then(|| shared.lapsus.lend())
+            .flatten(); // fx:lapsus
+        let fractus = (unit.kind == cantus_core::EffectKind::Glitch)
+            .then(|| shared.fractus.lend())
+            .flatten(); // fxa:fractus
+        let board = (unit.kind == cantus_core::EffectKind::Board)
+            .then(|| shared.board.lend(spec.board.as_deref()))
+            .flatten(); // fx3:tabula
         Processor {
+            board,
+            board_held: None,
             pairs,
             memory,
+            lapsus,
+            lapsus_held: None,
+            fractus,            // fxa:fractus
+            fractus_held: None, // fxa:fractus
             transport: None,
             moves: [(0, HostTransport::default()); MOVES],
             n_moves: 0,
@@ -885,6 +1029,39 @@ impl Processor {
 
     /// Take everything the main thread changed since the last look.
     fn pull_main(&mut self) {
+        // fx:lapsus — a bank the main thread posted, swapped in (the old one goes back).
+        if let Some((rx, gtx)) = self.lapsus.as_mut() {
+            if crate::lapsus_bank::take_newest(
+                rx,
+                gtx,
+                &mut self.lapsus_held,
+                &mut self.spec.lapsus,
+            ) {
+                self.dirty = true;
+            }
+        }
+        // fxa:fractus — lanes the main thread posted, swapped in (the old ones go back).
+        if let Some((rx, gtx)) = self.fractus.as_mut() {
+            if crate::lapsus_bank::take_newest(
+                rx,
+                gtx,
+                &mut self.fractus_held,
+                &mut self.spec.fractus,
+            ) {
+                self.dirty = true;
+            }
+        }
+        // fx3:tabula — a board the main thread posted: its new pedals adopted, swapped in.
+        if let Some(l) = self.board.as_mut() {
+            if crate::board_post::take_newest(
+                l,
+                &mut self.board_held,
+                &mut self.unit,
+                &mut self.spec,
+            ) {
+                self.dirty = true;
+            }
+        }
         let g = self.shared.generation.load(Ordering::Acquire);
         if g != self.seen_generation {
             self.seen_generation = g;
@@ -920,6 +1097,7 @@ impl Processor {
                 p.from_clap(p.to_clap(self.base[i]) + m as f64)
             };
         }
+        cantus_core::fx::tabula::apply_macros(&mut self.spec); // fx3:tabula — macros win
         self.unit.configure(&self.spec);
         if let Some(m) = self.memory.as_mut() {
             m.ask(&mut self.unit); // r39:conv

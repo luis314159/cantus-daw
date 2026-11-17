@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 25] = [
+pub const EFFECTS: [Unit; 37] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -427,6 +427,226 @@ pub const EFFECTS: [Unit; 25] = [
         thumb: (640, 394),
     },
 
+    // fx:fragor — Fragor, the pedals (ADR 0131, provisional).
+    Unit {
+        file: "fragor",
+        name: "Fragor",
+        kind: ("Distortion pedals", "Pedales de distorsión"),
+        pitch: ("Five distortion and fuzz pedals modelled from their circuits, up to three on a board in any order, a valve amp glowing behind them.", "Cinco pedales de distorsión y fuzz modelados a partir de sus circuitos, hasta tres en una tabla en cualquier orden, un amplificador de válvulas brillando detrás."),
+        what: long!(("Fragor is a pedalboard: a green overdrive, an op-amp distortion, a silicon distortion, a germanium fuzz and a triangle muff, each solved from its schematic every sample — so the knobs move the circuit itself and every position sounds as the pedal does. Chain up to three in any order, drag them to reorder, gate the noise before them, and watch one cycle of the note and its harmonics change as you play. Turn the fuzz's Bias down and its battery dies: notes sputter and gate as they fade.", "Fragor es una tabla de pedales: un overdrive verde, una distorsión operacional, una distorsión de silicio, un fuzz de germanio y un muff triangular, cada uno resuelto a partir de su esquema en cada muestra — así las perillas mueven el propio circuito y cada posición suena como el pedal. Encadena hasta tres en cualquier orden, arrástralos para reordenarlos, cierra el ruido con la puerta antes de ellos y mira cómo cambian un ciclo de la nota y sus armónicos mientras tocas. Baja el Bias del fuzz y su batería se agota: las notas chisporrotean y se cortan al apagarse.")),
+        features: long!(&[
+            ("Circuits solved each sample (the DK method): every small-signal response within 0.1 dB of an independent analysis of the schematic", "Circuitos resueltos en cada muestra (el método DK): cada respuesta de pequeña señal a 0,1 dB de un análisis independiente del esquema"),
+            ("Five pedals: overdrive, op-amp distortion with its slew rate, silicon distortion, germanium fuzz with a dying-battery Bias, triangle muff", "Cinco pedales: overdrive, distorsión operacional con su velocidad de subida, distorsión de silicio, fuzz de germanio con un Bias de batería agotada, muff triangular"),
+            ("Up to three in any order; footswitches that never move the latency; a noise gate before the chain", "Hasta tres en cualquier orden; interruptores que nunca cambian la latencia; una puerta de ruido antes de la cadena"),
+            ("Oversampled 2×, 4× or 8× (aliasing −54 dB at the default 4×)", "Sobremuestreo 2×, 4× u 8× (aliasing −54 dB en el 4× por defecto)"),
+            ("One cycle in and out and the harmonics, odd and even, live", "Un ciclo de entrada y salida y los armónicos, impares y pares, en vivo"),
+            ("Fifteen factory presets for guitar, bass, drums, synths and voice", "Quince presets de fábrica para guitarra, bajo, batería, sintetizadores y voz"),
+        ]),
+        presets: Some(15),
+        plugin: true,
+        ab: None,
+        big: (1800, 1263),
+        thumb: (640, 449),
+    },
+
+    // fx3:tabula — Tabula, the pedalboard (ADR 0134, provisional).
+    Unit {
+        file: "tabula",
+        name: "Tabula",
+        kind: ("Pedalboard", "Pedalera"),
+        pitch: ("Cantus's own effects as real pedals on a board — any of them, any size, in any order, split into two lanes and joined again — with cables that glow with the signal and eight macros over it all.", "Los efectos de Cantus como pedales de verdad sobre una tabla — cualquiera, de cualquier tamaño, en cualquier orden, divididos en dos carriles y unidos otra vez — con cables que brillan con la señal y ocho macros sobre todo."),
+        what: long!(("Tabula is a pedalboard of Cantus's own effects: drives, filters, modulation, delays, reverbs, each the very effect, so one pedal on the board sounds exactly as that effect alone. Drag pedals to reorder them, drop one on lane A or B to split the chain into two that meet again in time, switch each by its footswitch without a click or a latency jump, and open any pedal's full editor in place. Eight macros move as many knobs as you map to them; Randomise rolls new settings within musical ranges. It starts on a guitar rig, and every preset is a whole board.", "Tabula es una pedalera de los efectos de Cantus: saturaciones, filtros, modulación, delays, reverbs, cada uno el propio efecto, así que un pedal en la tabla suena exactamente como ese efecto solo. Arrastra los pedales para reordenarlos, suelta uno en el carril A o B para dividir la cadena en dos que vuelven a encontrarse a tiempo, enciende cada uno con su interruptor sin clic ni salto de latencia y abre en su sitio el editor completo de cualquier pedal. Ocho macros mueven tantas perillas como les asignes; Al azar tira nuevos ajustes dentro de rangos musicales. Empieza con un equipo de guitarra, y cada preset es una pedalera entera.")),
+        features: long!(&[
+            ("A board of one pedal is that effect, to the bit", "Una pedalera de un pedal es ese efecto, bit a bit"),
+            ("Up to sixteen pedals, five sizes, in rows when the board fills", "Hasta dieciséis pedales, cinco tamaños, en filas cuando la tabla se llena"),
+            ("An A/B split whose lanes meet in time, to the sample", "Una división A/B cuyos carriles se encuentran a tiempo, a la muestra"),
+            ("Footswitches that never move the latency; no click on any change", "Interruptores que nunca mueven la latencia; ningún clic en ningún cambio"),
+            ("Eight macros with learn, and Randomise within musical ranges", "Ocho macros con aprendizaje, y Al azar dentro de rangos musicales"),
+            ("Fourteen boards for guitar, bass, synths, drums and voice", "Catorce pedaleras para guitarra, bajo, sintetizadores, batería y voz"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 1138),
+        thumb: (640, 405),
+    },
+
+    // fx3:saltus — Saltus, pitch (ADR 0135, provisional).
+    Unit {
+        file: "saltus",
+        name: "Saltus",
+        kind: ("Pitch", "Tono"),
+        pitch: ("Shift, harmonise, octave and whammy in one unit — the note you play leaping to each voice across a keyboard, the music written on a staff above it as you play.", "Desplazar, armonizar, octavar y whammy en una sola unidad — la nota que tocas saltando a cada voz sobre un teclado, la música escrita en un pentagrama encima mientras tocas."),
+        what: long!(("Saltus moves the pitch of what it hears four ways. Shift adds two voices at fixed intervals, by a mono engine that keeps a voice's formants at 2.7 ms or a poly engine that moves whole chords and mixes. Harmony sings two voices a number of scale degrees from the note heard — in a key, in the chords another track holds, or the melody it plays — keeping the singer's own bends. Octave adds one and two octaves down and one up, from an analog-style divider with no latency or clean. Whammy sweeps a voice from heel to toe with a pedal you rock — or that a held note presses. The engine switch shows each engine's latency, and the factory presets come in both.", "Saltus mueve el tono de lo que oye de cuatro maneras. Desplazar suma dos voces a intervalos fijos, con un motor mono que conserva los formantes de una voz a 2,7 ms o un motor poli que mueve acordes y mezclas enteros. Armonía canta dos voces a un número de grados de la escala desde la nota oída — en una tonalidad, en los acordes que sostiene otra pista o la melodía que toca — conservando las inflexiones del cantante. Octava suma una y dos octavas abajo y una arriba, de un divisor de estilo analógico sin latencia o limpia. Whammy lleva una voz del talón a la punta con un pedal que meces — o que pisa una nota sostenida. El selector de motor muestra la latencia de cada uno, y los presets de fábrica vienen en ambos.")),
+        features: long!(&[
+            ("Mono at 2.7 ms with the formants kept, or poly for chords at 85 ms", "Mono a 2,7 ms con los formantes intactos, o poli para acordes a 85 ms"),
+            ("Harmony in a key, on another track's chords, or singing its melody", "Armonía en una tonalidad, en los acordes de otra pista o cantando su melodía"),
+            ("An analog octave down with no latency, or a clean one", "Una octava abajo analógica sin latencia, o una limpia"),
+            ("A whammy rocked by hand, by automation or by held notes", "Un whammy mecido a mano, por automatización o por notas sostenidas"),
+            ("The input delayed, to the bit, at its defaults; latency reported exactly", "La entrada retrasada, bit a bit, en sus valores por defecto; latencia informada exacta"),
+            ("Eighteen factory presets in both engines; choose its starting preset", "Dieciocho presets de fábrica en ambos motores; elige su preset de inicio"),
+        ]),
+        presets: Some(18),
+        plugin: true,
+        ab: None,
+        big: (1800, 1143),
+        thumb: (640, 406),
+    },
+
+    // fx3:arca — Arca, the amp and its cabinet (ADR 0137, provisional).
+    Unit {
+        file: "arca",
+        name: "Arca",
+        kind: ("Amp", "Amplificador"),
+        pitch: ("Five valve amps modelled from their circuits and their cabinets — the valves glowing as hard as each one works, the microphone dragged across the speaker's cone.", "Cinco amplificadores de válvulas modelados desde sus circuitos y sus cajas — las válvulas brillando tanto como trabaja cada una, el micrófono arrastrado sobre el cono del altavoz."),
+        what: long!(("Arca solves each amp's schematic as a circuit, valve by valve: a clean amp, a crunch, a chiming class A, a four-stage high gain and a bass amp, with their tone stacks from their component values, their power amps pushing and pulling, the supply sagging under a loud chord. Its window is the amp: the chassis with its valves in the order the signal meets them, each glowing as hard as it works; the faceplate; and the cabinet, where the microphone is dragged across the cone and back from the grille, or your own impulse response plays. At its defaults — no amp, no cabinet — it passes the sound untouched.", "Arca resuelve el esquema de cada amplificador como un circuito, válvula a válvula: un limpio, un crujiente, una clase A que repica, un alta ganancia de cuatro etapas y un amplificador de bajo, con sus redes de tono desde los valores de sus componentes, sus etapas de potencia empujando y tirando, la alimentación cediendo ante un acorde fuerte. Su ventana es el amplificador: el chasis con sus válvulas en el orden en que las encuentra la señal, cada una brillando tanto como trabaja; el panel; y la caja, donde el micrófono se arrastra sobre el cono y se aleja de la rejilla, o suena tu propia respuesta al impulso. En sus valores por defecto — sin amplificador ni caja — deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("Five amps solved from their schematics, valve by valve, oversampled", "Cinco amplificadores resueltos desde sus esquemas, válvula a válvula, sobremuestreados"),
+            ("The supply sags under a loud chord; a sag knob from stiff to soft", "La alimentación cede ante un acorde fuerte; un control de sag de firme a blando"),
+            ("Five cabinets with the microphone's kind, place and distance, or your own impulse response", "Cinco cajas con el tipo, el lugar y la distancia del micrófono, o tu propia respuesta al impulso"),
+            ("The valves glow as hard as each one works", "Las válvulas brillan tanto como trabaja cada una"),
+            ("For guitar, bass, keys and voice; a pedal on the pedalboard too", "Para guitarra, bajo, teclados y voz; también un pedal en la pedalera"),
+            ("Sixteen factory presets; nothing touched at its defaults", "Dieciséis presets de fábrica; nada tocado en sus valores por defecto"),
+        ]),
+        presets: Some(16),
+        plugin: true,
+        ab: None,
+        big: (1800, 1009),
+        thumb: (640, 359),
+    },
+
+    // fx3:rota — Rota, the rotary speaker (ADR 0136, provisional).
+    Unit {
+        file: "rota",
+        name: "Rota",
+        kind: ("Rotary speaker", "Altavoz rotatorio"),
+        pitch: ("A rotary cabinet for any track — its horn and drum turning in a cut-away walnut cabinet, ramping between slow and fast at their own pace.", "Un mueble rotatorio para cualquier pista — su bocina y su tambor girando en un mueble de nogal en corte, pasando de lento a rápido cada uno a su ritmo."),
+        what: long!(("Rota is the rotary speaker of Cantus's organ as an effect for any track: a horn and a drum turning with the speeds and the spin-up and spin-down times measured on the real cabinets, the sound of each read at its Doppler delay, heard through two microphones you move round the cabinet and away from it, through the cabinet's valve amp. Stop, slow and fast — thrown by a click, by automation or by the notes a track plays. Its window draws the cabinet cut away, the rotors turning as the engine turns them, and each rotor's ramp.", "Rota es el altavoz rotatorio del órgano de Cantus como efecto para cualquier pista: una bocina y un tambor girando con las velocidades y los tiempos de aceleración y frenado medidos en los muebles reales, el sonido de cada uno leído en su retardo Doppler, oído por dos micrófonos que mueves alrededor del mueble y lejos de él, a través del amplificador de válvulas del mueble. Parado, lento y rápido — por un clic, por automatización o por las notas que toca una pista. Su ventana dibuja el mueble en corte, los rotores girando como los gira el motor, y la rampa de cada uno.")),
+        features: long!(&[
+            ("Horn and drum with the published speeds and ramps; a brake that parks them", "Bocina y tambor con las velocidades y rampas publicadas; un freno que los detiene"),
+            ("Two microphones moved round the cabinet and away from it", "Dos micrófonos movidos alrededor del mueble y lejos de él"),
+            ("The switch thrown by notes, to the sample", "El cambio por notas, a la muestra"),
+            ("The cabinet's valve amp, an open or closed back", "El amplificador de válvulas del mueble, trasera abierta o cerrada"),
+            ("No latency; untouched at its defaults", "Sin latencia; intacto en sus valores por defecto"),
+            ("Thirteen factory presets; a pedal on the pedalboard too", "Trece presets de fábrica; también un pedal en la pedalera"),
+        ]),
+        presets: Some(13),
+        plugin: true,
+        ab: None,
+        big: (1800, 1000),
+        thumb: (640, 356),
+    },
+
+    // fxa:loquax — Loquax, the vocoder (ADR 0139, provisional).
+    Unit {
+        file: "loquax",
+        name: "Loquax",
+        kind: ("Vocoder", "Vocoder"),
+        pitch: ("A vocoder that makes any voice speak through a synthesiser played by your notes, through another track or both — the bands lit by the voice, the levels drawn with the mouse.", "Un vocoder que hace hablar a cualquier voz a través de un sintetizador tocado por tus notas, de otra pista o de ambos — las bandas encendidas por la voz, los niveles dibujados con el ratón."),
+        what: long!(("Loquax splits a voice into 8 to 64 bands, follows each band and lays it on the same band of a carrier: its own polyphonic synthesiser played by the notes of any track, another track's sound on the sidechain — a pad, a guitar for a talk-box, a loop — or both. The robot drones a note with no notes at all; the roles can be traded so drums speak; the consonants come through; the formants move without moving the notes; a hold freezes the vowel. Its window is a vocoder's deck: the voice speaking into a gooseneck, a talk-box's tube or a desk microphone, the bank's screen lit band by band where you draw each band's level, and the meter bridge's two needles. At its defaults it passes the sound untouched.", "Loquax divide una voz en 8 a 64 bandas, sigue cada banda y la pone sobre la misma banda de una portadora: su propio sintetizador polifónico tocado por las notas de cualquier pista, el sonido de otra pista por la cadena lateral — un pad, una guitarra para un talk-box, un loop — o ambos. El robot sostiene una nota sin ninguna nota; los papeles se pueden intercambiar para que hable la batería; las consonantes pasan; los formantes se mueven sin mover las notas; la retención congela la vocal. Su ventana es la consola de un vocoder: la voz hablando a un cuello de cisne, al tubo de un talk-box o a un micrófono de mesa, la pantalla del banco encendida banda a banda donde dibujas el nivel de cada una, y las dos agujas del puente de medidores. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("8 to 64 bands with slopes of order 4, 6 or 8, measured against the analytic response", "De 8 a 64 bandas con pendientes de orden 4, 6 u 8, medidas contra la respuesta analítica"),
+            ("A polyphonic synthesiser played by any track's notes, or another track on the sidechain, or both", "Un sintetizador polifónico tocado por las notas de cualquier pista, u otra pista por la cadena lateral, o ambos"),
+            ("A robot that needs no notes; the roles traded so drums talk", "Un robot que no necesita notas; los papeles intercambiados para que hable la batería"),
+            ("Consonants through, formants moved, the vowel held", "Las consonantes pasan, los formantes se mueven, la vocal se retiene"),
+            ("The band levels drawn on the bank; a gooseneck, a talk-box tube or a desk microphone to speak into", "Los niveles de las bandas dibujados en el banco; un cuello de cisne, un tubo de talk-box o un micrófono de mesa en los que hablar"),
+            ("Fifteen factory presets; no latency; untouched at its defaults", "Quince presets de fábrica; sin latencia; intacto en sus valores por defecto"),
+        ]),
+        presets: Some(15),
+        plugin: true,
+        ab: None,
+        big: (1800, 1209),
+        thumb: (640, 430),
+    },
+
+    // fxa:fractus — Fractus, the glitch sequencer and grain cloud (ADR 0140, provisional).
+    Unit {
+        file: "fractus",
+        name: "Fractus",
+        kind: ("Glitch sequencer", "Secuenciador de glitch"),
+        pitch: ("A glitch sequencer and grain cloud: stutters, reverses, tape stops, gates and throws painted on lanes in time with the song, played by your notes too.", "Un secuenciador de glitch y nube de granos: tartamudeos, reversos, paradas de cinta, puertas y lanzamientos pintados en carriles al compás de la canción, y tocados también por tus notas."),
+        what: long!(("Fractus is ten effects on ten lanes of a step sequencer that follows the song: repeat (with the stutter build that halves each part), reverse, tape stop and start, shuffle, pitch jump, crush, filter sweep, gate, delay throw and the grain cloud. Paint a block with the mouse — its height is its amount, a stroke sets its chance — and it plays on its steps, every join smoothed so nothing clicks; or let held notes play the lanes, quantised to the grid or at once. Beside the lanes a cloud of grains reads the last seconds, pitched to a scale, spread in the stereo field, frozen with one switch. Its window is the machine itself: the pads lit to their amount, the playhead, the keys that play the lanes, and the grains drawn live on a scope. At its defaults it passes the sound untouched.", "Fractus son diez efectos en diez carriles de un secuenciador por pasos que sigue a la canción: repetición (con la subida que parte cada trozo a la mitad), reverso, parada y arranque de cinta, barajado, salto de tono, trituración, barrido de filtro, puerta, lanzamiento de eco y la nube de granos. Pinta un bloque con el ratón — su altura es su cantidad, un trazo fija su probabilidad — y suena en sus pasos, cada unión suavizada para que nada chasque; o deja que las notas sostenidas toquen los carriles, cuantizadas a la rejilla o al instante. Junto a los carriles una nube de granos lee los últimos segundos, afinada a una escala, abierta en el estéreo, congelada con un interruptor. Su ventana es la máquina misma: los pads encendidos a su cantidad, el cabezal, las teclas que tocan los carriles y los granos dibujados en vivo en un osciloscopio. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("Ten modules on ten lanes, 1/4 to 1/64 steps (triplets too), up to four bars, swing", "Diez módulos en diez carriles, pasos de 1/4 a 1/64 (también tresillos), hasta cuatro compases, swing"),
+            ("Repeats replayed to the bit, the stutter build, joins 60 to 70 dB below a hard cut", "Repeticiones reproducidas al bit, la subida de tartamudeo, uniones de 60 a 70 dB por debajo de un corte seco"),
+            ("Blocks painted with the mouse: height is the amount, a stroke sets the chance", "Bloques pintados con el ratón: la altura es la cantidad, un trazo fija la probabilidad"),
+            ("Held notes play the lanes, on the step or at once", "Las notas sostenidas tocan los carriles, en el paso o al instante"),
+            ("A grain cloud up to 200 grains a second, pitched to a scale, frozen with one switch", "Una nube de hasta 200 granos por segundo, afinada a una escala, congelada con un interruptor"),
+            ("Eighteen factory presets; no latency; untouched at its defaults", "Dieciocho presets de fábrica; sin latencia; intacto en sus valores por defecto"),
+        ]),
+        presets: Some(18),
+        plugin: true,
+        ab: None,
+        big: (1800, 967),
+        thumb: (640, 344),
+    },
+
+    // fxa:caelum — Caelum, the shimmer reverb (ADR 0141, provisional).
+    Unit {
+        file: "caelum",
+        name: "Caelum",
+        kind: ("Shimmer reverb", "Reverb shimmer"),
+        pitch: ("A shimmer reverb for spaces no building holds: tails that climb an octave at a time, washes that never end, a sound that swells in, freeze and ducking — under an observatory's night sky.", "Una reverb shimmer para espacios que ningún edificio contiene: colas que suben de octava en octava, lavados que nunca acaban, un sonido que crece hacia el espacio, congelación y atenuación — bajo el cielo nocturno de un observatorio."),
+        what: long!(("Caelum is a tank of 8 or 16 delay lines whose loop carries two pitch-shifted voices: each pass trades part of the tail for itself an interval higher (or lower), so a chord rises into the sky as it rings — and the trade moves energy without making any, so the decay you set is the decay you hear, shimmer or not. Infinite holds the tail for good while the damping still darkens it; Freeze holds what is in the tank and lets nothing in; Bloom swells the sound into the space over up to four seconds; the ducking steps the space aside while the dry plays, or while another track does. The pre-delay follows the song's tempo when you ask. Its window is an observatory at night: the tail glowing on the horizon over the tank's water, the shimmer's octaves rising band by band as it ages, the voices set on a brass astrolabe and the decay of each octave glowing in glass tubes. At its defaults it passes the sound untouched.", "Caelum es un tanque de 8 o 16 líneas de retardo cuyo bucle lleva dos voces transportadas: cada vuelta cambia parte de la cola por ella misma un intervalo más arriba (o más abajo), de modo que un acorde sube al cielo mientras suena — y el cambio mueve energía sin crearla, así que la caída que fijas es la que oyes, con shimmer o sin él. Infinita sostiene la cola para siempre mientras la amortiguación aún la oscurece; Congelar guarda lo que hay en el tanque y no deja entrar nada; Florecer hace crecer el sonido hacia el espacio durante hasta cuatro segundos; la atenuación (ducking) aparta el espacio mientras suena la señal seca, o mientras suena otra pista. El pre-retardo sigue el tempo de la canción si lo pides. Su ventana es un observatorio de noche: la cola brillando en el horizonte sobre el agua del tanque, las octavas del shimmer subiendo banda a banda mientras envejece, las voces fijadas en un astrolabio de latón y la caída de cada octava brillando en tubos de vidrio. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("16 or 8 modulated lines; the decay within 3.1 % of the setting in every octave", "16 u 8 líneas moduladas; la caída a menos del 3,1 % de lo fijado en cada octava"),
+            ("Two shimmer voices from −36 to +36 semitones that move energy and make none", "Dos voces de shimmer de −36 a +36 semitonos que mueven energía sin crearla"),
+            ("Infinite held for five minutes within 0.4 dB; Freeze within 0.15 dB", "Infinita sostenida cinco minutos a menos de 0,4 dB; Congelar a menos de 0,15 dB"),
+            ("Bloom, ducking by its own input or another track's, a pre-delay synced to the song", "Florecer, atenuación por su propia entrada o por otra pista, un pre-retardo sincronizado con la canción"),
+            ("The voices dragged on the astrolabe, the decay dragged on its tubes", "Las voces arrastradas en el astrolabio, la caída arrastrada en sus tubos"),
+            ("Nineteen factory presets; no latency; untouched at its defaults", "Diecinueve presets de fábrica; sin latencia; intacto en sus valores por defecto"),
+        ]),
+        presets: Some(19),
+        plugin: true,
+        ab: None,
+        big: (1800, 1209),
+        thumb: (640, 430),
+    },
+
+    // fx:libra — Libra, the utility (ADR 0133, provisional).
+    Unit {
+        file: "libra",
+        name: "Libra",
+        kind: ("Utility", "Utilidad"),
+        pitch: ("A channel's everyday corrections — gain, balance, width, polarity, swaps and mono, mid and side, DC, a delay to align two microphones — under a brass balance that weighs left against right.", "Las correcciones de cada día de un canal — ganancia, balance, anchura, polaridad, intercambios y mono, mid y side, continua, un retardo para alinear dos micrófonos — bajo una balanza de latón que pesa izquierda contra derecha."),
+        what: long!(("Libra is the utility every channel needs. Swap, sum to mono, take one side or listen to the mid or the side alone; invert either channel's polarity; remove DC; delay each channel by whole samples to align two microphones; narrow or widen the image; balance it; set the gain. At its centre a brass balance tilts with the balance, its pans holding each channel's level, delay and polarity, the correlation along its foot; beside it a tuner and a goniometer.", "Libra es la utilidad que necesita cada canal. Intercambia, suma en mono, toma un lado o escucha solo el mid o el side; invierte la polaridad de cualquiera de los canales; quita la continua; retrasa cada canal en muestras enteras para alinear dos micrófonos; estrecha o ensancha la imagen; equilíbrala; fija la ganancia. En su centro una balanza de latón se inclina con el balance, sus platillos con el nivel, el retardo y la polaridad de cada canal, la correlación en su pie; a su lado un afinador y un goniómetro.")),
+        features: long!(&[
+            ("A wire at its defaults, to the bit; 0 dB exact", "Un cable en sus valores por defecto, bit a bit; 0 dB exactos"),
+            ("Delays in whole samples, exact, shown in ms or samples", "Retardos en muestras enteras, exactos, en ms o en muestras"),
+            ("Stereo, swap, mono, left or right to both, mid, side", "Estéreo, intercambiar, mono, izquierdo o derecho a ambos, mid, side"),
+            ("A tuner within ±1 cent on a sine, its reference A from 415 to 466 Hz", "Un afinador a ±1 cent sobre un seno, su La de 415 a 466 Hz"),
+            ("A goniometer and the correlation", "Un goniómetro y la correlación"),
+            ("Fourteen factory presets: mono check, polarity flips, alignment, Haas width, mid and side", "Catorce presets de fábrica: comprobar en mono, invertir polaridad, alinear, anchura Haas, mid y side"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 915),
+        thumb: (640, 325),
+    },
+
+    // fx:vetus — Vetus, lo-fi (ADR 0133, provisional).
+    Unit {
+        file: "vetus",
+        name: "Vetus",
+        kind: ("Lo-fi", "Lo-fi"),
+        pitch: ("A sound aged as an old medium ages it — bits, sample rate, wow and flutter, worn tape, crackle and the band of tape, radio, telephone or gramophone — with one knob that takes it back in time.", "Un sonido envejecido como lo envejece un medio antiguo — bits, muestreo, wow y flutter, cinta gastada, crujido y la banda de la cinta, la radio, el teléfono o el gramófono — con un mando que lo lleva atrás en el tiempo."),
+        what: long!(("Vetus is six modules in the order a recording travels: a cheap converter's bits and sample rate (raw, with its aliasing, or filtered), a tape's wow and flutter, dropouts and wear, crackle, hiss and hum, and the band of the medium that plays it back. Character ages every module that is on at once, and the label prints the year it takes you to. At the centre a cassette — or an LP, your choice — wears every module: the reels waver, the tape creases, dust sparks at the head; beside it the spectrum shows the converter's Nyquist, the bits' noise floor and the medium's band, dragged where you want them.", "Vetus son seis módulos en el orden que recorre una grabación: los bits y el muestreo de un conversor barato (crudo, con su aliasing, o filtrado), el wow y el flutter de una cinta, cortes y desgaste, crujido, siseo y zumbido, y la banda del medio que lo reproduce. El Carácter envejece a la vez cada módulo encendido, y la etiqueta imprime el año al que te lleva. En el centro un casete — o un LP, a tu elección — lleva cada módulo: los carretes vacilan, la cinta se arruga, el polvo chispea en el cabezal; a su lado el espectro muestra el Nyquist del conversor, el suelo de ruido de los bits y la banda del medio, que arrastras donde quieras.")),
+        features: long!(&[
+            ("Bits from 1 to 24 (rounding, truncation, μ-law, dither); 24 bits without dither passes the sound untouched", "Bits de 1 a 24 (redondeo, truncado, ley μ, dither); 24 bits sin dither deja el sonido intacto"),
+            ("Sample rate down to 1 kHz: raw (a 9 kHz tone at 8 kHz folds back at full level) or filtered (−54 dB)", "Muestreo hasta 1 kHz: crudo (un tono de 9 kHz a 8 kHz se pliega a nivel completo) o filtrado (−54 dB)"),
+            ("Wow and flutter in cents, the wow free or on the song, partly drifting as a tape's", "Wow y flutter en cents, el wow libre o con la canción, en parte a la deriva como el de una cinta"),
+            ("Crackle, hiss, hum, dropouts and wear fixed to the song: the same in any render, from any bar", "Crujido, siseo, zumbido, cortes y desgaste fijados a la canción: iguales en cualquier render, desde cualquier compás"),
+            ("Tape, radio, telephone and gramophone bands, drawn exactly as they sound (within 0.1 dB)", "Bandas de cinta, radio, teléfono y gramófono, dibujadas tal como suenan (a 0,1 dB)"),
+            ("Fourteen factory presets: cassettes, lo-fi hip-hop, dusty drums, 8-bit, AM radio, telephone, gramophone, VHS", "Catorce presets de fábrica: casetes, lo-fi hip-hop, baterías polvorientas, 8 bits, radio AM, teléfono, gramófono, VHS"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 1286),
+        thumb: (640, 457),
+    },
+
     // r39:conv — Aula, the convolution reverb (ADR 0112).
     Unit {
         file: "aula",
@@ -586,7 +806,7 @@ pub const EFFECTS: [Unit; 25] = [
             ("Sweep bounds from 20 Hz to 16 kHz, moved on a log scale", "Límites del barrido de 20 Hz a 16 kHz, en escala logarítmica"),
             ("Response drawn with the unit's own arithmetic, within 0.3 dB of what plays", "Respuesta dibujada con la aritmética de la unidad, a 0.3 dB de lo que suena"),
         ]),
-        presets: Some(12),
+        presets: Some(15),
         plugin: true,
         ab: None,
         big: (1800, 1152),
@@ -693,6 +913,49 @@ pub const EFFECTS: [Unit; 25] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+    },
+
+    // fx:cribrum — Cribrum, the auto filter (fx side round).
+    Unit {
+        file: "cribrum",
+        name: "Cribrum",
+        kind: ("Auto filter", "Filtro automático"),
+        pitch: ("Two analog filters moved in time with the song, over a picture of the music they sieve.", "Dos filtros analógicos movidos a tempo con la canción, sobre una imagen de la música que criban."),
+        what: long!(("Cribrum (Latin for a sieve) is two analog-modelled filters — the same five circuits as Cantus's synths: state-variable, transistor ladder, OTA cascade, diode ladder and Sallen-Key — in series or in parallel, moved by an LFO on the song, an envelope follower on the track or a sidechain, and a curve you draw. Each source has its own depth onto the cutoff, the resonance and the vowel. Its window draws the music sieved: the spectrum as grains, lit where it passes and dimmed where it is held back, under both filters' responses as they move; drag a filter's handle across for its cutoff and up and down for its resonance.", "Cribrum (en latín, una criba) son dos filtros de modelo analógico — los mismos cinco circuitos que los sintetizadores de Cantus: SVF, ladder de transistores, OTA en cascada, diode ladder y Sallen-Key — en serie o en paralelo, movidos por un LFO a tempo, un seguidor de envolvente sobre la pista o un sidechain, y una curva que dibujas. Cada fuente tiene su propia profundidad hacia el corte, la resonancia y la vocal. Su ventana dibuja la música cribada: el espectro en granos, iluminados donde pasa y apagados donde se retiene, bajo la respuesta de los dos filtros mientras se mueven; arrastra el tirador de un filtro a lo ancho para su corte y arriba y abajo para su resonancia.")),
+        features: long!(&[
+            ("Five filter circuits, low/band/high-pass, notch, peak and a talking vowel filter, 12 or 24 dB/oct", "Cinco circuitos de filtro, paso bajo, banda y alto, notch, pico y un filtro de vocales que habla, 12 o 24 dB/oct"),
+            ("Resonance that sings in tune: self-oscillation within ±5 cents, measured", "Resonancia que canta afinada: autooscilación dentro de ±5 cents, medida"),
+            ("An LFO from 1/64 to 8 bars on the song, an envelope follower with sidechain, a drawn curve", "Un LFO de 1/64 a 8 compases a tempo, un seguidor de envolvente con sidechain, una curva dibujada"),
+            ("Follows the song position: a render from any bar matches the full render, to the bit", "Sigue la posición de la canción: un render desde cualquier compás coincide con el completo, bit a bit"),
+            ("Two filters in series or parallel, a stereo spread, oversampling up to 4×", "Dos filtros en serie o en paralelo, apertura estéreo, sobremuestreo hasta 4×"),
+            ("Three envelope wahs, dub sweep, pump filter, talking lead, telephone, rising build, acid and more", "Tres wahs de envolvente, barrido dub, filtro que bombea, lead que habla, teléfono, subida, acid y más"),
+        ]),
+        presets: Some(18),
+        plugin: true,
+        ab: None,
+        big: (1800, 1286),
+        thumb: (640, 457),
+    },
+
+    // fx:lapsus — Lapsus, the time shaper (fx side round).
+    Unit {
+        file: "lapsus",
+        name: "Lapsus",
+        kind: ("Time shaper", "Moldeador de tiempo"),
+        pitch: ("Tape stops, half time, stutters, reverse and scratches drawn on the beat: Gross Beat's job, exact to the sample.", "Paradas de cinta, medio tiempo, tartamudeos, reversa y scratch dibujados al compás: el trabajo de Gross Beat, exacto a la muestra."),
+        what: long!(("Lapsus (Latin for a slip) bends time and level to the beat. As Gross Beat does, it holds 36 time patterns and 36 volume patterns, chosen apart and played together by their knobs, their pads or a note of each bank's range. A time pattern draws how far behind the music it reads — flat is the music, a fall at the diagonal is the tape stopped, half that is half speed, steeper is reverse, a held step a repeat — and its window shows it over the music, with the slip from where the song is to where it is read.", "Lapsus (en latín, un desliz) dobla el tiempo y el nivel al compás. Como Gross Beat, tiene 36 patrones de tiempo y 36 de volumen, elegidos por separado y tocados juntos con sus perillas, sus botones o una nota del rango de cada banco. Un patrón de tiempo dibuja cuánto lee por detrás de la música — plano es la música, una caída por la diagonal es la cinta parada, la mitad es media velocidad, más empinada es reversa, un escalón una repetición — y su ventana lo muestra sobre la música, con el desliz desde donde va la canción hasta donde se lee.")),
+        features: long!(&[
+            ("36 time and 36 volume patterns, combined freely, each switched by notes or automation", "36 patrones de tiempo y 36 de volumen, combinados libremente, cada uno cambiado por notas o automatización"),
+            ("Draw them: points, tension, six segment shapes, a pencil snapped to the grid", "Dibújalos: puntos, tensión, seis formas de tramo, un lápiz ajustado a la rejilla"),
+            ("Every jump crossfaded (30× smoother than a hard join, measured); a 32-tap sinc read, −95 dB", "Cada salto con fundido (30 veces más suave que un corte, medido); lectura con sinc de 32 tomas, −95 dB"),
+            ("A tape stop ends on the bar to the sample at any tempo; a render from any bar matches the full render, to the bit", "Una parada de cinta termina en la muestra del compás a cualquier tempo; un render desde cualquier compás coincide con el completo, bit a bit"),
+            ("Tape stop and start, half and quarter time, rolls, beat repeats, reverse, backspin, scratches, gates and pumps", "Parada y arranque de cinta, medio y cuarto de tiempo, redobles, repeticiones, reversa, giro atrás, scratch, puertas y bombeos"),
+        ]),
+        presets: Some(17),
+        plugin: true,
+        ab: None,
+        big: (1800, 1098),
+        thumb: (640, 391),
     },
 
     // r37:library — Delay: its card plays its presets too. r39:delay — its own window (ADR 0115).

@@ -1,5 +1,5 @@
 //! Notes into the exported plug-ins that hear them (round 28): a CLAP note port and a VST3
-//! event bus on Tonus and Porta, none on the others, and the notes a host sends — in CLAP's
+//! event bus on Tonus, Porta, Lapsus and Saltus (fx side round), none on the others, and the notes a host sends — in CLAP's
 //! dialect, in MIDI bytes, as VST3 events — arrive at their sample: the plug-in renders
 //! exactly what the DSP renders fed the same notes, at any block size. A flood of notes
 //! loses no note-off, and CLAP's wildcards release only what they address.
@@ -27,6 +27,28 @@ const TONUS: &[(&str, f32)] = &[("src", 1.0), ("speed", 0.0)];
 
 /// Porta played by notes (its MIDI trigger), the whole range so a closed gate is plain.
 const PORTA: &[(&str, f32)] = &[("trig", 1.0), ("range", 100.0)];
+
+/// fx:lapsus — Lapsus switching its time patterns by notes (67, 71 and 64 play time 8, 12
+/// and 5 from C4) while held, its volume ones by a note of their range.
+const LAPSUS: &[(&str, f32)] = &[("mix", 1.0), ("xfade", 3.0), ("vkey", 52.0)];
+
+/// fx3:saltus — Saltus's harmony singing the notes held (the MIDI melody), over the dry.
+const SALTUS: &[(&str, f32)] = &[("mode", 1.0), ("hsrc", 2.0), ("lvl2", 0.5), ("dry", 0.5)];
+
+/// fx3:rota — Rota with notes throwing its switch: each note played toggles slow and fast.
+const ROTA: &[(&str, f32)] = &[("mix", 1.0), ("drive", 0.3)];
+
+/// fxa:loquax — Loquax's synthesiser carrier played by the notes, the voice speaking through.
+const LOQUAX: &[(&str, f32)] = &[("mix", 1.0), ("robot", 0.0), ("src", 1.0), ("bands", 16.0)];
+
+/// fxa:fractus — Fractus played by notes, at once: from its first key D4 (62), the notes 64,
+/// 67 and 71 play the tape stop, the crush and the cloud while held.
+const FRACTUS: &[(&str, f32)] = &[
+    ("trig", 1.0),
+    ("quant", 0.0),
+    ("key", 62.0),
+    ("clevel", 0.0),
+];
 
 /// A note a host sends. In CLAP's dialect a note on or off carries the note id
 /// `1000 + pitch` and the channel `pitch % 16` (in MIDI bytes, that channel too).
@@ -75,6 +97,60 @@ impl Case {
         }
     }
 
+    /// fx:lapsus — a drum-like signal; the notes switch time patterns, one a volume one.
+    fn lapsus() -> Case {
+        let mut notes = NOTES.to_vec();
+        notes.push((25_000, N::On(57)));
+        notes.push((33_000, N::Off(57)));
+        notes.sort_by_key(|(t, _)| *t);
+        Case {
+            kind: EffectKind::TimeShaper,
+            values: LAPSUS,
+            input: signal(SR as usize, 11),
+            notes,
+        }
+    }
+
+    /// fx3:saltus — a sung voice; the notes are the melody its voices sing.
+    fn saltus() -> Case {
+        Case {
+            kind: EffectKind::PitchShift,
+            values: SALTUS,
+            input: voice(),
+            notes: NOTES.to_vec(),
+        }
+    }
+
+    /// fx3:rota — a rich signal; the notes throw the switch.
+    fn rota() -> Case {
+        Case {
+            kind: EffectKind::Rotary,
+            values: ROTA,
+            input: signal(SR as usize, 11),
+            notes: NOTES.to_vec(),
+        }
+    }
+
+    /// fxa:loquax — a sung voice; the notes play the carrier it speaks through.
+    fn loquax() -> Case {
+        Case {
+            kind: EffectKind::Vocoder,
+            values: LOQUAX,
+            input: voice(),
+            notes: NOTES.to_vec(),
+        }
+    }
+
+    /// fxa:fractus — a rich signal; the notes play the lanes.
+    fn fractus() -> Case {
+        Case {
+            kind: EffectKind::Glitch,
+            values: FRACTUS,
+            input: signal(SR as usize, 11),
+            notes: NOTES.to_vec(),
+        }
+    }
+
     fn porta(notes: &[(u32, N)]) -> Case {
         Case {
             kind: EffectKind::Gate,
@@ -89,6 +165,11 @@ impl Case {
 enum Dsp {
     Tonus(Box<Tonus>),
     Porta(Box<Porta>),
+    Lapsus(Box<dyn cantus_engine::fx::FxUnit>), // fx:lapsus
+    Saltus(Box<dyn cantus_engine::fx::FxUnit>), // fx3:saltus
+    Rota(Box<dyn cantus_engine::fx::FxUnit>),   // fx3:rota
+    Loquax(Box<dyn cantus_engine::fx::FxUnit>), // fxa:loquax
+    Fractus(Box<dyn cantus_engine::fx::FxUnit>), // fxa:fractus
 }
 
 impl Dsp {
@@ -115,6 +196,20 @@ impl Dsp {
                     _ => unreachable!("the DSP hears plain notes"),
                 },
             ),
+            // fx:lapsus, fx3:saltus
+            Dsp::Lapsus(d) | Dsp::Saltus(d) | Dsp::Rota(d) | Dsp::Loquax(d) | Dsp::Fractus(d) => d
+                .note(
+                    0,
+                    match n {
+                        N::On(p) => cantus_engine::fx::FxNote::On {
+                            pitch: p,
+                            velocity: 100,
+                        },
+                        N::Off(p) => cantus_engine::fx::FxNote::Off { pitch: p },
+                        N::AllOff => cantus_engine::fx::FxNote::AllOff,
+                        _ => unreachable!("the DSP hears plain notes"),
+                    },
+                ),
         }
     }
 
@@ -122,6 +217,11 @@ impl Dsp {
         match self {
             Dsp::Tonus(d) => d.process(l, r),
             Dsp::Porta(d) => d.process(l, r, None),
+            Dsp::Lapsus(d) => d.process(l, r, None), // fx:lapsus
+            Dsp::Saltus(d) => d.process(l, r, None), // fx3:saltus
+            Dsp::Rota(d) => d.process(l, r, None),   // fx3:rota
+            Dsp::Loquax(d) => d.process(l, r, None), // fxa:loquax
+            Dsp::Fractus(d) => d.process(l, r, None), // fxa:fractus
         }
     }
 }
@@ -141,6 +241,48 @@ fn through_dsp(case: &Case, expected: &[(u32, N)]) -> Vec<f32> {
             let mut p = Porta::new(SR);
             p.set(&cantus_engine::fx::gate::settings(&spec));
             Dsp::Porta(Box::new(p))
+        }
+        // fx:lapsus — the engine's unit, its history as `EffectUnit::new` gives it.
+        EffectKind::TimeShaper => {
+            let mut u = cantus_engine::fx::make(EffectKind::TimeShaper, SR).unwrap();
+            u.configure(&spec);
+            if let Some(need) = u.memory_need() {
+                drop(u.supply(cantus_engine::EffectMemory::build(need, SR)));
+            }
+            u.reset();
+            Dsp::Lapsus(u)
+        }
+        // fx3:saltus — the engine's unit, as the exported plug-in runs it.
+        EffectKind::PitchShift => {
+            let mut u = cantus_engine::fx::make(EffectKind::PitchShift, SR).unwrap();
+            u.configure(&spec);
+            u.reset();
+            Dsp::Saltus(u)
+        }
+        // fx3:rota — the engine's unit, as the exported plug-in runs it.
+        EffectKind::Rotary => {
+            let mut u = cantus_engine::fx::make(EffectKind::Rotary, SR).unwrap();
+            u.configure(&spec);
+            u.reset();
+            Dsp::Rota(u)
+        }
+        // fxa:loquax — the engine's unit, as the exported plug-in runs it.
+        EffectKind::Vocoder => {
+            let mut u = cantus_engine::fx::make(EffectKind::Vocoder, SR).unwrap();
+            u.configure(&spec);
+            u.reset();
+            Dsp::Loquax(u)
+        }
+        // fxa:fractus — the engine's unit, its DSP built as the plug-in builds it.
+        EffectKind::Glitch => {
+            let mut u = cantus_engine::fx::make(EffectKind::Glitch, SR).unwrap();
+            u.configure(&spec);
+            drop(u.supply(cantus_engine::EffectMemory::build(
+                cantus_engine::MemoryNeed::Fractus,
+                SR,
+            )));
+            u.reset();
+            Dsp::Fractus(u)
         }
         k => panic!("{k:?} hears no notes"),
     };
@@ -367,7 +509,15 @@ const BLOCKS: [&[usize]; 3] = [&[512], &[1, 64, 37, 4096, 333], &[48_000]];
 
 #[test]
 fn clap_notes_arrive_at_their_sample_in_either_dialect() {
-    for case in [Case::tonus(), Case::porta(NOTES)] {
+    for case in [
+        Case::tonus(),
+        Case::porta(NOTES),
+        Case::lapsus(),
+        Case::saltus(),  // fx3:saltus
+        Case::rota(),    // fx3:rota
+        Case::loquax(),  // fxa:loquax
+        Case::fractus(), // fxa:fractus
+    ] {
         let reference = through_dsp(&case, &case.notes);
         let dry = {
             let (mut l, r) = case.input.clone();
@@ -700,7 +850,15 @@ impl IBStreamTrait for Mem {
 
 #[test]
 fn vst3_notes_arrive_at_their_sample_on_the_event_bus() {
-    for case in [Case::tonus(), Case::porta(NOTES)] {
+    for case in [
+        Case::tonus(),
+        Case::porta(NOTES),
+        Case::lapsus(),
+        Case::saltus(),  // fx3:saltus
+        Case::rota(),    // fx3:rota
+        Case::loquax(),  // fxa:loquax
+        Case::fractus(), // fxa:fractus
+    ] {
         let reference = through_dsp(&case, &case.notes);
         for blocks in &BLOCKS[..2] {
             assert_identical(

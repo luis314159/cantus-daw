@@ -389,10 +389,18 @@ impl Rig {
                     self.p.settle();
                     self.cells.note(&self.p);
                 }
-                EngineEvent::EffectNeed { effect, need } => {
+                EngineEvent::EffectNeed {
+                    effect,
+                    pedal,
+                    need,
+                } => {
                     let memory = crate::effects::EffectMemory::build(need.need(), sr);
                     self.tx
-                        .push(EngineMessage::EffectMemory { effect, memory })
+                        .push(EngineMessage::EffectMemory {
+                            effect,
+                            pedal,
+                            memory,
+                        })
                         .ok();
                     self.p.settle();
                     self.cells.note(&self.p);

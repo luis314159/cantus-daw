@@ -221,6 +221,12 @@ const UNITS: &[(&str, &str, What)] = &[
     ("anulus", "anulus", What::Fx(EffectKind::RingMod)),
     ("translatio", "translatio", What::Fx(EffectKind::FreqShift)),
     ("fluctus", "fluctus", What::Fx(EffectKind::VolumeShaper)),
+    // fx: the side round's units.
+    ("cribrum", "cribrum", What::Fx(EffectKind::AutoFilter)),
+    ("fragor", "fragor", What::Fx(EffectKind::Pedal)),
+    ("lapsus", "lapsus", What::Fx(EffectKind::TimeShaper)),
+    ("vetus", "vetus", What::Fx(EffectKind::LoFi)),
+    ("libra", "libra", What::Fx(EffectKind::Utility)),
     ("unda", "unda", What::Inst(InstrumentKind::Wavetable)),
     ("calor", "calor", What::Inst(InstrumentKind::Analog)),
     ("modulus", "modulus", What::Inst(InstrumentKind::Fm)),

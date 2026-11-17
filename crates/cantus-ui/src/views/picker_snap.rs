@@ -61,8 +61,20 @@ impl Subject {
             EffectKind::TransientSplit => "discrimen",
             EffectKind::Analyzer => "speculum",
             EffectKind::AutoTune => "tonus",
-            EffectKind::Aula => "aula",   // r39:conv
-            EffectKind::Delay => "delay", // r39:delay
+            EffectKind::Aula => "aula",          // r39:conv
+            EffectKind::AutoFilter => "cribrum", // fx:contract
+            EffectKind::Pedal => "fragor",       // fx:contract
+            EffectKind::TimeShaper => "lapsus",  // fx:contract
+            EffectKind::LoFi => "vetus",         // fx:contract
+            EffectKind::Utility => "libra",      // fx:contract
+            EffectKind::Board => "tabula",       // fx3:contract
+            EffectKind::PitchShift => "saltus",  // fx3:contract
+            EffectKind::Rotary => "rota",        // fx3:contract
+            EffectKind::Amp => "arca",           // fx3:contract
+            EffectKind::Vocoder => "loquax",     // fxa:contract
+            EffectKind::Glitch => "fractus",     // fxa:contract
+            EffectKind::Shimmer => "caelum",     // fxa:contract
+            EffectKind::Delay => "delay",        // r39:delay
             _ => "eq",
         }
     }

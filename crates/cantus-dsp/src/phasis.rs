@@ -20,6 +20,18 @@ use crate::modfx_line::{Allpass1, Glide};
 /// Most stages.
 pub const MAX_STAGES: usize = 12;
 
+#[path = "phasis_vibe.rs"]
+pub mod vibe; // fx3:arca
+
+/// The circuit Phasis is (fx3:arca): the classic all-pass cascade, or the Uni-Vibe — four
+/// unevenly tuned stages swept by a lamp ([`vibe`]). Appended; the classic is the default.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum PhasisStyle {
+    #[default]
+    Classic,
+    Vibe,
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct PhasisSettings {
     /// 2 … 12.
@@ -35,6 +47,10 @@ pub struct PhasisSettings {
     /// The right channel's LFO ahead of the left, cycles (0 … ½).
     pub spread: f32,
     pub out_db: f32,
+    /// The circuit (fx3:arca).
+    pub style: PhasisStyle,
+    /// The Uni-Vibe's intensity: how far the lamp swings, 0 … 1 (fx3:arca).
+    pub intensity: f32,
 }
 
 impl Default for PhasisSettings {
@@ -52,6 +68,8 @@ impl Default for PhasisSettings {
             },
             spread: 0.0,
             out_db: 0.0,
+            style: PhasisStyle::Classic,
+            intensity: 1.0,
         }
     }
 }
@@ -90,6 +108,8 @@ pub struct Phasis {
     zrun: u32,
     tel: [f32; 16],
     blocks: u32,
+    /// The Uni-Vibe's lamps and stages (fx3:arca).
+    vibe: vibe::Vibe,
 }
 
 impl Phasis {
@@ -110,6 +130,7 @@ impl Phasis {
             zrun: 0,
             tel: [0.0; 16],
             blocks: 0,
+            vibe: vibe::Vibe::new(sample_rate),
         };
         let s = p.set;
         p.set(&s);
@@ -169,6 +190,7 @@ impl Phasis {
         self.zrun = 0;
         self.tel = [0.0; 16];
         self.blocks = 0;
+        self.vibe.reset(); // fx3:arca
     }
 
     pub fn latency(&self) -> usize {
@@ -198,10 +220,17 @@ impl Phasis {
         {
             return Some("a stage rings");
         }
+        // fx3:arca
+        if self.set.style == PhasisStyle::Vibe && !self.vibe.quiet() {
+            return Some("a stage rings");
+        }
         None
     }
 
     pub fn skip(&mut self, frames: usize) {
+        if self.set.style == PhasisStyle::Vibe {
+            self.skip_vibe(frames); // fx3:arca
+        }
         self.clock.skip(frames);
         self.zrun = self.zrun.saturating_add(frames as u32);
     }
@@ -215,6 +244,9 @@ impl Phasis {
     }
 
     pub fn process(&mut self, l: &mut [f32], r: &mut [f32]) {
+        if self.set.style == PhasisStyle::Vibe {
+            return self.process_vibe(l, r); // fx3:arca
+        }
         let n = l.len().min(r.len());
         let in_peak = peak_of(&l[..n], &r[..n]);
         let stages = self.set.stages;
@@ -296,6 +328,82 @@ impl Phasis {
     }
 }
 
+// fx3:arca — the Uni-Vibe's run.
+impl Phasis {
+    /// The lamps a sample on, each from its LFO.
+    #[inline]
+    fn lamps(&mut self, i: usize, spread: f32) -> (f32, f32) {
+        let ml = self.lfo.value(&self.clock, i);
+        let mr = if spread == 0.0 {
+            ml
+        } else {
+            self.lfo.value_offset(&self.clock, i, f64::from(spread))
+        };
+        let k = self.set.intensity;
+        self.vibe.drive(0, ml, k);
+        self.vibe.drive(1, mr, k);
+        (ml, mr)
+    }
+
+    fn skip_vibe(&mut self, frames: usize) {
+        let spread = self.spread.value;
+        for i in 0..frames {
+            self.lamps(i, spread);
+        }
+    }
+
+    fn process_vibe(&mut self, l: &mut [f32], r: &mut [f32]) {
+        let n = l.len().min(r.len());
+        let in_peak = peak_of(&l[..n], &r[..n]);
+        let (mut ml, mut mr) = (0.0f32, 0.0f32);
+        for i in 0..n {
+            let (x, y) = (l[i], r[i]);
+            if x.to_bits() == 0 && y.to_bits() == 0 {
+                self.zrun = self.zrun.saturating_add(1);
+            } else {
+                self.zrun = 0;
+            }
+            let (gd, gw) = crate::concentus::mix_gains(self.mix.next());
+            let out = self.out.next();
+            let spread = self.spread.next();
+            (ml, mr) = self.lamps(i, spread);
+            if self.zrun >= SETTLE_RUN {
+                self.vibe.settle(SETTLE);
+            }
+            let wl = self.vibe.run(0, x);
+            let wr = self.vibe.run(1, y);
+            let (mut ox, mut oy) = if gw == 0.0 {
+                (x, y)
+            } else {
+                (x * gd + wl * gw, y * gd + wr * gw)
+            };
+            if out != 1.0 {
+                ox *= out;
+                oy *= out;
+            }
+            l[i] = ox;
+            r[i] = oy;
+        }
+        self.clock.advance(n);
+        self.blocks = (self.blocks + 1) % (1 << 24);
+        self.tel[tel::SAMPLE_RATE] = self.sr;
+        self.tel[tel::TEMPO] = self.clock.tempo() as f32;
+        self.tel[tel::PLAYING] = if self.clock.playing() { 1.0 } else { 0.0 };
+        self.tel[tel::MOD_L] = ml;
+        self.tel[tel::MOD_R] = mr;
+        self.tel[tel::IN_PEAK] = peak_db(in_peak);
+        self.tel[tel::OUT_PEAK] = peak_db(peak_of(&l[..n], &r[..n]));
+        self.tel[tel::BLOCKS] = self.blocks as f32;
+        // The first stage's frequency, left and right.
+        self.tel[T_FC_L] = self.vibe.stage_hz(0, 0);
+        self.tel[T_FC_R] = self.vibe.stage_hz(1, 0);
+    }
+}
+
 #[cfg(test)]
 #[path = "phasis_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "phasis_vibe_tests.rs"]
+mod vibe_tests; // fx3:arca

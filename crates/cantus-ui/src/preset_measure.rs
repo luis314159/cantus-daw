@@ -47,11 +47,14 @@ pub fn target(e: &Entry) -> f64 {
     }
 }
 
-/// Effects whose job is the level (a limiter, a maximizer, a clipper): no window.
+/// Effects whose job is the level (a limiter, a maximizer, a clipper; fx:libra — a utility,
+/// whose gain is the user's: a pad, a listen to one side): no window.
 pub fn levels_by_design(unit: Unit) -> bool {
     matches!(
         unit,
-        Unit::Effect(EffectKind::Limiter | EffectKind::Maximizer | EffectKind::Clipper)
+        Unit::Effect(
+            EffectKind::Limiter | EffectKind::Maximizer | EffectKind::Clipper | EffectKind::Utility // fx:libra
+        )
     )
 }
 
@@ -78,6 +81,9 @@ pub fn budget(unit: Unit) -> f64 {
         // chain (multiband into a limiter) that runs once per song.
         Unit::Instrument(InstrumentKind::Sampler) => 0.15,
         Unit::Effect(EffectKind::Maximizer) => 0.20,
+        // fx:fragor — circuits solved by Newton every oversampled sample (ADR 0131): two
+        // pedals, stereo, at 4× (the guitar presets play one circuit, mono, as a pedal does).
+        Unit::Effect(EffectKind::Pedal) => 0.25,
         _ => 0.10,
     }
 }

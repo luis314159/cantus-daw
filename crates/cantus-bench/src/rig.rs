@@ -122,9 +122,18 @@ impl Rig {
                     tx.push(EngineMessage::PdcLines(lines)).ok();
                     p.settle();
                 }
-                EngineEvent::EffectNeed { effect, need } => {
+                EngineEvent::EffectNeed {
+                    effect,
+                    pedal,
+                    need,
+                } => {
                     let memory = EffectMemory::build(need.need(), SAMPLE_RATE as f32);
-                    tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
+                    tx.push(EngineMessage::EffectMemory {
+                        effect,
+                        pedal,
+                        memory,
+                    })
+                    .ok();
                     p.settle();
                 }
                 _ => {}

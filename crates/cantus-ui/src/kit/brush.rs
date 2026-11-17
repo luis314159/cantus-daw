@@ -76,6 +76,9 @@ struct Deferred {
 /// See the module docs. Get one with [`with_brush`](super::with_brush) or own one per
 /// view; paint; [`flush`](Brush::flush) into a painter.
 pub struct Brush {
+    /// The painter's clip while the brush paints for it (set by [`with_brush`](super::with_brush)):
+    /// a text painted past it is noted as cut while the text probe runs.
+    pub clip: Rect,
     /// The geometry being painted: a plain mesh, so a vertex push is a `Vec` push.
     mesh: Mesh,
     /// Meshes handed to epaint; once epaint has dropped its clone, a later flush of a
@@ -102,6 +105,7 @@ pub struct Brush {
 impl Default for Brush {
     fn default() -> Self {
         Brush {
+            clip: Rect::EVERYTHING,
             mesh: Mesh::default(),
             pool: VecDeque::new(),
             cache: None,
@@ -994,6 +998,41 @@ impl Brush {
             let i3 = self.v(bottom[i - 1], color);
             self.tri(i0, i1, i2);
             self.tri(i0, i2, i3);
+        }
+    }
+
+    /// A soft band of light along `n` points, its colour and width free at every point (a
+    /// glowing gas, a ribbon of light over time): `at(i)` gives point `i`'s centre, its
+    /// half-width and its colour; `profile` the band's cross-section as (offset −1 … 1 of
+    /// the half-width, measured down; the colour's share there), ascending. The offsets are
+    /// vertical (a band over a time axis). One strip of quads per pair of profile rows, not
+    /// feathered — the profile's own edges fade it (fxa:caelum, design sheet v2).
+    pub fn ribbon(
+        &mut self,
+        n: usize,
+        at: impl Fn(usize) -> (Pos2, f32, Color32),
+        profile: &[(f32, f32)],
+    ) {
+        let m = profile.len() as u32;
+        if n < 2 || m < 2 {
+            return;
+        }
+        let base = self.mesh.vertices.len() as u32;
+        for i in 0..n {
+            let (p, h, c) = at(i);
+            for &(o, a) in profile {
+                self.v(
+                    Pos2::new(p.x, p.y + o * h),
+                    c.gamma_multiply(a.clamp(0.0, 1.0)),
+                );
+            }
+        }
+        for i in 1..n as u32 {
+            let (r0, r1) = (base + (i - 1) * m, base + i * m);
+            for j in 1..m {
+                self.tri(r0 + j - 1, r1 + j - 1, r1 + j);
+                self.tri(r0 + j - 1, r1 + j, r0 + j);
+            }
         }
     }
 

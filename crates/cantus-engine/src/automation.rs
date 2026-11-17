@@ -370,9 +370,13 @@ impl Runtime {
                 let i = match self.effects.iter().position(|c| c.effect == *effect) {
                     Some(i) => i,
                     None => {
+                        let mut spec = slot.spec.clone();
+                        // fx3:tabula — a board's macro targets stored, so writing them is a
+                        // write (the macros win over lanes, in `processor_auto`).
+                        cantus_core::fx::tabula::ensure_macro_keys(&mut spec);
                         self.effects.push(FxCopy {
                             effect: *effect,
-                            spec: slot.spec.clone(),
+                            spec,
                             dirty: false,
                             at: None,
                             line_note: None,
@@ -382,9 +386,14 @@ impl Runtime {
                 };
                 // The key is in the copy from the start, so writing it later is a write and
                 // never an insertion (which would allocate).
+                // fx3:contract — routed: a board's `p{id}.…` is stored in its pedal.
                 let spec = &mut self.effects[i].spec;
-                let v = spec.get(key);
-                spec.params.insert(key.clone(), v);
+                if !spec.ensure(key) {
+                    // A key the effect has not: stored as before (inert), so nothing that
+                    // played before changes.
+                    let v = spec.get(key);
+                    spec.params.insert(key.clone(), v);
+                }
                 Some(Dest::Effect(i, key.clone()))
             }
             AutoTarget::Instrument { track: t, key } => {
@@ -580,7 +589,8 @@ impl Runtime {
             match &l.dest {
                 Dest::Effect(i, key) => {
                     if let Some(c) = self.effects.get_mut(*i) {
-                        if let Some(x) = c.spec.params.get_mut(key.as_str()) {
+                        // fx3:contract — routed, and never an insertion.
+                        if let Some(x) = c.spec.value_mut(key.as_str()) {
                             *x = v;
                             c.dirty = true;
                         }

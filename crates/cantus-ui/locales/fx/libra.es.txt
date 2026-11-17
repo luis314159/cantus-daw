@@ -1,0 +1,89 @@
+# Libra (ronda lateral de efectos) — de Libra. Cada clave necesita su gemela en libra.en.txt.
+effect.libra = Libra utilidad
+fx.libra.about = Las herramientas de cada día de un canal: ganancia, balance y anchura, polaridad, intercambio de canales y mono, un retardo para alinear dos micrófonos, quitar la continua, un afinador y la imagen estéreo medida.
+picker.dev.libra.name = Libra
+picker.dev.libra.what = Utilidad
+picker.dev.libra.about = Las herramientas de cada día de un canal: ganancia, balance y anchura, polaridad, intercambio de canales y mono, un retardo para alinear dos micrófonos, quitar la continua, un afinador y la imagen estéreo medida.
+mixer.chain.libra = Utilidad
+
+# Parámetros.
+fx.libra.out = Ganancia
+fx.libra.pan = Balance
+fx.libra.width = Anchura
+fx.libra.chan = Canales
+fx.libra.pol.l = Polaridad izquierda
+fx.libra.pol.r = Polaridad derecha
+fx.libra.dc = Quitar DC
+fx.libra.delay.l = Retardo izquierdo
+fx.libra.delay.r = Retardo derecho
+fx.libra.delay.unit = Retardos en
+fx.libra.mute = Silencio
+fx.libra.tuner.ref = La del afinador
+
+# Opciones.
+libra.onoff.0 = Apagado
+libra.onoff.1 = Encendido
+libra.pol.0 = Normal
+libra.pol.1 = Invertida
+libra.unit.0 = ms
+libra.unit.1 = Muestras
+libra.chan.0 = Estéreo
+libra.chan.1 = Intercambiar
+libra.chan.2 = Mono
+libra.chan.3 = Izquierdo
+libra.chan.4 = Derecho
+libra.chan.5 = Mid
+libra.chan.6 = Side
+libra.chan.0.tip = Izquierdo y derecho tal como llegan.
+libra.chan.1.tip = Izquierdo y derecho intercambiados.
+libra.chan.2.tip = Los dos canales sumados en mono (la mitad de cada uno): comprueba la mezcla en mono.
+libra.chan.3.tip = El canal izquierdo en ambos lados.
+libra.chan.4.tip = El canal derecho en ambos lados.
+libra.chan.5.tip = El mid (lo que comparten ambos lados) en ambos lados.
+libra.chan.6.tip = El side (lo que difiere entre ellos) en ambos lados: escucha solo la anchura.
+
+# El editor.
+libra.card.measure = La medida
+libra.card.channels = Canales
+libra.card.delays = Retardos
+libra.card.image = Imagen
+libra.card.gain = Ganancia
+libra.card.switches = Interruptores
+libra.l.operation = Operación
+libra.l.polarity = Invertir polaridad
+libra.l.left = Izquierdo
+libra.l.right = Derecho
+libra.l.shown_in = Mostrados en
+libra.l.tuner_a = Afinador
+libra.l.dc = Quitar DC
+libra.l.mute = Silencio
+libra.no_pitch = Sin altura
+libra.corr = Correlación
+libra.samples = muestras
+libra.cmd.centre = Centrar la imagen
+libra.gonio_tip = El goniómetro: el medio de la salida hacia arriba, sus lados a lo ancho
+libra.gonio_how = Arrastra a los lados para el balance, arriba y abajo para la anchura. Doble clic: centrado, como llegó.
+libra.tuner_tip = El afinador: la nota que suena a la salida y cuánto se desvía, en cents
+libra.tuner_how = Arrastra arriba y abajo para mover el La de referencia (de 415 a 466 Hz).
+
+# Presets de fábrica.
+preset.libra.mono_check = Comprobar en mono
+preset.libra.flip_left = Invertir el izquierdo
+preset.libra.flip_both = Invertir ambos
+preset.libra.align_1ms = Alinear 1 ms
+preset.libra.haas_wide = Anchura Haas
+preset.libra.dc_clean = Sin continua
+preset.libra.mid_only = Solo el medio
+preset.libra.side_only = Solo los lados
+preset.libra.swap = Cambiar los lados
+preset.libra.narrow = Más estrecho
+preset.libra.wider = Más ancho
+preset.libra.pad_minus_12 = Atenuar 12 dB
+preset.libra.left_to_both = Izquierdo a ambos
+preset.libra.bass_mono = Bajo en mono
+libra.balance_tip = La balanza: el brazo se inclina con el balance izquierdo y derecho, los brazos alcanzan tanto como la imagen
+libra.balance_how = Arrastra a los lados para el balance, arriba y abajo para la anchura. Doble clic: centrado, como llegó.
+libra.level = Nivel
+libra.delay = Retardo
+libra.inverted = polaridad invertida
+libra.reference = La de referencia

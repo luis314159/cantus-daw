@@ -339,6 +339,170 @@ fn through_vst3_is_bit_identical_to_the_dsp() {
     }
 }
 
+/// fxa:loquax — Loquax's carrier through VST3's sidechain bus (the aux input, activated as a
+/// host does), the plug-in's switch on the external key in its state: exactly the DSP keyed
+/// by the same sound, and loud where the unkeyed vocoder is silent.
+#[test]
+fn loquax_s_carrier_is_the_vst3_sidechain_bus() {
+    let kind = EffectKind::Vocoder;
+    // Off the starting preset's robot, the consonants' noise and sibilance off: only the
+    // key carries.
+    let values = [
+        ("mix", 1.0),
+        ("robot", 0.0),
+        ("src", 0.0),
+        ("bands", 16.0),
+        ("sib", 0.0),
+        ("unv", 0.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let mut state: serde_json::Value = serde_json::to_value(&spec).unwrap();
+    state
+        .as_object_mut()
+        .unwrap()
+        .insert("sidechain".into(), true.into());
+    let v = V3::new(kind);
+    assert!(v.set_state(&serde_json::to_vec(&state).unwrap()));
+    v.activate(1024);
+    let n = 24_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (mut l, mut r) = signal(n, 3);
+    let (mut el, mut er) = (l.clone(), r.clone());
+    for at in (0..n).step_by(1000) {
+        let end = (at + 1000).min(n);
+        v.process(
+            &mut l[at..end],
+            &mut r[at..end],
+            Some((&key_l[at..end], &key_r[at..end])),
+            &[],
+        );
+    }
+    let _g = DenormalGuard::new();
+    let mut d = Direct::new(&spec);
+    d.process(&mut el, &mut er, Some((&key_l, &key_r)));
+    assert_identical("Loquax keyed, left", &l, &el);
+    assert_identical("Loquax keyed, right", &r, &er);
+    assert!(
+        l.iter().map(|x| x * x).sum::<f32>() > 1.0,
+        "the key carries"
+    );
+}
+
+/// fxa:caelum — Caelum's ducking keyed by VST3's sidechain bus (the aux input, activated as a
+/// host does), the plug-in's switch on the external key in its state: exactly the DSP keyed
+/// by the same sound, and the wet stepped aside where the unkeyed one is not.
+#[test]
+fn caelum_s_ducking_is_keyed_by_the_vst3_sidechain_bus() {
+    let kind = EffectKind::Shimmer;
+    let values = [
+        ("mix", 0.5),
+        ("decay", 2.0),
+        ("shim", 0.4),
+        ("duck", 24.0),
+        ("dthr", -30.0),
+        ("datt", 5.0),
+        ("drel", 200.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut wets = Vec::new();
+    for keyed in [false, true] {
+        let mut state: serde_json::Value = serde_json::to_value(&spec).unwrap();
+        state
+            .as_object_mut()
+            .unwrap()
+            .insert("sidechain".into(), keyed.into());
+        let v = V3::new(kind);
+        assert!(v.set_state(&serde_json::to_vec(&state).unwrap()));
+        v.activate(1024);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        for at in (0..n).step_by(1000) {
+            let end = (at + 1000).min(n);
+            v.process(
+                &mut l[at..end],
+                &mut r[at..end],
+                Some((&key_l[at..end], &key_r[at..end])),
+                &[],
+            );
+        }
+        let _g = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Caelum keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Caelum keyed {keyed}, right"), &r, &er);
+        wets.push(
+            l.iter()
+                .zip(&quiet_l)
+                .map(|(o, i)| o - i)
+                .collect::<Vec<f32>>(),
+        );
+    }
+    let energy = |x: &[f32]| x[24_000..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&wets[1]) < 0.1 * energy(&wets[0]),
+        "the key ducks the wet: {} against {}",
+        energy(&wets[1]),
+        energy(&wets[0])
+    );
+}
+
+/// fxa:caelum — Caelum's pre-delay synced to a VST3 host's tempo (`ProcessContext`): a
+/// quarter at 90 BPM is 666.7 ms — bit-identical to the DSP with that pre-delay, and the wet's
+/// first sound that far after the click (the earliest tap 13 ms on).
+#[test]
+fn caelum_s_synced_pre_delay_follows_the_vst3_hosts_tempo() {
+    let kind = EffectKind::Shimmer;
+    let tempo = 90.0f64;
+    let values = [("mix", 1.0), ("psync", 6.0), ("decay", 1.0), ("out", 0.0)];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let mut input = (vec![0.0f32; n], vec![0.0f32; n]);
+    input.0[0] = 1.0;
+    input.1[0] = 1.0;
+    let mut d = cantus_dsp::caelum::Caelum::new(SR);
+    let mut s = cantus_engine::fx::caelum::settings(&spec);
+    s.predelay_ms = cantus_dsp::caelum::sync_ms(1.0, tempo as f32);
+    d.set(&s);
+    d.reset();
+    let (mut el, mut er) = input.clone();
+    d.process(&mut el, &mut er, None);
+    let v = V3::new(kind);
+    assert!(v.set_state(&state_of(kind, &values)));
+    v.activate(4096);
+    let (mut l, mut r) = input.clone();
+    for at in (0..n).step_by(512) {
+        let m = 512.min(n - at);
+        let mut c: ProcessContext = unsafe { std::mem::zeroed() };
+        use ProcessContext_::StatesAndFlags_::*;
+        c.state = (kPlaying | kTempoValid | kProjectTimeMusicValid | kTimeSigValid) as u32;
+        c.sampleRate = SR as f64;
+        c.tempo = tempo;
+        c.projectTimeMusic = at as f64 * tempo / 60.0 / SR as f64;
+        c.timeSigNumerator = 4;
+        c.timeSigDenominator = 4;
+        v.context.set(Some(c));
+        v.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
+    }
+    assert_identical("Caelum synced, left", &l, &el);
+    assert_identical("Caelum synced, right", &r, &er);
+    let first = l[1..].iter().position(|x| x.abs() > 1e-6).map(|i| i + 1);
+    let want = (2.0 / 3.0 * SR) as usize;
+    let first = first.expect("the wet sounds");
+    assert!(
+        first >= want && first < want + SR as usize / 20,
+        "the wet after the quarter's pre-delay: {first} (want {want} and on)"
+    );
+}
+
 #[test]
 fn vst3_automation_lands_on_the_grid() {
     let kind = EffectKind::Gate;
@@ -573,6 +737,61 @@ fn a_synced_tremor_follows_the_hosts_tempo_and_position_through_vst3() {
     let at = |beat: f64| ((beat - start) * 60.0 / tempo * SR as f64) as usize;
     assert_eq!(el[at(2.7)], 0.0);
     assert_eq!(el[at(3.25)], 1.0);
+}
+
+/// fxa:fractus — Fractus's lanes on a VST3 host's beats (`ProcessContext`): its state's lanes
+/// (the starting stutter) at 90 BPM from beat 2.5, bit-identical to the DSP given the same
+/// song position, whatever the blocks.
+#[test]
+fn fractus_s_lanes_follow_the_hosts_tempo_through_vst3() {
+    let kind = EffectKind::Glitch;
+    let (tempo, start, n) = (90.0f64, 2.5f64, 96_000usize);
+    let spec = spec_with(kind, &[]);
+    let input = signal(n, 7);
+    let mut d = cantus_dsp::fractus::Fractus::new(SR);
+    let mut pat = Box::new(cantus_dsp::fractus::Pattern::EMPTY);
+    d.set(&cantus_engine::fx::fractus::settings(&spec));
+    cantus_engine::fx::fractus::pattern_into(spec.fractus.as_deref(), &mut pat);
+    d.set_pattern(&pat);
+    d.reset();
+    let (mut el, mut er) = input.clone();
+    let start_samples = (start * 60.0 / tempo * SR as f64).round() as i64;
+    let mut at = 0;
+    while at < n {
+        let m = 512.min(n - at);
+        d.set_transport(&cantus_dsp::modfx_clock::Transport {
+            playing: true,
+            tempo_bpm: tempo,
+            samples: start_samples + at as i64,
+        });
+        d.process(&mut el[at..at + m], &mut er[at..at + m]);
+        at += m;
+    }
+    assert!(diff(&el, &input.0).is_some(), "the stutter is heard");
+    for blocks in [&[512][..], &[7], &[5, 333, 64]] {
+        let v = V3::new(kind);
+        assert!(v.set_state(&state_of(kind, &[])));
+        v.activate(4096);
+        let (mut l, mut r) = input.clone();
+        let (mut at, mut b) = (0usize, 0usize);
+        while at < n {
+            let m = blocks[b % blocks.len()].min(n - at);
+            b += 1;
+            let mut c: ProcessContext = unsafe { std::mem::zeroed() };
+            use ProcessContext_::StatesAndFlags_::*;
+            c.state = (kPlaying | kTempoValid | kProjectTimeMusicValid | kTimeSigValid) as u32;
+            c.sampleRate = SR as f64;
+            c.tempo = tempo;
+            c.projectTimeMusic = start + at as f64 * tempo / 60.0 / SR as f64;
+            c.timeSigNumerator = 4;
+            c.timeSigDenominator = 4;
+            v.context.set(Some(c));
+            v.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
+            at += m;
+        }
+        assert_identical(&format!("Fractus VST3 blocks {blocks:?}"), &l, &el);
+        assert_identical(&format!("Fractus VST3 blocks {blocks:?}, right"), &r, &er);
+    }
 }
 
 /// Fix2 (review 2): a VST3 host that gives its tempo and the song in samples

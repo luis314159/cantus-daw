@@ -230,6 +230,7 @@ impl Processor {
                 c.probed = self.probed;
                 c.analysed = self.analysed;
                 c.hear_key = self.hear_key; // r40:pads
+                c.analysed_pedal = self.analysed_pedal; // fx3:contract
                 c.scoped = self.scoped;
                 c.scoped_delay = self.scoped_delay;
                 c.capture_slot = self.capture_slot;
@@ -483,6 +484,9 @@ impl Processor {
             }
             if let Some(t) = a.fx.take() {
                 self.meters.fx = t;
+            }
+            if let Some(t) = a.fx_pedal.take() {
+                self.meters.fx_pedal = t; // fx3:contract
             }
         }
         if let Some(mut c) = nodes.capture.try_borrow_mut() {

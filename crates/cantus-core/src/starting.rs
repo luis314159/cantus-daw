@@ -39,11 +39,27 @@ pub enum Neutral {
     Hosted,
 }
 
+/// A starting preset that is more than values (fx3:contract, ADR 0134): a whole spec —
+/// a board's pedals — built by a function, with its label key.
+#[derive(Copy, Clone, Debug)]
+pub struct StartingSpec {
+    pub label_key: &'static str,
+    pub spec: fn() -> EffectSpec,
+}
+
+impl PartialEq for StartingSpec {
+    fn eq(&self, other: &Self) -> bool {
+        self.label_key == other.label_key && std::ptr::fn_addr_eq(self.spec, other.spec)
+    }
+}
+
 /// What an insert of a kind starts with.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Start {
     Preset(StartingPreset),
     Neutral(Neutral),
+    /// A whole spec (fx3:contract): Tabula's rig.
+    Spec(StartingSpec),
 }
 
 const fn preset(label_key: &'static str, params: &'static [(&'static str, f32)]) -> Start {
@@ -63,6 +79,123 @@ pub fn start_of(kind: EffectKind) -> Start {
         K::Limiter | K::Maximizer | K::Clipper => Start::Neutral(MustNotSurprise),
         K::Analyzer => Start::Neutral(Measures),
         K::External => Start::Neutral(Hosted),
+        // fx:cribrum — a resonant ladder swept once a bar: the insert moves at once.
+        K::AutoFilter => preset(
+            "preset.cribrum.bar_sweep",
+            &[
+                ("mix", 1.0),
+                ("a.model", 1.0),
+                ("a.slope", 1.0),
+                ("a.cut", 1_200.0),
+                ("a.res", 0.45),
+                ("lfo.div", 3.0),
+                ("lfo.cut", 1.5),
+                ("out", 3.0),
+            ],
+        ),
+        // fx:fragor — the green overdrive on the board, pushing gently.
+        K::Pedal => preset(
+            "preset.fragor.green_push",
+            &[
+                ("s1", 1.0),
+                ("od.drive", 0.45),
+                ("od.tone", 0.55),
+                ("od.level", 0.55),
+                ("out", -3.5),
+            ],
+        ),
+        // fx:lapsus — half time every half bar: heard at once, musical on drums and loops.
+        K::TimeShaper => preset(
+            "preset.lapsus.half_time",
+            &[("mix", 1.0), ("out", 3.1), ("tslot", 7.0), ("vslot", 0.0)],
+        ),
+        // fx:vetus — a worn cassette: wow and flutter, hiss, the tape's band, a little age.
+        K::LoFi => preset(
+            "preset.vetus.worn_cassette",
+            &[
+                ("wob.on", 1.0),
+                ("wow", 14.0),
+                ("flut", 5.0),
+                ("noise.on", 1.0),
+                ("crackle", 0.0),
+                ("hiss", 0.3),
+                ("tone.on", 1.0),
+                ("tone.hi", 10_000.0),
+                ("age.on", 1.0),
+                ("age.drop", 0.2),
+                ("age.wear", 0.3),
+                ("out", -2.9),
+            ],
+        ), // fx:vetus
+        // fx:libra — a utility inserts as a wire: it corrects what the user asks for, and a
+        // starting preset would change a level or an image nobody asked to change.
+        K::Utility => Start::Neutral(Flat),
+        // fx3:contract — Tabula starts as the owner's guitar rig: Fragor's green overdrive at
+        // a low drive, Concentus, Delay and Spatium's spring (ADR 0134).
+        K::Board => Start::Spec(StartingSpec {
+            label_key: "preset.tabula.guitar_rig",
+            spec: crate::fx::tabula::guitar_rig,
+        }),
+        // fx3:contract — wave 3's stubs start at their defaults until each builder gives
+        // its unit a starting preset or its real reason for none (ADR 0071).
+        // fx3:saltus — the twelve-string: an octave up at 60 % over the dry, by the poly
+        // engine (chords stay chords) — heard at once on a guitar, a synth or a whole mix.
+        K::PitchShift => preset(
+            "preset.saltus.twelve_string",
+            &[
+                ("engine", 1.0),
+                ("st1", 12.0),
+                ("lvl1", 0.6),
+                ("dry", 1.0),
+                ("out", -0.9),
+            ],
+        ), // fx3:saltus
+        // fx3:rota — the cabinet turning slow, all wet: an organ's or a guitar's chorale.
+        K::Rotary => preset("preset.rota.chorale", &[("mix", 1.0), ("out", 3.6)]), // fx3:rota
+        // fx3:arca — the clean amp at a sweet low gain into its open 1×12.
+        K::Amp => preset(
+            "preset.arca.clean_combo",
+            &[("model", 1.0), ("gain", 0.3), ("cab", 1.0), ("out", 5.4)],
+        ), // fx3:arca
+        // fxa:loquax — the robot: the synthesiser drones C3 while the voice speaks, so a
+        // voice through it is heard vocoded at once, with no notes and no sidechain.
+        K::Vocoder => preset(
+            "preset.loquax.robot",
+            // Its object, the gooseneck (`obj` 0), as every factory preset names its own.
+            &[
+                ("mix", 1.0),
+                ("robot", 1.0),
+                ("bands", 16.0),
+                ("out", 0.5),
+                ("obj", 0.0),
+            ],
+        ), // fxa:loquax
+        // fxa:fractus — the last beat of each bar stutters in thirty-seconds: heard at once
+        // on drums, a loop or a strum, and the rest of the bar untouched.
+        K::Glitch => Start::Spec(StartingSpec {
+            label_key: "preset.fractus.last_beat_stutter",
+            spec: crate::fx::fractus::last_beat_stutter,
+        }), // fxa:fractus
+        // fxa:caelum — a wide space whose tail climbs an octave, softly (the DSP's own
+        // `presets::starting`).
+        K::Shimmer => preset(
+            "preset.caelum.octave_shimmer",
+            &[
+                ("size", 0.72),
+                ("decay", 6.5),
+                ("pre", 30.0),
+                ("diff", 0.8),
+                ("hhz", 7_000.0),
+                ("hdec", 0.45),
+                ("mdepth", 0.35),
+                ("mrate", 0.35),
+                ("shim", 0.55),
+                ("slo", 350.0),
+                ("mix", 0.35),
+                // Fitted to the dry's loudness (`preset_tool fit`).
+                ("out", -0.9),
+            ],
+        ), // fxa:caelum
         K::Multiband => preset(
             "mb.preset.glue",
             &[
@@ -192,11 +325,15 @@ pub fn start_of(kind: EffectKind) -> Start {
     }
 }
 
+/// fx3:start — the label key an insert reports when it started on the person's own choice
+/// (ADR 0138); the choice's own name is [`crate::starting_user::UserStart::label`].
+pub const USER_START: &str = "start.user";
+
 /// A kind's starting preset, if it has one.
 pub fn starting_preset(kind: EffectKind) -> Option<StartingPreset> {
     match start_of(kind) {
         Start::Preset(p) => Some(p),
-        Start::Neutral(_) => None,
+        Start::Neutral(_) | Start::Spec(_) => None,
     }
 }
 
@@ -204,6 +341,19 @@ pub fn starting_preset(kind: EffectKind) -> Option<StartingPreset> {
 /// key the kind does not have is left out (none does: a test holds every key to its
 /// kind). Returns the preset's label key, or `None` for a unit that starts neutral.
 pub fn apply(spec: &mut EffectSpec) -> Option<&'static str> {
+    // fx3:start — the person's own start for this unit, when they chose one (ADR 0138).
+    if let Some(u) = crate::starting_user::get(spec.kind) {
+        *spec = u.spec;
+        return Some(USER_START);
+    }
+    // fx3:contract — a whole spec replaces the values and the board it holds.
+    if let Start::Spec(s) = start_of(spec.kind) {
+        let new = (s.spec)();
+        spec.params = new.params;
+        spec.board = new.board;
+        spec.fractus = new.fractus; // fxa:fractus
+        return Some(s.label_key);
+    }
     let p = starting_preset(spec.kind)?;
     for (k, v) in p.params {
         let _ = spec.set(k, *v);
@@ -251,6 +401,13 @@ mod tests {
                     }
                 }
                 Start::Neutral(_) => assert_eq!(starting_spec(kind), EffectSpec::new(kind)),
+                // fx3:contract — a whole spec of its kind that differs from the defaults.
+                Start::Spec(s) => {
+                    let built = (s.spec)();
+                    assert_eq!(built.kind, kind);
+                    assert_ne!(built, EffectSpec::new(kind), "{kind:?}: it changes nothing");
+                    assert_eq!(starting_spec(kind), built);
+                }
             }
         }
         assert_eq!(

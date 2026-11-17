@@ -695,8 +695,157 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("tone_hz", 4_500.0),
             ("mix", 0.6),
         ],
+        // fx:contract — the side round's five: each builder writes its own settings line.
+        // fx:cribrum — both filters, every source moving, oversampled.
+        EffectKind::AutoFilter => vec![
+            ("mix", 0.9),
+            ("os", 1.0),
+            ("a.model", 1.0),
+            ("a.slope", 1.0),
+            ("a.res", 0.6),
+            ("b.on", 1.0),
+            ("b.mode", 5.0),
+            ("lfo.cut", 2.0),
+            ("lfo.stereo", 90.0),
+            ("env.cut", 1.0),
+            ("cur.vowel", 1.0),
+            ("out", -3.0),
+        ],
+        EffectKind::Pedal => vec![
+            ("s1", 1.0),
+            ("s2", 4.0),
+            ("od.drive", 0.7),
+            ("ge.fuzz", 0.8),
+            ("out", -6.0),
+        ], // fx:fragor
+        // fx:lapsus — the roll build under a trance gate, mixed, long joins.
+        EffectKind::TimeShaper => vec![
+            ("tslot", 16.0),
+            ("vslot", 5.0),
+            ("mix", 0.8),
+            ("xfade", 4.0),
+            ("smooth", 3.0),
+            ("out", -3.0),
+        ],
+        // fx:vetus — every module on, the dither and the noise's hashes, Character up.
+        EffectKind::LoFi => vec![
+            ("char", 0.4),
+            ("bits.on", 1.0),
+            ("bits.depth", 7.0),
+            ("bits.dither", 1.0),
+            ("rate.on", 1.0),
+            ("rate.hz", 9_000.0),
+            ("rate.filter", 2.0),
+            ("wob.on", 1.0),
+            ("age.on", 1.0),
+            ("noise.on", 1.0),
+            ("hum", 0.3),
+            ("tone.on", 1.0),
+            ("tone.medium", 3.0),
+            ("mix", 0.8),
+            ("out", -3.0),
+        ], // fx:vetus
+        // fx:libra — every stage at work.
+        EffectKind::Utility => vec![
+            ("dc", 1.0),
+            ("chan", 2.0),
+            ("pol.r", 1.0),
+            ("delay.l", 3.3),
+            ("width", 0.6),
+            ("pan", 0.25),
+            ("out", -6.0),
+        ], // fx:libra
+        // fx3:contract — wave 3's four: each builder writes its own settings line.
+        EffectKind::Board => vec![("in", 2.0), ("mix", 0.8), ("m1", 0.6), ("out", -6.0)], // fx3:tabula
+        // fx3:saltus — the mono shift's two voices spread over the dry, formants moved.
+        EffectKind::PitchShift => vec![
+            ("st1", 7.0),
+            ("ct1", 12.0),
+            ("pan1", -0.5),
+            ("st2", -12.0),
+            ("lvl2", 0.7),
+            ("pan2", 0.4),
+            ("dry", 0.6),
+            ("formant", 0.0),
+            ("throat", -2.0),
+            ("out", -6.0),
+        ],
+        // fx3:rota — fast, the amp driven, the microphones wide and back, more horn.
+        EffectKind::Rotary => vec![
+            ("speed", 2.0),
+            ("drive", 0.4),
+            ("spread", 150.0),
+            ("dist", 90.0),
+            ("balance", 2.0),
+            ("mix", 1.0),
+            ("out", -6.0),
+        ], // fx3:rota
+        // fx3:arca — the crunch amp driven into the vintage 4×12, a ribbon off-centre, 2×.
+        EffectKind::Amp => vec![
+            ("model", 2.0),
+            ("gain", 0.7),
+            ("treble", 0.6),
+            ("cab", 3.0),
+            ("mic", 1.0),
+            ("micpos", 0.4),
+            ("os", 0.0),
+            ("out", -6.0),
+        ], // fx3:arca
+        // fxa:loquax — the robot drones under the test signal in 24 steep bands, its formants
+        // up, spread, a band drawn down (the signal speaks with no notes and no key).
+        EffectKind::Vocoder => vec![
+            ("mix", 0.9),
+            ("robot", 1.0),
+            ("rgate", -80.0),
+            ("bands", 24.0),
+            ("order", 2.0),
+            ("formant", 3.0),
+            ("spread", 0.5),
+            ("b5", -9.0),
+            ("out", -3.0),
+        ], // fxa:loquax
+        // fxa:fractus — no host transport here, so the steps rest (the starting stutter is
+        // painted all the same): the cloud beside the chain, pitched a fifth and spread, some
+        // grains backwards, and the output moved. The lanes on the host's beats are in
+        // `transport.rs` and `vst3.rs`; notes playing them in `notes.rs`.
+        EffectKind::Glitch => vec![
+            ("clevel", 0.5),
+            ("cpitch", 7.0),
+            ("cdens", 60.0),
+            ("csize", 80.0),
+            ("cspread", 0.7),
+            ("crev", 0.3),
+            ("mix", 0.9),
+            ("out", -3.0),
+        ], // fxa:fractus
+        // fxa:caelum — both voices climbing (an octave, a fifth), a short bloom, ducking by
+        // its own input, half wet, the output moved. Keyed ducking is in `clap.rs` and
+        // `vst3.rs`; the pre-delay on the host's tempo in `transport.rs` and `vst3.rs`.
+        EffectKind::Shimmer => vec![
+            ("mix", 0.5),
+            ("decay", 3.0),
+            ("shim", 0.6),
+            ("pblvl", 0.5),
+            ("bloom", 300.0),
+            ("duck", 6.0),
+            ("out", -3.0),
+        ], // fxa:caelum
         _ => vec![],
     }
+}
+
+/// fx3:tabula — a board's spec as the exported plug-in holds it: the guitar rig when the
+/// state names no board (a fresh instance's), its macros applied; any other spec as it is.
+pub fn board_spec(spec: &EffectSpec) -> EffectSpec {
+    let mut s = spec.clone();
+    if s.kind == EffectKind::Board {
+        if s.board.is_none() {
+            s.board = cantus_core::fx::tabula::guitar_rig().board;
+        }
+        cantus_core::fx::tabula::ensure_macro_keys(&mut s);
+        cantus_core::fx::tabula::apply_macros(&mut s);
+    }
+    s
 }
 
 /// The plug-ins of the family.
@@ -768,6 +917,36 @@ pub enum Direct {
     Aula(Box<cantus_dsp::aula::Aula>, (u64, [u32; 9])),
     /// r40:delay — Delay, on the line its settings want.
     Delay(Box<cantus_dsp::StereoDelay>),
+    /// fx:fragor — the engine's unit itself (Fragor's board, its circuits and oversampling
+    /// live in the engine's `fx::fragor`).
+    Stub(Box<dyn cantus_engine::fx::FxUnit>),
+    /// fx:cribrum — Cribrum, the auto filter.
+    Cribrum(Box<cantus_dsp::cribrum::Cribrum>),
+    /// fx:vetus — Vetus, lo-fi.
+    Vetus(Box<cantus_dsp::vetus::Vetus>),
+    /// fx:libra — Libra, the utility.
+    Libra(Box<cantus_dsp::libra::Libra>),
+    /// fx3:saltus — Saltus, the pitch unit.
+    Saltus(Box<cantus_dsp::saltus::Saltus>),
+    /// fx3:rota — Rota, the rotary speaker.
+    Rota(Box<cantus_dsp::rota::Rota>),
+    /// fx3:arca — Arca, the amp and its cabinet.
+    Arca(Box<cantus_dsp::arca::Arca>),
+    /// fxa:loquax — Loquax, the vocoder (its notes, when any, through `Direct::note`).
+    Loquax(Box<cantus_dsp::loquax::Loquax>),
+    /// fxa:fractus — Fractus, the glitch sequencer: its DSP with the lanes written into
+    /// its steps as the engine writes them (`fx::fractus::pattern_into`).
+    /// fxa:caelum — Caelum, the shimmer reverb: its DSP (the pre-delay synced at 120 BPM when
+    /// asked, no host transport here) and its output level gliding after it, as the engine's
+    /// unit glides it.
+    Caelum(
+        Box<cantus_dsp::caelum::Caelum>,
+        cantus_dsp::modfx_line::Glide,
+    ),
+    Fractus(
+        Box<cantus_dsp::fractus::Fractus>,
+        Box<cantus_dsp::fractus::Pattern>,
+    ),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -830,6 +1009,54 @@ impl Direct {
                 cantus_engine::fx::aula::want(spec),
             ), // r39:conv
             EffectKind::Delay => Direct::Delay(Box::new(cantus_dsp::StereoDelay::new(SR))),
+            EffectKind::AutoFilter => Direct::Cribrum(Box::new(cantus_dsp::cribrum::Cribrum::new(
+                SR,
+                cantus_engine::fx::fluctus::shape_at,
+            ))), // fx:cribrum
+            EffectKind::Pedal => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::Pedal, SR).unwrap())
+            } // fx:contract
+            // fx:lapsus — the engine's unit with its history, as `EffectUnit::new` gives it.
+            EffectKind::TimeShaper => {
+                let mut u = cantus_engine::fx::make(EffectKind::TimeShaper, SR).unwrap();
+                u.configure(spec);
+                if let Some(need) = u.memory_need() {
+                    drop(u.supply(cantus_engine::EffectMemory::build(need, SR)));
+                }
+                Direct::Stub(u)
+            }
+            EffectKind::LoFi => {
+                Direct::Vetus(Box::new(cantus_dsp::vetus::Vetus::new(SR))) // fx:vetus
+            } // fx:contract
+            EffectKind::Utility => {
+                Direct::Libra(Box::new(cantus_dsp::libra::Libra::new(
+                    SR,
+                    cantus_core::balance_gains,
+                ))) // fx:libra
+            } // fx:contract
+            // fx3:contract — wave 3's stubs: the engine's units (each builder names its DSP
+            // here and drops its Stub arm; the board stays the engine's own unit).
+            EffectKind::Board => {
+                let s = board_spec(spec);
+                let mut u = cantus_engine::fx::tabula::Unit::build(&s, SR);
+                use cantus_engine::FxUnit;
+                if let Some(need) = u.memory_need() {
+                    drop(u.supply(cantus_engine::EffectMemory::build(need, SR)));
+                }
+                Direct::Stub(Box::new(u))
+            } // fx3:tabula
+            EffectKind::PitchShift => Direct::Saltus(Box::new(cantus_dsp::saltus::Saltus::new(SR))), // fx3:saltus
+            EffectKind::Rotary => Direct::Rota(Box::new(cantus_dsp::rota::Rota::new(SR))), // fx3:rota
+            EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
+            EffectKind::Vocoder => Direct::Loquax(Box::new(cantus_dsp::loquax::Loquax::new(SR))), // fxa:loquax
+            EffectKind::Shimmer => Direct::Caelum(
+                Box::new(cantus_dsp::caelum::Caelum::new(SR)),
+                cantus_dsp::modfx_line::Glide::new(1.0, 10.0, SR, 1e-6),
+            ), // fxa:caelum
+            EffectKind::Glitch => Direct::Fractus(
+                Box::new(cantus_dsp::fractus::Fractus::new(SR)),
+                Box::new(cantus_dsp::fractus::Pattern::EMPTY),
+            ), // fxa:fractus
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -874,6 +1101,45 @@ impl Direct {
             Direct::Tonsor(x) => x.set(&fx::tonsor::settings(spec)),
             Direct::Impetus(x) => x.set(&fx::impetus::settings(spec)),
             Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
+            Direct::Stub(x) => x.configure(&board_spec(spec)), // fx:contract; fx3:tabula
+            Direct::Cribrum(x) => x.set(&fx::cribrum::settings(spec)), // fx:cribrum
+            Direct::Vetus(x) => x.set(&fx::vetus::settings(spec)), // fx:vetus
+            Direct::Libra(x) => x.set(&fx::libra::settings(spec)), // fx:libra
+            Direct::Saltus(x) => x.set(&fx::saltus::settings(spec)), // fx3:saltus
+            Direct::Rota(x) => x.set(&fx::rota::settings(spec).0), // fx3:rota
+            Direct::Loquax(x) => x.set(&fx::loquax::settings(spec)), // fxa:loquax
+            // fxa:fractus — its values, then its lanes.
+            // fxa:caelum — a synced pre-delay at 120 BPM (a host without a transport); the
+            // output's target as the engine's unit sets it (0 dB not applied).
+            Direct::Caelum(x, out) => {
+                let mut s = fx::caelum::settings(spec);
+                if let Some(beats) = fx::caelum::sync_beats(spec.get("psync")) {
+                    s.predelay_ms = cantus_dsp::caelum::sync_ms(beats, 120.0);
+                }
+                x.set(&s);
+                let db = spec.get("out");
+                out.target = if db == 0.0 {
+                    1.0
+                } else {
+                    cantus_dsp::math::db_to_gain(db.clamp(-24.0, 24.0))
+                };
+            }
+            Direct::Fractus(x, pat) => {
+                x.set(&fx::fractus::settings(spec));
+                fx::fractus::pattern_into(spec.fractus.as_deref(), pat);
+                x.set_pattern(pat);
+            }
+            // fx3:arca — the cabinet built as the engine builds it, supplied once.
+            Direct::Arca(x) => {
+                let (s, need) = fx::arca::settings(spec);
+                if let (Some(n), false) = (need, x.has_cab()) {
+                    if let Some(k) = fx::arca::build(n, SR).kernel {
+                        let st = Box::new(cantus_dsp::aula_conv::State::new(k.cap()));
+                        let _ = x.supply_cab(k, Some(st));
+                    }
+                }
+                x.set(&s);
+            }
             Direct::Wire => {}
             Direct::Delay(x) => {
                 x.set(&cantus_engine::delay_settings(spec));
@@ -919,6 +1185,19 @@ impl Direct {
             Direct::Tonsor(x) => x.reset(),
             Direct::Impetus(x) => x.reset(),
             Direct::Discrimen(x) => x.reset(),
+            Direct::Stub(x) => x.reset(),       // fx:contract
+            Direct::Cribrum(x) => x.reset(),    // fx:cribrum
+            Direct::Vetus(x) => x.reset(),      // fx:vetus
+            Direct::Libra(x) => x.reset(),      // fx:libra
+            Direct::Saltus(x) => x.reset(),     // fx3:saltus
+            Direct::Rota(x) => x.reset(),       // fx3:rota
+            Direct::Arca(x) => x.reset(),       // fx3:arca
+            Direct::Loquax(x) => x.reset(),     // fxa:loquax
+            Direct::Fractus(x, _) => x.reset(), // fxa:fractus
+            Direct::Caelum(x, out) => {
+                out.jump(out.target);
+                x.reset();
+            } // fxa:caelum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
             Direct::Delay(x) => x.reset(),
@@ -949,6 +1228,16 @@ impl Direct {
             Direct::Tonsor(x) => x.latency(),
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
+            Direct::Stub(x) => x.latency(),       // fx:contract
+            Direct::Cribrum(x) => x.latency(),    // fx:cribrum
+            Direct::Vetus(x) => x.latency(),      // fx:vetus
+            Direct::Libra(x) => x.latency(),      // fx:libra
+            Direct::Saltus(x) => x.latency(),     // fx3:saltus
+            Direct::Rota(_) => 0,                 // fx3:rota
+            Direct::Arca(x) => x.latency(),       // fx3:arca
+            Direct::Loquax(x) => x.latency(),     // fxa:loquax
+            Direct::Fractus(x, _) => x.latency(), // fxa:fractus
+            Direct::Caelum(x, _) => x.latency(),  // fxa:caelum
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
             Direct::Delay(_) => 0,
@@ -979,6 +1268,25 @@ impl Direct {
             Direct::Tonsor(x) => x.process(l, r),
             Direct::Impetus(x) => x.process(l, r, key),
             Direct::Discrimen(x) => x.process(l, r),
+            Direct::Stub(x) => x.process(l, r, key), // fx:contract
+            Direct::Cribrum(x) => x.process(l, r, key), // fx:cribrum
+            Direct::Vetus(x) => x.process(l, r),     // fx:vetus
+            Direct::Libra(x) => x.process(l, r),     // fx:libra
+            Direct::Saltus(x) => x.process(l, r),    // fx3:saltus
+            Direct::Rota(x) => x.process(l, r),      // fx3:rota
+            Direct::Arca(x) => x.process(l, r),      // fx3:arca
+            Direct::Loquax(x) => x.process(l, r, key, &[]), // fxa:loquax
+            Direct::Fractus(x, _) => x.process(l, r), // fxa:fractus
+            Direct::Caelum(x, out) => {
+                x.process(l, r, key);
+                if !(out.still() && out.value == 1.0) {
+                    for (a, b) in l.iter_mut().zip(r.iter_mut()) {
+                        let g = out.next();
+                        *a *= g;
+                        *b *= g;
+                    }
+                }
+            } // fxa:caelum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
             Direct::Delay(x) => x.process(l, r),

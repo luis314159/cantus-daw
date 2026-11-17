@@ -87,6 +87,8 @@ pub struct EngineHandle {
     send_failures: u64,
     /// Effect ids whose unit currently lives in the engine.
     known_effects: HashSet<EffectId>,
+    /// fx3:tabula — the pedals of the boards the engine runs (ADR 0134).
+    known_pedals: crate::fx::tabula::KnownPedals,
     /// For each track hosting a native or hosted instrument, the kind and serial of the
     /// unit the engine holds (or has been sent) for it.
     known_instruments: HashMap<TrackId, (UnitKind, u64)>,
@@ -355,6 +357,7 @@ impl EngineHandle {
             stats: EngineStats::default(),
             send_failures: 0,
             known_effects: HashSet::new(),
+            known_pedals: Default::default(), // fx3:tabula
             known_instruments: HashMap::new(),
             parts_sent: Default::default(),
             cells_sent: (crate::parts::START_TRACKS, crate::parts::START_STRIPS),
@@ -464,6 +467,7 @@ impl EngineHandle {
             stats: EngineStats::default(),
             send_failures: 0,
             known_effects: HashSet::new(),
+            known_pedals: Default::default(), // fx3:tabula
             known_instruments: HashMap::new(),
             parts_sent: Default::default(),
             cells_sent: (crate::parts::START_TRACKS, crate::parts::START_STRIPS),
@@ -1087,6 +1091,12 @@ impl EngineHandle {
         // with the undo's snapshot (round 22, the soak builder's E1).
         self.known_effects
             .retain(|id| snapshot.effect_slots().any(|s| s.id == *id));
+        // fx3:tabula — the boards sent whole now bring their pedals.
+        let whole: Vec<EffectId> = snapshot
+            .effect_slots()
+            .filter(|s| !self.known_effects.contains(&s.id))
+            .map(|s| s.id)
+            .collect();
         // The strips' inserts and the master's (ADR 0026).
         for slot in snapshot.effect_slots() {
             if !self.known_effects.contains(&slot.id) {
@@ -1100,6 +1110,24 @@ impl EngineHandle {
                 } else {
                     self.send_failures += 1;
                 }
+            }
+        }
+        // fx3:tabula — Tabula's pedals (ADR 0134): each pedal a board the engine runs lacks,
+        // built here and sent before the snapshot that names it.
+        let slots: Vec<&cantus_core::EffectSlot> = snapshot.effect_slots().collect();
+        let sr = self.sample_rate as f32;
+        for (effect, pedal, unit) in self
+            .known_pedals
+            .update(&slots, |id| whole.contains(&id), sr)
+        {
+            let msg = EngineMessage::AddPedal {
+                effect,
+                pedal,
+                unit,
+            };
+            if self.tx.push(msg).is_err() {
+                self.send_failures += 1;
+                self.known_pedals.forget(effect, pedal);
             }
         }
         // Native instruments: a track that no longer hosts one (or is gone) forgets its
@@ -1352,10 +1380,18 @@ impl EngineHandle {
                 EngineEvent::CellsNeed { tracks, strips } => self.send_cells((tracks, strips)),
                 EngineEvent::GarbageCells(cells) => drop(cells),
                 EngineEvent::PingDone(job) => self.pings.push(job), // r36:external
-                EngineEvent::EffectNeed { effect, need } => {
+                EngineEvent::EffectNeed {
+                    effect,
+                    pedal,
+                    need,
+                } => {
                     let memory =
                         crate::effects::EffectMemory::build(need.need(), self.sample_rate as f32);
-                    self.send(EngineMessage::EffectMemory { effect, memory });
+                    self.send(EngineMessage::EffectMemory {
+                        effect,
+                        pedal,
+                        memory,
+                    });
                 }
                 EngineEvent::GarbageMemory(memory) => drop(memory),
                 EngineEvent::Record(mark) => self.rec.mark(mark),

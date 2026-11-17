@@ -13,7 +13,7 @@
 //! before an engine asks for its kernel ([`build`]).
 
 use super::aula::{AulaNeed, Memory};
-use cantus_core::{EffectKind, Snapshot};
+use cantus_core::Snapshot;
 use cantus_dsp::aula::prepare as prepare_kernel;
 use cantus_dsp::aula_conv::State;
 use cantus_dsp::aula_kernel::{Kernel, Layout};
@@ -188,7 +188,8 @@ pub fn prepare(snapshot: &Snapshot, resolve: &dyn Fn(&str) -> PathBuf) -> Vec<(P
         .flat_map(|s| s.effects.iter())
         .chain(snapshot.master_effects.iter());
     for slot in slots {
-        if slot.spec.kind != EffectKind::Aula {
+        // fx3:arca — Arca's cabinet plays a file too.
+        if !slot.spec.kind.takes_ir() {
             continue;
         }
         let Some(file) = &slot.spec.ir else { continue };
@@ -230,6 +231,15 @@ pub fn status(path: &str) -> IrStatus {
         },
         Some((_, Err(e))) => IrStatus::Failed(e.clone()),
         None => IrStatus::Unknown,
+    }
+}
+
+/// A file's response as read (fx3:arca — Arca's cabinet), if it is in.
+pub fn file_ir(key: u64) -> Option<Arc<Ir>> {
+    let s = store().lock().ok()?;
+    match s.files.get(&key) {
+        Some((_, Ok(ir))) => Some(ir.clone()),
+        _ => None,
     }
 }
 

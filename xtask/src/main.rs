@@ -81,6 +81,18 @@ fn feature(d: &Descriptor) -> &'static str {
         "tonus" => "tonus,editor",
         "aula" => "aula,editor",   // r39:conv
         "delay" => "delay,editor", // r40:delay
+        "cribrum" => "cribrum,editor", // fx:contract
+        "fragor" => "fragor,editor",   // fx:contract
+        "lapsus" => "lapsus,editor",   // fx:contract
+        "vetus" => "vetus,editor",     // fx:contract
+        "libra" => "libra,editor",     // fx:contract
+        "tabula" => "tabula,editor",   // fx3:contract
+        "saltus" => "saltus,editor",   // fx3:contract
+        "rota" => "rota,editor",       // fx3:contract
+        "arca" => "arca,editor",       // fx3:contract
+        "loquax" => "loquax,editor",   // fxa:loquax
+        "fractus" => "fractus,editor", // fxa:fractus
+        "caelum" => "caelum,editor",   // fxa:caelum
         other => panic!("no feature for {other}"),
     }
 }

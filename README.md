@@ -98,10 +98,12 @@ leaves preview.
 - **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
   it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
   (B), as in FL's playlist.
-- **Twenty-six effects and ten instruments of its own** — now with **Aula**, a convolution
-  reverb at zero latency (ADR 0112) — researched against the best on the market and
-  measured — [each one shown below](#instruments), with what it does — plus free sound
-  packs, among them the **Salamander Grand Piano**, streamed from disk.
+- **Thirty-one effects and ten instruments of its own** — now with **Cribrum** (auto filter),
+  **Fragor** (distortion pedals), **Lapsus** (time shaper), **Vetus** (lo-fi) and **Libra**
+  (utility), and **Aula**, a convolution reverb at zero latency (ADR 0112) — researched
+  against the best on the market and measured — [each one shown below](#instruments), with
+  what it does — plus free sound packs, among them the **Salamander Grand Piano**, streamed
+  from disk.
 - **Each unit wears its own face** (ADR 0074): its colour, material, controls and the
   display that tells its story, drawn in vectors in light and dark themes. The CLAP and
   VST3 versions wear the same face in any DAW; *Units wear their own faces* switches back
@@ -406,7 +408,7 @@ simple synth every new track starts with, makes ten.
 
 ### Effects
 
-Twenty-five effects, each in a window with a face of its own; all of them are also CLAP and
+Thirty effects, each in a window with a face of its own; all of them are also CLAP and
 VST3 plug-ins for other DAWs.
 Seven of them can be heard with and without, on the same excerpt of a demo song, at
 [cantusdaw.com](https://cantusdaw.com/#effects).
@@ -450,6 +452,13 @@ Seven of them can be heard with and without, on the same excerpt of a demo song,
 </tr>
 <tr>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/aula-dark.png"><img src="docs/images/units/thumbs/aula.jpg" alt="Aula, its window"></a><br><b>Aula</b><br><sub>Convolution reverb</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/cribrum-dark.png"><img src="docs/images/units/thumbs/cribrum.jpg" alt="Cribrum, its window"></a><br><b>Cribrum</b><br><sub>Auto filter</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/fragor-dark.png"><img src="docs/images/units/thumbs/fragor.jpg" alt="Fragor, its window"></a><br><b>Fragor</b><br><sub>Distortion pedals</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/lapsus-dark.png"><img src="docs/images/units/thumbs/lapsus.jpg" alt="Lapsus, its window"></a><br><b>Lapsus</b><br><sub>Time shaper</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/vetus-dark.png"><img src="docs/images/units/thumbs/vetus.jpg" alt="Vetus, its window"></a><br><b>Vetus</b><br><sub>Lo-fi</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/libra-dark.png"><img src="docs/images/units/thumbs/libra.jpg" alt="Libra, its window"></a><br><b>Libra</b><br><sub>Utility</sub></td>
 </tr>
 </table>
 
@@ -769,7 +778,7 @@ Phasis runs the signal through a cascade of allpass stages and mixes it with the
 - Sweep bounds from 20 Hz to 16 kHz, moved on a log scale
 - Response drawn with the unit's own arithmetic, within 0.3 dB of what plays
 
-<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-phasis) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/phasis-light.png)</sub>
+<sub>15 factory presets — [hear them](https://cantusdaw.com/#unit-phasis) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/phasis-light.png)</sub>
 
 </details>
 <details>
@@ -869,6 +878,90 @@ Delay is Cantus's stereo echo: a time of up to two seconds or a note value that 
 - Also a CLAP and VST3 plug-in for other DAWs, following their tempo; its line grows with the note, never while it plays
 
 <sub>13 factory presets — [hear them](https://cantusdaw.com/#unit-delay) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/delay-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Cribrum</b> — Auto filter. Two analog filters moved in time with the song, over a picture of the music they sieve.</summary>
+
+<a href="docs/images/units/cribrum-dark.png"><img src="docs/images/units/cribrum-dark.png" alt="Cribrum — Auto filter, its window in Cantus"></a>
+
+Cribrum (Latin for a sieve) is two analog-modelled filters — the same five circuits as Cantus's synths: state-variable, transistor ladder, OTA cascade, diode ladder and Sallen-Key — in series or in parallel, moved by an LFO on the song, an envelope follower on the track or a sidechain, and a curve you draw. Each source has its own depth onto the cutoff, the resonance and the vowel. Its window draws the music sieved: the spectrum as grains, lit where it passes and dimmed where it is held back, under both filters' responses as they move; drag a filter's handle across for its cutoff and up and down for its resonance.
+
+- Five filter circuits, low/band/high-pass, notch, peak and a talking vowel filter, 12 or 24 dB/oct
+- Resonance that sings in tune: self-oscillation within ±5 cents, measured
+- An LFO from 1/64 to 8 bars on the song, an envelope follower with sidechain, a drawn curve
+- Follows the song position: a render from any bar matches the full render, to the bit
+- Two filters in series or parallel, a stereo spread, oversampling up to 4×
+- Three envelope wahs, dub sweep, pump filter, talking lead, telephone, rising build, acid and more
+
+<sub>18 factory presets — [hear them](https://cantusdaw.com/#unit-cribrum) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/cribrum-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Fragor</b> — Distortion pedals. Five distortion and fuzz pedals modelled from their circuits, up to three on a board in any order, a valve amp glowing behind them.</summary>
+
+<a href="docs/images/units/fragor-dark.png"><img src="docs/images/units/fragor-dark.png" alt="Fragor — Distortion pedals, its window in Cantus"></a>
+
+Fragor is a pedalboard: a green overdrive, an op-amp distortion, a silicon distortion, a germanium fuzz and a triangle muff, each solved from its schematic every sample — so the knobs move the circuit itself and every position sounds as the pedal does. Chain up to three in any order, drag them to reorder, gate the noise before them, and watch one cycle of the note and its harmonics change as you play. Turn the fuzz's Bias down and its battery dies: notes sputter and gate as they fade.
+
+- Circuits solved each sample (the DK method): every small-signal response within 0.1 dB of an independent analysis of the schematic
+- Five pedals: overdrive, op-amp distortion with its slew rate, silicon distortion, germanium fuzz with a dying-battery Bias, triangle muff
+- Up to three in any order; footswitches that never move the latency; a noise gate before the chain
+- Oversampled 2×, 4× or 8× (aliasing −54 dB at the default 4×)
+- One cycle in and out and the harmonics, odd and even, live
+- Fifteen factory presets for guitar, bass, drums, synths and voice
+
+<sub>15 factory presets — [hear them](https://cantusdaw.com/#unit-fragor) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/fragor-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Lapsus</b> — Time shaper. Tape stops, half time, stutters, reverse and scratches drawn on the beat: Gross Beat's job, exact to the sample.</summary>
+
+<a href="docs/images/units/lapsus-dark.png"><img src="docs/images/units/lapsus-dark.png" alt="Lapsus — Time shaper, its window in Cantus"></a>
+
+Lapsus (Latin for a slip) bends time and level to the beat. As Gross Beat does, it holds 36 time patterns and 36 volume patterns, chosen apart and played together by their knobs, their pads or a note of each bank's range. A time pattern draws how far behind the music it reads — flat is the music, a fall at the diagonal is the tape stopped, half that is half speed, steeper is reverse, a held step a repeat — and its window shows it over the music, with the slip from where the song is to where it is read.
+
+- 36 time and 36 volume patterns, combined freely, each switched by notes or automation
+- Draw them: points, tension, six segment shapes, a pencil snapped to the grid
+- Every jump crossfaded (30× smoother than a hard join, measured); a 32-tap sinc read, −95 dB
+- A tape stop ends on the bar to the sample at any tempo; a render from any bar matches the full render, to the bit
+- Tape stop and start, half and quarter time, rolls, beat repeats, reverse, backspin, scratches, gates and pumps
+
+<sub>17 factory presets — [hear them](https://cantusdaw.com/#unit-lapsus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/lapsus-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Vetus</b> — Lo-fi. A sound aged as an old medium ages it — bits, sample rate, wow and flutter, worn tape, crackle and the band of tape, radio, telephone or gramophone — with one knob that takes it back in time.</summary>
+
+<a href="docs/images/units/vetus-dark.png"><img src="docs/images/units/vetus-dark.png" alt="Vetus — Lo-fi, its window in Cantus"></a>
+
+Vetus is six modules in the order a recording travels: a cheap converter's bits and sample rate (raw, with its aliasing, or filtered), a tape's wow and flutter, dropouts and wear, crackle, hiss and hum, and the band of the medium that plays it back. Character ages every module that is on at once, and the label prints the year it takes you to. At the centre a cassette — or an LP, your choice — wears every module: the reels waver, the tape creases, dust sparks at the head; beside it the spectrum shows the converter's Nyquist, the bits' noise floor and the medium's band, dragged where you want them.
+
+- Bits from 1 to 24 (rounding, truncation, μ-law, dither); 24 bits without dither passes the sound untouched
+- Sample rate down to 1 kHz: raw (a 9 kHz tone at 8 kHz folds back at full level) or filtered (−54 dB)
+- Wow and flutter in cents, the wow free or on the song, partly drifting as a tape's
+- Crackle, hiss, hum, dropouts and wear fixed to the song: the same in any render, from any bar
+- Tape, radio, telephone and gramophone bands, drawn exactly as they sound (within 0.1 dB)
+- Fourteen factory presets: cassettes, lo-fi hip-hop, dusty drums, 8-bit, AM radio, telephone, gramophone, VHS
+
+<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-vetus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/vetus-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Libra</b> — Utility. A channel's everyday corrections — gain, balance, width, polarity, swaps and mono, mid and side, DC, a delay to align two microphones — under a brass balance that weighs left against right.</summary>
+
+<a href="docs/images/units/libra-dark.png"><img src="docs/images/units/libra-dark.png" alt="Libra — Utility, its window in Cantus"></a>
+
+Libra is the utility every channel needs. Swap, sum to mono, take one side or listen to the mid or the side alone; invert either channel's polarity; remove DC; delay each channel by whole samples to align two microphones; narrow or widen the image; balance it; set the gain. At its centre a brass balance tilts with the balance, its pans holding each channel's level, delay and polarity, the correlation along its foot; beside it a tuner and a goniometer.
+
+- A wire at its defaults, to the bit; 0 dB exact
+- Delays in whole samples, exact, shown in ms or samples
+- Stereo, swap, mono, left or right to both, mid, side
+- A tuner within ±1 cent on a sine, its reference A from 415 to 466 Hz
+- A goniometer and the correlation
+- Fourteen factory presets: mono check, polarity flips, alignment, Haas width, mid and side
+
+<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-libra) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/libra-light.png)</sub>
 
 </details>
 
@@ -1113,7 +1206,7 @@ cables drawn under the desk, the routing matrix, solo with connected routes, a t
 channel EQ, a dry/wet per insert slot, ten slots per strip, multi-selection with ganged
 faders, submixes, docks, groups with colours, a pan law per project, width and polarity.
 
-**Effects** (ADRs 0017–0018, 0026). The twenty-five above, each in a window with presets, A/B, a display
+**Effects** (ADRs 0017–0018, 0026). The thirty above, each in a window with presets, A/B, a display
 that is the control and a face of its own (ADRs 0074, 0115), plus the older Reverb, edited in the inspector;
 design notes in `docs/plugins/`.
 

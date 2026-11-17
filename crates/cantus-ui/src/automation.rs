@@ -356,7 +356,7 @@ pub fn unit_of(project: &Project, target: &AutoTarget) -> &'static str {
         AutoTarget::Effect { effect, key } => project
             .effect_host(*effect)
             .and_then(|h| project.effect(h, *effect))
-            .and_then(|e| e.spec.kind.param(key))
+            .and_then(|e| e.spec.param(key)) // fx3:contract: routed
             .map_or("", |i| i.unit),
         AutoTarget::Instrument { track, key } => project
             .track(*track)

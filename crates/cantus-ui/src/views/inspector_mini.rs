@@ -53,7 +53,19 @@ pub fn function_of(kind: EffectKind) -> Function {
         }
         EffectKind::Analyzer => Function::Output,
         EffectKind::AutoTune => Function::Source,
-        EffectKind::Aula => Function::Space, // r39:conv
+        EffectKind::Aula => Function::Space,        // r39:conv
+        EffectKind::AutoFilter => Function::Tone,   // fx:contract
+        EffectKind::Pedal => Function::Tone,        // fx:fragor (drive, as Fervor)
+        EffectKind::TimeShaper => Function::Mod,    // fx:contract
+        EffectKind::LoFi => Function::Tone,         // fx:contract
+        EffectKind::Utility => Function::Output,    // fx:contract
+        EffectKind::Board => Function::Tone,        // fx3:contract (tabula)
+        EffectKind::PitchShift => Function::Source, // fx3:contract (saltus)
+        EffectKind::Rotary => Function::Mod,        // fx3:contract (rota)
+        EffectKind::Amp => Function::Tone,          // fx3:contract (arca)
+        EffectKind::Vocoder => Function::Source,    // fxa:contract (loquax: a voice)
+        EffectKind::Glitch => Function::Mod,        // fxa:contract (fractus)
+        EffectKind::Shimmer => Function::Space,     // fxa:contract (caelum)
     }
 }
 

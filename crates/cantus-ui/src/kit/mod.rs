@@ -352,6 +352,7 @@ pub fn with_brush<R>(painter: &Painter, f: impl FnOnce(&mut Brush) -> R) -> R {
     BRUSH.with(|cell| match cell.try_borrow_mut() {
         Ok(mut b) => {
             b.begin(painter.ctx());
+            b.clip = painter.clip_rect();
             let r = f(&mut b);
             b.flush(painter);
             r
@@ -359,6 +360,7 @@ pub fn with_brush<R>(painter: &Painter, f: impl FnOnce(&mut Brush) -> R) -> R {
         Err(_) => {
             let mut b = Brush::default();
             b.begin(painter.ctx());
+            b.clip = painter.clip_rect();
             let r = f(&mut b);
             b.flush(painter);
             r

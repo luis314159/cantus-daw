@@ -138,6 +138,9 @@ pub fn lfo_card_width(c: &LfoCard) -> f32 {
 /// The column of switches beside the cells: sync and the shapes.
 pub const SWITCH_W: f32 = 168.0;
 
+/// fx3:arca — the room an [`lfo_card_as`] card with whole words needs beyond its width.
+pub const WHOLE_EXTRA: f32 = 56.0;
+
 /// Whether the spec's LFO follows the song.
 pub fn synced(host: &dyn FxHost) -> bool {
     host.spec().get("sync") >= 0.5
@@ -146,6 +149,28 @@ pub fn synced(host: &dyn FxHost) -> bool {
 /// The LFO card: the sync switch and the shapes in a column, then rate (or note value),
 /// edge, swing, spread and start phase as cells.
 pub fn lfo_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, c: &LfoCard) {
+    lfo_card_as(host, ui, s, rect, c, false);
+}
+
+/// fx3:arca — [`lfo_card`], its cells as wide as their parameters' whole names when `whole`
+/// (never a short form: "Fase estéreo", not "Estéreo"); the caller's card leaves the room
+/// ([`WHOLE_EXTRA`]).
+pub fn lfo_card_as(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    c: &LfoCard,
+    whole: bool,
+) {
+    let cell =
+        |host: &mut dyn FxHost, ui: &mut egui::Ui, key: &'static str, pill: controls::Pill<'_>| {
+            if whole {
+                super::phasis::whole(ui, s, host, key, Some(pill));
+            } else {
+                controls::param_with(ui, s, host, key, Size::M, Some(pill));
+            }
+        };
     controls::card(ui, s, rect, Src::Key("modfx.card.lfo"), None, |ui, _| {
         controls::column(ui, s, SWITCH_W, |ui| {
             let labels = [Src::Key("modfx.sync.0"), Src::Key("modfx.sync.1")];
@@ -158,7 +183,7 @@ pub fn lfo_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect,
         if c.edge {
             let stepped = Shape::from_index(host.spec().get("shape")).has_edge();
             ui.add_enabled_ui(stepped || c.shapes.is_empty(), |ui| {
-                controls::param_with(ui, s, host, "edge", Size::M, Some(&pct_pill));
+                cell(host, ui, "edge", &pct_pill);
             });
         }
         if c.swing {
@@ -166,14 +191,14 @@ pub fn lfo_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect,
             ui.add_enabled_ui(on, |ui| {
                 // 0 … 100 %, as the exported plug-ins and a typed value read it: 0 straight,
                 // 100 % the second cycle of each pair half a cycle late (an MPC's 75 %).
-                controls::param_with(ui, s, host, "swing", Size::M, Some(&pct_pill));
+                cell(host, ui, "swing", &pct_pill);
             });
         }
         if c.spread {
-            controls::param_with(ui, s, host, "spread", Size::M, Some(&deg_pill));
+            cell(host, ui, "spread", &deg_pill);
         }
         if c.offset {
-            controls::param_with(ui, s, host, "offset", Size::M, Some(&deg_pill));
+            cell(host, ui, "offset", &deg_pill);
         }
     });
 }

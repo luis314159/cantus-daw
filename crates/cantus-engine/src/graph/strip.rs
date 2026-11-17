@@ -472,13 +472,8 @@ pub(crate) fn run_strip(nodes: &Nodes, frame: &Frame, node: usize, slot: usize, 
             if !wire(&s.bypass, s.fx_enabled, &s.ll_off, i, e) {
                 // A unit that follows the song hears where it is as a running one would
                 // (it would read the jump as a seek otherwise), then skips the pass.
-                if e.follows_song() {
-                    e.set_position(&ctx.position.earlier_in(
-                        e.late,
-                        ctx.sample_rate,
-                        ctx.transport.map(),
-                    ));
-                }
+                // fx3:tabula — a board tells each pedal as late as it hears it.
+                e.hear_position(&ctx.position, ctx.sample_rate, ctx.transport.map());
                 e.skip(n);
             }
         }

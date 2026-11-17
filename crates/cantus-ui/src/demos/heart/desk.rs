@@ -97,6 +97,14 @@ fn drums_desk(s: &mut Song, b: &Band, d: &Desk) {
 }
 
 fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
+    // fx:lapsus — the fills through Lapsus's beat repeat, half wet: the second beat comes
+    // round again under them.
+    s.insert(
+        b.fills.strip,
+        K::TimeShaper,
+        Some("preset.lapsus.beat_repeat"),
+        &[("mix", 0.5)],
+    );
     // The bass: mono below its fundamental's octave, and a follower from the kick ducks
     // its fader (the modulators, `moves.rs`).
     s.insert(
@@ -150,6 +158,38 @@ fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
     );
     hp(s, b.pad.strip, 170.0);
     hp(s, b.arp.strip, 260.0);
+    // fx:cribrum — the arp through Cribrum's bar sweep, half wet: the resonant ladder rises
+    // and falls once a bar under the song.
+    s.insert(
+        b.arp.strip,
+        K::AutoFilter,
+        Some("preset.cribrum.bar_sweep"),
+        &[("mix", 0.5)],
+    );
+    // fx:fragor — the guitar first through Fragor's green overdrive, just pushed: the
+    // edge a player keeps on all night.
+    s.insert(
+        b.guitar.strip,
+        K::Pedal,
+        Some("preset.fragor.green_push"),
+        &[("od.drive", 0.3)],
+    );
+    // fx:vetus — the percussion through Vetus's dusty drums, two thirds wet: a 12-bit
+    // sampler's grain and a little vinyl under the groove.
+    s.insert(
+        b.perc.strip,
+        K::LoFi,
+        Some("preset.vetus.dusty_drums"),
+        &[("mix", 0.65)],
+    );
+    // fx:libra — the bass through Libra's *Bass in mono*: its stereo recording made one, the
+    // DC gone.
+    s.insert(
+        b.bass.strip,
+        K::Utility,
+        Some("preset.libra.bass_mono"),
+        &[],
+    );
     // The guitar through a Phase 90 (script), slow enough to breathe.
     s.insert(
         b.guitar.strip,

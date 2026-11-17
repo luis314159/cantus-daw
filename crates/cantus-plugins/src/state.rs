@@ -26,6 +26,56 @@ pub const VERSION: u32 = 1;
 /// The state of a plug-in whose values (one per parameter, the table's order) are
 /// `values`.
 pub fn save(table: &Table, values: &[f32]) -> Vec<u8> {
+    save_with_bank(table, values, None)
+}
+
+/// fx:lapsus — Lapsus's bank, if the plug-in holds one (`EffectSpec::lapsus`).
+pub fn load_bank(bytes: &[u8]) -> Option<Box<cantus_core::fx::lapsus::Bank>> {
+    let value: Value = serde_json::from_slice(bytes).ok()?;
+    let bank = value.get("lapsus")?.clone();
+    serde_json::from_value::<cantus_core::fx::lapsus::Bank>(bank)
+        .ok()
+        .filter(|b| !b.is_empty())
+        .map(Box::new)
+}
+
+/// fx3:tabula — Tabula's board, if the plug-in holds one (`EffectSpec::board`), sanitized.
+pub fn load_board(bytes: &[u8]) -> Option<Box<cantus_core::fx::tabula::Board>> {
+    let value: Value = serde_json::from_slice(bytes).ok()?;
+    let board = value.get("board")?.clone();
+    let mut b = serde_json::from_value::<cantus_core::fx::tabula::Board>(board).ok()?;
+    b.sanitize();
+    (!b.pedals.is_empty() || !b.macros.is_empty()).then(|| Box::new(b))
+}
+
+/// fxa:fractus — Fractus's lanes, if the state holds any (`EffectSpec::fractus`), sanitized.
+pub fn load_fractus(bytes: &[u8]) -> Option<Box<cantus_core::fx::fractus::Pattern>> {
+    let value: Value = serde_json::from_slice(bytes).ok()?;
+    let lanes = value.get("fractus")?.clone();
+    let p = serde_json::from_value::<cantus_core::fx::fractus::Pattern>(lanes)
+        .ok()?
+        .sanitized();
+    (!p.is_empty()).then(|| Box::new(p))
+}
+
+/// [`save`], with Lapsus's bank beside the values (fx:lapsus).
+pub fn save_with_bank(
+    table: &Table,
+    values: &[f32],
+    lapsus: Option<&cantus_core::fx::lapsus::Bank>,
+) -> Vec<u8> {
+    save_spec_extras(table, values, lapsus, None, None)
+}
+
+/// [`save`], with the content a spec holds beside its values: Lapsus's bank (fx:lapsus),
+/// Tabula's board (fx3:tabula) and Fractus's lanes (fxa:fractus), as the project saves them.
+pub fn save_spec_extras(
+    table: &Table,
+    values: &[f32],
+    lapsus: Option<&cantus_core::fx::lapsus::Bank>,
+    board: Option<&cantus_core::fx::tabula::Board>,
+    fractus: Option<&cantus_core::fx::fractus::Pattern>,
+) -> Vec<u8> {
     let sparse = table.kind.sparse();
     let mut params = BTreeMap::new();
     for p in &table.params[..table.spec_count] {
@@ -39,7 +89,12 @@ pub fn save(table: &Table, values: &[f32]) -> Vec<u8> {
         params,
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
-        ir: None, // r39:conv
+        ir: None,                                    // r39:conv
+        lapsus: lapsus.map(|b| Box::new(b.clone())), // fx:lapsus
+        board: board.map(|b| Box::new(b.clone())),   // fx3:tabula
+        fractus: fractus
+            .filter(|p| !p.is_empty())
+            .map(|p| Box::new(p.clone())), // fxa:fractus
     };
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,

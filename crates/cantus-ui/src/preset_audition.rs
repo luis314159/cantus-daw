@@ -263,8 +263,14 @@ pub fn effect_params_after(
     out
 }
 
-/// Where a preset would be loaded: the instrument (or kit) on a track, or an insert. A
-/// browser opened from nowhere in particular has no target and auditions on the phrases.
+/// fxa:fractus — a Fractus preset's lanes, which ride in its map (`fractus::to_flat`), on
+/// the spec it is heard on.
+pub fn lanes_after(spec: &mut EffectSpec, preset: &BTreeMap<String, f32>) {
+    if spec.kind == EffectKind::Glitch {
+        spec.fractus = cantus_core::fx::fractus::pattern_of_flat(preset).map(Box::new);
+    }
+}
+
 /// Where a preset would be loaded: the instrument (or kit) on a track, or an insert. A
 /// browser opened from nowhere in particular has no target and auditions on the phrases.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -371,6 +377,13 @@ pub fn prepare(
                 if let Some(kind) = kind {
                     let mut slot = p.make_effect(kind);
                     slot.spec.params = effect_params_after(&slot.spec, values);
+                    lanes_after(&mut slot.spec, values); // fxa:fractus
+                    if kind == EffectKind::Vocoder {
+                        vocoder_carriers(&p, &mut slot);
+                    }
+                    if kind == EffectKind::Glitch && slot.spec.get("trig") >= 0.5 {
+                        fractus_keys(&p, &mut slot); // fxa:fractus
+                    }
                     p.master.effects.push(slot);
                 }
                 whole(p, HeardOn::Source(entry.role()), false)
@@ -385,6 +398,36 @@ pub fn prepare(
                 }
             }
             source(Some(kind))
+        }
+    }
+}
+
+/// fxa:loquax — a vocoder on the fixed source needs a carrier, as on a track: its
+/// synthesiser plays the notes of the source's last melodic line (`midi_from`) and that
+/// line's strip is its sidechain — so every preset sounds, whichever carrier it names.
+fn vocoder_carriers(p: &Project, slot: &mut cantus_core::EffectSlot) {
+    let line =
+        p.tracks.iter().rev().find(|t| {
+            t.instrument.pulsus().is_none() && t.clips.iter().any(|c| !c.notes.is_empty())
+        });
+    if let Some(t) = line {
+        slot.midi_from = Some(t.id);
+        slot.sidechain = t.strip;
+    }
+}
+
+/// fxa:fractus — a Fractus played by notes, on the fixed source, hears the notes of the
+/// source's last melodic line (`midi_from`), its first lane's key on that line's lowest
+/// note — so each of its notes plays a module, as keys would.
+fn fractus_keys(p: &Project, slot: &mut cantus_core::EffectSlot) {
+    let line =
+        p.tracks.iter().rev().find(|t| {
+            t.instrument.pulsus().is_none() && t.clips.iter().any(|c| !c.notes.is_empty())
+        });
+    if let Some(t) = line {
+        slot.midi_from = Some(t.id);
+        if let Some(low) = t.clips.iter().flat_map(|c| &c.notes).map(|n| n.pitch).min() {
+            let _ = slot.spec.set("key", f32::from(low).min(117.0));
         }
     }
 }
@@ -517,6 +560,7 @@ fn on_the_users_clip(
     p.master.fx_enabled = true;
     let slot = p.effect_mut(strip, effect)?;
     slot.spec.params = effect_params_after(&slot.spec, values);
+    lanes_after(&mut slot.spec, values); // fxa:fractus
     slot.bypass = false;
     let (start, length) = (c.start, c.length);
     let most = Ticks::from_seconds(CLIP_SECONDS, p.tempo_bpm);

@@ -187,7 +187,9 @@ fn p02b_insert_a_recent_effect() {
     assert_eq!(fx[0].spec.kind, EffectKind::Compressor);
     // Round 39: `el-mixer`'s new desk moved the strip's name, so the
     // pointer's way to it is longer (measured 1 029 pt); the clicks are the same two.
-    held("p02b insert a recent effect", r.count, c(2, 0, 1030.0));
+    // fx3:contract — the effects' list grew by wave 3's four, so the submenu, kept inside
+    // the window, opens higher and its first row is farther (measured 1 170 pt).
+    held("p02b insert a recent effect", r.count, c(2, 0, 1170.0));
 }
 
 // ---- 3–6. Piano roll, mute and solo, the loop, arm and record ---------------------------

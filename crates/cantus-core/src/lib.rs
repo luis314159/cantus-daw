@@ -20,6 +20,7 @@ pub mod clip_gain;
 pub mod clip_lanes;
 pub mod clipboard;
 pub mod command;
+pub mod command_board; // fx3:contract (ADR 0134): Tabula's board commands // fx3:tabula — pub: apply_to_spec, referenced_ids
 pub mod comp;
 pub mod controller;
 pub mod crossfade;
@@ -66,6 +67,7 @@ pub mod sectio_ops; // r37:piano
 pub mod session; // r33:session (ADR 0076)
 pub mod snapshot;
 pub mod starting;
+pub mod starting_user; // fx3:start
 pub mod tempo;
 pub mod time;
 pub mod vca; // r36:mix
@@ -99,6 +101,7 @@ pub use external::PluginIsolation;
 pub use external_unit::{ExternalLink, ExternalUnit, ExternalUnitId}; // r36:external
 pub use freeze::{FreezeTarget, Frozen};
 pub use fx::aula::IrFile; // r39:conv
+pub use fx::tabula::{Board, Pedal, PedalId}; // fx3:contract
 pub use groove::{ClipGroove, Groove, GrooveId, GrooveSource, SwingGrid};
 pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};
 pub use inst_out::{OutputFamily, OutputId, OutputSlot}; // r40:p3

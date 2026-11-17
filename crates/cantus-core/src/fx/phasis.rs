@@ -18,6 +18,8 @@
 //! | `edge` | the soft edge of the stepped shapes | 0 … 100 % | 30 % |
 //! | `spread` | the right channel's LFO ahead of the left | 0 … 180° | 0 |
 //! | `out` | output gain | −24 … +24 dB | 0 |
+//! | `style` | classic, or the Uni-Vibe's four lamp-swept stages (fx3:arca) | 0 / 1 | classic |
+//! | `intensity` | the Uni-Vibe's lamp swing (fx3:arca) | 0 … 100 % | 100 % |
 
 use crate::effect::{p, EffectParamInfo};
 
@@ -32,6 +34,7 @@ pub const CHOICES: &[(&str, &str)] = &[
     ("sync", "modfx.sync"),
     ("div", "modfx.div"),
     ("shape", "modfx.shape"),
+    ("style", "fx.phasis.style"), // fx3:arca
 ];
 
 pub const PARAMS: &[EffectParamInfo] = &[
@@ -83,6 +86,18 @@ pub const PARAMS: &[EffectParamInfo] = &[
         false,
     ),
     p("out", "fx.phasis.out", -24.0, 24.0, 0.0, "dB", false, false),
+    // fx3:arca — the Uni-Vibe style (appended; the classic the default) and its intensity.
+    p("style", "fx.phasis.style", 0.0, 1.0, 0.0, "", false, true),
+    p(
+        "intensity",
+        "fx.phasis.intensity",
+        0.0,
+        1.0,
+        1.0,
+        "%",
+        false,
+        false,
+    ),
 ];
 
 pub fn params() -> &'static [EffectParamInfo] {

@@ -18,12 +18,14 @@
 //! A development build carries all seven plug-ins in one binary; the bundler builds each
 //! on its own (`--no-default-features --features gate`), one binary per plug-in.
 
+pub mod board_post; // fx3:tabula
 pub mod clap;
 pub mod desc;
 #[cfg(feature = "editor")]
 pub mod editor;
 pub mod ftz;
 pub mod instance;
+pub mod lapsus_bank; // fx:lapsus
 pub mod memory; // r39:conv
 pub mod params;
 pub mod state;
