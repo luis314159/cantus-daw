@@ -53,8 +53,10 @@ pub struct Finish {
     pub iron: Tone,
     /// The bright fittings: bearings, the nameplate, the gauge's frame, the rivets.
     pub brass: Tone,
-    /// The machined steel: the cam, the shaft, the rods, the flywheel's rim.
+    /// The machined steel: the shaft, the rods, the flywheel's rim.
     pub steel: Tone,
+    /// The cam's ground steel (blued on the exhibition model).
+    pub cam: Tone,
     /// The bellows' leather and its boards.
     pub leather: Tone,
     pub boards: Tone,
@@ -89,6 +91,11 @@ pub const WORKSHOP: Finish = Finish {
         hsl(206.0, 0.07, 0.58),
         hsl(212.0, 0.09, 0.30),
     ),
+    cam: tone(
+        hsl(204.0, 0.08, 0.90),
+        hsl(208.0, 0.07, 0.60),
+        hsl(214.0, 0.09, 0.28),
+    ),
     leather: tone(
         hsl(30.0, 0.46, 0.52),
         hsl(26.0, 0.48, 0.36),
@@ -115,9 +122,9 @@ pub const LOCOMOTIVE: Finish = Finish {
     edge: hsl(214.0, 0.08, 0.46),
     lining: hsl(356.0, 0.72, 0.48),
     iron: tone(
-        hsl(220.0, 0.08, 0.30),
-        hsl(222.0, 0.10, 0.12),
-        hsl(224.0, 0.12, 0.05),
+        hsl(218.0, 0.08, 0.46),
+        hsl(222.0, 0.10, 0.17),
+        hsl(224.0, 0.12, 0.06),
     ),
     brass: tone(
         hsl(48.0, 0.80, 0.80),
@@ -128,6 +135,11 @@ pub const LOCOMOTIVE: Finish = Finish {
         hsl(204.0, 0.10, 0.90),
         hsl(208.0, 0.08, 0.62),
         hsl(214.0, 0.10, 0.32),
+    ),
+    cam: tone(
+        hsl(204.0, 0.08, 0.90),
+        hsl(208.0, 0.07, 0.60),
+        hsl(214.0, 0.09, 0.28),
     ),
     leather: tone(
         hsl(354.0, 0.46, 0.40),
@@ -168,6 +180,11 @@ pub const EXHIBITION: Finish = Finish {
         hsl(200.0, 0.06, 0.94),
         hsl(206.0, 0.06, 0.70),
         hsl(212.0, 0.08, 0.38),
+    ),
+    cam: tone(
+        hsl(218.0, 0.36, 0.62),
+        hsl(222.0, 0.40, 0.34),
+        hsl(226.0, 0.44, 0.14),
     ),
     leather: tone(
         hsl(150.0, 0.30, 0.34),

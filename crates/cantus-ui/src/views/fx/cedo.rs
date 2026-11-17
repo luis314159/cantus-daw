@@ -683,7 +683,7 @@ fn programme(t: f32, seed: &mut u32) -> (f32, f32, f32) {
     let beat = 0.5;
     let tb = t % beat;
     let ph = TAU * (48.0 * tb + 62.0 * 0.04 * (1.0 - exp(-tb / 0.04)));
-    let kick = 0.85 * exp(-tb / 0.07) * sin(ph) + 0.02 * noise(seed) * exp(-tb / 0.02);
+    let kick = 0.85 * exp(-tb / 0.05) * sin(ph) + 0.02 * noise(seed) * exp(-tb / 0.02);
     let mut pad = 0.0;
     for (i, f) in [220.0f32, 261.63, 329.63, 440.0].iter().enumerate() {
         let detune = 1.0 + 0.002 * i as f32;

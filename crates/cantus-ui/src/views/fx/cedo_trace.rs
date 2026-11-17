@@ -166,6 +166,20 @@ pub fn history(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, feed: &Feed<'_>) {
     }
     let view = feed.view;
     if view.is_empty() {
+        // Nothing heard yet: what it waits for.
+        let wait = match trig {
+            0 => "cedo.d.wait_key",
+            1 => "cedo.d.wait_song",
+            _ => "cedo.d.wait_notes",
+        };
+        canvas::put(
+            b,
+            r.center(),
+            Align2::CENTER_CENTER,
+            &Text::key(wait, Role::Micro, ink.dim).caps(true),
+            k,
+            None,
+        );
         return;
     }
     let n = view.len();
@@ -380,7 +394,32 @@ pub fn band(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, feed: &Feed<'_>) {
         full[i] = pos2(x, yd(dsp.response_db(hz, 1.0)));
         now[i] = pos2(x, yd(dsp.response_db(hz, a_now)));
     }
-    b.dashed(&full, 1.0 * k, with_alpha(ink.hue, 0.6), 4.0 * k, 3.0 * k);
+    b.area(
+        &full,
+        r.top(),
+        with_alpha(ink.hue, if ink.dark { 0.08 } else { 0.07 }),
+    );
+    b.dashed(&full, 1.0 * k, with_alpha(ink.hue, 0.7), 4.0 * k, 3.0 * k);
+    // The legend on the right of the title: the full depth dashed, now solid.
+    let ly = r.top() - 12.0 * k;
+    let mut lgx = r.right();
+    for (key, solid) in [("cedo.d.band_now", true), ("cedo.d.band_full", false)] {
+        let w = canvas::put(
+            b,
+            pos2(lgx, ly),
+            Align2::RIGHT_CENTER,
+            &Text::key(key, Role::Micro, ink.dim),
+            k,
+            None,
+        );
+        let (a, z) = (pos2(w.left() - 18.0 * k, ly), pos2(w.left() - 5.0 * k, ly));
+        if solid {
+            b.segment(a, z, 1.6 * k, ink.hue, false);
+        } else {
+            canvas::dashed(b, a, z, 1.0 * k, ink.hue, 3.0 * k, 2.0 * k);
+        }
+        lgx = a.x - 14.0 * k;
+    }
     b.area(
         &now,
         r.top(),

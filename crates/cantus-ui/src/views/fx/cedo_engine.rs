@@ -269,6 +269,18 @@ fn a_frame(b: &mut Brush, m: &Map, f: &pal::Finish) {
         );
         b.segment(leg[0], leg[3], m.d(1.0), lit(&f.iron, 0.5), false);
         b.segment(leg[1], leg[2], m.d(1.4), c(f.iron.dark), false);
+        if f.surface == pal::Surface::Gloss {
+            let inset = |a: Pos2, z: Pos2| art::lerp(a, z, 0.22);
+            for (a, z, c0, c1) in [(0, 1, 3, 2), (1, 0, 2, 3)] {
+                b.segment(
+                    inset(leg[a], leg[z]),
+                    inset(leg[c0], leg[c1]),
+                    m.d(0.8),
+                    c(f.lining),
+                    false,
+                );
+            }
+        }
         let flange = Rect::from_center_size(m.p(fx, GROUND - 4.0), vec2(m.d(40.0), m.d(8.0)));
         b.rrect(flange, m.d(2.0), Fill::V(lit(&f.iron, 0.5), c(f.iron.dark)));
         for dx in [-13.0, 13.0] {
@@ -458,16 +470,16 @@ fn cam(b: &mut Brush, m: &Map, f: &pal::Finish, phase: f32, shape: &dyn Fn(f32) 
         Vec2::splat(m.d(CAM_BASE + CAM_LIFT * 0.7)),
         0.7,
     );
-    b.between(&outer, &inner, c(f.steel.dark));
-    b.between(&face, &inner, c(f.steel.mid));
+    b.between(&outer, &inner, c(f.cam.dark));
+    b.between(&face, &inner, c(f.cam.mid));
     // The ground face catches the light at its top left; turning marks round the hub.
     b.radial(
         Rect::from_center_size(ctr, Vec2::splat(m.d(2.0 * (CAM_BASE + CAM_LIFT)))),
         ctr + vec2(-0.3, -0.35) * m.d(CAM_BASE),
         Vec2::splat(m.d(CAM_BASE)),
         &[
-            (0.0, with_alpha(c(f.steel.light), 0.6)),
-            (1.0, with_alpha(c(f.steel.light), 0.0)),
+            (0.0, with_alpha(c(f.cam.light), 0.6)),
+            (1.0, with_alpha(c(f.cam.light), 0.0)),
         ],
         8,
     );
@@ -476,7 +488,7 @@ fn cam(b: &mut Brush, m: &Map, f: &pal::Finish, phase: f32, shape: &dyn Fn(f32) 
             ctr,
             m.d(12.0 + 4.0 * i as f32),
             m.d(0.4),
-            with_alpha(c(f.steel.dark), 0.22),
+            with_alpha(c(f.cam.dark), 0.22),
         );
     }
     b.polyline(&outer, m.d(1.0), with_alpha(c(pal::SHADOW), 0.85));
