@@ -76,7 +76,9 @@ A new effect kind, `EffectKind::Shimmer`, model `cantus_core::fx::caelum`, engin
   hears **the sidechain input** when the plug-in's *Sidechain* switch is on the external key
   (CLAP's second audio port, VST3's aux bus) and a **synced pre-delay follows the host's
   tempo** (`set_position` from CLAP's transport and VST3's `ProcessContext`) — both
-  bit-identical to the DSP; the tail it reports (`tail_samples`) is infinite while infinite
+  bit-identical to the DSP (a unit at rest takes a new tempo's pre-delay at once — the
+  engine's `set_position` resets a resting DSP rather than gliding from 120 BPM's, in Cantus
+  as in a host); the tail it reports (`tail_samples`) is infinite while infinite
   or frozen, else 1.5 × the decay plus the pre-delay (at the host's tempo when synced) and
   the bloom. The plug-ins' Direct path names Caelum's DSP with its output glide. Ids
   appended and blessed.

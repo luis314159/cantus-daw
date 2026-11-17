@@ -194,7 +194,14 @@ impl FxUnit for Unit {
     fn set_position(&mut self, position: &SongPosition) {
         if self.sync.is_some() && position.tempo_bpm > 0.0 && position.tempo_bpm != self.tempo {
             self.tempo = position.tempo_bpm;
+            // A tank at rest holds nothing a glide would carry: the synced pre-delay lands at
+            // once (a resting unit and a reset one are the same to the bit), so a song — or a
+            // host — that starts at its own tempo plays its note from the first sample.
+            let resting = self.dsp.at_rest();
             self.apply();
+            if resting {
+                self.dsp.reset();
+            }
         }
     }
 

@@ -777,7 +777,7 @@ fn fractus_s_lanes_follow_the_hosts_tempo_and_position_through_clap() {
 fn caelum_s_synced_pre_delay_follows_the_hosts_tempo_through_clap() {
     let kind = EffectKind::Shimmer;
     let tempo = 100.0f64;
-    let values = [("mix", 1.0), ("psync", 5.0), ("decay", 1.0)];
+    let values = [("mix", 1.0), ("psync", 5.0), ("decay", 1.0), ("out", 0.0)];
     let spec = spec_with(kind, &values);
     let n = 48_000;
     let mut input = (vec![0.0f32; n], vec![0.0f32; n]);
