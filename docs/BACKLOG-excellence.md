@@ -243,6 +243,15 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
 
 ## 1. Real use — the test that matters most
 
+- **Cantus cannot read 32-bit integer FLAC** (found in the effects side round, 2026-11-13):
+  `claxon` refuses it ("header without bits per sample info"); the CC0 guitar samples the side
+  round renders with are 32-bit and were converted to WAV. A user dropping such a file in
+  Exemplar or the browser meets the same error. Decide for the sample loading path: another
+  decoder for more than 24 bits, or a clear message — and a test with a 32-bit file from
+  outside.
+- **Reduced motion** for Fragor's energy along the cables (and every unit's moving picture)
+  when the app gets the setting (the effects side round; the site already follows
+  `prefers-reduced-motion`).
 - **Make complete songs in Cantus**, start to finish (record a real instrument and voice,
   program drums, arrange, mix, master, export), and log every moment of friction, however
   small. *Done when:* three songs of different styles were finished in Cantus alone and
@@ -1325,6 +1334,13 @@ backend too — with manuals, sound packs, a count of users, maybe serving the u
 **Done when** a user on a clean PC goes from a search to cantusdaw.com to a running Cantus
 in under two minutes, the packs and updates come from our domain with their hashes, and the
 user count on the site matches the published method.
+
+- **The effects running live in the browser** (the effects side round's brief, 2026-11-13; the
+  site's *Try it* plays rendered takes today, `docs/round-fx/site.md`): the units' DSP compiled
+  to WASM in an AudioWorklet, the kit editor by egui on a canvas or a lighter control, the
+  visitor's own file or microphone. Measure first the module's size against the site's budget,
+  CPU at 128-frame quanta, whether `SharedArrayBuffer` (COOP/COEP on Cloudflare) is needed, and
+  the output equal to the native render to the bit.
 
 ## 6b. Audio setup that is direct (requested 2026-10-05)
 

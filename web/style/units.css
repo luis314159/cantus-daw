@@ -168,7 +168,10 @@ body.unit-open { overflow: hidden; }
 
 /* fx:web — Try it (src/tryit.rs): a unit's presets on one take, dry or wet, its editor beside. */
 .try { margin-top: 2.4rem; }
-.try-units { list-style: none; margin: 0 0 1.2rem; padding: 0 0 0.4rem; display: flex; gap: 0.5rem; overflow-x: auto; scrollbar-width: thin; }
+.try-units { list-style: none; margin: 0 0 1.2rem; padding: 0 3rem 0.4rem 0; display: flex; gap: 0.5rem; overflow-x: auto; scrollbar-width: thin; scroll-snap-type: x proximity;
+  /* fx/final — the row fades out at its right edge, so a card cut by it reads as more to scroll; the 3rem of padding lets the last card scroll clear of the fade. */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent); }
+.try-units > li { flex: none; scroll-snap-align: start; }
 .try-unit { display: grid; gap: 0.1rem; text-align: left; min-width: 8.5rem; padding: 0.55rem 0.8rem; border-radius: 0.6rem; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink); cursor: pointer; font: inherit; }
 .try-unit span { font-size: 0.82rem; color: var(--ink-2); }
 .try-unit:hover { border-color: var(--accent); }
