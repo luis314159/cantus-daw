@@ -14,7 +14,7 @@
 
 use cantus_core::modulator::formula::Program;
 use cantus_core::modulator::xy::Puck;
-use cantus_core::modulator::{FormulaSource, RouteRange, XyPath, XySource};
+use cantus_core::modulator::{presets, FormulaSource, ModSource, RouteRange, XyPath, XySource};
 use cantus_ui::i18n::{self, Locale};
 use cantus_ui::kit::text::probe;
 use cantus_ui::raster::shoot;
@@ -142,6 +142,11 @@ fn pad(state: &str, look: u8) -> (XySource, Vec<fxd_xy::Link>, fxd_xy::Live) {
             src.path = None;
         }
         "links" => links.extend(many_links()),
+        "preset" => {
+            if let ModSource::XyPad(x) = (preset_of(false).source)() {
+                src = XySource { look, ..x };
+            }
+        }
         _ => {}
     }
     // The puck as the engine steps it: the path (or the hand) and the inertia, at the
@@ -275,6 +280,11 @@ fn formula(state: &str, look: u8) -> (FormulaSource, Vec<fxd_xy::Link>, fxd_form
             live.draft = Some(d);
             live.focused = true;
         }
+        "preset" => {
+            if let ModSource::Formula(f) = (preset_of(true).source)() {
+                src = FormulaSource { look, ..f };
+            }
+        }
         "typing" => {
             src.text = "a*Sin(SongTime*Pi*b)+c".into();
             live.caret = Some("a*Sin(SongTime*Pi*b".len());
@@ -291,9 +301,19 @@ fn formula(state: &str, look: u8) -> (FormulaSource, Vec<fxd_xy::Link>, fxd_form
     (src, links, live)
 }
 
+/// The preset the preset shots show: the figure of eight, the square.
+fn preset_of(formula: bool) -> &'static presets::ControllerPreset {
+    presets::by_id(if formula {
+        "formula.square"
+    } else {
+        "xy.figure_eight"
+    })
+    .expect("the preset")
+}
+
 /// The preset well's name in the preset shots.
-fn preset_name(_formula: bool) -> String {
-    i18n::t("fxd.preset.custom")
+fn preset_name(formula: bool) -> String {
+    i18n::t(&format!("fxd.preset.{}", preset_of(formula).id))
 }
 
 fn take(dir: &Path, sh: &Shot) {

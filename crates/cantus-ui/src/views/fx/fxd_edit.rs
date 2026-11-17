@@ -323,7 +323,7 @@ pub fn formula_actions(
         }
     }
     if app.fx.fxd.typing.is_some() {
-        ctx.memory_mut(|m| m.request_focus(display_id()));
+        hold_keyboard(ctx);
     }
     typing_live(&mut app.fx.fxd);
 }
@@ -429,6 +429,24 @@ pub fn typing_live(st: &mut State) {
     }
 }
 
+/// The display holds the keyboard: the app's shortcuts wait, and Esc, Tab and the arrows
+/// stay the session's (egui would let the focus go on Esc before the session reads it).
+fn hold_keyboard(ctx: &egui::Context) {
+    let id = display_id();
+    ctx.memory_mut(|m| {
+        m.request_focus(id);
+        m.set_focus_lock_filter(
+            id,
+            egui::EventFilter {
+                tab: true,
+                horizontal_arrows: true,
+                vertical_arrows: true,
+                escape: true,
+            },
+        );
+    });
+}
+
 /// The char before byte `at` of `s`, its length in bytes (0 at the start).
 fn before(s: &str, at: usize) -> usize {
     s[..at].chars().next_back().map_or(0, char::len_utf8)
@@ -458,6 +476,8 @@ pub fn keys(app: &mut CantusApp, ctx: &egui::Context, id: ModulatorId) {
         return end_typing(app, Some(ctx));
     }
     let events = ctx.input(|i| i.events.clone());
+    // Esc is the session's: nothing after reads it (the window's own close among them).
+    ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
     let mut edited = false;
     let mut end = false;
     if let Some(t) = &mut app.fx.fxd.typing {
@@ -506,7 +526,7 @@ pub fn keys(app: &mut CantusApp, ctx: &egui::Context, id: ModulatorId) {
     if end {
         end_typing(app, Some(ctx));
     } else {
-        ctx.memory_mut(|m| m.request_focus(display_id()));
+        hold_keyboard(ctx);
         typing_live(&mut app.fx.fxd);
     }
 }

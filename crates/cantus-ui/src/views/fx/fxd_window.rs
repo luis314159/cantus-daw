@@ -47,8 +47,8 @@ pub struct State {
     trail_len: usize,
     trail_head: usize,
     /// What the faces show (kept from frame to frame: their vectors are reused).
-    pub(crate) live_xy: fxd_xy::Live,
-    pub(crate) live_f: fxd_formula::Live,
+    pub live_xy: fxd_xy::Live,
+    pub live_f: fxd_formula::Live,
     /// Gestures begun, for their merge keys: each drag, typing session, dial turn its own.
     pub(crate) gestures: u64,
     /// The pad's drag going on: its merge key, and its samples (song beat or progress,
@@ -264,20 +264,28 @@ fn designed(app: &mut CantusApp, ctx: &egui::Context, formula: bool) -> Vec2 {
     v
 }
 
-/// The puck from the engine (or injected), the trail, where the song is on the path.
-fn feed_xy(app: &mut CantusApp, id: ModulatorId, src: &cantus_core::modulator::XySource) {
+/// The puck from the engine (or injected), the trail, where the song is on the path —
+/// read from the project in place (nothing copied a frame).
+fn feed_xy(app: &mut CantusApp, id: ModulatorId) {
     let playing = app.engine.is_playing();
     let beats = app.engine.position().0 as f64 / cantus_core::PPQ as f64;
-    let hand = [src.x, src.y];
+    let Some(ModSource::XyPad(src)) = app.project().modulator(id).map(|(_, _, m)| &m.source) else {
+        return;
+    };
     let (puck, heads) = app
         .fx
         .fxd
         .injected
         .or_else(|| app.engine.modulation().pad(id))
         .unwrap_or_else(|| {
-            let h = src.target(beats, playing, hand);
+            let h = src.target(beats, playing, [src.x, src.y]);
             (h, h)
         });
+    let path_at = src
+        .path
+        .as_ref()
+        .filter(|_| src.play_path && playing)
+        .map(|p| (beats / f64::from(p.beats)).rem_euclid(1.0) as f32);
     let st = &mut app.fx.fxd;
     st.note_puck(puck);
     let mut trail = std::mem::take(&mut st.live_xy.trail);
@@ -285,11 +293,7 @@ fn feed_xy(app: &mut CantusApp, id: ModulatorId, src: &cantus_core::modulator::X
     st.live_xy.trail = trail;
     st.live_xy.puck = puck;
     st.live_xy.heads = heads;
-    st.live_xy.path_at = src
-        .path
-        .as_ref()
-        .filter(|_| src.play_path && playing)
-        .map(|p| (beats / f64::from(p.beats)).rem_euclid(1.0) as f32);
+    st.live_xy.path_at = path_at;
     st.live_xy.mode = st.mode;
     st.live_xy.loop_beats = if st.loop_beats > 0.0 {
         st.loop_beats
@@ -362,15 +366,10 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         ),
     };
     // What the face shows, read before the face borrows the project.
-    let Some((_, _, m)) = app.project().modulator(id) else {
-        return;
-    };
-    match &m.source {
-        ModSource::XyPad(x) => {
-            let x = x.clone();
-            feed_xy(app, id, &x);
-        }
-        _ => feed_formula(app),
+    if formula {
+        feed_formula(app);
+    } else {
+        feed_xy(app, id);
     }
     let maximised = device::is_maximised(ctx, key);
     let ctl = crate::kit::window_ctl::WindowCtl {

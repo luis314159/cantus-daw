@@ -133,7 +133,7 @@ const SIDE: f32 = 330.0;
 const RAIL: f32 = 18.0;
 const MARGIN: f32 = 14.0;
 /// The keypad's least height at 100 %: its dials and four rows of keys.
-const KEYPAD_MIN: f32 = 270.0;
+const KEYPAD_MIN: f32 = 300.0;
 
 pub fn body_size(ui: &egui::Ui) -> Vec2 {
     let w = SCREEN_W + 2.0 * RAIL + MARGIN * 3.0 + SIDE;
@@ -182,6 +182,7 @@ pub fn body(
     b.begin(ui.ctx());
     let vfd = art::frame(&mut b, s, vfd_outer, RAIL * k);
     let line = fluorescent(
+        ui.ctx(),
         &mut b,
         s,
         vfd,
@@ -207,8 +208,8 @@ pub fn body(
         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
     }
     if let (true, Some(p)) = (dr.clicked(), dr.interact_pointer_pos()) {
-        let n = ((p.x - line.0) / line.1.max(1.0)).round().max(0.0) as usize;
-        out.push(Action::Focus(n.min(typed.chars().count())));
+        let byte = caret_at(ui.ctx(), s, typed, line, p.x);
+        out.push(Action::Focus(typed[..byte].chars().count()));
     }
     for (i, r) in keys.iter().enumerate() {
         let resp = ui.interact(*r, ui.id().with(("fxd-key", i)), egui::Sense::click());
@@ -321,9 +322,11 @@ fn message(b: &mut Brush, s: &Style, r: Rect, error: Option<&FormulaError>) {
 }
 
 /// The fluorescent line: the formula in the display's mono, a caret, the error's character
-/// underlined, a lit edge while it holds the keyboard. Returns where its first character
-/// starts and a character's width (a click's caret).
+/// underlined, a lit edge while it holds the keyboard. Returns where its text was painted
+/// (a click's caret).
+#[allow(clippy::too_many_arguments)]
 fn fluorescent(
+    ctx: &egui::Context,
     b: &mut Brush,
     s: &Style,
     r: Rect,
@@ -331,7 +334,7 @@ fn fluorescent(
     caret: Option<usize>,
     error: Option<&FormulaError>,
     focused: bool,
-) -> (f32, f32) {
+) -> Line {
     let k = s.k;
     let lit = art::lit(s);
     b.rrect(r, 3.0 * k, Fill::Solid(mix(art::ground(s), lit, 0.05)));
@@ -351,7 +354,45 @@ fn fluorescent(
         mono: true,
         ..crate::kit::text::Face::ROLE
     };
-    let t = crate::kit::text::Text::new(text, Role::Display, lit)
+    // The line's letters: the display's size while the formula fits, smaller down to 60 %
+    // for a longer one, and past that a window of it that keeps the caret (or the error)
+    // in sight, a mark at each side where more is hidden. Mono: every character as wide.
+    let tk = s.tk();
+    let width = |t: &str, kt: f32| {
+        let m = crate::kit::text::Text::new(t, Role::Display, lit).caps(false);
+        crate::kit::text::measure_face(ctx, &m, kt, face).x
+    };
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let n = chars.len();
+    let whole = width(text, tk);
+    let shrink = (line.width() / whole.max(1.0)).clamp(0.6, 1.0);
+    let kt = tk * shrink;
+    let index = |byte: usize| text[..byte.min(text.len())].chars().count();
+    let (first, last) = if whole * shrink <= line.width() {
+        (0, n)
+    } else {
+        let avg = whole * shrink / n.max(1) as f32;
+        let fit = ((line.width() / avg).floor() as usize).max(4);
+        let keep = caret.or(error.map(|e| e.at)).map_or(0, index);
+        let mut first = keep
+            .saturating_sub(fit.saturating_sub(4))
+            .min(n.saturating_sub(fit));
+        let mut last = (first + fit).min(n);
+        let byte = |i: usize| chars.get(i).map_or(text.len(), |c| c.0);
+        // The estimate measured: a character less at the side away from the caret.
+        while last > first + 1 && width(&text[byte(first)..byte(last)], kt) > line.width() {
+            if last.saturating_sub(keep) <= 3 {
+                first += 1;
+            } else {
+                last -= 1;
+            }
+        }
+        (first, last)
+    };
+    let from = chars.get(first).map_or(text.len(), |c| c.0);
+    let to = chars.get(last).map_or(text.len(), |c| c.0);
+    let shown = &text[from..to];
+    let t = crate::kit::text::Text::new(shown, Role::Display, lit)
         .caps(false)
         .align(Align2::LEFT_CENTER);
     // A glow under the glyphs, then the glyphs.
@@ -361,28 +402,43 @@ fn fluorescent(
         Fill::Solid(with_alpha(lit, 0.06)),
         10.0 * k,
     );
-    let painted = crate::kit::text::paint_face(b, line, &t, s.tk(), face);
-    let char_w = painted.as_ref().map_or(10.0 * k, |p| {
-        p.rect.width() / text.chars().count().max(1) as f32
-    });
-    let x_of =
-        |byte: usize| line.left() + text[..byte.min(text.len())].chars().count() as f32 * char_w;
+    let _ = crate::kit::text::paint_face(b, line, &t, kt, face);
+    for (more, x, d) in [
+        (first > 0, line.left() - 7.0 * k, -1.0),
+        (last < n, line.right() + 7.0 * k, 1.0),
+    ] {
+        if more {
+            let c = pos2(x, line.center().y);
+            b.polygon(
+                &[
+                    c + vec2(3.0 * d, 0.0) * k,
+                    c + vec2(-2.0 * d, -4.0) * k,
+                    c + vec2(-2.0 * d, 4.0) * k,
+                ],
+                with_alpha(lit, 0.7),
+            );
+        }
+    }
+    // Where a character begins: the shown text before it, measured as it is painted.
+    let x_of = |byte: usize| line.left() + width(&text[from..byte.clamp(from, to)], kt);
+    let char_w = width(shown, kt) / (last - first).max(1) as f32;
+    let half = 13.0 * k * shrink.max(0.8);
     if let Some(c) = caret {
         let x = x_of(c);
         b.vline(
             x,
-            line.center().y - 13.0 * k,
-            line.center().y + 13.0 * k,
+            line.center().y - half,
+            line.center().y + half,
             1.6 * k,
             lit,
         );
     }
-    if let Some(e) = error {
+    if let Some(e) = error.filter(|e| (first..=last).contains(&index(e.at))) {
         let x = x_of(e.at);
         b.hline(
             x,
             x + char_w.max(6.0 * k),
-            line.center().y + 15.0 * k,
+            line.center().y + half + 2.0 * k,
             1.6 * k,
             s.t.danger,
         );
@@ -400,7 +456,44 @@ fn fluorescent(
     if focused {
         b.rrect_stroke(r.expand(1.0 * k), 3.5 * k, 1.4 * k, with_alpha(lit, 0.8));
     }
-    (line.left(), char_w)
+    Line {
+        left: line.left(),
+        k: kt,
+        from,
+        to,
+    }
+}
+
+/// Where the fluorescent line's text was painted: its left, its scale, the bytes shown.
+#[derive(Copy, Clone, Debug)]
+struct Line {
+    left: f32,
+    k: f32,
+    from: usize,
+    to: usize,
+}
+
+/// The caret a click at `x` puts in `text` on `line`: before the character nearest it (a
+/// byte offset).
+fn caret_at(ctx: &egui::Context, s: &Style, text: &str, line: Line, x: f32) -> usize {
+    let face = crate::kit::text::Face {
+        mono: true,
+        ..crate::kit::text::Face::ROLE
+    };
+    let shown = &text[line.from..line.to];
+    let mut best = (f32::MAX, line.to);
+    for (i, _) in shown
+        .char_indices()
+        .chain(std::iter::once((shown.len(), ' ')))
+    {
+        let m = crate::kit::text::Text::new(&shown[..i], Role::Display, art::lit(s)).caps(false);
+        let w = crate::kit::text::measure_face(ctx, &m, line.k, face).x;
+        let d = (line.left + w - x).abs();
+        if d < best.0 {
+            best = (d, line.from + i);
+        }
+    }
+    best.1
 }
 
 /// The plotting screen: the graticule, the formula over eight beats, the cursor at now.
