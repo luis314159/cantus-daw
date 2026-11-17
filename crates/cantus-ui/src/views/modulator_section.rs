@@ -43,6 +43,8 @@ pub enum ModAct {
     List(ModulatorId, crate::views::modulator::ListKind, Rect),
     /// A parameter row's menu or modulation gesture (`param_row`).
     Param(AutoTarget, crate::kit::automate::Choice, Rect),
+    /// fxd: a controller's window (the X-Y pad's, the formula's), opened or brought front.
+    Open(ModulatorId),
 }
 
 /// Run what a row asked for.
@@ -73,6 +75,7 @@ pub fn apply(app: &mut CantusApp, act: ModAct) {
             crate::kit::automate::Choice::Automate => app.automate(target),
             _ => app.modulation_choice(&target, c, r),
         },
+        ModAct::Open(id) => app.open_controller_window(id),
     }
 }
 

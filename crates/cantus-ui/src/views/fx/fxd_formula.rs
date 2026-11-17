@@ -27,6 +27,35 @@ pub struct Live {
     pub draft: Option<String>,
     /// The caret, a byte offset into what is shown, while typing.
     pub caret: Option<usize>,
+    /// The display holds the keyboard (a typing session).
+    pub focused: bool,
+    /// The first row the links list shows.
+    pub links_first: usize,
+}
+
+/// Where the face's parts were drawn this frame (the window's tests, its hints).
+#[derive(Clone, Debug)]
+pub struct Rects {
+    /// The fluorescent line the formula is typed on.
+    pub display: Rect,
+    /// The keypad's keys, in [`KEYS`]' order.
+    pub keys: Vec<Rect>,
+    /// The dials a, b and c.
+    pub dials: [Rect; 3],
+    pub links: Rect,
+    pub items: art::ItemRects,
+}
+
+impl Default for Rects {
+    fn default() -> Self {
+        Rects {
+            display: Rect::NOTHING,
+            keys: Vec::new(),
+            dials: [Rect::NOTHING; 3],
+            links: Rect::NOTHING,
+            items: Vec::new(),
+        }
+    }
 }
 
 pub use super::fxd_xy::Link;
@@ -36,6 +65,15 @@ pub enum Action {
     /// A key of the keypad typed its word.
     Type(&'static str),
     Card(Moved),
+    /// A click on the display: type there, the caret before character `n`.
+    Focus(usize),
+    /// Dial `i` (a, b, c) dragged by this share of its travel, its drag ended, or reset
+    /// by a double-click.
+    Dial(usize, f32),
+    DialDone(usize),
+    DialReset(usize),
+    /// The links list scrolled to show from this row.
+    LinksAt(usize),
 }
 
 pub const CARDS: [Card<'static>; 2] = [
@@ -61,7 +99,7 @@ pub const CARDS: [Card<'static>; 2] = [
 ];
 
 /// The keypad's keys: what each shows and what it types.
-const KEYS: [(&str, &str); 24] = [
+pub const KEYS: [(&str, &str); 24] = [
     ("sin", "Sin("),
     ("cos", "Cos("),
     ("tri", "tri("),
@@ -94,6 +132,8 @@ const PLOT_H: f32 = 300.0;
 const SIDE: f32 = 330.0;
 const RAIL: f32 = 18.0;
 const MARGIN: f32 = 14.0;
+/// The keypad's least height at 100 %: its dials and four rows of keys.
+const KEYPAD_MIN: f32 = 270.0;
 
 pub fn body_size(ui: &egui::Ui) -> Vec2 {
     let w = SCREEN_W + 2.0 * RAIL + MARGIN * 3.0 + SIDE;
@@ -101,7 +141,7 @@ pub fn body_size(ui: &egui::Ui) -> Vec2 {
     vec2(w, MARGIN * 4.0 + VFD_H + PLOT_H + 4.0 * RAIL + 24.0 + cards)
 }
 
-/// The face in `rect`.
+/// The face in `rect`: what the user did, and where its parts were drawn.
 #[allow(clippy::too_many_arguments)]
 pub fn body(
     ui: &mut egui::Ui,
@@ -111,9 +151,10 @@ pub fn body(
     amount: f32,
     links: &[Link],
     live: &Live,
-) -> Vec<Action> {
+) -> (Vec<Action>, Rects) {
     let k = s.k;
     let mut out = Vec::new();
+    let mut rects = Rects::default();
     let col = rect.left() + MARGIN * k;
     let vfd_outer = Rect::from_min_size(
         pos2(col, rect.top() + MARGIN * k),
@@ -140,59 +181,70 @@ pub fn body(
     let mut b = Brush::default();
     b.begin(ui.ctx());
     let vfd = art::frame(&mut b, s, vfd_outer, RAIL * k);
-    fluorescent(&mut b, s, vfd, typed, live.caret, error.as_ref());
+    let line = fluorescent(
+        &mut b,
+        s,
+        vfd,
+        typed,
+        live.caret.filter(|_| live.focused),
+        error.as_ref(),
+        live.focused,
+    );
     let plot = art::frame(&mut b, s, plot_outer, RAIL * k);
     screen(&mut b, s, plot, src, program.as_ref(), live);
-    // The message under the line: why a draft is refused, or what is playing.
-    match &error {
-        Some(e) => {
-            let what = match &e.kind {
-                cantus_core::modulator::formula::ErrorKind::Unexpected(c) => c.to_string(),
-                cantus_core::modulator::formula::ErrorKind::UnknownName(n)
-                | cantus_core::modulator::formula::ErrorKind::NotDeterministic(n)
-                | cantus_core::modulator::formula::ErrorKind::NotSupported(n) => n.clone(),
-                cantus_core::modulator::formula::ErrorKind::Arguments { name, .. } => name.clone(),
-                _ => String::new(),
-            };
-            let n = match &e.kind {
-                cantus_core::modulator::formula::ErrorKind::Arguments { wants, .. } => *wants,
-                _ => 0,
-            };
-            let at = e.at + 1;
-            let args: [(&str, &dyn std::fmt::Display); 3] =
-                [("at", &at), ("what", &what), ("n", &n)];
-            let msg = crate::i18n::tf_in(crate::i18n::locale(), e.kind.key(), &args);
-            let warn = s.t.danger;
-            art::value(
-                &mut b,
-                s,
-                err_line,
-                &msg,
-                Role::Label,
-                warn,
-                Align2::LEFT_CENTER,
-            );
-        }
-        None => art::label(
-            &mut b,
-            s,
-            err_line,
-            Src::Key("fxd.formula.compiled"),
-            Role::Micro,
-            s.t.text_dim,
-            Align2::LEFT_CENTER,
-        ),
-    }
-    let (pad, list) = side.split_top_bottom_at_fraction(0.62);
-    let keys = keypad(&mut b, s, pad.shrink2(vec2(0.0, 2.0 * k)), src);
-    super::fxd_xy::links_panel(&mut b, s, list.shrink2(vec2(0.0, 4.0 * k)), links, false);
+    message(&mut b, s, err_line, error.as_ref());
+    // The side: the links sized to their rows, the keypad taking the rest (never less
+    // than its dials and four rows of keys).
+    let list_h = art::links_height(links.len(), side.height() / k - KEYPAD_MIN) * k;
+    let (pad, list) = side.split_top_bottom_at_y(side.bottom() - list_h);
+    let (keys, dials) = keypad(&mut b, s, pad.shrink2(vec2(0.0, 2.0 * k)), src);
+    let list = list.shrink2(vec2(0.0, 4.0 * k));
+    let fit = super::fxd_xy::links_panel(ui.ctx(), &mut b, s, list, links, false, live.links_first);
     b.flush(ui.painter());
+    // The display: a click types there.
+    let dr = ui.interact(vfd, super::fxd_edit::display_id(), egui::Sense::click());
+    if dr.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+    }
+    if let (true, Some(p)) = (dr.clicked(), dr.interact_pointer_pos()) {
+        let n = ((p.x - line.0) / line.1.max(1.0)).round().max(0.0) as usize;
+        out.push(Action::Focus(n.min(typed.chars().count())));
+    }
     for (i, r) in keys.iter().enumerate() {
         let resp = ui.interact(*r, ui.id().with(("fxd-key", i)), egui::Sense::click());
         if resp.clicked() {
             out.push(Action::Type(KEYS[i].1));
         }
     }
+    // The dials: dragged up or down (150 points the whole travel), a double-click resets.
+    for (i, r) in dials.iter().enumerate() {
+        let resp = ui.interact(
+            *r,
+            ui.id().with(("fxd-dial", i)),
+            egui::Sense::click_and_drag(),
+        );
+        if resp.hovered() || resp.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+        }
+        if resp.double_clicked() {
+            out.push(Action::DialReset(i));
+        } else if resp.dragged() {
+            let dy = resp.drag_delta().y;
+            if dy != 0.0 {
+                out.push(Action::Dial(i, -dy / (150.0 * k)));
+            }
+        }
+        if resp.drag_stopped() {
+            out.push(Action::DialDone(i));
+        }
+    }
+    if let Some(at) = super::fxd_xy::scroll_links(ui, list, links.len(), fit, live.links_first) {
+        out.push(Action::LinksAt(at));
+    }
+    rects.display = vfd;
+    rects.keys = keys;
+    rects.dials = dials;
+    rects.links = list;
     let cards = Rect::from_min_max(
         pos2(col, plot_outer.bottom() + MARGIN * k),
         pos2(rect.right() - MARGIN * k, rect.bottom() - MARGIN * k),
@@ -225,15 +277,52 @@ pub fn body(
         }
     };
     out.extend(
-        art::lay_cards(ui, s, cards, &CARDS, &values)
+        art::lay_cards(ui, s, cards, &CARDS, &values, &mut rects.items)
             .into_iter()
             .map(Action::Card),
     );
-    out
+    (out, rects)
+}
+
+/// The message under the line: why a draft is refused (with its character), or that the
+/// formula compiled and plays.
+fn message(b: &mut Brush, s: &Style, r: Rect, error: Option<&FormulaError>) {
+    use cantus_core::modulator::formula::ErrorKind;
+    match error {
+        Some(e) => {
+            let what = match &e.kind {
+                ErrorKind::Unexpected(c) => c.to_string(),
+                ErrorKind::UnknownName(n)
+                | ErrorKind::NotDeterministic(n)
+                | ErrorKind::NotSupported(n) => n.clone(),
+                ErrorKind::Arguments { name, .. } => name.clone(),
+                _ => String::new(),
+            };
+            let n = match &e.kind {
+                ErrorKind::Arguments { wants, .. } => *wants,
+                _ => 0,
+            };
+            let at = e.at + 1;
+            let args: [(&str, &dyn std::fmt::Display); 3] =
+                [("at", &at), ("what", &what), ("n", &n)];
+            let msg = crate::i18n::tf_in(crate::i18n::locale(), e.kind.key(), &args);
+            art::value(b, s, r, &msg, Role::Label, s.t.danger, Align2::LEFT_CENTER);
+        }
+        None => art::label(
+            b,
+            s,
+            r,
+            Src::Key("fxd.formula.compiled"),
+            Role::Micro,
+            s.t.text_dim,
+            Align2::LEFT_CENTER,
+        ),
+    }
 }
 
 /// The fluorescent line: the formula in the display's mono, a caret, the error's character
-/// underlined.
+/// underlined, a lit edge while it holds the keyboard. Returns where its first character
+/// starts and a character's width (a click's caret).
 fn fluorescent(
     b: &mut Brush,
     s: &Style,
@@ -241,7 +330,8 @@ fn fluorescent(
     text: &str,
     caret: Option<usize>,
     error: Option<&FormulaError>,
-) {
+    focused: bool,
+) -> (f32, f32) {
     let k = s.k;
     let lit = art::lit(s);
     b.rrect(r, 3.0 * k, Fill::Solid(mix(art::ground(s), lit, 0.05)));
@@ -307,6 +397,10 @@ fn fluorescent(
         Align2::LEFT_CENTER,
     );
     art::glass(b, s, r);
+    if focused {
+        b.rrect_stroke(r.expand(1.0 * k), 3.5 * k, 1.4 * k, with_alpha(lit, 0.8));
+    }
+    (line.left(), char_w)
 }
 
 /// The plotting screen: the graticule, the formula over eight beats, the cursor at now.
@@ -457,7 +551,7 @@ fn screen(
 
 /// The keypad: the case's keys in a bezel, the three knob dials above them. Returns the
 /// keys' rects (clicks type their words).
-fn keypad(b: &mut Brush, s: &Style, r: Rect, src: &FormulaSource) -> Vec<Rect> {
+fn keypad(b: &mut Brush, s: &Style, r: Rect, src: &FormulaSource) -> (Vec<Rect>, [Rect; 3]) {
     let k = s.k;
     let m = art::metal(s);
     art::well(b, s, r);
@@ -475,11 +569,13 @@ fn keypad(b: &mut Brush, s: &Style, r: Rect, src: &FormulaSource) -> Vec<Rect> {
     );
     // The three dials: a, b, c as the case shows them (the cards hold the knobs).
     let dial_r = 20.0 * k;
+    let mut dials = [Rect::NOTHING; 3];
     for (i, name) in ["a", "b", "c"].iter().enumerate() {
         let c = pos2(
             r.left() + r.width() * (0.2 + 0.3 * i as f32),
             r.top() + 50.0 * k,
         );
+        dials[i] = Rect::from_center_size(c, Vec2::splat(dial_r * 2.4));
         b.circle(
             c + vec2(1.0, 2.5) * k,
             dial_r,
@@ -585,5 +681,5 @@ fn keypad(b: &mut Brush, s: &Style, r: Rect, src: &FormulaSource) -> Vec<Rect> {
         }
         rects.push(key);
     }
-    rects
+    (rects, dials)
 }

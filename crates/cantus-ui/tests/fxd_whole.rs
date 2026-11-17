@@ -58,6 +58,8 @@ fn probe_window(formula: bool, look: u8, k: f32, dark: bool, error: bool) -> Vec
     fxd::shell_of(formula, look).set_scale(&ctx, k);
     let sz = size(&ctx, formula) * k;
     let context = i18n::t("fxd.sheet.context");
+    // The longest well a window shows: the custom word (a preset's name is shorter).
+    let preset = i18n::t("fxd.preset.custom");
     probe::start_clipped();
     cantus_ui::raster::shoot(&ctx, sz, 1.0, 3, None, |ui| {
         if formula {
@@ -73,8 +75,14 @@ fn probe_window(formula: bool, look: u8, k: f32, dark: bool, error: bool) -> Vec
                 tempo: 120.0,
                 draft: error.then(|| "a*Sin(SongTime*Pi*b".to_string()),
                 caret: error.then_some(19),
+                focused: error,
+                links_first: 0,
             };
-            fxd::formula(ui, &context, &src, 1.0, true, &links(), &live, &[]);
+            let c = fxd::Chrome {
+                preset: Some(&preset),
+                ..fxd::Chrome::sheet(&context, true, &[])
+            };
+            fxd::formula(ui, &c, &src, 1.0, &links(), &live);
         } else {
             let src = XySource {
                 inertia_ms: 300.0,
@@ -92,8 +100,13 @@ fn probe_window(formula: bool, look: u8, k: f32, dark: bool, error: bool) -> Vec
                 heads: [0.7, 0.45],
                 trail: vec![[0.3, 0.3], [0.45, 0.35], [0.6, 0.4]],
                 path_at: Some(0.3),
+                ..fxd_xy::Live::default()
             };
-            fxd::xy(ui, &context, &src, 1.0, true, &links(), &live, &[]);
+            let c = fxd::Chrome {
+                preset: Some(&preset),
+                ..fxd::Chrome::sheet(&context, true, &[])
+            };
+            fxd::xy(ui, &c, &src, 1.0, &links(), &live);
         }
     });
     let shorts = probe::take_shorts();

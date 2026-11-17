@@ -35,75 +35,148 @@ pub fn designed_size(ui: &egui::Ui, formula: bool) -> Vec2 {
     body + Vec2::new(0.0, shell::HEADER + shell::FOOTER)
 }
 
-fn header<'a>(name: &'a str, context: &'a str, on: bool, name_w: f32) -> Header<'a> {
+/// What the window's frame shows around a face: the host words, the on lamp, the preset
+/// well's name, the footer's chips, the window's keys.
+#[derive(Copy, Clone, Debug)]
+pub struct Chrome<'a> {
+    /// "(Modulator 2 · Master)".
+    pub context: &'a str,
+    pub on: bool,
+    /// The preset well's name (a preset the settings match, or the custom word); `None`
+    /// shows no well (the design sheets).
+    pub preset: Option<&'a str>,
+    pub chips: &'a [&'a str],
+    /// The window's keys (minimise, maximise, close); `None` is close only.
+    pub window: Option<crate::kit::window_ctl::WindowCtl>,
+}
+
+impl<'a> Chrome<'a> {
+    /// The design sheets' frame: no preset well, close only.
+    pub fn sheet(context: &'a str, on: bool, chips: &'a [&'a str]) -> Chrome<'a> {
+        Chrome {
+            context,
+            on,
+            preset: None,
+            chips,
+            window: None,
+        }
+    }
+}
+
+/// A face shown in its window: what the user did on the face, where its parts were, and
+/// what the frame reported (moves, the bypass, presets, the window's keys).
+pub struct Shown<A, R> {
+    pub actions: Vec<A>,
+    pub rects: R,
+    pub shell: shell::Output,
+    /// Where the header's parts were (the preset well opens its list under it).
+    pub header: shell::HeaderRects,
+}
+
+/// Where the header's parts were drawn.
+fn header_rects(sh: &Shell, out: &shell::Output, head: &Header<'_>) -> shell::HeaderRects {
+    let s = crate::kit::Style::plain()
+        .scaled(out.k)
+        .function(Function::Mod)
+        .skinned(sh.skin);
+    shell::header_rects(out.header, &s, head)
+}
+
+fn header<'a>(ui: &egui::Ui, formula: bool, look: u8, name: &'a str, c: &Chrome<'a>) -> Header<'a> {
+    let look_skin = skin_of(formula, look);
+    let name_w = if c.preset.is_some() {
+        super::frame::header_name_w(ui.ctx(), look_skin, name, c.context)
+    } else {
+        0.0
+    };
     Header {
         name,
-        context,
+        context: c.context,
         hue: Function::Mod,
-        preset: None,
+        preset: c.preset.map(|p| shell::Preset {
+            name: p,
+            modified: false,
+            favourite: false,
+        }),
         ab: None,
         undo: None,
         views: None,
-        bypassed: Some(!on),
+        bypassed: Some(!c.on),
         help: true,
         name_w,
-        window: Some(crate::kit::window_ctl::WindowCtl {
+        window: Some(c.window.unwrap_or(crate::kit::window_ctl::WindowCtl {
             swap: None,
             minimise: false,
             maximised: None,
             close: true,
-        }),
+        })),
     }
 }
 
 /// The X-Y pad's window, filling `ui`.
-#[allow(clippy::too_many_arguments)]
 pub fn xy(
     ui: &mut egui::Ui,
-    context: &str,
+    c: &Chrome<'_>,
     src: &XySource,
     amount: f32,
-    on: bool,
     links: &[fxd_xy::Link],
     live: &fxd_xy::Live,
-    chips: &[&str],
-) -> Vec<fxd_xy::Action> {
+) -> Shown<fxd_xy::Action, fxd_xy::Rects> {
     let name = crate::i18n::t("fxd.xy.name");
     let sh = shell_of(false, src.look);
-    let mut out = Vec::new();
-    sh.show(
+    let mut actions = Vec::new();
+    let mut rects = fxd_xy::Rects::default();
+    let head = header(ui, false, src.look, &name, c);
+    let shell = sh.show(
         ui,
-        &header(&name, context, on, 0.0),
-        &Footer { chips, meter: None },
+        &head,
+        &Footer {
+            chips: c.chips,
+            meter: None,
+        },
         |ui, s, r| {
-            out = fxd_xy::body(ui, s, r, src, amount, links, live);
+            (actions, rects) = fxd_xy::body(ui, s, r, src, amount, links, live);
         },
     );
-    out
+    let header = header_rects(&sh, &shell, &head);
+    Shown {
+        actions,
+        rects,
+        shell,
+        header,
+    }
 }
 
 /// The formula controller's window, filling `ui`.
-#[allow(clippy::too_many_arguments)]
 pub fn formula(
     ui: &mut egui::Ui,
-    context: &str,
+    c: &Chrome<'_>,
     src: &FormulaSource,
     amount: f32,
-    on: bool,
     links: &[fxd_xy::Link],
     live: &fxd_formula::Live,
-    chips: &[&str],
-) -> Vec<fxd_formula::Action> {
+) -> Shown<fxd_formula::Action, fxd_formula::Rects> {
     let name = crate::i18n::t("fxd.formula.name");
     let sh = shell_of(true, src.look);
-    let mut out = Vec::new();
-    sh.show(
+    let mut actions = Vec::new();
+    let mut rects = fxd_formula::Rects::default();
+    let head = header(ui, true, src.look, &name, c);
+    let shell = sh.show(
         ui,
-        &header(&name, context, on, 0.0),
-        &Footer { chips, meter: None },
+        &head,
+        &Footer {
+            chips: c.chips,
+            meter: None,
+        },
         |ui, s, r| {
-            out = fxd_formula::body(ui, s, r, src, amount, links, live);
+            (actions, rects) = fxd_formula::body(ui, s, r, src, amount, links, live);
         },
     );
-    out
+    let header = header_rects(&sh, &shell, &head);
+    Shown {
+        actions,
+        rects,
+        shell,
+        header,
+    }
 }

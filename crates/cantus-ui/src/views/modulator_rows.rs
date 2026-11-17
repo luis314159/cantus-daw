@@ -171,11 +171,21 @@ fn list(sh: &mut Sheet<'_>, m: &Modulator, key: &'static str, value: &str, kind:
 /// The picture row: the movement over one cycle (or the sequence, or the shape), drawn
 /// from the engine's own functions, with where it is now.
 fn preview(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
+    let _ = preview_with(sh, app, m, Sense::hover());
+}
+
+/// [`preview`], sensing `sense` (a controller's picture opens its window on a double-click).
+fn preview_with(
+    sh: &mut Sheet<'_>,
+    app: &CantusApp,
+    m: &Modulator,
+    sense: Sense,
+) -> egui::Response {
     let s = sh.s.function(function_of(m.source.kind()));
     let w = sh.width();
-    let (full, _) = sh
+    let (full, resp) = sh
         .ui
-        .allocate_exact_size(egui::vec2(w, s.s(PREVIEW)), Sense::hover());
+        .allocate_exact_size(egui::vec2(w, s.s(PREVIEW)), sense);
     let mg = s.s(sheet::MARGIN);
     let r = Rect::from_min_max(
         pos2(full.left() + mg, full.top() + s.s(2.0)),
@@ -188,6 +198,7 @@ fn preview(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         ..State::REST
     };
     paint::preview(sh.b, r, &s, st, &m.source, now, s.hue);
+    resp
 }
 
 /// The step editor: click or drag across the bars to draw the steps.
@@ -545,9 +556,47 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             );
             polarity(sh, m, r.unipolar);
         }
-        // fxd: the controllers' own windows hold their settings (step 3); the row shows
-        // their movement.
-        ModSource::XyPad(_) | ModSource::Formula(_) => preview(sh, app, m),
+        // fxd: the controllers' own windows hold their settings (step 3): the row shows
+        // their movement (a double-click opens the window) and the key that opens it.
+        ModSource::XyPad(_) | ModSource::Formula(_) => {
+            if preview_with(sh, app, m, Sense::click()).double_clicked() {
+                sh.acts.push(Act::Mod(ModAct::Open(m.id)));
+            }
+            open_row(sh, m);
+        }
+    }
+}
+
+/// fxd: a controller's *Open* key across the value column (the inspector's push button),
+/// under the word for its window.
+fn open_row(sh: &mut Sheet<'_>, m: &Modulator) {
+    use crate::kit::text::{self, Elide, Policy, Role, Text};
+    let s = sh.s.function(function_of(m.source.kind()));
+    let row = sh.row();
+    sh.label(row.label, "mods.window", m.muted);
+    let w = row.value.width().min(s.s(120.0));
+    let br = Rect::from_min_size(row.value.min, egui::vec2(w, row.value.height()));
+    let r = sh
+        .ui
+        .interact(br, Id::new(("mod-open", m.id)), Sense::click());
+    let st = State::of(&r, false);
+    let look = crate::kit::cap::CapLook {
+        lit: Some(s.t.selection),
+        ..Default::default()
+    };
+    crate::kit::cap::paint(sh.b, br, &s, st, &look);
+    let ink = crate::kit::color::on_fill(crate::kit::cap::face(&s, st, &look));
+    let tx = Text::key("mods.open", Role::Control, ink)
+        .align(egui::Align2::CENTER_CENTER)
+        .policy(Policy::Elide(Elide::End));
+    let _ = text::paint(sh.b, br.shrink2(egui::vec2(s.s(6.0), 0.0)), &tx, s.tk());
+    if r.hovered() {
+        let name = sheet::name(sh.fmt.tr("mods.open"));
+        let tip = sheet::name(sh.fmt.tr("mods.open.tip"));
+        hint::set_text(sh.ui.ctx(), &name, &tip, Caps::NONE);
+    }
+    if r.clicked() {
+        sh.acts.push(Act::Mod(ModAct::Open(m.id)));
     }
 }
 

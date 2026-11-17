@@ -108,3 +108,20 @@ fxd.preset.formula.env_bar = Envolvente por compás
 fxd.preset.formula.env_bar.what = Enlázala a un corte o a un nivel: golpea en cada línea de compás y luego se apaga; a el ataque, b el decaimiento, c la profundidad
 fxd.preset.formula.climb = Subida
 fxd.preset.formula.climb.what = Enlázala a un corte o a un envío para una subida: crece desde el inicio de la canción a lo largo de a (de 1 a 64 compases), curvada por b, hasta la altura c
+
+# Window (fxd step 3)
+fxd.xy.card.x = Horizontal
+fxd.xy.card.y = Vertical
+fxd.xy.draw = Dibujar trayecto
+fxd.xy.draw.tip = Arrastra sobre el pad: el arrastre se vuelve el trayecto, en un bucle
+fxd.xy.record = Grabar trayecto
+fxd.xy.record.tip = Mientras suena la canción, arrastra sobre el pad: el arrastre, en el tiempo de la canción, se vuelve el trayecto
+fxd.window.context = ({modulator} · {host})
+fxd.preset.custom = Personalizado
+mods.open = Abrir
+mods.open.tip = Su ventana: el pad o la fórmula, sus tarjetas, sus presets
+fxd.rail.more = +{n} más
+fxd.window.chip = Mueve {n} parámetros
+fxd.window.chip.one = Mueve 1 parámetro
+fxd.window.chip.none = Aún no mueve nada
+mods.window = Ventana

@@ -108,3 +108,20 @@ fxd.preset.formula.env_bar = Envelope each bar
 fxd.preset.formula.env_bar.what = Link it to a cutoff or a level: struck on every bar line, then dying away; a the attack, b the decay, c the depth
 fxd.preset.formula.climb = Climb
 fxd.preset.formula.climb.what = Link it to a cutoff or a send for a build-up: it rises from the song's start over a (1 to 64 bars), bent by b, to the height c
+
+# Window (fxd step 3)
+fxd.xy.card.x = Horizontal
+fxd.xy.card.y = Vertical
+fxd.xy.draw = Draw path
+fxd.xy.draw.tip = Drag on the pad: the drag becomes the path, over one loop
+fxd.xy.record = Record path
+fxd.xy.record.tip = While the song plays, drag on the pad: the drag, in song time, becomes the path
+fxd.window.context = ({modulator} · {host})
+fxd.preset.custom = Custom
+mods.open = Open
+mods.open.tip = Its window: the pad or the formula, its cards, its presets
+fxd.rail.more = +{n} more
+fxd.window.chip = Drives {n} parameters
+fxd.window.chip.one = Drives 1 parameter
+fxd.window.chip.none = Drives nothing yet
+mods.window = Window

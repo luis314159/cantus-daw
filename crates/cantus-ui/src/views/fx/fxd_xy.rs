@@ -9,6 +9,7 @@
 use super::fxa_cells::Item;
 use super::fxd_art::{self as art, Card, Moved, Value};
 use crate::kit::color::{mix, with_alpha};
+use crate::kit::glyph::Glyph;
 use crate::kit::text::{Role, Src};
 use crate::kit::{Brush, Fill, Style};
 use cantus_core::modulator::{RouteRange, XySource};
@@ -26,6 +27,53 @@ pub struct Live {
     pub trail: Vec<[f32; 2]>,
     /// Where the song is along the path, 0…1 of its loop, while it plays.
     pub path_at: Option<f32>,
+    /// What a drag on the pad does now (the hand, drawing a path, recording one).
+    pub mode: PadMode,
+    /// The path being drawn or recorded, while the drag goes on (0…1 each, y up).
+    pub stroke: Vec<[f32; 2]>,
+    /// The first row the links list shows (it scrolls when there are more than fit).
+    pub links_first: usize,
+    /// The loop a path is drawn over while the pad has none (the Loop card's value; 0 is
+    /// the default four beats).
+    pub loop_beats: f32,
+}
+
+/// What a drag on the pad does.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum PadMode {
+    /// Moves the puck (the pad's X and Y).
+    #[default]
+    Hand,
+    /// Draws a path: the drag's points over one loop.
+    Draw,
+    /// Records a path while the song plays: the drag in song time.
+    Record,
+}
+
+/// Where the face's parts were drawn this frame (the window's tests, its hints).
+#[derive(Clone, Debug)]
+pub struct Rects {
+    /// The touch surface.
+    pub pad: Rect,
+    /// The *Draw path* and *Record path* keys on the glass.
+    pub draw: Rect,
+    pub record: Rect,
+    /// The links list.
+    pub links: Rect,
+    /// The cards' items.
+    pub items: art::ItemRects,
+}
+
+impl Default for Rects {
+    fn default() -> Self {
+        Rects {
+            pad: Rect::NOTHING,
+            draw: Rect::NOTHING,
+            record: Rect::NOTHING,
+            links: Rect::NOTHING,
+            items: Vec::new(),
+        }
+    }
 }
 
 /// One parameter the pad drives, as the links list shows it.
@@ -45,6 +93,10 @@ pub enum Action {
     PadDone,
     /// A card's control.
     Card(Moved),
+    /// *Draw path* or *Record path* switched (to `Hand` when it was on).
+    Mode(PadMode),
+    /// The links list scrolled to show from this row.
+    LinksAt(usize),
 }
 
 /// The cards: the pad (its hand, its polarity, its amount) and its motion.
@@ -52,8 +104,8 @@ pub const CARDS: [Card<'static>; 2] = [
     Card {
         title: "fxd.xy.card.pad",
         items: &[
-            Item::Knob("x", "fxd.xy.x"),
-            Item::Knob("y", "fxd.xy.y"),
+            Item::Knob("x", "fxd.xy.card.x"),
+            Item::Knob("y", "fxd.xy.card.y"),
             Item::Switch(
                 "pol",
                 "fxd.card.polarity",
@@ -85,6 +137,8 @@ pub const CARDS: [Card<'static>; 2] = [
 pub const PAD: f32 = 470.0;
 pub const SIDE: f32 = 500.0;
 const RAIL: f32 = 26.0;
+/// Parameters an axis names on its rail; the rest are counted.
+const RAIL_NAMES: usize = 2;
 const MARGIN: f32 = 14.0;
 
 /// The body's size at 100 % for the words of the current language: the window grows when
@@ -95,7 +149,7 @@ pub fn body_size(ui: &egui::Ui) -> Vec2 {
     vec2(w, MARGIN * 3.0 + PAD + 2.0 * RAIL + cards)
 }
 
-/// The face in `rect`.
+/// The face in `rect`: what the user did, and where its parts were drawn.
 pub fn body(
     ui: &mut egui::Ui,
     s: &Style,
@@ -104,9 +158,10 @@ pub fn body(
     amount: f32,
     links: &[Link],
     live: &Live,
-) -> Vec<Action> {
+) -> (Vec<Action>, Rects) {
     let k = s.k;
     let mut out = Vec::new();
+    let mut rects = Rects::default();
     let outer = Rect::from_min_size(
         rect.min + vec2(MARGIN, MARGIN) * k,
         Vec2::splat((PAD + 2.0 * RAIL) * k),
@@ -134,26 +189,96 @@ pub fn body(
     );
     surface(&mut b, s, open, src, live);
     rails(&mut b, s, outer, open, links);
-    let (wheel, list) = side.split_top_bottom_at_fraction(0.48);
+    // The side: the links sized to their rows (scrolling past the most that fit), the
+    // flywheel taking the rest.
+    let list_h = art::links_height(links.len(), side.height() / k * 0.5) * k;
+    let (wheel, list) = side.split_top_bottom_at_y(side.bottom() - list_h);
     flywheel(&mut b, s, wheel.shrink2(vec2(0.0, 4.0 * k)), src, live);
-    links_panel(&mut b, s, list.shrink2(vec2(0.0, 4.0 * k)), links, true);
+    let list = list.shrink2(vec2(0.0, 4.0 * k));
+    let fit = links_panel(ui.ctx(), &mut b, s, list, links, true, live.links_first);
+    rects.links = list;
+    // The keys on the glass: draw a path, record one.
+    let (draw, record) = mode_keys(open, k);
+    let hot = |r: Rect| ui.rect_contains_pointer(r);
+    mode_key(
+        &mut b,
+        s,
+        draw,
+        Glyph::LanePencil,
+        "fxd.xy.draw",
+        live.mode == PadMode::Draw,
+        hot(draw),
+        false,
+    );
+    mode_key(
+        &mut b,
+        s,
+        record,
+        Glyph::Record,
+        "fxd.xy.record",
+        live.mode == PadMode::Record,
+        hot(record),
+        true,
+    );
     b.flush(ui.painter());
-    // The hand on the pad.
+    rects.pad = open;
+    rects.draw = draw;
+    rects.record = record;
+    // The hand on the pad (a press on the keys is theirs).
     let resp = ui.interact(
         open,
         ui.id().with("fxd-xy-pad"),
         egui::Sense::click_and_drag(),
     );
-    if let Some(p) = resp
-        .interact_pointer_pos()
-        .filter(|_| resp.dragged() || resp.clicked())
-    {
-        let x = ((p.x - open.left()) / open.width()).clamp(0.0, 1.0);
-        let y = ((open.bottom() - p.y) / open.height()).clamp(0.0, 1.0);
-        out.push(Action::Pad(x, y));
+    let on_keys = ui
+        .input(|i| i.pointer.press_origin())
+        .is_some_and(|p| draw.contains(p) || record.contains(p));
+    if !on_keys {
+        if let Some(p) = resp
+            .interact_pointer_pos()
+            .filter(|_| resp.dragged() || resp.clicked())
+        {
+            let x = ((p.x - open.left()) / open.width()).clamp(0.0, 1.0);
+            let y = ((open.bottom() - p.y) / open.height()).clamp(0.0, 1.0);
+            out.push(Action::Pad(x, y));
+        }
+        if resp.drag_stopped() || resp.clicked() {
+            out.push(Action::PadDone);
+        }
     }
-    if resp.drag_stopped() || resp.clicked() {
-        out.push(Action::PadDone);
+    for (r, mode, id) in [
+        (draw, PadMode::Draw, "fxd-xy-draw"),
+        (record, PadMode::Record, "fxd-xy-record"),
+    ] {
+        let kr = ui.interact(r, ui.id().with(id), egui::Sense::click());
+        if kr.hovered() {
+            let key = if mode == PadMode::Draw {
+                "fxd.xy.draw"
+            } else {
+                "fxd.xy.record"
+            };
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                super::frame::tr(key),
+                super::frame::tr(if mode == PadMode::Draw {
+                    "fxd.xy.draw.tip"
+                } else {
+                    "fxd.xy.record.tip"
+                }),
+                crate::kit::hint::Caps::NONE,
+            );
+        }
+        if kr.clicked() {
+            out.push(Action::Mode(if live.mode == mode {
+                PadMode::Hand
+            } else {
+                mode
+            }));
+        }
+    }
+    // The wheel over the list scrolls it a row at a time.
+    if let Some(at) = scroll_links(ui, list, links.len(), fit, live.links_first) {
+        out.push(Action::LinksAt(at));
     }
     // The cards under.
     let cards = Rect::from_min_max(
@@ -206,7 +331,14 @@ pub fn body(
             },
             (1, 1) => Value::Choice(usize::from(src.play_path)),
             (1, 2) => Value::Knob {
-                v: path.map_or(4.0, |p| p.beats),
+                v: path.map_or(
+                    if live.loop_beats > 0.0 {
+                        live.loop_beats
+                    } else {
+                        4.0
+                    },
+                    |p| p.beats,
+                ),
                 lo: 0.25,
                 hi: 64.0,
                 def: 4.0,
@@ -216,11 +348,11 @@ pub fn body(
         }
     };
     out.extend(
-        art::lay_cards(ui, s, cards, &CARDS, &values)
+        art::lay_cards(ui, s, cards, &CARDS, &values, &mut rects.items)
             .into_iter()
             .map(Action::Card),
     );
-    out
+    (out, rects)
 }
 
 /// A point of the pad (0…1, y up) in `r`.
@@ -311,6 +443,16 @@ fn surface(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
             b.circle(p, 3.2 * k, Fill::Solid(lit2));
             b.circle_stroke(p, 6.0 * k, 0.8 * k, with_alpha(lit2, 0.5));
         }
+    }
+    // The path being drawn or recorded, as the hand lays it (recording in record red).
+    if live.stroke.len() > 1 {
+        let pts: Vec<Pos2> = live.stroke.iter().map(|p| at(r, *p)).collect();
+        let c = if live.mode == PadMode::Record {
+            s.t.danger
+        } else {
+            lit2
+        };
+        b.glow_polyline(&pts, 1.6 * k, c, with_alpha(c, 0.25), 6.0 * k);
     }
     // The inertia trail: older is fainter and thinner.
     let m = live.trail.len();
@@ -434,13 +576,23 @@ fn rails(b: &mut Brush, s: &Style, outer: Rect, open: Rect, links: &[Link]) {
             m.engrave,
         );
     }
+    // The first two an axis drives by name, the rest counted ("+3 more"): the rail is
+    // never too short for its words.
     let names = |axis: u8| -> String {
         let v: Vec<&str> = links
             .iter()
             .filter(|l| l.axis == axis)
             .map(|l| l.name.as_str())
             .collect();
-        v.join(" · ")
+        if v.len() <= RAIL_NAMES {
+            v.join(" · ")
+        } else {
+            let more = crate::i18n::tf(
+                "fxd.rail.more",
+                &[("n", &(v.len() - RAIL_NAMES).to_string())],
+            );
+            format!("{} · {more}", v[..RAIL_NAMES].join(" · "))
+        }
     };
     let foot = Rect::from_min_max(
         pos2(open.left() + 10.0 * k, open.bottom() + 11.0 * k),
@@ -581,8 +733,112 @@ fn lit_on_panel(s: &Style) -> egui::Color32 {
     s.hue
 }
 
-/// The links: each parameter, its axis, its range drawn as a bar over the axis's travel.
-pub fn links_panel(b: &mut Brush, s: &Style, r: Rect, links: &[Link], axes: bool) {
+/// The keys on the glass, top left: *Draw path*, *Record path*.
+fn mode_keys(open: Rect, k: f32) -> (Rect, Rect) {
+    let h = 20.0 * k;
+    let w = 30.0 * k;
+    let draw = Rect::from_min_size(open.min + vec2(8.0, 8.0) * k, vec2(w, h));
+    let record = draw.translate(vec2(w + 6.0 * k, 0.0));
+    (draw, record)
+}
+
+/// A key on the glass: a dark chip with its glyph, lit while its mode is on (recording in
+/// the theme's record red).
+#[allow(clippy::too_many_arguments)]
+fn mode_key(
+    b: &mut Brush,
+    s: &Style,
+    r: Rect,
+    g: Glyph,
+    _key: &str,
+    on: bool,
+    hot: bool,
+    rec: bool,
+) {
+    let k = s.k;
+    let lit = if rec { s.t.danger } else { art::lit(s) };
+    let ground = art::ground(s);
+    let face = if on {
+        mix(ground, lit, 0.35)
+    } else if hot {
+        mix(ground, s.t.light, 0.10)
+    } else {
+        mix(ground, s.t.light, 0.04)
+    };
+    b.rrect(r, 4.0 * k, Fill::Solid(face));
+    b.rrect_stroke(
+        r,
+        4.0 * k,
+        0.8 * k,
+        with_alpha(
+            if on { lit } else { s.t.light },
+            if on { 0.9 } else { 0.25 },
+        ),
+    );
+    let ink = if on {
+        mix(lit, s.t.light, 0.5)
+    } else {
+        with_alpha(s.t.light, if hot { 0.9 } else { 0.6 })
+    };
+    let gr = Rect::from_center_size(r.center(), Vec2::splat(12.0 * k));
+    if rec {
+        // The record key: a round lamp.
+        b.circle(
+            gr.center(),
+            4.5 * k,
+            Fill::Solid(if on { lit } else { ink }),
+        );
+    } else {
+        crate::kit::glyph::paint(b, gr, g, ink);
+    }
+}
+
+/// The wheel over a links list: the row to show from, when it moved.
+pub fn scroll_links(
+    ui: &egui::Ui,
+    list: Rect,
+    n: usize,
+    fit: usize,
+    first: usize,
+) -> Option<usize> {
+    if n <= fit || !ui.rect_contains_pointer(list) {
+        return None;
+    }
+    // The wheel's own steps (not the smoothed scroll): one row a notch.
+    let dy: f32 = ui.input(|i| {
+        i.events
+            .iter()
+            .map(|e| match e {
+                egui::Event::MouseWheel { delta, .. } => delta.y,
+                _ => 0.0,
+            })
+            .sum()
+    });
+    if dy == 0.0 {
+        return None;
+    }
+    let max = n - fit;
+    let at = if dy < 0.0 {
+        (first + 1).min(max)
+    } else {
+        first.saturating_sub(1).min(max)
+    };
+    (at != first).then_some(at)
+}
+
+/// The links: each parameter, its axis, its range drawn as a bar over the axis's travel;
+/// from row `first` on, as many as fit, a thin scroll bar at the side when not all do.
+/// Returns how many rows fit.
+#[allow(clippy::too_many_arguments)]
+pub fn links_panel(
+    ctx: &egui::Context,
+    b: &mut Brush,
+    s: &Style,
+    r: Rect,
+    links: &[Link],
+    axes: bool,
+    first: usize,
+) -> usize {
     let k = s.k;
     art::well(b, s, r);
     art::label(
@@ -597,15 +853,17 @@ pub fn links_panel(b: &mut Brush, s: &Style, r: Rect, links: &[Link], axes: bool
         s.t.text_dim,
         Align2::LEFT_CENTER,
     );
-    let row = 30.0 * k;
-    for (i, l) in links.iter().enumerate() {
-        let y = r.top() + 26.0 * k + i as f32 * row;
-        if y + row > r.bottom() {
-            break;
-        }
+    let row = art::LINK_ROW * k;
+    let fit =
+        (((r.height() - art::LINKS_HEAD * k - art::LINKS_FOOT * k) / row).floor() as usize).max(1);
+    let first = first.min(links.len().saturating_sub(fit));
+    let scrolls = links.len() > fit;
+    let bar_room = if scrolls { 10.0 * k } else { 0.0 };
+    for (i, l) in links.iter().enumerate().skip(first).take(fit) {
+        let y = r.top() + art::LINKS_HEAD * k + (i - first) as f32 * row;
         let line = Rect::from_min_size(
             pos2(r.left() + 10.0 * k, y),
-            vec2(r.width() - 20.0 * k, row - 4.0 * k),
+            vec2(r.width() - 20.0 * k - bar_room, row - 4.0 * k),
         );
         let axis = if l.axis == 0 { "X" } else { "Y" };
         let tag = Rect::from_min_size(line.min, vec2(if axes { 20.0 } else { 0.0 } * k, 16.0 * k));
@@ -664,15 +922,43 @@ pub fn links_panel(b: &mut Brush, s: &Style, r: Rect, links: &[Link], axes: bool
             s.t.text_dim,
         );
     }
+    if scrolls {
+        // The scroll bar: a fine track, the thumb the share shown.
+        let track = Rect::from_min_max(
+            pos2(r.right() - 9.0 * k, r.top() + art::LINKS_HEAD * k),
+            pos2(r.right() - 6.0 * k, r.bottom() - art::LINKS_FOOT * k),
+        );
+        b.rrect(
+            track,
+            1.5 * k,
+            Fill::Solid(mix(s.t.panel, s.t.dark_shade, 0.35)),
+        );
+        let n = links.len() as f32;
+        let t0 = track.top() + track.height() * first as f32 / n;
+        let t1 = track.top() + track.height() * (first + fit).min(links.len()) as f32 / n;
+        b.rrect(
+            Rect::from_min_max(pos2(track.left(), t0), pos2(track.right(), t1)),
+            1.5 * k,
+            Fill::Solid(with_alpha(s.hue, 0.8)),
+        );
+    }
     if links.is_empty() {
-        art::label(
+        // What to do, in as many lines as the well's width needs.
+        let room = Rect::from_min_max(
+            pos2(r.left() + 12.0 * k, r.top() + art::LINKS_HEAD * k),
+            pos2(r.right() - 12.0 * k, r.bottom() - art::LINKS_FOOT * k),
+        );
+        let words = crate::i18n::t("fxd.links.none");
+        let lines = crate::kit::prose::wrap(ctx, &words, Role::Body, k, room.width());
+        let _ = crate::kit::prose::paint(
             b,
-            s,
-            r.shrink(20.0 * k),
-            Src::Key("fxd.links.none"),
+            room,
+            &lines,
             Role::Body,
+            k,
             s.t.text_dim,
             Align2::CENTER_CENTER,
         );
     }
+    fit
 }

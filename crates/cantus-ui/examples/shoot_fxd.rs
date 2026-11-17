@@ -137,6 +137,11 @@ fn pad(state: &str, look: u8) -> (XySource, Vec<fxd_xy::Link>, fxd_xy::Live) {
             src.inertia_ms = 0.0;
             beats = 2.1;
         }
+        "draw" | "record" => {
+            src.play_path = false;
+            src.path = None;
+        }
+        "links" => links.extend(many_links()),
         _ => {}
     }
     // The puck as the engine steps it: the path (or the hand) and the inertia, at the
@@ -167,13 +172,61 @@ fn pad(state: &str, look: u8) -> (XySource, Vec<fxd_xy::Link>, fxd_xy::Live) {
         .as_ref()
         .filter(|_| src.play_path)
         .map(|p| ((beats / f64::from(p.beats)).fract()) as f32);
-    let live = fxd_xy::Live {
+    let mut live = fxd_xy::Live {
         puck: puck.pos,
         heads,
         trail: if state == "rest" { Vec::new() } else { trail },
         path_at,
+        ..fxd_xy::Live::default()
     };
+    match state {
+        // Part of a loop drawn: a figure of eight under the hand.
+        "draw" | "record" => {
+            live.mode = if state == "draw" {
+                fxd_xy::PadMode::Draw
+            } else {
+                fxd_xy::PadMode::Record
+            };
+            live.stroke = (0..=60)
+                .map(|i| {
+                    let t = i as f32 / 60.0 * std::f32::consts::PI * 1.4;
+                    [0.5 + 0.32 * t.sin(), 0.5 + 0.26 * (2.0 * t).sin()]
+                })
+                .collect();
+            let end = *live.stroke.last().unwrap();
+            live.puck = end;
+            live.heads = end;
+            live.trail.clear();
+        }
+        "links" => live.links_first = 3,
+        _ => {}
+    }
     (src, links, live)
+}
+
+/// More parameters than the list shows: it scrolls.
+fn many_links() -> Vec<fxd_xy::Link> {
+    let t = |k: &str| i18n::t(k);
+    let mut v = Vec::new();
+    for (i, (key, on)) in [
+        ("auto.target.volume", "Drums"),
+        ("auto.target.pan", "Pad"),
+        ("kit.param.cutoff", "Bass"),
+        ("auto.target.width", "Master"),
+        ("kit.param.resonance", "Lead"),
+        ("auto.target.level", "Keys"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        v.push(fxd_xy::Link {
+            name: format!("{} · {on}", t(key)),
+            axis: (i % 2) as u8,
+            range: None,
+            depth: 0.3 + 0.1 * i as f32,
+        });
+    }
+    v
 }
 
 /// The formula of a state.
@@ -207,8 +260,7 @@ fn formula(state: &str, look: u8) -> (FormulaSource, Vec<fxd_xy::Link>, fxd_form
     let mut live = fxd_formula::Live {
         beats: 9.4,
         tempo: 120.0,
-        draft: None,
-        caret: None,
+        ..fxd_formula::Live::default()
     };
     match state {
         "square" => src.text = "a*Round(Frac(SongTime*2*b)+0.5-c)".into(),
@@ -221,11 +273,27 @@ fn formula(state: &str, look: u8) -> (FormulaSource, Vec<fxd_xy::Link>, fxd_form
             let d = "a*Sin(SongTime*Pi*b".to_string();
             live.caret = Some(d.len());
             live.draft = Some(d);
+            live.focused = true;
+        }
+        "typing" => {
+            src.text = "a*Sin(SongTime*Pi*b)+c".into();
+            live.caret = Some("a*Sin(SongTime*Pi*b".len());
+            live.focused = true;
         }
         _ => {}
     }
+    let mut links = links;
+    if state == "links" {
+        links.extend(many_links());
+        live.links_first = 2;
+    }
     debug_assert!(Program::compile(&src.text).is_ok());
     (src, links, live)
+}
+
+/// The preset well's name in the preset shots.
+fn preset_name(_formula: bool) -> String {
+    i18n::t("fxd.preset.custom")
 }
 
 fn take(dir: &Path, sh: &Shot) {
@@ -249,17 +317,22 @@ fn take(dir: &Path, sh: &Shot) {
     let path = dir.join(name(sh));
     let context = i18n::t("fxd.sheet.context");
     probe::start_clipped();
+    let preset = (sh.state == "preset").then(|| preset_name(f));
     shoot(&ctx, size * sh.k, 1.0, 6, Some(&path), |ui| {
         if f {
             let (src, links, live) = formula(sh.state, sh.look);
             let chips = [i18n::t("fxd.sheet.chip.formula")];
             let chips: Vec<&str> = chips.iter().map(String::as_str).collect();
-            fxd::formula(ui, &context, &src, 1.0, true, &links, &live, &chips);
+            let mut c = fxd::Chrome::sheet(&context, true, &chips);
+            c.preset = preset.as_deref();
+            fxd::formula(ui, &c, &src, 1.0, &links, &live);
         } else {
             let (src, links, live) = pad(sh.state, sh.look);
             let chips = [i18n::t("fxd.sheet.chip.xy")];
             let chips: Vec<&str> = chips.iter().map(String::as_str).collect();
-            fxd::xy(ui, &context, &src, 0.85, true, &links, &live, &chips);
+            let mut c = fxd::Chrome::sheet(&context, true, &chips);
+            c.preset = preset.as_deref();
+            fxd::xy(ui, &c, &src, 0.85, &links, &live);
         }
     });
     let cuts = probe::take();
@@ -286,8 +359,18 @@ fn main() {
         look,
     };
     let states: [(&str, &[&str]); 2] = [
-        ("xy", &["start", "hand", "oneway", "rest"]),
-        ("formula", &["start", "square", "bipolar", "error"]),
+        (
+            "xy",
+            &[
+                "start", "hand", "oneway", "rest", "draw", "record", "preset", "links",
+            ],
+        ),
+        (
+            "formula",
+            &[
+                "start", "square", "bipolar", "error", "typing", "preset", "links",
+            ],
+        ),
     ];
     let mut shots = Vec::new();
     for (unit, list) in states {

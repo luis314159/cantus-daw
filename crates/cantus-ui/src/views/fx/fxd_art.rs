@@ -198,6 +198,27 @@ pub fn rows(ui: &egui::Ui, cards: &[Card<'_>], avail: f32) -> Vec<(usize, usize)
 /// The gap between cards, 100 %.
 pub const GAP: f32 = 8.0;
 
+/// The links list (`fxd_xy::links_panel`): a row, the title above the rows and the room
+/// under them, 100 %.
+pub const LINK_ROW: f32 = 30.0;
+pub const LINKS_HEAD: f32 = 26.0;
+pub const LINKS_FOOT: f32 = 6.0;
+/// The room the "connect a parameter" words take in an empty list, 100 %.
+const LINKS_NONE: f32 = 52.0;
+
+/// The links list's height for `n` rows at 100 % (the frame's insets in), at most `max`:
+/// sized to its rows, never a band of empty well under them; past `max` it scrolls.
+pub fn links_height(n: usize, max: f32) -> f32 {
+    let inner = if n == 0 {
+        LINKS_NONE
+    } else {
+        n as f32 * LINK_ROW
+    };
+    (LINKS_HEAD + inner + LINKS_FOOT + 8.0)
+        .min(max)
+        .max(LINKS_HEAD + LINK_ROW + LINKS_FOOT + 8.0)
+}
+
 /// A card's height, 100 %.
 pub fn card_h() -> f32 {
     controls::card_height(Size::M)
@@ -216,33 +237,44 @@ pub enum Moved {
     Done { card: usize, item: usize },
 }
 
+/// Where a card's items were laid this frame: `(card, item)` and its rect (a knob's cell,
+/// a switch's segments), for the window's tests and its hints.
+pub type ItemRects = Vec<((usize, usize), Rect)>;
+
 /// Lay `cards` in rows across `area` (scaled), each item drawn from `values` (a knob's value
-/// with its range, default and readout; a switch's choice).
+/// with its range, default and readout; a switch's choice). Each row fills the width: its
+/// slack is shared by item — every item of the row gets the same room, half before it and
+/// half after — never left empty at a card's end (the owner's note on design sheet v1).
 pub fn lay_cards<'v>(
     ui: &mut egui::Ui,
     s: &Style,
     area: Rect,
     cards: &[Card<'_>],
     values: &dyn Fn(usize, usize) -> Value<'v>,
+    rects: &mut ItemRects,
 ) -> Vec<Moved> {
     let mut out = Vec::new();
+    rects.clear();
     let k = s.k;
     let rows = rows(ui, cards, area.width() / k);
     let h = card_h() * k;
     for (r, &(i, j)) in rows.iter().enumerate() {
         let widths: Vec<f32> = cards[i..j].iter().map(|c| card_width(ui, c) * k).collect();
         let total: f32 = widths.iter().sum::<f32>() + GAP * k * (j - i - 1) as f32;
-        // Each row fills the width: the slack shared among its cards.
-        let extra = ((area.width() - total) / (j - i) as f32).max(0.0);
+        let items: usize = cards[i..j].iter().map(|c| c.items.len()).sum();
+        let per_item = ((area.width() - total) / items.max(1) as f32).max(0.0);
         let mut x = area.left();
         let y = area.top() + r as f32 * (h + GAP * k);
         for (n, c) in (i..j).enumerate() {
+            let card = &cards[c];
+            let extra = per_item * card.items.len() as f32;
             let rect = Rect::from_min_size(pos2(x, y), vec2(widths[n] + extra, h));
             x += widths[n] + extra + GAP * k;
-            let card = &cards[c];
             controls::card(ui, s, rect, Src::Key(card.title), None, |ui, _| {
                 for (it, item) in card.items.iter().enumerate() {
                     let w = fxa_cells::width(ui, item);
+                    // The item's share of the slack: half before it, half after.
+                    ui.add_space(per_item * 0.5);
                     match (*item, values(c, it)) {
                         (
                             Item::Knob(_, lab),
@@ -259,7 +291,16 @@ pub fn lay_cards<'v>(
                                 .label(Src::Key(lab))
                                 .width(w)
                                 .format(fmt);
+                            let before = ui.cursor().min;
                             let o = cell.show(ui, s);
+                            let after = ui.min_rect();
+                            rects.push((
+                                (c, it),
+                                Rect::from_min_max(
+                                    pos2(before.x, after.top()),
+                                    pos2(before.x + w * k, after.bottom()),
+                                ),
+                            ));
                             if let Some(v) = o.changed {
                                 out.push(Moved::To {
                                     card: c,
@@ -276,7 +317,14 @@ pub fn lay_cards<'v>(
                                 controls::caption(ui, s, Src::Key(lab), w);
                                 let labels: Vec<Src<'_>> =
                                     choices.iter().map(|c| Src::Key(c)).collect();
-                                if let Some(v) = controls::segmented(ui, s, sel, &labels, lab, w) {
+                                let (resp, picked) =
+                                    crate::kit::widgets::Segmented::new(sel, &labels)
+                                        .name(super::frame::tr(lab))
+                                        .size(w, controls::ROW)
+                                        .style(*s)
+                                        .show(ui);
+                                rects.push(((c, it), resp.rect));
+                                if let Some(v) = picked {
                                     out.push(Moved::To {
                                         card: c,
                                         item: it,
@@ -288,6 +336,7 @@ pub fn lay_cards<'v>(
                         }
                         _ => {}
                     }
+                    ui.add_space(per_item * 0.5);
                 }
             });
         }
