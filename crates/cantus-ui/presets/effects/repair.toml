@@ -42,6 +42,7 @@ roles = ["bus"]
 "hmode" = 2
 "hon" = 1
 "hwidth" = 3
+"out" = 0.7
 
 [[preset]]
 key = "preset.purus.guitar_di"
@@ -96,6 +97,7 @@ roles = ["master"]
 "hharm" = 6
 "hmode" = 2
 "hon" = 1
+"out" = 0.6
 
 [[preset]]
 key = "preset.purus.podcast_room"
@@ -103,6 +105,7 @@ note = "A podcast voice close to the microphone in a small room: the room's tail
 styles = ["film", "pop"]
 roles = ["vocal"]
 [preset.values]
+"out" = 0.7
 "vamount" = 10
 "vdecay" = 1
 "vdirect" = 9
@@ -114,6 +117,7 @@ note = "Dialogue in a reverberant room: the late tail taken down, the decay meas
 styles = ["film"]
 roles = ["vocal"]
 [preset.values]
+"out" = 1.4
 "vamount" = 14
 "vdecay" = 1
 "von" = 1
@@ -126,6 +130,7 @@ roles = ["vocal"]
 [preset.values]
 "hmode" = 2
 "hon" = 1
+"out" = 4.5
 "vamount" = 18
 "vdecay" = 1
 "vdirect" = 0
@@ -137,6 +142,7 @@ note = "A talk in a lecture hall or a church: a long decay measured, more of the
 styles = ["worship", "film"]
 roles = ["vocal"]
 [preset.values]
+"out" = 2.1
 "vamount" = 20
 "vdecay" = 1
 "vdirect" = 0
@@ -154,6 +160,7 @@ roles = ["creative"]
 "hharm" = 12
 "hmode" = 2
 "hon" = 1
+"out" = 0.6
 
 [[preset]]
 key = "preset.purus.video_call"
@@ -163,6 +170,7 @@ roles = ["vocal"]
 [preset.values]
 "hmode" = 2
 "hon" = 1
+"out" = 1.8
 "vamount" = 12
 "vdecay" = 1
 "von" = 1
@@ -180,6 +188,7 @@ roles = ["vocal", "master"]
 "hharm" = 16
 "hmode" = 2
 "hon" = 1
+"out" = 2.1
 "vamount" = 18
 "vdecay" = 1
 "von" = 1

@@ -2489,6 +2489,68 @@ mix on its face); a board with Caelum takes a key, and the key reaches its ducki
 sidechain input once its own *Sidechain* switch is set to *Sidechain input*, and a synced
 pre-delay follows the host's tempo.
 
+### Purus, the real-time repair
+
+**Purus** (Latin for *clean*) repairs a track while it plays: the mains' hum, clicks and
+crackle, a room's tail on a voice. Insert it from **Add insert ▾ ▸ Utility ▸ Purus**; it
+starts as *Mains hum 50 Hz* — the hum module on, at 50 Hz, followed as the mains drift, eight
+harmonics notched — so a ground loop's hum leaves at once. (The audio editor's *Denoise* and
+*Declick* repair a take offline; Purus does it as the song plays, on any strip.)
+
+**Three modules**, each with its own switch, mix and output, each off until you switch it on:
+
+- **Hum removal** takes the mains' fundamental and up to sixteen harmonics out. *Frequency*
+  is **Fixed** (exactly the fundamental you set), **Followed** (the mains drift; it follows
+  within 2 Hz) or **Found by itself** (it decides between 50 and 60 Hz, then follows). The
+  notches' *Depth* and *Notch width* set how much and how narrowly. **Gentle** learns the
+  hum and subtracts it instead of notching it: a bass note on 50, 100 or 150 Hz keeps its
+  weight (it holds what it learned while the note sounds). Gentle looks 50 ms ahead, which
+  is its latency.
+- **Click and crackle removal** finds each click and rebuilds it from the music around it
+  (the audio editor's own repair), and with *Crackle* above 0 takes a record's crackle out of
+  the high band. *Sensitivity* stops at 0.70: higher, it starts to mend the music itself.
+  16 ms of latency.
+- **Room removal** takes a room's tail down from a voice. *Reduction* is how far (up to
+  30 dB); the *Decay time* is the room's, set by hand or **Estimated** from the pauses;
+  *Direct sound* says how close the microphone was (+6 dB, a close voice, is the default;
+  0 dB for a far microphone); *Early reflections* keeps the first milliseconds, which carry
+  the voice. 21 ms of latency (23 at 44.1 kHz).
+
+The latency is only that of the modules switched on, and Cantus compensates it on the
+strip, so the track stays in time with the rest.
+
+**The window** is a restoration bench:
+
+- **The screen** is a spectrogram of the last six seconds, the low notes at the foot. What
+  you hear glows warm; **what Purus takes out** of each place is laid over it in a cool
+  colour, so the hum, the clicks and the room's tail show as what fell out of the picture.
+  The hum's harmonics are a comb of needles on the left rail: **drag a needle up or down
+  and the fundamental follows it**.
+- **The clicks' lane** under it ticks once for each repair, with the count.
+- **The room's tail** at the right shows the room's decay as it was (the bright line) and
+  after the repair (the warm line), the difference shaded. **Drag on it to set the
+  reduction** (the handle on its edge follows) and **drag the mark** where the early
+  reflections end to keep more or less of them.
+- **Three cartridges**, one per module: its toggle, a lamp lit by what it is doing, what it
+  reads now (the hum's frequency, the clicks rebuilt, the decay) and its keys — **50 Hz**,
+  **60 Hz** and **Gentle** on the hum's, **Set by hand** and **Estimated** on the room's, and
+  **Hear what is removed** on each: you hear only what that module takes out, to judge it.
+  Every click and drag is one step of undo; right-click a key for automation and MIDI learn.
+- **The cards** hold every control: Hum removal, Click and crackle removal, Room removal,
+  Output.
+
+Sixteen factory presets: mains hum at 50 or 60 Hz or found by itself, a guitar amp's hum and
+buzz, a live guitar DI and a bass DI (gentle), vinyl clicks, a worn record's clicks and
+crackle, an old cassette, a podcast in a small room, dialogue in a reverberant room, a
+far-microphone interview, a lecture hall, a field recording, a video call and a strong
+cleanup. At its defaults every module is off and Purus touches no sample.
+
+**On Tabula's board** Purus is a pedal too — a de-hum pedal before the drive (the
+fundamental, the harmonics, the depth and the mix on its face).
+
+**In another DAW** Purus is the plug-in *Cantus Purus* (CLAP and VST3); when a module is
+switched, it tells the host its new latency.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

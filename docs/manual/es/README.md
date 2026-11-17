@@ -2704,6 +2704,73 @@ atenuación.
 entrada de sidechain cuando su propio interruptor *Sidechain* está en *Entrada de
 sidechain*, y un pre-retardo sincronizado sigue el tempo del anfitrión.
 
+### Purus, la restauración en tiempo real
+
+**Purus** (en latín, *limpio*) repara una pista mientras suena: el zumbido de la red, los
+clics y la crepitación, la cola de una sala en una voz. Se inserta desde **Añadir inserción ▾
+▸ Utilidades ▸ Purus**; empieza como *Zumbido de red 50 Hz* — el módulo del zumbido
+encendido, a 50 Hz, seguido mientras la red deriva, ocho armónicos recortados — así el
+zumbido de un lazo de masa se va al momento. (*Quitar ruido* y *Quitar clics* del editor de
+audio reparan una toma sin conexión; Purus lo hace mientras suena la canción, en cualquier
+canal.)
+
+**Tres módulos**, cada uno con su interruptor, su mezcla y su salida, apagados hasta que los
+enciendes:
+
+- **Quitar zumbido** saca la fundamental de la red y hasta dieciséis armónicos. La
+  *Frecuencia* es **Fija** (exactamente la fundamental que pones), **Seguida** (la red
+  deriva; la sigue a ±2 Hz) o **Hallada sola** (decide entre 50 y 60 Hz y luego la sigue).
+  La *Profundidad* y la *Anchura* de las muescas dicen cuánto y con qué precisión. **Suave**
+  aprende el zumbido y lo resta en lugar de recortarlo: una nota grave en 50, 100 o 150 Hz
+  conserva su peso (retiene lo aprendido mientras suena la nota). Suave mira 50 ms por
+  delante, que es su latencia.
+- **Quitar clics y crepitación** encuentra cada clic y lo rehace con la música que lo rodea
+  (la misma reparación del editor de audio) y, con *Crepitación* por encima de 0, saca la
+  crepitación de un disco de la banda alta. La *Sensibilidad* se detiene en 0,70: más alta
+  empezaría a remendar la propia música. 16 ms de latencia.
+- **Quitar sala** baja la cola de una sala en una voz. La *Reducción* dice cuánto (hasta
+  30 dB); el *Decaimiento* es el de la sala, puesto a mano o **Estimado** en las
+  pausas; el *Sonido directo* dice lo cerca que estaba el micrófono (+6 dB, una voz cercana,
+  por defecto; 0 dB para un micrófono lejano); las *Primeras reflexiones* conservan los
+  primeros milisegundos, que llevan la voz. 21 ms de latencia (23 a 44,1 kHz).
+
+La latencia es solo la de los módulos encendidos, y Cantus la compensa en el canal, así la
+pista sigue a tiempo con el resto.
+
+**La ventana** es un banco de restauración:
+
+- **La pantalla** es un espectrograma de los últimos seis segundos, los graves abajo. Lo que
+  oyes brilla cálido; **lo que Purus quita** de cada lugar se pone encima en un color frío,
+  así el zumbido, los clics y la cola de la sala se ven como lo que cayó del cuadro. Los
+  armónicos del zumbido son un peine de agujas en el riel de la izquierda: **arrastra una
+  aguja arriba o abajo y la fundamental la sigue**.
+- **El carril de los clics**, debajo, marca cada reparación, con la cuenta.
+- **La cola de la sala**, a la derecha, muestra el decaimiento de la sala tal como era (la
+  línea clara) y tras la reparación (la línea cálida), la diferencia sombreada. **Arrastra
+  sobre ella para fijar la reducción** (el tirador del borde la sigue) y **arrastra la
+  marca** donde terminan las primeras reflexiones para conservar más o menos de ellas.
+- **Tres cartuchos**, uno por módulo: su palanca, una lámpara que se enciende con lo que hace,
+  lo que lee ahora (la frecuencia del zumbido, los clics rehechos, el decaimiento) y sus
+  teclas — **50 Hz**, **60 Hz** y **Suave** en el del zumbido, **A mano** y
+  **Estimado** en el de la sala, y **Oír lo que se quita** en cada uno: oyes solo lo que ese
+  módulo quita, para juzgarlo. Cada clic y cada arrastre es un paso de deshacer; clic
+  derecho en una tecla para automatización y aprendizaje MIDI.
+- **Las tarjetas** tienen todos los controles: Quitar zumbido, Quitar clics y crepitación,
+  Quitar sala, Salida.
+
+Dieciséis presets de fábrica: zumbido de red a 50 o 60 Hz o hallado solo, el zumbido de un
+amplificador de guitarra, una guitarra en directo y un bajo por DI (suaves), clics de vinilo,
+los clics y la crepitación de un disco gastado, un casete antiguo, un pódcast en una sala
+pequeña, un diálogo en una sala reverberante, una entrevista con micrófono lejano, un aula
+magna, una grabación de campo, una videollamada y una limpieza a fondo. En sus valores por
+defecto todos los módulos están apagados y Purus no toca ninguna muestra.
+
+**En el tablero de Tabula** Purus también es un pedal — un pedal antizumbido antes de la
+distorsión (la fundamental, los armónicos, la profundidad y la mezcla en su cara).
+
+**En otro DAW** Purus es el plug-in *Cantus Purus* (CLAP y VST3); cuando se enciende o apaga un
+módulo, le dice al anfitrión su nueva latencia.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de
