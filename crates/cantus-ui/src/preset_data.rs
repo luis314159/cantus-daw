@@ -532,6 +532,17 @@ pub fn check(unit: FileUnit, file: &File, known: &dyn Fn(&str) -> bool) -> Vec<S
             }
             FileUnit::Effect(kind) => {
                 for (k, v) in &p.values {
+                    // fxa:fractus — a Fractus preset's lanes ride in its values.
+                    if kind == EffectKind::Glitch && cantus_core::fx::fractus::lane_key(k).is_some()
+                    {
+                        if !cantus_core::fx::fractus::lane_value_ok(k, *v) {
+                            bad.push(format!(
+                                "{}: the lane's {k} = {v} is out of its range",
+                                p.key
+                            ));
+                        }
+                        continue;
+                    }
                     match kind.params().iter().find(|i| i.key == k) {
                         None => bad.push(format!("{}: {kind:?} has no value \"{k}\"", p.key)),
                         Some(i) if !(i.min..=i.max).contains(v) => bad.push(format!(

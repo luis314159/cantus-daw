@@ -433,6 +433,12 @@ pub fn modified(spec: &cantus_core::EffectSpec, loaded: &Loaded) -> bool {
             return true;
         }
     }
+    // fxa:fractus — Fractus's lanes are its preset's too.
+    if spec.kind == cantus_core::EffectKind::Glitch {
+        let want = cantus_core::fx::fractus::pattern_of_flat(&loaded.params);
+        let now = spec.fractus.as_deref().filter(|p| !p.is_empty());
+        return want.as_ref() != now;
+    }
     false
 }
 

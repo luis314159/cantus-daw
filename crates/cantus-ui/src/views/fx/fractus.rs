@@ -20,6 +20,8 @@ use egui::Rect;
 mod art;
 #[path = "fractus_display.rs"]
 pub(crate) mod display;
+#[path = "fractus_paint.rs"]
+pub mod paint;
 #[path = "fractus_scope.rs"]
 mod scope;
 
@@ -51,6 +53,8 @@ pub struct State {
     pub view: display::View,
     /// The page of cards open ([`PAGES`]).
     pub page: usize,
+    /// The pointer on the lanes (a stroke being painted).
+    pub stroke: paint::Stroke,
 }
 
 /// Fractus's editor in Cantus's own window: the host is the project.
@@ -174,6 +178,11 @@ const THROW: &[Item] = &[
     Item::Knob("wfb", "fractus.l.feedback"),
     Item::Knob("wtone", "fractus.l.tone"),
     Item::Knob("wlvl", "fractus.l.level"),
+    Item::Switch(
+        "wpp",
+        "fractus.l.pingpong",
+        &["fractus.s.off", "fractus.s.on"],
+    ),
 ];
 const CLOUD: &[Item] = &[
     Item::Knob("clevel", "fractus.l.level"),
@@ -280,7 +289,7 @@ fn body_ui(
     st.display = Some(r1);
     let reading = display::Reading::of(tel);
     st.view.update(&reading);
-    if let Some(p) = display::show(host, &st.view, ui, s, r1, &reading, st.page) {
+    if let Some(p) = display::show(host, &st.view, &mut st.stroke, ui, s, r1, &reading, st.page) {
         st.page = p;
     }
     if reading.seen {

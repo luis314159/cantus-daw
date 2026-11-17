@@ -263,8 +263,14 @@ pub fn effect_params_after(
     out
 }
 
-/// Where a preset would be loaded: the instrument (or kit) on a track, or an insert. A
-/// browser opened from nowhere in particular has no target and auditions on the phrases.
+/// fxa:fractus — a Fractus preset's lanes, which ride in its map (`fractus::to_flat`), on
+/// the spec it is heard on.
+pub fn lanes_after(spec: &mut EffectSpec, preset: &BTreeMap<String, f32>) {
+    if spec.kind == EffectKind::Glitch {
+        spec.fractus = cantus_core::fx::fractus::pattern_of_flat(preset).map(Box::new);
+    }
+}
+
 /// Where a preset would be loaded: the instrument (or kit) on a track, or an insert. A
 /// browser opened from nowhere in particular has no target and auditions on the phrases.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -371,6 +377,7 @@ pub fn prepare(
                 if let Some(kind) = kind {
                     let mut slot = p.make_effect(kind);
                     slot.spec.params = effect_params_after(&slot.spec, values);
+                    lanes_after(&mut slot.spec, values); // fxa:fractus
                     if kind == EffectKind::Vocoder {
                         vocoder_carriers(&p, &mut slot);
                     }
@@ -534,6 +541,7 @@ fn on_the_users_clip(
     p.master.fx_enabled = true;
     let slot = p.effect_mut(strip, effect)?;
     slot.spec.params = effect_params_after(&slot.spec, values);
+    lanes_after(&mut slot.spec, values); // fxa:fractus
     slot.bypass = false;
     let (start, length) = (c.start, c.length);
     let most = Ticks::from_seconds(CLIP_SECONDS, p.tempo_bpm);

@@ -379,6 +379,11 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         // fxa:loquax — the object the voice speaks into: a look (`EffectKind::is_look`),
         // chosen in the ⋯ menu, never heard — nothing a controller would play.
         ("Vocoder", "obj") => Some("a look chosen in the menu, never heard"),
+        // fxa:fractus — the cards stand on four pages; the demo opens the first.
+        // `every_fractus_page_offers_its_stepped_parameters` opens the others.
+        ("Glitch", k) if fractus_page(k).is_some_and(|p| p != 0) => {
+            Some("a card on another of Fractus's pages")
+        }
         // fx:fragor — a footswitch of a pedal not on the board: nothing of it is drawn.
         ("Pedal", k)
             if k.ends_with(".on") && {
@@ -886,6 +891,72 @@ fn every_saltus_mode_offers_its_stepped_parameters() {
             };
             if !offered.contains(&target) {
                 bad.push(format!("mode {mode}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
+}
+
+/// fxa:fractus — the page of Fractus's cards that draws `key` (`views::fx::fractus::PAGES`).
+fn fractus_page(key: &str) -> Option<usize> {
+    use cantus_ui::views::fx::fxa_cells::Item;
+    cantus_ui::views::fx::fractus::PAGES
+        .iter()
+        .position(|(_, cards)| {
+            cards.iter().flat_map(|(_, items)| items.iter()).any(|i| {
+                let k = match *i {
+                    Item::Knob(k, _)
+                    | Item::Choice(k, _, _)
+                    | Item::Pill(k, _, _)
+                    | Item::Switch(k, _, _) => k,
+                };
+                k == key
+            })
+        })
+}
+
+/// fxa:fractus — Fractus draws one page of cards at a time: on each page, every stepped
+/// key its cards hold is drawn with its parameter's offer; and every stepped key stands on
+/// a page (none left without a control).
+#[test]
+fn every_fractus_page_offers_its_stepped_parameters() {
+    let kind = EffectKind::Glitch;
+    let mut bad = Vec::new();
+    for info in kind.params().iter().filter(|i| i.stepped) {
+        if fractus_page(info.key).is_none() {
+            bad.push(format!("{} on no page", info.key));
+        }
+    }
+    for page in 0..cantus_ui::views::fx::fractus::PAGES.len() {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.open_effect_editor(s0, fx);
+        cantus_ui::views::fx::fractus::show_page(&mut a, page);
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        for info in kind.params().iter().filter(|i| i.stepped) {
+            if fractus_page(info.key) != Some(page) {
+                continue;
+            }
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: info.key.into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("page {page}: {}", info.key));
             }
         }
     }

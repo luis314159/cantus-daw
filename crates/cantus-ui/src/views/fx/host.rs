@@ -185,6 +185,16 @@ pub trait FxHost {
     ) {
     }
 
+    /// fxa:fractus — one of Fractus's lanes replaced by `blocks` (`EffectSpec::fractus`), as
+    /// one step of undo; the calls of one `gesture` merge into one (a stroke painted).
+    fn set_fractus_lane(
+        &mut self,
+        _lane: u8,
+        _blocks: Vec<cantus_core::fx::fractus::Block>,
+        _gesture: Option<u64>,
+    ) {
+    }
+
     /// fx3:tabula — Tabula's board commands (ADR 0134) for a host that is not Cantus (the
     /// exported plug-in): `build` makes them for a strip and an effect; the host applies the
     /// whole list to its board as one step (`cantus_core::command_board::apply_to_spec`).
@@ -202,6 +212,7 @@ pub trait FxHost {
     fn load(&mut self, params: &std::collections::BTreeMap<String, f32>, label_key: &str) {
         let spec = self.spec();
         let kind = spec.kind;
+        let lanes_now = spec.fractus.clone(); // fxa:fractus
         let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
         // fxa:loquax — a look (Loquax's microphone) stays as presets change.
         for info in kind.params().iter().filter(|i| !kind.is_look(i.key)) {
@@ -219,6 +230,17 @@ pub trait FxHost {
         }
         if !edits.is_empty() {
             self.apply(&edits, label_key, None);
+        }
+        // fxa:fractus — a Fractus preset's lanes ride in its map: each lane that differs.
+        if kind == cantus_core::EffectKind::Glitch {
+            let want = cantus_core::fx::fractus::pattern_of_flat(params);
+            let now = lanes_now.as_deref();
+            for lane in 0..cantus_core::fx::fractus::LANES {
+                let w = want.as_ref().map_or(&[][..], |p| p.lane(lane));
+                if w != now.map_or(&[][..], |p| p.lane(lane)) {
+                    self.set_fractus_lane(lane as u8, w.to_vec(), None);
+                }
+            }
         }
     }
 
@@ -293,11 +315,9 @@ pub trait FxHost {
     /// Save the values as the user's preset `name`.
     fn save_preset(&mut self, name: &str) -> Result<(), String> {
         let spec = self.spec();
-        // fx3:tabula — a board's preset holds its pedals too.
-        if spec.kind == cantus_core::EffectKind::Board {
-            return super::save_user_preset(spec.kind, name, &super::tabula::preset_params(spec));
-        }
-        super::save_user_preset(spec.kind, name, &spec.params)
+        // fx3:tabula — a board's preset holds its pedals too; fxa:fractus — Fractus's its
+        // lanes.
+        super::save_user_preset(spec.kind, name, &super::preset_map(spec))
     }
     /// Cantus itself, for what only the DAW has (a track's notes playing the gate, the
     /// strips of the desk): the app, the strip and the effect. `None` in a plug-in window.
@@ -352,6 +372,7 @@ pub fn touches(cmd: &cantus_core::Command, effect: cantus_core::EffectId) -> boo
         | C::SetEffectMidiSource { effect: e, .. }
         | C::SetEffectIr { effect: e, .. } // r39:conv
         | C::SetLapsusPattern { effect: e, .. } // fx:lapsus
+        | C::SetFractusLane { effect: e, .. } // fxa:fractus
         | C::SetEffectMix { effect: e, .. }
         | C::SetPluginParam { effect: e, .. }
         | C::SetPluginState { effect: e, .. } => *e == effect,
@@ -749,6 +770,32 @@ impl FxHost for DawHost<'_> {
         }
     }
 
+    // fxa:fractus
+    fn set_fractus_lane(
+        &mut self,
+        lane: u8,
+        blocks: Vec<cantus_core::fx::fractus::Block>,
+        gesture: Option<u64>,
+    ) {
+        let cmd = cantus_core::Command::SetFractusLane {
+            strip: self.strip,
+            effect: self.effect,
+            lane,
+            blocks,
+        };
+        match gesture {
+            Some(g) => {
+                self.app.exec_merging(
+                    cmd,
+                    cantus_core::MergeKey::of(&(self.tag, self.effect.0, "fractus", g)),
+                );
+            }
+            None => {
+                self.app.exec(cmd);
+            }
+        }
+    }
+
     fn context(&self) -> String {
         let project = self.app.project();
         let slot = project
@@ -839,7 +886,7 @@ impl FxHost for DawHost<'_> {
             }
             return;
         }
-        let params = self.spec.params.clone();
+        let params = super::preset_map(&self.spec); // fxa:fractus (its lanes too)
         self.app.copy_ab(self.effect, &params);
     }
 
@@ -881,13 +928,9 @@ impl FxHost for DawHost<'_> {
     fn save_preset(&mut self, name: &str) -> Result<(), String> {
         match self.spec.external.as_deref().map(|p| p.id.clone()) {
             Some(id) => crate::views::plugins::save_preset(self.app, self.effect, &id, name),
-            // fx3:tabula — a board's preset holds its pedals too.
-            None if self.spec.kind == cantus_core::EffectKind::Board => super::save_user_preset(
-                self.spec.kind,
-                name,
-                &super::tabula::preset_params(&self.spec),
-            ),
-            None => super::save_user_preset(self.spec.kind, name, &self.spec.params),
+            // fx3:tabula — a board's preset holds its pedals too; fxa:fractus — Fractus's
+            // its lanes.
+            None => super::save_user_preset(self.spec.kind, name, &super::preset_map(&self.spec)),
         }
     }
 

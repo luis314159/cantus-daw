@@ -412,6 +412,134 @@ impl Pattern {
     }
 }
 
+/// `blocks` with `block` painted over them: what it covers is its own — a block that starts
+/// before it is cut to end where it starts, one inside it goes, one that runs past its end
+/// is cut to start there. Sanitized. The pointer's paint (phase B).
+pub fn paint(blocks: &[Block], block: Block) -> Vec<Block> {
+    let (from, to) = (usize::from(block.at), block.end());
+    let mut out: Vec<Block> = Vec::with_capacity(blocks.len() + 1);
+    for b in blocks {
+        let (s, e) = (usize::from(b.at), b.end());
+        if e <= from || s >= to {
+            out.push(*b);
+            continue;
+        }
+        if s < from {
+            out.push(Block {
+                len: (from - s) as u16,
+                ..*b
+            });
+        }
+        if e > to {
+            out.push(Block {
+                at: to as u16,
+                len: (e - to) as u16,
+                ..*b
+            });
+        }
+    }
+    out.push(block);
+    sanitize(&out)
+}
+
+/// `blocks` without the one covering `step` (as they were when none does).
+pub fn erase(blocks: &[Block], step: usize) -> Vec<Block> {
+    blocks
+        .iter()
+        .filter(|b| !(usize::from(b.at) <= step && step < b.end()))
+        .copied()
+        .collect()
+}
+
+// ---- the lanes as a preset's flat map ---------------------------------------------------
+//
+// A preset is a flat map of numbers (ADR 0101's data files, a user's saved preset, A/B). A
+// Fractus preset carries its lanes in it beside its values: each block as
+// `"{lane}.{at}" = len` (the lane's key, `LANE_KEYS`), with `"{lane}.{at}.amount"` and
+// `"{lane}.{at}.chance"` when they are not whole. A map with no such key holds no blocks:
+// loading it clears the lanes.
+
+/// The flat map's suffixes of a block's amount and chance.
+const AMOUNT: &str = "amount";
+const CHANCE: &str = "chance";
+
+/// What a flat map's lane key names: (lane, start step, the field: `None` the length).
+pub fn lane_key(key: &str) -> Option<(u8, u16, Option<&'static str>)> {
+    let mut parts = key.split('.');
+    let name = parts.next()?;
+    let lane = LANE_KEYS.iter().position(|l| *l == name)?;
+    let at: u16 = parts.next()?.parse().ok()?;
+    let field = match parts.next() {
+        None => None,
+        Some(AMOUNT) => Some(AMOUNT),
+        Some(CHANCE) => Some(CHANCE),
+        Some(_) => return None,
+    };
+    if parts.next().is_some() || usize::from(at) >= MAX_STEPS {
+        return None;
+    }
+    Some((lane as u8, at, field))
+}
+
+/// Whether `value` is one a flat map's lane key may hold (a length in steps, an amount or a
+/// chance in 0 … 1).
+pub fn lane_value_ok(key: &str, value: f32) -> bool {
+    match lane_key(key) {
+        Some((_, at, None)) => {
+            value.fract() == 0.0 && value >= 1.0 && value as usize + usize::from(at) <= MAX_STEPS
+        }
+        Some((_, _, Some(_))) => (0.0..=1.0).contains(&value),
+        None => false,
+    }
+}
+
+/// The lanes a flat map holds (`None`: no block), sanitized.
+pub fn pattern_of_flat(map: &std::collections::BTreeMap<String, f32>) -> Option<Pattern> {
+    let mut p = Pattern::default();
+    for (k, v) in map {
+        if let Some((lane, at, None)) = lane_key(k) {
+            let field = |f: &str| map.get(&format!("{k}.{f}")).copied().unwrap_or(1.0);
+            let b = Block {
+                at,
+                len: v.round().clamp(1.0, MAX_STEPS as f32) as u16,
+                amount: field(AMOUNT),
+                prob: field(CHANCE),
+            };
+            p.lanes.entry(lane).or_default().push(b);
+        }
+    }
+    let p = p.sanitized();
+    (!p.is_empty()).then_some(p)
+}
+
+/// `params` with `pattern`'s blocks written beside them: a preset's flat map.
+pub fn to_flat(
+    params: &std::collections::BTreeMap<String, f32>,
+    pattern: Option<&Pattern>,
+) -> std::collections::BTreeMap<String, f32> {
+    let mut out: std::collections::BTreeMap<String, f32> = params
+        .iter()
+        .filter(|(k, _)| lane_key(k).is_none())
+        .map(|(k, v)| (k.clone(), *v))
+        .collect();
+    for (lane, blocks) in pattern.map(|p| &p.lanes).into_iter().flatten() {
+        let Some(name) = LANE_KEYS.get(usize::from(*lane)) else {
+            continue;
+        };
+        for b in blocks {
+            let k = format!("{name}.{}", b.at);
+            out.insert(k.clone(), f32::from(b.len));
+            if b.amount != 1.0 {
+                out.insert(format!("{k}.{AMOUNT}"), b.amount);
+            }
+            if b.prob != 1.0 {
+                out.insert(format!("{k}.{CHANCE}"), b.prob);
+            }
+        }
+    }
+    out
+}
+
 /// Patterns a command would refuse (a hand edit), repaired on load: a pattern on a slot
 /// that is not a Fractus taken off, every lane sanitized, an empty pattern `None`. How many
 /// were changed. Never to the audio thread.
@@ -463,6 +591,56 @@ mod tests {
         }
         let cl = PARAMS.iter().find(|p| p.key == "clevel").unwrap();
         assert_eq!(cl.default, 0.0, "the null: no cloud");
+    }
+
+    #[test]
+    fn paint_takes_what_it_covers_and_erase_takes_a_block() {
+        let b = |at, len| Block::new(at, len);
+        let lane = [b(0, 4), b(6, 4), b(12, 2)];
+        let mut half = b(3, 5);
+        half.amount = 0.5;
+        // 0..4 cut to 0..3; 6..10 cut to 8..10; 12..14 untouched.
+        let p = paint(&lane, half);
+        assert_eq!(p, vec![b(0, 3), half, b(8, 2), b(12, 2)]);
+        // Painted inside one block: it splits around the new one.
+        assert_eq!(paint(&[b(0, 8)], b(2, 2)), vec![b(0, 2), b(2, 2), b(4, 4)]);
+        assert_eq!(erase(&p, 9), vec![b(0, 3), half, b(12, 2)]);
+        assert_eq!(erase(&p, 11), p, "no block at step 11");
+    }
+
+    #[test]
+    fn the_lanes_ride_in_a_flat_map_and_come_back() {
+        let mut p = Pattern::default();
+        let mut gate = Block::new(8, 2);
+        gate.amount = 0.5;
+        gate.prob = 0.75;
+        p.replace(0, &[Block::new(12, 4)]);
+        p.replace(7, &[gate]);
+        let params: std::collections::BTreeMap<String, f32> =
+            [("mix".to_string(), 1.0)].into_iter().collect();
+        let flat = to_flat(&params, Some(&p));
+        let keys: Vec<&str> = flat.keys().map(String::as_str).collect();
+        assert_eq!(
+            keys,
+            [
+                "gate.8",
+                "gate.8.amount",
+                "gate.8.chance",
+                "mix",
+                "repeat.12"
+            ]
+        );
+        assert_eq!(pattern_of_flat(&flat), Some(p));
+        assert_eq!(
+            pattern_of_flat(&params),
+            None,
+            "no block: the lanes cleared"
+        );
+        assert!(lane_value_ok("cloud.255", 1.0) && !lane_value_ok("cloud.255", 2.0));
+        assert!(!lane_value_ok("gate.8.amount", 1.5) && lane_value_ok("gate.8.chance", 0.0));
+        assert_eq!(lane_key("mix"), None);
+        assert_eq!(lane_key("gate.300"), None);
+        assert_eq!(lane_key("gate.3.size"), None);
     }
 
     #[test]

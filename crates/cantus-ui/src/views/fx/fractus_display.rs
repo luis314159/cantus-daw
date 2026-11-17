@@ -212,10 +212,13 @@ fn engrave(b: &mut Brush, s: &Style, at: egui::Pos2, align: Align2, t: &Text<'_>
     canvas::put(b, at, align, &ink, s.k, None)
 }
 
-/// The display. Returns the page a lane's name asked for when one was clicked.
+/// The display. Returns the page a lane's name asked for when one was clicked. The pointer
+/// paints the lanes (`super::paint`) and throws the Frozen switch.
+#[allow(clippy::too_many_arguments)]
 pub fn show(
     host: &mut dyn FxHost,
     view: &View,
+    stroke: &mut super::paint::Stroke,
     ui: &mut egui::Ui,
     s: &Style,
     r: Rect,
@@ -226,18 +229,23 @@ pub fn show(
     let k = s.k;
     let ink = Ink::of(s);
     let p = parts(r, k);
-    let mut names = [Rect::NOTHING; LANES];
+    let mut laid = None;
+    let mut frozen = Rect::NOTHING;
     with_brush(&ui.painter_at(r), |b| {
         canvas::ground_b(b, r, &ink, None);
         art::chassis(b, s, p.plate);
-        header(b, s, &p, now, &spec);
-        names = lanes(b, s, &ink, p.lanes, now, &spec, page);
+        frozen = header(b, s, &p, now, &spec);
+        laid = Some(lanes(b, s, &ink, p.lanes, now, &spec, page));
         scope::show(b, s, &ink, p.scope, view, now, &spec);
         keys(b, s, &ink, &p, now, &spec);
     });
+    let laid = laid?;
+    stroke.laid = Some(laid);
+    stroke.frozen = Some(frozen);
+    super::paint::pointer(host, stroke, ui, &laid, frozen);
     // A lane's name opens the page of cards its module is set on.
     let mut asked = None;
-    for (lane, rect) in names.iter().enumerate() {
+    for (lane, rect) in laid.names.iter().enumerate() {
         if !rect.is_positive() {
             continue;
         }
@@ -259,7 +267,8 @@ pub fn show(
 
 /// The engraved row: the lanes' title and the grid in words over the lanes, the cloud's
 /// title and its frozen lamp over the scope.
-fn header(b: &mut Brush, s: &Style, p: &Parts, now: &Reading, spec: &EffectSpec) {
+/// Returns the Frozen switch's place (its lamp and its word): a click freezes the cloud.
+fn header(b: &mut Brush, s: &Style, p: &Parts, now: &Reading, spec: &EffectSpec) -> Rect {
     let k = s.k;
     let y = p.header.center().y - 1.0 * k;
     engrave(
@@ -317,6 +326,10 @@ fn header(b: &mut Brush, s: &Style, p: &Parts, now: &Reading, spec: &EffectSpec)
         art::c(pal::ICE),
         if frozen { 1.0 } else { 0.0 },
     );
+    Rect::from_min_max(
+        pos2(w.left() - 16.0 * k, p.header.top()),
+        pos2(w.right() + 2.0 * k, p.header.bottom()),
+    )
 }
 
 /// The names' column, as wide as the longest name.
@@ -342,8 +355,19 @@ pub fn note_name(n: i32) -> (&'static str, i32) {
     (NAMES[n.rem_euclid(12) as usize], n.div_euclid(12) - 1)
 }
 
+/// Where the lanes' window put its parts: each lane's name cell (a click opens its page),
+/// the pads' grid and its steps (the pointer paints there).
+#[derive(Copy, Clone, Debug)]
+pub struct Laid {
+    pub names: [Rect; LANES],
+    pub grid: Rect,
+    pub steps: usize,
+    /// The pads' inset in their row, top and bottom: a pad's floor is amount 0, its top 1.
+    pub inset: f32,
+}
+
 /// The lanes' window: the pads behind glass, the names, the ruler, the step LEDs and the
-/// counter. Returns each lane's name cell (the click opens its page).
+/// counter.
 fn lanes(
     b: &mut Brush,
     s: &Style,
@@ -352,7 +376,7 @@ fn lanes(
     now: &Reading,
     spec: &EffectSpec,
     page: usize,
-) -> [Rect; LANES] {
+) -> Laid {
     let k = s.k;
     let g = art::window(b, s, r);
     b.rect(
@@ -557,7 +581,12 @@ fn lanes(
     }
     foot(b, k, ink, inner, grid, steps, sw, now, playing, hot);
     art::glass(b, g, k);
-    cells_of
+    Laid {
+        names: cells_of,
+        grid,
+        steps,
+        inset: 2.5 * k,
+    }
 }
 
 /// A block's amount and chance in words over its pad's dark top, when they are not whole and

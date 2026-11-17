@@ -327,6 +327,23 @@ impl CantusApp {
                 }
             }
         }
+        // fxa:fractus — a Fractus preset's lanes ride in its map (`fractus::to_flat`): set in
+        // the same step; a map with none clears them.
+        if kind == EffectKind::Glitch {
+            let want = cantus_core::fx::fractus::pattern_of_flat(params);
+            let now = slot.spec.fractus.as_deref();
+            for lane in 0..cantus_core::fx::fractus::LANES {
+                let w = want.as_ref().map_or(&[][..], |p| p.lane(lane));
+                if w != now.map_or(&[][..], |p| p.lane(lane)) {
+                    commands.push(Command::SetFractusLane {
+                        strip,
+                        effect,
+                        lane: lane as u8,
+                        blocks: w.to_vec(),
+                    });
+                }
+            }
+        }
         if !commands.is_empty() {
             self.exec(Command::Batch {
                 label_key: label_key.into(),
@@ -341,7 +358,8 @@ impl CantusApp {
         let Some(current) = self
             .project()
             .effect(strip, effect)
-            .map(|e| e.spec.params.clone())
+            .map(|e| preset_map(&e.spec))
+        // fxa:fractus (its lanes too)
         else {
             return;
         };
@@ -391,6 +409,19 @@ pub fn user_presets(kind: EffectKind) -> Vec<(String, BTreeMap<String, f32>)> {
     }
     out.sort_by(|a, b| a.0.cmp(&b.0));
     out
+}
+
+/// What a preset of `spec` holds (a user's saved one, the other side of A/B): its values,
+/// and the content a flat map carries — a board's pedals (fx3:tabula), Fractus's lanes
+/// (fxa:fractus).
+pub fn preset_map(spec: &EffectSpec) -> BTreeMap<String, f32> {
+    match spec.kind {
+        EffectKind::Board => tabula::preset_params(spec),
+        EffectKind::Glitch => {
+            cantus_core::fx::fractus::to_flat(&spec.params, spec.fractus.as_deref())
+        }
+        _ => spec.params.clone(),
+    }
 }
 
 /// Save the current parameters as a user preset.
