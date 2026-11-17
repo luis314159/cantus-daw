@@ -5,7 +5,7 @@
 //! starting preset, Glue, no latency:
 //!
 //! - **the reduction heard on the bus**: with the threshold under the band, the bus comes
-//!   out quieter than the dry band, and Glue as inserted reduces its peaks;
+//!   out quieter than the dry band (Glue as inserted sounds on it);
 //! - **an external key from another strip drives it**: with the threshold over the band,
 //!   the band passes untouched on its own key; the bass strip routed as the slot's key
 //!   presses it down while the bass plays;

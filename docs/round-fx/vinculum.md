@@ -211,3 +211,89 @@ reproductions' (manuals, spec sheets); no measurement of a real unit was availab
 - An external key (another strip's signal, as Comprimo has) — the classic bus compressor
   has one; the DSP takes it in one line (the key level), the engine wiring is Phase B.
 - CPU measured again on a quiet machine.
+
+## Phase B (3), to the finish (2026-11-17): sheet v1 approved
+
+- **The owner's note on v1**: the rack rails' column of small square holes (with their cage
+  nuts) read as the "vents" ornament he had removed from Lapsus and Vetus. The rails are
+  plain brushed steel now (a few faint lines down each, the lit fold and its shadow); the
+  unit's ears keep their slots and screws (`vinculum_art::rack`; `racks::CAGE` gone).
+  Re-shot (all 23 of the sheet's shots, since the rails are in every one) in
+  `compartir\vinculum\design\v2-step3\`, looked at (Slate English, Paper Spanish vari-mu).
+- **The lamps are controls** (`vinculum_face::{lamps, lamp_edit}`, laid out before they are
+  drawn so the pointer and the picture agree): *External key* opens the key's list under it
+  (its own input or any strip — the same command as the Side chain card's field; in a
+  plug-in window it throws the sidechain switch), *Auto release* lights Auto and a second
+  click gives back the release it had (0.3 s when it remembers none), *Limit* throws the
+  character; the colour's lamp only shows. Each change one undo step. New tips in both
+  languages.
+- **Pointer tests** (`tests/vinculum_drag.rs`, four, real pointer events through the window
+  the app draws): the ratio's 10:1 chosen, the attack's knob stepped round (30 ms → 0.1 ms),
+  the release's 0.6 chosen, the model's Vari-mu (the panel becomes the valve's), its fourth
+  time position, the character's bat — six clicks undone one step each back to Glue; Auto's
+  lamp lit and giving back 1.2 s; the limit lamp on the opto; the key's lamp opening its
+  list, a strip chosen (one undo step), a click elsewhere closing it.
+- **Presets** fourteen (`presets/effects/buscompressor.toml`): VCA — Glue, Mix bus glue,
+  Punchy drum bus, Drum smash, Parallel drums, Bus pump, Bus catch; Opto — Opto vocal bus,
+  Smooth leveller, Opto vocal limit; Vari-mu — Valve mastering glue, Valve warmth, Valve
+  limiter, Lo-fi squash. Each model compressing and limiting (a test holds it). Fitted with
+  `preset_tool fit` (dev profile, the dev build is optimised here), the level carried by the
+  make-up first and the output last: −2 … +2.8 dB; Glue −1.5 dB, so the starting preset in
+  `starting.rs` and the editor's demo moved too. The opto vocal presets' thresholds went
+  10 dB lower after the first fit showed 0.2 dB of reduction on the vocal source (a single
+  lead, quieter than the band). `preset_audit`'s Vinculum line removed (floor 12).
+- **Export** `Cantus Vinculum` (CLAP and VST3; `desc.rs`, `build.rs`, the `vinculum` feature,
+  xtask; VST3 class id by its rule): the external key through the sidechain input in both
+  (`clap::vinculum_s_external_key_presses_the_input_only_when_asked`,
+  `vst3::vinculum_s_key_is_the_vst3_sidechain_bus`: bit-identical to the DSP keyed by the
+  same sound, the unkeyed quiet input untouched to the bit, keyed energy under a quarter);
+  each model bit-identical through CLAP (`vinculum_s_models_match_the_dsp`); the Direct path
+  (its DSP and the output's glide); 16 ids appended and blessed. The plug-ins' text now
+  carries wave A's and wave B's six locale files (`pane_words` iterates every kind; it was red
+  in wave B before).
+- **AI**: the effect words name Vinculum's models, Compress/Limit, the sidechain key and its
+  high-pass, parallel and what it is for; aliases `vari_mu` and `opto`; MCP golden
+  regenerated on purpose (the two aliases twice, the description twice).
+- **Site** card (EFFECTS 35, presets 14, big 1800 × 1209, thumb 640 × 430 — pictures and
+  sound excerpts to make at the integration).
+- **Tabula: a pedal.** A compressor pedal is natural. Face: model, threshold, make-up, mix
+  (standard, the needle, "V"). On a board it compresses the board's own signal; a board
+  takes a key when a pedal does and passes it on, so a keyed board reaches its detector
+  exactly as an insert's — the same generic path every keyed pedal (Comprimo's, Caelum's)
+  uses, so "no key on a board" was not kept: unkeyed it hears its own input only.
+  `fx_vinculum::as_a_pedal_it_compresses_its_own_input_and_hears_the_board_s_key` (unkeyed
+  board = the insert alone to the bit; keyed board = the insert keyed, to the bit, offline and
+  live); `fx_contract::a_board_of_one_is_the_unit` now covers it too.
+- **Docs**: ADR 0142 phase B, consequences; `docs/plugins/vinculum.md`; the manual EN/ES
+  (*Vinculum, the bus compressor* before Aula).
+
+### Measured (the e2e through `CantusApp::assemble`, `tests/vinculum_e2e.rs`)
+
+A band (a chord and a line, each strip −18 dB) routed into a bus strip, a bass line straight
+to the master; Vinculum inserted on the bus as the picker does (Glue, latency 0). The band
+peaks −23.8 dBFS, the bass −8.3. The band alone is the master less the bass alone.
+
+- The threshold 20 dB under the band's peak at 10:1, no make-up: the bus **7.7 dB** quieter.
+- Live in blocks of 256/333/512/17/1024 = the offline render, to the bit.
+- The threshold 6 dB over the band: on its own key the band passes **untouched to the bit**;
+  the bass strip routed as the slot's key presses it **6.0 dB** while the bass plays (1.1 …
+  2.9 s) and **0.00 dB** before.
+- The side chain's high-pass at 500 Hz: **4.7 dB** (the bass's low end out of the key).
+- An edit (10:1 → 2:1) heard and undone to the bit; every key to its default (the key still
+  routed): the dry master to the bit.
+
+### Shared files touched (marked `fxb:vinculum`)
+
+Core: `fx/tabula.rs` (`pedal_allowed` and its test), `starting.rs`. Engine: tests
+`fx_vinculum.rs` (the pedal), `fx_loquax.rs:161` (clippy's `is_multiple_of`, as wave A does).
+UI: `views/fx/tabula_faces.rs`, `kit/skin/racks.rs`, tests `preset_audit.rs`, golden
+`mcp-tools-list.json`. AI: `tools_mixer.rs`, `tools_args.rs`. Plug-ins: `Cargo.toml`,
+`build.rs`, `src/desc.rs`, `src/text.rs`, tests `common/mod.rs`, `clap.rs`, `vst3.rs`,
+`golden/ids.txt`. xtask: `main.rs`. Web: `units_data.rs`. Docs: the manual EN/ES.
+
+### Verified only in emulation
+
+- The exported plug-in only in our own CLAP/VST3 harness, not in a third-party DAW.
+- The presets have not been heard by the owner; their levels are the fit's loudness match,
+  their character our reading of what each preset is for.
+- The opto Limit's attack (0.9 ms against ~10 ms published) stays until the owner listens.

@@ -104,3 +104,19 @@ unit `cantus_engine::fx::vinculum`, DSP `cantus_dsp::vinculum`.
 each model, the starting preset at every block size and live, every model block-size
 independent, the external key and its high-pass, forks), `fx_contract` (split and at rest),
 `rt_memory::vinculum_never_allocates`.
+
+Phase B: `cantus-ui/tests/vinculum_e2e.rs` (through `CantusApp::assemble`): a band in a bus
+strip, a bass line to the master; Vinculum inserted as the picker does (Glue, latency 0);
+**the reduction heard** — the threshold 20 dB under the band's peak at 10:1, the bus 7.7 dB
+quieter; live in odd blocks equal to the render to the bit; **the external key** — over the
+band, on its own key the band untouched to the bit, the bass strip as the slot's key presses
+it 6.0 dB while the bass plays and 0.00 dB before; **the high-pass** at 500 Hz takes the
+bass's lows from the key (4.7 dB); an edit heard and undone to the bit; every key at its
+default the dry master to the bit (the key still routed); every preset names real keys in
+both languages, each model compressing and limiting, the starting preset named Glue.
+`vinculum_drag.rs`: the stepped switches, the Auto and limit lamps and the key's lamp with
+its list on real pointer events, each change one undo step. `fx_vinculum::as_a_pedal_it_compresses_its_own_input_and_hears_the_board_s_key` and `fx_contract::a_board_of_one_is_the_unit`.
+The plug-ins: `clap::vinculum_s_external_key_presses_the_input_only_when_asked`,
+`clap::vinculum_s_models_match_the_dsp`, `vst3::vinculum_s_key_is_the_vst3_sidechain_bus`,
+the family's bit-identity, block-size, automation, state and ids tests with Vinculum among
+them.

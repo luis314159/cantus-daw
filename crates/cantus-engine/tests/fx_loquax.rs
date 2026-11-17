@@ -158,7 +158,7 @@ fn a_fork_carries_on_from_where_the_unit_is() {
             * (0.6 + 0.4 * cantus_dsp::math::sin(t * 5.0 * std::f32::consts::TAU))
     };
     let block = |u: &mut EffectUnit, at: usize| {
-        if at % 24_000 == 0 {
+        if at.is_multiple_of(24_000) {
             u.note(
                 7,
                 cantus_engine::FxNote::On {
