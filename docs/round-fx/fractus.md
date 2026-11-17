@@ -287,3 +287,14 @@ Plug-ins: `Cargo.toml`, `build.rs`, `src/desc.rs`, `src/instance.rs`, `src/edito
   harness, not in a third-party DAW.
 - The presets' sound is not yet heard by the owner; *Cloud to freeze* needs Frozen thrown by
   hand (a preset frozen from its first sample would hold an empty buffer).
+
+### Suites (Windows, 2026-11-17, one crate at a time, clippy `-D warnings --all-targets` on each)
+
+cantus-core 808, cantus-dsp 1 050, cantus-engine 1 281, cantus-project 193, cantus-plugins 85,
+cantus-ai 51, cantus-ui 2 713 (the whole suite once: two reds fixed and their targets re-run —
+`agent_tools`, the catalogue listing a preset's lanes as values; `preset_render`, Arca's
+*Modern lead* CPU +0.23 measured while wave B compiled, green on its re-run). After the cards'
+move: `fxa_whole` (+1, `fractus_s_pages_are_one_row_each`), `fractus_drag`,
+`learn_everywhere`, the library's Fractus tests re-run green; clippy clean on all seven. Not
+run: the Linux check (WSL), the whole workspace at once, the plug-ins without default
+features, `preset_render` in a quiet release build.
