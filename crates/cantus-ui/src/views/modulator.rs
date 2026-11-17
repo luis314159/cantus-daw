@@ -377,6 +377,8 @@ impl CantusApp {
         };
         let mut m = m.clone();
         m.routes.retain(|r| &r.target != target);
+        // fxd: its link (a pad's axis, a controller's range) goes with it.
+        m.tidy_links();
         self.edit_modulator(m, None)
     }
 

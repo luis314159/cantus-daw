@@ -65,6 +65,8 @@ pub(super) struct AutoState {
     /// An offline trace of one modulator's output × amount at every control point, for
     /// *Bake to automation* (ADR 0057): room made before the render, never grown.
     pub(super) trace: Option<(ModulatorId, Vec<(f64, f32)>)>,
+    /// fxd: the route the trace reads (`trace_route`): its link, or the output as it is.
+    trace_link: Option<crate::automation::RouteLinkRt>,
     /// The mix cues' region whose switches are on the desk, the strips fading this
     /// segment, and the master's fade and polarity (ADR 0093 §3). // r36:mix
     scene: usize, // r36:mix
@@ -99,6 +101,7 @@ impl AutoState {
             peaks: vec![0.0; MAX_EARS],
             told: u64::MAX,
             trace: None,
+            trace_link: None,
             scene: 0,                       // r36:mix
             scene_env: [false; MAX_STRIPS], // r36:mix
             master_env: None,               // r36:mix
@@ -305,6 +308,14 @@ impl Processor {
     /// the render, never on the audio thread.
     pub fn trace_modulator(&mut self, id: Option<ModulatorId>, capacity: usize) {
         self.auto.trace = id.map(|id| (id, Vec::with_capacity(capacity)));
+        self.auto.trace_link = None;
+    }
+
+    /// fxd: the trace reads one route of its modulator (`modulator::trace_route`): what
+    /// that route takes from both outputs (its axis, its range) × the amount; `None`, the
+    /// first output as it is. Set after [`Processor::trace_modulator`].
+    pub(crate) fn trace_link(&mut self, link: Option<crate::automation::RouteLinkRt>) {
+        self.auto.trace_link = link;
     }
 
     /// The trace so far, taken.
@@ -664,10 +675,12 @@ impl Processor {
         rt.evaluate(&snap, &at);
         self.auto.at = now;
         // The trace (an offline bake) and the live values (once a block).
+        let link = self.auto.trace_link;
         if let Some((id, trace)) = self.auto.trace.as_mut() {
             if let Some(m) = rt.mods.iter().find(|m| m.id == *id) {
                 if trace.len() < trace.capacity() {
-                    trace.push((tick, m.now * m.amount_now));
+                    let v = link.map_or(m.now, |k| k.value([m.now, m.now_y]));
+                    trace.push((tick, v * m.amount_now));
                 }
             }
         }
@@ -677,14 +690,20 @@ impl Processor {
                 count: rt.mods.len().min(crate::modulator::MOD_TELEMETRY),
                 ..Default::default()
             };
-            for (k, m) in rt
+            for (k, (m, plan)) in rt
                 .mods
                 .iter()
+                .zip(&snap.modulators)
                 .take(crate::modulator::MOD_TELEMETRY)
                 .enumerate()
             {
                 t.ids[k] = m.id.0;
                 t.values[k] = m.now * m.amount_now;
+                // fxd: a pad's puck and where it heads, for its face.
+                if matches!(plan.source, cantus_core::ModSource::XyPad(_)) {
+                    t.pads[k] = [m.puck_now[0], m.puck_now[1], m.heads[0], m.heads[1]];
+                    t.pad_mask |= 1u64 << k;
+                }
             }
             // In the block's report (ADR 0107).
             self.modulation = Some(t);

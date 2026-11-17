@@ -10,8 +10,10 @@
 //! begin where the stretch ends, so the baked curve is what plays there.
 //!
 //! A source that follows audio (a follower, an envelope opened by a level) cannot be known
-//! ahead: the stretch is rendered offline on a worker, the engine tracing the modulator,
-//! and the bake is made when the trace comes back (if the project has not moved since).
+//! ahead, nor can a pad with inertia or a controller another modulator moves (fxd): the
+//! stretch is rendered offline on a worker, the engine tracing the route (its axis and
+//! range in), and the bake is made when the trace comes back (if the project has not
+//! moved since).
 
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
@@ -143,11 +145,20 @@ impl CantusApp {
             .plugins
             .render_instruments(self.bus.project(), f64::from(rate));
         let (tx, rx) = mpsc::channel();
+        // The route's own trace: a controller's axis and range in (fxd), the output as it
+        // is for every other source.
+        let route = target.clone();
         let spawned = std::thread::Builder::new()
             .name("cantus-bake".into())
             .spawn(move || {
-                let trace =
-                    cantus_engine::modulator::trace(snapshot, &opts, units, instruments, id);
+                let trace = cantus_engine::modulator::trace_route(
+                    snapshot,
+                    &opts,
+                    units,
+                    instruments,
+                    id,
+                    &route,
+                );
                 let _ = tx.send(trace);
             });
         if spawned.is_err() {
@@ -235,6 +246,7 @@ impl CantusApp {
         };
         let mut edited = m.clone();
         edited.routes.retain(|r| &r.target != target);
+        edited.tidy_links();
         let mut commands = vec![Command::SetModulator {
             modulator: Box::new(edited),
         }];

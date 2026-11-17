@@ -27,6 +27,12 @@ pub struct ModTelemetry {
     pub count: usize,
     pub ids: [u64; MOD_TELEMETRY],
     pub values: [f32; MOD_TELEMETRY],
+    /// fxd: an X-Y pad's puck there — `[puck x, puck y, heads x, heads y]`, 0…1 each, y
+    /// up (where the puck is after its inertia, and where it heads: the hand's, the
+    /// automation's or the path's); zeros for every other kind.
+    pub pads: [[f32; 4]; MOD_TELEMETRY],
+    /// fxd: which of them are pads (bit `k` for the `k`-th).
+    pub pad_mask: u64,
 }
 
 impl Default for ModTelemetry {
@@ -35,6 +41,8 @@ impl Default for ModTelemetry {
             count: 0,
             ids: [0; MOD_TELEMETRY],
             values: [0.0; MOD_TELEMETRY],
+            pads: [[0.0; 4]; MOD_TELEMETRY],
+            pad_mask: 0,
         }
     }
 }
@@ -46,6 +54,18 @@ impl ModTelemetry {
             .iter()
             .position(|x| *x == id.0)
             .map(|i| self.values[i])
+    }
+
+    /// fxd: where X-Y pad `id`'s puck is and where it heads (each `[x, y]`, 0…1, y up),
+    /// if it is reported and is a pad.
+    pub fn pad(&self, id: ModulatorId) -> Option<([f32; 2], [f32; 2])> {
+        let i = self.ids[..self.count.min(MOD_TELEMETRY)]
+            .iter()
+            .position(|x| *x == id.0)?;
+        (self.pad_mask & (1u64 << i) != 0).then(|| {
+            let p = self.pads[i];
+            ([p[0], p[1]], [p[2], p[3]])
+        })
     }
 }
 
@@ -173,6 +193,10 @@ pub(crate) struct ModRt {
     pub ins: [f32; 3],
     /// fxd: an X-Y pad's puck (its inertia), where it is at the next control point.
     pub puck: cantus_core::modulator::xy::Puck,
+    /// fxd: an X-Y pad's puck where it is at this control point, and where it heads
+    /// there (0…1 each): what the telemetry tells the face.
+    pub puck_now: [f32; 2],
+    pub heads: [f32; 2],
 }
 
 /// fxd: whether a plan is a controller (an X-Y pad, a formula: ADRs 0147, 0148).
@@ -203,6 +227,8 @@ impl ModRt {
             inner_y: 0.0,
             ins: plan.inputs,
             puck: cantus_core::modulator::xy::Puck::default(),
+            puck_now: [0.0; 2],
+            heads: [0.0; 2],
         }
     }
 
@@ -227,6 +253,8 @@ impl ModRt {
                     self.puck.step(at, x.inertia_ms, 0.0);
                 }
                 let now = self.puck.pos;
+                self.puck_now = now;
+                self.heads = x.target(t.beats, t.playing, [ins[0], ins[1]]);
                 let heads = x.target(t_next.beats, t_next.playing, [ins_next[0], ins_next[1]]);
                 let dt = (t_next.since_play - t.since_play).max(0.0);
                 self.puck.step(heads, x.inertia_ms, dt);
@@ -244,8 +272,10 @@ impl ModRt {
                 [self.next, self.next_y] = b;
                 if let ModSource::XyPad(x) = src {
                     // No inertia: the puck is where it heads (the panel draws it there).
-                    self.puck
-                        .step(x.target(t.beats, t.playing, [ins[0], ins[1]]), 0.0, 0.0);
+                    let at = x.target(t.beats, t.playing, [ins[0], ins[1]]);
+                    self.puck.step(at, 0.0, 0.0);
+                    self.puck_now = at;
+                    self.heads = at;
                 }
             }
         }
@@ -388,9 +418,48 @@ impl Ear {
 pub fn trace(
     snapshot: std::sync::Arc<cantus_core::Snapshot>,
     opts: &crate::render::RenderOptions,
+    units: Vec<crate::effects::EffectUnit>,
+    hosted: Vec<crate::inst::NativeUnit>,
+    id: ModulatorId,
+) -> Vec<(f64, f32)> {
+    trace_with(snapshot, opts, units, hosted, id, None)
+}
+
+/// fxd: [`trace`] of modulator `id`'s **route into `target`** — at every control point what
+/// that route takes from it (its axis and range: `route_value` over both outputs, as the
+/// lane hears it) × its amount: what *Bake to automation* reads for a controller that is
+/// stepped state (a pad with inertia, a controller whose inputs another modulator moves).
+/// For any other source, or a route with no link, it is [`trace`] exactly.
+pub fn trace_route(
+    snapshot: std::sync::Arc<cantus_core::Snapshot>,
+    opts: &crate::render::RenderOptions,
+    units: Vec<crate::effects::EffectUnit>,
+    hosted: Vec<crate::inst::NativeUnit>,
+    id: ModulatorId,
+    target: &cantus_core::AutoTarget,
+) -> Vec<(f64, f32)> {
+    // The link the snapshot's plan holds for that route (`ModPlan::links` are the source's
+    // links of its kept routes, by target), and its bipolarity as the runtime takes it.
+    let link =
+        snapshot
+            .modulators
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| crate::automation::RouteLinkRt {
+                output: p.source.link(target).0,
+                range: p.source.link(target).1,
+                bipolar: p.source.bipolar(),
+            });
+    trace_with(snapshot, opts, units, hosted, id, link)
+}
+
+fn trace_with(
+    snapshot: std::sync::Arc<cantus_core::Snapshot>,
+    opts: &crate::render::RenderOptions,
     mut units: Vec<crate::effects::EffectUnit>,
     hosted: Vec<crate::inst::NativeUnit>,
     id: ModulatorId,
+    link: Option<crate::automation::RouteLinkRt>,
 ) -> Vec<(f64, f32)> {
     use crate::messages::{EngineEvent, EngineMessage};
     let end = opts.end.unwrap_or(snapshot.content_end);
@@ -459,6 +528,7 @@ pub fn trace(
     let frames = (snap.tempo.seconds_between(opts.start, end.max(opts.start)) * sr).ceil() as usize;
     // A control point every 16 samples at most, and the jumps.
     p.trace_modulator(Some(id), frames / 16 + 64);
+    p.trace_link(link);
     tx.push(EngineMessage::Seek(opts.start)).ok();
     tx.push(EngineMessage::Play).ok();
     let channels = opts.channels.max(1) as usize;
