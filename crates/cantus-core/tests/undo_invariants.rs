@@ -6608,7 +6608,14 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
     };
     let cmd = match kind {
         1 => {
-            let k = allowed[rng.below(allowed.len() as u64) as usize];
+            // fxb:lenis — one new pedal in eight is a Lapsus, so arm 10 finds one to set a
+            // pattern on (with every kind equally likely, one more pedal kind left the
+            // stream with no Lapsus on any board when that arm came).
+            let k = if rng.below(8) == 0 {
+                EffectKind::TimeShaper
+            } else {
+                allowed[rng.below(allowed.len() as u64) as usize]
+            };
             let mut p = Pedal::new(fresh, EffectSpec::new(k));
             p.on = rng.below(4) != 0;
             p.path = paths[rng.below(4) as usize];
@@ -6736,7 +6743,16 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
                         name: None,
                     })
                 }),
-                pedal: Some(some_id(rng)),
+                // fxb:lenis — the board's Lapsus pedal when it has one (three times in four).
+                pedal: Some(
+                    match pedals
+                        .iter()
+                        .find(|p| p.spec.kind == EffectKind::TimeShaper)
+                    {
+                        Some(p) if rng.below(4) != 0 => p.id,
+                        _ => some_id(rng),
+                    },
+                ),
             }
         }
         11 => {

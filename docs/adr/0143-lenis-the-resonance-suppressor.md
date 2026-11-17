@@ -97,3 +97,15 @@ engine unit `cantus_engine::fx::lenis`, DSP `cantus_dsp::lenis`.
 `cantus-engine/tests/fx_lenis.rs` (the dry mix delayed by exactly the latency at each
 quality, a quality change reporting its latency, the starting preset at every block size
 and live, the delta, forks), `fx_contract` (split and at rest), `rt_memory::lenis_never_allocates`.
+
+Phase B: `cantus-ui/tests/lenis_drag.rs` (the gates, each band's node switched on and moved
+in one step, the Depth dial, the push keys — each gesture one undo step);
+`lenis_e2e.rs` through `CantusApp::assemble` (the defaults the dry master delayed by 511,
+1 023 and 255 samples to the bit with a twin strip held back by the compensation; a
++15 dB 3 kHz ring cut 9.4 dB with 500 Hz and 10 kHz unchanged to 0.000 dB; the delta the
+ring; an edit undone to the bit; live = offline; the presets' qualities, curves and channel
+modes); `learn_everywhere::every_lenis_band_offers_its_switch`;
+`cantus-engine/tests/fx_lenis.rs::as_a_pedal_it_is_the_insert_alone_at_each_quality`;
+`cantus-plugins`: `clap::lenis_reports_its_latency_per_quality_and_a_change_re_reports_it`,
+`clap::lenis_s_delta_is_what_it_takes_away`, `vst3::lenis_s_latency_follows_its_quality_through_vst3`,
+the family's bit-identity, state and automation tests, the ids golden.
