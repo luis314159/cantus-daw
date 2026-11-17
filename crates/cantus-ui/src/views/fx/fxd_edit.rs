@@ -118,9 +118,21 @@ fn pad(app: &mut CantusApp, id: ModulatorId, x: f32, y: f32) {
             st.drag = Some(k);
             st.samples.clear();
             st.live_xy.stroke.clear();
+            st.paused_path = false;
+            // Recording over a path that plays: the hand is heard, not the old path (the
+            // engine plays a path over the inputs while the song plays) — in the same step.
+            if st.mode == PadMode::Record && playing_path(app, id) {
+                app.fx.fxd.paused_path = true;
+                edit(app, id, Some(k), |m| {
+                    if let ModSource::XyPad(x) = &mut m.source {
+                        x.play_path = false;
+                    }
+                });
+            }
             k
         }
     };
+    let st = &mut app.fx.fxd;
     match st.mode {
         PadMode::Hand => set_xy(app, id, x, y, key),
         PadMode::Draw => {
@@ -177,6 +189,7 @@ fn pad_done(app: &mut CantusApp, id: ModulatorId) {
     let samples = std::mem::take(&mut st.samples);
     st.live_xy.stroke.clear();
     let mode = st.mode;
+    let paused = std::mem::take(&mut st.paused_path);
     let loop_beats = if st.loop_beats > 0.0 {
         st.loop_beats
     } else {
@@ -192,6 +205,7 @@ fn pad_done(app: &mut CantusApp, id: ModulatorId) {
         } else {
             recorded_path(&samples, beats)
         };
+        let laid = path.is_some();
         if let Some(mut path) = path {
             edit(app, id, Some(key), |m| {
                 if let ModSource::XyPad(x) = &mut m.source {
@@ -202,10 +216,32 @@ fn pad_done(app: &mut CantusApp, id: ModulatorId) {
             });
             app.fx.fxd.mode = PadMode::Hand;
         }
+        if !laid && paused {
+            resume_path(app, id, key);
+        }
+    } else if let (Some(key), true) = (key, paused) {
+        resume_path(app, id, key);
     }
     app.fx.fxd.samples = samples;
     app.fx.fxd.samples.clear();
     app.end_gesture();
+}
+
+/// Whether the pad's path plays now.
+fn playing_path(app: &CantusApp, id: ModulatorId) -> bool {
+    matches!(
+        app.project().modulator(id).map(|(_, _, m)| &m.source),
+        Some(ModSource::XyPad(x)) if x.play_path && x.path.is_some()
+    )
+}
+
+/// The path a recording paused plays again (nothing was laid over it).
+fn resume_path(app: &mut CantusApp, id: ModulatorId, key: MergeKey) {
+    edit(app, id, Some(key), |m| {
+        if let ModSource::XyPad(x) = &mut m.source {
+            x.play_path = true;
+        }
+    });
 }
 
 /// A drawn path: each sample at its share of the drag (`i / n` of the loop), resampled to

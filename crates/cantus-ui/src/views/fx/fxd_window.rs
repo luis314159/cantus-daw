@@ -55,6 +55,9 @@ pub struct State {
     /// x, y) while drawing or recording a path.
     pub(crate) drag: Option<MergeKey>,
     pub(crate) samples: Vec<(f64, f32, f32)>,
+    /// A recording drag switched the playing path off so the hand is heard over it (it is
+    /// switched back on with the new path, or as it was when nothing was laid).
+    pub(crate) paused_path: bool,
     /// A card's control being dragged: its merge key.
     pub(crate) card: Option<MergeKey>,
     /// The typing session on the formula's display.

@@ -283,6 +283,68 @@ fn a_gesture_recorded_while_the_song_plays_becomes_the_path() {
 }
 
 #[test]
+fn recording_over_a_playing_path_hears_the_hand_and_lays_the_new_path() {
+    let (mut r, id) = rig(ModKind::XyPad);
+    // A path that plays already.
+    let mut m = r.app.project().modulator(id).unwrap().2.clone();
+    if let ModSource::XyPad(x) = &mut m.source {
+        x.path = Some(cantus_core::modulator::xy::XyPath {
+            points: vec![[0.0, 0.0], [1.0, 1.0]],
+            beats: 4.0,
+            smooth: false,
+        });
+        x.play_path = true;
+    }
+    assert!(r.app.edit_modulator(m, None));
+    open(&mut r, id);
+    let rec = r.app.fx.fxd.rects_xy.record;
+    r.click(rec.center());
+    let steps = undo_steps(&r);
+    let beats: Vec<f64> = (0..=10).map(|i| 5.0 + i as f64 * 0.1).collect();
+    let (a, b) = (on_pad(&r, 0.2, 0.7), on_pad(&r, 0.8, 0.3));
+    // Halfway: the old path is off, so the engine plays the hand's inputs.
+    r.hover(a);
+    let tick = |x: f64| Ticks((x * cantus_core::PPQ as f64) as i64);
+    r.app.engine.set_heard_for_tests(tick(beats[0]), true);
+    r.frame(vec![Event::PointerButton {
+        pos: a,
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers: NONE,
+    }]);
+    r.pointer = a + (b - a) * 0.5;
+    r.app.engine.set_heard_for_tests(tick(5.5), true);
+    r.idle(1);
+    assert!(
+        !pad_of(&r, id).play_path,
+        "while recording, the old path is silent: the hand is heard"
+    );
+    for (i, at) in beats.iter().enumerate().skip(6) {
+        r.app.engine.set_heard_for_tests(tick(*at), true);
+        r.pointer = a + (b - a) * (i as f32 / 10.0);
+        r.idle(1);
+    }
+    r.frame(vec![Event::PointerButton {
+        pos: b,
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: NONE,
+    }]);
+    r.settle();
+    let src = pad_of(&r, id);
+    assert!(src.play_path, "the new path plays");
+    assert_ne!(
+        src.path.as_ref().unwrap().points.len(),
+        2,
+        "the new path laid"
+    );
+    assert_eq!(undo_steps(&r), steps + 1, "one step");
+    r.app.undo();
+    let src = pad_of(&r, id);
+    assert!(src.play_path && src.path.as_ref().unwrap().points.len() == 2);
+}
+
+#[test]
 fn the_pads_cards_move_its_settings_one_step_each() {
     let (mut r, id) = rig(ModKind::XyPad);
     open(&mut r, id);
