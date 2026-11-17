@@ -7,7 +7,10 @@
 //! the fundamental it follows, ringing with the hum it hears), Click and crackle removal,
 //! Room removal — each with its bat toggle, its jewel lamp and a key to hear what it takes
 //! out; along the foot the maker's plate and the latency. The cards hold every knob.
-//! Every number from the engine's telemetry (`cantus_engine::fx::purus::t`).
+//! Every number from the engine's telemetry (`cantus_engine::fx::purus::t`); the
+//! spectrogram live from the slot's analyser tap (`picture::Live`). The comb's needles and
+//! the room's tail answer a drag (the fundamental; the reduction and the early mark), each
+//! drag one step of undo (phase B).
 
 use super::controls::{self, Size};
 use super::frame;

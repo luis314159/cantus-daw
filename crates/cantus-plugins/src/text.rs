@@ -61,7 +61,8 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/fractus.en.txt"),
                 include_str!("../../cantus-ui/locales/fx/caelum.en.txt"),
                 include_str!("../../cantus-ui/locales/fx/purus.en.txt"), // fxc:purus
-                include_str!("../../cantus-ui/locales/fx/delay.en.txt"), // r39:delay
+                include_str!("../../cantus-ui/locales/fx/comparatio.en.txt"), // fxc:purus (shared: every kind's choices worded)
+                include_str!("../../cantus-ui/locales/fx/delay.en.txt"),      // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.en.txt"),
             ],
             Lang::Es => &[
@@ -105,7 +106,8 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/fractus.es.txt"),
                 include_str!("../../cantus-ui/locales/fx/caelum.es.txt"),
                 include_str!("../../cantus-ui/locales/fx/purus.es.txt"), // fxc:purus
-                include_str!("../../cantus-ui/locales/fx/delay.es.txt"), // r39:delay
+                include_str!("../../cantus-ui/locales/fx/comparatio.es.txt"), // fxc:purus (shared: every kind's choices worded)
+                include_str!("../../cantus-ui/locales/fx/delay.es.txt"),      // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.es.txt"),
             ],
         }
