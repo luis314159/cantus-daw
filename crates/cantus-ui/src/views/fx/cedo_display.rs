@@ -60,11 +60,7 @@ fn lamp_level(view: &View, trig: usize) -> f32 {
         if age > 9.0 {
             continue;
         }
-        let hit = match (trig, p.hit) {
-            (0, Hit::Key) => true,
-            (1 | 2, Hit::Cycle) => true,
-            _ => false,
-        };
+        let hit = matches!((trig, p.hit), (0, Hit::Key) | (1 | 2, Hit::Cycle));
         if hit {
             best = best.max(1.0 - age / 10.0);
         }

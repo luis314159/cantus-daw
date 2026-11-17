@@ -224,6 +224,15 @@ fn stand(b: &mut Brush, m: &Map, f: &pal::Finish) {
         b.polygon(&leg, c(f.iron.mid));
         b.segment(leg[0], leg[3], m.d(1.2), lit(&f.iron, 0.6), false);
         b.segment(leg[1], leg[2], m.d(1.2), c(f.iron.dark), false);
+        if f.surface == pal::Surface::Gloss {
+            b.segment(
+                art::lerp(leg[0], leg[1], 0.5),
+                art::lerp(leg[3], leg[2], 0.5),
+                m.d(0.7),
+                c(f.lining),
+                false,
+            );
+        }
         let pad = Rect::from_center_size(m.p(foot, GROUND - 3.0), vec2(m.d(24.0), m.d(6.0)));
         b.rrect(pad, m.d(1.5), Fill::V(lit(&f.iron, 0.5), c(f.iron.dark)));
         art::bolt(b, m.p(foot, GROUND - 6.0), m.d(2.8), 0.1, &f.steel);
@@ -367,7 +376,17 @@ fn flywheel(b: &mut Brush, m: &Map, f: &pal::Finish, phase: f32) {
         m.p(SHAFT.x + 28.0, GROUND - 4.0),
         m.p(SHAFT.x - 28.0, GROUND - 4.0),
     ];
-    b.polygon(&ped, c(f.iron.dark));
+    b.polygon(&ped, mix(c(f.iron.mid), c(f.iron.dark), 0.55));
+    b.segment(ped[0], ped[3], m.d(1.2), lit(&f.iron, 0.6), false);
+    b.segment(ped[1], ped[2], m.d(1.2), c(f.iron.dark), false);
+    // The cast web down its face.
+    b.segment(
+        art::lerp(ped[0], ped[1], 0.5),
+        art::lerp(ped[3], ped[2], 0.5),
+        m.d(3.0),
+        lit(&f.iron, 0.35),
+        false,
+    );
     let foot = Rect::from_center_size(m.p(SHAFT.x, GROUND - 4.0), vec2(m.d(74.0), m.d(8.0)));
     b.rrect(foot, m.d(2.0), Fill::V(lit(&f.iron, 0.4), c(f.iron.dark)));
     for dx in [-29.0, 29.0] {
@@ -764,7 +783,7 @@ fn bellows(b: &mut Brush, m: &Map, f: &pal::Finish, top: f32, lift: f32) {
     let inset = 9.0 + 4.0 * lift;
     let bands = folds * 2;
     let ys = |i: usize| y0 + h * i as f32 / bands as f32;
-    let side = |i: usize| if i % 2 == 0 { inset } else { 0.0 };
+    let side = |i: usize| if i.is_multiple_of(2) { inset } else { 0.0 };
     // The pleats: a band from a seam (in) down to a crease (out) faces up and is lit; from
     // a crease down to a seam faces down and is dark. Each in three slices, its sides
     // turning away from the light.

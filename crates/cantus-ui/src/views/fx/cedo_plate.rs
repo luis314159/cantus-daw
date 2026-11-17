@@ -135,10 +135,10 @@ fn wood(b: &mut Brush, k: f32, r: Rect, f: &pal::Finish) {
         let base = r.top() + r.height() * (i as f32 + 0.5) / lines as f32;
         let amp = (2.0 + 6.0 * hash(i + 3)) * k;
         let freq = 1.5 + 2.5 * hash(i + 17);
-        let ph = 6.28 * hash(i + 41);
+        let ph = std::f32::consts::TAU * hash(i + 41);
         for (j, p) in pts.iter_mut().enumerate() {
             let t = j as f32 / 47.0;
-            let y = base + amp * cantus_dsp::math::sin(ph + freq * 6.28 * t);
+            let y = base + amp * cantus_dsp::math::sin(ph + freq * std::f32::consts::TAU * t);
             *p = pos2(r.left() + r.width() * t, y.clamp(r.top(), r.bottom()));
         }
         let (col, a) = if i % 3 == 0 {
