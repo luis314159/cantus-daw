@@ -9,7 +9,6 @@
 use super::super::canvas;
 use crate::kit::color::{mix, with_alpha, Hsl};
 use crate::kit::skin::racks as pal;
-use crate::kit::skin::Material;
 use crate::kit::text::{Role, Text};
 use crate::kit::{Brush, Fill, Style};
 use cantus_dsp::math::{cos, sin};
@@ -32,18 +31,18 @@ pub fn hash(i: u32) -> f32 {
 /// The faceplate's finish for the face's colourway: charcoal anodised (Console), cream
 /// enamel (Broadcast), brushed stainless (Steel).
 pub fn plate(s: &Style) -> &'static pal::Plate {
-    match s.skin.material {
-        Material::Lacquer => &pal::CREAM,
-        Material::Brushed => &pal::STAINLESS,
+    match s.skin.key {
+        "fx.vinculum.broadcast" => &pal::CREAM,
+        "fx.vinculum.steel" => &pal::STAINLESS,
         _ => &pal::CHARCOAL,
     }
 }
 
 /// The knobs the colourway's faceplate wears.
 pub fn knob_of(s: &Style) -> &'static pal::Knob {
-    match s.skin.material {
-        Material::Lacquer => &pal::KNOB_BROADCAST,
-        Material::Brushed => &pal::KNOB_STEEL,
+    match s.skin.key {
+        "fx.vinculum.broadcast" => &pal::KNOB_BROADCAST,
+        "fx.vinculum.steel" => &pal::KNOB_STEEL,
         _ => &pal::KNOB_CONSOLE,
     }
 }
@@ -235,8 +234,8 @@ pub fn faceplate(b: &mut Brush, s: &Style, r: Rect, ear: f32) -> Rect {
             (1.0, mix(c(p.face), c(p.foot), 0.75)),
         ]),
     );
-    match s.skin.material {
-        Material::Brushed => {
+    match s.skin.key {
+        "fx.vinculum.steel" => {
             // Stainless: the brush's long lines, dense and uneven.
             let mut y = r.top() + 1.0 * k;
             let mut i = 0u32;
@@ -253,7 +252,7 @@ pub fn faceplate(b: &mut Brush, s: &Style, r: Rect, ear: f32) -> Rect {
                 i += 1;
             }
         }
-        Material::Lacquer => {
+        "fx.vinculum.broadcast" => {
             // Enamel: a broad soft sheen across its upper third, a few specks of its grain.
             b.radial(
                 r,

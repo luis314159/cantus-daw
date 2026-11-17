@@ -45,45 +45,45 @@ const fn vinculum(
     }
 }
 
-/// **Console**: a charcoal anodised faceplate, the meters' lamp a warm yellow, the
-/// reduction a signal red.
+/// **Console**: a charcoal anodised faceplate (drawn by the editor, `kit::skin::racks`)
+/// in a lacquered black case, the meters' lamp a warm yellow, the reduction a signal red.
 pub const VINCULUM: Skin = vinculum(
     "fx.vinculum",
-    Material::Anodised,
+    Material::Lacquer,
     Tint {
         hue: 214.0,
         sat: 0.10,
         amount: 0.35,
     },
     Pair {
-        dark: chsl(52.0, 0.86, 0.62),
-        light: chsl(46.0, 0.80, 0.36),
+        dark: chsl(64.0, 0.84, 0.62),
+        light: chsl(58.0, 0.82, 0.32),
     },
     Pair {
-        dark: chsl(2.0, 0.72, 0.62),
-        light: chsl(2.0, 0.68, 0.42),
+        dark: chsl(6.0, 0.72, 0.62),
+        light: chsl(6.0, 0.68, 0.42),
     },
 );
-/// **Broadcast**: a cream lacquered faceplate of a broadcast chain, the needle lamp a
-/// pale peach, the reduction an oxblood.
+/// **Broadcast**: a cream enamelled faceplate of a broadcast chain in a case of fine vinyl,
+/// the needle lamp a pale peach, the reduction an oxblood.
 pub const VINCULUM_BROADCAST: Skin = vinculum(
     "fx.vinculum.broadcast",
-    Material::Lacquer,
+    Material::FineTolex,
     Tint {
         hue: 40.0,
         sat: 0.30,
         amount: 0.30,
     },
     Pair {
-        dark: chsl(28.0, 0.78, 0.68),
-        light: chsl(26.0, 0.72, 0.40),
+        dark: chsl(20.0, 0.78, 0.68),
+        light: chsl(20.0, 0.72, 0.40),
     },
     Pair {
-        dark: chsl(350.0, 0.62, 0.62),
-        light: chsl(350.0, 0.60, 0.36),
+        dark: chsl(348.0, 0.62, 0.62),
+        light: chsl(348.0, 0.60, 0.36),
     },
 );
-/// **Steel**: brushed steel, the meters lit a cold green, the reduction a coral.
+/// **Steel**: brushed stainless, the meters lit an ice blue, the reduction a coral.
 pub const VINCULUM_STEEL: Skin = vinculum(
     "fx.vinculum.steel",
     Material::Brushed,
@@ -93,12 +93,12 @@ pub const VINCULUM_STEEL: Skin = vinculum(
         amount: 0.25,
     },
     Pair {
-        dark: chsl(132.0, 0.58, 0.62),
-        light: chsl(134.0, 0.60, 0.30),
+        dark: chsl(232.0, 0.70, 0.72),
+        light: chsl(232.0, 0.62, 0.42),
     },
     Pair {
-        dark: chsl(12.0, 0.70, 0.66),
-        light: chsl(12.0, 0.66, 0.42),
+        dark: chsl(24.0, 0.74, 0.64),
+        light: chsl(22.0, 0.70, 0.40),
     },
 );
 pub const VINCULUM_COLOURWAYS: [Colourway; 3] = [
