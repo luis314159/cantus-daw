@@ -962,3 +962,36 @@ fn every_fractus_page_offers_its_stepped_parameters() {
     }
     assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
 }
+
+/// fxd (wave D): Tactus's and Calculus's windows offer learn on every parameter they draw —
+/// X and Y (the pad's rails and its card's knobs), a, b and c (the card's knobs and the
+/// dials), the amount. Their own settings (the pad's inertia, its path's loop, the switches;
+/// the formula's polarity) are no parameter — nothing automates a modulator's settings, as
+/// the inspector's rows of every modulator's — so they are drawn plain and passed by.
+#[test]
+fn the_controllers_windows_offer_learn_on_every_parameter() {
+    use cantus_core::modulator::{ModHost, ModKind};
+    for (kind, want) in [(ModKind::XyPad, 5usize), (ModKind::Formula, 7)] {
+        let mut a = app(cantus_ui::starter_project());
+        let id = a
+            .add_modulator(ModHost::Master, kind, None)
+            .expect("a controller");
+        a.open_controller_window(id);
+        a.toggle_learn_mode();
+        probe::start();
+        paint(&ctx(), egui::vec2(1600.0, 1000.0), 3, |ui| {
+            let c = ui.ctx().clone();
+            cantus_ui::views::fx::fxd_window::window(&mut a, &c)
+        });
+        let drawn = probe::take_learn();
+        let learnable = drawn.iter().filter(|(_, l)| *l).count();
+        assert!(
+            learnable >= want,
+            "{kind:?}: {want} parameters' controls offer learn: {drawn:?}"
+        );
+        assert!(
+            unlearnable(drawn).is_empty(),
+            "{kind:?}: a control without Learn MIDI controller"
+        );
+    }
+}
