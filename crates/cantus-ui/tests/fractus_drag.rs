@@ -226,11 +226,15 @@ fn the_page_keys_and_a_lane_s_name_open_pages_and_change_no_sound() {
     let (mut app, size) = open();
     let project = app.project().clone();
     assert_eq!(app.fx.fractus.page, 0, "the sequencer's page");
-    let key = app.fx.fractus.page_keys[3].center();
+    let key = app.fx.fractus.page_keys[3]
+        .expect("the page key is drawn")
+        .center();
     click(&mut app, size, key);
     assert_eq!(app.fx.fractus.page, 3, "the grain cloud's page");
     settle(&mut app, size);
-    let key = app.fx.fractus.page_keys[2].center();
+    let key = app.fx.fractus.page_keys[2]
+        .expect("the page key is drawn")
+        .center();
     click(&mut app, size, key);
     assert_eq!(app.fx.fractus.page, 2, "the colour page");
     settle(&mut app, size);
@@ -249,7 +253,13 @@ fn the_page_keys_and_a_lane_s_name_open_pages_and_change_no_sound() {
 fn freeze_and_the_style_switch_are_thrown_by_a_click_one_undo_step_each() {
     let (mut app, size) = open();
     assert_eq!(spec(&app).get("cfreeze"), 0.0);
-    let lamp = app.fx.fractus.stroke.frozen.expect("the Frozen lamp").center();
+    let lamp = app
+        .fx
+        .fractus
+        .stroke
+        .frozen
+        .expect("the Frozen lamp")
+        .center();
     click(&mut app, size, lamp);
     assert_eq!(spec(&app).get("cfreeze"), 1.0, "frozen");
     settle(&mut app, size);
@@ -263,7 +273,9 @@ fn freeze_and_the_style_switch_are_thrown_by_a_click_one_undo_step_each() {
     // The pitch jump's Style, on the colour page: the classic warble (the owner's default)
     // or clean.
     settle(&mut app, size);
-    let key = app.fx.fractus.page_keys[2].center();
+    let key = app.fx.fractus.page_keys[2]
+        .expect("the page key is drawn")
+        .center();
     click(&mut app, size, key);
     settle(&mut app, size);
     assert_eq!(spec(&app).get("pstyle"), 0.0, "the classic warble");

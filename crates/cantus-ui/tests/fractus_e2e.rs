@@ -13,7 +13,7 @@
 
 use cantus_core::fx::fractus::Block;
 use cantus_core::*;
-use cantus_engine::{render, EffectUnit, EngineHandle, Processor, RenderOptions, Snapshot};
+use cantus_engine::{render, EffectUnit, EngineHandle, Processor, RenderOptions};
 use cantus_ui::app::Files;
 use cantus_ui::CantusApp;
 use std::path::Path;
@@ -117,8 +117,15 @@ fn fractus_plays_its_lanes_in_time_with_the_song_live_as_offline_and_undoes() {
     let stutter = rendered(&mut app);
     // Beat 3's first thirty-second plays live; the first repeat is the next thirty-second.
     let at = first_diff(&dry, &stutter).expect("the stutter is heard");
-    eprintln!("the stutter's first changed frame: {at} (beat 3 + 1/32 = {})", 3 * BEAT + BEAT / 8);
-    assert_eq!(at, 3 * BEAT + BEAT / 8, "on its step, in time with the song");
+    eprintln!(
+        "the stutter's first changed frame: {at} (beat 3 + 1/32 = {})",
+        3 * BEAT + BEAT / 8
+    );
+    assert_eq!(
+        at,
+        3 * BEAT + BEAT / 8,
+        "on its step, in time with the song"
+    );
     assert!(diff(&dry, &stutter) > 0.01);
 
     // What plays is the offline render: the engine the app drives, played from the top in
@@ -233,7 +240,13 @@ fn fractus_plays_its_lanes_in_time_with_the_song_live_as_offline_and_undoes() {
         label_key: "cmd.fx_preset".into(),
         commands: defaults,
     });
-    assert!(app.project().effect(strip, effect).unwrap().spec.fractus.is_none());
+    assert!(app
+        .project()
+        .effect(strip, effect)
+        .unwrap()
+        .spec
+        .fractus
+        .is_none());
     assert_eq!(rendered(&mut app), dry, "the null, to the bit");
 }
 

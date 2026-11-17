@@ -56,7 +56,7 @@ pub struct State {
     /// The pointer on the lanes (a stroke being painted).
     pub stroke: paint::Stroke,
     /// Where each page's key was drawn last frame (the tests point at them).
-    pub page_keys: [Rect; PAGES.len()],
+    pub page_keys: [Option<Rect>; PAGES.len()],
 }
 
 /// Fractus's editor in Cantus's own window: the host is the project.
@@ -329,7 +329,7 @@ fn pages(
     open: usize,
     painted: u32,
     sounding: u32,
-    keys: &mut [Rect; PAGES.len()],
+    keys: &mut [Option<Rect>; PAGES.len()],
 ) -> Option<usize> {
     use crate::kit::color::{mix, with_alpha};
     use crate::kit::text::{Role, Text};
@@ -343,7 +343,7 @@ fn pages(
             egui::pos2(strip.left() + i as f32 * (w + gap), strip.top()),
             egui::vec2(w, strip.height()),
         );
-        keys[i] = r;
+        keys[i] = Some(r);
         let resp = ui.interact(r, ui.id().with(("fractus.page", i)), egui::Sense::click());
         if resp.clicked() {
             asked = Some(i);
