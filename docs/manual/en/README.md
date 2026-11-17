@@ -1166,7 +1166,9 @@ release — opened by the track's notes or by an audio level), a **follower** (t
 any strip: duck a pad under a kick), **steps** (up to 32, synced, with glide) and a
 **random** source (held or smooth, repeatable from its seed). Each modulator drives **any
 number of parameters**, each with its own depth, plus or minus; a parameter may take
-several, and they add up on top of its automation.
+several, and they add up on top of its automation. Two more are **controllers** you play
+or program, each with its own window: [Tactus, the X-Y pad](#tactus-the-x-y-pad), and
+[Calculus, the formula controller](#calculus-the-formula-controller).
 
 - **Where they live**: the inspector's *Modulators* section for the selected track, its
   channel, or the master (click the band's **+**). Each modulator shows its movement as a
@@ -1192,6 +1194,195 @@ several, and they add up on top of its automation.
 
 Synced modulators follow the song position, so playing from bar 5 hears what a full play
 hears there; free ones start with playback. Exports sound exactly as playback.
+
+### Tactus, the X-Y pad
+
+**Tactus** (Latin for *touch*) puts two parameters under one finger: drag the puck across
+the pad and the horizontal position (X) moves one, the vertical (Y) another — a filter's
+cutoff and resonance, a pan and a width, two sends — like FL Studio's X-Y Controller or a
+Kaoss pad. It is a modulator, so it lives where the others do and drives anything they
+can, as many parameters as you like, each through the axis and the range you give it.
+
+**Make one**: in the inspector's *Modulators* section click the band's **+** ▸ **X-Y pad**,
+or right-click a knob ▸ **Modulate…** ▸ **X-Y pad** (it comes already connected to that
+knob). **Open it**: the **Open** key on its row (*Window*), or double-click its picture.
+The window floats like an effect's editor: drag it by its header, close it with its key or
+`Esc`, minimise or maximise it, scale it from its corner grip. The lamp in the header
+switches the pad on and off. One controller window is open at a time; it closes by itself
+when its modulator is removed.
+
+**Connect what it drives** as any modulator: right-click a parameter ▸ **Modulate…** ▸ the
+pad, or drag the pad's handle (the grip at the left of its title in the inspector) onto a
+knob. Then set each link in the window's **What it drives** list, one row a parameter:
+
+- **The axis**: click the row's **X** or **Y** tag to choose which axis moves it (a new
+  link reads X).
+- **The range**: the bar is the route's swing, the parameter's own value at its middle,
+  and the lit part is what the axis sweeps of it. Drag one end of the lit part to set
+  where the parameter is with the puck at the left (or the bottom, for Y), the other end
+  where it is at the right (or the top) — FL's *link range*; cross them to turn it round.
+  Drag the middle of the bar **up or down to bend** the way between (the automation's own
+  curve). **Double-click** the bar for the whole travel again, unbent.
+- **The depth** is the route's, as for every modulator: its row in the inspector, or
+  `Alt`-drag the knob.
+
+Each drag in the list is one undo step; so is an axis click or a reset. The list grows
+with its rows and scrolls with the wheel when there are many; the pad's rails name the
+first two parameters each axis drives and count the rest.
+
+**Play it.** Drag on the glass: the puck follows, each axis moves its parameters, and the
+whole drag is **one undo step**. The ring is where the puck is now; the crosshair is where
+it heads (your hand, the automation, or the path); a fading trail follows it.
+
+- **Polarity** (the *Pad* card): **Both ways** (the default) makes the centre of the pad
+  each parameter's own value, the puck pushing it up one side and down the other; **One
+  way** makes the left and bottom edges the parameters' own values, the puck only adding.
+- **Inertia** (the *Motion* card, 0 to 10 000 ms; the flywheel beside the pad shows it):
+  the puck glides after your hand instead of jumping, starting gently and never
+  overshooting. At 0 it follows at once.
+- **Horizontal** and **Vertical** on the *Pad* card set the puck exactly, as a drag does;
+  **Amount** is the modulator's amount, scaling every route at once.
+
+**Record a gesture as automation.** While a pass writes automation — recording with the
+record options' *Automation* on, or the automation arm with the track in Write, Touch or
+Latch (see [Automation](#automation)) — drag the puck: Cantus writes **two lanes, X and Y**,
+over exactly the stretch you moved it in, and the pass is one undo step. Played back, the
+lanes move the puck as your hand did; edit them like any automation. To automate one axis
+by hand, move its knob on the *Pad* card and press `Alt+A` (*automate the last thing you
+touched*); `Alt+Shift+A` links it to a MIDI controller the same way.
+
+**Paths: gestures that loop with the song.** A path is a loop the puck follows while the
+song plays (stopped, your hand has the pad again), read from the song position — so a play
+from bar 9 hears what a full play hears there, and an export sounds the same.
+
+- **Draw path** (the pencil key on the glass): drag a shape on the pad. On release it
+  becomes the path, spread over one loop (the *Loop in beats* card's length, 4 beats at
+  first), and plays.
+- **Record path** (the record key on the glass): press play, then drag on the pad in time
+  with the music. You hear your hand while you play; on release what you played becomes
+  the path over the loop it began in, so it plays back where you played it. If a path was
+  already playing, it stops for your drag (you hear your hand, not the old path) and the
+  new one plays after. With the song stopped the key's drag only moves the puck.
+- On the *Motion* card: **Path** (*Off* or *Plays*), **Loop in beats** (0.25 to 64, in
+  quarter beats), **Line** (*Straight* or *Smooth*: the points joined by a curve). Inertia
+  smooths a path too.
+
+Drawing or recording a path is one undo step, the moves of a recording with it.
+
+**Presets** — the well in the header: its arrows step through them; click the name for
+the list, each with what it does. Choosing one keeps the pad's connections and sets the
+axis and range of its first routes in order — so connect the parameter you want on X
+first and the one on Y second. The name stays while you play the pad and reads *Custom*
+once you change a setting.
+
+| Preset | What it does |
+|---|---|
+| **Filter sweep** | Link X to a filter's cutoff and Y to its resonance: X opens it all the way (one way, left the knob's value), Y adds up to 60 %, bent; an 80 ms glide |
+| **Width and pan** | Link X to a pan and Y to a width: from the centre, X pans both ways and Y narrows or widens about the knobs; 120 ms |
+| **Figure eight** | A smooth figure-eight path over two bars that plays with the song: link X and Y to any two parameters |
+| **Performance pad** | Both ways from the centre with a slow 400 ms glide: for the two parameters you play live |
+
+**Bake to automation** works for the pad as for any modulator (a route's bake key, or
+*Modulate… ▸ Bake to automation*): the clip is what the route played — the axis, the
+range, the path, the inertia and any automation of X and Y included. **AI agents** make,
+connect and play pads too ([What an AI agent can do](ai-tools.md)). With its puck in the
+centre (Both ways), or connected at depth 0, a pad changes no sample.
+
+### Calculus, the formula controller
+
+**Calculus** (Latin for *a reckoning stone*) moves parameters by a **formula** you type —
+of the song's position, its tempo and three knobs **a**, **b** and **c** — in the syntax of
+FL Studio's Formula Controller: `0.5*Sin(SongTime*Pi)+0.5` is a sine over two beats. One
+formula drives any number of parameters, each through its own range, in time with the
+song; a render from any bar hears what the full song hears there.
+
+**Make one, open it, connect it** as the X-Y pad above: the band's **+** ▸ **Formula** (or
+*Modulate…* ▸ **Formula**), its **Open** key or a double-click on its picture, then
+*Modulate…* or its handle onto each parameter. In **What it drives** each row's bar sets
+that parameter's range and bend exactly as on the pad (a formula has one output, so no
+X/Y tag).
+
+**The window** is a scientific calculator:
+
+- **The display** shows the formula. **Click it** to type: a caret appears where you click;
+  type, use Backspace, Delete, the arrows, Home and End. Every edit that is a whole formula
+  is **heard at once**; the whole typing session is **one undo step**. While what you typed
+  is not a formula yet, the controller keeps playing the last good one, and the reason
+  shows under the display with the character it is at (*A parenthesis opened at character
+  5 is never closed*). `Enter`, `Esc` or a click elsewhere ends typing; `Esc` with a broken
+  formula drops it and shows the last good one again. While you type, the app's keyboard
+  shortcuts wait. A long formula is drawn smaller, then scrolls to keep the caret in sight.
+- **The plot** under it draws the formula's value over the last four beats and the next
+  four, at the knobs as they are now: *Now* is the cursor, the lit bead the value.
+- **The keypad** types its word at the caret: `Sin(`, `Cos(`, `tri(`, `saw(`, `Frac(`,
+  `Round(`, `Int(`, `Rand`, `a`, `b`, `c`, `Pi` (π), `SongTime` (*beat*), `t`, the
+  parentheses, `+ − × ÷ ^` (typed `+ - * / ^`), `If(`, `Max(`, `Min(`.
+- **The dials a, b, c** above the keys: drag one up or down (one undo step a drag),
+  double-click it for 0.5. The *Knobs* card moves the same three. Automate a knob (move
+  it, then `Alt+A`), link it to a MIDI controller (move it, then `Alt+Shift+A`) or let
+  another modulator move it, and the formula follows.
+- **The Output card**: **Polarity** — **One way** (FL's: the value 0…1 adds to the
+  parameter, 0 its own value) or **Both ways** (0.5 is the parameter's own value, below it
+  takes away); **Amount**, the modulator's amount.
+
+The value is kept to 0…1 as in FL (anything that is not a number is 0), then the route's
+depth and range apply.
+
+**What you can write.** Upper or lower case alike; a name may also be written with empty
+parentheses (`SongTime()`).
+
+| Kind | What you write |
+|---|---|
+| **Values** | `a`, `b`, `c` (the knobs, 0…1); `SongTime` (also `beat`): the song position in quarter notes; `t` (also `seconds`): seconds since playback started; `Time`: milliseconds since playback started; `GetTempo` (also `tempo`): the tempo in BPM; `Pi`; `e`; `Rand`: a random 0…1 for each song position; numbers, with exponents (`1e3`) |
+| **Arithmetic** | `+ - * /`, `^` (a power; `2^3^2` is 2⁹, `2^-1` a half), `%` after a number (a hundredth: `50%` is 0.5), `!` (factorial), `div` and `mod` (integer division and remainder of the whole parts), `fmod`, `shl` and `shr` (times or divided by a power of two) |
+| **Comparisons and logic** | `= <> < <= > >=` and `in` (1 when true, else 0); `and`, `or`, `xor`, `not` (above 0.5 counts as true) |
+| **Functions** | `Sin Cos Tan` (`Tg`) `Sec CoSec Ctg` (`Cot`) `ArcSin ArcCos ArcTg` (`ArcTan`) `ATan2(y, x)` `Sinh Cosh Tanh ArcCosh ArcTanh DegToRad RadToDeg`; `Int` (`Trunc`, toward zero) `Floor Ceil Round` (halves to even) `Frac` (the fraction, with its sign) `Abs Neg`; `Sqrt Sqr` (the square) `Exp Ln Log10 Log2 LogN(base, x) Power(x, y)` (`Pow`) `IntPower(x, n)`; `Max(x, y) Min(x, y) Sum(x, y)`; `Fold` (reflects any value into 0…1) |
+| **Choices** | `If(test, then, else)`; `Case(a, b, c)` (b when a is 1, else c); `IfE IfG IfGE IfL IfLE(x, y)` (1 when x =, >, ≥, <, ≤ y); `Inter(x, lo, hi)` (1 when x is between them; `InterNoSwap` when lo ≤ x ≤ hi as written); `Map(x, lo, hi)` (x from 0…1 to lo…hi); `clamp(x, lo, hi)` |
+| **Random** | `Rand` (above); `SeededRand(n)`: a random 0…1 for each whole number n — the same every time |
+| **Cantus's waves** | 0…1, one cycle for each whole number of their argument: `sine(x)` (starting at 0), `saw(x)`, `tri(x)`, `square(x)` (1 for the first half), `pulse(x, width)` (1 for the first *width* of the cycle) |
+
+Three of FL's names behave differently, so that **every render sounds the same**: `Time`
+counts from when playback started (FL's reads the computer's clock), `Rand` comes from the
+song position (FL's is a running generator) and `SeededRand` is Cantus's own sequence.
+Three are refused because a render would depend on the moment it was made — `MouseX`,
+`MouseY`, `Date` — and two because FL's manual does not say what they compute: `Tension`
+and `Warp`. A formula is one expression, up to 512 characters; one too complex is refused
+with *shorten it or nest it less*.
+
+**A few formulas** (for a 4/4 song):
+
+| Formula | What it draws |
+|---|---|
+| `0.5*Sin(SongTime*Pi)+0.5` | A sine over two beats (the formula a new Calculus starts with) |
+| `Frac(SongTime/4)` | A ramp up each bar, falling back on the bar line |
+| `square(SongTime)` | On for the first half of every beat, off for the second |
+| `SongTime mod 4 < 1` | On for the first beat of every bar |
+| `SeededRand(Int(SongTime*2))` | A new random value every eighth note, the same in every render |
+| `Map(sine(SongTime/8), 0.2, 0.8)` | A slow swing between 20 % and 80 % over two bars |
+| `If(SongTime < 32, SongTime/32, 1)` | A climb over the first eight bars, then held |
+| `a*Sin(SongTime*Pi*b)+c` | FL's knob example: a the size, b the speed, c the centre |
+
+**Presets** (the header's well, as on the pad) share **one plan for the knobs**: **a** is
+the **rate** (from one cycle in four bars to four a beat, in steps of a doubling: 0.34 is a
+bar, 0.67 a beat), **b** the **shape** and **c** the **depth**. Their texts are ordinary
+formulas — open one and change it.
+
+| Preset | What it does (a · b · c) |
+|---|---|
+| **Sine**, **Triangle**, **Saw**, **Square** | Both ways about the knob's value, a bar a cycle; a the rate, b the phase, c the depth |
+| **Pulse** | A short high, then low, each beat; b the pulse's width |
+| **Random each beat** | A new random value every beat, the same in every render; b another sequence |
+| **Gate on beats** | Opens on every beat for the width b, with soft edges (one way: for a level or a send) |
+| **Envelope each bar** | Struck on every bar line, then dying away; a the attack, b the decay |
+| **Climb** | Rises from the song's start over a (1 to 64 bars), bent by b, to the height c — a build-up |
+
+A preset sets the formula, the knobs and the polarity, keeps the connections and lets
+every route read the whole formula (no range); its name stays while you turn the knobs.
+
+**Bake to automation** turns a route into the clip it played (knobs, automation and range
+included). **AI agents** write formulas too, and one that is not a formula is refused with
+the character it fails at ([What an AI agent can do](ai-tools.md)). A formula connected at
+depth 0, or with nothing connected, touches no sample.
 
 ### Note effects: arpeggiator, chords, scale
 
