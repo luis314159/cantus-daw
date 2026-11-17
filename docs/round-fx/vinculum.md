@@ -297,3 +297,9 @@ UI: `views/fx/tabula_faces.rs`, `kit/skin/racks.rs`, tests `preset_audit.rs`, go
 - The presets have not been heard by the owner; their levels are the fit's loudness match,
   their character our reading of what each preset is for.
 - The opto Limit's attack (0.9 ms against ~10 ms published) stays until the owner listens.
+
+### Suites (Windows, 2026-11-17, one crate at a time, clippy `-D warnings --all-targets` on each)
+
+cantus-core 810, cantus-dsp 1 127, cantus-engine 1 309, cantus-project 194, cantus-plugins 82,
+cantus-ai 50 — all green, clippy clean on each (the plug-ins' clippy, which builds the UI,
+caught two `if`s inside the lamps' `match` that clippy wants as guards; fixed).

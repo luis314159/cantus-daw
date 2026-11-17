@@ -428,6 +428,12 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         ("PitchShift", "heel" | "toe" | "wsrc") if get("mode").round() != 3.0 => {
             Some("the whammy mode's")
         }
+        // fxb:vinculum — each model's faceplate draws its own switches (the demo is the
+        // VCA); `every_vinculum_model_offers_its_stepped_parameters` draws the others.
+        ("BusCompressor", "char") if get("model").round() == 0.0 => {
+            Some("the opto's and vari-mu's")
+        }
+        ("BusCompressor", "time") if get("model").round() != 2.0 => Some("the vari-mu's"),
         ("Sampler", k) if k.ends_with(".gen") => Some("the zone's source, chosen with its sound"),
         // fx:cribrum — Cribrum shows one filter (A or B) and one movement source at a time;
         // its curve's points are drawn on the curve's lane.
@@ -883,6 +889,56 @@ fn every_saltus_mode_offers_its_stepped_parameters() {
             };
             if !offered.contains(&target) {
                 bad.push(format!("mode {mode}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
+}
+
+/// fxb:vinculum — Vinculum's faceplate draws the model's own switches: on each model, every
+/// stepped key of its panel is offered (automation, MIDI learn), and Auto's and Limit's
+/// lamps never stand in for a switch.
+#[test]
+fn every_vinculum_model_offers_its_stepped_parameters() {
+    let kind = EffectKind::BusCompressor;
+    let models: [(f32, &[&str]); 3] = [
+        (0.0, &["model", "ratio", "att", "rel"]),
+        (1.0, &["model", "char"]),
+        (2.0, &["model", "time", "char"]),
+    ];
+    let mut bad = Vec::new();
+    for (model, keys) in models {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "model".into(),
+            value: model,
+        });
+        a.open_effect_editor(s0, fx);
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        for key in keys {
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: (*key).into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("model {model}: {key}"));
             }
         }
     }

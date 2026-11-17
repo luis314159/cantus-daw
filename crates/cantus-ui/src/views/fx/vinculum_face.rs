@@ -651,12 +651,10 @@ pub fn lamp_edit(
                         }
                     }
                 }
-                Some(KeySource::Switch(on)) => {
-                    if resp.clicked() {
-                        host.set_key_source(KeyTarget::Switch(!*on));
-                    }
+                Some(KeySource::Switch(on)) if resp.clicked() => {
+                    host.set_key_source(KeyTarget::Switch(!*on));
                 }
-                None => {}
+                _ => {}
             },
             "vinculum.d.auto" => {
                 if resp.clicked() {
@@ -670,11 +668,9 @@ pub fn lamp_edit(
                     }
                 }
             }
-            "vinculum.d.limit" => {
-                if resp.clicked() {
-                    let now = host.spec().get("char") >= 0.5;
-                    host.set("char", if now { 0.0 } else { 1.0 }, None);
-                }
+            "vinculum.d.limit" if resp.clicked() => {
+                let now = host.spec().get("char") >= 0.5;
+                host.set("char", if now { 0.0 } else { 1.0 }, None);
             }
             _ => {}
         }
