@@ -161,7 +161,16 @@ Numbers (tests written in step 3):
   (**+14.80 → +7.46 dB**); unlinked controllers and depth-0 routes the dry master to the
   bit.
 
-Suites: (integrator fills in)
+Suites (one crate per call, 2026-11-17, a machine shared with two other lanes' builds):
+`cantus-core` **839** green (1 ignored), `cantus-dsp` **1 050** (29 ignored), `cantus-engine`
+**1 294** (17 ignored), `cantus-project` **194**, `cantus-ai` **56**, `cantus-ui` **2 743**
+green (54 ignored) and one red that is not this wave's: `preset_render`'s CPU budget for
+two Arca presets (+0.22 to +0.26 over, a different pair on each run — measured with other
+builds running; Arca's high gain is ~25 % of a core on a loaded machine, PLAN's quiet-machine
+measurement is still owed). `locale_isolation` found `fxd_whole` setting the process's
+language; it now sets its thread's (fixed, green). clippy `-D warnings --all-targets` clean
+on all six; `xtask`'s `the_manual_builds_in_both_languages_and_its_links_hold` green.
+`cantus-host` was not touched and not run.
 
 **Verified only in emulation** (material for `docs/beta-checklist.md`): the windows were
 driven by egui's events through `assemble`, never by a person's hand on a screen; the sound
