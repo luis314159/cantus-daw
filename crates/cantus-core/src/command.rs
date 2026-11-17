@@ -628,6 +628,9 @@ pub enum Command {
         strip: StripId,
         effect: EffectId,
         shape: Option<Box<crate::fx::cedo::Shape>>,
+        /// fxb:cedo — a board's Cedo pedal's shape (`None`: the slot's own).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pedal: Option<crate::fx::tabula::PedalId>,
     },
     // fx3:contract — Tabula's board (ADR 0134; `crate::command_board`). Each is refused on
     // a slot that is not a board; each returns its exact inverse.
@@ -2704,7 +2707,14 @@ impl Command {
                 strip,
                 effect,
                 shape,
+                pedal,
             } => {
+                if pedal.is_some() {
+                    // fxb:cedo — a board's Cedo pedal's shape.
+                    return crate::command_board::set_pedal_cedo(
+                        project, strip, effect, shape, pedal,
+                    );
+                }
                 let e = slot_mut(project, strip, effect)?;
                 if e.spec.kind != crate::EffectKind::Ducker {
                     return Err(CommandError::InvalidValue("ducking shape".into()));
@@ -2715,6 +2725,7 @@ impl Command {
                     strip,
                     effect,
                     shape: old,
+                    pedal: None,
                 })
             }
             // fx3:contract — Tabula's board (`crate::command_board`, the tabula builder's).

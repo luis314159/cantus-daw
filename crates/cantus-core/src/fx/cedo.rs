@@ -188,6 +188,84 @@ pub fn repair_project(project: &mut crate::model::Project) -> usize {
     changed
 }
 
+/// fxb:cedo — a preset's shape rides in its flat map of numbers (ADR 0101, as Fractus's
+/// lanes and Tabula's boards do), so it travels every path a preset does — the factory's
+/// files, the user's presets, A/B, the drift mark, the audition, the agents: `shape.n` the
+/// number of points (its presence says the preset draws a shape of its own; without it, the
+/// classic pump), and point `i` as `shape.{i}.x`, `shape.{i}.y`, `shape.{i}.bend` (the
+/// tension, written when not 0) and `shape.{i}.seg` (the segment's shape, written when not
+/// 0). No parameter's key starts with `shape.`.
+pub const FLAT_PREFIX: &str = "shape.";
+
+/// The field a flat key names: `None` for a parameter's key; `Some((None, "n"))` for the
+/// count; `Some((Some(i), field))` for a point's field.
+pub fn flat_key(key: &str) -> Option<(Option<usize>, &str)> {
+    let rest = key.strip_prefix(FLAT_PREFIX)?;
+    if rest == "n" {
+        return Some((None, "n"));
+    }
+    let (i, field) = rest.split_once('.')?;
+    let i: usize = i.parse().ok()?;
+    if i >= MAX_POINTS || !matches!(field, "x" | "y" | "bend" | "seg") {
+        return None;
+    }
+    Some((Some(i), field))
+}
+
+/// Whether a flat key's value is in its range (a factory file's check).
+pub fn flat_value_ok(key: &str, v: f32) -> bool {
+    match flat_key(key) {
+        Some((None, _)) => v.fract() == 0.0 && (0.0..=MAX_POINTS as f32).contains(&v),
+        Some((Some(_), "x" | "y")) => (0.0..=1.0).contains(&v),
+        Some((Some(_), "bend")) => (-1.0..=1.0).contains(&v),
+        Some((Some(_), "seg")) => v.fract() == 0.0 && (0.0..=5.0).contains(&v),
+        _ => false,
+    }
+}
+
+/// The shape a flat map draws (sanitized), `None` when it draws none (the classic pump).
+pub fn shape_of_flat(map: &std::collections::BTreeMap<String, f32>) -> Option<Shape> {
+    let n = (*map.get("shape.n")?).max(0.0) as usize;
+    let n = n.min(MAX_POINTS);
+    let get = |i: usize, f: &str| map.get(&format!("shape.{i}.{f}")).copied();
+    let points = (0..n)
+        .map(|i| Point {
+            x: get(i, "x").unwrap_or(0.0),
+            y: get(i, "y").unwrap_or(0.0),
+            t: get(i, "bend").unwrap_or(0.0),
+            s: get(i, "seg").unwrap_or(0.0).max(0.0) as u8,
+        })
+        .collect();
+    Some(Shape { points }.sanitized())
+}
+
+/// `params` with `shape` written in (the module's flat keys; `None` writes none). Any flat
+/// key `params` held is dropped first.
+pub fn to_flat(
+    params: &std::collections::BTreeMap<String, f32>,
+    shape: Option<&Shape>,
+) -> std::collections::BTreeMap<String, f32> {
+    let mut out: std::collections::BTreeMap<String, f32> = params
+        .iter()
+        .filter(|(k, _)| flat_key(k).is_none())
+        .map(|(k, v)| (k.clone(), *v))
+        .collect();
+    if let Some(s) = shape {
+        out.insert("shape.n".into(), s.points.len().min(MAX_POINTS) as f32);
+        for (i, q) in s.points.iter().take(MAX_POINTS).enumerate() {
+            out.insert(format!("shape.{i}.x"), q.x);
+            out.insert(format!("shape.{i}.y"), q.y);
+            if q.t != 0.0 {
+                out.insert(format!("shape.{i}.bend"), q.t);
+            }
+            if q.s != 0 {
+                out.insert(format!("shape.{i}.seg"), f32::from(q.s));
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,5 +300,30 @@ mod tests {
         assert_eq!(s.points[1], Point::new(0.2, 0.5).shape(5));
         assert_eq!(s.points[2], Point::new(0.9, 1.0));
         assert_eq!(classic_pump().sanitized(), classic_pump());
+    }
+
+    #[test]
+    fn a_shape_rides_a_flat_map_and_comes_back() {
+        use std::collections::BTreeMap;
+        let mut params = BTreeMap::new();
+        params.insert("depth".to_string(), 9.0);
+        params.insert("shape.7.x".to_string(), 0.5); // a stale point, dropped
+        for s in [classic_pump(), Shape::default()] {
+            let flat = to_flat(&params, Some(&s));
+            assert_eq!(flat.get("depth"), Some(&9.0));
+            assert_eq!(shape_of_flat(&flat), Some(s.clone()));
+            assert!(flat
+                .iter()
+                .all(|(k, v)| flat_key(k).is_none() || flat_value_ok(k, *v)));
+        }
+        let plain = to_flat(&params, None);
+        assert_eq!(shape_of_flat(&plain), None, "no shape: the classic pump");
+        assert!(!plain.contains_key("shape.7.x"));
+        for p in PARAMS {
+            assert!(flat_key(p.key).is_none(), "{}", p.key);
+        }
+        assert_eq!(flat_key("shape.3.bend"), Some((Some(3), "bend")));
+        assert_eq!(flat_key("shape.64.x"), None);
+        assert!(!flat_value_ok("shape.0.seg", 6.0) && flat_value_ok("shape.n", 3.0));
     }
 }

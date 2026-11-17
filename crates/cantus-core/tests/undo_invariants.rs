@@ -372,6 +372,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 strip: host,
                                 effect: e.id,
                                 shape,
+                                pedal: None, // fxb:cedo
                             };
                         }
                         if rng.below(3) == 0 {
@@ -6611,8 +6612,11 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
             // fxb:lenis — one new pedal in eight is a Lapsus, so arm 10 finds one to set a
             // pattern on (with every kind equally likely, one more pedal kind left the
             // stream with no Lapsus on any board when that arm came).
+            // fxb:cedo — and one in eight a Cedo, so arm 10 finds one to draw a shape on.
             let k = if rng.below(8) == 0 {
                 EffectKind::TimeShaper
+            } else if rng.below(7) == 0 {
+                EffectKind::Ducker
             } else {
                 allowed[rng.below(allowed.len() as u64) as usize]
             };
@@ -6729,6 +6733,31 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
             }),
             pedal: Some(some_id(rng)),
         },
+        // fxb:cedo — a board's Cedo pedal's shape (one time in three), sanitized and undone.
+        10 if rng.below(3) == 0 => {
+            use cantus_core::fx::cedo::Shape;
+            use cantus_core::fx::lapsus::Point;
+            Command::SetCedoShape {
+                strip,
+                effect,
+                shape: (rng.below(4) != 0).then(|| {
+                    Box::new(Shape {
+                        points: (0..rng.below(5))
+                            .map(|_| {
+                                Point::new(rng.f32(-0.2, 1.2), rng.f32(-0.5, 1.5))
+                                    .bend(rng.f32(-1.5, 1.5))
+                            })
+                            .collect(),
+                    })
+                }),
+                pedal: Some(
+                    match pedals.iter().find(|p| p.spec.kind == EffectKind::Ducker) {
+                        Some(p) if rng.below(4) != 0 => p.id,
+                        _ => some_id(rng),
+                    },
+                ),
+            }
+        }
         10 => {
             use cantus_core::fx::lapsus::{Lane, Pattern, Point};
             Command::SetLapsusPattern {
