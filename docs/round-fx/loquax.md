@@ -167,3 +167,33 @@ plug-ins without default features, `preset_render` in release.
 - Owner-only: the three objects' shots (`v3-objects`), listening to the fifteen presets.
 - At the integration: the site's pictures (`web/assets/units/loquax-*.webp`) and preset
   excerpts; the README's unit grid (Loquax is not in it yet); renumbering ADR 0139.
+
+## Follow-up (2026-11-17, the owner's answers)
+
+- **(a) The talk-box redrawn as fine as the gooseneck and the desk microphone**
+  (`loquax_objects.rs`): the tube translucent — the vinyl barely tinted, its inner wall seen
+  through it as two fainter lines inside the edges, a bright highlight on the lit side broken
+  where the tube turns from the light and the far wall's faint reflection, the voice's light
+  a thin thread down the bore (it was a thick green curve); a chrome ferrule and a worm-drive
+  hose clamp (its band's perforations, its housing and slotted screw) where the tube slides
+  over the nozzle; a chrome mouthpiece at the open end, its lip, the vinyl's wall and the dark
+  bore with the voice deep in it; the housing's face a punched grille in a recessed panel, a
+  knurled level knob (36 ridges, chrome cap, pointer), the jack on its hex nut, the on-air
+  lamp (the footswitch gave its place to the knob). Shots, the talk-box in every colourway
+  (Aluminium, Ink, Road case), Slate EN and Paper ES, replaced one by one in
+  `C:\projects\daw-fx\compartir\loquax\design\v3-objects\` (the gooseneck's and desk
+  microphone's untouched).
+- **(b) Presets set the object.** Each factory preset names the object it suggests (`obj` in
+  `vocoder.toml`, written in the file's header): the **talk-box** for *Talk-box*, *French
+  house robot*, *Talking drums*, *Talking bass* (the classic talk-box sounds: a guitar, a
+  synth, a bass or drums shaped by a mouth); the **desk microphone** for *Whisper*, *Deep
+  robot*, *Sixty-four bands* and *Radio* (spoken, broadcast and intercom voices); the
+  **gooseneck** for the rest — *Robot*, the starting preset, so a fresh insert keeps the
+  default look, and the keyboard vocoders (*Classic vocoder*, choirs, strings), whose
+  instruments carried a gooseneck. Loading a preset sets `obj` in the same step (the host's
+  `load`, `apply_fx_params`); a map that does not name it leaves it. The object stays a look:
+  never heard, never a drift from a preset (`frame::modified`), and **A/B leaves it** (Cantus's
+  `toggle_ab` and the plug-in editor's). A user's saved preset always writes the object it had
+  (`save_user_preset`), and loading it sets it. `EffectKind::is_look`'s comment and ADR 0139
+  say so; `loquax_e2e::presets_set_the_object_and_neither_the_drift_mark_nor_a_b_sees_it` holds
+  it (no earlier test asserted that presets keep the user's object).

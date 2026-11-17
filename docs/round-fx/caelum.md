@@ -276,3 +276,61 @@ work, so `kit_alloc` is untouched):
 ## Left (this phase)
 
 - Nothing in the DSP phase; the owner's listening, and the phases above.
+
+## Phase B (3), to the finish (2026-11-17): v2 approved with two notes
+
+- **The owner's v2 notes**: the astrolabe's octave names are led out from their dots by an
+  engraved line to two columns 14 points either side of the meridian (they had crowded and
+  touched); the sky's scale names are drawn after the frost, on a plate while frosted (the
+  frost had hidden "+48 st"). Shots, every Caelum state (start at rest and playing, infinite,
+  frozen, ducked; Slate EN and Paper ES; 75/150/200 %; Dawn and Aurora):
+  `C:\projects\daw-fx\compartir\caelum\design\v3-step3\` (19 PNGs, no word cut).
+- **The pointer**: the astrolabe's alidade sets the first voice and the slimmer hand the
+  second (angle = the note in the octave, distance = the octave on the spiral; a press on a
+  jewel takes that hand, else the nearer line; a click puts the nearer hand there); the decay
+  rack's dotted line follows a drag (not while infinite). Each drag one undo step. The tubes
+  stay a meter of the achieved decay (the damping's shelves shape them; a per-tube control
+  would promise what the shelves cannot do). The sill's buttons as before (`fxa_whole`).
+- **Presets** nineteen (`shimmer.toml`), the DSP's eleven first and held to it by a test;
+  fitted −3.8 … 0 dB, the starting *Octave shimmer* −0.9 dB (in `starting.rs` and the demo);
+  no preset starts frozen (*Freeze swell* asks for Freeze by hand); *Endless ascent* and
+  *Infinite drone* build as they are played. Site card: EFFECTS 37, presets 19.
+- **Export** `Cantus Caelum`: the Direct path (the DSP and its output glide), keyed ducking
+  through CLAP's sidechain port and VST3's aux bus, the synced pre-delay on the host's tempo
+  (CLAP transport, VST3 `ProcessContext`), its tail (infinite while infinite or frozen), ids
+  appended and blessed.
+- **AI** words; the MCP golden regenerated. **Docs**: ADR 0141 phase B, `docs/plugins/caelum.md`,
+  the manual EN/ES.
+- **Tabula**: Caelum is a pedal (decay, shimmer, first voice, mix on its face). A board takes
+  a key when a pedal does and hands it to the pedal, so a keyed board ducks Caelum as an
+  insert's key does (bit-exact); with no key the ducking hears the pedal's own input.
+
+### Measured (the e2e, through `CantusApp::assemble`)
+
+The octaves above the chord's own octave 2–3.5 s on: +2.4 dB with the shimmer, −3.3 dB
+without (+5.7 dB), climbing +3.3 dB from early to late; infinite +0.10 dB over two seconds
+(finite −18.3 dB); frozen live +0.17 dB (open −17.6 dB); keyed ducking −26.5 dB while the key
+plays; live = offline to the bit; an edit undone to the bit; the defaults the dry master.
+
+### Shared files touched (marked `fxa:caelum`)
+
+Core: `starting.rs` (the fitted `out`), `fx/tabula.rs` (`pedal_allowed`). UI:
+`views/fx/tabula_faces.rs` (Caelum's face), `examples/preset_tool.rs` (the header), tests
+`preset_audit.rs`. AI: `tools_mixer.rs`; golden `mcp-tools-list.json`. Plug-ins:
+`Cargo.toml`, `build.rs`, `src/desc.rs`, `src/instance.rs` (`tail_samples`), tests
+`common/mod.rs`, `clap.rs`, `vst3.rs`, `transport.rs`, `golden/ids.txt`. xtask: `main.rs`.
+Web: `units_data.rs`.
+
+### Verified only in emulation
+
+- No shimmer was heard live on a monitor here; the e2e renders, the engine driven block by
+  block and the DSP's measures are the evidence. The plug-in in our own CLAP/VST3 harness
+  only, not in a third-party DAW.
+- The presets' sound is not yet heard by the owner; the two infinite defaults (Fades, 8 dB
+  lower) still wait for his ears.
+
+### Left
+
+- Owner-only: the v3-step3 shots, listening to the nineteen presets and the infinite choices.
+- At the integration: the site's pictures (`web/assets/units/caelum-*.webp`, big 1800 × 1209,
+  thumb 640 × 430) and preset excerpts; the README's unit grid; renumbering ADR 0141.
