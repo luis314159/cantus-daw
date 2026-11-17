@@ -107,6 +107,9 @@ pub mod racks;
 // The bench analyser, its screen, keys and readouts Lenis draws (ADR 0143). fxb:lenis
 #[path = "skin/analysers.rs"]
 pub mod analysers;
+// The beam engine, its cam and bellows Cedo draws (ADR 0144). fxb:cedo
+#[path = "skin/engines.rs"]
+pub mod engines;
 // The balance Libra draws (ADR 0133). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;

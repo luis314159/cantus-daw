@@ -232,8 +232,10 @@ pub const LENIS_COLOURWAYS: [Colourway; 3] = [
     },
 ];
 
-/// Cedo, the ducker: a mechanical pump — a machined body, its ducking envelope a magenta
-/// trace on a dark drum, the key's hits a lime; arc knobs, rocker switches, a stripe plate.
+/// Cedo, the ducker: a beam engine's pump on its bed plate — the walking beam, the cam on
+/// its flywheel, the bellows it squeezes (drawn by the editor, `kit::skin::engines`); its
+/// ducking shape a trace on a dark phosphor glass, the key's hits the second voice; arc
+/// knobs, rocker switches, a stripe plate, spaced capitals.
 const fn cedo(
     key: &'static str,
     material: Material,
@@ -247,7 +249,7 @@ const fn cedo(
         accent: Some(accent),
         accent2: Some(second),
         material,
-        display: Display::Glass,
+        display: Display::Phosphor,
         knob: KnobShape::Arc,
         switch: SwitchShape::Rocker,
         lettering: Lettering {
@@ -267,58 +269,61 @@ const fn cedo(
     }
 }
 
-/// **Workshop**: a gunmetal machined body, the pump magenta, the key's hits lime.
+/// **Workshop**: a machine tool's hammered grey-green enamel, the engine's iron painted to
+/// match with brass bearings and tan leather; the shape a cyan, the key's hits a yellow.
 pub const CEDO: Skin = cedo(
     "fx.cedo",
-    Material::Brushed,
+    Material::Hammered,
     Tint {
-        hue: 250.0,
-        sat: 0.08,
-        amount: 0.35,
-    },
-    Pair {
-        dark: chsl(326.0, 0.70, 0.66),
-        light: chsl(326.0, 0.62, 0.42),
-    },
-    Pair {
-        dark: chsl(84.0, 0.66, 0.58),
-        light: chsl(86.0, 0.70, 0.30),
-    },
-);
-/// **Signal**: a signal-orange enamel body, the pump an electric violet, the hits aqua.
-pub const CEDO_SIGNAL: Skin = cedo(
-    "fx.cedo.signal",
-    Material::Lacquer,
-    Tint {
-        hue: 22.0,
-        sat: 0.52,
+        hue: 150.0,
+        sat: 0.12,
         amount: 0.45,
     },
     Pair {
-        dark: chsl(270.0, 0.62, 0.72),
-        light: chsl(268.0, 0.56, 0.44),
+        dark: chsl(188.0, 0.62, 0.60),
+        light: chsl(190.0, 0.72, 0.29),
     },
     Pair {
-        dark: chsl(184.0, 0.62, 0.58),
-        light: chsl(186.0, 0.66, 0.30),
+        dark: chsl(58.0, 0.80, 0.58),
+        light: chsl(50.0, 0.80, 0.32),
     },
 );
-/// **Midnight**: a matte navy body, the pump a hot pink-red, the hits a citrus yellow.
-pub const CEDO_MIDNIGHT: Skin = cedo(
-    "fx.cedo.midnight",
-    Material::Matte,
+/// **Locomotive**: gloss black lacquer lined in red, polished brass, oxblood leather — the
+/// shape a signal green, the key's hits a signal red.
+pub const CEDO_LOCOMOTIVE: Skin = cedo(
+    "fx.cedo.locomotive",
+    Material::Lacquer,
     Tint {
-        hue: 222.0,
-        sat: 0.36,
-        amount: 0.50,
+        hue: 356.0,
+        sat: 0.16,
+        amount: 0.30,
     },
     Pair {
-        dark: chsl(346.0, 0.76, 0.66),
-        light: chsl(346.0, 0.70, 0.42),
+        dark: chsl(146.0, 0.58, 0.56),
+        light: chsl(148.0, 0.70, 0.27),
     },
     Pair {
-        dark: chsl(62.0, 0.78, 0.60),
-        light: chsl(58.0, 0.74, 0.32),
+        dark: chsl(4.0, 0.76, 0.64),
+        light: chsl(2.0, 0.72, 0.42),
+    },
+);
+/// **Exhibition**: a nickel-plated model on a mahogany plinth, green leather; the shape a
+/// periwinkle blue, the key's hits an amber.
+pub const CEDO_EXHIBITION: Skin = cedo(
+    "fx.cedo.exhibition",
+    Material::Wood,
+    Tint {
+        hue: 18.0,
+        sat: 0.26,
+        amount: 0.36,
+    },
+    Pair {
+        dark: chsl(236.0, 0.66, 0.72),
+        light: chsl(236.0, 0.56, 0.44),
+    },
+    Pair {
+        dark: chsl(44.0, 0.84, 0.58),
+        light: chsl(38.0, 0.80, 0.34),
     },
 );
 pub const CEDO_COLOURWAYS: [Colourway; 3] = [
@@ -328,13 +333,13 @@ pub const CEDO_COLOURWAYS: [Colourway; 3] = [
         sheet: &CEDO,
     },
     Colourway {
-        id: "signal",
-        name_key: "cedo.colourway.signal",
-        sheet: &CEDO_SIGNAL,
+        id: "locomotive",
+        name_key: "cedo.colourway.locomotive",
+        sheet: &CEDO_LOCOMOTIVE,
     },
     Colourway {
-        id: "midnight",
-        name_key: "cedo.colourway.midnight",
-        sheet: &CEDO_MIDNIGHT,
+        id: "exhibition",
+        name_key: "cedo.colourway.exhibition",
+        sheet: &CEDO_EXHIBITION,
     },
 ];
