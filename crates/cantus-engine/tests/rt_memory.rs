@@ -3400,3 +3400,94 @@ fn caelum_never_allocates() {
         rig.allocations,
     );
 }
+
+/// fxd:contract — the X-Y pad and the formula controller (ADRs 0147, 0148) on the audio
+/// thread: a pad gliding on a path with inertia, its Y through a bent range, a formula
+/// with an automated knob and an LFO on another — through a new snapshot (the puck carried
+/// over), a seek, a stop (they run on, stopped) and a new start. Not one allocation.
+#[test]
+fn controllers_never_allocate() {
+    use cantus_core::modulator::*;
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut pad = Modulator::new(ModulatorId(p.alloc_id()), ModKind::XyPad);
+    pad.routes = vec![
+        ModRoute {
+            target: AutoTarget::StripGain(s0),
+            depth: 0.4,
+        },
+        ModRoute {
+            target: AutoTarget::StripPan(s0),
+            depth: 1.0,
+        },
+    ];
+    if let ModSource::XyPad(x) = &mut pad.source {
+        x.inertia_ms = 150.0;
+        x.path = Some(XyPath {
+            points: vec![[0.1, 0.9], [0.8, 0.2], [0.5, 0.6]],
+            beats: 2.0,
+            smooth: true,
+        });
+        x.play_path = true;
+        x.links = vec![RouteLink {
+            target: AutoTarget::StripPan(s0),
+            output: 1,
+            range: Some(RouteRange {
+                from: -0.5,
+                to: 0.5,
+                curve: 0.3,
+            }),
+        }];
+    }
+    let mut formula = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Formula);
+    formula.routes.push(ModRoute {
+        target: AutoTarget::MasterWidth,
+        depth: -0.3,
+    });
+    let fid = formula.id;
+    let mut lfo = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+    lfo.routes.push(ModRoute {
+        target: AutoTarget::ModInput {
+            modulator: fid,
+            input: 0,
+        },
+        depth: 0.5,
+    });
+    let knob = p.make_automation_clip(
+        "b",
+        AutoTarget::ModInput {
+            modulator: fid,
+            input: 1,
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            cantus_core::automation::AutoPoint::new(Ticks::ZERO, 0.1),
+            cantus_core::automation::AutoPoint::new(Ticks::beats(8), 0.9),
+        ],
+    );
+    p.tracks[0].clips.push(knob);
+    p.master.modulators.extend([pad, formula, lfo]);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("controllers start", 30);
+    if let ModSource::XyPad(x) = &mut p.master.modulators[0].source {
+        x.inertia_ms = 400.0;
+    }
+    rig.snapshot(&p);
+    rig.play("controllers new snapshot", 30);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("controllers seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("controllers stopped", 20);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("controllers play again", 10);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
