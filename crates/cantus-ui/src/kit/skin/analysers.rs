@@ -79,7 +79,7 @@ pub const LABORATORY: Finish = Finish {
     key_top: hsl(150.0, 0.06, 0.90),
     key: hsl(154.0, 0.06, 0.78),
     key_foot: hsl(160.0, 0.07, 0.52),
-    trace: hsl(166.0, 0.70, 0.62),
+    trace: hsl(168.0, 0.70, 0.62),
     cut: hsl(348.0, 0.78, 0.66),
     focus: hsl(44.0, 0.62, 0.72),
     led: hsl(354.0, 0.92, 0.60),
@@ -89,7 +89,8 @@ pub const LABORATORY: Finish = Finish {
 };
 
 /// **Ivory**: an ivory enamel panel in a warm taupe case, satin nickel handles, a deep
-/// brown print; the spectrum an amber phosphor, the cuts a cobalt, the focus a pale aqua.
+/// brown print; the spectrum an amber phosphor, the cuts a cobalt violet, the focus a pale
+/// aqua.
 pub const IVORY: Finish = Finish {
     wrap_top: hsl(30.0, 0.12, 0.44),
     wrap: hsl(28.0, 0.14, 0.30),
@@ -110,8 +111,8 @@ pub const IVORY: Finish = Finish {
     key_top: hsl(44.0, 0.40, 0.95),
     key: hsl(42.0, 0.30, 0.86),
     key_foot: hsl(36.0, 0.22, 0.60),
-    trace: hsl(44.0, 0.88, 0.62),
-    cut: hsl(226.0, 0.70, 0.72),
+    trace: hsl(42.0, 0.90, 0.62),
+    cut: hsl(258.0, 0.62, 0.76),
     focus: hsl(170.0, 0.46, 0.70),
     led: hsl(38.0, 0.96, 0.58),
     glass: hsl(30.0, 0.28, 0.06),
@@ -167,6 +168,8 @@ pub const NICKEL_LIGHT: Hsl = hsl(200.0, 0.10, 0.95);
 pub const NICKEL_DARK: Hsl = hsl(210.0, 0.08, 0.30);
 pub const INSULATOR: Hsl = hsl(48.0, 0.18, 0.90);
 pub const PIN: Hsl = hsl(44.0, 0.70, 0.58);
+/// The maker's badge: black enamel in the nickel plate's stamping.
+pub const BADGE_INK: Hsl = hsl(222.0, 0.12, 0.10);
 /// The readouts' smoked window, and an unlit LED segment.
 pub const SMOKE: Hsl = hsl(350.0, 0.14, 0.035);
 pub const LED_OFF: Hsl = hsl(350.0, 0.10, 0.11);

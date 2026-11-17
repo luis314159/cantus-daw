@@ -418,30 +418,18 @@ fn foot(b: &mut crate::kit::Brush, s: &Style, r: Rect, pic: &picture::Picture) {
     use crate::kit::text::{Role, Text};
     use egui::{Align2, Color32};
     let k = s.k;
-    let em = Rect::from_min_size(
-        pos2(r.left() + 4.0 * k, r.center().y - 14.0 * k),
-        vec2(44.0 * k, 28.0 * k),
+    let name_t = Text::key("picker.dev.lenis.name", Role::Title, Color32::TRANSPARENT).caps(true);
+    let name_w = crate::kit::text::measure(b.ctx(), &name_t, k * 1.15).x;
+    let h = 32.0 * k;
+    let plate = Rect::from_min_size(
+        pos2(r.left() + 2.0 * k, r.center().y - h * 0.5),
+        vec2(art::badge_width(name_w, h, k), h),
     );
-    art::emblem(b, s, em);
-    let name = art::print(
-        b,
-        s,
-        pos2(em.right() + 12.0 * k, r.center().y),
-        Align2::LEFT_CENTER,
-        &Text::key("picker.dev.lenis.name", Role::Title, Color32::TRANSPARENT).caps(true),
-        1.25,
-    );
-    art::rule(
-        b,
-        s,
-        pos2(name.right() + 12.0 * k, name.top() + 2.0 * k),
-        pos2(name.right() + 12.0 * k, name.bottom() - 2.0 * k),
-        0.8 * k,
-    );
+    let name = art::badge(b, s, plate, &name_t, 1.15);
     art::print(
         b,
         s,
-        pos2(name.right() + 24.0 * k, r.center().y),
+        pos2(name.right() + 16.0 * k, r.center().y),
         Align2::LEFT_CENTER,
         &Text::key("lenis.model", Role::Label, Color32::TRANSPARENT).caps(false),
         1.0,
@@ -461,17 +449,18 @@ fn foot(b: &mut crate::kit::Brush, s: &Style, r: Rect, pic: &picture::Picture) {
     ] {
         let p = pos2(x, r.center().y);
         art::socket(b, s, p, 9.0 * k);
-        let lamp = pos2(x - 30.0 * k, r.center().y + 6.0 * k);
+        // Its signal lamp beside it, its name printed before the lamp.
+        let lamp = pos2(x - 27.0 * k, r.center().y);
         art::signal(b, s, lamp, level(peak));
         let t = art::print(
             b,
             s,
-            pos2(x - 30.0 * k, r.center().y - 4.0 * k),
-            Align2::RIGHT_BOTTOM,
+            pos2(lamp.x - 10.0 * k, r.center().y),
+            Align2::RIGHT_CENTER,
             &Text::key(key, Role::Micro, Color32::TRANSPARENT),
             1.0,
         );
-        x = t.left().min(lamp.x - 8.0 * k) - 40.0 * k;
+        x = t.left() - 34.0 * k;
     }
 }
 

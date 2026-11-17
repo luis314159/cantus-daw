@@ -848,11 +848,8 @@ pub fn signal(b: &mut Brush, s: &Style, p: Pos2, level: f32) {
 /// The maker's emblem in `r`: calm water over rough stones — three stones on the foot in
 /// the print's ink, each with its lit crown left bare, and two smooth lines of water over
 /// them.
-pub fn emblem(b: &mut Brush, s: &Style, r: Rect) {
+pub fn emblem(b: &mut Brush, s: &Style, r: Rect, ink: Color32, bare: Color32) {
     let k = s.k;
-    let f = finish(s);
-    let ink = c(f.print);
-    let bare = c(f.panel);
     let w = r.width();
     let h = r.height();
     for (cx, rw, rh) in [
@@ -889,4 +886,104 @@ pub fn emblem(b: &mut Brush, s: &Style, r: Rect) {
         }
         b.polyline(&pts, 1.6 * k, ink);
     }
+}
+
+/// The maker's badge in `r`: a nickel plate riveted to the panel, brushed along its length,
+/// its emblem and `name` stamped into it and filled with black enamel. Returns the plate.
+pub fn badge(b: &mut Brush, s: &Style, r: Rect, name: &Text<'_>, scale: f32) -> Rect {
+    let k = s.k;
+    b.rrect_soft(
+        r.translate(vec2(0.8, 2.0) * k),
+        4.0 * k,
+        Fill::Solid(with_alpha(shadow(), 0.45)),
+        4.0 * k,
+    );
+    b.rrect(
+        r,
+        4.0 * k,
+        Fill::Stops(&[
+            (0.0, c(pal::NICKEL_LIGHT)),
+            (0.45, c(pal::NICKEL)),
+            (1.0, c(pal::NICKEL_DARK)),
+        ]),
+    );
+    // The brushing: fine lines along the plate.
+    let n = (r.height() / (1.6 * k)) as u32;
+    for i in 0..n {
+        let y = r.top() + 2.0 * k + i as f32 * 1.6 * k;
+        if y > r.bottom() - 2.0 * k {
+            break;
+        }
+        let a = 0.08 + 0.10 * hash(i + 500);
+        b.hline(
+            r.left() + 3.0 * k,
+            r.right() - 3.0 * k,
+            y,
+            0.5 * k,
+            with_alpha(c(pal::NICKEL_LIGHT), a),
+        );
+    }
+    b.rrect_stroke(r, 4.0 * k, 0.8 * k, with_alpha(c(pal::NICKEL_DARK), 0.9));
+    b.rrect_stroke(
+        r.shrink(1.2 * k),
+        3.0 * k,
+        0.6 * k,
+        with_alpha(c(pal::NICKEL_LIGHT), 0.8),
+    );
+    // The rivets at its ends.
+    for x in [r.left() + 7.0 * k, r.right() - 7.0 * k] {
+        let p = pos2(x, r.center().y);
+        b.circle(
+            p + vec2(0.3, 0.8) * k,
+            2.8 * k,
+            Fill::Solid(with_alpha(shadow(), 0.45)),
+        );
+        b.circle(
+            p,
+            2.6 * k,
+            Fill::V(c(pal::NICKEL_LIGHT), c(pal::NICKEL_DARK)),
+        );
+        b.circle(
+            p - vec2(0.7, 0.7) * k,
+            0.8 * k,
+            Fill::Solid(with_alpha(glint(), 0.8)),
+        );
+    }
+    // The stamped emblem and name, enamel-filled, a lit lip under each.
+    let ink = c(pal::BADGE_INK);
+    let em = Rect::from_min_size(
+        pos2(r.left() + 16.0 * k, r.top() + 5.0 * k),
+        vec2((r.height() - 10.0 * k) * 1.55, r.height() - 10.0 * k),
+    );
+    emblem(b, s, em, ink, c(pal::NICKEL_LIGHT));
+    let at = pos2(em.right() + 9.0 * k, r.center().y);
+    let lip = Text {
+        color: with_alpha(c(pal::NICKEL_LIGHT), 0.9),
+        ..*name
+    };
+    canvas::put(
+        b,
+        at + vec2(0.0, 0.8 * k),
+        Align2::LEFT_CENTER,
+        &lip,
+        k * scale,
+        None,
+    );
+    canvas::put(
+        b,
+        at,
+        Align2::LEFT_CENTER,
+        &Text {
+            color: ink,
+            ..*name
+        },
+        k * scale,
+        None,
+    );
+    r
+}
+
+/// The badge's width for a name `name_w` wide, at height `h`.
+pub fn badge_width(name_w: f32, h: f32, k: f32) -> f32 {
+    16.0 * k + (h - 10.0 * k) * 1.55 + 9.0 * k + name_w + 17.0 * k
 }

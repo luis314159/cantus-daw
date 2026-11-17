@@ -20,6 +20,8 @@ use egui::{Pos2, Sense};
 pub struct Hold {
     pub grip: Option<Grip>,
     gesture: u64,
+    /// The grip whose menu is open (the pointer leaves it for the menu).
+    menu: Option<Grip>,
 }
 
 /// The grip under `p`: a node first (the nearest within reach), then a gate's tab or line.
@@ -80,8 +82,21 @@ pub fn edit(
             *sel = n;
         }
     }
-    // The menu of what is under the pointer: the gate's limit, the band's amount.
-    let menu_key = match under.or(hold.grip) {
+    // The menu of what is under the pointer (the gate's limit, the band's amount), kept on
+    // its grip while it is open.
+    if resp.secondary_clicked() {
+        hold.menu = under;
+    }
+    let open = egui::Popup::is_any_open(ui.ctx());
+    if !open && !resp.secondary_clicked() {
+        hold.menu = None;
+    }
+    let target = if open {
+        hold.menu.or(under)
+    } else {
+        under.or(hold.grip)
+    };
+    let menu_key = match target {
         Some(Grip::Lo) => Some(("lo", tr("fx.lenis.lo"))),
         Some(Grip::Hi) => Some(("hi", tr("fx.lenis.hi"))),
         Some(Grip::Band(n)) => Some((band_key(n, "amt"), tr("fx.lenis.bamt"))),
@@ -105,15 +120,14 @@ pub fn edit(
             }
             Grip::Band(n) => {
                 let amt = (plot.w_at(p.y) - 1.0).clamp(-1.0, 1.0);
-                let mut edits = [
+                // A band dragged while off is switched on by the same step.
+                let edits = [
                     (band_key(n, "hz"), Some(hz.clamp(20.0, 20_000.0))),
                     (band_key(n, "amt"), Some(amt)),
-                    (band_key(n, "on"), None),
+                    (band_key(n, "on"), Some(1.0)),
                 ];
-                if !set.bands[n].on {
-                    edits[2].1 = Some(1.0);
-                }
-                host.apply(&edits, "cmd.lenis_band", Some(hold.gesture));
+                let len = if set.bands[n].on { 2 } else { 3 };
+                host.apply(&edits[..len], "cmd.lenis_band", Some(hold.gesture));
             }
         }
     }

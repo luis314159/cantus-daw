@@ -118,8 +118,13 @@ impl Plot {
 
     /// Where band `n`'s node stands.
     pub fn node(&self, set: &LenisSettings, n: usize) -> Pos2 {
+        // A band switched on stands at its own amount; one switched off waits on the curve.
         let b = set.bands[n];
-        let w = if b.on { 1.0 + b.amount } else { 1.0 };
+        let w = if b.on {
+            1.0 + b.amount
+        } else {
+            detect::focus_weight(set, b.hz)
+        };
         pos2(self.x(b.hz), self.y_focus(w))
     }
 
@@ -504,13 +509,26 @@ fn spectrum(
         // What is removed is the picture: its body and its line in the cut's colour, the
         // input a dim line over it for where it came from.
         b.area(&output, foot, with_alpha(g.cut, 0.22));
-        canvas::trace(b, &output, 1.6 * k, g.cut, ink);
-        b.polyline(&input, 1.0 * k, with_alpha(g.trace, 0.45));
+        // Its line only where something is removed (the floor between stays dark).
+        let lifted = |i: usize| removed_db(pic.level[i], pic.cut[i]) > BOTTOM_DB + 1.0;
+        let mut i = 0;
+        while i < DISPLAY {
+            if !lifted(i) {
+                i += 1;
+                continue;
+            }
+            let start = i.saturating_sub(1);
+            while i < DISPLAY && lifted(i) {
+                i += 1;
+            }
+            let end = (i + 1).min(DISPLAY);
+            canvas::trace(b, &output[start..end], 1.6 * k, g.cut, ink);
+        }
+        b.polyline(&input, 1.2 * k, with_alpha(g.trace, 0.45));
         return;
     }
-    // The input's body, faint, then the veil the cut hangs under the line.
-    // The body: faint to the foot, a brighter band just under the line (a phosphor's
-    // bloom).
+    // The input's body: faint to the foot, brighter just under the line (a phosphor's
+    // bloom); then the veil the cut hangs under the line.
     b.area(&input, foot, with_alpha(g.trace, 0.06));
     let mut upper = input;
     for (depth, a) in [(6.0f32, 0.06f32), (14.0, 0.04), (26.0, 0.025)] {

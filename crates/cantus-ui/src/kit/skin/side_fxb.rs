@@ -168,8 +168,8 @@ pub const LENIS: Skin = lenis(
         amount: 0.40,
     },
     Pair {
-        dark: chsl(166.0, 0.62, 0.60),
-        light: chsl(168.0, 0.66, 0.28),
+        dark: chsl(168.0, 0.62, 0.60),
+        light: chsl(170.0, 0.66, 0.28),
     },
     Pair {
         dark: chsl(348.0, 0.72, 0.68),
@@ -177,7 +177,7 @@ pub const LENIS: Skin = lenis(
     },
 );
 /// **Ivory**: an ivory enamel panel, the spectrum an amber phosphor, the cuts a cobalt
-/// (the kit's accent the cobalt: amber on an enamel is another unit's).
+/// violet (the kit's accent the violet: amber on an enamel is another unit's).
 pub const LENIS_IVORY: Skin = lenis(
     "fx.lenis.ivory",
     Material::Paper,
@@ -187,12 +187,12 @@ pub const LENIS_IVORY: Skin = lenis(
         amount: 0.22,
     },
     Pair {
-        dark: chsl(228.0, 0.62, 0.72),
-        light: chsl(226.0, 0.58, 0.40),
+        dark: chsl(258.0, 0.56, 0.74),
+        light: chsl(258.0, 0.50, 0.42),
     },
     Pair {
-        dark: chsl(44.0, 0.86, 0.60),
-        light: chsl(40.0, 0.80, 0.34),
+        dark: chsl(42.0, 0.86, 0.60),
+        light: chsl(38.0, 0.80, 0.34),
     },
 );
 /// **Graphite**: a graphite anodised panel, the spectrum a white phosphor (a voice too
