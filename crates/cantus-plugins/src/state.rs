@@ -81,6 +81,8 @@ pub fn save_spec_extras(
         ir: None,                                    // r39:conv
         lapsus: lapsus.map(|b| Box::new(b.clone())), // fx:lapsus
         board: board.map(|b| Box::new(b.clone())),   // fx3:tabula
+        fractus: None, // fxa (wave A's lanes in the plug-in's state: its phase B)
+        cedo: None,    // fxb:contract (Cedo's shape in the plug-in's state: phase B)
     };
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,

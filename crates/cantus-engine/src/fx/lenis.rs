@@ -213,6 +213,6 @@ mod tests {
             }
         }
         assert!(seen.iter().all(|n| *n == 1));
-        assert!(t::END <= TELEMETRY_LEN);
+        const { assert!(t::END <= TELEMETRY_LEN) };
     }
 }
