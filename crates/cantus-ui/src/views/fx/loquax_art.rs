@@ -13,12 +13,12 @@ use crate::kit::{Brush, Fill, Style};
 use egui::{pos2, vec2, Color32, Pos2, Rect, Vec2};
 use std::f32::consts::{FRAC_PI_2, PI};
 
-fn c(h: Hsl) -> Color32 {
+pub(super) fn c(h: Hsl) -> Color32 {
     h.rgb()
 }
 
 /// A number in 0 … 1 for `i` (the grain's lines, a screw's turn): the same every frame.
-fn hash(i: u32) -> f32 {
+pub(super) fn hash(i: u32) -> f32 {
     let mut x = i.wrapping_mul(0x9E37_79B9) ^ 0x85EB_CA6B;
     x ^= x >> 15;
     x = x.wrapping_mul(0x2C1B_3C6D);
@@ -65,7 +65,7 @@ pub fn screw(b: &mut Brush, p: Pos2, rad: f32, turn: f32) {
 }
 
 /// A rivet (the road case's corners): a plain dome.
-fn rivet(b: &mut Brush, p: Pos2, rad: f32) {
+pub(super) fn rivet(b: &mut Brush, p: Pos2, rad: f32) {
     b.circle(p, rad, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)));
     b.circle(
         p - vec2(rad, rad) * 0.3,
@@ -245,7 +245,7 @@ pub fn lamp(b: &mut Brush, p: Pos2, rad: f32, lens: Color32, lit: f32) {
 }
 
 /// A point of the cubic from `p0` to `p3` at `t`.
-fn cubic(p: [Pos2; 4], t: f32) -> Pos2 {
+pub(super) fn cubic(p: [Pos2; 4], t: f32) -> Pos2 {
     let u = 1.0 - t;
     let w = [u * u * u, 3.0 * u * u * t, 3.0 * u * t * t, t * t * t];
     pos2(
@@ -255,7 +255,7 @@ fn cubic(p: [Pos2; 4], t: f32) -> Pos2 {
 }
 
 /// How many points the gooseneck is sampled at.
-const NECK: usize = 48;
+pub(super) const NECK: usize = 48;
 
 /// The gooseneck microphone standing in `r`: its chrome socket at the foot, the ribbed neck
 /// curving up, the satin head with its on-air lamp, the woven grille; `level` (0 … 1) the
@@ -383,7 +383,7 @@ pub fn microphone(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) 
 }
 
 /// A chrome cylinder's light across it, left to right.
-fn cylinder() -> [(f32, Color32); 5] {
+pub(super) fn cylinder() -> [(f32, Color32); 5] {
     [
         (0.0, c(pal::CHROME_DARK)),
         (0.22, c(pal::CHROME_LIGHT)),

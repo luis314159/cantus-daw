@@ -77,6 +77,9 @@ fn wave_a_s_windows_never_cut_or_clip_a_word() {
             EffectKind::Vocoder,
             &[("robot", 0.0), ("bands", 64.0)],
         ),
+        // fxa:loquax — the two other objects (phase B): the talk-box's tube, the desk mic.
+        ("loquax", EffectKind::Vocoder, &[("obj", 1.0)]),
+        ("loquax", EffectKind::Vocoder, &[("obj", 2.0), ("src", 0.0)]),
         ("fractus", EffectKind::Glitch, &[]),
         (
             "fractus",
@@ -119,6 +122,42 @@ fn wave_a_s_windows_never_cut_or_clip_a_word() {
     bad.sort();
     bad.dedup();
     assert!(bad.is_empty(), "words not read whole:\n{}", bad.join("\n"));
+}
+
+/// fxa:loquax — the owner's v2 verdict: in Spanish (four rows of cards) the display does
+/// not shrink; the window grows instead. In both languages at 75, 100 and 200 % the cards
+/// take the rows `loquax::card_rows` says (so the designed size has room for them) and the
+/// display — the microphone, the bank and the meters — is the same size, scaled.
+#[test]
+fn loquax_s_display_keeps_its_size_in_every_language_and_scale() {
+    let mut heights = Vec::new();
+    for lang in [Locale::En, Locale::Es] {
+        cantus_ui::i18n::set_thread_locale(lang);
+        for k in [0.75f32, 1.0, 2.0] {
+            let mut app =
+                CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+            app.demo_editor("loquax");
+            views::fx::demo_feed(&mut app, EffectKind::Vocoder);
+            app.fx.pos = Some(egui::pos2(0.0, 0.0));
+            assert!(probe_window(&mut app, EffectKind::Vocoder, k, true).is_empty());
+            let st = &app.fx.loquax;
+            assert_eq!(
+                st.rows,
+                views::fx::loquax::card_rows(lang),
+                "{lang:?} at {k}: the rows the designed size makes room for"
+            );
+            let d = st.display.expect("the display is drawn");
+            heights.push((lang, k, d.width() / k, d.height() / k));
+        }
+    }
+    let (_, _, w0, h0) = heights[0];
+    for &(lang, k, w, h) in &heights {
+        assert!(
+            (w - w0).abs() <= 1.0 && (h - h0).abs() <= 1.0,
+            "{lang:?} at {k}: the display {w:.1} x {h:.1}, in English at 75 % {w0:.1} x {h0:.1}"
+        );
+    }
+    assert!(h0 >= 300.0, "the display as approved, not squeezed: {h0}");
 }
 
 /// Fractus's pages of cards (design sheet v2): each page's cards and the display over them

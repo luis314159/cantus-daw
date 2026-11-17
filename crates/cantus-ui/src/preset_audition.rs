@@ -371,6 +371,9 @@ pub fn prepare(
                 if let Some(kind) = kind {
                     let mut slot = p.make_effect(kind);
                     slot.spec.params = effect_params_after(&slot.spec, values);
+                    if kind == EffectKind::Vocoder {
+                        vocoder_carriers(&p, &mut slot);
+                    }
                     p.master.effects.push(slot);
                 }
                 whole(p, HeardOn::Source(entry.role()), false)
@@ -386,6 +389,21 @@ pub fn prepare(
             }
             source(Some(kind))
         }
+    }
+}
+
+/// fxa:loquax — a vocoder on the fixed source needs a carrier, as on a track: its
+/// synthesiser plays the notes of the source's last melodic line (`midi_from`) and that
+/// line's strip is its sidechain — so every preset sounds, whichever carrier it names.
+fn vocoder_carriers(p: &Project, slot: &mut cantus_core::EffectSlot) {
+    let line = p
+        .tracks
+        .iter()
+        .rev()
+        .find(|t| t.instrument.pulsus().is_none() && t.clips.iter().any(|c| !c.notes.is_empty()));
+    if let Some(t) = line {
+        slot.midi_from = Some(t.id);
+        slot.sidechain = t.strip;
     }
 }
 

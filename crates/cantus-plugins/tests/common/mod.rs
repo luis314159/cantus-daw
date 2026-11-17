@@ -783,6 +783,19 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("os", 0.0),
             ("out", -6.0),
         ], // fx3:arca
+        // fxa:loquax — the robot drones under the test signal in 24 steep bands, its formants
+        // up, spread, a band drawn down (the signal speaks with no notes and no key).
+        EffectKind::Vocoder => vec![
+            ("mix", 0.9),
+            ("robot", 1.0),
+            ("rgate", -80.0),
+            ("bands", 24.0),
+            ("order", 2.0),
+            ("formant", 3.0),
+            ("spread", 0.5),
+            ("b5", -9.0),
+            ("out", -3.0),
+        ], // fxa:loquax
         _ => vec![],
     }
 }
@@ -883,6 +896,8 @@ pub enum Direct {
     Rota(Box<cantus_dsp::rota::Rota>),
     /// fx3:arca — Arca, the amp and its cabinet.
     Arca(Box<cantus_dsp::arca::Arca>),
+    /// fxa:loquax — Loquax, the vocoder (its notes, when any, through `Direct::note`).
+    Loquax(Box<cantus_dsp::loquax::Loquax>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -983,6 +998,7 @@ impl Direct {
             EffectKind::PitchShift => Direct::Saltus(Box::new(cantus_dsp::saltus::Saltus::new(SR))), // fx3:saltus
             EffectKind::Rotary => Direct::Rota(Box::new(cantus_dsp::rota::Rota::new(SR))), // fx3:rota
             EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
+            EffectKind::Vocoder => Direct::Loquax(Box::new(cantus_dsp::loquax::Loquax::new(SR))), // fxa:loquax
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -1033,6 +1049,7 @@ impl Direct {
             Direct::Libra(x) => x.set(&fx::libra::settings(spec)), // fx:libra
             Direct::Saltus(x) => x.set(&fx::saltus::settings(spec)), // fx3:saltus
             Direct::Rota(x) => x.set(&fx::rota::settings(spec).0), // fx3:rota
+            Direct::Loquax(x) => x.set(&fx::loquax::settings(spec)), // fxa:loquax
             // fx3:arca — the cabinet built as the engine builds it, supplied once.
             Direct::Arca(x) => {
                 let (s, need) = fx::arca::settings(spec);
@@ -1090,6 +1107,7 @@ impl Direct {
             Direct::Saltus(x) => x.reset(),  // fx3:saltus
             Direct::Rota(x) => x.reset(),    // fx3:rota
             Direct::Arca(x) => x.reset(),    // fx3:arca
+            Direct::Loquax(x) => x.reset(),  // fxa:loquax
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1126,6 +1144,7 @@ impl Direct {
             Direct::Saltus(x) => x.latency(),  // fx3:saltus
             Direct::Rota(_) => 0,              // fx3:rota
             Direct::Arca(x) => x.latency(),    // fx3:arca
+            Direct::Loquax(x) => x.latency(),  // fxa:loquax
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1162,6 +1181,7 @@ impl Direct {
             Direct::Saltus(x) => x.process(l, r),    // fx3:saltus
             Direct::Rota(x) => x.process(l, r),      // fx3:rota
             Direct::Arca(x) => x.process(l, r),      // fx3:arca
+            Direct::Loquax(x) => x.process(l, r, key, &[]), // fxa:loquax
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

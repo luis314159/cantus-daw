@@ -2321,6 +2321,54 @@ distance and the **Balance** of horn against drum, the cabinet's **back** (open 
 and its valve amp's **Drive**, and the Mix and Output. Thirteen factory presets. At its
 defaults (mix 0) Rota touches no sample; it has no latency.
 
+### Loquax, the vocoder
+
+**Loquax** (Latin for *the talkative one*) makes a voice speak through another sound. Insert
+it on the voice's track from **Add insert ▾ ▸ Pitch ▸ Loquax**; it starts as *Robot* — the
+synthesiser drones C3 while the voice speaks, so you hear the voice vocoded at once, with no
+notes and no key.
+
+**Who speaks and who sings.** The track's own sound is the **voice** (the modulator). The
+**carrier** is chosen on the *Carrier* card:
+
+- **Synthesiser** — Loquax's own polyphonic synthesiser (saw, pulse and noise, up to seven
+  detuned copies a voice), played by the **notes of the track the slot listens to**: choose
+  it as the effect's MIDI source, like Porta's trigger. A keyboard track can be muted — its
+  notes still play Loquax.
+- **Sidechain** — another track's sound, routed to the slot as its **key** (the sidechain
+  field, as for a compressor): a pad, a guitar (a talk-box), a drum loop.
+- **Both** — the notes and the key together.
+
+**Who speaks** trades them: *Sidechain* speaks and this track is the carrier — drums or a loop
+that talk. **Robot** drones its own note (any note, C1–C7) while the voice is louder than
+its gate, with no notes at all.
+
+**The display.** On the left, **the object the voice speaks into** — the gooseneck
+microphone, the **talk-box's tube** rising from its driver, or the **desk microphone** on
+its weighted base — its on-air lamp and glow following the voice. Choose it in the **⋯** menu,
+under *Microphone*, beside the colourways: it is the insert's own (kept in the song, one
+step of undo) and never heard; presets leave it as you chose it. In the middle, **the bank**:
+every band a column of cells lit by what it says now; **drag across the bands to draw their
+levels** (−24 to +12 dB, one stroke one step of undo). The formant shift is drawn along the
+top. On the right, **the meter bridge**: the voice's needle and the carrier's, the lamps for
+a consonant heard, the hold and the robot.
+
+**The cards**: the carrier and the roles, the raw carrier let **through**; the **bands**
+(8 to 64, slopes of order 4, 6 or 8, their range and width); the **followers** (attack,
+release, **Hold** freezes the vowel); the **character** (formant shift in semitones, band
+shift, tilt, flatten, stereo spread); the **consonants** (the sibilance let through above its
+corner, always or only on consonants, and noise into the carrier on them); the synthesiser's
+oscillators, unison and envelope; the robot; mix and output.
+
+Fifteen factory presets, both carriers among them (*Talk-box* and *Sidechain carrier* use the
+key; *Classic vocoder*, *Choir pad* and *String machine* the notes). In the browser each is
+auditioned with the source's own line as its notes and its key. At its defaults (mix 0)
+Loquax touches no sample; it has no latency.
+
+**In another DAW** Loquax is the plug-in *Cantus Loquax* (CLAP and VST3): it hears the notes
+the host sends to it, and its carrier through the sidechain input once its own *Sidechain*
+switch is set to *Sidechain input*.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

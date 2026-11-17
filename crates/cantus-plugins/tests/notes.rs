@@ -38,6 +38,9 @@ const SALTUS: &[(&str, f32)] = &[("mode", 1.0), ("hsrc", 2.0), ("lvl2", 0.5), ("
 /// fx3:rota — Rota with notes throwing its switch: each note played toggles slow and fast.
 const ROTA: &[(&str, f32)] = &[("mix", 1.0), ("drive", 0.3)];
 
+/// fxa:loquax — Loquax's synthesiser carrier played by the notes, the voice speaking through.
+const LOQUAX: &[(&str, f32)] = &[("mix", 1.0), ("src", 1.0), ("bands", 16.0)];
+
 /// A note a host sends. In CLAP's dialect a note on or off carries the note id
 /// `1000 + pitch` and the channel `pitch % 16` (in MIDI bytes, that channel too).
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -119,6 +122,16 @@ impl Case {
         }
     }
 
+    /// fxa:loquax — a sung voice; the notes play the carrier it speaks through.
+    fn loquax() -> Case {
+        Case {
+            kind: EffectKind::Vocoder,
+            values: LOQUAX,
+            input: voice(),
+            notes: NOTES.to_vec(),
+        }
+    }
+
     fn porta(notes: &[(u32, N)]) -> Case {
         Case {
             kind: EffectKind::Gate,
@@ -136,6 +149,7 @@ enum Dsp {
     Lapsus(Box<dyn cantus_engine::fx::FxUnit>), // fx:lapsus
     Saltus(Box<dyn cantus_engine::fx::FxUnit>), // fx3:saltus
     Rota(Box<dyn cantus_engine::fx::FxUnit>),   // fx3:rota
+    Loquax(Box<dyn cantus_engine::fx::FxUnit>), // fxa:loquax
 }
 
 impl Dsp {
@@ -163,7 +177,7 @@ impl Dsp {
                 },
             ),
             // fx:lapsus, fx3:saltus
-            Dsp::Lapsus(d) | Dsp::Saltus(d) | Dsp::Rota(d) => d.note(
+            Dsp::Lapsus(d) | Dsp::Saltus(d) | Dsp::Rota(d) | Dsp::Loquax(d) => d.note(
                 0,
                 match n {
                     N::On(p) => cantus_engine::fx::FxNote::On {
@@ -185,6 +199,7 @@ impl Dsp {
             Dsp::Lapsus(d) => d.process(l, r, None), // fx:lapsus
             Dsp::Saltus(d) => d.process(l, r, None), // fx3:saltus
             Dsp::Rota(d) => d.process(l, r, None),   // fx3:rota
+            Dsp::Loquax(d) => d.process(l, r, None), // fxa:loquax
         }
     }
 }
@@ -228,6 +243,13 @@ fn through_dsp(case: &Case, expected: &[(u32, N)]) -> Vec<f32> {
             u.configure(&spec);
             u.reset();
             Dsp::Rota(u)
+        }
+        // fxa:loquax — the engine's unit, as the exported plug-in runs it.
+        EffectKind::Vocoder => {
+            let mut u = cantus_engine::fx::make(EffectKind::Vocoder, SR).unwrap();
+            u.configure(&spec);
+            u.reset();
+            Dsp::Loquax(u)
         }
         k => panic!("{k:?} hears no notes"),
     };
@@ -460,6 +482,7 @@ fn clap_notes_arrive_at_their_sample_in_either_dialect() {
         Case::lapsus(),
         Case::saltus(), // fx3:saltus
         Case::rota(),   // fx3:rota
+        Case::loquax(), // fxa:loquax
     ] {
         let reference = through_dsp(&case, &case.notes);
         let dry = {
@@ -799,6 +822,7 @@ fn vst3_notes_arrive_at_their_sample_on_the_event_bus() {
         Case::lapsus(),
         Case::saltus(), // fx3:saltus
         Case::rota(),   // fx3:rota
+        Case::loquax(), // fxa:loquax
     ] {
         let reference = through_dsp(&case, &case.notes);
         for blocks in &BLOCKS[..2] {

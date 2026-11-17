@@ -1,5 +1,4 @@
 # Loquax vocoder: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's wave A: the starting preset only until phase B adds the rest.
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
@@ -11,4 +10,201 @@ roles = ["vocal", "creative"]
 [preset.values]
 "bands" = 16
 "mix" = 1
+"out" = 0.5
 "robot" = 1
+
+[[preset]]
+key = "preset.loquax.classic"
+note = "The classic keyboard vocoder: twenty bands with steep slopes, a bright saw played by the notes."
+styles = ["pop", "house"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 20
+"mix" = 1
+"order" = 2
+"out" = -3
+"uni" = 1
+
+[[preset]]
+key = "preset.loquax.daft"
+note = "A filtered robot for French house: pulse and saw, a touch of formant up, quick followers."
+styles = ["house", "pop"]
+roles = ["vocal", "creative"]
+[preset.values]
+"att" = 1
+"bands" = 24
+"detune" = 6
+"formant" = 2
+"mix" = 1
+"pulse" = 0.7
+"pw" = 0.25
+"rel" = 30
+"saw" = 0.3
+"uni" = 2
+
+[[preset]]
+key = "preset.loquax.talk_box"
+note = "A talk-box: the guitar or synth on the sidechain is the carrier, shaped by the voice's mouth in forty-eight sharp bands."
+styles = ["rock", "rnb"]
+roles = ["vocal", "creative"]
+[preset.values]
+"att" = 1
+"bands" = 48
+"mix" = 1
+"out" = 1.9
+"rel" = 20
+"sib" = 0.3
+"src" = 0
+"unv" = 0.2
+
+[[preset]]
+key = "preset.loquax.sidechain_pad"
+note = "Any track as the carrier: a pad or a chord on the sidechain speaks with the voice, thirty-two bands, its tone flattened."
+styles = ["pop", "ambient"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 32
+"mix" = 1
+"src" = 0
+
+[[preset]]
+key = "preset.loquax.both"
+note = "The synthesiser and the sidechain carry together: the notes and another track's sound under one voice."
+styles = ["film", "ambient"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 32
+"mix" = 1
+"out" = 0.6
+"src" = 2
+
+[[preset]]
+key = "preset.loquax.choir"
+note = "A choir pad: seven detuned copies a voice, a slow swell and release, the bands spread left and right."
+styles = ["ambient", "worship"]
+roles = ["vocal", "creative"]
+[preset.values]
+"detune" = 22
+"formant" = -2
+"mix" = 1
+"noise" = 0.02
+"out" = -1
+"rel" = 120
+"satt" = 250
+"spread" = 0.6
+"srel" = 1200
+"uni" = 7
+"uspread" = 0.9
+
+[[preset]]
+key = "preset.loquax.string_machine"
+note = "A string machine's ensemble: five detuned saws, gentle slopes, a slow attack, the raw strings a little through."
+styles = ["film", "jazz"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 16
+"cpass" = 0.15
+"detune" = 18
+"mix" = 1
+"order" = 0
+"out" = -4.9
+"satt" = 120
+"spread" = 0.4
+"srel" = 800
+"tilt" = 1.5
+"uni" = 5
+
+[[preset]]
+key = "preset.loquax.whisper"
+note = "A whisper: the drone made of noise alone, the consonants and the hiss let through — no notes needed."
+styles = ["film", "trap"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 32
+"mix" = 1
+"noise" = 1
+"out" = 1
+"rnote" = 60
+"robot" = 1
+"saw" = 0
+"sib" = 0.8
+"unv" = 1
+
+[[preset]]
+key = "preset.loquax.deep_robot"
+note = "A deep robot: the drone on C2, the formants down five semitones — a voice from a machine's chest."
+styles = ["trap", "film"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 16
+"formant" = -5
+"mix" = 1
+"out" = 1.1
+"rnote" = 36
+"robot" = 1
+
+[[preset]]
+key = "preset.loquax.helium"
+note = "Small and bright: the notes an octave up and the formants seven semitones higher."
+styles = ["pop", "lofi"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 24
+"formant" = 7
+"mix" = 1
+"oct" = 1
+"out" = -0.8
+
+[[preset]]
+key = "preset.loquax.clarity"
+note = "Sixty-four steep bands for words you can follow, the consonants and their noise strong."
+styles = ["pop", "rnb"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 64
+"mix" = 1
+"order" = 2
+"out" = 1
+"sib" = 0.7
+"unv" = 0.6
+"width" = 1.2
+
+[[preset]]
+key = "preset.loquax.radio"
+note = "Eight bands from 300 Hz to 3 kHz: a voice from an old intercom, on the drone."
+styles = ["lofi", "rock"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 8
+"hi" = 3000
+"lo" = 300
+"mix" = 1
+"out" = 1.2
+"rnote" = 52
+"robot" = 1
+
+[[preset]]
+key = "preset.loquax.talking_drums"
+note = "The roles traded: this track is the carrier and the voice on the sidechain makes it speak — drums or a loop that talk."
+styles = ["trap", "house"]
+roles = ["creative", "vocal"]
+[preset.values]
+"att" = 0.5
+"bands" = 24
+"mix" = 1
+"rel" = 15
+"src" = 0
+"swap" = 1
+
+[[preset]]
+key = "preset.loquax.bass_voice"
+note = "A talking bass: the notes two octaves down, twenty bands from 60 Hz, a pulse under the saw."
+styles = ["house", "trap"]
+roles = ["vocal", "creative"]
+[preset.values]
+"bands" = 20
+"lo" = 60
+"mix" = 1
+"oct" = -2
+"out" = 1.2
+"pulse" = 0.4

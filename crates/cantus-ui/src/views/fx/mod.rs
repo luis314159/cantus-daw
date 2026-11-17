@@ -293,7 +293,9 @@ impl CantusApp {
             return;
         }
         let mut commands = Vec::new();
-        for info in slot.spec.kind.params() {
+        // fxa:loquax — a look (Loquax's microphone) stays as presets change.
+        let kind = slot.spec.kind;
+        for info in kind.params().iter().filter(|i| !kind.is_look(i.key)) {
             match params.get(info.key) {
                 Some(v) => {
                     if slot.spec.params.get(info.key) != Some(v) {

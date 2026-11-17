@@ -203,7 +203,8 @@ pub trait FxHost {
         let spec = self.spec();
         let kind = spec.kind;
         let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
-        for info in kind.params() {
+        // fxa:loquax — a look (Loquax's microphone) stays as presets change.
+        for info in kind.params().iter().filter(|i| !kind.is_look(i.key)) {
             let now = spec.get(info.key);
             match params.get(info.key) {
                 Some(v) if *v != now || !spec.params.contains_key(info.key) => {

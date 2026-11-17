@@ -787,11 +787,29 @@ pub fn segmented_param(
         .style(*s)
         .show(ui);
     let learnt = stepped_offer(ui, s, host, key, name, &resp);
+    SEGMENTED.with(|v| {
+        let mut v = v.borrow_mut();
+        v.retain(|(k, _)| *k != key);
+        v.push((key, resp.rect));
+    });
     let r = r.filter(|_| !learnt);
     if let Some(i) = r {
         host.set(key, i as f32, None);
     }
     r
+}
+
+thread_local! {
+    /// fxa:loquax — where each parameter's segmented switch was drawn last, on this thread
+    /// (tests drive the switches with the pointer).
+    static SEGMENTED: std::cell::RefCell<Vec<(&'static str, egui::Rect)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// fxa:loquax — where `key`'s segmented switch ([`segmented_param`]) was drawn last on this
+/// thread: its choices share it evenly, left to right.
+pub fn segmented_rect(key: &str) -> Option<egui::Rect> {
+    SEGMENTED.with(|v| v.borrow().iter().find(|(k, _)| *k == key).map(|(_, r)| *r))
 }
 
 /// A menu field: a well with `value` and ▾. Returns where its list opens while it is

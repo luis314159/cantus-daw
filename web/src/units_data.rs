@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 34] = [
+pub const EFFECTS: [Unit; 35] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -535,6 +535,28 @@ pub const EFFECTS: [Unit; 34] = [
         ab: None,
         big: (1800, 1000),
         thumb: (640, 356),
+    },
+
+    // fxa:loquax — Loquax, the vocoder (ADR 0139, provisional).
+    Unit {
+        file: "loquax",
+        name: "Loquax",
+        kind: ("Vocoder", "Vocoder"),
+        pitch: ("A vocoder that makes any voice speak through a synthesiser played by your notes, through another track or both — the bands lit by the voice, the levels drawn with the mouse.", "Un vocoder que hace hablar a cualquier voz a través de un sintetizador tocado por tus notas, de otra pista o de ambos — las bandas encendidas por la voz, los niveles dibujados con el ratón."),
+        what: long!(("Loquax splits a voice into 8 to 64 bands, follows each band and lays it on the same band of a carrier: its own polyphonic synthesiser played by the notes of any track, another track's sound on the sidechain — a pad, a guitar for a talk-box, a loop — or both. The robot drones a note with no notes at all; the roles can be traded so drums speak; the consonants come through; the formants move without moving the notes; a hold freezes the vowel. Its window is a vocoder's deck: the voice speaking into a gooseneck, a talk-box's tube or a desk microphone, the bank's screen lit band by band where you draw each band's level, and the meter bridge's two needles. At its defaults it passes the sound untouched.", "Loquax divide una voz en 8 a 64 bandas, sigue cada banda y la pone sobre la misma banda de una portadora: su propio sintetizador polifónico tocado por las notas de cualquier pista, el sonido de otra pista por la cadena lateral — un pad, una guitarra para un talk-box, un loop — o ambos. El robot sostiene una nota sin ninguna nota; los papeles se pueden intercambiar para que hable la batería; las consonantes pasan; los formantes se mueven sin mover las notas; la retención congela la vocal. Su ventana es la consola de un vocoder: la voz hablando a un cuello de cisne, al tubo de un talk-box o a un micrófono de mesa, la pantalla del banco encendida banda a banda donde dibujas el nivel de cada una, y las dos agujas del puente de medidores. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("8 to 64 bands with slopes of order 4, 6 or 8, measured against the analytic response", "De 8 a 64 bandas con pendientes de orden 4, 6 u 8, medidas contra la respuesta analítica"),
+            ("A polyphonic synthesiser played by any track's notes, or another track on the sidechain, or both", "Un sintetizador polifónico tocado por las notas de cualquier pista, u otra pista por la cadena lateral, o ambos"),
+            ("A robot that needs no notes; the roles traded so drums talk", "Un robot que no necesita notas; los papeles intercambiados para que hable la batería"),
+            ("Consonants through, formants moved, the vowel held", "Las consonantes pasan, los formantes se mueven, la vocal se retiene"),
+            ("The band levels drawn on the bank; a gooseneck, a talk-box tube or a desk microphone to speak into", "Los niveles de las bandas dibujados en el banco; un cuello de cisne, un tubo de talk-box o un micrófono de mesa en los que hablar"),
+            ("Fifteen factory presets; no latency; untouched at its defaults", "Quince presets de fábrica; sin latencia; intacto en sus valores por defecto"),
+        ]),
+        presets: Some(15),
+        plugin: true,
+        ab: None,
+        big: (1800, 1209),
+        thumb: (640, 430),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

@@ -235,6 +235,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::PitchShift => "out", // fx3:contract
             EffectKind::Rotary => "out",     // fx3:contract
             EffectKind::Amp => "out",        // fx3:contract
+            EffectKind::Vocoder => "out",    // fxa:loquax
             _ => "thr",
         };
         let table = params::table(kind);
@@ -305,6 +306,42 @@ fn the_sidechain_keys_the_detector_only_when_asked() {
         assert_identical(&format!("keyed {keyed}, left"), &l, &el);
         assert_identical(&format!("keyed {keyed}, right"), &r, &er);
     }
+}
+
+/// fxa:loquax — Loquax's carrier through the sidechain input: with the plug-in's switch on the
+/// external key the voice speaks through the key's sound, exactly as the DSP keyed by it; on
+/// its own input there is no carrier (the synthesiser plays no notes) and the vocoded voice is
+/// silence — the key heard only when asked for.
+#[test]
+fn loquax_s_carrier_is_the_sidechain_input_when_asked() {
+    let kind = EffectKind::Vocoder;
+    let values = [("mix", 1.0), ("src", 0.0), ("bands", 16.0)];
+    let spec = spec_with(kind, &values);
+    let n = 24_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (voice_l, voice_r) = signal(n, 3);
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        if keyed {
+            configure(&plug, &[(SIDECHAIN_KEY, 1.0)]);
+        }
+        plug.activate(4096);
+        let (mut l, mut r) = (voice_l.clone(), voice_r.clone());
+        plug.run(&mut l, &mut r, Some((&key_l, &key_r)), &[], &[480]);
+
+        let _guard = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (voice_l.clone(), voice_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    let energy = |x: &[f32]| x.iter().map(|v| v * v).sum::<f32>();
+    assert!(energy(&outs[0]) < 1e-6, "no carrier: silence");
+    assert!(energy(&outs[1]) > 1.0, "the key carries the voice");
 }
 
 #[test]

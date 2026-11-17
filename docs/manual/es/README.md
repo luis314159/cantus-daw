@@ -2523,6 +2523,56 @@ mueble (abierta o cerrada) y la **Saturación** de su amplificador, y la Mezcla 
 Trece presets de fábrica. En sus valores por defecto (mezcla 0) Rota no toca ninguna
 muestra; no tiene latencia.
 
+### Loquax, el vocoder
+
+**Loquax** (en latín, *el que habla mucho*) hace hablar a una voz a través de otro sonido.
+Insértalo en la pista de la voz desde **Añadir inserción ▾ ▸ Tono ▸ Loquax**; empieza como
+*Robot* — el sintetizador sostiene un Do3 mientras la voz habla, así que la oyes vocodificada
+enseguida, sin notas y sin llave.
+
+**Quién habla y quién canta.** El sonido de la propia pista es la **voz** (la moduladora).
+La **portadora** se elige en la tarjeta *Portadora*:
+
+- **Sintetizador** — el sintetizador polifónico de Loquax (sierra, pulso y ruido, hasta siete
+  copias desafinadas por voz), tocado por **las notas de la pista que escucha la ranura**:
+  elígela como fuente MIDI del efecto, como el disparo de Porta. Una pista de teclado puede
+  estar silenciada — sus notas siguen tocando Loquax.
+- **Cadena lateral** — el sonido de otra pista, enviado a la ranura como su **llave** (el campo de
+  cadena lateral, como en un compresor): un pad, una guitarra (un talk-box), un loop de batería.
+- **Ambas** — las notas y la llave juntas.
+
+**Quién habla** los intercambia: *Cadena lateral* habla y esta pista es la portadora — una batería
+o un loop que hablan. **Robot** sostiene su propia nota (cualquiera, de Do1 a Do7) mientras la
+voz supera su puerta, sin ninguna nota.
+
+**La pantalla.** A la izquierda, **el objeto en el que habla la voz** — el micrófono de
+cuello de cisne, **el tubo del talk-box** que sube desde su motor, o **el micrófono de mesa**
+sobre su base pesada — con su piloto de «en el aire» y su brillo siguiendo a la voz. Elígelo
+en el menú **⋯**, bajo *Micrófono*, junto a los acabados: es de la inserción (se guarda en la
+canción, un paso de deshacer) y nunca se oye; los presets lo dejan como lo elegiste. En el
+centro, **el banco**: cada banda una columna de celdas encendidas por lo que dice ahora;
+**arrastra sobre las bandas para dibujar sus niveles** (de −24 a +12 dB, cada trazo un paso de
+deshacer). El desplazamiento de formantes se dibuja arriba. A la derecha, **el puente de
+medidores**: la aguja de la voz y la de la portadora, los pilotos de consonante, retención y
+robot.
+
+**Las tarjetas**: la portadora y los papeles, la portadora en bruto **directa**; las
+**bandas** (de 8 a 64, pendientes de orden 4, 6 u 8, su rango y su anchura); los
+**seguidores** (ataque, liberación, **Retener** congela la vocal); el **carácter**
+(desplazamiento de formantes en semitonos, de bandas, inclinación, aplanado, abertura
+estéreo); las **consonantes** (la sibilancia que pasa por encima de su esquina, siempre o
+solo en consonantes, y ruido en la portadora en ellas); los osciladores, el unísono y la
+envolvente del sintetizador; el robot; mezcla y salida.
+
+Quince presets de fábrica, con ambas portadoras (*Talk-box* y *Portadora por cadena lateral* usan
+la llave; *Vocoder clásico*, *Coro* y *Máquina de cuerdas* las notas). En el navegador cada
+uno se escucha con la línea de la propia fuente como sus notas y su llave. En sus valores por
+defecto (mezcla 0) Loquax no toca ninguna muestra; no tiene latencia.
+
+**En otro DAW** Loquax es el plug-in *Cantus Loquax* (CLAP y VST3): oye las notas que le
+envía el anfitrión, y su portadora por la entrada de sidechain una vez que su propio
+interruptor *Sidechain* está en *Entrada de sidechain*.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

@@ -7,8 +7,10 @@
 //!
 //! Each unit playing in its states, in Slate English and Paper Spanish at 100 %; at rest;
 //! one state at 75 %, 150 % and 200 % (and the Spanish at 75 and 200 %); its other
-//! colourways; the inspector's lines. Every shot runs the kit's text probe and prints any
-//! word cut. `FXA_ONLY=a,b` shoots only the names holding one of those words.
+//! colourways; the inspector's lines; Loquax's three objects (the gooseneck, the talk-box's
+//! tube, the desk microphone) in every colourway, Slate English and Paper Spanish. Every
+//! shot runs the kit's text probe and prints any word cut. `FXA_ONLY=a,b` shoots only the
+//! names holding one of those words (`FXA_ONLY=obj-` the objects alone).
 
 use cantus_core::EffectKind;
 use cantus_engine::EngineHandle;
@@ -55,6 +57,10 @@ fn settings(unit: &str, state: &str) -> &'static [(&'static str, f32)] {
             ("b40", 4.0),
             ("hold", 1.0),
         ],
+        // fxa:loquax — the objects the voice speaks into (phase B), on the synthesiser.
+        ("loquax", "obj-gooseneck") => &[("robot", 0.0), ("bands", 32.0)],
+        ("loquax", "obj-talkbox") => &[("robot", 0.0), ("bands", 32.0), ("obj", 1.0)],
+        ("loquax", "obj-desk") => &[("robot", 0.0), ("bands", 32.0), ("obj", 2.0)],
         ("fractus", "cloud") => &[
             ("clevel", 0.8),
             ("cdens", 160.0),
@@ -202,6 +208,21 @@ fn main() {
         for w in skin::colourways(u).iter().skip(1) {
             for (dark, lang) in [(true, Locale::En), (false, Locale::Es)] {
                 let s = sh(unit, "start", true, dark, lang, 1.0);
+                let extra = format!("-{}", w.id);
+                if wanted(&name(&s, &extra)) {
+                    skin::set_colourway(skin::colourway_unit(u).expect("a unit"), w.id);
+                    take(&dir, &s, &extra);
+                    skin::set_colourways(std::iter::empty());
+                }
+            }
+        }
+    }
+    // fxa:loquax — the three objects, each colourway, Slate English and Paper Spanish.
+    let u = skin::Unit::Effect(EffectKind::Vocoder);
+    for state in ["obj-gooseneck", "obj-talkbox", "obj-desk"] {
+        for w in skin::colourways(u) {
+            for (dark, lang) in [(true, Locale::En), (false, Locale::Es)] {
+                let s = sh("loquax", state, true, dark, lang, 1.0);
                 let extra = format!("-{}", w.id);
                 if wanted(&name(&s, &extra)) {
                     skin::set_colourway(skin::colourway_unit(u).expect("a unit"), w.id);

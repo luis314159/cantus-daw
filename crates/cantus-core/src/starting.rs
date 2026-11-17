@@ -161,7 +161,7 @@ pub fn start_of(kind: EffectKind) -> Start {
         // voice through it is heard vocoded at once, with no notes and no sidechain.
         K::Vocoder => preset(
             "preset.loquax.robot",
-            &[("mix", 1.0), ("robot", 1.0), ("bands", 16.0)],
+            &[("mix", 1.0), ("robot", 1.0), ("bands", 16.0), ("out", 0.5)],
         ), // fxa:loquax
         // fxa:fractus — the last beat of each bar stutters in thirty-seconds: heard at once
         // on drums, a loop or a strum, and the rest of the bar untouched.

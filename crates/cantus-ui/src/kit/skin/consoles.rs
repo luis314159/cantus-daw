@@ -75,3 +75,12 @@ pub const NEEDLE: Hsl = hsl(40.0, 0.30, 0.90);
 pub const RED: Hsl = hsl(4.0, 0.75, 0.55);
 /// Shadow under a part.
 pub const SHADOW: Hsl = hsl(0.0, 0.0, 0.0);
+
+/// Phase B — the two other objects (the owner's v2 verdict: the talk-box's tube and the
+/// desk microphone beside the gooseneck). The talk-box's clear vinyl tube: its body (drawn
+/// faint, the deck shows through), its walls, the light along it.
+pub const TUBE: Hsl = hsl(190.0, 0.20, 0.78);
+pub const TUBE_EDGE: Hsl = hsl(195.0, 0.14, 0.52);
+/// Black rubber: the desk microphone's foot, the tube's clip, the driver's gasket.
+pub const RUBBER: Hsl = hsl(220.0, 0.05, 0.06);
+pub const RUBBER_LIGHT: Hsl = hsl(215.0, 0.05, 0.24);

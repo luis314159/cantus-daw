@@ -54,6 +54,28 @@ fn the_starting_preset_sounds_and_renders_the_same_every_way() {
     }
 }
 
+/// The object the voice speaks into (`obj`, phase B) is a look: the gooseneck, the talk-box's
+/// tube and the desk microphone render the same, to the bit, sounding (the starting preset)
+/// or at the null.
+#[test]
+fn the_object_is_a_look_and_touches_no_sample() {
+    for start in [true, false] {
+        let mut renders = Vec::new();
+        for obj in [0.0, 1.0, 2.0] {
+            let mut p = demo_project();
+            let mut slot = p.make_effect(EffectKind::Vocoder);
+            if start {
+                slot.spec = cantus_core::starting::starting_spec(EffectKind::Vocoder);
+            }
+            slot.spec.set("obj", obj).unwrap();
+            strip_of(&mut p, 0).effects.push(slot);
+            renders.push(render_of(&p));
+        }
+        assert_null(&renders[0], &renders[1], 0.0, "the talk-box's tube");
+        assert_null(&renders[0], &renders[2], 0.0, "the desk microphone");
+    }
+}
+
 /// The lead speaks through the synthesiser played by the bass's notes.
 fn synth_on_the_bass() -> Project {
     let mut p = demo_project();

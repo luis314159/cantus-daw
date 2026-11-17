@@ -339,6 +339,43 @@ fn through_vst3_is_bit_identical_to_the_dsp() {
     }
 }
 
+/// fxa:loquax — Loquax's carrier through VST3's sidechain bus (the aux input, activated as a
+/// host does), the plug-in's switch on the external key in its state: exactly the DSP keyed
+/// by the same sound, and loud where the unkeyed vocoder is silent.
+#[test]
+fn loquax_s_carrier_is_the_vst3_sidechain_bus() {
+    let kind = EffectKind::Vocoder;
+    let values = [("mix", 1.0), ("src", 0.0), ("bands", 16.0)];
+    let spec = spec_with(kind, &values);
+    let mut state: serde_json::Value = serde_json::to_value(&spec).unwrap();
+    state
+        .as_object_mut()
+        .unwrap()
+        .insert("sidechain".into(), true.into());
+    let v = V3::new(kind);
+    assert!(v.set_state(&serde_json::to_vec(&state).unwrap()));
+    v.activate(1024);
+    let n = 24_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (mut l, mut r) = signal(n, 3);
+    let (mut el, mut er) = (l.clone(), r.clone());
+    for at in (0..n).step_by(1000) {
+        let end = (at + 1000).min(n);
+        v.process(
+            &mut l[at..end],
+            &mut r[at..end],
+            Some((&key_l[at..end], &key_r[at..end])),
+            &[],
+        );
+    }
+    let _g = DenormalGuard::new();
+    let mut d = Direct::new(&spec);
+    d.process(&mut el, &mut er, Some((&key_l, &key_r)));
+    assert_identical("Loquax keyed, left", &l, &el);
+    assert_identical("Loquax keyed, right", &r, &er);
+    assert!(l.iter().map(|x| x * x).sum::<f32>() > 1.0, "the key carries");
+}
+
 #[test]
 fn vst3_automation_lands_on_the_grid() {
     let kind = EffectKind::Gate;

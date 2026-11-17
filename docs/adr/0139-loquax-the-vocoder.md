@@ -19,7 +19,7 @@ analytic response, NCM 0.74 at 16 bands, latency 0, CPU 1.6–4.7 % of a core).
 A new effect kind, `EffectKind::Vocoder`, model `cantus_core::fx::loquax`, engine unit
 `cantus_engine::fx::loquax`, DSP `cantus_dsp::loquax`.
 
-- **Parameters** (100 keys, every default a null — the mix at 0): mix, carrier source,
+- **Parameters** (100 keys in phase A, 101 with `obj` in phase B; every default a null — the mix at 0): mix, carrier source,
   swap, bands (8–64), slope order, range, width, followers, formant and band shift, tilt,
   flatten, sibilance and consonant noise, hold, stereo spread, the raw carrier through, the
   synthesiser (saw/pulse/noise blend, unison, octave, envelope, level), the robot's drone,
@@ -40,16 +40,89 @@ A new effect kind, `EffectKind::Vocoder`, model `cantus_core::fx::loquax`, engin
 - **Not yet a pedal** on Tabula (`pedal_allowed` false until its face joins the board in
   phase B).
 
+## Phase B (2026-11-17): the editor, presets, export (design sheet v2 approved)
+
+- **The window as approved** (`views/fx/loquax*.rs`), with the owner's two adjustments to
+  v2:
+  - **The display keeps its size.** Where a language's cards need another row (Spanish:
+    four, English three — `loquax::card_rows`, held to what the cards' packing measures),
+    the designed size grows a row (`loquax::designed_size`, 1340 × 900 in English,
+    1340 × 1004 in Spanish); the display, the microphone and the meters are the same size
+    in both languages at 75, 100 and 200 %.
+  - **Three objects to speak into**, chosen in the ⋯ menu (*Microphone*, three radio rows,
+    then the colourways with their swatches — Vetus's pattern): the gooseneck (the default),
+    the **talk-box** (its driver's housing on the floor with the on-air lamp, footswitch and
+    jack, the satin driver and nozzle, the clear tube carrying the voice's light up to a clip
+    on its stand, its open end glowing) and the **desk microphone** (a weighted base with its
+    rubber foot and talk bar, the on-air lamp, a chrome stem with a knurled lock, the yoke
+    and pivot knobs, a satin capsule with a slotted grille lit by the voice).
+    `views/fx/loquax_objects.rs`; the housing and the base wear each colourway's finish
+    (brushed aluminium, black lacquer with chrome lips, the road case's steel corners).
+- **The object is kept per insert, not per user.** Colourways are the user's (settings,
+  ADR 0130); the owner asked for the object *per instance*, so it is a key, `obj` (0 … 2,
+  appended after `b63`; 101 keys): saved in the song, one step of undo, in the exported
+  plug-in's state. It is **a look** — `fx::loquax::LOOK`, `EffectKind::is_look`: never heard
+  (the engine ignores it), and a preset neither carries nor resets it, nor does a value off
+  its default make a preset "modified" (the host's `load`, `apply_fx_params`,
+  `frame::modified`), so the user's microphone stays as presets change. The exported
+  plug-in lists it among its parameters (a host may automate it; it changes no sample).
+  Schema 64 stays (provisional, unreleased): an older 64 file simply has no `obj` and reads
+  the gooseneck.
+- **The band levels are drawn**: a stroke across the bank's screen sets every band it
+  crosses to the level at the pointer's height (−24 … +12 dB in half decibels, snapped to
+  0 within a decibel), one merged gesture — one step of undo.
+- **Presets**: fifteen (`presets/effects/vocoder.toml`), both carriers (the sidechain in
+  *Talk-box*, *Sidechain carrier*, *Talking drums*; the notes in *Classic vocoder*, *French
+  house robot*, *Choir pad*, *String machine*, *Helium*, *Sixty-four bands*, *Talking bass*;
+  both in *Synth and sidechain*; the robot in *Robot*, *Whisper*, *Deep robot*, *Intercom*),
+  roles vocal and creative. The browser's fixed source gives a vocoder its carriers
+  (`preset_audition::vocoder_carriers`: the source's last melodic line as its notes and its
+  key), so every preset sounds in an audition and `preset_tool fit` can level it: −4.9 …
+  +1.9 dB; the starting preset *Robot* +0.5 dB with them.
+- **Export**: `Cantus Loquax` (CLAP and VST3; `desc.rs`, the `loquax` feature, xtask):
+  notes on its note port / event bus play the synthesiser, the sidechain input carries
+  when the plug-in's own switch is on *Sidechain input*; its direct DSP in the plug-ins'
+  tests; ids blessed (appended).
+- **AI**: the unit's words name `obj` and the presets; the effect words name what it is for;
+  the MCP tools golden regenerated on purpose.
+- **Not a pedal.** A board has no key (`tabula::TAKES_SIDECHAIN` false) and hears no notes,
+  so a Loquax pedal could only drone its robot: Loquax stays off Tabula (`pedal_allowed`)
+  until a board routes a key to a pedal.
+
 ## Consequences
 
-To be completed in phase B (the editor, presets, export, the AI's words, docs, e2e).
+- A vocoder that needs nothing to start (the robot), then either carrier the user has — a
+  track's notes or another track's sound — in Cantus and in another DAW alike.
+- A look can now be a key without being a sound: `EffectKind::is_look` is the one place
+  that says which keys presets leave alone (Loquax's `obj` only, today).
+- The editor's window height depends on the language (only Loquax's, today); a theme with
+  a larger text size could still need a row the table does not give, and then the display
+  gives up height rather than a card its words.
+- The plug-in shows `obj` to hosts as a parameter; harmless, and it travels with the
+  plug-in's state as the owner asked.
 
 ## What the tests hold
 
 `cantus-engine/tests/fx_loquax.rs`: the null to the bit and latency 0; the starting preset
 sounds, live = offline, blocks of 1/37/64/512 at tolerance 0; another track's notes play
 the synthesiser (live = offline, blocks of 1 and 64); the sidechain carries and `swap`
-trades the roles (live = offline, three block sizes); a fork carries on as the unit does.
+trades the roles (live = offline, three block sizes); a fork carries on as the unit does;
+**the object touches no sample** (`the_object_is_a_look_and_touches_no_sample`).
 `fx_contract` (`split::loquax`, `at_rest::loquax`), `rt_memory::loquax_never_allocates`,
 the undo fuzz (its parameters through `SetEffectParam`). The DSP's 22 tests
-(`docs/round-fx/loquax.md`).
+(`docs/round-fx/loquax.md`). `cantus-core`: the table's keys, `obj` last and a look.
+`cantus-ui/tests/loquax_e2e.rs` (through `CantusApp::assemble`): Robot heard with no
+notes and no key; the synthesiser silent without notes and heard with a muted keyboard
+track's notes; the formant edit heard and undone to the bit; the object changes no sample;
+the sidechain carrier silent without a key and heard with the pad's strip; the defaults
+the dry master to the bit. `loquax_drag.rs` (real pointer events): a stroke draws the
+band levels, one undo step; the ⋯ menu chooses the object (one undo step) and a colourway
+(the settings'); the carrier's and the roles' switches thrown by a click, one undo step
+each. `fxa_whole.rs`: no word cut or clipped with each object, EN/ES, 75–200 %, every
+colourway; `loquax_s_display_keeps_its_size_in_every_language_and_scale`.
+`cantus-plugins`: `clap.rs` `loquax_s_carrier_is_the_sidechain_input_when_asked`,
+`vst3.rs` `loquax_s_carrier_is_the_vst3_sidechain_bus`, `notes.rs` (Loquax's case through
+CLAP in both dialects and VST3, every block size), the suites over every exported kind,
+`ids.rs`. The preset suites (`preset_audit`, `preset_render`, `stated_preset_counts`).
+
+

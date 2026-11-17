@@ -33,6 +33,11 @@
 //! | `robot`, `rnote`, `rgate` | the drone: on, its note, the voice's gate | 0 … 1, 24 … 96, −80 … 0 dB |
 //! | `b0` … `b63` | each band's level (the display's bars) | −24 … +12 dB |
 //! | `out` | the output level | −24 … +24 dB |
+//! | `obj` | the object the voice speaks into — a look, never heard: the gooseneck, the talk-box's tube, the desk microphone | 0 … 2 |
+//!
+//! **`obj` is a look** ([`LOOK`], `EffectKind::is_look`): kept per insert (in the song, one
+//! step of undo, in the exported plug-in's state), but a preset neither carries nor resets it
+//! and an effect on it is not "modified" — the user's microphone stays as presets change.
 
 use crate::effect::{p, EffectParamInfo};
 
@@ -54,7 +59,13 @@ pub const CHOICES: &[(&str, &str)] = &[
     ("sibgate", "fx.loquax.sibgate"),
     ("hold", "fx.loquax.hold"),
     ("robot", "fx.loquax.robot"),
+    ("obj", "fx.loquax.obj"),
 ];
+
+/// The keys that are the editor's look, not the sound (ADR 0139 phase B): presets neither
+/// carry nor reset them. `obj`: 0 the gooseneck microphone, 1 the talk-box's tube, 2 the
+/// desk microphone on its weighted base.
+pub const LOOK: &[&str] = &["obj"];
 
 const fn amount(key: &'static str, label: &'static str, default: f32) -> EffectParamInfo {
     p(key, label, 0.0, 1.0, default, "%", false, false)
@@ -267,8 +278,12 @@ const HEAD: [EffectParamInfo; HEAD_LEN] = [
     ),
 ];
 
-const fn table() -> [EffectParamInfo; HEAD_LEN + MAX_BANDS] {
-    let mut t = [HEAD[0]; HEAD_LEN + MAX_BANDS];
+/// After the band levels (appended in phase B: the keys before it keep their places).
+const TAIL: [EffectParamInfo; 1] = [switch("obj", "fx.loquax.obj", 2.0, 0.0)];
+const LEN: usize = HEAD_LEN + MAX_BANDS + TAIL.len();
+
+const fn table() -> [EffectParamInfo; LEN] {
+    let mut t = [HEAD[0]; LEN];
     let mut i = 0;
     while i < HEAD.len() {
         t[i] = HEAD[i];
@@ -279,10 +294,15 @@ const fn table() -> [EffectParamInfo; HEAD_LEN + MAX_BANDS] {
         t[HEAD.len() + b] = band(BAND_KEYS[b], BAND_LABELS[b]);
         b += 1;
     }
+    let mut j = 0;
+    while j < TAIL.len() {
+        t[HEAD.len() + MAX_BANDS + j] = TAIL[j];
+        j += 1;
+    }
     t
 }
 
-static TABLE: [EffectParamInfo; HEAD_LEN + MAX_BANDS] = table();
+static TABLE: [EffectParamInfo; LEN] = table();
 pub static PARAMS: &[EffectParamInfo] = &TABLE;
 
 pub fn params() -> &'static [EffectParamInfo] {
@@ -311,5 +331,11 @@ mod tests {
         }
         let mix = PARAMS.iter().find(|p| p.key == "mix").unwrap();
         assert_eq!(mix.default, 0.0, "the null: the mix at 0");
+        for k in LOOK {
+            assert!(PARAMS.iter().any(|p| p.key == *k), "{k}");
+            assert!(crate::EffectKind::Vocoder.is_look(k));
+        }
+        assert!(!crate::EffectKind::Vocoder.is_look("mix"));
+        assert_eq!(PARAMS.last().unwrap().key, "obj", "appended after the bands");
     }
 }

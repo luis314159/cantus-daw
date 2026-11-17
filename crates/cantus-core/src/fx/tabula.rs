@@ -192,6 +192,8 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             | EffectKind::Reverb
             | EffectKind::Analyzer
             // fxa:contract — wave A's three join the board with their faces (phase B).
+            // fxa:loquax — Loquax stays off: a board has no key and hears no notes, so a
+            // vocoder pedal could only ever drone its robot (ADR 0139, phase B).
             | EffectKind::Vocoder
             | EffectKind::Glitch
             | EffectKind::Shimmer

@@ -91,6 +91,10 @@ pub struct Chrome {
     /// The host's count of presets loaded from elsewhere (the preset browser) when last
     /// looked at: a new one names the loaded preset again. // r37:library
     epoch: u64,
+    /// fxa:loquax — where the header's ⋯ button was drawn last frame, and the rows of the
+    /// ⋯ (or the device) menu while it is open: tests drive the menus with the pointer.
+    pub more_button: Option<Rect>,
+    pub menu_rows: Vec<Rect>,
 }
 
 impl Chrome {
@@ -186,7 +190,9 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         // Rota: the cabinet cut away, from above and its ramps, over a row of six cards.
         EffectKind::Rotary => Vec2::new(1260.0, 700.0), // fx3:rota
         // fxa — the design sheets' windows (v1).
-        EffectKind::Vocoder => Vec2::new(1340.0, 900.0), // fxa:loquax
+        // fxa:loquax — the window grows a row where a language's cards need one (the
+        // display keeps its size: the owner's v2 verdict).
+        EffectKind::Vocoder => super::loquax::designed_size(),
         EffectKind::Glitch => Vec2::new(1340.0, 720.0),  // fxa:fractus
         EffectKind::Shimmer => Vec2::new(1340.0, 900.0), // fxa:caelum
         _ => Vec2::new(1000.0, 640.0),
@@ -414,7 +420,8 @@ pub fn recognise(spec: &cantus_core::EffectSpec, list: &[Entry]) -> Option<Loade
 /// Whether the effect's values have drifted from the preset that set them: a key it
 /// names holds another value, or a key it leaves out is off its default.
 pub fn modified(spec: &cantus_core::EffectSpec, loaded: &Loaded) -> bool {
-    for info in spec.kind.params() {
+    // fxa:loquax — a look (Loquax's microphone) is no drift from a preset.
+    for info in spec.kind.params().iter().filter(|i| !spec.kind.is_look(i.key)) {
         let now = spec.get(info.key);
         let want = loaded.params.get(info.key).copied().unwrap_or(info.default);
         if (now - want).abs() > 1e-6 * want.abs().max(1.0) {
@@ -624,6 +631,7 @@ pub fn show(
         host.learn_bypass_spot(ui, br);
     }
     chrome.save_at = out.header.left_bottom() + Vec2::new(24.0, 4.0) * s.k;
+    chrome.more_button = Some(rects.more); // fxa:loquax
     let mut moved = Vec2::ZERO;
     // A part of the header opens its list, or closes it when it is the one open.
     let toggle = |chrome: &mut Chrome, which: Popup, at: Pos2, opener: Rect| {
@@ -778,7 +786,15 @@ fn popups(
             items.push(action(Src::Key("fx.frame.close")));
             acts.push(Act::Close);
             let w = 230.0 * s.k;
-            if let Some(i) = popup_list(ctx, id, at, opener, s, &items, w, &mut close) {
+            let picked = popup_list(ctx, id, at, opener, s, &items, w, &mut close);
+            // fxa:loquax — the rows where they were drawn, for the tests' pointer.
+            chrome.menu_rows.clear();
+            if let Some(area) = ctx.memory(|m| m.area_rect(id)) {
+                chrome
+                    .menu_rows
+                    .extend((0..items.len()).map(|i| menu::row(area, &items, s.d(1.0), i)));
+            }
+            if let Some(i) = picked {
                 close = true;
                 match acts.get(i).copied().unwrap_or(Act::None) {
                     Act::CopyAb => host.copy_ab(),

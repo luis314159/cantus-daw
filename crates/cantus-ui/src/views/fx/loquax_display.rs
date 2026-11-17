@@ -1,13 +1,16 @@
 //! Loquax's display (design sheet v2): a vocoder's deck, dark in every theme.
 //!
-//! - **The microphone** (the left): a gooseneck rising from its chrome socket, the voice
-//!   reaching its grille (the on-air lamp, the glow behind the wire and the sound's arcs
-//!   follow the voice's level), its source written under it.
+//! - **The object the voice speaks into** (the left; `obj`, chosen in the ⋯ menu, kept per
+//!   insert): the gooseneck rising from its chrome socket, the talk-box's tube rising from its
+//!   driver to where the mouth would be, or the desk microphone on its weighted base — the
+//!   voice reaching it (the on-air lamp, the glow and the sound's arcs follow the voice's
+//!   level), its source written under it.
 //! - **The bank** (most of the width), a phosphor screen behind glass in a machined bezel:
 //!   one column per band on a log frequency axis, each a ladder of fine cells lit from the
 //!   bottom by what the band says now (the vocoded output,
 //!   `cantus_engine::fx::loquax::T_BANDS`), the highest cell held a moment (the peak); the
-//!   band's own level (`b0` … `b63`) a short bar across its column; the formant shift as
+//!   band's own level (`b0` … `b63`) a short bar across its column, **drawn** by dragging
+//!   across the screen (one undo step a stroke); the formant shift as
 //!   the synthesis bands' ticks moved against the analysis bands' along the top.
 //! - **The meter bridge** (the right): the voice's needle and the carrier's in one bezel,
 //!   dBFS; the carrier's source; pilot lamps for a consonant heard, the hold and the robot;
@@ -19,6 +22,7 @@ use super::super::canvas::{self, Ink};
 use super::super::frame::tr;
 use super::super::host::FxHost;
 use super::art;
+use super::objects;
 use crate::kit::color::{shade, with_alpha};
 use crate::kit::text::{Role, Text};
 use crate::kit::{with_brush, Brush, Fill, Style};
@@ -86,6 +90,11 @@ pub struct View {
     peak: [f32; SHOWN],
     hold: [f32; SHOWN],
     needle: [f32; 2],
+    /// Where the pointer was last frame while drawing the band levels (a stroke between two
+    /// frames reaches every band it crosses).
+    drawing: Option<egui::Pos2>,
+    /// Where the bands' plot was drawn last frame (tests point at it).
+    pub plot: Option<Rect>,
 }
 
 /// A level in dBFS as the needle's place on the meters' scale, 0 … 1 (−40 … 0 dBFS).
@@ -156,20 +165,58 @@ fn parts(r: Rect, k: f32) -> Parts {
     Parts { mic, bank, side }
 }
 
-/// The display: the gooseneck microphone the voice speaks into, the bank's screen in its
-/// bezel, the meter bridge and the lamps beside it.
+/// The bands' plot inside the bank's rect `r` (the screen inside its bezel, the title row
+/// and the frequency marks taken off): where the columns stand and the levels are drawn.
+fn plot_of(r: Rect, k: f32) -> Rect {
+    let screen = r.shrink(11.0 * k).shrink(1.0 * k);
+    let area = Rect::from_min_max(
+        pos2(screen.min.x + 10.0 * k, screen.min.y + 8.0 * k),
+        screen.max - vec2(10.0, 6.0) * k,
+    );
+    let ticks_y = area.min.y + 24.0 * k;
+    Rect::from_min_max(
+        pos2(area.min.x, ticks_y + 12.0 * k),
+        area.max - vec2(0.0, 16.0 * k),
+    )
+}
+
+/// The plot's frequency axis: the bank's range with a margin, log — a frequency's x.
+fn freq_x(plot: Rect, spec: &EffectSpec, hz: f32) -> f32 {
+    let (f0, f1) = (spec.get("lo") / 1.25, spec.get("hi") * 1.25);
+    let span = cantus_dsp::math::log2(f1 / f0);
+    plot.min.x + plot.width() * cantus_dsp::math::log2(hz / f0) / span
+}
+
+/// A band level, −24 … +12 dB, as its height in the plot (0 … 1).
+fn level_share(db: f32) -> f32 {
+    ((db + 24.0) / 36.0).clamp(0.0, 1.0)
+}
+
+/// The band whose column is nearest `x`, of `n`.
+fn band_at(plot: Rect, spec: &EffectSpec, n: usize, x: f32) -> usize {
+    let (lo, hi, width) = (spec.get("lo"), spec.get("hi"), spec.get("width"));
+    let dist = |i: usize| (freq_x(plot, spec, layout(i, n, lo, hi, width).0) - x).abs();
+    (0..n)
+        .min_by(|&a, &b| dist(a).total_cmp(&dist(b)))
+        .unwrap_or(0)
+}
+
+/// The display: the object the voice speaks into, the bank's screen in its bezel (its band
+/// levels drawn by the pointer), the meter bridge and the lamps beside it.
 pub fn show(
     host: &mut dyn FxHost,
-    view: &View,
+    view: &mut View,
     ui: &mut egui::Ui,
     s: &Style,
     r: Rect,
     now: &Reading,
 ) {
-    let spec = host.spec().clone();
     let k = s.k;
-    let ink = Ink::of(s);
     let p = parts(r, k);
+    draw_levels(host, view, ui, p.bank, k);
+    let spec = host.spec().clone();
+    let ink = Ink::of(s);
+    let view: &View = view;
     with_brush(&ui.painter_at(r), |b| {
         canvas::ground_b(b, r, &ink, None);
         mic(b, s, &ink, p.mic, view, now, &spec);
@@ -177,6 +224,62 @@ pub fn show(
         side(b, s, &ink, p.side, view, now, &spec);
         canvas::edge_b(b, r, &ink);
     });
+}
+
+/// The band levels drawn by the pointer: pressed on the bank's screen and dragged, each band
+/// the stroke crosses takes the level at the pointer's height (−24 … +12 dB, half a decibel
+/// apart; within a decibel of 0 it snaps to 0). One stroke is one step of undo.
+fn draw_levels(host: &mut dyn FxHost, view: &mut View, ui: &mut egui::Ui, bank: Rect, k: f32) {
+    let plot = plot_of(bank, k);
+    view.plot = Some(plot);
+    let resp = ui.interact(
+        plot,
+        ui.id().with("loquax-bands"),
+        egui::Sense::click_and_drag(),
+    );
+    let pointer = resp
+        .interact_pointer_pos()
+        .filter(|_| resp.is_pointer_button_down_on());
+    if let Some(pt) = pointer {
+        let spec = host.spec().clone();
+        let n = spec.get("bands").round().clamp(8.0, 64.0) as usize;
+        let from = view.drawing.unwrap_or(pt);
+        // Every band between last frame's point and this one, at the stroke's height there.
+        let (a, z) = (
+            band_at(plot, &spec, n, from.x),
+            band_at(plot, &spec, n, pt.x),
+        );
+        for i in a.min(z)..=a.max(z) {
+            let t = if a == z {
+                1.0
+            } else {
+                (i as f32 - a as f32) / (z as f32 - a as f32)
+            };
+            let y = from.y + (pt.y - from.y) * t;
+            let u = ((plot.max.y - y) / plot.height()).clamp(0.0, 1.0);
+            let mut db = ((-24.0 + 36.0 * u) * 2.0).round() / 2.0;
+            if db.abs() < 1.0 {
+                db = 0.0;
+            }
+            let key = cantus_core::fx::loquax::BAND_KEYS[i];
+            if spec.get(key) != db {
+                host.set(key, db, Some("loquax-bands"));
+            }
+        }
+        view.drawing = Some(pt);
+    }
+    if (resp.drag_stopped() || resp.clicked()) && view.drawing.is_some() {
+        view.drawing = None;
+        host.end_gesture();
+    }
+    if resp.hovered() {
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            tr("loquax.hint.bands"),
+            tr("loquax.hint.bands_tip"),
+            crate::kit::hint::Caps::NONE,
+        );
+    }
 }
 
 /// Who speaks: the voice's source.
@@ -214,7 +317,18 @@ fn mic(
         ],
         10,
     );
-    art::microphone(b, s, stand, level, glow);
+    // The object the voice speaks into, as the insert keeps it (`obj`).
+    match spec.get("obj").round() as i32 {
+        1 => {
+            objects::talk_box(b, s, stand, level, glow);
+        }
+        2 => {
+            objects::desk_mic(b, s, stand, level, glow);
+        }
+        _ => {
+            art::microphone(b, s, stand, level, glow);
+        }
+    }
     let x = stand.left() + stand.width() * 0.36;
     let y = stand.bottom() + 6.0 * k;
     canvas::put(
@@ -246,6 +360,7 @@ fn bank(
 ) {
     let k = s.k;
     let screen = art::bezel(b, s, r, 11.0 * k);
+    let plot = plot_of(r, k);
     // The phosphor behind the glass: its ground, its scanlines.
     b.rect(
         screen,
@@ -304,13 +419,8 @@ fn bank(
     }
     // The frequency axis: the bank's range with a margin, log.
     let (f0, f1) = (lo / 1.25, hi * 1.25);
-    let span = cantus_dsp::math::log2(f1 / f0);
     let ticks_y = area.min.y + 24.0 * k;
-    let plot = Rect::from_min_max(
-        pos2(area.min.x, ticks_y + 12.0 * k),
-        area.max - vec2(0.0, 16.0 * k),
-    );
-    let x_of = |hz: f32| plot.min.x + plot.width() * cantus_dsp::math::log2(hz / f0) / span;
+    let x_of = |hz: f32| freq_x(plot, spec, hz);
     for (hz, label) in [
         (100.0f32, "100 Hz"),
         (300.0, "300 Hz"),
@@ -421,7 +531,7 @@ fn bank(
         // The band's own level, −24 … +12 dB: a bar across its column.
         let db = spec.get(cantus_core::fx::loquax::BAND_KEYS[i]);
         if db != 0.0 {
-            let u = ((db + 24.0) / 36.0).clamp(0.0, 1.0);
+            let u = level_share(db);
             let y = plot.max.y - u * plot.height();
             b.hline(x - w * 0.6, x + w * 0.6, y, 2.0 * k, second);
         }

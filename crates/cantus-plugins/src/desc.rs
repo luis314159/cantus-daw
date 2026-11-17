@@ -56,8 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 33] = [
-    // fx3:contract: 33 with wave 3's four
+pub static ALL: [Descriptor; 34] = [
+    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -464,6 +464,21 @@ pub static ALL: [Descriptor; 33] = [
         vst3_categories: "Fx|Distortion",
         description: "Amp and cabinet: preamp, tone stack and power amp from their circuits, the cabinet by impulse response.",
         compiled: cfg!(feature = "arca"),
+    },
+    // fxa:loquax — the fx side round's wave A (provisional ADR 0139). Its carrier is the
+    // sidechain input (the plug-in's own switch set to the external key) or the notes the
+    // host sends to its note port, which play its synthesiser.
+    Descriptor {
+        kind: EffectKind::Vocoder,
+        name: "Loquax",
+        full_name: "Cantus Loquax",
+        slug: "loquax",
+        clap_id: "com.github.lalmazan.cantus.loquax",
+        vst3_cid: [0x5B1E7A39, 0xC4D2486F, 0x9A03E1B7, 0x2F6C85D4],
+        clap_features: &[FX, "filter", STEREO],
+        vst3_categories: "Fx|Filter",
+        description: "Vocoder: a voice speaks through a synthesiser played by notes or through the sidechain, in 8 to 64 bands.",
+        compiled: cfg!(feature = "loquax"),
     },
 ];
 

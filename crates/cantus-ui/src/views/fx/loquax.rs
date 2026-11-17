@@ -1,9 +1,14 @@
 //! Loquax's editor (ADR 0139, provisional): the vocoder — the bands lit by a voice over
-//! three rows of cards. The display is the unit's own picture: every band a column of
-//! fine cells lit by what it says now, the drawn band levels across them, the formant's
-//! shift along the top, and who speaks and who sings (the voice, the carrier, their
-//! levels, the synthesiser's voices or the robot's note, the consonant light). Every number
-//! from the engine's telemetry (`cantus_dsp::loquax::t`, `cantus_engine::fx::loquax`).
+//! its rows of cards. The display is the unit's own picture: the object the voice speaks
+//! into (the gooseneck, the talk-box's tube or the desk microphone — `obj`, chosen in the ⋯
+//! menu with the colourways, kept per insert), every band a column of fine cells lit by what
+//! it says now, the band levels drawn across them by the pointer, the formant's shift along
+//! the top, and who speaks and who sings (the voice, the carrier, their levels, the
+//! synthesiser's voices or the robot's note, the consonant light). Every number from the
+//! engine's telemetry (`cantus_dsp::loquax::t`, `cantus_engine::fx::loquax`).
+//!
+//! The display keeps its size in every language and at every scale: where the cards need
+//! another row (Spanish's longer words), the window grows ([`designed_size`]).
 
 use super::frame;
 use super::fxa_cells::{self as cells, Item};
@@ -12,13 +17,37 @@ use super::FactoryPreset;
 use crate::app::CantusApp;
 use crate::kit::shell::Grid;
 use crate::kit::{with_brush, Style};
+use crate::kit::text::Src;
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
-use egui::Rect;
+use egui::{Rect, Vec2};
 
 #[path = "loquax_art.rs"]
 mod art;
 #[path = "loquax_display.rs"]
 pub(crate) mod display;
+#[path = "loquax_objects.rs"]
+mod objects;
+
+/// The objects the voice can speak into, in `obj`'s order: their names (the ⋯ menu).
+pub const OBJECTS: [&str; 3] = ["fx.loquax.obj.0", "fx.loquax.obj.1", "fx.loquax.obj.2"];
+
+/// The rows of cards each language needs at the designed width (`fxa_whole` measures them
+/// and holds this table to it): English three, Spanish four.
+pub fn card_rows(lang: crate::i18n::Locale) -> usize {
+    match lang {
+        crate::i18n::Locale::En => 3,
+        crate::i18n::Locale::Es => 4,
+    }
+}
+
+/// The designed size at 100 % in this thread's language: 1340 wide; 900 tall with three rows
+/// of cards, a row taller for each more (the owner's v2 verdict: the display, the microphone
+/// and the meters keep their size — the window grows instead).
+pub fn designed_size() -> Vec2 {
+    let rows = card_rows(crate::i18n::locale()) as f32;
+    let row = super::controls::card_height(super::controls::Size::M) + 4.0;
+    Vec2::new(1340.0, 900.0 + (rows - 3.0) * row)
+}
 
 const KIND: EffectKind = EffectKind::Vocoder;
 
@@ -36,6 +65,17 @@ pub struct State {
     view: display::View,
     /// Where the display was drawn last frame (tests point at it).
     pub display: Option<Rect>,
+    /// How many rows the cards took last frame (tests hold [`card_rows`] to it).
+    pub rows: usize,
+    /// A colourway chosen in the ⋯ menu this frame, for the host to keep.
+    colourway: Option<&'static str>,
+}
+
+impl State {
+    /// Where the bands' plot was drawn last frame (the band levels are drawn on it).
+    pub fn plot(&self) -> Option<Rect> {
+        self.view.plot
+    }
 }
 
 /// Loquax's editor in Cantus's own window: the host is the project.
@@ -54,6 +94,13 @@ pub fn framed(
     }
     st.chrome.reset_for(effect.0);
     let out = editor(&mut DawHost::new(app, strip, effect, "loquax"), &mut st, ui);
+    // The colourway chosen is the user's for every Loquax, kept in the settings; the object
+    // is the insert's own (`obj`, set by the editor as one step of undo).
+    if let Some(id) = st.colourway.take() {
+        if let Some(name) = crate::kit::skin::colourway_unit(crate::kit::skin::Unit::Effect(KIND)) {
+            app.set_unit_colourway(name, id);
+        }
+    }
     app.fx.loquax = st;
     out
 }
@@ -65,11 +112,42 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     let sr = host.sample_rate();
     let mut chips = std::mem::take(&mut st.chips);
     let chip = [chips.latency(0.0, sr)];
+    // The ⋯ menu: the object the voice speaks into (this insert's), then the colourways
+    // (ADR 0130 §Colourways, each row with its swatch).
+    let unit = crate::kit::skin::Unit::Effect(KIND);
+    let ways = crate::kit::skin::colourways(unit);
+    let wearing = crate::kit::skin::colourway_of(unit).map(|w| w.id);
+    let dark = Style::current().t.dark;
+    let obj = host.spec().get("obj").round() as usize;
+    let mut more: Vec<crate::kit::menu::Item<'_>> = Vec::with_capacity(ways.len() + 5);
+    more.push(crate::kit::menu::Item::Band(Src::Key("loquax.object")));
+    for (i, key) in OBJECTS.into_iter().enumerate() {
+        more.push(crate::kit::menu::Item::Action {
+            label: Src::Key(key),
+            check: crate::kit::menu::Check::Radio(i == obj),
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        });
+    }
+    more.push(crate::kit::menu::Item::Band(Src::Key("loquax.colourway")));
+    for w in ways {
+        more.push(crate::kit::menu::Item::Action {
+            label: Src::Key(w.name_key),
+            check: crate::kit::menu::Check::Swatch(
+                crate::kit::skin::swatch(w.sheet, dark),
+                wearing == Some(w.id),
+            ),
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        });
+    }
     let look = frame::Look {
         kind: KIND,
         chips: &chip,
         meter: None,
-        more: &[],
+        more: &more,
     };
     let mut chrome = std::mem::take(&mut st.chrome);
     let out = frame::show(ui, host, &mut chrome, &look, |ui, s, body, host| {
@@ -77,6 +155,26 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     });
     st.chrome = chrome;
     st.chips = chips;
+    // The rows: 0 the objects' band, 1 … 3 the objects, 4 the colourways' band, then them.
+    if let Some(i) = out
+        .more
+        .and_then(|i| i.checked_sub(1))
+        .filter(|i| *i < OBJECTS.len())
+    {
+        if i != obj {
+            host.set("obj", i as f32, None);
+        }
+    }
+    if let Some(w) = out
+        .more
+        .and_then(|i| i.checked_sub(OBJECTS.len() + 2))
+        .and_then(|i| ways.get(i))
+    {
+        if let Some(name) = crate::kit::skin::colourway_unit(unit) {
+            crate::kit::skin::set_colourway(name, w.id);
+            st.colourway = Some(w.id);
+        }
+    }
     out
 }
 
@@ -183,6 +281,7 @@ fn body_ui(
     // words), the rows evenly filled (no card alone on a row), and the display takes what
     // they leave.
     let phys = cells::pack(ui, area.width(), k, cards);
+    st.rows = phys.len();
     let top = (area.height() - phys.len() as f32 * (row + gap)).max(250.0 * k);
     with_brush(&ui.painter_at(body), |b| {
         crate::kit::light::ambient(b, body, &s.t);
@@ -192,7 +291,7 @@ fn body_ui(
     let reading = display::Reading::of(tel);
     let dt = ui.input(|i| i.stable_dt).min(0.1);
     st.view.update(&reading, dt);
-    display::show(host, &st.view, ui, s, r1, &reading);
+    display::show(host, &mut st.view, ui, s, r1, &reading);
     if reading.seen {
         ui.ctx().request_repaint();
     }
@@ -231,7 +330,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 }
 
 /// The starting preset (`cantus_core::starting`): Robot.
-pub const DEMO: &[(&str, f32)] = &[("mix", 1.0), ("robot", 1.0), ("bands", 16.0)];
+pub const DEMO: &[(&str, f32)] = &[("mix", 1.0), ("robot", 1.0), ("bands", 16.0), ("out", 0.5)];
 
 /// The settings `--editor loquax` and the screenshot tool open it with: the starting
 /// preset.
