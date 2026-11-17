@@ -698,3 +698,81 @@ fn resources_and_prompts_read_the_project() {
         );
     }
 }
+
+/// fxa:fractus — an agent paints Fractus's lanes by name (`set_effect`'s `lanes`): blocks
+/// sanitized as the editor's are, a lane cleared by `[]`, every value checked; on any other
+/// effect the field is refused.
+#[test]
+fn an_agent_paints_fractus_s_lanes() {
+    use cantus_core::fx::fractus::Block;
+    let mut h = host();
+    let t = edit_ok(&mut h, "add_track", json!({"kind": "unda"}));
+    let strip = id(&t, "strip_id");
+    let fx = id(
+        &edit_ok(
+            &mut h,
+            "add_effect",
+            json!({"strip_id": strip, "kind": "fractus"}),
+        ),
+        "effect_id",
+    );
+    let lanes = |h: &cantus_ai::bridge::BareHost| {
+        let s = h.bus.project().strip(StripId(strip)).unwrap();
+        s.effects[0].spec.fractus.clone()
+    };
+    assert_eq!(
+        lanes(&h).map(|p| p.lane(0).to_vec()),
+        Some(vec![Block::new(12, 4)]),
+        "the starting stutter"
+    );
+    edit_ok(
+        &mut h,
+        "set_effect",
+        json!({"effect_id": fx, "lanes": {
+            "gate": [{"at": 0, "len": 8, "amount": 0.5}, {"at": 4, "len": 8, "chance": 0.25}],
+            "repeat": []
+        }}),
+    );
+    let p = lanes(&h).expect("painted");
+    assert!(p.lane(0).is_empty(), "the repeat cleared");
+    assert_eq!(
+        p.lane(7),
+        [
+            Block {
+                amount: 0.5,
+                ..Block::new(0, 8)
+            },
+            Block {
+                prob: 0.25,
+                ..Block::new(8, 4)
+            }
+        ],
+        "the overlap cut where the block before ends"
+    );
+    for bad in [
+        json!({"effect_id": fx, "lanes": {"echo": []}}),
+        json!({"effect_id": fx, "lanes": {"gate": [{"at": 300, "len": 1}]}}),
+        json!({"effect_id": fx, "lanes": {"gate": [{"at": 0, "len": 1, "amount": 2}]}}),
+    ] {
+        assert!(matches!(
+            edit_err(&mut h, "set_effect", bad),
+            ToolError::BadArgument { .. }
+        ));
+    }
+    let comp = id(
+        &edit_ok(
+            &mut h,
+            "add_effect",
+            json!({"strip_id": strip, "kind": "compressor"}),
+        ),
+        "effect_id",
+    );
+    assert!(matches!(
+        edit_err(
+            &mut h,
+            "set_effect",
+            json!({"effect_id": comp, "lanes": {"gate": []}})
+        ),
+        ToolError::BadArgument { .. }
+    ));
+}

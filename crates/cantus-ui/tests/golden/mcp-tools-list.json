@@ -2053,7 +2053,7 @@
               "shimmer",
               "shimmer_reverb"
             ],
-            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros; a pedal's parameter is p{id}.{key}, get_unit lists them), saltus (pitch: shifter, harmoniser in key or on MIDI chords, octaver analog or clean, whammy by pedal or notes; mono 2.7 ms or poly 85 ms), rota (rotary speaker), arca (amp and cabinet), loquax (vocoder: the track speaks through a synthesiser played by MIDI notes or through a sidechain; robot voices, talk-box, choirs, string machines, talking drums), fractus (glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and more painted on lanes in time with the song), caelum (shimmer reverb: tails that climb in pitch, infinite, freeze, bloom, ducking). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
+            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros; a pedal's parameter is p{id}.{key}, get_unit lists them), saltus (pitch: shifter, harmoniser in key or on MIDI chords, octaver analog or clean, whammy by pedal or notes; mono 2.7 ms or poly 85 ms), rota (rotary speaker), arca (amp and cabinet), loquax (vocoder: the track speaks through a synthesiser played by MIDI notes or through a sidechain; robot voices, talk-box, choirs, string machines, talking drums), fractus (glitch sequencer and grain cloud: repeats, reverses, tape stops, shuffles, pitch jumps, crushes, filter sweeps, gates and delay throws painted on lanes in time with the song, or played by held notes; set_effect's lanes paints them; stutter builds, beat repeats, grain pads, frozen clouds), caelum (shimmer reverb: tails that climb in pitch, infinite, freeze, bloom, ducking). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
           },
           "index": {
             "type": "integer",
@@ -2168,6 +2168,63 @@
               "type": "number"
             },
             "description": "A hosted plug-in's parameters by its numeric ids, in its own range."
+          },
+          "lanes": {
+            "type": "object",
+            "maxProperties": 10,
+            "propertyNames": {
+              "enum": [
+                "repeat",
+                "reverse",
+                "tape",
+                "shuffle",
+                "pitch",
+                "crush",
+                "filter",
+                "gate",
+                "throw",
+                "cloud"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "maxItems": 256,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "description": "The step it starts on (0 the cycle's first; step and bars set the grid)."
+                  },
+                  "len": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 256,
+                    "description": "Steps it holds, its start included."
+                  },
+                  "amount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "The module's mix for the event (default 1)."
+                  },
+                  "chance": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "The chance it plays each cycle (default 1)."
+                  }
+                },
+                "required": [
+                  "at",
+                  "len"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "description": "Fractus only: lanes replaced by name (repeat, reverse, tape, shuffle, pitch, crush, filter, gate, throw, cloud), each a list of blocks; [] clears a lane. Overlapping blocks are cut where the one before ends."
           },
           "expected_revision": {
             "type": "integer",
@@ -2294,7 +2351,7 @@
               "shimmer",
               "shimmer_reverb"
             ],
-            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros; a pedal's parameter is p{id}.{key}, get_unit lists them), saltus (pitch: shifter, harmoniser in key or on MIDI chords, octaver analog or clean, whammy by pedal or notes; mono 2.7 ms or poly 85 ms), rota (rotary speaker), arca (amp and cabinet), loquax (vocoder: the track speaks through a synthesiser played by MIDI notes or through a sidechain; robot voices, talk-box, choirs, string machines, talking drums), fractus (glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and more painted on lanes in time with the song), caelum (shimmer reverb: tails that climb in pitch, infinite, freeze, bloom, ducking). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
+            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros; a pedal's parameter is p{id}.{key}, get_unit lists them), saltus (pitch: shifter, harmoniser in key or on MIDI chords, octaver analog or clean, whammy by pedal or notes; mono 2.7 ms or poly 85 ms), rota (rotary speaker), arca (amp and cabinet), loquax (vocoder: the track speaks through a synthesiser played by MIDI notes or through a sidechain; robot voices, talk-box, choirs, string machines, talking drums), fractus (glitch sequencer and grain cloud: repeats, reverses, tape stops, shuffles, pitch jumps, crushes, filter sweeps, gates and delay throws painted on lanes in time with the song, or played by held notes; set_effect's lanes paints them; stutter builds, beat repeats, grain pads, frozen clouds), caelum (shimmer reverb: tails that climb in pitch, infinite, freeze, bloom, ducking). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
           },
           "neutral": {
             "type": "boolean",
