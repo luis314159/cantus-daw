@@ -286,8 +286,8 @@ peaks −23.8 dBFS, the bass −8.3. The band alone is the master less the bass 
 
 Core: `fx/tabula.rs` (`pedal_allowed` and its test), `starting.rs`. Engine: tests
 `fx_vinculum.rs` (the pedal), `fx_loquax.rs:161` (clippy's `is_multiple_of`, as wave A does).
-UI: `views/fx/tabula_faces.rs`, `kit/skin/racks.rs`, tests `preset_audit.rs`, golden
-`mcp-tools-list.json`. AI: `tools_mixer.rs`, `tools_args.rs`. Plug-ins: `Cargo.toml`,
+UI: `app.rs` (`CantusApp::fx` boxed), `views/fx/tabula_faces.rs`, `kit/skin/racks.rs`, tests
+`preset_audit.rs`, `learn_everywhere.rs`, golden `mcp-tools-list.json`. AI: `tools_mixer.rs`, `tools_args.rs`. Plug-ins: `Cargo.toml`,
 `build.rs`, `src/desc.rs`, `src/text.rs`, tests `common/mod.rs`, `clap.rs`, `vst3.rs`,
 `golden/ids.txt`. xtask: `main.rs`. Web: `units_data.rs`. Docs: the manual EN/ES.
 
@@ -303,3 +303,18 @@ UI: `views/fx/tabula_faces.rs`, `kit/skin/racks.rs`, tests `preset_audit.rs`, go
 cantus-core 810, cantus-dsp 1 127, cantus-engine 1 309, cantus-project 194, cantus-plugins 82,
 cantus-ai 50 — all green, clippy clean on each (the plug-ins' clippy, which builds the UI,
 caught two `if`s inside the lamps' `match` that clippy wants as guards; fixed).
+
+cantus-ui, the whole suite once (`--no-fail-fast`): **2 712 passed, 1 failed** (54 ignored),
+clippy clean, and the plug-ins' clippy again clean. The one red is
+`learn_everywhere::every_stepped_parameter_is_drawn_with_its_offer`, on other units only:
+Fractus's 16 keys (fixed in fx/wave-a by Fractus's step 3, arrives with the merge), Lenis's
+six band switches and Cedo's four keys (their own step 3). Vinculum's two (`char`, `time`,
+drawn by the other models' faceplates) are excused by model and held by the new
+`every_vinculum_model_offers_its_stepped_parameters`. Fixed on the way:
+`stack_budget` — `CantusApp` had grown to 135.5 KB (budget 128) and the boot's assemble
+needed 769 KB of the 768 KB main-thread budget, because the side round's editors' states
+reached 48 KB inline; `CantusApp::fx` is boxed now (82 KB, the boot fits).
+
+Not run: the Linux check (WSL), the plug-ins without default features, the release build,
+the site's pictures and sound excerpts, CPU on a quiet machine. Disk at the end: 3.1 GB
+free on C: (both lanes' targets 35 GB each).
