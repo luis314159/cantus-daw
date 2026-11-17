@@ -195,6 +195,10 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             | EffectKind::Vocoder
             | EffectKind::Glitch
             | EffectKind::Shimmer
+            // fxb:contract — wave B joins the board with its faces (phase B).
+            | EffectKind::BusCompressor
+            | EffectKind::ResonanceSuppressor
+            | EffectKind::Ducker
     )
 }
 
@@ -570,6 +574,10 @@ mod tests {
                     | EffectKind::Vocoder
                     | EffectKind::Glitch
                     | EffectKind::Shimmer
+                    // fxb:contract — wave B joins the board with its faces (phase B).
+                    | EffectKind::BusCompressor
+                    | EffectKind::ResonanceSuppressor
+                    | EffectKind::Ducker
             ) {
                 assert!(pedal_allowed(k), "{k:?}");
             }

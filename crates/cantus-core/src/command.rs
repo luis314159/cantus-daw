@@ -621,6 +621,14 @@ pub enum Command {
         lane: u8,
         blocks: Vec<crate::fx::fractus::Block>,
     },
+    /// fxb:contract — Cedo's drawn shape ([`crate::EffectSpec::cedo`], ADR 0144): its
+    /// points replaced (sanitized: in range, sorted, at most 64), or `None`, the classic
+    /// pump again; the inverse is the shape it replaced. Refused for any other kind.
+    SetCedoShape {
+        strip: StripId,
+        effect: EffectId,
+        shape: Option<Box<crate::fx::cedo::Shape>>,
+    },
     // fx3:contract — Tabula's board (ADR 0134; `crate::command_board`). Each is refused on
     // a slot that is not a board; each returns its exact inverse.
     /// A pedal into a board at `index` of its signal order, with the macro maps it brings
@@ -1136,6 +1144,7 @@ impl Command {
             SetEffectIr { .. } => "cmd.set_effect_ir", // r39:conv
             SetLapsusPattern { .. } => "cmd.lapsus_pattern", // fx:lapsus
             SetFractusLane { .. } => "cmd.fractus_lane", // fxa:contract
+            SetCedoShape { .. } => "cmd.cedo_shape",   // fxb:contract
             InsertPedal { .. } => "cmd.insert_pedal",  // fx3:contract
             RemovePedal { .. } => "cmd.remove_pedal",  // fx3:contract
             MovePedal { .. } => "cmd.move_pedal",      // fx3:contract
@@ -2688,6 +2697,24 @@ impl Command {
                     effect,
                     lane,
                     blocks: old,
+                })
+            }
+            // fxb:contract
+            SetCedoShape {
+                strip,
+                effect,
+                shape,
+            } => {
+                let e = slot_mut(project, strip, effect)?;
+                if e.spec.kind != crate::EffectKind::Ducker {
+                    return Err(CommandError::InvalidValue("ducking shape".into()));
+                }
+                let new = shape.map(|s| Box::new(s.sanitized()));
+                let old = std::mem::replace(&mut e.spec.cedo, new);
+                Ok(SetCedoShape {
+                    strip,
+                    effect,
+                    shape: old,
                 })
             }
             // fx3:contract — Tabula's board (`crate::command_board`, the tabula builder's).

@@ -351,6 +351,29 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 blocks,
                             };
                         }
+                        // fxb:contract — Cedo's shape: points out of range and out of order
+                        // (so sanitizing is undone too), the classic pump again, other kinds.
+                        if (e.spec.kind == EffectKind::Ducker && rng.below(3) == 0)
+                            || rng.below(60) == 0
+                        {
+                            use cantus_core::fx::cedo::Shape;
+                            use cantus_core::fx::lapsus::Point;
+                            let shape = (rng.below(4) != 0).then(|| {
+                                Box::new(Shape {
+                                    points: (0..rng.below(6))
+                                        .map(|_| {
+                                            Point::new(rng.f32(-0.2, 1.2), rng.f32(-0.5, 1.5))
+                                                .bend(rng.f32(-1.5, 1.5))
+                                        })
+                                        .collect(),
+                                })
+                            });
+                            return Command::SetCedoShape {
+                                strip: host,
+                                effect: e.id,
+                                shape,
+                            };
+                        }
                         if rng.below(3) == 0 {
                             return Command::SetEffectMix {
                                 strip: host,

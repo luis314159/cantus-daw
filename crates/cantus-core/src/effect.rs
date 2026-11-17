@@ -94,6 +94,13 @@ pub enum EffectKind {
     Glitch, // fxa:contract
     /// Caelum, the shimmer reverb (`fx::caelum`). // fxa:contract
     Shimmer, // fxa:contract
+    // fxb:contract — the side round's wave B (provisional ADRs 0142–0144).
+    /// Vinculum, the bus compressor: VCA, opto and vari-mu (`fx::vinculum`). // fxb:contract
+    BusCompressor, // fxb:contract
+    /// Lenis, the resonance suppressor (`fx::lenis`). // fxb:contract
+    ResonanceSuppressor, // fxb:contract
+    /// Cedo, the ducker (`fx::cedo`, [`EffectSpec::cedo`]). // fxb:contract
+    Ducker, // fxb:contract
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -206,7 +213,8 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 38] = [
+    pub const ALL: [EffectKind; 41] = [
+        // fxb:contract: 41 with wave B's three
         // fxa:contract: 38 with wave A's three
         // fx3:contract: 35 with wave 3's four
         // fx:contract: 31 with the side round's five
@@ -236,19 +244,22 @@ impl EffectKind {
         EffectKind::TransientSplit,
         EffectKind::Analyzer,
         EffectKind::AutoTune,
-        EffectKind::Aula,       // r39:conv
-        EffectKind::AutoFilter, // fx:contract
-        EffectKind::Pedal,      // fx:contract
-        EffectKind::TimeShaper, // fx:contract
-        EffectKind::LoFi,       // fx:contract
-        EffectKind::Utility,    // fx:contract
-        EffectKind::Board,      // fx3:contract
-        EffectKind::PitchShift, // fx3:contract
-        EffectKind::Rotary,     // fx3:contract
-        EffectKind::Amp,        // fx3:contract
-        EffectKind::Vocoder,    // fxa:contract
-        EffectKind::Glitch,     // fxa:contract
-        EffectKind::Shimmer,    // fxa:contract
+        EffectKind::Aula,                // r39:conv
+        EffectKind::AutoFilter,          // fx:contract
+        EffectKind::Pedal,               // fx:contract
+        EffectKind::TimeShaper,          // fx:contract
+        EffectKind::LoFi,                // fx:contract
+        EffectKind::Utility,             // fx:contract
+        EffectKind::Board,               // fx3:contract
+        EffectKind::PitchShift,          // fx3:contract
+        EffectKind::Rotary,              // fx3:contract
+        EffectKind::Amp,                 // fx3:contract
+        EffectKind::Vocoder,             // fxa:contract
+        EffectKind::Glitch,              // fxa:contract
+        EffectKind::Shimmer,             // fxa:contract
+        EffectKind::BusCompressor,       // fxb:contract
+        EffectKind::ResonanceSuppressor, // fxb:contract
+        EffectKind::Ducker,              // fxb:contract
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
@@ -298,6 +309,9 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::NAME_KEY, // fxa:contract
             EffectKind::Glitch => fx::fractus::NAME_KEY, // fxa:contract
             EffectKind::Shimmer => fx::caelum::NAME_KEY, // fxa:contract
+            EffectKind::BusCompressor => fx::vinculum::NAME_KEY, // fxb:contract
+            EffectKind::ResonanceSuppressor => fx::lenis::NAME_KEY, // fxb:contract
+            EffectKind::Ducker => fx::cedo::NAME_KEY, // fxb:contract
         }
     }
 
@@ -343,6 +357,9 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::params(), // fxa:contract
             EffectKind::Glitch => fx::fractus::params(), // fxa:contract
             EffectKind::Shimmer => fx::caelum::params(), // fxa:contract
+            EffectKind::BusCompressor => fx::vinculum::params(), // fxb:contract
+            EffectKind::ResonanceSuppressor => fx::lenis::params(), // fxb:contract
+            EffectKind::Ducker => fx::cedo::params(), // fxb:contract
         }
     }
 
@@ -388,6 +405,9 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::SPARSE, // fxa:contract
             EffectKind::Glitch => fx::fractus::SPARSE, // fxa:contract
             EffectKind::Shimmer => fx::caelum::SPARSE, // fxa:contract
+            EffectKind::BusCompressor => fx::vinculum::SPARSE, // fxb:contract
+            EffectKind::ResonanceSuppressor => fx::lenis::SPARSE, // fxb:contract
+            EffectKind::Ducker => fx::cedo::SPARSE, // fxb:contract
         }
     }
 
@@ -450,6 +470,9 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::TAKES_SIDECHAIN, // fxa:contract
             EffectKind::Glitch => fx::fractus::TAKES_SIDECHAIN, // fxa:contract
             EffectKind::Shimmer => fx::caelum::TAKES_SIDECHAIN, // fxa:contract
+            EffectKind::BusCompressor => fx::vinculum::TAKES_SIDECHAIN, // fxb:contract
+            EffectKind::ResonanceSuppressor => fx::lenis::TAKES_SIDECHAIN, // fxb:contract
+            EffectKind::Ducker => fx::cedo::TAKES_SIDECHAIN, // fxb:contract
         }
     }
 
@@ -483,6 +506,9 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::TAKES_NOTES, // fxa:contract
             EffectKind::Glitch => fx::fractus::TAKES_NOTES, // fxa:contract
             EffectKind::Shimmer => fx::caelum::TAKES_NOTES, // fxa:contract
+            EffectKind::BusCompressor => fx::vinculum::TAKES_NOTES, // fxb:contract
+            EffectKind::ResonanceSuppressor => fx::lenis::TAKES_NOTES, // fxb:contract
+            EffectKind::Ducker => fx::cedo::TAKES_NOTES, // fxb:contract
             _ => false,
         }
     }
@@ -519,6 +545,9 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::CHOICES, // fxa:contract
             EffectKind::Glitch => fx::fractus::CHOICES, // fxa:contract
             EffectKind::Shimmer => fx::caelum::CHOICES, // fxa:contract
+            EffectKind::BusCompressor => fx::vinculum::CHOICES, // fxb:contract
+            EffectKind::ResonanceSuppressor => fx::lenis::CHOICES, // fxb:contract
+            EffectKind::Ducker => fx::cedo::CHOICES, // fxb:contract
             _ => &[],
         }
     }
@@ -556,6 +585,10 @@ pub struct EffectSpec {
     /// kind and for a pattern with nothing painted, and then not written. // fxa:contract
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fractus: Option<Box<fx::fractus::Pattern>>,
+    /// Cedo's drawn shape (ADR 0144, provisional; schema 65); `None` for every other kind
+    /// and for the classic pump, and then not written. // fxb:contract
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cedo: Option<Box<fx::cedo::Shape>>,
 }
 
 impl EffectSpec {
@@ -576,6 +609,7 @@ impl EffectSpec {
             lapsus: None,  // fx:lapsus
             board: None,   // fx3:contract
             fractus: None, // fxa:contract
+            cedo: None,    // fxb:contract
         }
     }
 
@@ -589,6 +623,7 @@ impl EffectSpec {
             lapsus: None,  // fx:lapsus
             board: None,   // fx3:contract
             fractus: None, // fxa:contract
+            cedo: None,    // fxb:contract
         }
     }
 
