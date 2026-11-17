@@ -104,6 +104,9 @@ pub mod observatory;
 // The rack, faceplates, meters and gain elements Vinculum draws (ADR 0142). fxb:vinculum
 #[path = "skin/racks.rs"]
 pub mod racks;
+// The bench analyser, its screen, keys and readouts Lenis draws (ADR 0143). fxb:lenis
+#[path = "skin/analysers.rs"]
+pub mod analysers;
 // The balance Libra draws (ADR 0133). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;

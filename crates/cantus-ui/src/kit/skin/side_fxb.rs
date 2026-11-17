@@ -119,9 +119,11 @@ pub const VINCULUM_COLOURWAYS: [Colourway; 3] = [
     },
 ];
 
-/// Lenis, the resonance suppressor: a precision measuring instrument — an enamelled lab
-/// case, its spectrum a calm sea-green line on a dark graticule, the cuts lit in a warm
-/// coral; cap knobs, lamp switches, a badge plate, fine rules.
+/// Lenis, the resonance suppressor: a bench analyser — an enamelled instrument on a lab
+/// bench (drawn by the editor, `kit::skin::analysers`), its spectrum a phosphor trace on a
+/// dark graticule, the cuts hanging under it in a second phosphor; cap knobs, lamp keys, a
+/// badge plate, fine printed rules. Each colourway's trace and cut sit apart from every
+/// other unit's two voices (`side.rs`'s tests).
 const fn lenis(
     key: &'static str,
     material: Material,
@@ -155,58 +157,61 @@ const fn lenis(
     }
 }
 
-/// **Laboratory**: a grey-green enamel case, the spectrum sea-green, the cuts coral.
+/// **Laboratory**: a grey-green enamel panel in a lacquered blue-grey case, the spectrum
+/// an aqua phosphor, the cuts a rose.
 pub const LENIS: Skin = lenis(
     "fx.lenis",
     Material::Lacquer,
     Tint {
-        hue: 160.0,
-        sat: 0.14,
+        hue: 152.0,
+        sat: 0.10,
         amount: 0.40,
     },
     Pair {
-        dark: chsl(172.0, 0.58, 0.60),
-        light: chsl(174.0, 0.62, 0.28),
+        dark: chsl(166.0, 0.62, 0.60),
+        light: chsl(168.0, 0.66, 0.28),
     },
     Pair {
-        dark: chsl(16.0, 0.78, 0.66),
-        light: chsl(14.0, 0.70, 0.42),
+        dark: chsl(348.0, 0.72, 0.68),
+        light: chsl(348.0, 0.62, 0.42),
     },
 );
-/// **Ivory**: an ivory instrument card, the spectrum a deep teal-blue, the cuts a rose.
+/// **Ivory**: an ivory enamel panel, the spectrum an amber phosphor, the cuts a cobalt
+/// (the kit's accent the cobalt: amber on an enamel is another unit's).
 pub const LENIS_IVORY: Skin = lenis(
     "fx.lenis.ivory",
     Material::Paper,
     Tint {
-        hue: 46.0,
+        hue: 44.0,
         sat: 0.20,
         amount: 0.22,
     },
     Pair {
-        dark: chsl(192.0, 0.56, 0.62),
-        light: chsl(194.0, 0.66, 0.30),
+        dark: chsl(228.0, 0.62, 0.72),
+        light: chsl(226.0, 0.58, 0.40),
     },
     Pair {
-        dark: chsl(340.0, 0.62, 0.68),
-        light: chsl(342.0, 0.58, 0.42),
+        dark: chsl(44.0, 0.86, 0.60),
+        light: chsl(40.0, 0.80, 0.34),
     },
 );
-/// **Graphite**: a graphite anodised case, the spectrum a pale jade, the cuts a gold.
+/// **Graphite**: a graphite anodised panel, the spectrum a white phosphor (a voice too
+/// pale to count as a colour), the cuts an orange.
 pub const LENIS_GRAPHITE: Skin = lenis(
     "fx.lenis.graphite",
     Material::Anodised,
     Tint {
-        hue: 230.0,
+        hue: 228.0,
         sat: 0.06,
         amount: 0.30,
     },
     Pair {
-        dark: chsl(150.0, 0.44, 0.66),
-        light: chsl(152.0, 0.50, 0.30),
+        dark: chsl(228.0, 0.24, 0.84),
+        light: chsl(228.0, 0.22, 0.30),
     },
     Pair {
-        dark: chsl(40.0, 0.80, 0.62),
-        light: chsl(38.0, 0.74, 0.36),
+        dark: chsl(24.0, 0.88, 0.62),
+        light: chsl(22.0, 0.80, 0.40),
     },
 );
 pub const LENIS_COLOURWAYS: [Colourway; 3] = [
