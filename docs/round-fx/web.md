@@ -1,0 +1,369 @@
+# The website: light-theme contrast and motion (side round fx, branch `side/web`, 2026-11-13)
+
+The owner (2026-11-13): "Pon un agente a que en la página web agregue animaciones y cosas
+interesantes para pulir más el sitio, y que en download en modo claro sea más fácil de leer,
+el color de las letras no ayuda."
+
+## 1. The download page in the light theme (fixed first)
+
+**Cause.** The download page's head is a `<section class="dl-hero page-band lapis">`. The bands'
+rule (`frame.css`: every `main > section:nth-of-type(odd)` gets the paper band) is more specific
+than `.page-band`, so in the light theme the head lost its lapis ground and took paper
+(#f5f6f9), while `.lapis` kept its tokens for a dark ground: white title, pale-lavender lede,
+white version line, and a dark translucent card that read as a grey slab. In the dark theme the
+same rule turned the head Slate instead of lapis. Every other page's head is a `<div>`, so it
+kept the lapis, but in the light theme the bar over it reads deep blue (it is dressed for the
+white home hero), so the bar's own words (Cantus, Tour, Instruments…) were deep blue on lapis:
+1.0–1.3:1 on every instrument, effect and Measured page.
+
+**Fix.**
+- The bands' rules skip `.page-band` (the download head is lapis again in the dark theme).
+- In the light theme a page's head is dressed like the home's hero (round 39, the owner's own
+  choice for the light hero): white with the lapis dot grid, deep-blue words (#1b2c7a 12.6:1,
+  #24398f 9.9:1 on white), the eyebrow a darker gold (#7a5410, 6.8:1 on white and 4.8:1 even on
+  a dot of the grid). The bar above it now reads on white, as on the home.
+- The download card ("Before you open it") in the light theme is a white sheet with a lapis
+  hairline and a soft shadow; its keys and the SHA-256 wells are light (#eef1fa) with deep-blue
+  text; the quiet button on a light head is white, so the dot grid stays out of "411 MB".
+- In the lapis scope, `--ink-3` #93a1cf → #b8c2e6 (3.2 → 4.6:1 on the ground's brightest glow:
+  the hero's facts line, the crumbs, the download card's version); the dark theme's
+  `--accent-text` #7ea2f6 → #93b2f8 (the Measured cards' "Won" tag, 4.2 → 5.0:1).
+
+## 2. The contrast check (`web/tools/contrast.mjs`)
+
+It opens every page the build pre-renders (86, plus the two manual pages, the press kit and the
+404: 90 pages), each in light and dark, 1440 and 390 px wide (360 views), scrolls a screen at a
+time and measures every visible text node: the screen is captured once with the glyphs made
+transparent (`-webkit-text-fill-color`, which leaves borders, icons and currentColor as they
+are), and the text's colour, alpha and opacity are composited over each of 27 pixels sampled
+under each line box. A line passes when 90 % of its samples reach WCAG AA (4.5:1; 3:1 at 24 px,
+or 18.66 px bold). Text under `aria-hidden`, or in a disabled control, is decorative and counted
+apart; text that something else covers (the sticky bar) is skipped. It is measured with reduced
+motion, so nothing is mid-animation. No npm package: Node 22's WebSocket speaks the DevTools
+protocol to Chrome or Edge (`tools/cdp.mjs`), and the screenshot is decoded by a 40-line PNG
+reader.
+
+`site-budget.yml` runs `--quick` (one page of each kind, both languages, without the manual:
+the manual's two long generated pages take minutes each and are left to the full run) and
+`tools/motion.mjs` on every push that touches `web/`.
+
+**Measured, every page (360 views: 90 pages × light/dark × 1440/390 px; 54 718 text elements).**
+Before (master dd4ad68b): **989 texts below AA in 232 of 360 views**, lowest 1.01:1. After:
+**0**, lowest 4.58:1. Per kind of page (EN and ES together; `<unit>` is all 10 instruments or
+all 25 effects; "lowest" is the worst text's ratio):
+
+| Page | Scheme | Views | Before: lowest · texts below AA | After: lowest · texts below AA |
+|---|---|---|---|---|
+| `/` | dark | 4 | 3.35 · 29 | 4.58 · 0 |
+| `/` | light | 4 | 3.60 · 4 | 4.89 · 0 |
+| `/404.html` | dark | 2 | 6.33 · 0 | 6.33 · 0 |
+| `/404.html` | light | 2 | 7.93 · 0 | 7.93 · 0 |
+| `/ai/` | dark | 4 | 5.93 · 0 | 5.93 · 0 |
+| `/ai/` | light | 4 | 4.96 · 0 | 4.96 · 0 |
+| `/download/` | dark | 4 | 4.98 · 0 | 4.98 · 0 |
+| `/download/` | light | 4 | 1.08 · 68 | 4.96 · 0 |
+| `/effects/` | dark | 4 | 4.64 · 0 | 4.64 · 0 |
+| `/effects/` | light | 4 | 1.01 · 20 | 4.96 · 0 |
+| `/effects/<unit>/` | dark | 100 | 3.27 · 50 | 4.72 · 0 |
+| `/effects/<unit>/` | light | 100 | 1.01 · 550 | 4.81 · 0 |
+| `/instruments/` | dark | 4 | 4.64 · 0 | 4.64 · 0 |
+| `/instruments/` | light | 4 | 1.01 · 20 | 4.96 · 0 |
+| `/instruments/<unit>/` | dark | 36 | 3.21 · 18 | 4.63 · 0 |
+| `/instruments/<unit>/` | light | 36 | 1.01 · 198 | 4.96 · 0 |
+| `/learn/` | dark | 4 | 5.67 · 0 | 5.67 · 0 |
+| `/learn/` | light | 4 | 4.96 · 0 | 4.96 · 0 |
+| `/manual/en/` | dark | 2 | 5.86 · 0 | 5.86 · 0 |
+| `/manual/en/` | light | 2 | 4.96 · 0 | 4.96 · 0 |
+| `/manual/es/` | dark | 2 | 5.93 · 0 | 5.93 · 0 |
+| `/manual/es/` | light | 2 | 4.95 · 0 | 4.95 · 0 |
+| `/measured/` | dark | 4 | 4.18 · 12 | 4.96 · 0 |
+| `/measured/` | light | 4 | 1.01 · 20 | 4.90 · 0 |
+| `/press/` | dark | 2 | 5.50 · 0 | 5.50 · 0 |
+| `/press/` | light | 2 | 5.83 · 0 | 5.83 · 0 |
+| `/roadmap/` | dark | 4 | 5.93 · 0 | 5.93 · 0 |
+| `/roadmap/` | light | 4 | 4.96 · 0 | 4.96 · 0 |
+| `/studio/` | dark | 4 | 5.93 · 0 | 5.93 · 0 |
+| `/studio/` | light | 4 | 4.96 · 0 | 4.96 · 0 |
+
+## 3. Motion (`web/style/motion.css`, a few lines of Rust)
+
+Chosen to feel like the program, not a template: the gold rule of logo #03 carries a signal,
+the program's glass catches the light, a playing song breathes in time.
+
+| What | How | Where |
+|---|---|---|
+| Sections and cards rise into place (opacity + 26 px + 1.5 % scale), a row of cards as a wave | CSS scroll-driven animations (`animation-timeline: view()`), no script; a browser without them (Firefox today) shows everything at rest | every page |
+| Measured: each bar draws out from zero as its card arrives, the value fades in after | the same, `scaleX` from the left | /measured/, the home's chapter |
+| A slow light crosses the program in the hero every 11 s | a pseudo-element's `translateX` | home |
+| A spark runs along the gold hairline under the hero and under each page's head, then rests | a pseudo-element's `translateX`, 9 s period | home, every page head |
+| Cards lift 5 px; a deeper shadow and a lapis ring fade in under them; the picture leans in 4.5 %; "See it large →" steps forward | `transform`, and the shadow on a pseudo-element whose opacity changes (the shadow itself is never animated) | instruments, effects, studio, download, unit pages |
+| The download button: the arrow bobs while pointed at, the key gives under a press, and a click on a file link answers — the arrow drops through and a gold line runs under the label | CSS; one document listener (`main.rs`, `download_answers`) adds `is-sent` for 1.6 s to `a.btn` links to a release file | every download button |
+| A playing song's button breathes a ring; the hero's at two beats of Neon Tide (124 BPM); before the first play it invites three times | CSS on the existing `is-playing` / `is-on` classes | hero, Listen, effects' A/B, unit cards |
+| A page the visitor goes to settles in (opacity + 10 px, 0.42 s); never the page the address opened, so the first paint and LCP are untouched; a jump within the page does not replay it | `app.rs` marks `<main>` `is-arriving` when it was mounted by a visit | every in-app navigation |
+| Day and night cross-fade (0.45 s); the switch's icon turns in | View Transitions API where there is one (`theme.rs`), else at once | the theme switch |
+
+Rules held (`tools/motion.mjs`, in CI, seven pages at 1440 and 390 px): every `@keyframes` on
+the site moves only `transform` and `opacity` (15 rules); with `prefers-reduced-motion: reduce`
+nothing is left animating after scrolling a page top to bottom, no scroll-driven animation
+exists, and every revealed element is opaque and in place; with motion allowed, once the page
+has been scrolled past, every reveal has finished (no element left half-shown), and the motion
+is really there.
+
+A trap found by Lighthouse's own contrast audit (axe) and now held by that last rule: a
+scroll-driven reveal takes its view from the nearest box that scrolls, and on a phone the
+effects' list scrolls sideways — its items stayed half-transparent (2.0–2.6:1). Lists that
+scroll or clip on their own (the effects' list, the songs) now rise whole. Everything in `motion.css` is inside
+`@media (prefers-reduced-motion: no-preference)`, and the view-transition fade is removed under
+`reduce`. Nothing hides content until a script runs, so the pre-rendered page, crawlers and a
+visitor without JavaScript see it all.
+
+Not done, on purpose:
+- **Counters that tick up in Measured.** The values are decimals and ranges (0.76, 1.1–1.5,
+  6.6–6.7); a ticking number would show, for half a second, a figure that was never measured,
+  on the one page whose point is that every number is measured. The bars draw out instead.
+- **A hero entrance.** The app redraws the pre-rendered page when the WebAssembly arrives
+  (`main.rs`), which would restart any timed entrance midway; and fading the hero's words would
+  delay the mobile LCP (its element is the hero's text). The hero's life is ambient instead.
+
+## 3b. Motion v2: "más marcado" (the owner, 2026-11-13)
+
+The owner saw v1 served locally and asked for more presence and travel, still tasteful. The same
+effects, each turned up (every value is in `web/style/motion.css`):
+
+| What | v1 | v2 |
+|---|---|---|
+| Rise of sections and cards | 26 px + 1.5 % scale, over 180 px of scroll | 64 px + 4.5 % scale, over 280 px; headings 80 px, their lede a beat later |
+| A row of cards as a wave | 28 / 56 / 84 px apart | 70 / 140 / 210 px apart |
+| Measured bars | draw over entry 20 % → cover 45 % | entry 30 % → cover 55 % (they draw while you watch) |
+| Card hover | lift 5 px, shadow 34/60 px, picture 1.045 | lift 10 px and 1.2 % larger, a two-layer shadow with a lapis glow, picture 1.09 and up 1.5 %, a light crossing the picture once, the arrow 8 px |
+| Light across the hero's program | 11 s period, peak 20 % gold | 8 s period, wider band, peak 38 % white over 28 % gold |
+| Spark on the gold rules | 3 px, 22 rem, 9 s | 5 px, 34 rem, double glow, 7 s |
+| Page arrival | 10 px, 0.42 s | 34 px + 1.5 % scale, 0.6 s |
+| Download press | press 0.975, arrow bob 3 px, gold line 3 px | hover lift 2 px, press 0.95 (80 ms in), bob 5 px, a flash of light crosses the key, gold line 4 px |
+| Playing ring | to 1.55× | to 1.8×, 2.5 px |
+| Day/night cross-fade | 0.45 s | 0.6 s |
+
+Still transform and opacity only, still off with reduced motion (`tools/motion.mjs` passes on
+seven pages at 1440 and 390 px), and no element is left half-shown.
+
+**Budgets, v1 → v2** (Lighthouse mobile, 5 runs each, medians, same PC, the same hour, with two
+other builders compiling on the machine):
+
+| Line | Budget | v1 | v2 |
+|---|---|---|---|
+| Largest contentful paint | ≤ 2.0 s | 1.865 s (1.859–2.001) | 1.997 s (1.878–2.019) |
+| Total blocking time | — | 92 ms (86–174) | 103 ms (80–190) |
+| First contentful paint | — | 1.239 s | 1.230 s |
+| Style and layout (main thread) | — | 559 ms | 591 ms |
+| Cumulative layout shift | ≤ 0.02 | 0 | 0 |
+| Accessibility | 100 | 100 | 100 |
+| Performance score | — | 99 | 98 |
+| First visit | ≤ 1 MB | 691 156 B | 691 597 B |
+| WebAssembly gzip | ≤ 250 000 B | 232 444 B | 232 444 B (no Rust changed) |
+
+Every line holds; Lighthouse CI's assertions passed for both. LCP's runs fall in two clusters on
+this PC, about 1.86 s and about 2.0 s, for v1 and v2 alike: v1 had three runs in the low one and
+v2 one. The LCP element is the hero's text, which no animation touches. So the median moved
+with that noise, not with the motion, but it sits at the edge of its budget here. The blocking
+time and style work grew by about 10 and 30 ms.
+
+The GIFs: `C:\projects\daw-fx\compartir\web\motion\v2\` (v1 kept in `motion\`).
+
+## 3c. Motion v3: the scroll tells a story (the owner, 2026-11-13)
+
+"Ponte más creativo con el webpage, cuando scrollees que pase algo." Four pieces, one story —
+the program comes together, a signal runs through it, it plays, and it is measured:
+
+1. **The program assembles itself** (home hero, desktop). On arrival the hero's window is an
+   exploded view: the top bar, the browser, the arrangement, the mixer and the inspector lifted
+   off a dimmed plate in depth, each edged in a gold hairline, the whole tilted back (CSS 3D:
+   `perspective`, `rotateX`, `translate3d`). The first 560 px of scroll set the parts down and
+   the plate lights up; once landed, the parts fade into the real picture beneath, which
+   is never moved, faded or replaced (it is the page's LCP). The parts are the same picture
+   five times (`top.rs`, `.hw-parts`, `aria-hidden`), each cropped to its panel by the tour's
+   own coordinates — no new image is downloaded. The text above is never covered.
+2. **A gold cable down the page** (desktop ≥ 70 rem). A rail runs in the margin two rem left
+   of the text (`app.rs`, `.cable`). It is lit from the top of the screen to its middle, a
+   glowing head at the middle and a pulse of light running down it every 2.6 s (the app's
+   cables with energy). As each chapter's heading reaches the middle, a branch draws from the
+   cable to the heading's gold lozenge, so the cable connects the chapters one by one. The
+   hero, the pages' heads and the footer stand above it.
+3. **The scroll is the playhead** (the tour's arrangement, every width). A gold playhead
+   crosses the arrangement's clips as the picture scrolls through the screen, the clips it
+   has passed lit in lapis.
+4. **Measured races** (every width). Each pair of bars draws at one speed, so the shorter bar
+   — the faster program — reaches its end first. Each figure appears, at its true value,
+   when its bar arrives; nothing ticks through numbers that were never measured. It runs
+   over the lowest fifth of the screen, so a pair already in view when the page opens is
+   complete.
+
+Not done from the list, on purpose: pinning a section to the scroll (a scroll trap on a phone
+and for keyboard users), and moving the dot grid's background (a repaint, not a transform).
+
+Rules held: scroll-driven only (`animation-timeline: scroll()/view()` and named view
+timelines), transform and opacity only, no script added for motion. The site already has the
+release check and the router, but nothing scroll-related runs in a script. Without scroll-driven
+animations (Firefox today), or with reduced motion, the page is the still, complete one: the
+picture whole, no cable, bars and figures at their values. On a phone the hero and the cable
+are off, while the playhead and the race remain. `tools/motion.mjs` passes on seven pages at
+1440 and 390 px (keyframes transform/opacity only, nothing animating or hidden under reduced
+motion, nothing left half-shown with motion), and the quick contrast run is clean.
+
+**Budgets, v2 → v3** (Lighthouse mobile, 5 runs each, medians, run back to back on the same PC; two other builders were compiling, so this was not a quiet moment):
+
+| Line | Budget | v2 | v3 |
+|---|---|---|---|
+| Largest contentful paint | ≤ 2.0 s | 1.963 s (1.958–1.965) | 1.961 s (1.960–1.963) |
+| LCP element | — | the hero's picture | the hero's picture (never animated) |
+| Total blocking time | — | 149 ms (80–218) | 88 ms (68–231) |
+| First contentful paint | — | 1.104 s | 1.210 s |
+| Style and layout (main thread) | — | 542 ms | 459 ms |
+| Cumulative layout shift | ≤ 0.02 | 0.000 | 0.000 |
+| Accessibility | 100 | 100 | 100 |
+| Performance score | — | 97 | 98 |
+| First visit | ≤ 1 MB | 691606 B | 694427 B |
+| WebAssembly gzip | ≤ 250 000 B | 232 444 B | 233 085 B |
+
+Every line holds, and Lighthouse CI's assertions pass for both. LCP is unchanged: it is the
+hero's picture, which v3 never touches, and its runs are tight (1.96 s). The first visit grows by
+2.8 KB: the parts' markup and the CSS. The five parts reuse the picture already loaded, so no
+image bytes are added. Blocking time and style work came out lower for v3; with this spread
+(the same build's runs vary by 150 ms), read that as unchanged rather than faster.
+
+The GIFs: `C:\projects\daw-fx\compartir\web\motion\v3\` (v1 in `motion\`, v2 in `motion\v2\`).
+
+## 3d. Motion v4: every piece of content arrives in its own way (the owner, 2026-11-13)
+
+"Quiero más animaciones, que el contenido salga con alguna animación padre al ir scrolleando."
+One entrance per kind of content, so the page has a rhythm rather than one rise everywhere:
+
+| Content | Entrance | Widths |
+|---|---|---|
+| Section headings | swing in from the left, leaning (`skewX`), and stand up straight | all |
+| Program pictures (the tour, the spotlight, the effects' window, a unit's page) | emerge from depth: tilted back 24°, lower and smaller, settling flat; then a light crosses them once | desktop |
+| Instrument and effect cards | dealt onto the table: from below and to the left, each at its own slant (−7°, +6°, −3°), a wave across the row | desktop (phones keep v2's rise) |
+| The studio's cards | fold down from a hinge at their top edge | desktop |
+| The download page's first steps | turn in like pages, hinged at the left | desktop |
+| The effects' list | laid like pedals on a board, each turning flat in turn | desktop |
+| Feature lists (features, the engine's facts, the promises, the requirements, the learn hub) | cascade from the left; the icon pops in with a small overshoot and its strokes draw themselves; the promises' check marks draw | all |
+| The demo songs | rows one after another, each progress track drawn left to right (one timeline for the list, since the list clips) | all |
+| Footer | its columns settle down like a curtain, one after another; the logo turns in | all |
+| Measured | v3's race | all |
+
+Every entrance is scroll-driven, so a visitor who jumps (End, a link, a search) lands on
+finished content. Without scroll-driven animations, or with reduced motion, everything is simply
+there. Transform and opacity everywhere except the icons' strokes (`stroke-dashoffset` on 24-px
+SVGs, cheap).
+
+**What was measured and taken out.** `tools/frames.mjs` (new) scrolls the home top to bottom
+12 px a frame with the CPU slowed 4×, and reports the frame intervals:
+- **A clip-path wipe on the headings:** with it, 9.4 % of frames went over 25 ms; switched off
+  alone, 2.0 %. The headings now lean in with a transform.
+- **A lapis glow drifting in the navy bands:** a large layer; switched off alone, 2.5 %. Removed.
+- `tools/motion.mjs` allows `stroke-dashoffset` by name for the strokes and nothing else.
+
+**Frame times, v3 → v4** (the home, 1440 px; runs interleaved v3, v4, v3, v4; two Rust builders
+compiling on the machine, so the 4× numbers swing between runs):
+
+| CPU | v3: median · p95 · over 25 ms | v4: median · p95 · over 25 ms |
+|---|---|---|
+| 1× (this PC, a Ryzen 7 laptop) | 7.0 · 7.5 ms · 0 % / 6.9 · 7.4 ms · 0 % | 7.0 · 8.2 ms · 0 % / 6.9 · 8.2 ms · 0.2 % |
+| 4× (a slow machine) | 13.5 · 27.0 ms · 7.0 % / 12.9 · 26.6 ms · 6.9 % | 16.4 · 33.4 ms · 16.0 % / 16.8 · 33.2 ms · 16.9 % |
+| 4×, phone width (390 px) | 9.8 · 20.3 ms · 1.0 % / 10.2 · 20.3 ms · 1.7 % | 10.1 · 18.6 ms · 0.8 % / 11.8 · 22.7 ms · 2.7 % |
+
+On a mid laptop it holds 60 fps with room: p95 8 ms against a 16.7 ms frame. On a phone it costs
+nothing measurable, because the heavy entrances are desktop-only. On a desktop with a CPU four
+times slower, v4 does cost frames: the 3D entrances of the large pictures, and the many
+timelines. Switch-off runs to split that remaining cost were inconclusive under the builders'
+load (the same build moved by more than the effects did). To lighten it, the pictures' depth
+and light entrances are the first candidates; measure again on a quiet machine.
+
+**Lighthouse, v3 → v4** (mobile preset, 5 runs each, medians, back to back, builders compiling):
+
+| Line | Budget | v3 | v4 |
+|---|---|---|---|
+| Largest contentful paint | ≤ 2.0 s | 1.962 s (1.959–1.964) | 1.960 s (1.960–1.963) |
+| Total blocking time | — | 163 ms (98–250) | 70 ms (59–166) |
+| Style and layout (main thread) | — | 527 ms | 439 ms |
+| Cumulative layout shift | ≤ 0.02 | 0.000 | 0.000 |
+| Accessibility | 100 | 100 | 100 |
+| Performance score | — | 97 | 99 |
+| First visit | ≤ 1 MB | 694427 B | 696140 B |
+| WebAssembly gzip | ≤ 250 000 B | 233 085 B | 233 085 B (no Rust changed) |
+
+Lighthouse CI's assertions pass for both; the LCP element is still the hero's picture. Blocking time and style work came out lower for v4, within this machine's noise (v3's own runs span 98–250 ms): read as unchanged. The first visit grows by 1.7 KB of CSS.
+
+The GIFs: `C:\projects\daw-fx\compartir\web\motion\v4\` (eleven, one per entrance and a phone scroll; v1–v3 kept).
+
+## 4. Budgets, before and after
+
+Both built from the same sources' data (the latest release, beta.14, fetched with
+`tools/release_json.py` into a local copy only — see §7), served by Lighthouse CI on its mobile
+preset (slow 4G, 4× CPU) on the owner's PC with the owner's Edge open, **5 runs each, medians**:
+
+| Line | Budget | Before (master dd4ad68b) | After (side/web) |
+|---|---|---|---|
+| WebAssembly, gzip | ≤ 250 000 B | 231 454 B (620 650 raw) | 232 444 B (623 346 raw), +990 |
+| JS glue | — | 53 895 B | 55 162 B |
+| Home HTML (CSS inlined), gzip | — | 33 485 B | 36 635 B (+3.1 KB: `motion.css` is 3.1 KB gzip) |
+| Download page HTML, gzip | — | 28 244 B | 31 413 B |
+| First visit (total transfer) | ≤ 1 MB | 687 096 B | 691 156 B |
+| Largest contentful paint | ≤ 2.0 s | 1.975 s | 1.969 s |
+| Cumulative layout shift | ≤ 0.02 | 0 | 0 |
+| Accessibility | 100 | 100 | 100 |
+| Performance score | — | 98 | 95 |
+| First contentful paint | — | 1.126 s | 1.116 s |
+| Total blocking time | — | 142 ms (102–185) | 201 ms (130–362) |
+| Best practices · SEO | — | 100 · 100 | 100 · 100 |
+
+Every budget line holds. The blocking time is the one cost: a build with everything but the
+scroll reveals measured 179 ms (170–264), and the main thread's style-and-layout time is 541 ms
+before, 538 ms without the reveals and 602 ms with them — so the ~80 reveal timelines cost about
+60 ms of style work at start on a 4×-slowed phone CPU (≈ 15 ms on a real mid laptop); the rest of
+the spread is this PC's noise (the same build's runs vary by 230 ms). LCP is about 2.0 s on both
+sides on this PC (one 3-run set of master measured 2.018 s, just over its budget), so it is near
+its line before and after alike.
+
+## 5. Browsers
+
+- **Chrome 140 and Edge 157 (headless, Windows)**: everything above; the full contrast run, the
+  motion check, the pictures and Lighthouse in Chrome; the motion check and the download and home
+  pages' contrast again in Edge, all passing.
+- **Firefox**: no `animation-timeline` yet, so no reveals (content at rest, by `@supports`);
+  View Transitions from 144; everything else is plain CSS transitions and animations.
+- **Safari**: scroll-driven animations from 26, View Transitions from 18; `inset`, `:is()`,
+  `isolation` all supported. Not run here (no Mac): judged by the features' support tables.
+
+## 6. What only the owner can judge
+
+- Answered 2026-11-13: the white page heads in the light theme stay; the motion was turned up
+  (§3b).
+- Whether v2's amount is right: each value is one number in `motion.css`, between v1's and
+  anything stronger.
+- The pictures: `C:\projects\daw-fx\compartir\web\before\` and `after\`, plus the GIFs in
+  `motion\` (v1) and `motion\v2\`.
+- v3's story (§3c): the exploded hero, the cable, the playhead and the race. Each is one block
+  of `motion.css` and can be taken out alone.
+- v4's entrances (§3d): one per kind of content. They are a block of their own at the end of
+  `motion.css`, and the desktop-only ones sit in their own media query.
+- Publishing waits for round 40 (the owner): nothing here has been pushed or deployed.
+
+## 7. The release shown on the download page
+
+The download page's version, size, date and SHA-256 come from `web/assets/release.json`, read
+at build time (`build.rs`). The committed file still says beta.13 (it was last refreshed in
+round 39); the deployed site is current because `site.yml` runs
+`python3 tools/release_json.py assets/release.json` (GitHub's API, with the workflow's token)
+before `trunk build`, keeping the committed file only if GitHub cannot be reached. This branch
+does not change `release.json`: the pictures in `compartir\web\` were made from a local
+build with the current facts written into the working copy (beta.14 · 186 MB · 2026-11-11), and
+the file was restored afterwards.
+
+## 8. Files
+
+- `web/style/frame.css`, `content.css`, `base.css` — the contrast fixes.
+- `web/style/motion.css` (new, inlined last by `index.html`), `web/src/app.rs` (`is-arriving`),
+  `web/src/theme.rs` (the cross-fade), `web/src/main.rs` (`download_answers`),
+  `web/Cargo.toml` (web-sys `Event`, `EventTarget`, already in the build through Yew).
+- `web/tools/cdp.mjs`, `contrast.mjs`, `motion.mjs`, `shoot.mjs` (new), `web/README.md`,
+  `.github/workflows/site-budget.yml` (a "Contrast and motion" step, about 2.5 minutes).

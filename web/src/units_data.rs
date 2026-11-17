@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 37] = [
+pub const EFFECTS: [Unit; 42] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -454,11 +454,11 @@ pub const EFFECTS: [Unit; 37] = [
         file: "tabula",
         name: "Tabula",
         kind: ("Pedalboard", "Pedalera"),
-        pitch: ("Cantus's own effects as real pedals on a board — any of them, any size, in any order, split into two lanes and joined again — with cables that glow with the signal and eight macros over it all.", "Los efectos de Cantus como pedales de verdad sobre una tabla — cualquiera, de cualquier tamaño, en cualquier orden, divididos en dos carriles y unidos otra vez — con cables que brillan con la señal y ocho macros sobre todo."),
-        what: long!(("Tabula is a pedalboard of Cantus's own effects: drives, filters, modulation, delays, reverbs, each the very effect, so one pedal on the board sounds exactly as that effect alone. Drag pedals to reorder them, drop one on lane A or B to split the chain into two that meet again in time, switch each by its footswitch without a click or a latency jump, and open any pedal's full editor in place. Eight macros move as many knobs as you map to them; Randomise rolls new settings within musical ranges. It starts on a guitar rig, and every preset is a whole board.", "Tabula es una pedalera de los efectos de Cantus: saturaciones, filtros, modulación, delays, reverbs, cada uno el propio efecto, así que un pedal en la tabla suena exactamente como ese efecto solo. Arrastra los pedales para reordenarlos, suelta uno en el carril A o B para dividir la cadena en dos que vuelven a encontrarse a tiempo, enciende cada uno con su interruptor sin clic ni salto de latencia y abre en su sitio el editor completo de cualquier pedal. Ocho macros mueven tantas perillas como les asignes; Al azar tira nuevos ajustes dentro de rangos musicales. Empieza con un equipo de guitarra, y cada preset es una pedalera entera.")),
+        pitch: ("Cantus's own effects as real pedals on a board — the valve amp with its cabinet, the rotary speaker and nearly every other, any size, in any order, split into two lanes and joined again — with cables that glow with the signal and eight macros over it all.", "Los efectos de Cantus como pedales de verdad sobre una tabla — el amplificador de válvulas con su caja, el altavoz rotatorio y casi todos los demás, de cualquier tamaño, en cualquier orden, divididos en dos carriles y unidos otra vez — con cables que brillan con la señal y ocho macros sobre todo."),
+        what: long!(("Tabula is a pedalboard of Cantus's own effects: drives, the valve amp and its cabinet, filters, modulation, the rotary speaker, delays, reverbs, each the very effect, so one pedal on the board sounds exactly as that effect alone. Drag pedals to reorder them, drop one on lane A or B to split the chain into two that meet again in time, switch each by its footswitch without a click or a latency jump, and open any pedal's full editor in place. Eight macros move as many knobs as you map to them; Randomise rolls new settings within musical ranges. It starts on a guitar rig, and every preset is a whole board.", "Tabula es una pedalera de los efectos de Cantus: saturaciones, el amplificador de válvulas y su caja, filtros, modulación, el altavoz rotatorio, delays, reverbs, cada uno el propio efecto, así que un pedal en la tabla suena exactamente como ese efecto solo. Arrastra los pedales para reordenarlos, suelta uno en el carril A o B para dividir la cadena en dos que vuelven a encontrarse a tiempo, enciende cada uno con su interruptor sin clic ni salto de latencia y abre en su sitio el editor completo de cualquier pedal. Ocho macros mueven tantas perillas como les asignes; Al azar tira nuevos ajustes dentro de rangos musicales. Empieza con un equipo de guitarra, y cada preset es una pedalera entera.")),
         features: long!(&[
             ("A board of one pedal is that effect, to the bit", "Una pedalera de un pedal es ese efecto, bit a bit"),
-            ("Up to sixteen pedals, five sizes, in rows when the board fills", "Hasta dieciséis pedales, cinco tamaños, en filas cuando la tabla se llena"),
+            ("Up to sixteen pedals — the amp with its cabinet and the rotary among them — five sizes, in rows when the board fills", "Hasta dieciséis pedales — el amplificador con su caja y el rotatorio entre ellos — cinco tamaños, en filas cuando la tabla se llena"),
             ("An A/B split whose lanes meet in time, to the sample", "Una división A/B cuyos carriles se encuentran a tiempo, a la muestra"),
             ("Footswitches that never move the latency; no click on any change", "Interruptores que nunca mueven la latencia; ningún clic en ningún cambio"),
             ("Eight macros with learn, and Randomise within musical ranges", "Ocho macros con aprendizaje, y Al azar dentro de rangos musicales"),
@@ -568,7 +568,7 @@ pub const EFFECTS: [Unit; 37] = [
         what: long!(("Fractus is ten effects on ten lanes of a step sequencer that follows the song: repeat (with the stutter build that halves each part), reverse, tape stop and start, shuffle, pitch jump, crush, filter sweep, gate, delay throw and the grain cloud. Paint a block with the mouse — its height is its amount, a stroke sets its chance — and it plays on its steps, every join smoothed so nothing clicks; or let held notes play the lanes, quantised to the grid or at once. Beside the lanes a cloud of grains reads the last seconds, pitched to a scale, spread in the stereo field, frozen with one switch. Its window is the machine itself: the pads lit to their amount, the playhead, the keys that play the lanes, and the grains drawn live on a scope. At its defaults it passes the sound untouched.", "Fractus son diez efectos en diez carriles de un secuenciador por pasos que sigue a la canción: repetición (con la subida que parte cada trozo a la mitad), reverso, parada y arranque de cinta, barajado, salto de tono, trituración, barrido de filtro, puerta, lanzamiento de eco y la nube de granos. Pinta un bloque con el ratón — su altura es su cantidad, un trazo fija su probabilidad — y suena en sus pasos, cada unión suavizada para que nada chasque; o deja que las notas sostenidas toquen los carriles, cuantizadas a la rejilla o al instante. Junto a los carriles una nube de granos lee los últimos segundos, afinada a una escala, abierta en el estéreo, congelada con un interruptor. Su ventana es la máquina misma: los pads encendidos a su cantidad, el cabezal, las teclas que tocan los carriles y los granos dibujados en vivo en un osciloscopio. En sus valores por defecto deja pasar el sonido intacto.")),
         features: long!(&[
             ("Ten modules on ten lanes, 1/4 to 1/64 steps (triplets too), up to four bars, swing", "Diez módulos en diez carriles, pasos de 1/4 a 1/64 (también tresillos), hasta cuatro compases, swing"),
-            ("Repeats replayed to the bit, the stutter build, joins 60 to 70 dB below a hard cut", "Repeticiones reproducidas al bit, la subida de tartamudeo, uniones de 60 a 70 dB por debajo de un corte seco"),
+            ("Repeats replayed to the bit, the stutter build, every join's splatter −62 to −71 dB where a hard cut's is −3 to −14", "Repeticiones reproducidas al bit, la subida de tartamudeo, la salpicadura de cada unión de −62 a −71 dB donde la de un corte seco es de −3 a −14"),
             ("Blocks painted with the mouse: height is the amount, a stroke sets the chance", "Bloques pintados con el ratón: la altura es la cantidad, un trazo fija la probabilidad"),
             ("Held notes play the lanes, on the step or at once", "Las notas sostenidas tocan los carriles, en el paso o al instante"),
             ("A grain cloud up to 200 grains a second, pitched to a scale, frozen with one switch", "Una nube de hasta 200 granos por segundo, afinada a una escala, congelada con un interruptor"),
@@ -601,6 +601,146 @@ pub const EFFECTS: [Unit; 37] = [
         ab: None,
         big: (1800, 1209),
         thumb: (640, 430),
+    },
+
+    // fxb:vinculum — Vinculum, the bus compressor (ADR 0139).
+    Unit {
+        file: "vinculum",
+        name: "Vinculum",
+        kind: ("Bus compressor", "Compresor de bus"),
+        pitch: ("The bus compressor that glues a mix, three ways — a console's VCA with its Auto release, a photocell leveller and a valve variable-mu — racked, its needles swinging, keyed by any track.", "El compresor de bus que une una mezcla, de tres maneras — el VCA de una consola con su liberación automática, un nivelador de fotocélula y un mu variable de válvulas — en su rack, con las agujas oscilando, con la clave de cualquier pista."),
+        what: long!(("Vinculum is the compressor engineers reach for by name on a bus, three ways. The VCA is a console's feed-forward bus compressor on a published gain computer, its ratio, attack and release on stepped switches, with an Auto release of two time constants: a lone hit lets go in a tenth of a second, sustained work slowly, so the mix breathes without pumping. The opto is a photocell lit by the output — soft at first, about 3:1 at depth, near 10:1 in Limit — with the cell's slow memory: the longer it was lit, the longer it lets go. The vari-mu is a valve whose ratio rises as it works, from 1.5:1 to 4:1, or from 4:1 to 20:1 in Limit, its loop solved with no delay so it cannot ring, with the classic limiter's six time positions and an odd-harmonic valve colour you add as you like. Any track can be the key — the drums pressing the whole mix — through a high-pass so the low end does not pull it, and the mix knob makes it parallel. Its window is the unit in its rack: two backlit needle meters with a window on the model's gain element between them, the faceplate's switches and jewel lamps answering a click, and a screen with the transfer curve and eight seconds of reduction. No latency; at its defaults it passes the sound untouched.", "Vinculum es el compresor que los ingenieros piden por su nombre en un bus, de tres maneras. El VCA es el compresor de bus de una consola, de alimentación directa, sobre una ley de ganancia publicada, con su proporción, ataque y liberación en conmutadores por pasos y una liberación automática de dos constantes: un golpe aislado se suelta en una décima de segundo y el trabajo sostenido despacio, de modo que la mezcla respira sin bombear. El óptico es una fotocélula encendida por la salida — suave al principio, unos 3:1 a fondo, cerca de 10:1 en Limitar — con la memoria lenta de la célula: cuanto más tiempo estuvo encendida, más tarda en soltar. El mu variable es una válvula cuya proporción sube a medida que trabaja, de 1,5:1 a 4:1, o de 4:1 a 20:1 en Limitar, con su lazo resuelto sin retardo para que no pueda oscilar, las seis posiciones de tiempo del limitador clásico y un color de válvula de armónicos impares que añades a tu gusto. Cualquier pista puede ser la clave — la batería empujando toda la mezcla — a través de un paso alto para que los graves no la arrastren, y la perilla de mezcla la hace paralela. Su ventana es la unidad en su rack: dos vúmetros de aguja retroiluminados con una ventana al elemento de ganancia del modelo entre ellos, los conmutadores y los pilotos de la placa respondiendo a un clic, y una pantalla con la curva de transferencia y ocho segundos de reducción. Sin latencia; en sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("VCA, opto and vari-mu, each settling on its own law within 0.02 dB and reaching its published ratios", "VCA, óptico y mu variable, cada uno asentado en su propia ley a menos de 0,02 dB y llegando a sus proporciones publicadas"),
+            ("The VCA's Auto release: a lone hit back in 0.1 s, sustained work slowly", "La liberación automática del VCA: un golpe aislado vuelve en 0,1 s, el trabajo sostenido despacio"),
+            ("The vari-mu's ratio rising to 20:1 at 12 dB, its six time positions, a valve colour at 2×", "La proporción del mu variable subiendo a 20:1 a 12 dB, sus seis posiciones de tiempo, un color de válvula a 2×"),
+            ("Keyed by any track through a side-chain high-pass; parallel by its mix", "Con la clave de cualquier pista a través de un paso alto en la cadena lateral; paralelo por su mezcla"),
+            ("The faceplate's switches and lamps answer a click; the key chosen from its lamp", "Los conmutadores y pilotos de la placa responden a un clic; la clave se elige desde su piloto"),
+            ("Fourteen factory presets; no latency; untouched at its defaults; a pedal on the pedalboard too", "Catorce presets de fábrica; sin latencia; intacto en sus valores por defecto; también un pedal en la pedalera"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        // MERGE: the pictures' sizes come from `check_units.py --fix`.
+        big: (1800, 1209),
+        thumb: (640, 430),
+    },
+
+    // fxb:lenis — Lenis, the resonance suppressor (ADR 0140).
+    Unit {
+        file: "lenis",
+        name: "Lenis",
+        kind: ("Resonance suppressor", "Supresor de resonancias"),
+        pitch: ("Smooths what rings: the whistles, the harsh peaks and the boxy build-ups that stand out of a sound's own spectrum, found moment by moment and taken down by a share — the notes and the tone left alone, on a bench analyser you can watch it work on.", "Suaviza lo que resuena: los silbidos, los picos ásperos y las acumulaciones de caja que sobresalen del propio espectro de un sonido, encontrados momento a momento y bajados en una parte — sin tocar las notas ni el tono, en un analizador de banco donde lo ves trabajar."),
+        what: long!(("Lenis listens to a sound the way an engineer sweeps an equaliser for the frequency that hurts, only it does it on every frame. A low-delay analysis compares each frequency with the outline of the sound's own spectrum — an envelope drawn over its peaks, so a note's harmonics and a cymbal's wide sheen are not mistaken for rings — and takes away a share of whatever stands out: at 100 % a resonance comes down to the outline, at 50 % half way. Sharpness says whether only narrow rings count or broad build-ups too, selectivity how far a peak must stand out, and attack and release how fast it follows; the Soft curve barely touches a peak just over the line, the Hard one takes every peak by its share. The focus keeps it where you want it — two limits and six bands you drag on the screen to weight a region or leave it alone. Fast, Standard and Precise trade the frame's length (5, 11 or 21 ms of latency, compensated by the mixer) for detail in the low mids; linked, independent or mid and side; and Listen to what is removed plays only what it takes. Its window is a bench analyser: the input's spectrum as a glowing line with the cut hanging under it as a veil, a bar per frequency of how much is taken, the Depth dial and push keys beside it. At its defaults it passes the sound untouched, only delayed by its latency.", "Lenis escucha un sonido como un ingeniero recorre un ecualizador buscando la frecuencia que molesta, solo que lo hace en cada cuadro. Un análisis de bajo retardo compara cada frecuencia con el contorno del propio espectro del sonido — una envolvente trazada sobre sus picos, para que los armónicos de una nota y el brillo ancho de un platillo no se confundan con resonancias — y quita una parte de lo que sobresale: al 100 % una resonancia baja hasta el contorno, al 50 % a medio camino. La nitidez dice si solo cuentan las resonancias estrechas o también las acumulaciones anchas, la selectividad cuánto debe sobresalir un pico, y el ataque y la liberación lo rápido que lo sigue; la curva Suave apenas toca un pico que pasa la línea, la Dura toma cada pico en su parte. El foco lo mantiene donde quieres — dos límites y seis bandas que arrastras en la pantalla para dar peso a una región o dejarla intacta. Rápida, Estándar y Precisa cambian la longitud del cuadro (5, 11 o 21 ms de latencia, compensada por el mezclador) por detalle en los medios graves; enlazados, independientes o medio y lados; y Escuchar lo que se quita reproduce solo lo que toma. Su ventana es un analizador de banco: el espectro de entrada como una línea luminosa con el corte colgando bajo ella como un velo, una barra por frecuencia de cuánto se quita, el dial de Profundidad y las teclas al lado. En sus valores por defecto deja pasar el sonido intacto, solo retrasado por su latencia.")),
+        features: long!(&[
+            ("A +12 dB ring on noise taken down 11.4 dB at full depth (Hard), its neighbours within 0.02 dB", "Una resonancia de +12 dB sobre ruido bajada 11,4 dB a fondo (Dura), sus vecinas a menos de 0,02 dB"),
+            ("A note's harmonics are not resonances: a steady note's low partials untouched to 0.00 dB", "Los armónicos de una nota no son resonancias: los parciales graves de una nota sostenida intactos a 0,00 dB"),
+            ("Follows a resonance in 8 ms at its fastest attack; three qualities, 5 to 21 ms of latency, compensated by the mixer", "Sigue una resonancia en 8 ms con su ataque más rápido; tres calidades, de 5 a 21 ms de latencia, compensada por el mezclador"),
+            ("A focus with two limits and six bands dragged on the screen; linked, independent or mid and side", "Un foco con dos límites y seis bandas que se arrastran en la pantalla; enlazados, independientes o medio y lados"),
+            ("Listen to what is removed; flat noise barely touched — at half depth what it takes from pink noise is 50 dB under it", "Escuchar lo que se quita; el ruido plano casi intacto — a media profundidad lo que quita al ruido rosa queda 50 dB por debajo"),
+            ("Fourteen factory presets; the input delayed, to the bit, at its defaults; a pedal on the pedalboard too", "Catorce presets de fábrica; la entrada retrasada, bit a bit, en sus valores por defecto; también un pedal en la pedalera"),
+        ]),
+        presets: Some(14), // MERGE: confirm once Lenis's step 3 is committed (fx/wave-b was WIP)
+        plugin: true,      // MERGE: confirm (docs/plugins/lenis.md says exported; phase B WIP)
+        ab: None,
+        // MERGE: the pictures' sizes come from `check_units.py --fix`.
+        big: (1800, 1209),
+        thumb: (640, 430),
+    },
+
+    // fxb:cedo — Cedo, the ducker (ADR 0141).
+    // MERGE: the sentences "a shape you draw" and the feature on the drawn shape rest on
+    // step 3's shape editing (Command::SetCedoShape exists; the screen gesture does not yet)
+    // — keep them only if step 3 lands; otherwise say "a shape" and drop "you draw".
+    Unit {
+        file: "cedo",
+        name: "Cedo",
+        kind: ("Ducker", "Atenuador"),
+        pitch: ("Makes room: ducks a track when a kick or a voice on another track plays, or pumps it with a drawn shape on the song's beat or another track's notes — the whole band or only its lows or highs — driven by a little beam engine whose cam is the shape.", "Hace sitio: atenúa una pista cuando suena un bombo o una voz en otra pista, o la hace bombear con una forma dibujada al pulso de la canción o con las notas de otra pista — en toda la banda o solo en sus graves o sus agudos — movido por una pequeña máquina de balancín cuya leva es la forma."),
+        what: long!(("Cedo ducks a track to make room for another. Keyed by another track — a kick, a voice — through a high-pass or a band-pass on the key, it fires an envelope whose attack (along an S, so it never clicks), hold and release last exactly what you set, to the sample; the hold counts from the key's last sample over the threshold, so a kick's low cycles never let it go early, and a lookahead as long as the attack catches a kick's whole transient. Or, with no audio key at all, a shape you draw pumps the track on every division of the song — on the song's own grid, to the sample, swung if you like — or once on every note of another track, its depth scaled by the velocity if you ask. It ducks the whole band, or only the lows or the highs, split at minimum phase with no latency or at linear phase, and neither split ever rises above the input. Listen plays the output, what is taken away or the key. Its window is a small beam engine: a cam whose profile is the drawn shape turns with the song (a solenoid lifts the beam when a key drives it), and the beam squeezes a leather bellows — the air the track is left with — against a gauge in decibels, beside a phosphor screen with the shape, the duck now and the last four seconds. At its defaults it passes the sound untouched.", "Cedo atenúa una pista para hacer sitio a otra. Con la clave de otra pista — un bombo, una voz — a través de un paso alto o un paso banda en la clave, dispara una envolvente cuyo ataque (en forma de S, para que nunca haga clic), mantenimiento y liberación duran exactamente lo que fijas, a la muestra; el mantenimiento cuenta desde la última muestra de la clave sobre el umbral, así que los ciclos graves de un bombo nunca lo sueltan antes de tiempo, y una anticipación tan larga como el ataque atrapa el transitorio entero de un bombo. O, sin ninguna clave de audio, una forma que dibujas hace bombear la pista en cada división de la canción — sobre la propia rejilla de la canción, a la muestra, con swing si quieres — o una vez con cada nota de otra pista, con la profundidad escalada por la velocidad si lo pides. Atenúa toda la banda, o solo los graves o los agudos, divididos en fase mínima sin latencia o en fase lineal, y ninguna de las dos divisiones sube nunca por encima de la entrada. Escuchar reproduce la salida, lo que se quita o la clave. Su ventana es una pequeña máquina de balancín: una leva cuyo perfil es la forma dibujada gira con la canción (un solenoide levanta el balancín cuando lo mueve una clave), y el balancín aprieta un fuelle de cuero — el aire que le queda a la pista — frente a un indicador en decibelios, junto a una pantalla de fósforo con la forma, la atenuación de ahora y los últimos cuatro segundos. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("The pump on the song's grid to the sample: 3 978 of 3 978 onsets, straight and swung, at 60 to 174 BPM", "El bombeo sobre la rejilla de la canción, a la muestra: 3 978 de 3 978 inicios, rectos y con swing, de 60 a 174 BPM"),
+            ("Attack, hold and release exact to the sample; a lookahead that catches a kick's whole transient", "Ataque, mantenimiento y liberación exactos a la muestra; una anticipación que atrapa el transitorio entero de un bombo"),
+            ("A drawn shape fired by the tempo or by another track's notes, the velocity scaling the depth", "Una forma dibujada disparada por el tempo o por las notas de otra pista, la velocidad escalando la profundidad"),
+            ("Edges smoothed so the pump never clicks: −97 dB of splatter at the default 1 ms, against a hard step's −54", "Bordes suavizados para que el bombeo nunca haga clic: −97 dB de salpicadura con el 1 ms por defecto, frente a los −54 de un escalón seco"),
+            ("The whole band, the lows or the highs: minimum phase with no latency, or linear phase (36.8 ms), never above the input", "Toda la banda, los graves o los agudos: fase mínima sin latencia, o fase lineal (36,8 ms), nunca por encima de la entrada"),
+            ("A render from any bar the same as the whole song's; untouched at its defaults", "Un render desde cualquier compás igual al de la canción entera; intacto en sus valores por defecto"),
+        ]),
+        // MERGE: the factory preset count (preset_catalog) lands at the merge — ducker.toml
+        // holds only the starting preset (Classic pump) on fx/wave-b; the plan names twelve.
+        // When it is known, make the last feature "Twelve factory presets; …".
+        presets: None,
+        // MERGE: true once `Cantus Cedo` is exported (Phase B plan step 5: sidechain input as
+        // the key, MIDI input as the trigger, the shape in the state). Not built at writing.
+        plugin: false,
+        ab: None,
+        // MERGE: the pictures' sizes come from `check_units.py --fix`.
+        big: (1800, 1209),
+        thumb: (640, 430),
+    },
+
+    // fxc:purus — Purus, real-time repair (ADR 0142).
+    // NO verdict yet (compartir\purus has no verdict.md). MERGE: the window sentence (the
+    // restoration bench, the cutting mat, the three cartridges with a tuning fork, a loupe
+    // and wave fronts) is v1's; check it against the owner's verdict.
+    Unit {
+        file: "purus",
+        name: "Purus",
+        kind: ("Repair", "Restauración"),
+        pitch: ("Hum, clicks, crackle and a room's tail taken out of a track as it plays — what falls out of the sound drawn in its own colour on a restoration bench's screen.", "El zumbido, los clics, la crepitación y la cola de una sala quitados de una pista mientras suena — lo que cae del sonido dibujado en su propio color en la pantalla de un banco de restauración."),
+        what: long!(("Purus repairs a track while it plays, with three modules. Hum removal takes out the mains and up to sixteen of its harmonics: notches at a fixed frequency, followed as the mains drift, or found by themselves at 50 or 60 Hz — or, gently, a canceller that learns the hum and holds its learning while a bass note sits on the hum's own frequencies, so the bass keeps its weight. Click removal finds clicks with the audio editor's own detector and rebuilds the samples under them, and takes crackle out by subtracting each impulse. Room removal lifts a room's tail off a voice and keeps its early reflections, the decay set by hand or estimated from the sound itself. Each module has its mix, its output and a switch to hear only what it removes; the latency is the sum of the modules that are on, and the mixer compensates it. Its window is a restoration bench: a machined instrument on a cutting mat, its screen a spectrogram of the last six seconds where what is taken out is laid over what is heard in its own cool colour, the hum's harmonics a comb of needles, a tick for every click rebuilt and the room's decay before and after; beside it three cartridges with a tuning fork, a loupe and wave fronts. At its defaults it passes the sound untouched.", "Purus restaura una pista mientras suena, con tres módulos. Quitar zumbido saca la red y hasta dieciséis de sus armónicos: muescas a una frecuencia fija, seguidas cuando la red se desvía, o halladas solas en 50 o 60 Hz — o, con suavidad, un cancelador que aprende el zumbido y retiene lo aprendido mientras una nota de bajo cae sobre las propias frecuencias del zumbido, para que el bajo conserve su peso. Quitar clics encuentra los clics con el propio detector del editor de audio y reconstruye las muestras que tapan, y quita la crepitación restando cada impulso. Quitar sala levanta la cola de una sala de una voz y conserva sus primeras reflexiones, con la caída fijada a mano o estimada del propio sonido. Cada módulo tiene su mezcla, su salida y un interruptor para oír solo lo que quita; la latencia es la suma de los módulos encendidos, y el mezclador la compensa. Su ventana es un banco de restauración: un instrumento mecanizado sobre una alfombrilla de corte, su pantalla un espectrograma de los últimos seis segundos donde lo que se quita se superpone a lo que se oye en su propio color frío, los armónicos del zumbido un peine de agujas, una marca por cada clic reconstruido y la caída de la sala antes y después; a su lado tres cartuchos con un diapasón, una lupa y frentes de onda. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("Hum and its harmonics 37 to 43 dB down; the music's tones within 0.01 dB", "El zumbido y sus armónicos de 37 a 43 dB abajo; los tonos de la música a menos de 0,01 dB"),
+            ("The gentle mode: a bass on the hum's own notes loses at most 0.43 dB, where notches take 6.5 to 8.8 dB", "El modo suave: un bajo sobre las propias notas del zumbido pierde como mucho 0,43 dB, donde las muescas quitan de 6,5 a 8,8 dB"),
+            ("Follows mains drifting a hertz either way; finds 60 Hz by itself in 1.2 s", "Sigue una red que se desvía un hercio hacia cada lado; halla sola los 60 Hz en 1,2 s"),
+            ("Clicks and crackle on a guitar 16 dB down, the clean playing changed 83 dB under it", "Los clics y la crepitación de una guitarra 16 dB abajo, la interpretación limpia cambiada 83 dB por debajo"),
+            ("A room's tail between words 12 to 24 dB down, the early reflections kept, no musical noise added", "La cola de una sala entre palabras de 12 a 24 dB abajo, las primeras reflexiones conservadas, sin ruido musical añadido"),
+            ("All three modules at 4.5 % of a core; each one's removal heard alone; untouched at its defaults", "Los tres módulos a un 4,5 % de un núcleo; lo que quita cada uno se oye solo; intacto en sus valores por defecto"),
+        ]),
+        // MERGE: the factory preset count (preset_catalog) lands at the merge — repair.toml
+        // holds only the starting preset (Mains hum 50 Hz) on fx/wave-c; the plan names ten.
+        // When known, fold it into the last feature ("Ten factory presets; …").
+        presets: None,
+        // MERGE: true once `Cantus Purus` is exported (Phase B plan step 5: latency reported
+        // and followed as modules switch). Not built at writing.
+        plugin: false,
+        ab: None,
+        // MERGE: the pictures' sizes come from `check_units.py --fix` (the window is 1340 × 940).
+        big: (1800, 1263),
+        thumb: (640, 449),
+    },
+
+    // fxc:comparatio — Comparatio, the reference comparator (ADR 0143).
+    // reference — tested), sheet v1 shown — NO verdict yet. MERGE: the window sentence (the
+    // two-deck console, the smoked glass, the chrome selector) is v1's; check it against the
+    // owner's verdict. Not claimed (step 3, not built at writing): several references in a
+    // list, the match-EQ sent to Aequalis, "Load reference…" inside another host.
+    Unit {
+        file: "comparatio",
+        name: "Comparatio",
+        kind: ("Reference comparator", "Comparador de referencia"),
+        pitch: ("Your mix beside a finished record at the same loudness — switched without a click, compared in tone, loudness, dynamics and stereo, and tested blind — on a two-deck reference console.", "Tu mezcla junto a un disco terminado a la misma sonoridad — cambiadas sin un clic, comparadas en tono, sonoridad, dinámica y estéreo, y puestas a prueba a ciegas — en una consola de referencia de dos platinas."),
+        what: long!(("Comparatio sets a reference track beside your mix and brings it to your mix's loudness — over everything played, section by section, or by hand, with an offset — measured by the same loudness meter as Cantus's master and export. One click switches between them through an eased crossfade that does not click; your mix is never changed, and no render, export, stem or freeze ever hears the reference. The reference runs on its own playhead, locked to the song or looped over a stretch. The screen shows both tonal balances, each against its own loudness so that level never reads as tone, and their difference with how sure it is; the two sources' dynamics as mirrored histograms with their crest factor, peak to loudness and loudness range; and the correlation and width of the whole, the lows, the mids and the highs. A blind test hides which is which — ABX, or a blind preference — and gives the score with the exact chance of guessing it. Its window is a two-deck console: your mix on the left, the reference on the right, each deck's loudness behind smoked glass, the screen between them and a big chrome selector at the foot. At its defaults it passes the sound untouched.", "Comparatio pone una pista de referencia junto a tu mezcla y la lleva a la sonoridad de tu mezcla — sobre todo lo reproducido, sección a sección o a mano, con un desfase — medida por el mismo medidor de sonoridad que el máster y la exportación de Cantus. Un clic cambia entre ellas con un fundido suavizado que no hace clic; tu mezcla nunca cambia, y ningún render, exportación, stem o congelado oye jamás la referencia. La referencia corre con su propio cabezal, sincronizada con la canción o en bucle sobre un tramo. La pantalla muestra el balance tonal de las dos, cada uno frente a su propia sonoridad para que el nivel nunca se lea como tono, y su diferencia con la seguridad que tiene; la dinámica de las dos fuentes como histogramas enfrentados con su factor de cresta, su pico frente a la sonoridad y su rango de sonoridad; y la correlación y la anchura del conjunto, los graves, los medios y los agudos. Una prueba a ciegas oculta cuál es cuál — ABX o una preferencia a ciegas — y da el resultado con la probabilidad exacta de acertarlo al azar. Su ventana es una consola de dos platinas: tu mezcla a la izquierda, la referencia a la derecha, la sonoridad de cada platina tras un cristal ahumado, la pantalla entre ellas y un gran selector cromado al pie. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("The master's own loudness meter: EBU Tech 3341's cases 1 to 5 within 0.03 LU, true peak within 0.003 dB", "El propio medidor de sonoridad del máster: los casos 1 a 5 de EBU Tech 3341 a menos de 0,03 LU, el pico verdadero a menos de 0,003 dB"),
+            ("The reference matched to your mix within 0.06 LU — integrated, short term or by hand", "La referencia igualada a tu mezcla a menos de 0,06 LU — integrada, a corto plazo o a mano"),
+            ("A switch without a click: the crossfade at −94 dBFS above 2 kHz, the level steady within 0.01 dB", "Un cambio sin clic: el fundido a −94 dBFS por encima de 2 kHz, el nivel estable a menos de 0,01 dB"),
+            ("Tonal balance, dynamics and stereo of both, the difference drawn with how sure it is", "Balance tonal, dinámica y estéreo de las dos, la diferencia dibujada con la seguridad que tiene"),
+            ("A blind ABX or preference test, scored with the exact chance of guessing it", "Una prueba ABX o de preferencia a ciegas, puntuada con la probabilidad exacta de acertarla al azar"),
+            ("Your mix never touched and never a render with the reference in it; no latency", "Tu mezcla nunca tocada y nunca un render con la referencia dentro; sin latencia"),
+        ]),
+        // MERGE: the factory preset count (preset_catalog) lands at the merge — reference.toml
+        // holds only the starting preset on fx/wave-c; the plan names "ten or more" ways of
+        // comparing. When known, fold it into the last feature.
+        presets: None,
+        // MERGE: true once `Cantus Comparatio` is exported (Phase B: the reference by path in
+        // the plug-in's state, a missing file reported). Not built at writing.
+        plugin: false,
+        ab: None,
+        // MERGE: the pictures' sizes come from `check_units.py --fix` (the window is 1400 × 900).
+        big: (1800, 1157),
+        thumb: (640, 411),
     },
 
     // fx:libra — Libra, the utility (ADR 0130).
@@ -797,14 +937,15 @@ pub const EFFECTS: [Unit; 37] = [
         file: "phasis",
         name: "Phasis",
         kind: ("Phaser", "Phaser"),
-        pitch: ("A phaser of 2 to 12 stages with bounded feedback and the response drawn as it moves.", "Un phaser de 2 a 12 etapas con realimentación acotada y la respuesta dibujada mientras se mueve."),
-        what: long!(("Phasis runs the signal through a cascade of allpass stages and mixes it with the dry, so every two stages make a notch that the LFO sweeps between a low and a high bound. It syncs to the song and draws both the sweep and the response now.", "Phasis pasa la señal por una cascada de etapas pasa todo y la mezcla con la seca, así cada dos etapas forman una muesca que el LFO barre entre un límite bajo y uno alto. Se sincroniza con la canción y dibuja tanto el barrido como la respuesta actual.")),
+        pitch: ("A phaser of 2 to 12 stages with bounded feedback, or a lamp vibe's four photocells swept by a lamp, with the response drawn as it moves.", "Un phaser de 2 a 12 etapas con realimentación acotada, o las cuatro fotocélulas de un vibe de lámpara barridas por una lámpara, con la respuesta dibujada mientras se mueve."),
+        what: long!(("Phasis runs the signal through a cascade of allpass stages and mixes it with the dry, so every two stages make a notch that the LFO sweeps between a low and a high bound. It syncs to the song and draws both the sweep and the response now. Its Lamp vibe circuit is the lamp-lit pedal instead: four stages with the published circuit's capacitors and its photocells' measured ranges, so the notches sit far apart and move unevenly, swept by a lamp that brightens faster than it fades — a swirling chorus at half the mix, a wavering vibrato with no dry. At its defaults it passes the sound untouched.", "Phasis pasa la señal por una cascada de etapas pasa todo y la mezcla con la seca, así cada dos etapas forman una muesca que el LFO barre entre un límite bajo y uno alto. Se sincroniza con la canción y dibuja tanto el barrido como la respuesta actual. Su circuito Lámpara es en cambio el pedal iluminado por una lámpara: cuatro etapas con los condensadores del circuito publicado y los rangos medidos de sus fotocélulas, así que las muescas quedan muy separadas y se mueven de forma desigual, barridas por una lámpara que se enciende más rápido de lo que se apaga — un coro que gira a media mezcla, un vibrato que vacila sin señal seca. En sus valores por defecto deja pasar el sonido intacto.")),
         features: long!(&[
-            ("2 to 12 allpass stages, a notch for every two", "De 2 a 12 etapas pasa todo, una muesca por cada dos"),
-            ("Feedback of either polarity, bounded at ±95 %", "Realimentación en cualquier polaridad, acotada a ±95 %"),
+            ("2 to 12 allpass stages, a notch for every two; feedback of either polarity, bounded at ±95 %", "De 2 a 12 etapas pasa todo, una muesca por cada dos; realimentación en cualquier polaridad, acotada a ±95 %"),
+            ("A lamp vibe: four photocell stages from the published circuit, swept unevenly by a lamp that heats and cools", "Un vibe de lámpara: cuatro etapas de fotocélula del circuito publicado, barridas de forma desigual por una lámpara que se calienta y se enfría"),
             ("Six LFO shapes including a stepped random sweep, free or synced to the song", "Seis formas de LFO, incluido un barrido aleatorio escalonado, libre o sincronizado"),
             ("Sweep bounds from 20 Hz to 16 kHz, moved on a log scale", "Límites del barrido de 20 Hz a 16 kHz, en escala logarítmica"),
-            ("Response drawn with the unit's own arithmetic, within 0.3 dB of what plays", "Respuesta dibujada con la aritmética de la unidad, a 0.3 dB de lo que suena"),
+            ("Response drawn with the unit's own arithmetic, within 0.3 dB of what plays", "Respuesta dibujada con la aritmética de la unidad, a 0,3 dB de lo que suena"),
+            ("Fifteen factory presets, three of them lamp vibes; untouched at its defaults", "Quince presets de fábrica, tres de ellos vibes de lámpara; intacto en sus valores por defecto"),
         ]),
         presets: Some(15),
         plugin: true,

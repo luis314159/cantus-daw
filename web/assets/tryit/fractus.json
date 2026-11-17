@@ -1,0 +1,50 @@
+{
+ "unit": "fractus",
+ "origin": "dev",
+ "note": [
+  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
+  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+ ],
+ "source": [
+  "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+  "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/fractus/dry.mp3",
+ "presets": [
+  {
+   "id": "sequenced",
+   "name": [
+    "Sequenced glitch",
+    "Glitch secuenciado"
+   ],
+   "what": [
+    "Reverse, a throw, an octave and a stutter on two bars",
+    "Reverso, un lanzamiento, una octava y un tartamudeo en dos compases"
+   ],
+   "wet": "/tryit/fractus/sequenced.mp3",
+   "level_db": null,
+   "pic": null
+  },
+  {
+   "id": "cloud",
+   "name": [
+    "Grain cloud",
+    "Nube de granos"
+   ],
+   "what": [
+    "A cloud of grains beside the guitar",
+    "Una nube de granos junto a la guitarra"
+   ],
+   "wet": "/tryit/fractus/cloud.mp3",
+   "level_db": null,
+   "pic": null
+  }
+ ]
+}

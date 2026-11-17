@@ -165,3 +165,28 @@ body.unit-open { overflow: hidden; }
 .ps-name { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
 .ps-what { font-size: 0.88rem; color: var(--ink-2); overflow-wrap: anywhere; }
 .ps-note { margin-top: 0.6rem; font-size: 0.85rem; color: var(--ink-2); }
+
+/* fx:web — Try it (src/tryit.rs): a unit's presets on one take, dry or wet, its editor beside. */
+.try { margin-top: 2.4rem; }
+.try-units { list-style: none; margin: 0 0 1.2rem; padding: 0 0 0.4rem; display: flex; gap: 0.5rem; overflow-x: auto; scrollbar-width: thin; }
+.try-unit { display: grid; gap: 0.1rem; text-align: left; min-width: 8.5rem; padding: 0.55rem 0.8rem; border-radius: 0.6rem; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink); cursor: pointer; font: inherit; }
+.try-unit span { font-size: 0.82rem; color: var(--ink-2); }
+.try-unit:hover { border-color: var(--accent); }
+.try-unit[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 10px 24px -18px var(--accent-glow); }
+.try-body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 1fr); gap: 1.4rem; align-items: start; }
+.try-body.is-waiting { min-height: 24rem; border-radius: 10px; background: var(--mist); }
+.try-shot { margin: 0; border-radius: 10px; overflow: hidden; background: #11151a; box-shadow: var(--shadow); }
+.try-shot img { display: block; width: 100%; height: auto; }
+.try-name { margin: 0 0 0.7rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.7rem; }
+.try-name span { font: 500 0.95rem/1.2 var(--body); color: var(--ink-2); }
+.try-presets { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.try-preset { width: 100%; display: grid; gap: 0.1rem; text-align: left; padding: 0.55rem 0.8rem; border-radius: 0.6rem; border: 0; background: var(--mist); color: var(--ink); cursor: pointer; font: inherit; }
+.try-preset span { font-size: 0.86rem; color: var(--ink-2); }
+.try-preset:hover { background: var(--mist-2); }
+.try-preset.is-on { background: var(--mist-2); box-shadow: 3px 0 0 var(--accent) inset; }
+.try-ab { margin-top: 1rem; }
+.try-wait { font-size: 0.9rem; color: var(--ink-2); }
+.try-level { margin: 0.8rem 0 0; font-size: 0.9rem; color: var(--ink-2); }
+.try-note { margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--ink-2); }
+.try-credit { white-space: nowrap; }
+@media (max-width: 52rem) { .try-body { grid-template-columns: 1fr; } .try-credit { white-space: normal; } }

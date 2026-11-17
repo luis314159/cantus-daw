@@ -79,7 +79,7 @@ pub fn tour() -> Html {
                 <div class="stage">
                     <div class="backdrop"><div class="window" style={narrow}>
                         <div class="window-bar"><i></i><i></i><i></i><span>{ title }</span></div>
-                        <div class="crop" role="img" aria-label={title} {style}></div></div>
+                        <div class={classes!("crop", (*tab == 0).then_some("is-arrange"))} role="img" aria-label={title} {style}></div></div>
                     </div>
                     <p class="caption">{ Html::from_html_unchecked(AttrValue::from(caption)) }</p>
                 </div>

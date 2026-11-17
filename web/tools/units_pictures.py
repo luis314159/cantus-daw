@@ -28,8 +28,11 @@ DOC = os.path.join(ROOT, "docs", "images", "units")
 
 NAMES = """aequalis comprimo terminus culmen multiplex sibilus porta tonsor impetus discrimen spatium
 fervor latitudo speculum tonus aula concentus flexus phasis tremor vibrans anulus translatio fluctus
-cribrum fragor lapsus vetus libra unda calor modulus exemplar gravis organum lamina chorda pulsus delay""".split()
+cribrum fragor lapsus vetus libra saltus arca rota loquax fractus caelum vinculum lenis cedo purus comparatio unda calor modulus exemplar gravis organum lamina chorda pulsus delay""".split()
 # Delay has its own window since round 39 (ADR 0115): `shoot_skins` shoots it like the rest.
+# Tabula's pictures are made by `TABULA_WEB=1 shoot_tabula` (the rig playing), not here. A unit
+# whose shots are missing is skipped with a line, so the side round's later units (vinculum …
+# comparatio) wait for their kinds without stopping the rest (docs/round-fx/site.md).
 
 
 def fit(im, w):
@@ -46,7 +49,7 @@ def sharp(src, n, theme):
 
 
 def main(src, es=False, names=None):
-    names = names or NAMES
+    names = [n for n in (names or NAMES) if os.path.exists(os.path.join(src, f"{n}-slate-200.png")) or print(n, "skipped: no shots")]
     os.makedirs(WEB, exist_ok=True)
     if es:
         # The Spanish page's pictures only: the README is in English.

@@ -84,15 +84,30 @@ pub fn app(p: &AppProps) -> Html {
         },
     };
 
+    // A page the visitor went to settles in (motion.css); the one the address opened does not,
+    // and a jump within the page keeps what its page was drawn with.
+    let mount = use_mut_ref(|| (String::new(), false));
+    let arriving = {
+        let mut m = mount.borrow_mut();
+        let path = page.path();
+        if m.0 != path {
+            *m = (path, at.arrive != Arrive::Loaded);
+        }
+        m.1
+    };
+
     html! {
         <ContextProvider<RouteCtx> context={route_ctx}>
         <ContextProvider<LangCtx> context={lang_ctx}>
         <ContextProvider<ThemeCtx> context={theme_ctx}>
             <a class="skip" href="#main">{ page.lang.t("Skip to the content", "Saltar al contenido") }</a>
             <nav::Nav />
-            <main id="main" key={page.path()}>
+            <main id="main" key={page.path()} class={classes!(arriving.then_some("is-arriving"))}>
                 { body_of(page) }
             </main>
+            // The gold cable down the page's margin (motion.css): lit above the middle of the
+            // screen, a pulse running down it, a branch to each chapter's mark as it arrives.
+            <div class="cable" aria-hidden="true"><i class="cable-lit"></i><i class="cable-pulse"></i></div>
             <foot::Footer />
         </ContextProvider<ThemeCtx>>
         </ContextProvider<LangCtx>>
@@ -117,6 +132,7 @@ fn body_of(page: Page) -> Html {
                 // 3. Instruments and effects
                 <spotlight::Spotlight />
                 <fx::Effects />
+                <More href={format!("{}#try", to(Route::Effects))} label={l.t("Try them on a guitar: each effect's presets, dry or wet", "Pruébalos en una guitarra: los presets de cada efecto, secos o con efecto")} />
                 // 4. Listen
                 <listen::Listen />
                 // 5. Measured
@@ -138,7 +154,8 @@ fn body_of(page: Page) -> Html {
                 <body::Support />
             </>
         },
-        Route::Instruments | Route::Effects => html! { <pages::unit::UnitIndex /> },
+        Route::Instruments => html! { <pages::unit::UnitIndex /> },
+        Route::Effects => html! { <pages::unit::UnitIndex effects=true /> },
         Route::Instrument(name) | Route::Effect(name) => {
             html! { <pages::unit::UnitPage file={name} /> }
         }

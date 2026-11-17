@@ -1,0 +1,64 @@
+{
+ "unit": "loquax",
+ "origin": "dev",
+ "note": [
+  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
+  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+ ],
+ "source": [
+  "A spoken voice (the Gettysburg Address read by Britton Rea, public domain)",
+  "Una voz hablada (el discurso de Gettysburg leído por Britton Rea, dominio público)"
+ ],
+ "credit": [
+  "Voice: Britton Rea, public domain (Wikimedia Commons)",
+  "Voz: Britton Rea, dominio público (Wikimedia Commons)"
+ ],
+ "loop": false,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/loquax/dry.mp3",
+ "presets": [
+  {
+   "id": "robot",
+   "name": [
+    "Robot, 16 bands",
+    "Robot, 16 bandas"
+   ],
+   "what": [
+    "The voice speaking through the synthesiser",
+    "La voz hablando a través del sintetizador"
+   ],
+   "wet": "/tryit/loquax/robot.mp3",
+   "level_db": null,
+   "pic": null
+  },
+  {
+   "id": "clear",
+   "name": [
+    "Clear, 32 bands",
+    "Clara, 32 bandas"
+   ],
+   "what": [
+    "32 bands, the consonants passed",
+    "32 bandas, las consonantes pasan"
+   ],
+   "wet": "/tryit/loquax/clear.mp3",
+   "level_db": null,
+   "pic": null
+  },
+  {
+   "id": "choir",
+   "name": [
+    "Choir",
+    "Coro"
+   ],
+   "what": [
+    "40 bands, seven voices an octave up",
+    "40 bandas, siete voces una octava arriba"
+   ],
+   "wet": "/tryit/loquax/choir.mp3",
+   "level_db": null,
+   "pic": null
+  }
+ ]
+}

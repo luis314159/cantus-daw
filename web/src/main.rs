@@ -42,6 +42,7 @@ mod studio;
 mod theme;
 mod top;
 mod tour;
+mod tryit; // fx:web — a unit's presets on one take, dry or wet, with its editor
 mod unit_text; // r39:web-struct — the units' long text, fetched rather than compiled in
 mod units;
 /// A unit's long text (`units_data.rs`): compiled natively (the pre-renderer writes it to
@@ -103,9 +104,39 @@ fn after(win: web_sys::Window, y: f64) {
     if let Some(root) = win.document().and_then(|d| d.document_element()) {
         let _ = root.class_list().add_1("app-on");
     }
+    if let Some(doc) = win.document() {
+        download_answers(&doc);
+    }
     if y > 0.0 && (win.scroll_y().unwrap_or(0.0) - y).abs() > 1.0 {
         win.scroll_to_with_x_and_y(0.0, y);
     }
+}
+
+/// A click on a button that downloads a release file is answered (motion.css): `is-sent` for
+/// 1.6 s, the arrow dropping through and a gold line under the label. One listener on the
+/// document, so every download button on every page has it; nothing is said to a screen
+/// reader (the browser's own download is the answer), and with reduced motion nothing moves.
+#[cfg(target_arch = "wasm32")]
+fn download_answers(doc: &web_sys::Document) {
+    use wasm_bindgen::{closure::Closure, JsCast};
+    let cb = Closure::<dyn Fn(web_sys::Event)>::new(|e: web_sys::Event| {
+        let Some(el) = e
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+        else {
+            return;
+        };
+        let Ok(Some(a)) = el.closest(r#"a.btn[href*="/releases/"][href*="/download/"]"#) else {
+            return;
+        };
+        let _ = a.class_list().add_1("is-sent");
+        gloo_timers::callback::Timeout::new(1_700, move || {
+            let _ = a.class_list().remove_1("is-sent");
+        })
+        .forget();
+    });
+    let _ = doc.add_event_listener_with_callback("click", cb.as_ref().unchecked_ref());
+    cb.forget();
 }
 
 /// Natively, with the `ssr` feature: `prerender <dist> [--lastmod YYYY-MM-DD]`.

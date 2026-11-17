@@ -16,8 +16,9 @@
   --night: #181d22; --night-2: #262d34; --night-3: #2b3239; --night-line: #323b44;
   --night-ink: #e3e8ed; --night-ink-2: #b4bdc6; --strong: #f1f4f7;
   --cell: #1a1f25; --cell-2: #20262d; --edge: #11151a; --gutter-bg: #14191e;
-  /* the accent: lapis, light on dark */
-  --accent: #7ea2f6; --accent-text: #7ea2f6; --accent-ink: #0a1234;
+  /* the accent: lapis, light on dark (its text a step lighter: 5.0:1 on a tag's tint over a
+     card, where #7ea2f6 was 4.2) */
+  --accent: #7ea2f6; --accent-text: #93b2f8; --accent-ink: #0a1234;
   --accent-grad: linear-gradient(#97b5f8, #7ea2f6 55%, #6a8fe8);
   --accent-glow: rgba(126, 162, 246, 0.38); --accent-tint: rgba(126, 162, 246, 0.16);
   /* gold: marks and rules only */
@@ -44,7 +45,8 @@
 .lapis, .hero, .nav:not(.is-scrolled), .get-main, .verse {
   color-scheme: dark;
   --night-ink: #f1f3fa; --night-ink-2: #c3cce8; --strong: #ffffff; --night-line: rgba(185, 198, 238, 0.24);
-  --ink: #f1f3fa; --ink-2: #c3cce8; --ink-3: #93a1cf; --line: rgba(185, 198, 238, 0.24);
+  /* --ink-3 #b8c2e6: 4.6:1 on the lightest lapis (#2e4aa0, the ground's glow); #93a1cf was 3.2 */
+  --ink: #f1f3fa; --ink-2: #c3cce8; --ink-3: #b8c2e6; --line: rgba(185, 198, 238, 0.24);
   --mist: rgba(7, 13, 38, 0.5); --edge: rgba(185, 198, 238, 0.2);
   --accent: #7ea2f6; --accent-text: #a9c0fa; --accent-ink: #0a1234;
   --accent-grad: linear-gradient(#97b5f8, #7ea2f6 55%, #6a8fe8); --accent-glow: rgba(126, 162, 246, 0.38);

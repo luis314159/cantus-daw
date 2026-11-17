@@ -1,0 +1,64 @@
+{
+ "unit": "vinculum",
+ "origin": "dev",
+ "note": [
+  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
+  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+ ],
+ "source": [
+  "A small mix: Cantus's own drums and bass under the CC0 guitar",
+  "Una pequeña mezcla: la batería y el bajo de Cantus bajo la guitarra CC0"
+ ],
+ "credit": [
+  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+ ],
+ "loop": true,
+ "seconds": 10.667,
+ "lufs": -19.3,
+ "dry": "/tryit/vinculum/dry.mp3",
+ "presets": [
+  {
+   "id": "vca",
+   "name": [
+    "VCA, pushed",
+    "VCA, empujado"
+   ],
+   "what": [
+    "The console's VCA working hard",
+    "El VCA de consola trabajando fuerte"
+   ],
+   "wet": "/tryit/vinculum/vca.mp3",
+   "level_db": null,
+   "pic": null
+  },
+  {
+   "id": "opto",
+   "name": [
+    "Opto, pushed",
+    "Óptico, empujado"
+   ],
+   "what": [
+    "The photocell leveller at depth",
+    "El nivelador de fotocélula a fondo"
+   ],
+   "wet": "/tryit/vinculum/opto.mp3",
+   "level_db": null,
+   "pic": null
+  },
+  {
+   "id": "varimu",
+   "name": [
+    "Vari-mu glue",
+    "Pegamento mu variable"
+   ],
+   "what": [
+    "The valve, gently",
+    "La válvula, con suavidad"
+   ],
+   "wet": "/tryit/vinculum/varimu.mp3",
+   "level_db": null,
+   "pic": null
+  }
+ ]
+}
