@@ -12,7 +12,7 @@
 
 use crate::fx::HostedValue;
 use cantus_core::modulator::compile::{ListenAt, ModPlan};
-use cantus_core::modulator::eval::{output, Follower, LiveEnv, ModTime};
+use cantus_core::modulator::eval::{controller_outputs, output, Follower, LiveEnv, ModTime};
 use cantus_core::modulator::{EnvTrigger, ModSource};
 use cantus_core::ModulatorId;
 
@@ -164,6 +164,21 @@ pub(crate) struct ModRt {
     /// What an inner grid point of a pass reads (hosted targets): output and amount there.
     pub inner: f32,
     pub inner_amount: f32,
+    /// fxd: a controller's second output (an X-Y pad's Y axis) now, next and at an inner
+    /// grid point; 0 for every other source.
+    pub now_y: f32,
+    pub next_y: f32,
+    pub inner_y: f32,
+    /// fxd: a controller's inputs at this control point (lanes and modulation in).
+    pub ins: [f32; 3],
+    /// fxd: an X-Y pad's puck (its inertia), where it is at the next control point.
+    pub puck: cantus_core::modulator::xy::Puck,
+}
+
+/// fxd: whether a plan is a controller (an X-Y pad, a formula: ADRs 0147, 0148).
+#[inline]
+pub(crate) fn is_controller(plan: &ModPlan) -> bool {
+    matches!(plan.source, ModSource::XyPad(_) | ModSource::Formula(_))
 }
 
 impl ModRt {
@@ -183,6 +198,64 @@ impl ModRt {
             amount_next: plan.amount,
             inner: 0.0,
             inner_amount: plan.amount,
+            now_y: 0.0,
+            next_y: 0.0,
+            inner_y: 0.0,
+            ins: plan.inputs,
+            puck: cantus_core::modulator::xy::Puck::default(),
+        }
+    }
+
+    /// fxd: a controller at a control point (time `t`, the next grid point at `t_next`),
+    /// its inputs there `ins` and `ins_next`: its outputs now and next. An X-Y pad with
+    /// inertia steps its puck over the exact interval to the next point (the closed form,
+    /// so the steps' length never changes where it lands); anything else is a function of
+    /// time and its inputs. No allocation: a formula runs its compiled program.
+    pub fn controller_point(
+        &mut self,
+        plan: &ModPlan,
+        t: &ModTime,
+        t_next: &ModTime,
+        ins: [f32; 3],
+        ins_next: [f32; 3],
+    ) {
+        self.ins = ins;
+        match &plan.source {
+            ModSource::XyPad(x) if x.has_inertia() => {
+                if !self.puck.placed {
+                    let at = x.target(t.beats, t.playing, [ins[0], ins[1]]);
+                    self.puck.step(at, x.inertia_ms, 0.0);
+                }
+                let now = self.puck.pos;
+                let heads = x.target(t_next.beats, t_next.playing, [ins_next[0], ins_next[1]]);
+                let dt = (t_next.since_play - t.since_play).max(0.0);
+                self.puck.step(heads, x.inertia_ms, dt);
+                let next = self.puck.pos;
+                self.now = x.polar(now[0]);
+                self.now_y = x.polar(now[1]);
+                self.next = x.polar(next[0]);
+                self.next_y = x.polar(next[1]);
+            }
+            src => {
+                let program = plan.program.as_deref();
+                let a = controller_outputs(src, program, t, ins);
+                let b = controller_outputs(src, program, t_next, ins_next);
+                [self.now, self.now_y] = a;
+                [self.next, self.next_y] = b;
+                if let ModSource::XyPad(x) = src {
+                    // No inertia: the puck is where it heads (the panel draws it there).
+                    self.puck.step(x.target(t.beats, t.playing, [ins[0], ins[1]]), 0.0, 0.0);
+                }
+            }
+        }
+    }
+
+    /// fxd: a controller's outputs at an inner grid point `t` of a pass, its inputs those
+    /// of the control point: a pad with inertia holds its control point's.
+    pub fn controller_inner(&self, plan: &ModPlan, t: &ModTime) -> [f32; 2] {
+        match &plan.source {
+            ModSource::XyPad(x) if x.has_inertia() => [self.now, self.now_y],
+            src => controller_outputs(src, plan.program.as_deref(), t, self.ins),
         }
     }
 
@@ -194,6 +267,8 @@ impl ModRt {
         self.held = old.held;
         self.live_on = old.live_on;
         self.held_value = old.held_value;
+        // fxd: an edit while the puck glides leaves it gliding from where it is.
+        self.puck = old.puck;
     }
 
     /// Back to rest: playback starts.
@@ -203,6 +278,8 @@ impl ModRt {
         self.held = 0;
         self.live_on = None;
         self.held_value = 0.0;
+        // fxd: playback starts with the puck where it heads.
+        self.puck = cantus_core::modulator::xy::Puck::default();
     }
 
     /// Whether its value is stepped state (it lags a control point and ramps).
@@ -420,6 +497,10 @@ mod tests {
             gates: None,
             listen: None,
             routes: Vec::new(),
+            links: Vec::new(),
+            inputs: [0.0; 3],
+            input_lanes: [None; 3],
+            program: None,
         };
         let mut rt = ModRt::new(&plan);
         rt.live_note(&plan, true, 15.0);

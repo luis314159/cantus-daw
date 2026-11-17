@@ -66,6 +66,9 @@ pub(crate) enum Dest {
     HostedInst(usize, u32),
     /// A modulator's amount: index into [`Runtime::mods`].
     ModAmount(usize),
+    /// fxd:contract — a controller's input (ADRs 0147, 0148): index into
+    /// [`Runtime::mods`], the input. Read by the modulators, like an amount.
+    ModInput(usize, u8),
     /// A note effect's parameter (ADR 0069): the snapshot track index, the stage in its
     /// chain and the parameter's index in its kind's table.
     NoteFx {
@@ -132,6 +135,10 @@ pub(crate) struct Lane {
     pub fresh: bool,
     /// The modulators driving it: (index into [`Runtime::mods`], depth).
     pub routes_in: Vec<(usize, f32)>,
+    /// fxd: how each of `routes_in` reads its modulator (the same order): the output, the
+    /// route's range, whether the source is bipolar. `(0, None, _)` is output 0 as it is
+    /// — the arithmetic every route had before.
+    pub links_in: Vec<RouteLinkRt>,
     /// The project's value as a position (where no clip plays), for modulation.
     pub base_pos: f32,
     /// A hosted lane: the value last queued for its unit (bits of `pos`, `modulation`):
@@ -139,6 +146,22 @@ pub(crate) struct Lane {
     /// only when the unit's queue took it, and forgotten when a unit is swapped in place
     /// ([`Runtime::forget_sent`]).
     pub sent: Option<(u32, u32)>,
+}
+
+/// fxd: how a route reads its modulator on the audio thread.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) struct RouteLinkRt {
+    pub output: u8,
+    pub range: Option<cantus_core::modulator::RouteRange>,
+    pub bipolar: bool,
+}
+
+impl RouteLinkRt {
+    /// What the route takes from outputs `outs` (before depth and amount).
+    #[inline]
+    pub fn value(&self, outs: [f32; 2]) -> f32 {
+        cantus_core::modulator::route_value(self.output, self.range.as_ref(), outs, self.bipolar)
+    }
 }
 
 /// The bits a hosted value is compared by.
@@ -179,6 +202,9 @@ pub struct Runtime {
     pub(crate) native_modulated: bool,
     /// Some lane is a hosted plug-in's.
     pub(crate) any_hosted: bool,
+    /// fxd: an X-Y pad's puck carries inertia — every grid point is a control point while
+    /// playing (it is stepped over each whole interval).
+    pub(crate) puck_mods: bool,
 }
 
 impl Runtime {
@@ -204,6 +230,7 @@ impl Runtime {
             audio_mods: snapshot.modulators.iter().any(|m| m.source.follows_audio()),
             native_modulated: false,
             any_hosted: false,
+            puck_mods: snapshot.modulators.iter().any(|m| m.source.stateful() && !m.source.follows_audio()),
         };
         for lane in &snapshot.automation {
             let dest = rt.dest_of(snapshot, &lane.target).unwrap_or(Dest::Nothing);
@@ -216,6 +243,7 @@ impl Runtime {
                 fresh: true,
                 sent: None,
                 routes_in: Vec::new(),
+                links_in: Vec::new(),
                 base_pos: if lane.base.is_finite() {
                     lane.range.pos(lane.base)
                 } else {
@@ -225,10 +253,17 @@ impl Runtime {
             });
         }
         for (mi, plan) in snapshot.modulators.iter().enumerate() {
-            for &(li, depth) in &plan.routes {
+            for (k, &(li, depth)) in plan.routes.iter().enumerate() {
                 if let Some(l) = rt.lanes.get_mut(li) {
                     l.routes_in.push((mi, depth));
-                    if !l.dest.is_hosted() && !matches!(l.dest, Dest::ModAmount(_) | Dest::Nothing)
+                    let (output, range) = plan.links.get(k).copied().unwrap_or((0, None));
+                    l.links_in.push(RouteLinkRt {
+                        output,
+                        range,
+                        bipolar: plan.source.bipolar(),
+                    });
+                    if !l.dest.is_hosted()
+                        && !matches!(l.dest, Dest::ModAmount(_) | Dest::ModInput(..) | Dest::Nothing)
                     {
                         rt.native_modulated = true;
                     }
@@ -364,6 +399,11 @@ impl Runtime {
                 .iter()
                 .position(|p| p.id == *m)
                 .map(Dest::ModAmount),
+            AutoTarget::ModInput { modulator, input } => snapshot
+                .modulators
+                .iter()
+                .position(|p| p.id == *modulator)
+                .map(|i| Dest::ModInput(i, *input)),
         }
     }
 
@@ -374,12 +414,16 @@ impl Runtime {
 
     /// Every grid point must be a control point while playing.
     pub(crate) fn every_grid_point(&self) -> bool {
-        self.audio_mods || self.native_modulated
+        self.audio_mods || self.native_modulated || self.puck_mods
     }
 
     /// Each modulator's output and amount now and at the next grid point.
     fn modulate(&mut self, snapshot: &Snapshot, at: &At) {
         for (m, plan) in self.mods.iter_mut().zip(&snapshot.modulators) {
+            if crate::modulator::is_controller(plan) {
+                // fxd: after every other source (their inputs may be modulated).
+                continue;
+            }
             if ModRt::stateful(plan) {
                 // One control point behind: ramp from the last point's state to this one's.
                 let cur = m.state_value(plan);
@@ -391,6 +435,7 @@ impl Runtime {
                 m.next = m.value_at(plan, &at.t_next);
             }
         }
+        self.modulate_controllers(snapshot, at);
         // Amounts: automated, and offset by other modulators (one level: a route into an
         // amount reads its own modulator at its unmodulated amount).
         for i in 0..self.mods.len() {
@@ -401,9 +446,12 @@ impl Runtime {
                 a = lane.pos_at(at.tick).unwrap_or(plan.amount);
                 b = lane.pos_at(at.next_tick).unwrap_or(plan.amount);
                 if let Some(l) = self.lanes.get(li) {
-                    for &(j, depth) in &l.routes_in {
-                        a += depth * self.mods[j].now * base_amount(snapshot, j, at.tick);
-                        b += depth * self.mods[j].next * base_amount(snapshot, j, at.next_tick);
+                    for (&(j, depth), k) in l.routes_in.iter().zip(&l.links_in) {
+                        let m = &self.mods[j];
+                        a += depth * k.value([m.now, m.now_y]) * base_amount(snapshot, j, at.tick);
+                        b += depth
+                            * k.value([m.next, m.next_y])
+                            * base_amount(snapshot, j, at.next_tick);
                     }
                 }
             }
@@ -412,14 +460,49 @@ impl Runtime {
         }
     }
 
+    /// fxd: the controllers at a control point (ADRs 0147, 0148), after every other
+    /// source: their inputs — the project's, or their lanes', offset by the modulators
+    /// driving them (one level; a controller driving another's input is read where it was
+    /// at the last control point) — then their outputs.
+    fn modulate_controllers(&mut self, snapshot: &Snapshot, at: &At) {
+        for i in 0..self.mods.len() {
+            let plan = &snapshot.modulators[i];
+            if !crate::modulator::is_controller(plan) {
+                continue;
+            }
+            let (mut now, mut next) = (plan.inputs, plan.inputs);
+            for k in 0..3 {
+                let Some(li) = plan.input_lanes[k] else {
+                    continue;
+                };
+                let lane = &snapshot.automation[li];
+                let mut a = lane.pos_at(at.tick).unwrap_or(plan.inputs[k]);
+                let mut b = lane.pos_at(at.next_tick).unwrap_or(plan.inputs[k]);
+                if let Some(l) = self.lanes.get(li) {
+                    for (&(j, depth), lk) in l.routes_in.iter().zip(&l.links_in) {
+                        let m = &self.mods[j];
+                        a += depth * lk.value([m.now, m.now_y]) * base_amount(snapshot, j, at.tick);
+                        b += depth
+                            * lk.value([m.next, m.next_y])
+                            * base_amount(snapshot, j, at.next_tick);
+                    }
+                }
+                now[k] = a.clamp(0.0, 1.0);
+                next[k] = b.clamp(0.0, 1.0);
+            }
+            self.mods[i].controller_point(plan, &at.t, &at.t_next, now, next);
+        }
+    }
+
     /// The modulators' sum into lane `li` now and next.
     #[inline]
     fn mod_sum(&self, li: usize) -> (f32, f32) {
         let (mut a, mut b) = (0.0f32, 0.0f32);
-        for &(j, depth) in &self.lanes[li].routes_in {
+        let l = &self.lanes[li];
+        for (&(j, depth), k) in l.routes_in.iter().zip(&l.links_in) {
             let m = &self.mods[j];
-            a += depth * m.now * m.amount_now;
-            b += depth * m.next * m.amount_next;
+            a += depth * k.value([m.now, m.now_y]) * m.amount_now;
+            b += depth * k.value([m.next, m.next_y]) * m.amount_next;
         }
         (a, b)
     }
@@ -436,7 +519,7 @@ impl Runtime {
             let (ma, mb) = self.mod_sum(li);
             let vx = self.vca_extra(snapshot, li, at); // r36:mix
             let l = &mut self.lanes[li];
-            if matches!(l.dest, Dest::ModAmount(_)) {
+            if matches!(l.dest, Dest::ModAmount(_) | Dest::ModInput(..)) {
                 continue;
             }
             if l.dest.is_hosted() {
@@ -512,19 +595,30 @@ impl Runtime {
         mut f: impl FnMut(&Dest, Option<(usize, usize)>, HostedValue) -> bool,
     ) {
         for (m, plan) in self.mods.iter_mut().zip(&snapshot.modulators) {
-            m.inner = if ModRt::stateful(plan) {
-                m.held_value
+            if crate::modulator::is_controller(plan) {
+                // fxd: a controller's inner value is a function of time at its inputs of
+                // the control point (a pad with inertia keeps its control point's).
+                let outs = m.controller_inner(plan, t);
+                m.inner = outs[0];
+                m.inner_y = outs[1];
             } else {
-                m.value_at(plan, t)
-            };
+                m.inner = if ModRt::stateful(plan) {
+                    m.held_value
+                } else {
+                    m.value_at(plan, t)
+                };
+                m.inner_y = 0.0;
+            }
             m.inner_amount = plan.amount;
         }
         for i in 0..self.mods.len() {
             let plan = &snapshot.modulators[i];
             let Some(li) = plan.amount_lane else { continue };
             let mut a = snapshot.automation[li].pos_at(tick).unwrap_or(plan.amount);
-            for &(j, depth) in &self.lanes[li].routes_in {
-                a += depth * self.mods[j].inner * base_amount(snapshot, j, tick);
+            let l = &self.lanes[li];
+            for (&(j, depth), k) in l.routes_in.iter().zip(&l.links_in) {
+                let m = &self.mods[j];
+                a += depth * k.value([m.inner, m.inner_y]) * base_amount(snapshot, j, tick);
             }
             self.mods[i].inner_amount = a.clamp(0.0, 1.0);
         }
@@ -534,8 +628,9 @@ impl Runtime {
                 continue;
             }
             let mut m = 0.0f32;
-            for &(j, depth) in &l.routes_in {
-                m += depth * self.mods[j].inner * self.mods[j].inner_amount;
+            for (&(j, depth), k) in l.routes_in.iter().zip(&l.links_in) {
+                let x = &self.mods[j];
+                m += depth * k.value([x.inner, x.inner_y]) * x.inner_amount;
             }
             let pos = snapshot.automation[li].pos_at(tick).unwrap_or(f32::NAN);
             let at = match l.dest {

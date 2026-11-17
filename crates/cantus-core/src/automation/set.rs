@@ -118,6 +118,14 @@ impl AutoTarget {
                 project.modulator(*id)?;
                 Command::SetModulatorAmount { id: *id, amount: v }
             }
+            AutoTarget::ModInput { modulator, input } => {
+                project.modulator(*modulator)?.2.source.input(*input)?;
+                Command::SetModulatorInput {
+                    id: *modulator,
+                    input: *input,
+                    value: v,
+                }
+            }
         })
     }
 }

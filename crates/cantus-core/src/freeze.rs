@@ -474,7 +474,7 @@ fn target_in_strip_region(
             .effect_host(*effect)
             .is_some_and(|h| r.strips.contains(&h)),
         AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => false,
-        AutoTarget::ModAmount(m) => modulator_reaches(project, *m, &|t| {
+        AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => modulator_reaches(project, *m, &|t| {
             !matches!(t, AutoTarget::ModAmount(_))
                 && target_in_strip_region(project, r, root, root_track, t)
         }),
@@ -852,7 +852,7 @@ pub(crate) fn reaches(
             let own = (!r.hears_root).then_some(t);
             r.whole
                 || source_target_of(target) == Some(t)
-                || matches!(target, AutoTarget::ModAmount(m)
+                || matches!(target, AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. }
                     if modulator_reaches(project, *m, &|x| source_target_of(x) == Some(t)))
                 || (r.hears_root
                     && matches!(target, AutoTarget::TrackGain(x) | AutoTarget::TrackPan(x)

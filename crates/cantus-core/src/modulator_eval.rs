@@ -352,10 +352,48 @@ fn cycles(rate: ModRate, t: &ModTime, since: Option<f64>) -> f64 {
     }
 }
 
+/// fxd:contract — what a formula reads at `t` with its knobs at `inputs` (ADR 0148).
+pub fn formula_env(t: &ModTime, inputs: [f32; 3]) -> super::formula::Env {
+    super::formula::Env {
+        a: f64::from(inputs[0]),
+        b: f64::from(inputs[1]),
+        c: f64::from(inputs[2]),
+        beats: t.beats,
+        seconds: t.since_play,
+        tempo: 60.0 / t.spb.max(1e-9),
+    }
+}
+
+/// fxd:contract — a controller's outputs at `t` (ADRs 0147, 0148) with its inputs at
+/// `inputs` (where automation and controllers put them): an X-Y pad's two axes where its
+/// puck heads (without inertia, which is the engine's state), a formula's value (and 0
+/// for the second output); polar as the source is. Never allocates: a formula is read
+/// from its compiled `program` (no program, no output).
+pub fn controller_outputs(
+    src: &ModSource,
+    program: Option<&super::formula::Program>,
+    t: &ModTime,
+    inputs: [f32; 3],
+) -> [f32; 2] {
+    match src {
+        ModSource::XyPad(x) => {
+            let p = x.target(t.beats, t.playing, [inputs[0], inputs[1]]);
+            [x.polar(p[0]), x.polar(p[1])]
+        }
+        ModSource::Formula(f) => match program {
+            Some(p) => [f.polar(p.output(&formula_env(t, inputs))), 0.0],
+            None => [0.0, 0.0],
+        },
+        _ => [0.0, 0.0],
+    }
+}
+
 /// The output of a source that is a function of time (−1…1 bipolar, 0…1 unipolar), at
 /// `t`, with the sequenced notes' gates when it hears notes. `live_on` is the beat of the
 /// last live note-on, for an LFO retriggered by notes. A follower or an audio envelope
-/// answers 0 here: they are the engine's (stateful).
+/// answers 0 here: they are the engine's (stateful). A controller (fxd) answers its first
+/// output with its own inputs — a formula compiled on the spot, so this is never called
+/// for one on the audio thread (the engine reads [`controller_outputs`]).
 pub fn output(src: &ModSource, t: &ModTime, gates: Option<&Gates>, live_on: Option<f64>) -> f32 {
     let polar = |v: f32, unipolar: bool| {
         if unipolar {
@@ -417,6 +455,11 @@ pub fn output(src: &ModSource, t: &ModTime, gates: Option<&Gates>, live_on: Opti
             _ => 0.0,
         },
         ModSource::Follower(_) => 0.0,
+        ModSource::XyPad(x) => controller_outputs(src, None, t, [x.x, x.y, 0.0])[0],
+        ModSource::Formula(f) => {
+            let p = super::formula::Program::compile(&f.text).ok();
+            controller_outputs(src, p.as_ref(), t, f.inputs)[0]
+        }
     }
 }
 

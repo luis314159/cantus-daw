@@ -797,6 +797,7 @@ impl Processor {
                 | Dest::Native(..)
                 | Dest::Firmus(..)
                 | Dest::ModAmount(..)
+                | Dest::ModInput(..)
                 | Dest::Nothing => {}
             }
         }
