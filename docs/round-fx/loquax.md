@@ -147,6 +147,14 @@ Fractus's and Caelum's so `pane_words` names every kind's choices), `src/state.r
 `fractus` field the wave-A contract left out: the crate did not compile), tests `common/mod.rs`,
 `clap.rs`, `vst3.rs`, `notes.rs`, `golden/ids.txt`. xtask: `main.rs`. Web: `units_data.rs`.
 
+### Suites (Windows, 2026-11-17, one crate at a time, clippy `-D warnings --all-targets` on each)
+
+cantus-core 806, cantus-dsp 1 050, cantus-engine 1 281, cantus-project 193, cantus-plugins 81,
+cantus-ai 50, cantus-ui 2 704 + `learn_everywhere`'s one failure that is Fractus's (its stepped
+keys drawn without their offer — the Fractus builder's; Loquax's `obj` excused as a look).
+Clippy clean on all seven. Not run: the Linux check (WSL), the whole workspace at once, the
+plug-ins without default features, `preset_render` in release.
+
 ### Verified only in emulation
 
 - No voice was vocoded live on a monitor here; the e2e renders and the DSP's measures are

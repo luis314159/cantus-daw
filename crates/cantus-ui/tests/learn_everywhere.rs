@@ -376,6 +376,9 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         // A synced rate's division: shown while synced.
         (_, "div") => Some("the rate shown in beats only while synced"),
         ("Eq", "lp_res") => Some("linear phase only"),
+        // fxa:loquax — the object the voice speaks into: a look (`EffectKind::is_look`),
+        // chosen in the ⋯ menu, never heard — nothing a controller would play.
+        ("Vocoder", "obj") => Some("a look chosen in the menu, never heard"),
         // fx:fragor — a footswitch of a pedal not on the board: nothing of it is drawn.
         ("Pedal", k)
             if k.ends_with(".on") && {
