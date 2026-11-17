@@ -1909,6 +1909,38 @@ and found it fun. Two requests:
    Show the camera picture with the tracked hand in a small window, so it works for
    streamers and videos too (as the dancer's window does, §6i).
 
+   **Native, in Rust (the owner, 2026-11-17):** everything that ships in the box is Cantus's
+   own Rust, never a Python script:
+   - the camera capture;
+   - the hand tracking, run through `cantus-ml`'s ONNX Runtime (`ort`, already there for
+     stems and audio-to-MIDI, DirectML/CoreML with a CPU fallback);
+   - the gesture recognition;
+   - the mapping to Tactus and to MIDI learn;
+   - every preset (the theremin and the rest).
+
+   Python is for what users write, not for what we ship.
+
+**The scripting decision (recommended, 2026-11-17; the owner to confirm):** both, each for
+what it is best at, and no embedded CPython.
+
+- **A bridge for the user's own Python** (and any language):
+  - what it is: a `cantus` package on PyPI talking to the running app over a local API, the
+    MCP server's tools plus transport events, parameter streams and project edits;
+  - why: users keep their own environment (numpy, OpenCV, PyTorch, Jupyter), any language
+    can do the same, and there is no interpreter or its packages to ship;
+  - safety: local only, a token the user grants, every change an undoable `Command`, a
+    visible "script connected" mark.
+- **Our own embedded, sandboxed language** for scripts that live in Cantus — the actions,
+  tools, controller scripts and community packages of §0.2:
+  - candidates: WASM (`wasmtime`, any source language) or Lua (`mlua`) — decide after a
+    spike;
+  - what it gives: deterministic, safe to share, no file or network access unless granted,
+    cheap to start, the same on every platform;
+  - where it never runs: the audio thread.
+- **Embedded CPython: no.** It ships tens of MB, has version conflicts with the user's
+  Python, its packages cannot be bundled sanely, and it cannot be sandboxed. The bridge gives
+  users their real Python instead.
+
 ## 7. AI (research done in round 20: `research/ai/`)
 
 Phase A tools foundation → B an MCP server → C the assistant panel → D local audio
