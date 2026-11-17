@@ -65,6 +65,9 @@ impl Rig {
             files.settings.ui_scale_follows_screen,
             "a fresh installation follows the screen"
         );
+        // The first-run audio setup stays shut: its list fills in when this machine's
+        // device scan arrives, whenever that is — content arriving, not the window moving.
+        files.settings.audio_setup.setup_done = true;
         look(&mut files.settings);
         let ctx = egui::Context::default();
         let app = CantusApp::assemble(
