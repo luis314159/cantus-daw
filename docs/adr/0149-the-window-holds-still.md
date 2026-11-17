@@ -169,4 +169,11 @@ further than the window's foot asks, inside the window, no row hidden behind a s
 instrument's preset list, ⋯ menu and sizes — each at its control, inside the window, and
 opaque: a colour painted over everything beneath the pop-ups shows through none of their
 points. Both failed on beta.14's code at every scale (see the round's notes for the
-numbers) and pass. What only a real 200 % screen confirms is in `docs/beta-checklist.md`.
+numbers) and pass. `tests/menus_opaque_themes.rs` holds the sheet itself: in Slate Night,
+Slate Paper, Slate, Paper, Bordeaux, Lagoon, Print and High contrast light, once the
+opening fade has settled, every row's empty part of the preset list is the theme's menu
+colour in the unit's face, alpha 255, and the list reaches its last preset (whole where
+the window holds it; by the wheel in a 1 280 × 720 window at 200 %). The first
+after-pictures caught the list in egui's opening fade (the shoot scene drew six frames
+after the click); the scene now lets it settle. What only a real 200 % screen confirms is
+in `docs/beta-checklist.md`.
