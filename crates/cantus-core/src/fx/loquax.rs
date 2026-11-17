@@ -336,6 +336,10 @@ mod tests {
             assert!(crate::EffectKind::Vocoder.is_look(k));
         }
         assert!(!crate::EffectKind::Vocoder.is_look("mix"));
-        assert_eq!(PARAMS.last().unwrap().key, "obj", "appended after the bands");
+        assert_eq!(
+            PARAMS.last().unwrap().key,
+            "obj",
+            "appended after the bands"
+        );
     }
 }

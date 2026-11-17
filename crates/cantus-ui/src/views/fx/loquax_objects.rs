@@ -62,7 +62,11 @@ pub(super) fn housing(b: &mut Brush, s: &Style, r: Rect, rad: f32) {
     let mut i = 0u32;
     let mut y = r.top() + 1.2 * k;
     while y < r.bottom() - 1.2 * k {
-        let a = if lacquer { 0.0 } else { 0.04 + 0.16 * hash(i + 41) };
+        let a = if lacquer {
+            0.0
+        } else {
+            0.04 + 0.16 * hash(i + 41)
+        };
         if a > 0.0 {
             b.hline(
                 r.left() + rad * 0.6,
@@ -173,10 +177,10 @@ pub fn talk_box(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) ->
         pos2(xd + cw * 0.12, can.top() + 2.0 * k),
     );
     // The rod and the tube's mouth near the top, its open end toward the voice (left).
-    let xr = r.left() + w * 0.30;
+    let xr = r.left() + w * 0.40;
     let tw = (w * 0.085).max(6.0 * k);
     let my = r.top() + h * 0.15;
-    let mouth = pos2(r.left() + w * 0.1, my);
+    let mouth = pos2(r.left() + w * 0.22, my);
     // The stand's rod behind everything, a chrome tube from the top down behind the housing.
     let rw = (w * 0.05).max(4.0 * k);
     let rod_top = my - h * 0.07;
@@ -273,7 +277,11 @@ pub fn talk_box(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) ->
     );
     let jack = pos2(house.right() - house.width() * 0.13, fy);
     let jr = (hb * 0.08).max(2.2 * k);
-    b.circle(jack, jr * 1.4, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)));
+    b.circle(
+        jack,
+        jr * 1.4,
+        Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
+    );
     b.circle(jack, jr * 0.75, Fill::Solid(c(pal::GASKET)));
     mouth
 }
@@ -388,7 +396,7 @@ pub fn desk_mic(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) ->
     let hh = hw * 1.6;
     let head = Rect::from_min_size(pos2(cx - hw * 0.5, r.top() + 6.0 * k), vec2(hw, hh));
     // The base at the foot: a cast block and the dome over it.
-    let hb = (h * 0.15).clamp(24.0 * k, 44.0 * k);
+    let hb = (h * 0.17).clamp(28.0 * k, 50.0 * k);
     let base = Rect::from_min_max(
         pos2(r.left() + w * 0.06, r.bottom() - hb),
         pos2(r.right() - w * 0.04, r.bottom() - 3.0 * k),
@@ -417,13 +425,7 @@ pub fn desk_mic(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) ->
     let arm = (hw * 0.09).max(2.5 * k);
     let pivot_y = head.center().y + hh * 0.08;
     for x in [head.left() - arm * 0.9, head.right() + arm * 0.9] {
-        b.segment(
-            pos2(x, pivot_y),
-            pos2(x, yoke_y),
-            arm,
-            c(pal::CHROME),
-            true,
-        );
+        b.segment(pos2(x, pivot_y), pos2(x, yoke_y), arm, c(pal::CHROME), true);
         b.segment(
             pos2(x - arm * 0.25, pivot_y),
             pos2(x - arm * 0.25, yoke_y),
@@ -436,7 +438,11 @@ pub fn desk_mic(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) ->
         pos2(head.left() - arm * 1.4, yoke_y - arm * 0.5),
         pos2(head.right() + arm * 1.4, yoke_y + arm * 1.1),
     );
-    b.rrect(bar, arm * 0.6, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)));
+    b.rrect(
+        bar,
+        arm * 0.6,
+        Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
+    );
     capsule(b, k, head, lv, glow);
     // The pivot knobs over the arms, knurled at their edge.
     for x in [head.left() - arm * 0.9, head.right() + arm * 0.9] {
@@ -449,14 +455,23 @@ pub fn desk_mic(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) ->
         );
         b.circle(p, kr, Fill::V(c(pal::SATIN_LIGHT), c(pal::SATIN)));
         b.circle_stroke(p, kr * 0.92, 0.6 * k, with_alpha(c(pal::CHROME), 0.6));
-        b.circle(p, kr * 0.45, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)));
+        b.circle(
+            p,
+            kr * 0.45,
+            Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
+        );
     }
     // The dome the stem rises from, then the base, its foot and its talk bar.
     let dome = Rect::from_min_max(
-        pos2(cx - w * 0.2, base.top() - dome_h),
-        pos2(cx + w * 0.2, base.top() + 2.0 * k),
+        pos2(cx - w * 0.12, base.top() - dome_h),
+        pos2(cx + w * 0.12, base.top() + 2.0 * k),
     );
-    b.rrect(dome, dome_h * 0.5, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)));
+    b.rrect(
+        dome,
+        dome_h * 0.45,
+        Fill::V(c(pal::CHROME), c(pal::CHROME_DARK)),
+    );
+    b.hrect(dome.shrink2(vec2(0.0, dome_h * 0.3)), &cylinder());
     b.hline(
         dome.left() + dome_h * 0.4,
         dome.right() - dome_h * 0.4,
@@ -550,11 +565,22 @@ fn capsule(b: &mut Brush, k: f32, head: Rect, lv: f32, glow: Color32) {
         );
         y += pitch;
     }
-    b.rrect_stroke(grille, grille.width() * 0.4, 0.8 * k, with_alpha(c(pal::CHROME), 0.7));
+    b.rrect_stroke(
+        grille,
+        grille.width() * 0.4,
+        0.8 * k,
+        with_alpha(c(pal::CHROME), 0.7),
+    );
     // The chrome bands at the capsule's ends.
     for (y0, y1) in [
-        (head.top() + head.height() * 0.05, head.top() + head.height() * 0.09),
-        (head.bottom() - head.height() * 0.09, head.bottom() - head.height() * 0.05),
+        (
+            head.top() + head.height() * 0.05,
+            head.top() + head.height() * 0.09,
+        ),
+        (
+            head.bottom() - head.height() * 0.09,
+            head.bottom() - head.height() * 0.05,
+        ),
     ] {
         b.hrect(
             Rect::from_min_max(

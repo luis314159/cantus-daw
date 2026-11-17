@@ -373,7 +373,10 @@ fn loquax_s_carrier_is_the_vst3_sidechain_bus() {
     d.process(&mut el, &mut er, Some((&key_l, &key_r)));
     assert_identical("Loquax keyed, left", &l, &el);
     assert_identical("Loquax keyed, right", &r, &er);
-    assert!(l.iter().map(|x| x * x).sum::<f32>() > 1.0, "the key carries");
+    assert!(
+        l.iter().map(|x| x * x).sum::<f32>() > 1.0,
+        "the key carries"
+    );
 }
 
 #[test]

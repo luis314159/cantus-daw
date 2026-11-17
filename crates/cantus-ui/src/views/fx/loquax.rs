@@ -16,8 +16,8 @@ use super::host::{DawHost, FxHost};
 use super::FactoryPreset;
 use crate::app::CantusApp;
 use crate::kit::shell::Grid;
-use crate::kit::{with_brush, Style};
 use crate::kit::text::Src;
+use crate::kit::{with_brush, Style};
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use egui::{Rect, Vec2};
 

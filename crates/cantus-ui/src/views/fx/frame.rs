@@ -193,7 +193,7 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         // fxa:loquax — the window grows a row where a language's cards need one (the
         // display keeps its size: the owner's v2 verdict).
         EffectKind::Vocoder => super::loquax::designed_size(),
-        EffectKind::Glitch => Vec2::new(1340.0, 720.0),  // fxa:fractus
+        EffectKind::Glitch => Vec2::new(1340.0, 720.0), // fxa:fractus
         EffectKind::Shimmer => Vec2::new(1340.0, 900.0), // fxa:caelum
         _ => Vec2::new(1000.0, 640.0),
     }
@@ -421,7 +421,12 @@ pub fn recognise(spec: &cantus_core::EffectSpec, list: &[Entry]) -> Option<Loade
 /// names holds another value, or a key it leaves out is off its default.
 pub fn modified(spec: &cantus_core::EffectSpec, loaded: &Loaded) -> bool {
     // fxa:loquax — a look (Loquax's microphone) is no drift from a preset.
-    for info in spec.kind.params().iter().filter(|i| !spec.kind.is_look(i.key)) {
+    for info in spec
+        .kind
+        .params()
+        .iter()
+        .filter(|i| !spec.kind.is_look(i.key))
+    {
         let now = spec.get(info.key);
         let want = loaded.params.get(info.key).copied().unwrap_or(info.default);
         if (now - want).abs() > 1e-6 * want.abs().max(1.0) {

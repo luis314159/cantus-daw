@@ -89,15 +89,36 @@ fn drag(app: &mut CantusApp, size: egui::Vec2, from: Pos2, to: Pos2) {
     );
 }
 
-/// A click at `at`.
+/// A click at `at`: pressed and let go a frame apart (a long press is no click).
 fn click(app: &mut CantusApp, size: egui::Vec2, at: Pos2) {
-    drag(app, size, at, at);
+    shoot_events(
+        &ctx(),
+        size,
+        1.0,
+        10,
+        None,
+        |f, _| match f {
+            2 => vec![Event::PointerMoved(at)],
+            3 => vec![press(at, true)],
+            4 => vec![press(at, false)],
+            _ => Vec::new(),
+        },
+        |ui| {
+            let c = ui.ctx().clone();
+            views::fx::window(app, &c)
+        },
+    );
 }
 
 /// The ⋯ button clicked, then — once its menu is drawn — the row `pick` gives (from the
 /// rows as drawn), in one run of frames.
 fn menu_pick(app: &mut CantusApp, size: egui::Vec2, pick: impl Fn(&[egui::Rect]) -> usize) {
-    let more = app.fx.loquax.chrome.more_button.expect("the ⋯ button is drawn");
+    let more = app
+        .fx
+        .loquax
+        .chrome
+        .more_button
+        .expect("the ⋯ button is drawn");
     let rows: Rc<RefCell<Vec<egui::Rect>>> = Rc::default();
     let seen = rows.clone();
     shoot_events(
@@ -162,13 +183,16 @@ fn a_stroke_across_the_bank_draws_the_band_levels_in_one_undo_step() {
     let levels: Vec<f32> = (0..16)
         .map(|i| value(&app, cantus_core::fx::loquax::BAND_KEYS[i]))
         .collect();
-    assert!((levels[2] - 6.0).abs() <= 0.5, "pressed at +6 dB: {levels:?}");
-    assert!((levels[9] + 12.0).abs() <= 0.5, "let go at -12 dB: {levels:?}");
-    for i in 3..9 {
-        assert!(
-            levels[i] <= levels[i - 1] + 0.5,
-            "along the stroke, falling: {levels:?}"
-        );
+    assert!(
+        (levels[2] - 6.0).abs() <= 0.5,
+        "pressed at +6 dB: {levels:?}"
+    );
+    assert!(
+        (levels[9] + 12.0).abs() <= 0.5,
+        "let go at -12 dB: {levels:?}"
+    );
+    for w in levels[2..10].windows(2) {
+        assert!(w[1] <= w[0] + 0.5, "along the stroke, falling: {levels:?}");
     }
     for i in [0, 1, 10, 15] {
         assert_eq!(levels[i], 0.0, "band {i} untouched: {levels:?}");
@@ -205,7 +229,11 @@ fn the_menu_chooses_the_object_and_the_colourway() {
         ["ink"],
         "the colourway is the user's, in the settings"
     );
-    assert_eq!(value(&app, "obj"), 2.0, "the object is the insert's, untouched");
+    assert_eq!(
+        value(&app, "obj"),
+        2.0,
+        "the object is the insert's, untouched"
+    );
     cantus_ui::kit::skin::set_colourways(std::iter::empty());
 }
 
@@ -215,7 +243,10 @@ fn the_carrier_and_the_roles_are_thrown_by_a_click() {
     assert_eq!(value(&app, "src"), 1.0, "the synthesiser");
     let seg = |key: &str, i: usize, n: usize| {
         let r = views::fx::controls::segmented_rect(key).expect("the switch is drawn");
-        egui::pos2(r.left() + r.width() * (i as f32 + 0.5) / n as f32, r.center().y)
+        egui::pos2(
+            r.left() + r.width() * (i as f32 + 0.5) / n as f32,
+            r.center().y,
+        )
     };
     let at = seg("src", 0, 3);
     click(&mut app, size, at);
@@ -230,7 +261,11 @@ fn the_carrier_and_the_roles_are_thrown_by_a_click() {
     settle(&mut app, size);
     let at = seg("swap", 1, 2);
     click(&mut app, size, at);
-    assert_eq!(value(&app, "swap"), 1.0, "the sidechain speaks, this track carries");
+    assert_eq!(
+        value(&app, "swap"),
+        1.0,
+        "the sidechain speaks, this track carries"
+    );
     app.undo();
     assert_eq!(value(&app, "swap"), 0.0, "one click, one undo step");
 }

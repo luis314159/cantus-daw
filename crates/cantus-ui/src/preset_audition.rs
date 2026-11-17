@@ -396,11 +396,10 @@ pub fn prepare(
 /// synthesiser plays the notes of the source's last melodic line (`midi_from`) and that
 /// line's strip is its sidechain — so every preset sounds, whichever carrier it names.
 fn vocoder_carriers(p: &Project, slot: &mut cantus_core::EffectSlot) {
-    let line = p
-        .tracks
-        .iter()
-        .rev()
-        .find(|t| t.instrument.pulsus().is_none() && t.clips.iter().any(|c| !c.notes.is_empty()));
+    let line =
+        p.tracks.iter().rev().find(|t| {
+            t.instrument.pulsus().is_none() && t.clips.iter().any(|c| !c.notes.is_empty())
+        });
     if let Some(t) = line {
         slot.midi_from = Some(t.id);
         slot.sidechain = t.strip;

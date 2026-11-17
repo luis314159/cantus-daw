@@ -109,3 +109,48 @@ layer-atlas work, so `kit_alloc` is untouched):
 - `fxa_cells::pack`/`breaks` (additive) — the cards in the fewest rows that fit, the breaks
   evenly filled (Spanish no longer leaves Followers alone on a row); `breaks` unit-tested.
 - The *wide* demo presses Hold mid-vowel (held from the first sample its bands kept silence).
+
+## Phase B (3), to the finish (2026-11-17): v2 approved with two adjustments
+
+- **The display keeps its size**: Spanish's cards take four rows, English's three
+  (`loquax::card_rows`, held by `fxa_whole` to what the packing measures); the window grows
+  a row instead (`loquax::designed_size`), the display the same size in both at 75–200 %.
+- **Three objects**, chosen in the ⋯ menu (*Microphone*, then the colourways): the
+  gooseneck (default), the talk-box (`loquax_objects.rs`: the driver's housing in the
+  colourway's finish with the on-air lamp, footswitch and jack; the driver and nozzle; the
+  clear tube carrying the voice's light to its clip on the stand; the glowing open end), the
+  desk microphone (the weighted base in the finish, rubber foot, talk bar and on-air lamp;
+  the chrome stem and lock; the yoke and pivot knobs; the slotted capsule lit by the voice).
+  Kept **per insert** as the key `obj` — a look (`EffectKind::is_look`): never heard, one
+  step of undo, presets leave it alone. Shots: `C:\projects\daw-fx\compartir\loquax\design\v3-objects\`.
+- **Band levels drawn** on the bank by a stroke (one undo step).
+- **Presets** fifteen, both carriers, fitted by `preset_tool fit` (−4.9 … +1.9 dB; Robot
+  +0.5 dB with them); the audition gives a vocoder the source's line as notes and key.
+- **Export** `Cantus Loquax`: notes (CLAP note port, VST3 event bus), the sidechain input;
+  ids appended. **AI** words; the MCP golden regenerated. **Site** card (EFFECTS 35).
+- **Docs**: ADR 0139 phase B, `docs/plugins/loquax.md`, the manual EN/ES.
+- **Tabula**: Loquax stays off the board (no key, no notes on a board: only the robot).
+
+### Shared files touched (marked `fxa:loquax`)
+
+Core: `effect.rs` (`is_look`), `starting.rs`, `fx/tabula.rs` (comment). UI:
+`views/fx/frame.rs` (designed size; `Chrome::more_button`/`menu_rows` for the pointer tests;
+`modified` skips looks), `views/fx/host.rs` and `views/fx/mod.rs` (presets skip looks),
+`views/fx/controls.rs` (`segmented_rect`, a test hook), `kit/skin/consoles.rs` (the
+objects' palette), `preset_audition.rs` (`vocoder_carriers`), `agent_units.rs`,
+`examples/shoot_fxa.rs`, tests `fxa_whole.rs`, `preset_audit.rs`. AI: `tools_mixer.rs`.
+Plug-ins: `Cargo.toml`, `build.rs`, `src/desc.rs`, `src/text.rs`, tests `common/mod.rs`,
+`clap.rs`, `vst3.rs`, `notes.rs`, `golden/ids.txt`. xtask: `main.rs`. Web: `units_data.rs`.
+
+### Verified only in emulation
+
+- No voice was vocoded live on a monitor here; the e2e renders and the DSP's measures are
+  the evidence. The exported plug-in in our own CLAP/VST3 harness only (notes and the
+  sidechain bus), not in a third-party DAW.
+- The objects judged by their shots; the owner has not seen them yet.
+
+### Left
+
+- Owner-only: the three objects' shots (`v3-objects`), listening to the fifteen presets.
+- At the integration: the site's pictures (`web/assets/units/loquax-*.webp`) and preset
+  excerpts; the README's unit grid (Loquax is not in it yet); renumbering ADR 0139.

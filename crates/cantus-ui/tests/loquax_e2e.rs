@@ -71,15 +71,23 @@ fn loquax_speaks_through_the_drone_the_notes_and_the_sidechain_and_undoes() {
     let (mut app, _proc) = assembled();
     let mut p = Project::new("Loquax");
     p.tempo_bpm = 120.0;
-    let voice = line(&mut p, "Voice", &[(57, 0, 1), (60, 1, 1), (64, 2, 1), (62, 3, 1)]);
+    // Each track added before the next is made: each takes the next free strip.
+    let voice = line(
+        &mut p,
+        "Voice",
+        &[(57, 0, 1), (60, 1, 1), (64, 2, 1), (62, 3, 1)],
+    );
+    p.tracks.push(voice);
     let mut keys = line(&mut p, "Keys", &[(48, 0, 4), (52, 0, 4), (55, 0, 4)]);
     keys.muted = true;
+    p.tracks.push(keys);
     let pad = line(&mut p, "Pad", &[(45, 0, 4), (52, 0, 4)]);
-    p.tracks.extend([voice, keys, pad]);
+    p.tracks.push(pad);
     app.replace_project(p);
     let keys = app.project().tracks[1].id;
     let strip = app.project().tracks[0].strip.expect("a strip");
     let pad = app.project().tracks[2].strip.expect("a strip");
+    assert_ne!(strip, pad, "a strip each");
     let dry = rendered(&mut app);
     assert!(peak(&dry) > 0.01, "the voice and the pad sound");
 
@@ -126,7 +134,10 @@ fn loquax_speaks_through_the_drone_the_notes_and_the_sidechain_and_undoes() {
     // An edit heard, undone to the bit.
     set(&mut app, "formant", 5.0);
     let moved = rendered(&mut app);
-    assert!(diff(&by_notes, &moved) > 0.001, "the formants moved are heard");
+    assert!(
+        diff(&by_notes, &moved) > 0.001,
+        "the formants moved are heard"
+    );
     app.undo();
     assert_eq!(rendered(&mut app), by_notes, "undone, to the bit");
 
@@ -154,6 +165,11 @@ fn loquax_speaks_through_the_drone_the_notes_and_the_sidechain_and_undoes() {
         diff(&keyed, &no_key) > 0.01,
         "the pad carries the voice: {}",
         diff(&keyed, &no_key)
+    );
+    assert_eq!(
+        app.project().strip(strip).unwrap().effects[0].sidechain,
+        Some(pad),
+        "the pad is the key"
     );
 
     // Its neutral defaults: the dry master, to the bit (the key still routed).
