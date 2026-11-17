@@ -312,6 +312,8 @@ pub struct Shared {
     pub lapsus: crate::lapsus_bank::BankPost,
     /// fx3:tabula — Tabula's board, posted to the processor (`crate::board_post`).
     pub board: crate::board_post::BoardPost,
+    /// fxa:fractus — Fractus's lanes, posted to the processor as Lapsus's banks are.
+    pub fractus: crate::lapsus_bank::ContentPost<cantus_core::fx::fractus::Pattern>,
     /// Frames the analyser tap has taken since the instance was made: an editor's count
     /// of what it drained is measured against it ([`Self::clock_of_drained`]).
     pub tapped: AtomicU64,
@@ -331,7 +333,17 @@ impl Shared {
         // insert in Cantus does — another DAW inserting it hears it at once. Each
         // parameter's default (what a host resets to) stays the null of ADR 0018.
         let start = cantus_core::starting::starting_preset(desc.kind);
+        // fxa:fractus — Fractus starts on a whole spec (its lanes too): its values from it.
+        let start_spec = (desc.kind == cantus_core::EffectKind::Glitch)
+            .then(cantus_core::fx::fractus::last_beat_stutter);
         let initial = |p: &params::Param| {
+            if let Some(v) = start_spec
+                .as_ref()
+                .filter(|_| p.role == params::Role::Spec)
+                .and_then(|s| s.params.get(p.key))
+            {
+                return p.clamp(f64::from(*v));
+            }
             start
                 .and_then(|s| {
                     s.params
@@ -361,10 +373,18 @@ impl Shared {
                 Mutex::new((Some(tx), Some(rx)))
             },
             scope_lost: AtomicU64::new(0),
-            lapsus: Default::default(), // fx:lapsus
-            board: Default::default(),  // fx3:tabula
+            lapsus: Default::default(),  // fx:lapsus
+            board: Default::default(),   // fx3:tabula
+            fractus: Default::default(), // fxa:fractus
             tapped: AtomicU64::new(0),
         });
+        // fxa:fractus — a fresh Fractus starts on its starting spec's lanes (ADR 0071): the
+        // last beat of each bar stutters.
+        if desc.kind == cantus_core::EffectKind::Glitch {
+            shared
+                .fractus
+                .set(cantus_core::fx::fractus::last_beat_stutter().fractus);
+        }
         // fx3:tabula — a fresh board starts on the guitar rig (ADR 0071, the owner's).
         if desc.kind == cantus_core::EffectKind::Board {
             shared
@@ -551,6 +571,7 @@ impl Shared {
             &self.values(),
             self.lapsus.get().as_deref(),
             self.board.get().as_deref(),
+            self.fractus.get().as_deref(), // fxa:fractus
         )
     }
 
@@ -558,6 +579,9 @@ impl Shared {
         let values = crate::state::load(self.table, bytes)?;
         if self.table.kind == cantus_core::EffectKind::TimeShaper {
             self.lapsus.set(crate::state::load_bank(bytes)); // fx:lapsus
+        }
+        if self.table.kind == cantus_core::EffectKind::Glitch {
+            self.fractus.set(crate::state::load_fractus(bytes)); // fxa:fractus
         }
         if self.table.kind == cantus_core::EffectKind::Board {
             // fx3:tabula — the whole board: its new pedals built here, for the processor.
@@ -592,6 +616,7 @@ impl Shared {
         let mut s = spec_of(self.table, &self.values());
         s.lapsus = self.lapsus.get(); // fx:lapsus
         s.board = self.board.get(); // fx3:tabula
+        s.fractus = self.fractus.get(); // fxa:fractus
         s
     }
 }
@@ -723,6 +748,14 @@ pub struct Processor {
         Producer<crate::lapsus_bank::Post>,
     )>,
     lapsus_held: Option<crate::lapsus_bank::Post>,
+    /// fxa:fractus — the lanes' rings while this processor lives, and lanes that could not
+    /// go back yet.
+    #[allow(clippy::type_complexity)]
+    fractus: Option<(
+        rtrb::Consumer<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
+        Producer<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
+    )>,
+    fractus_held: Option<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
     /// fx3:tabula — the board's rings while this processor lives, and a post that could not
     /// go back yet.
     board: Option<crate::board_post::Lent>,
@@ -752,6 +785,11 @@ impl Drop for Processor {
             self.shared.lapsus.give_back(Some(rx), Some(gtx));
         }
         drop(self.lapsus_held.take());
+        // fxa:fractus
+        if let Some((rx, gtx)) = self.fractus.take() {
+            self.shared.fractus.give_back(Some(rx), Some(gtx));
+        }
+        drop(self.fractus_held.take());
         // fx3:tabula
         if let Some(l) = self.board.take() {
             self.shared.board.give_back(l);
@@ -769,6 +807,7 @@ impl Processor {
         let mut spec = spec_of(table, &base);
         spec.lapsus = shared.lapsus.get(); // fx:lapsus
         spec.board = shared.board.get(); // fx3:tabula
+        spec.fractus = shared.fractus.get(); // fxa:fractus
         cantus_core::fx::tabula::apply_macros(&mut spec); // fx3:tabula
         let slot = EffectSlot {
             id: EffectId(0),
@@ -789,6 +828,16 @@ impl Processor {
                 cantus_engine::MemoryNeed::EqLinear(cantus_dsp::aequalis::Resolution::VeryHigh);
             drop(unit.supply(cantus_engine::EffectMemory::build(most, sample_rate)));
         }
+        // fxa:fractus — Fractus's DSP (8.6 MB at 48 kHz: its history, capture and cloud) is
+        // built here, at activation on the main thread, whatever its settings: a host may
+        // paint a lane, raise the cloud or send a note at any sample after, and the audio
+        // thread never builds it. A wire until then costs nothing more than the memory.
+        if unit.kind == cantus_core::EffectKind::Glitch {
+            drop(unit.supply(cantus_engine::EffectMemory::build(
+                cantus_engine::MemoryNeed::Fractus,
+                sample_rate,
+            )));
+        }
         shared
             .sample_rate
             .store(sample_rate.to_bits(), Ordering::Relaxed);
@@ -806,6 +855,9 @@ impl Processor {
         let lapsus = (unit.kind == cantus_core::EffectKind::TimeShaper)
             .then(|| shared.lapsus.lend())
             .flatten(); // fx:lapsus
+        let fractus = (unit.kind == cantus_core::EffectKind::Glitch)
+            .then(|| shared.fractus.lend())
+            .flatten(); // fxa:fractus
         let board = (unit.kind == cantus_core::EffectKind::Board)
             .then(|| shared.board.lend(spec.board.as_deref()))
             .flatten(); // fx3:tabula
@@ -816,6 +868,8 @@ impl Processor {
             memory,
             lapsus,
             lapsus_held: None,
+            fractus,            // fxa:fractus
+            fractus_held: None, // fxa:fractus
             transport: None,
             moves: [(0, HostTransport::default()); MOVES],
             n_moves: 0,
@@ -959,6 +1013,17 @@ impl Processor {
                 gtx,
                 &mut self.lapsus_held,
                 &mut self.spec.lapsus,
+            ) {
+                self.dirty = true;
+            }
+        }
+        // fxa:fractus — lanes the main thread posted, swapped in (the old ones go back).
+        if let Some((rx, gtx)) = self.fractus.as_mut() {
+            if crate::lapsus_bank::take_newest(
+                rx,
+                gtx,
+                &mut self.fractus_held,
+                &mut self.spec.fractus,
             ) {
                 self.dirty = true;
             }

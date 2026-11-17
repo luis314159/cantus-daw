@@ -48,22 +48,33 @@ pub fn load_board(bytes: &[u8]) -> Option<Box<cantus_core::fx::tabula::Board>> {
     (!b.pedals.is_empty() || !b.macros.is_empty()).then(|| Box::new(b))
 }
 
+/// fxa:fractus — Fractus's lanes, if the state holds any (`EffectSpec::fractus`), sanitized.
+pub fn load_fractus(bytes: &[u8]) -> Option<Box<cantus_core::fx::fractus::Pattern>> {
+    let value: Value = serde_json::from_slice(bytes).ok()?;
+    let lanes = value.get("fractus")?.clone();
+    let p = serde_json::from_value::<cantus_core::fx::fractus::Pattern>(lanes)
+        .ok()?
+        .sanitized();
+    (!p.is_empty()).then(|| Box::new(p))
+}
+
 /// [`save`], with Lapsus's bank beside the values (fx:lapsus).
 pub fn save_with_bank(
     table: &Table,
     values: &[f32],
     lapsus: Option<&cantus_core::fx::lapsus::Bank>,
 ) -> Vec<u8> {
-    save_spec_extras(table, values, lapsus, None)
+    save_spec_extras(table, values, lapsus, None, None)
 }
 
-/// [`save`], with the content a spec holds beside its values: Lapsus's bank (fx:lapsus) and
-/// Tabula's board (fx3:tabula), as the project saves them.
+/// [`save`], with the content a spec holds beside its values: Lapsus's bank (fx:lapsus),
+/// Tabula's board (fx3:tabula) and Fractus's lanes (fxa:fractus), as the project saves them.
 pub fn save_spec_extras(
     table: &Table,
     values: &[f32],
     lapsus: Option<&cantus_core::fx::lapsus::Bank>,
     board: Option<&cantus_core::fx::tabula::Board>,
+    fractus: Option<&cantus_core::fx::fractus::Pattern>,
 ) -> Vec<u8> {
     let sparse = table.kind.sparse();
     let mut params = BTreeMap::new();
@@ -81,8 +92,9 @@ pub fn save_spec_extras(
         ir: None,                                    // r39:conv
         lapsus: lapsus.map(|b| Box::new(b.clone())), // fx:lapsus
         board: board.map(|b| Box::new(b.clone())),   // fx3:tabula
-        // fxa:loquax — Fractus's lanes are its own builder's (not exported yet).
-        fractus: None,
+        fractus: fractus
+            .filter(|p| !p.is_empty())
+            .map(|p| Box::new(p.clone())), // fxa:fractus
     };
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,

@@ -313,7 +313,7 @@ fn host_of(p: &Project, a: A<'_>) -> Res<StripId> {
 fn kind_schema() -> Value {
     // fx:contract — the description names the side round's units (each builder words its own;
     // fx3:contract — wave 3's four).
-    json!({"enum": args::effect_words(), "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros; a pedal's parameter is p{id}.{key}, get_unit lists them), saltus (pitch: shifter, harmoniser in key or on MIDI chords, octaver analog or clean, whammy by pedal or notes; mono 2.7 ms or poly 85 ms), rota (rotary speaker), arca (amp and cabinet), loquax (vocoder: the track speaks through a synthesiser played by MIDI notes or through a sidechain; robot voices, talk-box, choirs, string machines, talking drums), fractus (glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and more painted on lanes in time with the song), caelum (shimmer reverb: tails that climb in pitch, infinite, freeze, bloom, ducking). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"})
+    json!({"enum": args::effect_words(), "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros; a pedal's parameter is p{id}.{key}, get_unit lists them), saltus (pitch: shifter, harmoniser in key or on MIDI chords, octaver analog or clean, whammy by pedal or notes; mono 2.7 ms or poly 85 ms), rota (rotary speaker), arca (amp and cabinet), loquax (vocoder: the track speaks through a synthesiser played by MIDI notes or through a sidechain; robot voices, talk-box, choirs, string machines, talking drums), fractus (glitch sequencer and grain cloud: repeats, reverses, tape stops, shuffles, pitch jumps, crushes, filter sweeps, gates and delay throws painted on lanes in time with the song, or played by held notes; set_effect's lanes paints them; stutter builds, beat repeats, grain pads, frozen clouds), caelum (shimmer reverb: tails that climb in pitch, infinite, freeze, bloom, ducking). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"})
 }
 
 fn params_schema() -> Value {
@@ -444,10 +444,78 @@ pub fn set_effect_schema() -> Value {
             "mix": {"type": "number", "minimum": 0, "maximum": 1, "description": "The slot's dry/wet."},
             "index": {"type": "integer", "minimum": 0, "maximum": MAX_INSERTS - 1, "description": "Move it to this place in its chain."},
             "sidechain_strip_id": {"type": ["integer", "null"], "minimum": 1, "description": "Key its detector from this strip (compressors, gates…); null: its own input."},
-            "plugin_params": {"type": "object", "additionalProperties": {"type": "number"}, "description": "A hosted plug-in's parameters by its numeric ids, in its own range."}
+            "plugin_params": {"type": "object", "additionalProperties": {"type": "number"}, "description": "A hosted plug-in's parameters by its numeric ids, in its own range."},
+            "lanes": lanes_schema()
         }),
         &["effect_id"],
     )
+}
+
+/// fxa:fractus — Fractus's lanes, painted by name.
+fn lanes_schema() -> Value {
+    json!({"type": "object", "maxProperties": 10,
+        "propertyNames": {"enum": cantus_core::fx::fractus::LANE_KEYS},
+        "additionalProperties": {"type": "array", "maxItems": 256, "items": {"type": "object",
+            "properties": {
+                "at": {"type": "integer", "minimum": 0, "maximum": 255, "description": "The step it starts on (0 the cycle's first; step and bars set the grid)."},
+                "len": {"type": "integer", "minimum": 1, "maximum": 256, "description": "Steps it holds, its start included."},
+                "amount": {"type": "number", "minimum": 0, "maximum": 1, "description": "The module's mix for the event (default 1)."},
+                "chance": {"type": "number", "minimum": 0, "maximum": 1, "description": "The chance it plays each cycle (default 1)."}
+            },
+            "required": ["at", "len"], "additionalProperties": false}},
+        "description": "Fractus only: lanes replaced by name (repeat, reverse, tape, shuffle, pitch, crush, filter, gate, throw, cloud), each a list of blocks; [] clears a lane. Overlapping blocks are cut where the one before ends."})
+}
+
+/// fxa:fractus — the commands that paint `lanes` on a Fractus.
+fn lane_commands(
+    slot: &cantus_core::EffectSlot,
+    strip: StripId,
+    lanes: &Map<String, Value>,
+) -> Res<Vec<Command>> {
+    use cantus_core::fx::fractus::{Block, LANE_KEYS, MAX_STEPS};
+    if slot.spec.kind != cantus_core::EffectKind::Glitch {
+        return Err(ToolError::bad("lanes", "only Fractus has lanes"));
+    }
+    let mut out = Vec::new();
+    for (name, blocks) in lanes {
+        let lane = LANE_KEYS
+            .iter()
+            .position(|k| k == name)
+            .ok_or_else(|| ToolError::bad("lanes", format!("no lane {name:?}")))?;
+        let list = blocks
+            .as_array()
+            .ok_or_else(|| ToolError::bad("lanes", "each lane is a list of blocks"))?;
+        let mut v = Vec::with_capacity(list.len());
+        for b in list {
+            let n = |k: &str| b.get(k).and_then(Value::as_f64);
+            let (Some(at), Some(len)) = (n("at"), n("len")) else {
+                return Err(ToolError::bad("lanes", "a block needs at and len"));
+            };
+            if !(0.0..MAX_STEPS as f64).contains(&at) || !(1.0..=MAX_STEPS as f64).contains(&len) {
+                return Err(ToolError::bad("lanes", "at 0..255, len 1..256"));
+            }
+            let unit = |k: &str| -> Res<f32> {
+                match n(k) {
+                    None => Ok(1.0),
+                    Some(x) if (0.0..=1.0).contains(&x) => Ok(x as f32),
+                    Some(_) => Err(ToolError::bad("lanes", format!("{k} is 0 to 1"))),
+                }
+            };
+            v.push(Block {
+                at: at as u16,
+                len: len as u16,
+                amount: unit("amount")?,
+                prob: unit("chance")?,
+            });
+        }
+        out.push(Command::SetFractusLane {
+            strip,
+            effect: slot.id,
+            lane: lane as u8,
+            blocks: cantus_core::fx::fractus::sanitize(&v),
+        });
+    }
+    Ok(out)
 }
 
 pub fn set_effect(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
@@ -508,6 +576,11 @@ pub fn set_effect(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
             });
         }
         done.insert("plugin_params".into(), json!(m));
+    }
+    // fxa:fractus
+    if let Some(m) = a.opt_object("lanes")? {
+        cmds.extend(lane_commands(&slot, strip, m)?);
+        done.insert("lanes".into(), json!(m));
     }
     if let Some(b) = a.opt_bool("bypass")? {
         cmds.push(Command::SetEffectBypass {

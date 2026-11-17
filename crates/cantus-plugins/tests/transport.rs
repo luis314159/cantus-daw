@@ -699,3 +699,73 @@ fn the_last_frame_of_a_block_ending_at_the_loop_end_is_before_the_wrap() {
         "the last frame at {last}"
     );
 }
+
+/// fxa:fractus — the DSP Fractus runs, its lanes as the engine writes them, given the song at
+/// `tempo` from `start` beats once per block of 512 — the engine's own way.
+pub fn fractus_reference(
+    spec: &cantus_core::EffectSpec,
+    input: &(Vec<f32>, Vec<f32>),
+    tempo: f64,
+    start: f64,
+) -> Vec<f32> {
+    let mut d = cantus_dsp::fractus::Fractus::new(SR);
+    let mut pat = Box::new(cantus_dsp::fractus::Pattern::EMPTY);
+    d.set(&cantus_engine::fx::fractus::settings(spec));
+    cantus_engine::fx::fractus::pattern_into(spec.fractus.as_deref(), &mut pat);
+    d.set_pattern(&pat);
+    d.reset();
+    let (mut l, mut r) = input.clone();
+    let n = l.len();
+    let start_samples = (start * 60.0 / tempo * SR as f64).round() as i64;
+    let mut at = 0;
+    while at < n {
+        let m = 512.min(n - at);
+        d.set_transport(&cantus_dsp::modfx_clock::Transport {
+            playing: true,
+            tempo_bpm: tempo,
+            samples: start_samples + at as i64,
+        });
+        d.process(&mut l[at..at + m], &mut r[at..at + m]);
+        at += m;
+    }
+    l
+}
+
+/// fxa:fractus — Fractus's lanes in another DAW play on that DAW's beats: a fresh instance's
+/// starting stutter (the last beat of each bar repeats a thirty-second) at 90 BPM from beat
+/// 2.5, through CLAP's transport at any block size, is bit-identical to the DSP given the
+/// same song position — and it is the input until the bar's last beat (beat 3) has played
+/// its first slice, then the repeats.
+#[test]
+fn fractus_s_lanes_follow_the_hosts_tempo_and_position_through_clap() {
+    let kind = EffectKind::Glitch;
+    let n = 96_000;
+    let (tempo, start) = (90.0, 2.5);
+    let input = signal(n, 7);
+    let spec = cantus_core::starting::starting_spec(kind);
+    assert!(spec.fractus.is_some(), "the starting stutter is painted");
+    let expected = fractus_reference(&spec, &input, tempo, start);
+    for blocks in [&[512][..], &[1], &[7], &[4096], &[5, 333, 64]] {
+        let plug = Plug::new(kind);
+        plug.activate(4096);
+        let (mut l, mut r) = input.clone();
+        let (mut at, mut b) = (0usize, 0usize);
+        while at < n {
+            let m = blocks[b % blocks.len()].min(n - at);
+            b += 1;
+            let beats = start + at as f64 * tempo / 60.0 / SR as f64;
+            plug.transport.set(Some(transport(beats, tempo, true)));
+            plug.process(&mut l[at..at + m], &mut r[at..at + m], None, &[], false);
+            at += m;
+        }
+        assert_identical(&format!("Fractus, blocks {blocks:?}"), &l, &expected);
+    }
+    // Beat 3 is 16 000 samples in; its first thirty-second (4 000 samples) plays live.
+    let first = diff(&expected, &input.0).map(|d| d.0);
+    eprintln!("first sample the stutter changes: {first:?}");
+    let first = first.expect("the stutter is heard");
+    assert!(
+        (19_000..=20_000).contains(&first),
+        "the first repeat at beat 3 + 1/32: {first}"
+    );
+}

@@ -381,6 +381,9 @@ pub fn prepare(
                     if kind == EffectKind::Vocoder {
                         vocoder_carriers(&p, &mut slot);
                     }
+                    if kind == EffectKind::Glitch && slot.spec.get("trig") >= 0.5 {
+                        fractus_keys(&p, &mut slot); // fxa:fractus
+                    }
                     p.master.effects.push(slot);
                 }
                 whole(p, HeardOn::Source(entry.role()), false)
@@ -410,6 +413,22 @@ fn vocoder_carriers(p: &Project, slot: &mut cantus_core::EffectSlot) {
     if let Some(t) = line {
         slot.midi_from = Some(t.id);
         slot.sidechain = t.strip;
+    }
+}
+
+/// fxa:fractus — a Fractus played by notes, on the fixed source, hears the notes of the
+/// source's last melodic line (`midi_from`), its first lane's key on that line's lowest
+/// note — so each of its notes plays a module, as keys would.
+fn fractus_keys(p: &Project, slot: &mut cantus_core::EffectSlot) {
+    let line =
+        p.tracks.iter().rev().find(|t| {
+            t.instrument.pulsus().is_none() && t.clips.iter().any(|c| !c.notes.is_empty())
+        });
+    if let Some(t) = line {
+        slot.midi_from = Some(t.id);
+        if let Some(low) = t.clips.iter().flat_map(|c| &c.notes).map(|n| n.pitch).min() {
+            let _ = slot.spec.set("key", f32::from(low).min(117.0));
+        }
     }
 }
 

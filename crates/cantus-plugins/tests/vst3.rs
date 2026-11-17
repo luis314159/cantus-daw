@@ -624,6 +624,61 @@ fn a_synced_tremor_follows_the_hosts_tempo_and_position_through_vst3() {
     assert_eq!(el[at(3.25)], 1.0);
 }
 
+/// fxa:fractus — Fractus's lanes on a VST3 host's beats (`ProcessContext`): its state's lanes
+/// (the starting stutter) at 90 BPM from beat 2.5, bit-identical to the DSP given the same
+/// song position, whatever the blocks.
+#[test]
+fn fractus_s_lanes_follow_the_hosts_tempo_through_vst3() {
+    let kind = EffectKind::Glitch;
+    let (tempo, start, n) = (90.0f64, 2.5f64, 96_000usize);
+    let spec = spec_with(kind, &[]);
+    let input = signal(n, 7);
+    let mut d = cantus_dsp::fractus::Fractus::new(SR);
+    let mut pat = Box::new(cantus_dsp::fractus::Pattern::EMPTY);
+    d.set(&cantus_engine::fx::fractus::settings(&spec));
+    cantus_engine::fx::fractus::pattern_into(spec.fractus.as_deref(), &mut pat);
+    d.set_pattern(&pat);
+    d.reset();
+    let (mut el, mut er) = input.clone();
+    let start_samples = (start * 60.0 / tempo * SR as f64).round() as i64;
+    let mut at = 0;
+    while at < n {
+        let m = 512.min(n - at);
+        d.set_transport(&cantus_dsp::modfx_clock::Transport {
+            playing: true,
+            tempo_bpm: tempo,
+            samples: start_samples + at as i64,
+        });
+        d.process(&mut el[at..at + m], &mut er[at..at + m]);
+        at += m;
+    }
+    assert!(diff(&el, &input.0).is_some(), "the stutter is heard");
+    for blocks in [&[512][..], &[7], &[5, 333, 64]] {
+        let v = V3::new(kind);
+        assert!(v.set_state(&state_of(kind, &[])));
+        v.activate(4096);
+        let (mut l, mut r) = input.clone();
+        let (mut at, mut b) = (0usize, 0usize);
+        while at < n {
+            let m = blocks[b % blocks.len()].min(n - at);
+            b += 1;
+            let mut c: ProcessContext = unsafe { std::mem::zeroed() };
+            use ProcessContext_::StatesAndFlags_::*;
+            c.state = (kPlaying | kTempoValid | kProjectTimeMusicValid | kTimeSigValid) as u32;
+            c.sampleRate = SR as f64;
+            c.tempo = tempo;
+            c.projectTimeMusic = start + at as f64 * tempo / 60.0 / SR as f64;
+            c.timeSigNumerator = 4;
+            c.timeSigDenominator = 4;
+            v.context.set(Some(c));
+            v.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
+            at += m;
+        }
+        assert_identical(&format!("Fractus VST3 blocks {blocks:?}"), &l, &el);
+        assert_identical(&format!("Fractus VST3 blocks {blocks:?}, right"), &r, &er);
+    }
+}
+
 /// Fix2 (review 2): a VST3 host that gives its tempo and the song in samples
 /// (`projectTimeSamples`) but not in beats (no `kProjectTimeMusicValid`) plays as one that
 /// gives the beats: the engine's DSP given the same song position.

@@ -90,6 +90,7 @@ fn feature(d: &Descriptor) -> &'static str {
         "rota" => "rota,editor",       // fx3:contract
         "arca" => "arca,editor",       // fx3:contract
         "loquax" => "loquax,editor",   // fxa:loquax
+        "fractus" => "fractus,editor", // fxa:fractus
         other => panic!("no feature for {other}"),
     }
 }

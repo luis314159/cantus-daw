@@ -7,7 +7,7 @@
 
 /// The cargo feature (as `CARGO_FEATURE_*` spells it) of each plug-in, and its full name
 /// (`desc.rs`; a test keeps the two lists equal).
-const PLUGINS: [(&str, &str); 34] = [
+const PLUGINS: [(&str, &str); 35] = [
     // fx3:contract: 33 with wave 3's four
     ("EQ", "Cantus Aequalis"),
     ("COMPRESSOR", "Cantus Comprimo"),
@@ -43,6 +43,7 @@ const PLUGINS: [(&str, &str); 34] = [
     ("ROTA", "Cantus Rota"),       // fx3:contract
     ("ARCA", "Cantus Arca"),       // fx3:contract
     ("LOQUAX", "Cantus Loquax"),   // fxa:loquax
+    ("FRACTUS", "Cantus Fractus"), // fxa:fractus
 ];
 
 fn main() {

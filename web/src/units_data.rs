@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 35] = [
+pub const EFFECTS: [Unit; 36] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -557,6 +557,28 @@ pub const EFFECTS: [Unit; 35] = [
         ab: None,
         big: (1800, 1209),
         thumb: (640, 430),
+    },
+
+    // fxa:fractus — Fractus, the glitch sequencer and grain cloud (ADR 0140, provisional).
+    Unit {
+        file: "fractus",
+        name: "Fractus",
+        kind: ("Glitch sequencer", "Secuenciador de glitch"),
+        pitch: ("A glitch sequencer and grain cloud: stutters, reverses, tape stops, gates and throws painted on lanes in time with the song, played by your notes too.", "Un secuenciador de glitch y nube de granos: tartamudeos, reversos, paradas de cinta, puertas y lanzamientos pintados en carriles al compás de la canción, y tocados también por tus notas."),
+        what: long!(("Fractus is ten effects on ten lanes of a step sequencer that follows the song: repeat (with the stutter build that halves each part), reverse, tape stop and start, shuffle, pitch jump, crush, filter sweep, gate, delay throw and the grain cloud. Paint a block with the mouse — its height is its amount, a stroke sets its chance — and it plays on its steps, every join smoothed so nothing clicks; or let held notes play the lanes, quantised to the grid or at once. Beside the lanes a cloud of grains reads the last seconds, pitched to a scale, spread in the stereo field, frozen with one switch. Its window is the machine itself: the pads lit to their amount, the playhead, the keys that play the lanes, and the grains drawn live on a scope. At its defaults it passes the sound untouched.", "Fractus son diez efectos en diez carriles de un secuenciador por pasos que sigue a la canción: repetición (con la subida que parte cada trozo a la mitad), reverso, parada y arranque de cinta, barajado, salto de tono, trituración, barrido de filtro, puerta, lanzamiento de eco y la nube de granos. Pinta un bloque con el ratón — su altura es su cantidad, un trazo fija su probabilidad — y suena en sus pasos, cada unión suavizada para que nada chasque; o deja que las notas sostenidas toquen los carriles, cuantizadas a la rejilla o al instante. Junto a los carriles una nube de granos lee los últimos segundos, afinada a una escala, abierta en el estéreo, congelada con un interruptor. Su ventana es la máquina misma: los pads encendidos a su cantidad, el cabezal, las teclas que tocan los carriles y los granos dibujados en vivo en un osciloscopio. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("Ten modules on ten lanes, 1/4 to 1/64 steps (triplets too), up to four bars, swing", "Diez módulos en diez carriles, pasos de 1/4 a 1/64 (también tresillos), hasta cuatro compases, swing"),
+            ("Repeats replayed to the bit, the stutter build, joins 60 to 70 dB below a hard cut", "Repeticiones reproducidas al bit, la subida de tartamudeo, uniones de 60 a 70 dB por debajo de un corte seco"),
+            ("Blocks painted with the mouse: height is the amount, a stroke sets the chance", "Bloques pintados con el ratón: la altura es la cantidad, un trazo fija la probabilidad"),
+            ("Held notes play the lanes, on the step or at once", "Las notas sostenidas tocan los carriles, en el paso o al instante"),
+            ("A grain cloud up to 200 grains a second, pitched to a scale, frozen with one switch", "Una nube de hasta 200 granos por segundo, afinada a una escala, congelada con un interruptor"),
+            ("Eighteen factory presets; no latency; untouched at its defaults", "Dieciocho presets de fábrica; sin latencia; intacto en sus valores por defecto"),
+        ]),
+        presets: Some(18),
+        plugin: true,
+        ab: None,
+        big: (1800, 967),
+        thumb: (640, 344),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

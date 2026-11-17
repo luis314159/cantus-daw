@@ -796,6 +796,20 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("b5", -9.0),
             ("out", -3.0),
         ], // fxa:loquax
+        // fxa:fractus — no host transport here, so the steps rest (the starting stutter is
+        // painted all the same): the cloud beside the chain, pitched a fifth and spread, some
+        // grains backwards, and the output moved. The lanes on the host's beats are in
+        // `transport.rs` and `vst3.rs`; notes playing them in `notes.rs`.
+        EffectKind::Glitch => vec![
+            ("clevel", 0.5),
+            ("cpitch", 7.0),
+            ("cdens", 60.0),
+            ("csize", 80.0),
+            ("cspread", 0.7),
+            ("crev", 0.3),
+            ("mix", 0.9),
+            ("out", -3.0),
+        ], // fxa:fractus
         _ => vec![],
     }
 }
@@ -898,6 +912,12 @@ pub enum Direct {
     Arca(Box<cantus_dsp::arca::Arca>),
     /// fxa:loquax — Loquax, the vocoder (its notes, when any, through `Direct::note`).
     Loquax(Box<cantus_dsp::loquax::Loquax>),
+    /// fxa:fractus — Fractus, the glitch sequencer: its DSP with the lanes written into
+    /// its steps as the engine writes them (`fx::fractus::pattern_into`).
+    Fractus(
+        Box<cantus_dsp::fractus::Fractus>,
+        Box<cantus_dsp::fractus::Pattern>,
+    ),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -999,6 +1019,10 @@ impl Direct {
             EffectKind::Rotary => Direct::Rota(Box::new(cantus_dsp::rota::Rota::new(SR))), // fx3:rota
             EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
             EffectKind::Vocoder => Direct::Loquax(Box::new(cantus_dsp::loquax::Loquax::new(SR))), // fxa:loquax
+            EffectKind::Glitch => Direct::Fractus(
+                Box::new(cantus_dsp::fractus::Fractus::new(SR)),
+                Box::new(cantus_dsp::fractus::Pattern::EMPTY),
+            ), // fxa:fractus
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -1050,6 +1074,12 @@ impl Direct {
             Direct::Saltus(x) => x.set(&fx::saltus::settings(spec)), // fx3:saltus
             Direct::Rota(x) => x.set(&fx::rota::settings(spec).0), // fx3:rota
             Direct::Loquax(x) => x.set(&fx::loquax::settings(spec)), // fxa:loquax
+            // fxa:fractus — its values, then its lanes.
+            Direct::Fractus(x, pat) => {
+                x.set(&fx::fractus::settings(spec));
+                fx::fractus::pattern_into(spec.fractus.as_deref(), pat);
+                x.set_pattern(pat);
+            }
             // fx3:arca — the cabinet built as the engine builds it, supplied once.
             Direct::Arca(x) => {
                 let (s, need) = fx::arca::settings(spec);
@@ -1100,14 +1130,15 @@ impl Direct {
             Direct::Tonsor(x) => x.reset(),
             Direct::Impetus(x) => x.reset(),
             Direct::Discrimen(x) => x.reset(),
-            Direct::Stub(x) => x.reset(),    // fx:contract
-            Direct::Cribrum(x) => x.reset(), // fx:cribrum
-            Direct::Vetus(x) => x.reset(),   // fx:vetus
-            Direct::Libra(x) => x.reset(),   // fx:libra
-            Direct::Saltus(x) => x.reset(),  // fx3:saltus
-            Direct::Rota(x) => x.reset(),    // fx3:rota
-            Direct::Arca(x) => x.reset(),    // fx3:arca
-            Direct::Loquax(x) => x.reset(),  // fxa:loquax
+            Direct::Stub(x) => x.reset(),       // fx:contract
+            Direct::Cribrum(x) => x.reset(),    // fx:cribrum
+            Direct::Vetus(x) => x.reset(),      // fx:vetus
+            Direct::Libra(x) => x.reset(),      // fx:libra
+            Direct::Saltus(x) => x.reset(),     // fx3:saltus
+            Direct::Rota(x) => x.reset(),       // fx3:rota
+            Direct::Arca(x) => x.reset(),       // fx3:arca
+            Direct::Loquax(x) => x.reset(),     // fxa:loquax
+            Direct::Fractus(x, _) => x.reset(), // fxa:fractus
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1137,14 +1168,15 @@ impl Direct {
             Direct::Tonsor(x) => x.latency(),
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
-            Direct::Stub(x) => x.latency(),    // fx:contract
-            Direct::Cribrum(x) => x.latency(), // fx:cribrum
-            Direct::Vetus(x) => x.latency(),   // fx:vetus
-            Direct::Libra(x) => x.latency(),   // fx:libra
-            Direct::Saltus(x) => x.latency(),  // fx3:saltus
-            Direct::Rota(_) => 0,              // fx3:rota
-            Direct::Arca(x) => x.latency(),    // fx3:arca
-            Direct::Loquax(x) => x.latency(),  // fxa:loquax
+            Direct::Stub(x) => x.latency(),       // fx:contract
+            Direct::Cribrum(x) => x.latency(),    // fx:cribrum
+            Direct::Vetus(x) => x.latency(),      // fx:vetus
+            Direct::Libra(x) => x.latency(),      // fx:libra
+            Direct::Saltus(x) => x.latency(),     // fx3:saltus
+            Direct::Rota(_) => 0,                 // fx3:rota
+            Direct::Arca(x) => x.latency(),       // fx3:arca
+            Direct::Loquax(x) => x.latency(),     // fxa:loquax
+            Direct::Fractus(x, _) => x.latency(), // fxa:fractus
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1182,6 +1214,7 @@ impl Direct {
             Direct::Rota(x) => x.process(l, r),      // fx3:rota
             Direct::Arca(x) => x.process(l, r),      // fx3:arca
             Direct::Loquax(x) => x.process(l, r, key, &[]), // fxa:loquax
+            Direct::Fractus(x, _) => x.process(l, r), // fxa:fractus
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

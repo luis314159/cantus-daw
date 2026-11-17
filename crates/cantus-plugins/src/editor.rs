@@ -68,6 +68,8 @@ pub struct PluginHost {
     lapsus_gen: u64,
     /// fx3:tabula — the board generation `spec` holds.
     board_gen: u64,
+    /// fxa:fractus — the lanes' generation `spec` holds.
+    fractus_gen: u64,
     /// The other side of A/B (the plug-in's values), and whether B is the side showing.
     other: Option<Vec<f32>>,
     on_b: bool,
@@ -92,8 +94,9 @@ impl PluginHost {
             sink,
             active: Vec::new(),
             revision: 0,
-            lapsus_gen: u64::MAX, // fx:lapsus
-            board_gen: u64::MAX,  // fx3:tabula
+            lapsus_gen: u64::MAX,  // fx:lapsus
+            board_gen: u64::MAX,   // fx3:tabula
+            fractus_gen: u64::MAX, // fxa:fractus
             other: None,
             on_b: false,
         }
@@ -123,6 +126,13 @@ impl PluginHost {
         if g != self.lapsus_gen {
             self.lapsus_gen = g;
             self.spec.lapsus = self.shared.lapsus.get();
+            changed = true;
+        }
+        // fxa:fractus — Fractus's lanes, when the main thread has new ones.
+        let g = self.shared.fractus.generation();
+        if g != self.fractus_gen {
+            self.fractus_gen = g;
+            self.spec.fractus = self.shared.fractus.get();
             changed = true;
         }
         // fx3:tabula — Tabula's board, when the main thread has a new one.
@@ -251,6 +261,24 @@ impl FxHost for PluginHost {
         self.shared.lapsus.set_pattern(lane, slot, pattern);
         self.lapsus_gen = self.shared.lapsus.generation();
         self.spec.lapsus = self.shared.lapsus.get();
+        self.revision += 1;
+    }
+
+    // fxa:fractus — a lane of Fractus: kept by the instance, posted to its processor, saved
+    // in its state (a host automates the values, not the lanes).
+    fn set_fractus_lane(
+        &mut self,
+        lane: u8,
+        blocks: Vec<cantus_core::fx::fractus::Block>,
+        _gesture: Option<u64>,
+    ) {
+        let mut p = self.shared.fractus.get().map(|b| *b).unwrap_or_default();
+        p.replace(lane, &blocks);
+        self.shared
+            .fractus
+            .set((!p.is_empty()).then(|| Box::new(p)));
+        self.fractus_gen = self.shared.fractus.generation();
+        self.spec.fractus = self.shared.fractus.get();
         self.revision += 1;
     }
 

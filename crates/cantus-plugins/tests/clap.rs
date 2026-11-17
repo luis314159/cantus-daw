@@ -236,6 +236,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Rotary => "out",     // fx3:contract
             EffectKind::Amp => "out",        // fx3:contract
             EffectKind::Vocoder => "out",    // fxa:loquax
+            EffectKind::Glitch => "out",     // fxa:fractus
             _ => "thr",
         };
         let table = params::table(kind);

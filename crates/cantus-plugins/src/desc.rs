@@ -56,8 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 34] = [
-    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder
+pub static ALL: [Descriptor; 35] = [
+    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder; fxa:fractus: 35
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -479,6 +479,21 @@ pub static ALL: [Descriptor; 34] = [
         vst3_categories: "Fx|Filter",
         description: "Vocoder: a voice speaks through a synthesiser played by notes or through the sidechain, in 8 to 64 bands.",
         compiled: cfg!(feature = "loquax"),
+    },
+    // fxa:fractus — the fx side round's wave A (provisional ADR 0140). Its lanes are content
+    // in its state (`state::save_spec_extras`), its sequence follows the host's transport,
+    // and the notes the host sends to its note port play the lanes.
+    Descriptor {
+        kind: EffectKind::Glitch,
+        name: "Fractus",
+        full_name: "Cantus Fractus",
+        slug: "fractus",
+        clap_id: "com.github.lalmazan.cantus.fractus",
+        vst3_cid: [0xA45BB873, 0x8037DB8F, 0x9F9C9A7F, 0xB80F1099],
+        clap_features: &[FX, "glitch", STEREO],
+        vst3_categories: "Fx|Modulation",
+        description: "Glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and throws painted on lanes in time with the song, played by notes too.",
+        compiled: cfg!(feature = "fractus"),
     },
 ];
 
