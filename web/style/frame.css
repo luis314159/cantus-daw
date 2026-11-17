@@ -91,13 +91,13 @@
   --band-ivory: #29241b;
   --band-navy: #0b1226;
 }
-:root main > section:nth-of-type(odd):not(.hero, .proof, .listen, .night, .ai-wrap) { background: var(--band-paper); }
-:root main > section:nth-of-type(even):not(.hero, .proof, .listen, .night, .ai-wrap) {
+:root main > section:nth-of-type(odd):not(.hero, .page-band, .proof, .listen, .night, .ai-wrap) { background: var(--band-paper); }
+:root main > section:nth-of-type(even):not(.hero, .page-band, .proof, .listen, .night, .ai-wrap) {
   background: var(--band-ivory);
   --paper: var(--band-ivory);
 }
-:root[data-theme="light"] main > section:nth-of-type(even):not(.hero, .proof, .listen, .night, .ai-wrap) { --mist: #ebe3cf; --line: #d9cdb0; }
-:root[data-theme="dark"] main > section:nth-of-type(even):not(.hero, .proof, .listen, .night, .ai-wrap) { --mist: #221e16; --line: #3d3626; }
+:root[data-theme="light"] main > section:nth-of-type(even):not(.hero, .page-band, .proof, .listen, .night, .ai-wrap) { --mist: #ebe3cf; --line: #d9cdb0; }
+:root[data-theme="dark"] main > section:nth-of-type(even):not(.hero, .page-band, .proof, .listen, .night, .ai-wrap) { --mist: #221e16; --line: #3d3626; }
 
 /* deep navy: light text, the lapis scope's tokens */
 :root main > section.proof,
@@ -152,8 +152,11 @@
    the deep blue of the dark hero's ground, gold only in the eyebrow and the headline's dot (the
    darker gold, 4.5:1 on white). The bar above it reads the same until the page scrolls. The dark
    theme keeps the lapis night. Contrast on #fff: #1b2c7a 12.6:1, #24398f 9.9:1, #3a4c9a 7.8:1,
-   #8a6212 5.1:1. */
+   #8a6212 5.1:1. A page's head (the download page, a unit's page, Measured) is dressed the
+   same: the bar above it reads deep blue, and a lapis band under it hid the bar's words (and
+   the download page's head, a section, took a paper band's colour under its white words). */
 :root[data-theme="light"] .hero,
+:root[data-theme="light"] .page-band,
 :root[data-theme="light"] .nav:not(.is-scrolled) {
   color-scheme: light;
   --ink: #1b2c7a; --ink-2: #24398f; --ink-3: #3a4c9a; --strong: #1b2c7a;
@@ -162,18 +165,22 @@
   --edge: rgba(36, 67, 168, 0.3); --mist: #eef1fa;
   --accent: #2443a8; --accent-text: #2443a8; --accent-ink: #ffffff;
   --accent-grad: linear-gradient(#3352b8, #2443a8 55%, #1d3890); --accent-glow: rgba(36, 67, 168, 0.38);
-  --gold: #8a6212; --gold-text: #8a6212;
+  --gold: #8a6212; --gold-text: #7a5410; /* 4.8:1 even on a dot of the grid */
 }
-:root[data-theme="light"] .hero {
+:root[data-theme="light"] .hero,
+:root[data-theme="light"] .page-band {
   background:
     radial-gradient(circle at 17px 17px, rgba(36, 67, 168, 0.2) 1.6px, transparent 2.2px) 0 0 / 34px 34px,
     #ffffff;
 }
 :root[data-theme="light"] .nav:not(.is-scrolled) .lang button[aria-pressed="true"] { background: #2443a8; color: #ffffff; }
-:root[data-theme="light"] .hero .btn-quiet {
-  background: transparent; color: #1b2c7a; border: 1.5px solid #2443a8; box-shadow: none;
+:root[data-theme="light"] .hero .btn-quiet,
+:root[data-theme="light"] .page-band .btn-quiet {
+  /* white, not clear: the dot grid stays out of its words (its "411 MB") */
+  background: #ffffff; color: #1b2c7a; border: 1.5px solid #2443a8; box-shadow: none;
 }
-:root[data-theme="light"] .hero .btn-quiet:hover { background: rgba(36, 67, 168, 0.08); color: #1b2c7a; }
+:root[data-theme="light"] .hero .btn-quiet:hover,
+:root[data-theme="light"] .page-band .btn-quiet:hover { background: #eef1fa; color: #1b2c7a; }
 :root[data-theme="light"] .hero-window {
   box-shadow: 0 0 0 1px rgba(27, 44, 122, 0.18), 0 30px 60px -28px rgba(27, 44, 122, 0.5), 0 8px 20px -12px rgba(23, 32, 42, 0.35);
 }

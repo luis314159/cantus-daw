@@ -86,6 +86,17 @@ pub fn hero() -> Html {
                          width={w.to_string()} height={h.to_string()}
                          alt={crate::picture::program_alt(l)} fetchpriority="high" decoding="async" />
                 </figure>
+                // The program assembling itself as the page scrolls (motion.css, desktop only):
+                // the same picture five times, each clipped to one part of the window. A
+                // decoration over the real picture, which is never moved or faded (the LCP).
+                <div class="hw-parts" aria-hidden="true">
+                    { for ["top", "browser", "arrange", "mixer", "inspector"].iter().map(|part| html! {
+                        <span class={format!("hw-part hw-{part}")}>
+                            <img src={crate::picture::program(l)} srcset={crate::picture::program_srcset(l)}
+                                 sizes={crate::picture::PROGRAM_SIZES} width={w.to_string()} height={h.to_string()} alt="" decoding="async" />
+                        </span>
+                    }) }
+                </div>
                 <HearSong />
                 <p class="hero-real">{ l.t("The real program, playing Neon Tide", "El programa real, tocando Neon Tide") }</p>
             </div>

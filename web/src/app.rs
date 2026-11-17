@@ -84,15 +84,30 @@ pub fn app(p: &AppProps) -> Html {
         },
     };
 
+    // A page the visitor went to settles in (motion.css); the one the address opened does not,
+    // and a jump within the page keeps what its page was drawn with.
+    let mount = use_mut_ref(|| (String::new(), false));
+    let arriving = {
+        let mut m = mount.borrow_mut();
+        let path = page.path();
+        if m.0 != path {
+            *m = (path, at.arrive != Arrive::Loaded);
+        }
+        m.1
+    };
+
     html! {
         <ContextProvider<RouteCtx> context={route_ctx}>
         <ContextProvider<LangCtx> context={lang_ctx}>
         <ContextProvider<ThemeCtx> context={theme_ctx}>
             <a class="skip" href="#main">{ page.lang.t("Skip to the content", "Saltar al contenido") }</a>
             <nav::Nav />
-            <main id="main" key={page.path()}>
+            <main id="main" key={page.path()} class={classes!(arriving.then_some("is-arriving"))}>
                 { body_of(page) }
             </main>
+            // The gold cable down the page's margin (motion.css): lit above the middle of the
+            // screen, a pulse running down it, a branch to each chapter's mark as it arrives.
+            <div class="cable" aria-hidden="true"><i class="cable-lit"></i><i class="cable-pulse"></i></div>
             <foot::Footer />
         </ContextProvider<ThemeCtx>>
         </ContextProvider<LangCtx>>

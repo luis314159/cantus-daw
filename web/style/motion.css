@@ -1,0 +1,450 @@
+/* Motion (round fx, the owner 2026-11-13: "animaciones y cosas interesantes para pulir más el
+   sitio"). Every rule here moves only transform and opacity, so the compositor runs it and no
+   layout is redone; all of it sits inside `prefers-reduced-motion: no-preference`, so a visitor
+   who asks for less motion gets the page as it was (base.css's reduce rule stays the backstop).
+   What reveals on scroll is driven by the scroll itself (animation-timeline: view()), with no
+   script: a browser without it (Firefox today) simply shows everything at rest. Nothing waits
+   for a timer to be shown, and the app redrawing the pre-rendered page restarts nothing that
+   is visible.
+   v2 (the owner, 2026-11-13: "más marcado"): more travel and presence everywhere — a longer
+   rise, a wave that reads, a card that really lifts, a light and a spark you notice, a page
+   that arrives — still eased, never bouncing. */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* ── Sections and cards rise into place as they come into view ───────────────────────── */
+  @supports (animation-timeline: view()) {
+    /* Only what scrolls with the page: inside a box that scrolls on its own (the effects'
+       list on a phone, the songs' clipped list) the view would be that box's, and the item
+       would stay half-shown — so those lists rise whole. */
+    main > section:not(.hero) h2,
+    main > section:not(.hero) .lede,
+    .uc-li, .m-card, .mx-card, .steps li, .sys-card, .studio-card, .fx-list, .songs,
+    .facts li, .promises li, .learn-group, .proof-songs li, .stat, .way, .tiers li,
+    .verse, .get-main, .get-side, .platform-card, .spot, .backdrop, .faq details,
+    .uf-shot, .uf-pager a, .reqs > div, .stays-free, .m-method article, .chips li {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry var(--rise-at, 0px) entry calc(var(--rise-at, 0px) + 280px);
+    }
+    /* a row of cards arrives as a wave, left to right */
+    :is(.uc-li, .m-card, .steps li, .sys-card, .studio-card, .stat, .way, .tiers li, .platform-card, .chips li, .reqs > div):nth-child(4n + 2) { --rise-at: 70px; }
+    :is(.uc-li, .m-card, .steps li, .sys-card, .studio-card, .stat, .way, .tiers li, .platform-card, .chips li, .reqs > div):nth-child(4n + 3) { --rise-at: 140px; }
+    :is(.uc-li, .m-card, .steps li, .sys-card, .studio-card, .stat, .way, .tiers li, .platform-card, .chips li, .reqs > div):nth-child(4n + 4) { --rise-at: 210px; }
+
+    /* Measured: each bar draws itself out from zero as its card arrives; the value follows. */
+    .pair { view-timeline: --pair block; }
+    .bar .track i {
+      transform-origin: left center;
+      animation: draw linear both;
+      animation-timeline: --pair;
+      /* over the lowest fifth of the screen: a pair already in view when the page opens is
+         complete, only one entering at the bottom edge is still racing */
+      animation-range: cover 1% cover calc(4% + var(--w, 100) * 0.18%);
+    }
+    /* a heading arrives from further, the text under it a beat later */
+    main > section:not(.hero) h2 { animation-name: rise-far; }
+    main > section:not(.hero) .lede { --rise-at: 40px; }
+    .bar .val {
+      animation: fade linear both;
+      animation-timeline: --pair;
+      animation-range: cover calc(4% + var(--w, 100) * 0.18%) cover calc(6% + var(--w, 100) * 0.18%);
+    }
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(64px) scale(0.955); } to { opacity: 1; transform: none; } }
+  @keyframes rise-far { from { opacity: 0; transform: translateY(80px); } to { opacity: 1; transform: none; } }
+  @keyframes draw { from { transform: scaleX(0); } to { transform: none; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ── The hero: a slow light crosses the program's glass ──────────────────────────────── */
+  .hero-window { position: relative; }
+  .hero-window::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: linear-gradient(104deg, transparent 30%, rgba(255, 255, 255, 0.1) 40%, rgba(255, 244, 194, 0.28) 48%, rgba(255, 255, 255, 0.38) 50%, rgba(255, 244, 194, 0.28) 52%, rgba(255, 255, 255, 0.1) 60%, transparent 70%);
+    transform: translateX(-120%);
+    animation: gleam 8s cubic-bezier(0.45, 0, 0.25, 1) 1.6s infinite;
+  }
+  @keyframes gleam { 0% { transform: translateX(-120%); } 30%, 100% { transform: translateX(120%); } }
+
+  /* ── A signal runs along the gold hairlines (#03's rule): a spark, then rest ─────────── */
+  .proof::after, .page-band::before {
+    content: ""; position: absolute; left: 0; width: min(34rem, 42vw); height: 5px; pointer-events: none; z-index: 2;
+    background: radial-gradient(closest-side, #ffffff, #fff4c2 25%, rgba(243, 212, 120, 0.9) 50%, rgba(226, 184, 74, 0) 100%);
+    filter: drop-shadow(0 0 6px rgba(243, 212, 120, 0.95)) drop-shadow(0 0 14px rgba(233, 196, 102, 0.6));
+    transform: translateX(-100%); opacity: 0;
+    animation: signal 7s cubic-bezier(0.55, 0, 0.35, 1) 1.2s infinite;
+  }
+  .proof::after { top: -2px; }
+  .page-band::before { bottom: -2px; }
+  @keyframes signal {
+    0% { transform: translateX(-100%); opacity: 0; }
+    3% { opacity: 1; }
+    30% { opacity: 1; }
+    34%, 100% { transform: translateX(100vw); opacity: 0; }
+  }
+
+  /* ── Cards lift: a deeper shadow fades in under them, the picture leans in ───────────── */
+  .unit-card, .studio-card, .steps li, .sys-card, .m-card, .uf-pager a, .proof-songs a, .platform-card {
+    position: relative;
+    transition: transform 0.45s var(--ease), border-color 0.2s, color 0.2s;
+  }
+  .unit-card::after, .studio-card::after, .steps li::after, .sys-card::after, .uf-pager a::after, .proof-songs a::after, .platform-card::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+    box-shadow: 0 50px 80px -34px rgba(7, 13, 38, 0.95), 0 18px 30px -22px rgba(7, 13, 38, 0.7), 0 0 0 1.5px var(--accent), 0 0 34px -6px var(--accent-glow);
+    opacity: 0; transition: opacity 0.45s var(--ease);
+  }
+  :root[data-theme="light"] :is(.unit-card, .studio-card, .steps li, .sys-card, .uf-pager a, .proof-songs a, .platform-card)::after {
+    box-shadow: 0 46px 70px -34px rgba(27, 44, 122, 0.7), 0 16px 26px -20px rgba(27, 44, 122, 0.45), 0 0 0 1.5px var(--accent), 0 0 30px -8px var(--accent-glow);
+  }
+  .unit-card:hover, .unit-card:focus-visible, .studio-card:hover, .steps li:hover, .sys-card:hover,
+  .uf-pager a:hover, .proof-songs a:hover, .platform-card:hover { transform: translateY(-10px) scale(1.012); }
+  :is(.unit-card, .studio-card, .steps li, .sys-card, .uf-pager a, .proof-songs a, .platform-card):is(:hover, :focus-visible)::after { opacity: 1; }
+  .unit-card, .studio-card, .steps li, .sys-card, .uf-pager a, .proof-songs a, .platform-card { isolation: isolate; }
+  /* the shadow is drawn outside the card, so the card no longer clips: its picture does */
+  .unit-card, .studio-card { overflow: visible; }
+  .uc-pic { overflow: hidden; border-radius: 8px 8px 0 0; }
+  .studio-card img { border-radius: 8px 8px 0 0; }
+  .uc-pic img { transition: transform 0.7s var(--ease); }
+  .unit-card:hover .uc-pic img, .unit-card:focus-visible .uc-pic img { transform: scale(1.09) translateY(-1.5%); }
+  /* and a light runs once across the picture */
+  .uc-pic::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.22) 50%, transparent 65%);
+    transform: translateX(-120%);
+  }
+  .unit-card:hover .uc-pic::after, .unit-card:focus-visible .uc-pic::after { transform: translateX(120%); transition: transform 0.9s var(--ease); }
+  /* the arrow in "See it large →" steps forward */
+  .uc-more { display: inline-block; transition: transform 0.35s var(--ease), color 0.2s; }
+  .unit-card:hover .uc-more, .unit-card:focus-visible .uc-more { transform: translateX(8px); }
+
+  /* ── The download buttons: the arrow bobs while pointed at, the key gives under a press,
+        and a file that starts downloading answers (main.rs adds `is-sent` for 1.6 s): the
+        arrow drops through and a gold line runs under the label. ─────────────────────────── */
+  .btn { position: relative; overflow: hidden; }
+  .btn-primary:hover { transform: translateY(-2px); }
+  .btn:active, .btn-primary:active { transform: translateY(2px) scale(0.95); transition-duration: 0.08s; }
+  .btn-primary svg { transition: transform 0.3s var(--ease); }
+  .btn-primary:hover svg { animation: bob 1s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: none; } 50% { transform: translateY(5px); } }
+  .btn.is-sent svg { animation: drop 1s var(--ease) both; }
+  /* the press answered: a flash of light crosses the key */
+  .btn.is-sent::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(100deg, transparent 25%, rgba(255, 244, 194, 0.55) 50%, transparent 75%);
+    animation: flash 0.8s var(--ease) both;
+  }
+  @keyframes flash { from { transform: translateX(-110%); } to { transform: translateX(110%); } }
+  @keyframes drop {
+    0% { transform: none; opacity: 1; }
+    40% { transform: translateY(130%); opacity: 0; }
+    41% { transform: translateY(-130%); opacity: 0; }
+    100% { transform: none; opacity: 1; }
+  }
+  .btn.is-sent::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; pointer-events: none;
+    background: var(--metal-bar); transform-origin: left center;
+    animation: sent 1.6s var(--ease) both;
+  }
+  @keyframes sent { 0% { transform: scaleX(0); opacity: 1; } 70% { transform: none; opacity: 1; } 100% { transform: none; opacity: 0; } }
+
+  /* ── Players: a ring breathes out of the button while the sound plays ─────────────────── */
+  .song-btn, .ab-play { position: relative; }
+  .hear-btn { position: relative; }
+  :is(.hear.is-playing .hear-btn, .song.is-playing .song-btn, .ab-play.is-on, .card-play.is-on)::after {
+    content: ""; position: absolute; inset: -1px; border-radius: 50%; pointer-events: none;
+    box-shadow: 0 0 0 2.5px var(--accent);
+    animation: ring 1.45s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  }
+  .hear.is-playing .hear-btn::after { box-shadow: 0 0 0 2px var(--metal-solid); animation-duration: 0.968s; } /* two beats of Neon Tide, 124 BPM */
+  @keyframes ring { from { transform: scale(1); opacity: 0.95; } to { transform: scale(1.8); opacity: 0; } }
+  /* before the first play, the hero's button invites once in a while */
+  .hear:not(.is-playing) .hear-btn::after {
+    content: ""; position: absolute; inset: -1px; border-radius: 50%; pointer-events: none;
+    box-shadow: 0 0 0 2px var(--metal-glow);
+    animation: ring 1.6s cubic-bezier(0.2, 0.6, 0.3, 1) 3s 3;
+    opacity: 0;
+  }
+
+  /* ── Moving between pages: the new page settles in (app.rs marks a page the visitor went
+        to, never the one the address opened, so the first paint is never held back) ────── */
+  main.is-arriving { animation: arrive 0.6s var(--ease) both; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(34px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+  /* ── Day and night: the page cross-fades (theme.rs, the View Transitions API where there
+        is one), and the switch's icon turns in ─────────────────────────────────────────── */
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.6s; animation-timing-function: var(--ease); }
+  .theme-toggle svg { animation: turn-in 0.5s var(--ease); }
+  @keyframes turn-in { from { transform: rotate(-80deg) scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+
+/* With reduced motion, the page changes theme at once (the base rule cannot reach these). */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+
+/* ═══ v3 — the scroll tells a story (the owner, 2026-11-13: "cuando scrollees que pase algo") ═══
+   1. The program assembles itself: the hero's window starts as an exploded view, its parts
+      lifted off a dimmed plate in depth, and the first 560 px of scroll set them in place.
+   2. A gold cable runs down the page's margin, lit above the middle of the screen with a pulse
+      running down it, and branches to each chapter's mark as the chapter reaches the middle.
+   3. The scroll is the playhead: across the tour's arrangement, the clips it has passed lit.
+   4. Measured: the bars race (above, with the reveals).
+   Scroll-driven only (no script), transform and opacity only, never pinned: the page scrolls
+   as it always did. Without scroll-driven animations (Firefox) or with reduced motion, the
+   page is the still, complete one; on a phone only the playhead and the race remain. */
+.hw-parts, .cable { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+
+    /* 3. The playhead */
+    .crop.is-arrange { position: relative; overflow: hidden; }
+    .crop.is-arrange::after {
+      content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 100%; pointer-events: none;
+      background:
+        linear-gradient(90deg, #f3d478, #f3d478) right top / 2px 100% no-repeat,
+        linear-gradient(90deg, rgba(126, 162, 246, 0) 55%, rgba(126, 162, 246, 0.1) 88%, rgba(255, 244, 194, 0.22) 100%);
+      animation: playhead linear both;
+      animation-timeline: view();
+      animation-range: cover 20% cover 80%;
+    }
+    @keyframes playhead { from { transform: translateX(-91%); } to { transform: translateX(-0.5%); } }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (min-width: 52.01rem) {
+  @supports (animation-timeline: scroll()) {
+
+    /* 1. The program assembles itself */
+    .hero-stage { perspective: 2200px; perspective-origin: 50% 0%; }
+    .hero-window, .hw-parts {
+      transform-origin: 50% 0;
+      animation: hw-tilt linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0px 560px;
+    }
+    @keyframes hw-tilt {
+      from { transform: translateY(64px) rotateX(20deg) scale(0.9); }
+      75%, to { transform: none; }
+    }
+    .hw-parts {
+      display: block; position: absolute; top: 0; bottom: 0; left: var(--gutter); right: var(--gutter);
+      pointer-events: none; transform-style: preserve-3d;
+    }
+    /* the plate under the parts: the real window, dimmed while its parts are away */
+    .hw-parts::before {
+      content: ""; position: absolute; inset: 0; border-radius: 12px 12px 0 0;
+      background: radial-gradient(60% 70% at 50% 30%, rgba(10, 18, 52, 0.62), rgba(6, 10, 28, 0.86));
+      animation: hw-veil linear both; animation-timeline: scroll(root); animation-range: 0px 560px;
+    }
+    @keyframes hw-veil { from { opacity: 1; } 70%, to { opacity: 0; } }
+    .hw-part {
+      position: absolute; overflow: hidden; left: var(--l); top: var(--t); width: var(--w); height: var(--h);
+      border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(233, 196, 102, 0.55), 0 30px 60px -24px rgba(0, 0, 0, 0.85);
+      animation: hw-part linear both; animation-timeline: scroll(root); animation-range: 0px 560px;
+    }
+    .hw-part img {
+      position: absolute; max-width: none;
+      width: calc(100% * 100 / var(--wn)); height: auto;
+      left: calc(-100% * var(--ln) / var(--wn)); top: calc(-100% * var(--tn) / var(--hn));
+    }
+    @keyframes hw-part {
+      from { transform: translate3d(var(--dx, 0px), var(--dy, 0px), var(--dz)) rotateY(var(--ry, 0deg)); opacity: 1; }
+      75% { transform: none; opacity: 1; }
+      to { transform: none; opacity: 0; }
+    }
+    /* the parts, in percent of the picture (1912 x 1022; the tour's crops), and how far each flies */
+    .hw-top { --ln: 0; --tn: 0; --wn: 100; --hn: 9; --dy: 18px; --dz: 90px; }
+    .hw-browser { --ln: 0; --tn: 9; --wn: 14.5; --hn: 88; --dx: -96px; --dz: 90px; --ry: 12deg; }
+    .hw-arrange { --ln: 14.5; --tn: 9; --wn: 70.1; --hn: 39.6; --dy: -28px; --dz: 230px; }
+    .hw-mixer { --ln: 14.5; --tn: 48.6; --wn: 70.1; --hn: 48.3; --dy: 56px; --dz: 120px; }
+    .hw-inspector { --ln: 84.6; --tn: 9; --wn: 15.4; --hn: 88; --dx: 96px; --dz: 180px; --ry: -12deg; }
+    .hw-part { --l: calc(var(--ln) * 1%); --t: calc(var(--tn) * 1%); --w: calc(var(--wn) * 1%); --h: calc(var(--hn) * 1%); }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (min-width: 70rem) {
+  @supports (animation-timeline: scroll()) {
+
+    /* 2. The cable. Fixed in the margin, two rem left of the text; the bands that open a page
+       (the hero, a page's head) and the footer stand above it, so it runs through the chapters. */
+    .hero, .page-band, .foot { z-index: 4; }
+    .cable {
+      display: block; position: fixed; top: 0; bottom: 0; width: 1px; z-index: 3; pointer-events: none;
+      left: calc(max(var(--gutter), (100% - var(--wrap)) / 2) - 2rem);
+      background: linear-gradient(transparent 4.5rem, color-mix(in srgb, var(--gold) 38%, transparent) 9rem);
+    }
+    .cable-lit {
+      position: absolute; left: -1px; top: 0; width: 3px; height: 50%; border-radius: 2px;
+      background: linear-gradient(transparent 4.5rem, var(--gold) 12rem, var(--metal-solid) 70%, #fff4c2);
+      box-shadow: 0 0 10px color-mix(in srgb, var(--gold) 70%, transparent);
+    }
+    .cable-lit::after {
+      content: ""; position: absolute; left: -5px; bottom: -6px; width: 13px; height: 13px; border-radius: 50%;
+      background: radial-gradient(#ffffff, #fff4c2 30%, #f3d478 55%, rgba(233, 196, 102, 0) 72%);
+      box-shadow: 0 0 18px 6px rgba(243, 212, 120, 0.55);
+    }
+    .cable-pulse {
+      position: absolute; left: -2px; top: 0; width: 5px; height: 5rem; border-radius: 3px;
+      background: linear-gradient(transparent, #fff4c2 60%, transparent);
+      animation: pulse-run 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    }
+    @keyframes pulse-run {
+      0% { transform: translateY(4rem); opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { transform: translateY(calc(50vh - 5rem)); opacity: 0; }
+    }
+    /* each chapter's mark: a branch from the cable, drawn as the heading reaches the middle */
+    main section h2:not(.plain) { position: relative; view-timeline: --chapter block; }
+    main section h2:not(.plain)::after {
+      content: ""; position: absolute; left: -2rem; top: 4px; width: 2rem; height: 1px; pointer-events: none;
+      background: linear-gradient(90deg, var(--gold), #fff4c2);
+      box-shadow: 0 0 8px var(--gold);
+      transform-origin: left center;
+      animation: branch linear both; animation-timeline: --chapter; animation-range: cover 38% cover 50%;
+    }
+    @keyframes branch { from { transform: scaleX(0); opacity: 0; } 30% { opacity: 1; } to { transform: none; opacity: 1; } }
+    /* where a heading carries no mark, no branch */
+    main .page-band h2::after, main .spot-head h2::after, main .m-head h2::after { display: none; }
+  }
+}
+
+/* ═══ v4 — every piece of content arrives in its own way (the owner, 2026-11-13: "que el
+   contenido salga con alguna animación padre al ir scrolleando") ═══
+   One entrance per kind of content, so the page has a rhythm:
+     headings      swing in from the left, leaning, and stand up straight;
+     pictures      emerge from depth (tilted back, settling flat), then a light crosses them;
+     unit cards    dealt onto the table, each at its own slant;
+     studio cards  folded down from a hinge;  first steps  turned in like pages;
+     effects list  laid like pedals on a board;
+     lists         cascade from the left, their icon popping in and its strokes drawing;
+     songs         the rows one after another, each progress track drawn left to right;
+     footer        its columns settling like a curtain, the logo turning in.
+   All scroll-driven, so someone who jumps (End, a link, a search) lands on finished content;
+   inside @supports, so without scroll-driven animations everything is simply there; off with
+   reduced motion. Transform and opacity everywhere except the icons' strokes (stroke-dashoffset
+   on 24-px SVGs), measured cheap with tools/frames.mjs (frame times while scrolling, 4x CPU);
+   a clip-path wipe on the headings and a drifting glow in the navy bands were measured too and
+   taken out (docs/round-fx/web.md §3d). On a phone the cards, pictures and pedals keep v2's rise. */
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+
+    /* headings: they swing in from the left, leaning, and stand up straight (a clip-path wipe
+       was tried first and cost a fifth of the frames' budget while scrolling: transform only) */
+    main > section:not(.hero) h2 {
+      animation-name: lean-in;
+      animation-range: entry 0% cover 30%;
+      transform-origin: 0 100%;
+    }
+    @keyframes lean-in {
+      from { opacity: 0; transform: translateX(-70px) skewX(-10deg); }
+      60% { opacity: 1; }
+      to { opacity: 1; transform: none; }
+    }
+
+    /* lists: a cascade, the icon popping, its strokes drawing */
+    .flist li, .facts li, .promises li, .learn-group li, .reqs > div {
+      view-timeline: --item block;
+      animation: cascade linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 100%;
+    }
+    @keyframes cascade { from { opacity: 0; transform: translateX(-48px); } to { opacity: 1; transform: none; } }
+    .flist .ico, .promises li > svg {
+      animation: pop linear both; animation-timeline: --item; animation-range: entry 40% cover 30%;
+    }
+    @keyframes pop {
+      0% { opacity: 0; transform: scale(0.3) rotate(-35deg); }
+      65% { opacity: 1; transform: scale(1.18) rotate(5deg); }
+      100% { opacity: 1; transform: none; }
+    }
+    .flist .ico path, .promises li > svg path {
+      stroke-dasharray: 120; stroke-dashoffset: 0;
+      animation: stroke linear both; animation-timeline: --item; animation-range: entry 60% cover 40%;
+    }
+    .promises li > svg path { stroke-dasharray: 40; }
+    @keyframes stroke { from { stroke-dashoffset: var(--len, 120); } to { stroke-dashoffset: 0; } }
+    .promises li > svg path { --len: 40; }
+
+    /* songs: one timeline for the list (it clips, so its rows cannot take their own view) */
+    .songs { view-timeline: --songs block; }
+    .song { animation: cascade linear both; animation-timeline: --songs; }
+    .song-bar { transform-origin: left center; animation: draw linear both; animation-timeline: --songs; }
+    .song:nth-child(1) { animation-range: entry 0% entry 30%; }
+    .song:nth-child(2) { animation-range: entry 10% entry 40%; }
+    .song:nth-child(3) { animation-range: entry 20% entry 50%; }
+    .song:nth-child(4) { animation-range: entry 30% entry 60%; }
+    .song:nth-child(5) { animation-range: entry 40% entry 70%; }
+    .song:nth-child(n + 6) { animation-range: entry 50% entry 80%; }
+    .song:nth-child(1) .song-bar { animation-range: entry 15% entry 55%; }
+    .song:nth-child(2) .song-bar { animation-range: entry 25% entry 65%; }
+    .song:nth-child(3) .song-bar { animation-range: entry 35% entry 75%; }
+    .song:nth-child(4) .song-bar { animation-range: entry 45% entry 85%; }
+    .song:nth-child(5) .song-bar { animation-range: entry 55% entry 95%; }
+    .song:nth-child(n + 6) .song-bar { animation-range: entry 65% cover 50%; }
+
+    /* footer: a curtain settling, the logo turning in */
+    .foot-cols > *, .foot-bar {
+      animation: curtain linear both; animation-timeline: view(); animation-range: entry 0% entry 90%;
+    }
+    .foot-cols > :nth-child(2) { animation-range: entry 8% entry 98%; }
+    .foot-cols > :nth-child(3) { animation-range: entry 16% entry 100%; }
+    .foot-cols > :nth-child(n + 4) { animation-range: entry 24% entry 100%; }
+    @keyframes curtain { from { opacity: 0; transform: translateY(-36px); } to { opacity: 1; transform: none; } }
+    .foot-brand .brand img { animation: logo-in linear both; animation-timeline: view(); animation-range: entry 20% cover 30%; }
+    @keyframes logo-in { from { opacity: 0; transform: rotate(-150deg) scale(0.4); } to { opacity: 1; transform: none; } }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (min-width: 52.01rem) {
+  @supports (animation-timeline: view()) {
+
+    /* pictures emerge from depth, then a light crosses them once */
+    .backdrop, .spot, .uf-shot, .fx-window {
+      transform-origin: 50% 100%;
+      animation: depth linear both; animation-timeline: view(); animation-range: entry 0% cover 38%;
+    }
+    @keyframes depth {
+      from { opacity: 0; transform: perspective(1600px) rotateX(24deg) translateY(100px) scale(0.9); }
+      to { opacity: 1; transform: none; }
+    }
+    .window, .spot, .uf-shot, .fx-window { view-timeline: --pic block; position: relative; }
+    .window::after, .spot::after, .uf-shot::after, .fx-window::after {
+      content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+      background: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.14) 46%, rgba(255, 244, 194, 0.3) 50%, rgba(255, 255, 255, 0.14) 54%, transparent 68%);
+      transform: translateX(-120%);
+      animation: sweep linear both; animation-timeline: --pic; animation-range: cover 34% cover 62%;
+    }
+    @keyframes sweep { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+
+    /* instrument and effect cards dealt onto the table */
+    .uc-li { animation-name: deal; transform-origin: 50% 130%; --tilt: -7deg; }
+    .uc-li:nth-child(even) { --tilt: 6deg; }
+    .uc-li:nth-child(3n) { --tilt: -3deg; }
+    @keyframes deal {
+      from { opacity: 0; transform: translate(-46px, 130px) rotate(var(--tilt)) scale(0.84); }
+      60% { opacity: 1; }
+      to { opacity: 1; transform: none; }
+    }
+
+    /* the studio's cards fold down from a hinge; the first steps turn in like pages */
+    .studio-card { animation-name: hinge; transform-origin: 50% 0; }
+    @keyframes hinge { from { opacity: 0; transform: perspective(1200px) rotateX(-42deg) translateY(30px); } to { opacity: 1; transform: none; } }
+    .steps li { animation-name: page-turn; transform-origin: 0 50%; }
+    @keyframes page-turn { from { opacity: 0; transform: perspective(1200px) rotateY(48deg) translateX(40px); } to { opacity: 1; transform: none; } }
+
+    /* the effects' list laid like pedals on a board, one after another */
+    .fx-list { animation-name: none; }
+    .fx-list li {
+      transform-origin: 0 50%;
+      animation: pedal linear both; animation-timeline: view(); animation-range: entry 0% entry 100%;
+    }
+    @keyframes pedal {
+      from { opacity: 0; transform: perspective(900px) rotateY(70deg) translateX(-30px); }
+      to { opacity: 1; transform: none; }
+    }
+  }
+}

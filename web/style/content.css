@@ -169,6 +169,17 @@ kbd { font: 500 0.92rem/1 var(--body); padding: 0.45rem 0.65rem; border-radius: 
 .hash-row { display: flex; gap: 0.6rem; align-items: center; padding: 0.45rem 0.6rem; border-radius: 4px; background: rgba(0, 0, 0, 0.35); }
 .hash-sum { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .hash-copy { flex: none; border: 0; border-radius: 4px; padding: 0.4rem 0.7rem; cursor: pointer; font: 600 0.9rem/1 var(--body); color: var(--accent-ink); background: var(--accent-grad); }
+/* The light theme: the download head is white (frame.css), so its card is a white sheet with a
+   lapis hairline, its keys and wells light, its words the head's deep blue (AA on #fff and on
+   #eef1fa: #1b2c7a 12.6 and 11.1, #24398f 9.9 and 8.8). */
+:root[data-theme="light"] .dl-before {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(36, 67, 168, 0.2), 0 28px 56px -36px rgba(27, 44, 122, 0.45), 0 2px 6px -2px rgba(27, 44, 122, 0.12);
+}
+:root[data-theme="light"] .page-band kbd { background: #eef1fa; color: #1b2c7a; box-shadow: 0 0 0 1px rgba(36, 67, 168, 0.22) inset, 0 -2px 0 rgba(36, 67, 168, 0.18) inset; }
+:root[data-theme="light"] .page-band .hash-cmd,
+:root[data-theme="light"] .page-band .hash-row { background: #eef1fa; box-shadow: 0 0 0 1px rgba(36, 67, 168, 0.14) inset; }
+:root[data-theme="light"] .page-band .hash code { color: #1b2c7a; }
 .dl-next h2 { font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 500; }
 .steps { list-style: none; margin: 1.6rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .steps li { background: var(--paper-2); border-radius: 10px; padding: 1.4rem; box-shadow: var(--shadow); }

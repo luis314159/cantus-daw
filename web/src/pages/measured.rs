@@ -78,10 +78,11 @@ fn card(l: Lang, c: &Card) -> Html {
     let pairs = c.pairs.iter().map(|(label, bars)| {
         let max = bars.iter().map(|b| b.2).fold(0.0f32, f32::max).max(f32::EPSILON);
         let rows = bars.iter().map(|(who, shown, v, ours)| {
+            let w = v / max * 100.0;
             html! {
-                <li class={classes!("bar", ours.then_some("ours"))}>
+                <li class={classes!("bar", ours.then_some("ours"))} style={format!("--w:{w:.1}")}>
                     <span class="who">{ *who }</span>
-                    <span class="track" aria-hidden="true"><i style={format!("width:{:.1}%", v / max * 100.0)}></i></span>
+                    <span class="track" aria-hidden="true"><i style={format!("width:{w:.1}%")}></i></span>
                     <span class="val">{ *shown }</span>
                 </li>
             }
