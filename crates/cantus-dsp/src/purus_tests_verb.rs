@@ -273,7 +273,7 @@ fn octaves(x: &[f32]) -> [f64; 8] {
     }
     let mut out = [0.0f64; 8];
     for (j, o) in out.iter_mut().enumerate() {
-        let centre = 62.5 * 2f64.powi(j as i32);
+        let centre = 62.5 * f64::from(1u32 << j);
         let (lo, hi) = (centre / 2f64.sqrt(), centre * 2f64.sqrt());
         let mut s = 0.0;
         for (b, p) in psd.iter().enumerate() {
