@@ -232,12 +232,7 @@ fn refresh_words(app: &mut CantusApp, id: ModulatorId) {
         "fxd.window.context",
         &[("modulator", &name), ("host", &host_words(app, host))],
     );
-    let n = links.len();
-    let chip = match n {
-        0 => t("fxd.window.chip.none"),
-        1 => t("fxd.window.chip.one"),
-        _ => tf("fxd.window.chip", &[("n", &n.to_string())]),
-    };
+    let chip = fxd_xy::drives_chip(links.len());
     let preset = presets::matching(m).map_or_else(
         || t("fxd.preset.custom"),
         |p| t(&format!("fxd.preset.{}", p.id)),
@@ -325,6 +320,41 @@ fn feed_formula(app: &mut CantusApp) {
     fxd_edit::typing_live(st);
 }
 
+/// What each of the controller's parameters offers its controls this frame — the kit's
+/// parameter menu, MIDI learn, the signs of what drives it, the rings of the modulators
+/// that move it — asked as the inspector's rows ask (`mod_offer`, `is_automated`).
+fn feed_params(app: &mut CantusApp, id: ModulatorId, formula: bool) {
+    use super::fxd_art::{Param, Params, AMOUNT};
+    let s = crate::kit::Style::plain().function(Function::Mod);
+    let slots: &[usize] = if formula {
+        &[0, 1, 2, AMOUNT]
+    } else {
+        &[0, 1, AMOUNT]
+    };
+    let mut params: Params = [None; 4];
+    for &slot in slots {
+        let target = fxd_edit::param_target(id, slot);
+        let base = app.base_pos(&target).unwrap_or(0.0);
+        let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+        let (m, n) = app.mod_offer(&target, base, &s, &mut rings);
+        params[slot] = Some(Param {
+            offer: crate::kit::automate::Offer {
+                automated: app.is_automated(&target),
+                typing: false,
+                modulation: Some(m),
+            },
+            rings,
+            n,
+        });
+    }
+    let st = &mut app.fx.fxd;
+    if formula {
+        st.live_f.params = params;
+    } else {
+        st.live_xy.params = params;
+    }
+}
+
 /// The controllers' window, drawn every frame while one is open.
 pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some(id) = app.fx.fxd.open else {
@@ -379,6 +409,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     } else {
         feed_xy(app, id);
     }
+    feed_params(app, id, formula);
     let maximised = device::is_maximised(ctx, key);
     let ctl = crate::kit::window_ctl::WindowCtl {
         swap: None,

@@ -101,6 +101,9 @@ pub struct Cell<'a> {
     /// A width of its own at 100 %, wider than its knob's cell (a hosted plug-in's own
     /// long names, ADR 0073).
     width: Option<f32>,
+    /// A number that is no parameter (a controller's own setting, fxd): the probes pass it
+    /// by, as the kit's [`Param::plain`](crate::kit::widgets::Param::plain).
+    plain: bool,
 }
 
 /// What a cell did this frame.
@@ -136,7 +139,15 @@ impl<'a> Cell<'a> {
             rings: &[],
             offer: None,
             width: None,
+            plain: false,
         }
+    }
+
+    /// A number that is no parameter — nothing automates, modulates or learns it (a
+    /// controller's inertia, its path's loop): the modulation and learn probes pass it by.
+    pub fn plain(mut self) -> Self {
+        self.plain = true;
+        self
     }
 
     /// A cell on one of an effect's parameters: its range, taper, steps, unit and label.
@@ -266,28 +277,24 @@ impl<'a> Cell<'a> {
     }
 
     pub fn show(self, ui: &mut Ui, s: &Style) -> CellOut {
-        crate::kit::automate::probe::note(
-            if self.name.is_empty() {
-                match self.label {
-                    Src::Key(k) => k,
-                    Src::Str(t) => t,
-                }
-            } else {
-                self.name
-            },
-            self.offer.is_some_and(|o| o.modulation.is_some()),
-        );
-        crate::kit::automate::probe::note_learn(
-            if self.name.is_empty() {
-                match self.label {
-                    Src::Key(k) => k,
-                    Src::Str(t) => t,
-                }
-            } else {
-                self.name
-            },
-            self.offer.and_then(|o| o.learn()).is_some(),
-        );
+        let probe_name = if self.name.is_empty() {
+            match self.label {
+                Src::Key(k) => k,
+                Src::Str(t) => t,
+            }
+        } else {
+            self.name
+        };
+        if !self.plain {
+            crate::kit::automate::probe::note(
+                probe_name,
+                self.offer.is_some_and(|o| o.modulation.is_some()),
+            );
+            crate::kit::automate::probe::note_learn(
+                probe_name,
+                self.offer.and_then(|o| o.learn()).is_some(),
+            );
+        }
         let mut size = cell::size(self.size) * s.k;
         if let Some(w) = self.width {
             size.x = size.x.max(w * s.k);

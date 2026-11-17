@@ -760,3 +760,496 @@ fn a_formula_longer_than_the_line_keeps_the_caret_in_sight() {
         "no letter cut"
     );
 }
+
+// ---- the count, the list and the rails agree (follow-up 1) ------------------------------
+
+/// A controller of `kind` on the master driving `n` parameters — of a pad's, every other
+/// one on Y (a lone link on Y, so both axes are tried alone and together) — the master in
+/// the inspector. The targets and the axis each reads, in the routes' order.
+fn rig_driving(kind: ModKind, n: usize) -> (Rig, ModulatorId, Vec<(AutoTarget, u8)>) {
+    use cantus_core::modulator::RouteLink;
+    let mut r = Rig::new(cantus_ui::welcome_project());
+    let id = r
+        .app
+        .add_modulator(ModHost::Master, kind, None)
+        .expect("a controller on the master");
+    let mut targets = vec![AutoTarget::MasterPan, AutoTarget::MasterWidth];
+    for s in r.app.project().tracks.iter().filter_map(|t| t.strip) {
+        targets.extend([
+            AutoTarget::StripGain(s),
+            AutoTarget::StripPan(s),
+            AutoTarget::StripWidth(s),
+        ]);
+    }
+    assert!(targets.len() >= n, "enough parameters to drive");
+    targets.truncate(n);
+    for t in &targets {
+        r.app.set_route_depth(id, t, 0.5, false);
+    }
+    let pad = kind == ModKind::XyPad;
+    let axes: Vec<u8> = (0..n)
+        .map(|i| if pad { ((i + n) % 2) as u8 } else { 0 })
+        .collect();
+    if pad && n > 0 {
+        let mut m = r.app.project().modulator(id).unwrap().2.clone();
+        if let ModSource::XyPad(x) = &mut m.source {
+            x.links = targets
+                .iter()
+                .zip(&axes)
+                .filter(|(_, a)| **a == 1)
+                .map(|(t, _)| RouteLink {
+                    target: t.clone(),
+                    output: 1,
+                    range: None,
+                })
+                .collect();
+        }
+        assert!(r.app.edit_modulator(m, None), "the links set");
+    }
+    r.app.select_master();
+    if !r.app.workspace.contains(Pane::Inspector) {
+        r.app.toggle_pane(Pane::Inspector);
+    }
+    r.settle();
+    (r, id, targets.into_iter().zip(axes).collect())
+}
+
+/// What a rail may say of the `on` parameters its axis drives: the first (up to two) by
+/// name, the rest counted — never a name dropped uncounted.
+fn rail_may_say(tag: &str, on: &[String]) -> Vec<String> {
+    if on.is_empty() {
+        return vec![tag.to_string()];
+    }
+    (0..=on.len().min(2))
+        .map(|named| {
+            let rest = on.len() - named;
+            let mut parts: Vec<String> = on[..named].to_vec();
+            if rest > 0 {
+                parts.push(match (named, rest) {
+                    (0, 1) => "1 parameter".into(),
+                    (0, k) => format!("{k} parameters"),
+                    (_, k) => format!("+{k} more"),
+                });
+            }
+            format!("{tag} — {}", parts.join(" · "))
+        })
+        .collect()
+}
+
+#[test]
+fn the_chip_the_list_and_the_rails_count_the_same_links() {
+    for kind in [ModKind::XyPad, ModKind::Formula] {
+        let formula = kind == ModKind::Formula;
+        for n in [0usize, 1, 4, 7] {
+            let what = format!("{kind:?} driving {n}");
+            let (mut r, id, targets) = rig_driving(kind, n);
+            assert_eq!(
+                r.app.project().modulator(id).unwrap().2.routes.len(),
+                n,
+                "{what}"
+            );
+            open(&mut r, id);
+            // The footer's chip.
+            let chip = match n {
+                0 => "Drives nothing yet".to_string(),
+                1 => "Drives 1 parameter".to_string(),
+                _ => format!("Drives {n} parameters"),
+            };
+            r.must(&chip);
+            let chips: Vec<&str> = r
+                .texts
+                .iter()
+                .map(|p| p.text.trim())
+                .filter(|t| {
+                    // The window's chip and any count like it (the inspector's row says
+                    // more after a colon when nothing is driven).
+                    t.starts_with("Drives ")
+                        && (t.ends_with(" parameter")
+                            || t.ends_with(" parameters")
+                            || t.ends_with("nothing yet"))
+                })
+                .collect();
+            assert!(chips.iter().all(|c| *c == chip), "{what}: {chips:?}");
+            // The list: every route once, in the routes' order, scrolled through.
+            let names: Vec<String> = targets
+                .iter()
+                .map(|(t, _)| r.app.target_name(t))
+                .collect();
+            let mut unique = names.clone();
+            unique.sort();
+            unique.dedup();
+            assert_eq!(unique.len(), n, "{what}: the names are told apart");
+            let list = if formula {
+                r.app.fx.fxd.rects_f.links
+            } else {
+                r.app.fx.fxd.rects_xy.links
+            };
+            let first_of = |r: &Rig| {
+                if formula {
+                    r.app.fx.fxd.live_f.links_first
+                } else {
+                    r.app.fx.fxd.live_xy.links_first
+                }
+            };
+            let mut seen: Vec<String> = Vec::new();
+            for _ in 0..40 {
+                let first = first_of(&r);
+                let mut rows: Vec<(f32, String)> = r
+                    .texts
+                    .iter()
+                    .filter(|p| list.contains(p.seen.center()))
+                    .filter(|p| names.iter().any(|n| n == p.text.trim()))
+                    .map(|p| (p.seen.center().y, p.text.trim().to_string()))
+                    .collect();
+                rows.sort_by(|a, b| a.0.total_cmp(&b.0));
+                let rows: Vec<String> = rows.into_iter().map(|x| x.1).collect();
+                assert!(!rows.is_empty() || n == 0, "{what}: rows shown");
+                assert_eq!(
+                    rows[..],
+                    names[first..first + rows.len()],
+                    "{what}: the rows from {first}, each route once"
+                );
+                for row in rows {
+                    if !seen.contains(&row) {
+                        seen.push(row);
+                    }
+                }
+                r.wheel(list.center(), -1.0, NONE);
+                if first_of(&r) == first {
+                    break;
+                }
+            }
+            assert_eq!(seen, names, "{what}: the list lists every route");
+            if n == 0 {
+                // What to do instead, wrapped in the list's width.
+                assert!(
+                    r.texts.iter().any(|p| list.contains(p.seen.center())
+                        && p.text.trim().starts_with("Connect a parameter")),
+                    "{what}: the empty list says how to connect one"
+                );
+            }
+            if formula {
+                continue;
+            }
+            // The rails: each axis's parameters named or counted, adding up to its links.
+            for axis in [0u8, 1] {
+                let tag = if axis == 0 { "X" } else { "Y" };
+                let on: Vec<String> = names
+                    .iter()
+                    .zip(&targets)
+                    .filter(|(_, (_, a))| *a == axis)
+                    .map(|(n, _)| n.clone())
+                    .collect();
+                let rail = r.app.fx.fxd.rects_xy.rails[axis as usize];
+                let lead = format!("{tag} — ");
+                let painted = r
+                    .texts
+                    .iter()
+                    .rev()
+                    .find(|p| {
+                        let t = p.text.trim();
+                        // A word turned upright reports its unturned box: it begins on the rail.
+                        rail.expand(2.0).contains(p.rect.min)
+                            && (t == tag || t.starts_with(&lead))
+                    })
+                    .unwrap_or_else(|| {
+                        let near: Vec<(&str, Rect, Rect)> = r
+                            .texts
+                            .iter()
+                            .filter(|p| p.text.trim().starts_with(tag))
+                            .map(|p| (p.text.as_str(), p.rect, p.seen))
+                            .collect();
+                        panic!("{what}: the {tag} rail's words in {rail:?}: {near:?}")
+                    });
+                assert!(!painted.elided, "{what}: the {tag} rail is not cut");
+                let may = rail_may_say(tag, &on);
+                assert!(
+                    may.iter().any(|m| m == painted.text.trim()),
+                    "{what}: the {tag} rail says {:?}, one of {may:?}",
+                    painted.text
+                );
+            }
+        }
+    }
+}
+
+// ---- the parameters' menus, MIDI learn and Alt+A on the window's controls (follow-up 2) --
+
+/// A controller's parameter as its control stands for it.
+fn param(id: ModulatorId, slot: usize) -> AutoTarget {
+    cantus_ui::views::fx::fxd_edit::param_target(id, slot)
+}
+
+/// The value of a controller's parameter (an input 0…1, or its amount).
+fn value_of(r: &Rig, id: ModulatorId, slot: usize) -> f32 {
+    let m = &r.app.project().modulator(id).unwrap().2;
+    if slot == cantus_ui::views::fx::fxd_art::AMOUNT {
+        return m.amount;
+    }
+    match &m.source {
+        ModSource::XyPad(x) => [x.x, x.y][slot],
+        ModSource::Formula(f) => f.inputs[slot],
+        _ => unreachable!(),
+    }
+}
+
+/// Right-click `at`, then click `entry` in the menu that opens there.
+fn menu_entry(r: &mut Rig, at: Pos2, entry: &str) {
+    r.right_click(at);
+    let e = r.text(entry).unwrap_or_else(|| {
+        let all: Vec<&str> = r.texts.iter().map(|p| p.text.as_str()).collect();
+        panic!("“{entry}” is not in the menu at {at:?}; painted: {all:?}")
+    });
+    r.click(e.center());
+    r.settle();
+}
+
+/// A controller (MIDI CC 21) turned: what MIDI learn hears.
+fn knob_turned() -> Vec<cantus_engine::midi::Heard> {
+    (60u8..68)
+        .map(|v| cantus_engine::midi::Heard {
+            port: 0,
+            event: cantus_engine::MidiEvent {
+                status: 0xB0,
+                data1: 21,
+                data2: v,
+            },
+            at: std::time::Instant::now(),
+        })
+        .collect()
+}
+
+/// Everything the kit's parameter menu offers, through a right-click at `at` (where the
+/// control stands for parameter `slot`): *Create automation clip* (one undo step) and then
+/// *Edit automation* (none), *Learn MIDI controller* and the controller turned (one step),
+/// *Forget MIDI controller* (one step), *Reset to default* (one step).
+fn the_menu_answers(r: &mut Rig, id: ModulatorId, slot: usize, at: &dyn Fn(&Rig) -> Pos2) {
+    use cantus_core::controller::MappingTarget;
+    let target = param(id, slot);
+    let what = format!("{target:?}");
+    // Automate.
+    let steps = undo_steps(r);
+    menu_entry(r, at(r), "Create automation clip");
+    assert!(r.app.is_automated(&target), "{what}: a clip drives it");
+    assert_eq!(undo_steps(r), steps + 1, "{what}: one step");
+    assert_eq!(r.app.fx.fxd.open, Some(id), "{what}: the window stays");
+    menu_entry(r, at(r), "Edit automation");
+    assert_eq!(undo_steps(r), steps + 1, "{what}: showing it is no step");
+    r.app.undo();
+    assert!(!r.app.is_automated(&target), "{what}: undone");
+    r.settle();
+    // MIDI learn, then forget.
+    let mapped = |r: &Rig| {
+        r.app
+            .project()
+            .controllers
+            .mappings
+            .iter()
+            .any(|m| m.target == MappingTarget::Param(target.clone()))
+    };
+    let steps = undo_steps(r);
+    menu_entry(r, at(r), "Learn MIDI controller");
+    assert!(r.app.controllers.learning.is_some(), "{what}: armed");
+    r.app.controller_heard(&knob_turned());
+    assert!(r.app.controllers.learning.is_none(), "{what}: learnt");
+    assert!(mapped(r), "{what}: mapped");
+    assert_eq!(undo_steps(r), steps + 1, "{what}: learning is one step");
+    r.settle();
+    menu_entry(r, at(r), "Forget MIDI controller");
+    assert!(!mapped(r), "{what}: forgotten");
+    assert_eq!(undo_steps(r), steps + 2, "{what}: forgetting is one step");
+    // Reset to default.
+    let amount = slot == cantus_ui::views::fx::fxd_art::AMOUNT;
+    if amount {
+        r.app.exec(Command::SetModulatorAmount { id, amount: 0.3 });
+    } else {
+        r.app.exec(Command::SetModulatorInput {
+            id,
+            input: slot as u8,
+            value: 0.9,
+        });
+    }
+    r.settle();
+    let steps = undo_steps(r);
+    menu_entry(r, at(r), "Reset to default");
+    let want = if amount { 1.0 } else { 0.5 };
+    assert_eq!(value_of(r, id, slot), want, "{what}: at its default");
+    assert_eq!(undo_steps(r), steps + 1, "{what}: one step");
+}
+
+#[test]
+fn the_pads_axes_and_amount_offer_the_parameter_menu() {
+    let (mut r, id) = rig(ModKind::XyPad);
+    r.app.midi_port_names = vec!["Keys".into()];
+    open(&mut r, id);
+    // The rails (the axes) and the Pad card's knobs.
+    let rail = |i: usize| move |r: &Rig| r.app.fx.fxd.rects_xy.rails[i].center();
+    the_menu_answers(&mut r, id, 0, &rail(0));
+    the_menu_answers(&mut r, id, 1, &rail(1));
+    let knob = |i: usize| move |r: &Rig| item(r, 0, i, false).center();
+    the_menu_answers(&mut r, id, 0, &knob(0));
+    the_menu_answers(&mut r, id, 1, &knob(1));
+    the_menu_answers(&mut r, id, cantus_ui::views::fx::fxd_art::AMOUNT, &knob(3));
+}
+
+#[test]
+fn the_formulas_knobs_dials_and_amount_offer_the_parameter_menu() {
+    let (mut r, id) = rig(ModKind::Formula);
+    r.app.midi_port_names = vec!["Keys".into()];
+    open(&mut r, id);
+    for i in 0..3 {
+        the_menu_answers(&mut r, id, i, &move |r: &Rig| item(r, 0, i, true).center());
+        the_menu_answers(&mut r, id, i, &move |r: &Rig| {
+            r.app.fx.fxd.rects_f.dials[i].center()
+        });
+    }
+    the_menu_answers(
+        &mut r,
+        id,
+        cantus_ui::views::fx::fxd_art::AMOUNT,
+        &|r: &Rig| item(r, 1, 1, true).center(),
+    );
+}
+
+/// The settings that are no parameter (the pad's inertia, its path's loop, the switches;
+/// the formula's polarity) offer no automation: nothing automates a controller's own
+/// settings (ADRs 0147, 0148) — the inspector's rows of every modulator's settings the same.
+#[test]
+fn a_controllers_own_settings_offer_no_automation() {
+    for (kind, items) in [
+        (ModKind::XyPad, &[(0usize, 2usize), (1, 0), (1, 1), (1, 2), (1, 3)][..]),
+        (ModKind::Formula, &[(1, 0)][..]),
+    ] {
+        let (mut r, id) = rig(kind);
+        open(&mut r, id);
+        for &(c, i) in items {
+            let at = item(&r, c, i, kind == ModKind::Formula).center();
+            r.right_click(at);
+            assert!(
+                r.text("Create automation clip").is_none(),
+                "{kind:?} card {c} item {i}: no automation offered"
+            );
+            r.key(Key::Escape, NONE);
+            if r.app.fx.fxd.open.is_none() {
+                open(&mut r, id);
+            }
+        }
+    }
+}
+
+/// The learn mode outlines every parameter of the windows and learns it on a click; the
+/// settings that are no parameter are passed by (the probe's exemption, as the kit's
+/// `Param::plain`): `learn_everywhere`'s rule holds in the controllers' windows.
+#[test]
+fn the_learn_mode_reaches_every_parameter_of_the_windows() {
+    use cantus_ui::kit::automate::probe;
+    for kind in [ModKind::XyPad, ModKind::Formula] {
+        let (mut r, id) = rig(kind);
+        r.app.midi_port_names = vec!["Keys".into()];
+        open(&mut r, id);
+        r.app.toggle_learn_mode();
+        probe::start();
+        r.idle(1);
+        let drawn = probe::take_learn();
+        let bad: Vec<&String> = drawn.iter().filter(|(_, l)| !l).map(|(n, _)| n).collect();
+        assert!(bad.is_empty(), "{kind:?}: not learnable: {bad:?}");
+        let want: &[&str] = if kind == ModKind::XyPad {
+            &["fxd.xy.card.x", "fxd.xy.card.y"]
+        } else {
+            &["fxd.formula.a", "fxd.formula.b", "fxd.formula.c"]
+        };
+        for w in want {
+            assert!(
+                drawn.iter().any(|(n, l)| n == w && *l),
+                "{kind:?}: {w} offered: {drawn:?}"
+            );
+        }
+        // A click on a control in the learn mode arms it, and moves nothing.
+        let (at, slot) = if kind == ModKind::XyPad {
+            (r.app.fx.fxd.rects_xy.rails[1].center(), 1)
+        } else {
+            (r.app.fx.fxd.rects_f.dials[2].center(), 2)
+        };
+        let before = value_of(&r, id, slot);
+        r.click(at);
+        let armed = r.app.controllers.learning.as_ref().map(|l| l.target.clone());
+        assert_eq!(
+            armed,
+            Some(cantus_core::controller::MappingTarget::Param(param(id, slot))),
+            "{kind:?}: the click arms it"
+        );
+        assert_eq!(value_of(&r, id, slot), before, "{kind:?}: nothing moved");
+        r.app.cancel_learning();
+    }
+}
+
+const ALT: egui::Modifiers = egui::Modifiers {
+    alt: true,
+    ctrl: false,
+    shift: false,
+    mac_cmd: false,
+    command: false,
+};
+const ALT_SHIFT: egui::Modifiers = egui::Modifiers {
+    alt: true,
+    ctrl: false,
+    shift: true,
+    mac_cmd: false,
+    command: false,
+};
+
+/// `Alt+A` automates the parameter last moved on the window (its clip, one undo step) and
+/// `Alt+Shift+A` arms MIDI learn for it — the manual's way, on each window.
+#[test]
+fn alt_a_automates_and_alt_shift_a_learns_what_was_moved_last_on_the_window() {
+    use cantus_core::controller::MappingTarget;
+    let amount = cantus_ui::views::fx::fxd_art::AMOUNT;
+    for (kind, moves) in [
+        (
+            ModKind::XyPad,
+            vec![("knob", 0usize, 0usize, 0usize), ("knob", 0, 1, 1), ("knob", 0, 3, amount)],
+        ),
+        (
+            ModKind::Formula,
+            vec![
+                ("knob", 0, 1, 1),
+                ("dial", 0, 2, 2),
+                ("knob", 1, 1, amount),
+            ],
+        ),
+    ] {
+        let (mut r, id) = rig(kind);
+        r.app.midi_port_names = vec!["Keys".into()];
+        open(&mut r, id);
+        let formula = kind == ModKind::Formula;
+        for (how, c, i, slot) in moves {
+            let target = param(id, slot);
+            let at = if how == "dial" {
+                r.app.fx.fxd.rects_f.dials[i].center()
+            } else {
+                item(&r, c, i, formula).center()
+            };
+            // Down: the amount starts at its top.
+            r.drag(at, at + vec2(0.0, 30.0));
+            assert_eq!(
+                r.app.automation.last_tweaked,
+                Some(target.clone()),
+                "{kind:?}: the {how} moved {target:?}"
+            );
+            let steps = undo_steps(&r);
+            r.key(Key::A, ALT);
+            assert!(r.app.is_automated(&target), "{kind:?}: Alt+A automated {target:?}");
+            assert_eq!(undo_steps(&r), steps + 1, "one step");
+            r.app.undo();
+            r.settle();
+            r.key(Key::A, ALT_SHIFT);
+            assert_eq!(
+                r.app.controllers.learning.as_ref().map(|l| l.target.clone()),
+                Some(MappingTarget::Param(target.clone())),
+                "{kind:?}: Alt+Shift+A arms {target:?}"
+            );
+            r.app.cancel_learning();
+            r.settle();
+        }
+    }
+}

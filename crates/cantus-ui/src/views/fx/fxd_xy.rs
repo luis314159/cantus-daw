@@ -36,6 +36,9 @@ pub struct Live {
     /// The loop a path is drawn over while the pad has none (the Loop card's value; 0 is
     /// the default four beats).
     pub loop_beats: f32,
+    /// What X, Y and the amount offer their controls (the kit's parameter menu, MIDI
+    /// learn, the signs): from the app each frame; `None` on the design sheets.
+    pub params: art::Params,
 }
 
 /// What a drag on the pad does.
@@ -60,6 +63,8 @@ pub struct Rects {
     pub record: Rect,
     /// The links list.
     pub links: Rect,
+    /// The rails' words, X (the foot) and Y (the left side): each its axis's menu.
+    pub rails: [Rect; 2],
     /// The cards' items.
     pub items: art::ItemRects,
 }
@@ -71,6 +76,7 @@ impl Default for Rects {
             draw: Rect::NOTHING,
             record: Rect::NOTHING,
             links: Rect::NOTHING,
+            rails: [Rect::NOTHING; 2],
             items: Vec::new(),
         }
     }
@@ -99,6 +105,8 @@ pub enum Action {
     LinksAt(usize),
     /// A link edited in the list: its axis, its range.
     Link(LinkEdit),
+    /// An axis's rail answered the kit's parameter menu or modulation (slot 0 X, 1 Y).
+    Param(usize, crate::kit::automate::Choice, Rect),
 }
 
 /// What the hand did to a row of *What it drives* (row `i` is the modulator's route `i`).
@@ -203,7 +211,7 @@ pub fn body(
         Align2::CENTER_CENTER,
     );
     surface(&mut b, s, open, src, live);
-    rails(&mut b, s, outer, open, links);
+    let axes = rails(&mut b, s, outer, open, links, &live.params);
     // The side: the links sized to their rows (scrolling past the most that fit), the
     // flywheel taking the rest.
     let list_h = art::links_height(links.len(), side.height() / k * 0.5) * k;
@@ -238,6 +246,29 @@ pub fn body(
     b.flush(ui.painter());
     rects.pad = open;
     rects.draw = draw;
+    rects.rails = axes;
+    // The rails are the axes, X and Y: each the kit's parameter menu on a right-click
+    // (automate, MIDI learn, forget, reset; Modulate…), outlined in the learn mode.
+    for (slot, r, id, (name, tip)) in [
+        (0, axes[0], "fxd-xy-rail-x", ("fxd.xy.card.x", "fxd.xy.rail.x.tip")),
+        (1, axes[1], "fxd-xy-rail-y", ("fxd.xy.card.y", "fxd.xy.rail.y.tip")),
+    ] {
+        let resp = ui.interact(r, ui.id().with(id), egui::Sense::click());
+        if resp.hovered() {
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                super::frame::tr(name),
+                super::frame::tr(tip),
+                crate::kit::hint::Caps {
+                    typed: false,
+                    ..crate::kit::hint::Caps::PARAM
+                },
+            );
+        }
+        if let Some(c) = art::param_spot(ui, &resp, name, live.params[slot].as_ref()) {
+            out.push(Action::Param(slot, c, r));
+        }
+    }
     rects.record = record;
     // The hand on the pad (a press on the keys is theirs).
     let resp = ui.interact(
@@ -326,6 +357,8 @@ pub fn body(
                 hi: 1.0,
                 def: 0.5,
                 fmt: &pct,
+                unit: "%",
+                param: Some(0),
             },
             (0, 1) => Value::Knob {
                 v: src.y,
@@ -333,6 +366,8 @@ pub fn body(
                 hi: 1.0,
                 def: 0.5,
                 fmt: &pct,
+                unit: "%",
+                param: Some(1),
             },
             (0, 2) => Value::Choice(usize::from(src.unipolar)),
             (0, _) => Value::Knob {
@@ -341,6 +376,8 @@ pub fn body(
                 hi: 1.0,
                 def: 1.0,
                 fmt: &pct,
+                unit: "%",
+                param: Some(art::AMOUNT),
             },
             (1, 0) => Value::Knob {
                 v: src.inertia_ms,
@@ -348,6 +385,9 @@ pub fn body(
                 hi: 2_000.0,
                 def: 0.0,
                 fmt: &ms,
+                unit: "ms",
+                // How the puck follows, not a parameter: set, never automated (ADR 0147).
+                param: None,
             },
             (1, 1) => Value::Choice(usize::from(src.play_path)),
             (1, 2) => Value::Knob {
@@ -363,12 +403,14 @@ pub fn body(
                 hi: 64.0,
                 def: 4.0,
                 fmt: &beats,
+                unit: "",
+                param: None,
             },
             _ => Value::Choice(usize::from(path.is_none_or(|p| p.smooth))),
         }
     };
     out.extend(
-        art::lay_cards(ui, s, cards, &CARDS, &values, &mut rects.items)
+        art::lay_cards(ui, s, cards, &CARDS, &values, &live.params, &mut rects.items)
             .into_iter()
             .map(Action::Card),
     );
@@ -565,9 +607,60 @@ fn puck(b: &mut Brush, s: &Style, p: Pos2) {
     b.circle(p, 1.6 * k, Fill::Solid(with_alpha(s.t.light, 0.9)));
 }
 
+/// The words an axis's rail engraves: `X — Cutoff · Bass · Pan · Lead · +3 more` — the
+/// parameters it drives in the list's order, as many by name as `fits` allows (at most
+/// [`RAIL_NAMES`]), the rest counted, so the count is never the part cut; `X` alone when
+/// the axis drives nothing. The names and the count always add up to the axis's links.
+pub fn rail_words(links: &[Link], axis: u8, fits: impl Fn(&str) -> bool) -> String {
+    let tag = if axis == 0 { "X" } else { "Y" };
+    let v: Vec<&str> = links
+        .iter()
+        .filter(|l| l.axis == axis)
+        .map(|l| l.name.as_str())
+        .collect();
+    if v.is_empty() {
+        return tag.to_string();
+    }
+    let with = |named: usize| -> String {
+        let rest = v.len() - named;
+        let mut parts: Vec<String> = v[..named].iter().map(|n| n.to_string()).collect();
+        if rest > 0 {
+            let key = match (named, rest) {
+                (0, 1) => "fxd.rail.count.one",
+                (0, _) => "fxd.rail.count",
+                _ => "fxd.rail.more",
+            };
+            parts.push(crate::i18n::tf(key, &[("n", &rest.to_string())]));
+        }
+        format!("{tag} — {}", parts.join(" · "))
+    };
+    (1..=v.len().min(RAIL_NAMES))
+        .rev()
+        .map(with)
+        .find(|w| fits(w))
+        .unwrap_or_else(|| with(0))
+}
+
+/// What the footer's chip says a controller drives: its routes, counted as the list lists
+/// them (one row a route, one route a parameter).
+pub fn drives_chip(n: usize) -> String {
+    match n {
+        0 => crate::i18n::t("fxd.window.chip.none"),
+        1 => crate::i18n::t("fxd.window.chip.one"),
+        _ => crate::i18n::tf("fxd.window.chip", &[("n", &n.to_string())]),
+    }
+}
+
 /// The rails: an engraved scale on the foot and the left side, and which parameters each
 /// axis drives, engraved along it.
-fn rails(b: &mut Brush, s: &Style, outer: Rect, open: Rect, links: &[Link]) {
+fn rails(
+    b: &mut Brush,
+    s: &Style,
+    outer: Rect,
+    open: Rect,
+    links: &[Link],
+    params: &art::Params,
+) -> [Rect; 2] {
     let k = s.k;
     let m = art::metal(s);
     for i in 0..=20 {
@@ -596,29 +689,21 @@ fn rails(b: &mut Brush, s: &Style, outer: Rect, open: Rect, links: &[Link]) {
             m.engrave,
         );
     }
-    // The first two an axis drives by name, the rest counted ("+3 more"): the rail is
-    // never too short for its words.
-    let names = |axis: u8| -> String {
-        let v: Vec<&str> = links
-            .iter()
-            .filter(|l| l.axis == axis)
-            .map(|l| l.name.as_str())
-            .collect();
-        if v.len() <= RAIL_NAMES {
-            v.join(" · ")
-        } else {
-            let more = crate::i18n::tf(
-                "fxd.rail.more",
-                &[("n", &(v.len() - RAIL_NAMES).to_string())],
-            );
-            format!("{} · {more}", v[..RAIL_NAMES].join(" · "))
-        }
-    };
+    // The names an axis drives, as many as its rail holds, the rest counted.
     let foot = Rect::from_min_max(
         pos2(open.left() + 10.0 * k, open.bottom() + 11.0 * k),
         pos2(open.right() - 10.0 * k, outer.bottom() - 2.0 * k),
     );
-    let x = format!("X — {}", names(0));
+    let ctx = b.ctx().clone();
+    let tk = s.tk();
+    let fits = |room: f32| {
+        let ctx = &ctx;
+        move |w: &str| {
+            let t = crate::kit::text::Text::new(w, Role::Micro, m.engrave).caps(false);
+            crate::kit::text::measure(ctx, &t, tk).x <= room
+        }
+    };
+    let x = rail_words(links, 0, fits(foot.width()));
     art::value(
         b,
         s,
@@ -629,11 +714,11 @@ fn rails(b: &mut Brush, s: &Style, outer: Rect, open: Rect, links: &[Link]) {
         Align2::CENTER_CENTER,
     );
     // The left rail's words read upward.
-    let y = format!("Y — {}", names(1));
     let side = Rect::from_center_size(
         pos2(outer.left() + RAIL * 0.42 * k, open.center().y),
         vec2(14.0 * k, open.height() - 20.0 * k),
     );
+    let y = rail_words(links, 1, fits(side.height()));
     let t = crate::kit::text::Text::new(&y, Role::Micro, m.engrave)
         .caps(false)
         .align(Align2::CENTER_CENTER)
@@ -641,6 +726,15 @@ fn rails(b: &mut Brush, s: &Style, outer: Rect, open: Rect, links: &[Link]) {
             crate::kit::text::Elide::End,
         ));
     let _ = crate::kit::text::paint(b, side, &t, s.tk());
+    // The signs of what drives each axis (a clip, a controller, a modulator).
+    for (r, p) in [(foot, &params[0]), (side, &params[1])] {
+        if let Some(p) = p {
+            let mut d = p.offer.drivers();
+            d.modulated |= p.n > 0;
+            crate::kit::automate::signs(b, r, s, d);
+        }
+    }
+    [foot, side]
 }
 
 /// The object: the inertia flywheel. Its rim's weights grow with the inertia; while the

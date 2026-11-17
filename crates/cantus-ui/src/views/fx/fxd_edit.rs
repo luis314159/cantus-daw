@@ -105,6 +105,7 @@ pub fn xy_actions(app: &mut CantusApp, id: ModulatorId, actions: Vec<fxd_xy::Act
             fxd_xy::Action::LinksAt(n) => app.fx.fxd.live_xy.links_first = n,
             fxd_xy::Action::Link(e) => link_edit(app, id, e),
             fxd_xy::Action::Card(fxd_art_moved) => xy_card(app, id, fxd_art_moved),
+            fxd_xy::Action::Param(slot, choice, rect) => param_choice(app, id, slot, choice, rect),
         }
     }
 }
@@ -273,6 +274,7 @@ fn xy_card(app: &mut CantusApp, id: ModulatorId, mv: super::fxd_art::Moved) {
     let (card, item, v) = match mv {
         Moved::Done { .. } => return card_done(app),
         Moved::To { card, item, value } => (card, item, value),
+        Moved::Param { slot, choice, rect } => return param_choice(app, id, slot, choice, rect),
     };
     let key = card_key(app, id);
     let on = v >= 0.5;
@@ -314,6 +316,55 @@ fn xy_card(app: &mut CantusApp, id: ModulatorId, mv: super::fxd_art::Moved) {
                 }
             }
         }),
+    }
+}
+
+// ---- the parameters' menus --------------------------------------------------------------
+
+/// The parameter a control of the window stands for: input `slot` (X, Y; a, b, c) or the
+/// amount ([`super::fxd_art::AMOUNT`]).
+pub fn param_target(id: ModulatorId, slot: usize) -> cantus_core::AutoTarget {
+    if slot == super::fxd_art::AMOUNT {
+        cantus_core::AutoTarget::ModAmount(id)
+    } else {
+        cantus_core::AutoTarget::ModInput {
+            modulator: id,
+            input: slot as u8,
+        }
+    }
+}
+
+/// What the kit's parameter menu (or the control's modulation) chose on a control of the
+/// window, answered as every Cantus parameter's is (`ModAct::Param`, the effects' cells):
+/// *Automate* opens or creates the clip, *Learn*/*Forget* MIDI learn, *Modulate…*, a depth,
+/// a handle dropped — and *Reset* (the rails' and dials'; a card's knob resets itself) puts
+/// the parameter back at its default, one undo step.
+fn param_choice(
+    app: &mut CantusApp,
+    id: ModulatorId,
+    slot: usize,
+    choice: crate::kit::automate::Choice,
+    rect: egui::Rect,
+) {
+    use crate::kit::automate::Choice;
+    let target = param_target(id, slot);
+    match choice {
+        Choice::Automate => app.automate(target),
+        Choice::Reset if slot == super::fxd_art::AMOUNT => {
+            edit(app, id, None, |m| m.amount = 1.0);
+        }
+        Choice::Reset => {
+            let now = cantus_core::automation::range::base_value(app.project(), &target);
+            if now.is_some_and(|v| v != 0.5) {
+                app.exec(Command::SetModulatorInput {
+                    id,
+                    input: slot as u8,
+                    value: 0.5,
+                });
+            }
+        }
+        Choice::Type => {}
+        c => app.modulation_choice(&target, c, rect),
     }
 }
 
@@ -404,6 +455,9 @@ pub fn formula_actions(
             fxd_formula::Action::LinksAt(n) => app.fx.fxd.live_f.links_first = n,
             fxd_formula::Action::Link(e) => link_edit(app, id, e),
             fxd_formula::Action::Card(mv) => formula_card(app, id, mv),
+            fxd_formula::Action::Param(slot, choice, rect) => {
+                param_choice(app, id, slot, choice, rect)
+            }
         }
     }
     if app.fx.fxd.typing.is_some() {
@@ -434,6 +488,7 @@ fn formula_card(app: &mut CantusApp, id: ModulatorId, mv: super::fxd_art::Moved)
     let (card, item, v) = match mv {
         Moved::Done { .. } => return card_done(app),
         Moved::To { card, item, value } => (card, item, value),
+        Moved::Param { slot, choice, rect } => return param_choice(app, id, slot, choice, rect),
     };
     let key = card_key(app, id);
     match (card, item) {

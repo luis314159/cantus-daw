@@ -235,6 +235,47 @@ pub enum Moved {
     },
     /// The gesture on it ended.
     Done { card: usize, item: usize },
+    /// A parameter's menu or modulation (the kit's, ADR 0027/0057/0062) on the control of
+    /// parameter `slot` ([`Params`]): *Automate*, *Learn*, *Forget*, *Modulate…*, a depth.
+    Param {
+        slot: usize,
+        choice: crate::kit::automate::Choice,
+        rect: Rect,
+    },
+}
+
+/// A controller's parameters a control can stand for (fxd): its inputs (X, Y; a, b, c)
+/// by number, its amount at [`AMOUNT`].
+pub const AMOUNT: usize = 3;
+
+/// What one of a controller's parameters offers its controls: the kit's parameter menu
+/// (automate, type, learn, forget, reset; *Modulate…*), the signs of what drives it, the
+/// rings of the modulators that move it. Read from the app each frame by the window.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct Param {
+    pub offer: crate::kit::automate::Offer,
+    pub rings: [(f32, Color32); crate::views::modulator::MAX_RINGS],
+    pub n: usize,
+}
+
+/// Each parameter's offer, by slot (inputs 0…2, [`AMOUNT`]); `None` on the design sheets.
+pub type Params = [Option<Param>; 4];
+
+/// The kit's parameter menu and modulation on a control of the face's own drawing (the
+/// pad's rails, the formula's dials): the learn mode's spot, a modulator's handle dropped,
+/// a depth drag, the menu on a right-click — and the learn probe's note under `name`.
+pub fn param_spot(
+    ui: &egui::Ui,
+    resp: &egui::Response,
+    name: &str,
+    param: Option<&Param>,
+) -> Option<crate::kit::automate::Choice> {
+    use crate::kit::automate as a;
+    let p = param?;
+    if a::probe::noting_learn() {
+        a::probe::note_learn(name, p.offer.learn().is_some());
+    }
+    a::modulation_choice(ui, resp, Some(p.offer)).or_else(|| a::menu(ui, resp, p.offer))
 }
 
 /// Where a card's items were laid this frame: `(card, item)` and its rect (a knob's cell,
@@ -251,6 +292,7 @@ pub fn lay_cards<'v>(
     area: Rect,
     cards: &[Card<'_>],
     values: &dyn Fn(usize, usize) -> Value<'v>,
+    params: &Params,
     rects: &mut ItemRects,
 ) -> Vec<Moved> {
     let mut out = Vec::new();
@@ -284,15 +326,47 @@ pub fn lay_cards<'v>(
                                 hi,
                                 def,
                                 fmt,
+                                unit,
+                                param,
                             },
                         ) => {
-                            let cell = controls::Cell::new(v, lo..=hi, def)
+                            let mut cell = controls::Cell::new(v, lo..=hi, def)
                                 .size(Size::M)
                                 .label(Src::Key(lab))
                                 .width(w)
+                                .unit(unit)
                                 .format(fmt);
+                            // A parameter's knob wears the kit's menu, signs and rings;
+                            // a setting that is no parameter is a plain number.
+                            let p = param.and_then(|i| params.get(i).copied().flatten());
+                            match p.as_ref() {
+                                Some(p) => {
+                                    cell = cell
+                                        .automation(p.offer.automated)
+                                        .rings(&p.rings[..p.n.min(p.rings.len())]);
+                                    if let Some(m) = p.offer.modulation {
+                                        cell = cell.modulation(m);
+                                    }
+                                }
+                                None if param.is_none() => cell = cell.plain(),
+                                None => {}
+                            }
                             let before = ui.cursor().min;
                             let o = cell.show(ui, s);
+                            if let (Some(slot), true) = (param, p.is_some()) {
+                                let choice = if o.automate {
+                                    Some(crate::kit::automate::Choice::Automate)
+                                } else {
+                                    o.modulation
+                                };
+                                if let Some(choice) = choice {
+                                    out.push(Moved::Param {
+                                        slot,
+                                        choice,
+                                        rect: o.resp.rect,
+                                    });
+                                }
+                            }
                             let after = ui.min_rect();
                             rects.push((
                                 (c, it),
@@ -358,6 +432,11 @@ pub enum Value<'a> {
         hi: f32,
         def: f32,
         fmt: &'a dyn Fn(f32, &mut String),
+        /// The readout's unit, so a typed value reads as printed (`%`: 0…100 for 0…1).
+        unit: &'static str,
+        /// The controller's parameter it stands for ([`Params`]' slot); `None` for a
+        /// setting that is no parameter.
+        param: Option<usize>,
     },
     Choice(usize),
 }

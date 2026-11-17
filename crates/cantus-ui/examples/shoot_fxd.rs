@@ -203,7 +203,6 @@ fn pad(state: &str, look: u8) -> (XySource, Vec<fxd_xy::Link>, fxd_xy::Live) {
             live.heads = end;
             live.trail.clear();
         }
-        "links" => live.links_first = 3,
         _ => {}
     }
     (src, links, live)
@@ -295,7 +294,6 @@ fn formula(state: &str, look: u8) -> (FormulaSource, Vec<fxd_xy::Link>, fxd_form
     let mut links = links;
     if state == "links" {
         links.extend(many_links());
-        live.links_first = 2;
     }
     debug_assert!(Program::compile(&src.text).is_ok());
     (src, links, live)
@@ -341,14 +339,15 @@ fn take(dir: &Path, sh: &Shot) {
     shoot(&ctx, size * sh.k, 1.0, 6, Some(&path), |ui| {
         if f {
             let (src, links, live) = formula(sh.state, sh.look);
-            let chips = [i18n::t("fxd.sheet.chip.formula")];
+            // The chip counts the links the list lists, as the window's does.
+            let chips = [fxd_xy::drives_chip(links.len())];
             let chips: Vec<&str> = chips.iter().map(String::as_str).collect();
             let mut c = fxd::Chrome::sheet(&context, true, &chips);
             c.preset = preset.as_deref();
             fxd::formula(ui, &c, &src, 1.0, &links, &live);
         } else {
             let (src, links, live) = pad(sh.state, sh.look);
-            let chips = [i18n::t("fxd.sheet.chip.xy")];
+            let chips = [fxd_xy::drives_chip(links.len())];
             let chips: Vec<&str> = chips.iter().map(String::as_str).collect();
             let mut c = fxd::Chrome::sheet(&context, true, &chips);
             c.preset = preset.as_deref();

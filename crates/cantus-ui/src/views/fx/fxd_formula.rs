@@ -31,6 +31,9 @@ pub struct Live {
     pub focused: bool,
     /// The first row the links list shows.
     pub links_first: usize,
+    /// What the knobs a, b, c and the amount offer their controls (the kit's parameter
+    /// menu, MIDI learn, the signs): from the app each frame; `None` on the design sheets.
+    pub params: art::Params,
 }
 
 /// Where the face's parts were drawn this frame (the window's tests, its hints).
@@ -76,6 +79,8 @@ pub enum Action {
     LinksAt(usize),
     /// A link's range edited in the list.
     Link(super::fxd_xy::LinkEdit),
+    /// A dial answered the kit's parameter menu or modulation (slot 0…2: a, b, c).
+    Param(usize, crate::kit::automate::Choice, Rect),
 }
 
 pub const CARDS: [Card<'static>; 2] = [
@@ -201,6 +206,14 @@ pub fn body(
     let list_h = art::links_height(links.len(), side.height() / k - KEYPAD_MIN) * k;
     let (pad, list) = side.split_top_bottom_at_y(side.bottom() - list_h);
     let (keys, dials) = keypad(&mut b, s, pad.shrink2(vec2(0.0, 2.0 * k)), src);
+    // The signs of what drives each dial (a clip, a controller, a modulator).
+    for (r, p) in dials.iter().zip(&live.params) {
+        if let Some(p) = p {
+            let mut d = p.offer.drivers();
+            d.modulated |= p.n > 0;
+            crate::kit::automate::signs(&mut b, *r, s, d);
+        }
+    }
     let list = list.shrink2(vec2(0.0, 4.0 * k));
     let fit = super::fxd_xy::links_panel(ui.ctx(), &mut b, s, list, links, false, live.links_first);
     b.flush(ui.painter());
@@ -219,7 +232,9 @@ pub fn body(
             out.push(Action::Type(KEYS[i].1));
         }
     }
-    // The dials: dragged up or down (150 points the whole travel), a double-click resets.
+    // The dials: dragged up or down (150 points the whole travel), a double-click resets;
+    // each the kit's parameter menu on a right-click (automate, MIDI learn, forget, reset;
+    // Modulate…), a click in the learn mode learns it, Alt+drag sets a modulation's depth.
     for (i, r) in dials.iter().enumerate() {
         let resp = ui.interact(
             *r,
@@ -228,6 +243,17 @@ pub fn body(
         );
         if resp.hovered() || resp.dragged() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+        }
+        let param = live.params[i].as_ref();
+        let name = ["fxd.formula.a", "fxd.formula.b", "fxd.formula.c"][i];
+        let offer = param.map(|p| p.offer);
+        let not_turned = crate::kit::automate::depth_drag(ui, offer);
+        if let Some(c) = art::param_spot(ui, &resp, name, param) {
+            out.push(Action::Param(i, c, *r));
+        }
+        if not_turned {
+            // The learn mode's click learns and an Alt-drag sets a depth: the dial stays.
+            continue;
         }
         if resp.double_clicked() {
             out.push(Action::DialReset(i));
@@ -273,6 +299,8 @@ pub fn body(
                 hi: 1.0,
                 def: 0.5,
                 fmt: &pct,
+                unit: "",
+                param: Some(i.min(2)),
             },
             (_, 0) => Value::Choice(usize::from(src.bipolar)),
             _ => Value::Knob {
@@ -281,11 +309,13 @@ pub fn body(
                 hi: 1.0,
                 def: 1.0,
                 fmt: &amt,
+                unit: "%",
+                param: Some(art::AMOUNT),
             },
         }
     };
     out.extend(
-        art::lay_cards(ui, s, cards, &CARDS, &values, &mut rects.items)
+        art::lay_cards(ui, s, cards, &CARDS, &values, &live.params, &mut rects.items)
             .into_iter()
             .map(Action::Card),
     );
