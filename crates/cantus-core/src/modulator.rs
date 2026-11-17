@@ -33,6 +33,9 @@ pub mod eval;
 // fxd:contract — the X-Y pad and the formula controller (ADRs 0147, 0148).
 #[path = "modulator_formula.rs"]
 pub mod formula;
+// fxd step 3 — the controllers' presets.
+#[path = "modulator_presets.rs"]
+pub mod presets;
 #[path = "modulator_xy.rs"]
 pub mod xy;
 pub use xy::{XyPath, XySource};
@@ -643,6 +646,15 @@ impl Modulator {
     /// The route to `target`, if it drives it.
     pub fn route(&self, target: &AutoTarget) -> Option<&ModRoute> {
         self.routes.iter().find(|r| &r.target == target)
+    }
+
+    /// fxd: drop the links (a pad's, a formula's) whose target it no longer routes to —
+    /// called wherever a route is taken away, so a link never outlives its route.
+    pub fn tidy_links(&mut self) {
+        let routes = &self.routes;
+        if let Some(links) = self.source.links_mut() {
+            links.retain(|l| routes.iter().any(|r| r.target == l.target));
+        }
     }
 }
 
