@@ -344,6 +344,65 @@ fn recording_over_a_playing_path_hears_the_hand_and_lays_the_new_path() {
     assert!(src.play_path && src.path.as_ref().unwrap().points.len() == 2);
 }
 
+/// Row `i` of the pad's *What it drives* list as drawn (its axis tag and its bar).
+fn link_row(r: &Rig, i: usize) -> cantus_ui::views::fx::fxd_xy::LinkRow {
+    use cantus_ui::views::fx::fxd_xy;
+    let k = r.app.fx.fxd.rects_xy.pad.width() / fxd_xy::PAD;
+    let n = r.app.project().modulators(ModHost::Master).unwrap()[0]
+        .routes
+        .len();
+    fxd_xy::link_rows(r.app.fx.fxd.rects_xy.links, k, n, 0, true)
+        .into_iter()
+        .find(|row| row.i == i)
+        .expect("the row is drawn")
+}
+
+#[test]
+fn a_link_s_axis_and_range_are_set_in_what_it_drives_one_step_each() {
+    let (mut r, id) = rig(ModKind::XyPad);
+    open(&mut r, id);
+    let link = |r: &Rig| pad_of(r, id).links.first().cloned();
+    assert!(link(&r).is_none(), "a new route reads X whole: no link");
+    let steps = undo_steps(&r);
+    // The axis tag: X becomes Y, one step; again, X (no link left).
+    r.click(link_row(&r, 0).tag.center());
+    assert_eq!(link(&r).map(|l| l.output), Some(1), "the pan now follows Y");
+    assert_eq!(undo_steps(&r), steps + 1);
+    r.click(link_row(&r, 0).tag.center());
+    assert!(link(&r).is_none(), "back to X whole");
+    assert_eq!(undo_steps(&r), steps + 2);
+    // The bar's right end (the whole travel at depth 0.5 ends at three quarters) dragged
+    // to five eighths: the route sweeps to half its reach, one step.
+    let bar = link_row(&r, 0).bar;
+    let x_at = |f: f32| bar.left() + f * bar.width();
+    r.drag(
+        pos2(x_at(0.75), bar.center().y),
+        pos2(x_at(0.625), bar.center().y),
+    );
+    let g = link(&r).and_then(|l| l.range).expect("a range");
+    assert_eq!(g.from, -1.0, "the other end stays");
+    assert!(close(g.to, 0.5, 0.02), "the dragged end: {}", g.to);
+    assert_eq!(undo_steps(&r), steps + 3, "one drag, one step");
+    // Its middle dragged up bends it.
+    r.drag(
+        pos2(x_at(0.5), bar.center().y),
+        pos2(x_at(0.5), bar.center().y - 40.0),
+    );
+    let g = link(&r).and_then(|l| l.range).expect("a range");
+    assert!(g.curve > 0.2, "bent: {}", g.curve);
+    assert_eq!(undo_steps(&r), steps + 4);
+    // A double-click gives the whole travel back.
+    r.double_click(pos2(x_at(0.5), bar.center().y));
+    assert!(link(&r).is_none(), "whole and unbent: no link");
+    r.app.undo();
+    r.app.undo();
+    let g = link(&r).and_then(|l| l.range).expect("a range again");
+    assert!(
+        close(g.to, 0.5, 0.02) && g.curve == 0.0,
+        "undone a step at a time"
+    );
+}
+
 #[test]
 fn the_pads_cards_move_its_settings_one_step_each() {
     let (mut r, id) = rig(ModKind::XyPad);

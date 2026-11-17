@@ -74,6 +74,8 @@ pub enum Action {
     DialReset(usize),
     /// The links list scrolled to show from this row.
     LinksAt(usize),
+    /// A link's range edited in the list.
+    Link(super::fxd_xy::LinkEdit),
 }
 
 pub const CARDS: [Card<'static>; 2] = [
@@ -242,6 +244,11 @@ pub fn body(
     if let Some(at) = super::fxd_xy::scroll_links(ui, list, links.len(), fit, live.links_first) {
         out.push(Action::LinksAt(at));
     }
+    out.extend(
+        super::fxd_xy::link_edits(ui, s.k, list, links, false, live.links_first)
+            .into_iter()
+            .map(Action::Link),
+    );
     rects.display = vfd;
     rects.keys = keys;
     rects.dials = dials;

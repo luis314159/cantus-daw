@@ -103,6 +103,7 @@ pub fn xy_actions(app: &mut CantusApp, id: ModulatorId, actions: Vec<fxd_xy::Act
             fxd_xy::Action::PadDone => pad_done(app, id),
             fxd_xy::Action::Mode(m) => app.fx.fxd.mode = m,
             fxd_xy::Action::LinksAt(n) => app.fx.fxd.live_xy.links_first = n,
+            fxd_xy::Action::Link(e) => link_edit(app, id, e),
             fxd_xy::Action::Card(fxd_art_moved) => xy_card(app, id, fxd_art_moved),
         }
     }
@@ -316,6 +317,52 @@ fn xy_card(app: &mut CantusApp, id: ModulatorId, mv: super::fxd_art::Moved) {
     }
 }
 
+// ---- the links ------------------------------------------------------------------------
+
+/// A row of *What it drives* edited: route `i`'s axis or range, written into the source's
+/// `links` (one per target; a link that reads X whole is no link). A range's drag is one
+/// undo step (merged as a card's), an axis or a cleared range one each.
+fn link_edit(app: &mut CantusApp, id: ModulatorId, e: fxd_xy::LinkEdit) {
+    use cantus_core::modulator::RouteLink;
+    use fxd_xy::LinkEdit;
+    let (i, key) = match e {
+        LinkEdit::Done => return card_done(app),
+        LinkEdit::Range(i, _) => (i, Some(card_key(app, id))),
+        LinkEdit::Axis(i) | LinkEdit::Clear(i) => (i, None),
+    };
+    edit(app, id, key, |m| {
+        let Some(target) = m.routes.get(i).map(|r| r.target.clone()) else {
+            return;
+        };
+        let (links, axes) = match &mut m.source {
+            ModSource::XyPad(x) => (&mut x.links, 2u8),
+            ModSource::Formula(f) => (&mut f.links, 1u8),
+            _ => return,
+        };
+        let at = match links.iter().position(|l| l.target == target) {
+            Some(at) => at,
+            None => {
+                links.push(RouteLink {
+                    target,
+                    output: 0,
+                    range: None,
+                });
+                links.len() - 1
+            }
+        };
+        let l = &mut links[at];
+        match e {
+            LinkEdit::Axis(_) if axes > 1 => l.output = 1 - l.output.min(1),
+            LinkEdit::Range(_, g) => l.range = Some(g),
+            LinkEdit::Clear(_) => l.range = None,
+            _ => {}
+        }
+        if l.output == 0 && l.range.is_none() {
+            links.remove(at);
+        }
+    });
+}
+
 // ---- the formula ----------------------------------------------------------------------
 
 /// What the formula's face did.
@@ -355,6 +402,7 @@ pub fn formula_actions(
                 });
             }
             fxd_formula::Action::LinksAt(n) => app.fx.fxd.live_f.links_first = n,
+            fxd_formula::Action::Link(e) => link_edit(app, id, e),
             fxd_formula::Action::Card(mv) => formula_card(app, id, mv),
         }
     }

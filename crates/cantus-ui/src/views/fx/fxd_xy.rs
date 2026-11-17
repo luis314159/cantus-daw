@@ -97,6 +97,21 @@ pub enum Action {
     Mode(PadMode),
     /// The links list scrolled to show from this row.
     LinksAt(usize),
+    /// A link edited in the list: its axis, its range.
+    Link(LinkEdit),
+}
+
+/// What the hand did to a row of *What it drives* (row `i` is the modulator's route `i`).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum LinkEdit {
+    /// The axis tag clicked: X becomes Y and Y X (the pad only).
+    Axis(usize),
+    /// A bar's end dragged (the range it sweeps), or its middle (the bend).
+    Range(usize, RouteRange),
+    /// The drag ended.
+    Done,
+    /// A double-click on a bar: the whole travel, unbent (no range).
+    Clear(usize),
 }
 
 /// The cards: the pad (its hand, its polarity, its amount) and its motion.
@@ -280,6 +295,11 @@ pub fn body(
     if let Some(at) = scroll_links(ui, list, links.len(), fit, live.links_first) {
         out.push(Action::LinksAt(at));
     }
+    out.extend(
+        link_edits(ui, k, list, links, true, live.links_first)
+            .into_iter()
+            .map(Action::Link),
+    );
     // The cards under.
     let cards = Rect::from_min_max(
         pos2(rect.left() + MARGIN * k, outer.bottom() + MARGIN * k),
@@ -858,15 +878,10 @@ pub fn links_panel(
         (((r.height() - art::LINKS_HEAD * k - art::LINKS_FOOT * k) / row).floor() as usize).max(1);
     let first = first.min(links.len().saturating_sub(fit));
     let scrolls = links.len() > fit;
-    let bar_room = if scrolls { 10.0 * k } else { 0.0 };
-    for (i, l) in links.iter().enumerate().skip(first).take(fit) {
-        let y = r.top() + art::LINKS_HEAD * k + (i - first) as f32 * row;
-        let line = Rect::from_min_size(
-            pos2(r.left() + 10.0 * k, y),
-            vec2(r.width() - 20.0 * k - bar_room, row - 4.0 * k),
-        );
+    for row_at in link_rows(r, k, links.len(), first, axes) {
+        let (i, line, tag, bar) = (row_at.i, row_at.line, row_at.tag, row_at.bar);
+        let l = &links[i];
         let axis = if l.axis == 0 { "X" } else { "Y" };
-        let tag = Rect::from_min_size(line.min, vec2(if axes { 20.0 } else { 0.0 } * k, 16.0 * k));
         if axes {
             b.rrect(tag, 3.0 * k, Fill::Solid(with_alpha(s.hue, 0.25)));
             art::value(
@@ -893,10 +908,6 @@ pub fn links_panel(
             Align2::LEFT_CENTER,
         );
         // The bar: the parameter's travel, the share the route sweeps, its bend.
-        let bar = Rect::from_min_max(
-            pos2(tag.right() + 6.0 * k, line.top() + 19.0 * k),
-            pos2(line.right(), line.top() + 23.0 * k),
-        );
         b.rrect(
             bar,
             2.0 * k,
@@ -914,6 +925,24 @@ pub fn links_panel(
             2.0 * k,
             Fill::Solid(s.hue),
         );
+        // The ends a drag takes hold of, and the bend drawn over the sweep.
+        for x in [a, z] {
+            b.rrect(
+                Rect::from_center_size(pos2(x, bar.center().y), vec2(3.0, 9.0) * k),
+                1.0 * k,
+                Fill::Solid(s.t.text),
+            );
+        }
+        if g.curve != 0.0 && (z - a).abs() > 4.0 * k {
+            let pts: Vec<Pos2> = (0..=16)
+                .map(|j| {
+                    let u = j as f32 / 16.0;
+                    let c = shape(g.curve, u);
+                    pos2(a + (z - a) * u, bar.bottom() - (c - u) * 8.0 * k)
+                })
+                .collect();
+            b.polyline(&pts, 0.9 * k, with_alpha(s.t.text, 0.7));
+        }
         b.vline(
             bar.center().x,
             bar.top() - 2.0 * k,
@@ -921,6 +950,7 @@ pub fn links_panel(
             0.7 * k,
             s.t.text_dim,
         );
+        let _ = line;
     }
     if scrolls {
         // The scroll bar: a fine track, the thumb the share shown.
@@ -961,4 +991,149 @@ pub fn links_panel(
         );
     }
     fit
+}
+
+/// The bend of a range (`RouteRange::curve`) at `u`: the automation's single curve.
+fn shape(curve: f32, u: f32) -> f32 {
+    if curve == 0.0 {
+        u
+    } else {
+        cantus_core::automation::Shape::Curve.at(curve, u)
+    }
+}
+
+/// One row of *What it drives* as drawn: route `i`, its line, its axis tag, its bar.
+#[derive(Copy, Clone, Debug)]
+pub struct LinkRow {
+    pub i: usize,
+    pub line: Rect,
+    pub tag: Rect,
+    pub bar: Rect,
+}
+
+/// Where the rows of a links list in `r` (scale `k`) are drawn, from row `first` on: the
+/// painting and the hand share it.
+pub fn link_rows(r: Rect, k: f32, n: usize, first: usize, axes: bool) -> Vec<LinkRow> {
+    let row = art::LINK_ROW * k;
+    let fit =
+        (((r.height() - art::LINKS_HEAD * k - art::LINKS_FOOT * k) / row).floor() as usize).max(1);
+    let first = first.min(n.saturating_sub(fit));
+    let bar_room = if n > fit { 10.0 * k } else { 0.0 };
+    (first..n.min(first + fit))
+        .map(|i| {
+            let y = r.top() + art::LINKS_HEAD * k + (i - first) as f32 * row;
+            let line = Rect::from_min_size(
+                pos2(r.left() + 10.0 * k, y),
+                vec2(r.width() - 20.0 * k - bar_room, row - 4.0 * k),
+            );
+            let tag =
+                Rect::from_min_size(line.min, vec2(if axes { 20.0 } else { 0.0 } * k, 16.0 * k));
+            let bar = Rect::from_min_max(
+                pos2(tag.right() + 6.0 * k, line.top() + 19.0 * k),
+                pos2(line.right(), line.top() + 23.0 * k),
+            );
+            LinkRow { i, line, tag, bar }
+        })
+        .collect()
+}
+
+/// The hand on the links list in `list`: a click on an axis tag swaps the axis (the pad's),
+/// a drag on a bar's end sets that end of the range, a drag on its middle bends it (up
+/// more, down less), a double-click gives the whole travel back.
+pub fn link_edits(
+    ui: &egui::Ui,
+    k: f32,
+    list: Rect,
+    links: &[Link],
+    axes: bool,
+    first: usize,
+) -> Vec<LinkEdit> {
+    let mut out = Vec::new();
+    let grab = ui.id().with("fxd-link-grab");
+    for row in link_rows(list, k, links.len(), first, axes) {
+        let l = &links[row.i];
+        if axes {
+            let t = ui.interact(
+                row.tag,
+                ui.id().with(("fxd-link-axis", row.i)),
+                egui::Sense::click(),
+            );
+            if t.clicked() {
+                out.push(LinkEdit::Axis(row.i));
+            }
+        }
+        let hit = row.bar.expand2(vec2(4.0 * k, 7.0 * k));
+        let resp = ui.interact(
+            hit,
+            ui.id().with(("fxd-link-bar", row.i)),
+            egui::Sense::click_and_drag(),
+        );
+        if resp.hovered() || (axes && ui.rect_contains_pointer(row.tag)) {
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                super::frame::tr("fxd.links.edit"),
+                super::frame::tr("fxd.links.edit.tip"),
+                crate::kit::hint::Caps::NONE,
+            );
+        }
+        if l.depth == 0.0 {
+            continue;
+        }
+        let g = l.range.unwrap_or(RouteRange {
+            from: -1.0,
+            to: 1.0,
+            curve: 0.0,
+        });
+        let bar = row.bar;
+        let depth = l.depth;
+        let to_x = |v: f32| bar.left() + (0.5 + 0.5 * (v * depth).clamp(-1.0, 1.0)) * bar.width();
+        let of_x = |x: f32| (((x - bar.left()) / bar.width() * 2.0 - 1.0) / depth).clamp(-1.0, 1.0);
+        if resp.double_clicked() {
+            out.push(LinkEdit::Clear(row.i));
+            continue;
+        }
+        if resp.drag_started() {
+            // Where the press was (a drag starts a few points later).
+            let origin = ui.input(|i| i.pointer.press_origin());
+            if let Some(p) = origin.or(resp.interact_pointer_pos()) {
+                let (a, z) = (to_x(g.from), to_x(g.to));
+                let near = 6.0 * k;
+                // 0: the from end, 1: the to end, 2: the middle (the bend).
+                let (da, dz) = ((p.x - a).abs(), (p.x - z).abs());
+                let part: u8 = if da <= near && da <= dz {
+                    0
+                } else if dz <= near {
+                    1
+                } else if p.x > a.min(z) && p.x < a.max(z) {
+                    2
+                } else if da < dz {
+                    0
+                } else {
+                    1
+                };
+                ui.data_mut(|d| d.insert_temp(grab, (row.i, part, g, p.y)));
+            }
+        }
+        if resp.dragged() {
+            let held: Option<(usize, u8, RouteRange, f32)> = ui.data(|d| d.get_temp(grab));
+            if let (Some((i, part, start, y0)), Some(p)) = (held, resp.interact_pointer_pos()) {
+                if i == row.i {
+                    let mut n = start;
+                    match part {
+                        0 => n.from = of_x(p.x),
+                        1 => n.to = of_x(p.x),
+                        _ => n.curve = (start.curve + (y0 - p.y) / (100.0 * k)).clamp(-1.0, 1.0),
+                    }
+                    if n != g {
+                        out.push(LinkEdit::Range(row.i, n));
+                    }
+                }
+            }
+        }
+        if resp.drag_stopped() {
+            ui.data_mut(|d| d.remove::<(usize, u8, RouteRange, f32)>(grab));
+            out.push(LinkEdit::Done);
+        }
+    }
+    out
 }
