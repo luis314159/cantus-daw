@@ -55,23 +55,26 @@ fn rendered(app: &mut CantusApp) -> Vec<f32> {
     render(snap, &opts).unwrap().samples
 }
 
-/// The left channel's power in a band (a two-pole band-pass at `hz`, Q 6) from `a` to `b`
-/// seconds, in dB.
+/// The left channel's power in a band (three two-pole band-passes at `hz` in series, Q 6
+/// each, so a loud ring an octave away does not leak in) from `a` to `b` seconds, in dB.
 fn band_db(x: &[f32], hz: f64, a: f64, b: f64) -> f64 {
     let w = std::f64::consts::TAU * hz / SR as f64;
     let alpha = w.sin() / (2.0 * 6.0);
     let a0 = 1.0 + alpha;
     let (b0, b2) = (alpha / a0, -alpha / a0);
     let (a1, a2) = (-2.0 * w.cos() / a0, (1.0 - alpha) / a0);
-    let (mut x1, mut x2, mut y1, mut y2) = (0.0f64, 0.0, 0.0, 0.0);
+    let mut z = [[0.0f64; 4]; 3];
     let (i0, i1) = ((a * SR as f64) as usize, (b * SR as f64) as usize);
     let mut sum = 0.0;
     for (i, frame) in x.chunks_exact(2).enumerate().take(i1) {
-        let v = f64::from(frame[0]);
-        let y = b0 * v + b2 * x2 - a1 * y1 - a2 * y2;
-        (x2, x1, y2, y1) = (x1, v, y1, y);
+        let mut v = f64::from(frame[0]);
+        for [x1, x2, y1, y2] in z.iter_mut() {
+            let y = b0 * v + b2 * *x2 - a1 * *y1 - a2 * *y2;
+            (*x2, *x1, *y2, *y1) = (*x1, v, *y1, y);
+            v = y;
+        }
         if i >= i0 {
-            sum += y * y;
+            sum += v * v;
         }
     }
     10.0 * (sum / (i1 - i0) as f64).max(1e-30).log10()
@@ -94,7 +97,10 @@ fn assert_delayed(reference: &[f32], out: &[f32], latency: usize, what: &str) {
         .zip(&out[shift..])
         .filter(|(a, b)| a.to_bits() != b.to_bits())
         .count();
-    assert_eq!(bad, 0, "{what}: {bad} samples differ from the delayed dry master");
+    assert_eq!(
+        bad, 0,
+        "{what}: {bad} samples differ from the delayed dry master"
+    );
 }
 
 /// A bright saw (no filter movement, one oscillator) holding A2, E3 and A3 for eight beats.
@@ -193,7 +199,10 @@ fn lenis_cuts_a_ring_is_compensated_on_the_master_and_undoes_on_the_boot_path() 
     };
     let gentle = rendered(&mut app);
     assert!(
-        gentle[2 * 511..].iter().zip(&dry_both).any(|(a, b)| (a - b).abs() > 1e-4),
+        gentle[2 * 511..]
+            .iter()
+            .zip(&dry_both)
+            .any(|(a, b)| (a - b).abs() > 1e-4),
         "Gentle sounds on the ring"
     );
 
@@ -213,7 +222,12 @@ fn lenis_cuts_a_ring_is_compensated_on_the_master_and_undoes_on_the_boot_path() 
         label_key: "cmd.fx_preset".into(),
         commands: defaults,
     });
-    assert_delayed(&dry_both, &rendered(&mut app), 511, "the defaults at Standard");
+    assert_delayed(
+        &dry_both,
+        &rendered(&mut app),
+        511,
+        "the defaults at Standard",
+    );
     // A quality change: re-compensated at the new frame's latency.
     for (qual, latency) in [(2.0, 1_023), (0.0, 255), (1.0, 511)] {
         set(&mut app, "qual", qual);
@@ -254,7 +268,11 @@ fn lenis_cuts_a_ring_is_compensated_on_the_master_and_undoes_on_the_boot_path() 
     let latency = 511;
     let mut worst = 0f32;
     for (i, d) in removed.iter().enumerate() {
-        let x = if i >= 2 * latency { dry[i - 2 * latency] } else { 0.0 };
+        let x = if i >= 2 * latency {
+            dry[i - 2 * latency]
+        } else {
+            0.0
+        };
         worst = worst.max((x - wet[i] - d).abs());
     }
     let (r_ring, r_low) = (

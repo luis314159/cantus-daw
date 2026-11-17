@@ -28,7 +28,7 @@ fn floor(unit: Unit) -> usize {
         Unit::Effect(EffectKind::Vocoder) => 1, // fxa:contract (the starting preset; phase B adds the rest)
         Unit::Effect(EffectKind::Glitch) => 0,  // fxa:contract (its starting spec; phase B)
         Unit::Effect(EffectKind::Shimmer) => 1, // fxa:contract (the starting preset; phase B)
-        Unit::Effect(EffectKind::Ducker) => 1, // fxb:contract (the starting preset; phase B)
+        Unit::Effect(EffectKind::Ducker) => 1,  // fxb:contract (the starting preset; phase B)
         Unit::Effect(_) => 12,
     }
 }

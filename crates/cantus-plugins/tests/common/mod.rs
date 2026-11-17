@@ -1238,7 +1238,7 @@ impl Direct {
                     }
                 }
             } // fxb:vinculum
-            Direct::Lenis(x) => x.process(l, r), // fxb:lenis
+            Direct::Lenis(x) => x.process(l, r),     // fxb:lenis
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

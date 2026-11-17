@@ -131,7 +131,8 @@ impl Default for Grips {
 impl State {
     /// Band `n`'s node on the screen, as drawn last frame.
     pub fn node(&self, n: usize) -> Option<Pos2> {
-        self.display.map(|_| self.grips.nodes[n.min(FOCUS_BANDS - 1)])
+        self.display
+            .map(|_| self.grips.nodes[n.min(FOCUS_BANDS - 1)])
     }
 
     /// The low (`hi` false) or the high gate's tab, as drawn last frame.
@@ -447,7 +448,10 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
     for (n, at) in st.grips.nodes.iter_mut().enumerate() {
         *at = plot.node(&set, n);
     }
-    st.grips.gates = [plot.tab(&set, false, tabs[0], k), plot.tab(&set, true, tabs[1], k)];
+    st.grips.gates = [
+        plot.tab(&set, false, tabs[0], k),
+        plot.tab(&set, true, tabs[1], k),
+    ];
     st.grips.dial = Some((pan.dial, pan.dial_rad));
     for (at, key) in st.grips.keys.iter_mut().zip(&pan.keys) {
         *at = key.map_or(("", 0, Rect::NOTHING), |key| {
@@ -557,8 +561,9 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 }
 
 /// The starting preset (`cantus_core::starting`): Gentle — half of each resonance's bump
-/// taken away, the soft curve, the focus from 150 Hz.
-pub const DEMO: &[(&str, f32)] = &[("depth", 0.5), ("lo", 150.0)];
+/// taken away, the soft curve, the focus from 150 Hz, the output fitted to the dry's
+/// loudness (+0.7 dB).
+pub const DEMO: &[(&str, f32)] = &[("depth", 0.5), ("lo", 150.0), ("out", 0.7)];
 
 /// The settings `--editor lenis` and the screenshot tool open it with: the starting
 /// preset.

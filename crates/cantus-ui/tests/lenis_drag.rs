@@ -39,7 +39,15 @@ fn window(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 /// A few quiet frames in a context of their own: the window's rects are known after.
 fn settle(app: &mut CantusApp, size: egui::Vec2) {
-    shoot_events(&ctx(), size, 1.0, 6, None, |_, _| Vec::new(), |ui| window(app, ui));
+    shoot_events(
+        &ctx(),
+        size,
+        1.0,
+        6,
+        None,
+        |_, _| Vec::new(),
+        |ui| window(app, ui),
+    );
 }
 
 fn button(p: Pos2, pressed: bool) -> Event {
@@ -134,7 +142,10 @@ fn the_focus_s_gates_drag_along_the_screen_each_one_undo_step() {
     let from = tab.center();
     drag(&mut app, size, from, from - egui::vec2(220.0, 0.0));
     let hi = value(&app, "hi");
-    assert!(hi < 8_000.0 && hi > lo * 1.25, "the high gate moved down: {hi:.0} Hz");
+    assert!(
+        hi < 8_000.0 && hi > lo * 1.25,
+        "the high gate moved down: {hi:.0} Hz"
+    );
     // Each drag one undo step.
     app.undo();
     assert_eq!(value(&app, "hi"), 20_000.0, "the high gate's drag undone");
@@ -156,7 +167,11 @@ fn each_band_s_node_drags_in_frequency_and_amount_and_switches_on_in_the_same_st
         // Up (more of the cut) and a little to the right (higher).
         let to = from + egui::vec2(24.0, -26.0);
         drag(&mut app, size, from, to);
-        assert_eq!(band(&app, n, "on"), 1.0, "band {n}: dragged while off, now on");
+        assert_eq!(
+            band(&app, n, "on"),
+            1.0,
+            "band {n}: dragged while off, now on"
+        );
         let hz = band(&app, n, "hz");
         let want = hz_at(&app, to.x);
         assert!(hz > hz0, "band {n}: higher ({hz0:.0} -> {hz:.0} Hz)");
@@ -178,13 +193,21 @@ fn each_band_s_node_drags_in_frequency_and_amount_and_switches_on_in_the_same_st
         assert!(band(&app, n, "amt") < amt, "band {n}: lowered");
         assert_eq!(band(&app, n, "on"), 1.0, "band {n}: still on");
         app.undo();
-        assert_eq!(band(&app, n, "amt"), amt, "band {n}: the second drag undone");
+        assert_eq!(
+            band(&app, n, "amt"),
+            amt,
+            "band {n}: the second drag undone"
+        );
     }
     // Each first drag one undo step that also gives back the band's switch.
     for n in (0..cantus_core::fx::lenis::BANDS).rev() {
         app.undo();
         assert_eq!(band(&app, n, "on"), 0.0, "band {n}: off again");
-        assert_eq!(band(&app, n, "hz"), before[n], "band {n}: back where it was");
+        assert_eq!(
+            band(&app, n, "hz"),
+            before[n],
+            "band {n}: back where it was"
+        );
         assert_eq!(band(&app, n, "amt"), 0.0, "band {n}: its amount back");
     }
 }
@@ -212,7 +235,11 @@ fn the_depth_dial_turns_and_a_double_click_turns_it_to_none() {
 fn the_push_keys_choose_each_one_undo_step() {
     let (mut app, size) = open();
     let start = ["qual", "curve", "delta", "chan"].map(|k| value(&app, k));
-    assert_eq!(start, [1.0, 0.0, 0.0, 0.0], "Standard, Soft, delta off, Linked");
+    assert_eq!(
+        start,
+        [1.0, 0.0, 0.0, 0.0],
+        "Standard, Soft, delta off, Linked"
+    );
     let presses: [(&str, usize, f32); 7] = [
         ("qual", 2, 2.0),
         ("qual", 0, 0.0),
@@ -241,5 +268,8 @@ fn the_push_keys_choose_each_one_undo_step() {
         app.undo();
         assert_eq!(value(&app, key), v, "{key}: one press, one undo step");
     }
-    assert_eq!(["qual", "curve", "delta", "chan"].map(|k| value(&app, k)), start);
+    assert_eq!(
+        ["qual", "curve", "delta", "chan"].map(|k| value(&app, k)),
+        start
+    );
 }

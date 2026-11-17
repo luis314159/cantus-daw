@@ -194,7 +194,10 @@ fn a_fork_carries_on_from_where_the_unit_is() {
 #[test]
 fn as_a_pedal_it_is_the_insert_alone_at_each_quality() {
     use cantus_core::fx::tabula::{pedal_allowed, Board, Pedal, PedalId};
-    assert!(pedal_allowed(EffectKind::ResonanceSuppressor), "Lenis may be a pedal");
+    assert!(
+        pedal_allowed(EffectKind::ResonanceSuppressor),
+        "Lenis may be a pedal"
+    );
     for qual in [1.0, 2.0] {
         let kv = [
             ("depth", 0.8),
@@ -233,6 +236,11 @@ fn as_a_pedal_it_is_the_insert_alone_at_each_quality() {
         let on_board = render_of(&p);
         assert_null(&own, &on_board, 0.0, "the board = the insert alone");
         let live = realtime(&p, on_board.len() / 2);
-        assert_null(&on_board[..live.len()], &live, 0.0, "the board: live = offline");
+        assert_null(
+            &on_board[..live.len()],
+            &live,
+            0.0,
+            "the board: live = offline",
+        );
     }
 }

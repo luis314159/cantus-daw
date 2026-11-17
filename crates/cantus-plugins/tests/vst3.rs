@@ -765,7 +765,12 @@ fn lenis_s_latency_follows_its_quality_through_vst3() {
     }
     let qual = params::table(kind).by_key("qual").unwrap();
     let (mut l, mut r) = signal(1024, 3);
-    v.process(&mut l, &mut r, None, &[(qual.id, vec![(0, qual.to_normalized(2.0))])]);
+    v.process(
+        &mut l,
+        &mut r,
+        None,
+        &[(qual.id, vec![(0, qual.to_normalized(2.0))])],
+    );
     v.process(&mut l, &mut r, None, &[]);
     #[cfg(windows)]
     {
@@ -779,12 +784,20 @@ fn lenis_s_latency_follows_its_quality_through_vst3() {
         assert_eq!(handler.latency_restarts.get(), 1, "once");
     }
     unsafe {
-        assert_eq!(v.processor.getLatencySamples(), 1_023, "the new latency read");
+        assert_eq!(
+            v.processor.getLatencySamples(),
+            1_023,
+            "the new latency read"
+        );
         v.processor.setProcessing(0);
         v.component.setActive(0);
         assert_eq!(v.component.setActive(1), kResultOk);
         v.processor.setProcessing(1);
-        assert_eq!(v.processor.getLatencySamples(), 1_023, "after a restart too");
+        assert_eq!(
+            v.processor.getLatencySamples(),
+            1_023,
+            "after a restart too"
+        );
         v.controller.setComponentHandler(std::ptr::null_mut());
     }
 }

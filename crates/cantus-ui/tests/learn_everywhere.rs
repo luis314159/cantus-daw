@@ -980,7 +980,13 @@ fn every_lenis_band_offers_its_switch() {
         probe::start();
         paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
         let offered = probe::take_offers();
-        let keys = [cantus_core::fx::lenis::band_key(n, "on"), "qual", "curve", "delta", "chan"];
+        let keys = [
+            cantus_core::fx::lenis::band_key(n, "on"),
+            "qual",
+            "curve",
+            "delta",
+            "chan",
+        ];
         for key in keys {
             let target = AutoTarget::Effect {
                 effect: fx,

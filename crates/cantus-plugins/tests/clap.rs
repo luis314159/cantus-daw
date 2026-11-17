@@ -225,16 +225,17 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Analyzer => "avg",
             // The test signal is not a voice: the throat works on it all the same.
             EffectKind::AutoTune => "throat",
-            EffectKind::Aula => "mix",       // r39:conv
-            EffectKind::AutoFilter => "out", // fx:contract
-            EffectKind::Pedal => "out",      // fx:contract
-            EffectKind::TimeShaper => "out", // fx:contract
-            EffectKind::LoFi => "out",       // fx:contract
-            EffectKind::Utility => "out",    // fx:contract
-            EffectKind::Board => "out",      // fx3:contract
-            EffectKind::PitchShift => "out", // fx3:contract
-            EffectKind::Rotary => "out",     // fx3:contract
-            EffectKind::Amp => "out",        // fx3:contract
+            EffectKind::Aula => "mix",                  // r39:conv
+            EffectKind::AutoFilter => "out",            // fx:contract
+            EffectKind::Pedal => "out",                 // fx:contract
+            EffectKind::TimeShaper => "out",            // fx:contract
+            EffectKind::LoFi => "out",                  // fx:contract
+            EffectKind::Utility => "out",               // fx:contract
+            EffectKind::Board => "out",                 // fx3:contract
+            EffectKind::PitchShift => "out",            // fx3:contract
+            EffectKind::Rotary => "out",                // fx3:contract
+            EffectKind::Amp => "out",                   // fx3:contract
+            EffectKind::ResonanceSuppressor => "depth", // fxb:lenis
             _ => "thr",
         };
         let table = params::table(kind);
@@ -770,7 +771,14 @@ fn lenis_reports_its_latency_per_quality_and_a_change_re_reports_it() {
 #[test]
 fn lenis_s_delta_is_what_it_takes_away() {
     let kind = EffectKind::ResonanceSuppressor;
-    let hard = [("depth", 0.9), ("curve", 1.0), ("select", 0.3), ("att", 1.0)];
+    // The output at 0 dB (the starting preset fits it): the delta is taken before it.
+    let hard = [
+        ("depth", 0.9),
+        ("curve", 1.0),
+        ("select", 0.3),
+        ("att", 1.0),
+        ("out", 0.0),
+    ];
     let with_delta = [hard.as_slice(), &[("delta", 1.0)]].concat();
     let wet = through_plugin(kind, &hard, &[512, 333], N);
     let delta = through_plugin(kind, &with_delta, &[512, 333], N);
@@ -781,7 +789,11 @@ fn lenis_s_delta_is_what_it_takes_away() {
     dry.extend_from_slice(&dry_r);
     for ch in 0..2 {
         for i in 0..N {
-            let x = if i >= latency { dry[ch * N + i - latency] } else { 0.0 };
+            let x = if i >= latency {
+                dry[ch * N + i - latency]
+            } else {
+                0.0
+            };
             let want = x - wet[ch * N + i];
             assert_eq!(
                 delta[ch * N + i].to_bits(),

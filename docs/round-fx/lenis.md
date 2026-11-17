@@ -506,3 +506,83 @@ the drums' from 300 Hz (their fundamentals are their body).
   and the threshold covers most of it.
 - A Quality change stays a reset (for the engine, above).
 - The owner's listening; then the phases above.
+
+## Phase B (3), to the finish (2026-11-17): sheet v1 approved as shown
+
+Branch `fx/wave-b` (with Vinculum's step 3 and Cedo's contract); the contract and the engine
+(steps 1–2) are ADR 0143's Decision. The owner approved design sheet v1 with no notes
+(`compartir\lenis\verdict.md`), so the window is drawn as shown.
+
+- **The pointer** (`tests/lenis_drag.rs`, four tests, real pointer events through the window
+  the app draws): the low gate's tab dragged right (150 Hz → where the pointer let go,
+  within 3 %), the high gate's left, each one undo step; **each of the six band nodes**
+  dragged up and right — the band switched on by the same step, its frequency where the
+  pointer let go, its amount raised, the band selected — then lowered by a second drag (one
+  undo step), and the first drags undone one by one, each giving back the switch, the
+  frequency and the amount; the **Depth** dial turned up 66 points (50 → 80 %) and down 44
+  (→ 60 %), each one undo step; the **push keys** — Precise, Fast, Hard, *What is removed*,
+  Mid and side, Independent, the delta off again — seven presses undone one step each, a
+  pressed key pressed again no step. The editor now keeps where its grips stood last frame
+  (`State::{node, gate, dial, push_key}`).
+- **The known red fixed**: the Focus band card's lamp made its offer (automation, MIDI
+  learn) only on the frame it was clicked — `clicked && !card_lamp_offer(..)` short-circuited
+  it — so no band's switch was ever offered (`b0on` … `b5on`, the six red keys). It is made
+  every frame now. The card shows one band at a time: the five others are excused by the band
+  shown, and `learn_everywhere::every_lenis_band_offers_its_switch` chooses each band in turn
+  (its switch, Quality, Curve, the delta and Channels offered each time).
+- **Presets** fourteen (`presets/effects/resonancesuppressor.toml`): Gentle (start), Harsh
+  vocal, Sibilance tamer (Fast, Hard), Guitar fizz (Hard), Piano ring (Precise), Mix bus
+  gentle, Master polish (Precise), Drum room ring (Precise, Hard), Acoustic boom (Precise),
+  Podcast voice, Snare ring (Fast, Hard), Wide air (Mid and side), Strings and brass
+  (Independent), Surgical (Precise, Hard, all of the bump). Fitted with `preset_tool fit`
+  (`out`): Gentle +0.7 dB (so `starting.rs` and the editor's demo too), Harsh vocal +0.3,
+  Mix bus gentle +0.4, Podcast voice +0.8, Acoustic boom +3.3, Surgical +7.3; the others
+  within 0.3 dB as made. `preset_audit`'s Lenis line removed (floor 12);
+  `lenis_e2e::the_presets_name_real_keys_in_both_languages_every_quality_and_curve` holds
+  every quality, both curves and every channel mode among them, none on the delta.
+- **Export** `Cantus Lenis` (CLAP and VST3; `desc.rs`, `build.rs`, the `lenis` feature,
+  xtask; the VST3 class id by its rule; CLAP features equalizer and restoration, VST3
+  `Fx|EQ|Restoration`); the Direct path is Lenis's DSP (its output its own, reset as the
+  engine's restart). `clap::lenis_reports_its_latency_per_quality_and_a_change_re_reports_it`
+  (255 / 511 / 1 023 before activation, as the engine's unit; Standard → Precise while it
+  plays: one restart asked, the host told on activation, 1 023; → Fast: a second, 255);
+  `vst3::lenis_s_latency_follows_its_quality_through_vst3` (`getLatencySamples` per quality;
+  a host's component handler counts `restartComponent(kLatencyChanged)`: once, from the UI
+  thread's timer tick, the test pumping the thread's messages; the new latency read);
+  `clap::lenis_s_delta_is_what_it_takes_away` (the delta is the DSP's to the bit, and the
+  input delayed 511 samples less the wet output, to the bit); the family's bit-identity
+  tests carry Lenis on the Precise frame, Hard, independent, a band raised, 80 % wet.
+  Ids appended and blessed.
+- **AI**: the effect words name what Lenis does and is for, its focus, curve, qualities and
+  their latency, the delta; aliases `resonance_tamer`, `deharsh` (no product's name); the
+  MCP tools golden regenerated on purpose.
+- **Site** card (EFFECTS 36, presets 14, big 1800 × 1209, thumb 640 × 430 — pictures and
+  sound excerpts to make at the integration).
+- **Tabula: a pedal.** A guitar's rig makes the rings Lenis tames (its own listening set is
+  a guitar through two fuzz pedals and a honky cabinet); the board already keeps a latent
+  pedal's latency (Saltus, Arca) and follows a change as it follows Saltus's mode. Face:
+  depth, sharpness, selectivity, focus from (standard, the curve motif, "L", brushed).
+  `fx_lenis::as_a_pedal_it_is_the_insert_alone_at_each_quality` (Standard and Precise: the
+  board as late as its pedal, the board = the insert alone to the bit, live = offline);
+  `fx_contract::a_board_of_one_is_the_unit` covers it with the others.
+- **Docs**: ADR 0143 phase B, consequences, tests; `docs/plugins/lenis.md`; the manual EN/ES
+  (*Lenis, the resonance suppressor* after Vinculum).
+
+### Measured (the e2e through `CantusApp::assemble`, `tests/lenis_e2e.rs`)
+
+A bright saw chord (A2, E3, A3; Firmus with one oscillator, the filter open and still) on
+two tracks, each through an Aequalis bell of +15 dB, Q 8 at 3 kHz — the ring — the second
+the first's twin. Lenis inserted on the first after the bell as the picker does (Gentle,
+511 samples). Bands read with three Q 6 band-passes in series, 0.5 … 3.5 s.
+
+- **The latency compensated on the master**: every key at its default, the master is the
+  dry master (both tracks) delayed by exactly 511 samples, to the bit — the twin held back
+  as Lenis is late; Precise 1 023, Fast 255, Standard 511 again, each re-compensated, each
+  to the bit.
+- **The ring cut, its neighbours untouched** (the twin muted; Hard 90 %, selectivity 30 %,
+  the focus 1 – 6 kHz): the 3 kHz band **−9.42 dB**, 500 Hz **−0.000**, 10 kHz **−0.000**.
+- **What is removed heard**: the delta's 3 kHz band −27.6 dB against −112.3 dB at 500 Hz
+  (the dry there −28.1): the ring and nothing of the chord's body; it equals the delayed
+  input less the output within 7.5·10⁻⁸ (the master's sum).
+- Gentle as inserted sounds; an edit (90 % → 30 %) heard and undone to the bit; live in
+  blocks of 256/333/512/17/1024 = the offline render, to the bit.

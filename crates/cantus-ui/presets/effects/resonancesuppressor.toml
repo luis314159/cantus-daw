@@ -2,7 +2,6 @@
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
-
 [[preset]]
 key = "preset.lenis.gentle"
 note = "Half of each resonance's bump taken away, the soft curve, from 150 Hz up: the starting preset."
@@ -11,6 +10,7 @@ roles = ["vocal", "bus"]
 [preset.values]
 "depth" = 0.5
 "lo" = 150
+"out" = 0.7
 
 [[preset]]
 key = "preset.lenis.harsh_vocal"
@@ -26,6 +26,7 @@ roles = ["vocal"]
 "depth" = 0.6
 "hi" = 12000
 "lo" = 1000
+"out" = 0.3
 "rel" = 60
 "select" = 0.45
 "sharp" = 0.55
@@ -96,6 +97,7 @@ roles = ["bus"]
 "depth" = 0.3
 "lo" = 200
 "mix" = 0.8
+"out" = 0.4
 "rel" = 150
 "select" = 0.6
 "sharp" = 0.6
@@ -152,6 +154,7 @@ roles = ["creative"]
 "depth" = 0.55
 "hi" = 600
 "lo" = 80
+"out" = 3.3
 "qual" = 2
 "rel" = 180
 "select" = 0.5
@@ -173,6 +176,7 @@ roles = ["vocal"]
 "depth" = 0.45
 "hi" = 12000
 "lo" = 150
+"out" = 0.8
 "rel" = 100
 "select" = 0.5
 
@@ -230,6 +234,7 @@ roles = ["creative"]
 "att" = 2
 "curve" = 1
 "depth" = 1
+"out" = 7.3
 "qual" = 2
 "rel" = 60
 "select" = 0.3
