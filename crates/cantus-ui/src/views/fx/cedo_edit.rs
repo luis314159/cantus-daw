@@ -38,7 +38,11 @@ pub enum Drag {
     /// Point `i` (in place order) of the shape.
     Point(usize),
     /// The segment from point `i` bends: its tension when the drag began, the pointer then.
-    Bend { i: usize, from: f32, y0: f32 },
+    Bend {
+        i: usize,
+        from: f32,
+        y0: f32,
+    },
     /// An envelope's time: its key, its value and the pointer when the drag began, and the
     /// milliseconds a point was worth then (the scale moves as the times do).
     Env {
@@ -50,7 +54,10 @@ pub enum Drag {
     Threshold,
     Crossover,
     /// The gauge: the depth and the pointer when the drag began.
-    Depth { from: f32, y0: f32 },
+    Depth {
+        from: f32,
+        y0: f32,
+    },
 }
 
 /// How near a point or a handle the pointer must be to take it, points at 100 %.
@@ -108,8 +115,8 @@ fn sorted(mut pts: Vec<Point>, moved: Option<Point>) -> (Vec<Point>, Option<usiz
 /// The envelope's time scale on the plot (as `screen::envelope` draws it): the lead before
 /// the hit and the span, ms.
 pub fn env_scale(spec: &EffectSpec) -> (f32, f32) {
-    let total = (spec.get("att").max(0.0) + spec.get("hold").max(0.0) + spec.get("rel").max(0.0))
-        .max(1.0);
+    let total =
+        (spec.get("att").max(0.0) + spec.get("hold").max(0.0) + spec.get("rel").max(0.0)).max(1.0);
     let lead = total * 0.08;
     (lead, lead + total * 1.10)
 }
@@ -143,8 +150,7 @@ pub fn strip_hz(strip: Rect, x: f32) -> f32 {
 
 pub fn strip_x(strip: Rect, hz: f32) -> f32 {
     strip.left()
-        + strip.width()
-            * (cantus_dsp::math::log10(hz.max(20.0) / 20.0) / 3.0).clamp(0.0, 1.0)
+        + strip.width() * (cantus_dsp::math::log10(hz.max(20.0) / 20.0) / 3.0).clamp(0.0, 1.0)
 }
 
 /// A shape through the host, in the gesture `g` (a drag's steps merge into one).
@@ -179,7 +185,12 @@ pub fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Sty
             host.set("xover", if now >= 1.0 { 0.0 } else { 1.0 }, None);
         }
         if resp.hovered() {
-            hint::set_text(ui.ctx(), tr("fx.cedo.xover"), tr("cedo.tip.split"), Caps::NONE);
+            hint::set_text(
+                ui.ctx(),
+                tr("fx.cedo.xover"),
+                tr("cedo.tip.split"),
+                Caps::NONE,
+            );
         }
     }
     if let Some(r) = drawn.trigger_flag {
@@ -189,7 +200,12 @@ pub fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Sty
             host.set("trig", ((trig + 1) % 3) as f32, None);
         }
         if resp.hovered() {
-            hint::set_text(ui.ctx(), tr("fx.cedo.trig"), tr("cedo.tip.trigger"), Caps::NONE);
+            hint::set_text(
+                ui.ctx(),
+                tr("fx.cedo.trig"),
+                tr("cedo.tip.trigger"),
+                Caps::NONE,
+            );
         }
     }
     gauge(host, st, ui, s, drawn.gauge, id.with("gauge"), k);
@@ -216,7 +232,12 @@ fn shape(
         }
     };
     if resp.hovered() || resp.dragged() {
-        hint::set_text(ui.ctx(), tr("cedo.d.drawn"), tr("cedo.tip.shape"), Caps::NONE);
+        hint::set_text(
+            ui.ctx(),
+            tr("cedo.d.drawn"),
+            tr("cedo.tip.shape"),
+            Caps::NONE,
+        );
     }
     if resp.drag_started() {
         let origin = ui.input(|i| i.pointer.press_origin());
@@ -319,7 +340,12 @@ fn envelope(
 ) {
     let handles = env_handles(spec, plot);
     if resp.hovered() || resp.dragged() {
-        hint::set_text(ui.ctx(), tr("cedo.d.envelope"), tr("cedo.tip.envelope"), Caps::NONE);
+        hint::set_text(
+            ui.ctx(),
+            tr("cedo.d.envelope"),
+            tr("cedo.tip.envelope"),
+            Caps::NONE,
+        );
     }
     if resp.drag_started() {
         let origin = ui.input(|i| i.pointer.press_origin());
@@ -340,8 +366,16 @@ fn envelope(
                 });
         }
     }
-    if let (Some(Drag::Env { key, from, x0, ms_per_pt }), Some(p), true) =
-        (st.drag, resp.interact_pointer_pos(), resp.dragged())
+    if let (
+        Some(Drag::Env {
+            key,
+            from,
+            x0,
+            ms_per_pt,
+        }),
+        Some(p),
+        true,
+    ) = (st.drag, resp.interact_pointer_pos(), resp.dragged())
     {
         let fine = if ui.input(|i| i.modifiers.shift) {
             0.2
@@ -376,7 +410,12 @@ fn threshold(
     );
     let resp = ui.interact(band, id, Sense::drag());
     if resp.hovered() || resp.dragged() {
-        hint::set_text(ui.ctx(), tr("fx.cedo.thr"), tr("cedo.tip.threshold"), Caps::NONE);
+        hint::set_text(
+            ui.ctx(),
+            tr("fx.cedo.thr"),
+            tr("cedo.tip.threshold"),
+            Caps::NONE,
+        );
     }
     if resp.drag_started() {
         st.drag = Some(Drag::Threshold);
@@ -399,7 +438,12 @@ fn threshold(
 fn crossover(host: &mut dyn FxHost, st: &mut State, ui: &egui::Ui, strip: Rect, id: egui::Id) {
     let resp = ui.interact(strip, id, Sense::drag());
     if resp.hovered() || resp.dragged() {
-        hint::set_text(ui.ctx(), tr("fx.cedo.xhz"), tr("cedo.tip.crossover"), Caps::NONE);
+        hint::set_text(
+            ui.ctx(),
+            tr("fx.cedo.xhz"),
+            tr("cedo.tip.crossover"),
+            Caps::NONE,
+        );
     }
     if resp.drag_started() {
         st.drag = Some(Drag::Crossover);
@@ -434,17 +478,26 @@ fn gauge(
     }
     if resp.hovered() || resp.dragged() {
         let v = host.spec().get("depth");
-        hint::set(ui.ctx(), tr("fx.cedo.depth"), Caps::NONE, resp.dragged(), |b| {
-            use std::fmt::Write as _;
-            if v >= cantus_core::fx::cedo::DEPTH_INF {
-                write!(b, "\u{221e} \u{b7} {}", tr("cedo.tip.gauge"))
-            } else {
-                write!(b, "{v:.1} dB \u{b7} {}", tr("cedo.tip.gauge"))
-            }
-        });
+        hint::set(
+            ui.ctx(),
+            tr("fx.cedo.depth"),
+            Caps::NONE,
+            resp.dragged(),
+            |b| {
+                use std::fmt::Write as _;
+                if v >= cantus_core::fx::cedo::DEPTH_INF {
+                    write!(b, "\u{221e} \u{b7} {}", tr("cedo.tip.gauge"))
+                } else {
+                    write!(b, "{v:.1} dB \u{b7} {}", tr("cedo.tip.gauge"))
+                }
+            },
+        );
     }
     if resp.drag_started() {
-        if let Some(p) = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos()) {
+        if let Some(p) = ui
+            .input(|i| i.pointer.press_origin())
+            .or(resp.interact_pointer_pos())
+        {
             st.drag = Some(Drag::Depth {
                 from: host.spec().get("depth"),
                 y0: p.y,

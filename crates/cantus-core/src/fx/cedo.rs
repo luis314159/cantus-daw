@@ -63,7 +63,11 @@ pub const CHOICES: &[(&str, &str)] = &[
 /// fxb:cedo — Auto's floor for a crossover: an octave under it, 40 … 1 000 Hz
 /// (`cantus_dsp::cedo::band::auto_floor`, the same rule).
 pub fn auto_floor(cross_hz: f32) -> f32 {
-    let hz = if cross_hz.is_finite() { cross_hz } else { 120.0 };
+    let hz = if cross_hz.is_finite() {
+        cross_hz
+    } else {
+        120.0
+    };
     (hz * 0.5).clamp(40.0, 1_000.0)
 }
 
@@ -401,7 +405,10 @@ mod tests {
         let mut bent = classic_pump();
         let flat = to_flat(&params, Some(&bent));
         bent.points[1].t = 0.5;
-        assert!(!flat_is(&flat, Some(&bent)), "a bend the map does not write");
+        assert!(
+            !flat_is(&flat, Some(&bent)),
+            "a bend the map does not write"
+        );
         assert!(!plain.contains_key("shape.7.x"));
         for p in PARAMS {
             assert!(flat_key(p.key).is_none(), "{}", p.key);
