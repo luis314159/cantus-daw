@@ -1937,6 +1937,47 @@ the engine has neither; each is a feature of its own, with its null tests first:
   track's input, its latency compensated so the take lands on the grid. Tests: *Before FX*
   equals today's take to the bit; *After FX* equals the input rendered through the chain.
 
+## 6k. Automation with Python, and hands in front of the camera (requested 2026-11-17)
+
+The owner saw, on social media, music played and shaped with the hands in front of a camera
+and found it fun. Two requests:
+
+1. **Automate Cantus with Python** (and similar languages): scripts that run actions,
+   build or edit a project, batch-process files, react to the transport, or act as a
+   controller. Research and decide:
+   - an embedded interpreter (CPython via PyO3, its size and licence, sandboxing, how
+     scripts are installed and trusted) against an outside one;
+   - an outside client library (`pip install cantus`) speaking to the running app over the
+     MCP server that already exists (round 34, 63 tools) or a local socket/OSC API, so
+     any language works;
+   - how it meets §0.2's sandboxed scripting API (Lua/WASM), so there is one model of
+     scripting, not two.
+
+   Whatever runs, every change a script makes is a `Command` with undo, never on the
+   audio thread, and never silent.
+2. **Hands and fingers as a controller, with computer vision, in the box.** A webcam's
+   hand tracking (evaluate MediaPipe Hands, Apache-2.0, and other on-device models: their
+   licences, size, CPU/GPU cost, latency, Windows/Linux/macOS) turned into control
+   signals Cantus already understands. A hand on the camera could drive **Tactus**, the
+   X-Y pad (round fx); a pinch could be MIDI learn's source; a gesture could start
+   recording.
+
+   It ships with ready-made fun presets, for example:
+   - a theremin (one hand's height the pitch, the other's the volume);
+   - a filter sweep by raising the hand;
+   - air drums (a strike gesture plays a pad);
+   - a conductor's beat setting the tempo;
+   - a fist to mute, an open hand to release.
+
+   Measure the latency from hand to sound and state it. Rules:
+   - processing on the device only;
+   - the camera off by default;
+   - a visible indicator whenever it is on;
+   - nothing recorded or stored unless asked.
+
+   Show the camera picture with the tracked hand in a small window, so it works for
+   streamers and videos too (as the dancer's window does, §6i).
+
 ## 7. AI (research done in round 20: `research/ai/`)
 
 Phase A tools foundation → B an MCP server → C the assistant panel → D local audio
