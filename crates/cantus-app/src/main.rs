@@ -21,7 +21,16 @@ fn main() -> anyhow::Result<()> {
     let app_id = cantus_launch::set_app_id();
     #[cfg(all(feature = "census", windows))]
     cantus_rt::census::report_to_env();
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // The log goes to the console and to `logs/cantus.log` in the data folder: a release on
+    // Windows has no console, so the file is what a user's report can send (issue #1, ADR
+    // 0149). egui_glow's debug lines name the OpenGL driver (version, renderer, vendor).
+    let mut logger = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info,egui_glow=debug"),
+    );
+    if let Some(file) = cantus_ui::window_watch::open_log(&cantus_ui::app::data_dir()) {
+        logger.target(env_logger::Target::Pipe(Box::new(Tee(file))));
+    }
+    logger.init();
     log::info!("cantus {} ({})", cantus_ui::APP_VERSION, build_level());
     if let Err(hr) = app_id {
         log::warn!("could not set the taskbar identity (HRESULT {hr:#x})");
@@ -31,7 +40,12 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
     let mut args = std::env::args().skip(1);
+    let mut graphics = cantus_ui::graphics_options::Graphics::default();
     while let Some(arg) = args.next() {
+        // `--safe-graphics`, `--vsync`, `--msaa`, `--no-splash`, `--scale` (issue #1).
+        if graphics.take_arg(&arg, &mut args) {
+            continue;
+        }
         match arg.as_str() {
             "--stress" => options.stress = true,
             "--locale" => options.locale = args.next(),
@@ -58,14 +72,35 @@ fn main() -> anyhow::Result<()> {
             }
             "--help" | "-h" => {
                 println!(
-                    "cantus [--stress] [--locale en|es] [--mixer] [--rack] [--track N] [--shortcuts] [--settings] [--editor eq|comp] [--play] [--window W H] [--audio-drivers] [project.cantus]"
+                    "cantus [--stress] [--locale en|es] [--mixer] [--rack] [--track N] [--shortcuts] [--settings] [--editor eq|comp] [--play] [--window W H] [--safe-graphics] [--vsync on|off] [--msaa N] [--no-splash] [--scale F] [--audio-drivers] [project.cantus]"
+                );
+                println!(
+                    "\nGraphics trouble (a flickering or black window): docs/troubleshooting-graphics.md. CANTUS_GRAPHICS=safe does what --safe-graphics does; CANTUS_WINDOW_TRACE=1 logs every change of the window. The log: logs/cantus.log in the data folder."
                 );
                 return Ok(());
             }
             other => options.project = Some(PathBuf::from(other)),
         }
     }
+    // A flag on the command line wins over `CANTUS_GRAPHICS`.
+    options.graphics = graphics.over(cantus_ui::graphics_options::Graphics::from_env());
     cantus_ui::run(options)
+}
+
+/// The log written to the file and to the console both.
+struct Tee(std::fs::File);
+
+impl std::io::Write for Tee {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let _ = std::io::stderr().write_all(buf);
+        self.0.write_all(buf)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let _ = std::io::stderr().flush();
+        self.0.flush()
+    }
 }
 
 /// The x86-64 level this program was compiled for (`x86-64-v3`, `x86-64-v2`, …): a release

@@ -66,6 +66,7 @@ pub mod editor; // r36:editor — the audio editor (ADR 0096)
 pub mod engines;
 pub mod esc; // r39:ux-b — Esc closes what opened last (ADR 0110)
 pub mod external_service; // r36:external — external units and the ping (ADR 0094)
+pub mod graphics_options; // issue #1 — safe-graphics start (ADR 0149, provisional)
 pub mod history_text;
 pub mod macos;
 pub mod menu_commands;
@@ -129,6 +130,7 @@ pub mod warp;
 pub mod waveform;
 pub mod widgets;
 pub mod window_icon;
+pub mod window_watch; // issue #1 — the window's watchdog (ADR 0149, provisional)
 pub mod workflow;
 
 pub use app::{starter_project, stress_project, welcome_project, CantusApp, APP_VERSION};
@@ -164,6 +166,9 @@ pub struct LaunchOptions {
     /// The splash's logo and the window's icon, baked into the executable at build time
     /// (`crates/cantus-app/build.rs`). Without them the splash renders the logo itself.
     pub art: Option<boot::Art>,
+    /// How the window is opened: vsync, multisampling, the splash, a fixed scale
+    /// (`--safe-graphics` and its parts, `CANTUS_GRAPHICS`; issue #1, ADR 0149).
+    pub graphics: graphics_options::Graphics,
 }
 
 impl LaunchOptions {
@@ -189,13 +194,63 @@ impl LaunchOptions {
         if self.play {
             app.toggle_play();
         }
+        // issue #1 — a scale fixed for the session (`--scale`, `--safe-graphics`).
+        if let Some(scale) = self.graphics.scale() {
+            app.screen_follow.pin(scale);
+        }
+    }
+}
+
+/// The window's options: the splash (ADR 0024 §12) — 520 × 320, no decorations, centred
+/// — or, with `--no-splash`/`--safe-graphics`, the main window itself, decorated,
+/// resizable, maximised or at `--window`'s size; vsync and multisampling as asked
+/// (issue #1, ADR 0149). `verse` makes the splash tall enough for the verse.
+pub fn native_options(options: &LaunchOptions, verse: bool) -> eframe::NativeOptions {
+    let g = &options.graphics;
+    let alpha = stage::companion::alpha_wanted() && g.alpha_allowed(); // r35:stage
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title(i18n::t("app.title"))
+        .with_app_id("cantus")
+        .with_transparent(alpha); // r35:stage — see `alpha_wanted`
+    viewport = if g.splash() {
+        viewport
+            .with_inner_size(boot::size(verse))
+            .with_decorations(false)
+            .with_resizable(false)
+    } else {
+        let (size, maximized) = match options.window {
+            Some((w, h)) => (egui::vec2(w, h), false),
+            None => (boot::MAIN_SIZE, true),
+        };
+        viewport
+            .with_inner_size(size)
+            .with_min_inner_size(boot::MIN_SIZE)
+            .with_decorations(true)
+            .with_resizable(true)
+            .with_maximized(maximized)
+    };
+    if let Some(icon) = boot::icon(options.art.as_ref()) {
+        viewport = viewport.with_icon(std::sync::Arc::new(icon));
+    }
+    eframe::NativeOptions {
+        viewport,
+        centered: true,
+        multisampling: g.msaa(),
+        glow_options: eframe::egui_glow::GlowConfiguration {
+            vsync: g.vsync(),
+            ..Default::default()
+        },
+        // Linux: an X11 window (XWayland on Wayland) so plug-in editors stay above it.
+        #[cfg(target_os = "linux")]
+        event_loop_builder: linux_desktop::event_loop_hook(),
+        ..Default::default()
     }
 }
 
 /// Run the desktop application until the window closes.
 ///
 /// The window opens as the splash (ADR 0024 §12) — 520 × 320, no decorations, centred —
-/// and becomes the main window once everything is in (`boot`).
+/// and becomes the main window once everything is in (`boot`); `native_options` says how.
 pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     let started = std::time::Instant::now();
     // An explicit `--locale` wins over the stored preference; the title is drawn in it.
@@ -209,27 +264,19 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
         options.locale.as_deref().and_then(i18n::Locale::from_code),
         verse::seed_now(),
     );
-    let mut viewport = egui::ViewportBuilder::default()
-        .with_title(i18n::t("app.title"))
-        .with_app_id("cantus")
-        .with_inner_size(boot::size(verse.shown.is_some()))
-        .with_decorations(false)
-        .with_resizable(false)
-        .with_transparent(stage::companion::alpha_wanted()); // r35:stage — see `alpha_wanted`
-    if let Some(icon) = boot::icon(options.art.as_ref()) {
-        viewport = viewport.with_icon(std::sync::Arc::new(icon));
-    }
     // An AppImage puts itself in the applications menu (ADR 0065).
     #[cfg(target_os = "linux")]
     linux_desktop::integrate_appimage();
-    let native = eframe::NativeOptions {
-        viewport,
-        centered: true,
-        // Linux: an X11 window (XWayland on Wayland) so plug-in editors stay above it.
-        #[cfg(target_os = "linux")]
-        event_loop_builder: linux_desktop::event_loop_hook(),
-        ..Default::default()
-    };
+    let native = native_options(&options, verse.shown.is_some());
+    log::info!(
+        "{} (the window: {})",
+        options.graphics.summary(),
+        if options.graphics.splash() {
+            "the splash, then the main window"
+        } else {
+            "the main window at once"
+        }
+    );
     // macOS: listen for the projects Finder and the Dock ask to open (ADR 0066).
     cantus_launch::macopen::install();
     let result = eframe::run_native(

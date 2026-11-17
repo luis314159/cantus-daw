@@ -548,6 +548,41 @@ eventos sintéticos y se midió sin oído; las pruebas de cada constructor está
       tranquila. Con tu OK para gastar minutos de Actions, la corro 20 veces en un runner de
       GitHub (Linux y Windows) para confirmar que solo falla bajo carga.
 
+### Issue #1 — la ventana que parpadea (ADR 0149, provisional) <!-- fix/flicker -->
+
+La causa encontrada no depende de la GPU: la escala que sigue a la pantalla (ADR 0111 §7) se
+medía con el zoom que ella misma ponía y alternaba entre dos tamaños cada dos fotogramas en
+la mayoría de las pantallas (no en la tuya, 1920 × 1080 al 125 %, que es de las pocas que
+se quedan quietas). Corregido y probado solo en **emulación** (`tests/window_stability.rs`
+alimenta los fotogramas como egui-winit); esto es lo que solo una pantalla real confirma.
+Antes de cada paso borra `settings.json` de la carpeta de datos de una copia portátil (o usa
+`CANTUS_DATA_DIR` apuntando a una carpeta vacía) para que sea una instalación nueva.
+
+- [ ] **Reproducir el fallo en beta.14 en tu portátil**: *Configuración ▸ Sistema ▸
+      Pantalla ▸ Escala* al **100 %** (1920 px al 100 % alterna 1.0 ↔ 1.25), abre la beta.14
+      portátil recién descomprimida: debe parpadear en ambos ejes como dice el issue. Pulsa
+      Ctrl + 0: debe parar (el arreglo provisional para el usuario). Vuelve a tu 125 %.
+- [ ] **La versión corregida, en la misma pantalla al 100 %, 125 %, 150 % y 175 %**: con una
+      copia portátil nueva de esta rama en cada escala, abre Cantus y mira 10 s sin tocar
+      nada: ni un salto. `cantus.log` (en `data\logs\`) no debe tener ninguna línea
+      `window watchdog`. Con `$env:CANTUS_WINDOW_TRACE = "1"`, el registro muestra *una*
+      línea `the scale … for the screen` y ninguna más mientras no toques nada.
+- [ ] **En la GPU integrada AMD de tu portátil** (tienes una Radeon junto a la RTX 4060):
+      *Configuración ▸ Sistema ▸ Pantalla ▸ Gráficos* → `cantus-x86-64-v3.exe` y
+      `cantus-x86-64-v2.exe` en *Ahorro de energía* (la Radeon); repite el paso anterior al
+      100 % y al 150 %. Las primeras líneas de `cantus.log` deben nombrar el renderizador AMD
+      (`opengl renderer: AMD Radeon(TM) Graphics`). Prueba también maximizar/restaurar y
+      arrastrar la ventana a otro monitor si tienes uno con otra escala.
+- [ ] **Cada opción de gráficos seguros arranca bien** en la Radeon y en la NVIDIA:
+      `.\cantus.exe --safe-graphics`, `--no-splash`, `--vsync off`, `--msaa 4`, `--scale 150`,
+      `--no-splash --window 1600 900`, y `$env:CANTUS_GRAPHICS = "safe"`. La primera línea de
+      `graphics:` del registro debe decir lo pedido.
+- [ ] **Si el usuario del issue contesta**: con la versión corregida y su pantalla, ¿para?
+      Si no, que envíe `cantus.log` con `CANTUS_WINDOW_TRACE=1` (diez segundos), su resolución
+      y escala, cuántos monitores y la versión de Adrenalin, y qué opción de
+      `docs/troubleshooting-graphics.md` lo detiene. Solo él puede confirmar su Radeon 800M,
+      su 25H2 y su panel (probablemente 2880 × 1800, que alternaba en *todas* las escalas).
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):

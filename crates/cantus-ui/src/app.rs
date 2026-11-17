@@ -326,6 +326,12 @@ pub struct CantusApp {
     pub stage: crate::stage::StageState,          // r35:stage — the dancers on screen (ADR 0091)
     pub dance_live: crate::dance_live::DanceLive, // r35:dancer — the dancers' feeds and poses
     pub editor: crate::editor::EditorState,       // r36:editor — the audio editor (ADR 0096)
+    /// The screen-following scale's state (ADR 0111 §7; issue #1, ADR 0149): one decision
+    /// per screen, never measured with a zoom it just set; a scale pinned by `--scale`.
+    pub screen_follow: crate::screen_scale::Follow,
+    /// The window's watchdog (issue #1, ADR 0149): a loop of the window's state no input
+    /// asked for is logged and broken.
+    pub window_watch: crate::window_watch::Watch,
 }
 
 impl CantusApp {
@@ -539,6 +545,8 @@ impl CantusApp {
             Some((db, db_file)),
         );
         app.peaks.set_disk_cache(Some(peak_cache));
+        // Issue #1 (ADR 0149): the desktop's window watched, traced when asked.
+        app.window_watch = crate::window_watch::Watch::for_window();
         // The pitch editor's analyses, beside the peaks (round 28, ADR 0054).
         app.engine
             .samples
@@ -831,9 +839,11 @@ impl CantusApp {
             stems: Default::default(),        // r34:stems
             video: Default::default(),        // r35:video
             transcribe: Default::default(),   // r34:transcribe
-            stage: Default::default(),        // r35:stage
-            dance_live: Default::default(),   // r35:dancer
-            editor: Default::default(),       // r36:editor
+            screen_follow: Default::default(),
+            window_watch: Default::default(),
+            stage: Default::default(),      // r35:stage
+            dance_live: Default::default(), // r35:dancer
+            editor: Default::default(),     // r36:editor
         };
         app.select_first();
         app.sync_live_track();
@@ -4471,10 +4481,28 @@ impl CantusApp {
             self.theme_ctx = Some(ctx.clone());
         }
         let frame_start = Instant::now();
-        // r39:kit — until the user picks a scale, it follows the screen (ADR 0111 §7).
-        if let Some(z) = crate::screen_scale::wanted(&self.settings, ctx) {
-            if (z - self.settings.ui_scale).abs() > 1e-3 {
+        // Issue #1 (ADR 0149): the window's state watched; a loop no input asked for is
+        // logged and broken — the screen is no longer followed, the zoom in effect stays.
+        let now = ctx.input(|i| i.time);
+        let seen = crate::window_watch::Sample::of(ctx);
+        let prompted = crate::window_watch::prompted(ctx);
+        if self.window_watch.observe(now, seen, prompted) == crate::window_watch::Verdict::Tripped {
+            self.screen_follow.stop();
+        }
+        // r39:kit — until the user picks a scale, it follows the screen (ADR 0111 §7), one
+        // decision per screen (issue #1: it measured the zoom it had set, and flickered).
+        if let Some(z) = self.screen_follow.wanted(&self.settings, ctx) {
+            self.window_watch.note(format_args!(
+                "the scale {z} for the screen (zoom now {}, monitor {:?} points, system scale {:?})",
+                ctx.zoom_factor(),
+                seen.monitor,
+                seen.native_ppp
+            ));
+            if (z - ctx.zoom_factor()).abs() > 1e-3 {
                 ctx.set_zoom_factor(z);
+            }
+            // A pinned scale is this session's only: the settings keep the user's own.
+            if self.screen_follow.pinned().is_none() {
                 self.settings.ui_scale = z;
             }
         }

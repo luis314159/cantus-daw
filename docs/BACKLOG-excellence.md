@@ -266,6 +266,40 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
   pixels (`shoot`), fix the cause, and keep that test in the suite. Must be fixed before the
   new themes of §6d.4 ship.
 - **To verify: bypassing the EQ shifts the song in time (2026-10-09, found while rendering the website's A/B excerpts).** Rendering the demos with every `Aequalis` slot bypassed lines up with the shipped render in *house* and *trap* (lag 0–1 frames) but is shifted by 487–570 frames (10–12 ms) in *ballad*, *funk* and *lofi*, whose EQs run in natural-phase or linear-phase mode. Either the whole mix moves by the plug-in latency when a slot is bypassed (harmless for a render, but a gap when bypass is toggled during playback) or one strip moves against the others (a delay-compensation bug). Write a test: bypass one linear-phase EQ and require the mix's other strips to stay sample-aligned; then say which it is.
+- **Bug: the whole window flickers on both axes — every time (GitHub issue #1 on
+  cantus-daw, opened 2026-11-14 by an outside user; logged 2026-11-17). Cause found and
+  fixed on `fix/flicker` (ADR 0149, provisional number); the reporter's machine still to
+  confirm.** beta.14 portable (`0.1.0-beta.14-windows-x64-portable`), Windows 11 Home
+  25H2, AMD Ryzen AI 9 465 (Radeon 800M-series integrated GPU, RDNA 3.5), 32 GB, Behringer
+  UMC204HD on WASAPI. "The user interface keeps flickering along both the horizontal and
+  vertical axes", from the start. Not seen on our machines. The window is eframe 0.36 with
+  **glow (OpenGL)**, not wgpu. **The cause was ours, not the GPU's:** the
+  screen-following scale of a fresh installation (ADR 0111 §7) read egui's `monitor_size`
+  as points of the system's scale, but egui-winit divides it by *zoom × system scale*; so
+  the zoom it chose changed the width it measured, and on most screens it alternated
+  between two zooms every other frame (1 920 px at 100 %: 1.0 ↔ 1.25; the 2 880-px panels
+  common on Ryzen AI laptops at every scale; 39 of 50 screen × scale × maximised cases) —
+  the whole interface redrawn larger and smaller, both axes. The owner's 1 920 × 1 080 at
+  125 % is one of the few that settle. The fix measures in egui-winit's units, only once
+  the zoom has held for a pass, and decides once per screen; a watchdog logs and breaks
+  any loop of the window's state no input asked for; Cantus's log is now a file
+  (`data\logs\cantus.log` beside a portable copy, `%LOCALAPPDATA%\Cantus\logs\` installed,
+  with the OpenGL driver's name); a safe-graphics start (`--safe-graphics`, `--no-splash`,
+  `--vsync`, `--msaa`, `--scale`, `CANTUS_GRAPHICS`) is documented in
+  `docs/troubleshooting-graphics.md`. The test that was asked for exists and failed before
+  the fix: `crates/cantus-ui/tests/window_stability.rs` steps the app through `assemble`
+  at 100–200 % × five screens × maximised/restored × the top bar's variants and requires
+  no viewport command, the same scale and every word in place once settled. **For a
+  beta.14 user now:** Ctrl + 0 (or any scale chosen in Settings) stops it for good. Still
+  open: the reporter's confirmation; the steps in `docs/beta-checklist.md` (beta.14 at
+  100 % reproduces it on the owner's laptop; the fixed build at 100/125/150/175 % on its
+  AMD iGPU). Other suspects, kept in case a report survives the fix: winit's DPI loop
+  between monitors of different scales (rust-windowing/winit#3040, #4600 — the 0.30
+  backport PR #4694 is unmerged), the splash's one-off transition (Decorations, size,
+  Maximized in one frame; emilk/egui#8243 at 125 %), AMD's OpenGL driver (whole-window
+  blinking rather than shaking). The wgpu renderer is not added (ADR 0149 §5): measure its
+  size and CI cost first, and only if a report survives. Reply on the issue only when the
+  owner asks.
 - **A small group of beta musicians** (FL, Ableton, Logic users), a public issue tracker,
   a feedback channel inside the app (opt-in, no telemetry by default). *Done when:* ten
   people outside the project have made a song and their reports are triaged.
