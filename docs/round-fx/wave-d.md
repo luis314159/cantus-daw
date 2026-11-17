@@ -43,7 +43,7 @@ new and shared:
   block-size independent 1…8 192 at tolerance 0; live at irregular blocks = offline; a
   synced formula and a path from bar 5 = the full render there; inertia glides where its
   absence jumps; a listen checkpoint's forked processor carries the puck to the bit) and
-  `rt_memory::controllers_never_allocate`. Whole suite: see the report.
+  `rt_memory::controllers_never_allocate`. Whole engine suite **1 289** green.
 - Words: `locales/fx/controllers.{en,es}.txt` (`cmd.fxd_set_input`, the kinds, the inputs,
   every formula error, the faces' words).
 
@@ -53,6 +53,11 @@ new and shared:
 Shot with `cargo run -p cantus-ui --example shoot_fxd -- <dir>` (the clip-aware probe on
 every shot); `tests/fxd_whole.rs` holds every window, language, scale and colourway to no
 cut word, and a longer language to a taller window, never a smaller display.
+
+Verified: `cantus-ui` lib 546 green (the side round's house-rule tests included: the
+first palettes clashed with Cribrum, Fractus, the EQ, Caelum Aurora and Vetus Walnut and
+were moved), `fxd_whole` 2, `fx_lint`, `kit_lint`, `kit_alloc`; clippy `-D warnings`
+`--all-targets` clean on core, engine, project, ai and ui; 34 shots, no cut word.
 
 ## For the owner
 

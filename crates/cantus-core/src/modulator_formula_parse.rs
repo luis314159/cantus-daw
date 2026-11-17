@@ -391,6 +391,8 @@ impl Parser {
         if !self.is_sym("(") {
             return fail(ErrorKind::Arguments { name: n, wants });
         }
+        // The parenthesis, where an unclosed call points.
+        let open = self.at();
         self.pos += 1;
         self.nest()?;
         let mut got = 0;
@@ -405,7 +407,10 @@ impl Parser {
         }
         if !self.is_sym(")") {
             return match self.peek() {
-                None => fail(ErrorKind::Unclosed),
+                None => Err(FormulaError {
+                    at: open,
+                    kind: ErrorKind::Unclosed,
+                }),
                 Some(_) => Err(self.err(ErrorKind::Trailing)),
             };
         }

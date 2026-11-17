@@ -146,5 +146,5 @@ fn a_longer_language_grows_the_window_not_the_display() {
         assert!(es.y >= en.y);
     }
     i18n::set_locale(Locale::En);
-    assert!(fxd_xy::PAD >= 440.0 && fxd_formula::SCREEN_W >= 520.0);
+    const { assert!(fxd_xy::PAD >= 440.0 && fxd_formula::SCREEN_W >= 520.0) };
 }

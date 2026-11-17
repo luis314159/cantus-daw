@@ -228,8 +228,8 @@ impl Puck {
         }
         let x = dt / (f64::from(tau_ms) * 1e-3);
         let a = cantus_dsp::math::exp(-x);
-        for d in 0..2 {
-            let t = f64::from(target[d]);
+        for (d, &goal) in target.iter().enumerate() {
+            let t = f64::from(goal);
             let e1 = f64::from(self.stage1[d]) - t;
             let e2 = f64::from(self.pos[d]) - t;
             self.stage1[d] = (t + e1 * a) as f32;

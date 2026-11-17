@@ -151,7 +151,8 @@ fn the_basic_waves_have_the_shapes_the_page_names() {
 /// The page's boolean table, for 1/0 inputs.
 #[test]
 fn the_boolean_gates_of_the_page() {
-    let gates: &[(&str, fn(bool, bool) -> bool)] = &[
+    type Gate = fn(bool, bool) -> bool;
+    let gates: &[(&str, Gate)] = &[
         ("a", |a, _| a),
         ("1-a", |a, _| !a),
         ("a*b", |a, b| a && b),
@@ -247,6 +248,8 @@ fn what_is_refused_and_where() {
     assert_eq!(err("   ").kind, ErrorKind::Empty);
     assert_eq!(err("1 +").kind, ErrorKind::UnexpectedEnd);
     assert_eq!(err("(1+2").kind, ErrorKind::Unclosed);
+    // An unclosed call points at its parenthesis, not its name.
+    assert_eq!(err("a*Sin(SongTime*Pi*b").at, 5);
     assert_eq!(err("1+2)").kind, ErrorKind::Unclosed);
     assert_eq!(err("a b").kind, ErrorKind::Trailing);
     assert_eq!(err("a ; b").kind, ErrorKind::Unexpected(';'));
