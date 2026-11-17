@@ -359,6 +359,22 @@ pub fn panel(b: &mut Brush, s: &Style, panel: &Panel, press: &[Press; 4], spec: 
         6.0 * k,
         crate::kit::Fill::Solid(with_alpha(c(p.foot), 0.18)),
     );
+    // The sub-panel's four screws.
+    for (j, q) in [
+        r.left_top(),
+        r.right_top(),
+        r.left_bottom(),
+        r.right_bottom(),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let inset = vec2(
+            if j % 2 == 0 { 12.0 } else { -12.0 },
+            if j < 2 { 14.0 } else { -14.0 },
+        ) * k;
+        art::screw(b, k, q + inset, 4.0 * k, art::hash(j as u32 + 40));
+    }
     art::engrave_line(
         b,
         s,
@@ -638,7 +654,7 @@ pub fn bridge(b: &mut Brush, s: &Style, p: &Parts, spec: &EffectSpec, view: &Vie
             b,
             s,
             el,
-            (gr / 12.0).clamp(0.0, 1.0),
+            (gr / 7.0).clamp(0.0, 1.0),
             spec.get("char") >= 0.5,
         ),
         2 => parts::valves(

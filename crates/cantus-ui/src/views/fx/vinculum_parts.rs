@@ -481,22 +481,22 @@ pub fn opto(b: &mut Brush, s: &Style, r: Rect, light: f32, limit: bool) {
             Fill::Solid(with_alpha(c(pal::LEG), 0.6)),
         );
     }
-    let mut j = 0;
-    for (x, dir) in [(tube.left(), -1.0f32), (tube.right(), 1.0)] {
-        for dy in [-0.18f32, 0.18] {
-            let y = tube.center().y + tube.height() * dy;
-            let p0 = pos2(x, y);
-            let p1 = pos2(x + dir * 10.0 * k, y);
-            let lx = if dir < 0.0 {
-                lug_x[if dy < 0.0 { 0 } else { 1 }]
-            } else {
-                lug_x[if dy < 0.0 { 3 } else { 2 }]
-            };
-            let p2 = pos2(lx, tube.bottom() + 6.0 * k + 3.0 * k * j as f32);
-            let p3 = pos2(lx, lugs.top() - 1.0 * k);
-            b.polyline(&[p0, p1, p2, p3], 1.3 * k, c(pal::LEG));
-            j += 1;
-        }
+    // The leads come out of the tube's underside, straight down to their lugs.
+    for x in lug_x {
+        b.vline(
+            x,
+            tube.center().y,
+            lugs.top() - 1.0 * k,
+            1.3 * k,
+            c(pal::LEG),
+        );
+        b.vline(
+            x - 0.4 * k,
+            tube.bottom(),
+            lugs.top() - 1.0 * k,
+            0.4 * k,
+            with_alpha(c(pal::CHROME_LIGHT), 0.6),
+        );
     }
     b.rrect(
         tube.translate(vec2(2.0, 3.0) * k),

@@ -99,6 +99,30 @@ pub fn meter(
             12,
         );
     }
+    // The two lamps behind the card, their bulbs showing as hot spots low on it.
+    for fx in [0.28f32, 0.72] {
+        let bulb = pos2(
+            card.left() + card.width() * fx,
+            card.bottom() - card.height() * 0.19,
+        );
+        b.radial(
+            card,
+            bulb,
+            vec2(card.width() * 0.16, card.height() * 0.10),
+            &[
+                (0.0, with_alpha(mix(lamp, c(pal::CARD), 0.55), 0.55 * lit)),
+                (1.0, with_alpha(lamp, 0.0)),
+            ],
+            10,
+        );
+    }
+    // The card's printed border, fine.
+    b.rrect_stroke(
+        card.shrink(5.0 * k),
+        3.0 * k,
+        0.6 * k,
+        with_alpha(c(pal::CARD_INK), 0.35),
+    );
     let d = Dial::of(card, k);
     let ink = c(pal::CARD_INK);
     let red = c(pal::CARD_RED);
