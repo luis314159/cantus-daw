@@ -19,9 +19,11 @@ use egui_dock::tab_viewer::OnCloseResponse;
 use egui_dock::{DockArea, Node, NodeIndex, NodePath, SurfaceIndex, TabViewer, Tree};
 
 /// Something the workspace asks the application to do once the dock is back in it.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 enum After {
     ResetLayout,
+    /// Several screens (ADR 0151 §2): move an area to another window.
+    Move(Pane, crate::windows::Target),
 }
 
 /// Lay the workspace out in `ui`: every area as a tab of the dock.
@@ -80,8 +82,14 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             buf: String::new(),
             tk: s.tk(),
         };
+        // One dock per window (ADR 0151): its state in egui's memory is the window's own.
+        let dock_id = if ctx.viewport_id() == egui::ViewportId::ROOT {
+            Id::new("cantus-dock")
+        } else {
+            Id::new("cantus-dock").with(ctx.viewport_id())
+        };
         DockArea::new(dock)
-            .id(Id::new("cantus-dock"))
+            .id(dock_id)
             .style(style)
             .window_bounds(area)
             .show_close_buttons(true)
@@ -116,10 +124,15 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     // What the tabs asked to bring forward (Show the destination, a chain line opening
     // the inspector): applied now the dock is back.
     app.apply_wanted_panes();
-    if then == Some(After::ResetLayout) {
-        app.reset_layout();
+    match then {
+        Some(After::ResetLayout) => app.reset_layout(),
+        Some(After::Move(pane, to)) => app.move_pane(&ctx, pane, to),
+        None => {}
     }
-    crate::stage::float::show(app, ui, area); // r35:stage — the dancers over the workspace
+    // r35:stage — the dancers over the workspace: the main window's.
+    if app.windows.current.is_none() {
+        crate::stage::float::show(app, ui, area);
+    }
 }
 
 struct Viewer<'a> {
@@ -368,7 +381,10 @@ impl Workspace {
             self.hide(p);
         }
         for key in &wanted {
-            if !self.contains(Pane::Device(*key)) {
+            // Several screens (ADR 0151 §2): a device editor opens in the window the user
+            // works in, and never twice.
+            let elsewhere = self.elsewhere.contains(&Pane::Device(*key));
+            if !self.contains(Pane::Device(*key)) && self.adds_devices && !elsewhere {
                 self.reveal(Pane::Device(*key));
                 self.float_where_it_was(ctx, *key);
                 ctx.request_repaint();
@@ -716,11 +732,11 @@ impl Workspace {
         let menu = self.menu?;
         let floating = self.is_floating(menu.pane);
         // Round 39 (ADR 0110): collapse and maximise beside float and hide.
-        let mut rows: Vec<(Item<'static>, TabAct)> = vec![(
+        let mut rows: Vec<(Item<'_>, TabAct)> = vec![(
             Item::action(Src::Key(if floating {
                 "workspace.menu.dock"
             } else {
-                "workspace.menu.float"
+                "screens.menu.float"
             })),
             TabAct::Float,
         )];
@@ -741,9 +757,23 @@ impl Workspace {
             ));
         }
         rows.push((Item::action(Src::Key("workspace.menu.hide")), TabAct::Hide));
+        // Several screens (ADR 0151 §2): a window of its own, and where else it can go.
+        rows.push((Item::Separator, TabAct::None));
+        rows.push((
+            Item::action(Src::Key("screens.menu.new_window")),
+            TabAct::Move(usize::MAX),
+        ));
+        if !self.move_targets.is_empty() {
+            rows.push((Item::Band(Src::Key("screens.menu.move_to")), TabAct::None));
+        }
+        let targets = std::mem::take(&mut self.move_targets);
+        let first = rows.len();
+        for (label, _) in &targets {
+            rows.push((Item::action(Src::Str(label)), TabAct::Move(rows.len() - first)));
+        }
         rows.push((Item::Separator, TabAct::None));
         rows.push((Item::action(Src::Key("layout.reset")), TabAct::Reset));
-        let items: Vec<Item<'static>> = rows.iter().map(|r| r.0).collect();
+        let items: Vec<Item<'_>> = rows.iter().map(|r| r.0).collect();
         let s = Style::current();
         let width = 200.0 * s.k;
         let mut chosen = None;
@@ -774,8 +804,17 @@ impl Workspace {
                 self.hide(menu.pane);
             }
             Some(TabAct::Reset) => then = Some(After::ResetLayout),
+            Some(TabAct::Move(i)) => {
+                let to = if i == usize::MAX {
+                    crate::windows::Target::NewWindow { screen: None }
+                } else {
+                    targets[i].1
+                };
+                then = Some(After::Move(menu.pane, to));
+            }
             _ => {}
         }
+        self.move_targets = targets;
         if chosen.is_some() || outside || escape {
             self.menu = None;
         } else {
@@ -788,6 +827,8 @@ impl Workspace {
 /// What a row of a tab's menu does.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum TabAct {
+    /// Several screens: to a new window (`usize::MAX`) or to the target at this index.
+    Move(usize),
     Float,
     Fold,
     Maximise,

@@ -65,6 +65,9 @@ pub struct Art {
 pub enum Shell {
     Booting(Boot),
     Running(Box<CantusApp>),
+    /// The application lent to a window of its own's pass (ADR 0151,
+    /// `windows_pass::lend`): taken back at the shell's next call.
+    Lent,
 }
 
 /// What the thread reads.
@@ -515,7 +518,7 @@ impl Shell {
     pub fn running(&self) -> Option<&CantusApp> {
         match self {
             Shell::Running(app) => Some(app), // r35:stage
-            Shell::Booting(_) => None,        // r35:stage
+            Shell::Booting(_) | Shell::Lent => None, // r35:stage
         } // r35:stage
     } // r35:stage
 } // r35:stage
@@ -537,12 +540,38 @@ pub fn cap_texture_side(raw: &mut egui::RawInput) {
     }
 }
 
+impl Shell {
+    /// The application back from a window's pass (ADR 0151).
+    fn reclaim(&mut self) {
+        if matches!(self, Shell::Lent) {
+            if let Some(app) = crate::windows_pass::take_back() {
+                *self = Shell::Running(app);
+            }
+        }
+    }
+}
+
 impl eframe::App for Shell {
     /// macOS: a text edit chosen in the menu bar while a field had the focus, handed to egui
     /// as the events its key makes (ADR 0066). Nothing is queued elsewhere.
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+    ///
+    /// Several screens (ADR 0151): eframe calls this before every window's pass — a window of
+    /// its own gets its own screen's scale (`windows_pass::adjust_input`) and the application
+    /// is lent to its pass; the main window's pass takes it back.
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        self.reclaim();
         crate::macos::menu::inject(raw_input);
         cap_texture_side(raw_input); // r40:memory
+        if raw_input.viewport_id != egui::ViewportId::ROOT {
+            if let Shell::Running(app) = self {
+                crate::windows_pass::adjust_input(app, ctx, raw_input);
+            }
+            if matches!(self, Shell::Running(_)) {
+                if let Shell::Running(app) = std::mem::replace(self, Shell::Lent) {
+                    crate::windows_pass::lend(app);
+                }
+            }
+        }
     }
 
     // r35:stage — the companion window's transparency and its dancing while this window is
@@ -552,14 +581,18 @@ impl eframe::App for Shell {
     } // r35:stage
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.reclaim();
         if let Shell::Running(app) = self {
             crate::stage::companion::logic(app, ctx); // r35:stage
         } // r35:stage
     } // r35:stage
 
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.reclaim();
         let ctx = root.ctx().clone();
         match self {
+            // Never seen: a window's pass kept it (its next call gives it back).
+            Shell::Lent => ctx.request_repaint(),
             // The app's own frame, whole (final review: the shell had a copy of it that
             // missed the taskbar's poll): one path, so the two cannot drift.
             Shell::Running(app) => eframe::App::ui(&mut **app, root, frame),

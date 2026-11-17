@@ -1,0 +1,218 @@
+//! Several screens, end to end (ADR 0151): through `CantusApp::assemble`, run as eframe runs
+//! windows (`windows_rig`), on the issue-#1 reporter's desk — his 2 880 × 1 800 laptop at
+//! the system's 200 % holding the main window, a 1 920 × 1 080 screen at 100 % beside it.
+//!
+//! - A tab's menu sends the mixer to a window of its own: a deferred viewport whose pass
+//!   draws the mixer, gone from the main window; the window lands on the other screen.
+//! - Work in it is work on the project: a strip muted from it is one command, undone with
+//!   Ctrl+Z typed in it; the space bar typed in it plays; the main window is asked to draw.
+//! - Each window draws at its own screen's scale: the laptop's 0.9 × 2.0, the screen's
+//!   1.25 × 1.0 — the follow rule for each screen, egui's zoom unmoved.
+//! - At rest no window asks for a frame; while the song plays the mixer's window draws and a
+//!   window holding only the browser does not.
+//! - The layout keeps the window: a fresh start reopens it on its screen; with that screen
+//!   unplugged its mixer is back in the main window (the status line says so) and comes back
+//!   to its window when the screen does — at start and while running.
+
+mod windows_rig;
+use cantus_ui::views::workspace::Pane;
+use egui::{Key, Modifiers, PointerButton, ViewportId};
+use std::time::Duration;
+use windows_rig::*;
+
+/// Right-click the tab titled `title` in the main window and choose `row`.
+fn tab_menu(r: &mut Rig, title: &str, row: &str) {
+    let tabs = r.text_in(ViewportId::ROOT, title);
+    assert!(!tabs.is_empty(), "the {title} tab is drawn");
+    for tab in tabs {
+        r.click(ViewportId::ROOT, tab.center(), PointerButton::Secondary);
+        r.root(Vec::new());
+        if let Some(at) = r.text_in(ViewportId::ROOT, row).first().copied() {
+            r.click(ViewportId::ROOT, at.center(), PointerButton::Primary);
+            r.idle(3);
+            return;
+        }
+        r.key(ViewportId::ROOT, Key::Escape, Modifiers::NONE);
+    }
+    panic!("no tab titled {title} opened a menu with {row}");
+}
+
+/// The desk with the mixer moved to a window of its own.
+fn with_mixer_window() -> Rig {
+    let mut r = Rig::new(vec![laptop(), external()]);
+    r.app().reveal_pane(Pane::Mixer);
+    r.idle(6);
+    tab_menu(&mut r, "Mixer", "Move to a new window");
+    r
+}
+
+#[test]
+fn the_mixer_moves_to_a_window_of_its_own_on_the_other_screen() {
+    run(|| {
+        let mut r = with_mixer_window();
+        let wins = r.windows();
+        assert_eq!(wins.len(), 1, "one window of its own");
+        let app = r.app();
+        assert!(app.windows.list[0].workspace.contains(Pane::Mixer));
+        assert!(!app.workspace.contains(Pane::Mixer), "gone from the main window");
+        let place = app.windows.list[0].place.clone().expect("placed");
+        assert_eq!(place.screen.size, [1920, 1080], "on the screen the main window is not on");
+        assert!(place.maximised);
+        // Its pass draws the mixer: the master strip's name is painted there, not in the
+        // main window.
+        let id = wins[0];
+        assert!(r.cbs.contains_key(&id), "a deferred viewport");
+        assert!(!r.text_in(id, "Master").is_empty(), "the mixer is drawn in its window");
+    });
+}
+
+#[test]
+fn each_window_draws_at_its_own_screens_scale() {
+    run(|| {
+        let mut r = with_mixer_window();
+        r.idle(4);
+        let id = r.windows()[0];
+        let main = r.passes[&ViewportId::ROOT].ppp;
+        let win = r.passes[&id].ppp;
+        // The follow rule: 2 880 px at 200 % → 0.9; 1 920 px at 100 % → 1.25.
+        assert!((main - 1.8).abs() < 1e-3, "the main window at {main}");
+        assert!((win - 1.25).abs() < 1e-3, "the mixer's window at {win}");
+        assert!((r.ctx.zoom_factor() - 0.9).abs() < 1e-3, "egui's zoom unmoved");
+        // Its words sit inside its window.
+        let size = r.passes[&id].size;
+        for (w, rect, _) in r.texts(id) {
+            assert!(
+                rect.max.x <= size.x + 0.5 && rect.max.y <= size.y + 0.5,
+                "{w:?} at {rect:?} outside the window's {size:?}"
+            );
+        }
+    });
+}
+
+#[test]
+fn keys_typed_in_a_window_reach_the_project_and_the_transport() {
+    run(|| {
+        let mut r = with_mixer_window();
+        let id = r.windows()[0];
+        // The space bar typed in the mixer's window plays.
+        r.key(id, Key::Space, Modifiers::NONE);
+        assert!(r.app().engine.is_playing(), "the space bar in the window plays");
+        r.key(id, Key::Space, Modifiers::NONE);
+        assert!(!r.app().engine.is_playing(), "and stops");
+        // A strip muted from its window is a command; Ctrl+Z typed there undoes it.
+        let strip = {
+            let app = r.app();
+            app.project().strips.iter().find(|s| !s.id.is_master()).map(|s| s.id)
+        }
+        .expect("a strip");
+        let before = r.app().bus.revision();
+        r.app().select_strip(strip);
+        r.idle(2);
+        r.clear_asked();
+        r.key(id, Key::M, Modifiers::NONE);
+        let muted = r.app().project().strip(strip).map(|s| s.muted);
+        assert_eq!(muted, Some(true), "M typed in the mixer's window mutes the strip");
+        assert!(r.app().bus.revision() > before, "one command");
+        assert!(
+            r.was_asked(ViewportId::ROOT, Duration::from_millis(1)),
+            "the main window is asked to draw the change"
+        );
+        r.key(id, Key::Z, Modifiers::COMMAND);
+        let muted = r.app().project().strip(strip).map(|s| s.muted);
+        assert_eq!(muted, Some(false), "Ctrl+Z typed in the window undoes it");
+    });
+}
+
+#[test]
+fn at_rest_no_window_draws_and_playing_draws_only_what_moves() {
+    run(|| {
+        let mut r = with_mixer_window();
+        // A second window with only the browser.
+        r.app().reveal_pane(Pane::Browser);
+        r.idle(2);
+        let ctx = r.ctx.clone();
+        r.app().move_pane(&ctx, Pane::Browser, cantus_ui::windows::Target::NewWindow { screen: Some(0) });
+        r.idle(30);
+        let wins = r.windows();
+        assert_eq!(wins.len(), 2);
+        r.clear_asked();
+        r.idle(20);
+        for id in &wins {
+            assert!(
+                !r.was_asked(*id, Duration::from_secs(1)),
+                "window {id:?} asks for a frame at rest"
+            );
+        }
+        // Playing: the mixer's window draws, the browser's does not.
+        r.app().engine.play();
+        r.root(Vec::new());
+        r.clear_asked();
+        r.root(Vec::new());
+        let mixer = wins
+            .iter()
+            .copied()
+            .find(|id| {
+                let app = r.app.as_ref().unwrap();
+                let i = app.windows.index_of(*id).unwrap();
+                app.windows.list[i].workspace.contains(Pane::Mixer)
+            })
+            .unwrap();
+        let browser = wins.iter().copied().find(|id| *id != mixer).unwrap();
+        assert!(r.was_asked(mixer, Duration::from_millis(100)), "the mixer's meters move");
+        assert!(!r.was_asked(browser, Duration::from_secs(1)), "the browser does not");
+    });
+}
+
+#[test]
+fn the_window_is_kept_and_follows_its_screen_in_and_out() {
+    run(|| {
+        let r = with_mixer_window();
+        let dir = r.dir.clone();
+        let mut r = r;
+        let ctx = r.ctx.clone();
+        r.app().store_layouts(&ctx);
+        drop(r);
+        // A fresh start on the same desk: the window is back on its screen.
+        let mut r = Rig::in_dir(&dir, vec![laptop(), external()], Some(cantus_ui::welcome_project()));
+        r.idle(6);
+        assert_eq!(r.windows().len(), 1, "reopened");
+        assert!(r.app().windows.list[0].workspace.contains(Pane::Mixer));
+        assert!(!r.app().workspace.contains(Pane::Mixer));
+        drop(r);
+        // A start with the screen unplugged: the mixer in the main window, said so.
+        let mut r = Rig::in_dir(&dir, vec![laptop()], Some(cantus_ui::welcome_project()));
+        r.idle(6);
+        assert!(r.windows().is_empty(), "no window on a screen that is not there");
+        assert!(r.app().workspace.contains(Pane::Mixer), "the mixer came back");
+        let status = r.app().status.text.clone();
+        assert!(status.contains("DISPLAY2"), "the status line names the screen: {status}");
+        // The screen plugged in while running: the window returns.
+        r.set_screens(vec![laptop(), external()]);
+        r.idle(4);
+        assert_eq!(r.windows().len(), 1, "the window returns with its screen");
+        assert!(r.app().windows.list[0].workspace.contains(Pane::Mixer));
+        assert!(!r.app().workspace.contains(Pane::Mixer));
+        // And unplugged while playing: back into the main window, the song plays on.
+        r.app().engine.play();
+        r.set_screens(vec![laptop()]);
+        r.idle(4);
+        assert!(r.windows().is_empty());
+        assert!(r.app().workspace.contains(Pane::Mixer));
+        assert!(r.app().engine.is_playing(), "the transport never stopped");
+    });
+}
+
+#[test]
+fn f9_hides_the_mixer_in_its_window_and_brings_it_back_there() {
+    run(|| {
+        let mut r = with_mixer_window();
+        r.key(ViewportId::ROOT, Key::F9, Modifiers::NONE);
+        r.idle(2);
+        assert!(r.windows().is_empty(), "its window closed with its only area");
+        assert!(!r.app().pane_shown(Pane::Mixer));
+        r.key(ViewportId::ROOT, Key::F9, Modifiers::NONE);
+        r.idle(2);
+        assert_eq!(r.windows().len(), 1, "F9 brings it back to its window");
+        assert!(!r.app().workspace.contains(Pane::Mixer));
+    });
+}

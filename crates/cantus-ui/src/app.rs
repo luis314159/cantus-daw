@@ -149,8 +149,11 @@ pub struct CantusApp {
     /// Where the recorder's samples are drained into each frame; reused, never shrunk.
     capture_scratch: Vec<f32>,
     pub central: CentralView,
-    /// The window's areas as tabs that dock, split, stack and float (ADR 0024 §5).
+    /// The window's areas as tabs that dock, split, stack and float (ADR 0024 §5). During
+    /// a window of its own's pass, that window's dock (ADR 0151, `crate::windows`).
     pub workspace: Workspace,
+    /// Several screens (ADR 0151): every window of its own, and the screens.
+    pub windows: crate::windows::Windows,
     pub recorder: Recorder,
     /// Every audio source's waveform peaks, computed off this thread (ADR 0025).
     pub peaks: crate::waveform::PeakStore,
@@ -587,8 +590,10 @@ impl CantusApp {
         app.picker_view
             .thumbs
             .enable(Some(data_dir().join("cache").join("thumbs")));
-        app.central = app.layouts.current.central.into();
-        app.workspace.load(&app.layouts.current);
+        // The layout in use: the main window's dock and its windows of their own (ADR 0151;
+        // placed when the screens are read, at the first pass).
+        let layout = app.layouts.current.clone();
+        app.apply_layout_value(&layout);
         app.keymap = keymap;
         app.keymap_path = keymap_path;
         // r39:ux-b — Settings opens on the page chosen last (ADR 0110).
@@ -841,6 +846,7 @@ impl CantusApp {
             transcribe: Default::default(),   // r34:transcribe
             screen_follow: Default::default(),
             window_watch: Default::default(),
+            windows: Default::default(),
             stage: Default::default(),      // r35:stage
             dance_live: Default::default(), // r35:dancer
             editor: Default::default(),     // r36:editor
@@ -1061,7 +1067,7 @@ impl CantusApp {
     /// layouts file. Called whenever a layout changes and once on exit, so what is on disk
     /// is what the user was last looking at.
     pub fn store_layouts(&mut self, _ctx: &egui::Context) {
-        self.layouts.sync(&self.workspace, self.central.into());
+        self.layouts.current = self.capture_layout();
         if let Err(e) = self.layouts.save(&self.layouts_path) {
             log::warn!("cannot write layouts file: {e}");
         }
@@ -1072,8 +1078,9 @@ impl CantusApp {
         if name.is_empty() {
             return;
         }
-        self.layouts
-            .save_as(name, &self.workspace, self.central.into());
+        let mut layout = self.capture_layout();
+        layout.name = name.to_string();
+        self.layouts.save_layout(layout);
         self.store_layouts(ctx);
         self.set_status(tf("layout.saved", &[("name", &name)]));
     }
@@ -1082,8 +1089,8 @@ impl CantusApp {
         if !self.layouts.apply_named(name) {
             return;
         }
-        self.central = self.layouts.current.central.into();
-        self.workspace.load(&self.layouts.current);
+        let layout = self.layouts.current.clone();
+        self.apply_layout_value(&layout);
         let label = self.layouts.current.display_name();
         // `store` would sync the live shape back over the one just applied, so the file is
         // written from the layout itself.
@@ -1100,8 +1107,8 @@ impl CantusApp {
 
     pub fn reset_layout(&mut self) {
         self.layouts.reset();
-        self.central = self.layouts.current.central.into();
-        self.workspace.load(&self.layouts.current);
+        let layout = self.layouts.current.clone();
+        self.apply_layout_value(&layout);
         if let Err(e) = self.layouts.save(&self.layouts_path) {
             log::warn!("cannot write layouts file: {e}");
         }
@@ -1112,7 +1119,7 @@ impl CantusApp {
     /// tests): it becomes the central view and its tab shows.
     pub fn show_central(&mut self, view: CentralView) {
         self.central = view;
-        self.workspace.reveal(Pane::of_central(view));
+        self.reveal_pane(Pane::of_central(view));
     }
 
     /// Show the look the appearance describes, now: the mode's theme with the user's
@@ -2306,9 +2313,11 @@ impl CantusApp {
 
     /// Show or hide an area of the workspace (F5, F6, F7, F9, I).
     pub fn toggle_pane(&mut self, pane: Pane) {
-        self.workspace.toggle(pane);
+        // Wherever it lives (ADR 0151 §3): F9 on a mixer in a window of its own hides it
+        // there, and brings it back there.
+        self.toggle_pane_anywhere(pane);
         if let Some(c) = pane.central() {
-            if self.workspace.is_visible(pane) {
+            if self.pane_visible(pane) {
                 self.central = c;
             }
         }
@@ -2326,15 +2335,16 @@ impl CantusApp {
     /// Apply [`Self::show_pane`]'s requests (after the dock is drawn).
     pub(crate) fn apply_wanted_panes(&mut self) {
         for pane in std::mem::take(&mut self.panes_wanted) {
-            if !self.workspace.is_visible(pane) {
+            if !self.pane_visible(pane) {
                 self.toggle_pane(pane);
             }
         }
         if let Some(pane) = self.pane_focus_wanted.take() {
-            if self.workspace.is_folded(pane) {
-                self.workspace.unfold(pane);
+            let d = self.dock_of(pane).unwrap_or(crate::windows::Dock::Main);
+            if self.dock(d).is_folded(pane) {
+                self.dock_mut(d).unfold(pane);
             }
-            self.workspace.reveal(pane);
+            self.reveal_pane(pane);
             self.follow_area_focus(pane);
         }
     }
@@ -4591,9 +4601,28 @@ impl CantusApp {
             .exact_size(status)
             .resizable(false)
             .show(root, |ui| views::workspace_status::show(self, ui));
+        self.prepare_dock(egui::ViewportId::ROOT);
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(s.t.panel))
             .show(root, |ui| views::workspace::show(self, ui));
+        // Several screens (ADR 0151): the windows of their own, placed and shown.
+        self.windows_frame(ctx);
+        if self.hosts_overlays(egui::ViewportId::ROOT) {
+            self.overlays(ctx);
+        }
+        self.every_pass(ctx);
+        self.layouts.end_frame();
+
+        self.sync_engine();
+        self.poll_save(false);
+        self.maybe_autosave();
+        self.journal_tick();
+        self.frame_end(ctx, frame_start);
+    }
+
+    /// The dialogs, cards and pickers: drawn in the pass of the window the user last
+    /// clicked or typed in (ADR 0151 §3) — the main window's unless another has it.
+    pub(crate) fn overlays(&mut self, ctx: &egui::Context) {
         self.dialogs(ctx);
         views::record_bar::frame(self, ctx); // r36:record — its questions
         views::interop::frame(self, ctx);
@@ -4619,17 +4648,18 @@ impl CantusApp {
         views::audio_setup::frame(self, ctx);
         views::update::frame(self, ctx);
         views::appearance::pick(self, ctx);
+    }
+
+    /// What every window's pass ends with: the value pill, a handle's words, the focus ring.
+    pub(crate) fn every_pass(&mut self, ctx: &egui::Context) {
         views::hint::value_pill(ctx);
         views::hint::from_cursor(ctx); // r39:ux-a — a resize edge or a handle says what it does (ADR 0109)
         crate::drive::frame(self, ctx); // r39:ux-a — a driven control's words, for the next frame (ADR 0109)
         design::paint_focus_ring(ctx, &theme::p());
-        self.layouts.end_frame();
+    }
 
-        self.sync_engine();
-        self.poll_save(false);
-        self.maybe_autosave();
-        self.journal_tick();
-
+    /// The main window's frame's end: quitting, the frame time, the repaint policy.
+    fn frame_end(&mut self, ctx: &egui::Context, frame_start: Instant) {
         if self.request_quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -4719,7 +4749,9 @@ impl CantusApp {
                 .saturating_sub(self.last_autosave.elapsed());
             ticker::wake_after(ctx, left.max(Duration::from_millis(250)));
         }
-        ticker::finish(ctx);
+        let tick = ticker::finish(ctx);
+        // Several screens (ADR 0151 §10): the main window's pass is the windows' clock.
+        self.drive_windows(ctx, tick);
         crate::repaint_log::frame(ctx);
     }
 

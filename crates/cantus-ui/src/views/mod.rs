@@ -106,6 +106,7 @@ pub mod update;
 pub mod verse;
 pub mod warp;
 pub mod warp_quantise;
+pub mod window_bar; // multimon — a window of its own's bar (ADR 0151 §4)
 pub mod workspace;
 pub mod workspace_device;
 pub mod workspace_fold; // r39:ux-b

@@ -69,6 +69,16 @@ pub struct Layout {
     /// 0110). Absent in older files: nothing folded.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub folds: Vec<crate::views::workspace_fold::Fold>,
+    /// Several screens (ADR 0151 §6): the windows of their own — open ones and those waiting
+    /// for their screen — with their docks and places. Absent in older files: none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub windows: Vec<crate::windows::WindowShape>,
+    /// Where the main window was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub main_place: Option<crate::screens::Place>,
+    /// The set of screens it was made on (`screens::fingerprint`); empty: any.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub screens: String,
 }
 
 impl Layout {
@@ -85,6 +95,9 @@ impl Layout {
             central: Central::Mixer,
             dock: dock_to_value(&default_dock()),
             folds: Vec::new(),
+            windows: Vec::new(),
+            main_place: None,
+            screens: String::new(),
         }
     }
 
@@ -212,7 +225,21 @@ pub struct Layouts {
     /// next frame, whenever that is.
     #[serde(skip)]
     forcing: u8,
+    /// Several screens (ADR 0151 §6): the layout last in use with each set of screens seen
+    /// (the newest first, at most [`BY_SCREENS`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub by_screens: Vec<ByScreens>,
 }
+
+/// The layout last in use with one set of screens.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ByScreens {
+    pub screens: String,
+    pub layout: Layout,
+}
+
+/// How many sets of screens are remembered.
+pub const BY_SCREENS: usize = 8;
 
 impl Default for Layouts {
     fn default() -> Self {
@@ -220,6 +247,7 @@ impl Default for Layouts {
             current: Layout::default_layout(),
             saved: Vec::new(),
             forcing: 0,
+            by_screens: Vec::new(),
         }
     }
 }
@@ -234,6 +262,39 @@ impl Layouts {
             None => self.saved.push(layout.clone()),
         }
         self.current = layout;
+    }
+
+    /// Keep `layout` under its name (replacing one of the same name) and make it current.
+    pub fn save_layout(&mut self, layout: Layout) {
+        match self.saved.iter_mut().find(|l| l.name == layout.name) {
+            Some(existing) => *existing = layout.clone(),
+            None => self.saved.push(layout.clone()),
+        }
+        self.current = layout;
+    }
+
+    /// Remember `layout` as the one in use with the set of screens `screens`.
+    pub fn remember(&mut self, screens: &str, layout: Layout) {
+        if screens.is_empty() {
+            return;
+        }
+        self.by_screens.retain(|b| b.screens != screens);
+        self.by_screens.insert(
+            0,
+            ByScreens {
+                screens: screens.to_string(),
+                layout,
+            },
+        );
+        self.by_screens.truncate(BY_SCREENS);
+    }
+
+    /// The layout last in use with the set of screens `screens`.
+    pub fn recall(&self, screens: &str) -> Option<&Layout> {
+        self.by_screens
+            .iter()
+            .find(|b| b.screens == screens)
+            .map(|b| &b.layout)
     }
 
     /// Switch to a saved layout by name. Returns false if there is no such layout.

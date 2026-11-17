@@ -8,6 +8,8 @@ screens.menu.to_window = Window “{name}”
 screens.menu.to_screen = New window on screen {n} · {name}
 screens.menu.float = Float over this window
 
+screens.full = Eight windows are open besides the main one: close one first.
+
 # --- a window of its own ---
 screens.window.title = {song} — {area}
 screens.window.menu = The window’s menu
