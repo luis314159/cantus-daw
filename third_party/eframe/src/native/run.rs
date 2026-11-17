@@ -81,6 +81,9 @@ struct WinitAppWrapper<T: WinitApp> {
     winit_app: T,
     return_result: Result<(), crate::Error>,
     run_and_return: bool,
+    /// CANTUS PATCH (ADR 0151 §10): the due windows are being painted by
+    /// `check_redraw_requests` itself (no nested turn).
+    painting_due: bool,
 }
 
 impl<T: WinitApp> WinitAppWrapper<T> {
@@ -90,6 +93,7 @@ impl<T: WinitApp> WinitAppWrapper<T> {
             winit_app,
             return_result: Ok(()),
             run_and_return,
+            painting_due: false,
         }
     }
 
@@ -186,9 +190,20 @@ impl<T: WinitApp> WinitAppWrapper<T> {
     }
 
     fn check_redraw_requests(&mut self, event_loop: &ActiveEventLoop) {
+        // CANTUS PATCH (ADR 0151 §10): a turn that paints windows does not start another.
+        if self.painting_due {
+            return;
+        }
         let now = Instant::now();
 
         let mut invisible_window_ids = Vec::new();
+        // CANTUS PATCH (ADR 0151 §10): on Windows a due window is painted here, each once,
+        // in turn. Asked through `request_redraw`, Windows hands `WM_PAINT` to the first
+        // window of the thread that needs one, so a window that asks again during its own
+        // paint (any animation) was the only one ever painted: the others starved (measured:
+        // 125 passes a second against 0.7 for the main window and a third one).
+        let fair = cfg!(target_os = "windows");
+        let mut due_window_ids = Vec::new();
 
         self.windows_next_repaint_times
             .retain(|window_id, repaint_time| {
@@ -204,6 +219,8 @@ impl<T: WinitApp> WinitAppWrapper<T> {
                     // See: https://github.com/emilk/egui/issues/5229
                     if is_invisible_or_minimized(&window) {
                         invisible_window_ids.push(*window_id);
+                    } else if fair {
+                        due_window_ids.push(*window_id); // CANTUS PATCH (ADR 0151 §10)
                     } else {
                         log::trace!("request_redraw for {window_id:?}");
                         event_loop.set_control_flow(ControlFlow::Poll);
@@ -214,6 +231,16 @@ impl<T: WinitApp> WinitAppWrapper<T> {
                 }
                 false
             });
+
+        // CANTUS PATCH (ADR 0151 §10): the due windows, each once, in turn.
+        if !due_window_ids.is_empty() {
+            self.painting_due = true;
+            for window_id in &due_window_ids {
+                let event_result = self.winit_app.run_ui_and_paint(event_loop, *window_id);
+                self.handle_event_result(event_loop, event_result);
+            }
+            self.painting_due = false;
+        }
 
         // Paint invisible windows directly, since they won't receive
         // RedrawRequested events on Windows. This ensures that viewport
@@ -239,6 +266,9 @@ impl<T: WinitApp> WinitAppWrapper<T> {
         let next_repaint_time = self.windows_next_repaint_times.values().min().copied();
         if let Some(next_repaint_time) = next_repaint_time {
             event_loop.set_control_flow(ControlFlow::WaitUntil(next_repaint_time));
+        } else if fair && !due_window_ids.is_empty() {
+            // CANTUS PATCH (ADR 0151 §10): nothing more is due; sleep until an event.
+            event_loop.set_control_flow(ControlFlow::Wait);
         }
     }
 }

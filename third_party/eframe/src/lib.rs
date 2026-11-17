@@ -197,6 +197,11 @@ pub use native::macos::WindowChromeMetrics;
 #[cfg(any(feature = "glow", feature = "wgpu_no_default_features"))]
 pub use native::run::EframeWinitApplication;
 
+/// CANTUS PATCH (ADR 0151 §10): a window's winit handle by its viewport.
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "glow")]
+pub use native::cantus_windows::window_of;
+
 #[cfg(not(any(target_arch = "wasm32", target_os = "ios")))]
 #[cfg(any(feature = "glow", feature = "wgpu_no_default_features"))]
 pub use native::run::EframePumpStatus;

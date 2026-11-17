@@ -1,4 +1,7 @@
 mod app_icon;
+// CANTUS PATCH (ADR 0151 §10): the windows' winit handles.
+#[cfg(feature = "glow")]
+pub mod cantus_windows;
 mod epi_integration;
 mod event_loop_context;
 pub mod run;

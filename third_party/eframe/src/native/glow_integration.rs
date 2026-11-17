@@ -1475,6 +1475,13 @@ impl GlutinWindowContext {
         self.initialize_all_windows(event_loop);
 
         self.remove_viewports_not_in(viewport_output);
+
+        // CANTUS PATCH (ADR 0151 §10): the application may ask for each window's handle.
+        super::cantus_windows::sync(
+            self.viewports
+                .iter()
+                .map(|(id, viewport)| (*id, viewport.window.as_ref())),
+        );
     }
 }
 
