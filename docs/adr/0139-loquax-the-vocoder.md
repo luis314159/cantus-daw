@@ -47,7 +47,7 @@ A new effect kind, `EffectKind::Vocoder`, model `cantus_core::fx::loquax`, engin
   - **The display keeps its size.** Where a language's cards need another row (Spanish:
     four, English three — `loquax::card_rows`, held to what the cards' packing measures),
     the designed size grows a row (`loquax::designed_size`, 1340 × 900 in English,
-    1340 × 1004 in Spanish); the display, the microphone and the meters are the same size
+    1340 × 1030 in Spanish); the display, the microphone and the meters are the same size
     in both languages at 75, 100 and 200 %.
   - **Three objects to speak into**, chosen in the ⋯ menu (*Microphone*, three radio rows,
     then the colourways with their swatches — Vetus's pattern): the gooseneck (the default),
@@ -82,7 +82,9 @@ A new effect kind, `EffectKind::Vocoder`, model `cantus_core::fx::loquax`, engin
 - **Export**: `Cantus Loquax` (CLAP and VST3; `desc.rs`, the `loquax` feature, xtask):
   notes on its note port / event bus play the synthesiser, the sidechain input carries
   when the plug-in's own switch is on *Sidechain input*; its direct DSP in the plug-ins'
-  tests; ids blessed (appended).
+  tests; ids blessed (appended). The plug-ins' suite found the DSP panicking at a host's
+  1 234.6 Hz (the bank's top above Nyquist): under 3.6 kHz the bank is squeezed under its
+  Nyquist; from 3.6 kHz up nothing changes.
 - **AI**: the unit's words name `obj` and the presets; the effect words name what it is for;
   the MCP tools golden regenerated on purpose.
 - **Not a pedal.** A board has no key (`tabula::TAKES_SIDECHAIN` false) and hears no notes,

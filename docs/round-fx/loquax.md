@@ -130,6 +130,9 @@ layer-atlas work, so `kit_alloc` is untouched):
   ids appended. **AI** words; the MCP golden regenerated. **Site** card (EFFECTS 35).
 - **Docs**: ADR 0139 phase B, `docs/plugins/loquax.md`, the manual EN/ES.
 - **Tabula**: Loquax stays off the board (no key, no notes on a board: only the robot).
+- **DSP** (`loquax.rs`, one guard): a host's sample rate under 3.6 kHz (clap-validator's
+  1 234.6 Hz) panicked in `clamp` (the bank's top above its Nyquist); the bank is now
+  squeezed under it. Every rate from 3.6 kHz takes the old branch, bit for bit.
 
 ### Shared files touched (marked `fxa:loquax`)
 
@@ -139,7 +142,9 @@ Core: `effect.rs` (`is_look`), `starting.rs`, `fx/tabula.rs` (comment). UI:
 `views/fx/controls.rs` (`segmented_rect`, a test hook), `kit/skin/consoles.rs` (the
 objects' palette), `preset_audition.rs` (`vocoder_carriers`), `agent_units.rs`,
 `examples/shoot_fxa.rs`, tests `fxa_whole.rs`, `preset_audit.rs`. AI: `tools_mixer.rs`.
-Plug-ins: `Cargo.toml`, `build.rs`, `src/desc.rs`, `src/text.rs`, tests `common/mod.rs`,
+Plug-ins: `Cargo.toml`, `build.rs`, `src/desc.rs`, `src/text.rs` (Loquax's locales, and
+Fractus's and Caelum's so `pane_words` names every kind's choices), `src/state.rs` (the
+`fractus` field the wave-A contract left out: the crate did not compile), tests `common/mod.rs`,
 `clap.rs`, `vst3.rs`, `notes.rs`, `golden/ids.txt`. xtask: `main.rs`. Web: `units_data.rs`.
 
 ### Verified only in emulation
