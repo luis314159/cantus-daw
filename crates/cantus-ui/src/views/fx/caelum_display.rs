@@ -276,12 +276,14 @@ pub fn show(
     s: &Style,
     r: Rect,
     now: &Reading,
-) -> [Rect; 6] {
+) -> Drawn {
     let k = s.k;
     let ink = Ink::of(s);
     let p = parts(r, k);
     let sill = desk::Sill::lay(ui.ctx(), s, p.sill);
     let press = desk::edit(host, ui, s, &sill);
+    astro::edit(host, ui, s, p.astro);
+    desk::tubes_edit(host, ui, p.tubes, k);
     let spec = host.spec().clone();
     view.climb(&spec);
     with_brush(&ui.painter_at(r), |b| {
@@ -304,7 +306,33 @@ pub fn show(
         desk::tubes(b, s, &ink, p.tubes, now, &spec);
         canvas::edge_b(b, r, &ink);
     });
-    sill.keys.map(|key| key.rect)
+    let (centre, rad) = astro::dial_of(p.astro, k);
+    Drawn {
+        endless: sill.keys.map(|key| key.rect),
+        dial: (centre, rad),
+        decay: desk::Rack::of(p.tubes, k).plot,
+    }
+}
+
+/// Where the display's controls were drawn (tests point at them).
+#[derive(Copy, Clone, Debug)]
+pub struct Drawn {
+    /// The sill's six buttons: Infinite, Freeze, Fades, Sustains, 8 dB lower, As loud.
+    pub endless: [Rect; 6],
+    /// The astrolabe's centre and radius.
+    pub dial: (egui::Pos2, f32),
+    /// The decay rack's scale (0.3 s at its foot, 60 s at its top).
+    pub decay: Rect,
+}
+
+/// Where `st` semitones lies on the astrolabe's spiral, as drawn.
+pub fn voice_point(drawn: &Drawn, st: f32) -> egui::Pos2 {
+    astro::point_of(drawn.dial.0, drawn.dial.1, st)
+}
+
+/// Where the decay rack's scale puts `secs` (its height), as drawn.
+pub fn decay_y(drawn: &Drawn, secs: f32) -> f32 {
+    desk::decay_y(drawn.decay, secs)
 }
 
 #[cfg(test)]

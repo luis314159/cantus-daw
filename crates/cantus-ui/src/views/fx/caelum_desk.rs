@@ -339,6 +339,101 @@ pub fn sill(
     }
 }
 
+/// The rack's parts in the tubes' area `r`.
+pub struct Rack {
+    pub rack: Rect,
+    top_rail: Rect,
+    foot_rail: Rect,
+    well: Rect,
+    /// The scale's span: 0.3 s at its foot, 60 s at its top (log).
+    pub plot: Rect,
+}
+
+impl Rack {
+    pub fn of(r: Rect, k: f32) -> Rack {
+        let rack = Rect::from_min_max(
+            pos2(r.left() + 36.0 * k, r.top() + 20.0 * k),
+            pos2(r.right() - 4.0 * k, r.bottom() - 16.0 * k),
+        );
+        let (top_h, foot_h) = (8.0 * k, 10.0 * k);
+        let top_rail = Rect::from_min_max(rack.min, pos2(rack.right(), rack.top() + top_h));
+        let foot_rail = Rect::from_min_max(pos2(rack.left(), rack.bottom() - foot_h), rack.max);
+        let well = Rect::from_min_max(
+            pos2(rack.left(), top_rail.bottom()),
+            pos2(rack.right(), foot_rail.top()),
+        );
+        Rack {
+            rack,
+            top_rail,
+            foot_rail,
+            well,
+            plot: well.shrink2(vec2(0.0, 6.0 * k)),
+        }
+    }
+}
+
+/// The height of `t` seconds on the rack's scale.
+pub fn decay_y(plot: Rect, t: f32) -> f32 {
+    let lo = cantus_dsp::math::log10(0.3f32);
+    let hi = cantus_dsp::math::log10(60.0f32);
+    let u = (cantus_dsp::math::log10(t.clamp(0.3, 60.0)) - lo) / (hi - lo);
+    plot.bottom() - u * plot.height()
+}
+
+/// The decay at height `y` of the rack's scale, rounded as the decay knob shows it (a
+/// tenth of a second under 10 s, a second above).
+pub fn decay_at(plot: Rect, y: f32) -> f32 {
+    let lo = cantus_dsp::math::log10(0.3f32);
+    let hi = cantus_dsp::math::log10(60.0f32);
+    let u = ((plot.bottom() - y) / plot.height()).clamp(0.0, 1.0);
+    let t = cantus_dsp::math::powf(10.0f32, lo + u * (hi - lo));
+    let t = if t < 10.0 {
+        (t * 10.0).round() / 10.0
+    } else {
+        t.round()
+    };
+    t.clamp(0.3, 60.0)
+}
+
+/// The rack answers the pointer: the dotted line across the tubes is the set decay, and a
+/// press or a drag anywhere on the rack puts it at the pointer's height (the tubes then
+/// glow to what the tank achieves there, the damping shaping each octave). One drag, one
+/// step of undo. While infinite the rack shows ∞ and takes no drag (the decay knob still
+/// sets the decay the tank returns to); the damping stays the Damping card's: a tube is the
+/// achieved decay of the tank as a whole, not a control of its own octave.
+pub fn tubes_edit(host: &mut dyn FxHost, ui: &mut egui::Ui, r: Rect, k: f32) {
+    let plot = Rack::of(r, k).plot;
+    let id = ui.id().with("caelum-decay");
+    let resp = ui.interact(Rack::of(r, k).rack, id, Sense::click_and_drag());
+    let inf = host.spec().get("inf") >= 0.5;
+    if !inf {
+        if let Some(p) = resp
+            .interact_pointer_pos()
+            .filter(|_| resp.is_pointer_button_down_on() || resp.clicked())
+        {
+            let t = decay_at(plot, p.y);
+            if host.spec().get("decay") != t {
+                host.set("decay", t, Some("caelum-decay"));
+            }
+        }
+        if resp.drag_stopped() || resp.clicked() {
+            host.end_gesture();
+        }
+    }
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            tr("caelum.hint.decay"),
+            tr(if inf {
+                "caelum.hint.decay_inf"
+            } else {
+                "caelum.hint.decay_tip"
+            }),
+            Caps::NONE,
+        );
+    }
+}
+
 /// The decay by octave: eight glass tubes in a metal rack, each lit from its foot to the
 /// decay the tank achieves at its octave (log, 0.3 … 60 s; to the top while infinite), the
 /// figure over its light; the set decay a dotted line across; the scale beside them.
@@ -360,24 +455,14 @@ pub fn tubes(
         k,
         None,
     );
-    let rack = Rect::from_min_max(
-        pos2(r.left() + 36.0 * k, r.top() + 20.0 * k),
-        pos2(r.right() - 4.0 * k, r.bottom() - 16.0 * k),
-    );
-    let (top_h, foot_h) = (8.0 * k, 10.0 * k);
-    let top_rail = Rect::from_min_max(rack.min, pos2(rack.right(), rack.top() + top_h));
-    let foot_rail = Rect::from_min_max(pos2(rack.left(), rack.bottom() - foot_h), rack.max);
-    let well = Rect::from_min_max(
-        pos2(rack.left(), top_rail.bottom()),
-        pos2(rack.right(), foot_rail.top()),
-    );
-    let plot = well.shrink2(vec2(0.0, 6.0 * k));
-    let lo = cantus_dsp::math::log10(0.3f32);
-    let hi = cantus_dsp::math::log10(60.0f32);
-    let y_of = |t: f32| {
-        let u = (cantus_dsp::math::log10(t.clamp(0.3, 60.0)) - lo) / (hi - lo);
-        plot.bottom() - u * plot.height()
-    };
+    let Rack {
+        rack,
+        top_rail,
+        foot_rail,
+        well,
+        plot,
+    } = Rack::of(r, k);
+    let y_of = |t: f32| decay_y(plot, t);
     // The scale: a fine line across the rack's back at 1, 10 and 60 s, its figure beside.
     let inf = spec.get("inf") >= 0.5;
     for (sec, label) in [(1.0f32, "1 s"), (10.0, "10 s"), (60.0, "60 s")] {

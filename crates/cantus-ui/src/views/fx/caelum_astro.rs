@@ -14,9 +14,13 @@ use crate::kit::color::{mix, with_alpha};
 use crate::kit::skin::observatory as pal;
 use crate::kit::text::{Role, Text};
 use crate::kit::{Brush, Fill, Style};
+use super::super::host::FxHost;
 use cantus_core::EffectSpec;
 use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Vec2};
 use std::f32::consts::{FRAC_PI_2, TAU};
+
+/// How far an octave's name stands from the meridian, points at 100 %.
+pub(crate) const OCTAVE_NAME_GAP: f32 = 14.0;
 
 /// The angle of `st` semitones on the dial: the unison at the top, clockwise.
 fn angle(st: f32) -> f32 {
@@ -266,14 +270,25 @@ fn plate(b: &mut Brush, s: &Style, d: &Dial, plate_r: f32) {
             with_alpha(ink, 0.9),
         );
     }
-    // The octaves along the meridian, alternately left and right of it.
+    // The octaves along the meridian, alternately left and right of it, each name led out
+    // from its dot by an engraved line: the two columns stand well apart (v2 note: the
+    // names crowded and touched), so the alidade passes between them.
     for (i, st) in (-36..=36).step_by(12).enumerate() {
         let p = d.on_spiral(st as f32);
-        let left = i % 2 == 0;
-        let (at, align) = if left {
-            (p - vec2(7.0 * k, 0.0), Align2::RIGHT_CENTER)
+        let side = if i % 2 == 0 { -1.0 } else { 1.0 };
+        let reach = OCTAVE_NAME_GAP * k;
+        art::engrave(
+            b,
+            s,
+            p + vec2(side * 2.5 * k, 0.0),
+            p + vec2(side * (reach - 2.0 * k), 0.0),
+            0.5 * k,
+        );
+        let at = p + vec2(side * reach, 0.0);
+        let align = if side < 0.0 {
+            Align2::RIGHT_CENTER
         } else {
-            (p + vec2(7.0 * k, 0.0), Align2::LEFT_CENTER)
+            Align2::LEFT_CENTER
         };
         canvas::putf(
             b,
@@ -472,4 +487,115 @@ fn legend(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, d: &Dial, spec: &EffectS
             100.0 * spec.get("pblvl")
         ),
     );
+}
+
+/// Which hand a drag on the astrolabe holds.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Hand {
+    /// The alidade: the first voice (`pa`).
+    First,
+    /// The slimmer hand: the second voice (`pb`).
+    Second,
+}
+
+impl Hand {
+    pub fn key(self) -> &'static str {
+        match self {
+            Hand::First => "pa",
+            Hand::Second => "pb",
+        }
+    }
+}
+
+/// The dial in `r` as the pointer reads it: its centre and radius.
+pub fn dial_of(r: Rect, k: f32) -> (Pos2, f32) {
+    let d = dial(r, k);
+    (d.c, d.rad)
+}
+
+/// Where `st` semitones lies on the spiral of a dial at `c` of radius `rad`.
+pub fn point_of(c: Pos2, rad: f32, st: f32) -> Pos2 {
+    Dial { c, rad }.on_spiral(st)
+}
+
+/// The spiral's semitone under `p` (−36 … +36): the angle names the semitone in the octave,
+/// the distance from the centre the turn of the spiral nearest to it.
+pub fn semitone_at(c: Pos2, rad: f32, p: Pos2) -> f32 {
+    let d = Dial { c, rad };
+    let v = p - c;
+    let a = cantus_dsp::math::atan2(v.y, v.x) + FRAC_PI_2;
+    let class = (a / TAU * 12.0).round().rem_euclid(12.0);
+    let dist = v.length();
+    let mut best = (f32::MAX, 0.0f32);
+    for turn in -4..=3 {
+        let st = class + 12.0 * turn as f32;
+        if !(-36.0..=36.0).contains(&st) {
+            continue;
+        }
+        let miss = (d.rho(st) - dist).abs();
+        if miss < best.0 {
+            best = (miss, st);
+        }
+    }
+    best.1
+}
+
+/// Which hand a press at `p` takes: the one whose line (centre to its jewel) passes nearer.
+pub fn hand_at(c: Pos2, rad: f32, spec: &EffectSpec, p: Pos2) -> Hand {
+    let to = |st: f32| {
+        let tip = point_of(c, rad, st);
+        let seg = tip - c;
+        let t = ((p - c).dot(seg) / seg.length_sq().max(1e-6)).clamp(0.0, 1.0);
+        (c + seg * t - p).length()
+    };
+    if spec.get("pblvl") > 0.0 && to(spec.get("pb")) < to(spec.get("pa")) {
+        Hand::Second
+    } else {
+        Hand::First
+    }
+}
+
+/// The voices answer the pointer: a press on the plate takes the nearer hand (the alidade
+/// the first voice; the slimmer hand the second, while the second voice is heard), and
+/// dragging turns it to the semitone under the pointer (`semitone_at`); a click puts the
+/// nearer hand where it falls. One drag, one step of undo (the cards' pills keep each
+/// voice's automation and MIDI learn).
+pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, r: Rect) {
+    let (c, rad) = dial_of(r, s.k);
+    let plate = Rect::from_center_size(c, Vec2::splat(rad * 1.6));
+    let id = ui.id().with("caelum-astrolabe");
+    let resp = ui.interact(plate, id, egui::Sense::click_and_drag());
+    let inside = |p: Pos2| (p - c).length() <= rad * 0.8;
+    if resp.drag_started() || resp.clicked() {
+        let origin = ui.input(|i| i.pointer.press_origin());
+        if let Some(p) = origin.or(resp.interact_pointer_pos()).filter(|p| inside(*p)) {
+            let hand = hand_at(c, rad, host.spec(), p);
+            ui.data_mut(|d| d.insert_temp(id, Some(hand)));
+        }
+    }
+    let held: Option<Hand> = ui.data(|d| d.get_temp(id)).flatten();
+    if let (Some(hand), Some(p)) = (
+        held,
+        resp.interact_pointer_pos()
+            .filter(|_| resp.is_pointer_button_down_on() || resp.clicked()),
+    ) {
+        let st = semitone_at(c, rad, p);
+        if host.spec().get(hand.key()) != st {
+            host.set(hand.key(), st, Some("caelum-voice"));
+        }
+    }
+    if resp.drag_stopped() || resp.clicked() {
+        if held.is_some() {
+            host.end_gesture();
+        }
+        ui.data_mut(|d| d.insert_temp::<Option<Hand>>(id, None));
+    }
+    if resp.hovered() {
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            tr("caelum.hint.voices"),
+            tr("caelum.hint.voices_tip"),
+            crate::kit::hint::Caps::NONE,
+        );
+    }
 }

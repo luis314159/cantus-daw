@@ -388,6 +388,116 @@ fn loquax_s_carrier_is_the_vst3_sidechain_bus() {
     );
 }
 
+/// fxa:caelum — Caelum's ducking keyed by VST3's sidechain bus (the aux input, activated as a
+/// host does), the plug-in's switch on the external key in its state: exactly the DSP keyed
+/// by the same sound, and the wet stepped aside where the unkeyed one is not.
+#[test]
+fn caelum_s_ducking_is_keyed_by_the_vst3_sidechain_bus() {
+    let kind = EffectKind::Shimmer;
+    let values = [
+        ("mix", 0.5),
+        ("decay", 2.0),
+        ("shim", 0.4),
+        ("duck", 24.0),
+        ("dthr", -30.0),
+        ("datt", 5.0),
+        ("drel", 200.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut wets = Vec::new();
+    for keyed in [false, true] {
+        let mut state: serde_json::Value = serde_json::to_value(&spec).unwrap();
+        state
+            .as_object_mut()
+            .unwrap()
+            .insert("sidechain".into(), keyed.into());
+        let v = V3::new(kind);
+        assert!(v.set_state(&serde_json::to_vec(&state).unwrap()));
+        v.activate(1024);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        for at in (0..n).step_by(1000) {
+            let end = (at + 1000).min(n);
+            v.process(
+                &mut l[at..end],
+                &mut r[at..end],
+                Some((&key_l[at..end], &key_r[at..end])),
+                &[],
+            );
+        }
+        let _g = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Caelum keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Caelum keyed {keyed}, right"), &r, &er);
+        wets.push(l.iter().zip(&quiet_l).map(|(o, i)| o - i).collect::<Vec<f32>>());
+    }
+    let energy = |x: &[f32]| x[24_000..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&wets[1]) < 0.1 * energy(&wets[0]),
+        "the key ducks the wet: {} against {}",
+        energy(&wets[1]),
+        energy(&wets[0])
+    );
+}
+
+/// fxa:caelum — Caelum's pre-delay synced to a VST3 host's tempo (`ProcessContext`): a
+/// quarter at 90 BPM is 666.7 ms — bit-identical to the DSP with that pre-delay, and the wet's
+/// first sound that far after the click (the earliest tap 13 ms on).
+#[test]
+fn caelum_s_synced_pre_delay_follows_the_vst3_hosts_tempo() {
+    let kind = EffectKind::Shimmer;
+    let tempo = 90.0f64;
+    let values = [("mix", 1.0), ("psync", 6.0), ("decay", 1.0)];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let mut input = (vec![0.0f32; n], vec![0.0f32; n]);
+    input.0[0] = 1.0;
+    input.1[0] = 1.0;
+    let mut d = cantus_dsp::caelum::Caelum::new(SR);
+    let mut s = cantus_engine::fx::caelum::settings(&spec);
+    s.predelay_ms = cantus_dsp::caelum::sync_ms(1.0, tempo as f32);
+    d.set(&s);
+    d.reset();
+    let (mut el, mut er) = input.clone();
+    d.process(&mut el, &mut er, None);
+    let v = V3::new(kind);
+    assert!(v.set_state(&state_of(kind, &values)));
+    v.activate(4096);
+    let (mut l, mut r) = input.clone();
+    for at in (0..n).step_by(512) {
+        let m = 512.min(n - at);
+        let mut c: ProcessContext = unsafe { std::mem::zeroed() };
+        use ProcessContext_::StatesAndFlags_::*;
+        c.state = (kPlaying | kTempoValid | kProjectTimeMusicValid | kTimeSigValid) as u32;
+        c.sampleRate = SR as f64;
+        c.tempo = tempo;
+        c.projectTimeMusic = at as f64 * tempo / 60.0 / SR as f64;
+        c.timeSigNumerator = 4;
+        c.timeSigDenominator = 4;
+        v.context.set(Some(c));
+        v.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
+    }
+    assert_identical("Caelum synced, left", &l, &el);
+    assert_identical("Caelum synced, right", &r, &er);
+    let first = l[1..].iter().position(|x| x.abs() > 1e-6).map(|i| i + 1);
+    let want = (2.0 / 3.0 * SR) as usize;
+    let first = first.expect("the wet sounds");
+    assert!(
+        first >= want && first < want + SR as usize / 20,
+        "the wet after the quarter's pre-delay: {first} (want {want} and on)"
+    );
+}
+
 #[test]
 fn vst3_automation_lands_on_the_grid() {
     let kind = EffectKind::Gate;

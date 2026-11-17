@@ -55,6 +55,11 @@ fn header(u: FileUnit) -> String {
         "A preset's lanes ride in its values (`cantus_core::fx::fractus::to_flat`): `\"repeat.12\" = 4`\n\
          is a block on the repeat lane from step 12, four steps long; `.amount` and `.chance`\n\
          when they are not whole.\n"
+    } else if u == FileUnit::Effect(EffectKind::Shimmer) {
+        // fxa:caelum — where the first presets come from, and why none starts frozen.
+        "The first eleven are `cantus_dsp::caelum::presets::factory()` as written (a test compares\n\
+         them, the output aside). No preset starts frozen: a tank frozen from its first sample\n\
+         holds silence (Freeze swell asks for Freeze by hand).\n"
     } else {
         ""
     };

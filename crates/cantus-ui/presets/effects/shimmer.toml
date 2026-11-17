@@ -1,5 +1,7 @@
 # Caelum shimmer reverb: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's wave A: the starting preset only until phase B adds the rest (`cantus_dsp::caelum::presets::factory`).
+# The first eleven are `cantus_dsp::caelum::presets::factory()` as written (a test compares
+# them, the output aside). No preset starts frozen: a tank frozen from its first sample
+# holds silence (Freeze swell asks for Freeze by hand).
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
@@ -16,7 +18,348 @@ roles = ["creative"]
 "mdepth" = 0.35
 "mix" = 0.35
 "mrate" = 0.35
+"out" = -0.9
 "pre" = 30
 "shim" = 0.55
 "size" = 0.72
 "slo" = 350
+
+[[preset]]
+key = "preset.caelum.fifth_cathedral"
+note = "A vast stone nave: an octave and a fifth above, dark walls, long bass."
+styles = ["worship", "film"]
+roles = ["creative"]
+[preset.values]
+"decay" = 11
+"diff" = 0.85
+"hdec" = 0.4
+"hhz" = 4500
+"ldec" = 1.3
+"lhz" = 220
+"mix" = 0.4
+"mrate" = 0.25
+"out" = -3
+"pblvl" = 0.7
+"pre" = 55
+"shi" = 7500
+"shim" = 0.5
+"size" = 0.92
+
+[[preset]]
+key = "preset.caelum.bloom_pad"
+note = "The sound swells into the space over two seconds: a pad out of anything."
+styles = ["ambient", "worship"]
+roles = ["creative"]
+[preset.values]
+"bloom" = 1800
+"decay" = 8
+"diff" = 0.9
+"mdepth" = 0.55
+"mix" = 0.45
+"mrate" = 0.3
+"out" = -1.7
+"pre" = 10
+"shi" = 8000
+"shim" = 0.2
+"size" = 0.8
+"slo" = 400
+
+[[preset]]
+key = "preset.caelum.freeze_swell"
+note = "An endless space that swells in. Throw Freeze on a chord to hold it as a pad (a preset frozen from the start would hold silence)."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"bloom" = 2500
+"decay" = 20
+"diff" = 0.9
+"hdec" = 0.7
+"hhz" = 6500
+"inf" = 1
+"mdepth" = 0.45
+"mix" = 0.5
+"mrate" = 0.2
+"out" = -0.8
+"pre" = 0
+"shi" = 7000
+"shim" = 0.3
+"size" = 1
+"slo" = 400
+
+[[preset]]
+key = "preset.caelum.ducked_vocal"
+note = "A singer's shimmer: steps aside while the voice sings and blooms in the gaps."
+styles = ["pop", "worship"]
+roles = ["vocal"]
+[preset.values]
+"datt" = 15
+"decay" = 3.2
+"drel" = 350
+"dthr" = -32
+"duck" = 12
+"hdec" = 0.55
+"hhz" = 8000
+"lcut" = 180
+"ldec" = 0.8
+"lhz" = 300
+"mix" = 0.32
+"mrate" = 0.5
+"pre" = 70
+"shim" = 0.15
+"size" = 0.55
+"slo" = 600
+
+[[preset]]
+key = "preset.caelum.sub_cloud"
+note = "An octave below: a dark cloud under the note, the top gone early."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"decay" = 9
+"hdec" = 0.35
+"hhz" = 3500
+"mdepth" = 0.4
+"mix" = 0.4
+"out" = -1.9
+"pa" = -12
+"shi" = 4000
+"shim" = 0.4
+"size" = 0.85
+"slo" = 60
+
+[[preset]]
+key = "preset.caelum.endless_ascent"
+note = "Infinite, building as you play: the octaves keep rising and fade into the top; what does not climb is held."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"decay" = 20
+"diff" = 0.85
+"hdec" = 0.6
+"hhz" = 8000
+"inf" = 1
+"mdepth" = 0.4
+"mix" = 0.45
+"mrate" = 0.3
+"out" = -1.4
+"shi" = 6500
+"shim" = 0.6
+"size" = 0.9
+
+[[preset]]
+key = "preset.caelum.glass_plate"
+note = "A bright small plate, dense at once, with the faintest shimmer."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"decay" = 2.2
+"diff" = 1
+"hdec" = 0.8
+"hhz" = 11000
+"mdepth" = 0.2
+"mix" = 0.3
+"mrate" = 0.8
+"out" = -1.5
+"pre" = 5
+"shi" = 14000
+"shim" = 0.12
+"size" = 0.3
+"slo" = 800
+
+[[preset]]
+key = "preset.caelum.fourth_rise"
+note = "A fourth and an octave: an open, ambiguous chord above anything."
+styles = ["ambient", "worship"]
+roles = ["creative"]
+[preset.values]
+"decay" = 7
+"mdepth" = 0.35
+"mix" = 0.38
+"out" = -1.6
+"pa" = 5
+"pb" = 12
+"pblvl" = 0.6
+"pre" = 40
+"shi" = 8000
+"shim" = 0.45
+"size" = 0.75
+
+[[preset]]
+key = "preset.caelum.black_sky"
+note = "A minute of dark space: no shimmer, the bass held, the top gone early."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"decay" = 40
+"diff" = 0.9
+"hdec" = 0.25
+"hhz" = 2500
+"ldec" = 1.4
+"lhz" = 180
+"mdepth" = 0.6
+"mix" = 0.45
+"mrate" = 0.15
+"out" = -3.8
+"pre" = 80
+"size" = 1
+
+[[preset]]
+key = "preset.caelum.light_shimmer"
+note = "Eight lines, half the cost: a light octave shimmer for a busy session."
+styles = ["pop", "worship"]
+roles = ["bus"]
+[preset.values]
+"decay" = 4.5
+"lines" = 0
+"mix" = 0.3
+"out" = -1.9
+"pre" = 25
+"shim" = 0.4
+"slo" = 400
+
+[[preset]]
+key = "preset.caelum.fifth_shimmer"
+note = "The tail climbs a fifth at a time: brighter than the octave, a little haunting."
+styles = ["ambient", "worship"]
+roles = ["creative"]
+[preset.values]
+"decay" = 6
+"diff" = 0.8
+"hhz" = 7500
+"mdepth" = 0.35
+"mix" = 0.35
+"out" = -1.7
+"pa" = 7
+"pre" = 35
+"shim" = 0.5
+"size" = 0.7
+"slo" = 350
+
+[[preset]]
+key = "preset.caelum.twin_octaves"
+note = "One octave and two above at once: a choir of light over the note."
+styles = ["worship", "film"]
+roles = ["creative"]
+[preset.values]
+"decay" = 8
+"diff" = 0.85
+"hhz" = 8000
+"mdepth" = 0.4
+"mix" = 0.38
+"out" = -1.5
+"pb" = 24
+"pblvl" = 0.5
+"pre" = 30
+"shi" = 10000
+"shim" = 0.6
+"size" = 0.8
+"slo" = 400
+
+[[preset]]
+key = "preset.caelum.infinite_drone"
+note = "Infinite and dark, a fifth climbing and kept: play a few notes and let it drone under the song."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"decay" = 20
+"diff" = 0.9
+"hdec" = 0.4
+"hhz" = 3500
+"inf" = 1
+"ishim" = 1
+"lcut" = 60
+"mdepth" = 0.5
+"mix" = 0.5
+"mrate" = 0.2
+"out" = -1.9
+"pa" = 7
+"pre" = 0
+"shi" = 5000
+"shim" = 0.3
+"size" = 0.95
+
+[[preset]]
+key = "preset.caelum.guitar_ambience"
+note = "A guitar's halo: an octave shimmer that ducks under the playing and rises between phrases."
+styles = ["rock", "worship"]
+roles = ["creative"]
+[preset.values]
+"datt" = 20
+"decay" = 5
+"diff" = 0.7
+"drel" = 600
+"dthr" = -28
+"duck" = 6
+"hhz" = 7000
+"lcut" = 150
+"mdepth" = 0.45
+"mix" = 0.35
+"mrate" = 0.6
+"pre" = 45
+"shim" = 0.35
+"size" = 0.65
+"slo" = 500
+
+[[preset]]
+key = "preset.caelum.eighth_echoes"
+note = "The pre-delay an eighth at the song's tempo, little diffusion: the space answers in rhythm."
+styles = ["pop", "house"]
+roles = ["creative"]
+[preset.values]
+"decay" = 3
+"diff" = 0.35
+"mix" = 0.3
+"out" = -0.9
+"psync" = 4
+"shim" = 0.3
+"size" = 0.5
+"slo" = 500
+
+[[preset]]
+key = "preset.caelum.dotted_rise"
+note = "A dotted-eighth pre-delay at the song's tempo and the octave climbing behind it, for leads."
+styles = ["rock", "worship"]
+roles = ["creative"]
+[preset.values]
+"decay" = 5
+"diff" = 0.55
+"lcut" = 120
+"mdepth" = 0.4
+"mix" = 0.32
+"out" = -0.5
+"psync" = 5
+"shim" = 0.45
+"size" = 0.6
+"slo" = 450
+
+[[preset]]
+key = "preset.caelum.shimmer_snare"
+note = "A short bright room for a snare or claps, with a breath of octave in its tail."
+styles = ["pop", "trap"]
+roles = ["drums"]
+[preset.values]
+"decay" = 1.6
+"diff" = 1
+"hdec" = 0.7
+"hhz" = 9000
+"lcut" = 250
+"mix" = 0.22
+"pre" = 10
+"shi" = 12000
+"shim" = 0.2
+"size" = 0.35
+"slo" = 900
+
+[[preset]]
+key = "preset.caelum.bus_haze"
+note = "A faint shimmering haze for a bus: little mix, the lows and the top cut."
+styles = ["ambient", "lofi"]
+roles = ["bus"]
+[preset.values]
+"decay" = 2.5
+"hcut" = 9000
+"lcut" = 200
+"mix" = 0.15
+"shim" = 0.15
+"size" = 0.6
+"slo" = 500

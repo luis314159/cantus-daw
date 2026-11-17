@@ -56,8 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 35] = [
-    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder; fxa:fractus: 35
+pub static ALL: [Descriptor; 36] = [
+    // fx3:contract: 33 with wave 3's four; fxa:loquax: 34 with the vocoder; fxa:fractus: 35; fxa:caelum: 36
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -494,6 +494,20 @@ pub static ALL: [Descriptor; 35] = [
         vst3_categories: "Fx|Modulation",
         description: "Glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and throws painted on lanes in time with the song, played by notes too.",
         compiled: cfg!(feature = "fractus"),
+    },
+    // fxa:caelum — the fx side round's wave A (provisional ADR 0141). Its ducking listens to
+    // the sidechain input when the key is chosen; a synced pre-delay follows the host's tempo.
+    Descriptor {
+        kind: EffectKind::Shimmer,
+        name: "Caelum",
+        full_name: "Cantus Caelum",
+        slug: "caelum",
+        clap_id: "com.github.lalmazan.cantus.caelum",
+        vst3_cid: [0x1F194B00, 0x720CFAC7, 0x24C62CE1, 0xE499736E],
+        clap_features: &[FX, "reverb", STEREO],
+        vst3_categories: "Fx|Reverb",
+        description: "Shimmer reverb: tails that climb in pitch, infinite washes, bloom, freeze and ducking by the input or a sidechain key.",
+        compiled: cfg!(feature = "caelum"),
     },
 ];
 

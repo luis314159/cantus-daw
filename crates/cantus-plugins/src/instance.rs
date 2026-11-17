@@ -508,11 +508,15 @@ impl Shared {
     }
 
     /// How long the output goes on after the input stops, samples: the reverb's decay
-    /// (to 90 dB down, half again its 60 dB time), infinite while frozen; the latency for
-    /// the others. `u32::MAX` is infinite in both standards.
+    /// (to 90 dB down, half again its 60 dB time), infinite while frozen (or, Caelum's,
+    /// infinite); the latency for the others. `u32::MAX` is infinite in both standards.
     pub fn tail_samples(&self) -> u32 {
         let latency = self.latency();
-        if self.table.kind != cantus_core::EffectKind::Space {
+        let kind = self.table.kind;
+        if !matches!(
+            kind,
+            cantus_core::EffectKind::Space | cantus_core::EffectKind::Shimmer
+        ) {
             return latency;
         }
         let get = |key: &str| {
@@ -521,10 +525,25 @@ impl Shared {
                 .map(|p| self.value(p.index))
                 .unwrap_or(0.0)
         };
-        if get("freeze") >= 0.5 {
+        if get("freeze") >= 0.5 || get("inf") >= 0.5 {
             return u32::MAX;
         }
-        let seconds = get("decay") * 1.5 + get("predelay") / 1_000.0 + 0.05;
+        let seconds = if kind == cantus_core::EffectKind::Shimmer {
+            // fxa:caelum — the pre-delay (its note at the host's tempo when synced, the
+            // longest note at the slowest tempo a host gives when that is unknown) and the
+            // bloom's swell come before the decay.
+            let pre = match cantus_engine::fx::caelum::sync_beats(get("psync")) {
+                Some(beats) => {
+                    let tempo = f64::from_bits(self.host.tempo.load(Ordering::Relaxed));
+                    let tempo = if tempo > 0.0 { tempo as f32 } else { 20.0 };
+                    cantus_dsp::caelum::sync_ms(beats, tempo)
+                }
+                None => get("pre"),
+            };
+            get("decay") * 1.5 + (pre + get("bloom")) / 1_000.0 + 0.05
+        } else {
+            get("decay") * 1.5 + get("predelay") / 1_000.0 + 0.05
+        };
         let samples = (seconds * self.sample_rate()) as u64 + latency as u64;
         samples.min(i32::MAX as u64 - 1) as u32
     }

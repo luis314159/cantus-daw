@@ -23,7 +23,7 @@ use crate::kit::text::{Role, Text};
 use crate::kit::{Brush, Fill, Style};
 use cantus_core::EffectSpec;
 use cantus_dsp::math::sin;
-use egui::{pos2, vec2, Align2, Rect, Vec2};
+use egui::{pos2, vec2, Align2, Color32, Rect, Vec2};
 use std::f32::consts::{PI, TAU};
 
 /// The pitch scale's range above (and below) the horizon, semitones.
@@ -117,7 +117,7 @@ pub fn show(
         12,
     );
     water(b, k, g, horizon, ink, &sky, view, spec);
-    rows(b, s, ink, &sky, spec, view);
+    rows(b, s, ink, &sky, spec, view, None);
     bands(b, k, &sky, view, spec, ink, false);
     wisps(b, k, &sky, view, spec, ink);
     centre(b, k, &sky, view, spec, ink);
@@ -131,6 +131,10 @@ pub fn show(
         with_alpha(c(pal::STAR), 0.22),
     );
     art::frost(b, g, k, frozen);
+    // The scale's names over the frost (v2 note: the frost hid "+48 st"), on a plate when
+    // the glass is frosted, as the words are.
+    let plate = (frozen > 0.01).then(|| with_alpha(ink.ground, 0.85));
+    rows(b, s, ink, &sky, spec, view, Some(plate));
     words(b, s, ink, g, &sky, now, spec);
     art::glass(b, g, k);
     rails(b, s, fr, g, &sky, spec, view);
@@ -311,9 +315,18 @@ fn water(
     }
 }
 
-/// The bands' pitch rows: a fine dotted line at each lit band and its interval written in
-/// the gutter (the second voice's where there is room).
-fn rows(b: &mut Brush, s: &Style, ink: &Ink, sky: &Sky, spec: &EffectSpec, view: &View) {
+/// The bands' pitch rows: a fine dotted line at each lit band (`names` `None`), or its
+/// interval written in the gutter (`names` `Some(plate)`, drawn over the frost; the second
+/// voice's where there is room).
+fn rows(
+    b: &mut Brush,
+    s: &Style,
+    ink: &Ink,
+    sky: &Sky,
+    spec: &EffectSpec,
+    view: &View,
+    names: Option<Option<Color32>>,
+) {
     let k = s.k;
     let mut placed: [f32; LAYERS] = [f32::NAN; LAYERS];
     for l in 0..LAYERS {
@@ -333,15 +346,18 @@ fn rows(b: &mut Brush, s: &Style, ink: &Ink, sky: &Sky, spec: &EffectSpec, view:
         } else {
             ink.voice(ink.hue, false)
         };
-        canvas::dashed(
-            b,
-            pos2(sky.plot.left(), y),
-            pos2(sky.plot.right(), y),
-            0.6 * k,
-            with_alpha(ink.grid, 0.55),
-            2.0 * k,
-            5.0 * k,
-        );
+        let Some(plate) = names else {
+            canvas::dashed(
+                b,
+                pos2(sky.plot.left(), y),
+                pos2(sky.plot.right(), y),
+                0.6 * k,
+                with_alpha(ink.grid, 0.55),
+                2.0 * k,
+                5.0 * k,
+            );
+            continue;
+        };
         if placed.iter().any(|p| (p - y).abs() < 12.0 * k) {
             continue;
         }
@@ -353,7 +369,7 @@ fn rows(b: &mut Brush, s: &Style, ink: &Ink, sky: &Sky, spec: &EffectSpec, view:
             Role::Micro,
             mix(col, ink.text, 0.25),
             k,
-            None,
+            plate,
             format_args!("{} st", Signed(st)),
         );
     }

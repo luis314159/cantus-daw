@@ -810,6 +810,18 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("mix", 0.9),
             ("out", -3.0),
         ], // fxa:fractus
+        // fxa:caelum — both voices climbing (an octave, a fifth), a short bloom, ducking by
+        // its own input, half wet, the output moved. Keyed ducking is in `clap.rs` and
+        // `vst3.rs`; the pre-delay on the host's tempo in `transport.rs` and `vst3.rs`.
+        EffectKind::Shimmer => vec![
+            ("mix", 0.5),
+            ("decay", 3.0),
+            ("shim", 0.6),
+            ("pblvl", 0.5),
+            ("bloom", 300.0),
+            ("duck", 6.0),
+            ("out", -3.0),
+        ], // fxa:caelum
         _ => vec![],
     }
 }
@@ -914,6 +926,10 @@ pub enum Direct {
     Loquax(Box<cantus_dsp::loquax::Loquax>),
     /// fxa:fractus — Fractus, the glitch sequencer: its DSP with the lanes written into
     /// its steps as the engine writes them (`fx::fractus::pattern_into`).
+    /// fxa:caelum — Caelum, the shimmer reverb: its DSP (the pre-delay synced at 120 BPM when
+    /// asked, no host transport here) and its output level gliding after it, as the engine's
+    /// unit glides it.
+    Caelum(Box<cantus_dsp::caelum::Caelum>, cantus_dsp::modfx_line::Glide),
     Fractus(
         Box<cantus_dsp::fractus::Fractus>,
         Box<cantus_dsp::fractus::Pattern>,
@@ -1019,6 +1035,10 @@ impl Direct {
             EffectKind::Rotary => Direct::Rota(Box::new(cantus_dsp::rota::Rota::new(SR))), // fx3:rota
             EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
             EffectKind::Vocoder => Direct::Loquax(Box::new(cantus_dsp::loquax::Loquax::new(SR))), // fxa:loquax
+            EffectKind::Shimmer => Direct::Caelum(
+                Box::new(cantus_dsp::caelum::Caelum::new(SR)),
+                cantus_dsp::modfx_line::Glide::new(1.0, 10.0, SR, 1e-6),
+            ), // fxa:caelum
             EffectKind::Glitch => Direct::Fractus(
                 Box::new(cantus_dsp::fractus::Fractus::new(SR)),
                 Box::new(cantus_dsp::fractus::Pattern::EMPTY),
@@ -1075,6 +1095,21 @@ impl Direct {
             Direct::Rota(x) => x.set(&fx::rota::settings(spec).0), // fx3:rota
             Direct::Loquax(x) => x.set(&fx::loquax::settings(spec)), // fxa:loquax
             // fxa:fractus — its values, then its lanes.
+            // fxa:caelum — a synced pre-delay at 120 BPM (a host without a transport); the
+            // output's target as the engine's unit sets it (0 dB not applied).
+            Direct::Caelum(x, out) => {
+                let mut s = fx::caelum::settings(spec);
+                if let Some(beats) = fx::caelum::sync_beats(spec.get("psync")) {
+                    s.predelay_ms = cantus_dsp::caelum::sync_ms(beats, 120.0);
+                }
+                x.set(&s);
+                let db = spec.get("out");
+                out.target = if db == 0.0 {
+                    1.0
+                } else {
+                    cantus_dsp::math::db_to_gain(db.clamp(-24.0, 24.0))
+                };
+            }
             Direct::Fractus(x, pat) => {
                 x.set(&fx::fractus::settings(spec));
                 fx::fractus::pattern_into(spec.fractus.as_deref(), pat);
@@ -1139,6 +1174,10 @@ impl Direct {
             Direct::Arca(x) => x.reset(),       // fx3:arca
             Direct::Loquax(x) => x.reset(),     // fxa:loquax
             Direct::Fractus(x, _) => x.reset(), // fxa:fractus
+            Direct::Caelum(x, out) => {
+                out.jump(out.target);
+                x.reset();
+            } // fxa:caelum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1177,6 +1216,7 @@ impl Direct {
             Direct::Arca(x) => x.latency(),       // fx3:arca
             Direct::Loquax(x) => x.latency(),     // fxa:loquax
             Direct::Fractus(x, _) => x.latency(), // fxa:fractus
+            Direct::Caelum(x, _) => x.latency(),  // fxa:caelum
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1215,6 +1255,16 @@ impl Direct {
             Direct::Arca(x) => x.process(l, r),      // fx3:arca
             Direct::Loquax(x) => x.process(l, r, key, &[]), // fxa:loquax
             Direct::Fractus(x, _) => x.process(l, r), // fxa:fractus
+            Direct::Caelum(x, out) => {
+                x.process(l, r, key);
+                if !(out.still() && out.value == 1.0) {
+                    for (a, b) in l.iter_mut().zip(r.iter_mut()) {
+                        let g = out.next();
+                        *a *= g;
+                        *b *= g;
+                    }
+                }
+            } // fxa:caelum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

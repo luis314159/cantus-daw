@@ -42,9 +42,9 @@ pub struct State {
     view: display::View,
     /// Where the display was drawn last frame (tests point at it).
     pub display: Option<Rect>,
-    /// Where the sill's six buttons were drawn last frame: Infinite, Freeze, Fades,
-    /// Sustains, 8 dB lower, As loud (tests point at them).
-    endless: Option<[Rect; 6]>,
+    /// Where the display's controls were drawn last frame: the sill's six buttons, the
+    /// astrolabe, the decay rack (tests point at them).
+    drawn: Option<display::Drawn>,
 }
 
 /// Caelum's editor in Cantus's own window: the host is the project.
@@ -183,7 +183,7 @@ fn body_ui(
     let reading = display::Reading::of(tel);
     let dt = ui.input(|i| i.stable_dt).min(0.1);
     st.view.update(&reading, dt);
-    st.endless = Some(display::show(host, &mut st.view, ui, s, r1, &reading));
+    st.drawn = Some(display::show(host, &mut st.view, ui, s, r1, &reading));
     if reading.seen {
         ui.ctx().request_repaint();
     }
@@ -229,6 +229,7 @@ pub const DEMO: &[(&str, f32)] = &[
     ("shim", 0.55),
     ("slo", 350.0),
     ("mix", 0.35),
+    ("out", -0.9),
 ];
 
 /// The settings `--editor caelum` and the screenshot tool open it with: the starting
@@ -307,6 +308,17 @@ impl State {
     /// Where the sill's buttons were drawn last frame: Infinite, Freeze, Fades, Sustains,
     /// 8 dB lower, As loud.
     pub fn endless_rects(&self) -> [Rect; 6] {
-        self.endless.unwrap_or([Rect::NOTHING; 6])
+        self.drawn.map_or([Rect::NOTHING; 6], |d| d.endless)
+    }
+
+    /// Where `st` semitones lies on the astrolabe's spiral, as drawn last frame (the
+    /// alidade's jewel at the first voice's, the slimmer hand's at the second's).
+    pub fn voice_point(&self, st: f32) -> Option<egui::Pos2> {
+        self.drawn.map(|d| display::voice_point(&d, st))
+    }
+
+    /// The decay rack as drawn last frame: its scale's rect, and the height of `secs` on it.
+    pub fn decay_rack(&self, secs: f32) -> Option<(Rect, f32)> {
+        self.drawn.map(|d| (d.decay, display::decay_y(&d, secs)))
     }
 }

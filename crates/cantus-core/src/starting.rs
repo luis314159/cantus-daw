@@ -185,6 +185,8 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("shim", 0.55),
                 ("slo", 350.0),
                 ("mix", 0.35),
+                // Fitted to the dry's loudness (`preset_tool fit`).
+                ("out", -0.9),
             ],
         ), // fxa:caelum
         K::Multiband => preset(

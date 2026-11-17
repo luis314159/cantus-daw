@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 36] = [
+pub const EFFECTS: [Unit; 37] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -579,6 +579,28 @@ pub const EFFECTS: [Unit; 36] = [
         ab: None,
         big: (1800, 967),
         thumb: (640, 344),
+    },
+
+    // fxa:caelum — Caelum, the shimmer reverb (ADR 0141, provisional).
+    Unit {
+        file: "caelum",
+        name: "Caelum",
+        kind: ("Shimmer reverb", "Reverb shimmer"),
+        pitch: ("A shimmer reverb for spaces no building holds: tails that climb an octave at a time, washes that never end, a sound that swells in, freeze and ducking — under an observatory's night sky.", "Una reverb shimmer para espacios que ningún edificio contiene: colas que suben de octava en octava, lavados que nunca acaban, un sonido que crece hacia el espacio, congelación y ducking — bajo el cielo nocturno de un observatorio."),
+        what: long!(("Caelum is a tank of 8 or 16 delay lines whose loop carries two pitch-shifted voices: each pass trades part of the tail for itself an interval higher (or lower), so a chord rises into the sky as it rings — and the trade moves energy without making any, so the decay you set is the decay you hear, shimmer or not. Infinite holds the tail for good while the damping still darkens it; Freeze holds what is in the tank and lets nothing in; Bloom swells the sound into the space over up to four seconds; the ducking steps the space aside while the dry plays, or while another track does. The pre-delay follows the song's tempo when you ask. Its window is an observatory at night: the tail glowing on the horizon over the tank's water, the shimmer's octaves rising band by band as it ages, the voices set on a brass astrolabe and the decay of each octave glowing in glass tubes. At its defaults it passes the sound untouched.", "Caelum es un tanque de 8 o 16 líneas de retardo cuyo bucle lleva dos voces transportadas: cada vuelta cambia parte de la cola por ella misma un intervalo más arriba (o más abajo), de modo que un acorde sube al cielo mientras suena — y el cambio mueve energía sin crearla, así que la caída que fijas es la que oyes, con shimmer o sin él. Infinita sostiene la cola para siempre mientras la amortiguación aún la oscurece; Congelar guarda lo que hay en el tanque y no deja entrar nada; Florecer hace crecer el sonido hacia el espacio durante hasta cuatro segundos; el ducking aparta el espacio mientras suena la señal seca, o mientras suena otra pista. El pre-retardo sigue el tempo de la canción si lo pides. Su ventana es un observatorio de noche: la cola brillando en el horizonte sobre el agua del tanque, las octavas del shimmer subiendo banda a banda mientras envejece, las voces fijadas en un astrolabio de latón y la caída de cada octava brillando en tubos de vidrio. En sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("16 or 8 modulated lines; the decay within 3.1 % of the setting in every octave", "16 u 8 líneas moduladas; la caída a menos del 3,1 % de lo fijado en cada octava"),
+            ("Two shimmer voices from −36 to +36 semitones that move energy and make none", "Dos voces de shimmer de −36 a +36 semitonos que mueven energía sin crearla"),
+            ("Infinite held for five minutes within 0.4 dB; Freeze within 0.15 dB", "Infinita sostenida cinco minutos a menos de 0,4 dB; Congelar a menos de 0,15 dB"),
+            ("Bloom, ducking by its own input or another track's, a pre-delay synced to the song", "Florecer, ducking por su propia entrada o por otra pista, un pre-retardo sincronizado con la canción"),
+            ("The voices dragged on the astrolabe, the decay dragged on its tubes", "Las voces arrastradas en el astrolabio, la caída arrastrada en sus tubos"),
+            ("Nineteen factory presets; no latency; untouched at its defaults", "Diecinueve presets de fábrica; sin latencia; intacto en sus valores por defecto"),
+        ]),
+        presets: Some(19),
+        plugin: true,
+        ab: None,
+        big: (1800, 1209),
+        thumb: (640, 430),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

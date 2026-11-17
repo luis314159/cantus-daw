@@ -25,7 +25,6 @@ fn floor(unit: Unit) -> usize {
         // line when its presets land.
         Unit::Effect(EffectKind::Rotary) => 0, // fx3:contract (rota)
         Unit::Effect(EffectKind::Amp) => 0,    // fx3:contract (arca)
-        Unit::Effect(EffectKind::Shimmer) => 1, // fxa:contract (the starting preset; phase B)
         Unit::Effect(_) => 12,
     }
 }

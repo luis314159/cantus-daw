@@ -769,3 +769,49 @@ fn fractus_s_lanes_follow_the_hosts_tempo_and_position_through_clap() {
         "the first repeat at beat 3 + 1/32: {first}"
     );
 }
+
+/// fxa:caelum — Caelum's pre-delay synced to the host's tempo through CLAP's transport: a
+/// dotted eighth at 100 BPM (450 ms), at any block size, bit-identical to the DSP set to
+/// that pre-delay; the wet's first sound that far after the click.
+#[test]
+fn caelum_s_synced_pre_delay_follows_the_hosts_tempo_through_clap() {
+    let kind = EffectKind::Shimmer;
+    let tempo = 100.0f64;
+    let values = [("mix", 1.0), ("psync", 5.0), ("decay", 1.0)];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let mut input = (vec![0.0f32; n], vec![0.0f32; n]);
+    input.0[0] = 1.0;
+    input.1[0] = 1.0;
+    let mut d = cantus_dsp::caelum::Caelum::new(SR);
+    let mut s = cantus_engine::fx::caelum::settings(&spec);
+    s.predelay_ms = cantus_dsp::caelum::sync_ms(0.75, tempo as f32);
+    d.set(&s);
+    d.reset();
+    let (mut el, mut er) = input.clone();
+    d.process(&mut el, &mut er, None);
+    for blocks in [&[512][..], &[7], &[5, 333, 64]] {
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        plug.activate(4096);
+        let (mut l, mut r) = input.clone();
+        let (mut at, mut b) = (0usize, 0usize);
+        while at < n {
+            let m = blocks[b % blocks.len()].min(n - at);
+            b += 1;
+            let beats = at as f64 * tempo / 60.0 / SR as f64;
+            plug.transport.set(Some(transport(beats, tempo, true)));
+            plug.process(&mut l[at..at + m], &mut r[at..at + m], None, &[], false);
+            at += m;
+        }
+        assert_identical(&format!("Caelum synced, blocks {blocks:?}"), &l, &el);
+        assert_identical(&format!("Caelum synced, blocks {blocks:?}, right"), &r, &er);
+    }
+    let first = el[1..].iter().position(|x| x.abs() > 1e-6).map(|i| i + 1);
+    let want = (0.45 * SR) as usize;
+    let first = first.expect("the wet sounds");
+    assert!(
+        first >= want && first < want + SR as usize / 20,
+        "the wet after the dotted eighth's pre-delay: {first} (want {want} and on)"
+    );
+}
