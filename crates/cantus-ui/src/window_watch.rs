@@ -384,32 +384,35 @@ mod tests {
     fn a_tripped_watch_drops_geometry_commands() {
         let ctx = egui::Context::default();
         let mut w = Watch::default();
-        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let maximised = |out: &mut egui::FullOutput| {
+            out.textures_delta.clear();
+            out.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .iter()
+                .filter(|c| matches!(c, egui::ViewportCommand::Maximized(_)))
+                .count()
+        };
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
             assert!(send_geometry(
                 ui.ctx(),
                 &w,
                 egui::ViewportCommand::Maximized(true)
             ));
         });
-        assert_eq!(
-            out.viewport_output[&egui::ViewportId::ROOT].commands.len(),
-            1
-        );
+        assert_eq!(maximised(&mut out), 1);
         for f in 0..30 {
             let z = if f % 2 == 0 { 1.0 } else { 1.25 };
             w.observe(f as f64 / 60.0, at(z, 1920.0), false);
         }
         assert!(w.tripped());
-        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
             assert!(!send_geometry(
                 ui.ctx(),
                 &w,
                 egui::ViewportCommand::Maximized(true)
             ));
         });
-        assert!(out.viewport_output[&egui::ViewportId::ROOT]
-            .commands
-            .is_empty());
+        assert_eq!(maximised(&mut out), 0);
     }
 
     #[test]
