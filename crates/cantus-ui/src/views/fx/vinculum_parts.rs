@@ -875,7 +875,7 @@ pub fn valves(b: &mut Brush, s: &Style, r: Rect, heat: f32, blue: f32) {
             core.right(),
             ly,
             1.0 * k,
-            if i % 2 == 0 {
+            if i.is_multiple_of(2) {
                 c(pal::ANODE_LIGHT)
             } else {
                 c(pal::ANODE)

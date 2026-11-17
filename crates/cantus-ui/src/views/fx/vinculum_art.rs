@@ -246,7 +246,7 @@ pub fn faceplate(b: &mut Brush, s: &Style, r: Rect, ear: f32) -> Rect {
                     r.right() - 1.0 * k,
                     y,
                     0.5 * k,
-                    with_alpha(c(if i % 3 == 0 { p.foot } else { p.grain }), a),
+                    with_alpha(c(if i.is_multiple_of(3) { p.foot } else { p.grain }), a),
                 );
                 y += 1.1 * k;
                 i += 1;
@@ -551,7 +551,14 @@ pub fn knob(b: &mut Brush, s: &Style, p: Pos2, rad: f32, angle: f32, hover: bool
             p,
             rr,
             0.4 * k,
-            with_alpha(c(if i % 2 == 0 { m.cap_foot } else { m.cap_top }), 0.35),
+            with_alpha(
+                c(if i.is_multiple_of(2) {
+                    m.cap_foot
+                } else {
+                    m.cap_top
+                }),
+                0.35,
+            ),
         );
         rr -= 1.3 * k;
         i += 1;

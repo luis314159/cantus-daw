@@ -431,13 +431,13 @@ pub fn panel(b: &mut Brush, s: &Style, panel: &Panel, press: &[Press; 4], spec: 
                 art::knob(b, s, bay.centre, KNOB * k, angle(v, bay.n), pr.hover);
             }
             Kind::Toggle(words) => {
-                for i in 0..2 {
+                for (i, word) in words.iter().enumerate() {
                     art::engrave(
                         b,
                         s,
                         bay.label(i).center(),
                         Align2::CENTER_CENTER,
-                        &Text::key(words[i], Role::Micro, Color32::TRANSPARENT),
+                        &Text::key(word, Role::Micro, Color32::TRANSPARENT),
                         1.0,
                     );
                 }
