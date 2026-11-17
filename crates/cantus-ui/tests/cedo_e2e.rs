@@ -449,7 +449,8 @@ fn cedo_pumps_on_the_beat_ducks_by_a_key_and_by_notes_on_the_boot_path() {
     let before = db(power(&bass_dry, 0.2, 0.95)) - db(power(&by_notes, 0.2, 0.95));
     assert!(before.abs() < 1e-6, "no note, no duck: {before}");
 
-    // Its neutral defaults: the dry song, to the bit (the key and the notes still routed).
+    // Its neutral defaults: the song as with Cedo bypassed, to the bit (the key and the notes
+    // still routed).
     solo(&mut app, &s, &[0, 1, 2, 3]);
     app.exec(Command::SetEffectSidechain {
         strip: bass,
@@ -473,7 +474,9 @@ fn cedo_pumps_on_the_beat_ducks_by_a_key_and_by_notes_on_the_boot_path() {
     shape(&mut app, bass, fx, None);
     let dry_again = {
         let mut p = app.project().clone();
-        p.strip_mut(bass).unwrap().effects.clear();
+        // Bypassed, not taken out: the key's routing keeps the strips' order (the master's
+        // sum is the same sum).
+        p.strip_mut(bass).unwrap().effects[0].bypass = true;
         let snap = app.engine.compile_for_render(&p, 1);
         render(
             snap,
@@ -486,7 +489,18 @@ fn cedo_pumps_on_the_beat_ducks_by_a_key_and_by_notes_on_the_boot_path() {
         .unwrap()
         .samples
     };
-    assert_eq!(rendered(&mut app), dry_again, "the null, to the bit");
+    let null = rendered(&mut app);
+    assert_eq!(null.len(), dry_again.len());
+    let first = null
+        .iter()
+        .zip(&dry_again)
+        .position(|(a, b)| a.to_bits() != b.to_bits());
+    assert_eq!(
+        first,
+        None,
+        "the null, to the bit (first difference at {first:?}: {:?})",
+        first.map(|i| (null[i], dry_again[i]))
+    );
 }
 
 /// Linear phase against a dry twin: two identical pad tracks, Cedo (Lows, linear phase, at
