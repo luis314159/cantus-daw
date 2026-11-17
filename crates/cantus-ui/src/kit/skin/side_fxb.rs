@@ -10,6 +10,8 @@ use super::{
 /// Vinculum, the bus compressor: a rack unit — its faceplate anodised, rack ears and their
 /// screws, its gain reduction on backlit needle meters (a warm lamp-lit card), the
 /// reduction's red; skirted knobs on stepped positions, bat switches, an engraved legend.
+/// Its screens are a vacuum-fluorescent glass, dark in both themes (the owner's rule; an
+/// LCD's pale glass was the contract's placeholder).
 const fn vinculum(
     key: &'static str,
     material: Material,
@@ -23,7 +25,7 @@ const fn vinculum(
         accent: Some(accent),
         accent2: Some(second),
         material,
-        display: Display::Lcd,
+        display: Display::Vfd,
         knob: KnobShape::Skirted,
         switch: SwitchShape::Bat,
         lettering: Lettering {

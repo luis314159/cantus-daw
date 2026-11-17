@@ -101,6 +101,9 @@ pub mod sequencers;
 // The observatory's window, astrolabe and tubes Caelum draws (ADR 0141). fxa:caelum
 #[path = "skin/observatory.rs"]
 pub mod observatory;
+// The rack, faceplates, meters and gain elements Vinculum draws (ADR 0142). fxb:vinculum
+#[path = "skin/racks.rs"]
+pub mod racks;
 // The balance Libra draws (ADR 0133). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;
