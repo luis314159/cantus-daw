@@ -1,0 +1,49 @@
+# Area: several screens — any area in a window of its own, window sets per screen arrangement (ADR 0151, proposed). Every key here needs its twin in screens.es.txt.
+
+# --- a tab's menu ---
+screens.menu.new_window = Move to a new window
+screens.menu.move_to = Move to
+screens.menu.to_main = The main window
+screens.menu.to_window = Window “{name}”
+screens.menu.to_screen = New window on screen {n} · {name}
+screens.menu.float = Float over this window
+
+# --- a window of its own ---
+screens.window.title = {song} — {area}
+screens.window.menu = The window’s menu
+screens.window.bar = Show the bar with the transport
+screens.window.bar_groups = Choose what the bar shows…
+screens.window.on_top = Always on top
+screens.window.full_screen = Full screen
+screens.window.rename = Rename the window…
+screens.window.back = Back into the main window
+screens.window.close = Close the window
+
+# --- View ▸ windows and screens ---
+screens.view.band = Windows and screens
+screens.view.new_window = New window
+screens.view.gather = Gather every window on this screen
+screens.view.dock_all = Put every area back in the main window
+screens.view.map = Screens and windows…
+
+# --- the built-in layouts for several screens ---
+screens.layout.two_mix = Two screens: arrange | mix
+screens.layout.two_edit = Two screens: arrange | edit
+screens.layout.three = Three screens: edit | arrange | mix
+screens.layout.needs = Needs {n} screens
+screens.layout.remembered = Remembered for these screens
+
+# --- the screens map ---
+screens.map.title = Screens and windows
+screens.map.screen = Screen {n}
+screens.map.primary = the system’s main screen
+screens.map.main = Main window
+screens.map.scale = System {sys} % · interface {ui} %
+screens.map.size = {w} × {h} px
+screens.map.hint = Drag a window onto another screen · double-click one to bring it to the front
+screens.map.missing = Not connected
+screens.map.close = Close
+
+# --- what Cantus says when the screens change ---
+screens.notice.missing = The screen “{name}” is not connected: its areas ({areas}) came back into the main window. They go back when it returns.
+screens.notice.returned = The screen “{name}” is back: its windows are where you left them.

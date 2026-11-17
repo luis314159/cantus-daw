@@ -1,0 +1,256 @@
+# ADR 0151 — Several screens: any area in a window of its own, the windows remembered per set of screens
+
+> **Provisional number** (branch `fx/multimon`): renumber at the merge if 0151 is taken.
+
+**Status:** Proposed (phase 1: research and design, for the owner's approval; nothing of it
+is built) · **Date:** 2026-11-17 · **Builds on:** ADR 0024 §5 and §13 (the dock, the repaint
+ticker), ADR 0110 and 0111 (the top bar, maximise, the scale that follows the screen),
+ADR 0149 (the window holds still), ADR 0091 §2 (the companion's window), ADRs 0019, 0065
+and 0073 (plug-in editors in windows of their own), ADR 0050 (the boot path) · **Report:**
+`docs/round-fx/multimon.md` · **Pictures:** `compartir/multimon/design/v1/`
+
+## Context
+
+The owner (2026-11-17): *"a feature for multiple monitors, to extend Cantus's screens over
+several monitors if one wants; see how to do it, finish defining the idea for maximum
+usefulness and do it in the best, excellent way."*
+
+**What Cantus has.** One OS window. Its areas are tabs of one `egui_dock` dock
+(`views::workspace`); an area can *float*, but only inside that window (an `egui_dock`
+window surface). Named layouts (`layout.rs`, `layouts.json`, the user's — never the
+project's) keep the dock's tree and two sizes; the View menu lists them. The main window's
+place is not remembered: it opens maximised where the system puts it. Two things are
+already OS windows: the companion's stage (ADR 0091: a layered Win32 window on Windows, a
+deferred egui viewport elsewhere) and every hosted plug-in's own editor (owned by the main
+window, so it stays above it). Every view is called with `&mut CantusApp` from the one
+frame (`CantusApp::frame`), which also runs the frame's work once (the engine's poll, the
+controllers, the MCP server, the autosave) and asks the ticker for the next frame.
+
+**What the best do** (sources in the report):
+
+| | How | Praised | Complained of |
+|---|---|---|---|
+| FL Studio | each window *Detached* from the FL desktop; one *Save custom layout*; *Into workspace* pulls stranded windows back | any window anywhere | one custom layout; detached plug-ins are separate apps (MIDI, focus); keys need a click first; global scaling with a restart; mixed-DPI crashes |
+| Bitwig | 8 *display profiles* (single, dual studio, arranger/mixer, master/detail, studio/touch, triple) | one click to a good shape; a touch profile | fixed presets: "stuck with their decisions"; second window capped to the smaller screen |
+| Ableton Live | a second window (Ctrl+Shift+W), Tab swaps Session/Arrangement | simple | only two windows since 2006; the browser stays in the main one |
+| Studio One | the console detaches, spreads over screens | | view state not kept with the song; a song with a plug-in on screen 2 hangs on open |
+| Logic | several main windows; **screensets** 1–99 on the number keys, saved as you leave, lockable, per project | the best recall model | a screen off at start scrambles the sets |
+| Cubase | **workspaces**, global and per project, a key each; up to four mixers linked across screens; per-monitor DPI with a per-plug-in fallback | linked mixers | mixer will not open after a screen is unplugged; plug-in windows vanish behind |
+| REAPER | dockers, floating dockers; **screensets** (global window sets, per-project track views) on F-keys | flexible | fiddly dock places; users script a start-up screenset |
+
+Across all of them: windows reopen **off-screen on a monitor that is gone**, fixed by hand;
+**mixed DPI** blurs or crashes; **keys** go to whatever window has the focus (the space bar
+swallowed by a plug-in window); windows **hide behind** the main one; nobody ships a
+measured cost for a second window.
+
+**What egui and eframe 0.36 allow** (read in their sources; a throw-away spike measured on
+the owner's laptop, one screen of 1 920 × 1 080 at 125 %, `tmp/multimon/spike`, not in the
+repository):
+
+- **Viewports.** `show_viewport_immediate` draws a child window inside the parent's pass
+  (the closure may borrow `&mut CantusApp`) — the parent and every child draw together,
+  always. `show_viewport_deferred` gives each window passes of its own, but the callback is
+  `Fn + Send + Sync + 'static`: it cannot borrow the app.
+- **One OpenGL context, a surface per window** (glow): textures — the font atlas, the kit's
+  layer atlas, the instruments' pictures — are shared; nothing is uploaded twice.
+- **Each window has its own system scale**: egui-winit reads every window's
+  `scale_factor()` and re-lays it out on `ScaleFactorChanged`, so a window at 200 % beside
+  one at 100 % is crisp on both, without a restart. **egui's zoom is one per context**
+  (`Options::zoom_factor`): our interface scale is the same in every window unless we
+  adjust a window's input (§5).
+- **Starvation on Windows (measured).** When a deferred window asks for its next frame
+  during its own pass — as egui does for any animation or drag — Windows hands `WM_PAINT`
+  to the first window of the thread that needs one, and only that window is painted:
+  window 1 at 125 passes a second, the main window and window 3 at **0.7**, with vsync,
+  with a 17-ms request, with vsync off (1 950 against 0.7). Driving every window from the
+  main window's clock alone works (all three at 58–87 a second) until one window animates
+  itself; then it starves the others again. **A 25-line change to eframe's
+  `check_redraw_requests`** — paint each due window directly, once per turn, as eframe
+  already does for invisible windows — fixes it: all three at ~110 a second animating;
+  one animating at 120 while the others stay at rest (~3 a second: the spike's own 1-Hz
+  clock). No upstream report was found.
+- **Monitors**: winit's `available_monitors()` through `eframe::Frame::winit_window()` in
+  the main window's pass: name (`\\.\DISPLAY1` on Windows, the RandR output on X11, the
+  localized name on macOS), physical size and position, scale. Full screen on a chosen
+  monitor: `ViewportCommand::SetMonitor`. A window's *place* at creation goes through a
+  logical position whose conversion winit does with a scale we do not choose; once the
+  window exists, `OuterPosition` is exact (its own scale × points = pixels).
+- **Linux** runs X11 (ADR 0065; XWayland on Wayland), so windows can be placed and a drag
+  keeps reporting the pointer outside its window; **macOS** gives each full-screen window
+  its own Space.
+
+## Decision
+
+1. **Any area can have a window of its own** — arrangement, piano roll, channel rack,
+   mixer, Routing, inspector, browser, devices, clips, history, controllers, score,
+   session, stage, and any instrument or effect editor. Each window is an OS window with the
+   system's decorations (Snap layouts, Win+Shift+arrows, the macOS green button work as in
+   every program) and **its own dock** (`Workspace`): tabs, splits and the kit's skin as in
+   the main window, so a window can hold the mixer with Routing beside it, or the piano
+   roll over the channel rack. The **main window** keeps the top bar, the status bar and
+   the menus; closing it quits; a window of its own closes into the main window (its areas
+   go back where they belong). Up to **eight** windows besides the main one.
+
+2. **Making one, three ways, none hidden.**
+   - A tab's menu: *Move to a new window* (a window on the screen the main window is not
+     on, when there is one — else beside it), and *Move to ▸* the main window, another
+     window by name, or *New window on screen N · its name*. The old *Float in its own
+     window* becomes *Float over this window* (it was always inside the window).
+   - **Drag a tab out of the window**: released outside every Cantus window, it becomes a
+     window there; released over another Cantus window, it docks in the leaf under the
+     pointer (the pointer keeps reporting while the button is held, on Windows, X11 and
+     macOS).
+   - View ▸ *New window*, and the built-in layouts (§7).
+   A device editor opens **in the window it was opened from**: double-click an insert on
+   the mixer's screen and its editor opens there.
+
+3. **Every window is a full citizen of the keyboard and the project.** The keymap is read
+   in the pass of the window that has the focus, with that window's input: the space bar,
+   record, undo (Ctrl+Z — one history for the project), F5–F9, the palette and every
+   binding work from any window, never needing a click first. A **text field** keeps the
+   keys as in the main window. **Dialogs, the picker, the palette and menus open over the
+   window they were asked from** (the window whose pass handled the input that opened
+   them). F5/F6/F7/F9 act on their area wherever it lives (a window showing it hides it,
+   and brings it back to the same window). Every change to the project is a `Command` as
+   before; **windows are not the project**: moving, opening or closing a window is not a
+   command and is not undone (as in every DAW).
+
+4. **A window's bar.** A window of its own may show a thin **bar** at its top, made of the
+   **top bar's own groups** (ADR 0052): by default the transport, the position, the tempo
+   and the master meter, chosen with the same list as the top bar (*Choose what the bar
+   shows…*). At its left the window's menu (*Show the bar*, *Choose…*, *Always on top*,
+   *Full screen* F11, *Rename*, *Back into the main window*, *Close*) and its name; at
+   its right *Back into the main window*. On by default for a window on another screen
+   (you mix there and should not have to look across to stop the song); off by its menu.
+
+5. **Each window at its own screen's scale.** The system's scale is honoured per window by
+   egui-winit (§ Context). **Our** scale (ADR 0111 §7) follows each window's own screen:
+   a window on the laptop at 200 % gets the rule's 90 %, one on a 1 920-px screen at
+   100 % gets 125 % — otherwise the external screen would show everything at 60 % of the
+   size it should have. egui has one zoom, so a window's own scale is given by its input,
+   before its pass, in `raw_input_hook` (which eframe calls for every window): its
+   `native_pixels_per_point` multiplied by *its scale ÷ the zoom*, and every point it
+   carries (the screen's rect, the pointer, the viewport's rects) divided by the same,
+   the commands we send it (its size, its place) multiplied back. The zoom itself never
+   changes per pass — ADR 0149's loop cannot come back — and the follow rule decides
+   **once per window and screen**, as ADR 0149 §1 does for the main window; a user's own
+   scale (Ctrl +/−) applies to the window that has the focus and is kept per window
+   ("this window at 110 %"); *Interface at 100 %* resets that window. Each window has
+   its own `window_watch::Watch`.
+
+6. **Windows are the user's, remembered per set of screens — never the project's.**
+   A layout (`layouts.json`) gains the main window's place and the other windows: for each
+   its dock, its place (outer rectangle in the desktop's **physical pixels**), maximised
+   or full screen, its screen (`ScreenKey`: the system's name, its size and position in
+   pixels, its scale), its bar's groups, *always on top*, its own scale. The **set of
+   screens** connected (their keys, sorted) is a fingerprint, and Cantus keeps **the
+   current layout for each set** it has seen (the last eight): the studio's three screens
+   have their windows, the laptop alone has its own, and plugging the screens back in
+   brings the studio's back, at start or while running. A project never opens windows: it
+   travels between machines whose screens differ (Logic's and Studio One's complaints).
+   Named layouts stay global; a named layout made on two screens and applied on one docks
+   what had no screen into the main window (§8).
+
+7. **Layouts for several screens, one key each.** Beside *Default*, three built-in
+   layouts: *Two screens: arrange \| mix* (main: arrangement, inspector, piano roll and
+   rack below; the other screen: the mixer with Routing), *Two screens: arrange \| edit*
+   (the other screen: piano roll over the channel rack, score beside), *Three screens:
+   edit \| arrange \| mix*. A built-in layout needing more screens than connected is shown
+   dimmed with *Needs N screens*. **Alt+1 … Alt+9** recall the View menu's layouts in
+   order (on macOS ⌥⌘1 … 9); Ctrl+Alt is not used — it is AltGr on Spanish and many other
+   keyboards (AltGr+2 is @). **F11** puts the window in front into full screen on its own
+   screen and back.
+
+8. **A window on a screen that is not there is brought back, always.** At start and
+   whenever a window's place or screen changes (an event, never a timer), the screens are
+   read again; a window whose screen is missing **docks back into the main window** (its
+   areas where they belong) and the status line says *The screen "…" is not connected:
+   its areas (…) came back into the main window. They go back when it returns.*; when that
+   screen returns, its windows return where they were. A window whose screen is there but
+   whose place is not (a resolution changed, a screen moved) is moved so that at least its
+   title bar's middle 64 points lie on that screen's work area, its size clamped to it.
+   A window is **created hidden**, placed with `OuterPosition` in its own scale and shown
+   once placed: no window jumps across the desk, and no geometry command is sent twice
+   (window_watch drops a loop as for the main window). View ▸ *Gather every window on this
+   screen* is the manual rescue (a screen that is switched off but still connected is
+   invisible to every program), and *Put every area back in the main window* undoes it all.
+
+9. **The screens map.** View ▸ *Screens and windows…* shows every screen to scale where
+   the system places it — its name, its size, the system's scale and ours — and the
+   windows on each. Drag a window to another screen; double-click one to bring it to the
+   front. It is also where a dimmed (missing) screen and its windows are seen.
+
+10. **Nothing draws at rest — per window.** The ticker (ADR 0024 §13) keeps a slot per
+    window. The main window's pass is the clock: whatever moves, moves for a reason
+    (playback, recording, meters, a live analyser, an animation, a drag), and **only the
+    windows that show an area moving for that reason** are asked for their next frame
+    (`request_repaint_after_for`): a window holding only the browser draws nothing while
+    the song plays; one holding the mixer draws its meters. A change made in one window
+    (the project's revision, the selection) asks the others for one frame. Input repaints
+    only its own window. The frame's once-a-tick work stays in the main window's pass, and
+    every window's pass ends with what must follow a change at once (the engine's sync).
+    **eframe is carried with the fairness change** (`third_party/eframe`, like `cpal`:
+    each due window painted directly, once per turn, on Windows), offered upstream with
+    the spike as its test; and eframe is asked for each window's winit handle
+    (`eframe::native::window_of(ViewportId)`, a second small change) so a hosted plug-in's
+    editor opened from a window is **owned by that window** and stays above it, and
+    places are set in physical pixels.
+
+11. **How the app reaches a deferred window's pass.** The application stays where it is
+    (`boot::Shell`, owned by eframe) in name, but the running application lives in a
+    cell of the UI thread (`thread_local!` holding a `RefCell<Option<Box<CantusApp>>>`):
+    the main window's pass and each window's deferred callback — which captures only its
+    window's id, so it is `Send + Sync + 'static` — borrow it for their pass (eframe runs
+    every pass on that thread, one after another; no `unsafe`, no lock). A pass that finds
+    it borrowed (never seen; a nested native dialog's message loop) draws nothing and asks
+    again. In tests with `embed_viewports` the same window function is called with the
+    app directly. The audio thread is untouched: nothing here runs on it.
+
+## What we do not do
+
+- **No window layouts in the project** (§6), and no undo of window moves.
+- **No per-window copy of an area** (two mixers showing different strips, Cubase's linked
+  mixers): one mixer exists; it can be as wide as a window across two screens of one
+  scale. Two mixer views are a later decision (BACKLOG).
+- **No top bar in another window** — the bar of §4 is made of its groups; the top bar
+  itself goes where the main window goes.
+- **No custom-drawn title bars** on secondary windows: the system's decorations keep
+  Snap layouts, full screen and window managers working.
+- **No touch layout for a second screen** in this round (Bitwig's *Studio/Touch*): noted
+  in the BACKLOG with the tablet/iOS line.
+- **Plug-in editors are not docked** into Cantus's windows; they stay windows of their own
+  (owned by the window that opened them, §10).
+- **No wgpu**: glow serves several windows (ADR 0149 §5 stands).
+
+## Consequences
+
+- The dock becomes one per window; `app.workspace` is the main window's and, during a
+  window's pass, that window's (swapped in, as the frame already takes it out with
+  `std::mem::take`); app-wide questions (*is the mixer showing?*) ask every window.
+- `layouts.json` grows (new fields, `serde(default)`): an older Cantus reads the main
+  window's dock and ignores the rest; no project schema change, no `SCHEMA_VERSION` bump.
+  The keymap gains the layout keys, F11 and *Move to a new window* (unbound): keymap 18.
+- A patched eframe is carried until upstream takes the two changes (`third_party/README.md`
+  says what changed and why); each eframe upgrade re-applies them.
+- Each extra window costs its surface's buffers in the driver (estimated, measured in
+  phase 2: ~16–25 MB at 1 920 × 1 080, ~65–100 MB at 3 840 × 2 160, no multisampling) and,
+  only while it draws, its views' frame time; at rest nothing.
+
+## What the tests will hold (phase 2)
+
+`tests/windows_e2e.rs`, through `CantusApp::assemble`, run as eframe runs windows
+(`embed_viewports` off; the root pass, then each window's deferred callback in a pass of its
+own with its own `RawInput`, as `glow_integration::run_ui_and_paint` does): a tab's
+*Move to a new window* opens a deferred viewport whose pass draws the mixer, gone from the
+main dock; a click in it mutes a strip (one command; Ctrl+Z in its input undoes it); the
+space bar in its input starts the transport; the main window is asked for a frame after the
+change; the layout is stored and a fresh assemble reopens it at its place; with that screen
+missing the mixer is back in the main dock, the status line says so, and the screen's
+return brings the window back; a window at 2.0 beside the main at 1.0 lays every word of the
+mixer inside its rect at its own scale (the kit's text cuts recorded), the font atlas not
+rebuilt between passes; at rest no window asks for a frame, playing asks only the windows
+whose areas move; window_watch trips on a window's synthetic loop and only on its own;
+placement rules as a table (missing, moved, shrunk, negative coordinates, a window larger
+than its screen, the scale changed); `rt_memory` unchanged with two windows drawing; the
+strings in both locales; the keymap migration. What only real screens confirm goes to
+`docs/beta-checklist.md`.
