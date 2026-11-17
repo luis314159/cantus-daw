@@ -187,6 +187,7 @@ fractus.colourway.signal = Signal
 fractus.colourway.acid = Acid
 # The editor (design sheet v1).
 fractus.card.grid = Grid
+fractus.card.events = Events
 fractus.card.play = Playing
 fractus.card.repeat = Repeat
 fractus.card.output = Output

@@ -2588,8 +2588,10 @@ desde quieta), **Barajado** (trozos de hasta ocho atrás, algunos al revés), **
 (el trémolo clásico de línea de retardo, o *Limpio* en su *Estilo*), **Trituración**, **Barrido de filtro**,
 **Puerta**, **Lanzamiento de eco** (los ecos siguen sonando tras el paso) y **Nube** (los
 granos toman el relevo durante el evento). La rejilla se fija en la tarjeta *Rejilla*: pasos
-de 1/4 a 1/64 (también tresillos), de uno a cuatro compases, swing, y las uniones — cada
-comienzo, final y salto tiene un fundido cruzado, así que nada chasquea.
+de 1/4 a 1/64 (también tresillos), de uno a cuatro compases, swing. Cada comienzo, final y
+salto tiene un fundido cruzado, así que nada chasquea: su duración (*Uniones*) y la *Semilla*
+de cada tirada están en la tarjeta *Eventos* de la página *Cortes*. El tiempo, la realimentación, el tono, el nivel y el **ping-pong** del
+lanzamiento de eco están en la página *Secuenciador*.
 
 **Pintar.** En la ventana de los carriles:
 

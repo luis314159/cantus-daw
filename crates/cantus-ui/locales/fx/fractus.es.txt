@@ -187,6 +187,7 @@ fractus.colourway.signal = Señal
 fractus.colourway.acid = Ácido
 # El editor (hoja de diseño v1).
 fractus.card.grid = Rejilla
+fractus.card.events = Eventos
 fractus.card.play = Interpretación
 fractus.card.repeat = Repetición
 fractus.card.output = Salida

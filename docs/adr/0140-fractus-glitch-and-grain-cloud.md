@@ -65,7 +65,8 @@ A new effect kind, `EffectKind::Glitch`, model `cantus_core::fx::fractus`, engin
   The **Frozen** lamp over the scope is a switch (one step). A lane's name and the page keys
   open pages — a view, nothing to undo.
 - **Every stepped parameter has its offer.** The ping-pong switch (`wpp`) had no control: it
-  is on the throw's card now. `learn_everywhere` names why the first page cannot draw the
+  is on the throw's card now (a stepped knob; *Joins* and *Seed* moved to an *Events* card on the slicing page to keep every
+  page one row — `fxa_whole::fractus_s_pages_are_one_row_each`). `learn_everywhere` names why the first page cannot draw the
   other pages' keys (`fractus_page`) and a test of its own opens each page and finds every
   stepped key there offered (`every_fractus_page_offers_its_stepped_parameters`) — and every
   stepped key on some page.

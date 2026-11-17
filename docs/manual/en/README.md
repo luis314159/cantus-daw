@@ -2383,8 +2383,10 @@ each part), **Reverse**, **Tape stop** (or *Start*, up from still), **Shuffle** 
 to eight back, some backwards), **Pitch jump** (the classic delay-line warble, or *Clean* as its *Style*),
 **Crush**, **Filter sweep**, **Gate**, **Delay throw** (the echoes ring on after the step) and
 **Cloud** (the grains take over for the event). The grid is set on the *Grid* card: steps of
-1/4 to 1/64 (triplets too), one to four bars, swing, and the joins — every start, end and jump
-is crossfaded, so nothing clicks.
+1/4 to 1/64 (triplets too), one to four bars, swing. Every start, end and jump is
+crossfaded, so nothing clicks: how long (*Joins*) and the *Seed* of every roll are on the
+*Events* card of the *Slicing* page. The delay
+throw's time, feedback, tone, level and **ping-pong** are on the *Sequencer* page.
 
 **Painting.** On the lanes' window:
 

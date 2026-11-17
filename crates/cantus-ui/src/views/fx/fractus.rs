@@ -57,6 +57,9 @@ pub struct State {
     pub stroke: paint::Stroke,
     /// Where each page's key was drawn last frame (the tests point at them).
     pub page_keys: [Option<Rect>; PAGES.len()],
+    /// The rows each page's cards took last frame, and the width they had (the design: one
+    /// row each, in both languages).
+    pub card_rows: ([usize; PAGES.len()], f32),
 }
 
 /// Fractus's editor in Cantus's own window: the host is the project.
@@ -109,7 +112,14 @@ const GRID: &[Item] = &[
     Item::Choice("step", "fractus.l.step", &STEP_NAMES),
     Item::Knob("bars", "fractus.l.bars"),
     Item::Knob("swing", "fractus.l.swing"),
+];
+/// How every event is made — the joins' crossfade and the seed of every roll (a block's
+/// chance, the shuffle's picks, the grains) — on the slicing page, where repeats, reverses
+/// and shuffles cut and roll (the sequencer's page has no room once the throw's ping-pong
+/// has its control).
+const EVENTS: &[Item] = &[
     Item::Knob("xfade", "fractus.l.joins"),
+    Item::Knob("seed", "fractus.l.seed"),
 ];
 const PLAY: &[Item] = &[
     Item::Switch(
@@ -123,7 +133,6 @@ const PLAY: &[Item] = &[
         &["fractus.s.atonce", "fractus.s.onstep"],
     ),
     Item::Pill("key", "fractus.l.key", super::fxa_cells::note_pill),
-    Item::Knob("seed", "fractus.l.seed"),
 ];
 const REPEAT: &[Item] = &[
     Item::Choice("rsize", "fractus.l.size", &NOTE_NAMES),
@@ -180,10 +189,11 @@ const THROW: &[Item] = &[
     Item::Knob("wfb", "fractus.l.feedback"),
     Item::Knob("wtone", "fractus.l.tone"),
     Item::Knob("wlvl", "fractus.l.level"),
-    Item::Switch(
+    // A stepped knob, not a switch: the sequencer's page stays one row in both languages.
+    Item::Choice(
         "wpp",
         "fractus.l.pingpong",
-        &["fractus.s.off", "fractus.s.on"],
+        &["fx.fractus.wpp.0", "fx.fractus.wpp.1"],
     ),
 ];
 const CLOUD: &[Item] = &[
@@ -236,6 +246,7 @@ pub const PAGES: [(&str, &[cells::Card<'static>]); 4] = [
     (
         "fractus.page.slice",
         &[
+            ("fractus.card.events", EVENTS),
             ("fractus.card.repeat", REPEAT),
             ("fractus.card.tape", TAPE),
             ("fractus.card.shuffle", SHUFFLE),
@@ -282,6 +293,11 @@ fn body_ui(
         .map(|(_, cards)| cells::pack(ui, area.width(), k, cards).len())
         .max()
         .unwrap_or(1);
+    let mut each = [0; PAGES.len()];
+    for (n, (_, cards)) in each.iter_mut().zip(PAGES.iter()) {
+        *n = cells::pack(ui, area.width(), k, cards).len();
+    }
+    st.card_rows = (each, area.width());
     let phys = cells::pack(ui, area.width(), k, PAGES[st.page].1);
     let top = (area.height() - rows as f32 * (row + gap) - strip_h - gap).max(300.0 * k);
     with_brush(&ui.painter_at(body), |b| {
@@ -626,7 +642,7 @@ mod tests {
         all.sort_unstable();
         all.dedup();
         assert_eq!(all.len(), n);
-        assert_eq!(n, 13);
+        assert_eq!(n, 14);
     }
 
     /// The trails keep a reading only when its grains moved, and forget them in silence.

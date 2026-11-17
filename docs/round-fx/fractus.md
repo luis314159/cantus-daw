@@ -227,8 +227,12 @@ work, so `kit_alloc` is untouched):
 
 - **Red on arrival, fixed properly**: `learn_everywhere` named 16 of Fractus's stepped keys
   drawn without their offer. Fifteen stand on the three pages the demo does not open; the
-  sixteenth, the ping-pong switch `wpp`, had **no control at all** — it is on the throw's card
-  now. The first page's test excuses the other pages' keys by looking them up in `PAGES`
+  sixteenth, the ping-pong `wpp`, had **no control at all** — it is on the throw's card now,
+  a stepped knob (Off/On). The sequencer's page had no room left for it (1 342 of 1 324
+  points in English, more in Spanish): **Joins** (`xfade`) and **Seed** moved to a card of
+  their own, *Events*, at the head of the slicing page, where repeats, reverses and shuffles
+  cut and roll; every page one row again in both
+  languages (`fxa_whole::fractus_s_pages_are_one_row_each`, new — it would have caught it). The first page's test excuses the other pages' keys by looking them up in `PAGES`
   (`fractus_page`), and `every_fractus_page_offers_its_stepped_parameters` opens each page and
   finds every stepped key on it offered — and every stepped key on some page.
 - **The lanes painted by the pointer** (`fractus_paint.rs`): press and drag a block, its

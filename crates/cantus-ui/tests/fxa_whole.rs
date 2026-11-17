@@ -201,6 +201,25 @@ fn fractus_s_pages_never_cut_or_clip_a_word() {
     assert!(bad.is_empty(), "words not read whole:\n{}", bad.join("\n"));
 }
 
+/// fxa:fractus — every page of Fractus's cards is one row at its designed size, in English
+/// and Spanish (design sheet v2): a card grown past it takes a second row and the display
+/// gives up its height on every page.
+#[test]
+fn fractus_s_pages_are_one_row_each() {
+    for lang in [Locale::En, Locale::Es] {
+        cantus_ui::i18n::set_thread_locale(lang);
+        let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+        app.demo_editor("fractus");
+        app.fx.pos = Some(egui::pos2(0.0, 0.0));
+        let _ = probe_window(&mut app, EffectKind::Glitch, 1.0, true);
+        let (rows, width) = app.fx.fractus.card_rows;
+        assert_eq!(
+            rows, [1; 4],
+            "{lang:?}: every page one row in {width:.0} points"
+        );
+    }
+}
+
 // Caelum's sill answers the pointer as its picture promises (design sheet v2, ADR 0141
 // provisional), driven frame by frame with real pointer events through the editor the app
 // draws: a click on Infinite's lit pushbutton turns the tank infinite and a second click
