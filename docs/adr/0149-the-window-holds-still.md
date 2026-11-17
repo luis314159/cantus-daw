@@ -90,8 +90,12 @@ the remaining 11 settled.
   kind, which will be logged and broken on a machine we never see.
 - `screen_scale::wanted` (a free function) is replaced by `Follow::wanted`.
 - The splash, when the main window opens at once, is drawn at its own size in the middle.
-- What only the reporter's machine (or an AMD iGPU at 125/150 %) can confirm is in
-  `docs/beta-checklist.md`.
+- Run on the owner's laptop (2026-11-17, a fresh data folder, 1 920 × 1 080 at 125 %): the
+  window opened on its Radeon iGPU (`opengl renderer: AMD Radeon(TM) Graphics`, driver
+  22.40.01.54), the log named it, one scale decision and no other change in 20 s, with and
+  without `--safe-graphics`. That screen never looped; the screens that did were verified
+  only in emulation. What only the reporter's machine (or an AMD iGPU at 100/150 %) can
+  confirm is in `docs/beta-checklist.md`.
 
 ## What the tests hold
 

@@ -555,6 +555,10 @@ medía con el zoom que ella misma ponía y alternaba entre dos tamaños cada dos
 la mayoría de las pantallas (no en la tuya, 1920 × 1080 al 125 %, que es de las pocas que
 se quedan quietas). Corregido y probado solo en **emulación** (`tests/window_stability.rs`
 alimenta los fotogramas como egui-winit); esto es lo que solo una pantalla real confirma.
+Ya comprobado en tu portátil (2026-11-17, compilación de la rama, carpeta de datos vacía, tu
+125 %): la ventana abrió en la **Radeon integrada** (`opengl renderer: AMD Radeon(TM) Graphics`,
+controlador `22.40.01.54.230214` — de febrero de 2023, conviene actualizarlo), una sola
+decisión de escala y ningún cambio más en 20 s, con y sin `--safe-graphics`.
 Antes de cada paso borra `settings.json` de la carpeta de datos de una copia portátil (o usa
 `CANTUS_DATA_DIR` apuntando a una carpeta vacía) para que sea una instalación nueva.
 

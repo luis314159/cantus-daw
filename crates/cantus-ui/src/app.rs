@@ -4493,7 +4493,12 @@ impl CantusApp {
         // decision per screen (issue #1: it measured the zoom it had set, and flickered).
         if let Some(z) = self.screen_follow.wanted(&self.settings, ctx) {
             self.window_watch.note(format_args!(
-                "the scale {z} for the screen (zoom now {}, monitor {:?} points, system scale {:?})",
+                "the scale {z} {} (zoom now {}, monitor {:?} points, system scale {:?})",
+                if self.screen_follow.pinned().is_some() {
+                    "pinned for the session"
+                } else {
+                    "for the screen"
+                },
                 ctx.zoom_factor(),
                 seen.monitor,
                 seen.native_ppp

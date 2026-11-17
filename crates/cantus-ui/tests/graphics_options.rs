@@ -38,7 +38,11 @@ fn by_default_the_window_opens_as_the_splash_with_vsync_and_no_multisampling() {
     assert_eq!(n.viewport.decorations, Some(false));
     assert_eq!(n.viewport.resizable, Some(false));
     assert_eq!(n.viewport.inner_size, Some(boot::size(false)));
-    assert_eq!(n.viewport.transparent, Some(false), "opaque on Windows");
+    // Opaque on Windows; elsewhere with alpha for the dancers' companion (ADR 0091 §2).
+    assert_eq!(
+        n.viewport.transparent,
+        Some(cantus_ui::stage::companion::alpha_wanted())
+    );
     assert!(n.centered);
     // The splash then becomes the main window: each command once, the size before the
     // maximise.
