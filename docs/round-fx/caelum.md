@@ -321,6 +321,19 @@ Core: `starting.rs` (the fitted `out`), `fx/tabula.rs` (`pedal_allowed`). UI:
 `common/mod.rs`, `clap.rs`, `vst3.rs`, `transport.rs`, `golden/ids.txt`. xtask: `main.rs`.
 Web: `units_data.rs`.
 
+### Suites (Windows, 2026-11-17, one crate at a time, clippy `-D warnings --all-targets` on each)
+
+cantus-core 808, cantus-dsp 1 050, cantus-engine 1 282 (+1, the board keyed),
+cantus-project 193, cantus-plugins 89 (+4: keyed ducking CLAP and VST3, the synced pre-delay
+CLAP and VST3), cantus-ai 51, cantus-ui 2 720 (the whole suite once; two reds fixed and their
+targets re-run green: `clipfx::every_starting_preset_is_its_units_factory_preset` — Robot's
+starting spec now names its object, `obj` 0, as its factory preset does; `preset_render`,
+Arca's three leads CPU +0.22 measured while wave B compiled, green on its re-run with every
+Caelum preset within its window and 0.055–0.063 of the budget's units). Clippy clean on all
+seven; the MCP tools golden regenerated (`CANTUS_TOOLS_DUMP=1`, the Caelum words only). Not
+run: the Linux check (WSL), the whole workspace at once, the plug-ins without default
+features, `preset_render` in a quiet release build.
+
 ### Verified only in emulation
 
 - No shimmer was heard live on a monitor here; the e2e renders, the engine driven block by

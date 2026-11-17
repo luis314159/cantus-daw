@@ -197,3 +197,4 @@ plug-ins without default features, `preset_render` in release.
   (`save_user_preset`), and loading it sets it. `EffectKind::is_look`'s comment and ADR 0139
   say so; `loquax_e2e::presets_set_the_object_and_neither_the_drift_mark_nor_a_b_sees_it` holds
   it (no earlier test asserted that presets keep the user's object).
+- **Suites**: run with Caelum's step 3 (`docs/round-fx/caelum.md`): all seven crates green, clippy clean.
