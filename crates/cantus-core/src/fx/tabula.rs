@@ -195,6 +195,10 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             // fxa:loquax — Loquax stays off: a board has no key and hears no notes, so a
             // vocoder pedal could only ever drone its robot (ADR 0139, phase B).
             | EffectKind::Vocoder
+            // fxa:fractus — Fractus stays off too: its lanes are its whole instrument and
+            // `SetFractusLane` addresses an insert, not a pedal (no lane could be painted on
+            // a board), and a board hears no notes, so its keys and the presets they play
+            // would do nothing (ADR 0140, phase B).
             | EffectKind::Glitch
             | EffectKind::Shimmer
     )

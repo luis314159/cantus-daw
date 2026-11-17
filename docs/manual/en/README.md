@@ -2369,6 +2369,60 @@ Loquax touches no sample; it has no latency.
 the host sends to it, and its carrier through the sidechain input once its own *Sidechain*
 switch is set to *Sidechain input*.
 
+### Fractus, the glitch sequencer
+
+**Fractus** (Latin for *broken*) is ten effects on ten lanes of a step sequencer that follows
+the song, with a cloud of grains beside them. Insert it from **Add insert ▾ ▸ Modulation ▸
+Fractus**; it starts as *Last beat stutter* — the last beat of every bar repeats a
+thirty-second, the rest of the bar untouched — so you hear it at once on drums, a loop or a
+strum.
+
+**The lanes**, one per module: **Repeat** (the event's first slice plays and is caught, then
+replayed — each repeat higher or quieter if you ask, and with *Build* the stutter that halves
+each part), **Reverse**, **Tape stop** (or *Start*, up from still), **Shuffle** (slices from up
+to eight back, some backwards), **Pitch jump** (the classic delay-line warble, or *Clean* as its *Style*),
+**Crush**, **Filter sweep**, **Gate**, **Delay throw** (the echoes ring on after the step) and
+**Cloud** (the grains take over for the event). The grid is set on the *Grid* card: steps of
+1/4 to 1/64 (triplets too), one to four bars, swing, and the joins — every start, end and jump
+is crossfaded, so nothing clicks.
+
+**Painting.** On the lanes' window:
+
+- **Press on a step and drag along the lane**: a block from the step you pressed to the step
+  under the pointer. **Its height is its amount** — the pad lights from its floor to where you
+  let go (5 % steps); the amount is the module's mix for that event. A block you paint over
+  another takes what it covers.
+- **Shift and drag**: a stroke for **chance** — every block it passes plays that often (the
+  dashed line under a block that may not play).
+- **Right-click a block** to erase it.
+
+Each stroke is one step of undo. A lane's **name** opens the page of cards its module is set
+on; the four **page keys** under the window (*Sequencer*, *Slicing*, *Colour*, *Grain cloud*)
+do the same, their dots showing which lanes are painted and which sound now.
+
+**Played by notes.** On the *Playing* card, *Played by* chooses **Steps**, **Notes** or
+**Both**. With notes, the **notes of the track the slot listens to** (its MIDI source, as for
+Porta and Loquax; the keyboard's track may be muted) play the lanes while they are held: the
+*First key* (C3 by default) plays Repeat, the next key Reverse, and so on up to Cloud.
+*Notes start* **On the step** waits for the next line of the grid; **At once** acts on the
+note's own sample. The keys that play the lanes light on the display.
+
+**The grain cloud.** Its level runs beside the chain at any time (0: off): grains read from
+up to two seconds back, their size, density, spray, pitch (to a scale: chromatic, major,
+minor, pentatonic, fifths, octaves), spread and backwards share, drawn live on the scope — each
+grain where it reads and at its pitch, with its trail. **Frozen** (the lamp over the scope, or
+the cloud card's switch) holds what the cloud has heard for as long as it stays on.
+
+Eighteen factory presets: stutters and builds, tape stops and starts, reverses, gates, filter
+sweeps, delay throws, shuffles, lo-fi fills, grain pads, a cloud to freeze, and sets played by
+notes (*Notes: the whole kit*, *Notes: stutters*, *Steps and keys*). A preset brings its lanes.
+At its defaults — nothing painted, the cloud at 0 — Fractus touches no sample; it has no
+latency.
+
+**In another DAW** Fractus is the plug-in *Cantus Fractus* (CLAP and VST3): its lanes are
+saved in the plug-in's state and painted in its own window, its steps follow the host's tempo
+and position, and the notes the host sends play the lanes.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

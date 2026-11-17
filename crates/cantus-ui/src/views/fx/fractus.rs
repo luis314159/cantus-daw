@@ -19,7 +19,7 @@ use egui::Rect;
 #[path = "fractus_art.rs"]
 mod art;
 #[path = "fractus_display.rs"]
-pub(crate) mod display;
+pub mod display;
 #[path = "fractus_paint.rs"]
 pub mod paint;
 #[path = "fractus_scope.rs"]
@@ -55,6 +55,8 @@ pub struct State {
     pub page: usize,
     /// The pointer on the lanes (a stroke being painted).
     pub stroke: paint::Stroke,
+    /// Where each page's key was drawn last frame (the tests point at them).
+    pub page_keys: [Rect; PAGES.len()],
 }
 
 /// Fractus's editor in Cantus's own window: the host is the project.
@@ -301,7 +303,15 @@ fn body_ui(
             .filter(|l| !p.lane(*l).is_empty())
             .fold(0, |m, l| m | 1 << l)
     });
-    if let Some(p) = pages(ui, s, strip, st.page, painted, reading.active) {
+    if let Some(p) = pages(
+        ui,
+        s,
+        strip,
+        st.page,
+        painted,
+        reading.active,
+        &mut st.page_keys,
+    ) {
         st.page = p;
     }
     for cards in &phys {
@@ -319,6 +329,7 @@ fn pages(
     open: usize,
     painted: u32,
     sounding: u32,
+    keys: &mut [Rect; PAGES.len()],
 ) -> Option<usize> {
     use crate::kit::color::{mix, with_alpha};
     use crate::kit::text::{Role, Text};
@@ -332,6 +343,7 @@ fn pages(
             egui::pos2(strip.left() + i as f32 * (w + gap), strip.top()),
             egui::vec2(w, strip.height()),
         );
+        keys[i] = r;
         let resp = ui.interact(r, ui.id().with(("fractus.page", i)), egui::Sense::click());
         if resp.clicked() {
             asked = Some(i);

@@ -141,12 +141,24 @@ pub fn pointer(
             crate::kit::hint::Caps::NONE,
         );
     }
+    // Shift as the frame's modifiers say, or as the press itself carried it.
     let (pos, pressed, down, shift) = ui.input(|i| {
+        let pressed_shift = i.events.iter().any(|e| {
+            matches!(
+                e,
+                egui::Event::PointerButton {
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } if modifiers.shift
+            )
+        });
         (
             i.pointer.interact_pos(),
             i.pointer.primary_pressed(),
             i.pointer.primary_down(),
-            i.modifiers.shift,
+            i.modifiers.shift || pressed_shift,
         )
     });
     // A right-click takes the block under it.

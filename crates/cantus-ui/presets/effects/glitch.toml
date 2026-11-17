@@ -1,6 +1,7 @@
 # Fractus glitch sequencer: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# A preset's lanes ride in its values (`cantus_core::fx::fractus::to_flat`): `"repeat.12" = 4` is
-# a block on the repeat lane from step 12, four steps long; `.amount` and `.chance` when not whole.
+# A preset's lanes ride in its values (`cantus_core::fx::fractus::to_flat`): `"repeat.12" = 4`
+# is a block on the repeat lane from step 12, four steps long; `.amount` and `.chance`
+# when they are not whole.
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
@@ -19,15 +20,16 @@ styles = ["house", "pop"]
 roles = ["drums", "bus"]
 [preset.values]
 "bars" = 2
-"repeat.16" = 16
-"rramp" = 3
-"rpitch" = 1
-"rdecay" = -1
+"ffrom" = 40
 "filter.24" = 8
 "fkind" = 1
-"ffrom" = 40
-"fto" = 1500
 "fres" = 0.3
+"fto" = 1500
+"out" = -1.6
+"rdecay" = -1
+"repeat.16" = 16
+"rpitch" = 1
+"rramp" = 3
 
 [[preset]]
 key = "preset.fractus.tape_stop_end"
@@ -47,8 +49,8 @@ roles = ["drums", "creative"]
 [preset.values]
 "bars" = 2
 "tape.0" = 4
-"tkind" = 1
 "tcurve" = 0.4
+"tkind" = 1
 
 [[preset]]
 key = "preset.fractus.reverse_build"
@@ -57,13 +59,13 @@ styles = ["house", "film", "pop"]
 roles = ["creative", "bus"]
 [preset.values]
 "bars" = 2
-"reverse.24" = 8
-"vslice" = 6
+"fcurve" = 0.4
+"ffrom" = 400
 "filter.16" = 16
 "filter.16.amount" = 0.8
-"ffrom" = 400
 "fto" = 16000
-"fcurve" = 0.4
+"reverse.24" = 8
+"vslice" = 6
 
 [[preset]]
 key = "preset.fractus.reverse_beats"
@@ -71,8 +73,9 @@ note = "Beats two and four each played backwards, a quarter note at a time: the 
 styles = ["lofi", "trap"]
 roles = ["drums", "creative"]
 [preset.values]
-"reverse.4" = 4
+"out" = -1.9
 "reverse.12" = 4
+"reverse.4" = 4
 "vslice" = 3
 
 [[preset]]
@@ -82,9 +85,10 @@ styles = ["house", "pop"]
 roles = ["creative", "bus"]
 [preset.values]
 "gate.0" = 16
-"grate" = 9
-"gduty" = 0.5
 "gdepth" = 1
+"gduty" = 0.5
+"grate" = 9
+"out" = 2.2
 
 [[preset]]
 key = "preset.fractus.trance_gate"
@@ -93,13 +97,14 @@ styles = ["house", "ambient"]
 roles = ["creative"]
 [preset.values]
 "gate.1" = 1
+"gate.11" = 1
+"gate.14" = 1
 "gate.3" = 1
 "gate.6" = 1
 "gate.9" = 1
-"gate.11" = 1
-"gate.14" = 1
-"grate" = 0
 "gdepth" = 0.95
+"grate" = 0
+"out" = 2.1
 
 [[preset]]
 key = "preset.fractus.filter_sweep_down"
@@ -108,12 +113,12 @@ styles = ["house", "film"]
 roles = ["bus", "creative"]
 [preset.values]
 "bars" = 2
+"fcurve" = 0.3
+"ffrom" = 16000
 "filter.0" = 32
 "fkind" = 0
-"ffrom" = 16000
-"fto" = 300
 "fres" = 0.45
-"fcurve" = 0.3
+"fto" = 300
 
 [[preset]]
 key = "preset.fractus.delay_throws"
@@ -121,12 +126,12 @@ note = "The last sixteenth of beats two and four thrown into a ping-pong dotted-
 styles = ["pop", "rnb", "house"]
 roles = ["vocal", "creative"]
 [preset.values]
-"throw.7" = 1
 "throw.15" = 1
-"wtime" = 3
+"throw.7" = 1
 "wfb" = 0.5
-"wtone" = 4000
 "wlvl" = 0.8
+"wtime" = 3
+"wtone" = 4000
 
 [[preset]]
 key = "preset.fractus.shuffle_beats"
@@ -134,11 +139,12 @@ note = "Sixteenths re-ordered from up to four steps back, one in four backwards,
 styles = ["trap", "lofi"]
 roles = ["drums"]
 [preset.values]
+"out" = 0.5
 "shuffle.0" = 16
 "shuffle.0.chance" = 0.6
-"sslice" = 8
 "srange" = 4
 "srev" = 0.25
+"sslice" = 8
 
 [[preset]]
 key = "preset.fractus.lofi_fills"
@@ -161,15 +167,16 @@ note = "A cloud beside the sound an octave up, long soft grains spread wide, a f
 styles = ["ambient", "film", "worship"]
 roles = ["creative"]
 [preset.values]
-"clevel" = 0.6
-"cpos" = 300
-"cspray" = 250
-"csize" = 220
 "cdens" = 40
+"clevel" = 0.6
 "cpitch" = 12
-"cscale" = 6
-"cspread" = 0.8
+"cpos" = 300
 "crev" = 0.2
+"cscale" = 6
+"csize" = 220
+"cspray" = 250
+"cspread" = 0.8
+"out" = -0.4
 
 [[preset]]
 key = "preset.fractus.cloud_to_freeze"
@@ -177,17 +184,18 @@ note = "Only the cloud: swelling grains from the last two seconds in fifths and 
 styles = ["ambient", "film"]
 roles = ["creative"]
 [preset.values]
-"cloud.0" = 16
-"clevel" = 0.8
-"cpos" = 1200
-"cspray" = 900
-"csize" = 400
 "cdens" = 30
+"clevel" = 0.8
+"cloud.0" = 16
 "cpitch" = 7
+"cpos" = 1200
 "crand" = 12
 "cscale" = 5
+"csize" = 400
+"cspray" = 900
 "cspread" = 1
 "cwin" = 4
+"out" = 6.5
 
 [[preset]]
 key = "preset.fractus.grain_scatter"
@@ -195,15 +203,16 @@ note = "On beats two and four the cloud takes over: short percussive grains an o
 styles = ["trap", "house"]
 roles = ["drums", "creative"]
 [preset.values]
-"cloud.4" = 2
-"cloud.12" = 2
-"csize" = 30
 "cdens" = 120
-"cwin" = 3
+"cloud.12" = 2
+"cloud.4" = 2
 "cpitch" = 12
 "crand" = 12
 "cscale" = 6
+"csize" = 30
 "cspray" = 120
+"cwin" = 3
+"out" = -0.4
 
 [[preset]]
 key = "preset.fractus.notes_kit"
@@ -211,12 +220,12 @@ note = "Played by notes: each key from C3 plays a module while it is held, from 
 styles = ["house", "trap", "pop"]
 roles = ["creative", "drums"]
 [preset.values]
-"trig" = 1
-"quant" = 1
-"psemi" = 7
 "grate" = 11
-"wtime" = 3
+"psemi" = 7
+"quant" = 1
+"trig" = 1
 "wfb" = 0.5
+"wtime" = 3
 
 [[preset]]
 key = "preset.fractus.notes_stutters"
@@ -224,13 +233,14 @@ note = "Played by notes, at once: C3 a stutter that builds while held, D3 a tape
 styles = ["house", "pop"]
 roles = ["creative", "vocal"]
 [preset.values]
-"trig" = 1
-"quant" = 0
-"rsize" = 8
-"rramp" = 2
-"rpitch" = 0.5
-"grate" = 11
 "gduty" = 0.4
+"grate" = 11
+"out" = 0.6
+"quant" = 0
+"rpitch" = 0.5
+"rramp" = 2
+"rsize" = 8
+"trig" = 1
 
 [[preset]]
 key = "preset.fractus.steps_and_keys"
@@ -238,6 +248,6 @@ note = "Both: the bar's last beat stutters by itself, and the keys from C3 play 
 styles = ["house", "trap"]
 roles = ["drums", "creative"]
 [preset.values]
-"trig" = 2
-"repeat.12" = 4
 "psemi" = 12
+"repeat.12" = 4
+"trig" = 2

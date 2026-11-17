@@ -2573,6 +2573,64 @@ defecto (mezcla 0) Loquax no toca ninguna muestra; no tiene latencia.
 envía el anfitrión, y su portadora por la entrada de sidechain una vez que su propio
 interruptor *Sidechain* está en *Entrada de sidechain*.
 
+### Fractus, el secuenciador de glitch
+
+**Fractus** (en latín, *roto*) son diez efectos en diez carriles de un secuenciador por pasos
+que sigue a la canción, con una nube de granos a su lado. Insértalo desde **Añadir inserción ▾
+▸ Modulación ▸ Fractus**; empieza como *Tartamudeo del último tiempo* — el último tiempo de cada
+compás repite una fusa, el resto del compás intacto — así que lo oyes enseguida en una batería,
+un loop o un rasgueo.
+
+**Los carriles**, uno por módulo: **Repetición** (el primer trozo del evento suena y se guarda,
+luego se repite — cada repetición más aguda o más baja si lo pides, y con *Aceleración* el
+tartamudeo que parte cada trozo a la mitad), **Reverso**, **Parada de cinta** (o *Arranque*,
+desde quieta), **Barajado** (trozos de hasta ocho atrás, algunos al revés), **Salto de tono**
+(el trémolo clásico de línea de retardo, o *Limpio* en su *Estilo*), **Trituración**, **Barrido de filtro**,
+**Puerta**, **Lanzamiento de eco** (los ecos siguen sonando tras el paso) y **Nube** (los
+granos toman el relevo durante el evento). La rejilla se fija en la tarjeta *Rejilla*: pasos
+de 1/4 a 1/64 (también tresillos), de uno a cuatro compases, swing, y las uniones — cada
+comienzo, final y salto tiene un fundido cruzado, así que nada chasquea.
+
+**Pintar.** En la ventana de los carriles:
+
+- **Pulsa en un paso y arrastra por el carril**: un bloque desde el paso que pulsaste hasta el
+  paso bajo el puntero. **Su altura es su cantidad** — el pad se enciende desde su suelo hasta
+  donde sueltas (en pasos de 5 %); la cantidad es la mezcla del módulo para ese evento. Un
+  bloque pintado sobre otro se queda con lo que cubre.
+- **Mayús y arrastrar**: un trazo de **probabilidad** — cada bloque por el que pasa suena con
+  esa frecuencia (la línea discontinua bajo un bloque que puede no sonar).
+- **Clic derecho en un bloque** para borrarlo.
+
+Cada trazo es un paso de deshacer. El **nombre** de un carril abre la página de tarjetas donde
+se ajusta su módulo; las cuatro **teclas de página** bajo la ventana (*Secuenciador*,
+*Cortes*, *Color*, *Nube de granos*) hacen lo mismo, y sus puntos muestran qué carriles están
+pintados y cuáles suenan ahora.
+
+**Tocado por notas.** En la tarjeta *Interpretación*, *Tocado por* elige **Pasos**, **Notas** o
+**Ambos**. Con notas, **las notas de la pista que escucha la ranura** (su fuente MIDI, como en
+Porta y Loquax; la pista del teclado puede estar silenciada) tocan los carriles mientras se
+mantienen: la *Primera tecla* (Do3 por defecto) toca Repetición, la siguiente Reverso, y así
+hasta Nube. *Las notas* **En el paso** espera a la siguiente línea de la rejilla;
+**Enseguida** actúa en la muestra de la propia nota. Las teclas que tocan los carriles se
+encienden en la pantalla.
+
+**La nube de granos.** Su nivel corre junto a la cadena en todo momento (0: apagada): granos
+leídos de hasta dos segundos atrás, su tamaño, densidad, dispersión, tono (en una escala:
+cromática, mayor, menor, pentatónica, quintas, octavas), abertura y la parte al revés,
+dibujados en vivo en el osciloscopio — cada grano donde lee y a su tono, con su estela.
+**Congelada** (el piloto sobre el osciloscopio, o el interruptor de la tarjeta de la nube)
+retiene lo que la nube ha oído mientras siga encendida.
+
+Dieciocho presets de fábrica: tartamudeos y subidas, paradas y arranques de cinta, reversos,
+puertas, barridos de filtro, lanzamientos de eco, barajados, redobles lo-fi, pads de granos,
+una nube para congelar y juegos tocados por notas (*Notas: el kit entero*, *Notas:
+tartamudeos*, *Pasos y teclas*). Un preset trae sus carriles. En sus valores por defecto —
+nada pintado, la nube a 0 — Fractus no toca ninguna muestra; no tiene latencia.
+
+**En otro DAW** Fractus es el plug-in *Cantus Fractus* (CLAP y VST3): sus carriles se guardan
+en el estado del plug-in y se pintan en su propia ventana, sus pasos siguen el tempo y la
+posición del anfitrión, y las notas que envía el anfitrión tocan los carriles.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de
