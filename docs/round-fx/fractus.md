@@ -222,3 +222,64 @@ work, so `kit_alloc` is untouched):
   choice's cell by its words as the pill sets them (monospaced). `fxa_whole` probes the
   three other pages (keys held, frozen, the longest window name).
 - Pitch jump's default stays **Classic warble** (the owner's verdict).
+
+## Phase B (3), to the finish (2026-11-17): v2 approved
+
+- **Red on arrival, fixed properly**: `learn_everywhere` named 16 of Fractus's stepped keys
+  drawn without their offer. Fifteen stand on the three pages the demo does not open; the
+  sixteenth, the ping-pong switch `wpp`, had **no control at all** — it is on the throw's card
+  now. The first page's test excuses the other pages' keys by looking them up in `PAGES`
+  (`fractus_page`), and `every_fractus_page_offers_its_stepped_parameters` opens each page and
+  finds every stepped key on it offered — and every stepped key on some page.
+- **The lanes painted by the pointer** (`fractus_paint.rs`): press and drag a block, its
+  height the amount (5 % steps, what it covers is its own); Shift-drag a chance stroke;
+  right-click erases; the Frozen lamp is a switch. Each gesture one undo step
+  (`FxHost::set_fractus_lane`; Cantus merges `SetFractusLane` by the gesture, the plug-in
+  posts the lanes). Page keys and lane names open pages (a view).
+- **Presets** eighteen (`glitch.toml`), their lanes among their values (`"repeat.12" = 4`,
+  `.amount`, `.chance`: `fx::fractus::to_flat`/`pattern_of_flat`), loaded with the values in
+  one step everywhere a preset loads (header, browser, a host's load, A/B — now a flat map,
+  `views::fx::preset_map` — a user's saved preset), compared by the drift mark, painted in the
+  audition (notes presets on the source's last line, its first key on the line's lowest
+  note). Fitted: −1.9 … +6.5 dB, nine as written (the starting stutter among them, so its
+  spec is unchanged). Roles drums, bus, vocal, creative.
+- **Export** `Cantus Fractus`: lanes in the state, posted like Lapsus's banks (the post made
+  generic: `ContentPost<T>`), a fresh instance on the stutter, the DSP built at activation,
+  the steps on the host's transport (CLAP and VST3, bit-identical to the DSP), notes playing
+  lanes (CLAP both dialects, VST3), the Direct path, ids appended.
+- **AI**: `set_effect` paints lanes by name (`lanes`), the words name them and the presets;
+  MCP golden regenerated.
+- **Site** card (EFFECTS 36, presets 18, big 1800 × 967, thumb 640 × 344 — pictures to make
+  at the integration). **Docs**: ADR 0140 phase B, `docs/plugins/fractus.md`, manual EN/ES.
+- **Tabula**: not a pedal — `SetFractusLane` has no pedal address (nothing could be painted on
+  a board) and a board hears no notes (ADR 0140).
+
+### Measured
+
+- The e2e (120 BPM, through `CantusApp::assemble`): the stutter's first changed frame
+  **75 000** = beat 3 + 1/32 exactly; live (blocks 256/333/512/17/1024) = offline to the bit;
+  a painted gate and a muted track's note both first change frame **25 500** (beat 2's line +
+  the 1/32 gate's open half); edits undone to the bit; defaults the dry master to the bit.
+- The plug-ins: at 90 BPM from beat 2.5, the first repeat at frame **20 000** exactly through
+  CLAP; CLAP and VST3 bit-identical to the DSP at blocks 1, 7, 512, 4096 and 5/333/64.
+
+### Shared files touched (marked `fxa:fractus`)
+
+Core: `fx/tabula.rs` (comment). UI: `views/fx/host.rs` (`set_fractus_lane`, `touches`,
+the default `load`, `save_preset`, `copy_ab`), `views/fx/mod.rs` (`apply_fx_params`,
+`toggle_ab`, `preset_map`), `views/fx/frame.rs` (`modified`), `preset_audition.rs`,
+`preset_data.rs` (`check`), `agent_units.rs`, `examples/preset_tool.rs` (the header), tests
+`learn_everywhere.rs`, `preset_audit.rs`, golden `mcp-tools-list.json`, locales
+`areas/ai.{en,es}.txt`. AI: `tools_mixer.rs`, `tools_words.rs`, tests `tools_music.rs`.
+Plug-ins: `Cargo.toml`, `build.rs`, `src/desc.rs`, `src/instance.rs`, `src/editor.rs`,
+`src/state.rs`, `src/lapsus_bank.rs` (generic), tests `common/mod.rs`, `clap.rs`, `notes.rs`,
+`transport.rs`, `vst3.rs`, `golden/ids.txt`, new `fractus.rs`. xtask: `main.rs`. Web:
+`units_data.rs`.
+
+### Verified only in emulation
+
+- No glitch was played live on a monitor; the e2e renders, the engine driven block by block
+  and the DSP's measures are the evidence. The exported plug-in only in our own CLAP/VST3
+  harness, not in a third-party DAW.
+- The presets' sound is not yet heard by the owner; *Cloud to freeze* needs Frozen thrown by
+  hand (a preset frozen from its first sample would hold an empty buffer).
