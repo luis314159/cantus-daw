@@ -304,7 +304,7 @@ The splatter is the energy above 4.5 kHz relative to the whole output. The input
 
 ## Misses against the targets, honestly
 
-- **The linear-phase latency is 36.8 ms** (1 765 samples at 48 kHz) at every crossover, plus the lookahead, and a crossover under 60 Hz is minimum phase only. This is the price of the A-2 kernel; the first phase's was 12.7 ms, but it could not reach the depth set.
+- **The linear-phase latency was 36.8 ms** (1 765 samples at 48 kHz) at every crossover (Phase B (3): now Auto, an octave under the crossover, or a fixed floor — below), plus the lookahead, and a crossover under 60 Hz is minimum phase only. This is the price of the A-2 kernel; the first phase's was 12.7 ms, but it could not reach the depth set.
   - The latency cannot be much lower for the same flatness. To be within 3.6 % at `fc/2` and at −6 dB at `fc`, a kernel needs a transition only `fc/2` wide, which takes about `2/fc` of time either side.
   - A Kaiser-windowed sinc needs more than 1 800 taps at 60 Hz for these bounds, with negative side lobes (a rise of up to 0.1 dB). The searches are in the section *Phase A-2*.
   - Keeping a 50 Hz floor would have cost 44.2 ms. The owner may prefer that, or 80 Hz (27.6 ms): one constant (`band::LIN_MIN_HZ`).
@@ -438,3 +438,144 @@ The block-size test now switches to the RMS detector mid-way, and its MIDI run h
 
 - In the DSP: the misses above, which are the owner's to judge. The linear-phase floor and its latency (60 Hz, 36.8 ms) are a choice for him.
 - The owner's listening (`compartir\cedo\sound\README.md`).
+
+## Phase B (3), to the finish (2026-11-17): sheet v1 approved as shown
+
+Branch `fx/wave-b` (worktree `C:\projects\daw-fx\wave-b`), after Vinculum's and Lenis's step 3.
+The owner approved design sheet v1 as shown, and decided the linear phase's floor mid-step
+(below).
+
+### Done
+
+- **The pointer** (`views/fx/cedo_edit.rs`, new; `cedo_display.rs` returns where it drew what
+  acts, `cedo_screen.rs` its layout, `cedo_engine.rs` the gauge's place): the shape's points
+  dragged (snapped to sixteenths, twelfths for a triplet; Shift free), bent by a drag between
+  them, added and taken away by a double-click, a segment's shape turned by a right-click
+  (Curve → S → Hold); the envelope's three handles in time and the threshold's line in
+  Sidechain; the band strip's crossover and its split's word; the trigger's flag on the bed;
+  the gauge and its bellows for the depth; the trigger switch on its card kept for the tests.
+  Each gesture one undo step through `SetCedoShape` or the parameter command
+  (`FxHost::set_cedo_shape`: Cantus, a board's pedal, the plug-in's window). The pilot lamp
+  only shows.
+- **`learn_everywhere`'s four** (`rshape`, `kfilt`, `det`, `vel`): drawn with their offer on
+  their trigger's cards; the main test excuses them only under the other triggers, and
+  `every_cedo_trigger_offers_its_stepped_parameters` draws each trigger and checks every
+  stepped key it shows (the floor among them).
+- **Seventeen factory presets** (`presets/effects/ducker.toml`) — classic, half-time, eighths
+  and swing pumps, triplet breathe, trance gate, reverse swell, lows-only pumps at minimum and
+  linear phase, MIDI pump, kick ducks the bass, kick on the bass lows, hard sidechain,
+  voice-over, podcast bed, gentle radio, snare room — every trigger and band; five draw
+  shapes of their own, which ride the flat map (`cedo::to_flat`, `shape_of_flat`, `flat_is`)
+  through presets, A/B, the drift mark, the audition and the agents. A Sidechain or MIDI
+  preset is auditioned keyed by the material's drums. Fitted (`preset_tool fit`): the pumps +1.1 … +7.1 dB (Classic pump
+  +1.4, in `starting.rs` and the demo too; Reverse swell +7.1, Trance gate +2.3, MIDI pump
+  +3.2); the seven Sidechain presets stay at 0 dB by design (`preset_measure::by_design`:
+  they duck under the key they are given, and auditioned keyed by the material's own drums
+  they duck all of it — the fit had asked up to +13.5 dB of make-up).
+- **The linear phase's floor** (the owner, 2026-11-17): `lfloor` (Auto default; 40, 60, 80,
+  120 Hz) and `lfhz` (Auto's floor as committed). Auto puts the floor an octave under the
+  crossover, committed when the crossover is let go (`DawHost::end_gesture`, into the drag's
+  own step; `PluginHost::end_gesture`; a discrete set, a preset, an agent) — never during a
+  drag. `band::LIN_MIN_HZ` became `band::Floor`, `FLOORS`, `auto_floor`. Measured at 48 kHz:
+  40 Hz 2 655 samples (55.3 ms), 60 Hz 1 765 (36.8), 80 Hz 1 325 (27.6), 120 Hz 880 (18.3).
+  Accuracy at every floor (24 dB, crossover an octave over the floor): the lows −23.92 dB an
+  octave under the floor, −0.000 dB four octaves over the crossover; the highs leak −0.223 …
+  −0.230 dB an octave under the crossover and reach −23.99 … −24.00 dB two over. The Band
+  card shows the floor with its latency ("Auto · 60 Hz · 36.8 ms"). Default output unchanged:
+  the DSP suite's goldens hold, no `DSP_VERSION` bump, no sound re-rendered.
+- **Export** (`Cantus Cedo`, CLAP and VST3): the Direct path; the sidechain input as the key;
+  the host's transport for the pump; the host's notes (CLAP's note port in both dialects,
+  VST3's event bus); the shape as content in the state (`ContentPost<Shape>` — wave A's
+  generalisation of Lapsus's post copied into `lapsus_bank.rs`, its Shape arm instead of
+  Fractus's; `state::save_spec_with`, `load_cedo`); the latency reported and re-reported once
+  per committed floor; ids appended and blessed.
+- **The agents**: `set_effect` takes `shape` (points `x`, `y`, `bend`, `seg`; `null` the
+  classic pump) and `notes_track_id` (the track whose notes an effect hears); a crossover set
+  commits its Auto floor; aliases `pump`, `sidechain_pump`; the effect words. Decided yes, as
+  Fractus's `lanes` set its content. The MCP golden regenerated on purpose.
+- **Tabula**: Cedo is a pedal (face: trigger, depth, cycle, threshold); `SetCedoShape` names
+  its pedal (`command_board::set_pedal_cedo`), the undo fuzz's board arm draws on one (one new
+  pedal in eight a Cedo after the Lapsus draw).
+- **The site's card** (EFFECTS 37), ADR 0144 phase B, `docs/plugins/cedo.md`, the manual EN/ES,
+  the beta checklist's Cedo entries.
+
+### Measured (the e2e through `CantusApp::assemble`, `tests/cedo_e2e.rs`)
+
+- The classic pump as inserted: 5.1 dB down 0–0.1 s into the beat, 0.01 dB late in it.
+- A square shape at ∞: silence from each beat's own sample (24 000·b) for a quarter beat,
+  the pad's samples untouched to the bit around it, beats 1–5.
+- Live in blocks of 256/333/512/17/1024 = the offline render, to the bit; a new shape heard
+  and its undo the render before, to the bit; a render from bar 3 = the whole render's bar 3.
+- Lows under 150 Hz at full depth (minimum phase): the bass (55 Hz) 34.5 dB down, the pad's
+  A4 0.13 dB.
+- The kick strip as the bass's key: 14.9 dB under the kick, 0.000 dB before it plays.
+- A muted kick track's notes (MIDI): 12.3 / 12.4 / 12.3 dB at beats 2, 3, 5, 0.000 dB late in
+  each beat.
+- The rest check: a strip silent until beat 4 (its input under 1e-12 there), keyed by the
+  kick and listening to the key, puts the key out from beat 2.
+- Two twin pads, Cedo (Lows, linear, depth 0) on one: the song is the dry song 1 765 samples
+  late (Auto, 60 Hz) and 2 655 late after the 40 Hz floor is chosen, to the bit.
+- The defaults (the key and the notes still routed) = Cedo bypassed, to the bit. (Against the
+  song with Cedo *taken out* the master differs by 3e-8 from frame 48 005: the key's routing
+  orders the strips and the master's sum rounds differently; bypassed keeps the order.)
+- The pointer (`cedo_drag`, 6): the release point to 0.5 / 0.25 on the grid; the first
+  segment bent 0.226 → 0.015 at 0.3 of the cycle; the envelope's handles +10.3 ms for 30
+  points; the threshold +10 dB; the crossover 120 → 250 Hz where the pointer let go; the
+  gauge 9 → 19 dB for 40 points; the crossover dragged to 309 Hz held at 1 765 samples of
+  latency until the release, 685 after it, one undo step back to 120 Hz / 60 Hz.
+
+### Shared files touched (marked `fxb:cedo`)
+
+Core: `command.rs` (`SetCedoShape`'s `pedal`), `command_board.rs`, `command_board_tests.rs`,
+`fx/tabula.rs`, tests `undo_invariants.rs`. DSP: `cedo_band.rs`/`cedo.rs` (the floor; Cedo's
+own). Engine: tests `fx_cedo.rs`. UI: `views/fx/host.rs` (`set_cedo_shape`, `load`,
+`save_preset`, `touches`, the floor's commit in `set`/`end_gesture`, `cedo_crossovers`),
+`views/fx/mod.rs` (`apply_fx_params`, `preset_map`, `toggle_ab`), `views/fx/frame.rs`
+(`modified`), `views/fx/tabula_host.rs`, `views/fx/tabula_faces.rs`, `preset_audition.rs`,
+`preset_data.rs`, locales `areas/ai.*`, tests `learn_everywhere.rs`, `preset_audit.rs`, golden
+`mcp-tools-list.json`. AI: `tools_mixer.rs`, `tools_args.rs`, `tools_words.rs`, tests
+`tools_music.rs`. Plug-ins: `Cargo.toml`, `build.rs`, `src/desc.rs`, `editor.rs`,
+`instance.rs`, `lapsus_bank.rs` (wave A's generic post: expect a one-hunk conflict at the
+merge, keep both `Content` impls), `state.rs`, tests `common/mod.rs`, `clap.rs`, `vst3.rs`,
+`notes.rs`, `transport.rs`, `golden/ids.txt`. xtask: `main.rs`. Web: `units_data.rs`. Docs:
+the manual EN/ES, `beta-checklist.md`.
+
+### Lenis's VST3 latency restart on Linux
+
+Checked: `vst3::lenis_s_latency_follows_its_quality_through_vst3` holds its restart counts
+inside `#[cfg(windows)]` (the tick is wired only there) and asserts the new latency read on
+every system; `vst3/timer.rs` marks its Windows-only paths `allow(dead_code)` off Windows.
+Gated correctly; Cedo's VST3 latency test follows the same pattern.
+
+### Verified only in emulation
+
+- The exported plug-in only in our own CLAP/VST3 harness, not in a third-party DAW; the VST3
+  latency restart only on Windows.
+- The presets have not been heard by the owner; their levels are the fit's loudness match.
+- Nothing new was drawn in step 3 but the Band card's floor (whole words, measured in both
+  languages by the cards' widths); no new shots.
+
+### Suites (Windows, 2026-11-17, one crate at a time, clippy `-D warnings --all-targets` on each)
+
+cantus-core 811, cantus-dsp 1 131 (the floors' four among them; the goldens unchanged),
+cantus-engine 1 311, cantus-project 194, cantus-plugins 92, cantus-ai 51 — clippy clean on all
+seven crates (cantus-ui's run again after the catalogue's fix below, clean).
+
+cantus-ui, the whole suite once (`--no-fail-fast`): **2 727 passed, 3 failed** (54 ignored):
+
+- `learn_everywhere::every_stepped_parameter_is_drawn_with_its_offer` — **no Cedo key any
+  more**; only Fractus's 16 `Glitch.*` (fixed in fx/wave-a, arriving with the merge).
+- `agent_tools::the_catalogue_is_complete_and_generated_from_the_tables` — a Cedo preset's
+  flat shape keys read as parameters: fixed (the unit catalogue lists a preset's shape apart
+  from its values, as `set_effect`'s `shape` takes it, as Fractus's lanes) and green on its
+  own.
+- `preset_render::every_factory_preset_renders_clean_level_and_within_its_budget` —
+  `preset.arca.tight_rhythm: cpu +0.30`, `preset.arca.dark_lead: cpu +0.28` under the
+  suite's load; run again on its own, green. Cedo's seventeen within level (the seven
+  Sidechain ones by design) and budget (CPU 0.021 … 0.059).
+
+The MCP tools golden regenerated on purpose (`CANTUS_TOOLS_DUMP=1`: `set_effect`'s `shape`
+and `notes_track_id`, Cedo's words).
+
+Not run: the Linux check (WSL), the plug-ins without default features, the release
+bundle, the site's pictures and sound excerpts, CPU on a quiet machine, a third-party DAW.

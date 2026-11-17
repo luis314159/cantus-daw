@@ -170,6 +170,33 @@ pub fn effect_entry(kind: EffectKind) -> Value {
     let presets: Vec<Value> = crate::views::fx::factory_presets(kind)
         .iter()
         .map(|(label, values)| {
+            // fxb:cedo — a Cedo preset's shape apart from its values, as `set_effect`'s
+            // `shape` takes it.
+            if kind == EffectKind::Ducker {
+                let own: Vec<(&str, f32)> = values
+                    .iter()
+                    .filter(|(k, _)| kind.param(k).is_some())
+                    .copied()
+                    .collect();
+                let map: std::collections::BTreeMap<String, f32> =
+                    values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+                let Some(shape) = cantus_core::fx::cedo::shape_of_flat(&map) else {
+                    return json!({"name": en(label), "sets": sets(&own)});
+                };
+                let points: Vec<Value> = shape
+                    .points
+                    .iter()
+                    .map(|q| {
+                        let seg = match q.s {
+                            1 => "s",
+                            2 => "hold",
+                            _ => "curve",
+                        };
+                        json!({"x": q.x, "y": q.y, "bend": q.t, "seg": seg})
+                    })
+                    .collect();
+                return json!({"name": en(label), "sets": sets(&own), "shape": points});
+            }
             if kind != EffectKind::Board {
                 return json!({"name": en(label), "sets": sets(values)});
             }
