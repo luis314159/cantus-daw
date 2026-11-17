@@ -96,13 +96,12 @@ pub const KNOB_STEEL: Knob = Knob {
     pointer: hsl(2.0, 0.78, 0.50),
 };
 
-/// The rack: its steel rails (lit edge, face, the fold's shadow), the square holes and
-/// their cage nuts, the dark of the rack behind the units.
+/// The rack: its steel rails (lit edge, face, the fold's shadow), the ears' slots, the dark
+/// of the rack behind the units.
 pub const RAIL_TOP: Hsl = hsl(208.0, 0.06, 0.62);
 pub const RAIL: Hsl = hsl(210.0, 0.05, 0.40);
 pub const RAIL_FOOT: Hsl = hsl(214.0, 0.06, 0.22);
 pub const HOLE: Hsl = hsl(222.0, 0.12, 0.03);
-pub const CAGE: Hsl = hsl(48.0, 0.30, 0.52);
 pub const BACK: Hsl = hsl(222.0, 0.10, 0.045);
 
 /// A rack screw: black oxide with a lit rim, on a nylon washer.

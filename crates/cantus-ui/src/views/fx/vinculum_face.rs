@@ -9,8 +9,9 @@
 //! does. Every word is measured, so the panel is as wide as its words in each language.
 
 use super::super::controls;
+use super::super::frame;
 use super::super::frame::tr;
-use super::super::host::FxHost;
+use super::super::host::{FxHost, KeySource, KeyTarget};
 use super::art::{self, c};
 use super::display::{Parts, Reading, View};
 use super::meter::{self, Mark, Scale};
@@ -18,7 +19,7 @@ use super::parts;
 use crate::kit::color::{mix, with_alpha};
 use crate::kit::hint::{self, Caps};
 use crate::kit::skin::racks as pal;
-use crate::kit::text::{self as ktext, Role, Text};
+use crate::kit::text::{self as ktext, Role, Src, Text};
 use crate::kit::{Brush, Style};
 use cantus_core::EffectSpec;
 use cantus_dsp::math::{cos, sin};
@@ -309,6 +310,36 @@ impl Panel {
     }
 }
 
+/// A switch of the panel where the pointer finds it: its key, its knob (or bat), the words
+/// of its positions.
+#[derive(Copy, Clone, Debug)]
+pub struct Switch {
+    pub key: &'static str,
+    pub knob: Rect,
+    pub positions: [Rect; 6],
+    pub n: usize,
+}
+
+impl Panel {
+    /// The panel's switches as placed, left to right.
+    pub fn switches(&self, k: f32) -> [Option<Switch>; 4] {
+        self.bays.map(|b| {
+            b.map(|bay| Switch {
+                key: bay.ctl.key,
+                knob: bay.knob(k),
+                positions: std::array::from_fn(|i| {
+                    if i < bay.n {
+                        bay.label(i)
+                    } else {
+                        Rect::NOTHING
+                    }
+                }),
+                n: bay.n,
+            })
+        })
+    }
+}
+
 /// What the pointer does to each control this frame.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Press {
@@ -468,8 +499,197 @@ pub fn panel(b: &mut Brush, s: &Style, panel: &Panel, press: &[Press; 4], spec: 
     }
 }
 
+/// A jewel lamp on the strip: its word, its lens, whether it is lit, where it stands.
+#[derive(Copy, Clone, Debug)]
+pub struct Lamp {
+    /// Its engraved word's locale key (`vinculum.d.key`, `.auto`, `.limit`, `.colour`).
+    pub word: &'static str,
+    lens: Color32,
+    pub on: bool,
+    /// The jewel's centre and its radius; the word's rect.
+    jewel: Pos2,
+    rad: f32,
+    text: Rect,
+}
+
+impl Lamp {
+    /// Where the pointer reaches it: the jewel and its word.
+    pub fn hit(&self) -> Rect {
+        self.text
+            .union(Rect::from_center_size(
+                self.jewel,
+                Vec2::splat(self.rad * 2.0),
+            ))
+            .expand(self.rad * 0.6)
+    }
+}
+
+/// The lamps shown for the model, right to left as they stand (the key, the Auto release,
+/// the limit, the valve colour — each only where the model has it), measured in the
+/// interface's language.
+pub fn lamps(
+    ctx: &egui::Context,
+    s: &Style,
+    r: Rect,
+    spec: &EffectSpec,
+    keyed: bool,
+) -> [Option<Lamp>; 4] {
+    let k = s.k;
+    let m = model(spec);
+    let limit = spec.get("char") >= 0.5;
+    let all: [(&'static str, Color32, bool, bool); 4] = [
+        ("vinculum.d.key", c(pal::LENS_AMBER), true, keyed),
+        (
+            "vinculum.d.auto",
+            c(pal::LENS_GREEN),
+            m == 0,
+            spec.get("rel") >= 3.5,
+        ),
+        ("vinculum.d.limit", c(pal::LENS_RED), m != 0, limit),
+        (
+            "vinculum.d.colour",
+            c(pal::LENS_ORANGE),
+            m == 2,
+            spec.get("colour") > 0.0,
+        ),
+    ];
+    let mut out = [None; 4];
+    let mut x = r.right();
+    let rad = 7.0 * k;
+    for (j, (word, lens, shown, on)) in all.into_iter().enumerate().rev() {
+        if !shown {
+            continue;
+        }
+        let text = Align2::RIGHT_CENTER.anchor_size(pos2(x, r.center().y), micro(ctx, word, k));
+        let jewel = pos2(text.left() - 14.0 * k, r.center().y);
+        out[j] = Some(Lamp {
+            word,
+            lens,
+            on,
+            jewel,
+            rad,
+            text,
+        });
+        x = text.left() - 14.0 * k - rad * 1.5 - 22.0 * k;
+    }
+    out
+}
+
+/// What the lamps remember between frames.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct LampMemory {
+    /// The VCA's release position before Auto was lit from its lamp.
+    pub manual_rel: Option<f32>,
+    /// The key's list while it is open under its lamp: the list's rect and its rows.
+    pub menu: Option<(Rect, usize)>,
+}
+
+/// The lamps answer the pointer, each change one undo step: the key's lamp opens the key's
+/// list (its own input, or a strip of the desk) under it — in a plug-in it throws the
+/// sidechain switch; the Auto lamp lights Auto or gives back the release it had; the limit
+/// lamp throws Compress or Limit. The colour's lamp only shows (the colour is a knob).
+pub fn lamp_edit(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    lamps: &[Option<Lamp>; 4],
+    key: Option<&KeySource>,
+    mem: &mut LampMemory,
+) {
+    let k = s.k;
+    let base = ui.id().with("vinculum-lamps");
+    mem.menu = None;
+    for lamp in lamps.iter().flatten() {
+        let id = base.with(lamp.word);
+        let hit = lamp.hit();
+        let resp = ui.interact(hit, id, Sense::click());
+        let tip = match lamp.word {
+            "vinculum.d.key" => "vinculum.tip.key_lamp",
+            "vinculum.d.auto" => "vinculum.tip.auto_lamp",
+            "vinculum.d.limit" => "vinculum.tip.char",
+            _ => "vinculum.tip.colour_lamp",
+        };
+        if resp.hovered() {
+            hint::set_text(ui.ctx(), tr(lamp.word), tr(tip), Caps::NONE);
+        }
+        match lamp.word {
+            "vinculum.d.key" => match key {
+                Some(KeySource::Strips {
+                    current, options, ..
+                }) => {
+                    let open_id = id.with("open");
+                    let mut open = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
+                    if resp.clicked() {
+                        open = !open;
+                        ui.data_mut(|d| d.insert_temp(open_id, open));
+                    }
+                    if open {
+                        let mut items = vec![frame::radio(
+                            Src::Key("vinculum.key_own"),
+                            current.is_none(),
+                        )];
+                        items.extend(options.iter().map(|(sid, text)| {
+                            frame::radio(Src::Str(text), *current == Some(*sid))
+                        }));
+                        let w = 220.0;
+                        let at = pos2(hit.right() - w * k, hit.bottom() + 2.0 * k);
+                        let list = Rect::from_min_size(
+                            at,
+                            vec2(w * k, crate::kit::menu::height(&items, s.d(1.0))),
+                        );
+                        mem.menu = Some((list, items.len()));
+                        let anchor = controls::Anchor { at, field: hit };
+                        // The list closes itself on a choice, a click elsewhere or Esc.
+                        if let Some(i) = controls::list(ui, s, id, anchor, w, &items) {
+                            let target = if i == 0 {
+                                None
+                            } else {
+                                options.get(i - 1).map(|o| o.0)
+                            };
+                            drop(items);
+                            host.set_key_source(KeyTarget::Strip(target));
+                        }
+                    }
+                }
+                Some(KeySource::Switch(on)) => {
+                    if resp.clicked() {
+                        host.set_key_source(KeyTarget::Switch(!*on));
+                    }
+                }
+                None => {}
+            },
+            "vinculum.d.auto" => {
+                if resp.clicked() {
+                    let now = host.spec().get("rel");
+                    if now >= 3.5 {
+                        let back = mem.manual_rel.take().unwrap_or(1.0);
+                        host.set("rel", back, None);
+                    } else {
+                        mem.manual_rel = Some(now);
+                        host.set("rel", cantus_core::fx::vinculum::REL_AUTO, None);
+                    }
+                }
+            }
+            "vinculum.d.limit" => {
+                if resp.clicked() {
+                    let now = host.spec().get("char") >= 0.5;
+                    host.set("char", if now { 0.0 } else { 1.0 }, None);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// The names engraved along the faceplate's top, and the jewel lamps at its right.
-pub fn strip(b: &mut Brush, s: &Style, r: Rect, spec: &EffectSpec, now: &Reading, keyed: bool) {
+pub fn strip(
+    b: &mut Brush,
+    s: &Style,
+    r: Rect,
+    spec: &EffectSpec,
+    now: &Reading,
+    lamps: &[Option<Lamp>; 4],
+) {
     let k = s.k;
     let m = model(spec);
     let ring = 9.0 * k;
@@ -510,31 +730,16 @@ pub fn strip(b: &mut Brush, s: &Style, r: Rect, spec: &EffectSpec, now: &Reading
         1.0,
     );
     // The lamps, from the right: the valve colour, the limit, the Auto release, the key.
-    let limit = spec.get("char") >= 0.5;
-    let lamps: [(&str, Color32, bool, bool); 4] = [
-        ("vinculum.d.key", c(pal::LENS_AMBER), true, keyed),
-        (
-            "vinculum.d.auto",
-            c(pal::LENS_GREEN),
-            m == 0,
-            spec.get("rel") >= 3.5,
-        ),
-        ("vinculum.d.limit", c(pal::LENS_RED), m != 0, limit),
-        (
-            "vinculum.d.colour",
-            c(pal::LENS_ORANGE),
-            m == 2,
-            spec.get("colour") > 0.0,
-        ),
-    ];
-    let mut x = r.right();
-    for (key, lens, shown, on) in lamps.into_iter().rev() {
-        if !shown {
-            continue;
-        }
-        let t = art::engrave_key(b, s, pos2(x, r.center().y), Align2::RIGHT_CENTER, key);
-        let lit = if on {
-            if now.seen || key != "vinculum.d.key" {
+    for lamp in lamps.iter().flatten() {
+        art::engrave_key(
+            b,
+            s,
+            pos2(lamp.text.right(), lamp.text.center().y),
+            Align2::RIGHT_CENTER,
+            lamp.word,
+        );
+        let lit = if lamp.on {
+            if now.seen || lamp.word != "vinculum.d.key" {
                 1.0
             } else {
                 0.8
@@ -542,15 +747,7 @@ pub fn strip(b: &mut Brush, s: &Style, r: Rect, spec: &EffectSpec, now: &Reading
         } else {
             0.0
         };
-        art::jewel(
-            b,
-            k,
-            pos2(t.left() - 14.0 * k, r.center().y),
-            7.0 * k,
-            lens,
-            lit,
-        );
-        x = t.left() - 14.0 * k - 7.0 * k * 1.5 - 22.0 * k;
+        art::jewel(b, k, lamp.jewel, lamp.rad, lamp.lens, lit);
     }
 }
 

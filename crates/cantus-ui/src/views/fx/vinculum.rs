@@ -81,6 +81,12 @@ pub struct State {
     pub display: Option<Rect>,
     /// Where the key's field was drawn last frame.
     pub key_field: Option<Rect>,
+    /// The faceplate's lamps and the panel's switches as drawn last frame (the pointer
+    /// tests find them here).
+    lamps: [Option<face::Lamp>; 4],
+    switches: [Option<face::Switch>; 4],
+    /// What the lamps remember (the release Auto gives back, the key's open list).
+    lamp_mem: face::LampMemory,
 }
 
 /// Vinculum's editor in Cantus's own window: the host is the project.
@@ -217,7 +223,16 @@ fn body_ui(
     let reading = display::Reading::of(tel);
     let dt = ui.input(|i| i.stable_dt).min(0.1);
     st.view.update(&reading, dt);
-    display::show(host, &st.view, ui, s, r1, &reading, routed(&st.key));
+    // The lamps answer first (the key's list, Auto, the limit), then the unit is drawn
+    // with what they did.
+    let strip_rect = display::parts(r1, k, 0.0).strip;
+    let keyed = reading.keyed || routed(&st.key);
+    let lamps = face::lamps(ui.ctx(), s, strip_rect, host.spec(), keyed);
+    let key = st.key.as_ref().and_then(|(_, k)| k.as_ref());
+    face::lamp_edit(host, ui, s, &lamps, key, &mut st.lamp_mem);
+    let lamps = face::lamps(ui.ctx(), s, strip_rect, host.spec(), keyed);
+    st.lamps = lamps;
+    st.switches = display::show(host, &st.view, ui, s, r1, &reading, routed(&st.key), &lamps);
     if reading.seen {
         ui.ctx().request_repaint();
     }
@@ -448,5 +463,39 @@ impl State {
     /// How many points the display's history holds.
     pub fn history_len(&self) -> usize {
         self.view.len()
+    }
+
+    /// Where a lamp was drawn last frame, by its word (`vinculum.d.key`, `.auto`, `.limit`,
+    /// `.colour`); `None` when the model has none.
+    pub fn lamp(&self, word: &str) -> Option<Rect> {
+        self.lamps
+            .iter()
+            .flatten()
+            .find(|l| l.word == word)
+            .map(face::Lamp::hit)
+    }
+
+    /// Whether a lamp was lit last frame.
+    pub fn lamp_lit(&self, word: &str) -> Option<bool> {
+        self.lamps
+            .iter()
+            .flatten()
+            .find(|l| l.word == word)
+            .map(|l| l.on)
+    }
+
+    /// A switch of the panel as drawn last frame, by its parameter: its knob (or bat) and
+    /// the engraved word of each position.
+    pub fn switch(&self, key: &str) -> Option<(Rect, Vec<Rect>)> {
+        self.switches
+            .iter()
+            .flatten()
+            .find(|w| w.key == key)
+            .map(|w| (w.knob, w.positions[..w.n].to_vec()))
+    }
+
+    /// The key's list while it is open under its lamp: the list's rect and its rows.
+    pub fn key_menu(&self) -> Option<(Rect, usize)> {
+        self.lamp_mem.menu
     }
 }

@@ -123,9 +123,11 @@ pub fn engrave_line(b: &mut Brush, s: &Style, a: Pos2, z: Pos2, w: f32) {
     b.segment(a, z, w, c(p.legend), false);
 }
 
-/// The rack behind the unit: its dark, and a steel rail down each side with square holes
-/// (each holding a cage nut where a screw goes) every third of a rack unit.
-pub fn rack(b: &mut Brush, s: &Style, r: Rect, rail_w: f32, unit: f32) {
+/// The rack behind the unit: its dark, and a plain steel rail down each side — its lit
+/// edge, its brushed face, the fold's shadow. No holes are drawn (the owner's note on sheet
+/// v1: a column of small rectangles read as the vents he had taken off other units); the
+/// unit's ears, screwed to the rails, say it is racked.
+pub fn rack(b: &mut Brush, s: &Style, r: Rect, rail_w: f32) {
     let k = s.k;
     b.rect(
         r,
@@ -147,6 +149,17 @@ pub fn rack(b: &mut Brush, s: &Style, r: Rect, rail_w: f32, unit: f32) {
                 (1.0, c(pal::RAIL_FOOT)),
             ]),
         );
+        // The steel's brushing: a few long faint lines down the rail.
+        for i in 0..5u32 {
+            let x = rail.left() + rail_w * (0.2 + 0.15 * i as f32);
+            b.vline(
+                x,
+                r.top(),
+                r.bottom(),
+                0.5 * k,
+                with_alpha(c(pal::RAIL_TOP), 0.06 + 0.08 * hash(i + 90)),
+            );
+        }
         // The rail's fold: a lit edge on the outside, a shadow on the inside.
         let (lit, dark) = if side == 0.0 {
             (rail.left() + 0.8 * k, rail.right() - 0.8 * k)
@@ -161,24 +174,6 @@ pub fn rack(b: &mut Brush, s: &Style, r: Rect, rail_w: f32, unit: f32) {
             1.4 * k,
             with_alpha(c(pal::SHADOW), 0.6),
         );
-        // The square holes, three to a rack unit, centred across the rail.
-        let hole = (rail_w * 0.34).min(9.0 * k);
-        let mut y = r.top() + unit / 6.0;
-        let mut i = 0u32;
-        while y < r.bottom() {
-            let h = Rect::from_center_size(pos2(rail.center().x, y), vec2(hole, hole));
-            b.rect(h, Fill::Solid(c(pal::HOLE)));
-            b.hline(h.left(), h.right(), h.bottom(), 0.6 * k, c(pal::RAIL_TOP));
-            // A cage nut's brass tongue in every second hole.
-            if i % 3 == 1 {
-                b.rect(
-                    h.shrink(hole * 0.18),
-                    Fill::V(c(pal::CAGE), mix(c(pal::CAGE), c(pal::SHADOW), 0.5)),
-                );
-            }
-            y += unit / 3.0;
-            i += 1;
-        }
     }
 }
 

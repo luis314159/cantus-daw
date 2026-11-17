@@ -1,8 +1,7 @@
 //! Vinculum's display (design sheet v1): the bus compressor in its rack, dark in every
 //! theme.
 //!
-//! - **The rack**: two steel rails with their square holes and cage nuts, the unit screwed
-//!   to them by its ears.
+//! - **The rack**: two plain steel rails, the unit screwed to them by its ears.
 //! - **The faceplate** (the colourway's finish): the maker's name and the model's own name
 //!   engraved along the top, jewel lamps for the external key, the Auto release, the limit
 //!   and the valve colour.
@@ -277,7 +276,9 @@ pub fn parts(r: Rect, k: f32, panel_w: f32) -> Parts {
     }
 }
 
-/// The display: the rack and the unit in it, its controls answering the pointer.
+/// The display: the rack and the unit in it, its controls answering the pointer (the
+/// lamps' are answered before, `face::lamp_edit`). The panel's switches as placed.
+#[allow(clippy::too_many_arguments)]
 pub fn show(
     host: &mut dyn FxHost,
     view: &View,
@@ -286,25 +287,29 @@ pub fn show(
     r: Rect,
     now: &Reading,
     routed: bool,
-) {
+    lamps: &[Option<face::Lamp>; 4],
+) -> [Option<face::Switch>; 4] {
     let spec = host.spec().clone();
     let k = s.k;
     let panel = Panel::lay(ui.ctx(), s, &spec);
     let p = parts(r, k, panel.width);
     let panel = panel.place(p.panel);
     let press = face::edit(host, ui, s, &panel);
+    // What the switches did this frame is drawn this frame.
+    let spec = host.spec().clone();
     let ink = Ink::of(s);
     let keyed = now.keyed || routed;
     with_brush(&ui.painter_at(r), |b| {
-        art::rack(b, s, r, RAIL * k, 44.0 * k);
+        art::rack(b, s, r, RAIL * k);
         let plate = Rect::from_min_max(
             pos2(p.face.left() - EAR * k, p.face.top()),
             pos2(p.face.right() + EAR * k, p.face.bottom()),
         );
         art::faceplate(b, s, plate, EAR * k);
-        face::strip(b, s, p.strip, &spec, now, keyed);
+        face::strip(b, s, p.strip, &spec, now, lamps);
         face::bridge(b, s, &p, &spec, view, now);
         face::panel(b, s, &panel, &press, &spec);
         screen::show(b, s, &ink, p.screen, &spec, view, now, keyed);
     });
+    panel.switches(k)
 }
