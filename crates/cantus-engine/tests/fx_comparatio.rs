@@ -344,3 +344,96 @@ fn live_equals_offline() {
     let b = realtime(&p, a.len() / 2);
     assert_null(&a[..b.len()], &b, 0.0, "real time equals offline");
 }
+
+/// A stereo 16-bit WAV of a sine at `hz`, `amp` peak, `seconds` long at 44.1 kHz.
+fn write_wav(path: &std::path::Path, hz: f32, amp: f32, seconds: f32) {
+    let spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: 44_100,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut w = hound::WavWriter::create(path, spec).unwrap();
+    for i in 0..(44_100.0 * seconds) as usize {
+        let v = (amp
+            * cantus_dsp::math::sin(i as f32 / 44_100.0 * hz * std::f32::consts::TAU)
+            * 32_767.0) as i16;
+        w.write_sample(v).unwrap();
+        w.write_sample(v).unwrap();
+    }
+    w.finalize().unwrap();
+}
+
+/// Phase B: a list of references — the one compared read for the unit, every other one read
+/// once for its own summary (its own loudness, curves and overview), each keeping it; the
+/// fingerprint tells a changed file from the one loaded; a missing file is said so.
+#[test]
+fn every_reference_in_the_list_keeps_its_own_analysis() {
+    use cantus_core::fx::comparatio::{Reference, References};
+    let dir = std::env::temp_dir().join(format!("cantus-comparatio-list-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let loud = dir.join("Loud master.wav");
+    let quiet = dir.join("Quiet master.wav");
+    write_wav(&loud, 300.0, 0.5, 3.0);
+    write_wav(&quiet, 1_000.0, 0.05, 2.0);
+    let (lp, qp) = (
+        loud.to_string_lossy().to_string(),
+        quiet.to_string_lossy().to_string(),
+    );
+    let mut p = demo_project();
+    let mut m = p.make_effect(EffectKind::Reference);
+    m.spec.refs = Some(Box::new(References {
+        list: vec![Reference::new(lp.clone()), Reference::new(qp.clone())],
+        eq: None,
+    }));
+    m.spec.ir = Some(Box::new(IrFile::new(lp.clone())));
+    p.master.effects.push(m);
+    let mut snap = Snapshot::compile(&p, 1);
+    let errors = comparatio_store::prepare(&mut snap, &|s| s.into(), 48_000, false, false);
+    assert!(errors.is_empty(), "{errors:?}");
+    let a = comparatio_store::summary(&lp).expect("the one compared, summarised");
+    let b = comparatio_store::summary(&qp).expect("the other, summarised too");
+    let (la, lb) = (a.lufs.unwrap(), b.lufs.unwrap());
+    // 20 dB apart in level, less K-weighting's tilt: +0.69 dB at 1 kHz, ~0 at 300 Hz.
+    assert!(((la - lb) - 19.3).abs() < 0.3, "{la} against {lb}");
+    assert!((a.seconds - 3.0).abs() < 0.01 && (b.seconds - 2.0).abs() < 0.01);
+    assert_eq!(a.overview.len(), 240);
+    assert!(a.overview.iter().all(|v| (0.0..=1.0).contains(v)));
+    // Each curve's loudest band is its own tone's.
+    let peak = |c: &cantus_dsp::comparatio::tonal::Curve| {
+        let n = c.bands.count;
+        let i = (0..n)
+            .max_by(|x, y| c.db[*x].partial_cmp(&c.db[*y]).unwrap())
+            .unwrap();
+        c.bands.centre[i]
+    };
+    assert!((peak(&a.mid[0]) / 300.0 - 1.0).abs() < 0.15, "{}", peak(&a.mid[0]));
+    assert!((peak(&b.mid[1]) / 1_000.0 - 1.0).abs() < 0.1, "{}", peak(&b.mid[1]));
+    // The fingerprint: the file as it is, and a file changed in its middle is another.
+    let (bytes, hash) = comparatio_store::fingerprint(&loud).unwrap();
+    assert_eq!((a.bytes, a.hash.as_str()), (bytes, hash.as_str()));
+    assert_eq!(bytes, std::fs::metadata(&loud).unwrap().len());
+    let mut raw = std::fs::read(&loud).unwrap();
+    let mid = raw.len() / 63 * 31 + 10;
+    raw[mid] ^= 0x55;
+    let changed = dir.join("Changed.wav");
+    std::fs::write(&changed, &raw).unwrap();
+    let (b2, h2) = comparatio_store::fingerprint(&changed).unwrap();
+    assert_eq!(b2, bytes);
+    assert_ne!(h2, hash, "a sample changed in the middle is seen");
+    // Missing: a failure that names it.
+    let gone = dir.join("Gone.wav");
+    let e = comparatio_store::read(1, &gone, 48_000).unwrap_err();
+    assert!(e.contains("not there") && e.contains("Gone.wav"), "{e}");
+    // A plug-in's path: asked for on a thread of its own, waited for by the builder.
+    let other = dir.join("Third.wav");
+    write_wav(&other, 500.0, 0.2, 1.0);
+    let op = other.to_string_lossy().to_string();
+    let _ = comparatio_store::request(&op, &other, 44_100).unwrap();
+    let key = cantus_engine::fx::aula_store::file_key(&op);
+    let t = comparatio_store::wait_for(key, 44_100, std::time::Duration::from_secs(20))
+        .expect("read on its thread and waited for");
+    assert_eq!(t.rate, 44_100);
+    assert!(comparatio_store::wait_for(99, 44_100, std::time::Duration::from_millis(1)).is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}

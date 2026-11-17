@@ -19,12 +19,24 @@
 //!   set to the mix and its reference taken away, so an export, a stem, a freeze or a
 //!   bounce holds the mix only — whatever the panel was set to.
 //!
+//! **The list** (phase B): a Comparatio holds several references (`EffectSpec::refs`); the
+//! one compared is read as above, and every other one in the list is read once on the same
+//! thread for its **summary** ([`Summary`]: length, loudness, readings, tonal curves, an
+//! overview, the file's size and hash), which is kept after its audio is let go — each
+//! reference keeps its own analysis, and the panel shows it before it is chosen.
+//!
+//! **A file that changed or went missing is said so**: a reference is read with its
+//! fingerprint ([`fingerprint`]: the size and a hash of the file's head, tail and places
+//! between), which the panel compares with the one the project kept; a missing file is a
+//! failure with its path.
+//!
 //! **Why a pool**: a unit lets a reference go on the audio thread, where nothing may be
 //! freed. Every reference a unit holds has a sibling here, so letting one go is an atomic
 //! decrement; a reference no unit holds (its count is the pool's alone) is freed here, on
 //! the next prepare, once more than [`SPARE`] are kept.
 
 use cantus_core::{EffectKind, Snapshot};
+use cantus_dsp::comparatio::tonal::{Curve, Tonal};
 use cantus_dsp::comparatio::{analyse_whole, tonal::Resolution, WholeAnalysis};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -50,6 +62,95 @@ pub struct RefTrack {
     whole_lufs: AtomicU64,
     /// The whole file's analysis, for the panel (the interface's thread only).
     analysis: Mutex<Option<Arc<WholeAnalysis>>>,
+    /// The file's fingerprint when it was read ([`fingerprint`]; 0 and empty: made in
+    /// memory).
+    pub bytes: u64,
+    pub hash: String,
+}
+
+/// What the panel shows of a reference, kept after its audio is let go (one per path).
+#[derive(Debug)]
+pub struct Summary {
+    pub seconds: f64,
+    /// The whole file's integrated loudness, LUFS.
+    pub lufs: Option<f64>,
+    pub analysis: Arc<WholeAnalysis>,
+    /// Its long-term tonal curves of the middle, `(L + R) / 2`, in thirds and sixths of an
+    /// octave — what the slot's analyser tap carries of your mix, so like meets like.
+    pub mid: [Curve; 2],
+    /// Its level over its length: 240 peaks, 0 … 1 of the loudest.
+    pub overview: Vec<f32>,
+    /// The file's fingerprint when it was read.
+    pub bytes: u64,
+    pub hash: String,
+}
+
+/// The tonal curve of the middle of `left`/`right` at `resolution` (allocates).
+pub fn mid_curve(left: &[f32], right: &[f32], rate: f32, resolution: Resolution) -> Curve {
+    let mut t = Tonal::new(rate, resolution);
+    let mut mid = vec![0f32; 4_096];
+    for (l, r) in left.chunks(4_096).zip(right.chunks(4_096)) {
+        let m = &mut mid[..l.len()];
+        for ((m, a), b) in m.iter_mut().zip(l).zip(r) {
+            *m = 0.5 * (a + b);
+        }
+        t.push(m, m);
+    }
+    t.curve()
+}
+
+/// 240 peaks over the length, scaled to the loudest (allocates).
+pub fn overview(left: &[f32], right: &[f32]) -> Vec<f32> {
+    let n = left.len().min(right.len());
+    let per = (n / 240).max(1);
+    let mut out: Vec<f32> = left[..n]
+        .chunks(per)
+        .zip(right[..n].chunks(per))
+        .take(240)
+        .map(|(l, r)| l.iter().chain(r).fold(0f32, |m, v| m.max(v.abs())))
+        .collect();
+    let top = out.iter().fold(1e-9f32, |m, v| m.max(*v));
+    for v in &mut out {
+        *v /= top;
+    }
+    out
+}
+
+/// A file's fingerprint: its size in bytes and a 64-bit FNV-1a hash (hexadecimal) of its
+/// size, its first and last 64 KiB and 62 blocks of 4 KiB spread evenly between — enough to
+/// tell a re-exported master from the one loaded (every sample moves), read in a few
+/// milliseconds whatever the file's length. Blocks on the disk: never the audio thread.
+pub fn fingerprint(at: &Path) -> std::io::Result<(u64, String)> {
+    use std::io::{Read, Seek, SeekFrom};
+    const EDGE: u64 = 64 * 1024;
+    let mut f = std::fs::File::open(at)?;
+    let len = f.metadata()?.len();
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |bytes: &[u8]| {
+        for b in bytes {
+            h ^= u64::from(*b);
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
+    eat(&len.to_le_bytes());
+    let mut buf = vec![0u8; EDGE as usize];
+    let mut take = |from: u64, n: u64| -> std::io::Result<()> {
+        f.seek(SeekFrom::Start(from))?;
+        let n = n.min(EDGE).min(len.saturating_sub(from)) as usize;
+        f.read_exact(&mut buf[..n])?;
+        eat(&buf[..n]);
+        Ok(())
+    };
+    take(0, len.min(EDGE))?;
+    if len > 2 * EDGE {
+        for i in 1..=62u64 {
+            take(len / 63 * i, 4_096)?;
+        }
+        take(len - EDGE, EDGE)?;
+    } else if len > EDGE {
+        take(EDGE, len - EDGE)?;
+    }
+    Ok((len, format!("{h:016x}")))
 }
 
 impl RefTrack {
@@ -64,6 +165,8 @@ impl RefTrack {
             right: right.into(),
             whole_lufs: AtomicU64::new(f64::NAN.to_bits()),
             analysis: Mutex::new(None),
+            bytes: 0,
+            hash: String::new(),
         }
     }
 
@@ -86,14 +189,36 @@ impl RefTrack {
         self.analysis.lock().ok()?.clone()
     }
 
-    /// Analyse the whole file (allocates, takes a while: never the audio thread).
+    /// Analyse the whole file (allocates, takes a while: never the audio thread), and keep
+    /// its [`Summary`] in the store under its key.
     pub fn analyse(&self) {
-        let a = analyse_whole(&self.left, &self.right, self.rate as f32, Resolution::Sixth);
+        let rate = self.rate as f32;
+        let a = Arc::new(analyse_whole(
+            &self.left,
+            &self.right,
+            rate,
+            Resolution::Sixth,
+        ));
         let lufs = a.readings.integrated.unwrap_or(f64::NAN);
         if let Ok(mut s) = self.analysis.lock() {
-            *s = Some(Arc::new(a));
+            *s = Some(a.clone());
         }
         self.whole_lufs.store(lufs.to_bits(), Ordering::Relaxed);
+        let summary = Summary {
+            seconds: self.seconds(),
+            lufs: a.readings.integrated,
+            analysis: a,
+            mid: [
+                mid_curve(&self.left, &self.right, rate, Resolution::Third),
+                mid_curve(&self.left, &self.right, rate, Resolution::Sixth),
+            ],
+            overview: overview(&self.left, &self.right),
+            bytes: self.bytes,
+            hash: self.hash.clone(),
+        };
+        let mut s = store().lock().unwrap_or_else(|e| e.into_inner());
+        s.summaries.retain(|(k, _)| *k != self.key);
+        s.summaries.push((self.key, Arc::new(summary)));
     }
 }
 
@@ -121,6 +246,8 @@ enum Entry {
 struct Store {
     /// By (path key, rate): where it was read from and what came of it, newest last.
     tracks: Vec<((u64, u32), PathBuf, Entry)>,
+    /// Each reference's summary by its path's key, kept after its audio is let go.
+    summaries: Vec<(u64, Arc<Summary>)>,
 }
 
 fn store() -> &'static Mutex<Store> {
@@ -139,6 +266,10 @@ pub fn take_arrived() -> bool {
 /// Read a file as a reference at `rate`: decoded, resampled, its channels split (a mono file
 /// on both, more than two: the first two). Allocates and blocks on the disk.
 pub fn read(key: u64, at: &Path, rate: u32) -> Result<RefTrack, String> {
+    let (bytes, hash) = fingerprint(at).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => format!("the file is not there: {}", at.display()),
+        _ => format!("{}: {e}", at.display()),
+    })?;
     let d = crate::samples::decode_audio(at, rate)?;
     let ch = d.channels.max(1) as usize;
     let frames = (d.frames.len() / ch).min(MAX_SECONDS * rate as usize);
@@ -156,7 +287,10 @@ pub fn read(key: u64, at: &Path, rate: u32) -> Result<RefTrack, String> {
         left.push(l);
         right.push(r);
     }
-    Ok(RefTrack::new(key, rate, left, right))
+    let mut t = RefTrack::new(key, rate, left, right);
+    t.bytes = bytes;
+    t.hash = hash;
+    Ok(t)
 }
 
 /// Read every reference `snapshot` names that is not read yet, resolving a stored path with
@@ -186,6 +320,20 @@ pub fn prepare(
             strip_for_render(&mut slot.spec);
             continue;
         }
+        // Phase B: every other reference in the list read once for its summary.
+        if let Some(refs) = slot.spec.refs.as_deref() {
+            let compared = slot.spec.ir.as_deref().map(|f| f.path.as_str());
+            for r in refs.list.iter().filter(|r| Some(r.path.as_str()) != compared) {
+                let key = (super::aula_store::file_key(&r.path), rate);
+                if has_summary(key.0) {
+                    continue;
+                }
+                let at = resolve(&r.path);
+                if let Err(e) = ask(key, &at, background) {
+                    errors.push((at, e));
+                }
+            }
+        }
         let Some(file) = slot.spec.ir.as_deref() else {
             continue;
         };
@@ -205,6 +353,50 @@ pub fn prepare(
     }
     sweep(&named);
     errors
+}
+
+fn has_summary(key: u64) -> bool {
+    let s = store().lock().unwrap_or_else(|e| e.into_inner());
+    s.summaries.iter().any(|(k, _)| *k == key)
+}
+
+/// The summary of the reference the project calls `path`, once it was read (the panel's).
+pub fn summary(path: &str) -> Option<Arc<Summary>> {
+    let key = super::aula_store::file_key(path);
+    let s = store().lock().ok()?;
+    s.summaries
+        .iter()
+        .rev()
+        .find(|(k, _)| *k == key)
+        .map(|(_, x)| x.clone())
+}
+
+/// Start reading the reference the project calls `path`, found at `at`, at `rate` — on a
+/// thread of its own — unless it is read or being read (a plug-in's editor, a state loaded:
+/// they have no compile to do it). Whether it is in.
+pub fn request(path: &str, at: &Path, rate: u32) -> Result<bool, String> {
+    ask((super::aula_store::file_key(path), rate), at, true)
+}
+
+/// The reference `key` at `rate` once it is in, waiting for one being read up to `timeout`
+/// (a plug-in's memory builder, on its own thread; never the audio thread). `None` for one
+/// that failed, was never asked for, or did not come in time.
+pub fn wait_for(key: u64, rate: u32, timeout: std::time::Duration) -> Option<Arc<RefTrack>> {
+    let until = std::time::Instant::now() + timeout;
+    loop {
+        {
+            let s = store().lock().unwrap_or_else(|e| e.into_inner());
+            match s.tracks.iter().rev().find(|(k, _, _)| *k == (key, rate)) {
+                Some((_, _, Entry::Ready(t))) => return Some(t.clone()),
+                Some((_, _, Entry::Loading)) => {}
+                _ => return None,
+            }
+        }
+        if std::time::Instant::now() >= until {
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 /// A Comparatio as a render hears it: the mix, no reference (ADR 0146).
@@ -335,6 +527,18 @@ pub fn retry(path: &str) {
     if let Ok(mut s) = store().lock() {
         s.tracks
             .retain(|(k, _, e)| !(k.0 == key && matches!(e, Entry::Failed(_))));
+    }
+}
+
+/// Forget everything read of `path` (its audio no unit holds, and its summary), so the next
+/// compile reads the file again — a reference whose file changed, read anew (the panel's).
+pub fn reload(path: &str) {
+    let key = super::aula_store::file_key(path);
+    if let Ok(mut s) = store().lock() {
+        s.tracks.retain(|(k, _, e)| {
+            k.0 != key || matches!(e, Entry::Ready(t) if Arc::strong_count(t) > 1)
+        });
+        s.summaries.retain(|(k, _)| *k != key);
     }
 }
 
