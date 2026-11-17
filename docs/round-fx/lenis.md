@@ -586,3 +586,50 @@ the first's twin. Lenis inserted on the first after the bell as the picker does 
   input less the output within 7.5·10⁻⁸ (the master's sum).
 - Gentle as inserted sounds; an edit (90 % → 30 %) heard and undone to the bit; live in
   blocks of 256/333/512/17/1024 = the offline render, to the bit.
+
+### Fixed on the way
+
+- **The undo fuzz's board arm** (`undo_invariants`, shared, additive): with Lenis among the
+  pedals the random stream never had a Lapsus pedal on a board when the Lapsus-pattern arm
+  came (0 applied of 257, the assertion "every kind applied at least once"). One new pedal
+  in eight is a Lapsus now, and that arm aims at the board's Lapsus three times in four; no
+  other arm's assertion moved.
+- **The plug-ins' automation test** names Lenis's key (`depth`), as every exported unit's.
+
+### Shared files touched (marked `fxb:lenis`)
+
+Core: `fx/tabula.rs` (`pedal_allowed` and its test), `starting.rs`, tests
+`undo_invariants.rs`. Engine: tests `fx_lenis.rs` (the pedal). UI: `views/fx/tabula_faces.rs`,
+tests `preset_audit.rs`, `learn_everywhere.rs`, golden `mcp-tools-list.json`. AI:
+`tools_mixer.rs`, `tools_args.rs`. Plug-ins: `Cargo.toml`, `build.rs`, `src/desc.rs`, tests
+`common/mod.rs`, `clap.rs`, `vst3.rs`, `golden/ids.txt`. xtask: `main.rs`. Web:
+`units_data.rs`. Docs: the manual EN/ES.
+
+### Verified only in emulation
+
+- The exported plug-in only in our own CLAP/VST3 harness, not in a third-party DAW; the
+  VST3 latency restart only on Windows (the other systems' tick is not wired — a change
+  there is picked up when the host next activates the plug-in, as before).
+- The presets have not been heard by the owner; their levels are the fit's loudness match,
+  their character our reading of what each is for.
+- The window as drawn was approved on the sheet; nothing new was drawn in step 3 (the grips'
+  places are bookkeeping), so no new shots.
+
+### Suites (Windows, 2026-11-17, one crate at a time, clippy `-D warnings --all-targets` on each)
+
+cantus-core 810 (809 in the suite run before the fuzz's fix, `undo_invariants` green after),
+cantus-dsp 1 127 (one CPU budget, `chorda::tests_piano::sixty_four_pedal_down_voices_fit_a_quarter_of_a_core`,
+read 68.8 % in the suite with two other builders compiling and passed run again on its own),
+cantus-engine 1 310, cantus-project
+194, cantus-plugins 85, cantus-ai 50 — clippy clean on all seven crates.
+
+cantus-ui, the whole suite once (`--no-fail-fast`): **2 718 passed, 2 failed** (54
+ignored). `learn_everywhere::every_stepped_parameter_is_drawn_with_its_offer` — **no Lenis
+key any more**; Fractus's 16 (`Glitch.*`, fixed in fx/wave-a by its step 3, arrives with the
+merge) and Cedo's four (`Ducker.rshape`, `kfilt`, `det`, `vel`: Cedo's builder's step 3).
+`preset_render::every_factory_preset_renders_clean_level_and_within_its_budget` —
+`preset.arca.modern_lead: cpu +0.22` under the same load — run again on its own, green
+(both tests). Lenis's fourteen are within level and budget (CPU 0.036 … 0.082).
+
+Not run: the Linux check (WSL), the plug-ins without default features, the release build,
+the site's pictures and sound excerpts, CPU on a quiet machine, a third-party DAW.
