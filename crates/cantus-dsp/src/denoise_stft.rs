@@ -16,6 +16,18 @@ pub const HOP: usize = N / 4;
 /// Bins that carry information: 0 (DC) to N/2 (Nyquist).
 pub const BINS: usize = N / 2 + 1;
 
+/// The periodic square-root-Hann window of `n` points (analysis and synthesis alike: at a
+/// hop of `n / 4` the two together sum to 2). Shared with Purus's streaming transform
+/// (fx-e:purus), the same bits as this transform's own.
+pub fn sqrt_hann(n: usize) -> Vec<f32> {
+    (0..n)
+        .map(|i| {
+            let hann = 0.5 - 0.5 * math::cos(2.0 * std::f64::consts::PI * i as f64 / n as f64);
+            hann.sqrt() as f32
+        })
+        .collect()
+}
+
 /// The transform with its window and scratch.
 pub struct Stft {
     fft: Fft,
@@ -32,15 +44,9 @@ impl Default for Stft {
 
 impl Stft {
     pub fn new() -> Self {
-        let window = (0..N)
-            .map(|i| {
-                let hann = 0.5 - 0.5 * math::cos(2.0 * std::f64::consts::PI * i as f64 / N as f64);
-                hann.sqrt() as f32
-            })
-            .collect();
         Stft {
             fft: Fft::new(N),
-            window,
+            window: sqrt_hann(N),
             re: vec![0.0; N],
             im: vec![0.0; N],
         }
