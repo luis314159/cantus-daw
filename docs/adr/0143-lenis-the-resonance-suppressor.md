@@ -39,10 +39,57 @@ engine unit `cantus_engine::fx::lenis`, DSP `cantus_dsp::lenis`.
   page is the frame count's); the editor keeps the whole picture.
 - **Starting preset** (ADR 0071): *Gentle* — depth 50 %, Soft, the focus from 150 Hz.
 
+## Phase B (2026-11-17): the editor, presets, export (design sheet v1 approved as shown)
+
+- **The window as approved** (`compartir/lenis/verdict.md`): the bench analyser, its screen,
+  the Depth dial, the readouts, the push keys and the cards. Phase B holds its controls on
+  real pointer events (`tests/lenis_drag.rs`): the focus's two gates dragged along the
+  screen, each of the six band nodes dragged in frequency and amount (a band dragged while
+  off is switched on in the same step, never cleared), the Depth dial turned, the push keys
+  pressed — each gesture one step of undo, a pressed key pressed again none.
+- **The Focus band card's lamp offered its menu only on the frame it was clicked**, so
+  automation and MIDI learn never reached the band's switch (`learn_everywhere` flagged the
+  six `b{n}on` keys); the lamp's offer is made every frame now. The card shows one band at a
+  time: the other five are excused by the band shown, and
+  `every_lenis_band_offers_its_switch` chooses each band in turn.
+- **Presets** fourteen (`presets/effects/resonancesuppressor.toml`): *Gentle* (the starting
+  preset), *Harsh vocal*, *Sibilance tamer*, *Guitar fizz*, *Piano ring*, *Mix bus gentle*,
+  *Master polish*, *Drum room ring*, *Acoustic boom*, *Podcast voice*, *Snare ring*, *Wide
+  air*, *Strings and brass*, *Surgical*; every quality, both curves and every channel mode
+  among them (a test holds it); never the delta. Roles vocal, drums, bus, master, creative.
+  Fitted by `preset_tool fit` with `out` (the starting preset too, in `starting.rs` and the
+  editor's demo).
+- **Export** `Cantus Lenis` (CLAP and VST3; `desc.rs`, the `lenis` feature, xtask; the VST3
+  class id by its rule): the engine's unit through the generic processor, bit-identical to
+  the DSP (the plug-ins' Direct path names Lenis's DSP). **Its latency is reported per
+  quality** (255 / 511 / 1 023 at 48 kHz) before activation in both standards; **a quality
+  changed while it plays re-reports it**: CLAP asks the host for a restart once and tells
+  `clap_host_latency::changed` on the next activation; VST3 calls
+  `restartComponent(kLatencyChanged)` from the UI thread's tick and `getLatencySamples`
+  gives the new frame's. The delta through the plug-in is the delayed input less the
+  output, to the bit. Ids appended and blessed.
+- **AI**: the effect words say what Lenis is and is for (rings, whistles, harshness, the
+  focus, the curve, the qualities and their latency, the delta; harsh vocals, sibilance,
+  guitar fizz, ringing drums and rooms, boomy acoustics, a mix or master polish) and two more
+  aliases (`resonance_tamer`, `deharsh`) — no product's name; the MCP tools golden
+  regenerated on purpose.
+- **A pedal on Tabula** (`pedal_allowed`): a guitar's rig makes the rings Lenis tames (its
+  listening set was a guitar through two fuzz pedals and a honky cabinet). Its face: depth,
+  sharpness, selectivity, focus from (standard, the curve motif, "L", brushed). The board
+  already keeps a latent pedal's latency (Saltus's, Arca's) and follows its change as it
+  follows Saltus's mode, so nothing in Tabula changed.
+
 ## Consequences
 
 - A latent insert by default (10.6 ms), like any linear-phase unit; a live monitoring path
   bypasses it hard where low-latency monitoring asks (ADR 0064 §4).
+- One more latent insert whose latency moves with a parameter; the engine's compensation,
+  Tabula's board and both plug-in standards follow it, each tested.
+- A card lamp's offer (`controls::card_lamp_offer`) must be made every frame, not only on
+  the click: Lenis's card was the one caller that short-circuited it.
+- Lenis joins Tabula: `a_board_of_one_is_the_unit` covers it with every other pedal.
+- The editor keeps where its grips stood last frame (`State::{node, gate, dial,
+  push_key}`), so tests point at what the user sees.
 
 ## What the tests hold
 

@@ -200,7 +200,10 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             // it compresses the board's own signal; its detector hears the board's key only
             // when the board slot is keyed (a board takes a key when a pedal does), as an
             // insert's hears its slot's (ADR 0142, phase B).
-            | EffectKind::ResonanceSuppressor
+            // fxb:lenis — Lenis is a pedal: a guitar's rig makes the rings it tames (a
+            // cabinet's peak, a fuzz's fizz), and the board keeps a latent pedal's latency
+            // (Saltus's, Arca's) and follows a quality change as it follows Saltus's mode
+            // (ADR 0143, phase B).
             | EffectKind::Ducker
     )
 }
@@ -578,7 +581,6 @@ mod tests {
                     | EffectKind::Glitch
                     | EffectKind::Shimmer
                     // fxb:contract — wave B joins the board with its faces (phase B).
-                    | EffectKind::ResonanceSuppressor
                     | EffectKind::Ducker
             ) {
                 assert!(pedal_allowed(k), "{k:?}");

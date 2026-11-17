@@ -601,6 +601,8 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("opto", EffectKind::BusCompressor),           // fxb:vinculum
     ("resonance_suppressor", EffectKind::ResonanceSuppressor), // fxb:contract
     ("resonance", EffectKind::ResonanceSuppressor), // fxb:contract
+    ("resonance_tamer", EffectKind::ResonanceSuppressor), // fxb:lenis
+    ("deharsh", EffectKind::ResonanceSuppressor), // fxb:lenis
     ("ducker", EffectKind::Ducker),                // fxb:contract
     ("ducking", EffectKind::Ducker),               // fxb:contract
     ("pump", EffectKind::Ducker),                  // fxb:contract

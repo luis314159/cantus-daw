@@ -2558,6 +2558,48 @@ paralelo, un bus de voces, pegamento de máster y un límite en cada uno. En sus
 defecto (el umbral a +24 dB) Vinculum no toca ninguna muestra; no tiene latencia. Como pedal
 en **Tabula** muestra Modelo, Umbral, Compensación y Mezcla.
 
+### Lenis, el supresor de resonancias
+
+**Lenis** (en latín, *suave*) suaviza lo que resuena: los silbidos, los picos ásperos y las
+acumulaciones de caja que sobresalen del propio espectro de un sonido, encontrados momento a
+momento y bajados en una parte, sin tocar las notas ni el tono. Insértalo desde **Añadir
+inserto ▾ ▸ EQ ▸ Lenis** (también en Dinámica); empieza como *Suave* (la mitad de cada
+resonancia, la curva Suave, desde 150 Hz).
+
+**La pantalla** es la de un analizador de banco: el espectro de entrada como una línea
+luminosa con el corte colgando bajo ella como un velo, una barra por frecuencia arriba con
+cuánto se quita, y el **enfoque** al pie — dos compuertas, **Desde** y **Hasta**, más allá de
+las cuales nada se toca, y seis **bandas** numeradas. Arrastra una compuerta a la izquierda o
+a la derecha; arrastra el nodo de una banda a los lados para su frecuencia y arriba o abajo
+para su cantidad (sobre la línea trabaja más, bajo ella más suave, abajo del todo deja esa
+región intacta); la rueda sobre un nodo fija su anchura; un doble clic enciende o apaga una
+banda. Una banda arrastrada mientras está apagada se enciende en el mismo paso. Cada arrastre
+es un paso de deshacer.
+
+**El panel** a su lado: el dial de **Profundidad** (arrástralo arriba o abajo; doble clic
+para ninguna) — al 100 % una resonancia baja hasta el contorno del propio espectro, al 50 % a
+medio camino; las lecturas de la **máxima atenuación** ahora y de la **latencia**; y las teclas:
+**Calidad** (Rápida, Estándar, Precisa: 5, 11 o 21 ms de latencia a 48 kHz — Precisa
+resuelve los medios graves, Rápida oye antes), **Curva** (Suave apenas toca un pico que pasa
+la línea, Dura toma cada pico en su parte), **Escuchar · Lo que se quita** (solo las
+resonancias, nunca la música) y **Canales** (Enlazados, Independientes, Medio y lados). Un
+clic hunde una tecla; el menú de cada tecla ofrece automatización y aprendizaje MIDI.
+
+**Las tarjetas**: Detección (**Nitidez** — solo resonancias estrechas, o también
+acumulaciones anchas — y **Selectividad**, cuánto debe sobresalir un pico), Tiempo
+(**Ataque**, **Liberación**), Enfoque (las frecuencias de las compuertas), Banda de enfoque (la
+banda elegida en sus números o en la pantalla: su piloto, frecuencia, cantidad y anchura) y
+Salida (**Mezcla**, **Salida**).
+
+La latencia la compensa el mezclador como la de cualquier inserto con latencia — un cambio de
+calidad empieza el análisis de nuevo (un hueco de una latencia) y el mezclador vuelve a
+alinear enseguida. Catorce presets de fábrica: voz áspera, domador de sibilancia,
+chisporroteo de guitarra, resonancia de piano, bus de mezcla suave, pulido de máster,
+resonancia de sala en la batería, retumbe de acústica, voz de pódcast, resonancia de caja,
+aire amplio (medio y lados), cuerdas y metales, quirúrgico. En sus valores por defecto
+(profundidad 0) Lenis es su entrada retrasada por su latencia, al bit. Como pedal en
+**Tabula** muestra Profundidad, Nitidez, Selectividad y Enfoque desde.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

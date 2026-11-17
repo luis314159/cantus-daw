@@ -56,8 +56,9 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 34] = [
-    // fx3:contract: 33 with wave 3's four; fxb:vinculum: 34 with the bus compressor
+pub static ALL: [Descriptor; 35] = [
+    // fx3:contract: 33 with wave 3's four; fxb:vinculum: 34 with the bus compressor;
+    // fxb:lenis: 35 with the resonance suppressor
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -479,6 +480,21 @@ pub static ALL: [Descriptor; 34] = [
         vst3_categories: "Fx|Dynamics",
         description: "Bus compressor: a console's VCA with Auto release, a photocell leveller and a valve variable-mu, keyed by a sidechain.",
         compiled: cfg!(feature = "vinculum"),
+    },
+    // fxb:lenis — the fx side round's wave B (provisional ADR 0143). Latent (its analysis
+    // frame): the latency is reported per quality, and a quality change re-reports it (CLAP
+    // asks for a restart, VST3 `restartComponent(kLatencyChanged)`).
+    Descriptor {
+        kind: EffectKind::ResonanceSuppressor,
+        name: "Lenis",
+        full_name: "Cantus Lenis",
+        slug: "lenis",
+        clap_id: "com.github.lalmazan.cantus.lenis",
+        vst3_cid: [0x6E82AC2D, 0x9DEE6C21, 0x7EDFC21A, 0x0453554A],
+        clap_features: &[FX, "equalizer", "restoration", STEREO],
+        vst3_categories: "Fx|EQ|Restoration",
+        description: "Resonance suppressor: finds the rings and whistles that stand out of a sound's own spectrum, moment by moment, and takes a share of each away, its notes left alone.",
+        compiled: cfg!(feature = "lenis"),
     },
 ];
 

@@ -434,6 +434,13 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
             Some("the opto's and vari-mu's")
         }
         ("BusCompressor", "time") if get("model").round() != 2.0 => Some("the vari-mu's"),
+        // fxb:lenis — the Focus band card shows one band at a time (the first in the demo);
+        // `every_lenis_band_offers_its_switch` selects each band in turn.
+        ("ResonanceSuppressor", k)
+            if k.len() == 4 && k.starts_with('b') && k.ends_with("on") && k != "b0on" =>
+        {
+            Some("another focus band than the one the card shows")
+        }
         ("Sampler", k) if k.ends_with(".gen") => Some("the zone's source, chosen with its sound"),
         // fx:cribrum — Cribrum shows one filter (A or B) and one movement source at a time;
         // its curve's points are drawn on the curve's lane.
@@ -939,6 +946,48 @@ fn every_vinculum_model_offers_its_stepped_parameters() {
             };
             if !offered.contains(&target) {
                 bad.push(format!("model {model}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
+}
+
+/// fxb:lenis — the Focus band card shows the band chosen on its chooser (or on the screen):
+/// with each of the six chosen in turn, its lamp — the band's switch — is offered
+/// (automation, MIDI learn), and so is every other stepped key of the editor.
+#[test]
+fn every_lenis_band_offers_its_switch() {
+    let kind = EffectKind::ResonanceSuppressor;
+    let mut bad = Vec::new();
+    for n in 0..cantus_core::fx::lenis::BANDS {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.open_effect_editor(s0, fx);
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        a.fx.lenis.band = n;
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        let keys = [cantus_core::fx::lenis::band_key(n, "on"), "qual", "curve", "delta", "chan"];
+        for key in keys {
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: key.into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("band {n}: {key}"));
             }
         }
     }

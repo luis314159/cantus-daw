@@ -186,3 +186,53 @@ fn a_fork_carries_on_from_where_the_unit_is() {
         at += 480;
     }
 }
+
+/// fxb:lenis (phase B) — Lenis as a pedal on Tabula's board: the board with Lenis alone is
+/// Lenis inserted alone, to the bit — its latency the board's, so the mix comes out as late
+/// — at Standard and at Precise (a quality the board follows as it follows a pedal's own
+/// latency); live equals offline.
+#[test]
+fn as_a_pedal_it_is_the_insert_alone_at_each_quality() {
+    use cantus_core::fx::tabula::{pedal_allowed, Board, Pedal, PedalId};
+    assert!(pedal_allowed(EffectKind::ResonanceSuppressor), "Lenis may be a pedal");
+    for qual in [1.0, 2.0] {
+        let kv = [
+            ("depth", 0.8),
+            ("curve", 1.0),
+            ("select", 0.3),
+            ("att", 2.0),
+            ("lo", 300.0),
+            ("qual", qual),
+        ];
+        let mut alone = demo_project();
+        let fx = add_effect(&mut alone, EffectKind::ResonanceSuppressor);
+        set_all(&mut alone, fx, &kv);
+        let latency = unit_of(&mut alone, fx).latency();
+        let own = render_of(&alone);
+        assert!(
+            differs(&own[2 * latency..], &render_of(&demo_project())) > 1e-3,
+            "it works on the mix"
+        );
+        let spec = strip_of(&mut alone, 0).effects[0].spec.clone();
+        let mut p = demo_project();
+        let board = add_effect(&mut p, EffectKind::Board);
+        let slot = strip_of(&mut p, 0)
+            .effects
+            .iter_mut()
+            .find(|e| e.id == board)
+            .unwrap();
+        slot.spec.board = Some(Box::new(Board {
+            pedals: vec![Pedal::new(PedalId(1), spec)],
+            macros: Vec::new(),
+        }));
+        assert_eq!(
+            unit_of(&mut p, board).latency(),
+            latency,
+            "the board is as late as its pedal (quality {qual})"
+        );
+        let on_board = render_of(&p);
+        assert_null(&own, &on_board, 0.0, "the board = the insert alone");
+        let live = realtime(&p, on_board.len() / 2);
+        assert_null(&on_board[..live.len()], &live, 0.0, "the board: live = offline");
+    }
+}

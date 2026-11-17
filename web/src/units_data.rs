@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 35] = [
+pub const EFFECTS: [Unit; 36] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -551,6 +551,28 @@ pub const EFFECTS: [Unit; 35] = [
             ("Keyed by any track through a side-chain high-pass; parallel by its mix", "Con la clave de cualquier pista a través de un paso alto en la cadena lateral; paralelo por su mezcla"),
             ("The faceplate's switches and lamps answer a click; the key chosen from its lamp", "Los conmutadores y pilotos de la placa responden a un clic; la clave se elige desde su piloto"),
             ("Fourteen factory presets; no latency; untouched at its defaults; a pedal on the pedalboard too", "Catorce presets de fábrica; sin latencia; intacto en sus valores por defecto; también un pedal en la pedalera"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 1209),
+        thumb: (640, 430),
+    },
+
+    // fxb:lenis — Lenis, the resonance suppressor (ADR 0143, provisional).
+    Unit {
+        file: "lenis",
+        name: "Lenis",
+        kind: ("Resonance suppressor", "Supresor de resonancias"),
+        pitch: ("Smooths what rings: the whistles, the harsh peaks and the boxy build-ups that stand out of a sound's own spectrum, found moment by moment and taken down by a share — the notes and the tone left alone, on a bench analyser you can watch it work on.", "Suaviza lo que resuena: los silbidos, los picos ásperos y las acumulaciones de caja que sobresalen del propio espectro de un sonido, encontrados momento a momento y bajados en una parte — sin tocar las notas ni el tono, en un analizador de banco donde lo ves trabajar."),
+        what: long!(("Lenis listens to a sound the way an engineer sweeps an equaliser for the frequency that hurts, only it does it on every frame. A low-delay analysis compares each frequency with the outline of the sound's own spectrum — an envelope drawn over its peaks, so a note's harmonics and a cymbal's wide sheen are not mistaken for rings — and takes away a share of whatever stands out: at 100 % a resonance comes down to the outline, at 50 % half way. Sharpness says whether only narrow rings count or broad build-ups too, selectivity how far a peak must stand out, and attack and release how fast it follows; the Soft curve barely touches a peak just over the line, the Hard one takes every peak by its share. The focus keeps it where you want it — two limits and six bands you drag on the screen to weight a region or leave it alone. Fast, Standard and Precise trade the frame's length (5, 11 or 21 ms of latency, compensated by the mixer) for detail in the low mids; linked, independent or mid and side; and Listen to what is removed plays only the rings it takes. Its window is a bench analyser: the input's spectrum as a glowing line with the cut hanging under it as a veil, a bar per frequency of how much is taken, the Depth dial and push keys beside it.", "Lenis escucha un sonido como un ingeniero recorre un ecualizador buscando la frecuencia que molesta, solo que lo hace en cada cuadro. Un análisis de bajo retardo compara cada frecuencia con el contorno del propio espectro del sonido — una envolvente trazada sobre sus picos, para que los armónicos de una nota y el brillo ancho de un platillo no se confundan con resonancias — y quita una parte de lo que sobresale: al 100 % una resonancia baja hasta el contorno, al 50 % a medio camino. La nitidez dice si solo cuentan las resonancias estrechas o también las acumulaciones anchas, la selectividad cuánto debe sobresalir un pico, y el ataque y la liberación lo rápido que lo sigue; la curva Suave apenas toca un pico que pasa la línea, la Dura toma cada pico en su parte. El foco lo mantiene donde quieres — dos límites y seis bandas que arrastras en la pantalla para dar peso a una región o dejarla intacta. Rápida, Estándar y Precisa cambian la longitud del cuadro (5, 11 o 21 ms de latencia, compensada por el mezclador) por detalle en los medios graves; enlazados, independientes o medio y lados; y Escuchar lo que se quita reproduce solo las resonancias que toma. Su ventana es un analizador de banco: el espectro de entrada como una línea luminosa con el corte colgando bajo ella como un velo, una barra por frecuencia de cuánto se quita, el dial de Profundidad y las teclas al lado.")),
+        features: long!(&[
+            ("A ring on noise cut 11 dB at full depth with its neighbours within 0.02 dB; flat noise barely touched", "Una resonancia sobre ruido cortada 11 dB a fondo con sus vecinas a menos de 0,02 dB; el ruido plano casi intacto"),
+            ("A note's harmonics are not resonances: a steady note's low partials untouched to 0.00 dB", "Los armónicos de una nota no son resonancias: los parciales graves de una nota sostenida intactos a 0,00 dB"),
+            ("Follows a resonance in 8 ms; three qualities, 5 to 21 ms of latency, compensated by the mixer", "Sigue una resonancia en 8 ms; tres calidades, de 5 a 21 ms de latencia, compensada por el mezclador"),
+            ("A focus with two limits and six bands dragged on the screen; linked, independent or mid and side", "Un foco con dos límites y seis bandas que se arrastran en la pantalla; enlazados, independientes o medio y lados"),
+            ("Listen to what is removed: only the rings, never the music", "Escuchar lo que se quita: solo las resonancias, nunca la música"),
+            ("Fourteen factory presets; untouched at its defaults; a pedal on the pedalboard too", "Catorce presets de fábrica; intacto en sus valores por defecto; también un pedal en la pedalera"),
         ]),
         presets: Some(14),
         plugin: true,

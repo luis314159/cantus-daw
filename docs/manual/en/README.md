@@ -2353,6 +2353,45 @@ model: glue for a bus or the mix, drum smash and parallel drums, a vocal bus, ma
 and a limit on each. At its defaults (the threshold at +24 dB) Vinculum touches no sample; it
 has no latency. As a pedal on **Tabula** it shows Model, Threshold, Make-up and Mix.
 
+### Lenis, the resonance suppressor
+
+**Lenis** (Latin for *gentle*) smooths what rings: the whistles, the harsh peaks and the
+boxy build-ups that stand out of a sound's own spectrum, found moment by moment and taken
+down by a share, while the notes and the tone are left alone. Insert it from **Add insert ▾
+▸ EQ ▸ Lenis** (also under Dynamics); it starts as *Gentle* (half of each ring, the Soft
+curve, from 150 Hz up).
+
+**The screen** is a bench analyser's: the input's spectrum as a glowing line with the cut
+hanging under it as a veil, a bar per frequency along the top for how much is taken away,
+and the **focus** at the foot — two gates, **From** and **To**, beyond which nothing is
+touched, and six numbered **bands**. Drag a gate left or right; drag a band's node left and
+right for its frequency and up and down for its amount (above the line it works harder,
+below it gentler, at the bottom it leaves that region alone); the wheel over a node sets its
+width; a double-click switches a band on or off. A band dragged while off switches on in the
+same step. Each drag is one step of undo.
+
+**The panel** beside it: the **Depth** dial (drag it up or down; double-click for none) —
+at 100 % a ring comes down to the spectrum's own outline, at 50 % half way; the readouts of
+the **most cut** now and the **latency**; and the push keys: **Quality** (Fast, Standard,
+Precise: 5, 11 or 21 ms of latency at 48 kHz — Precise resolves the low mids, Fast hears
+sooner), **Curve** (Soft barely touches a peak just over the line, Hard takes every peak by
+its share), **Listen · What is removed** (only the rings, never the music) and **Channels**
+(Linked, Independent, Mid and side). A click pushes a key in; each key's menu offers
+automation and MIDI learn.
+
+**The cards**: Detection (**Sharpness** — narrow rings only, or broad build-ups too — and
+**Selectivity**, how far a peak must stand out), Time (**Attack**, **Release**), Focus (the
+gates' frequencies), Focus band (the band chosen on its numbers or on the screen: its lamp,
+frequency, amount and width) and Output (**Mix**, **Output**).
+
+The latency is compensated by the mixer like any latent insert's — a change of quality
+starts the analysis again (a gap of one latency) and the mixer re-aligns at once. Fourteen
+factory presets: harsh vocal, sibilance tamer, guitar fizz, piano ring, mix bus gentle,
+master polish, drum room ring, acoustic boom, podcast voice, snare ring, wide air (mid and
+side), strings and brass, surgical. At its defaults (depth 0) Lenis is its input delayed by
+its latency, to the bit. As a pedal on **Tabula** it shows Depth, Sharpness, Selectivity
+and Focus from.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

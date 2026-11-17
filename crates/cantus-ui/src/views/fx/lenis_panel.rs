@@ -80,6 +80,23 @@ pub struct Key {
     word: Rect,
 }
 
+impl Key {
+    /// The parameter the key sets.
+    pub fn param(&self) -> &'static str {
+        self.row.key
+    }
+
+    /// The value it sets (the delta's one key: 1).
+    pub fn value(&self) -> usize {
+        self.value
+    }
+
+    /// Where the pointer presses it: its cap and its word.
+    pub fn hit(&self, k: f32) -> Rect {
+        self.cap.union(self.word).expand(2.0 * k)
+    }
+}
+
 /// Where everything in the column stands.
 pub struct Panel {
     pub dial: Pos2,
@@ -259,8 +276,7 @@ pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, panel: &Panel) 
         let Some(key) = key else { continue };
         let row = key.row;
         let id = ui.id().with(("lenis-key", row.key, key.value));
-        let r = key.cap.union(key.word).expand(2.0 * k);
-        let resp = ui.interact(r, id, Sense::click());
+        let resp = ui.interact(key.hit(k), id, Sense::click());
         let name = tr(row.caption);
         let learnt = controls::stepped_offer(ui, s, host, row.key, name, &resp);
         let now = host.spec().get(row.key).round().max(0.0) as usize;

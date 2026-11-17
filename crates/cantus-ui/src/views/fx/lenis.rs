@@ -23,7 +23,7 @@ use crate::kit::{with_brush, Style};
 use cantus_core::fx::lenis::band_key;
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use cantus_dsp::lenis::FOCUS_BANDS;
-use egui::{pos2, vec2, Rect};
+use egui::{pos2, vec2, Pos2, Rect};
 
 #[path = "lenis_art.rs"]
 mod art;
@@ -103,6 +103,56 @@ pub struct State {
     pub display: Option<Rect>,
     /// Where the screen's lanes were drawn last frame.
     pub plot: Option<screen::Plot>,
+    /// Where the controls answering the pointer stood last frame (tests point at them).
+    grips: Grips,
+}
+
+/// The pointer's targets as laid out last frame: the six band nodes, the two gates' tabs,
+/// the Depth dial and the push keys.
+#[derive(Debug, Clone)]
+struct Grips {
+    nodes: [Pos2; FOCUS_BANDS],
+    gates: [Rect; 2],
+    dial: Option<(Pos2, f32)>,
+    keys: [(&'static str, usize, Rect); 9],
+}
+
+impl Default for Grips {
+    fn default() -> Grips {
+        Grips {
+            nodes: [Pos2::ZERO; FOCUS_BANDS],
+            gates: [Rect::NOTHING; 2],
+            dial: None,
+            keys: [("", 0, Rect::NOTHING); 9],
+        }
+    }
+}
+
+impl State {
+    /// Band `n`'s node on the screen, as drawn last frame.
+    pub fn node(&self, n: usize) -> Option<Pos2> {
+        self.display.map(|_| self.grips.nodes[n.min(FOCUS_BANDS - 1)])
+    }
+
+    /// The low (`hi` false) or the high gate's tab, as drawn last frame.
+    pub fn gate(&self, hi: bool) -> Option<Rect> {
+        self.display.map(|_| self.grips.gates[usize::from(hi)])
+    }
+
+    /// The Depth dial's centre and radius, as drawn last frame.
+    pub fn dial(&self) -> Option<(Pos2, f32)> {
+        self.grips.dial
+    }
+
+    /// The push key that sets `key` to `value` (the delta's one key is its value 1), as
+    /// drawn last frame: its cap and its word.
+    pub fn push_key(&self, key: &str, value: usize) -> Option<Rect> {
+        self.grips
+            .keys
+            .iter()
+            .find(|(k, v, _)| !k.is_empty() && *k == key && *v == value)
+            .map(|(_, _, r)| *r)
+    }
 }
 
 /// The screen's words, made again only when what they say changes.
@@ -325,7 +375,9 @@ fn band_card(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style
                 Some(w),
             );
         });
-    if clicked && !controls::card_lamp_offer(ui, s, host, on_key, lamp.as_ref()) {
+    // The lamp's menu (automation, MIDI learn) is offered every frame, not only on a click.
+    let learnt = controls::card_lamp_offer(ui, s, host, on_key, lamp.as_ref());
+    if clicked && !learnt {
         host.set(on_key, if on { 0.0 } else { 1.0 }, None);
     }
 }
@@ -392,6 +444,16 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
     let spec = host.spec().clone();
     let set = cantus_engine::fx::lenis::settings(&spec);
     st.words.update(&set, sr);
+    for (n, at) in st.grips.nodes.iter_mut().enumerate() {
+        *at = plot.node(&set, n);
+    }
+    st.grips.gates = [plot.tab(&set, false, tabs[0], k), plot.tab(&set, true, tabs[1], k)];
+    st.grips.dial = Some((pan.dial, pan.dial_rad));
+    for (at, key) in st.grips.keys.iter_mut().zip(&pan.keys) {
+        *at = key.map_or(("", 0, Rect::NOTHING), |key| {
+            (key.param(), key.value(), key.hit(k))
+        });
+    }
     let latency_ms = cantus_dsp::lenis::latency_for(&set, sr) as f32 / sr * 1000.0;
     let ink = super::canvas::Ink::of(s);
     let words = screen::Words {

@@ -797,6 +797,24 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("mix", 0.5),
             ("out", -3.0),
         ], // fxb:vinculum
+        // fxb:lenis — working hard on the precise frame: Hard, most of each bump, each
+        // channel on its own, the focus from 300 Hz with a band raised, part dry, the output
+        // moved. The latency per quality, its change and the delta are in `clap.rs` and
+        // `vst3.rs`.
+        EffectKind::ResonanceSuppressor => vec![
+            ("depth", 0.8),
+            ("curve", 1.0),
+            ("qual", 2.0),
+            ("chan", 1.0),
+            ("select", 0.3),
+            ("att", 2.0),
+            ("lo", 300.0),
+            ("b3on", 1.0),
+            ("b3hz", 3000.0),
+            ("b3amt", 0.6),
+            ("mix", 0.8),
+            ("out", -2.0),
+        ], // fxb:lenis
         _ => vec![],
     }
 }
@@ -903,6 +921,8 @@ pub enum Direct {
         Box<cantus_dsp::vinculum::Vinculum>,
         cantus_dsp::modfx_line::Glide,
     ),
+    /// fxb:lenis — Lenis, the resonance suppressor: its DSP, its output level its own.
+    Lenis(Box<cantus_dsp::lenis::Lenis>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -1007,6 +1027,9 @@ impl Direct {
                 Box::new(cantus_dsp::vinculum::Vinculum::new(SR)),
                 cantus_dsp::modfx_line::Glide::new(1.0, 10.0, SR, 1e-6),
             ), // fxb:vinculum
+            EffectKind::ResonanceSuppressor => {
+                Direct::Lenis(Box::new(cantus_dsp::lenis::Lenis::new(SR)))
+            } // fxb:lenis
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -1079,6 +1102,7 @@ impl Direct {
                     cantus_dsp::math::db_to_gain(db.clamp(-24.0, 24.0))
                 };
             }
+            Direct::Lenis(x) => x.set(&fx::lenis::settings(spec)), // fxb:lenis
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -1129,6 +1153,7 @@ impl Direct {
                 out.jump(out.target);
                 x.reset();
             } // fxb:vinculum
+            Direct::Lenis(x) => x.restart(), // fxb:lenis: as the engine's reset
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1166,6 +1191,7 @@ impl Direct {
             Direct::Rota(_) => 0,                  // fx3:rota
             Direct::Arca(x) => x.latency(),        // fx3:arca
             Direct::Vinculum(x, _) => x.latency(), // fxb:vinculum
+            Direct::Lenis(x) => x.latency(),       // fxb:lenis
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1212,6 +1238,7 @@ impl Direct {
                     }
                 }
             } // fxb:vinculum
+            Direct::Lenis(x) => x.process(l, r), // fxb:lenis
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

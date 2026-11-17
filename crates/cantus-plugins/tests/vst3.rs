@@ -687,3 +687,104 @@ fn a_vst3_host_without_beats_follows_its_project_time_in_samples() {
     }
     assert_identical("VST3, the song in samples", &l, &el);
 }
+
+/// fxb:lenis — a host's component handler that counts the restarts it is asked for.
+struct Handler {
+    latency_restarts: Cell<u32>,
+}
+
+impl Class for Handler {
+    type Interfaces = (IComponentHandler,);
+}
+
+impl IComponentHandlerTrait for Handler {
+    unsafe fn beginEdit(&self, _id: ParamID) -> tresult {
+        kResultOk
+    }
+    unsafe fn performEdit(&self, _id: ParamID, _value: ParamValue) -> tresult {
+        kResultOk
+    }
+    unsafe fn endEdit(&self, _id: ParamID) -> tresult {
+        kResultOk
+    }
+    unsafe fn restartComponent(&self, flags: int32) -> tresult {
+        if flags & RestartFlags_::kLatencyChanged as int32 != 0 {
+            self.latency_restarts.set(self.latency_restarts.get() + 1);
+        }
+        kResultOk
+    }
+}
+
+/// The host's UI thread for a while: its messages (the plug-in's timer among them)
+/// dispatched until `done` or a second has passed.
+#[cfg(windows)]
+fn pump_until(done: impl Fn() -> bool) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
+    };
+    let start = std::time::Instant::now();
+    while !done() && start.elapsed() < std::time::Duration::from_secs(1) {
+        // SAFETY: this thread's own message queue.
+        unsafe {
+            let mut msg: MSG = std::mem::zeroed();
+            while PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// fxb:lenis — Lenis's latency through VST3 is its quality's frame (255, 511, 1 023
+/// samples at 48 kHz) from `getLatencySamples`; a quality changed while it plays makes the
+/// plug-in call the host's `restartComponent(kLatencyChanged)` from the UI thread's tick
+/// (once), and the host reading the latency again gets the new one.
+#[test]
+fn lenis_s_latency_follows_its_quality_through_vst3() {
+    let kind = EffectKind::ResonanceSuppressor;
+    for (qual, want) in [(0.0, 255u32), (1.0, 511), (2.0, 1_023)] {
+        let v = V3::new(kind);
+        assert!(v.set_state(&state_of(kind, &[("qual", qual)])));
+        v.activate(1024);
+        unsafe {
+            assert_eq!(v.processor.getLatencySamples(), want, "quality {qual}");
+        }
+    }
+    let v = V3::new(kind);
+    let handler = ComWrapper::new(Handler {
+        latency_restarts: Cell::new(0),
+    });
+    let h = handler.to_com_ptr::<IComponentHandler>().unwrap();
+    unsafe {
+        assert_eq!(v.controller.setComponentHandler(h.as_ptr()), kResultOk);
+    }
+    v.activate(1024);
+    unsafe {
+        assert_eq!(v.processor.getLatencySamples(), 511, "Standard");
+    }
+    let qual = params::table(kind).by_key("qual").unwrap();
+    let (mut l, mut r) = signal(1024, 3);
+    v.process(&mut l, &mut r, None, &[(qual.id, vec![(0, qual.to_normalized(2.0))])]);
+    v.process(&mut l, &mut r, None, &[]);
+    #[cfg(windows)]
+    {
+        pump_until(|| handler.latency_restarts.get() > 0);
+        assert_eq!(
+            handler.latency_restarts.get(),
+            1,
+            "restartComponent(kLatencyChanged) asked for"
+        );
+        pump_until(|| false);
+        assert_eq!(handler.latency_restarts.get(), 1, "once");
+    }
+    unsafe {
+        assert_eq!(v.processor.getLatencySamples(), 1_023, "the new latency read");
+        v.processor.setProcessing(0);
+        v.component.setActive(0);
+        assert_eq!(v.component.setActive(1), kResultOk);
+        v.processor.setProcessing(1);
+        assert_eq!(v.processor.getLatencySamples(), 1_023, "after a restart too");
+        v.controller.setComponentHandler(std::ptr::null_mut());
+    }
+}

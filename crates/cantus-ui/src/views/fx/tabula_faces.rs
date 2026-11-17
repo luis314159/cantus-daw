@@ -338,6 +338,17 @@ pub const FACES: &[Face] = &[
         "V",
         T::Smooth,
     ), // fxb:vinculum
+    // fxb:lenis — a resonance tamer: depth, sharpness, selectivity and where its focus
+    // starts (a guitar's body left alone below it). The curve, the quality and the focus's
+    // bands stay on its editor's screen, reached from the pedal.
+    face(
+        K::ResonanceSuppressor,
+        &["depth", "sharp", "select", "lo"],
+        S::Standard,
+        M::Curve,
+        "L",
+        T::Brushed,
+    ), // fxb:lenis
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.

@@ -21,7 +21,8 @@ all = ["eq", "compressor", "limiter", "space", "multiband", "deesser", "gate", "
   "concentus", "flexus", "phasis", "tremor", "vibrans", "anulus", "translatio", "fluctus", "tonsor", "impetus", "discrimen", "speculum", "tonus", "aula",
   "cribrum", "fragor", "lapsus", "vetus", "libra", # fx:contract: the side round's five
   "tabula", "saltus", "rota", "arca", # fx3:contract: wave 3's four
-  "vinculum"] # fxb:vinculum: wave B's bus compressor
+  "vinculum", # fxb:vinculum: wave B's bus compressor
+  "lenis"] # fxb:lenis: wave B's resonance suppressor
 # The plug-ins' own editors — the DAW's, running in the host's window (egui 0.36 through
 # baseview). Porta's is the first; the others show the host's generic interface.
 editor = ["dep:cantus-ui", "dep:egui", "dep:egui-baseview", "dep:baseview", "dep:raw-window-handle"]
@@ -64,6 +65,8 @@ rota = []
 arca = []
 # fxb:vinculum — the fx side round's wave B (provisional ADR 0142).
 vinculum = []
+# fxb:lenis — the fx side round's wave B (provisional ADR 0143).
+lenis = []
 
 [dependencies]
 cantus-core.workspace = true

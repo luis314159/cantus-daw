@@ -714,3 +714,82 @@ fn every_plugin_runs_at_any_sample_rate_a_host_may_ask_for() {
         }
     }
 }
+
+/// fxb:lenis — Lenis's latency is its quality's frame, reported to the host before it
+/// activates (Fast 255, Standard 511, Precise 1 023 samples at 48 kHz, as the engine's
+/// unit); a quality changed while it runs asks the host for a restart once, and on the
+/// next activation the host is told the new latency.
+#[test]
+fn lenis_reports_its_latency_per_quality_and_a_change_re_reports_it() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let kind = EffectKind::ResonanceSuppressor;
+    for (qual, want) in [(0.0, 255), (1.0, 511), (2.0, 1_023)] {
+        let values = [("qual", qual), ("depth", 0.6)];
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        plug.activate(512);
+        assert_eq!(plug.latency(), want, "quality {qual}");
+        assert_eq!(
+            engine_unit(&spec_with(kind, &values)).latency(),
+            want as usize,
+            "the engine's unit agrees"
+        );
+    }
+    // Standard to Precise while it plays.
+    let plug = Plug::new(kind);
+    plug.activate(512);
+    assert_eq!(plug.latency(), 511);
+    assert_eq!(plug.host.restarts.load(SeqCst), 0);
+    let (id, v) = clap_value(kind, "qual", 2.0);
+    let (mut l, mut r) = signal(512, 1);
+    plug.process(&mut l, &mut r, None, &[(0, id, v)], false);
+    assert_eq!(plug.host.restarts.load(SeqCst), 1, "a restart is asked for");
+    plug.process(&mut l, &mut r, None, &[], false);
+    assert_eq!(plug.host.restarts.load(SeqCst), 1, "once");
+    let told = plug.host.latency_changed.load(SeqCst);
+    plug.deactivate();
+    plug.activate(512);
+    assert_eq!(plug.latency(), 1_023, "Precise's frame");
+    assert_eq!(
+        plug.host.latency_changed.load(SeqCst),
+        told + 1,
+        "the host is told on activation"
+    );
+    // And back to Fast: asked again, told again.
+    let (id, v) = clap_value(kind, "qual", 0.0);
+    plug.process(&mut l, &mut r, None, &[(0, id, v)], false);
+    assert_eq!(plug.host.restarts.load(SeqCst), 2, "a second restart");
+    plug.deactivate();
+    plug.activate(512);
+    assert_eq!(plug.latency(), 255);
+    assert_eq!(plug.host.latency_changed.load(SeqCst), told + 2);
+}
+
+/// fxb:lenis — the delta through CLAP: what is taken away, exactly the DSP's, and exactly
+/// the input delayed by the latency less what the plug-in gives without the delta.
+#[test]
+fn lenis_s_delta_is_what_it_takes_away() {
+    let kind = EffectKind::ResonanceSuppressor;
+    let hard = [("depth", 0.9), ("curve", 1.0), ("select", 0.3), ("att", 1.0)];
+    let with_delta = [hard.as_slice(), &[("delta", 1.0)]].concat();
+    let wet = through_plugin(kind, &hard, &[512, 333], N);
+    let delta = through_plugin(kind, &with_delta, &[512, 333], N);
+    let dsp = through_dsp(&spec_with(kind, &with_delta), N, true);
+    assert_identical("the delta, plug-in and DSP", &delta, &dsp);
+    let latency = 511;
+    let (mut dry, dry_r) = signal(N, 7);
+    dry.extend_from_slice(&dry_r);
+    for ch in 0..2 {
+        for i in 0..N {
+            let x = if i >= latency { dry[ch * N + i - latency] } else { 0.0 };
+            let want = x - wet[ch * N + i];
+            assert_eq!(
+                delta[ch * N + i].to_bits(),
+                want.to_bits(),
+                "channel {ch}, sample {i}: the delayed input less the output"
+            );
+        }
+    }
+    let taken = delta.iter().map(|v| v * v).sum::<f32>();
+    assert!(taken > 1e-3, "something is taken away: {taken}");
+}
