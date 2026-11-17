@@ -359,9 +359,9 @@ impl Parser {
                 self.pos += 1;
                 Ok(())
             }
-            Some(Tok::Sym(s)) => Err(self.err(ErrorKind::Unexpected(
-                s.chars().next().unwrap_or('?'),
-            ))),
+            Some(Tok::Sym(s)) => {
+                Err(self.err(ErrorKind::Unexpected(s.chars().next().unwrap_or('?'))))
+            }
             Some(Tok::Name(n)) => {
                 self.pos += 1;
                 self.name(n, at)
@@ -379,8 +379,7 @@ impl Parser {
         }
         if let Some(v) = name_var(&n) {
             // `SongTime()`: a name written as a call of nothing.
-            if self.is_sym("(") && matches!(self.toks.get(self.pos + 1), Some((Tok::Sym(")"), _)))
-            {
+            if self.is_sym("(") && matches!(self.toks.get(self.pos + 1), Some((Tok::Sym(")"), _))) {
                 self.pos += 2;
             }
             return self.emit(Op::Var(v), 0);

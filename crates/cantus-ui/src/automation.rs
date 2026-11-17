@@ -226,11 +226,13 @@ pub fn host_track(
         AutoTarget::PluginInstrument { track: t, .. } => Some(*t),
         AutoTarget::NoteFx { track: t, .. } => Some(*t),
         // A modulator's amount: under the track it lives on (or that feeds its strip).
-        AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => match project.modulator(*m).map(|(h, _, _)| h) {
-            Some(cantus_core::ModHost::Track(t)) => Some(t),
-            Some(cantus_core::ModHost::Strip(s)) => feeding(s),
-            _ => None,
-        },
+        AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => {
+            match project.modulator(*m).map(|(h, _, _)| h) {
+                Some(cantus_core::ModHost::Track(t)) => Some(t),
+                Some(cantus_core::ModHost::Strip(s)) => feeding(s),
+                _ => None,
+            }
+        }
         AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => None,
     };
     own.filter(|t| project.track(*t).is_some())

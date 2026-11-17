@@ -25,7 +25,7 @@ pub fn lit2(s: &Style) -> Color32 {
 
 /// The display's ground: near black, a breath of the accent.
 pub fn ground(s: &Style) -> Color32 {
-    mix(s.t.dark, lit(s), 0.04)
+    mix(s.t.dark_shade, lit(s), 0.04)
 }
 
 /// The metal of the frame: the panel's own surface, lifted and dropped for the bevel.
@@ -42,16 +42,20 @@ pub fn metal(s: &Style) -> Metal {
     Metal {
         top: mix(base, s.t.light, 0.35),
         face: base,
-        foot: mix(base, s.t.dark, 0.35),
-        edge: mix(base, s.t.dark, 0.6),
-        engrave: mix(base, s.t.dark, 0.7),
+        foot: mix(base, s.t.dark_shade, 0.35),
+        edge: mix(base, s.t.dark_shade, 0.6),
+        engrave: mix(base, s.t.dark_shade, 0.7),
     }
 }
 
 /// A hex-socket screw at `p`.
 pub fn screw(b: &mut Brush, s: &Style, p: Pos2, rad: f32, turn: f32) {
     let m = metal(s);
-    b.circle(p + vec2(0.0, rad * 0.25), rad * 1.12, Fill::Solid(with_alpha(s.t.dark, 0.35)));
+    b.circle(
+        p + vec2(0.0, rad * 0.25),
+        rad * 1.12,
+        Fill::Solid(with_alpha(s.t.dark_shade, 0.35)),
+    );
     b.circle(p, rad, Fill::V(m.top, m.foot));
     b.circle_stroke(p, rad, rad * 0.12, m.edge);
     let hex: Vec<Pos2> = (0..6)
@@ -70,15 +74,30 @@ pub fn frame(b: &mut Brush, s: &Style, r: Rect, w: f32) -> Rect {
     let k = s.k;
     // The shadow under the frame, then the rails: a chamfered outer edge, a flat, a bevel
     // falling into the opening.
-    b.rrect_soft(r.translate(vec2(0.0, 3.0 * k)), 7.0 * k, Fill::Solid(with_alpha(s.t.dark, 0.45)), 8.0 * k);
+    b.rrect_soft(
+        r.translate(vec2(0.0, 3.0 * k)),
+        7.0 * k,
+        Fill::Solid(with_alpha(s.t.dark_shade, 0.45)),
+        8.0 * k,
+    );
     b.rrect(r, 7.0 * k, Fill::V(m.top, m.foot));
-    b.rrect(r.shrink(1.2 * k), 6.0 * k, Fill::V(m.face, mix(m.face, m.foot, 0.5)));
+    b.rrect(
+        r.shrink(1.2 * k),
+        6.0 * k,
+        Fill::V(m.face, mix(m.face, m.foot, 0.5)),
+    );
     // Brushing along the rails: fine lines, a hash apart.
     let mut y = r.top() + 2.0 * k;
     let mut i = 0u32;
     while y < r.bottom() - 2.0 * k {
         let a = 0.04 + 0.05 * hash(i);
-        b.hline(r.left() + 2.0 * k, r.right() - 2.0 * k, y, 0.5 * k, with_alpha(m.top, a));
+        b.hline(
+            r.left() + 2.0 * k,
+            r.right() - 2.0 * k,
+            y,
+            0.5 * k,
+            with_alpha(m.top, a),
+        );
         y += 1.6 * k;
         i += 1;
     }
@@ -88,9 +107,14 @@ pub fn frame(b: &mut Brush, s: &Style, r: Rect, w: f32) -> Rect {
     b.rrect_stroke(r.shrink(0.6 * k), 7.0 * k, 0.8 * k, with_alpha(m.top, 0.7));
     b.rrect_stroke(bevel, 4.0 * k, 0.8 * k, m.edge);
     let inset = w * 0.5;
-    for (i, c) in [r.left_top(), r.right_top(), r.left_bottom(), r.right_bottom()]
-        .into_iter()
-        .enumerate()
+    for (i, c) in [
+        r.left_top(),
+        r.right_top(),
+        r.left_bottom(),
+        r.right_bottom(),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let dx = if c.x < r.center().x { inset } else { -inset };
         let dy = if c.y < r.center().y { inset } else { -inset };
@@ -120,7 +144,15 @@ pub fn hash(i: u32) -> f32 {
 }
 
 /// A label painted in `rect` (a display's legend, a rail's engraving).
-pub fn label(b: &mut Brush, s: &Style, rect: Rect, src: Src<'_>, role: Role, color: Color32, align: Align2) {
+pub fn label(
+    b: &mut Brush,
+    s: &Style,
+    rect: Rect,
+    src: Src<'_>,
+    role: Role,
+    color: Color32,
+    align: Align2,
+) {
     let t = Text {
         src,
         role,
@@ -133,7 +165,15 @@ pub fn label(b: &mut Brush, s: &Style, rect: Rect, src: Src<'_>, role: Role, col
 }
 
 /// A plain value (numbers, a formula) painted in `rect`, as it is.
-pub fn value(b: &mut Brush, s: &Style, rect: Rect, text: &str, role: Role, color: Color32, align: Align2) {
+pub fn value(
+    b: &mut Brush,
+    s: &Style,
+    rect: Rect,
+    text: &str,
+    role: Role,
+    color: Color32,
+    align: Align2,
+) {
     let t = Text::new(text, role, color).caps(false).align(align);
     let _ = ktext::paint(b, rect, &t, s.tk());
 }
@@ -167,19 +207,23 @@ pub fn card_h() -> f32 {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Moved {
     /// Item `i` of card `c` moved to a value (a knob) or a choice (a switch).
-    To { card: usize, item: usize, value: f32 },
+    To {
+        card: usize,
+        item: usize,
+        value: f32,
+    },
     /// The gesture on it ended.
     Done { card: usize, item: usize },
 }
 
 /// Lay `cards` in rows across `area` (scaled), each item drawn from `values` (a knob's value
 /// with its range, default and readout; a switch's choice).
-pub fn lay_cards(
+pub fn lay_cards<'v>(
     ui: &mut egui::Ui,
     s: &Style,
     area: Rect,
     cards: &[Card<'_>],
-    values: &dyn Fn(usize, usize) -> Value,
+    values: &dyn Fn(usize, usize) -> Value<'v>,
 ) -> Vec<Moved> {
     let mut out = Vec::new();
     let k = s.k;
@@ -200,7 +244,16 @@ pub fn lay_cards(
                 for (it, item) in card.items.iter().enumerate() {
                     let w = fxa_cells::width(ui, item);
                     match (*item, values(c, it)) {
-                        (Item::Knob(_, lab), Value::Knob { v, lo, hi, def, fmt }) => {
+                        (
+                            Item::Knob(_, lab),
+                            Value::Knob {
+                                v,
+                                lo,
+                                hi,
+                                def,
+                                fmt,
+                            },
+                        ) => {
                             let cell = controls::Cell::new(v, lo..=hi, def)
                                 .size(Size::M)
                                 .label(Src::Key(lab))
@@ -208,7 +261,11 @@ pub fn lay_cards(
                                 .format(fmt);
                             let o = cell.show(ui, s);
                             if let Some(v) = o.changed {
-                                out.push(Moved::To { card: c, item: it, value: v });
+                                out.push(Moved::To {
+                                    card: c,
+                                    item: it,
+                                    value: v,
+                                });
                             }
                             if o.done {
                                 out.push(Moved::Done { card: c, item: it });
@@ -220,7 +277,11 @@ pub fn lay_cards(
                                 let labels: Vec<Src<'_>> =
                                     choices.iter().map(|c| Src::Key(c)).collect();
                                 if let Some(v) = controls::segmented(ui, s, sel, &labels, lab, w) {
-                                    out.push(Moved::To { card: c, item: it, value: v as f32 });
+                                    out.push(Moved::To {
+                                        card: c,
+                                        item: it,
+                                        value: v as f32,
+                                    });
                                     out.push(Moved::Done { card: c, item: it });
                                 }
                             });
@@ -254,6 +315,10 @@ pub enum Value<'a> {
 
 /// A panel's sunk well (a list, the object's bay): the theme's well, a fine edge.
 pub fn well(b: &mut Brush, s: &Style, r: Rect) {
-    b.rrect(r, 5.0 * s.k, Fill::V(mix(s.t.panel, s.t.dark, 0.25), s.t.panel));
-    b.rrect_stroke(r, 5.0 * s.k, 0.7 * s.k, with_alpha(s.t.dark, 0.5));
+    b.rrect(
+        r,
+        5.0 * s.k,
+        Fill::V(mix(s.t.panel, s.t.dark_shade, 0.25), s.t.panel),
+    );
+    b.rrect_stroke(r, 5.0 * s.k, 0.7 * s.k, with_alpha(s.t.dark_shade, 0.5));
 }

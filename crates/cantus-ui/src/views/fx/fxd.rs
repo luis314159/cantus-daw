@@ -71,9 +71,14 @@ pub fn xy(
     let name = crate::i18n::t("fxd.xy.name");
     let sh = shell_of(false, src.look);
     let mut out = Vec::new();
-    sh.show(ui, &header(&name, context, on, 0.0), &Footer { chips, meter: None }, |ui, s, r| {
-        out = fxd_xy::body(ui, s, r, src, amount, links, live);
-    });
+    sh.show(
+        ui,
+        &header(&name, context, on, 0.0),
+        &Footer { chips, meter: None },
+        |ui, s, r| {
+            out = fxd_xy::body(ui, s, r, src, amount, links, live);
+        },
+    );
     out
 }
 
@@ -92,8 +97,13 @@ pub fn formula(
     let name = crate::i18n::t("fxd.formula.name");
     let sh = shell_of(true, src.look);
     let mut out = Vec::new();
-    sh.show(ui, &header(&name, context, on, 0.0), &Footer { chips, meter: None }, |ui, s, r| {
-        out = fxd_formula::body(ui, s, r, src, amount, links, live);
-    });
+    sh.show(
+        ui,
+        &header(&name, context, on, 0.0),
+        &Footer { chips, meter: None },
+        |ui, s, r| {
+            out = fxd_formula::body(ui, s, r, src, amount, links, live);
+        },
+    );
     out
 }

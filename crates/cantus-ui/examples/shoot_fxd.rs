@@ -89,13 +89,21 @@ fn pad(state: &str, look: u8) -> (XySource, Vec<fxd_xy::Link>, fxd_xy::Live) {
         fxd_xy::Link {
             name: format!("{} · Cribrum", t("kit.param.cutoff")),
             axis: 0,
-            range: Some(RouteRange { from: -0.6, to: 0.8, curve: 0.3 }),
+            range: Some(RouteRange {
+                from: -0.6,
+                to: 0.8,
+                curve: 0.3,
+            }),
             depth: 1.0,
         },
         fxd_xy::Link {
             name: format!("{} · Cribrum", t("kit.param.resonance")),
             axis: 1,
-            range: Some(RouteRange { from: 0.0, to: 0.7, curve: 0.0 }),
+            range: Some(RouteRange {
+                from: 0.0,
+                to: 0.7,
+                curve: 0.0,
+            }),
             depth: 1.0,
         },
         fxd_xy::Link {
@@ -114,7 +122,10 @@ fn pad(state: &str, look: u8) -> (XySource, Vec<fxd_xy::Link>, fxd_xy::Live) {
     let mut beats = 5.3f64;
     match state {
         "rest" => {
-            src = XySource { look, ..XySource::default() };
+            src = XySource {
+                look,
+                ..XySource::default()
+            };
             links.clear();
         }
         "hand" => {
@@ -179,7 +190,11 @@ fn formula(state: &str, look: u8) -> (FormulaSource, Vec<fxd_xy::Link>, fxd_form
         fxd_xy::Link {
             name: format!("{} · Cribrum", t("kit.param.cutoff")),
             axis: 0,
-            range: Some(RouteRange { from: 0.1, to: 0.9, curve: -0.4 }),
+            range: Some(RouteRange {
+                from: 0.1,
+                to: 0.9,
+                curve: -0.4,
+            }),
             depth: 1.0,
         },
         fxd_xy::Link {
@@ -218,10 +233,19 @@ fn take(dir: &Path, sh: &Shot) {
     let ctx = context(sh.dark);
     let f = sh.unit == "formula";
     fxd::shell_of(f, sh.look).set_scale(&ctx, sh.k);
+    // Measured on a context of its own: a shot hands its fonts' atlas to the first raster
+    // only, and the window's shot must have it.
     let mut size = egui::Vec2::ZERO;
-    shoot(&ctx, egui::vec2(64.0, 64.0), 1.0, 1, None, |ui| {
-        size = fxd::designed_size(ui, f);
-    });
+    shoot(
+        &context(sh.dark),
+        egui::vec2(64.0, 64.0),
+        1.0,
+        1,
+        None,
+        |ui| {
+            size = fxd::designed_size(ui, f);
+        },
+    );
     let path = dir.join(name(sh));
     let context = i18n::t("fxd.sheet.context");
     probe::start_clipped();

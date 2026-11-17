@@ -152,6 +152,11 @@ pub fn mod_kind(kind: ModKind, article: bool) -> Said {
         (ModKind::Follower, false) => "ai.phrase.modname.follower",
         (ModKind::Step, false) => "ai.phrase.modname.step",
         (ModKind::Random, false) => "ai.phrase.modname.random",
+        // fxd: the controllers (ADRs 0147, 0148).
+        (ModKind::XyPad, true) => "ai.phrase.mod.xy",
+        (ModKind::Formula, true) => "ai.phrase.mod.formula",
+        (ModKind::XyPad, false) => "ai.phrase.modname.xy",
+        (ModKind::Formula, false) => "ai.phrase.modname.formula",
     })
 }
 

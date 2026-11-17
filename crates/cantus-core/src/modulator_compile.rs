@@ -84,7 +84,10 @@ fn drives_plain(project: &Project, m: &super::Modulator) -> bool {
     m.routes.iter().any(|r| {
         r.depth != 0.0
             && r.depth.is_finite()
-            && !matches!(r.target, AutoTarget::ModAmount(_) | AutoTarget::ModInput { .. })
+            && !matches!(
+                r.target,
+                AutoTarget::ModAmount(_) | AutoTarget::ModInput { .. }
+            )
             && range_of(project, &r.target).is_some()
     })
 }

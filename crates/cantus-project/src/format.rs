@@ -1566,15 +1566,26 @@ mod tests {
         let report = parse(&text, true).unwrap();
         assert!(report.integrity_verified);
         let p = report.file.project;
-        let kinds: Vec<ModKind> = p.master.modulators.iter().map(|m| m.source.kind()).collect();
-        assert!(kinds.ends_with(&[ModKind::XyPad, ModKind::Formula]), "{kinds:?}");
+        let kinds: Vec<ModKind> = p
+            .master
+            .modulators
+            .iter()
+            .map(|m| m.source.kind())
+            .collect();
+        assert!(
+            kinds.ends_with(&[ModKind::XyPad, ModKind::Formula]),
+            "{kinds:?}"
+        );
         let n = p.master.modulators.len();
         let pad = &p.master.modulators[n - 2];
         assert_eq!(pad.name, "Sweep");
         let ModSource::XyPad(x) = &pad.source else {
             unreachable!()
         };
-        assert_eq!((x.x, x.y, x.inertia_ms, x.play_path), (0.3, 0.7, 250.0, true));
+        assert_eq!(
+            (x.x, x.y, x.inertia_ms, x.play_path),
+            (0.3, 0.7, 250.0, true)
+        );
         assert_eq!(x.path.as_ref().unwrap().points.len(), 4);
         assert_eq!(
             pad.source.link(&AutoTarget::MasterWidth),
@@ -1890,7 +1901,10 @@ mod tests {
         let mods: Vec<_> = p.all_modulators().map(|(_, m)| m).collect();
         let kinds: Vec<ModKind> = mods.iter().map(|m| m.source.kind()).collect();
         // fxd: the controllers arrived with schema 67 (its own test).
-        for k in ModKind::ALL.iter().filter(|k| !ModKind::CONTROLLERS.contains(k)) {
+        for k in ModKind::ALL
+            .iter()
+            .filter(|k| !ModKind::CONTROLLERS.contains(k))
+        {
             assert!(kinds.contains(k), "{k:?} in the fixture");
         }
         assert!(mods.iter().all(|m| m.is_valid()));

@@ -215,13 +215,21 @@ pub(super) fn call(f: Func, a: &[f64]) -> f64 {
             }
         }
         Inter => {
-            let (lo, hi) = if a[1] <= a[2] { (a[1], a[2]) } else { (a[2], a[1]) };
+            let (lo, hi) = if a[1] <= a[2] {
+                (a[1], a[2])
+            } else {
+                (a[2], a[1])
+            };
             bit(lo <= x && x <= hi)
         }
         InterNoSwap => bit(a[1] <= x && x <= a[2]),
         Map => a[1] + x * (a[2] - a[1]),
         Clamp => {
-            let (lo, hi) = if a[1] <= a[2] { (a[1], a[2]) } else { (a[2], a[1]) };
+            let (lo, hi) = if a[1] <= a[2] {
+                (a[1], a[2])
+            } else {
+                (a[2], a[1])
+            };
             if x.is_nan() {
                 x
             } else {

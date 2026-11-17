@@ -199,7 +199,10 @@ pub enum ErrorKind {
     /// A name FL has whose definition is not published (`Tension`, `Warp`).
     NotSupported(String),
     /// A function called with the wrong number of arguments.
-    Arguments { name: String, wants: usize },
+    Arguments {
+        name: String,
+        wants: usize,
+    },
     BadNumber,
     /// More than [`MAX_OPS`] steps, [`MAX_STACK`] deep or [`MAX_NESTING`] nested.
     TooComplex,

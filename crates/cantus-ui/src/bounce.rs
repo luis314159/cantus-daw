@@ -1366,10 +1366,12 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
 fn renamed(target: &AutoTarget, old: ModulatorId, new: ModulatorId) -> Option<AutoTarget> {
     match *target {
         AutoTarget::ModAmount(m) if m == old => Some(AutoTarget::ModAmount(new)),
-        AutoTarget::ModInput { modulator, input } if modulator == old => Some(AutoTarget::ModInput {
-            modulator: new,
-            input,
-        }),
+        AutoTarget::ModInput { modulator, input } if modulator == old => {
+            Some(AutoTarget::ModInput {
+                modulator: new,
+                input,
+            })
+        }
         _ => None,
     }
 }

@@ -230,7 +230,10 @@ impl Runtime {
             audio_mods: snapshot.modulators.iter().any(|m| m.source.follows_audio()),
             native_modulated: false,
             any_hosted: false,
-            puck_mods: snapshot.modulators.iter().any(|m| m.source.stateful() && !m.source.follows_audio()),
+            puck_mods: snapshot
+                .modulators
+                .iter()
+                .any(|m| m.source.stateful() && !m.source.follows_audio()),
         };
         for lane in &snapshot.automation {
             let dest = rt.dest_of(snapshot, &lane.target).unwrap_or(Dest::Nothing);
@@ -263,7 +266,10 @@ impl Runtime {
                         bipolar: plan.source.bipolar(),
                     });
                     if !l.dest.is_hosted()
-                        && !matches!(l.dest, Dest::ModAmount(_) | Dest::ModInput(..) | Dest::Nothing)
+                        && !matches!(
+                            l.dest,
+                            Dest::ModAmount(_) | Dest::ModInput(..) | Dest::Nothing
+                        )
                     {
                         rt.native_modulated = true;
                     }

@@ -10,7 +10,13 @@ use super::{
 /// The X-Y pad: a touch surface of dark glass in a machined frame, its grid and puck a
 /// cyan light, its path the second voice; soft caps, pill switches, an engraved plate,
 /// screws and rules, light capitals.
-const fn pad(key: &'static str, material: Material, surface: Tint, accent: Pair, second: Pair) -> Skin {
+const fn pad(
+    key: &'static str,
+    material: Material,
+    surface: Tint,
+    accent: Pair,
+    second: Pair,
+) -> Skin {
     Skin {
         key,
         surface,
@@ -37,43 +43,44 @@ const fn pad(key: &'static str, material: Material, surface: Tint, accent: Pair,
     }
 }
 
-/// **Titanium**: anodised titanium grey, the puck a cyan light, the path amber.
+/// **Titanium**: a titanium-grey carbon weave, the puck a cornflower light, the path a
+/// chartreuse.
 pub const XY: Skin = pad(
     "fx.xy",
-    Material::Anodised,
+    Material::Carbon,
     Tint {
         hue: 214.0,
         sat: 0.07,
         amount: 0.30,
     },
     Pair {
-        dark: chsl(188.0, 0.78, 0.60),
-        light: chsl(190.0, 0.80, 0.30),
+        dark: chsl(222.0, 0.80, 0.70),
+        light: chsl(224.0, 0.70, 0.42),
     },
     Pair {
-        dark: chsl(38.0, 0.86, 0.62),
-        light: chsl(34.0, 0.80, 0.38),
+        dark: chsl(84.0, 0.72, 0.58),
+        light: chsl(86.0, 0.70, 0.30),
     },
 );
-/// **Copper**: a copper-anodised frame, the puck a magenta light, the path gold.
+/// **Copper**: brushed copper, the puck an orchid light, the path gold.
 pub const XY_COPPER: Skin = pad(
     "fx.xy.copper",
-    Material::Anodised,
+    Material::Brushed,
     Tint {
         hue: 18.0,
         sat: 0.26,
         amount: 0.34,
     },
     Pair {
-        dark: chsl(326.0, 0.70, 0.68),
-        light: chsl(328.0, 0.62, 0.40),
+        dark: chsl(298.0, 0.62, 0.72),
+        light: chsl(296.0, 0.52, 0.42),
     },
     Pair {
         dark: chsl(52.0, 0.80, 0.62),
         light: chsl(48.0, 0.76, 0.34),
     },
 );
-/// **Frost**: a frosted-glass frame, the puck a mint light, the path violet.
+/// **Frost**: a frosted-glass frame, the puck a spring green light, the path violet.
 pub const XY_FROST: Skin = pad(
     "fx.xy.frost",
     Material::Glass,
@@ -83,8 +90,8 @@ pub const XY_FROST: Skin = pad(
         amount: 0.30,
     },
     Pair {
-        dark: chsl(156.0, 0.62, 0.62),
-        light: chsl(158.0, 0.66, 0.28),
+        dark: chsl(116.0, 0.60, 0.62),
+        light: chsl(118.0, 0.64, 0.28),
     },
     Pair {
         dark: chsl(272.0, 0.60, 0.74),
@@ -112,7 +119,13 @@ pub const XY_COLOURWAYS: [Colourway; 3] = [
 /// The formula controller: a scientific calculator's case — the formula typed on a
 /// vacuum-fluorescent line over a plotting screen, the plot the second voice; dial knobs,
 /// bat switches, a badge plate, screws, condensed capitals, mono values.
-const fn calc(key: &'static str, material: Material, surface: Tint, accent: Pair, second: Pair) -> Skin {
+const fn calc(
+    key: &'static str,
+    material: Material,
+    surface: Tint,
+    accent: Pair,
+    second: Pair,
+) -> Skin {
     Skin {
         key,
         surface,
@@ -139,12 +152,13 @@ const fn calc(key: &'static str, material: Material, surface: Tint, accent: Pair
     }
 }
 
-/// **Bakelite**: a brown bakelite case, the formula an aqua fluorescence, the plot orange.
+/// **Bakelite**: an oxblood bakelite case, the formula an aqua fluorescence, the plot a
+/// violet.
 pub const FORMULA: Skin = calc(
     "fx.formula",
     Material::Matte,
     Tint {
-        hue: 26.0,
+        hue: 6.0,
         sat: 0.30,
         amount: 0.40,
     },
@@ -153,8 +167,8 @@ pub const FORMULA: Skin = calc(
         light: chsl(178.0, 0.78, 0.27),
     },
     Pair {
-        dark: chsl(22.0, 0.86, 0.62),
-        light: chsl(20.0, 0.80, 0.40),
+        dark: chsl(268.0, 0.62, 0.74),
+        light: chsl(266.0, 0.50, 0.44),
     },
 );
 /// **Ivory**: an ivory card case, the formula a phosphor green, the plot a scarlet.
@@ -175,7 +189,7 @@ pub const FORMULA_IVORY: Skin = calc(
         light: chsl(352.0, 0.66, 0.42),
     },
 );
-/// **Ebony**: a black lacquer case, the formula an amber fluorescence, the plot sky blue.
+/// **Ebony**: a black lacquer case, the formula a sea-green fluorescence, the plot pink.
 pub const FORMULA_EBONY: Skin = calc(
     "fx.formula.ebony",
     Material::Lacquer,
@@ -185,12 +199,12 @@ pub const FORMULA_EBONY: Skin = calc(
         amount: 0.18,
     },
     Pair {
-        dark: chsl(34.0, 0.90, 0.60),
-        light: chsl(30.0, 0.86, 0.36),
+        dark: chsl(160.0, 0.66, 0.58),
+        light: chsl(162.0, 0.70, 0.28),
     },
     Pair {
-        dark: chsl(204.0, 0.70, 0.68),
-        light: chsl(206.0, 0.66, 0.40),
+        dark: chsl(326.0, 0.66, 0.72),
+        light: chsl(324.0, 0.58, 0.42),
     },
 );
 pub const FORMULA_COLOURWAYS: [Colourway; 3] = [
@@ -212,4 +226,12 @@ pub const FORMULA_COLOURWAYS: [Colourway; 3] = [
 ];
 
 /// Every wave-D sheet, faces and colourways (the house-rule tests take them in).
-pub const FXD_SHEETS: [&Skin; 6] = [&XY, &XY_COPPER, &XY_FROST, &FORMULA, &FORMULA_IVORY, &FORMULA_EBONY];
+#[cfg_attr(not(test), allow(dead_code))]
+pub const FXD_SHEETS: [&Skin; 6] = [
+    &XY,
+    &XY_COPPER,
+    &XY_FROST,
+    &FORMULA,
+    &FORMULA_IVORY,
+    &FORMULA_EBONY,
+];

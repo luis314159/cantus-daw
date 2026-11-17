@@ -94,6 +94,11 @@ pub mod caelum;
 pub mod fractus;
 /// What wave A's editors share: cells sized to their words. // fxa
 pub mod fxa_cells;
+/// Vetus, lo-fi (fx side round). // fx:contract
+pub mod fxd; // fxd:contract — the X-Y pad's and the formula controller's windows
+pub mod fxd_art; // fxd
+pub mod fxd_formula; // fxd
+pub mod fxd_xy; // fxd
 /// Loquax, the vocoder (fx side round, wave A). // fxa:contract
 pub mod loquax;
 /// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
@@ -120,11 +125,6 @@ pub mod tabula_host;
 pub mod unit_view;
 /// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
 pub mod valve_draw;
-/// Vetus, lo-fi (fx side round). // fx:contract
-pub mod fxd; // fxd:contract — the X-Y pad's and the formula controller's windows
-pub mod fxd_art; // fxd
-pub mod fxd_formula; // fxd
-pub mod fxd_xy; // fxd
 pub mod vetus; // fx:vetus — a unit's chosen drawing (Vetus's record or cassette)
 
 /// How many recent (input, output) pairs of the analysed effect are kept for displays.

@@ -1916,7 +1916,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                                                   // fx3:tabula - per kind of `fx3_board_command`, applied and refused.
     let mut boarded = [[0usize; 2]; BOARD_KINDS]; // fx3:tabula
     let mut controlled = [[0usize; 2]; FXD_KINDS]; // fxd:contract
-                                                  // 120 sequences (round 31: one arm more spreads the draws thinner).
+                                                   // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
@@ -2088,7 +2088,13 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // (In a function of its own: the test's frame is already as large as a debug
             // build's stack allows.)
             if drng.below(4) == 0 {
-                fxd_step(&mut drng, &mut bus, &origins, &mut controlled, &mut checkpoints);
+                fxd_step(
+                    &mut drng,
+                    &mut bus,
+                    &origins,
+                    &mut controlled,
+                    &mut checkpoints,
+                );
             }
             // Id allocation mutates `next_id` outside the command system; keep the two in
             // sync by cloning the project only to *generate* the command, then re-applying
@@ -2504,7 +2510,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // be refused, and those always refused.
     assert!(
         [0, 1, 2, 4, 6, 7].iter().all(|&k| controlled[k][0] > 0)
-            && [3, 5].iter().all(|&k| controlled[k][0] == 0 && controlled[k][1] > 0),
+            && [3, 5]
+                .iter()
+                .all(|&k| controlled[k][0] == 0 && controlled[k][1] > 0),
         "the controller commands never applied or never refused: {controlled:?}"
     );
     // fx3:tabula - every kind applied at least once but the two that must be refused, and
@@ -6875,7 +6883,11 @@ fn fxd_controller_command(rng: &mut Lcg, project: &mut Project) -> (usize, Comma
     let pick = |rng: &mut Lcg| controllers[rng.below(controllers.len() as u64) as usize].clone();
     let cmd = match k {
         0 | 1 => {
-            let kind = if k == 0 { ModKind::XyPad } else { ModKind::Formula };
+            let kind = if k == 0 {
+                ModKind::XyPad
+            } else {
+                ModKind::Formula
+            };
             let mut m = Modulator::new(ModulatorId(project.alloc_id()), kind);
             routes(rng, project, &mut m);
             let l = links(rng, &m);

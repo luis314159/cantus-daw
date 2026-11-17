@@ -26,7 +26,11 @@ fn links() -> Vec<fxd_xy::Link> {
         fxd_xy::Link {
             name: format!("{} · Cribrum", i18n::t("kit.param.cutoff")),
             axis: 0,
-            range: Some(RouteRange { from: -0.5, to: 0.5, curve: 0.2 }),
+            range: Some(RouteRange {
+                from: -0.5,
+                to: 0.5,
+                curve: 0.2,
+            }),
             depth: 1.0,
         },
         fxd_xy::Link {
@@ -38,9 +42,11 @@ fn links() -> Vec<fxd_xy::Link> {
     ]
 }
 
-fn size(ctx: &egui::Context, formula: bool) -> egui::Vec2 {
+fn size(_ctx: &egui::Context, formula: bool) -> egui::Vec2 {
+    // Measured on a context of its own: a shot hands its fonts' atlas to the first raster
+    // only, and the window's shot must have it.
     let mut size = egui::Vec2::ZERO;
-    cantus_ui::raster::shoot(ctx, egui::vec2(64.0, 64.0), 1.0, 1, None, |ui| {
+    cantus_ui::raster::shoot(&context(true), egui::vec2(64.0, 64.0), 1.0, 1, None, |ui| {
         size = fxd::designed_size(ui, formula);
     });
     size

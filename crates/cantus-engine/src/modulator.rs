@@ -244,7 +244,8 @@ impl ModRt {
                 [self.next, self.next_y] = b;
                 if let ModSource::XyPad(x) = src {
                     // No inertia: the puck is where it heads (the panel draws it there).
-                    self.puck.step(x.target(t.beats, t.playing, [ins[0], ins[1]]), 0.0, 0.0);
+                    self.puck
+                        .step(x.target(t.beats, t.playing, [ins[0], ins[1]]), 0.0, 0.0);
                 }
             }
         }

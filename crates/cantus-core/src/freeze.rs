@@ -474,10 +474,12 @@ fn target_in_strip_region(
             .effect_host(*effect)
             .is_some_and(|h| r.strips.contains(&h)),
         AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => false,
-        AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => modulator_reaches(project, *m, &|t| {
-            !matches!(t, AutoTarget::ModAmount(_) | AutoTarget::ModInput { .. })
-                && target_in_strip_region(project, r, root, root_track, t)
-        }),
+        AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => {
+            modulator_reaches(project, *m, &|t| {
+                !matches!(t, AutoTarget::ModAmount(_) | AutoTarget::ModInput { .. })
+                    && target_in_strip_region(project, r, root, root_track, t)
+            })
+        }
     }
 }
 
@@ -513,10 +515,10 @@ fn grow_by_modulators(project: &Project, r: &mut Region, inside: &dyn Fn(&AutoTa
     reaching.extend(project.all_modulators().filter(|(_, m)| {
         !m.muted
             && !ids.contains(&m.id)
-            && m.routes
-                .iter()
-                .any(|r| matches!(r.target, AutoTarget::ModAmount(n)
-                    | AutoTarget::ModInput { modulator: n, .. } if ids.contains(&n)))
+            && m.routes.iter().any(|r| {
+                matches!(r.target, AutoTarget::ModAmount(n)
+                    | AutoTarget::ModInput { modulator: n, .. } if ids.contains(&n))
+            })
     }));
     for (host, m) in reaching {
         for (listen, notes) in modulator_sources(project, host, m) {

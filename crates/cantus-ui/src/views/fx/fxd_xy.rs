@@ -47,34 +47,43 @@ pub enum Action {
     Card(Moved),
 }
 
-/// The cards: the pad, its motion, its output.
-pub const CARDS: [Card<'static>; 3] = [
+/// The cards: the pad (its hand, its polarity, its amount) and its motion.
+pub const CARDS: [Card<'static>; 2] = [
     Card {
         title: "fxd.xy.card.pad",
         items: &[
             Item::Knob("x", "fxd.xy.x"),
             Item::Knob("y", "fxd.xy.y"),
-            Item::Switch("pol", "fxd.card.polarity", &["fxd.card.bipolar", "fxd.card.unipolar"]),
+            Item::Switch(
+                "pol",
+                "fxd.card.polarity",
+                &["fxd.card.bipolar", "fxd.card.unipolar"],
+            ),
+            Item::Knob("amount", "fxd.card.amount"),
         ],
     },
     Card {
         title: "fxd.xy.card.motion",
         items: &[
             Item::Knob("inertia", "fxd.xy.inertia"),
-            Item::Switch("path", "fxd.xy.path", &["fxd.card.off", "fxd.xy.path.plays"]),
+            Item::Switch(
+                "path",
+                "fxd.xy.path",
+                &["fxd.card.off", "fxd.xy.path.plays"],
+            ),
             Item::Knob("loop", "fxd.xy.loop"),
-            Item::Switch("line", "fxd.xy.line", &["fxd.xy.line.straight", "fxd.xy.line.smooth"]),
+            Item::Switch(
+                "line",
+                "fxd.xy.line",
+                &["fxd.xy.line.straight", "fxd.xy.line.smooth"],
+            ),
         ],
-    },
-    Card {
-        title: "fxd.card.output",
-        items: &[Item::Knob("amount", "fxd.card.amount")],
     },
 ];
 
 /// The display and its column, 100 %.
 pub const PAD: f32 = 470.0;
-pub const SIDE: f32 = 360.0;
+pub const SIDE: f32 = 500.0;
 const RAIL: f32 = 26.0;
 const MARGIN: f32 = 14.0;
 
@@ -109,15 +118,36 @@ pub fn body(
     let mut b = Brush::default();
     b.begin(ui.ctx());
     let open = art::frame(&mut b, s, outer, RAIL * k);
+    // The maker's line engraved on the top rail.
+    let top = Rect::from_min_max(
+        pos2(outer.left() + 30.0 * k, outer.top() + 2.0 * k),
+        pos2(outer.right() - 30.0 * k, open.top() - 4.0 * k),
+    );
+    art::label(
+        &mut b,
+        s,
+        top,
+        Src::Key("fxd.xy.engraving"),
+        Role::Micro,
+        art::metal(s).engrave,
+        Align2::CENTER_CENTER,
+    );
     surface(&mut b, s, open, src, live);
     rails(&mut b, s, outer, open, links);
     let (wheel, list) = side.split_top_bottom_at_fraction(0.48);
     flywheel(&mut b, s, wheel.shrink2(vec2(0.0, 4.0 * k)), src, live);
-    links_panel(&mut b, s, list.shrink2(vec2(0.0, 4.0 * k)), links);
+    links_panel(&mut b, s, list.shrink2(vec2(0.0, 4.0 * k)), links, true);
     b.flush(ui.painter());
     // The hand on the pad.
-    let resp = ui.interact(open, ui.id().with("fxd-xy-pad"), egui::Sense::click_and_drag());
-    if let Some(p) = resp.interact_pointer_pos().filter(|_| resp.dragged() || resp.clicked()) {
+    let resp = ui.interact(
+        open,
+        ui.id().with("fxd-xy-pad"),
+        egui::Sense::click_and_drag(),
+    );
+    if let Some(p) = resp
+        .interact_pointer_pos()
+        .filter(|_| resp.dragged() || resp.clicked())
+    {
         let x = ((p.x - open.left()) / open.width()).clamp(0.0, 1.0);
         let y = ((open.bottom() - p.y) / open.height()).clamp(0.0, 1.0);
         out.push(Action::Pad(x, y));
@@ -141,14 +171,39 @@ pub fn body(
     };
     let beats = |v: f32, b: &mut String| {
         use std::fmt::Write as _;
-        let _ = write!(b, "{v} {}", super::frame::tr("fxd.unit.beats"));
+        let _ = write!(b, "{v}");
     };
-    let values = |c: usize, i: usize| -> Value<'_> {
+    let values = |c: usize, i: usize| -> Value {
         match (c, i) {
-            (0, 0) => Value::Knob { v: src.x, lo: 0.0, hi: 1.0, def: 0.5, fmt: &pct },
-            (0, 1) => Value::Knob { v: src.y, lo: 0.0, hi: 1.0, def: 0.5, fmt: &pct },
-            (0, _) => Value::Choice(usize::from(src.unipolar)),
-            (1, 0) => Value::Knob { v: src.inertia_ms, lo: 0.0, hi: 2_000.0, def: 0.0, fmt: &ms },
+            (0, 0) => Value::Knob {
+                v: src.x,
+                lo: 0.0,
+                hi: 1.0,
+                def: 0.5,
+                fmt: &pct,
+            },
+            (0, 1) => Value::Knob {
+                v: src.y,
+                lo: 0.0,
+                hi: 1.0,
+                def: 0.5,
+                fmt: &pct,
+            },
+            (0, 2) => Value::Choice(usize::from(src.unipolar)),
+            (0, _) => Value::Knob {
+                v: amount,
+                lo: 0.0,
+                hi: 1.0,
+                def: 1.0,
+                fmt: &pct,
+            },
+            (1, 0) => Value::Knob {
+                v: src.inertia_ms,
+                lo: 0.0,
+                hi: 2_000.0,
+                def: 0.0,
+                fmt: &ms,
+            },
             (1, 1) => Value::Choice(usize::from(src.play_path)),
             (1, 2) => Value::Knob {
                 v: path.map_or(4.0, |p| p.beats),
@@ -157,11 +212,14 @@ pub fn body(
                 def: 4.0,
                 fmt: &beats,
             },
-            (1, _) => Value::Choice(usize::from(path.is_none_or(|p| p.smooth))),
-            _ => Value::Knob { v: amount, lo: 0.0, hi: 1.0, def: 1.0, fmt: &pct },
+            _ => Value::Choice(usize::from(path.is_none_or(|p| p.smooth))),
         }
     };
-    out.extend(art::lay_cards(ui, s, cards, &CARDS, &values).into_iter().map(Action::Card));
+    out.extend(
+        art::lay_cards(ui, s, cards, &CARDS, &values)
+            .into_iter()
+            .map(Action::Card),
+    );
     out
 }
 
@@ -188,7 +246,13 @@ fn surface(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
     for i in 1..40 {
         let f = i as f32 / 40.0;
         let (major, half) = (i % 4 == 0, i == 20);
-        let a = if half { 0.30 } else if major { 0.14 } else { 0.0 };
+        let a: f32 = if half {
+            0.30
+        } else if major {
+            0.14
+        } else {
+            0.0
+        };
         let near = |c: f32| (1.0 - (c - f).abs() * 6.0).clamp(0.0, 1.0);
         let ax = a.max(0.07 * near(live.puck[0]));
         let ay = a.max(0.07 * near(live.puck[1]));
@@ -203,7 +267,11 @@ fn surface(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
         }
     }
     // The centre: the parameters' own values on a bipolar pad, a small ring.
-    let centre = if src.unipolar { at(r, [0.0, 0.0]) } else { r.center() };
+    let centre = if src.unipolar {
+        at(r, [0.0, 0.0])
+    } else {
+        r.center()
+    };
     b.circle_stroke(centre, 5.0 * k, 0.8 * k, with_alpha(lit, 0.45));
     // The path: a lit loop, its direction marked, where the song is a bright bead.
     if let Some(path) = &src.path {
@@ -213,7 +281,13 @@ fn surface(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
             .collect();
         let a = if src.play_path { 0.85 } else { 0.35 };
         if src.play_path {
-            b.glow_polyline(&pts, 1.3 * k, with_alpha(lit2, a), with_alpha(lit2, 0.18), 5.0 * k);
+            b.glow_polyline(
+                &pts,
+                1.3 * k,
+                with_alpha(lit2, a),
+                with_alpha(lit2, 0.18),
+                5.0 * k,
+            );
         } else {
             b.dashed(&pts, 1.0 * k, with_alpha(lit2, a), 5.0 * k, 4.0 * k);
         }
@@ -224,7 +298,11 @@ fn surface(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
             let n2 = vec2(-d.y, d.x);
             let tip = p0 + d * 5.0 * k;
             b.polygon(
-                &[tip, p0 - d * 2.0 * k + n2 * 3.5 * k, p0 - d * 2.0 * k - n2 * 3.5 * k],
+                &[
+                    tip,
+                    p0 - d * 2.0 * k + n2 * 3.5 * k,
+                    p0 - d * 2.0 * k - n2 * 3.5 * k,
+                ],
                 with_alpha(lit2, a),
             );
         }
@@ -239,7 +317,13 @@ fn surface(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
     if m > 1 {
         for (i, w) in live.trail.windows(2).enumerate() {
             let f = (i + 1) as f32 / m as f32;
-            b.segment(at(r, w[0]), at(r, w[1]), (0.6 + 2.6 * f) * k, with_alpha(lit, 0.08 + 0.5 * f * f), true);
+            b.segment(
+                at(r, w[0]),
+                at(r, w[1]),
+                (0.6 + 2.6 * f) * k,
+                with_alpha(lit, 0.08 + 0.5 * f * f),
+                true,
+            );
         }
     }
     // Where the hand set it: a crosshair, joined to the puck by a fine line while it glides.
@@ -248,14 +332,30 @@ fn surface(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
         b.segment(pc, h, 0.6 * k, with_alpha(s.t.light, 0.35), false);
     }
     let cl = with_alpha(s.t.light, 0.75);
-    for d in [vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0)] {
+    for d in [
+        vec2(1.0, 0.0),
+        vec2(-1.0, 0.0),
+        vec2(0.0, 1.0),
+        vec2(0.0, -1.0),
+    ] {
         b.segment(h + d * 4.0 * k, h + d * 10.0 * k, 0.9 * k, cl, false);
     }
     puck(b, s, pc);
     // Its coordinates, in the corner, mono.
     let txt = format!("X {:.2}   Y {:.2}", live.puck[0], live.puck[1]);
-    let c = Rect::from_min_size(r.right_top() + vec2(-150.0 * k, 8.0 * k), vec2(140.0 * k, 16.0 * k));
-    art::value(b, s, c, &txt, Role::Micro, with_alpha(lit, 0.85), Align2::RIGHT_CENTER);
+    let c = Rect::from_min_size(
+        r.right_top() + vec2(-150.0 * k, 8.0 * k),
+        vec2(140.0 * k, 16.0 * k),
+    );
+    art::value(
+        b,
+        s,
+        c,
+        &txt,
+        Role::Micro,
+        with_alpha(lit, 0.85),
+        Align2::RIGHT_CENTER,
+    );
     art::glass(b, s, r);
 }
 
@@ -271,17 +371,35 @@ fn puck(b: &mut Brush, s: &Style, p: Pos2) {
         &[(0.0, with_alpha(lit, 0.45)), (1.0, with_alpha(lit, 0.0))],
         6,
     );
-    b.circle(p + vec2(1.5, 3.0) * k, 15.0 * k, Fill::Solid(with_alpha(s.t.dark, 0.5)));
+    b.circle(
+        p + vec2(1.5, 3.0) * k,
+        15.0 * k,
+        Fill::Solid(with_alpha(s.t.dark_shade, 0.5)),
+    );
     b.circle(p, 15.0 * k, Fill::V(m.top, m.foot));
     // Knurling: fine ticks round the ring.
     for i in 0..48 {
         let a = i as f32 / 48.0 * TAU;
         let d = vec2(cos(a), sin(a));
-        b.segment(p + d * 12.6 * k, p + d * 14.6 * k, 0.5 * k, with_alpha(m.edge, 0.8), false);
+        b.segment(
+            p + d * 12.6 * k,
+            p + d * 14.6 * k,
+            0.5 * k,
+            with_alpha(m.edge, 0.8),
+            false,
+        );
     }
-    b.circle(p, 11.0 * k, Fill::V(mix(lit, s.t.light, 0.35), mix(lit, s.t.dark, 0.35)));
+    b.circle(
+        p,
+        11.0 * k,
+        Fill::V(mix(lit, s.t.light, 0.35), mix(lit, s.t.dark_shade, 0.35)),
+    );
     b.circle_stroke(p, 11.0 * k, 0.8 * k, with_alpha(m.edge, 0.9));
-    b.circle(p + vec2(-3.5, -4.0) * k, 3.0 * k, Fill::Solid(with_alpha(s.t.light, 0.45)));
+    b.circle(
+        p + vec2(-3.5, -4.0) * k,
+        3.0 * k,
+        Fill::Solid(with_alpha(s.t.light, 0.45)),
+    );
     b.circle(p, 1.6 * k, Fill::Solid(with_alpha(s.t.light, 0.9)));
 }
 
@@ -292,23 +410,64 @@ fn rails(b: &mut Brush, s: &Style, outer: Rect, open: Rect, links: &[Link]) {
     let m = art::metal(s);
     for i in 0..=20 {
         let f = i as f32 / 20.0;
-        let len = if i % 10 == 0 { 7.0 } else if i % 2 == 0 { 4.5 } else { 2.5 } * k;
+        let len = if i % 10 == 0 {
+            7.0
+        } else if i % 2 == 0 {
+            4.5
+        } else {
+            2.5
+        } * k;
         let x = open.left() + f * open.width();
-        b.vline(x, open.bottom() + 4.0 * k, open.bottom() + 4.0 * k + len, 0.7 * k, m.engrave);
+        b.vline(
+            x,
+            open.bottom() + 4.0 * k,
+            open.bottom() + 4.0 * k + len,
+            0.7 * k,
+            m.engrave,
+        );
         let y = open.bottom() - f * open.height();
-        b.hline(open.left() - 4.0 * k - len, open.left() - 4.0 * k, y, 0.7 * k, m.engrave);
+        b.hline(
+            open.left() - 4.0 * k - len,
+            open.left() - 4.0 * k,
+            y,
+            0.7 * k,
+            m.engrave,
+        );
     }
     let names = |axis: u8| -> String {
-        let v: Vec<&str> = links.iter().filter(|l| l.axis == axis).map(|l| l.name.as_str()).collect();
+        let v: Vec<&str> = links
+            .iter()
+            .filter(|l| l.axis == axis)
+            .map(|l| l.name.as_str())
+            .collect();
         v.join(" · ")
     };
-    let foot = Rect::from_min_max(pos2(open.left() + 10.0 * k, open.bottom() + 11.0 * k), pos2(open.right() - 10.0 * k, outer.bottom() - 2.0 * k));
+    let foot = Rect::from_min_max(
+        pos2(open.left() + 10.0 * k, open.bottom() + 11.0 * k),
+        pos2(open.right() - 10.0 * k, outer.bottom() - 2.0 * k),
+    );
     let x = format!("X — {}", names(0));
-    art::value(b, s, foot, &x, Role::Micro, m.engrave, Align2::CENTER_CENTER);
+    art::value(
+        b,
+        s,
+        foot,
+        &x,
+        Role::Micro,
+        m.engrave,
+        Align2::CENTER_CENTER,
+    );
     // The left rail's words read upward.
     let y = format!("Y — {}", names(1));
-    let side = Rect::from_center_size(pos2(outer.left() + RAIL * 0.42 * k, open.center().y), vec2(open.height() - 20.0 * k, 14.0 * k));
-    let t = crate::kit::text::Text::new(&y, Role::Micro, m.engrave).caps(false).align(Align2::CENTER_CENTER).policy(crate::kit::text::Policy::Rotate90(crate::kit::text::Elide::End));
+    let side = Rect::from_center_size(
+        pos2(outer.left() + RAIL * 0.42 * k, open.center().y),
+        vec2(14.0 * k, open.height() - 20.0 * k),
+    );
+    let t = crate::kit::text::Text::new(&y, Role::Micro, m.engrave)
+        .caps(false)
+        .align(Align2::CENTER_CENTER)
+        .policy(crate::kit::text::Policy::Rotate90(
+            crate::kit::text::Elide::End,
+        ));
     let _ = crate::kit::text::paint(b, side, &t, s.tk());
 }
 
@@ -319,17 +478,42 @@ fn flywheel(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
     art::well(b, s, r);
     let m = art::metal(s);
     let lit = art::lit(s);
-    art::label(b, s, Rect::from_min_size(r.min + vec2(10.0, 6.0) * k, vec2(r.width() - 20.0 * k, 14.0 * k)), Src::Key("fxd.xy.flywheel"), Role::Micro, s.t.text_dim, Align2::LEFT_CENTER);
+    art::label(
+        b,
+        s,
+        Rect::from_min_size(
+            r.min + vec2(10.0, 6.0) * k,
+            vec2(r.width() - 20.0 * k, 14.0 * k),
+        ),
+        Src::Key("fxd.xy.flywheel"),
+        Role::Micro,
+        s.t.text_dim,
+        Align2::LEFT_CENTER,
+    );
     let c = pos2(r.left() + r.width() * 0.38, r.center().y + 8.0 * k);
     let rad = (r.height() * 0.38).min(r.width() * 0.3);
     let heavy = (src.inertia_ms / 2_000.0).clamp(0.0, 1.0).sqrt();
-    let speed = live.trail.windows(2).last().map_or(0.0, |w| ((w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]) * 40.0).min(1.0));
+    let speed = live.trail.windows(2).last().map_or(0.0, |w| {
+        ((w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]) * 40.0).min(1.0)
+    });
     let turn = (live.puck[0] * 3.0 + live.puck[1] * 2.0) * TAU;
     // The axle's bracket, then the wheel: a rim, its weights, six spokes, the hub.
-    b.rrect(Rect::from_center_size(c + vec2(0.0, rad * 0.62), vec2(rad * 0.5, rad * 1.1)), 4.0 * k, Fill::V(m.face, m.foot));
-    b.circle(c + vec2(2.0, 4.0) * k, rad * 1.04, Fill::Solid(with_alpha(s.t.dark, 0.4)));
+    b.rrect(
+        Rect::from_center_size(c + vec2(0.0, rad * 0.62), vec2(rad * 0.5, rad * 1.1)),
+        4.0 * k,
+        Fill::V(m.face, m.foot),
+    );
+    b.circle(
+        c + vec2(2.0, 4.0) * k,
+        rad * 1.04,
+        Fill::Solid(with_alpha(s.t.dark_shade, 0.4)),
+    );
     b.circle(c, rad, Fill::V(m.top, m.foot));
-    b.circle(c, rad * (0.84 - 0.08 * heavy), Fill::Solid(mix(s.t.panel, s.t.dark, 0.4)));
+    b.circle(
+        c,
+        rad * (0.84 - 0.08 * heavy),
+        Fill::Solid(mix(s.t.panel, s.t.dark_shade, 0.4)),
+    );
     b.circle_stroke(c, rad * 0.92, 0.6 * k, with_alpha(m.edge, 0.8));
     for i in 0..12 {
         let a = turn + i as f32 / 12.0 * TAU;
@@ -343,18 +527,53 @@ fn flywheel(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
         for i in 0..6 {
             let a = turn - back + i as f32 / 6.0 * TAU;
             let d = vec2(cos(a), sin(a));
-            b.segment(c + d * rad * 0.2, c + d * rad * (0.78 - 0.08 * heavy), 3.0 * k, with_alpha(m.face, alpha), true);
-            b.segment(c + d * rad * 0.2, c + d * rad * (0.78 - 0.08 * heavy), 0.7 * k, with_alpha(m.top, alpha * 0.8), false);
+            b.segment(
+                c + d * rad * 0.2,
+                c + d * rad * (0.78 - 0.08 * heavy),
+                3.0 * k,
+                with_alpha(m.face, alpha),
+                true,
+            );
+            b.segment(
+                c + d * rad * 0.2,
+                c + d * rad * (0.78 - 0.08 * heavy),
+                0.7 * k,
+                with_alpha(m.top, alpha * 0.8),
+                false,
+            );
         }
     }
     b.circle(c, rad * 0.2, Fill::V(m.top, m.foot));
     b.circle(c, rad * 0.08, Fill::Solid(with_alpha(lit, 0.9)));
     // Its reading beside it.
-    let tx = Rect::from_min_max(pos2(c.x + rad + 14.0 * k, r.top() + 24.0 * k), pos2(r.right() - 10.0 * k, r.bottom() - 10.0 * k));
+    let tx = Rect::from_min_max(
+        pos2(c.x + rad + 14.0 * k, r.top() + 24.0 * k),
+        pos2(r.right() - 10.0 * k, r.bottom() - 10.0 * k),
+    );
     let (top, rest) = tx.split_top_bottom_at_fraction(0.5);
-    art::value(b, s, top, &format!("{:.0} ms", src.inertia_ms), Role::Display, lit_on_panel(s), Align2::LEFT_BOTTOM);
-    let key = if src.inertia_ms == 0.0 { "fxd.xy.inertia.none" } else { "fxd.xy.inertia.glides" };
-    art::label(b, s, rest, Src::Key(key), Role::Micro, s.t.text_dim, Align2::LEFT_TOP);
+    art::value(
+        b,
+        s,
+        top,
+        &format!("{:.0} ms", src.inertia_ms),
+        Role::Display,
+        lit_on_panel(s),
+        Align2::LEFT_BOTTOM,
+    );
+    let key = if src.inertia_ms == 0.0 {
+        "fxd.xy.inertia.none"
+    } else {
+        "fxd.xy.inertia.glides"
+    };
+    art::label(
+        b,
+        s,
+        rest,
+        Src::Key(key),
+        Role::Micro,
+        s.t.text_dim,
+        Align2::LEFT_TOP,
+    );
 }
 
 /// The accent where it sits on the panel (not on a display): the theme's own value.
@@ -363,33 +582,97 @@ fn lit_on_panel(s: &Style) -> egui::Color32 {
 }
 
 /// The links: each parameter, its axis, its range drawn as a bar over the axis's travel.
-pub fn links_panel(b: &mut Brush, s: &Style, r: Rect, links: &[Link]) {
+pub fn links_panel(b: &mut Brush, s: &Style, r: Rect, links: &[Link], axes: bool) {
     let k = s.k;
     art::well(b, s, r);
-    art::label(b, s, Rect::from_min_size(r.min + vec2(10.0, 6.0) * k, vec2(r.width() - 20.0 * k, 14.0 * k)), Src::Key("fxd.links"), Role::Micro, s.t.text_dim, Align2::LEFT_CENTER);
+    art::label(
+        b,
+        s,
+        Rect::from_min_size(
+            r.min + vec2(10.0, 6.0) * k,
+            vec2(r.width() - 20.0 * k, 14.0 * k),
+        ),
+        Src::Key("fxd.links"),
+        Role::Micro,
+        s.t.text_dim,
+        Align2::LEFT_CENTER,
+    );
     let row = 30.0 * k;
     for (i, l) in links.iter().enumerate() {
         let y = r.top() + 26.0 * k + i as f32 * row;
         if y + row > r.bottom() {
             break;
         }
-        let line = Rect::from_min_size(pos2(r.left() + 10.0 * k, y), vec2(r.width() - 20.0 * k, row - 4.0 * k));
+        let line = Rect::from_min_size(
+            pos2(r.left() + 10.0 * k, y),
+            vec2(r.width() - 20.0 * k, row - 4.0 * k),
+        );
         let axis = if l.axis == 0 { "X" } else { "Y" };
-        let tag = Rect::from_min_size(line.min, vec2(20.0 * k, 16.0 * k));
-        b.rrect(tag, 3.0 * k, Fill::Solid(with_alpha(s.hue, 0.25)));
-        art::value(b, s, tag, axis, Role::Micro, s.t.text, Align2::CENTER_CENTER);
-        let name = Rect::from_min_max(pos2(tag.right() + 6.0 * k, line.top()), pos2(line.right(), line.top() + 16.0 * k));
-        art::value(b, s, name, &l.name, Role::Label, s.t.text, Align2::LEFT_CENTER);
+        let tag = Rect::from_min_size(line.min, vec2(if axes { 20.0 } else { 0.0 } * k, 16.0 * k));
+        if axes {
+            b.rrect(tag, 3.0 * k, Fill::Solid(with_alpha(s.hue, 0.25)));
+            art::value(
+                b,
+                s,
+                tag,
+                axis,
+                Role::Micro,
+                s.t.text,
+                Align2::CENTER_CENTER,
+            );
+        }
+        let name = Rect::from_min_max(
+            pos2(tag.right() + 6.0 * k, line.top()),
+            pos2(line.right(), line.top() + 16.0 * k),
+        );
+        art::value(
+            b,
+            s,
+            name,
+            &l.name,
+            Role::Label,
+            s.t.text,
+            Align2::LEFT_CENTER,
+        );
         // The bar: the parameter's travel, the share the route sweeps, its bend.
-        let bar = Rect::from_min_max(pos2(tag.right() + 6.0 * k, line.top() + 19.0 * k), pos2(line.right(), line.top() + 23.0 * k));
-        b.rrect(bar, 2.0 * k, Fill::Solid(mix(s.t.panel, s.t.dark, 0.4)));
-        let g = l.range.unwrap_or(RouteRange { from: -1.0, to: 1.0, curve: 0.0 });
+        let bar = Rect::from_min_max(
+            pos2(tag.right() + 6.0 * k, line.top() + 19.0 * k),
+            pos2(line.right(), line.top() + 23.0 * k),
+        );
+        b.rrect(
+            bar,
+            2.0 * k,
+            Fill::Solid(mix(s.t.panel, s.t.dark_shade, 0.4)),
+        );
+        let g = l.range.unwrap_or(RouteRange {
+            from: -1.0,
+            to: 1.0,
+            curve: 0.0,
+        });
         let to_x = |v: f32| bar.left() + (0.5 + 0.5 * (v * l.depth).clamp(-1.0, 1.0)) * bar.width();
         let (a, z) = (to_x(g.from), to_x(g.to));
-        b.rrect(Rect::from_min_max(pos2(a.min(z), bar.top()), pos2(a.max(z), bar.bottom())), 2.0 * k, Fill::Solid(s.hue));
-        b.vline(bar.center().x, bar.top() - 2.0 * k, bar.bottom() + 2.0 * k, 0.7 * k, s.t.text_dim);
+        b.rrect(
+            Rect::from_min_max(pos2(a.min(z), bar.top()), pos2(a.max(z), bar.bottom())),
+            2.0 * k,
+            Fill::Solid(s.hue),
+        );
+        b.vline(
+            bar.center().x,
+            bar.top() - 2.0 * k,
+            bar.bottom() + 2.0 * k,
+            0.7 * k,
+            s.t.text_dim,
+        );
     }
     if links.is_empty() {
-        art::label(b, s, r.shrink(20.0 * k), Src::Key("fxd.links.none"), Role::Body, s.t.text_dim, Align2::CENTER_CENTER);
+        art::label(
+            b,
+            s,
+            r.shrink(20.0 * k),
+            Src::Key("fxd.links.none"),
+            Role::Body,
+            s.t.text_dim,
+            Align2::CENTER_CENTER,
+        );
     }
 }
