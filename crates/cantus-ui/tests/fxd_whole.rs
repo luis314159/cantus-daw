@@ -124,7 +124,7 @@ fn probe_window(formula: bool, look: u8, k: f32, dark: bool, error: bool) -> Vec
 fn the_controllers_windows_never_cut_or_clip_a_word() {
     let mut bad = Vec::new();
     for (lang, dark) in [(Locale::En, true), (Locale::Es, false)] {
-        i18n::set_locale(lang);
+        i18n::set_thread_locale(lang);
         for formula in [false, true] {
             for k in [0.75f32, 1.0, 1.5, 2.0] {
                 for c in probe_window(formula, 0, k, dark, false) {
@@ -141,7 +141,7 @@ fn the_controllers_windows_never_cut_or_clip_a_word() {
             bad.push(format!("formula error {lang:?}: {c}"));
         }
     }
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
@@ -151,13 +151,13 @@ fn the_controllers_windows_never_cut_or_clip_a_word() {
 fn a_longer_language_grows_the_window_not_the_display() {
     let ctx = context(true);
     for formula in [false, true] {
-        i18n::set_locale(Locale::En);
+        i18n::set_thread_locale(Locale::En);
         let en = size(&ctx, formula);
-        i18n::set_locale(Locale::Es);
+        i18n::set_thread_locale(Locale::Es);
         let es = size(&ctx, formula);
         assert_eq!(en.x, es.x, "the width is the display's and the side's");
         assert!(es.y >= en.y);
     }
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     const { assert!(fxd_xy::PAD >= 440.0 && fxd_formula::SCREEN_W >= 520.0) };
 }
