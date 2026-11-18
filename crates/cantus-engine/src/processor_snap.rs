@@ -1223,18 +1223,24 @@ impl Processor {
 
     /// fx/final — playback starts from stop (or a sync start): every track's Firmus that
     /// sounds no voice takes its settings at once (`Firmus::snap`), as its next idle block
-    /// would have — and as an offline render's synth, new, takes its first ones. Without it
-    /// the start depended on whether a block ran between the last snapshot and `Play`: a
+    /// would have — and as an offline render's synth, new, takes its first ones — and every
+    /// native instrument that sounds none snaps (`InstrumentUnit::snap_idle`). Without it
+    /// the start depended on whether a block ran between the last snapshot and `Play`, and a
     /// slot that kept its track id across a song replaced (another song's track 1 in it)
-    /// still held the old track's cutoff and level, and the first note glided 20 ms from
-    /// them (`lenis_e2e`: the live master 8.9e-2 off the render, Lenis's 80 ms release
-    /// carrying it for 0.7 s). A synth playing a live note keeps its glide. No allocation.
+    /// still held the old track's settings: the first note glided from them (`lenis_e2e`:
+    /// Firmus's cutoff and level 20 ms, the live master 8.9e-2 off the render, Lenis's 80 ms
+    /// release carrying it for 0.7 s; a kept Bass, Electric piano, Organ, Chorda or
+    /// Tympanum the same — `render_from_bar`). A unit playing a live note keeps its glide.
+    /// No allocation.
     pub(super) fn snap_idle_synths(&mut self) {
         for slot in 0..MAX_TRACKS {
             if self.track_ids[slot].is_some() {
                 if let Some(mut s) = self.nodes.track(slot) {
                     if s.synth.active_voices() == 0 {
                         s.synth.snap();
+                    }
+                    if let Some(n) = s.native.as_mut() {
+                        n.unit.snap_idle();
                     }
                 }
             }
