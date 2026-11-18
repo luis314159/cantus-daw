@@ -207,6 +207,18 @@ under an EQ band a lane held at +9 dB). A render from 0 glided too, in its first
   Offline renders start with `Seek` + `Play`, so they start snapped.
 - **Firmus** takes its first settings at once (it glided from the factory's level and
   cutoff when a render began on a note), as every effect's first configure already did.
+- **The exported plug-ins** (CLAP and VST3, `cantus-plugins`) snap the same way inside
+  another DAW: at the first grid point after the host's song **jumps** — playback started
+  from stop, or a playing song more than `JUMP_SAMPLES` (64) from where the last block left
+  it (a seek, a loop's wrap the host did not announce), at a block's start or at a CLAP
+  transport event inside it, or the host's announced loop wrapping inside a block — after
+  an **activation** or a **reset**, and when an **offline render** begins (CLAP's
+  `clap.render` set to offline, now offered; VST3's `processMode` turning `kOffline`) — the
+  values in force are applied, then the unit snaps and the bypass's fade lands. Never on a
+  parameter change alone: one while the song plays on still glides. `tests/snap.rs` and
+  `vst3.rs` hold it: after a jump a value changed since the last block plays the bits of a
+  fresh instance made at it; the same change without a jump glides; `alloc.rs` — no
+  allocation at any jump.
 - What the tests hold: `render_from_bar.rs` — the render from bar 3 is the whole render's
   bars 3… to the bit, and live playback started there (after a seek, or several) is the
   render from bar 3, to the bit; `rt_memory.rs` — every native kind under a lane, played,

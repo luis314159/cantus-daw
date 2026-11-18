@@ -137,6 +137,9 @@ struct V3 {
     controller: ComPtr<IEditController>,
     /// The host's process context sent with each block (round 28, ADR 0055).
     context: std::cell::Cell<Option<ProcessContext>>,
+    /// fx/final — the `processMode` each block carries (real time unless a test renders
+    /// offline).
+    mode: std::cell::Cell<int32>,
 }
 
 fn factory() -> ComPtr<IPluginFactory3> {
@@ -168,6 +171,7 @@ impl V3 {
                 processor,
                 controller,
                 context: std::cell::Cell::new(None),
+                mode: std::cell::Cell::new(ProcessModes_::kRealtime as int32),
             }
         }
     }
@@ -256,7 +260,7 @@ impl V3 {
         let changes_ptr = changes.to_com_ptr::<IParameterChanges>().unwrap();
         let mut context = self.context.get();
         let mut data = ProcessData {
-            processMode: ProcessModes_::kRealtime as int32,
+            processMode: self.mode.get(),
             symbolicSampleSize: SymbolicSampleSizes_::kSample32 as int32,
             numSamples: n as int32,
             numInputs: 2,
@@ -1210,4 +1214,100 @@ fn cedo_s_pump_follows_the_hosts_tempo_through_vst3() {
         assert_identical(&format!("Cedo, VST3 blocks {blocks:?}"), &l, &el);
     }
     assert!(el.iter().any(|v| *v < 0.1), "it pumps");
+}
+
+// ---- fx/final: a jump snaps (ADR 0027, amended) ---------------------------------------------
+
+/// The host's context, playing (or stopped) at `beats`, 120 BPM.
+fn context_at(beats: f64, playing: bool) -> ProcessContext {
+    let mut c: ProcessContext = unsafe { std::mem::zeroed() };
+    use ProcessContext_::StatesAndFlags_::*;
+    let state = kTempoValid | kProjectTimeMusicValid | kTimeSigValid;
+    c.state = (if playing { kPlaying | state } else { state }) as u32;
+    c.sampleRate = SR as f64;
+    c.tempo = 120.0;
+    c.projectTimeMusic = beats;
+    c.timeSigNumerator = 4;
+    c.timeSigDenominator = 4;
+    c
+}
+
+/// Utility's output gain (it glides over 20 ms), as VST3's normalised value.
+fn out_norm(db: f32) -> (u32, f64) {
+    let p = params::table(EffectKind::Utility).by_key("out").unwrap();
+    (p.id, p.to_normalized(db))
+}
+
+/// The test signal through `v` in blocks of 512, its song playing from `from`; the gain to
+/// +9 dB in the first block's first sample when `change`.
+fn play_v3(v: &V3, from: f64, change: bool, frames: usize) -> Vec<f32> {
+    let (mut l, mut r) = signal(frames, 11);
+    let (id, norm) = out_norm(9.0);
+    let mut at = 0;
+    while at < frames {
+        let m = 512.min(frames - at);
+        let beats = from + at as f64 * 120.0 / 60.0 / SR as f64;
+        v.context.set(Some(context_at(beats, true)));
+        let pts = if at == 0 && change {
+            vec![(id, vec![(0, norm)])]
+        } else {
+            vec![]
+        };
+        v.process(&mut l[at..at + m], &mut r[at..at + m], None, &pts);
+        at += m;
+    }
+    l.extend_from_slice(&r);
+    l
+}
+
+/// A Utility at 0 dB through 4 096 frames of silence, the host's song `playing` from 0.
+fn warmed_v3(playing: bool) -> V3 {
+    let v = V3::new(EffectKind::Utility);
+    assert!(v.set_state(&state_of(EffectKind::Utility, &[("out", 0.0)])));
+    v.activate(512);
+    for k in 0..8 {
+        let (mut l, mut r) = (vec![0.0f32; 512], vec![0.0f32; 512]);
+        let beats = if playing {
+            k as f64 * 512.0 * 2.0 / SR as f64
+        } else {
+            0.0
+        };
+        v.context.set(Some(context_at(beats, playing)));
+        v.process(&mut l, &mut r, None, &[]);
+    }
+    v
+}
+
+/// A fresh Utility made at +9 dB, playing from `from`.
+fn fresh_v3(from: f64) -> Vec<f32> {
+    let v = V3::new(EffectKind::Utility);
+    assert!(v.set_state(&state_of(EffectKind::Utility, &[("out", 9.0)])));
+    v.activate(512);
+    play_v3(&v, from, false, 8_192)
+}
+
+#[test]
+fn a_vst3_seek_lands_a_value_changed_since_the_last_block_at_once() {
+    let heard = play_v3(&warmed_v3(true), 8.0, true, 8_192);
+    assert_identical("VST3 seek", &heard, &fresh_v3(8.0));
+    let heard = play_v3(&warmed_v3(false), 0.0, true, 8_192);
+    assert_identical("VST3 play from stop", &heard, &fresh_v3(0.0));
+}
+
+#[test]
+fn a_vst3_offline_render_begun_lands_at_once_and_a_change_while_playing_glides() {
+    let on = 4_096.0 * 2.0 / SR as f64;
+    let v = warmed_v3(true);
+    v.mode.set(ProcessModes_::kOffline as int32);
+    let heard = play_v3(&v, on, true, 8_192);
+    let landed = fresh_v3(on);
+    assert_identical("VST3 offline render", &heard, &landed);
+    // The same change while the song plays on in real time glides.
+    let heard = play_v3(&warmed_v3(true), on, true, 8_192);
+    let (at, _, _, _) = diff(&heard, &landed).expect("it glides");
+    assert!(
+        at < 960,
+        "the glide begins at once (first difference at {at})"
+    );
+    assert_identical("landed", &heard[7_168..8_192], &landed[7_168..8_192]);
 }

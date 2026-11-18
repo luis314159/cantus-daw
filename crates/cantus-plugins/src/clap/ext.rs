@@ -35,6 +35,8 @@ pub(crate) unsafe extern "C" fn get_extension(
         &AUDIO_PORTS as *const clap_plugin_audio_ports as *const c_void
     } else if id == CLAP_EXT_TAIL {
         &TAIL as *const clap_plugin_tail as *const c_void
+    } else if id == clap_sys::ext::render::CLAP_EXT_RENDER {
+        &RENDER as *const clap_sys::ext::render::clap_plugin_render as *const c_void
     } else if id == clap_sys::ext::note_ports::CLAP_EXT_NOTE_PORTS
         && super::notes::hears_notes(plugin)
     {
@@ -303,6 +305,35 @@ unsafe extern "C" fn latency_get(plugin: *const clap_plugin) -> u32 {
 static TAIL: clap_plugin_tail = clap_plugin_tail {
     get: Some(tail_get),
 };
+
+// ---- Render (fx/final) ----------------------------------------------------------------
+
+/// `clap.render`: the host says when it renders offline; the switch into it starts a render,
+/// whose first grid point snaps the unit to the values in force (ADR 0027, amended).
+static RENDER: clap_sys::ext::render::clap_plugin_render =
+    clap_sys::ext::render::clap_plugin_render {
+        has_hard_realtime_requirement: Some(render_hard_realtime),
+        set: Some(render_set),
+    };
+
+unsafe extern "C" fn render_hard_realtime(_plugin: *const clap_plugin) -> bool {
+    false
+}
+
+/// Main thread: the audio thread reads the mode at its next block (`Processor::pull_main`).
+unsafe extern "C" fn render_set(
+    plugin: *const clap_plugin,
+    mode: clap_sys::ext::render::clap_plugin_render_mode,
+) -> bool {
+    let Some(i) = Instance::from(plugin) else {
+        return false;
+    };
+    let offline = mode == clap_sys::ext::render::CLAP_RENDER_OFFLINE;
+    i.shared
+        .offline
+        .store(offline, std::sync::atomic::Ordering::Relaxed);
+    true
+}
 
 unsafe extern "C" fn tail_get(plugin: *const clap_plugin) -> u32 {
     Instance::from(plugin).map_or(0, |i| i.shared.tail_samples())

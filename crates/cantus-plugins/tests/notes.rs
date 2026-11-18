@@ -213,19 +213,23 @@ impl Dsp {
                 },
             ),
             // fx:lapsus, fx3:saltus
-            Dsp::Lapsus(d) | Dsp::Saltus(d) | Dsp::Rota(d) | Dsp::Loquax(d) | Dsp::Fractus(d) | Dsp::Cedo(d) => d
-                .note(
-                    0,
-                    match n {
-                        N::On(p) => cantus_engine::fx::FxNote::On {
-                            pitch: p,
-                            velocity: 100,
-                        },
-                        N::Off(p) => cantus_engine::fx::FxNote::Off { pitch: p },
-                        N::AllOff => cantus_engine::fx::FxNote::AllOff,
-                        _ => unreachable!("the DSP hears plain notes"),
+            Dsp::Lapsus(d)
+            | Dsp::Saltus(d)
+            | Dsp::Rota(d)
+            | Dsp::Loquax(d)
+            | Dsp::Fractus(d)
+            | Dsp::Cedo(d) => d.note(
+                0,
+                match n {
+                    N::On(p) => cantus_engine::fx::FxNote::On {
+                        pitch: p,
+                        velocity: 100,
                     },
-                ),
+                    N::Off(p) => cantus_engine::fx::FxNote::Off { pitch: p },
+                    N::AllOff => cantus_engine::fx::FxNote::AllOff,
+                    _ => unreachable!("the DSP hears plain notes"),
+                },
+            ),
         }
     }
 
@@ -537,11 +541,11 @@ fn clap_notes_arrive_at_their_sample_in_either_dialect() {
         Case::tonus(),
         Case::porta(NOTES),
         Case::lapsus(),
-        Case::saltus(), // fx3:saltus
-        Case::rota(),   // fx3:rota
+        Case::saltus(),  // fx3:saltus
+        Case::rota(),    // fx3:rota
         Case::loquax(),  // fxa:loquax
         Case::fractus(), // fxa:fractus
-        Case::cedo(),   // fxb:cedo
+        Case::cedo(),    // fxb:cedo
     ] {
         let reference = through_dsp(&case, &case.notes);
         let dry = {
@@ -879,11 +883,11 @@ fn vst3_notes_arrive_at_their_sample_on_the_event_bus() {
         Case::tonus(),
         Case::porta(NOTES),
         Case::lapsus(),
-        Case::saltus(), // fx3:saltus
-        Case::rota(),   // fx3:rota
+        Case::saltus(),  // fx3:saltus
+        Case::rota(),    // fx3:rota
         Case::loquax(),  // fxa:loquax
         Case::fractus(), // fxa:fractus
-        Case::cedo(),   // fxb:cedo
+        Case::cedo(),    // fxb:cedo
     ] {
         let reference = through_dsp(&case, &case.notes);
         for blocks in &BLOCKS[..2] {

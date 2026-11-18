@@ -179,6 +179,25 @@ impl Plug {
         }
     }
 
+    /// fx/final — `clap.render`'s mode: offline (`true`) or real time; whether the plug-in
+    /// offers the extension and took it.
+    pub fn set_render(&self, offline: bool) -> bool {
+        use clap_sys::ext::render::*;
+        unsafe {
+            let ext = (*self.plugin).get_extension.unwrap()(self.plugin, CLAP_EXT_RENDER.as_ptr())
+                as *const clap_plugin_render;
+            if ext.is_null() {
+                return false;
+            }
+            let mode = if offline {
+                CLAP_RENDER_OFFLINE
+            } else {
+                CLAP_RENDER_REALTIME
+            };
+            (*ext).set.unwrap()(self.plugin, mode)
+        }
+    }
+
     pub fn deactivate(&self) {
         unsafe {
             (*self.plugin).stop_processing.unwrap()(self.plugin);
@@ -1274,13 +1293,13 @@ impl Direct {
             Direct::Tonsor(x) => x.reset(),
             Direct::Impetus(x) => x.reset(),
             Direct::Discrimen(x) => x.reset(),
-            Direct::Stub(x) => x.reset(),    // fx:contract
-            Direct::Cribrum(x) => x.reset(), // fx:cribrum
-            Direct::Vetus(x) => x.reset(),   // fx:vetus
-            Direct::Libra(x) => x.reset(),   // fx:libra
-            Direct::Saltus(x) => x.reset(),  // fx3:saltus
-            Direct::Rota(x) => x.reset(),    // fx3:rota
-            Direct::Arca(x) => x.reset(),    // fx3:arca
+            Direct::Stub(x) => x.reset(),       // fx:contract
+            Direct::Cribrum(x) => x.reset(),    // fx:cribrum
+            Direct::Vetus(x) => x.reset(),      // fx:vetus
+            Direct::Libra(x) => x.reset(),      // fx:libra
+            Direct::Saltus(x) => x.reset(),     // fx3:saltus
+            Direct::Rota(x) => x.reset(),       // fx3:rota
+            Direct::Arca(x) => x.reset(),       // fx3:arca
             Direct::Loquax(x) => x.reset(),     // fxa:loquax
             Direct::Fractus(x, _) => x.reset(), // fxa:fractus
             Direct::Caelum(x, out) => {
@@ -1291,8 +1310,8 @@ impl Direct {
                 out.jump(out.target);
                 x.reset();
             } // fxb:vinculum
-            Direct::Lenis(x) => x.restart(), // fxb:lenis: as the engine's reset
-            Direct::Cedo(x) => x.reset(),    // fxb:cedo
+            Direct::Lenis(x) => x.restart(),    // fxb:lenis: as the engine's reset
+            Direct::Cedo(x) => x.reset(),       // fxb:cedo
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
             Direct::Delay(x) => x.reset(),
@@ -1323,16 +1342,16 @@ impl Direct {
             Direct::Tonsor(x) => x.latency(),
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
-            Direct::Stub(x) => x.latency(),    // fx:contract
-            Direct::Cribrum(x) => x.latency(), // fx:cribrum
-            Direct::Vetus(x) => x.latency(),   // fx:vetus
-            Direct::Libra(x) => x.latency(),   // fx:libra
-            Direct::Saltus(x) => x.latency(),  // fx3:saltus
-            Direct::Rota(_) => 0,              // fx3:rota
-            Direct::Arca(x) => x.latency(),    // fx3:arca
-            Direct::Loquax(x) => x.latency(),     // fxa:loquax
-            Direct::Fractus(x, _) => x.latency(), // fxa:fractus
-            Direct::Caelum(x, _) => x.latency(),  // fxa:caelum
+            Direct::Stub(x) => x.latency(),        // fx:contract
+            Direct::Cribrum(x) => x.latency(),     // fx:cribrum
+            Direct::Vetus(x) => x.latency(),       // fx:vetus
+            Direct::Libra(x) => x.latency(),       // fx:libra
+            Direct::Saltus(x) => x.latency(),      // fx3:saltus
+            Direct::Rota(_) => 0,                  // fx3:rota
+            Direct::Arca(x) => x.latency(),        // fx3:arca
+            Direct::Loquax(x) => x.latency(),      // fxa:loquax
+            Direct::Fractus(x, _) => x.latency(),  // fxa:fractus
+            Direct::Caelum(x, _) => x.latency(),   // fxa:caelum
             Direct::Vinculum(x, _) => x.latency(), // fxb:vinculum
             Direct::Lenis(x) => x.latency(),       // fxb:lenis
             Direct::Cedo(x) => x.latency(),        // fxb:cedo

@@ -469,6 +469,8 @@ impl IAudioProcessorTrait for Plugin {
         let data = &*data;
         let events = self.read_changes(data.inputParameterChanges);
         let notes = self.read_notes(data.inputEvents);
+        // fx/final — an offline render starts snapped (ADR 0027, amended).
+        proc_.set_offline(data.processMode == ProcessModes_::kOffline as int32);
         // Where the host's song is (ADR 0055): a synced unit follows the host's tempo.
         proc_.set_transport(context_transport(data.processContext));
         let n = data.numSamples.max(0) as usize;

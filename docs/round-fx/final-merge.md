@@ -262,10 +262,26 @@ it restores):
    replaying their first milliseconds, not a later difference.
 6. Suites on Windows (`fix/snap`): `cantus-engine` 1 403 passed, 0 failed, 24 ignored;
    `cantus-dsp` 1 247 passed, 0 failed, 44 ignored; clippy `--all-targets -D warnings` and
-   fmt clean on both. Not run here: the plug-ins' suite (`cantus-plugins` does not call
-   `snap`: a host's jump still glides a Cantus effect hosted in another DAW — noted, not
-   changed; no unit's DSP changes unless `snap` is called, Firmus's first settings aside), the UI and AI suites, the Linux
+   fmt clean on both. Not run here: the UI and AI suites, the Linux
    check, the engine's fuzz features.
+
+7. **The exported plug-ins snap too** (`cantus-plugins`, CLAP and VST3; ADR 0027's
+   amendment): `instance::Processor` keeps where the last block left the host's song and
+   marks a jump — playback from stop, a playing song more than `JUMP_SAMPLES` (64 samples
+   at its tempo) from there (a seek, an unannounced loop wrap), a CLAP transport event
+   inside a block that does the same, the host's announced loop wrapping inside a block —
+   and an activation, a reset, an offline render begun (CLAP's `clap.render`, now offered;
+   VST3's `processMode` turning `kOffline`). At the next grid point, after the values in
+   force are configured, the unit snaps and the bypass fade lands; a parameter change while
+   the song plays on still glides. Tests: `tests/snap.rs` (CLAP: a seek, playback from
+   stop, a seek inside a block, an offline render begun — each equals a fresh instance made
+   at the new value, to the bit; the same change without a jump glides),
+   `vst3.rs::a_vst3_seek_…`/`a_vst3_offline_render_…` (the same through VST3),
+   `alloc.rs::a_jump_snaps_without_allocating` (every plug-in). The Direct path
+   (`through_*_is_bit_identical_to_the_dsp`, the automation-on-the-grid tests) is
+   unchanged. On the way: `cantus-ui`'s `views/fx/fxd.rs` did not compile on this branch
+   (wave D's controller header lacked round 40's `views_w`) — `views_w: 0.0`, as every other
+   header sets it.
 
 ## What each later branch needs at its merge
 

@@ -101,6 +101,7 @@ fn header<'a>(ui: &egui::Ui, formula: bool, look: u8, name: &'a str, c: &Chrome<
         ab: None,
         undo: None,
         views: None,
+        views_w: 0.0,
         bypassed: Some(!c.on),
         help: true,
         name_w,

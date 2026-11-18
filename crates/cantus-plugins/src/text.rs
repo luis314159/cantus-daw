@@ -65,7 +65,7 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/vinculum.en.txt"),
                 include_str!("../../cantus-ui/locales/fx/lenis.en.txt"),
                 include_str!("../../cantus-ui/locales/fx/cedo.en.txt"),
-                include_str!("../../cantus-ui/locales/fx/delay.en.txt"),   // r39:delay
+                include_str!("../../cantus-ui/locales/fx/delay.en.txt"), // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.en.txt"),
             ],
             Lang::Es => &[
@@ -113,7 +113,7 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/vinculum.es.txt"),
                 include_str!("../../cantus-ui/locales/fx/lenis.es.txt"),
                 include_str!("../../cantus-ui/locales/fx/cedo.es.txt"),
-                include_str!("../../cantus-ui/locales/fx/delay.es.txt"),   // r39:delay
+                include_str!("../../cantus-ui/locales/fx/delay.es.txt"), // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.es.txt"),
             ],
         }
