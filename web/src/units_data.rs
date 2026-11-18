@@ -176,8 +176,8 @@ pub const INSTRUMENTS: [Unit; 10] = [
         presets: Some(24),
         plugin: false,
         ab: None,
-        big: (1800, 1177),
-        thumb: (640, 418),
+        big: (1800, 1113),
+        thumb: (640, 396),
         es: None,
     },
 
@@ -199,8 +199,8 @@ pub const INSTRUMENTS: [Unit; 10] = [
         presets: None,
         plugin: false,
         ab: None,
-        big: (1800, 1086),
-        thumb: (640, 386),
+        big: (1800, 1038),
+        thumb: (640, 369),
         es: None,
     },
 
