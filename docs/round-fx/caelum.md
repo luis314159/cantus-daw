@@ -406,8 +406,48 @@ the ceiling — roughly a quarter more than finite. To be measured again on a qu
   the playing is a steady chord (noise: +0.04 … +0.15). Measured and bounded (1.5 dB), not
   hidden.
 
+- **"Something comes in"**, for Infinite, is sound that matters against the wash: input a
+  hundred times under what would keep a finite tail at the wash's level (a synthesiser's
+  release, a track's noise floor) counts as nothing, so the wash settles and holds.
+
+### Carried through
+
+- **Presets** re-fitted (`preset_tool fit shimmer`): *Freeze swell* −0.8 → −1.8 dB, *Endless
+  ascent* −1.4 → −2.0 (and its Sustain 60 %), *Infinite drone* −1.9 → −2.5 (its `ishim` gone:
+  Sustain 100 % is the default); the other sixteen within their window, untouched.
+- **The e2e** (`caelum_e2e.rs`, through `CantusApp::assemble`): Infinite thrown live on the
+  chord's dying tail with the shimmer on — the 400 ms after the switch **+0.44 dB** against the
+  tail's level at it, each second after within **0.43 dB** of the first (finite −18.5 dB); from
+  the start with both voices full, Sustain 0 % −1.84 dB from 2–3 s to 3–4 s against 100 %'s
+  +0.69 dB; then twenty seconds of silence before Freeze is thrown on a fresh tail (frozen
+  −0.06 dB). `caelum_drag.rs`: the Sustain rider dragged from 100 % to 50 %, one undo step.
+  `fxa_whole.rs`: the sill's two buttons, the gauge clicked to 25 % and undone; the sill
+  states shot without a word cut.
+- **Shots** (`shoot_fxa`, a `sustain` state added): `C:\projects\daw-fx\compartir\caelum\design\v4-sustain\`
+  — 21 PNGs (every Caelum state, Slate EN and Paper ES, 75–200 %, Dawn and Aurora); no word
+  cut. The gauge: "SUSTAIN"/"SOSTENIDO" and the figure engraved over a glass tube lit to the
+  value, the brass rider, quarter marks; dimmed while Infinite is off.
+- **Sounds** (`C:\projects\daw-fx\compartir\caelum\sound\`, rendered to a temporary folder
+  first): re-rendered `04-guitar-freeze-swell` and `07-pad-endless-ascent` (both infinite);
+  new `09-pad-infinite-thrown-sustain-100` and `10-pad-infinite-thrown-sustain-40` (Infinite
+  thrown on the Octave shimmer's tail: nothing jumps; held with its tone, or climbing away).
+  The finite ones are bit-identical to before (01 and 06 compared byte for byte) and left as
+  they were. README and render log updated.
+- **`DSP_VERSION`** unchanged: no golden holds Caelum, and the finite path is bit-exact (the
+  output's absorption is the loop's when finite; the early taps' scale is 1).
+
+### Open
+
+- **A short chord into an infinite tank at the climb's fullest** (both voices at 100 %), Sustain
+  100 %: the held wash creeps up about 0.4 dB a second over its first seconds (the e2e
+  measures +0.41 then +0.69 dB) before holding; with noise (the DSP's five-minute tests) it
+  holds within 0.11 dB from 1.5 s on. The hold's reference is taken from an energy smoothed
+  over 100 ms, which lags a tail still moving when the sound stops; two fixes tried here (the
+  reference from the write history; a make-up only below the reference) each broke another
+  case and were taken back. Bounded in the e2e at 1 dB.
+
 ### Verified only in emulation
 
 - Nothing heard on a monitor here: the DSP's measures, the engine block by block and the e2e
   render are the evidence. The owner's ears are the test still to come (the re-rendered
-  sounds below).
+  sounds above).

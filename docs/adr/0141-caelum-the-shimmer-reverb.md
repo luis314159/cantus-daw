@@ -195,7 +195,12 @@ Infinite sets how full the wash may grow. Infinite costs about a quarter more th
 (the second absorption and the ceiling's measures; `docs/round-fx/caelum.md` has the numbers,
 measured on a shared machine). The tonal case is honest about one
 limit: two held tones beat against their own modes in a tank that loses nothing, so an octave
-holding them wavers by about a decibel from one four-second stretch to the next.
+holding them wavers by about a decibel from one four-second stretch to the next. "Nothing
+more comes in", for Infinite, means nothing that matters against the wash (input a hundred
+times under what would keep a finite tail at its level counts as none), so a synthesiser's
+release or a noise floor does not keep the climb running. Open: after a half-second chord
+at the climb's fullest the held wash creeps up about 0.4 dB a second for its first seconds
+(the hold's reference lags a tail still moving; `docs/round-fx/caelum.md`).
 
 **What the tests hold** (`cantus-dsp/src/caelum_tests_infinite.rs`, 48 kHz, after):
 - `engaging_infinite_moves_no_level_and_clicks_nothing` — up to the switch the twins are one
