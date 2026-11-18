@@ -3,8 +3,8 @@
 Branch `fx/final`, worktree `C:\projects\daw-fx\final`, from `master` `477cb6b4` (round 40:
 schema 71, ADRs up to 0126, keymap 17, `DSP_VERSION` 7). Every branch of the side round is
 merged here in order, renumbered onto master's next numbers, and tested whole; then (on the
-owner's word) master is updated, pushed and the site published. **`fx/multimon` is not part
-of this merge** (owner, 2026-11-17): it lands later, as its own second merge onto master.
+owner's word) master is updated, pushed and the site published. **Everything lands together**
+(the owner, 2026-11-17, a second change of plan): `fx/multimon` too, merged last, after `fix/look`.
 
 ## Merge order
 
@@ -12,12 +12,13 @@ of this merge** (owner, 2026-11-17): it lands later, as its own second merge ont
 |---|---|---|---|
 | 1 | `fx/integration` `0e6b2722` | Cribrum, Fragor, Lapsus, Vetus, Libra, Tabula, Saltus, Arca, Rota, Loquax, Fractus, Caelum (step 3) and their docs | `899cfe16` (and its BACKLOG §6k tip `6e4f6201` at `879f6418`) |
 | 2 | `fx/web` `d8ae6fe9` | the site: every new unit's card and page (EN/ES), Try it | `2f170a7b` |
-| 3 | `fx/excel` | Caelum's continuous Sustain | later |
-| 4 | `fx/wave-b` | Vinculum, Lenis, Cedo | later |
-| 5 | `fx/wave-c` | Purus, Comparatio | later |
-| 6 | `fx/wave-d` | Tactus (X-Y pad), Calculus (formula) | later |
-| 7 | `fix/flicker` | issue #1 (the window flicker), menus at 200 %, the one-step bus | later |
-| — | `fx/multimon` | several screens | **after this merge, onto master** |
+| 3 | `fx/excel` `67a79517` | Caelum's continuous Sustain | `95488de5` |
+| 4 | `fx/wave-d` `2eac2c50` | Tactus (X-Y pad), Calculus (formula), their follow-ups | `2b87f947` |
+| 5 | `fx/wave-b` `d95e96d6` | Vinculum, Lenis, Cedo | `c8b1e990` |
+| 6 | `fix/flicker` | issue #1 (the window flicker), menus at 200 %, the one-step bus, Ctrl+G's folder | later |
+| 7 | `fix/look` | the fader-cap setting reaching the mixer, see-through dropdowns, every popup audited | later |
+| 8 | `fx/wave-c` | Purus, Comparatio (with the owner's three Comparatio follow-ups) | later |
+| 9 | `fx/multimon` | several screens (a patched eframe in `third_party/eframe`) | later, last |
 
 ## The numbers: provisional → final
 
@@ -67,7 +68,7 @@ provisional `v62`–`v64` are not carried over — `v72`–`v74` are written ins
 | 0148 | **0145** | The formula controller | fx/wave-d |
 | 0149 | **0146** | The window holds still (issue #1) | fix/flicker |
 | 0150 | **0147** | Route the selected to a new bus | fix/flicker |
-| 0151 | *at its own merge* | Several screens | fx/multimon (later) |
+| 0151 | **0148** | Several screens | fx/multimon |
 
 0121 is a gap on master (round 40) and stays one. The files are renamed and every reference
 in `crates/`, `docs/`, `web/` follows (a token-exact rewrite: four digits not inside a longer
@@ -76,9 +77,9 @@ number, word or hex string; `tools/public/rvr1960-4.fingerprints` holds a hash t
 reports in this folder keep their history but show the final numbers.
 
 **`fx/multimon`** carries its own copy of 0149 (it was cut from `fix/flicker`) — that one is
-0146 — and its 0151 and keymap 19 are renumbered **at its own later merge onto master**: the
-next free ADR after this merge's last (0148 if nothing else lands first) and the next keymap
-after this merge's (19 if nothing else lands first).
+0146; its 0151 is **0148** and its keymap 19 stays **19** (on top of `fix/flicker`'s 18). It vendors
+a patched eframe (`third_party/eframe`): the workspace `[patch]`, `THIRD-PARTY-NOTICES.md`
+(`cargo run -p xtask -- notices`) and the Linux check must take it with everything else.
 
 ### Keymap (`cantus-ui` `keymap::FILE_VERSION`)
 
@@ -87,7 +88,7 @@ after this merge's (19 if nothing else lands first).
 | master (round 40) | 17 | 17 |
 | fx side branches | 16 (beta.14's; no keymap change of their own) | — |
 | fix/flicker | 18 | **18** |
-| fx/multimon | 19 | at its own merge |
+| fx/multimon | 19 | **19** |
 
 ### `DSP_VERSION`
 
@@ -204,7 +205,8 @@ then the schema by hand.
   `write_fixture 77`.
 - **`fix/flicker`** (cut from master `477cb6b4`): ADRs 0149/0150 → **0146/0147**, keymap 18
   stays 18; its `beta-checklist.md` steps and `troubleshooting-graphics.md`.
-- **`fx/multimon`**: not in this merge (above).
+- **`fx/multimon`** (last): ADR 0151 → **0148** (its 0149 is flicker's 0146), keymap 19; the
+  patched eframe through `[patch]`, the notices regenerated, the Linux check building it.
 
 After the last: `docs/round-fx/site.md` §5 (uncomment wave B/C's lines in `shoot_skins.rs`,
 the pictures, `check_units.py --fix`, every card's excerpts with Aula's re-rendered, Try it's

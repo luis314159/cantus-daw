@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 77,
   "app_version": "fixture",
-  "saved_at": 1794967993,
+  "saved_at": 1794969277,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -337,7 +337,7 @@
             }
           },
           {
-            "id": 144,
+            "id": 147,
             "name": "Knob b",
             "start": 11520,
             "length": 3840,
@@ -349,7 +349,7 @@
             "automation": {
               "target": {
                 "ModInput": {
-                  "modulator": 143,
+                  "modulator": 146,
                   "input": 1
                 }
               },
@@ -3572,7 +3572,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "bf7aad57789c231d180453dfe160f4e9b91ca035adedbe17c759d0c8911c01dd"
+          "content": "5c714741dba4c37d416046546d9e83a2eabe43e44f7d5c16c39dcfc4f832b250"
         }
       },
       {
@@ -4219,6 +4219,132 @@
                 "size": 0.6,
                 "slo": 300.0,
                 "width": 1.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 142,
+            "bypass": false,
+            "spec": {
+              "kind": "BusCompressor",
+              "params": {
+                "att": 4.0,
+                "char": 1.0,
+                "colour": 0.0,
+                "hpf": 20.0,
+                "makeup": 0.0,
+                "mix": 1.0,
+                "model": 1.0,
+                "out": 0.0,
+                "ratio": 1.0,
+                "rel": 1.0,
+                "thr": -20.0,
+                "time": 1.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 143,
+            "bypass": false,
+            "spec": {
+              "kind": "ResonanceSuppressor",
+              "params": {
+                "att": 5.0,
+                "b0amt": 0.0,
+                "b0hz": 150.0,
+                "b0on": 0.0,
+                "b0w": 1.0,
+                "b1amt": 0.0,
+                "b1hz": 400.0,
+                "b1on": 0.0,
+                "b1w": 1.0,
+                "b2amt": 0.5,
+                "b2hz": 1000.0,
+                "b2on": 1.0,
+                "b2w": 1.0,
+                "b3amt": 0.0,
+                "b3hz": 2500.0,
+                "b3on": 0.0,
+                "b3w": 1.0,
+                "b4amt": 0.0,
+                "b4hz": 5000.0,
+                "b4on": 0.0,
+                "b4w": 1.0,
+                "b5amt": 0.0,
+                "b5hz": 10000.0,
+                "b5on": 0.0,
+                "b5w": 1.0,
+                "chan": 0.0,
+                "curve": 0.0,
+                "delta": 0.0,
+                "depth": 0.5,
+                "hi": 20000.0,
+                "lo": 20.0,
+                "mix": 1.0,
+                "out": 0.0,
+                "qual": 1.0,
+                "rel": 80.0,
+                "select": 0.5,
+                "sharp": 0.5
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 144,
+            "bypass": false,
+            "spec": {
+              "kind": "Ducker",
+              "params": {
+                "att": 1.0,
+                "band": 0.0,
+                "depth": 9.0,
+                "det": 0.0,
+                "div": 8.0,
+                "edge": 1.0,
+                "hold": 40.0,
+                "kfilt": 0.0,
+                "khz": 100.0,
+                "kq": 1.0,
+                "lfhz": 60.0,
+                "lfloor": 0.0,
+                "link": 1.0,
+                "listen": 0.0,
+                "look": 0.0,
+                "mix": 1.0,
+                "out": 0.0,
+                "rel": 150.0,
+                "rms": 10.0,
+                "rshape": 1.0,
+                "swing": 0.0,
+                "thr": -24.0,
+                "trig": 1.0,
+                "vel": 0.0,
+                "xhz": 120.0,
+                "xover": 0.0
+              },
+              "cedo": {
+                "points": [
+                  {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  {
+                    "x": 0.4,
+                    "y": 0.3,
+                    "t": 0.5
+                  },
+                  {
+                    "x": 0.7,
+                    "y": 0.0,
+                    "s": 2
+                  }
+                ]
               }
             },
             "mix": 1.0,
@@ -6449,7 +6575,7 @@
           ]
         },
         {
-          "id": 142,
+          "id": 145,
           "name": "Sweep",
           "source": {
             "XyPad": {
@@ -6504,7 +6630,7 @@
           ]
         },
         {
-          "id": 143,
+          "id": 146,
           "source": {
             "Formula": {
               "text": "a*Sin(SongTime*Pi*b)+c",
@@ -7027,7 +7153,7 @@
         "open": false
       }
     ],
-    "next_id": 145
+    "next_id": 148
   },
-  "integrity": "b7ed90c2ba33f31db48049ac7b87ac4c2413392aedefed5b9747b0a32450ad82"
+  "integrity": "c2a729ba29781533fb62bdc97b07b943b29d045e356ace13dbbd6ad01333615a"
 }

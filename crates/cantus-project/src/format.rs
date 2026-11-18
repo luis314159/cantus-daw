@@ -1817,7 +1817,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v75.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // fxd — no longer the newest (77): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(75));
         let p = report.file.project;
         let slots: Vec<_> = p.strips[1]
             .effects
