@@ -175,8 +175,11 @@ repository):
    more screens than are connected opens what fits and docks the rest (§8). **Alt+1 …
    Alt+9** recall the View menu's layouts in order (Alt is ⌥ on macOS); Ctrl+Alt is not
    used — it is AltGr on Spanish and many other keyboards (AltGr+2 is @). **F11** puts the
-   window in front into full screen on its own screen and back. The new bindings are
-   checked against every keymap preset for collisions (a test).
+   window in front into full screen on its own screen and back, **Shift+F11** sends the area
+   being worked in to a new window, **Ctrl+F11** opens the screens map. The View menu lists
+   the built-ins the screens allow, then the user's layouts (*Reset layout* is the way back to
+   the default), and Alt+1 … Alt+9 follow that order. The new bindings are checked against
+   every keymap preset for collisions (a test).
 
 8. **A window on a screen that is not there is brought back, always.** At start and
    whenever a window's place or screen changes (an event, never a timer), the screens are
@@ -246,7 +249,7 @@ repository):
   `std::mem::take`); app-wide questions (*is the mixer showing?*) ask every window.
 - `layouts.json` grows (new fields, `serde(default)`): an older Cantus reads the main
   window's dock and ignores the rest; no project schema change, no `SCHEMA_VERSION` bump.
-  The keymap gains the layout keys, F11 and *Move to a new window* (unbound): **keymap 19**
+  The keymap gains the layout keys (Alt+1 … Alt+9), F11 (full screen), Shift+F11 (*Move to a new window*) and Ctrl+F11 (*Screens and windows…*): **keymap 19**
   (provisional — the bus feature built in parallel on `fix/flicker` from the same base takes
   18 for Ctrl+G *route the selected to a new bus*; merge that branch first, then this one,
   and renumber if the order changes).
@@ -309,9 +312,7 @@ playing, 300 idle frames, corrupt layout files), run as eframe runs windows
 - **The central view.** Only the main window's lower zone sets it; an editor another window
   holds is never pulled back into the main dock by it.
 
-Not built yet:
-- **The screens map** (§9). View ▸ *Gather every window on this screen* and *Put every area
-  back in the main window* are the rescue meanwhile.
+The screens map (§9) is built (`views/screens_map.rs`). Not built yet:
 - **A plug-in's editor owned by the window that opened it** (§10). It is still owned by the
   main window: owning it by a window that can close needs its editor closed first, since
   Windows destroys owned windows.

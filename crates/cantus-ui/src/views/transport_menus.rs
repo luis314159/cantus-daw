@@ -346,7 +346,6 @@ enum Do {
     LayoutRow(crate::windows_layouts::LayoutRow),
     GatherWindows,
     DockEveryWindow,
-    ScreensMap,
     Appearance,
     Settings,
     Customise,
@@ -493,11 +492,6 @@ fn run_row(app: &mut CantusApp, ctx: &egui::Context, what: Do) {
         Do::LayoutRow(row) => app.apply_layout_row(&row),
         Do::GatherWindows => app.gather_windows(),
         Do::DockEveryWindow => app.dock_every_window(),
-        Do::ScreensMap => {
-            // Over the main window, whose bar holds the View menu.
-            app.windows.map_open = true;
-            app.windows.host = egui::ViewportId::ROOT;
-        }
         Do::Appearance => app.show_theme_editor = true,
         Do::Settings => app.show_settings = true,
         Do::Customise => super::more::open_customise(app),
@@ -706,19 +700,14 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     rows.push(Row::command(M::SaveLayoutAs));
     rows.push(Row::command(M::DeleteLayout).enabled(is_saved));
     rows.push(Row::command(M::ResetLayout));
-    // Several screens (ADR 0151 §§2, 8): a window of its own, the rescue, full screen.
-    rows.push(Row::separator());
-    rows.push(Row::band(Words::Key("screens.view.band")));
+    // Several screens (ADR 0151 §§2, 8, 9): a window of its own, the screens map, and the
+    // rescue once a window is open (F11's full screen is the palette's and its key's).
     rows.push(Row::run(Action::MoveToNewWindow, "screens.view.new_window"));
     if !app.windows.is_empty() {
         rows.push(Row::new("screens.view.gather", Do::GatherWindows));
         rows.push(Row::new("screens.view.dock_all", Do::DockEveryWindow));
     }
-    rows.push(Row::new("screens.view.map", Do::ScreensMap));
-    rows.push(Row::run(
-        Action::ToggleFullScreen,
-        "screens.window.full_screen",
-    ));
+    rows.push(Row::run(Action::ShowScreens, "screens.view.map"));
     rows.push(Row::separator());
     for (action, key) in [
         (Action::ZoomIn, "workspace.zoom_in"),

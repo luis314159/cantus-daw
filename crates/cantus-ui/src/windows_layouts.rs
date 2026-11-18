@@ -187,7 +187,7 @@ impl CantusApp {
     /// are allow (a desk of one screen sees none but the wide one on a 21 : 9 screen), the
     /// user's — Alt+1 … Alt+9 in this order.
     pub fn layout_rows(&self) -> Vec<LayoutRow> {
-        let mut rows = vec![LayoutRow::Default];
+        let mut rows = Vec::new();
         let m = self.windows.main_screen(self.windows.main.outer.as_ref());
         rows.extend(
             Builtin::ALL

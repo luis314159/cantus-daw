@@ -361,8 +361,15 @@ The owner approved on 2026-11-17 (relayed): questions 1, 2, 4, 5 and 6 yes; 3 le
 - **Unit tests**: `screens::tests` (the placement table), and the keymap
   (`every_preset_has_the_layout_keys_and_full_screen`).
 
+- **The screens map** (View ▸ *Screens and windows…*, `views/screens_map.rs`): every
+  screen to scale with its name, size and both scales, the windows on it (a waiting
+  window's screen dashed, *Not connected*); drag a window onto another screen, double-click
+  to raise it; Esc closes it.
+- The View menu offers only the built-in layouts the screens allow (a one-screen user's
+  menu grows by its *Windows and screens* band alone); the rescue rows show once a window
+  is open.
+
 **Not built** (honestly):
-- The **screens map** card (§9). The rescue rows of the View menu do its job meanwhile.
 - **Plug-in editors owned by the window that opened them.** They are still owned by the
   main window. Owning them by a window that can close needs their windows closed with it
   first (Windows destroys owned windows).

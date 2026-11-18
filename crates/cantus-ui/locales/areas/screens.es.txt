@@ -6,7 +6,8 @@ screens.menu.move_to = Mover a
 screens.menu.to_main = La ventana principal
 screens.menu.to_window = Ventana «{name}»
 screens.menu.to_screen = Ventana nueva en la pantalla {n} · {name}
-screens.menu.float = Flotar sobre esta ventana
+
+screens.full = Hay ocho ventanas abiertas además de la principal: cierra una antes.
 
 # --- una ventana propia ---
 screens.window.title = {song} — {area}
@@ -61,3 +62,4 @@ action.layout-8 = Disposición 8 (la octava del menú Ver)
 action.layout-9 = Disposición 9 (la novena del menú Ver)
 action.toggle-full-screen = Pantalla completa para la ventana en primer plano
 action.move-to-new-window = Mover el área a una ventana nueva
+action.screens-map = Pantallas y ventanas…

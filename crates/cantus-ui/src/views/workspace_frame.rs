@@ -778,7 +778,7 @@ impl Workspace {
             Item::action(Src::Key(if floating {
                 "workspace.menu.dock"
             } else {
-                "screens.menu.float"
+                "workspace.menu.float"
             })),
             TabAct::Float,
         )];

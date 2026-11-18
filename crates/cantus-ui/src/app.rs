@@ -4214,6 +4214,14 @@ impl CantusApp {
                 }
             }
             MoveToNewWindow => self.move_focused_to_new_window(),
+            ShowScreens => {
+                // Over the window it was asked from.
+                self.windows.map_open = true;
+                self.windows.host = match self.windows.current {
+                    Some(i) => self.windows.list[i].id(),
+                    None => egui::ViewportId::ROOT,
+                };
+            }
             ZoomIn | ZoomOut | ZoomReset if self.windows.current.is_some() => {
                 // Ctrl +/− in a window of its own: that window's own scale (ADR 0151 §5).
                 if let Some(i) = self.windows.current {

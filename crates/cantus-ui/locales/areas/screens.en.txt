@@ -6,7 +6,6 @@ screens.menu.move_to = Move to
 screens.menu.to_main = The main window
 screens.menu.to_window = Window “{name}”
 screens.menu.to_screen = New window on screen {n} · {name}
-screens.menu.float = Float over this window
 
 screens.full = Eight windows are open besides the main one: close one first.
 
@@ -63,3 +62,4 @@ action.layout-8 = Layout 8 (the View menu's eighth)
 action.layout-9 = Layout 9 (the View menu's ninth)
 action.toggle-full-screen = Full screen for the window in front
 action.move-to-new-window = Move the area to a new window
+action.screens-map = Screens and windows…

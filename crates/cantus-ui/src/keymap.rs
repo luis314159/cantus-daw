@@ -173,6 +173,8 @@ pub enum Action {
     ToggleFullScreen,
     /// The area being worked in to a window of its own (no key by default).
     MoveToNewWindow,
+    /// *Screens and windows…*: the screens map (no key by default).
+    ShowScreens,
     /// The interface's zoom: Ctrl +, Ctrl −, Ctrl 0 (ADR 0024 §11).
     ZoomIn,
     ZoomOut,
@@ -342,7 +344,7 @@ impl Action {
         )
     }
 
-    pub const ALL: [Action; 143] = [
+    pub const ALL: [Action; 144] = [
         // r35:video — 122 with ExportVideo
         Action::PlayPause,
         Action::Stop,
@@ -435,6 +437,7 @@ impl Action {
         Action::Layout9,
         Action::ToggleFullScreen,
         Action::MoveToNewWindow,
+        Action::ShowScreens,
         Action::MoveStripLeft,
         Action::MoveStripRight,
         Action::ToggleStripSolo,
@@ -590,6 +593,7 @@ impl Action {
             Action::Layout9 => "layout-9",
             Action::ToggleFullScreen => "toggle-full-screen",
             Action::MoveToNewWindow => "move-to-new-window",
+            Action::ShowScreens => "screens-map",
             Action::ZoomIn => "zoom-in",
             Action::ZoomOut => "zoom-out",
             Action::ZoomReset => "zoom-reset",
@@ -700,6 +704,7 @@ impl Action {
             | Layout9
             | ToggleFullScreen
             | MoveToNewWindow
+            | ShowScreens
             | ZoomIn
             | ZoomOut
             | ZoomReset
@@ -973,6 +978,8 @@ fn common() -> Vec<(Action, Binding)> {
         (Layout8, Binding::alt(Key::Num8)),
         (Layout9, Binding::alt(Key::Num9)),
         (ToggleFullScreen, Binding::key(Key::F11)),
+        (MoveToNewWindow, Binding::shift(Key::F11)),
+        (ShowScreens, Binding::cmd(Key::F11)),
         (PlayPause, Binding::key(Key::Space)),
         (Record, Binding::key(Key::R)),
         (ToStart, Binding::key(Key::Home)),
@@ -1757,11 +1764,12 @@ struct KeymapFile {
 /// ADR 0091); version 16 the workspace's areas and the arrangement's tools (round 39);
 /// version 17 insert and delete time and the ripple mode (round 40, ADR 0116).
 /// Version 19 (provisional — 18 is the bus feature's, merged before): several screens'
-/// layouts (Alt+1 … Alt+9), full screen (F11) and *Move to a new window* (ADR 0151).
+/// layouts (Alt+1 … Alt+9), full screen (F11), *Move to a new window* (Shift+F11) and the
+/// screens map (Ctrl+F11) (ADR 0151).
 pub const FILE_VERSION: u32 = 19;
 
 /// Actions added in version 19 (ADR 0151 §7).
-const NEW_IN_V19: [Action; 11] = [
+const NEW_IN_V19: [Action; 12] = [
     Action::Layout1,
     Action::Layout2,
     Action::Layout3,
@@ -1773,6 +1781,7 @@ const NEW_IN_V19: [Action; 11] = [
     Action::Layout9,
     Action::ToggleFullScreen,
     Action::MoveToNewWindow,
+    Action::ShowScreens,
 ];
 
 /// r40:ripple — actions added in version 17 (round 40, ADR 0116): Insert inserts time,
@@ -2026,7 +2035,16 @@ mod tests {
                 &[Binding::key(Key::F11)],
                 "{p:?}"
             );
-            assert!(m.bindings_for(Action::MoveToNewWindow).is_empty(), "{p:?}");
+            assert_eq!(
+                m.bindings_for(Action::MoveToNewWindow),
+                &[Binding::shift(Key::F11)],
+                "{p:?}"
+            );
+            assert_eq!(
+                m.bindings_for(Action::ShowScreens),
+                &[Binding::cmd(Key::F11)],
+                "{p:?}"
+            );
             // No other action is bound to Ctrl+Alt+digit or Alt+digit either.
             for a in Action::ALL.into_iter().filter(|a| !layouts.contains(a)) {
                 for b in m.bindings_for(a) {
