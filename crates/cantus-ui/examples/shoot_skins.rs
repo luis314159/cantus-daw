@@ -288,6 +288,19 @@ fn app_with(demo: &str, what: What) -> CantusApp {
         What::Inst(kind) => views::inst::demo_feed(&mut app, kind),
         What::Pulsus => {}
     }
+    // fix/final-d — Chorda on the preset its card's first excerpt plays, so the bar reads as
+    // a real instrument's (not *Init*).
+    if let (What::Inst(InstrumentKind::Chorda), Some(t)) = (what, app.inst.open) {
+        use cantus_ui::preset_catalog::{entries, Payload, Unit};
+        let concert = entries(Unit::Instrument(InstrumentKind::Chorda), false)
+            .into_iter()
+            .find(|e| e.id == "chorda.preset.concert")
+            .expect("Chorda's Concert Grand");
+        if let Payload::Native(spec) = &concert.payload {
+            app.apply_inst_spec(t, spec, cantus_ui::preset_browser::APPLY_LABEL);
+            app.inst.preset.insert(t, concert.name.clone());
+        }
+    }
     // fix/final-d — the drummer on a drums track, as a user's would be.
     if let (What::Inst(InstrumentKind::AcousticDrums), Some(t)) = (what, app.inst.open) {
         app.exec(cantus_core::Command::SetTrackName {
