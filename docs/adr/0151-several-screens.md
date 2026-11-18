@@ -312,11 +312,44 @@ playing, 300 idle frames, corrupt layout files), run as eframe runs windows
 - **The central view.** Only the main window's lower zone sets it; an editor another window
   holds is never pulled back into the main dock by it.
 
-The screens map (§9) is built (`views/screens_map.rs`). Not built yet:
-- **A plug-in's editor owned by the window that opened it** (§10). It is still owned by the
-  main window: owning it by a window that can close needs its editor closed first, since
-  Windows destroys owned windows.
-- *Choose what the bar shows…* and *Rename…*.
+The screens map (§9) is built (`views/screens_map.rs`), and the three left after the first
+account are closed (the owner's "no leftovers"):
+
+- **A plug-in's editor belongs to the window that opened it** (§10). cantus-host's editor
+  window keeps its owner (`PluginWindow::owner`, `set_owner`: `GWLP_HWNDPARENT` on Windows,
+  `WM_TRANSIENT_FOR` on X11, noted on macOS where the editor floats above every Cantus
+  window anyway) and opens where it is asked (`window::place_next`: a little in from the
+  corner of the window that opened it, on its screen). Before a Cantus window goes —
+  closed, docked back, its screen unplugged, a layout applied — `PluginHost::reown_windows`
+  gives its effects', instruments' and ARA editors to the main window, so Windows never
+  destroys an editor with its owner: the editor stays open where it is. Held by
+  `cantus-host`'s `owner_tests` on real Win32 windows (an editor given to another owner
+  outlives the first) and `windows_e2e::a_windows_plug_in_editors_are_its_own_and_outlive_it`
+  (the owner and place chosen, the release before every way a window goes).
+- **A window's bar and name** (§4): *Choose what the bar shows…* lists eight of the top
+  bar's groups to check and uncheck (transport, position, tempo, metronome, grid, undo, meter,
+  performance), *Rename the window…* opens the kit's dialog; both are the user's settings,
+  kept with the layout (`WindowShape::groups`, `name`) — **no undo**, as for every window
+  setting: they are not the project. `windows_e2e::a_windows_bar_and_name_are_chosen_from_its_menu_and_kept`.
+- **The cost, measured** — the section below.
+
+**The cost, measured** (2026-11-17, `tools/scorecard/windows.ps1`, the owner's laptop on its
+one 1 920 × 1 080 screen at 125 %, a dev-optimised build, the machine 67–100 % busy with other
+builds — `docs/round-fx/multimon.md` §8 has the method and every run):
+
+- **Private bytes:** 164–166 MB with one window, the same with two, about 5 MB more with
+  three.
+- **GPU memory charged to Cantus, at rest:** 51–53 MB with one window, 69–90 MB with two, and
+  87–100 MB with three — **16–37 MB per 960 × 510 window**. The estimate in Consequences was
+  low for a window this size.
+- **At rest:** each window of its own woke about once in 5 s for 1.3–2 ms. The CPU share is
+  unchanged within the noise (1.7–5.5 % of a core in every case).
+- **Playing:** the mixer's window drew 67–77 frames a second at 0.9–1.25 ms each, against the
+  main window's 2.0–3.1 ms.
+- **Unreliable:** the GPU counters' samples while playing with two and three windows read more
+  memory than the machine has, so they are not used.
+
+To repeat on a quiet machine with a release build before these numbers go in the scorecard.
 
 `docs/round-fx/multimon.md` §7 has the account, and `docs/beta-checklist.md` the steps only
 a real desk can confirm.

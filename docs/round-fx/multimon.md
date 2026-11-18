@@ -369,16 +369,18 @@ The owner approved on 2026-11-17 (relayed): questions 1, 2, 4, 5 and 6 yes; 3 le
   menu grows by its *Windows and screens* band alone); the rescue rows show once a window
   is open.
 
-**Not built** (honestly):
-- **Plug-in editors owned by the window that opened them.** They are still owned by the
-  main window. Owning them by a window that can close needs their windows closed with it
-  first (Windows destroys owned windows).
-- *Choose what the bar shows…* and *Rename…* in a window's menu.
-- The measured memory and frame time per extra window. The tests hold the at-rest zero
-  and the textures flat; the driver's buffers need the scorecard on a real machine.
+**Closed after the first account** (the owner's "no leftovers", 2026-11-17):
+- **Plug-in editors owned by the window that opened them**, placed on its screen, and given
+  to the main window before that window goes. See ADR 0151's Phase 2 section and the
+  checklist's real-plug-in steps.
+- *Choose what the bar shows…* and *Rename the window…*. They are user settings kept with
+  the layout, with no undo.
+- **The measured cost.** See §8.
+
+**Still not done:**
 - `rt_memory` with two windows. The engine is untouched (no file under
-  `cantus-engine`/`cantus-rt` changed), and the rig's processor runs on the test's
-  thread.
+  `cantus-engine`/`cantus-rt` changed), and the rig's processor runs on the test's thread,
+  so the audio thread's allocations cannot be told apart there.
 
 **Verified only in emulation:** everything above. The tests feed screens and passes as
 winit and eframe do. The spike ran on one real screen. The checklist lists what a real desk
@@ -407,3 +409,58 @@ windows, F11, plug-in windows, and Linux and macOS.
 **Pictures as built:** `compartir/multimon/design/v2/` holds the main window on the laptop,
 the mixer's window on the external screen, and the desk, in both locales. They match the v1
 design.
+
+## 8. The cost of a window, measured (2026-11-17)
+
+**How it was measured.**
+- **Machine:** the owner's laptop, one screen of 1 920 × 1 080 at 125 %.
+- **Build:** this branch's `cantus.exe` (`f924e944`… `fdf6226a`, dev profile, optimised, no
+  LTO — not a release build).
+- **Script:** `tools/scorecard/windows.ps1`, following the scorecard's rule for *at rest*:
+  measured from 30 s to 40 s after spawn. It took 3 runs each, plus one unmeasured warm-up.
+- **Data folders:** `cargo run -p cantus-ui --example multimon_measure`. Each one opens the
+  start-up song (the house drop, no dancer) in three cases:
+  - **1 window:** the main window alone, maximised.
+  - **2 windows:** the mixer in a window of its own, 960 × 510 px, side by side over the
+    right half.
+  - **3 windows:** the mixer plus the piano roll in a third window.
+- **Playing** is the same start with `--play`.
+- **Frames per window** are Cantus's own counts (`CANTUS_WINDOW_STATS=1`).
+- Raw data: `docs/round-fx/multimon-measured/`.
+
+**The machine was not quiet.** Five other builders were compiling: the whole machine was
+67–100 % busy during every measured run. CPU shares are therefore noisy (±2 % of a core at
+rest), and playing is dominated by the engine running a dense song on a loaded machine. The
+memory numbers are steady across runs.
+
+| | Private bytes | GPU memory charged to the process (shared + dedicated, at rest) | CPU at rest (share of a core) | Main window at rest | Each extra window at rest |
+|---|---:|---:|---:|---:|---:|
+| 1 window | 164.4–166.0 MB | 51–53 + 3–5 MB | 3.1–5.2 % | 0.3 passes/s, 8–11 ms | — |
+| 2 windows | 164.4–165.8 MB | 69–90 + 5 MB | 1.7–4.5 % | 0.2–0.3 passes/s | 0.2 passes/s, 2.0 ms |
+| 3 windows | 169.8–171.1 MB | 87–100 + 5–18 MB | 2.7–5.5 % | 0.3 passes/s | 0.2 passes/s each, 1.3–1.9 ms |
+
+**Playing.**
+- **CPU:** 168–199 % of a core with 1 window, 175–217 % with 2, 207–233 % with 3. The
+  rise is within the noise of the busy machine; it is the engine's work, not the windows'.
+- **Main window:** 44–78 passes a second at 2.0–3.1 ms each.
+- **The mixer's window:** 67–77 passes a second at 0.9–1.25 ms each.
+- **The piano roll's window** in the 3-window case logged no passes in the windows sampled,
+  so its playing cost is not shown here.
+- **GPU while playing:** with 2 and 3 windows the counters read 5–8 GB "dedicated" and
+  16–23 GB "shared". That is more than the laptop has, so those samples are unreliable and
+  are not used. The at-rest readings, taken the same way, are steady.
+
+**What it says.**
+- **Memory.** A second window costs no measurable private memory (within 1.5 MB). A third
+  costs about 5 MB. The GPU driver charges 16–37 MB per 960 × 510 window: its surface's
+  buffers, the estimate's size for a window that small. The ADR's 16–25 MB per 1 080p
+  window was low by about that factor.
+- **At rest nothing draws.** A window of its own woke about once every 5 s for 1.3–2 ms
+  (the main window's own wake-ups, 0.3/s, were there before), so the CPU at rest is
+  unchanged within the noise.
+- **Playing.** The mixer's window costs about 1 ms a frame, a third to a half of the main
+  window's frame. That is the cost of drawing the mixer, not of having a window.
+
+To do on a quiet machine with a release build, before the beta's scorecard publishes these
+numbers: run the same script, read the piano roll's passes while playing, and take the GPU
+counters again.
