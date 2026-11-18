@@ -220,10 +220,15 @@ impl Voice808 {
             2 => square(sub_t, inc_f / sub_div as f64),
             _ => math::sin(std::f64::consts::TAU * sub_t),
         };
-        let (next, wrapped) = self.phase.overflowing_add(inc);
-        self.phase = next;
-        if wrapped {
-            self.wraps = self.wraps.wrapping_add(1);
+        // fx/final — the phase stands still once the envelope has ended (the Free phase's
+        // next note starts where this one stopped, whatever the blocks; an ended voice's
+        // body is silent, its click apart, which reads no phase).
+        if self.env.is_active() {
+            let (next, wrapped) = self.phase.overflowing_add(inc);
+            self.phase = next;
+            if wrapped {
+                self.wraps = self.wraps.wrapping_add(1);
+            }
         }
         // Envelopes.
         let env = self.env.next();

@@ -367,6 +367,11 @@ impl SynthVoice {
         cal: &DiodeCal,
     ) -> (f32, f32, f32) {
         const SCALE: f64 = 4_294_967_296.0;
+        // fx/final — the oscillators stand still once the envelope has ended: at the Free
+        // phase the next note starts where this one stopped, whatever the blocks (they ran
+        // on to the end of the block the voice ended in, and stood in an idle one). An
+        // ended voice is silent (its gain is the envelope's 0), so no sample changes.
+        let running = self.aenv.is_active();
         let f = base_hz;
         self.f0 = f;
         let inc_f = (f / sr as f64).clamp(0.0, 0.49);
@@ -399,7 +404,9 @@ impl SynthVoice {
             } else {
                 let dt = (inc_f * (1.0 + UNISON_OFFSETS[i] * curve)).clamp(0.0, 0.49);
                 let t = self.uni[i] as f64 / SCALE;
-                self.uni[i] = self.uni[i].wrapping_add((dt * SCALE).round() as u32);
+                if running {
+                    self.uni[i] = self.uni[i].wrapping_add((dt * SCALE).round() as u32);
+                }
                 (t, dt)
             };
             let g = if i == CENTRE { cg } else { sg };
@@ -413,7 +420,9 @@ impl SynthVoice {
             let dt = (inc_f * s.osc2_ratio).clamp(0.0, 0.49);
             let t = self.osc2 as f64 / SCALE;
             mid += Self::wave(s.wave, t, dt, pw) * s.osc2 as f64;
-            self.osc2 = self.osc2.wrapping_add((dt * SCALE).round() as u32);
+            if running {
+                self.osc2 = self.osc2.wrapping_add((dt * SCALE).round() as u32);
+            }
         }
         // The sub, from the main phase's wraps.
         let t = self.main as f64 / SCALE;
@@ -429,10 +438,12 @@ impl SynthVoice {
             2 => super::e808::square(sub_t, inc_f / sub_div as f64),
             _ => math::sin(std::f64::consts::TAU * sub_t),
         };
-        let (next, wrapped) = self.main.overflowing_add(inc);
-        self.main = next;
-        if wrapped {
-            self.wraps = self.wraps.wrapping_add(1);
+        if running {
+            let (next, wrapped) = self.main.overflowing_add(inc);
+            self.main = next;
+            if wrapped {
+                self.wraps = self.wraps.wrapping_add(1);
+            }
         }
         // Filter.
         let fenv = self.fenv.next();

@@ -323,7 +323,8 @@ fn scaled(app: &CantusApp, ctx: &egui::Context, what: What, k: f32) -> egui::Vec
             if let Some(t) = app.inst.open {
                 Shell::new(("inst", t.0)).set_scale(ctx, k);
             }
-            inst_size(kind) * k
+            // At the size the editor opens at (Chorda's 1 100 × 680).
+            views::inst::editor_size(kind) * k
         }
         What::Pulsus => {
             if let Some(t) = app.pulsus.open {
@@ -342,24 +343,8 @@ fn draw(app: &mut CantusApp, ui: &mut egui::Ui, what: What) {
             views::comp_editor::window(app, &ctx);
             views::fx::window(app, &ctx);
         }
-        What::Inst(kind) => {
-            let k = app
-                .inst
-                .open
-                .map_or(1.0, |t| Shell::new(("inst", t.0)).scale(ui.ctx()));
-            views::inst::window_in_sized(app, ui, inst_size(kind) * k)
-        }
+        What::Inst(_) => views::inst::window_in(app, ui),
         What::Pulsus => views::pulsus_editor::window_in(app, ui),
-    }
-}
-
-/// An instrument's window at 100 %: the shell's, but Tympanum's as wide as its Kit view lays
-/// out whole (`tympanum::KIT_MIN`; narrower, the view scrolls), as a user widens its tab.
-fn inst_size(kind: InstrumentKind) -> egui::Vec2 {
-    if kind == InstrumentKind::AcousticDrums {
-        egui::vec2(1260.0, 760.0)
-    } else {
-        shell::INSTRUMENT
     }
 }
 
@@ -380,14 +365,6 @@ fn shoot_unit(
     let ctx = context(dark);
     let mut app = app_with(demo, what);
     let scale = (k * 100.0).round() as u32;
-    // fix/final-d — Chorda's and Tympanum's round-40 views drop most of their labels when
-    // the window's scale is 200 % (seen here headless; reported): their large shots are
-    // the 100 % window at two pixels a point — the same picture, at the same size.
-    let scene = matches!(
-        what,
-        What::Inst(InstrumentKind::Chorda | InstrumentKind::AcousticDrums)
-    );
-    let (k, ppp) = if scene && k > 1.0 { (1.0, k) } else { (k, 1.0) };
     let size = scaled(&app, &ctx, what, k);
     let theme = if dark { "slate" } else { "paper" };
     let file = if let Some((s, _)) = sample {
@@ -398,7 +375,7 @@ fn shoot_unit(
         format!("{name}-{theme}-{scale}-plain.png")
     };
     let path = dir.join(file);
-    shoot(&ctx, size, ppp, 8, Some(&path), |ui| {
+    shoot(&ctx, size, 1.0, 8, Some(&path), |ui| {
         draw(&mut app, ui, what)
     });
     skin::set_enabled(true);

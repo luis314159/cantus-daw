@@ -126,6 +126,7 @@ pub fn button(
     with_brush(ui.painter(), |b| {
         paint_button(b, s, rect, st, label, lead, enabled)
     });
+    crate::kit::widgets::note_button(rect);
     resp
 }
 

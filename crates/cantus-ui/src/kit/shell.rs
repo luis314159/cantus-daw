@@ -212,16 +212,26 @@ fn sq(c: Pos2, side: f32) -> Rect {
 /// from there, the preset well centred in what is left between the name and the tools.
 /// When the name would be squeezed, the swap cap gives up its word first.
 pub fn header_rects(rect: Rect, s: &Style, h: &Header<'_>) -> HeaderRects {
-    let r = header_rects_with(rect, s, h, false);
-    // The name squeezed — below 110 pt, or below what it and its context measure.
-    let wants = 110f32.max(h.name_w) * s.k;
-    if h.window.is_some_and(|c| c.swap.is_some()) && r.name.width() + 0.5 < wants {
-        return header_rects_with(rect, s, h, true);
+    // What the name needs: its plate (measured by the frame or the shell), else about
+    // 110 pt; the context is dimmed and secondary — it shows only where there is room.
+    let wants = if h.name_w > 0.0 { h.name_w } else { 110.0 } * s.k;
+    // Squeezed, the header gives up, in turn: the swap cap's word, the preset well's
+    // spare width, undo and redo, then A/B — never a letter of the name (fx/final: at the
+    // narrowest window "Chorda" read "Chor…").
+    let mut r = header_rects_with(rect, s, h, 0);
+    for level in 1..=4 {
+        if r.name.width() + 0.5 >= wants {
+            break;
+        }
+        r = header_rects_with(rect, s, h, level);
     }
     r
 }
 
-fn header_rects_with(rect: Rect, s: &Style, h: &Header<'_>, compact: bool) -> HeaderRects {
+/// Lay the header out, squeezed by `level` (0: everything; 1: the swap cap compact; 2: the
+/// preset well at its least; 3: no undo and redo; 4: no A/B).
+fn header_rects_with(rect: Rect, s: &Style, h: &Header<'_>, level: u8) -> HeaderRects {
+    let compact = level >= 1;
     let cy = rect.center().y;
     let k = s.k;
     let icon = 22.0 * k;
@@ -272,12 +282,12 @@ fn header_rects_with(rect: Rect, s: &Style, h: &Header<'_>, compact: bool) -> He
         let at = take(w);
         r.views = Some(Rect::from_center_size(at.center(), Vec2::new(w, 22.0 * k)));
     }
-    if h.undo.is_some() {
+    if h.undo.is_some() && level < 3 {
         let _ = take(6.0 * k);
         r.redo = Some(sq(take(icon).center(), icon));
         r.undo = Some(sq(take(icon).center(), icon));
     }
-    if h.ab.is_some() {
+    if h.ab.is_some() && level < 4 {
         let _ = take(6.0 * k);
         let at = take(52.0 * k);
         r.ab = Some(Rect::from_center_size(
@@ -300,9 +310,10 @@ fn header_rects_with(rect: Rect, s: &Style, h: &Header<'_>, compact: bool) -> He
         } else {
             150.0 * k
         };
+        let least = if level >= 2 { 80.0 } else { 120.0 };
         let w = (PRESET_W * k)
             .min(tools_left - name_left - need - 2.0 * step - 16.0 * k)
-            .max(120.0 * k);
+            .max(least * k);
         // Centred on the window, pushed right when the name needs the room.
         let cx = rect
             .center()
@@ -389,7 +400,10 @@ pub fn paint_header(b: &mut Brush, rect: Rect, s: &Style, h: &Header<'_>, hot: H
         let ctx_t = Text::new(h.context, Role::Title, t.text_dim)
             .align(Align2::LEFT_CENTER)
             .policy(Policy::Elide(Elide::Middle));
-        let _ = text::paint(b, cr, &ctx_t, s.tk());
+        // Whole or not at all: the context is the first thing a narrow header gives up.
+        if text::measure(b.ctx(), &ctx_t, s.tk()).x <= cr.width() {
+            let _ = text::paint(b, cr, &ctx_t, s.tk());
+        }
     }
 
     if let (Some(p), Some(well)) = (h.preset, r.preset) {
@@ -1118,6 +1132,11 @@ impl Shell {
         let mut measured = *header;
         if let Some((labels, _)) = header.views {
             measured.views_w = super::segmented::label_need(&ctx, labels, &s) / k;
+        }
+        // The name on its plate, measured (at 100 %) when the frame did not: the header
+        // keeps it whole, giving up its secondary parts first.
+        if measured.name_w <= 0.0 {
+            measured.name_w = super::skin::plates::name_width(&ctx, &s, header.name) / k;
         }
         let header = &measured;
         // The unit's face is worn while its window paints (round 32, ADR 0074): every

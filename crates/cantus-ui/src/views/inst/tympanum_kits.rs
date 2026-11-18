@@ -459,10 +459,9 @@ fn kit_row(
             .find(|z| crate::views::mixer::look::width_of(b.ctx(), s, name, *z, weight) <= tw)
             .unwrap_or(10.0);
         words(b, s, name, nr, Align2::LEFT_CENTER, size, weight, p.ink1);
-        let ar = Rect::from_min_size(
-            pos2(tx, nr.bottom() + s.s(1.0)),
-            vec2(r.right() - s.s(8.0) - tx, s.s(14.0)),
-        );
+        // Beside the control too: it stands as tall as both lines' tops (fx/final: the line
+        // under "MuldjordKit" ran under its 2.7 GB button).
+        let ar = Rect::from_min_size(pos2(tx, nr.bottom() + s.s(1.0)), vec2(tw, s.s(14.0)));
         words(
             b,
             s,
@@ -542,7 +541,7 @@ fn recorded_row(
     };
     // The line under the name: the pack's words when they fit beside nothing, else its
     // licence; a pack from the author's site says so.
-    let line_w = r.width() - s.s(22.0);
+    let line_w = name_room(cw);
     let about = if k.mode == PackMode::AuthorSite {
         tf("tympanum.kits.from_author", &[("author", &k.author)])
     } else if iu::width(ui, s, &k.about, 10.0, W::Regular) <= line_w {

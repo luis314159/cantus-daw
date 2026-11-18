@@ -52,6 +52,9 @@ pub struct Entry {
     pub title: String,
     pub default_size: Vec2,
     pub min_size: Vec2,
+    /// The least it lays itself out uncut in (zero: its `min_size`): a dock leaf smaller
+    /// than this floats it at `default_size` the first time it opens.
+    pub whole_size: Vec2,
     /// The pass the editor last asked to be shown in.
     pub seen: u64,
     /// Where its tab's body is, and in which pass that was recorded.
@@ -144,6 +147,7 @@ impl Entry {
             title: String::new(),
             default_size: Vec2::new(880.0, 560.0),
             min_size: Vec2::new(480.0, 320.0),
+            whole_size: Vec2::ZERO,
             seen: pass,
             body: None,
             closed: false,
@@ -367,6 +371,11 @@ pub fn set_title(ctx: &Context, key: DeviceKey, title: &str) {
 /// A device's size at its scale and the least it can be drawn in, as it registered them.
 pub fn sizes(ctx: &Context, key: DeviceKey) -> Option<(Vec2, Vec2)> {
     with_registry(ctx, |r| r.get(key).map(|e| (e.default_size, e.min_size)))
+}
+
+/// The least a device lays itself out uncut in: its whole size, else its least size.
+pub fn whole_size(ctx: &Context, key: DeviceKey) -> Option<Vec2> {
+    with_registry(ctx, |r| r.get(key).map(|e| e.whole_size.max(e.min_size)))
 }
 
 /// Where a device's window buttons were drawn last.
@@ -610,6 +619,7 @@ pub struct DeviceWindow<'open> {
     open: Option<&'open mut bool>,
     default_size: Vec2,
     min_size: Vec2,
+    whole_size: Vec2,
     hue: Option<Function>,
 }
 
@@ -621,8 +631,16 @@ impl<'open> DeviceWindow<'open> {
             open: None,
             default_size: Vec2::new(880.0, 560.0),
             min_size: Vec2::new(480.0, 320.0),
+            whole_size: Vec2::ZERO,
             hue: None,
         }
+    }
+
+    /// The least it lays itself out uncut in, when that is more than its `min_size`: the
+    /// first time it opens, a dock leaf smaller than this floats it at its default size.
+    pub fn whole_size(mut self, size: impl Into<Vec2>) -> Self {
+        self.whole_size = size.into();
+        self
     }
 
     /// The device hue: its chip's mark in the tray when it is minimised.
@@ -695,6 +713,7 @@ impl<'open> DeviceWindow<'open> {
             e.seen = pass;
             e.default_size = self.default_size;
             e.min_size = self.min_size;
+            e.whole_size = self.whole_size;
             if e.closed {
                 None
             } else {

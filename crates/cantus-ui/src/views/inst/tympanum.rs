@@ -152,6 +152,8 @@ pub fn keep(ctx: &egui::Context, track: TrackId, lk: Look) {
 pub const KIT_MIN: Vec2 = Vec2::new(1180.0, 640.0);
 /// The Mixer view's least width at 100 %.
 pub const MIXER_MIN_W: f32 = 1200.0;
+/// The Mixer view's least height at 100 %.
+pub const MIXER_MIN_H: f32 = 560.0;
 
 /// Run `f` in a child of `ui` at least `min` big, scrolling where `ui` is smaller.
 fn at_least(ui: &mut egui::Ui, salt: (&str, u64), min: Vec2, f: impl FnOnce(&mut egui::Ui)) {
@@ -220,7 +222,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
 
 /// The Mixer view (the frame's `View::Mixer`).
 pub fn mixer(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
-    let min = Vec2::new(MIXER_MIN_W * s.k, 560.0 * s.k);
+    let min = Vec2::new(MIXER_MIN_W * s.k, MIXER_MIN_H * s.k);
     at_least(ui, ("tymp-mixer", track.0), min, |ui| {
         mixer_view(app, ui, track, spec, s)
     });

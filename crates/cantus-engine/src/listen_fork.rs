@@ -49,6 +49,7 @@ fn fork_track(s: &TrackSlot) -> Option<TrackSlot> {
         strip: s.strip,
         peak: s.peak,
         peak_block: s.peak_block,
+        inst_quiet: s.inst_quiet, // fx/final
         listened: s.listened,
         line: s.line,
         input: s.input,
