@@ -821,6 +821,9 @@ fn cedo_s_external_key_ducks_the_input_only_when_asked() {
         ("hold", 20.0),
         ("rel", 80.0),
         ("look", 1.0),
+        // The starting preset's output was fitted to +1.4 dB (`preset_tool fit`,
+        // c5e3b654); this test holds the key, so the output is set at unity.
+        ("out", 0.0),
     ];
     let spec = spec_with(kind, &values);
     let n = 48_000;

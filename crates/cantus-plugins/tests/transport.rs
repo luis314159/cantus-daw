@@ -709,7 +709,15 @@ fn cedo_s_pump_follows_the_hosts_tempo_with_its_drawn_shape() {
     use cantus_core::fx::cedo::Shape;
     use cantus_core::fx::lapsus::Point;
     let kind = EffectKind::Ducker;
-    let values = [("trig", 1.0), ("depth", 80.0), ("div", 11.0), ("edge", 0.0)];
+    // `out` at unity: the starting preset's output was fitted to +1.4 dB (`preset_tool
+    // fit`, c5e3b654) and this test holds the shape, open at exactly 1.
+    let values = [
+        ("trig", 1.0),
+        ("depth", 80.0),
+        ("div", 11.0),
+        ("edge", 0.0),
+        ("out", 0.0),
+    ];
     let mut spec = spec_with(kind, &values);
     spec.cedo = Some(Box::new(Shape {
         points: vec![
