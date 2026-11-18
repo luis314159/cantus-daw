@@ -353,3 +353,31 @@ To repeat on a quiet machine with a release build before these numbers go in the
 
 `docs/round-fx/multimon.md` §7 has the account, and `docs/beta-checklist.md` the steps only
 a real desk can confirm.
+
+## An instrument's editor in a window of its own (fx/final, 2026-11-18)
+
+An instrument's editor moved to a window of its own (*Move to a new window*, a tab dragged
+off a screen), or opened while the user works in another window, opens at **its own size**,
+as it does floating in the main window (ADR 0125's amendment, `views::inst::editor_size`):
+
+- **The size.** The window gets the editor's body, plus the window's bar, the tab bar and the
+  margins, at the zoom that window will use on its screen (`screen_scale::for_screen` against
+  the main window's rule). The window is not maximised. That size is clamped to the target
+  screen's work area and centred on the drop point or the screen
+  (`Workspace::device_place`). winit does not report a screen's work area, so the work area is
+  taken as the screen less a 48-pixel taskbar and 8-pixel margins at its scale. Once the user
+  resizes or moves the window, the saved place is used (§6), and their size is kept.
+- **Two faults found on the way, both fixed.** An editor moved to a window of its own was
+  forgotten on the next frame: the editors' registry dropped every entry the *main* window's
+  pass had not seen, so it dropped the entry drawn in the other window. Each entry now
+  remembers the window that drew it (`Entry::seen_in`) and is forgotten only by that window's
+  own pass count. An editor in a window that was not the one hosting the dialogs was also never
+  drawn, because only the host drew the editors. Now every window that holds a device's tab
+  draws the editors (`CantusApp::device_editors`).
+
+`windows_e2e::an_instruments_editor_in_a_window_of_its_own_opens_at_its_own_size` holds this
+on an external screen and on a 1 366 × 768 screen too small for the editor: the window is on
+that screen, inside its work area, the body is Chorda's 1 100 × 680 where it fits, and the
+editor is still drawn after a click in the main window. It then goes back to the main window.
+`an_instruments_editor_opened_in_a_window_opens_there_at_its_own_size` holds the editor
+opened while working in the mixer's window: it opens there, whole.

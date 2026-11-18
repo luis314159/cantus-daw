@@ -214,6 +214,63 @@ impl CantusApp {
         }
     }
 
+    /// Where a window of its own for the device `pane` goes on screen `i` (fx/final): sized
+    /// so the device's body is the size it asked for — an instrument's `editor_size`, an
+    /// effect's designed size — with the window's bar and tab bar around it, at the scale
+    /// the window will draw at on that screen; inside the screen's work area (the screen
+    /// less the taskbar's usual room, winit telling no more); centred on `at`, else on the
+    /// screen. Not maximised. `None` for an area that is not a device. A place the user
+    /// gave the window afterwards is the window's own and kept with it.
+    pub(crate) fn device_place(
+        &self,
+        ctx: &Context,
+        pane: Pane,
+        i: usize,
+        at: Option<(i32, i32)>,
+    ) -> Option<screens::Place> {
+        let Pane::Device(key) = pane else {
+            return None;
+        };
+        let screen = self.windows.screens.get(i)?;
+        let (size, _) = crate::views::workspace_device::sizes(ctx, key)?;
+        let s = crate::kit::Style::current();
+        let bar = (crate::views::transport::HEIGHT * s.t.density).round();
+        let tab = crate::views::workspace_skin::dock_style(
+            &s,
+            &ctx.global_style(),
+            ctx.pixels_per_point(),
+        )
+        .tab_bar
+        .height;
+        let body = size + egui::vec2(8.0, bar + tab + 8.0);
+        // The scale the window draws at there: its screen's follow rule, as far from the
+        // main window's as `windows_pass::adjust_input` sets it.
+        let zoom = ctx.zoom_factor();
+        let rule = crate::screen_scale::for_screen(screen.size[0] as f32, screen.scale);
+        let wanted = (zoom * rule / self.windows.main_rule.max(0.25)).clamp(0.5, 3.0);
+        let ppp = screen.scale * wanted;
+        let sr = screen.rect();
+        let m = (8.0 * screen.scale).round() as i32;
+        let task = (48.0 * screen.scale).round() as i32;
+        let work = screens::PxRect {
+            x: sr.x + m,
+            y: sr.y + m,
+            w: (sr.w - 2 * m).max(1),
+            h: (sr.h - 2 * m - task).max(1),
+        };
+        let w = ((body.x * ppp).ceil() as i32).min(work.w);
+        let h = ((body.y * ppp).ceil() as i32).min(work.h);
+        let (cx, cy) = at.unwrap_or((sr.x + sr.w / 2, sr.y + sr.h / 2));
+        let x = (cx - w / 2).clamp(work.x, work.x + work.w - w);
+        let y = (cy - h / 2).clamp(work.y, work.y + work.h - h);
+        Some(screens::Place {
+            screen: screen.clone(),
+            rect: screens::PxRect { x, y, w, h },
+            maximised: false,
+            full_screen: false,
+        })
+    }
+
     /// Send `pane` to `to` (a tab's menu, a dragged tab, the View menu).
     pub fn move_pane(&mut self, ctx: &Context, pane: Pane, to: Target) {
         let Some(from) = self.dock_of(pane) else {
@@ -230,7 +287,12 @@ impl CantusApp {
                     let m = self.windows.main_screen(main.as_ref());
                     screens::other_screen(&self.windows.screens, m).or(m)
                 });
-                let place = screen.and_then(|s| screens::fresh_place(&self.windows.screens, s));
+                // A device's editor at its own size (an instrument's `editor_size`); any other
+                // area as the screen's fresh window.
+                let place = screen.and_then(|s| {
+                    self.device_place(ctx, pane, s, None)
+                        .or_else(|| screens::fresh_place(&self.windows.screens, s))
+                });
                 let shape = WindowShape {
                     key: 0,
                     name: String::new(),
@@ -252,12 +314,15 @@ impl CantusApp {
                     return;
                 }
                 let place = screens::screen_of(&rect, &self.windows.screens).map(|i| {
-                    crate::screens::Place {
-                        screen: self.windows.screens[i].clone(),
-                        rect,
-                        maximised: false,
-                        full_screen: false,
-                    }
+                    // A device's editor at its own size, centred where it fell.
+                    let at = (rect.x + rect.w / 2, rect.y + rect.h / 2);
+                    self.device_place(ctx, pane, i, Some(at))
+                        .unwrap_or_else(|| crate::screens::Place {
+                            screen: self.windows.screens[i].clone(),
+                            rect,
+                            maximised: false,
+                            full_screen: false,
+                        })
                 });
                 let shape = WindowShape {
                     key: 0,

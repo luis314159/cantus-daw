@@ -57,6 +57,9 @@ pub struct Entry {
     pub whole_size: Vec2,
     /// The pass the editor last asked to be shown in.
     pub seen: u64,
+    /// The window whose pass that was: each window counts its own passes (ADR 0148), so
+    /// only that window's pass forgets an editor that stopped asking.
+    pub seen_in: egui::ViewportId,
     /// Where its tab's body is, and in which pass that was recorded.
     pub body: Option<Body>,
     /// The user closed its tab: the next `show` reports `open = false`.
@@ -149,6 +152,7 @@ impl Entry {
             min_size: Vec2::new(480.0, 320.0),
             whole_size: Vec2::ZERO,
             seen: pass,
+            seen_in: egui::ViewportId::ROOT,
             body: None,
             closed: false,
             area,
@@ -226,7 +230,11 @@ pub fn wanted(ctx: &Context, out: &mut Vec<DeviceKey>) {
     out.clear();
     with_registry(ctx, |r| {
         // An editor that stopped asking was closed by the application: forget it.
-        r.entries.retain(|e| pass.saturating_sub(e.seen) <= 2);
+        // (Only by this window's own count: fx/final found an editor moved to a window of
+        // its own forgotten by the main window's pass, its tab then dropped.)
+        let here = ctx.viewport_id();
+        r.entries
+            .retain(|e| e.seen_in != here || pass.saturating_sub(e.seen) <= 2);
         if r.focused.is_some_and(|k| r.get(k).is_none()) {
             r.focused = None;
         }
@@ -492,6 +500,7 @@ pub fn register_area(
         let place = r.places.get(&key).map(|p| p.min);
         let (e, _) = r.entry(key, pass, true);
         e.seen = pass;
+        e.seen_in = ctx.viewport_id();
         e.area = true;
         e.hue = hue;
         if e.title.is_empty() {
@@ -711,6 +720,7 @@ impl<'open> DeviceWindow<'open> {
                 e.title.push_str(&self.title);
             }
             e.seen = pass;
+            e.seen_in = ctx.viewport_id();
             e.default_size = self.default_size;
             e.min_size = self.min_size;
             e.whole_size = self.whole_size;
