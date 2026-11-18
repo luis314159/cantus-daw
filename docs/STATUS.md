@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-14 (round 40, on master as one squashed commit: **Chorda toward the Salamander** — sixteen voicing candidates behind neutral knobs, the owner's blind test of candidate 7 (16/16 told apart; his complaints traced and fixed: a clamped allpass left D3 −46 cents, the strike point was misplaced by the model), candidate 16 meeting his bar in measures and its ABX published for him and his listeners, **candidate 16 shipped as the default** on the owner's word (`DSP_VERSION` 7, ADR 0098's third amendment; his blind ABX stays in the backlog); **Chorda plays recorded pianos** — the Salamander, bitKlavier's nine microphone images, Accurate-Salamander, two uprights, your own SFZ, Decent Sampler or SF2 by *Install from a file…* — with its own mixer and outputs to strips (ADRs 0123, 0125); **Tympanum, the acoustic drummer** — modelled kits with movable virtual mics (model 5, measured off DRSKit and Virtuosity), six recorded multi-mic kits, the kit in its room, the bleed matrix, each mic to its own strip, a *Hybrid* voice with recorded attacks under the model, the generated voice at 7.3 % of a core with every mic (ADR 0124; **in the device picker** since the close, its blind listening in the backlog); **bands on the mixer's desk** for groups and an instrument's family (ADR 0016 amended); **the instruments' pictures** *Drawn* (default) or *Photographic* (ADR 0126); **insert and delete time, the section drag, the ripple mode** (ADR 0116); a pad's own mixer track, *Hear the key*, *Record before or after FX* (ADRs 0117, 0118); **Delay synced to the tempo and Cantus Delay as a CLAP/VST3 plug-in** (ADR 0119); the owner's look answers (ADRs 0110, 0111 amended); **the Slate cast**, twelve dancers, Compás the default (ADR 0122); the private bytes outside the heap mapped and four levers (ADR 0120). Version still **0.1.0-beta.14**. Schema 71, `DSP_VERSION` 7, keymap 17. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 7 183 pass on Windows (124 ignored, 0 failed) and 7 142 on Linux (124 ignored, 0 failed; WSL Ubuntu 24.04) on the ship's tree `601e244f` (candidate 16 the default, Tympanum in the picker); before it 7 175 and 7 134 on the final tree `2e3982a1` — the sandbox test that fails only under load (`a_hang_never_blocks_the_interfaces_frames_and_is_ended`) passed in both full runs; clippy `-D warnings` clean on both, fmt clean on both (per crate and file on Windows, `cargo fmt --all` in WSL)
+**Updated:** 2026-11-18 (the effects side round merged onto round 40 in `fx/final`, for master: **seventeen effects** — Cribrum, Fragor, Lapsus, Vetus, Libra, Tabula, Saltus, Rota, Arca, Loquax, Fractus, Caelum, Vinculum, Lenis, Cedo, Purus, Comparatio (ADRs 0127–0143) — each with its face, a CLAP/VST3 plug-in, presets, an end-to-end test, a manual section and a site card; **two controllers**, Tactus (the X-Y pad) and Calculus (the formula) (ADRs 0144–0145); **issue #1**, the flickering window, fixed with a watchdog, a log file and a safe-graphics start; **Ctrl+G** to a new bus (ADRs 0146–0147); **several screens** (ADR 0148); **the mid-song render glide** (`DSP_VERSION` 8, ADR 0027 amended) and Gravis's Free phase (`DSP_VERSION` 9); Chorda and Tympanum on the site and in the README; the site and README wear the app's logo #03. Version still **0.1.0-beta.14**. Schema 77, `DSP_VERSION` 9, keymap 19. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** Windows, crate by crate, 8 141 pass (145 ignored) on `8aaa71be`; the one red was `preset_render`'s CPU budget (Arca, load-sensitive), which passed quiet twice on the final tree; cantus-ui again on `818b5336`, 2 976 pass + 1 fixed in `a8e40c5f` (Tympanum's *Open the mixer* help line). Linux (WSL Ubuntu 24.04, the workspace) 8 103 pass (145 ignored) on `e245bbe1`; its 2 reds were a race between two `dance_import_e2e` tests sharing one untitled folder (since round 35), fixed in `2db67e4b` (6/6 on both). The four load-sensitive tests (`sync_midi::the_out_thread_sends_on_time`, Chorda's 64-voice budgets, `preset_render`, `scene_vector`) passed quiet twice on Windows. Clippy `-D warnings` and fmt clean on both. After `e245bbe1` only web assets, one doc comment and one test-only fix
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -24,7 +24,8 @@ and fix); one report per builder beside it.
    interface; the CLAP/VST3 exports in a third-party DAW; several screens on real monitors
    (fx/multimon); issue #1 on the reporter's machine.
 3. **Quiet re-runs** (load-sensitive): `sync_midi::the_out_thread_sends_on_time`, Chorda's
-   64-voice CPU budget, `preset_render`'s Arca, `scene_vector`.
+   64-voice CPU budgets, `preset_render`'s Arca, `scene_vector` — all passed quiet twice
+   (2026-11-18); run them quiet again whenever a loaded suite turns one red.
 
 ## The next session: what round 40 left
 
@@ -661,7 +662,8 @@ loop's wrap, so a render from bar N is the whole render from there and live equa
 (`DSP_VERSION` 8, ADR 0027 amended). The fader-cap choice reaches the desk; every dropdown and
 menu is on its sheet beside its field (ADR 0103 amended, ADR 0146's second amendment).
 
-Schema 77 (72–77 the side round's), keymap 19, `DSP_VERSION` 8, ADRs up to 0148. The site:
+Schema 77 (72–77 the side round's), keymap 19, `DSP_VERSION` 9 (8 the glide, 9 Gravis's Free
+phase), ADRs up to 0148. The site:
 every unit's card and page, Try it on real renders, a third tab for the controllers.
 
 Found only on the merged tree and fixed in it: a Delay pedal's line floor and synced tempo, a
@@ -669,7 +671,13 @@ board pedal's memory in listen and render, an undo hole under ARA (seed 15), Com
 offline switch allocating, a Firmus kept across a project swap, the start memory (5.9 →
 5.1 MB), the house colour rule, the dancer window's test racing the themes test.
 
-**Suites**: [Windows and Linux counts after the last merges — to be filled].
+**Suites**: Windows, crate by crate, 8 141 pass (145 ignored) on `8aaa71be`; the one red,
+`preset_render`'s CPU budget (Arca), passed quiet twice. cantus-ui on `818b5336`: 2 976 pass + 1
+fixed in `a8e40c5f`. Linux (WSL) 8 103 pass (145 ignored) on `e245bbe1`; its 2 reds, a
+`dance_import_e2e` race since round 35, fixed in `2db67e4b` (6/6 on both). The four
+load-sensitive tests passed quiet twice. Clippy `-D warnings` and fmt clean on both; cantus-host
+needed `99aec346` to build on Linux. After `e245bbe1`: web assets, one doc comment, one test-only
+fix.
 
 ## Round 40: Chorda toward the Salamander, recorded pianos, Tympanum, the mixer's bands and the instruments' pictures; the ripple, pads, Delay, the cast (requested 2026-11-11)
 

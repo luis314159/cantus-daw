@@ -537,6 +537,16 @@ bit-identical. Ours should end up better than the reference, not a clone.
 **Done when** each shipped unit passes the family's contract tests, has its manual page in
 both languages, and holds up in a blind comparison against its reference.
 
+**Tabula: each of Fragor's five circuits as its own pedal (requested 2026-11-18).** Fragor
+enters Tabula today as one pedal — the whole unit, its face showing the overdrive's knobs
+(ADR 0131's table). The owner wants the green overdrive, the op-amp distortion, the silicon
+distortion, the germanium fuzz and the triangle muff each a stompbox of its own on the
+board, with its own face and knobs, so that several drives can sit anywhere in the chain,
+between other pedals, beyond Fragor's three slots. Each pedal is the same DK circuit and
+equals Fragor with only that slot filled, to the bit; a Fragor board costs 0.25 of a core
+today, one circuit a pedal about a third of that. Needs a schema bump, the new pedal kinds
+in Tabula's table, their faces, presets and a showcase board.
+
 ### 3c. Pitch and time editing of recordings — a Melodyne-class editor (requested 2026-10-07) — **done in round 28** (ADR 0054), except the "later" part
 
 *The owner: "a tuner that works from a recording, to fix vocals and the like — Newtone or
