@@ -641,7 +641,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         capture_target: _,
         capture_slot: _,
         analysed: _,
-        hear_key: _, // r40:pads
+        hear_key: _,       // r40:pads
         analysed_pedal: _, // fx3:contract
         boards: _,         // fx3:tabula
         scoped: _,

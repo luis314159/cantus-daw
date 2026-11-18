@@ -457,7 +457,7 @@ impl Processor {
             capture_target: CaptureTarget::Off,
             capture_slot: None,
             analysed: None,
-            hear_key: None, // r40:pads
+            hear_key: None,             // r40:pads
             analysed_pedal: None,       // fx3:contract
             boards: Default::default(), // fx3:tabula
             scoped: [None; crate::fx::speculum::MAX_SCOPES],

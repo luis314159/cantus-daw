@@ -300,9 +300,19 @@ pub fn render_with_progress(
         // for while the song plays is built and sent, as the backend does (fix-a, A-M2):
         // taken at the next block.
         while let Ok(ev) = rx.pop() {
-            if let EngineEvent::EffectNeed { effect, need } = ev {
+            if let EngineEvent::EffectNeed {
+                effect,
+                pedal,
+                need,
+            } = ev
+            {
                 let memory = crate::effects::EffectMemory::build(need.need(), sr as f32);
-                tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
+                tx.push(EngineMessage::EffectMemory {
+                    effect,
+                    pedal,
+                    memory,
+                })
+                .ok();
             }
         }
     }

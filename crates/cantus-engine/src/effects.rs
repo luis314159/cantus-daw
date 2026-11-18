@@ -176,7 +176,7 @@ pub enum MemoryNeed {
 pub enum NeedTicket {
     EqLinear(cantus_dsp::aequalis::Resolution),
     Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
-    DelayLine(usize), // r40:delay
+    DelayLine(usize),                // r40:delay
     Lapsus(usize),                   // fx:lapsus
     Tabula(usize),                   // fx3:contract
     Arca(crate::fx::arca::ArcaNeed), // fx3:arca
@@ -190,10 +190,10 @@ impl NeedTicket {
             NeedTicket::EqLinear(r) => MemoryNeed::EqLinear(*r),
             NeedTicket::Aula(m) => MemoryNeed::Aula(m.read()),
             NeedTicket::DelayLine(n) => MemoryNeed::DelayLine(*n), // r40:delay
-            NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n), // fx:lapsus
-            NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n), // fx3:contract
-            NeedTicket::Arca(n) => MemoryNeed::Arca(*n),     // fx3:arca
-            NeedTicket::Fractus => MemoryNeed::Fractus,      // fxa:fractus
+            NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n),       // fx:lapsus
+            NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n),       // fx3:contract
+            NeedTicket::Arca(n) => MemoryNeed::Arca(*n),           // fx3:arca
+            NeedTicket::Fractus => MemoryNeed::Fractus,            // fxa:fractus
         }
     }
 }
@@ -399,10 +399,7 @@ impl EffectUnit {
         match &mut self.dsp {
             Dsp::Delay(d) => d.take_spent().map(EffectMemory::DelayLine),
             // fx/final — a Delay on a board (Tabula) lets go of its old line too.
-            Dsp::Fx(u) => u
-                .pedals_mut()
-                .iter_mut()
-                .find_map(|k| k.unit.take_spent()),
+            Dsp::Fx(u) => u.pedals_mut().iter_mut().find_map(|k| k.unit.take_spent()),
             _ => None,
         }
     }

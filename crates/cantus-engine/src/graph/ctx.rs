@@ -68,7 +68,7 @@ impl PassCtx {
             recording: false,
             probed: None,
             analysed: None,
-            hear_key: None, // r40:pads
+            hear_key: None,       // r40:pads
             analysed_pedal: None, // fx3:contract
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
             scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],

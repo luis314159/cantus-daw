@@ -303,7 +303,12 @@ struct Rig {
     /// Memory asked for in the last block and sent, not yet taken (the processor takes it
     /// at its next block, as the export's does): a copy made now is sent it too (fix-c,
     /// R2-A2 — the copy's unit asked already and would not ask again).
-    asked: Vec<(cantus_core::EffectId, crate::effects::MemoryNeed)>,
+    /// fx3:contract — with the board's pedal it was for, if any.
+    asked: Vec<(
+        cantus_core::EffectId,
+        Option<cantus_core::fx::tabula::PedalId>,
+        crate::effects::MemoryNeed,
+    )>,
     /// The latency its lineage's render began with — what the export trims from the top
     /// and keeps trimming when an effect's latency changes mid-song (an EQ made linear
     /// phase by a lane): a section resumed from a checkpoint trims the same, not the
@@ -331,11 +336,12 @@ impl Rig {
             asked: self.asked.clone(),
             latency: self.latency,
         };
-        for (effect, need) in &rig.asked {
+        for (effect, pedal, need) in &rig.asked {
             let memory = crate::effects::EffectMemory::build(*need, sr);
             rig.tx
                 .push(EngineMessage::EffectMemory {
                     effect: *effect,
+                    pedal: *pedal,
                     memory,
                 })
                 .ok();
@@ -363,13 +369,22 @@ impl Rig {
     fn answer(&mut self, sr: f32) {
         self.asked.clear();
         while let Ok(ev) = self.rx.pop() {
-            if let EngineEvent::EffectNeed { effect, need } = ev {
+            if let EngineEvent::EffectNeed {
+                effect,
+                pedal,
+                need,
+            } = ev
+            {
                 let need = need.need();
                 let memory = crate::effects::EffectMemory::build(need, sr);
                 self.tx
-                    .push(EngineMessage::EffectMemory { effect, memory })
+                    .push(EngineMessage::EffectMemory {
+                        effect,
+                        pedal,
+                        memory,
+                    })
                     .ok();
-                self.asked.push((effect, need));
+                self.asked.push((effect, pedal, need));
             }
         }
     }

@@ -273,15 +273,24 @@ fn a_whole_note_turned_on_while_playing_asks_for_its_line_and_gets_it() {
             out.extend_from_slice(&buf);
             done += 512;
             while let Ok(ev) = rx.pop() {
-                if let EngineEvent::EffectNeed { effect, need } = ev {
+                if let EngineEvent::EffectNeed {
+                    effect,
+                    pedal,
+                    need,
+                } = ev
+                {
                     assert_eq!(effect, fx);
                     asked += 1;
                     let memory = EffectMemory::build(need.need(), SR as f32);
                     assert!(
                         matches!(memory, EffectMemory::DelayLine(ref l) if l.len() == 12 * SR as usize + 2)
                     );
-                    tx.push(EngineMessage::EffectMemory { effect, memory })
-                        .unwrap();
+                    tx.push(EngineMessage::EffectMemory {
+                        effect,
+                        pedal,
+                        memory,
+                    })
+                    .unwrap();
                 }
             }
         }
@@ -351,10 +360,18 @@ fn real_time(p: &Project, frames: usize) -> (Vec<f32>, Vec<usize>) {
         out.extend_from_slice(&buf);
         while let Ok(ev) = rx.pop() {
             match ev {
-                EngineEvent::EffectNeed { effect, need } => {
+                EngineEvent::EffectNeed {
+                    effect,
+                    pedal,
+                    need,
+                } => {
                     let memory = EffectMemory::build(need.need(), SR as f32);
-                    tx.push(EngineMessage::EffectMemory { effect, memory })
-                        .unwrap();
+                    tx.push(EngineMessage::EffectMemory {
+                        effect,
+                        pedal,
+                        memory,
+                    })
+                    .unwrap();
                 }
                 EngineEvent::GarbageMemory(EffectMemory::DelayLine(l)) => back.push(l.len()),
                 _ => {}
@@ -455,14 +472,23 @@ fn lines_asked(p: &Project, frames: usize) -> Vec<usize> {
         proc.process(&mut buf, 2);
         done += 512;
         while let Ok(ev) = rx.pop() {
-            if let EngineEvent::EffectNeed { effect, need } = ev {
+            if let EngineEvent::EffectNeed {
+                effect,
+                pedal,
+                need,
+            } = ev
+            {
                 let need = need.need();
                 if let MemoryNeed::DelayLine(n) = need {
                     asked.push(n);
                 }
                 let memory = EffectMemory::build(need, SR as f32);
-                tx.push(EngineMessage::EffectMemory { effect, memory })
-                    .unwrap();
+                tx.push(EngineMessage::EffectMemory {
+                    effect,
+                    pedal,
+                    memory,
+                })
+                .unwrap();
             }
         }
     }
