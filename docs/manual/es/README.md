@@ -2795,7 +2795,10 @@ entero**, estable desde el primer segundo), **A corto plazo** (siguiendo tu mezc
 sección) o **A mano**, un *Desfase* en todos los modos, y el *Fundido*. *Reproducción de la
 referencia* la toca con **Su propio cabezal** mientras suena la canción, **Unida a la
 canción** (con *Adelantada*), o **En bucle** — **arrastra sobre la vista general** para
-repetir el tramo que quieras.
+repetir el tramo que quieras. Cada referencia guarda su propia reproducción: compara otra y
+vuelven su bucle y su adelanto; la igualación, el fundido y la pantalla quedan como están.
+Solo la referencia que se compara se guarda en memoria: otra se vuelve a leer del disco
+cuando la eliges (mientras tanto suena tu mezcla y la tira dice que se está leyendo).
 
 **La pantalla** muestra ambos **equilibrios tonales** (el de la referencia de su archivo
 entero, el de tu mezcla mientras suena) y **tu mezcla frente a la referencia** — sobre la
@@ -2826,7 +2829,7 @@ congelación o un bounce oyen siempre tu mezcla, diga lo que diga el selector. C
 un pedal en el tablero de Tabula: una referencia es la escucha del máster.
 
 **En otro DAW** Comparatio es el plug-in *Cantus Comparatio* (CLAP y VST3): **Cargar
-referencia…** en su ventana; la sesión guarda la ruta, el tamaño y la huella de cada
+referencia…** en su ventana, o suelta un archivo encima; la sesión guarda la ruta, el tamaño y la huella de cada
 referencia (nunca su audio) y dice cuándo falta un archivo o ha cambiado; el bounce sin
 conexión del anfitrión oye tu mezcla. *Enviar a Aequalis* es solo de Cantus.
 

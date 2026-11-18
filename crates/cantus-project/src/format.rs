@@ -1123,8 +1123,8 @@ fn migrate_64_to_65(_value: &mut Value) -> Result<(), String> {
 /// Schema 66 (the fx side round's wave C, ADRs 0145–0146): two new effect kinds — Purus
 /// (repair) and Comparatio (the reference comparator, whose reference track is a file by
 /// path in `EffectSpec::ir`, the field Aula's response has used since schema 60, and its list
-/// of references in `EffectSpec::refs`, each with the size and hash it was loaded with — its
-/// phase B on the same branch, so still schema 66). Nothing older has either, so nothing is
+/// of references in `EffectSpec::refs`, each with the size and hash it was loaded with and its
+/// own playback — its phase B on the same branch, so still schema 66). Nothing older has either, so nothing is
 /// written.
 // fxc: provisional — renumbered when merged after round 40 (r40 uses 62–70)
 fn migrate_65_to_66(_value: &mut Value) -> Result<(), String> {
@@ -1657,6 +1657,9 @@ mod tests {
         assert_eq!(refs.list[at].bytes, 31_457_280);
         assert_eq!(refs.list[at].hash, "9e3779b97f4a7c15");
         assert_eq!(slots[1].spec.get("eqamt"), 0.75);
+        // Each reference its own playback (the owner, 2026-11-17).
+        let other = refs.list[refs.find("references/Other master.wav").unwrap()].playback;
+        assert_eq!(other.map(|p| (p.sync, p.lstart, p.lend)), Some((2.0, 45.0, 75.0)));
         let old = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p

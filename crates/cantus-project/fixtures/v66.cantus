@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 66,
   "app_version": "fixture",
-  "saved_at": 1794950708,
+  "saved_at": 1794966016,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3455,7 +3455,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "8bcfb071add6f8f81dc07490a74f79972b54ac0be941100ddfa3b70ff2ada1f2"
+          "content": "64f452a97712e32fbbafea56bb0457f19ef773de0527e146219dc5e97ee82ae7"
         }
       },
       {
@@ -4171,7 +4171,13 @@
               "refs": {
                 "list": [
                   {
-                    "path": "references/Other master.wav"
+                    "path": "references/Other master.wav",
+                    "playback": {
+                      "sync": 2.0,
+                      "soff": 0.0,
+                      "lstart": 45.0,
+                      "lend": 75.0
+                    }
                   },
                   {
                     "path": "references/Reference master.flac",
@@ -6913,5 +6919,5 @@
     ],
     "next_id": 142
   },
-  "integrity": "fc0bd337cfd3f02842b705521a23ba19520782c3a543ea1e8be8af51ef74b4ce"
+  "integrity": "673b2460ad19ac8ac9647888e3e0d6651c620d22f86002b3c2e08439cc6ffbcd"
 }

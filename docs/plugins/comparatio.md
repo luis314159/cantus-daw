@@ -60,7 +60,13 @@ kept after its audio is let go, so the list shows each one before you choose it.
   again takes its new print.
 - **Drag across the overview** to loop that stretch of the reference (*Reference playback*:
   Loop); the playback can also be its own playhead while the song plays, or **locked to the
-  song** with an offset.
+  song** with an offset. **Each reference keeps its own playback**: compare another and its
+  own loop, offset and mode come back (its own playhead the first time); compare the first
+  again and its loop is there. The loudness match, the crossfade and the display stay the
+  same for every reference — they are how you compare.
+- **Only the one compared is in memory**: the others keep their analysis and are read again
+  from disk when you compare them (eight references cost the memory of one). While one is
+  being read you hear your mix and the strip says so; it fades in when it is in.
 
 ## The window
 
@@ -106,14 +112,13 @@ your mix heard. **Loading a reference inside another host**: *Load reference…*
 file dialog on the plug-in's window thread). The state keeps the references **by path,
 size and hash** (the project's own format: `refs` and `ir` in the `EffectSpec` JSON), never
 their audio; on loading a session the one compared is read on a thread of the plug-in's own
-at the host's rate, and the editor says plainly when its file is missing or changed. **A
+at the host's rate, and the editor says plainly when its file is missing or changed; a
+file **dropped on the plug-in's window** is added and compared (Cantus carries egui-baseview
+patched for it, `third_party/README.md`). **A
 host's offline render hears your mix** (CLAP's `render` extension, VST3's
 `processMode == kOffline`). The match EQ is drawn in the plug-in but *Send to Aequalis* is
 Cantus's (another host's chain is not ours to change). Its ids are blessed in
 `crates/cantus-plugins/tests/golden/ids.txt`.
-
-*Dropping a file on the plug-in's window* is not taken yet: the window library
-(egui-baseview 0.7) does not pass the system's drop to egui; in Cantus it is.
 
 ## Not a pedal on Tabula
 

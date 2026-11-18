@@ -34,6 +34,13 @@
 //! freed. Every reference a unit holds has a sibling here, so letting one go is an atomic
 //! decrement; a reference no unit holds (its count is the pool's alone) is freed here, on
 //! the next prepare, once more than [`SPARE`] are kept.
+//!
+//! **Only the one compared is in memory** (the owner, 2026-11-17): [`SPARE`] is 0, so a
+//! reference no unit holds and no snapshot names is let go at the next prepare — eight
+//! references cost the memory of one. Comparing another reads it again from disk on its
+//! thread, **adopting the summary it already has** (no second analysis, when its print is the
+//! same); while it is read the snapshot names none and the unit plays your mix — the panel
+//! says it is loading — and when it arrives the switch fades in from your mix as any other.
 
 use cantus_core::{EffectKind, Snapshot};
 use cantus_dsp::comparatio::tonal::{Curve, Tonal};
@@ -44,8 +51,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 /// The longest reference read, seconds (longer files are cut there).
 pub const MAX_SECONDS: usize = 20 * 60;
-/// References kept once no unit holds them (undo, a second instance, the list swapped back).
-const SPARE: usize = 3;
+/// References kept once no unit holds them: none (the owner, 2026-11-17: only the one
+/// compared is in memory; another is read again from disk, its analysis kept).
+const SPARE: usize = 0;
 
 /// A reference track at one engine rate, both channels whole.
 #[derive(Debug)]
@@ -187,6 +195,15 @@ impl RefTrack {
     /// The whole file's analysis, once made. For the interface's thread.
     pub fn analysis(&self) -> Option<Arc<WholeAnalysis>> {
         self.analysis.lock().ok()?.clone()
+    }
+
+    /// Take the analysis a summary already holds (its file read again, unchanged).
+    pub fn adopt(&self, summary: &Summary) {
+        if let Ok(mut s) = self.analysis.lock() {
+            *s = Some(summary.analysis.clone());
+        }
+        let lufs = summary.lufs.unwrap_or(f64::NAN);
+        self.whole_lufs.store(lufs.to_bits(), Ordering::Relaxed);
     }
 
     /// Analyse the whole file (allocates, takes a while: never the audio thread), and keep
@@ -359,6 +376,33 @@ pub fn prepare(
     errors
 }
 
+fn summary_of(key: u64) -> Option<Arc<Summary>> {
+    let s = store().lock().unwrap_or_else(|e| e.into_inner());
+    s.summaries
+        .iter()
+        .rev()
+        .find(|(k, _)| *k == key)
+        .map(|(_, x)| x.clone())
+}
+
+/// The bytes of audio held in memory for the references the project calls `paths` (the
+/// memory test's: eight references cost one).
+pub fn bytes_of(paths: &[&str]) -> usize {
+    let keys: Vec<u64> = paths
+        .iter()
+        .map(|p| super::aula_store::file_key(p))
+        .collect();
+    let Ok(s) = store().lock() else { return 0 };
+    s.tracks
+        .iter()
+        .filter(|(k, _, _)| keys.contains(&k.0))
+        .map(|(_, _, e)| match e {
+            Entry::Ready(t) => (t.left.len() + t.right.len()) * std::mem::size_of::<f32>(),
+            _ => 0,
+        })
+        .sum()
+}
+
 fn has_summary(key: u64) -> bool {
     let s = store().lock().unwrap_or_else(|e| e.into_inner());
     s.summaries.iter().any(|(k, _)| *k == key)
@@ -453,7 +497,12 @@ fn ask(key: (u64, u32), at: &Path, background: bool) -> Result<bool, String> {
         move || {
             let got = read(key.0, &at, key.1).map(Arc::new);
             if let Ok(t) = &got {
-                t.analyse();
+                // Its summary already made (it was read before, then let go): adopted, not
+                // analysed again — unless the file changed since.
+                match summary_of(key.0).filter(|x| x.bytes == t.bytes && x.hash == t.hash) {
+                    Some(x) => t.adopt(&x),
+                    None => t.analyse(),
+                }
             }
             let mut s = store().lock().unwrap_or_else(|e| e.into_inner());
             if let Some(e) = s.tracks.iter_mut().find(|(k, p, _)| *k == key && *p == at) {
@@ -494,7 +543,10 @@ fn ask_now(key: (u64, u32), at: &Path) -> Result<bool, String> {
 fn sweep(named: &[(u64, u32)]) {
     let mut s = store().lock().unwrap_or_else(|e| e.into_inner());
     let idle = |e: &((u64, u32), PathBuf, Entry)| {
-        !named.contains(&e.0) && matches!(&e.2, Entry::Ready(t) if Arc::strong_count(t) == 1)
+        // A track made in memory (a test's, `insert_for_test`: no file to read it again
+        // from) is never let go.
+        !named.contains(&e.0)
+            && matches!(&e.2, Entry::Ready(t) if Arc::strong_count(t) == 1 && t.bytes > 0)
     };
     let mut spare = s.tracks.iter().filter(|e| idle(e)).count();
     let mut i = 0;

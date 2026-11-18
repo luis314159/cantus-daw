@@ -6873,6 +6873,13 @@ fn fxc_reference_command(rng: &mut Lcg, project: &mut Project) -> (bool, Command
             } else {
                 String::new()
             },
+            // Its own playback now and then, out of range one time in nine (refused).
+            playback: (i % 3 == 1).then(|| cantus_core::fx::comparatio::Playback {
+                sync: if (i + n) % 9 == 0 { 5.0 } else { (i % 3) as f32 },
+                soff: i as f32 * 1.5,
+                lstart: 2.0 * i as f32,
+                lend: 3.0 * i as f32,
+            }),
         })
         .collect();
     list.dedup_by(|a, b| a.path == b.path);
@@ -6892,6 +6899,26 @@ fn fxc_reference_command(rng: &mut Lcg, project: &mut Project) -> (bool, Command
             .map(|r| Box::new(r.file())),
     };
     let eq = (rng.below(3) == 0).then(|| slots[rng.below(slots.len() as u64) as usize].1);
+    // The owner, 2026-11-17: a switch as the editor makes it — the list, the one compared,
+    // and its own playback brought into the unit's keys, one step.
+    if rng.below(4) == 0 {
+        if let Some(spec) = project
+            .effects_of(strip)
+            .and_then(|c| c.iter().find(|e| e.id == effect))
+            .map(|e| e.spec.clone())
+        {
+            return (
+                true,
+                cantus_core::fx::comparatio::switch_command(
+                    &spec,
+                    strip,
+                    effect,
+                    References { list, eq },
+                    selected.map(|b| *b),
+                ),
+            );
+        }
+    }
     let refs = (!list.is_empty() || eq.is_some() || rng.below(2) == 0)
         .then(|| Box::new(References { list, eq }));
     (

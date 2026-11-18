@@ -475,7 +475,12 @@ pub fn add_references(host: &mut dyn FxHost, files: &[PathBuf]) -> bool {
                 chosen = Some(i);
             }
             None if list.len() < MAX_REFERENCES => {
-                list.push(Reference { path, bytes, hash });
+                list.push(Reference {
+                    path,
+                    bytes,
+                    hash,
+                    playback: None,
+                });
                 chosen = Some(list.len() - 1);
             }
             None => full = true,

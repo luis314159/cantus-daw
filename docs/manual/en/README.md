@@ -2573,7 +2573,11 @@ is a short crossfade you cannot hear as a click. The cards set how the reference
 steady from the first second), **Short term** (following your mix section by section) or
 **By hand**, an *Offset* in every mode, and the *Crossfade*. *Reference playback* plays it on
 **Its own playhead** while the song plays, **Locked to the song** (with *Ahead by*), or in a
-**Loop** — **drag across the overview** to loop the stretch you want.
+**Loop** — **drag across the overview** to loop the stretch you want. Each reference keeps its own
+playback: compare another and its own loop and offset come back; the match, the crossfade
+and the display stay as they are. Only the reference compared is kept in memory: another one
+is read again from disk when you choose it (your mix plays meanwhile, the strip says it is
+being read).
 
 **The screen** shows both **tonal balances** (the reference's from its whole file, your mix's
 as it plays) and **your mix against the reference** — above the line what your mix has more
@@ -2601,7 +2605,7 @@ mix, whatever the selector says. Comparatio is not a pedal on Tabula's board: a 
 the master's monitoring.
 
 **In another DAW** Comparatio is the plug-in *Cantus Comparatio* (CLAP and VST3): **Load
-reference…** in its window; the session keeps each reference's path, size and hash (never its
+reference…** in its window, or drop a file on it; the session keeps each reference's path, size and hash (never its
 audio) and says when a file is missing or changed; the host's offline bounce hears your mix.
 *Send to Aequalis* is Cantus's own.
 

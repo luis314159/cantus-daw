@@ -45,7 +45,7 @@ pub const MAX_REFERENCES: usize = 8;
 
 /// A reference track: its path as the project keeps it (relative to the project's folder
 /// when it is inside it, absolute otherwise), and what the file was when it was loaded.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Reference {
     pub path: String,
     /// The file's size in bytes when it was loaded (0: not known).
@@ -55,6 +55,92 @@ pub struct Reference {
     /// hexadecimal (empty: not known). `cantus_engine::fx::comparatio_store::fingerprint`.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub hash: String,
+    /// Where it plays (the owner, 2026-11-17: each reference keeps its own): kept here while
+    /// another is compared, brought back into the unit's keys when it is compared again.
+    /// `None`: never compared yet (its playhead free, no loop). While it is the one
+    /// compared, the unit's keys are the truth and this may be stale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub playback: Option<Playback>,
+}
+
+/// A reference's own playback: the unit's [`PLAYBACK_KEYS`] (`sync`, `soff`, `lstart`,
+/// `lend`). The loudness match (`match`, `offset`, `refl`), the crossfade and the display
+/// stay the unit's: they are how you compare, the same for every reference, while where a
+/// reference plays is the reference's own (a chorus at 0:45 in one, 1:10 in another).
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Playback {
+    pub sync: f32,
+    #[serde(default)]
+    pub soff: f32,
+    #[serde(default)]
+    pub lstart: f32,
+    #[serde(default)]
+    pub lend: f32,
+}
+
+/// The keys a reference keeps as its own.
+pub const PLAYBACK_KEYS: [&str; 4] = ["sync", "soff", "lstart", "lend"];
+
+impl Default for Playback {
+    /// Its own playhead, no offset, no loop: the keys' defaults.
+    fn default() -> Self {
+        Playback {
+            sync: 0.0,
+            soff: 0.0,
+            lstart: 0.0,
+            lend: 0.0,
+        }
+    }
+}
+
+impl Playback {
+    /// The unit's keys now.
+    pub fn of(spec: &crate::EffectSpec) -> Playback {
+        Playback {
+            sync: spec.get("sync"),
+            soff: spec.get("soff"),
+            lstart: spec.get("lstart"),
+            lend: spec.get("lend"),
+        }
+    }
+
+    pub fn values(&self) -> [(&'static str, f32); 4] {
+        [
+            ("sync", self.sync),
+            ("soff", self.soff),
+            ("lstart", self.lstart),
+            ("lend", self.lend),
+        ]
+    }
+
+    /// Every value inside its key's range (a stepped key whole).
+    pub fn valid(&self) -> bool {
+        self.values().iter().all(|(k, v)| {
+            PARAMS.iter().find(|i| i.key == *k).is_some_and(|i| {
+                v.is_finite() && *v >= i.min && *v <= i.max && (!i.stepped || v.fract() == 0.0)
+            })
+        })
+    }
+
+    /// Each value clamped into its key's range (a hand edit repaired).
+    pub fn clamped(&self) -> Playback {
+        let c = |k: &str, v: f32| {
+            let i = PARAMS.iter().find(|i| i.key == k).expect("a playback key");
+            let v = if v.is_finite() { v } else { i.default };
+            let v = v.clamp(i.min, i.max);
+            if i.stepped {
+                v.round()
+            } else {
+                v
+            }
+        };
+        Playback {
+            sync: c("sync", self.sync),
+            soff: c("soff", self.soff),
+            lstart: c("lstart", self.lstart),
+            lend: c("lend", self.lend),
+        }
+    }
 }
 
 fn is_zero(v: &u64) -> bool {
@@ -81,7 +167,7 @@ impl Reference {
 }
 
 /// A Comparatio's references (`EffectSpec::refs`).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct References {
     #[serde(default)]
     pub list: Vec<Reference>,
@@ -113,8 +199,74 @@ impl References {
             if self.list[..i].iter().any(|o| o.path == r.path) {
                 return Err("a reference listed twice");
             }
+            if r.playback.is_some_and(|p| !p.valid()) {
+                return Err("a reference's playback out of its range");
+            }
         }
         Ok(())
+    }
+}
+
+/// Compare `selected` from `refs` (the owner, 2026-11-17: each reference keeps its own
+/// playback): the one compared until now keeps the unit's playback keys in its entry, and
+/// the unit's keys take the newcomer's own (its defaults when it has none yet). Returns the
+/// list to set and the keys to write — together one step (`Command::SetReferences` and
+/// `SetEffectParam`s in a `Batch`, [`switch_command`]; the plug-in its state and values).
+pub fn switch_to(
+    spec: &crate::EffectSpec,
+    mut refs: References,
+    selected: Option<&IrFile>,
+) -> (References, Vec<(&'static str, f32)>) {
+    let now = Playback::of(spec);
+    let old = spec.ir.as_deref().map(|f| f.path.as_str());
+    let new = selected.map(|f| f.path.as_str());
+    if old == new {
+        return (refs, Vec::new());
+    }
+    if let Some(i) = old.and_then(|p| refs.find(p)) {
+        refs.list[i].playback = Some(now);
+    }
+    let want = new
+        .and_then(|p| refs.find(p))
+        .and_then(|i| refs.list[i].playback)
+        .unwrap_or_default();
+    let keys = if new.is_some() {
+        want.values()
+            .into_iter()
+            .zip(now.values())
+            .filter(|((_, a), (_, b))| a != b)
+            .map(|(w, _)| w)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    (refs, keys)
+}
+
+/// [`switch_to`] as one step of a project: `SetReferences` and the keys, a `Batch`.
+pub fn switch_command(
+    spec: &crate::EffectSpec,
+    strip: crate::StripId,
+    effect: EffectId,
+    refs: References,
+    selected: Option<IrFile>,
+) -> crate::Command {
+    let (refs, keys) = switch_to(spec, refs, selected.as_ref());
+    let mut commands = vec![crate::Command::SetReferences {
+        strip,
+        effect,
+        refs: (!refs.is_empty()).then(|| Box::new(refs)),
+        selected: selected.map(Box::new),
+    }];
+    commands.extend(keys.into_iter().map(|(k, v)| crate::Command::SetEffectParam {
+        strip,
+        effect,
+        key: k.to_string(),
+        value: v,
+    }));
+    crate::Command::Batch {
+        label_key: "cmd.comparatio_refs".into(),
+        commands,
     }
 }
 
@@ -261,7 +413,9 @@ pub fn repair_project(project: &mut crate::model::Project) -> usize {
         };
         for x in &r.list {
             if !x.path.trim().is_empty() && clean.find(&x.path).is_none() {
-                clean.list.push(x.clone());
+                let mut x = x.clone();
+                x.playback = x.playback.map(|p| p.clamped());
+                clean.list.push(x);
             }
         }
         if let Some(f) = e.spec.ir.as_deref() {
@@ -345,6 +499,48 @@ mod tests {
     /// Never a Tabula pedal (ADR 0146 phase B): a reference is the master's monitoring, and
     /// the render guarantee strips Comparatio slots, not pedals inside a board — so a board
     /// may never hold one (a hand-edited board is repaired the same way).
+    /// The owner, 2026-11-17: each reference keeps its own playback; switching saves the
+    /// outgoing one's and brings back the incoming one's (its defaults the first time).
+    #[test]
+    fn switching_keeps_each_reference_s_own_playback() {
+        let mut spec = crate::EffectSpec::new(crate::EffectKind::Reference);
+        let refs = References {
+            list: vec![Reference::new("a.wav"), Reference::new("b.wav")],
+            eq: None,
+        };
+        spec.ir = Some(Box::new(IrFile::new("a.wav")));
+        // `a` looped 45 … 75 s.
+        for (k, v) in [("sync", 2.0), ("lstart", 45.0), ("lend", 75.0)] {
+            spec.set(k, v).unwrap();
+        }
+        let (r, keys) = switch_to(&spec, refs.clone(), Some(&IrFile::new("b.wav")));
+        let a = r.list[0].playback.expect("a keeps its own");
+        assert_eq!((a.sync, a.lstart, a.lend), (2.0, 45.0, 75.0));
+        assert_eq!(keys, vec![("sync", 0.0), ("lstart", 0.0), ("lend", 0.0)], "b: its defaults");
+        // `b` locked 3 s ahead; back to `a`: its loop again.
+        let mut spec2 = spec.clone();
+        spec2.ir = Some(Box::new(IrFile::new("b.wav")));
+        spec2.refs = Some(Box::new(r.clone()));
+        for (k, v) in keys.iter().copied().chain([("sync", 1.0), ("soff", 3.0)]) {
+            spec2.set(k, v).unwrap();
+        }
+        let (r2, keys2) = switch_to(&spec2, r, Some(&IrFile::new("a.wav")));
+        assert_eq!(r2.list[1].playback.unwrap().soff, 3.0, "b keeps its own");
+        assert_eq!(
+            keys2,
+            vec![("sync", 2.0), ("soff", 0.0), ("lstart", 45.0), ("lend", 75.0)]
+        );
+        // The same one again: nothing moves.
+        assert!(switch_to(&spec, refs, Some(&IrFile::new("a.wav"))).1.is_empty());
+        // Out of range is refused, and repaired on load.
+        let bad = Playback {
+            sync: 7.0,
+            ..Playback::default()
+        };
+        assert!(!bad.valid());
+        assert_eq!(bad.clamped().sync, 2.0);
+    }
+
     #[test]
     fn it_is_never_a_pedal() {
         assert!(!crate::fx::tabula::pedal_allowed(

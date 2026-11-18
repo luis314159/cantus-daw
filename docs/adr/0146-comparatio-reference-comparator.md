@@ -139,10 +139,29 @@ unit `cantus_engine::fx::comparatio`, store `cantus_engine::fx::comparatio_store
   at the mix's integrated loudness within 0.1 LU, the mix back to the bit, an export
   without it).
 
-- **Phase B, owner's choices left**: per-reference settings (each its own loop, offset and
-  sync) — one set for the unit today; a drop onto the plug-in's window needs egui-baseview to
-  pass the system's drop through (0.7 does not); the 20-minute cut and the three spare
-  references kept in memory.
+- **The owner's answers (2026-11-17), built on the same branch:**
+  - **Each reference keeps its own playback** (`Reference::playback`: `sync`, `soff`,
+    `lstart`, `lend`). The unit's keys stay the live values (automation, the engine and the
+    plug-in's parameters unchanged); comparing another reference saves the unit's playback
+    into the outgoing entry and brings the newcomer's own back (its defaults the first
+    time) — `fx::comparatio::switch_to` / `switch_command`: `SetReferences` and the
+    `SetEffectParam`s in one `Batch`, one step, its inverse exact. The loudness match
+    (`match`, `offset`, `refl`), the crossfade and the display stay the unit's: they are
+    *how* you compare and should not change under you when you switch; *where* a reference
+    plays (its chorus, its offset to your song) is the reference's own. A playback out of
+    range is refused by `SetReferences` and repaired on load. Still schema 66; the plug-in's
+    state carries it (the same JSON).
+  - **A drop onto the plug-in's window**: egui-baseview 0.7.2 is carried patched in
+    `third_party/egui-baseview` (`[patch.crates-io]`, as cpal and jack-sys are): its new
+    `drop::input` passes baseview's drag-and-drop to egui and answers the system's drop
+    target with `AcceptDrop`; the editor takes the drop as it does in Cantus.
+  - **Only the one compared is in memory**: the store keeps no spare reference
+    (`SPARE` = 0). The others keep their summaries; comparing one reads it again from disk on
+    its thread **adopting its summary** (no second analysis while its print is unchanged).
+    While it is read the snapshot names none, so **your mix is heard** and the strip says
+    it is being read — never silence, never the previous reference passing for the new one;
+    when it arrives it fades in from your mix like any switch. Eight references hold the
+    audio of one (measured).
 
 ## What the tests hold
 
@@ -154,6 +173,14 @@ read and resampled through the store, its whole-file loudness, a missing file re
 live = offline), `fx_contract`, `rt_memory::comparatio_never_allocates` (heard, matched,
 blind, locked, looped, swapped while heard, taken away); `cantus-project` schema 66's
 fixture (a reference by path); `cantus-ui` `fxc_whole`.
+
+**The owner's answers**: `fx::comparatio::tests::switching_keeps_each_reference_s_own_playback`,
+the undo fuzz's switches (`switch_command` batches, applied and refused);
+`fx_comparatio::eight_references_hold_the_audio_of_one` (768 000 bytes held for eight 2 s
+references, one's; the fifth compared: read again, its summary the same `Arc`, the first let
+go); `rt_memory::comparatio_never_allocates` (another reference being read, then arriving:
+nothing allocated on the audio thread); `comparatio_drag::each_reference_keeps_its_own_loop`;
+the plug-ins' `a_file_dropped_on_the_plug_in_s_window_is_compared`.
 
 **Phase B**: `cantus-core` `fx::comparatio` (a list valid only whole, unique and within
 eight; the one compared shown; a hand-edited list repaired; never a pedal) and

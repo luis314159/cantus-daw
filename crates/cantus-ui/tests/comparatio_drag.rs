@@ -392,3 +392,38 @@ fn send_to_aequalis_puts_the_match_eq_before_the_unit_and_updates_it() {
     assert_eq!(chain(&app), before, "the first send undone at once");
     assert!(spec(&app).refs.unwrap().eq.is_none());
 }
+
+/// The owner, 2026-11-17: each reference keeps its own playback — a loop dragged on the
+/// first, the second compared (its own: free, no loop), the first again (its loop back);
+/// each switch one undo step.
+#[test]
+fn each_reference_keeps_its_own_loop() {
+    let (mut app, size) = open(&[]);
+    let r = app.fx.comparatio.overview.expect("laid out");
+    let (from, to) = (
+        egui::pos2(r.left() + r.width() * 0.25, r.center().y),
+        egui::pos2(r.left() + r.width() * 0.75, r.center().y),
+    );
+    drag(&mut app, size, from, to);
+    let looped = (spec(&app).get("lstart"), spec(&app).get("lend"));
+    assert_eq!(spec(&app).get("sync"), 2.0);
+    settle(&mut app, size);
+    let at = spot(&app, Act::Select(1));
+    click(&mut app, size, at);
+    let s = spec(&app);
+    assert_eq!(
+        (s.get("sync"), s.get("lstart"), s.get("lend")),
+        (0.0, 0.0, 0.0),
+        "the second plays as its own (never set: free)"
+    );
+    settle(&mut app, size);
+    let at = spot(&app, Act::Select(0));
+    click(&mut app, size, at);
+    let s = spec(&app);
+    assert_eq!(s.get("sync"), 2.0, "the first's loop is back");
+    assert_eq!((s.get("lstart"), s.get("lend")), looped);
+    app.undo();
+    let s = spec(&app);
+    assert!(compared(&app).unwrap().ends_with("Album master.wav"));
+    assert_eq!(s.get("sync"), 0.0, "one switch, one undo step");
+}

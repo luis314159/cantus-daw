@@ -3507,6 +3507,19 @@ fn comparatio_never_allocates() {
     e.spec.ir = Some(Box::new(cantus_core::IrFile::new("references/rt b.wav")));
     rig.snapshot(&p);
     rig.play("swapped while heard", 30);
+    // fxc:comparatio — the owner, 2026-11-17: another reference compared that must be read
+    // from disk first: while it is read the snapshot names none (the store's prepare), so the
+    // unit fades to the mix and lets the old one go; when it is in, the next snapshot names
+    // it and it fades in. Nothing allocated, freed or waited for here.
+    let e = p.master.effects.iter_mut().find(|e| e.id == id).unwrap();
+    e.spec.ir = None;
+    rig.snapshot(&p);
+    rig.play("another being read: the mix", 20);
+    let _c = insert_for_test("references/rt c.wav", 48_000, tone(220.0), tone(220.0));
+    let e = p.master.effects.iter_mut().find(|e| e.id == id).unwrap();
+    e.spec.ir = Some(Box::new(cantus_core::IrFile::new("references/rt c.wav")));
+    rig.snapshot(&p);
+    rig.play("it arrived: faded in", 30);
     let e = p.master.effects.iter_mut().find(|e| e.id == id).unwrap();
     e.spec.ir = None;
     rig.snapshot(&p);

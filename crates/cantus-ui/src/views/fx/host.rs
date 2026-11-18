@@ -370,8 +370,10 @@ pub trait FxHost {
     // ---- fxc:comparatio — Comparatio's references (ADR 0146 phase B) ----------------
 
     /// Set Comparatio's list of references and the one compared, together, as one step of
-    /// undo (`Command::SetReferences` in Cantus; the plug-in's state elsewhere, its file
-    /// read on a thread of its own). `false`: the host keeps no references.
+    /// undo — the one compared until now keeping its playback, the newcomer's own brought
+    /// back (`fx::comparatio::switch_to`; `switch_command` in Cantus, the plug-in's state and
+    /// values elsewhere, its file read on a thread of its own). `false`: the host keeps no
+    /// references.
     fn set_references(
         &mut self,
         _refs: Option<cantus_core::fx::comparatio::References>,
@@ -822,12 +824,16 @@ impl FxHost for DawHost<'_> {
         refs: Option<cantus_core::fx::comparatio::References>,
         selected: Option<cantus_core::IrFile>,
     ) -> bool {
-        self.app.exec(cantus_core::Command::SetReferences {
-            strip: self.strip,
-            effect: self.effect,
-            refs: refs.map(Box::new),
-            selected: selected.map(Box::new),
-        })
+        // Each reference keeps its own playback (the owner, 2026-11-17): the list, the one
+        // compared and its playback brought back, one step.
+        let cmd = cantus_core::fx::comparatio::switch_command(
+            &self.spec,
+            self.strip,
+            self.effect,
+            refs.unwrap_or_default(),
+            selected,
+        );
+        self.app.exec(cmd)
     }
 
     fn store_reference(&self, file: &std::path::Path) -> String {

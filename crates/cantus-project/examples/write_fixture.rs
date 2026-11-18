@@ -1641,11 +1641,22 @@ fn main() {
             use cantus_core::fx::comparatio::{Reference, References};
             comparatio.spec.refs = Some(Box::new(References {
                 list: vec![
-                    Reference::new("references/Other master.wav"),
+                    // Owner, 2026-11-17: each reference its own playback — this one looped
+                    // over its chorus while another was compared.
+                    Reference {
+                        playback: Some(cantus_core::fx::comparatio::Playback {
+                            sync: 2.0,
+                            soff: 0.0,
+                            lstart: 45.0,
+                            lend: 75.0,
+                        }),
+                        ..Reference::new("references/Other master.wav")
+                    },
                     Reference {
                         path: "references/Reference master.flac".into(),
                         bytes: 31_457_280,
                         hash: "9e3779b97f4a7c15".into(),
+                        playback: None,
                     },
                     Reference::new("C:/Music/Album/03 Song.flac"),
                 ],
