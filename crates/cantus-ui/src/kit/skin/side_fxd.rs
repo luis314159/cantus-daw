@@ -189,7 +189,7 @@ pub const FORMULA_IVORY: Skin = calc(
         light: chsl(352.0, 0.66, 0.42),
     },
 );
-/// **Ebony**: a black lacquer case, the formula a sea-green fluorescence, the plot pink.
+/// **Ebony**: a black lacquer case, the formula a cyan fluorescence, the plot pink.
 pub const FORMULA_EBONY: Skin = calc(
     "fx.formula.ebony",
     Material::Lacquer,
@@ -198,9 +198,10 @@ pub const FORMULA_EBONY: Skin = calc(
         sat: 0.04,
         amount: 0.18,
     },
+    // fx/final — 160° -> 190°: Cedo's Locomotive (146°) and Lenis (168°) are lacquer too.
     Pair {
-        dark: chsl(160.0, 0.66, 0.58),
-        light: chsl(162.0, 0.70, 0.28),
+        dark: chsl(190.0, 0.66, 0.58),
+        light: chsl(192.0, 0.70, 0.28),
     },
     Pair {
         dark: chsl(326.0, 0.66, 0.72),

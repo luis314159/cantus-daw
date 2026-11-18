@@ -82,7 +82,7 @@ pub const PURUS_SURGICAL: Skin = purus(
         light: chsl(14.0, 0.74, 0.40),
     },
 );
-/// **Graphite**: graphite carbon on a slate mat; the residue an ice blue, the needles lime.
+/// **Graphite**: graphite carbon on a slate mat; the residue a cold periwinkle, the needles lime.
 pub const PURUS_GRAPHITE: Skin = purus(
     "fx.purus.graphite",
     Material::Carbon,
@@ -91,9 +91,11 @@ pub const PURUS_GRAPHITE: Skin = purus(
         sat: 0.06,
         amount: 0.22,
     },
+    // fx/final — 214° -> 246°, a cold periwinkle: the X-Y pad (Tactus, carbon) holds 222° and
+    // Cribrum 190° (the house rule: 20° apart on one material).
     Pair {
-        dark: chsl(214.0, 0.66, 0.74),
-        light: chsl(214.0, 0.62, 0.36),
+        dark: chsl(246.0, 0.66, 0.74),
+        light: chsl(246.0, 0.62, 0.36),
     },
     Pair {
         dark: chsl(80.0, 0.70, 0.60),
