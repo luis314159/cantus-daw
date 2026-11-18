@@ -476,3 +476,48 @@ UI: `views/fx/host.rs` (five `FxHost` methods with defaults, `DawHost`'s),
 `src/clap/ext.rs`, `src/vst3/plugin.rs`, `tests/golden/ids.txt`. Engine:
 `fx/comparatio_store.rs` (its own). AI: `tools_mixer.rs`; golden `mcp-tools-list.json`.
 xtask: `main.rs`. Web: `units_data.rs`.
+
+### Design sheets
+
+`C:\projects\daw-fx\compartir\comparatio\design\v2-step3\` (23 PNGs and its `index.md`), shot
+by `shoot_fxc` with the clip-aware probe: no cut word. Looked at: Slate English (start, the
+full match EQ), Paper Spanish (reference, loop, full match EQ), the ivory colourway. One fix
+came from looking: the orange curve crossed *More in your mix*; the which-way words now sit
+on dark plates. The loop's band was made stronger.
+
+### Suites (Windows, 2026-11-17, one crate at a time; clippy `-D warnings --all-targets` on each touched crate)
+
+cantus-core 815 (+5: the list's validity, the shown list, the repair, never a pedal; the fuzz
+counts Comparatio's references applied and refused), cantus-dsp 1 097 + Chorda model 2's
+CPU test (red with other builders compiling, green re-run alone — untouched here),
+cantus-engine 1 306 + `sync_midi::the_out_thread_sends_on_time` (the MIDI out thread's 90th
+percentile 15.5 ms with the machine loaded, red twice; untouched — the engine's only change
+is `comparatio_store.rs`), cantus-project 194, cantus-plugins 94 (+3: Comparatio's state,
+heard and offline, a missing file), cantus-ai 51, cantus-ui 2 731 (+ `preset_render`'s known red: Arca's
+three leads' CPU under load, +0.23 … +0.28, green re-run). Clippy clean on core, project,
+engine, plug-ins (default and `--no-default-features`), ai, ui; `cargo fmt -p` on each.
+Not run: the Linux check (WSL), the whole workspace at once.
+
+### Verified only in emulation
+
+- No ear has compared a real record in the app: the e2e and the pointer tests drive the
+  real engine and window with generated noise and the demo's music.
+- The plug-in in our own harness only (state, processor, memory builder, offline flag set
+  directly): not yet in a third-party DAW, so CLAP's `render` call and VST3's `processMode`
+  as real hosts send them are unverified; the native file dialog inside a host's window is
+  not exercised by a test (`pick_for_tests` stands in for it in Cantus's).
+- **A drop onto the plug-in's window is not taken**: egui-baseview 0.7 swallows baseview's
+  drag-and-drop events (it answers them as handled without passing them to egui, and its
+  window constructor is private, so it cannot be wrapped). In Cantus a drop works (tested).
+- The mix's live tonal curve measures the analyser tap's middle `(L + R) / 2`; a mix whose
+  sides carry what its middle does not is compared on its middle (the reference likewise).
+
+### Left
+
+- Owner-only: the v2-step3 sheets; listening (A/B a commercial master against a mix, a blind
+  ABX of ten trials — `docs/beta-checklist.md` at the integration); the choices in the
+  sheet's `index.md` (per-reference settings, how many references and how many kept in
+  memory, the match EQ's colour and defaults, patching egui-baseview for a drop onto the
+  plug-in).
+- At the integration: the site's pictures (`web/assets/units/comparatio-*.webp`, big
+  1800 × 1157, thumb 640 × 411); renumbering ADR 0146 and schema 66.
