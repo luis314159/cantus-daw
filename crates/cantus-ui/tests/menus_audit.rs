@@ -91,8 +91,11 @@ fn words_in(r: &Rig, w: &str, region: Rect) -> Option<Rect> {
 }
 
 /// Every menu to open, by name: how to get there, and where to click.
-fn targets() -> Vec<(&'static str, fn(&mut Rig) -> Option<Target>)> {
-    let mut v: Vec<(&'static str, fn(&mut Rig) -> Option<Target>)> = vec![
+/// How a menu is reached: the way there, and where to click (none when it cannot be).
+type Find = fn(&mut Rig) -> Option<Target>;
+
+fn targets() -> Vec<(&'static str, Find)> {
+    let mut v: Vec<(&'static str, Find)> = vec![
         ("top-file", |r| bar_word(r, "menu.file")),
         ("top-edit", |r| bar_word(r, "menu.edit")),
         ("top-clip", |r| bar_word(r, "menu.clip")),
