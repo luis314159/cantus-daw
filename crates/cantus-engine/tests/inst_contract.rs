@@ -15,6 +15,9 @@
 //! (both skipped as far as the first has run) must render the same bits for what is played
 //! next. When the parameters also move at that moment, the skipped twin must still agree;
 //! the reset and new ones are only reported.
+//!
+//! And, for fx/final's jump (`snap` below): a unit made at one setting, configured at another
+//! and snapped (`InstrumentUnit::snap`) plays the bits of a unit made at the second.
 
 mod support;
 use cantus_core::*;
