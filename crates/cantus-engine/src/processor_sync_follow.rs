@@ -178,6 +178,7 @@ impl Processor {
                     self.release_all();
                     self.transport.seek_f64(target);
                     self.reseek_events();
+                    self.auto_jumped(); // fx/final
                     run.epoch = tl.epoch;
                 }
             }

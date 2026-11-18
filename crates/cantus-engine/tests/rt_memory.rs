@@ -718,6 +718,63 @@ fn automation_never_allocates() {
     );
 }
 
+/// fx/final — the snap at a jump (`EffectUnit::snap`): every native effect kind on the
+/// lead's strip, eight at a time, a lane on its first continuous parameter; played from the
+/// start, sought while playing, around a loop's wrap and played from stop again — every
+/// jump snaps what the lanes drive. Not one allocation.
+#[test]
+fn the_snap_at_a_jump_never_allocates() {
+    let kinds: Vec<EffectKind> = EffectKind::ALL
+        .into_iter()
+        .filter(|k| !matches!(k, EffectKind::Board | EffectKind::External))
+        .collect();
+    for group in kinds.chunks(8) {
+        let mut p = demo_project();
+        p.tempo_bpm = 120.0;
+        p.loop_region = Some(LoopRegion {
+            start: Ticks::beats(1),
+            end: Ticks::beats(3),
+        });
+        p.loop_enabled = true;
+        let s0 = p.tracks[0].strip.unwrap();
+        for &kind in group {
+            let slot = p.make_effect(kind);
+            let id = slot.id;
+            p.strip_mut(s0).unwrap().effects.push(slot);
+            let Some(info) = kind.params().iter().find(|i| !i.stepped) else {
+                continue;
+            };
+            let target = AutoTarget::Effect {
+                effect: id,
+                key: info.key.into(),
+            };
+            let points = vec![
+                AutoPoint::new(Ticks::ZERO, 0.2),
+                AutoPoint::new(Ticks::beats(4), 0.9),
+            ];
+            let c = p.make_automation_clip("a", target, Ticks::ZERO, Ticks::beats(8), points);
+            p.tracks[0].clips.push(c);
+        }
+        let mut rig = Rig::new();
+        rig.snapshot(&p);
+        rig.play("snap: settle", 4);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("snap: play from the start", 30);
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+        rig.play("snap: a seek, then the loop's wraps", 120);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("snap: stop", 4);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("snap: play from stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "{group:?}: the audio thread allocated or freed: {:?} (the first of the last              phase: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}
+
 /// r36:mix - VCAs (ADR 0093): a ridden VCA over two members, one with a fader ride of its
 /// own, and a cue's holds, through a new snapshot, a seek and a stop. Not one allocation.
 #[test]

@@ -250,11 +250,6 @@ struct Glide {
 }
 
 impl Glide {
-    /// fx/final — at its target now.
-    fn land(&mut self) {
-        self.v = self.t;
-    }
-
     fn at(v: f32) -> Glide {
         Glide { v, t: v }
     }
@@ -451,37 +446,6 @@ pub struct Latitudo {
 }
 
 impl Latitudo {
-    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
-    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
-    pub fn snap(&mut self) {
-        self.width.land();
-        self.mid_g.land();
-        self.side_g.land();
-        self.bal.land();
-        self.rot.land();
-        self.swap.land();
-        self.pol_l.land();
-        self.pol_r.land();
-        for g in self.lis.iter_mut() {
-            g.land();
-        }
-        self.out_g.land();
-        for g in self.w.iter_mut() {
-            g.land();
-        }
-        self.x_lo.land();
-        self.x_hi.land();
-        self.mono_f.land();
-        for g in self.tone_db.iter_mut() {
-            g.land();
-        }
-        for g in self.tone_f.iter_mut() {
-            g.land();
-        }
-        self.haas_d.land();
-        self.haas_amt.land();
-    }
-
     pub fn new(sample_rate: f32) -> Self {
         let sr = sample_rate.max(1.0);
         let cap = (HAAS_MAX_MS * 0.001 * sr).ceil() as usize + 4;
@@ -575,13 +539,20 @@ impl Latitudo {
         0
     }
 
-    /// Back to the start: every glide on its target, every stage at its settled presence,
-    /// every filter and the line empty, the meters at rest. No allocation.
-    pub fn reset(&mut self) {
+    /// fx/final — every glide, fade and structure where [`Self::reset`] puts them for the
+    /// settings the last `set` gave, at once (`FxUnit::snap`: a start, a seek, a loop's
+    /// wrap), and everything derived again; the grid's place, the filters and the Haas line
+    /// are kept (a filter whose slope changes starts empty, as at the grid). No allocation.
+    pub fn snap(&mut self) {
         let s = self.s;
         let lg = |hz: f32| Glide::at(math::log2(hz.max(1.0)));
         let (x_lo, x_hi) = s.crossovers();
-        self.n = 0;
+        if self.mono_slope != s.mono_slope {
+            self.x_mono = [Xover::default(); 2];
+        }
+        if self.tone_slope != s.tone_slope {
+            self.shelves = [Shelf::default(); 4];
+        }
         self.width = Glide::at(s.width);
         self.mid_g = Glide::at(db_to_gain(s.mid_db));
         self.side_g = Glide::at(db_to_gain(s.side_db));
@@ -611,6 +582,20 @@ impl Latitudo {
         self.tone_slope = s.tone_slope;
         self.haas_fade = on(s.haas_on());
         self.haas_mode = s.haas_mode;
+        // Derive everything once, so the first grid step starts from where it settles.
+        self.settled = None;
+        self.derive();
+        self.p = Ramp::at(self.p.next);
+        self.q = Ramp::at(self.q.next);
+        self.t = Ramp::at(self.t.next);
+        self.wr = Ramp::at(self.wr.next);
+        self.dr = Ramp::at(self.dr.next);
+    }
+
+    /// Back to the start: every glide on its target, every stage at its settled presence,
+    /// every filter and the line empty, the meters at rest. No allocation.
+    pub fn reset(&mut self) {
+        self.n = 0;
         self.x_mono = [Xover::default(); 2];
         self.x_band = [Xover::default(); 5];
         self.shelves = [Shelf::default(); 4];
@@ -627,14 +612,7 @@ impl Latitudo {
         self.pts = [view::pack_point(0.0, 0.0); POINTS];
         self.pt_head = 0;
         self.pts_done = 0;
-        // Derive everything once, so the first grid step starts from where it settles.
-        self.settled = None;
-        self.derive();
-        self.p = Ramp::at(self.p.next);
-        self.q = Ramp::at(self.q.next);
-        self.t = Ramp::at(self.t.next);
-        self.wr = Ramp::at(self.wr.next);
-        self.dr = Ramp::at(self.dr.next);
+        self.snap();
     }
 }
 

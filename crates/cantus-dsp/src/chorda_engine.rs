@@ -798,6 +798,15 @@ impl Chorda {
         }
     }
 
+    /// fx/final — the settings taken at once (the playhead jumped: a start, a seek, a
+    /// loop's wrap): the stage's gains (perspective, width, lid) and the room's size at their
+    /// targets, as a unit at rest takes them. The strings, the board, the body and the
+    /// room's lines are kept.
+    pub fn snap(&mut self) {
+        self.stage.snap();
+        self.room.snap();
+    }
+
     pub fn reset(&mut self) {
         for v in self.voices.iter_mut() {
             v.kill();

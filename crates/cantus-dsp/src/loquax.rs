@@ -377,9 +377,16 @@ pub struct Loquax {
 
 impl Loquax {
     /// fx/final — every glide at its target: what the last `set` asked for, taken at once
-    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap) — the mix, the output, the bank's
+    /// tuning (retuned there), the bands' levels; engaged or not as the mix now says. The
+    /// banks' and followers' state and the carrier's voices are kept.
     pub fn snap(&mut self) {
         self.gl.snap();
+        self.tuning_moving = false;
+        self.retune_n = 0;
+        self.retune();
+        self.gain = self.gain_to;
+        self.settle_engaged();
     }
 
     pub fn new(sample_rate: f32) -> Loquax {

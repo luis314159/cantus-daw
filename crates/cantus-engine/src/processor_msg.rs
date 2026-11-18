@@ -82,6 +82,7 @@ impl Processor {
                 EngineMessage::Play => {
                     if !self.transport.is_playing() {
                         self.reseek_events();
+                        self.auto_jumped(); // fx/final: a start snaps what lanes drive
                         self.transport.play();
                         // The lanes chased now it plays (ADR 0068).
                         self.chase_controls();
@@ -96,6 +97,7 @@ impl Processor {
                     self.release_all();
                     self.transport.seek(tick);
                     self.reseek_events();
+                    self.auto_jumped(); // fx/final
                     self.played = 0;
                 }
                 // r34:listen — a pre-roll on a whole sample (ADR 0083).
@@ -103,6 +105,7 @@ impl Processor {
                     self.release_all();
                     self.transport.seek_f64(tick);
                     self.reseek_events();
+                    self.auto_jumped(); // fx/final
                     self.played = 0;
                 }
                 EngineMessage::NoteOn {

@@ -190,6 +190,17 @@ impl Culmen {
         self.telemetry[tel::RATE] = self.sr;
     }
 
+    /// fx/final — every stage's settings at once (`FxUnit::snap`: a start, a seek, a loop's
+    /// wrap): both band stages as a first `set` takes them (`Multiplex::snap`), the
+    /// brickwall's gain and ceiling, the drive. The lines, the detectors and the loudness
+    /// Match follows (a measure, not a setting) are kept. No allocation.
+    pub fn snap(&mut self) {
+        self.bands.snap();
+        self.full.snap();
+        self.lim.snap();
+        self.drive = self.drive_target;
+    }
+
     /// Clear every state; glides land on their targets.
     pub fn reset(&mut self) {
         self.bands.reset();

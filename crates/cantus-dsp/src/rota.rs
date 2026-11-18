@@ -365,6 +365,27 @@ impl Rota {
     }
 
     /// Back to the start: silence, the rotors at their speeds and home angles.
+    /// fx/final — the settings taken at once (`FxUnit::snap`: a start, a seek, a loop's
+    /// wrap): both rotors at their target speeds (no spin-up or slow-down from where they
+    /// were; braked, parked where the brake parks them, as a cabinet that has stood at Stop),
+    /// the mix and the output landed. The rotors' angles, the cabinet's lines and filters
+    /// and the oversampler are kept.
+    pub fn snap(&mut self) {
+        let (ht, dt) = self.targets();
+        self.horn.speed = ht;
+        self.drum.speed = dt;
+        for r in [&mut self.horn, &mut self.drum] {
+            if r.braking {
+                r.phase = r.park_at;
+                r.speed = 0.0;
+                r.parked = true;
+            }
+        }
+        self.rot.snap_speeds();
+        self.mix = self.mix_to;
+        self.out = self.out_to;
+    }
+
     pub fn reset(&mut self) {
         self.rot.clear();
         self.os.reset();

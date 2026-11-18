@@ -288,6 +288,7 @@ impl Processor {
         self.transport.follow(bpm);
         self.transport.seek_f64(tick - k * tps);
         self.reseek_events();
+        self.auto_jumped(); // fx/final
         self.transport.play();
         self.chase_controls();
         self.played = 0;
@@ -298,6 +299,7 @@ impl Processor {
         self.release_all();
         self.transport.seek_f64(tick);
         self.reseek_events();
+        self.auto_jumped(); // fx/final
         self.played = 0;
     }
 

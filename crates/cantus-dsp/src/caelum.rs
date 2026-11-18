@@ -319,6 +319,8 @@ impl Caelum {
         self.late_gain.land();
         self.mix.land();
         self.width.land();
+        self.input.snap();
+        self.tank.snap();
     }
 
     pub fn new(sample_rate: f32) -> Self {

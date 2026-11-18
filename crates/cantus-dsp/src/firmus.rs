@@ -108,6 +108,9 @@ pub struct Firmus {
     counter: u64,
     gain: Smoother,
     cutoff_log2: Smoother,
+    /// fx/final — settings have been given (`set_settings`): the first are taken at once,
+    /// with no glide from the factory's, as every effect's first configure is.
+    configured: bool,
 }
 
 #[inline]
@@ -125,6 +128,7 @@ impl Firmus {
             gain: Smoother::new(db_to_lin(settings.gain_db), 0.02, sample_rate),
             cutoff_log2: Smoother::new(math::log2(settings.cutoff_hz), 0.01, sample_rate),
             settings,
+            configured: false,
         };
         s.apply_settings();
         s
@@ -143,6 +147,17 @@ impl Firmus {
             self.settings = settings.clone();
             self.apply_settings();
         }
+        if !self.configured {
+            self.configured = true;
+            self.snap();
+        }
+    }
+
+    /// fx/final — the level and the cutoff at their targets at once (the playhead jumped:
+    /// a start, a seek, a loop's wrap). The voices are kept.
+    pub fn snap(&mut self) {
+        self.gain.land();
+        self.cutoff_log2.land();
     }
 
     fn apply_settings(&mut self) {

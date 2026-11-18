@@ -1007,7 +1007,48 @@ macro_rules! per_kind {
             use super::*;
             $( #[test] fn $name() { inst_at_rest_is_exact($kind) } )*
         }
+        mod snap {
+            use super::*;
+            $( #[test] fn $name() { inst_snap_is_made_there($kind) } )*
+        }
     };
+}
+
+// ---- fx/final: a snapped unit is the unit made at its settings ---------------------------
+
+/// A unit made at one setting, configured at another and snapped (`InstrumentUnit::snap`,
+/// what the processor does when the playhead jumps) plays the bits of a unit made at the
+/// second from the start — nothing glides from where it was — so a render that starts
+/// mid-song is the whole render from there (`render_from_bar.rs`).
+fn inst_snap_is_made_there(kind: InstrumentKind) {
+    let mut rng = Rng::new(0x5aa9_0000 + kind as u64);
+    let mut failures = Vec::new();
+    for i in 0..4 {
+        let from = if i % 2 == 0 {
+            NativeSpec::new(kind)
+        } else {
+            heavy::random_instrument(kind, 1.0, &mut rng)
+        };
+        let to = heavy::random_instrument(kind, if i < 2 { 1.0 } else { 0.5 }, &mut rng);
+        let score = Score::music(48_000, 16, &mut rng);
+        // Made at `to` first: what it needs (a keyboard, a kit) is made for both.
+        let mut made = inst_unit(&to);
+        let mut moved = inst_unit(&from);
+        moved.configure(&to, &[]);
+        moved.snap();
+        let a = play(&mut *moved, &score, || 512, |_, _, _| {});
+        let b = play(&mut *made, &score, || 512, |_, _, _| {});
+        match (a, b) {
+            (Ok(a), Ok(b)) => {
+                if let Some(d) = first_difference(&a, &b) {
+                    failures.push(format!("{kind:?} #{i}: {d}"));
+                }
+            }
+            (a, b) => failures.push(format!("{kind:?} #{i}: {:?} / {:?}", a.err(), b.err())),
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("
+"));
 }
 
 per_kind! {

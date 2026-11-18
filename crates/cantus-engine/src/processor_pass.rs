@@ -447,6 +447,7 @@ impl Processor {
             Some(start) => self.reseek_events_from(start),
             None => self.reseek_events(),
         }
+        self.auto_jumped(); // fx/final: a loop's wrap snaps what lanes drive
         self.record_wrapped();
     }
 

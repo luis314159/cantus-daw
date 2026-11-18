@@ -114,6 +114,12 @@ impl FxUnit for Unit {
         self.dsp.process(left, right, key);
     }
 
+    /// fx/final — at a start, a seek or a loop's wrap: the settings in force at once, as
+    /// a first `set` takes them (`Multiplex::snap`).
+    fn snap(&mut self) {
+        self.dsp.snap();
+    }
+
     fn reset(&mut self) {
         self.dsp.reset();
     }

@@ -342,6 +342,51 @@ impl Fragor {
         }
     }
 
+    /// fx/final — the settings taken at once (`FxUnit::snap`: a start, a seek, a loop's
+    /// wrap): the chain the target's (no dip), every footswitch's fade, the knobs, the input,
+    /// output and mix landed, the gate's threshold. The circuits keep what they hold — only
+    /// a board resting in silence moves its pedals to the new knobs' operating points, as a
+    /// grid point does there — and so do the oversamplers, the gate and the dry delay.
+    /// Allocation-free.
+    pub fn snap(&mut self) {
+        if !self.structure_is_target() {
+            self.apply_structure();
+        }
+        self.dip = 1.0;
+        self.dip_dir = 0;
+        let t = &self.target;
+        self.knobs = t.knobs;
+        for m in Model::ALL {
+            self.fade[m.index()] = if t.on[m.index()] { 1.0 } else { 0.0 };
+        }
+        self.in_db = t.in_db;
+        self.out_db = t.out_db;
+        self.mix = t.mix.clamp(0.0, 1.0);
+        self.gains = [
+            Ramp::at(gain_of(self.in_db)),
+            Ramp::at(gain_of(self.out_db)),
+            Ramp::at(self.mix),
+        ];
+        self.gate_thr = gain_of(t.gate_db);
+        self.latency = t.latency();
+        let engaged = t.engaged();
+        if engaged && !self.engaged {
+            self.come_to_rest();
+        }
+        self.engaged = engaged;
+        for ch in 0..2 {
+            for m in self.chain.iter().flatten() {
+                let i = m.index();
+                let k = self.knobs[i].map(|v| v as f64);
+                let p = &mut self.pedals[ch * PEDALS + i];
+                p.set_knobs(k);
+                if self.idle {
+                    p.snap();
+                }
+            }
+        }
+    }
+
     /// Back to silence: every glide landed, the chain the target's, the pedals at rest.
     pub fn reset(&mut self) {
         let t = self.target.clone();

@@ -155,8 +155,17 @@ pub struct Aula {
 
 impl Aula {
     /// fx/final — every glide at its target: what the last `set` asked for, taken at once
-    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap) — the mix, the level, the width and
+    /// the pre-delay (its crossfade done). The sound it holds is kept: the pre-delay's ring,
+    /// the convolution's state, and a response being swapped in level by level goes on.
     pub fn snap(&mut self) {
+        if let Some(p) = self.pending.take() {
+            self.fade_to = p;
+        }
+        if self.fade > 0 {
+            self.delay = self.fade_to;
+            self.fade = 0;
+        }
         self.mix.jump();
         self.gain.jump();
         self.width.jump();

@@ -1,15 +1,16 @@
 //! A render that starts mid-song is the whole render from there (offline = real time's
-//! rule, ADR 0005's null tests): for a native effect's automated parameter it is not yet.
+//! rule, ADR 0005's null tests), a native effect's automated parameter too.
 //!
 //! Found by wave D's e2e (`crates/cantus-ui/tests/fxd_e2e.rs`,
-//! `a_path_plays_in_time_with_the_song`) and **not fixed there**: a native effect's unit is
-//! made at its *stored* values, and at the first control point of a render that starts
-//! later its own de-zipper (Aequalis's, about 20 ms) glides from the stored value to the
-//! automated one — so the first note after the start differs from the whole render's (up
-//! to 5.2e-2 measured for an EQ band held at +9 dB by a lane). The strip's pan and fader
-//! take their value at the first control point and are bit-exact from any bar. Fixing it
-//! (the unit made, or snapped, at the automated value where the render starts) likely
-//! changes golden hashes and so the `DSP_VERSION`: the integrator's, with the owner.
+//! `a_path_plays_in_time_with_the_song`): a native effect's unit is made at its *stored*
+//! values, and at the first control point of a render that starts later its own de-zipper
+//! (Aequalis's, about 20 ms) glided from the stored value to the automated one — the first
+//! note after the start differed from the whole render's (up to 5.2e-2 measured for an EQ
+//! band held at +9 dB by a lane). Fixed in fx/final (`DSP_VERSION` 8): where the playhead
+//! jumps — a start, a seek, a loop's wrap, a sync start or jump — the processor snaps every
+//! unit a lane drives (`EffectUnit::snap`) after the control point there, so it takes the
+//! automated value at once; a change while playing still glides. Live playback started at
+//! bar 3 (from a seek) is the render from bar 3, to the bit, too.
 
 use cantus_core::automation::range::range_of;
 use cantus_core::*;
@@ -106,9 +107,6 @@ fn worst(a: &[f32], b: &[f32]) -> (usize, f32) {
 /// From bar 3 the render is the whole render's bars 3… to the bit — every sample, the
 /// first note's too — with an EQ band automated.
 #[test]
-#[ignore = "pre-existing (wave D's e2e finding 1): a native effect starts a render at its \
-            stored value and glides ~20 ms to its automated one; the fix is the integrator's \
-            (it likely moves the goldens and the DSP_VERSION) — un-ignore it with the fix"]
 fn a_render_from_bar_3_is_the_whole_render_from_bar_3_with_an_effect_automated() {
     let p = song();
     let whole = render_beats(&p, 0, BEATS);
@@ -138,4 +136,83 @@ fn a_render_from_bar_3_is_the_whole_render_from_bar_3_with_an_effect_automated()
         "bar 3's first beat differs by {d:e} at frame {at} ({:.1} ms after the start)",
         at as f64 * 1_000.0 / f64::from(SR)
     );
+}
+
+/// The live engine over `p` (blocks of varied sizes, the events answered after each as the
+/// backend does): the playhead moved by `seeks` (each a `Seek` while stopped, some blocks
+/// run there), then played — `frames` frames of what it plays.
+fn live(p: &Project, seeks: &[i64], frames: usize) -> Vec<f32> {
+    let snap = Arc::new(Snapshot::compile(p, 1));
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let mut proc = Processor::without_midi(f64::from(SR), rx_engine, tx_engine);
+    for slot in snap.effect_slots() {
+        let unit = EffectUnit::new(slot, SR as f32);
+        tx.push(EngineMessage::AddEffect(Box::new(unit))).unwrap();
+    }
+    tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+        .unwrap();
+    tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    let mut run = |proc: &mut Processor, tx: &mut rtrb::Producer<EngineMessage>, n: usize| {
+        let mut buf = vec![0f32; n * 2];
+        proc.process(&mut buf, 2);
+        while let Ok(ev) = rx.pop() {
+            if let EngineEvent::EffectNeed {
+                effect,
+                pedal,
+                need,
+            } = ev
+            {
+                let memory = EffectMemory::build(need.need(), SR as f32);
+                tx.push(EngineMessage::EffectMemory {
+                    effect,
+                    pedal,
+                    memory,
+                })
+                .unwrap();
+            }
+        }
+        buf
+    };
+    // Stopped a while at each place it is moved to, as a user would.
+    for &beat in seeks {
+        tx.push(EngineMessage::Seek(Ticks::beats(beat))).unwrap();
+        for n in [700, 64] {
+            let _ = run(&mut proc, &mut tx, n);
+        }
+    }
+    tx.push(EngineMessage::Play).unwrap();
+    let sizes = [128usize, 333, 512, 96, 1024, 17];
+    let mut out = Vec::with_capacity(frames * 2);
+    let mut i = 0;
+    while out.len() / 2 < frames {
+        let n = sizes[i % sizes.len()].min(frames - out.len() / 2);
+        i += 1;
+        out.extend_from_slice(&run(&mut proc, &mut tx, n));
+    }
+    out
+}
+
+/// Live playback started at bar 3 — moved there while stopped, from the start or from later
+/// in the song — is the render from bar 3 to the bit, its first note's 20 ms too; played from
+/// the start it is the whole render.
+#[test]
+fn live_playback_from_bar_3_is_the_render_from_bar_3_with_an_effect_automated() {
+    let p = song();
+    let frames = FRAMES_PER_BEAT * 4;
+    let late = render_beats(&p, FROM_BEAT, BEATS);
+    for seeks in [&[FROM_BEAT][..], &[0, 12, FROM_BEAT][..]] {
+        let heard = live(&p, seeks, frames);
+        let (at, d) = worst(&heard, &late[..frames * 2]);
+        assert_eq!(
+            d,
+            0.0,
+            "played after seeking to {seeks:?}: {d:e} at frame {at} ({:.1} ms in)",
+            at as f64 * 1_000.0 / f64::from(SR)
+        );
+    }
+    let whole = render_beats(&p, 0, BEATS);
+    let heard = live(&p, &[0], frames);
+    let (at, d) = worst(&heard, &whole[..frames * 2]);
+    assert_eq!(d, 0.0, "played from the start: {d:e} at frame {at}");
 }

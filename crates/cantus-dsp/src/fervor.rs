@@ -516,6 +516,44 @@ impl Fervor {
         self.target.latency()
     }
 
+    /// fx/final — every glide landed on its target at once (`FxUnit::snap`: a start, a
+    /// seek, a loop's wrap): the continuous settings, the model's or curve's crossfade, the
+    /// oversampling, the gains' ramps; the filters redesigned for the target. What it holds
+    /// of the sound (the filters' and oversampler's state, the dry delay, the hold) is kept.
+    /// No allocation.
+    pub fn snap(&mut self) {
+        let t = &self.target;
+        if t.oversampling != self.factor || t.minimum_phase != self.minimum {
+            self.factor = t.oversampling;
+            self.minimum = t.minimum_phase;
+            self.latency = os::latency(self.factor, self.minimum);
+            for c in &mut self.chans {
+                c.os.configure(self.factor, self.minimum);
+            }
+        }
+        if self.curve != self.target.curve {
+            self.curve.clone_from(&self.target.curve);
+            self.curve.table(&mut self.lut);
+        }
+        self.model = self.target.model;
+        self.live = Live::of(&self.target);
+        self.fade = 0;
+        self.shaper = self.make_shaper();
+        self.comp = self.shaper.level_match(&self.lut[..]);
+        self.design_filters();
+        let engaged = !self.neutral();
+        if engaged && !self.engaged {
+            for c in &mut self.chans {
+                c.clear_wet();
+            }
+        }
+        self.engaged = engaged;
+        let (w, o, m) = self.gains();
+        (self.wet_g, self.wet_end, self.wet_step) = (w, w, 0.0);
+        (self.out_g, self.out_end, self.out_step) = (o, o, 0.0);
+        (self.mix_v, self.mix_end, self.mix_step) = (m, m, 0.0);
+    }
+
     /// Back to silence, every glide landed on its target.
     pub fn reset(&mut self) {
         self.live = Live::of(&self.target);

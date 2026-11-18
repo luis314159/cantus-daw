@@ -696,6 +696,14 @@ impl Fdn {
         self.size - 8
     }
 
+    /// fx/final — the lines' lengths, the modulation's depth and the freeze at their
+    /// targets at once (`Spatium::snap`); the lines, the filters and the phases are kept.
+    pub fn snap(&mut self) {
+        self.len = self.len_target;
+        self.depth = self.depth_target;
+        self.freeze = self.freeze_target;
+    }
+
     pub fn reset(&mut self) {
         self.buf.iter_mut().for_each(|x| *x = 0.0);
         self.w = 0;
