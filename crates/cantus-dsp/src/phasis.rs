@@ -113,6 +113,17 @@ pub struct Phasis {
 }
 
 impl Phasis {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.lo.jump(self.lo.target);
+        self.hi.jump(self.hi.target);
+        self.feedback.jump(self.feedback.target);
+        self.mix.jump(self.mix.target);
+        self.out.jump(self.out.target);
+        self.spread.jump(self.spread.target);
+    }
+
     pub fn new(sample_rate: f32) -> Phasis {
         let mut p = Phasis {
             sr: sample_rate,

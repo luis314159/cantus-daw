@@ -102,6 +102,13 @@ pub struct StereoDelay {
 }
 
 impl StereoDelay {
+    /// fx/final — the time and the mix at their targets (`FxUnit::snap`: a start, a seek, a
+    /// loop's wrap); the lines keep what they hold.
+    pub fn snap(&mut self) {
+        self.time.land();
+        self.mix.land();
+    }
+
     pub fn new(sample_rate: f32) -> Self {
         let len = (MAX_DELAY_SECONDS * sample_rate) as usize + 2;
         let s = DelaySettings::default();

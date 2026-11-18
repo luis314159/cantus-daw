@@ -427,6 +427,13 @@ pub struct Fractus {
 }
 
 impl Fractus {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.mix.jump(self.mix.target);
+        self.out.jump(self.out.target);
+    }
+
     /// A unit at `sample_rate` with its buffers (this allocates: build it off the audio
     /// thread). Nothing painted: a wire.
     pub fn new(sample_rate: f32) -> Fractus {

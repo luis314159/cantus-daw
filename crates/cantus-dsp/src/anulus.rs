@@ -186,6 +186,15 @@ pub struct Anulus {
 }
 
 impl Anulus {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.freq.jump(self.freq.target);
+        self.spread.jump(self.spread.target);
+        self.mix.jump(self.mix.target);
+        self.out.jump(self.out.target);
+    }
+
     pub fn new(sample_rate: f32) -> Anulus {
         let mut a = Anulus {
             sr: sample_rate,

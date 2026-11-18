@@ -297,6 +297,13 @@ impl std::fmt::Debug for Cedo {
 }
 
 impl Cedo {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.wgt.jump(self.wgt.target);
+        self.out.jump(self.out.target);
+    }
+
     /// A unit whose shape segments bend as `shape` says (the automation editor's
     /// `Shape::at`; [`crate::fluctus::linear`] for straight lines). The only place it
     /// allocates. Its shape is flat (no duck) until [`Cedo::set_shape`].

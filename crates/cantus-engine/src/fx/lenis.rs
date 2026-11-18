@@ -146,6 +146,11 @@ impl FxUnit for Unit {
 
     /// As new: the DSP's clock back at 0 too (the engine skips the unit to where the
     /// stream is after a reset, so the frame grid lands where a new unit's does).
+    /// fx/final — at a start, a seek or a loop's wrap: every glide at its target.
+    fn snap(&mut self) {
+        self.dsp.snap();
+    }
+
     fn reset(&mut self) {
         self.dsp.restart();
         self.peaks = [0.0; 2];

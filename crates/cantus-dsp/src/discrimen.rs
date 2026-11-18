@@ -252,6 +252,12 @@ pub struct Discrimen {
 }
 
 impl Discrimen {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.out.jump(self.out.target);
+    }
+
     pub fn new(sample_rate: f32) -> Discrimen {
         let set = DiscrimenSettings::default();
         Discrimen {

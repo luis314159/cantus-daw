@@ -266,6 +266,30 @@ struct Glides {
 }
 
 impl Glides {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    fn snap(&mut self) {
+        self.mix.jump(self.mix.target);
+        self.out.jump(self.out.target);
+        for g in self.cut.iter_mut() {
+            g.jump(g.target);
+        }
+        for g in self.res.iter_mut() {
+            g.jump(g.target);
+        }
+        for g in self.drive.iter_mut() {
+            g.jump(g.target);
+        }
+        for g in self.vowel.iter_mut() {
+            g.jump(g.target);
+        }
+        self.track.jump(self.track.target);
+        self.spread.jump(self.spread.target);
+        for g in self.depth.iter_mut().flatten() {
+            g.jump(g.target);
+        }
+    }
+
     fn new(sr: f32) -> Glides {
         let g = |v: f32, ms: f32| Glide::new(v, ms, sr, SNAP);
         Glides {
@@ -330,6 +354,12 @@ pub struct Cribrum {
 }
 
 impl Cribrum {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.gl.snap();
+    }
+
     /// An auto filter whose curve's segments take `shape` (the automation editor's
     /// `Shape::at`).
     pub fn new(sample_rate: f32, shape: ShapeFn) -> Cribrum {

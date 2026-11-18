@@ -116,6 +116,15 @@ pub struct Translatio {
 }
 
 impl Translatio {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.shift.jump(self.shift.target);
+        self.feedback.jump(self.feedback.target);
+        self.mix.jump(self.mix.target);
+        self.out.jump(self.out.target);
+    }
+
     /// Designs the Hilbert pair for the sample rate: build it off the audio thread.
     pub fn new(sample_rate: f32) -> Translatio {
         let d = design(sample_rate);

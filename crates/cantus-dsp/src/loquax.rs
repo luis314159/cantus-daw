@@ -242,6 +242,24 @@ struct Glides {
 }
 
 impl Glides {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    fn snap(&mut self) {
+        self.mix.jump(self.mix.target);
+        self.out.jump(self.out.target);
+        self.lo.jump(self.lo.target);
+        self.hi.jump(self.hi.target);
+        self.width.jump(self.width.target);
+        self.formant.jump(self.formant.target);
+        self.shift.jump(self.shift.target);
+        self.tilt.jump(self.tilt.target);
+        self.spread.jump(self.spread.target);
+        self.flatten.jump(self.flatten.target);
+        self.sibilance.jump(self.sibilance.target);
+        self.unvoiced.jump(self.unvoiced.target);
+        self.carrier.jump(self.carrier.target);
+    }
+
     fn new(sr: f32) -> Glides {
         let g = |v: f32, ms: f32| Glide::new(v, ms, sr, SNAP);
         Glides {
@@ -358,6 +376,12 @@ pub struct Loquax {
 }
 
 impl Loquax {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.gl.snap();
+    }
+
     pub fn new(sample_rate: f32) -> Loquax {
         let set = LoquaxSettings::default();
         let mut q = Loquax {

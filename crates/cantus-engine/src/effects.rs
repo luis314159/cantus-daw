@@ -716,6 +716,17 @@ impl EffectUnit {
         }
     }
 
+    /// fx/final — the playhead jumped: the values the last [`Self::configure`] set are taken
+    /// at once, no glide (`FxUnit::snap`); a board's pedals too. The sound it holds is kept.
+    pub fn snap(&mut self) {
+        match &mut self.dsp {
+            Dsp::Delay(d) => d.snap(),
+            Dsp::Eq(e) => e.snap(),
+            Dsp::Reverb(_) | Dsp::Comp(_) => {}
+            Dsp::Fx(u) => u.snap(),
+        }
+    }
+
     pub fn reset(&mut self) {
         match &mut self.dsp {
             Dsp::Delay(d) => d.reset(),

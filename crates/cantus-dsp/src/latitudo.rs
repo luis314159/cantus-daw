@@ -250,6 +250,11 @@ struct Glide {
 }
 
 impl Glide {
+    /// fx/final — at its target now.
+    fn land(&mut self) {
+        self.v = self.t;
+    }
+
     fn at(v: f32) -> Glide {
         Glide { v, t: v }
     }
@@ -446,6 +451,37 @@ pub struct Latitudo {
 }
 
 impl Latitudo {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.width.land();
+        self.mid_g.land();
+        self.side_g.land();
+        self.bal.land();
+        self.rot.land();
+        self.swap.land();
+        self.pol_l.land();
+        self.pol_r.land();
+        for g in self.lis.iter_mut() {
+            g.land();
+        }
+        self.out_g.land();
+        for g in self.w.iter_mut() {
+            g.land();
+        }
+        self.x_lo.land();
+        self.x_hi.land();
+        self.mono_f.land();
+        for g in self.tone_db.iter_mut() {
+            g.land();
+        }
+        for g in self.tone_f.iter_mut() {
+            g.land();
+        }
+        self.haas_d.land();
+        self.haas_amt.land();
+    }
+
     pub fn new(sample_rate: f32) -> Self {
         let sr = sample_rate.max(1.0);
         let cap = (HAAS_MAX_MS * 0.001 * sr).ceil() as usize + 4;

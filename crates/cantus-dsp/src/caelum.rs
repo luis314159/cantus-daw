@@ -259,6 +259,11 @@ struct Glide {
 }
 
 impl Glide {
+    /// fx/final — at its target now.
+    fn land(&mut self) {
+        self.now = self.target;
+    }
+
     fn new(v: f32) -> Self {
         Glide { now: v, target: v }
     }
@@ -308,6 +313,14 @@ pub struct Caelum {
 }
 
 impl Caelum {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.late_gain.land();
+        self.mix.land();
+        self.width.land();
+    }
+
     pub fn new(sample_rate: f32) -> Self {
         let fs = sample_rate.max(8_000.0);
         let mut c = Caelum {

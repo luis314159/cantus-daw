@@ -238,6 +238,13 @@ impl FxUnit for Unit {
         }
     }
 
+    /// fx/final — at a start, a seek or a loop's wrap: every glide at its target.
+    fn snap(&mut self) {
+        if let Some(d) = self.dsp.as_deref_mut() {
+            d.snap();
+        }
+    }
+
     fn reset(&mut self) {
         if let Some(d) = self.dsp.as_deref_mut() {
             d.reset();

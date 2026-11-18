@@ -146,6 +146,19 @@ pub struct Flexus {
 }
 
 impl Flexus {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.delay.jump(self.delay.target);
+        self.depth.jump(self.depth.target);
+        self.feedback.jump(self.feedback.target);
+        self.mix.jump(self.mix.target);
+        self.out.jump(self.out.target);
+        self.spread.jump(self.spread.target);
+        self.manual.jump(self.manual.target);
+        self.sens.jump(self.sens.target);
+    }
+
     pub fn new(sample_rate: f32) -> Flexus {
         let max = (MAX_MS * 0.001 * sample_rate) as usize + 8;
         let centre = tz_centre(sample_rate);

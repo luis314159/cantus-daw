@@ -154,6 +154,14 @@ pub struct Aula {
 }
 
 impl Aula {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.mix.jump();
+        self.gain.jump();
+        self.width.jump();
+    }
+
     /// Allocates (the pre-delay's rings): off the audio thread, as `conv` was made.
     pub fn new(rate: f32, conv: Convolver) -> Aula {
         let max = (MAX_PREDELAY_MS / 1000.0 * rate) as usize + 1;

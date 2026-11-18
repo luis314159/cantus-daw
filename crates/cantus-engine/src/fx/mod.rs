@@ -93,6 +93,12 @@ pub trait FxUnit: Send + std::fmt::Debug {
     /// Process a stereo block in place; `key` is the sidechain when one is routed.
     fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>);
     fn reset(&mut self);
+    /// fx/final — the playhead jumped (a start, a seek, a loop's wrap): every value the last
+    /// [`Self::configure`] set is taken at once, with no glide from where it was, so a render
+    /// that starts mid-song is the whole render from there (and offline is real time). What
+    /// the unit holds of the sound (tails, lines, envelopes) is kept. No allocation.
+    /// Default: nothing glides.
+    fn snap(&mut self) {}
     /// True when the unit is **at rest** (ADR 0031 §5.1). Exactly:
     ///
     /// 1. silent input (silent key, no note) gives exact zeros out and leaves it at rest;

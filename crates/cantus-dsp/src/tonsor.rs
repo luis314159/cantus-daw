@@ -353,6 +353,15 @@ pub struct Tonsor {
 }
 
 impl Tonsor {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.drive.jump(self.drive.target);
+        self.ceiling.jump(self.ceiling.target);
+        self.knee.jump(self.knee.target);
+        self.post.jump(self.post.target);
+    }
+
     pub fn new(sample_rate: f32) -> Tonsor {
         let set = TonsorSettings::default();
         Tonsor {

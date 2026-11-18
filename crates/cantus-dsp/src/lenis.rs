@@ -249,6 +249,11 @@ struct Glide {
 }
 
 impl Glide {
+    /// fx/final — at its target now.
+    fn land(&mut self) {
+        self.v = self.t;
+    }
+
     fn at(v: f32) -> Glide {
         Glide { v, t: v }
     }
@@ -318,6 +323,14 @@ pub struct Lenis {
 }
 
 impl Lenis {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.mix.land();
+        self.out.land();
+        self.delta.land();
+    }
+
     /// A unit at `sample_rate`, sized for its largest quality. Allocates here only.
     pub fn new(sample_rate: f32) -> Lenis {
         let sr = sample_rate.max(8_000.0);

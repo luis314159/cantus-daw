@@ -145,6 +145,16 @@ pub struct Libra {
 }
 
 impl Libra {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.gain.jump(self.gain.target);
+        self.bal_l.jump(self.bal_l.target);
+        self.bal_r.jump(self.bal_r.target);
+        self.width.jump(self.width.target);
+        self.level.jump(self.level.target);
+    }
+
     /// `balance` maps a balance (−1 … 1) to the two channels' gains (ADR 0012's balance).
     /// Allocates its delay lines: build it off the audio thread.
     pub fn new(sample_rate: f32, balance: fn(f32) -> (f32, f32)) -> Libra {

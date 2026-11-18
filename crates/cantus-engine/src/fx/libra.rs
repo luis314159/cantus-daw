@@ -59,6 +59,11 @@ impl FxUnit for Unit {
         self.dsp.process(left, right);
     }
 
+    /// fx/final — at a start, a seek or a loop's wrap: every glide at its target.
+    fn snap(&mut self) {
+        self.dsp.snap();
+    }
+
     fn reset(&mut self) {
         self.dsp.reset();
     }

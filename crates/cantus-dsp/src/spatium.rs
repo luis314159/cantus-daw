@@ -369,6 +369,25 @@ pub struct Spatium {
 }
 
 impl Spatium {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.predelay.snap();
+        self.gap.snap();
+        for g in self.er_t.iter_mut().flatten() {
+            g.snap();
+        }
+        for g in self.er_g.iter_mut().flatten() {
+            g.snap();
+        }
+        self.diff_g.snap();
+        self.er_gain.snap();
+        self.late_gain.snap();
+        self.in_gain.snap();
+        self.mix.snap();
+        self.width.snap();
+    }
+
     pub fn new(sample_rate: f32) -> Self {
         let fs = sample_rate.max(8_000.0);
         let in_need = (fs * (MAX_PREDELAY_MS + MAX_ER_MS + 80.0) * 0.001) as usize + 8;

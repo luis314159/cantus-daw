@@ -1664,6 +1664,30 @@ impl Aequalis {
         t
     }
 
+    /// fx/final — every band's frequency, gain and Q at its target at once (`FxUnit::snap`: a
+    /// start, a seek, a loop's wrap), the band redesigned there; the filters' state is kept.
+    pub fn snap(&mut self) {
+        let lp = self.running == Mode::LinearPhase;
+        let mut moved = false;
+        for b in self.bands.iter_mut().chain(std::iter::once(&mut self.solo)) {
+            let t = b.target;
+            if !t.active {
+                continue;
+            }
+            let (f, g, q) = (t.freq as f64, t.gain_db as f64, t.q as f64);
+            if b.freq != f || b.gain != g || b.q != q {
+                b.freq = f;
+                b.gain = g;
+                b.q = q;
+                Self::redesign(self.sample_rate, b, lp);
+                moved = true;
+            }
+        }
+        if moved {
+            self.np_dirty = true;
+        }
+    }
+
     /// Advance glides and dynamics by one update step.
     fn update(&mut self) {
         let sr = self.sample_rate;

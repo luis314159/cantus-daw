@@ -120,6 +120,23 @@ fn blend(a: [f32; 2], b: [f32; 2], g: f32) -> [f32; 2] {
 }
 
 impl Vetus {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        for g in self.on.iter_mut() {
+            g.jump(g.target);
+        }
+        self.rate_l.jump(self.rate_l.target);
+        self.amp_w.jump(self.amp_w.target);
+        self.amp_f.jump(self.amp_f.target);
+        self.base.jump(self.base.target);
+        self.lo_l.jump(self.lo_l.target);
+        self.hi_l.jump(self.hi_l.target);
+        self.res.jump(self.res.target);
+        self.mix.jump(self.mix.target);
+        self.out.jump(self.out.target);
+    }
+
     pub fn new(sample_rate: f32) -> Vetus {
         let sr = sample_rate;
         let grid_sr = sr / GRID as f32;

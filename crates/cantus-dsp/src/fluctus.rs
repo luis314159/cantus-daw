@@ -170,6 +170,13 @@ pub struct Fluctus {
 }
 
 impl Fluctus {
+    /// fx/final — every glide at its target: what the last `set` asked for, taken at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    pub fn snap(&mut self) {
+        self.depth.jump(self.depth.target);
+        self.out.jump(self.out.target);
+    }
+
     /// A shaper whose segments take `shape` (the automation editor's `Shape::at`).
     pub fn new(sample_rate: f32, shape: ShapeFn) -> Fluctus {
         let set = FluctusSettings::default();
