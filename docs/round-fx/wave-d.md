@@ -448,3 +448,11 @@ presets (80–400 ms) and the agents' tool (`opt_in(0, MAX_INERTIA_MS)`) already
 - The pad's sheets re-shot in place (the flywheel's weight moved with the taper).
 
 ADR 0144 and the manual (EN/ES, *Tactus*) say all of it.
+
+Suites after follow-up 2 (one crate per call, the machine shared): `cantus-core` **839**
+green (1 ignored); `cantus-ui` **2 754** green (54 ignored) on a `--no-fail-fast` run — a run
+before it stopped on `preset_render`'s Arca CPU budget (+0.25 on three Arca presets, the
+known noise under load), green on the next; `cantus-ai` `tools_fxd` 6 green; clippy
+`-D warnings --all-targets` clean on `cantus-ui`, `cantus-core` and `cantus-ai`; `cargo fmt`
+clean on those and `cantus-engine`. Not run: the Linux check in WSL; the other crates' whole
+suites.
