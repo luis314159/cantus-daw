@@ -366,6 +366,16 @@ impl ModelEngine {
             && self.hybrid.at_rest()
     }
 
+    /// fx/final — every path's delay and level at its target at once (the playhead jumped:
+    /// a start, a seek, a loop's wrap), as a new kit takes them. The rings, the colours and
+    /// the room are kept.
+    pub fn snap(&mut self) {
+        for p in &mut self.paths[..self.n_paths] {
+            p.delay = p.delay_to;
+            p.gain = p.gain_to;
+        }
+    }
+
     pub fn reset(&mut self) {
         self.pulsus.reset();
         self.hybrid.reset(); // r40:drums-hyb

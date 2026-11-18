@@ -91,6 +91,12 @@ impl OutDelay {
         self.zeros < self.cap || self.cur != self.target
     }
 
+    /// fx/final — the head at the delay set, at once (the playhead jumped); what the line
+    /// holds is kept.
+    pub fn snap(&mut self) {
+        self.cur = self.target;
+    }
+
     /// Forget everything (a reset): silent, at its delay.
     pub fn clear(&mut self) {
         self.buf.iter_mut().for_each(|x| *x = 0.0);

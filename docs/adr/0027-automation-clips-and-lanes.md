@@ -179,3 +179,36 @@ width, and a track with its lanes hidden.
   between real-time processing and the offline render; a fader ride lands the gains the
   curve draws; an effect's parameter is untouched before its clip; the core's curve, lane,
   split, loop, overlap and articulator rules; undo of every edit in the fuzz.
+
+## Amendment (fx/final, `DSP_VERSION` 8): a jump snaps what the lanes drive
+
+§5's *What* let an effect's or instrument's own glides smooth every new value, the first
+included. So a render (or playback) started at bar N was not the whole render from bar N: a
+unit is made at its stored values, and at the first control point after the start it glided
+~20 ms from them to the automated value (wave D's finding: 5.2e-2 on bar 3's first note
+under an EQ band a lane held at +9 dB). A render from 0 glided too, in its first 20 ms.
+
+- **Snap.** `FxUnit::snap` / `EffectUnit::snap` / `InstrumentUnit::snap` (and
+  `Firmus::snap`): every value the last configure set is taken at once — the parameter
+  glides, de-zippers, crossfades between settings (a model's, a curve's, a pre-delay's), a
+  rotor's spin-up, a band's static gain. What the unit holds of the sound is kept: delay
+  lines, reverb tails, filter and circuit states, envelopes, LFO and rotor phases, a
+  measure that follows the audio (a loudness Match, Infinite's climb). A unit resting in
+  silence may also move to the new settings' operating points (a circuit, a band's gain
+  ring), which loses nothing. No allocation. `fx_snap.rs` holds every native kind to it:
+  made at A, configured at B and snapped renders the bits of a unit made at B;
+  `inst_contract.rs` (`snap::*`) the same for every native instrument.
+- **When.** The processor marks a **jump** — Play from stop, `Seek`, `SeekFrac`, a loop's
+  wrap, a sync start, a sync jump, a follower's locate while stopped — and at the control
+  point that follows (due at once), after every lane is evaluated there and its units
+  configured, it snaps every unit a lane or modulator drives: the master's and the strips'
+  inserts, a board's pedals through the board, the native instruments, Firmus. **Never**
+  at a snapshot's install: a change while playing (a knob, an edited lane) still glides.
+  Offline renders start with `Seek` + `Play`, so they start snapped.
+- **Firmus** takes its first settings at once (it glided from the factory's level and
+  cutoff when a render began on a note), as every effect's first configure already did.
+- What the tests hold: `render_from_bar.rs` — the render from bar 3 is the whole render's
+  bars 3… to the bit, and live playback started there (after a seek, or several) is the
+  render from bar 3, to the bit; `rt_memory.rs` — every native kind under a lane, played,
+  sought, wrapped and started again, never allocates. Renders whose automated native units
+  glided at their start move in those first ~20 ms only (`DSP_VERSION` 8).

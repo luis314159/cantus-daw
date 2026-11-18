@@ -656,6 +656,17 @@ impl InstrumentUnit for Unit {
         }
     }
 
+    /// fx/final — the playhead jumped: the modelled kit's paths, the outputs' delays and
+    /// the room's response at their settings at once (`ModelEngine::snap`,
+    /// `Outputs::snap`, `Aula::snap`); the hits ringing are kept.
+    fn snap(&mut self) {
+        self.model.snap();
+        self.outs.snap();
+        if let Some(a) = self.aula.as_deref_mut() {
+            a.snap();
+        }
+    }
+
     fn reset(&mut self) {
         self.rec.reset();
         self.model.reset();
