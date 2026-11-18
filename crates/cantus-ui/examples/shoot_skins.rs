@@ -290,11 +290,12 @@ fn scaled(app: &CantusApp, ctx: &egui::Context, what: What, k: f32) -> egui::Vec
             views::fx::frame::shell_of(kind).set_scale(ctx, k);
             views::fx::frame::designed_size(kind) * k
         }
-        What::Inst(_) => {
+        What::Inst(kind) => {
             if let Some(t) = app.inst.open {
                 Shell::new(("inst", t.0)).set_scale(ctx, k);
             }
-            shell::INSTRUMENT * k
+            // At the size the editor opens at (Chorda's 1 100 × 680).
+            views::inst::editor_size(kind) * k
         }
         What::Pulsus => {
             if let Some(t) = app.pulsus.open {

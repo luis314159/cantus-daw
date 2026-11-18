@@ -227,3 +227,32 @@ Every word whole at 100 % is painted whole at the other scales. No word is cut: 
 elided, not dropped, and at a view's whole size not painted past its card. No two words
 overlap, and none runs under a button. Before the fix it failed with 573 problems (most
 of them words dropped at 200 %).
+
+**Then (the coordinator's decisions on the two items left open):**
+
+- **Each instrument's editor opens at its own size.** `views::inst::editor_size` is the
+  shell's 1 040 × 680, or more where one of the instrument's views lays itself out whole
+  only in more:
+  - Chorda opens at 1 100 × 680, for its Mixer (1 100 × 600 plus the header and footer);
+  - Tympanum opens at 1 200 × 692, for its Mixer's width and its Kit's height
+    (1 180 × 640).
+
+  The editor registers this as its whole size (`DeviceWindow::whole_size`). The first
+  time it opens, a dock leaf smaller than that floats it. The window is sized to that
+  body plus its frame and tab bar, inside the workspace's area. Where the area is
+  smaller, the view scrolls as before. A place and size the user gave the editor are
+  kept (`workspace_device::place_of`). The narrowest window it allows stays the shell's
+  three quarters.
+- **The shell's header never cuts an instrument's name.** The shell measures the name on
+  its plate. Squeezed, the header gives up, in turn: the track's part ("(Piano)") — shown
+  whole or not at all — then the swap cap's word, the preset well's spare width, undo and
+  redo, and finally A/B.
+- The site's and the picker's pictures are taken at the editor's own size
+  (`picker_thumbs::REV` 4).
+
+`tests/instruments_scale_e2e.rs` holds both:
+
+- each instrument, opened fresh in the assembled app, opens at its size, its default view
+  uncut (only the lists at the left scroll);
+- at the narrowest window, every instrument's name is whole in its header, in English and
+  Spanish, and the header cuts nothing.

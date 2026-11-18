@@ -250,9 +250,31 @@ pub fn keyboard_shown(app: &CantusApp) -> bool {
 pub fn window_in(app: &mut CantusApp, ui: &mut egui::Ui) {
     if let Some(track) = app.inst.open {
         let k = Shell::new(("inst", track.0)).scale(ui.ctx());
-        host(ui, editor_id(track), shell::INSTRUMENT * k);
+        let kind = app.native_of(track).map(|n| n.kind);
+        host(
+            ui,
+            editor_id(track),
+            kind.map_or(shell::INSTRUMENT, editor_size) * k,
+        );
     }
     window(app, ui.ctx());
+}
+
+/// An instrument editor's size at 100 %: the shell's, or more where one of its views lays
+/// itself out whole only in more — Chorda's Mixer, Tympanum's Kit and Mixer (fx/final:
+/// opened at the shell's 1 040 × 680 they scrolled, cut at the window's edge). It opens at
+/// this size; a size the user gave it is kept apart (`workspace_device::place_of`).
+pub fn editor_size(kind: InstrumentKind) -> egui::Vec2 {
+    let chrome = egui::vec2(0.0, shell::HEADER + shell::FOOTER);
+    let least = match kind {
+        InstrumentKind::Chorda => crate::views::inst::chorda_source::mixer::MIN,
+        InstrumentKind::AcousticDrums => crate::views::inst::tympanum::KIT_MIN.max(egui::vec2(
+            crate::views::inst::tympanum::MIXER_MIN_W,
+            crate::views::inst::tympanum::MIXER_MIN_H,
+        )),
+        _ => egui::Vec2::ZERO,
+    };
+    shell::INSTRUMENT.max(least + chrome)
 }
 
 /// [`window_in`] with the editor's body `size` points (a review's shot of a whole view, taller
@@ -295,7 +317,9 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     }
     let shell = Shell::new(("inst", track.0)).skin(crate::kit::skin::of_instrument(spec.kind));
     let k = shell.scale(ctx);
-    let size = shell::INSTRUMENT * k;
+    let size = editor_size(spec.kind) * k;
+    // The narrowest window it allows stays the shell's three quarters (it scrolls there).
+    let least = shell::INSTRUMENT * 0.75 * k;
     let track_name = app
         .project()
         .track(track)
@@ -361,7 +385,8 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         .id(editor_id(track))
         .open(&mut open)
         .default_size(size)
-        .min_size(size * 0.75)
+        .min_size(least)
+        .whole_size(size)
         .hue(hue(spec.kind))
         .show(ctx, |ui| {
             let rect = ui.max_rect();
