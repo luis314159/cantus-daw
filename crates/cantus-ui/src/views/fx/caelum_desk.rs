@@ -23,18 +23,15 @@ use egui::{pos2, vec2, Align2, Color32, Rect, Sense};
 /// A button's lamp.
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Glyph {
-    None,
     Infinity,
     Crystal,
 }
 
-/// One button on the sill: its place, the parameter it throws (to `value`, or over when a
-/// toggle), its word, its lamp.
+/// One button on the sill: its place, the parameter it throws over, its word, its lamp.
 #[derive(Copy, Clone, Debug)]
 pub struct Key {
     pub rect: Rect,
     pub param: &'static str,
-    value: Option<f32>,
     word: &'static str,
     glyph: Glyph,
     /// The help line: its name and what it does.
@@ -151,7 +148,6 @@ impl Sill {
         let key = |rect, param, word, glyph, tip| Key {
             rect,
             param,
-            value: None,
             word,
             glyph,
             tip,
@@ -191,11 +187,7 @@ impl Sill {
 
 /// Whether `key` is lit at `spec`.
 fn lit(key: &Key, spec: &EffectSpec) -> bool {
-    let v = spec.get(key.param);
-    match key.value {
-        None => v >= 0.5,
-        Some(want) => (v.round() - want).abs() < 0.5,
-    }
+    spec.get(key.param) >= 0.5
 }
 
 /// The sill answers the pointer: a click throws a button, a press or a drag on the gauge
@@ -217,11 +209,7 @@ pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, sill: &Sill) ->
         let learnt = controls::stepped_offer(ui, s, host, key.param, name, &resp);
         let on = lit(key, host.spec());
         if resp.clicked() && !learnt {
-            match key.value {
-                None => host.set(key.param, if on { 0.0 } else { 1.0 }, None),
-                Some(v) if !on => host.set(key.param, v, None),
-                _ => {}
-            }
+            host.set(key.param, if on { 0.0 } else { 1.0 }, None);
         }
         if resp.hovered() {
             hint::set_text(ui.ctx(), tr(key.tip.0), tr(key.tip.1), Caps::NONE);
@@ -233,7 +221,11 @@ pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, sill: &Sill) ->
         };
     }
     let g = &sill.gauge;
-    let resp = ui.interact(g.rect, ui.id().with("caelum-sustain"), Sense::click_and_drag());
+    let resp = ui.interact(
+        g.rect,
+        ui.id().with("caelum-sustain"),
+        Sense::click_and_drag(),
+    );
     let learnt = controls::stepped_offer(ui, s, host, "isus", tr("fx.caelum.isus"), &resp);
     if !learnt {
         if resp.double_clicked() {
@@ -318,32 +310,25 @@ pub fn sill(
         let cap = art::button(b, s, key.rect, lens, Press { lit: on, ..*p });
         let ink_c = art::cap_ink(lens, on);
         let text = Text::key(key.word, Role::Control, ink_c).caps(false);
-        match key.glyph {
-            Glyph::None => {
-                canvas::put(b, cap.center(), Align2::CENTER_CENTER, &text, k, None);
-            }
-            g => {
-                let lamp = pos2(cap.left() + 16.0 * k, cap.center().y);
-                let col = if on > 0.5 {
-                    ink_c
-                } else {
-                    with_alpha(mix(lens, c(pal::STAR), 0.3), 0.55)
-                };
-                if g == Glyph::Infinity {
-                    art::infinity(b, lamp, 18.0 * k, 1.6 * k, col);
-                } else {
-                    art::crystal(b, lamp, 7.0 * k, 1.1 * k, col);
-                }
-                canvas::put(
-                    b,
-                    pos2(cap.left() + 30.0 * k, cap.center().y),
-                    Align2::LEFT_CENTER,
-                    &text,
-                    k,
-                    None,
-                );
-            }
+        let lamp = pos2(cap.left() + 16.0 * k, cap.center().y);
+        let col = if on > 0.5 {
+            ink_c
+        } else {
+            with_alpha(mix(lens, c(pal::STAR), 0.3), 0.55)
+        };
+        if key.glyph == Glyph::Infinity {
+            art::infinity(b, lamp, 18.0 * k, 1.6 * k, col);
+        } else {
+            art::crystal(b, lamp, 7.0 * k, 1.1 * k, col);
         }
+        canvas::put(
+            b,
+            pos2(cap.left() + 30.0 * k, cap.center().y),
+            Align2::LEFT_CENTER,
+            &text,
+            k,
+            None,
+        );
     }
     gauge(b, s, ink, &sill.gauge, press[2], spec);
 }
@@ -436,7 +421,12 @@ fn gauge(b: &mut Brush, s: &Style, ink: &Ink, g: &Gauge, p: Press, spec: &Effect
         3.0 * k,
     );
     b.rrect(rider, 2.5 * k, Fill::V(c(m.top), c(m.foot)));
-    b.rrect_stroke(rider, 2.5 * k, 0.8 * k, with_alpha(c(m.edge), 0.6 + 0.4 * lift));
+    b.rrect_stroke(
+        rider,
+        2.5 * k,
+        0.8 * k,
+        with_alpha(c(m.edge), 0.6 + 0.4 * lift),
+    );
     b.vline(
         x,
         rider.top() + 3.0 * k,

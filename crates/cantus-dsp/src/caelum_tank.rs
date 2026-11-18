@@ -514,6 +514,10 @@ pub struct Tank {
     /// the energy then); the leak (0…1) blends the loop toward the finite tank's.
     p_in: f32,
     k_pin: f32,
+    /// The input's power over 50 ms: what decides, while infinite, whether sound still
+    /// comes in that matters.
+    p_fast: f32,
+    k_fast: f32,
     a_flux: f32,
     a_loss: f32,
     ceil_e: f32,
@@ -659,6 +663,8 @@ impl Tank {
             amount_base: [0.0; CHANNELS],
             p_in: 0.0,
             k_pin: 1.0 - math::exp(-1.0 / (CEILING_AVG_S * fs)),
+            p_fast: 0.0,
+            k_fast: 1.0 - math::exp(-1.0 / (0.05 * fs)),
             a_flux: 0.0,
             a_loss: 0.0,
             ceil_e: 0.0,
@@ -800,6 +806,7 @@ impl Tank {
         self.trim = 1.0;
         self.sh_power = 0.0;
         self.p_in = 0.0;
+        self.p_fast = 0.0;
         self.a_flux = 0.0;
         self.a_loss = 0.0;
         self.drop = 0.0;
@@ -1120,6 +1127,25 @@ impl Tank {
                 self.p_in = 0.0;
             }
         }
+        // Infinite's "something comes in": sound arriving that matters against the wash — a
+        // synthesiser's release a hundred times under what would keep a finite tail where
+        // the wash is counts as nothing (the wash then settles and holds).
+        if p != 0.0 || self.p_fast != 0.0 {
+            self.p_fast += (p - self.p_fast) * self.k_fast;
+            if self.p_fast < 1e-30 {
+                self.p_fast = 0.0;
+            }
+        }
+        let fed = if self.infinite && fed {
+            let keeps = if self.a_flux > 0.0 {
+                self.energy * self.a_loss.max(0.0) / self.a_flux
+            } else {
+                0.0
+            };
+            self.p_fast > 0.01 * keeps
+        } else {
+            fed
+        };
         self.fed_last = fed;
         let (mut el, mut er) = (0.0f32, 0.0f32);
         for i in 0..n {
@@ -1598,6 +1624,7 @@ impl Tank {
         if !z(self.energy)
             || !z(self.energy_ref)
             || !z(self.p_in)
+            || !z(self.p_fast)
             || !z(self.ceil_e)
             || !z(self.a_flux)
             || !z(self.a_loss)
