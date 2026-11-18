@@ -259,24 +259,24 @@ impl EffectKind {
         EffectKind::TransientSplit,
         EffectKind::Analyzer,
         EffectKind::AutoTune,
-        EffectKind::Aula,       // r39:conv
-        EffectKind::AutoFilter, // fx:contract
-        EffectKind::Pedal,      // fx:contract
-        EffectKind::TimeShaper, // fx:contract
-        EffectKind::LoFi,       // fx:contract
-        EffectKind::Utility,    // fx:contract
-        EffectKind::Board,      // fx3:contract
-        EffectKind::PitchShift, // fx3:contract
-        EffectKind::Rotary,     // fx3:contract
-        EffectKind::Amp,        // fx3:contract
-        EffectKind::Vocoder,    // fxa:contract
-        EffectKind::Glitch,     // fxa:contract
-        EffectKind::Shimmer,    // fxa:contract
+        EffectKind::Aula,                // r39:conv
+        EffectKind::AutoFilter,          // fx:contract
+        EffectKind::Pedal,               // fx:contract
+        EffectKind::TimeShaper,          // fx:contract
+        EffectKind::LoFi,                // fx:contract
+        EffectKind::Utility,             // fx:contract
+        EffectKind::Board,               // fx3:contract
+        EffectKind::PitchShift,          // fx3:contract
+        EffectKind::Rotary,              // fx3:contract
+        EffectKind::Amp,                 // fx3:contract
+        EffectKind::Vocoder,             // fxa:contract
+        EffectKind::Glitch,              // fxa:contract
+        EffectKind::Shimmer,             // fxa:contract
         EffectKind::BusCompressor,       // fxb:contract
         EffectKind::ResonanceSuppressor, // fxb:contract
         EffectKind::Ducker,              // fxb:contract
-        EffectKind::Repair,     // fxc:contract
-        EffectKind::Reference,  // fxc:contract
+        EffectKind::Repair,              // fxc:contract
+        EffectKind::Reference,           // fxc:contract
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept

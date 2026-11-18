@@ -1979,9 +1979,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                                                   // fx3:tabula - per kind of `fx3_board_command`, applied and refused.
     let mut boarded = [[0usize; 2]; BOARD_KINDS]; // fx3:tabula
     let mut controlled = [[0usize; 2]; FXD_KINDS]; // fxd:contract
-                                                  // fxc:comparatio - Comparatio's reference lists, applied and refused.
+                                                   // fxc:comparatio - Comparatio's reference lists, applied and refused.
     let mut referenced = [0usize; 2];
-                                                  // 120 sequences (round 31: one arm more spreads the draws thinner).
+    // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.

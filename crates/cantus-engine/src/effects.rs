@@ -178,11 +178,11 @@ pub enum MemoryNeed {
 pub enum NeedTicket {
     EqLinear(cantus_dsp::aequalis::Resolution),
     Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
-    DelayLine(usize),                // r40:delay
-    Lapsus(usize),                   // fx:lapsus
-    Tabula(usize),                   // fx3:contract
-    Arca(crate::fx::arca::ArcaNeed), // fx3:arca
-    Fractus,                         // fxa:fractus
+    DelayLine(usize),                                  // r40:delay
+    Lapsus(usize),                                     // fx:lapsus
+    Tabula(usize),                                     // fx3:contract
+    Arca(crate::fx::arca::ArcaNeed),                   // fx3:arca
+    Fractus,                                           // fxa:fractus
     Comparatio(crate::fx::comparatio::ComparatioNeed), // fxc:comparatio
 }
 
@@ -193,10 +193,10 @@ impl NeedTicket {
             NeedTicket::EqLinear(r) => MemoryNeed::EqLinear(*r),
             NeedTicket::Aula(m) => MemoryNeed::Aula(m.read()),
             NeedTicket::DelayLine(n) => MemoryNeed::DelayLine(*n), // r40:delay
-            NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n), // fx:lapsus
-            NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n), // fx3:contract
-            NeedTicket::Arca(n) => MemoryNeed::Arca(*n),     // fx3:arca
-            NeedTicket::Fractus => MemoryNeed::Fractus,      // fxa:fractus
+            NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n),       // fx:lapsus
+            NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n),       // fx3:contract
+            NeedTicket::Arca(n) => MemoryNeed::Arca(*n),           // fx3:arca
+            NeedTicket::Fractus => MemoryNeed::Fractus,            // fxa:fractus
             NeedTicket::Comparatio(n) => MemoryNeed::Comparatio(*n), // fxc:comparatio
         }
     }

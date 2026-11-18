@@ -179,25 +179,25 @@ pub struct FxEditors {
     pub discrimen: discrimen::State,
     pub speculum: speculum::State,
     pub tonus: tonus::State,
-    pub aula: aula::State,       // r39:conv
-    pub cribrum: cribrum::State, // fx:contract
-    pub fragor: fragor::State,   // fx:contract
-    pub lapsus: lapsus::State,   // fx:contract
-    pub vetus: vetus::State,     // fx:contract
-    pub libra: libra::State,     // fx:contract
-    pub tabula: tabula::State,   // fx3:contract
-    pub saltus: saltus::State,   // fx3:contract
-    pub rota: rota::State,       // fx3:contract
-    pub arca: arca::State,       // fx3:contract
-    pub loquax: loquax::State,   // fxa:contract
-    pub fractus: fractus::State, // fxa:contract
-    pub caelum: caelum::State,   // fxa:contract
-    pub vinculum: vinculum::State, // fxb:contract
-    pub lenis: lenis::State,       // fxb:contract
-    pub cedo: cedo::State,         // fxb:contract
+    pub aula: aula::State,             // r39:conv
+    pub cribrum: cribrum::State,       // fx:contract
+    pub fragor: fragor::State,         // fx:contract
+    pub lapsus: lapsus::State,         // fx:contract
+    pub vetus: vetus::State,           // fx:contract
+    pub libra: libra::State,           // fx:contract
+    pub tabula: tabula::State,         // fx3:contract
+    pub saltus: saltus::State,         // fx3:contract
+    pub rota: rota::State,             // fx3:contract
+    pub arca: arca::State,             // fx3:contract
+    pub loquax: loquax::State,         // fxa:contract
+    pub fractus: fractus::State,       // fxa:contract
+    pub caelum: caelum::State,         // fxa:contract
+    pub vinculum: vinculum::State,     // fxb:contract
+    pub lenis: lenis::State,           // fxb:contract
+    pub cedo: cedo::State,             // fxb:contract
     pub purus: purus::State,           // fxc:contract
     pub comparatio: comparatio::State, // fxc:contract
-    pub delay: delay::State,     // r39:delay
+    pub delay: delay::State,           // r39:delay
     /// The X-Y pad's and the formula controller's window (fxd step 3).
     pub fxd: fxd_window::State, // fxd
     /// Hosted plug-ins' editors and menus (`views::plugins`).
@@ -671,25 +671,25 @@ pub enum Editor {
     Discrimen(Box<discrimen::State>),
     Speculum(Box<speculum::State>),
     Tonus(Box<tonus::State>),
-    Aula(Box<aula::State>),       // r39:conv
-    Cribrum(Box<cribrum::State>), // fx:contract
-    Fragor(Box<fragor::State>),   // fx:contract
-    Lapsus(Box<lapsus::State>),   // fx:contract
-    Vetus(Box<vetus::State>),     // fx:contract
-    Libra(Box<libra::State>),     // fx:contract
-    Tabula(Box<tabula::State>),   // fx3:contract
-    Saltus(Box<saltus::State>),   // fx3:contract
-    Rota(Box<rota::State>),       // fx3:contract
-    Arca(Box<arca::State>),       // fx3:contract
-    Loquax(Box<loquax::State>),   // fxa:contract
-    Fractus(Box<fractus::State>), // fxa:contract
-    Caelum(Box<caelum::State>),   // fxa:contract
-    Vinculum(Box<vinculum::State>), // fxb:contract
-    Lenis(Box<lenis::State>),       // fxb:contract
-    Cedo(Box<cedo::State>),         // fxb:contract
+    Aula(Box<aula::State>),             // r39:conv
+    Cribrum(Box<cribrum::State>),       // fx:contract
+    Fragor(Box<fragor::State>),         // fx:contract
+    Lapsus(Box<lapsus::State>),         // fx:contract
+    Vetus(Box<vetus::State>),           // fx:contract
+    Libra(Box<libra::State>),           // fx:contract
+    Tabula(Box<tabula::State>),         // fx3:contract
+    Saltus(Box<saltus::State>),         // fx3:contract
+    Rota(Box<rota::State>),             // fx3:contract
+    Arca(Box<arca::State>),             // fx3:contract
+    Loquax(Box<loquax::State>),         // fxa:contract
+    Fractus(Box<fractus::State>),       // fxa:contract
+    Caelum(Box<caelum::State>),         // fxa:contract
+    Vinculum(Box<vinculum::State>),     // fxb:contract
+    Lenis(Box<lenis::State>),           // fxb:contract
+    Cedo(Box<cedo::State>),             // fxb:contract
     Purus(Box<purus::State>),           // fxc:contract
     Comparatio(Box<comparatio::State>), // fxc:contract
-    Delay(Box<delay::State>),     // r39:delay
+    Delay(Box<delay::State>),           // r39:delay
 }
 
 impl Editor {

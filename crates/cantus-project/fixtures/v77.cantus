@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 77,
   "app_version": "fixture",
-  "saved_at": 1794969277,
+  "saved_at": 1794980732,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -337,7 +337,7 @@
             }
           },
           {
-            "id": 147,
+            "id": 149,
             "name": "Knob b",
             "start": 11520,
             "length": 3840,
@@ -349,7 +349,7 @@
             "automation": {
               "target": {
                 "ModInput": {
-                  "modulator": 146,
+                  "modulator": 148,
                   "input": 1
                 }
               },
@@ -3572,7 +3572,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "5c714741dba4c37d416046546d9e83a2eabe43e44f7d5c16c39dcfc4f832b250"
+          "content": "17a4c499a389ca30367bad5aae2a5db93828a518c97e8cb7d1fcc7536cf2ca59"
         }
       },
       {
@@ -4343,6 +4343,93 @@
                     "x": 0.7,
                     "y": 0.0,
                     "s": 2
+                  }
+                ]
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 145,
+            "bypass": false,
+            "spec": {
+              "kind": "Repair",
+              "params": {
+                "cdelta": 0.0,
+                "cmix": 1.0,
+                "con": 0.0,
+                "cout": 0.0,
+                "crackle": 0.0,
+                "csens": 0.5,
+                "hdelta": 0.0,
+                "hdepth": 40.0,
+                "hgentle": 0.0,
+                "hharm": 8.0,
+                "hhz": 50.0,
+                "hmix": 1.0,
+                "hmode": 0.0,
+                "hon": 1.0,
+                "hout": 0.0,
+                "hwidth": 2.0,
+                "out": 0.0,
+                "vamount": 12.0,
+                "vdecay": 0.0,
+                "vdelta": 0.0,
+                "vdirect": 0.0,
+                "vkeep": 50.0,
+                "vmix": 1.0,
+                "von": 1.0,
+                "vout": 0.0,
+                "vsmooth": 0.5,
+                "vt60": 0.8
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 146,
+            "bypass": false,
+            "spec": {
+              "kind": "Reference",
+              "params": {
+                "eqamt": 0.75,
+                "eqmax": 6.0,
+                "fade": 30.0,
+                "lend": 0.0,
+                "listen": 0.0,
+                "lstart": 0.0,
+                "match": 1.0,
+                "offset": 0.0,
+                "refl": 0.0,
+                "res": 0.0,
+                "seed": 0.0,
+                "soff": 0.0,
+                "sync": 0.0,
+                "trial": 0.0
+              },
+              "ir": {
+                "path": "references/Reference master.flac"
+              },
+              "refs": {
+                "list": [
+                  {
+                    "path": "references/Other master.wav",
+                    "playback": {
+                      "sync": 2.0,
+                      "soff": 0.0,
+                      "lstart": 45.0,
+                      "lend": 75.0
+                    }
+                  },
+                  {
+                    "path": "references/Reference master.flac",
+                    "bytes": 31457280,
+                    "hash": "9e3779b97f4a7c15"
+                  },
+                  {
+                    "path": "C:/Music/Album/03 Song.flac"
                   }
                 ]
               }
@@ -6575,7 +6662,7 @@
           ]
         },
         {
-          "id": 145,
+          "id": 147,
           "name": "Sweep",
           "source": {
             "XyPad": {
@@ -6630,7 +6717,7 @@
           ]
         },
         {
-          "id": 146,
+          "id": 148,
           "source": {
             "Formula": {
               "text": "a*Sin(SongTime*Pi*b)+c",
@@ -7153,7 +7240,7 @@
         "open": false
       }
     ],
-    "next_id": 148
+    "next_id": 150
   },
-  "integrity": "c2a729ba29781533fb62bdc97b07b943b29d045e356ace13dbbd6ad01333615a"
+  "integrity": "255fdfa93207f89c44d6bcbb91eb94648fed2369f38cf4fc7bd77d50e2c1b195"
 }

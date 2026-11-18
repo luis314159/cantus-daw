@@ -759,7 +759,7 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         EffectKind::BusCompressor => Some(&VINCULUM), // fxb:vinculum
         EffectKind::ResonanceSuppressor => Some(&LENIS), // fxb:lenis
         EffectKind::Ducker => Some(&CEDO),       // fxb:cedo
-        EffectKind::Repair => Some(&PURUS),         // fxc:purus
+        EffectKind::Repair => Some(&PURUS),      // fxc:purus
         EffectKind::Reference => Some(&COMPARATIO), // fxc:comparatio
         _ => None,
     }
@@ -849,8 +849,24 @@ mod tests {
     /// The side round's faces as drawn (a sheet still wearing a sibling's look is left out).
     fn faces() -> Vec<&'static Skin> {
         [
-            &CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA, &LOQUAX, &FRACTUS,
-            &CAELUM, &XY, &FORMULA, &VINCULUM, &LENIS, &CEDO, &PURUS, &COMPARATIO,
+            &CRIBRUM,
+            &FRAGOR,
+            &LAPSUS,
+            &VETUS,
+            &LIBRA,
+            &SALTUS,
+            &ROTA,
+            &ARCA,
+            &LOQUAX,
+            &FRACTUS,
+            &CAELUM,
+            &XY,
+            &FORMULA,
+            &VINCULUM,
+            &LENIS,
+            &CEDO,
+            &PURUS,
+            &COMPARATIO,
         ] // fx3:saltus, fx3:rota, fx3:arca, fxb, fxc, fxd
         .into_iter()
         .filter(|s| !is_placeholder(s))

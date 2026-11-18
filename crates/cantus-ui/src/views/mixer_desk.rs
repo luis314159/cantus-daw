@@ -579,24 +579,24 @@ pub fn short_name(e: &EffectSlot) -> String {
         K::TransientSplit => "mixer.chain.discrimen",
         K::Analyzer => "mixer.chain.speculum",
         K::AutoTune => "mixer.chain.tonus",
-        K::Aula => "mixer.chain.aula",          // r39:conv
-        K::AutoFilter => "mixer.chain.cribrum", // fx:contract
-        K::Pedal => "mixer.chain.fragor",       // fx:contract
-        K::TimeShaper => "mixer.chain.lapsus",  // fx:contract
-        K::LoFi => "mixer.chain.vetus",         // fx:contract
-        K::Utility => "mixer.chain.libra",      // fx:contract
-        K::Board => "mixer.chain.tabula",       // fx3:contract
-        K::PitchShift => "mixer.chain.saltus",  // fx3:contract
-        K::Rotary => "mixer.chain.rota",        // fx3:contract
-        K::Amp => "mixer.chain.arca",           // fx3:contract
-        K::Vocoder => "mixer.chain.loquax",     // fxa:contract
-        K::Glitch => "mixer.chain.fractus",     // fxa:contract
-        K::Shimmer => "mixer.chain.caelum",     // fxa:contract
+        K::Aula => "mixer.chain.aula",                 // r39:conv
+        K::AutoFilter => "mixer.chain.cribrum",        // fx:contract
+        K::Pedal => "mixer.chain.fragor",              // fx:contract
+        K::TimeShaper => "mixer.chain.lapsus",         // fx:contract
+        K::LoFi => "mixer.chain.vetus",                // fx:contract
+        K::Utility => "mixer.chain.libra",             // fx:contract
+        K::Board => "mixer.chain.tabula",              // fx3:contract
+        K::PitchShift => "mixer.chain.saltus",         // fx3:contract
+        K::Rotary => "mixer.chain.rota",               // fx3:contract
+        K::Amp => "mixer.chain.arca",                  // fx3:contract
+        K::Vocoder => "mixer.chain.loquax",            // fxa:contract
+        K::Glitch => "mixer.chain.fractus",            // fxa:contract
+        K::Shimmer => "mixer.chain.caelum",            // fxa:contract
         K::BusCompressor => "mixer.chain.vinculum",    // fxb:contract
         K::ResonanceSuppressor => "mixer.chain.lenis", // fxb:contract
         K::Ducker => "mixer.chain.cedo",               // fxb:contract
-        K::Repair => "mixer.chain.purus",         // fxc:contract
-        K::Reference => "mixer.chain.comparatio", // fxc:contract
+        K::Repair => "mixer.chain.purus",              // fxc:contract
+        K::Reference => "mixer.chain.comparatio",      // fxc:contract
     };
     crate::i18n::t(key)
 }

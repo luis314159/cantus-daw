@@ -388,10 +388,10 @@ impl Shared {
                 Mutex::new((Some(tx), Some(rx)))
             },
             scope_lost: AtomicU64::new(0),
-            cedo: Default::default(),    // fxb:cedo
-            lapsus: Default::default(),  // fx:lapsus
-            board: Default::default(),   // fx3:tabula
-            fractus: Default::default(), // fxa:fractus
+            cedo: Default::default(),       // fxb:cedo
+            lapsus: Default::default(),     // fx:lapsus
+            board: Default::default(),      // fx3:tabula
+            fractus: Default::default(),    // fxa:fractus
             comparatio: Default::default(), // fxc:comparatio
             tapped: AtomicU64::new(0),
         });
@@ -858,7 +858,7 @@ pub struct Processor {
     )>,
     comparatio_held: Option<crate::lapsus_bank::Posted<cantus_core::IrFile>>,
     /// fxc:comparatio — the host renders offline (seen at the last pull): the mix heard.
-    offline: bool,
+    comparatio_offline: bool,
     /// fx3:tabula — the board's rings while this processor lives, and a post that could not
     /// go back yet.
     board: Option<crate::board_post::Lent>,
@@ -1023,7 +1023,7 @@ impl Processor {
             fractus,    // fxa:fractus
             comparatio, // fxc:comparatio
             comparatio_held: None,
-            offline: table.kind == cantus_core::EffectKind::Reference
+            comparatio_offline: table.kind == cantus_core::EffectKind::Reference
                 && shared.comparatio.offline(),
             fractus_held: None, // fxa:fractus
             cedo,               // fxb:cedo
@@ -1203,8 +1203,8 @@ impl Processor {
         // fxc:comparatio — a host that starts or stops rendering offline.
         if self.shared.table.kind == cantus_core::EffectKind::Reference {
             let offline = self.shared.comparatio.offline();
-            if offline != self.offline {
-                self.offline = offline;
+            if offline != self.comparatio_offline {
+                self.comparatio_offline = offline;
                 self.dirty = true;
             }
         }

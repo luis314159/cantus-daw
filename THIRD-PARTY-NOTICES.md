@@ -11,6 +11,7 @@ ask us to carry. Nothing here limits the rights each licence gives you.
 
 - [Cantus itself](#cantus-itself)
 - [Patched crates: cpal and asio-sys](#patched-crates-cpal-and-asio-sys)
+- [Patched crate: egui-baseview](#patched-crate-egui-baseview)
 - [Patched crate: eframe](#patched-crate-eframe)
 - [The Steinberg ASIO SDK](#the-steinberg-asio-sdk)
 - [Trademarks](#trademarks)
@@ -803,7 +804,7 @@ The list, with every file's URL and SHA-256, is `crates/cantus-content/manifest/
 
 ## Rust crates
 
-514 crates from crates.io are compiled into `cantus.exe` and the Cantus plug-ins (Windows x64); 34 more are used only to build them (marked *build*). Each is listed with the licence its author declared and the licence files it ships, printed once each under [Licence texts](#licence-texts). Where a crate offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its author allows. The patched `cpal` and `asio-sys` are under [Patched crates](#patched-crates-cpal-and-asio-sys) above, the patched `egui-baseview` under [its own](#patched-crate-egui-baseview).
+513 crates from crates.io are compiled into `cantus.exe` and the Cantus plug-ins (Windows x64); 34 more are used only to build them (marked *build*). Each is listed with the licence its author declared and the licence files it ships, printed once each under [Licence texts](#licence-texts). Where a crate offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its author allows. The patched `cpal` and `asio-sys` are under [Patched crates](#patched-crates-cpal-and-asio-sys) above, the patched `egui-baseview` and `eframe` each under its own ([egui-baseview](#patched-crate-egui-baseview), [eframe](#patched-crate-eframe)).
 
 | Crate | Version | Licence | Texts |
 |---|---|---|---|

@@ -9,6 +9,7 @@ ask us to carry. Nothing here limits the rights each licence gives you.
 
 - [Cantus itself](#cantus-itself)
 - [Patched crates: cpal and asio-sys](#patched-crates-cpal-and-asio-sys)
+- [Patched crate: egui-baseview](#patched-crate-egui-baseview)
 - [Patched crate: eframe](#patched-crate-eframe)
 - [The Steinberg ASIO SDK](#the-steinberg-asio-sdk)
 - [Trademarks](#trademarks)
