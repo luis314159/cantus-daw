@@ -10,8 +10,8 @@ of this merge** (owner, 2026-11-17): it lands later, as its own second merge ont
 
 | # | Branch | What | Merged at |
 |---|---|---|---|
-| 1 | `fx/integration` `0e6b2722` | Cribrum, Fragor, Lapsus, Vetus, Libra, Tabula, Saltus, Arca, Rota, Loquax, Fractus, Caelum (step 3) and their docs | `899cfe16` |
-| 2 | `fx/web` `d8ae6fe9` | the site: every new unit's card and page (EN/ES), Try it | — |
+| 1 | `fx/integration` `0e6b2722` | Cribrum, Fragor, Lapsus, Vetus, Libra, Tabula, Saltus, Arca, Rota, Loquax, Fractus, Caelum (step 3) and their docs | `899cfe16` (and its BACKLOG §6k tip `6e4f6201` at `879f6418`) |
+| 2 | `fx/web` `d8ae6fe9` | the site: every new unit's card and page (EN/ES), Try it | `2f170a7b` |
 | 3 | `fx/excel` | Caelum's continuous Sustain | later |
 | 4 | `fx/wave-b` | Vinculum, Lenis, Cedo | later |
 | 5 | `fx/wave-c` | Purus, Comparatio | later |
@@ -127,11 +127,79 @@ Conflicts (24 files), resolved file by file against round 40:
   round 40). The README's grid still lacks the units after Libra — written once every unit has
   landed and its pictures are shot (below).
 
+## Merge 2: `fx/web` (`2f170a7b`)
+
+One conflict, `web/src/units_data.rs` (the comment over Libra's card): fx/web's cards kept
+(Vinculum, Lenis, Cedo, Purus, Comparatio — `EFFECTS: [Unit; 42]`), their ADR comments on the
+final numbers. Their `MERGE:` notes (preset counts, *plugin* flags, Cedo's drawn shape, the
+v1 window sentences of Purus and Comparatio, the pictures' sizes) are settled when wave B and
+wave C land — they depend on what those branches finally hold. The integrator's note in
+`site.md` (Try it's unit row cut its last card at the edge) is done: the row fades at its
+right edge and scrolls the last card clear (`web/style/units.css`).
+
+## Fixes after the merges
+
+- `4113c5ae`: round 40's listen rig (`listen.rs`) and the export's block loop (`render.rs`),
+  which answer memory requests while the song plays, carry the board pedal the request is
+  for (they did not compile against the side round's messages); `fx_delay_sync.rs` too.
+- `5082c15c`: rustfmt on the merged lines.
+- The MCP tools golden needed no change (`ai_mcp_boot` passes as merged).
+
+## Verified so far (Windows, `fx/final` at `5082c15c`)
+
+- `cargo clippy --all-targets -- -D warnings`, one crate at a time: `cantus-core`,
+  `cantus-dsp`, `cantus-engine`, `cantus-project`, `cantus-plugins` (and with
+  `--no-default-features`), `cantus-ai`, `cantus-ui`, `cantus` (the app), `cantus-bench` —
+  clean. `cargo fmt -p … -- --check` clean for each (`cantus-ui` by `rustfmt --check` on its
+  files: os error 206).
+- Tests: `cantus-core` 873 passed, 0 failed, 1 ignored (the undo fuzz with every arm);
+  `cantus-project` 205 passed, 0 failed, 1 ignored (every fixture v1…v74 loads; the side
+  round's schema 72–74 tests); `cantus-dsp` 1 159 passed, 0 failed, 38 ignored; `cantus-ui`'s
+  `ai_mcp_boot` (the tools golden) passes.
+- Not yet run (lanes shared with the builders): the engine, plug-ins, UI and AI suites, the
+  engine with `CANTUS_WORKERS=3 --features fuzz`, the null hashes, the Linux check, the web
+  crate (`cargo check` for wasm32 and `ssr`), Trunk.
+
+## What each later branch needs at its merge
+
+New lines a branch brings still carry provisional numbers; they are settled with
+`renum_new.py <first parent> 130 151 -3` (the integrator's scratch tool: it rewrites only
+lines that are not already in the first parent, so a settled number is never shifted twice),
+then the schema by hand.
+
+- **`fx/excel`** (Caelum's continuous Sustain): edits ADR 0141 → **0138** (renamed here; git
+  follows the rename), Caelum's plug-in ids (`isus` appended, `ishim`/`ilevel` gone — never
+  released; re-bless `ids.txt` after round 40's and ours), the AI's words (the tools golden
+  again), `units_data.rs`'s Caelum card. No schema.
+- **`fx/wave-b`**: schema 65 → **75** (its migration kept), ADRs 0142–0144 → **0139–0141**;
+  keep fx/web's Vinculum and Lenis cards; settle their `MERGE:` notes and Cedo's (preset
+  counts, the plug-in flags, "a shape you draw"); `lapsus_bank.rs`'s one-hunk
+  `ContentPost<T>` conflict (keep both impls); master's sums differ by 3e-8 where the key
+  route reorders them (check the affected golden); Lenis's latency re-report gated on Linux
+  (the VST3 tick is Windows-only); `CantusApp::fx` boxed (the stack budget);
+  `write_fixture 75`.
+- **`fx/wave-c`**: schema 66 → **76** (its empty 64→65 step was wave B's: keep one step per
+  number), ADRs 0145–0146 → **0142–0143**; Purus's and Comparatio's cards' `MERGE:` notes and
+  window sentences against the owner's verdicts; `write_fixture 76`.
+- **`fx/wave-d`**: schema 67 → **77**, ADRs 0147–0148 → **0144–0145**; the native effects'
+  ~20 ms glide when a render starts mid-song (its `#[ignore]`d engine test) → fixed with
+  `DSP_VERSION` **8** and the golden dump in one commit; the site's Controllers note;
+  `write_fixture 77`.
+- **`fix/flicker`** (cut from master `477cb6b4`): ADRs 0149/0150 → **0146/0147**, keymap 18
+  stays 18; its `beta-checklist.md` steps and `troubleshooting-graphics.md`.
+- **`fx/multimon`**: not in this merge (above).
+
+After the last: `docs/round-fx/site.md` §5 (uncomment wave B/C's lines in `shoot_skins.rs`,
+the pictures, `check_units.py --fix`, every card's excerpts with Aula's re-rendered, Try it's
+takes and pictures, the site's build and checks), the README's grid with every unit and the
+counts that go with it, the whole suite on Windows and Linux, STATUS.
+
 ## Still to do on this branch (after the later merges)
 
-- `fixtures/v72`–`v77.cantus` written by `write_fixture <N>` (v72–v74 now; v75–v77 at their
-  merges) and the project suite.
-- The MCP tools golden (`CANTUS_TOOLS_DUMP=1`) once the tree builds whole.
+- `fixtures/v75`–`v77.cantus` written by `write_fixture <N>` at wave B's, C's and D's merges
+  (v72–v74 are written, `291ff166`).
+- The MCP tools golden (`CANTUS_TOOLS_DUMP=1`) again after each later merge that adds tools or
+  effect words.
 - The site's §5 commands (`docs/round-fx/site.md`): pictures, excerpts, Try it, Aula's
   excerpts re-rendered, the README grid with every unit and its counts.
 - The whole suite on Windows and the Linux check, plug-ins without default features, STATUS.
