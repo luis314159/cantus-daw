@@ -184,8 +184,11 @@ fn saving_beside_another_version_of_the_character_keeps_both() {
     let mut app = assembled();
     let track = dancer(&mut app, 2);
     let src = tempfile::tempdir().unwrap();
-    samples::write(src.path(), &samples::dotlottie("Sunny")).unwrap();
-    dance_import::begin(&mut app, track, src.path().join("Sunny.lottie"), None);
+    // A name of its own: the tests of this binary share one untitled folder, and the first
+    // test's Sunny, copied there at the same moment, would share this one's folder (both
+    // failed once in a full Linux run on a loaded machine, 2026-11-18).
+    samples::write(src.path(), &samples::dotlottie("Breezy")).unwrap();
+    dance_import::begin(&mut app, track, src.path().join("Breezy.lottie"), None);
     dance_import::poll(&mut app, true);
     assert!(dance_import::use_card(&mut app));
     dance_import::poll(&mut app, true);
@@ -197,7 +200,7 @@ fn saving_beside_another_version_of_the_character_keeps_both() {
         .unwrap()
         .to_string();
     let folder = tempfile::tempdir().unwrap();
-    let path = src.path().join("Sunny.lottie");
+    let path = src.path().join("Breezy.lottie");
     let found = cantus_dance::import::inspect(&path).unwrap();
     let mut s = cantus_dance::import::guessed(&found);
     s.mapping.moves[Move::Clap.index()] = None;
