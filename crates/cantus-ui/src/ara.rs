@@ -107,7 +107,7 @@ impl CantusApp {
             .find_map(|t| t.clip(r.1))
             .map(|c| c.name.clone())
             .unwrap_or_default();
-        let owner = self.plugins.owner_window;
+        let owner = self.editor_owner();
         match self
             .plugins
             .ara

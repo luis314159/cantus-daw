@@ -237,6 +237,7 @@ impl CantusApp {
                     dock: None,
                     place,
                     bar: true,
+                    groups: Vec::new(),
                     on_top: false,
                     scale: None,
                 };
@@ -264,6 +265,7 @@ impl CantusApp {
                     dock: None,
                     place,
                     bar: true,
+                    groups: Vec::new(),
                     on_top: false,
                     scale: None,
                 };
@@ -339,6 +341,46 @@ impl CantusApp {
             h,
         };
         self.move_pane(ctx, pane, Target::NewWindowAt(rect));
+    }
+
+    /// The window a plug-in editor opened now belongs to (ADR 0151 §10): the window of its
+    /// own the user is working in — its editor opens on that window's screen, a little in
+    /// from its corner — else the main window.
+    pub fn editor_owner(&mut self) -> Option<raw_window_handle::RawWindowHandle> {
+        let host = self.windows.host;
+        if let Some(i) = self.windows.index_of(host) {
+            let w = &self.windows.list[i];
+            if let Some(raw) = w.native {
+                let at = w.seen.outer.map(|r| {
+                    let inset = (48.0 * w.seen.native.max(1.0)) as i32;
+                    (r.x + inset, r.y + inset)
+                });
+                cantus_host::window::place_next(at);
+                return Some(raw);
+            }
+        }
+        cantus_host::window::place_next(None);
+        self.plugins.owner_window
+    }
+
+    /// Before window `i` goes: its plug-in editors given to the main window, or Windows
+    /// would destroy them with it (ADR 0151 §10).
+    pub(crate) fn release_editors(&mut self, i: usize) {
+        let Some(raw) = self.windows.list.get(i).and_then(|w| w.native) else {
+            return;
+        };
+        let id = crate::windows::handle_id(&raw);
+        let main = self.plugins.owner_window;
+        let n = self.plugins.reown_windows(id, main);
+        if n > 0 {
+            log::info!(
+                "{n} plug-in editor window(s) given to the main window before their window closed"
+            );
+        }
+        self.windows.released.push(id);
+        if self.windows.released.len() > 64 {
+            self.windows.released.remove(0);
+        }
     }
 
     /// Where a tab of the dock `here` can be sent: the main window, every other window by

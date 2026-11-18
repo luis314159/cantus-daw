@@ -241,6 +241,32 @@ impl Rig {
         if let Some(p) = self.pointers.get(&id) {
             events.insert(0, Event::PointerMoved(*p));
         }
+        // The test speaks in the window's own points (what its last pass drew); egui-winit
+        // gives the shell points of egui's zoom, which `adjust_input` turns into the window's:
+        // positions are handed over in egui-winit's units.
+        let k = self
+            .app
+            .as_ref()
+            .and_then(|a| a.windows.index_of(id).map(|i| a.windows.list[i].factor))
+            .unwrap_or(1.0);
+        let events = events
+            .into_iter()
+            .map(|e| match e {
+                Event::PointerMoved(p) => Event::PointerMoved((p.to_vec2() * k).to_pos2()),
+                Event::PointerButton {
+                    pos,
+                    button,
+                    pressed,
+                    modifiers,
+                } => Event::PointerButton {
+                    pos: (pos.to_vec2() * k).to_pos2(),
+                    button,
+                    pressed,
+                    modifiers,
+                },
+                e => e,
+            })
+            .collect();
         let mut raw = self.input(id, &s, events);
         let mut app = self.app.take().unwrap();
         cantus_ui::windows_pass::adjust_input(&mut app, &self.ctx, &mut raw);

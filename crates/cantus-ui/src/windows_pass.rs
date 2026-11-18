@@ -118,6 +118,24 @@ pub fn adjust_input(app: &mut CantusApp, ctx: &Context, raw: &mut RawInput) {
     }
 }
 
+/// Whether this pass's input was the user's doing in this window: a press, a key, typed
+/// text, the clipboard's keys (the window then hosts the dialogs and the editors opened).
+pub fn interacted(ctx: &Context) -> bool {
+    ctx.input(|inp| {
+        inp.events.iter().any(|e| {
+            matches!(
+                e,
+                egui::Event::PointerButton { pressed: true, .. }
+                    | egui::Event::Key { pressed: true, .. }
+                    | egui::Event::Text(_)
+                    | egui::Event::Copy
+                    | egui::Event::Cut
+                    | egui::Event::Paste(_)
+            )
+        })
+    })
+}
+
 /// Whether `pane` moves for one of `reasons` (the ticker's bits): what a window must draw
 /// while the song plays, a meter falls or an analyser runs.
 pub fn moves(pane: crate::views::workspace::Pane, reasons: u16) -> bool {
@@ -220,19 +238,8 @@ impl CantusApp {
             ctx.viewport_id()
         };
         self.windows.list[i].passes += 1;
-        let interacted = ctx.input(|inp| {
-            inp.events.iter().any(|e| {
-                matches!(
-                    e,
-                    egui::Event::PointerButton { pressed: true, .. }
-                        | egui::Event::Key { pressed: true, .. }
-                        | egui::Event::Text(_)
-                        | egui::Event::Copy
-                        | egui::Event::Cut
-                        | egui::Event::Paste(_)
-                )
-            })
-        });
+        let began = std::time::Instant::now();
+        let interacted = interacted(&ctx);
         if interacted {
             self.windows.host = viewport;
         }
@@ -269,6 +276,8 @@ impl CantusApp {
             self.every_pass(&ctx);
         }
         crate::views::window_bar::menu(self, &ctx, i);
+        crate::views::window_bar::groups_menu(self, &ctx, i);
+        crate::views::window_bar::rename_dialog(self, &ctx, i);
         self.windows.current = None;
         std::mem::swap(&mut self.workspace, &mut self.windows.list[i].workspace);
         // A change made here: the engine hears it now, the other windows draw it once.
@@ -283,6 +292,10 @@ impl CantusApp {
                 }
             }
             ticker::finish(&ctx);
+        }
+        let key = self.windows.list[i].key;
+        if let Some(s) = self.windows.stats.as_mut() {
+            s.note(Some(key), began.elapsed().as_secs_f64());
         }
     }
 }

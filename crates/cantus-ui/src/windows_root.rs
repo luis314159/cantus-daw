@@ -29,6 +29,9 @@ impl CantusApp {
         self.close_windows(ctx);
         self.place_windows();
         self.show_windows(ctx);
+        if let Some(s) = self.windows.stats.as_mut() {
+            s.report(now);
+        }
     }
 
     /// What the system says of the main window: its place in physical pixels and the
@@ -122,6 +125,7 @@ impl CantusApp {
                     gone.push(self.window_name(i));
                     let shape = self.window_shape(i);
                     let screen = shape.place.as_ref().map(|p| p.screen.clone());
+                    self.release_editors(i);
                     self.windows.list.remove(i);
                     self.park_shape(shape);
                     if let Some(s) = screen {
@@ -235,10 +239,12 @@ impl CantusApp {
             self.windows.pending = Some(lay.clone());
             return;
         }
-        // The windows there are now close; their areas are the layout's to place.
-        while let Some(w) = self.windows.list.pop() {
-            drop(w);
+        // The windows there are now close (their plug-in editors given to the main window
+        // first); their areas are the layout's to place.
+        for i in 0..self.windows.list.len() {
+            self.release_editors(i);
         }
+        self.windows.list.clear();
         self.windows.parked.clear();
         self.windows.current = None;
         self.central = lay.central.into();
@@ -261,6 +267,7 @@ impl CantusApp {
                 i += 1;
                 continue;
             }
+            self.release_editors(i);
             let w = self.windows.list.remove(i);
             for p in w.workspace.panes() {
                 if self.dock_of(p).is_none() {
@@ -278,6 +285,11 @@ impl CantusApp {
     /// handle; without one (tests, a window not made yet) it shows where the system puts it.
     fn place_windows(&mut self) {
         for w in &mut self.windows.list {
+            if w.native.is_none() {
+                use raw_window_handle::HasWindowHandle as _;
+                w.native = eframe::window_of(w.id())
+                    .and_then(|win| win.window_handle().ok().map(|h| h.as_raw()));
+            }
             if w.shown {
                 if let Some(r) = w.seen.outer {
                     // Where it is now is its place (the system moves it, the user drags it).

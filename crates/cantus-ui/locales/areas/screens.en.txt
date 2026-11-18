@@ -63,3 +63,5 @@ action.layout-9 = Layout 9 (the View menu's ninth)
 action.toggle-full-screen = Full screen for the window in front
 action.move-to-new-window = Move the area to a new window
 action.screens-map = Screens and windows…
+screens.window.rename_title = The window’s name
+screens.window.name_hint = Empty: named after its areas

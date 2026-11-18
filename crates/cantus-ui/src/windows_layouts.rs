@@ -89,6 +89,7 @@ impl Builtin {
             dock: dock_to_value(&dock),
             place: screen.and_then(|s| screens::fresh_place(now, s)),
             bar: true,
+            groups: Vec::new(),
             on_top: false,
             scale: None,
         };

@@ -338,3 +338,163 @@ fn a_tab_dragged_out_of_the_window_becomes_a_window_where_it_fell() {
         );
     });
 }
+
+/// A stand-in for a window's native handle (no OS window in the rig).
+fn fake_native(n: isize) -> raw_window_handle::RawWindowHandle {
+    raw_window_handle::RawWindowHandle::Win32(raw_window_handle::Win32WindowHandle::new(
+        std::num::NonZeroIsize::new(n).unwrap(),
+    ))
+}
+
+/// ADR 0151 §10: a plug-in editor opened from a window of its own belongs to that window
+/// and opens on its screen; before that window goes — closed, docked back, its screen
+/// unplugged, a layout applied — its editors are given to the main window first (Windows
+/// destroys an owned window with its owner). The re-owning itself is held by
+/// cantus-host's `owner_tests` on real Win32 windows.
+#[test]
+fn a_windows_plug_in_editors_are_its_own_and_outlive_it() {
+    run(|| {
+        let mut r = with_mixer_window();
+        let id = r.windows()[0];
+        r.app().windows.list[0].native = Some(fake_native(0x5150));
+        // Working in the mixer's window: an editor opened now is owned by it, placed a
+        // little in from its corner on its screen.
+        r.click(id, egui::Pos2::new(400.0, 400.0), PointerButton::Primary);
+        assert_eq!(r.app().windows.host, id);
+        let owner = r.app().editor_owner();
+        assert_eq!(owner, Some(fake_native(0x5150)));
+        let at = cantus_host::window::next_place().expect("a place on its screen");
+        assert!(
+            at.0 >= 2880 && at.0 < 2880 + 1920,
+            "on the external screen: {at:?}"
+        );
+        cantus_host::window::place_next(None);
+        // From the main window: the main window's.
+        r.click(
+            ViewportId::ROOT,
+            egui::Pos2::new(400.0, 300.0),
+            PointerButton::Primary,
+        );
+        let main = r.app().plugins.owner_window;
+        assert_eq!(r.app().editor_owner(), main);
+        // The window docks back: its editors were given away before it went.
+        let ctx = r.ctx.clone();
+        r.app()
+            .move_pane(&ctx, Pane::Mixer, cantus_ui::windows::Target::Main);
+        r.idle(2);
+        assert!(r.windows().is_empty());
+        assert_eq!(r.app().windows.released, vec![0x5150]);
+        // Its screen unplugged, and a layout applied: the same, every time.
+        r.app().move_pane(
+            &ctx,
+            Pane::Mixer,
+            cantus_ui::windows::Target::NewWindow { screen: Some(1) },
+        );
+        r.idle(2);
+        r.app().windows.list[0].native = Some(fake_native(0x6160));
+        r.set_screens(vec![laptop()]);
+        r.idle(2);
+        assert_eq!(r.app().windows.released.last(), Some(&0x6160));
+        r.set_screens(vec![laptop(), external()]);
+        r.idle(2);
+        r.app().windows.list[0].native = Some(fake_native(0x7170));
+        r.app().reset_layout();
+        r.idle(2);
+        assert_eq!(r.app().windows.released.last(), Some(&0x7170));
+    });
+}
+
+/// ADR 0151 §4: *Choose what the bar shows…* and *Rename the window…* in a window's menu,
+/// kept with the layout (user settings: no undo, the project is untouched).
+#[test]
+fn a_windows_bar_and_name_are_chosen_from_its_menu_and_kept() {
+    run(|| {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+        let fresh = Rig::in_dir(
+            &dir,
+            vec![laptop(), external()],
+            Some(cantus_ui::welcome_project()),
+        );
+        let mut r = with_mixer_window_in(fresh);
+        let id = r.windows()[0];
+        let revision = r.app().bus.revision();
+        let open_menu = |r: &mut Rig| {
+            r.click(id, egui::Pos2::new(24.0, 22.0), PointerButton::Primary);
+            r.child(id, Vec::new());
+        };
+        // The bar's groups: the metronome added.
+        open_menu(&mut r);
+        assert!(r.app().windows.menu.is_some(), "the window's menu opened");
+        let row = r.text_in(id, "Choose what the bar shows…")[0];
+        {
+            let p = row.center();
+            let ev = |pressed| egui::Event::PointerButton {
+                pos: p,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Default::default(),
+            };
+            r.pointers.insert(id, p);
+            r.pass_in(id, vec![]);
+            r.pass_in(id, vec![ev(true)]);
+            r.pass_in(id, vec![ev(false)]);
+        }
+        assert!(
+            r.app().windows.groups_menu.is_some(),
+            "the groups' list opened (menu {:?}, row {row:?})",
+            r.app().windows.menu
+        );
+        r.idle(2);
+        let metronome = r.text_in(id, "Metronome");
+        let texts: Vec<String> = r.texts(id).into_iter().map(|t| t.0).collect();
+        assert_eq!(
+            metronome.len(),
+            1,
+            "the groups' list drawn in the window: {:?}; painted {texts:?}",
+            r.app().windows.groups_menu
+        );
+        r.click(id, metronome[0].center(), PointerButton::Primary);
+        r.child(id, Vec::new());
+        use cantus_ui::views::transport::layout::Group;
+        assert!(r.app().windows.list[0].groups.contains(&Group::Metronome));
+        r.key(id, Key::Escape, Modifiers::NONE);
+        // Its name: typed in the kit's dialog, Enter keeps it.
+        open_menu(&mut r);
+        let row = r.text_in(id, "Rename the window…")[0];
+        r.click(id, row.center(), PointerButton::Primary);
+        r.idle(2);
+        r.pass_in(
+            id,
+            vec![egui::Event::Key {
+                key: Key::A,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::COMMAND,
+            }],
+        );
+        r.pass_in(id, vec![egui::Event::Text("Drums".into())]);
+        r.key(id, Key::Enter, Modifiers::NONE);
+        r.idle(2);
+        assert_eq!(r.app().window_name(0), "Drums");
+        assert_eq!(
+            r.app().bus.revision(),
+            revision,
+            "not the project: nothing to undo"
+        );
+        // Kept with the layout.
+        let ctx = r.ctx.clone();
+        r.app().store_layouts(&ctx);
+        drop(r);
+        let mut r = Rig::in_dir(
+            &dir,
+            vec![laptop(), external()],
+            Some(cantus_ui::welcome_project()),
+        );
+        r.idle(6);
+        assert_eq!(r.windows().len(), 1);
+        assert_eq!(r.app().window_name(0), "Drums");
+        assert!(r.app().windows.list[0].groups.contains(&Group::Metronome));
+    });
+}

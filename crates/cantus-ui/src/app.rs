@@ -4537,6 +4537,11 @@ impl CantusApp {
         // Issue #1 (ADR 0149): the window's state watched; a loop no input asked for is
         // logged and broken — the screen is no longer followed, the zoom in effect stays.
         let now = ctx.input(|i| i.time);
+        // Several screens (ADR 0151 §3): a click or a key here makes the main window the
+        // one dialogs and editors open over.
+        if crate::windows_pass::interacted(ctx) {
+            self.windows.host = egui::ViewportId::ROOT;
+        }
         let seen = crate::window_watch::Sample::of(ctx);
         let prompted = crate::window_watch::prompted(ctx);
         if self.window_watch.observe(now, seen, prompted) == crate::window_watch::Verdict::Tripped {
@@ -4722,6 +4727,9 @@ impl CantusApp {
         }
 
         let dt = frame_start.elapsed().as_secs_f32();
+        if let Some(s) = self.windows.stats.as_mut() {
+            s.note(None, f64::from(dt));
+        }
         if self.frame_times.len() >= 120 {
             self.frame_times.remove(0);
         }

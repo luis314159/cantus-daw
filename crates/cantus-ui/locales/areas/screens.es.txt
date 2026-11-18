@@ -63,3 +63,5 @@ action.layout-9 = Disposición 9 (la novena del menú Ver)
 action.toggle-full-screen = Pantalla completa para la ventana en primer plano
 action.move-to-new-window = Mover el área a una ventana nueva
 action.screens-map = Pantallas y ventanas…
+screens.window.rename_title = El nombre de la ventana
+screens.window.name_hint = Vacío: el nombre de sus áreas

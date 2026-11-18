@@ -59,6 +59,10 @@ pub struct WindowShape {
     /// Its bar with the transport (§4).
     #[serde(default = "yes")]
     pub bar: bool,
+    /// The top bar's groups its bar shows, by their ids; empty: the transport, the position,
+    /// the tempo and the meter.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<String>,
     #[serde(default)]
     pub on_top: bool,
     /// The user's own interface scale for it; `None` follows its screen.
@@ -116,6 +120,8 @@ pub struct OsWindow {
     /// Where it is (or is to be put).
     pub place: Option<Place>,
     pub bar: bool,
+    /// The top bar's groups its bar shows (§4; *Choose what the bar shows…*).
+    pub groups: Vec<crate::views::transport::layout::Group>,
     pub on_top: bool,
     /// The user's own interface scale for it.
     pub scale: Option<f32>,
@@ -131,6 +137,9 @@ pub struct OsWindow {
     /// Its close button was pressed: its areas go back to the main window.
     pub closing: bool,
     pub watch: crate::window_watch::Watch,
+    /// Its native window, once the system made it (`eframe::window_of`; a test's otherwise):
+    /// the owner of the plug-in editors opened from it (ADR 0151 §10).
+    pub native: Option<raw_window_handle::RawWindowHandle>,
 }
 
 impl OsWindow {
@@ -146,6 +155,7 @@ impl OsWindow {
             dock: crate::layout::dock_to_value(&ws.dock),
             place: self.place.clone(),
             bar: self.bar,
+            groups: self.groups.iter().map(|g| g.id().to_string()).collect(),
             on_top: self.on_top,
             scale: self.scale,
         }
@@ -208,6 +218,16 @@ pub struct Windows {
     pub menu: Option<(u32, egui::Pos2)>,
     /// View ▸ *Screens and windows…* is open (§9).
     pub map_open: bool,
+    /// `CANTUS_WINDOW_STATS=1`: every window's passes and their time, written to the log every
+    /// five seconds (ADR 0151's measured cost; nothing is kept when it is unset).
+    pub stats: Option<Stats>,
+    /// *Choose what the bar shows…* open: the window's key and where.
+    pub groups_menu: Option<(u32, egui::Pos2)>,
+    /// *Rename the window…* open: the window's key and the name being typed.
+    pub renaming: Option<(u32, String)>,
+    /// The native windows whose plug-in editors were given to the main window before they
+    /// closed, newest last (kept for the tests and the log; at most 64).
+    pub released: Vec<isize>,
 }
 
 impl Default for Windows {
@@ -230,6 +250,12 @@ impl Default for Windows {
             pending: None,
             menu: None,
             map_open: false,
+            released: Vec::new(),
+            groups_menu: None,
+            renaming: None,
+            stats: std::env::var_os(STATS_VAR)
+                .filter(|v| !v.is_empty())
+                .map(|_| Stats::default()),
         }
     }
 }
@@ -274,6 +300,7 @@ impl Windows {
             workspace: dock,
             place: shape.place.clone(),
             bar: shape.bar,
+            groups: groups_of(&shape.groups),
             on_top: shape.on_top,
             scale: shape.scale,
             zoom: 1.0,
@@ -283,6 +310,7 @@ impl Windows {
             shown: false,
             closing: false,
             watch: crate::window_watch::Watch::for_window(),
+            native: None,
         });
         Some(self.list.len() - 1)
     }
@@ -295,5 +323,89 @@ impl Windows {
             } else {
                 Some(0)
             })
+    }
+}
+
+/// A native window as a number (an `HWND`, an X11 window id, an `NSView`'s address).
+pub fn handle_id(raw: &raw_window_handle::RawWindowHandle) -> isize {
+    use raw_window_handle::RawWindowHandle as R;
+    match raw {
+        R::Win32(h) => h.hwnd.get(),
+        R::Xlib(h) => h.window as isize,
+        R::Xcb(h) => h.window.get() as isize,
+        R::AppKit(h) => h.ns_view.as_ptr() as isize,
+        _ => 0,
+    }
+}
+
+/// A window's bar groups from their ids (unknown ones skipped); none: the default four.
+fn groups_of(ids: &[String]) -> Vec<crate::views::transport::layout::Group> {
+    let g: Vec<_> = ids
+        .iter()
+        .filter_map(|id| crate::views::transport::layout::Group::from_id(id))
+        .collect();
+    if g.is_empty() {
+        crate::views::window_bar::GROUPS.to_vec()
+    } else {
+        g
+    }
+}
+
+/// The variable that turns the windows' frame statistics on.
+pub const STATS_VAR: &str = "CANTUS_WINDOW_STATS";
+
+/// Passes and their time, per window, since the last line written.
+#[derive(Clone, Debug, Default)]
+pub struct Stats {
+    /// When the last line was written (the main window's clock, seconds).
+    pub since: f64,
+    pub main: (u64, f64),
+    /// Per window key: passes, seconds.
+    pub windows: Vec<(u32, u64, f64)>,
+}
+
+impl Stats {
+    /// Count one pass of `key` (`None`: the main window) that took `secs`.
+    pub fn note(&mut self, key: Option<u32>, secs: f64) {
+        match key {
+            None => {
+                self.main.0 += 1;
+                self.main.1 += secs;
+            }
+            Some(k) => match self.windows.iter_mut().find(|w| w.0 == k) {
+                Some(w) => {
+                    w.1 += 1;
+                    w.2 += secs;
+                }
+                None => self.windows.push((k, 1, secs)),
+            },
+        }
+    }
+
+    /// Every five seconds: one line to the log, the counts started again.
+    pub fn report(&mut self, now: f64) {
+        if now - self.since < 5.0 {
+            return;
+        }
+        let span = (now - self.since).max(1e-3);
+        let avg = |n: u64, s: f64| if n == 0 { 0.0 } else { s / n as f64 * 1000.0 };
+        let mut line = format!(
+            "window stats over {span:.1} s: main {} passes ({:.1}/s) {:.2} ms avg",
+            self.main.0,
+            self.main.0 as f64 / span,
+            avg(self.main.0, self.main.1)
+        );
+        for (k, n, s) in &self.windows {
+            line.push_str(&format!(
+                "; window {k} {n} passes ({:.1}/s) {:.2} ms avg",
+                *n as f64 / span,
+                avg(*n, *s)
+            ));
+        }
+        log::info!("{line}");
+        *self = Stats {
+            since: now,
+            ..Stats::default()
+        };
     }
 }

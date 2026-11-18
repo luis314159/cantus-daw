@@ -115,10 +115,10 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, i: usize) {
     }
     // The top bar's own groups, as far as there is room.
     let ctx = ui.ctx().clone();
-    let wants = crate::views::transport::wants(app, &ctx);
     let mut x = name_r.right() + 12.0 * k;
-    for g in GROUPS {
-        let w = wants.iter().find(|w| w.group == g).map_or(0.0, |w| w.max);
+    let groups = app.windows.list[i].groups.clone();
+    for g in groups {
+        let w = crate::views::transport::group_width(g, app, &ctx);
         if w <= 0.0 || x + w > back.left() - 8.0 * k {
             break;
         }
@@ -139,6 +139,8 @@ fn back_into_main(app: &mut CantusApp, ctx: &egui::Context) {
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum Row {
     Bar,
+    Groups,
+    Rename,
     OnTop,
     FullScreen,
     Back,
@@ -156,7 +158,7 @@ pub fn menu(app: &mut CantusApp, ctx: &egui::Context, i: usize) {
     }
     let w = &app.windows.list[i];
     let check = |on: bool| if on { Check::On } else { Check::Off };
-    let rows: [(Item<'_>, Row); 6] = [
+    let rows: [(Item<'_>, Row); 8] = [
         (
             with(
                 Item::action(Src::Key("screens.window.bar")),
@@ -165,6 +167,11 @@ pub fn menu(app: &mut CantusApp, ctx: &egui::Context, i: usize) {
             ),
             Row::Bar,
         ),
+        (
+            Item::action(Src::Key("screens.window.bar_groups")),
+            Row::Groups,
+        ),
+        (Item::action(Src::Key("screens.window.rename")), Row::Rename),
         (
             with(
                 Item::action(Src::Key("screens.window.on_top")),
@@ -206,6 +213,14 @@ pub fn menu(app: &mut CantusApp, ctx: &egui::Context, i: usize) {
         let w = &mut app.windows.list[i];
         match r {
             Row::Bar => w.bar = !w.bar,
+            Row::Groups => {
+                w.bar = true;
+                app.windows.groups_menu = Some((window_key, at));
+            }
+            Row::Rename => {
+                let name = app.window_name(i);
+                app.windows.renaming = Some((window_key, name));
+            }
             Row::OnTop => w.on_top = !w.on_top,
             Row::FullScreen => {
                 let full = ctx.input(|inp| inp.viewport().fullscreen.unwrap_or(false));
@@ -229,4 +244,144 @@ fn with<'a>(mut i: Item<'a>, c: Check, key: Option<&'a str>) -> Item<'a> {
         *shortcut = key;
     }
     i
+}
+
+/// The groups a window's bar can show, in the top bar's order.
+pub const OFFERED: [Group; 8] = [
+    Group::Transport,
+    Group::Position,
+    Group::Tempo,
+    Group::Metronome,
+    Group::Snap,
+    Group::Undo,
+    Group::Meter,
+    Group::Performance,
+];
+
+/// *Choose what the bar shows…*: the groups, each checked when the bar shows it; a click
+/// switches one and keeps the list open (Esc or a click outside closes it). The window's
+/// setting, kept with the layout; no undo, since it is not the project.
+pub fn groups_menu(app: &mut CantusApp, ctx: &egui::Context, i: usize) {
+    let window_key = app.windows.list[i].key;
+    let Some((wk, at)) = app.windows.groups_menu else {
+        return;
+    };
+    if wk != window_key {
+        return;
+    }
+    let shown = app.windows.list[i].groups.clone();
+    let items: Vec<Item<'_>> = OFFERED
+        .iter()
+        .map(|g| {
+            let on = if shown.contains(g) {
+                Check::On
+            } else {
+                Check::Off
+            };
+            with(Item::action(Src::Key(g.name_key())), on, None)
+        })
+        .collect();
+    let s = Style::current();
+    let width = crate::kit::menu::width(ctx, &items, &s);
+    let mut chosen = None;
+    let area = egui::Area::new(egui::Id::new(("cantus-window-groups", window_key)))
+        .order(egui::Order::Foreground)
+        .fixed_pos(at)
+        .constrain(true)
+        .show(ctx, |ui| {
+            let (_, c) = crate::kit::widgets::menu_list(ui, &items, width);
+            chosen = c.clicked.or(c.toggled);
+        });
+    if let Some(c) = chosen {
+        let g = OFFERED[c];
+        let w = &mut app.windows.list[i];
+        if w.groups.contains(&g) {
+            w.groups.retain(|x| *x != g);
+        } else {
+            // In the top bar's order.
+            w.groups.push(g);
+            w.groups
+                .sort_by_key(|x| OFFERED.iter().position(|o| o == x));
+        }
+        return;
+    }
+    let outside = ctx.input(|inp| inp.pointer.any_pressed())
+        && !ctx
+            .pointer_interact_pos()
+            .is_some_and(|p| area.response.rect.contains(p));
+    let escape = ctx.input(|inp| inp.key_pressed(egui::Key::Escape));
+    if outside || escape {
+        app.windows.groups_menu = None;
+    }
+}
+
+/// *Rename the window…*: the kit's dialog over the window with the name's field (Enter
+/// keeps it, Esc leaves; an empty name gives the window its areas' name back). The window's
+/// setting, kept with the layout; no undo, since it is not the project.
+pub fn rename_dialog(app: &mut CantusApp, ctx: &egui::Context, i: usize) {
+    let window_key = app.windows.list[i].key;
+    let Some((wk, mut name)) = app.windows.renaming.take() else {
+        return;
+    };
+    if wk != window_key {
+        app.windows.renaming = Some((wk, name));
+        return;
+    }
+    let s = Style::current();
+    let k = s.k;
+    let screen = ctx.content_rect();
+    let size = vec2(360.0 * k, 150.0 * k).min(screen.size() - vec2(16.0, 16.0));
+    let rect = Rect::from_center_size(screen.center(), size);
+    let (mut save, mut close) = (false, false);
+    egui::Area::new(egui::Id::new(("cantus-window-rename", window_key)))
+        .order(egui::Order::Foreground)
+        .fixed_pos(rect.min)
+        .show(ctx, |ui| {
+            ui.set_min_size(size);
+            crate::views::audio_parts::panel(ui, rect, &s);
+            let head = Rect::from_min_size(rect.min, vec2(rect.width(), 32.0 * k));
+            let key = "screens.window.rename_title";
+            if crate::kit::dialog::head(ui, head, &s, Glyph::Inspector, key) {
+                close = true;
+            }
+            let x0 = rect.left() + 20.0 * k;
+            let x1 = rect.right() - 20.0 * k;
+            let well = Rect::from_min_max(
+                pos2(x0, head.bottom() + 20.0 * k),
+                pos2(x1, head.bottom() + 20.0 * k + s.d(24.0)),
+            );
+            let hint = crate::i18n::t("screens.window.name_hint");
+            let out = crate::kit::field::Field::new(egui::Id::new(("window-name", window_key)))
+                .hint(&hint)
+                .opens_when_shown()
+                .show(ui, well, &mut name);
+            match out.event {
+                Some(crate::kit::field::Event::Commit) => save = out.enter,
+                Some(crate::kit::field::Event::Cancel) => close = true,
+                None => {}
+            }
+            let buttons = Rect::from_min_max(
+                pos2(x0, rect.bottom() - 44.0 * k),
+                pos2(x1, rect.bottom() - 14.0 * k),
+            );
+            let mut row = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(buttons)
+                    .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            );
+            let label = crate::i18n::t("layout.save");
+            if crate::views::audio_parts::button(&mut row, &label, true, true, 90.0).clicked() {
+                save = true;
+            }
+            row.add_space(8.0 * k);
+            let label = crate::i18n::t("layout.cancel");
+            if crate::views::audio_parts::button(&mut row, &label, false, true, 90.0).clicked() {
+                close = true;
+            }
+        });
+    if save {
+        app.windows.list[i].name = name.trim().to_string();
+    } else if !close {
+        app.windows.renaming = Some((wk, name));
+    }
 }

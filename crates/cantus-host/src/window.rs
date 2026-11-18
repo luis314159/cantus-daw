@@ -19,6 +19,29 @@ use raw_window_handle::RawWindowHandle;
 #[cfg(windows)]
 pub use win32::PluginWindow;
 
+thread_local! {
+    /// Where the next editor window opens (desktop pixels), when the host chose a place.
+    static NEXT_PLACE: std::cell::Cell<Option<(i32, i32)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Several screens (ADR 0151 §10): open the next editor window with its top-left corner at
+/// `at` (desktop pixels: the screen of the Cantus window that asked for it), or where the
+/// system puts it. Taken by the next window made on this thread.
+pub fn place_next(at: Option<(i32, i32)>) {
+    NEXT_PLACE.with(|c| c.set(at));
+}
+
+/// The place asked for the next window, without taking it (tests, diagnostics).
+pub fn next_place() -> Option<(i32, i32)> {
+    NEXT_PLACE.with(|c| c.get())
+}
+
+/// The place asked for the window being made now, once.
+#[allow(dead_code)]
+pub(crate) fn take_place() -> Option<(i32, i32)> {
+    NEXT_PLACE.with(|c| c.take())
+}
+
 #[cfg(target_os = "linux")]
 mod x11;
 #[cfg(target_os = "linux")]
@@ -72,6 +95,10 @@ mod other {
         pub fn handle(&self) -> Option<isize> {
             None
         }
+        pub fn owner(&self) -> isize {
+            0
+        }
+        pub fn set_owner(&mut self, _owner: Option<RawWindowHandle>) {}
     }
 }
 
@@ -90,10 +117,10 @@ mod win32 {
         AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, GetAncestor, GetWindow,
         GetWindowLongPtrW, GetWindowRect, IsIconic, IsWindowVisible, LoadCursorW, RegisterClassW,
         SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, ShowWindow, WindowFromPoint,
-        CW_USEDEFAULT, GA_ROOT, GWLP_USERDATA, GWL_EXSTYLE, GWL_STYLE, GW_OWNER, HWND_TOP,
-        IDC_ARROW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-        SW_RESTORE, SW_SHOW, WM_CLOSE, WM_SIZE, WNDCLASSW, WS_CLIPCHILDREN, WS_EX_TOPMOST,
-        WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
+        CW_USEDEFAULT, GA_ROOT, GWLP_HWNDPARENT, GWLP_USERDATA, GWL_EXSTYLE, GWL_STYLE, GW_OWNER,
+        HWND_TOP, IDC_ARROW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_NOZORDER, SW_RESTORE, SW_SHOW, WM_CLOSE, WM_SIZE, WNDCLASSW, WS_CLIPCHILDREN,
+        WS_EX_TOPMOST, WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
     };
 
     fn wide(s: &str) -> Vec<u16> {
@@ -138,12 +165,25 @@ mod win32 {
         style: u32,
         /// The plug-in floats a window of its own; ours stays hidden and is never shown.
         floating: bool,
+        /// The window that owns it (Cantus's main window, or a window of its own — ADR
+        /// 0151 §10): Windows keeps it above its owner and destroys it with its owner, so a
+        /// Cantus window that closes gives its editors to another owner first.
+        owner: isize,
     }
 
     impl PluginWindow {
         /// Ours for a plug-in whose editor floats a window of its own that opened later than
         /// asked (an isolated plug-in whose helper was busy; review isolation-4 #39): hidden,
         /// never shown — it stands for theirs, which closing ours closes.
+        /// A hidden window owned by `owner`, with no editor (the owner tests).
+        #[cfg(test)]
+        pub(crate) fn floating_owned(
+            title: &str,
+            owner: Option<RawWindowHandle>,
+        ) -> Option<PluginWindow> {
+            Self::create(title, owner).ok()
+        }
+
         pub fn floating(title: &str) -> Option<PluginWindow> {
             let mut w = Self::create(title, None).ok()?;
             w.floating = true;
@@ -211,19 +251,17 @@ mod win32 {
                     };
                     RegisterClassW(&wc);
                 });
-                let owner_hwnd: HWND = match owner {
-                    Some(RawWindowHandle::Win32(h)) => h.hwnd.get() as HWND,
-                    _ => std::ptr::null_mut(),
-                };
+                let owner_hwnd: HWND = owner_of(owner);
                 let style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
                 let name = wide(title);
+                let (x, y) = super::take_place().unwrap_or((CW_USEDEFAULT, CW_USEDEFAULT));
                 let hwnd = CreateWindowExW(
                     0,
                     class.as_ptr(),
                     name.as_ptr(),
                     style,
-                    CW_USEDEFAULT,
-                    CW_USEDEFAULT,
+                    x,
+                    y,
                     640,
                     480,
                     owner_hwnd,
@@ -241,6 +279,7 @@ mod win32 {
                     shared,
                     style,
                     floating: false,
+                    owner: owner_hwnd as isize,
                 })
             }
         }
@@ -380,6 +419,29 @@ mod win32 {
         pub fn handle(&self) -> Option<isize> {
             Some(self.hwnd as isize)
         }
+
+        /// The window that owns it (`0`: none).
+        pub fn owner(&self) -> isize {
+            self.owner
+        }
+
+        /// Give it to another owner (ADR 0151 §10): a Cantus window about to close hands
+        /// its editors to the main window first, or Windows would destroy them with it.
+        pub fn set_owner(&mut self, owner: Option<RawWindowHandle>) {
+            let hwnd = owner_of(owner);
+            // SAFETY: our own window; GWLP_HWNDPARENT on a top-level window sets its owner.
+            unsafe {
+                SetWindowLongPtrW(self.hwnd, GWLP_HWNDPARENT, hwnd as isize);
+            }
+            self.owner = hwnd as isize;
+        }
+    }
+
+    fn owner_of(owner: Option<RawWindowHandle>) -> HWND {
+        match owner {
+            Some(RawWindowHandle::Win32(h)) => h.hwnd.get() as HWND,
+            _ => std::ptr::null_mut(),
+        }
     }
 
     impl Drop for PluginWindow {
@@ -390,5 +452,56 @@ mod win32 {
                 DestroyWindow(self.hwnd);
             }
         }
+    }
+}
+
+/// Several screens (ADR 0151 §10): Windows destroys an owned window with its owner — the
+/// bug a Cantus window closing would have caused its plug-in editors — so a window about to
+/// go hands them to another owner first.
+#[cfg(all(test, windows))]
+mod owner_tests {
+    use super::PluginWindow;
+    use raw_window_handle::{RawWindowHandle, Win32WindowHandle};
+    use std::num::NonZeroIsize;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindow, IsWindow, GW_OWNER};
+
+    fn raw(h: isize) -> RawWindowHandle {
+        RawWindowHandle::Win32(Win32WindowHandle::new(NonZeroIsize::new(h).unwrap()))
+    }
+
+    #[test]
+    fn an_editor_given_to_another_owner_outlives_the_first() {
+        // Two stand-ins for Cantus's windows (hidden), an editor's window owned by the first.
+        let main = PluginWindow::floating("main").expect("a window");
+        let other = PluginWindow::floating("other").expect("a window");
+        let other_h = other.handle().unwrap();
+        let main_h = main.handle().unwrap();
+        super::place_next(Some((120, 140)));
+        let mut editor = PluginWindow::floating_owned("editor", Some(raw(other_h))).unwrap();
+        let ed = editor.handle().unwrap();
+        // SAFETY: plain queries on live windows of this thread.
+        unsafe {
+            assert_eq!(GetWindow(ed as _, GW_OWNER) as isize, other_h);
+        }
+        assert_eq!(editor.owner(), other_h);
+        assert!(
+            super::take_place().is_none(),
+            "the place was taken by the window made"
+        );
+        // The window that opened it closes: its editor goes to the main window first.
+        editor.set_owner(Some(raw(main_h)));
+        assert_eq!(editor.owner(), main_h);
+        drop(other);
+        // SAFETY: as above.
+        unsafe {
+            assert_eq!(GetWindow(ed as _, GW_OWNER) as isize, main_h);
+            assert_ne!(
+                IsWindow(ed as _),
+                0,
+                "the editor's window survives its first owner"
+            );
+        }
+        drop(editor);
+        drop(main);
     }
 }
