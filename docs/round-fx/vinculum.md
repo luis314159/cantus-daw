@@ -374,8 +374,13 @@ clippy `-D warnings --all-targets` clean on cantus-dsp (the only crate whose cod
 `cargo fmt -p cantus-dsp`. cantus-plugins 90 of 92: the two red are Cedo's
 (`clap::cedo_s_external_key_ducks_the_input_only_when_asked`,
 `transport::cedo_s_pump_follows_the_hosts_tempo_with_its_drawn_shape`) — the first fails the
-same with this branch's Vinculum DSP put back to bbfb0e3f's, so it is not this change; for
-Cedo's owner. cantus-ui 2 728 passed, 2 red, both the known noise: Fractus's `Glitch.*` in
+same with this branch's Vinculum DSP put back to bbfb0e3f's, so it is not this change. Cause
+found and fixed (2d40e457): Cedo's starting preset gained `out` +1.4 dB in its preset fit
+(c5e3b654) after the two tests were written, and a fresh plug-in starts on it — 1.1749 =
+10^(1.4/20) on every sample, deterministic; the tests now set `out` at 0 dB (they hold the key
+and the pump's shape, not the preset's level). cantus-plugins 92/92 after it; clippy clean with
+and without default features (`--no-default-features` tests fail where they create a unit no
+feature compiled in, as designed — CI runs only its clippy). cantus-ui 2 728 passed, 2 red, both the known noise: Fractus's `Glitch.*` in
 `learn_everywhere`, and an Arca preset's CPU in `preset_render` (`dark_lead` in the suite,
 `modern_lead` re-run alone, with some twenty other cargo/rustc processes on the machine);
 its Vinculum rows render at their level (the opto presets −0.3 … −0.1 LU off target).
