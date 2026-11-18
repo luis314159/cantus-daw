@@ -105,7 +105,6 @@ fn header<'a>(ui: &egui::Ui, formula: bool, look: u8, name: &'a str, c: &Chrome<
         bypassed: Some(!c.on),
         help: true,
         name_w,
-        views_w: 0.0, // fix/flicker: no views segment here
         window: Some(c.window.unwrap_or(crate::kit::window_ctl::WindowCtl {
             swap: None,
             minimise: false,
