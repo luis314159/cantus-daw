@@ -136,7 +136,7 @@ impl Brush {
             self.inspecting = c.inspect.is_some();
             c.atlas(ctx)
         };
-        self.pass = ctx.cumulative_pass_nr();
+        self.pass = crate::windows::pass_nr(ctx);
         self.cache = Some(cache);
         self.begin_with(ctx, ctx.pixels_per_point(), tex, white);
     }

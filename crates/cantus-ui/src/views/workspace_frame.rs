@@ -19,9 +19,11 @@ use egui_dock::tab_viewer::OnCloseResponse;
 use egui_dock::{DockArea, Node, NodeIndex, NodePath, SurfaceIndex, TabViewer, Tree};
 
 /// Something the workspace asks the application to do once the dock is back in it.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 enum After {
     ResetLayout,
+    /// Several screens (ADR 0148 §2): move an area to another window.
+    Move(Pane, crate::windows::Target),
 }
 
 /// Lay the workspace out in `ui`: every area as a tab of the dock.
@@ -51,6 +53,28 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     // A folded area is smaller than the dock's least size (round 39, ADR 0110).
     style.separator.extra = ws.separator_floor(style.separator.extra);
     let tab_bar = style.tab_bar.height;
+    // Several screens (ADR 0148 §2): the tab being dragged (egui_dock's own id for it), so
+    // one let go outside the window is torn out of it into a window of its own.
+    let dock_id = if ctx.viewport_id() == egui::ViewportId::ROOT {
+        Id::new("cantus-dock")
+    } else {
+        Id::new("cantus-dock").with(ctx.viewport_id())
+    };
+    if let Some(dragged) = ctx.dragged_id() {
+        let mut found = None;
+        for (path, leaf) in ws.dock.iter_leaves() {
+            for (i, tab) in leaf.tabs.iter().enumerate() {
+                let id = dock_id
+                    .with((path.surface, "surface"))
+                    .with((path.node, "node"))
+                    .with((i, "tab"));
+                if id == dragged {
+                    found = Some(*tab);
+                }
+            }
+        }
+        ws.tab_drag = found;
+    }
     let (unfold, maximise);
     {
         let Workspace {
@@ -80,8 +104,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             buf: String::new(),
             tk: s.tk(),
         };
+        // One dock per window (ADR 0148): its state in egui's memory is the window's own.
         DockArea::new(dock)
-            .id(Id::new("cantus-dock"))
+            .id(dock_id)
             .style(style)
             .window_bounds(area)
             .show_close_buttons(true)
@@ -97,6 +122,21 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             );
         unfold = viewer.unfold;
         maximise = viewer.maximise;
+    }
+    // A tab let go outside the window: a window of its own where it fell.
+    let screen = ctx.content_rect();
+    let fell = ctx.input(|i| {
+        i.pointer
+            .any_released()
+            .then(|| i.pointer.latest_pos())
+            .flatten()
+            .filter(|p| !screen.expand(2.0).contains(*p))
+    });
+    let mut torn: Vec<(Pane, Pos2)> = Vec::new();
+    if ctx.input(|i| i.pointer.any_released()) {
+        if let (Some(at), Some(pane)) = (fell, ws.tab_drag.take()) {
+            torn.push((pane, at));
+        }
     }
     if let Some(p) = unfold {
         ws.unfold(p);
@@ -116,10 +156,18 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     // What the tabs asked to bring forward (Show the destination, a chain line opening
     // the inspector): applied now the dock is back.
     app.apply_wanted_panes();
-    if then == Some(After::ResetLayout) {
-        app.reset_layout();
+    match then {
+        Some(After::ResetLayout) => app.reset_layout(),
+        Some(After::Move(pane, to)) => app.move_pane(&ctx, pane, to),
+        None => {}
     }
-    crate::stage::float::show(app, ui, area); // r35:stage — the dancers over the workspace
+    for (pane, at) in torn {
+        app.tear_out(&ctx, pane, at);
+    }
+    // r35:stage — the dancers over the workspace: the main window's.
+    if app.windows.current.is_none() {
+        crate::stage::float::show(app, ui, area);
+    }
 }
 
 struct Viewer<'a> {
@@ -338,8 +386,12 @@ impl Workspace {
         // The central view: `app.central` is what menus, keys and tests set; the dock
         // follows it when it changes.
         let pane = Pane::of_central(app.central);
+        // Several screens (ADR 0148): an editor another window holds is brought forward
+        // there, never put in this dock too.
+        let elsewhere = self.elsewhere.contains(&pane);
         match self.synced_central {
             Some(c) if c == app.central => {}
+            Some(_) if elsewhere => {}
             Some(_) => self.reveal(pane),
             // The first frame: bring it forward if the layout has it, but never put back
             // an area the layout hides.
@@ -368,7 +420,10 @@ impl Workspace {
             self.hide(p);
         }
         for key in &wanted {
-            if !self.contains(Pane::Device(*key)) {
+            // Several screens (ADR 0148 §2): a device editor opens in the window the user
+            // works in, and never twice.
+            let elsewhere = self.elsewhere.contains(&Pane::Device(*key));
+            if !self.contains(Pane::Device(*key)) && self.adds_devices && !elsewhere {
                 self.reveal(Pane::Device(*key));
                 self.float_where_it_was(ctx, *key);
                 ctx.request_repaint();
@@ -531,14 +586,17 @@ impl Workspace {
 
     fn after(&mut self, app: &mut CantusApp, ui: &Ui, area: Rect, tab_bar: f32) -> Option<After> {
         let ctx = ui.ctx().clone();
-        // The dock → the central view: the lower zone's tab showing is `app.central`.
+        // The dock → the central view: the lower zone's tab showing is `app.central` — the
+        // main window's lower zone (ADR 0148: another window's editors do not take it in
+        // turns with the main window's every pass).
+        let main = app.windows.current.is_none();
         let shown = self
             .dock
             .iter_leaves()
             .filter_map(|(_, l)| l.tabs.get(l.active.0).copied())
             .find(|p| p.is_lower())
             .and_then(Pane::central);
-        if let Some(c) = shown {
+        if let Some(c) = shown.filter(|_| main) {
             if c != app.central {
                 app.central = c;
                 self.synced_central = Some(c);
@@ -716,7 +774,7 @@ impl Workspace {
         let menu = self.menu?;
         let floating = self.is_floating(menu.pane);
         // Round 39 (ADR 0110): collapse and maximise beside float and hide.
-        let mut rows: Vec<(Item<'static>, TabAct)> = vec![(
+        let mut rows: Vec<(Item<'_>, TabAct)> = vec![(
             Item::action(Src::Key(if floating {
                 "workspace.menu.dock"
             } else {
@@ -741,9 +799,26 @@ impl Workspace {
             ));
         }
         rows.push((Item::action(Src::Key("workspace.menu.hide")), TabAct::Hide));
+        // Several screens (ADR 0148 §2): a window of its own, and where else it can go.
+        rows.push((Item::Separator, TabAct::None));
+        rows.push((
+            Item::action(Src::Key("screens.menu.new_window")),
+            TabAct::Move(usize::MAX),
+        ));
+        if !self.move_targets.is_empty() {
+            rows.push((Item::Band(Src::Key("screens.menu.move_to")), TabAct::None));
+        }
+        let targets = std::mem::take(&mut self.move_targets);
+        let first = rows.len();
+        for (label, _) in &targets {
+            rows.push((
+                Item::action(Src::Str(label)),
+                TabAct::Move(rows.len() - first),
+            ));
+        }
         rows.push((Item::Separator, TabAct::None));
         rows.push((Item::action(Src::Key("layout.reset")), TabAct::Reset));
-        let items: Vec<Item<'static>> = rows.iter().map(|r| r.0).collect();
+        let items: Vec<Item<'_>> = rows.iter().map(|r| r.0).collect();
         let s = Style::current();
         let width = 200.0 * s.k;
         let mut chosen = None;
@@ -774,8 +849,17 @@ impl Workspace {
                 self.hide(menu.pane);
             }
             Some(TabAct::Reset) => then = Some(After::ResetLayout),
+            Some(TabAct::Move(i)) => {
+                let to = if i == usize::MAX {
+                    crate::windows::Target::NewWindow { screen: None }
+                } else {
+                    targets[i].1
+                };
+                then = Some(After::Move(menu.pane, to));
+            }
             _ => {}
         }
+        self.move_targets = targets;
         if chosen.is_some() || outside || escape {
             self.menu = None;
         } else {
@@ -788,6 +872,8 @@ impl Workspace {
 /// What a row of a tab's menu does.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum TabAct {
+    /// Several screens: to a new window (`usize::MAX`) or to the target at this index.
+    Move(usize),
     Float,
     Fold,
     Maximise,

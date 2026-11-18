@@ -98,6 +98,7 @@ pub mod samples_thumbs; // r37:finish — the browser's row details (ADR 0103)
 pub mod score_bar;
 pub mod score_paint;
 pub mod score_view;
+pub mod screens_map; // multimon — Screens and windows (ADR 0148 §9)
 pub mod session; // r33:launcher
 pub mod settings_audio;
 pub mod transport;
@@ -106,6 +107,7 @@ pub mod update;
 pub mod verse;
 pub mod warp;
 pub mod warp_quantise;
+pub mod window_bar; // multimon — a window of its own's bar (ADR 0148 §4)
 pub mod workspace;
 pub mod workspace_device;
 pub mod workspace_fold; // r39:ux-b

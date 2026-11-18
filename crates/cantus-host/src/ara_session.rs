@@ -163,6 +163,15 @@ pub(super) fn binding_of(project: &Project, clip: ClipId) -> Option<(TrackId, &A
 pub const MARKER_FILE: &str = "ara-running.txt";
 
 impl AraSession {
+    /// Every ARA editor's window that is open (ADR 0148 §10: given to another owner before
+    /// the Cantus window that owns it closes).
+    pub fn editor_windows_mut(&mut self) -> impl Iterator<Item = &mut crate::window::PluginWindow> {
+        self.docs
+            .values_mut()
+            .flat_map(|d| d.instances.values_mut())
+            .filter_map(|b| b.window.as_mut())
+    }
+
     pub fn new() -> Self {
         Self::default()
     }

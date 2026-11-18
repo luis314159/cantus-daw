@@ -108,7 +108,7 @@ impl CantusApp {
             return None;
         }
         let title = format!("{plugin} \u{2014} {track_name}");
-        let owner = self.plugins.owner_window;
+        let owner = self.editor_owner();
         let e = self
             .plugins
             .open_instrument_window(track, &title, owner)

@@ -23,6 +23,10 @@ mod hosted_view_scene;
 mod issue1_scene;
 #[path = "shoot_look/scene.rs"]
 mod look_scene;
+#[path = "shoot_multimon/real.rs"]
+mod multimon_real;
+#[path = "shoot_multimon/scene.rs"]
+mod multimon_scene;
 #[path = "shoot_samples/scene.rs"]
 mod samples_scene;
 use cantus_ui::raster::shoot;
@@ -81,6 +85,20 @@ fn main() {
     // `beta14-look`: the owner's see-through lists and the desk in each fader cap.
     if kinds.iter().any(|k| k == "beta14-look") {
         look_scene::shots(&dir, scale);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
+    // `multimon-real`: several screens as built (ADR 0148, phase 2).
+    if kinds.iter().any(|k| k == "multimon-real") {
+        multimon_real::shots(&dir);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
+    // `multimon`: the design pictures for several screens (ADR 0148, proposed).
+    if kinds.iter().any(|k| k == "multimon") {
+        multimon_scene::shots(&dir);
         if kinds.len() == 1 {
             return;
         }

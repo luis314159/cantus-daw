@@ -766,7 +766,7 @@ impl CantusApp {
                 .contains(crate::views::workspace::Pane::Session),
             Action::ToggleAutomationArm => self.auto_armed(),
             a => match crate::views::transport::menus::pane_of(a) {
-                Some(pane) => self.workspace.contains(pane),
+                Some(pane) => self.pane_shown(pane),
                 None => match a {
                     Action::ToggleInstrumentWindow => self
                         .selected_track

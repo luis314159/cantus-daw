@@ -63,6 +63,9 @@ pub struct PluginWindow {
     /// Sizes we asked for whose `ConfigureNotify` has not come back yet: those are not the
     /// user's and are not offered back to the editor.
     fitting: RefCell<Vec<(u32, u32)>>,
+    /// The window it is transient for (ADR 0148 §10; X11 does not destroy it with that one,
+    /// but it should stay above the Cantus window that opened it).
+    owner: Cell<isize>,
     /// The editor cannot be resized: the window's minimum and maximum are its size.
     fixed: Cell<bool>,
     /// The plug-in floats a window of its own; ours stays unmapped.
@@ -114,6 +117,11 @@ impl PluginWindow {
             .map_err(|e| failed("atoms", e))?;
         let window = conn.generate_id().map_err(|e| failed("id", e))?;
         let (width, height) = (640u16, 480u16);
+        let (x, y) = super::take_place().unwrap_or((0, 0));
+        let (x, y) = (
+            x.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+            y.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+        );
         let aux = CreateWindowAux::new()
             .background_pixel(screen.black_pixel)
             .event_mask(EventMask::STRUCTURE_NOTIFY | EventMask::PROPERTY_CHANGE);
@@ -121,8 +129,8 @@ impl PluginWindow {
             COPY_DEPTH_FROM_PARENT,
             window,
             screen.root,
-            0,
-            0,
+            x,
+            y,
             width,
             height,
             0,
@@ -203,6 +211,7 @@ impl PluginWindow {
             fitting: RefCell::new(Vec::new()),
             fixed: Cell::new(false),
             floating: false,
+            owner: Cell::new(owner_window(owner).map_or(0, |w| w as isize)),
         })
     }
 
@@ -348,6 +357,34 @@ impl PluginWindow {
     /// The native window (the X11 window id), for tests and diagnostics.
     pub fn handle(&self) -> Option<isize> {
         Some(self.window as isize)
+    }
+
+    /// The window it is transient for (`0`: none).
+    pub fn owner(&self) -> isize {
+        self.owner.get()
+    }
+
+    /// Make it transient for another window (ADR 0148 §10).
+    pub fn set_owner(&mut self, owner: Option<RawWindowHandle>) {
+        let w = owner_window(owner);
+        let _ = match w {
+            Some(w) => self
+                .conn
+                .change_property32(
+                    PropMode::REPLACE,
+                    self.window,
+                    AtomEnum::WM_TRANSIENT_FOR,
+                    AtomEnum::WINDOW,
+                    &[w],
+                )
+                .map(|_| ()),
+            None => self
+                .conn
+                .delete_property(self.window, AtomEnum::WM_TRANSIENT_FOR)
+                .map(|_| ()),
+        };
+        let _ = self.conn.flush();
+        self.owner.set(w.map_or(0, |w| w as isize));
     }
 
     /// Read the events that arrived: the close box, sizes, the window going away.

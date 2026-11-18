@@ -74,14 +74,14 @@ pub fn toggle_shown(app: &mut crate::app::CantusApp) {
     let s = &mut app.settings.stage;
     s.hidden = !s.hidden;
     if s.hidden {
-        app.workspace.hide(Pane::Stage);
+        app.hide_pane(Pane::Stage);
     } else if app
         .stage
         .dancers()
         .iter()
         .any(|d| d.mode == ViewMode::Docked)
     {
-        app.workspace.reveal(Pane::Stage);
+        app.reveal_pane(Pane::Stage);
     }
     app.store_settings();
 }

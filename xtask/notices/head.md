@@ -9,6 +9,7 @@ ask us to carry. Nothing here limits the rights each licence gives you.
 
 - [Cantus itself](#cantus-itself)
 - [Patched crates: cpal and asio-sys](#patched-crates-cpal-and-asio-sys)
+- [Patched crate: eframe](#patched-crate-eframe)
 - [The Steinberg ASIO SDK](#the-steinberg-asio-sdk)
 - [Trademarks](#trademarks)
 - [Maths: libm and musl](#maths-libm-and-musl)
@@ -66,6 +67,21 @@ plug-ins' editors.
 - Copyright © the egui-baseview authors. Modified by the Cantus contributors in 2026, as
   Apache-2.0 §4(b) asks us to say: the changes are in `src/drop.rs` (new), `src/window.rs`
   and `src/lib.rs`.
+
+## Patched crate: eframe
+
+`third_party/eframe` (eframe 0.36.1) is the crates.io release of the egui project,
+<https://github.com/emilk/egui/tree/main/crates/eframe>, with two changes for several
+windows marked `CANTUS PATCH` (`third_party/README.md`): each due window painted in turn on
+Windows, and each window's winit handle for the application.
+
+- Licence: **MIT OR Apache-2.0**, at your choice — `third_party/eframe/LICENSE-MIT` and
+  `third_party/eframe/LICENSE-APACHE` (the crate ships without the files; the texts are the
+  standard ones, the MIT one carrying the egui project's copyright line).
+- Copyright © 2018-2021 Emil Ernerfeldt and the egui contributors. Modified by the Cantus
+  contributors in 2026: the changes are in `src/native/run.rs`,
+  `src/native/glow_integration.rs`, `src/native/mod.rs`, `src/lib.rs` and the new
+  `src/native/cantus_windows.rs`.
 
 ## The Steinberg ASIO SDK
 

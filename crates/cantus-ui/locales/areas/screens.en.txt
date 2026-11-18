@@ -1,0 +1,67 @@
+# Area: several screens — any area in a window of its own, window sets per screen arrangement (ADR 0148, proposed). Every key here needs its twin in screens.es.txt.
+
+# --- a tab's menu ---
+screens.menu.new_window = Move to a new window
+screens.menu.move_to = Move to
+screens.menu.to_main = The main window
+screens.menu.to_window = Window “{name}”
+screens.menu.to_screen = New window on screen {n} · {name}
+
+screens.full = Eight windows are open besides the main one: close one first.
+
+# --- a window of its own ---
+screens.window.title = {song} — {area}
+screens.window.menu = The window’s menu
+screens.window.bar = Show the bar with the transport
+screens.window.bar_groups = Choose what the bar shows…
+screens.window.on_top = Always on top
+screens.window.full_screen = Full screen
+screens.window.rename = Rename the window…
+screens.window.back = Back into the main window
+screens.window.close = Close the window
+
+# --- View ▸ windows and screens ---
+screens.view.band = Windows and screens
+screens.view.new_window = New window
+screens.view.gather = Gather every window on this screen
+screens.view.dock_all = Put every area back in the main window
+screens.view.map = Screens and windows…
+
+# --- the built-in layouts for several screens ---
+screens.layout.wide = Wide screen: arrange beside mix
+screens.layout.two_mix = Two screens: arrange | mix
+screens.layout.two_edit = Two screens: arrange | edit
+screens.layout.three = Three screens: edit | arrange | mix
+screens.layout.needs = Needs {n} screens
+screens.layout.remembered = Remembered for these screens
+
+# --- the screens map ---
+screens.map.title = Screens and windows
+screens.map.screen = Screen {n}
+screens.map.primary = the system’s main screen
+screens.map.main = Main window
+screens.map.scale = System {sys} % · interface {ui} %
+screens.map.size = {w} × {h} px
+screens.map.hint = Drag a window onto another screen · double-click one to bring it to the front
+screens.map.missing = Not connected
+screens.map.close = Close
+
+# --- what Cantus says when the screens change ---
+screens.notice.missing = The screen “{name}” is not connected: its areas ({areas}) came back into the main window. They go back when it returns.
+screens.notice.returned = The screen “{name}” is back: its windows are where you left them.
+
+# --- the keys (keymap 19) ---
+action.layout-1 = Layout 1 (the View menu's first)
+action.layout-2 = Layout 2 (the View menu's second)
+action.layout-3 = Layout 3 (the View menu's third)
+action.layout-4 = Layout 4 (the View menu's fourth)
+action.layout-5 = Layout 5 (the View menu's fifth)
+action.layout-6 = Layout 6 (the View menu's sixth)
+action.layout-7 = Layout 7 (the View menu's seventh)
+action.layout-8 = Layout 8 (the View menu's eighth)
+action.layout-9 = Layout 9 (the View menu's ninth)
+action.toggle-full-screen = Full screen for the window in front
+action.move-to-new-window = Move the area to a new window
+action.screens-map = Screens and windows…
+screens.window.rename_title = The window’s name
+screens.window.name_hint = Empty: named after its areas

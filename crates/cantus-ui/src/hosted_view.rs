@@ -375,7 +375,7 @@ impl CantusApp {
 
     /// Its own window, open and not one it floats itself: back and to the front.
     fn native_to_front(&mut self, target: Target) {
-        let owner = self.plugins.owner_window;
+        let owner = self.editor_owner();
         match target {
             Target::Insert(e) => {
                 if self

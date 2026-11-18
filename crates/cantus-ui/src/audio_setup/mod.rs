@@ -330,7 +330,7 @@ pub const AUTO_RESTART_AGAIN: Duration = Duration::from_secs(60);
 impl AudioSetup {
     /// Publish where `h` was drawn (cleared when a new frame begins).
     pub fn hit(&mut self, ctx: &egui::Context, h: Hit, r: egui::Rect) {
-        let pass = ctx.cumulative_pass_nr();
+        let pass = crate::windows::pass_nr(ctx);
         if self.geo.pass != pass {
             self.geo.pass = pass;
             self.geo.hits.clear();

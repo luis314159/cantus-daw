@@ -198,3 +198,30 @@ baseview's events through `drop::input` into the editor running against the plug
 real host shows that its own window lets the system's drop reach ours. Worth offering
 upstream.
 
+
+## eframe 0.36.1 — several windows (ADR 0148)
+
+| Crate | Version | Upstream |
+|---|---|---|
+| `eframe` | 0.36.1 (crates.io; MIT OR Apache-2.0, both texts in its folder) | <https://github.com/emilk/egui>, `crates/eframe/` |
+
+The commit `third_party/eframe: eframe 0.36.1 as published … unchanged` holds it as
+published; the next one is the patch, every change marked `CANTUS PATCH`:
+
+1. **Each due window painted in turn on Windows** (`src/native/run.rs`,
+   `check_redraw_requests`). eframe asked the system to repaint a window
+   (`request_redraw`, a `WM_PAINT`), and Windows hands `WM_PAINT` to the *first* window of
+   the thread that needs one: a window that asks for its next frame during its own paint —
+   any egui animation, a drag, a meter — was the only one ever painted. Measured with a
+   throw-away spike on the owner's laptop (three windows, vsync on): the animating window at
+   125 passes a second, the main window and the third at **0.7**; with vsync off 1 952
+   against 0.7. Now each due window is painted directly, once per turn, as eframe already
+   did for invisible windows: all three at ~110 when all animate; one at 120 while the
+   others stay at rest. Linux and macOS keep upstream's path.
+2. **Each window's winit handle** (`src/native/cantus_windows.rs`, `eframe::window_of`,
+   synced in `glow_integration.rs` after each pass's viewport output): Cantus reads a
+   window's place and screen, places it in physical pixels, and owns a plug-in's editor by
+   the window that opened it.
+
+No upstream report of (1) was found (2026-11-17); offer both upstream with the spike as the
+test, and drop the folder and its `[patch.crates-io]` line once eframe carries them.

@@ -295,6 +295,12 @@ fn widths_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> (f32,
     }
 }
 
+/// One group's full width, whether the top bar shows it or not (a window's bar, ADR 0148 §4).
+pub fn group_width(g: Group, app: &CantusApp, ctx: &egui::Context) -> f32 {
+    let s = Style::current();
+    widths_of(g, app, ctx, &s).1.ceil()
+}
+
 /// The room the bar gives its parts at `width` points (the property test reads it).
 pub fn room(ctx: &egui::Context, width: f32) -> Room {
     let s = Style::current();

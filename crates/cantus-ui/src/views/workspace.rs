@@ -253,6 +253,15 @@ pub struct Workspace {
     /// What a maximised area leaves beside it (round 40, `look`): the app's setting,
     /// handed in at start and on every change.
     pub(super) maximise_keeps: super::owner_look::MaximiseKeeps,
+    /// Several screens (ADR 0148): the areas another window's dock holds (a device editor
+    /// opened is never given a tab here when another window has it), whether this dock
+    /// takes the device editors opened now (the window the user is working in), and where a
+    /// tab can be moved to — set by the application before the dock is drawn.
+    pub(crate) elsewhere: Vec<Pane>,
+    pub(crate) adds_devices: bool,
+    pub(crate) move_targets: Vec<(String, crate::windows::Target)>,
+    /// The tab being dragged, as of the last pass.
+    pub(crate) tab_drag: Option<Pane>,
 }
 
 impl Default for Workspace {
@@ -289,6 +298,10 @@ impl Workspace {
             folds: Vec::new(),
             maximised: None,
             maximise_keeps: Default::default(),
+            elsewhere: Vec::new(),
+            adds_devices: true,
+            move_targets: Vec::new(),
+            tab_drag: None,
         }
     }
 
@@ -312,6 +325,26 @@ impl Workspace {
         self.splits.clear();
         self.synced_central = None;
         self.menu = None;
+    }
+
+    /// The area the keys act in (the focused leaf's tab in front), if any.
+    pub fn focused_pane(&self) -> Option<Pane> {
+        self.focused
+    }
+
+    /// Whether a tab's menu is open (its rows ask where the tab can go).
+    pub fn menu_open(&self) -> bool {
+        self.menu.is_some()
+    }
+
+    /// Every area in this dock (several screens, ADR 0148).
+    pub fn panes(&self) -> Vec<Pane> {
+        self.dock.iter_all_tabs().map(|(_, p)| *p).collect()
+    }
+
+    /// Whether the dock holds nothing at all.
+    pub fn is_empty(&self) -> bool {
+        self.dock.iter_all_tabs().next().is_none()
     }
 
     /// Where `pane` is, if it is in the dock.
@@ -530,7 +563,9 @@ impl Workspace {
                 std::mem::take(&mut self.lower_hidden)
             };
             for p in panes {
-                self.place(p);
+                if !self.elsewhere.contains(&p) {
+                    self.place(p);
+                }
             }
             if let Some(a) = self.lower_active.take() {
                 self.reveal(a);

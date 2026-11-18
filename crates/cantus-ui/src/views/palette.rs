@@ -160,6 +160,10 @@ fn action_also(a: Action) -> &'static [&'static str] {
         Action::CollapseArea => &["ux.panels.collapse", "ux.panels.expand"],
         Action::MaximizeArea => &["ux.panels.maximise", "ux.panels.restore"],
         Action::AutomateLastTweaked => &["auto.menu.last_tweaked"],
+        // Several screens (ADR 0148): the View menu's words for them.
+        Action::MoveToNewWindow => &["screens.view.new_window", "screens.menu.new_window"],
+        Action::ToggleFullScreen => &["screens.window.full_screen"],
+        Action::ShowScreens => &["screens.view.band", "screens.map.title"],
         _ => &[],
     }
 }

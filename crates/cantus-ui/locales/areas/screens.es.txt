@@ -1,0 +1,67 @@
+# Área: varias pantallas — cualquier área en una ventana propia, juegos de ventanas por disposición de pantallas (ADR 0148, propuesta). Cada clave tiene su gemela en screens.en.txt.
+
+# --- el menú de una pestaña ---
+screens.menu.new_window = Mover a una ventana nueva
+screens.menu.move_to = Mover a
+screens.menu.to_main = La ventana principal
+screens.menu.to_window = Ventana «{name}»
+screens.menu.to_screen = Ventana nueva en la pantalla {n} · {name}
+
+screens.full = Hay ocho ventanas abiertas además de la principal: cierra una antes.
+
+# --- una ventana propia ---
+screens.window.title = {song} — {area}
+screens.window.menu = El menú de la ventana
+screens.window.bar = Mostrar la barra con el transporte
+screens.window.bar_groups = Elegir qué muestra la barra…
+screens.window.on_top = Siempre encima
+screens.window.full_screen = Pantalla completa
+screens.window.rename = Cambiar el nombre de la ventana…
+screens.window.back = Volver a la ventana principal
+screens.window.close = Cerrar la ventana
+
+# --- Ver ▸ ventanas y pantallas ---
+screens.view.band = Ventanas y pantallas
+screens.view.new_window = Ventana nueva
+screens.view.gather = Reunir todas las ventanas en esta pantalla
+screens.view.dock_all = Devolver todas las áreas a la ventana principal
+screens.view.map = Pantallas y ventanas…
+
+# --- las disposiciones de fábrica para varias pantallas ---
+screens.layout.wide = Pantalla ancha: arreglo junto a la mezcla
+screens.layout.two_mix = Dos pantallas: arreglo | mezcla
+screens.layout.two_edit = Dos pantallas: arreglo | edición
+screens.layout.three = Tres pantallas: edición | arreglo | mezcla
+screens.layout.needs = Necesita {n} pantallas
+screens.layout.remembered = Recordada para estas pantallas
+
+# --- el mapa de pantallas ---
+screens.map.title = Pantallas y ventanas
+screens.map.screen = Pantalla {n}
+screens.map.primary = la pantalla principal del sistema
+screens.map.main = Ventana principal
+screens.map.scale = Sistema {sys} % · interfaz {ui} %
+screens.map.size = {w} × {h} px
+screens.map.hint = Arrastra una ventana a otra pantalla · doble clic en una la trae al frente
+screens.map.missing = No conectada
+screens.map.close = Cerrar
+
+# --- lo que Cantus dice cuando cambian las pantallas ---
+screens.notice.missing = La pantalla «{name}» no está conectada: sus áreas ({areas}) volvieron a la ventana principal. Volverán cuando regrese.
+screens.notice.returned = La pantalla «{name}» ha vuelto: sus ventanas están donde las dejaste.
+
+# --- the keys (keymap 19) ---
+action.layout-1 = Disposición 1 (la primera del menú Ver)
+action.layout-2 = Disposición 2 (la segunda del menú Ver)
+action.layout-3 = Disposición 3 (la tercera del menú Ver)
+action.layout-4 = Disposición 4 (la cuarta del menú Ver)
+action.layout-5 = Disposición 5 (la quinta del menú Ver)
+action.layout-6 = Disposición 6 (la sexta del menú Ver)
+action.layout-7 = Disposición 7 (la séptima del menú Ver)
+action.layout-8 = Disposición 8 (la octava del menú Ver)
+action.layout-9 = Disposición 9 (la novena del menú Ver)
+action.toggle-full-screen = Pantalla completa para la ventana en primer plano
+action.move-to-new-window = Mover el área a una ventana nueva
+action.screens-map = Pantallas y ventanas…
+screens.window.rename_title = El nombre de la ventana
+screens.window.name_hint = Vacío: el nombre de sus áreas

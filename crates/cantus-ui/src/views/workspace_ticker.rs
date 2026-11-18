@@ -74,14 +74,16 @@ struct Slot {
     total: u64,
 }
 
-fn id() -> Id {
-    Id::new("cantus-ticker")
+/// One slot per window (ADR 0148): each window's pass counts its own reasons.
+fn id(ctx: &Context) -> Id {
+    Id::new("cantus-ticker").with(ctx.viewport_id())
 }
 
 fn with<R>(ctx: &Context, f: impl FnOnce(&mut Slot, u64) -> R) -> R {
     let pass = ctx.cumulative_pass_nr();
+    let key = id(ctx);
     ctx.data_mut(|d| {
-        let s = d.get_temp_mut_or_default::<Slot>(id());
+        let s = d.get_temp_mut_or_default::<Slot>(key);
         if s.pass != pass {
             s.pass = pass;
             s.now = Tick::default();
@@ -141,12 +143,14 @@ fn predicted(ctx: &Context) -> Duration {
 
 /// What the last finished frame decided.
 pub fn last(ctx: &Context) -> Tick {
-    ctx.data(|d| d.get_temp::<Slot>(id()).map(|s| s.last).unwrap_or_default())
+    let key = id(ctx);
+    ctx.data(|d| d.get_temp::<Slot>(key).map(|s| s.last).unwrap_or_default())
 }
 
 /// Repaints the ticker has asked for since the context was made.
 pub fn requests(ctx: &Context) -> u64 {
-    ctx.data(|d| d.get_temp::<Slot>(id()).map_or(0, |s| s.total))
+    let key = id(ctx);
+    ctx.data(|d| d.get_temp::<Slot>(key).map_or(0, |s| s.total))
 }
 
 #[cfg(test)]

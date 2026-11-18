@@ -158,6 +158,23 @@ pub enum Action {
     ViewRouting,
     /// Close every floating device window (F12).
     CloseFloating,
+    /// Several screens (ADR 0148 §7): the View menu's layouts 1 … 9 (Alt+1 … Alt+9; not
+    /// Ctrl+Alt, which is AltGr on Spanish and many other keyboards).
+    Layout1,
+    Layout2,
+    Layout3,
+    Layout4,
+    Layout5,
+    Layout6,
+    Layout7,
+    Layout8,
+    Layout9,
+    /// The window in front into full screen on its own screen, and back (F11).
+    ToggleFullScreen,
+    /// The area being worked in to a window of its own (no key by default).
+    MoveToNewWindow,
+    /// *Screens and windows…*: the screens map (no key by default).
+    ShowScreens,
     /// The interface's zoom: Ctrl +, Ctrl −, Ctrl 0 (ADR 0024 §11).
     ZoomIn,
     ZoomOut,
@@ -330,7 +347,7 @@ impl Action {
         )
     }
 
-    pub const ALL: [Action; 133] = [
+    pub const ALL: [Action; 145] = [
         // r35:video — 122 with ExportVideo
         Action::PlayPause,
         Action::Stop,
@@ -412,6 +429,18 @@ impl Action {
         Action::ZoomReset,
         Action::PickElement,
         Action::ToggleDeviceKeyboard,
+        Action::Layout1,
+        Action::Layout2,
+        Action::Layout3,
+        Action::Layout4,
+        Action::Layout5,
+        Action::Layout6,
+        Action::Layout7,
+        Action::Layout8,
+        Action::Layout9,
+        Action::ToggleFullScreen,
+        Action::MoveToNewWindow,
+        Action::ShowScreens,
         Action::MoveStripLeft,
         Action::MoveStripRight,
         Action::ToggleStripSolo,
@@ -557,6 +586,18 @@ impl Action {
             Action::ToggleClips => "toggle-clips",
             Action::ViewRouting => "view-routing",
             Action::CloseFloating => "close-floating",
+            Action::Layout1 => "layout-1",
+            Action::Layout2 => "layout-2",
+            Action::Layout3 => "layout-3",
+            Action::Layout4 => "layout-4",
+            Action::Layout5 => "layout-5",
+            Action::Layout6 => "layout-6",
+            Action::Layout7 => "layout-7",
+            Action::Layout8 => "layout-8",
+            Action::Layout9 => "layout-9",
+            Action::ToggleFullScreen => "toggle-full-screen",
+            Action::MoveToNewWindow => "move-to-new-window",
+            Action::ShowScreens => "screens-map",
             Action::ZoomIn => "zoom-in",
             Action::ZoomOut => "zoom-out",
             Action::ZoomReset => "zoom-reset",
@@ -657,6 +698,18 @@ impl Action {
             | ViewArrangement
             | ToggleInspector
             | CloseFloating
+            | Layout1
+            | Layout2
+            | Layout3
+            | Layout4
+            | Layout5
+            | Layout6
+            | Layout7
+            | Layout8
+            | Layout9
+            | ToggleFullScreen
+            | MoveToNewWindow
+            | ShowScreens
             | ZoomIn
             | ZoomOut
             | ZoomReset
@@ -919,6 +972,19 @@ const TOOL_DIGITS: [(Action, Key); 8] = [
 fn common() -> Vec<(Action, Binding)> {
     use Action::*;
     vec![
+        // Several screens (ADR 0148 §7): the layouts on Alt+1 … Alt+9, full screen on F11.
+        (Layout1, Binding::alt(Key::Num1)),
+        (Layout2, Binding::alt(Key::Num2)),
+        (Layout3, Binding::alt(Key::Num3)),
+        (Layout4, Binding::alt(Key::Num4)),
+        (Layout5, Binding::alt(Key::Num5)),
+        (Layout6, Binding::alt(Key::Num6)),
+        (Layout7, Binding::alt(Key::Num7)),
+        (Layout8, Binding::alt(Key::Num8)),
+        (Layout9, Binding::alt(Key::Num9)),
+        (ToggleFullScreen, Binding::key(Key::F11)),
+        (MoveToNewWindow, Binding::shift(Key::F11)),
+        (ShowScreens, Binding::cmd(Key::F11)),
         (PlayPause, Binding::key(Key::Space)),
         (Record, Binding::key(Key::R)),
         (ToStart, Binding::key(Key::Home)),
@@ -1624,6 +1690,10 @@ impl Keymap {
         if file.version.unwrap_or(1) < 18 {
             map.fill_in(&NEW_IN_V18);
         }
+        // Version 18 is the bus feature's (Ctrl+G, `fix/flicker`, merged first).
+        if file.version.unwrap_or(1) < 19 {
+            map.fill_in(&NEW_IN_V19); // multimon
+        }
         Ok(map)
     }
 
@@ -1704,11 +1774,29 @@ struct KeymapFile {
 /// version 14 the session view's (round 33, ADR 0077); version 15 the stage's (round 35,
 /// ADR 0091); version 16 the workspace's areas and the arrangement's tools (round 39);
 /// version 17 insert and delete time and the ripple mode (round 40, ADR 0116); version 18
-/// the selection to a new bus (ADR 0147).
-pub const FILE_VERSION: u32 = 18;
+/// the selection to a new bus (ADR 0147); version 19 several screens' layouts (Alt+1 …
+/// Alt+9), full screen (F11), *Move to a new window* (Shift+F11) and the screens map
+/// (Ctrl+F11) (ADR 0148).
+pub const FILE_VERSION: u32 = 19;
 
 /// Actions added in version 18 (ADR 0147): Ctrl+G routes the selection to a new bus.
 const NEW_IN_V18: [Action; 1] = [Action::RouteToNewBus];
+
+/// Actions added in version 19 (ADR 0148 §7).
+const NEW_IN_V19: [Action; 12] = [
+    Action::Layout1,
+    Action::Layout2,
+    Action::Layout3,
+    Action::Layout4,
+    Action::Layout5,
+    Action::Layout6,
+    Action::Layout7,
+    Action::Layout8,
+    Action::Layout9,
+    Action::ToggleFullScreen,
+    Action::MoveToNewWindow,
+    Action::ShowScreens,
+];
 
 /// r40:ripple — actions added in version 17 (round 40, ADR 0116): Insert inserts time,
 /// Ctrl+Del (and Ctrl+Backspace) deletes it, Alt+Shift+P cycles the ripple mode.
@@ -1925,6 +2013,79 @@ mod tests {
     /// Review 3 (findings 12, 23, 38): *Loop between markers* fires from the event a
     /// Spanish (or German, or French) keyboard sends — a letter is the same key there.
     #[test]
+    /// Several screens (ADR 0148 §7): every preset keeps Alt+1 … Alt+9 for the layouts and
+    /// F11 for full screen — no preset's own key took them (a preset's later binding would
+    /// silently win) — and a version-17 file gains them where the keys are free.
+    fn every_preset_has_the_layout_keys_and_full_screen() {
+        let digits = [
+            Key::Num1,
+            Key::Num2,
+            Key::Num3,
+            Key::Num4,
+            Key::Num5,
+            Key::Num6,
+            Key::Num7,
+            Key::Num8,
+            Key::Num9,
+        ];
+        let layouts = [
+            Action::Layout1,
+            Action::Layout2,
+            Action::Layout3,
+            Action::Layout4,
+            Action::Layout5,
+            Action::Layout6,
+            Action::Layout7,
+            Action::Layout8,
+            Action::Layout9,
+        ];
+        for p in Preset::ALL {
+            let m = p.keymap();
+            for (a, k) in layouts.iter().zip(digits) {
+                assert_eq!(m.bindings_for(*a), &[Binding::alt(k)], "{p:?}: {a:?}");
+            }
+            assert_eq!(
+                m.bindings_for(Action::ToggleFullScreen),
+                &[Binding::key(Key::F11)],
+                "{p:?}"
+            );
+            assert_eq!(
+                m.bindings_for(Action::MoveToNewWindow),
+                &[Binding::shift(Key::F11)],
+                "{p:?}"
+            );
+            assert_eq!(
+                m.bindings_for(Action::ShowScreens),
+                &[Binding::cmd(Key::F11)],
+                "{p:?}"
+            );
+            // No other action is bound to Ctrl+Alt+digit or Alt+digit either.
+            for a in Action::ALL.into_iter().filter(|a| !layouts.contains(a)) {
+                for b in m.bindings_for(a) {
+                    assert!(
+                        !(b.alt && digits.contains(&b.key)),
+                        "{p:?}: {a:?} takes {b:?}"
+                    );
+                }
+            }
+        }
+        let old = "version = 17
+preset = \"custom\"
+[bindings]
+play-pause = [\"Space\"]
+";
+        let map = Keymap::from_toml(old).expect("reads");
+        assert_eq!(
+            map.bindings_for(Action::Layout2),
+            &[Binding::alt(Key::Num2)]
+        );
+        assert_eq!(
+            map.bindings_for(Action::ToggleFullScreen),
+            &[Binding::key(Key::F11)]
+        );
+    }
+
+    #[test]
     fn loop_between_markers_fires_on_every_layout() {
         for preset in Preset::ALL {
             let map = preset.keymap();
@@ -2081,7 +2242,7 @@ play-pause = [\"Enter\"]
             &[Binding::key(Key::Enter)]
         );
         assert!(map.bindings_for(Action::SessionLaunch).is_empty());
-        assert_eq!(FILE_VERSION, 18);
+        assert_eq!(FILE_VERSION, 19);
         // Every preset gives the session's keys and none of them twice.
         for p in Preset::ALL {
             let m = p.keymap();

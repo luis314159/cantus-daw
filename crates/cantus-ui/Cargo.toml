@@ -43,6 +43,10 @@ raw-window-handle = "0.6"
 rayon = "1.12"
 egui.workspace = true
 eframe.workspace = true
+# Several screens (ADR 0148): the windows' winit handles (`eframe::window_of`, a CANTUS
+# PATCH) to read the screens and place windows in physical pixels. Already in the tree
+# through eframe.
+winit = { version = "0.30", default-features = false }
 rfd.workspace = true
 log.workspace = true
 anyhow.workspace = true

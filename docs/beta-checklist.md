@@ -650,6 +650,46 @@ confirma tu oído y tu mano:
       Desde el mezclador, un canal sin pista (un retorno, otro bus) se enruta pero no tiene
       pista que meter en la carpeta.
 
+### Varias pantallas — ventanas propias (ADR 0148) <!-- fx/multimon -->
+
+Verificado solo en emulación (las pruebas alimentan las pantallas como las da winit y corren
+las pasadas de cada ventana como eframe): nada de esto se ha visto en pantallas reales.
+
+- [ ] **Portátil + pantalla externa** (idealmente 200 % + 100 %, como el informante del
+  issue #1): clic derecho en la pestaña *Mezclador* › *Mover a una ventana nueva*. La ventana
+  debe abrir **maximizada en la otra pantalla**, sin aparecer antes en la equivocada ni
+  saltar; el texto nítido en las dos (cada una a su escala); su barra con transporte,
+  posición, tempo y medidor.
+- [ ] **Teclas desde la ventana del mezclador**: Espacio reproduce/para, M silencia la
+  franja seleccionada, Ctrl+Z la deshace, F9 la oculta y F9 la devuelve a su ventana; sin
+  tener que hacer clic primero.
+- [ ] **Desconectar la pantalla externa con Cantus abierto y la canción sonando**: el
+  mezclador vuelve a la ventana principal, la barra de estado lo dice, la música no se
+  corta. Volver a conectarla: la ventana regresa a su sitio (tarda hasta 3 s).
+- [ ] **Arrancar con la pantalla desconectada y luego con ella conectada**: igual que
+  arriba; nunca una ventana fuera de la vista.
+- [ ] **Suspender y reanudar el portátil** con la ventana en la externa.
+- [ ] **F11** en cada ventana: pantalla completa en su propia pantalla y vuelta.
+- [ ] **Alt+1 … Alt+4** (Ver › disposiciones): *Pantalla ancha* (solo en 21:9), *Dos
+  pantallas: arreglo | mezcla*, *Dos pantallas: arreglo | edición*, *Tres pantallas* (solo
+  aparecen las que caben en tus pantallas); *Restablecer disposición* vuelve a una ventana.
+  Shift+F11 manda el área en la que trabajas a una ventana nueva; Ctrl+F11 abre
+  *Pantallas y ventanas*.
+  Con un teclado español, AltGr+2 sigue escribiendo @ en un campo de texto.
+- [ ] **Un plug-in real abierto desde la ventana del mezclador** (un VST3 o CLAP con
+  editor propio, p. ej. uno de FabFilter o Vital): su editor debe aparecer **en la pantalla
+  de esa ventana**, cerca de su esquina, y quedar **encima de ella** al hacer clic en la
+  ventana del mezclador. Luego cierra la ventana del mezclador (o *Volver a la ventana
+  principal*, o desconecta su pantalla): **el editor debe seguir abierto** (ahora encima de
+  la ventana principal) y responder; Cantus no debe cerrarse. Repite con un plug-in aislado
+  (en su proceso aparte) y con un editor ARA.
+- [ ] **La barra de una ventana**: ⋯ › *Elegir qué muestra la barra…* (activa el
+  metrónomo), ⋯ › *Cambiar el nombre de la ventana…* («Batería»): el título de la ventana en
+  la barra de tareas cambia; al reabrir Cantus siguen igual.
+- [ ] **Coste**: con el Administrador de tareas, memoria privada y CPU de Cantus en reposo
+  con una y con dos ventanas (en reposo ninguna debe dibujar: 0 % de GPU).
+- [ ] **Linux (X11) y macOS**: mover el mezclador a otra pantalla y volver.
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):

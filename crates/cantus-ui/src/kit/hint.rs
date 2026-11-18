@@ -90,7 +90,7 @@ pub fn set(
 ) {
     let s = slot(ctx);
     let mut s = s.lock().unwrap_or_else(|e| e.into_inner());
-    s.pass = ctx.cumulative_pass_nr();
+    s.pass = crate::windows::pass_nr(ctx);
     let keep = s.drive_pass == Some(s.pass);
     let h = &mut s.hint;
     h.name.clear();
@@ -120,7 +120,7 @@ pub fn drive(ctx: &Context, tag: u64) {
     }
     let s = slot(ctx);
     let mut s = s.lock().unwrap_or_else(|e| e.into_inner());
-    s.drive_pass = Some(ctx.cumulative_pass_nr());
+    s.drive_pass = Some(crate::windows::pass_nr(ctx));
     let Slot { hint, resolved, .. } = &mut *s;
     hint.drive = tag;
     hint.driven.clear();
@@ -135,7 +135,7 @@ pub fn drive(ctx: &Context, tag: u64) {
 pub fn wanted(ctx: &Context, stamp: u64) -> Option<(u64, bool)> {
     let s = slot(ctx);
     let s = s.lock().unwrap_or_else(|e| e.into_inner());
-    let now = ctx.cumulative_pass_nr();
+    let now = crate::windows::pass_nr(ctx);
     let fresh = now.saturating_sub(s.pass) <= 1 && !s.hint.name.is_empty();
     (fresh && s.hint.drive != 0).then(|| {
         let tag = s.hint.drive;
@@ -166,7 +166,7 @@ pub fn resolve(ctx: &Context, tag: u64, stamp: u64, words: &str) {
 pub fn written(ctx: &Context) -> bool {
     let s = slot(ctx);
     let s = s.lock().unwrap_or_else(|e| e.into_inner());
-    s.pass == ctx.cumulative_pass_nr() && !s.hint.name.is_empty()
+    s.pass == crate::windows::pass_nr(ctx) && !s.hint.name.is_empty()
 }
 
 /// [`set_text`] unless a control has written the hint in this pass already.
@@ -185,7 +185,7 @@ pub fn set_text(ctx: &Context, name: &str, value: &str, caps: Caps) {
 pub fn current(ctx: &Context) -> Option<Hint> {
     let s = slot(ctx);
     let s = s.lock().unwrap_or_else(|e| e.into_inner());
-    let now = ctx.cumulative_pass_nr();
+    let now = crate::windows::pass_nr(ctx);
     (now.saturating_sub(s.pass) <= 1 && !s.hint.name.is_empty()).then(|| s.hint.clone())
 }
 
@@ -193,7 +193,7 @@ pub fn current(ctx: &Context) -> Option<Hint> {
 pub fn read<R>(ctx: &Context, f: impl FnOnce(Option<&Hint>) -> R) -> R {
     let s = slot(ctx);
     let s = s.lock().unwrap_or_else(|e| e.into_inner());
-    let now = ctx.cumulative_pass_nr();
+    let now = crate::windows::pass_nr(ctx);
     let fresh = now.saturating_sub(s.pass) <= 1 && !s.hint.name.is_empty();
     f(fresh.then_some(&s.hint))
 }

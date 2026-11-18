@@ -185,3 +185,8 @@ jack-sys = { path = "third_party/jack-sys" }
 # so a reference dropped on Cantus Comparatio's plug-in window is taken (fx side round,
 # ADR 0143 phase B; third_party/README.md).
 egui-baseview = { path = "third_party/egui-baseview" }
+# eframe 0.36.1 (MIT OR Apache-2.0) with two changes for several windows (ADR 0148 §10,
+# third_party/README.md): each due window painted in turn on Windows, so a window that
+# animates no longer starves the others; and each window's winit handle. Drop these lines
+# once upstream has them.
+eframe = { path = "third_party/eframe" }

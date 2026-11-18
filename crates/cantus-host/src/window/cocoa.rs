@@ -57,6 +57,9 @@ pub struct PluginWindow {
     size: EditorSize,
     /// The plug-in floats a window of its own; ours stays hidden and is never shown.
     floating: bool,
+    /// The window it opened for (ADR 0148 §10; on macOS the editor floats above every
+    /// Cantus window and nothing destroys it with another).
+    owner: isize,
 }
 
 fn main_thread() -> Result<MainThreadMarker, HostError> {
@@ -109,6 +112,8 @@ impl PluginWindow {
     /// The window, hidden, with an empty content view.
     fn create(title: &str, owner: Option<RawWindowHandle>) -> Result<PluginWindow, HostError> {
         let mtm = main_thread()?;
+        // A place asked for is the system's choice here (AppKit's coordinates run upwards).
+        let _ = super::take_place();
         let rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(640.0, 480.0));
         // SAFETY: a plain window made on the main thread; it is not released on close (we
         // keep the only strong reference and close it in `drop`).
@@ -146,6 +151,10 @@ impl PluginWindow {
                 height: 480,
             },
             floating: false,
+            owner: match owner {
+                Some(RawWindowHandle::AppKit(h)) => h.ns_view.as_ptr() as isize,
+                _ => 0,
+            },
         })
     }
 
@@ -228,6 +237,20 @@ impl PluginWindow {
     /// The `NSWindow`'s address, as a number (what Windows gives as its `HWND`).
     pub fn handle(&self) -> Option<isize> {
         Some(Retained::as_ptr(&self.window) as isize)
+    }
+
+    /// The window it opened for (`0`: none).
+    pub fn owner(&self) -> isize {
+        self.owner
+    }
+
+    /// Note another Cantus window as its owner (ADR 0148 §10): on macOS the editor floats
+    /// above every Cantus window already, and no window takes it down with another.
+    pub fn set_owner(&mut self, owner: Option<RawWindowHandle>) {
+        self.owner = match owner {
+            Some(RawWindowHandle::AppKit(h)) => h.ns_view.as_ptr() as isize,
+            _ => 0,
+        };
     }
 }
 

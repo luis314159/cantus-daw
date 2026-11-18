@@ -2181,6 +2181,38 @@ impl PluginHost {
         Ok(())
     }
 
+    /// Several screens (ADR 0148 §10): every editor window owned by the native window
+    /// `from` — effects', instruments' and ARA editors' alike — given to `to` instead,
+    /// before `from` closes (Windows destroys an owned window with its owner). Returns how
+    /// many were given.
+    pub fn reown_windows(
+        &mut self,
+        from: isize,
+        to: Option<raw_window_handle::RawWindowHandle>,
+    ) -> usize {
+        if from == 0 {
+            return 0;
+        }
+        let mut n = 0;
+        let windows = self
+            .slots
+            .values_mut()
+            .filter_map(|h| h.window.as_mut())
+            .chain(
+                self.instruments
+                    .values_mut()
+                    .filter_map(|h| h.window.as_mut()),
+            )
+            .chain(self.ara.editor_windows_mut());
+        for w in windows {
+            if w.owner() == from {
+                w.set_owner(to);
+                n += 1;
+            }
+        }
+        n
+    }
+
     /// Close the plug-in's window; `true` if one was open. A window still on its way (its
     /// helper busy) is left to come: a second press on *Open plug-in window* is harmless.
     pub fn close_window(&mut self, effect: EffectId) -> bool {
