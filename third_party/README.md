@@ -13,6 +13,7 @@ folder does for the other two.
 | `cpal` | 0.18.2 (crates.io, checksum `6f02e8d0…681f1`) | <https://github.com/RustAudio/cpal> |
 | `asio-sys` | 0.4.0 (crates.io, checksum `477f1cf5…021b9`) | same repository, `asio-sys/` |
 | `jack-sys` | 0.5.1 (crates.io, checksum `6013b761…fc86ab`; MIT OR Apache-2.0, both files in its folder) | <https://github.com/RustAudio/rust-jack>, `jack-sys/` (round 30) |
+| `egui-baseview` | 0.7.2 (crates.io, checksum `f197eade…fdaf`; MIT OR Apache-2.0, both files in its folder) | <https://codeberg.org/BillyDM/egui-baseview> (fx side round, wave C) |
 
 The first commit that added this folder holds both crates **unchanged**, so
 `git diff <that commit> -- third_party/` is exactly the patch. Drop the folder and the
@@ -169,3 +170,31 @@ it — also with `dynamic_loading`, where JACK is `dlopen`ed and nothing links i
 pkg-config answer would add `-ljack` to the link). The patch asks only when
 `dynamic_loading` is off. With it, building Cantus needs no JACK package at all; the
 binary has no `NEEDED libjack` (`readelf -d`).
+
+## The fx side round, wave C (ADR 0146 phase B): egui-baseview
+
+The exported plug-ins' windows are egui through egui-baseview. baseview passes the
+system's drag-and-drop to the window handler, and on Windows its OLE drop target accepts a
+drop only when the handler answers `EventStatus::AcceptDrop`; egui-baseview 0.7.2 answered
+every drag event as handled and passed none to egui, so no file could be dropped on a
+plug-in's window (the owner asked for a reference dropped onto Cantus Comparatio's, as it is
+in Cantus).
+
+### egui-baseview (`src/drop.rs`, `src/window.rs`, `src/lib.rs`)
+
+- **`drop.rs` (new)**: `drop::input` turns `DragEntered`/`DragMoved` into the files hovering
+  (`RawInput::hovered_files`) and the pointer, `DragDropped` into the files dropped
+  (`RawInput::dropped_files`, each a `DroppedPath`) and the pointer, `DragLeft` into none
+  hovering — what egui-winit gives egui — and returns the status to answer: `AcceptDrop(Copy)`
+  for files, `Ignored` otherwise.
+- **`window.rs`**: `EguiWindow::on_event` calls it first and returns its status, with a
+  repaint asked for.
+- **`lib.rs`**: `pub mod drop`.
+
+The first commit of `third_party/egui-baseview/` is the crate as published, unchanged
+(5b068553); the next holds the patch, marked `CANTUS PATCH`. Tested in
+`crates/cantus-plugins/tests/comparatio.rs` (`a_file_dropped_on_the_plug_in_s_window_is_compared`:
+baseview's events through `drop::input` into the editor running against the plug-in). Only a
+real host shows that its own window lets the system's drop reach ours. Worth offering
+upstream.
+

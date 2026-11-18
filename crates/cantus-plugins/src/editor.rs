@@ -304,7 +304,19 @@ impl FxHost for PluginHost {
         if self.shared.desc.kind != EffectKind::Reference {
             return false;
         }
-        self.shared.comparatio.set(refs, selected);
+        // Each reference keeps its own playback (the owner, 2026-11-17): saved into the
+        // outgoing one's entry, the newcomer's set on the host's parameters.
+        let (refs, keys) = cantus_core::fx::comparatio::switch_to(
+            &self.spec,
+            refs.unwrap_or_default(),
+            selected.as_ref(),
+        );
+        self.shared
+            .comparatio
+            .set((!refs.is_empty()).then_some(refs), selected);
+        if !keys.is_empty() {
+            self.set_many(&keys, "cmd.comparatio_refs");
+        }
         self.comparatio_gen = u64::MAX;
         self.refresh();
         true

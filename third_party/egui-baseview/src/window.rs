@@ -758,6 +758,21 @@ impl<A: App> WindowHandler for EguiWindow<A> {
             self.window.focus().unwrap();
         }
 
+        // CANTUS PATCH: a file dragged onto the window reaches egui, and the system's drop
+        // target is told the drop is taken (`crate::drop`).
+        {
+            let scale =
+                self.system_scale_factor.get() * self.inner.borrow().egui_ctx.zoom_factor() as f64;
+            let mut egui_input = self.egui_input.borrow_mut();
+            if let Some((status, pos)) = crate::drop::input(&event, scale, &mut egui_input) {
+                if pos.is_some() {
+                    self.pointer_logical_pos.set(pos);
+                }
+                self.inner.borrow().egui_ctx.request_repaint();
+                return status;
+            }
+        }
+
         let mut egui_input = self.egui_input.borrow_mut();
 
         let mut do_repaint = true;

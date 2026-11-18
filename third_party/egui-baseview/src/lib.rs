@@ -1,3 +1,5 @@
+// CANTUS PATCH: files dropped on the window reach egui (`drop.rs`).
+pub mod drop;
 mod renderer;
 mod translate;
 mod window;

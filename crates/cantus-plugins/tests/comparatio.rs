@@ -104,6 +104,7 @@ fn references_live_in_the_state_by_path_size_and_hash_never_their_audio() {
                 path: path.clone(),
                 bytes,
                 hash: hash.clone(),
+                playback: None,
             },
             Reference::new(dir.join("Album master.wav").to_string_lossy().to_string()),
         ],
@@ -178,6 +179,10 @@ fn a_reference_loaded_with_the_state_is_heard_matched_and_the_mix_is_untouched()
     // The reference heard: the host sets listen (a parameter like any other).
     let listen = host.table.by_key("listen").unwrap().index;
     host.set_value(listen, 1.0);
+    // Matched by its whole file's loudness (analysed when it was read): the match does not
+    // depend on how much of it the unit heard before the switch (the read's timing).
+    let refl = host.table.by_key("refl").unwrap().index;
+    host.set_value(refl, 1.0);
     let heard = run(&mut p, &ml, &mr);
     // From half a second on (the crossfade and the match's glide done).
     let h = SR as usize / 2;
@@ -221,6 +226,7 @@ fn a_missing_file_is_reported_not_skipped() {
                 path: gone.clone(),
                 bytes: 1_234,
                 hash: "0123456789abcdef".into(),
+                playback: None,
             }],
             eq: None,
         }),
@@ -246,4 +252,81 @@ fn a_missing_file_is_reported_not_skipped() {
     let text = String::from_utf8(host.save_state()).unwrap();
     assert!(text.contains("Gone master.wav") && text.contains("0123456789abcdef"));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The owner, 2026-11-17: a file dropped onto the exported plug-in's window is taken —
+/// baseview's drop event through egui-baseview's handler (`third_party/egui-baseview`,
+/// `drop::input`, what `EguiWindow::on_event` calls) into the editor running against the
+/// plug-in, which adds it to the list, compares it and reads it. The drop target is told the
+/// drop is accepted (Windows shows the copy cursor). What only a real host shows: its window
+/// letting the system's drop reach ours.
+#[cfg(feature = "editor")]
+#[test]
+fn a_file_dropped_on_the_plug_in_s_window_is_compared() {
+    use egui_baseview::baseview::{dpi::PhysicalPosition, DropData, DropEffect, Event, EventStatus, MouseEvent};
+    let dir = temp("drop");
+    let (rl, rr) = steady(3, 0.5, 0.2, 44_100);
+    let file = wav(&dir, "Dropped master.wav", &rl, &rr, 44_100);
+    let host_shared = shared();
+    let sink = Box::new(Sink);
+    let mut host = cantus_plugins::editor::PluginHost::new(host_shared.clone(), sink);
+    let mut editor = cantus_ui::views::fx::Editor::of(EffectKind::Reference).expect("an editor");
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx);
+    let (w, h) = cantus_plugins::editor::size(EffectKind::Reference);
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w as f32, h as f32));
+    // The console's middle, in physical pixels at a scale of 1.5 (a high-DPI screen).
+    let scale = 1.5;
+    let at = PhysicalPosition::new(w * 0.5 * scale, h * 0.4 * scale);
+    let hover = Event::Mouse(MouseEvent::DragEntered {
+        position: at,
+        modifiers: Default::default(),
+        data: DropData::Files(vec![file.clone()]),
+    });
+    let dropped = Event::Mouse(MouseEvent::DragDropped {
+        position: at,
+        modifiers: Default::default(),
+        data: DropData::Files(vec![file.clone()]),
+    });
+    for i in 0..6 {
+        let mut input = egui::RawInput {
+            screen_rect: Some(screen),
+            time: Some(i as f64 / 30.0),
+            ..Default::default()
+        };
+        let event = match i {
+            3 => Some(&hover),
+            4 => Some(&dropped),
+            _ => None,
+        };
+        if let Some(e) = event {
+            let (status, pos) =
+                egui_baseview::drop::input(e, scale, &mut input).expect("a drop event is taken");
+            assert_eq!(status, EventStatus::AcceptDrop(DropEffect::Copy));
+            let p = pos.unwrap();
+            assert!((p.x - w as f32 * 0.5).abs() < 0.01, "logical points: {p:?}");
+        }
+        let mut out = ctx.run_ui(input, |ui| {
+            host.refresh();
+            let _ = editor.show(&mut host, ui);
+        });
+        out.textures_delta.clear();
+    }
+    let (refs, ir) = host_shared.comparatio.get();
+    let stored = file.to_string_lossy().to_string();
+    assert_eq!(ir.map(|f| f.path), Some(stored.clone()), "compared");
+    let entry = &refs.expect("listed").list[0];
+    let (bytes, hash) = store::fingerprint(&file).unwrap();
+    assert_eq!((entry.bytes, entry.hash.as_str()), (bytes, hash.as_str()), "its print");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(feature = "editor")]
+struct Sink;
+
+#[cfg(feature = "editor")]
+impl cantus_plugins::editor::EditSink for Sink {
+    fn edit(&mut self, _edit: cantus_plugins::editor::Edit) {}
 }
