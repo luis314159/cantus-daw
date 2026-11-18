@@ -122,7 +122,10 @@ pub fn preset_sounds(p: &Props) -> Html {
             <h4>{ l.t("Hear its presets", "Escucha sus presets") }</h4>
             <ul class="ps-list">
                 if let Some(d) = dry { { d } }
-                { for sounds.iter().map(|s| row(s.file.to_string(), l.t(s.name.0, s.name.1).to_string(), l.t(s.what.0, s.what.1).to_string())) }
+                { for sounds.iter().enumerate().map(|(i, s)| {
+                    let (name, what) = crate::unit_text::sound(&p.unit, i, s, l);
+                    row(s.file.to_string(), name, what)
+                }) }
             </ul>
             <p class="ps-note">{ l.t(
                 "Rendered by Cantus from its factory presets, each at its own level, with no processing after.",
@@ -146,6 +149,7 @@ pub fn card_sound(p: &Props) -> Html {
         return html! {};
     };
     let on = *now == first.file;
+    let (name, what) = crate::unit_text::sound(&p.unit, 0, first, l);
     let click = {
         let playing = playing.clone();
         let now = now.clone();
@@ -158,8 +162,8 @@ pub fn card_sound(p: &Props) -> Html {
     };
     html! {
         <button type="button" class={classes!("card-play", on.then_some("is-on"))} onclick={click}
-                title={format!("{} — {}", l.t(first.name.0, first.name.1), l.t(first.what.0, first.what.1))}
-                aria-label={format!("{} {}", if on { l.t("Stop", "Parar") } else { l.t("Hear", "Escuchar") }, l.t(first.name.0, first.name.1))}>
+                title={format!("{name} — {what}")}
+                aria-label={format!("{} {name}", if on { l.t("Stop", "Parar") } else { l.t("Hear", "Escuchar") })}>
             { play_icon(on) }
         </button>
     }

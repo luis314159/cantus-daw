@@ -126,16 +126,16 @@ pub fn spotlight() -> Html {
         .into_iter()
         .take(4)
         .map(|f| html! { <li>{ f }</li> });
-    let presets = crate::sounds::of(u.file).iter().take(4).map(|s| {
+    let presets = crate::sounds::of(u.file).iter().take(4).enumerate().map(|(i, s)| {
         let on = now.file == s.file;
         let file = s.file.to_string();
         let toggle = toggle.clone();
-        let name = l.t(s.name.0, s.name.1);
+        let (name, what) = crate::unit_text::sound(u.file, i, s, l);
         html! {
             <li class={classes!("spot-preset", on.then_some("is-on"))}>
                 <button type="button" onclick={Callback::from(move |_| toggle.emit(file.clone()))} aria-pressed={on.to_string()}>
                     <span class="spot-play">{ if on { icons::pause() } else { icons::play() } }</span>
-                    <span class="spot-name"><b>{ name }</b><small>{ l.t(s.what.0, s.what.1) }</small></span>
+                    <span class="spot-name"><b>{ name.clone() }</b><small>{ what }</small></span>
                 </button>
                 <span class="spot-bar" role="progressbar" aria-label={format!("{name}, {}", l.t("played", "reproducido"))}
                       aria-valuemin="0" aria-valuemax="100" aria-valuenow={format!("{:.0}", if on { now.frac * 100.0 } else { 0.0 })}>

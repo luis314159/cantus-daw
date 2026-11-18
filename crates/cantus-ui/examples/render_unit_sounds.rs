@@ -155,7 +155,9 @@ fn main() {
          //! ADR 0101), rendered by Cantus on what its preset browser plays them on, at the\n\
          //! presets' own levels, with no processing after. Do not edit by hand.\n\n\
          /// One excerpt: its file (without `.mp3`), the preset's name and what it is for, each\n\
-         /// `(English, Spanish)`.\n\
+         /// `(English, Spanish)`. Written as `snd!(file, name, what, on)` (`main.rs`): the\n\
+         /// WebAssembly leaves the name and what out and reads them from `/unit-text.json`.\n\
+         #[cfg_attr(target_arch = \"wasm32\", allow(dead_code))]\n\
          pub struct Sound {\n    pub file: &'static str,\n    pub name: (&'static str, &'static str),\n    pub what: (&'static str, &'static str),\n    /// An effect's dry source (`SOURCES`); empty for an instrument.\n    pub on: &'static str,\n}\n\n\
          /// The excerpts of each card, by its `file`.\npub const SOUNDS: &[(&str, &[Sound])] = &[\n",
     );
@@ -178,7 +180,7 @@ fn main() {
             );
             let _ = writeln!(
                 code,
-                "        Sound {{ file: {}, name: ({}, {}), what: ({}, {}), on: {} }},",
+                "        snd!({}, ({}, {}), ({}, {}), {}),",
                 lit(&stem),
                 lit(&name_en),
                 lit(&t_in(Locale::Es, &e.id)),

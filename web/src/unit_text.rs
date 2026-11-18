@@ -4,9 +4,12 @@
 //! `/unit-text.json` beside the pages (and into their HTML); the browser fetches that once
 //! before the app starts (`main.rs`), so the app's first render matches the static page.
 //! Natively (the pre-renderer, the tests) the text is read straight from `units_data.rs`.
+//! The preset excerpts' names and what they are for (`units_sounds.rs`) travel the same way
+//! (fx/final: the side round's 36 excerpts had put the WebAssembly over its budget).
 
 use crate::lang::Lang;
 use crate::units::Unit;
+use crate::units_sounds::Sound;
 
 /// Where the pre-renderer writes it and the browser reads it.
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
@@ -41,7 +44,30 @@ pub fn features(u: &Unit, l: Lang) -> Vec<String> {
     }
 }
 
-/// The JSON the browser reads: `{"unda":{"what":["en","es"],"features":[["en","es"],…]},…}`.
+/// The `i`-th excerpt of the card `file` (`s`): its preset's name and what it is for.
+pub fn sound(file: &str, i: usize, s: &Sound, l: Lang) -> (String, String) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = s;
+        let col = match l {
+            Lang::En => 0,
+            Lang::Es => 1,
+        };
+        let get = |c| browser::sound(file, i as u32, c).unwrap_or_default();
+        (get(col), get(col + 2))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (file, i);
+        (
+            l.t(s.name.0, s.name.1).to_string(),
+            l.t(s.what.0, s.what.1).to_string(),
+        )
+    }
+}
+
+/// The JSON the browser reads: `{"unda":{"what":["en","es"],"features":[["en","es"],…],
+/// "sounds":[["name en","name es","what en","what es"],…]},…}`.
 #[cfg(feature = "ssr")]
 pub fn json() -> String {
     fn s(t: &str) -> String {
@@ -68,12 +94,25 @@ pub fn json() -> String {
                 .iter()
                 .map(|f| format!("[{},{}]", s(f.0), s(f.1)))
                 .collect();
+            let sounds: Vec<String> = crate::sounds::of(u.file)
+                .iter()
+                .map(|x| {
+                    format!(
+                        "[{},{},{},{}]",
+                        s(x.name.0),
+                        s(x.name.1),
+                        s(x.what.0),
+                        s(x.what.1)
+                    )
+                })
+                .collect();
             format!(
-                "{}:{{\"what\":[{},{}],\"features\":[{}]}}",
+                "{}:{{\"what\":[{},{}],\"features\":[{}],\"sounds\":[{}]}}",
                 s(u.file),
                 s(u.what.0),
                 s(u.what.1),
-                feats.join(",")
+                feats.join(","),
+                sounds.join(",")
             )
         })
         .collect();
@@ -106,6 +145,17 @@ mod browser {
                 Lang::Es => 1,
             };
             js_sys::Reflect::get_u32(&v, col).ok()?.as_string()
+        })
+    }
+
+    /// `TEXT[file].sounds[i][col]`: 0 and 1 the name, 2 and 3 what it is for (en, es).
+    pub fn sound(file: &str, i: u32, col: u32) -> Option<String> {
+        TEXT.with(|t| {
+            let t = t.borrow();
+            let unit = js_sys::Reflect::get(&t, &file.into()).ok()?;
+            let all = js_sys::Reflect::get(&unit, &"sounds".into()).ok()?;
+            let one = js_sys::Reflect::get_u32(&all, i).ok()?;
+            js_sys::Reflect::get_u32(&one, col).ok()?.as_string()
         })
     }
 
@@ -153,6 +203,16 @@ mod tests {
             );
             assert!(!u.what.0.is_empty() && !u.features.is_empty(), "{}", u.file);
         }
+        // Every card's excerpts, named, in the order the page lists them (the WebAssembly
+        // reads them by their index).
+        for u in crate::units_data::EFFECTS.iter() {
+            for (i, s) in crate::sounds::of(u.file).iter().enumerate() {
+                let (name, what) = sound(u.file, i, s, Lang::Es);
+                assert!(!name.is_empty() && !what.is_empty(), "{}", s.file);
+            }
+        }
+        assert!(j.contains("\"unda\":{\"what\":["));
+        assert!(j.contains("\"sounds\":[[\"Glass Choir\",\"Coro de cristal\","));
         assert_eq!(j.matches('{').count(), j.matches('}').count());
     }
 }
