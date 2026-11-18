@@ -4,6 +4,28 @@
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
+## The next session: what the effects side round left
+
+The effects side round (a second session beside round 40, from 2026-11-13) is merged into
+**`fx/final`** (`C:\projects\daw-fx\final`), every branch renumbered onto round 40's
+numbers; master is updated and pushed, and the site published, only on the owner's word. The
+account: `docs/round-fx/final-merge.md` (the merge order, the numbers' table, every conflict
+and fix); one report per builder beside it.
+
+1. **What waits for the owner** (nothing ships before it):
+   - **Listen**: each new unit's presets and Try it's takes (three a unit; Lapsus one,
+     Fractus three; Fragor's *Stacked lead* nearly without crest); the guitar sets in
+     `compartir\<unit>\sound\`.
+   - **Look**: the two colourways moved for the house rule (`compartir\skins-clash\`: Purus
+     Graphite 246°, Calculus Ebony 190°); Lapsus v3; the colourways changed earlier.
+   - **Decide**: Lapsus's patterns in 3/4 songs; colourways for Lapsus; Fragor's pedal sizes
+     kept in the project; Vinculum's opto Limit attack (0.9 ms against the published ~10 ms).
+2. **Verified only in emulation** (`docs/beta-checklist.md`): the units played live through an
+   interface; the CLAP/VST3 exports in a third-party DAW; several screens on real monitors
+   (fx/multimon); issue #1 on the reporter's machine.
+3. **Quiet re-runs** (load-sensitive): `sync_midi::the_out_thread_sends_on_time`, Chorda's
+   64-voice CPU budget, `preset_render`'s Arca, `scene_vector`.
+
 ## The next session: what round 40 left
 
 Round 40 is merged into **`r40/integration`** (`F:\projects\daw-r40\integration`) and
@@ -617,6 +639,37 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## The effects side round: seventeen effects, two controllers, the mid-song glide, issue #1, several screens (requested 2026-11-13)
+
+A second session beside round 40, merged onto it in `fx/final` (`docs/round-fx/final-merge.md`).
+**Seventeen effects**, each a face of its own, a CLAP/VST3 plug-in, presets, an end-to-end
+test through `assemble`, a manual section and a site card: Cribrum (auto filter), Fragor
+(circuit-modelled pedals), Lapsus (time shaper), Vetus (lo-fi), Libra (utility), Tabula (a
+pedalboard of Cantus's own effects), Saltus (pitch), Rota (rotary speaker), Arca (amp and
+cabinet), Loquax (vocoder), Fractus (glitch and grain cloud), Caelum (shimmer reverb with a
+continuous Sustain), Vinculum (bus compressor: VCA, opto matched to the LA-2A/T4 figures,
+vari-mu), Lenis (resonance suppressor), Cedo (ducker), Purus (real-time repair), Comparatio
+(the reference comparator) — ADRs 0127–0143. **Two controllers**, modulators with windows of
+their own: Tactus (the X-Y pad) and Calculus (the formula) — ADRs 0144–0145. **Issue #1**: the
+window that flickered on most screens (a scale measured in the wrong units) holds still, with
+a watchdog, a log file and a safe-graphics start; menus at 200 %; **Ctrl+G** routes the
+selection to a new bus and folds its tracks — ADRs 0146–0147. **Several screens**: any area in
+a window of its own, remembered per set of screens, a patched eframe — ADR 0148. **The mid-song
+render glide**: every unit and instrument takes its values at once at a start, a seek or a
+loop's wrap, so a render from bar N is the whole render from there and live equals offline
+(`DSP_VERSION` 8, ADR 0027 amended). The fader-cap choice reaches the desk; every dropdown and
+menu is on its sheet beside its field (ADR 0103 amended, ADR 0146's second amendment).
+
+Schema 77 (72–77 the side round's), keymap 19, `DSP_VERSION` 8, ADRs up to 0148. The site:
+every unit's card and page, Try it on real renders, a third tab for the controllers.
+
+Found only on the merged tree and fixed in it: a Delay pedal's line floor and synced tempo, a
+board pedal's memory in listen and render, an undo hole under ARA (seed 15), Comparatio's
+offline switch allocating, a Firmus kept across a project swap, the start memory (5.9 →
+5.1 MB), the house colour rule, the dancer window's test racing the themes test.
+
+**Suites**: [Windows and Linux counts after the last merges — to be filled].
 
 ## Round 40: Chorda toward the Salamander, recorded pianos, Tympanum, the mixer's bands and the instruments' pictures; the ripple, pads, Delay, the cast (requested 2026-11-11)
 
