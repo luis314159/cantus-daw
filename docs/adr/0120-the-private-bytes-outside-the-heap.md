@@ -91,6 +91,18 @@ escape. An English session never parses Spanish; a Spanish one parses English on
 key Spanish lacks (none does: the i18n test). Switching language parses the other table in
 that frame.
 
+**Amended (the effects side round's final merge).** The table was a hash map of 40-byte
+entries, and a hash map's buckets double at a power of two (and it reserves ahead as each
+area's strings are added): with the side round's ~2 600 new English keys (13 896 in all,
+16 384 buckets holding at most 14 336) it was filled into 32 768 buckets, one allocation of
+1.31 MB where 0.66 MB had held round 40's 11 271 (`memory_e2e`'s size histogram; an empty
+song and its frames 5.2 → 5.9 MB, nothing else of the start moved). Each table is now one sorted
+slice exactly as long as its keys (`i18n::Table`: 40 bytes a key, 0.53 MB for English),
+looked up by binary search — about fourteen comparisons of short strings, beside the
+`String` every `t` already returns — and it grows with the keys, never by doubling. A key
+given twice keeps its last value, as the map's `insert` did
+(`i18n::tests::the_table_holds_each_key_once_with_its_last_value`).
+
 ### 7. Not done here: the compensation pool's start-up lines
 
 The processor makes its 32 start-up compensation lines (2.25 MB) at construction

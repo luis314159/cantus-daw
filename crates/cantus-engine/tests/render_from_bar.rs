@@ -216,3 +216,86 @@ fn live_playback_from_bar_3_is_the_render_from_bar_3_with_an_effect_automated() 
     let (at, d) = worst(&heard, &whole[..frames * 2]);
     assert_eq!(d, 0.0, "played from the start: {d:e} at frame {at}");
 }
+
+/// A Firmus track whose cutoff and level are far from the factory's, playing A3 on every
+/// beat; `skip` tracks made first and left out, so its id is another song's.
+fn bright(name: &str, skip: usize, cutoff_hz: f32, gain_db: f32) -> Project {
+    let mut p = Project::new(name);
+    p.tempo_bpm = 120.0;
+    for _ in 0..skip {
+        let _ = p.make_track("left out");
+    }
+    let mut t = p.make_track(name);
+    let f = t.instrument.firmus_mut().expect("Firmus");
+    f.cutoff_hz = cutoff_hz;
+    f.gain_db = gain_db;
+    f.resonance = 0.0;
+    f.filter_env_octaves = 0.0;
+    let mut clip = p.make_clip("beats", Ticks::ZERO, Ticks::beats(4));
+    for b in 0..4 {
+        let n = p.make_note(Ticks::beats(b), Ticks(PPQ / 2), 57, 100);
+        clip.notes.push(n);
+    }
+    t.clips.push(clip);
+    p.tracks.push(t);
+    p
+}
+
+/// fx/final (`lenis_e2e`'s finding) — playback started from stop is the offline render, to
+/// the bit, from the first note, whatever the processor heard before: a song replaced by
+/// another whose track has the old one's id (the slot kept) or another id (the slot reset),
+/// with no block run between the two songs or after the old one was heard stopped. The
+/// slot's Firmus held the old track's cutoff and level and, with no idle block run since
+/// the new song came, glided 20 ms from them; a render's synth is new and takes its first
+/// settings at once. At `Play` every idle Firmus snaps.
+#[test]
+fn playback_from_stop_after_another_song_is_the_render() {
+    let old = bright("Old", 0, 300.0, -18.0);
+    let frames = FRAMES_PER_BEAT * 2;
+    for (skip, stopped) in [(0usize, 0usize), (0, 700), (3, 0), (3, 700)] {
+        let new = bright("New", skip, 16_000.0, 0.0);
+        assert_eq!(
+            old.tracks[0].id == new.tracks[0].id,
+            skip == 0,
+            "the same id, or another"
+        );
+        let whole = render_beats(&new, 0, 4);
+        let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
+        let (tx_engine, _rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+        let mut proc = Processor::without_midi(f64::from(SR), rx_engine, tx_engine);
+        tx.push(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(
+            &old, 1,
+        ))))
+        .unwrap();
+        // `stopped` 0: both songs reach the processor in one block's messages.
+        let mut buf = vec![0f32; 2 * 64];
+        for _ in 0..stopped / 64 {
+            proc.process(&mut buf, 2);
+        }
+        tx.push(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(
+            &new, 1,
+        ))))
+        .unwrap();
+        tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
+        tx.push(EngineMessage::Play).unwrap();
+        let mut heard = Vec::with_capacity(frames * 2);
+        let sizes = [128usize, 333, 512, 96, 1024, 17];
+        let mut i = 0;
+        while heard.len() / 2 < frames {
+            let n = sizes[i % sizes.len()].min(frames - heard.len() / 2);
+            i += 1;
+            let mut b = vec![0f32; n * 2];
+            proc.process(&mut b, 2);
+            heard.extend_from_slice(&b);
+        }
+        assert!(worst(&heard, &vec![0.0; heard.len()]).1 > 0.05, "it plays");
+        let (at, d) = worst(&heard, &whole[..frames * 2]);
+        assert_eq!(
+            d,
+            0.0,
+            "{} id, stopped {stopped} frames on the old song: {d:e} at frame {at} ({:.1} ms in)",
+            if skip == 0 { "the same" } else { "another" },
+            at as f64 * 1_000.0 / f64::from(SR)
+        );
+    }
+}

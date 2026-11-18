@@ -199,7 +199,9 @@ fn what_a_start_holds() {
     // here, not first in the scorecard. Round 39 (ADR 0107): the processor 8.0 MB, 59.7 MB
     // in all where round 38 held 145.5. Round 40 (ADR 0120): an empty song and its frames
     // 7.8 → 5.2 MB (one language parsed, its strings borrowed), Exemplar's built-ins a step
-    // the picker causes, not the start; 56.9 MB in all.
+    // the picker causes, not the start; 56.9 MB in all. The effects side round (ADR 0120 §6
+    // amended): its 2 600 strings doubled the English hash map's buckets (5.9 MB, the
+    // budget broken); the table a sorted slice as long as its keys, 5.1 MB.
     let step = |what: &str| {
         let i = steps.iter().position(|(w, _)| *w == what).expect(what);
         steps[i].1 - steps[i - 1].1
@@ -219,7 +221,7 @@ fn what_a_start_holds() {
     );
     assert!(
         empty <= 5.8,
-        "an empty song and its frames hold {empty:.1} MB (5.2 measured; 7.8 before ADR 0120)"
+        "an empty song and its frames hold {empty:.1} MB (5.1 measured; 7.8 before ADR 0120)"
     );
     assert!(
         demo <= 41.5,

@@ -1,7 +1,6 @@
 //! Internationalization (ADR 0007). No UI string is written inline: every label goes
 //! through [`t`] / [`tf`].
 
-use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -335,10 +334,61 @@ impl Locale {
 // an English session never parses Spanish, a Spanish one parses English only if a key is
 // missing (none is: the test below). A value borrows the bundled text unless it holds an
 // escape. Areas are still listed in `sources`; only the parsing changed.
-type Table = HashMap<&'static str, std::borrow::Cow<'static, str>>;
+//
+// fx/final — the table is one sorted slice, exactly as long as its keys, looked up by
+// binary search (ADR 0120 §6, amended): a hash map's buckets double at a power of two, and
+// with the side round's 2 600 keys English was filled into 32 768 buckets — 1.31 MB where
+// 0.66 MB had held it (`memory_e2e`: an empty song 5.2 → 5.9 MB). The slice is 40 bytes a
+// key (13 896 keys: 0.53 MB) and grows with them, never by doubling. A lookup is fourteen
+// comparisons of short strings, beside the `String` every `t` returns.
+type Value = std::borrow::Cow<'static, str>;
 
-fn parse(source: &'static str) -> Table {
-    let mut table = HashMap::new();
+/// A locale's keys and values, sorted by key, each key once (the last source's value).
+#[derive(Debug, Default)]
+struct Table(Box<[(&'static str, Value)]>);
+
+impl Table {
+    /// The pairs in source order; a key given again takes the later value (as the map's
+    /// `insert` did).
+    fn from_pairs(mut pairs: Vec<(&'static str, Value)>) -> Table {
+        // Latest first, then a stable sort: the first of each run of a key is its last value.
+        pairs.reverse();
+        pairs.sort_by(|a, b| a.0.cmp(b.0));
+        pairs.dedup_by(|later, kept| later.0 == kept.0);
+        Table(pairs.into_boxed_slice())
+    }
+
+    fn get(&self, key: &str) -> Option<&Value> {
+        self.0
+            .binary_search_by(|(k, _)| (*k).cmp(key))
+            .ok()
+            .map(|i| &self.0[i].1)
+    }
+
+    fn contains_key(&self, key: &str) -> bool {
+        self.get(key).is_some()
+    }
+
+    #[cfg(test)]
+    fn keys(&self) -> impl Iterator<Item = &&'static str> {
+        self.0.iter().map(|(k, _)| k)
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+#[cfg(test)]
+impl std::ops::Index<&str> for Table {
+    type Output = Value;
+    fn index(&self, key: &str) -> &Value {
+        self.get(key).expect("no such key")
+    }
+}
+
+fn parse_into(source: &'static str, pairs: &mut Vec<(&'static str, Value)>) {
     for line in source.lines() {
         let line = line.trim_start();
         if line.is_empty() || line.starts_with('#') {
@@ -351,10 +401,16 @@ fn parse(source: &'static str) -> Table {
             } else {
                 std::borrow::Cow::Borrowed(v)
             };
-            table.insert(k.trim(), v);
+            pairs.push((k.trim(), v));
         }
     }
-    table
+}
+
+#[cfg(test)]
+fn parse(source: &'static str) -> Table {
+    let mut pairs = Vec::new();
+    parse_into(source, &mut pairs);
+    Table::from_pairs(pairs)
 }
 
 /// `locale`'s table, parsed on first use.
@@ -363,11 +419,14 @@ fn table(locale: Locale) -> &'static Table {
         [const { OnceLock::new() }; Locale::ALL.len()];
     TABLES[locale as usize].get_or_init(|| {
         PARSED[locale as usize].store(true, std::sync::atomic::Ordering::Relaxed);
-        let mut table = Table::new();
-        for source in locale.sources() {
-            table.extend(parse(source));
+        let sources = locale.sources();
+        // Room for every line: no doubling while parsing (the slice is cut to the keys).
+        let lines = sources.iter().map(|s| s.lines().count()).sum();
+        let mut pairs = Vec::with_capacity(lines);
+        for source in sources {
+            parse_into(source, &mut pairs);
         }
-        table
+        Table::from_pairs(pairs)
     })
 }
 
@@ -522,9 +581,9 @@ mod tests {
         let en = table(Locale::En);
         for l in Locale::ALL {
             let table = table(l);
-            let missing: Vec<_> = en.keys().filter(|k| !table.contains_key(*k)).collect();
+            let missing: Vec<_> = en.keys().filter(|k| !table.contains_key(k)).collect();
             assert!(missing.is_empty(), "{l:?} is missing {missing:?}");
-            let extra: Vec<_> = table.keys().filter(|k| !en.contains_key(*k)).collect();
+            let extra: Vec<_> = table.keys().filter(|k| !en.contains_key(k)).collect();
             assert!(extra.is_empty(), "{l:?} has extra keys {extra:?}");
         }
     }
@@ -538,6 +597,33 @@ mod tests {
         let parsed = parse("a = one\\ntwo\nb = plain");
         assert_eq!(parsed["a"], "one\ntwo");
         assert!(matches!(parsed["b"], std::borrow::Cow::Borrowed("plain")));
+    }
+
+    /// fx/final (ADR 0120 §6, amended) — the sorted table: each key once, a key given again
+    /// (in one source or a later one) holds its last value, as the map's `insert` did; the
+    /// slice is exactly as long as the keys (no bucket rounding); every key is found.
+    #[test]
+    fn the_table_holds_each_key_once_with_its_last_value() {
+        let mut pairs = Vec::new();
+        parse_into("b = 1\na = 2\n# c = no\nb = 3", &mut pairs);
+        parse_into("c = 4\na = 5", &mut pairs);
+        let t = Table::from_pairs(pairs);
+        assert_eq!(t.len(), 3);
+        assert_eq!((&*t["a"], &*t["b"], &*t["c"]), ("5", "3", "4"));
+        assert!(t.get("d").is_none() && t.get("").is_none());
+        for l in Locale::ALL {
+            let table = table(l);
+            let mut seen = 0;
+            for k in table.keys() {
+                assert!(table.contains_key(k), "{l:?}: {k} not found");
+                seen += 1;
+            }
+            assert_eq!(seen, table.len());
+            assert!(
+                table.0.windows(2).all(|w| w[0].0 < w[1].0),
+                "{l:?}: sorted, once"
+            );
+        }
     }
 
     #[test]
