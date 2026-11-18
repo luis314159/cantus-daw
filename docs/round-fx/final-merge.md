@@ -15,10 +15,11 @@ owner's word) master is updated, pushed and the site published. **Everything lan
 | 3 | `fx/excel` `67a79517` | Caelum's continuous Sustain | `95488de5` |
 | 4 | `fx/wave-d` `2eac2c50` | Tactus (X-Y pad), Calculus (formula), their follow-ups | `2b87f947` |
 | 5 | `fx/wave-b` `d95e96d6` | Vinculum, Lenis, Cedo | `c8b1e990` |
-| 6 | `fix/flicker` | issue #1 (the window flicker), menus at 200 %, the one-step bus, Ctrl+G's folder | later |
-| 7 | `fix/look` | the fader-cap setting reaching the mixer, see-through dropdowns, every popup audited | later |
-| 8 | `fx/wave-c` | Purus, Comparatio (with the owner's three Comparatio follow-ups) | later |
-| 9 | `fx/multimon` | several screens (a patched eframe in `third_party/eframe`) | later, last |
+| 6 | `fix/flicker` `c93de728` | issue #1 (the window flicker), menus at 200 %, the one-step bus, Ctrl+G's folder | `c68bc919` |
+| 7 | `fix/look` `ea0e1462` | the fader-cap setting reaching the mixer, every dropdown on its sheet | `25b08b20` |
+| 7b | `fix/snap` `221184ad`, `91a8114d` | the mid-song render glide: every unit snaps at a jump, `DSP_VERSION` 8 | `daa04296`, `50a2f45e` |
+| 8 | `fx/wave-c` `9b4867c2` | Purus, Comparatio (its references, each with its own playback) | `cfbf6d1f` |
+| 9 | `fx/multimon` `4a0fd078` | several screens (a patched eframe in `third_party/eframe`) | `b7c6760a` |
 
 ## The numbers: provisional → final
 
