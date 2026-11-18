@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 74; // fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 77; // fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's (Vinculum, Lenis, Cedo; an empty step until its merge), 76 wave C's (Purus, Comparatio; an empty step until its merge), 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -335,6 +335,9 @@ static MIGRATIONS: &[Migration] = &[
     migrate_71_to_72, // fx — the side round's five kinds (ADRs 0127–0130)
     migrate_72_to_73, // fx3 — Tabula's board and three kinds (ADRs 0131–0134)
     migrate_73_to_74, // fxa — Fractus's lanes and three kinds (ADRs 0136–0138)
+    migrate_74_to_75, // fxb — wave B's (ADRs 0136–0138): an empty step until its merge
+    migrate_75_to_76, // fxc — wave C's (ADRs 0139–0140): an empty step until its merge
+    migrate_76_to_77, // fxd — the X-Y pad and the formula controller (ADRs 0141–0142)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1193,6 +1196,27 @@ fn migrate_73_to_74(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 75 (the effects side round's wave B, ADRs 0136–0138): an empty step until wave B
+/// is merged, which fills it.
+fn migrate_74_to_75(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 76 (the effects side round's wave C, ADRs 0139–0140): an empty step until wave C
+/// is merged, which fills it.
+fn migrate_75_to_76(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 77 (the effects side round's wave D, ADRs 0141–0142; provisional 67): two modulator sources — the
+/// X-Y pad (its puck, inertia, path and the links of its routes) and the formula controller
+/// (its text, knobs and links) — and the automation target of their inputs
+/// (`AutoTarget::ModInput`). Nothing older has any of them, so nothing is written.
+// fxd
+fn migrate_76_to_77(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
 /// the default character changed, an old song keeps the one it showed).
 fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
@@ -1624,6 +1648,77 @@ mod tests {
             .all(|(_, e)| !new_kinds.contains(&e.spec.kind) && e.spec.board.is_none()));
     }
 
+    /// fxd:contract — Schema 77 (the effects side round's wave D): the fixture holds
+    /// an X-Y pad (links, a range, inertia, a playing path) and a formula whose knob b a
+    /// clip automates; every older file (74) opens with no controller and no input lane.
+    #[test]
+    fn schema_77_keeps_the_pad_the_formula_and_their_input_lanes() {
+        use cantus_core::automation::AutoTarget;
+        use cantus_core::modulator::{ModKind, ModSource, RouteRange};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v77.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        let kinds: Vec<ModKind> = p
+            .master
+            .modulators
+            .iter()
+            .map(|m| m.source.kind())
+            .collect();
+        assert!(
+            kinds.ends_with(&[ModKind::XyPad, ModKind::Formula]),
+            "{kinds:?}"
+        );
+        let n = p.master.modulators.len();
+        let pad = &p.master.modulators[n - 2];
+        assert_eq!(pad.name, "Sweep");
+        let ModSource::XyPad(x) = &pad.source else {
+            unreachable!()
+        };
+        assert_eq!(
+            (x.x, x.y, x.inertia_ms, x.play_path),
+            (0.3, 0.7, 250.0, true)
+        );
+        assert_eq!(x.path.as_ref().unwrap().points.len(), 4);
+        assert_eq!(
+            pad.source.link(&AutoTarget::MasterWidth),
+            (
+                1,
+                Some(RouteRange {
+                    from: 0.0,
+                    to: 0.6,
+                    curve: 0.4
+                })
+            )
+        );
+        assert_eq!(pad.source.link(&AutoTarget::MasterPan), (0, None));
+        let f = &p.master.modulators[n - 1];
+        let ModSource::Formula(src) = &f.source else {
+            unreachable!()
+        };
+        assert_eq!(src.text, "a*Sin(SongTime*Pi*b)+c");
+        assert_eq!(src.inputs, [0.5, 0.25, 0.5]);
+        let lane = AutoTarget::ModInput {
+            modulator: f.id,
+            input: 1,
+        };
+        assert!(p
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .any(|c| c.automation.as_ref().is_some_and(|a| a.target == lane)));
+        // The engine's plan: the pad's two routes linked, the formula compiled, knob b's lane.
+        let s = cantus_core::Snapshot::compile(&p, 1);
+        let fp = s.modulators.iter().find(|m| m.id == f.id).unwrap();
+        assert!(fp.program.is_some() && fp.input_lanes[1].is_some());
+        let old = std::fs::read_to_string(dir.join("v74.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .all_modulators()
+            .all(|(_, m)| m.source.kind().inputs() == 0));
+    }
+
     /// fxa:contract — Schema 74 (the effects side round's wave A): the fixture holds
     /// one insert of each of the three new kinds, the Fractus with two painted lanes; every
     /// older file (73) opens with none of them and no pattern. A hand-edited pattern is
@@ -1637,7 +1732,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v74.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // fxd:contract — no longer the newest: migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(64));
         let p = report.file.project;
         let slots: Vec<_> = p.strips[1]
             .effects
@@ -2030,8 +2126,12 @@ mod tests {
         let p = parse(&text, true).unwrap().file.project;
         let mods: Vec<_> = p.all_modulators().map(|(_, m)| m).collect();
         let kinds: Vec<ModKind> = mods.iter().map(|m| m.source.kind()).collect();
-        for k in ModKind::ALL {
-            assert!(kinds.contains(&k), "{k:?} in the fixture");
+        // fxd: the controllers arrived with schema 77 (its own test).
+        for k in ModKind::ALL
+            .iter()
+            .filter(|k| !ModKind::CONTROLLERS.contains(k))
+        {
+            assert!(kinds.contains(k), "{k:?} in the fixture");
         }
         assert!(mods.iter().all(|m| m.is_valid()));
         let lfo = mods

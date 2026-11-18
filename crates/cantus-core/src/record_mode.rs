@@ -375,7 +375,7 @@ fn allowed(lock: &EditLock, project: &Project, touch: &Touch, control: bool, dep
                     allowed(lock, project, &TrackSource(*track), false, depth)
                 }
                 // A modulator's amount scales every route it drives: each one judged.
-                AutoTarget::ModAmount(m) => {
+                AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => {
                     if depth > 0 {
                         return false;
                     }

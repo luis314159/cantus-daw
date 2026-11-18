@@ -43,6 +43,10 @@ fn rich() -> (Project, Vec<AutoTarget>) {
     let m = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
     let m_id = m.id;
     p.modulators_mut(ModHost::Track(tf)).unwrap().push(m);
+    // fxd: an X-Y pad, whose Y is a target (ADR 0144).
+    let pad = Modulator::new(ModulatorId(p.alloc_id()), ModKind::XyPad);
+    let pad_id = pad.id;
+    p.modulators_mut(ModHost::Track(tf)).unwrap().push(pad);
     let key = EffectKind::Compressor.params()[0].key.to_string();
     let master_key = EffectKind::Eq.params()[0].key.to_string();
     let inst_key = InstrumentKind::Analog
@@ -86,12 +90,16 @@ fn rich() -> (Project, Vec<AutoTarget>) {
             effect: nfx_id,
             key: "gate".into(),
         },
+        AutoTarget::ModInput {
+            modulator: pad_id,
+            input: 1,
+        },
     ];
     (p, targets)
 }
 
 /// How many kinds of target there are.
-const KINDS: usize = 16;
+const KINDS: usize = 17;
 
 /// Each kind of target's number: an exhaustive match, no wildcard (review 1, #34).
 fn kind(t: &AutoTarget) -> usize {
@@ -112,6 +120,7 @@ fn kind(t: &AutoTarget) -> usize {
         AutoTarget::PluginInstrument { .. } => 13,
         AutoTarget::ModAmount(_) => 14,
         AutoTarget::NoteFx { .. } => 15,
+        AutoTarget::ModInput { .. } => 16,
     }
 }
 

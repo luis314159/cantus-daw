@@ -81,6 +81,9 @@ pub fn function_of(kind: ModKind) -> Function {
         ModKind::Follower => Function::Output,
         ModKind::Step => Function::Source,
         ModKind::Random => Function::Space,
+        // fxd: the controllers (ADRs 0144, 0145).
+        ModKind::XyPad => Function::Tone,
+        ModKind::Formula => Function::Mod,
     }
 }
 
@@ -128,7 +131,7 @@ pub fn host_for(
             }
         }
         AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => ModHost::Master,
-        AutoTarget::ModAmount(m) => project
+        AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => project
             .modulator(*m)
             .map(|(h, _, _)| h)
             .or(selected.map(ModHost::Track))
@@ -374,6 +377,8 @@ impl CantusApp {
         };
         let mut m = m.clone();
         m.routes.retain(|r| &r.target != target);
+        // fxd: its link (a pad's axis, a controller's range) goes with it.
+        m.tidy_links();
         self.edit_modulator(m, None)
     }
 

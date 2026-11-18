@@ -183,6 +183,8 @@ impl CantusApp {
         if self.controllers.learning.take().is_some() {
             self.controllers.tap.filter().set_learning(false);
         }
+        self.controllers.learn_next = None;
+        self.controllers.learn_skip = None;
         self.controllers.states.clear();
         self.controllers.sent.clear();
         self.controllers.activity.clear();
@@ -948,6 +950,7 @@ impl CantusApp {
             MappingTarget::Param(a) => Some(a.clone()),
             _ => None,
         }) {
+            self.automation.last_tweaked_with = None;
             self.automation.last_tweaked = Some(a);
         }
         let result = match old_key {

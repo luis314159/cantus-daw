@@ -46,6 +46,15 @@ pub struct ModPlan {
     pub listen: Option<ListenAt>,
     /// The lanes it drives (indices into `Snapshot::automation`), each with its depth.
     pub routes: Vec<(usize, f32)>,
+    /// fxd:contract — how each of `routes` reads the source (in the same order): the
+    /// output (an X-Y pad's axis) and the route's range (ADRs 0144, 0145).
+    pub links: Vec<(u8, Option<super::RouteRange>)>,
+    /// fxd:contract — a controller's inputs (the pad's X and Y, the formula's a, b, c)
+    /// where nothing automates them, and the lanes that do (`AutoTarget::ModInput`).
+    pub inputs: [f32; 3],
+    pub input_lanes: [Option<usize>; 3],
+    /// fxd:contract — a formula, compiled here (off the audio thread).
+    pub program: Option<Arc<super::formula::Program>>,
 }
 
 /// The routes a modulator keeps: not muted, depth not zero, the target there.
@@ -57,10 +66,13 @@ fn live_routes<'a>(
         .iter()
         .filter(move |r| !m.muted && r.depth != 0.0 && r.depth.is_finite())
         .filter(move |r| range_of(project, &r.target).is_some())
-        // One level of nesting: a route into another modulator's amount is kept only if
-        // that modulator itself drives something.
+        // One level of nesting: a route into another modulator's amount (or a controller's
+        // input, fxd) is kept only if that modulator itself drives something.
         .filter(move |r| match &r.target {
-            AutoTarget::ModAmount(other) => project
+            AutoTarget::ModAmount(other)
+            | AutoTarget::ModInput {
+                modulator: other, ..
+            } => project
                 .modulator(*other)
                 .is_some_and(|(_, _, o)| o.id != m.id && !o.muted && drives_plain(project, o)),
             _ => true,
@@ -72,7 +84,10 @@ fn drives_plain(project: &Project, m: &super::Modulator) -> bool {
     m.routes.iter().any(|r| {
         r.depth != 0.0
             && r.depth.is_finite()
-            && !matches!(r.target, AutoTarget::ModAmount(_))
+            && !matches!(
+                r.target,
+                AutoTarget::ModAmount(_) | AutoTarget::ModInput { .. }
+            )
             && range_of(project, &r.target).is_some()
     })
 }
@@ -88,6 +103,11 @@ pub fn compile(
     let playing: Vec<(ModHost, &super::Modulator)> = project
         .all_modulators()
         .filter(|(_, m)| !m.muted && live_routes(project, m).next().is_some())
+        // fxd: a formula plays only compiled (a command never stores one that is not).
+        .filter(|(_, m)| match &m.source {
+            ModSource::Formula(f) => super::formula::Program::compile(&f.text).is_ok(),
+            _ => true,
+        })
         .collect();
     if playing.is_empty() {
         return Vec::new();
@@ -153,6 +173,22 @@ pub fn compile(
             _ => None,
         }
         .map(|l| listen_at(project, host, l));
+        let kept: Vec<&super::ModRoute> = live_routes(project, m)
+            .filter(|r| lane(&r.target).is_some())
+            .collect();
+        let mut inputs = [0.0f32; 3];
+        let mut input_lanes = [None; 3];
+        for k in 0..m.source.kind().inputs() {
+            inputs[usize::from(k)] = m.source.input(k).unwrap_or(0.0).clamp(0.0, 1.0);
+            input_lanes[usize::from(k)] = lane(&AutoTarget::ModInput {
+                modulator: m.id,
+                input: k,
+            });
+        }
+        let program = match &m.source {
+            ModSource::Formula(f) => super::formula::Program::compile(&f.text).ok().map(Arc::new),
+            _ => None,
+        };
         out.push(ModPlan {
             id: m.id,
             source: m.source.clone(),
@@ -161,9 +197,14 @@ pub fn compile(
             notes: notes_track,
             gates,
             listen,
-            routes: live_routes(project, m)
+            routes: kept
+                .iter()
                 .filter_map(|r| lane(&r.target).map(|i| (i, r.depth.clamp(-1.0, 1.0))))
                 .collect(),
+            links: kept.iter().map(|r| m.source.link(&r.target)).collect(),
+            inputs,
+            input_lanes,
+            program,
         });
     }
     out

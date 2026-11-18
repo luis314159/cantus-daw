@@ -39,6 +39,7 @@ auto.status.nothing_tweaked = Mueve antes una perilla o un fader: todavía no se
 auto.status.no_target = Ese parámetro no se puede automatizar
 auto.status.no_track = Añade antes una pista: un clip de automatización vive bajo una pista
 auto.status.created = Clip de automatización creado: {name}
+auto.status.created_two = Clips de automatización creados: {a} y {b}
 
 # Carriles, clips y puntos.
 auto.lane.hide = Ocultar carriles de automatización

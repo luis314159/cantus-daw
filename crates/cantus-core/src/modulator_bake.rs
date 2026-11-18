@@ -11,10 +11,17 @@
 //! **Where the outputs come from.** A source that is a function of time is evaluated here,
 //! with the engine's own functions (`eval`); one that follows audio cannot be known ahead
 //! and is handed in as the engine traced it during an offline render.
+//!
+//! **A controller** (fxd: an X-Y pad, a formula) is read as the engine plays its route:
+//! its inputs from their lanes at each sample (automation on `AutoTarget::ModInput`, else
+//! the source's own), its formula compiled once, the route's own axis and range
+//! (`route_value`). A pad with inertia, or a controller another modulator moves the inputs
+//! of, is state the engine steps: it is traced (`needs_trace`), the trace holding the
+//! route's value (the engine's `trace_route`).
 
-use super::eval::{output, Gates, ModTime};
-use super::ModSource;
-use crate::automation::compile::lane_for;
+use super::eval::{controller_outputs, output, Gates, ModTime};
+use super::{route_value, ModSource, Modulator, RouteRange};
+use crate::automation::compile::{lane_for, AutoLane};
 use crate::automation::range::{base_value, range_of};
 use crate::automation::{AutoPoint, AutoTarget, Shape};
 use crate::model::{ModulatorId, Project};
@@ -60,7 +67,7 @@ pub fn bake(
     let amount_lane = lane_for(project, &AutoTarget::ModAmount(id));
     // Through the tempo map (ADR 0060): at one tempo the old arithmetic.
     let map = project.tempo_map();
-    let gates = notes_gates(project, host, &m.source);
+    let reader = Reader::new(project, host, m, target);
     // One level of nesting, as the engine plays it: every modulator moving this one's
     // amount, with its own gates and its own amount (automation in, unmodulated).
     let amount_target = AutoTarget::ModAmount(id);
@@ -72,7 +79,7 @@ pub fn bake(
             Some((
                 n,
                 r.depth.clamp(-1.0, 1.0),
-                notes_gates(project, n_host, &n.source),
+                Reader::new(project, n_host, n, &amount_target),
                 lane_for(project, &AutoTarget::ModAmount(n.id)),
             ))
         })
@@ -97,14 +104,14 @@ pub fn bake(
                     .as_ref()
                     .and_then(|l| l.pos_at(at))
                     .unwrap_or(m.amount);
-                for (n, depth, n_gates, n_lane) in &nested {
+                for (n, depth, n_reader, n_lane) in &nested {
                     let n_amount = n_lane
                         .as_ref()
                         .and_then(|l| l.pos_at(at))
                         .unwrap_or(n.amount);
-                    amount += depth * output(&n.source, &time, n_gates.as_ref(), None) * n_amount;
+                    amount += depth * n_reader.value(&time, at) * n_amount;
                 }
-                output(&m.source, &time, gates.as_ref(), None) * amount.clamp(0.0, 1.0)
+                reader.value(&time, at) * amount.clamp(0.0, 1.0)
             }
         };
         (base_pos + route.depth * out).clamp(0.0, 1.0)
@@ -135,16 +142,92 @@ pub fn bake(
     Some(thin_marked(&at, &values, &jumps, from.0))
 }
 
-/// Whether baking modulator `id` needs the engine's trace of an offline render: it follows
-/// audio, or something that does moves its amount.
+/// Whether baking modulator `id` needs the engine's trace of an offline render: it is
+/// state the engine steps (it follows audio, a pad's inertia, a controller whose inputs
+/// another modulator moves), or something that is moves its amount.
 pub fn needs_trace(project: &Project, id: ModulatorId) -> bool {
     let amount_target = AutoTarget::ModAmount(id);
     project.modulator(id).is_some_and(|(_, _, m)| {
-        m.source.follows_audio()
+        stepped(project, m)
             || project
                 .routes_into(&amount_target)
-                .any(|(n, _)| !n.muted && n.source.follows_audio())
+                .any(|(n, _)| n.id != id && !n.muted && stepped(project, n))
     })
+}
+
+/// Whether `m`'s output is only known by stepping it as the engine does: what follows
+/// audio, a pad with inertia (fxd), a controller whose inputs another modulator drives.
+fn stepped(project: &Project, m: &Modulator) -> bool {
+    m.source.stateful()
+        || (0..m.source.kind().inputs()).any(|input| {
+            project
+                .routes_into(&AutoTarget::ModInput {
+                    modulator: m.id,
+                    input,
+                })
+                .any(|(n, r)| n.id != m.id && !n.muted && r.depth != 0.0)
+        })
+}
+
+/// One modulator as a bake reads its route into one target, made once per bake: the
+/// gates it hears, and for a controller its input lanes, its compiled formula and the
+/// route's axis and range.
+struct Reader<'a> {
+    src: &'a ModSource,
+    gates: Option<Gates>,
+    controller: bool,
+    inputs: [f32; 3],
+    input_lanes: [Option<AutoLane>; 3],
+    program: Option<super::formula::Program>,
+    link: (u8, Option<RouteRange>),
+    bipolar: bool,
+}
+
+impl<'a> Reader<'a> {
+    fn new(project: &Project, host: super::ModHost, m: &'a Modulator, target: &AutoTarget) -> Self {
+        let mut inputs = [0.0f32; 3];
+        let mut input_lanes = [None, None, None];
+        for k in 0..m.source.kind().inputs() {
+            inputs[usize::from(k)] = m.source.input(k).unwrap_or(0.0).clamp(0.0, 1.0);
+            input_lanes[usize::from(k)] = lane_for(
+                project,
+                &AutoTarget::ModInput {
+                    modulator: m.id,
+                    input: k,
+                },
+            );
+        }
+        Reader {
+            src: &m.source,
+            gates: notes_gates(project, host, &m.source),
+            controller: super::ModKind::CONTROLLERS.contains(&m.source.kind()),
+            inputs,
+            input_lanes,
+            program: match &m.source {
+                ModSource::Formula(f) => super::formula::Program::compile(&f.text).ok(),
+                _ => None,
+            },
+            link: m.source.link(target),
+            bipolar: m.source.bipolar(),
+        }
+    }
+
+    /// What the route takes from the source at `time` (tick `at`), before depth and
+    /// amount: a controller's inputs from their lanes there, its outputs through the
+    /// route's axis and range, as the engine's `mod_sum` takes them.
+    fn value(&self, time: &ModTime, at: f64) -> f32 {
+        if !self.controller {
+            return output(self.src, time, self.gates.as_ref(), None);
+        }
+        let mut ins = self.inputs;
+        for (v, lane) in ins.iter_mut().zip(&self.input_lanes) {
+            if let Some(p) = lane.as_ref().and_then(|l| l.pos_at(at)) {
+                *v = p.clamp(0.0, 1.0);
+            }
+        }
+        let outs = controller_outputs(self.src, self.program.as_ref(), time, ins);
+        route_value(self.link.0, self.link.1.as_ref(), outs, self.bipolar)
+    }
 }
 
 /// The traced output at `tick`: the value of the last control point at or before it.
@@ -398,5 +481,156 @@ mod tests {
             None
         )
         .is_none());
+    }
+
+    /// fxd: the controller `id`'s source, edited.
+    fn edit_source(p: &mut Project, id: ModulatorId, f: impl FnOnce(&mut ModSource)) {
+        let (host, i, _) = p.modulator(id).unwrap();
+        f(&mut p.modulators_mut(host).unwrap()[i].source);
+    }
+
+    /// fxd: a straight automation clip on `target` from 0 to 1 over the first `beats`.
+    fn ramp(p: &mut Project, target: AutoTarget, beats: i64) {
+        let pts = vec![
+            AutoPoint::new(Ticks::ZERO, 0.0),
+            AutoPoint::new(Ticks::beats(beats), 1.0),
+        ];
+        let c = p.make_automation_clip("ramp", target, Ticks::ZERO, Ticks::beats(beats), pts);
+        p.tracks[0].clips.push(c);
+    }
+
+    /// The bake over the first `beats` against `want(beat)` at every sample.
+    fn check_against(
+        p: &Project,
+        id: ModulatorId,
+        target: &AutoTarget,
+        beats: i64,
+        want: impl Fn(f64) -> f32,
+    ) {
+        let to = Ticks::beats(beats);
+        let pts = bake(p, id, target, Ticks::ZERO, to, Ticks::ZERO, None, None).unwrap();
+        let curve = Automation::new(target.clone(), pts);
+        assert!(curve.is_valid());
+        let mut worst = 0f32;
+        for k in 0..(beats * PER_BEAT) {
+            let tick = k * (PPQ / PER_BEAT);
+            let got = curve.value_at(tick as f64).unwrap();
+            worst = worst.max((got - want(tick as f64 / PPQ as f64)).abs());
+        }
+        assert!(worst <= TOLERANCE * 1.01, "worst {worst}");
+    }
+
+    #[test]
+    fn a_pad_bakes_the_axis_and_the_range_its_route_reads_with_its_input_lanes() {
+        let (mut p, id, target) = with_route(ModKind::XyPad, 0.8);
+        let range = RouteRange {
+            from: 0.0,
+            to: 0.6,
+            curve: 0.4,
+        };
+        let t = target.clone();
+        edit_source(&mut p, id, |s| {
+            let ModSource::XyPad(x) = s else {
+                unreachable!()
+            };
+            x.x = 0.9;
+            x.y = 0.3;
+            x.links.push(RouteLink {
+                target: t,
+                output: 1,
+                range: Some(range),
+            });
+        });
+        // Y moved by automation from 0 to 1 over four beats (X, unread, stays at 0.9).
+        ramp(
+            &mut p,
+            AutoTarget::ModInput {
+                modulator: id,
+                input: 1,
+            },
+            4,
+        );
+        assert!(!needs_trace(&p, id));
+        check_against(&p, id, &target, 4, |beat| {
+            let y = (beat / 4.0) as f32;
+            0.5 + 0.8 * (0.6 * crate::automation::Shape::Curve.at(0.4, y))
+        });
+    }
+
+    #[test]
+    fn a_formula_bakes_with_its_automated_knob_and_its_compiled_program() {
+        let (mut p, id, target) = with_route(ModKind::Formula, 0.5);
+        edit_source(&mut p, id, |s| {
+            let ModSource::Formula(f) = s else {
+                unreachable!()
+            };
+            f.text = "0.5+0.5*Sin(SongTime*Pi*b)".into();
+            f.inputs = [0.0, 0.25, 0.0];
+        });
+        ramp(
+            &mut p,
+            AutoTarget::ModInput {
+                modulator: id,
+                input: 1,
+            },
+            4,
+        );
+        assert!(!needs_trace(&p, id));
+        check_against(&p, id, &target, 4, |beat| {
+            let b = beat / 4.0;
+            let v = 0.5 + 0.5 * cantus_dsp::math::sin(beat * std::f64::consts::PI * b);
+            0.5 + 0.5 * v as f32
+        });
+        // Bipolar, the same knob: twice the value less one.
+        edit_source(&mut p, id, |s| {
+            if let ModSource::Formula(f) = s {
+                f.bipolar = true;
+            }
+        });
+        check_against(&p, id, &target, 4, |beat| {
+            let b = beat / 4.0;
+            let v = 0.5 + 0.5 * cantus_dsp::math::sin(beat * std::f64::consts::PI * b);
+            0.5 + 0.5 * (2.0 * v as f32 - 1.0)
+        });
+    }
+
+    #[test]
+    fn a_pad_with_inertia_or_a_driven_controller_is_traced() {
+        let (mut p, id, _) = with_route(ModKind::XyPad, 0.8);
+        assert!(!needs_trace(&p, id));
+        edit_source(&mut p, id, |s| {
+            if let ModSource::XyPad(x) = s {
+                x.inertia_ms = 200.0;
+            }
+        });
+        assert!(needs_trace(&p, id));
+        // An LFO whose amount the gliding pad moves.
+        let mut lfo = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+        lfo.routes.push(ModRoute {
+            target: AutoTarget::StripWidth(p.tracks[0].strip.unwrap()),
+            depth: 0.3,
+        });
+        let lfo_id = lfo.id;
+        p.tracks[0].modulators.push(lfo);
+        assert!(!needs_trace(&p, lfo_id));
+        let (host, i, _) = p.modulator(id).unwrap();
+        p.modulators_mut(host).unwrap()[i].routes.push(ModRoute {
+            target: AutoTarget::ModAmount(lfo_id),
+            depth: -0.5,
+        });
+        assert!(needs_trace(&p, lfo_id));
+        // A formula is a function of time, unless a modulator moves a knob.
+        let (mut p, f, _) = with_route(ModKind::Formula, 0.5);
+        assert!(!needs_trace(&p, f));
+        let mut lfo = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+        lfo.routes.push(ModRoute {
+            target: AutoTarget::ModInput {
+                modulator: f,
+                input: 2,
+            },
+            depth: 0.3,
+        });
+        p.tracks[0].modulators.push(lfo);
+        assert!(needs_trace(&p, f));
     }
 }

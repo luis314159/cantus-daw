@@ -19,6 +19,10 @@ use cantus_core::EffectKind;
 #[path = "side_fxa.rs"]
 mod fxa;
 pub use fxa::*;
+// fxd — wave D's two faces (the X-Y pad, the formula controller; ADRs 0144–0145).
+#[path = "side_fxd.rs"]
+mod fxd;
+pub use fxd::*;
 
 // fx:cribrum — Cribrum's own face (ADR 0127), in three colourways the user
 // chooses among (ADR 0127 §Colourways); the first, Nocturne, is its face. Every display is
@@ -810,8 +814,9 @@ pub const FRAGOR_COLOURWAYS: [Colourway; 3] = [
 mod tests {
     use super::super::{colourways, of, Skin, Unit};
     use super::{
-        ARCA, CAELUM, CRIBRUM, FRACTUS, FRAGOR, LAPSUS, LIBRA, LOQUAX, ROTA, SALTUS, VETUS,
-    }; // fx3:saltus, fx3:arca, fx3:rota, fxa
+        ARCA, CAELUM, CRIBRUM, FORMULA, FRACTUS, FRAGOR, LAPSUS, LIBRA, LOQUAX, ROTA, SALTUS,
+        VETUS, XY,
+    }; // fx3:saltus, fx3:arca, fx3:rota, fxa, fxd
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
@@ -825,8 +830,8 @@ mod tests {
     fn faces() -> Vec<&'static Skin> {
         [
             &CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA, &LOQUAX, &FRACTUS,
-            &CAELUM,
-        ] // fx3:saltus, fx3:rota, fx3:arca
+            &CAELUM, &XY, &FORMULA,
+        ] // fx3:saltus, fx3:rota, fx3:arca, fxd
         .into_iter()
         .filter(|s| !is_placeholder(s))
         .collect()
@@ -838,6 +843,7 @@ mod tests {
         for u in Unit::all() {
             v.extend(colourways(u).iter().map(|c| c.sheet));
         }
+        v.extend(super::FXD_SHEETS); // fxd
         let mut seen = std::collections::BTreeSet::new();
         v.retain(|s| seen.insert(s.key));
         v

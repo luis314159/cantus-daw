@@ -90,6 +90,13 @@ pub enum AutoTarget {
         effect: crate::notefx::NoteFxId,
         key: String,
     },
+    /// fxd:contract — one input of a controller (ADRs 0144, 0145), 0…1: an X-Y pad's X
+    /// (`input` 0) or Y (1), a formula's knob a, b or c (0, 1, 2). A pad's gesture
+    /// recorded is two lanes of these; a MIDI controller learns them as any parameter.
+    ModInput {
+        modulator: ModulatorId,
+        input: u8,
+    },
 }
 
 impl AutoTarget {
@@ -164,6 +171,10 @@ impl AutoTarget {
                 id: *id,
             },
             C::SetModulatorAmount { id, .. } => AutoTarget::ModAmount(*id),
+            C::SetModulatorInput { id, input, .. } => AutoTarget::ModInput {
+                modulator: *id,
+                input: *input,
+            },
             C::SetNoteFxParam {
                 track, effect, key, ..
             } => AutoTarget::NoteFx {
@@ -200,6 +211,7 @@ impl AutoTarget {
             C::SetPluginParam { value: Some(v), .. } => *v,
             C::SetInstrumentPluginParam { value: Some(v), .. } => *v,
             C::SetModulatorAmount { amount, .. } => f64::from(*amount),
+            C::SetModulatorInput { value, .. } => f64::from(*value),
             C::SetNoteFxParam { value, .. } => f64::from(*value),
             C::Batch { commands, .. } => {
                 return commands.iter().rev().find_map(Self::value_of_command)

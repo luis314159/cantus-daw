@@ -228,6 +228,10 @@ pub fn range_of(project: &Project, target: &AutoTarget) -> Option<AutoRange> {
             project.modulator(*m)?;
             AMOUNT
         }
+        AutoTarget::ModInput { modulator, input } => {
+            project.modulator(*modulator)?.2.source.input(*input)?;
+            AMOUNT
+        }
     })
 }
 
@@ -269,6 +273,9 @@ pub fn base_value(project: &Project, target: &AutoTarget) -> Option<f32> {
             f32::NAN
         }
         AutoTarget::ModAmount(m) => project.modulator(*m)?.2.amount,
+        AutoTarget::ModInput { modulator, input } => {
+            project.modulator(*modulator)?.2.source.input(*input)?
+        }
         AutoTarget::NoteFx { track, effect, key } => crate::notefx::find(project, *track, *effect)?
             .kind
             .get(key)?,

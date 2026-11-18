@@ -976,13 +976,13 @@ fn amounts(
             for c in &t.clips {
                 if c.automation
                     .as_ref()
-                    .is_some_and(|a| a.target == AutoTarget::ModAmount(*old))
+                    .is_some_and(|a| renamed(&a.target, *old, *new).is_some())
                 {
                     let mut copy = c.clone();
                     copy.id = ClipId(app.bus.alloc_id());
                     copy.link = None;
                     if let Some(a) = copy.automation.as_mut() {
-                        a.target = AutoTarget::ModAmount(*new);
+                        a.target = renamed(&a.target, *old, *new).unwrap_or(a.target.clone());
                     }
                     out.push(Command::InsertClip {
                         track: onto,
@@ -995,10 +995,11 @@ fn amounts(
             let routes: Vec<_> = d
                 .routes
                 .iter()
-                .filter(|r| r.target == AutoTarget::ModAmount(*old))
-                .map(|r| cantus_core::ModRoute {
-                    target: AutoTarget::ModAmount(*new),
-                    ..r.clone()
+                .filter_map(|r| {
+                    renamed(&r.target, *old, *new).map(|target| cantus_core::ModRoute {
+                        target,
+                        ..r.clone()
+                    })
                 })
                 .collect();
             if routes.is_empty() {
@@ -1051,7 +1052,7 @@ fn rescue(app: &mut CantusApp, p: &Project, orig: TrackId, onto: TrackId) -> Vec
     // What rides a rescued modulator's amount is copied to ride the copy's (`amounts`),
     // not moved: its old target goes with the original.
     let rides_amount = |a: &cantus_core::automation::Automation| {
-        matches!(a.target, AutoTarget::ModAmount(m)
+        matches!(a.target, AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. }
             if p.all_modulators().any(|(h, x)| h == ModHost::Track(orig) && x.id == m))
     };
     if let Some(t) = p.track(orig) {
@@ -1364,5 +1365,19 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
         app.say_done(text, prepared.late_render);
     } else {
         let _ = std::fs::remove_file(&wav);
+    }
+}
+
+/// fxd: `target` on modulator `old`'s amount or one of its inputs, moved onto `new`'s.
+fn renamed(target: &AutoTarget, old: ModulatorId, new: ModulatorId) -> Option<AutoTarget> {
+    match *target {
+        AutoTarget::ModAmount(m) if m == old => Some(AutoTarget::ModAmount(new)),
+        AutoTarget::ModInput { modulator, input } if modulator == old => {
+            Some(AutoTarget::ModInput {
+                modulator: new,
+                input,
+            })
+        }
+        _ => None,
     }
 }

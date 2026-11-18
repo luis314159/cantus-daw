@@ -168,6 +168,15 @@ pub enum Command {
         id: crate::model::ModulatorId,
         amount: f32,
     },
+    /// fxd:contract — one input of a controller alone (ADRs 0144, 0145): an X-Y pad's X
+    /// or Y, a formula's a, b or c (0…1), as the pad's drag, a MIDI controller, recorded
+    /// automation and a script set it (`AutoTarget::ModInput`). Its inverse is the value
+    /// it had; a drag's frames merge into one step.
+    SetModulatorInput {
+        id: crate::model::ModulatorId,
+        input: u8,
+        value: f32,
+    },
     SetMasterGain {
         gain_db: f32,
     },
@@ -1088,6 +1097,7 @@ impl Command {
             RemoveMapping { .. } => "cmd.controllers.remove",
             SetMapping { .. } => "cmd.controllers.set",
             SetModulatorAmount { .. } => "cmd.set_modulator",
+            SetModulatorInput { .. } => "cmd.fxd_set_input",
             AddMarker { .. } => "cmd.tempo.add_marker",
             RemoveMarker { .. } => "cmd.tempo.remove_marker",
             SetMarker { .. } => "cmd.tempo.set_marker",
@@ -1290,6 +1300,14 @@ impl Command {
             (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
             (SetMapping { mapping: a }, SetMapping { mapping: b }) => a.id == b.id,
             (SetModulatorAmount { id: a, .. }, SetModulatorAmount { id: b, .. }) => a == b,
+            (
+                SetModulatorInput {
+                    id: a, input: ia, ..
+                },
+                SetModulatorInput {
+                    id: b, input: ib, ..
+                },
+            ) => a == b && ia == ib,
             (SetTrackArmed { id: a, .. }, SetTrackArmed { id: b, .. }) => a == b,
             (SetTrackInput { id: a, .. }, SetTrackInput { id: b, .. }) => a == b,
             // r36:ara — an ARA plug-in's edits of one clip in one gesture: one step.
@@ -3437,6 +3455,9 @@ impl Command {
                 Ok(SetModulatorAmount { id, amount: old })
             }
             SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
+            SetModulatorInput { id, input, value } => {
+                crate::modulator::apply_set_input(project, id, input, value)
+            }
             // Round 31 (ADR 0069).
             SetTrackNoteFx { track, chain } => crate::notefx_cmd::set_chain(project, track, chain),
             SetNoteFxParam {

@@ -1,0 +1,131 @@
+# controllers — ola D de la ronda de efectos: el pad X-Y y el controlador por fórmula (ADR 0144, 0145).
+cmd.fxd_set_input = Mover una entrada de controlador
+mods.kind.xy = Pad X-Y
+mods.kind.formula = Fórmula
+
+# Las entradas.
+fxd.xy.x = Posición horizontal
+fxd.xy.y = Posición vertical
+fxd.formula.a = Perilla a
+fxd.formula.b = Perilla b
+fxd.formula.c = Perilla c
+
+# Por qué se rechaza una fórmula ({at} es el carácter, contado desde 1).
+fxd.formula.err.empty = Escribe una fórmula
+fxd.formula.err.too_long = La fórmula pasa de 512 caracteres
+fxd.formula.err.unexpected = «{what}» no significa nada en el carácter {at}
+fxd.formula.err.end = La fórmula termina donde hace falta un valor
+fxd.formula.err.trailing = Algo sigue a una fórmula completa en el carácter {at}
+fxd.formula.err.unclosed = Un paréntesis abierto en el carácter {at} nunca se cierra
+fxd.formula.err.unknown = No hay ninguna variable ni función llamada «{what}»
+fxd.formula.err.moment = «{what}» depende del momento: un render nunca se repetiría
+fxd.formula.err.unsupported = «{what}» no está disponible: su definición publicada no dice qué calcula
+fxd.formula.err.arguments = «{what}» lleva {n} valores entre paréntesis
+fxd.formula.err.number = El número del carácter {at} no está bien escrito
+fxd.formula.err.complex = La fórmula es demasiado compleja: acórtala o anídala menos
+
+# Las ventanas (hoja de diseño v1; los nombres son propuestas para el dueño).
+fxd.xy.name = Tactus pad X-Y
+fxd.formula.name = Calculus controlador por fórmula
+fxd.xy.look.titanium = Titanio
+fxd.xy.look.copper = Cobre
+fxd.xy.look.frost = Escarcha
+fxd.formula.look.bakelite = Baquelita
+fxd.formula.look.ivory = Marfil
+fxd.formula.look.ebony = Ébano
+fxd.card.output = Salida
+fxd.card.polarity = Polaridad
+fxd.card.bipolar = En ambos sentidos
+fxd.card.unipolar = En un sentido
+fxd.card.off = Apagado
+fxd.card.amount = Cantidad
+fxd.unit.beats = tiempos
+fxd.links = Lo que mueve
+fxd.links.none = Conecta un parámetro: Modular… en su menú, o arrastra el asa sobre él
+fxd.links.edit = Un enlace
+fxd.links.edit.tip = Arrastra un extremo de la barra para fijar hasta dónde llega el parámetro, su centro arriba o abajo para curvar el camino, doble clic para todo su recorrido; haz clic en X o Y para elegir el eje que lo mueve
+fxd.xy.card.pad = Pad
+fxd.xy.card.motion = Movimiento
+fxd.xy.inertia = Inercia
+fxd.xy.path = Trayecto
+fxd.xy.path.plays = Suena
+fxd.xy.loop = Bucle en tiempos
+fxd.xy.line = Línea
+fxd.xy.line.straight = Recta
+fxd.xy.line.smooth = Suave
+fxd.xy.flywheel = Inercia
+fxd.xy.inertia.none = Sigue a la mano al instante
+fxd.xy.inertia.glides = Se desliza tras la mano
+fxd.formula.card.knobs = Perillas
+fxd.formula.line = Fórmula
+fxd.formula.compiled = Compilada: sonando
+fxd.formula.keypad = Teclado
+fxd.formula.ago = Hace 4 tiempos
+fxd.formula.now = Ahora
+fxd.formula.ahead = Dentro de 4 tiempos
+fxd.sheet.context = (Modulador 2 · Máster)
+ai.phrase.mod.xy = un pad X-Y
+ai.phrase.mod.formula = un controlador por fórmula
+ai.phrase.modname.xy = Pad X-Y
+ai.phrase.modname.formula = Fórmula
+fxd.xy.engraving = Tactus · dos ejes · inercia · trayectos
+
+# AI words (fxd step 3)
+ai.phrase.target.mod_input = {modulator} · {input}
+ai.phrase.input.x = X
+ai.phrase.input.y = Y
+ai.phrase.input.a = perilla a
+ai.phrase.input.b = perilla b
+ai.phrase.input.c = perilla c
+ai.phrase.input_to = {input} a {value}
+ai.tools.set_controller_inputs = mover {modulator} {host}: {inputs}
+cmd.ai.set_modulator = ajustar un modulador
+
+# Presets (fxd step 3)
+fxd.preset.xy.filter_sweep = Barrido de filtro
+fxd.preset.xy.filter_sweep.what = Enlaza X al corte de un filtro e Y a su resonancia: X lo abre del todo, Y suma hasta un 60 %, con un leve deslizamiento
+fxd.preset.xy.width_pan = Anchura y panorama
+fxd.preset.xy.width_pan.what = Enlaza X a un panorama e Y a una anchura: X panoramiza a ambos lados, Y estrecha o ensancha en torno a las perillas
+fxd.preset.xy.figure_eight = Figura de ocho
+fxd.preset.xy.figure_eight.what = Un recorrido suave en forma de ocho de dos compases que suena con la canción: enlaza X e Y a dos parámetros cualesquiera
+fxd.preset.xy.performance = Pad de interpretación
+fxd.preset.xy.performance.what = A ambos lados del centro con un deslizamiento lento de 400 ms: enlaza X e Y a los dos parámetros que tocas en directo
+fxd.preset.formula.sine = Seno
+fxd.preset.formula.sine.what = Enlázala a un corte o a un panorama: una oscilación suave en torno al valor de la perilla; a la velocidad, b la fase, c la profundidad
+fxd.preset.formula.triangle = Triángulo
+fxd.preset.formula.triangle.what = Enlázala a un tono o a un panorama: sube y baja en línea recta en torno al valor de la perilla; a la velocidad, b la fase, c la profundidad
+fxd.preset.formula.saw = Diente de sierra
+fxd.preset.formula.saw.what = Enlázala a un corte para un barrido que sube y vuelve a caer en cada ciclo; a la velocidad, b la fase, c la profundidad
+fxd.preset.formula.square = Cuadrada
+fxd.preset.formula.square.what = Enlázala a un panorama o a un nivel: dos valores por turnos, medio ciclo cada uno; a la velocidad, b la fase, c la profundidad
+fxd.preset.formula.pulse = Pulso
+fxd.preset.formula.pulse.what = Enlázala a un nivel o a un envío: un alto breve y luego bajo; a la velocidad, b el ancho del pulso, c la profundidad
+fxd.preset.formula.random_beat = Aleatorio por tiempo
+fxd.preset.formula.random_beat.what = Enlázala a un corte o a un panorama: un valor aleatorio nuevo en cada tiempo, el mismo en cada render; a la velocidad, b otra secuencia, c la profundidad
+fxd.preset.formula.gate_beats = Puerta por tiempos
+fxd.preset.formula.gate_beats.what = Enlázala a un nivel (el fader abajo, profundidad positiva) o a un envío: se abre en cada tiempo durante el ancho b; a la velocidad, c la profundidad
+fxd.preset.formula.env_bar = Envolvente por compás
+fxd.preset.formula.env_bar.what = Enlázala a un corte o a un nivel: golpea en cada línea de compás y luego se apaga; a el ataque, b el decaimiento, c la profundidad
+fxd.preset.formula.climb = Subida
+fxd.preset.formula.climb.what = Enlázala a un corte o a un envío para una subida: crece desde el inicio de la canción a lo largo de a (de 1 a 64 compases), curvada por b, hasta la altura c
+
+# Window (fxd step 3)
+fxd.xy.card.x = Horizontal
+fxd.xy.card.y = Vertical
+fxd.xy.draw = Dibujar trayecto
+fxd.xy.draw.tip = Arrastra sobre el pad: el arrastre se vuelve el trayecto, en un bucle
+fxd.xy.record = Grabar trayecto
+fxd.xy.record.tip = Mientras suena la canción, arrastra sobre el pad: el arrastre, en el tiempo de la canción, se vuelve el trayecto
+fxd.window.context = ({modulator} · {host})
+fxd.preset.custom = Personalizado
+mods.open = Abrir
+mods.open.tip = Su ventana: el pad o la fórmula, sus tarjetas, sus presets
+fxd.rail.more = +{n} más
+fxd.rail.count = {n} parámetros
+fxd.rail.count.one = 1 parámetro
+fxd.xy.rail.x.tip = El eje horizontal del pad (X): clic derecho para automatizarlo, enlazarle un controlador MIDI o restablecerlo
+fxd.xy.rail.y.tip = El eje vertical del pad (Y): clic derecho para automatizarlo, enlazarle un controlador MIDI o restablecerlo
+fxd.window.chip = Mueve {n} parámetros
+fxd.window.chip.one = Mueve 1 parámetro
+fxd.window.chip.none = Aún no mueve nada
+mods.window = Ventana

@@ -2449,7 +2449,7 @@
           "target": {
             "type": "object",
             "additionalProperties": false,
-            "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} a modulator's amount.",
+            "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
             "properties": {
               "track_id": {
                 "type": "integer",
@@ -2479,6 +2479,18 @@
               "plugin_param": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "min": {
+                "type": "number",
+                "description": "Read only: the range's bottom (ignored when given)."
+              },
+              "max": {
+                "type": "number",
+                "description": "Read only: the range's top (ignored when given)."
+              },
+              "value": {
+                "type": "number",
+                "description": "Read only: a controller input's position now (ignored when given)."
               }
             }
           },
@@ -2584,7 +2596,7 @@
           "target": {
             "type": "object",
             "additionalProperties": false,
-            "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} a modulator's amount.",
+            "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
             "properties": {
               "track_id": {
                 "type": "integer",
@@ -2614,6 +2626,18 @@
               "plugin_param": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "min": {
+                "type": "number",
+                "description": "Read only: the range's bottom (ignored when given)."
+              },
+              "max": {
+                "type": "number",
+                "description": "Read only: the range's top (ignored when given)."
+              },
+              "value": {
+                "type": "number",
+                "description": "Read only: a controller input's position now (ignored when given)."
               }
             }
           },
@@ -2712,7 +2736,7 @@
     {
       "name": "add_modulator",
       "title": "Add a modulator",
-      "description": "A modulator on a track, a strip or the master: an LFO (synced or Hz, five waves), an envelope, a follower (a sidechain: listen to another strip), a step sequence, or a seeded random — with routes to parameters, each a depth (a share of the control's travel, -1…1). Answers modulator_id. At most 16 a host. One undo step.",
+      "description": "A modulator on a track, a strip or the master: an LFO (synced or Hz, five waves), an envelope, a follower (a sidechain: listen to another strip), a step sequence, a seeded random, an X-Y pad (xy_pad: two axes x and y, inertia, a looping path) or a formula controller (formula: FL's syntax over the song's time and three knobs a, b, c; one that does not compile is refused, naming the character) — with routes to parameters, each a depth (a share of the control's travel, -1…1) and, for a pad or a formula, the axis it reads and its own range (from, to, curve). The pad's x/y and the formula's knobs are parameters too: automate them as {modulator_id, param: \"x\"}. Answers modulator_id. At most 16 a host. One undo step.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2757,7 +2781,7 @@
           },
           "unipolar": {
             "type": "boolean",
-            "description": "0…1 instead of −1…1 (LFO, steps, random)."
+            "description": "0…1 instead of −1…1 (LFO, steps, random; an X-Y pad's axes: left and bottom are the parameters' own values instead of the centre; a formula is 0…1 unless bipolar)."
           },
           "attack_ms": {
             "type": "number",
@@ -2839,10 +2863,100 @@
             "minimum": 1,
             "maximum": 999
           },
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "X-Y pad: the puck's horizontal position (0.5 the centre). On an existing pad it moves as the hand does (an input of its own, automatable as {modulator_id, param: \"x\"})."
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "X-Y pad: the puck's vertical position."
+          },
+          "inertia_ms": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000.0,
+            "description": "X-Y pad: how long the puck takes to follow (0: at once)."
+          },
+          "path": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "points",
+              "beats"
+            ],
+            "description": "X-Y pad: a looping gesture — points evenly spaced in time over `beats`, the last joined to the first, read from the song position while the song plays and play_path is on; null removes it.",
+            "properties": {
+              "points": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 256,
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                },
+                "description": "[x, y] pairs, 0-1 each."
+              },
+              "beats": {
+                "type": "number",
+                "minimum": 0.25,
+                "maximum": 256.0
+              },
+              "smooth": {
+                "type": "boolean",
+                "default": false,
+                "description": "A smooth curve through the points instead of straight lines."
+              }
+            }
+          },
+          "play_path": {
+            "type": "boolean",
+            "description": "X-Y pad: the path drives the puck while the song plays."
+          },
+          "formula": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Formula controller: FL's Formula Controller syntax, output 0-1 — the knobs a, b, c; SongTime (quarters), Pi, GetTempo, Rand; + - * / ^ % !, comparisons, div mod, and or not; Sin, Cos, Tan, Sqrt, Abs, Min, Max, Round, Frac, If, Inter… and Cantus's sine/saw/tri/square/pulse(x, width) cycle waves and clamp. A formula that does not compile is refused, naming the character where it fails. Example: a*Sin(SongTime*Pi*b)+c."
+          },
+          "a": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Formula controller: knob a. On an existing formula it moves as the hand does (an input of its own, automatable as {modulator_id, param: \"a\"})."
+          },
+          "b": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Formula controller: knob b."
+          },
+          "c": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Formula controller: knob c."
+          },
+          "bipolar": {
+            "type": "boolean",
+            "description": "Formula controller: −1…1 (twice the value less one) instead of FL's 0…1."
+          },
           "add_routes": {
             "type": "array",
             "maxItems": 32,
-            "description": "Routes added to the ones it has (a target it already drives is refused).",
+            "description": "Routes added to the ones it has (a target it already drives is refused). An X-Y pad's route reads its axis (x unless said); a pad's or a formula's route may have its own range.",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -2854,7 +2968,7 @@
                 "target": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} a modulator's amount.",
+                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
                   "properties": {
                     "track_id": {
                       "type": "integer",
@@ -2884,6 +2998,18 @@
                     "plugin_param": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "min": {
+                      "type": "number",
+                      "description": "Read only: the range's bottom (ignored when given)."
+                    },
+                    "max": {
+                      "type": "number",
+                      "description": "Read only: the range's top (ignored when given)."
+                    },
+                    "value": {
+                      "type": "number",
+                      "description": "Read only: a controller input's position now (ignored when given)."
                     }
                   }
                 },
@@ -2891,6 +3017,145 @@
                   "type": "number",
                   "minimum": -1,
                   "maximum": 1
+                },
+                "axis": {
+                  "enum": [
+                    "x",
+                    "y"
+                  ],
+                  "default": "x",
+                  "description": "X-Y pad: the axis the route reads."
+                },
+                "range": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "description": "X-Y pad and formula: the route's own range over its output (FL's link range) — at the output's bottom it adds `from`, at its top `to` (shares of the parameter's travel, -1…1, before depth and amount), bent between by `curve` (-1…1, the automation's curve; 0 straight). Left out: the output as it is.",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "to": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "curve": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1,
+                      "default": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "change_routes": {
+            "type": "array",
+            "maxItems": 32,
+            "description": "Routes it already has, changed by target: the depth and, for an X-Y pad or a formula, the axis and the range (range null: the output as it is).",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "target"
+              ],
+              "properties": {
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
+                  "properties": {
+                    "track_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "strip_id": {
+                      "type": [
+                        "integer",
+                        "string"
+                      ]
+                    },
+                    "effect_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "modulator_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "param": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "plugin_param": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "min": {
+                      "type": "number",
+                      "description": "Read only: the range's bottom (ignored when given)."
+                    },
+                    "max": {
+                      "type": "number",
+                      "description": "Read only: the range's top (ignored when given)."
+                    },
+                    "value": {
+                      "type": "number",
+                      "description": "Read only: a controller input's position now (ignored when given)."
+                    }
+                  }
+                },
+                "depth": {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 1
+                },
+                "axis": {
+                  "enum": [
+                    "x",
+                    "y"
+                  ],
+                  "description": "X-Y pad: the axis the route reads."
+                },
+                "range": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "additionalProperties": false,
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "description": "X-Y pad and formula: the route's own range over its output (FL's link range) — at the output's bottom it adds `from`, at its top `to` (shares of the parameter's travel, -1…1, before depth and amount), bent between by `curve` (-1…1, the automation's curve; 0 straight). Left out: the output as it is.",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "to": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "curve": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1,
+                      "default": 0
+                    }
+                  }
                 }
               }
             }
@@ -2898,7 +3163,7 @@
           "routes": {
             "type": "array",
             "maxItems": 32,
-            "description": "What it drives, for a modulator with no routes yet (set_modulator refuses to replace routes it has: add_routes adds, remove_items' modulator_routes removes): depth is a share of the control's whole travel, −1…1 (0.25 swings a quarter of the knob each way).",
+            "description": "What it drives, for a modulator with no routes yet (set_modulator refuses to replace routes it has: add_routes adds, change_routes changes, remove_items' modulator_routes removes): depth is a share of the control's whole travel, −1…1 (0.25 swings a quarter of the knob each way); an X-Y pad's route reads an axis, a pad's or a formula's may have its own range.",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -2910,7 +3175,7 @@
                 "target": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} a modulator's amount.",
+                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
                   "properties": {
                     "track_id": {
                       "type": "integer",
@@ -2940,6 +3205,18 @@
                     "plugin_param": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "min": {
+                      "type": "number",
+                      "description": "Read only: the range's bottom (ignored when given)."
+                    },
+                    "max": {
+                      "type": "number",
+                      "description": "Read only: the range's top (ignored when given)."
+                    },
+                    "value": {
+                      "type": "number",
+                      "description": "Read only: a controller input's position now (ignored when given)."
                     }
                   }
                 },
@@ -2947,6 +3224,41 @@
                   "type": "number",
                   "minimum": -1,
                   "maximum": 1
+                },
+                "axis": {
+                  "enum": [
+                    "x",
+                    "y"
+                  ],
+                  "default": "x",
+                  "description": "X-Y pad: the axis the route reads."
+                },
+                "range": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "description": "X-Y pad and formula: the route's own range over its output (FL's link range) — at the output's bottom it adds `from`, at its top `to` (shares of the parameter's travel, -1…1, before depth and amount), bent between by `curve` (-1…1, the automation's curve; 0 straight). Left out: the output as it is.",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "to": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "curve": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1,
+                      "default": 0
+                    }
+                  }
                 }
               }
             }
@@ -2964,8 +3276,11 @@
               "envelope",
               "follower",
               "step",
-              "random"
-            ]
+              "random",
+              "xy_pad",
+              "formula"
+            ],
+            "description": "xy_pad: an X-Y pad (two axes, each driving its own routes; inertia, looping paths). formula: a formula controller (FL's syntax, three knobs a, b, c)."
           },
           "expected_revision": {
             "type": "integer",
@@ -2994,7 +3309,7 @@
     {
       "name": "set_modulator",
       "title": "Set a modulator",
-      "description": "Change a modulator's settings, amount or mute; add_routes adds what it drives (routes sets them only when it has none). Removing a route or the modulator is remove_items. One undo step.",
+      "description": "Change a modulator's settings, amount or mute — a formula's text, a pad's inertia or path; move an X-Y pad's x and y or a formula's knobs a, b, c (as the hand moves them); add_routes adds what it drives (routes sets them only when it has none), change_routes changes a route's depth, axis or range. Removing a route or the modulator is remove_items. One undo step.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3039,7 +3354,7 @@
           },
           "unipolar": {
             "type": "boolean",
-            "description": "0…1 instead of −1…1 (LFO, steps, random)."
+            "description": "0…1 instead of −1…1 (LFO, steps, random; an X-Y pad's axes: left and bottom are the parameters' own values instead of the centre; a formula is 0…1 unless bipolar)."
           },
           "attack_ms": {
             "type": "number",
@@ -3121,10 +3436,100 @@
             "minimum": 1,
             "maximum": 999
           },
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "X-Y pad: the puck's horizontal position (0.5 the centre). On an existing pad it moves as the hand does (an input of its own, automatable as {modulator_id, param: \"x\"})."
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "X-Y pad: the puck's vertical position."
+          },
+          "inertia_ms": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000.0,
+            "description": "X-Y pad: how long the puck takes to follow (0: at once)."
+          },
+          "path": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "points",
+              "beats"
+            ],
+            "description": "X-Y pad: a looping gesture — points evenly spaced in time over `beats`, the last joined to the first, read from the song position while the song plays and play_path is on; null removes it.",
+            "properties": {
+              "points": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 256,
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                },
+                "description": "[x, y] pairs, 0-1 each."
+              },
+              "beats": {
+                "type": "number",
+                "minimum": 0.25,
+                "maximum": 256.0
+              },
+              "smooth": {
+                "type": "boolean",
+                "default": false,
+                "description": "A smooth curve through the points instead of straight lines."
+              }
+            }
+          },
+          "play_path": {
+            "type": "boolean",
+            "description": "X-Y pad: the path drives the puck while the song plays."
+          },
+          "formula": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Formula controller: FL's Formula Controller syntax, output 0-1 — the knobs a, b, c; SongTime (quarters), Pi, GetTempo, Rand; + - * / ^ % !, comparisons, div mod, and or not; Sin, Cos, Tan, Sqrt, Abs, Min, Max, Round, Frac, If, Inter… and Cantus's sine/saw/tri/square/pulse(x, width) cycle waves and clamp. A formula that does not compile is refused, naming the character where it fails. Example: a*Sin(SongTime*Pi*b)+c."
+          },
+          "a": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Formula controller: knob a. On an existing formula it moves as the hand does (an input of its own, automatable as {modulator_id, param: \"a\"})."
+          },
+          "b": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Formula controller: knob b."
+          },
+          "c": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Formula controller: knob c."
+          },
+          "bipolar": {
+            "type": "boolean",
+            "description": "Formula controller: −1…1 (twice the value less one) instead of FL's 0…1."
+          },
           "add_routes": {
             "type": "array",
             "maxItems": 32,
-            "description": "Routes added to the ones it has (a target it already drives is refused).",
+            "description": "Routes added to the ones it has (a target it already drives is refused). An X-Y pad's route reads its axis (x unless said); a pad's or a formula's route may have its own range.",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -3136,7 +3541,7 @@
                 "target": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} a modulator's amount.",
+                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
                   "properties": {
                     "track_id": {
                       "type": "integer",
@@ -3166,6 +3571,18 @@
                     "plugin_param": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "min": {
+                      "type": "number",
+                      "description": "Read only: the range's bottom (ignored when given)."
+                    },
+                    "max": {
+                      "type": "number",
+                      "description": "Read only: the range's top (ignored when given)."
+                    },
+                    "value": {
+                      "type": "number",
+                      "description": "Read only: a controller input's position now (ignored when given)."
                     }
                   }
                 },
@@ -3173,6 +3590,145 @@
                   "type": "number",
                   "minimum": -1,
                   "maximum": 1
+                },
+                "axis": {
+                  "enum": [
+                    "x",
+                    "y"
+                  ],
+                  "default": "x",
+                  "description": "X-Y pad: the axis the route reads."
+                },
+                "range": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "description": "X-Y pad and formula: the route's own range over its output (FL's link range) — at the output's bottom it adds `from`, at its top `to` (shares of the parameter's travel, -1…1, before depth and amount), bent between by `curve` (-1…1, the automation's curve; 0 straight). Left out: the output as it is.",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "to": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "curve": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1,
+                      "default": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "change_routes": {
+            "type": "array",
+            "maxItems": 32,
+            "description": "Routes it already has, changed by target: the depth and, for an X-Y pad or a formula, the axis and the range (range null: the output as it is).",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "target"
+              ],
+              "properties": {
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
+                  "properties": {
+                    "track_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "strip_id": {
+                      "type": [
+                        "integer",
+                        "string"
+                      ]
+                    },
+                    "effect_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "modulator_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "param": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "plugin_param": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "min": {
+                      "type": "number",
+                      "description": "Read only: the range's bottom (ignored when given)."
+                    },
+                    "max": {
+                      "type": "number",
+                      "description": "Read only: the range's top (ignored when given)."
+                    },
+                    "value": {
+                      "type": "number",
+                      "description": "Read only: a controller input's position now (ignored when given)."
+                    }
+                  }
+                },
+                "depth": {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 1
+                },
+                "axis": {
+                  "enum": [
+                    "x",
+                    "y"
+                  ],
+                  "description": "X-Y pad: the axis the route reads."
+                },
+                "range": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "additionalProperties": false,
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "description": "X-Y pad and formula: the route's own range over its output (FL's link range) — at the output's bottom it adds `from`, at its top `to` (shares of the parameter's travel, -1…1, before depth and amount), bent between by `curve` (-1…1, the automation's curve; 0 straight). Left out: the output as it is.",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "to": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "curve": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1,
+                      "default": 0
+                    }
+                  }
                 }
               }
             }
@@ -3180,7 +3736,7 @@
           "routes": {
             "type": "array",
             "maxItems": 32,
-            "description": "What it drives, for a modulator with no routes yet (set_modulator refuses to replace routes it has: add_routes adds, remove_items' modulator_routes removes): depth is a share of the control's whole travel, −1…1 (0.25 swings a quarter of the knob each way).",
+            "description": "What it drives, for a modulator with no routes yet (set_modulator refuses to replace routes it has: add_routes adds, change_routes changes, remove_items' modulator_routes removes): depth is a share of the control's whole travel, −1…1 (0.25 swings a quarter of the knob each way); an X-Y pad's route reads an axis, a pad's or a formula's may have its own range.",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -3192,7 +3748,7 @@
                 "target": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} a modulator's amount.",
+                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
                   "properties": {
                     "track_id": {
                       "type": "integer",
@@ -3222,6 +3778,18 @@
                     "plugin_param": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "min": {
+                      "type": "number",
+                      "description": "Read only: the range's bottom (ignored when given)."
+                    },
+                    "max": {
+                      "type": "number",
+                      "description": "Read only: the range's top (ignored when given)."
+                    },
+                    "value": {
+                      "type": "number",
+                      "description": "Read only: a controller input's position now (ignored when given)."
                     }
                   }
                 },
@@ -3229,6 +3797,41 @@
                   "type": "number",
                   "minimum": -1,
                   "maximum": 1
+                },
+                "axis": {
+                  "enum": [
+                    "x",
+                    "y"
+                  ],
+                  "default": "x",
+                  "description": "X-Y pad: the axis the route reads."
+                },
+                "range": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "description": "X-Y pad and formula: the route's own range over its output (FL's link range) — at the output's bottom it adds `from`, at its top `to` (shares of the parameter's travel, -1…1, before depth and amount), bent between by `curve` (-1…1, the automation's curve; 0 straight). Left out: the output as it is.",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "to": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "curve": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1,
+                      "default": 0
+                    }
+                  }
                 }
               }
             }
@@ -3835,7 +4438,7 @@
                 "target": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} a modulator's amount.",
+                  "description": "What moves. One of: {track_id, param: \"gain_db\"|\"pan\"} a track's own level or pan; {track_id, param: <instrument key>} its instrument (get_device/get_unit list keys; Pulsus pads cannot be automated); {strip_id, param: \"gain_db\"|\"pan\"|\"width\"} a strip's (strip_id \"master\" for the master); {strip_id, param: \"send\", to: <strip id>} a send's level; {effect_id, param: <key>} an effect's parameter; {effect_id or track_id, plugin_param: <id>} a hosted plug-in's (0-1 normalised); {modulator_id} (or param \"amount\") a modulator's amount; {modulator_id, param: \"x\"|\"y\"} an X-Y pad's axis, {modulator_id, param: \"a\"|\"b\"|\"c\"} a formula controller's knob (0-1 each). min, max and value are what answers carry; they are ignored when given.",
                   "properties": {
                     "track_id": {
                       "type": "integer",
@@ -3865,6 +4468,18 @@
                     "plugin_param": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "min": {
+                      "type": "number",
+                      "description": "Read only: the range's bottom (ignored when given)."
+                    },
+                    "max": {
+                      "type": "number",
+                      "description": "Read only: the range's top (ignored when given)."
+                    },
+                    "value": {
+                      "type": "number",
+                      "description": "Read only: a controller input's position now (ignored when given)."
                     }
                   }
                 }

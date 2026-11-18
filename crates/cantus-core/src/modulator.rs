@@ -30,6 +30,15 @@ pub mod bake;
 pub mod compile;
 #[path = "modulator_eval.rs"]
 pub mod eval;
+// fxd:contract — the X-Y pad and the formula controller (ADRs 0144, 0145).
+#[path = "modulator_formula.rs"]
+pub mod formula;
+// fxd step 3 — the controllers' presets.
+#[path = "modulator_presets.rs"]
+pub mod presets;
+#[path = "modulator_xy.rs"]
+pub mod xy;
+pub use xy::{XyPath, XySource};
 
 /// Modulators one host holds at most.
 pub const MAX_PER_HOST: usize = 16;
@@ -52,6 +61,78 @@ pub enum ModHost {
 pub struct ModRoute {
     pub target: AutoTarget,
     pub depth: f32,
+}
+
+/// How a controller's route reads its source (fxd, ADRs 0144, 0145), kept on the source
+/// by target (a route without one reads output 0 as it is): which output — 0, or 1 for an
+/// X-Y pad's Y axis — and the route's own range and bend over it (FL's link range).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RouteLink {
+    pub target: AutoTarget,
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub output: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<RouteRange>,
+}
+
+fn is_zero_u8(x: &u8) -> bool {
+    *x == 0
+}
+
+/// Links at most a controller keeps (one per route).
+pub const MAX_LINKS: usize = MAX_ROUTES;
+
+fn links_valid(links: &[RouteLink], outputs: u8) -> bool {
+    links.len() <= MAX_LINKS
+        && links.iter().enumerate().all(|(i, l)| {
+            l.output < outputs
+                && l.range.as_ref().is_none_or(RouteRange::is_valid)
+                && !links[..i].iter().any(|o| o.target == l.target)
+        })
+}
+
+/// A route's range over its output (fxd, ADR 0144): at the output's bottom (0 of its
+/// travel, −1 of a bipolar one) the route adds `from`, at its top `to` (each a share of
+/// the parameter's travel, −1…1, before the depth and the amount), bent between by
+/// `curve` (the automation's single curve, −1…1). From −1 to 1 unbent is the output as
+/// it is for a bipolar source, from 0 to 1 for a unipolar one.
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RouteRange {
+    pub from: f32,
+    pub to: f32,
+    #[serde(default)]
+    pub curve: f32,
+}
+
+impl RouteRange {
+    pub fn is_valid(&self) -> bool {
+        [self.from, self.to, self.curve]
+            .iter()
+            .all(|v| v.is_finite() && (-1.0..=1.0).contains(v))
+    }
+
+    /// What the route adds for an output `v` of a source (bipolar or not).
+    #[inline]
+    pub fn apply(&self, v: f32, bipolar: bool) -> f32 {
+        let u = if bipolar { 0.5 * (v + 1.0) } else { v }.clamp(0.0, 1.0);
+        let c = if self.curve == 0.0 {
+            u
+        } else {
+            crate::automation::Shape::Curve.at(self.curve, u)
+        };
+        self.from + (self.to - self.from) * c
+    }
+}
+
+/// What a route adds for its source's outputs `outs` (before depth and amount): the
+/// output it reads, through its range when it has one.
+#[inline]
+pub fn route_value(output: u8, range: Option<&RouteRange>, outs: [f32; 2], bipolar: bool) -> f32 {
+    let v = outs[usize::from(output.min(1))];
+    match range {
+        None => v,
+        Some(g) => g.apply(v, bipolar),
+    }
 }
 
 /// How a modulator keeps time.
@@ -192,6 +273,49 @@ pub struct RandomSource {
     pub unipolar: bool,
 }
 
+/// The formula controller (fxd, ADR 0145): a formula of the song's time and three knobs.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FormulaSource {
+    /// FL's syntax (`modulator::formula`); always one that compiles (a command refuses
+    /// any other: the editor keeps a draft that does not, and shows why).
+    pub text: String,
+    /// The knobs `a`, `b`, `c`, 0…1 each.
+    pub inputs: [f32; 3],
+    /// −1…1 (twice the value less one) instead of FL's 0…1.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bipolar: bool,
+    /// Its routes' ranges, by target.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<RouteLink>,
+    /// The face's colourway (0 the first, below `xy::LOOKS`).
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub look: u8,
+}
+
+impl FormulaSource {
+    /// FL's own first example, a sine over two beats.
+    pub const DEFAULT_TEXT: &'static str = "0.5*Sin(SongTime*Pi)+0.5";
+
+    pub fn is_valid(&self) -> bool {
+        self.inputs
+            .iter()
+            .all(|v| v.is_finite() && (0.0..=1.0).contains(v))
+            && links_valid(&self.links, 1)
+            && self.look < xy::LOOKS
+            && formula::Program::compile(&self.text).is_ok()
+    }
+
+    /// Its value as the output (−1…1 when bipolar).
+    #[inline]
+    pub fn polar(&self, v: f32) -> f32 {
+        if self.bipolar {
+            2.0 * v - 1.0
+        } else {
+            v
+        }
+    }
+}
+
 /// What moves.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ModSource {
@@ -200,6 +324,10 @@ pub enum ModSource {
     Follower(FollowSource),
     Step(StepSource),
     Random(RandomSource),
+    /// fxd:contract — the X-Y pad (ADR 0144).
+    XyPad(XySource),
+    /// fxd:contract — the formula controller (ADR 0145).
+    Formula(FormulaSource),
 }
 
 /// The kinds, for menus.
@@ -210,16 +338,53 @@ pub enum ModKind {
     Follower,
     Step,
     Random,
+    XyPad,
+    Formula,
 }
 
 impl ModKind {
-    pub const ALL: [ModKind; 5] = [
+    pub const ALL: [ModKind; 7] = [
         ModKind::Lfo,
         ModKind::Envelope,
         ModKind::Follower,
         ModKind::Step,
         ModKind::Random,
+        ModKind::XyPad,
+        ModKind::Formula,
     ];
+
+    /// The controllers among them (fxd): what a hand or a formula drives rather than a
+    /// shape of time.
+    pub const CONTROLLERS: [ModKind; 2] = [ModKind::XyPad, ModKind::Formula];
+
+    /// The inputs it has as parameters (`AutoTarget::ModInput`): the pad's X and Y, the
+    /// formula's a, b and c.
+    pub fn inputs(self) -> u8 {
+        match self {
+            ModKind::XyPad => 2,
+            ModKind::Formula => 3,
+            _ => 0,
+        }
+    }
+
+    /// The outputs routes can read: the pad's two axes, one for every other kind.
+    pub fn outputs(self) -> u8 {
+        match self {
+            ModKind::XyPad => 2,
+            _ => 1,
+        }
+    }
+
+    /// The i18n key of input `k`'s name.
+    pub fn input_key(self, k: u8) -> &'static str {
+        match (self, k) {
+            (ModKind::XyPad, 0) => "fxd.xy.x",
+            (ModKind::XyPad, _) => "fxd.xy.y",
+            (_, 0) => "fxd.formula.a",
+            (_, 1) => "fxd.formula.b",
+            _ => "fxd.formula.c",
+        }
+    }
 
     /// The i18n key of its name.
     pub fn name_key(self) -> &'static str {
@@ -229,6 +394,8 @@ impl ModKind {
             ModKind::Follower => "mods.kind.follower",
             ModKind::Step => "mods.kind.step",
             ModKind::Random => "mods.kind.random",
+            ModKind::XyPad => "mods.kind.xy",
+            ModKind::Formula => "mods.kind.formula",
         }
     }
 
@@ -272,6 +439,14 @@ impl ModKind {
                 seed: 1,
                 unipolar: false,
             }),
+            ModKind::XyPad => ModSource::XyPad(XySource::default()),
+            ModKind::Formula => ModSource::Formula(FormulaSource {
+                text: FormulaSource::DEFAULT_TEXT.to_string(),
+                inputs: [0.5, 0.5, 0.5],
+                bipolar: false,
+                links: Vec::new(),
+                look: 0,
+            }),
         }
     }
 }
@@ -287,7 +462,59 @@ impl ModSource {
             ModSource::Follower(_) => ModKind::Follower,
             ModSource::Step(_) => ModKind::Step,
             ModSource::Random(_) => ModKind::Random,
+            ModSource::XyPad(_) => ModKind::XyPad,
+            ModSource::Formula(_) => ModKind::Formula,
         }
+    }
+
+    /// Input `k` (the pad's X and Y, the formula's a, b, c), 0…1; `None` past its inputs.
+    pub fn input(&self, k: u8) -> Option<f32> {
+        match (self, k) {
+            (ModSource::XyPad(x), 0) => Some(x.x),
+            (ModSource::XyPad(x), 1) => Some(x.y),
+            (ModSource::Formula(f), k) => f.inputs.get(usize::from(k)).copied(),
+            _ => None,
+        }
+    }
+
+    /// Set input `k`; `false` (nothing changed) past its inputs.
+    pub fn set_input(&mut self, k: u8, v: f32) -> bool {
+        match (self, k) {
+            (ModSource::XyPad(x), 0) => x.x = v,
+            (ModSource::XyPad(x), 1) => x.y = v,
+            (ModSource::Formula(f), k) if usize::from(k) < 3 => f.inputs[usize::from(k)] = v,
+            _ => return false,
+        }
+        true
+    }
+
+    /// How its route into `target` reads it: the output and the range (output 0 as it is
+    /// when it keeps no link for it).
+    pub fn link(&self, target: &AutoTarget) -> (u8, Option<RouteRange>) {
+        let links = match self {
+            ModSource::XyPad(x) => &x.links,
+            ModSource::Formula(f) => &f.links,
+            _ => return (0, None),
+        };
+        links
+            .iter()
+            .find(|l| &l.target == target)
+            .map_or((0, None), |l| (l.output, l.range))
+    }
+
+    /// The links a controller keeps (`None` for the other kinds).
+    pub fn links_mut(&mut self) -> Option<&mut Vec<RouteLink>> {
+        match self {
+            ModSource::XyPad(x) => Some(&mut x.links),
+            ModSource::Formula(f) => Some(&mut f.links),
+            _ => None,
+        }
+    }
+
+    /// Whether its output carries state the engine steps (what follows audio, a pad's
+    /// inertia): it is never known ahead without stepping.
+    pub fn stateful(&self) -> bool {
+        self.follows_audio() || matches!(self, ModSource::XyPad(x) if x.has_inertia())
     }
 
     /// Whether its output is −1…1 (else 0…1).
@@ -296,6 +523,8 @@ impl ModSource {
             ModSource::Lfo(l) => !l.unipolar,
             ModSource::Step(s) => !s.unipolar,
             ModSource::Random(r) => !r.unipolar,
+            ModSource::XyPad(x) => !x.unipolar,
+            ModSource::Formula(f) => f.bipolar,
             ModSource::Envelope(_) | ModSource::Follower(_) => false,
         }
     }
@@ -348,6 +577,8 @@ impl ModSource {
                     && (0.0..=1.0).contains(&s.glide)
             }
             ModSource::Random(r) => r.rate.is_valid(),
+            ModSource::XyPad(x) => x.is_valid(),
+            ModSource::Formula(f) => f.is_valid(),
         }
     }
 }
@@ -407,6 +638,7 @@ impl Modulator {
                 r.depth.is_finite()
                     && (-1.0..=1.0).contains(&r.depth)
                     && r.target != AutoTarget::ModAmount(self.id)
+                    && !matches!(r.target, AutoTarget::ModInput { modulator, .. } if modulator == self.id)
                     && !self.routes[..i].iter().any(|q| q.target == r.target)
             })
     }
@@ -414,6 +646,15 @@ impl Modulator {
     /// The route to `target`, if it drives it.
     pub fn route(&self, target: &AutoTarget) -> Option<&ModRoute> {
         self.routes.iter().find(|r| &r.target == target)
+    }
+
+    /// fxd: drop the links (a pad's, a formula's) whose target it no longer routes to —
+    /// called wherever a route is taken away, so a link never outlives its route.
+    pub fn tidy_links(&mut self) {
+        let routes = &self.routes;
+        if let Some(links) = self.source.links_mut() {
+            links.retain(|l| routes.iter().any(|r| r.target == l.target));
+        }
     }
 }
 
@@ -573,6 +814,39 @@ pub(crate) fn apply_set(
     })
 }
 
+/// fxd:contract — one input of a pad or a formula (ADRs 0144, 0145): what a controller,
+/// a script, recorded automation and the pad's own drag set.
+pub(crate) fn apply_set_input(
+    project: &mut Project,
+    id: ModulatorId,
+    input: u8,
+    value: f32,
+) -> Result<Command, CommandError> {
+    if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+        return Err(CommandError::InvalidValue("modulator input".into()));
+    }
+    let (host, index, m) = project
+        .modulator(id)
+        .ok_or(CommandError::InvalidValue(format!(
+            "modulator {id} not found"
+        )))?;
+    let old = m
+        .source
+        .input(input)
+        .ok_or(CommandError::InvalidValue("modulator input".into()))?;
+    let list = project.modulators_mut(host).ok_or(host_error(host))?;
+    list[index].source.set_input(input, value);
+    Ok(Command::SetModulatorInput {
+        id,
+        input,
+        value: old,
+    })
+}
+
 #[cfg(test)]
 #[path = "modulator_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "modulator_fxd_tests.rs"]
+mod fxd_tests;

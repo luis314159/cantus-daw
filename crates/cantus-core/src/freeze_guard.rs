@@ -358,7 +358,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
             .map(|(_, _, m)| routes(&m.routes))
             .unwrap_or_default(),
         // The amount scales every route: it touches each target the modulator drives.
-        SetModulatorAmount { id, .. } => project
+        SetModulatorAmount { id, .. } | SetModulatorInput { id, .. } => project
             .modulator(*id)
             .map(|(_, _, m)| routes(&m.routes))
             .unwrap_or_default(),
@@ -473,7 +473,7 @@ fn refused_by(project: &Project, locks: &Locks, touch: &Touch, depth: u8) -> Opt
                 AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => {
                     return None
                 }
-                AutoTarget::ModAmount(m) => {
+                AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => {
                     if depth > 0 {
                         return None;
                     }

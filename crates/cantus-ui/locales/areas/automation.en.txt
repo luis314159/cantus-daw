@@ -39,6 +39,7 @@ auto.status.nothing_tweaked = Move a knob or a fader first: nothing has been twe
 auto.status.no_target = That parameter cannot be automated
 auto.status.no_track = Add a track first: an automation clip lives under a track
 auto.status.created = Automation clip created: {name}
+auto.status.created_two = Automation clips created: {a} and {b}
 
 # Lanes, clips and points.
 auto.lane.hide = Hide automation lanes

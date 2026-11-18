@@ -94,6 +94,13 @@ pub mod caelum;
 pub mod fractus;
 /// What wave A's editors share: cells sized to their words. // fxa
 pub mod fxa_cells;
+/// Vetus, lo-fi (fx side round). // fx:contract
+pub mod fxd; // fxd:contract — the X-Y pad's and the formula controller's windows
+pub mod fxd_art; // fxd
+pub mod fxd_edit; // fxd — what the controllers' windows do (step 3)
+pub mod fxd_formula; // fxd
+pub mod fxd_window; // fxd — the controllers' windows in the app (step 3)
+pub mod fxd_xy; // fxd
 /// Loquax, the vocoder (fx side round, wave A). // fxa:contract
 pub mod loquax;
 /// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
@@ -120,7 +127,6 @@ pub mod tabula_host;
 pub mod unit_view;
 /// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
 pub mod valve_draw;
-/// Vetus, lo-fi (fx side round). // fx:contract
 pub mod vetus; // fx:vetus — a unit's chosen drawing (Vetus's record or cassette)
 
 /// How many recent (input, output) pairs of the analysed effect are kept for displays.
@@ -177,6 +183,8 @@ pub struct FxEditors {
     pub fractus: fractus::State, // fxa:contract
     pub caelum: caelum::State,   // fxa:contract
     pub delay: delay::State,     // r39:delay
+    /// The X-Y pad's and the formula controller's window (fxd step 3).
+    pub fxd: fxd_window::State, // fxd
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
     /// The open editor's frame: its preset, its lists.

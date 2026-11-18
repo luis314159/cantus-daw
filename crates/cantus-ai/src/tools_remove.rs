@@ -168,6 +168,8 @@ pub fn remove_items(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
                 ));
             }
             kept.routes.retain(|x| x.target != target);
+            // fxd: a controller's link for that route goes with it.
+            super::modulation::tidy_links(kept);
             routes_gone += 1;
             said_items.push(
                 Said::new("ai.phrase.rm.route")

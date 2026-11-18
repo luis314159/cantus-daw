@@ -1316,7 +1316,9 @@ caída, sostén, liberación; la abren las notas de la pista o un nivel de audio
 32, sincronizados, con deslizamiento) y una fuente **aleatoria** (sostenida o suave,
 repetible desde su semilla). Cada modulador mueve **cuantos parámetros quieras**, cada uno
 con su profundidad, positiva o negativa; un parámetro puede recibir varios, que se suman
-sobre su automatización.
+sobre su automatización. Hay dos más, **controladores** que tocas o programas, cada uno
+con su propia ventana: [Tactus, el pad X-Y](#tactus-el-pad-x-y), y [Calculus, el
+controlador por fórmula](#calculus-el-controlador-por-fórmula).
 
 - **Dónde viven**: la sección *Moduladores* del inspector para la pista seleccionada, su
   canal o el máster (el **+** de la banda). Cada modulador muestra su movimiento en un
@@ -1348,6 +1350,231 @@ sobre su automatización.
 Los moduladores sincronizados siguen la posición de la canción: tocar desde el compás 5
 suena como suena ahí la canción entera; los libres empiezan con la reproducción. Las
 exportaciones suenan exactamente como la reproducción.
+
+### Tactus, el pad X-Y
+
+**Tactus** (en latín, *el tacto*) pone dos parámetros bajo un solo dedo: arrastra el disco
+por el pad y la posición horizontal (X) mueve uno y la vertical (Y) otro — el corte y la
+resonancia de un filtro, un panorama y una anchura, dos envíos —, como el X-Y Controller de
+FL Studio o un pad Kaoss. Es un modulador, así que vive donde viven los demás y mueve todo
+lo que ellos mueven, tantos parámetros como quieras, cada uno con el eje y el rango que le
+des.
+
+**Crear uno**: en la sección *Moduladores* del inspector, haz clic en el **+** de la banda ▸
+**Pad X-Y**, o clic derecho en una perilla ▸ **Modular…** ▸ **Pad X-Y** (llega ya conectado a
+esa perilla). **Abrirlo**: la tecla **Abrir** de su fila (*Ventana*), o doble clic en su
+dibujo. La ventana flota como el editor de un efecto: arrástrala por la cabecera, ciérrala
+con su tecla o con `Esc`, minimízala o maximízala, escálala desde el agarre de su esquina.
+La lámpara de la cabecera enciende y apaga el pad, y su menú **⋯** ofrece tres acabados —
+**Titanio**, **Cobre** y **Escarcha** (los de la fórmula: **Baquelita**, **Marfil**, **Ébano**). Solo hay una ventana de controlador
+abierta a la vez, y se cierra sola cuando se quita su modulador.
+
+**Conectar lo que mueve**, como con cualquier modulador: clic derecho en un parámetro ▸
+**Modular…** ▸ el pad, o arrastra el asa del pad (el agarre a la izquierda de su título en
+el inspector) sobre una perilla. Después ajusta cada enlace en la lista **Lo que mueve** de
+la ventana, una fila por parámetro:
+
+- **El eje**: haz clic en la etiqueta **X** o **Y** de la fila para elegir qué eje lo
+  mueve (un enlace nuevo lee X).
+- **El rango**: la barra es el recorrido de la ruta, con el valor propio del parámetro en
+  el centro, y la parte iluminada es lo que el eje recorre de ella. Arrastra un extremo de
+  la parte iluminada para fijar dónde queda el parámetro con el disco a la izquierda (o
+  abajo, para Y), y el otro extremo dónde queda a la derecha (o arriba) — el *rango de
+  enlace* de FL; crúzalos para invertirlo. Arrastra el centro de la barra **arriba o abajo
+  para curvar** el camino entre ambos (la misma curva de la automatización). **Doble clic**
+  en la barra devuelve todo el recorrido, sin curva.
+- **La profundidad** es la de la ruta, como en todo modulador: su fila en el inspector, o
+  `Alt` y arrastrar la perilla.
+
+Cada arrastre en la lista es un paso de deshacer; también un clic en el eje o un
+restablecimiento. La lista crece con sus filas y se desplaza con la rueda cuando son
+muchas; los rieles del pad nombran los dos primeros parámetros de cada eje y cuentan el
+resto.
+
+**Tocarlo.** Arrastra sobre el cristal: el disco te sigue, cada eje mueve sus parámetros y
+el arrastre entero es **un paso de deshacer**. El anillo es donde está ahora el disco; la
+cruz, adonde va (tu mano, la automatización o el trayecto); lo sigue una estela que se
+apaga.
+
+- **Polaridad** (tarjeta *Pad*): **En ambos sentidos** (lo predeterminado) hace del centro
+  del pad el valor propio de cada parámetro: el disco lo sube hacia un lado y lo baja hacia
+  el otro; **En un sentido** hace de los bordes izquierdo e inferior los valores propios de
+  los parámetros, y el disco solo suma.
+- **Inercia** (tarjeta *Movimiento*, de 0 a 10 000 ms; el volante junto al pad la muestra):
+  el disco se desliza tras tu mano en vez de saltar, arranca suave y nunca se pasa. En 0
+  sigue a la mano al instante. La perilla dedica tres cuartos de su giro a los dos primeros
+  segundos (medio giro son unos 400 ms) y el último cuarto a los deslizamientos lentos, hasta
+  diez segundos.
+- **Horizontal** y **Vertical**, en la tarjeta *Pad*, colocan el disco con exactitud, como
+  un arrastre; **Cantidad** es la cantidad del modulador y escala todas sus rutas a la vez.
+
+**Grabar un gesto como automatización.** Mientras una pasada escribe automatización —
+grabando con *Automatización* activada en las opciones de grabación, o con el armado de
+automatización y la pista en Escribir, Tocar o Retener (ver
+[Automatización](#automatización)) — arrastra el disco: Cantus escribe **dos carriles, X e
+Y**, justo sobre el tramo en que lo moviste, y la pasada es un paso de deshacer. Al
+reproducir, los carriles mueven el disco como lo movió tu mano; edítalos como cualquier
+automatización. Para automatizar un eje a mano, haz clic derecho en su riel (las palabras
+a lo largo del pie del pad para X, de su lado izquierdo para Y) o en su perilla de la
+tarjeta *Pad*: el menú que tiene todo parámetro — *Crear clip de automatización* (*Editar
+automatización* cuando ya lo tiene), *Modular…*, *Aprender controlador MIDI* (*Olvidar el controlador MIDI*
+cuando está enlazado), *Volver al valor por defecto*. O mueve su perilla y pulsa `Alt+A`
+(*automatiza lo último que tocaste*); `Alt+Shift+A` lo enlaza del mismo modo a un
+controlador MIDI. *Cantidad* ofrece lo mismo; la inercia, los ajustes del trayecto y la
+polaridad son ajustes propios del pad, no parámetros, y no ofrecen nada de esto.
+
+**Lo último que tocaste es el pad.** Tras un arrastre en el pad, `Alt+A` crea los carriles
+de **los dos ejes**, X e Y, en un solo paso de deshacer (como al grabar un gesto); si ambos
+ya tienen el suyo, los muestra. `Alt+Shift+A` enlaza ambos a tu controlador MIDI: mueve un
+control para X y luego otro para Y (la línea de estado dice cuál espera; el control recién
+aprendido para X se ignora mientras Y espera; `Esc` cancela los dos). Cada enlace es un paso
+de deshacer. Una perilla de la tarjeta *Pad* es un solo eje: `Alt+A` tras moverla crea solo
+el carril de ese eje.
+
+**Trayectos: gestos que se repiten con la canción.** Un trayecto es un bucle que el disco
+sigue mientras suena la canción (parada, el pad vuelve a ser de tu mano), leído de la
+posición de la canción: tocar desde el compás 9 suena como suena ahí la canción entera, y
+una exportación suena igual.
+
+- **Dibujar trayecto** (la tecla del lápiz, sobre el cristal): dibuja una forma
+  arrastrando sobre el pad. Al soltar, se vuelve el trayecto repartido en un bucle (la
+  duración de *Bucle en tiempos* en la tarjeta, 4 tiempos al principio) y suena.
+- **Grabar trayecto** (la tecla de grabar, sobre el cristal): dale a reproducir y arrastra
+  sobre el pad a tiempo con la música. Mientras tocas oyes tu mano; al soltar, lo que
+  tocaste se vuelve el trayecto sobre el bucle en que empezó, así que suena donde lo
+  tocaste. Si ya sonaba un trayecto, calla durante tu arrastre (oyes tu mano, no el
+  trayecto viejo) y después suena el nuevo. Con la canción parada, el arrastre de esa
+  tecla solo mueve el disco.
+- En la tarjeta *Movimiento*: **Trayecto** (*Apagado* o *Suena*), **Bucle en tiempos**
+  (de 0,25 a 64, en cuartos de tiempo), **Línea** (*Recta* o *Suave*: los puntos unidos por
+  una curva). La inercia suaviza también el trayecto.
+
+Dibujar o grabar un trayecto es un paso de deshacer, junto con los movimientos de la
+grabación.
+
+**Presets** — el pozo de la cabecera: sus flechas pasan de uno a otro; haz clic en el
+nombre para la lista, cada uno con lo que hace. Elegir uno conserva las conexiones del pad
+y fija el eje y el rango de sus primeras rutas por orden: conecta primero el parámetro que
+quieras en X y después el de Y. El nombre se mantiene mientras tocas el pad y pasa a
+*Personalizado* cuando cambias un ajuste.
+
+| Preset | Qué hace |
+|---|---|
+| **Barrido de filtro** | Enlaza X al corte de un filtro e Y a su resonancia: X lo abre del todo (en un sentido, a la izquierda el valor de la perilla), Y suma hasta un 60 %, con curva; un deslizamiento de 80 ms |
+| **Anchura y panorama** | Enlaza X a un panorama e Y a una anchura: desde el centro, X panoramiza a ambos lados e Y estrecha o ensancha en torno a las perillas; 120 ms |
+| **Figura de ocho** | Un trayecto suave en forma de ocho de dos compases que suena con la canción: enlaza X e Y a dos parámetros cualesquiera |
+| **Pad de interpretación** | A ambos lados del centro con un deslizamiento lento de 400 ms: para los dos parámetros que tocas en directo |
+
+**Convertir en automatización** funciona con el pad como con cualquier modulador (la tecla
+de convertir de una ruta, o *Modular… ▸ Convertir en automatización*): el clip es lo que
+sonó por la ruta, con el eje, el rango, el trayecto, la inercia y la automatización de X e
+Y incluidos. **Los agentes de IA** también crean, conectan y tocan pads ([Lo que un agente
+de IA puede hacer](ai-tools.md)). Con el disco en el centro (En ambos sentidos), o conectado
+con profundidad 0, un pad no cambia ninguna muestra.
+
+### Calculus, el controlador por fórmula
+
+**Calculus** (en latín, *la piedrecita de contar*) mueve parámetros con una **fórmula** que
+escribes — de la posición de la canción, su tempo y tres perillas, **a**, **b** y **c** —
+con la sintaxis del Formula Controller de FL Studio: `0.5*Sin(SongTime*Pi)+0.5` es un seno
+de dos tiempos. Una fórmula mueve cuantos parámetros quieras, cada uno con su propio rango,
+a tiempo con la canción; un render desde cualquier compás suena como suena ahí la canción
+entera.
+
+**Crearlo, abrirlo y conectarlo**, como el pad X-Y de arriba: el **+** de la banda ▸
+**Fórmula** (o *Modular…* ▸ **Fórmula**), su tecla **Abrir** o doble clic en su dibujo, y
+luego *Modular…* o su asa sobre cada parámetro. En **Lo que mueve**, la barra de cada fila
+fija el rango y la curva de ese parámetro exactamente como en el pad (una fórmula tiene
+una sola salida, así que no hay etiqueta X/Y).
+
+**La ventana** es una calculadora científica:
+
+- **La pantalla** muestra la fórmula. **Haz clic en ella** para escribir: aparece un cursor
+  donde haces clic; escribe y usa Retroceso, `Supr`, las flechas, Inicio y Fin. Cada edición
+  que forma una fórmula completa **se oye al momento**; toda la sesión de escritura es
+  **un paso de deshacer**. Mientras lo escrito aún no es una fórmula, el controlador sigue
+  tocando la última buena, y el motivo aparece bajo la pantalla con el carácter en que
+  está (*Un paréntesis abierto en el carácter 5 nunca se cierra*). `Intro`, `Esc` o un clic
+  en otro sitio terminan la escritura; `Esc` con una fórmula rota la descarta y vuelve a
+  mostrar la última buena. Mientras escribes, los atajos de teclado de la aplicación
+  esperan. Una fórmula larga se dibuja más pequeña y luego se desplaza para que el cursor
+  siga a la vista.
+- **La gráfica** de debajo dibuja el valor de la fórmula en los últimos cuatro tiempos y en
+  los cuatro siguientes, con las perillas como están ahora: *Ahora* es el cursor, y el
+  punto iluminado, el valor.
+- **El teclado** escribe su palabra en el cursor: `Sin(`, `Cos(`, `tri(`, `saw(`, `Frac(`,
+  `Round(`, `Int(`, `Rand`, `a`, `b`, `c`, `Pi` (π), `SongTime` (*beat*), `t`, los
+  paréntesis, `+ − × ÷ ^` (que escriben `+ - * / ^`), `If(`, `Max(`, `Min(`.
+- **Los diales a, b, c**, sobre las teclas: arrastra uno arriba o abajo (un paso de
+  deshacer por arrastre); doble clic lo deja en 0,5. La tarjeta *Perillas* mueve las mismas
+  tres. Automatiza una perilla (clic derecho en un dial o en su perilla de la tarjeta:
+  *Crear clip de automatización*, o muévela y pulsa `Alt+A`), enlázala a un controlador MIDI
+  (*Aprender controlador MIDI* en el mismo menú, o muévela y pulsa `Alt+Shift+A`) o deja que
+  otro modulador la mueva, y la fórmula la sigue.
+- **La tarjeta Salida**: **Polaridad** — **En un sentido** (la de FL: el valor, de 0 a 1,
+  se suma al parámetro; 0 es su propio valor) o **En ambos sentidos** (0,5 es el valor
+  propio del parámetro; por debajo, resta); **Cantidad**, la cantidad del modulador.
+
+El valor se mantiene entre 0 y 1, como en FL (lo que no es un número vale 0), y luego se
+aplican la profundidad y el rango de la ruta.
+
+**Lo que puedes escribir.** Mayúsculas y minúsculas valen igual; un nombre también puede
+escribirse con paréntesis vacíos (`SongTime()`). Los nombres son los de FL, en inglés.
+
+| Tipo | Lo que escribes |
+|---|---|
+| **Valores** | `a`, `b`, `c` (las perillas, de 0 a 1); `SongTime` (o `beat`): la posición de la canción en negras; `t` (o `seconds`): segundos desde que empezó la reproducción; `Time`: milisegundos desde que empezó la reproducción; `GetTempo` (o `tempo`): el tempo en BPM; `Pi`; `e`; `Rand`: un aleatorio de 0 a 1 para cada posición de la canción; números, con exponente (`1e3`) — el decimal se escribe con punto (`0.5`) |
+| **Aritmética** | `+ - * /`, `^` (una potencia; `2^3^2` es 2⁹, `2^-1` es un medio), `%` tras un número (una centésima: `50%` es 0.5), `!` (factorial), `div` y `mod` (división entera y resto de las partes enteras), `fmod`, `shl` y `shr` (por o entre una potencia de dos) |
+| **Comparación y lógica** | `= <> < <= > >=` e `in` (1 si se cumple, si no 0); `and`, `or`, `xor`, `not` (más de 0.5 cuenta como verdadero) |
+| **Funciones** | `Sin Cos Tan` (`Tg`) `Sec CoSec Ctg` (`Cot`) `ArcSin ArcCos ArcTg` (`ArcTan`) `ATan2(y, x)` `Sinh Cosh Tanh ArcCosh ArcTanh DegToRad RadToDeg`; `Int` (`Trunc`, hacia cero) `Floor Ceil Round` (las mitades al par) `Frac` (la parte decimal, con su signo) `Abs Neg`; `Sqrt Sqr` (el cuadrado) `Exp Ln Log10 Log2 LogN(base, x) Power(x, y)` (`Pow`) `IntPower(x, n)`; `Max(x, y) Min(x, y) Sum(x, y)`; `Fold` (refleja cualquier valor dentro de 0…1) |
+| **Elecciones** | `If(condición, entonces, si no)`; `Case(a, b, c)` (b si a es 1, si no c); `IfE IfG IfGE IfL IfLE(x, y)` (1 si x =, >, ≥, <, ≤ y); `Inter(x, lo, hi)` (1 si x está entre ambos; `InterNoSwap` si lo ≤ x ≤ hi tal como están escritos); `Map(x, lo, hi)` (x de 0…1 a lo…hi); `clamp(x, lo, hi)` |
+| **Azar** | `Rand` (arriba); `SeededRand(n)`: un aleatorio de 0 a 1 para cada número entero n, siempre el mismo |
+| **Las ondas de Cantus** | De 0 a 1, un ciclo por cada número entero de su argumento: `sine(x)` (empieza en 0), `saw(x)`, `tri(x)`, `square(x)` (1 en la primera mitad), `pulse(x, ancho)` (1 durante el primer *ancho* del ciclo) |
+
+Tres nombres de FL se comportan distinto para que **cada render suene igual**: `Time`
+cuenta desde que empezó la reproducción (el de FL lee el reloj del ordenador), `Rand` sale
+de la posición de la canción (el de FL es un generador que avanza) y `SeededRand` es una
+secuencia propia de Cantus. Tres se rechazan porque un render dependería del momento en que
+se hizo — `MouseX`, `MouseY`, `Date` — y dos porque el manual de FL no dice qué calculan:
+`Tension` y `Warp`. Una fórmula es una sola expresión, de hasta 512 caracteres; una
+demasiado compleja se rechaza con *acórtala o anídala menos*.
+
+**Algunas fórmulas** (para una canción en 4/4):
+
+| Fórmula | Lo que dibuja |
+|---|---|
+| `0.5*Sin(SongTime*Pi)+0.5` | Un seno de dos tiempos (la fórmula con la que empieza un Calculus nuevo) |
+| `Frac(SongTime/4)` | Una rampa que sube en cada compás y cae en la línea de compás |
+| `square(SongTime)` | Encendida la primera mitad de cada tiempo, apagada la segunda |
+| `SongTime mod 4 < 1` | Encendida el primer tiempo de cada compás |
+| `SeededRand(Int(SongTime*2))` | Un valor aleatorio nuevo en cada corchea, el mismo en cada render |
+| `Map(sine(SongTime/8), 0.2, 0.8)` | Una oscilación lenta entre el 20 % y el 80 % en dos compases |
+| `If(SongTime < 32, SongTime/32, 1)` | Una subida en los primeros ocho compases, y luego se mantiene |
+| `a*Sin(SongTime*Pi*b)+c` | El ejemplo de perillas de FL: a el tamaño, b la velocidad, c el centro |
+
+**Los presets** (el pozo de la cabecera, como en el pad) comparten **un mismo plan para las
+perillas**: **a** es la **velocidad** (de un ciclo cada cuatro compases a cuatro por tiempo,
+duplicando en cada paso: 0,34 es un compás, 0,67 un tiempo), **b** la **forma** y **c** la
+**profundidad**. Sus textos son fórmulas corrientes: abre uno y cámbialo.
+
+| Preset | Qué hace (a · b · c) |
+|---|---|
+| **Seno**, **Triángulo**, **Diente de sierra**, **Cuadrada** | A ambos lados del valor de la perilla, un compás por ciclo; a la velocidad, b la fase, c la profundidad |
+| **Pulso** | Un alto breve y luego bajo, en cada tiempo; b el ancho del pulso |
+| **Aleatorio por tiempo** | Un valor aleatorio nuevo en cada tiempo, el mismo en cada render; b otra secuencia |
+| **Puerta por tiempos** | Se abre en cada tiempo durante el ancho b, con bordes suaves (en un sentido: para un nivel o un envío) |
+| **Envolvente por compás** | Golpea en cada línea de compás y luego se apaga; a el ataque, b el decaimiento |
+| **Subida** | Crece desde el inicio de la canción a lo largo de a (de 1 a 64 compases), curvada por b, hasta la altura c: una subida de tensión |
+
+Un preset fija la fórmula, las perillas y la polaridad, conserva las conexiones y deja que
+cada ruta lea la fórmula entera (sin rango); su nombre se mantiene mientras giras las
+perillas.
+
+**Convertir en automatización** vuelve una ruta el clip que sonó (con las perillas, su
+automatización y el rango). **Los agentes de IA** también escriben fórmulas, y la que no es
+una fórmula se rechaza con el carácter en que falla ([Lo que un agente de IA puede
+hacer](ai-tools.md)). Una fórmula conectada con profundidad 0, o sin nada conectado, no cambia
+ninguna muestra.
 
 ### Efectos de nota: arpegiador, acordes, escala
 

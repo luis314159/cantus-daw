@@ -4496,6 +4496,7 @@ impl CantusApp {
         views::eq_editor::window(self, ctx);
         views::comp_editor::window(self, ctx);
         views::fx::window(self, ctx);
+        views::fx::fxd_window::window(self, ctx); // fxd: the controllers' windows
         views::inst::window(self, ctx);
         views::plugin_view_inst::window(self, ctx);
         views::pulsus_editor::window(self, ctx);

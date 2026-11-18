@@ -1,0 +1,131 @@
+# controllers — the fx side round's wave D: the X-Y pad and the formula controller (ADRs 0144, 0145). Every key here needs its twin in controllers.es.txt.
+cmd.fxd_set_input = Move a controller input
+mods.kind.xy = X-Y pad
+mods.kind.formula = Formula
+
+# The inputs.
+fxd.xy.x = Horizontal position
+fxd.xy.y = Vertical position
+fxd.formula.a = Knob a
+fxd.formula.b = Knob b
+fxd.formula.c = Knob c
+
+# Why a formula is refused (shown under the display; {at} is the character, counted from 1).
+fxd.formula.err.empty = Type a formula
+fxd.formula.err.too_long = The formula is longer than 512 characters
+fxd.formula.err.unexpected = "{what}" has no meaning at character {at}
+fxd.formula.err.end = The formula ends where a value is needed
+fxd.formula.err.trailing = Something follows a complete formula at character {at}
+fxd.formula.err.unclosed = A parenthesis opened at character {at} is never closed
+fxd.formula.err.unknown = No variable or function is called "{what}"
+fxd.formula.err.moment = "{what}" depends on the moment, so a render would never repeat
+fxd.formula.err.unsupported = "{what}" is not supported: its published definition does not say what it computes
+fxd.formula.err.arguments = "{what}" takes {n} values in parentheses
+fxd.formula.err.number = The number at character {at} is not written correctly
+fxd.formula.err.complex = The formula is too complex: shorten it or nest it less
+
+# The windows (design sheet v1; the names are proposals for the owner).
+fxd.xy.name = Tactus X-Y pad
+fxd.formula.name = Calculus formula controller
+fxd.xy.look.titanium = Titanium
+fxd.xy.look.copper = Copper
+fxd.xy.look.frost = Frost
+fxd.formula.look.bakelite = Bakelite
+fxd.formula.look.ivory = Ivory
+fxd.formula.look.ebony = Ebony
+fxd.card.output = Output
+fxd.card.polarity = Polarity
+fxd.card.bipolar = Both ways
+fxd.card.unipolar = One way
+fxd.card.off = Off
+fxd.card.amount = Amount
+fxd.unit.beats = beats
+fxd.links = What it drives
+fxd.links.none = Connect a parameter: Modulate… in its menu, or drag the handle onto it
+fxd.links.edit = A link
+fxd.links.edit.tip = Drag an end of the bar to set how far the parameter goes, drag its middle up or down to bend the way there, double-click it for the whole travel; click X or Y to choose the axis that drives it
+fxd.xy.card.pad = Pad
+fxd.xy.card.motion = Motion
+fxd.xy.inertia = Inertia
+fxd.xy.path = Path
+fxd.xy.path.plays = Plays
+fxd.xy.loop = Loop in beats
+fxd.xy.line = Line
+fxd.xy.line.straight = Straight
+fxd.xy.line.smooth = Smooth
+fxd.xy.flywheel = Inertia
+fxd.xy.inertia.none = Follows the hand at once
+fxd.xy.inertia.glides = Glides after the hand
+fxd.formula.card.knobs = Knobs
+fxd.formula.line = Formula
+fxd.formula.compiled = Compiled: playing
+fxd.formula.keypad = Keypad
+fxd.formula.ago = 4 beats ago
+fxd.formula.now = Now
+fxd.formula.ahead = 4 beats ahead
+fxd.sheet.context = (Modulator 2 · Master)
+ai.phrase.mod.xy = an X-Y pad
+ai.phrase.mod.formula = a formula controller
+ai.phrase.modname.xy = X-Y pad
+ai.phrase.modname.formula = Formula
+fxd.xy.engraving = Tactus · two axes · inertia · paths
+
+# AI words (fxd step 3)
+ai.phrase.target.mod_input = {modulator} · {input}
+ai.phrase.input.x = X
+ai.phrase.input.y = Y
+ai.phrase.input.a = knob a
+ai.phrase.input.b = knob b
+ai.phrase.input.c = knob c
+ai.phrase.input_to = {input} to {value}
+ai.tools.set_controller_inputs = move {modulator} {host}: {inputs}
+cmd.ai.set_modulator = set a modulator
+
+# Presets (fxd step 3)
+fxd.preset.xy.filter_sweep = Filter sweep
+fxd.preset.xy.filter_sweep.what = Link X to a filter's cutoff and Y to its resonance: X opens it all the way, Y adds up to 60 %, with a light glide
+fxd.preset.xy.width_pan = Width and pan
+fxd.preset.xy.width_pan.what = Link X to a pan and Y to a width: X pans both ways, Y narrows or widens about the knobs
+fxd.preset.xy.figure_eight = Figure eight
+fxd.preset.xy.figure_eight.what = A smooth figure-eight path over two bars that plays with the song: link X and Y to any two parameters
+fxd.preset.xy.performance = Performance pad
+fxd.preset.xy.performance.what = Both ways from the centre with a slow 400 ms glide: link X and Y to the two parameters you play live
+fxd.preset.formula.sine = Sine
+fxd.preset.formula.sine.what = Link it to a cutoff or a pan: a smooth swing about the knob's value; a the rate, b the phase, c the depth
+fxd.preset.formula.triangle = Triangle
+fxd.preset.formula.triangle.what = Link it to a pitch or a pan: a straight rise and fall about the knob's value; a the rate, b the phase, c the depth
+fxd.preset.formula.saw = Saw
+fxd.preset.formula.saw.what = Link it to a cutoff for a sweep that rises and drops back each cycle; a the rate, b the phase, c the depth
+fxd.preset.formula.square = Square
+fxd.preset.formula.square.what = Link it to a pan or a level: two values in turn, half a cycle each; a the rate, b the phase, c the depth
+fxd.preset.formula.pulse = Pulse
+fxd.preset.formula.pulse.what = Link it to a level or a send: a short high, then low; a the rate, b the pulse's width, c the depth
+fxd.preset.formula.random_beat = Random each beat
+fxd.preset.formula.random_beat.what = Link it to a cutoff or a pan: a new random value every beat, the same in every render; a the rate, b another sequence, c the depth
+fxd.preset.formula.gate_beats = Gate on beats
+fxd.preset.formula.gate_beats.what = Link it to a level (the fader down, a positive depth) or a send: it opens on every beat for the width b; a the rate, c the depth
+fxd.preset.formula.env_bar = Envelope each bar
+fxd.preset.formula.env_bar.what = Link it to a cutoff or a level: struck on every bar line, then dying away; a the attack, b the decay, c the depth
+fxd.preset.formula.climb = Climb
+fxd.preset.formula.climb.what = Link it to a cutoff or a send for a build-up: it rises from the song's start over a (1 to 64 bars), bent by b, to the height c
+
+# Window (fxd step 3)
+fxd.xy.card.x = Horizontal
+fxd.xy.card.y = Vertical
+fxd.xy.draw = Draw path
+fxd.xy.draw.tip = Drag on the pad: the drag becomes the path, over one loop
+fxd.xy.record = Record path
+fxd.xy.record.tip = While the song plays, drag on the pad: the drag, in song time, becomes the path
+fxd.window.context = ({modulator} · {host})
+fxd.preset.custom = Custom
+mods.open = Open
+mods.open.tip = Its window: the pad or the formula, its cards, its presets
+fxd.rail.more = +{n} more
+fxd.rail.count = {n} parameters
+fxd.rail.count.one = 1 parameter
+fxd.xy.rail.x.tip = The pad's horizontal axis (X): right-click to automate it, link a MIDI controller to it or reset it
+fxd.xy.rail.y.tip = The pad's vertical axis (Y): right-click to automate it, link a MIDI controller to it or reset it
+fxd.window.chip = Drives {n} parameters
+fxd.window.chip.one = Drives 1 parameter
+fxd.window.chip.none = Drives nothing yet
+mods.window = Window
