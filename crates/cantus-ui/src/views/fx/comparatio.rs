@@ -443,6 +443,9 @@ fn status_words(
             };
             (frame::tr(key).to_string(), true)
         }
+        // Read again from disk (only the one compared is kept in memory): your mix plays
+        // meanwhile.
+        RefStatus::Loading => (frame::tr("comparatio.ref.reading").to_string(), false),
         _ => match summary {
             Some(x)
                 if entry.is_some_and(|e| {

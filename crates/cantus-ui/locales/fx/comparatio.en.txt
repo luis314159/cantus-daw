@@ -153,3 +153,4 @@ preset.comparatio.gentle_eq = Gentle match EQ
 preset.comparatio.full_eq = Full match EQ
 preset.comparatio.album = Album: locked, the whole file
 preset.comparatio.worship_mix = Worship mix against a live record
+comparatio.ref.reading = Being read from disk: your mix plays meanwhile

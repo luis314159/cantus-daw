@@ -153,3 +153,4 @@ preset.comparatio.gentle_eq = Igualación tonal suave
 preset.comparatio.full_eq = Igualación tonal completa
 preset.comparatio.album = Álbum: unida, el archivo entero
 preset.comparatio.worship_mix = Mezcla de alabanza frente a un disco en vivo
+comparatio.ref.reading = Leyéndose del disco: mientras tanto suena tu mezcla
