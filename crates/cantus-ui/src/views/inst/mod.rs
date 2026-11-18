@@ -194,6 +194,7 @@ pub fn kind_from_name(name: &str) -> Option<InstrumentKind> {
         "organ" | "organum" => InstrumentKind::Organ,
         "chorda" | "piano" => InstrumentKind::Chorda,
         "dancer" | "saltator" => InstrumentKind::Dancer, // r35:dancer
+        "tympanum" => InstrumentKind::AcousticDrums,     // fix/final-d: the site's shots
         _ => return None,
     })
 }
