@@ -43,7 +43,7 @@ pub fn footer() -> Html {
             <div class="wrap">
                 <div class="foot-cols">
                     <div class="foot-brand">
-                        <a class="brand" href={to(Route::Home)} aria-label="Cantus™">{ icons::logo() }{ "Cantus" }<sup class="tm" aria-hidden="true">{ "™" }</sup></a>
+                        <a class="brand" href={to(Route::Home)} aria-label="Cantus™">{ icons::logo_small() }{ "Cantus" }<sup class="tm" aria-hidden="true">{ "™" }</sup></a>
                         <p>{ l.t("A free, open-source DAW written in Rust. No account, no subscription, no telemetry.",
                                  "Un DAW libre y de código abierto escrito en Rust. Sin cuenta, sin suscripción, sin telemetría.") }</p>
                     </div>
