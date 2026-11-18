@@ -143,6 +143,18 @@ right edge and scrolls the last card clear (`web/style/units.css`).
   which answer memory requests while the song plays, carry the board pedal the request is
   for (they did not compile against the side round's messages); `fx_delay_sync.rs` too.
 - `5082c15c`: rustfmt on the merged lines.
+- `347f9cb7`: a Delay on a Tabula board holds the line its automated note can reach, as an
+  inserted Delay does (round 40's A-M2 floor saw only inserted Delays): the automation
+  runtime finds each board Delay's floor (`FxCopy::pedal_lines` — lanes on `p{id}.note` /
+  `p{id}.sync` unless a macro is mapped there, lanes on a macro mapped to them) and the
+  install sets it on the pedal. Test first: `fx_tabula_delay_line.rs` (failed before, max
+  diff 0.2175 at 4.0 s: the whole note's echo lost) — by `p0.note` and by a macro, the
+  inserted Delay's bits offline, its own offline bits in real time; `rt_memory`'s
+  `a_synced_delay_on_a_board_never_allocates`.
+- `8e62b9e3`: `dancer_window::the_window_draws_again_only_what_moved`, intermittent in
+  parallel on master too: the themes test beside it switches the process-wide look and the
+  stage's ink changed between two frames of one moment (9 of 12 runs failed with it beside,
+  0 of 12 without). A file-level `LOOK` lock, as `frame_budget.rs` has: 20 of 20 pass.
 - The MCP tools golden needed no change (`ai_mcp_boot` passes as merged).
 
 ## Verified so far (Windows, `fx/final` at `5082c15c`)
@@ -156,7 +168,12 @@ right edge and scrolls the last card clear (`web/style/units.css`).
   `cantus-project` 205 passed, 0 failed, 1 ignored (every fixture v1…v74 loads; the side
   round's schema 72–74 tests); `cantus-dsp` 1 159 passed, 0 failed, 38 ignored; `cantus-ui`'s
   `ai_mcp_boot` (the tools golden) passes.
-- Not yet run (lanes shared with the builders): the engine, plug-ins, UI and AI suites, the
+- `cantus-engine` (after `347f9cb7`): 1 345 passed, 1 failed, 24 ignored. The failure is
+  `sync_midi::the_out_thread_sends_on_time` (90th percentile 5.1 ms against its 5 ms bound,
+  median 37 µs), red alone too while the machine ran at 100 % with 19 cargo/rustc processes
+  of the other builders; the test's own comment and wave C's builder see it only under load,
+  and nothing merged here touches MIDI out. Run again on a quiet machine before the close.
+- Not yet run (lanes shared with the builders): the plug-ins, UI and AI suites, the
   engine with `CANTUS_WORKERS=3 --features fuzz`, the null hashes, the Linux check, the web
   crate (`cargo check` for wasm32 and `ssr`), Trunk.
 
