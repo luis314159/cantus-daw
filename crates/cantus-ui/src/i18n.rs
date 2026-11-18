@@ -581,9 +581,9 @@ mod tests {
         let en = table(Locale::En);
         for l in Locale::ALL {
             let table = table(l);
-            let missing: Vec<_> = en.keys().filter(|k| !table.contains_key(*k)).collect();
+            let missing: Vec<_> = en.keys().filter(|k| !table.contains_key(k)).collect();
             assert!(missing.is_empty(), "{l:?} is missing {missing:?}");
-            let extra: Vec<_> = table.keys().filter(|k| !en.contains_key(*k)).collect();
+            let extra: Vec<_> = table.keys().filter(|k| !en.contains_key(k)).collect();
             assert!(extra.is_empty(), "{l:?} has extra keys {extra:?}");
         }
     }
