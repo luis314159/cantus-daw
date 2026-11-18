@@ -50,5 +50,5 @@
 - [Themes must be legible](feedback-themes-legible.md) — every theme easy to work/read; measured non-text 3:1 + text 4.5:1 across all themes
 - [Decision: Chorda as good as Salamander](decision-chorda-like-salamander.md) — owner 2026-11-12: round 40 first; his ABX baseline 0–7 vs Salamander, bass worse than model 1
 - [Decision: round 39 answers](decision-round39-answers.md) — owner 2026-11-12 answered the 22: dock at edge, configurable maximise/top bar, mute in colour, pad mixer track like FL, softer Bordeaux/Pewter, Delay sync+plug-in; no legal review
-- [Round 40: Chorda, ripple, memory, owner answers](round-40.md) — started 2026-11-11; contract f00ed550 on r40/integration; phase 1 chorda/ripple/memory/look/dancer; pads+delay phase 2; owner checkpoints
-- [FX side round](fx-side-round.md) — 2nd session 2026-11-13: Cribrum, Fragor, Lapsus, Vetus+Libra in C:\projects\daw-fx; each with its own polished face; merge after r40
+- [Round 40: Chorda, Tympanum, pictures, mixer bands](round-40.md) — on master bcc241f5 + thumb fix ad3afa0b + Tympanum polish 3ff4d75b + Chorda chip 477cb6b4 (pushed private): c16 default (DSP 7), Tympanum in picker, schema 71, Win 7 183 / Linux 7 142; owner ABX of c16 (https://claude.ai/artifact/Jpwa91Tz4V8rbcRrgiXMKg) + Tympanum ABX in BACKLOG; no beta.15 yet
+- [FX side round](fx-side-round.md) — 2nd session from 2026-11-13: 19 effects/controllers + issue #1 fixes + bus Ctrl+G + multi-monitor in C:\projects\daw-fx; fx/final integrates in parallel; master+push+site when all done (no public repo/tag)
