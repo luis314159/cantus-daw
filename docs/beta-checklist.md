@@ -558,6 +558,98 @@ En la ronda se probó todo con el motor de Cantus y con nuestro propio anfitrió
 - [ ] **Solo los graves en fase lineal**: *Bombeo de graves en fase lineal* y arrastra el cruce: la latencia (la bandera *Latencia*) no debe cambiar hasta soltar; al soltar, la pista sigue alineada con las demás. Prueba los suelos fijos 40/60/80/120 Hz y di cuál prefieres por defecto (hoy *Automático*).
 - [ ] **En otro DAW** (Reaper, Bitwig o FL): carga *Cantus Cedo*, enruta un bombo a su entrada de cadena lateral y elige *La entrada de cadena lateral del complemento* en *Clave*; luego el disparo MIDI con una pista de notas; y el tempo del DAW. Al cambiar el suelo de la fase lineal, el DAW debe recompensar la latencia.
 
+### Issue #1 — la ventana que parpadea (ADR 0146) <!-- fix/flicker -->
+
+La causa encontrada no depende de la GPU: la escala que sigue a la pantalla (ADR 0111 §7) se
+medía con el zoom que ella misma ponía y alternaba entre dos tamaños cada dos fotogramas en
+la mayoría de las pantallas (no en la tuya, 1920 × 1080 al 125 %, que es de las pocas que
+se quedan quietas). Corregido y probado solo en **emulación** (`tests/window_stability.rs`
+alimenta los fotogramas como egui-winit); esto es lo que solo una pantalla real confirma.
+Ya comprobado en tu portátil (2026-11-17, compilación de la rama, carpeta de datos vacía, tu
+125 %): la ventana abrió en la **Radeon integrada** (`opengl renderer: AMD Radeon(TM) Graphics`,
+controlador `22.40.01.54.230214` — de febrero de 2023, conviene actualizarlo), una sola
+decisión de escala y ningún cambio más en 20 s, con y sin `--safe-graphics`.
+Antes de cada paso borra `settings.json` de la carpeta de datos de una copia portátil (o usa
+`CANTUS_DATA_DIR` apuntando a una carpeta vacía) para que sea una instalación nueva.
+
+- [ ] **Reproducir el fallo en beta.14 en tu portátil**: *Configuración ▸ Sistema ▸
+      Pantalla ▸ Escala* al **100 %** (1920 px al 100 % alterna 1.0 ↔ 1.25), abre la beta.14
+      portátil recién descomprimida: debe parpadear en ambos ejes como dice el issue. Pulsa
+      Ctrl + 0: debe parar (el arreglo provisional para el usuario). Vuelve a tu 125 %.
+- [ ] **La versión corregida, en la misma pantalla al 100 %, 125 %, 150 % y 175 %**: con una
+      copia portátil nueva de esta rama en cada escala, abre Cantus y mira 10 s sin tocar
+      nada: ni un salto. `cantus.log` (en `data\logs\`) no debe tener ninguna línea
+      `window watchdog`. Con `$env:CANTUS_WINDOW_TRACE = "1"`, el registro muestra *una*
+      línea `the scale … for the screen` y ninguna más mientras no toques nada.
+- [ ] **En la GPU integrada AMD de tu portátil** (tienes una Radeon junto a la RTX 4060):
+      *Configuración ▸ Sistema ▸ Pantalla ▸ Gráficos* → `cantus-x86-64-v3.exe` y
+      `cantus-x86-64-v2.exe` en *Ahorro de energía* (la Radeon); repite el paso anterior al
+      100 % y al 150 %. Las primeras líneas de `cantus.log` deben nombrar el renderizador AMD
+      (`opengl renderer: AMD Radeon(TM) Graphics`). Prueba también maximizar/restaurar y
+      arrastrar la ventana a otro monitor si tienes uno con otra escala.
+- [ ] **Cada opción de gráficos seguros arranca bien** en la Radeon y en la NVIDIA:
+      `.\cantus.exe --safe-graphics`, `--no-splash`, `--vsync off`, `--msaa 4`, `--scale 150`,
+      `--no-splash --window 1600 900`, y `$env:CANTUS_GRAPHICS = "safe"`. La primera línea de
+      `graphics:` del registro debe decir lo pedido.
+- [ ] **Si el usuario del issue contesta**: con la versión corregida y su pantalla, ¿para?
+      Si no, que envíe `cantus.log` con `CANTUS_WINDOW_TRACE=1` (diez segundos), su resolución
+      y escala, cuántos monitores y la versión de Adrenalin, y qué opción de
+      `docs/troubleshooting-graphics.md` lo detiene. Solo él puede confirmar su Radeon 800M,
+      su 25H2 y su panel (probablemente 2880 × 1800, que alternaba en *todas* las escalas).
+
+### Issue #1 (2) — menús a 200 %: submenús del mezclador y presets de instrumento (ADR 0146, enmienda 1) <!-- fix/flicker -->
+
+El usuario volvió a escribir: a 2880 × 1800 con la escala de Windows al **200 %**, los
+submenús del menú contextual de una pista del mezclador se abrían "muy arriba", y la lista
+de presets de un instrumento se abría **transparente y lejos** de su botón (también al
+100 %). Corregido y probado solo en **emulación** (`tests/menus_at_scale.rs` alimenta los
+fotogramas como egui-winit a 100, 125, 150 y 200 %); esto es lo que solo una pantalla real
+confirma. Si tu portátil no llega a 200 % con 1920 × 1080, usa *Configuración ▸ Sistema ▸
+Pantalla ▸ Escala* → *Escala personalizada* 200 (cierra sesión), o un monitor 4K al 200 %.
+
+- [ ] **Submenús del mezclador a 200 %**: abre el mezclador, clic derecho sobre el número o
+      el nombre de una pista. Pasa el ratón por *Color*, *Añadir efecto*, y baja con la
+      rueda hasta *Salida*, *Enviar a*, *Ducking*, *Dock* y *Grupo*: cada submenú se abre
+      **al lado** de su fila (a la derecha del menú, o a la izquierda si no cabe), a su
+      altura — sube solo lo justo para no salirse por abajo —, entero (sin barra de
+      desplazamiento si cabe en la ventana), y nunca muy por encima de la fila.
+- [ ] **Lo mismo en *Adónde va…* (Mayús+F10)** y su submenú *Nuevo retorno ▸*.
+- [ ] **Presets de un instrumento, a 100 % y 200 %**: abre el editor de un instrumento
+      (Unda, Chorda, Tympanum…), clic en el pozo del preset (el nombre en el centro de la
+      cabecera): la lista se abre **justo debajo** del pozo, empezando en su borde
+      izquierdo, **opaca** (no se ve el editor a través), y con rueda si es más larga que
+      la ventana. El menú ⋯ y el de tamaños terminan en el borde derecho de su botón. En
+      Chorda y Tympanum, el campo *Mezcla* de su mezclador abre la lista bajo él.
+- [ ] **Otros temas**: repite el paso anterior con un tema que no sea de la familia Slate
+      (p. ej. *Classic*) y con un tema claro: la lista sigue opaca y en su sitio.
+- [ ] **Si el usuario del issue contesta**: con la versión corregida y su pantalla, ¿se abren
+      en su sitio? Si no, una captura de pantalla con el menú abierto y su escala.
+
+### La selección a un bus nuevo, en un paso (ADR 0147) <!-- fix/flicker -->
+
+Probado en emulación (`tests/bus_from_selection_e2e.rs`, con el motor real); esto es lo que
+confirma tu oído y tu mano:
+
+- [ ] **Desde el mezclador**: clic en el número de una pista, Ctrl+clic en otras dos (o
+      Mayús+clic para un tramo), **Ctrl+G**: aparece *Bus 1* justo después de la última, las
+      tres salen por él (los cables lo muestran), sus pistas en una carpeta *Bus 1* del
+      arreglo, suena igual que antes; silencia el bus y callan las tres. Ctrl+Z lo deshace
+      en un paso.
+- [ ] **Desde el menú de una pista del mezclador**: *Enrutar la selección a un bus nuevo*
+      (muestra Ctrl+G). Con pistas de un mismo grupo, el bus se llama *Bus ‹grupo›* y queda en
+      el grupo; si ya iban a otro bus, el nuevo va a ese bus (anidado), no al máster.
+- [ ] **Desde el arreglo**: clic en la cabecera de una pista, Ctrl+clic en otra (las dos se
+      iluminan), clic derecho → *Enrutar la selección a un bus nuevo*, o Ctrl+G. Un clic
+      normal vuelve a seleccionar una sola.
+- [ ] **La paleta de comandos** (Ctrl+Mayús+P) encuentra *Route the selected to a
+      new bus* / *Enrutar la selección a un bus nuevo*.
+- [ ] **La carpeta (ADR 0147 §5, tu respuesta)**: tras Ctrl+G, en el arreglo aparece una
+      carpeta llamada como el bus (*Bus 1*) con las pistas que van a él, y ninguna otra; si
+      alguna ya estaba en una carpeta, pasa a la nueva (las carpetas no se anidan) y una
+      carpeta que se queda vacía desaparece. Un solo Ctrl+Z devuelve rutas y carpetas.
+      Desde el mezclador, un canal sin pista (un retorno, otro bus) se enruta pero no tiene
+      pista que meter en la carpeta.
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):

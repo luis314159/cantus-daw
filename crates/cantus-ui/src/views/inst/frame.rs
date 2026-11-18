@@ -356,6 +356,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
 
     let mut open = true;
     let mut events = Vec::new();
+    let mut parts = None;
     let shown = crate::views::workspace_device::DeviceWindow::new(format!("{name} {context}"))
         .id(editor_id(track))
         .open(&mut open)
@@ -378,6 +379,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                 }
             }
             events = out.events;
+            parts = Some(out.parts);
             rect
         });
     if !open {
@@ -402,9 +404,22 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             Event::Redo => app.redo(),
             Event::PresetPrev => step_preset(app, track, &spec, -1),
             Event::PresetNext => step_preset(app, track, &spec, 1),
-            Event::PresetBrowse | Event::Menu => app.inst.popup = Popup::Presets,
-            Event::More => app.inst.popup = Popup::More,
-            Event::SizeMenu => app.inst.popup = Popup::Sizes,
+            // Each list opens beside the part that opened it (GitHub issue #1).
+            Event::PresetBrowse | Event::Menu => {
+                app.inst.popup = Popup::Presets;
+                app.inst.popup_from = parts.map(|p| match ev {
+                    Event::Menu => p.menu,
+                    _ => p.preset.unwrap_or(p.name),
+                });
+            }
+            Event::More => {
+                app.inst.popup = Popup::More;
+                app.inst.popup_from = parts.map(|p| p.more);
+            }
+            Event::SizeMenu => {
+                app.inst.popup = Popup::Sizes;
+                app.inst.popup_from = parts.map(|p| p.size);
+            }
             Event::Scale(k) => shell.set_scale(ctx, k),
             Event::Favourite | Event::Help | Event::Bypass => {}
             // The window's own buttons (round 20).
@@ -421,7 +436,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     if app.inst.popup != opened_before {
         app.inst.popup_pass = ctx.cumulative_pass_nr(); // r37:library
     }
-    popups(app, ctx, track, &spec, &shell, rect, k);
+    popups(app, ctx, track, &spec, &shell, rect, parts, k);
     // An open editor shows live state (lit keys, envelopes, meters): through the ticker,
     // at its 60 Hz, never at the monitor's full rate.
     ticker::moving(ctx, Reason::Live);
@@ -614,7 +629,10 @@ fn entry<'a>(label: Src<'a>, check: crate::kit::menu::Check) -> crate::kit::menu
     }
 }
 
-/// The ⋯ menu (the bands), the preset list and the sizes, below the header.
+/// The ⋯ menu (the bands), the preset list and the sizes, each beside the control that
+/// opened it (GitHub issue #1: they opened at the window's right edge, far from the preset
+/// well, on a sheet a bare area never painted — transparent in Slate).
+#[allow(clippy::too_many_arguments)]
 fn popups(
     app: &mut CantusApp,
     ctx: &egui::Context,
@@ -622,6 +640,7 @@ fn popups(
     spec: &NativeSpec,
     shell: &Shell,
     rect: Rect,
+    parts: Option<shell::HeaderRects>,
     k: f32,
 ) {
     use crate::kit::menu::{Check, Item};
@@ -632,7 +651,6 @@ fn popups(
     // Round 32, skin builder: the menus wear the unit's face, as an effect's do (they run
     // after the shell took its face off).
     let _worn = crate::kit::skin::wear(shell.skin);
-    let at = Pos2::new(rect.right() - 260.0 * k, rect.top() + shell::HEADER * k);
     let presets = preset_list(spec.kind);
     let percents: Vec<String> = shell::SCALES
         .iter()
@@ -667,13 +685,48 @@ fn popups(
         }
         Popup::None => Vec::new(),
     };
+    // The opener: the part that opened it, else the header's preset well (a list opened
+    // by a key, or by a test, with no part to name), else the header's middle.
+    let opener = app
+        .inst
+        .popup_from
+        .or_else(|| parts.map(|p| p.preset.unwrap_or(p.name)))
+        .unwrap_or_else(|| {
+            Rect::from_min_size(rect.center_top(), egui::vec2(1.0, shell::HEADER * k))
+        });
+    let s = crate::kit::Style::current();
+    let width = (250.0 * k).max(crate::kit::menu::width(ctx, &items, &s));
+    let h = crate::kit::menu::height_in(&items, &s);
+    let sheet = crate::kit::automate::frame();
+    let edge = sheet.total_margin().sum();
+    // The ⋯ and size keys sit at the header's right: their lists end at the key's right
+    // edge; the preset well's list starts at its left edge.
+    let anchor = match popup {
+        Popup::More | Popup::Sizes => Pos2::new(opener.right() - width - edge.x, opener.bottom()),
+        _ => opener.left_bottom(),
+    };
+    let (at, room) =
+        crate::kit::menu::place(ctx.content_rect(), anchor, opener, h + edge.y, s.d(24.0));
+    let room = (room - edge.y).max(s.d(48.0));
     let area = egui::Area::new(egui::Id::new(("inst-popup", track.0)))
         .order(egui::Order::Foreground)
         .fixed_pos(at)
+        .constrain(true)
         .show(ctx, |ui| {
-            crate::kit::widgets::menu_list(ui, &items, 250.0 * k)
+            sheet
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt("inst-popup-scroll")
+                        .max_height(room)
+                        .min_scrolled_height(room.min(h))
+                        .show(ui, |ui| crate::kit::widgets::menu_list(ui, &items, width))
+                        .inner
+                })
+                .inner
         });
-    let (resp, clicks) = area.inner;
+    let (_, clicks) = area.inner;
+    // The whole sheet is the menu's: a press on its edge or its scroll bar is not elsewhere.
+    let sheet_rect = area.response.rect;
     let chosen = clicks.clicked.or(clicks.toggled);
     if let Some(i) = chosen {
         match popup {
@@ -686,6 +739,7 @@ fn popups(
                 if i == 0 {
                     // r37:library — the browser: styles, roles, search, audition (ADR 0101)
                     app.inst.popup = Popup::None;
+                    app.inst.popup_from = None;
                     app.open_preset_browser(crate::preset_audition::Target::Track(track));
                     return;
                 }
@@ -704,8 +758,15 @@ fn popups(
     }
     // r37:library — not on the pass it opened: the click that opened it is not elsewhere
     let opening = app.inst.popup_pass == ctx.cumulative_pass_nr();
-    if clicks.clicked.is_some() || (resp.clicked_elsewhere() && !opening) {
+    let elsewhere = ctx.input(|i| {
+        i.pointer.any_click()
+            && i.pointer
+                .interact_pos()
+                .is_some_and(|p| !sheet_rect.contains(p))
+    });
+    if clicks.clicked.is_some() || (elsewhere && !opening) {
         app.inst.popup = Popup::None;
+        app.inst.popup_from = None;
     }
 }
 

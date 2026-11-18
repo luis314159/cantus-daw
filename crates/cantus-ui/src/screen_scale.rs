@@ -41,20 +41,96 @@ pub fn for_screen(width_px: f32, native_ppp: f32) -> f32 {
     best.clamp(settings::MIN_UI_SCALE, settings::MAX_UI_SCALE)
 }
 
-/// While the settings follow the screen, the zoom the screen under the window asks for;
-/// `None` when the user chose their own or the screen is not known yet.
-pub fn wanted(s: &Settings, ctx: &egui::Context) -> Option<f32> {
-    if !s.ui_scale_follows_screen {
-        return None;
+/// The monitor's width in physical pixels from egui's `monitor_size`, which egui-winit
+/// gives in points of **the system's scale times the zoom in effect before the pass**
+/// (`egui_winit::update_viewport_info` divides by `egui_winit::pixels_per_point`, read
+/// before `run`; a zoom set during a pass becomes active at the start of the next one).
+///
+/// GitHub issue #1 (ADR 0146): this was read as points of the system's
+/// scale alone, so the zoom chosen changed the width measured, which changed the zoom —
+/// 1.0 ↔ 1.25 every other frame on a 1 920-px screen at 100 %, the whole interface
+/// flickering along both axes from the first start of a fresh installation.
+pub fn monitor_px(monitor_points: f32, zoom_used: f32, native_ppp: f32) -> f32 {
+    monitor_points * zoom_used * native_ppp
+}
+
+/// The screen-following scale's state (ADR 0111 §7, ADR 0146): one decision per screen,
+/// measured only while the zoom has held for a pass, so the zoom it sets can never change
+/// what it measures.
+#[derive(Clone, Debug, Default)]
+pub struct Follow {
+    /// The zoom in effect in the previous pass: the one egui-winit measured this pass's
+    /// monitor with, when it equals this pass's.
+    prev_zoom: Option<f32>,
+    /// The screen the last decision was made for: its width in physical pixels and the
+    /// system's scale (as bits).
+    decided: Option<(u32, u32)>,
+    /// A scale fixed for the session (`--scale`, `--safe-graphics`): set once instead of
+    /// following the screen, never stored; Ctrl + and Ctrl − still change it.
+    pinned: Option<f32>,
+    pin_set: bool,
+    /// The window's watchdog tripped (`window_watch`): nothing more is followed.
+    stopped: bool,
+}
+
+impl Follow {
+    /// A scale for this session only, whatever the screen and the settings say.
+    pub fn pin(&mut self, scale: f32) {
+        if scale.is_finite() {
+            self.pinned = Some(scale.clamp(settings::MIN_UI_SCALE, settings::MAX_UI_SCALE));
+        }
     }
-    let (monitor, native) = ctx.input(|i| {
-        let v = i.viewport();
-        (v.monitor_size, v.native_pixels_per_point)
-    });
-    let native = native.unwrap_or(1.0);
-    // egui gives the monitor in points of the system's scale: back to physical pixels.
-    let width = monitor?.x * native;
-    Some(for_screen(width, native))
+
+    pub fn pinned(&self) -> Option<f32> {
+        self.pinned
+    }
+
+    /// Stop following: the zoom in effect stays (the watchdog's way to break a loop).
+    pub fn stop(&mut self) {
+        self.stopped = true;
+    }
+
+    pub fn stopped(&self) -> bool {
+        self.stopped
+    }
+
+    /// Once a frame: the zoom to set now, if any. A pinned scale once; else, while the
+    /// settings follow the screen, the zoom the screen under the window asks for, decided
+    /// once per screen; `None` when the user chose their own, the screen is not known yet,
+    /// or the zoom changed since the previous pass (the monitor was measured with the
+    /// other one: wait a pass).
+    pub fn wanted(&mut self, s: &Settings, ctx: &egui::Context) -> Option<f32> {
+        let zoom = ctx.zoom_factor();
+        let prev = self.prev_zoom.replace(zoom);
+        if self.stopped {
+            return None;
+        }
+        if let Some(p) = self.pinned {
+            if self.pin_set {
+                return None;
+            }
+            self.pin_set = true;
+            return Some(p);
+        }
+        if !s.ui_scale_follows_screen || prev != Some(zoom) {
+            return None;
+        }
+        let (monitor, native) = ctx.input(|i| {
+            let v = i.viewport();
+            (v.monitor_size, v.native_pixels_per_point)
+        });
+        let native = native.unwrap_or(1.0);
+        let width = monitor_px(monitor?.x, zoom, native);
+        if !(width.is_finite() && width > 0.0) {
+            return None;
+        }
+        let key = (width.round() as u32, native.to_bits());
+        if self.decided == Some(key) {
+            return None;
+        }
+        self.decided = Some(key);
+        Some(for_screen(width, native))
+    }
 }
 
 #[cfg(test)]
@@ -94,7 +170,8 @@ mod tests {
         ctx.run_ui(egui::RawInput::default(), |_| {})
             .textures_delta
             .clear();
-        assert_eq!(wanted(&Settings::default(), &ctx), None);
+        let mut f = Follow::default();
+        assert_eq!(f.wanted(&Settings::default(), &ctx), None);
         let mut input = egui::RawInput::default();
         input
             .viewports
@@ -102,11 +179,52 @@ mod tests {
             .or_default()
             .monitor_size = Some(egui::vec2(1920.0, 1080.0));
         ctx.run_ui(input, |_| {}).textures_delta.clear();
-        assert_eq!(wanted(&Settings::default(), &ctx), Some(1.25));
+        // The zoom held for a pass: the screen is measured, decided once.
+        assert_eq!(f.wanted(&Settings::default(), &ctx), Some(1.25));
+        assert_eq!(f.wanted(&Settings::default(), &ctx), None, "decided once");
         let chosen = Settings {
             ui_scale_follows_screen: false,
             ..Settings::default()
         };
-        assert_eq!(wanted(&chosen, &ctx), None);
+        assert_eq!(Follow::default().wanted(&chosen, &ctx), None);
+    }
+
+    /// Issue #1: frames fed as egui-winit feeds them (the monitor in points of the zoom in
+    /// effect before the pass): the zoom settles on the rule's scale within a few frames
+    /// and never moves again, on every screen and system scale — where the old reading
+    /// (the monitor taken as points of the system's scale alone) went 1.0 ↔ 1.25 forever
+    /// on a 1 920-px screen at 100 %.
+    #[test]
+    fn the_followed_zoom_settles_and_never_measures_itself() {
+        for width in [
+            1280.0, 1366.0, 1920.0, 2048.0, 2560.0, 2880.0, 3200.0, 3840.0,
+        ] {
+            for native in [1.0_f32, 1.25, 1.5, 1.75, 2.0] {
+                let ctx = egui::Context::default();
+                let mut f = Follow::default();
+                let s = Settings::default();
+                let mut zooms = Vec::new();
+                for _ in 0..40 {
+                    let ppp = ctx.zoom_factor() * native;
+                    let mut input = egui::RawInput::default();
+                    let vp = input.viewports.entry(egui::ViewportId::ROOT).or_default();
+                    vp.native_pixels_per_point = Some(native);
+                    vp.monitor_size = Some(egui::vec2(width, 1080.0) / ppp);
+                    ctx.run_ui(input, |ui| {
+                        if let Some(z) = f.wanted(&s, ui.ctx()) {
+                            ui.ctx().set_zoom_factor(z);
+                        }
+                    })
+                    .textures_delta
+                    .clear();
+                    zooms.push(ctx.zoom_factor());
+                }
+                let want = for_screen(width, native);
+                assert!(
+                    zooms[6..].iter().all(|z| *z == want),
+                    "{width} px at {native}: {zooms:?}, want {want}"
+                );
+            }
+        }
     }
 }

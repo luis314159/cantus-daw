@@ -177,6 +177,7 @@ fn main(
         .map_or_else(|| t("arrange.height.custom"), |(k, _)| t(k));
     let height_label = tf("arrange.menu.height", &[("now", &height_now)]);
     let dup = app.keymap.display_for(Action::Duplicate);
+    let bus_key = app.keymap.display_for(Action::RouteToNewBus);
     let s = Style::current();
     // Rename, then the colour row.
     if kit::widgets::menu_list(ui, &[keyed("arrange.menu.rename", "F2")], W)
@@ -205,6 +206,8 @@ fn main(
         } else {
             "arrange.menu.new_folder"
         }),
+        // ADR 0147: the selected tracks (or this one) to a new bus, in one step.
+        keyed("routing.menu.new_bus", &bus_key),
         Item::Separator,
         act(if frozen {
             "arrange.menu.unfreeze"
@@ -252,18 +255,23 @@ fn main(
         Some(9) => {
             let _ = folders::new_folder(app, &[id], &t("arrange.folder.new_name"));
         }
-        Some(11) => app.toggle_freeze_track(id),
-        Some(12) => {
+        Some(10) => {
+            let sel = app.track_selection();
+            let tracks = if sel.contains(&id) { sel } else { vec![id] };
+            app.route_to_new_bus(&[], &tracks);
+        }
+        Some(12) => app.toggle_freeze_track(id),
+        Some(13) => {
             if let Some(strip) = app.project().track(id).and_then(|t| t.strip) {
                 app.select_strip(strip);
             }
             app.show_pane(crate::views::workspace::Pane::Mixer);
         }
-        Some(13) => {
+        Some(14) => {
             app.arrangement.menu_page = Some((id, Page::More));
             return false;
         }
-        Some(15) => *to_delete = Some(id),
+        Some(16) => *to_delete = Some(id),
         _ => return false,
     }
     true

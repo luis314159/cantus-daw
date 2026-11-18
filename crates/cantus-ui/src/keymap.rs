@@ -176,6 +176,9 @@ pub enum Action {
     /// Open the selected strip's route menu where its ▼ chip is (Shift+F10, the
     /// platform's context-menu key; round 25). Acts while the mixer is being edited.
     RouteMenu,
+    /// Route the selection — the strips selected on the desk, or the tracks selected in the
+    /// arrangement, whichever is being edited — to a new bus (Ctrl+G; ADR 0147).
+    RouteToNewBus,
     // Recording (ADR 0025)
     /// Arm the selected track for recording.
     ArmTrack,
@@ -327,7 +330,7 @@ impl Action {
         )
     }
 
-    pub const ALL: [Action; 132] = [
+    pub const ALL: [Action; 133] = [
         // r35:video — 122 with ExportVideo
         Action::PlayPause,
         Action::Stop,
@@ -415,6 +418,7 @@ impl Action {
         Action::ToggleStripMute,
         Action::ToggleMeterWave,
         Action::RouteMenu,
+        Action::RouteToNewBus,
         Action::ArmTrack,
         Action::AddAudioTrack,
         Action::ToggleCountIn,
@@ -564,6 +568,7 @@ impl Action {
             Action::ToggleStripMute => "toggle-strip-mute",
             Action::ToggleMeterWave => "toggle-meter-wave",
             Action::RouteMenu => "route-menu",
+            Action::RouteToNewBus => "route-to-new-bus",
             Action::ArmTrack => "arm-track",
             Action::AddAudioTrack => "add-audio-track",
             Action::ToggleCountIn => "toggle-count-in",
@@ -677,7 +682,7 @@ impl Action {
             MidiLearnMode => Category::Tools,
             LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
-            | ToggleMeterWave | RouteMenu => Category::Mixer,
+            | ToggleMeterWave | RouteMenu | RouteToNewBus => Category::Mixer,
             ToggleSessionView
             | SessionLaunch
             | SessionLaunchScene
@@ -1087,6 +1092,9 @@ fn common() -> Vec<(Action, Binding)> {
         // The selected strip's route menu: the platform's context-menu key, free in every
         // preset and never a letter the typing piano wants (round 25).
         (RouteMenu, Binding::shift(Key::F10)),
+        // The selection to a new bus (ADR 0147): Ctrl+G, as Live and Bitwig group tracks —
+        // free in every preset.
+        (RouteToNewBus, Binding::cmd(Key::G)),
         // Recording (ADR 0025): Alt and a letter, so the typing piano never takes them.
         // R records; Alt+R arms the selected track (Cubase's "R" on the track, moved off
         // the bare letter), Alt+C counts in, Alt+P punches, Alt+T shows the takes.
@@ -1613,6 +1621,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 17 {
             map.fill_in(&NEW_IN_V17); // r40:ripple
         }
+        if file.version.unwrap_or(1) < 18 {
+            map.fill_in(&NEW_IN_V18);
+        }
         Ok(map)
     }
 
@@ -1692,8 +1703,12 @@ struct KeymapFile {
 /// automation mode's key (round 31, ADR 0068); version 13 the score's (round 32, ADR 0075);
 /// version 14 the session view's (round 33, ADR 0077); version 15 the stage's (round 35,
 /// ADR 0091); version 16 the workspace's areas and the arrangement's tools (round 39);
-/// version 17 insert and delete time and the ripple mode (round 40, ADR 0116).
-pub const FILE_VERSION: u32 = 17;
+/// version 17 insert and delete time and the ripple mode (round 40, ADR 0116); version 18
+/// the selection to a new bus (ADR 0147).
+pub const FILE_VERSION: u32 = 18;
+
+/// Actions added in version 18 (ADR 0147): Ctrl+G routes the selection to a new bus.
+const NEW_IN_V18: [Action; 1] = [Action::RouteToNewBus];
 
 /// r40:ripple — actions added in version 17 (round 40, ADR 0116): Insert inserts time,
 /// Ctrl+Del (and Ctrl+Backspace) deletes it, Alt+Shift+P cycles the ripple mode.
@@ -2066,7 +2081,7 @@ play-pause = [\"Enter\"]
             &[Binding::key(Key::Enter)]
         );
         assert!(map.bindings_for(Action::SessionLaunch).is_empty());
-        assert_eq!(FILE_VERSION, 17);
+        assert_eq!(FILE_VERSION, 18);
         // Every preset gives the session's keys and none of them twice.
         for p in Preset::ALL {
             let m = p.keymap();

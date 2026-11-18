@@ -309,6 +309,9 @@ pub fn setting_list(app: &mut CantusApp, ctx: &Context) {
         .collect();
     let mut chosen = None;
     let width = anchor.width().max(180.0);
+    // Its scroll as tall as the list up to 320 pt, never the room a remembered area offers
+    // (GitHub issue #1, the desk's submenus).
+    let tall = crate::kit::menu::height_in(&items, &crate::kit::Style::current()).min(320.0);
     let area = egui::Area::new(Id::new(("mod-list", id.0)))
         .order(Order::Foreground)
         .fixed_pos(anchor.left_bottom())
@@ -316,7 +319,8 @@ pub fn setting_list(app: &mut CantusApp, ctx: &Context) {
         .show(ctx, |ui| {
             crate::kit::automate::frame().show(ui, |ui| {
                 egui::ScrollArea::vertical()
-                    .max_height(320.0)
+                    .max_height(tall)
+                    .min_scrolled_height(tall)
                     .show(ui, |ui| {
                         chosen = crate::kit::widgets::menu_list(ui, &items, width).1.clicked;
                     });

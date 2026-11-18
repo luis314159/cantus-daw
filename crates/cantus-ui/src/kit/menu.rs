@@ -352,3 +352,29 @@ pub fn fit<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
 
 /// What [`fit`] leaves between a menu and the window's edges, in points.
 pub const FIT_MARGIN: f32 = 8.0;
+
+/// Where a list `h` tall opens from `opener` (the control that opened it), its top-left at
+/// `anchor` (usually under the opener), in the window's `screen`: the place and the height
+/// the list has there (less than `h` when it must scroll). Under its opener when it fits
+/// there, above it when it fits there instead; a list the window can hold whole is raised
+/// until it does (over its opener); a longer one scrolls, under its opener while eight
+/// `row`s find room there, else above it (review 2 of round 40, R2-B6). Every popup list
+/// anchored on a control places itself here (GitHub issue #1: the instruments' preset
+/// list opened at the window's right edge, away from its well).
+pub fn place(screen: Rect, anchor: Pos2, opener: Rect, h: f32, row: f32) -> (Pos2, f32) {
+    let m = FIT_MARGIN;
+    let below = screen.bottom() - m - anchor.y;
+    let above = opener.top() - (screen.top() + m);
+    let whole = screen.height() - 2.0 * m;
+    if h <= below {
+        (anchor, h)
+    } else if h <= above {
+        (Pos2::new(anchor.x, opener.top() - h), h)
+    } else if h <= whole {
+        (Pos2::new(anchor.x, screen.bottom() - m - h), h)
+    } else if below >= above.min(row * 8.0) {
+        (anchor, below.max(row * 2.0))
+    } else {
+        (Pos2::new(anchor.x, opener.top() - above), above)
+    }
+}

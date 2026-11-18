@@ -1297,7 +1297,7 @@ fn routing_batch(rng: &mut Lcg, project: &mut Project) -> Command {
             routing::EdgeKind::Send { .. } => Route::send(e.from, e.to),
             routing::EdgeKind::Key { effect } => Route::key(e.from, e.to, effect),
         });
-    let cmd = match rng.below(11) {
+    let cmd = match rng.below(12) {
         0 => {
             let sources = some_strips(rng, project);
             plan::add_sends(project, &sources, b)
@@ -1430,6 +1430,27 @@ fn routing_batch(rng: &mut Lcg, project: &mut Project) -> Command {
             let to = (rng.below(4) != 0).then_some(b);
             plan::route_tracks(project, &tracks, to)
         }
+        // ADR 0147: the selection (strips, tracks, or both) to a new bus.
+        10 => {
+            let strips = some_strips(rng, project);
+            let tracks: Vec<TrackId> = if project.tracks.is_empty() || rng.below(2) == 0 {
+                Vec::new()
+            } else {
+                let n = project.tracks.len() as u64;
+                (0..1 + rng.below(3))
+                    .map(|_| project.tracks[rng.below(n) as usize].id)
+                    .collect()
+            };
+            let bus = project.make_strip("Bus 1");
+            // ADR 0147 §5: the tracks reaching it folded too, most of the time.
+            let folder = (rng.below(4) != 0).then(|| cantus_core::TrackFolder {
+                id: cantus_core::FolderId(project.alloc_id()),
+                name: "Bus 1".into(),
+                color: Color::PALETTE[0],
+                open: true,
+            });
+            plan::new_bus(project, &strips, &tracks, bus, folder)
+        }
         _ => {
             let to = project.strip(a).and_then(|s| s.sends.last()).map(|x| x.to);
             let tap = SendTap::ALL[rng.below(2) as usize];
@@ -1531,6 +1552,7 @@ fn routing_kind(cmd: &Command) -> Option<usize> {
         "cmd.new_return",
         "cmd.route_tracks",
         "cmd.set_send_tap",
+        "cmd.new_bus",
         "cmd.move_strips",
         "cmd.move_group",
     ]
@@ -1887,7 +1909,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         Origin::System,
     ];
     let mut exercised = [0usize; 14];
-    let mut routed = [0usize; 14];
+    let mut routed = [0usize; 15];
     // Pitch edits applied (ADR 0054): set, and cleared.
     let mut pitched = [0usize; 2];
     // Modulators (ADR 0057): inserted, removed, set; comping (ADR 0058): a seam moved, a
@@ -2378,8 +2400,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 checkpoints.push(snap);
             }
         }
+        // ADR 0147's arm shifted the routing draws: seed 90 now applies exactly 80 (none of
+        // the new batches is refused), so the floor counts 80 in.
         assert!(
-            applied > 80,
+            applied >= 80,
             "seed {seed}: too few commands applied ({applied})"
         );
         // r36:mix - the mix stream's own floor.

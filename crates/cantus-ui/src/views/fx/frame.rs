@@ -314,26 +314,9 @@ pub fn popup_list(
 ) -> Option<usize> {
     let mut clicked = None;
     let h = menu::height(items, s.d(1.0));
-    // Under its field when it fits there, above it when it fits there instead; a list the
-    // window can hold whole is raised until it does (over its field); a longer one scrolls,
-    // under its field while eight rows find room there, else above it (review 2 of round
-    // 40, R2-B6: Delay's 27 note values ran off the bottom of a short window).
-    let screen = ctx.content_rect();
-    let m = menu::FIT_MARGIN;
-    let below = screen.bottom() - m - anchor.y;
-    let above = opener.top() - (screen.top() + m);
-    let whole = screen.height() - 2.0 * m;
-    let (anchor, room) = if h <= below {
-        (anchor, h)
-    } else if h <= above {
-        (Pos2::new(anchor.x, opener.top() - h), h)
-    } else if h <= whole {
-        (Pos2::new(anchor.x, screen.bottom() - m - h), h)
-    } else if below >= above.min(s.d(24.0) * 8.0) {
-        (anchor, below.max(s.d(48.0)))
-    } else {
-        (Pos2::new(anchor.x, opener.top() - above), above)
-    };
+    // Under its field, above it, raised or scrolling: `menu::place` (review 2 of round 40,
+    // R2-B6: Delay's 27 note values ran off the bottom of a short window).
+    let (anchor, room) = menu::place(ctx.content_rect(), anchor, opener, h, s.d(24.0));
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(anchor)
@@ -696,7 +679,8 @@ pub fn show(
         .scaled(out.k)
         .function(hue_of(kind))
         .skinned(shell.skin);
-    let rects = shell::header_rects(out.header, &s, &header);
+    // Where the shell drew them (its measured header), not laid out again here.
+    let rects = out.parts;
     // The bypass lamp is the insert's bypass for MIDI learn (round 29, review 4 of ADR
     // 0062, #21).
     if let Some(br) = rects.bypass {

@@ -829,19 +829,28 @@ pub fn menu_list(ui: &mut Ui, items: &[Item<'_>], width: f32) -> (Response, Menu
         });
     }
     // r39:el-controls — in a popup, the popup's frame is the sheet: several lists in one
-    // popup read as one menu (no boxes inside boxes, `des-controls`).
-    let in_popup = matches!(
-        ui.layer_id().order,
-        egui::Order::Foreground | egui::Order::Tooltip
-    );
+    // popup read as one menu (no boxes inside boxes, `des-controls`). Only a popup that
+    // has one: a bare area on the foreground has no frame, and a list there painted its
+    // rows on nothing — the instruments' preset list was transparent (GitHub issue #1).
+    let framed = sheeted(ui);
     with_brush(ui.painter(), |b| {
         if s.t.system.recessed() {
-            super::menu_slate::paint(b, rect, &s, items, hovered, !in_popup)
+            super::menu_slate::paint(b, rect, &s, items, hovered, !framed)
         } else {
             menu::paint(b, rect, &s, items, hovered)
         }
     });
     (resp, c)
+}
+
+/// Whether `ui` lies on a popup's sheet: a floating layer whose frames, up to the area, fill
+/// it opaquely (an egui popup's menu frame, [`super::automate::frame`]). A menu list there
+/// paints its rows only; anywhere else it paints its own sheet beneath them.
+pub fn sheeted(ui: &Ui) -> bool {
+    matches!(
+        ui.layer_id().order,
+        egui::Order::Foreground | egui::Order::Tooltip
+    ) && ui.stack().bg_color().is_opaque()
 }
 
 /// A value in a well (a readout, a field's face).

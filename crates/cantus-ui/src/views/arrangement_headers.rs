@@ -122,7 +122,7 @@ pub(super) fn headers(
                 let folder =
                     folders::of_track(project, i).map(|fo| crate::theme::track_color(fo.color));
                 let look = Look {
-                    selected: a.selected_track == Some(track.id),
+                    selected: a.track_selected(track.id), // ADR 0147: several
                     hovered,
                     hot,
                     silenced: any_solo && !track.soloed,
@@ -205,7 +205,7 @@ pub(super) fn headers(
                 s,
             );
             let ink = super::slate::Ink::of(s);
-            let selected = a.selected_track == Some(track.id);
+            let selected = a.track_selected(track.id);
             if r.line2.is_some() && track.frozen.is_none() {
                 let c = if selected { ink.ink2 } else { ink.ink3 };
                 crate::icons::paint_track_icon(&p, r.kind, track.icon(), c);

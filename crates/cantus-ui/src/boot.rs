@@ -381,8 +381,15 @@ fn paint(
     let s = Style::new(crate::theme_slate::slate_night_tokens());
     let t = s.t;
     let full = size(verse != SplashVerse::None);
-    let k = (rect.width() / full.x).min(rect.height() / full.y).max(0.1);
-    let at = |x: f32, y: f32| rect.min + Vec2::new(x, y) * k;
+    // The splash's own window is its size; a main window opened at once (`--no-splash`,
+    // issue #1) shows the splash at its own size in the middle.
+    let card = if rect.width() > full.x * 1.5 && rect.height() > full.y * 1.5 {
+        Rect::from_center_size(rect.center(), full)
+    } else {
+        rect
+    };
+    let k = (card.width() / full.x).min(card.height() / full.y).max(0.1);
+    let at = |x: f32, y: f32| card.min + Vec2::new(x, y) * k;
     let band = Rect::from_min_max(at(0.0, SIZE.y), at(SIZE.x, full.y));
     let mut clicked = false;
     let mut hover = None;
@@ -466,7 +473,7 @@ fn paint(
             _ => None,
         };
         b.rrect_stroke(
-            b.snap_rect(rect).shrink(b.px() * 0.5),
+            b.snap_rect(card).shrink(b.px() * 0.5),
             0.0,
             b.px(),
             with_alpha(t.text, 0.08),
@@ -583,24 +590,43 @@ impl eframe::App for Shell {
     }
 }
 
-/// The splash turns into the main window, titled with the project (ADR 0052): decorations
-/// back, resizable, the saved size or
-/// maximised.
-fn become_main_window(ctx: &egui::Context, options: &LaunchOptions, title: &str) {
+/// The main window's size before it is maximised (and the restored size a maximised one
+/// comes back to), and the smallest it can be made.
+pub const MAIN_SIZE: Vec2 = Vec2::new(1280.0, 800.0);
+pub const MIN_SIZE: Vec2 = Vec2::new(960.0, 600.0);
+
+/// What the splash is told to become the main window, titled with the project (ADR 0052):
+/// decorations back, resizable, the saved size or maximised — each sent once, in this
+/// order (the size before the maximise: winit forgets a maximise a later size asks for).
+/// With no splash (`--no-splash`, `--safe-graphics`; issue #1, ADR 0146) the window was
+/// made the main window already: only its title and its opacity.
+pub fn main_window_commands(options: &LaunchOptions, title: &str) -> Vec<egui::ViewportCommand> {
     use egui::ViewportCommand as C;
-    ctx.send_viewport_cmd(C::Title(title.to_string()));
-    ctx.send_viewport_cmd(C::Decorations(true));
+    let mut v = vec![C::Title(title.to_string())];
+    if !options.graphics.splash() {
+        v.push(C::Transparent(false)); // r35:stage
+        return v;
+    }
+    v.push(C::Decorations(true));
     // The splash was made with alpha so the stage's companion window can be see-through
     // (ADR 0091 §2); the main window itself is opaque. // r35:stage
-    ctx.send_viewport_cmd(C::Transparent(false)); // r35:stage
-    ctx.send_viewport_cmd(C::Resizable(true));
-    ctx.send_viewport_cmd(C::MinInnerSize(Vec2::new(960.0, 600.0)));
+    v.push(C::Transparent(false)); // r35:stage
+    v.push(C::Resizable(true));
+    v.push(C::MinInnerSize(MIN_SIZE));
     match options.window {
-        Some((w, h)) => ctx.send_viewport_cmd(C::InnerSize(Vec2::new(w, h))),
+        Some((w, h)) => v.push(C::InnerSize(Vec2::new(w, h))),
         None => {
-            ctx.send_viewport_cmd(C::InnerSize(Vec2::new(1280.0, 800.0)));
-            ctx.send_viewport_cmd(C::Maximized(true));
+            v.push(C::InnerSize(MAIN_SIZE));
+            v.push(C::Maximized(true));
         }
+    }
+    v
+}
+
+/// The splash turns into the main window (`main_window_commands`), once.
+fn become_main_window(ctx: &egui::Context, options: &LaunchOptions, title: &str) {
+    for c in main_window_commands(options, title) {
+        ctx.send_viewport_cmd(c);
     }
 }
 

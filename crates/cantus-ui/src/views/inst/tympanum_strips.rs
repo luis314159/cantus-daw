@@ -399,6 +399,7 @@ pub fn actions(
     if fresp.clicked() {
         app.inst.popup = super::super::Popup::Presets;
         app.inst.popup_pass = ui.ctx().cumulative_pass_nr();
+        app.inst.popup_from = Some(field);
     }
     let mixw = t("inst_mixer.mix");
     let mw = iu::width(ui, s, &mixw, 12.0, W::Regular);
