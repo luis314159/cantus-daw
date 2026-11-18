@@ -521,3 +521,46 @@ Not run: the Linux check (WSL), the whole workspace at once.
   plug-in).
 - At the integration: the site's pictures (`web/assets/units/comparatio-*.webp`, big
   1800 × 1157, thumb 640 × 411); renumbering ADR 0146 and schema 66.
+
+## The owner's answers (2026-11-17), built on the same branch
+
+1. **Each reference keeps its own playback** (`Reference::playback`: `sync`, `soff`,
+   `lstart`, `lend`). The unit's keys stay the live values, so automation, the engine, the
+   plug-in's parameters and every older path are unchanged; comparing another reference
+   (`fx::comparatio::switch_to`, `switch_command`) saves the unit's playback in the outgoing
+   entry and brings the newcomer's own back — its defaults the first time — as one `Batch`
+   (`SetReferences` + `SetEffectParam`s), undone exactly. **Global on purpose**: the match
+   (`match`, `offset`, `refl`), the crossfade and the display are *how* you compare, and a
+   comparison that changed its own rules under you as you switched would not be a fair one;
+   *where* a reference plays (its chorus, its offset against your song) is the reference's.
+   A playback out of range is refused by `SetReferences` (`References::valid`) and clamped on
+   load. The undo fuzz draws switches as the editor makes them (applied and refused). Still
+   schema 66 (`migrate_65_to_66`'s note; `fixtures/v66.cantus` regenerated: one reference
+   holds a stored loop 45–75 s; v64 and older load). The plug-in's state carries it (the same
+   JSON); the plug-in's editor writes the newcomer's playback onto the host's parameters.
+2. **A drop onto the exported plug-in's window**: egui-baseview 0.7.2 vendored in
+   `third_party/egui-baseview` (first commit 5b068553 unchanged, then the patch marked
+   `CANTUS PATCH`), wired by `[patch.crates-io]` as cpal and jack-sys are. Its new
+   `drop::input` turns baseview's `DragEntered`/`DragMoved`/`DragLeft`/`DragDropped` into
+   egui's hovered and dropped files and the pointer, and answers the system's drop target
+   `AcceptDrop(Copy)`; `EguiWindow::on_event` calls it first. The editor takes the drop as
+   it does in Cantus. `THIRD-PARTY-NOTICES.md` has its own section (MIT OR Apache-2.0; the
+   change named, Apache-2.0 §4(b)); `third_party/README.md` says what changed and why.
+   **Only a real host can confirm** that its own window lets the system's drop reach ours
+   (some hosts wrap plug-in windows in their own drop targets) — a beta-checklist step.
+3. **Only the one compared is in memory**: the store keeps no spare (`SPARE` = 0; a track
+   made in memory by a test is never let go). Every listed reference is read once for its
+   summary and let go; comparing one reads it again from disk on its thread and **adopts
+   its summary** (no second analysis while its print is unchanged; a changed file is
+   analysed again). **While it is read you hear your mix** — the snapshot names no
+   reference until it is in (the store's rule since step 1), and the strip says *Being read
+   from disk: your mix plays meanwhile* — never silence and never the previous reference
+   passing for the new one; it fades in from your mix when it arrives, as any switch.
+
+| Measured | |
+|---|---|
+| Eight 2 s references in a list (`eight_references_hold_the_audio_of_one`) | **768 000 bytes** of audio held — exactly one reference's; the fifth compared: read again, its summary the same `Arc` (not analysed again), the first let go |
+| `rt_memory::comparatio_never_allocates`, new phases: another reference being read (the snapshot naming none), then arriving and fading in | nothing allocated or freed on the audio thread |
+| Pointer: a loop dragged on the first reference, the second compared, the first again (`each_reference_keeps_its_own_loop`) | the second at its defaults, the first's loop back to the tenth of a second; each switch one undo step |
+| The drop through the plug-in's window handler (`a_file_dropped_on_the_plug_in_s_window_is_compared`, a 1.5 scale) | `AcceptDrop(Copy)`, the pointer in logical points, the file listed, compared and its print kept |
+| The plug-in's reference heard (now matched by its whole file, so the read's timing is out of the test) | −23.79 against −23.82 LUFS (0.03 LU) |
