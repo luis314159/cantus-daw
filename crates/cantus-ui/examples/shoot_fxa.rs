@@ -178,7 +178,10 @@ fn main() {
     let states: [(&str, &[&str]); 3] = [
         ("loquax", &["start", "synth", "wide"]),
         ("fractus", &["start", "cloud", "bars", "notes"]),
-        ("caelum", &["start", "infinite", "sustain", "frozen", "ducked"]),
+        (
+            "caelum",
+            &["start", "infinite", "sustain", "frozen", "ducked"],
+        ),
     ];
     let mut shots = Vec::new();
     for (unit, list) in states {

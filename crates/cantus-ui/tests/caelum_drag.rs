@@ -194,7 +194,11 @@ fn the_decay_rack_follows_a_drag_and_takes_none_while_infinite() {
 fn the_sustain_rider_follows_a_drag_one_undo_step() {
     let (mut app, size) = open();
     assert_eq!(value(&app, "isus"), 1.0, "infinite means infinite");
-    let (gauge, from) = app.fx.caelum.sustain_gauge(1.0).expect("the gauge is drawn");
+    let (gauge, from) = app
+        .fx
+        .caelum
+        .sustain_gauge(1.0)
+        .expect("the gauge is drawn");
     let (_, to) = app.fx.caelum.sustain_gauge(0.5).unwrap();
     let y = gauge.center().y;
     drag(&mut app, size, egui::pos2(from, y), egui::pos2(to, y));

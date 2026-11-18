@@ -306,7 +306,11 @@ fn caelum_s_sill_buttons_throw_the_endless_settings() {
     let c = sill_ctx();
     views::fx::frame::shell_of(kind).set_scale(&c, 1.0);
     sill_frames(&mut app, &c, size, None);
-    let (gauge, x) = app.fx.caelum.sustain_gauge(0.25).expect("the gauge is drawn");
+    let (gauge, x) = app
+        .fx
+        .caelum
+        .sustain_gauge(0.25)
+        .expect("the gauge is drawn");
     assert!(gauge.width() >= 150.0, "the gauge is wide enough to aim");
     sill_frames(&mut app, &c, size, Some(Pos2::new(x, gauge.center().y)));
     assert!(
