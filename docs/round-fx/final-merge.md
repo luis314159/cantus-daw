@@ -281,7 +281,9 @@ it restores):
    (`through_*_is_bit_identical_to_the_dsp`, the automation-on-the-grid tests) is
    unchanged. On the way: `cantus-ui`'s `views/fx/fxd.rs` did not compile on this branch
    (wave D's controller header lacked round 40's `views_w`) — `views_w: 0.0`, as every other
-   header sets it.
+   header sets it. `cantus-plugins`: 112 passed, 0 failed; clippy `--all-targets -D warnings`
+   clean with and without default features; `cargo fmt` over the crate (merge leftovers in
+   `build.rs`, `editor.rs`, `text.rs` and four test files formatted too).
 
 ## What each later branch needs at its merge
 
