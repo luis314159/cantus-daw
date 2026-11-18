@@ -286,6 +286,27 @@ it restores):
    clean with and without default features; `cargo fmt` over the crate (merge leftovers in
    `build.rs`, `editor.rs`, `text.rs` and four test files formatted too).
 
+## The integrated tree's first whole suite (Windows, `a084c1fd`, 2026-11-18)
+
+Every crate one at a time. Green: cantus-dsp 1 295, -project 208, -ai 58, -host 144, -mcp
+129, -export 48, -content 114, -ml 43, -score 46, -dance 172, -video 66, -link 22, -ara 16,
+-rt 80, -sandbox 141, -update 39, -launch 12, xtask 49. Found only on the merged tree (no
+branch saw them), each owned for a fix:
+
+| Crate | Test | What | State |
+|---|---|---|---|
+| cantus-engine | `ftz::flushing_denormals_changes_no_sample_of_the_corpus` | a u8 overflow with 43 kinds | fixed `05d8ac40` |
+| cantus-bench | `the_null_corpus_is_repeatable_named_once_and_audible` | 2 items a kind: 86 | fixed `05d8ac40` |
+| cantus-core | `undo_all_restores_initial_state_for_random_sequences` | **seed 15: undo 74 failed** — a command whose inverse is not exact with every arm in | open |
+| cantus-plugins | `alloc::a_jump_snaps_without_allocating` | **Comparatio allocates twice** when the host's offline render starts (fix/snap's jump × wave C's offline switch) | open |
+| cantus-ui | `lenis_e2e::…compensated_on_the_master…` | **live ≠ render** for Lenis on the master (snap at the start × its latency?) | open |
+| cantus-ui | `memory_e2e::what_a_start_holds` | an empty song holds **5.9 MB** against its budget | open |
+| cantus-ui | `kit::skin::side` (2 tests) | the house rule: xy ↔ purus.graphite (carbon 214–222°), formula.ebony ↔ cedo.locomotive and lenis (lacquer 146–168°) | open (a look choice) |
+| cantus-ui | `stated_preset_counts` | Tactus and Calculus have preset counts but are not effect kinds | open |
+
+Load-sensitive, to re-run on a quiet machine: `sync_midi::the_out_thread_sends_on_time`,
+Chorda's 64-voice CPU budget (dsp), `preset_render` (Arca), `scene_vector`.
+
 ## What each later branch needs at its merge
 
 New lines a branch brings still carry provisional numbers; they are settled with
