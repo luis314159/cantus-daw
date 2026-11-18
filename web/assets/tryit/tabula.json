@@ -57,20 +57,6 @@
       "wet": "/tryit/tabula/ambient_swells.mp3",
       "level_db": -8.2,
       "pic": "/tryit/tabula/ambient_swells"
-    },
-    {
-      "id": "fuzz_lead",
-      "name": [
-        "Fuzz lead",
-        "Solo con fuzz"
-      ],
-      "what": [
-        "Creative — Rock",
-        "Creativo — Rock"
-      ],
-      "wet": "/tryit/tabula/fuzz_lead.mp3",
-      "level_db": -0.3,
-      "pic": "/tryit/tabula/fuzz_lead"
     }
   ]
 }

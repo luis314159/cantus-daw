@@ -57,20 +57,6 @@
       "wet": "/tryit/saltus/whammy_octave.mp3",
       "level_db": 3.6,
       "pic": "/tryit/saltus/whammy_octave"
-    },
-    {
-      "id": "dive_bomb",
-      "name": [
-        "Dive bomb",
-        "Picado"
-      ],
-      "what": [
-        "Creative — Rock, Film · Game",
-        "Creativo — Rock, Cine · Videojuegos"
-      ],
-      "wet": "/tryit/saltus/dive_bomb.mp3",
-      "level_db": 4.8,
-      "pic": "/tryit/saltus/dive_bomb"
     }
   ]
 }

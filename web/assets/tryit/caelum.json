@@ -57,20 +57,6 @@
       "wet": "/tryit/caelum/bloom_pad.mp3",
       "level_db": 2.1,
       "pic": "/tryit/caelum/bloom_pad"
-    },
-    {
-      "id": "freeze_swell",
-      "name": [
-        "Freeze swell",
-        "Crecida para congelar"
-      ],
-      "what": [
-        "Creative — Ambient · Cinematic, Film · Game",
-        "Creativo — Ambient · Cinemático, Cine · Videojuegos"
-      ],
-      "wet": "/tryit/caelum/freeze_swell.mp3",
-      "level_db": 4.4,
-      "pic": "/tryit/caelum/freeze_swell"
     }
   ]
 }

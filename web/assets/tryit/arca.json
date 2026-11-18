@@ -57,20 +57,6 @@
       "wet": "/tryit/arca/edge_of_breakup.mp3",
       "level_db": 3.3,
       "pic": "/tryit/arca/edge_of_breakup"
-    },
-    {
-      "id": "british_crunch",
-      "name": [
-        "Rhythm crunch",
-        "Crujiente rítmico"
-      ],
-      "what": [
-        "Creative — Rock",
-        "Creativo — Rock"
-      ],
-      "wet": "/tryit/arca/british_crunch.mp3",
-      "level_db": -0.0,
-      "pic": "/tryit/arca/british_crunch"
     }
   ]
 }

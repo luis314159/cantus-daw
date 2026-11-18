@@ -57,20 +57,6 @@
       "wet": "/tryit/vetus/warped_tape.mp3",
       "level_db": 0.0,
       "pic": "/tryit/vetus/warped_tape"
-    },
-    {
-      "id": "chiptune_bass",
-      "name": [
-        "Chiptune bass",
-        "Bajo chiptune"
-      ],
-      "what": [
-        "Creative — Trap · Hip-hop, House · EDM",
-        "Creativo — Trap · Hip-hop, House · EDM"
-      ],
-      "wet": "/tryit/vetus/chiptune_bass.mp3",
-      "level_db": 0.1,
-      "pic": "/tryit/vetus/chiptune_bass"
     }
   ]
 }

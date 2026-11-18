@@ -57,20 +57,6 @@
       "wet": "/tryit/cribrum/funk_wah.mp3",
       "level_db": 14.7,
       "pic": "/tryit/cribrum/funk_wah"
-    },
-    {
-      "id": "dub_sweep",
-      "name": [
-        "Dub sweep",
-        "Barrido dub"
-      ],
-      "what": [
-        "Creative — Lo-fi, Film · Game",
-        "Creativo — Lo-fi, Cine · Videojuegos"
-      ],
-      "wet": "/tryit/cribrum/dub_sweep.mp3",
-      "level_db": -0.7,
-      "pic": "/tryit/cribrum/dub_sweep"
     }
   ]
 }

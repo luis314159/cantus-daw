@@ -2,7 +2,8 @@
 //! presets on one take, dry or wet, with the editor's picture for each preset.
 //!
 //! ```text
-//! cargo run --release -p cantus-ui --example render_tryit -- <SampleData> <web> <shots> [unit…] [--presets N]
+//! cargo run --release -p cantus-ui --example render_tryit -- <SampleData> <web> <shots> [unit…] [--presets N] [--takes <dir>]
+//! cargo run --release -p cantus-ui --example render_tryit -- --measure <web>
 //! python web/tools/tryit_pictures.py <shots>
 //! ```
 //!
@@ -26,9 +27,20 @@
 //! Presets are each unit's factory presets in their order, without the init patch, those for
 //! drums, voice, buses and the master left out (the take is a guitar), and those that need
 //! notes from a track (Fractus's played lanes) — up to `--presets` (4) a unit.
+//!
+//! **The units a guitar does not suit** ([`OWN`]: Loquax, Lenis, Vinculum, Cedo, Purus) are
+//! heard on a take of their own from `--takes <dir>` (not in the repository; gathered from the
+//! side round's listening sets): `voice.flac` (Britton Rea's *Gettysburg Address*, public
+//! domain), `mix.wav` (Cantus's Pulsus drums and Gravis bass under the CC0 guitar, 90 BPM),
+//! `pad.wav` (a synthetic pad, 124 BPM) and `faults.wav` (the CC0 guitar with a synthetic hum,
+//! buzz, clicks and crackle). Each names its presets; Loquax's synthesiser plays the
+//! progression's chords as notes; each has its own dry take, at the same loudness.
+//!
+//! `--measure` decodes every take the manifests name and prints its sample peak, true peak
+//! and integrated loudness, against `TARGET` and `CEILING`.
 
 use cantus_core::{EffectId, EffectKind, EffectSlot};
-use cantus_engine::fx::SongPosition;
+use cantus_engine::fx::{FxNote, SongPosition};
 use cantus_engine::{EffectMemory, EffectUnit, EngineHandle};
 use cantus_export::job::Control;
 use cantus_export::settings::Tags;
@@ -64,6 +76,124 @@ const UNITS: &[(&str, EffectKind, &str)] = &[
     ("fractus", EffectKind::Glitch, "fractus"),
     ("phasis", EffectKind::Phaser, "phasis"),
 ];
+
+/// A unit heard on a take of its own (`--takes`).
+struct Own {
+    name: &'static str,
+    kind: EffectKind,
+    demo: &'static str,
+    /// The take's file in `--takes`.
+    file: &'static str,
+    bpm: f64,
+    /// Eight bars, the site looping bars 5 to 8; else the whole take, once.
+    looped: bool,
+    /// The progression's chords played as notes (a vocoder's synthesiser).
+    chords: bool,
+    /// The presets heard, by the last part of their id, in this order.
+    presets: &'static [&'static str],
+    source: (&'static str, &'static str),
+    credit: (&'static str, &'static str),
+    /// The MP3s' artist tag.
+    artist: &'static str,
+}
+
+const VOICE: (&str, &str) = (
+    "Voice: Britton Rea, public domain (Wikimedia Commons)",
+    "Voz: Britton Rea, dominio público (Wikimedia Commons)",
+);
+const GUITAR: (&str, &str) = (
+    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+);
+
+const OWN: &[Own] = &[
+    Own {
+        name: "loquax",
+        kind: EffectKind::Vocoder,
+        demo: "loquax",
+        file: "voice.flac",
+        bpm: BPM,
+        looped: false,
+        chords: true,
+        presets: &["robot", "classic", "choir", "deep_robot"],
+        source: (
+            "A spoken voice (the Gettysburg Address read by Britton Rea, public domain); the synthesiser plays Am, F, C, G at 90 BPM",
+            "Una voz hablada (el discurso de Gettysburg leído por Britton Rea, dominio público); el sintetizador toca Lam, Fa, Do, Sol a 90 BPM",
+        ),
+        credit: VOICE,
+        artist: "Cantus (voice: Britton Rea, public domain)",
+    },
+    Own {
+        name: "lenis",
+        kind: EffectKind::ResonanceSuppressor,
+        demo: "lenis",
+        file: "voice.flac",
+        bpm: BPM,
+        looped: false,
+        chords: false,
+        presets: &["podcast_voice", "harsh_vocal", "sibilance", "gentle"],
+        source: (
+            "A spoken voice (the Gettysburg Address read by Britton Rea, public domain)",
+            "Una voz hablada (el discurso de Gettysburg leído por Britton Rea, dominio público)",
+        ),
+        credit: VOICE,
+        artist: "Cantus (voice: Britton Rea, public domain)",
+    },
+    Own {
+        name: "vinculum",
+        kind: EffectKind::BusCompressor,
+        demo: "vinculum",
+        file: "mix.wav",
+        bpm: BPM,
+        looped: true,
+        chords: false,
+        presets: &["glue", "mix_glue", "opto_smooth", "valve_master"],
+        source: (
+            "A small mix: Cantus's own drums and bass under the CC0 guitar, 90 BPM",
+            "Una pequeña mezcla: la batería y el bajo de Cantus bajo la guitarra CC0, 90 BPM",
+        ),
+        credit: (
+            "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI); drums and bass: Cantus's Pulsus and Gravis",
+            "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI); batería y bajo: Pulsus y Gravis de Cantus",
+        ),
+        artist: "Cantus (guitar: Carbonthief, CC0)",
+    },
+    Own {
+        name: "cedo",
+        kind: EffectKind::Ducker,
+        demo: "cedo",
+        file: "pad.wav",
+        bpm: 124.0,
+        looped: true,
+        chords: false,
+        presets: &["classic_pump", "eighths_pump", "triplet_breathe", "trance_gate"],
+        source: (
+            "A synthetic pad at 124 BPM, ducked by the song's beat (no key routed)",
+            "Un pad sintético a 124 BPM, atenuado por el pulso de la canción (sin clave enviada)",
+        ),
+        credit: ("Pad: synthetic, made by Cantus", "Pad: sintético, hecho por Cantus"),
+        artist: "Cantus",
+    },
+    Own {
+        name: "purus",
+        kind: EffectKind::Repair,
+        demo: "purus",
+        file: "faults.wav",
+        bpm: BPM,
+        looped: true,
+        chords: false,
+        presets: &["mains_50", "guitar_amp", "vinyl_crackle", "strong"],
+        source: (
+            "The CC0 guitar with a synthetic mains hum (50 Hz, drifting), a buzz, clicks and crackle",
+            "La guitarra CC0 con un zumbido de red sintético (50 Hz, que se desvía), un zumbido, clics y crepitar",
+        ),
+        credit: GUITAR,
+        artist: "Cantus (guitar: Carbonthief, CC0)",
+    },
+];
+
+/// Loquax's notes: A minor, F, C, G (the progression), a chord a bar.
+const CHORD_NOTES: [[u8; 3]; 4] = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
 
 /// The chord of each bar (`refs/audio/README.md`).
 const CHORDS: [&str; 4] = [
@@ -134,7 +264,13 @@ fn progression(dir: &Path) -> (Vec<f32>, Vec<f32>) {
 
 /// The take through `slot` on the engine's own unit, the song playing from bar 1, its
 /// latency taken off (aligned with the dry take).
-fn through(l: &[f32], r: &[f32], slot: &EffectSlot) -> (Vec<f32>, Vec<f32>) {
+fn through(
+    l: &[f32],
+    r: &[f32],
+    slot: &EffectSlot,
+    bpm: f64,
+    notes: &[(usize, FxNote)],
+) -> (Vec<f32>, Vec<f32>) {
     let mut u = EffectUnit::new(slot, RATE as f32);
     u.configure(&slot.spec);
     if let Some(need) = u.memory_need() {
@@ -147,11 +283,14 @@ fn through(l: &[f32], r: &[f32], slot: &EffectSlot) -> (Vec<f32>, Vec<f32>) {
     let mut at = 0usize;
     while at < ol.len() {
         let n = 480.min(ol.len() - at);
+        for (when, note) in notes.iter().filter(|(w, _)| (at..at + n).contains(w)) {
+            u.note(when - at, *note);
+        }
         u.set_position(&SongPosition {
             playing: true,
-            tempo_bpm: BPM,
-            tempo_now: BPM,
-            beats: at as f64 * BPM / 60.0 / f64::from(RATE),
+            tempo_bpm: bpm,
+            tempo_now: bpm,
+            beats: at as f64 * bpm / 60.0 / f64::from(RATE),
             samples: at as i64,
             ..Default::default()
         });
@@ -163,7 +302,12 @@ fn through(l: &[f32], r: &[f32], slot: &EffectSlot) -> (Vec<f32>, Vec<f32>) {
 
 /// Bars 5 to 8.
 fn second_half(x: &[f32]) -> Vec<f32> {
-    let half = BARS / 2 * 4 * (60.0 / BPM * f64::from(RATE)) as usize;
+    bars_5_to_8(x, BPM)
+}
+
+/// Bars 5 to 8 at `bpm`.
+fn bars_5_to_8(x: &[f32], bpm: f64) -> Vec<f32> {
+    let half = BARS / 2 * 4 * (60.0 / bpm * f64::from(RATE)) as usize;
     x[half..(2 * half).min(x.len())].to_vec()
 }
 
@@ -184,6 +328,18 @@ fn peak_db(l: &[f32], r: &[f32]) -> f64 {
 
 /// The take at `gain_db`, as the site's MP3.
 fn mp3(l: &[f32], r: &[f32], gain_db: f64, path: &Path, title: &str) -> u64 {
+    mp3_by(
+        l,
+        r,
+        gain_db,
+        path,
+        title,
+        "Cantus (guitar: Carbonthief, CC0)",
+    )
+}
+
+/// [`mp3`] with its artist tag.
+fn mp3_by(l: &[f32], r: &[f32], gain_db: f64, path: &Path, title: &str, artist: &str) -> u64 {
     let g = cantus_dsp::math::db_to_gain(gain_db as f32);
     let samples: Vec<f32> = l
         .iter()
@@ -198,7 +354,7 @@ fn mp3(l: &[f32], r: &[f32], gain_db: f64, path: &Path, title: &str) -> u64 {
     };
     let tags = Tags {
         title: title.into(),
-        artist: "Cantus (guitar: Carbonthief, CC0)".into(),
+        artist: artist.into(),
         album: "Try it".into(),
         ..Default::default()
     };
@@ -309,8 +465,193 @@ fn shoot_preset(dir: &Path, stem: &str, demo: &str, kind: EffectKind, values: &V
     cantus_ui::i18n::set_locale(Locale::En);
 }
 
+/// A take from `--takes`, stereo at 48 kHz, split into its channels.
+fn take(dir: &Path, file: &str) -> (Vec<f32>, Vec<f32>) {
+    let p = dir.join(file);
+    let d = cantus_engine::SampleCache::decode_source(&p)
+        .unwrap_or_else(|e| panic!("{}: {e:?}", p.display()));
+    let ch = d.channels as usize;
+    let mut x: Vec<f32> = d.frames.to_vec();
+    if d.rate != RATE {
+        x = cantus_engine::samples::resample::resample(&x, ch, d.rate, RATE);
+    }
+    if ch == 1 {
+        (x.clone(), x)
+    } else {
+        (
+            x.iter().step_by(ch).copied().collect(),
+            x.iter().skip(1).step_by(ch).copied().collect(),
+        )
+    }
+}
+
+/// The progression's chords as notes over `frames`, a chord a bar at `bpm`.
+fn chord_notes(frames: usize, bpm: f64) -> Vec<(usize, FxNote)> {
+    let bar = (4.0 * 60.0 / bpm * f64::from(RATE)) as usize;
+    let mut v = Vec::new();
+    for (b, at) in (0..frames).step_by(bar).enumerate() {
+        let chord = CHORD_NOTES[b % 4];
+        for pitch in chord {
+            v.push((
+                at,
+                FxNote::On {
+                    pitch,
+                    velocity: 100,
+                },
+            ));
+        }
+        let end = (at + bar - 1).min(frames.saturating_sub(1));
+        for pitch in chord {
+            v.push((end, FxNote::Off { pitch }));
+        }
+    }
+    v
+}
+
+/// One of [`OWN`]: its dry take, each named preset's take and pictures, and its manifest.
+fn render_own(own: &Own, takes: &Path, out: &Path, shots: &Path, n_presets: usize) -> u64 {
+    let (mut l, mut r) = take(takes, own.file);
+    if own.looped {
+        let n = BARS * 4 * (60.0 / own.bpm * f64::from(RATE)) as usize;
+        l.resize(n, 0.0);
+        r.resize(n, 0.0);
+    }
+    let cut = |x: &[f32]| {
+        if own.looped {
+            bars_5_to_8(x, own.bpm)
+        } else {
+            x.to_vec()
+        }
+    };
+    let notes = if own.chords {
+        chord_notes(l.len(), own.bpm)
+    } else {
+        Vec::new()
+    };
+    let dir = out.join(own.name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("the unit's folder");
+    let pics = shots.join(own.name);
+    std::fs::create_dir_all(&pics).expect("the shots' folder");
+    let (dl, dr) = (cut(&l), cut(&r));
+    let dry_lufs = lufs(&dl, &dr);
+    let dry_gain = (TARGET - dry_lufs).min(CEILING - peak_db(&dl, &dr));
+    let mut total = mp3_by(
+        &dl,
+        &dr,
+        dry_gain,
+        &dir.join("dry.mp3"),
+        "The dry take",
+        own.artist,
+    );
+    println!("{}: dry ({:.1} LUFS after)", own.name, dry_lufs + dry_gain);
+    let all = entries(Unit::Effect(own.kind), false);
+    let mut presets = Vec::new();
+    for id in own.presets.iter().take(n_presets) {
+        let (e, values) = all
+            .iter()
+            .find_map(|e| match &e.payload {
+                Payload::Effect(v) if e.id.rsplit('.').next() == Some(id) => Some((e, v)),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{}: no preset {id}", own.name));
+        let (_, slot) = app_with(own.demo, own.kind, values);
+        let (wl, wr) = through(&l, &r, &slot, own.bpm, &notes);
+        let (wl, wr) = (cut(&wl), cut(&wr));
+        let loud = lufs(&wl, &wr);
+        let gain = (TARGET - loud).min(CEILING - peak_db(&wl, &wr));
+        let name_en = t_in(Locale::En, &e.id);
+        total += mp3_by(
+            &wl,
+            &wr,
+            gain,
+            &dir.join(format!("{id}.mp3")),
+            &name_en,
+            own.artist,
+        );
+        shoot_preset(&pics, id, own.demo, own.kind, values);
+        presets.push(serde_json::json!({
+            "id": id,
+            "name": [name_en, t_in(Locale::Es, &e.id)],
+            "what": [what(e, Locale::En), what(e, Locale::Es)],
+            "wet": format!("/tryit/{}/{id}.mp3", own.name),
+            "level_db": ((loud - dry_lufs) * 10.0).round() / 10.0,
+            "pic": format!("/tryit/{}/{id}", own.name),
+        }));
+        println!(
+            "{}: {name_en} ({:+.1} dB as the preset leaves it, {:.1} LUFS after)",
+            own.name,
+            loud - dry_lufs,
+            loud + gain
+        );
+    }
+    let manifest = serde_json::json!({
+        "unit": own.name,
+        "origin": "presets",
+        "note": [
+            "Rendered by Cantus from its factory presets on one take, each matched to one loudness by a gain alone.",
+            "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+        ],
+        "source": [own.source.0, own.source.1],
+        "credit": [own.credit.0, own.credit.1],
+        "loop": own.looped,
+        "dry": format!("/tryit/{}/dry.mp3", own.name),
+        "presets": presets,
+    });
+    let text = serde_json::to_string_pretty(&manifest).expect("json") + "\n";
+    std::fs::write(out.join(format!("{}.json", own.name)), text).expect("the manifest");
+    total
+}
+
+/// `--measure`: every MP3 under `<web>/assets/tryit`, decoded as the site's visitors hear it.
+fn measure(web: &Path) {
+    let root = web.join("assets/tryit");
+    let mut files: Vec<PathBuf> = Vec::new();
+    let mut dirs = vec![root.clone()];
+    while let Some(d) = dirs.pop() {
+        for e in std::fs::read_dir(&d).expect("assets/tryit").flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                dirs.push(p);
+            } else if p.extension().is_some_and(|x| x == "mp3") {
+                files.push(p);
+            }
+        }
+    }
+    files.sort();
+    let (mut worst_lu, mut worst_tp) = (0f64, f32::NEG_INFINITY);
+    println!("take | peak dBFS | true peak dBTP | integrated LUFS");
+    for p in &files {
+        let (l, r) = take(
+            p.parent().expect("a folder"),
+            &p.file_name().expect("a file").to_string_lossy(),
+        );
+        let mut m = cantus_dsp::terminus::loudness::LoudnessMeter::new(RATE as f32);
+        m.process(&l, &r);
+        let i = m.integrated().unwrap_or(-120.0);
+        let tp = m.true_peak_db();
+        worst_lu = worst_lu.max((i - TARGET).abs());
+        worst_tp = worst_tp.max(tp);
+        println!(
+            "{} | {:.2} | {:.2} | {:.2}",
+            p.strip_prefix(&root).unwrap_or(p).display(),
+            peak_db(&l, &r),
+            tp,
+            i
+        );
+    }
+    println!(
+        "{} takes; the furthest from {TARGET} LUFS by {worst_lu:.2} LU; the highest true peak {worst_tp:.2} dBTP (ceiling {CEILING} dBFS before encoding)",
+        files.len()
+    );
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|a| a == "--measure") {
+        measure(Path::new(args.get(1).map_or("web", String::as_str)));
+        return;
+    }
     let n_presets = args
         .iter()
         .position(|a| a == "--presets")
@@ -320,12 +661,20 @@ fn main() {
     let mut pos = args
         .iter()
         .enumerate()
-        .filter(|(i, a)| !a.starts_with("--") && (*i == 0 || args[i - 1] != "--presets"))
+        .filter(|(i, a)| {
+            !a.starts_with("--")
+                && (*i == 0 || !["--presets", "--takes"].contains(&args[i - 1].as_str()))
+        })
         .map(|(_, a)| a.clone());
     let samples = PathBuf::from(pos.next().expect("the SampleData folder"));
     let web = PathBuf::from(pos.next().unwrap_or_else(|| "web".into()));
     let shots = PathBuf::from(pos.next().unwrap_or_else(|| "target/shots/tryit".into()));
     let only: Vec<String> = pos.collect();
+    let takes = args
+        .iter()
+        .position(|a| a == "--takes")
+        .and_then(|i| args.get(i + 1))
+        .map(PathBuf::from);
     cantus_ui::i18n::set_thread_locale(Locale::En);
 
     let (l, r) = progression(&samples);
@@ -354,7 +703,7 @@ fn main() {
         let mut presets = Vec::new();
         for (e, values) in chosen {
             let (_, slot) = app_with(demo, *kind, values);
-            let (wl, wr) = through(&l, &r, &slot);
+            let (wl, wr) = through(&l, &r, &slot, BPM, &[]);
             let (wl, wr) = (second_half(&wl), second_half(&wr));
             let loud = lufs(&wl, &wr);
             let gain = (TARGET - loud).min(CEILING - peak_db(&wl, &wr));
@@ -397,6 +746,14 @@ fn main() {
         });
         let text = serde_json::to_string_pretty(&manifest).expect("json") + "\n";
         std::fs::write(out.join(format!("{name}.json")), text).expect("the manifest");
+    }
+    if let Some(takes) = takes {
+        for own in OWN {
+            if !only.is_empty() && !only.iter().any(|o| o == own.name) {
+                continue;
+            }
+            total += render_own(own, &takes, &out, &shots, n_presets);
+        }
     }
     println!("{} KB of takes in {}", total / 1024, out.display());
 }

@@ -1,50 +1,62 @@
 {
- "unit": "purus",
- "origin": "dev",
- "note": [
-  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
-  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
- ],
- "source": [
-  "The CC0 guitar with a synthetic, drifting mains hum",
-  "La guitarra CC0 con un zumbido de red sintético que se desvía"
- ],
- "credit": [
-  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
-  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
- ],
- "loop": true,
- "seconds": 10.667,
- "lufs": -19.3,
- "dry": "/tryit/purus/dry.mp3",
- "presets": [
-  {
-   "id": "notches",
-   "name": [
-    "Hum notches",
-    "Muescas de zumbido"
-   ],
-   "what": [
-    "The hum and its harmonics notched out",
-    "El zumbido y sus armónicos quitados con muescas"
-   ],
-   "wet": "/tryit/purus/notches.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "gentle",
-   "name": [
-    "Gentle de-hum",
-    "Quitar zumbido suave"
-   ],
-   "what": [
-    "The canceller that learns the hum",
-    "El cancelador que aprende el zumbido"
-   ],
-   "wet": "/tryit/purus/gentle.mp3",
-   "level_db": null,
-   "pic": null
-  }
- ]
+  "unit": "purus",
+  "origin": "presets",
+  "note": [
+    "Rendered by Cantus from its factory presets on one take, each matched to one loudness by a gain alone.",
+    "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+  ],
+  "source": [
+    "The CC0 guitar with a synthetic mains hum (50 Hz, drifting), a buzz, clicks and crackle",
+    "La guitarra CC0 con un zumbido de red sintético (50 Hz, que se desvía), un zumbido, clics y crepitar"
+  ],
+  "credit": [
+    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+  ],
+  "loop": true,
+  "dry": "/tryit/purus/dry.mp3",
+  "presets": [
+    {
+      "id": "mains_50",
+      "name": [
+        "Mains hum 50 Hz",
+        "Zumbido de red 50 Hz"
+      ],
+      "what": [
+        "Vocal — Rock, Film · Game",
+        "Voz — Rock, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/purus/mains_50.mp3",
+      "level_db": -0.6,
+      "pic": "/tryit/purus/mains_50"
+    },
+    {
+      "id": "guitar_amp",
+      "name": [
+        "Guitar amp hum and buzz",
+        "Zumbido de amplificador de guitarra"
+      ],
+      "what": [
+        "Bus — Rock, Jazz · Soul",
+        "Bus — Rock, Jazz · Soul"
+      ],
+      "wet": "/tryit/purus/guitar_amp.mp3",
+      "level_db": -0.1,
+      "pic": "/tryit/purus/guitar_amp"
+    },
+    {
+      "id": "vinyl_crackle",
+      "name": [
+        "Vinyl clicks and crackle",
+        "Clics y crepitación de vinilo"
+      ],
+      "what": [
+        "Master — Lo-fi, Jazz · Soul",
+        "Máster — Lo-fi, Jazz · Soul"
+      ],
+      "wet": "/tryit/purus/vinyl_crackle.mp3",
+      "level_db": -0.0,
+      "pic": "/tryit/purus/vinyl_crackle"
+    }
+  ]
 }

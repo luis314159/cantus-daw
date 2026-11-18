@@ -57,20 +57,6 @@
       "wet": "/tryit/phasis/small_stone.mp3",
       "level_db": -3.4,
       "pic": "/tryit/phasis/small_stone"
-    },
-    {
-      "id": "deep_twelve",
-      "name": [
-        "Twelve stages, deep",
-        "Doce etapas, profundo"
-      ],
-      "what": [
-        "Creative — Ambient · Cinematic, Film · Game",
-        "Creativo — Ambient · Cinemático, Cine · Videojuegos"
-      ],
-      "wet": "/tryit/phasis/deep_twelve.mp3",
-      "level_db": -0.7,
-      "pic": "/tryit/phasis/deep_twelve"
     }
   ]
 }

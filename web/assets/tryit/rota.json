@@ -57,20 +57,6 @@
       "wet": "/tryit/rota/gospel.mp3",
       "level_db": -2.0,
       "pic": "/tryit/rota/gospel"
-    },
-    {
-      "id": "slow_ramp",
-      "name": [
-        "Slow ramp",
-        "Rampa lenta"
-      ],
-      "what": [
-        "Creative — Ambient · Cinematic, Film · Game",
-        "Creativo — Ambient · Cinemático, Cine · Videojuegos"
-      ],
-      "wet": "/tryit/rota/slow_ramp.mp3",
-      "level_db": -1.8,
-      "pic": "/tryit/rota/slow_ramp"
     }
   ]
 }
