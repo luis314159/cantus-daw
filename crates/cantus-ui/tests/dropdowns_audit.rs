@@ -19,53 +19,20 @@
 //!   the foot or the head only where the list scrolls).
 
 mod paths_rig;
+mod popup_audit;
 
-use cantus_ui::kit::appearance::Mode;
-use egui::{LayerId, Order, Rect};
+use egui::{LayerId, Rect};
 use paths_rig::*;
+use popup_audit::*;
 use std::collections::HashSet;
-
-/// The looks every dropdown is opened in: (preset, light).
-const LOOKS: [(&str, bool); 3] = [
-    ("slate_night", false),
-    ("slate_paper", true),
-    ("contrast_light", true),
-];
-
-/// The floating layers drawn now, and their rects.
-fn floating(r: &Rig) -> Vec<(LayerId, Rect)> {
-    r.ctx.memory(|m| {
-        let mut v: Vec<(LayerId, Rect)> = m
-            .areas()
-            .visible_layer_ids()
-            .into_iter()
-            .filter(|l| matches!(l.order, Order::Foreground | Order::Tooltip))
-            .filter_map(|l| Some((l, m.area_rect(l.id)?)))
-            .filter(|(_, r)| r.is_positive())
-            .collect();
-        v.sort_by_key(|(l, _)| l.id.value());
-        v
-    })
-}
-
-/// One finding: which list, where, what is wrong.
-#[derive(Debug)]
-struct Finding {
-    look: &'static str,
-    screen: String,
-    field: String,
-    what: String,
-}
 
 /// What one opened list was measured as.
 struct Opened {
     sheet: Rect,
 }
 
-/// The probe colour: nothing of the app is this magenta.
-const PROBE: egui::Color32 = egui::Color32::from_rgb(255, 0, 255);
-
-/// Measure the list `layers` opened from `field` (named `name`) on `screen`.
+/// Measure the list `layers` opened from `field` (named `name`) on `screen`: beside its
+/// field and never over it, then what every popup owes ([`inspect`]).
 fn measure(
     r: &mut Rig,
     layers: &[(LayerId, Rect)],
@@ -75,6 +42,13 @@ fn measure(
     name: &str,
     out: &mut Vec<Finding>,
 ) -> Opened {
+    // The list's sheet: the largest of what opened (a submenu or a tooltip beside it is
+    // measured with it only for opacity).
+    let sheet = layers
+        .iter()
+        .map(|(_, r)| *r)
+        .max_by(|a, b| a.area().total_cmp(&b.area()))
+        .unwrap();
     let mut bad = |what: String| {
         out.push(Finding {
             look,
@@ -83,17 +57,6 @@ fn measure(
             what,
         })
     };
-    // The list's sheet: the largest of what opened (a submenu or a tooltip beside it is
-    // measured with it only for opacity).
-    let sheet = layers
-        .iter()
-        .map(|(_, r)| *r)
-        .max_by(|a, b| a.area().total_cmp(&b.area()))
-        .unwrap();
-    let window = r.ctx.content_rect().expand(0.5);
-    if !window.contains_rect(sheet) {
-        bad(format!("runs off the window: {sheet:?} in {window:?}"));
-    }
     let inner = field.shrink(1.0);
     if sheet.intersects(inner) {
         bad(format!("covers its own field: {sheet:?} over {field:?}"));
@@ -118,84 +81,7 @@ fn measure(
     if sheet.left() > field.right() - 4.0 || sheet.right() < field.left() + 4.0 {
         bad(format!("beside another place: {sheet:?} from {field:?}"));
     }
-    // Opaque: the probe painted over every layer drawn beneath the list (and over the
-    // panels), for a frame: nothing of it may show inside the list's sheet.
-    let keep: HashSet<LayerId> = layers.iter().map(|(l, _)| *l).collect();
-    let rank = |l: &LayerId, i: usize| (l.order as usize, i);
-    let below: Vec<LayerId> = r.ctx.memory(|m| {
-        let order: Vec<LayerId> = m.layer_ids().collect();
-        let lowest = order
-            .iter()
-            .enumerate()
-            .filter(|(_, l)| keep.contains(l))
-            .map(|(i, l)| rank(l, i))
-            .min()
-            .unwrap_or((usize::MAX, 0));
-        order
-            .iter()
-            .enumerate()
-            .filter(|(i, l)| !keep.contains(l) && rank(l, *i) < lowest)
-            .map(|(_, l)| *l)
-            .collect()
-    });
-    r.probe = Some(PROBE);
-    r.probe_layers = below;
-    r.idle(1);
-    let c = r.canvas();
-    let texts = r.texts_above_probe();
-    r.probe = None;
-    r.probe_layers.clear();
-    r.idle(1);
-    let ppp = r.ctx.pixels_per_point();
-    let probe = sheet.shrink(3.0);
-    let (mut through, mut all) = (0, 0);
-    let mut y = probe.top();
-    while y < probe.bottom() {
-        let mut x = probe.left();
-        while x < probe.right() {
-            let p = c.pixel((x * ppp) as usize, (y * ppp) as usize);
-            all += 1;
-            if p[0] > 200 && p[1] < 60 && p[2] > 200 {
-                through += 1;
-            }
-            x += 4.0;
-        }
-        y += 4.0;
-    }
-    if through > 0 {
-        bad(format!(
-            "see-through: the probe shows through {through} of {all} points of {sheet:?}"
-        ));
-    }
-    // Legible: its words, seen inside the sheet.
-    let words: Vec<_> = texts
-        .iter()
-        .filter(|t| !t.text.trim().is_empty() && t.seen.is_positive() && sheet.intersects(t.seen))
-        .collect();
-    for t in &words {
-        if t.seen.width() + 0.5 < t.rect.width() {
-            bad(format!(
-                "“{}” cut at its side: {:?} seen of {:?}",
-                t.text, t.seen, t.rect
-            ));
-        }
-        // Cut at its head or foot only at the sheet's edge, where a long list scrolls.
-        let at_edge = t.seen.top() - sheet.top() < 14.0 || sheet.bottom() - t.seen.bottom() < 14.0;
-        if t.seen.height() + 0.5 < t.rect.height() && !at_edge {
-            bad(format!(
-                "“{}” cut: {:?} seen of {:?}",
-                t.text, t.seen, t.rect
-            ));
-        }
-    }
-    for (i, a) in words.iter().enumerate() {
-        for b in &words[i + 1..] {
-            let x = a.seen.intersect(b.seen);
-            if x.width() > 2.0 && x.height() > 3.0 {
-                bad(format!("“{}” and “{}” overlap at {x:?}", a.text, b.text));
-            }
-        }
-    }
+    inspect(r, layers, sheet, look, screen, name, out);
     Opened { sheet }
 }
 
@@ -288,6 +174,36 @@ fn screens() -> Vec<Screen> {
                 r.app.show_settings = false;
                 cantus_ui::audio_setup::demo::setup(&mut r.app);
                 r.app.audio_setup.popover = true;
+                r.settle();
+            },
+            region: |r| area(r, "cantus-audio-popover"),
+        },
+        Screen {
+            // The ASIO driver's field: ASIO chosen on the popover's Driver row, over the
+            // owner's ASIO drivers as an emulated scan (offline: no driver is loaded).
+            name: "audio-popover-asio",
+            open: |r| {
+                r.app.show_settings = false;
+                cantus_ui::audio_setup::demo::setup(&mut r.app);
+                if let Some(sc) = r.app.audio_setup.scan.as_mut() {
+                    sc.asio = vec![
+                        "ASIO4ALL v2".into(),
+                        "FL Studio ASIO".into(),
+                        "FlexASIO".into(),
+                    ];
+                }
+                r.app.audio_setup.popover = true;
+                r.settle();
+                let asio = cantus_ui::audio_setup::Hit::Driver("ASIO".into());
+                let seg = r
+                    .app
+                    .audio_setup
+                    .geo
+                    .rect(&asio)
+                    .expect("the popover offers ASIO");
+                r.click(seg.center());
+                assert!(r.app.audio_setup.offline, "no real driver is opened");
+                assert_eq!(r.app.settings.audio.driver.as_deref(), Some("ASIO"));
                 r.settle();
             },
             region: |r| area(r, "cantus-audio-popover"),
@@ -526,6 +442,9 @@ fn reset(r: &mut Rig) {
     r.app.show_settings = false;
     r.app.audio_setup.popover = false;
     r.app.audio_setup.pop_list = None;
+    // Off ASIO again: Settings ▸ Audio would scan the machine's ASIO drivers for the
+    // driver chosen, and no test loads a real ASIO driver.
+    r.app.settings.audio.driver = None;
     r.app.close_inst_editor();
     r.app.close_fx_editor();
     r.app.close_comp_editor();
@@ -540,14 +459,7 @@ fn every_dropdown_opens_opaque_beside_its_field_in_every_look() {
     let mut out = Vec::new();
     let mut log = Vec::new();
     for (look, light) in LOOKS {
-        r.app.appearance.mode = if light { Mode::Light } else { Mode::Dark };
-        if light {
-            r.app.appearance.light.base = format!("preset:{look}");
-        } else {
-            r.app.appearance.dark.base = format!("preset:{look}");
-        }
-        r.app.apply_appearance();
-        r.idle(4);
+        wear(&mut r, look, light);
         for sc in screens() {
             reset(&mut r);
             let before = fields(&mut r);
@@ -582,9 +494,6 @@ fn every_dropdown_opens_opaque_beside_its_field_in_every_look() {
         out.is_empty(),
         "{} problems in {opened} lists:\n{}",
         out.len(),
-        out.iter()
-            .map(|f| format!("{} {} {}: {}", f.look, f.screen, f.field, f.what))
-            .collect::<Vec<_>>()
-            .join("\n")
+        out.iter().map(Finding::line).collect::<Vec<_>>().join("\n")
     );
 }

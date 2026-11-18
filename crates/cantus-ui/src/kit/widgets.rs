@@ -610,6 +610,50 @@ pub fn take_fields() -> Vec<Field> {
     })
 }
 
+/// A menu's rows drawn: its rect, and the rows that open a submenu.
+pub type Listed = (Rect, Vec<Rect>);
+
+thread_local! {
+    static LISTS: std::cell::RefCell<Option<Vec<Listed>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Keep, on this thread, every menu's rows drawn from now on (every [`menu_list`]) until
+/// [`take_lists`]: the menu audit finds each menu's submenus so. Off, nothing is kept.
+pub fn record_lists(on: bool) {
+    LISTS.with(|l| *l.borrow_mut() = on.then(Vec::new));
+}
+
+/// What [`record_lists`] kept since the last call.
+pub fn take_lists() -> Vec<Listed> {
+    LISTS.with(|l| {
+        l.borrow_mut()
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    })
+}
+
+fn note_list(rect: Rect, items: &[Item<'_>], s: &Style) {
+    LISTS.with(|l| {
+        if let Some(v) = l.borrow_mut().as_mut() {
+            let subs = (0..items.len())
+                .filter(|&i| {
+                    matches!(
+                        items[i],
+                        Item::Action {
+                            submenu: true,
+                            enabled: true,
+                            ..
+                        }
+                    )
+                })
+                .map(|i| menu::row_in(rect, items, s, i))
+                .collect();
+            v.push((rect, subs));
+        }
+    });
+}
+
 /// Note a field that opens a list (kept only while [`record_fields`] is on).
 pub fn note_field(rect: Rect, value: &str) {
     FIELDS.with(|l| {
@@ -814,6 +858,7 @@ pub fn menu_list(ui: &mut Ui, items: &[Item<'_>], width: f32) -> (Response, Menu
     let width = width.max(menu::width(ui.ctx(), items, &s));
     let h = menu::height_in(items, &s);
     let (rect, resp) = allocate(ui, Vec2::new(width, h), Sense::click());
+    note_list(rect, items, &s);
     let hovered = resp.hover_pos().and_then(|p| {
         (0..items.len())
             .find(|&i| items[i].is_action() && menu::row_in(rect, items, &s, i).contains(p))
