@@ -32,8 +32,8 @@ const PLUGINS: [(&str, &str); 37] = [
     ("DISCRIMEN", "Cantus Discrimen"),
     ("SPECULUM", "Cantus Speculum"),
     ("TONUS", "Cantus Tonus"),
-    ("AULA", "Cantus Aula"),   // r39:conv
-    ("DELAY", "Cantus Delay"), // r40:delay
+    ("AULA", "Cantus Aula"),       // r39:conv
+    ("DELAY", "Cantus Delay"),     // r40:delay
     ("CRIBRUM", "Cantus Cribrum"), // fx:contract
     ("FRAGOR", "Cantus Fragor"),   // fx:contract
     ("LAPSUS", "Cantus Lapsus"),   // fx:contract

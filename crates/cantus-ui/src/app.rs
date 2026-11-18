@@ -564,6 +564,7 @@ impl CantusApp {
         app.apply_unit_colourways();
         app.apply_unit_views(); // fx:vetus
         app.apply_starting_choices(); // fx3:start
+
         // The user's automatic crossfades (round 31, ADR 0070) on the bus.
         app.apply_editing_settings();
         // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
