@@ -98,7 +98,8 @@ impl Desk {
                 }
             }
         }
-        self.shapes.insert(id, (out.shapes, out.pixels_per_point, size));
+        self.shapes
+            .insert(id, (out.shapes, out.pixels_per_point, size));
     }
 
     fn frame(&mut self, root_events: Vec<Event>) {
@@ -191,8 +192,7 @@ fn run(dir: &Path) {
     let mut d = Desk::new(vec![laptop, external]);
     {
         let app = d.app.as_mut().unwrap();
-        let beats =
-            app.project().content_end().0 as f32 / cantus_core::Ticks::beats(1).0 as f32;
+        let beats = app.project().content_end().0 as f32 / cantus_core::Ticks::beats(1).0 as f32;
         app.arrangement.px_per_beat = 1250.0 / beats.max(1.0);
         app.reveal_pane(Pane::Mixer);
     }
@@ -200,7 +200,10 @@ fn run(dir: &Path) {
         d.frame(Vec::new());
     }
     // The tab's menu on the mixer's tab, as built.
-    if let Some(tab) = d.text_at(ViewportId::ROOT, &cantus_ui::i18n::t("workspace.pane.mixer")) {
+    if let Some(tab) = d.text_at(
+        ViewportId::ROOT,
+        &cantus_ui::i18n::t("workspace.pane.mixer"),
+    ) {
         let press = |pressed| Event::PointerButton {
             pos: tab.center(),
             button: egui::PointerButton::Secondary,

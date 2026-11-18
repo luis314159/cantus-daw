@@ -132,7 +132,9 @@ pub struct Place {
 /// name and size (it was moved on the desktop); else the same size and place (the system
 /// renamed it — Windows numbers its displays again after a dock); else none.
 pub fn find_screen(saved: &ScreenKey, now: &[ScreenKey]) -> Option<usize> {
-    let same = |a: &ScreenKey, f: &dyn Fn(&ScreenKey) -> bool| now.iter().position(|s| f(s) && s.size == a.size);
+    let same = |a: &ScreenKey, f: &dyn Fn(&ScreenKey) -> bool| {
+        now.iter().position(|s| f(s) && s.size == a.size)
+    };
     same(saved, &|s| s.name == saved.name && s.pos == saved.pos)
         .or_else(|| same(saved, &|s| !saved.name.is_empty() && s.name == saved.name))
         .or_else(|| same(saved, &|s| s.pos == saved.pos))
@@ -266,7 +268,12 @@ mod tests {
     fn on_external() -> Place {
         Place {
             screen: external(),
-            rect: PxRect { x: 3000, y: 400, w: 1600, h: 900 },
+            rect: PxRect {
+                x: 3000,
+                y: 400,
+                w: 1600,
+                h: 900,
+            },
             maximised: false,
             full_screen: false,
         }
@@ -298,16 +305,58 @@ mod tests {
     fn every_settled_window_can_be_taken_by_its_title_bar() {
         let screens = [laptop(), external()];
         let cases = [
-            PxRect { x: 3000, y: 400, w: 1600, h: 900 },     // as it was
-            PxRect { x: 9000, y: 400, w: 1600, h: 900 },     // far right of every screen
-            PxRect { x: -5000, y: -5000, w: 800, h: 600 },   // far up and left
-            PxRect { x: 2900, y: 1370, w: 800, h: 600 },     // below the screen's foot
-            PxRect { x: 2880, y: 300, w: 9000, h: 9000 },    // larger than the screen
-            PxRect { x: 3000, y: 400, w: 10, h: 10 },        // smaller than a window can be
-            PxRect { x: i32::MAX - 10, y: i32::MIN + 10, w: 100, h: 100 },
+            PxRect {
+                x: 3000,
+                y: 400,
+                w: 1600,
+                h: 900,
+            }, // as it was
+            PxRect {
+                x: 9000,
+                y: 400,
+                w: 1600,
+                h: 900,
+            }, // far right of every screen
+            PxRect {
+                x: -5000,
+                y: -5000,
+                w: 800,
+                h: 600,
+            }, // far up and left
+            PxRect {
+                x: 2900,
+                y: 1370,
+                w: 800,
+                h: 600,
+            }, // below the screen's foot
+            PxRect {
+                x: 2880,
+                y: 300,
+                w: 9000,
+                h: 9000,
+            }, // larger than the screen
+            PxRect {
+                x: 3000,
+                y: 400,
+                w: 10,
+                h: 10,
+            }, // smaller than a window can be
+            PxRect {
+                x: i32::MAX - 10,
+                y: i32::MIN + 10,
+                w: 100,
+                h: 100,
+            },
         ];
         for r in cases {
-            let p = settle(&Place { rect: r, ..on_external() }, &screens).unwrap();
+            let p = settle(
+                &Place {
+                    rect: r,
+                    ..on_external()
+                },
+                &screens,
+            )
+            .unwrap();
             let s = external().rect();
             assert!(p.rect.w <= s.w && p.rect.h <= s.h, "{r:?} → {:?}", p.rect);
             assert!(p.rect.w >= 480 && p.rect.h >= 320, "{r:?} → {:?}", p.rect);
@@ -329,7 +378,10 @@ mod tests {
             fingerprint(&[laptop(), external()]),
             fingerprint(&[external(), laptop150])
         );
-        assert_ne!(fingerprint(&[laptop()]), fingerprint(&[laptop(), external()]));
+        assert_ne!(
+            fingerprint(&[laptop()]),
+            fingerprint(&[laptop(), external()])
+        );
     }
 
     #[test]
@@ -349,7 +401,10 @@ mod tests {
         let left = ScreenKey::new("L", [1920, 1080], [-1920, 0], 1.0);
         let mid = ScreenKey::new("M", [2560, 1440], [0, 0], 1.0);
         let right = ScreenKey::new("R", [1920, 1080], [2560, 0], 1.0);
-        assert_eq!(sides(&[right.clone(), mid.clone(), left.clone()], 1), (Some(2), Some(0)));
+        assert_eq!(
+            sides(&[right.clone(), mid.clone(), left.clone()], 1),
+            (Some(2), Some(0))
+        );
         assert_eq!(sides(&[mid], 0), (None, None));
     }
 
@@ -363,9 +418,19 @@ mod tests {
     #[test]
     fn a_window_lands_on_the_screen_holding_most_of_it() {
         let s = [laptop(), external()];
-        let r = PxRect { x: 2700, y: 400, w: 800, h: 600 };
+        let r = PxRect {
+            x: 2700,
+            y: 400,
+            w: 800,
+            h: 600,
+        };
         assert_eq!(screen_of(&r, &s), Some(1));
-        let nowhere = PxRect { x: 99_000, y: 0, w: 10, h: 10 };
+        let nowhere = PxRect {
+            x: 99_000,
+            y: 0,
+            w: 10,
+            h: 10,
+        };
         assert_eq!(screen_of(&nowhere, &s), Some(1));
     }
 }

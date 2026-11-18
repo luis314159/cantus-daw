@@ -57,15 +57,25 @@ fn the_mixer_moves_to_a_window_of_its_own_on_the_other_screen() {
         assert_eq!(wins.len(), 1, "one window of its own");
         let app = r.app();
         assert!(app.windows.list[0].workspace.contains(Pane::Mixer));
-        assert!(!app.workspace.contains(Pane::Mixer), "gone from the main window");
+        assert!(
+            !app.workspace.contains(Pane::Mixer),
+            "gone from the main window"
+        );
         let place = app.windows.list[0].place.clone().expect("placed");
-        assert_eq!(place.screen.size, [1920, 1080], "on the screen the main window is not on");
+        assert_eq!(
+            place.screen.size,
+            [1920, 1080],
+            "on the screen the main window is not on"
+        );
         assert!(place.maximised);
         // Its pass draws the mixer: the master strip's name is painted there, not in the
         // main window.
         let id = wins[0];
         assert!(r.cbs.contains_key(&id), "a deferred viewport");
-        assert!(!r.text_in(id, "Master").is_empty(), "the mixer is drawn in its window");
+        assert!(
+            !r.text_in(id, "Master").is_empty(),
+            "the mixer is drawn in its window"
+        );
     });
 }
 
@@ -80,7 +90,10 @@ fn each_window_draws_at_its_own_screens_scale() {
         // The follow rule: 2 880 px at 200 % → 0.9; 1 920 px at 100 % → 1.25.
         assert!((main - 1.8).abs() < 1e-3, "the main window at {main}");
         assert!((win - 1.25).abs() < 1e-3, "the mixer's window at {win}");
-        assert!((r.ctx.zoom_factor() - 0.9).abs() < 1e-3, "egui's zoom unmoved");
+        assert!(
+            (r.ctx.zoom_factor() - 0.9).abs() < 1e-3,
+            "egui's zoom unmoved"
+        );
         // Its words sit inside its window.
         let size = r.passes[&id].size;
         for (w, rect, _) in r.texts(id) {
@@ -100,14 +113,21 @@ fn keys_typed_in_a_window_reach_the_project_and_the_transport() {
         // The space bar typed in the mixer's window plays.
         r.key(id, Key::Space, Modifiers::NONE);
         r.idle(2);
-        assert!(r.app().engine.is_playing(), "the space bar in the window plays");
+        assert!(
+            r.app().engine.is_playing(),
+            "the space bar in the window plays"
+        );
         r.key(id, Key::Space, Modifiers::NONE);
         r.idle(2);
         assert!(!r.app().engine.is_playing(), "and stops");
         // A strip muted from its window is a command; Ctrl+Z typed there undoes it.
         let strip = {
             let app = r.app();
-            app.project().strips.iter().find(|s| !s.id.is_master()).map(|s| s.id)
+            app.project()
+                .strips
+                .iter()
+                .find(|s| !s.id.is_master())
+                .map(|s| s.id)
         }
         .expect("a strip");
         let before = r.app().bus.revision();
@@ -117,7 +137,11 @@ fn keys_typed_in_a_window_reach_the_project_and_the_transport() {
         r.clear_asked();
         r.key(id, Key::M, Modifiers::NONE);
         let muted = r.app().project().strip(strip).map(|s| s.muted);
-        assert_eq!(muted, Some(true), "M typed in the mixer's window mutes the strip");
+        assert_eq!(
+            muted,
+            Some(true),
+            "M typed in the mixer's window mutes the strip"
+        );
         assert!(r.app().bus.revision() > before, "one command");
         assert!(
             r.ctx.has_requested_repaint_for(&ViewportId::ROOT),
@@ -137,7 +161,11 @@ fn at_rest_no_window_draws_and_playing_draws_only_what_moves() {
         r.app().reveal_pane(Pane::Browser);
         r.idle(2);
         let ctx = r.ctx.clone();
-        r.app().move_pane(&ctx, Pane::Browser, cantus_ui::windows::Target::NewWindow { screen: Some(0) });
+        r.app().move_pane(
+            &ctx,
+            Pane::Browser,
+            cantus_ui::windows::Target::NewWindow { screen: Some(0) },
+        );
         r.idle(30);
         let wins = r.windows();
         assert_eq!(wins.len(), 2);
@@ -164,8 +192,14 @@ fn at_rest_no_window_draws_and_playing_draws_only_what_moves() {
             })
             .unwrap();
         let browser = wins.iter().copied().find(|id| *id != mixer).unwrap();
-        assert!(r.was_asked(mixer, Duration::from_millis(100)), "the mixer's meters move");
-        assert!(!r.was_asked(browser, Duration::from_secs(1)), "the browser does not");
+        assert!(
+            r.was_asked(mixer, Duration::from_millis(100)),
+            "the mixer's meters move"
+        );
+        assert!(
+            !r.was_asked(browser, Duration::from_secs(1)),
+            "the browser does not"
+        );
     });
 }
 
@@ -174,13 +208,21 @@ fn the_window_is_kept_and_follows_its_screen_in_and_out() {
     run(|| {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().to_path_buf();
-        let fresh = Rig::in_dir(&dir, vec![laptop(), external()], Some(cantus_ui::welcome_project()));
+        let fresh = Rig::in_dir(
+            &dir,
+            vec![laptop(), external()],
+            Some(cantus_ui::welcome_project()),
+        );
         let mut r = with_mixer_window_in(fresh);
         let ctx = r.ctx.clone();
         r.app().store_layouts(&ctx);
         drop(r);
         // A fresh start on the same desk: the window is back on its screen.
-        let mut r = Rig::in_dir(&dir, vec![laptop(), external()], Some(cantus_ui::welcome_project()));
+        let mut r = Rig::in_dir(
+            &dir,
+            vec![laptop(), external()],
+            Some(cantus_ui::welcome_project()),
+        );
         r.idle(6);
         assert_eq!(r.windows().len(), 1, "reopened");
         assert!(r.app().windows.list[0].workspace.contains(Pane::Mixer));
@@ -189,10 +231,19 @@ fn the_window_is_kept_and_follows_its_screen_in_and_out() {
         // A start with the screen unplugged: the mixer in the main window, said so.
         let mut r = Rig::in_dir(&dir, vec![laptop()], Some(cantus_ui::welcome_project()));
         r.idle(6);
-        assert!(r.windows().is_empty(), "no window on a screen that is not there");
-        assert!(r.app().workspace.contains(Pane::Mixer), "the mixer came back");
+        assert!(
+            r.windows().is_empty(),
+            "no window on a screen that is not there"
+        );
+        assert!(
+            r.app().workspace.contains(Pane::Mixer),
+            "the mixer came back"
+        );
         let status = r.app().status.text.clone();
-        assert!(status.contains("DISPLAY2"), "the status line names the screen: {status}");
+        assert!(
+            status.contains("DISPLAY2"),
+            "the status line names the screen: {status}"
+        );
         // The screen plugged in while running: the window returns.
         r.set_screens(vec![laptop(), external()]);
         r.idle(4);
@@ -216,7 +267,10 @@ fn f9_hides_the_mixer_in_its_window_and_brings_it_back_there() {
         let mut r = with_mixer_window();
         r.key(ViewportId::ROOT, Key::F9, Modifiers::NONE);
         r.idle(2);
-        assert!(r.windows().is_empty(), "its window closed with its only area");
+        assert!(
+            r.windows().is_empty(),
+            "its window closed with its only area"
+        );
         assert!(!r.app().pane_shown(Pane::Mixer));
         r.key(ViewportId::ROOT, Key::F9, Modifiers::NONE);
         r.idle(2);
@@ -237,10 +291,17 @@ fn ctrl_plus_in_a_window_scales_that_window_alone() {
         r.idle(3);
         let after = r.passes[&id].ppp;
         assert!(after > before + 0.05, "the window grew: {before} → {after}");
-        assert_eq!(r.passes[&ViewportId::ROOT].ppp, main, "the main window did not");
+        assert_eq!(
+            r.passes[&ViewportId::ROOT].ppp,
+            main,
+            "the main window did not"
+        );
         r.key(id, Key::Num0, Modifiers::COMMAND);
         r.idle(3);
-        assert_eq!(r.passes[&id].ppp, before, "Ctrl+0 gives it back its screen's scale");
+        assert_eq!(
+            r.passes[&id].ppp, before,
+            "Ctrl+0 gives it back its screen's scale"
+        );
     });
 }
 
@@ -266,7 +327,14 @@ fn a_tab_dragged_out_of_the_window_becomes_a_window_where_it_fell() {
         let app = r.app();
         assert!(app.windows.list[0].workspace.contains(Pane::Mixer));
         assert!(!app.pane_shown(Pane::Mixer) || !app.workspace.contains(Pane::Mixer));
-        let place = app.windows.list[0].place.clone().expect("placed where it fell");
-        assert_eq!(place.screen.size, [1920, 1080], "on the screen it was let go over");
+        let place = app.windows.list[0]
+            .place
+            .clone()
+            .expect("placed where it fell");
+        assert_eq!(
+            place.screen.size,
+            [1920, 1080],
+            "on the screen it was let go over"
+        );
     });
 }

@@ -811,7 +811,10 @@ impl Workspace {
         let targets = std::mem::take(&mut self.move_targets);
         let first = rows.len();
         for (label, _) in &targets {
-            rows.push((Item::action(Src::Str(label)), TabAct::Move(rows.len() - first)));
+            rows.push((
+                Item::action(Src::Str(label)),
+                TabAct::Move(rows.len() - first),
+            ));
         }
         rows.push((Item::Separator, TabAct::None));
         rows.push((Item::action(Src::Key("layout.reset")), TabAct::Reset));

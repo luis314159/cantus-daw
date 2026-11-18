@@ -121,7 +121,12 @@ impl Rig {
         self.shapes = out.shapes;
     }
 
-    fn passes(&mut self, screen: Screen, n: usize, draw: &mut dyn FnMut(&mut CantusApp, &mut egui::Ui)) {
+    fn passes(
+        &mut self,
+        screen: Screen,
+        n: usize,
+        draw: &mut dyn FnMut(&mut CantusApp, &mut egui::Ui),
+    ) {
         for _ in 0..n {
             self.pass(screen, draw);
         }
@@ -263,7 +268,13 @@ fn window_bar(app: &mut CantusApp, ui: &mut egui::Ui, name: &str, menu_lit: bool
     with_brush(ui.painter(), |b| {
         let r = b.snap_rect(rect);
         b.rect(r, Fill::Solid(s.t.toolbar));
-        b.hline(r.left(), r.right(), r.bottom() - b.px() * 0.5, b.px(), s.t.ink);
+        b.hline(
+            r.left(),
+            r.right(),
+            r.bottom() - b.px() * 0.5,
+            b.px(),
+            s.t.ink,
+        );
     });
     let pad = 8.0 * k;
     let key = (rect.height() - 12.0 * k).round();
@@ -287,7 +298,12 @@ fn window_bar(app: &mut CantusApp, ui: &mut egui::Ui, name: &str, menu_lit: bool
     let ctx = ui.ctx().clone();
     let wants = cantus_ui::views::transport::wants(app, &ctx);
     let mut x = name_r.right() + 12.0 * k;
-    for g in [Group::Transport, Group::Position, Group::Tempo, Group::Meter] {
+    for g in [
+        Group::Transport,
+        Group::Position,
+        Group::Tempo,
+        Group::Meter,
+    ] {
         let w = wants
             .iter()
             .find(|w| w.group == g)
@@ -350,7 +366,14 @@ fn map_card(ctx: &egui::Context, missing: bool) {
                 pos2(rect.right() - 20.0 * k, rect.bottom() - 12.0 * k),
             );
             let dim = s.t.text_dim;
-            words(ui, hint, &t("screens.map.hint"), Role::Body, dim, Align2::LEFT_CENTER);
+            words(
+                ui,
+                hint,
+                &t("screens.map.hint"),
+                Role::Body,
+                dim,
+                Align2::LEFT_CENTER,
+            );
             let body = Rect::from_min_max(
                 pos2(rect.left() + 20.0 * k, head.bottom() + 16.0 * k),
                 pos2(rect.right() - 20.0 * k, hint.top() - 12.0 * k),
@@ -358,7 +381,12 @@ fn map_card(ctx: &egui::Context, missing: bool) {
             // The desktop in physical pixels: the laptop at the origin, the screen to its
             // right, a little lower.
             let desk: [Placed; 2] = [
-                (1, Rect::from_min_size(Pos2::ZERO, LAPTOP.px), LAPTOP, LAPTOP_ZOOM),
+                (
+                    1,
+                    Rect::from_min_size(Pos2::ZERO, LAPTOP.px),
+                    LAPTOP,
+                    LAPTOP_ZOOM,
+                ),
                 (
                     2,
                     Rect::from_min_size(pos2(3000.0, 300.0), EXTERNAL.px),
@@ -369,9 +397,8 @@ fn map_card(ctx: &egui::Context, missing: bool) {
             let all = desk.iter().fold(Rect::NOTHING, |a, d| a.union(d.1));
             let f = (body.width() / all.width()).min(body.height() / all.height());
             let off = body.center() - all.center().to_vec2() * f;
-            let to = |r: Rect| {
-                Rect::from_min_max(off + r.min.to_vec2() * f, off + r.max.to_vec2() * f)
-            };
+            let to =
+                |r: Rect| Rect::from_min_max(off + r.min.to_vec2() * f, off + r.max.to_vec2() * f);
             for (n, phys, sc, zoom) in desk {
                 map_screen(ui, to(phys), n, sc, zoom, missing && n == 2);
             }
@@ -422,20 +449,40 @@ fn map_screen(ui: &egui::Ui, r: Rect, n: usize, sc: Screen, zoom: f32, gone: boo
             tf("screens.map.scale", &[("sys", &sys), ("ui", &z)])
         )
     };
-    words(ui, second, &detail, Role::Label, s.t.text_dim, Align2::LEFT_CENTER);
+    words(
+        ui,
+        second,
+        &detail,
+        Role::Label,
+        s.t.text_dim,
+        Align2::LEFT_CENTER,
+    );
     if n == 1 {
         let third = second.translate(vec2(0.0, line));
         let p = t("screens.map.primary");
-        words(ui, third, &p, Role::Label, s.t.text_dim, Align2::LEFT_CENTER);
+        words(
+            ui,
+            third,
+            &p,
+            Role::Label,
+            s.t.text_dim,
+            Align2::LEFT_CENTER,
+        );
     }
     if gone {
         return;
     }
     // The window on it, inside its work area.
     let (glyph, label) = if n == 1 {
-        (cantus_ui::kit::glyph::Glyph::Arrangement, t("screens.map.main"))
+        (
+            cantus_ui::kit::glyph::Glyph::Arrangement,
+            t("screens.map.main"),
+        )
     } else {
-        (cantus_ui::kit::glyph::Glyph::Mixer, t("workspace.pane.mixer"))
+        (
+            cantus_ui::kit::glyph::Glyph::Mixer,
+            t("workspace.pane.mixer"),
+        )
     };
     let lines = if n == 1 { 3.6 } else { 2.6 };
     let work = Rect::from_min_max(
@@ -486,13 +533,25 @@ fn tab_rows() -> (Vec<Item<'static>>, Vec<Item<'static>>) {
         act("layout.reset"),
     ];
     let mixer = Box::leak(
-        tf("screens.menu.to_window", &[("name", &t("workspace.pane.mixer"))]).into_boxed_str(),
+        tf(
+            "screens.menu.to_window",
+            &[("name", &t("workspace.pane.mixer"))],
+        )
+        .into_boxed_str(),
     );
     let one = Box::leak(
-        tf("screens.menu.to_screen", &[("n", &1), ("name", &screen_name(1))]).into_boxed_str(),
+        tf(
+            "screens.menu.to_screen",
+            &[("n", &1), ("name", &screen_name(1))],
+        )
+        .into_boxed_str(),
     );
     let two = Box::leak(
-        tf("screens.menu.to_screen", &[("n", &2), ("name", &screen_name(2))]).into_boxed_str(),
+        tf(
+            "screens.menu.to_screen",
+            &[("n", &2), ("name", &screen_name(2))],
+        )
+        .into_boxed_str(),
     );
     let subs = vec![
         checked(act("screens.menu.to_main"), Check::Radio(true)),
@@ -511,8 +570,14 @@ fn view_rows() -> Vec<Item<'static>> {
     vec![
         Item::Band(Src::Key("menu.layout")),
         with_key(checked(act("layout.default"), Check::Radio(false)), "Alt+1"),
-        with_key(checked(act("screens.layout.two_mix"), Check::Radio(true)), "Alt+2"),
-        with_key(checked(act("screens.layout.two_edit"), Check::Radio(false)), "Alt+3"),
+        with_key(
+            checked(act("screens.layout.two_mix"), Check::Radio(true)),
+            "Alt+2",
+        ),
+        with_key(
+            checked(act("screens.layout.two_edit"), Check::Radio(false)),
+            "Alt+3",
+        ),
         with_key(
             disabled(checked(act("screens.layout.three"), Check::Radio(false))),
             needs,
@@ -583,7 +648,13 @@ fn run(dir: &Path) {
         let m = menu(&ctx, "tab", at, &rows, rows_w);
         first.set(m);
         let row = cantus_ui::kit::menu::row_in(m, &rows, &Style::current(), 1);
-        let _ = menu(&ctx, "tab-sub", pos2(m.right() - 2.0, row.top() - 4.0), &subs, subs_w);
+        let _ = menu(
+            &ctx,
+            "tab-sub",
+            pos2(m.right() - 2.0, row.top() - 4.0),
+            &subs,
+            subs_w,
+        );
     };
     r.passes(LAPTOP, 2, &mut tab_menu);
     r.pointer = row_centre(first.get(), &rows, 1);
@@ -600,7 +671,13 @@ fn run(dir: &Path) {
     let mut view_menu = |app: &mut CantusApp, ui: &mut egui::Ui| {
         app.frame(ui);
         let ctx = ui.ctx().clone();
-        let _ = menu(&ctx, "view", pos2(view.left() - 8.0, view.bottom() + 10.0), &vrows, vw);
+        let _ = menu(
+            &ctx,
+            "view",
+            pos2(view.left() - 8.0, view.bottom() + 10.0),
+            &vrows,
+            vw,
+        );
     };
     r.passes(LAPTOP, 8, &mut view_menu);
     r.shoot(&out("05-view-menu-windows"));
@@ -618,7 +695,10 @@ fn run(dir: &Path) {
     r.app.workspace.reveal(Pane::Mixer);
     let notice = tf(
         "screens.notice.missing",
-        &[("name", &screen_name(2)), ("areas", &t("workspace.pane.mixer"))],
+        &[
+            ("name", &screen_name(2)),
+            ("areas", &t("workspace.pane.mixer")),
+        ],
     );
     r.app.set_status(notice);
     r.passes(LAPTOP, 12, &mut main);
@@ -653,7 +733,13 @@ fn run(dir: &Path) {
     let ww = cantus_ui::kit::menu::width(&r.ctx, &wrows, &s);
     let mut win_menu = |app: &mut CantusApp, ui: &mut egui::Ui| {
         let key = mixer_window(app, ui, &mut ws, true);
-        let _ = menu(ui.ctx(), "window", key.left_bottom() + vec2(0.0, 6.0), &wrows, ww);
+        let _ = menu(
+            ui.ctx(),
+            "window",
+            key.left_bottom() + vec2(0.0, 6.0),
+            &wrows,
+            ww,
+        );
     };
     r.passes(EXTERNAL, 8, &mut win_menu);
     r.shoot(&out("09-window-menu"));
@@ -691,7 +777,13 @@ pub fn desk(main: &Path, mixer: &Path, to: &PathBuf) {
         paint.set_color_rgba8(rgb.0, rgb.1, rgb.2, 255);
         paint.anti_alias = true;
         if let Some(path) = p.finish() {
-            c.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+            c.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
         }
     };
     let q = PixmapPaint {
@@ -701,22 +793,92 @@ pub fn desk(main: &Path, mixer: &Path, to: &PathBuf) {
     // The laptop: a 2 880 × 1 800 panel shown 1 100 px wide.
     let (lx, ly, lw) = (90.0, 160.0, 1100.0);
     let lh = lw * 1800.0 / 2880.0;
-    fill(&mut c, lx - 22.0, ly - 22.0, lw + 44.0, lh + 44.0, 18.0, (18, 19, 22));
+    fill(
+        &mut c,
+        lx - 22.0,
+        ly - 22.0,
+        lw + 44.0,
+        lh + 44.0,
+        18.0,
+        (18, 19, 22),
+    );
     fill(&mut c, lx, ly, lw, lh, 2.0, (12, 13, 15));
     let f = lw / a.width() as f32;
-    c.draw_pixmap(0, 0, a.as_ref(), &q, Transform::from_row(f, 0.0, 0.0, f, lx, ly), None);
-    fill(&mut c, lx, ly + lh - 48.0 * f * 2.0, lw, 48.0 * f * 2.0, 0.0, (24, 26, 30));
-    fill(&mut c, lx - 90.0, ly + lh + 22.0, lw + 180.0, 26.0, 10.0, (70, 73, 80));
+    c.draw_pixmap(
+        0,
+        0,
+        a.as_ref(),
+        &q,
+        Transform::from_row(f, 0.0, 0.0, f, lx, ly),
+        None,
+    );
+    fill(
+        &mut c,
+        lx,
+        ly + lh - 48.0 * f * 2.0,
+        lw,
+        48.0 * f * 2.0,
+        0.0,
+        (24, 26, 30),
+    );
+    fill(
+        &mut c,
+        lx - 90.0,
+        ly + lh + 22.0,
+        lw + 180.0,
+        26.0,
+        10.0,
+        (70, 73, 80),
+    );
     // The screen: 1 920 × 1 080 shown 1 000 px wide, on its stand.
     let (sx, sy, sw) = (1320.0, 210.0, 1000.0);
     let sh = sw * 1080.0 / 1920.0;
-    fill(&mut c, sx + sw * 0.5 - 40.0, sy + sh, 80.0, 190.0, 6.0, (55, 58, 64));
-    fill(&mut c, sx + sw * 0.5 - 170.0, sy + sh + 180.0, 340.0, 22.0, 10.0, (62, 65, 72));
-    fill(&mut c, sx - 16.0, sy - 16.0, sw + 32.0, sh + 32.0, 12.0, (18, 19, 22));
+    fill(
+        &mut c,
+        sx + sw * 0.5 - 40.0,
+        sy + sh,
+        80.0,
+        190.0,
+        6.0,
+        (55, 58, 64),
+    );
+    fill(
+        &mut c,
+        sx + sw * 0.5 - 170.0,
+        sy + sh + 180.0,
+        340.0,
+        22.0,
+        10.0,
+        (62, 65, 72),
+    );
+    fill(
+        &mut c,
+        sx - 16.0,
+        sy - 16.0,
+        sw + 32.0,
+        sh + 32.0,
+        12.0,
+        (18, 19, 22),
+    );
     fill(&mut c, sx, sy, sw, sh, 2.0, (12, 13, 15));
     let g = sw / b.width() as f32;
-    c.draw_pixmap(0, 0, b.as_ref(), &q, Transform::from_row(g, 0.0, 0.0, g, sx, sy), None);
-    fill(&mut c, sx, sy + sh - 48.0 * g, sw, 48.0 * g, 0.0, (24, 26, 30));
+    c.draw_pixmap(
+        0,
+        0,
+        b.as_ref(),
+        &q,
+        Transform::from_row(g, 0.0, 0.0, g, sx, sy),
+        None,
+    );
+    fill(
+        &mut c,
+        sx,
+        sy + sh - 48.0 * g,
+        sw,
+        48.0 * g,
+        0.0,
+        (24, 26, 30),
+    );
     if let Ok(bytes) = c.encode_png() {
         let _ = std::fs::write(to, bytes);
         println!("{}", to.display());

@@ -96,7 +96,11 @@ impl Rig {
     }
 
     /// The application over the configuration folder `dir` (its layouts file read).
-    pub fn in_dir(dir: &Path, screens: Vec<ScreenKey>, project: Option<cantus_core::Project>) -> Rig {
+    pub fn in_dir(
+        dir: &Path,
+        screens: Vec<ScreenKey>,
+        project: Option<cantus_core::Project>,
+    ) -> Rig {
         let _ = data();
         configure(dir);
         let files = cantus_ui::app::Files::read(dir, Some(cantus_ui::i18n::Locale::En));
@@ -113,14 +117,7 @@ impl Rig {
         }
         let (engine, proc_) = EngineHandle::manual(48_000.0);
         let mut app = Box::new(CantusApp::assemble(
-            &ctx,
-            files,
-            project,
-            engine,
-            None,
-            None,
-            None,
-            false,
+            &ctx, files, project, engine, None, None, None, false,
         ));
         app.windows.fed_screens = Some(screens.clone());
         Rig {
@@ -365,7 +362,10 @@ impl Rig {
         };
         // egui-winit tells the modifiers as their own event, before the key.
         self.pass_in(id, vec![Event::ModifiersChanged(modifiers), ev(true)]);
-        self.pass_in(id, vec![ev(false), Event::ModifiersChanged(egui::Modifiers::NONE)]);
+        self.pass_in(
+            id,
+            vec![ev(false), Event::ModifiersChanged(egui::Modifiers::NONE)],
+        );
     }
 
     /// One pass of viewport `id` with `events` (the main window's or a window's).

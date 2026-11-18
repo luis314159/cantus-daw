@@ -50,7 +50,10 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
         .collect();
     for w in &app.windows.parked {
         if let Some(p) = &w.place {
-            if !screens.iter().any(|(s, _)| s.pos == p.screen.pos && s.size == p.screen.size) {
+            if !screens
+                .iter()
+                .any(|(s, _)| s.pos == p.screen.pos && s.size == p.screen.size)
+            {
                 screens.push((p.screen.clone(), false));
             }
         }
@@ -107,7 +110,14 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
                 pos2(rect.right() - 20.0 * k, rect.bottom() - 12.0 * k),
             );
             let dim = s.t.text_dim;
-            words(ui, hint, &t("screens.map.hint"), Role::Body, dim, Align2::LEFT_CENTER);
+            words(
+                ui,
+                hint,
+                &t("screens.map.hint"),
+                Role::Body,
+                dim,
+                Align2::LEFT_CENTER,
+            );
             let body = Rect::from_min_max(
                 pos2(rect.left() + 20.0 * k, head.bottom() + 16.0 * k),
                 pos2(rect.right() - 20.0 * k, hint.top() - 12.0 * k),
@@ -148,7 +158,11 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
                 };
                 let r = r.translate(ui.ctx().data_mut(|d| {
                     let acc = d.get_temp_mut_or_default::<egui::Vec2>(id);
-                    *acc = if resp.dragged() { *acc + shift } else { egui::Vec2::ZERO };
+                    *acc = if resp.dragged() {
+                        *acc + shift
+                    } else {
+                        egui::Vec2::ZERO
+                    };
                     *acc
                 }));
                 draw_window(ui, r, w, lit);
@@ -200,12 +214,21 @@ fn draw_screen(ui: &Ui, r: Rect, n: usize, sc: &ScreenKey, there: bool, zoom: f3
             b.rrect(r, 6.0 * k, Fill::Solid(s.t.well));
             b.rrect_stroke(r, 6.0 * k, b.px(), s.t.edge);
         } else {
-            let c = [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()];
+            let c = [
+                r.left_top(),
+                r.right_top(),
+                r.right_bottom(),
+                r.left_bottom(),
+                r.left_top(),
+            ];
             b.dashed(&c, 1.5 * b.px(), s.t.text_dim, 6.0 * k, 4.0 * k);
         }
     });
     let line = 18.0 * k;
-    let top = Rect::from_min_size(r.min + vec2(10.0 * k, 8.0 * k), vec2(r.width() - 20.0 * k, line));
+    let top = Rect::from_min_size(
+        r.min + vec2(10.0 * k, 8.0 * k),
+        vec2(r.width() - 20.0 * k, line),
+    );
     let name = crate::windows_docks::screen_label(sc);
     let title = format!("{} · {}", tf("screens.map.screen", &[("n", &n)]), name);
     let ink = if there { s.t.text } else { s.t.text_dim };
@@ -215,14 +238,24 @@ fn draw_screen(ui: &Ui, r: Rect, n: usize, sc: &ScreenKey, there: bool, zoom: f3
         let z = (zoom * 100.0).round();
         format!(
             "{} · {}",
-            tf("screens.map.size", &[("w", &sc.size[0]), ("h", &sc.size[1])]),
+            tf(
+                "screens.map.size",
+                &[("w", &sc.size[0]), ("h", &sc.size[1])]
+            ),
             tf("screens.map.scale", &[("sys", &sys), ("ui", &z)])
         )
     } else {
         t("screens.map.missing")
     };
     let second = top.translate(vec2(0.0, line));
-    words(ui, second, &detail, Role::Label, s.t.text_dim, Align2::LEFT_CENTER);
+    words(
+        ui,
+        second,
+        &detail,
+        Role::Label,
+        s.t.text_dim,
+        Align2::LEFT_CENTER,
+    );
 }
 
 fn draw_window(ui: &Ui, r: Rect, w: &Shown, lit: bool) {
@@ -231,7 +264,11 @@ fn draw_window(ui: &Ui, r: Rect, w: &Shown, lit: bool) {
     let main = w.key.is_none();
     with_brush(ui.painter(), |b| {
         let r = b.snap_rect(r);
-        let fill = if lit || !main { s.t.selection } else { s.t.panel_raised };
+        let fill = if lit || !main {
+            s.t.selection
+        } else {
+            s.t.panel_raised
+        };
         b.rrect(r, 4.0 * k, Fill::Solid(fill));
         let edge = if lit { s.t.highlight } else { s.t.edge };
         b.rrect_stroke(r, 4.0 * k, b.px(), edge);
@@ -243,7 +280,14 @@ fn draw_window(ui: &Ui, r: Rect, w: &Shown, lit: bool) {
         r.center() + vec2(0.0, 10.0 * k),
         vec2((r.width() - 8.0 * k).max(1.0), 18.0 * k),
     );
-    words(ui, lr, &w.label, Role::Body, s.t.text, Align2::CENTER_CENTER);
+    words(
+        ui,
+        lr,
+        &w.label,
+        Role::Body,
+        s.t.text,
+        Align2::CENTER_CENTER,
+    );
 }
 
 impl CantusApp {

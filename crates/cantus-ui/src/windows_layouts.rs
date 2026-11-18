@@ -28,7 +28,12 @@ pub enum Builtin {
 }
 
 impl Builtin {
-    pub const ALL: [Builtin; 4] = [Builtin::Wide, Builtin::TwoMix, Builtin::TwoEdit, Builtin::Three];
+    pub const ALL: [Builtin; 4] = [
+        Builtin::Wide,
+        Builtin::TwoMix,
+        Builtin::TwoEdit,
+        Builtin::Three,
+    ];
 
     /// The name a layouts file keeps (never shown: see [`Builtin::label_key`]).
     pub fn name(self) -> &'static str {
@@ -65,7 +70,9 @@ impl Builtin {
     /// Whether it can be laid on these screens, the main window on `main`.
     pub fn fits(self, now: &[ScreenKey], main: Option<usize>) -> bool {
         match self {
-            Builtin::Wide => main.and_then(|m| now.get(m)).is_some_and(ScreenKey::is_wide),
+            Builtin::Wide => main
+                .and_then(|m| now.get(m))
+                .is_some_and(ScreenKey::is_wide),
             b => now.len() >= b.needs(),
         }
     }
@@ -96,7 +103,9 @@ impl Builtin {
             }
             Builtin::TwoEdit => {
                 lay.dock = dock_to_value(&main_dock(Some(&[Pane::Mixer, Pane::Routing])));
-                let portrait = other.and_then(|o| now.get(o)).is_some_and(ScreenKey::is_portrait);
+                let portrait = other
+                    .and_then(|o| now.get(o))
+                    .is_some_and(ScreenKey::is_portrait);
                 lay.windows = vec![window(edit_dock(portrait), other, 1)];
             }
             Builtin::Three => {
@@ -112,8 +121,13 @@ impl Builtin {
                         (rest.first().copied(), rest.get(1).copied())
                     }
                 };
-                let portrait = left.and_then(|o| now.get(o)).is_some_and(ScreenKey::is_portrait);
-                lay.windows = vec![window(edit_dock(portrait), left, 1), window(mix_dock(), right, 2)];
+                let portrait = left
+                    .and_then(|o| now.get(o))
+                    .is_some_and(ScreenKey::is_portrait);
+                lay.windows = vec![
+                    window(edit_dock(portrait), left, 1),
+                    window(mix_dock(), right, 2),
+                ];
             }
         }
         lay
@@ -141,7 +155,11 @@ fn mix_dock() -> DockState<Pane> {
 fn edit_dock(portrait: bool) -> DockState<Pane> {
     let mut d = DockState::new(vec![Pane::PianoRoll, Pane::Score]);
     let s = d.main_surface_mut();
-    s.split_below(NodeIndex::root(), if portrait { 0.7 } else { 0.62 }, vec![Pane::ChannelRack]);
+    s.split_below(
+        NodeIndex::root(),
+        if portrait { 0.7 } else { 0.62 },
+        vec![Pane::ChannelRack],
+    );
     d
 }
 

@@ -61,13 +61,13 @@ pub mod scene; // r40:p3 — the instruments' scenes as projected vectors (ADR 0
 pub mod screens; // multimon — several screens (ADR 0151)
 pub mod shot_scene; // r37:finish — a capture scene for the real app (ADR 0103)
 pub mod stems_ui; // r34:stems — Separate stems… (ADR 0085)
+pub mod tympanum_load;
 pub mod windows; // multimon — windows of their own (ADR 0151)
 pub mod windows_docks; // multimon
-pub mod windows_pass; // multimon
-mod windows_root; // multimon
 pub mod windows_layouts; // multimon — the built-in layouts for several screens
-pub mod tympanum_load; // r40:tymp-engine — Tympanum's recorded kits read from their packs (ADR 0124)
-                       // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
+pub mod windows_pass; // multimon
+mod windows_root; // multimon // r40:tymp-engine — Tympanum's recorded kits read from their packs (ADR 0124)
+                              // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod editor; // r36:editor — the audio editor (ADR 0096)
 pub mod engines;
 pub mod esc; // r39:ux-b — Esc closes what opened last (ADR 0110)

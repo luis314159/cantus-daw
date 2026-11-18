@@ -149,7 +149,10 @@ impl CantusApp {
         };
         let (_, shape) = self.windows.homes.remove(at);
         let ws = Workspace::with_dock(egui_dock::DockState::new(vec![pane]));
-        let shape = WindowShape { dock: None, ..shape };
+        let shape = WindowShape {
+            dock: None,
+            ..shape
+        };
         self.open_window(&shape, ws).is_some()
     }
 
@@ -319,7 +322,12 @@ impl CantusApp {
             return self.move_pane(ctx, pane, Target::Main);
         }
         let s = screens::screen_of(
-            &crate::screens::PxRect { x: p.0, y: p.1, w: 1, h: 1 },
+            &crate::screens::PxRect {
+                x: p.0,
+                y: p.1,
+                w: 1,
+                h: 1,
+            },
             &self.windows.screens,
         )
         .and_then(|i| self.windows.screens.get(i).cloned());
@@ -351,7 +359,10 @@ impl CantusApp {
         if self.windows.screens.len() > 1 && self.windows.list.len() < MAX {
             for (n, s) in self.windows.screens.iter().enumerate() {
                 let name = screen_label(s);
-                let row = tf("screens.menu.to_screen", &[("n", &(n + 1)), ("name", &name)]);
+                let row = tf(
+                    "screens.menu.to_screen",
+                    &[("n", &(n + 1)), ("name", &name)],
+                );
                 out.push((row, Target::NewWindow { screen: Some(n) }));
             }
         }
@@ -372,7 +383,11 @@ impl CantusApp {
             .map(|p| crate::i18n::t(p.title_key()))
             .collect();
         if names.is_empty() {
-            names = ws.panes().iter().map(|p| crate::i18n::t(p.title_key())).collect();
+            names = ws
+                .panes()
+                .iter()
+                .map(|p| crate::i18n::t(p.title_key()))
+                .collect();
         }
         names.join(" · ")
     }

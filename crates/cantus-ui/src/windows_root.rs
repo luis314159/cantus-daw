@@ -113,7 +113,10 @@ impl CantusApp {
         let mut i = 0;
         while i < self.windows.list.len() {
             let w = &self.windows.list[i];
-            let settled = w.place.as_ref().map(|p| screens::settle(p, &self.windows.screens));
+            let settled = w
+                .place
+                .as_ref()
+                .map(|p| screens::settle(p, &self.windows.screens));
             match settled {
                 Some(None) => {
                     gone.push(self.window_name(i));
@@ -165,7 +168,10 @@ impl CantusApp {
             ));
         } else if let Some(s) = back {
             let name = crate::windows_docks::screen_label(&s);
-            self.set_status(crate::i18n::tf("screens.notice.returned", &[("name", &name)]));
+            self.set_status(crate::i18n::tf(
+                "screens.notice.returned",
+                &[("name", &name)],
+            ));
         }
         ctx.request_repaint();
     }
@@ -305,7 +311,8 @@ impl CantusApp {
                 continue;
             };
             let name = self.window_name(i);
-            let title = crate::i18n::tf("screens.window.title", &[("song", &song), ("area", &name)]);
+            let title =
+                crate::i18n::tf("screens.window.title", &[("song", &song), ("area", &name)]);
             let w = &self.windows.list[i];
             let vb = egui::ViewportBuilder::default()
                 .with_title(title.clone())

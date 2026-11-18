@@ -125,9 +125,7 @@ pub fn moves(pane: crate::views::workspace::Pane, reasons: u16) -> bool {
     use ticker::Reason as R;
     let any = |rs: &[R]| rs.iter().any(|r| reasons & *r as u16 != 0);
     match pane {
-        P::Arrangement | P::PianoRoll | P::Score | P::Session => {
-            any(&[R::Playback, R::Recording])
-        }
+        P::Arrangement | P::PianoRoll | P::Score | P::Session => any(&[R::Playback, R::Recording]),
         P::Mixer | P::Inspector | P::ChannelRack => any(&[R::Playback, R::Recording, R::Meters]),
         P::Device(_) => any(&[R::Playback, R::Recording, R::Meters, R::Live]),
         P::Stage => any(&[R::Playback, R::Animation, R::Meters]),

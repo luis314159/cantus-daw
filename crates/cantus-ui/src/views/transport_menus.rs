@@ -663,8 +663,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             .checked(app.pane_shown(Pane::Devices)),
     );
     rows.push(
-        Row::new("action.toggle-clips", Do::Pane(Pane::Clips))
-            .checked(app.pane_shown(Pane::Clips)),
+        Row::new("action.toggle-clips", Do::Pane(Pane::Clips)).checked(app.pane_shown(Pane::Clips)),
     );
     rows.push(Row::command(M::DevicePicker));
     rows.push(Row::run(Action::CommandPalette, "action.command-palette"));
@@ -716,7 +715,10 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
         rows.push(Row::new("screens.view.dock_all", Do::DockEveryWindow));
     }
     rows.push(Row::new("screens.view.map", Do::ScreensMap));
-    rows.push(Row::run(Action::ToggleFullScreen, "screens.window.full_screen"));
+    rows.push(Row::run(
+        Action::ToggleFullScreen,
+        "screens.window.full_screen",
+    ));
     rows.push(Row::separator());
     for (action, key) in [
         (Action::ZoomIn, "workspace.zoom_in"),

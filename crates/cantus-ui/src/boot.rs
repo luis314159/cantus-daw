@@ -517,7 +517,7 @@ impl Shell {
     /// The application, once it runs. // r35:stage
     pub fn running(&self) -> Option<&CantusApp> {
         match self {
-            Shell::Running(app) => Some(app), // r35:stage
+            Shell::Running(app) => Some(app),        // r35:stage
             Shell::Booting(_) | Shell::Lent => None, // r35:stage
         } // r35:stage
     } // r35:stage

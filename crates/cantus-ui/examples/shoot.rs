@@ -21,10 +21,10 @@ mod automodes_scene;
 mod hosted_view_scene;
 #[path = "shoot_issue1/scene.rs"]
 mod issue1_scene;
-#[path = "shoot_multimon/scene.rs"]
-mod multimon_scene;
 #[path = "shoot_multimon/real.rs"]
 mod multimon_real;
+#[path = "shoot_multimon/scene.rs"]
+mod multimon_scene;
 #[path = "shoot_samples/scene.rs"]
 mod samples_scene;
 use cantus_ui::raster::shoot;

@@ -290,6 +290,10 @@ impl Windows {
     /// The screen the main window is on (by its last place), if the screens are known.
     pub fn main_screen(&self, main: Option<&PxRect>) -> Option<usize> {
         main.and_then(|r| screens::screen_of(r, &self.screens))
-            .or(if self.screens.is_empty() { None } else { Some(0) })
+            .or(if self.screens.is_empty() {
+                None
+            } else {
+                Some(0)
+            })
     }
 }

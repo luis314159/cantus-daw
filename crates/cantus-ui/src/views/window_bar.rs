@@ -12,7 +12,12 @@ use crate::views::transport::layout::Group;
 use egui::{pos2, vec2, Align2, Rect, Sense, Ui};
 
 /// The groups a window's bar shows.
-pub const GROUPS: [Group; 4] = [Group::Transport, Group::Position, Group::Tempo, Group::Meter];
+pub const GROUPS: [Group; 4] = [
+    Group::Transport,
+    Group::Position,
+    Group::Tempo,
+    Group::Meter,
+];
 
 /// A key of the bar: a well with a glyph, lit while hovered or `lit`.
 fn key(ui: &mut Ui, r: Rect, g: Glyph, lit: bool, id: egui::Id) -> egui::Response {
@@ -24,7 +29,12 @@ fn key(ui: &mut Ui, r: Rect, g: Glyph, lit: bool, id: egui::Id) -> egui::Respons
         let fill = if on { s.t.selection } else { s.t.well };
         b.rrect(r, 4.0 * s.k, Fill::Solid(fill));
         let side = (r.height() * 0.5).round();
-        glyph::paint(b, Rect::from_center_size(r.center(), vec2(side, side)), g, s.t.text);
+        glyph::paint(
+            b,
+            Rect::from_center_size(r.center(), vec2(side, side)),
+            g,
+            s.t.text,
+        );
     });
     resp
 }
@@ -38,7 +48,13 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, i: usize) {
     with_brush(ui.painter(), |b| {
         let r = b.snap_rect(rect);
         b.rect(r, Fill::Solid(s.t.toolbar));
-        b.hline(r.left(), r.right(), r.bottom() - b.px() * 0.5, b.px(), s.t.ink);
+        b.hline(
+            r.left(),
+            r.right(),
+            r.bottom() - b.px() * 0.5,
+            b.px(),
+            s.t.ink,
+        );
     });
     let window_key = app.windows.list[i].key;
     let pad = 8.0 * k;
@@ -63,7 +79,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, i: usize) {
         vec2(16.0 * k, 16.0 * k),
     );
     if let Some(p) = first {
-        with_brush(ui.painter(), |b| glyph::paint(b, gl, p.glyph(), s.t.highlight));
+        with_brush(ui.painter(), |b| {
+            glyph::paint(b, gl, p.glyph(), s.t.highlight)
+        });
     }
     let name = app.window_name(i);
     let name_w = 140.0 * k;
@@ -139,10 +157,28 @@ pub fn menu(app: &mut CantusApp, ctx: &egui::Context, i: usize) {
     let w = &app.windows.list[i];
     let check = |on: bool| if on { Check::On } else { Check::Off };
     let rows: [(Item<'_>, Row); 6] = [
-        (with(Item::action(Src::Key("screens.window.bar")), check(w.bar), None), Row::Bar),
-        (with(Item::action(Src::Key("screens.window.on_top")), check(w.on_top), None), Row::OnTop),
         (
-            with(Item::action(Src::Key("screens.window.full_screen")), Check::None, Some("F11")),
+            with(
+                Item::action(Src::Key("screens.window.bar")),
+                check(w.bar),
+                None,
+            ),
+            Row::Bar,
+        ),
+        (
+            with(
+                Item::action(Src::Key("screens.window.on_top")),
+                check(w.on_top),
+                None,
+            ),
+            Row::OnTop,
+        ),
+        (
+            with(
+                Item::action(Src::Key("screens.window.full_screen")),
+                Check::None,
+                Some("F11"),
+            ),
             Row::FullScreen,
         ),
         (Item::Separator, Row::Bar),
@@ -185,7 +221,10 @@ pub fn menu(app: &mut CantusApp, ctx: &egui::Context, i: usize) {
 }
 
 fn with<'a>(mut i: Item<'a>, c: Check, key: Option<&'a str>) -> Item<'a> {
-    if let Item::Action { check, shortcut, .. } = &mut i {
+    if let Item::Action {
+        check, shortcut, ..
+    } = &mut i
+    {
         *check = c;
         *shortcut = key;
     }

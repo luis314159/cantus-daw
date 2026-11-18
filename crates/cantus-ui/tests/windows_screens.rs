@@ -51,7 +51,10 @@ fn words_inside(r: &Rig, id: ViewportId, what: &str) {
             continue; // scrolled away
         }
         assert!(
-            rect.min.x >= -0.5 && rect.min.y >= -0.5 && rect.max.x <= size.x + 0.5 && rect.max.y <= size.y + 0.5,
+            rect.min.x >= -0.5
+                && rect.min.y >= -0.5
+                && rect.max.x <= size.x + 0.5
+                && rect.max.y <= size.y + 0.5,
             "{what}: {w:?} at {rect:?} outside the window's {size:?}"
         );
     }
@@ -84,7 +87,10 @@ fn the_main_window_on_every_kind_of_screen() {
                 expected_ppp(&s)
             );
             words_inside(&r, ViewportId::ROOT, &format!("{s:?}"));
-            let bar = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(r.passes[&ViewportId::ROOT].size.x, 44.0));
+            let bar = egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(r.passes[&ViewportId::ROOT].size.x, 44.0),
+            );
             let cut = dropped(|| r.root(Vec::new()), bar);
             assert!(cut.is_empty(), "{s:?}: the top bar dropped {cut:?}");
         }
@@ -121,8 +127,13 @@ fn a_window_of_its_own_on_each_desk_draws_at_its_screens_scale() {
             r.app().reveal_pane(Pane::Mixer);
             r.idle(6);
             let ctx = r.ctx.clone();
-            r.app()
-                .move_pane(&ctx, Pane::Mixer, Target::NewWindow { screen: Some(target) });
+            r.app().move_pane(
+                &ctx,
+                Pane::Mixer,
+                Target::NewWindow {
+                    screen: Some(target),
+                },
+            );
             r.idle(8);
             let id = r.windows()[0];
             let s = &screens[target];
@@ -131,13 +142,24 @@ fn a_window_of_its_own_on_each_desk_draws_at_its_screens_scale() {
             // window's (the user's own scale for the main window carries over; here none).
             let want = for_screen(s.size[0] as f32, s.scale) * s.scale;
             let ppp = r.passes[&id].ppp;
-            assert!((ppp - want).abs() < 1e-3, "{s:?}: drawn at {ppp}, want {want}");
+            assert!(
+                (ppp - want).abs() < 1e-3,
+                "{s:?}: drawn at {ppp}, want {want}"
+            );
             let mp = r.passes[&ViewportId::ROOT].ppp;
-            assert!((mp - expected_ppp(main)).abs() < 1e-3, "{main:?}: main at {mp}");
+            assert!(
+                (mp - expected_ppp(main)).abs() < 1e-3,
+                "{main:?}: main at {mp}"
+            );
             words_inside(&r, id, &format!("the mixer's window on {s:?}"));
-            words_inside(&r, ViewportId::ROOT, &format!("the main window on {main:?}"));
+            words_inside(
+                &r,
+                ViewportId::ROOT,
+                &format!("the main window on {main:?}"),
+            );
             // Its bar's words whole.
-            let bar = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(r.passes[&id].size.x, 44.0));
+            let bar =
+                egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(r.passes[&id].size.x, 44.0));
             let cut = dropped(|| r.child(id, Vec::new()), bar);
             assert!(cut.is_empty(), "{s:?}: the window's bar dropped {cut:?}");
             // Its menu opens in it, under its key, inside the window.
@@ -145,7 +167,11 @@ fn a_window_of_its_own_on_each_desk_draws_at_its_screens_scale() {
             r.click(id, key, PointerButton::Primary);
             r.child(id, Vec::new());
             let rows = r.text_in(id, "Always on top");
-            assert_eq!(rows.len(), 1, "{s:?}: the window's menu drawn in its window");
+            assert_eq!(
+                rows.len(),
+                1,
+                "{s:?}: the window's menu drawn in its window"
+            );
             let size = r.passes[&id].size;
             assert!(rows[0].max.x <= size.x && rows[0].max.y <= size.y, "{s:?}");
             assert!(rows[0].min.y > 30.0, "{s:?}: under the bar");

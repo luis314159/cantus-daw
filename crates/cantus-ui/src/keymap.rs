@@ -2043,8 +2043,14 @@ preset = \"custom\"
 play-pause = [\"Space\"]
 ";
         let map = Keymap::from_toml(old).expect("reads");
-        assert_eq!(map.bindings_for(Action::Layout2), &[Binding::alt(Key::Num2)]);
-        assert_eq!(map.bindings_for(Action::ToggleFullScreen), &[Binding::key(Key::F11)]);
+        assert_eq!(
+            map.bindings_for(Action::Layout2),
+            &[Binding::alt(Key::Num2)]
+        );
+        assert_eq!(
+            map.bindings_for(Action::ToggleFullScreen),
+            &[Binding::key(Key::F11)]
+        );
     }
 
     #[test]

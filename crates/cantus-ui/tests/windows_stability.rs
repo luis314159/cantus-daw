@@ -67,10 +67,16 @@ fn five_hundred_windows_opened_moved_and_closed_leave_nothing_behind() {
             every_area_once(&mut r);
             r.app().move_pane(&ctx, a, Target::Main);
             r.frame();
-            assert!(r.windows().is_empty(), "cycle {n}: the window closed with its last area");
+            assert!(
+                r.windows().is_empty(),
+                "cycle {n}: the window closed with its last area"
+            );
         }
         r.idle(10);
-        assert!(r.cbs.is_empty(), "no viewport kept for a window that is gone");
+        assert!(
+            r.cbs.is_empty(),
+            "no viewport kept for a window that is gone"
+        );
         let now = textures(&r);
         assert!(
             now <= base_textures + 2,
@@ -86,7 +92,8 @@ fn screens_unplugged_and_plugged_while_playing_never_stop_the_song() {
         r.app().reveal_pane(Pane::Mixer);
         r.idle(4);
         let ctx = r.ctx.clone();
-        r.app().move_pane(&ctx, Pane::Mixer, Target::NewWindow { screen: Some(1) });
+        r.app()
+            .move_pane(&ctx, Pane::Mixer, Target::NewWindow { screen: Some(1) });
         r.idle(4);
         r.app().engine.play();
         r.idle(2);
@@ -113,14 +120,19 @@ fn no_scale_flips_and_nothing_draws_at_rest() {
         r.app().reveal_pane(Pane::Mixer);
         r.idle(4);
         let ctx = r.ctx.clone();
-        r.app().move_pane(&ctx, Pane::Mixer, Target::NewWindow { screen: Some(1) });
+        r.app()
+            .move_pane(&ctx, Pane::Mixer, Target::NewWindow { screen: Some(1) });
         r.idle(30);
         let id = r.windows()[0];
         let (main, win) = (r.passes[&ViewportId::ROOT].ppp, r.passes[&id].ppp);
         r.clear_asked();
         for _ in 0..300 {
             r.frame();
-            assert_eq!(r.passes[&ViewportId::ROOT].ppp, main, "the main window's scale moved");
+            assert_eq!(
+                r.passes[&ViewportId::ROOT].ppp,
+                main,
+                "the main window's scale moved"
+            );
             assert_eq!(r.passes[&id].ppp, win, "the window's scale moved");
         }
         assert!(
@@ -157,7 +169,11 @@ fn layout_files_corrupt_old_or_strange_load_into_a_usable_window() {
         for text in files {
             let tmp = tempfile::tempdir().unwrap();
             std::fs::write(tmp.path().join("layouts.json"), text).unwrap();
-            let mut r = Rig::in_dir(tmp.path(), vec![laptop(), external()], Some(cantus_ui::welcome_project()));
+            let mut r = Rig::in_dir(
+                tmp.path(),
+                vec![laptop(), external()],
+                Some(cantus_ui::welcome_project()),
+            );
             r.idle(6);
             assert!(r.app().workspace.contains(Pane::Arrangement), "{text}");
             every_area_once(&mut r);
