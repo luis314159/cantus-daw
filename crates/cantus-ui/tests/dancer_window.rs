@@ -33,6 +33,14 @@ fn spec(a: &CantusApp, track: TrackId) -> NativeSpec {
 
 const SIZE: egui::Vec2 = egui::vec2(1400.0, 900.0);
 
+/// The look is the process's (`theme::apply` installs the palette and the kit's tokens for
+/// every view, as the app's one appearance): a test that switches it holds this for writing
+/// and puts the default back; a test that counts what is drawn again holds it for reading,
+/// so the look never changes under it. (`the_window_draws_again_only_what_moved` failed in
+/// 9 of 12 runs beside the themes test — the stage's ink changed between two frames of the
+/// same moment and the character was drawn again — and in none without it.)
+static LOOK: std::sync::RwLock<()> = std::sync::RwLock::new(());
+
 /// One frame of the editor with `events`.
 fn frame(a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>) -> String {
     cantus_ui::dance_live::DanceLive::update(a, 1.0);
@@ -84,6 +92,7 @@ fn the_picker_files_it_on_the_visual_shelf_and_a_new_one_names_who_dances() {
 
 #[test]
 fn the_window_paints_both_views_in_both_themes_with_the_character_dancing() {
+    let _look = LOOK.write().unwrap_or_else(|e| e.into_inner());
     let (mut a, _) = dancer_app();
     for theme in [cantus_ui::theme::slate(), cantus_ui::theme::paper()] {
         for view in [View::Play, View::Edit] {
@@ -114,6 +123,7 @@ fn the_window_paints_both_views_in_both_themes_with_the_character_dancing() {
         "the stage drew the character"
     );
     assert!(a.inst.dancer.pick.draws > 0, "the picker drew its previews");
+    cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx());
 }
 
 /// *Export video…* in the stage card opens the video export's dialog.
@@ -278,6 +288,7 @@ fn midi_learn_reaches_its_move_and_names_its_choices() {
 /// changed, a preview at most 30 times a second.
 #[test]
 fn the_window_draws_again_only_what_moved() {
+    let _look = LOOK.read().unwrap_or_else(|e| e.into_inner());
     let (mut a, _) = dancer_app();
     a.inst.view = View::Play;
     let c = ctx();
