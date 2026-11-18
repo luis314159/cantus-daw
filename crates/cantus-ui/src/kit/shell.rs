@@ -69,6 +69,15 @@ pub const PRESET_W: f32 = 240.0;
 pub const EFFECT: Vec2 = Vec2::new(880.0, 560.0);
 pub const DISPLAY_EFFECT: Vec2 = Vec2::new(1040.0, 640.0);
 pub const INSTRUMENT: Vec2 = Vec2::new(1040.0, 680.0);
+/// The ground's padding around a body's cards at 100 % and normal density ([`Grid`]).
+pub const GRID_PAD: f32 = 8.0;
+/// What the ground's padding takes from a body, both sides, at 100 % and the roomiest
+/// density: a view's least size plus this is the body that lays it out whole (fx/final:
+/// Tympanum's Kit opened 16 points short and scrolled, its cards cut at the foot).
+pub fn grid_room() -> Vec2 {
+    let most = crate::kit::tokens::Density::Comfortable.factor();
+    Vec2::splat((2.0 * GRID_PAD * most).ceil())
+}
 
 /// The scale step nearest to `k`.
 pub fn snap_scale(k: f32) -> f32 {
@@ -713,7 +722,7 @@ pub struct Grid {
 
 impl Grid {
     pub fn new(body: Rect, s: &Style) -> Grid {
-        let area = body.shrink(s.d(8.0));
+        let area = body.shrink(s.d(GRID_PAD));
         Grid {
             area,
             gutter: s.d(4.0),

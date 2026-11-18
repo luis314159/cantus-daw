@@ -233,9 +233,20 @@ of them words dropped at 200 %).
 - **Each instrument's editor opens at its own size.** `views::inst::editor_size` is the
   shell's 1 040 × 680, or more where one of the instrument's views lays itself out whole
   only in more:
-  - Chorda opens at 1 100 × 680, for its Mixer (1 100 × 600 plus the header and footer);
-  - Tympanum opens at 1 200 × 692, for its Mixer's width and its Kit's height
+  - Chorda opens at 1 119 × 680, for its Mixer (1 100 × 600 plus the header, the footer
+    and the ground's padding);
+  - Tympanum opens at 1 219 × 711, for its Mixer's width and its Kit's height
     (1 180 × 640).
+
+  *Corrected the same day:* the first sizes (1 100 × 680, 1 200 × 692) left out the
+  ground's padding: `shell::Grid` takes 8 points from every side of the body, so
+  Tympanum's Kit got 624 of its 640 points, scrolled, and lost its cards' foot in the
+  site's picture while every word still read whole. `editor_size` now adds
+  `shell::grid_room()` (both sides, at the roomiest density, 1.15: 19 points).
+  `instruments_scale_e2e::an_instrument_opens_at_its_own_size_its_view_uncut` asks that
+  every card, its edge included, lies inside the editor and its clip in Chorda's Play and
+  Mixer and Tympanum's Kit and Mixer (`kit::text::probe::start_cards`; only a list's own
+  scroll is let off).
 
   The editor registers this as its whole size (`DeviceWindow::whole_size`). The first
   time it opens, a dock leaf smaller than that floats it. The window is sized to that

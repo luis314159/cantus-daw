@@ -500,7 +500,7 @@ fn a_windows_bar_and_name_are_chosen_from_its_menu_and_kept() {
 }
 
 /// An instrument's editor moved to a window of its own opens at its own size (fx/final):
-/// the window not maximised, sized so the editor's body is Chorda's 1 100 × 680 at the
+/// the window not maximised, sized so the editor's body is Chorda's 1 119 × 680 at the
 /// scale the window draws at on that screen, inside the screen's work area; on a screen
 /// too small for it, held inside the work area (the view scrolls there).
 #[test]
@@ -590,7 +590,7 @@ fn an_instruments_editor_in_a_window_of_its_own_opens_at_its_own_size() {
 }
 
 /// An instrument's editor opened while working in a window of its own opens there, at its
-/// own size (fx/final): the body Chorda's 1 100 × 680 inside that window.
+/// own size (fx/final): the body Chorda's 1 119 × 680 inside that window.
 #[test]
 fn an_instruments_editor_opened_in_a_window_opens_there_at_its_own_size() {
     run(|| {

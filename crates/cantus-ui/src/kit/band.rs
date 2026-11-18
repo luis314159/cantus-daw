@@ -226,6 +226,7 @@ pub fn rects(rect: Rect, s: &Style, look: &CardLook<'_>) -> CardRects {
 pub fn card(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CardLook<'_>) -> CardRects {
     b.register(rect, "card", CARD_TOKENS, &[s.hue_tok]);
     let rect = b.snap_rect(rect);
+    super::text::probe::card(rect, b.clip);
     let rad = s.r(6.0);
     let dp = s.t.depth;
     let a = if st.disabled { 0.45 } else { 1.0 };

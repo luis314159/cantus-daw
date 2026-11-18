@@ -377,7 +377,7 @@ as it does floating in the main window (ADR 0125's amendment, `views::inst::edit
 
 `windows_e2e::an_instruments_editor_in_a_window_of_its_own_opens_at_its_own_size` holds this
 on an external screen and on a 1 366 × 768 screen too small for the editor: the window is on
-that screen, inside its work area, the body is Chorda's 1 100 × 680 where it fits, and the
+that screen, inside its work area, the body is Chorda's 1 119 × 680 where it fits, and the
 editor is still drawn after a click in the main window. It then goes back to the main window.
 `an_instruments_editor_opened_in_a_window_opens_there_at_its_own_size` holds the editor
 opened while working in the mixer's window: it opens there, whole.
