@@ -303,17 +303,30 @@ impl Processor {
         // now — before the song gets there (an offline render answers before its first
         // block).
         if let Some(rt) = self.auto.rt.as_ref() {
-            for c in rt.effects.iter().filter(|c| c.line_note.is_some()) {
+            // fx/final — and each automated Delay on a board, by its pedal.
+            let floor = |u: &mut EffectUnit, c: &crate::automation::FxCopy| {
+                if c.line_note.is_some() {
+                    u.set_line_floor(c.line_note);
+                }
+                for &(pedal, note) in &c.pedal_lines {
+                    u.set_pedal_line_floor(pedal, Some(note));
+                }
+            };
+            for c in rt
+                .effects
+                .iter()
+                .filter(|c| c.line_note.is_some() || !c.pedal_lines.is_empty())
+            {
                 match c.at {
                     Some((usize::MAX, i)) => {
                         if let Some(u) = self.master.effects.get_mut(i) {
-                            u.set_line_floor(c.line_note);
+                            floor(u, c);
                         }
                     }
                     Some((s, i)) => {
                         if let Some(mut st) = nodes.strip(s) {
                             if let Some(u) = st.effects.get_mut(i) {
-                                u.set_line_floor(c.line_note);
+                                floor(u, c);
                             }
                         }
                     }

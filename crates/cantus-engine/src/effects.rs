@@ -387,9 +387,29 @@ impl EffectUnit {
     /// `sync` can reach (`automation::FxCopy::line_note`): its line is built for that note
     /// before the song gets there, so it never finds it short. `None`: what its settings
     /// want.
+    /// fx/final — a board passes it to every Delay among its pedals (`None`: each holds the
+    /// line its settings want; [`Self::set_pedal_line_floor`] sets one).
     pub fn set_line_floor(&mut self, note: Option<usize>) {
-        if let Dsp::Delay(d) = &mut self.dsp {
-            d.set_line_floor(note);
+        match &mut self.dsp {
+            Dsp::Delay(d) => d.set_line_floor(note),
+            Dsp::Fx(u) => {
+                for k in u.pedals_mut() {
+                    k.unit.set_line_floor(note);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// fx/final — the line floor of one Delay on this board (`automation::FxCopy::
+    /// pedal_lines`), as [`Self::set_line_floor`] sets an inserted Delay's. No allocation.
+    pub fn set_pedal_line_floor(
+        &mut self,
+        pedal: cantus_core::fx::tabula::PedalId,
+        note: Option<usize>,
+    ) {
+        if let Some(u) = self.pedal_mut(pedal) {
+            u.set_line_floor(note);
         }
     }
 

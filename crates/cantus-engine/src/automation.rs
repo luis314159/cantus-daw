@@ -97,6 +97,10 @@ pub(crate) struct FxCopy {
     /// — the note with the longest line those lanes can reach while synced, its line built
     /// before the song gets there (`EffectUnit::set_line_floor`); `None` otherwise.
     pub line_note: Option<usize>,
+    /// fx/final — the same for each Delay on a board (Tabula): its pedal and the note with
+    /// the longest line the lanes on its routed `p{id}.note` and `p{id}.sync`, or on a macro
+    /// mapped to them, can reach (`EffectUnit::set_pedal_line_floor`). Empty otherwise.
+    pub pedal_lines: Vec<(cantus_core::fx::tabula::PedalId, usize)>,
 }
 
 /// A hosted insert some lane drives, and where its unit runs (as [`FxCopy::at`]).
@@ -209,6 +213,96 @@ fn modulation_reach(snapshot: &Snapshot, li: usize) -> Option<(f32, f32)> {
     any.then_some((down, up))
 }
 
+/// The note value between `lo` and `hi` whose synced line is the longest.
+fn longest_line(lo: usize, hi: usize) -> usize {
+    use cantus_dsp::delay::sync::line_seconds;
+    (lo..=hi).fold(lo, |best, n| {
+        if line_seconds(true, n) > line_seconds(true, best) {
+            n
+        } else {
+            best
+        }
+    })
+}
+
+/// fx/final — each Delay pedal on board copy `c` (index `ci`) that a lane drives: the note
+/// with the longest line those lanes can reach while synced, as [`Runtime::delay_lines`]
+/// finds an inserted Delay's. A lane drives a pedal's `note` or `sync` by its routed key
+/// (`p{id}.note`) — unless a macro is mapped to that key, which then wins over the lane — or
+/// through a macro mapped to it (`m{n}`, the macro's reach carried along its map). Off the
+/// audio thread.
+fn board_delay_lines(
+    c: &FxCopy,
+    ci: usize,
+    snapshot: &Snapshot,
+    lanes: &[Lane],
+) -> Vec<(cantus_core::fx::tabula::PedalId, usize)> {
+    use cantus_core::fx::tabula::{macro_value, split_key, MACRO_KEYS};
+    use cantus_dsp::delay::sync::note_index;
+    let Some(board) = c.spec.board.as_deref() else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for pedal in board
+        .pedals
+        .iter()
+        .filter(|x| x.spec.kind == cantus_core::EffectKind::Delay)
+    {
+        let mut on = pedal.spec.get("sync") >= 0.5;
+        let base = note_index(pedal.spec.get("note"));
+        let (mut lo, mut hi) = (base, base);
+        let mut driven = false;
+        let mut reach = |key: &str, a: f32, b: f32| {
+            driven = true;
+            if key == "sync" {
+                on |= a.max(b) >= 0.5;
+            } else {
+                lo = lo.min(note_index(a.min(b)));
+                hi = hi.max(note_index(a.max(b)));
+            }
+        };
+        for (li, (lane, l)) in snapshot.automation.iter().zip(lanes).enumerate() {
+            let Dest::Effect(i, key) = &l.dest else {
+                continue;
+            };
+            if *i != ci {
+                continue;
+            }
+            let (a, b) = lane_reach(lane, modulation_reach(snapshot, li));
+            if let Some((id, own)) = split_key(key) {
+                if id == pedal.id
+                    && matches!(own, "note" | "sync")
+                    && board.macro_of(id, own).is_none()
+                {
+                    reach(own, a, b);
+                }
+            } else if let Some(m) = MACRO_KEYS.iter().position(|k| *k == key.as_str()) {
+                let Some(mac) = board.macro_at(m) else {
+                    continue;
+                };
+                for x in mac.maps.iter().filter(|x| x.pedal == pedal.id) {
+                    let own = x.key.as_str();
+                    if !matches!(own, "note" | "sync") {
+                        continue;
+                    }
+                    let Some(info) = pedal.spec.kind.param(own) else {
+                        continue;
+                    };
+                    let (va, vb) = (
+                        macro_value(info, x.from, x.to, a),
+                        macro_value(info, x.from, x.to, b),
+                    );
+                    reach(own, va, vb);
+                }
+            }
+        }
+        if driven && on {
+            out.push((pedal.id, longest_line(lo, hi)));
+        }
+    }
+    out
+}
+
 /// The bits a hosted value is compared by.
 #[inline]
 pub(crate) fn hosted_bits(v: HostedValue) -> (u32, u32) {
@@ -312,8 +406,12 @@ impl Runtime {
     /// ends; a curve stays between them), moved as far as the modulators driving it reach
     /// (fix-c, R2-A3: was its whole range).
     fn delay_lines(&mut self, snapshot: &Snapshot) {
-        use cantus_dsp::delay::sync::{line_seconds, note_index};
+        use cantus_dsp::delay::sync::note_index;
         for (ci, c) in self.effects.iter_mut().enumerate() {
+            if c.spec.kind == cantus_core::EffectKind::Board {
+                c.pedal_lines = board_delay_lines(c, ci, snapshot, &self.lanes);
+                continue;
+            }
             if c.spec.kind != cantus_core::EffectKind::Delay {
                 continue;
             }
@@ -337,15 +435,7 @@ impl Runtime {
                     hi = hi.max(note_index(b));
                 }
             }
-            c.line_note = (driven && on).then(|| {
-                (lo..=hi).fold(lo, |best, n| {
-                    if line_seconds(true, n) > line_seconds(true, best) {
-                        n
-                    } else {
-                        best
-                    }
-                })
-            });
+            c.line_note = (driven && on).then(|| longest_line(lo, hi));
         }
     }
 
@@ -380,6 +470,7 @@ impl Runtime {
                             dirty: false,
                             at: None,
                             line_note: None,
+                            pedal_lines: Vec::new(),
                         });
                         self.effects.len() - 1
                     }

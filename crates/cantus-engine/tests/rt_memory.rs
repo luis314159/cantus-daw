@@ -2817,6 +2817,87 @@ fn a_synced_delay_never_allocates() {
     );
 }
 
+// ---- fx/final — a Delay on a Tabula board (ADR 0131), its note automated by the board's
+// routed key: the line its lane reaches asked for at the snapshot (round 40's floor, as an
+// inserted Delay's), its history moved in a stretch per pass, the old line given back; a
+// macro moving the note as well, a panic, a seek and a stop. Not one allocation.
+#[test]
+fn a_synced_delay_on_a_board_never_allocates() {
+    use cantus_core::fx::tabula::{Board, Macro, MacroMap, Pedal, PedalId};
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    let fx = add_effect(&mut p, EffectKind::Board);
+    let set = |p: &mut Project, k: &str, v: f32, mapped: bool| {
+        let e = p
+            .strips
+            .iter_mut()
+            .flat_map(|s| s.effects.iter_mut())
+            .find(|e| e.id == fx)
+            .unwrap();
+        let b = e.spec.board.get_or_insert_with(|| {
+            Box::new(Board {
+                pedals: vec![Pedal::new(PedalId(0), EffectSpec::new(EffectKind::Delay))],
+                macros: Vec::new(),
+            })
+        });
+        if mapped {
+            b.macros = vec![Macro {
+                name: None,
+                maps: vec![MacroMap {
+                    pedal: PedalId(0),
+                    key: "note".into(),
+                    from: 12.0,
+                    to: 24.0,
+                }],
+            }];
+        }
+        b.pedals[0].spec.set(k, v).unwrap();
+    };
+    set(&mut p, "feedback", 0.8, false);
+    set(&mut p, "mix", 0.6, false);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("board delay free", 40);
+    set(&mut p, "sync", 1.0, false);
+    set(&mut p, "note", 18.0, false);
+    rig.snapshot(&p);
+    rig.play("board delay synced, its line moved in", 60);
+    let lane = |p: &mut Project, key: &str, pos: f32| {
+        let c = p.make_automation_clip(
+            "a",
+            AutoTarget::Effect {
+                effect: fx,
+                key: key.into(),
+            },
+            Ticks::beats(2),
+            Ticks::beats(4),
+            vec![AutoPoint::new(Ticks::ZERO, pos)],
+        );
+        p.tracks[0].clips.push(c);
+    };
+    lane(&mut p, "p0.note", 24.0 / 26.0);
+    rig.snapshot(&p);
+    rig.play("board delay automated to 4/1", 120);
+    p.tracks[0].clips.retain(|c| c.automation.is_none());
+    set(&mut p, "note", 12.0, true);
+    lane(&mut p, "m1", 1.0);
+    rig.snapshot(&p);
+    rig.play("board delay moved by a macro's lane", 120);
+    rig.tx.push(EngineMessage::Panic).unwrap();
+    rig.play("board delay cleared after a panic", 120);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(1))).unwrap();
+    rig.play("board delay seek", 20);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("board delay stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
 // ---- r40:tymp-engine — Tympanum (ADR 0124): the modelled studio kit with every mic split
 // to its own strip, then the kit changed to a recorded one while it plays (its files
 // streamed in, the old kit playing until they are), the pedal moving, the Feel card's
