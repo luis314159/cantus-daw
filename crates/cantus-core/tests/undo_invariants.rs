@@ -1365,7 +1365,14 @@ fn routing_batch(rng: &mut Lcg, project: &mut Project) -> Command {
                     .collect()
             };
             let bus = project.make_strip("Bus 1");
-            plan::new_bus(project, &strips, &tracks, bus)
+            // ADR 0150 §5: the tracks reaching it folded too, most of the time.
+            let folder = (rng.below(4) != 0).then(|| cantus_core::TrackFolder {
+                id: cantus_core::FolderId(project.alloc_id()),
+                name: "Bus 1".into(),
+                color: Color::PALETTE[0],
+                open: true,
+            });
+            plan::new_bus(project, &strips, &tracks, bus, folder)
         }
         _ => {
             let to = project.strip(a).and_then(|s| s.sends.last()).map(|x| x.to);

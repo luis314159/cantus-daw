@@ -414,13 +414,22 @@ pub fn bus_sources(
 /// they share one and in their group when they share one; its output is the output they
 /// all share (a nested bus stays nested), else the master; then every source strip's
 /// output goes to it and every track that fed the master with no strip of its own feeds
-/// it ([`bus_sources`]). Sends are left as they are. One batch, `cmd.new_bus`; `None` when
-/// there is nothing to route or `bus`'s id is taken.
+/// it ([`bus_sources`]). Sends are left as they are.
+///
+/// With `folder` (made by the caller: a fresh id, the bus's name, a colour), the tracks
+/// that now reach the bus — every track on a source strip and every track fed to it
+/// straight — go into that new arrangement folder in the same step, Live's and Bitwig's
+/// group: folder and bus at once (ADR 0150 §5). Folders do not nest (ADR 0113), so a track
+/// already in a folder moves to the new one, and a folder left with no track is removed.
+/// A strip no track feeds (a return, a bus) is routed and has nothing to fold.
+///
+/// One batch, `cmd.new_bus`; `None` when there is nothing to route or an id is taken.
 pub fn new_bus(
     project: &Project,
     strips: &[StripId],
     tracks: &[TrackId],
     mut bus: MixerStrip,
+    folder: Option<crate::arrange::TrackFolder>,
 ) -> Option<Command> {
     if project.strip(bus.id).is_some() {
         return None;
@@ -467,7 +476,63 @@ pub fn new_bus(
         id: *t,
         strip: Some(id),
     }));
+    if let Some(folder) = folder {
+        fold(project, &sources, &direct, folder, &mut commands)?;
+    }
     batch("cmd.new_bus", commands)
+}
+
+/// [`new_bus`]'s folder: the tracks reaching the bus, in the song's order, into `folder`;
+/// the folders they leave empty removed after them. `None` when its id is taken.
+fn fold(
+    project: &Project,
+    sources: &[StripId],
+    direct: &[TrackId],
+    folder: crate::arrange::TrackFolder,
+    commands: &mut Vec<Command>,
+) -> Option<()> {
+    use crate::arrange::ArrangeCommand;
+    if project.folders.iter().any(|f| f.id == folder.id) {
+        return None;
+    }
+    let folded: Vec<&crate::model::Track> = project
+        .tracks
+        .iter()
+        .filter(|t| t.strip.is_some_and(|s| sources.contains(&s)) || direct.contains(&t.id))
+        .collect();
+    if folded.is_empty() {
+        return Some(());
+    }
+    let id = folder.id;
+    commands.push(Command::Arrange(ArrangeCommand::InsertFolder {
+        index: project.folders.len(),
+        folder,
+    }));
+    commands.extend(folded.iter().map(|t| {
+        Command::Arrange(ArrangeCommand::SetTrackFolder {
+            track: t.id,
+            folder: Some(id),
+        })
+    }));
+    // A folder all of whose tracks moved would stay behind empty, a row with nothing in it.
+    let left: Vec<crate::arrange::FolderId> = project
+        .folders
+        .iter()
+        .map(|f| f.id)
+        .filter(|f| {
+            folded.iter().any(|t| t.folder == Some(*f))
+                && project
+                    .tracks
+                    .iter()
+                    .filter(|t| t.folder == Some(*f))
+                    .all(|t| folded.iter().any(|m| m.id == t.id))
+        })
+        .collect();
+    commands.extend(
+        left.into_iter()
+            .map(|f| Command::Arrange(ArrangeCommand::RemoveFolder { id: f })),
+    );
+    Some(())
 }
 
 /// The first number `n` no strip is named `name(n)` by (*Bus 1*, *Bus 2*, …).

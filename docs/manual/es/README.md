@@ -1680,9 +1680,13 @@ mezclador: Tras la última tira* pone los retornos justo tras tus canales).
 
 **Grupos, para quien viene de FL Studio.** FL no tiene un botón de «grupo»: se agrupa
 enrutando. Cantus funciona igual, de dos maneras:
-- **Un bus** — enruta los canales a uno (selecciónalos y *Crear submezcla con los seleccionados*, o
-  arrastra sus cables hasta él): un fader, unas inserciones y un medidor para la batería, como
-  el *Drum bus* de la canción de ejemplo. Sus efectos procesan la suma.
+- **Un bus** — enruta los canales a uno: selecciónalos (clic, luego `Ctrl`+clic o
+  `Mayús`+clic — canales en la mesa o cabeceras de pistas en el arreglo) y pulsa
+  **`Ctrl+G`**, o clic derecho en uno ▸ *Enrutar la selección a un bus nuevo*. Un solo paso
+  crea *Bus 1* justo después de ellos, los enruta a él y reúne sus pistas en una carpeta del
+  arreglo con el nombre del bus, como los grupos de Live y Bitwig; un deshacer lo devuelve
+  todo. O arrastra sus cables hasta un canal tuyo: un fader, unas inserciones y un medidor
+  para la batería, como el *Drum bus* de la canción de ejemplo. Sus efectos procesan la suma.
 - **Un grupo VCA** — un fader que mueve el nivel de sus miembros sin sumarlos (cada uno conserva
   sus inserciones y envíos); ver [Faders VCA e instantáneas de la mesa](mixing-studio.md).
 
@@ -1734,8 +1738,8 @@ nombre de la banda sigue a la vista. <!-- r40:docs -->
   solapan, con esquinas redondeadas) y **Jack** (clavijas y cables que se comban y se asientan un
   momento al soltarlos). *La del tema* sigue el estilo propio del aspecto.
 - **Ruteo**: clic derecho en un canal ▸ *Enrutado* ▸ *Salida* o *Enviar a*, `Shift+F10`
-  para el menú de ruta del canal seleccionado, o selecciona varios canales y *Crear
-  submezcla con los seleccionados*. En el menú de ruta de un cable o un envío, *Nivel ▸
+  para el menú de ruta del canal seleccionado, o selecciona varios canales y `Ctrl+G`
+  (*Enrutar la selección a un bus nuevo*). En el menú de ruta de un cable o un envío, *Nivel ▸
   Escribir un nivel…* toma un nivel en dB (de −∞ a 0; `Enter` o un clic fuera lo aplica,
   en un paso de deshacer; `Esc` cancela). **La matriz de ruteo** (`Alt+F9`) muestra cada origen
   frente a cada destino: clic en una celda para enrutar, arrastrar para el nivel (`Shift`

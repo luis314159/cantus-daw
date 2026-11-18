@@ -622,8 +622,9 @@ confirma tu oído y tu mano:
 
 - [ ] **Desde el mezclador**: clic en el número de una pista, Ctrl+clic en otras dos (o
       Mayús+clic para un tramo), **Ctrl+G**: aparece *Bus 1* justo después de la última, las
-      tres salen por él (los cables lo muestran), suena igual que antes; silencia el bus y
-      callan las tres. Ctrl+Z lo deshace en un paso.
+      tres salen por él (los cables lo muestran), sus pistas en una carpeta *Bus 1* del
+      arreglo, suena igual que antes; silencia el bus y callan las tres. Ctrl+Z lo deshace
+      en un paso.
 - [ ] **Desde el menú de una pista del mezclador**: *Enrutar la selección a un bus nuevo*
       (muestra Ctrl+G). Con pistas de un mismo grupo, el bus se llama *Bus ‹grupo›* y queda en
       el grupo; si ya iban a otro bus, el nuevo va a ese bus (anidado), no al máster.
@@ -632,8 +633,12 @@ confirma tu oído y tu mano:
       normal vuelve a seleccionar una sola.
 - [ ] **La paleta de comandos** (Ctrl+Mayús+P) encuentra *Route the selected to a
       new bus* / *Enrutar la selección a un bus nuevo*.
-- [ ] ¿Quieres además que agrupe las pistas en una carpeta del arreglo, como el *Group* de
-      Live? (ADR 0150 §5: no se hizo; es una línea más en el mismo paso.)
+- [ ] **La carpeta (ADR 0150 §5, tu respuesta)**: tras Ctrl+G, en el arreglo aparece una
+      carpeta llamada como el bus (*Bus 1*) con las pistas que van a él, y ninguna otra; si
+      alguna ya estaba en una carpeta, pasa a la nueva (las carpetas no se anidan) y una
+      carpeta que se queda vacía desaparece. Un solo Ctrl+Z devuelve rutas y carpetas.
+      Desde el mezclador, un canal sin pista (un retorno, otro bus) se enruta pero no tiene
+      pista que meter en la carpeta.
 
 ## 2. Decisiones y trámites tuyos
 

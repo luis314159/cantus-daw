@@ -66,11 +66,20 @@ How others do it:
    several tracks share it); a track that feeds the master with no strip of its own feeds
    the bus. Sends are left as they are; a VCA (no audio) and the master are never sources.
    The new bus is selected.
-4. **No model change**: the batch is made of `InsertStrip`, `SetStripOutput` and
-   `SetTrackStrip` — no schema bump. The undo fuzz gets an arm calling `plan::new_bus`.
-5. **Not now:** folding the selected tracks into an arrangement folder with the bus (Live's
-   group is both). Folders stay visual (ADR 0113); if the owner wants Live's behaviour, the
-   same action can add `ArrangeCommand::SetTrackFolder` to the batch.
+4. **No model change**: the batch is made of `InsertStrip`, `SetStripOutput`,
+   `SetTrackStrip` and the arrangement's `InsertFolder`, `SetTrackFolder` and
+   `RemoveFolder` — no schema bump. The undo fuzz gets an arm calling `plan::new_bus`.
+5. **Decided (the owner, 2026-11-17): folder and bus at once**, as Live's and Bitwig's
+   group. In the same batch (`plan::new_bus`'s `folder`), the tracks that now reach the bus
+   — every track on a source strip and every track fed to it straight, in the song's order
+   — go into a new arrangement folder named as the bus, coloured as the first of them,
+   open. From the desk, the selected strips' tracks are folded; a strip no track feeds (a
+   return, another bus) is routed and has nothing to fold. Folders do not nest (ADR 0113;
+   nesting would be a schema change), so a track already in a folder moves to the new one,
+   and a folder all of whose tracks moved is removed in the same step instead of staying
+   behind as an empty row; a folder that keeps other tracks stays. The folder's row shows
+   where its first track is (ADR 0113's layout); no track is moved in the song's order.
+   One undo restores routing and folders together.
 
 ## Consequences
 
@@ -85,9 +94,13 @@ How others do it:
 
 - `cantus-core`'s `routing_plan` tests: the bus's place, dock, group, output (shared,
   mixed, the master), the tracks with and without strips, a strip shared by two tracks
-  routed once, VCAs left out, nothing to do gives `None`; the undo fuzz arm.
+  routed once, VCAs left out, nothing to do gives `None`; the folder (§5): the tracks
+  reaching the bus inside it in order, a track-less strip routed only, a half-moved folder
+  kept, an emptied one removed, a taken folder id refused; the undo fuzz arm (folding three
+  times in four).
 - `tests/bus_from_selection_e2e.rs`, through `CantusApp::assemble` with the real engine:
   strips selected by click and Ctrl+click on their heads, Ctrl+G, one new strip after them
-  fed by them, heard through it (its mute silences them; the master's output is the same
-  to the bit as before), one undo gives the project back to the bit; the same from the
+  fed by them, their tracks in a folder named *Bus 1* and no other track in it, heard
+  through it (its mute silences them), one undo gives the project back to the bit (routing
+  and folders; ids are never given back); the same from the
   track headers with Ctrl+click and the header menu's row; at 100 % and 200 %.

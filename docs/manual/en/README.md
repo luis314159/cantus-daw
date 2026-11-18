@@ -1542,9 +1542,13 @@ the last strip* puts the returns right after your strips instead).
 
 **Groups, for FL Studio users.** FL has no "group" button: you group by routing. Cantus works
 the same way, with two kinds:
-- **A bus** — route the strips to one strip (select them and *Create submix from selected*,
-  or drag their cables to it): one fader, one set of inserts and one meter for the drums,
-  as the demo song's *Drum bus*. Its effects process the sum.
+- **A bus** — route the strips to one strip: select them (click, then `Ctrl`+click or
+  `Shift`+click — strips on the desk or tracks' headers in the arrangement) and press
+  **`Ctrl+G`**, or right-click one ▸ *Route the selected to a new bus*. One step makes
+  *Bus 1* right after them, routes them to it and gathers their tracks in an arrangement
+  folder named as the bus, as Live's and Bitwig's groups do; one undo takes it all back. Or
+  drag their cables to a strip of your own: one fader, one set of inserts and one meter for
+  the drums, as the demo song's *Drum bus*. Its effects process the sum.
 - **A VCA group** — one fader that moves the levels of its members without summing them
   (each keeps its own inserts and sends); see [VCA faders and mixer snapshots](mixing-studio.md).
 
@@ -1593,7 +1597,8 @@ in view. <!-- r40:docs -->
   overlap, with rounded corners) and **Jack** (plugs and cords that sag and settle for a moment
   when you drop them). *The theme's* follows the look's own style.
 - **Routing**: right-click a strip ▸ *Routing* ▸ *Output* or *Send to*, `Shift+F10` for the
-  selected strip's route menu, or select several strips and *Create submix from selected*.
+  selected strip's route menu, or select several strips and `Ctrl+G` (*Route the selected
+  to a new bus*).
   In a cable's or a send's route menu, *Level ▸ Type a level…* takes a level in dB (−∞ to
   0; `Enter` or a click elsewhere sets it, in one undo step; `Esc` cancels).
   **The routing matrix** (`Alt+F9`) shows every source against every destination: click a

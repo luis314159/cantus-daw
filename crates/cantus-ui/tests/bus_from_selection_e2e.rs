@@ -3,8 +3,10 @@
 //! 100 % and 200 %:
 //!
 //! - on the desk: a strip's head clicked, another Ctrl+clicked, **Ctrl+G** — one new strip
-//!   right after them, *Bus 1*, fed by both; the band heard through it (its mute silences
-//!   them, its unmute gives them back), and undo gives the project back to the bit;
+//!   right after them, *Bus 1*, fed by both, and their tracks in an arrangement folder
+//!   named *Bus 1* (ADR 0150 §5); the band heard through it (its mute silences them, its
+//!   unmute gives them back), and one undo gives the project back to the bit, routing and
+//!   folders both;
 //! - in the arrangement: a track's header clicked, another Ctrl+clicked (both lit), the
 //!   header's menu → *Route the selected to a new bus* — the same, as one step of undo.
 
@@ -97,6 +99,21 @@ fn the_bus_is_made(r: &Rig, before: &Project, a: StripId, b: StripId) -> StripId
         Some(last + 1),
         "right after the last source"
     );
+    // ADR 0150 §5: the tracks reaching it in a folder named as it, the rest outside.
+    let folder = p
+        .folders
+        .iter()
+        .find(|f| f.name == "Bus 1")
+        .expect("a folder named as the bus");
+    for t in &p.tracks {
+        let reaches = t.strip == Some(a) || t.strip == Some(b);
+        assert_eq!(
+            t.folder == Some(folder.id),
+            reaches,
+            "{}: in the bus's folder exactly when it reaches the bus",
+            t.name
+        );
+    }
     bus
 }
 

@@ -1467,7 +1467,9 @@ impl CantusApp {
     /// *Route the selected to a new bus* (ADR 0150): `strips` and `tracks` (the tracks'
     /// strips, or the tracks themselves where they feed the master with no strip) to a new
     /// strip right after them — *‹group› Bus* when they share a group, else *Bus n* — as
-    /// one step of undo (`routing::plan::new_bus`). The bus is selected.
+    /// one step of undo (`routing::plan::new_bus`), the tracks reaching it gathered in an
+    /// arrangement folder named as the bus in that same step (ADR 0150 §5). The bus is
+    /// selected.
     pub fn route_to_new_bus(&mut self, strips: &[StripId], tracks: &[TrackId]) -> Option<StripId> {
         use cantus_core::routing::plan;
         let p = self.project();
@@ -1493,9 +1495,23 @@ impl CantusApp {
                 tf("routing.new_bus_name", &[("n", &n)])
             }
         };
+        // ADR 0150 §5: the tracks reaching the bus go into a folder named as it, in the
+        // same step (Live's and Bitwig's group); its colour the first of them's.
+        let color = self
+            .project()
+            .tracks
+            .iter()
+            .find(|t| t.strip.is_some_and(|s| sources.contains(&s)) || direct.contains(&t.id))
+            .map_or(cantus_core::Color::PALETTE[0], |t| t.color);
+        let folder = cantus_core::TrackFolder {
+            id: cantus_core::FolderId(self.bus.alloc_id()),
+            name: name.clone(),
+            color,
+            open: true,
+        };
         let strip = self.bus.new_strip(name);
         let id = strip.id;
-        let cmd = plan::new_bus(self.project(), strips, tracks, strip)?;
+        let cmd = plan::new_bus(self.project(), strips, tracks, strip, Some(folder))?;
         if self.exec(cmd) {
             self.select_strip(id);
             Some(id)

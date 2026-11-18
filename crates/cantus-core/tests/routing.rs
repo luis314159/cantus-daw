@@ -1226,7 +1226,7 @@ fn a_new_bus_goes_after_the_last_source_and_takes_their_output() {
     let bus = bus_named(&mut p, "Bus 1");
     let id = bus.id;
     // Three sources, given out of order: the bus goes right after the last on the desk.
-    let cmd = plan::new_bus(&p, &[s[3], s[1], s[2]], &[], bus).expect("a batch");
+    let cmd = plan::new_bus(&p, &[s[3], s[1], s[2]], &[], bus, None).expect("a batch");
     assert_eq!(label(&cmd), "cmd.new_bus");
     let after = applies_and_undoes(&p, cmd);
     assert_eq!(
@@ -1272,7 +1272,10 @@ fn a_new_bus_keeps_a_nested_route_and_its_sources_dock_and_group() {
     }
     let bus = bus_named(&mut p, "Drums Bus");
     let id = bus.id;
-    let after = applies_and_undoes(&p, plan::new_bus(&p, &[s[1], s[2]], &[], bus).unwrap());
+    let after = applies_and_undoes(
+        &p,
+        plan::new_bus(&p, &[s[1], s[2]], &[], bus, None).unwrap(),
+    );
     let b = after.strip(id).unwrap();
     assert_eq!(b.output, Some(s[5]), "the output they shared");
     assert_eq!(b.dock, Dock::Right);
@@ -1284,7 +1287,10 @@ fn a_new_bus_keeps_a_nested_route_and_its_sources_dock_and_group() {
     q.strip_mut(s[2]).unwrap().group = None;
     let bus = bus_named(&mut q, "Bus 1");
     let id = bus.id;
-    let after = applies_and_undoes(&q, plan::new_bus(&q, &[s[1], s[2]], &[], bus).unwrap());
+    let after = applies_and_undoes(
+        &q,
+        plan::new_bus(&q, &[s[1], s[2]], &[], bus, None).unwrap(),
+    );
     let b = after.strip(id).unwrap();
     assert_eq!((b.output, b.dock, b.group), (None, Dock::Middle, None));
 }
@@ -1309,7 +1315,7 @@ fn a_new_bus_from_tracks_routes_their_strips_once_and_takes_the_strip_less() {
     let (sources, direct) = plan::bus_sources(&p, &[], &tracks);
     assert_eq!(sources, vec![s[1], s[2]], "a shared strip once");
     assert_eq!(direct, vec![tracks[2]]);
-    let after = applies_and_undoes(&p, plan::new_bus(&p, &[], &tracks, bus).unwrap());
+    let after = applies_and_undoes(&p, plan::new_bus(&p, &[], &tracks, bus, None).unwrap());
     assert_eq!(after.strip(s[1]).unwrap().output, Some(id));
     assert_eq!(after.strip(s[2]).unwrap().output, Some(id));
     assert_eq!(after.track(tracks[2]).unwrap().strip, Some(id));
@@ -1321,13 +1327,110 @@ fn a_new_bus_leaves_out_vcas_and_has_nothing_to_do_without_sources() {
     let (mut p, s) = desk(3);
     p.strip_mut(s[1]).unwrap().kind = cantus_core::vca::StripKind::Vca;
     let bus = bus_named(&mut p, "Bus 1");
-    assert!(plan::new_bus(&p, &[s[1]], &[], bus.clone()).is_none());
-    assert!(plan::new_bus(&p, &[], &[], bus.clone()).is_none());
+    assert!(plan::new_bus(&p, &[s[1]], &[], bus.clone(), None).is_none());
+    assert!(plan::new_bus(&p, &[], &[], bus.clone(), None).is_none());
     // A taken id is refused.
     let mut taken = bus.clone();
     taken.id = s[0];
-    assert!(plan::new_bus(&p, &[s[2]], &[], taken).is_none());
+    assert!(plan::new_bus(&p, &[s[2]], &[], taken, None).is_none());
     assert_eq!(plan::free_number(&p, |n| format!("Bus {n}")), 1);
     p.strip_mut(s[0]).unwrap().name = "Bus 1".into();
     assert_eq!(plan::free_number(&p, |n| format!("Bus {n}")), 2);
+}
+
+#[test]
+fn a_new_bus_folds_the_tracks_reaching_it_into_a_folder_named_as_it() {
+    use cantus_core::arrange::{ArrangeCommand, TrackFolder};
+    let (mut p, s) = desk(5);
+    // A and B on s[1] (one strip, two tracks), C on s[2] and already in a folder with D
+    // (on s[3], not selected), E feeding the master with no strip, F on s[4] (untouched).
+    let old = TrackFolder {
+        id: FolderId(p.alloc_id()),
+        name: "Old".into(),
+        color: Color::PALETTE[1],
+        open: true,
+    };
+    let old_id = old.id;
+    apply(
+        &mut p,
+        Command::Arrange(ArrangeCommand::InsertFolder {
+            index: 0,
+            folder: old,
+        }),
+    );
+    let mut ids = Vec::new();
+    for (name, strip, folder) in [
+        ("A", Some(s[1]), None),
+        ("B", Some(s[1]), None),
+        ("C", Some(s[2]), Some(old_id)),
+        ("D", Some(s[3]), Some(old_id)),
+        ("E", None, None),
+        ("F", Some(s[4]), None),
+    ] {
+        let mut t = p.make_track(name);
+        t.strip = strip;
+        t.folder = folder;
+        ids.push(t.id);
+        p.tracks.push(t);
+    }
+    let bus = p.make_strip("Bus 1");
+    let bus_id = bus.id;
+    let folder = TrackFolder {
+        id: FolderId(p.alloc_id()),
+        name: "Bus 1".into(),
+        color: Color::PALETTE[3],
+        open: true,
+    };
+    let fid = folder.id;
+    // From the desk: strip s[1] and s[2] (a strip no track feeds, s[0], is routed only).
+    let cmd = plan::new_bus(&p, &[s[0], s[1], s[2]], &[ids[4]], bus, Some(folder)).unwrap();
+    let after = applies_and_undoes(&p, cmd);
+    let f = after
+        .folders
+        .iter()
+        .find(|f| f.id == fid)
+        .expect("the new folder");
+    assert_eq!(f.name, "Bus 1");
+    let inside: Vec<&str> = after
+        .tracks
+        .iter()
+        .filter(|t| t.folder == Some(fid))
+        .map(|t| t.name.as_str())
+        .collect();
+    assert_eq!(
+        inside,
+        ["A", "B", "C", "E"],
+        "every track reaching the bus, in order"
+    );
+    assert_eq!(
+        after.strip(s[0]).unwrap().output,
+        Some(bus_id),
+        "routed, nothing to fold"
+    );
+    assert_eq!(after.track(ids[3]).unwrap().folder, Some(old_id), "D stays");
+    assert!(after.folders.iter().any(|f| f.id == old_id), "Old keeps D");
+    assert_eq!(after.track(ids[5]).unwrap().folder, None, "F untouched");
+    // With D selected too, Old is left empty and goes in the same step.
+    let bus = p.make_strip("Bus 1");
+    let folder = TrackFolder {
+        id: FolderId(p.alloc_id()),
+        name: "Bus 1".into(),
+        color: Color::PALETTE[3],
+        open: true,
+    };
+    let cmd = plan::new_bus(&p, &[], &[ids[2], ids[3]], bus, Some(folder)).unwrap();
+    let after = applies_and_undoes(&p, cmd);
+    assert!(
+        !after.folders.iter().any(|f| f.id == old_id),
+        "the emptied folder goes"
+    );
+    // A taken folder id is refused.
+    let bus = p.make_strip("Bus 1");
+    let taken = TrackFolder {
+        id: old_id,
+        name: "Bus 1".into(),
+        color: Color::PALETTE[3],
+        open: true,
+    };
+    assert!(plan::new_bus(&p, &[s[1]], &[], bus, Some(taken)).is_none());
 }
