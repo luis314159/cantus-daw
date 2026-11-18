@@ -220,4 +220,25 @@ the window, no two rows' words overlapping and none cut at its side; a second cl
 field closes it. Its first run on this branch's lists found Delay's scroll-bar column and
 nothing else; the popover's misplaced list is in the before-pictures
 (`compartir/beta14-look/before`: the *Input device* list over *Driver* and over its own
-field). `kit::menu`'s unit tests hold the placement rule.
+field). `kit::menu`'s unit tests hold the placement rule. The audio popover's ASIO-driver field is
+opened too, with ASIO chosen over an emulated list of the owner's ASIO drivers (the setup
+offline: no driver is loaded).
+
+**The menus, the same way** (the coordinator: "no leftovers"). `tests/menus_audit.rs`, one
+app per look in the same three: the top bar's six menus, and the right-click menus of an
+arrangement track's header, a clip, a desk strip, an inspector parameter, a browser sound
+and a dock tab, and the piano roll's ⋯ menu (a right-click on a note erases it, FL's way: no
+menu there) — 39 menus and 31 submenus, row popups and pages — each opaque, at the pointer (a
+right-click's) or at its key, inside the window, legible; every chevron row hovered (clicked
+when hovering opens nothing) and what it opens held to the same: a submenu beside its menu
+and level with its row, a page in the menu's place, a row's own popup never over what the
+menu was opened on. It found two more:
+
+13. **The track header's pages could not be reached**: *Height ▸*, *Automation ▸* and
+    *More ▸* turn the menu to a page, but egui's context menu closes on any click — the
+    menu vanished and opened on that page the next time. Its popup closes on a click
+    outside now (`menus::track` closes it on a choice), and a right-click opens it on its
+    main page.
+14. **The modulation popup covered its parameter** at the window's right edge (the
+    inspector's): placed at its control's right and pushed back over it. It opens at the
+    control's right where it fits, else at its left, kept inside the window.

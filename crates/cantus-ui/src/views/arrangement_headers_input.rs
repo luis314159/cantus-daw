@@ -320,11 +320,19 @@ pub(super) fn input(
         if more.as_ref().is_some_and(|m| m.hovered()) {
             hint::set_text(ui.ctx(), chrome::word("arrange.more_tip"), "", Caps::NONE);
         }
-        if by_more {
+        // A menu opens on its main page (one left on *Height* or *More* came back there).
+        let by_right = std::iter::once(&resp)
+            .chain(name.as_ref())
+            .any(|r| r.secondary_clicked());
+        if by_more || by_right {
             app.arrangement.menu_page = Some((id, menus::Page::Main));
         }
         for (k, r) in std::iter::once(&resp).chain(name.as_ref()).enumerate() {
-            let popup = egui::Popup::context_menu(r);
+            // A page's row (*Height ▸*, *Automation ▸*, *More ▸*) keeps the menu open on that
+            // page; a choice closes it (`menus::track`). beta.14's menu audit: egui's
+            // default closed it on any click, so no page could be reached.
+            let popup = egui::Popup::context_menu(r)
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
             let popup = if (by_key || by_more) && k == 0 {
                 popup.open_memory(Some(egui::containers::SetOpenCommand::Bool(true)))
             } else {

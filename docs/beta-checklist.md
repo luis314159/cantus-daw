@@ -929,6 +929,10 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
   controladores ASIO) y *Dispositivo de entrada*, *Frecuencia*, *Búfer*, *Núcleos*. Cada
   lista bajo su campo, opaca; desplaza la página con la lista abierta: la lista sigue a su
   campo. Un segundo clic en el campo la cierra.
+- [ ] **El menú de una pista** (clic derecho en su cabecera): *Altura ▸*, *Automatización ▸*
+  y *Más ▸* abren su página en el mismo menú (antes el menú se cerraba). *‹ Atrás* vuelve.
+- [ ] **Modular un parámetro del inspector** (clic derecho ▸ *Modular…*): la ventanita se
+  abre al lado del control, sin taparlo.
 - [ ] Verificado solo en emulación: los dispositivos de la prueba son una copia de tus
   capturas (ASIO4ALL v2, FL Studio ASIO, FlexASIO, Microphone Array); tus controladores
   reales y su número solo los ve tu equipo.

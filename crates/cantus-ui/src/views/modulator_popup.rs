@@ -139,10 +139,29 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
         + crate::kit::menu::height(&items(None, &new), s.d(1.0))
         + crate::kit::menu::height(&items(None, &bake), s.d(1.0));
     let room = (screen - fixed - s.s(48.0)).max(s.s(120.0));
+    // Beside its control, never over it (beta.14's menu audit: at the window's right edge
+    // the inspector's popup was pushed back over its own parameter): at its right where it
+    // fits, else at its left; its height last frame's, kept inside the window.
+    let win = ctx.content_rect();
+    let size = ctx.memory(|m| m.area_rect(Id::new("mod-popup"))).map_or(
+        egui::vec2(s.s(width) + s.s(16.0), fixed + room.min(s.s(160.0))),
+        |r| r.size(),
+    );
+    let gap = s.s(4.0);
+    let m = crate::kit::menu::FIT_MARGIN;
+    let x = if anchor.right() + gap + size.x <= win.right() - m {
+        anchor.right() + gap
+    } else {
+        (anchor.left() - gap - size.x).max(win.left() + m)
+    };
+    let y = anchor
+        .top()
+        .min(win.bottom() - m - size.y)
+        .max(win.top() + m);
     // Room for all of it, not egui's default area size (400 points tall): see `mixer_menu`.
     let area = egui::Area::new(Id::new("mod-popup"))
         .order(Order::Foreground)
-        .fixed_pos(egui::pos2(anchor.right() + s.s(4.0), anchor.top()))
+        .fixed_pos(egui::pos2(x, y))
         .default_size(egui::vec2(s.s(width) + s.s(16.0), screen))
         .constrain(true)
         .show(ctx, |ui| {
