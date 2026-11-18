@@ -199,7 +199,8 @@ fn flushing_denormals_changes_no_sample_of_the_corpus() {
         let mut t = p.make_track(format!("T{i}"));
         let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(4));
         for k in 0..8 {
-            let pitch = 40 + (i as u8 * 5 + k * 7) % 40;
+            // In usize: with forty-three kinds, `i * 5 + k * 7` passes a u8 (the same pitches).
+            let pitch = 40 + ((i * 5 + usize::from(k) * 7) % 40) as u8;
             clip.notes.push(p.make_note(
                 Ticks::EIGHTH * k as i64,
                 Ticks::EIGHTH,

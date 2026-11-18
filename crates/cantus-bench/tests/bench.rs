@@ -173,8 +173,10 @@ fn the_null_corpus_is_repeatable_named_once_and_audible() {
     assert_eq!(math, math_items());
     let fx = effect_items();
     // Two items an effect kind (its defaults and its heavy settings); round 39 added Aula,
-    // the fx side round five more, its wave 3 four more. // fx3:contract
-    assert_eq!(fx.len(), 70); // fx3:contract
+    // the fx side round five more, its wave 3 four more, wave A three, wave B three and wave
+    // C two: forty-three kinds. // fx3:contract, fxa, fxb, fxc
+    assert_eq!(fx.len(), 2 * cantus_core::EffectKind::ALL.len());
+    assert_eq!(fx.len(), 86);
     assert!(fx.iter().all(|i| i.peak > 1e-4 && i.samples == 2 * 96_000));
     let mut items = math;
     items.extend(fx);
