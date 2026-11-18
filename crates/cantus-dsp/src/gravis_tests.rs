@@ -730,6 +730,81 @@ fn renders_do_not_depend_on_the_block_size() {
     }
 }
 
+/// fx/final — at the Free phase a note starts where the last one's oscillator stopped, and
+/// where it stopped never depends on the blocks: the oscillators (the synth's main, unison
+/// and second phases, the 808's phase) stand still once the voice's envelope has ended. They
+/// ran on to the end of the block the voice ended in and stood in an idle one, so the next
+/// note's phase was the block split's (a fresh engine's playback 8.2e-1 off the render).
+/// Notes after silences long enough for the voice to end, at blocks of 1 … 4 096, the
+/// synth with unison and a second oscillator, the 808 with drive (never idle while it
+/// rings): the same bits.
+#[test]
+fn free_phase_renders_do_not_depend_on_the_block_size() {
+    let mut synth = clean_synth();
+    synth.phase = PhaseMode::Free;
+    synth.synth.unison = 5;
+    synth.synth.osc2 = 0.5;
+    let mut e808 = clean_808();
+    e808.phase = PhaseMode::Free;
+    e808.drive.amount = 0.4;
+    for s in [synth, e808] {
+        let run = |block: usize| {
+            let mut g = Gravis::new(SR);
+            g.set(&s);
+            let mut out = Vec::new();
+            let events: [(usize, u8, bool); 6] = [
+                (0, 36, true),
+                (6_000, 36, false),
+                (30_011, 41, true),
+                (36_000, 41, false),
+                (70_007, 38, true),
+                (76_000, 38, false),
+            ];
+            let mut t = 0;
+            let total = 96_000;
+            let mut next = 0;
+            while t < total {
+                while next < events.len() && events[next].0 == t {
+                    let (_, k, on) = events[next];
+                    if on {
+                        g.note_on(k, k as u64, 0.9);
+                    } else {
+                        g.note_off(k, k as u64);
+                    }
+                    next += 1;
+                }
+                let until = events.get(next).map_or(total, |e| e.0);
+                let n = block.min(until - t).max(1);
+                let mut l = vec![0.0; n];
+                let mut r = vec![0.0; n];
+                g.process(&mut l, &mut r);
+                out.extend(l.iter().zip(&r).flat_map(|(a, b)| [*a, *b]));
+                t += n;
+            }
+            out
+        };
+        let reference = run(512);
+        assert!(
+            reference[30_011 * 2..].iter().any(|v| *v != 0.0),
+            "{:?}: the later notes sound",
+            s.engine
+        );
+        for block in [1usize, 7, 64, 480, 4096] {
+            let other = run(block);
+            let first = other
+                .iter()
+                .zip(&reference)
+                .position(|(a, b)| a.to_bits() != b.to_bits());
+            assert!(
+                first.is_none(),
+                "{:?} at block {block}: first difference at frame {:?}",
+                s.engine,
+                first.map(|i| i / 2)
+            );
+        }
+    }
+}
+
 #[test]
 fn the_half_band_rejects_images_and_passes_the_band() {
     let mut os = out::Os4::new();

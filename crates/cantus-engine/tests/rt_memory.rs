@@ -4242,9 +4242,10 @@ fn comparatio_never_allocates() {
 }
 
 /// fx/final — the idle snap at `Play` (`Processor::snap_idle_synths`, every Firmus and
-/// every native instrument that sounds no voice): a track of each native kind and a Firmus
-/// one, configured again while stopped (their glides under way), played from stop, stopped
-/// and played from stop again. Not one allocation.
+/// every native instrument that sounds no voice, reset as new after a second of silence): a
+/// track of each native kind and a Firmus one, silent over a second, configured again while
+/// stopped (their glides under way), played from stop, stopped and played from stop again.
+/// Not one allocation.
 #[test]
 fn the_idle_snap_at_play_never_allocates() {
     let song = |gain: f32| {
@@ -4277,7 +4278,8 @@ fn the_idle_snap_at_play_never_allocates() {
         rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
     }
     rig.snapshot(&a);
-    rig.play("idle snap: settle", 8);
+    // Over a second stopped and silent: at `Play` each unit is also reset as new.
+    rig.play("idle snap: settle", 100);
     rig.allocations.clear();
     rig.snapshot(&b);
     rig.tx.push(EngineMessage::Play).unwrap();

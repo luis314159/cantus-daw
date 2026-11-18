@@ -44,6 +44,11 @@ pub(crate) struct TrackSlot {
     /// The block's peak, and the block it belongs to.
     pub peak: f32,
     pub peak_block: u64,
+    /// fx/final — frames in a row its native instrument has written nothing (exact zero:
+    /// `InstrumentUnit::process` false) to its main output and has no outputs of its own:
+    /// at `Play` from stop a unit with no voice, silent this long, starts again as new
+    /// (`Processor::snap_idle_synths`).
+    pub inst_quiet: u64,
     /// Some insert hears this track's notes (ADR 0022): they go into its outbox.
     pub listened: bool,
     /// Its compensation line (`Edge::Track`).
@@ -123,6 +128,7 @@ impl TrackSlot {
             strip: None,
             peak: 0.0,
             peak_block: 0,
+            inst_quiet: 0,
             listened: false,
             line: None,
             input: rec::TrackInputSlot::default(),
@@ -818,6 +824,24 @@ fn track_segment(
             }
         }
     };
+    // fx/final — how long its native instrument has been silent (its outputs of its own
+    // aside: a bus may sound while the main is silent, so such a unit never counts). A unit
+    // may say it wrote when it wrote zeros (Chorda's stage runs on with no voice): with no
+    // voice the samples themselves are looked at.
+    if s.instrument == SlotInstrument::Native {
+        let silent = s.outs.count == 0
+            && (!has_signal
+                || (s
+                    .native
+                    .as_ref()
+                    .is_some_and(|n| n.unit.active_voices() == 0)
+                    && l.iter().chain(r.iter()).all(|v| *v == 0.0)));
+        s.inst_quiet = if silent {
+            s.inst_quiet.saturating_add(m as u64)
+        } else {
+            0
+        };
+    }
     // Audio clips join the instrument's output, before the channel's level (ADR 0025 §3).
     let mut has_signal = rec::add_track_audio(
         None,
