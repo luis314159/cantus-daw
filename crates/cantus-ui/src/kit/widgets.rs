@@ -610,6 +610,35 @@ pub fn take_fields() -> Vec<Field> {
     })
 }
 
+thread_local! {
+    static BUTTONS: std::cell::RefCell<Option<Vec<Rect>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Keep, on this thread, every button a view paints from now on until [`take_buttons`]
+/// (the instruments' audit: no word may run under a button). Off, nothing is kept.
+pub fn record_buttons(on: bool) {
+    BUTTONS.with(|l| *l.borrow_mut() = on.then(Vec::new));
+}
+
+/// What [`record_buttons`] kept since the last call.
+pub fn take_buttons() -> Vec<Rect> {
+    BUTTONS.with(|l| {
+        l.borrow_mut()
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    })
+}
+
+/// Note a button painted in `rect` (kept only while [`record_buttons`] is on).
+pub fn note_button(rect: Rect) {
+    BUTTONS.with(|l| {
+        if let Some(v) = l.borrow_mut().as_mut() {
+            v.push(rect);
+        }
+    });
+}
+
 /// A menu's rows drawn: its rect, and the rows that open a submenu.
 pub type Listed = (Rect, Vec<Rect>);
 

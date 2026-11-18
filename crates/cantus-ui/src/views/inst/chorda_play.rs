@@ -32,18 +32,27 @@ const KEYS_H: f32 = 40.0;
 pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
     let busy = designing(app, spec);
     moved_once(app);
-    let area = super::super::chorda_source::list::column(app, ui, track, spec, s, ui.max_rect());
+    // The player's cards run along the foot, under the source list as well as the piano
+    // (fx/final: under the piano alone their eight knobs had 520 points and ran out of
+    // the Hammer card); the list above them scrolls.
+    let full = ui.max_rect();
+    let g = s.s(iu::GAP);
+    let h2 = s.s(card_h(0.0, 86.0));
+    let upper = Rect::from_min_max(full.min, pos2(full.right(), full.bottom() - h2 - g));
+    let top = super::super::chorda_source::list::column(app, ui, track, spec, s, upper);
+    let area = Rect::from_min_max(top.min, pos2(top.right(), full.bottom()));
     app.inst.chorda.area = Some(area);
     app.inst.chorda.view = Some(ui.clip_rect());
-    let g = s.s(iu::GAP);
     let side_w = s.s(SIDE_W).max(area.width() * 0.25);
     let side = Rect::from_min_max(pos2(area.right() - side_w, area.top()), area.max);
-    let center = Rect::from_min_max(area.min, pos2(side.left() - g, area.bottom()));
-    let h2 = s.s(card_h(0.0, 86.0));
-    let cards = Rect::from_min_max(pos2(center.left(), center.bottom() - h2), center.max);
+    let center = Rect::from_min_max(area.min, pos2(side.left() - g, upper.bottom()));
+    let cards = Rect::from_min_max(
+        pos2(full.left(), full.bottom() - h2),
+        pos2(side.left() - g, full.bottom()),
+    );
     let keys = Rect::from_min_max(
-        pos2(center.left(), cards.top() - g - s.s(KEYS_H)),
-        pos2(center.right(), cards.top() - g),
+        pos2(center.left(), center.bottom() - s.s(KEYS_H)),
+        center.max,
     );
     let picture = Rect::from_min_max(center.min, pos2(center.right(), keys.top() - g));
     view::scene_card(app, ui, track, spec, picture, s, busy.as_deref());
@@ -68,10 +77,14 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         ),
         ("chorda.output", Function::Output, output),
     ];
-    let fr = [0.36, 0.36, 0.28];
+    // Each card as wide as its share of the knobs (fx/final: at fixed fractions the
+    // Hammer's three knobs ran out of its card); a card too narrow for its knobs draws
+    // them a size smaller (`organ::parts::fitting`).
+    let total: usize = row.iter().map(|(_, _, k)| k.len()).sum();
     let mut x = cards.left();
     let w = cards.width() - 2.0 * g;
-    for ((title, f, keys), f_w) in row.into_iter().zip(fr) {
+    for (title, f, keys) in row {
+        let f_w = keys.len() as f32 / total.max(1) as f32;
         let r = Rect::from_min_size(pos2(x, cards.top()), vec2(w * f_w, cards.height()));
         card(
             app,

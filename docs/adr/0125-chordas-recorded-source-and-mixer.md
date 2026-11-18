@@ -184,3 +184,46 @@ fetch checks magic bytes and says so.
   clicked, makes a strip per output in order and the master stays the same to the bit; undo
   twice brings the model back to the bit; Tympanum's *Install from a file…* takes a kit the
   manifest does not know and plays it.
+
+## Amendment — the instruments read whole at every scale (fx/final, the site's pictures)
+
+**Context.** Shooting the site's pictures found four things in round 40's instrument views:
+
+- at the editor's 200 % Chorda's and Tympanum's views lost most of their words: the
+  desk's `mixer_look::say` (which the instruments' `iu::words` paint through) set its line
+  in a box of the 100 % height, while its words were set at the style's scale. From about
+  165 % the line was taller than the box allowed and `text::paint` dropped it;
+- Chorda's Play row ran *Velocity curve*'s knob out of the Hammer card. Under the piano
+  alone its eight knobs had about 520 points, and the cells were laid out at a fixed size
+  past the card's edge;
+- a long name in a list ran under its trailing button: "Accurate-Salamander Grand Piano"
+  under *785 MB* in Chorda's source list, the line under "MuldjordKit" under Tympanum's
+  *2.7 GB*;
+- Tympanum's pieces row cut its last tile (China) at the row's end, out of reach.
+
+**Decision.**
+
+- `say` sets its box at the style's scale (the 100 % look unchanged, to the pixel).
+- Chorda's player cards run along the foot under the source list as well as the piano,
+  each as wide as its share of the knobs. A row of cells too wide for its card draws them
+  a size smaller (`organ::parts::fitting`), and the designed short forms are short enough
+  for that size (*Curve*, *Symp.*, *Gan.*).
+- In a list, a name too long beside its button wraps to a second line in its own column
+  (the row a line taller), and the line under it keeps beside the button too.
+- A piece's tile is as wide as its widest name and key ask; a kit wider than its row
+  scrolls sideways.
+- The Mixer's short strip lines lose their "pair ·" ("over them", "the bench"), and
+  Spanish's "todos los micros" becomes "sus micros".
+
+**What the tests hold.** `tests/instruments_scale_e2e.rs`, over the app made by
+`CantusApp::assemble`, hosts the editor as a window sized to it shows it:
+
+- views: Chorda (Play, Mixer, Edit) and Tympanum (Kit, Mixer, Matrix);
+- scales: 100, 150 and 200 % at the size where each view lays out whole, plus the shell's
+  own 1040 × 680 and the narrowest window the editor allows (three quarters of it);
+- languages: English and Spanish.
+
+Every word whole at 100 % is painted whole at the other scales. No word is cut: not
+elided, not dropped, and at a view's whole size not painted past its card. No two words
+overlap, and none runs under a button. Before the fix it failed with 573 problems (most
+of them words dropped at 200 %).

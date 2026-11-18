@@ -138,7 +138,9 @@ pub fn at<R>(
 }
 
 /// A row of cells across `rect`, vertically centred, spread over its width (gaps between
-/// 2 and 14 points), centred when they do not need it all.
+/// 2 and 14 points), centred when they do not need it all. Cells of `size` that would run
+/// past `rect` are drawn a size smaller (fx/final: Chorda's Play row ran its third knob
+/// out of the Hammer card, its label cut at the card's edge).
 #[allow(clippy::too_many_arguments)]
 pub fn cells(
     app: &mut CantusApp,
@@ -154,6 +156,7 @@ pub fn cells(
     if n == 0 {
         return;
     }
+    let size = fitting(size, n, rect.width(), s);
     let sz = cell::size(size) * s.k;
     let spare = rect.width() - sz.x * n as f32;
     let gap = if n > 1 {
@@ -170,6 +173,25 @@ pub fn cells(
             cell(app, ui, track, spec, key, s, size);
         });
         record(app, spec, key, r);
+    }
+}
+
+/// The largest cell size, from `size` down to S, whose `n` cells fit `width` side by side
+/// (2-point gaps); S when none does.
+pub fn fitting(size: KnobSize, n: usize, width: f32, s: &Style) -> KnobSize {
+    let need =
+        |z: KnobSize| cell::size(z).x * s.k * n as f32 + s.s(2.0) * n.saturating_sub(1) as f32;
+    let mut z = size;
+    loop {
+        if need(z) <= width + 0.5 {
+            return z;
+        }
+        z = match z {
+            KnobSize::XL => KnobSize::L,
+            KnobSize::L => KnobSize::M,
+            KnobSize::M => KnobSize::S,
+            _ => return z,
+        };
     }
 }
 
