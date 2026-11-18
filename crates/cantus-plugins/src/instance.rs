@@ -37,6 +37,11 @@ pub const MAX_CHUNK: usize = 4096;
 /// Transport changes a block can carry (CLAP sends one per tempo change, seek or wrap).
 const MOVES: usize = 16;
 
+/// fx/final — how far (samples, at the host's tempo) the host's song may stand from where
+/// the last block left it before the move is a jump (a seek, a loop's wrap the host did not
+/// announce), not the rounding of its beats or a tempo changed inside the last block.
+pub const JUMP_SAMPLES: f64 = 64.0;
+
 /// How long the bypass takes to cross-fade, in seconds.
 const BYPASS_FADE_S: f32 = 0.010;
 
@@ -293,6 +298,9 @@ pub struct Shared {
     latency_changed: AtomicBool,
     /// The editor is open: publish telemetry.
     pub editor_open: AtomicBool,
+    /// fx/final — the host renders offline (CLAP's `clap.render`, set on the main thread;
+    /// VST3 says it with every block): a switch into it starts a render, which snaps.
+    pub offline: AtomicBool,
     telemetry: [AtomicU32; TELEMETRY_LEN],
     /// Blocks published since the start, so an editor can tell new telemetry from old.
     pub telemetry_serial: AtomicU32,
@@ -367,6 +375,7 @@ impl Shared {
             latency: AtomicU32::new(0),
             latency_changed: AtomicBool::new(false),
             editor_open: AtomicBool::new(false),
+            offline: AtomicBool::new(false),
             telemetry: [const { AtomicU32::new(0) }; TELEMETRY_LEN],
             telemetry_serial: AtomicU32::new(0),
             sample_rate: AtomicU32::new(0),
@@ -751,6 +760,27 @@ impl Bypass {
     }
 }
 
+/// fx/final — whether the host's song at `to` jumped from where it was left (`left`:
+/// playing, and its beats, at the same sample): playback starting from stop, or a playing
+/// song standing more than [`JUMP_SAMPLES`] from where it should be (a seek, a loop's wrap).
+/// A stop is not a jump, nor is a song without a timeline moving.
+fn jumped(left: Option<(bool, Option<f64>)>, to: &HostTransport, sample_rate: f64) -> bool {
+    if !to.playing {
+        return false;
+    }
+    match left {
+        Some((false, _)) => true,
+        Some((true, Some(was))) => match to.start_beats() {
+            Some(now) => {
+                let beat = to.tempo_or_default() / (60.0 * sample_rate.max(1.0));
+                (now - was).abs() > JUMP_SAMPLES * beat
+            }
+            None => false,
+        },
+        _ => false,
+    }
+}
+
 /// The audio thread's half of an instance.
 #[derive(Debug)]
 pub struct Processor {
@@ -813,6 +843,17 @@ pub struct Processor {
     /// A reading too far from `found_tempo` to believe at once: believed when the next
     /// block reads the same (a tempo change), forgotten when it does not (a seek).
     new_tempo: Option<f64>,
+    /// fx/final — the host's song jumped (a start from stop, a seek, a loop's wrap), the
+    /// plug-in was activated or reset, or an offline render began: at the next grid point,
+    /// once the values in force are configured, the unit takes them at once
+    /// (`EffectUnit::snap`) and the bypass lands — no glide from where it was. Never set by
+    /// a parameter change: one while playing still glides (ADR 0027, amended).
+    snap_due: bool,
+    /// Where the last block left the host's song: playing, and its beats there when the
+    /// host gives a timeline (`None`: no transport seen).
+    left: Option<(bool, Option<f64>)>,
+    /// The render mode last seen (offline or not).
+    offline: bool,
 }
 
 impl Drop for Processor {
@@ -932,6 +973,9 @@ impl Processor {
             last_beats: None,
             found_tempo: None,
             new_tempo: None,
+            snap_due: true,
+            left: None,
+            offline: false,
             modulation: vec![0.0; base.len()].into_boxed_slice(),
             sidechain: base[table.sidechain] >= 0.5,
             shared,
@@ -965,8 +1009,24 @@ impl Processor {
             self.last_beats = t.beats.filter(|b| b.is_finite()).map(|b| (b, self.pos));
             t
         });
+        if let Some(t) = &t {
+            let sr = f64::from(self.shared.sample_rate());
+            if jumped(self.left, t, sr) {
+                self.snap_due = true;
+            }
+        }
         self.transport = t;
         self.n_moves = 0;
+    }
+
+    /// fx/final — the host's render mode (VST3's `processMode`, CLAP's `clap.render`):
+    /// switching into offline starts a render, so the unit snaps at its first grid point.
+    /// Audio thread; no allocation.
+    pub fn set_offline(&mut self, offline: bool) {
+        if offline && !self.offline {
+            self.snap_due = true;
+        }
+        self.offline = offline;
     }
 
     /// A tempo read from how far the host's beats moved. A seek reads as an absurd tempo
@@ -1026,6 +1086,8 @@ impl Processor {
     /// Back to the start of a stream: silence in every line, the grid at zero.
     pub fn reset(&mut self) {
         self.unit.reset();
+        self.snap_due = true;
+        self.left = None;
         self.pos = 0;
         for ch in &mut self.bypass.ring {
             ch.fill(0.0);
@@ -1062,6 +1124,10 @@ impl Processor {
 
     /// Take everything the main thread changed since the last look.
     fn pull_main(&mut self) {
+        let offline = self.shared.offline.load(Ordering::Relaxed);
+        if offline != self.offline {
+            self.set_offline(offline);
+        }
         // fx:lapsus — a bank the main thread posted, swapped in (the old one goes back).
         if let Some((rx, gtx)) = self.lapsus.as_mut() {
             if crate::lapsus_bank::take_newest(
@@ -1193,7 +1259,20 @@ impl Processor {
         let n_moves = self.n_moves;
         while s < n {
             while mv < n_moves && self.moves[mv].0 as usize <= s {
-                cur = Some(self.moves[mv].1);
+                let to = self.moves[mv].1;
+                // fx/final — a transport inside the block that moves the song (a start, a
+                // seek) is a jump, as one at the block's start is.
+                let was = cur.map(|c| {
+                    let at = s - cur_at;
+                    let beats = c
+                        .start_beats()
+                        .map(|_| c.position(at, sr, block_start + cur_at as u64).beats);
+                    (c.playing, beats)
+                });
+                if jumped(was, &to, sr) {
+                    self.snap_due = true;
+                }
+                cur = Some(to);
                 cur_at = self.moves[mv].0 as usize;
                 mv += 1;
             }
@@ -1205,9 +1284,15 @@ impl Processor {
                 if self.dirty {
                     self.configure();
                 }
+                if self.snap_due {
+                    // After the values in force are configured: taken at once.
+                    self.snap_due = false;
+                    self.unit.snap();
+                    self.bypass.gain = self.bypass.target;
+                }
             }
             let to_grid = (GRID - self.pos % GRID) as usize;
-            let end = if self.dirty {
+            let end = if self.dirty || self.snap_due {
                 s + to_grid
             } else if let Some(ev) = events.get(next) {
                 let e = ev.offset as usize;
@@ -1227,9 +1312,11 @@ impl Processor {
             if mv < n_moves {
                 end = end.min((self.moves[mv].0 as usize).max(s + 1));
             }
+            let mut wrap = None;
             if let Some(t) = &cur {
                 if let Some(w) = t.wrap_after(s - cur_at, sr) {
                     end = end.min(cur_at + w);
+                    wrap = Some(cur_at + w);
                 }
                 let p = t.position(s - cur_at, sr, block_start + cur_at as u64);
                 self.unit.set_position(&p);
@@ -1248,6 +1335,10 @@ impl Processor {
             self.run(&mut left[s..end], &mut right[s..end], k);
             self.pos += (end - s) as u64;
             s = end;
+            // fx/final — the host's loop wraps here: the song jumps back to its start.
+            if wrap == Some(end) && end < n {
+                self.snap_due = true;
+            }
         }
         // Changes later than the block's last grid point: in force at the next one.
         for ev in &events[next..] {
@@ -1261,6 +1352,8 @@ impl Processor {
         match &cur {
             Some(t) => {
                 let p = t.position(n - cur_at, sr, block_start + cur_at as u64);
+                // fx/final — where the next block should find the song.
+                self.left = Some((t.playing, t.start_beats().map(|_| p.beats)));
                 let last = (n > cur_at).then(|| {
                     t.position(n - 1 - cur_at, sr, block_start + cur_at as u64)
                         .beats
@@ -1268,7 +1361,10 @@ impl Processor {
                 let timeline = t.start_beats().is_some() || t.seconds.is_some();
                 self.shared.publish_transport(&p, last, timeline);
             }
-            None => self.shared.forget_transport(),
+            None => {
+                self.left = None;
+                self.shared.forget_transport();
+            }
         }
         self.n_moves = 0;
         if self.shared.editor_open.load(Ordering::Relaxed) {

@@ -179,6 +179,25 @@ impl Plug {
         }
     }
 
+    /// fx/final — `clap.render`'s mode: offline (`true`) or real time; whether the plug-in
+    /// offers the extension and took it.
+    pub fn set_render(&self, offline: bool) -> bool {
+        use clap_sys::ext::render::*;
+        unsafe {
+            let ext = (*self.plugin).get_extension.unwrap()(self.plugin, CLAP_EXT_RENDER.as_ptr())
+                as *const clap_plugin_render;
+            if ext.is_null() {
+                return false;
+            }
+            let mode = if offline {
+                CLAP_RENDER_OFFLINE
+            } else {
+                CLAP_RENDER_REALTIME
+            };
+            (*ext).set.unwrap()(self.plugin, mode)
+        }
+    }
+
     pub fn deactivate(&self) {
         unsafe {
             (*self.plugin).stop_processing.unwrap()(self.plugin);
