@@ -98,10 +98,14 @@ leaves preview.
 - **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
   it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
   (B), as in FL's playlist.
-- **Thirty-one effects and ten instruments of its own** — now with **Cribrum** (auto filter),
-  **Fragor** (distortion pedals), **Lapsus** (time shaper), **Vetus** (lo-fi) and **Libra**
-  (utility), and **Aula**, a convolution reverb at zero latency (ADR 0112) — researched
-  against the best on the market and measured — [each one shown below](#instruments), with
+- **Forty-two effects, two controllers and ten instruments of its own** — now with **Cribrum**
+  (auto filter), **Fragor** (distortion pedals), **Lapsus** (time shaper), **Vetus** (lo-fi),
+  **Libra** (utility), **Tabula** (pedalboard), **Saltus** (pitch), **Arca** (amp), **Rota**
+  (rotary speaker), **Loquax** (vocoder), **Fractus** (glitch sequencer), **Caelum** (shimmer
+  reverb), **Vinculum** (bus compressor), **Lenis** (resonance suppressor), **Cedo** (ducker),
+  **Purus** (repair) and **Comparatio** (reference comparator), the controllers **Tactus** (X-Y
+  pad) and **Calculus** (formula), and **Aula**, a convolution reverb at zero latency (ADR
+  0112) — researched against the best on the market and measured — [each one shown below](#instruments), with
   what it does — plus free sound packs, among them the **Salamander Grand Piano**, streamed
   from disk.
 - **Each unit wears its own face** (ADR 0074): its colour, material, controls and the
@@ -408,7 +412,7 @@ simple synth every new track starts with, makes ten.
 
 ### Effects
 
-Thirty effects, each in a window with a face of its own; all of them are also CLAP and
+Forty-two effects, each in a window with a face of its own; all of them are also CLAP and
 VST3 plug-ins for other DAWs.
 Seven of them can be heard with and without, on the same excerpt of a demo song, at
 [cantusdaw.com](https://cantusdaw.com/#effects).
@@ -459,6 +463,24 @@ Seven of them can be heard with and without, on the same excerpt of a demo song,
 <tr>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/vetus-dark.png"><img src="docs/images/units/thumbs/vetus.jpg" alt="Vetus, its window"></a><br><b>Vetus</b><br><sub>Lo-fi</sub></td>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/libra-dark.png"><img src="docs/images/units/thumbs/libra.jpg" alt="Libra, its window"></a><br><b>Libra</b><br><sub>Utility</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/tabula-dark.png"><img src="docs/images/units/thumbs/tabula.jpg" alt="Tabula, its window"></a><br><b>Tabula</b><br><sub>Pedalboard</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/saltus-dark.png"><img src="docs/images/units/thumbs/saltus.jpg" alt="Saltus, its window"></a><br><b>Saltus</b><br><sub>Pitch</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/arca-dark.png"><img src="docs/images/units/thumbs/arca.jpg" alt="Arca, its window"></a><br><b>Arca</b><br><sub>Amp</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/rota-dark.png"><img src="docs/images/units/thumbs/rota.jpg" alt="Rota, its window"></a><br><b>Rota</b><br><sub>Rotary speaker</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/loquax-dark.png"><img src="docs/images/units/thumbs/loquax.jpg" alt="Loquax, its window"></a><br><b>Loquax</b><br><sub>Vocoder</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/fractus-dark.png"><img src="docs/images/units/thumbs/fractus.jpg" alt="Fractus, its window"></a><br><b>Fractus</b><br><sub>Glitch sequencer</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/caelum-dark.png"><img src="docs/images/units/thumbs/caelum.jpg" alt="Caelum, its window"></a><br><b>Caelum</b><br><sub>Shimmer reverb</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/vinculum-dark.png"><img src="docs/images/units/thumbs/vinculum.jpg" alt="Vinculum, its window"></a><br><b>Vinculum</b><br><sub>Bus compressor</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/lenis-dark.png"><img src="docs/images/units/thumbs/lenis.jpg" alt="Lenis, its window"></a><br><b>Lenis</b><br><sub>Resonance suppressor</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/cedo-dark.png"><img src="docs/images/units/thumbs/cedo.jpg" alt="Cedo, its window"></a><br><b>Cedo</b><br><sub>Ducker</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/purus-dark.png"><img src="docs/images/units/thumbs/purus.jpg" alt="Purus, its window"></a><br><b>Purus</b><br><sub>Repair</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/comparatio-dark.png"><img src="docs/images/units/thumbs/comparatio.jpg" alt="Comparatio, its window"></a><br><b>Comparatio</b><br><sub>Reference comparator</sub></td>
 </tr>
 </table>
 
@@ -964,12 +986,265 @@ Libra is the utility every channel needs. Swap, sum to mono, take one side or li
 <sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-libra) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/libra-light.png)</sub>
 
 </details>
+<details>
+<summary><b>Tabula</b> — Pedalboard. Cantus's own effects as real pedals on a board — the valve amp with its cabinet, the rotary speaker and nearly every other, any size, in any order, split into two lanes and joined again — with cables that glow with the signal and eight macros over it all.</summary>
+
+<a href="docs/images/units/tabula-dark.png"><img src="docs/images/units/tabula-dark.png" alt="Tabula — Pedalboard, its window in Cantus"></a>
+
+Tabula is a pedalboard of Cantus's own effects: drives, the valve amp and its cabinet, filters, modulation, the rotary speaker, delays, reverbs, each the very effect, so one pedal on the board sounds exactly as that effect alone. Drag pedals to reorder them, drop one on lane A or B to split the chain into two that meet again in time, switch each by its footswitch without a click or a latency jump, and open any pedal's full editor in place. Eight macros move as many knobs as you map to them; Randomise rolls new settings within musical ranges. It starts on a guitar rig, and every preset is a whole board.
+
+- A board of one pedal is that effect, to the bit
+- Up to sixteen pedals — the amp with its cabinet and the rotary among them — five sizes, in rows when the board fills
+- An A/B split whose lanes meet in time, to the sample
+- Footswitches that never move the latency; no click on any change
+- Eight macros with learn, and Randomise within musical ranges
+- Fourteen boards for guitar, bass, synths, drums and voice
+
+<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-tabula) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tabula-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Saltus</b> — Pitch. Shift, harmonise, octave and whammy in one unit — the note you play leaping to each voice across a keyboard, the music written on a staff above it as you play.</summary>
+
+<a href="docs/images/units/saltus-dark.png"><img src="docs/images/units/saltus-dark.png" alt="Saltus — Pitch, its window in Cantus"></a>
+
+Saltus moves the pitch of what it hears four ways. Shift adds two voices at fixed intervals, by a mono engine that keeps a voice's formants at 2.7 ms or a poly engine that moves whole chords and mixes. Harmony sings two voices a number of scale degrees from the note heard — in a key, in the chords another track holds, or the melody it plays — keeping the singer's own bends. Octave adds one and two octaves down and one up, from an analog-style divider with no latency or clean. Whammy sweeps a voice from heel to toe with a pedal you rock — or that a held note presses. The engine switch shows each engine's latency, and the factory presets come in both.
+
+- Mono at 2.7 ms with the formants kept, or poly for chords at 85 ms
+- Harmony in a key, on another track's chords, or singing its melody
+- An analog octave down with no latency, or a clean one
+- A whammy rocked by hand, by automation or by held notes
+- The input delayed, to the bit, at its defaults; latency reported exactly
+- Eighteen factory presets in both engines; choose its starting preset
+
+<sub>18 factory presets — [hear them](https://cantusdaw.com/#unit-saltus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/saltus-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Arca</b> — Amp. Five valve amps modelled from their circuits and their cabinets — the valves glowing as hard as each one works, the microphone dragged across the speaker's cone.</summary>
+
+<a href="docs/images/units/arca-dark.png"><img src="docs/images/units/arca-dark.png" alt="Arca — Amp, its window in Cantus"></a>
+
+Arca solves each amp's schematic as a circuit, valve by valve: a clean amp, a crunch, a chiming class A, a four-stage high gain and a bass amp, with their tone stacks from their component values, their power amps pushing and pulling, the supply sagging under a loud chord. Its window is the amp: the chassis with its valves in the order the signal meets them, each glowing as hard as it works; the faceplate; and the cabinet, where the microphone is dragged across the cone and back from the grille, or your own impulse response plays. At its defaults — no amp, no cabinet — it passes the sound untouched.
+
+- Five amps solved from their schematics, valve by valve, oversampled
+- The supply sags under a loud chord; a sag knob from stiff to soft
+- Five cabinets with the microphone's kind, place and distance, or your own impulse response
+- The valves glow as hard as each one works
+- For guitar, bass, keys and voice; a pedal on the pedalboard too
+- Sixteen factory presets; nothing touched at its defaults
+
+<sub>16 factory presets — [hear them](https://cantusdaw.com/#unit-arca) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/arca-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Rota</b> — Rotary speaker. A rotary cabinet for any track — its horn and drum turning in a cut-away walnut cabinet, ramping between slow and fast at their own pace.</summary>
+
+<a href="docs/images/units/rota-dark.png"><img src="docs/images/units/rota-dark.png" alt="Rota — Rotary speaker, its window in Cantus"></a>
+
+Rota is the rotary speaker of Cantus's organ as an effect for any track: a horn and a drum turning with the speeds and the spin-up and spin-down times measured on the real cabinets, the sound of each read at its Doppler delay, heard through two microphones you move round the cabinet and away from it, through the cabinet's valve amp. Stop, slow and fast — thrown by a click, by automation or by the notes a track plays. Its window draws the cabinet cut away, the rotors turning as the engine turns them, and each rotor's ramp.
+
+- Horn and drum with the published speeds and ramps; a brake that parks them
+- Two microphones moved round the cabinet and away from it
+- The switch thrown by notes, to the sample
+- The cabinet's valve amp, an open or closed back
+- No latency; untouched at its defaults
+- Thirteen factory presets; a pedal on the pedalboard too
+
+<sub>13 factory presets — [hear them](https://cantusdaw.com/#unit-rota) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/rota-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Loquax</b> — Vocoder. A vocoder that makes any voice speak through a synthesiser played by your notes, through another track or both — the bands lit by the voice, the levels drawn with the mouse.</summary>
+
+<a href="docs/images/units/loquax-dark.png"><img src="docs/images/units/loquax-dark.png" alt="Loquax — Vocoder, its window in Cantus"></a>
+
+Loquax splits a voice into 8 to 64 bands, follows each band and lays it on the same band of a carrier: its own polyphonic synthesiser played by the notes of any track, another track's sound on the sidechain — a pad, a guitar for a talk-box, a loop — or both. The robot drones a note with no notes at all; the roles can be traded so drums speak; the consonants come through; the formants move without moving the notes; a hold freezes the vowel. Its window is a vocoder's deck: the voice speaking into a gooseneck, a talk-box's tube or a desk microphone, the bank's screen lit band by band where you draw each band's level, and the meter bridge's two needles. At its defaults it passes the sound untouched.
+
+- 8 to 64 bands with slopes of order 4, 6 or 8, measured against the analytic response
+- A polyphonic synthesiser played by any track's notes, or another track on the sidechain, or both
+- A robot that needs no notes; the roles traded so drums talk
+- Consonants through, formants moved, the vowel held
+- The band levels drawn on the bank; a gooseneck, a talk-box tube or a desk microphone to speak into
+- Fifteen factory presets; no latency; untouched at its defaults
+
+<sub>15 factory presets — [hear them](https://cantusdaw.com/#unit-loquax) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/loquax-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Fractus</b> — Glitch sequencer. A glitch sequencer and grain cloud: stutters, reverses, tape stops, gates and throws painted on lanes in time with the song, played by your notes too.</summary>
+
+<a href="docs/images/units/fractus-dark.png"><img src="docs/images/units/fractus-dark.png" alt="Fractus — Glitch sequencer, its window in Cantus"></a>
+
+Fractus is ten effects on ten lanes of a step sequencer that follows the song: repeat (with the stutter build that halves each part), reverse, tape stop and start, shuffle, pitch jump, crush, filter sweep, gate, delay throw and the grain cloud. Paint a block with the mouse — its height is its amount, a stroke sets its chance — and it plays on its steps, every join smoothed so nothing clicks; or let held notes play the lanes, quantised to the grid or at once. Beside the lanes a cloud of grains reads the last seconds, pitched to a scale, spread in the stereo field, frozen with one switch. Its window is the machine itself: the pads lit to their amount, the playhead, the keys that play the lanes, and the grains drawn live on a scope. At its defaults it passes the sound untouched.
+
+- Ten modules on ten lanes, 1/4 to 1/64 steps (triplets too), up to four bars, swing
+- Repeats replayed to the bit, the stutter build, every join's splatter −62 to −71 dB where a hard cut's is −3 to −14
+- Blocks painted with the mouse: height is the amount, a stroke sets the chance
+- Held notes play the lanes, on the step or at once
+- A grain cloud up to 200 grains a second, pitched to a scale, frozen with one switch
+- Eighteen factory presets; no latency; untouched at its defaults
+
+<sub>18 factory presets — [hear them](https://cantusdaw.com/#unit-fractus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/fractus-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Caelum</b> — Shimmer reverb. A shimmer reverb for spaces no building holds: tails that climb an octave at a time, washes that never end, a sound that swells in, freeze and ducking — under an observatory's night sky.</summary>
+
+<a href="docs/images/units/caelum-dark.png"><img src="docs/images/units/caelum-dark.png" alt="Caelum — Shimmer reverb, its window in Cantus"></a>
+
+Caelum is a tank of 8 or 16 delay lines whose loop carries two pitch-shifted voices: each pass trades part of the tail for itself an interval higher (or lower), so a chord rises into the sky as it rings — and the trade moves energy without making any, so the decay you set is the decay you hear, shimmer or not. Infinite holds the tail for good at the level it has, layering what you play next under a soft ceiling, and its Sustain decides whether the held wash keeps its tone for ever or lets the shimmer carry it away; Freeze holds what is in the tank and lets nothing in; Bloom swells the sound into the space over up to four seconds; the ducking steps the space aside while the dry plays, or while another track does. The pre-delay follows the song's tempo when you ask. Its window is an observatory at night: the tail glowing on the horizon over the tank's water, the shimmer's octaves rising band by band as it ages, the voices set on a brass astrolabe and the decay of each octave glowing in glass tubes. At its defaults it passes the sound untouched.
+
+- 16 or 8 modulated lines; the decay within 3.1 % of the setting in every octave
+- Two shimmer voices from −36 to +36 semitones that move energy and make none
+- Infinite held for five minutes within 0.4 dB; Freeze within 0.15 dB
+- Bloom, ducking by its own input or another track's, a pre-delay synced to the song
+- The voices dragged on the astrolabe, the decay dragged on its tubes
+- Nineteen factory presets; no latency; untouched at its defaults
+
+<sub>19 factory presets — [hear them](https://cantusdaw.com/#unit-caelum) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/caelum-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Vinculum</b> — Bus compressor. The bus compressor that glues a mix, three ways — a console's VCA with its Auto release, a photocell leveller and a valve variable-mu — racked, its needles swinging, keyed by any track.</summary>
+
+<a href="docs/images/units/vinculum-dark.png"><img src="docs/images/units/vinculum-dark.png" alt="Vinculum — Bus compressor, its window in Cantus"></a>
+
+Vinculum is the compressor engineers reach for by name on a bus, three ways. The VCA is a console's feed-forward bus compressor on a published gain computer, its ratio, attack and release on stepped switches, with an Auto release of two time constants: a lone hit lets go in a tenth of a second, sustained work slowly, so the mix breathes without pumping. The opto is a photocell lit by the output — soft at first, about 3:1 at depth, near 10:1 in Limit — with the cell's slow memory: the longer it was lit, the longer it lets go. The vari-mu is a valve whose ratio rises as it works, from 1.5:1 to 4:1, or from 4:1 to 20:1 in Limit, its loop solved with no delay so it cannot ring, with the classic limiter's six time positions and an odd-harmonic valve colour you add as you like. Any track can be the key — the drums pressing the whole mix — through a high-pass so the low end does not pull it, and the mix knob makes it parallel. Its window is the unit in its rack: two backlit needle meters with a window on the model's gain element between them, the faceplate's switches and jewel lamps answering a click, and a screen with the transfer curve and eight seconds of reduction. No latency; at its defaults it passes the sound untouched.
+
+- VCA, opto and vari-mu, each settling on its own law within 0.02 dB and reaching its published ratios
+- The VCA's Auto release: a lone hit back in 0.1 s, sustained work slowly
+- The vari-mu's ratio rising to 20:1 at 12 dB, its six time positions, a valve colour at 2×
+- Keyed by any track through a side-chain high-pass; parallel by its mix
+- The faceplate's switches and lamps answer a click; the key chosen from its lamp
+- Fourteen factory presets; no latency; untouched at its defaults; a pedal on the pedalboard too
+
+<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-vinculum) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/vinculum-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Lenis</b> — Resonance suppressor. Smooths what rings: the whistles, the harsh peaks and the boxy build-ups that stand out of a sound's own spectrum, found moment by moment and taken down by a share — the notes and the tone left alone, on a bench analyser you can watch it work on.</summary>
+
+<a href="docs/images/units/lenis-dark.png"><img src="docs/images/units/lenis-dark.png" alt="Lenis — Resonance suppressor, its window in Cantus"></a>
+
+Lenis listens to a sound the way an engineer sweeps an equaliser for the frequency that hurts, only it does it on every frame. A low-delay analysis compares each frequency with the outline of the sound's own spectrum — an envelope drawn over its peaks, so a note's harmonics and a cymbal's wide sheen are not mistaken for rings — and takes away a share of whatever stands out: at 100 % a resonance comes down to the outline, at 50 % half way. Sharpness says whether only narrow rings count or broad build-ups too, selectivity how far a peak must stand out, and attack and release how fast it follows; the Soft curve barely touches a peak just over the line, the Hard one takes every peak by its share. The focus keeps it where you want it — two limits and six bands you drag on the screen to weight a region or leave it alone. Fast, Standard and Precise trade the frame's length (5, 11 or 21 ms of latency, compensated by the mixer) for detail in the low mids; linked, independent or mid and side; and Listen to what is removed plays only what it takes. Its window is a bench analyser: the input's spectrum as a glowing line with the cut hanging under it as a veil, a bar per frequency of how much is taken, the Depth dial and push keys beside it. At its defaults it passes the sound untouched, only delayed by its latency.
+
+- A +12 dB ring on noise taken down 11.4 dB at full depth (Hard), its neighbours within 0.02 dB
+- A note's harmonics are not resonances: a steady note's low partials untouched to 0.00 dB
+- Follows a resonance in 8 ms at its fastest attack; three qualities, 5 to 21 ms of latency, compensated by the mixer
+- A focus with two limits and six bands dragged on the screen; linked, independent or mid and side
+- Listen to what is removed; flat noise barely touched — at half depth what it takes from pink noise is 50 dB under it
+- Fourteen factory presets; the input delayed, to the bit, at its defaults; a pedal on the pedalboard too
+
+<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-lenis) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/lenis-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Cedo</b> — Ducker. Makes room: the bass gives way to the kick, the music to the voice, or the whole track pumps on the beat in a shape you draw — sample-exact, on a Victorian beam engine whose cam is your shape.</summary>
+
+<a href="docs/images/units/cedo-dark.png"><img src="docs/images/units/cedo-dark.png" alt="Cedo — Ducker, its window in Cantus"></a>
+
+Cedo ducks a track three ways. By another track's sound: route a kick or a voice as its key, filter the key (a high-pass or a band-pass), set a threshold, and the duck attacks along an S, holds from the key's last sample over the line and lets go over exactly the release you set, with up to 10 ms of lookahead so it is down before the transient lands. By the song: a shape you draw over one cycle — a quarter, an eighth, a triplet, a bar — plays on the song's own sample grid, so the pump is the same in every render and from any bar, with swing and smoothed edges that never click. By notes: another track's MIDI fires the shape, its velocity scaling the depth if you like. It can duck the whole sound or only the lows or the highs, split at minimum phase with no latency or at linear phase with no phase turn — its latency an octave under the crossover by default, or a fixed floor if you need a constant one, compensated by the mixer. Its window is a Victorian beam engine: the cam on its flywheel is your shape turning, the beam squeezes a bellows as the track is ducked, and a dark screen shows the shape, what is ducked now and the last four seconds; drag the points, bend the curves, drag the envelope's handles and the threshold.
+
+- Three triggers: another track's sound, the song's beat, another track's notes
+- A shape you draw, on the song's sample grid: the same from any bar, swing and click-free edges
+- Hold counted from the key's last sample over the threshold; up to 10 ms of lookahead
+- Whole, lows or highs, minimum or linear phase; the latency follows the crossover or a fixed floor
+- Drag the shape's points and bends, the envelope's handles, the threshold and the crossover
+- Seventeen factory presets; untouched at its defaults; a pedal on the pedalboard too
+
+<sub>17 factory presets — [hear them](https://cantusdaw.com/#unit-cedo) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/cedo-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Purus</b> — Repair. A restoration bench for a track as it plays: mains hum and its harmonics out, clicks and crackle rebuilt, a room's tail lifted off a voice — and what it takes out drawn in its own colour.</summary>
+
+<a href="docs/images/units/purus-dark.png"><img src="docs/images/units/purus-dark.png" alt="Purus — Repair, its window in Cantus"></a>
+
+Purus cleans a track while it plays, in three modules you switch on as you need them. Hum removal notches the mains at 50 or 60 Hz and up to sixteen harmonics, at the frequency you set, followed as the mains drift, or found by itself — or, gently, learns the hum and subtracts it, holding what it learned while a bass note sits on the same frequencies. Click and crackle removal rebuilds each click from the music around it and takes the crackle out of the high band. Room removal predicts a room's tail from the signal and takes it down, its decay set by hand or measured from the pauses. Each module has a key to hear only what it takes out; the latency is only the modules that are on, and Cantus compensates it. Its window is a restorer's bench: a spectrogram on dark glass with what is heard in a warm heat and what is taken out in a cool residue, the hum's harmonics as a comb of needles you drag, the room's tail before and after, three cartridges with their toggles. At its defaults every module is off and the sound passes untouched.
+
+- Hum and up to 16 harmonics down 37–43 dB; fixed, followed within 2 Hz, or 50/60 found by itself
+- Gentle de-hum: a bass on 50, 100 and 150 Hz loses under half a decibel
+- Clicks rebuilt from the music around them; crackle taken out of the high band
+- A room's tail taken down 12 dB and more, its decay set or measured
+- Hear what each module removes; the hum's comb and the room's tail dragged on the screen
+- Sixteen factory presets; latency only for the modules on; untouched at its defaults
+
+<sub>16 factory presets — [hear them](https://cantusdaw.com/#unit-purus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/purus-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Comparatio</b> — Reference comparator. Your mix beside the records you love, at the same loudness: switch without a click, see where the tone, the loudness, the dynamics and the stereo part ways, send the difference to an EQ, and test your ears blind.</summary>
+
+<a href="docs/images/units/comparatio-dark.png"><img src="docs/images/units/comparatio-dark.png" alt="Comparatio — Reference comparator, its window in Cantus"></a>
+
+Comparatio sits on the master's last insert and holds up to eight reference tracks, each a file read from your disk and never copied into the project. Press the big selector and you hear the reference instead of your mix, matched to your mix's loudness — by its integrated loudness, section by section, or by hand — through a crossfade too smooth to click; press it again and your mix is back, to the bit. Between the two decks, a dark screen draws both tonal balances (the reference's from its whole file, yours as it plays), their difference with how sure it is, and the match EQ that would bring yours toward it, sent to an Aequalis before Comparatio as editable bands with one click. The decks read short-term, integrated and momentary loudness, true peak and loudness range; the screen adds crest factor, peak to loudness, the two loudness histograms, and correlation and width in three bands. A blind drawer runs an ABX test and tells you the chance you were guessing. Renders, exports and freezes always hear your mix, never a reference. Its CLAP and VST3 plug-in loads references by path with their size and hash, and says plainly when a file is missing or changed.
+
+- Matched within 0.1 LU (integrated, short-term or by hand); a switch at −94 dBFS of click
+- Up to eight references, each with its own analysis; drop a file on it or load one
+- Tonal balance and difference in thirds or sixths of an octave, with how sure it is
+- Match EQ drawn before it is sent; Send to Aequalis puts editable bands before it
+- EBU loudness, true peak, crest, histograms, correlation and width in three bands
+- Blind ABX with the exact chance of guessing; renders never hear a reference
+
+<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-comparatio) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/comparatio-light.png)</sub>
+
+</details>
 
 Plus the older **Reverb** (kept for the projects that use it), and any **CLAP or VST3** plug-in with a
 generic editor or its own window. Every effect is a bit-exact wire at settings that do
 nothing, and any strip can key any of them. Fervor, Latitudo and Culmen make the master
 chain a mastering chain. Design notes and feature matrices: [docs/plugins/](docs/plugins/)
 and [docs/instruments/](docs/instruments/).
+
+### Controllers
+
+Two modulators with windows of their own (ADRs 0144, 0145). They make no sound: they move
+the parameters you link to them — an effect's, an instrument's, a hosted plug-in's, a
+send's — as Cantus's other modulators do, each link with its own range, and their own axes
+and knobs can be automated and learnt by a MIDI controller like any parameter.
+
+<table>
+<tr>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/tactus-dark.png"><img src="docs/images/units/thumbs/tactus.jpg" alt="Tactus, its window"></a><br><b>Tactus</b><br><sub>X-Y pad controller</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/calculus-dark.png"><img src="docs/images/units/thumbs/calculus.jpg" alt="Calculus, its window"></a><br><b>Calculus</b><br><sub>Formula controller</sub></td>
+</tr>
+</table>
+
+<details>
+<summary><b>Tactus</b> — X-Y pad controller. Play two parameters at once with one hand, and keep the gesture as a path that loops with the song.</summary>
+
+<a href="docs/images/units/tactus-dark.png"><img src="docs/images/units/tactus-dark.png" alt="Tactus — X-Y pad controller, its window in Cantus"></a>
+
+Tactus is a modulator with a window of its own: a glass pad whose puck drives every parameter you link to its two axes, X and Y, each link with its own range and bend. The puck can glide after your hand, follow a path you draw or record while the song plays, and a gesture recorded as automation writes two lanes in one undo step.
+
+- Two axes driving up to 32 parameters; a range and a bend per link
+- Inertia: the puck glides after the hand, from at once to ten seconds behind
+- Draw a path, or record one while the song plays; it loops in time with the song
+- A recorded gesture writes two automation lanes, X and Y, in one undo step
+- Each axis automatable and learnable by a MIDI controller, like any parameter
+- Bake its moves into automation lanes, inertia and path included
+
+<sub>4 factory presets · a modulator in Cantus's own matrix, not a plug-in · [light theme](docs/images/units/tactus-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Calculus</b> — Formula controller. Type a formula of the song's time and three knobs, and it moves any parameter, the same on every render.</summary>
+
+<a href="docs/images/units/calculus-dark.png"><img src="docs/images/units/calculus-dark.png" alt="Calculus — Formula controller, its window in Cantus"></a>
+
+Calculus is a modulator driven by a formula in FL Studio's syntax, typed on a calculator's display with a keypad of the language's words. Its plot shows the last four beats and the next four as the knobs a, b and c are now; a formula that does not compile shows its error at its character and never reaches the audio, and its random words are seeded so a render repeats.
+
+- FL Studio's formula syntax: Sin, Cos, tri, saw, Round, If, Max, Min and more
+- Three knobs a, b, c, each automatable, learnable or moved by another modulator
+- A broken formula shows its error at the character and keeps the last good one playing
+- A plot of four beats past and four ahead, now a lit bead
+- Repeatable: time from the song, random words seeded; live equals offline to the bit
+- Nine presets on one knob plan: a the rate, b the shape, c the depth
+
+<sub>9 factory presets · a modulator in Cantus's own matrix, not a plug-in · [light theme](docs/images/units/calculus-light.png)</sub>
+
+</details>
 
 ### The workspace
 
@@ -1206,7 +1481,7 @@ cables drawn under the desk, the routing matrix, solo with connected routes, a t
 channel EQ, a dry/wet per insert slot, ten slots per strip, multi-selection with ganged
 faders, submixes, docks, groups with colours, a pan law per project, width and polarity.
 
-**Effects** (ADRs 0017–0018, 0026). The thirty above, each in a window with presets, A/B, a display
+**Effects** (ADRs 0017–0018, 0026). The forty-two above, each in a window with presets, A/B, a display
 that is the control and a face of its own (ADRs 0074, 0115), plus the older Reverb, edited in the inspector;
 design notes in `docs/plugins/`.
 
