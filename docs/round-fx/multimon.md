@@ -464,3 +464,12 @@ memory numbers are steady across runs.
 To do on a quiet machine with a release build, before the beta's scorecard publishes these
 numbers: run the same script, read the piano roll's passes while playing, and take the GPU
 counters again.
+
+**The whole cantus-ui suite** (2026-11-17, after the leftovers):
+- 322 of the 323 test binaries pass, and cantus-host's library tests pass (64, including
+  `owner_tests`). Clippy `-D warnings` and fmt are clean for both crates.
+- **The one failure:** `scene_vector::a_lid_drag_rebuilds_within_its_budget`, a
+  2-second wall-clock budget on Chorda's picture rebuild. Run alone on the same busy
+  machine it failed twice and passed once. It times code this branch does not touch
+  (`scene::image`), so the load is the likely cause; it should be run again on a quiet
+  machine.
