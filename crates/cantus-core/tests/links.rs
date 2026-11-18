@@ -928,3 +928,161 @@ fn a_grown_copy_grows_the_siblings_that_showed_what_it_showed() {
     bus.undo();
     assert_eq!(normalised(bus.project()), before);
 }
+
+/// fx/final's undo fuzz (seed 15): a clip bound to an ARA plug-in was linked to a warped
+/// group (Link to: the group's content, warp and all, onto the bound clip), then let go;
+/// undoing the release had to bind a warped clip again, which `SetClipAra` refuses, so the
+/// undo failed. A bound clip, or a group with one, takes no warp, reverse or audible pitch
+/// edits by any path (ADR 0097): the Link to is refused, and the history stays exact.
+#[test]
+fn link_to_never_puts_a_warp_under_an_ara_binding() {
+    use cantus_core::ara::{AraClip, AraPlugin};
+    use cantus_core::audio::AudioSource;
+    use cantus_core::warp::Warp;
+    let (mut bus, tracks, _) = fixture();
+    let (start, steps) = (normalised(bus.project()), bus.history().len());
+    let sid = AudioSourceId(bus.alloc_id());
+    bus.execute(
+        Command::InsertAudioSource {
+            source: AudioSource {
+                id: sid,
+                name: "loop".into(),
+                path: "loop.wav".into(),
+                sample_rate: 48_000,
+                channels: 2,
+                frames: 96_000,
+                sha256: None,
+                recorded: true,
+            },
+        },
+        Origin::User,
+    )
+    .unwrap();
+    // `w`, warped, and its linked copy `v`; `b`, plain, then bound.
+    let mut w = bus.new_clip("w", Ticks::beats(8), Ticks::beats(4));
+    let mut audio = AudioRegion::of(sid);
+    audio.warp = Some(Box::new(Warp::identity(48_000, bus.project().tempo_bpm, 0)));
+    w.audio = Some(audio);
+    let wid = w.id;
+    bus.execute(
+        Command::InsertClip {
+            track: tracks[1],
+            clip: Box::new(w),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let vid = linked_copy(&mut bus, tracks[1], wid, tracks[1], Ticks::beats(16));
+    let mut b = bus.new_clip("b", Ticks::beats(8), Ticks::beats(4));
+    b.audio = Some(AudioRegion::of(sid));
+    let bid = b.id;
+    bus.execute(
+        Command::InsertClip {
+            track: tracks[0],
+            clip: Box::new(b),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let plugin = AraPlugin {
+        id: format!("{:032X}", 1),
+        name: "Test ARA".into(),
+        vendor: "Cantus Tests".into(),
+        path: "test.vst3".into(),
+        factory_id: "org.cantus.test".into(),
+    };
+    bus.execute(
+        Command::SetClipAra {
+            track: tracks[0],
+            clip: bid,
+            ara: Some(Box::new(AraClip::new(plugin.clone()))),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let bound = normalised(bus.project());
+
+    // The bound clip linked to the warped group: refused whole, nothing changed.
+    let mut ids = Counter::of(&bus);
+    let cmds = links::link_to(
+        bus.project(),
+        &[(tracks[0], bid)],
+        (tracks[1], wid),
+        &mut || ids.take(),
+    );
+    assert!(cmds
+        .iter()
+        .any(|c| matches!(c, Command::SetClipContent { .. })));
+    while bus.project().next_id < ids.0 {
+        bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+    }
+    let linked = bus.execute(
+        Command::Batch {
+            label_key: "cmd.link_clips".into(),
+            commands: cmds,
+        },
+        Origin::User,
+    );
+    assert!(linked.is_err(), "a warp came in under the binding");
+    assert_eq!(normalised(bus.project()), bound);
+    let b_now = clip(&bus, tracks[0], bid);
+    assert!(b_now.audio.as_ref().unwrap().warp.is_none());
+
+    // Nor through a sibling: `v` bound, `w`'s content set with a warp — refused; the same
+    // content without one (the group's own, unwarped) is taken.
+    bus.execute(
+        Command::SetClipAudio {
+            track: tracks[1],
+            clip: wid,
+            audio: Some(AudioRegion::of(sid)),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    bus.execute(
+        Command::SetClipAra {
+            track: tracks[1],
+            clip: vid,
+            ara: Some(Box::new(AraClip::new(plugin))),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let mut warped = ClipContent::of(&clip(&bus, tracks[1], wid));
+    warped.audio.as_mut().unwrap().warp =
+        Some(Box::new(Warp::identity(48_000, bus.project().tempo_bpm, 0)));
+    let set = |content: ClipContent| Command::SetClipContent {
+        track: tracks[1],
+        clip: wid,
+        content: Box::new(content),
+    };
+    assert!(bus.execute(set(warped.clone()), Origin::User).is_err());
+    let mut reversed = warped.clone();
+    reversed.audio.as_mut().unwrap().warp = None;
+    reversed.audio.as_mut().unwrap().reverse = true;
+    assert!(bus.execute(set(reversed), Origin::User).is_err());
+    let mut plain = warped;
+    plain.audio.as_mut().unwrap().warp = None;
+    plain.name = "renamed".into();
+    bus.execute(set(plain), Origin::User).unwrap();
+    assert_eq!(clip(&bus, tracks[1], vid).name, "renamed");
+    links::check(bus.project()).unwrap();
+
+    // The fuzz's own steps after the refused Link to: each binding let go, then every step
+    // undone back to the start, each one applying.
+    for (t, c) in [(tracks[0], bid), (tracks[1], vid)] {
+        bus.execute(
+            Command::SetClipAra {
+                track: t,
+                clip: c,
+                ara: None,
+            },
+            Origin::User,
+        )
+        .unwrap();
+    }
+    while bus.history().len() > steps {
+        assert!(bus.undo().is_some(), "an undo failed");
+    }
+    assert_eq!(normalised(bus.project()), start);
+}

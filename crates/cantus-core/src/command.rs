@@ -3655,6 +3655,17 @@ impl Command {
                 if content.automation.as_ref().is_some_and(|a| !a.is_valid()) {
                     return Err(CommandError::InvalidValue("automation curve".into()));
                 }
+                // r36:ara: content shared onto a bound clip (or onto a group one of whose
+                // clips is bound) brings no warp, reverse or audible pitch edits, as
+                // `SetClipAudio` refuses them (ADR 0097). A Link to that gave a bound clip a
+                // warped group's content let a warp in under the binding, and the unbind's
+                // undo could then never bind it again (fx/final's undo fuzz, seed 15).
+                if content.audio.as_ref().is_some_and(|a| {
+                    a.reverse || a.warp.is_some() || a.pitch.as_ref().is_some_and(|p| p.audible())
+                }) && ara_bound_group(project, track, clip)
+                {
+                    return Err(CommandError::InvalidValue("bound to an ARA plug-in".into()));
+                }
                 let old = edit_shared(project, track, clip, |c| {
                     Ok(content.as_ref().clone().swap_into(c))
                 })?;
