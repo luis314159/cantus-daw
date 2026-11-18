@@ -63,6 +63,8 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         Sound { file: "chorda-studio", name: ("Studio Bright", "Estudio brillante"), what: ("Keys — Pop", "Teclas — Pop"), on: "" },
         Sound { file: "chorda-jazz", name: ("Jazz Club", "Club de jazz"), what: ("Keys — Jazz · Soul", "Teclas — Jazz · Soul"), on: "" },
     ]),
+    ("tympanum", &[
+    ]),
     ("pulsus", &[
         Sound { file: "pulsus-classic", name: ("Pulsus (classic)", "Pulsus (clásico)"), what: ("Drums — Pop", "Batería — Pop"), on: "" },
         Sound { file: "pulsus-studio", name: ("Studio", "Estudio"), what: ("Drums — Pop, Rock", "Batería — Pop, Rock"), on: "" },
@@ -218,6 +220,66 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         Sound { file: "libra-mono_check", name: ("Mono check", "Comprobar en mono"), what: ("Bus — Pop, House · EDM", "Bus — Pop, House · EDM"), on: "creative" },
         Sound { file: "libra-flip_left", name: ("Flip the left", "Invertir el izquierdo"), what: ("Drums — Rock, Film · Game", "Batería — Rock, Cine · Videojuegos"), on: "drums" },
         Sound { file: "libra-haas_wide", name: ("Haas width", "Anchura Haas"), what: ("Creative — Pop, Ambient · Cinematic", "Creativo — Pop, Ambient · Cinemático"), on: "creative" },
+    ]),
+    ("tabula", &[
+        Sound { file: "tabula-guitar_rig", name: ("Guitar rig", "Equipo de guitarra"), what: ("Creative — Pop, Rock", "Creativo — Pop, Rock"), on: "creative" },
+        Sound { file: "tabula-drum_crush", name: ("Drums: crushed in parallel", "Batería: aplastada en paralelo"), what: ("Drums — Trap · Hip-hop, Rock", "Batería — Trap · Hip-hop, Rock"), on: "drums" },
+        Sound { file: "tabula-vocal_chain", name: ("Vocal chain", "Cadena de voz"), what: ("Vocal — Pop, Worship · Gospel", "Voz — Pop, Alabanza · Gospel"), on: "vocal" },
+    ]),
+    ("saltus", &[
+        Sound { file: "saltus-twelve_string", name: ("Octave up, twelve-string", "Octava arriba, doce cuerdas"), what: ("Bus — Rock, Worship · Gospel", "Bus — Rock, Alabanza · Gospel"), on: "creative" },
+        Sound { file: "saltus-fifth_live", name: ("Fifth up, live", "Quinta arriba, en vivo"), what: ("Vocal — Pop, Rock", "Voz — Pop, Rock"), on: "vocal" },
+        Sound { file: "saltus-sub_octaves", name: ("Sub octaves", "Suboctavas"), what: ("Creative — Trap · Hip-hop, House · EDM", "Creativo — Trap · Hip-hop, House · EDM"), on: "creative" },
+    ]),
+    ("rota", &[
+        Sound { file: "rota-chorale", name: ("Chorale", "Coral"), what: ("Creative — Jazz · Soul, Worship · Gospel", "Creativo — Jazz · Soul, Alabanza · Gospel"), on: "creative" },
+        Sound { file: "rota-subtle_swirl", name: ("Subtle swirl", "Giro sutil"), what: ("Vocal — Pop, Ambient · Cinematic, Worship · Gospel", "Voz — Pop, Ambient · Cinemático, Alabanza · Gospel"), on: "vocal" },
+        Sound { file: "rota-tremolo", name: ("Tremolo", "Trémolo"), what: ("Creative — Rock, Jazz · Soul", "Creativo — Rock, Jazz · Soul"), on: "creative" },
+    ]),
+    ("arca", &[
+        Sound { file: "arca-clean_combo", name: ("Clean combo", "Combo limpio"), what: ("Creative — Rock, Worship · Gospel", "Creativo — Rock, Alabanza · Gospel"), on: "creative" },
+        Sound { file: "arca-vocal_grit", name: ("Voice with grit", "Voz con aspereza"), what: ("Vocal — Lo-fi, Rock", "Voz — Lo-fi, Rock"), on: "vocal" },
+        Sound { file: "arca-sparkle", name: ("Sparkling clean", "Limpio brillante"), what: ("Creative — Pop, Worship · Gospel", "Creativo — Pop, Alabanza · Gospel"), on: "creative" },
+    ]),
+    ("loquax", &[
+        Sound { file: "loquax-robot", name: ("Robot", "Robot"), what: ("Vocal — Pop, House · EDM", "Voz — Pop, House · EDM"), on: "vocal" },
+        Sound { file: "loquax-talk_box", name: ("Talk-box", "Talk-box"), what: ("Vocal — R&B, Rock", "Voz — R&B, Rock"), on: "vocal" },
+        Sound { file: "loquax-sidechain_pad", name: ("Sidechain carrier", "Portadora por cadena lateral"), what: ("Vocal — Pop, Ambient · Cinematic", "Voz — Pop, Ambient · Cinemático"), on: "vocal" },
+    ]),
+    ("fractus", &[
+        Sound { file: "fractus-last_beat_stutter", name: ("Last beat stutter", "Tartamudeo del último tiempo"), what: ("Drums — Trap · Hip-hop, Pop, House · EDM", "Batería — Trap · Hip-hop, Pop, House · EDM"), on: "drums" },
+        Sound { file: "fractus-reverse_build", name: ("Reverse build", "Subida al revés"), what: ("Bus — Pop, House · EDM, Film · Game", "Bus — Pop, House · EDM, Cine · Videojuegos"), on: "creative" },
+        Sound { file: "fractus-trance_gate", name: ("Trance gate", "Puerta de trance"), what: ("Creative — House · EDM, Ambient · Cinematic", "Creativo — House · EDM, Ambient · Cinemático"), on: "creative" },
+    ]),
+    ("caelum", &[
+        Sound { file: "caelum-octave_shimmer", name: ("Octave shimmer", "Shimmer de octava"), what: ("Creative — Ambient · Cinematic, Worship · Gospel", "Creativo — Ambient · Cinemático, Alabanza · Gospel"), on: "creative" },
+        Sound { file: "caelum-ducked_vocal", name: ("Ducked vocal shimmer", "Shimmer vocal que se aparta"), what: ("Vocal — Pop, Worship · Gospel", "Voz — Pop, Alabanza · Gospel"), on: "vocal" },
+        Sound { file: "caelum-light_shimmer", name: ("Light shimmer", "Shimmer ligero"), what: ("Bus — Pop, Worship · Gospel", "Bus — Pop, Alabanza · Gospel"), on: "creative" },
+    ]),
+    ("vinculum", &[
+        Sound { file: "vinculum-glue", name: ("Glue", "Pegamento"), what: ("Bus — Pop, Rock", "Bus — Pop, Rock"), on: "creative" },
+        Sound { file: "vinculum-mix_glue", name: ("Mix bus glue", "Pegamento del bus de mezcla"), what: ("Master — Pop, Worship · Gospel", "Máster — Pop, Alabanza · Gospel"), on: "creative" },
+        Sound { file: "vinculum-punchy_drums", name: ("Punchy drum bus", "Bus de batería con pegada"), what: ("Drums — Pop, Rock", "Batería — Pop, Rock"), on: "drums" },
+    ]),
+    ("lenis", &[
+        Sound { file: "lenis-gentle", name: ("Gentle", "Suave"), what: ("Vocal — Pop, Rock", "Voz — Pop, Rock"), on: "vocal" },
+        Sound { file: "lenis-guitar_fizz", name: ("Guitar fizz", "Chisporroteo de guitarra"), what: ("Creative — Rock", "Creativo — Rock"), on: "creative" },
+        Sound { file: "lenis-mix_bus_gentle", name: ("Mix bus gentle", "Bus de mezcla suave"), what: ("Bus — Pop, House · EDM", "Bus — Pop, House · EDM"), on: "creative" },
+    ]),
+    ("cedo", &[
+        Sound { file: "cedo-classic_pump", name: ("Classic pump", "Bombeo clásico"), what: ("Bus — Pop, House · EDM", "Bus — Pop, House · EDM"), on: "creative" },
+        Sound { file: "cedo-triplet_breathe", name: ("Triplet breathe", "Respiración en tresillos"), what: ("Creative — Pop, Ambient · Cinematic, Film · Game", "Creativo — Pop, Ambient · Cinemático, Cine · Videojuegos"), on: "creative" },
+        Sound { file: "cedo-kick_bass_duck", name: ("Kick ducks the bass", "El bombo atenúa el bajo"), what: ("Drums — Trap · Hip-hop, Pop, House · EDM", "Batería — Trap · Hip-hop, Pop, House · EDM"), on: "drums" },
+    ]),
+    ("purus", &[
+        Sound { file: "purus-mains_50", name: ("Mains hum 50 Hz", "Zumbido de red 50 Hz"), what: ("Vocal — Rock, Film · Game", "Voz — Rock, Cine · Videojuegos"), on: "vocal" },
+        Sound { file: "purus-guitar_amp", name: ("Guitar amp hum and buzz", "Zumbido de amplificador de guitarra"), what: ("Bus — Rock, Jazz · Soul", "Bus — Rock, Jazz · Soul"), on: "creative" },
+        Sound { file: "purus-vinyl_clicks", name: ("Vinyl clicks", "Clics de vinilo"), what: ("Master — Lo-fi, Jazz · Soul", "Máster — Lo-fi, Jazz · Soul"), on: "creative" },
+    ]),
+    ("comparatio", &[
+        Sound { file: "comparatio-whole_file", name: ("Mastering: the whole file's loudness", "Masterización: la sonoridad de todo el archivo"), what: ("Master — Pop, Rock", "Máster — Pop, Rock"), on: "creative" },
+        Sound { file: "comparatio-short_term", name: ("Mixing: following section by section", "Mezcla: siguiendo sección a sección"), what: ("Bus — Pop, House · EDM", "Bus — Pop, House · EDM"), on: "creative" },
+        Sound { file: "comparatio-by_hand", name: ("Level by hand", "Nivel a mano"), what: ("Master — Ambient · Cinematic, Film · Game", "Máster — Ambient · Cinemático, Cine · Videojuegos"), on: "creative" },
     ]),
 ];
 
