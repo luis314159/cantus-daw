@@ -1244,6 +1244,20 @@ impl FxUnit for Unit {
         self.n_notes = 0;
     }
 
+    /// fx/final — at a start, a seek or a loop's wrap: every pedal on the board snapped
+    /// (its own `EffectUnit::snap`), its footswitch's fade at its end, the board's input,
+    /// output, mix and A/B blend landed. A reorder's dip and the pedals leaving go on as
+    /// they were; the pedals' sound and the lines are kept. No allocation.
+    fn snap(&mut self) {
+        for k in &mut self.kids[..self.active] {
+            k.unit.snap();
+            k.fade = k.target();
+        }
+        for g in [&mut self.in_g, &mut self.out_g, &mut self.mix, &mut self.ab] {
+            g.v = g.t;
+        }
+    }
+
     fn reset(&mut self) {
         for k in &mut self.kids {
             k.unit.reset();

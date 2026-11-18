@@ -796,6 +796,7 @@ fn a_pre_strip_project_renders_exactly_as_it_did() {
 /// Computed on 2026-09-10 from the render above, before the mixer strips existed.
 /// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 2.6e-5 (−91.8 dBFS).
 /// Re-blessed for `DSP_VERSION` 3 (round 22, our f32 `powf`): max |Δ| 3.0e-8 (−150.5 dBFS).
+/// Unchanged by `DSP_VERSION` 8 (fx/final, the snap at a jump): the same bits.
 const GOLDEN_V5: &str = "1ff6221f1bf3b0da1064812bef73ac6945377a27df4409a94811bdf35d7fd481";
 
 /// With `CANTUS_GOLDEN_DUMP=<folder>`, writes a golden's samples there (`<name>.f32`, raw

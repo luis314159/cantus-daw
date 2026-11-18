@@ -176,6 +176,11 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// Silence at once and forget every tail (panic, the instrument switched, frozen or
     /// thawed, a slot taken by another track). A seek releases; it does not reset.
     fn reset(&mut self);
+    /// fx/final — the playhead jumped (a start, a seek, a loop's wrap): every value the
+    /// last [`Self::configure`] set is taken at once, with no glide from where it was, so a
+    /// render that starts mid-song is the whole render from there. Voices, tails and
+    /// envelopes are kept. No allocation. Default: nothing glides.
+    fn snap(&mut self) {}
     /// Render one segment **added** into `left`/`right` (the caller zeroes them). Returns
     /// whether anything was written; `false` lets the processor skip an idle track, so it
     /// must only be `false` when the output is exactly zero.

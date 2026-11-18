@@ -255,6 +255,9 @@ impl Discrimen {
     /// fx/final — every glide at its target: what the last `set` asked for, taken at once
     /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
     pub fn snap(&mut self) {
+        for sec in [&mut self.t, &mut self.b] {
+            sec.gain.jump(sec.gain.target);
+        }
         self.out.jump(self.out.target);
     }
 

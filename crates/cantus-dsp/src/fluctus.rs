@@ -171,10 +171,13 @@ pub struct Fluctus {
 
 impl Fluctus {
     /// fx/final — every glide at its target: what the last `set` asked for, taken at once
-    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The sound it holds is kept.
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap) — the depth, the output and the
+    /// level on the curve where the song is (its smoothing glides from there, as after a
+    /// reset). The clock and the LFO's phase are kept.
     pub fn snap(&mut self) {
         self.depth.jump(self.depth.target);
         self.out.jump(self.out.target);
+        self.level = 1.0 - self.depth.value * (1.0 - self.curve.at(self.phase(0)));
     }
 
     /// A shaper whose segments take `shape` (the automation editor's `Shape::at`).

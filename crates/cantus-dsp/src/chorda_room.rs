@@ -253,6 +253,14 @@ impl Room {
         self.quiet == usize::MAX / 2
     }
 
+    /// fx/final — the size's coefficients at their targets at once (the playhead jumped);
+    /// the lines are kept.
+    pub fn snap(&mut self) {
+        self.b0 = self.b0_to;
+        self.a1 = self.a1_to;
+        self.moving = false;
+    }
+
     pub fn reset(&mut self) {
         self.pre.clear();
         for l in self.lines.iter_mut() {

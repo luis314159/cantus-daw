@@ -676,6 +676,33 @@ impl Organum {
     }
 
     /// Silence at once and forget everything: back to the state of a new instrument.
+    /// fx/final — the settings taken at once (the playhead jumped: a start, a seek, a
+    /// loop's wrap): the drawbars' ramp at its end, the percussion's, the levels', the
+    /// swell's, the drive's and the output's glides landed, the rotors at their speeds. The
+    /// keys, the contacts' transitions, the wheels, the scanner and the cabinet are kept.
+    pub fn snap(&mut self) {
+        if self.ramp_left > 0 {
+            *self.gain = *self.target;
+            self.ramp_left = 0;
+        }
+        for gl in [
+            &mut self.perc_gain,
+            &mut self.drop,
+            &mut self.swell,
+            &mut self.drive,
+            &mut self.post,
+            &mut self.out,
+        ] {
+            let t = gl.target();
+            gl.snap(t);
+        }
+        for gl in &mut self.lvl {
+            let t = gl.target();
+            gl.snap(t);
+        }
+        self.rotary.snap_speeds();
+    }
+
     pub fn reset(&mut self) {
         self.count = [[0; 128]; 3];
         self.closed = [[false; 128]; 3];

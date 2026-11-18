@@ -138,7 +138,8 @@ pub mod cedo; // fx-b:cedo
 /// | 5 | round 28: an Aequalis band raised (by its knob, automation or a modulator) from exactly 0 dB while no other band was active glides to its gain instead of staying flat for good (`is_active` sees a gain still gliding); that case moves by the whole of the gain asked, every other render is unchanged — no golden hash moved |
 /// | 6 | round 37 (piano, voicing pass two): Chorda's model 2 — new this round, merged once — re-voiced (its body's response, its strings' voicing, its output, the perspective stage); model 1 and every other unit unchanged — no golden hash moved r37:piano |
 /// | 7 | round 40 (Chorda toward the Salamander, voicing pass three): Chorda's model 2 ships candidate 16 (`chorda::voicing::c16`; beta.14's voicing is [`chorda::voicing::Voicing::beta14`]); model 1 and every other unit unchanged — no golden hash moved, model 2's own pin re-made |
-pub const DSP_VERSION: u32 = 7;
+/// | 8 | fx/final (wave D's finding, ADR 0027 amended): at a jump (a start, a seek, a loop's wrap, a sync start or jump) every unit a lane or modulator drives takes its values at once (`snap`) instead of gliding ~20 ms from its stored ones, and Firmus takes its first settings at once — a render or playback from bar N is the whole render from bar N. Only renders with a lane on a native effect or instrument move, in what their glides were at the start (an EQ band held at +9 dB: 5.6e-2 in the first 20 ms, 1.3e-3 by 50 ms, under 3e-5 after, nothing after 0.5 s; what entered a delay line, a reverb or an LFO's phase in those milliseconds is carried in their tails) — no golden hash moved (v5, the Pulsus kits v1, v14 and v1 from bar 2, the post-fader sends) |
+pub const DSP_VERSION: u32 = 8;
 
 pub use aequalis::{Aequalis, BandSettings, EqShape, Placement};
 pub use click::Click;

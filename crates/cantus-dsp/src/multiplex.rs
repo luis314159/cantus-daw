@@ -690,6 +690,27 @@ impl Multiplex {
         self.configured = false;
     }
 
+    /// fx/final — the settings in force taken at once, as a first `set` takes them
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap): the bands' glides, the crossovers,
+    /// the output, the solo/mute and on/off fades, the split's blend, the static gains in
+    /// the look-ahead's gain ring (with only silence in the look-ahead, the gains as a new
+    /// unit's). The split's and the detectors' filters, the detectors' envelopes and the
+    /// audio in the look-ahead are kept. No allocation.
+    pub fn snap(&mut self) {
+        let s = self.s;
+        self.configured = false;
+        self.set(&s);
+        if self.quiet >= self.ring_len {
+            // Nothing sounds in the look-ahead: the gains start as a new unit's do.
+            self.gain_ring.fill(1.0);
+            self.dyn_ring.fill(0.0);
+            self.g_now = [1.0; MAX_BANDS];
+            self.dyn_now = [0.0; MAX_BANDS];
+            self.reset_stages();
+            self.unity_run = usize::MAX;
+        }
+    }
+
     /// New settings. The first call snaps; later ones glide over ~20 ms.
     pub fn set(&mut self, s: &Settings) {
         let snap = !self.configured;

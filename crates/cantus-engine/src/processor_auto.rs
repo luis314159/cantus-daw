@@ -48,6 +48,12 @@ pub(super) struct AutoState {
     hosted_next: u64,
     /// Playing at the last pass: a change is a start or a stop.
     was_playing: bool,
+    /// fx/final — the playhead jumped (a start from stop, a seek, a loop's wrap, a sync
+    /// start or jump) since the last control point: at the next one every unit a lane
+    /// drives takes its values at once, with no glide (`EffectUnit::snap`), so a render or
+    /// playback from bar N is the whole render from bar N. Never set by a snapshot's
+    /// install: a change while playing still glides.
+    jumped: bool,
     /// The engine clock where playback last started, and where it last stopped.
     play_clock: u64,
     stop_clock: u64,
@@ -93,6 +99,7 @@ impl AutoState {
             master: [None; 3],
             hosted_next: u64::MAX,
             was_playing: false,
+            jumped: false,
             play_clock: 0,
             stop_clock: 0,
             stop_beats: 0.0,
@@ -365,6 +372,13 @@ impl Processor {
             .unwrap_or_default()
     }
 
+    /// fx/final — the playhead jumped (a start from stop, a seek, a loop's wrap, a sync
+    /// start or jump — never a snapshot's install): the next control point, due now
+    /// (`auto_reseek`), snaps every unit a lane drives to its values there.
+    pub(super) fn auto_jumped(&mut self) {
+        self.auto.jumped = true;
+    }
+
     /// The playhead jumped (a start, seek, loop wrap, a new snapshot): a control point is
     /// due now.
     pub(super) fn auto_reseek(&mut self) {
@@ -461,6 +475,9 @@ impl Processor {
     /// next control point, so it lands on its sample whatever the block size.
     pub(super) fn auto_point(&mut self, done: usize, seg_end: usize) -> usize {
         if self.auto.rt.is_none() {
+            // Nothing a lane drives: nothing to snap (a runtime installed later is not a
+            // jump).
+            self.auto.jumped = false;
             return seg_end;
         }
         let clock = self.clock + done as u64;
@@ -502,6 +519,49 @@ impl Processor {
         }
         let until = self.auto.next.saturating_sub(now);
         seg_end.min(done + until.min(MAX_BLOCK_FRAMES as u64) as usize)
+    }
+
+    /// fx/final — every unit a lane (or a modulator) drives snapped (`EffectUnit::snap`,
+    /// `InstrumentUnit::snap`, `Firmus::snap`): the master's and the strips' inserts, a
+    /// board's pedals through it, the native instruments and Firmus. No allocation.
+    fn auto_snap(&mut self, rt: &Runtime, nodes: &exec::Nodes) {
+        for c in &rt.effects {
+            match c.at {
+                Some((usize::MAX, i)) => {
+                    if let Some(u) = self.master.effects.get_mut(i).filter(|u| u.id == c.effect) {
+                        u.snap();
+                    }
+                }
+                Some((s, i)) => {
+                    if let Some(mut st) = nodes.strip(s) {
+                        if let Some(u) = st.effects.get_mut(i).filter(|u| u.id == c.effect) {
+                            u.snap();
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+        for c in &rt.natives {
+            if let Some(mut s) = self
+                .track_to_slot
+                .get(c.track)
+                .and_then(|&sl| nodes.track(sl))
+            {
+                if let Some(u) = s.native.as_mut() {
+                    u.unit.snap();
+                }
+            }
+        }
+        for c in &rt.firmus {
+            if let Some(mut s) = self
+                .track_to_slot
+                .get(c.track)
+                .and_then(|&sl| nodes.track(sl))
+            {
+                s.synth.snap();
+            }
+        }
     }
 
     /// Every hosted unit's queue emptied for the pass about to run.
@@ -918,6 +978,11 @@ impl Processor {
                     s.synth.set_settings(&to_settings(&c.params));
                 }
             }
+        }
+        // fx/final — after a jump, every unit a lane drives takes the values just set at
+        // once: no glide from where it was (or from its stored values, at a render's start).
+        if std::mem::take(&mut self.auto.jumped) {
+            self.auto_snap(&rt, &nodes);
         }
         // When the next control point is due: at the next grid point while anything
         // native moves (or a modulator must hear every window); otherwise at the grid

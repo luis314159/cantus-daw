@@ -151,6 +151,12 @@ impl FxUnit for Unit {
         }
     }
 
+    /// fx/final — at a start, a seek or a loop's wrap: the rotors at their speeds, the
+    /// mix and output landed (`Rota::snap`); the switch notes threw is kept.
+    fn snap(&mut self) {
+        self.dsp.snap();
+    }
+
     fn reset(&mut self) {
         self.flipped = false;
         self.np = 0;

@@ -820,6 +820,18 @@ impl Tank {
     }
 
     /// As new: cleared, the counts back to their start, every glide landed.
+    /// fx/final — the lines' lengths, the modulation's depth, the diffusion, the freeze
+    /// and the shimmer's amounts at their targets at once (`Caelum::snap`). The lines, the
+    /// shifters, the phases and Infinite's own climb (it follows the sound) are kept.
+    pub fn snap(&mut self) {
+        self.len = self.len_target;
+        self.depth = self.depth_target;
+        self.diff = self.diff_target;
+        self.freeze = self.freeze_target;
+        self.amount = self.amount_target;
+        self.update_amounts();
+    }
+
     pub fn reset(&mut self) {
         self.clear();
         self.w = 0;

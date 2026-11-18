@@ -1002,6 +1002,14 @@ impl Terminus {
         self.derived_for = ceil_db;
     }
 
+    /// fx/final — the gain's and the ceiling's glides at their targets at once
+    /// (`FxUnit::snap`: a start, a seek, a loop's wrap). The look-ahead, the envelopes, the
+    /// lines and the loudness Match follows (a measure, not a setting) are kept.
+    pub fn snap(&mut self) {
+        self.gain = self.gain_target;
+        self.ceiling_db = self.s.ceiling_db;
+    }
+
     /// Clear every state; glides land on their targets.
     pub fn reset(&mut self) {
         self.gain = self.gain_target;

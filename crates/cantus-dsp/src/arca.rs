@@ -381,6 +381,49 @@ impl Arca {
         self.snapped = true;
     }
 
+    /// fx/final — the settings taken at once (`FxUnit::snap`: a start, a seek, a loop's
+    /// wrap): a model change made now (the new circuits built, no fade), the knobs, the
+    /// presence, the master and the sag at their targets, the mix and the output landed.
+    /// The circuits keep what they hold — only an amp resting in silence is built again at
+    /// the new knobs, at their operating points — and so do the oversampler, the cabinet
+    /// and the dry line.
+    /// Allocation-free.
+    pub fn snap(&mut self) {
+        self.mix.v = self.mix.to;
+        self.out.v = self.out.to;
+        if self.built != self.set.model {
+            match self.set.model {
+                Some(m) => self.build(m),
+                None => self.built = None,
+            }
+        }
+        self.fade = FADE;
+        let Some(m) = self.built else {
+            return;
+        };
+        if self.snapped {
+            // At rest in silence: the circuits built at the new knobs, as a new amp's are.
+            self.build(m);
+            return;
+        }
+        let k = self.set.knobs();
+        if k != self.knobs {
+            self.knobs = k;
+            self.pre.set_knobs(&k);
+        }
+        let p = self.set.presence.clamp(0.0, 1.0) as f64;
+        if p != self.presence {
+            self.presence = p;
+            self.pow.set_presence(p);
+        }
+        self.master = master_gain(self.set.master as f64);
+        let sf = sag_factor(self.set.sag as f64);
+        if sf != self.sag {
+            self.sag = sf;
+            self.pow.set_sag(sf);
+        }
+    }
+
     /// Back to silence at the stream's start: every glide landed, the circuits built and
     /// at rest.
     pub fn reset(&mut self) {
@@ -469,7 +512,7 @@ impl Arca {
         self.os.down(&mut v) * AMP_TRIM
     }
 
-    fn snap(&mut self) {
+    fn rest_circuits(&mut self) {
         self.pre.rest();
         self.pow.rest();
         self.os.reset();
@@ -535,7 +578,7 @@ impl Arca {
                     let most = (SETTLE_MAX_S * self.sr) as u32;
                     if self.quiet >= settle && (self.since_loud >= QUIET_TAIL || self.quiet >= most)
                     {
-                        self.snap();
+                        self.rest_circuits();
                     }
                     y
                 }

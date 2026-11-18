@@ -58,7 +58,6 @@ fn first_difference(a: &(Vec<f32>, Vec<f32>), b: &(Vec<f32>, Vec<f32>)) -> Optio
 }
 
 #[test]
-#[ignore = "fx/final, in progress: snap is written for 18 kinds (every modfx_line::Glide unit,             Aequalis, Delay); still to do — Amp, Aula, BusCompressor, Maximizer, Multiband,             Pedal, Rotary, Saturator, Shimmer, Space, Stereo, TransientSplit, Vocoder,             VolumeShaper (docs/round-fx/final-merge.md, the glide)"]
 fn a_snapped_unit_is_the_unit_made_at_its_settings_for_every_kind() {
     let x = heavy::signal(SAMPLE_RATE as usize / 4);
     let mut rng = Rng::new(0x5eed_5aa9);
@@ -88,7 +87,14 @@ fn a_snapped_unit_is_the_unit_made_at_its_settings_for_every_kind() {
             let to = heavy::random_effect(kind, 0.5, &mut rng);
             pairs.push((format!("random to random #{i}"), from, to));
         }
-        for (name, from, to) in pairs {
+        for (name, mut from, to) in pairs {
+            let stop = |s: &EffectSpec| s.get("speed").round() == 0.0;
+            if kind == EffectKind::Rotary && stop(&from) != stop(&to) {
+                // A brake parks the rotors where it parks them: their angle is the cabinet's
+                // state, which a snap keeps (the speed it snaps). Compared from the same
+                // side of the brake.
+                from.set("speed", to.get("speed"));
+            }
             let mut moved = unit(&from);
             moved.configure(&to);
             feed(&mut moved);

@@ -303,6 +303,11 @@ impl InstrumentUnit for Unit {
         self.dsp.all_notes_off();
     }
 
+    /// fx/final — the playhead jumped: every glide at its target (`Organum::snap`).
+    fn snap(&mut self) {
+        self.dsp.snap();
+    }
+
     fn reset(&mut self) {
         self.dsp.reset();
     }

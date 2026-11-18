@@ -386,6 +386,9 @@ impl Spatium {
         self.in_gain.snap();
         self.mix.snap();
         self.width.snap();
+        self.fdn.snap();
+        self.spring.snap();
+        self.post.snap();
     }
 
     pub fn new(sample_rate: f32) -> Self {

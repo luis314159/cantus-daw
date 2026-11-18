@@ -105,6 +105,13 @@ pub struct Outputs {
 }
 
 impl Outputs {
+    /// fx/final — every output's delay at the one set, at once (the playhead jumped).
+    pub fn snap(&mut self) {
+        for d in self.delay.iter_mut().flatten() {
+            d.snap();
+        }
+    }
+
     /// Allocates every lane, and a delay line for each output in `delays` (a bit per
     /// output id, `o{n}` → bit n: ADR 0123 §3's rule, an output whose delay is set or
     /// automated): with the unit, never on the audio thread. `Outputs::new(fs, 0)` owns

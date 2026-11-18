@@ -139,6 +139,13 @@ impl SpringTank {
         }
     }
 
+    /// fx/final — the springs' lengths and the freeze at their targets at once
+    /// (`Spatium::snap`); the tank is kept.
+    pub fn snap(&mut self) {
+        self.len = self.len_target;
+        self.freeze = self.freeze_target;
+    }
+
     pub fn reset(&mut self) {
         self.xs.iter_mut().for_each(|x| *x = 0.0);
         self.ys.iter_mut().for_each(|x| *x = 0.0);

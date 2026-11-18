@@ -825,6 +825,13 @@ impl Gravis {
         self.window_left = 0;
     }
 
+    /// fx/final — the output's level at its target at once (the playhead jumped: a start,
+    /// a seek, a loop's wrap), as the first settings are taken. The voices, the bend and the
+    /// stages after them are kept.
+    pub fn snap(&mut self) {
+        self.gain.snap(self.gain.target);
+    }
+
     /// Silence at once and forget every tail (seek, panic).
     pub fn reset(&mut self) {
         self.cut_voices();

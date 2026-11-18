@@ -525,6 +525,21 @@ impl Lamina {
         }
     }
 
+    /// fx/final — the drive's, the output's and the tremolo depth's glides landed (the
+    /// playhead jumped: a start, a seek, a loop's wrap), as the first settings are taken.
+    /// The voices, the pedal, the expression (played, not set) and the filters are kept.
+    pub fn snap(&mut self) {
+        for gl in [
+            &mut self.drive,
+            &mut self.post,
+            &mut self.out,
+            &mut self.depth,
+        ] {
+            let t = gl.target();
+            gl.snap(t);
+        }
+    }
+
     pub fn reset(&mut self) {
         for v in self.voices.iter_mut() {
             v.clear();

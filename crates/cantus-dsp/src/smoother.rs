@@ -31,12 +31,12 @@ impl Smoother {
         self.target = target;
     }
 
-    /// Jump immediately (e.g. on voice start) so a new note does not glide.
     /// fx/final — at the target now (`FxUnit::snap`).
     pub fn land(&mut self) {
         self.current = self.target;
     }
 
+    /// Jump immediately (e.g. on voice start) so a new note does not glide.
     pub fn snap(&mut self, value: f32) {
         self.current = value;
         self.target = value;

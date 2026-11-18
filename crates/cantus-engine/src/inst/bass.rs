@@ -364,6 +364,11 @@ impl InstrumentUnit for Unit {
         self.g.all_notes_off();
     }
 
+    /// fx/final — the playhead jumped: every glide at its target (`Gravis::snap`).
+    fn snap(&mut self) {
+        self.g.snap();
+    }
+
     fn reset(&mut self) {
         self.g.reset();
         // The modulation grid restarts with the unit, as a new one's starts at 0.

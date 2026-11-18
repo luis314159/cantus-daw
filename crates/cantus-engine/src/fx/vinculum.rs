@@ -141,6 +141,12 @@ impl FxUnit for Unit {
         self.peaks[3] = peak(right);
     }
 
+    /// fx/final — at a start, a seek or a loop's wrap: the output at its target (the only
+    /// glide: the DSP takes its settings at once). The detector and the cell are kept.
+    fn snap(&mut self) {
+        self.out.jump(self.out.target);
+    }
+
     fn reset(&mut self) {
         self.out.jump(self.out.target);
         self.dsp.reset();
