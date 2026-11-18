@@ -44,8 +44,9 @@ kit.token.surface.text_selection = Selección de texto (en un campo)
 
 # ronda 37, acabado: el capuchón de los faders
 look.fader = Faders
-look.fader.tip = Capuchón del fader: cómo se ven todos los faders — el mezclador, los VCA y las unidades
-look.fader.note = Clásico es el capuchón marfil; Metal, uno mecanizado con su índice grabado y el brillo del tema. Todos los faders cambian a la vez.
+look.fader.tip = Capuchón del fader: cómo se ven todos los faders — el mezclador, los VCA, los mezcladores de los instrumentos y las unidades
+look.fader.note = El del tema es el capuchón con que se dibujó el aspecto; Clásico, el capuchón marfil; Metal, uno mecanizado con su índice grabado y el brillo del tema. Todos los faders cambian a la vez.
+kit.fader.theme = El del tema
 kit.fader.classic = Clásico
 kit.fader.metal = Metal
 # ronda 39, temas (ADR 0111 §2): los temas de las rondas 24–38 de vuelta, redibujados en el

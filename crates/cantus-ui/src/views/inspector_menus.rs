@@ -560,23 +560,38 @@ pub fn show(st: &mut Inspector, app: &mut CantusApp, ui: &mut Ui, s: &Style) {
         _ => None,
     };
     let before = inserts(app);
-    let area = egui::Area::new(Id::new("inspector-menu"))
-        .order(Order::Foreground)
-        .fixed_pos(pos2(open.anchor.left(), open.anchor.bottom() + s.s(2.0)))
-        .constrain(true)
-        .show(&ctx, |ui| {
-            let (_, clicks) = widgets::menu_list(ui, &items, width);
-            if let MenuId::AddInsert(strip) = open.id {
+    // r41:look — a field's list on the kit's sheet beside its field, never over it, scrolling
+    // when long (`kit::menu::dropdown`); *Add insert* keeps its host's plug-in list under
+    // its rows.
+    let (clicks, sheet) = if let MenuId::AddInsert(strip) = open.id {
+        let area = egui::Area::new(Id::new("inspector-menu"))
+            .order(Order::Foreground)
+            .fixed_pos(pos2(open.anchor.left(), open.anchor.bottom() + s.s(2.0)))
+            .constrain(true)
+            .show(&ctx, |ui| {
+                let (_, clicks) = widgets::menu_list(ui, &items, width);
                 // Plug-ins made to the market's standards (ADR 0019): the host's own list.
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_width(width - s.s(14.0));
                     crate::views::plugins::insert_menu(app, ui, strip);
                 });
-            }
-            clicks
-        });
+                clicks
+            });
+        (area.inner, area.response.rect)
+    } else {
+        let d = crate::kit::menu::dropdown(
+            &ctx,
+            Id::new("inspector-menu"),
+            Order::Foreground,
+            open.anchor,
+            &items,
+            width,
+            |_, _| {},
+        );
+        (d.clicks, d.sheet)
+    };
     let mut close = false;
-    if let Some(i) = area.inner.clicked {
+    if let Some(i) = clicks.clicked {
         if let Some(c) = entries.get(i).and_then(|e| e.choice.clone()) {
             choose(st, app, open.id, c);
         }
@@ -589,7 +604,13 @@ pub fn show(st: &mut Inspector, app: &mut CantusApp, ui: &mut Ui, s: &Style) {
     if ctx.input(|i| i.key_pressed(Key::Escape)) {
         close = true;
     }
-    if area.response.clicked_elsewhere() && ctx.cumulative_pass_nr() > st.menu_pass {
+    let elsewhere = ctx.input(|i| {
+        i.pointer.any_click()
+            && i.pointer
+                .interact_pos()
+                .is_some_and(|p| !sheet.contains(p) && !open.anchor.contains(p))
+    });
+    if elsewhere && ctx.cumulative_pass_nr() > st.menu_pass {
         close = true;
     }
     if close && st.menu.is_some_and(|m| m.id == open.id) {

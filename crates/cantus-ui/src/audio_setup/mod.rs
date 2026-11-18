@@ -287,8 +287,8 @@ pub struct AudioSetup {
     pub pop_list: Option<PopList>,
     /// The popover's height last frame (it sizes itself to what it shows).
     pub pop_h: f32,
-    /// Where the open list hangs (under its field).
-    pub list_at: egui::Pos2,
+    /// The field the open list hangs from, where it is drawn this frame.
+    pub list_from: Option<egui::Rect>,
     pub first_run: Option<FirstRun>,
     pub routing: bool,
     pub scan: Option<Scan>,

@@ -247,7 +247,7 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
         Part::Fader | Part::FaderMetal => {
             let r = Rect::from_center_size(c, Vec2::new(30.0, 140.0));
             let cap = if part == Part::Fader {
-                fader::FaderCap::Classic
+                fader::FaderCap::Theme
             } else {
                 fader::FaderCap::Metal
             };

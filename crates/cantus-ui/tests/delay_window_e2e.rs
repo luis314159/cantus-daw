@@ -157,6 +157,17 @@ fn every_control_writes_its_parameter_with_undo() {
     let was = spec(&r, strip, effect);
     let field = find_in(&r, "1/8\u{b7}", below).expect("the note field");
     r.click(field.center());
+    // The list opens beside its field, never over it, and scrolls where the window is
+    // short of its 27 values (beta.14's dropdown rule): the wheel brings the quarter up.
+    for _ in 0..30 {
+        match r.text_starting("1/4  ") {
+            Some(q) if r.ctx.content_rect().contains_rect(q) && q.height() > 8.0 => break,
+            _ => {
+                let at = field.center_bottom() + vec2(0.0, 60.0);
+                r.wheel(at, -2.0, NONE);
+            }
+        }
+    }
     let quarter = r
         .text_starting("1/4  ")
         .expect("the quarter note in the list");

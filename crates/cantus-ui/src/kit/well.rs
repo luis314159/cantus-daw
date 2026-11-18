@@ -148,6 +148,7 @@ pub fn field_rects(rect: Rect, s: &Style, steppers: bool) -> FieldRects {
 /// Paint a menu field: a well with `value` and ▾ (lit = open), ‹ › outside when
 /// `steppers`.
 pub fn menu_field(b: &mut Brush, rect: Rect, s: &Style, st: State, value: &str, steppers: bool) {
+    super::widgets::note_field(rect, value);
     if s.t.system.recessed() {
         menu_field_slate(b, rect, s, st, value, steppers);
         return;

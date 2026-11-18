@@ -81,6 +81,9 @@ pub struct Rig {
     /// A colour painted over the whole window on the last layer beneath the popups (every
     /// panel, window and editor under it): a popup that lets it show through is not opaque.
     pub probe: Option<egui::Color32>,
+    /// Layers the probe is painted into too, over what each drew (the layers beneath a
+    /// popup, when moving them away would move the popup with its anchor).
+    pub probe_layers: Vec<egui::LayerId>,
 }
 
 /// A window on a real screen, in physical pixels (what winit reports).
@@ -179,6 +182,7 @@ impl Rig {
             size: SIZE,
             screen: None,
             probe: None,
+            probe_layers: Vec::new(),
         };
         r.idle(4);
         r
@@ -215,9 +219,14 @@ impl Rig {
         }
         let app = &mut self.app;
         let probe = self.probe;
+        let probe_layers = &self.probe_layers;
         let mut out = self.ctx.run_ui(input, |ui| {
             app.frame(ui);
             if let Some(c) = probe {
+                for l in probe_layers {
+                    let screen = ui.ctx().content_rect();
+                    ui.ctx().layer_painter(*l).rect_filled(screen, 0.0, c);
+                }
                 // Not an area: egui draws it after every area of the middle order, before
                 // the foreground's.
                 let layer = egui::LayerId::new(egui::Order::Middle, egui::Id::new("rig-probe"));
@@ -265,6 +274,24 @@ impl Rig {
         );
         c.paint(&prims, &self.tex, ppp);
         c
+    }
+
+    /// The words painted above the probe last frame (with [`Rig::probe`] set): what the
+    /// layers over it drew, nothing of the panels it covers.
+    pub fn texts_above_probe(&self) -> Vec<Painted> {
+        let Some(c) = self.probe else {
+            return self.texts.clone();
+        };
+        let at = self
+            .shapes
+            .iter()
+            .rposition(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == c))
+            .map_or(0, |i| i + 1);
+        let mut out = Vec::new();
+        for s in &self.shapes[at..] {
+            walk(&s.shape, s.clip_rect, &mut out);
+        }
+        out
     }
 
     /// The last frame as a PNG at `path` (for looking at what a path shows).

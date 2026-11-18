@@ -356,25 +356,171 @@ pub const FIT_MARGIN: f32 = 8.0;
 /// Where a list `h` tall opens from `opener` (the control that opened it), its top-left at
 /// `anchor` (usually under the opener), in the window's `screen`: the place and the height
 /// the list has there (less than `h` when it must scroll). Under its opener when it fits
-/// there, above it when it fits there instead; a list the window can hold whole is raised
-/// until it does (over its opener); a longer one scrolls, under its opener while eight
-/// `row`s find room there, else above it (review 2 of round 40, R2-B6). Every popup list
+/// there, above it when it fits there instead; else it scrolls, under its opener while
+/// eight `row`s find room there, else above it (review 2 of round 40, R2-B6). It never
+/// covers its opener (beta.14: a list raised over its field hid what it was a list of;
+/// it was raised until the window held it whole). Every popup list
 /// anchored on a control places itself here (GitHub issue #1: the instruments' preset
 /// list opened at the window's right edge, away from its well).
 pub fn place(screen: Rect, anchor: Pos2, opener: Rect, h: f32, row: f32) -> (Pos2, f32) {
     let m = FIT_MARGIN;
     let below = screen.bottom() - m - anchor.y;
     let above = opener.top() - (screen.top() + m);
-    let whole = screen.height() - 2.0 * m;
     if h <= below {
         (anchor, h)
     } else if h <= above {
         (Pos2::new(anchor.x, opener.top() - h), h)
-    } else if h <= whole {
-        (Pos2::new(anchor.x, screen.bottom() - m - h), h)
     } else if below >= above.min(row * 8.0) {
         (anchor, below.max(row * 2.0))
     } else {
         (Pos2::new(anchor.x, opener.top() - above), above)
+    }
+}
+
+/// Where a field's list `h` tall (its sheet's edges counted), `w` wide, opens from `field`
+/// in the window's `screen`: its top-left and the height it has there (less than `h` when
+/// it must scroll). A dropdown never covers the field that opened it (beta.14, the owner:
+/// the audio popover's *Input device* list rose over the *Driver* row, its rows on the
+/// rows beneath): under the field when it fits there, above it when it fits there
+/// instead, else on the side with more room, scrolling (under it while eight `row`s find
+/// room there). Its left edge is the field's, moved left only as far as the window's
+/// right edge asks.
+pub fn place_beside(screen: Rect, field: Rect, w: f32, h: f32, row: f32) -> (Pos2, f32) {
+    let m = FIT_MARGIN;
+    let gap = DROP_GAP;
+    let below = screen.bottom() - m - (field.bottom() + gap);
+    let above = (field.top() - gap) - (screen.top() + m);
+    let x = field
+        .left()
+        .min(screen.right() - m - w)
+        .max(screen.left() + m);
+    let under = |room: f32| (Pos2::new(x, field.bottom() + gap), room);
+    let over = |room: f32| (Pos2::new(x, field.top() - gap - room), room);
+    if h <= below {
+        under(h)
+    } else if h <= above {
+        over(h)
+    } else if below >= above.min(row * 8.0) {
+        under(below.max(row * 2.0))
+    } else {
+        over(above)
+    }
+}
+
+/// The gap between a field and its open list, in points.
+pub const DROP_GAP: f32 = 2.0;
+
+/// What [`dropdown`] reports: the rows' clicks, the sheet's rect (the whole of what is the
+/// list's: a press on its edge or its scroll bar is not elsewhere) and the rows' rect.
+#[derive(Copy, Clone, Debug)]
+pub struct Dropped {
+    pub clicks: super::widgets::MenuClicks,
+    pub sheet: Rect,
+    pub rows: Rect,
+}
+
+/// A field's open list (every combo of the app: Settings' lists, the audio popover's, the
+/// inspector's, the units', the dialogs'): `items` on the kit's popup sheet — opaque, its
+/// frame and shadow ([`super::automate::frame`]) — placed by [`place_beside`] from where
+/// `field` is drawn **this frame** (a list kept at the place its field had when it was
+/// clicked was left behind when the page moved), scrolling when the window is shorter
+/// than the list, in an area `id` on `order`. `extra` paints over the rows (the cores
+/// list's engines).
+pub fn dropdown(
+    ctx: &egui::Context,
+    id: egui::Id,
+    order: egui::Order,
+    field: Rect,
+    items: &[Item<'_>],
+    width: f32,
+    extra: impl FnOnce(&mut egui::Ui, Rect),
+) -> Dropped {
+    let s = Style::current();
+    let width = width.max(field.width()).max(self::width(ctx, items, &s));
+    let h = height_in(items, &s);
+    let sheet = super::automate::frame();
+    let edge = sheet.total_margin().sum() + Vec2::splat(2.0);
+    let screen = ctx.content_rect();
+    let (at, room) = place_beside(screen, field, width + edge.x, h + edge.y, s.d(ROW));
+    let room = (room - edge.y).max(s.d(ROW) * 2.0);
+    let mut rows = Rect::NOTHING;
+    let area = egui::Area::new(id)
+        .order(order)
+        .fixed_pos(at)
+        .constrain(false)
+        .show(ctx, |ui| {
+            sheet
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt(id.with("scroll"))
+                        .max_height(room)
+                        .min_scrolled_height(room.min(h))
+                        .show(ui, |ui| {
+                            let (resp, c) = super::widgets::menu_list(ui, items, width);
+                            rows = resp.rect;
+                            extra(ui, resp.rect);
+                            c
+                        })
+                        .inner
+                })
+                .inner
+        });
+    Dropped {
+        clicks: area.inner,
+        sheet: area.response.rect,
+        rows,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SCREEN: Rect = Rect {
+        min: Pos2::new(0.0, 0.0),
+        max: Pos2::new(800.0, 600.0),
+    };
+
+    fn field(y: f32) -> Rect {
+        Rect::from_min_size(Pos2::new(100.0, y), Vec2::new(300.0, 24.0))
+    }
+
+    #[test]
+    fn a_dropdown_opens_under_its_field_above_it_or_scrolling_never_over_it() {
+        // Room under it: under it, whole.
+        let f = field(100.0);
+        let (at, h) = place_beside(SCREEN, f, 320.0, 200.0, 22.0);
+        assert_eq!((at, h), (Pos2::new(100.0, f.bottom() + DROP_GAP), 200.0));
+        // No room under it, room above: above it, whole.
+        let f = field(500.0);
+        let (at, h) = place_beside(SCREEN, f, 320.0, 200.0, 22.0);
+        assert_eq!(h, 200.0);
+        assert_eq!(at.y + h, f.top() - DROP_GAP);
+        // Room on neither side: it scrolls on the larger, and never covers the field.
+        for y in [150.0, 280.0, 420.0] {
+            let f = field(y);
+            let (at, h) = place_beside(SCREEN, f, 320.0, 900.0, 22.0);
+            let list = Rect::from_min_size(at, Vec2::new(320.0, h));
+            assert!(h < 900.0, "it scrolls");
+            assert!(!list.intersects(f), "{list:?} covers {f:?}");
+            assert!(SCREEN.contains_rect(list), "{list:?} runs off the window");
+        }
+        // At the window's right edge: moved left just enough.
+        let f = Rect::from_min_size(Pos2::new(700.0, 100.0), Vec2::new(90.0, 24.0));
+        let (at, _) = place_beside(SCREEN, f, 320.0, 100.0, 22.0);
+        assert_eq!(at.x, 800.0 - FIT_MARGIN - 320.0);
+    }
+
+    #[test]
+    fn an_anchored_list_never_rises_over_its_opener() {
+        // Taller than the room on either side of its opener, short enough for the window:
+        // round 40 raised it over the opener; it scrolls beside it now.
+        let opener = field(300.0);
+        let (at, h) = place(SCREEN, opener.left_bottom(), opener, 500.0, 22.0);
+        let list = Rect::from_min_size(at, Vec2::new(300.0, h));
+        assert!(
+            !list.intersects(opener.shrink(0.5)),
+            "{list:?} over {opener:?}"
+        );
     }
 }

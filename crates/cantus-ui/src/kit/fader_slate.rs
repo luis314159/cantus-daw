@@ -12,7 +12,7 @@ use super::automate::Drivers;
 use super::brush::{Brush, Fill};
 use super::color::{mix, opaque, with_alpha};
 use super::drive_sign::{self, Painted};
-use super::fader::{cap_rect, FaderLook, CAP};
+use super::fader::{cap_rect, FaderCap, FaderLook, CAP};
 use super::{State, Style, Tok};
 use egui::{Color32, Pos2, Rect, Vec2};
 
@@ -42,7 +42,15 @@ pub fn slate_cap_rect(rect: Rect, s: &Style, pos: f32) -> Rect {
 }
 
 /// Paint a Slate fader in `rect`, driven by `d`.
-pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &FaderLook<'_>, d: Drivers) {
+pub fn paint(
+    b: &mut Brush,
+    rect: Rect,
+    s: &Style,
+    st: State,
+    look: &FaderLook<'_>,
+    d: Drivers,
+    with: FaderCap,
+) {
     b.register(rect, "fader", TOKENS, &[]);
     let t = &s.t;
     let night = t.dark;
@@ -108,7 +116,11 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &FaderLook<'
         super::automate::paint_vca_ghost(b, ghost, s, f(t.placeholder));
     }
     let cap = b.snap_rect(slate_cap_rect(rect, s, look.pos));
-    paint_cap(b, cap, s, st, d, true);
+    // The cap the appearance chose (beta.14: Slate drew its own whatever was chosen).
+    if !super::fader::paint_chosen_cap(b, cap, s, st, with) {
+        paint_cap(b, cap, s, st, d, true);
+    }
+    super::fader::note(super::fader::Host::Unit, cap, with);
     // The VCA's V stands by its ghost when there is one.
     let shown = Drivers {
         vca: d.vca && super::automate::current_vca_ghost().is_none(),
