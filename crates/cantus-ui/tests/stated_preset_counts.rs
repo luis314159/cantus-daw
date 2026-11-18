@@ -17,11 +17,18 @@ fn card(u: Unit) -> String {
 }
 
 fn actual() -> Vec<(String, usize)> {
-    units()
+    let mut v: Vec<(String, usize)> = units()
         .into_iter()
         .filter(|u| !matches!(u, Unit::Effect(k) if !k.offered()))
         .map(|u| (card(u), entries(u, false).len()))
-        .collect()
+        .collect();
+    // fxd — the controllers (ADRs 0144, 0145) are modulators, not inserts: their cards
+    // (`CONTROLLERS`) are counted against their own preset banks.
+    use cantus_core::modulator::{presets, ModKind};
+    for (card, kind) in [("tactus", ModKind::XyPad), ("calculus", ModKind::Formula)] {
+        v.push((card.to_string(), presets::of_kind(kind).count()));
+    }
+    v
 }
 
 fn root(path: &str) -> String {
