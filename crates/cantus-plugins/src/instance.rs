@@ -937,6 +937,9 @@ impl Processor {
             // fxc:comparatio — the file compared, read at this rate on its own thread.
             shared.comparatio.activate(sample_rate);
             spec.ir = shared.comparatio.file.get();
+            // Stored here, on the main thread, so the audio thread's offline switch writes
+            // it in place (`configure`).
+            spec.ensure("listen");
             if shared.comparatio.offline() {
                 let _ = spec.set("listen", cantus_core::fx::comparatio::LISTEN_MIX);
             }
@@ -1282,13 +1285,17 @@ impl Processor {
                 p.from_clap(p.to_clap(self.base[i]) + m as f64)
             };
         }
-        cantus_core::fx::tabula::apply_macros(&mut self.spec); // fx3:tabula — macros win
-                                                               // fxc:comparatio — a host's offline render hears the mix, never the reference (as
-                                                               // every render in Cantus; the key exists, so this writes in place).
-        if table.kind == cantus_core::EffectKind::Reference && self.shared.comparatio.offline() {
-            let _ = self
-                .spec
-                .set("listen", cantus_core::fx::comparatio::LISTEN_MIX);
+        // fx3:tabula — macros win.
+        cantus_core::fx::tabula::apply_macros(&mut self.spec);
+        // fxc:comparatio — a host's offline render hears the mix, never the reference (as
+        // every render in Cantus), as `pull_main` last saw the host's mode. Written in place:
+        // `listen` is one of the table's keys, stored since `spec_of` (`EffectSpec::set`
+        // would make a `String` of the key — an allocation on the audio thread at the
+        // offline render's first block, ADR 0005).
+        if self.comparatio_offline {
+            if let Some(v) = self.spec.value_mut("listen") {
+                *v = cantus_core::fx::comparatio::LISTEN_MIX;
+            }
         }
         self.unit.configure(&self.spec);
         if let Some(m) = self.memory.as_mut() {
