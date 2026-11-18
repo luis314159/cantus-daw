@@ -297,12 +297,16 @@ branch saw them), each owned for a fix:
 |---|---|---|---|
 | cantus-engine | `ftz::flushing_denormals_changes_no_sample_of_the_corpus` | a u8 overflow with 43 kinds | fixed `05d8ac40` |
 | cantus-bench | `the_null_corpus_is_repeatable_named_once_and_audible` | 2 items a kind: 86 | fixed `05d8ac40` |
-| cantus-core | `undo_all_restores_initial_state_for_random_sequences` | **seed 15: undo 74 failed** — a command whose inverse is not exact with every arm in | open |
-| cantus-plugins | `alloc::a_jump_snaps_without_allocating` | **Comparatio allocates twice** when the host's offline render starts (fix/snap's jump × wave C's offline switch) | open |
-| cantus-ui | `lenis_e2e::…compensated_on_the_master…` | **live ≠ render** for Lenis on the master (snap at the start × its latency?) | open |
-| cantus-ui | `memory_e2e::what_a_start_holds` | an empty song holds **5.9 MB** against its budget | open |
-| cantus-ui | `kit::skin::side` (2 tests) | the house rule: xy ↔ purus.graphite (carbon 214–222°), formula.ebony ↔ cedo.locomotive and lenis (lacquer 146–168°) | open (a look choice) |
-| cantus-ui | `stated_preset_counts` | Tactus and Calculus have preset counts but are not effect kinds | open |
+| cantus-core | `undo_all_restores_initial_state_for_random_sequences` | **seed 15: undo 74 failed** — SetClipContent let warp, reverse or pitch content in under an ARA binding (a round-36 hole) | fixed `fef7198d` (fix/final-a; `links.rs`) |
+| cantus-plugins | `alloc::a_jump_snaps_without_allocating` | **Comparatio allocates twice** when the host's offline render starts (fix/snap's jump × wave C's offline switch) | fixed `eadb8c56` (fix/final-a: `listen` written in place) |
+| cantus-ui | `lenis_e2e::…compensated_on_the_master…` | **live ≠ render** for Lenis on the master — a live Firmus kept the last song's settings across a project swap | fixed `1018b274` (fix/final-b: `Processor::snap_idle_synths`) |
+| cantus-ui | `memory_e2e::what_a_start_holds` | an empty song holds **5.9 MB** — the English string table had doubled to 32 768 buckets | fixed `62b3aee5` (fix/final-b: a sorted boxed slice, 5.1 MB; ADR 0120 §6 amended) |
+| cantus-ui | `kit::skin::side` (2 tests) | the house rule: xy ↔ purus.graphite (carbon 214–222°), formula.ebony ↔ cedo.locomotive and lenis (lacquer 146–168°) | fixed `dbf50b2c` (Graphite 246°, Ebony 190°; shots in `compartir\skins-clash`) |
+| cantus-ui | `stated_preset_counts` | Tactus and Calculus have preset counts but are not effect kinds | fixed `688ce852` (counted against their own banks) |
+
+Found after: `menus_audit`'s View menu opens beside its key, not under it (x = 166), in
+Slate Night and Slate Paper — likely fx/multimon's extra View items; fix/final-c.
+Also from fix/final-b: the idle snap for every native instrument, not only Firmus (follow-up).
 
 Load-sensitive, to re-run on a quiet machine: `sync_midi::the_out_thread_sends_on_time`,
 Chorda's 64-voice CPU budget (dsp), `preset_render` (Arca), `scene_vector`.
