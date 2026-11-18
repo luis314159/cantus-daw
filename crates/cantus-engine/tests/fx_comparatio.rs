@@ -492,14 +492,26 @@ fn eight_references_hold_the_audio_of_one() {
     // first let go.
     prepare(&project(4));
     assert_eq!(comparatio_store::bytes_of(&refs), one);
-    assert_eq!(comparatio_store::bytes_of(&[refs[4]]), one, "the fifth is in");
-    assert_eq!(comparatio_store::bytes_of(&[refs[0]]), 0, "the first let go");
+    assert_eq!(
+        comparatio_store::bytes_of(&[refs[4]]),
+        one,
+        "the fifth is in"
+    );
+    assert_eq!(
+        comparatio_store::bytes_of(&[refs[0]]),
+        0,
+        "the first let go"
+    );
     let again = comparatio_store::summary(&paths[4]).unwrap();
     assert!(
         Arc::ptr_eq(&again, &summaries[4]),
         "its analysis adopted, not made again"
     );
     let t = comparatio_store::track(&paths[4]).unwrap();
-    assert_eq!(t.whole_lufs(), summaries[4].lufs, "the whole-file loudness adopted");
+    assert_eq!(
+        t.whole_lufs(),
+        summaries[4].lufs,
+        "the whole-file loudness adopted"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

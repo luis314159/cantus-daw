@@ -1659,7 +1659,10 @@ mod tests {
         assert_eq!(slots[1].spec.get("eqamt"), 0.75);
         // Each reference its own playback (the owner, 2026-11-17).
         let other = refs.list[refs.find("references/Other master.wav").unwrap()].playback;
-        assert_eq!(other.map(|p| (p.sync, p.lstart, p.lend)), Some((2.0, 45.0, 75.0)));
+        assert_eq!(
+            other.map(|p| (p.sync, p.lstart, p.lend)),
+            Some((2.0, 45.0, 75.0))
+        );
         let old = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p

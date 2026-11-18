@@ -258,12 +258,15 @@ pub fn switch_command(
         refs: (!refs.is_empty()).then(|| Box::new(refs)),
         selected: selected.map(Box::new),
     }];
-    commands.extend(keys.into_iter().map(|(k, v)| crate::Command::SetEffectParam {
-        strip,
-        effect,
-        key: k.to_string(),
-        value: v,
-    }));
+    commands.extend(
+        keys.into_iter()
+            .map(|(k, v)| crate::Command::SetEffectParam {
+                strip,
+                effect,
+                key: k.to_string(),
+                value: v,
+            }),
+    );
     crate::Command::Batch {
         label_key: "cmd.comparatio_refs".into(),
         commands,
@@ -516,7 +519,11 @@ mod tests {
         let (r, keys) = switch_to(&spec, refs.clone(), Some(&IrFile::new("b.wav")));
         let a = r.list[0].playback.expect("a keeps its own");
         assert_eq!((a.sync, a.lstart, a.lend), (2.0, 45.0, 75.0));
-        assert_eq!(keys, vec![("sync", 0.0), ("lstart", 0.0), ("lend", 0.0)], "b: its defaults");
+        assert_eq!(
+            keys,
+            vec![("sync", 0.0), ("lstart", 0.0), ("lend", 0.0)],
+            "b: its defaults"
+        );
         // `b` locked 3 s ahead; back to `a`: its loop again.
         let mut spec2 = spec.clone();
         spec2.ir = Some(Box::new(IrFile::new("b.wav")));
@@ -528,10 +535,17 @@ mod tests {
         assert_eq!(r2.list[1].playback.unwrap().soff, 3.0, "b keeps its own");
         assert_eq!(
             keys2,
-            vec![("sync", 2.0), ("soff", 0.0), ("lstart", 45.0), ("lend", 75.0)]
+            vec![
+                ("sync", 2.0),
+                ("soff", 0.0),
+                ("lstart", 45.0),
+                ("lend", 75.0)
+            ]
         );
         // The same one again: nothing moves.
-        assert!(switch_to(&spec, refs, Some(&IrFile::new("a.wav"))).1.is_empty());
+        assert!(switch_to(&spec, refs, Some(&IrFile::new("a.wav")))
+            .1
+            .is_empty());
         // Out of range is refused, and repaired on load.
         let bad = Playback {
             sync: 7.0,

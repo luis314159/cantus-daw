@@ -6875,7 +6875,11 @@ fn fxc_reference_command(rng: &mut Lcg, project: &mut Project) -> (bool, Command
             },
             // Its own playback now and then, out of range one time in nine (refused).
             playback: (i % 3 == 1).then(|| cantus_core::fx::comparatio::Playback {
-                sync: if (i + n) % 9 == 0 { 5.0 } else { (i % 3) as f32 },
+                sync: if (i + n).is_multiple_of(9) {
+                    5.0
+                } else {
+                    (i % 3) as f32
+                },
                 soff: i as f32 * 1.5,
                 lstart: 2.0 * i as f32,
                 lend: 3.0 * i as f32,

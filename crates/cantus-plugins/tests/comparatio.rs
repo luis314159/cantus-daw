@@ -263,7 +263,9 @@ fn a_missing_file_is_reported_not_skipped() {
 #[cfg(feature = "editor")]
 #[test]
 fn a_file_dropped_on_the_plug_in_s_window_is_compared() {
-    use egui_baseview::baseview::{dpi::PhysicalPosition, DropData, DropEffect, Event, EventStatus, MouseEvent};
+    use egui_baseview::baseview::{
+        dpi::PhysicalPosition, DropData, DropEffect, Event, EventStatus, MouseEvent,
+    };
     let dir = temp("drop");
     let (rl, rr) = steady(3, 0.5, 0.2, 44_100);
     let file = wav(&dir, "Dropped master.wav", &rl, &rr, 44_100);
@@ -319,7 +321,11 @@ fn a_file_dropped_on_the_plug_in_s_window_is_compared() {
     assert_eq!(ir.map(|f| f.path), Some(stored.clone()), "compared");
     let entry = &refs.expect("listed").list[0];
     let (bytes, hash) = store::fingerprint(&file).unwrap();
-    assert_eq!((entry.bytes, entry.hash.as_str()), (bytes, hash.as_str()), "its print");
+    assert_eq!(
+        (entry.bytes, entry.hash.as_str()),
+        (bytes, hash.as_str()),
+        "its print"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
