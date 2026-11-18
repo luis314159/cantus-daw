@@ -294,11 +294,8 @@ a rail or a dial is one `SetModulatorInput` (none when already there).
   *Learn*, the settings passed by). The menus' pictures, taken by the tests
   (`CANTUS_PATHS_SHOTS`), were looked at.
 - The manual (EN/ES, *Tactus* and *Calculus*) and ADRs 0147/0148 say so.
-- Noted, not changed: a pad drag sets X and Y in one batch, so `Alt+A` right after one
-  automates **Y** (the batch's last) — the manual documents the knob's way; and the
-  *Inertia* knob's travel is 0–2 000 ms while the model (and the AI's tool) take up to
-  10 000 ms (`MAX_INERTIA_MS`): a pad set past 2 s shows 2 000 on its knob. Both are the
-  owner's call.
+- Two findings of this pass (`Alt+A` after a pad drag automated only Y; the *Inertia* knob
+  stopped at 2 000 ms while the model takes 10 000) are closed in *follow-up 2* below.
 
 **3. The site** — for the integrator; `fx/web` was not touched (read-only: `web/src/units.rs`,
 `units_data.rs`, `web/tools/units_pictures.py`, `tools/shots/check_units.py`).
@@ -348,7 +345,7 @@ pub const CONTROLLERS: [Unit; 2] = [
         what: long!(("Tactus is a modulator with a window of its own: a glass pad whose puck drives every parameter you link to its two axes, X and Y, each link with its own range and bend. The puck can glide after your hand, follow a path you draw or record while the song plays, and a gesture recorded as automation writes two lanes in one undo step.", "Tactus es un modulador con ventana propia: un pad de cristal cuyo disco mueve cada parámetro que enlazas a sus dos ejes, X e Y, cada enlace con su propio rango y curva. El disco puede deslizarse tras tu mano, seguir un trayecto que dibujas o grabas mientras suena la canción, y un gesto grabado como automatización escribe dos carriles en un solo paso de deshacer.")),
         features: long!(&[
             ("Two axes driving up to 32 parameters; a range and a bend per link", "Dos ejes que mueven hasta 32 parámetros; un rango y una curva por enlace"),
-            ("Inertia: the puck glides after the hand, up to two seconds behind", "Inercia: el disco se desliza tras la mano, hasta dos segundos detrás"),
+            ("Inertia: the puck glides after the hand, from at once to ten seconds behind", "Inercia: el disco se desliza tras la mano, de al instante a diez segundos detrás"),
             ("Draw a path, or record one while the song plays; it loops in time with the song", "Dibuja un trayecto o grábalo mientras suena la canción; se repite a tiempo con ella"),
             ("A recorded gesture writes two automation lanes, X and Y, in one undo step", "Un gesto grabado escribe dos carriles de automatización, X e Y, en un paso de deshacer"),
             ("Each axis automatable and learnable by a MIDI controller, like any parameter", "Cada eje se automatiza y se enlaza a un controlador MIDI como cualquier parámetro"),
@@ -386,7 +383,7 @@ pub const CONTROLLERS: [Unit; 2] = [
 Each claim's source: ADRs 0147/0148 Phase B and the follow-up; `fxd_e2e.rs` (a path from bar
 3 and from bar 5 on the strip's pan and fader to the bit; `formula.square` live = offline to
 the bit; recording writes exactly two lanes); `modulator_presets.rs` (4 and 9 presets);
-the inertia's "two seconds" is the card knob's travel (the model takes 10 s, see 2). Check
+the inertia's "ten seconds" is the model's, the agents' and the knob's range (follow-up 2). Check
 the `long!` macro and the six-feature rule on the branch when merging.
 
 **4. The glide on a render from bar N — not fixed, a failing test for the integration.**
@@ -407,3 +404,47 @@ this run); clippy `-D warnings --all-targets` clean on `cantus-core`, `cantus-ui
 as described). Not run: the Linux check in WSL, the other crates' suites (`cantus-dsp`,
 `-engine` beyond the new file, `-project`, `-ai`; none of their code changed), `xtask`'s
 manual-links test (the manual's edits add no link).
+
+## Follow-up 2 (2026-11-17, night): the pad as the last thing touched; the inertia's range
+
+The coordinator's order (the owner's "no leftovers"): close the two findings above, tests
+first.
+
+**1. `Alt+A` / `Alt+Shift+A` after a pad drag.** What was wrong: *last tweaked* held one
+parameter, and a drag's command is one batch of X then Y, so it named **Y** alone. Now
+`AutoUi::last_tweaked_with` keeps the other axis when a batch's parameters are exactly two
+inputs of one modulator (the pad's drag, or an agent moving x and y); any other tweak clears
+it (`note_tweak`, and the controllers' moves).
+- `Alt+A` → `automate_pair`: a clip for each axis that has none, **both in one undo step**
+  (one `Batch`, as a recorded gesture writes two lanes), the track's lanes opened once, the
+  status "Automation clips created: … and …"; with both there, it shows X's (no step). A
+  card knob is one axis and stays one.
+- `Alt+Shift+A` → **X, then Y** (the kit arms one target at a time; chosen over learning a
+  hardware XY pad's two CCs from one gesture, which would need a second detection mode, while
+  X-then-Y serves a joystick and two knobs alike): X armed, Y queued
+  (`ControllerUi::learn_next`), the status "Move a control … for X, then another for Y";
+  when X is learnt Y is armed, and the control just learnt is passed over while Y waits
+  (`learn_skip`, a 14-bit pair's halves too), so a knob still turning is not taken twice.
+  `Esc` (`cancel_learning`) or another project drops both; a failed learn drops the queue.
+  Each mapping is its own undo step.
+- Tests (`fxd_drag.rs`, through `assemble`): `alt_a_after_a_pad_drag_automates_both_axes_in_one_step`
+  (both made, one step, undone together; again with both there, no step and no third clip;
+  with only Y there, X made alone, one step; a knob after the pad is one axis);
+  `alt_shift_a_after_a_pad_drag_learns_x_then_y` (CC 21 → X, CC 21 again ignored while Y
+  waits, CC 22 → Y, two steps; `Esc` drops the pair).
+
+**2. The inertia knob's range.** What was wrong: the card's knob went 0–2 000 ms linearly
+while the model, the agents' tool and the presets take 0–10 000 ms (`MAX_INERTIA_MS`), so a
+pad set past 2 s showed 2 000 and a touch would have pulled it back. Now the knob spans
+`fxd_xy::INERTIA_MAX` = `MAX_INERTIA_MS` on a new kit taper, `Taper::Swell(6.41)`
+(`min + span·(e^(c·p) − 1)/(e^c − 1)`): three quarters of the travel to 2 s, half to ~390 ms,
+the last quarter the slow glides; the flywheel's weight follows the knob's travel. The
+presets (80–400 ms) and the agents' tool (`opt_in(0, MAX_INERTIA_MS)`) already agreed.
+- Tests: `the_inertia_knob_reaches_the_models_whole_range` (the knob's top is the model's;
+  2 s at 3/4 within 25 ms; every pad preset within range; a pad at 5 s reads "5000 ms", a
+  touch keeps it and is no step, a turn moves it up from there, the top is 10 000 ms);
+  `cantus-ai` `tools_fxd.rs` `an_agent_sets_a_pads_inertia_over_the_models_whole_range`
+  (10 000 taken, 10 001 refused naming `inertia_ms`).
+- The pad's sheets re-shot in place (the flywheel's weight moved with the taper).
+
+ADR 0147 and the manual (EN/ES, *Tactus*) say all of it.
