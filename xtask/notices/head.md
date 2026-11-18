@@ -53,6 +53,20 @@ Cantus's ASIO fixes marked `CANTUS PATCH` (`third_party/README.md` lists every c
   `src/host/asio/` and `src/host/mod.rs` of cpal and in `build.rs`, `src/lib.rs` and
   `src/bindings/mod.rs` of asio-sys.
 
+## Patched crate: egui-baseview
+
+`third_party/egui-baseview` (egui-baseview 0.7.2) is the crates.io release by Billy
+Messenger and its contributors, <https://codeberg.org/BillyDM/egui-baseview>, with one change
+marked `CANTUS PATCH` (files dragged onto a plug-in's window reach egui: `src/drop.rs`, and
+the call in `src/window.rs`; `third_party/README.md`). It is compiled into the Cantus
+plug-ins' editors.
+
+- Licence: **MIT OR Apache-2.0**, taken under either — `third_party/egui-baseview/LICENSE-MIT`
+  and `third_party/egui-baseview/LICENSE-APACHE`.
+- Copyright © the egui-baseview authors. Modified by the Cantus contributors in 2026, as
+  Apache-2.0 §4(b) asks us to say: the changes are in `src/drop.rs` (new), `src/window.rs`
+  and `src/lib.rs`.
+
 ## The Steinberg ASIO SDK
 
 Cantus's ASIO support is built with the **Steinberg ASIO SDK 2.3.4** (October 2025), which

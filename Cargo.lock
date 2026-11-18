@@ -1219,6 +1219,7 @@ dependencies = [
  "clap-sys",
  "egui",
  "egui-baseview",
+ "hound",
  "libloading 0.8.9",
  "raw-window-handle",
  "rtrb",
@@ -2087,8 +2088,6 @@ dependencies = [
 [[package]]
 name = "egui-baseview"
 version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f197eade3efd9bfe76b9cbf8357beb6a48e0a2ac262901b0f52c736e2710fdaf"
 dependencies = [
  "baseview",
  "copypasta",

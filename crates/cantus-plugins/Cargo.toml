@@ -26,7 +26,9 @@ all = ["eq", "compressor", "limiter", "space", "multiband", "deesser", "gate", "
   "caelum", # fxa:caelum: wave A's shimmer reverb
   "vinculum", # fxb:vinculum: wave B's bus compressor
   "lenis", # fxb:lenis: wave B's resonance suppressor
-  "cedo"] # fxb:cedo: wave B's ducker
+  "cedo", # fxb:cedo: wave B's ducker
+  "purus", # fxc:purus: wave C's real-time repair
+  "comparatio"] # fxc:comparatio: wave C's reference comparator
 # The plug-ins' own editors — the DAW's, running in the host's window (egui 0.36 through
 # baseview). Porta's is the first; the others show the host's generic interface.
 editor = ["dep:cantus-ui", "dep:egui", "dep:egui-baseview", "dep:baseview", "dep:raw-window-handle"]
@@ -81,6 +83,10 @@ vinculum = []
 lenis = []
 # fxb:cedo — the fx side round's wave B (ADR 0141).
 cedo = []
+# fxc:purus — the fx side round's wave C (ADR 0142).
+purus = []
+# fxc:comparatio — the fx side round's wave C (ADR 0143).
+comparatio = []
 
 [dependencies]
 cantus-core.workspace = true
@@ -108,6 +114,8 @@ winresource = "0.1"
 
 [dev-dependencies]
 cantus-core.workspace = true
+# fxc:comparatio — the reference tests write WAV files.
+hound.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 libloading = "0.8"

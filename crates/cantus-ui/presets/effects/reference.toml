@@ -1,0 +1,129 @@
+# Comparatio reference: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# Ways of comparing: how the reference's level follows your mix, where it plays, the switch,
+# the picture and the match EQ. A preset never chooses what is heard or the blind test's order
+# (loading one returns to your mix). `cargo run --release -p cantus-ui --example preset_tool --
+# fit` leaves them as they are: Comparatio never changes your mix's level.
+# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.comparatio.whole_file"
+note = "The reference matched to your mix by its whole file's integrated loudness: steady from the first second, as a mastering engineer compares finished songs."
+styles = ["pop", "rock"]
+roles = ["master"]
+[preset.values]
+"refl" = 1
+
+[[preset]]
+key = "preset.comparatio.short_term"
+note = "The short-term match: the reference follows your mix's loudness every 100 ms, so a verse meets a verse and a chorus a chorus."
+styles = ["pop", "house"]
+roles = ["bus", "master"]
+[preset.values]
+"match" = 1
+
+[[preset]]
+key = "preset.comparatio.by_hand"
+note = "No automatic match: the reference at its own level plus the offset, for when you want to set it yourself."
+styles = ["film", "ambient"]
+roles = ["master"]
+[preset.values]
+"match" = 2
+
+[[preset]]
+key = "preset.comparatio.one_db_down"
+note = "The reference matched, then 1 dB under your mix: if you still prefer it, it is not because it is louder."
+styles = ["pop", "trap"]
+roles = ["master"]
+[preset.values]
+"offset" = -1
+
+[[preset]]
+key = "preset.comparatio.locked"
+note = "The reference plays where the song is: the same bar of a remix or an earlier version of your own song lines up with yours."
+styles = ["pop", "rock"]
+roles = ["bus", "master"]
+[preset.values]
+"sync" = 1
+
+[[preset]]
+key = "preset.comparatio.chorus_loop"
+note = "The reference loops from 45 to 75 seconds (drag across its overview to loop another stretch)."
+styles = ["pop", "rock", "latin"]
+roles = ["master"]
+[preset.values]
+"lend" = 75
+"lstart" = 45
+"sync" = 2
+
+[[preset]]
+key = "preset.comparatio.intro_loop"
+note = "The reference loops over its first thirty seconds: the intro, the first verse."
+styles = ["ambient", "film"]
+roles = ["master"]
+[preset.values]
+"lend" = 30
+"sync" = 2
+
+[[preset]]
+key = "preset.comparatio.quick_switch"
+note = "A 10 ms crossfade: the switch as quick as it can be without a click, for comparing transients."
+styles = ["trap", "house"]
+roles = ["master"]
+[preset.values]
+"fade" = 10
+
+[[preset]]
+key = "preset.comparatio.smooth_switch"
+note = "A 150 ms crossfade: the two glide into each other, for comparing tone without the jolt of the switch."
+styles = ["jazz", "worship"]
+roles = ["master"]
+[preset.values]
+"fade" = 150
+
+[[preset]]
+key = "preset.comparatio.low_end"
+note = "Sixths of an octave and the short-term match: the bass and the kick against the reference's, section by section."
+styles = ["trap", "house", "rnb"]
+roles = ["bus", "master"]
+[preset.values]
+"match" = 1
+"res" = 1
+
+[[preset]]
+key = "preset.comparatio.gentle_eq"
+note = "The match EQ a quarter of the way toward the reference, never more than 3 dB: a nudge, not a copy."
+styles = ["jazz", "film"]
+roles = ["master"]
+[preset.values]
+"eqamt" = 0.25
+"eqmax" = 3
+
+[[preset]]
+key = "preset.comparatio.full_eq"
+note = "The match EQ all the way toward the reference, up to 9 dB, in sixths of an octave: to hear how far apart they are."
+styles = ["pop", "rock"]
+roles = ["master"]
+[preset.values]
+"eqamt" = 1
+"eqmax" = 9
+"res" = 1
+
+[[preset]]
+key = "preset.comparatio.album"
+note = "Locked to the song and matched by the whole file's loudness: a song of your album beside the one before it on the record."
+styles = ["pop", "latin", "rnb"]
+roles = ["master"]
+[preset.values]
+"refl" = 1
+"sync" = 1
+
+[[preset]]
+key = "preset.comparatio.worship_mix"
+note = "Short-term match, a smooth switch and a gentle match EQ: a congregation's mix beside a live worship record."
+styles = ["worship"]
+roles = ["bus", "master"]
+[preset.values]
+"eqamt" = 0.3
+"eqmax" = 4
+"fade" = 100
+"match" = 1

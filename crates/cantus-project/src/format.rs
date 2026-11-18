@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 77; // fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's (Purus, Comparatio; an empty step until its merge), 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 77; // fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -220,6 +220,12 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     if shapes_repaired > 0 {
         log::warn!("{shapes_repaired} malformed ducking shape(s) repaired");
     }
+    // fxc:comparatio — Comparatio's references a command would refuse (a hand edit): a path
+    // twice or empty, too many, the one compared missing from the list (ADR 0143).
+    let refs_repaired = cantus_core::fx::comparatio::repair_project(&mut file.project);
+    if refs_repaired > 0 {
+        log::warn!("{refs_repaired} malformed reference list(s) repaired");
+    }
     // Provenance of a file not in the pool (a hand edit) names nothing: dropped. // r34:stems
     let pool: std::collections::BTreeSet<_> =
         file.project.audio_pool.iter().map(|s| s.id).collect(); // r34:stems
@@ -342,7 +348,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_72_to_73, // fx3 — Tabula's board and three kinds (ADRs 0131–0134)
     migrate_73_to_74, // fxa — Fractus's lanes and three kinds (ADRs 0136–0138)
     migrate_74_to_75, // fxb — Cedo's drawn shape and three kinds (ADRs 0139–0141)
-    migrate_75_to_76, // fxc — wave C's (ADRs 0142–0143): an empty step until its merge
+    migrate_75_to_76, // fxc — Purus, Comparatio and its references (ADRs 0142–0143)
     migrate_76_to_77, // fxd — the X-Y pad and the formula controller (ADRs 0144–0145)
 ];
 
@@ -1210,8 +1216,12 @@ fn migrate_74_to_75(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 76 (the effects side round's wave C, ADRs 0142–0143): an empty step until wave C
-/// is merged, which fills it.
+/// Schema 76 (the effects side round's wave C, ADRs 0142–0143; provisional 66): two new effect
+/// kinds — Purus (repair) and Comparatio (the reference comparator, whose reference track is a
+/// file by path in `EffectSpec::ir`, the field Aula's response has used since schema 60, and
+/// its list of references in `EffectSpec::refs`, each with the size and hash it was loaded
+/// with and its own playback). Nothing older has either, so nothing is written.
+// fxc
 fn migrate_75_to_76(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
@@ -1867,6 +1877,53 @@ mod tests {
             .iter()
             .filter(|e| e.spec.kind != K::Ducker)
             .all(|e| e.spec.cedo.is_none()));
+    }
+
+    /// fxc:contract — Schema 76 (the effects side round's wave C): the fixture holds
+    /// a Purus with its de-hum and de-reverb on and a Comparatio with a reference track by
+    /// path; every older file (75) opens with neither.
+    #[test]
+    fn schema_76_keeps_wave_c_s_kinds_and_the_reference_by_path() {
+        use cantus_core::EffectKind as K;
+        let new_kinds = [K::Repair, K::Reference];
+        assert_eq!(&K::ALL[K::ALL.len() - 2..], new_kinds);
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v76.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        // fxd — no longer the newest (77): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(76));
+        let p = report.file.project;
+        let slots: Vec<_> = p.strips[1]
+            .effects
+            .iter()
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        assert_eq!(slots[0].spec.get("hon"), 1.0);
+        assert_eq!(slots[0].spec.get("von"), 1.0);
+        assert_eq!(slots[0].spec.get("vdirect"), 0.0);
+        let r = slots[1].spec.ir.as_deref().expect("the reference");
+        assert_eq!(r.path, "references/Reference master.flac");
+        assert_eq!(slots[1].spec.get("match"), 1.0);
+        // Phase B: the list of references, the one compared among them with its print.
+        let refs = slots[1].spec.refs.as_deref().expect("the list");
+        assert_eq!(refs.list.len(), 3);
+        let at = refs.find(&r.path).expect("the one compared is listed");
+        assert_eq!(refs.list[at].bytes, 31_457_280);
+        assert_eq!(refs.list[at].hash, "9e3779b97f4a7c15");
+        assert_eq!(slots[1].spec.get("eqamt"), 0.75);
+        // Each reference its own playback (the owner, 2026-11-17).
+        let other = refs.list[refs.find("references/Other master.wav").unwrap()].playback;
+        assert_eq!(
+            other.map(|p| (p.sync, p.lstart, p.lend)),
+            Some((2.0, 45.0, 75.0))
+        );
+        let old = std::fs::read_to_string(dir.join("v75.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .all_effects()
+            .all(|(_, e)| !new_kinds.contains(&e.spec.kind)));
     }
 
     /// fx3:contract — a hand-edited board is repaired on load: a nested board and a second

@@ -393,6 +393,45 @@ pub trait FxHost {
     fn take_stereo(&mut self, _out: &mut Vec<(f32, f32)>) -> StereoTake {
         StereoTake::default()
     }
+
+    // ---- fxc:comparatio — Comparatio's references (ADR 0143 phase B) ----------------
+
+    /// Set Comparatio's list of references and the one compared, together, as one step of
+    /// undo — the one compared until now keeping its playback, the newcomer's own brought
+    /// back (`fx::comparatio::switch_to`; `switch_command` in Cantus, the plug-in's state and
+    /// values elsewhere, its file read on a thread of its own). `false`: the host keeps no
+    /// references.
+    fn set_references(
+        &mut self,
+        _refs: Option<cantus_core::fx::comparatio::References>,
+        _selected: Option<cantus_core::IrFile>,
+    ) -> bool {
+        false
+    }
+
+    /// How a file picked or dropped is stored: relative to the project's folder when it is
+    /// inside it, absolute otherwise.
+    fn store_reference(&self, file: &std::path::Path) -> String {
+        file.to_string_lossy().into_owned()
+    }
+
+    /// Where a stored reference path points (beside the project file when relative).
+    fn resolve_reference(&self, path: &str) -> std::path::PathBuf {
+        std::path::PathBuf::from(path)
+    }
+
+    /// Whether the match EQ can be sent to an Aequalis before this unit (a chain to put it
+    /// in: Cantus's, not another host's).
+    fn can_send_match_eq(&self) -> bool {
+        false
+    }
+
+    /// Put `eq` (an Aequalis's spec) before this unit, as one step: in place of the
+    /// Aequalis it was sent to last when that one is still on the strip, else inserted
+    /// just before this unit. `false` where there is no chain.
+    fn send_match_eq(&mut self, _eq: EffectSpec) -> bool {
+        false
+    }
 }
 
 /// Whether a command changes the effect `effect` (the header's undo is this device's).
@@ -408,6 +447,7 @@ pub fn touches(cmd: &cantus_core::Command, effect: cantus_core::EffectId) -> boo
         | C::SetLapsusPattern { effect: e, .. } // fx:lapsus
         | C::SetFractusLane { effect: e, .. } // fxa:fractus
         | C::SetCedoShape { effect: e, .. } // fxb:cedo
+        | C::SetReferences { effect: e, .. } // fxc:comparatio
         | C::SetEffectMix { effect: e, .. }
         | C::SetPluginParam { effect: e, .. }
         | C::SetPluginState { effect: e, .. } => *e == effect,
@@ -471,6 +511,7 @@ impl Drop for DawHost<'_> {
                 board: None,   // fx3:contract (a board's content: the tabula builder's)
                 fractus: None, // fxa:contract (Fractus's lanes: phase B)
                 cedo: None,    // fxb:contract (Cedo's shape: phase B)
+                refs: None,    // fxc:comparatio
             };
             let spec = std::mem::replace(&mut self.spec, empty);
             self.app.fx.spec_cache = Some((rev, self.effect, spec));
@@ -881,6 +922,40 @@ impl FxHost for DawHost<'_> {
                 self.app.exec(cmd);
             }
         }
+    }
+
+    // fxc:comparatio
+    fn set_references(
+        &mut self,
+        refs: Option<cantus_core::fx::comparatio::References>,
+        selected: Option<cantus_core::IrFile>,
+    ) -> bool {
+        // Each reference keeps its own playback (the owner, 2026-11-17): the list, the one
+        // compared and its playback brought back, one step.
+        let cmd = cantus_core::fx::comparatio::switch_command(
+            &self.spec,
+            self.strip,
+            self.effect,
+            refs.unwrap_or_default(),
+            selected,
+        );
+        self.app.exec(cmd)
+    }
+
+    fn store_reference(&self, file: &std::path::Path) -> String {
+        crate::audio_files::stored_path(crate::audio_files::base_of(self.app.path.as_deref()), file)
+    }
+
+    fn resolve_reference(&self, path: &str) -> std::path::PathBuf {
+        super::aula::resolve(self.app, path)
+    }
+
+    fn can_send_match_eq(&self) -> bool {
+        true
+    }
+
+    fn send_match_eq(&mut self, eq: EffectSpec) -> bool {
+        super::comparatio::send_match_eq(self.app, self.strip, self.effect, eq)
     }
 
     // fxa:fractus

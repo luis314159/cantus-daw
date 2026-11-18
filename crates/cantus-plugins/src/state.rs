@@ -68,6 +68,67 @@ pub fn load_cedo(bytes: &[u8]) -> Option<Box<cantus_core::fx::cedo::Shape>> {
         .map(|s| Box::new(s.sanitized()))
 }
 
+/// fxc:comparatio — Comparatio's references in a state saved by [`save_spec_extras`]: the
+/// list (each path with the size and hash it was loaded with) and the one compared, as the
+/// project keeps them (`EffectSpec::refs`, `EffectSpec::ir`). Never their audio.
+pub fn with_references(
+    bytes: &[u8],
+    refs: Option<&cantus_core::fx::comparatio::References>,
+    ir: Option<&cantus_core::IrFile>,
+) -> Vec<u8> {
+    let Ok(Value::Object(mut obj)) = serde_json::from_slice::<Value>(bytes) else {
+        return bytes.to_vec();
+    };
+    if let Some(r) = refs.filter(|r| !r.is_empty()) {
+        if let Ok(v) = serde_json::to_value(r) {
+            obj.insert("refs".into(), v);
+        }
+    }
+    if let Some(f) = ir {
+        if let Ok(v) = serde_json::to_value(f) {
+            obj.insert("ir".into(), v);
+        }
+    }
+    serde_json::to_vec(&Value::Object(obj)).unwrap_or_else(|_| bytes.to_vec())
+}
+
+/// fxc:comparatio — Comparatio's references from a state, repaired as a project's are (a
+/// path twice or empty dropped, the one compared listed).
+pub fn load_references(
+    bytes: &[u8],
+) -> (
+    Option<cantus_core::fx::comparatio::References>,
+    Option<cantus_core::IrFile>,
+) {
+    let Ok(value) = serde_json::from_slice::<Value>(bytes) else {
+        return (None, None);
+    };
+    let ir = value
+        .get("ir")
+        .and_then(|v| serde_json::from_value::<cantus_core::IrFile>(v.clone()).ok())
+        .filter(|f| !f.path.trim().is_empty());
+    let refs = value.get("refs").and_then(|v| {
+        serde_json::from_value::<cantus_core::fx::comparatio::References>(v.clone()).ok()
+    });
+    let mut spec = EffectSpec::new(cantus_core::EffectKind::Reference);
+    spec.refs = refs.map(Box::new);
+    spec.ir = ir.map(Box::new);
+    let mut p = cantus_core::Project::default();
+    let s = p.strips[0].id;
+    let mut slot = p.make_effect(cantus_core::EffectKind::Reference);
+    slot.spec = spec;
+    if let Some(strip) = p.strip_mut(s) {
+        strip.effects.push(slot);
+    }
+    cantus_core::fx::comparatio::repair_project(&mut p);
+    let spec = p
+        .strip(s)
+        .and_then(|st| st.effects.last())
+        .map(|e| e.spec.clone())
+        .unwrap_or_else(|| EffectSpec::new(cantus_core::EffectKind::Reference));
+    (spec.refs.map(|b| *b), spec.ir.map(|b| *b))
+}
+
 /// [`save`], with Lapsus's bank beside the values (fx:lapsus).
 pub fn save_with_bank(
     table: &Table,
@@ -120,6 +181,7 @@ pub fn save_spec_with(
         board: None,   // fx3:tabula (`extras`)
         fractus: None, // fxa:fractus (`extras`)
         cedo: None,    // fxb:cedo (`extras`)
+        refs: None,    // fxc:comparatio
     };
     extras(&mut spec);
     let mut obj = match serde_json::to_value(&spec) {

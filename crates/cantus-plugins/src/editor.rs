@@ -72,6 +72,8 @@ pub struct PluginHost {
     fractus_gen: u64,
     /// fxb:cedo — the shape's generation `spec` holds.
     cedo_gen: u64,
+    /// fxc:comparatio — the references' generation `spec` holds.
+    comparatio_gen: u64,
     /// The other side of A/B (the plug-in's values), and whether B is the side showing.
     other: Option<Vec<f32>>,
     on_b: bool,
@@ -100,6 +102,7 @@ impl PluginHost {
             board_gen: u64::MAX,   // fx3:tabula
             fractus_gen: u64::MAX, // fxa:fractus
             cedo_gen: u64::MAX,    // fxb:cedo
+            comparatio_gen: u64::MAX, // fxc:comparatio
             other: None,
             on_b: false,
         }
@@ -143,6 +146,15 @@ impl PluginHost {
         if g != self.cedo_gen {
             self.cedo_gen = g;
             self.spec.cedo = self.shared.cedo.get();
+            changed = true;
+        }
+        // fxc:comparatio — Comparatio's references, when the main thread has new ones.
+        let g = self.shared.comparatio.file.generation();
+        if g != self.comparatio_gen && self.shared.desc.kind == EffectKind::Reference {
+            self.comparatio_gen = g;
+            let (refs, ir) = self.shared.comparatio.get();
+            self.spec.refs = refs.map(Box::new);
+            self.spec.ir = ir.map(Box::new);
             changed = true;
         }
         // fx3:tabula — Tabula's board, when the main thread has a new one.
@@ -303,6 +315,34 @@ impl FxHost for PluginHost {
         self.cedo_gen = self.shared.cedo.generation();
         self.spec.cedo = self.shared.cedo.get();
         self.revision += 1;
+    }
+
+    // fxc:comparatio — the references are the plug-in's state (paths, never audio): kept,
+    // the one compared read on a thread of its own and posted to the processor.
+    fn set_references(
+        &mut self,
+        refs: Option<cantus_core::fx::comparatio::References>,
+        selected: Option<cantus_core::IrFile>,
+    ) -> bool {
+        if self.shared.desc.kind != EffectKind::Reference {
+            return false;
+        }
+        // Each reference keeps its own playback (the owner, 2026-11-17): saved into the
+        // outgoing one's entry, the newcomer's set on the host's parameters.
+        let (refs, keys) = cantus_core::fx::comparatio::switch_to(
+            &self.spec,
+            refs.unwrap_or_default(),
+            selected.as_ref(),
+        );
+        self.shared
+            .comparatio
+            .set((!refs.is_empty()).then_some(refs), selected);
+        if !keys.is_empty() {
+            self.set_many(&keys, "cmd.comparatio_refs");
+        }
+        self.comparatio_gen = u64::MAX;
+        self.refresh();
+        true
     }
 
     fn end_gesture(&mut self) {

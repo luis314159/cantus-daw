@@ -3148,6 +3148,135 @@ defecto (profundidad 0) Cedo deja el sonido intacto, al bit. Como pedal en **Tab
 el disparo, la profundidad, el ciclo y el umbral; lo disparan la clave de una pedalera con
 clave, su pulso y sus notas.
 
+### Purus, la restauración en tiempo real
+
+**Purus** (en latín, *limpio*) repara una pista mientras suena: el zumbido de la red, los
+clics y la crepitación, la cola de una sala en una voz. Se inserta desde **Añadir inserción ▾
+▸ Utilidades ▸ Purus**; empieza como *Zumbido de red 50 Hz* — el módulo del zumbido
+encendido, a 50 Hz, seguido mientras la red deriva, ocho armónicos recortados — así el
+zumbido de un lazo de masa se va al momento. (*Quitar ruido* y *Quitar clics* del editor de
+audio reparan una toma sin conexión; Purus lo hace mientras suena la canción, en cualquier
+canal.)
+
+**Tres módulos**, cada uno con su interruptor, su mezcla y su salida, apagados hasta que los
+enciendes:
+
+- **Quitar zumbido** saca la fundamental de la red y hasta dieciséis armónicos. La
+  *Frecuencia* es **Fija** (exactamente la fundamental que pones), **Seguida** (la red
+  deriva; la sigue a ±2 Hz) o **Hallada sola** (decide entre 50 y 60 Hz y luego la sigue).
+  La *Profundidad* y la *Anchura* de las muescas dicen cuánto y con qué precisión. **Suave**
+  aprende el zumbido y lo resta en lugar de recortarlo: una nota grave en 50, 100 o 150 Hz
+  conserva su peso (retiene lo aprendido mientras suena la nota). Suave mira 50 ms por
+  delante, que es su latencia.
+- **Quitar clics y crepitación** encuentra cada clic y lo rehace con la música que lo rodea
+  (la misma reparación del editor de audio) y, con *Crepitación* por encima de 0, saca la
+  crepitación de un disco de la banda alta. La *Sensibilidad* se detiene en 0,70: más alta
+  empezaría a remendar la propia música. 16 ms de latencia.
+- **Quitar sala** baja la cola de una sala en una voz. La *Reducción* dice cuánto (hasta
+  30 dB); el *Decaimiento* es el de la sala, puesto a mano o **Estimado** en las
+  pausas; el *Sonido directo* dice lo cerca que estaba el micrófono (0 dB por defecto, va bien casi
+  siempre; más para uno muy cercano). Solo quita tanta sala como muestran las pausas: una voz
+  seca pasa intacta; las *Primeras reflexiones* conservan los
+  primeros milisegundos, que llevan la voz. 21 ms de latencia (23 a 44,1 kHz).
+
+La latencia es solo la de los módulos encendidos, y Cantus la compensa en el canal, así la
+pista sigue a tiempo con el resto.
+
+**La ventana** es un banco de restauración:
+
+- **La pantalla** es un espectrograma de los últimos seis segundos, los graves abajo. Lo que
+  oyes brilla cálido; **lo que Purus quita** de cada lugar se pone encima en un color frío,
+  así el zumbido, los clics y la cola de la sala se ven como lo que cayó del cuadro. Los
+  armónicos del zumbido son un peine de agujas en el riel de la izquierda: **arrastra una
+  aguja arriba o abajo y la fundamental la sigue**.
+- **El carril de los clics**, debajo, marca cada reparación, con la cuenta.
+- **La cola de la sala**, a la derecha, muestra el decaimiento de la sala tal como era (la
+  línea clara) y tras la reparación (la línea cálida), la diferencia sombreada. **Arrastra
+  sobre ella para fijar la reducción** (el tirador del borde la sigue) y **arrastra la
+  marca** donde terminan las primeras reflexiones para conservar más o menos de ellas.
+- **Tres cartuchos**, uno por módulo: su palanca, una lámpara que se enciende con lo que hace,
+  lo que lee ahora (la frecuencia del zumbido, los clics rehechos, el decaimiento) y sus
+  teclas — **50 Hz**, **60 Hz** y **Suave** en el del zumbido, **A mano** y
+  **Estimado** en el de la sala, y **Oír lo que se quita** en cada uno: oyes solo lo que ese
+  módulo quita, para juzgarlo. Cada clic y cada arrastre es un paso de deshacer; clic
+  derecho en una tecla para automatización y aprendizaje MIDI.
+- **Las tarjetas** tienen todos los controles: Quitar zumbido, Quitar clics y crepitación,
+  Quitar sala, Salida.
+
+Dieciséis presets de fábrica: zumbido de red a 50 o 60 Hz o hallado solo, el zumbido de un
+amplificador de guitarra, una guitarra en directo y un bajo por DI (suaves), clics de vinilo,
+los clics y la crepitación de un disco gastado, un casete antiguo, un pódcast en una sala
+pequeña, un diálogo en una sala reverberante, una entrevista con micrófono lejano, un aula
+magna, una grabación de campo, una videollamada y una limpieza a fondo. En sus valores por
+defecto todos los módulos están apagados y Purus no toca ninguna muestra.
+
+**En el tablero de Tabula** Purus también es un pedal — un pedal antizumbido antes de la
+distorsión (la fundamental, los armónicos, la profundidad y la mezcla en su cara).
+
+**En otro DAW** Purus es el plug-in *Cantus Purus* (CLAP y VST3); cuando se enciende o apaga un
+módulo, le dice al anfitrión su nueva latencia.
+
+### Comparatio, el comparador con referencia
+
+**Comparatio** (en latín, *una comparación, poner lado a lado*) pone tu mezcla junto a los
+discos con los que quieres que esté. Insértalo en el **último hueco del máster** desde
+**Añadir inserción ▾ ▸ Masterización ▸ Comparatio** (o Utilidades); empieza en sus valores
+por defecto — se oye tu mezcla, intacta — y mide.
+
+**Carga una referencia**: pulsa **Cargar referencia…** al pie de la consola, o **suelta**
+archivos de audio (WAV, AIFF, FLAC, Ogg) sobre la consola. Hasta ocho referencias quedan en
+la lista, cada una una tecla numerada; pulsa un número para comparar esa, **Quitar** para
+sacarla. Los archivos se leen de tu disco donde están — nunca se copian al proyecto — y cada
+uno guarda su propio análisis, así que su duración, su sonoridad y su tono se ven en cuanto se
+lee. Si un archivo ha desaparecido, o ha cambiado desde que lo cargaste, la tira lo dice en
+rojo: cárgalo de nuevo.
+
+**Compara**: gira el **gran selector** (o pulsa una lámpara, o **A** y **B** en el cajón a
+ciegas) para oír la referencia en lugar de tu mezcla, **a la sonoridad de tu mezcla** — el
+cambio es un fundido corto que no se oye como un clic. Las tarjetas dicen cómo se iguala la
+referencia: *Igualar* **Integrada** (sobre lo que ha sonado, o con *Medida sobre* **El archivo
+entero**, estable desde el primer segundo), **A corto plazo** (siguiendo tu mezcla sección a
+sección) o **A mano**, un *Desfase* en todos los modos, y el *Fundido*. *Reproducción de la
+referencia* la toca con **Su propio cabezal** mientras suena la canción, **Unida a la
+canción** (con *Adelantada*), o **En bucle** — **arrastra sobre la vista general** para
+repetir el tramo que quieras. Cada referencia guarda su propia reproducción: compara otra y
+vuelven su bucle y su adelanto; la igualación, el fundido y la pantalla quedan como están.
+Solo la referencia que se compara se guarda en memoria: otra se vuelve a leer del disco
+cuando la eliges (mientras tanto suena tu mezcla y la tira dice que se está leyendo).
+
+**La pantalla** muestra ambos **equilibrios tonales** (el de la referencia de su archivo
+entero, el de tu mezcla mientras suena) y **tu mezcla frente a la referencia** — sobre la
+línea lo que tu mezcla tiene de más, debajo lo que tiene de más la referencia, la banda suave
+cuán segura es la comparación. La línea naranja es la **igualación tonal**: lo que acercaría
+tu mezcla a la referencia, tanto como diga la *Cantidad* de la tarjeta *Igualación tonal* y
+nunca más que el *Mayor realce o corte*. Pulsa **Enviar a Aequalis** y se convierte en un
+Aequalis justo antes de Comparatio, en bandas editables, con la ganancia de salida que deja
+tu mezcla tan sonora como era — un paso de deshacer; envíala otra vez y se actualiza ese
+Aequalis. Debajo, **Dinámica** (los dos histogramas de sonoridad, el factor de cresta, el
+pico frente a la sonoridad, el rango de sonoridad) y **Estéreo** (correlación y anchura, en
+total y en tres bandas). Los dos platos leen la sonoridad a corto plazo, integrada y
+momentánea, el pico real y el rango de sonoridad.
+
+**Prueba a ciegas**: pulsa **X** para oír una de las dos, oculta; responde *X es tu mezcla* o
+*X es la referencia*; cada respuesta enciende una lámpara, y el cajón da tu resultado y la
+probabilidad de lograrlo adivinando. **Nueva prueba** empieza de nuevo en otro orden.
+
+Cada pulsación y cada arrastre es un paso de deshacer; con el botón derecho sobre el selector
+o una lámpara, automatización y aprendizaje MIDI (un pedal para A/B). Catorce preajustes de
+fábrica son maneras de comparar: masterizar por el archivo entero, mezclar sección a sección,
+a mano, la referencia un decibelio más baja, unida a la canción, dos bucles, cambio rápido y
+suave, graves en detalle, una igualación tonal suave y una completa, las canciones de un álbum
+lado a lado, una mezcla de alabanza frente a un disco en vivo.
+
+**Los renders nunca oyen una referencia**: una exportación, una pista separada, una
+congelación o un bounce oyen siempre tu mezcla, diga lo que diga el selector. Comparatio no es
+un pedal en el tablero de Tabula: una referencia es la escucha del máster.
+
+**En otro DAW** Comparatio es el plug-in *Cantus Comparatio* (CLAP y VST3): **Cargar
+referencia…** en su ventana, o suelta un archivo encima; la sesión guarda la ruta, el tamaño y la huella de cada
+referencia (nunca su audio) y dice cuándo falta un archivo o ha cambiado; el bounce sin
+conexión del anfitrión oye tu mezcla. *Enviar a Aequalis* es solo de Cantus.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

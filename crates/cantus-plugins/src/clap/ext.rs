@@ -309,7 +309,8 @@ static TAIL: clap_plugin_tail = clap_plugin_tail {
 // ---- Render (fx/final) ----------------------------------------------------------------
 
 /// `clap.render`: the host says when it renders offline; the switch into it starts a render,
-/// whose first grid point snaps the unit to the values in force (ADR 0027, amended).
+/// whose first grid point snaps the unit to the values in force (ADR 0027, amended), and
+/// Comparatio's reference stays out of it (fxc:comparatio).
 static RENDER: clap_sys::ext::render::clap_plugin_render =
     clap_sys::ext::render::clap_plugin_render {
         has_hard_realtime_requirement: Some(render_hard_realtime),
@@ -332,6 +333,10 @@ unsafe extern "C" fn render_set(
     i.shared
         .offline
         .store(offline, std::sync::atomic::Ordering::Relaxed);
+    // fxc:comparatio — an offline render hears the mix, never a reference (ADR 0143).
+    if i.shared.desc.kind == cantus_core::EffectKind::Reference {
+        i.shared.comparatio.set_offline(offline);
+    }
     true
 }
 

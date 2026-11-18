@@ -123,6 +123,12 @@ pub mod fractus; // fx-a:fractus
 
 pub mod cedo; // fx-b:cedo
 
+// fx-e:purus — Purus, the real-time repair unit (de-hum, de-reverb; DSP phase).
+pub mod purus; // fx-e:purus
+
+// fx-c:comparatio — the reference-track comparator (DSP phase; no kind yet).
+pub mod comparatio; // fx-c:comparatio
+
 /// The version of the numbers this crate renders. Two builds with the same `DSP_VERSION`
 /// render the same project to the same bits, on any machine; a change that moves any
 /// unit's output bits (an algorithm, a coefficient, a [`math`] function) bumps it — once,

@@ -19,6 +19,11 @@ use cantus_core::EffectKind;
 #[path = "side_fxa.rs"]
 mod fxa;
 pub use fxa::*;
+// fxc — wave C's two faces and their colourways (ADRs 0142–0143).
+#[path = "side_fxc.rs"]
+mod fxc;
+pub use fxc::*;
+
 // fxd — wave D's two faces (the X-Y pad, the formula controller; ADRs 0144–0145).
 #[path = "side_fxd.rs"]
 mod fxd;
@@ -730,6 +735,8 @@ pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
         EffectKind::BusCompressor => &VINCULUM_COLOURWAYS, // fxb:vinculum
         EffectKind::ResonanceSuppressor => &LENIS_COLOURWAYS, // fxb:lenis
         EffectKind::Ducker => &CEDO_COLOURWAYS,        // fxb:cedo
+        EffectKind::Repair => &PURUS_COLOURWAYS,       // fxc:purus
+        EffectKind::Reference => &COMPARATIO_COLOURWAYS, // fxc:comparatio
         _ => &[],
     }
 }
@@ -752,6 +759,8 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         EffectKind::BusCompressor => Some(&VINCULUM), // fxb:vinculum
         EffectKind::ResonanceSuppressor => Some(&LENIS), // fxb:lenis
         EffectKind::Ducker => Some(&CEDO),       // fxb:cedo
+        EffectKind::Repair => Some(&PURUS),         // fxc:purus
+        EffectKind::Reference => Some(&COMPARATIO), // fxc:comparatio
         _ => None,
     }
 }
@@ -825,9 +834,9 @@ pub const FRAGOR_COLOURWAYS: [Colourway; 3] = [
 mod tests {
     use super::super::{colourways, of, Skin, Unit};
     use super::{
-        ARCA, CAELUM, CEDO, CRIBRUM, FORMULA, FRACTUS, FRAGOR, LAPSUS, LENIS, LIBRA, LOQUAX, ROTA,
-        SALTUS, VETUS, VINCULUM, XY,
-    }; // fx3:saltus, fx3:arca, fx3:rota, fxa, fxb, fxd
+        ARCA, CAELUM, CEDO, COMPARATIO, CRIBRUM, FORMULA, FRACTUS, FRAGOR, LAPSUS, LENIS, LIBRA,
+        LOQUAX, PURUS, ROTA, SALTUS, VETUS, VINCULUM, XY,
+    }; // fx3:saltus, fx3:arca, fx3:rota, fxa, fxb, fxc, fxd
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
@@ -841,8 +850,8 @@ mod tests {
     fn faces() -> Vec<&'static Skin> {
         [
             &CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA, &LOQUAX, &FRACTUS,
-            &CAELUM, &XY, &FORMULA, &VINCULUM, &LENIS, &CEDO,
-        ] // fx3:saltus, fx3:rota, fx3:arca, fxb, fxd
+            &CAELUM, &XY, &FORMULA, &VINCULUM, &LENIS, &CEDO, &PURUS, &COMPARATIO,
+        ] // fx3:saltus, fx3:rota, fx3:arca, fxb, fxc, fxd
         .into_iter()
         .filter(|s| !is_placeholder(s))
         .collect()

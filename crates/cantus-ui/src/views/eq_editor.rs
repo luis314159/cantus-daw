@@ -641,6 +641,19 @@ fn new_band_fields(shape: EqShape, freq: f32, gain: f32) -> ([(&'static str, f32
     (f, n)
 }
 
+/// fxc:comparatio — a fitted band's fields at number `n`, as `apply_fit` writes them (for
+/// Comparatio's *Send to Aequalis*, which builds a whole Aequalis).
+pub(crate) fn band_fields(n: usize, b: &BandSettings) -> Vec<(&'static str, f32)> {
+    let (fields, count) = new_band_fields(b.shape, b.freq, b.gain_db);
+    let mut out: Vec<(&'static str, f32)> = fields[..count]
+        .iter()
+        .filter(|(f, _)| *f != "q")
+        .map(|(f, v)| (bkey(n, f), *v))
+        .collect();
+    out.push((bkey(n, "q"), b.q));
+    out
+}
+
 /// Set fields of one band as one step (or folded into gesture `gesture`).
 fn set_band(host: &mut dyn FxHost, band: usize, fields: &[(&str, f32)], gesture: Option<u64>) {
     let edits: Vec<(&str, Option<f32>)> = fields

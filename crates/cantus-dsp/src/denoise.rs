@@ -135,7 +135,6 @@ pub fn denoise_channel(x: &[f32], noise: &[f32], p: &Params) -> Vec<f32> {
         return x.to_vec();
     }
     let floor = math::db_to_gain(-p.reduction_db);
-    let fall = 0.6 * p.smoothing;
     let mut prev = vec![1.0f32; BINS];
     let mut raw = vec![1.0f32; BINS];
     let mut st = Stft::new();
@@ -149,24 +148,42 @@ pub fn denoise_channel(x: &[f32], noise: &[f32], p: &Params) -> Vec<f32> {
             };
             raw[b] = g.max(floor);
         }
-        // Over frequency: three bins, as far as smoothing asks.
-        let side = 0.25 * p.smoothing;
-        for b in 0..BINS {
-            let lo = raw[b.saturating_sub(1)];
-            let hi = raw[(b + 1).min(BINS - 1)];
-            let g = (1.0 - 2.0 * side) * raw[b] + side * (lo + hi);
-            // Over time: up at once, down slowly.
-            let g = if g < prev[b] {
-                prev[b] + (g - prev[b]) * (1.0 - fall)
-            } else {
-                g
-            };
-            prev[b] = g;
+        smooth_gains(&raw, &mut prev, p.smoothing, |b, g| {
             let eff = 1.0 + p.amount * (g - 1.0);
             re[b] *= eff;
             im[b] *= eff;
-        }
+        });
     })
+}
+
+/// Smooth one frame's gains `raw` and hand each bin's to `apply(bin, gain)`: over
+/// frequency across three bins, as far as `smoothing` (0..1) asks, and over time against
+/// `prev` (the last frame's, updated) — up at once, so an onset is never dulled, down
+/// slowly. What keeps the musical noise of a per-bin gain down; shared with Purus's
+/// de-reverb (fx-e:purus).
+pub fn smooth_gains(
+    raw: &[f32],
+    prev: &mut [f32],
+    smoothing: f32,
+    mut apply: impl FnMut(usize, f32),
+) {
+    let n = raw.len();
+    let fall = 0.6 * smoothing;
+    // Over frequency: three bins, as far as smoothing asks.
+    let side = 0.25 * smoothing;
+    for b in 0..n {
+        let lo = raw[b.saturating_sub(1)];
+        let hi = raw[(b + 1).min(n - 1)];
+        let g = (1.0 - 2.0 * side) * raw[b] + side * (lo + hi);
+        // Over time: up at once, down slowly.
+        let g = if g < prev[b] {
+            prev[b] + (g - prev[b]) * (1.0 - fall)
+        } else {
+            g
+        };
+        prev[b] = g;
+        apply(b, g);
+    }
 }
 
 /// Reduce the noise of every channel (`channels[c]` against `profile.power[c]`).

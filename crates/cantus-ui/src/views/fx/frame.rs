@@ -155,6 +155,8 @@ pub fn hue_of(kind: EffectKind) -> Function {
         EffectKind::BusCompressor => Function::Dynamics, // fxb:contract (vinculum)
         EffectKind::ResonanceSuppressor => Function::Tone, // fxb:contract (lenis)
         EffectKind::Ducker => Function::Dynamics,   // fxb:contract (cedo)
+        EffectKind::Repair => Function::Tone,       // fxc:contract (purus)
+        EffectKind::Reference => Function::Output,  // fxc:contract (comparatio)
     }
 }
 
@@ -201,6 +203,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::BusCompressor => super::vinculum::DESIGNED_SIZE, // fxb:vinculum
         EffectKind::ResonanceSuppressor => super::lenis::DESIGNED_SIZE, // fxb:lenis
         EffectKind::Ducker => super::cedo::DESIGNED_SIZE, // fxb:cedo
+        EffectKind::Repair => super::purus::designed_size(), // fxc:purus
+        EffectKind::Reference => super::comparatio::designed_size(), // fxc:comparatio
         _ => Vec2::new(1000.0, 640.0),
     }
 }

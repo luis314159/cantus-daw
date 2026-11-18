@@ -1899,6 +1899,8 @@ impl CantusApp {
             "vinculum" | "bus_compressor" => EffectKind::BusCompressor, // fxb:contract
             "lenis" | "resonance" => EffectKind::ResonanceSuppressor, // fxb:contract
             "cedo" | "ducker" => EffectKind::Ducker,    // fxb:contract
+            "purus" | "repair" => EffectKind::Repair,   // fxc:contract
+            "comparatio" | "reference" => EffectKind::Reference, // fxc:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

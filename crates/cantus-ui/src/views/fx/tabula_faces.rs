@@ -371,6 +371,17 @@ pub const FACES: &[Face] = &[
         "C",
         T::Hammered,
     ), // fxb:cedo
+    // fxc:purus — a de-hum pedal, as a noise suppressor on a guitar's board is: the
+    // mains' fundamental, the harmonics taken, how deep, the mix (the de-click and the
+    // room are reached from the pedal's editor).
+    face(
+        K::Repair,
+        &["hhz", "hharm", "hdepth", "hmix"],
+        S::Standard,
+        M::Curve,
+        "P",
+        T::Hammered,
+    ), // fxc:purus
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.

@@ -348,7 +348,8 @@ pub fn render(ws: &Path, crates: &[Crate], manifest: &Manifest) -> String {
          ships, printed once each under [Licence texts](#licence-texts). Where a crate \
          offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its \
          author allows. The patched `cpal` and `asio-sys` are under \
-         [Patched crates](#patched-crates-cpal-and-asio-sys) above.\n\n",
+         [Patched crates](#patched-crates-cpal-and-asio-sys) above, the patched \
+         `egui-baseview` under [its own](#patched-crate-egui-baseview).\n\n",
         crates.len() - inside
     ));
     s.push_str("| Crate | Version | Licence | Texts |\n|---|---|---|---|\n");

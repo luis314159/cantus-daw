@@ -464,6 +464,10 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::BusCompressor => (true, true), // fxb:vinculum — every reduction let go, the colour's filters empty
         EffectKind::ResonanceSuppressor => (true, true), // fxb:lenis — the rings, the averages and the reductions at +0.0
         EffectKind::Ducker => (true, true), // fxb:cedo — the envelope idle, the lines and the split clear (stopped)
+        // fxc:purus — drained: the de-reverb's frames silent, the de-hum's states under 1e-15;
+        // heavy estimates its room's decay, which it keeps (never as new: it does not rest).
+        EffectKind::Repair => (true, false),
+        EffectKind::Reference => (true, true), // fxc:comparatio — no reference here: the mix, its meters' steps closed
         _ => (false, false),
     }
 }
@@ -572,6 +576,8 @@ per_kind! {
     vinculum => EffectKind::BusCompressor, // fxb:contract
     lenis => EffectKind::ResonanceSuppressor, // fxb:contract
     cedo => EffectKind::Ducker, // fxb:contract
+    purus => EffectKind::Repair, // fxc:contract
+    comparatio => EffectKind::Reference, // fxc:contract
 }
 
 // fx3:tabula — Tabula (ADR 0131): a board of one pedal is that unit inserted alone, to
@@ -637,6 +643,6 @@ fn a_board_of_one_is_the_unit() {
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists forty-one: a new kind must be added there. // fxb:contract
-    assert_eq!(EffectKind::ALL.len(), 41); // fxb:contract: wave B's three
+    // `per_kind!` lists forty-three: a new kind must be added there. // fxb, fxc:contract
+    assert_eq!(EffectKind::ALL.len(), 43); // fxb:contract: wave B's three; fxc:contract: wave C's two
 }

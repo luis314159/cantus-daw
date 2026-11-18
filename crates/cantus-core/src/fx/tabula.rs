@@ -218,6 +218,12 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             // the board's key when the slot is keyed (a board takes a key when a pedal does),
             // its own input otherwise; its pre-delay syncs to the song through the board.
             | EffectKind::Glitch
+            // fxc:purus — Purus is a pedal: a de-hum pedal is natural on a guitar's board
+            // (the ground loop's hum taken out before the drive multiplies it). Its latency,
+            // the modules on, is the board's lane latency as any pedal's (ADR 0142, phase B).
+            // Comparatio never is: a reference is the master's monitoring, not a pedal's
+            // sound.
+            | EffectKind::Reference
     )
 }
 
@@ -592,6 +598,8 @@ mod tests {
                     // fxa:contract — wave A joins the board in phase B.
                     | EffectKind::Vocoder
                     | EffectKind::Glitch
+                    // fxc:contract (Purus is a pedal since its phase B)
+                    | EffectKind::Reference
             ) {
                 assert!(pedal_allowed(k), "{k:?}");
             }

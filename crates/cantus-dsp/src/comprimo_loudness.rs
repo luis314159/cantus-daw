@@ -12,7 +12,6 @@
 //! standard's own calibration: a 997 Hz sine at 0 dBFS in one channel reads −3.01 LKFS.
 
 use crate::math;
-use std::f64::consts::PI;
 
 /// Loudness below anything measurable: what silence reads.
 pub const SILENCE: f32 = -200.0;
@@ -65,81 +64,23 @@ pub fn integrated(blocks: &[f32]) -> f32 {
     gated_mean(relative).map(lufs).unwrap_or(SILENCE)
 }
 
-#[derive(Copy, Clone, Debug, Default)]
-struct Biquad {
-    b0: f64,
-    b1: f64,
-    b2: f64,
-    a1: f64,
-    a2: f64,
-    z1: f64,
-    z2: f64,
-}
-
-impl Biquad {
-    #[inline]
-    fn tick(&mut self, x: f64) -> f64 {
-        let y = self.b0 * x + self.z1;
-        self.z1 = self.b1 * x - self.a1 * y + self.z2;
-        self.z2 = self.b2 * x - self.a2 * y;
-        // A long silence decays the state toward the denormals; flush it well before —
-        // both at once: flushing one alone kicks the other, and the RLB high-pass (its
-        // poles near 1) then hovers at the threshold for ever instead of coming to rest
-        // (found by the at-rest tests, ADR 0031 §5.1; Porta's sections do the same).
-        if self.z1.abs() < 1e-30 && self.z2.abs() < 1e-30 {
-            self.z1 = 0.0;
-            self.z2 = 0.0;
-        }
-        y
-    }
-
-    fn clear(&mut self) {
-        self.z1 = 0.0;
-        self.z2 = 0.0;
-    }
-}
+// fx-c:comparatio — one K-weighting for the family: this meter's own copy (the same analog
+// prototypes, the same transposed direct form II, the same flush) became Terminus's
+// sections, one per channel; `comparatio_tests_shared.rs` holds every bit of Comprimo's
+// meter and output to the hashes taken before.
+use crate::terminus::loudness::KWeighting as ChannelK;
 
 /// The K-weighting of BS.1770 for two channels: a high shelf (the head) then the RLB
-/// high-pass.
+/// high-pass — Terminus's ([`crate::terminus::loudness::KWeighting`]), one per channel.
 #[derive(Copy, Clone, Debug)]
 pub struct KWeighting {
-    stages: [[Biquad; 2]; 2],
+    stages: [ChannelK; 2],
 }
 
 impl KWeighting {
     pub fn new(sample_rate: f32) -> Self {
-        let fs = sample_rate.max(1.0) as f64;
-        // The pre-filter: a second-order high shelf, about +4 dB above 1.7 kHz.
-        let f0 = 1_681.974_450_955_533;
-        let g = 3.999_843_853_973_347;
-        let q = 0.707_175_236_955_419_6;
-        let k = math::tan(PI * f0 / fs);
-        let vh = math::powf(10f64, g / 20.0);
-        let vb = math::powf(vh, 0.499_666_774_154_541_6);
-        let a0 = 1.0 + k / q + k * k;
-        let shelf = Biquad {
-            b0: (vh + vb * k / q + k * k) / a0,
-            b1: 2.0 * (k * k - vh) / a0,
-            b2: (vh - vb * k / q + k * k) / a0,
-            a1: 2.0 * (k * k - 1.0) / a0,
-            a2: (1.0 - k / q + k * k) / a0,
-            ..Biquad::default()
-        };
-        // The RLB weighting: a second-order high-pass at 38 Hz.
-        let f0 = 38.135_470_876_024_44;
-        let q = 0.500_327_037_323_877_3;
-        let k = math::tan(PI * f0 / fs);
-        let a0 = 1.0 + k / q + k * k;
-        let rlb = Biquad {
-            b0: 1.0,
-            b1: -2.0,
-            b2: 1.0,
-            a1: 2.0 * (k * k - 1.0) / a0,
-            a2: (1.0 - k / q + k * k) / a0,
-            ..Biquad::default()
-        };
         KWeighting {
-            stages: [[shelf, rlb]; 2],
+            stages: [ChannelK::new(sample_rate.max(1.0)); 2],
         }
     }
 
@@ -148,8 +89,7 @@ impl KWeighting {
     pub fn tick(&mut self, l: f32, r: f32) -> f64 {
         let mut e = 0.0;
         for (ch, x) in [l, r].into_iter().enumerate() {
-            let [a, b] = &mut self.stages[ch];
-            let y = b.tick(a.tick(x as f64));
+            let y = self.stages[ch].tick(x as f64);
             e += y * y;
         }
         e
@@ -157,18 +97,13 @@ impl KWeighting {
 
     pub fn reset(&mut self) {
         for ch in &mut self.stages {
-            for s in ch {
-                s.clear();
-            }
+            ch.reset();
         }
     }
 
     /// Empty, as [`Self::reset`] leaves it (ADR 0031 §5.1).
     pub fn is_clear(&self) -> bool {
-        self.stages
-            .iter()
-            .flatten()
-            .all(|s| crate::rest::z64(s.z1) && crate::rest::z64(s.z2))
+        self.stages.iter().all(ChannelK::is_clear)
     }
 }
 
@@ -287,15 +222,15 @@ mod tests {
     #[test]
     fn the_filters_at_48k_are_the_printed_ones() {
         let k = KWeighting::new(48_000.0);
-        let [shelf, rlb] = k.stages[0];
+        let (shelf, rlb) = (k.stages[0].shelf, k.stages[0].highpass);
         let close = |a: f64, b: f64| (a - b).abs() < 1e-6;
-        assert!(close(shelf.b0, 1.535_124_859_586_97));
-        assert!(close(shelf.b1, -2.691_696_189_406_38));
-        assert!(close(shelf.b2, 1.198_392_810_852_85));
-        assert!(close(shelf.a1, -1.690_659_293_182_41));
-        assert!(close(shelf.a2, 0.732_480_774_215_85));
-        assert!(close(rlb.a1, -1.990_047_454_833_98));
-        assert!(close(rlb.a2, 0.990_072_250_366_21));
+        assert!(close(shelf.b[0], 1.535_124_859_586_97));
+        assert!(close(shelf.b[1], -2.691_696_189_406_38));
+        assert!(close(shelf.b[2], 1.198_392_810_852_85));
+        assert!(close(shelf.a[0], -1.690_659_293_182_41));
+        assert!(close(shelf.a[1], 0.732_480_774_215_85));
+        assert!(close(rlb.a[0], -1.990_047_454_833_98));
+        assert!(close(rlb.a[1], 0.990_072_250_366_21));
     }
 
     #[test]

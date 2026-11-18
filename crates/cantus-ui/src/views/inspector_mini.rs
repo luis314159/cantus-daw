@@ -69,6 +69,8 @@ pub fn function_of(kind: EffectKind) -> Function {
         EffectKind::BusCompressor => Function::Dynamics, // fxb:contract (vinculum)
         EffectKind::ResonanceSuppressor => Function::Tone, // fxb:contract (lenis)
         EffectKind::Ducker => Function::Dynamics,   // fxb:contract (cedo)
+        EffectKind::Repair => Function::Tone,       // fxc:contract (purus)
+        EffectKind::Reference => Function::Output,  // fxc:contract (comparatio)
     }
 }
 

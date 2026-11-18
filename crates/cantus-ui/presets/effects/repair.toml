@@ -1,0 +1,194 @@
+# Purus repair: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.purus.mains_50"
+note = "Mains hum at 50 Hz, followed within 2 Hz, eight harmonics notched: the starting preset."
+styles = ["rock", "film"]
+roles = ["vocal"]
+[preset.values]
+"hmode" = 1
+"hon" = 1
+
+[[preset]]
+key = "preset.purus.mains_60"
+note = "Mains hum at 60 Hz (the Americas), followed within 2 Hz, eight harmonics notched."
+styles = ["rock", "film"]
+roles = ["vocal"]
+[preset.values]
+"hhz" = 60
+"hmode" = 1
+"hon" = 1
+
+[[preset]]
+key = "preset.purus.mains_found"
+note = "The hum found by itself, 50 or 60 Hz, then followed; twelve harmonics: when you do not know where it was recorded."
+styles = ["film", "pop"]
+roles = ["vocal", "bus"]
+[preset.values]
+"hharm" = 12
+"hmode" = 2
+"hon" = 1
+
+[[preset]]
+key = "preset.purus.guitar_amp"
+note = "A guitar amp's hum and buzz: sixteen harmonics, deeper and a little wider, followed."
+styles = ["rock", "jazz"]
+roles = ["bus"]
+[preset.values]
+"hdepth" = 50
+"hharm" = 16
+"hmode" = 2
+"hon" = 1
+"hwidth" = 3
+"out" = 0.7
+
+[[preset]]
+key = "preset.purus.guitar_di"
+note = "Live guitar DI with a ground loop: the hum learned and subtracted, held under the low strings (50 ms ahead)."
+styles = ["rock", "worship"]
+roles = ["bus"]
+[preset.values]
+"hgentle" = 1
+"hharm" = 10
+"hmode" = 2
+"hon" = 1
+
+[[preset]]
+key = "preset.purus.bass_di"
+note = "Bass DI hum taken out gently: the notes on 50, 100 and 150 Hz keep their weight."
+styles = ["rock", "jazz"]
+roles = ["bus"]
+[preset.values]
+"hgentle" = 1
+"hharm" = 6
+"hmode" = 1
+"hon" = 1
+
+[[preset]]
+key = "preset.purus.vinyl_clicks"
+note = "Vinyl clicks and pops rebuilt from the music around them."
+styles = ["jazz", "lofi"]
+roles = ["master"]
+[preset.values]
+"con" = 1
+
+[[preset]]
+key = "preset.purus.vinyl_crackle"
+note = "A worn record: clicks rebuilt and the crackle under the music taken out."
+styles = ["jazz", "lofi"]
+roles = ["master"]
+[preset.values]
+"con" = 1
+"crackle" = 0.7
+"csens" = 0.55
+
+[[preset]]
+key = "preset.purus.cassette"
+note = "An old cassette transfer: the deck's hum found by itself, dropouts' clicks rebuilt, a little crackle."
+styles = ["lofi", "pop"]
+roles = ["master"]
+[preset.values]
+"con" = 1
+"crackle" = 0.3
+"csens" = 0.4
+"hdepth" = 30
+"hharm" = 6
+"hmode" = 2
+"hon" = 1
+"out" = 0.6
+
+[[preset]]
+key = "preset.purus.podcast_room"
+note = "A podcast voice close to the microphone in a small room: the room's tail lifted, the voice kept whole."
+styles = ["film", "pop"]
+roles = ["vocal"]
+[preset.values]
+"out" = 0.9
+"vamount" = 10
+"vdecay" = 1
+"vdirect" = 9
+"von" = 1
+
+[[preset]]
+key = "preset.purus.dialogue_room"
+note = "Dialogue in a reverberant room: the late tail taken down, the decay measured from the pauses."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"out" = 3.6
+"vamount" = 14
+"vdecay" = 1
+"von" = 1
+
+[[preset]]
+key = "preset.purus.far_interview"
+note = "An interview from a far microphone: as much room as voice (Direct sound 0 dB), the tail taken down, hum found by itself."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"hmode" = 2
+"hon" = 1
+"out" = 4.1
+"vamount" = 18
+"vdecay" = 1
+"vdirect" = 0
+"von" = 1
+
+[[preset]]
+key = "preset.purus.lecture_hall"
+note = "A talk in a lecture hall or a church: a long decay measured, more of the early sound kept, Direct sound 0 dB."
+styles = ["worship", "film"]
+roles = ["vocal"]
+[preset.values]
+"out" = 2.1
+"vamount" = 20
+"vdecay" = 1
+"vdirect" = 0
+"vkeep" = 80
+"von" = 1
+
+[[preset]]
+key = "preset.purus.field"
+note = "A field recording near a generator: its hum found and followed, handling clicks rebuilt."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"con" = 1
+"csens" = 0.4
+"hharm" = 12
+"hmode" = 2
+"hon" = 1
+"out" = 0.6
+
+[[preset]]
+key = "preset.purus.video_call"
+note = "A video call's recording: hum found by itself and the room's tail taken down."
+styles = ["film", "pop"]
+roles = ["vocal"]
+[preset.values]
+"hmode" = 2
+"hon" = 1
+"out" = 3.5
+"vamount" = 12
+"vdecay" = 1
+"von" = 1
+
+[[preset]]
+key = "preset.purus.strong"
+note = "Everything at once, firmly: sixteen harmonics deep, clicks and crackle, the room taken down 18 dB."
+styles = ["film", "lofi"]
+roles = ["vocal", "master"]
+[preset.values]
+"con" = 1
+"crackle" = 0.5
+"csens" = 0.6
+"hdepth" = 60
+"hharm" = 16
+"hmode" = 2
+"hon" = 1
+"out" = 4.6
+"vamount" = 18
+"vdecay" = 1
+"von" = 1

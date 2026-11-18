@@ -55,9 +55,9 @@ const FX: &str = "audio-effect";
 const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
-/// round 28's, Aula (round 39), Delay (round 40) and the effects side round's fifteen.
-pub static ALL: [Descriptor; 40] = [
-    // r39:conv: 24 with Aula; r40:delay: 25 with Delay; fx3:contract, fxa, fxb: 40 with the side round's fifteen
+/// round 28's, Aula (round 39), Delay (round 40) and the effects side round's seventeen.
+pub static ALL: [Descriptor; 42] = [
+    // r39:conv: 24 with Aula; r40:delay: 25 with Delay; fx3:contract, fxa, fxb, fxc: 42 with the side round's seventeen
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -570,6 +570,36 @@ pub static ALL: [Descriptor; 40] = [
         vst3_categories: "Fx|Dynamics",
         description: "Ducker: makes room for a kick or a voice through the sidechain, or pumps on the host's beat or on MIDI notes with a shape you draw, the whole band or only its lows or highs.",
         compiled: cfg!(feature = "cedo"),
+    },
+    // fxc:purus — the fx side round's wave C (ADR 0142). Its latency is the
+    // modules that are on: switching one re-reports it to the host (CLAP's latency changed
+    // through a restart, VST3's restartComponent).
+    Descriptor {
+        kind: EffectKind::Repair,
+        name: "Purus",
+        full_name: "Cantus Purus",
+        slug: "purus",
+        clap_id: "com.github.lalmazan.cantus.purus",
+        vst3_cid: [0xDA7C5C9B, 0x6A2ED1A2, 0xBB147BB2, 0xAC756397],
+        clap_features: &[FX, "restoration", STEREO],
+        vst3_categories: "Fx|Restoration",
+        description: "Real-time repair: mains hum and its harmonics notched or subtracted, clicks and crackle rebuilt, a room's reverberation taken down.",
+        compiled: cfg!(feature = "purus"),
+    },
+    // fxc:comparatio — the fx side round's wave C (ADR 0143). Its references are
+    // files by path (with their size and hash) in the state, never their audio; a host's
+    // offline render hears the mix (CLAP `render`, VST3 `processMode`).
+    Descriptor {
+        kind: EffectKind::Reference,
+        name: "Comparatio",
+        full_name: "Cantus Comparatio",
+        slug: "comparatio",
+        clap_id: "com.github.lalmazan.cantus.comparatio",
+        vst3_cid: [0x8C4B6490, 0xE6C57FBF, 0x43D0EFDA, 0xEEFD0F7A],
+        clap_features: &[FX, "analyzer", "utility", STEREO],
+        vst3_categories: "Fx|Analyzer",
+        description: "Reference comparator: your mix beside reference tracks at the same loudness, switched without a click, their tone, loudness, dynamics and stereo compared, and a blind test of your ears.",
+        compiled: cfg!(feature = "comparatio"),
     },
 ];
 

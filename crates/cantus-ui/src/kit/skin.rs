@@ -112,6 +112,12 @@ pub mod analysers;
 // The beam engine, its cam and bellows Cedo draws (ADR 0141). fxb:cedo
 #[path = "skin/engines.rs"]
 pub mod engines;
+// The restoration bench Purus draws (ADR 0142). fxc:purus
+#[path = "skin/restoration.rs"]
+pub mod restoration;
+// The two-deck console Comparatio draws (ADR 0143). fxc:comparatio
+#[path = "skin/comparator.rs"]
+pub mod comparator;
 // The balance Libra draws (ADR 0130). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;

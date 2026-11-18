@@ -2903,6 +2903,126 @@ At its defaults (depth 0) Cedo leaves the sound untouched, to the bit. As a peda
 **Tabula** it shows the trigger, depth, cycle and threshold; a keyed board's key, its beat
 and its notes fire it.
 
+### Purus, the real-time repair
+
+**Purus** (Latin for *clean*) repairs a track while it plays: the mains' hum, clicks and
+crackle, a room's tail on a voice. Insert it from **Add insert ▾ ▸ Utility ▸ Purus**; it
+starts as *Mains hum 50 Hz* — the hum module on, at 50 Hz, followed as the mains drift, eight
+harmonics notched — so a ground loop's hum leaves at once. (The audio editor's *Denoise* and
+*Declick* repair a take offline; Purus does it as the song plays, on any strip.)
+
+**Three modules**, each with its own switch, mix and output, each off until you switch it on:
+
+- **Hum removal** takes the mains' fundamental and up to sixteen harmonics out. *Frequency*
+  is **Fixed** (exactly the fundamental you set), **Followed** (the mains drift; it follows
+  within 2 Hz) or **Found by itself** (it decides between 50 and 60 Hz, then follows). The
+  notches' *Depth* and *Notch width* set how much and how narrowly. **Gentle** learns the
+  hum and subtracts it instead of notching it: a bass note on 50, 100 or 150 Hz keeps its
+  weight (it holds what it learned while the note sounds). Gentle looks 50 ms ahead, which
+  is its latency.
+- **Click and crackle removal** finds each click and rebuilds it from the music around it
+  (the audio editor's own repair), and with *Crackle* above 0 takes a record's crackle out of
+  the high band. *Sensitivity* stops at 0.70: higher, it starts to mend the music itself.
+  16 ms of latency.
+- **Room removal** takes a room's tail down from a voice. *Reduction* is how far (up to
+  30 dB); the *Decay time* is the room's, set by hand or **Estimated** from the pauses;
+  *Direct sound* says how close the microphone was (0 dB, the default, suits most; higher
+  for a very close one). It takes out only as much room as the pauses show is there: a dry
+  voice passes untouched; *Early reflections* keeps the first milliseconds, which carry
+  the voice. 21 ms of latency (23 at 44.1 kHz).
+
+The latency is only that of the modules switched on, and Cantus compensates it on the
+strip, so the track stays in time with the rest.
+
+**The window** is a restoration bench:
+
+- **The screen** is a spectrogram of the last six seconds, the low notes at the foot. What
+  you hear glows warm; **what Purus takes out** of each place is laid over it in a cool
+  colour, so the hum, the clicks and the room's tail show as what fell out of the picture.
+  The hum's harmonics are a comb of needles on the left rail: **drag a needle up or down
+  and the fundamental follows it**.
+- **The clicks' lane** under it ticks once for each repair, with the count.
+- **The room's tail** at the right shows the room's decay as it was (the bright line) and
+  after the repair (the warm line), the difference shaded. **Drag on it to set the
+  reduction** (the handle on its edge follows) and **drag the mark** where the early
+  reflections end to keep more or less of them.
+- **Three cartridges**, one per module: its toggle, a lamp lit by what it is doing, what it
+  reads now (the hum's frequency, the clicks rebuilt, the decay) and its keys — **50 Hz**,
+  **60 Hz** and **Gentle** on the hum's, **Set by hand** and **Estimated** on the room's, and
+  **Hear what is removed** on each: you hear only what that module takes out, to judge it.
+  Every click and drag is one step of undo; right-click a key for automation and MIDI learn.
+- **The cards** hold every control: Hum removal, Click and crackle removal, Room removal,
+  Output.
+
+Sixteen factory presets: mains hum at 50 or 60 Hz or found by itself, a guitar amp's hum and
+buzz, a live guitar DI and a bass DI (gentle), vinyl clicks, a worn record's clicks and
+crackle, an old cassette, a podcast in a small room, dialogue in a reverberant room, a
+far-microphone interview, a lecture hall, a field recording, a video call and a strong
+cleanup. At its defaults every module is off and Purus touches no sample.
+
+**On Tabula's board** Purus is a pedal too — a de-hum pedal before the drive (the
+fundamental, the harmonics, the depth and the mix on its face).
+
+**In another DAW** Purus is the plug-in *Cantus Purus* (CLAP and VST3); when a module is
+switched, it tells the host its new latency.
+
+### Comparatio, the reference comparator
+
+**Comparatio** (Latin for *a comparing, a setting side by side*) puts your mix beside the
+records you want it to stand with. Insert it on the **master's last slot** from **Add insert
+▾ ▸ Mastering ▸ Comparatio** (or Utility); it starts at its defaults — your mix heard,
+untouched — and measures.
+
+**Load a reference**: press **Load reference…** on the console's foot, or **drop** audio
+files (WAV, AIFF, FLAC, Ogg) on the console. Up to eight references stay in the list, each a
+numbered key; press a number to compare that one, **Remove** to take it off. The files are
+read from your disk where they are — never copied into the project — and each keeps its own
+analysis, so its length, loudness and tone show as soon as it is read. If a file has gone
+missing, or changed since you loaded it, the strip says so in red: load it again.
+
+**Compare**: turn the **big selector** (or press a lamp, or **A** and **B** in the blind
+drawer) to hear the reference instead of your mix, **at your mix's loudness** — the switch
+is a short crossfade you cannot hear as a click. The cards set how the reference is matched:
+*Match* **Integrated** (over what has played, or with *Measured over* **The whole file**,
+steady from the first second), **Short term** (following your mix section by section) or
+**By hand**, an *Offset* in every mode, and the *Crossfade*. *Reference playback* plays it on
+**Its own playhead** while the song plays, **Locked to the song** (with *Ahead by*), or in a
+**Loop** — **drag across the overview** to loop the stretch you want. Each reference keeps its own
+playback: compare another and its own loop and offset come back; the match, the crossfade
+and the display stay as they are. Only the reference compared is kept in memory: another one
+is read again from disk when you choose it (your mix plays meanwhile, the strip says it is
+being read).
+
+**The screen** shows both **tonal balances** (the reference's from its whole file, your mix's
+as it plays) and **your mix against the reference** — above the line what your mix has more
+of, below what the reference has more of, the soft band how sure the comparison is. The
+orange line is the **match EQ**: what would move your mix toward the reference, as far as
+the *Match EQ* card's *Amount* says and never more than *Most boost or cut*. Press **Send to
+Aequalis** and it becomes an Aequalis just before Comparatio, in editable bands, its output
+gain keeping your mix as loud as it was — one step of undo; send again and that Aequalis is
+updated. Under it, **Dynamics** (the two loudness histograms, crest factor, peak to loudness,
+loudness range) and **Stereo** (correlation and width, whole and in three bands). The two
+decks read short-term, integrated and momentary loudness, true peak and loudness range.
+
+**Blind test**: press **X** to hear one of the two, hidden; answer *X is your mix* or *X is
+the reference*; each answer lights a lamp, and the drawer gives your score and the chance of
+getting it by guessing. **New test** starts again in a new order.
+
+Every press and drag is one step of undo; right-click the selector or a lamp for automation
+and MIDI learn (a footswitch for A/B). Fourteen factory presets are ways of comparing:
+mastering by the whole file, mixing section by section, by hand, the reference one decibel
+down, locked to the song, two loops, quick and smooth switching, low end in detail, a gentle
+and a full match EQ, an album's songs side by side, a worship mix against a live record.
+
+**Renders never hear a reference**: an export, a stem, a freeze or a bounce always hears your
+mix, whatever the selector says. Comparatio is not a pedal on Tabula's board: a reference is
+the master's monitoring.
+
+**In another DAW** Comparatio is the plug-in *Cantus Comparatio* (CLAP and VST3): **Load
+reference…** in its window, or drop a file on it; the session keeps each reference's path, size and hash (never its
+audio) and says when a file is missing or changed; the host's offline bounce hears your mix.
+*Send to Aequalis* is Cantus's own.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

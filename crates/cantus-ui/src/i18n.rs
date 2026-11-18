@@ -123,6 +123,8 @@ impl Locale {
                 include_str!("../locales/fx/vinculum.en.txt"), // fxb:contract
                 include_str!("../locales/fx/lenis.en.txt"),   // fxb:contract
                 include_str!("../locales/fx/cedo.en.txt"),    // fxb:contract
+                include_str!("../locales/fx/purus.en.txt"),   // fxc:contract
+                include_str!("../locales/fx/comparatio.en.txt"), // fxc:contract
                 include_str!("../locales/inst/chorda.en.txt"),
                 include_str!("../locales/areas/topbar.en.txt"),
                 include_str!("../locales/areas/pitch.en.txt"),
@@ -266,6 +268,8 @@ impl Locale {
                 include_str!("../locales/fx/vinculum.es.txt"), // fxb:contract
                 include_str!("../locales/fx/lenis.es.txt"),   // fxb:contract
                 include_str!("../locales/fx/cedo.es.txt"),    // fxb:contract
+                include_str!("../locales/fx/purus.es.txt"),   // fxc:contract
+                include_str!("../locales/fx/comparatio.es.txt"), // fxc:contract
                 include_str!("../locales/inst/chorda.es.txt"),
                 include_str!("../locales/areas/topbar.es.txt"),
                 include_str!("../locales/areas/pitch.es.txt"),

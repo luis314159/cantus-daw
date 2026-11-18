@@ -101,6 +101,11 @@ pub enum EffectKind {
     ResonanceSuppressor, // fxb:contract
     /// Cedo, the ducker (`fx::cedo`, [`EffectSpec::cedo`]). // fxb:contract
     Ducker, // fxb:contract
+    // fxc:contract — the side round's wave C (ADRs 0142–0143).
+    /// Purus, the real-time repair unit: de-hum, de-click and de-crackle, de-reverb (`fx::purus`). // fxc:contract
+    Repair, // fxc:contract
+    /// Comparatio, the reference comparator: a reference track at the mix's loudness, A/B and blind (`fx::comparatio`, its file in [`EffectSpec::ir`]). // fxc:contract
+    Reference, // fxc:contract
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -223,8 +228,8 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 41] = [
-        // fxb:contract: 41 with wave B's three
+    pub const ALL: [EffectKind; 43] = [
+        // fxb:contract: 41 with wave B's three; fxc:contract: 43 with wave C's two
         // fxa:contract: 38 with wave A's three
         // fx3:contract: 35 with wave 3's four
         // fx:contract: 31 with the side round's five
@@ -254,22 +259,24 @@ impl EffectKind {
         EffectKind::TransientSplit,
         EffectKind::Analyzer,
         EffectKind::AutoTune,
-        EffectKind::Aula,                // r39:conv
-        EffectKind::AutoFilter,          // fx:contract
-        EffectKind::Pedal,               // fx:contract
-        EffectKind::TimeShaper,          // fx:contract
-        EffectKind::LoFi,                // fx:contract
-        EffectKind::Utility,             // fx:contract
-        EffectKind::Board,               // fx3:contract
-        EffectKind::PitchShift,          // fx3:contract
-        EffectKind::Rotary,              // fx3:contract
-        EffectKind::Amp,                 // fx3:contract
-        EffectKind::Vocoder,             // fxa:contract
-        EffectKind::Glitch,              // fxa:contract
-        EffectKind::Shimmer,             // fxa:contract
+        EffectKind::Aula,       // r39:conv
+        EffectKind::AutoFilter, // fx:contract
+        EffectKind::Pedal,      // fx:contract
+        EffectKind::TimeShaper, // fx:contract
+        EffectKind::LoFi,       // fx:contract
+        EffectKind::Utility,    // fx:contract
+        EffectKind::Board,      // fx3:contract
+        EffectKind::PitchShift, // fx3:contract
+        EffectKind::Rotary,     // fx3:contract
+        EffectKind::Amp,        // fx3:contract
+        EffectKind::Vocoder,    // fxa:contract
+        EffectKind::Glitch,     // fxa:contract
+        EffectKind::Shimmer,    // fxa:contract
         EffectKind::BusCompressor,       // fxb:contract
         EffectKind::ResonanceSuppressor, // fxb:contract
         EffectKind::Ducker,              // fxb:contract
+        EffectKind::Repair,     // fxc:contract
+        EffectKind::Reference,  // fxc:contract
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
@@ -322,6 +329,8 @@ impl EffectKind {
             EffectKind::BusCompressor => fx::vinculum::NAME_KEY, // fxb:contract
             EffectKind::ResonanceSuppressor => fx::lenis::NAME_KEY, // fxb:contract
             EffectKind::Ducker => fx::cedo::NAME_KEY, // fxb:contract
+            EffectKind::Repair => fx::purus::NAME_KEY, // fxc:contract
+            EffectKind::Reference => fx::comparatio::NAME_KEY, // fxc:contract
         }
     }
 
@@ -370,6 +379,8 @@ impl EffectKind {
             EffectKind::BusCompressor => fx::vinculum::params(), // fxb:contract
             EffectKind::ResonanceSuppressor => fx::lenis::params(), // fxb:contract
             EffectKind::Ducker => fx::cedo::params(), // fxb:contract
+            EffectKind::Repair => fx::purus::params(), // fxc:contract
+            EffectKind::Reference => fx::comparatio::params(), // fxc:contract
         }
     }
 
@@ -418,6 +429,8 @@ impl EffectKind {
             EffectKind::BusCompressor => fx::vinculum::SPARSE, // fxb:contract
             EffectKind::ResonanceSuppressor => fx::lenis::SPARSE, // fxb:contract
             EffectKind::Ducker => fx::cedo::SPARSE, // fxb:contract
+            EffectKind::Repair => fx::purus::SPARSE, // fxc:contract
+            EffectKind::Reference => fx::comparatio::SPARSE, // fxc:contract
         }
     }
 
@@ -434,6 +447,7 @@ impl EffectKind {
         match self {
             EffectKind::Aula => true,
             EffectKind::Amp => true, // fx3:arca — the cabinet's user IR
+            EffectKind::Reference => true, // fxc:comparatio — the reference track
             _ => false,
         }
     }
@@ -483,6 +497,8 @@ impl EffectKind {
             EffectKind::BusCompressor => fx::vinculum::TAKES_SIDECHAIN, // fxb:contract
             EffectKind::ResonanceSuppressor => fx::lenis::TAKES_SIDECHAIN, // fxb:contract
             EffectKind::Ducker => fx::cedo::TAKES_SIDECHAIN, // fxb:contract
+            EffectKind::Repair => fx::purus::TAKES_SIDECHAIN, // fxc:contract
+            EffectKind::Reference => fx::comparatio::TAKES_SIDECHAIN, // fxc:contract
         }
     }
 
@@ -531,6 +547,8 @@ impl EffectKind {
             EffectKind::BusCompressor => fx::vinculum::TAKES_NOTES, // fxb:contract
             EffectKind::ResonanceSuppressor => fx::lenis::TAKES_NOTES, // fxb:contract
             EffectKind::Ducker => fx::cedo::TAKES_NOTES, // fxb:contract
+            EffectKind::Repair => fx::purus::TAKES_NOTES, // fxc:contract
+            EffectKind::Reference => fx::comparatio::TAKES_NOTES, // fxc:contract
             _ => false,
         }
     }
@@ -571,6 +589,8 @@ impl EffectKind {
             EffectKind::BusCompressor => fx::vinculum::CHOICES, // fxb:contract
             EffectKind::ResonanceSuppressor => fx::lenis::CHOICES, // fxb:contract
             EffectKind::Ducker => fx::cedo::CHOICES, // fxb:contract
+            EffectKind::Repair => fx::purus::CHOICES, // fxc:contract
+            EffectKind::Reference => fx::comparatio::CHOICES, // fxc:contract
             _ => &[],
         }
     }
@@ -612,6 +632,11 @@ pub struct EffectSpec {
     /// and for the classic pump, and then not written. // fxb:contract
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cedo: Option<Box<fx::cedo::Shape>>,
+    /// Comparatio's references (ADR 0143 phase B; schema 66): the list and the Aequalis its
+    /// match EQ was sent to; the one compared is [`EffectSpec::ir`]. `None` for every other
+    /// kind and for an empty list, and then not written. // fxc:comparatio
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refs: Option<Box<fx::comparatio::References>>,
 }
 
 impl EffectSpec {
@@ -633,6 +658,7 @@ impl EffectSpec {
             board: None,   // fx3:contract
             fractus: None, // fxa:contract
             cedo: None,    // fxb:contract
+            refs: None,    // fxc:comparatio
         }
     }
 
@@ -647,6 +673,7 @@ impl EffectSpec {
             board: None,   // fx3:contract
             fractus: None, // fxa:contract
             cedo: None,    // fxb:contract
+            refs: None,    // fxc:comparatio
         }
     }
 

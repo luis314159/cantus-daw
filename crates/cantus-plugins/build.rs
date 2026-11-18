@@ -7,8 +7,8 @@
 
 /// The cargo feature (as `CARGO_FEATURE_*` spells it) of each plug-in, and its full name
 /// (`desc.rs`; a test keeps the two lists equal).
-const PLUGINS: [(&str, &str); 40] = [
-    // r40:delay: 25 with Delay; fx3:contract, fxa, fxb: 40 with the side round's fifteen
+const PLUGINS: [(&str, &str); 42] = [
+    // r40:delay: 25 with Delay; fx3:contract, fxa, fxb, fxc: 42 with the side round's seventeen
     ("EQ", "Cantus Aequalis"),
     ("COMPRESSOR", "Cantus Comprimo"),
     ("LIMITER", "Cantus Terminus"),
@@ -32,23 +32,25 @@ const PLUGINS: [(&str, &str); 40] = [
     ("DISCRIMEN", "Cantus Discrimen"),
     ("SPECULUM", "Cantus Speculum"),
     ("TONUS", "Cantus Tonus"),
-    ("AULA", "Cantus Aula"),         // r39:conv
+    ("AULA", "Cantus Aula"),       // r39:conv
     ("DELAY", "Cantus Delay"),       // r40:delay
-    ("CRIBRUM", "Cantus Cribrum"),   // fx:contract
-    ("FRAGOR", "Cantus Fragor"),     // fx:contract
-    ("LAPSUS", "Cantus Lapsus"),     // fx:contract
-    ("VETUS", "Cantus Vetus"),       // fx:contract
-    ("LIBRA", "Cantus Libra"),       // fx:contract
-    ("TABULA", "Cantus Tabula"),     // fx3:contract
-    ("SALTUS", "Cantus Saltus"),     // fx3:contract
-    ("ROTA", "Cantus Rota"),         // fx3:contract
-    ("ARCA", "Cantus Arca"),         // fx3:contract
-    ("LOQUAX", "Cantus Loquax"),     // fxa:loquax
-    ("FRACTUS", "Cantus Fractus"),   // fxa:fractus
-    ("CAELUM", "Cantus Caelum"),     // fxa:caelum
+    ("CRIBRUM", "Cantus Cribrum"), // fx:contract
+    ("FRAGOR", "Cantus Fragor"),   // fx:contract
+    ("LAPSUS", "Cantus Lapsus"),   // fx:contract
+    ("VETUS", "Cantus Vetus"),     // fx:contract
+    ("LIBRA", "Cantus Libra"),     // fx:contract
+    ("TABULA", "Cantus Tabula"),   // fx3:contract
+    ("SALTUS", "Cantus Saltus"),   // fx3:contract
+    ("ROTA", "Cantus Rota"),       // fx3:contract
+    ("ARCA", "Cantus Arca"),       // fx3:contract
+    ("LOQUAX", "Cantus Loquax"),   // fxa:loquax
+    ("FRACTUS", "Cantus Fractus"), // fxa:fractus
+    ("CAELUM", "Cantus Caelum"),   // fxa:caelum
     ("VINCULUM", "Cantus Vinculum"), // fxb:vinculum
     ("LENIS", "Cantus Lenis"),       // fxb:lenis
     ("CEDO", "Cantus Cedo"),         // fxb:cedo
+    ("PURUS", "Cantus Purus"),           // fxc:purus
+    ("COMPARATIO", "Cantus Comparatio"), // fxc:comparatio
 ];
 
 fn main() {

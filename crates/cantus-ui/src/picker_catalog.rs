@@ -429,6 +429,12 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
             vec![C::Eq, C::Dynamics],
         ), // fxb:contract
         ("cedo", PickChoice::Effect(E::Ducker), vec![C::Dynamics]), // fxb:contract
+        ("purus", PickChoice::Effect(E::Repair), vec![C::Utility]), // fxc:contract
+        (
+            "comparatio",
+            PickChoice::Effect(E::Reference),
+            vec![C::Mastering, C::Utility],
+        ), // fxc:contract
     ];
     // A scaffold instrument stays out of the picker until it is ready (`ready_kinds`).
     v.retain(|(_, c, _)| match c {

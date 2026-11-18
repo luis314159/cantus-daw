@@ -242,6 +242,7 @@ fn is_master(cmd: &Command) -> bool {
         | SetLapsusPattern { strip, .. } // fx:lapsus
         | SetFractusLane { strip, .. } // fxa:contract
         | SetCedoShape { strip, .. } // fxb:contract
+        | SetReferences { strip, .. } // fxc:comparatio
         | InsertPedal { strip, .. } // fx3:contract
         | RemovePedal { strip, .. }
         | MovePedal { strip, .. }

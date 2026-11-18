@@ -181,3 +181,7 @@ asio-sys = { path = "third_party/asio-sys" }
 # jack-sys 0.5.1 (MIT OR Apache-2.0) building without JACK's pkg-config file when JACK is
 # opened at run time (round 30, ADR 0065; third_party/README.md).
 jack-sys = { path = "third_party/jack-sys" }
+# egui-baseview 0.7.2 (MIT OR Apache-2.0) passing baseview's drag-and-drop of files to egui,
+# so a reference dropped on Cantus Comparatio's plug-in window is taken (fx side round,
+# ADR 0143 phase B; third_party/README.md).
+egui-baseview = { path = "third_party/egui-baseview" }

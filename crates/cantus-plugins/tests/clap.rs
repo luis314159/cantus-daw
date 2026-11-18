@@ -81,8 +81,10 @@ fn through_clap_is_bit_identical_to_the_dsp() {
         let (mut dry, dry_r) = signal(N, 7);
         dry.extend_from_slice(&dry_r);
         let moved = plugin.iter().zip(&dry).filter(|(a, b)| a != b).count();
-        if kind == EffectKind::Analyzer {
-            assert_eq!(moved, 0, "Speculum is a pass-through");
+        // fxc:comparatio — and Comparatio with no reference loaded (a test has no file): the
+        // mix heard, to the bit; the reference heard is `tests/comparatio.rs`'s.
+        if matches!(kind, EffectKind::Analyzer | EffectKind::Reference) {
+            assert_eq!(moved, 0, "{kind:?} is a pass-through here");
         } else {
             assert!(moved > N / 10, "{kind:?} changed only {moved} samples");
         }
@@ -225,22 +227,27 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Analyzer => "avg",
             // The test signal is not a voice: the throat works on it all the same.
             EffectKind::AutoTune => "throat",
-            EffectKind::Aula => "mix",                  // r39:conv
+            EffectKind::Aula => "mix",       // r39:conv
             EffectKind::Delay => "feedback",            // r40:delay
-            EffectKind::AutoFilter => "out",            // fx:contract
-            EffectKind::Pedal => "out",                 // fx:contract
-            EffectKind::TimeShaper => "out",            // fx:contract
-            EffectKind::LoFi => "out",                  // fx:contract
-            EffectKind::Utility => "out",               // fx:contract
-            EffectKind::Board => "out",                 // fx3:contract
-            EffectKind::PitchShift => "out",            // fx3:contract
-            EffectKind::Rotary => "out",                // fx3:contract
-            EffectKind::Amp => "out",                   // fx3:contract
-            EffectKind::Vocoder => "out",               // fxa:loquax
-            EffectKind::Glitch => "out",                // fxa:fractus
-            EffectKind::Shimmer => "out",               // fxa:caelum
+            EffectKind::AutoFilter => "out", // fx:contract
+            EffectKind::Pedal => "out",      // fx:contract
+            EffectKind::TimeShaper => "out", // fx:contract
+            EffectKind::LoFi => "out",       // fx:contract
+            EffectKind::Utility => "out",    // fx:contract
+            EffectKind::Board => "out",      // fx3:contract
+            EffectKind::PitchShift => "out", // fx3:contract
+            EffectKind::Rotary => "out",     // fx3:contract
+            EffectKind::Amp => "out",        // fx3:contract
+            EffectKind::Vocoder => "out",    // fxa:loquax
+            EffectKind::Glitch => "out",     // fxa:fractus
+            EffectKind::Shimmer => "out",    // fxa:caelum
             EffectKind::ResonanceSuppressor => "depth", // fxb:lenis
             EffectKind::Ducker => "out",                // fxb:cedo
+            // fxc:purus — its output (the room's reduction takes nothing from the test signal:
+            // no room is evidenced in it, so automating it rightly changes no sample).
+            EffectKind::Repair => "out",
+            // fxc:comparatio — its offset (with no reference loaded, rightly no sample moves).
+            EffectKind::Reference => "offset",
             _ => "thr",
         };
         let table = params::table(kind);
@@ -253,7 +260,8 @@ fn automation_lands_on_the_grid_at_any_block_size() {
         let still = automated_dsp(kind, &base, &[], n);
         // Speculum's parameters are how it is looked at: automating one changes no sample.
         assert!(
-            diff(&expected, &still).is_some() != (kind == EffectKind::Analyzer),
+            diff(&expected, &still).is_some()
+                != matches!(kind, EffectKind::Analyzer | EffectKind::Reference), // fxc:comparatio
             "{kind:?}: automating {key} changes the sound"
         );
         let events: Vec<Ev> = changes
@@ -1068,4 +1076,52 @@ fn cedo_s_shape_travels_in_the_state() {
     assert!(plain.load(&serde_json::to_vec(&spec_with(kind, &values)).unwrap()));
     let s: EffectSpec = serde_json::from_slice(&plain.save()).unwrap();
     assert_eq!(s.cedo, None);
+}
+
+/// fxc:purus — Purus's latency is the modules that are on: switching one on in the middle
+/// of a stream asks the host for a restart (once), and on reactivation the plug-in reports
+/// the engine's own latency for the new settings and tells the host it changed — the room
+/// module's transform, the de-click's window, the gentle de-hum's look-ahead, and back.
+#[test]
+fn purus_s_latency_follows_its_modules_and_is_re_reported() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let kind = EffectKind::Repair;
+    let plug = Plug::new(kind);
+    plug.activate(512);
+    assert_eq!(plug.latency(), 0, "the starting preset notches: no latency");
+    let mut values: Vec<(&str, f32)> = Vec::new();
+    let mut last = 0usize;
+    for (key, v) in [("von", 1.0), ("con", 1.0), ("hgentle", 1.0), ("von", 0.0)] {
+        let restarts = plug.host.restarts.load(SeqCst);
+        let told = plug.host.latency_changed.load(SeqCst);
+        let (id, value) = clap_value(kind, key, v);
+        let (mut l, mut r) = signal(512, 3);
+        plug.process(&mut l, &mut r, None, &[(0, id, value)], false);
+        assert_eq!(
+            plug.host.restarts.load(SeqCst),
+            restarts + 1,
+            "{key} {v}: a restart is asked for"
+        );
+        plug.process(&mut l, &mut r, None, &[], false);
+        assert_eq!(plug.host.restarts.load(SeqCst), restarts + 1, "once");
+        plug.deactivate();
+        plug.activate(512);
+        values.push((key, v));
+        let want = engine_unit(&spec_with(kind, &values)).latency();
+        assert_ne!(want, last, "{key} {v} moves the latency");
+        assert_eq!(
+            plug.latency() as usize,
+            want,
+            "{key} {v}: the engine's latency"
+        );
+        assert_eq!(
+            plug.host.latency_changed.load(SeqCst),
+            told + 1,
+            "{key} {v}: the host is told on activation"
+        );
+        last = want;
+    }
+    // The three's latencies at 48 kHz: the de-click's 767, the transform's 1 023, the
+    // look-ahead's 2 400 (the room off again at the end).
+    assert_eq!(last, 767 + 2_400);
 }

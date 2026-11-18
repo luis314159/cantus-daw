@@ -454,6 +454,21 @@ impl LoudnessMeter {
         }
     }
 
+    /// As new, allocating nothing (fx-c:comparatio — an additive hook: Comparatio's
+    /// reset on the audio thread; nothing else calls it).
+    pub fn reset(&mut self) {
+        for k in &mut self.k {
+            k.reset();
+        }
+        for tp in &mut self.tp {
+            tp.reset();
+        }
+        self.acc = 0.0;
+        self.acc_n = 0;
+        self.columns.reset();
+        self.max_true_peak = 0.0;
+    }
+
     /// The filters and the true peak hold nothing, as a new meter's (ADR 0031 §5.1).
     pub fn is_clear(&self) -> bool {
         self.k.iter().all(KWeighting::is_clear) && self.tp.iter().all(TruePeak::is_clear)

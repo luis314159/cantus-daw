@@ -386,7 +386,8 @@ impl Rig {
                     pedal,
                     need,
                 } => {
-                    let memory = EffectMemory::build(need.need(), 48_000.0);
+                    // fxc:comparatio — as the live backend answers (a reference too).
+                    let memory = EffectMemory::build_live(need.need(), 48_000.0);
                     self.tx
                         .push(EngineMessage::EffectMemory {
                             effect,
@@ -4104,5 +4105,138 @@ fn cedo_never_allocates() {
             2 => e.sidechain = Some(key),
             _ => {}
         },
+    );
+}
+
+// fxc:purus — Purus (ADR 0142) on the audio thread: the starting de-hum, the
+// gentle mode switched on (its latency changes), the de-click and de-crackle, the
+// de-reverb estimating, every delta, a seek and a stop.
+#[test]
+fn purus_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::Repair);
+    fx.spec = cantus_core::starting::starting_spec(EffectKind::Repair);
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("the starting de-hum", 30);
+    for (phase, kv) in [
+        (
+            "gentle",
+            &[("hgentle", 1.0), ("hharm", 16.0), ("hmode", 2.0)][..],
+        ),
+        (
+            "de-click",
+            &[("con", 1.0), ("csens", 0.7), ("crackle", 0.6)][..],
+        ),
+        (
+            "de-reverb",
+            &[("von", 1.0), ("vdecay", 1.0), ("vamount", 20.0)][..],
+        ),
+        (
+            "deltas",
+            &[("hdelta", 1.0), ("cdelta", 1.0), ("vdelta", 1.0)][..],
+        ),
+        ("off", &[("hon", 0.0), ("con", 0.0), ("von", 0.0)][..]),
+    ] {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        for (k, v) in kv {
+            e.spec.set(k, *v).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.play(phase, 20);
+    }
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations,
+    );
+}
+
+// fxc:comparatio — Comparatio (ADR 0143) on the master, on the audio thread:
+// a reference asked for and supplied (the live answer), heard with each match, a blind
+// trial, locked and looped, swapped for another while it is heard (it waits for the mix),
+// taken away, a seek and a stop. Letting a reference go only counts down (the store keeps
+// its sibling).
+#[test]
+fn comparatio_never_allocates() {
+    use cantus_engine::fx::comparatio_store::insert_for_test;
+    let n = 48_000 * 20;
+    let tone = |f: f32| -> Vec<f32> {
+        (0..n)
+            .map(|i| 0.2 * cantus_dsp::math::sin(i as f32 / 48_000.0 * f * std::f32::consts::TAU))
+            .collect()
+    };
+    let _a = insert_for_test("references/rt a.wav", 48_000, tone(110.0), tone(110.0));
+    let _b = insert_for_test("references/rt b.wav", 48_000, tone(165.0), tone(165.0));
+    let mut p = demo_project();
+    let mut fx = p.make_effect(EffectKind::Reference);
+    fx.spec.ir = Some(Box::new(cantus_core::IrFile::new("references/rt a.wav")));
+    let id = fx.id;
+    p.master.effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("the mix, the reference beside it", 30);
+    for (phase, kv) in [
+        ("the reference", &[("listen", 1.0)][..]),
+        ("short-term", &[("match", 1.0), ("offset", -2.0)][..]),
+        ("by hand", &[("match", 2.0)][..]),
+        (
+            "blind",
+            &[("listen", 2.0), ("seed", 7.0), ("trial", 3.0)][..],
+        ),
+        (
+            "locked",
+            &[("listen", 1.0), ("sync", 1.0), ("soff", 2.0)][..],
+        ),
+        (
+            "looped",
+            &[("sync", 2.0), ("lstart", 1.0), ("lend", 3.0)][..],
+        ),
+    ] {
+        let e = p.master.effects.iter_mut().find(|e| e.id == id).unwrap();
+        for (k, v) in kv {
+            e.spec.set(k, *v).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.play(phase, 20);
+    }
+    let e = p.master.effects.iter_mut().find(|e| e.id == id).unwrap();
+    e.spec.ir = Some(Box::new(cantus_core::IrFile::new("references/rt b.wav")));
+    rig.snapshot(&p);
+    rig.play("swapped while heard", 30);
+    // fxc:comparatio — the owner, 2026-11-17: another reference compared that must be read
+    // from disk first: while it is read the snapshot names none (the store's prepare), so the
+    // unit fades to the mix and lets the old one go; when it is in, the next snapshot names
+    // it and it fades in. Nothing allocated, freed or waited for here.
+    let e = p.master.effects.iter_mut().find(|e| e.id == id).unwrap();
+    e.spec.ir = None;
+    rig.snapshot(&p);
+    rig.play("another being read: the mix", 20);
+    let _c = insert_for_test("references/rt c.wav", 48_000, tone(220.0), tone(220.0));
+    let e = p.master.effects.iter_mut().find(|e| e.id == id).unwrap();
+    e.spec.ir = Some(Box::new(cantus_core::IrFile::new("references/rt c.wav")));
+    rig.snapshot(&p);
+    rig.play("it arrived: faded in", 30);
+    let e = p.master.effects.iter_mut().find(|e| e.id == id).unwrap();
+    e.spec.ir = None;
+    rig.snapshot(&p);
+    rig.play("taken away", 20);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations,
     );
 }

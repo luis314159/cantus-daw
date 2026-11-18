@@ -49,6 +49,11 @@ pub mod cedo; // fxb:contract
 pub mod lenis; // fxb:contract
 pub mod vinculum; // fxb:contract
 
+// fxc:contract — the side round's wave C (ADRs 0142–0143).
+pub mod comparatio; // fxc:contract
+pub mod comparatio_store; // fxc:comparatio
+pub mod purus; // fxc:contract
+
 use crate::effects::EffectUnit;
 use cantus_core::fx::tabula::PedalId;
 
@@ -680,6 +685,8 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::BusCompressor => Box::new(vinculum::Unit::new(sample_rate)), // fxb:contract
         EffectKind::ResonanceSuppressor => Box::new(lenis::Unit::new(sample_rate)), // fxb:contract
         EffectKind::Ducker => Box::new(cedo::Unit::new(sample_rate)),  // fxb:contract
+        EffectKind::Repair => Box::new(purus::Unit::new(sample_rate)), // fxc:contract
+        EffectKind::Reference => Box::new(comparatio::Unit::new(sample_rate)), // fxc:contract
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })

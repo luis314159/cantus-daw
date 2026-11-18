@@ -1311,3 +1311,87 @@ fn a_vst3_offline_render_begun_lands_at_once_and_a_change_while_playing_glides()
     );
     assert_identical("landed", &heard[7_168..8_192], &landed[7_168..8_192]);
 }
+
+// ---- fxc:purus — the host's component handler is `Handler` (above, Lenis's), counting the
+// restarts the plug-in asks for.
+
+/// Run this thread's message loop for `ms` (the plug-in's latency tick is a thread timer on
+/// the thread that initialised it, the host's UI thread).
+#[cfg(windows)]
+fn pump(ms: u64) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
+    };
+    let end = std::time::Instant::now() + std::time::Duration::from_millis(ms);
+    while std::time::Instant::now() < end {
+        // SAFETY: a plain message loop on this thread.
+        unsafe {
+            let mut msg: MSG = std::mem::zeroed();
+            while PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// fxc:purus — Purus's latency through VST3: a module switched by the host's automation
+/// changes what `getLatencySamples` reports to the engine's own latency for the new
+/// settings, and the plug-in tells the host on its UI thread (`restartComponent` with
+/// `kLatencyChanged`, once per change) — the room module, the de-click, the gentle de-hum's
+/// look-ahead, and the room off again.
+#[test]
+fn purus_s_latency_follows_its_modules_through_vst3() {
+    let kind = EffectKind::Repair;
+    let table = params::table(kind);
+    let v = V3::new(kind);
+    let handler = ComWrapper::new(Handler {
+        latency_restarts: Cell::new(0),
+    });
+    let h = handler.to_com_ptr::<IComponentHandler>().unwrap();
+    unsafe {
+        assert_eq!(v.controller.setComponentHandler(h.as_ptr()), kResultOk);
+    }
+    v.activate(1024);
+    assert_eq!(
+        unsafe { v.processor.getLatencySamples() },
+        0,
+        "the starting preset notches: no latency"
+    );
+    let mut values: Vec<(&str, f32)> = Vec::new();
+    let mut last = 0usize;
+    for (key, value) in [("von", 1.0), ("con", 1.0), ("hgentle", 1.0), ("von", 0.0)] {
+        let p = table.by_key(key).unwrap();
+        let before = handler.latency_restarts.get();
+        let (mut l, mut r) = signal(1024, 5);
+        v.process(
+            &mut l,
+            &mut r,
+            None,
+            &[(p.id, vec![(0, p.to_normalized(value))])],
+        );
+        values.push((key, value));
+        let want = engine_unit(&spec_with(kind, &values)).latency();
+        assert_ne!(want, last, "{key} {value} moves the latency");
+        #[cfg(windows)]
+        {
+            pump(200);
+            assert_eq!(
+                handler.latency_restarts.get(),
+                before + 1,
+                "{key} {value}: the host is told, once"
+            );
+        }
+        let _ = before;
+        assert_eq!(
+            unsafe { v.processor.getLatencySamples() } as usize,
+            want,
+            "{key} {value}: the engine's latency"
+        );
+        last = want;
+    }
+    unsafe {
+        v.controller.setComponentHandler(std::ptr::null_mut());
+    }
+}

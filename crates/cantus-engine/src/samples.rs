@@ -743,6 +743,8 @@ impl SampleCache {
         any |= self.pitch.poll();
         // Warp renders and bridges (ADR 0061).
         any |= self.warp.poll();
+        // fxc:comparatio — a reference track read on its thread (ADR 0143).
+        any |= crate::fx::comparatio_store::take_arrived();
         // A stream that failed: the next snapshot loads its file again.
         any |= self
             .streamed
