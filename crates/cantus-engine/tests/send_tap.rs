@@ -103,7 +103,8 @@ fn render_at(p: &Project, block: usize) -> Vec<f32> {
 }
 
 /// The render of [`sends_project`] with every send post-fader, on the contract commit
-/// (57f3ccc, `DSP_VERSION` 3), before the engine read the tap.
+/// (57f3ccc, `DSP_VERSION` 3), before the engine read the tap. Unchanged by `DSP_VERSION` 8
+/// (fx/final, the snap at a jump).
 const GOLDEN_POST_SENDS: &str = "3af01508d64d8685bab2025c1f49201b4d2327e97c3bf94b281e4c0226701960";
 
 #[test]
