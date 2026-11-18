@@ -436,6 +436,17 @@ the ceiling — roughly a quarter more than finite. To be measured again on a qu
 - **`DSP_VERSION`** unchanged: no golden holds Caelum, and the finite path is bit-exact (the
   output's absorption is the loop's when finite; the early taps' scale is 1).
 
+### Suites (Windows, 2026-11-17, one crate at a time, clippy `-D warnings --all-targets` on each)
+
+cantus-dsp 1 048 in the library (Caelum's 32: the five new in `caelum_tests_infinite.rs`, the
+old two infinite measures replaced) and its integration tests, cantus-core 809 (+1: the retired
+keys), cantus-project 193, cantus-engine 1 282, cantus-plugins 89 (`isus` blessed), cantus-ai
+51, cantus-ui 2 719 of 2 720 — the one red `preset_render`, Arca's three leads' CPU (+0.25 …
++0.27 of their budget, phase B's same red: other builders compiling on the machine; every
+Caelum preset within its window). Clippy clean on all seven; the MCP tools golden regenerated
+(`CANTUS_TOOLS_DUMP=1`, Caelum's words only). Not run: the Linux check (WSL), the workspace at
+once, `preset_render` and the CPU measure on a quiet machine.
+
 ### Open
 
 - **A short chord into an infinite tank at the climb's fullest** (both voices at 100 %), Sustain
