@@ -4,7 +4,7 @@
 
 use crate::units::Unit;
 
-pub const INSTRUMENTS: [Unit; 9] = [
+pub const INSTRUMENTS: [Unit; 10] = [
     Unit {
         file: "unda",
         name: "Unda",
@@ -163,21 +163,44 @@ pub const INSTRUMENTS: [Unit; 9] = [
         file: "chorda",
         name: "Chorda",
         kind: ("Modelled grand piano", "Piano de cola modelado"),
-        pitch: ("A grand piano played from its physics: strings, felt hammers, a soundboard and half pedalling.", "Un piano de cola tocado desde su física: cuerdas, martillos de fieltro, tabla armónica y medio pedal."),
-        what: long!(("Chorda plays a grand piano from a physical model: each key's one to three strings struck by a felt hammer, meeting at a yielding bridge and ringing into a soundboard, with the other strings ringing in sympathy as their dampers allow. No sample excites anything; its numbers come from published measurements.", "Chorda toca un piano de cola desde un modelo físico: las una a tres cuerdas de cada tecla golpeadas por un martillo de fieltro, unidas en un puente que cede y resonando en una tabla armónica, mientras las demás cuerdas vibran por simpatía según lo permitan sus apagadores. Ninguna muestra excita nada; sus valores vienen de mediciones publicadas.")),
+        pitch: ("A grand piano played from its physics — strings, felt hammers, a soundboard, half pedalling — or a recorded piano with its own mixer.", "Un piano de cola tocado desde su física — cuerdas, martillos de fieltro, tabla armónica, medio pedal — o un piano grabado con su propio mezclador."),
+        what: long!(("Chorda plays a grand piano from a physical model: each key's one to three strings struck by a felt hammer, meeting at a yielding bridge and ringing into a soundboard, with the other strings ringing in sympathy as their dampers allow. No sample excites anything; its numbers come from published measurements. It also plays recorded pianos — the Salamander Grand, bitKlavier's microphone images, Accurate-Salamander, two uprights, or your own SFZ, Decent Sampler or SF2 — each microphone and noise a named output in its own mixer, one click from a strip of its own, and the model's perspectives too. Its window is the piano in its room, drawn and lit: the lid that opens, the microphones where they stand, the room chosen from a chip.", "Chorda toca un piano de cola desde un modelo físico: las una a tres cuerdas de cada tecla golpeadas por un martillo de fieltro, unidas en un puente que cede y resonando en una tabla armónica, mientras las demás cuerdas vibran por simpatía según lo permitan sus apagadores. Ninguna muestra excita nada; sus valores vienen de mediciones publicadas. También toca pianos grabados — el Salamander Grand, las imágenes de micrófono de bitKlavier, Accurate-Salamander, dos verticales, o tu propio SFZ, Decent Sampler o SF2 — cada micrófono y ruido una salida con nombre en su propio mezclador, a un clic de un canal propio, y también las perspectivas del modelo. Su ventana es el piano en su sala, dibujado e iluminado: la tapa que se abre, los micrófonos donde están, la sala elegida desde un chip.")),
         features: long!(&[
             ("Worst partial within 0.5 cent on the rendered sound, across all 88 keys", "Peor parcial a menos de 0.5 cent en el sonido renderizado, en las 88 teclas"),
             ("Continuous sustain pedal with half-pedalling; the soft pedal shifts the hammers", "Pedal de sustain continuo con medio pedal; el pedal suave desplaza los martillos"),
             ("Sympathetic resonance of the other strings and a 40-mode soundboard", "Resonancia por simpatía de las demás cuerdas y una tabla armónica de 40 modos"),
             ("Stretched tuning 0–200 %, string stiffness and A4 from 415 to 466 Hz", "Afinación estirada de 0 a 200 %, rigidez de cuerdas y La4 de 415 a 466 Hz"),
-            ("Felt hardness and hysteresis, two-stage decay and phantom partials, adjustable", "Dureza e histéresis del fieltro, decaimiento en dos etapas y parciales fantasma"),
-            ("The piano drawn from above: strings, bridge, dampers and the last key played", "El piano visto desde arriba: cuerdas, puente, apagadores y la última tecla tocada"),
+            ("Recorded pianos too: the Salamander, bitKlavier, two uprights or your own SFZ, Decent Sampler, SF2", "También pianos grabados: el Salamander, bitKlavier, dos verticales o tu propio SFZ, Decent Sampler, SF2"),
+            ("Its own mixer: each perspective a named output, one click from its own strip", "Su propio mezclador: cada perspectiva una salida con nombre, a un clic de su propio canal"),
         ]),
         presets: Some(24),
         plugin: false,
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
+    },
+
+    // fix/final-d — Tympanum, the acoustic drummer (ADR 0124).
+    Unit {
+        file: "tympanum",
+        name: "Tympanum",
+        kind: ("Acoustic drummer", "Batería acústica"),
+        pitch: ("An acoustic kit in its room: modelled drums heard through microphones you move, or recorded multi-mic kits, every mic on a strip of its own.", "Una batería acústica en su sala: tambores modelados escuchados por micrófonos que mueves, o baterías grabadas con varios micrófonos, cada micrófono en un canal propio."),
+        what: long!(("Tympanum is Cantus's acoustic drummer, grown from Pulsus's engine. Its modelled kits — Studio Maple, and Jazz Birch measured off a public-domain recording — play at once, with nothing to download: modal voices heard through virtual microphones you move by pattern, distance and aim, where they stand in the picture of the kit in its room. Each hit is one draw shared by every microphone, so the kick, the overheads and the room agree; a bleed matrix sets how much of each piece each microphone hears, and each microphone goes to a strip of its own in one click. The hi-hat opens continuously on CC4. A Hybrid voice plays recorded attacks under the model, and six recorded multi-mic kits stream from disk, in their own room or in Cantus's — both downloaded on demand.", "Tympanum es la batería acústica de Cantus, crecida desde el motor de Pulsus. Sus baterías modeladas — Studio Maple, y Jazz Birch medida sobre una grabación de dominio público — suenan al instante, sin nada que descargar: voces modales escuchadas por micrófonos virtuales que mueves por patrón, distancia y orientación, donde están en la imagen de la batería en su sala. Cada golpe es un mismo sorteo para todos los micrófonos, así el bombo, los aéreos y la sala coinciden; una matriz de fugas fija cuánto oye cada micrófono de cada pieza, y cada micrófono va a un canal propio con un clic. El charles se abre de forma continua con el CC4. Una voz Híbrida toca ataques grabados bajo el modelo, y seis baterías grabadas con varios micrófonos se leen desde el disco, en su propia sala o en las de Cantus — ambas se descargan cuando las pides.")),
+        features: long!(&[
+            ("Two modelled kits, instant, no download; their microphones moved by pattern, distance and aim", "Dos baterías modeladas, al instante, sin descarga; sus micrófonos se mueven por patrón, distancia y orientación"),
+            ("The kit in its room, drawn and lit: click a piece to play it, drag a microphone where it stands", "La batería en su sala, dibujada e iluminada: haz clic en una pieza para tocarla, arrastra un micrófono a su sitio"),
+            ("A bleed matrix: how much of each piece every microphone hears, cell by cell", "Una matriz de fugas: cuánto oye cada micrófono de cada pieza, celda a celda"),
+            ("Each microphone to a strip of its own in one click; one draw per hit shared by every mic", "Cada micrófono a un canal propio con un clic; un mismo sorteo por golpe para todos los micrófonos"),
+            ("A Hybrid voice and six recorded multi-mic kits, downloaded on demand, streamed from disk", "Una voz Híbrida y seis baterías grabadas con varios micrófonos, descargadas a petición, leídas desde el disco"),
+            ("The generated kit with every microphone at 7.3 % of a core; the hi-hat opened continuously by CC4", "La batería generada con todos los micrófonos al 7.3 % de un núcleo; el charles se abre de forma continua con el CC4"),
+        ]),
+        presets: None,
+        plugin: false,
+        ab: None,
+        big: (1800, 1086),
+        thumb: (640, 386),
         es: None,
     },
 
