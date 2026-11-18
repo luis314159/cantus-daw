@@ -12,10 +12,12 @@
 //! automated value at once; a change while playing still glides. Live playback started at
 //! bar 3 (from a seek) is the render from bar 3, to the bit, too.
 
+mod support;
 use cantus_core::automation::range::range_of;
 use cantus_core::*;
 use cantus_engine::*;
 use std::sync::Arc;
+use support::heavy::{random_instrument, Rng};
 
 const SR: u32 = 48_000;
 /// 120 BPM: a beat is half a second.
@@ -298,4 +300,165 @@ fn playback_from_stop_after_another_song_is_the_render() {
             at as f64 * 1_000.0 / f64::from(SR)
         );
     }
+}
+
+/// One native instrument track at `spec`, a chord (drum notes among it) on its first beat
+/// and another on its third; `skip` tracks made first and left out, so its id is another
+/// song's.
+fn native_song(name: &str, skip: usize, spec: NativeSpec) -> Project {
+    let mut p = Project::new(name);
+    p.tempo_bpm = 120.0;
+    for _ in 0..skip {
+        let _ = p.make_track("left out");
+    }
+    let mut t = p.make_track(name);
+    t.instrument = InstrumentSpec::Native(spec);
+    let mut clip = p.make_clip("chords", Ticks::ZERO, Ticks::beats(4));
+    for b in [0, 2] {
+        for k in [36u8, 38, 42, 48, 60, 64, 67] {
+            let n = p.make_note(Ticks::beats(b), Ticks(PPQ), k, 100);
+            clip.notes.push(n);
+        }
+    }
+    t.clips.push(clip);
+    p.tracks.push(t);
+    p
+}
+
+/// The engine the application drives (`EngineHandle`, its units made and handed over as
+/// the backend does): `old` sent, `stopped` frames run stopped on it, then `new` sent, a
+/// seek to the start and `Play` — `frames` frames of what it plays.
+fn live_after(old: &Project, new: &Project, stopped: usize, frames: usize) -> Vec<f32> {
+    let (mut h, mut proc_) = EngineHandle::manual(f64::from(SR));
+    let s = h.compile(old, 1);
+    h.set_snapshot(s);
+    let mut buf = vec![0f32; 2 * 64];
+    for _ in 0..stopped / 64 {
+        proc_.process(&mut buf, 2);
+        h.poll();
+    }
+    let s = h.compile(new, 2);
+    h.set_snapshot(s);
+    h.seek(Ticks::ZERO);
+    h.play();
+    let sizes = [128usize, 333, 512, 96, 1024, 17];
+    let mut out = Vec::with_capacity(frames * 2);
+    let mut i = 0;
+    while out.len() / 2 < frames {
+        let n = sizes[i % sizes.len()].min(frames - out.len() / 2);
+        i += 1;
+        let mut b = vec![0f32; n * 2];
+        proc_.process(&mut b, 2);
+        h.poll();
+        out.extend_from_slice(&b);
+    }
+    out
+}
+
+/// The settings a kind is drawn at: every parameter over its range (`random_instrument`),
+/// except Gravis's Free oscillator phase — with it even a fresh engine's playback is not
+/// the render (0.82 at the second chord: `gravis_free_phase_live_is_the_render`, ignored,
+/// a finding of its own).
+fn drawn(kind: InstrumentKind, rng: &mut Rng) -> NativeSpec {
+    let mut s = random_instrument(kind, 1.0, rng);
+    if kind == InstrumentKind::Bass && s.get("phase").round() >= 2.0 {
+        s.params.insert("phase".into(), 0.0);
+    }
+    s
+}
+
+/// What [`every_native_instrument_from_stop_after_another_song_is_the_render`] checks for
+/// `kind`, over `cases` of (tracks skipped before the new one — 0: the old track's id —,
+/// frames run stopped on the old song): the failures, described.
+fn from_stop_failures(kind: InstrumentKind, cases: &[(usize, usize)]) -> Vec<String> {
+    let frames = FRAMES_PER_BEAT * 3;
+    let mut rng = Rng::new(0x51a9_e000 + kind as u64);
+    let from = drawn(kind, &mut rng);
+    let to = drawn(kind, &mut rng);
+    let old = native_song("Old", 0, from);
+    let mut failures = Vec::new();
+    for &(skip, stopped) in cases {
+        let new = native_song("New", skip, to.clone());
+        assert_eq!(old.tracks[0].id == new.tracks[0].id, skip == 0);
+        let whole = render_beats(&new, 0, 4);
+        let heard = live_after(&old, &new, stopped, frames);
+        let (at, d) = worst(&heard, &whole[..frames * 2]);
+        if d != 0.0 {
+            failures.push(format!(
+                "{kind:?}, {} id, stopped {stopped}: {d:e} at frame {at} ({:.1} ms in)",
+                if skip == 0 { "the same" } else { "another" },
+                at as f64 * 1_000.0 / f64::from(SR)
+            ));
+        }
+    }
+    failures
+}
+
+/// fx/final — `playback_from_stop_after_another_song_is_the_render` for every native
+/// instrument: a song replaced by another whose track plays the same kind at other settings
+/// (drawn over every parameter's range) — with the old track's id, the unit kept and
+/// configured again (it glided from the old settings into its first note: Bass 2.9e-1,
+/// Electric piano 7.2e-2, Tympanum 2.1e-1, Chorda 1.5e-2, Organ 2.9e-4 before the fix),
+/// or with another id, a unit made for it, nothing run between or 700 frames stopped on the
+/// old song — played from stop, it is the offline render to the bit. At `Play` every idle
+/// instrument snaps (`InstrumentUnit::snap_idle`).
+///
+/// A unit kept *and* heard stopped on the old song is the other test below (ignored): what
+/// it carries is no glide but its free-running state.
+#[test]
+fn every_native_instrument_from_stop_after_another_song_is_the_render() {
+    let mut failures = Vec::new();
+    for kind in InstrumentKind::ALL {
+        failures.extend(from_stop_failures(kind, &[(0, 0), (3, 0), (3, 700)]));
+    }
+    assert!(
+        failures.is_empty(),
+        "{}",
+        failures.join(
+            "
+"
+        )
+    );
+}
+
+/// A finding of fx/final, not fixed here (the owner's design question): a unit kept across
+/// a song replaced (the same track id) and run 700 frames stopped on the old song carries
+/// its free-running state into the new song's start, where a render's new unit starts from
+/// none — measured: Analog 3.7e-1 at 1.38 s (its drift, noise, LFOs), Electric piano 6.1e-4
+/// at 9.5 ms (its tremolo), Organ 1.5e-4 at 1.1 s (the rotors' and the scanner's phase),
+/// Chorda 4.3e-6 at 30 ms. Snapping cannot reach state; resetting an idle unit at `Play`
+/// would, but would cut a tail still ringing with no voice.
+#[test]
+#[ignore = "a finding: a kept unit's free-running state after stopped blocks (see the doc)"]
+fn a_kept_unit_heard_stopped_starts_as_a_render_does() {
+    let mut failures = Vec::new();
+    for kind in InstrumentKind::ALL {
+        failures.extend(from_stop_failures(kind, &[(0, 700)]));
+    }
+    assert!(
+        failures.is_empty(),
+        "{}",
+        failures.join(
+            "
+"
+        )
+    );
+}
+
+/// A finding of fx/final, not fixed here: Gravis at the Free oscillator phase, played by a
+/// fresh engine from the start, is not the offline render — 8.2e-1 at the second chord
+/// (1.009 s), its first one equal; at Reset or Random it is to the bit.
+#[test]
+#[ignore = "a finding: Gravis's Free phase live is not the render (see the doc)"]
+fn gravis_free_phase_live_is_the_render() {
+    let mut rng = Rng::new(0x51a9_e000 + InstrumentKind::Bass as u64);
+    let _ = random_instrument(InstrumentKind::Bass, 1.0, &mut rng);
+    let mut to = random_instrument(InstrumentKind::Bass, 1.0, &mut rng);
+    to.params.insert("phase".into(), 2.0);
+    let new = native_song("New", 3, to);
+    let frames = FRAMES_PER_BEAT * 3;
+    let whole = render_beats(&new, 0, 4);
+    let heard = live_after(&Project::new("empty"), &new, 0, frames);
+    let (at, d) = worst(&heard, &whole[..frames * 2]);
+    assert_eq!(d, 0.0, "{d:e} at frame {at}");
 }

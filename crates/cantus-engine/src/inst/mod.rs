@@ -181,6 +181,16 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// render that starts mid-song is the whole render from there. Voices, tails and
     /// envelopes are kept. No allocation. Default: nothing glides.
     fn snap(&mut self) {}
+    /// fx/final — playback starts from stop (or a sync start): an instrument that sounds no
+    /// voice ([`Self::active_voices`] 0) snaps ([`Self::snap`]), so a unit configured again
+    /// since it last ran — a song replaced, the same track id kept — does not glide from the
+    /// old settings into its first note, where a render's new unit takes them at once. A
+    /// unit sounding a voice keeps its glide. No allocation.
+    fn snap_idle(&mut self) {
+        if self.active_voices() == 0 {
+            self.snap();
+        }
+    }
     /// Render one segment **added** into `left`/`right` (the caller zeroes them). Returns
     /// whether anything was written; `false` lets the processor skip an idle track, so it
     /// must only be `false` when the output is exactly zero.

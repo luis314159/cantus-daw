@@ -4240,3 +4240,57 @@ fn comparatio_never_allocates() {
         rig.allocations,
     );
 }
+
+/// fx/final — the idle snap at `Play` (`Processor::snap_idle_synths`, every Firmus and
+/// every native instrument that sounds no voice): a track of each native kind and a Firmus
+/// one, configured again while stopped (their glides under way), played from stop, stopped
+/// and played from stop again. Not one allocation.
+#[test]
+fn the_idle_snap_at_play_never_allocates() {
+    let song = |gain: f32| {
+        let mut p = Project::new("idle snap");
+        p.tempo_bpm = 120.0;
+        for kind in InstrumentKind::ALL {
+            let mut t = p.make_track(format!("{kind:?}"));
+            let mut spec = NativeSpec::new(kind);
+            for info in kind.params().iter().filter(|i| !i.stepped).take(6) {
+                spec.params
+                    .insert(info.key.into(), info.min + (info.max - info.min) * gain);
+            }
+            t.instrument = InstrumentSpec::Native(spec);
+            let mut clip = p.make_clip("n", Ticks::ZERO, Ticks::beats(4));
+            clip.notes
+                .push(p.make_note(Ticks::beats(1), Ticks::beats(1), 60, 100));
+            t.clips.push(clip);
+            p.tracks.push(t);
+        }
+        let mut f = p.make_track("Firmus");
+        f.instrument.firmus_mut().expect("Firmus").cutoff_hz = 300.0 + 10_000.0 * gain;
+        p.tracks.push(f);
+        p
+    };
+    let (a, b) = (song(0.3), song(0.7));
+    cantus_engine::inst::chorda::ensure(cantus_engine::inst::chorda::reference(), 48_000.0);
+    let mut rig = Rig::new();
+    let snap = Snapshot::compile(&a, 1);
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+        rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    rig.snapshot(&a);
+    rig.play("idle snap: settle", 8);
+    rig.allocations.clear();
+    rig.snapshot(&b);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("idle snap: configured again, played from stop", 30);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("idle snap: stop", 4);
+    rig.snapshot(&a);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("idle snap: played from stop again", 10);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the idle snap allocated or freed: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
