@@ -265,7 +265,6 @@ pub fn window_in(app: &mut CantusApp, ui: &mut egui::Ui) {
 /// opened at the shell's 1 040 × 680 they scrolled, cut at the window's edge). It opens at
 /// this size; a size the user gave it is kept apart (`workspace_device::place_of`).
 pub fn editor_size(kind: InstrumentKind) -> egui::Vec2 {
-    let chrome = egui::vec2(0.0, shell::HEADER + shell::FOOTER);
     let least = match kind {
         InstrumentKind::Chorda => crate::views::inst::chorda_source::mixer::MIN,
         InstrumentKind::AcousticDrums => crate::views::inst::tympanum::KIT_MIN.max(egui::vec2(
@@ -274,7 +273,18 @@ pub fn editor_size(kind: InstrumentKind) -> egui::Vec2 {
         )),
         _ => egui::Vec2::ZERO,
     };
-    shell::INSTRUMENT.max(least + chrome)
+    size_for(least)
+}
+
+/// The editor's size at 100 % whose view gets `least` points: the shell's, or `least` with
+/// the header, the footer and the ground's padding around it ([`shell::grid_room`] — fx/final:
+/// left out, Tympanum's Kit had 624 of its 640 and scrolled, its cards cut at the foot).
+pub fn size_for(least: egui::Vec2) -> egui::Vec2 {
+    if least == egui::Vec2::ZERO {
+        return shell::INSTRUMENT;
+    }
+    let chrome = egui::vec2(0.0, shell::HEADER + shell::FOOTER);
+    shell::INSTRUMENT.max(least + chrome + shell::grid_room())
 }
 
 /// [`window_in`] with the editor's body `size` points (a review's shot of a whole view, taller

@@ -22,6 +22,7 @@ pub(crate) fn pal(s: &Style) -> Pal {
 pub fn card(b: &mut Brush, s: &Style, r: Rect) {
     let p = Pal::of(s);
     let r = b.snap_rect(r);
+    crate::kit::text::probe::card(r, b.clip);
     let rad = s.s(6.0);
     b.rrect(r, rad, Fill::Solid(p.edge));
     b.rrect(

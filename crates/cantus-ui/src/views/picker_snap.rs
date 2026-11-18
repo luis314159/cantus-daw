@@ -154,7 +154,7 @@ pub fn canvas() -> Vec2 {
         .iter()
         .map(|k| crate::views::fx::frame::designed_size(*k))
         .fold(crate::kit::shell::INSTRUMENT, |a, b| a.max(b));
-    // The instruments open at their own size (Tympanum's 1 200 × 692).
+    // The instruments open at their own size (Tympanum's 1 219 × 711).
     let largest = cantus_core::inst::InstrumentKind::ALL
         .iter()
         .map(|k| crate::views::inst::editor_size(*k))

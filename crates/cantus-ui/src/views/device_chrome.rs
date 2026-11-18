@@ -304,7 +304,7 @@ impl Workspace {
         let rect = device::place_of(ctx, key).or_else(|| {
             let (size, min) = device::sizes(ctx, key)?;
             // fx/final: below its whole size an instrument's view scrolls, cut at the
-            // leaf's edge (Tympanum's Kit wants 1 200 × 692): it floats whole instead.
+            // leaf's edge (Tympanum's Kit wants 1 219 × 711): it floats whole instead.
             let whole = device::whole_size(ctx, key).unwrap_or(min);
             let path = self.find(Pane::Device(key))?;
             let leaf = self.dock.leaf(path.node_path()).ok()?.rect;

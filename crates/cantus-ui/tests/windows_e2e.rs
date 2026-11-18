@@ -498,3 +498,137 @@ fn a_windows_bar_and_name_are_chosen_from_its_menu_and_kept() {
         assert!(r.app().windows.list[0].groups.contains(&Group::Metronome));
     });
 }
+
+/// An instrument's editor moved to a window of its own opens at its own size (fx/final):
+/// the window not maximised, sized so the editor's body is Chorda's 1 119 × 680 at the
+/// scale the window draws at on that screen, inside the screen's work area; on a screen
+/// too small for it, held inside the work area (the view scrolls there).
+#[test]
+fn an_instruments_editor_in_a_window_of_its_own_opens_at_its_own_size() {
+    run(|| {
+        use cantus_core::{InstrumentKind, InstrumentSpec, NativeSpec};
+        let small = screen(r"\\.\DISPLAY3", 1366, 768, 4800, 0, 1.0);
+        let mut p = cantus_ui::welcome_project();
+        let mut t = p.make_track("Piano");
+        let strip = p.make_strip("Piano");
+        t.strip = Some(strip.id);
+        p.strips.push(strip);
+        t.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
+        let track = t.id;
+        p.tracks.push(t);
+        let tmp = tempfile::tempdir().unwrap();
+        let mut r = Rig::in_dir(
+            tmp.path(),
+            vec![laptop(), external(), small.clone()],
+            Some(p),
+        );
+        r.idle(4);
+        r.app().open_inst_editor(track);
+        r.idle(6);
+        let key = cantus_ui::views::inst::editor_id(track).value();
+        let want = cantus_ui::views::inst::editor_size(InstrumentKind::Chorda);
+        for (n, screen) in [(1usize, external()), (2, small)] {
+            let ctx = r.ctx.clone();
+            r.app().move_pane(
+                &ctx,
+                Pane::Device(key),
+                cantus_ui::windows::Target::NewWindow { screen: Some(n) },
+            );
+            r.idle(8);
+            let app = r.app();
+            let i = app
+                .windows
+                .list
+                .iter()
+                .position(|w| w.workspace.contains(Pane::Device(key)))
+                .expect("the editor has a window of its own");
+            let place = app.windows.list[i].place.clone().expect("placed");
+            assert_eq!(place.screen.size, screen.size, "on the screen asked for");
+            assert!(!place.maximised, "a device's window is not maximised");
+            // Inside the screen's work area (the screen less the taskbar's room).
+            let sr = screen.rect();
+            let task = (48.0 * screen.scale) as i32;
+            assert!(
+                place.rect.x >= sr.x
+                    && place.rect.y >= sr.y
+                    && place.rect.x + place.rect.w <= sr.x + sr.w
+                    && place.rect.y + place.rect.h <= sr.y + sr.h - task,
+                "{:?} outside {sr:?}'s work area",
+                place.rect
+            );
+            let (body, _) = cantus_ui::views::workspace_device::shown(&r.ctx, key)
+                .expect("the editor is drawn in its window");
+            // Where the work area holds it: its body at the editor's size. (On the small
+            // screen the window is the work area's, the view scrolling there.)
+            if n == 1 {
+                assert!(
+                    body.width() + 0.5 >= want.x && body.height() + 0.5 >= want.y,
+                    "the editor's body {:?} is not its {want:?}",
+                    body.size()
+                );
+            }
+            // Working in the main window again (a click there): the editor stays drawn in
+            // its own window.
+            let id = r.app().windows.list[i].id();
+            r.click(
+                ViewportId::ROOT,
+                egui::pos2(600.0, 300.0),
+                PointerButton::Primary,
+            );
+            r.idle(4);
+            assert!(
+                !r.text_in(id, "Chorda").is_empty(),
+                "the editor is still drawn in its window after a click in the main one"
+            );
+            // Back to the main window for the next screen.
+            let ctx = r.ctx.clone();
+            r.app()
+                .move_pane(&ctx, Pane::Device(key), cantus_ui::windows::Target::Main);
+            r.idle(4);
+        }
+    });
+}
+
+/// An instrument's editor opened while working in a window of its own opens there, at its
+/// own size (fx/final): the body Chorda's 1 119 × 680 inside that window.
+#[test]
+fn an_instruments_editor_opened_in_a_window_opens_there_at_its_own_size() {
+    run(|| {
+        use cantus_core::{InstrumentKind, InstrumentSpec, NativeSpec};
+        let mut p = cantus_ui::welcome_project();
+        let mut t = p.make_track("Piano");
+        let strip = p.make_strip("Piano");
+        t.strip = Some(strip.id);
+        p.strips.push(strip);
+        t.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
+        let track = t.id;
+        p.tracks.push(t);
+        let tmp = tempfile::tempdir().unwrap();
+        let mut r =
+            with_mixer_window_in(Rig::in_dir(tmp.path(), vec![laptop(), external()], Some(p)));
+        let id = r.windows()[0];
+        // Working in the mixer's window: a click there.
+        r.click(id, egui::pos2(300.0, 200.0), PointerButton::Primary);
+        r.idle(2);
+        r.app().open_inst_editor(track);
+        r.idle(10);
+        let key = cantus_ui::views::inst::editor_id(track).value();
+        let app = r.app();
+        assert!(
+            app.windows.list[0].workspace.contains(Pane::Device(key)),
+            "the editor opens in the window worked in"
+        );
+        let want = cantus_ui::views::inst::editor_size(InstrumentKind::Chorda);
+        let (body, _) =
+            cantus_ui::views::workspace_device::shown(&r.ctx, key).expect("the editor is drawn");
+        assert!(
+            body.width() + 0.5 >= want.x && body.height() + 0.5 >= want.y,
+            "the editor's body {:?} is not its {want:?}",
+            body.size()
+        );
+        assert!(
+            !r.text_in(id, "Chorda").is_empty(),
+            "drawn in the mixer's window"
+        );
+    });
+}

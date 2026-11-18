@@ -197,7 +197,6 @@ fn check(
 /// where the view asks for more (below its least size it scrolls, by design — a row half
 /// out of sight there is no cut).
 fn whole(kind: InstrumentKind, view: View) -> Vec2 {
-    let chrome = Vec2::new(0.0, shell::HEADER + shell::FOOTER);
     let least = match (kind, view) {
         (InstrumentKind::Chorda, View::Mixer) => inst::chorda_source::mixer::MIN,
         (InstrumentKind::AcousticDrums, View::Mixer) => {
@@ -210,7 +209,7 @@ fn whole(kind: InstrumentKind, view: View) -> Vec2 {
         (InstrumentKind::Chorda, View::Play) => Vec2::new(0.0, 800.0),
         _ => Vec2::ZERO,
     };
-    shell::INSTRUMENT.max(least + chrome)
+    inst::size_for(least)
 }
 
 #[test]
@@ -253,7 +252,15 @@ fn chorda_and_tympanum_read_whole_at_every_scale_and_the_narrowest_window() {
                     match &base {
                         None => base = Some(set),
                         Some(b) => {
-                            let missing: Vec<&String> = b.difference(&set).collect();
+                            // A paragraph may break its lines at other words at another
+                            // scale (fx/final: Chorda's Spanish mixer note at 1 119 points):
+                            // a line is missing only when one of its words is.
+                            let words: BTreeSet<&str> =
+                                set.iter().flat_map(|l| l.split_whitespace()).collect();
+                            let missing: Vec<&String> = b
+                                .difference(&set)
+                                .filter(|l| l.split_whitespace().any(|w| !words.contains(w)))
+                                .collect();
                             if !missing.is_empty() {
                                 bad.push(format!(
                                 "{at}: {} of the {} words at 100 % are not painted: {missing:?}",
@@ -359,6 +366,39 @@ fn an_instrument_opens_at_its_own_size_its_view_uncut() {
                 ));
             }
         }
+        // Every card whole, its edge and foot included, in the view it opens in and in its
+        // Mixer — not only its words (fx/final: Tympanum's Kit, 16 points short, scrolled
+        // and lost its cards' foot while every word still read whole).
+        for view in [View::Play, View::Mixer] {
+            r.app.inst.view = view;
+            r.idle(4);
+            probe::start_cards();
+            r.idle(1);
+            let cards = probe::take_cards();
+            r.shot(&format!("cards-{kind:?}-{view:?}"));
+            let mut seen = 0;
+            for (card, clip) in cards {
+                if !card.intersects(ed) || !clip.intersects(card) {
+                    continue;
+                }
+                // A list's own scroll (Chorda's sources): its rows half out of sight by
+                // design — a clip inside the list's column.
+                if list.contains_rect(clip) {
+                    continue;
+                }
+                seen += 1;
+                if !ed.expand(0.5).contains_rect(card) || !clip.expand(0.5).contains_rect(card) {
+                    bad.push(format!(
+                        "{kind:?} {view:?}: a card at {card:?} is cut — the editor {ed:?}, \
+                         its clip {clip:?}"
+                    ));
+                }
+            }
+            if seen < 3 {
+                bad.push(format!("{kind:?} {view:?}: only {seen} cards painted"));
+            }
+        }
+        r.app.inst.view = View::Play;
         r.app.close_inst_editor();
         r.idle(4);
     }
