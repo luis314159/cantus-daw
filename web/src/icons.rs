@@ -3,8 +3,15 @@
 use yew::prelude::*;
 
 /// The real Cantus logo (the app icon): a C of waves with a gold playhead cross.
+/// The mark in the bar: logo #03's designer's 48-px master (`logos/small/03-48.svg`, the
+/// app's own), shown at 32–36 points — the full drawing (`/logo.svg`) is for 48 px and up.
 pub fn logo() -> Html {
-    html! { <img src="/logo.svg" alt="" width="64" height="64" /> }
+    html! { <img src="/logo-48.svg" alt="" width="48" height="48" /> }
+}
+
+/// The mark in the footer, 32 points: #03's 32-px master (`logos/small/03-32.svg`).
+pub fn logo_small() -> Html {
+    html! { <img src="/logo-32.svg" alt="" width="32" height="32" /> }
 }
 fn line(d: &'static str) -> Html {
     html! {

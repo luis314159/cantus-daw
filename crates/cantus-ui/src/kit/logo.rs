@@ -13,9 +13,10 @@
 //! 0046) the wave and the playhead take the taskbar icon's colours instead, so the
 //! title-bar mark and the splash can follow the icon.
 //!
-//! **The default is #2, "C de onda con playhead-cruz", in its original colours.** Below
-//! 48 px #2's glow turns to blur, so [`small_master`] draws a simplified #2 on the pixel
-//! grid for 16, 24 and 32 px.
+//! **The default is #03, "the metal", in its original colours** — the app's logo since
+//! round 39 (ADR 0111), the same drawing as the window's and the executable's icon: its
+//! designer's small masters below 48 px (`assets/logos/small/03-*.svg`,
+//! [`small_master_03`]), the full drawing above.
 
 use super::color::{opaque, Hsl};
 use super::tokens::Tokens;
