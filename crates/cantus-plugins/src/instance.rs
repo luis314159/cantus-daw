@@ -376,9 +376,9 @@ impl Shared {
                 Mutex::new((Some(tx), Some(rx)))
             },
             scope_lost: AtomicU64::new(0),
-            cedo: Default::default(),   // fxb:cedo
-            lapsus: Default::default(), // fx:lapsus
-            board: Default::default(),  // fx3:tabula
+            cedo: Default::default(),    // fxb:cedo
+            lapsus: Default::default(),  // fx:lapsus
+            board: Default::default(),   // fx3:tabula
             fractus: Default::default(), // fxa:fractus
             tapped: AtomicU64::new(0),
         });
@@ -924,8 +924,8 @@ impl Processor {
             lapsus_held: None,
             fractus,            // fxa:fractus
             fractus_held: None, // fxa:fractus
-            cedo,            // fxb:cedo
-            cedo_held: None, // fxb:cedo
+            cedo,               // fxb:cedo
+            cedo_held: None,    // fxb:cedo
             transport: None,
             moves: [(0, HostTransport::default()); MOVES],
             n_moves: 0,

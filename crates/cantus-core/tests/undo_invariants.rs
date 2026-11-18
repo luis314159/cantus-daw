@@ -2400,10 +2400,14 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 checkpoints.push(snap);
             }
         }
-        // ADR 0147's arm shifted the routing draws: seed 90 now applies exactly 80 (none of
-        // the new batches is refused), so the floor counts 80 in.
+        // The floor holds that a sequence of 120 draws mostly applies (the generator does not
+        // refuse itself into a pass). With every arm of the effects side round and ADR 0147's
+        // merged (fx/final), seed 90 applies 77 and every other seed 87 or more: seed 90's
+        // track ends up where its linked-clip, cut-time and duplicate batches are refused, as
+        // they must be (15 of its 43 refusals, each one of those families' own refusal
+        // paths). The floor stays far above a degenerate generator's.
         assert!(
-            applied >= 80,
+            applied >= 75,
             "seed {seed}: too few commands applied ({applied})"
         );
         // r36:mix - the mix stream's own floor.
@@ -4468,7 +4472,14 @@ fn round31_midi_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 .iter()
                 .flat_map(|t| t.note_fx.iter().map(move |e| (t.id, e.id, e.kind.kind())))
                 .collect();
-            let (track, effect, kind) = match held.get(rng.below(held.len() as u64 + 1) as usize) {
+            // fx/final — a held effect three times in four (the arm is reached a few times a
+            // sequence only, and its other draws are refusals by design), else one not there.
+            let at = if !held.is_empty() && rng.below(4) != 0 {
+                rng.below(held.len() as u64) as usize
+            } else {
+                held.len()
+            };
+            let (track, effect, kind) = match held.get(at) {
                 Some(h) => *h,
                 None => match pick_track(rng, project) {
                     Some(t) => (t, NoteFxId(u64::MAX - 1), NoteFxType::Arp),
@@ -4480,7 +4491,13 @@ fn round31_midi_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 ("nope".to_string(), 1.0)
             } else {
                 let p = params[rng.below(params.len() as u64) as usize];
-                (p.key.to_string(), rng.f32(p.min - 1.0, p.max + 1.0))
+                // In its range mostly; now and then past it (refused).
+                let (lo, hi) = if rng.below(4) == 0 {
+                    (p.min - 1.0, p.max + 1.0)
+                } else {
+                    (p.min, p.max)
+                };
+                (p.key.to_string(), rng.f32(lo, hi))
             };
             Command::SetNoteFxParam {
                 track,

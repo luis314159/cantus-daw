@@ -175,23 +175,23 @@ pub struct FxEditors {
     pub discrimen: discrimen::State,
     pub speculum: speculum::State,
     pub tonus: tonus::State,
-    pub aula: aula::State,       // r39:conv
-    pub cribrum: cribrum::State, // fx:contract
-    pub fragor: fragor::State,   // fx:contract
-    pub lapsus: lapsus::State,   // fx:contract
-    pub vetus: vetus::State,     // fx:contract
-    pub libra: libra::State,     // fx:contract
-    pub tabula: tabula::State,   // fx3:contract
-    pub saltus: saltus::State,   // fx3:contract
-    pub rota: rota::State,       // fx3:contract
-    pub arca: arca::State,       // fx3:contract
-    pub loquax: loquax::State,   // fxa:contract
-    pub fractus: fractus::State, // fxa:contract
-    pub caelum: caelum::State,   // fxa:contract
+    pub aula: aula::State,         // r39:conv
+    pub cribrum: cribrum::State,   // fx:contract
+    pub fragor: fragor::State,     // fx:contract
+    pub lapsus: lapsus::State,     // fx:contract
+    pub vetus: vetus::State,       // fx:contract
+    pub libra: libra::State,       // fx:contract
+    pub tabula: tabula::State,     // fx3:contract
+    pub saltus: saltus::State,     // fx3:contract
+    pub rota: rota::State,         // fx3:contract
+    pub arca: arca::State,         // fx3:contract
+    pub loquax: loquax::State,     // fxa:contract
+    pub fractus: fractus::State,   // fxa:contract
+    pub caelum: caelum::State,     // fxa:contract
     pub vinculum: vinculum::State, // fxb:contract
     pub lenis: lenis::State,       // fxb:contract
     pub cedo: cedo::State,         // fxb:contract
-    pub delay: delay::State,     // r39:delay
+    pub delay: delay::State,       // r39:delay
     /// The X-Y pad's and the formula controller's window (fxd step 3).
     pub fxd: fxd_window::State, // fxd
     /// Hosted plug-ins' editors and menus (`views::plugins`).

@@ -96,10 +96,10 @@ impl PluginHost {
             sink,
             active: Vec::new(),
             revision: 0,
-            lapsus_gen: u64::MAX, // fx:lapsus
-            board_gen: u64::MAX,  // fx3:tabula
+            lapsus_gen: u64::MAX,  // fx:lapsus
+            board_gen: u64::MAX,   // fx3:tabula
             fractus_gen: u64::MAX, // fxa:fractus
-            cedo_gen: u64::MAX,   // fxb:cedo
+            cedo_gen: u64::MAX,    // fxb:cedo
             other: None,
             on_b: false,
         }

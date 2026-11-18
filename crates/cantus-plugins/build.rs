@@ -32,20 +32,20 @@ const PLUGINS: [(&str, &str); 40] = [
     ("DISCRIMEN", "Cantus Discrimen"),
     ("SPECULUM", "Cantus Speculum"),
     ("TONUS", "Cantus Tonus"),
-    ("AULA", "Cantus Aula"),       // r39:conv
-    ("DELAY", "Cantus Delay"),     // r40:delay
-    ("CRIBRUM", "Cantus Cribrum"), // fx:contract
-    ("FRAGOR", "Cantus Fragor"),   // fx:contract
-    ("LAPSUS", "Cantus Lapsus"),   // fx:contract
-    ("VETUS", "Cantus Vetus"),     // fx:contract
-    ("LIBRA", "Cantus Libra"),     // fx:contract
-    ("TABULA", "Cantus Tabula"),   // fx3:contract
-    ("SALTUS", "Cantus Saltus"),   // fx3:contract
-    ("ROTA", "Cantus Rota"),       // fx3:contract
-    ("ARCA", "Cantus Arca"),       // fx3:contract
-    ("LOQUAX", "Cantus Loquax"),   // fxa:loquax
-    ("FRACTUS", "Cantus Fractus"), // fxa:fractus
-    ("CAELUM", "Cantus Caelum"),   // fxa:caelum
+    ("AULA", "Cantus Aula"),         // r39:conv
+    ("DELAY", "Cantus Delay"),       // r40:delay
+    ("CRIBRUM", "Cantus Cribrum"),   // fx:contract
+    ("FRAGOR", "Cantus Fragor"),     // fx:contract
+    ("LAPSUS", "Cantus Lapsus"),     // fx:contract
+    ("VETUS", "Cantus Vetus"),       // fx:contract
+    ("LIBRA", "Cantus Libra"),       // fx:contract
+    ("TABULA", "Cantus Tabula"),     // fx3:contract
+    ("SALTUS", "Cantus Saltus"),     // fx3:contract
+    ("ROTA", "Cantus Rota"),         // fx3:contract
+    ("ARCA", "Cantus Arca"),         // fx3:contract
+    ("LOQUAX", "Cantus Loquax"),     // fxa:loquax
+    ("FRACTUS", "Cantus Fractus"),   // fxa:fractus
+    ("CAELUM", "Cantus Caelum"),     // fxa:caelum
     ("VINCULUM", "Cantus Vinculum"), // fxb:vinculum
     ("LENIS", "Cantus Lenis"),       // fxb:lenis
     ("CEDO", "Cantus Cedo"),         // fxb:cedo

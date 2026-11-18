@@ -184,6 +184,21 @@ pub fn board(spec: &EffectSpec) -> &Board {
 /// hosted plug-in (delivered by its host, isolated per ADR 0063, and it cannot live in an
 /// exported Tabula), the older Reverb (no longer offered) and Speculum (its scope rings are
 /// keyed by the slot's `EffectId`).
+///
+/// fxb:contract — wave B joins the board with its faces (phase B).
+/// fxb:vinculum — Vinculum is a pedal: a compressor pedal is natural. On a board it
+/// compresses the board's own signal; its detector hears the board's key only when
+/// the board slot is keyed (a board takes a key when a pedal does), as an insert's
+/// hears its slot's (ADR 0139, phase B).
+/// fxb:lenis — Lenis is a pedal: a guitar's rig makes the rings it tames (a
+/// cabinet's peak, a fuzz's fizz), and the board keeps a latent pedal's latency
+/// (Saltus's, Arca's) and follows a quality change as it follows Saltus's mode (ADR
+/// 0140, phase B).
+/// fxb:cedo — Cedo is a pedal: a pump or a gate on the board's beat, a duck by the
+/// board's key when the board slot is keyed, or by the notes the board hears; its
+/// drawn shape is the pedal's (`Command::SetCedoShape` with its pedal), and its
+/// latency (lookahead, linear phase) the board's as a latent pedal's (ADR 0141,
+/// phase B).
 pub fn pedal_allowed(kind: EffectKind) -> bool {
     !matches!(
         kind,
@@ -203,20 +218,6 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             // the board's key when the slot is keyed (a board takes a key when a pedal does),
             // its own input otherwise; its pre-delay syncs to the song through the board.
             | EffectKind::Glitch
-            // fxb:contract — wave B joins the board with its faces (phase B).
-            // fxb:vinculum — Vinculum is a pedal: a compressor pedal is natural. On a board it
-            // compresses the board's own signal; its detector hears the board's key only when
-            // the board slot is keyed (a board takes a key when a pedal does), as an insert's
-            // hears its slot's (ADR 0139, phase B).
-            // fxb:lenis — Lenis is a pedal: a guitar's rig makes the rings it tames (a
-            // cabinet's peak, a fuzz's fizz), and the board keeps a latent pedal's latency
-            // (Saltus's, Arca's) and follows a quality change as it follows Saltus's mode (ADR
-            // 0140, phase B).
-            // fxb:cedo — Cedo is a pedal: a pump or a gate on the board's beat, a duck by the
-            // board's key when the board slot is keyed, or by the notes the board hears; its
-            // drawn shape is the pedal's (`Command::SetCedoShape` with its pedal), and its
-            // latency (lookahead, linear phase) the board's as a latent pedal's (ADR 0141,
-            // phase B).
     )
 }
 

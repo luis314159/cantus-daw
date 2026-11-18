@@ -222,7 +222,7 @@ pub trait FxHost {
         let spec = self.spec();
         let kind = spec.kind;
         let lanes_now = spec.fractus.clone(); // fxa:fractus
-        // fxb:cedo — a preset naming no Auto floor commits its crossover's.
+                                              // fxb:cedo — a preset naming no Auto floor commits its crossover's.
         let completed;
         let params = if kind == cantus_core::EffectKind::Ducker {
             let mut m = params.clone();
