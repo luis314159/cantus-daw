@@ -42,6 +42,9 @@ const MENUS: [&str; 6] = [
     "menu.help",
 ];
 
+/// The gap between a bar's word and its open menu, in points.
+const BAR_MENU_GAP: f32 = 2.0;
+
 /// The menus' words: 12 Regular in ink 2, in title case (`dir-a`).
 const MENU_PX: f32 = 12.0;
 
@@ -237,9 +240,16 @@ fn menus(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         });
         // A closed menu costs nothing: its popup is built only while it shows.
         if build {
+            // Always under its word (ADR 0110): a menu taller than the room there scrolls in
+            // it. fx/final's menu audit: with the several-screens rows View grew taller than
+            // the room under the bar at 900 points, so egui opened it at the word's side.
+            let room = crate::kit::menu::room_under(ui.ctx(), rect, BAR_MENU_GAP);
             egui::Popup::menu(&resp)
                 .style(menu_look)
-                .show(|ui| menu_body(app, ui, i));
+                .align(egui::RectAlign::BOTTOM_START)
+                .align_alternatives(&[])
+                .gap(BAR_MENU_GAP)
+                .show(|ui| menu_body(app, ui, i, room, resp.clicked()));
         }
     }
 }
@@ -275,8 +285,10 @@ fn menu_key(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     if open || resp.clicked() {
         egui::Popup::menu(&resp).style(menu_look).show(|ui| {
+            let room =
+                (ui.ctx().content_rect().height() - 2.0 * crate::kit::menu::FIT_MARGIN).max(80.0);
             for (i, key) in MENUS.iter().enumerate() {
-                ui.menu_button(t(key), |ui| menu_body(app, ui, i));
+                ui.menu_button(t(key), |ui| menu_body(app, ui, i, room, false));
             }
         });
     }
@@ -284,8 +296,10 @@ fn menu_key(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 
 /// One of the bar's menus, kept inside the window: one taller than it scrolls (the owner,
 /// 2026-11-11: View ran off the foot of a 1080-px screen with nothing to scroll).
-fn menu_body(app: &mut CantusApp, ui: &mut Ui, i: usize) {
-    crate::kit::menu::fit(ui, |ui| match i {
+/// `room`: what its whole sheet may take (under its word, for the bar's); `opening`: the
+/// frame it opens, from its head.
+fn menu_body(app: &mut CantusApp, ui: &mut Ui, i: usize, room: f32, opening: bool) {
+    crate::kit::menu::fit_in(ui, room, opening, |ui| match i {
         0 => file_menu(app, ui),
         1 => edit_menu(app, ui),
         2 => clip_menu(app, ui),

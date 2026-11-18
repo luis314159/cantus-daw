@@ -337,17 +337,39 @@ pub fn width(ctx: &egui::Context, items: &[Item<'_>], s: &Style) -> f32 {
 /// its anchor where there is no room under it.
 pub fn fit<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let room = (ui.ctx().content_rect().height() - 2.0 * FIT_MARGIN).max(80.0);
+    fit_in(ui, room, false, add)
+}
+
+/// [`fit`] for a popup with `room` points for its whole sheet (its frame's margins and edge
+/// counted): its rows scroll in what is left. A menu opened under a key passes the room
+/// under the key ([`room_under`]), so it is never too tall to open there. `from_top`: the
+/// frame it opens, its rows start at their head again (not where they were last scrolled).
+pub fn fit_in<R>(
+    ui: &mut egui::Ui,
+    room: f32,
+    from_top: bool,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let edge = ui.spacing().menu_margin.sum().y + 2.0;
+    let room = (room - edge).max(80.0);
     // `min_scrolled_height` too: a popup's first frame (egui's sizing pass) measures it in
     // `default_area_size` (400 pt tall), and the scroll area took those 400 as its room —
     // a menu taller than that scrolled in a window with room for all of it (the View menu,
-    // 2026-11-11). With both, it is as tall as its content up to the window's room.
-    egui::ScrollArea::vertical()
+    // 2026-11-11). With both, it is as tall as its content up to its room.
+    let mut area = egui::ScrollArea::vertical()
         .id_salt("cantus-menu-fit")
         .max_height(room)
         .min_scrolled_height(room)
-        .auto_shrink([true, true])
-        .show(ui, add)
-        .inner
+        .auto_shrink([true, true]);
+    if from_top {
+        area = area.vertical_scroll_offset(0.0);
+    }
+    area.show(ui, add).inner
+}
+
+/// The room a popup opened `gap` points under `key` has, down to the window's margin.
+pub fn room_under(ctx: &egui::Context, key: Rect, gap: f32) -> f32 {
+    ctx.content_rect().bottom() - FIT_MARGIN - (key.bottom() + gap)
 }
 
 /// What [`fit`] leaves between a menu and the window's edges, in points.
