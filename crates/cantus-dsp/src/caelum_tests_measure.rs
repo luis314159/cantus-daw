@@ -1,6 +1,6 @@
 //! Caelum measured the way a reverb is measured: decay per octave against the setting,
-//! the shimmer's energy and its artefacts, stability at infinite and frozen for five
-//! minutes, echo density, the bloom's attack, ducking, the wet's level, and the cost.
+//! the shimmer's energy and its artefacts, stability frozen for five minutes (infinite's
+//! measures are `caelum_tests_infinite.rs`), echo density, the bloom's attack, ducking, the wet's level, and the cost.
 //! Every number is printed with `--nocapture`; `docs/round-fx/caelum.md` keeps them.
 
 use super::presets;
@@ -141,84 +141,6 @@ fn energy_windows(c: &mut Caelum, feed: impl Fn(usize) -> f32, secs: usize) -> V
         pos += block;
     }
     out
-}
-
-fn burst(i: usize, len: usize) -> f32 {
-    if i >= len {
-        return 0.0;
-    }
-    let mut s = (i as u32).wrapping_mul(2_654_435_761) | 1;
-    0.25 * noise(&mut s)
-        + 0.25 * math::sin(i as f32 * 261.63 * std::f32::consts::TAU / FS)
-        + 0.15 * math::sin(i as f32 * 392.0 * std::f32::consts::TAU / FS)
-}
-
-/// Infinite for five minutes, fed four seconds: without the shimmer it holds (within
-/// 1 dB of its first ten seconds after the input); with the shimmer at full — both voices,
-/// the octave and the fifth — the tail climbs out through the loop's tone and fades, and in
-/// neither case does the energy rise above those ten seconds' by more than 1 dB. Fed noise for five
-/// minutes without a pause, it plateaus at the governor's ceiling.
-#[test]
-fn infinite_does_not_grow_over_five_minutes() {
-    let hold = CaelumSettings {
-        mix: 1.0,
-        shimmer: 0.0,
-        ..presets::endless_ascent()
-    };
-    let climb = CaelumSettings {
-        shimmer: 1.0,
-        pitch_b_level: 1.0,
-        ..hold
-    };
-    for (name, s) in [("infinite", hold), ("infinite + full shimmer", climb)] {
-        let mut c = unit(&s);
-        let w = energy_windows(&mut c, |i| burst(i, 4 * FS as usize), 300);
-        // The first window holds the swell; the second is the first with only the tail.
-        let first = w[1];
-        let top = w[1..].iter().cloned().fold(f64::MIN, f64::max);
-        let last = *w.last().unwrap();
-        let line: Vec<String> = w.iter().map(|d| format!("{:.1}", d - first)).collect();
-        eprintln!(
-            "{name}, fed 4 s: energy per 10 s against the first (dB): {}",
-            line.join(" ")
-        );
-        // Measured: the held tail drifts up by about 0.1 dB a minute (the hold keeps the
-        // lines' energy while the damping takes the highs; what is heard leans to the
-        // middle); 1 dB in five minutes is the bound.
-        assert!(
-            top - first < 1.0,
-            "{name}: it grew by {:.2} dB",
-            top - first
-        );
-        if s.shimmer == 0.0 {
-            assert!(last - first > -1.0, "{name} let go: {:.1} dB", last - first);
-        }
-    }
-    let ceiling = db(2.0 * 0.5 * 0.5);
-    for (name, s) in [("infinite", hold), ("infinite + full shimmer", climb)] {
-        let mut c = unit(&s);
-        let w = energy_windows(
-            &mut c,
-            |i| {
-                let mut x = (i as u32).wrapping_mul(747_796_405) | 1;
-                0.3 * noise(&mut x)
-            },
-            300,
-        );
-        let line: Vec<String> = w.iter().map(|d| format!("{d:.1}")).collect();
-        let top = w.iter().cloned().fold(f64::MIN, f64::max);
-        // An infinite tank fed without a pause climbs to the ceiling (in about two
-        // minutes at 0.3 RMS) and stays: the last two minutes.
-        let tail = &w[18..];
-        let spread = tail.iter().cloned().fold(f64::MIN, f64::max)
-            - tail.iter().cloned().fold(f64::MAX, f64::min);
-        eprintln!(
-            "{name}, fed noise for 5 min: energy per 10 s (dB): {}; top {top:.1}, ceiling {ceiling:.1}, spread over the last 2 min {spread:.2}",
-            line.join(" ")
-        );
-        assert!(top < ceiling + 1.5, "{name}: past the ceiling: {top:.1} dB");
-        assert!(spread < 1.0, "{name}: no plateau: {spread:.2} dB");
-    }
 }
 
 /// Freeze held for five minutes: the level stays within ±0.5 dB of where it froze.
@@ -591,6 +513,13 @@ fn cpu_at_eight_and_sixteen_lines() {
         ),
         ("16 lines, shimmer one voice", presets::starting()),
         (
+            "16 lines, shimmer one voice, infinite",
+            CaelumSettings {
+                infinite: true,
+                ..presets::starting()
+            },
+        ),
+        (
             "16 lines, no shimmer",
             CaelumSettings {
                 shimmer: 0.0,
@@ -652,64 +581,4 @@ fn cpu_at_eight_and_sixteen_lines() {
         "Spatium (Room), for scale: {:.2} % of a core",
         best / 60.0 * 100.0
     );
-}
-
-/// The owner's two open choices (ADR 0138), each a setting with the measured default kept:
-/// infinite with the full shimmer fades (the default) or **sustains** — fed four seconds,
-/// the sustained wash (its climb settling over 1.5 s once nothing more comes in) stays
-/// within 3 dB of its first ten seconds for a minute (measured: +0.2 dB) and never
-/// rises above them by more than 1.5 dB, where the default has faded by more than 10 dB;
-/// and an infinite tank 8 dB under an 8 s tank (the default) or **as loud** as it.
-#[test]
-fn infinite_with_the_shimmer_fades_or_sustains_and_its_level_is_a_choice() {
-    let base = CaelumSettings {
-        mix: 1.0,
-        shimmer: 1.0,
-        pitch_b_level: 1.0,
-        ..presets::endless_ascent()
-    };
-    let run = |s: &CaelumSettings| {
-        let mut c = unit(s);
-        energy_windows(&mut c, |i| burst(i, 4 * FS as usize), 60)
-    };
-    let fades = run(&base);
-    let sustains = run(&CaelumSettings {
-        infinite_sustain: true,
-        ..base
-    });
-    let line = |w: &[f64]| {
-        w.iter()
-            .map(|d| format!("{:+.1}", d - w[1]))
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
-    eprintln!("infinite + full shimmer, fades: {}", line(&fades));
-    eprintln!("infinite + full shimmer, sustains: {}", line(&sustains));
-    let last = |w: &[f64]| w[w.len() - 1] - w[1];
-    assert!(
-        last(&fades) < -10.0,
-        "the default fades: {:.1}",
-        last(&fades)
-    );
-    assert!(last(&sustains) > -3.0, "sustained: {:.1}", last(&sustains));
-    let top = sustains[1..].iter().cloned().fold(f64::MIN, f64::max) - sustains[1];
-    assert!(top < 1.5, "sustained, it grew by {top:.2} dB");
-    // The level: the same infinite tank (no shimmer), trimmed or full, on the burst's
-    // first ten seconds (fed four of them, so the governor never acts).
-    let plain = CaelumSettings {
-        shimmer: 0.0,
-        ..base
-    };
-    let under = run(&plain)[0];
-    let full = run(&CaelumSettings {
-        infinite_full: true,
-        ..plain
-    })[0];
-    eprintln!(
-        "infinite level: full is {:+.2} dB over the default",
-        full - under
-    );
-    // The wet's gain is 1/0.4 (+7.96 dB); over the first ten seconds, the input's four among
-    // them and the tank filling, the measured difference is +6.7 dB.
-    assert!((6.0..8.5).contains(&(full - under)), "{:.2}", full - under);
 }

@@ -157,13 +157,14 @@ pub fn sub_cloud() -> CaelumSettings {
     }
 }
 
-/// Infinite, climbing: the octaves keep rising and fade into the top; what does not
-/// climb is held.
+/// Infinite, climbing: the octaves keep rising and fade into the top once you stop (its
+/// Sustain at 60 %: about 11 dB a minute); while you play, it layers under its ceiling.
 pub fn endless_ascent() -> CaelumSettings {
     CaelumSettings {
         size: 0.9,
         decay_s: 20.0,
         infinite: true,
+        sustain: 0.6,
         diffusion: 0.85,
         high_hz: 8_000.0,
         high_decay: 0.6,

@@ -2732,13 +2732,19 @@ octavas que suben se apagan arriba en vez de amontonarse.
   cuando la energía la alcanza — las más altas más tarde, mientras la cola envejece. Infinita
   escribe ∞ en el cristal; Congelar lo escarcha; la atenuación enciende una ranura en el riel
   derecho del marco.
-- **El alféizar** de abajo tiene los controles sin fin como pulsadores iluminados:
-  **Infinita** (la cola nunca cae; lo que entra se suma y se sostiene, y la amortiguación aún
-  la oscurece), **Congelar** (el tanque guarda lo que tiene y no deja entrar nada; el shimmer
-  deja de subir) y las dos maneras de un tanque infinito: su shimmer **Se apaga** o **Se
-  sostiene** al subir, y su nivel **8 dB menos** que una cola de ocho segundos o **Igual de
-  fuerte**. Un clic acciona un pulsador (un paso de deshacer); el clic derecho, automatización
-  y aprendizaje MIDI.
+- **El alféizar** de abajo tiene los controles sin fin: **Infinita**, un pulsador iluminado (la
+  cola nunca cae: se sostiene al nivel que tiene cuando lo pulsas — activarla no cambia nada
+  de lo que oyes en ese momento — y lo que toques después se le suma bajo un techo suave, el
+  nivel que una cola de la caída fijada alcanzaría con lo que tocas, así que nunca se
+  desborda), **Congelar** (el tanque guarda lo que tiene y no deja entrar nada; el shimmer
+  deja de subir) y **Sostenido**, un indicador de vidrio con un cursor de latón: lo que hace el
+  colchón de Infinita cuando dejas de tocar. Al **100 %** (por defecto — infinito es infinito)
+  se sostiene para siempre y conserva su timbre: la subida del shimmer se asienta en un
+  equilibrio fijo, así que el colchón nunca se vuelve chillón, ni a los diez minutos. Más bajo,
+  la subida se lo lleva despacio; al **0 %** sube fuera del oído en segundos (unos −30 dB en
+  diez). Un clic acciona un pulsador y un clic o un arrastre en el indicador mueve su cursor
+  (un paso de deshacer cada uno; un doble clic lo devuelve al 100 %); el clic derecho,
+  automatización, modulación y aprendizaje MIDI.
 - **El astrolabio** fija las voces: **arrastra la alidada** (la regla ancha) para elegir la
   primera voz y **la aguja fina** para la segunda. El ángulo es la nota dentro de la octava
   (los doce semitonos alrededor del borde); la distancia al centro, la octava en la espiral
@@ -2765,7 +2771,8 @@ bajo la batería.
 Diecinueve presets de fábrica: shimmers de octava y de quinta, catedrales, un pad que
 florece, *Crecida para congelar* (infinita; acciona Congelar sobre un acorde para retenerlo
 como un pad — ningún preset empieza congelado, porque un tanque congelado desde su primera
-muestra retendría silencio), un ascenso sin fin y un drone infinito que crecen mientras tocas,
+muestra retendría silencio), un ascenso sin fin (su Sostenido al 60 %: sigue subiendo y se apaga hacia lo alto cuando
+dejas de tocar) y un drone infinito que crecen mientras tocas,
 un shimmer vocal que se aparta, ambiente de guitarra, pre-retardos sincronizados con la
 canción (*Ecos de corchea*, *Subida con puntillo*), una nube una octava abajo, placas, una caja
 con shimmer y una bruma de bus. En sus valores por defecto (mezcla 0) Caelum no toca ninguna

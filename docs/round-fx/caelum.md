@@ -347,3 +347,107 @@ features, `preset_render` in a quiet release build.
 - Owner-only: the v3-step3 shots, listening to the nineteen presets and the infinite choices.
 - At the integration: the site's pictures (`web/assets/units/caelum-*.webp`, big 1800 × 1209,
   thumb 640 × 430) and preset excerpts; the README's unit grid; renumbering ADR 0138.
+
+## Excellence (2026-11-17): Infinite reworked — the owner's decision
+
+Branch `fx/excel` from `fx/integration` 0e6b2722. The owner decided before listening: Infinite
+must not change the level when engaged, must layer new playing under a soft ceiling, must
+hold its tone for minutes, and its fade must be one continuous control. ADR 0138's amendment
+has the design; this is the record.
+
+### What changed
+
+| Layer | Files |
+|---|---|
+| DSP | `caelum.rs` (`CaelumSettings::sustain` for `infinite_sustain`/`infinite_full`; the wet's level the set decay's, infinite or not), `caelum_tank.rs` (the output's absorption `TankDesign::out_*`; the loop's own low shelf `ls2`; the engage's lift from the write history `wbins`; the early taps' `early_k`; the soft ceiling `p_in`/`a_flux`/`a_loss`/`ceil_e`/`leak`; the settle `held` — climb, shelves, modulation; the settling's make-up `drop`), `caelum_presets.rs` (*Endless ascent* at Sustain 60 %), tests `caelum_tests_infinite.rs` (new), `caelum_tests.rs`, `caelum_tests_measure.rs` |
+| Core | `fx/caelum.rs`: `isus` (Sustain, 0–100 %, default 100 %) for `ishim`/`ilevel`; `RETIRED`, `repair_spec`, `repair_project` |
+| Project | `format.rs`: the load repairs a Caelum holding the retired keys (no schema bump: 74 is unreleased); the v74 fixture opens as Sustain 0 % |
+| Engine | `fx/caelum.rs` (`sustain` from `isus`); tests `fx_caelum.rs`, `rt_memory.rs` |
+| UI | `caelum_desk.rs` (the sill: Infinite, Freeze, the **Sustain gauge** — a glass tube lit to the value, a brass rider, quarter marks, dimmed while Infinite is off; click/drag one undo step, double click 100 %, the menu's automation/modulation/MIDI learn), `caelum_display.rs` (the sky's climb model follows the sustain), `caelum.rs` (`sustain_gauge`), locales EN/ES (`fx.caelum.isus` *Sustain* / *Sostenido*, the help lines), `agent_units.rs`, `presets/effects/shimmer.toml`, `examples/shoot_fxa.rs` (a `sustain` state), tests `fxa_whole.rs`, `caelum_drag.rs`, `caelum_e2e.rs` |
+| Plug-ins | `tests/golden/ids.txt`: `caelum ishim`/`ilevel` removed (never released), `caelum isus` appended and blessed |
+| Docs | ADR 0138 (amendment), this file, `docs/plugins/caelum.md`, the manual EN/ES, `web/src/units_data.rs` |
+
+### Before and after (48 kHz)
+
+| | Before (`0e6b2722`, defaults *Fades*, *8 dB lower*) | After |
+|---|---|---|
+| Engaged on a dying tail, held against the level at the switch | −5.2 … −11.2 dB (the 400 ms after: −0.1 … −9.4) | −0.30 … +0.36 dB (vast at 1.5 s +1.52) |
+| Engaged while playing, each second against the finite twin | −4.1 … −5.2 dB the first second | −0.18 … +0.15 dB |
+| Held five minutes after the input (3 s windows) | *Sustains* −0.43 … +3.37 dB; *Fades* gone | +0.02 … +0.21 (plain), −0.00 … +0.11 dB (both voices, full) |
+| Held five minutes while playing (10 s windows) | — | +0.04 … +0.15 dB |
+| Each octave 125 Hz … 8 kHz over five minutes | *Sustains*: 8 kHz −54 dB, 125 Hz +11 dB | within 0.49 dB (ten minutes 0.50) |
+| Sustain 0 % (the old *Fades*) | −27.3 dB at 10 s, −62.2 at 30 s | −28.7 dB at 10 s, −104 at 30 s |
+| Noise for five minutes, against the same tank finite | +4.7 dB (−3.29 against −8.00; the governor's) | −7.95 against −7.98 (plain), −10.00 against −10.04 (both voices) |
+
+CPU (one core, a minute of program in blocks of 256, best of three; the machine shared with
+other builders, Spatium's reference moving 2.49–2.74 % between runs): before 16 lines one voice
+4.65 %, no shimmer 3.50 %, 8 lines no shimmer 1.82 %, infinite one voice 4.13 %; after 4.66 %,
+4.30 %, 2.19 %, infinite 5.27–6.69 % (two runs). The finite path adds a few operations a sample
+(the ceiling's measures kept ready, the write history); infinite adds a second absorption and
+the ceiling — roughly a quarter more than finite. To be measured again on a quiet machine.
+
+### Choices
+
+- **`ilevel` retired**: the level is continuous at the engage and the soft ceiling bounds a
+  wash built by playing — the old "8 dB lower" answered a problem the amendment removes. A
+  user wanting the wash quieter turns the mix down.
+- **Sustain's curve**: `held = 1 − (1 − s)²`, so the top of the control reaches far (90 % fades
+  0.3 dB a minute) and the bottom is the old *Fades*.
+- **The held wash's modulation is stilled** at Sustain 100 % (as it settles): with the chorus
+  running for minutes, a held tone's energy smeared into its neighbours (+1 … +3 dB in the
+  quiet octaves over five minutes at a quarter of the depth).
+- **The ceiling is measured**, not computed from the design: the shimmer's climb and the
+  shelves lose as much as the middle does on bright material, so a formula from the middle's
+  gain alone sat 1–2 dB high; the measure (the finite loop's loss on what the lines hold, the
+  input's power, 3 s averages) puts the plateau within 0.05 dB of the finite tank's.
+- **Tonal material**: two held tones beat against their own modes in a tank that loses
+  nothing, so an octave holding them wavers by about a decibel from one stretch to the next,
+  and the ceiling, riding its measure's peaks, sits +0.3 … +1.1 dB over the finite tail when
+  the playing is a steady chord (noise: +0.04 … +0.15). Measured and bounded (1.5 dB), not
+  hidden.
+
+- **"Something comes in"**, for Infinite, is sound that matters against the wash: input a
+  hundred times under what would keep a finite tail at the wash's level (a synthesiser's
+  release, a track's noise floor) counts as nothing, so the wash settles and holds.
+
+### Carried through
+
+- **Presets** re-fitted (`preset_tool fit shimmer`): *Freeze swell* −0.8 → −1.8 dB, *Endless
+  ascent* −1.4 → −2.0 (and its Sustain 60 %), *Infinite drone* −1.9 → −2.5 (its `ishim` gone:
+  Sustain 100 % is the default); the other sixteen within their window, untouched.
+- **The e2e** (`caelum_e2e.rs`, through `CantusApp::assemble`): Infinite thrown live on the
+  chord's dying tail with the shimmer on — the 400 ms after the switch **+0.44 dB** against the
+  tail's level at it, each second after within **0.43 dB** of the first (finite −18.5 dB); from
+  the start with both voices full, Sustain 0 % −1.84 dB from 2–3 s to 3–4 s against 100 %'s
+  +0.69 dB; then twenty seconds of silence before Freeze is thrown on a fresh tail (frozen
+  −0.06 dB). `caelum_drag.rs`: the Sustain rider dragged from 100 % to 50 %, one undo step.
+  `fxa_whole.rs`: the sill's two buttons, the gauge clicked to 25 % and undone; the sill
+  states shot without a word cut.
+- **Shots** (`shoot_fxa`, a `sustain` state added): `C:\projects\daw-fx\compartir\caelum\design\v4-sustain\`
+  — 21 PNGs (every Caelum state, Slate EN and Paper ES, 75–200 %, Dawn and Aurora); no word
+  cut. The gauge: "SUSTAIN"/"SOSTENIDO" and the figure engraved over a glass tube lit to the
+  value, the brass rider, quarter marks; dimmed while Infinite is off.
+- **Sounds** (`C:\projects\daw-fx\compartir\caelum\sound\`, rendered to a temporary folder
+  first): re-rendered `04-guitar-freeze-swell` and `07-pad-endless-ascent` (both infinite);
+  new `09-pad-infinite-thrown-sustain-100` and `10-pad-infinite-thrown-sustain-40` (Infinite
+  thrown on the Octave shimmer's tail: nothing jumps; held with its tone, or climbing away).
+  The finite ones are bit-identical to before (01 and 06 compared byte for byte) and left as
+  they were. README and render log updated.
+- **`DSP_VERSION`** unchanged: no golden holds Caelum, and the finite path is bit-exact (the
+  output's absorption is the loop's when finite; the early taps' scale is 1).
+
+### Open
+
+- **A short chord into an infinite tank at the climb's fullest** (both voices at 100 %), Sustain
+  100 %: the held wash creeps up about 0.4 dB a second over its first seconds (the e2e
+  measures +0.41 then +0.69 dB) before holding; with noise (the DSP's five-minute tests) it
+  holds within 0.11 dB from 1.5 s on. The hold's reference is taken from an energy smoothed
+  over 100 ms, which lags a tail still moving when the sound stops; two fixes tried here (the
+  reference from the write history; a make-up only below the reference) each broke another
+  case and were taken back. Bounded in the e2e at 1 dB.
+
+### Verified only in emulation
+
+- Nothing heard on a monitor here: the DSP's measures, the engine block by block and the e2e
+  render are the evidence. The owner's ears are the test still to come (the re-rendered
+  sounds above).

@@ -4,7 +4,8 @@
 //! and the slimmer hand the second (the angle the note in the octave, the distance from the
 //! centre the turn of the spiral), each drag one undo step; a click on the plate puts the
 //! nearer hand where it falls; the decay rack's dotted line follows a drag up or down (one
-//! undo step) and takes none while infinite. The sill's pushbuttons are `fxa_whole`'s
+//! undo step) and takes none while infinite; the Sustain gauge's rider follows a drag. The
+//! sill's pushbuttons are `fxa_whole`'s
 //! (`caelum_s_sill_buttons_throw_the_endless_settings`). // fxa:caelum
 
 use cantus_core::*;
@@ -185,4 +186,27 @@ fn the_decay_rack_follows_a_drag_and_takes_none_while_infinite() {
     settle(&mut app, size);
     drag(&mut app, size, egui::pos2(x, y), egui::pos2(x, y2));
     assert_eq!(value(&app, "decay"), 6.5, "infinite: the decay untouched");
+}
+
+/// The Sustain gauge on the sill (ADR 0138's amendment): its brass rider follows a drag to
+/// the whole per cent under the pointer, one drag one undo step.
+#[test]
+fn the_sustain_rider_follows_a_drag_one_undo_step() {
+    let (mut app, size) = open();
+    assert_eq!(value(&app, "isus"), 1.0, "infinite means infinite");
+    let (gauge, from) = app
+        .fx
+        .caelum
+        .sustain_gauge(1.0)
+        .expect("the gauge is drawn");
+    let (_, to) = app.fx.caelum.sustain_gauge(0.5).unwrap();
+    let y = gauge.center().y;
+    drag(&mut app, size, egui::pos2(from, y), egui::pos2(to, y));
+    assert!(
+        (value(&app, "isus") - 0.5).abs() < 0.011,
+        "dragged to half: {}",
+        value(&app, "isus")
+    );
+    app.undo();
+    assert_eq!(value(&app, "isus"), 1.0, "one drag, one undo step");
 }

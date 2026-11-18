@@ -4,7 +4,8 @@
 //! cathedral, the bloom pad and the infinite freeze swell; a synthesized sung line (the
 //! pitch base's formant voice, no recording) through the ducked vocal space, with and
 //! without the ducking; and a synthesized pad (detuned saws, our own) through the octave
-//! shimmer and the endless ascent. Every set has its dry twin; each processed file is
+//! shimmer and the endless ascent, and Infinite thrown on its tail at Sustain 100 % and
+//! 40 %. Every set has its dry twin; each processed file is
 //! level-matched to it (RMS over the dry's length) with its peak under −1 dBFS.
 //!
 //! ```text
@@ -394,5 +395,23 @@ fn main() {
     save("07-pad-endless-ascent.wav", &y, Some(g));
     let (y, g) = matched(through(&pad, presets::sub_cloud(), 10.0, &none), &pad);
     save("08-pad-sub-cloud.wav", &y, Some(g));
+    // ADR 0138's amendment: Infinite thrown on the Octave shimmer's tail a quarter second
+    // after the pad stops — nothing jumps, the wash holds where it was — held twelve
+    // seconds at Sustain 100 % (09: its tone kept) and at 40 % (10: the climb carries it
+    // away), then let go (finite, 6.5 s) so the file ends.
+    for (name, sus) in [
+        ("09-pad-infinite-thrown-sustain-100.wav", 1.0f32),
+        ("10-pad-infinite-thrown-sustain-40.wav", 0.4),
+    ] {
+        let thrown = move |t: f64, s: &mut CaelumSettings| {
+            s.infinite = t >= pad_end + 0.25 && t < pad_end + 12.25;
+            s.sustain = sus;
+        };
+        let (y, g) = matched(
+            through(&pad, presets::octave_shimmer(), 20.0, &thrown),
+            &pad,
+        );
+        save(name, &y, Some(g));
+    }
     let _ = log;
 }

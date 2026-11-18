@@ -1,11 +1,11 @@
-//! Caelum's desk (design sheet v2): the sill under the window, where the endless controls
-//! are lit pushbuttons in their bezels — **Infinite** (its ∞ lamp), **Freeze** (its crystal
-//! lamp), and the two choices an infinite tank makes (the shimmer fades or sustains; the
-//! level 8 dB lower or as loud), each a pair of buttons, the chosen one lit — and the rack
-//! of eight glass tubes the decay glows in, octave by octave.
+//! Caelum's desk (design sheet v2, the sill amended with ADR 0138's Sustain): the sill under
+//! the window, where the endless controls are lit pushbuttons in their bezels —
+//! **Infinite** (its ∞ lamp), **Freeze** (its crystal lamp) — and **Sustain**, a glass gauge
+//! with a brass rider (how much of Infinite's wash holds once nothing more comes in); and
+//! the rack of eight glass tubes the decay glows in, octave by octave.
 //!
-//! A click throws a button; its menu offers automation and MIDI learn (the kit's
-//! `stepped_offer`); the help line says what it does.
+//! A click throws a button, a drag moves the rider; each has its menu (automation,
+//! modulation, MIDI learn — the kit's `stepped_offer`) and its help line.
 
 use super::super::canvas::{self, Ink};
 use super::super::controls;
@@ -23,33 +23,65 @@ use egui::{pos2, vec2, Align2, Color32, Rect, Sense};
 /// A button's lamp.
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Glyph {
-    None,
     Infinity,
     Crystal,
 }
 
-/// One button on the sill: its place, the parameter it throws (to `value`, or over when a
-/// toggle), its word, its lamp.
+/// One button on the sill: its place, the parameter it throws over, its word, its lamp.
 #[derive(Copy, Clone, Debug)]
 pub struct Key {
     pub rect: Rect,
     pub param: &'static str,
-    value: Option<f32>,
     word: &'static str,
     glyph: Glyph,
     /// The help line: its name and what it does.
     tip: (&'static str, &'static str),
 }
 
-/// The sill's layout: the plate, its title, its captions, its six buttons.
+/// The Sustain gauge on the sill (ADR 0138's amendment): a glass tube lit from its left to
+/// the sustain, a brass rider at the value, the word and the figure engraved over it,
+/// marks at every quarter under it. Dimmed while Infinite is off (it is Infinite's).
+#[derive(Copy, Clone, Debug)]
+pub struct Gauge {
+    /// Where it answers the pointer: its words and its tube.
+    pub rect: Rect,
+    /// The tube.
+    pub tube: Rect,
+    /// The words' row: the word at its left, the figure at its right.
+    caption: Rect,
+}
+
+impl Gauge {
+    /// The rider's travel: 0 % at its left, 100 % at its right.
+    fn span(&self) -> (f32, f32) {
+        let pad = self.tube.height() * 0.5;
+        (self.tube.left() + pad, self.tube.right() - pad)
+    }
+
+    /// Where the rider stands for a sustain (0 … 1).
+    pub fn x_of(&self, v: f32) -> f32 {
+        let (a, b) = self.span();
+        a + (b - a) * v.clamp(0.0, 1.0)
+    }
+
+    /// The sustain at `x`, to the whole per cent (what the figure shows).
+    pub fn value_at(&self, x: f32) -> f32 {
+        let (a, b) = self.span();
+        (((x - a) / (b - a).max(1.0)).clamp(0.0, 1.0) * 100.0).round() / 100.0
+    }
+}
+
+/// The sill's layout: the plate, its title, its two buttons, the Sustain gauge.
 pub struct Sill {
     pub plate: Rect,
     title: Rect,
-    captions: [(Rect, &'static str); 2],
-    pub keys: [Key; 6],
+    pub keys: [Key; 2],
+    pub gauge: Gauge,
     /// The two pilot lamps at the sill's end (the input, the ducking): each lamp's centre
     /// and its caption's place.
     lamps: [(egui::Pos2, &'static str); 2],
+    /// The captions' row (the lamps' words stand on it).
+    caption_y: f32,
 }
 
 fn word(ctx: &egui::Context, key: &str, k: f32) -> f32 {
@@ -66,65 +98,56 @@ fn caption(ctx: &egui::Context, key: &str, k: f32) -> egui::Vec2 {
 }
 
 impl Sill {
-    /// The buttons laid along `plate`: the title, then Infinite and Freeze, then the two
-    /// pairs, spread evenly; every word measured, so none is cut.
+    /// The parts laid along `plate`: the title, Infinite and Freeze, the Sustain gauge as
+    /// wide as the room left allows (within 150 … 360 points), the lamps; every word
+    /// measured, so none is cut.
     pub fn lay(ctx: &egui::Context, s: &Style, plate: Rect) -> Sill {
         let k = s.k;
         let inner = art::plate_inner(plate, k);
         let title = caption(ctx, "caelum.card.endless", k);
         let single = |w: &str| 34.0 * k + word(ctx, w, k) + 14.0 * k;
-        let pair = |a: &str, b: &str, cap: &str| {
-            let half = word(ctx, a, k).max(word(ctx, b, k)) + 22.0 * k;
-            (half * 2.0).max(caption(ctx, cap, k).x + 4.0 * k)
-        };
-        let widths = [
-            single("caelum.l.infinite"),
-            single("caelum.l.freeze"),
-            pair("caelum.s.fades", "caelum.s.sustains", "caelum.l.climb"),
-            pair("caelum.s.under", "caelum.s.full", "caelum.l.level"),
-        ];
-        // The lamps at the end: each as wide as its caption.
+        let (w_inf, w_frz) = (single("caelum.l.infinite"), single("caelum.l.freeze"));
+        // The gauge's words: the name and the widest figure, apart.
+        let words = caption(ctx, "caelum.l.sustain", k).x
+            + ktext::measure(
+                ctx,
+                &Text::new("100 %", Role::Micro, Color32::TRANSPARENT).caps(false),
+                k,
+            )
+            .x
+            + 16.0 * k;
         let lamp_w = |key: &str| caption(ctx, key, k).x.max(22.0 * k);
         let lamps_w = lamp_w("caelum.d.input") + lamp_w("caelum.d.ducking") + 14.0 * k;
-        let used = title.x + widths.iter().sum::<f32>() + lamps_w;
-        let gap = ((inner.width() - used) / 5.0).clamp(8.0 * k, 64.0 * k);
+        let used = title.x + w_inf + w_frz + lamps_w;
+        let w_gauge = (inner.width() - used - 4.0 * 24.0 * k)
+            .clamp((150.0 * k).max(words), (360.0 * k).max(words));
+        let gap = ((inner.width() - used - w_gauge) / 4.0).clamp(8.0 * k, 64.0 * k);
         let title_r =
             Rect::from_min_size(pos2(inner.left(), inner.center().y - title.y * 0.5), title);
-        let mut x = title_r.right() + gap;
         let tall = |x: f32, w: f32| {
             Rect::from_min_max(pos2(x, inner.top() + 1.0 * k), pos2(x + w, inner.bottom()))
         };
         let row_top = inner.top() + 16.0 * k;
-        let low =
-            |x: f32, w: f32| Rect::from_min_max(pos2(x, row_top), pos2(x + w, inner.bottom()));
-        let inf = tall(x, widths[0]);
+        let mut x = title_r.right() + gap;
+        let inf = tall(x, w_inf);
         x = inf.right() + gap;
-        let frz = tall(x, widths[1]);
+        let frz = tall(x, w_frz);
         x = frz.right() + gap;
-        let climb = low(x, widths[2]);
-        x = climb.right() + gap;
-        let level = low(x, widths[3]);
-        let halves = |r: Rect| {
-            let m = r.center().x;
-            [
-                Rect::from_min_max(r.min, pos2(m, r.bottom())),
-                Rect::from_min_max(pos2(m, r.top()), r.max),
-            ]
-        };
+        let area = Rect::from_min_max(pos2(x, inner.top()), pos2(x + w_gauge, inner.bottom()));
+        let caption_r = Rect::from_min_max(area.min, pos2(area.right(), row_top));
+        let th = 13.0 * k;
+        let ty = row_top + (inner.bottom() - row_top) * 0.5 - 2.0 * k;
+        let tube = Rect::from_min_max(
+            pos2(area.left() + 2.0 * k, ty - th * 0.5),
+            pos2(area.right() - 2.0 * k, ty + th * 0.5),
+        );
         let lx1 = inner.right() - lamp_w("caelum.d.ducking") * 0.5;
         let lx0 =
             inner.right() - lamp_w("caelum.d.ducking") - 14.0 * k - lamp_w("caelum.d.input") * 0.5;
         let ly = inner.top() + 30.0 * k;
-        let lamps = [
-            (pos2(lx0, ly), "caelum.d.input"),
-            (pos2(lx1, ly), "caelum.d.ducking"),
-        ];
-        let [c0, c1] = halves(climb);
-        let [l0, l1] = halves(level);
-        let key = |rect, param, value, word, glyph, tip| Key {
+        let key = |rect, param, word, glyph, tip| Key {
             rect,
             param,
-            value,
             word,
             glyph,
             tip,
@@ -132,28 +155,20 @@ impl Sill {
         Sill {
             plate,
             title: title_r,
-            lamps,
-            captions: [
-                (
-                    Rect::from_min_max(
-                        pos2(climb.left(), inner.top()),
-                        pos2(climb.right(), row_top),
-                    ),
-                    "caelum.l.climb",
-                ),
-                (
-                    Rect::from_min_max(
-                        pos2(level.left(), inner.top()),
-                        pos2(level.right(), row_top),
-                    ),
-                    "caelum.l.level",
-                ),
+            lamps: [
+                (pos2(lx0, ly), "caelum.d.input"),
+                (pos2(lx1, ly), "caelum.d.ducking"),
             ],
+            caption_y: caption_r.center().y,
+            gauge: Gauge {
+                rect: area,
+                tube,
+                caption: caption_r,
+            },
             keys: [
                 key(
                     inf,
                     "inf",
-                    None,
                     "caelum.l.infinite",
                     Glyph::Infinity,
                     ("caelum.l.infinite", "caelum.tip.inf"),
@@ -161,42 +176,9 @@ impl Sill {
                 key(
                     frz,
                     "freeze",
-                    None,
                     "caelum.l.freeze",
                     Glyph::Crystal,
                     ("caelum.l.freeze", "caelum.tip.freeze"),
-                ),
-                key(
-                    c0,
-                    "ishim",
-                    Some(0.0),
-                    "caelum.s.fades",
-                    Glyph::None,
-                    ("caelum.l.climb", "fx.caelum.ishim.0"),
-                ),
-                key(
-                    c1,
-                    "ishim",
-                    Some(1.0),
-                    "caelum.s.sustains",
-                    Glyph::None,
-                    ("caelum.l.climb", "fx.caelum.ishim.1"),
-                ),
-                key(
-                    l0,
-                    "ilevel",
-                    Some(0.0),
-                    "caelum.s.under",
-                    Glyph::None,
-                    ("caelum.l.level", "fx.caelum.ilevel.0"),
-                ),
-                key(
-                    l1,
-                    "ilevel",
-                    Some(1.0),
-                    "caelum.s.full",
-                    Glyph::None,
-                    ("caelum.l.level", "fx.caelum.ilevel.1"),
                 ),
             ],
         }
@@ -205,17 +187,15 @@ impl Sill {
 
 /// Whether `key` is lit at `spec`.
 fn lit(key: &Key, spec: &EffectSpec) -> bool {
-    let v = spec.get(key.param);
-    match key.value {
-        None => v >= 0.5,
-        Some(want) => (v.round() - want).abs() < 0.5,
-    }
+    spec.get(key.param) >= 0.5
 }
 
-/// The buttons answer the pointer: a click throws one (a toggle over, a pair's button to
-/// its choice), its menu offers automation and MIDI learn, the help line says what it does.
-pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, sill: &Sill) -> [Press; 6] {
-    let mut out = [Press::default(); 6];
+/// The sill answers the pointer: a click throws a button, a press or a drag on the gauge
+/// puts the sustain at the pointer (one drag, one step of undo; a double click puts it back
+/// at 100 %); each has its menu (automation, modulation, MIDI learn) and its help line.
+/// The presses: the two buttons', then the gauge's.
+pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, sill: &Sill) -> [Press; 3] {
+    let mut out = [Press::default(); 3];
     for (i, key) in sill.keys.iter().enumerate() {
         let resp = ui.interact(
             key.rect,
@@ -224,18 +204,12 @@ pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, sill: &Sill) ->
         );
         let name = tr(match key.param {
             "inf" => "fx.caelum.inf",
-            "freeze" => "fx.caelum.freeze",
-            "ishim" => "fx.caelum.ishim",
-            _ => "fx.caelum.ilevel",
+            _ => "fx.caelum.freeze",
         });
         let learnt = controls::stepped_offer(ui, s, host, key.param, name, &resp);
         let on = lit(key, host.spec());
         if resp.clicked() && !learnt {
-            match key.value {
-                None => host.set(key.param, if on { 0.0 } else { 1.0 }, None),
-                Some(v) if !on => host.set(key.param, v, None),
-                _ => {}
-            }
+            host.set(key.param, if on { 0.0 } else { 1.0 }, None);
         }
         if resp.hovered() {
             hint::set_text(ui.ctx(), tr(key.tip.0), tr(key.tip.1), Caps::NONE);
@@ -246,17 +220,53 @@ pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, sill: &Sill) ->
             down: resp.is_pointer_button_down_on(),
         };
     }
+    let g = &sill.gauge;
+    let resp = ui.interact(
+        g.rect,
+        ui.id().with("caelum-sustain"),
+        Sense::click_and_drag(),
+    );
+    let learnt = controls::stepped_offer(ui, s, host, "isus", tr("fx.caelum.isus"), &resp);
+    if !learnt {
+        if resp.double_clicked() {
+            host.set("isus", 1.0, None);
+        } else if let Some(p) = resp
+            .interact_pointer_pos()
+            .filter(|_| resp.is_pointer_button_down_on() || resp.clicked())
+        {
+            let v = g.value_at(p.x);
+            if host.spec().get("isus") != v {
+                host.set("isus", v, Some("caelum-sustain"));
+            }
+        }
+        if resp.drag_stopped() || resp.clicked() {
+            host.end_gesture();
+        }
+    }
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            tr("caelum.l.sustain"),
+            tr("caelum.tip.isus"),
+            Caps::NONE,
+        );
+    }
+    out[2] = Press {
+        lit: 0.0,
+        hover: resp.hovered(),
+        down: resp.is_pointer_button_down_on(),
+    };
     out
 }
 
-/// The sill: its plate, its engraved title and captions, the buttons lit as the settings
-/// stand.
+/// The sill: its plate, its engraved title, the buttons lit as the settings stand, the
+/// gauge, the pilot lamps.
 pub fn sill(
     b: &mut Brush,
     s: &Style,
     ink: &Ink,
     sill: &Sill,
-    press: &[Press; 6],
+    press: &[Press; 3],
     spec: &EffectSpec,
     now: &super::display::Reading,
 ) {
@@ -271,16 +281,6 @@ pub fn sill(
         k,
         None,
     );
-    for (r, key) in sill.captions {
-        canvas::put(
-            b,
-            pos2(r.center().x, r.center().y - 1.0 * k),
-            Align2::CENTER_CENTER,
-            &Text::key(key, Role::Micro, c(m.engrave)),
-            k,
-            None,
-        );
-    }
     let glow = ink.voice(ink.hue, false);
     // The pilot lamps: the input's peak, the ducking's reduction.
     let input = (1.0 + cantus_dsp::math::log10(now.input.max(1e-6)) / 3.0).clamp(0.0, 1.0);
@@ -292,7 +292,7 @@ pub fn sill(
     for ((p, key), (lens, lit)) in sill.lamps.iter().zip([(glow, input), (ink.danger, duck)]) {
         canvas::put(
             b,
-            pos2(p.x, sill.captions[0].0.center().y - 1.0 * k),
+            pos2(p.x, sill.caption_y - 1.0 * k),
             Align2::CENTER_CENTER,
             &Text::key(key, Role::Micro, c(m.engrave)),
             k,
@@ -310,33 +310,130 @@ pub fn sill(
         let cap = art::button(b, s, key.rect, lens, Press { lit: on, ..*p });
         let ink_c = art::cap_ink(lens, on);
         let text = Text::key(key.word, Role::Control, ink_c).caps(false);
-        match key.glyph {
-            Glyph::None => {
-                canvas::put(b, cap.center(), Align2::CENTER_CENTER, &text, k, None);
-            }
-            g => {
-                let lamp = pos2(cap.left() + 16.0 * k, cap.center().y);
-                let col = if on > 0.5 {
-                    ink_c
-                } else {
-                    with_alpha(mix(lens, c(pal::STAR), 0.3), 0.55)
-                };
-                if g == Glyph::Infinity {
-                    art::infinity(b, lamp, 18.0 * k, 1.6 * k, col);
-                } else {
-                    art::crystal(b, lamp, 7.0 * k, 1.1 * k, col);
-                }
-                canvas::put(
-                    b,
-                    pos2(cap.left() + 30.0 * k, cap.center().y),
-                    Align2::LEFT_CENTER,
-                    &text,
-                    k,
-                    None,
-                );
-            }
+        let lamp = pos2(cap.left() + 16.0 * k, cap.center().y);
+        let col = if on > 0.5 {
+            ink_c
+        } else {
+            with_alpha(mix(lens, c(pal::STAR), 0.3), 0.55)
+        };
+        if key.glyph == Glyph::Infinity {
+            art::infinity(b, lamp, 18.0 * k, 1.6 * k, col);
+        } else {
+            art::crystal(b, lamp, 7.0 * k, 1.1 * k, col);
         }
+        canvas::put(
+            b,
+            pos2(cap.left() + 30.0 * k, cap.center().y),
+            Align2::LEFT_CENTER,
+            &text,
+            k,
+            None,
+        );
     }
+    gauge(b, s, ink, &sill.gauge, press[2], spec);
+}
+
+/// The Sustain gauge (see [`Gauge`]).
+fn gauge(b: &mut Brush, s: &Style, ink: &Ink, g: &Gauge, p: Press, spec: &EffectSpec) {
+    let k = s.k;
+    let m = art::metal(s);
+    let on = spec.get("inf") >= 0.5;
+    let lit = if on { 1.0 } else { 0.45 };
+    let v = spec.get("isus").clamp(0.0, 1.0);
+    canvas::put(
+        b,
+        pos2(g.caption.left() + 2.0 * k, g.caption.center().y - 1.0 * k),
+        Align2::LEFT_CENTER,
+        &Text::key("caelum.l.sustain", Role::Micro, c(m.engrave)),
+        k,
+        None,
+    );
+    canvas::putf(
+        b,
+        pos2(g.caption.right() - 2.0 * k, g.caption.center().y - 1.0 * k),
+        Align2::RIGHT_CENTER,
+        Role::Micro,
+        c(m.engrave),
+        k,
+        None,
+        format_args!("{:.0} %", v * 100.0),
+    );
+    // The marks at every quarter, engraved under the tube.
+    for q in 0..5 {
+        let x = g.x_of(q as f32 * 0.25);
+        let long = q % 2 == 0;
+        b.vline(
+            x,
+            g.tube.bottom() + 2.0 * k,
+            g.tube.bottom() + if long { 6.0 } else { 4.0 } * k,
+            0.9 * k,
+            with_alpha(c(m.engrave), 0.85),
+        );
+    }
+    let t = g.tube;
+    let r = t.height() * 0.5;
+    // The tube's dark inside, the gas lit from its left to the sustain.
+    b.rrect(t, r, Fill::Solid(mix(ink.ground, c(pal::GASKET), 0.5)));
+    let glow = ink.voice(ink.hue, false);
+    let x = g.x_of(v);
+    let gas = Rect::from_min_max(
+        pos2(t.left() + 2.0 * k, t.top() + 2.0 * k),
+        pos2(x, t.bottom() - 2.0 * k),
+    );
+    if gas.width() > 1.0 {
+        b.rrect_soft(
+            gas.expand(3.0 * k),
+            r,
+            Fill::Solid(with_alpha(glow, 0.20 * lit)),
+            8.0 * k,
+        );
+        b.rrect(
+            gas,
+            (r - 2.0 * k).max(1.0),
+            Fill::V(
+                with_alpha(mix(glow, c(pal::STAR), 0.45), lit),
+                with_alpha(glow, 0.55 * lit),
+            ),
+        );
+    }
+    // The glass: its rim, a highlight along its top.
+    b.rrect_stroke(t, r, 0.8 * k, with_alpha(c(pal::GLASS), 0.35));
+    b.hline(
+        t.left() + r,
+        t.right() - r,
+        t.top() + r * 0.45,
+        1.1 * k,
+        with_alpha(c(pal::GLASS), 0.22),
+    );
+    // The brass rider: a cap over the tube, its index across it.
+    let lift = if p.down {
+        0.0
+    } else if p.hover {
+        0.6
+    } else {
+        0.3
+    };
+    let rider = Rect::from_center_size(pos2(x, t.center().y), vec2(9.0 * k, t.height() + 8.0 * k));
+    b.rrect_soft(
+        rider.translate(vec2(0.0, 1.5 * k)),
+        2.5 * k,
+        Fill::Solid(with_alpha(c(pal::GASKET), 0.5)),
+        3.0 * k,
+    );
+    b.rrect(rider, 2.5 * k, Fill::V(c(m.top), c(m.foot)));
+    b.rrect_stroke(
+        rider,
+        2.5 * k,
+        0.8 * k,
+        with_alpha(c(m.edge), 0.6 + 0.4 * lift),
+    );
+    b.vline(
+        x,
+        rider.top() + 3.0 * k,
+        rider.bottom() - 3.0 * k,
+        1.2 * k,
+        with_alpha(c(m.engrave), 0.9),
+    );
 }
 
 /// The rack's parts in the tubes' area `r`.

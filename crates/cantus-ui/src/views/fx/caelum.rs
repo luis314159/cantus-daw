@@ -1,8 +1,8 @@
 //! Caelum's editor (ADR 0138; design sheet v2): the shimmer reverb — an
 //! observatory over two rows of cards. The display is the unit's own picture: the sky in a
 //! metal window, the tail glowing on the horizon over the tank's water and the shimmer's
-//! octaves rising band by band above it as the tail ages; the endless controls as lit
-//! pushbuttons on the sill; the voices on an astrolabe; the decay at each octave in eight
+//! octaves rising band by band above it as the tail ages; the endless controls on the sill
+//! (Infinite and Freeze as lit pushbuttons, Sustain a glass gauge); the voices on an astrolabe; the decay at each octave in eight
 //! glass tubes. Every number from the engine's telemetry (`cantus_engine::fx::caelum::t`).
 
 use super::frame;
@@ -42,7 +42,7 @@ pub struct State {
     view: display::View,
     /// Where the display was drawn last frame (tests point at it).
     pub display: Option<Rect>,
-    /// Where the display's controls were drawn last frame: the sill's six buttons, the
+    /// Where the display's controls were drawn last frame: the sill's buttons and gauge, the
     /// astrolabe, the decay rack (tests point at them).
     drawn: Option<display::Drawn>,
 }
@@ -305,10 +305,18 @@ impl State {
         self.view.len()
     }
 
-    /// Where the sill's buttons were drawn last frame: Infinite, Freeze, Fades, Sustains,
-    /// 8 dB lower, As loud.
-    pub fn endless_rects(&self) -> [Rect; 6] {
-        self.drawn.map_or([Rect::NOTHING; 6], |d| d.endless)
+    /// Where the sill's buttons were drawn last frame: Infinite, Freeze.
+    pub fn endless_rects(&self) -> [Rect; 2] {
+        self.drawn.map_or([Rect::NOTHING; 2], |d| d.endless)
+    }
+
+    /// The Sustain gauge as drawn last frame: its rect, and where its rider stands at
+    /// `v` (0 … 1).
+    pub fn sustain_gauge(&self, v: f32) -> Option<(Rect, f32)> {
+        self.drawn.map(|d| {
+            let [a, b] = d.sustain_x;
+            (d.sustain, a + (b - a) * v.clamp(0.0, 1.0))
+        })
     }
 
     /// Where `st` semitones lies on the astrolabe's spiral, as drawn last frame (the
