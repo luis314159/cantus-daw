@@ -473,10 +473,7 @@ mod tests {
             let list = Rect::from_min_size(at, Vec2::new(320.0, h));
             assert!(h < 900.0, "it scrolls");
             assert!(!list.intersects(f), "{list:?} covers {f:?}");
-            assert!(
-                SCREEN.contains_rect(list),
-                "{list:?} runs off the window"
-            );
+            assert!(SCREEN.contains_rect(list), "{list:?} runs off the window");
         }
         // At the window's right edge: moved left just enough.
         let f = Rect::from_min_size(Pos2::new(700.0, 100.0), Vec2::new(90.0, 24.0));
@@ -491,6 +488,9 @@ mod tests {
         let opener = field(300.0);
         let (at, h) = place(SCREEN, opener.left_bottom(), opener, 500.0, 22.0);
         let list = Rect::from_min_size(at, Vec2::new(300.0, h));
-        assert!(!list.intersects(opener.shrink(0.5)), "{list:?} over {opener:?}");
+        assert!(
+            !list.intersects(opener.shrink(0.5)),
+            "{list:?} over {opener:?}"
+        );
     }
 }

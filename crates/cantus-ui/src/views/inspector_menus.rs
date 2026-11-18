@@ -606,8 +606,7 @@ pub fn show(st: &mut Inspector, app: &mut CantusApp, ui: &mut Ui, s: &Style) {
     }
     let elsewhere = ctx.input(|i| {
         i.pointer.any_click()
-            && i
-                .pointer
+            && i.pointer
                 .interact_pos()
                 .is_some_and(|p| !sheet.contains(p) && !open.anchor.contains(p))
     });

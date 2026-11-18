@@ -719,9 +719,14 @@ mod tests {
         assert_eq!(back.fader, FaderCap::Theme);
         // beta.14 wrote `Classic` for the default, which every round-39 look drew as its
         // own cap: it reads as the theme's.
-        let beta14 = old.to_json().replace("\"fader\": \"Theme\"", "\"fader\": \"Classic\"");
+        let beta14 = old
+            .to_json()
+            .replace("\"fader\": \"Theme\"", "\"fader\": \"Classic\"");
         assert!(beta14.contains("\"Classic\""), "{beta14}");
-        assert_eq!(Appearance::from_json(&beta14).unwrap().fader, FaderCap::Theme);
+        assert_eq!(
+            Appearance::from_json(&beta14).unwrap().fader,
+            FaderCap::Theme
+        );
         for c in FaderCap::ALL {
             let a = Appearance {
                 fader: c,

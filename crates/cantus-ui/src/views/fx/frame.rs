@@ -268,11 +268,15 @@ pub fn popup_list(
             if room >= h {
                 list_rows(ui, s, items, width, h, &mut clicked);
             } else {
-                egui::ScrollArea::vertical()
-                    .id_salt("cantus-popup-list")
-                    .max_height(room)
-                    .min_scrolled_height(room)
-                    .show(ui, |ui| list_rows(ui, s, items, width, h, &mut clicked));
+                // The sheet under the scroll bar too (beta.14's audit: the unit beneath
+                // showed through the bar's column of Delay's note values).
+                egui::Frame::NONE.fill(s.t.menu).show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt("cantus-popup-list")
+                        .max_height(room)
+                        .min_scrolled_height(room)
+                        .show(ui, |ui| list_rows(ui, s, items, width, h, &mut clicked));
+                });
             }
         });
     let inside = area.response.rect;

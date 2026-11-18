@@ -436,14 +436,7 @@ fn paint_metal(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &FaderLook
 }
 
 /// The cap as an object, in `cap`.
-fn paint_cap(
-    b: &mut Brush,
-    cap: Rect,
-    s: &Style,
-    st: State,
-    m: &Material,
-    base: egui::Color32,
-) {
+fn paint_cap(b: &mut Brush, cap: Rect, s: &Style, st: State, m: &Material, base: egui::Color32) {
     let a = st.alpha();
     let f = |c: egui::Color32| c.gamma_multiply(a);
     let d = m.depth;

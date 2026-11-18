@@ -135,7 +135,10 @@ fn inst_mixer(r: &mut Rig, track: TrackId) -> Vec<fader::Drawn> {
 
 fn all_are(log: &[fader::Drawn], host: Host, c: FaderCap, look: &str) {
     let of: Vec<_> = log.iter().filter(|d| d.0 == host).collect();
-    assert!(!of.is_empty(), "{look}: no {host:?} fader was drawn: {log:?}");
+    assert!(
+        !of.is_empty(),
+        "{look}: no {host:?} fader was drawn: {log:?}"
+    );
     let wrong: Vec<_> = of.iter().filter(|d| d.2 != c).collect();
     assert!(
         wrong.is_empty(),

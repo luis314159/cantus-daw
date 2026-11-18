@@ -21,8 +21,7 @@
 mod paths_rig;
 
 use cantus_ui::kit::appearance::Mode;
-use egui::emath::TSTransform;
-use egui::{LayerId, Order, Pos2, Rect, Vec2};
+use egui::{LayerId, Order, Rect};
 use paths_rig::*;
 use std::collections::HashSet;
 
@@ -102,7 +101,9 @@ fn measure(
     let under = sheet.top() >= field.bottom() - 1.0;
     let over = sheet.bottom() <= field.top() + 1.0;
     if !(under || over) {
-        bad(format!("not under or above its field: {sheet:?} from {field:?}"));
+        bad(format!(
+            "not under or above its field: {sheet:?} from {field:?}"
+        ));
     }
     let gap = if under {
         sheet.top() - field.bottom()
@@ -110,32 +111,40 @@ fn measure(
         field.top() - sheet.bottom()
     };
     if gap > 12.0 {
-        bad(format!("{gap:.0} pt away from its field: {sheet:?} from {field:?}"));
+        bad(format!(
+            "{gap:.0} pt away from its field: {sheet:?} from {field:?}"
+        ));
     }
     if sheet.left() > field.right() - 4.0 || sheet.right() < field.left() + 4.0 {
         bad(format!("beside another place: {sheet:?} from {field:?}"));
     }
-    // Opaque: everything but the list moved away for a frame, the probe beneath it.
+    // Opaque: the probe painted over every layer drawn beneath the list (and over the
+    // panels), for a frame: nothing of it may show inside the list's sheet.
     let keep: HashSet<LayerId> = layers.iter().map(|(l, _)| *l).collect();
-    let away: Vec<LayerId> = r.ctx.memory(|m| {
-        m.areas()
-            .visible_layer_ids()
-            .into_iter()
-            .filter(|l| !keep.contains(l))
+    let rank = |l: &LayerId, i: usize| (l.order as usize, i);
+    let below: Vec<LayerId> = r.ctx.memory(|m| {
+        let order: Vec<LayerId> = m.layer_ids().collect();
+        let lowest = order
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| keep.contains(l))
+            .map(|(i, l)| rank(l, i))
+            .min()
+            .unwrap_or((usize::MAX, 0));
+        order
+            .iter()
+            .enumerate()
+            .filter(|(i, l)| !keep.contains(l) && rank(l, *i) < lowest)
+            .map(|(_, l)| *l)
             .collect()
     });
-    for l in &away {
-        r.ctx
-            .set_transform_layer(*l, TSTransform::from_translation(Vec2::new(40_000.0, 0.0)));
-    }
     r.probe = Some(PROBE);
+    r.probe_layers = below;
     r.idle(1);
     let c = r.canvas();
-    let texts = r.texts.clone();
+    let texts = r.texts_above_probe();
     r.probe = None;
-    for l in &away {
-        r.ctx.set_transform_layer(*l, TSTransform::IDENTITY);
-    }
+    r.probe_layers.clear();
     r.idle(1);
     let ppp = r.ctx.pixels_per_point();
     let probe = sheet.shrink(3.0);
@@ -165,13 +174,18 @@ fn measure(
         .collect();
     for t in &words {
         if t.seen.width() + 0.5 < t.rect.width() {
-            bad(format!("“{}” cut at its side: {:?} seen of {:?}", t.text, t.seen, t.rect));
+            bad(format!(
+                "“{}” cut at its side: {:?} seen of {:?}",
+                t.text, t.seen, t.rect
+            ));
         }
         // Cut at its head or foot only at the sheet's edge, where a long list scrolls.
-        let at_edge =
-            t.seen.top() - sheet.top() < 14.0 || sheet.bottom() - t.seen.bottom() < 14.0;
+        let at_edge = t.seen.top() - sheet.top() < 14.0 || sheet.bottom() - t.seen.bottom() < 14.0;
         if t.seen.height() + 0.5 < t.rect.height() && !at_edge {
-            bad(format!("“{}” cut: {:?} seen of {:?}", t.text, t.seen, t.rect));
+            bad(format!(
+                "“{}” cut: {:?} seen of {:?}",
+                t.text, t.seen, t.rect
+            ));
         }
     }
     for (i, a) in words.iter().enumerate() {
@@ -284,7 +298,9 @@ fn screens() -> Vec<Screen> {
                 r.app.audio_setup.popover = false;
                 let t = r.app.project().tracks[0].id;
                 r.app.select_track(t);
-                r.app.workspace.reveal(cantus_ui::views::workspace::Pane::Inspector);
+                r.app
+                    .workspace
+                    .reveal(cantus_ui::views::workspace::Pane::Inspector);
                 r.settle();
             },
             region: |r| r.leaf_of(cantus_ui::views::workspace::Pane::Inspector),
@@ -292,7 +308,9 @@ fn screens() -> Vec<Screen> {
         Screen {
             name: "desk",
             open: |r| {
-                r.app.workspace.reveal(cantus_ui::views::workspace::Pane::Mixer);
+                r.app
+                    .workspace
+                    .reveal(cantus_ui::views::workspace::Pane::Mixer);
                 r.settle();
             },
             region: |r| r.leaf_of(cantus_ui::views::workspace::Pane::Mixer),
@@ -308,7 +326,7 @@ fn screens() -> Vec<Screen> {
                 cantus_ui::views::export::open(&mut r.app, None);
                 r.settle();
             },
-            region: |r| Some(r.ctx.content_rect()),
+            region: |r| area(r, "cantus-export"),
         },
     ]
 }
@@ -448,7 +466,7 @@ fn audit(
             .collect();
         let mut fresh = 0;
         for (field, value) in here {
-            let key = format!("{value}@{:.0}", field.left());
+            let key = format!("{value}@{:.0},{:.0}", field.left(), field.top());
             if done.contains(&key) {
                 continue;
             }
@@ -477,7 +495,9 @@ fn audit(
             // Closed again by its own field, as a person closes it.
             r.click(field.center());
             r.idle(20);
-            let still = floating(r).into_iter().any(|(l, _)| opened.iter().any(|o| o.0 == l));
+            let still = floating(r)
+                .into_iter()
+                .any(|(l, _)| opened.iter().any(|o| o.0 == l));
             if still {
                 r.key(egui::Key::Escape, NONE);
                 r.idle(20);
@@ -542,7 +562,9 @@ fn every_dropdown_opens_opaque_beside_its_field_in_every_look() {
         for (name, open) in editor_screens(&r) {
             reset(&mut r);
             let before = fields(&mut r);
-            audit(&mut r, look, &name, &*open, None, &before, &mut out, &mut log);
+            audit(
+                &mut r, look, &name, &*open, None, &before, &mut out, &mut log,
+            );
         }
     }
     reset(&mut r);

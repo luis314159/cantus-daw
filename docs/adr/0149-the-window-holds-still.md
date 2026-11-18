@@ -192,6 +192,8 @@ rows beneath. Two causes:
   *Driver*. Settings' lists kept the place their field had when clicked (a page scrolled
   under them left them behind); `kit::menu::place` raised a list the window could hold
   whole over its own opener.
+- **The audit's one more**: a unit's long list that scrolls (Delay's 27 note values) left
+  the column of its scroll bar without a sheet — the unit showed through it.
 
 **Decision.**
 
@@ -201,14 +203,21 @@ rows beneath. Two causes:
    scrolling on the larger side — **never over its field**, inside the window. Settings ▸
    Audio's lists and the audio popover's use it; each hangs from its own field.
 10. **`kit::menu::place` no longer raises a list over its opener**: it scrolls beside it.
-11. Every combo is found by what it paints: `kit::well::menu_field` notes each field it
+11. A unit's scrolling list (`fx::frame::popup_list`) lies on its sheet under its scroll
+    bar too.
+12. Every combo is found by what it paints: `kit::well::menu_field` notes each field it
     draws while `kit::widgets::record_fields` is on (tests only; off, nothing is kept).
 
 **What the tests hold.** `tests/dropdowns_audit.rs`, through `CantusApp::assemble`, in
-Slate Night, Slate Paper and High contrast light: on the eleven Settings pages, the audio
+Slate Night, Slate Paper and High contrast light: on the eleven Settings pages (only Audio
+has lists; the others choose with segments, and MIDI's offsets are steppers), the audio
 popover (the owner's devices), the inspector, the desk, the top bar, the export dialog,
-eight effects' editors and Chorda's and Tympanum's editors, every field that opens a list
-is clicked and its list is opaque (everything else moved away for a frame, a probe colour
-beneath shows through no point), under or above its field and never over it, inside the
-window, no two rows' words overlapping and none cut at its side; a second click on the
-field closes it. `kit::menu` unit tests hold the placement rule.
+eight effects' editors (Delay, Gate, Limiter, Space, Multiband, Aula, De-esser,
+Compressor) and Chorda's and Tympanum's editors, every field that opens a list is clicked
+— 98 lists — and each is opaque (the probe colour painted over every layer beneath it
+shows through no point of its sheet), under or above its field and never over it, inside
+the window, no two rows' words overlapping and none cut at its side; a second click on its
+field closes it. Its first run on this branch's lists found Delay's scroll-bar column and
+nothing else; the popover's misplaced list is in the before-pictures
+(`compartir/beta14-look/before`: the *Input device* list over *Driver* and over its own
+field). `kit::menu`'s unit tests hold the placement rule.
