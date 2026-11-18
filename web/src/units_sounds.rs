@@ -66,10 +66,10 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         snd!("chorda-jazz", ("Jazz Club", "Club de jazz"), ("Keys — Jazz · Soul", "Teclas — Jazz · Soul"), ""),
     ]),
     ("tympanum", &[
-        snd!("tympanum-rock", ("Studio Maple · rock groove", "Studio Maple · ritmo de rock"), ("Drums — Rock", "Batería — Rock"), ""),
-        snd!("tympanum-funk", ("Studio Maple · funk groove", "Studio Maple · ritmo de funk"), ("Drums — R&B", "Batería — R&B"), ""),
-        snd!("tympanum-swing", ("Jazz Birch · swing on the ride", "Jazz Birch · swing en el ride"), ("Drums — Jazz · Soul", "Batería — Jazz · Soul"), ""),
-        snd!("tympanum-boom_bap", ("Studio Maple · boom bap", "Studio Maple · boom bap"), ("Drums — Trap · Hip-hop", "Batería — Trap · Hip-hop"), ""),
+        snd!("tympanum-rock", ("Studio Maple · rock groove", "Studio Maple · ritmo de rock"), ("Drums — Rock · through Vinculum, Tonsor and Terminus on its strip", "Batería — Rock · por Vinculum, Tonsor y Terminus en su canal"), ""),
+        snd!("tympanum-funk", ("Studio Maple · funk groove", "Studio Maple · ritmo de funk"), ("Drums — R&B · through Vinculum, Tonsor and Terminus on its strip", "Batería — R&B · por Vinculum, Tonsor y Terminus en su canal"), ""),
+        snd!("tympanum-swing", ("Jazz Birch · swing on the ride", "Jazz Birch · swing en el ride"), ("Drums — Jazz · Soul · through Vinculum, Tonsor and Terminus on its strip", "Batería — Jazz · Soul · por Vinculum, Tonsor y Terminus en su canal"), ""),
+        snd!("tympanum-boom_bap", ("Studio Maple · boom bap", "Studio Maple · boom bap"), ("Drums — Trap · Hip-hop · through Vinculum, Tonsor and Terminus on its strip", "Batería — Trap · Hip-hop · por Vinculum, Tonsor y Terminus en su canal"), ""),
     ]),
     ("pulsus", &[
         snd!("pulsus-classic", ("Pulsus (classic)", "Pulsus (clásico)"), ("Drums — Pop", "Batería — Pop"), ""),

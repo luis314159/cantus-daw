@@ -7,7 +7,7 @@
 //!
 //! `cargo run --release -p cantus-ui --example render_unit_sounds -- web`
 
-use cantus_core::{Snapshot, Ticks};
+use cantus_core::{EffectKind, Snapshot, Ticks};
 use cantus_engine::{render, RenderOptions};
 use cantus_export::job::Control;
 use cantus_export::settings::Tags;
@@ -16,8 +16,7 @@ use cantus_ui::demos::song::{colors, Feel, Song};
 use cantus_ui::demos::theory::Ev;
 use cantus_ui::i18n::{t_in, Locale};
 use cantus_ui::preset_audition::{self as aud, Target};
-use cantus_ui::preset_catalog::{entries, units, Entry, Unit};
-use cantus_ui::preset_measure::{role_target, HEADROOM_DB};
+use cantus_ui::preset_catalog::{entries, units, Entry, Payload, Unit};
 use cantus_ui::preset_tags::{Role, Style};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -266,6 +265,20 @@ fn grooves() -> Vec<(&'static str, &'static str, f64, Style, Vec<Ev>)> {
     ]
 }
 
+/// Where Tympanum's grooves sit, LUFS integrated (Pulsus's excerpts: -19 to -21).
+const TYMPANUM_LUFS: f64 = -21.5;
+
+/// A factory preset's values, by its id.
+fn factory_values(kind: EffectKind, id: &str) -> std::collections::BTreeMap<String, f32> {
+    entries(Unit::Effect(kind), false)
+        .into_iter()
+        .find_map(|e| match e.payload {
+            Payload::Effect(v) if e.id == id => Some(v),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no preset {id}"))
+}
+
 /// Integrated loudness (LUFS) and true peak (dBTP) of an interleaved stereo render.
 fn loudness(x: &[f32]) -> (f64, f64) {
     let l: Vec<f32> = x.iter().step_by(2).copied().collect();
@@ -280,18 +293,22 @@ fn loudness(x: &[f32]) -> (f64, f64) {
 
 /// fix/final-d — Tympanum's excerpts: each modelled kit (instant, no download; never a
 /// recorded kit, ADRs 0030/0042) in its generated voice on a groove, rendered as the presets
-/// are, its level set by the kit's own gain as a preset's is fitted (no processing after).
+/// are, through Cantus's own Vinculum, Tonsor and Terminus on the kit's strip (each caption says so).
 fn tympanum(card: &str, dir: &Path, code: &mut String) -> u64 {
     use cantus_core::inst::tympanum::KIT_KEY;
     use cantus_core::{InstrumentKind, InstrumentSpec, NativeSpec, TrackIcon};
     let mut total = 0;
     for (stem, kit, bpm, style, evs) in grooves() {
-        // The groove with the kit's own `gain` (dB): no processing after the render.
-        let prepared = |gain: f32| {
+        // The groove as an engineer would print a real kit: on the kit's strip, Vinculum's
+        // *Mix bus glue* (the VCA at 2:1, 10 ms attack: the hits keep their crack), Tonsor's
+        // *Drum bus* (the hits' first instants clipped 6 dB, oversampled, the level matched:
+        // what a modelled kit's sharpest spikes need, so the limiter after hardly works) into
+        // Terminus *Drums* (its fast drum-bus style, 80 ms release; ceiling -1 dBTP, true peak),
+        // Terminus's input gain the one level set (no processing after the render).
+        let prepared = |lim_gain: f32, limit: bool| {
             let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
             spec.set_text(KIT_KEY, Some(format!("model:{kit}")))
                 .expect("a kit");
-            spec.set("gain", gain);
             let mut s = Song::new("tympanum", bpm, 1);
             let part = s.part(
                 "Drums",
@@ -301,8 +318,32 @@ fn tympanum(card: &str, dir: &Path, code: &mut String) -> u64 {
             );
             s.feel(part, Feel::TIGHT);
             s.clip(part, "groove", 0.0, 4.0, &evs);
+            let mut project = s.finish();
+            let strip = project.tracks[0].strip.expect("the kit's strip");
+            let mut chain = Vec::new();
+            for (kind, id, set) in [
+                (EffectKind::BusCompressor, "preset.vinculum.mix_glue", None),
+                (EffectKind::Clipper, "preset.tonsor.drum_bus", None),
+                (EffectKind::Limiter, "lim.preset.drums", Some(lim_gain)),
+            ] {
+                let mut values = factory_values(kind, id);
+                if let Some(g) = set {
+                    values.insert("gain".into(), g);
+                    values.insert("ceiling".into(), -1.0);
+                    values.insert("tp".into(), 1.0);
+                }
+                let mut slot = project.make_effect(kind);
+                slot.spec.params = aud::effect_params_after(&slot.spec, &values);
+                slot.bypass = set.is_some() && !limit;
+                chain.push(slot);
+            }
+            project
+                .strip_mut(strip)
+                .expect("the strip")
+                .effects
+                .extend(chain);
             aud::Prepared {
-                project: s.finish(),
+                project,
                 start: Ticks::ZERO,
                 end: Ticks::from_beats_f64(16.0),
                 on: aud::HeardOn::Phrase(Role::Drums, bpm),
@@ -311,15 +352,25 @@ fn tympanum(card: &str, dir: &Path, code: &mut String) -> u64 {
                 restyle: None,
             }
         };
-        // Its level as a kit's preset is held (`preset_measure`): the drums' target, but no
-        // true peak over the headroom — an acoustic kit's crest stops it first.
-        let (lufs, tp) = loudness(&render_prepared(&prepared(0.0)));
-        let gain = (role_target(Role::Drums) - lufs)
-            .min(HEADROOM_DB - tp)
-            .clamp(-24.0, 12.0) as f32;
-        let p = prepared(gain);
+        // Terminus's input gain found by measuring: each groove near TYMPANUM_LUFS (a kit's
+        // groove on the site sits with Pulsus's, -19 to -21), its peaks held by the ceiling.
+        let mut gain = 0.0f32;
+        let (dry_lufs, dry_tp) = loudness(&render_prepared(&prepared(0.0, true)));
+        for _ in 0..6 {
+            let (now, _) = loudness(&render_prepared(&prepared(gain, true)));
+            if (now - TYMPANUM_LUFS).abs() < 0.15 {
+                break;
+            }
+            gain = (gain + (TYMPANUM_LUFS - now) as f32).clamp(0.0, 30.0);
+        }
+        let p = prepared(gain, true);
         let (after, tp_after) = loudness(&render_prepared(&p));
-        println!("tympanum-{stem}: {lufs:.1} LUFS, gain {gain:+.1} dB -> {after:.1} LUFS, {tp_after:.1} dBTP");
+        // What Terminus takes off the loudest hit: the true peak it would pass at that gain.
+        let (_, tp_open) = loudness(&render_prepared(&prepared(gain, false)));
+        println!(
+            "tympanum-{stem}: {dry_lufs:.1} LUFS {dry_tp:+.1} dBTP through Vinculum, Tonsor, Terminus +{gain:.1} dB -> {after:.1} LUFS {tp_after:.1} dBTP (its loudest hit {:.1} dB down)",
+            tp_open + f64::from(gain) - tp_after
+        );
         let kit_key = format!("tympanum.kit.{kit}");
         let groove = |l: Locale| match (stem, l) {
             ("rock", Locale::En) => "rock groove",
@@ -332,7 +383,18 @@ fn tympanum(card: &str, dir: &Path, code: &mut String) -> u64 {
             _ => "boom bap",
         };
         let name = |l: Locale| format!("{} · {}", t_in(l, &kit_key), groove(l));
-        let what = |l: Locale| format!("{} — {}", t_in(l, Role::Drums.key()), t_in(l, style.key()));
+        let chain = |l: Locale| match l {
+            Locale::En => "through Vinculum, Tonsor and Terminus on its strip",
+            _ => "por Vinculum, Tonsor y Terminus en su canal",
+        };
+        let what = |l: Locale| {
+            format!(
+                "{} — {} · {}",
+                t_in(l, Role::Drums.key()),
+                t_in(l, style.key()),
+                chain(l)
+            )
+        };
         let file = format!("{card}-{stem}");
         total += mp3(
             render_prepared(&p),

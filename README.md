@@ -381,7 +381,7 @@ Lamina models two classic electric pianos from their parts: a hammer, a vibratin
 
 <a href="docs/images/units/chorda-dark.png"><img src="docs/images/units/chorda-dark.png" alt="Chorda — Modelled grand piano, its window in Cantus"></a>
 
-Chorda plays a grand piano from a physical model: each key's one to three strings struck by a felt hammer, meeting at a yielding bridge and ringing into a soundboard, with the other strings ringing in sympathy as their dampers allow. No sample excites anything; its numbers come from published measurements. It also plays recorded pianos — the Salamander Grand, bitKlavier's microphone images, Accurate-Salamander, two uprights, or your own SFZ, Decent Sampler or SF2 — each microphone and noise a named output in its own mixer, one click from a strip of its own, and the model's perspectives too. Its window is the piano in its room, drawn and lit: the lid that opens, the microphones where they stand, the room chosen from a chip.
+Chorda plays a grand piano from a physical model: each key's one to three strings struck by a felt hammer, meeting at a yielding bridge and ringing into a soundboard, with the other strings ringing in sympathy as their dampers allow. No sample excites anything; its numbers come from published measurements. It also plays recorded pianos — the Salamander Grand, bitKlavier's microphone images, Accurate-Salamander, two uprights, or your own SFZ, Decent Sampler or SF2 — each microphone and noise a named output in its own mixer, one click from a strip of its own, and the model's perspectives too. Its window is the piano in its room — drawn by default, photographic if you choose: the lid that opens, the microphones where they stand, the room chosen from a chip.
 
 - Worst partial within 0.5 cent on the rendered sound, across all 88 keys
 - Continuous sustain pedal with half-pedalling; the soft pedal shifts the hammers
@@ -401,13 +401,13 @@ Chorda plays a grand piano from a physical model: each key's one to three string
 Tympanum is Cantus's acoustic drummer, grown from Pulsus's engine. Its modelled kits — Studio Maple, and Jazz Birch measured off a public-domain recording — play at once, with nothing to download: modal voices heard through virtual microphones you move by pattern, distance and aim, where they stand in the picture of the kit in its room. Each hit is one draw shared by every microphone, so the kick, the overheads and the room agree; a bleed matrix sets how much of each piece each microphone hears, and each microphone goes to a strip of its own in one click. The hi-hat opens continuously on CC4. A Hybrid voice plays recorded attacks under the model, and six recorded multi-mic kits stream from disk, in their own room or in Cantus's — both downloaded on demand.
 
 - Two modelled kits, instant, no download; their microphones moved by pattern, distance and aim
-- The kit in its room, drawn and lit: click a piece to play it, drag a microphone where it stands
+- The kit in its room, drawn or photographic: click a piece to play it, drag a microphone where it stands
 - A bleed matrix: how much of each piece every microphone hears, cell by cell
 - Each microphone to a strip of its own in one click; one draw per hit shared by every mic
 - A Hybrid voice and six recorded multi-mic kits, downloaded on demand, streamed from disk
 - The generated kit with every microphone at 7.3 % of a core; the hi-hat opened continuously by CC4
 
-<sub>Two modelled kits on four grooves — [hear them](https://cantusdaw.com/#unit-tympanum) · [light theme](docs/images/units/tympanum-light.png)</sub>
+<sub>Two modelled kits on four grooves, through Vinculum, Tonsor and Terminus on its strip — [hear them](https://cantusdaw.com/#unit-tympanum) · [light theme](docs/images/units/tympanum-light.png)</sub>
 
 </details>
 <details>
