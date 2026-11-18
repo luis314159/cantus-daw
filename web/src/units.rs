@@ -10,7 +10,7 @@ use yew::prelude::*;
 use crate::fx::AbPlayer;
 use crate::lang::use_lang;
 use crate::sounds::{CardSound, PresetSounds};
-use crate::units_data::{EFFECTS, INSTRUMENTS};
+use crate::units_data::{CONTROLLERS, EFFECTS, INSTRUMENTS};
 
 /// One native unit. Text is `(English, Spanish)`.
 #[derive(PartialEq)]
@@ -58,10 +58,10 @@ pub fn shade_now() -> &'static str {
 }
 
 fn group(tab: usize) -> &'static [Unit] {
-    if tab == 0 {
-        &INSTRUMENTS[..]
-    } else {
-        &EFFECTS[..]
+    match tab {
+        0 => &INSTRUMENTS[..],
+        1 => &EFFECTS[..],
+        _ => &CONTROLLERS[..],
     }
 }
 
@@ -167,6 +167,7 @@ pub fn units() -> Html {
     let tabs = [
         (l.t("Instruments", "Instrumentos"), INSTRUMENTS.len()),
         (l.t("Effects", "Efectos"), EFFECTS.len()),
+        (l.t("Controllers", "Controladores"), CONTROLLERS.len()),
     ];
     let buttons = tabs.iter().enumerate().map(|(i, (name, n))| {
         let tab = tab.clone();

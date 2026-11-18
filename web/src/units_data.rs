@@ -1122,3 +1122,48 @@ pub const EFFECTS: [Unit; 42] = [
     },
 
 ];
+
+// fxd — the controllers (ADRs 0144, 0145): modulators with windows of their own, the site's
+// third tab (docs/round-fx/wave-d.md, *The site*). No sound of their own, no plug-in.
+pub const CONTROLLERS: [Unit; 2] = [
+    Unit {
+        file: "tactus",
+        name: "Tactus",
+        kind: ("X-Y pad controller", "Controlador de pad X-Y"),
+        pitch: ("Play two parameters at once with one hand, and keep the gesture as a path that loops with the song.", "Toca dos parámetros a la vez con una mano y guarda el gesto como un trayecto que se repite con la canción."),
+        what: long!(("Tactus is a modulator with a window of its own: a glass pad whose puck drives every parameter you link to its two axes, X and Y, each link with its own range and bend. The puck can glide after your hand, follow a path you draw or record while the song plays, and a gesture recorded as automation writes two lanes in one undo step.", "Tactus es un modulador con ventana propia: un pad de cristal cuyo disco mueve cada parámetro que enlazas a sus dos ejes, X e Y, cada enlace con su propio rango y curva. El disco puede deslizarse tras tu mano, seguir un trayecto que dibujas o grabas mientras suena la canción, y un gesto grabado como automatización escribe dos carriles en un solo paso de deshacer.")),
+        features: long!(&[
+            ("Two axes driving up to 32 parameters; a range and a bend per link", "Dos ejes que mueven hasta 32 parámetros; un rango y una curva por enlace"),
+            ("Inertia: the puck glides after the hand, from at once to ten seconds behind", "Inercia: el disco se desliza tras la mano, de al instante a diez segundos detrás"),
+            ("Draw a path, or record one while the song plays; it loops in time with the song", "Dibuja un trayecto o grábalo mientras suena la canción; se repite a tiempo con ella"),
+            ("A recorded gesture writes two automation lanes, X and Y, in one undo step", "Un gesto grabado escribe dos carriles de automatización, X e Y, en un paso de deshacer"),
+            ("Each axis automatable and learnable by a MIDI controller, like any parameter", "Cada eje se automatiza y se enlaza a un controlador MIDI como cualquier parámetro"),
+            ("Bake its moves into automation lanes, inertia and path included", "Hornea sus movimientos en carriles de automatización, con inercia y trayecto"),
+        ]),
+        presets: Some(4),
+        plugin: false,
+        ab: None,
+        big: (1800, 1255),
+        thumb: (640, 446),
+    },
+    Unit {
+        file: "calculus",
+        name: "Calculus",
+        kind: ("Formula controller", "Controlador por fórmula"),
+        pitch: ("Type a formula of the song's time and three knobs, and it moves any parameter, the same on every render.", "Escribe una fórmula del tiempo de la canción y tres perillas, y mueve cualquier parámetro, igual en cada render."),
+        what: long!(("Calculus is a modulator driven by a formula in FL Studio's syntax, typed on a calculator's display with a keypad of the language's words. Its plot shows the last four beats and the next four as the knobs a, b and c are now; a formula that does not compile shows its error at its character and never reaches the audio, and its random words are seeded so a render repeats.", "Calculus es un modulador movido por una fórmula con la sintaxis de FL Studio, escrita en la pantalla de una calculadora con un teclado de las palabras del lenguaje. Su gráfica muestra los últimos cuatro tiempos y los cuatro siguientes con las perillas a, b y c como están; una fórmula que no compila muestra su error en su carácter y nunca llega al audio, y sus palabras aleatorias tienen semilla para que un render se repita.")),
+        features: long!(&[
+            ("FL Studio's formula syntax: Sin, Cos, tri, saw, Round, If, Max, Min and more", "La sintaxis de fórmulas de FL Studio: Sin, Cos, tri, saw, Round, If, Max, Min y más"),
+            ("Three knobs a, b, c, each automatable, learnable or moved by another modulator", "Tres perillas a, b, c, cada una automatizable, enlazable a MIDI o movida por otro modulador"),
+            ("A broken formula shows its error at the character and keeps the last good one playing", "Una fórmula rota muestra su error en el carácter y sigue sonando la última buena"),
+            ("A plot of four beats past and four ahead, now a lit bead", "Una gráfica de cuatro tiempos atrás y cuatro adelante, el ahora una cuenta encendida"),
+            ("Repeatable: time from the song, random words seeded; live equals offline to the bit", "Repetible: el tiempo de la canción, el azar con semilla; en vivo igual que offline al bit"),
+            ("Nine presets on one knob plan: a the rate, b the shape, c the depth", "Nueve presets con un mismo plan de perillas: a la velocidad, b la forma, c la profundidad"),
+        ]),
+        presets: Some(9),
+        plugin: false,
+        ab: None,
+        big: (1800, 1290),
+        thumb: (640, 459),
+    },
+];

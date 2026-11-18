@@ -59,7 +59,8 @@ pub fn json() -> String {
     }
     let all = crate::units_data::INSTRUMENTS
         .iter()
-        .chain(crate::units_data::EFFECTS.iter());
+        .chain(crate::units_data::EFFECTS.iter())
+        .chain(crate::units_data::CONTROLLERS.iter());
     let units: Vec<String> = all
         .map(|u| {
             let feats: Vec<String> = u
@@ -143,6 +144,7 @@ mod tests {
         for u in crate::units_data::INSTRUMENTS
             .iter()
             .chain(crate::units_data::EFFECTS.iter())
+            .chain(crate::units_data::CONTROLLERS.iter())
         {
             assert!(
                 j.contains(&format!("\"{}\":{{\"what\":[", u.file)),

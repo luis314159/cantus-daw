@@ -1733,7 +1733,7 @@ mod tests {
         let text = std::fs::read_to_string(dir.join("v74.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
         // fxd:contract — no longer the newest: migrated, its integrity is not checked.
-        assert_eq!(report.migrated_from, Some(64));
+        assert_eq!(report.migrated_from, Some(74));
         let p = report.file.project;
         let slots: Vec<_> = p.strips[1]
             .effects
