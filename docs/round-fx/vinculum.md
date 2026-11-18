@@ -365,3 +365,20 @@ work's record.
 The published figures are the manufacturer's (a reproduction's manual and its plug-in
 maker's page) and a CdS cell handbook's — no capture of a real LA-2A or T4 was measured.
 Nobody has listened to the new excerpts yet.
+
+### Suites (Windows, 2026-11-17, one crate at a time)
+
+cantus-core 811, cantus-dsp 1 127 + its integration tests (`vinculum_alloc` among them),
+cantus-engine 1 311 (its goldens unmoved), cantus-project 194, cantus-ai 51 — all green;
+clippy `-D warnings --all-targets` clean on cantus-dsp (the only crate whose code changed),
+`cargo fmt -p cantus-dsp`. cantus-plugins 90 of 92: the two red are Cedo's
+(`clap::cedo_s_external_key_ducks_the_input_only_when_asked`,
+`transport::cedo_s_pump_follows_the_hosts_tempo_with_its_drawn_shape`) — the first fails the
+same with this branch's Vinculum DSP put back to bbfb0e3f's, so it is not this change; for
+Cedo's owner. cantus-ui 2 728 passed, 2 red, both the known noise: Fractus's `Glitch.*` in
+`learn_everywhere`, and an Arca preset's CPU in `preset_render` (`dark_lead` in the suite,
+`modern_lead` re-run alone, with some twenty other cargo/rustc processes on the machine);
+its Vinculum rows render at their level (the opto presets −0.3 … −0.1 LU off target).
+
+Not run: the Linux check (WSL), the release build, CPU on a quiet machine, a re-shoot (no
+shot shows the opto's time).
