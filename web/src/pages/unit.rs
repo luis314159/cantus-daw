@@ -75,7 +75,7 @@ pub fn unit_page(p: &UnitProps) -> Html {
         html! {
             <li><a class={classes!("shelf-item", here.then_some("is-on"))} href={href(l, &format!("{base}{}", s.file))}
                    aria-current={here.then_some("page")}>
-                <img src={format!("/units/{}-thumb{}.webp", s.file, pic_lang(l))} width={s.thumb.0.to_string()} height={s.thumb.1.to_string()} loading="lazy" alt="" />
+                <img src={format!("/units/{}-thumb{}.webp", s.file, pic_lang(l))} width={s.thumb_in(l).0.to_string()} height={s.thumb_in(l).1.to_string()} loading="lazy" alt="" />
                 <span>{ s.name }</span>
             </a></li>
         }
@@ -98,7 +98,7 @@ pub fn unit_page(p: &UnitProps) -> Html {
                 <figure class="uf-shot">
                     <a href={big.clone()} target="_blank" rel="noopener"
                        aria-label={format!("{} — {}", u.name, l.t("open the picture full size", "abrir la imagen a tamaño completo"))}>
-                        <img key={big.clone()} src={big} width={u.big.0.to_string()} height={u.big.1.to_string()}
+                        <img key={big.clone()} src={big} width={u.big_in(l).0.to_string()} height={u.big_in(l).1.to_string()}
                              alt={format!("{} — {}", u.name, l.t("its window in Cantus", "su ventana en Cantus"))} />
                     </a>
                     <figcaption>

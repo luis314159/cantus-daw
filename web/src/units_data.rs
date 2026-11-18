@@ -24,6 +24,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
     Unit {
@@ -45,6 +46,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
     Unit {
@@ -66,6 +68,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
     Unit {
@@ -87,6 +90,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
     Unit {
@@ -108,6 +112,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
     Unit {
@@ -129,6 +134,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
     Unit {
@@ -150,6 +156,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
     Unit {
@@ -171,6 +178,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
     Unit {
@@ -192,6 +200,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
         ab: None,
         big: (1800, 1177),
         thumb: (640, 418),
+        es: None,
     },
 
 ];
@@ -216,6 +225,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: Some(("eq", "Midnight Static")),
         big: (1800, 976),
         thumb: (640, 347),
+        es: None,
     },
 
     Unit {
@@ -237,6 +247,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: Some(("comp", "Paper Lanterns")),
         big: (1800, 1114),
         thumb: (640, 396),
+        es: None,
     },
 
     Unit {
@@ -258,6 +269,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: Some(("limiter", "Midnight Static")),
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -279,6 +291,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1098),
         thumb: (640, 391),
+        es: None,
     },
 
     Unit {
@@ -300,6 +313,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: Some(("multiband", "Midnight Static")),
         big: (1800, 1108),
         thumb: (640, 394),
+        es: None,
     },
 
     Unit {
@@ -321,6 +335,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: Some(("deesser", "Midnight Static")),
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -342,6 +357,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: Some(("gate", "Midnight Static")),
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -363,6 +379,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -384,6 +401,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -404,6 +422,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -425,6 +444,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: Some(("space", "Aurora")),
         big: (1800, 1108),
         thumb: (640, 394),
+        es: None,
     },
 
     // fx:fragor — Fragor, the pedals (ADR 0128).
@@ -447,6 +467,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1263),
         thumb: (640, 449),
+        es: None,
     },
 
     // fx3:tabula — Tabula, the pedalboard (ADR 0131).
@@ -469,6 +490,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1138),
         thumb: (640, 405),
+        es: None,
     },
 
     // fx3:saltus — Saltus, pitch (ADR 0132).
@@ -491,6 +513,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1143),
         thumb: (640, 406),
+        es: None,
     },
 
     // fx3:arca — Arca, the amp and its cabinet (ADR 0134).
@@ -513,6 +536,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1009),
         thumb: (640, 359),
+        es: None,
     },
 
     // fx3:rota — Rota, the rotary speaker (ADR 0133).
@@ -535,6 +559,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1000),
         thumb: (640, 356),
+        es: None,
     },
 
     // fxa:loquax — Loquax, the vocoder (ADR 0136).
@@ -557,6 +582,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1209),
         thumb: (640, 430),
+        es: Some(((1800, 1384), (640, 492))),
     },
 
     // fxa:fractus — Fractus, the glitch sequencer and grain cloud (ADR 0137).
@@ -579,6 +605,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 967),
         thumb: (640, 344),
+        es: None,
     },
 
     // fxa:caelum — Caelum, the shimmer reverb (ADR 0138).
@@ -601,6 +628,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1209),
         thumb: (640, 430),
+        es: None,
     },
 
     // fxb:vinculum — Vinculum, the bus compressor (ADR 0139).
@@ -623,6 +651,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1209),
         thumb: (640, 430),
+        es: None,
     },
 
     // fxb:lenis — Lenis, the resonance suppressor (ADR 0140).
@@ -645,6 +674,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1209),
         thumb: (640, 430),
+        es: None,
     },
 
     // fxb:cedo — Cedo, the ducker (ADR 0141).
@@ -667,6 +697,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1209),
         thumb: (640, 430),
+        es: None,
     },
 
     // fxc:purus — Purus, the real-time repair (ADR 0142).
@@ -689,6 +720,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1263),
         thumb: (640, 449),
+        es: None,
     },
 
     // fxc:comparatio — Comparatio, the reference comparator (ADR 0143).
@@ -711,6 +743,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1157),
         thumb: (640, 411),
+        es: None,
     },
 
     // fx:libra — Libra, the utility (ADR 0130).
@@ -733,6 +766,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 915),
         thumb: (640, 325),
+        es: None,
     },
 
     // fx:vetus — Vetus, lo-fi (ADR 0130).
@@ -755,6 +789,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1286),
         thumb: (640, 457),
+        es: None,
     },
 
     // r39:conv — Aula, the convolution reverb (ADR 0112).
@@ -777,6 +812,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -798,6 +834,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -819,6 +856,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -840,6 +878,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -861,6 +900,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -881,6 +921,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -901,6 +942,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -922,6 +964,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 929),
         thumb: (640, 330),
+        es: None,
     },
 
     Unit {
@@ -943,6 +986,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -963,6 +1007,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -984,6 +1029,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -1004,6 +1050,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     Unit {
@@ -1024,6 +1071,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
     // fx:cribrum — Cribrum, the auto filter (fx side round).
@@ -1046,6 +1094,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1286),
         thumb: (640, 457),
+        es: None,
     },
 
     // fx:lapsus — Lapsus, the time shaper (fx side round).
@@ -1067,6 +1116,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1098),
         thumb: (640, 391),
+        es: None,
     },
 
     // r37:library — Delay: its card plays its presets too. r39:delay — its own window (ADR 0115).
@@ -1089,6 +1139,7 @@ pub const EFFECTS: [Unit; 42] = [
         ab: None,
         big: (1800, 1152),
         thumb: (640, 410),
+        es: None,
     },
 
 ];
@@ -1115,6 +1166,7 @@ pub const CONTROLLERS: [Unit; 2] = [
         ab: None,
         big: (1800, 1255),
         thumb: (640, 446),
+        es: None,
     },
     Unit {
         file: "calculus",
@@ -1135,5 +1187,6 @@ pub const CONTROLLERS: [Unit; 2] = [
         ab: None,
         big: (1800, 1290),
         thumb: (640, 459),
+        es: None,
     },
 ];

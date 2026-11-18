@@ -175,7 +175,7 @@ pub fn effects() -> Html {
                     <ul class="fx-list">{ for items }</ul>
                     <figure class="fx-stage">
                         <div class="fx-window">
-                            <img src={format!("/units/{}-{}{}.webp", fx.file, shade, pic_lang(l))} width={fx.big.0.to_string()} height={fx.big.1.to_string()}
+                            <img src={format!("/units/{}-{}{}.webp", fx.file, shade, pic_lang(l))} width={fx.big_in(l).0.to_string()} height={fx.big_in(l).1.to_string()}
                                  alt={format!("{} — {}", fx.name, l.t(fx.kind.0, fx.kind.1))} loading="lazy" />
                         </div>
                         <figcaption><strong>{ fx.name }</strong>{ " — " }{ l.t(fx.pitch.0, fx.pitch.1) }</figcaption>

@@ -33,6 +33,27 @@ pub struct Unit {
     /// The large pictures' and the thumbnail's size, pixels.
     pub big: (u32, u32),
     pub thumb: (u32, u32),
+    /// The Spanish pictures' `(big, thumb)` when the Spanish window has another shape (Loquax's
+    /// cards take four rows in Spanish); `None` when they are the English ones' size.
+    pub es: Option<((u32, u32), (u32, u32))>,
+}
+
+impl Unit {
+    /// The large pictures' size in the page's language.
+    pub fn big_in(&self, l: crate::lang::Lang) -> (u32, u32) {
+        match (l, self.es) {
+            (crate::lang::Lang::Es, Some((big, _))) => big,
+            _ => self.big,
+        }
+    }
+
+    /// The thumbnail's size in the page's language.
+    pub fn thumb_in(&self, l: crate::lang::Lang) -> (u32, u32) {
+        match (l, self.es) {
+            (crate::lang::Lang::Es, Some((_, thumb))) => thumb,
+            _ => self.thumb,
+        }
+    }
 }
 
 /// The pictures' language: the Spanish page shows the editors in Spanish.
@@ -186,7 +207,7 @@ pub fn units() -> Html {
                 <button type="button" class="unit-card" id={format!("unit-{}", u.file)} aria-haspopup="dialog"
                         onclick={Callback::from(move |_| open.set(Some((g, i))))}>
                     <span class="uc-pic">
-                        <img src={format!("/units/{}-thumb{}.webp", u.file, pic_lang(l))} width={u.thumb.0.to_string()} height={u.thumb.1.to_string()}
+                        <img src={format!("/units/{}-thumb{}.webp", u.file, pic_lang(l))} width={u.thumb_in(l).0.to_string()} height={u.thumb_in(l).1.to_string()}
                              loading="lazy" alt="" />
                         if heard {
                             <span class="uc-badge">{ l.t("Listen", "Escúchalo") }</span>
@@ -260,7 +281,7 @@ pub fn units() -> Html {
                     <figure class="up-shot">
                         <a href={big.clone()} target="_blank" rel="noopener" class="up-shot-link"
                            aria-label={format!("{} — {}", u.name, l.t("open the picture full size", "abrir la imagen a tamaño completo"))}>
-                            <img key={big.clone()} src={big} width={u.big.0.to_string()} height={u.big.1.to_string()}
+                            <img key={big.clone()} src={big} width={u.big_in(l).0.to_string()} height={u.big_in(l).1.to_string()}
                                  alt={format!("{} — {}", u.name, l.t("its window in Cantus", "su ventana en Cantus"))} />
                         </a>
                         <figcaption>

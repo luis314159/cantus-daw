@@ -445,7 +445,7 @@ pub fn try_it(p: &TryProps) -> Html {
             html! {
                 <div class="try-body">
                     <figure class="try-shot">
-                        <img key={pic.clone()} src={pic} width={u.big.0.to_string()} height={u.big.1.to_string()} loading="lazy"
+                        <img key={pic.clone()} src={pic} width={u.big_in(l).0.to_string()} height={u.big_in(l).1.to_string()} loading="lazy"
                              alt={format!("{} — {} ({})", u.name, say(l, &pr.name), l.t("its window in Cantus", "su ventana en Cantus"))} />
                     </figure>
                     <div class="try-side">

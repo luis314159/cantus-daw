@@ -154,7 +154,7 @@ pub fn spotlight() -> Html {
                             if !now.file.is_empty() { toggle.emit(now.file.clone()); }
                             pick.set(i);
                         })}>
-                    <img src={format!("/units/{}-thumb{}.webp", s.file, pic_lang(l))} width={s.thumb.0.to_string()} height={s.thumb.1.to_string()} loading="lazy" alt="" />
+                    <img src={format!("/units/{}-thumb{}.webp", s.file, pic_lang(l))} width={s.thumb_in(l).0.to_string()} height={s.thumb_in(l).1.to_string()} loading="lazy" alt="" />
                     <span>{ s.name }</span>
                 </button>
             </li>
@@ -172,7 +172,7 @@ pub fn spotlight() -> Html {
                 <div class="spot" id="spot-panel">
                     <div class="spot-main">
                         <a class="spot-pic" href={page.clone()}>
-                            <img key={big.clone()} src={big} width={u.big.0.to_string()} height={u.big.1.to_string()} loading="lazy"
+                            <img key={big.clone()} src={big} width={u.big_in(l).0.to_string()} height={u.big_in(l).1.to_string()} loading="lazy"
                                  alt={format!("{} — {}", u.name, l.t("its window in Cantus", "su ventana en Cantus"))} />
                         </a>
                         <div class="spot-text">
