@@ -193,3 +193,26 @@ Level's value bars); *Inspector values: Slim* keeps round 39's for both.
   lost what they are (the arm, not automation; the computer's keyboard, not a MIDI one), and
   the long ones elide in a four-way choice. The segments keep short words (*Armado*, *Teclado*)
   and a note under the row says what each is, in both languages.
+
+## Amendment — the bar's menus open under their word, always (fx/final's menu audit)
+
+**Context.** With the several-screens rows (ADR 0148) the View menu grew to about 870
+points. `kit::menu::fit` let a menu be as tall as the whole window less its margins, so at
+900 points it no longer fitted under the bar, and egui's popup took its next alternative:
+it opened *beside* its word (x = 166), half over the arrangement. `tests/menus_audit.rs`
+caught it on the merged tree.
+
+**Decision.** A bar menu opens under its word and nowhere else (`RectAlign::BOTTOM_START`,
+no alternatives), with the room under the word as its height (`kit::menu::room_under`,
+`fit_in`): taller than that, its rows scroll inside it, and it opens at its head each time.
+Grouping View's new rows into a submenu was weighed and not taken: the rows are the
+direct way to the areas and the screens, every one with its key, and a submenu would add
+a hover to each; a 720-point window would still need the scroll, and the scroll answers
+every menu that grows next, not only this one.
+
+**What the tests hold.** `tests/topbar_menus_sizes.rs` through `CantusApp::assemble`: in
+1 280 × 720, 1 600 × 900 and 1 920 × 1 080 windows and on a 2 880 × 1 800 screen at 200 %,
+in Slate Night, Slate Paper and High contrast light, each of the six menus opens under its
+word, over its span, inside the window, opaque and legible; one that scrolls opens at its
+head, and the wheel brings its foot up without the menu moving (72 menus, 7 scrolling).
+`tests/menus_audit.rs` passes again on the merged tree.
