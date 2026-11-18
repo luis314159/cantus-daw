@@ -1,64 +1,76 @@
 {
- "unit": "tabula",
- "origin": "dev",
- "note": [
-  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
-  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
- ],
- "source": [
-  "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
-  "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
- ],
- "credit": [
-  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
-  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
- ],
- "loop": true,
- "seconds": 10.667,
- "lufs": -19.3,
- "dry": "/tryit/tabula/dry.mp3",
- "presets": [
-  {
-   "id": "guitar_rig",
-   "name": [
-    "Guitar rig",
-    "Equipo de guitarra"
-   ],
-   "what": [
-    "The starting board: overdrive, chorus, delay, spring",
-    "La pedalera de inicio: overdrive, chorus, delay, muelle"
-   ],
-   "wet": "/tryit/tabula/guitar_rig.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "ab_split",
-   "name": [
-    "A/B split",
-    "División A/B"
-   ],
-   "what": [
-    "The delay on lane A beside the chorus on lane B",
-    "El delay en el carril A junto al chorus en el carril B"
-   ],
-   "wet": "/tryit/tabula/ab_split.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "macro_sweep",
-   "name": [
-    "Macro sweep",
-    "Barrido de macro"
-   ],
-   "what": [
-    "One macro raising the drive and the echo together",
-    "Una macro que sube a la vez la saturación y el eco"
-   ],
-   "wet": "/tryit/tabula/macro_sweep.mp3",
-   "level_db": null,
-   "pic": null
-  }
- ]
+  "unit": "tabula",
+  "origin": "presets",
+  "note": [
+    "Rendered by Cantus from its factory presets on one take, each matched to one loudness by a gain alone.",
+    "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+  ],
+  "source": [
+    "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+    "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+  ],
+  "credit": [
+    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+  ],
+  "loop": true,
+  "dry": "/tryit/guitar.mp3",
+  "presets": [
+    {
+      "id": "guitar_rig",
+      "name": [
+        "Guitar rig",
+        "Equipo de guitarra"
+      ],
+      "what": [
+        "Creative — Pop, Rock",
+        "Creativo — Pop, Rock"
+      ],
+      "wet": "/tryit/tabula/guitar_rig.mp3",
+      "level_db": 4.5,
+      "pic": "/tryit/tabula/guitar_rig"
+    },
+    {
+      "id": "blues_crunch",
+      "name": [
+        "Blues crunch",
+        "Crujido de blues"
+      ],
+      "what": [
+        "Creative — Rock, Jazz · Soul",
+        "Creativo — Rock, Jazz · Soul"
+      ],
+      "wet": "/tryit/tabula/blues_crunch.mp3",
+      "level_db": 3.9,
+      "pic": "/tryit/tabula/blues_crunch"
+    },
+    {
+      "id": "ambient_swells",
+      "name": [
+        "Ambient swells",
+        "Oleadas ambientales"
+      ],
+      "what": [
+        "Creative — Ambient · Cinematic, Film · Game",
+        "Creativo — Ambient · Cinemático, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/tabula/ambient_swells.mp3",
+      "level_db": -8.2,
+      "pic": "/tryit/tabula/ambient_swells"
+    },
+    {
+      "id": "fuzz_lead",
+      "name": [
+        "Fuzz lead",
+        "Solo con fuzz"
+      ],
+      "what": [
+        "Creative — Rock",
+        "Creativo — Rock"
+      ],
+      "wet": "/tryit/tabula/fuzz_lead.mp3",
+      "level_db": -0.3,
+      "pic": "/tryit/tabula/fuzz_lead"
+    }
+  ]
 }

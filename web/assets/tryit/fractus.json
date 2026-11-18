@@ -1,50 +1,62 @@
 {
- "unit": "fractus",
- "origin": "dev",
- "note": [
-  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
-  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
- ],
- "source": [
-  "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
-  "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
- ],
- "credit": [
-  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
-  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
- ],
- "loop": true,
- "seconds": 10.667,
- "lufs": -19.3,
- "dry": "/tryit/fractus/dry.mp3",
- "presets": [
-  {
-   "id": "sequenced",
-   "name": [
-    "Sequenced glitch",
-    "Glitch secuenciado"
-   ],
-   "what": [
-    "Reverse, a throw, an octave and a stutter on two bars",
-    "Reverso, un lanzamiento, una octava y un tartamudeo en dos compases"
-   ],
-   "wet": "/tryit/fractus/sequenced.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "cloud",
-   "name": [
-    "Grain cloud",
-    "Nube de granos"
-   ],
-   "what": [
-    "A cloud of grains beside the guitar",
-    "Una nube de granos junto a la guitarra"
-   ],
-   "wet": "/tryit/fractus/cloud.mp3",
-   "level_db": null,
-   "pic": null
-  }
- ]
+  "unit": "fractus",
+  "origin": "presets",
+  "note": [
+    "Rendered by Cantus from its factory presets on one take, each matched to one loudness by a gain alone.",
+    "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+  ],
+  "source": [
+    "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+    "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+  ],
+  "credit": [
+    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+  ],
+  "loop": true,
+  "dry": "/tryit/guitar.mp3",
+  "presets": [
+    {
+      "id": "trance_gate",
+      "name": [
+        "Trance gate",
+        "Puerta de trance"
+      ],
+      "what": [
+        "Creative — House · EDM, Ambient · Cinematic",
+        "Creativo — House · EDM, Ambient · Cinemático"
+      ],
+      "wet": "/tryit/fractus/trance_gate.mp3",
+      "level_db": -0.1,
+      "pic": "/tryit/fractus/trance_gate"
+    },
+    {
+      "id": "grain_pad",
+      "name": [
+        "Grain pad",
+        "Pad de granos"
+      ],
+      "what": [
+        "Creative — Ambient · Cinematic, Film · Game, Worship · Gospel",
+        "Creativo — Ambient · Cinemático, Cine · Videojuegos, Alabanza · Gospel"
+      ],
+      "wet": "/tryit/fractus/grain_pad.mp3",
+      "level_db": 0.2,
+      "pic": "/tryit/fractus/grain_pad"
+    },
+    {
+      "id": "cloud_to_freeze",
+      "name": [
+        "Cloud to freeze",
+        "Nube para congelar"
+      ],
+      "what": [
+        "Creative — Ambient · Cinematic, Film · Game",
+        "Creativo — Ambient · Cinemático, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/fractus/cloud_to_freeze.mp3",
+      "level_db": 1.4,
+      "pic": "/tryit/fractus/cloud_to_freeze"
+    }
+  ]
 }

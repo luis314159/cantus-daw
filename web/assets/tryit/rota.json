@@ -1,64 +1,76 @@
 {
- "unit": "rota",
- "origin": "dev",
- "note": [
-  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
-  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
- ],
- "source": [
-  "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
-  "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
- ],
- "credit": [
-  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
-  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
- ],
- "loop": true,
- "seconds": 10.667,
- "lufs": -19.3,
- "dry": "/tryit/rota/dry.mp3",
- "presets": [
-  {
-   "id": "slow",
-   "name": [
-    "Slow",
-    "Lento"
-   ],
-   "what": [
-    "The horn and the drum turning slowly",
-    "La bocina y el tambor girando lento"
-   ],
-   "wet": "/tryit/rota/slow.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "fast",
-   "name": [
-    "Fast",
-    "Rápido"
-   ],
-   "what": [
-    "Both rotors at full speed",
-    "Los dos rotores a toda velocidad"
-   ],
-   "wet": "/tryit/rota/fast.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "switching",
-   "name": [
-    "Slow to fast",
-    "De lento a rápido"
-   ],
-   "what": [
-    "The switch thrown: each rotor ramps at its own pace",
-    "El cambio accionado: cada rotor acelera a su ritmo"
-   ],
-   "wet": "/tryit/rota/switching.mp3",
-   "level_db": null,
-   "pic": null
-  }
- ]
+  "unit": "rota",
+  "origin": "presets",
+  "note": [
+    "Rendered by Cantus from its factory presets on one take, each matched to one loudness by a gain alone.",
+    "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+  ],
+  "source": [
+    "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+    "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+  ],
+  "credit": [
+    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+  ],
+  "loop": true,
+  "dry": "/tryit/guitar.mp3",
+  "presets": [
+    {
+      "id": "chorale",
+      "name": [
+        "Chorale",
+        "Coral"
+      ],
+      "what": [
+        "Creative — Jazz · Soul, Worship · Gospel",
+        "Creativo — Jazz · Soul, Alabanza · Gospel"
+      ],
+      "wet": "/tryit/rota/chorale.mp3",
+      "level_db": -1.8,
+      "pic": "/tryit/rota/chorale"
+    },
+    {
+      "id": "tremolo",
+      "name": [
+        "Tremolo",
+        "Trémolo"
+      ],
+      "what": [
+        "Creative — Rock, Jazz · Soul",
+        "Creativo — Rock, Jazz · Soul"
+      ],
+      "wet": "/tryit/rota/tremolo.mp3",
+      "level_db": -1.9,
+      "pic": "/tryit/rota/tremolo"
+    },
+    {
+      "id": "gospel",
+      "name": [
+        "Gospel",
+        "Gospel"
+      ],
+      "what": [
+        "Creative — R&B, Worship · Gospel",
+        "Creativo — R&B, Alabanza · Gospel"
+      ],
+      "wet": "/tryit/rota/gospel.mp3",
+      "level_db": -2.0,
+      "pic": "/tryit/rota/gospel"
+    },
+    {
+      "id": "slow_ramp",
+      "name": [
+        "Slow ramp",
+        "Rampa lenta"
+      ],
+      "what": [
+        "Creative — Ambient · Cinematic, Film · Game",
+        "Creativo — Ambient · Cinemático, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/rota/slow_ramp.mp3",
+      "level_db": -1.8,
+      "pic": "/tryit/rota/slow_ramp"
+    }
+  ]
 }

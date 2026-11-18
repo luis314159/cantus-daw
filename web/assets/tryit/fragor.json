@@ -1,78 +1,76 @@
 {
- "unit": "fragor",
- "origin": "dev",
- "note": [
-  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
-  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
- ],
- "source": [
-  "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
-  "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
- ],
- "credit": [
-  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
-  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
- ],
- "loop": true,
- "seconds": 10.667,
- "lufs": -19.3,
- "dry": "/tryit/fragor/dry.mp3",
- "presets": [
-  {
-   "id": "green_overdrive",
-   "name": [
-    "Green overdrive",
-    "Overdrive verde"
-   ],
-   "what": [
-    "The green overdrive alone",
-    "El overdrive verde solo"
-   ],
-   "wet": "/tryit/fragor/green_overdrive.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "germanium_fuzz",
-   "name": [
-    "Germanium fuzz",
-    "Fuzz de germanio"
-   ],
-   "what": [
-    "The germanium fuzz alone",
-    "El fuzz de germanio solo"
-   ],
-   "wet": "/tryit/fragor/germanium_fuzz.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "stacked_lead",
-   "name": [
-    "Stacked lead",
-    "Solista apilado"
-   ],
-   "what": [
-    "A factory preset: two pedals stacked",
-    "Un preset de fábrica: dos pedales apilados"
-   ],
-   "wet": "/tryit/fragor/stacked_lead.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "vintage_fuzz",
-   "name": [
-    "Vintage fuzz",
-    "Fuzz antiguo"
-   ],
-   "what": [
-    "A factory preset",
-    "Un preset de fábrica"
-   ],
-   "wet": "/tryit/fragor/vintage_fuzz.mp3",
-   "level_db": null,
-   "pic": null
-  }
- ]
+  "unit": "fragor",
+  "origin": "presets",
+  "note": [
+    "Rendered by Cantus from its factory presets on one take, each matched to one loudness by a gain alone.",
+    "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+  ],
+  "source": [
+    "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+    "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+  ],
+  "credit": [
+    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+  ],
+  "loop": true,
+  "dry": "/tryit/guitar.mp3",
+  "presets": [
+    {
+      "id": "green_push",
+      "name": [
+        "Green push",
+        "Empuje verde"
+      ],
+      "what": [
+        "Creative — Pop, Rock",
+        "Creativo — Pop, Rock"
+      ],
+      "wet": "/tryit/fragor/green_push.mp3",
+      "level_db": 2.1,
+      "pic": "/tryit/fragor/green_push"
+    },
+    {
+      "id": "blues_edge",
+      "name": [
+        "Blues edge",
+        "Filo de blues"
+      ],
+      "what": [
+        "Creative — Rock, Jazz · Soul",
+        "Creativo — Rock, Jazz · Soul"
+      ],
+      "wet": "/tryit/fragor/blues_edge.mp3",
+      "level_db": 3.2,
+      "pic": "/tryit/fragor/blues_edge"
+    },
+    {
+      "id": "stacked_lead",
+      "name": [
+        "Stacked lead",
+        "Solo apilado"
+      ],
+      "what": [
+        "Creative — Rock",
+        "Creativo — Rock"
+      ],
+      "wet": "/tryit/fragor/stacked_lead.mp3",
+      "level_db": -1.3,
+      "pic": "/tryit/fragor/stacked_lead"
+    },
+    {
+      "id": "rat_rhythm",
+      "name": [
+        "Thick rhythm",
+        "Ritmo espeso"
+      ],
+      "what": [
+        "Creative — Rock",
+        "Creativo — Rock"
+      ],
+      "wet": "/tryit/fragor/rat_rhythm.mp3",
+      "level_db": -0.4,
+      "pic": "/tryit/fragor/rat_rhythm"
+    }
+  ]
 }

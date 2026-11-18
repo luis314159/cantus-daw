@@ -1,78 +1,34 @@
 {
- "unit": "lapsus",
- "origin": "dev",
- "note": [
-  "Sound examples from the unit's own development renders on one take, each matched to one loudness by a gain alone.",
-  "Ejemplos de sonido de los propios renders de desarrollo de la unidad sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
- ],
- "source": [
-  "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
-  "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
- ],
- "credit": [
-  "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
-  "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
- ],
- "loop": true,
- "seconds": 10.667,
- "lufs": -19.3,
- "dry": "/tryit/lapsus/dry.mp3",
- "presets": [
-  {
-   "id": "tape_stop",
-   "name": [
-    "Tape stop",
-    "Parada de cinta"
-   ],
-   "what": [
-    "A quarter-note tape stop",
-    "Una parada de cinta de una negra"
-   ],
-   "wet": "/tryit/lapsus/tape_stop.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "half_time",
-   "name": [
-    "Half time",
-    "Medio tiempo"
-   ],
-   "what": [
-    "The guitar at half speed, in time",
-    "La guitarra a media velocidad, a tiempo"
-   ],
-   "wet": "/tryit/lapsus/half_time.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "stutter_roll",
-   "name": [
-    "Stutter roll",
-    "Redoble de tartamudeo"
-   ],
-   "what": [
-    "Repeats rolling faster",
-    "Repeticiones cada vez más rápidas"
-   ],
-   "wet": "/tryit/lapsus/stutter_roll.mp3",
-   "level_db": null,
-   "pic": null
-  },
-  {
-   "id": "reverse",
-   "name": [
-    "Reverse",
-    "Reverso"
-   ],
-   "what": [
-    "Half of each bar played backwards",
-    "La mitad de cada compás al revés"
-   ],
-   "wet": "/tryit/lapsus/reverse.mp3",
-   "level_db": null,
-   "pic": null
-  }
- ]
+  "unit": "lapsus",
+  "origin": "presets",
+  "note": [
+    "Rendered by Cantus from its factory presets on one take, each matched to one loudness by a gain alone.",
+    "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
+  ],
+  "source": [
+    "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+    "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+  ],
+  "credit": [
+    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
+    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
+  ],
+  "loop": true,
+  "dry": "/tryit/guitar.mp3",
+  "presets": [
+    {
+      "id": "wobble",
+      "name": [
+        "Warped record",
+        "Disco alabeado"
+      ],
+      "what": [
+        "Creative — Lo-fi",
+        "Creativo — Lo-fi"
+      ],
+      "wet": "/tryit/lapsus/wobble.mp3",
+      "level_db": 0.0,
+      "pic": "/tryit/lapsus/wobble"
+    }
+  ]
 }
