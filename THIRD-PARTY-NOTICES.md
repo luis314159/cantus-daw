@@ -11,6 +11,7 @@ ask us to carry. Nothing here limits the rights each licence gives you.
 
 - [Cantus itself](#cantus-itself)
 - [Patched crates: cpal and asio-sys](#patched-crates-cpal-and-asio-sys)
+- [Patched crate: eframe](#patched-crate-eframe)
 - [The Steinberg ASIO SDK](#the-steinberg-asio-sdk)
 - [Trademarks](#trademarks)
 - [Maths: libm and musl](#maths-libm-and-musl)
@@ -54,6 +55,21 @@ Cantus's ASIO fixes marked `CANTUS PATCH` (`third_party/README.md` lists every c
   contributors in 2026, as Apache-2.0 §4(b) asks us to say: the changes are in
   `src/host/asio/` and `src/host/mod.rs` of cpal and in `build.rs`, `src/lib.rs` and
   `src/bindings/mod.rs` of asio-sys.
+
+## Patched crate: eframe
+
+`third_party/eframe` (eframe 0.36.1) is the crates.io release of the egui project,
+<https://github.com/emilk/egui/tree/main/crates/eframe>, with two changes for several
+windows marked `CANTUS PATCH` (`third_party/README.md`): each due window painted in turn on
+Windows, and each window's winit handle for the application.
+
+- Licence: **MIT OR Apache-2.0**, at your choice — `third_party/eframe/LICENSE-MIT` and
+  `third_party/eframe/LICENSE-APACHE` (the crate ships without the files; the texts are the
+  standard ones, the MIT one carrying the egui project's copyright line).
+- Copyright © 2018-2021 Emil Ernerfeldt and the egui contributors. Modified by the Cantus
+  contributors in 2026: the changes are in `src/native/run.rs`,
+  `src/native/glow_integration.rs`, `src/native/mod.rs`, `src/lib.rs` and the new
+  `src/native/cantus_windows.rs`.
 
 ## The Steinberg ASIO SDK
 
@@ -773,7 +789,7 @@ The list, with every file's URL and SHA-256, is `crates/cantus-content/manifest/
 
 ## Rust crates
 
-515 crates from crates.io are compiled into `cantus.exe` and the Cantus plug-ins (Windows x64); 34 more are used only to build them (marked *build*). Each is listed with the licence its author declared and the licence files it ships, printed once each under [Licence texts](#licence-texts). Where a crate offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its author allows. The patched `cpal` and `asio-sys` are under [Patched crates](#patched-crates-cpal-and-asio-sys) above.
+514 crates from crates.io are compiled into `cantus.exe` and the Cantus plug-ins (Windows x64); 34 more are used only to build them (marked *build*). Each is listed with the licence its author declared and the licence files it ships, printed once each under [Licence texts](#licence-texts). Where a crate offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its author allows. The patched `cpal` and `asio-sys` are under [Patched crates](#patched-crates-cpal-and-asio-sys) above.
 
 | Crate | Version | Licence | Texts |
 |---|---|---|---|
@@ -906,7 +922,6 @@ The list, with every file's URL and SHA-256, is `crates/cantus-content/manifest/
 | dpi | 0.1.2 | Apache-2.0 AND MIT | [T2](#t2) [T76](#t76) |
 | duplicate | 2.0.1 | MIT OR Apache-2.0 | [T77](#t77) [T78](#t78) |
 | ecolor | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| eframe | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
 | egui | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
 | egui-baseview | 0.7.2 | MIT OR Apache-2.0 | [T79](#t79) [T80](#t80) |
 | egui-wgpu | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
@@ -11935,7 +11950,6 @@ Crates that ship no licence file, with the authors their manifest names:
 - dispatch 0.2.0 — `MIT` — Copyright (c) Steven Sheldon
 - dispatch2 0.3.1 — `Zlib OR Apache-2.0 OR MIT` — Copyright (c) Mads Marquart <mads@marquart.dk>, Mary <mary@mary.zone>
 - ecolor 0.36.1 — `MIT OR Apache-2.0` — Copyright (c) Emil Ernerfeldt <emil.ernerfeldt@gmail.com>, Andreas Reich <reichandreas@gmx.de>
-- eframe 0.36.1 — `MIT OR Apache-2.0` — Copyright (c) Emil Ernerfeldt <emil.ernerfeldt@gmail.com>
 - egui 0.36.1 — `MIT OR Apache-2.0` — Copyright (c) Emil Ernerfeldt <emil.ernerfeldt@gmail.com>
 - egui-wgpu 0.36.1 — `MIT OR Apache-2.0` — Copyright (c) Nils Hasenbanck <nils@hasenbanck.de>, embotech <opensource@embotech.com>, Emil Ernerfeldt <emil.ernerfeldt@gmail.com>
 - egui-winit 0.36.1 — `MIT OR Apache-2.0` — Copyright (c) Emil Ernerfeldt <emil.ernerfeldt@gmail.com>
