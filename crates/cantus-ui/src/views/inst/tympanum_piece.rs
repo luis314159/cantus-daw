@@ -291,6 +291,8 @@ pub fn panel(
     let ow = iu::width(ui, s, &open, 11.0, W::Medium) + s.s(2.0);
     let or = Rect::from_min_size(pos2(x + w - ow, y), vec2(ow, s.s(20.0)));
     let oresp = child.interact(or, child.id().with("open-mixer"), Sense::click());
+    // fx/final — the help line names where the link goes (as Chorda's does).
+    let oresp = iu::hint(oresp, || t("tympanum.open_mixer_tip"));
     if oresp.clicked() {
         if let Some(m) = def::main_of(def, pd.index) {
             lk.mic = m.output.0;

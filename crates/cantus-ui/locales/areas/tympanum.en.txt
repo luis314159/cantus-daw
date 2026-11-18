@@ -152,6 +152,7 @@ tympanum.last_hit = Last hit
 tympanum.sound = Sound
 tympanum.heard_by = Heard by
 tympanum.open_mixer = Open the mixer ›
+tympanum.open_mixer_tip = The Mixer view, on this piece's main microphone: the kit's mics on their faders and routes
 tympanum.heard_by_none = No microphone hears it: every one of its cells is off.
 
 # The pieces row and the cards under the picture.

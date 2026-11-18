@@ -152,6 +152,7 @@ tympanum.last_hit = Último golpe
 tympanum.sound = Sonido
 tympanum.heard_by = La oyen
 tympanum.open_mixer = Abrir el mezclador ›
+tympanum.open_mixer_tip = La vista Mezclador, en el micrófono principal de esta pieza: los micros del kit en sus faders y rutas
 tympanum.heard_by_none = Ningún micrófono la oye: todas sus celdas están apagadas.
 
 # La fila de piezas y las tarjetas bajo la imagen.
