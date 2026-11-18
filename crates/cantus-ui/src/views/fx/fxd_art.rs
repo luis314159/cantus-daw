@@ -327,10 +327,12 @@ pub fn lay_cards<'v>(
                                 def,
                                 fmt,
                                 unit,
+                                taper,
                                 param,
                             },
                         ) => {
                             let mut cell = controls::Cell::new(v, lo..=hi, def)
+                                .taper(taper)
                                 .size(Size::M)
                                 .label(Src::Key(lab))
                                 .width(w)
@@ -434,6 +436,8 @@ pub enum Value<'a> {
         fmt: &'a dyn Fn(f32, &mut String),
         /// The readout's unit, so a typed value reads as printed (`%`: 0…100 for 0…1).
         unit: &'static str,
+        /// The knob's travel over its range.
+        taper: crate::widgets::knob::Taper,
         /// The controller's parameter it stands for ([`Params`]' slot); `None` for a
         /// setting that is no parameter.
         param: Option<usize>,

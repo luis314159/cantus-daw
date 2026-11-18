@@ -74,6 +74,7 @@ ctl.value.off = No
 
 # La línea de estado
 ctl.status.armed = Mueve un control de tu controlador MIDI para {name} (Esc cancela)
+ctl.status.armed_pair = Mueve un control de tu controlador MIDI para {a} y luego otro para {b} (Esc cancela)
 ctl.status.cancelled = Aprendizaje MIDI cancelado
 ctl.status.learnt = {source} mueve ahora {name}
 ctl.status.learnt_shared = {source} mueve ahora {name}, y también {others}

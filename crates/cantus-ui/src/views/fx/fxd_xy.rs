@@ -12,6 +12,7 @@ use crate::kit::color::{mix, with_alpha};
 use crate::kit::glyph::Glyph;
 use crate::kit::text::{Role, Src};
 use crate::kit::{Brush, Fill, Style};
+use crate::widgets::knob::Taper;
 use cantus_core::modulator::{RouteRange, XySource};
 use cantus_dsp::math::{cos, sin};
 use egui::{pos2, vec2, Align2, Pos2, Rect, Vec2};
@@ -160,6 +161,12 @@ pub const CARDS: [Card<'static>; 2] = [
 pub const PAD: f32 = 470.0;
 pub const SIDE: f32 = 500.0;
 const RAIL: f32 = 26.0;
+/// The inertia knob's top: the model's whole range (`MAX_INERTIA_MS`, as the agents' tool
+/// and the presets take it), so a pad set past 2 s shows truly and a touch keeps it.
+pub const INERTIA_MAX: f32 = cantus_core::modulator::xy::MAX_INERTIA_MS;
+/// The inertia knob's travel: three quarters of it in the first two seconds, where the
+/// musical glides are (`value_at(0.75)` ≈ 2 000 ms, half the travel ≈ 390 ms).
+pub const INERTIA_TAPER: Taper = Taper::Swell(6.41);
 /// Parameters an axis names on its rail; the rest are counted.
 const RAIL_NAMES: usize = 2;
 const MARGIN: f32 = 14.0;
@@ -368,6 +375,7 @@ pub fn body(
                 def: 0.5,
                 fmt: &pct,
                 unit: "%",
+                taper: Taper::Linear,
                 param: Some(0),
             },
             (0, 1) => Value::Knob {
@@ -377,6 +385,7 @@ pub fn body(
                 def: 0.5,
                 fmt: &pct,
                 unit: "%",
+                taper: Taper::Linear,
                 param: Some(1),
             },
             (0, 2) => Value::Choice(usize::from(src.unipolar)),
@@ -387,15 +396,17 @@ pub fn body(
                 def: 1.0,
                 fmt: &pct,
                 unit: "%",
+                taper: Taper::Linear,
                 param: Some(art::AMOUNT),
             },
             (1, 0) => Value::Knob {
                 v: src.inertia_ms,
                 lo: 0.0,
-                hi: 2_000.0,
+                hi: INERTIA_MAX,
                 def: 0.0,
                 fmt: &ms,
                 unit: "ms",
+                taper: INERTIA_TAPER,
                 // How the puck follows, not a parameter: set, never automated (ADR 0147).
                 param: None,
             },
@@ -414,6 +425,7 @@ pub fn body(
                 def: 4.0,
                 fmt: &beats,
                 unit: "",
+                taper: Taper::Linear,
                 param: None,
             },
             _ => Value::Choice(usize::from(path.is_none_or(|p| p.smooth))),
@@ -776,7 +788,8 @@ fn flywheel(b: &mut Brush, s: &Style, r: Rect, src: &XySource, live: &Live) {
     );
     let c = pos2(r.left() + r.width() * 0.38, r.center().y + 8.0 * k);
     let rad = (r.height() * 0.38).min(r.width() * 0.3);
-    let heavy = (src.inertia_ms / 2_000.0).clamp(0.0, 1.0).sqrt();
+    // Heavier along the knob's own travel (most of it in the first two seconds).
+    let heavy = crate::widgets::knob::pos_of(src.inertia_ms, 0.0, INERTIA_MAX, INERTIA_TAPER);
     let speed = live.trail.windows(2).last().map_or(0.0, |w| {
         ((w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]) * 40.0).min(1.0)
     });

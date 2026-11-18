@@ -300,6 +300,7 @@ pub fn body(
                 def: 0.5,
                 fmt: &pct,
                 unit: "",
+                taper: crate::widgets::knob::Taper::Linear,
                 param: Some(i.min(2)),
             },
             (_, 0) => Value::Choice(usize::from(src.bipolar)),
@@ -310,6 +311,7 @@ pub fn body(
                 def: 1.0,
                 fmt: &amt,
                 unit: "%",
+                taper: crate::widgets::knob::Taper::Linear,
                 param: Some(art::AMOUNT),
             },
         }

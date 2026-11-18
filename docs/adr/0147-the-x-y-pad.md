@@ -212,6 +212,22 @@ Spanish too), the window is shorter, and the list is sized to its rows. Shots:
   polarity) are no parameter — nothing automates a modulator's settings, as the
   inspector's rows of every modulator's — and are drawn plain (`Cell::plain`, the probes
   pass them by).
+- **The last thing touched is the pad** (follow-up 2): a drag sets X and Y in one batch,
+  and *last tweaked* keeps both (`AutoUi::last_tweaked_with`, set when a batch's parameters
+  are exactly two inputs of one modulator). `Alt+A` makes the clips of the axes that have
+  none in **one undo step** (`automate_pair`, as a recorded gesture writes two lanes), and
+  shows X's when both have one. `Alt+Shift+A` learns the pair **X, then Y** — the kit arms one
+  target at a time, so the second is queued (`ControllerUi::learn_next`) and armed when the
+  first is learnt; the control just learnt is passed over while the second waits
+  (`learn_skip`), so a knob still turning is not taken twice; `Esc` drops both; each mapping
+  is its own undo step. Chosen over learning the pair from one two-control gesture (a
+  hardware XY pad's two CCs): that needs a second detection mode, and X-then-Y serves both a
+  joystick and two knobs. A card knob is one axis and stays one.
+- **The inertia knob covers the model's range** (follow-up 2): 0–10 000 ms
+  (`MAX_INERTIA_MS`, the agents' tool's and the presets' range) on a swell taper
+  (`Taper::Swell(6.41)`: three quarters of the travel to 2 s, half to ~390 ms), so a pad set
+  past 2 s reads truly and a touch never pulls it back; the flywheel's weight follows the
+  knob's travel.
 - **The chip, the list and the rails count the same routes**: the footer's chip and the
   rails come from the routes the list lists (`fxd_xy::drives_chip`, `fxd_xy::rail_words`); a
   rail names as many as it holds (at most two) and counts the rest, never cutting the
@@ -226,7 +242,11 @@ Spanish too), the window is shorter, and the list is sized to its rows. Shots:
   automate, edit, learn with a turned controller, forget, reset — one step each where it
   mutates); `a_controllers_own_settings_offer_no_automation`;
   `the_learn_mode_reaches_every_parameter_of_the_windows`;
-  `alt_a_automates_and_alt_shift_a_learns_what_was_moved_last_on_the_window`.
+  `alt_a_automates_and_alt_shift_a_learns_what_was_moved_last_on_the_window`;
+  `alt_a_after_a_pad_drag_automates_both_axes_in_one_step`;
+  `alt_shift_a_after_a_pad_drag_learns_x_then_y`;
+  `the_inertia_knob_reaches_the_models_whole_range`. `cantus-ai` `tests/tools_fxd.rs`:
+  `an_agent_sets_a_pads_inertia_over_the_models_whole_range`.
   `tests/learn_everywhere.rs`: `the_controllers_windows_offer_learn_on_every_parameter`.
 
 - `cantus-core` `modulator::fxd_tests`: the input command and its exact inverse, merging,

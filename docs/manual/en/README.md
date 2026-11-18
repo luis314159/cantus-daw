@@ -1240,7 +1240,9 @@ it heads (your hand, the automation, or the path); a fading trail follows it.
   way** makes the left and bottom edges the parameters' own values, the puck only adding.
 - **Inertia** (the *Motion* card, 0 to 10 000 ms; the flywheel beside the pad shows it):
   the puck glides after your hand instead of jumping, starting gently and never
-  overshooting. At 0 it follows at once.
+  overshooting. At 0 it follows at once. The knob spends three quarters of its turn on the
+  first two seconds (half a turn is about 400 ms), the last quarter on the slow glides up
+  to ten seconds.
 - **Horizontal** and **Vertical** on the *Pad* card set the puck exactly, as a drag does;
   **Amount** is the modulator's amount, scaling every route at once.
 
@@ -1256,6 +1258,13 @@ once linked), *Reset to default*. Or move its knob and press `Alt+A` (*automate 
 thing you touched*); `Alt+Shift+A` links it to a MIDI controller the same way. *Amount*
 offers the same; the inertia, the path's settings and the polarity are the pad's own
 settings, not parameters, and offer none of it.
+
+**The last thing touched is the pad.** After a drag on the pad, `Alt+A` makes the lanes of
+**both axes**, X and Y, in one undo step (as a recorded gesture writes two); when both
+already have theirs, it shows them. `Alt+Shift+A` links both to your MIDI controller: move
+a control for X, then another for Y (the status line says which it waits for; the control
+just learnt for X is passed over while Y waits; `Esc` lets both go). Each link is an undo
+step. A knob on the *Pad* card is one axis: `Alt+A` after it makes that axis's lane alone.
 
 **Paths: gestures that loop with the song.** A path is a loop the puck follows while the
 song plays (stopped, your hand has the pad again), read from the song position — so a play

@@ -1357,7 +1357,9 @@ apaga.
   los parámetros, y el disco solo suma.
 - **Inercia** (tarjeta *Movimiento*, de 0 a 10 000 ms; el volante junto al pad la muestra):
   el disco se desliza tras tu mano en vez de saltar, arranca suave y nunca se pasa. En 0
-  sigue a la mano al instante.
+  sigue a la mano al instante. La perilla dedica tres cuartos de su giro a los dos primeros
+  segundos (medio giro son unos 400 ms) y el último cuarto a los deslizamientos lentos, hasta
+  diez segundos.
 - **Horizontal** y **Vertical**, en la tarjeta *Pad*, colocan el disco con exactitud, como
   un arrastre; **Cantidad** es la cantidad del modulador y escala todas sus rutas a la vez.
 
@@ -1375,6 +1377,14 @@ cuando está enlazado), *Volver al valor por defecto*. O mueve su perilla y puls
 (*automatiza lo último que tocaste*); `Alt+Shift+A` lo enlaza del mismo modo a un
 controlador MIDI. *Cantidad* ofrece lo mismo; la inercia, los ajustes del trayecto y la
 polaridad son ajustes propios del pad, no parámetros, y no ofrecen nada de esto.
+
+**Lo último que tocaste es el pad.** Tras un arrastre en el pad, `Alt+A` crea los carriles
+de **los dos ejes**, X e Y, en un solo paso de deshacer (como al grabar un gesto); si ambos
+ya tienen el suyo, los muestra. `Alt+Shift+A` enlaza ambos a tu controlador MIDI: mueve un
+control para X y luego otro para Y (la línea de estado dice cuál espera; el control recién
+aprendido para X se ignora mientras Y espera; `Esc` cancela los dos). Cada enlace es un paso
+de deshacer. Una perilla de la tarjeta *Pad* es un solo eje: `Alt+A` tras moverla crea solo
+el carril de ese eje.
 
 **Trayectos: gestos que se repiten con la canción.** Un trayecto es un bucle que el disco
 sigue mientras suena la canción (parada, el pad vuelve a ser de tu mano), leído de la

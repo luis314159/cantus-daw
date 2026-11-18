@@ -178,6 +178,12 @@ pub struct ControllerUi {
     /// Ableton's MIDI Map mode: every learnable control outlined, a click arms it.
     pub learn_mode: bool,
     pub learning: Option<Learning>,
+    /// Armed after the one learning now, once it is learnt: *Link to controller* for an X-Y
+    /// pad's drag learns X, then Y (fxd, ADR 0147). Esc lets both go.
+    pub learn_next: Option<MappingTarget>,
+    /// The control just learnt for the pair's first (port, channel, control): passed over
+    /// while the second waits, so a knob still turning is not learnt twice.
+    pub(crate) learn_skip: Option<(u8, u8, cantus_core::controller::Control)>,
     /// Per mapping: takeover and toggles (core's arithmetic state).
     pub(crate) states: HashMap<Key, cantus_core::controller::DriveState>,
     /// When each mapping last moved something: the mappings view's activity dot.
@@ -684,6 +690,7 @@ impl CantusApp {
     /// is mapped already: its first mapping's source is replaced). Says so on the status
     /// line; Esc, or arming it again, lets go.
     pub fn learn_target(&mut self, target: MappingTarget) {
+        self.controllers.learn_skip = None;
         if self
             .controllers
             .learning
@@ -761,6 +768,8 @@ impl CantusApp {
 
     /// Stop waiting for a control.
     pub fn cancel_learning(&mut self) {
+        self.controllers.learn_next = None;
+        self.controllers.learn_skip = None;
         if self.controllers.learning.take().is_some() {
             self.set_status(t("ctl.status.cancelled"));
         }
@@ -854,6 +863,31 @@ impl CantusApp {
     /// plug-in's own window: move a knob there, then this, then the hardware.
     pub fn link_last_tweaked(&mut self) -> bool {
         match self.automation.last_tweaked.clone() {
+            // An X-Y pad's drag touched the pad: its X is learnt, then its Y (fxd, ADR 0147).
+            Some(target) if self.automation.last_tweaked_with.is_some() => {
+                let first = self
+                    .automation
+                    .last_tweaked_with
+                    .clone()
+                    .unwrap_or(target.clone());
+                let first = MappingTarget::Param(first);
+                self.learn_target(first.clone());
+                if self
+                    .controllers
+                    .learning
+                    .as_ref()
+                    .is_some_and(|l| l.target == first)
+                {
+                    let second = MappingTarget::Param(target);
+                    let (a, b) = (
+                        self.mapping_target_name(&first),
+                        self.mapping_target_name(&second),
+                    );
+                    self.controllers.learn_next = Some(second);
+                    self.set_status(tf("ctl.status.armed_pair", &[("a", &a), ("b", &b)]));
+                }
+                true
+            }
             Some(target) => {
                 self.learn_target(MappingTarget::Param(target));
                 true

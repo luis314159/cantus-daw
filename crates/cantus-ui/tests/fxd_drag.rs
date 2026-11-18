@@ -1288,3 +1288,213 @@ fn alt_a_automates_and_alt_shift_a_learns_what_was_moved_last_on_the_window() {
         }
     }
 }
+
+// ---- the pad's drag as the last thing touched; the inertia's whole range (follow-up 3) --
+
+/// The automation clips on `target`.
+fn clips_on(r: &Rig, target: &AutoTarget) -> usize {
+    r.app
+        .project()
+        .tracks
+        .iter()
+        .flat_map(|t| &t.clips)
+        .filter(|c| c.automation.as_ref().is_some_and(|a| &a.target == target))
+        .count()
+}
+
+/// A drag on the pad touches the pad — X and Y: `Alt+A` then makes both lanes in one undo
+/// step (as a recorded gesture writes two), and again, with both there, shows them (no
+/// step, no third clip).
+#[test]
+fn alt_a_after_a_pad_drag_automates_both_axes_in_one_step() {
+    let (mut r, id) = rig(ModKind::XyPad);
+    open(&mut r, id);
+    let (x, y) = (param(id, 0), param(id, 1));
+    r.drag(on_pad(&r, 0.5, 0.5), on_pad(&r, 0.8, 0.3));
+    let steps = undo_steps(&r);
+    r.key(Key::A, ALT);
+    assert_eq!((clips_on(&r, &x), clips_on(&r, &y)), (1, 1), "X and Y");
+    assert_eq!(undo_steps(&r), steps + 1, "one step for both");
+    r.app.undo();
+    assert_eq!(
+        (clips_on(&r, &x), clips_on(&r, &y)),
+        (0, 0),
+        "undone together"
+    );
+    r.app.redo();
+    r.settle();
+    // Both lanes there: Alt+A after another drag shows them.
+    r.drag(on_pad(&r, 0.8, 0.3), on_pad(&r, 0.2, 0.6));
+    let steps = undo_steps(&r);
+    r.key(Key::A, ALT);
+    assert_eq!(
+        (clips_on(&r, &x), clips_on(&r, &y)),
+        (1, 1),
+        "no more clips"
+    );
+    assert_eq!(undo_steps(&r), steps, "showing is no step");
+    // One axis there: only the other is made, one step.
+    let xs: Vec<(TrackId, ClipId)> = r
+        .app
+        .project()
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter().map(move |c| (t.id, c)))
+        .filter(|(_, c)| c.automation.as_ref().is_some_and(|a| a.target == x))
+        .map(|(t, c)| (t, c.id))
+        .collect();
+    for (track, clip) in xs {
+        r.app.exec(Command::RemoveClip { track, clip });
+    }
+    r.settle();
+    r.drag(on_pad(&r, 0.2, 0.6), on_pad(&r, 0.6, 0.6));
+    let steps = undo_steps(&r);
+    r.key(Key::A, ALT);
+    assert_eq!((clips_on(&r, &x), clips_on(&r, &y)), (1, 1), "X made again");
+    assert_eq!(undo_steps(&r), steps + 1);
+    // A card knob touched after the pad: that axis alone.
+    let k = item(&r, 0, 0, false);
+    r.drag(k.center(), k.center() + vec2(0.0, 20.0));
+    assert_eq!(r.app.automation.last_tweaked, Some(x.clone()));
+    assert_eq!(
+        r.app.automation.last_tweaked_with, None,
+        "the knob is one axis"
+    );
+}
+
+/// `Alt+Shift+A` after a pad drag learns the pad's pair: X from the first control moved,
+/// then Y from the next — the control just learnt for X is passed over while Y waits, so a
+/// knob still turning is not taken twice. Each mapping one undo step; Esc lets both go.
+#[test]
+fn alt_shift_a_after_a_pad_drag_learns_x_then_y() {
+    use cantus_core::controller::{Control, MappingTarget};
+    let (mut r, id) = rig(ModKind::XyPad);
+    r.app.midi_port_names = vec!["Keys".into()];
+    open(&mut r, id);
+    let (x, y) = (param(id, 0), param(id, 1));
+    r.drag(on_pad(&r, 0.5, 0.5), on_pad(&r, 0.7, 0.7));
+    let steps = undo_steps(&r);
+    r.key(Key::A, ALT_SHIFT);
+    let armed = |r: &Rig| {
+        r.app
+            .controllers
+            .learning
+            .as_ref()
+            .map(|l| l.target.clone())
+    };
+    assert_eq!(armed(&r), Some(MappingTarget::Param(x.clone())), "X first");
+    r.app.controller_heard(&turned(21));
+    assert_eq!(armed(&r), Some(MappingTarget::Param(y.clone())), "then Y");
+    // The X knob still turning is not Y's.
+    r.app.controller_heard(&turned(21));
+    assert_eq!(armed(&r), Some(MappingTarget::Param(y.clone())), "still Y");
+    r.app.controller_heard(&turned(22));
+    assert_eq!(armed(&r), None, "both learnt");
+    let control_of = |r: &Rig, t: &AutoTarget| {
+        r.app
+            .project()
+            .controllers
+            .mappings
+            .iter()
+            .find(|m| m.target == MappingTarget::Param(t.clone()))
+            .map(|m| m.source.control)
+    };
+    assert_eq!(control_of(&r, &x), Some(Control::Cc(21)));
+    assert_eq!(control_of(&r, &y), Some(Control::Cc(22)));
+    assert_eq!(undo_steps(&r), steps + 2, "a step each");
+    // Esc while X waits lets the pair go.
+    r.drag(on_pad(&r, 0.7, 0.7), on_pad(&r, 0.3, 0.3));
+    r.key(Key::A, ALT_SHIFT);
+    assert!(armed(&r).is_some());
+    r.app.cancel_learning();
+    r.app.controller_heard(&turned(23));
+    assert_eq!(armed(&r), None, "nothing armed after Esc");
+}
+
+/// A controller (MIDI CC `n`) turned.
+fn turned(n: u8) -> Vec<cantus_engine::midi::Heard> {
+    (60u8..68)
+        .map(|v| cantus_engine::midi::Heard {
+            port: 0,
+            event: cantus_engine::MidiEvent {
+                status: 0xB0,
+                data1: n,
+                data2: v,
+            },
+            at: std::time::Instant::now(),
+        })
+        .collect()
+}
+
+/// The inertia knob covers the model's whole range (0–10 000 ms, as the agents' tool and
+/// the presets take it), three quarters of its travel in the first two seconds: a pad set
+/// to 5 s reads 5 000 ms, a touch that does not move leaves it there, a turn moves it from
+/// there, the knob's top is 10 s.
+#[test]
+fn the_inertia_knob_reaches_the_models_whole_range() {
+    use cantus_core::modulator::xy::MAX_INERTIA_MS;
+    use cantus_ui::views::fx::fxd_xy;
+    assert_eq!(
+        fxd_xy::INERTIA_MAX,
+        MAX_INERTIA_MS,
+        "the knob's top is the model's"
+    );
+    let at =
+        |p: f32| cantus_ui::widgets::knob::value_at(p, 0.0, MAX_INERTIA_MS, fxd_xy::INERTIA_TAPER);
+    assert!(
+        (at(0.75) - 2_000.0).abs() < 25.0,
+        "2 s at three quarters: {}",
+        at(0.75)
+    );
+    assert!(
+        at(0.5) > 250.0 && at(0.5) < 600.0,
+        "half the travel: {}",
+        at(0.5)
+    );
+    assert_eq!(at(0.0), 0.0);
+    assert!((at(1.0) - MAX_INERTIA_MS).abs() < 0.5);
+    for p in presets::of_kind(ModKind::XyPad) {
+        if let ModSource::XyPad(x) = (p.source)() {
+            assert!(x.inertia_ms <= MAX_INERTIA_MS, "{}", p.id);
+        }
+    }
+    let (mut r, id) = rig(ModKind::XyPad);
+    let mut m = r.app.project().modulator(id).unwrap().2.clone();
+    if let ModSource::XyPad(x) = &mut m.source {
+        x.inertia_ms = 5_000.0;
+    }
+    assert!(r.app.edit_modulator(m, None));
+    open(&mut r, id);
+    let k = item(&r, 1, 0, false);
+    let reads = |r: &Rig, k: Rect| -> Vec<String> {
+        r.texts
+            .iter()
+            .filter(|p| k.expand(30.0).contains(p.seen.center()) && p.text.ends_with("ms"))
+            // The pill sets its unit off by a narrow space: compared without spaces.
+            .map(|p| p.text.chars().filter(|c| !c.is_whitespace()).collect())
+            .collect()
+    };
+    assert!(
+        reads(&r, k).iter().any(|t| t == "5000ms"),
+        "{:?}",
+        reads(&r, k)
+    );
+    // A touch that does not move.
+    let steps = undo_steps(&r);
+    r.click(k.center());
+    assert_eq!(pad_of(&r, id).inertia_ms, 5_000.0, "a touch keeps it");
+    assert_eq!(undo_steps(&r), steps, "and is no step");
+    // A small turn up moves it from there, up.
+    r.drag(k.center(), k.center() - vec2(0.0, 16.0));
+    let v = pad_of(&r, id).inertia_ms;
+    assert!(v > 5_000.0 && v < MAX_INERTIA_MS, "turned from 5 s: {v}");
+    // To the top: 10 s.
+    r.drag(k.center(), k.center() - vec2(0.0, 600.0));
+    assert_eq!(pad_of(&r, id).inertia_ms, MAX_INERTIA_MS, "the top is 10 s");
+    let k = item(&r, 1, 0, false);
+    assert!(
+        reads(&r, k).iter().any(|t| t == "10000ms"),
+        "{:?}",
+        reads(&r, k)
+    );
+}

@@ -170,6 +170,11 @@ impl<'a> Cell<'a> {
         self.taper = if on { Taper::Log } else { Taper::Linear };
         self
     }
+    /// The knob's travel over its range (`Taper::Swell`: most of it low).
+    pub fn taper(mut self, t: Taper) -> Self {
+        self.taper = t;
+        self
+    }
     pub fn stepped(mut self, on: bool) -> Self {
         self.stepped = on;
         self

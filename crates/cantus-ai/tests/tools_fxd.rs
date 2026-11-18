@@ -579,3 +579,27 @@ fn links_follow_their_routes() {
         json!({"modulator_id": pad, "change_routes": [{"target": gain, "range": {"from": 0, "to": 2}}]}),
     ));
 }
+
+/// The pad's inertia takes the model's whole range from an agent — 0 to 10 000 ms, the
+/// window's knob's too (fxd follow-up) — and refuses past it, naming the argument.
+#[test]
+fn an_agent_sets_a_pads_inertia_over_the_models_whole_range() {
+    use cantus_core::modulator::xy::MAX_INERTIA_MS;
+    let mut h = host();
+    let (_, _, pad) = with_pad(&mut h);
+    edit_ok(
+        &mut h,
+        "set_modulator",
+        json!({"modulator_id": pad, "inertia_ms": MAX_INERTIA_MS}),
+    );
+    let ModSource::XyPad(x) = modulator(h.bus.project(), pad).source else {
+        panic!("a pad")
+    };
+    assert_eq!(x.inertia_ms, MAX_INERTIA_MS);
+    let (k, _) = bad_reason(edit_err(
+        &mut h,
+        "set_modulator",
+        json!({"modulator_id": pad, "inertia_ms": MAX_INERTIA_MS + 1.0}),
+    ));
+    assert_eq!(k, "inertia_ms");
+}

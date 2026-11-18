@@ -36,6 +36,12 @@ impl CantusApp {
         }
         // The 7-bit reading: detection pairs a coarse controller with its fine twin itself.
         let (control, value, on) = decoded[0];
+        // The control just learnt for a pair's first, still turning: not the second's.
+        if let Some((p, c, learnt)) = self.controllers.learn_skip {
+            if p == h.port && c == channel && same_control(learnt, control) {
+                return;
+            }
+        }
         let Some(l) = self.controllers.learning.as_mut() else {
             return;
         };
@@ -116,6 +122,9 @@ impl CantusApp {
         let Some(l) = self.controllers.learning.take() else {
             return;
         };
+        // A pair's second waits on its first being learnt; nothing learnt, nothing next.
+        let next = self.controllers.learn_next.take();
+        self.controllers.learn_skip = None;
         // Armed from a control that stands for two values: read as two states (a pad
         // toggles between them).
         let mut shape = self.target_shape(&l.target);
@@ -207,6 +216,22 @@ impl CantusApp {
             )
         };
         self.set_status(text);
+        // A pair (an X-Y pad's X, then Y): the second armed now, the control just learnt
+        // passed over while it waits.
+        if let Some(next) = next {
+            let skip = l.source.map(|(p, c)| (p, c, m.source.control));
+            self.learn_target(next);
+            self.controllers.learn_skip = skip;
+        }
+    }
+}
+
+/// Whether a 7-bit reading `heard` is `learnt`'s (a 14-bit pair's coarse or fine half
+/// too).
+fn same_control(learnt: Control, heard: Control) -> bool {
+    match (learnt, heard) {
+        (Control::Cc14(n), Control::Cc(m)) => m == n || m == n + 32,
+        (a, b) => a == b,
     }
 }
 

@@ -19,6 +19,10 @@ pub struct AutoUi {
     /// The parameter the user last moved, from the command that moved it: FL's *Tools ▸
     /// Last tweaked*.
     pub last_tweaked: Option<AutoTarget>,
+    /// The parameter moved with it by the same gesture, when the last thing touched is a
+    /// pair: an X-Y pad's drag moves X and Y in one command (fxd, ADR 0147) — `last_tweaked`
+    /// is then Y and this X, and *Last tweaked* means the pad, both axes.
+    pub last_tweaked_with: Option<AutoTarget>,
     /// The lanes, compiled at a revision.
     cache: RefCell<Option<(u64, Arc<Vec<AutoLane>>)>>,
     /// The large editor's own state (`views::auto_editor`).
@@ -31,6 +35,7 @@ impl std::fmt::Debug for AutoUi {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AutoUi")
             .field("last_tweaked", &self.last_tweaked)
+            .field("last_tweaked_with", &self.last_tweaked_with)
             .finish()
     }
 }
@@ -94,6 +99,7 @@ impl CantusApp {
     /// Remember the parameter a command moved, if it moved one.
     pub fn note_tweak(&mut self, cmd: &Command) {
         if let Some(t) = AutoTarget::of_command(cmd) {
+            self.automation.last_tweaked_with = pad_pair(cmd, &t);
             self.automation.last_tweaked = Some(t);
         }
         // Written into the pass's automation while one records it (ADR 0057).
@@ -103,7 +109,11 @@ impl CantusApp {
     /// FL's *Tools ▸ Last tweaked ▸ Create automation clip*.
     pub fn automate_last_tweaked(&mut self) -> bool {
         match self.automation.last_tweaked.clone() {
-            Some(t) => self.create_automation_clip(t),
+            Some(t) => match self.automation.last_tweaked_with.clone() {
+                // A pad's drag: both axes (fxd, ADR 0147).
+                Some(first) => self.automate_pair(first, t),
+                None => self.create_automation_clip(t),
+            },
             None => {
                 self.set_status(t("auto.status.nothing_tweaked"));
                 false
@@ -116,6 +126,79 @@ impl CantusApp {
     /// It goes under the track the parameter belongs to (for a strip or the master, the
     /// selected track), selected, with the track's lanes shown. One undo step.
     pub fn create_automation_clip(&mut self, target: AutoTarget) -> bool {
+        let Some((track, id, commands, name)) = self.new_automation_clip(target) else {
+            return false;
+        };
+        let ok = self.exec(Command::Batch {
+            label_key: "auto.cmd.create".into(),
+            commands,
+        });
+        if ok {
+            self.select_clip(track, id);
+            self.set_status(tf("auto.status.created", &[("name", &name)]));
+        }
+        ok
+    }
+
+    /// *Last tweaked* for a pair moved by one gesture (an X-Y pad's X and Y, fxd): a clip
+    /// for each that has none, both in one undo step (as a recorded gesture writes two
+    /// lanes); when both have theirs, the first's is shown.
+    pub fn automate_pair(&mut self, first: AutoTarget, second: AutoTarget) -> bool {
+        let lacking: Vec<AutoTarget> = [first.clone(), second]
+            .into_iter()
+            .filter(|t| !self.has_automation_clip(t))
+            .collect();
+        if lacking.is_empty() {
+            self.automate(first);
+            return true;
+        }
+        let mut commands: Vec<Command> = Vec::new();
+        let mut made = Vec::new();
+        for t in lacking {
+            let Some((track, id, cmds, name)) = self.new_automation_clip(t) else {
+                return false;
+            };
+            for c in cmds {
+                if !commands.contains(&c) {
+                    commands.push(c);
+                }
+            }
+            made.push((track, id, name));
+        }
+        let ok = self.exec(Command::Batch {
+            label_key: "auto.cmd.create".into(),
+            commands,
+        });
+        if ok {
+            if let Some((track, id, _)) = made.first() {
+                self.select_clip(*track, *id);
+            }
+            let names: Vec<&str> = made.iter().map(|m| m.2.as_str()).collect();
+            let text = match names[..] {
+                [a, b] => tf("auto.status.created_two", &[("a", &a), ("b", &b)]),
+                _ => tf("auto.status.created", &[("name", &names.join(", "))]),
+            };
+            self.set_status(text);
+        }
+        ok
+    }
+
+    /// Whether an automation clip drives `target` (one there, muted or not).
+    fn has_automation_clip(&self, target: &AutoTarget) -> bool {
+        self.project().tracks.iter().any(|t| {
+            t.clips
+                .iter()
+                .any(|c| c.automation.as_ref().is_some_and(|a| &a.target == target))
+        })
+    }
+
+    /// The commands that make `target`'s new automation clip (see
+    /// [`Self::create_automation_clip`]), with its track, its id and its name; `None`, the
+    /// reason said, when it cannot have one.
+    fn new_automation_clip(
+        &mut self,
+        target: AutoTarget,
+    ) -> Option<(TrackId, cantus_core::ClipId, Vec<Command>, String)> {
         let project = self.project();
         // A key that is set, never automated (Chorda's tuning, ADR 0059).
         if let AutoTarget::Instrument { track, key } = &target {
@@ -125,17 +208,17 @@ impl CantusApp {
                 .map(|n| n.kind);
             if kind.is_some_and(|k| !k.automatable(key)) {
                 self.set_error(t("chorda.not_automatable"));
-                return false;
+                return None;
             }
         }
         let (Some(range), Some(value)) = (range_of(project, &target), base_value(project, &target))
         else {
             self.set_error(t("auto.status.no_target"));
-            return false;
+            return None;
         };
         let Some(track) = host_track(project, &target, self.selected_track) else {
             self.set_error(t("auto.status.no_track"));
-            return false;
+            return None;
         };
         let (start, end) = self.automation_span();
         // A hosted parameter's curve is its normalised value (ADR 0057): where it is now.
@@ -166,15 +249,7 @@ impl CantusApp {
                 open: true,
             });
         }
-        let ok = self.exec(Command::Batch {
-            label_key: "auto.cmd.create".into(),
-            commands,
-        });
-        if ok {
-            self.select_clip(track, id);
-            self.set_status(tf("auto.status.created", &[("name", &name)]));
-        }
-        ok
+        Some((track, id, commands, name))
     }
 
     /// Open an automation clip in the large editor (the piano roll's area).
@@ -415,4 +490,30 @@ pub fn write_value(project: &Project, target: &AutoTarget, v: f32, out: &mut Str
         }
         _ => crate::views::fx::controls::write_readout(v, unit_of(project, target), out),
     }
+}
+
+/// The other axis a command moved with `last`, when it moved a pad's pair: a batch whose
+/// parameters are exactly two inputs of one modulator (an X-Y pad's drag, `cmd.fxd_set_input`,
+/// or an agent moving x and y together).
+fn pad_pair(cmd: &Command, last: &AutoTarget) -> Option<AutoTarget> {
+    let Command::Batch { commands, .. } = cmd else {
+        return None;
+    };
+    let AutoTarget::ModInput { modulator, .. } = last else {
+        return None;
+    };
+    let mut moved: Vec<AutoTarget> = Vec::new();
+    for c in commands {
+        if let Some(t) = AutoTarget::of_command(c) {
+            if !moved.contains(&t) {
+                moved.push(t);
+            }
+        }
+    }
+    let pair = moved.len() == 2
+        && moved
+            .iter()
+            .all(|t| matches!(t, AutoTarget::ModInput { modulator: m, .. } if m == modulator));
+    pair.then(|| moved.into_iter().find(|t| t != last))
+        .flatten()
 }

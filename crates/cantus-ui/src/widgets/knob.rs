@@ -42,6 +42,10 @@ pub enum Taper {
     Linear,
     /// Equal ratios per equal travel. Needs a positive range.
     Log,
+    /// Most of the travel low, from a range that starts at 0 or anywhere:
+    /// `min + span · (e^(c·p) − 1) / (e^c − 1)` — `c` the swell (a controller's inertia,
+    /// 0–10 s, puts 2 s at three quarters with `c` ≈ 6.4). `c` > 0.
+    Swell(f32),
 }
 
 /// Position (0…1) of `v` on a knob over `min..=max`.
@@ -49,6 +53,10 @@ pub fn pos_of(v: f32, min: f32, max: f32, taper: Taper) -> f32 {
     let v = v.clamp(min, max);
     match taper {
         Taper::Log if min > 0.0 && max > min => (v / min).ln() / (max / min).ln(),
+        Taper::Swell(c) if c > 0.0 && max > min => {
+            let share = (v - min) / (max - min);
+            (share * c.exp_m1()).ln_1p() / c
+        }
         _ => (v - min) / (max - min).max(1e-9),
     }
     .clamp(0.0, 1.0)
@@ -59,6 +67,13 @@ pub fn value_at(p: f32, min: f32, max: f32, taper: Taper) -> f32 {
     let p = p.clamp(0.0, 1.0);
     match taper {
         Taper::Log if min > 0.0 && max > min => min * (max / min).powf(p),
+        Taper::Swell(c) if c > 0.0 && max > min => {
+            if p >= 1.0 {
+                max
+            } else {
+                min + (max - min) * (c * p).exp_m1() / c.exp_m1()
+            }
+        }
         _ => min + (max - min) * p,
     }
 }
