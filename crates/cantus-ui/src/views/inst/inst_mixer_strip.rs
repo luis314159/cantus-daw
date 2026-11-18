@@ -624,7 +624,7 @@ fn fader(
         look::ticks(b, gx + 9.0 * k, top, bot, p);
         let y = top + (bot - top) * law::frac(db);
         let centre = if st.selected { p.accent } else { p.ink1 };
-        look::cap(
+        look::fader_cap(
             b,
             gx,
             y,
@@ -632,6 +632,7 @@ fn fader(
             p,
             centre,
             resp.hovered() || resp.dragged(),
+            crate::kit::fader::Host::InstMixer,
         );
         let bars = st.meter.map(|m| Bars { level: m, hold: m });
         look::meter(

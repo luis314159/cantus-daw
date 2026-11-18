@@ -1119,7 +1119,13 @@ pub(super) fn fader(
     if c.empty && !st.hovered && !st.active {
         look::cap_ghost(b, gx, cy, g.cap.x - 2.0, &p);
     } else {
-        look::cap(b, gx, cy, g.cap, &p, centre, st.hovered || st.active);
+        let host = if c.vca {
+            crate::kit::fader::Host::Vca
+        } else {
+            crate::kit::fader::Host::Desk
+        };
+        let hot = st.hovered || st.active;
+        look::fader_cap(b, gx, cy, g.cap, &p, centre, hot, host);
     }
     if let Some(live) = dm.live {
         let ly = top + (bot - top) * (1.0 - live.clamp(0.0, 1.0));

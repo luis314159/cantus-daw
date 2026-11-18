@@ -448,6 +448,35 @@ pub(crate) fn cap(
     );
 }
 
+/// The cap the appearance chose (*Faders*: the theme's, Classic, Metal — `kit::fader::cap`)
+/// at `y` on `host`: the desk's own [`cap`] for the theme's, else the kit's chosen face in
+/// the same footprint (beta.14: the desk drew its own whatever was chosen). A selected
+/// strip (`centre` is its colour) lights the chosen cap as the kit's faders do.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn fader_cap(
+    b: &mut Brush,
+    gx: f32,
+    y: f32,
+    size: egui::Vec2,
+    p: &Pal,
+    centre: Color32,
+    hot: bool,
+    host: crate::kit::fader::Host,
+) {
+    use crate::kit::fader;
+    let with = fader::cap();
+    let r = b.snap_rect(Rect::from_center_size(pos2(gx, b.snap(y)), size));
+    let st = crate::kit::State {
+        hovered: hot,
+        lit: centre != p.ink1,
+        ..crate::kit::State::REST
+    };
+    if !fader::paint_chosen_cap(b, r, &Style::current(), st, with) {
+        cap(b, gx, y, size, p, centre, hot);
+    }
+    fader::note(host, r, with);
+}
+
 /// The ghost of an empty strip's cap: a flat 4-px bar.
 pub(crate) fn cap_ghost(b: &mut Brush, gx: f32, y: f32, w: f32, p: &Pal) {
     let r = Rect::from_min_max(

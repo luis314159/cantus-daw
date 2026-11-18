@@ -48,24 +48,37 @@ pub const METAL_LIGHT_TOKENS: &[Tok] = &[
 ];
 
 /// Which cap a fader wears (round 37, the owner: "Los dos están chidos, ¿puedes hacerlo
-/// configurable?"): an appearance preference, Classic by default.
+/// configurable?"): an appearance preference.
+///
+/// beta.14's owner report: the choice did nothing — round 39 redrew the desk's faders
+/// (`mixer_look::cap`) and the recessed families' (Slate, Graphite, Studio Ink: every
+/// default look) without reading it. Now every fader asks [`cap`]: **The theme's** (the
+/// default) is the cap each look was drawn with — the desk's round-39 cap, Slate's lit cap
+/// in a unit, FL's ivory in the classic looks — and **Classic** and **Metal** replace it on
+/// the desk, the VCAs, the instruments' mixers and the units alike.
 #[derive(
     Copy, Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
 pub enum FaderCap {
-    /// Round 36's ivory cap, lit above its groove and hollow below.
+    /// The look's own cap. Files written before this choice had three said `Classic` for it
+    /// (the default, which the round-39 looks drew as their own cap).
     #[default]
+    #[serde(rename = "Theme", alias = "Classic")]
+    Theme,
+    /// Round 36's ivory cap, lit above its groove and hollow below.
+    #[serde(rename = "Ivory")]
     Classic,
     /// Round 37's metal cap: a drop shadow, an engraved index, the theme's specular.
     Metal,
 }
 
 impl FaderCap {
-    pub const ALL: [FaderCap; 2] = [FaderCap::Classic, FaderCap::Metal];
+    pub const ALL: [FaderCap; 3] = [FaderCap::Theme, FaderCap::Classic, FaderCap::Metal];
 
     /// Its name's i18n key.
     pub fn name_key(self) -> &'static str {
         match self {
+            FaderCap::Theme => "kit.fader.theme",
             FaderCap::Classic => "kit.fader.classic",
             FaderCap::Metal => "kit.fader.metal",
         }
@@ -78,8 +91,9 @@ static CAP_STYLE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new
 /// change shows on the next frame).
 pub fn set_cap(c: FaderCap) {
     let v = match c {
-        FaderCap::Classic => 0,
-        FaderCap::Metal => 1,
+        FaderCap::Theme => 0,
+        FaderCap::Classic => 1,
+        FaderCap::Metal => 2,
     };
     CAP_STYLE.store(v, std::sync::atomic::Ordering::Relaxed);
 }
@@ -87,8 +101,85 @@ pub fn set_cap(c: FaderCap) {
 /// The cap faders wear.
 pub fn cap() -> FaderCap {
     match CAP_STYLE.load(std::sync::atomic::Ordering::Relaxed) {
-        1 => FaderCap::Metal,
-        _ => FaderCap::Classic,
+        1 => FaderCap::Classic,
+        2 => FaderCap::Metal,
+        _ => FaderCap::Theme,
+    }
+}
+
+/// Where a fader was drawn, for [`record`]: the desk's strips, its VCAs, an instrument's
+/// own mixer, a unit's (or any kit) fader.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Host {
+    Desk,
+    Vca,
+    InstMixer,
+    Unit,
+}
+
+/// A cap drawn: where, in which rect, and which cap (`Theme`: the host's own).
+pub type Drawn = (Host, Rect, FaderCap);
+
+thread_local! {
+    static LOG: std::cell::RefCell<Option<Vec<Drawn>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Keep, on this thread, every cap drawn from now on until [`take_log`] (the e2e tests: a
+/// choice that reaches no fader is seen). Off, nothing is kept and nothing allocates.
+pub fn record(on: bool) {
+    LOG.with(|l| *l.borrow_mut() = on.then(Vec::new));
+}
+
+/// What [`record`] kept since the last call (empty when not recording).
+pub fn take_log() -> Vec<Drawn> {
+    LOG.with(|l| {
+        l.borrow_mut()
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    })
+}
+
+/// Note that `host` drew `drew` in `cap` (kept only while [`record`] is on).
+pub fn note(host: Host, cap: Rect, drew: FaderCap) {
+    LOG.with(|l| {
+        if let Some(v) = l.borrow_mut().as_mut() {
+            v.push((host, cap, drew));
+        }
+    });
+}
+
+/// The colour a chosen cap is made of in this look: the theme's cap in the classic looks;
+/// in a recessed family (whose `cap` token is a strip-dark neutral) ivory is the lightest
+/// neutral on the strip and metal its brushed grey.
+fn chosen_base(s: &Style, with: FaderCap) -> egui::Color32 {
+    if !s.t.system.recessed() {
+        return s.t.cap;
+    }
+    match (with, s.t.dark) {
+        (FaderCap::Metal, true) => s.t.fcap_hi,
+        (FaderCap::Metal, false) => s.t.fcap_lo,
+        (_, true) => mix(s.t.fcap_hi, s.t.light, 0.55),
+        (_, false) => s.t.fcap_mid,
+    }
+}
+
+/// Paint the chosen cap `with` in `cap` for a host that draws its own groove and scale (the
+/// desk, an instrument's mixer, a recessed family's fader): Classic's or Metal's face in the
+/// host's footprint, so every drag maps as before. `false` for [`FaderCap::Theme`]: the
+/// host paints its own.
+pub fn paint_chosen_cap(b: &mut Brush, cap: Rect, s: &Style, st: State, with: FaderCap) -> bool {
+    match with {
+        FaderCap::Theme => false,
+        FaderCap::Classic => {
+            classic_cap(b, cap, s, st, chosen_base(s, with));
+            true
+        }
+        FaderCap::Metal => {
+            let m = Material::of(&s.t);
+            paint_cap(b, cap, s, st, &m, chosen_base(s, with));
+            true
+        }
     }
 }
 
@@ -160,15 +251,17 @@ pub fn paint_as(
     with: FaderCap,
 ) {
     if s.t.system.recessed() {
-        // Slate and its siblings (round 39, `des-controls`): one cap, lit from above.
+        // Slate and its siblings (round 39, `des-controls`): their groove and scale, and
+        // their own cap lit from above unless another is chosen.
         let d = super::automate::current_driving();
-        super::fader_slate::paint(b, rect, s, st, look, d);
+        super::fader_slate::paint(b, rect, s, st, look, d, with);
         return;
     }
     match with {
-        FaderCap::Classic => paint_classic(b, rect, s, st, look),
+        FaderCap::Theme | FaderCap::Classic => paint_classic(b, rect, s, st, look),
         FaderCap::Metal => paint_metal(b, rect, s, st, look),
     }
+    note(Host::Unit, cap_rect(rect, s, look.pos), with);
 }
 
 /// The classic fader (round 36's, the owner's): a 4-pt groove and FL's cap, lit above its
@@ -220,12 +313,19 @@ fn paint_classic(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &FaderLo
         b.rrect(lit, gw * 0.5, Fill::Solid(f(shade(s.t.selection, -0.08))));
     }
 
+    classic_cap(b, cap, s, st, s.t.cap);
+}
+
+/// Classic's cap in `cap`, made of `base`: FL's, lit above its groove line and hollow below.
+fn classic_cap(b: &mut Brush, cap: Rect, s: &Style, st: State, base: egui::Color32) {
+    let a = st.alpha();
+    let f = |c: egui::Color32| c.gamma_multiply(a);
     // The cap. r37:finish — selected, the same cap tinted by the selection (it read as
     // another component in the selection's full colour).
     let base = if st.lit {
-        mix(s.t.cap, s.t.selection, 0.35)
+        mix(base, s.t.selection, 0.35)
     } else {
-        s.t.cap
+        base
     };
     let base = if st.active {
         shade(base, -0.03)
@@ -329,22 +429,29 @@ fn paint_metal(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &FaderLook
             Rect::from_min_max(Pos2::new(groove.left(), cap.center().y), groove.max).shrink(b.px());
         b.rrect(lit, gw * 0.5, Fill::Solid(f(shade(s.t.selection, -0.08))));
     }
-    paint_cap(b, cap, s, st, &m);
+    paint_cap(b, cap, s, st, &m, s.t.cap);
     if st.focused {
         super::focus_ring(b, cap, s.r(2.0), s);
     }
 }
 
 /// The cap as an object, in `cap`.
-fn paint_cap(b: &mut Brush, cap: Rect, s: &Style, st: State, m: &Material) {
+fn paint_cap(
+    b: &mut Brush,
+    cap: Rect,
+    s: &Style,
+    st: State,
+    m: &Material,
+    base: egui::Color32,
+) {
     let a = st.alpha();
     let f = |c: egui::Color32| c.gamma_multiply(a);
     let d = m.depth;
     let k = s.k;
     let base = if st.lit {
-        mix(s.t.cap, s.t.selection, 0.22)
+        mix(base, s.t.selection, 0.22)
     } else {
-        s.t.cap
+        base
     };
     let base = if st.active {
         shade(base, -0.03)

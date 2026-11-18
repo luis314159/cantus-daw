@@ -370,3 +370,37 @@ nothing at 2560, the chip's least is its short line).
 60. **The hero's layout file is the last frame's**: written on every frame whose layout
     differs from the last one written (it was every fourth frame, and a Night capture kept
     a transient layout with the browser half the window).
+
+## Amendment (beta.14, the owner: "the fader selector does nothing")
+
+**Context.** The owner chose *Metal* and nothing changed. Round 39 redrew the desk's
+faders (`views::mixer_look::cap`, des-mixer's sheet) and the recessed families' kit fader
+(`kit::fader_slate`, Slate, Graphite, Studio Ink — every default look) and neither read
+item 8's global: `fader::paint_as` returned early in a recessed look, the desk and the
+instruments' mixers never called it. The choice was kept and applied; no fader asked.
+
+**Decision.**
+
+- **Three caps**: `FaderCap { Theme, Classic, Metal }`. *The theme's* (the default) is the
+  cap each look was drawn with — the desk's round-39 cap, Slate's lit cap in a unit, FL's
+  ivory in the classic looks; *Classic* and *Metal* replace it everywhere. Files written
+  before said `Classic` for the default every round-39 look drew as its own cap, so
+  `"Classic"` reads as `Theme` (serde alias) and the ivory cap is written `"Ivory"`:
+  nobody's faders change by updating.
+- **Every fader asks**: `kit::fader::paint_chosen_cap` paints Classic's or Metal's face in
+  the host's own footprint (the drag maps as before) for the hosts that draw their own
+  groove and scale — the desk's strips and VCAs (`mixer_look::fader_cap`), an
+  instrument's own mixer (Chorda's, Tympanum's), a recessed look's kit fader; the host's
+  own cap for *The theme's*. In a recessed look ivory is the strip's lightest neutral and
+  metal its brushed grey (its `cap` token is strip-dark).
+- The choice is on **Settings ▸ Appearance ▸ Faders** too, where the owner looked for it
+  (it was only in the appearance editor).
+
+**What the tests hold.** `tests/fader_cap_e2e.rs`, through `CantusApp::assemble`, in Slate
+Paper, Slate Night and Chalk: Settings ▸ Appearance ▸ Faders clicked to each cap; every
+cap the desk's strips, its VCA and Tympanum's mixer draw is the chosen one
+(`kit::fader::record`, draw-level), the pixels of a strip's and the VCA's fader differ
+between the three, and after a restart over the same folder the choice is kept and drawn.
+On the old drawing (the hosts painting their own cap whatever was chosen) it fails at the
+first look. `kit::appearance`: an absent or `"Classic"` choice reads as the theme's;
+each cap round-trips.

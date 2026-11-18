@@ -736,6 +736,16 @@ impl<'a> Sheet<'a> {
     ) -> Response {
         let r = self.ui.interact(rect, id, Sense::click());
         let open = self.menu.as_ref().is_some_and(|m| m.id == menu);
+        // Open, its list hangs from where the field is now (the inspector scrolls; a list
+        // two fields open keeps to the one it was opened from: the same column).
+        if let Some(m) = self.menu.as_mut().filter(|m| {
+            m.id == menu
+                && (m.anchor.left() - rect.left()).abs() < 0.5
+                && (m.anchor.width() - rect.width()).abs() < 0.5
+        }) {
+            m.anchor = rect;
+        }
+        crate::kit::widgets::note_field(rect, value);
         if r.clicked() && !dim {
             *self.menu = if open {
                 None

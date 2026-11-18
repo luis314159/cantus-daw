@@ -236,14 +236,17 @@ fn field_row(app: &mut CantusApp, ui: &mut Ui, list: List, key: &str, value: &st
         let open = app.settings_page.list.is_some_and(|(l, _)| l == list);
         let (resp, clicks) = menu_field(ui, value, false, open, &t(key), width);
         if list == List::Workers && std::mem::take(&mut app.settings_page.open_cores) {
-            app.settings_page.list = Some((list, resp.rect.left_bottom()));
+            app.settings_page.list = Some((list, resp.rect));
         }
         if clicks.open {
-            app.settings_page.list = if open {
-                None
-            } else {
-                Some((list, resp.rect.left_bottom()))
-            };
+            app.settings_page.list = if open { None } else { Some((list, resp.rect)) };
+        } else if open {
+            // The list hangs from where its field is now (the page scrolls under it); a
+            // field scrolled out of the page closes it.
+            app.settings_page.list = ui
+                .clip_rect()
+                .intersects(resp.rect)
+                .then_some((list, resp.rect));
         }
     });
 }
@@ -602,8 +605,7 @@ fn inputs_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
 /// The audio lists: drivers, devices, inputs, rates, block sizes.
 pub fn lists(app: &mut CantusApp, ctx: &egui::Context) {
     use crate::kit::menu::{Check, Item};
-    use crate::kit::widgets::menu_list;
-    let Some((list, at)) = app.settings_page.list else {
+    let Some((list, field)) = app.settings_page.list else {
         return;
     };
     let s = Style::current();
@@ -688,18 +690,22 @@ pub fn lists(app: &mut CantusApp, ctx: &egui::Context) {
         })
         .collect();
     let width = if engines.is_empty() { 320.0 } else { 480.0 };
-    let mut chosen = None;
-    let area = egui::Area::new(egui::Id::new("cantus-settings-list"))
-        .order(egui::Order::Foreground)
-        .fixed_pos(at)
-        .constrain(true)
-        .show(ctx, |ui| {
-            let (resp, c) = menu_list(ui, &items, width * s.k);
-            chosen = c.clicked;
+    // r41:look — on the kit's sheet under its field, never over it (beta.14: drawn on
+    // nothing over the rows beneath; `kit::menu::dropdown`).
+    let dropped = crate::kit::menu::dropdown(
+        ctx,
+        egui::Id::new("cantus-settings-list"),
+        egui::Order::Foreground,
+        field,
+        &items,
+        width * s.k,
+        |ui, r| {
             if !engines.is_empty() {
-                paint_engines(ui, resp.rect, &items, &rows, &engines, &s);
+                paint_engines(ui, r, &items, &rows, &engines, &s);
             }
-        });
+        },
+    );
+    let chosen = dropped.clicks.clicked;
     if let Some(i) = chosen {
         match list {
             List::Driver => {
@@ -739,10 +745,11 @@ pub fn lists(app: &mut CantusApp, ctx: &egui::Context) {
         }
         app.settings_page.pending = Some(p);
     }
+    // A press on the field is the field's (it closes the list itself).
     let outside = ctx.input(|i| i.pointer.any_pressed())
         && !ctx
             .pointer_interact_pos()
-            .is_some_and(|p| area.response.rect.contains(p));
+            .is_some_and(|p| dropped.sheet.contains(p) || field.contains(p));
     if chosen.is_some() || outside || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         app.settings_page.list = None;
     }

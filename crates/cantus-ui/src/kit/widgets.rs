@@ -586,6 +586,39 @@ pub fn menu_field(
     (resp, c)
 }
 
+/// A field that opens a list, drawn: its rect and the value it shows.
+pub type Field = (Rect, String);
+
+thread_local! {
+    static FIELDS: std::cell::RefCell<Option<Vec<Field>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Keep, on this thread, every field that opens a list painted from now on (every
+/// [`super::well::menu_field`]) until [`take_fields`]: the dropdown audit finds every combo
+/// of a screen so. Off, nothing is kept and nothing allocates.
+pub fn record_fields(on: bool) {
+    FIELDS.with(|l| *l.borrow_mut() = on.then(Vec::new));
+}
+
+/// What [`record_fields`] kept since the last call.
+pub fn take_fields() -> Vec<Field> {
+    FIELDS.with(|l| {
+        l.borrow_mut()
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    })
+}
+
+/// Note a field that opens a list (kept only while [`record_fields`] is on).
+pub fn note_field(rect: Rect, value: &str) {
+    FIELDS.with(|l| {
+        if let Some(v) = l.borrow_mut().as_mut() {
+            v.push((rect, value.to_string()));
+        }
+    });
+}
+
 /// A 28 × 28 toolbar key; `on` flips on click and lights it.
 pub fn toolbar_key(ui: &mut Ui, on: &mut bool, face: cap::KeyFace<'_>, name: &str) -> Response {
     let s = Style::current();

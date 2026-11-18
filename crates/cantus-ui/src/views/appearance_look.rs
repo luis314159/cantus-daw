@@ -252,7 +252,7 @@ pub fn fader_section(app: &mut CantusApp, ui: &mut Ui) {
         .map(|c| Src::Key(c.name_key()))
         .collect();
     let tip = t("look.fader.tip");
-    if crate::kit::widgets::segmented(ui, &mut sel, &labels, &tip, 220.0).changed() {
+    if crate::kit::widgets::segmented(ui, &mut sel, &labels, &tip, 320.0).changed() {
         let c = FaderCap::ALL[sel];
         change(app, |a| a.fader = c);
     }

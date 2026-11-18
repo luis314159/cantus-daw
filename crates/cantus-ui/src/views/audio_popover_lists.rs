@@ -6,7 +6,6 @@ use crate::audio_setup::{self as setup, interfaces::Kind, Hit, PopList};
 use crate::i18n::t;
 use crate::kit::menu::{self, Check, Item};
 use crate::kit::text::Src;
-use crate::kit::widgets::menu_list;
 use crate::kit::Style;
 use egui::Id;
 
@@ -29,7 +28,7 @@ enum Choice {
 
 /// Draw the open list, if any.
 pub fn show(app: &mut CantusApp, ctx: &egui::Context, key: Option<&str>) {
-    let Some(which) = app.audio_setup.pop_list else {
+    let (Some(which), Some(field)) = (app.audio_setup.pop_list, app.audio_setup.list_from) else {
         return;
     };
     let s = Style::current();
@@ -109,20 +108,20 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context, key: Option<&str>) {
             enabled: c.is_some(),
         })
         .collect();
-    let at = app.audio_setup.list_at;
-    let width = 300.0 * s.k;
-    let mut chosen = None;
-    let mut list_rect = egui::Rect::NOTHING;
-    let area = egui::Area::new(Id::new("cantus-audio-popover-list"))
-        .order(egui::Order::Tooltip)
-        .fixed_pos(at)
-        .constrain(true)
-        .show(ctx, |ui| {
-            let (resp, c) = menu_list(ui, &items, width);
-            list_rect = resp.rect;
-            chosen = c.clicked;
-        });
-    app.audio_setup.hit(ctx, Hit::List, area.response.rect);
+    // r41:look — on the kit's sheet under its own field, never over it (beta.14: the
+    // Input list hung under the Interface field, its rows on nothing over the Driver row).
+    let dropped = menu::dropdown(
+        ctx,
+        Id::new("cantus-audio-popover-list"),
+        egui::Order::Tooltip,
+        field,
+        &items,
+        300.0 * s.k,
+        |_, _| {},
+    );
+    let list_rect = dropped.rows;
+    let chosen = dropped.clicks.clicked;
+    app.audio_setup.hit(ctx, Hit::List, dropped.sheet);
     for i in 0..items.len() {
         let r = menu::row(list_rect, &items, s.d(1.0), i);
         let h = match which {

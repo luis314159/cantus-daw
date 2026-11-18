@@ -913,3 +913,22 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 - [ ] **Cambiar de kit con la mezcla hecha** <!-- r40:fix-f -->: Studio › *Cada micrófono a
   su canal*, ajusta niveles, cambia a Gogodze y vuelve: cada canal con el nombre de su
   micrófono, ninguno vacío, los grupos por familia; Ctrl+Z deshace el cambio entero.
+
+### beta.14 — los faders y las listas desplegables (ADR 0103 enmienda, ADR 0149 enmienda 2) <!-- fix:look -->
+
+- [ ] **Configuración ▸ Apariencia ▸ Faders** (ahora también ahí, no solo en el editor de
+  apariencia): elige *Clásico* y luego *Metal* con el mezclador a la vista. Deben cambiar a
+  la vez los faders de los canales, el del VCA, el del máster y los del mezclador de
+  Chorda o Tympanum. *El del tema* deja el capuchón de siempre. Cierra Cantus y ábrelo:
+  la elección sigue. Probado por las pruebas en Slate Paper, Slate Night y Chalk; tu
+  tema exacto y tu escala de 100–125 % solo los confirma tu pantalla.
+- [ ] **El popover de audio (el chip del dispositivo)**: abre *Dispositivo de entrada*. La
+  lista debe abrir **debajo de su campo** (nunca sobre *Driver* ni sobre su propio campo),
+  sobre una hoja opaca con borde y sombra, sin texto de detrás. Igual con *Interfaz*.
+- [ ] **Configuración ▸ Audio**: con ASIO, abre *Dispositivo de salida* (tus cuatro
+  controladores ASIO) y *Dispositivo de entrada*, *Frecuencia*, *Búfer*, *Núcleos*. Cada
+  lista bajo su campo, opaca; desplaza la página con la lista abierta: la lista sigue a su
+  campo. Un segundo clic en el campo la cierra.
+- [ ] Verificado solo en emulación: los dispositivos de la prueba son una copia de tus
+  capturas (ASIO4ALL v2, FL Studio ASIO, FlexASIO, Microphone Array); tus controladores
+  reales y su número solo los ve tu equipo.

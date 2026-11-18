@@ -174,7 +174,8 @@ pub struct Appearance {
     pub icon: IconColour,
     /// The user's own themes.
     pub themes: Vec<Theme>,
-    /// The cap every fader wears (round 37): Classic in files written before it.
+    /// The cap every fader wears (round 37): the theme's own in files written before it,
+    /// and in those that said `Classic` before the theme's own was a choice (beta.14).
     pub fader: super::fader::FaderCap,
     #[serde(skip)]
     pub compare: Option<Compare>,
@@ -190,7 +191,7 @@ impl Default for Appearance {
             logo: LogoChoice::default(),
             icon: IconColour::default(),
             themes: Vec::new(),
-            fader: super::fader::FaderCap::Classic,
+            fader: super::fader::FaderCap::Theme,
             compare: None,
         }
     }
@@ -706,16 +707,22 @@ mod tests {
     }
 
     #[test]
-    fn the_fader_cap_is_classic_in_old_files_and_survives_a_round_trip() {
-        // A file from before round 37 has no `fader`: Classic.
+    fn the_fader_cap_is_the_themes_in_old_files_and_survives_a_round_trip() {
+        use super::super::fader::FaderCap;
+        // A file from before round 37 has no `fader`: the theme's own cap.
         let old = Appearance {
             mode: Mode::Light,
             ..Default::default()
         };
         let json = old.to_json().replace("\"fader\"", "\"fader_unknown\"");
         let back = Appearance::from_json(&json).unwrap();
-        assert_eq!(back.fader, super::super::fader::FaderCap::Classic);
-        for c in super::super::fader::FaderCap::ALL {
+        assert_eq!(back.fader, FaderCap::Theme);
+        // beta.14 wrote `Classic` for the default, which every round-39 look drew as its
+        // own cap: it reads as the theme's.
+        let beta14 = old.to_json().replace("\"fader\": \"Theme\"", "\"fader\": \"Classic\"");
+        assert!(beta14.contains("\"Classic\""), "{beta14}");
+        assert_eq!(Appearance::from_json(&beta14).unwrap().fader, FaderCap::Theme);
+        for c in FaderCap::ALL {
             let a = Appearance {
                 fader: c,
                 ..Default::default()

@@ -177,3 +177,38 @@ the window holds it; by the wheel in a 1 280 × 720 window at 200 %). The first
 after-pictures caught the list in egui's opening fade (the shoot scene drew six frames
 after the click); the scene now lets it settle. What only a real 200 % screen confirms is
 in `docs/beta-checklist.md`.
+
+## Amendment 2 — every dropdown on its sheet, beside its field (beta.14, the owner, 2026-11-17)
+
+The owner, on his own machine (a light look, 100–125 %): *"muy cristalino, no se
+distingue"* — the audio popover's *Input device* list opened over the *Driver* row, its
+rows on nothing; Settings ▸ Audio's *Output device* list was drawn transparent over the
+rows beneath. Two causes:
+
+- **The sheet**: those lists were bare areas, so `widgets::menu_list` painted rows only
+  (amendment 1's `widgets::sheeted` already paints the sheet there).
+- **The place**: the popover's *Interface* row set the open list's anchor every frame,
+  whichever list was open — the *Input device* list hung under the *Interface* field, over
+  *Driver*. Settings' lists kept the place their field had when clicked (a page scrolled
+  under them left them behind); `kit::menu::place` raised a list the window could hold
+  whole over its own opener.
+
+**Decision.**
+
+9. **`kit::menu::dropdown`** is a field's list: the kit's popup sheet (opaque, its frame
+   and shadow, `automate::frame`), placed by **`kit::menu::place_beside`** from where its
+   field is drawn *this frame* — under it, above it when only there it fits, else
+   scrolling on the larger side — **never over its field**, inside the window. Settings ▸
+   Audio's lists and the audio popover's use it; each hangs from its own field.
+10. **`kit::menu::place` no longer raises a list over its opener**: it scrolls beside it.
+11. Every combo is found by what it paints: `kit::well::menu_field` notes each field it
+    draws while `kit::widgets::record_fields` is on (tests only; off, nothing is kept).
+
+**What the tests hold.** `tests/dropdowns_audit.rs`, through `CantusApp::assemble`, in
+Slate Night, Slate Paper and High contrast light: on the eleven Settings pages, the audio
+popover (the owner's devices), the inspector, the desk, the top bar, the export dialog,
+eight effects' editors and Chorda's and Tympanum's editors, every field that opens a list
+is clicked and its list is opaque (everything else moved away for a frame, a probe colour
+beneath shows through no point), under or above its field and never over it, inside the
+window, no two rows' words overlapping and none cut at its side; a second click on the
+field closes it. `kit::menu` unit tests hold the placement rule.

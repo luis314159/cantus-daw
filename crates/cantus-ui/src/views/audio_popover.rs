@@ -390,7 +390,11 @@ fn rows(app: &mut CantusApp, ui: &mut Ui, live: &Live, key: Option<&str>) {
     });
     if let Some((r, clicked)) = field {
         app.audio_setup.hit(ui.ctx(), Hit::InterfaceField, r);
-        app.audio_setup.list_at = r.left_bottom();
+        // beta.14: this ran whichever list was open, so the Input list hung under the
+        // Interface field, over the Driver row. Each list hangs from its own field.
+        if open || clicked {
+            app.audio_setup.list_from = Some(r);
+        }
         if clicked {
             app.audio_setup.pop_list = if open { None } else { Some(PopList::Interface) };
             app.audio_setup.request_scan();
@@ -458,8 +462,10 @@ fn rows(app: &mut CantusApp, ui: &mut Ui, live: &Live, key: Option<&str>) {
         });
         if let Some((r, clicked)) = field {
             app.audio_setup.hit(ui.ctx(), Hit::AsioField, r);
+            if open || clicked {
+                app.audio_setup.list_from = Some(r);
+            }
             if clicked {
-                app.audio_setup.list_at = r.left_bottom();
                 app.audio_setup.pop_list = if open { None } else { Some(PopList::Asio) };
                 app.audio_setup.request_scan();
             }
@@ -480,8 +486,10 @@ fn rows(app: &mut CantusApp, ui: &mut Ui, live: &Live, key: Option<&str>) {
     });
     if let Some((r, clicked)) = field {
         app.audio_setup.hit(ui.ctx(), Hit::InputField, r);
+        if open || clicked {
+            app.audio_setup.list_from = Some(r);
+        }
         if clicked && !asio {
-            app.audio_setup.list_at = r.left_bottom();
             app.audio_setup.pop_list = if open { None } else { Some(PopList::Input) };
             app.audio_setup.request_scan();
         }

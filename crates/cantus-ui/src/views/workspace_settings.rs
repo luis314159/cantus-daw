@@ -103,7 +103,8 @@ pub struct Page {
     pub(super) was_open: bool,
     /// The audio choice not yet applied.
     pub(super) pending: Option<AudioSettings>,
-    pub(super) list: Option<(super::settings_audio::List, Pos2)>,
+    /// The audio list open, and where its field is drawn (this frame).
+    pub(super) list: Option<(super::settings_audio::List, Rect)>,
     /// Open the cores list where its field is drawn next (the shots).
     pub(super) open_cores: bool,
     /// The Audio page's own (ADR 0025): the device scan, the loopback measurement.
@@ -660,6 +661,27 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
         w::row_label(ui, "", LABEL_W, 18.0);
         // Its lines one under the other (in a row they ran side by side), as the faces'.
         ui.vertical(|ui| note(ui, &t("cables.style.hint"), false));
+    });
+    // The cap every fader wears (round 37's choice, in the appearance editor until beta.14's
+    // owner looked for it here): the theme's, Classic, Metal — the desk, the VCAs, the
+    // instruments' mixers and the units at once.
+    ui.horizontal(|ui| {
+        w::row_label(ui, "look.fader", LABEL_W, 24.0);
+        use crate::kit::fader::FaderCap;
+        let mut sel = FaderCap::ALL
+            .iter()
+            .position(|c| *c == app.appearance.fader)
+            .unwrap_or(0);
+        let labels = FaderCap::ALL.map(|c| Src::Key(c.name_key()));
+        if segmented(ui, &mut sel, &labels, &t("look.fader.tip"), 320.0).changed() {
+            app.appearance.fader = FaderCap::ALL[sel];
+            app.apply_appearance();
+            app.store_appearance();
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 18.0);
+        ui.vertical(|ui| note(ui, &t("look.fader.note"), false));
     });
     // How the instruments' pictures are drawn: Drawn (the default) or Photographic
     // (round 40, ADR 0126). r40:scene

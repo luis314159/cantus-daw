@@ -44,8 +44,9 @@ kit.token.surface.text_selection = Text selection (in a field)
 
 # round 37, finish: the fader cap
 look.fader = Faders
-look.fader.tip = Fader cap: how every fader looks — the mixer, VCAs and the units
-look.fader.note = Classic is the ivory cap; Metal a machined cap with an engraved index and the theme's shine. Every fader changes at once.
+look.fader.tip = Fader cap: how every fader looks — the mixer, the VCAs, the instruments' mixers and the units
+look.fader.note = The theme's is the cap the look was drawn with; Classic the ivory cap; Metal a machined cap with an engraved index and the theme's shine. Every fader changes at once.
+kit.fader.theme = The theme's
 kit.fader.classic = Classic
 kit.fader.metal = Metal
 # round 39, themes (ADR 0111 §2): the themes of rounds 24–38 back, redrawn in round 39's
