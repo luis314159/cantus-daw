@@ -13,6 +13,10 @@
 //! - `--gallery`: the kit's skin sheets (every material, display look, knob and switch
 //!   shape, plate and the ornaments) in both themes at 2×, `gallery-<sheet>-<theme>.png`.
 //! - `--quick`: Slate at 100 % only.
+//! - `--drawn`: Chorda's and Tympanum's pictures *Drawn* (projected vectors, the app's
+//!   default); without it they are *Photographic* (ADR 0126), as the site and README show them.
+//! - The shots see a clean install: `CANTUS_DATA_DIR` is an empty folder of their own unless
+//!   it is set, so no pack this machine downloaded shows as on disk.
 //! - `--es`: the editors in Spanish (same file names: give another out-dir).
 //! - `--try <sample>`: every unit shot wears one of the sample sheets below instead of its
 //!   own (`studio`: FabFilter-like matte with value rings; `vintage`: wood, a VU-era
@@ -412,6 +416,13 @@ fn shoot_gallery(dir: &Path) {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // fix/final-d — a clean install's state: no pack this machine downloaded shows as on disk.
+    if std::env::var_os("CANTUS_DATA_DIR").is_none() {
+        let clean = std::env::temp_dir().join("cantus-shoot-skins-data");
+        let _ = std::fs::remove_dir_all(&clean);
+        std::fs::create_dir_all(&clean).expect("a clean data folder");
+        std::env::set_var("CANTUS_DATA_DIR", &clean);
+    }
     let flag = |f: &str| args.iter().any(|a| a == f);
     // `--es`: the editors in Spanish (the site's Spanish pages show these).
     cantus_ui::i18n::set_locale(if flag("--es") {
@@ -428,6 +439,12 @@ fn main() {
     // Chorda's scene bakes on the painting thread here: a shot cannot wait for the worker,
     // and without it the piano's picture is an empty card (round 38: the site showed one).
     views::inst::chorda::scene::set_blocking(true);
+    // fix/final-d — the instruments' pictures Photographic (the owner's choice for the site),
+    // baked on the painting thread like the drawn ones, so a shot never waits on a worker.
+    if !flag("--drawn") {
+        views::inst::chorda::scene::hybrid::register();
+        cantus_ui::scene::backend::set_default(cantus_ui::scene::SceneBackend::PerPixel);
+    }
     if flag("--gallery") {
         shoot_gallery(&dir);
         if only.is_empty() {
