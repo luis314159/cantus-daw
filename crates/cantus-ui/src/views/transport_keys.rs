@@ -318,7 +318,7 @@ pub fn window_key(app: &CantusApp, w: Option<Pane>) -> (Glyph, bool, Action, &'s
             };
             (
                 pane.glyph(),
-                app.workspace.is_visible(pane),
+                app.pane_visible(pane),
                 action,
                 pane.toggle_key(),
             )

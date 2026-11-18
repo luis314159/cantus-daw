@@ -359,7 +359,7 @@ pub fn apply(app: &mut CantusApp, actions: &[Action]) {
             Action::Mode { track, mode } => {
                 app.set_inst_value(track, "view.mode", mode.value(), false);
                 if mode == ViewMode::Docked {
-                    app.workspace.reveal(crate::views::workspace::Pane::Stage);
+                    app.reveal_pane(crate::views::workspace::Pane::Stage);
                 }
             }
             Action::Top { track, on } => {

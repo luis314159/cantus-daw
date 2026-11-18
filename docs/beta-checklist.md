@@ -615,6 +615,35 @@ Pantalla ▸ Escala* → *Escala personalizada* 200 (cierra sesión), o un monit
 - [ ] **Si el usuario del issue contesta**: con la versión corregida y su pantalla, ¿se abren
       en su sitio? Si no, una captura de pantalla con el menú abierto y su escala.
 
+### Varias pantallas — ventanas propias (ADR 0151) <!-- fx/multimon -->
+
+Verificado solo en emulación (las pruebas alimentan las pantallas como las da winit y corren
+las pasadas de cada ventana como eframe): nada de esto se ha visto en pantallas reales.
+
+- [ ] **Portátil + pantalla externa** (idealmente 200 % + 100 %, como el informante del
+  issue #1): clic derecho en la pestaña *Mezclador* › *Mover a una ventana nueva*. La ventana
+  debe abrir **maximizada en la otra pantalla**, sin aparecer antes en la equivocada ni
+  saltar; el texto nítido en las dos (cada una a su escala); su barra con transporte,
+  posición, tempo y medidor.
+- [ ] **Teclas desde la ventana del mezclador**: Espacio reproduce/para, M silencia la
+  franja seleccionada, Ctrl+Z la deshace, F9 la oculta y F9 la devuelve a su ventana; sin
+  tener que hacer clic primero.
+- [ ] **Desconectar la pantalla externa con Cantus abierto y la canción sonando**: el
+  mezclador vuelve a la ventana principal, la barra de estado lo dice, la música no se
+  corta. Volver a conectarla: la ventana regresa a su sitio (tarda hasta 3 s).
+- [ ] **Arrancar con la pantalla desconectada y luego con ella conectada**: igual que
+  arriba; nunca una ventana fuera de la vista.
+- [ ] **Suspender y reanudar el portátil** con la ventana en la externa.
+- [ ] **F11** en cada ventana: pantalla completa en su propia pantalla y vuelta.
+- [ ] **Alt+1 … Alt+5**: *Predeterminada*, *Pantalla ancha* (solo en 21:9), *Dos pantallas:
+  arreglo | mezcla*, *Dos pantallas: arreglo | edición*, *Tres pantallas* (atenuada con dos).
+  Con un teclado español, AltGr+2 sigue escribiendo @ en un campo de texto.
+- [ ] **Un plug-in abierto desde la ventana del mezclador**: anota si su ventana queda
+  detrás de la del mezclador al hacer clic en ella (aún pertenece a la ventana principal).
+- [ ] **Coste**: con el Administrador de tareas, memoria privada y CPU de Cantus en reposo
+  con una y con dos ventanas (en reposo ninguna debe dibujar: 0 % de GPU).
+- [ ] **Linux (X11) y macOS**: mover el mezclador a otra pantalla y volver.
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):

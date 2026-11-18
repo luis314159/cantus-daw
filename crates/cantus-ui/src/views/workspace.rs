@@ -324,6 +324,11 @@ impl Workspace {
         self.menu = None;
     }
 
+    /// The area the keys act in (the focused leaf's tab in front), if any.
+    pub fn focused_pane(&self) -> Option<Pane> {
+        self.focused
+    }
+
     /// Whether a tab's menu is open (its rows ask where the tab can go).
     pub fn menu_open(&self) -> bool {
         self.menu.is_some()
@@ -555,7 +560,9 @@ impl Workspace {
                 std::mem::take(&mut self.lower_hidden)
             };
             for p in panes {
-                self.place(p);
+                if !self.elsewhere.contains(&p) {
+                    self.place(p);
+                }
             }
             if let Some(a) = self.lower_active.take() {
                 self.reveal(a);

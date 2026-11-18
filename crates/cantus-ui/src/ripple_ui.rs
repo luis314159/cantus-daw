@@ -49,7 +49,7 @@ impl CantusApp {
     pub(crate) fn time_keys(&self, ctx: &egui::Context) -> Result<(), TimeKeysAway> {
         use crate::views::workspace::Pane;
         use crate::views::workspace_fold::PaneAt;
-        if !self.workspace.is_visible(Pane::Arrangement) {
+        if !self.pane_visible(Pane::Arrangement) {
             return Err(TimeKeysAway::Hidden);
         }
         if self.focus != crate::app::EditFocus::Arrangement {

@@ -351,8 +351,12 @@ impl Workspace {
         // The central view: `app.central` is what menus, keys and tests set; the dock
         // follows it when it changes.
         let pane = Pane::of_central(app.central);
+        // Several screens (ADR 0151): an editor another window holds is brought forward
+        // there, never put in this dock too.
+        let elsewhere = self.elsewhere.contains(&pane);
         match self.synced_central {
             Some(c) if c == app.central => {}
+            Some(_) if elsewhere => {}
             Some(_) => self.reveal(pane),
             // The first frame: bring it forward if the layout has it, but never put back
             // an area the layout hides.
@@ -547,14 +551,17 @@ impl Workspace {
 
     fn after(&mut self, app: &mut CantusApp, ui: &Ui, area: Rect, tab_bar: f32) -> Option<After> {
         let ctx = ui.ctx().clone();
-        // The dock → the central view: the lower zone's tab showing is `app.central`.
+        // The dock → the central view: the lower zone's tab showing is `app.central` — the
+        // main window's lower zone (ADR 0151: another window's editors do not take it in
+        // turns with the main window's every pass).
+        let main = app.windows.current.is_none();
         let shown = self
             .dock
             .iter_leaves()
             .filter_map(|(_, l)| l.tabs.get(l.active.0).copied())
             .find(|p| p.is_lower())
             .and_then(Pane::central);
-        if let Some(c) = shown {
+        if let Some(c) = shown.filter(|_| main) {
             if c != app.central {
                 app.central = c;
                 self.synced_central = Some(c);

@@ -174,6 +174,8 @@ impl Layout {
     pub fn display_name(&self) -> String {
         if self.name == DEFAULT_NAME {
             crate::i18n::t("layout.default")
+        } else if let Some(b) = crate::windows_layouts::Builtin::of_name(&self.name) {
+            crate::i18n::t(b.label_key())
         } else {
             self.name.clone()
         }

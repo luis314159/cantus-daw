@@ -341,7 +341,11 @@ enum Do {
     ExportVideo,
     Pane(Pane),
     TempoLane,
-    Layout(String),
+    /// Several screens (ADR 0151 §7): a row of the layouts (built-ins among them), and the
+    /// windows' rescue rows.
+    LayoutRow(crate::windows_layouts::LayoutRow),
+    GatherWindows,
+    DockEveryWindow,
     Appearance,
     Settings,
     Customise,
@@ -485,7 +489,9 @@ fn run_row(app: &mut CantusApp, ctx: &egui::Context, what: Do) {
         Do::ExportVideo => crate::video_export::open(app),
         Do::Pane(pane) => app.toggle_pane(pane),
         Do::TempoLane => app.toggle_tempo_lane(),
-        Do::Layout(name) => app.apply_layout(&name),
+        Do::LayoutRow(row) => app.apply_layout_row(&row),
+        Do::GatherWindows => app.gather_windows(),
+        Do::DockEveryWindow => app.dock_every_window(),
         Do::Appearance => app.show_theme_editor = true,
         Do::Settings => app.show_settings = true,
         Do::Customise => super::more::open_customise(app),
@@ -627,7 +633,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
         };
         rows.push(
             Row::new(pane.title_key(), Do::Pane(pane))
-                .checked(app.workspace.contains(pane))
+                .checked(app.pane_shown(pane))
                 .key(action),
         );
     }
@@ -648,27 +654,62 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     // the command palette (round 31, ADR 0072).
     rows.push(
         Row::new("picker.menu.view_devices", Do::Pane(Pane::Devices))
-            .checked(app.workspace.contains(Pane::Devices)),
+            .checked(app.pane_shown(Pane::Devices)),
     );
     rows.push(
         Row::new("action.toggle-clips", Do::Pane(Pane::Clips))
-            .checked(app.workspace.contains(Pane::Clips)),
+            .checked(app.pane_shown(Pane::Clips)),
     );
     rows.push(Row::command(M::DevicePicker));
     rows.push(Row::run(Action::CommandPalette, "action.command-palette"));
     // The layouts (round 30): the saved ones to choose, then save, delete and reset.
     rows.push(Row::separator());
     rows.push(Row::band(Words::Key("menu.layout")));
+    // Several screens (ADR 0151 §7): Default, the built-in layouts (dimmed where the screens
+    // are too few), the user's — the first nine on Alt+1 … Alt+9.
     let current = app.layouts.current.name.clone();
-    for layout in &app.layouts.saved {
-        let mut row = Row::new("", Do::Layout(layout.name.clone())).text(layout.name.clone());
-        row.check = crate::kit::menu::Check::Radio(layout.name == current);
+    let keys = [
+        Action::Layout1,
+        Action::Layout2,
+        Action::Layout3,
+        Action::Layout4,
+        Action::Layout5,
+        Action::Layout6,
+        Action::Layout7,
+        Action::Layout8,
+        Action::Layout9,
+    ];
+    for (n, lr) in app.layout_rows().into_iter().enumerate() {
+        use crate::windows_layouts::LayoutRow as L;
+        let (words, name) = match &lr {
+            L::Default => (
+                crate::i18n::t("layout.default"),
+                crate::layout::DEFAULT_NAME.to_string(),
+            ),
+            L::Builtin(b) => (crate::i18n::t(b.label_key()), b.name().to_string()),
+            L::Saved(n) => (n.clone(), n.clone()),
+        };
+        let fits = app.layout_row_fits(&lr);
+        let mut row = Row::new("", Do::LayoutRow(lr)).text(words).enabled(fits);
+        row.check = crate::kit::menu::Check::Radio(name == current);
+        if let Some(a) = keys.get(n) {
+            row = row.key(*a);
+        }
         rows.push(row);
     }
     let is_saved = app.layouts.saved.iter().any(|l| l.name == current);
     rows.push(Row::command(M::SaveLayoutAs));
     rows.push(Row::command(M::DeleteLayout).enabled(is_saved));
     rows.push(Row::command(M::ResetLayout));
+    // Several screens (ADR 0151 §§2, 8): a window of its own, the rescue, full screen.
+    rows.push(Row::separator());
+    rows.push(Row::band(Words::Key("screens.view.band")));
+    rows.push(Row::run(Action::MoveToNewWindow, "screens.view.new_window"));
+    rows.push(Row::new("screens.view.gather", Do::GatherWindows).enabled(!app.windows.is_empty()));
+    rows.push(
+        Row::new("screens.view.dock_all", Do::DockEveryWindow).enabled(!app.windows.is_empty()),
+    );
+    rows.push(Row::run(Action::ToggleFullScreen, "screens.window.full_screen"));
     rows.push(Row::separator());
     for (action, key) in [
         (Action::ZoomIn, "workspace.zoom_in"),

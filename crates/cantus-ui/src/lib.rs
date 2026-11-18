@@ -65,6 +65,7 @@ pub mod windows; // multimon — windows of their own (ADR 0151)
 pub mod windows_docks; // multimon
 pub mod windows_pass; // multimon
 mod windows_root; // multimon
+pub mod windows_layouts; // multimon — the built-in layouts for several screens
 pub mod tympanum_load; // r40:tymp-engine — Tympanum's recorded kits read from their packs (ADR 0124)
                        // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod editor; // r36:editor — the audio editor (ADR 0096)

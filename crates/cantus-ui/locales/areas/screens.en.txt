@@ -29,6 +29,7 @@ screens.view.dock_all = Put every area back in the main window
 screens.view.map = Screens and windows…
 
 # --- the built-in layouts for several screens ---
+screens.layout.wide = Wide screen: arrange beside mix
 screens.layout.two_mix = Two screens: arrange | mix
 screens.layout.two_edit = Two screens: arrange | edit
 screens.layout.three = Three screens: edit | arrange | mix
@@ -49,3 +50,16 @@ screens.map.close = Close
 # --- what Cantus says when the screens change ---
 screens.notice.missing = The screen “{name}” is not connected: its areas ({areas}) came back into the main window. They go back when it returns.
 screens.notice.returned = The screen “{name}” is back: its windows are where you left them.
+
+# --- the keys (keymap 19) ---
+action.layout-1 = Layout 1 (the View menu's first)
+action.layout-2 = Layout 2 (the View menu's second)
+action.layout-3 = Layout 3 (the View menu's third)
+action.layout-4 = Layout 4 (the View menu's fourth)
+action.layout-5 = Layout 5 (the View menu's fifth)
+action.layout-6 = Layout 6 (the View menu's sixth)
+action.layout-7 = Layout 7 (the View menu's seventh)
+action.layout-8 = Layout 8 (the View menu's eighth)
+action.layout-9 = Layout 9 (the View menu's ninth)
+action.toggle-full-screen = Full screen for the window in front
+action.move-to-new-window = Move the area to a new window

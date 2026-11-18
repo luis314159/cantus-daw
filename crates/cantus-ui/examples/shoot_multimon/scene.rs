@@ -663,7 +663,7 @@ fn run(dir: &Path) {
 
 /// The desk: the laptop with the main window and the screen with the mixer's window, side
 /// by side as they stand (`tiny-skia`, from the two pictures).
-fn desk(main: &Path, mixer: &Path, to: &PathBuf) {
+pub fn desk(main: &Path, mixer: &Path, to: &PathBuf) {
     use tiny_skia::{
         Color, FillRule, FilterQuality, Paint, PathBuilder, Pixmap, PixmapPaint, Transform,
     };

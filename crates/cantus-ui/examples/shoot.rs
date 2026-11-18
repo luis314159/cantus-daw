@@ -23,6 +23,8 @@ mod hosted_view_scene;
 mod issue1_scene;
 #[path = "shoot_multimon/scene.rs"]
 mod multimon_scene;
+#[path = "shoot_multimon/real.rs"]
+mod multimon_real;
 #[path = "shoot_samples/scene.rs"]
 mod samples_scene;
 use cantus_ui::raster::shoot;
@@ -78,6 +80,13 @@ fn main() {
     let kinds: Vec<String> = args.collect();
     // `issue1-menus`: the desk's submenus and an instrument's preset list on a 2 880 × 1 800
     // screen, `scale` the system's (GitHub issue #1's follow-up, ADR 0149 amendment 1).
+    // `multimon-real`: several screens as built (ADR 0151, phase 2).
+    if kinds.iter().any(|k| k == "multimon-real") {
+        multimon_real::shots(&dir);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
     // `multimon`: the design pictures for several screens (ADR 0151, proposed).
     if kinds.iter().any(|k| k == "multimon") {
         multimon_scene::shots(&dir);

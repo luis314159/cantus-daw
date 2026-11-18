@@ -97,6 +97,9 @@ impl CantusApp {
             self.layouts.remember(&old, lay);
         }
         self.windows.screens = list;
+        if first {
+            self.restore_main_place();
+        }
         let made_here = self.layouts.current.screens == fp;
         if !made_here && (!first || !self.layouts.current.screens.is_empty()) {
             if let Some(lay) = self.layouts.recall(&fp).cloned() {
@@ -182,6 +185,28 @@ impl CantusApp {
         lay.main_place = self.main_place();
         lay.screens = self.windows.fingerprint.clone();
         lay
+    }
+
+    /// At the first reading of the screens: the main window back on the screen it was on
+    /// when the layout was kept, when that screen is here and the window opened elsewhere
+    /// (once; the system's own place otherwise).
+    fn restore_main_place(&mut self) {
+        let Some(place) = self.layouts.current.main_place.clone() else {
+            return;
+        };
+        let Some(settled) = screens::settle(&place, &self.windows.screens) else {
+            return;
+        };
+        let now = self
+            .windows
+            .main
+            .outer
+            .and_then(|r| screens::screen_of(&r, &self.windows.screens));
+        let there = screens::find_screen(&settled.screen, &self.windows.screens);
+        if now.is_some() && now == there {
+            return;
+        }
+        let _ = place_through_winit(ViewportId::ROOT, Some(&settled));
     }
 
     /// The main window's place, when its screen is known.

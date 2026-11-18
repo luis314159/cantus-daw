@@ -96,7 +96,7 @@ pub fn action(app: &mut CantusApp, a: Action) -> bool {
 /// Tab (Live's): the session and the arrangement take turns in the centre — the Session
 /// pane comes forward, or goes back behind the arrangement; the selection stays.
 pub fn toggle_view(app: &mut CantusApp) {
-    let shown = app.workspace.is_visible(Pane::Session);
+    let shown = app.pane_visible(Pane::Session);
     if shown {
         app.show_pane(Pane::Arrangement);
         app.session_view.focused = false;

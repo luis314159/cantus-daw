@@ -4190,6 +4190,41 @@ impl CantusApp {
                     self.focus_by_keys = true;
                 }
             }
+            // Several screens (ADR 0151 §7).
+            Layout1 | Layout2 | Layout3 | Layout4 | Layout5 | Layout6 | Layout7 | Layout8
+            | Layout9 => {
+                let n = match action {
+                    Layout1 => 1,
+                    Layout2 => 2,
+                    Layout3 => 3,
+                    Layout4 => 4,
+                    Layout5 => 5,
+                    Layout6 => 6,
+                    Layout7 => 7,
+                    Layout8 => 8,
+                    _ => 9,
+                };
+                self.apply_layout_number(n);
+            }
+            ToggleFullScreen => {
+                // The window in front: the one whose pass is running.
+                if let Some(ctx) = self.theme_ctx.clone() {
+                    let full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
+                }
+            }
+            MoveToNewWindow => self.move_focused_to_new_window(),
+            ZoomIn | ZoomOut | ZoomReset if self.windows.current.is_some() => {
+                // Ctrl +/− in a window of its own: that window's own scale (ADR 0151 §5).
+                if let Some(i) = self.windows.current {
+                    let w = &mut self.windows.list[i];
+                    w.scale = match action {
+                        ZoomIn => Some(settings::ui_scale_step(w.zoom, true)),
+                        ZoomOut => Some(settings::ui_scale_step(w.zoom, false)),
+                        _ => None,
+                    };
+                }
+            }
             ZoomIn | ZoomOut | ZoomReset => {
                 if let Some(ctx) = self.theme_ctx.clone() {
                     match action {

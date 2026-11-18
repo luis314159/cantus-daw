@@ -57,6 +57,8 @@ pub struct Rig {
     /// Every repaint asked for since last cleared, as eframe hears it.
     pub asked: Arc<Mutex<Vec<(ViewportId, Duration)>>>,
     pub dir: PathBuf,
+    /// The engine's processor, driven a block per main-window pass.
+    pub proc_: cantus_engine::Processor,
     _tmp: Option<tempfile::TempDir>,
 }
 
@@ -76,7 +78,7 @@ pub fn configure(dir: &Path) {
     if !path.exists() {
         std::fs::write(
             &path,
-            r#"{"audio_setup":{"setup_done":true},"start_page_at_start":false,"plugin_scan_at_start":false}"#,
+            r#"{"audio_setup":{"setup_done":true},"start_page_at_start":false,"plugin_scan_at_start":false,"ui_scale_follows_screen":true}"#,
         )
         .unwrap();
     }
@@ -109,11 +111,12 @@ impl Rig {
                 asked.lock().unwrap().push((info.viewport_id, info.delay));
             });
         }
+        let (engine, proc_) = EngineHandle::manual(48_000.0);
         let mut app = Box::new(CantusApp::assemble(
             &ctx,
             files,
             project,
-            EngineHandle::dummy(),
+            engine,
             None,
             None,
             None,
@@ -131,6 +134,7 @@ impl Rig {
             pointers: HashMap::new(),
             asked,
             dir: dir.to_path_buf(),
+            proc_,
             _tmp: None,
         }
     }
@@ -214,6 +218,9 @@ impl Rig {
 
     /// The main window's pass with `events`.
     pub fn root(&mut self, mut events: Vec<Event>) {
+        // A frame's worth of audio (60 frames a second at 48 kHz) before the frame.
+        let mut buf = vec![0f32; 800 * 2];
+        self.proc_.process(&mut buf, 2);
         self.t += 1.0 / 60.0;
         let s = self.screens[self.main_screen].clone();
         if let Some(p) = self.pointers.get(&ViewportId::ROOT) {

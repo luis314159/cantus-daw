@@ -371,7 +371,7 @@ impl CantusApp {
         // Not while the clip editor shows *Warp*: its keys are the warp editor's (round
         // 29's review: Q quantised a pitch edit no one could see).
         if self.focus != crate::app::EditFocus::PianoRoll
-            || !self.workspace.is_visible(Pane::PianoRoll)
+            || !self.pane_visible(Pane::PianoRoll)
             || self.warp.view.open
         {
             return None;

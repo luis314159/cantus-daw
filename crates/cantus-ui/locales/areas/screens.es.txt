@@ -27,6 +27,7 @@ screens.view.dock_all = Devolver todas las áreas a la ventana principal
 screens.view.map = Pantallas y ventanas…
 
 # --- las disposiciones de fábrica para varias pantallas ---
+screens.layout.wide = Pantalla ancha: arreglo junto a la mezcla
 screens.layout.two_mix = Dos pantallas: arreglo | mezcla
 screens.layout.two_edit = Dos pantallas: arreglo | edición
 screens.layout.three = Tres pantallas: edición | arreglo | mezcla
@@ -47,3 +48,16 @@ screens.map.close = Cerrar
 # --- lo que Cantus dice cuando cambian las pantallas ---
 screens.notice.missing = La pantalla «{name}» no está conectada: sus áreas ({areas}) volvieron a la ventana principal. Volverán cuando regrese.
 screens.notice.returned = La pantalla «{name}» ha vuelto: sus ventanas están donde las dejaste.
+
+# --- the keys (keymap 19) ---
+action.layout-1 = Disposición 1 (la primera del menú Ver)
+action.layout-2 = Disposición 2 (la segunda del menú Ver)
+action.layout-3 = Disposición 3 (la tercera del menú Ver)
+action.layout-4 = Disposición 4 (la cuarta del menú Ver)
+action.layout-5 = Disposición 5 (la quinta del menú Ver)
+action.layout-6 = Disposición 6 (la sexta del menú Ver)
+action.layout-7 = Disposición 7 (la séptima del menú Ver)
+action.layout-8 = Disposición 8 (la octava del menú Ver)
+action.layout-9 = Disposición 9 (la novena del menú Ver)
+action.toggle-full-screen = Pantalla completa para la ventana en primer plano
+action.move-to-new-window = Mover el área a una ventana nueva
