@@ -368,8 +368,11 @@ fn song() -> cantus_core::Project {
 }
 
 /// The editors that open over the workspace: their fields are those that appear with them.
-fn editor_screens(r: &Rig) -> Vec<(String, Box<dyn Fn(&mut Rig)>)> {
-    let mut v: Vec<(String, Box<dyn Fn(&mut Rig)>)> = Vec::new();
+/// A screen opened by a closure: its name and how.
+type Opener = (String, Box<dyn Fn(&mut Rig)>);
+
+fn editor_screens(r: &Rig) -> Vec<Opener> {
+    let mut v: Vec<Opener> = Vec::new();
     let p = r.app.project();
     let s = p.tracks[0].strip.unwrap();
     for (k, fx) in EFFECTS.iter().zip(&p.strip(s).unwrap().effects) {

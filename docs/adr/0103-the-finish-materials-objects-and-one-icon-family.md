@@ -404,3 +404,9 @@ between the three, and after a restart over the same folder the choice is kept a
 On the old drawing (the hosts painting their own cap whatever was chosen) it fails at the
 first look. `kit::appearance`: an absent or `"Classic"` choice reads as the theme's;
 each cap round-trips.
+`tests/appearance_settings_e2e.rs` holds the owner's "check that other options are not like
+this": every row of choices on Settings ▸ Appearance (the mode, the interface's size, the
+units' faces, the cables, the faders, the instruments' pictures, *Layout and controls*' five,
+and the language, which paints the page in Spanish) is clicked to each choice and the state
+its painters read — not the setting the click wrote — differs per choice, and is the same
+after a restart. Only *Faders* was broken.
