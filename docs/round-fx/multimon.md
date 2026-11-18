@@ -384,3 +384,26 @@ The owner approved on 2026-11-17 (relayed): questions 1, 2, 4, 5 and 6 yes; 3 le
 winit and eframe do. The spike ran on one real screen. The checklist lists what a real desk
 must confirm: placement, hidden-then-shown, unplugging, sleep, the drag between real
 windows, F11, plug-in windows, and Linux and macOS.
+
+**Run on this branch** (Windows, 2026-11-17):
+- **The window tests:** `windows_e2e` 8, `windows_screens` 3 and `windows_stability` 4.
+- **The library's unit tests:** 568 pass, 2 ignored. These include `screens::tests`, the
+  keymap tests and the i18n test, which requires every English key in Spanish.
+- **The existing suites this change touches:** `app_flows` 74, `keyboard_reach` 6,
+  `menus_in_window` 2, `menus_at_scale` 2, `panels` 6, `at_rest_e2e` 6, `idle_repaint_e2e` 2,
+  `frame_budget` 19, `click_paths` 17, `boot_shell` 1, `stage_companion` 13,
+  `window_stability` 3 and `kit_lint` 4. All pass.
+- **What this changed in the existing suites:**
+  - The View menu keeps its height: no Default row and no band, and the rescue rows only
+    appear once a window is open.
+  - *Move to a new window* and *Screens and windows…* are actions, on Shift+F11 and
+    Ctrl+F11. The test requiring every View action to have a key wants that.
+  - The old *Float in its own window* key now reads *Float over this window*.
+- **Not run:** the whole workspace, and Linux. The integrator runs both, with
+  `tools/wsl/check.sh`. Nothing added is behind `cfg(windows)`.
+- **Third-party notices:** `THIRD-PARTY-NOTICES.md` was regenerated, since eframe now comes
+  from `third_party/`.
+
+**Pictures as built:** `compartir/multimon/design/v2/` holds the main window on the laptop,
+the mixer's window on the external screen, and the desk, in both locales. They match the v1
+design.
