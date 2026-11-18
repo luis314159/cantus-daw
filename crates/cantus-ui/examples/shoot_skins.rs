@@ -235,12 +235,12 @@ const UNITS: &[(&str, &str, What)] = &[
     ("loquax", "loquax", What::Fx(EffectKind::Vocoder)),
     ("fractus", "fractus", What::Fx(EffectKind::Glitch)),
     ("caelum", "caelum", What::Fx(EffectKind::Shimmer)),
-    // MERGE (fx/web, docs/round-fx/site.md): waves B and C, once their kinds are in:
-    // ("vinculum", "vinculum", What::Fx(EffectKind::BusCompressor)),
-    // ("lenis", "lenis", What::Fx(EffectKind::ResonanceSuppressor)),
-    // ("cedo", "cedo", What::Fx(EffectKind::Ducker)),
-    // ("purus", "purus", What::Fx(EffectKind::Repair)),
-    // ("comparatio", "comparatio", What::Fx(EffectKind::Reference)),
+    // fxb/fxc: the side round's waves B and C.
+    ("vinculum", "vinculum", What::Fx(EffectKind::BusCompressor)),
+    ("lenis", "lenis", What::Fx(EffectKind::ResonanceSuppressor)),
+    ("cedo", "cedo", What::Fx(EffectKind::Ducker)),
+    ("purus", "purus", What::Fx(EffectKind::Repair)),
+    ("comparatio", "comparatio", What::Fx(EffectKind::Reference)),
     ("unda", "unda", What::Inst(InstrumentKind::Wavetable)),
     ("calor", "calor", What::Inst(InstrumentKind::Analog)),
     ("modulus", "modulus", What::Inst(InstrumentKind::Fm)),

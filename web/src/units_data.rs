@@ -621,7 +621,6 @@ pub const EFFECTS: [Unit; 42] = [
         presets: Some(14),
         plugin: true,
         ab: None,
-        // MERGE: the pictures' sizes come from `check_units.py --fix`.
         big: (1800, 1209),
         thumb: (640, 430),
     },
@@ -644,7 +643,6 @@ pub const EFFECTS: [Unit; 42] = [
         presets: Some(14),
         plugin: true,
         ab: None,
-        // MERGE: the pictures' sizes come from `check_units.py --fix`.
         big: (1800, 1209),
         thumb: (640, 430),
     },
@@ -922,8 +920,8 @@ pub const EFFECTS: [Unit; 42] = [
         presets: Some(15),
         plugin: true,
         ab: None,
-        big: (1800, 1152),
-        thumb: (640, 410),
+        big: (1800, 929),
+        thumb: (640, 330),
     },
 
     Unit {
