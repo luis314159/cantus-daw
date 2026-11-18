@@ -338,6 +338,39 @@ pub const FACES: &[Face] = &[
         "C",
         T::Smooth,
     ), // fxa:caelum
+    // fxb:vinculum — a compressor pedal: the model, the sustain (the threshold), the level
+    // (the make-up) and the blend (the mix). The Compress/Limit and the times stay on its
+    // editor's faceplate, reached from the pedal.
+    face(
+        K::BusCompressor,
+        &["model", "thr", "makeup", "mix"],
+        S::Standard,
+        M::Needle,
+        "V",
+        T::Smooth,
+    ), // fxb:vinculum
+    // fxb:lenis — a resonance tamer: depth, sharpness, selectivity and where its focus
+    // starts (a guitar's body left alone below it). The curve, the quality and the focus's
+    // bands stay on its editor's screen, reached from the pedal.
+    face(
+        K::ResonanceSuppressor,
+        &["depth", "sharp", "select", "lo"],
+        S::Standard,
+        M::Curve,
+        "L",
+        T::Brushed,
+    ), // fxb:lenis
+    // fxb:cedo — a ducker on the board: its trigger, how deep, the cycle, the threshold (a
+    // keyed board's key, the board's beat or its notes fire it). The shape, the envelope and
+    // the band stay on its editor's screen, reached from the pedal.
+    face(
+        K::Ducker,
+        &["trig", "depth", "div", "thr"],
+        S::Standard,
+        M::Steps,
+        "C",
+        T::Hammered,
+    ), // fxb:cedo
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.

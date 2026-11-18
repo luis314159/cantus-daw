@@ -443,6 +443,25 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         ("PitchShift", "heel" | "toe" | "wsrc") if get("mode").round() != 3.0 => {
             Some("the whammy mode's")
         }
+        // fxb:vinculum — each model's faceplate draws its own switches (the demo is the
+        // VCA); `every_vinculum_model_offers_its_stepped_parameters` draws the others.
+        ("BusCompressor", "char") if get("model").round() == 0.0 => {
+            Some("the opto's and vari-mu's")
+        }
+        ("BusCompressor", "time") if get("model").round() != 2.0 => Some("the vari-mu's"),
+        // fxb:lenis — the Focus band card shows one band at a time (the first in the demo);
+        // `every_lenis_band_offers_its_switch` selects each band in turn.
+        ("ResonanceSuppressor", k)
+            if k.len() == 4 && k.starts_with('b') && k.ends_with("on") && k != "b0on" =>
+        {
+            Some("another focus band than the one the card shows")
+        }
+        // fxb:cedo — each trigger draws its own cards (the demo is Tempo):
+        // `every_cedo_trigger_offers_its_stepped_parameters` draws the others.
+        ("Ducker", "rshape" | "kfilt" | "det") if get("trig").round() != 0.0 => {
+            Some("the sidechain's cards (envelope, key filter, trigger)")
+        }
+        ("Ducker", "vel") if get("trig").round() != 2.0 => Some("the MIDI trigger's card"),
         ("Sampler", k) if k.ends_with(".gen") => Some("the zone's source, chosen with its sound"),
         // fx:cribrum — Cribrum shows one filter (A or B) and one movement source at a time;
         // its curve's points are drawn on the curve's lane.
@@ -1008,4 +1027,161 @@ fn the_controllers_windows_offer_learn_on_every_parameter() {
             "{kind:?}: a control without Learn MIDI controller"
         );
     }
+}
+
+/// fxb:vinculum — Vinculum's faceplate draws the model's own switches: on each model, every
+/// stepped key of its panel is offered (automation, MIDI learn), and Auto's and Limit's
+/// lamps never stand in for a switch.
+#[test]
+fn every_vinculum_model_offers_its_stepped_parameters() {
+    let kind = EffectKind::BusCompressor;
+    let models: [(f32, &[&str]); 3] = [
+        (0.0, &["model", "ratio", "att", "rel"]),
+        (1.0, &["model", "char"]),
+        (2.0, &["model", "time", "char"]),
+    ];
+    let mut bad = Vec::new();
+    for (model, keys) in models {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "model".into(),
+            value: model,
+        });
+        a.open_effect_editor(s0, fx);
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        for key in keys {
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: (*key).into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("model {model}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
+}
+
+/// fxb:lenis — the Focus band card shows the band chosen on its chooser (or on the screen):
+/// with each of the six chosen in turn, its lamp — the band's switch — is offered
+/// (automation, MIDI learn), and so is every other stepped key of the editor.
+#[test]
+fn every_lenis_band_offers_its_switch() {
+    let kind = EffectKind::ResonanceSuppressor;
+    let mut bad = Vec::new();
+    for n in 0..cantus_core::fx::lenis::BANDS {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.open_effect_editor(s0, fx);
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        a.fx.lenis.band = n;
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        let keys = [
+            cantus_core::fx::lenis::band_key(n, "on"),
+            "qual",
+            "curve",
+            "delta",
+            "chan",
+        ];
+        for key in keys {
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: key.into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("band {n}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
+}
+
+/// fxb:cedo — Cedo's cards follow its trigger: in each of Sidechain, Tempo and MIDI every
+/// stepped key its cards draw is offered (automation, MIDI learn) — the release's shape, the
+/// key's filter and detector in Sidechain, the velocity in MIDI, the trigger, the band, the
+/// split, the floor and Listen in all three; the cycle where a shape plays.
+#[test]
+fn every_cedo_trigger_offers_its_stepped_parameters() {
+    let kind = EffectKind::Ducker;
+    let triggers: [(f32, &[&str]); 3] = [
+        (
+            0.0,
+            &[
+                "trig", "rshape", "kfilt", "det", "band", "xover", "lfloor", "listen",
+            ],
+        ),
+        (1.0, &["trig", "div", "band", "xover", "lfloor", "listen"]),
+        (
+            2.0,
+            &["trig", "div", "vel", "band", "xover", "lfloor", "listen"],
+        ),
+    ];
+    let mut bad = Vec::new();
+    for (trig, keys) in triggers {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "trig".into(),
+            value: trig,
+        });
+        a.open_effect_editor(s0, fx);
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        for key in keys {
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: (*key).into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("trigger {trig}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
 }

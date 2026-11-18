@@ -66,6 +66,10 @@ pub fn effect_use(kind: EffectKind) -> &'static str {
         K::Vocoder => "Vocoder: the track's own sound is the voice; the carrier (src) 0 the sidechain (another strip routed as the slot's key), 1 the built-in synthesiser played by the MIDI notes the slot listens to, 2 both; swap 1: the sidechain speaks through this track. bands 8..64, order 0..2 (slopes of order 4, 6, 8), lo/hi the band range Hz, width 0.5..2, att/rel ms; formant -24..24 st (moves the formants, not the notes), bshift -16..16 bands, tilt dB/oct, flat 0..1 (flatten the carrier), sib/sibhz/sibgate (the sibilance pass-through), unv (noise on consonants), hold 1 (freeze the vowel), spread, cpass (the raw carrier through); the synthesiser: saw, pulse, pw, noise, uni 1..7 copies, detune ct, uspread, oct -3..3, satt/srel ms, slevel dB; robot 1 drones rnote (MIDI 24..96) while the voice is above rgate dB; b0..b63 each band's level dB (-24..12, the bars the user draws on the bank); obj the object drawn in its window, 0 gooseneck, 1 talk-box tube, 2 desk microphone (a look, never heard; presets keep it); mix 0..1 (default 0, a null), out dB. No latency. Fifteen presets, both carriers (talk-box and sidechain carrier use the key; classic, choir, string machine the notes). Starts on Robot (the drone, 16 bands, mix 1, out +0.5 dB).", // fxa:loquax
         K::Glitch => "Glitch sequencer and grain cloud: ten lanes painted in time with the song (0 repeat, 1 reverse, 2 tape stop, 3 shuffle, 4 pitch jump, 5 crush, 6 filter sweep, 7 gate, 8 delay throw, 9 the cloud); the lanes are the spec's pattern, not parameters: set_effect's lanes paints them by name (blocks {at, len, amount, chance}; a block's amount is the module's mix for that event). step 0..6 (1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32, 1/64), bars 1..4, swing, xfade ms; trig 0 the steps, 1 held notes (key + lane), 2 both; quant 1 a note waits for the next step; seed; repeat rsize (note 0..13: 1/2 .. 1/128), rramp 0..3, rpitch st, rdecay dB, rduty; reverse vslice (0 the step, else a note); tape tkind 0 stop 1 start, ttime, tcurve; shuffle sslice, srange 1..8, srev; pitch psemi ±24, pwin ms, pstyle 0 classic warble 1 clean; crush kbits, krate Hz; filter fkind 0 low 1 high 2 band, ffrom/fto Hz, fres, fcurve; gate grate (0 shut), gduty, gdepth; throw wtime, wfb, wtone Hz, wpp, wlvl; cloud clevel (beside the chain), cpos/cspray/csize ms, cdens grains/s, cpitch/crand st, cscale 0..6, cspread, crev, cwin 0..4, cfreeze; mix, out dB. Nothing painted and clevel 0: a null. No latency. Eighteen presets: stutters and builds, tape stops and starts, reverses, gates, filter sweeps, delay throws, shuffles, lo-fi fills, grain pads and a cloud to freeze, and sets played by notes. Starts on Last beat stutter.", // fxa:fractus
         K::Shimmer => "Shimmer reverb: size 0..1, decay 0.3..60 s, inf 1 infinite (holds the tail at the level it has, what comes in layers under a soft ceiling; isus 0..1 its sustain once nothing comes in: 1 holds for ever, the default, 0 the climb carries it away), freeze 1, bloom ms (a swell), pre ms or psync 1..8 (1/32, 1/16, 1/8T, 1/8, 1/8., 1/4, 1/4., 1/2 at the song's tempo), diff, hhz/hdec high damping (Hz, x the decay), lhz/ldec low damping, mdepth/mrate modulation; shim 0..1 the shimmer, pa/pb its two voices st (-36..36), pblvl the second's level, slo/shi the loop's tone Hz; duck dB (keyed by the sidechain when routed), dthr, datt, drel; lcut/hcut the wet's tone, width 0..1.5, lines 0 eight 1 sixteen; mix 0..1 (default 0, a null), out dB. No latency. Starts on Octave shimmer.", // fxa:caelum
+        // fxb — wave B's words (ADRs 0139–0141).
+        K::BusCompressor => "Bus compressor: model 0 VCA (feed-forward console, ratio 0 2:1, 1 4:1, 2 10:1; att 0..5 = 0.1, 0.3, 1, 3, 10, 30 ms; rel 0..3 = 0.1, 0.3, 0.6, 1.2 s, 4 Auto), 1 Opto (photocell, feedback; char 0 Compress about 3:1, 1 Limit about 10:1), 2 Vari-mu (valve, the ratio rising with the reduction; char 0 Compress, 1 Limit 4:1 to 20:1; time 0..5 the six positions, 4 and 5 programme dependent; colour 0..1 odd harmonics at 2x); thr -50..24 dB (24, the default, touches nothing), hpf 20..500 Hz the side chain's high-pass (20 off), makeup 0..24 dB, mix 0..1 (parallel), out dB. The key: another strip routed as the slot's sidechain, its own input otherwise. No latency. Starts on Glue.", // fxb:vinculum
+        K::ResonanceSuppressor => "Resonance suppressor: depth 0..1 the share of each resonance's bump taken away (0, the default, the input delayed by the latency, to the bit), sharp 0..1 (narrow rings only at 1, broad build-ups too at 0), select 0..1 how far a peak must stand out, att 0.5..200 ms, rel 5..2000 ms, lo/hi the focus's limits Hz, six focus bands b0..b5 (bNon 0/1, bNhz, bNamt -1..1, bNw octaves 0.1..4), chan 0 linked 1 independent 2 mid/side, curve 0 soft 1 hard, qual 0 fast (5.3 ms latency) 1 standard (10.6 ms) 2 precise (21.3 ms), delta 1 hears what is removed, mix 0..1, out dB. Starts on Gentle.", // fxb:lenis
+        K::Ducker => "Ducker: trig 0 sidechain (another strip routed as the slot's key), 1 tempo (the drawn shape on every div, 0..16 = 8/1..1/32 with dotted and triplets, swing 0..1, edge ms), 2 MIDI (the shape on the notes of the track the slot listens to, midi_from; vel 1 scales the depth); depth 0..80 dB (80 is silence; 0, the default, touches nothing), thr -90..6 dB, att 0..500 ms, hold 0..2000 ms, rel 0..5000 ms, rshape 0 linear 1 exponential 2 S-curve, kfilt 0 off 1 high-pass 2 band-pass with khz and kq, det 0 peak 1 RMS (rms ms), look 0..10 ms lookahead (latency), band 0 whole 1 lows 2 highs split at xhz by xover 0 minimum phase 1 linear phase (36.8 ms latency, from 60 Hz), link 0..1, mix 0..1, out dB, listen 0 output 1 delta 2 key. Starts on Classic pump (tempo, 9 dB).", // fxb:cedo
     }
 }
 
@@ -191,6 +195,33 @@ pub fn effect_entry(kind: EffectKind) -> Value {
                     }
                 }
                 return json!({"name": en(label), "sets": sets(&own), "lanes": lanes});
+            }
+            // fxb:cedo — a Cedo preset's shape apart from its values, as `set_effect`'s
+            // `shape` takes it.
+            if kind == EffectKind::Ducker {
+                let own: Vec<(&str, f32)> = values
+                    .iter()
+                    .filter(|(k, _)| kind.param(k).is_some())
+                    .copied()
+                    .collect();
+                let map: std::collections::BTreeMap<String, f32> =
+                    values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+                let Some(shape) = cantus_core::fx::cedo::shape_of_flat(&map) else {
+                    return json!({"name": en(label), "sets": sets(&own)});
+                };
+                let points: Vec<Value> = shape
+                    .points
+                    .iter()
+                    .map(|q| {
+                        let seg = match q.s {
+                            1 => "s",
+                            2 => "hold",
+                            _ => "curve",
+                        };
+                        json!({"x": q.x, "y": q.y, "bend": q.t, "seg": seg})
+                    })
+                    .collect();
+                return json!({"name": en(label), "sets": sets(&own), "shape": points});
             }
             if kind != EffectKind::Board {
                 return json!({"name": en(label), "sets": sets(values)});

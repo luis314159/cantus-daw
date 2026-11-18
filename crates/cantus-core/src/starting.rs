@@ -196,6 +196,35 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("out", -0.9),
             ],
         ), // fxa:caelum
+        // fxb:vinculum — the console's glue on a bus: the VCA at 4 : 1, the slow attack that
+        // lets the drums' hits through, Auto release, a little make-up — heard at once on a
+        // mix, its needle moving.
+        K::BusCompressor => preset(
+            "preset.vinculum.glue",
+            &[
+                ("thr", -18.0),
+                ("ratio", 1.0),
+                ("att", 5.0),
+                ("rel", 4.0),
+                ("makeup", 2.0),
+                // Fitted to the dry's loudness (`preset_tool fit`).
+                ("out", -1.5),
+            ],
+        ), // fxb:vinculum
+        // fxb:lenis — gentle: half of each resonance's bump taken away, the soft curve,
+        // from 150 Hz up (a source's body is left alone).
+        // Fitted to the dry's loudness (`preset_tool fit`).
+        K::ResonanceSuppressor => preset(
+            "preset.lenis.gentle",
+            &[("depth", 0.5), ("lo", 150.0), ("out", 0.7)],
+        ), // fxb:lenis
+        // fxb:cedo — the classic pump on quarters, 9 dB: it sounds on any track with no
+        // routing at all (the tempo fires it), the whole band.
+        // Fitted to the dry's loudness (`preset_tool fit`): +1.4 dB.
+        K::Ducker => preset(
+            "preset.cedo.classic_pump",
+            &[("trig", 1.0), ("depth", 9.0), ("out", 1.4)],
+        ), // fxb:cedo
         K::Multiband => preset(
             "mb.preset.glue",
             &[

@@ -351,6 +351,30 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 blocks,
                             };
                         }
+                        // fxb:contract — Cedo's shape: points out of range and out of order
+                        // (so sanitizing is undone too), the classic pump again, other kinds.
+                        if (e.spec.kind == EffectKind::Ducker && rng.below(3) == 0)
+                            || rng.below(60) == 0
+                        {
+                            use cantus_core::fx::cedo::Shape;
+                            use cantus_core::fx::lapsus::Point;
+                            let shape = (rng.below(4) != 0).then(|| {
+                                Box::new(Shape {
+                                    points: (0..rng.below(6))
+                                        .map(|_| {
+                                            Point::new(rng.f32(-0.2, 1.2), rng.f32(-0.5, 1.5))
+                                                .bend(rng.f32(-1.5, 1.5))
+                                        })
+                                        .collect(),
+                                })
+                            });
+                            return Command::SetCedoShape {
+                                strip: host,
+                                effect: e.id,
+                                shape,
+                                pedal: None, // fxb:cedo
+                            };
+                        }
                         if rng.below(3) == 0 {
                             return Command::SetEffectMix {
                                 strip: host,
@@ -7478,7 +7502,17 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
     };
     let cmd = match kind {
         1 => {
-            let k = allowed[rng.below(allowed.len() as u64) as usize];
+            // fxb:lenis — one new pedal in eight is a Lapsus, so arm 10 finds one to set a
+            // pattern on (with every kind equally likely, one more pedal kind left the
+            // stream with no Lapsus on any board when that arm came).
+            // fxb:cedo — and one in eight a Cedo, so arm 10 finds one to draw a shape on.
+            let k = if rng.below(8) == 0 {
+                EffectKind::TimeShaper
+            } else if rng.below(7) == 0 {
+                EffectKind::Ducker
+            } else {
+                allowed[rng.below(allowed.len() as u64) as usize]
+            };
             let mut p = Pedal::new(fresh, EffectSpec::new(k));
             p.on = rng.below(4) != 0;
             p.path = paths[rng.below(4) as usize];
@@ -7592,6 +7626,31 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
             }),
             pedal: Some(some_id(rng)),
         },
+        // fxb:cedo — a board's Cedo pedal's shape (one time in three), sanitized and undone.
+        10 if rng.below(3) == 0 => {
+            use cantus_core::fx::cedo::Shape;
+            use cantus_core::fx::lapsus::Point;
+            Command::SetCedoShape {
+                strip,
+                effect,
+                shape: (rng.below(4) != 0).then(|| {
+                    Box::new(Shape {
+                        points: (0..rng.below(5))
+                            .map(|_| {
+                                Point::new(rng.f32(-0.2, 1.2), rng.f32(-0.5, 1.5))
+                                    .bend(rng.f32(-1.5, 1.5))
+                            })
+                            .collect(),
+                    })
+                }),
+                pedal: Some(
+                    match pedals.iter().find(|p| p.spec.kind == EffectKind::Ducker) {
+                        Some(p) if rng.below(4) != 0 => p.id,
+                        _ => some_id(rng),
+                    },
+                ),
+            }
+        }
         10 => {
             use cantus_core::fx::lapsus::{Lane, Pattern, Point};
             Command::SetLapsusPattern {
@@ -7606,7 +7665,16 @@ fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
                         name: None,
                     })
                 }),
-                pedal: Some(some_id(rng)),
+                // fxb:lenis — the board's Lapsus pedal when it has one (three times in four).
+                pedal: Some(
+                    match pedals
+                        .iter()
+                        .find(|p| p.spec.kind == EffectKind::TimeShaper)
+                    {
+                        Some(p) if rng.below(4) != 0 => p.id,
+                        _ => some_id(rng),
+                    },
+                ),
             }
         }
         11 => {

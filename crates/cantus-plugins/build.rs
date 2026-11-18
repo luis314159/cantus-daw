@@ -7,8 +7,8 @@
 
 /// The cargo feature (as `CARGO_FEATURE_*` spells it) of each plug-in, and its full name
 /// (`desc.rs`; a test keeps the two lists equal).
-const PLUGINS: [(&str, &str); 37] = [
-    // r40:delay: 25 with Delay; fx3:contract: 37 with the side round's twelve
+const PLUGINS: [(&str, &str); 40] = [
+    // r40:delay: 25 with Delay; fx3:contract, fxa, fxb: 40 with the side round's fifteen
     ("EQ", "Cantus Aequalis"),
     ("COMPRESSOR", "Cantus Comprimo"),
     ("LIMITER", "Cantus Terminus"),
@@ -46,6 +46,9 @@ const PLUGINS: [(&str, &str); 37] = [
     ("LOQUAX", "Cantus Loquax"),   // fxa:loquax
     ("FRACTUS", "Cantus Fractus"), // fxa:fractus
     ("CAELUM", "Cantus Caelum"),   // fxa:caelum
+    ("VINCULUM", "Cantus Vinculum"), // fxb:vinculum
+    ("LENIS", "Cantus Lenis"),       // fxb:lenis
+    ("CEDO", "Cantus Cedo"),         // fxb:cedo
 ];
 
 fn main() {

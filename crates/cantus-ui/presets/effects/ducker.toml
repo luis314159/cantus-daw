@@ -1,0 +1,281 @@
+# Cedo ducker: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# A preset's shape rides in its values (`cantus_core::fx::cedo::to_flat`): `"shape.n"` the
+# number of points, `"shape.0.x"`, `"shape.0.y"`, `"shape.0.bend"` and `"shape.0.seg"` the first
+# one's; a preset without `"shape.n"` plays the classic pump.
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels (the pumps';
+# a Sidechain preset ducks under the key it is given, so its output stays at 0 dB:
+# `preset_measure::by_design`);
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.cedo.classic_pump"
+note = "The classic pump on quarters, 9 dB, fired by the tempo with no routing: the starting preset."
+styles = ["house", "pop"]
+roles = ["bus", "creative"]
+[preset.values]
+"depth" = 9
+"out" = 1.4
+"trig" = 1
+
+[[preset]]
+key = "preset.cedo.half_time_pump"
+note = "The pump on half notes, deeper and longer: a slow, heavy breath for trap and half-time drops."
+styles = ["trap", "house"]
+roles = ["bus", "creative"]
+[preset.values]
+"depth" = 12
+"div" = 5
+"out" = 1.4
+"trig" = 1
+
+[[preset]]
+key = "preset.cedo.eighths_pump"
+note = "A quick pump on every eighth: the duck lets go by half the cycle, for driving synths and bass lines."
+styles = ["house", "pop"]
+roles = ["bus", "creative"]
+[preset.values]
+"depth" = 8
+"div" = 11
+"edge" = 1.5
+"out" = 1.1
+"shape.0.bend" = -0.3
+"shape.0.x" = 0
+"shape.0.y" = 1
+"shape.1.seg" = 2
+"shape.1.x" = 0.5
+"shape.1.y" = 0
+"shape.n" = 2
+"trig" = 1
+
+[[preset]]
+key = "preset.cedo.swing_pump"
+note = "The eighths' pump with every second one late (55 % swing): a shuffle that breathes with the groove."
+styles = ["house", "rnb", "lofi"]
+roles = ["creative", "bus"]
+[preset.values]
+"depth" = 9
+"div" = 11
+"out" = 1.5
+"swing" = 0.55
+"trig" = 1
+
+[[preset]]
+key = "preset.cedo.triplet_breathe"
+note = "A soft S-shaped swell on quarter-note triplets: pads that breathe across the bar."
+styles = ["ambient", "film", "pop"]
+roles = ["creative"]
+[preset.values]
+"depth" = 10
+"div" = 10
+"edge" = 2
+"out" = 2
+"shape.0.seg" = 1
+"shape.0.x" = 0
+"shape.0.y" = 1
+"shape.1.seg" = 2
+"shape.1.x" = 0.6
+"shape.1.y" = 0
+"shape.n" = 2
+"trig" = 1
+
+[[preset]]
+key = "preset.cedo.trance_gate"
+note = "A sixteenths' gate: open for the first half of each sixteenth, shut 30 dB for the second, the edges smoothed so it never clicks."
+styles = ["house", "film"]
+roles = ["creative"]
+[preset.values]
+"depth" = 30
+"div" = 14
+"edge" = 1.5
+"out" = 2.3
+"shape.0.seg" = 2
+"shape.0.x" = 0
+"shape.0.y" = 0
+"shape.1.seg" = 2
+"shape.1.x" = 0.5
+"shape.1.y" = 1
+"shape.n" = 2
+"trig" = 1
+
+[[preset]]
+key = "preset.cedo.reverse_swell"
+note = "Each half bar starts ducked 24 dB and swells back up into the next beat, cut short at the top: the sound of a reversed sample."
+styles = ["house", "trap", "film"]
+roles = ["creative"]
+[preset.values]
+"depth" = 24
+"div" = 5
+"edge" = 2
+"out" = 7.1
+"shape.0.bend" = 0.4
+"shape.0.x" = 0
+"shape.0.y" = 1
+"shape.1.seg" = 2
+"shape.1.x" = 0.94
+"shape.1.y" = 0
+"shape.n" = 2
+"trig" = 1
+
+[[preset]]
+key = "preset.cedo.lows_only_duck"
+note = "The pump on quarters below 120 Hz only, minimum phase (no latency): room for the kick in the bass, the rest of the track untouched."
+styles = ["house", "pop", "trap"]
+roles = ["bus"]
+[preset.values]
+"band" = 1
+"depth" = 18
+"out" = 1.4
+"trig" = 1
+"xhz" = 120
+
+[[preset]]
+key = "preset.cedo.linear_lows_duck"
+note = "The same lows-only pump split at linear phase: no phase turn at the crossover, at the cost of 36.8 ms of latency the mixer compensates."
+styles = ["house", "pop"]
+roles = ["bus", "master"]
+[preset.values]
+"band" = 1
+"depth" = 18
+"out" = 1.4
+"trig" = 1
+"xhz" = 120
+"xover" = 1
+
+[[preset]]
+key = "preset.cedo.midi_pump"
+note = "The classic pump fired by the notes of the track you choose (a kick part), its velocity scaling the depth: the pump follows the part, not the grid."
+styles = ["house", "trap"]
+roles = ["creative", "bus"]
+[preset.values]
+"depth" = 12
+"out" = 3.2
+"trig" = 2
+"vel" = 1
+
+[[preset]]
+key = "preset.cedo.kick_bass_duck"
+note = "A bass ducked by the kick routed as its key: the key band-passed at 60 Hz, 2 ms of lookahead so the duck is down before the kick lands."
+styles = ["house", "trap", "pop"]
+roles = ["bus", "drums"]
+[preset.values]
+"att" = 0.5
+"depth" = 10
+"hold" = 30
+"kfilt" = 2
+"khz" = 60
+"kq" = 1.2
+"look" = 2
+"rel" = 120
+"thr" = -24
+"trig" = 0
+
+[[preset]]
+key = "preset.cedo.kick_on_lows"
+note = "Only the lows under 110 Hz ducked by the kick routed as the key, minimum phase: the bass gives way, its upper harmonics stay heard."
+styles = ["house", "trap", "rock"]
+roles = ["bus"]
+[preset.values]
+"att" = 1
+"band" = 1
+"depth" = 18
+"hold" = 40
+"kfilt" = 2
+"khz" = 60
+"look" = 1
+"rel" = 150
+"thr" = -24
+"trig" = 0
+"xhz" = 110
+
+[[preset]]
+key = "preset.cedo.edm_sidechain"
+note = "A hard sidechain from the kick: 24 dB, instant attack, a 180 ms S-curve release, the key band-passed at 60 Hz."
+styles = ["house"]
+roles = ["bus", "drums"]
+[preset.values]
+"att" = 0
+"depth" = 24
+"hold" = 60
+"kfilt" = 2
+"khz" = 60
+"look" = 1
+"rel" = 180
+"rshape" = 2
+"thr" = -30
+"trig" = 0
+
+[[preset]]
+key = "preset.cedo.voice_over"
+note = "Music under a voice-over, slowly and gently: 9 dB by the voice's RMS through a voice band-pass, 10 ms lookahead, held 300 ms, an S-curve release over 600 ms."
+styles = ["film", "worship", "pop"]
+roles = ["vocal", "bus"]
+[preset.values]
+"att" = 40
+"depth" = 9
+"det" = 1
+"hold" = 300
+"kfilt" = 2
+"khz" = 1000
+"kq" = 0.7
+"look" = 10
+"rel" = 600
+"rms" = 50
+"rshape" = 2
+"thr" = -36
+"trig" = 0
+
+[[preset]]
+key = "preset.cedo.podcast_bed"
+note = "A podcast's music bed ducked above 400 Hz while anyone speaks: the voices clear, the bed's bass keeps it full; slow to fall and slower to come back."
+styles = ["film", "worship"]
+roles = ["vocal", "bus"]
+[preset.values]
+"att" = 80
+"band" = 2
+"depth" = 12
+"det" = 1
+"hold" = 500
+"kfilt" = 2
+"khz" = 1000
+"kq" = 0.7
+"look" = 10
+"rel" = 900
+"rms" = 80
+"rshape" = 2
+"thr" = -40
+"trig" = 0
+"xhz" = 400
+
+[[preset]]
+key = "preset.cedo.gentle_radio"
+note = "Broadcast's light touch: 6 dB under the presenter, 10 ms attack, 200 ms hold, an exponential release over 400 ms, the voice's RMS keying it."
+styles = ["pop", "jazz", "worship"]
+roles = ["vocal"]
+[preset.values]
+"att" = 10
+"depth" = 6
+"det" = 1
+"hold" = 200
+"look" = 5
+"rel" = 400
+"rms" = 30
+"thr" = -30
+"trig" = 0
+
+[[preset]]
+key = "preset.cedo.snare_room"
+note = "A room's highs above 2 kHz ducked by the snare routed as the key (band-passed at 200 Hz): the hit stays dry, the room blooms after it."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"att" = 1
+"band" = 2
+"depth" = 9
+"hold" = 60
+"kfilt" = 2
+"khz" = 200
+"look" = 1
+"rel" = 250
+"thr" = -26
+"trig" = 0
+"xhz" = 2000

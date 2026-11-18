@@ -442,6 +442,37 @@ pub mod tele {
     pub const USED: usize = 32;
 }
 
+/// fx-b:cedo — one key band: its sections (`c`, Aequalis's [`design`]) run in `f64` over
+/// their states `z`, the band stopped whole once it hears silence and has all but died
+/// away. Shared with Cedo's key filter (moved here from `Comprimo::filter_key`, the same
+/// operations in the same order).
+#[inline]
+pub fn key_band(c: &[Coefs], z: &mut [[f64; 2]; MAX_SECTIONS], mut y: f64) -> f64 {
+    let silent_in = y == 0.0;
+    let mut tiny = silent_in;
+    for (c, z) in c.iter().zip(z.iter_mut()) {
+        let out = c.b0 as f64 * y + z[0];
+        z[0] = c.b1 as f64 * y - c.a1 as f64 * out + z[1];
+        z[1] = c.b2 as f64 * y - c.a2 as f64 * out;
+        // Far under the denormals' reach: nothing can linger there.
+        for v in z.iter_mut() {
+            if v.abs() < 1e-200 {
+                *v = 0.0;
+            }
+        }
+        tiny &= z[0].abs() < 1e-25 && z[1].abs() < 1e-25;
+        y = out;
+    }
+    // A band that hears silence and has all but died away is stopped whole: flushing its
+    // sections one at a time would kick the ones downstream (a steep cut's sections
+    // amplify each other's state) and keep it ringing at the flush level for seconds.
+    if tiny {
+        *z = [[0.0; 2]; MAX_SECTIONS];
+        y = 0.0;
+    }
+    y
+}
+
 /// A one-pole high-pass for the detector.
 #[derive(Copy, Clone, Debug, Default)]
 struct Hpf {
@@ -489,26 +520,28 @@ impl Hpf {
 
 /// A fixed-capacity stereo delay line; always written, so a lookahead switched on later
 /// reads the signal and not whatever was there before. Read at any number of taps.
+/// fx-b:cedo — public: Cedo's lookahead reads one too.
 #[derive(Clone)]
-struct Delay {
+pub struct Delay {
     buf: Vec<[f32; 2]>,
     pos: usize,
 }
 
 impl Delay {
-    fn new(capacity: usize) -> Self {
+    /// Allocates: `capacity` frames (the longest tap is `capacity − 1`).
+    pub fn new(capacity: usize) -> Self {
         Delay {
             buf: vec![[0.0; 2]; capacity.max(1)],
             pos: 0,
         }
     }
 
-    fn is_clear(&self) -> bool {
+    pub fn is_clear(&self) -> bool {
         self.buf.iter().all(|x| crate::rest::all_zero(x))
     }
 
     #[inline]
-    fn push(&mut self, x: [f32; 2]) {
+    pub fn push(&mut self, x: [f32; 2]) {
         self.buf[self.pos] = x;
         self.pos += 1;
         if self.pos == self.buf.len() {
@@ -518,7 +551,7 @@ impl Delay {
 
     /// The sample pushed `delay` pushes ago (0: the last one).
     #[inline]
-    fn tap(&self, delay: usize) -> [f32; 2] {
+    pub fn tap(&self, delay: usize) -> [f32; 2] {
         let cap = self.buf.len();
         let back = delay.min(cap - 1) + 1;
         let i = if self.pos >= back {
@@ -529,7 +562,7 @@ impl Delay {
         self.buf[i]
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.buf.iter_mut().for_each(|x| *x = [0.0; 2]);
         self.pos = 0;
     }
@@ -916,31 +949,8 @@ impl Comprimo {
                 if n == 0 {
                     continue;
                 }
-                let silent_in = y == 0.0;
-                let mut tiny = silent_in;
-                for sec in 0..n {
-                    let c = &self.key_coefs[b][sec];
-                    let z = &mut self.key_z[ch][b][sec];
-                    let out = c.b0 as f64 * y + z[0];
-                    z[0] = c.b1 as f64 * y - c.a1 as f64 * out + z[1];
-                    z[1] = c.b2 as f64 * y - c.a2 as f64 * out;
-                    // Far under the denormals' reach: nothing can linger there.
-                    for v in z.iter_mut() {
-                        if v.abs() < 1e-200 {
-                            *v = 0.0;
-                        }
-                    }
-                    tiny &= z[0].abs() < 1e-25 && z[1].abs() < 1e-25;
-                    y = out;
-                }
-                // A band that hears silence and has all but died away is stopped whole:
-                // flushing its sections one at a time would kick the ones downstream
-                // (a steep cut's sections amplify each other's state) and keep it ringing
-                // at the flush level for seconds.
-                if tiny {
-                    self.key_z[ch][b] = [[0.0; 2]; MAX_SECTIONS];
-                    y = 0.0;
-                }
+                // fx-b:cedo — the band's sections, shared with Cedo.
+                y = key_band(&self.key_coefs[b][..n], &mut self.key_z[ch][b], y);
             }
             *x = y as f32;
         }

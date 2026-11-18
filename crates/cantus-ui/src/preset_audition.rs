@@ -271,6 +271,15 @@ pub fn lanes_after(spec: &mut EffectSpec, preset: &BTreeMap<String, f32>) {
     }
 }
 
+/// fxb:cedo — a Cedo preset's shape, which rides in its map (`cedo::to_flat`), on the spec
+/// it is heard on.
+pub fn shape_after(spec: &mut EffectSpec, preset: &BTreeMap<String, f32>) {
+    if spec.kind == EffectKind::Ducker {
+        spec.cedo = cantus_core::fx::cedo::shape_of_flat(preset).map(Box::new);
+        cantus_core::fx::cedo::complete_floor(&mut spec.params);
+    }
+}
+
 /// Where a preset would be loaded: the instrument (or kit) on a track, or an insert. A
 /// browser opened from nowhere in particular has no target and auditions on the phrases.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -384,6 +393,10 @@ pub fn prepare(
                     if kind == EffectKind::Glitch && slot.spec.get("trig") >= 0.5 {
                         fractus_keys(&p, &mut slot); // fxa:fractus
                     }
+                    shape_after(&mut slot.spec, values); // fxb:cedo
+                    if kind == EffectKind::Ducker {
+                        ducker_routes(&p, &mut slot); // fxb:cedo
+                    }
                     p.master.effects.push(slot);
                 }
                 whole(p, HeardOn::Source(entry.role()), false)
@@ -429,6 +442,21 @@ fn fractus_keys(p: &Project, slot: &mut cantus_core::EffectSlot) {
         if let Some(low) = t.clips.iter().flat_map(|c| &c.notes).map(|n| n.pitch).min() {
             let _ = slot.spec.set("key", f32::from(low).min(117.0));
         }
+    }
+}
+
+/// fxb:cedo — a ducker on the fixed source hears a key and notes, as on a track: its
+/// sidechain is the source's drums (the first track a kit plays, else its first track), and
+/// its notes theirs — so a Sidechain or a MIDI preset ducks as it would in a song.
+fn ducker_routes(p: &Project, slot: &mut cantus_core::EffectSlot) {
+    let drums = p
+        .tracks
+        .iter()
+        .find(|t| t.instrument.pulsus().is_some())
+        .or_else(|| p.tracks.first());
+    if let Some(t) = drums {
+        slot.sidechain = t.strip;
+        slot.midi_from = Some(t.id);
     }
 }
 
@@ -561,6 +589,7 @@ fn on_the_users_clip(
     let slot = p.effect_mut(strip, effect)?;
     slot.spec.params = effect_params_after(&slot.spec, values);
     lanes_after(&mut slot.spec, values); // fxa:fractus
+    shape_after(&mut slot.spec, values); // fxb:cedo
     slot.bypass = false;
     let (start, length) = (c.start, c.length);
     let most = Ticks::from_seconds(CLIP_SECONDS, p.tempo_bpm);

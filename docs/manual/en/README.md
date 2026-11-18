@@ -2776,6 +2776,128 @@ mix on its face); a board with Caelum takes a key, and the key reaches its ducki
 sidechain input once its own *Sidechain* switch is set to *Sidechain input*, and a synced
 pre-delay follows the host's tempo.
 
+### Vinculum, the bus compressor
+
+**Vinculum** (Latin for *a bond*) is the compressor that glues a mix, on a bus, a group or
+the master. Insert it from **Add insert ▾ ▸ Dynamics ▸ Vinculum**; it starts as *Glue* (the
+VCA at 4:1, 30 ms attack, Auto release, −18 dB).
+
+**Three models**, chosen on the faceplate's first switch:
+
+- **VCA** — a console's bus compressor: **Ratio** 2:1, 4:1 or 10:1, **Attack** 0.1 to 30 ms
+  and **Release** 0.1 to 1.2 s or **Auto** (a lone hit lets go fast, sustained work slowly,
+  so the mix breathes without pumping).
+- **Opto** — a photocell leveller lit by the output: soft at first, about 3:1 at depth in
+  **Compress**, near 10:1 in **Limit**. Its times are the classic leveller's: about 10 ms to
+  catch, half let go in about 60 ms, the rest within a second after a short burst and in
+  about ten seconds after a long, hard passage — the cell remembers how long and how hard
+  it worked, and a cell that has rested lets go quickly again.
+- **Vari-mu** — a valve whose ratio rises as it works (to 4:1 in Compress, to 20:1 in
+  Limit), with six **Time constant** positions (5 and 6 follow the programme) and a **Valve colour**
+  on its own card.
+
+**The faceplate** answers a click: a click on an engraved position chooses it, a click on a
+knob steps it, a click on the bat throws Compress or Limit. Its **lamps** are controls too:
+**External key** opens the key's list (its own input, or any strip of the desk), **Auto
+release** lights Auto (a second click gives back the release it had), **Limit** throws the
+character. The two needles show the **gain reduction** and the **output**; between them a
+window shows the model's gain element at work. The screen draws the **transfer curve** with
+the signal's point on it and eight seconds of reduction.
+
+**The cards**: Threshold and Make-up; the **Side chain** — the key (also in its own field)
+and the **High-pass** that keeps the low end from pulling the detector; Valve (the vari-mu's
+colour); **Mix** (parallel compression) and Output. Fourteen factory presets cover every
+model: glue for a bus or the mix, drum smash and parallel drums, a vocal bus, mastering glue
+and a limit on each. At its defaults (the threshold at +24 dB) Vinculum touches no sample; it
+has no latency. As a pedal on **Tabula** it shows Model, Threshold, Make-up and Mix.
+
+### Lenis, the resonance suppressor
+
+**Lenis** (Latin for *gentle*) smooths what rings: the whistles, the harsh peaks and the
+boxy build-ups that stand out of a sound's own spectrum, found moment by moment and taken
+down by a share, while the notes and the tone are left alone. Insert it from **Add insert ▾
+▸ EQ ▸ Lenis** (also under Dynamics); it starts as *Gentle* (half of each ring, the Soft
+curve, from 150 Hz up).
+
+**The screen** is a bench analyser's: the input's spectrum as a glowing line with the cut
+hanging under it as a veil, a bar per frequency along the top for how much is taken away,
+and the **focus** at the foot — two gates, **From** and **To**, beyond which nothing is
+touched, and six numbered **bands**. Drag a gate left or right; drag a band's node left and
+right for its frequency and up and down for its amount (above the line it works harder,
+below it gentler, at the bottom it leaves that region alone); the wheel over a node sets its
+width; a double-click switches a band on or off. A band dragged while off switches on in the
+same step. Each drag is one step of undo.
+
+**The panel** beside it: the **Depth** dial (drag it up or down; double-click for none) —
+at 100 % a ring comes down to the spectrum's own outline, at 50 % half way; the readouts of
+the **most cut** now and the **latency**; and the push keys: **Quality** (Fast, Standard,
+Precise: 5, 11 or 21 ms of latency at 48 kHz — Precise resolves the low mids, Fast hears
+sooner), **Curve** (Soft barely touches a peak just over the line, Hard takes every peak by
+its share), **Listen · What is removed** (only the rings, never the music) and **Channels**
+(Linked, Independent, Mid and side). A click pushes a key in; each key's menu offers
+automation and MIDI learn.
+
+**The cards**: Detection (**Sharpness** — narrow rings only, or broad build-ups too — and
+**Selectivity**, how far a peak must stand out), Time (**Attack**, **Release**), Focus (the
+gates' frequencies), Focus band (the band chosen on its numbers or on the screen: its lamp,
+frequency, amount and width) and Output (**Mix**, **Output**).
+
+The latency is compensated by the mixer like any latent insert's — a change of quality
+starts the analysis again (a gap of one latency) and the mixer re-aligns at once. Fourteen
+factory presets: harsh vocal, sibilance tamer, guitar fizz, piano ring, mix bus gentle,
+master polish, drum room ring, acoustic boom, podcast voice, snare ring, wide air (mid and
+side), strings and brass, surgical. At its defaults (depth 0) Lenis is its input delayed by
+its latency, to the bit. As a pedal on **Tabula** it shows Depth, Sharpness, Selectivity
+and Focus from.
+
+### Cedo, the ducker
+
+**Cedo** (Latin for *I make way*) makes room: the bass gives way to the kick, the music to
+the voice, or the whole track pumps on the beat in a shape you draw. Insert it from **Add
+insert ▾ ▸ Dynamics ▸ Cedo**; it starts as *Classic pump* (the tempo fires it on every
+quarter, 9 dB down) and sounds at once, with nothing routed.
+
+**What fires it** — the **Trigger** switch on its card (or a click on the trigger's flag
+on the bed):
+
+- **Sidechain**: choose the strip whose sound ducks this one under **Key** (a kick, a
+  voice). The key can pass a **Filter** (a high-pass or a band-pass, its **Frequency** and
+  **Q**); its **Detector** reads its peak or its RMS against the **Threshold**; the duck
+  attacks along an S, **holds** from the key's last sample over the threshold and lets go
+  over the **Release** in its shape. **Lookahead** (up to 10 ms) lets the duck be down
+  before a transient lands.
+- **Tempo**: the drawn shape plays on every **Cycle** of the song (8/1 to 1/32, dotted and
+  triplets), with **Swing** and **Edge smoothing** so its edges never click.
+- **MIDI**: choose the track whose notes fire it under **Notes from**; each note plays the
+  shape once, a cycle long, and **Velocity** can scale the depth.
+
+**The screen** shows the shape over one cycle with what is ducked now swept in by the
+playhead. Drag a point to move it (it snaps to the sixteenths; Shift moves it freely), drag
+between points to bend the curve, double-click to add or remove a point, and right-click a
+point to change its segment (curve, S or held). In Sidechain the screen shows the envelope
+on each hit: drag the attack's, hold's and release's handles in time. Under it, the last
+four seconds of reduction with the hits; in Sidechain drag the threshold's dashed line up
+or down. Drag the **level gauge** beside the bellows down for a deeper duck.
+
+**Band**: duck the **Whole** sound, only the **Lows** or only the **Highs**, split at the
+**Crossover** (drag it along the band strip) at **Minimum phase** (no latency) or **Linear
+phase** (no phase turn; click the split's word on the strip to switch). The **Linear-phase
+floor** sets what the linear phase's latency is sized for: **Auto** (the default) an octave
+under the crossover — the least latency it needs, changed only when you let go of the
+crossover — or a fixed 40, 60, 80 or 120 Hz (55.3, 36.8, 27.6 or 18.3 ms at 48 kHz), for a
+latency that never changes; each choice shows its latency. The mixer compensates it.
+
+**Output**: **Depth** (∞ at its top is silence), **Stereo link**, **Mix**, **Output** and
+**Listen** (the output, the **Delta** it takes away, or the filtered **Key**).
+
+Seventeen factory presets: classic, half-time, eighths and swing pumps, triplet breathe,
+trance gate, reverse swell, lows-only pumps at minimum and linear phase, a MIDI pump, kick
+ducks the bass, kick on the bass lows, hard sidechain, voice-over, podcast music bed,
+gentle radio and snare room (the Sidechain and MIDI ones need their key or notes chosen).
+At its defaults (depth 0) Cedo leaves the sound untouched, to the bit. As a pedal on
+**Tabula** it shows the trigger, depth, cycle and threshold; a keyed board's key, its beat
+and its notes fire it.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

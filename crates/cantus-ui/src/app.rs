@@ -125,7 +125,10 @@ pub struct CantusApp {
     /// The Comprimo editor window (`views::comp_editor`).
     pub comp_editor: views::comp_editor::CompEditor,
     /// Every other plug-in's editor, and the frame they share (`views::fx`).
-    pub fx: views::fx::FxEditors,
+    /// fxb:vinculum — boxed: the effect editors' states (48 KB with the side round's units)
+    /// kept `CantusApp` over its 128 KB budget and the boot's assemble over the main
+    /// thread's stack (`tests/stack_budget.rs`).
+    pub fx: Box<views::fx::FxEditors>,
     /// Moving work between Cantus and other DAWs: MIDI files, stems, DAWproject.
     pub interop: views::interop::Interop,
     /// File → Demo songs: the picker (round 19).
@@ -729,7 +732,7 @@ impl CantusApp {
             mix_recorder: crate::takes::MixRecorder::default(),
             eq_editor: views::eq_editor::EqEditor::default(),
             comp_editor: views::comp_editor::CompEditor::default(),
-            fx: views::fx::FxEditors::default(),
+            fx: Box::default(),
             interop: Default::default(),
             demos: Default::default(),
             samples: Default::default(),
@@ -1796,6 +1799,9 @@ impl CantusApp {
             "loquax" | "vocoder" => EffectKind::Vocoder, // fxa:contract
             "fractus" | "glitch" => EffectKind::Glitch, // fxa:contract
             "caelum" | "shimmer" => EffectKind::Shimmer, // fxa:contract
+            "vinculum" | "bus_compressor" => EffectKind::BusCompressor, // fxb:contract
+            "lenis" | "resonance" => EffectKind::ResonanceSuppressor, // fxb:contract
+            "cedo" | "ducker" => EffectKind::Ducker,    // fxb:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

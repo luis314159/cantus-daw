@@ -23,7 +23,10 @@ all = ["eq", "compressor", "limiter", "space", "multiband", "deesser", "gate", "
   "tabula", "saltus", "rota", "arca", # fx3:contract: wave 3's four
   "loquax", # fxa:loquax: wave A's vocoder
   "fractus", # fxa:fractus: wave A's glitch sequencer
-  "caelum"] # fxa:caelum: wave A's shimmer reverb
+  "caelum", # fxa:caelum: wave A's shimmer reverb
+  "vinculum", # fxb:vinculum: wave B's bus compressor
+  "lenis", # fxb:lenis: wave B's resonance suppressor
+  "cedo"] # fxb:cedo: wave B's ducker
 # The plug-ins' own editors — the DAW's, running in the host's window (egui 0.36 through
 # baseview). Porta's is the first; the others show the host's generic interface.
 editor = ["dep:cantus-ui", "dep:egui", "dep:egui-baseview", "dep:baseview", "dep:raw-window-handle"]
@@ -72,6 +75,12 @@ loquax = []
 fractus = []
 # fxa:caelum — the fx side round's wave A (ADR 0138).
 caelum = []
+# fxb:vinculum — the fx side round's wave B (ADR 0139).
+vinculum = []
+# fxb:lenis — the fx side round's wave B (ADR 0140).
+lenis = []
+# fxb:cedo — the fx side round's wave B (ADR 0141).
+cedo = []
 
 [dependencies]
 cantus-core.workspace = true

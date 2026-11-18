@@ -548,6 +548,16 @@ eventos sintéticos y se midió sin oído; las pruebas de cada constructor está
       tranquila. Con tu OK para gastar minutos de Actions, la corro 20 veces en un runner de
       GitHub (Linux y Windows) para confirmar que solo falla bajo carga.
 
+### Cedo, el atenuador (ronda lateral de efectos, ADR 0141) <!-- fxb:cedo -->
+
+En la ronda se probó todo con el motor de Cantus y con nuestro propio anfitrión CLAP/VST3; falta tu oído y un DAW de verdad.
+
+- [ ] **Un bajo atenuado por un bombo real**: pon Cedo en la tira del bajo, *Disparo ▸ Cadena lateral*, elige la tira del bombo en *Clave* y el preset *El bombo atenúa el bajo*. El bajo debe ceder en cada golpe sin chasquidos, y nada antes del primer golpe.
+- [ ] **El bombeo por tempo**: con el bombo silenciado, *Bombeo clásico*: el bombeo debe caer en cada negra; exporta el WAV y compáralo con la reproducción (deben sonar igual).
+- [ ] **Una guitarra bajo una locución real**: graba o carga una voz en otra pista y usa *Locución* y *Fondo musical de pódcast* en la guitarra: la voz debe quedar clara y la guitarra volver despacio, sin bombeo.
+- [ ] **Solo los graves en fase lineal**: *Bombeo de graves en fase lineal* y arrastra el cruce: la latencia (la bandera *Latencia*) no debe cambiar hasta soltar; al soltar, la pista sigue alineada con las demás. Prueba los suelos fijos 40/60/80/120 Hz y di cuál prefieres por defecto (hoy *Automático*).
+- [ ] **En otro DAW** (Reaper, Bitwig o FL): carga *Cantus Cedo*, enruta un bombo a su entrada de cadena lateral y elige *La entrada de cadena lateral del complemento* en *Clave*; luego el disparo MIDI con una pista de notas; y el tempo del DAW. Al cambiar el suelo de la fase lineal, el DAW debe recompensar la latencia.
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):

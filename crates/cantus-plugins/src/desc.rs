@@ -55,9 +55,9 @@ const FX: &str = "audio-effect";
 const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
-/// round 28's, Aula (round 39), Delay (round 40) and the effects side round's twelve.
-pub static ALL: [Descriptor; 37] = [
-    // r39:conv: 24 with Aula; r40:delay: 25 with Delay; fx3:contract, fxa: 37 with the side round's twelve
+/// round 28's, Aula (round 39), Delay (round 40) and the effects side round's fifteen.
+pub static ALL: [Descriptor; 40] = [
+    // r39:conv: 24 with Aula; r40:delay: 25 with Delay; fx3:contract, fxa, fxb: 40 with the side round's fifteen
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -522,6 +522,54 @@ pub static ALL: [Descriptor; 37] = [
         vst3_categories: "Fx|Reverb",
         description: "Shimmer reverb: tails that climb in pitch, infinite washes, bloom, freeze and ducking by the input or a sidechain key.",
         compiled: cfg!(feature = "caelum"),
+    },
+    // fxb:vinculum — the fx side round's wave B (ADR 0139). Its detector listens
+    // to the sidechain input when the key is chosen (the classic bus compressor's external
+    // key).
+    Descriptor {
+        kind: EffectKind::BusCompressor,
+        name: "Vinculum",
+        full_name: "Cantus Vinculum",
+        slug: "vinculum",
+        clap_id: "com.github.lalmazan.cantus.vinculum",
+        vst3_cid: [0x280AA20C, 0x7FD4D2E5, 0x539CBF2B, 0x5809640B],
+        clap_features: &[FX, "compressor", STEREO],
+        vst3_categories: "Fx|Dynamics",
+        description: "Bus compressor: a console's VCA with Auto release, a photocell leveller and a valve variable-mu, keyed by a sidechain.",
+        compiled: cfg!(feature = "vinculum"),
+    },
+    // fxb:lenis — the fx side round's wave B (ADR 0140). Latent (its analysis
+    // frame): the latency is reported per quality, and a quality change re-reports it (CLAP
+    // asks for a restart, VST3 `restartComponent(kLatencyChanged)`).
+    Descriptor {
+        kind: EffectKind::ResonanceSuppressor,
+        name: "Lenis",
+        full_name: "Cantus Lenis",
+        slug: "lenis",
+        clap_id: "com.github.lalmazan.cantus.lenis",
+        vst3_cid: [0x6E82AC2D, 0x9DEE6C21, 0x7EDFC21A, 0x0453554A],
+        clap_features: &[FX, "equalizer", "restoration", STEREO],
+        vst3_categories: "Fx|EQ|Restoration",
+        description: "Resonance suppressor: finds the rings and whistles that stand out of a sound's own spectrum, moment by moment, and takes a share of each away, its notes left alone.",
+        compiled: cfg!(feature = "lenis"),
+    },
+    // fxb:cedo — the fx side round's wave B (ADR 0141). Its three triggers: the
+    // sidechain input as the key, the host's tempo and position for the pump, the host's
+    // notes (a note port, both CLAP dialects; VST3's event bus); its drawn shape is content
+    // in the state. Latent with lookahead or a linear-phase split: the latency is reported,
+    // and a change (a lookahead, the split, the floor committed at a crossover's release)
+    // re-reported (CLAP asks for a restart, VST3 `restartComponent(kLatencyChanged)`).
+    Descriptor {
+        kind: EffectKind::Ducker,
+        name: "Cedo",
+        full_name: "Cantus Cedo",
+        slug: "cedo",
+        clap_id: "com.github.lalmazan.cantus.cedo",
+        vst3_cid: [0xAB736A41, 0x56712C0D, 0xF76B7006, 0x7D0BD4E2],
+        clap_features: &[FX, "compressor", "tremolo", STEREO],
+        vst3_categories: "Fx|Dynamics",
+        description: "Ducker: makes room for a kick or a voice through the sidechain, or pumps on the host's beat or on MIDI notes with a shape you draw, the whole band or only its lows or highs.",
+        compiled: cfg!(feature = "cedo"),
     },
 ];
 

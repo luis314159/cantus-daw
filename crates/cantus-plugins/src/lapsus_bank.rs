@@ -9,14 +9,15 @@
 
 //!
 //! fxa:fractus — the same post carries Fractus's lanes (`ContentPost<fractus::Pattern>`):
-//! the content a spec holds beside its values, generic over what it is.
+//! the content a spec holds beside its values, generic over what it is. fxb:cedo — and
+//! Cedo's drawn shape (`ContentPost<cedo::Shape>`).
 
 use cantus_core::fx::lapsus::{Bank, Lane, Pattern, SLOTS};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-/// Content a spec holds beside its values (Lapsus's bank, Fractus's lanes): an empty one
+/// Content a spec holds beside its values (Lapsus's bank, Fractus's lanes, Cedo's shape): an empty one
 /// is posted as `None`.
 pub trait Content: Clone + Send + 'static {
     fn is_empty(&self) -> bool;
@@ -31,6 +32,14 @@ impl Content for Bank {
 impl Content for cantus_core::fx::fractus::Pattern {
     fn is_empty(&self) -> bool {
         cantus_core::fx::fractus::Pattern::is_empty(self)
+    }
+}
+
+/// fxb:cedo — a shape is never the factory's: an empty one ducks nothing (`None`, the
+/// classic pump, is posted as `None`).
+impl Content for cantus_core::fx::cedo::Shape {
+    fn is_empty(&self) -> bool {
+        false
     }
 }
 

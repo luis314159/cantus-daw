@@ -66,6 +66,9 @@ pub fn function_of(kind: EffectKind) -> Function {
         EffectKind::Vocoder => Function::Source,    // fxa:contract (loquax: a voice)
         EffectKind::Glitch => Function::Mod,        // fxa:contract (fractus)
         EffectKind::Shimmer => Function::Space,     // fxa:contract (caelum)
+        EffectKind::BusCompressor => Function::Dynamics, // fxb:contract (vinculum)
+        EffectKind::ResonanceSuppressor => Function::Tone, // fxb:contract (lenis)
+        EffectKind::Ducker => Function::Dynamics,   // fxb:contract (cedo)
     }
 }
 

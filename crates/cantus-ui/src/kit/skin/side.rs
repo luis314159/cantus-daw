@@ -24,6 +24,11 @@ pub use fxa::*;
 mod fxd;
 pub use fxd::*;
 
+// fxb — wave B's three faces and their colourways (ADRs 0139–0141).
+#[path = "side_fxb.rs"]
+mod fxb;
+pub use fxb::*;
+
 // fx:cribrum — Cribrum's own face (ADR 0127), in three colourways the user
 // chooses among (ADR 0127 §Colourways); the first, Nocturne, is its face. Every display is
 // a lit screen, dark in both themes (the owner's choice for the round's displays).
@@ -722,6 +727,9 @@ pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
         EffectKind::Vocoder => &LOQUAX_COLOURWAYS,     // fxa:loquax
         EffectKind::Glitch => &FRACTUS_COLOURWAYS,     // fxa:fractus
         EffectKind::Shimmer => &CAELUM_COLOURWAYS,     // fxa:caelum
+        EffectKind::BusCompressor => &VINCULUM_COLOURWAYS, // fxb:vinculum
+        EffectKind::ResonanceSuppressor => &LENIS_COLOURWAYS, // fxb:lenis
+        EffectKind::Ducker => &CEDO_COLOURWAYS,        // fxb:cedo
         _ => &[],
     }
 }
@@ -741,6 +749,9 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         EffectKind::Vocoder => Some(&LOQUAX),    // fxa:loquax
         EffectKind::Glitch => Some(&FRACTUS),    // fxa:fractus
         EffectKind::Shimmer => Some(&CAELUM),    // fxa:caelum
+        EffectKind::BusCompressor => Some(&VINCULUM), // fxb:vinculum
+        EffectKind::ResonanceSuppressor => Some(&LENIS), // fxb:lenis
+        EffectKind::Ducker => Some(&CEDO),       // fxb:cedo
         _ => None,
     }
 }
@@ -814,9 +825,9 @@ pub const FRAGOR_COLOURWAYS: [Colourway; 3] = [
 mod tests {
     use super::super::{colourways, of, Skin, Unit};
     use super::{
-        ARCA, CAELUM, CRIBRUM, FORMULA, FRACTUS, FRAGOR, LAPSUS, LIBRA, LOQUAX, ROTA, SALTUS,
-        VETUS, XY,
-    }; // fx3:saltus, fx3:arca, fx3:rota, fxa, fxd
+        ARCA, CAELUM, CEDO, CRIBRUM, FORMULA, FRACTUS, FRAGOR, LAPSUS, LENIS, LIBRA, LOQUAX, ROTA,
+        SALTUS, VETUS, VINCULUM, XY,
+    }; // fx3:saltus, fx3:arca, fx3:rota, fxa, fxb, fxd
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
@@ -830,8 +841,8 @@ mod tests {
     fn faces() -> Vec<&'static Skin> {
         [
             &CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA, &LOQUAX, &FRACTUS,
-            &CAELUM, &XY, &FORMULA,
-        ] // fx3:saltus, fx3:rota, fx3:arca, fxd
+            &CAELUM, &XY, &FORMULA, &VINCULUM, &LENIS, &CEDO,
+        ] // fx3:saltus, fx3:rota, fx3:arca, fxb, fxd
         .into_iter()
         .filter(|s| !is_placeholder(s))
         .collect()

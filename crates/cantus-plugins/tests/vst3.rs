@@ -503,6 +503,69 @@ fn caelum_s_synced_pre_delay_follows_the_vst3_hosts_tempo() {
     );
 }
 
+/// fxb:vinculum — Vinculum's detector keyed by VST3's sidechain bus (the aux input,
+/// activated as a host does), the plug-in's switch on the external key in its state:
+/// exactly the DSP keyed by the same sound, and the quiet input pressed down where the
+/// unkeyed one passes untouched.
+#[test]
+fn vinculum_s_key_is_the_vst3_sidechain_bus() {
+    let kind = EffectKind::BusCompressor;
+    let values = [
+        ("thr", -30.0),
+        ("ratio", 2.0),
+        ("att", 0.0),
+        ("rel", 1.0),
+        ("makeup", 0.0),
+        ("out", 0.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let mut state: serde_json::Value = serde_json::to_value(&spec).unwrap();
+        state
+            .as_object_mut()
+            .unwrap()
+            .insert("sidechain".into(), keyed.into());
+        let v = V3::new(kind);
+        assert!(v.set_state(&serde_json::to_vec(&state).unwrap()));
+        v.activate(1024);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        for at in (0..n).step_by(1000) {
+            let end = (at + 1000).min(n);
+            v.process(
+                &mut l[at..end],
+                &mut r[at..end],
+                Some((&key_l[at..end], &key_r[at..end])),
+                &[],
+            );
+        }
+        let _g = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Vinculum keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Vinculum keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    assert_identical("unkeyed: the quiet input untouched", &outs[0], &quiet_l);
+    let energy = |x: &[f32]| x[4_800..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) < 0.25 * energy(&outs[0]),
+        "the key presses the input: {} against {}",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
+}
+
 #[test]
 fn vst3_automation_lands_on_the_grid() {
     let kind = EffectKind::Gate;
@@ -842,4 +905,309 @@ fn a_vst3_host_without_beats_follows_its_project_time_in_samples() {
         v.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
     }
     assert_identical("VST3, the song in samples", &l, &el);
+}
+
+/// fxb:lenis — a host's component handler that counts the restarts it is asked for.
+struct Handler {
+    latency_restarts: Cell<u32>,
+}
+
+impl Class for Handler {
+    type Interfaces = (IComponentHandler,);
+}
+
+impl IComponentHandlerTrait for Handler {
+    unsafe fn beginEdit(&self, _id: ParamID) -> tresult {
+        kResultOk
+    }
+    unsafe fn performEdit(&self, _id: ParamID, _value: ParamValue) -> tresult {
+        kResultOk
+    }
+    unsafe fn endEdit(&self, _id: ParamID) -> tresult {
+        kResultOk
+    }
+    unsafe fn restartComponent(&self, flags: int32) -> tresult {
+        if flags & RestartFlags_::kLatencyChanged as int32 != 0 {
+            self.latency_restarts.set(self.latency_restarts.get() + 1);
+        }
+        kResultOk
+    }
+}
+
+/// The host's UI thread for a while: its messages (the plug-in's timer among them)
+/// dispatched until `done` or a second has passed.
+#[cfg(windows)]
+fn pump_until(done: impl Fn() -> bool) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
+    };
+    let start = std::time::Instant::now();
+    while !done() && start.elapsed() < std::time::Duration::from_secs(1) {
+        // SAFETY: this thread's own message queue.
+        unsafe {
+            let mut msg: MSG = std::mem::zeroed();
+            while PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// fxb:lenis — Lenis's latency through VST3 is its quality's frame (255, 511, 1 023
+/// samples at 48 kHz) from `getLatencySamples`; a quality changed while it plays makes the
+/// plug-in call the host's `restartComponent(kLatencyChanged)` from the UI thread's tick
+/// (once), and the host reading the latency again gets the new one.
+#[test]
+fn lenis_s_latency_follows_its_quality_through_vst3() {
+    let kind = EffectKind::ResonanceSuppressor;
+    for (qual, want) in [(0.0, 255u32), (1.0, 511), (2.0, 1_023)] {
+        let v = V3::new(kind);
+        assert!(v.set_state(&state_of(kind, &[("qual", qual)])));
+        v.activate(1024);
+        unsafe {
+            assert_eq!(v.processor.getLatencySamples(), want, "quality {qual}");
+        }
+    }
+    let v = V3::new(kind);
+    let handler = ComWrapper::new(Handler {
+        latency_restarts: Cell::new(0),
+    });
+    let h = handler.to_com_ptr::<IComponentHandler>().unwrap();
+    unsafe {
+        assert_eq!(v.controller.setComponentHandler(h.as_ptr()), kResultOk);
+    }
+    v.activate(1024);
+    unsafe {
+        assert_eq!(v.processor.getLatencySamples(), 511, "Standard");
+    }
+    let qual = params::table(kind).by_key("qual").unwrap();
+    let (mut l, mut r) = signal(1024, 3);
+    v.process(
+        &mut l,
+        &mut r,
+        None,
+        &[(qual.id, vec![(0, qual.to_normalized(2.0))])],
+    );
+    v.process(&mut l, &mut r, None, &[]);
+    #[cfg(windows)]
+    {
+        pump_until(|| handler.latency_restarts.get() > 0);
+        assert_eq!(
+            handler.latency_restarts.get(),
+            1,
+            "restartComponent(kLatencyChanged) asked for"
+        );
+        pump_until(|| false);
+        assert_eq!(handler.latency_restarts.get(), 1, "once");
+    }
+    unsafe {
+        assert_eq!(
+            v.processor.getLatencySamples(),
+            1_023,
+            "the new latency read"
+        );
+        v.processor.setProcessing(0);
+        v.component.setActive(0);
+        assert_eq!(v.component.setActive(1), kResultOk);
+        v.processor.setProcessing(1);
+        assert_eq!(
+            v.processor.getLatencySamples(),
+            1_023,
+            "after a restart too"
+        );
+        v.controller.setComponentHandler(std::ptr::null_mut());
+    }
+}
+
+/// fxb:cedo — Cedo's sidechain trigger keyed by VST3's sidechain bus, the plug-in's switch
+/// on the external key in its state: exactly the DSP keyed by the same sound; unkeyed, the
+/// input passes untouched (its lookahead late).
+#[test]
+fn cedo_s_key_is_the_vst3_sidechain_bus() {
+    let kind = EffectKind::Ducker;
+    let values = [
+        ("trig", 0.0),
+        ("depth", 24.0),
+        ("thr", -30.0),
+        ("att", 0.5),
+        ("hold", 20.0),
+        ("rel", 80.0),
+        ("look", 1.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let mut state: serde_json::Value = serde_json::to_value(&spec).unwrap();
+        state
+            .as_object_mut()
+            .unwrap()
+            .insert("sidechain".into(), keyed.into());
+        let v = V3::new(kind);
+        assert!(v.set_state(&serde_json::to_vec(&state).unwrap()));
+        v.activate(1024);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        for at in (0..n).step_by(1000) {
+            let end = (at + 1000).min(n);
+            v.process(
+                &mut l[at..end],
+                &mut r[at..end],
+                Some((&key_l[at..end], &key_r[at..end])),
+                &[],
+            );
+        }
+        let _g = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Cedo keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Cedo keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    let energy = |x: &[f32]| x[4_800..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) < 0.1 * energy(&outs[0]),
+        "the key ducks it"
+    );
+}
+
+/// fxb:cedo — Cedo's latency through VST3: its floor's kernel (and the lookahead) from
+/// `getLatencySamples`; a crossover moved by the host leaves it, the floor committed moves it
+/// (the plug-in asks the host to restart from its UI-thread tick, on Windows), and the host
+/// reading it again gets the new one.
+#[test]
+fn cedo_s_latency_follows_its_committed_floor_through_vst3() {
+    let kind = EffectKind::Ducker;
+    let lows = [("band", 1.0), ("xover", 1.0), ("depth", 12.0)];
+    for (extra, want) in [
+        (&[][..], 1_765u32),
+        (&[("lfloor", 3.0)][..], 1_325),
+        (&[("look", 5.0)][..], 1_765 + 240),
+    ] {
+        let v = V3::new(kind);
+        assert!(v.set_state(&state_of(kind, &[&lows[..], extra].concat())));
+        v.activate(1024);
+        unsafe {
+            assert_eq!(v.processor.getLatencySamples(), want, "{extra:?}");
+        }
+    }
+    let v = V3::new(kind);
+    let handler = ComWrapper::new(Handler {
+        latency_restarts: Cell::new(0),
+    });
+    let h = handler.to_com_ptr::<IComponentHandler>().unwrap();
+    unsafe {
+        assert_eq!(v.controller.setComponentHandler(h.as_ptr()), kResultOk);
+    }
+    assert!(v.set_state(&state_of(kind, &lows)));
+    v.activate(1024);
+    let xhz = params::table(kind).by_key("xhz").unwrap();
+    let lfhz = params::table(kind).by_key("lfhz").unwrap();
+    let (mut l, mut r) = signal(1024, 3);
+    v.process(
+        &mut l,
+        &mut r,
+        None,
+        &[(xhz.id, vec![(0, xhz.to_normalized(400.0))])],
+    );
+    unsafe {
+        assert_eq!(
+            v.processor.getLatencySamples(),
+            1_765,
+            "the crossover alone: no change"
+        );
+    }
+    v.process(
+        &mut l,
+        &mut r,
+        None,
+        &[(lfhz.id, vec![(0, lfhz.to_normalized(200.0))])],
+    );
+    v.process(&mut l, &mut r, None, &[]);
+    #[cfg(windows)]
+    {
+        pump_until(|| handler.latency_restarts.get() > 0);
+        assert_eq!(handler.latency_restarts.get(), 1, "one restart asked for");
+    }
+    let want = cantus_dsp::cedo::band::linear_latency(200.0, SR) as u32;
+    unsafe {
+        assert_eq!(v.processor.getLatencySamples(), want, "the 200 Hz floor's");
+        v.processor.setProcessing(0);
+        v.component.setActive(0);
+        v.controller.setComponentHandler(std::ptr::null_mut());
+    }
+}
+
+/// fxb:cedo — Cedo's tempo pump on VST3's `ProcessContext`, its drawn shape in the state:
+/// the engine's unit given the same song position, to the bit, in blocks that divide
+/// nothing.
+#[test]
+fn cedo_s_pump_follows_the_hosts_tempo_through_vst3() {
+    use cantus_core::fx::cedo::Shape;
+    use cantus_core::fx::lapsus::Point;
+    let kind = EffectKind::Ducker;
+    let mut spec = spec_with(kind, &[("trig", 1.0), ("depth", 30.0), ("div", 11.0)]);
+    spec.cedo = Some(Box::new(Shape {
+        points: vec![
+            Point::new(0.0, 1.0).bend(-0.3),
+            Point::new(0.6, 0.0).shape(2),
+        ],
+    }));
+    let (tempo, start, n) = (128.0f64, 4.0f64, 96_000usize);
+    let mut u = cantus_engine::fx::make(kind, SR).unwrap();
+    u.configure(&spec);
+    u.reset();
+    let (mut el, mut er) = (vec![1.0f32; n], vec![1.0f32; n]);
+    let spb = 60.0 / tempo * SR as f64;
+    let mut at = 0;
+    while at < n {
+        let m = 512.min(n - at);
+        let beats = start + at as f64 / spb;
+        u.set_position(&cantus_engine::SongPosition {
+            playing: true,
+            tempo_bpm: tempo,
+            tempo_now: tempo,
+            samples: (beats * spb).round() as i64,
+            beats,
+            time_sig_num: 4,
+            time_sig_den: 4,
+            ..Default::default()
+        });
+        u.process(&mut el[at..at + m], &mut er[at..at + m], None);
+        at += m;
+    }
+    for blocks in [&[512][..], &[5, 333, 64]] {
+        let v = V3::new(kind);
+        assert!(v.set_state(&serde_json::to_vec(&spec).unwrap()));
+        v.activate(4096);
+        let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+        let (mut at, mut b) = (0usize, 0usize);
+        while at < n {
+            let m = blocks[b % blocks.len()].min(n - at);
+            b += 1;
+            let mut c: ProcessContext = unsafe { std::mem::zeroed() };
+            use ProcessContext_::StatesAndFlags_::*;
+            c.state = (kPlaying | kTempoValid | kProjectTimeMusicValid | kTimeSigValid) as u32;
+            c.sampleRate = SR as f64;
+            c.tempo = tempo;
+            c.projectTimeMusic = start + at as f64 * tempo / 60.0 / SR as f64;
+            c.timeSigNumerator = 4;
+            c.timeSigDenominator = 4;
+            v.context.set(Some(c));
+            v.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
+            at += m;
+        }
+        assert_identical(&format!("Cedo, VST3 blocks {blocks:?}"), &l, &el);
+    }
+    assert!(el.iter().any(|v| *v < 0.1), "it pumps");
 }

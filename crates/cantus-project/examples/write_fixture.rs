@@ -1739,7 +1739,38 @@ fn main() {
             p.strip_mut(s).unwrap().effects.push(e);
         }
     }
-    // fxd:contract — Schema 77 (the effects side round's wave D, ADRs 0141–0142; provisional
+    // fxb:contract — Schema 75 (the effects side round's wave B, ADRs 0139–0141; provisional
+    // 65 on its branch): on the second strip one insert each of
+    // Vinculum (the opto at Limit, its threshold down), Lenis (its depth up, a focus band
+    // on) and Cedo (on the tempo, a drawn shape of three points).
+    if upto >= 75 {
+        use cantus_core::fx::cedo::Shape;
+        use cantus_core::fx::lapsus::Point;
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        let mut vinculum = p.make_effect(EffectKind::BusCompressor);
+        for (k, v) in [("model", 1.0), ("char", 1.0), ("thr", -20.0)] {
+            vinculum.spec.set(k, v).unwrap();
+        }
+        let mut lenis = p.make_effect(EffectKind::ResonanceSuppressor);
+        for (k, v) in [("depth", 0.5), ("b2on", 1.0), ("b2amt", 0.5)] {
+            lenis.spec.set(k, v).unwrap();
+        }
+        let mut cedo = p.make_effect(EffectKind::Ducker);
+        for (k, v) in [("trig", 1.0), ("depth", 9.0)] {
+            cedo.spec.set(k, v).unwrap();
+        }
+        cedo.spec.cedo = Some(Box::new(Shape {
+            points: vec![
+                Point::new(0.0, 1.0),
+                Point::new(0.4, 0.3).bend(0.5),
+                Point::new(0.7, 0.0).shape(2),
+            ],
+        }));
+        for e in [vinculum, lenis, cedo] {
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
+    // fxd:contract — Schema 77 (the effects side round's wave D, ADRs 0144–0145; provisional
     // 67 on its branch): on the master an X-Y pad named "Sweep" — its
     // X on the master's pan as it is, its Y on the master's width from 0 to 60 % bent
     // (0.4), 250 ms of inertia, a four-point smooth path over two bars, playing — and a

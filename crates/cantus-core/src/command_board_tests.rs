@@ -109,7 +109,11 @@ fn every_board_command_round_trips_exactly() {
 fn a_pedals_response_and_patterns_are_its_own() {
     let (mut bus, e) = rig();
     let s = StripId::MASTER;
-    for (id, kind) in [(8, EffectKind::Aula), (9, EffectKind::TimeShaper)] {
+    for (id, kind) in [
+        (8, EffectKind::Aula),
+        (9, EffectKind::TimeShaper),
+        (10, EffectKind::Ducker), // fxb:cedo
+    ] {
         bus.execute(
             Command::InsertPedal {
                 strip: s,
@@ -146,8 +150,46 @@ fn a_pedals_response_and_patterns_are_its_own() {
             pedal: Some(PedalId(9)),
         },
     );
+    // fxb:cedo — a Cedo pedal's drawn shape, sanitized on the way in, undone exactly.
+    round_trip(
+        &mut bus,
+        Command::SetCedoShape {
+            strip: s,
+            effect: e,
+            shape: Some(Box::new(crate::fx::cedo::Shape {
+                points: vec![
+                    crate::fx::lapsus::Point::new(0.6, 2.0),
+                    crate::fx::lapsus::Point::new(0.0, 1.0),
+                ],
+            })),
+            pedal: Some(PedalId(10)),
+        },
+    );
+    let shape = crate::fx::tabula::board(&bus.project().master.effects[0].spec)
+        .pedals
+        .iter()
+        .find(|p| p.id == PedalId(10))
+        .unwrap()
+        .spec
+        .cedo
+        .clone()
+        .expect("redone: the shape drawn");
+    assert_eq!(
+        shape.points,
+        vec![
+            crate::fx::lapsus::Point::new(0.0, 1.0),
+            crate::fx::lapsus::Point::new(0.6, 1.0),
+        ],
+        "sanitized: in order, in range"
+    );
     // Onto a pedal of another kind: refused.
     for cmd in [
+        Command::SetCedoShape {
+            strip: s,
+            effect: e,
+            shape: None,
+            pedal: Some(PedalId(9)),
+        },
         Command::SetEffectIr {
             strip: s,
             effect: e,

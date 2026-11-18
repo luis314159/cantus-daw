@@ -70,6 +70,8 @@ pub struct PluginHost {
     board_gen: u64,
     /// fxa:fractus — the lanes' generation `spec` holds.
     fractus_gen: u64,
+    /// fxb:cedo — the shape's generation `spec` holds.
+    cedo_gen: u64,
     /// The other side of A/B (the plug-in's values), and whether B is the side showing.
     other: Option<Vec<f32>>,
     on_b: bool,
@@ -94,9 +96,10 @@ impl PluginHost {
             sink,
             active: Vec::new(),
             revision: 0,
-            lapsus_gen: u64::MAX,  // fx:lapsus
-            board_gen: u64::MAX,   // fx3:tabula
+            lapsus_gen: u64::MAX, // fx:lapsus
+            board_gen: u64::MAX,  // fx3:tabula
             fractus_gen: u64::MAX, // fxa:fractus
+            cedo_gen: u64::MAX,   // fxb:cedo
             other: None,
             on_b: false,
         }
@@ -133,6 +136,13 @@ impl PluginHost {
         if g != self.fractus_gen {
             self.fractus_gen = g;
             self.spec.fractus = self.shared.fractus.get();
+            changed = true;
+        }
+        // fxb:cedo — Cedo's shape, when the main thread has a new one (a state loaded).
+        let g = self.shared.cedo.generation();
+        if g != self.cedo_gen {
+            self.cedo_gen = g;
+            self.spec.cedo = self.shared.cedo.get();
             changed = true;
         }
         // fx3:tabula — Tabula's board, when the main thread has a new one.
@@ -282,7 +292,32 @@ impl FxHost for PluginHost {
         self.revision += 1;
     }
 
+    // fxb:cedo — Cedo's drawn shape: kept by the instance, posted to its processor, saved in
+    // its state (a host automates the values, not the shape).
+    fn set_cedo_shape(
+        &mut self,
+        shape: Option<cantus_core::fx::cedo::Shape>,
+        _gesture: Option<u64>,
+    ) {
+        self.shared.cedo.set(shape.map(|s| Box::new(s.sanitized())));
+        self.cedo_gen = self.shared.cedo.generation();
+        self.spec.cedo = self.shared.cedo.get();
+        self.revision += 1;
+    }
+
     fn end_gesture(&mut self) {
+        // fxb:cedo — a crossover let go commits its Auto floor, inside the same gesture: the
+        // host is told of one latency change a release.
+        if self.shared.table.kind == cantus_core::EffectKind::Ducker {
+            if let (Some(x), Some(f)) = (self.index("xhz"), self.index("lfhz")) {
+                if self.active.contains(&x) {
+                    let want = cantus_core::fx::cedo::auto_floor(self.shared.value(x as usize));
+                    if self.shared.value(f as usize) != want {
+                        self.edit(f, want, true);
+                    }
+                }
+            }
+        }
         for i in std::mem::take(&mut self.active) {
             self.sink.edit(Edit::End(i));
         }

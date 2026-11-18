@@ -830,6 +830,53 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("duck", 6.0),
             ("out", -3.0),
         ], // fxa:caelum
+        // fxb:vinculum — the valve variable-mu working hard, its colour up, half parallel,
+        // the side chain's high-pass in, the output moved. Every model's own sound is in
+        // `clap.rs` (`vinculum_s_models_match_the_dsp`); the external key in `clap.rs` and
+        // `vst3.rs`.
+        EffectKind::BusCompressor => vec![
+            ("model", 2.0),
+            ("thr", -30.0),
+            ("time", 4.0),
+            ("colour", 0.6),
+            ("hpf", 120.0),
+            ("makeup", 6.0),
+            ("mix", 0.5),
+            ("out", -3.0),
+        ], // fxb:vinculum
+        // fxb:lenis — working hard on the precise frame: Hard, most of each bump, each
+        // channel on its own, the focus from 300 Hz with a band raised, part dry, the output
+        // moved. The latency per quality, its change and the delta are in `clap.rs` and
+        // `vst3.rs`.
+        EffectKind::ResonanceSuppressor => vec![
+            ("depth", 0.8),
+            ("curve", 1.0),
+            ("qual", 2.0),
+            ("chan", 1.0),
+            ("select", 0.3),
+            ("att", 2.0),
+            ("lo", 300.0),
+            ("b3on", 1.0),
+            ("b3hz", 3000.0),
+            ("b3amt", 0.6),
+            ("mix", 0.8),
+            ("out", -2.0),
+        ], // fxb:lenis
+        // fxb:cedo — the sidechain trigger (no key here: the duck waits, the lookahead and
+        // the linear-phase lows' split still delay it, the output moved). The key, the
+        // tempo, the notes, the shape and the latency's change are in `clap.rs`, `vst3.rs`,
+        // `notes.rs` and `transport.rs`.
+        EffectKind::Ducker => vec![
+            ("trig", 0.0),
+            ("depth", 18.0),
+            ("kfilt", 2.0),
+            ("khz", 70.0),
+            ("look", 2.0),
+            ("band", 1.0),
+            ("xover", 1.0),
+            ("xhz", 150.0),
+            ("out", -3.0),
+        ], // fxb:cedo
         _ => vec![],
     }
 }
@@ -947,6 +994,17 @@ pub enum Direct {
         Box<cantus_dsp::fractus::Fractus>,
         Box<cantus_dsp::fractus::Pattern>,
     ),
+    /// fxb:vinculum — Vinculum, the bus compressor: its DSP keyed by the sidechain when
+    /// asked, and its output level gliding after it, as the engine's unit glides it.
+    Vinculum(
+        Box<cantus_dsp::vinculum::Vinculum>,
+        cantus_dsp::modfx_line::Glide,
+    ),
+    /// fxb:lenis — Lenis, the resonance suppressor: its DSP, its output level its own.
+    Lenis(Box<cantus_dsp::lenis::Lenis>),
+    /// fxb:cedo — Cedo, the ducker: its DSP, its shape as the engine passes it (the
+    /// classic pump when the spec draws none).
+    Cedo(Box<cantus_dsp::cedo::Cedo>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -1057,6 +1115,17 @@ impl Direct {
                 Box::new(cantus_dsp::fractus::Fractus::new(SR)),
                 Box::new(cantus_dsp::fractus::Pattern::EMPTY),
             ), // fxa:fractus
+            EffectKind::BusCompressor => Direct::Vinculum(
+                Box::new(cantus_dsp::vinculum::Vinculum::new(SR)),
+                cantus_dsp::modfx_line::Glide::new(1.0, 10.0, SR, 1e-6),
+            ), // fxb:vinculum
+            EffectKind::ResonanceSuppressor => {
+                Direct::Lenis(Box::new(cantus_dsp::lenis::Lenis::new(SR)))
+            } // fxb:lenis
+            EffectKind::Ducker => Direct::Cedo(Box::new(cantus_dsp::cedo::Cedo::new(
+                SR,
+                cantus_engine::fx::fluctus::shape_at,
+            ))), // fxb:cedo
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -1140,6 +1209,26 @@ impl Direct {
                 }
                 x.set(&s);
             }
+            // fxb:vinculum — the output's target as the engine's unit sets it (0 dB not
+            // applied).
+            Direct::Vinculum(x, out) => {
+                x.set(&fx::vinculum::settings(spec));
+                let db = spec.get("out");
+                out.target = if db == 0.0 {
+                    1.0
+                } else {
+                    cantus_dsp::math::db_to_gain(db.clamp(-24.0, 24.0))
+                };
+            }
+            Direct::Lenis(x) => x.set(&fx::lenis::settings(spec)), // fxb:lenis
+            // fxb:cedo — the settings, then the shape's points.
+            Direct::Cedo(x) => {
+                x.set(&fx::cedo::settings(spec));
+                let mut pts =
+                    [cantus_dsp::fluctus::CurvePoint::default(); cantus_core::fx::cedo::MAX_POINTS];
+                let n = fx::cedo::shape_points(spec, &mut pts);
+                x.set_shape(&pts[..n]);
+            }
             Direct::Wire => {}
             Direct::Delay(x) => {
                 x.set(&cantus_engine::delay_settings(spec));
@@ -1185,19 +1274,25 @@ impl Direct {
             Direct::Tonsor(x) => x.reset(),
             Direct::Impetus(x) => x.reset(),
             Direct::Discrimen(x) => x.reset(),
-            Direct::Stub(x) => x.reset(),       // fx:contract
-            Direct::Cribrum(x) => x.reset(),    // fx:cribrum
-            Direct::Vetus(x) => x.reset(),      // fx:vetus
-            Direct::Libra(x) => x.reset(),      // fx:libra
-            Direct::Saltus(x) => x.reset(),     // fx3:saltus
-            Direct::Rota(x) => x.reset(),       // fx3:rota
-            Direct::Arca(x) => x.reset(),       // fx3:arca
+            Direct::Stub(x) => x.reset(),    // fx:contract
+            Direct::Cribrum(x) => x.reset(), // fx:cribrum
+            Direct::Vetus(x) => x.reset(),   // fx:vetus
+            Direct::Libra(x) => x.reset(),   // fx:libra
+            Direct::Saltus(x) => x.reset(),  // fx3:saltus
+            Direct::Rota(x) => x.reset(),    // fx3:rota
+            Direct::Arca(x) => x.reset(),    // fx3:arca
             Direct::Loquax(x) => x.reset(),     // fxa:loquax
             Direct::Fractus(x, _) => x.reset(), // fxa:fractus
             Direct::Caelum(x, out) => {
                 out.jump(out.target);
                 x.reset();
             } // fxa:caelum
+            Direct::Vinculum(x, out) => {
+                out.jump(out.target);
+                x.reset();
+            } // fxb:vinculum
+            Direct::Lenis(x) => x.restart(), // fxb:lenis: as the engine's reset
+            Direct::Cedo(x) => x.reset(),    // fxb:cedo
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
             Direct::Delay(x) => x.reset(),
@@ -1228,16 +1323,19 @@ impl Direct {
             Direct::Tonsor(x) => x.latency(),
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
-            Direct::Stub(x) => x.latency(),       // fx:contract
-            Direct::Cribrum(x) => x.latency(),    // fx:cribrum
-            Direct::Vetus(x) => x.latency(),      // fx:vetus
-            Direct::Libra(x) => x.latency(),      // fx:libra
-            Direct::Saltus(x) => x.latency(),     // fx3:saltus
-            Direct::Rota(_) => 0,                 // fx3:rota
-            Direct::Arca(x) => x.latency(),       // fx3:arca
+            Direct::Stub(x) => x.latency(),    // fx:contract
+            Direct::Cribrum(x) => x.latency(), // fx:cribrum
+            Direct::Vetus(x) => x.latency(),   // fx:vetus
+            Direct::Libra(x) => x.latency(),   // fx:libra
+            Direct::Saltus(x) => x.latency(),  // fx3:saltus
+            Direct::Rota(_) => 0,              // fx3:rota
+            Direct::Arca(x) => x.latency(),    // fx3:arca
             Direct::Loquax(x) => x.latency(),     // fxa:loquax
             Direct::Fractus(x, _) => x.latency(), // fxa:fractus
             Direct::Caelum(x, _) => x.latency(),  // fxa:caelum
+            Direct::Vinculum(x, _) => x.latency(), // fxb:vinculum
+            Direct::Lenis(x) => x.latency(),       // fxb:lenis
+            Direct::Cedo(x) => x.latency(),        // fxb:cedo
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
             Direct::Delay(_) => 0,
@@ -1287,6 +1385,18 @@ impl Direct {
                     }
                 }
             } // fxa:caelum
+            Direct::Vinculum(x, out) => {
+                x.process_keyed(l, r, key);
+                if !(out.still() && out.value == 1.0) {
+                    for (a, b) in l.iter_mut().zip(r.iter_mut()) {
+                        let g = out.next();
+                        *a *= g;
+                        *b *= g;
+                    }
+                }
+            } // fxb:vinculum
+            Direct::Lenis(x) => x.process(l, r),     // fxb:lenis
+            Direct::Cedo(x) => x.process(l, r, key), // fxb:cedo
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
             Direct::Delay(x) => x.process(l, r),

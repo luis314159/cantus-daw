@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 77; // fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's (Vinculum, Lenis, Cedo; an empty step until its merge), 76 wave C's (Purus, Comparatio; an empty step until its merge), 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 77; // fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's (Purus, Comparatio; an empty step until its merge), 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -214,6 +214,12 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     if caelum_repaired > 0 {
         log::warn!("{caelum_repaired} Caelum infinite setting(s) made Sustain");
     }
+    // fxb:contract — Cedo's shapes a command would refuse (a hand edit): points out of
+    // range or order, or on a slot that is not a Cedo (ADR 0141).
+    let shapes_repaired = cantus_core::fx::cedo::repair_project(&mut file.project);
+    if shapes_repaired > 0 {
+        log::warn!("{shapes_repaired} malformed ducking shape(s) repaired");
+    }
     // Provenance of a file not in the pool (a hand edit) names nothing: dropped. // r34:stems
     let pool: std::collections::BTreeSet<_> =
         file.project.audio_pool.iter().map(|s| s.id).collect(); // r34:stems
@@ -335,9 +341,9 @@ static MIGRATIONS: &[Migration] = &[
     migrate_71_to_72, // fx — the side round's five kinds (ADRs 0127–0130)
     migrate_72_to_73, // fx3 — Tabula's board and three kinds (ADRs 0131–0134)
     migrate_73_to_74, // fxa — Fractus's lanes and three kinds (ADRs 0136–0138)
-    migrate_74_to_75, // fxb — wave B's (ADRs 0136–0138): an empty step until its merge
-    migrate_75_to_76, // fxc — wave C's (ADRs 0139–0140): an empty step until its merge
-    migrate_76_to_77, // fxd — the X-Y pad and the formula controller (ADRs 0141–0142)
+    migrate_74_to_75, // fxb — Cedo's drawn shape and three kinds (ADRs 0139–0141)
+    migrate_75_to_76, // fxc — wave C's (ADRs 0142–0143): an empty step until its merge
+    migrate_76_to_77, // fxd — the X-Y pad and the formula controller (ADRs 0144–0145)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1196,19 +1202,21 @@ fn migrate_73_to_74(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 75 (the effects side round's wave B, ADRs 0136–0138): an empty step until wave B
-/// is merged, which fills it.
+/// Schema 75 (the effects side round's wave B, ADRs 0139–0141; provisional 65): Cedo's drawn
+/// shape (`EffectSpec::cedo`) and three new effect kinds — Vinculum, Lenis and Cedo. Nothing
+/// older has any of them, so nothing is written.
+// fxb
 fn migrate_74_to_75(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 76 (the effects side round's wave C, ADRs 0139–0140): an empty step until wave C
+/// Schema 76 (the effects side round's wave C, ADRs 0142–0143): an empty step until wave C
 /// is merged, which fills it.
 fn migrate_75_to_76(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 77 (the effects side round's wave D, ADRs 0141–0142; provisional 67): two modulator sources — the
+/// Schema 77 (the effects side round's wave D, ADRs 0144–0145; provisional 67): two modulator sources — the
 /// X-Y pad (its puck, inertia, path and the links of its routes) and the formula controller
 /// (its text, knobs and links) — and the automation target of their inputs
 /// (`AutoTarget::ModInput`). Nothing older has any of them, so nothing is written.
@@ -1791,6 +1799,73 @@ mod tests {
             .iter()
             .filter(|e| e.spec.kind != K::Glitch)
             .all(|e| e.spec.fractus.is_none()));
+    }
+
+    /// fxb:contract — Schema 75 (the effects side round's wave B): the fixture holds
+    /// one insert of each of the three new kinds, the Cedo with a drawn shape; every older
+    /// file (74) opens with none of them and no shape. A hand-edited shape is repaired:
+    /// points out of range sanitized, a shape on another kind taken off.
+    #[test]
+    fn schema_75_keeps_wave_b_s_kinds_and_cedo_s_shape() {
+        use cantus_core::fx::lapsus::Point;
+        use cantus_core::EffectKind as K;
+        let new_kinds = &K::ALL[38..41];
+        assert_eq!(
+            new_kinds,
+            [K::BusCompressor, K::ResonanceSuppressor, K::Ducker]
+        );
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v75.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        let slots: Vec<_> = p.strips[1]
+            .effects
+            .iter()
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        assert_eq!(slots[0].spec.get("model"), 1.0);
+        assert_eq!(slots[0].spec.get("thr"), -20.0);
+        assert_eq!(slots[1].spec.get("b2on"), 1.0);
+        assert_eq!(slots[2].spec.get("depth"), 9.0);
+        let shape = slots[2].spec.cedo.as_deref().expect("a shape");
+        assert_eq!(shape.points[1], Point::new(0.4, 0.3).bend(0.5));
+        let old = std::fs::read_to_string(dir.join("v74.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .all_effects()
+            .all(|(_, e)| !new_kinds.contains(&e.spec.kind) && e.spec.cedo.is_none()));
+        // A hand edit: a point past the cycle, and a shape on Vinculum.
+        let mut v: Value = serde_json::from_str(&text).unwrap();
+        v.as_object_mut().unwrap().remove("integrity");
+        let fx = v["project"]["strips"][1]["effects"].as_array_mut().unwrap();
+        let at = fx
+            .iter()
+            .position(|e| e["spec"]["kind"] == "Ducker")
+            .unwrap();
+        fx[at]["spec"]["cedo"]["points"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"x": 1.5, "y": 2.0}));
+        let shape = fx[at]["spec"]["cedo"].clone();
+        let other = fx
+            .iter()
+            .position(|e| e["spec"]["kind"] == "BusCompressor")
+            .unwrap();
+        fx[other]["spec"]["cedo"] = shape;
+        let p = parse(&v.to_string(), true).unwrap().file.project;
+        let all: Vec<_> = p.all_effects().map(|(_, e)| e).collect();
+        let c = all.iter().find(|e| e.spec.kind == K::Ducker).unwrap();
+        assert_eq!(
+            c.spec.cedo.as_ref().unwrap().points.last(),
+            Some(&Point::new(1.0, 1.0))
+        );
+        assert!(all
+            .iter()
+            .filter(|e| e.spec.kind != K::Ducker)
+            .all(|e| e.spec.cedo.is_none()));
     }
 
     /// fx3:contract — a hand-edited board is repaired on load: a nested board and a second

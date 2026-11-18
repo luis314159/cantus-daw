@@ -239,6 +239,8 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Vocoder => "out",    // fxa:loquax
             EffectKind::Glitch => "out",     // fxa:fractus
             EffectKind::Shimmer => "out",    // fxa:caelum
+            EffectKind::ResonanceSuppressor => "depth", // fxb:lenis
+            EffectKind::Ducker => "out",                // fxb:cedo
             _ => "thr",
         };
         let table = params::table(kind);
@@ -414,6 +416,101 @@ fn loquax_s_carrier_is_the_sidechain_input_when_asked() {
         energy(&outs[1]),
         energy(&outs[0])
     );
+}
+
+/// fxb:vinculum — Vinculum's detector keyed by the sidechain input: a quiet input under a
+/// loud key, the threshold between the two. With the plug-in's switch on the external key
+/// the input is pressed down while the key plays, exactly as the DSP keyed by it; on its own
+/// input the quiet input never reaches the threshold and passes untouched.
+#[test]
+fn vinculum_s_external_key_presses_the_input_only_when_asked() {
+    let kind = EffectKind::BusCompressor;
+    let values = [
+        ("thr", -30.0),
+        ("ratio", 2.0),
+        ("att", 0.0),
+        ("rel", 1.0),
+        ("makeup", 0.0),
+        ("out", 0.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        if keyed {
+            configure(&plug, &[(SIDECHAIN_KEY, 1.0)]);
+        }
+        plug.activate(4096);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        plug.run(&mut l, &mut r, Some((&key_l, &key_r)), &[], &[480]);
+
+        let _guard = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Vinculum keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Vinculum keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    assert_identical("unkeyed: the quiet input untouched", &outs[0], &quiet_l);
+    let energy = |x: &[f32]| x[4_800..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) < 0.25 * energy(&outs[0]),
+        "the key presses the input: {} keyed against {} on its own input",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
+}
+
+/// fxb:vinculum — each model through CLAP is its DSP to the bit: the VCA on Auto, the
+/// opto's Limit, the vari-mu's programme position with its colour (the family's settings
+/// cover one; these the other two and the VCA's Auto).
+#[test]
+fn vinculum_s_models_match_the_dsp() {
+    let kind = EffectKind::BusCompressor;
+    let models: [&[(&str, f32)]; 3] = [
+        &[
+            ("model", 0.0),
+            ("thr", -24.0),
+            ("ratio", 1.0),
+            ("rel", 4.0),
+            ("makeup", 4.0),
+        ],
+        &[
+            ("model", 1.0),
+            ("char", 1.0),
+            ("thr", -28.0),
+            ("hpf", 90.0),
+            ("mix", 0.8),
+        ],
+        &[
+            ("model", 2.0),
+            ("char", 1.0),
+            ("time", 5.0),
+            ("colour", 1.0),
+            ("thr", -20.0),
+        ],
+    ];
+    for values in models {
+        let spec = spec_with(kind, values);
+        let plugin = through_plugin(kind, values, &[512], N);
+        let dsp = through_dsp(&spec, N, true);
+        assert_identical(&format!("Vinculum {values:?}"), &plugin, &dsp);
+        let (mut dry, dry_r) = signal(N, 7);
+        dry.extend_from_slice(&dry_r);
+        let moved = plugin.iter().zip(&dry).filter(|(a, b)| a != b).count();
+        assert!(moved > N / 10, "{values:?} changed only {moved} samples");
+    }
 }
 
 #[test]
@@ -727,4 +824,248 @@ fn every_plugin_runs_at_any_sample_rate_a_host_may_ask_for() {
             plug.deactivate();
         }
     }
+}
+
+/// fxb:lenis — Lenis's latency is its quality's frame, reported to the host before it
+/// activates (Fast 255, Standard 511, Precise 1 023 samples at 48 kHz, as the engine's
+/// unit); a quality changed while it runs asks the host for a restart once, and on the
+/// next activation the host is told the new latency.
+#[test]
+fn lenis_reports_its_latency_per_quality_and_a_change_re_reports_it() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let kind = EffectKind::ResonanceSuppressor;
+    for (qual, want) in [(0.0, 255), (1.0, 511), (2.0, 1_023)] {
+        let values = [("qual", qual), ("depth", 0.6)];
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        plug.activate(512);
+        assert_eq!(plug.latency(), want, "quality {qual}");
+        assert_eq!(
+            engine_unit(&spec_with(kind, &values)).latency(),
+            want as usize,
+            "the engine's unit agrees"
+        );
+    }
+    // Standard to Precise while it plays.
+    let plug = Plug::new(kind);
+    plug.activate(512);
+    assert_eq!(plug.latency(), 511);
+    assert_eq!(plug.host.restarts.load(SeqCst), 0);
+    let (id, v) = clap_value(kind, "qual", 2.0);
+    let (mut l, mut r) = signal(512, 1);
+    plug.process(&mut l, &mut r, None, &[(0, id, v)], false);
+    assert_eq!(plug.host.restarts.load(SeqCst), 1, "a restart is asked for");
+    plug.process(&mut l, &mut r, None, &[], false);
+    assert_eq!(plug.host.restarts.load(SeqCst), 1, "once");
+    let told = plug.host.latency_changed.load(SeqCst);
+    plug.deactivate();
+    plug.activate(512);
+    assert_eq!(plug.latency(), 1_023, "Precise's frame");
+    assert_eq!(
+        plug.host.latency_changed.load(SeqCst),
+        told + 1,
+        "the host is told on activation"
+    );
+    // And back to Fast: asked again, told again.
+    let (id, v) = clap_value(kind, "qual", 0.0);
+    plug.process(&mut l, &mut r, None, &[(0, id, v)], false);
+    assert_eq!(plug.host.restarts.load(SeqCst), 2, "a second restart");
+    plug.deactivate();
+    plug.activate(512);
+    assert_eq!(plug.latency(), 255);
+    assert_eq!(plug.host.latency_changed.load(SeqCst), told + 2);
+}
+
+/// fxb:lenis — the delta through CLAP: what is taken away, exactly the DSP's, and exactly
+/// the input delayed by the latency less what the plug-in gives without the delta.
+#[test]
+fn lenis_s_delta_is_what_it_takes_away() {
+    let kind = EffectKind::ResonanceSuppressor;
+    // The output at 0 dB (the starting preset fits it): the delta is taken before it.
+    let hard = [
+        ("depth", 0.9),
+        ("curve", 1.0),
+        ("select", 0.3),
+        ("att", 1.0),
+        ("out", 0.0),
+    ];
+    let with_delta = [hard.as_slice(), &[("delta", 1.0)]].concat();
+    let wet = through_plugin(kind, &hard, &[512, 333], N);
+    let delta = through_plugin(kind, &with_delta, &[512, 333], N);
+    let dsp = through_dsp(&spec_with(kind, &with_delta), N, true);
+    assert_identical("the delta, plug-in and DSP", &delta, &dsp);
+    let latency = 511;
+    let (mut dry, dry_r) = signal(N, 7);
+    dry.extend_from_slice(&dry_r);
+    for ch in 0..2 {
+        for i in 0..N {
+            let x = if i >= latency {
+                dry[ch * N + i - latency]
+            } else {
+                0.0
+            };
+            let want = x - wet[ch * N + i];
+            assert_eq!(
+                delta[ch * N + i].to_bits(),
+                want.to_bits(),
+                "channel {ch}, sample {i}: the delayed input less the output"
+            );
+        }
+    }
+    let taken = delta.iter().map(|v| v * v).sum::<f32>();
+    assert!(taken > 1e-3, "something is taken away: {taken}");
+}
+
+/// fxb:cedo — Cedo's sidechain trigger keyed by the plug-in's sidechain input: with the
+/// switch on the external key the input is ducked while the key plays, exactly as the DSP
+/// keyed by it; on its own input nothing keys it and the input passes untouched.
+#[test]
+fn cedo_s_external_key_ducks_the_input_only_when_asked() {
+    let kind = EffectKind::Ducker;
+    let values = [
+        ("trig", 0.0),
+        ("depth", 24.0),
+        ("thr", -30.0),
+        ("att", 0.5),
+        ("hold", 20.0),
+        ("rel", 80.0),
+        ("look", 1.0),
+        // The starting preset's output was fitted to +1.4 dB (`preset_tool fit`,
+        // c5e3b654); this test holds the key, so the output is set at unity.
+        ("out", 0.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        if keyed {
+            configure(&plug, &[(SIDECHAIN_KEY, 1.0)]);
+        }
+        plug.activate(4096);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        plug.run(&mut l, &mut r, Some((&key_l, &key_r)), &[], &[480]);
+
+        let _guard = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Cedo keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Cedo keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    let lat = 48;
+    let delayed: Vec<f32> = (0..n)
+        .map(|i| if i >= lat { quiet_l[i - lat] } else { 0.0 })
+        .collect();
+    assert_identical(
+        "unkeyed: the input untouched (1 ms late)",
+        &outs[0],
+        &delayed,
+    );
+    let energy = |x: &[f32]| x[4_800..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) < 0.1 * energy(&outs[0]),
+        "the key ducks the input: {} keyed against {}",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
+}
+
+/// fxb:cedo — Cedo's latency (the lookahead and the linear-phase split at its floor) is
+/// reported before it activates; the crossover moved by a host (automation, a drag's
+/// values) never moves it — the floor in force moves it once, when it is committed (the
+/// editor commits it at a crossover's release; a host restoring a session sets it), and
+/// then the host is asked for one restart and told the new latency.
+#[test]
+fn cedo_reports_its_latency_and_a_committed_floor_re_reports_it() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let kind = EffectKind::Ducker;
+    let lows = [("band", 1.0), ("xover", 1.0), ("depth", 12.0)];
+    for (extra, want) in [
+        (&[][..], 1_765u32),
+        (&[("look", 2.0)][..], 1_765 + 96),
+        (&[("lfloor", 1.0)][..], 2_655),
+        (&[("lfloor", 4.0)][..], 880),
+        (&[("lfhz", 100.0)][..], 1_060),
+    ] {
+        let values = [&lows[..], extra].concat();
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        plug.activate(512);
+        assert_eq!(plug.latency(), want, "{extra:?}");
+        assert_eq!(
+            engine_unit(&spec_with(kind, &values)).latency(),
+            want as usize,
+            "the engine's unit agrees: {extra:?}"
+        );
+    }
+    let plug = Plug::new(kind);
+    configure(&plug, &lows);
+    plug.activate(512);
+    assert_eq!(plug.latency(), 1_765);
+    let (mut l, mut r) = signal(512, 1);
+    // The crossover swept as a drag sends it: no latency change, no restart.
+    for hz in [140.0, 200.0, 260.0, 300.0] {
+        let (id, v) = clap_value(kind, "xhz", hz);
+        plug.process(&mut l, &mut r, None, &[(0, id, v)], false);
+    }
+    assert_eq!(
+        plug.host.restarts.load(SeqCst),
+        0,
+        "no restart while it moves"
+    );
+    // The floor committed (an octave under 300 Hz): one restart, the new latency told.
+    let (id, v) = clap_value(kind, "lfhz", 150.0);
+    plug.process(&mut l, &mut r, None, &[(0, id, v)], false);
+    plug.process(&mut l, &mut r, None, &[], false);
+    assert_eq!(
+        plug.host.restarts.load(SeqCst),
+        1,
+        "one restart at the commit"
+    );
+    let told = plug.host.latency_changed.load(SeqCst);
+    plug.deactivate();
+    plug.activate(512);
+    let want = cantus_dsp::cedo::band::linear_latency(150.0, 48_000.0) as u32;
+    assert_eq!(plug.latency(), want, "the 150 Hz floor's kernel");
+    assert_eq!(plug.host.latency_changed.load(SeqCst), told + 1);
+}
+
+/// fxb:cedo — the drawn shape is content in the state, as the project saves it: a state
+/// with a shape loads it (heard on the host's beat in `transport.rs`), saves it back
+/// unchanged, and a state with none plays the classic pump again.
+#[test]
+fn cedo_s_shape_travels_in_the_state() {
+    use cantus_core::fx::cedo::Shape;
+    use cantus_core::fx::lapsus::Point;
+    let kind = EffectKind::Ducker;
+    let values = [("trig", 0.0), ("depth", 30.0), ("thr", -30.0)];
+    let mut spec = spec_with(kind, &values);
+    spec.cedo = Some(Box::new(Shape {
+        points: vec![Point::new(0.0, 1.0).shape(2), Point::new(0.3, 0.2)],
+    }));
+    let bytes = serde_json::to_vec(&spec).unwrap();
+    let plug = Plug::new(kind);
+    assert!(plug.load(&bytes));
+    let saved: EffectSpec = serde_json::from_slice(&plug.save()).unwrap();
+    assert_eq!(saved.cedo, spec.cedo, "saved back as loaded");
+    let reloaded = Plug::new(kind);
+    assert!(reloaded.load(&plug.save()));
+    let again: EffectSpec = serde_json::from_slice(&reloaded.save()).unwrap();
+    assert_eq!(again.cedo, spec.cedo, "and again");
+    // A state with no shape: the classic pump (none saved).
+    let plain = Plug::new(kind);
+    assert!(plain.load(&serde_json::to_vec(&spec_with(kind, &values)).unwrap()));
+    let s: EffectSpec = serde_json::from_slice(&plain.save()).unwrap();
+    assert_eq!(s.cedo, None);
 }

@@ -314,6 +314,9 @@ pub struct Shared {
     pub board: crate::board_post::BoardPost,
     /// fxa:fractus — Fractus's lanes, posted to the processor as Lapsus's banks are.
     pub fractus: crate::lapsus_bank::ContentPost<cantus_core::fx::fractus::Pattern>,
+    /// fxb:cedo — Cedo's drawn shape, posted to the processor as Lapsus's banks are
+    /// (`None`: the classic pump).
+    pub cedo: crate::lapsus_bank::ContentPost<cantus_core::fx::cedo::Shape>,
     /// Frames the analyser tap has taken since the instance was made: an editor's count
     /// of what it drained is measured against it ([`Self::clock_of_drained`]).
     pub tapped: AtomicU64,
@@ -373,8 +376,9 @@ impl Shared {
                 Mutex::new((Some(tx), Some(rx)))
             },
             scope_lost: AtomicU64::new(0),
-            lapsus: Default::default(),  // fx:lapsus
-            board: Default::default(),   // fx3:tabula
+            cedo: Default::default(),   // fxb:cedo
+            lapsus: Default::default(), // fx:lapsus
+            board: Default::default(),  // fx3:tabula
             fractus: Default::default(), // fxa:fractus
             tapped: AtomicU64::new(0),
         });
@@ -583,6 +587,11 @@ impl Shared {
 
     /// The state to save: `EffectSpec` JSON (`crate::state`).
     pub fn save_state(&self) -> Vec<u8> {
+        // fxb:cedo — Cedo's shape beside the values.
+        if self.table.kind == cantus_core::EffectKind::Ducker {
+            let shape = self.cedo.get();
+            return crate::state::save_spec_with(self.table, &self.values(), |s| s.cedo = shape);
+        }
         // fx:lapsus — the bank beside the values.
         // fx3:tabula — and the board.
         crate::state::save_spec_extras(
@@ -601,6 +610,9 @@ impl Shared {
         }
         if self.table.kind == cantus_core::EffectKind::Glitch {
             self.fractus.set(crate::state::load_fractus(bytes)); // fxa:fractus
+        }
+        if self.table.kind == cantus_core::EffectKind::Ducker {
+            self.cedo.set(crate::state::load_cedo(bytes)); // fxb:cedo
         }
         if self.table.kind == cantus_core::EffectKind::Board {
             // fx3:tabula — the whole board: its new pedals built here, for the processor.
@@ -636,6 +648,7 @@ impl Shared {
         s.lapsus = self.lapsus.get(); // fx:lapsus
         s.board = self.board.get(); // fx3:tabula
         s.fractus = self.fractus.get(); // fxa:fractus
+        s.cedo = self.cedo.get(); // fxb:cedo
         s
     }
 }
@@ -656,6 +669,7 @@ fn spec_of(table: &Table, values: &[f32]) -> EffectSpec {
         lapsus: None,  // fx:lapsus (the bank: phase B)
         board: None,   // fx3:contract (a board's content: the tabula builder's)
         fractus: None, // fxa:contract (Fractus's lanes: phase B)
+        cedo: None,    // fxb:contract (Cedo's shape: phase B)
     }
 }
 
@@ -775,6 +789,14 @@ pub struct Processor {
         Producer<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
     )>,
     fractus_held: Option<crate::lapsus_bank::Posted<cantus_core::fx::fractus::Pattern>>,
+    /// fxb:cedo — the shape's rings while this processor lives, and a shape that could not
+    /// go back yet.
+    #[allow(clippy::type_complexity)]
+    cedo: Option<(
+        rtrb::Consumer<crate::lapsus_bank::Posted<cantus_core::fx::cedo::Shape>>,
+        Producer<crate::lapsus_bank::Posted<cantus_core::fx::cedo::Shape>>,
+    )>,
+    cedo_held: Option<crate::lapsus_bank::Posted<cantus_core::fx::cedo::Shape>>,
     /// fx3:tabula — the board's rings while this processor lives, and a post that could not
     /// go back yet.
     board: Option<crate::board_post::Lent>,
@@ -809,6 +831,11 @@ impl Drop for Processor {
             self.shared.fractus.give_back(Some(rx), Some(gtx));
         }
         drop(self.fractus_held.take());
+        // fxb:cedo
+        if let Some((rx, gtx)) = self.cedo.take() {
+            self.shared.cedo.give_back(Some(rx), Some(gtx));
+        }
+        drop(self.cedo_held.take());
         // fx3:tabula
         if let Some(l) = self.board.take() {
             self.shared.board.give_back(l);
@@ -827,6 +854,7 @@ impl Processor {
         spec.lapsus = shared.lapsus.get(); // fx:lapsus
         spec.board = shared.board.get(); // fx3:tabula
         spec.fractus = shared.fractus.get(); // fxa:fractus
+        spec.cedo = shared.cedo.get(); // fxb:cedo
         cantus_core::fx::tabula::apply_macros(&mut spec); // fx3:tabula
         let slot = EffectSlot {
             id: EffectId(0),
@@ -884,6 +912,9 @@ impl Processor {
         let board = (unit.kind == cantus_core::EffectKind::Board)
             .then(|| shared.board.lend(spec.board.as_deref()))
             .flatten(); // fx3:tabula
+        let cedo = (unit.kind == cantus_core::EffectKind::Ducker)
+            .then(|| shared.cedo.lend())
+            .flatten(); // fxb:cedo
         Processor {
             board,
             board_held: None,
@@ -893,6 +924,8 @@ impl Processor {
             lapsus_held: None,
             fractus,            // fxa:fractus
             fractus_held: None, // fxa:fractus
+            cedo,            // fxb:cedo
+            cedo_held: None, // fxb:cedo
             transport: None,
             moves: [(0, HostTransport::default()); MOVES],
             n_moves: 0,
@@ -1048,6 +1081,12 @@ impl Processor {
                 &mut self.fractus_held,
                 &mut self.spec.fractus,
             ) {
+                self.dirty = true;
+            }
+        }
+        // fxb:cedo — a shape the main thread posted, swapped in (the old one goes back).
+        if let Some((rx, gtx)) = self.cedo.as_mut() {
+            if crate::lapsus_bank::take_newest(rx, gtx, &mut self.cedo_held, &mut self.spec.cedo) {
                 self.dirty = true;
             }
         }

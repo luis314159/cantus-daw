@@ -776,3 +776,87 @@ fn an_agent_paints_fractus_s_lanes() {
         ToolError::BadArgument { .. }
     ));
 }
+
+/// fxb:cedo — an agent draws Cedo's ducking shape (`set_effect`'s shape), routes another
+/// track's notes as its trigger (`notes_track_id`), sets its crossover (its Auto floor
+/// committed with it), and puts the classic pump back with `shape: null`; bad shapes are
+/// refused; each call one undo step.
+#[test]
+fn an_agent_draws_cedo_s_shape_and_routes_its_notes() {
+    use cantus_ai::bridge::BareHost;
+    use cantus_core::fx::lapsus::{Point, SHAPE_HOLD};
+    let mut h = host();
+    let t = edit_ok(&mut h, "add_track", json!({"kind": "unda", "name": "Pad"}));
+    let strip = id(&t, "strip_id");
+    let k = edit_ok(&mut h, "add_track", json!({"kind": "unda", "name": "Kick"}));
+    let kick = id(&k, "track_id");
+    let fx = id(
+        &edit_ok(
+            &mut h,
+            "add_effect",
+            json!({"strip_id": strip, "kind": "pump"}),
+        ),
+        "effect_id",
+    );
+    let spec = |h: &mut BareHost| {
+        h.bus
+            .project()
+            .effect(StripId(strip), cantus_core::EffectId(fx))
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(spec(&mut h).spec.kind, EffectKind::Ducker);
+    edit_ok(
+        &mut h,
+        "set_effect",
+        json!({"effect_id": fx, "params": {"trig": 2, "xhz": 300},
+               "notes_track_id": kick,
+               "shape": [{"x": 0, "y": 1, "seg": "hold"}, {"x": 0.25, "y": 0}]}),
+    );
+    let s = spec(&mut h);
+    assert_eq!(s.midi_from, Some(TrackId(kick)));
+    assert_eq!(
+        s.spec.get("lfhz"),
+        150.0,
+        "the floor an octave under 300 Hz"
+    );
+    assert_eq!(
+        s.spec.cedo.as_deref().unwrap().points,
+        vec![
+            Point::new(0.0, 1.0).shape(SHAPE_HOLD),
+            Point::new(0.25, 0.0)
+        ]
+    );
+    for bad in [
+        json!([{"x": 1.5, "y": 0}]),
+        json!([{"x": 0.5}]),
+        json!([{"x": 0.5, "y": 0.5, "seg": "zigzag"}]),
+        json!("pump"),
+    ] {
+        assert!(matches!(
+            edit_err(&mut h, "set_effect", json!({"effect_id": fx, "shape": bad})),
+            ToolError::BadArgument { .. }
+        ));
+    }
+    edit_ok(
+        &mut h,
+        "set_effect",
+        json!({"effect_id": fx, "shape": null}),
+    );
+    assert_eq!(spec(&mut h).spec.cedo, None, "the classic pump again");
+    h.bus.undo();
+    assert!(spec(&mut h).spec.cedo.is_some(), "one undo step");
+    // Only Cedo has a shape.
+    let eq = id(
+        &edit_ok(
+            &mut h,
+            "add_effect",
+            json!({"strip_id": strip, "kind": "aequalis"}),
+        ),
+        "effect_id",
+    );
+    assert!(matches!(
+        edit_err(&mut h, "set_effect", json!({"effect_id": eq, "shape": []})),
+        ToolError::BadArgument { .. }
+    ));
+}

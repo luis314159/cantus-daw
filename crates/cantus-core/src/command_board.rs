@@ -9,7 +9,7 @@
 //! | `SetPedalOn`, `SetPedalShape` | the old value |
 //! | `SetMacroMaps` | the old list |
 //! | `SetMacroName` | the old name |
-//! | `SetEffectIr`/`SetLapsusPattern` with a pedal | the pedal's old response / pattern |
+//! | `SetEffectIr`/`SetLapsusPattern`/`SetCedoShape` with a pedal | the pedal's old response / pattern / shape |
 //!
 //! Refusals: a slot that is not a board, a duplicate id, a kind that may not be a pedal
 //! (`fx::tabula::pedal_allowed`), a pedal holding a board, more than `MAX_PEDALS`, a map to
@@ -364,6 +364,32 @@ pub(crate) fn set_pedal_lapsus(
         lane,
         slot,
         pattern: old.map(Box::new),
+        pedal,
+    })
+}
+
+/// fxb:cedo — `Command::SetCedoShape` with `pedal: Some(_)`: a board's Cedo pedal's drawn
+/// shape (sanitized), its inverse the shape it replaced.
+pub(crate) fn set_pedal_cedo(
+    project: &mut Project,
+    strip: StripId,
+    effect: EffectId,
+    shape: Option<Box<crate::fx::cedo::Shape>>,
+    pedal: Option<PedalId>,
+) -> Result<Command, CommandError> {
+    let Some(id) = pedal else {
+        return Err(refuse("no pedal"));
+    };
+    let p = pedal_mut(project, strip, effect, id)?;
+    if p.spec.kind != EffectKind::Ducker {
+        return Err(CommandError::InvalidValue("ducking shape".into()));
+    }
+    let new = shape.map(|s| Box::new(s.sanitized()));
+    let old = std::mem::replace(&mut p.spec.cedo, new);
+    Ok(Command::SetCedoShape {
+        strip,
+        effect,
+        shape: old,
         pedal,
     })
 }

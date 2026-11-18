@@ -58,6 +58,16 @@ pub fn load_fractus(bytes: &[u8]) -> Option<Box<cantus_core::fx::fractus::Patter
     (!p.is_empty()).then(|| Box::new(p))
 }
 
+/// fxb:cedo — Cedo's drawn shape, if the state holds one (`EffectSpec::cedo`), sanitized;
+/// `None` (the classic pump) when it holds none.
+pub fn load_cedo(bytes: &[u8]) -> Option<Box<cantus_core::fx::cedo::Shape>> {
+    let value: Value = serde_json::from_slice(bytes).ok()?;
+    let shape = value.get("cedo")?.clone();
+    serde_json::from_value::<cantus_core::fx::cedo::Shape>(shape)
+        .ok()
+        .map(|s| Box::new(s.sanitized()))
+}
+
 /// [`save`], with Lapsus's bank beside the values (fx:lapsus).
 pub fn save_with_bank(
     table: &Table,
@@ -76,6 +86,22 @@ pub fn save_spec_extras(
     board: Option<&cantus_core::fx::tabula::Board>,
     fractus: Option<&cantus_core::fx::fractus::Pattern>,
 ) -> Vec<u8> {
+    save_spec_with(table, values, |spec| {
+        spec.lapsus = lapsus.map(|b| Box::new(b.clone())); // fx:lapsus
+        spec.board = board.map(|b| Box::new(b.clone())); // fx3:tabula
+        spec.fractus = fractus
+            .filter(|p| !p.is_empty())
+            .map(|p| Box::new(p.clone())); // fxa:fractus
+    })
+}
+
+/// fxb:cedo — [`save`], with what `extras` puts in the spec beside the values (Cedo's
+/// shape; [`save_spec_extras`] puts Lapsus's bank and Tabula's board through it).
+pub fn save_spec_with(
+    table: &Table,
+    values: &[f32],
+    extras: impl FnOnce(&mut EffectSpec),
+) -> Vec<u8> {
     let sparse = table.kind.sparse();
     let mut params = BTreeMap::new();
     for p in &table.params[..table.spec_count] {
@@ -84,18 +110,18 @@ pub fn save_spec_extras(
             params.insert(p.key.to_string(), v);
         }
     }
-    let spec = EffectSpec {
+    let mut spec = EffectSpec {
         kind: table.kind,
         params,
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
-        ir: None,                                    // r39:conv
-        lapsus: lapsus.map(|b| Box::new(b.clone())), // fx:lapsus
-        board: board.map(|b| Box::new(b.clone())),   // fx3:tabula
-        fractus: fractus
-            .filter(|p| !p.is_empty())
-            .map(|p| Box::new(p.clone())), // fxa:fractus
+        ir: None,      // r39:conv
+        lapsus: None,  // fx:lapsus (`extras`)
+        board: None,   // fx3:tabula (`extras`)
+        fractus: None, // fxa:fractus (`extras`)
+        cedo: None,    // fxb:cedo (`extras`)
     };
+    extras(&mut spec);
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,
         _ => Map::new(),

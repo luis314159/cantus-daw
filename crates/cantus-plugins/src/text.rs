@@ -60,7 +60,12 @@ impl Lang {
                 // (`pane_words`); their plug-ins are their own builders'.
                 include_str!("../../cantus-ui/locales/fx/fractus.en.txt"),
                 include_str!("../../cantus-ui/locales/fx/caelum.en.txt"),
-                include_str!("../../cantus-ui/locales/fx/delay.en.txt"), // r39:delay
+                // fxb:vinculum — wave B's units, so every kind's choices have their words
+                // (`pane_words`).
+                include_str!("../../cantus-ui/locales/fx/vinculum.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/lenis.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/cedo.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/delay.en.txt"),   // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.en.txt"),
             ],
             Lang::Es => &[
@@ -103,7 +108,12 @@ impl Lang {
                 // (`pane_words`); their plug-ins are their own builders'.
                 include_str!("../../cantus-ui/locales/fx/fractus.es.txt"),
                 include_str!("../../cantus-ui/locales/fx/caelum.es.txt"),
-                include_str!("../../cantus-ui/locales/fx/delay.es.txt"), // r39:delay
+                // fxb:vinculum — wave B's units, so every kind's choices have their words
+                // (`pane_words`).
+                include_str!("../../cantus-ui/locales/fx/vinculum.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/lenis.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/cedo.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/delay.es.txt"),   // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.es.txt"),
             ],
         }

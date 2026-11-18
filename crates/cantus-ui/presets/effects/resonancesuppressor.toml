@@ -1,0 +1,241 @@
+# Lenis resonance suppressor: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.lenis.gentle"
+note = "Half of each resonance's bump taken away, the soft curve, from 150 Hz up: the starting preset."
+styles = ["pop", "rock"]
+roles = ["vocal", "bus"]
+[preset.values]
+"depth" = 0.5
+"lo" = 150
+"out" = 0.7
+
+[[preset]]
+key = "preset.lenis.harsh_vocal"
+note = "A lead vocal's harshness smoothed: from 1 kHz, the presence region weighted, the soft curve so the voice keeps its edge."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"att" = 3
+"b3amt" = 0.5
+"b3hz" = 3200
+"b3on" = 1
+"b3w" = 1.5
+"depth" = 0.6
+"hi" = 12000
+"lo" = 1000
+"out" = 0.3
+"rel" = 60
+"select" = 0.45
+"sharp" = 0.55
+
+[[preset]]
+key = "preset.lenis.sibilance"
+note = "The whistling s and the bright t taken down as they come: the fast frame, the hard curve, 4.5 to 14 kHz with 7 kHz weighted."
+styles = ["pop", "trap"]
+roles = ["vocal"]
+[preset.values]
+"att" = 1
+"b4amt" = 0.6
+"b4hz" = 7000
+"b4on" = 1
+"b4w" = 1.2
+"curve" = 1
+"depth" = 0.7
+"hi" = 14000
+"lo" = 4500
+"qual" = 0
+"rel" = 40
+"select" = 0.4
+"sharp" = 0.4
+
+[[preset]]
+key = "preset.lenis.guitar_fizz"
+note = "A distorted guitar's fizz and its cabinet's ring tamed: 1.8 to 10 kHz, the hard curve, the cabinet's peak and the fizz above it weighted."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"att" = 5
+"b3amt" = 0.4
+"b3hz" = 3500
+"b3on" = 1
+"b3w" = 1.5
+"b4amt" = 0.3
+"b4hz" = 6500
+"b4on" = 1
+"curve" = 1
+"depth" = 0.65
+"hi" = 10000
+"lo" = 1800
+"rel" = 90
+"select" = 0.4
+
+[[preset]]
+key = "preset.lenis.piano_ring"
+note = "A piano's ringing notes and its room's build-ups evened, its harmonics left alone: the precise frame, narrow rings only, a slow release."
+styles = ["jazz", "worship"]
+roles = ["creative"]
+[preset.values]
+"att" = 10
+"depth" = 0.5
+"hi" = 6000
+"lo" = 250
+"qual" = 2
+"rel" = 200
+"select" = 0.55
+"sharp" = 0.7
+
+[[preset]]
+key = "preset.lenis.mix_bus_gentle"
+note = "A whole mix smoothed a little: a third of each ring, the soft curve, a slow release, 80 % wet so nothing thins."
+styles = ["pop", "house"]
+roles = ["bus"]
+[preset.values]
+"att" = 8
+"depth" = 0.3
+"lo" = 200
+"mix" = 0.8
+"out" = 0.4
+"rel" = 150
+"select" = 0.6
+"sharp" = 0.6
+
+[[preset]]
+key = "preset.lenis.master_polish"
+note = "The last touch on a master: a quarter of each ring, the precise frame, the upper mids weighted where a loud master grows harsh."
+styles = ["pop", "worship"]
+roles = ["master"]
+[preset.values]
+"att" = 10
+"b3amt" = 0.3
+"b3hz" = 3000
+"b3on" = 1
+"b3w" = 2
+"depth" = 0.25
+"hi" = 16000
+"lo" = 300
+"qual" = 2
+"rel" = 250
+"select" = 0.65
+"sharp" = 0.7
+
+[[preset]]
+key = "preset.lenis.drum_room_ring"
+note = "A drum room's ring and the shells' overtones cut: the precise frame resolves the low mids, the hard curve, 300 Hz to 3 kHz."
+styles = ["rock"]
+roles = ["drums"]
+[preset.values]
+"att" = 2
+"b1amt" = 0.4
+"b1hz" = 600
+"b1on" = 1
+"curve" = 1
+"depth" = 0.6
+"hi" = 3000
+"lo" = 300
+"qual" = 2
+"rel" = 120
+"select" = 0.4
+"sharp" = 0.75
+
+[[preset]]
+key = "preset.lenis.acoustic_boom"
+note = "An acoustic guitar's body boom held down: 80 to 600 Hz, the precise frame so the notes' fundamentals stay, 180 Hz weighted."
+styles = ["worship", "latin"]
+roles = ["creative"]
+[preset.values]
+"att" = 15
+"b0amt" = 0.5
+"b0hz" = 180
+"b0on" = 1
+"b0w" = 1.5
+"depth" = 0.55
+"hi" = 600
+"lo" = 80
+"out" = 3.3
+"qual" = 2
+"rel" = 180
+"select" = 0.5
+"sharp" = 0.4
+
+[[preset]]
+key = "preset.lenis.podcast_voice"
+note = "A spoken voice cleaned of its room's boxiness and its microphone's edge: the box at 350 Hz and the edge at 3 kHz weighted."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"att" = 5
+"b1amt" = 0.3
+"b1hz" = 350
+"b1on" = 1
+"b3amt" = 0.3
+"b3hz" = 3000
+"b3on" = 1
+"depth" = 0.45
+"hi" = 12000
+"lo" = 150
+"out" = 0.8
+"rel" = 100
+"select" = 0.5
+
+[[preset]]
+key = "preset.lenis.snare_ring"
+note = "A snare's ping and a tom's ring caught at the hit: the fast frame, the hard curve, narrow rings only."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"att" = 1
+"curve" = 1
+"depth" = 0.7
+"hi" = 2000
+"lo" = 180
+"qual" = 0
+"rel" = 70
+"select" = 0.35
+"sharp" = 0.85
+
+[[preset]]
+key = "preset.lenis.wide_air"
+note = "The sides' highs smoothed apart from the middle: mid and side, from 5 kHz, a light touch for a wide master's air."
+styles = ["ambient", "film"]
+roles = ["master"]
+[preset.values]
+"att" = 5
+"chan" = 2
+"depth" = 0.35
+"hi" = 18000
+"lo" = 5000
+"rel" = 120
+"select" = 0.55
+
+[[preset]]
+key = "preset.lenis.strings_brass"
+note = "Strings and brass evened where they ring: each channel on its own, 600 Hz to 8 kHz, the soft curve."
+styles = ["film"]
+roles = ["creative"]
+[preset.values]
+"att" = 8
+"chan" = 1
+"depth" = 0.4
+"hi" = 8000
+"lo" = 600
+"rel" = 120
+"select" = 0.5
+"sharp" = 0.6
+
+[[preset]]
+key = "preset.lenis.surgical"
+note = "Every ring taken down to the spectrum's outline: all of the bump, narrow rings only, the precise frame and the hard curve."
+styles = ["film"]
+roles = ["creative"]
+[preset.values]
+"att" = 2
+"curve" = 1
+"depth" = 1
+"out" = 7.3
+"qual" = 2
+"rel" = 60
+"select" = 0.3
+"sharp" = 1

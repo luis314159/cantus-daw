@@ -3013,6 +3013,137 @@ atenuación.
 entrada de sidechain cuando su propio interruptor *Sidechain* está en *Entrada de
 sidechain*, y un pre-retardo sincronizado sigue el tempo del anfitrión.
 
+### Vinculum, el compresor de bus
+
+**Vinculum** (en latín, *un vínculo*) es el compresor que une una mezcla, en un bus, un grupo
+o el máster. Insértalo desde **Añadir inserto ▾ ▸ Dinámica ▸ Vinculum**; empieza como
+*Pegamento* (el VCA a 4:1, ataque de 30 ms, liberación automática, −18 dB).
+
+**Tres modelos**, elegidos en el primer conmutador de la placa:
+
+- **VCA** — el compresor de bus de una consola: **Proporción** 2:1, 4:1 o 10:1, **Ataque**
+  de 0,1 a 30 ms y **Liberación** de 0,1 a 1,2 s o **Auto** (un golpe aislado se suelta
+  pronto y el trabajo sostenido despacio, de modo que la mezcla respira sin bombear).
+- **Óptico** — un nivelador de fotocélula encendida por la salida: suave al principio, unos
+  3:1 a fondo en **Comprimir**, cerca de 10:1 en **Limitar**. Sus tiempos son los del
+  nivelador clásico: unos 10 ms para atrapar, la mitad soltada en unos 60 ms y el resto en
+  menos de un segundo tras una ráfaga corta y en unos diez segundos tras un pasaje largo y
+  fuerte — la célula recuerda cuánto tiempo y cuánto ha trabajado, y una célula que ha
+  descansado vuelve a soltar pronto.
+- **Mu variable** — una válvula cuya proporción sube a medida que trabaja (hasta 4:1 en
+  Comprimir, hasta 20:1 en Limitar), con seis posiciones de **Constante de tiempo** (la 5 y la 6 siguen
+  al programa) y un **Color de válvula** en su propia tarjeta.
+
+**La placa** responde a un clic: un clic en una posición grabada la elige, un clic en una
+perilla la hace avanzar, un clic en la palanca cambia entre Comprimir y Limitar. Sus
+**pilotos** también son controles: **Clave externa** abre la lista de la clave (su propia
+entrada o cualquier canal de la mesa), **Liberación automática** enciende Auto (un segundo
+clic devuelve la liberación que tenía), **Limitar** cambia el carácter. Las dos agujas
+muestran la **reducción de ganancia** y la **salida**; entre ellas, una ventana muestra
+trabajando el elemento de ganancia del modelo. La pantalla dibuja la **curva de
+transferencia** con el punto de la señal y ocho segundos de reducción.
+
+**Las tarjetas**: Umbral y Compensación; la **Cadena lateral** — la clave (también en su
+propio campo) y el **Paso alto** que impide que los graves arrastren al detector; Válvula (el
+color del mu variable); **Mezcla** (compresión en paralelo) y Salida. Catorce presets de
+fábrica cubren cada modelo: pegamento para un bus o la mezcla, batería aplastada y en
+paralelo, un bus de voces, pegamento de máster y un límite en cada uno. En sus valores por
+defecto (el umbral a +24 dB) Vinculum no toca ninguna muestra; no tiene latencia. Como pedal
+en **Tabula** muestra Modelo, Umbral, Compensación y Mezcla.
+
+### Lenis, el supresor de resonancias
+
+**Lenis** (en latín, *suave*) suaviza lo que resuena: los silbidos, los picos ásperos y las
+acumulaciones de caja que sobresalen del propio espectro de un sonido, encontrados momento a
+momento y bajados en una parte, sin tocar las notas ni el tono. Insértalo desde **Añadir
+inserto ▾ ▸ EQ ▸ Lenis** (también en Dinámica); empieza como *Suave* (la mitad de cada
+resonancia, la curva Suave, desde 150 Hz).
+
+**La pantalla** es la de un analizador de banco: el espectro de entrada como una línea
+luminosa con el corte colgando bajo ella como un velo, una barra por frecuencia arriba con
+cuánto se quita, y el **enfoque** al pie — dos compuertas, **Desde** y **Hasta**, más allá de
+las cuales nada se toca, y seis **bandas** numeradas. Arrastra una compuerta a la izquierda o
+a la derecha; arrastra el nodo de una banda a los lados para su frecuencia y arriba o abajo
+para su cantidad (sobre la línea trabaja más, bajo ella más suave, abajo del todo deja esa
+región intacta); la rueda sobre un nodo fija su anchura; un doble clic enciende o apaga una
+banda. Una banda arrastrada mientras está apagada se enciende en el mismo paso. Cada arrastre
+es un paso de deshacer.
+
+**El panel** a su lado: el dial de **Profundidad** (arrástralo arriba o abajo; doble clic
+para ninguna) — al 100 % una resonancia baja hasta el contorno del propio espectro, al 50 % a
+medio camino; las lecturas de la **máxima atenuación** ahora y de la **latencia**; y las teclas:
+**Calidad** (Rápida, Estándar, Precisa: 5, 11 o 21 ms de latencia a 48 kHz — Precisa
+resuelve los medios graves, Rápida oye antes), **Curva** (Suave apenas toca un pico que pasa
+la línea, Dura toma cada pico en su parte), **Escuchar · Lo que se quita** (solo las
+resonancias, nunca la música) y **Canales** (Enlazados, Independientes, Medio y lados). Un
+clic hunde una tecla; el menú de cada tecla ofrece automatización y aprendizaje MIDI.
+
+**Las tarjetas**: Detección (**Nitidez** — solo resonancias estrechas, o también
+acumulaciones anchas — y **Selectividad**, cuánto debe sobresalir un pico), Tiempo
+(**Ataque**, **Liberación**), Enfoque (las frecuencias de las compuertas), Banda de enfoque (la
+banda elegida en sus números o en la pantalla: su piloto, frecuencia, cantidad y anchura) y
+Salida (**Mezcla**, **Salida**).
+
+La latencia la compensa el mezclador como la de cualquier inserto con latencia — un cambio de
+calidad empieza el análisis de nuevo (un hueco de una latencia) y el mezclador vuelve a
+alinear enseguida. Catorce presets de fábrica: voz áspera, domador de sibilancia,
+chisporroteo de guitarra, resonancia de piano, bus de mezcla suave, pulido de máster,
+resonancia de sala en la batería, retumbe de acústica, voz de pódcast, resonancia de caja,
+aire amplio (medio y lados), cuerdas y metales, quirúrgico. En sus valores por defecto
+(profundidad 0) Lenis es su entrada retrasada por su latencia, al bit. Como pedal en
+**Tabula** muestra Profundidad, Nitidez, Selectividad y Enfoque desde.
+
+### Cedo, el atenuador
+
+**Cedo** (en latín, *cedo el paso*) hace sitio: el bajo cede ante el bombo, la música ante la
+voz, o toda la pista bombea al pulso con una forma que dibujas. Insértalo desde **Añadir
+inserto ▾ ▸ Dinámica ▸ Cedo**; empieza como *Bombeo clásico* (el tempo lo dispara en cada
+negra, 9 dB abajo) y suena enseguida, sin enrutar nada.
+
+**Qué lo dispara** — el conmutador **Disparo** de su tarjeta (o un clic en la bandera del
+disparo sobre la bancada):
+
+- **Cadena lateral**: elige en **Clave** la tira cuyo sonido atenúa esta (un bombo, una
+  voz). La clave puede pasar por un **Filtro** (un paso alto o un paso banda, con su
+  **Frecuencia** y su **Q**); su **Detector** lee su pico o su RMS frente al **Umbral**; la
+  atenuación ataca en S, se **mantiene** desde la última muestra de la clave sobre el umbral
+  y se suelta en la **Liberación** con su forma. La **Anticipación** (hasta 10 ms) deja la
+  atenuación abajo antes de que llegue un transitorio.
+- **Tempo**: la forma dibujada suena en cada **Ciclo** de la canción (de 8/1 a 1/32, con
+  puntillos y tresillos), con **Swing** y **Suavizado de bordes** para que nunca chasquee.
+- **MIDI**: elige en **Notas de** la pista cuyas notas lo disparan; cada nota toca la forma
+  una vez, un ciclo de largo, y la **Velocidad** puede escalar la profundidad.
+
+**La pantalla** muestra la forma sobre un ciclo con lo que se atenúa ahora barrido por el
+cursor. Arrastra un punto para moverlo (se ajusta a las semicorcheas; con Mayús, libre),
+arrastra entre puntos para curvar el tramo, haz doble clic para añadir o quitar un punto y
+clic derecho en un punto para cambiar su tramo (curva, S o mantenido). En Cadena lateral la
+pantalla muestra la envolvente en cada golpe: arrastra en el tiempo las asas del ataque, el
+mantenimiento y la liberación. Debajo, los últimos cuatro segundos de reducción con los
+golpes; en Cadena lateral arrastra arriba o abajo la línea discontinua del umbral. Arrastra
+hacia abajo el **indicador de nivel** junto al fuelle para atenuar más.
+
+**Banda**: atenúa la banda **Completa**, solo los **Graves** o solo los **Agudos**, divididos en
+el **Cruce** (arrástralo por la franja de la banda) en **Fase mínima** (sin latencia) o **Fase
+lineal** (sin giro de fase; haz clic en la palabra de la división en la franja para
+cambiarla). El **Suelo de la fase lineal** fija para qué se dimensiona su latencia:
+**Automático** (por defecto) una octava bajo el cruce — la menor latencia que necesita,
+cambiada solo cuando sueltas el cruce — o un fijo de 40, 60, 80 o 120 Hz (55,3, 36,8, 27,6 o
+18,3 ms a 48 kHz), para una latencia que nunca cambia; cada opción muestra su latencia. El
+mezclador la compensa.
+
+**Salida**: **Profundidad** (∞ en su tope es silencio), **Enlace estéreo**, **Mezcla**,
+**Salida** y **Escuchar** (la salida, la **Diferencia** que quita, o la **Clave** filtrada).
+
+Diecisiete presets de fábrica: bombeos clásico, a medio tiempo, en corcheas y con swing,
+respiración en tresillos, puerta trance, crescendo invertido, bombeos solo en los graves en
+fase mínima y lineal, un bombeo por MIDI, el bombo atenúa el bajo, el bombo en los graves
+del bajo, cadena lateral dura, locución, fondo musical de pódcast, radio suave y sala de la
+caja (los de Cadena lateral y MIDI necesitan elegir su clave o sus notas). En sus valores por
+defecto (profundidad 0) Cedo deja el sonido intacto, al bit. Como pedal en **Tabula** muestra
+el disparo, la profundidad, el ciclo y el umbral; lo disparan la clave de una pedalera con
+clave, su pulso y sus notas.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

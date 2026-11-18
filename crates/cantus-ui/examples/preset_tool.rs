@@ -67,6 +67,19 @@ fn header(u: FileUnit) -> String {
     } else {
         ""
     };
+    // fxb:cedo — Cedo's file says how its shapes ride in its values.
+    if u == FileUnit::Effect(EffectKind::Ducker) {
+        return format!(
+            "{name}: factory presets (ADR 0101). Names are locale keys (the unit's locale file).\n\
+             A preset's shape rides in its values (`cantus_core::fx::cedo::to_flat`): `\"shape.n\"` the\n\
+             number of points, `\"shape.0.x\"`, `\"shape.0.y\"`, `\"shape.0.bend\"` and `\"shape.0.seg\"` the first\n\
+             one's; a preset without `\"shape.n\"` plays the classic pump.\n\
+             `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels (the pumps';\n\
+             a Sidechain preset ducks under the key it is given, so its output stays at 0 dB:\n\
+             `preset_measure::by_design`);\n\
+             the tests check every key, value, style and role (`preset_data`, `preset_render`)."
+        );
+    }
     format!(
         "{name}: factory presets (ADR 0101). Names are locale keys (the unit's locale file).\n\
          {lanes}`cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;\n\
