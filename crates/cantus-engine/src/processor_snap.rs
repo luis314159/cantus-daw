@@ -28,6 +28,10 @@ fn loop_frame(snapshot: &Snapshot, rate: f64) -> Option<i64> {
         .map(|l| crate::freeze::frame_of_tick(&snapshot.tempo, l.start, rate))
 }
 
+/// fx/final — seconds of exact silence after which a native instrument with no voice starts
+/// again as new at `Play` from stop ([`Processor::snap_idle_synths`]).
+pub(crate) const QUIET_FOR_A_NEW_START_S: u64 = 1;
+
 impl Processor {
     pub(super) fn install_snapshot(
         &mut self,
@@ -1098,6 +1102,7 @@ impl Processor {
             Some(u) => s.native.replace(u),
             None => s.native.take(),
         };
+        s.inst_quiet = 0; // fx/final: another unit, its own silence
         drop(s);
         if let Some(old) = old {
             self.dispose_instrument(old);
@@ -1114,6 +1119,7 @@ impl Processor {
             if let Some(mut s) = nodes.track(slot) {
                 if s.native.as_ref().is_some_and(|n| n.kind == kind) {
                     let old = s.native.replace(unit);
+                    s.inst_quiet = 0; // fx/final
                     drop(s);
                     if let Some(old) = old {
                         self.dispose_instrument(old);
@@ -1232,6 +1238,13 @@ impl Processor {
     /// release carrying it for 0.7 s; a kept Bass, Electric piano, Organ, Chorda or
     /// Tympanum the same — `render_from_bar`). A unit playing a live note keeps its glide.
     /// No allocation.
+    ///
+    /// And a native unit with no voice whose output has been exact zero for
+    /// [`QUIET_FOR_A_NEW_START_S`] (`TrackSlot::inst_quiet`) is reset first — as new, as a
+    /// render's unit starts: a kept unit run stopped on another song carried its free-running
+    /// state into the start (Analog 3.7e-1, Electric piano 6.1e-4, Organ 1.5e-4, Chorda
+    /// 4.3e-6). The second of silence is longer than any line inside an instrument (Aula's
+    /// 500 ms pre-delay, Tympanum's 50 ms outputs), so no tail is ever cut.
     pub(super) fn snap_idle_synths(&mut self) {
         for slot in 0..MAX_TRACKS {
             if self.track_ids[slot].is_some() {
@@ -1239,7 +1252,18 @@ impl Processor {
                     if s.synth.active_voices() == 0 {
                         s.synth.snap();
                     }
+                    let quiet = s.inst_quiet >= QUIET_FOR_A_NEW_START_S * self.sample_rate as u64;
                     if let Some(n) = s.native.as_mut() {
+                        // Silent this long, no voice, a native unit: as new, its
+                        // free-running state (drift, LFOs, tremolo, rotors, scanner) where a
+                        // render's new unit starts it — nothing rings to cut. A hosted
+                        // plug-in is left alone (its reset is the plug-in's).
+                        if quiet
+                            && matches!(n.kind, UnitKind::Native(_))
+                            && n.unit.active_voices() == 0
+                        {
+                            n.unit.reset();
+                        }
                         n.unit.snap_idle();
                     }
                 }
