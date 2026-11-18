@@ -399,4 +399,11 @@ bit (passes), and that bar 3's first beat is too — which fails today, as measu
 **5.23e-2 at frame 140 (2.9 ms after the start)**, the e2e's 5.2e-2. Un-ignore it with the
 fix (`cargo test -p cantus-engine --test render_from_bar -- --include-ignored`).
 
-**Suites** (one crate per call): see below.
+**Suites** (one crate per call, a machine shared with other lanes' builds): `cantus-core`
+**839** green (1 ignored); `cantus-ui` **2 751** green (54 ignored; Arca's CPU budget green
+this run); clippy `-D warnings --all-targets` clean on `cantus-core`, `cantus-ui` and
+`cantus-engine` (its new test file); `cargo fmt` clean on the three. `fxd_drag` 23 (6 new),
+`learn_everywhere` 9 (1 new). The engine's new test was run with `--include-ignored` (fails
+as described). Not run: the Linux check in WSL, the other crates' suites (`cantus-dsp`,
+`-engine` beyond the new file, `-project`, `-ai`; none of their code changed), `xtask`'s
+manual-links test (the manual's edits add no link).
