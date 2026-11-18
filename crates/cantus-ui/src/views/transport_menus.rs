@@ -711,10 +711,10 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     rows.push(Row::separator());
     rows.push(Row::band(Words::Key("screens.view.band")));
     rows.push(Row::run(Action::MoveToNewWindow, "screens.view.new_window"));
-    rows.push(Row::new("screens.view.gather", Do::GatherWindows).enabled(!app.windows.is_empty()));
-    rows.push(
-        Row::new("screens.view.dock_all", Do::DockEveryWindow).enabled(!app.windows.is_empty()),
-    );
+    if !app.windows.is_empty() {
+        rows.push(Row::new("screens.view.gather", Do::GatherWindows));
+        rows.push(Row::new("screens.view.dock_all", Do::DockEveryWindow));
+    }
     rows.push(Row::new("screens.view.map", Do::ScreensMap));
     rows.push(Row::run(Action::ToggleFullScreen, "screens.window.full_screen"));
     rows.push(Row::separator());

@@ -165,10 +165,18 @@ pub enum LayoutRow {
 }
 
 impl CantusApp {
-    /// The layouts the View menu lists, in order: *Default*, the built-ins, the user's.
+    /// The layouts the View menu lists, in order: *Default*, the built-ins the screens there
+    /// are allow (a desk of one screen sees none but the wide one on a 21 : 9 screen), the
+    /// user's — Alt+1 … Alt+9 in this order.
     pub fn layout_rows(&self) -> Vec<LayoutRow> {
         let mut rows = vec![LayoutRow::Default];
-        rows.extend(Builtin::ALL.into_iter().map(LayoutRow::Builtin));
+        let m = self.windows.main_screen(self.windows.main.outer.as_ref());
+        rows.extend(
+            Builtin::ALL
+                .into_iter()
+                .filter(|b| b.fits(&self.windows.screens, m))
+                .map(LayoutRow::Builtin),
+        );
         rows.extend(
             self.layouts
                 .saved

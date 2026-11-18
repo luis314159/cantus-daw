@@ -636,7 +636,7 @@ las pasadas de cada ventana como eframe): nada de esto se ha visto en pantallas 
 - [ ] **Suspender y reanudar el portátil** con la ventana en la externa.
 - [ ] **F11** en cada ventana: pantalla completa en su propia pantalla y vuelta.
 - [ ] **Alt+1 … Alt+5**: *Predeterminada*, *Pantalla ancha* (solo en 21:9), *Dos pantallas:
-  arreglo | mezcla*, *Dos pantallas: arreglo | edición*, *Tres pantallas* (atenuada con dos).
+  arreglo | mezcla*, *Dos pantallas: arreglo | edición*, *Tres pantallas* (solo aparecen las que caben en tus pantallas).
   Con un teclado español, AltGr+2 sigue escribiendo @ en un campo de texto.
 - [ ] **Un plug-in abierto desde la ventana del mezclador**: anota si su ventana queda
   detrás de la del mezclador al hacer clic en ella (aún pertenece a la ventana principal).

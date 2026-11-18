@@ -170,7 +170,8 @@ repository):
    The "other" screen is the largest screen the main window is not on (a laptop's own panel
    is the smallest, so the mixer goes to the external screen whichever is primary); with
    three, left and right follow the screens' positions. A built-in layout that needs more
-   screens than are connected is dimmed with *Needs N screens*; picking a layout made for
+   screens than are connected is not offered (phase 2: dimmed rows only lengthened a
+   one-screen user's View menu); picking a layout made for
    more screens than are connected opens what fits and docks the rest (§8). **Alt+1 …
    Alt+9** recall the View menu's layouts in order (Alt is ⌥ on macOS); Ctrl+Alt is not
    used — it is AltGr on Spanish and many other keyboards (AltGr+2 is @). **F11** puts the
