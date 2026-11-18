@@ -178,31 +178,94 @@ right edge and scrolls the last card clear (`web/style/units.css`).
   engine with `CANTUS_WORKERS=3 --features fuzz`, the null hashes, the Linux check, the web
   crate (`cargo check` for wasm32 and `ssr`), Trunk.
 
-## The mid-song render glide (wave D's finding) — in progress
+## The mid-song render glide (wave D's finding) — done (`DSP_VERSION` 8)
 
-`render_from_bar.rs` (`#[ignore]`d by wave D) fails because every native unit is made at its
-stored values and, at the first control point of a render that starts later, glides ~20 ms
-to the automated value (Aequalis: 5.2e-2 on bar 3's first note); a render from 0 glides too in
-its first 20 ms. Firmus starts its cutoff and gain smoothers at the factory defaults on a
-render that begins on a note. The fix, so that live playback from bar N is the render from
-bar N as well (offline = real time):
+`render_from_bar.rs` failed because every native unit is made at its stored values and, at
+the first control point of a render that starts later, glided ~20 ms to the automated value
+(Aequalis: 5.2e-2 on bar 3's first note); a render from 0 glided too in its first 20 ms.
+Fixed on `fix/snap` (from `7c590dbd`), ADR 0027 amended (§5's *What*: a jump snaps what the
+lanes drive — no other ADR is about the engine's smoothing; ADR 0005's null tests are what
+it restores):
 
-1. **`FxUnit::snap` / `EffectUnit::snap`** — the values the last configure set taken at once,
-   the sound kept. *Done* (`b581f461`) for 18 kinds: every unit on `modfx_line::Glide` or its
-   own glides, Aequalis, Delay. **To do:** Amp, Aula (its kernel's crossfade), BusCompressor,
-   Maximizer, Multiband, Pedal, Rotary, Saturator, Shimmer (beyond its glides), Space (beyond
-   its glides), Stereo (beyond its glides), TransientSplit, Vocoder, VolumeShaper — each
-   failing `fx_snap.rs` (its first difference printed). Board needs none of its own: its
-   pedals snap.
-2. **The processor calls it at a jump**: a flag set where the transport jumps (Play from stop,
-   Seek, SeekFrac, a loop's wrap, a sync start or jump — not a snapshot install), every lane
-   marked fresh then (`Runtime::refresh`), and after the control point's configures every
-   unit a lane drives snapped (master and strips, boards through their pedals).
-3. **Firmus** (`firmus.rs`, `Smoother` gain and cutoff): its first settings taken at once
-   (as every unit's first configure is), and the same snap at a jump.
-4. `render_from_bar.rs` un-ignored; the whole engine suite (`offline = real time` tests),
-   then **`DSP_VERSION` 8** with the golden change measured (`CANTUS_GOLDEN_DUMP`) in one
-   commit, and the null hashes.
+1. **`FxUnit::snap` / `EffectUnit::snap`** for every native kind (`b581f461` and `fix/snap`):
+   the values the last configure set taken at once, the sound kept. `fx_snap.rs` (no longer
+   ignored) holds every kind: made at A, configured at B and snapped renders a unit made at
+   B to the bit (defaults → heavy, defaults → random, random → random). What each of the
+   fourteen left snaps:
+   - **Amp** (Arca): a model change made now, the knobs, presence, master, sag, mix and
+     output; an amp resting in silence is built again at the new knobs (their operating
+     points); the circuits' state, oversampler, cabinet and dry line kept.
+   - **Aula**: the mix, level and width glides and the pre-delay's crossfade; the ring, the
+     convolution and a response swapped in level by level go on.
+   - **BusCompressor** (Vinculum): its output glide (the DSP takes its settings at once).
+   - **Maximizer** (Culmen): both band stages as a first `set` (`Multiplex::snap`), the
+     brickwall's gain and ceiling (`Terminus::snap`, so **Limiter** too), the drive; the
+     loudness Match (a measure) kept.
+   - **Multiband** (Multiplex): the bands' glides, crossovers, output, solo/mute and on/off
+     fades, the split's blend, the static gains in the gain ring (as a new unit's when the
+     look-ahead holds only silence); filters, detectors and the look-ahead's audio kept.
+   - **Pedal** (Fragor): the chain (no dip), footswitch fades, knobs, input, output, mix,
+     gate threshold; pedals move to the new knobs' operating points only while the board
+     rests in silence.
+   - **Rotary** (Rota): both rotors at their target speeds (braked: parked), mix and
+     output; the rotors' angles and the cabinet kept (`fx_snap` compares a brake's two
+     sides from the same side: the angle is state).
+   - **Saturator** (Fervor): every continuous setting, the model's/curve's crossfade, the
+     oversampling, the gains' ramps; filters redesigned, their state kept.
+   - **Shimmer** (Caelum): beyond its glides, the input's (pre-delay, bloom, diffusion,
+     modulation) and the tank's (lengths, depth, diffusion, freeze, shimmer amounts);
+     Infinite's own climb (it follows the sound) kept.
+   - **Space** (Spatium): beyond its glides, the FDN's and spring's lengths, depth and
+     freeze, and the wet EQ (`Aequalis::snap`).
+   - **Stereo** (Latitudo): every glide, fade and structure where `reset` puts them
+     (`reset` is now clears + `snap`), derived again; a filter whose slope changes starts
+     empty, as at the grid; the Haas line kept.
+   - **TransientSplit** (Discrimen): the two sections' gains beside the output.
+   - **Vocoder** (Loquax): beyond its glides, the bank retuned at the landed tuning, the
+     bands' levels, engaged as the mix says; banks, followers, carrier voices kept.
+   - **VolumeShaper** (Fluctus): the level on the curve where the song is (its smoothing
+     starts there, as after a reset).
+   - **Board** (Tabula): every pedal snapped through its own unit, footswitch fades at
+     their ends, input, output, mix and A/B landed; a reorder's dip goes on.
+2. **The processor calls it at a jump** (`processor_auto.rs`, `AutoState::jumped`): set at
+   Play from stop and `Seek` / `SeekFrac` (`processor_msg.rs`), a loop's wrap
+   (`processor_pass.rs::wrap_loop`), `sync_start` and `sync_jump` (Link, MIDI clock, MTC
+   chase: `processor_sync.rs`) and a follower's locate while stopped
+   (`processor_sync_follow.rs`); never at a snapshot's install (a knob or a lane edited
+   while playing still glides). The control point after it — due at once — evaluates every
+   lane, configures the units, then snaps every unit a lane or modulator drives (master and
+   strips, boards through their pedals, native instruments, Firmus). Offline renders start
+   with `Seek` + `Play`, so they start snapped.
+3. **Instruments**: Firmus takes its first settings at once and snaps (level, cutoff).
+   `inst_contract.rs::snap::*` holds every native instrument to the same rule; those that
+   needed a snap: **Organ** (drawbar ramp, percussion, levels, swell, drive, output, rotor
+   speeds), **Electric piano** (drive, output, tremolo depth), **Bass** (output level),
+   **Chorda** (stage's perspective/width/lid, room size), **Acoustic drums** (modelled
+   paths' delays and levels, the outputs' delays, the recorded room's Aula). Wavetable,
+   Analog, FM, Sampler and Dancer needed none.
+4. Tests: `render_from_bar.rs` un-ignored, and a live test — playback started at bar 3
+   after one seek or several equals the render from bar 3 to the bit, from the start the
+   whole render; `rt_memory.rs::the_snap_at_a_jump_never_allocates` (every native kind under
+   a lane: play, seek, the loop's wraps, play from stop).
+5. **`DSP_VERSION` 8**, measured with `CANTUS_GOLDEN_DUMP` against `7c590dbd` (the same
+   renders by both builds): **no golden hash moved** — v5, the Pulsus kits (v1, v14, v1 from
+   bar 2) and the post-fader sends are the same bits, as is the demo project with no lane
+   (none of them has a lane on a native unit, and their Firmus tracks begin idle). What moves
+   is a render with a lane on a native unit, in what its glide was at the start: the EQ song
+   of `render_from_bar.rs` by 5.6e-2 in its first 20 ms, 1.3e-3 by 50 ms, ≤ 3e-5 to 0.5 s,
+   nothing after (the same from bar 3, which is now the whole render's bars 3…); the demo
+   project with lanes on Multiband/Stereo/Maximizer/Tremolo 8.6e-2 in the first 20 ms, 1e-2
+   to 50 ms, under 4e-6 after 100 ms, nothing after 0.5 s; on Amp/Pedal/Vocoder/Bus
+   compressor 7.2e-2, 9e-3, 2.6e-6, nothing after 0.5 s; on Delay (its time)/Chorus/
+   Saturator/Space the difference rings on in the echoes and the tail of what entered them
+   while the old units glided (1.1e-1 to 0.5 s, 6.9e-3 after 1 s) — the time-based units
+   replaying their first milliseconds, not a later difference.
+6. Suites on Windows (`fix/snap`): `cantus-engine` 1 403 passed, 0 failed, 24 ignored;
+   `cantus-dsp` 1 247 passed, 0 failed, 44 ignored; clippy `--all-targets -D warnings` and
+   fmt clean on both. Not run here: the plug-ins' suite (`cantus-plugins` does not call
+   `snap`: a host's jump still glides a Cantus effect hosted in another DAW — noted, not
+   changed; no unit's DSP changes unless `snap` is called, Firmus's first settings aside), the UI and AI suites, the Linux
+   check, the engine's fuzz features.
 
 ## What each later branch needs at its merge
 
@@ -226,9 +289,10 @@ then the schema by hand.
   number), ADRs 0145–0146 → **0142–0143**; Purus's and Comparatio's cards' `MERGE:` notes and
   window sentences against the owner's verdicts; `write_fixture 76`.
 - **`fx/wave-d`**: schema 67 → **77**, ADRs 0147–0148 → **0144–0145**; the native effects'
-  ~20 ms glide when a render starts mid-song (its `#[ignore]`d engine test) → fixed with
-  `DSP_VERSION` **8** and the golden dump in one commit; the site's Controllers note;
-  `write_fixture 77`.
+  ~20 ms glide when a render starts mid-song (its `#[ignore]`d engine test) is fixed on
+  `fix/snap` (`DSP_VERSION` **8**, above): keep `render_from_bar.rs` un-ignored as
+  `fix/snap` has it, and any new native kind wave D brings needs its `snap` (`fx_snap.rs`
+  fails for it otherwise); the site's Controllers note; `write_fixture 77`.
 - **`fix/flicker`** (cut from master `477cb6b4`): ADRs 0149/0150 → **0146/0147**, keymap 18
   stays 18; its `beta-checklist.md` steps and `troubleshooting-graphics.md`.
 - **`fx/multimon`** (last): ADR 0151 → **0148** (its 0149 is flicker's 0146), keymap 19; the

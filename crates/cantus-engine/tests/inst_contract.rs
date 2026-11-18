@@ -1050,8 +1050,14 @@ fn inst_snap_is_made_there(kind: InstrumentKind) {
             (a, b) => failures.push(format!("{kind:?} #{i}: {:?} / {:?}", a.err(), b.err())),
         }
     }
-    assert!(failures.is_empty(), "{}", failures.join("
-"));
+    assert!(
+        failures.is_empty(),
+        "{}",
+        failures.join(
+            "
+"
+        )
+    );
 }
 
 per_kind! {

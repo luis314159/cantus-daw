@@ -543,14 +543,22 @@ impl Processor {
             }
         }
         for c in &rt.natives {
-            if let Some(mut s) = self.track_to_slot.get(c.track).and_then(|&sl| nodes.track(sl)) {
+            if let Some(mut s) = self
+                .track_to_slot
+                .get(c.track)
+                .and_then(|&sl| nodes.track(sl))
+            {
                 if let Some(u) = s.native.as_mut() {
                     u.unit.snap();
                 }
             }
         }
         for c in &rt.firmus {
-            if let Some(mut s) = self.track_to_slot.get(c.track).and_then(|&sl| nodes.track(sl)) {
+            if let Some(mut s) = self
+                .track_to_slot
+                .get(c.track)
+                .and_then(|&sl| nodes.track(sl))
+            {
                 s.synth.snap();
             }
         }
