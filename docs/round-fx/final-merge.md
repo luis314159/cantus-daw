@@ -178,6 +178,32 @@ right edge and scrolls the last card clear (`web/style/units.css`).
   engine with `CANTUS_WORKERS=3 --features fuzz`, the null hashes, the Linux check, the web
   crate (`cargo check` for wasm32 and `ssr`), Trunk.
 
+## The mid-song render glide (wave D's finding) — in progress
+
+`render_from_bar.rs` (`#[ignore]`d by wave D) fails because every native unit is made at its
+stored values and, at the first control point of a render that starts later, glides ~20 ms
+to the automated value (Aequalis: 5.2e-2 on bar 3's first note); a render from 0 glides too in
+its first 20 ms. Firmus starts its cutoff and gain smoothers at the factory defaults on a
+render that begins on a note. The fix, so that live playback from bar N is the render from
+bar N as well (offline = real time):
+
+1. **`FxUnit::snap` / `EffectUnit::snap`** — the values the last configure set taken at once,
+   the sound kept. *Done* (`b581f461`) for 18 kinds: every unit on `modfx_line::Glide` or its
+   own glides, Aequalis, Delay. **To do:** Amp, Aula (its kernel's crossfade), BusCompressor,
+   Maximizer, Multiband, Pedal, Rotary, Saturator, Shimmer (beyond its glides), Space (beyond
+   its glides), Stereo (beyond its glides), TransientSplit, Vocoder, VolumeShaper — each
+   failing `fx_snap.rs` (its first difference printed). Board needs none of its own: its
+   pedals snap.
+2. **The processor calls it at a jump**: a flag set where the transport jumps (Play from stop,
+   Seek, SeekFrac, a loop's wrap, a sync start or jump — not a snapshot install), every lane
+   marked fresh then (`Runtime::refresh`), and after the control point's configures every
+   unit a lane drives snapped (master and strips, boards through their pedals).
+3. **Firmus** (`firmus.rs`, `Smoother` gain and cutoff): its first settings taken at once
+   (as every unit's first configure is), and the same snap at a jump.
+4. `render_from_bar.rs` un-ignored; the whole engine suite (`offline = real time` tests),
+   then **`DSP_VERSION` 8** with the golden change measured (`CANTUS_GOLDEN_DUMP`) in one
+   commit, and the null hashes.
+
 ## What each later branch needs at its merge
 
 New lines a branch brings still carry provisional numbers; they are settled with
