@@ -148,14 +148,32 @@ impl Rig {
         app.windows.stale = true;
     }
 
-    /// The input egui-winit gives a maximised window on screen `s`, with `events`.
+    /// The input egui-winit gives a window on screen `s`, with `events`: maximised, or at the
+    /// place it was given when that is not maximised (a device's own window: fx/final).
     fn input(&self, id: ViewportId, s: &ScreenKey, events: Vec<Event>) -> egui::RawInput {
         let zoom = self.ctx.zoom_factor();
         let native = s.scale;
         let ppp = zoom * native;
-        let window = Vec2::new(s.size[0] as f32, s.size[1] as f32 - TASKBAR * native);
+        let placed = (id != ViewportId::ROOT)
+            .then(|| {
+                let app = self.app.as_ref()?;
+                let i = app.windows.index_of(id)?;
+                app.windows.list[i].place.clone()
+            })
+            .flatten()
+            .filter(|p| !p.maximised);
+        let (window, corner) = match &placed {
+            Some(p) => (
+                Vec2::new(p.rect.w as f32, p.rect.h as f32),
+                Pos2::new(p.rect.x as f32, p.rect.y as f32),
+            ),
+            None => (
+                Vec2::new(s.size[0] as f32, s.size[1] as f32 - TASKBAR * native),
+                Pos2::new(s.pos[0] as f32, s.pos[1] as f32),
+            ),
+        };
         let size = window / ppp;
-        let at = Pos2::new(s.pos[0] as f32, s.pos[1] as f32) / ppp;
+        let at = corner / ppp;
         let rect = Rect::from_min_size(Pos2::ZERO, size);
         let mut raw = egui::RawInput {
             viewport_id: id,
@@ -170,7 +188,7 @@ impl Rig {
         vp.monitor_size = Some(Vec2::new(s.size[0] as f32, s.size[1] as f32) / ppp);
         vp.inner_rect = Some(Rect::from_min_size(at, size));
         vp.outer_rect = Some(Rect::from_min_size(at, size));
-        vp.maximized = Some(true);
+        vp.maximized = Some(placed.is_none());
         vp.minimized = Some(false);
         vp.focused = Some(true);
         raw

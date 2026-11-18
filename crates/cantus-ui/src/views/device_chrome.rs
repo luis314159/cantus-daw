@@ -303,11 +303,30 @@ impl Workspace {
         let area = self.area;
         let rect = device::place_of(ctx, key).or_else(|| {
             let (size, min) = device::sizes(ctx, key)?;
+            // fx/final: below its whole size an instrument's view scrolls, cut at the
+            // leaf's edge (Tympanum's Kit wants 1 219 × 711): it floats whole instead.
+            let whole = device::whole_size(ctx, key).unwrap_or(min);
             let path = self.find(Pane::Device(key))?;
             let leaf = self.dock.leaf(path.node_path()).ok()?.rect;
-            let short = !leaf.is_positive() || leaf.height() < min.y || leaf.width() < min.x;
+            let short = !leaf.is_positive() || leaf.height() < whole.y || leaf.width() < whole.x;
             (short && area.is_positive()).then(|| {
-                let size = size
+                // The window around the body: its frame's margins and its tab bar (the
+                // body is the size the device asked for, not the window).
+                let m = ctx.global_style().spacing.window_margin;
+                let tab = super::workspace_skin::dock_style(
+                    &Style::current(),
+                    &ctx.global_style(),
+                    ctx.pixels_per_point(),
+                )
+                .tab_bar
+                .height;
+                // (and the frame's stroke, with room to spare: a body a point short of its whole
+                // size scrolls, and its scroll bars take more).
+                let stroke = 2.0 * ctx.global_style().visuals.window_stroke.width + 12.0;
+                let around = Vec2::new(m.sum().x + stroke, m.sum().y + tab + stroke);
+                // Inside the workspace's area (on the screen the window is on); a device
+                // whose whole size is more than that scrolls, as it does docked.
+                let size = (size + around)
                     .min(area.size() - Vec2::splat(16.0))
                     .max(min.min(area.size()));
                 Rect::from_center_size(area.center(), size)

@@ -4649,6 +4649,21 @@ impl CantusApp {
         }
     }
 
+    /// The device editors (effects, instruments, the controllers' windows): each draws in
+    /// the pass of the window whose dock holds its tab (`workspace_device`'s body), so a
+    /// window holding an editor's tab calls this even when another window hosts the
+    /// dialogs (fx/final: an instrument's editor moved to a window of its own vanished
+    /// from it at a click in the main window).
+    pub(crate) fn device_editors(&mut self, ctx: &egui::Context) {
+        views::eq_editor::window(self, ctx);
+        views::comp_editor::window(self, ctx);
+        views::fx::window(self, ctx);
+        views::fx::fxd_window::window(self, ctx); // fxd: the controllers' windows
+        views::inst::window(self, ctx);
+        views::plugin_view_inst::window(self, ctx);
+        views::pulsus_editor::window(self, ctx);
+    }
+
     /// Every window that floats over the layout: About, the shortcuts editor, the layout
     /// naming prompt. Public so headless tests can render them.
     pub fn dialogs(&mut self, ctx: &egui::Context) {
@@ -4661,13 +4676,7 @@ impl CantusApp {
             }
             self.naming_layout = if save || close { None } else { Some(name) };
         }
-        views::eq_editor::window(self, ctx);
-        views::comp_editor::window(self, ctx);
-        views::fx::window(self, ctx);
-        views::fx::fxd_window::window(self, ctx); // fxd: the controllers' windows
-        views::inst::window(self, ctx);
-        views::plugin_view_inst::window(self, ctx);
-        views::pulsus_editor::window(self, ctx);
+        self.device_editors(ctx);
         views::preset_browser::window(self, ctx); // r37:library
         if self.show_settings {
             views::workspace_settings::window(self, ctx);
@@ -4820,6 +4829,14 @@ impl CantusApp {
         self.windows_frame(ctx);
         if self.hosts_overlays(egui::ViewportId::ROOT) {
             self.overlays(ctx);
+        } else if self
+            .workspace
+            .panes()
+            .iter()
+            .any(|p| matches!(p, views::workspace::Pane::Device(_)))
+        {
+            // Its device tabs' editors draw here whichever window hosts the dialogs.
+            self.device_editors(ctx);
         }
         self.every_pass(ctx);
         self.layouts.end_frame();

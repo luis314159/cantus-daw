@@ -464,6 +464,34 @@ pub mod probe {
     pub fn take_shorts() -> Vec<Cut> {
         SHORTS.with(|c| std::mem::take(&mut *c.borrow_mut()))
     }
+
+    thread_local! {
+        /// fx/final — the cards painted while [`start_cards`] runs: each one's rect and its
+        /// painter's clip.
+        static CARDS: RefCell<Option<Vec<(egui::Rect, egui::Rect)>>> = const { RefCell::new(None) };
+    }
+
+    /// Start noting every card the kit paints (`kit::band::card`, the instruments' cards):
+    /// its whole rect, edge included, and the clip it was painted in — so a test can ask
+    /// that a view at its designed size shows each card whole, not only its words
+    /// (fx/final: Tympanum's cards lost their foot while every word still read whole).
+    pub fn start_cards() {
+        CARDS.with(|c| *c.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// The cards noted since [`start_cards`], as (rect, clip) (and stop noting them).
+    pub fn take_cards() -> Vec<(egui::Rect, egui::Rect)> {
+        CARDS.with(|c| c.borrow_mut().take()).unwrap_or_default()
+    }
+
+    /// Note a card painted at `rect` in a painter clipped to `clip`, while noting.
+    pub fn card(rect: egui::Rect, clip: egui::Rect) {
+        CARDS.with(|c| {
+            if let Some(v) = c.borrow_mut().as_mut() {
+                v.push((rect, clip));
+            }
+        });
+    }
 }
 
 /// Note a cut text while the probe runs: `shown` is what was painted (`None`: nothing).

@@ -203,7 +203,13 @@ pub fn column(
     let choice = current_choice(spec);
     let mut y = list.top() - lk.scroll;
     for row in rows(app, lk.filter) {
-        let h = s.s(row.height());
+        let wrapped = match &row {
+            Row::Piano(e) => wraps(ui.ctx(), ("p", &e.source.pack)),
+            Row::Manual(i) => wraps(ui.ctx(), ("manual", *i)),
+            Row::Model(v) => wraps(ui.ctx(), ("m", *v)),
+            _ => false,
+        };
+        let h = s.s(row.height() + if wrapped { WRAP } else { 0.0 });
         let rr = Rect::from_min_size(pos2(list.left(), y), vec2(list.width(), h));
         if rr.bottom() > list.top() && rr.top() < list.bottom() {
             draw_row(app, &child, track, s, rr, &row, &choice);
@@ -387,16 +393,47 @@ fn section(ui: &egui::Ui, s: &Style, r: Rect, which: Section) {
     });
 }
 
-/// A row: its name and its line (the line left out when it does not fit whole); lit, the
-/// accent's bar at its left on a raised ground. `keep` is what the control at the right
-/// takes: beside the name when the name fits there whole, else (`true` back) on the line
-/// under it, the name then taking the row's width.
+/// The extra height a row's name takes when it wraps beside its control, at 100 %.
+const WRAP: f32 = 14.0;
+
+/// Where a row keeps, between frames, whether its name wraps (the list sizes it by that).
+fn wrap_id(salt: impl std::hash::Hash + std::fmt::Debug) -> egui::Id {
+    egui::Id::new(("chorda-src-wrap", salt))
+}
+
+/// Whether the row `salt` wrapped its name last frame.
+fn wraps(ctx: &egui::Context, salt: impl std::hash::Hash + std::fmt::Debug) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(wrap_id(salt)))
+        .unwrap_or(false)
+}
+
+/// The words of `name` on two lines no wider than `w` at `size`: as many words as fit on
+/// the first, the rest on the second.
+fn two_lines(ui: &egui::Ui, s: &Style, name: &str, w: f32, size: f32) -> (String, String) {
+    let words: Vec<&str> = name.split(' ').collect();
+    let mut cut = 1;
+    for n in 1..words.len() {
+        if iu::width(ui, s, &words[..n].join(" "), size, W::SemiBold) <= w {
+            cut = n;
+        } else {
+            break;
+        }
+    }
+    (words[..cut].join(" "), words[cut..].join(" "))
+}
+
+/// A list row: its name (SemiBold 12, ink 1) and a line under it (Regular 10, ink 3), lit
+/// when chosen, a faint ground under the pointer; `keep` is the room its control takes at
+/// the right. A name too long beside the control wraps to a second line in its own
+/// column, the row a line taller (fx/final: "Accurate-Salamander Grand Piano" ran under
+/// its download button); the control keeps its column. Returns the row's response and
+/// whether the control moved down (never, now).
 #[allow(clippy::too_many_arguments)]
 fn item(
     ui: &egui::Ui,
     s: &Style,
     r: Rect,
-    salt: impl std::hash::Hash + std::fmt::Debug,
+    salt: impl std::hash::Hash + std::fmt::Debug + Copy,
     name: &str,
     about: &str,
     lit: bool,
@@ -407,22 +444,18 @@ fn item(
     let tx = r.left() + s.s(14.0);
     let full = r.right() - s.s(8.0) - tx;
     let beside = (full - keep).max(s.s(20.0));
-    let fits = |w: f32| {
-        [12.0, 11.0]
-            .into_iter()
-            .find(|z| iu::width(ui, s, name, *z, W::SemiBold) <= w)
-    };
-    let (stacked, tw, size) = match fits(beside) {
-        Some(z) => (false, beside, z),
-        None => (
-            keep > 0.0,
-            full,
-            [12.0, 11.0, 10.0]
-                .into_iter()
-                .find(|z| iu::width(ui, s, name, *z, W::SemiBold) <= full)
-                .unwrap_or(10.0),
-        ),
-    };
+    let size = [12.0, 11.0]
+        .into_iter()
+        .find(|z| iu::width(ui, s, name, *z, W::SemiBold) <= beside);
+    let wrap = size.is_none() && name.contains(' ');
+    // Kept for the list's next frame, which sizes the row by it (written only when it
+    // changes: a frame at rest allocates nothing).
+    if wraps(ui.ctx(), salt) != wrap {
+        ui.ctx().data_mut(|d| d.insert_temp(wrap_id(salt), wrap));
+        ui.ctx().request_repaint();
+    }
+    let size = size.unwrap_or(11.0);
+    let line = s.s(WRAP);
     with_brush(ui.painter(), |b| {
         if lit || resp.hovered() {
             let ground = if lit {
@@ -443,19 +476,47 @@ fn item(
             );
             b.rrect(b.snap_rect(bar), s.s(1.0), Fill::Solid(p.accent));
         }
-        let nr = Rect::from_min_size(pos2(tx, r.top() + s.s(5.0)), vec2(tw, s.s(16.0)));
-        words(
-            b,
-            s,
-            name,
-            nr,
-            Align2::LEFT_CENTER,
-            size,
-            W::SemiBold,
-            p.ink1,
-        );
-        // The line runs under the control too (beside it when the control moved down).
-        let lw = if stacked { full - keep } else { full };
+        let nr = Rect::from_min_size(pos2(tx, r.top() + s.s(5.0)), vec2(beside, s.s(16.0)));
+        let nr = if wrap {
+            let (first, second) = two_lines(ui, s, name, beside, size);
+            words(
+                b,
+                s,
+                &first,
+                nr,
+                Align2::LEFT_CENTER,
+                size,
+                W::SemiBold,
+                p.ink1,
+            );
+            let nr2 = nr.translate(vec2(0.0, line));
+            words(
+                b,
+                s,
+                &second,
+                nr2,
+                Align2::LEFT_CENTER,
+                size,
+                W::SemiBold,
+                p.ink1,
+            );
+            nr2
+        } else {
+            words(
+                b,
+                s,
+                name,
+                nr,
+                Align2::LEFT_CENTER,
+                size,
+                W::SemiBold,
+                p.ink1,
+            );
+            nr
+        };
+        // The line under the name keeps beside the control too: the control stands as tall
+        // as both lines' tops.
+        let lw = beside;
         let lr = Rect::from_min_size(pos2(tx, nr.bottom() + s.s(1.0)), vec2(lw, s.s(14.0)));
         iu::note(
             b,
@@ -468,7 +529,7 @@ fn item(
             p.ink3,
         );
     });
-    (resp, stacked)
+    (resp, false)
 }
 
 /// Where a row's control sits: at its right, on the name's line (or the line under it).
@@ -616,7 +677,7 @@ fn piano(
     let full_about = format!("{} \u{b7} {}", e.author, licence_word(&e.licence));
     let about = if busy.is_some() {
         String::new()
-    } else if iu::width(ui, s, &full_about, 10.0, W::Regular) <= r.width() - s.s(22.0) {
+    } else if iu::width(ui, s, &full_about, 10.0, W::Regular) <= r.width() - s.s(28.0) - cw {
         full_about
     } else {
         licence_word(&e.licence)

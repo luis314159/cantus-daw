@@ -20,9 +20,6 @@ use egui::{pos2, vec2, Align2, Rect, Sense};
 /// The cards' height and the pieces row's, at 100 %.
 pub const HEIGHT: f32 = 140.0;
 pub const ROW: f32 = 40.0;
-/// The narrowest a piece's tile gets before the row scrolls.
-const TILE_MIN: f32 = 60.0;
-
 /// A control's number: an instrument key, or — until the engine has that key — the value
 /// the design shows, drawn as it will be (`tymp-engine` adds the key; the integrator was
 /// asked). `scale` maps the key's value to what is shown (100 for a share as %).
@@ -332,8 +329,10 @@ pub fn switch_row(
 }
 
 /// The row of pieces: a tile each, its name and its key; the selected one raised with the
-/// accent's line, a green dot while it sounds. Scrolls when the tiles would be narrower than
-/// a name.
+/// accent's line, a green dot while it sounds. Each tile is as wide as its widest name and
+/// key ask (the row's share when that is more); a kit whose tiles do not fit scrolls
+/// sideways (fx/final: at the Kit view's least width Studio Maple's China was cut at the
+/// row's end, out of reach).
 pub fn pieces_row(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
@@ -345,7 +344,32 @@ pub fn pieces_row(
 ) {
     let p = Pal::of(s);
     let n = def.pieces.len().max(1);
-    let tw = (r.width() / n as f32).max(s.s(TILE_MIN));
+    // Measured once a kit and a scale (a frame at rest allocates nothing for it).
+    let memo = egui::Id::new((
+        "tymp-row-need",
+        track.0,
+        def.name.as_str(),
+        s.tk().to_bits(),
+    ));
+    let need = match ui.ctx().data(|d| d.get_temp::<f32>(memo)) {
+        Some(w) => w,
+        None => {
+            let w = def
+                .pieces
+                .iter()
+                .map(|pd| {
+                    let key = pd.articulations.first().map(|a| a.key).unwrap_or(0);
+                    let name = iu::width(ui, s, &def::piece_name(pd), 12.0, W::SemiBold);
+                    let kt = iu::width(ui, s, &def::key_text(key), 10.0, W::Regular);
+                    name.max(kt)
+                })
+                .fold(0.0f32, f32::max)
+                + s.s(14.0);
+            ui.ctx().data_mut(|d| d.insert_temp(memo, w));
+            w
+        }
+    };
+    let tw = (r.width() / n as f32).max(need);
     with_brush(ui.painter(), |b| iu::card(b, s, r));
     let mut child = ui.new_child(
         egui::UiBuilder::new()
@@ -354,114 +378,126 @@ pub fn pieces_row(
     );
     child.set_clip_rect(r.intersect(ui.clip_rect()));
     let alt = ui.input(|i| i.modifiers.alt);
-    for (i, pd) in def.pieces.iter().enumerate() {
-        let tr = Rect::from_min_size(
-            pos2(r.left() + tw * i as f32, r.top()),
-            vec2(tw, r.height()),
-        );
-        if tr.left() > r.right() {
-            break;
-        }
-        let key = pd.articulations.first().map(|a| a.key).unwrap_or(0);
-        let resp = child.interact(
-            tr,
-            child.id().with(("tile", pd.index)),
-            Sense::click_and_drag(),
-        );
-        let name = def::piece_name(pd);
-        let kt = def::key_text(key);
-        let resp = iu::hint(resp, || {
-            tf(
-                "tympanum.piece_tip",
-                &[
-                    ("name", &name),
-                    ("key", &crate::controllers::note_name(key)),
-                ],
-            )
-        });
-        if super::pressed(&resp) {
-            let nart = pd.articulations.len().max(1);
-            let a = if alt {
-                let a = if lk.piece == pd.index {
-                    lk.turn % nart
+    let mut tiles = |ui: &mut egui::Ui, row: Rect| {
+        for (i, pd) in def.pieces.iter().enumerate() {
+            let tr = Rect::from_min_size(
+                pos2(row.left() + tw * i as f32, row.top()),
+                vec2(tw, row.height()),
+            );
+            let key = pd.articulations.first().map(|a| a.key).unwrap_or(0);
+            let resp = ui.interact(
+                tr,
+                ui.id().with(("tile", pd.index)),
+                Sense::click_and_drag(),
+            );
+            let name = def::piece_name(pd);
+            let kt = def::key_text(key);
+            let resp = iu::hint(resp, || {
+                tf(
+                    "tympanum.piece_tip",
+                    &[
+                        ("name", &name),
+                        ("key", &crate::controllers::note_name(key)),
+                    ],
+                )
+            });
+            if super::pressed(&resp) {
+                let nart = pd.articulations.len().max(1);
+                let a = if alt {
+                    let a = if lk.piece == pd.index {
+                        lk.turn % nart
+                    } else {
+                        0
+                    };
+                    lk.turn = a + 1;
+                    a
                 } else {
                     0
                 };
-                lk.turn = a + 1;
-                a
-            } else {
-                0
-            };
-            lk.piece = pd.index;
-            lk.tag = None;
-            if let Some(art) = pd.articulations.get(a) {
-                press(app, track, lk, art.key, pd.index);
+                lk.piece = pd.index;
+                lk.tag = None;
+                if let Some(art) = pd.articulations.get(a) {
+                    press(app, track, lk, art.key, pd.index);
+                }
             }
+            let lit = lk.piece == pd.index;
+            let sounding = lk.held.is_some() && lk.hit.is_some_and(|h| h.0 == pd.index);
+            with_brush(ui.painter(), |b| {
+                let cell = tr.shrink2(vec2(s.s(2.0), s.s(3.0)));
+                if lit {
+                    b.rrect(
+                        b.snap_rect(cell),
+                        s.s(4.0),
+                        Fill::Solid(mix(p.surface, p.ink1, 0.07)),
+                    );
+                    let line = Rect::from_min_size(
+                        pos2(cell.left() + s.s(6.0), cell.top()),
+                        vec2(cell.width() - s.s(12.0), s.s(2.0)),
+                    );
+                    b.rect(b.snap_rect(line), Fill::Solid(p.accent));
+                } else if resp.hovered() {
+                    b.rrect(
+                        b.snap_rect(cell),
+                        s.s(4.0),
+                        Fill::Solid(mix(p.surface, p.ink1, 0.035)),
+                    );
+                }
+                if i > 0 && !lit && lk.piece != def.pieces[i - 1].index {
+                    b.vline(
+                        b.snap(tr.left()) + b.px() * 0.5,
+                        tr.top() + s.s(10.0),
+                        tr.bottom() - s.s(10.0),
+                        b.px(),
+                        p.line,
+                    );
+                }
+                let nr = Rect::from_min_size(
+                    pos2(tr.left(), tr.top() + s.s(5.0)),
+                    vec2(tr.width(), s.s(16.0)),
+                );
+                words(
+                    b,
+                    s,
+                    &name,
+                    nr,
+                    Align2::CENTER_CENTER,
+                    12.0,
+                    if lit { W::SemiBold } else { W::Medium },
+                    p.ink1,
+                );
+                let kr =
+                    Rect::from_min_size(pos2(tr.left(), nr.bottom()), vec2(tr.width(), s.s(14.0)));
+                words(
+                    b,
+                    s,
+                    &kt,
+                    kr,
+                    Align2::CENTER_CENTER,
+                    10.0,
+                    W::Regular,
+                    if lit { p.ink2 } else { p.ink3 },
+                );
+                if sounding {
+                    b.circle(
+                        pos2(cell.right() - s.s(7.0), cell.top() + s.s(7.0)),
+                        s.s(3.0),
+                        Fill::Solid(p.play),
+                    );
+                }
+            });
         }
-        let lit = lk.piece == pd.index;
-        let sounding = lk.held.is_some() && lk.hit.is_some_and(|h| h.0 == pd.index);
-        with_brush(child.painter(), |b| {
-            let cell = tr.shrink2(vec2(s.s(2.0), s.s(3.0)));
-            if lit {
-                b.rrect(
-                    b.snap_rect(cell),
-                    s.s(4.0),
-                    Fill::Solid(mix(p.surface, p.ink1, 0.07)),
-                );
-                let line = Rect::from_min_size(
-                    pos2(cell.left() + s.s(6.0), cell.top()),
-                    vec2(cell.width() - s.s(12.0), s.s(2.0)),
-                );
-                b.rect(b.snap_rect(line), Fill::Solid(p.accent));
-            } else if resp.hovered() {
-                b.rrect(
-                    b.snap_rect(cell),
-                    s.s(4.0),
-                    Fill::Solid(mix(p.surface, p.ink1, 0.035)),
-                );
-            }
-            if i > 0 && !lit && lk.piece != def.pieces[i - 1].index {
-                b.vline(
-                    b.snap(tr.left()) + b.px() * 0.5,
-                    tr.top() + s.s(10.0),
-                    tr.bottom() - s.s(10.0),
-                    b.px(),
-                    p.line,
-                );
-            }
-            let nr = Rect::from_min_size(
-                pos2(tr.left(), tr.top() + s.s(5.0)),
-                vec2(tr.width(), s.s(16.0)),
-            );
-            words(
-                b,
-                s,
-                &name,
-                nr,
-                Align2::CENTER_CENTER,
-                12.0,
-                if lit { W::SemiBold } else { W::Medium },
-                p.ink1,
-            );
-            let kr = Rect::from_min_size(pos2(tr.left(), nr.bottom()), vec2(tr.width(), s.s(14.0)));
-            words(
-                b,
-                s,
-                &kt,
-                kr,
-                Align2::CENTER_CENTER,
-                10.0,
-                W::Regular,
-                if lit { p.ink2 } else { p.ink3 },
-            );
-            if sounding {
-                b.circle(
-                    pos2(cell.right() - s.s(7.0), cell.top() + s.s(7.0)),
-                    s.s(3.0),
-                    Fill::Solid(p.play),
-                );
-            }
-        });
+    };
+    let total = tw * n as f32;
+    if total <= r.width() + 0.5 {
+        tiles(&mut child, r);
+    } else {
+        egui::ScrollArea::horizontal()
+            .id_salt(("tymp-row-scroll", track.0))
+            .auto_shrink([false, false])
+            .show(&mut child, |ui| {
+                let (row, _) = ui.allocate_exact_size(vec2(total, r.height()), Sense::hover());
+                tiles(ui, row);
+            });
     }
 }
 

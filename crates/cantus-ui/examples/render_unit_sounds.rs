@@ -7,15 +7,17 @@
 //!
 //! `cargo run --release -p cantus-ui --example render_unit_sounds -- web`
 
-use cantus_core::{Snapshot, Ticks};
+use cantus_core::{EffectKind, Snapshot, Ticks};
 use cantus_engine::{render, RenderOptions};
 use cantus_export::job::Control;
 use cantus_export::settings::Tags;
 use cantus_export::{export_rendered, Audio, ExportSettings, Format, Mp3Mode, Rate};
+use cantus_ui::demos::song::{colors, Feel, Song};
+use cantus_ui::demos::theory::Ev;
 use cantus_ui::i18n::{t_in, Locale};
 use cantus_ui::preset_audition::{self as aud, Target};
-use cantus_ui::preset_catalog::{entries, units, Entry, Unit};
-use cantus_ui::preset_tags::Role;
+use cantus_ui::preset_catalog::{entries, units, Entry, Payload, Unit};
+use cantus_ui::preset_tags::{Role, Style};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -142,6 +144,277 @@ fn lit(s: &str) -> String {
     format!("{s:?}")
 }
 
+/// fix/final-d — Tympanum's grooves: (file stem, modelled kit, BPM, style, events in beats
+/// over four bars on the General MIDI drum keys the modelled kits play).
+fn grooves() -> Vec<(&'static str, &'static str, f64, Style, Vec<Ev>)> {
+    let ev = |at: f64, key: u8, vel: u8| Ev::new(at, 0.1, key, vel);
+    // Rock: eighths on the hat, the kick on one and three and the "and" of three, a crash
+    // opening the phrase and a tom fill closing it.
+    let mut rock = vec![ev(0.0, 49, 112)];
+    for bar in 0..4 {
+        let b = f64::from(bar) * 4.0;
+        for k in [0.0, 2.0, 2.5] {
+            rock.push(ev(b + k, 36, 110));
+        }
+        for s in [1.0, 3.0] {
+            if !(bar == 3 && s == 3.0) {
+                rock.push(ev(b + s, 38, 112));
+            }
+        }
+        for i in 0..8 {
+            if bar == 3 && i >= 6 {
+                continue;
+            }
+            rock.push(ev(
+                b + f64::from(i) * 0.5,
+                42,
+                if i % 2 == 0 { 96 } else { 70 },
+            ));
+        }
+    }
+    for (i, key) in [48u8, 48, 45, 45, 43, 43, 43, 36].iter().enumerate() {
+        rock.push(ev(15.0 + i as f64 * 0.125, *key, 100 - (i as u8) * 4));
+    }
+    // Funk: sixteenths on the hat, accented on the eighths, ghost notes on the snare, the
+    // kick pushed off the beat, the hat opened on the last eighth and shut by the foot.
+    let mut funk = Vec::new();
+    for bar in 0..4 {
+        let b = f64::from(bar) * 4.0;
+        for k in [0.0, 0.75, 2.5, 3.25] {
+            funk.push(ev(b + k, 36, 108));
+        }
+        for s in [1.0, 3.0] {
+            funk.push(ev(b + s, 38, 114));
+        }
+        for g in [0.5, 1.75, 2.25, 3.75] {
+            funk.push(ev(b + g, 38, 30));
+        }
+        for i in 0..14 {
+            let v = if i % 4 == 0 {
+                92
+            } else if i % 2 == 0 {
+                72
+            } else {
+                50
+            };
+            funk.push(ev(b + f64::from(i) * 0.25, 42, v));
+        }
+        funk.push(ev(b + 3.5, 46, 90));
+    }
+    for bar in 1..4 {
+        funk.push(ev(f64::from(bar) * 4.0, 44, 70));
+    }
+    // Swing: the ride's spang-a-lang (triplet swing) played light, the hat's foot on two and
+    // four, the kick feathered on the quarters, the snare comping.
+    let mut swing = Vec::new();
+    for bar in 0..4 {
+        let b = f64::from(bar) * 4.0;
+        for (at, v) in [
+            (0.0, 70),
+            (1.0, 76),
+            (1.0 + 2.0 / 3.0, 52),
+            (2.0, 70),
+            (3.0, 76),
+            (3.0 + 2.0 / 3.0, 52),
+        ] {
+            swing.push(ev(b + at, 51, v));
+        }
+        for f in [1.0, 3.0] {
+            swing.push(ev(b + f, 44, 88));
+        }
+        for q in 0..4 {
+            swing.push(ev(b + f64::from(q), 36, 50));
+        }
+    }
+    for (at, v) in [
+        (2.0 + 2.0 / 3.0, 72),
+        (5.0 + 2.0 / 3.0, 64),
+        (7.0 + 2.0 / 3.0, 80),
+        (10.0 + 2.0 / 3.0, 70),
+        (14.0, 88),
+        (15.0 + 2.0 / 3.0, 100),
+    ] {
+        swing.push(ev(at, 38, v));
+    }
+    swing.push(ev(15.0 + 2.0 / 3.0, 36, 90));
+    // Boom bap: a swung sixteenth hat, the kick lazy around one, the snare hard on two and
+    // four.
+    let mut boom = Vec::new();
+    for bar in 0..4 {
+        let b = f64::from(bar) * 4.0;
+        for k in [0.0, 0.75, 1.75, 2.5] {
+            boom.push(ev(b + k, 36, 112));
+        }
+        for s in [1.0, 3.0] {
+            boom.push(ev(b + s, 38, 120));
+        }
+        for i in 0..8 {
+            boom.push(ev(
+                b + f64::from(i) * 0.5,
+                42,
+                if i % 2 == 0 { 88 } else { 60 },
+            ));
+            boom.push(ev(b + f64::from(i) * 0.5 + 1.0 / 3.0, 42, 40));
+        }
+    }
+    vec![
+        ("rock", "studio", 104.0, Style::Rock, rock),
+        ("funk", "studio", 98.0, Style::RnB, funk),
+        ("swing", "jazz", 150.0, Style::JazzSoul, swing),
+        ("boom_bap", "studio", 88.0, Style::TrapHipHop, boom),
+    ]
+}
+
+/// Where Tympanum's grooves sit, LUFS integrated (Pulsus's excerpts: -19 to -21).
+const TYMPANUM_LUFS: f64 = -21.5;
+
+/// A factory preset's values, by its id.
+fn factory_values(kind: EffectKind, id: &str) -> std::collections::BTreeMap<String, f32> {
+    entries(Unit::Effect(kind), false)
+        .into_iter()
+        .find_map(|e| match e.payload {
+            Payload::Effect(v) if e.id == id => Some(v),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no preset {id}"))
+}
+
+/// Integrated loudness (LUFS) and true peak (dBTP) of an interleaved stereo render.
+fn loudness(x: &[f32]) -> (f64, f64) {
+    let l: Vec<f32> = x.iter().step_by(2).copied().collect();
+    let r: Vec<f32> = x.iter().skip(1).step_by(2).copied().collect();
+    let mut m = cantus_dsp::terminus::loudness::LoudnessMeter::new(RATE as f32);
+    m.process(&l, &r);
+    (
+        m.integrated().unwrap_or(-120.0),
+        f64::from(m.true_peak_db()),
+    )
+}
+
+/// fix/final-d — Tympanum's excerpts: each modelled kit (instant, no download; never a
+/// recorded kit, ADRs 0030/0042) in its generated voice on a groove, rendered as the presets
+/// are, through Cantus's own Vinculum, Tonsor and Terminus on the kit's strip (each caption says so).
+fn tympanum(card: &str, dir: &Path, code: &mut String) -> u64 {
+    use cantus_core::inst::tympanum::KIT_KEY;
+    use cantus_core::{InstrumentKind, InstrumentSpec, NativeSpec, TrackIcon};
+    let mut total = 0;
+    for (stem, kit, bpm, style, evs) in grooves() {
+        // The groove as an engineer would print a real kit: on the kit's strip, Vinculum's
+        // *Mix bus glue* (the VCA at 2:1, 10 ms attack: the hits keep their crack), Tonsor's
+        // *Drum bus* (the hits' first instants clipped 6 dB, oversampled, the level matched:
+        // what a modelled kit's sharpest spikes need, so the limiter after hardly works) into
+        // Terminus *Drums* (its fast drum-bus style, 80 ms release; ceiling -1 dBTP, true peak),
+        // Terminus's input gain the one level set (no processing after the render).
+        let prepared = |lim_gain: f32, limit: bool| {
+            let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+            spec.set_text(KIT_KEY, Some(format!("model:{kit}")))
+                .expect("a kit");
+            let mut s = Song::new("tympanum", bpm, 1);
+            let part = s.part(
+                "Drums",
+                InstrumentSpec::Native(spec),
+                colors::KICK,
+                TrackIcon::Drums,
+            );
+            s.feel(part, Feel::TIGHT);
+            s.clip(part, "groove", 0.0, 4.0, &evs);
+            let mut project = s.finish();
+            let strip = project.tracks[0].strip.expect("the kit's strip");
+            let mut chain = Vec::new();
+            for (kind, id, set) in [
+                (EffectKind::BusCompressor, "preset.vinculum.mix_glue", None),
+                (EffectKind::Clipper, "preset.tonsor.drum_bus", None),
+                (EffectKind::Limiter, "lim.preset.drums", Some(lim_gain)),
+            ] {
+                let mut values = factory_values(kind, id);
+                if let Some(g) = set {
+                    values.insert("gain".into(), g);
+                    values.insert("ceiling".into(), -1.0);
+                    values.insert("tp".into(), 1.0);
+                }
+                let mut slot = project.make_effect(kind);
+                slot.spec.params = aud::effect_params_after(&slot.spec, &values);
+                slot.bypass = set.is_some() && !limit;
+                chain.push(slot);
+            }
+            project
+                .strip_mut(strip)
+                .expect("the strip")
+                .effects
+                .extend(chain);
+            aud::Prepared {
+                project,
+                start: Ticks::ZERO,
+                end: Ticks::from_beats_f64(16.0),
+                on: aud::HeardOn::Phrase(Role::Drums, bpm),
+                needs_engine: false,
+                fallback: None,
+                restyle: None,
+            }
+        };
+        // Terminus's input gain found by measuring: each groove near TYMPANUM_LUFS (a kit's
+        // groove on the site sits with Pulsus's, -19 to -21), its peaks held by the ceiling.
+        let mut gain = 0.0f32;
+        let (dry_lufs, dry_tp) = loudness(&render_prepared(&prepared(0.0, true)));
+        for _ in 0..6 {
+            let (now, _) = loudness(&render_prepared(&prepared(gain, true)));
+            if (now - TYMPANUM_LUFS).abs() < 0.15 {
+                break;
+            }
+            gain = (gain + (TYMPANUM_LUFS - now) as f32).clamp(0.0, 30.0);
+        }
+        let p = prepared(gain, true);
+        let (after, tp_after) = loudness(&render_prepared(&p));
+        // What Terminus takes off the loudest hit: the true peak it would pass at that gain.
+        let (_, tp_open) = loudness(&render_prepared(&prepared(gain, false)));
+        println!(
+            "tympanum-{stem}: {dry_lufs:.1} LUFS {dry_tp:+.1} dBTP through Vinculum, Tonsor, Terminus +{gain:.1} dB -> {after:.1} LUFS {tp_after:.1} dBTP (its loudest hit {:.1} dB down)",
+            tp_open + f64::from(gain) - tp_after
+        );
+        let kit_key = format!("tympanum.kit.{kit}");
+        let groove = |l: Locale| match (stem, l) {
+            ("rock", Locale::En) => "rock groove",
+            ("rock", _) => "ritmo de rock",
+            ("funk", Locale::En) => "funk groove",
+            ("funk", _) => "ritmo de funk",
+            ("swing", Locale::En) => "swing on the ride",
+            ("swing", _) => "swing en el ride",
+            (_, Locale::En) => "boom bap",
+            _ => "boom bap",
+        };
+        let name = |l: Locale| format!("{} · {}", t_in(l, &kit_key), groove(l));
+        let chain = |l: Locale| match l {
+            Locale::En => "through Vinculum, Tonsor and Terminus on its strip",
+            _ => "por Vinculum, Tonsor y Terminus en su canal",
+        };
+        let what = |l: Locale| {
+            format!(
+                "{} — {} · {}",
+                t_in(l, Role::Drums.key()),
+                t_in(l, style.key()),
+                chain(l)
+            )
+        };
+        let file = format!("{card}-{stem}");
+        total += mp3(
+            render_prepared(&p),
+            &dir.join(format!("{file}.mp3")),
+            &name(Locale::En),
+        );
+        let _ = writeln!(
+            code,
+            "        snd!({}, ({}, {}), ({}, {}), {}),",
+            lit(&file),
+            lit(&name(Locale::En)),
+            lit(&name(Locale::Es)),
+            lit(&what(Locale::En)),
+            lit(&what(Locale::Es)),
+            lit("")
+        );
+    }
+    total
+}
+
 fn main() {
     let web = PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "web".into()));
     let dir = web.join("assets/units/sounds");
@@ -169,6 +442,15 @@ fn main() {
         let n = if u.is_instrument() { 4 } else { 3 };
         let c = card(u);
         let _ = writeln!(code, "    ({}, &[", lit(&c));
+        // fix/final-d — Tympanum has no preset list: its card plays its modelled kits.
+        if matches!(
+            u,
+            Unit::Instrument(cantus_core::InstrumentKind::AcousticDrums)
+        ) {
+            total += tympanum(&c, &dir, &mut code);
+            code.push_str("    ]),\n");
+            continue;
+        }
         for e in pick(&all, n) {
             let p = aud::prepare(&empty, Target::None, e, None, aud::TEMPO);
             let stem = format!("{c}-{}", e.id.rsplit('.').next().unwrap_or("preset"));

@@ -21,8 +21,9 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 
 /// The recipe's version: bump it when what a picture shows changes (2: the units' faces,
 /// round 32 — pictures made plain before them are never read back; 3: Chorda's and
-/// Tympanum's scenes waited for, round 40 — their pictures on disk showed an empty stage).
-pub const REV: u32 = 3;
+/// Tympanum's scenes waited for, round 40 — their pictures on disk showed an empty stage;
+/// 4: the instruments at their own size, their words whole at every scale, fx/final).
+pub const REV: u32 = 4;
 /// A picture's size in pixels: 16:10, sharp on a large tile at 150 %.
 pub const W: usize = 416;
 pub const H: usize = 260;

@@ -13,6 +13,10 @@
 //! - `--gallery`: the kit's skin sheets (every material, display look, knob and switch
 //!   shape, plate and the ornaments) in both themes at 2×, `gallery-<sheet>-<theme>.png`.
 //! - `--quick`: Slate at 100 % only.
+//! - `--drawn`: Chorda's and Tympanum's pictures *Drawn* (projected vectors, the app's
+//!   default); without it they are *Photographic* (ADR 0126), as the site and README show them.
+//! - The shots see a clean install: `CANTUS_DATA_DIR` is an empty folder of their own unless
+//!   it is set, so no pack this machine downloaded shows as on disk.
 //! - `--es`: the editors in Spanish (same file names: give another out-dir).
 //! - `--try <sample>`: every unit shot wears one of the sample sheets below instead of its
 //!   own (`studio`: FabFilter-like matte with value rings; `vintage`: wood, a VU-era
@@ -253,6 +257,11 @@ const UNITS: &[(&str, &str, What)] = &[
     ),
     ("organum", "organum", What::Inst(InstrumentKind::Organ)),
     ("chorda", "chorda", What::Inst(InstrumentKind::Chorda)),
+    (
+        "tympanum",
+        "tympanum",
+        What::Inst(InstrumentKind::AcousticDrums),
+    ),
     ("pulsus", "pulsus", What::Pulsus),
 ];
 
@@ -279,6 +288,26 @@ fn app_with(demo: &str, what: What) -> CantusApp {
         What::Inst(kind) => views::inst::demo_feed(&mut app, kind),
         What::Pulsus => {}
     }
+    // fix/final-d — Chorda on the preset its card's first excerpt plays, so the bar reads as
+    // a real instrument's (not *Init*).
+    if let (What::Inst(InstrumentKind::Chorda), Some(t)) = (what, app.inst.open) {
+        use cantus_ui::preset_catalog::{entries, Payload, Unit};
+        let concert = entries(Unit::Instrument(InstrumentKind::Chorda), false)
+            .into_iter()
+            .find(|e| e.id == "chorda.preset.concert")
+            .expect("Chorda's Concert Grand");
+        if let Payload::Native(spec) = &concert.payload {
+            app.apply_inst_spec(t, spec, cantus_ui::preset_browser::APPLY_LABEL);
+            app.inst.preset.insert(t, concert.name.clone());
+        }
+    }
+    // fix/final-d — the drummer on a drums track, as a user's would be.
+    if let (What::Inst(InstrumentKind::AcousticDrums), Some(t)) = (what, app.inst.open) {
+        app.exec(cantus_core::Command::SetTrackName {
+            id: t,
+            name: "Drums".into(),
+        });
+    }
     app.fx.pos = Some(egui::pos2(0.0, 0.0));
     app
 }
@@ -290,11 +319,12 @@ fn scaled(app: &CantusApp, ctx: &egui::Context, what: What, k: f32) -> egui::Vec
             views::fx::frame::shell_of(kind).set_scale(ctx, k);
             views::fx::frame::designed_size(kind) * k
         }
-        What::Inst(_) => {
+        What::Inst(kind) => {
             if let Some(t) = app.inst.open {
                 Shell::new(("inst", t.0)).set_scale(ctx, k);
             }
-            shell::INSTRUMENT * k
+            // At the size the editor opens at (Chorda's 1 100 × 680).
+            views::inst::editor_size(kind) * k
         }
         What::Pulsus => {
             if let Some(t) = app.pulsus.open {
@@ -334,9 +364,9 @@ fn shoot_unit(
     skin::set_override(sample.map(|s| &s.1));
     let ctx = context(dark);
     let mut app = app_with(demo, what);
+    let scale = (k * 100.0).round() as u32;
     let size = scaled(&app, &ctx, what, k);
     let theme = if dark { "slate" } else { "paper" };
-    let scale = (k * 100.0).round() as u32;
     let file = if let Some((s, _)) = sample {
         format!("{name}-{theme}-{scale}-{s}.png")
     } else if faces {
@@ -376,6 +406,13 @@ fn shoot_gallery(dir: &Path) {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // fix/final-d — a clean install's state: no pack this machine downloaded shows as on disk.
+    if std::env::var_os("CANTUS_DATA_DIR").is_none() {
+        let clean = std::env::temp_dir().join("cantus-shoot-skins-data");
+        let _ = std::fs::remove_dir_all(&clean);
+        std::fs::create_dir_all(&clean).expect("a clean data folder");
+        std::env::set_var("CANTUS_DATA_DIR", &clean);
+    }
     let flag = |f: &str| args.iter().any(|a| a == f);
     // `--es`: the editors in Spanish (the site's Spanish pages show these).
     cantus_ui::i18n::set_locale(if flag("--es") {
@@ -392,6 +429,12 @@ fn main() {
     // Chorda's scene bakes on the painting thread here: a shot cannot wait for the worker,
     // and without it the piano's picture is an empty card (round 38: the site showed one).
     views::inst::chorda::scene::set_blocking(true);
+    // fix/final-d — the instruments' pictures Photographic (the owner's choice for the site),
+    // baked on the painting thread like the drawn ones, so a shot never waits on a worker.
+    if !flag("--drawn") {
+        views::inst::chorda::scene::hybrid::register();
+        cantus_ui::scene::backend::set_default(cantus_ui::scene::SceneBackend::PerPixel);
+    }
     if flag("--gallery") {
         shoot_gallery(&dir);
         if only.is_empty() {

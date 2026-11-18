@@ -271,6 +271,15 @@ impl CantusApp {
             .show(ui, |ui| crate::views::workspace::show(self, ui));
         if !embedded && self.hosts_overlays(viewport) {
             self.overlays(&ctx);
+        } else if !embedded
+            && self
+                .workspace
+                .panes()
+                .iter()
+                .any(|p| matches!(p, crate::views::workspace::Pane::Device(_)))
+        {
+            // Its device tabs' editors draw here whichever window hosts the dialogs.
+            self.device_editors(&ctx);
         }
         if !embedded {
             self.every_pass(&ctx);

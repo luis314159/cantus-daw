@@ -52,8 +52,14 @@ pub struct Entry {
     pub title: String,
     pub default_size: Vec2,
     pub min_size: Vec2,
+    /// The least it lays itself out uncut in (zero: its `min_size`): a dock leaf smaller
+    /// than this floats it at `default_size` the first time it opens.
+    pub whole_size: Vec2,
     /// The pass the editor last asked to be shown in.
     pub seen: u64,
+    /// The window whose pass that was: each window counts its own passes (ADR 0148), so
+    /// only that window's pass forgets an editor that stopped asking.
+    pub seen_in: egui::ViewportId,
     /// Where its tab's body is, and in which pass that was recorded.
     pub body: Option<Body>,
     /// The user closed its tab: the next `show` reports `open = false`.
@@ -144,7 +150,9 @@ impl Entry {
             title: String::new(),
             default_size: Vec2::new(880.0, 560.0),
             min_size: Vec2::new(480.0, 320.0),
+            whole_size: Vec2::ZERO,
             seen: pass,
+            seen_in: egui::ViewportId::ROOT,
             body: None,
             closed: false,
             area,
@@ -222,7 +230,11 @@ pub fn wanted(ctx: &Context, out: &mut Vec<DeviceKey>) {
     out.clear();
     with_registry(ctx, |r| {
         // An editor that stopped asking was closed by the application: forget it.
-        r.entries.retain(|e| pass.saturating_sub(e.seen) <= 2);
+        // (Only by this window's own count: fx/final found an editor moved to a window of
+        // its own forgotten by the main window's pass, its tab then dropped.)
+        let here = ctx.viewport_id();
+        r.entries
+            .retain(|e| e.seen_in != here || pass.saturating_sub(e.seen) <= 2);
         if r.focused.is_some_and(|k| r.get(k).is_none()) {
             r.focused = None;
         }
@@ -369,6 +381,11 @@ pub fn sizes(ctx: &Context, key: DeviceKey) -> Option<(Vec2, Vec2)> {
     with_registry(ctx, |r| r.get(key).map(|e| (e.default_size, e.min_size)))
 }
 
+/// The least a device lays itself out uncut in: its whole size, else its least size.
+pub fn whole_size(ctx: &Context, key: DeviceKey) -> Option<Vec2> {
+    with_registry(ctx, |r| r.get(key).map(|e| e.whole_size.max(e.min_size)))
+}
+
 /// Where a device's window buttons were drawn last.
 pub fn buttons(ctx: &Context, key: DeviceKey) -> Option<crate::kit::window_ctl::WindowRects> {
     with_registry(ctx, |r| r.get(key).and_then(|e| e.buttons))
@@ -483,6 +500,7 @@ pub fn register_area(
         let place = r.places.get(&key).map(|p| p.min);
         let (e, _) = r.entry(key, pass, true);
         e.seen = pass;
+        e.seen_in = ctx.viewport_id();
         e.area = true;
         e.hue = hue;
         if e.title.is_empty() {
@@ -610,6 +628,7 @@ pub struct DeviceWindow<'open> {
     open: Option<&'open mut bool>,
     default_size: Vec2,
     min_size: Vec2,
+    whole_size: Vec2,
     hue: Option<Function>,
 }
 
@@ -621,8 +640,16 @@ impl<'open> DeviceWindow<'open> {
             open: None,
             default_size: Vec2::new(880.0, 560.0),
             min_size: Vec2::new(480.0, 320.0),
+            whole_size: Vec2::ZERO,
             hue: None,
         }
+    }
+
+    /// The least it lays itself out uncut in, when that is more than its `min_size`: the
+    /// first time it opens, a dock leaf smaller than this floats it at its default size.
+    pub fn whole_size(mut self, size: impl Into<Vec2>) -> Self {
+        self.whole_size = size.into();
+        self
     }
 
     /// The device hue: its chip's mark in the tray when it is minimised.
@@ -693,8 +720,10 @@ impl<'open> DeviceWindow<'open> {
                 e.title.push_str(&self.title);
             }
             e.seen = pass;
+            e.seen_in = ctx.viewport_id();
             e.default_size = self.default_size;
             e.min_size = self.min_size;
+            e.whole_size = self.whole_size;
             if e.closed {
                 None
             } else {

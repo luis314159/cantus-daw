@@ -154,6 +154,11 @@ pub fn canvas() -> Vec2 {
         .iter()
         .map(|k| crate::views::fx::frame::designed_size(*k))
         .fold(crate::kit::shell::INSTRUMENT, |a, b| a.max(b));
+    // The instruments open at their own size (Tympanum's 1 219 × 711).
+    let largest = cantus_core::inst::InstrumentKind::ALL
+        .iter()
+        .map(|k| crate::views::inst::editor_size(*k))
+        .fold(largest, |a, b| a.max(b));
     largest + SHADOW_ROOM
 }
 
@@ -253,10 +258,10 @@ impl Capture {
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE)
                 .show(root, |ui| match subject {
-                    Subject::Instrument(_) => {
+                    Subject::Instrument(kind) => {
                         *body = Some(Rect::from_min_size(
                             ui.max_rect().min,
-                            crate::kit::shell::INSTRUMENT,
+                            crate::views::inst::editor_size(kind),
                         ));
                         crate::views::inst::window_in(app, ui);
                     }

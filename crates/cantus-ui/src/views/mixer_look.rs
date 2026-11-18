@@ -317,8 +317,11 @@ pub(crate) fn say(
     let t = t
         .align(Align2([align.x(), egui::Align::Center]))
         .policy(Policy::Elide(Elide::End));
-    let h = size * 1.6;
-    let cy = y - size * 0.36;
+    // The line's box at the style's scale, as its words are set (`words` scales them by
+    // `st.tk()`): at a unit's 200 % a box of the 100 % height was too short for the line
+    // and `text::paint` dropped it (fx/final: Chorda's and Tympanum's labels gone at 200 %).
+    let h = size * 1.6 * st.tk();
+    let cy = y - size * 0.36 * st.k;
     let left = match align.x() {
         egui::Align::Min => x,
         egui::Align::Center => x - room * 0.5,

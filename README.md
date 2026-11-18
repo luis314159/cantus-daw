@@ -98,16 +98,18 @@ leaves preview.
 - **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
   it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
   (B), as in FL's playlist.
-- **Forty-two effects, two controllers and ten instruments of its own** — now with **Cribrum**
-  (auto filter), **Fragor** (distortion pedals), **Lapsus** (time shaper), **Vetus** (lo-fi),
-  **Libra** (utility), **Tabula** (pedalboard), **Saltus** (pitch), **Arca** (amp), **Rota**
-  (rotary speaker), **Loquax** (vocoder), **Fractus** (glitch sequencer), **Caelum** (shimmer
-  reverb), **Vinculum** (bus compressor), **Lenis** (resonance suppressor), **Cedo** (ducker),
-  **Purus** (repair) and **Comparatio** (reference comparator), the controllers **Tactus** (X-Y
-  pad) and **Calculus** (formula), and **Aula**, a convolution reverb at zero latency (ADR
-  0112) — researched against the best on the market and measured — [each one shown below](#instruments), with
-  what it does — plus free sound packs, among them the **Salamander Grand Piano**, streamed
-  from disk.
+- **Forty-two effects, two controllers and eleven instruments of its own** — now with
+  **Tympanum**, the acoustic drummer (modelled kits with microphones you move, recorded
+  multi-mic kits, each mic on its own strip), **Chorda** playing recorded pianos too, with its
+  own mixer, **Cribrum** (auto filter), **Fragor** (distortion pedals), **Lapsus** (time
+  shaper), **Vetus** (lo-fi), **Libra** (utility), **Tabula** (pedalboard), **Saltus**
+  (pitch), **Arca** (amp), **Rota** (rotary speaker), **Loquax** (vocoder), **Fractus**
+  (glitch sequencer), **Caelum** (shimmer reverb), **Vinculum** (bus compressor), **Lenis**
+  (resonance suppressor), **Cedo** (ducker), **Purus** (repair) and **Comparatio** (reference
+  comparator), the controllers **Tactus** (X-Y pad) and **Calculus** (formula), and **Aula**,
+  a convolution reverb at zero latency (ADR 0112) — researched against the best on the market
+  and measured — [each one shown below](#instruments), with what it does — plus free sound
+  packs, among them the **Salamander Grand Piano**, streamed from disk.
 - **Each unit wears its own face** (ADR 0074): its colour, material, controls and the
   display that tells its story, drawn in vectors in light and dark themes. The CLAP and
   VST3 versions wear the same face in any DAW; *Units wear their own faces* switches back
@@ -232,7 +234,7 @@ clip menu says so. ARA hosting is new: tell us which plug-ins you tried.
 
 ### Instruments
 
-Nine instruments with a face of their own — click a picture for it full size, or a name below for what it does.
+Ten instruments with a face of their own — click a picture for it full size, or a name below for what it does.
 
 <table>
 <tr>
@@ -248,6 +250,9 @@ Nine instruments with a face of their own — click a picture for it full size, 
 <tr>
 <td align="center" valign="top" width="33%"><a href="docs/images/units/lamina-dark.png"><img src="docs/images/units/thumbs/lamina.jpg" alt="Lamina, its window"></a><br><b>Lamina</b><br><sub>Electric piano</sub></td>
 <td align="center" valign="top" width="33%"><a href="docs/images/units/chorda-dark.png"><img src="docs/images/units/thumbs/chorda.jpg" alt="Chorda, its window"></a><br><b>Chorda</b><br><sub>Modelled grand piano</sub></td>
+<td align="center" valign="top" width="33%"><a href="docs/images/units/tympanum-dark.png"><img src="docs/images/units/thumbs/tympanum.jpg" alt="Tympanum, its window"></a><br><b>Tympanum</b><br><sub>Acoustic drummer</sub></td>
+</tr>
+<tr>
 <td align="center" valign="top" width="33%"><a href="docs/images/units/pulsus-dark.png"><img src="docs/images/units/thumbs/pulsus.jpg" alt="Pulsus II, its window"></a><br><b>Pulsus II</b><br><sub>Drum instrument</sub></td>
 </tr>
 </table>
@@ -372,20 +377,37 @@ Lamina models two classic electric pianos from their parts: a hammer, a vibratin
 
 </details>
 <details>
-<summary><b>Chorda</b> — Modelled grand piano. A grand piano played from its physics: strings, felt hammers, a soundboard and half pedalling.</summary>
+<summary><b>Chorda</b> — Modelled grand piano. A grand piano played from its physics — strings, felt hammers, a soundboard, half pedalling — or a recorded piano with its own mixer.</summary>
 
 <a href="docs/images/units/chorda-dark.png"><img src="docs/images/units/chorda-dark.png" alt="Chorda — Modelled grand piano, its window in Cantus"></a>
 
-Chorda plays a grand piano from a physical model: each key's one to three strings struck by a felt hammer, meeting at a yielding bridge and ringing into a soundboard, with the other strings ringing in sympathy as their dampers allow. No sample excites anything; its numbers come from published measurements.
+Chorda plays a grand piano from a physical model: each key's one to three strings struck by a felt hammer, meeting at a yielding bridge and ringing into a soundboard, with the other strings ringing in sympathy as their dampers allow. No sample excites anything; its numbers come from published measurements. It also plays recorded pianos — the Salamander Grand, bitKlavier's microphone images, Accurate-Salamander, two uprights, or your own SFZ, Decent Sampler or SF2 — each microphone and noise a named output in its own mixer, one click from a strip of its own, and the model's perspectives too. Its window is the piano in its room — drawn by default, photographic if you choose: the lid that opens, the microphones where they stand, the room chosen from a chip.
 
 - Worst partial within 0.5 cent on the rendered sound, across all 88 keys
 - Continuous sustain pedal with half-pedalling; the soft pedal shifts the hammers
 - Sympathetic resonance of the other strings and a 40-mode soundboard
 - Stretched tuning 0–200 %, string stiffness and A4 from 415 to 466 Hz
-- Felt hardness and hysteresis, two-stage decay and phantom partials, adjustable
-- The piano drawn from above: strings, bridge, dampers and the last key played
+- Recorded pianos too: the Salamander, bitKlavier, two uprights or your own SFZ, Decent Sampler, SF2
+- Its own mixer: each perspective a named output, one click from its own strip
 
 <sub>24 factory presets — [hear them](https://cantusdaw.com/#unit-chorda) · [light theme](docs/images/units/chorda-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Tympanum</b> — Acoustic drummer. An acoustic kit in its room: modelled drums heard through microphones you move, or recorded multi-mic kits, every mic on a strip of its own.</summary>
+
+<a href="docs/images/units/tympanum-dark.png"><img src="docs/images/units/tympanum-dark.png" alt="Tympanum — Acoustic drummer, its window in Cantus"></a>
+
+Tympanum is Cantus's acoustic drummer, grown from Pulsus's engine. Its modelled kits — Studio Maple, and Jazz Birch measured off a public-domain recording — play at once, with nothing to download: modal voices heard through virtual microphones you move by pattern, distance and aim, where they stand in the picture of the kit in its room. Each hit is one draw shared by every microphone, so the kick, the overheads and the room agree; a bleed matrix sets how much of each piece each microphone hears, and each microphone goes to a strip of its own in one click. The hi-hat opens continuously on CC4. A Hybrid voice plays recorded attacks under the model, and six recorded multi-mic kits stream from disk, in their own room or in Cantus's — both downloaded on demand.
+
+- Two modelled kits, instant, no download; their microphones moved by pattern, distance and aim
+- The kit in its room, drawn or photographic: click a piece to play it, drag a microphone where it stands
+- A bleed matrix: how much of each piece every microphone hears, cell by cell
+- Each microphone to a strip of its own in one click; one draw per hit shared by every mic
+- A Hybrid voice and six recorded multi-mic kits, downloaded on demand, streamed from disk
+- The generated kit with every microphone at 7.3 % of a core; the hi-hat opened continuously by CC4
+
+<sub>Two modelled kits on four grooves, through Vinculum, Tonsor and Terminus on its strip — [hear them](https://cantusdaw.com/#unit-tympanum) · [light theme](docs/images/units/tympanum-light.png)</sub>
 
 </details>
 <details>
@@ -407,8 +429,8 @@ Pulsus II is the drum instrument behind the channel rack: each pad is a kick, sn
 </details>
 
 They share one modulation model — eight macros and a matrix you connect by dragging a
-source onto a knob — one frame (Play · Edit · Matrix), and the project's undo. Firmus, the
-simple synth every new track starts with, makes ten.
+source onto a knob — one frame (Play · Edit · Matrix; Tympanum's Kit · Mixer · Matrix), and
+the project's undo. Firmus, the simple synth every new track starts with, makes eleven.
 
 ### Effects
 
@@ -1466,8 +1488,10 @@ tables), Calor (five self-oscillating zero-delay filters, seeded voice cards), M
 (8-operator FM that reads and writes DX7 SysEx), Exemplar (SFZ, Decent Sampler, SF2/SF3,
 WAV/AIFF/FLAC/Ogg), Gravis (808, 303-style and string bass), Organum (tonewheels and rotary
 speaker), Lamina (tine and reed electric piano), Pulsus II (layers, round robin, 808/909 and
-modal voices, 16 choke groups), Chorda (a modelled grand piano), plus Firmus, the built-in
-polysynth.
+modal voices, 16 choke groups), Chorda (a modelled grand piano, or recorded pianos with their
+own mixer and a strip per microphone; ADRs 0123, 0125), Tympanum (an acoustic drummer: modelled
+kits heard through microphones you move, six recorded multi-mic kits on demand, a bleed matrix,
+each mic on its own strip; ADR 0124), plus Firmus, the built-in polysynth.
 
 **Editing.** Arrangement with per-track heights, icons, time selection and clip editing
 (split, glue, trim, slip, repeat, per-clip mute, colour and name); linked clips, the clip
