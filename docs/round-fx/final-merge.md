@@ -305,8 +305,9 @@ branch saw them), each owned for a fix:
 | cantus-ui | `stated_preset_counts` | Tactus and Calculus have preset counts but are not effect kinds | fixed `688ce852` (counted against their own banks) |
 
 Found after: `menus_audit`'s View menu opens beside its key, not under it (x = 166), in
-Slate Night and Slate Paper — likely fx/multimon's extra View items; fix/final-c.
-Also from fix/final-b: the idle snap for every native instrument, not only Firmus (follow-up).
+Slate Night and Slate Paper (fx/multimon's extra View items) — fixed `fa08d9ad` (fix/final-c: the
+top bar's menus pinned under their word, `kit::menu::room_under`, ADR 0110 amended).
+fix/final-b's follow-up `753ce2af`: every native instrument snaps its idle smoothers, not only Firmus.
 
 Load-sensitive, to re-run on a quiet machine: `sync_midi::the_out_thread_sends_on_time`,
 Chorda's 64-voice CPU budget (dsp), `preset_render` (Arca), `scene_vector`.
