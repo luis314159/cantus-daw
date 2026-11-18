@@ -380,7 +380,7 @@ impl PluginWindow {
                 .map(|_| ()),
             None => self
                 .conn
-                .delete_property(self.window, AtomEnum::WM_TRANSIENT_FOR)
+                .delete_property(self.window, AtomEnum::WM_TRANSIENT_FOR.into())
                 .map(|_| ()),
         };
         let _ = self.conn.flush();
