@@ -3,7 +3,6 @@
 //!
 //! ```text
 //! cargo run --release -p cantus-ui --example render_tryit -- <SampleData> <web> <shots> [unit…] [--presets N] [--takes <dir>]
-//! cargo run --release -p cantus-ui --example render_tryit -- --measure <web>
 //! python web/tools/tryit_pictures.py <shots>
 //! ```
 //!
@@ -35,9 +34,6 @@
 //! `pad.wav` (a synthetic pad, 124 BPM) and `faults.wav` (the CC0 guitar with a synthetic hum,
 //! buzz, clicks and crackle). Each names its presets; Loquax's synthesiser plays the
 //! progression's chords as notes; each has its own dry take, at the same loudness.
-//!
-//! `--measure` decodes every take the manifests name and prints its sample peak, true peak
-//! and integrated loudness, against `TARGET` and `CEILING`.
 
 use cantus_core::{EffectId, EffectKind, EffectSlot};
 use cantus_engine::fx::{FxNote, SongPosition};
@@ -603,55 +599,8 @@ fn render_own(own: &Own, takes: &Path, out: &Path, shots: &Path, n_presets: usiz
     total
 }
 
-/// `--measure`: every MP3 under `<web>/assets/tryit`, decoded as the site's visitors hear it.
-fn measure(web: &Path) {
-    let root = web.join("assets/tryit");
-    let mut files: Vec<PathBuf> = Vec::new();
-    let mut dirs = vec![root.clone()];
-    while let Some(d) = dirs.pop() {
-        for e in std::fs::read_dir(&d).expect("assets/tryit").flatten() {
-            let p = e.path();
-            if p.is_dir() {
-                dirs.push(p);
-            } else if p.extension().is_some_and(|x| x == "mp3") {
-                files.push(p);
-            }
-        }
-    }
-    files.sort();
-    let (mut worst_lu, mut worst_tp) = (0f64, f32::NEG_INFINITY);
-    println!("take | peak dBFS | true peak dBTP | integrated LUFS");
-    for p in &files {
-        let (l, r) = take(
-            p.parent().expect("a folder"),
-            &p.file_name().expect("a file").to_string_lossy(),
-        );
-        let mut m = cantus_dsp::terminus::loudness::LoudnessMeter::new(RATE as f32);
-        m.process(&l, &r);
-        let i = m.integrated().unwrap_or(-120.0);
-        let tp = m.true_peak_db();
-        worst_lu = worst_lu.max((i - TARGET).abs());
-        worst_tp = worst_tp.max(tp);
-        println!(
-            "{} | {:.2} | {:.2} | {:.2}",
-            p.strip_prefix(&root).unwrap_or(p).display(),
-            peak_db(&l, &r),
-            tp,
-            i
-        );
-    }
-    println!(
-        "{} takes; the furthest from {TARGET} LUFS by {worst_lu:.2} LU; the highest true peak {worst_tp:.2} dBTP (ceiling {CEILING} dBFS before encoding)",
-        files.len()
-    );
-}
-
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().is_some_and(|a| a == "--measure") {
-        measure(Path::new(args.get(1).map_or("web", String::as_str)));
-        return;
-    }
     let n_presets = args
         .iter()
         .position(|a| a == "--presets")
