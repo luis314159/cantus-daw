@@ -242,6 +242,33 @@ impl CantusApp {
                     self.windows.host = self.windows.list[i].id();
                 }
             }
+            Target::NewWindowAt(rect) => {
+                if self.windows.list.len() >= MAX {
+                    self.set_status(crate::i18n::t("screens.full"));
+                    return;
+                }
+                let place = screens::screen_of(&rect, &self.windows.screens).map(|i| {
+                    crate::screens::Place {
+                        screen: self.windows.screens[i].clone(),
+                        rect,
+                        maximised: false,
+                        full_screen: false,
+                    }
+                });
+                let shape = WindowShape {
+                    key: 0,
+                    name: String::new(),
+                    dock: None,
+                    place,
+                    bar: true,
+                    on_top: false,
+                    scale: None,
+                };
+                let ws = Workspace::with_dock(egui_dock::DockState::new(vec![pane]));
+                if let Some(i) = self.open_window(&shape, ws) {
+                    self.windows.host = self.windows.list[i].id();
+                }
+            }
             Target::Main => {
                 if from != Dock::Main {
                     self.dock_mut(from).hide(pane);
@@ -264,6 +291,46 @@ impl CantusApp {
         for w in &self.windows.list {
             ctx.request_repaint_of(w.id());
         }
+    }
+
+    /// A tab let go at `at` (points of the window drawn now) outside its window: into the
+    /// window of Cantus's under that point, else a window of its own there, half its
+    /// screen's size, centred on the point.
+    pub fn tear_out(&mut self, ctx: &Context, pane: Pane, at: egui::Pos2) {
+        let seen = match self.windows.current {
+            Some(i) => self.windows.list[i].seen,
+            None => self.windows.main,
+        };
+        let ppp = ctx.pixels_per_point();
+        let origin = seen.outer.map_or((0, 0), |r| (r.x, r.y));
+        let p = (
+            origin.0 + (at.x * ppp).round() as i32,
+            origin.1 + (at.y * ppp).round() as i32,
+        );
+        // Over another of Cantus's windows: into its dock.
+        let here = ctx.viewport_id();
+        for w in &self.windows.list {
+            if w.id() != here && w.seen.outer.is_some_and(|r| r.contains(p)) {
+                let key = w.key;
+                return self.move_pane(ctx, pane, Target::Window(key));
+            }
+        }
+        if here != ViewportId::ROOT && self.windows.main.outer.is_some_and(|r| r.contains(p)) {
+            return self.move_pane(ctx, pane, Target::Main);
+        }
+        let s = screens::screen_of(
+            &crate::screens::PxRect { x: p.0, y: p.1, w: 1, h: 1 },
+            &self.windows.screens,
+        )
+        .and_then(|i| self.windows.screens.get(i).cloned());
+        let (w, h) = s.map_or((960, 640), |s| (s.size[0] as i32 / 2, s.size[1] as i32 / 2));
+        let rect = crate::screens::PxRect {
+            x: p.0 - w / 2,
+            y: p.1 - 16,
+            w,
+            h,
+        };
+        self.move_pane(ctx, pane, Target::NewWindowAt(rect));
     }
 
     /// Where a tab of the dock `here` can be sent: the main window, every other window by

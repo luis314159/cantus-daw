@@ -270,3 +270,110 @@ Tests come first, each one red before its code. Two builder sessions are estimat
 **Seen only in emulation so far:** everything. The spike ran on one real screen. Mixed
 scales, a second screen, unplugging and the drag need a real desk (§6 of the checklist
 to come).
+
+## 7. Phase 2 — what was built (2026-11-17)
+
+The owner approved on 2026-11-17 (relayed): questions 1, 2, 4, 5 and 6 yes; 3 left to us
+(ADR 0151 §7). Keymap **19**, provisionally: `fix/flicker`'s bus feature takes 18 (Ctrl+G).
+**Merge order: the bus branch first, then `fx/multimon`; renumber if that changes.**
+
+**What exists now.**
+- **eframe, vendored and patched** (`third_party/eframe`, `third_party/README.md`, its
+  notice in `xtask/notices/head.md`). There are two changes, marked `CANTUS PATCH`.
+  - On Windows each due window is painted in turn, so no window starves the others.
+  - `eframe::window_of(ViewportId)` gives each window's winit handle.
+- **Windows of their own** (`src/windows*.rs`, `views/window_bar.rs`):
+  - **Viewports.** Each window is a deferred viewport with its own dock, up to eight. The
+    application is lent to its pass from the UI thread's cell; `boot::Shell` lends it in
+    `raw_input_hook` and takes it back at its next call. The window's dock is swapped
+    into `app.workspace` for its pass.
+  - **Every dock answers.** Area queries look across every dock (`dock_of`,
+    `pane_visible`, `reveal_pane`, `hide_pane`, `toggle_pane_anywhere`). F5–F9 act where
+    the area lives, and an area hidden from its window brings that window back.
+  - **The central view stays put.** It no longer pulls an editor back from its window.
+  - **Moving areas.**
+    - A tab's menu has *Move to a new window* and *Move to* (the main window, each
+      window, a new window on each screen by name).
+    - A tab dragged out of the window becomes a window where it was let go, or joins the
+      Cantus window under the pointer.
+    - *Float over this window* is the old in-window float.
+  - **Keys and dialogs in every window.** The keymap runs in every window's pass with
+    its input. Space, M, Ctrl+Z, F9 and Ctrl +/− work from any window.
+    - Once-a-pass guards are told apart per window (`windows::pass_nr`; egui counts
+      passes per viewport).
+    - Dialogs and pickers draw in the window last clicked or typed in.
+  - **Device editors and the bar.** A device editor opens in the window being worked in.
+    A window's bar shows its menu, its name, the transport, the position, the tempo and
+    the meter, with *Back into the main window*. Its menu has *Show the bar*, *Always on
+    top*, *Full screen*, *Back* and *Close*.
+- **Scale per window** (`windows_pass::adjust_input`):
+  - The follow rule for the window's own screen, measured against the main window's.
+  - Ctrl +/− in a window scales that window only; Ctrl+0 gives it its screen's scale back.
+  - egui's zoom never moves.
+- **Screens** (`src/screens.rs`):
+  - Read from winit, or a test's list.
+  - The placement rules: a moved screen moves its windows, renumbered displays are found
+    by size and place, and a window is never off its screen (the title bar's middle
+    64 pt stays on it).
+  - A window whose screen is gone docks its areas into the main window and comes back
+    with the screen, at start or while playing. The status line says both.
+  - Windows are made hidden and placed through winit in physical pixels.
+  - The main window goes back to its screen once at start.
+- **Layouts** (`layout.rs`, `windows_layouts.rs`):
+  - A layout keeps its windows, the main window's place and its set of screens. The
+    layout last used with each set of screens is remembered (eight sets) and recalled
+    when that desk returns.
+  - Four built-ins: *Wide screen: arrange beside mix* (offered at 21 : 9), *Two screens:
+    arrange | mix*, *Two screens: arrange | edit* (portrait-aware) and *Three screens:
+    edit | arrange | mix*.
+  - The View menu lists them with Alt+1…9 and has the band *Windows and screens*: *New
+    window*, *Gather every window on this screen*, *Put every area back in the main
+    window* and *Full screen* (F11).
+- **The ticker, one slot per window.** The main window's pass is the clock: it asks a
+  window for frames only while an area it shows moves. A click or key in one window
+  repaints the others once.
+- **Strings** in both locales (`locales/areas/screens.*`).
+- **Real-desk steps** are in `docs/beta-checklist.md`, *Varias pantallas*.
+
+**Tests** run as eframe runs windows (`tests/windows_rig`):
+- **`windows_e2e`** covers:
+  - moving to another screen and the deferred viewport;
+  - the scale per window (1.8 and 1.25 on the reporter's desk);
+  - keys from the window (Space, M, Ctrl+Z, main repaint asked);
+  - at rest no window draws, and playing draws the mixer's window but not the
+    browser's;
+  - kept and reopened, unplugged at start, replugged while running, unplugged while
+    playing;
+  - F9 out and back;
+  - Ctrl+ per window;
+  - a tab torn out onto the other screen.
+- **`windows_screens`** covers the main window on 11 kinds of screen and the mixer's
+  window on 3 desks:
+  - exact scale per window;
+  - every word inside its window;
+  - nothing dropped from the bars;
+  - the window's menu opening in its window.
+- **`windows_stability`** covers:
+  - 500 open/move/close cycles (no area in two docks, no viewport kept, textures flat);
+  - 50 unplug/replug cycles while playing (the song never stops);
+  - 300 idle frames (no scale flip, no frame asked, the watchdog quiet);
+  - five corrupt, old or strange layout files.
+- **Unit tests**: `screens::tests` (the placement table), and the keymap
+  (`every_preset_has_the_layout_keys_and_full_screen`).
+
+**Not built** (honestly):
+- The **screens map** card (§9). The rescue rows of the View menu do its job meanwhile.
+- **Plug-in editors owned by the window that opened them.** They are still owned by the
+  main window. Owning them by a window that can close needs their windows closed with it
+  first (Windows destroys owned windows).
+- *Choose what the bar shows…* and *Rename…* in a window's menu.
+- The measured memory and frame time per extra window. The tests hold the at-rest zero
+  and the textures flat; the driver's buffers need the scorecard on a real machine.
+- `rt_memory` with two windows. The engine is untouched (no file under
+  `cantus-engine`/`cantus-rt` changed), and the rig's processor runs on the test's
+  thread.
+
+**Verified only in emulation:** everything above. The tests feed screens and passes as
+winit and eframe do. The spike ran on one real screen. The checklist lists what a real desk
+must confirm: placement, hidden-then-shown, unplugging, sleep, the drag between real
+windows, F11, plug-in windows, and Linux and macOS.

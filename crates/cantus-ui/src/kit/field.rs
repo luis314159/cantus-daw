@@ -92,7 +92,7 @@ fn active_id() -> Id {
 struct Shown(u64, Vec<Id>);
 
 fn note_shown(ctx: &Context, id: Id) -> bool {
-    let now = ctx.cumulative_pass_nr();
+    let now = crate::windows::pass_nr(ctx);
     ctx.data_mut(|d| {
         let s = d.get_temp_mut_or_default::<Shown>(Id::new("kit-field-shown-ids"));
         if s.0 != now {
@@ -115,13 +115,13 @@ pub fn edit_id(id: Id) -> Id {
 /// Whether a field holds the keyboard — this pass or the last (so the key that closed it,
 /// Esc or Enter, is not read again by the app's shortcuts).
 pub fn active(ctx: &Context) -> bool {
-    let now = ctx.cumulative_pass_nr();
+    let now = crate::windows::pass_nr(ctx);
     ctx.data(|d| d.get_temp::<u64>(active_id()))
         .is_some_and(|p| p + 1 >= now)
 }
 
 fn mark_active(ctx: &Context) {
-    let now = ctx.cumulative_pass_nr();
+    let now = crate::windows::pass_nr(ctx);
     ctx.data_mut(|d| d.insert_temp(active_id(), now));
 }
 
@@ -188,7 +188,7 @@ impl<'a> Field<'a> {
     pub fn show(mut self, ui: &mut Ui, rect: Rect, text: &mut String) -> Out {
         let s = Style::current().scaled(self.k);
         let ctx = ui.ctx().clone();
-        let now = ctx.cumulative_pass_nr();
+        let now = crate::windows::pass_nr(&ctx);
         let clash = note_shown(&ctx, self.id);
         debug_assert!(
             !clash,

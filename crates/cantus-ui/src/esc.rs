@@ -84,7 +84,7 @@ fn stack(ctx: &Context) -> Arc<Mutex<Stack>> {
 
 /// `layer` is open this frame.
 pub fn open(ctx: &Context, layer: Layer) {
-    let pass = ctx.cumulative_pass_nr();
+    let pass = crate::windows::pass_nr(ctx);
     let s = stack(ctx);
     let mut s = s.lock().unwrap_or_else(|e| e.into_inner());
     s.roll(pass);
@@ -104,7 +104,7 @@ pub fn open(ctx: &Context, layer: Layer) {
 /// input when it is.
 pub fn take(ctx: &Context, layer: Layer) -> bool {
     let pressed = ctx.input(|i| i.key_pressed(Key::Escape) && !i.modifiers.any());
-    let pass = ctx.cumulative_pass_nr();
+    let pass = crate::windows::pass_nr(ctx);
     let s = stack(ctx);
     let mut s = s.lock().unwrap_or_else(|e| e.into_inner());
     s.roll(pass);
@@ -132,7 +132,7 @@ pub fn take(ctx: &Context, layer: Layer) -> bool {
 /// Whether any registered surface is open (at the last complete frame or this one): the
 /// keymap's Esc (*Clear selection*) waits while one is.
 pub fn any_open(ctx: &Context) -> bool {
-    let pass = ctx.cumulative_pass_nr();
+    let pass = crate::windows::pass_nr(ctx);
     let s = stack(ctx);
     let mut s = s.lock().unwrap_or_else(|e| e.into_inner());
     s.roll(pass);
@@ -141,7 +141,7 @@ pub fn any_open(ctx: &Context) -> bool {
 
 /// The newest surface open, for tests and the help line.
 pub fn top(ctx: &Context) -> Option<Layer> {
-    let pass = ctx.cumulative_pass_nr();
+    let pass = crate::windows::pass_nr(ctx);
     let s = stack(ctx);
     let mut s = s.lock().unwrap_or_else(|e| e.into_inner());
     s.roll(pass);

@@ -120,7 +120,7 @@ fn keys_typed_in_a_window_reach_the_project_and_the_transport() {
         assert_eq!(muted, Some(true), "M typed in the mixer's window mutes the strip");
         assert!(r.app().bus.revision() > before, "one command");
         assert!(
-            r.was_asked(ViewportId::ROOT, Duration::from_millis(1)),
+            r.ctx.has_requested_repaint_for(&ViewportId::ROOT),
             "the main window is asked to draw the change"
         );
         r.key(id, Key::Z, Modifiers::COMMAND);
@@ -241,5 +241,32 @@ fn ctrl_plus_in_a_window_scales_that_window_alone() {
         r.key(id, Key::Num0, Modifiers::COMMAND);
         r.idle(3);
         assert_eq!(r.passes[&id].ppp, before, "Ctrl+0 gives it back its screen's scale");
+    });
+}
+
+#[test]
+fn a_tab_dragged_out_of_the_window_becomes_a_window_where_it_fell() {
+    run(|| {
+        let mut r = Rig::new(vec![laptop(), external()]);
+        r.app().reveal_pane(Pane::Mixer);
+        r.idle(8);
+        let size = r.passes[&ViewportId::ROOT].size;
+        // The mixer's tab (the one in a tab bar: the lowest "Mixer" in the lower zone's bar).
+        let tab = r
+            .text_in(ViewportId::ROOT, "Mixer")
+            .into_iter()
+            .filter(|t| t.min.x < size.x * 0.7)
+            .max_by(|a, b| a.min.y.total_cmp(&b.min.y))
+            .expect("the mixer's tab");
+        // Let go to the right of the laptop's window: over the external screen.
+        let to = egui::Pos2::new(size.x + 300.0, tab.center().y);
+        r.drag(ViewportId::ROOT, tab.center(), to);
+        r.idle(3);
+        assert_eq!(r.windows().len(), 1, "a window of its own");
+        let app = r.app();
+        assert!(app.windows.list[0].workspace.contains(Pane::Mixer));
+        assert!(!app.pane_shown(Pane::Mixer) || !app.workspace.contains(Pane::Mixer));
+        let place = app.windows.list[0].place.clone().expect("placed where it fell");
+        assert_eq!(place.screen.size, [1920, 1080], "on the screen it was let go over");
     });
 }

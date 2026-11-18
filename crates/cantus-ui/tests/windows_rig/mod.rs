@@ -332,6 +332,28 @@ impl Rig {
         self.pass_in(id, vec![ev(false)]);
     }
 
+    /// A drag with the primary button from `from` to `to` in viewport `id` (the pointer
+    /// keeps reporting outside the window while the button is held, as the system's mouse
+    /// capture gives it).
+    pub fn drag(&mut self, id: ViewportId, from: Pos2, to: Pos2) {
+        let button = |pos, pressed| Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        self.pointers.insert(id, from);
+        self.pass_in(id, vec![]);
+        self.pass_in(id, vec![button(from, true)]);
+        for k in 1..=12 {
+            let p = from + (to - from) * (k as f32 / 12.0);
+            self.pointers.insert(id, p);
+            self.pass_in(id, vec![]);
+        }
+        self.pass_in(id, vec![button(to, false)]);
+        self.pointers.remove(&id);
+    }
+
     /// A key pressed and released in viewport `id`.
     pub fn key(&mut self, id: ViewportId, key: egui::Key, modifiers: egui::Modifiers) {
         let ev = |pressed| Event::Key {
@@ -341,8 +363,9 @@ impl Rig {
             repeat: false,
             modifiers,
         };
-        self.pass_in(id, vec![ev(true)]);
-        self.pass_in(id, vec![ev(false)]);
+        // egui-winit tells the modifiers as their own event, before the key.
+        self.pass_in(id, vec![Event::ModifiersChanged(modifiers), ev(true)]);
+        self.pass_in(id, vec![ev(false), Event::ModifiersChanged(egui::Modifiers::NONE)]);
     }
 
     /// One pass of viewport `id` with `events` (the main window's or a window's).

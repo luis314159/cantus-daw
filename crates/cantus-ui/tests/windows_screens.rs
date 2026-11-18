@@ -156,3 +156,34 @@ fn a_window_of_its_own_on_each_desk_draws_at_its_screens_scale() {
         }
     });
 }
+
+#[test]
+fn the_screens_map_shows_every_screen_and_sends_a_window_across() {
+    run(|| {
+        let mut r = Rig::new(vec![laptop(), external()]);
+        r.app().reveal_pane(Pane::Mixer);
+        r.idle(4);
+        let ctx = r.ctx.clone();
+        r.app()
+            .move_pane(&ctx, Pane::Mixer, Target::NewWindow { screen: Some(1) });
+        r.idle(6);
+        r.app().windows.map_open = true;
+        r.app().windows.host = ViewportId::ROOT;
+        r.idle(10);
+        assert_eq!(r.text_in(ViewportId::ROOT, "Screens and windows").len(), 1);
+        assert_eq!(r.text_in(ViewportId::ROOT, "Screen 1 · DISPLAY1").len(), 1);
+        assert_eq!(r.text_in(ViewportId::ROOT, "Screen 2 · DISPLAY2").len(), 1);
+        assert_eq!(r.text_in(ViewportId::ROOT, "Main window").len(), 1);
+        words_inside(&r, ViewportId::ROOT, "the screens map");
+        // Its drag's end: the mixer's window to the laptop's screen.
+        let key = r.app().windows.list[0].key;
+        r.app().send_window_to_screen(key, 0);
+        r.idle(4);
+        let p = r.app().windows.list[0].place.clone().unwrap();
+        assert_eq!(p.screen.size, [2880, 1800], "sent to the laptop");
+        // Esc closes it.
+        r.key(ViewportId::ROOT, egui::Key::Escape, egui::Modifiers::NONE);
+        r.idle(2);
+        assert!(!r.app().windows.map_open);
+    });
+}

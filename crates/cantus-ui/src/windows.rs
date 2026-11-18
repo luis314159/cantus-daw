@@ -36,6 +36,8 @@ pub enum Target {
     /// A new window — on screen `screen` (an index into the screens read last), or on the
     /// screen the main window is not on when there is one.
     NewWindow { screen: Option<usize> },
+    /// A new window at this place on the desktop (a tab torn out of a window).
+    NewWindowAt(PxRect),
     /// The main window's dock.
     Main,
     /// The window with this key.
@@ -150,6 +152,20 @@ impl OsWindow {
     }
 }
 
+/// The pass's number, told apart per window (ADR 0151): egui counts passes per viewport,
+/// so the main window's pass 100 and a window's pass 100 would be "the same pass" to the
+/// application's once-a-pass guards (the keys, Esc, a text field's focus). The main window
+/// keeps egui's count; a window's carries its viewport in the high bits.
+pub fn pass_nr(ctx: &egui::Context) -> u64 {
+    let n = ctx.cumulative_pass_nr();
+    let vp = ctx.viewport_id();
+    if vp == ViewportId::ROOT {
+        n
+    } else {
+        n ^ (vp.0.value() & 0xFFFF_FF00_0000_0000).max(1 << 40)
+    }
+}
+
 /// The viewport of the window with key `key`.
 pub fn id_of(key: u32) -> ViewportId {
     ViewportId::from_hash_of(("cantus-window", key))
@@ -190,6 +206,8 @@ pub struct Windows {
     pub pending: Option<crate::layout::Layout>,
     /// The window whose menu is open, and where (its bar's ⋯ key).
     pub menu: Option<(u32, egui::Pos2)>,
+    /// View ▸ *Screens and windows…* is open (§9).
+    pub map_open: bool,
 }
 
 impl Default for Windows {
@@ -211,6 +229,7 @@ impl Default for Windows {
             missing: None,
             pending: None,
             menu: None,
+            map_open: false,
         }
     }
 }

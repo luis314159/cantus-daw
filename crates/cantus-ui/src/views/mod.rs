@@ -106,6 +106,7 @@ pub mod update;
 pub mod verse;
 pub mod warp;
 pub mod warp_quantise;
+pub mod screens_map; // multimon — Screens and windows (ADR 0151 §9)
 pub mod window_bar; // multimon — a window of its own's bar (ADR 0151 §4)
 pub mod workspace;
 pub mod workspace_device;

@@ -172,7 +172,7 @@ repository):
    three, left and right follow the screens' positions. A built-in layout that needs more
    screens than are connected is dimmed with *Needs N screens*; picking a layout made for
    more screens than are connected opens what fits and docks the rest (§8). **Alt+1 …
-   Alt+9** recall the View menu's layouts in order (⌥⌘1 … 9 on macOS); Ctrl+Alt is not
+   Alt+9** recall the View menu's layouts in order (Alt is ⌥ on macOS); Ctrl+Alt is not
    used — it is AltGr on Spanish and many other keyboards (AltGr+2 is @). **F11** puts the
    window in front into full screen on its own screen and back. The new bindings are
    checked against every keymap preset for collisions (a test).
@@ -293,3 +293,28 @@ ultrawide, portrait, mixed pairs and three screens) through `CantusApp::assemble
 stability suite (500 scripted open/close/move cycles with memory and textures flat, screens
 unplugged and replugged at start and while playing, a soak with two windows animating, every
 window at zero frames at rest, corrupt and old layout files).
+
+## Phase 2 (2026-11-17): what was built, what was not
+
+Built as decided: §§1–8, §10 and §11, keymap 19 (provisional; the bus feature's 18 merges
+first). The tests are `tests/windows_e2e.rs`, `tests/windows_screens.rs` (11 kinds of screen,
+3 desks) and `tests/windows_stability.rs` (500 window cycles, 50 unplug/replug cycles while
+playing, 300 idle frames, corrupt layout files), run as eframe runs windows
+(`tests/windows_rig`). Two details the building settled:
+
+- **A window's pass number.** egui counts passes per viewport, so the application's
+  once-a-pass guards (the keys, Esc, a text field's focus, the kit's brush and cache) use
+  `windows::pass_nr`, which keeps the main window's count and tells a window's apart.
+- **The central view.** Only the main window's lower zone sets it; an editor another window
+  holds is never pulled back into the main dock by it.
+
+Not built yet:
+- **The screens map** (§9). View ▸ *Gather every window on this screen* and *Put every area
+  back in the main window* are the rescue meanwhile.
+- **A plug-in's editor owned by the window that opened it** (§10). It is still owned by the
+  main window: owning it by a window that can close needs its editor closed first, since
+  Windows destroys owned windows.
+- *Choose what the bar shows…* and *Rename…*.
+
+`docs/round-fx/multimon.md` §7 has the account, and `docs/beta-checklist.md` the steps only
+a real desk can confirm.

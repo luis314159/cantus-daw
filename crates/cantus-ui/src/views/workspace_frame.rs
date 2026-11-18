@@ -53,6 +53,28 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     // A folded area is smaller than the dock's least size (round 39, ADR 0110).
     style.separator.extra = ws.separator_floor(style.separator.extra);
     let tab_bar = style.tab_bar.height;
+    // Several screens (ADR 0151 §2): the tab being dragged (egui_dock's own id for it), so
+    // one let go outside the window is torn out of it into a window of its own.
+    let dock_id = if ctx.viewport_id() == egui::ViewportId::ROOT {
+        Id::new("cantus-dock")
+    } else {
+        Id::new("cantus-dock").with(ctx.viewport_id())
+    };
+    if let Some(dragged) = ctx.dragged_id() {
+        let mut found = None;
+        for (path, leaf) in ws.dock.iter_leaves() {
+            for (i, tab) in leaf.tabs.iter().enumerate() {
+                let id = dock_id
+                    .with((path.surface, "surface"))
+                    .with((path.node, "node"))
+                    .with((i, "tab"));
+                if id == dragged {
+                    found = Some(*tab);
+                }
+            }
+        }
+        ws.tab_drag = found;
+    }
     let (unfold, maximise);
     {
         let Workspace {
@@ -83,11 +105,6 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             tk: s.tk(),
         };
         // One dock per window (ADR 0151): its state in egui's memory is the window's own.
-        let dock_id = if ctx.viewport_id() == egui::ViewportId::ROOT {
-            Id::new("cantus-dock")
-        } else {
-            Id::new("cantus-dock").with(ctx.viewport_id())
-        };
         DockArea::new(dock)
             .id(dock_id)
             .style(style)
@@ -105,6 +122,21 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             );
         unfold = viewer.unfold;
         maximise = viewer.maximise;
+    }
+    // A tab let go outside the window: a window of its own where it fell.
+    let screen = ctx.content_rect();
+    let fell = ctx.input(|i| {
+        i.pointer
+            .any_released()
+            .then(|| i.pointer.latest_pos())
+            .flatten()
+            .filter(|p| !screen.expand(2.0).contains(*p))
+    });
+    let mut torn: Vec<(Pane, Pos2)> = Vec::new();
+    if ctx.input(|i| i.pointer.any_released()) {
+        if let (Some(at), Some(pane)) = (fell, ws.tab_drag.take()) {
+            torn.push((pane, at));
+        }
     }
     if let Some(p) = unfold {
         ws.unfold(p);
@@ -128,6 +160,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         Some(After::ResetLayout) => app.reset_layout(),
         Some(After::Move(pane, to)) => app.move_pane(&ctx, pane, to),
         None => {}
+    }
+    for (pane, at) in torn {
+        app.tear_out(&ctx, pane, at);
     }
     // r35:stage — the dancers over the workspace: the main window's.
     if app.windows.current.is_none() {

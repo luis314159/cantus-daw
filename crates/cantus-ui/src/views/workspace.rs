@@ -260,6 +260,8 @@ pub struct Workspace {
     pub(crate) elsewhere: Vec<Pane>,
     pub(crate) adds_devices: bool,
     pub(crate) move_targets: Vec<(String, crate::windows::Target)>,
+    /// The tab being dragged, as of the last pass.
+    pub(crate) tab_drag: Option<Pane>,
 }
 
 impl Default for Workspace {
@@ -299,6 +301,7 @@ impl Workspace {
             elsewhere: Vec::new(),
             adds_devices: true,
             move_targets: Vec::new(),
+            tab_drag: None,
         }
     }
 

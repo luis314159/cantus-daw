@@ -819,7 +819,7 @@ pub fn poll_print(app: &mut CantusApp) {
 pub fn keys(app: &mut CantusApp, ctx: &egui::Context) {
     use egui::{Key, Modifiers};
     poll_print(app);
-    let pass = ctx.cumulative_pass_nr();
+    let pass = crate::windows::pass_nr(ctx);
     if !app.score.focused || app.score.drawn_pass + 1 < pass {
         return;
     }

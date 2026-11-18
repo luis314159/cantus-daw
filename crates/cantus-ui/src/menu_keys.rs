@@ -20,7 +20,7 @@ fn held_id() -> Id {
 
 /// Whether a menu held the keys in this pass or the one before: the keymap waits.
 pub fn holds_keys(ctx: &Context) -> bool {
-    let pass = ctx.cumulative_pass_nr();
+    let pass = crate::windows::pass_nr(ctx);
     ctx.data(|d| d.get_temp::<u64>(held_id()))
         .is_some_and(|p| p + 1 >= pass)
 }
@@ -58,7 +58,7 @@ pub fn nav(ui: &Ui, items: &[Item<'_>], pointer: Option<usize>) -> (Option<usize
     if rows.is_empty() || ui.layer_id().order < Order::Foreground {
         return (pointer, false);
     }
-    let pass = ctx.cumulative_pass_nr();
+    let pass = crate::windows::pass_nr(ctx);
     ctx.data_mut(|d| d.insert_temp(held_id(), pass));
     let id = walk_id(ui);
     let mut w: Walk = ctx.data(|d| d.get_temp(id)).unwrap_or_default();

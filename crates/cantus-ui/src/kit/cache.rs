@@ -168,7 +168,7 @@ impl KitCache {
     /// Called once a pass (by [`with`] and by a brush's `begin`): notices a rebuilt font
     /// atlas and forgets text nobody asked for in a while.
     pub fn begin_pass(&mut self, ctx: &Context) {
-        let pass = ctx.cumulative_pass_nr();
+        let pass = crate::windows::pass_nr(ctx);
         if pass == self.pass && self.atlas.is_some() {
             return;
         }

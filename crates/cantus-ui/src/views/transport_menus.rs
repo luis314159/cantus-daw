@@ -346,6 +346,7 @@ enum Do {
     LayoutRow(crate::windows_layouts::LayoutRow),
     GatherWindows,
     DockEveryWindow,
+    ScreensMap,
     Appearance,
     Settings,
     Customise,
@@ -492,6 +493,11 @@ fn run_row(app: &mut CantusApp, ctx: &egui::Context, what: Do) {
         Do::LayoutRow(row) => app.apply_layout_row(&row),
         Do::GatherWindows => app.gather_windows(),
         Do::DockEveryWindow => app.dock_every_window(),
+        Do::ScreensMap => {
+            // Over the main window, whose bar holds the View menu.
+            app.windows.map_open = true;
+            app.windows.host = egui::ViewportId::ROOT;
+        }
         Do::Appearance => app.show_theme_editor = true,
         Do::Settings => app.show_settings = true,
         Do::Customise => super::more::open_customise(app),
@@ -709,6 +715,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     rows.push(
         Row::new("screens.view.dock_all", Do::DockEveryWindow).enabled(!app.windows.is_empty()),
     );
+    rows.push(Row::new("screens.view.map", Do::ScreensMap));
     rows.push(Row::run(Action::ToggleFullScreen, "screens.window.full_screen"));
     rows.push(Row::separator());
     for (action, key) in [

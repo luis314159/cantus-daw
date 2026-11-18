@@ -3830,7 +3830,7 @@ impl CantusApp {
         arrows_taken: bool,
         taken: &dyn Fn(&crate::keymap::Keymap, Action) -> bool,
     ) {
-        let pass = ctx.cumulative_pass_nr();
+        let pass = crate::windows::pass_nr(ctx);
         if self.keys_pass == Some(pass) {
             return;
         }
@@ -4659,6 +4659,7 @@ impl CantusApp {
     /// clicked or typed in (ADR 0151 §3) — the main window's unless another has it.
     pub(crate) fn overlays(&mut self, ctx: &egui::Context) {
         self.dialogs(ctx);
+        views::screens_map::frame(self, ctx); // multimon — Screens and windows (ADR 0151 §9)
         views::record_bar::frame(self, ctx); // r36:record — its questions
         views::interop::frame(self, ctx);
         views::export_dialog::show(self, ctx);
