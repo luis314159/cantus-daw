@@ -83,6 +83,7 @@ impl Processor {
                     if !self.transport.is_playing() {
                         self.reseek_events();
                         self.auto_jumped(); // fx/final: a start snaps what lanes drive
+                        self.snap_idle_synths(); // fx/final: and an idle Firmus's glides
                         self.transport.play();
                         // The lanes chased now it plays (ADR 0068).
                         self.chase_controls();

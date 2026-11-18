@@ -289,6 +289,7 @@ impl Processor {
         self.transport.seek_f64(tick - k * tps);
         self.reseek_events();
         self.auto_jumped(); // fx/final
+        self.snap_idle_synths(); // fx/final
         self.transport.play();
         self.chase_controls();
         self.played = 0;

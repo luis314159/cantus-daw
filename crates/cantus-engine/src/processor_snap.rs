@@ -1221,6 +1221,26 @@ impl Processor {
         self.auto_reseek();
     }
 
+    /// fx/final — playback starts from stop (or a sync start): every track's Firmus that
+    /// sounds no voice takes its settings at once (`Firmus::snap`), as its next idle block
+    /// would have — and as an offline render's synth, new, takes its first ones. Without it
+    /// the start depended on whether a block ran between the last snapshot and `Play`: a
+    /// slot that kept its track id across a song replaced (another song's track 1 in it)
+    /// still held the old track's cutoff and level, and the first note glided 20 ms from
+    /// them (`lenis_e2e`: the live master 8.9e-2 off the render, Lenis's 80 ms release
+    /// carrying it for 0.7 s). A synth playing a live note keeps its glide. No allocation.
+    pub(super) fn snap_idle_synths(&mut self) {
+        for slot in 0..MAX_TRACKS {
+            if self.track_ids[slot].is_some() {
+                if let Some(mut s) = self.nodes.track(slot) {
+                    if s.synth.active_voices() == 0 {
+                        s.synth.snap();
+                    }
+                }
+            }
+        }
+    }
+
     pub(super) fn release_all(&mut self) {
         self.auto_live_release();
         for slot in 0..MAX_TRACKS {
