@@ -47,6 +47,7 @@ Nine agents, about 10 400 lines, 140 official screenshots (local only).
 | [keys.md](keys.md) | Pianoteq 9, Keyscape, Lounge Lizard, Arturia keys, organs | Modelling is the only route open to us; the organ is the cheapest big win; Modartt's patent expires 2027-10-20 | **Organum**, **Lamina** |
 | [standards.md](standards.md) | VST3 (MIT since 3.8), CLAP 1.2, AU, hosting and exporting from Rust | clack + `vst3` crates (MIT/Apache); CLAP-first export; ADR 0001's GPL reason is gone | handed to the effects session (ADR 0019/0020) |
 | [family.md](family.md) | Stock instruments of Live 12, Logic 12, FL 2026, Bitwig 6.1, Cubase 15, Studio Pro 8, Reaper; the shared instrument UI | Clearing the stock bar takes ~8 engines; knob boundaries fail 3:1 almost everywhere — and so did ours | the frame (ADR 0023) |
+| [microtuning.md](microtuning.md) | Diapason, temperaments (rotated to any key), stretch, unison width, per-key editor, Scala/MTS-ESP; a drum's tuning per piece and head (round 40, the owner's request) | One project tuning every pitched instrument follows, folded under Advanced; null at default; formats tested with outside bytes | round 41's design |
 
 **Decisions taken from them** are in ADR 0023 (the instrument contract, the shared
 modulation model and frame, the house rules). **Open, for the owner:** bundled content —
