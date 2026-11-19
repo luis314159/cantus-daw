@@ -93,6 +93,11 @@ pub fn budget(unit: Unit) -> f64 {
         // fx:fragor — circuits solved by Newton every oversampled sample (ADR 0128): two
         // pedals, stereo, at 4× (the guitar presets play one circuit, mono, as a pedal does).
         Unit::Effect(EffectKind::Pedal) => 0.25,
+        // fx3:arca — the amp's preamp valves and power amp solved by Newton at 4× (ADR 0134):
+        // its high gain, four circuits two of them hard-clipping, measured 25–31 % of a core;
+        // its dark lead at 0.34 of the run's median-scaled share on a loaded Linux machine
+        // (2026-11-18) — the tenth every unit had failed it on GitHub's runners.
+        Unit::Effect(EffectKind::Amp) => 0.40,
         _ => 0.10,
     }
 }
