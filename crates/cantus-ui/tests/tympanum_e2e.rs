@@ -398,6 +398,9 @@ fn a_users_drumgizmo_kit_installs_from_a_file_and_plays_on_its_mics() {
     let src = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../cantus-content/tests/fixtures/drskit_minimal");
     let to = dir.path().join("DRSKit");
+    // The destination first: ext4 lists a folder in a hash's order, so the kit's XML can
+    // come before any sub-folder that would have made it (beta.15's release job, 22.04).
+    std::fs::create_dir_all(&to).unwrap();
     let mut stack = vec![src.clone()];
     while let Some(d) = stack.pop() {
         for e in std::fs::read_dir(&d).unwrap().flatten() {

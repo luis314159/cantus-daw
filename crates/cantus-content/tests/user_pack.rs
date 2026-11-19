@@ -204,6 +204,10 @@ fn an_archive_bigger_than_the_free_space_is_refused_before_it_unpacks() {
 pub fn drskit_with_hits(to: &std::path::Path) -> std::path::PathBuf {
     let src =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/drskit_minimal");
+    // The destination first: the walk below meets the kit's own files in the directory's
+    // order, which on ext4 is a hash's — the XML can come before any folder that would have
+    // made `to` (it failed beta.15's release job on Ubuntu 22.04).
+    std::fs::create_dir_all(to).unwrap();
     let mut stack = vec![src.clone()];
     while let Some(d) = stack.pop() {
         for e in std::fs::read_dir(&d).unwrap().flatten() {
