@@ -140,7 +140,7 @@ struct Frame {
 // ---- one look at a time ----------------------------------------------------------------
 
 /// The kit's tokens are process-wide (`kit::tokens::install`), and every test here builds
-/// an application (whose first frame installs the saved look, Slate Night since round 39)
+/// an application (whose first frame installs the saved look, Slate Lapis Night since 2026-11-18)
 /// or applies a theme. Run in parallel, one test re-themed the window another was
 /// measuring in the middle of its run: the dancer's test saw the whole window go from the
 /// old Slate tokens to Slate Night's between its "hidden" and its "shown" frames, +3 100

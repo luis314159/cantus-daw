@@ -144,11 +144,12 @@ impl Boot {
             use raw_window_handle::HasWindowHandle;
             cc.window_handle().ok().map(|h| h.as_raw())
         };
-        // The splash's own look, whatever the theme: Slate Night, the default (round 39),
-        // in its face (the fonts stage installs it; the saved theme follows at assembly).
-        let slate = crate::theme_slate::slate_night_tokens();
-        crate::kit::system::set_face(slate.system.face);
-        crate::kit::tokens::install(slate);
+        // The splash's own look, whatever the theme: the default's, Slate Lapis Night (ADR
+        // 0111, amended 2026-11-18), in its face (the fonts stage installs it; the saved
+        // theme follows at assembly).
+        let look = crate::theme_slate_lapis::slate_lapis_night_tokens();
+        crate::kit::system::set_face(look.system.face);
+        crate::kit::tokens::install(look);
         let logo = splash_image(&cc.egui_ctx, options.art.as_ref());
         Boot {
             options,
@@ -381,7 +382,7 @@ fn paint(
     verse: SplashVerse,
 ) -> (Option<crate::views::verse::Painted>, bool) {
     let rect = ui.max_rect();
-    let s = Style::new(crate::theme_slate::slate_night_tokens());
+    let s = Style::new(crate::theme_slate_lapis::slate_lapis_night_tokens());
     let t = s.t;
     let full = size(verse != SplashVerse::None);
     // The splash's own window is its size; a main window opened at once (`--no-splash`,
@@ -685,7 +686,7 @@ fn splash_image(ctx: &egui::Context, art: Option<&Art>) -> Option<TextureHandle>
         })
         .or_else(|| {
             let px = (LOGO * scale as f32) as u32;
-            let t = crate::theme_slate::slate_night_tokens();
+            let t = crate::theme_slate_lapis::slate_lapis_night_tokens();
             let svg = logo::svg_for(logo::Logo::DEFAULT, logo::Tint::Original, &t, px);
             logo::render_svg(&svg, px)
         })?;

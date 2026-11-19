@@ -201,11 +201,12 @@ fn main() {
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
-        // `-dark` is Slate Night, the default theme (round 39); `-light` is Slate Paper.
+        // `-dark` is the default theme (Slate Lapis Night since 2026-11-18); `-light` is its
+        // light twin, Slate Lapis Paper.
         let theme = if dark {
             cantus_ui::theme::default_theme()
         } else {
-            cantus_ui::theme::slate_paper()
+            cantus_ui::theme::default_light_theme()
         };
         cantus_ui::theme::apply(&theme, &ctx);
         // The mixer and `startup` (the whole window) show what the program opens on.

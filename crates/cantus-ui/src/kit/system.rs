@@ -6,7 +6,8 @@
 //! every painter is handed ([`super::tokens::Tokens::system`]), so a painter asks its
 //! style, never a global, how to draw.
 //!
-//! - **Slate** (the default, `dir-a`): Barlow Semi Condensed, keys recessed into their bar.
+//! - **Slate** (`dir-a`; the system of Slate Lapis, the default since 2026-11-18, too):
+//!   Barlow Semi Condensed, keys recessed into their bar.
 //! - **Graphite and gold** (`dir-b`): Sofia Sans in three widths, keys recessed.
 //! - **Studio ink** (`dir-c`): IBM Plex Sans Condensed with Plex Mono for values, keys
 //!   recessed.

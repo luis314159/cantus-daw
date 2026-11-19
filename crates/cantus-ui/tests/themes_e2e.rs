@@ -197,8 +197,8 @@ fn a_restored_theme_and_a_new_one_chosen_in_settings_paint_and_survive_a_restart
     let _one = serial();
     let dir = data(None);
     let mut r = boot(dir.path());
-    assert_eq!(r.app.appearance.dark.base, "preset:slate_night");
-    let slate = cantus_ui::theme_slate::slate_night_tokens();
+    assert_eq!(r.app.appearance.dark.base, "preset:slate_lapis_night");
+    let booted = cantus_ui::theme_slate_lapis::slate_lapis_night_tokens();
 
     // Cantus Night, redrawn: its family's tile sets both lights.
     r.settings();
@@ -229,7 +229,7 @@ fn a_restored_theme_and_a_new_one_chosen_in_settings_paint_and_survive_a_restart
     );
     assert_eq!(got.system, System::GRAPHITE);
     assert_eq!(system::face(), Face::Sofia);
-    assert_ne!(got.panel, slate.panel);
+    assert_ne!(got.panel, booted.panel);
     // It paints: the espresso room, and the chosen page's row through the verdigris.
     r.frames(40);
     let painted = r.frame(Vec::new());

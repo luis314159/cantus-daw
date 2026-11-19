@@ -914,8 +914,9 @@ use crate::theme_added as added;
 use crate::theme_redrawn as redrawn;
 
 /// Every shipped theme on Settings ▸ Appearance (ADR 0111 §2), in groups: round 39's
-/// families — Slate the default; Slate Lapis (Slate with a lapis accent and gold details,
-/// to go with the logo's metal), Graphite and gold and Studio ink as options —; the themes
+/// families — Slate Lapis the default (Slate in a night-blue room, lapis on the selection
+/// and gold details, to go with the logo's metal; ADR 0111, amended 2026-11-18); Slate,
+/// round 39's default, Graphite and gold and Studio ink as options —; the themes
 /// of rounds 24–38, redrawn in round 39's system; the themes new in round 39; the
 /// high-contrast pair. The tiles are numbered in this order across the groups (their ids,
 /// `("look-family", n)`).
@@ -923,11 +924,6 @@ const GROUPS: [(&str, &[Tile]); 4] = [
     (
         "look.group.r39",
         &[
-            pair(
-                "topbar.look.family.slate",
-                ("slate_night", crate::theme_slate::slate_night_tokens),
-                ("slate_paper", crate::theme_slate::slate_paper_tokens),
-            ),
             pair(
                 "topbar.look.family.slate_lapis",
                 (
@@ -938,6 +934,11 @@ const GROUPS: [(&str, &[Tile]); 4] = [
                     "slate_lapis_paper",
                     crate::theme_slate_lapis::slate_lapis_paper_tokens,
                 ),
+            ),
+            pair(
+                "topbar.look.family.slate",
+                ("slate_night", crate::theme_slate::slate_night_tokens),
+                ("slate_paper", crate::theme_slate::slate_paper_tokens),
             ),
             pair(
                 "topbar.look.family.graphite",

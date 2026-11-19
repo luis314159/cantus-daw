@@ -48,8 +48,10 @@ leaves preview.
   colours as a stripe and a tint until a track is selected, Barlow Semi Condensed with
   figures that never shift. Every icon is drawn for each size it sits at; **316 track icons**
   in 17 families; a top bar in one row; the mixer and its inspector, the cables (four styles),
-  the piano roll's keyboard, the rack and the browser redrawn; logo #03. Slate Lapis,
-  Graphite and gold and Studio ink sit beside it, each dark and light, with the ten themes of
+  the piano roll's keyboard, the rack and the browser redrawn; logo #03. **Slate Lapis** —
+  Slate in a night-blue room, lapis on the selection and the logo's gold on the clock, the
+  playhead and the loop — is the default; Slate itself, Graphite and gold and Studio ink sit
+  beside it, each dark and light, with the ten themes of
   earlier versions redrawn in its system and four new ones — twenty-four, each measured easy
   to read. Delay has a window of its own. It costs no frames: the whole window draws no more
   than before, and nothing redraws at rest.
@@ -90,7 +92,7 @@ leaves preview.
 
 - **A look drawn by hand, FL Studio first** (ADR 0024). Every knob, fader, meter, slot and
   window frame is painted by Cantus's own vector kit, crisp at any zoom from 75 % to 200 %
-  and on 4K. Twenty-four themes, **Slate Night** by default (ADR 0111); the taskbar icon is the Cantus
+  and on 4K. Twenty-four themes, **Slate Lapis** by default (ADR 0111); the taskbar icon is the Cantus
   mark, in the colour you choose.
 - **An FL-style mixer with cables.** Drag from a strip's port to another strip (a send, the
   only output with Ctrl, a sidechain key with Alt), pre- or post-fader sends, a routing
@@ -1279,7 +1281,7 @@ its key. The help line names whatever is under the pointer, and what drives it. 
 interface's size follows the screen until you choose one. English and Spanish, and
 names in any script.
 
-| Slate Night (dark, the default) | Slate Paper (light) |
+| Slate Night (dark) | Slate Paper (light) |
 |---|---|
 | ![Workspace, Slate Night](docs/images/window-night-720.png) | ![Workspace, Slate Paper](docs/images/window-paper-720.png) |
 

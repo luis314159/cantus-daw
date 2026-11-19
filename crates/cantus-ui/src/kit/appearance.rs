@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 /// Which theme the interface shows.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum Mode {
-    /// The default: Slate Night (round 39, ADR 0111).
+    /// The default: Slate Lapis Night (ADR 0111, amended 2026-11-18).
     #[default]
     Dark,
     Light,
@@ -42,15 +42,16 @@ pub type BaseRef = String;
 pub type PresetEntry = (&'static str, fn() -> Theme);
 
 /// The shipped presets, by the id a [`BaseRef`] names them with, in the order the
-/// Appearance page lists them (round 39, ADR 0111): Slate, then Slate Lapis, then the two
-/// optional families; the themes of rounds 24–38, redrawn in round 39's design system and
+/// Appearance page lists them (round 39, ADR 0111): Slate Lapis, the default (amended
+/// 2026-11-18), then Slate, then the two optional families; the themes of rounds 24–38,
+/// redrawn in round 39's design system and
 /// under their old ids (`slate` is Pewter and `paper` is Chalk now, the FL-derived pair
 /// renamed); the themes new in round 39; the high-contrast pair.
 pub const PRESETS: [PresetEntry; 24] = [
-    ("slate_night", theme::slate_night),
-    ("slate_paper", theme::slate_paper),
     ("slate_lapis_night", theme::slate_lapis_night),
     ("slate_lapis_paper", theme::slate_lapis_paper),
+    ("slate_night", theme::slate_night),
+    ("slate_paper", theme::slate_paper),
     ("graphite_night", theme::graphite_night),
     ("graphite_paper", theme::graphite_paper),
     ("studio_ink_night", theme::studio_ink_night),
@@ -94,9 +95,49 @@ pub const CLASSIC: [PresetEntry; 10] = [
     ("parchment", theme::parchment),
 ];
 
-/// The preset a fresh install shows in each mode: Slate Night and Slate Paper.
-pub const DEFAULT_DARK: &str = "slate_night";
-pub const DEFAULT_LIGHT: &str = "slate_paper";
+/// The preset a fresh install shows in each mode: Slate Lapis Night and Slate Lapis Paper
+/// (ADR 0111, amended 2026-11-18; round 39's were Slate Night and Slate Paper).
+pub const DEFAULT_DARK: &str = "slate_lapis_night";
+pub const DEFAULT_LIGHT: &str = "slate_lapis_paper";
+
+/// The file format [`Appearance`] writes. Version 3 (2026-11-18) records, per mode, whether
+/// the user ever chose its theme ([`Slot::follows_default`]).
+pub const VERSION: u32 = 3;
+
+/// The presets each version of the file shipped as the defaults of its modes (dark, light):
+/// what an untouched mode of a file of that version names. Version 2 is round 39's file
+/// (beta.14–15, Slate); a version-2 file of the releases before round 39 names their
+/// default (Cantus Night) and was kept as a choice when round 39 changed the default, as it
+/// is now. The last row is today's.
+pub const DEFAULTS_BY_VERSION: [(u32, &str, &str); 2] = [
+    (2, "slate_night", "slate_paper"),
+    (VERSION, DEFAULT_DARK, DEFAULT_LIGHT),
+];
+
+/// The shipped default of `mode` in a file of `version`, as a base reference — `None` for a
+/// version no row of [`DEFAULTS_BY_VERSION`] names (one before round 39, or one a newer
+/// release wrote).
+fn default_base_of(version: u32, mode: Mode) -> Option<String> {
+    DEFAULTS_BY_VERSION
+        .iter()
+        .find(|(v, _, _)| *v == version)
+        .map(|(_, dark, light)| {
+            let id = if mode == Mode::Dark { dark } else { light };
+            format!("preset:{id}")
+        })
+}
+
+/// The preset `mode` shows until the user chooses another.
+pub fn default_base(mode: Mode) -> BaseRef {
+    format!(
+        "preset:{}",
+        if mode == Mode::Dark {
+            DEFAULT_DARK
+        } else {
+            DEFAULT_LIGHT
+        }
+    )
+}
 
 /// Whether `id` names a shipped preset.
 pub fn is_preset(id: &str) -> bool {
@@ -121,15 +162,20 @@ pub struct Slot {
     pub knobs: Option<ThemeKnobs>,
     /// Depth, roundness, density, text size; `None` keeps the base theme's.
     pub form: Option<super::tokens::Form>,
+    /// Whether the user never chose this mode's theme: its base is the shipped default, and
+    /// a release with another default shows that one instead (ADR 0111, amendment of
+    /// 2026-11-18; [`Appearance::from_json`]). Choosing a theme for the mode clears it.
+    pub follows_default: bool,
 }
 
 impl Default for Slot {
     fn default() -> Self {
-        Slot::preset(DEFAULT_DARK)
+        Slot::shipped(Mode::Dark)
     }
 }
 
 impl Slot {
+    /// A mode showing preset `id`, chosen.
     pub fn preset(id: &str) -> Slot {
         Slot {
             base: format!("preset:{id}"),
@@ -137,6 +183,16 @@ impl Slot {
             legacy: BTreeMap::new(),
             knobs: None,
             form: None,
+            follows_default: false,
+        }
+    }
+
+    /// A mode as a fresh install has it: the shipped default, never chosen.
+    pub fn shipped(mode: Mode) -> Slot {
+        Slot {
+            base: default_base(mode),
+            follows_default: true,
+            ..Slot::preset("")
         }
     }
 
@@ -184,10 +240,10 @@ pub struct Appearance {
 impl Default for Appearance {
     fn default() -> Self {
         Appearance {
-            version: 2,
+            version: VERSION,
             mode: Mode::default(),
-            dark: Slot::preset(DEFAULT_DARK),
-            light: Slot::preset(DEFAULT_LIGHT),
+            dark: Slot::shipped(Mode::Dark),
+            light: Slot::shipped(Mode::Light),
             logo: LogoChoice::default(),
             icon: IconColour::default(),
             themes: Vec::new(),
@@ -235,9 +291,9 @@ impl Appearance {
             }
         }
         if mode == Mode::Dark {
-            theme::slate_night()
+            theme::default_theme()
         } else {
-            theme::slate_paper()
+            theme::default_light_theme()
         }
     }
 
@@ -306,16 +362,21 @@ impl Appearance {
 
     /// Drop every change in `mode`: the base theme as shipped.
     pub fn reset_all(&mut self, mode: Mode) {
-        let base = self.slot(mode).base.clone();
+        let slot = self.slot(mode);
+        let (base, follows_default) = (slot.base.clone(), slot.follows_default);
         *self.slot_mut(mode) = Slot {
             base,
+            follows_default,
             ..Slot::preset("paper")
         };
     }
 
-    /// Give `mode` another base theme. The mode's own changes stay.
+    /// Give `mode` another base theme — the user's choice, kept whatever a later release
+    /// makes the default. The mode's own changes stay.
     pub fn assign(&mut self, mode: Mode, base: BaseRef) {
-        self.slot_mut(mode).base = base;
+        let slot = self.slot_mut(mode);
+        slot.base = base;
+        slot.follows_default = false;
     }
 
     /// Start comparing `mode`'s setting (A) with a copy of it (B), which is then shown and
@@ -372,17 +433,16 @@ impl Appearance {
         t
     }
 
-    /// Delete a user theme. A mode that was based on it falls back to its default preset.
+    /// Delete a user theme. A mode that was based on it falls back to its default preset,
+    /// and follows the default again.
     pub fn delete(&mut self, name: &str) {
         self.themes.retain(|t| t.name != name);
         let gone = format!("user:{name}");
         for mode in [Mode::Dark, Mode::Light] {
             if self.slot(mode).base == gone {
-                self.slot_mut(mode).base = if mode == Mode::Dark {
-                    format!("preset:{DEFAULT_DARK}")
-                } else {
-                    format!("preset:{DEFAULT_LIGHT}")
-                };
+                let slot = self.slot_mut(mode);
+                slot.base = default_base(mode);
+                slot.follows_default = true;
             }
         }
     }
@@ -404,13 +464,52 @@ impl Appearance {
 
     /// Read an appearance file — or a `theme.json` from before modes existed, which
     /// becomes a user theme assigned to the mode it was made for (and that mode shown).
+    ///
+    /// **What counts as a choice** (ADR 0111, amendment of 2026-11-18). The file keeps each
+    /// mode's theme by value, and it is written whenever anything on the look changes (the
+    /// mode, the icon, the faders' cap…), so naming the default is not choosing it. A mode
+    /// *never chose* its theme when it is untouched (no colour, knob or form of the user's
+    /// on top) and names the default of the release that wrote the file, and — from
+    /// version 3, which records it — no theme was ever picked for it. Such a mode shows
+    /// today's default. Anything else is the user's choice, kept as it is: another preset,
+    /// one of their own themes, a theme with their changes on top, a base edited by hand,
+    /// and, from version 3, the default itself picked on the Appearance page. A version-2
+    /// file (beta.14–15) cannot tell an untouched Slate from Slate picked again, so its
+    /// untouched Slate Night and Slate Paper count as never chosen.
     pub fn from_json(text: &str) -> Result<Appearance, String> {
         let v: serde_json::Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
+        if let Some(version) = v.get("version").and_then(|x| x.as_u64()) {
+            let mut a: Appearance = serde_json::from_value(v).map_err(|e| e.to_string())?;
+            a.settle(version as u32);
+            return Ok(a);
+        }
         if v.get("version").is_some() {
             return serde_json::from_value(v).map_err(|e| e.to_string());
         }
         let t: Theme = serde_json::from_value(v).map_err(|e| e.to_string())?;
         Ok(Appearance::from_legacy(t))
+    }
+
+    /// Bring a file of `version` to today's: each mode that never chose its theme (see
+    /// [`Appearance::from_json`]) shows today's default; every other mode is a choice.
+    fn settle(&mut self, version: u32) {
+        for mode in [Mode::Dark, Mode::Light] {
+            let then = default_base_of(version, mode);
+            let slot = self.slot_mut(mode);
+            // Version 2 has no record of a choice; from version 3 the file says.
+            let unpicked = version < 3 || slot.follows_default;
+            let never_chose =
+                unpicked && slot.is_pristine() && then.is_some_and(|b| b == slot.base);
+            if never_chose {
+                slot.base = default_base(mode);
+            }
+            if version < 3 {
+                slot.follows_default = never_chose;
+            }
+        }
+        if version <= VERSION {
+            self.version = VERSION;
+        }
     }
 
     /// An appearance around an old theme file.
@@ -594,10 +693,10 @@ mod tests {
             mode: Mode::System,
             ..Default::default()
         };
-        assert_eq!(a.resolve(true).name, "Slate Night");
-        assert_eq!(a.resolve(false).name, "Slate Paper");
+        assert_eq!(a.resolve(true).name, "Slate Lapis Night");
+        assert_eq!(a.resolve(false).name, "Slate Lapis Paper");
         a.mode = Mode::Dark;
-        assert_eq!(a.resolve(false).name, "Slate Night");
+        assert_eq!(a.resolve(false).name, "Slate Lapis Night");
         // Any preset may serve either mode.
         a.assign(Mode::Light, "preset:graphite_night".into());
         assert_eq!(a.resolve_mode(Mode::Light).name, "Graphite Night");
@@ -638,7 +737,7 @@ mod tests {
         });
         a.reset_all(Mode::Dark);
         assert!(a.dark.is_pristine());
-        assert_eq!(a.dark.base, "preset:slate_night");
+        assert_eq!(a.dark.base, "preset:slate_lapis_night");
     }
 
     #[test]
@@ -676,7 +775,7 @@ mod tests {
         assert!(a.themes.iter().any(|t| t.name == "My paper"));
         a.delete("Warm slate");
         assert_eq!(
-            a.dark.base, "preset:slate_night",
+            a.dark.base, "preset:slate_lapis_night",
             "a mode loses a deleted base gracefully"
         );
     }
@@ -763,11 +862,11 @@ mod tests {
     }
 
     #[test]
-    fn a_fresh_install_shows_slate_and_an_old_choice_shows_its_theme() {
+    fn a_fresh_install_shows_slate_lapis_and_an_old_choice_shows_its_theme() {
         let a = Appearance::default();
         assert_eq!(a.mode, Mode::Dark);
-        assert_eq!(a.dark.base, "preset:slate_night");
-        assert_eq!(a.light.base, "preset:slate_paper");
+        assert_eq!(a.dark.base, "preset:slate_lapis_night");
+        assert_eq!(a.light.base, "preset:slate_lapis_paper");
         // A file a user saved before round 39 names a theme of rounds 24–38 (here round 24's
         // FL-derived Slate and Paper): it shows that theme, redrawn — Pewter and Chalk.
         let mut old = serde_json::to_value(Appearance::default()).unwrap();
@@ -949,5 +1048,154 @@ mod tests {
         let old = serde_json::to_string(&theme::paper()).unwrap();
         let a = Appearance::from_json(&old).unwrap();
         assert_eq!(a, Appearance::default());
+    }
+
+    /// A file as beta.14–15 wrote it (version 2, no record of a choice), its modes naming
+    /// `dark` and `light`, with `edit` applied to its value.
+    fn version_2(dark: Slot, light: Slot, edit: impl FnOnce(&mut serde_json::Value)) -> String {
+        let mut v = serde_json::to_value(Appearance {
+            dark,
+            light,
+            ..Default::default()
+        })
+        .unwrap();
+        let o = v.as_object_mut().unwrap();
+        o.insert("version".into(), 2.into());
+        for mode in ["dark", "light"] {
+            o.get_mut(mode)
+                .and_then(|s| s.as_object_mut())
+                .unwrap()
+                .remove("follows_default");
+        }
+        edit(&mut v);
+        v.to_string()
+    }
+
+    #[test]
+    fn a_mode_that_never_chose_its_theme_shows_today_s_default_and_a_choice_stays() {
+        // ADR 0111, amendment of 2026-11-18: Slate Lapis is the default. The file keeps a
+        // mode's theme by value and is written whenever anything on the look changes, so
+        // naming the default is no choice.
+        let fresh = Appearance::default();
+        assert_eq!(fresh.version, VERSION);
+        assert_eq!(VERSION, 3);
+        assert!(fresh.dark.follows_default && fresh.light.follows_default);
+        assert_eq!(fresh.resolve_mode(Mode::Dark), theme::default_theme());
+        assert_eq!(
+            fresh.resolve_mode(Mode::Light),
+            theme::default_light_theme()
+        );
+        assert_eq!(
+            DEFAULTS_BY_VERSION.last(),
+            Some(&(VERSION, DEFAULT_DARK, DEFAULT_LIGHT))
+        );
+
+        // beta.14–15: untouched Slate, though the user changed the mode and the icon — the
+        // file was written, no theme was chosen. Both modes show Slate Lapis now, and the
+        // rest of the file is kept.
+        let old = version_2(
+            Slot::preset("slate_night"),
+            Slot::preset("slate_paper"),
+            |v| {
+                v["mode"] = "System".into();
+                v["icon"] = serde_json::to_value(IconColour::Original).unwrap();
+            },
+        );
+        let a = Appearance::from_json(&old).unwrap();
+        assert_eq!(a.dark.base, "preset:slate_lapis_night");
+        assert_eq!(a.light.base, "preset:slate_lapis_paper");
+        assert!(a.dark.follows_default && a.light.follows_default);
+        assert_eq!((a.mode, a.icon), (Mode::System, IconColour::Original));
+        assert_eq!(a.version, VERSION, "it is written back as today's file");
+        assert_eq!(a.resolve(true).name, "Slate Lapis Night");
+        assert_eq!(a.resolve(false).name, "Slate Lapis Paper");
+
+        // beta.14–15: another theme chosen for one mode — kept; the other mode, untouched,
+        // follows the default.
+        let old = version_2(
+            Slot::preset("graphite_night"),
+            Slot::preset("slate_paper"),
+            |_| {},
+        );
+        let a = Appearance::from_json(&old).unwrap();
+        assert_eq!(a.dark.base, "preset:graphite_night");
+        assert!(!a.dark.follows_default);
+        assert_eq!(a.light.base, "preset:slate_lapis_paper");
+
+        // beta.14–15: Slate Night with the user's own colours, knobs or form on top: the
+        // look was made on Slate, and stays on it.
+        let mut recoloured = Slot::preset("slate_night");
+        recoloured
+            .overrides
+            .insert(Tok::Cap.key().to_string(), "#010203".into());
+        let mut knobbed = Slot::preset("slate_paper");
+        knobbed.knobs = Some(ThemeKnobs {
+            hue: 30.0,
+            ..Default::default()
+        });
+        let a = Appearance::from_json(&version_2(recoloured, knobbed, |_| {})).unwrap();
+        assert_eq!(a.dark.base, "preset:slate_night");
+        assert_eq!(a.light.base, "preset:slate_paper");
+        assert!(!a.dark.follows_default && !a.light.follows_default);
+        assert_eq!(
+            a.resolve_mode(Mode::Dark).kit_tokens().cap,
+            Color32::from_rgb(1, 2, 3)
+        );
+
+        // A version-2 file of the releases before round 39 names their default, Cantus
+        // Night: round 39 kept it as a choice, and so does this change.
+        let old = version_2(
+            Slot::preset("cantus_night"),
+            Slot::preset("cantus_paper"),
+            |_| {},
+        );
+        let a = Appearance::from_json(&old).unwrap();
+        assert_eq!(a.dark.base, "preset:cantus_night");
+        assert_eq!(a.light.base, "preset:cantus_paper");
+
+        // From version 3 the file records a choice. Slate Night picked on the Appearance
+        // page stays Slate Night; so does the default itself, picked — a later default
+        // will not move it.
+        let mut a = Appearance::default();
+        a.assign(Mode::Dark, "preset:slate_night".into());
+        a.assign(Mode::Light, "preset:slate_lapis_paper".into());
+        assert!(!a.dark.follows_default && !a.light.follows_default);
+        let back = Appearance::from_json(&a.to_json()).unwrap();
+        assert_eq!(back, a);
+        assert_eq!(back.resolve_mode(Mode::Dark).name, "Slate Night");
+        // An untouched install's file, written for the mode, reads back as it was.
+        let a = Appearance {
+            mode: Mode::Light,
+            ..Default::default()
+        };
+        assert!(a.to_json().contains("\"follows_default\": true"));
+        assert_eq!(Appearance::from_json(&a.to_json()).unwrap(), a);
+        // A base edited by hand is the user's choice, whatever the record says.
+        let hand = a
+            .to_json()
+            .replacen("preset:slate_lapis_night", "preset:slate_night", 1);
+        let back = Appearance::from_json(&hand).unwrap();
+        assert_eq!(back.dark.base, "preset:slate_night");
+        assert_eq!(back.resolve_mode(Mode::Dark).name, "Slate Night");
+        // Deleting the theme of one's own a mode was based on gives it back to the default.
+        let mut a = Appearance::default();
+        a.themes.push(Theme {
+            name: "Mine".into(),
+            ..theme::graphite_night()
+        });
+        a.assign(Mode::Dark, "user:Mine".into());
+        assert!(!a.dark.follows_default);
+        a.delete("Mine");
+        assert_eq!(a.dark, Slot::shipped(Mode::Dark));
+        // Resetting a mode keeps whether it chose.
+        let mut a = Appearance::default();
+        a.assign(Mode::Dark, "preset:slate_night".into());
+        a.set_token(Mode::Dark, Tok::Cap, Color32::from_rgb(1, 2, 3));
+        a.reset_all(Mode::Dark);
+        assert_eq!(a.dark, Slot::preset("slate_night"));
+        let mut a = Appearance::default();
+        a.set_token(Mode::Light, Tok::Cap, Color32::from_rgb(1, 2, 3));
+        a.reset_all(Mode::Light);
+        assert_eq!(a.light, Slot::shipped(Mode::Light));
     }
 }

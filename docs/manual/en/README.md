@@ -236,15 +236,17 @@ glyph is lit); `Shift+F10` opens what a right-click on the selection opens; `Esc
 opened last. Every area that holds more than it shows scrolls. Save the arrangement of the
 window under *View ▸ Layout ▸ Save layout…*; the layout is kept between sessions.
 
-**The look.** Cantus is drawn in **Slate**: a calm grey-blue room where panels are set apart
-by value rather than by lines, one azure accent means *on* or *selected* and nothing else,
-and your track colours are a stripe and a tint until you select a track — then it lights
-across the window (its header, clips, strip and the inspector). The type is Barlow Semi
-Condensed, whose figures keep their width as they count; keys and fields are flat wells
-with a dark edge and a light lip; in silence nothing reads "−∞". *Settings ▸ Appearance*
-(`Ctrl+,`) holds every theme as a picture, in four groups: round 39's **families** —
-**Slate** (the default), **Slate Lapis** (a night-blue room, the selection in lapis, and the logo's gold on
-the clock, the rulers' numbers, the playhead and the loop), **Graphite and gold** and **Studio ink**; the themes of
+**The look.** Cantus is drawn in **Slate Lapis** by default: Slate's calm room, where panels
+are set apart by value rather than by lines, in a deep night blue; one lapis accent means *on*
+or *selected* and nothing else, and the logo's gold marks the clock, the rulers' numbers, the
+playhead and the loop. Your track colours are a stripe and a tint until you select a track —
+then it lights across the window (its header, clips, strip and the inspector). The type is
+Barlow Semi Condensed, whose figures keep their width as they count; keys and fields are flat
+wells with a dark edge and a light lip; in silence nothing reads "−∞". *Settings ▸
+Appearance* (`Ctrl+,`) holds every theme as a picture, in four groups: round 39's
+**families** — **Slate Lapis** (the default, first, Night and Paper), **Slate** (the same
+system in grey-blue with an azure accent, the default of 0.1.0-beta.14 and beta.15),
+**Graphite and gold** and **Studio ink**; the themes of
 earlier versions, **redrawn** in the new look — **Cantus Night · Paper** (espresso and the
 logo's copper, verdigris on the selection), **Blue Hour · Daylight** (deep navy, and white
 with blue), **Pewter · Chalk** (slate grey with orange and lime, and its chalk twin: the
@@ -256,8 +258,11 @@ sets a family in both lights; a theme made in one light (Ultraviolet, Lagoon, Bo
 Print) also switches the window to that mode. Then the mode (**Night**, **Paper**, or follow
 the system), the cable style, the taskbar icon's colours, and the recolouring (hue,
 saturation, brightness, contrast, every colour role, or click an element to recolour it). A
-setting saved by an earlier version opens in the theme it names, with your own colour
-changes kept; themes you made yourself are untouched. In the high-contrast themes and your
+theme you chose is kept: a setting saved by an earlier version opens in the theme it names,
+with your own colour changes kept, and themes you made yourself are untouched. If you never
+chose one — Slate untouched in a setting of beta.14 or beta.15 — Cantus opens in today's
+default, Slate Lapis; one click on Slate's picture brings Slate back, and it stays. In the
+high-contrast themes and your
 own older ones the faders still offer two caps (*Faders*: **Classic** and **Metal**); every
 other theme draws one cap, lit from above.
 

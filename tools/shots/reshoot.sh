@@ -14,7 +14,10 @@
 #
 # The shots go to $CANTUS_SHOTS (default target/shots/reshoot), one folder per example; the
 # pictures are written in place, in the repository. Every example runs headless, on the CPU,
-# in the default look (Slate Night; Slate Paper for the light pictures).
+# in the default look where an example takes the app's own (shoot_site, shoot_rec, shoot_views'
+# `night`: Slate Lapis Night and Paper since 2026-11-18, ADR 0111 §11) and in Slate Night and
+# Slate Paper where it names them (shoot_readme, shoot_skins and most others). The pictures in
+# the repository were shot before 2026-11-18, in Slate.
 #
 # Builds go through $CANTUS_SLOT when it is set (round 39: CANTUS_SLOT=/f/projects/daw-r39/slot.sh).
 # Needs Python with Pillow; oxipng is used when installed.

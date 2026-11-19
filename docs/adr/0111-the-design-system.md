@@ -1,7 +1,7 @@
 # ADR 0111 — The design system: Slate by default, the families beside it
 
 **Status:** Accepted (round 39; drafted by builder *kit*, completed at the close-out from the
-owner's approvals and the builds) · **Date:** 2026-11-09, completed 2026-11-10 · **Round:** 39 · **Extends:** ADR 0024 (the kit), ADR 0046
+owner's approvals and the builds) · **Date:** 2026-11-09, completed 2026-11-10, amended 2026-11-12 (§10) and 2026-11-18 (§11: Slate Lapis the default) · **Round:** 39 · **Extends:** ADR 0024 (the kit), ADR 0046
 (the theme family), ADR 0103 (materials) · **Supersedes:** ADR 0046 §1–2 (the default and the
 shipped list) · **Schema:** none (the project model is untouched; a theme file gains an
 optional `system` with a serde default) · **Measured by:** ADR 0108
@@ -524,6 +524,49 @@ it: Slate's accent stays as it is (the Lapis direction ships as a theme of its o
   back by a setting (*Top bar extras*), drawn as the bar's other keys (a well, the state as a tint
   inside: the automation's violet, the accent). The default bar is round 39's.
 
+### 11. Amendment, 2026-11-18: Slate Lapis is the default
+
+The owner, 2026-11-18: *"Make Slate Lapis the default theme."* Slate Night, his choice of
+2026-11-09 and round 39's default, is still offered, one click away; nothing in either theme
+changes.
+
+- **The default.** `theme::default_theme()` is **Slate Lapis Night** — a fresh install, the
+  fallback whenever a theme or appearance file cannot be read, the splash's own look, the
+  kit's tokens before any theme is applied, and our effects' plug-in editors.
+  `theme::default_light_theme()` is its twin, **Slate Lapis Paper**: the light mode of a fresh
+  install, and what *follow the system* shows on a light system (`kit::appearance::DEFAULT_DARK`
+  / `DEFAULT_LIGHT`). A mode whose user theme is deleted falls back to them.
+- **The Appearance page.** Slate Lapis's tile comes first and is the one labelled the default
+  (*Slate Lapis, the default* / *Pizarra lapislázuli, el predeterminado*); Slate's follows it,
+  named plainly. `theme::PRESETS` and `kit::appearance::PRESETS` list Slate Lapis Night and
+  Paper first, then Slate Night and Paper.
+- **What counts as a choice.** `appearance.json` keeps each mode's theme by value, and it is
+  written whenever anything on the look changes (the mode, the taskbar icon, the faders' cap,
+  a recolour) — so a file that names the default is not proof that anyone chose it. The file
+  goes to **version 3**, which records per mode whether a theme was ever picked for it
+  (`Slot::follows_default`: true on a fresh install, cleared by `Appearance::assign` — every
+  tile, base menu and *Use for Night/Paper* on the page goes through it —, set again when the
+  user theme a mode was based on is deleted). On reading (`Appearance::from_json`, also the
+  file watcher), a mode **never chose** its theme when it is **untouched** (no recolour, knob
+  or form on top), **names the default of the release that wrote the file**
+  (`DEFAULTS_BY_VERSION`: version 2 — beta.14–15 — Slate Night / Slate Paper; version 3 — Slate
+  Lapis), and, in a version-3 file, **no theme was ever picked for it**. Such a mode shows
+  today's default; everything else is the user's choice and is kept: another preset, a theme
+  of their own, a theme with their changes on top, a base edited by hand, and — from version
+  3 — Slate Night or the default itself picked on the page (a later change of the default
+  will not move them). The one case no file can tell apart: a version-2 file whose untouched
+  Slate Night was picked again after trying another theme reads as never chosen and opens in
+  Slate Lapis; one click on Slate's tile brings it back, and from then on it stays. A
+  version-2 file of the releases before round 39 names Cantus Night, their default; round 39
+  kept that as a choice and so does this amendment. The file is not rewritten when it is
+  read: it is written, as version 3, the next time the look changes.
+- **What did not change.** Both themes' tokens, the 24-theme legibility (text 4.5:1, non-text
+  3:1), the window goldens (`tests/slate_window_golden.rs` names Slate Night and Paper
+  explicitly) and the kit's gallery. The README's and the website's pictures were shot in Slate
+  before this change and are not reshot (`shoot_readme` and most examples name Slate Night and
+  Paper; `shoot_site`, `shoot_rec` and `shoot_views` take the default, so a reshoot draws them
+  in Slate Lapis); their captions no longer call Slate the default.
+
 ## Consequences
 
 - Every view inherits the family's colours, face, keys and wells from the kit; views that
@@ -535,10 +578,14 @@ it: Slate's accent stays as it is (the Lapis direction ships as a theme of its o
 
 ## What the tests hold
 
-- `theme::tests` — the default is Slate Night with the design's values; every shipped
+- `theme::tests` — the default is Slate Lapis Night with the design's values, its light twin
+  Slate Lapis Paper, both first in the list (§11; round 39 held Slate Night); every shipped
   theme meets the kit's promises and round 25's floor; high contrast at 7:1.
 - `kit::appearance::tests::every_old_preset_id_names_its_own_theme_again_keeping_the_slot_s_changes`
   (the retirement reversed; an old `theme.json` that is exactly an old preset opens in it).
+- `kit::appearance::tests::a_mode_that_never_chose_its_theme_shows_today_s_default_and_a_choice_stays`
+  (§11: version-2 files' untouched Slate opens in Slate Lapis, every other value is kept;
+  version 3 records a choice, Slate Night picked stays; a hand-edited base is a choice).
 - `tests/themes39.rs` — every redrawn and new theme keeps every promise as written and
   resolves to its tokens; is of round 39's system (recessed, a round-39 face, flat); stands on
   Slate's ladder in its light; the restored keep their light and id, the FL pair is renamed,
@@ -556,14 +603,16 @@ it: Slate's accent stays as it is (the Lapis direction ships as a theme of its o
 - `kit::system::tests`, `kit::faces::tests` (every role names a family; the new faces'
   figures are tabular, read from the files).
 - `tests/slate_e2e.rs` — a fresh install boots through `CantusApp::assemble` in Slate
-  (tokens, keys, face), a beta.13 setting naming Cantus Night and Daylight opens in them
-  (redrawn), every theme switches through `apply_appearance` and back to Slate exactly.
+  Lapis Night (Slate's keys and face; §11), a beta.13 setting naming Cantus Night and Daylight opens in them
+  (redrawn), every theme switches through `apply_appearance` and back to the default exactly.
 - `tests/slate_budget.rs` — ADR 0108's budget.
 - `kit::icons::tests` — every family glyph drawn at every size, its inks all named, inked.
-- `tests/slate_lapis_e2e.rs` — Slate Lapis chosen in Settings ▸ Appearance through
-  `assemble`: its night-blue room, accent, tint and gold installed, the chosen page's row
-  laid with the lapis, the playhead and the ruler's numbers painted in the gold, kept across
-  a restart; Slate's own tokens leave all three clear.
+- `tests/slate_lapis_e2e.rs` — Slate Lapis, the default (§11), through `assemble` on a fresh
+  data folder: its night-blue room, accent, tint and gold installed, its tile first on
+  Settings ▸ Appearance, the chosen page's row laid with the lapis, the playhead and the
+  ruler's numbers painted in the gold; Slate chosen on its tile installs Slate's tokens (all
+  three clear) and is kept across a restart; a beta.14–15 file of untouched Slate opens in
+  Slate Lapis and is not rewritten.
 - `theme_slate_lapis::tests` — only the room, the accent's tones, the tint and the metal
   differ from Slate; the room is Slate's at the same luminance turned to lapis (text
   contrast within 5 %); the readouts are gold at 4.5:1 on the bar, its wells and the panel.

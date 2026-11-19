@@ -1,4 +1,5 @@
-//! **Slate** (round 39, ADR 0111) — the default theme family, from `dir-a`'s system
+//! **Slate** (round 39, ADR 0111) — round 39's default theme family (Slate Lapis, its
+//! lapis variant, is the default since 2026-11-18), from `dir-a`'s system
 //! (`docs/round39/design/dir-a/`): a cool, quiet grey-blue room. Panels are separated by
 //! value, never by borders — a dark gutter between panels, a lighter bar for headers and
 //! strips, a darker body for lanes. Keys are recessed wells a shade darker than their bar.
@@ -34,7 +35,7 @@ fn family(name: &str, t: Tokens, accent: Color32, accent_bright: Color32) -> The
     theme
 }
 
-/// Slate Night — the default (round 39). Its tokens, as designed.
+/// Slate Night — round 39's default. Its tokens, as designed.
 pub const fn slate_night_tokens() -> Tokens {
     Tokens {
         ink: hex(0x14191e),
@@ -140,7 +141,7 @@ pub const fn slate_night_tokens() -> Tokens {
     }
 }
 
-/// Slate Night — the default (round 39).
+/// Slate Night — round 39's default.
 pub fn slate_night() -> Theme {
     family(
         "Slate Night",
