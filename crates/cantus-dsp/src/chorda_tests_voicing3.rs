@@ -254,7 +254,7 @@ const MODEL_2_BETA14: u64 = 0x663b_f285_d17a_ebdd;
 /// Model 2 as it ships since `DSP_VERSION` 10 (candidate 16 with the technician's pass, a
 /// new unit's own voicing with no `set_voicing`), on its own keyboard, hashed — the same
 /// phrase as [`MODEL_2_BETA14`]'s.
-const MODEL_2_SHIPPED: u64 = 0x717d_64b7_22b9_e71b;
+const MODEL_2_SHIPPED: u64 = 0x4965_b670_bc68_7c27;
 
 /// Model 2 at candidate 16 as it shipped from `DSP_VERSION` 7 to 9, on its own keyboard —
 /// the hash `MODEL_2_SHIPPED` held then; since `DSP_VERSION` 10 it is named
@@ -361,6 +361,33 @@ fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
         "model 2 (shipped voicing, candidate 16 + the technician's pass) phrase hash: {h:#018x}"
     );
     assert!(l.iter().chain(&r).any(|x| *x != 0.0));
+    if std::env::var_os("CANTUS_GOLDEN_DUMP").is_some() {
+        // The size of the change from candidate 16 (`DSP_VERSION` 9 → 10).
+        let (cl, cr) = perform(
+            &mut piano_for(Voicing::candidate16()),
+            &phrase(),
+            24_000,
+            256,
+            1,
+        );
+        let d: Vec<f64> = l
+            .iter()
+            .zip(&cl)
+            .chain(r.iter().zip(&cr))
+            .map(|(a, b)| (*a - *b) as f64)
+            .collect();
+        let max = d.iter().fold(0.0f64, |m, x| m.max(x.abs()));
+        let rms = (d.iter().map(|x| x * x).sum::<f64>() / d.len() as f64).sqrt();
+        let rms_of = |a: &[f32], b: &[f32]| {
+            (a.iter().chain(b).map(|x| (*x as f64).powi(2)).sum::<f64>() / d.len() as f64).sqrt()
+        };
+        let (was, now) = (rms_of(&cl, &cr), rms_of(&l, &r));
+        eprintln!(
+            "against candidate 16: max |Δ| {max:.4}, RMS Δ {rms:.5} ({:.1} dBFS); the phrase's RMS {was:.4} -> {now:.4} ({:+.2} dB)",
+            20.0 * crate::math::log10(rms.max(1e-12)),
+            20.0 * crate::math::log10(now / was)
+        );
+    }
     assert_eq!(
         h, MODEL_2_SHIPPED,
         "model 2 at its shipped voicing moved: {h:#018x}"

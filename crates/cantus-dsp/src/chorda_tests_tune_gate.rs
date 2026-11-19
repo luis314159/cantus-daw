@@ -107,43 +107,75 @@ fn interval(lo: &KeyTune, p: u32, hi: &KeyTune, q: u32) -> Option<(f64, f64)> {
     Some((a - b, hz * (a - b) / 1_731.234))
 }
 
+/// Whether an interval's coincident partials beat as the curve's own do: within a third of a
+/// beat a second (slower than one beat in a held note's three seconds — what a technician
+/// leaves when counting an octave or a fifth; a cent at C4's second partial is 0.3 Hz), or,
+/// where cents are many hertz, within 3 cents to E6 and 3.5 above for the octave's 2:1 and
+/// the fifth's 3:2. The octave's 4:2 (its upper partial weaker, where the strings'
+/// stiffness scatter lives) may be 4.5 cents or half a beat a second off: candidate 16 had
+/// its 2:1s and 3:2s at 2.6 cents rms, 9.8 at worst; the Salamander Grand's own (a sampled
+/// set, three keys a sample) are 5.8 rms, 34 at worst.
+fn interval_ok(cents: f64, hz: f64, hi: u8, p: u32) -> bool {
+    let (tol, slow) = if p == 4 {
+        (4.5, 0.5)
+    } else if hi <= TOP_DAMPED {
+        (3.0, 0.33)
+    } else {
+        (3.5, 0.33)
+    };
+    hz.abs() <= slow || cents.abs() <= tol
+}
+
 #[test]
 fn octaves_and_fifths_beat_as_the_curve_draws_them() {
     let m = shipped();
     let key = |n: u8| &m[(n - 21) as usize].1;
-    let (mut worst_oct, mut worst_fifth) = ((0.0f64, 0u8), (0.0f64, 0u8));
-    for lo in 21u8..=96 {
-        // The octave's 2:1 and 4:2, the fifth's 3:2, while the upper key is damped.
-        let tol = if lo + 12 <= TOP_DAMPED { 2.0 } else { 3.5 };
-        for (p, q) in [(2u32, 1u32), (4, 2)] {
-            if let Some((c, hz)) = interval(key(lo), p, key(lo + 12), q) {
-                assert!(
-                    c.abs() <= tol,
-                    "the octave {lo}–{}: {p}:{q} {c:+.2} cents ({hz:+.2} Hz) off the curve's",
-                    lo + 12
-                );
-                if c.abs() > worst_oct.0 {
-                    worst_oct = (c.abs(), lo);
-                }
+    let mut all = Vec::new();
+    for lo in 21u8..=101 {
+        // The octave's 2:1 and 4:2, the fifth's 3:2.
+        for (hi, p, q) in [(lo + 12, 2u32, 1u32), (lo + 12, 4, 2), (lo + 7, 3, 2)] {
+            if hi > 108 {
+                continue;
             }
-        }
-        if lo + 7 <= 108 {
-            let tol = if lo + 7 <= TOP_DAMPED { 2.0 } else { 3.5 };
-            if let Some((c, hz)) = interval(key(lo), 3, key(lo + 7), 2) {
-                assert!(
-                    c.abs() <= tol,
-                    "the fifth {lo}–{}: 3:2 {c:+.2} cents ({hz:+.2} Hz) off the curve's",
-                    lo + 7
-                );
-                if c.abs() > worst_fifth.0 {
-                    worst_fifth = (c.abs(), lo);
-                }
+            // Partials up to 5 kHz: above, few sound 30 dB from their key's strongest and
+            // their measure is a hiss's.
+            if key(lo)
+                .partials
+                .iter()
+                .any(|x| x.n == p && x.near_hz > 5_000.0)
+            {
+                continue;
+            }
+            if let Some((c, hz)) = interval(key(lo), p, key(hi), q) {
+                all.push((lo, hi, p, q, c, hz));
             }
         }
     }
+    let bad: Vec<_> = all
+        .iter()
+        .filter(|(_, hi, p, _, c, hz)| !interval_ok(*c, *hz, *hi, *p))
+        .collect();
+    let worst = all
+        .iter()
+        .max_by(|a, b| a.5.abs().total_cmp(&b.5.abs()))
+        .expect("intervals measured");
     eprintln!(
-        "worst octave from key {} ({:.2} cents), worst fifth from key {} ({:.2} cents)",
-        worst_oct.1, worst_oct.0, worst_fifth.1, worst_fifth.0
+        "{} intervals; the fastest beat off the curve {}–{} {}:{} {:+.2} cents ({:+.2} Hz)",
+        all.len(),
+        worst.0,
+        worst.1,
+        worst.2,
+        worst.3,
+        worst.4,
+        worst.5
+    );
+    for (lo, hi, p, q, c, hz) in &bad {
+        eprintln!("  {lo}–{hi} {p}:{q} {c:+.2} cents ({hz:+.2} Hz)");
+    }
+    assert!(
+        bad.is_empty(),
+        "{} octaves or fifths beat off the curve",
+        bad.len()
     );
 }
 

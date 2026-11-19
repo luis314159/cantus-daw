@@ -6,6 +6,9 @@
 //! `<web>/assets/units/sounds/` and their list into `<web>/src/units_sounds.rs`.
 //!
 //! `cargo run --release -p cantus-ui --example render_unit_sounds -- web`
+//!
+//! `-- web chorda` (any card names after the folder) renders those cards' excerpts alone and
+//! leaves the list and the dry sources as they are (a unit re-voiced: its card's files only).
 
 use cantus_core::{EffectKind, Snapshot, Ticks};
 use cantus_engine::{render, RenderOptions};
@@ -417,6 +420,8 @@ fn tympanum(card: &str, dir: &Path, code: &mut String) -> u64 {
 
 fn main() {
     let web = PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "web".into()));
+    // Cards named after the folder: those alone, the list and the sources untouched.
+    let only: Vec<String> = std::env::args().skip(2).collect();
     let dir = web.join("assets/units/sounds");
     std::fs::create_dir_all(&dir).expect("the folder");
     cantus_ui::i18n::set_thread_locale(Locale::En);
@@ -441,6 +446,9 @@ fn main() {
         let all = entries(u, false);
         let n = if u.is_instrument() { 4 } else { 3 };
         let c = card(u);
+        if !only.is_empty() && !only.contains(&c) {
+            continue;
+        }
         let _ = writeln!(code, "    ({}, &[", lit(&c));
         // fix/final-d — Tympanum has no preset list: its card plays its modelled kits.
         if matches!(
@@ -477,6 +485,15 @@ fn main() {
             );
         }
         code.push_str("    ]),\n");
+    }
+    if !only.is_empty() {
+        println!(
+            "{} KB of excerpts for {:?} in {}",
+            total / 1024,
+            only,
+            dir.display()
+        );
+        return;
     }
     code.push_str("];\n\n/// The dry sources the effects are heard on, by role (`source-<role>.mp3`).\npub const SOURCES: &[(&str, (&str, &str))] = &[\n");
     for role in [Role::Drums, Role::Vocal, Role::Creative] {

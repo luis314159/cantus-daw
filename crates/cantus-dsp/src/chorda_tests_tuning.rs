@@ -455,8 +455,15 @@ fn tuning_draws() {
             .iter()
             .find(|p| p.n == 1)
             .map_or(f64::NAN, |p| p.cents);
+        // How straight the ladder is: partials 1–6 below 5 kHz about the key's pitch.
+        let ladder = r[1]
+            .partials
+            .iter()
+            .filter(|p| p.n <= 6 && p.near_hz < 5_000.0)
+            .map(|p| (p.cents - r[1].pitch).abs())
+            .fold(0.0f64, f64::max);
         eprintln!(
-            "key {m} draw {d:2}: beat {:4.1} {:4.1} {:4.1} (med {:4.1}) pitch {:+5.1} p1 {:+5.1}",
+            "key {m} draw {d:2}: beat {:4.1} {:4.1} {:4.1} (med {:4.1}) pitch {:+5.1} p1 {:+5.1} ladder {ladder:4.1}",
             r[0].beat_worst, r[1].beat_worst, r[2].beat_worst, r[1].beat, r[1].pitch, p1
         );
     }
