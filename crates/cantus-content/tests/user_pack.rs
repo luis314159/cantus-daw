@@ -283,6 +283,52 @@ fn a_users_drumgizmo_kit_is_built_for_tympanum_every_mic_its_own_files() {
     );
 }
 
+/// A Cantus starting while another installs (a second window; beta.15's Linux job, where
+/// every test's app shares one data folder): its start-up clean leaves the live install's
+/// staging alone, and the install finishes whole — every mic's files there.
+#[test]
+fn a_start_up_clean_during_an_install_leaves_the_live_install_alone() {
+    use cantus_content::install::Phase;
+    let dir = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let xml = drskit_with_hits(&dir.path().join("DRSKit"));
+    let mut swept = None;
+    let r = user_pack::install_user_job(
+        root.path(),
+        &xml,
+        Plays::Tympanum,
+        &|_| None,
+        &std::sync::atomic::AtomicBool::new(false),
+        &mut |ph| {
+            if swept.is_none() && matches!(ph, Phase::Building { done, .. } if done > 0) {
+                swept = Some(user_pack::clean_orphans(root.path()));
+            }
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        swept,
+        Some(0),
+        "the clean ran mid-build and removed nothing"
+    );
+    let pack = root.path().join(&r.id);
+    for mic in ["Snare_bottom", "Snare_top", "Kdrum_back", "OH", "Amb"] {
+        assert!(
+            pack.join("Mics").join(mic).join("Snare/01.wav").exists(),
+            "{mic}"
+        );
+    }
+    assert_eq!(
+        leftovers(root.path()),
+        std::slice::from_ref(&r.id),
+        "no staging, no lock"
+    );
+    // Once nobody installs, a staging folder left behind is cleaned (and its lock).
+    std::fs::create_dir_all(root.path().join(".user-staging-user-z-7/a")).unwrap();
+    assert_eq!(user_pack::clean_orphans(root.path()), 1);
+    assert_eq!(leftovers(root.path()), [r.id]);
+}
+
 /// The coordinator's follow-up (no doubled disk): an archive of a DrumGizmo kit, once
 /// built, keeps only what plays — the SFZ, its main mics and the mics' files — and the
 /// receipt; a cancelled install leaves nothing at all.

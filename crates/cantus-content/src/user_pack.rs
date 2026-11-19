@@ -305,6 +305,12 @@ pub fn install_user_job(
     let id = user_id(path);
     let dir = root.join(&id);
     let stage = root.join(format!("{STAGING}{id}-{}", std::process::id()));
+    // Held while the folder fills: a Cantus starting meanwhile (another window, a test's
+    // app beside this one) leaves a live install's staging alone (beta.15's Linux job).
+    let lock = stage_lock(&stage);
+    if let Some(l) = &lock {
+        let _ = l.try_lock();
+    }
     let _ = std::fs::remove_dir_all(&stage);
     std::fs::create_dir_all(&stage).map_err(io)?;
     let made = fill(&stage, &id, path, plays, free_space, cancel, report).and_then(|receipt| {
@@ -325,12 +331,32 @@ pub fn install_user_job(
             let _ = std::fs::remove_dir_all(&dir);
         }
     }
+    drop(lock);
+    let _ = std::fs::remove_file(lock_path(&stage));
     made
 }
 
-/// Folders an install left behind: staging folders, and user packs with no receipt (an
-/// older Cantus's failed unpack — invisible in the lists, never removable there). Removed;
-/// returns how many. At start-up (`CantusApp::assemble`), before any install runs.
+/// Where the lock of the staging folder `stage` lives: beside it, `<stage>.lock`.
+fn lock_path(stage: &Path) -> std::path::PathBuf {
+    let mut name = stage.file_name().unwrap_or_default().to_os_string();
+    name.push(".lock");
+    stage.with_file_name(name)
+}
+
+/// The lock file of the staging folder `stage`, opened (not yet locked).
+fn stage_lock(stage: &Path) -> Option<std::fs::File> {
+    std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(lock_path(stage))
+        .ok()
+}
+
+/// Folders an install left behind: staging folders whose lock nobody holds (a live
+/// install's — this Cantus's or another's — is left alone), and user packs with no receipt
+/// (an older Cantus's failed unpack — invisible in the lists, never removable there).
+/// Removed; returns how many. At start-up (`CantusApp::assemble`, the content manager).
 pub fn clean_orphans(root: &Path) -> usize {
     let mut n = 0;
     for e in std::fs::read_dir(root).into_iter().flatten().flatten() {
@@ -339,9 +365,20 @@ pub fn clean_orphans(root: &Path) -> usize {
         if !p.is_dir() {
             continue;
         }
-        let stale = name.starts_with(STAGING)
-            || (name.starts_with(USER_PREFIX) && !p.join(RECEIPT).exists());
-        if stale && std::fs::remove_dir_all(&p).is_ok() {
+        if name.starts_with(STAGING) {
+            let lock = stage_lock(&p);
+            if lock.as_ref().is_some_and(|l| l.try_lock().is_err()) {
+                continue;
+            }
+            if std::fs::remove_dir_all(&p).is_ok() {
+                n += 1;
+            }
+            drop(lock);
+            let _ = std::fs::remove_file(lock_path(&p));
+        } else if name.starts_with(USER_PREFIX)
+            && !p.join(RECEIPT).exists()
+            && std::fs::remove_dir_all(&p).is_ok()
+        {
             n += 1;
         }
     }
