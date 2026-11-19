@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chorda: the modelled piano, recorded pianos and the piano's mixer</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="chorda-the-modelled-piano-recorded-pianos-and-the-pianos-mixer">Chorda: the modelled piano, recorded pianos and the piano's mixer</h1>
+<p><em>Cantus 0.1.0-beta.15 · <a href="../es/chorda-pianos.html">Leer en español</a> · back to the <a href="index.html">manual</a></em></p>
+<p>Chorda is Cantus's piano. Its own sound is <strong>modelled</strong>: strings, hammers and soundboard computed as you play, nothing to download. It can also play a <strong>recorded piano</strong> — a free sample pack (the Salamander Grand, bitKlavier's Steinway D, Upright Piano KW, …) or one you bought — with the same window, the same notes and the same mixer strips. This chapter is about choosing the source, getting the pianos, mixing their microphones and the two things a recorded piano adds: <strong>Add our room</strong> and a microphone's <strong>delay</strong>.</p>
+<h2 id="choose-the-source">Choose the source</h2>
+<p>Open Chorda (double-click its track). The <strong>Source</strong> list is at the left of the <strong>Play</strong> view; <strong>All · Recorded · Modelled</strong> at its top filters it.</p>
+<ul>
+<li><strong>Modelled</strong> — <em>Chorda 2</em>, today's model. <em>Previous models</em> unfolds to <em>Chorda 1</em>, kept so older songs sound as they did.</li>
+<li><strong>Recorded</strong> — the free pianos Cantus knows, the Salamander Grand first. A piano not on your disk shows what it takes (<strong>Get · 742 MB</strong>); a click downloads it from its official source, with its progress and <em>Cancel</em>. A piano on disk says <strong>On disk</strong>; the one playing says <strong>Playing</strong>. <em>Piano in 162</em> and <em>Helsinki 1967 Pro</em> come only from their authors' pages (a torrent, a login): <strong>Open page</strong>, download it there, then <em>Install from a file…</em>.</li>
+<li><strong>Your own pianos</strong> — what you installed from a file.</li>
+</ul>
+<p>A click on a piano that is on disk switches the source: <strong>one undo step</strong>. Your notes, your automation, your strips and the mixer's routes stay; switching back to the model plays its settings exactly as they were.</p>
+<h3 id="install-from-a-file">Install from a file…</h3>
+<p>The dashed box at the end of the list takes an <strong>SFZ</strong>, a <strong>Decent Sampler</strong> preset, an <strong>SF2</strong> or a <strong>zip / tar.gz</strong> of one. A download of a piano Cantus knows (recognised by its size and checksum, whatever its name) installs as that piano; anything else becomes one of <em>Your own pianos</em>, played where it is (an archive is unpacked into Cantus's content folder). Tympanum's kits list has the same box for drum kits.</p>
+<h2 id="the-play-view">The Play view</h2>
+<p>As the design draws it: the piano in its room (the picker of the piano and its finish over the picture; the room, floor, walls and rug on the card over its corner — the look, never the sound), the keyboard under it, the <strong>Hammer</strong>, <strong>Resonance</strong> and <strong>Output</strong> cards, and <strong>The piano</strong> at the right:</p>
+<p><em>(The picture is drawn </em><em>Drawn</em>* — light, the default — or <strong>Photographic</strong>, with traced reflections and soft shadows: Settings ▸ Appearance ▸ Instrument pictures. The sound never changes.)*</p>
+<ul>
+<li><strong>Lid</strong> — closed, short stick, full stick.</li>
+<li><strong>Perspective · Where you listen</strong> — from over the hammers to the hall; the mics of the mixer it reaches are listed under it, and <strong>Open the mixer ›</strong> goes there.</li>
+<li><strong>Pedals</strong> — <em>Sustain</em> and <em>Soft</em> show where the player's foot is (controllers 64 and 67) or where you set them; <em>Dampers</em> sets how firmly the dampers stop the strings; the curve under shows the dampers against the pedal, the half-pedal band shaded.</li>
+</ul>
+<p>Moved in this version: Chorda's <strong>Room</strong> level is the Mixer's <em>Room</em> strip fader, the <strong>Width</strong> is the Mixer's <em>Piano</em> strip (Chorda 1 keeps it in Output), <strong>Dampers</strong> is the row under Pedals, and the <strong>macros</strong> are in the Edit view. The first time you open the new Play view, the status line says so.</p>
+<h2 id="the-mixer-view">The Mixer view</h2>
+<p><strong>Mixer</strong> at the top of the window shows the piano's own mixer:</p>
+<ul>
+<li>The picture and a card for the <strong>selected output</strong>: its name as the pack names it, who recorded it and its licence. For bitKlavier, <strong>Images on disk</strong> — how many of its nine microphone images you have, what they take, and <strong>Get the other n</strong>.</li>
+<li><strong>Outputs</strong> — <strong>All to Main</strong> puts every output back on the piano's own strip; <strong>Each mic to its own strip</strong> gives every output a strip of its own in Cantus's mixer, in order, playing into the piano's strip. One undo step each. At unity the split piano sounds exactly like the unsplit one.</li>
+<li>The strips — <strong>Piano</strong> at the left (the whole piano's level; the model's Width), the outputs under their family heads (<em>Perspectives</em>, <em>Noises</em>; a head folds its strips), and <strong>Room</strong> at the right. Each output has polarity (ø), pan, mute, solo, its fader and its <strong>Out</strong> cell: <em>Main</em>, its own strip, or any strip of the desk.</li>
+<li><strong>bitKlavier's images.</strong> Each microphone image is its own download (about 1.5 GB on disk each). An image not on disk is a dashed strip with its download; an image on disk loads or unloads from its top cell (<em>as recorded</em> · <em>unloaded</em>): an unloaded image takes no memory.</li>
+<li>The model's five outputs (Hammers, Player, Audience, Room, Mechanics) are listed; until the model renders them apart they play together on Main, and the row says so.</li>
+</ul>
+<h2 id="add-our-room">Add our room</h2>
+<p>A recorded piano carries the hall it was recorded in (its far microphones hear it). A piano recorded close or dry may want more room: on the <strong>Room</strong> strip, <strong>Add our room</strong> steps through <em>Off · Small room · Studio · Hall</em> — the rooms Tympanum's kits play in. When it is on, the strip's fader is the room's level; it plays on the piano's own strip. <strong>Off adds nothing</strong>: no room is built, no memory taken, the piano sounds exactly as before.</p>
+<h2 id="a-microphones-delay">A microphone's delay</h2>
+<p>Each output has a delay (up to 50 ms) to line its microphone up with another — a far pair arriving later than the close one — or to push it later on purpose. It is the <strong>Delay</strong> cell on every output strip, under ø and pan: drag it sideways (0.05 ms a point, <code>Shift</code> 0.01), or double-click it and type a value (<code>Enter</code> keeps it, <code>Esc</code> leaves it); 0 is <em>as recorded</em> and adds nothing. Each change is one undo step, and it can be drawn as automation. A delay that changes while the microphone sounds <strong>glides</strong> to its new time (no click, no silence); at rest the output is delayed by exactly the whole samples you set. Cantus builds a delay line only for the outputs that have a delay or an automation lane on it; the first time an output gets one, the notes sounding at that moment stop.</p>
+<h2 id="disk-and-memory">Disk and memory</h2>
+<ul>
+<li>Packs are kept as <strong>FLAC</strong> when they are installed: bitKlavier's images take about 1.5 GB each instead of 3.8 GB; every file is checked sample for sample before the original goes.</li>
+<li>Long samples <strong>stream</strong> from disk through Cantus's sample cache (<em>Sample cache…</em> in the settings). Several bitKlavier images at once fill that cache fast (about 4 GB each); raise its limit if you play four or more together.</li>
+<li>One image costs about 6 % of one processor core; four images about 25 %.</li>
+</ul>
+</main>
+</body>
+</html>

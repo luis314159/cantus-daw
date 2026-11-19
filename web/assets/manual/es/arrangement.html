@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El arreglo: tiempo, secciones y ripple</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="el-arreglo-tiempo-secciones-y-ripple">El arreglo: tiempo, secciones y ripple</h1>
+<p><em>Cantus 0.1.0-beta.15 y posteriores · <a href="../en/arrangement.html">Read in English</a></em></p>
+<p>El arreglo es donde la canción se dispone en el tiempo: una fila por pista, la regla y el carril de secciones encima, la pista de tempo cuando la muestras. Esta página trata de editar <strong>el tiempo mismo</strong> —hacer sitio en una canción, quitarle compases, mover una sección entera— y del <strong>modo ripple</strong>, que hace que la edición de un clip mueva lo que lo sigue.</p>
+<h2 id="insertar-tiempo">Insertar tiempo</h2>
+<p>Arrastra en la regla para seleccionar el tiempo que quieres añadir (por ejemplo, los compases 17–18) y luego:</p>
+<ul>
+<li>haz clic derecho dentro de la selección (sobre un clip o entre ellos) y elige <strong>Insertar tiempo</strong>, o</li>
+<li>pulsa <strong>Insert</strong>, o</li>
+<li>abre la paleta de comandos (<strong>Ctrl+Mayús+P</strong>) y ejecuta <em>Insertar tiempo</em>.</li>
+</ul>
+<p>Ese tiempo vacío entra al comienzo de la selección, <strong>en todas las pistas</strong>:</p>
+<ul>
+<li>un clip que cruza ese punto se divide allí (las dos mitades conservan todo el contenido del clip, como hace <em>Dividir</em>) y todo lo que viene después se mueve más tarde;</li>
+<li>los clips de automatización se mueven con la música, y también los carriles de tomas y los comps alternativos;</li>
+<li>la pista de tempo y los cambios de compás también se mueven, y los compases nuevos conservan el tempo que la canción tenía allí; dentro de una rampa de tempo, la rampa se corta para que los compases de antes y de después suenen exactamente igual;</li>
+<li>los marcadores y las señales del mezclador (sus instantáneas colocadas en la canción) posteriores se mueven; una sección que cruza el punto crece con los compases nuevos; el bucle y el rango de pinchado se mueven o crecen del mismo modo.</li>
+</ul>
+<p>Después quedan seleccionados los compases nuevos, vacíos. Sin tiempo seleccionado, <strong>Insert</strong> mete un compás en el compás donde está el cursor de reproducción.</p>
+<h2 id="borrar-tiempo">Borrar tiempo</h2>
+<p>Selecciona el tiempo y elige <strong>Borrar tiempo</strong> en el mismo menú, o pulsa <strong>Ctrl+Supr</strong> (<strong>Ctrl+Retroceso</strong> hace lo mismo; ⌘⌫ en un Mac). Lo que hay dentro desaparece en todas las pistas —los clips que cruzan los bordes se cortan allí— y todo lo que sigue se mueve antes para cerrar el hueco, con su automatización, sus cambios de tempo y de compás, sus marcadores, sus señales del mezclador y sus secciones. Un marcador o una señal dentro del tiempo borrado se va con él; un bucle o un rango de pinchado que queda entero dentro se elimina. Una señal dura hasta la siguiente, así que lo que sigue conserva la escena con la que sonaba: si la última señal dentro del tiempo borrado seguía en efecto al final, queda una señal de la misma instantánea donde se cerró el hueco. Mover o copiar una sección funciona igual: sus compases llegan con su escena, y la música que viene después conserva la suya.</p>
+<p>Borrar el tiempo que acabas de insertar te devuelve la canción exacta: los clips que la inserción dividió vuelven a unirse, la pista de tempo queda como estaba; no queda nada atrás.</p>
+<p>Cada una de estas acciones es <strong>un solo paso de deshacer</strong>.</p>
+<h2 id="arrastrar-una-sección-mueve-sus-compases">Arrastrar una sección mueve sus compases</h2>
+<p>El carril de secciones, encima de las pistas, nombra las partes de la canción («Estrofa · 16 compases»). Arrastra una sección por su cuerpo y <strong>sus compases se mueven en todas las pistas</strong>:</p>
+<table>
+<tr><th>Mantén</th><th>Al soltar (Arrastrar una sección: <strong>Insertar</strong>, lo predeterminado)</th></tr>
+<tr><td>nada</td><td>los compases se sacan y se insertan donde caen; lo que había allí se desplaza: la canción reordenada, sin perder nada</td></tr>
+<tr><td><strong>Mayús</strong></td><td>los compases se mueven y reemplazan lo que había donde caen; donde estaban queda en silencio</td></tr>
+<tr><td><strong>Ctrl</strong></td><td>una copia de los compases se inserta donde cae; lo que sigue se desplaza (la canción se alarga)</td></tr>
+<tr><td><strong>Ctrl+Mayús</strong></td><td>una copia de los compases reemplaza lo que había donde cae</td></tr>
+<tr><td><strong>Alt</strong></td><td>(con cualquiera de los anteriores) se sale de las líneas de compás: cae donde está el puntero</td></tr>
+</table>
+<p>Si prefieres que el arrastre simple reemplace (como FL Studio mueve el contenido), elige <strong>Reemplazar</strong> en <em>Ajustes ▸ Edición ▸ Arrastrar una sección</em>: entonces el arrastre simple reemplaza y <strong>Mayús</strong> inserta. Insertar es lo predeterminado porque nunca sobrescribe nada, y es lo que hacen Logic y Studio One al arrastrar una sección.</p>
+<p>Mientras arrastras todavía no cambia nada: la sección viaja como un fantasma, los compases que reemplazará se tiñen con el color de acento en todas las pistas (o, cuando inserta, una línea de acento muestra dónde entrará), el hueco que deja se dibuja con trazos, y la línea de ayuda de abajo dice exactamente qué hará al soltar. Al soltar, es un solo paso de deshacer.</p>
+<p>Los arrastres que insertan llevan consigo el tempo y el compás de la sección; los que reemplazan conservan el reloj de la canción, como al mover un clip. Los marcadores y las señales del mezclador que hay dentro de la sección viajan con sus compases (una copia tiene las suyas propias).</p>
+<p>Para mover <strong>solo el nombre y el tramo</strong> de una sección, sin su música, selecciona el tiempo que debe cubrir y elige <strong>Llevar la sección a la selección de tiempo</strong> en el menú de la sección. Su final se sigue pudiendo arrastrar para cambiar su largo.</p>
+<h2 id="el-modo-ripple">El modo ripple</h2>
+<p>La tecla con un clip y dos flechas, a la derecha de la fila de herramientas del arreglo junto a <em>Seguir</em>, cambia el modo ripple, o pulsa <strong>Alt+Mayús+P</strong>. Recorre:</p>
+<ul>
+<li><strong>Apagado</strong> (lo predeterminado, cada vez que Cantus arranca): una edición mueve solo lo que toca.</li>
+<li><strong>Ripple · esta pista</strong>: borrar un clip cierra su hueco en su pista; mover un clip a lo largo de su pista mueve igual los clips que lo siguen en esa pista; estirar o acortar el borde derecho de un clip mueve lo que lo sigue; pegar inserta, y lo que había después del punto de pegado se desplaza.</li>
+<li><strong>Ripple · todas las pistas</strong>: lo mismo, en todas las pistas, con los marcadores, las señales del mezclador, las secciones y los cambios de tempo posteriores. Los clips de otras pistas que empezaban dentro de un tramo cerrado se quedan donde están: el modo ripple nunca corta un clip; <em>Borrar tiempo</em> sí.</li>
+</ul>
+<p>Mientras el modo está encendido, su tecla se tiñe con el acento y dice cuál es. Cada edición, con lo que movió, es un solo paso de deshacer.</p>
+<h2 id="teclas">Teclas</h2>
+<table>
+<tr><th>Acción</th><th>Tecla</th></tr>
+<tr><td>Insertar tiempo</td><td>Insert</td></tr>
+<tr><td>Borrar tiempo</td><td>Ctrl+Supr, Ctrl+Retroceso</td></tr>
+<tr><td>Modo ripple (apagado, esta pista, todas las pistas)</td><td>Alt+Mayús+P</td></tr>
+</table>
+<p>Las teclas del tiempo son del arreglo: actúan mientras es lo que estás editando (lo último en que hiciste clic) y el puntero no está sobre otra zona o una ventana. Sobre el editor de un efecto, Ctrl+Supr quita su banda y no toca el tiempo de la canción; Insert en el mezclador no inserta nada. Cuenta cualquier parte del arreglo —su regla, su carril de secciones, su fila de herramientas—, también flotando en una ventana propia o maximizado. Si llegaste a él con el teclado (<strong>Ctrl+F6</strong>, <em>Zona siguiente</em>), las teclas funcionan dondequiera que repose el ratón, hasta que lo pulses. Cuando una tecla de tiempo no hace nada, la línea de estado dice por qué y cómo llegar.</p>
+<p>FL Studio inserta espacio con Ctrl+Insert; la biblioteca de ventanas sobre la que está hecho Cantus lee esa combinación como <em>Copiar</em> antes de que Cantus la vea, así que Cantus usa Insert sola. Todas las teclas se pueden cambiar en <em>Ayuda ▸ Atajos de teclado</em>.</p>
+</main>
+</body>
+</html>

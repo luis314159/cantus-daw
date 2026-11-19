@@ -29,6 +29,16 @@
 <li>en la <strong>píldora</strong> de encima: <strong>fijar</strong> lo mantiene por encima de los paneles flotantes (un mezclador flotante, la ventana de un dispositivo); <strong>acoplar</strong> lo pone en la pestaña Escenario (en la pestaña, <strong>flotar</strong> lo devuelve sobre el espacio de trabajo); <strong>ocultar</strong> lo oculta.</li>
 </ul>
 <p>El marco se desvanece un momento después de que el puntero se va.</p>
+<h2 id="traer-de-vuelta-a-un-bailarín-oculto">Traer de vuelta a un bailarín oculto</h2>
+<p>Un bailarín puede salir de la pantalla de dos maneras: su propio botón de <strong>ocultar</strong> (en la píldora) oculta a ese bailarín, y <em>Ver ▸ Escenario</em> (<strong>Alt+D</strong>) apaga a todos los bailarines a la vez. En cualquiera de los dos casos, cualquiera de estas lo trae de vuelta:</p>
+<ul>
+<li><strong>La tarjeta.</strong> Justo después de pulsar <strong>ocultar</strong> en un bailarín, una tarjeta en la esquina inferior derecha dice <em>&quot;Keys oculto — Alt+D o Ver ▸ Escenario lo vuelve a mostrar&quot;</em> (con la tecla que tu mapa de teclas da al escenario) y <strong>Volver a mostrar</strong>, que deshace el ocultar. Se va sola al cabo de unos segundos.</li>
+<li><strong>*Ver ▸ Escenario</strong>* (<strong>Alt+D</strong>, o <em>Mostrar los bailarines</em> en la paleta de comandos). Su marca dice si hay un bailarín en pantalla ahora. Cuando no hay ninguno, enciende el escenario y, si todos los bailarines de la canción están ocultos, devuelve cada uno a donde estaba —sobre el espacio de trabajo o en la pestaña Escenario— en un solo paso de deshacer (<em>Mostrar los bailarines</em>): un <strong>Ctrl+Z</strong> los vuelve a ocultar.</li>
+<li><strong>El menú de la pista.</strong> Clic derecho en la cabecera de la pista del bailarín: <em>Mostrar el bailarín</em>.</li>
+<li><strong>La ventana del bailarín.</strong> La ventana de un bailarín oculto lo dice sobre su escenario —<em>Oculto: no se muestra en ninguna pantalla</em>— con <strong>Mostrar</strong>.</li>
+<li><strong>La pestaña Escenario.</strong> Con bailarines ocultos, la pestaña vacía dice <em>Los bailarines están ocultos</em> y ofrece <strong>Mostrar los bailarines</strong>.</li>
+</ul>
+<p>Un bailarín vuelve a donde se le vio por última vez en esta sesión; uno que ya estaba oculto al abrir la canción vuelve sobre el espacio de trabajo.</p>
 <h2 id="lo-que-cuesta">Lo que cuesta</h2>
 <p>Un bailarín se dibuja solo cuando su postura cambia: como mucho 60 veces por segundo mientras suena la canción, 15 veces por segundo mientras está parada (una respiración lenta y un parpadeo), y nunca cuando está oculto o Cantus está minimizado. Parado, cuando pasan diez segundos sin que ocurra nada (ni el puntero sobre la ventana, ni una tecla, ni Reproducir), mantiene su postura y no cuesta nada; lo siguiente que hagas lo despierta donde estaba. Mientras la ventana de compañía está abierta sigue respirando, porque es lo que transmites. Cada bailarín se dibuja en una caja justo del tamaño que necesita, con los píxeles reales de tu pantalla, así que es nítido con cualquier zoom.</p>
 <h2 id="la-ventana-de-compañía">La ventana de compañía</h2>
@@ -55,7 +65,7 @@
 <h2 id="atajos">Atajos</h2>
 <table>
 <tr><th>Tecla</th><th>Qué hace</th></tr>
-<tr><td>Alt+D</td><td>Mostrar u ocultar los bailarines en pantalla (<em>Ver ▸ Escenario</em>)</td></tr>
+<tr><td>Alt+D</td><td>Mostrar u ocultar los bailarines en pantalla (<em>Ver ▸ Escenario</em>); al mostrar, vuelve también el que su propio ocultar escondió</td></tr>
 <tr><td>Alt+Mayús+D</td><td>Abrir o cerrar la ventana de compañía</td></tr>
 <tr><td>Ctrl+Mayús+D (Cmd+Mayús+D en un Mac)</td><td>Activar o desactivar el modo para streaming (<em>Ver ▸ Modo para streaming</em>, o la paleta de comandos)</td></tr>
 </table>

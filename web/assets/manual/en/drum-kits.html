@@ -16,7 +16,7 @@
 <h2 id="split-to-strips">Split to strips</h2>
 <p>Open the kit (double-click its track) → <strong>⋯ ▸ Split to strips</strong>, or right-click the kit's strip in the mixer → <strong>Split to strips</strong>. Every pad that makes a sound gets a strip of its own, named after the pad, placed right after the kit's strip, in the order of the pads. Each pad now has its own fader, pan, inserts, sends, mute and solo. One undo step.</p>
 <p>The pad strips play <strong>into the kit's strip</strong>: the kit's strip is the kit's bus, so a compressor or a fader there still acts on the whole kit, and the kit's track still mutes and solos all of it. With every new strip at 0 dB and centred, the split kit sounds <strong>exactly</strong> like the kit did before — not nearly: the same samples, to the bit (with the kit track's own level at 0 dB and its balance centred; at another level the two agree to within −120 dB). A pad's strip pans as a balance (its pan law is 0 dB), so it passes the pad untouched; the kit's strip places the kit through the project's pan law as before. The strip's menu says which law it follows (<strong>Pan law ▸</strong>), and lets you change it.</p>
-<p><strong>Merge back</strong> (the same menus) puts every pad back on the kit's strip and removes the strips the split made — unless something else uses one (a send into it, another track). One undo step.</p>
+<p><strong>Merge back</strong> (the same menus) undoes <em>Split to strips</em>: it puts every pad the split moved back on the kit's strip and removes the strips the split made — unless something else uses one (a send into it, another track). A pad you sent to a mixer track of your choosing (its <strong>Mixer track</strong> in the channel rack) stays there: that routing is yours, and <em>Merge back</em> leaves it alone. To bring such a pad back, choose <em>The kit's strip</em> as its mixer track. One undo step.</p>
 <p>Good to know:</p>
 <ul>
 <li>Soloing a pad's strip plays that pad alone, through the kit's strip.</li>
@@ -31,6 +31,15 @@
 <li>DAWproject has no outputs for an instrument: a split kit is written whole, and the export report says so.</li>
 </ul>
 <p><strong>Older kits.</strong> A kit made before this version is <em>Model 2</em> (or <em>Model 1</em>). It splits too, but sums to itself only within rounding (about −135 dB); <strong>Upgrade to Pulsus III</strong> in the kit's header makes it exact. Nothing else changes.</p>
+<h2 id="one-pad-on-a-mixer-track-of-its-own-as-in-fl-studio">One pad on a mixer track of its own (as in FL Studio)</h2>
+<p><em>Round 40.</em> In the channel rack every pad of a kit has its <strong>mixer track's well</strong>, left of its name, as every channel has: it reads the strip the pad plays on — the kit's number until you choose another (a kit on strip 3 shows &quot;3&quot; on each of its pads). <strong>Click a pad's well</strong> to choose:</p>
+<ul>
+<li><strong>The kit's strip</strong> — where every pad starts, and how every older song plays.</li>
+<li><strong>First free strip</strong> — the next unused channel of the desk.</li>
+<li><strong>Any strip of the desk</strong> — a bus, or another channel's strip (two channels can share one, as in FL).</li>
+</ul>
+<p>The pad then plays <strong>there and only there</strong>: the kit's strip, its inserts and fader no longer touch that pad; the strip chosen does (its fader, inserts, sends, mute and solo). A pad with a chain keeps it: the chain plays into the strip chosen. One undo step; saved with the song. Choosing the kit's strip again puts the pad back exactly as it was, to the bit.</p>
+<p><em>Split to strips</em> (above) does the same for every pad at once, into new strips that play into the kit's strip; the well chooses one pad, and any strip. A strip a pad leaves stays in the desk with its inserts (delete it there if you no longer need it).</p>
 <h2 id="a-chain-per-pad">A chain per pad</h2>
 <p>Select a pad and open <strong>Edit</strong>: the <strong>Chain</strong> card lists the pad's own inserts, in order. <strong>Add insert ▾</strong> puts any Cantus effect at the end (with its starting preset); each insert has its switch, <strong>Edit</strong> (its editor) and <strong>Remove</strong>. The pad's sound goes through its chain before it joins the kit — or before it goes to its own strip, when the kit is split; split and merge keep the chain on its pad. Once the pad has a chain, <strong>More…</strong> opens the device picker onto it: every effect, plug-ins included.</p>
 <p>A chain costs nothing while its pad is silent: Cantus does not run its inserts until the pad plays again, and what comes out is exactly what running them would give.</p>

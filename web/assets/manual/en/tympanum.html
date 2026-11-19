@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tympanum, the acoustic drummer</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="tympanum-the-acoustic-drummer">Tympanum, the acoustic drummer</h1>
+<p><em>Cantus 0.1.0-beta.15 · <a href="../es/tympanum.html">Leer en español</a> · back to the <a href="index.html">manual</a></em></p>
+<p>Tympanum is Cantus's acoustic drum kit: a kit standing in its room, heard through its microphones, each microphone on a strip of the mixer if you want it there. It plays two kinds of kit. A <strong>modelled</strong> kit is computed as you play — nothing to download, and its virtual microphones can be moved. A <strong>recorded</strong> kit is a free multi-microphone sample pack (DRSKit, CrocellKit, Virtuosity Drums, …) or one you have, played in the room it was recorded in. Pulsus stays Cantus's pad drum machine; Tympanum is the drummer.</p>
+<p><strong>Add it</strong> from the device picker (the <strong>+</strong> above the track headers, its <em>Drums</em> shelf): <strong>Tympanum</strong> stands beside Pulsus. A new Tympanum plays the modelled <strong>Studio Maple</strong> kit with its generated voice — instant, nothing to download.</p>
+<h2 id="the-kit-view">The Kit view</h2>
+<p>The window opens on <strong>Kit</strong>: the kits at the left, the kit in its room in the middle, the pieces and their cards below.</p>
+<p><strong>The kits list</strong> — <strong>All · Recorded · Modelled</strong> at its top filters it, and a search box finds a kit by name.</p>
+<ul>
+<li><strong>Modelled</strong> — <em>instant · no download</em>: <strong>Studio Maple</strong> (rock and pop, twelve pieces and twelve microphones), <strong>Jazz Birch</strong> (measured off Virtuosity Drums, public domain) and the other modelled kits. A click plays the kit.</li>
+<li><strong>Recorded</strong> — <em>real drums · free packs</em>. A kit not on your disk shows what it takes (<strong>Get</strong> and its size); a click downloads it from its official source, with its progress and a click to cancel. Some come <strong>from the author's site</strong> (one click, straight from the author's own page — Cantus never hosts them) and some are <strong>Manual</strong>: <em>Open the page</em>, download it there (a login, a torrent), then <em>Install from a file…</em>. A kit on disk says <strong>On disk</strong>.</li>
+<li><strong>Your own kits</strong> — <strong>Install from a file…</strong> takes an SFZ, a DrumGizmo kit (its <code>.xml</code>, or the archive it came in) or a folder of WAV files. A DrumGizmo kit is built for Tympanum in the background, one file per microphone per hit: the window keeps answering, its box shows the progress (<em>Building its mics · 30 %</em>), and a click on it cancels and leaves nothing behind. The kit you were playing keeps playing until the new one is in.</li>
+<li><strong>Kits on disk · Manage…</strong> — what they weigh; <em>Manage…</em> opens the Content window to update or remove them.</li>
+</ul>
+<p><strong>Changing the kit</strong> is one undo step and carries your mixer: an output keeps its strip, level and route when the new kit has a microphone of the same name or the same family (Kick, Snare, Toms, Overheads, Room…); a strip made for one microphone is renamed after the new one; strips left with nothing go. A preset that names no kit keeps the kit and its mixer.</p>
+<p><strong>The picture</strong> — the kit drawn in its room (<em>Drawn</em> or <em>Photographic</em>: Settings ▸ Appearance ▸ Instrument pictures). <strong>A press on a piece plays it and selects it</strong>; Alt-click walks through its articulations; dragging up and down while you press sets how hard. <em>Show mics</em> draws the microphones (on a modelled kit you drag them to move them).</p>
+<p><strong>The room card</strong> — <strong>Room</strong> is the picture and the sound in one step: <strong>Stage</strong> plays the kit's own room (a recorded kit as recorded; a modelled kit dry, on its own), <strong>Booth</strong>, <strong>Studio</strong> and <strong>Hall</strong> put one of Cantus's rooms on the room microphones. <strong>Floor</strong>, <strong>Walls</strong> and <strong>Rug</strong> change the picture only.</p>
+<p><strong>Below the picture</strong>:</p>
+<ul>
+<li>the row of pieces with their keys;</li>
+<li><strong>Feel</strong> (the whole kit) — <strong>Timing</strong> (each hit up to that many milliseconds late, never early), <strong>Strength</strong> (how much each hit's strength varies from the written one) and <strong>Never the same hit twice</strong>;</li>
+<li><strong>Hi-hat pedal</strong> — its <strong>Openness controller</strong> (controller 4 by default): open and close the hat with a continuous pedal; <strong>Foot chick when it closes</strong> plays the foot's <em>chick</em>;</li>
+<li><strong>Kit</strong> (every piece) — <strong>Tune</strong>, <strong>Ring</strong> and <strong>Level</strong>;</li>
+<li><strong>the selected piece's panel</strong> — its size, <strong>Hear</strong> (hold it for a roll), its <strong>Articulations</strong> (each on its key, a click to hear it), <strong>Where it is struck</strong> (a click on the head sets it and plays there; the edge is brighter), <strong>Spread</strong>, <strong>Sound</strong>, <strong>Heard by</strong> (which microphones hear it) and <strong>Open the mixer ›</strong>.</li>
+</ul>
+<p><strong>Voice: Generated · Hybrid</strong> (a modelled kit, under the lit kit in the list). <em>Generated</em> is Cantus's model alone. <em>Hybrid</em> plays, under the model, the first moments of a real kit's hits — each piece's attack as it was recorded — through the same virtual microphones, bleed and room. Its recorded attacks are a free pack of about 5 MB (the jazz kit's from Virtuosity Drums, CC0; the studio kit's from DRSKit, CC BY 4.0): <strong>Get · 5 MB</strong> once, then it plays offline. Until the pack is on disk, <em>Hybrid</em> sounds exactly like <em>Generated</em>.</p>
+<h2 id="playing-it">Playing it</h2>
+<p>Tympanum follows the General MIDI drum map (kick on 36, snare on 38, closed hat 42, open hat 46, crash 49, ride 51, …). A few notes past the map play a drummer's figures on the snare: <strong>flam</strong> on 91, <strong>drag</strong> 92, <strong>buzz</strong> 93 (eight quick, soft bounces) and a <strong>held roll</strong> on 94 (strokes every 55 ms for as long as the note is held); the hat's <strong>foot splash</strong> on 95. A recorded kit plays its pack's own recordings of its articulations. Every microphone of a hit plays the same take, and a take never repeats the one before it on that key.</p>
+<h2 id="the-mixer-view">The Mixer view</h2>
+<p><strong>Mixer</strong> at the top of the window shows the kit's microphones:</p>
+<ul>
+<li><strong>The band of microphones</strong> (a modelled kit): the selected microphone's <strong>Pattern</strong> (cardioid, super, hyper, omni), <strong>Distance</strong>, <strong>Aim</strong> and <strong>Bleed</strong>; <strong>What it hears</strong> — each piece in that microphone against its own; <strong>Every mic</strong> — each piece in each microphone in dB, a click on a cell turns it off (a recorded kit's microphones stay where they were recorded).</li>
+<li><strong>Outputs</strong> — <strong>All to Main</strong> (every microphone on Tympanum's own strip), <strong>Pieces to strips</strong> (one strip per family — kick, snare, toms, cymbals, overheads, room — its microphones into it) and <strong>Each mic to its own strip</strong> (a strip for every microphone, in order, playing into Tympanum's strip). One undo step each; at unity the split kit sounds exactly like the unsplit one.</li>
+<li><strong>The strips</strong> — each microphone with its meter, polarity (ø), pan, <strong>Delay</strong> (up to 50 ms to line a far microphone up with a close one; drag it sideways or double-click and type; 0 is <em>as recorded</em>), mute, solo, fader and <strong>Out</strong>: <em>Main</em>, its own strip or any strip of the desk. A delay changed while the kit plays glides to its new time.</li>
+</ul>
+<p>In Cantus's own mixer the kit's strips sit under one <strong>band</strong> (<em>Drums · Tympanum · 12 mics</em>) that folds into one strip; <em>Each mic to its own strip</em> groups them by family inside it, and a drum bus fed only by them can join the band — see <em>Bands on the desk</em> in <a href="index.html#6-mix-the-mixer-inserts-and-sends">the mixer</a>.</p>
+<h2 id="the-recorded-kits">The recorded kits</h2>
+<table>
+<tr><th>Kit</th><th>Microphones</th><th>Licence</th><th>On disk</th></tr>
+<tr><td>Gogodze Phu Vol. II</td><td>7</td><td>CC0</td><td>0.5 GB</td></tr>
+<tr><td>DRSKit, every microphone</td><td>13</td><td>CC BY 4.0</td><td>1.9 GB</td></tr>
+<tr><td>CrocellKit, every microphone</td><td>15</td><td>CC BY 4.0</td><td>5.9 GB</td></tr>
+<tr><td>MuldjordKit, every microphone</td><td>13</td><td>CC BY 4.0</td><td>2.7 GB</td></tr>
+<tr><td>Virtuosity Drums</td><td>7</td><td>CC0</td><td>1.5 GB</td></tr>
+<tr><td>Big Rusty Drums</td><td>6</td><td>CC0</td><td>0.7 GB</td></tr>
+</table>
+<p>Every pack's licence and credit are shown before you get it and in the About window's <em>Credits</em>; a CC BY kit's credit goes with your music where the licence asks for it (MuldjordKit asks, in its author's words, for <em>&quot;Drum samples provided by DrumGizmo.org&quot;</em> in an album's credits). Long samples stream from disk through Cantus's sample cache, and a kit loads only the microphones that are on.</p>
+<h2 id="what-it-costs">What it costs</h2>
+<p>A modelled kit is computed as it plays: on the laptop Cantus is measured on, the model alone takes about a tenth of one processor core in a busy groove, and every microphone on its own strip about a fifth. A recorded kit costs what its voices cost to stream. Nothing runs while the kit is silent.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tympanum, el baterista acústico</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="tympanum-el-baterista-acústico">Tympanum, el baterista acústico</h1>
+<p><em>Cantus 0.1.0-beta.15 · <a href="../en/tympanum.html">Read in English</a> · volver al <a href="index.html">manual</a></em></p>
+<p>Tympanum es la batería acústica de Cantus: un kit de pie en su sala, oído por sus micrófonos, y cada micrófono en un canal del mezclador si lo quieres ahí. Toca dos clases de kit. Un kit <strong>modelado</strong> se calcula mientras tocas — nada que descargar, y sus micrófonos virtuales se pueden mover. Un kit <strong>grabado</strong> es un paquete de muestras multimicrófono libre (DRSKit, CrocellKit, Virtuosity Drums, …) o uno que ya tengas, tocado en la sala donde se grabó. Pulsus sigue siendo la caja de ritmos de pads de Cantus; Tympanum es el baterista.</p>
+<p><strong>Agrégalo</strong> desde el selector de dispositivos (el <strong>+</strong> sobre las cabeceras de las pistas, su estante <em>Batería</em>): <strong>Tympanum</strong> está junto a Pulsus. Un Tympanum nuevo toca el kit modelado <strong>Studio Maple</strong> con su voz generada — al instante, sin nada que descargar.</p>
+<h2 id="la-vista-kit">La vista Kit</h2>
+<p>La ventana se abre en <strong>Kit</strong>: los kits a la izquierda, el kit en su sala en medio, las piezas y sus tarjetas debajo.</p>
+<p><strong>La lista de kits</strong> — <strong>Todos · Grabados · Modelados</strong> arriba la filtra, y un cuadro de búsqueda encuentra un kit por su nombre.</p>
+<ul>
+<li><strong>Modelados</strong> — <em>al instante · sin descarga</em>: <strong>Studio Maple</strong> (rock y pop, doce piezas y doce micrófonos), <strong>Jazz Birch</strong> (medido sobre Virtuosity Drums, de dominio público) y los demás kits modelados. Un clic toca el kit.</li>
+<li><strong>Grabados</strong> — <em>baterías reales · paquetes libres</em>. Un kit que no está en tu disco dice lo que ocupa (<strong>Bajar</strong> y su tamaño); un clic lo descarga de su fuente oficial, con su progreso y un clic para cancelar. Algunos vienen <strong>del sitio del autor</strong> (un clic, directo de la página del propio autor — Cantus nunca los aloja) y otros son <strong>Manual</strong>: <em>Abrir la página</em>, descárgalo ahí (un registro, un torrent) y luego <em>Instalar desde un archivo…</em>. Un kit en disco dice <strong>En disco</strong>.</li>
+<li><strong>Tus propios kits</strong> — <strong>Instalar desde un archivo…</strong> acepta un SFZ, un kit de DrumGizmo (su <code>.xml</code>, o el archivo comprimido en que vino) o una carpeta de WAV. Un kit de DrumGizmo se construye para Tympanum en segundo plano, un archivo por micrófono y por golpe: la ventana sigue respondiendo, su recuadro muestra el progreso (<em>Construyendo sus micros · 30 %</em>), y un clic en él lo cancela sin dejar nada. El kit que sonaba sigue sonando hasta que el nuevo está listo.</li>
+<li><strong>Kits en disco · Gestionar…</strong> — lo que ocupan; <em>Gestionar…</em> abre la ventana de Contenido para actualizarlos o quitarlos.</li>
+</ul>
+<p><strong>Cambiar de kit</strong> es un paso de deshacer y conserva tu mezcla: una salida mantiene su canal, su nivel y su ruta cuando el kit nuevo tiene un micrófono del mismo nombre o de la misma familia (Bombo, Caja, Toms, Aéreos, Sala…); un canal hecho para un micrófono toma el nombre del nuevo; los canales que quedan sin nada se van. Un preset que no nombra kit conserva el kit y su mezcla.</p>
+<p><strong>La imagen</strong> — el kit dibujado en su sala (<em>Dibujadas</em> o <em>Fotográficas</em>: Ajustes ▸ Apariencia ▸ Imágenes de instrumentos). <strong>Al pulsar una pieza suena y queda elegida</strong>; Alt+clic recorre sus articulaciones; arrastrar arriba o abajo mientras pulsas fija la fuerza. <em>Ver micros</em> dibuja los micrófonos (en un kit modelado se arrastran para moverlos).</p>
+<p><strong>La tarjeta de la sala</strong> — <strong>Sala</strong> es la imagen y el sonido en un solo paso: <strong>Escenario</strong> toca la sala propia del kit (un kit grabado tal como se grabó; uno modelado seco, solo), <strong>Cabina</strong>, <strong>Estudio</strong> y <strong>Auditorio</strong> ponen una de las salas de Cantus en los micrófonos de sala. <strong>Suelo</strong>, <strong>Paredes</strong> y <strong>Alfombra</strong> cambian solo la imagen.</p>
+<p><strong>Debajo de la imagen</strong>:</p>
+<ul>
+<li>la fila de piezas con sus teclas;</li>
+<li><strong>Sensación</strong> (todo el kit) — <strong>Tiempo</strong> (cada golpe hasta esos milisegundos tarde, nunca antes), <strong>Fuerza</strong> (cuánto varía la fuerza de cada golpe respecto a la escrita) y <strong>Nunca el mismo golpe dos veces</strong>;</li>
+<li><strong>Pedal del charles</strong> — su <strong>Controlador de apertura</strong> (el controlador 4 por defecto): abre y cierra el charles con un pedal continuo; <strong>Chasquido al cerrarse</strong> toca el <em>chick</em> del pie;</li>
+<li><strong>Kit</strong> (todas las piezas) — <strong>Afinación</strong>, <strong>Resonancia</strong> y <strong>Nivel</strong>;</li>
+<li><strong>el panel de la pieza elegida</strong> — su tamaño, <strong>Oír</strong> (mantenlo para un redoble), sus <strong>Articulaciones</strong> (cada una en su tecla, un clic para oírla), <strong>Dónde se golpea</strong> (un clic en el parche lo fija y toca ahí; el borde suena más brillante), <strong>Dispersión</strong>, <strong>Sonido</strong>, <strong>La oyen</strong> (qué micrófonos la oyen) y <strong>Abrir el mezclador ›</strong>.</li>
+</ul>
+<p><strong>Voz: Generada · Híbrida</strong> (un kit modelado, bajo el kit encendido en la lista). <em>Generada</em> es el modelo de Cantus solo. <em>Híbrida</em> toca, debajo del modelo, los primeros instantes de los golpes de una batería real — el ataque de cada pieza tal como se grabó — por los mismos micrófonos virtuales, la misma fuga y la misma sala. Sus ataques grabados son un paquete libre de unos 5 MB (el del kit de jazz, de Virtuosity Drums, CC0; el del kit de estudio, de DRSKit, CC BY 4.0): <strong>Bajar · 5 MB</strong> una vez y después suena sin conexión. Mientras el paquete no esté en disco, <em>Híbrida</em> suena exactamente como <em>Generada</em>.</p>
+<h2 id="tocarlo">Tocarlo</h2>
+<p>Tympanum sigue el mapa de batería de General MIDI (bombo en 36, caja en 38, charles cerrado 42, abierto 46, crash 49, ride 51, …). Algunas notas fuera del mapa tocan figuras de baterista en la caja: <strong>flam</strong> en 91, <strong>drag</strong> 92, <strong>buzz</strong> 93 (ocho rebotes rápidos y suaves) y un <strong>redoble sostenido</strong> en 94 (golpes cada 55 ms mientras la nota siga pulsada); el <strong>splash de pie</strong> del charles en 95. Un kit grabado toca las grabaciones de sus articulaciones que trae su paquete. Todos los micrófonos de un golpe tocan la misma toma, y una toma nunca repite la anterior en esa tecla.</p>
+<h2 id="la-vista-mezclador">La vista Mezclador</h2>
+<p><strong>Mezclador</strong>, arriba en la ventana, muestra los micrófonos del kit:</p>
+<ul>
+<li><strong>La banda de micrófonos</strong> (un kit modelado): el <strong>Patrón</strong> del micrófono elegido (cardioide, súper, híper, omni), su <strong>Distancia</strong>, su <strong>Apunte</strong> y su <strong>Fuga</strong>; <strong>Lo que oye</strong> — cada pieza en ese micrófono frente a la suya propia; <strong>Todos los micros</strong> — cada pieza en cada micrófono, en dB; un clic en una celda la apaga (los micrófonos de un kit grabado se quedan donde se grabaron).</li>
+<li><strong>Salidas</strong> — <strong>Todo a Principal</strong> (cada micrófono en el canal propio de Tympanum), <strong>Piezas a canales</strong> (un canal por familia — bombo, caja, toms, platillos, aéreos, sala — con sus micrófonos dentro) y <strong>Cada micro a su canal</strong> (un canal por micrófono, en orden, que suena hacia el canal de Tympanum). Un paso de deshacer cada una; a ganancia unidad el kit separado suena exactamente como sin separar.</li>
+<li><strong>Los canales</strong> — cada micrófono con su medidor, polaridad (ø), paneo, <strong>Retardo</strong> (hasta 50 ms para alinear un micrófono lejano con uno cercano; arrástralo de lado o haz doble clic y escríbelo; 0 es <em>como se grabó</em>), silencio, solo, fader y <strong>Salida</strong>: <em>Principal</em>, su propio canal o cualquier canal de la mesa. Un retardo cambiado mientras el kit suena se desliza hasta su nuevo tiempo.</li>
+</ul>
+<p>En el mezclador de Cantus los canales del kit quedan bajo una sola <strong>banda</strong> (<em>Batería · Tympanum · 12 micros</em>) que se pliega en un canal; <em>Cada micro a su canal</em> los agrupa por familia dentro de ella, y un bus de batería alimentado solo por ellos puede unirse a la banda — ver <em>Bandas en la mesa</em> en <a href="index.html#6-mezclar-el-mezclador-inserciones-y-envíos">el mezclador</a>.</p>
+<h2 id="los-kits-grabados">Los kits grabados</h2>
+<table>
+<tr><th>Kit</th><th>Micrófonos</th><th>Licencia</th><th>En disco</th></tr>
+<tr><td>Gogodze Phu Vol. II</td><td>7</td><td>CC0</td><td>0,5 GB</td></tr>
+<tr><td>DRSKit, todos los micrófonos</td><td>13</td><td>CC BY 4.0</td><td>1,9 GB</td></tr>
+<tr><td>CrocellKit, todos los micrófonos</td><td>15</td><td>CC BY 4.0</td><td>5,9 GB</td></tr>
+<tr><td>MuldjordKit, todos los micrófonos</td><td>13</td><td>CC BY 4.0</td><td>2,7 GB</td></tr>
+<tr><td>Virtuosity Drums</td><td>7</td><td>CC0</td><td>1,5 GB</td></tr>
+<tr><td>Big Rusty Drums</td><td>6</td><td>CC0</td><td>0,7 GB</td></tr>
+</table>
+<p>La licencia y el crédito de cada paquete se muestran antes de bajarlo y en <em>Créditos</em> de la ventana Acerca de; el crédito de un kit CC BY acompaña tu música donde la licencia lo pide (MuldjordKit pide, con las palabras de su autor, <em>&quot;Drum samples provided by DrumGizmo.org&quot;</em> en los créditos de un disco). Las muestras largas se leen del disco por la caché de muestras de Cantus, y un kit carga solo los micrófonos encendidos.</p>
+<h2 id="lo-que-cuesta">Lo que cuesta</h2>
+<p>Un kit modelado se calcula mientras suena: en el portátil donde se mide Cantus, el modelo solo toma cerca de una décima parte de un núcleo del procesador en un groove cargado, y cada micrófono en su propio canal cerca de una quinta parte. Un kit grabado cuesta lo que cuesta leer sus voces. Nada trabaja mientras el kit calla.</p>
+</main>
+</body>
+</html>
