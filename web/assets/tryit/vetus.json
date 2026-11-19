@@ -15,7 +15,22 @@
   ],
   "loop": true,
   "dry": "/tryit/guitar.mp3",
+  "dry_source": null,
   "presets": [
+    {
+      "id": "worn_cassette",
+      "name": [
+        "Worn cassette",
+        "Casete gastado"
+      ],
+      "what": [
+        "Bus — Pop, Lo-fi",
+        "Bus — Pop, Lo-fi"
+      ],
+      "wet": "/tryit/vetus/worn_cassette.mp3",
+      "level_db": -2.5,
+      "pic": "/tryit/vetus/worn_cassette"
+    },
     {
       "id": "lofi_hip_hop",
       "name": [
@@ -31,20 +46,6 @@
       "pic": "/tryit/vetus/lofi_hip_hop"
     },
     {
-      "id": "eight_bit",
-      "name": [
-        "Eight-bit console",
-        "Consola de ocho bits"
-      ],
-      "what": [
-        "Creative — Pop, House · EDM",
-        "Creativo — Pop, House · EDM"
-      ],
-      "wet": "/tryit/vetus/eight_bit.mp3",
-      "level_db": 0.1,
-      "pic": "/tryit/vetus/eight_bit"
-    },
-    {
       "id": "warped_tape",
       "name": [
         "Warped tape",
@@ -57,6 +58,20 @@
       "wet": "/tryit/vetus/warped_tape.mp3",
       "level_db": 0.0,
       "pic": "/tryit/vetus/warped_tape"
+    },
+    {
+      "id": "eight_bit",
+      "name": [
+        "Eight-bit console",
+        "Consola de ocho bits"
+      ],
+      "what": [
+        "Creative — Pop, House · EDM",
+        "Creativo — Pop, House · EDM"
+      ],
+      "wet": "/tryit/vetus/eight_bit.mp3",
+      "level_db": 0.1,
+      "pic": "/tryit/vetus/eight_bit"
     }
   ]
 }

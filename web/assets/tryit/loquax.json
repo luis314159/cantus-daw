@@ -57,6 +57,20 @@
       "wet": "/tryit/loquax/choir.mp3",
       "level_db": 1.2,
       "pic": "/tryit/loquax/choir"
+    },
+    {
+      "id": "deep_robot",
+      "name": [
+        "Deep robot",
+        "Robot grave"
+      ],
+      "what": [
+        "Vocal — Trap · Hip-hop, Film · Game",
+        "Voz — Trap · Hip-hop, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/loquax/deep_robot.mp3",
+      "level_db": 0.3,
+      "pic": "/tryit/loquax/deep_robot"
     }
   ]
 }

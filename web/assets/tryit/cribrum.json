@@ -15,6 +15,7 @@
   ],
   "loop": true,
   "dry": "/tryit/guitar.mp3",
+  "dry_source": null,
   "presets": [
     {
       "id": "cry_wah",
@@ -31,20 +32,6 @@
       "pic": "/tryit/cribrum/cry_wah"
     },
     {
-      "id": "classic_wah",
-      "name": [
-        "Classic wah",
-        "Wah clásico"
-      ],
-      "what": [
-        "Creative — R&B, Rock",
-        "Creativo — R&B, Rock"
-      ],
-      "wet": "/tryit/cribrum/classic_wah.mp3",
-      "level_db": 14.5,
-      "pic": "/tryit/cribrum/classic_wah"
-    },
-    {
       "id": "funk_wah",
       "name": [
         "Funk quack",
@@ -57,6 +44,34 @@
       "wet": "/tryit/cribrum/funk_wah.mp3",
       "level_db": 14.7,
       "pic": "/tryit/cribrum/funk_wah"
+    },
+    {
+      "id": "bar_sweep",
+      "name": [
+        "Bar sweep",
+        "Barrido de compás"
+      ],
+      "what": [
+        "Bus — Pop, House · EDM",
+        "Bus — Pop, House · EDM"
+      ],
+      "wet": "/tryit/cribrum/bar_sweep.mp3",
+      "level_db": 1.5,
+      "pic": "/tryit/cribrum/bar_sweep"
+    },
+    {
+      "id": "talking",
+      "name": [
+        "Talking lead",
+        "Lead que habla"
+      ],
+      "what": [
+        "Vocal — Pop, Film · Game",
+        "Voz — Pop, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/cribrum/talking.mp3",
+      "level_db": -1.4,
+      "pic": "/tryit/cribrum/talking"
     }
   ]
 }

@@ -46,7 +46,9 @@ from metrics import SR, load, hit  # noqa: E402
 import synth  # noqa: E402
 from early import onset1  # noqa: E402
 
-TMP = "F:/projects/daw-r40/tmp/"
+# The measuring work folder (round 40: the integration tree's tmp): meas9/ the recorded hits,
+# meas11/ and dg/ the half-open renders and the fits (README.md) — TYMP_WORK.
+TMP = os.path.join(os.environ.get("TYMP_WORK", "."), "")
 KITS = {
     "drs": dict(name="DRSKit", hits=TMP + "meas9/pack-drskit-tympanum-kit-hits.flac",
                 half=TMP + "meas11/o50/pack-drskit-tympanum-kit-hits.wav",

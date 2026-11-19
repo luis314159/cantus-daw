@@ -57,6 +57,20 @@
       "wet": "/tryit/lenis/sibilance.mp3",
       "level_db": -0.2,
       "pic": "/tryit/lenis/sibilance"
+    },
+    {
+      "id": "gentle",
+      "name": [
+        "Gentle",
+        "Suave"
+      ],
+      "what": [
+        "Vocal — Pop, Rock",
+        "Voz — Pop, Rock"
+      ],
+      "wet": "/tryit/lenis/gentle.mp3",
+      "level_db": -2.3,
+      "pic": "/tryit/lenis/gentle"
     }
   ]
 }

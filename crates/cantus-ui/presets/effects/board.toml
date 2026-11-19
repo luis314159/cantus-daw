@@ -9,6 +9,11 @@ styles = ["rock", "pop"]
 roles = ["creative"]
 
 [[tag]]
+key = "preset.tabula.crunch_amp_rig"
+styles = ["rock", "pop"]
+roles = ["creative"]
+
+[[tag]]
 key = "preset.tabula.blues_crunch"
 styles = ["rock", "jazz"]
 roles = ["creative"]
