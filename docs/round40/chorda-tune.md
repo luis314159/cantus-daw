@@ -215,7 +215,8 @@ both keep their bits.
   and B0 through the real engine's render, on the curve within 1.5 c. It also checks that
   the app's keyboard carries the table.
 - `cantus-engine` `inst::chorda`: the designer's key tells `frac_room` and the table apart.
-- The voicing lab's gate (`voicing\ana2\tuning.py`) now has a gate 2 over all 88 keys: the
+- The voicing lab's gate (`tools/chorda-voicing/ana2/tuning.py` in the repository, and the
+  lab's working copy in `voicing\ana2\`) now has a gate 2 over all 88 keys: the
   ear's pitch, its raggedness against the neighbours, and every octave and fifth against a
   smooth fit of the candidate's own partials. Its first gate (each fundamental within 10 c
   of the Salamander's) is kept. The old file is `tuning_pre_r40tune.py`.
@@ -312,6 +313,6 @@ and by how much, before and after. The renders come from the diagnostic `tune_re
 - **The voicing lab's gate** (`tuning.py`, gate 2) is a second view. It flags D#7 at +6.7
   ragged ("informative" above E6), where the suite's kit measures −1.3. Its 1 s FFT start
   point lands on the board's tail there.
-- **master's tune map** (`chorda_tests_tunemap.rs`, cantus-03's) still plays model 2 on model
-  1's keyboard. It is ignored and untouched here, and `tests_tuning::tuning_map` replaces it;
-  it can be removed when merged.
+- **master's tune map** (`chorda_tests_tunemap.rs`, cantus-03's) played model 2 on model 1's
+  keyboard. It is deleted in the merge of master; `tests_tuning::tuning_map` measures model 2
+  on its own keyboard at three velocities and replaces it.
