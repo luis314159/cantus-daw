@@ -617,6 +617,26 @@ pub fn pane_of(action: crate::keymap::Action) -> Option<Pane> {
 /// devices and the clip browser, the layouts in a band of their own (no submenu), the
 /// interface's zoom, and the settings.
 fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
+    let rows = view_rows(app);
+    bar_menu(app, ui, &rows);
+}
+
+/// The View menu's rows that carry a tick, by their words' key, and whether each is ticked
+/// now (tests: the tick says what the user sees).
+pub fn view_menu_ticks(app: &CantusApp) -> Vec<(&'static str, bool)> {
+    use crate::kit::menu::Check;
+    view_rows(app)
+        .into_iter()
+        .filter_map(|r| match (r.words, r.check) {
+            (Words::Key(k), Check::On) => Some((k, true)),
+            (Words::Key(k), Check::Off) => Some((k, false)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The View menu's rows as they stand now.
+fn view_rows(app: &CantusApp) -> Vec<Row> {
     use crate::keymap::Action;
     use crate::menu_commands::MenuCommand as M;
     let mut rows: Vec<Row> = Vec::new();
@@ -657,9 +677,13 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             .checked(app.tempo_lane_shown())
             .key(Action::ToggleTempoTrack),
     );
-    // The stage, its companion window and streaming (round 35).
+    // The stage, its companion window and streaming (round 35): ticked when a dancer is on
+    // screen — not merely the switch (round 40: a dancer its own Hide hid left it ticked).
+    rows.push(
+        Row::run(Action::ToggleStage, "stage.view.stage")
+            .checked(crate::stage::show::on_screen(app)),
+    );
     let stage = &app.settings.stage;
-    rows.push(Row::run(Action::ToggleStage, "stage.view.stage").checked(!stage.hidden));
     rows.push(
         Row::run(Action::ToggleCompanion, "stage.view.companion").checked(stage.companion_open),
     );
@@ -739,7 +763,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     rows.push(Row::new("topbar.customise", Do::Customise));
     rows.push(Row::new("menu.keyboard_piano", Do::KeyboardPiano).checked(app.keyboard_piano));
     rows.push(Row::new("menu.stats", Do::Stats).checked(app.show_stats));
-    bar_menu(app, ui, &rows);
+    rows
 }
 
 /// Open the top bar's menu `i` (0 File … 4 Options, 5 Help) — the screenshots.

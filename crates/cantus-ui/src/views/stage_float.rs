@@ -356,6 +356,12 @@ pub fn apply(app: &mut CantusApp, actions: &[Action]) {
                 app.exec_merging(cmd, MergeKey::of(&("stage-move", track.0)));
             }
             Action::Size { track, size } => app.set_inst_value(track, "size", size, true),
+            // Its own *Hide*: one undo step, and the card that says how to bring it back
+            // (round 40).
+            Action::Mode {
+                track,
+                mode: ViewMode::Hidden,
+            } => super::show::hide_dancer(app, track),
             Action::Mode { track, mode } => {
                 app.set_inst_value(track, "view.mode", mode.value(), false);
                 if mode == ViewMode::Docked {

@@ -37,6 +37,31 @@ Señala un bailarín y aparece su marco:
 
 El marco se desvanece un momento después de que el puntero se va.
 
+## Traer de vuelta a un bailarín oculto
+
+Un bailarín puede salir de la pantalla de dos maneras: su propio botón de **ocultar** (en
+la píldora) oculta a ese bailarín, y *Ver ▸ Escenario* (**Alt+D**) apaga a todos los
+bailarines a la vez. En cualquiera de los dos casos, cualquiera de estas lo trae de vuelta:
+
+- **La tarjeta.** Justo después de pulsar **ocultar** en un bailarín, una tarjeta en la
+  esquina inferior derecha dice *"Keys oculto — Alt+D o Ver ▸ Escenario lo vuelve a
+  mostrar"* (con la tecla que tu mapa de teclas da al escenario) y **Volver a mostrar**,
+  que deshace el ocultar. Se va sola al cabo de unos segundos.
+- ***Ver ▸ Escenario*** (**Alt+D**, o *Mostrar los bailarines* en la paleta de comandos).
+  Su marca dice si hay un bailarín en pantalla ahora. Cuando no hay ninguno, enciende el
+  escenario y, si todos los bailarines de la canción están ocultos, devuelve cada uno a
+  donde estaba —sobre el espacio de trabajo o en la pestaña Escenario— en un solo paso de
+  deshacer (*Mostrar los bailarines*): un **Ctrl+Z** los vuelve a ocultar.
+- **El menú de la pista.** Clic derecho en la cabecera de la pista del bailarín: *Mostrar
+  el bailarín*.
+- **La ventana del bailarín.** La ventana de un bailarín oculto lo dice sobre su escenario
+  —*Oculto: no se muestra en ninguna pantalla*— con **Mostrar**.
+- **La pestaña Escenario.** Con bailarines ocultos, la pestaña vacía dice *Los bailarines
+  están ocultos* y ofrece **Mostrar los bailarines**.
+
+Un bailarín vuelve a donde se le vio por última vez en esta sesión; uno que ya estaba
+oculto al abrir la canción vuelve sobre el espacio de trabajo.
+
 ## Lo que cuesta
 
 Un bailarín se dibuja solo cuando su postura cambia: como mucho 60 veces por segundo
@@ -102,6 +127,6 @@ un escritorio con compositor conserva la transparencia, y sin él elige un fondo
 
 | Tecla | Qué hace |
 |---|---|
-| Alt+D | Mostrar u ocultar los bailarines en pantalla (*Ver ▸ Escenario*) |
+| Alt+D | Mostrar u ocultar los bailarines en pantalla (*Ver ▸ Escenario*); al mostrar, vuelve también el que su propio ocultar escondió |
 | Alt+Mayús+D | Abrir o cerrar la ventana de compañía |
 | Ctrl+Mayús+D (Cmd+Mayús+D en un Mac) | Activar o desactivar el modo para streaming (*Ver ▸ Modo para streaming*, o la paleta de comandos) |
