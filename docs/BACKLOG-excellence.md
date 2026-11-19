@@ -241,6 +241,21 @@ sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipa
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
 macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(4d)** la GPU como acelerador opcional y configurable (exportar/congelar, convolución larga, trabajo espectral e IA, y un modo mixto CPU+GPU sobre el procesamiento anticipado; siempre con respaldo en CPU), tras un prototipo medido; **(4e)** el motor frente al mercado, para evaluar e investigar: una comparación medida tipo DAWbench contra REAPER y FL Studio, aislamiento de plug-ins, procesamiento anticipado, escala probada (200 pistas con 50 plug-ins de terceros, 10 minutos en vivo con interfaz real), división de voces para el resto de instrumentos y la extensión thread-pool de CLAP, warp/time-stretch, ARA 2, surround/Atmos, Linux y macOS, y modelos loom del núcleo concurrente; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(6e)** la barra superior al estilo de FL (hecha en la ronda 28); **(6h)** pedidos del dueño (2026-10-26): un diseño propio para cada plug-in nuestro, con su estilo, como los de FL; y los plug-ins externos abren su editor nativo, con un interruptor a la vista de Cantus de sus parámetros y la opción de guardarla como predeterminada por plug-in; **(7a)** pedido del dueño (2026-10-27): una voz cantada que funcione como instrumento — notas MIDI y letra a voz cantada, con la investigación del dueño en `research/ai/singing-voice.md` (evaluar OpenUtau con DiffSinger frente a ACE Studio, español e inglés primero, licencias de cada componente); seguir evaluando y construirlo después; **(6i)** pedido del dueño (2026-10-29; ronda 35): un personaje animado sobre la interfaz que baila al compás (la idea del Fruity Dance de FL, con personajes nuestros), animado con clips de automatización, moduladores, MIDI learn o notas; personajes incluidos para escoger y personajes importados (evaluar Rive, Lottie, hojas de sprites, DragonBones; glTF/VRM en 3D después; Spine y Live2D fuera por licencia), y exportar el clip como video con el audio para redes; también de compañía al trabajar y para quien graba o transmite su pantalla (YouTubers, streamers): una ventana pequeña siempre encima que baila con lo que suene, un modo para streaming que OBS capture limpio (fondo transparente o croma, tamaño y posición fijos) y un visualizador ligero, barato para dejarlo encendido todo el día — hecho en la ronda 35, salvo Rive y el 3D; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
+**(6l)** Ganar en cada punto a FL Studio 2026 y Bitwig 6.1 (pedido el 2026-11-19): FL trae
+39 instrumentos y unos 48 efectos que procesan audio; Cantus 12 y unos 48. Falta un
+instrumento de primera para cada familia de FL (resíntesis tipo Harmor, cuerdas modeladas,
+bajo 303 con su secuenciador, un ROMpler con muchos presets, granular con modo scratch, voz
+sintetizada), los efectos que FL tiene y Cantus no (delay multibanda, realzador de un knob,
+realce de graves, EQ gráfico que se transforma, exciter, scratcher), las herramientas de
+notas (Note Repeat, progresiones y Chord Stamp, Loop Starter, operadores por nota: chance,
+repeticiones, ocurrencia) y la capa de interacción de Bitwig (barra inferior que enseña los
+gestos, un "+" con buscador en cada punto de la cadena, capas y selectores de efectos e
+instrumentos, modulación polifónica, páginas de knobs en todo dispositivo, herramientas
+temporales, navegación por puntos de interés, desactivar pistas, pestañas de proyectos,
+launcher y arreglo en una vista, perfiles de pantalla, modo táctil, la Grid), y no perder
+lo que los usuarios de Bitwig echan de menos (comping MIDI, captura retroactiva, ARA,
+video, versiones, contenido).
+
 ## 1. Real use — the test that matters most
 
 - **Cantus cannot read 32-bit integer FLAC** (found in the effects side round, 2026-11-13):
@@ -2090,6 +2105,174 @@ what it is best at, and no embedded CPython.
 - **Embedded CPython: no.** It ships tens of MB, has version conflicts with the user's
   Python, its packages cannot be bundled sanely, and it cannot be sandboxed. The bridge gives
   users their real Python instead.
+
+## 6l. Winning every point against FL Studio 2026 and Bitwig Studio 6.1 (requested 2026-11-19)
+
+The owner asked how many plug-ins and instruments FL Studio ships against Cantus, whether
+Cantus comes close to Bitwig's much-praised ease of use, and then: *add to the backlog
+everything we would lack to win on every point.* The research is in
+`research/catalogue/fl-studio-2026-plugins.md` (Image-Line's Compare Editions table and
+manual, FL Studio 2026, build 26.1.7.5) and `research/ui/bitwig-usability-2026-11.md`
+(Bitwig's 5.3 user guide, the 6.0 and 6.1 release notes, reviews). Cantus's side was read
+from the code on 2026-11-19 (master 8adaf6b7), not tried by hand; an item marked
+*(check first)* may already exist in part.
+
+**Where it stands.** FL's All Plugins Edition counts 119 (39 instruments, 71 effects, 3
+editors, 6 visual); about 45–48 of the effects process audio, the rest are controllers,
+notebooks and modules. Cantus has 12 instruments (with the dancer) and about 48 effects:
+level with FL on effects, behind on instruments, where FL repeats families (six
+subtractive synths, four FM, five additive). Cantus already leads on a modelled piano,
+multi-mic acoustic drums, a modelled organ and electric piano, a de-esser, a resonance
+suppressor, audio repair, a reference comparator and a three-model bus compressor, none of
+which FL ships. Against Bitwig, Cantus has most of the *power* (modulators on any parameter,
+clip aliases as linked clips, comping, out-of-process plug-ins, MPE, warp, a session view)
+and lacks much of the *interaction layer* that makes Bitwig easy. Winning means each row
+below done, measured where it can be, and the scorecard (`docs/scorecard/`) re-run.
+
+### A. Instruments: one first-rank instrument for every family FL covers
+
+Not 39 clones: every category FL covers gets at least one Cantus instrument that a blind
+comparison prefers (BACKLOG §0.1), then the counts follow from presets and modes.
+
+1. **Additive resynthesis, Harmor class** — already §3e item 8 (Unda's *Partes* grown).
+   *Done when* Harmor's signature moves exist: resynthesis of a dropped sample, image
+   resynthesis, the blur/prism/harmonic-protection controls, under §3e's bounds.
+2. **Modelled strings, Sakura and Plucked! class** — §3e items 6 and 7 (resonators,
+   guitar). *Done when* a bowed and a plucked string play from one model with FL's
+   macro-level simplicity (a few knobs, good presets).
+3. **A 303-style bass with its own step sequencer** (FL's Transistor Bass): §3e says Gravis
+   and Calor cover the sound; what is missing is the **built-in 16-step pattern with
+   slide, accent and octave**, editable on the instrument's face, exportable to the piano
+   roll. *Done when* an acid line is programmed without the piano roll.
+4. **A ROMpler with a large preset library** (FL's FLEX, rebuilt in 2026): one instrument
+   that browses hundreds of ready sounds across families (keys, pads, leads, basses,
+   orchestral, world), each a preset of an existing engine or an on-demand CC0/CC BY pack
+   (ADR 0030, ADR 0042). *Done when* a new user finds a usable sound of any family in
+   under ten seconds, by type and by tag.
+5. **A dedicated granular instrument** (Fruity Granulizer, Wave Traveller's scratch play):
+   §3e item 5 (Exemplar's *Grains*) plus a **scratch/turntable mode** (play position by
+   the mouse or an automation lane, Wave Traveller's role).
+6. **Speech and image synthesis** (FL's Speech Synthesizer, BeepMap): text to speech with
+   an open voice (licence checked) as a sound source, and an image drawn or dropped as a
+   spectrogram (falls out of item 1). Low priority; listed so the catalogue has no hole.
+7. **Every FL instrument family checked off in one table** in `docs/scorecard/` — FL's 39
+   mapped to the Cantus instrument or mode that answers each, with the blind-test result
+   where one exists. *Done when* no row says "none".
+
+### B. Effects: close FL's last gaps
+
+8. **Multiband delay** (FL's Multiband Delay): a delay per band (up to 16) with its own
+   time, feedback and pan. Could be a mode of the Delay unit.
+9. **A one-knob enhancer** (FL's Soundgoodizer, the Maximus-based "make it sound better"):
+   a few curated multiband characters, one amount knob. Default off, null when at zero.
+10. **A low-end enhancer** (FL's Low Lifter, Signature edition): sub-harmonic generation
+    and low-end tightening, tuned to the song's key where one is set.
+11. **A morphing graphic EQ** (FL's EQUO): bands drawn, several curves stored and morphed by
+    one control or automation. Possibly a mode of Aequalis.
+12. **An exciter/harmonic enhancer** by band (FL's Maximus/Emphasis family covers part;
+    no Cantus unit names it).
+13. **A scratcher** (Fruity Scratcher): turntable scratching of the insert's audio by a
+    drawn or automated platter position.
+14. **A visualizer** (ZGameEditor Visualizer) — the dancer (§6i) covers the fun part; a
+    music video exporter with spectrum, waveform and image layers would complete it, and
+    meets §0.2's video row.
+
+### C. Notes and composition: FL's piano-roll tools and beyond
+
+15. **Note Repeat** (FL 2024): hold a key or pad and it repeats at a chosen rate, with
+    velocity and swing — live and while recording.
+16. **Chord progression generator and Chord Stamp** (FL 2024, 2026): progressions by key
+    and mood into the piano roll; a stamp that places a chord of the chosen type with
+    voice leading. Cantus's harmony module (`cantus-core/src/harmony*.rs`) and the Chord
+    note effect are the base *(check first)* what already reaches the piano roll.
+17. **Loop Starter** (FL 2025): a few genre loops generated from on-demand packs into a new
+    project, in its key and tempo, as starting material.
+18. **Per-note operators** (Bitwig's Operators, which FL does not have): **chance** (with a
+    seed), **repeats** (count or rate, with a velocity curve), **occurrence** (first / not
+    first, fill on/off tied to a global *Fill* button) and **recurrence** (on these passes
+    of a loop). Today `Note` has no such fields: a schema bump, edited in the inspector for
+    a selection, deterministic by seed (offline = real time, to the bit).
+19. **An expression overlay on the piano roll and on audio clips** (Bitwig 6.0, key X):
+    pitch, gain, timbre and pressure curves drawn over the notes or waveform *(check
+    first)* how much of `note_expr` is drawable today.
+20. **Ghost notes** (FL, Bitwig, REAPER): the scorecard row M1 says partial; finish it.
+
+### D. Bitwig's interaction layer: what makes it easy
+
+21. **A footer that teaches**: for whatever is under the mouse, its full name, its value
+    *and* its value after modulation, then every gesture available (`DRAG Adjust ·
+    CTRL+CLICK Type value · DOUBLE-CLICK Default · ALT+DRAG Modulation depth`), updated
+    live during a drag. Cantus has a status line and hover hints; they name things but do
+    not teach gestures. *Done when* every kit control reports its gestures (a test walks
+    the kit and fails on one that does not).
+22. **One grammar for every control**, audited: double-click resets, Ctrl+click types a
+    value, Shift+drag is fine, right-click offers the same menu (modulate, automate, MIDI
+    learn, reset). A test drives each native editor's controls through all four.
+23. **A "+" at every point of a chain** (before the first device and after each one, in the
+    mixer, the inspector and the modulator slots) that opens a **pop-up browser** with the
+    focus in its search field: type, arrow through results with **live preview**, Enter
+    inserts there. Filters by key (category, vendor, favourites), presets of a device with
+    → and back with ←.
+24. **Containers**: effect **layers** (parallel chains, each with its own level, pan, mute)
+    and an **effect selector** (one chain at a time, switchable and automatable), a
+    **mid/side** and a **multiband** splitter as containers, and **chains inside devices**
+    (an effect inside a delay's feedback loop, pre/post/wet chains). Shift-drag one device
+    onto another to make a layer of both. Tabula's pedalboard is a start for effects.
+25. **Instrument layers and an instrument selector** (FL's Layer, Bitwig's Instrument
+    Layer/Selector): several instruments on one track from one note stream, with key and
+    velocity splits and round robin.
+26. **Per-voice (polyphonic) modulation**: a modulator runs one instance per note (an
+    envelope or LFO per voice), shown in its own colour, for native instruments and for
+    CLAP plug-ins that accept polyphonic modulation. Plus **voice stacking** (up to 16
+    voices per note, with spread).
+27. **Remote-control pages for every device**: pages of eight knobs per device and per
+    track (as Tabula's macros, everywhere), assignable by click, followed by controllers
+    on the selected device, and themselves modulation sources.
+28. **Temporary tool switching**: hold a tool's key to use it, release to come back; tool
+    keys 1–8 as Bitwig's (pointer, time selection, pencil, spray, knife, eraser, audition,
+    step input); a smart pointer whose cursor says what a drag will do.
+29. **Keyboard navigation by points of interest**: ←/→ jump to the next note edge, onset,
+    fade or loop edge; Shift extends the selection; Alt moves by the grid.
+30. **Deactivate a track or a device**: no CPU, no latency, content kept ("as good as
+    deleted, nothing lost"); different from freeze. Alt+A.
+31. **Several projects open in tabs**, with clips, devices and tracks dragged between them;
+    one sounds at a time.
+32. **Launcher and arranger in one view** (Bitwig's model, an option beside the session
+    view of round 33): the clip slots beside the timeline on the same tracks, a per-track
+    *back to arrangement* button, and a progress ring per playing clip.
+33. **Drop gestures that build instruments**: one sample → Exemplar; with Alt → its
+    spectral mode; with Ctrl → sliced (Sectio); several samples → round robin, with Alt →
+    a Pulsus kit, with Ctrl → a tuned multisample (Bitwig 6.1).
+34. **Display profiles**: named window layouts for one, two or three screens and for a
+    tablet, chosen from the window header (Cantus has multi-monitor windows since the
+    effects side round; the profiles are missing).
+35. **Touch and pen mode** — already §0.2 *Touch and other form factors*; Bitwig's bar:
+    a play view with a multitouch keyboard (sideways = micro-pitch, vertical = timbre,
+    force = pressure), a radial gesture menu, one-touch buttons.
+36. **A modular environment, The Grid's class** — already §0.2; its approachability is the
+    bar: modules that auto-connect when dropped on a cable, cables that heal when a module
+    is deleted, hidden default connections so a blank patch already plays, help on F1.
+37. **Plug-in hosting modes**: today an option per plug-in (ADR 0063); add Bitwig's grouping
+    (all together, by vendor, by plug-in, each instance) and a *Reload plug-in* button on
+    a crashed device while playback goes on *(check first)* what the crash view offers.
+
+### E. Keep the lead where Bitwig's users complain
+
+Bitwig's reviews name what it lacks: pitch correction, ARA, video, MIDI comping,
+retrospective capture, project versions, stem separation, a richer piano roll and more
+stock content. Cantus has pitch correction (Tonus, the pitch editor), stems and FL's piano
+roll as its reference; it should not lose those, and should close the rest:
+
+38. **MIDI comping** (takes of note recordings, swiped like audio) — a Bitwig gap its
+    reviews name in 2026; Logic has it.
+39. **Retrospective capture** of MIDI and audio (FL 2026's Audio Logger, Ableton's
+    Capture): what was played while stopped or not armed, kept and recoverable.
+40. **ARA 2 finished** (scorecard P8) and **video** (W9) — already in the scorecard's open
+    rows.
+41. **Project versions and snapshots** (W8) — already §0.2 *Collaboration and safety of
+    work*.
+42. **Stock content to rival FL Cloud and Bitwig's packs** — §5; an on-demand library large
+    enough that item 4's ROMpler and item 17's Loop Starter have material.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 
