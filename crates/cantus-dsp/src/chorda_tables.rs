@@ -170,6 +170,11 @@ pub fn tuning_for(t: &Tuning) -> [f64; KEYS] {
         let f_hi = anchors[k + 1].1;
         let f0 = f_lo * math::powf(f_hi / f_lo, (m - m0) / 12.0);
         *f = f0 * (1.0 + b(m)).sqrt();
+        let ct = t.tune[i];
+        if ct != 0.0 {
+            // The technician's last pass: the key's whole ladder moved (its `B` kept).
+            *f *= math::powf(2.0f64, ct as f64 / 1200.0);
+        }
     }
     out
 }

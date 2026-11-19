@@ -128,6 +128,16 @@ pub struct VoiceSettings {
     /// Model 2 (round 40): 1 — each string's first partial held where its detune put it
     /// as its stiffness scatters (0: not held).
     pub uni_b_hold: f64,
+    /// Model 2 (round 40, `DSP_VERSION` 10): 1 — the unison's detunes and stiffness scatter
+    /// centred on the key, weighed by the strings' power (`Voicing::uni_center`; 0: not).
+    pub uni_center: f64,
+    /// Model 2 (round 40, `DSP_VERSION` 10): 1 — the strings tuned with the bridge's load
+    /// on them (`Voicing::bridge_tune`; 0: not).
+    pub bridge_tune: f64,
+    /// Model 2 (round 40, `DSP_VERSION` 10): with `bridge_tune`, the most (cents) a bridge
+    /// resonance may pull one of a key's first three partials (`Voicing::bridge_pull`; 0:
+    /// no limit).
+    pub bridge_pull: f64,
     /// Model 2 (round 40): how far a unison's strings' losses scatter (± this share; 0:
     /// alike).
     pub uni_loss: f64,
@@ -206,6 +216,75 @@ pub fn damped_t60(m: f64) -> f64 {
 pub fn pedal_contact(pedal: f64) -> f64 {
     let t = ((pedal - 0.15) / 0.5).clamp(0.0, 1.0);
     1.0 - t * t * (3.0 - 2.0 * t)
+}
+
+/// The ear's weight of key `key`'s partial `n` for its pitch (the technician's pass): the
+/// struck string's amplitude there (`|sin(nπβ)|/n` at the strike `β`) and the dominance
+/// region (Plomp 1967, Ritsma 1967: the partials from ~300 Hz to ~2 kHz decide a complex
+/// tone's pitch) as a log-normal bump at 700 Hz, 1.5 octaves wide, floored at a tenth.
+pub fn ear_weight(key: &Key, n: u32) -> f64 {
+    let a = math::sin(n as f64 * std::f64::consts::PI * key.strike).abs() / n as f64;
+    let o = math::log2(key.partial(n) / 700.0) / 1.5;
+    a * (0.1 + 0.9 * math::exp(-0.5 * o * o))
+}
+
+/// How a strike's blow is shared among a unison's `strings` (each string's share of the
+/// hammer's speed; the soft pedal at `soft` moves it off the last), with the voicing's fixed
+/// per-key scatter hashed from `dk`. Allocates nothing.
+fn unison_weights(dk: u8, strings: u8, settings: &VoiceSettings, soft: f64) -> [f64; MAX_STRINGS] {
+    let mut weight = match strings {
+        3 => [1.0, 1.0, 1.0 - soft],
+        2 => [1.0, 1.0 - 0.5 * soft, 0.0],
+        _ => [1.0, 0.0, 0.0],
+    };
+    if settings.uni_weight != 0.0 && strings > 1 {
+        // The hammer's crown meets the strings unevenly: a fixed scatter per key — the
+        // blow shared differently, its whole the same (round 40: unheld, a key whose
+        // strings all drew a light share stood 12 dB under its neighbours).
+        let n = strings as usize;
+        let before: f64 = weight[..n].iter().sum();
+        if settings.uni_rank != 0.0 {
+            // By rank: the hash picks which string leads, the shares are fixed — the
+            // leader whole, the next `1 − 0.75·w`, the last `1 − w` — so no key draws
+            // two strings alike (round 40: those were the keys that beat 13–18 dB deep).
+            let mut order = [0usize, 1, 2];
+            let h = |i: usize| string_hash(dk, i as u8, 0xA7);
+            order[..n].sort_by(|a, b| h(*b).total_cmp(&h(*a)));
+            let shares = [0.0, 0.75, 1.0];
+            for (r, i) in order[..n].iter().enumerate() {
+                let s = if n == 2 { [0.0, 1.0][r] } else { shares[r] };
+                weight[*i] *= (1.0 - settings.uni_weight * s).max(0.0);
+            }
+        } else {
+            for (i, w) in weight.iter_mut().enumerate().take(n) {
+                *w *= 1.0 - settings.uni_weight * 0.5 * (1.0 + string_hash(dk, i as u8, 0xA7));
+            }
+        }
+        let after: f64 = weight[..n].iter().sum();
+        if after > 0.0 {
+            // Never a string struck much past the hammer's speed: the felt's law would
+            // make it far brighter than its neighbours.
+            let top = weight[..n].iter().fold(0.0f64, |m, w| m.max(*w));
+            let g = (before / after).min(UNI_WEIGHT_TOP / top.max(1e-9));
+            for w in weight[..n].iter_mut() {
+                *w *= g;
+            }
+        }
+    }
+    weight
+}
+
+/// `x`'s first `n` entries less their mean weighed by `p` (nothing when the weights are all
+/// nought).
+fn centre(x: &mut [f64; MAX_STRINGS], p: &[f64; MAX_STRINGS], n: usize) {
+    let sp: f64 = p[..n].iter().sum();
+    if sp <= 0.0 {
+        return;
+    }
+    let m = x[..n].iter().zip(&p[..n]).map(|(a, b)| a * b).sum::<f64>() / sp;
+    for v in x[..n].iter_mut() {
+        *v -= m;
+    }
 }
 
 /// A small, fixed variation per key and string (−1…1), hashed, never random.
@@ -418,6 +497,12 @@ struct Retune {
 }
 
 impl Voice {
+    /// Its strings (a test's look inside).
+    #[cfg(test)]
+    pub(crate) fn strings(&self) -> &KeyStrings {
+        &self.strings
+    }
+
     /// A voice for `key`, with strings for loops up to `capacity` samples. Allocates.
     pub fn new(key: Key, capacity: usize, fs: f64) -> Voice {
         let d = ((64.0 * key.impedance * key.speed * key.length * key.length * key.b)
@@ -486,6 +571,9 @@ impl Voice {
                 bridge_span: 10.0,
                 uni_b: 0.0,
                 uni_b_hold: 0.0,
+                uni_center: 0.0,
+                bridge_tune: 0.0,
+                bridge_pull: 0.0,
                 uni_loss: 0.0,
                 knock_vel: 0.0,
                 landing_tau: 0.0,
@@ -591,6 +679,20 @@ impl Voice {
                     *d += settings.uni_skew * spread * string_hash(dk, i as u8, 0x5E);
                 }
             }
+            // The technician's pass: the unison tuned to the key — every string's detune and
+            // stiffness scatter less their mean, weighed by the strings' power.
+            let n = key.strings as usize;
+            let power = (settings.uni_center != 0.0 && n >= 1).then(|| {
+                let w = unison_weights(dk, key.strings, &settings, 0.0);
+                let mut p = [0.0; MAX_STRINGS];
+                for (a, b) in p.iter_mut().zip(&w).take(n) {
+                    *a = b * b;
+                }
+                p
+            });
+            if let Some(p) = &power {
+                centre(&mut detune, p, n);
+            }
             let polar = usize::from(settings.polar != 0.0 && key.strings < 3);
             if polar == 1 {
                 detune[key.strings as usize] = settings.polar_ct;
@@ -611,7 +713,12 @@ impl Voice {
                 }
                 let hold = (settings.uni_b_hold != 0.0)
                     .then(|| std::f64::consts::TAU * key.partial(1) / self.fs);
-                self.strings.set_string_stiffness_held(design, eps, hold);
+                if let Some(p) = &power {
+                    centre(&mut eps, p, n);
+                    self.strings.set_string_stiffness_set(design, eps, hold, n);
+                } else {
+                    self.strings.set_string_stiffness_held(design, eps, hold);
+                }
             }
             if settings.uni_loss != 0.0 {
                 let mut ls = [(0.0, 0.0); MAX_STRINGS];
@@ -656,6 +763,21 @@ impl Voice {
                 }
                 self.strings.set_bridge_modes(&modes[..k]);
             }
+            if settings.bridge_tune != 0.0 {
+                let mut parts = [(0.0, 0.0, 0.0); super::string::TUNED_PARTIALS];
+                let mut np = 0;
+                for (k, p) in parts.iter_mut().enumerate() {
+                    let f = key.partial(k as u32 + 1);
+                    if k > 0 && (f > 5_000.0 || f > 0.45 * self.fs) {
+                        break;
+                    }
+                    let w = std::f64::consts::TAU * f / self.fs;
+                    *p = (w, design.group_delay(w), ear_weight(&key, k as u32 + 1));
+                    np += 1;
+                }
+                self.strings
+                    .set_bridge_tuned(&parts[..np], settings.bridge_pull);
+            }
         }
         let soft = (soft * settings.una_depth).clamp(0.0, 1.0);
         let mut felt = settings.felt;
@@ -690,45 +812,7 @@ impl Voice {
                 seed,
             );
         }
-        let mut weight = match key.strings {
-            3 => [1.0, 1.0, 1.0 - soft],
-            2 => [1.0, 1.0 - 0.5 * soft, 0.0],
-            _ => [1.0, 0.0, 0.0],
-        };
-        if settings.uni_weight != 0.0 && key.strings > 1 {
-            // The hammer's crown meets the strings unevenly: a fixed scatter per key — the
-            // blow shared differently, its whole the same (round 40: unheld, a key whose
-            // strings all drew a light share stood 12 dB under its neighbours).
-            let n = key.strings as usize;
-            let before: f64 = weight[..n].iter().sum();
-            if settings.uni_rank != 0.0 {
-                // By rank: the hash picks which string leads, the shares are fixed — the
-                // leader whole, the next `1 − 0.75·w`, the last `1 − w` — so no key draws
-                // two strings alike (round 40: those were the keys that beat 13–18 dB deep).
-                let mut order = [0usize, 1, 2];
-                let h = |i: usize| string_hash(dk, i as u8, 0xA7);
-                order[..n].sort_by(|a, b| h(*b).total_cmp(&h(*a)));
-                let shares = [0.0, 0.75, 1.0];
-                for (r, i) in order[..n].iter().enumerate() {
-                    let s = if n == 2 { [0.0, 1.0][r] } else { shares[r] };
-                    weight[*i] *= (1.0 - settings.uni_weight * s).max(0.0);
-                }
-            } else {
-                for (i, w) in weight.iter_mut().enumerate().take(n) {
-                    *w *= 1.0 - settings.uni_weight * 0.5 * (1.0 + string_hash(dk, i as u8, 0xA7));
-                }
-            }
-            let after: f64 = weight[..n].iter().sum();
-            if after > 0.0 {
-                // Never a string struck much past the hammer's speed: the felt's law would
-                // make it far brighter than its neighbours.
-                let top = weight[..n].iter().fold(0.0f64, |m, w| m.max(*w));
-                let g = (before / after).min(UNI_WEIGHT_TOP / top.max(1e-9));
-                for w in weight[..n].iter_mut() {
-                    *w *= g;
-                }
-            }
-        }
+        let mut weight = unison_weights(dk, key.strings, &settings, soft);
         if self.strings.strings() > key.strings as usize {
             weight[key.strings as usize] = settings.polar;
         }

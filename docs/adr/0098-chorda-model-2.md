@@ -1,6 +1,6 @@
 # ADR 0098 — Chorda's second model: voiced against a reference piano
 
-**Status:** Accepted · **Date:** 2026-11-04 (amended 2026-11-14: candidate 16 ships, `DSP_VERSION` 7) · **Extends:** ADR 0059 (Chorda), ADR 0023 (the
+**Status:** Accepted · **Date:** 2026-11-04 (amended 2026-11-14: candidate 16 ships, `DSP_VERSION` 7; 2026-11-18: the technician's pass, `DSP_VERSION` 10) · **Extends:** ADR 0059 (Chorda), ADR 0023 (the
 family's rules), ADR 0042 (CC BY content: the reference) · **Schema:** 54
 
 ## Context
@@ -300,3 +300,92 @@ The size of the change (`DSP_VERSION` 6 → 7), measured:
 
 The owner's ear has not judged candidate 16: his blind ABX against the Salamander is in
 `docs/BACKLOG-excellence.md` (§ Chorda), and Chorda's sound is not called done before it.
+
+## Amended by the technician's pass: every key in tune (round 40, `DSP_VERSION` 10)
+
+The owner, 2026-11-18: *"En Chorda hay notas desafinadas, detecté Bb2, B2, C3 por lo menos …
+checa si no hay más notas desafinadas también."* Every key A0–C8 was measured as a tuner
+hears it (`chorda::tunekit`: each partial's power-weighted frequency over 0.1–1.1 s, the
+key's pitch its partials weighed by level and the ear's dominance region, each partial's beat
+the 3–97 % swing of its level about its decay) against the smooth curve model 2's keyboard
+is designed to. Candidate 16 had Bb2 13.3 cents flat, B0 17.9 sharp, ten more keys 4–10 cents
+off (E1, A1, A#1, C#2, D2, C3, F#3, G3, C#4, A0), fundamentals up to 4.7 cents off their own
+ladders (G2, G#1, F2, B2) and eighteen unisons beating 20–28 dB deep. The Salamander
+Grand's beat 12–19 dB. Single strings were exact (within 0.5 cents): the faults were in how a
+key's strings sound together. `docs/round40/chorda-tune.md` has the measurements.
+
+### 8. The causes, and what fixes each
+
+1. **The strings' stiffness scatter was not centred on the key** (`uni_b`, 2× in the bass):
+   each string's dispersion is drawn apart from its neighbours', and the draw's mean moved
+   the whole key's upper partials one way — the ear's pitch of Bb2 −13, B0 +18, A#1 −9.5.
+   `uni_center` 1: the strings' detunes (fan and skew) and their stiffness scatter each lose
+   their mean, weighed by the strings' shares of the blow (their power); the scatter is held
+   as one set (its fallbacks scale every string's alike). The strings still beat against
+   each other as drawn; the key sits on the design. A key of one string keeps its design.
+2. **The bridge's resonances pulled the strings' in-phase mode** (`bridge`, six band-pass
+   modes per key at Q 30): a mode near a partial adds phase to the reflection the strings
+   moving together meet (`−(1 − nY)/(1 + nY)`), so that partial moved while the strings'
+   opposed modes, which never move the bridge, stayed — the key off its design and its two
+   kinds of mode beating each other (G2's fundamental −4.7 cents, 19 dB deep). `bridge.tune`
+   1: from the admittance at each of the key's first partials, each mode's pull is computed
+   (`KeyStrings::pull_cents`, `Δω = φ/τ`); the key's modes are scaled down until none pulls
+   one of the first three partials more than `bridge.pull` (2 cents — most keys keep their
+   modes whole, about fifteen are scaled to 0.35–0.9), and every string's fraction gives back the
+   pull the ear hears (the partials' pulls weighed as the ear weighs them). A tuner sets
+   strings on the bridge they rest on.
+3. **A loop's fraction met its clamp** (F4, B4, E5, F5, A5, C#7): the design had left the
+   fraction at +0.95, a cent from +0.99, so the unison's sharp string was held flat.
+   `keyboard.frac_room` 8: every loop keeps 8 cents of detune each way
+   (`design::design_with_room` moves a sample between the delay and the fraction and refines
+   the design, its partials as good as before); in `Tuning`, so in the designer's key.
+4. **What stays after the three, measured, is set as a tuner sets it.** The board's high
+   band and the room take a share of a decaying partial's measured pitch (with the body and
+   room off the treble's offsets are nought), and the strings' scatter leaves a cent here
+   and there. `Voicing::tune` (`chorda::voicing::tune::TUNE`, A0–E6; −1.2…+1.1 cents) moves
+   each key's whole ladder on its keyboard design (`Tuning::tune`, in the designer's key:
+   the sympathetic strings move with it). It was measured with the suite's kit and iterated
+   (secant steps) until every key A0–E6 sat within 0.1 cent; a fraction per voice could not
+   carry it (near −0.95 a fraction moves the fundamental twice as far as the upper partials). Above E6 no table: a
+   key's own sympathetic string rings with it undamped and its measured pitch is the board's
+   tail's as much as the strings' (±2.2 cents, under the ear's discrimination there).
+5. **Sixteen unisons redrawn** (`draw.<key>`, the candidate-13 mechanism): C1, Bb2, D#3,
+   F#3, G#3, A#3, C#4, D#4, F4, E5, F#5, E6, B6, E7, F7, A#7. Each takes a draw whose
+   deepest beat is under its register's ceiling, whose ladder is straight (partials 1–6
+   within 2 cents of its pitch), and whose level stays candidate 16's (within 1 dB over the
+   first half second, 2 and 3 dB later). F4 and F7 could not keep their later levels, because
+   their old draws' deep beats were troughs. Bb2's draw 3 had left its ladder 5 cents bent.
+
+Each is a voicing knob, neutral at 0 in `Voicing::beta14()` and `Voicing::candidate16()`:
+both render to the bits they did (pinned), model 1 too. c16's timbre, levels and bass weight
+are untouched (no level, partial or body number moved). What changed is the tuning, the bridge
+modes of about fifteen keys and sixteen unisons' draws. Measured on the lab's keys at
+mezzo-forte, each key's level over its first half second moved 0.27 dB rms, none more than
+1.5 dB. Over 1.25–3.4 s it moved 1.4 dB rms; the largest were the keys whose beats or
+fractions were the fault: F4, F7, B4 (its clamp) and A1.
+
+- **Songs saved before** play the retuned voicing if they use model 2, as every
+  `DSP_VERSION` bump before it moved the songs it touched (render and freeze caches key on
+  the version); model 1 is untouched, to the bit. No schema bump: nothing in the file
+  changes. The 24 presets play the retuned voicing with their own controls.
+
+The size of the change (`DSP_VERSION` 9 → 10), measured (`CANTUS_GOLDEN_DUMP=1`):
+
+| Render | max \|Δ\| | RMS of Δ | |
+|---|---|---|---|
+| Every golden hash (`null_tests` `v5`, Pulsus's kits, the scene bakes, the null corpus) | 0 | 0 | none includes model 2 of Chorda: no golden moved |
+| Model 1 (`tests_hash`, an old song through the app) | 0 | 0 | pinned, held |
+| Model 2 at beta.14's voicing (`MODEL_2_BETA14`) and at candidate 16 (`MODEL_2_C16`, the old `MODEL_2_SHIPPED`) | 0 | 0 | pinned, held |
+| Model 2 at its default (the pinned 0.5 s phrase) | 0.743 | 0.141 (−17.0 dBFS) | retuned: the strings' phases drift apart within the phrase, so the difference is near the signal's own size; the phrase's RMS 0.187 → 0.202 (+0.64 dB); new pin `0x9561_d8f8_a3ce_3a61` |
+
+### What the tests hold (fourth amendment)
+
+| What | Test |
+|---|---|
+| Every key A0–C8 sounds on the curve: the ear's pitch within 1 cent to E6 (it is 0.2), 2.5 above (1.3); every fundamental within 3 | `chorda::tests_tune_gate::every_key_sounds_on_the_curve` |
+| No key ragged against its neighbours (1 cent to E6, 2.5 above) | `tests_tune_gate::neighbouring_keys_lie_on_one_smooth_curve` |
+| Octaves (2:1, 4:2) and fifths (3:2) beat as the curve's own: within 0.33 Hz, or 3 cents (3.5 above E6; 4:2 4.5 or 0.5 Hz) | `tests_tune_gate::octaves_and_fifths_beat_as_the_curve_draws_them` |
+| No unison beats deeper than a recorded grand's register (10 / 16 / 20 / 22 dB) | `tests_tune_gate::no_unison_beats_deeper_than_a_recorded_grands` |
+| The shipped voicing is candidate 16 with the pass; candidate 16 renders its old bits | `tests_voicing3::the_shipped_voicing_is_candidate_16_with_the_technicians_pass_and_a_new_unit_plays_it`, `model_2_at_candidate_16_renders_to_the_bits_it_did` |
+| A Chorda added through the app plays Bb2, B2, C3 and B0 on the curve, on the real engine | `cantus-ui` `chorda_tune_e2e` |
+| The designer's key tells the table and the room apart | `cantus-engine` `inst::chorda` `model_2_asks_for_its_own_keyboard_and_model_1_never_moves` |
