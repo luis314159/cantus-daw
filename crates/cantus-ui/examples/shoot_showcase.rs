@@ -48,7 +48,11 @@ fn studio(ctx: &egui::Context, project: Project, dark: bool, engine: EngineHandl
     app.appearance_path = tmp.join("appearance.json");
     let mode = if dark { Mode::Dark } else { Mode::Light };
     app.appearance.mode = mode;
-    let preset = if dark { "slate_night" } else { "slate_paper" };
+    let preset = if dark {
+        cantus_ui::kit::appearance::DEFAULT_DARK
+    } else {
+        cantus_ui::kit::appearance::DEFAULT_LIGHT
+    };
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.attach(ctx);
     // The demo interface, and no dropout on the status line.

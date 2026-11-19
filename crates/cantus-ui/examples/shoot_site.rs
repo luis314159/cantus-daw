@@ -2,7 +2,7 @@
 //! re-encode the PNG as lossless WebP — `web/src/picture.rs`), 1912 x 1022, headless: the whole
 //! window on the startup project as the program opens, with the Browser docked at the left, the
 //! mixer Extra large and its cables on (the selected strip's: its sidechain, its sends, its
-//! output), in Cantus Night. The site crops it (`web/src/tour.rs`: arrangement, mixer,
+//! output), in the default theme. The site crops it (`web/src/tour.rs`: arrangement, mixer,
 //! inspector), so the layout must keep those rectangles: the top 31 px stand where the
 //! operating system's caption bar is on a real screen shot, and are painted here as a plain
 //! band in the theme's panel colour.

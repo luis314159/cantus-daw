@@ -1,7 +1,7 @@
 //! The Session pane drawn without a screen (round 33, ADR 0077): the grid playing (a clip
 //! playing, one queued, one stopping, one recording, a scene playing and one queued), the
 //! clip panel of a gate clip with follow actions, an envelope drawn, the learn mode, a
-//! controller grid's session ring, an empty session — in Slate (Cantus Night) and Paper,
+//! controller grid's session ring, an empty session — in the default theme, Night and Paper,
 //! at 100 % and 200 %; and the whole window with the Session pane in front.
 //!
 //! ```text
@@ -25,9 +25,9 @@ fn context(dark: bool) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let theme = if dark {
-        cantus_ui::theme::slate_night()
+        cantus_ui::theme::default_theme()
     } else {
-        cantus_ui::theme::slate_paper()
+        cantus_ui::theme::default_light_theme()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     // The application's own scroll bars (solid, six points), as the window has them.
@@ -102,7 +102,11 @@ fn window(out: &Path, dark: bool) {
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     let mode = app.appearance.mode;
-    let preset = if dark { "slate_night" } else { "slate_paper" };
+    let preset = if dark {
+        cantus_ui::kit::appearance::DEFAULT_DARK
+    } else {
+        cantus_ui::kit::appearance::DEFAULT_LIGHT
+    };
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.attach(&ctx);
     // A working studio: the demo interface (not "No audio").
@@ -135,7 +139,11 @@ fn midi(out: &Path, dark: bool, zoom: f32) {
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     let mode = app.appearance.mode;
-    let preset = if dark { "slate_night" } else { "slate_paper" };
+    let preset = if dark {
+        cantus_ui::kit::appearance::DEFAULT_DARK
+    } else {
+        cantus_ui::kit::appearance::DEFAULT_LIGHT
+    };
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.attach(&ctx);
     studio::studio(&mut app, 256);

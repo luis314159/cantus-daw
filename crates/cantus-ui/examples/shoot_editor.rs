@@ -4,9 +4,9 @@
 //! cargo run -p cantus-ui --example shoot_editor -- [out-dir]
 //! ```
 //!
-//! A voice-like take in hiss, in Cantus Night and Paper, English and Spanish, at 75 %, 100 %
-//! and 200 %: the wave and the spectrogram with a selection, a spectral rectangle picked, the
-//! noise learned, and the wave alone zoomed to the samples.
+//! A voice-like take in hiss, in the default theme, Night and Paper, English and Spanish,
+//! at 75 %, 100 % and 200 %: the wave and the spectrogram with a selection, a spectral
+//! rectangle picked, the noise learned, and the wave alone zoomed to the samples.
 
 use cantus_core::audio_edit::Sel;
 use cantus_core::*;
@@ -23,9 +23,9 @@ fn context(dark: bool) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let theme = if dark {
-        cantus_ui::theme::slate_night()
+        cantus_ui::theme::default_theme()
     } else {
-        cantus_ui::theme::slate_paper()
+        cantus_ui::theme::default_light_theme()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     ctx

@@ -4,7 +4,7 @@
 #   bash tools/shots/reshoot.sh [units|rest|all] [--no-build]
 #
 # - `units`: every instrument's and effect's window (shoot_skins; Delay's too since round 39),
-#   English and Spanish, Slate Night and Slate Paper, made into
+#   English and Spanish, Slate Lapis Night and Paper (the default pair), made into
 #   web/assets/units/ and docs/images/units/ (+ thumbs/) by web/tools/units_pictures.py; the
 #   sizes in web/src/units_data.rs are checked (and rewritten) by tools/shots/check_units.py.
 # - `rest`: the program picture (web/assets/program/), the README's pictures (docs/images/*.png)
@@ -14,10 +14,11 @@
 #
 # The shots go to $CANTUS_SHOTS (default target/shots/reshoot), one folder per example; the
 # pictures are written in place, in the repository. Every example runs headless, on the CPU,
-# in the default look where an example takes the app's own (shoot_site, shoot_rec, shoot_views'
-# `night`: Slate Lapis Night and Paper since 2026-11-18, ADR 0111 §11) and in Slate Night and
-# Slate Paper where it names them (shoot_readme, shoot_skins and most others). The pictures in
-# the repository were shot before 2026-11-18, in Slate.
+# in the default look: Slate Lapis Night, and Slate Lapis Paper for the light pictures (ADR 0111
+# §11, 2026-11-18) — every example takes `theme::default_theme()` / `default_light_theme()` or the
+# app's own default appearance (the README's themes gallery excepted), so the pictures follow
+# the default. File-name tags such as `-slate` and `-paper` (which place.py maps) mean the dark
+# and the light picture.
 #
 # Builds go through $CANTUS_SLOT when it is set (round 39: CANTUS_SLOT=/f/projects/daw-r39/slot.sh).
 # Needs Python with Pillow; oxipng is used when installed.

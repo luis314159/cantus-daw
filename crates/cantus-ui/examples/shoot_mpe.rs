@@ -1,7 +1,8 @@
 //! Shots of per-note expression in the piano roll (round 33, ADR 0080): a played MPE phrase
 //! — notes sliding in, vibratos, pressure swells, timbre opening — with its curves on the
-//! notes and the three expression rows under the roll, in Cantus Night and Paper, English
-//! and Spanish, at 100 and 200 %: `cargo run -p cantus-ui --example shoot_mpe -- <dir>`.
+//! notes and the three expression rows under the roll, in the default theme, Night and
+//! Paper, English and Spanish, at 100 and 200 %: `cargo run -p cantus-ui --example
+//! shoot_mpe -- <dir>`.
 
 use cantus_core::model::note_expr::{ExprKind, ExprPoint, NoteExpr};
 use cantus_core::*;
@@ -109,9 +110,9 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let th = if theme == "paper" {
-        cantus_ui::theme::slate_paper()
+        cantus_ui::theme::default_light_theme()
     } else {
-        cantus_ui::theme::slate_night()
+        cantus_ui::theme::default_theme()
     };
     cantus_ui::theme::apply(&th, &ctx);
     let mut app =
@@ -122,9 +123,9 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
     app.keymap_path = tmp.join("keymap.toml");
     app.appearance_path = tmp.join("appearance.json");
     let (preset, mode) = if theme == "paper" {
-        ("slate_paper", Mode::Light)
+        (cantus_ui::kit::appearance::DEFAULT_LIGHT, Mode::Light)
     } else {
-        ("slate_night", Mode::Dark)
+        (cantus_ui::kit::appearance::DEFAULT_DARK, Mode::Dark)
     };
     app.appearance.mode = mode;
     app.appearance.assign(mode, format!("preset:{preset}"));
