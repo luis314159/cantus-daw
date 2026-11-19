@@ -28,30 +28,45 @@ const head = (tipX, tipY, n, dir) => {
   return out;
 };
 
+// Polarity, swap and mono below 27 px: smooth, anti-aliased vectors scaled from the 27-px
+// drawing (2026-11-18, the owner: the 1-px stair-stepped ring and diagonal looked pixelated
+// on the strip). The stroke keeps a weight that reads at each size; the 27 is unchanged.
+const SMOOTH_W = { 12: 1.25, 16: 1.4, 18: 1.5, 24: 1.75 };
+const f2 = v => +v.toFixed(3);
+const smoothRing = n => `<circle class="s1" stroke-width="${SMOOTH_W[n]}" cx="${f2(n / 2)}" cy="${f2(n / 2)}" r="${f2(n * 0.27)}"/>`;
+const scaled27 = (n, body) => {
+  const k = n / 27;
+  return `<g transform="scale(${f2(k)})">` +
+    body.replace(/stroke-width="2"/g, `stroke-width="${f2(SMOOTH_W[n] / k)}"`) + '</g>';
+};
+
 // Polarity Ø: a ring and the stroke through it, a little past the ring.
+const PHASE27 = '<circle class="s1" stroke-width="2" cx="13.5" cy="13.5" r="7"/><path class="s1" stroke-width="2" stroke-linecap="round" d="M21.5 5.5 L5.5 21.5"/>';
 N.phase = {
-  12: { px: [ring(8, 2, 2)], svg: cells(seg(1, 10, 10, 1)) },
-  16: { px: [ring(10, 3, 3)], svg: cells(seg(2, 13, 13, 2)) },
-  18: { px: [ring(10, 4, 4)], svg: cells(seg(3, 14, 14, 3)) },
-  24: { svg: '<circle class="s1" stroke-width="1" cx="12" cy="12" r="6.5"/>' + cells(seg(4, 19, 19, 4)) },
-  27: { svg: '<circle class="s1" stroke-width="2" cx="13.5" cy="13.5" r="7"/><path class="s1" stroke-width="2" stroke-linecap="round" d="M21.5 5.5 L5.5 21.5"/>' },
+  12: { svg: scaled27(12, PHASE27) },
+  16: { svg: scaled27(16, PHASE27) },
+  18: { svg: scaled27(18, PHASE27) },
+  24: { svg: scaled27(24, PHASE27) },
+  27: { svg: PHASE27 },
 };
 
 // Swap L/R: two arrows passing each other.
+const SWAP27 = '<path class="s1" stroke-width="2" stroke-linecap="round" d="M7 10 H19.5 M20 17 H7.5"/><path class="s1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16.5 7 L20 10 L16.5 13 M10.5 14 L7 17 L10.5 20"/>';
 N.swap = {
-  12: { svg: cells(seg(2, 3, 7, 3).concat(head(9, 3, 2, 1), seg(4, 8, 9, 8), head(2, 8, 2, -1))) },
-  16: { svg: cells(seg(3, 5, 10, 5).concat(head(13, 5, 3, 1), seg(5, 10, 12, 10), head(2, 10, 3, -1))) },
-  18: { svg: cells(seg(4, 6, 11, 6).concat(head(14, 6, 3, 1), seg(6, 11, 13, 11), head(3, 11, 3, -1))) },
-  24: { svg: cells(seg(5, 8, 15, 8).concat(head(18, 8, 3, 1), seg(8, 15, 18, 15), head(5, 15, 3, -1))) },
-  27: { svg: '<path class="s1" stroke-width="2" stroke-linecap="round" d="M7 10 H19.5 M20 17 H7.5"/><path class="s1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16.5 7 L20 10 L16.5 13 M10.5 14 L7 17 L10.5 20"/>' },
+  12: { svg: scaled27(12, SWAP27) },
+  16: { svg: scaled27(16, SWAP27) },
+  18: { svg: scaled27(18, SWAP27) },
+  24: { svg: scaled27(24, SWAP27) },
+  27: { svg: SWAP27 },
 };
 
 // Mono: one ring with its centre — one source.
+const monoSmooth = n => smoothRing(n) + `<circle class="f1" cx="${f2(n / 2)}" cy="${f2(n / 2)}" r="${f2(Math.max(1.2, n * 0.082))}"/>`;
 N.mono = {
-  12: { px: [ring(8, 2, 2)], svg: '<rect class="f1" x="5" y="5" width="2" height="2"/>' },
-  16: { px: [ring(10, 3, 3)], svg: '<rect class="f1" x="7" y="7" width="2" height="2"/>' },
-  18: { px: [ring(10, 4, 4)], svg: '<rect class="f1" x="8" y="8" width="2" height="2"/>' },
-  24: { svg: '<circle class="s1" stroke-width="1" cx="12" cy="12" r="6.5"/><circle class="f1" cx="12" cy="12" r="1.7"/>' },
+  12: { svg: monoSmooth(12) },
+  16: { svg: monoSmooth(16) },
+  18: { svg: monoSmooth(18) },
+  24: { svg: monoSmooth(24) },
   27: { svg: '<circle class="s1" stroke-width="2" cx="13.5" cy="13.5" r="7"/><circle class="f1" cx="13.5" cy="13.5" r="2.2"/>' },
 };
 
