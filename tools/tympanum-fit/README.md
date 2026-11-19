@@ -107,3 +107,46 @@ listener's file. Method and results: `docs/round40/ladder.md`.
    `fit_b11.json`, `fitv_b11.json`), with `data/gains*.json`.
 16. `tables_blob.py` reads `<TABLE>_DECAY` = [lo Hz, hi Hz, T60 s]: past its peak each band in
    that range falls at least 60 dB in T60, after the colour's corrections.
+
+## Paths (every script here)
+
+Nothing names a machine's folders; the environment does (defaults in brackets):
+
+| variable | what |
+|---|---|
+| `TYMP_WORK` [`<repo>/target/tympanum-work` for the cycles, `.` for the Python] | the measuring work folder: `meas9/` the recorded kits' hits (`tympanum_measure hits <TYMP_WORK>/meas9 <content root> pack:drskit-tympanum/kit pack:virtuosity-drums/kit …`), `out/` the fits and gains, one folder per render |
+| `TYMP_MEAS` [`$TYMP_WORK/meas9`] | the recorded hits `accept_b10.py` and the analyses read |
+| `TYMP_CONTENT` (required by the cycles) | the content root holding the recorded packs (Cantus's own installs: DRSKit, Virtuosity Drums, Crocell, Muldjord, Big Rusty — downloaded on demand, never in the repository) |
+| `TYMP_LISTEN`, `TYMP_ANALYSIS_OUT` | the analyses' input (a listen's folder, `make_listen.py`'s files) and output |
+| `CANTUS_PY` [`python`] | the Python with `requirements.txt` |
+| `SLOT` [`bash tools/build/slot.sh`] | the build-slot wrapper (`tools/build/README.md`); empty inside a slot |
+
+## The two analyses (round 40: independent analysts, audio only)
+
+Each analyst heard the listening files only, never the model's code, and named what sounds
+synthetic with a measured target. Their scripts and reports are kept so a later model can be
+measured the same way:
+
+- `analysis-1/` — *why the cymbals sound glassy* (the b3 listen against five recorded kits):
+  `report.md`, scripts `s01`…`s17` (`common.py`: `TYMP_LISTEN` the listen's folder — its
+  `golpes-*` and groove files —, `TYMP_ANALYSIS_OUT`, `TYMP_MEAS` for `s14`; `s16` compares two
+  listens, the earlier one in `TYMP_LISTEN_B2`).
+- `analysis-2/` — *the element-by-element gap analysis* of the b9 listen: `report.md` with **the
+  fifteen ranked "synthetic" cues and their targets** (the ones `accept_b10.py` measures),
+  scripts `s00`…`s16` (`s01`, `s02`, `s04`, `s06` write the JSON/NumPy intermediates the later
+  ones read, into `$TYMP_ANALYSIS_OUT/scripts/`: run them in order).
+
+```bash
+export TYMP_LISTEN=<listen folder> TYMP_ANALYSIS_OUT=<out> TYMP_MEAS=<meas9> MPLBACKEND=Agg
+cd tools/tympanum-fit/analysis-2 && for s in s00_segment s01_drums s02_drum_summary s04_cymbals; do $CANTUS_PY -I $s.py > $TYMP_ANALYSIS_OUT/$s.txt; done
+```
+
+## Probes (`probes/`)
+
+Small diagnostics from the fitting rounds, on hit files (`tympanum_measure hits`): `diag.py`
+(a piece's tonal share per band, modal against noise power, with its fit), `diag2.py` (onset,
+peak and band levels over time, recording against model), `diag3.py` (one band of one hit
+against the fit's own synthesis), `hf.py` (the highs of named pieces, two files), `pr.py` (the
+6–16 kHz band's effective components). Each prints its arguments in its first lines.
+
+Python dependencies: `requirements.txt` (numpy, scipy, soundfile, matplotlib).
