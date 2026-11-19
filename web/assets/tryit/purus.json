@@ -6,8 +6,8 @@
     "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
   ],
   "source": [
-    "The CC0 guitar with a synthetic mains hum (50 Hz, drifting), a buzz, clicks and crackle",
-    "La guitarra CC0 con un zumbido de red sintético (50 Hz, que se desvía), un zumbido, clics y crepitar"
+    "The CC0 guitar with a mains hum (50 Hz, drifting), a buzz, clicks and crackle, synthetic, added to show the repair",
+    "La guitarra CC0 con un zumbido de red (50 Hz, que se desvía), un zumbido, clics y crepitar, sintéticos, añadidos para mostrar la reparación"
   ],
   "credit": [
     "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
@@ -57,6 +57,20 @@
       "wet": "/tryit/purus/vinyl_crackle.mp3",
       "level_db": -0.0,
       "pic": "/tryit/purus/vinyl_crackle"
+    },
+    {
+      "id": "strong",
+      "name": [
+        "Strong cleanup",
+        "Limpieza a fondo"
+      ],
+      "what": [
+        "Vocal — Lo-fi, Film · Game",
+        "Voz — Lo-fi, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/purus/strong.mp3",
+      "level_db": 0.2,
+      "pic": "/tryit/purus/strong"
     }
   ]
 }

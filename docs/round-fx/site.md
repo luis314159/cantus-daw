@@ -113,6 +113,9 @@ A test (`tryit::tests`) checks:
 
 ## 5. What the integrator runs at the merge (from the repository root, after every fx branch)
 
+**The sound steps (3 and 4) are superseded by `sounds.md` §6** (`fx/sounds`, 2026-11-18): the
+effects are heard on recordings, and `render_tryit` runs before `render_unit_sounds`.
+
 ```text
 # 1. The cards: resolve units_data.rs (keep fx/web's Vinculum and Lenis), settle each MERGE note.
 # 2. The pictures — uncomment wave B/C's lines in examples/shoot_skins.rs first.

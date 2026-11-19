@@ -57,6 +57,20 @@
       "wet": "/tryit/cedo/triplet_breathe.mp3",
       "level_db": 0.3,
       "pic": "/tryit/cedo/triplet_breathe"
+    },
+    {
+      "id": "trance_gate",
+      "name": [
+        "Trance gate",
+        "Puerta trance"
+      ],
+      "what": [
+        "Creative — House · EDM, Film · Game",
+        "Creativo — House · EDM, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/cedo/trance_gate.mp3",
+      "level_db": -0.7,
+      "pic": "/tryit/cedo/trance_gate"
     }
   ]
 }

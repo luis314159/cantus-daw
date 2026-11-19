@@ -270,6 +270,46 @@ pub fn factory() -> Vec<(&'static str, EffectSpec)> {
     };
     vec![
         ("preset.tabula.guitar_rig", rig),
+        // fx/sounds — a guitar's whole rig, ending in an amp and its cabinet as a guitar is
+        // heard: the green overdrive as a light push into Arca's crunch amp and its vintage
+        // 4×12, then a short echo and a little room.
+        (
+            "preset.tabula.crunch_amp_rig",
+            build(
+                &[
+                    P(
+                        K::Pedal,
+                        Pre,
+                        &[
+                            ("s1", 1.0),
+                            ("od.drive", 0.25),
+                            ("od.tone", 0.55),
+                            ("od.level", 0.7),
+                        ],
+                    ),
+                    P(
+                        K::Amp,
+                        Pre,
+                        &[
+                            ("model", 2.0),
+                            ("cab", 3.0),
+                            ("gain", 0.55),
+                            ("micdist", 2.5),
+                            ("treble", 0.6),
+                            ("out", -12.0),
+                        ],
+                    ),
+                    P(
+                        K::Delay,
+                        Pre,
+                        &[("time_ms", 375.0), ("feedback", 0.25), ("mix", 0.15)],
+                    ),
+                    P(K::Space, Post, &[("mix", 0.15)]),
+                ],
+                &[("m1", 0.45), ("m2", 0.375)],
+                &[(0, &[(1, "gain", 0.3, 0.85)]), (2, &[(2, "mix", 0.0, 0.4)])],
+            ),
+        ),
         (
             "preset.tabula.blues_crunch",
             build(
@@ -284,6 +324,13 @@ pub fn factory() -> Vec<(&'static str, EffectSpec)> {
                             ("od.tone", 0.5),
                             ("od.level", 0.6),
                         ],
+                    ),
+                    // fx/sounds — into Arca's clean amp at the edge of break-up and its
+                    // open 1×12: a drive into no cabinet is fizz no player hears.
+                    P(
+                        K::Amp,
+                        Pre,
+                        &[("model", 1.0), ("cab", 1.0), ("gain", 0.55), ("out", -10.0)],
                     ),
                     P(K::Space, Post, &[("style", 3.0), ("mix", 0.25)]),
                 ],
@@ -319,6 +366,19 @@ pub fn factory() -> Vec<(&'static str, EffectSpec)> {
                         K::Pedal,
                         Pre,
                         &[("s1", 4.0), ("ge.fuzz", 0.8), ("ge.vol", 0.5)],
+                    ),
+                    // fx/sounds — the fuzz into Arca's clean amp and the vintage 4×12, a
+                    // ribbon in front, as a fuzz is played.
+                    P(
+                        K::Amp,
+                        Pre,
+                        &[
+                            ("model", 1.0),
+                            ("cab", 3.0),
+                            ("gain", 0.4),
+                            ("mic", 1.0),
+                            ("out", -3.6),
+                        ],
                     ),
                     P(
                         K::Delay,
@@ -513,7 +573,12 @@ mod tests {
     #[test]
     fn factory_boards_set_only_real_keys() {
         // `build` drops an unknown key silently; check the source lists themselves.
-        let spec = &factory()[1].1;
+        let all = factory();
+        let spec = &all
+            .iter()
+            .find(|(k, _)| *k == "preset.tabula.blues_crunch")
+            .expect("the blues board")
+            .1;
         assert_eq!(spec.get("p1.od.drive"), 0.55);
         for (key, spec) in factory() {
             for p in spec.pedals() {

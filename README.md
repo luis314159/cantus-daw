@@ -757,7 +757,7 @@ Speculum shows what is in a sound and never touches it: spectrum, spectrogram, a
 - Docks as a resizable tab; three at once measured with no frame lost at 60 Hz
 - Readings checked against the EBU Tech 3341 and 3342 test signals
 
-<sub>8 factory presets — [hear them](https://cantusdaw.com/#unit-speculum) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/speculum-light.png)</sub>
+<sub>8 factory presets — [its card](https://cantusdaw.com/#unit-speculum) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/speculum-light.png)</sub>
 
 </details>
 <details>
@@ -1020,9 +1020,9 @@ Tabula is a pedalboard of Cantus's own effects: drives, the valve amp and its ca
 - An A/B split whose lanes meet in time, to the sample
 - Footswitches that never move the latency; no click on any change
 - Eight macros with learn, and Randomise within musical ranges
-- Fourteen boards for guitar, bass, synths, drums and voice
+- Fifteen boards for guitar, bass, synths, drums and voice; three hold the amp and its cabinet
 
-<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-tabula) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tabula-light.png)</sub>
+<sub>15 factory presets — [hear them](https://cantusdaw.com/#unit-tabula) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tabula-light.png)</sub>
 
 </details>
 <details>
@@ -1209,7 +1209,7 @@ Comparatio sits on the master's last insert and holds up to eight reference trac
 - EBU loudness, true peak, crest, histograms, correlation and width in three bands
 - Blind ABX with the exact chance of guessing; renders never hear a reference
 
-<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-comparatio) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/comparatio-light.png)</sub>
+<sub>14 factory presets — [its card](https://cantusdaw.com/#unit-comparatio) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/comparatio-light.png)</sub>
 
 </details>
 

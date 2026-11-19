@@ -83,7 +83,7 @@ pub fn use_excerpts() -> (UseStateHandle<Now>, Callback<String>) {
                 now.set(Now::default());
                 return;
             }
-            if let Ok(a) = HtmlAudioElement::new_with_src(&format!("/units/sounds/{file}.mp3")) {
+            if let Ok(a) = HtmlAudioElement::new_with_src(&crate::sounds::src(&file)) {
                 let _ = a.play();
                 *audio.borrow_mut() = Some(a);
                 *cur.borrow_mut() = file.clone();
@@ -184,6 +184,7 @@ pub fn spotlight() -> Html {
                         </div>
                     </div>
                     <ul class="spot-presets">{ for presets }</ul>
+                    if let Some(c) = crate::sounds::credits(u.file, l) { <p class="spot-credit">{ c }</p> }
                 </div>
                 <ul class="spot-shelf" aria-label={tabs[*tab].0}>{ for shelf }</ul>
                 <p class="units-foot">{ l.t("Every preset above is rendered by Cantus itself, with no processing after; the pictures are the program's own windows. Plus Firmus, the simple synth every new track starts with, a plain Reverb, and any CLAP or VST3 plug-in you own.",

@@ -110,6 +110,7 @@ tabula.learn.pick = Toque una perilla
 tabula.learn.status = Aprender: toque la perilla de un pedal que esta macro ha de mover
 
 # Las pedaleras de fábrica.
+preset.tabula.crunch_amp_rig = Equipo con ampli crunch
 preset.tabula.blues_crunch = Crujido de blues
 preset.tabula.ambient_swells = Oleadas ambientales
 preset.tabula.fuzz_lead = Solo con fuzz
