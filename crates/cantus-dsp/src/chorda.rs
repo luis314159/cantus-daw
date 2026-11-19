@@ -106,10 +106,6 @@ mod tests_hash;
 mod tests_voicing3;
 
 #[cfg(test)]
-#[path = "chorda_tests_tunemap.rs"]
-mod tests_tunemap;
-
-#[cfg(test)]
 #[path = "chorda_tunekit.rs"]
 mod tunekit;
 

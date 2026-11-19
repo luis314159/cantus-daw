@@ -35,6 +35,29 @@ Point at a dancer and its frame appears:
 
 The frame fades a moment after the pointer leaves.
 
+## Bringing a hidden dancer back
+
+A dancer can be off the screen in two ways: its own **hide** (the pill) hides that dancer,
+and *View ▸ Stage* (**Alt+D**) switches every dancer off at once. Either way, any of these
+brings it back:
+
+- **The card.** Right after you press a dancer's **hide**, a card at the bottom-right
+  corner says *"Keys hidden — Alt+D or View ▸ Stage shows it again"* (with the key your
+  keymap gives the stage) and **Show again**, which takes the hide back. It goes by itself
+  after a few seconds.
+- ***View ▸ Stage*** (**Alt+D**, or *Show the dancers* in the command palette). Its tick
+  says whether a dancer is on screen now. When none is, it switches the stage on and, if
+  every dancer of the song is hidden, puts each back where it was — over the workspace or
+  on the Stage tab — in one undo step (*Show the dancers*): one **Ctrl+Z** hides them again.
+- **The track's menu.** Right-click the dancer's track header: *Show the dancer*.
+- **The dancer's window.** A hidden dancer's window says so over its stage — *Hidden: it
+  shows on no screen* — with **Show**.
+- **The Stage tab.** With hidden dancers, the empty tab says *The dancers are hidden* and
+  offers **Show the dancers**.
+
+A dancer comes back where it was last seen this session; one hidden before the song was
+opened comes back over the workspace.
+
 ## What it costs
 
 A dancer is drawn only when its pose changes: at most 60 times a second while the song
@@ -96,6 +119,6 @@ keeps the transparency, and without one choose a chroma background.
 
 | Key | What it does |
 |---|---|
-| Alt+D | Show or hide the dancers on screen (*View ▸ Stage*) |
+| Alt+D | Show or hide the dancers on screen (*View ▸ Stage*); shown, a dancer its own hide hid comes back |
 | Alt+Shift+D | Open or close the companion window |
 | Ctrl+Shift+D (Cmd+Shift+D on a Mac) | Streaming mode on or off (*View ▸ Streaming mode*, or the command palette) |

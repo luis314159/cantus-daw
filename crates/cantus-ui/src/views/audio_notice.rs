@@ -33,6 +33,8 @@ enum Act {
     Freeze(super::freeze_view::Answer),
     /// An agent's call on the card (round 34, ADR 0081). // r34:mcp
     Ai(u64, cantus_mcp::Answer), // r34:mcp
+    /// A dancer hidden (round 40): *Show again* (`true`) or the ✕.
+    Dancer(bool),
 }
 
 /// The picture at a card's left.
@@ -45,6 +47,8 @@ enum Art {
     Frozen,
     /// An agent asking (round 34). // r34:mcp
     Agent, // r34:mcp
+    /// A dancer hidden (round 40): the Stage tab's figure.
+    Dancer,
 }
 
 /// One card of the stack.
@@ -216,6 +220,26 @@ fn freeze_card(app: &CantusApp) -> Option<Card> {
     })
 }
 
+/// The card a dancer's *Hide* leaves (round 40, `stage::show`): who was hidden, the key
+/// and the menu that bring it back, *Show again*.
+fn dancer_card(app: &CantusApp) -> Option<Card> {
+    let n = crate::stage::show::notice(app, std::time::Instant::now())?;
+    let (title, body) = crate::stage::show::notice_words(app, n);
+    Some(Card {
+        id: ("dancer", n.track.0 as usize),
+        name: None,
+        title,
+        body,
+        tok: Tok::Focus,
+        art: Art::Dancer,
+        buttons: vec![(t("stage.notice.show_again"), Act::Dancer(true))],
+        close: Act::Dancer(false),
+        tip: None,
+        audio: None,
+        armed_in: None,
+    })
+}
+
 /// The stack: the plug-in card at the bottom (it is the one that needs an answer now),
 /// the freeze card, the audio cards above them, newest lowest; each card above the last,
 /// never over it.
@@ -224,6 +248,7 @@ fn stack(app: &CantusApp, ctx: &egui::Context, s: &Style) -> Vec<(Card, Rect)> {
     cards.extend(plugin_card(app)); // r34:mcp (was the first)
     cards.extend(waiting_card(app));
     cards.extend(freeze_card(app));
+    cards.extend(dancer_card(app));
     cards.extend(audio_cards(app).into_iter().rev());
     let k = s.k;
     let screen = ctx.content_rect();
@@ -281,6 +306,10 @@ fn buttons_at(ctx: &egui::Context, card: &Card, r: Rect, s: &Style) -> Vec<(usiz
 }
 
 pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
+    // A dancer's card goes by itself: the frame it is due to go is asked for.
+    if let Some(left) = crate::stage::show::prune(app, std::time::Instant::now()) {
+        ctx.request_repaint_after(left);
+    }
     let s = Style::current();
     let cards = stack(app, ctx, &s);
     if cards.is_empty() {
@@ -304,6 +333,8 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         Some(Act::Freeze(a)) => super::freeze_view::answer(app, a),
         // Only a card that has been in front a moment answers (review 5 #4). r34:mcp
         Some(Act::Ai(id, a)) => crate::ai_mcp::card::pressed(app, id, a, std::time::Instant::now()), // r34:mcp
+        Some(Act::Dancer(true)) => crate::stage::show::show_again(app),
+        Some(Act::Dancer(false)) => app.stage.notice = None,
         None => {}
     }
 }
@@ -404,6 +435,16 @@ fn draw(
                     Art::Frozen => {
                         let g = Rect::from_center_size(pic.center(), Vec2::splat(28.0 * k));
                         glyph::paint(b, g, Glyph::Frozen, s.t.focus);
+                    }
+                    Art::Dancer => {
+                        let u = 26.0 * k / 12.0;
+                        crate::stage::chrome::glyph(
+                            b,
+                            pic.center(),
+                            u,
+                            (1.25 * u).max(b.px()),
+                            s.t.focus,
+                        );
                     }
                     Art::Agent => {
                         // r34:mcp

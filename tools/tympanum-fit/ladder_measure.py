@@ -274,8 +274,9 @@ def meets(k, v, ref):
 RUNGS = ["R0", "R1", "R2", "R3", "R4", "R3o", "R5"]
 EXTRA = ["R3b", "R3o", "R5"]     # R3b: ladder_dense.py (a table per 11.7-Hz bin)
 LADDER = ["R1", "R2", "R3", "R4"]
-ENGINE = {"drs": "F:/projects/daw-r40/tmp/dg/h_c11/model-studio-hits.wav",
-          "virt": "F:/projects/daw-r40/tmp/dg/hj_c11/model-jazz-hits.wav"}
+_W = os.environ.get("TYMP_WORK", ".")  # the measuring work folder (README.md)
+ENGINE = {"drs": os.path.join(_W, "dg/h_c11/model-studio-hits.wav"),
+          "virt": os.path.join(_W, "dg/hj_c11/model-jazz-hits.wav")}
 
 
 def engine_measures(kit, art, vel):

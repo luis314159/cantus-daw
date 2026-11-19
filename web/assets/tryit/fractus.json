@@ -15,7 +15,36 @@
   ],
   "loop": true,
   "dry": "/tryit/guitar.mp3",
+  "dry_source": null,
   "presets": [
+    {
+      "id": "reverse_build",
+      "name": [
+        "Reverse build",
+        "Subida al revés"
+      ],
+      "what": [
+        "Bus — Pop, House · EDM, Film · Game",
+        "Bus — Pop, House · EDM, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/fractus/reverse_build.mp3",
+      "level_db": -0.1,
+      "pic": "/tryit/fractus/reverse_build"
+    },
+    {
+      "id": "gated_sixteenths",
+      "name": [
+        "Gated sixteenths",
+        "Semicorcheas con puerta"
+      ],
+      "what": [
+        "Bus — Pop, House · EDM",
+        "Bus — Pop, House · EDM"
+      ],
+      "wet": "/tryit/fractus/gated_sixteenths.mp3",
+      "level_db": -0.8,
+      "pic": "/tryit/fractus/gated_sixteenths"
+    },
     {
       "id": "trance_gate",
       "name": [
@@ -43,20 +72,6 @@
       "wet": "/tryit/fractus/grain_pad.mp3",
       "level_db": 0.2,
       "pic": "/tryit/fractus/grain_pad"
-    },
-    {
-      "id": "cloud_to_freeze",
-      "name": [
-        "Cloud to freeze",
-        "Nube para congelar"
-      ],
-      "what": [
-        "Creative — Ambient · Cinematic, Film · Game",
-        "Creativo — Ambient · Cinemático, Cine · Videojuegos"
-      ],
-      "wet": "/tryit/fractus/cloud_to_freeze.mp3",
-      "level_db": 1.4,
-      "pic": "/tryit/fractus/cloud_to_freeze"
     }
   ]
 }

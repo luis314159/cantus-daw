@@ -222,6 +222,9 @@ fn run() {
         window(&out, "float-es", true, 1.0, app(Some(hero()), false), false);
         cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     }
+    if wants("show") {
+        show_shots(&out);
+    }
     if wants("companion") {
         for dark in [true, false] {
             companion_shots(&out, dark);
@@ -233,6 +236,86 @@ fn run() {
     if wants("native") {
         native_shots(&out);
     }
+}
+
+/// Round 40, bringing a hidden dancer back — in English and Spanish, Slate and Paper: the
+/// card a dancer's *Hide* leaves (`hidden`), the View menu with its Stage row unticked
+/// (`view-menu`), the dancer track's menu with *Show the dancer* (`track-menu`), the
+/// Stage tab with the hidden dancer and *Show the dancers* (`tab`), and the dancer's window
+/// saying it is hidden, with *Show* (`editor`).
+fn show_shots(out: &Path) {
+    use cantus_ui::i18n::Locale;
+    use cantus_ui::stage::show;
+    for (loc, tag) in [(Locale::En, "en"), (Locale::Es, "es")] {
+        cantus_ui::i18n::set_thread_locale(loc);
+        for dark in [true, false] {
+            for case in ["hidden", "view-menu", "track-menu", "tab", "editor"] {
+                let (mut app, mut proc) =
+                    app(Some((ViewMode::Floating, 0.55, 0.9, 1.2)), case == "tab");
+                let dancer = show::dancers(&app)[0].0;
+                // Stopped: the card's moment, not the song's.
+                app.engine.stop();
+                show::hide_dancer(&mut app, dancer);
+                // The card in its own shot; the others show the ways back without it.
+                if case != "hidden" {
+                    app.stage.notice = None;
+                }
+                if case == "tab" {
+                    app.workspace.reveal(Pane::Stage);
+                }
+                if case == "editor" {
+                    app.open_inst_editor(dancer);
+                }
+                if case == "track-menu" {
+                    // The dancer's header (the song's last) scrolled into view, where its
+                    // menu opens.
+                    app.select_track(dancer);
+                    app.arrangement.reveal = Some(dancer);
+                }
+                let ctx = context(dark);
+                let theme = if dark { "slate" } else { "paper" };
+                let path = out.join(format!("show-{case}-{theme}-{tag}.png"));
+                let mut buf = vec![0f32; BLOCK * 2];
+                cantus_ui::raster::shoot_events(
+                    &ctx,
+                    SIZE,
+                    1.0,
+                    8,
+                    Some(&path),
+                    // The track's menu as a right-click on its header opens it (the
+                    // dancer's header, scrolled into view, at the arrangement's foot).
+                    |f, _| {
+                        let at = egui::pos2(90.0, 348.0);
+                        let press = |pressed| egui::Event::PointerButton {
+                            pos: at,
+                            button: egui::PointerButton::Secondary,
+                            pressed,
+                            modifiers: Default::default(),
+                        };
+                        match (case, f) {
+                            ("track-menu", 3) => vec![egui::Event::PointerMoved(at)],
+                            ("track-menu", 4) => vec![press(true)],
+                            ("track-menu", 5) => vec![press(false)],
+                            _ => Vec::new(),
+                        }
+                    },
+                    |root| {
+                        proc.process(&mut buf, 2);
+                        let ctx = root.ctx().clone();
+                        match (case, ctx.cumulative_pass_nr()) {
+                            ("view-menu", n) if n >= 3 => {
+                                cantus_ui::views::transport::open_menu(&ctx, 3);
+                            }
+                            _ => {}
+                        }
+                        app.frame(root);
+                    },
+                );
+                println!("{}", path.display());
+            }
+        }
+    }
+    cantus_ui::i18n::set_thread_locale(Locale::En);
 }
 
 /// The companion as Windows shows it: its own pixels (true alpha), here laid over a picture

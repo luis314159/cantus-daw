@@ -72,6 +72,7 @@ scene.pictures = Instrument pictures
 scene.pictures.drawn = Drawn
 scene.pictures.photo = Photographic
 scene.pictures.hint = How the instruments' pictures are drawn: Drawn is light and fast; Photographic adds traced shadows and reflections and takes longer to draw. The sound never changes.
+scene.pictures.card = Pictures
 
 # r40 integration — the room card Chorda shares with Tympanum: what each room is, and its help line
 scene.room.stage_meta = a pool of light on a dark stage

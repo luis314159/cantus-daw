@@ -7,8 +7,19 @@
 //!
 //! `cargo run --release -p cantus-ui --example render_unit_sounds -- web`
 //!
+//! **On recordings** (`docs/round-fx/sounds.md`): with `--guitar <SampleData> --takes <dir>
+//! --content <packs>`, an effect is heard on a recording instead — Carbonthief's DI guitar
+//! (CC0), Gogodze Phu Vol. II's recorded drums (CC0) played by Tympanum, Britton Rea's voice
+//! (public domain), the Salamander grand (CC BY 3.0) played by Chorda's recorded source, a pad
+//! of Calor's or a small mix of the drums, Gravis and the guitar — chosen by the preset's
+//! role and the unit ([`source_for`]), each excerpt and its dry take matched to one loudness
+//! by a gain alone, the source's credit beside them. A unit with a Try it manifest
+//! (`<web>/assets/tryit/<unit>.json`; run `render_tryit` first) lists those takes instead.
+//! `--effects` renders the effects only and keeps every other card's excerpts as they are.
+//!
 //! `-- web chorda` (any card names after the folder) renders those cards' excerpts alone and
-//! leaves the list and the dry sources as they are (a unit re-voiced: its card's files only).
+//! leaves the list and the dry sources as they are (a unit re-voiced: its card's files only;
+//! with `--guitar`/`--takes`, the recordings an effect's card is heard on are still made).
 
 use cantus_core::{EffectKind, Snapshot, Ticks};
 use cantus_engine::{render, RenderOptions};
@@ -21,6 +32,10 @@ use cantus_ui::i18n::{t_in, Locale};
 use cantus_ui::preset_audition::{self as aud, Target};
 use cantus_ui::preset_catalog::{entries, units, Entry, Payload, Unit};
 use cantus_ui::preset_tags::{Role, Style};
+#[path = "site_takes/shared.rs"]
+#[allow(dead_code)] // Try it's generator uses the rest
+mod shared;
+
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -418,23 +433,405 @@ fn tympanum(card: &str, dir: &Path, code: &mut String) -> u64 {
     total
 }
 
+/// Units heard on the synthetic sources still: a pitch corrector and a vibrato need a sung,
+/// pitched line, which none of the recordings is.
+const SYNTHETIC: &[&str] = &["tonus", "vibrans"];
+/// Units whose natural source is a guitar (a preset for drums or a voice still goes to
+/// those): the delay, the tremolo, the gate and the attack shapers.
+const GUITAR_UNITS: &[&str] = &["delay", "tremor", "porta", "impetus", "discrimen"];
+/// Reverbs, heard on a recorded piano (the space shows on its decays).
+const PIANO_UNITS: &[&str] = &["spatium", "aula"];
+/// Effects made for synthesisers (chorus, flanger, ring and frequency shifting), heard on a
+/// pad of Cantus's own.
+const PAD_UNITS: &[&str] = &["concentus", "flexus", "anulus", "translatio"];
+/// Units with no excerpt: Comparatio matches loudness to a reference, which a short excerpt
+/// matched to one loudness cannot show honestly; its card shows its window.
+const SILENT: &[&str] = &["comparatio"];
+
+type Pair = (String, String);
+
+/// A recorded source: its id (`Sound::on`), the dry file, what it is and its credit.
+struct Real {
+    id: &'static str,
+    file: String,
+    name: Pair,
+    credit: Pair,
+    /// Eight bars at 90 BPM, as the effect is fed.
+    take: shared::Stereo,
+    /// The excerpt is bars 5 to 8 (a loop's second half), else bars 1 to 4 (a voice from
+    /// its first word).
+    second_half: bool,
+}
+
+/// Which recording a preset is heard on, or `None` for the synthetic source of its role.
+fn source_for(card: &str, e: &Entry) -> Option<&'static str> {
+    if SYNTHETIC.contains(&card) {
+        return None;
+    }
+    Some(match e.role() {
+        Role::Drums => "kit",
+        Role::Vocal => "voice",
+        _ if GUITAR_UNITS.contains(&card) || e.id.contains("guitar") => "guitar",
+        _ if PIANO_UNITS.contains(&card) => "piano",
+        _ if PAD_UNITS.contains(&card) => "pad",
+        _ => "mix",
+    })
+}
+
+/// The loudness each recording is fed at, LUFS: where such a track sits in a production — a
+/// drum bus peaking near full scale, a pre-master mix, a voice, a piano and a pad as tracked —
+/// so dynamics meet the level they act on. (Cantus's own audition sources sit 8 dB down, where
+/// a compressor or a clipper does not act at all.)
+const FED_DRUMS: f64 = -18.0;
+const FED_MIX: f64 = -16.0;
+const FED_TRACK: f64 = -20.0;
+
+/// Below this, an excerpt differs from its dry take too little to hear (dB, the gain-matched
+/// difference against the dry take): it is left off the card.
+const AUDIBLE_DB: f64 = -30.0;
+
+fn cut(x: &[f32], second_half: bool) -> Vec<f32> {
+    if second_half {
+        shared::bars_5_to_8(x, shared::BPM)
+    } else {
+        let n = shared::eight_bars() / 2;
+        x[..n.min(x.len())].to_vec()
+    }
+}
+
+fn pair(a: &str, b: &str) -> Pair {
+    (a.to_string(), b.to_string())
+}
+
+/// Calor's *Velvet pad*, the factory patch.
+fn calor_pad() -> cantus_core::NativeSpec {
+    entries(Unit::Instrument(cantus_core::InstrumentKind::Analog), false)
+        .into_iter()
+        .find_map(|e| match e.payload {
+            Payload::Native(spec) if e.id == "calor.preset.velvet_pad" => Some(spec),
+            _ => None,
+        })
+        .expect("Calor's velvet pad")
+}
+
+/// The recordings, each with its dry take written as `<dir>/source-<id>.mp3` (the guitar's
+/// is Try it's, `/tryit/guitar.mp3`).
+fn reals(guitar_dir: &Path, takes: &Path, dir: &Path, total: &mut u64) -> Vec<Real> {
+    let guitar = shared::progression(guitar_dir);
+    let mut voice = shared::take(&takes.join("voice.flac"));
+    voice.0.resize(shared::eight_bars(), 0.0);
+    voice.1.resize(shared::eight_bars(), 0.0);
+    shared::set_lufs(&mut voice.0, &mut voice.1, FED_TRACK);
+    let mut piano = shared::take(&takes.join("piano.flac"));
+    piano.0.resize(shared::eight_bars(), 0.0);
+    piano.1.resize(shared::eight_bars(), 0.0);
+    shared::set_lufs(&mut piano.0, &mut piano.1, FED_TRACK);
+    let out = vec![
+        Real {
+            id: "guitar",
+            file: "/tryit/guitar".into(),
+            name: pair(
+                "four chords (Am, F, C, G at 90 BPM) on a DI electric guitar",
+                "cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en una guitarra eléctrica DI",
+            ),
+            credit: pair(shared::GUITAR.0, shared::GUITAR.1),
+            take: guitar.clone(),
+            second_half: true,
+        },
+        Real {
+            id: "kit",
+            file: "source-kit".into(),
+            name: pair(
+                "a recorded drum kit, rock at 90 BPM",
+                "una batería grabada, rock a 90 BPM",
+            ),
+            credit: pair(shared::DRUMS.0, shared::DRUMS.1),
+            take: shared::drums(FED_DRUMS),
+            second_half: true,
+        },
+        Real {
+            id: "voice",
+            file: "source-voice".into(),
+            name: pair("a spoken voice", "una voz hablada"),
+            credit: pair(shared::VOICE.0, shared::VOICE.1),
+            take: voice,
+            second_half: false,
+        },
+        Real {
+            id: "piano",
+            file: "source-piano".into(),
+            name: pair("a recorded grand piano", "un piano de cola grabado"),
+            credit: pair(shared::PIANO.0, shared::PIANO.1),
+            take: piano,
+            second_half: false,
+        },
+        Real {
+            id: "pad",
+            file: "source-pad".into(),
+            name: pair(
+                "a synthesiser pad holding Am, F, C, G at 90 BPM",
+                "un pad de sintetizador sosteniendo Lam, Fa, Do, Sol a 90 BPM",
+            ),
+            credit: pair(shared::PAD.0, shared::PAD.1),
+            take: shared::pad(calor_pad(), FED_TRACK),
+            second_half: true,
+        },
+        Real {
+            id: "mix",
+            file: "source-mix".into(),
+            name: pair(
+                "a small mix: recorded drums, bass and the DI guitar",
+                "una pequeña mezcla: batería grabada, bajo y la guitarra DI",
+            ),
+            credit: pair(shared::MIX.0, shared::MIX.1),
+            take: shared::mix(&guitar, FED_MIX),
+            second_half: true,
+        },
+    ];
+    for r in &out {
+        println!(
+            "source-{}: fed at {:.1} LUFS",
+            r.id,
+            shared::lufs(&r.take.0, &r.take.1)
+        );
+        if r.file.starts_with('/') {
+            continue;
+        }
+        let (l, rr) = (cut(&r.take.0, r.second_half), cut(&r.take.1, r.second_half));
+        let g = shared::site_gain(&l, &rr);
+        *total += shared::mp3_by(
+            &l,
+            &rr,
+            g,
+            &dir.join(format!("{}.mp3", r.file)),
+            "Dry source",
+            &format!("Cantus ({})", r.credit.0),
+            "Factory presets",
+        );
+    }
+    out
+}
+
+/// A preset on a recording: the excerpt, matched to the dry take's loudness by a gain alone;
+/// its size (0 when it is too close to the dry take to hear, and so not written), the level
+/// the preset itself left against the dry and how far apart they are (dB).
+fn on_real(
+    kind: EffectKind,
+    e: &Entry,
+    real: &Real,
+    path: &Path,
+    title: &str,
+) -> Option<(u64, f64, f64)> {
+    let Payload::Effect(values) = &e.payload else {
+        return None;
+    };
+    let mut scratch = cantus_core::Project::new("scratch");
+    let mut slot = scratch.make_effect(kind);
+    slot.spec.params = aud::effect_params_after(&slot.spec, values);
+    slot.mix = 1.0;
+    let (wl, wr) = shared::through(&real.take.0, &real.take.1, &slot, shared::BPM, &[]);
+    let (wl, wr) = (cut(&wl, real.second_half), cut(&wr, real.second_half));
+    let dl = cut(&real.take.0, real.second_half);
+    let dr = cut(&real.take.1, real.second_half);
+    let level = shared::lufs(&wl, &wr) - shared::lufs(&dl, &dr);
+    let g = shared::site_gain(&wl, &wr);
+    // How far the excerpt is from the dry take, both at the site's loudness.
+    let (gw, gd) = (
+        cantus_dsp::math::db_to_gain(g as f32),
+        cantus_dsp::math::db_to_gain(shared::site_gain(&dl, &dr) as f32),
+    );
+    let (mut diff, mut dry) = (0f64, 0f64);
+    for i in 0..wl.len().min(dl.len()) {
+        for (w, d) in [(wl[i], dl[i]), (wr[i], dr[i])] {
+            diff += f64::from(w * gw - d * gd).powi(2);
+            dry += f64::from(d * gd).powi(2);
+        }
+    }
+    let apart = 10.0 * cantus_dsp::math::log10((diff / dry.max(1e-12)).max(1e-12));
+    if apart < AUDIBLE_DB {
+        return Some((0, level, apart));
+    }
+    let size = shared::mp3_by(
+        &wl,
+        &wr,
+        g,
+        path,
+        title,
+        &format!("Cantus ({})", real.credit.0),
+        "Factory presets",
+    );
+    Some((size, level, apart))
+}
+
+/// The excerpts already in `units_sounds.rs`, by card (each block's text).
+fn kept_blocks(web: &Path) -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::new();
+    let Ok(text) = std::fs::read_to_string(web.join("src/units_sounds.rs")) else {
+        return out;
+    };
+    let mut cur: Option<(String, String)> = None;
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("    (\"") {
+            if line.ends_with("&[") {
+                let name = rest.split('"').next().unwrap_or_default().to_string();
+                cur = Some((name, format!("{line}\n")));
+                continue;
+            }
+        }
+        if let Some((_, body)) = cur.as_mut() {
+            body.push_str(line);
+            body.push('\n');
+            if line == "    ])," {
+                let (n, b) = cur.take().expect("a block");
+                out.insert(n, b);
+            }
+        }
+    }
+    out
+}
+
+/// A Try it manifest's source: `on`, its dry file, what it is, its credit.
+struct TrySource {
+    on: String,
+    dry: String,
+    name: Pair,
+    credit: Pair,
+}
+
+/// A Try it take: its file, the preset's name and what it is for.
+type TryTake = (String, Pair, Pair);
+
+/// A Try it manifest's takes as the card's excerpts: its source and each preset's take.
+fn tryit(web: &Path, card: &str) -> Option<(TrySource, Vec<TryTake>)> {
+    let text = std::fs::read_to_string(web.join(format!("assets/tryit/{card}.json"))).ok()?;
+    let m: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let two = |v: &serde_json::Value| {
+        pair(
+            v[0].as_str().unwrap_or_default(),
+            v[1].as_str().unwrap_or_default(),
+        )
+    };
+    if m["origin"] != "presets" {
+        return None;
+    }
+    let dry = m["dry"].as_str()?.trim_end_matches(".mp3").to_string();
+    let on = if dry == "/tryit/guitar" {
+        "guitar".to_string()
+    } else {
+        format!("tryit-{card}")
+    };
+    let said = if m["dry_source"].is_array() {
+        &m["dry_source"]
+    } else {
+        &m["source"]
+    };
+    let (mut en, mut es) = two(said);
+    for s in [&mut en, &mut es] {
+        // The page says "Without the effect · <source>": a lower-case start reads on.
+        if let Some(c) = s.chars().next() {
+            *s = c.to_lowercase().collect::<String>() + &s[c.len_utf8()..];
+        }
+    }
+    let presets = m["presets"]
+        .as_array()?
+        .iter()
+        .map(|p| {
+            (
+                p["wet"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .trim_end_matches(".mp3")
+                    .to_string(),
+                two(&p["name"]),
+                two(&p["what"]),
+            )
+        })
+        .collect();
+    let source = TrySource {
+        on,
+        dry,
+        name: (en, es),
+        credit: two(&m["credit"]),
+    };
+    Some((source, presets))
+}
+
+/// A dry source heard: (id, file, what it is, its credit, matched by loudness).
+type Used = (String, String, Pair, Pair, bool);
+
+fn use_source(used: &mut Vec<Used>, id: &str, file: &str, name: Pair, credit: Pair, matched: bool) {
+    if !used.iter().any(|u| u.0 == id) {
+        used.push((id.into(), file.into(), name, credit, matched));
+    }
+}
+
+fn line(code: &mut String, file: &str, name: &Pair, what: &Pair, on: &str) {
+    let _ = writeln!(
+        code,
+        "        snd!({}, ({}, {}), ({}, {}), {}),",
+        lit(file),
+        lit(&name.0),
+        lit(&name.1),
+        lit(&what.0),
+        lit(&what.1),
+        lit(on)
+    );
+}
+
 fn main() {
-    let web = PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "web".into()));
-    // Cards named after the folder: those alone, the list and the sources untouched.
-    let only: Vec<String> = std::env::args().skip(2).collect();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let opt = |k: &str| {
+        args.iter()
+            .position(|a| a == k)
+            .and_then(|i| args.get(i + 1))
+            .map(PathBuf::from)
+    };
+    let flags = ["--guitar", "--takes", "--content"];
+    let web = args
+        .iter()
+        .enumerate()
+        .find(|(i, a)| !a.starts_with("--") && (*i == 0 || !flags.contains(&args[i - 1].as_str())))
+        .map(|(_, a)| PathBuf::from(a))
+        .unwrap_or_else(|| PathBuf::from("web"));
+    let effects_only = args.iter().any(|a| a == "--effects");
+    // Cards named after the folder (`-- web chorda`): those alone, the list and the sources
+    // untouched.
+    let only: Vec<String> = args
+        .iter()
+        .enumerate()
+        .filter(|(i, a)| {
+            !a.starts_with("--") && (*i == 0 || !flags.contains(&args[i - 1].as_str()))
+        })
+        .map(|(_, a)| a.clone())
+        .skip(1)
+        .collect();
     let dir = web.join("assets/units/sounds");
     std::fs::create_dir_all(&dir).expect("the folder");
     cantus_ui::i18n::set_thread_locale(Locale::En);
+    if let Some(root) = opt("--content") {
+        cantus_ui::tympanum_load::install(root);
+    }
     let empty = cantus_core::Project::new("none");
     let mut total = 0u64;
+    let kept = if effects_only {
+        kept_blocks(&web)
+    } else {
+        Default::default()
+    };
+    let reals = match (opt("--guitar"), opt("--takes")) {
+        (Some(g), Some(t)) => reals(&g, &t, &dir, &mut total),
+        _ => Vec::new(),
+    };
+    let mut used: Vec<Used> = Vec::new();
     let mut code = String::from(
-        "//! Every unit card's preset excerpts (`assets/units/sounds/`): generated by\n\
-         //! `cargo run --release -p cantus-ui --example render_unit_sounds -- web` (round 37,\n\
-         //! ADR 0101), rendered by Cantus on what its preset browser plays them on, at the\n\
-         //! presets' own levels, with no processing after. Do not edit by hand.\n\n\
-         /// One excerpt: its file (without `.mp3`), the preset's name and what it is for, each\n\
-         /// `(English, Spanish)`. Written as `snd!(file, name, what, on)` (`main.rs`): the\n\
-         /// WebAssembly leaves the name and what out and reads them from `/unit-text.json`.\n\
+        "//! Every unit card's preset excerpts (`assets/units/sounds/`, and Try it's takes):\n\
+         //! generated by `cargo run --release -p cantus-ui --example render_unit_sounds -- web`\n\
+         //! (round 37, ADR 0101; `docs/round-fx/sounds.md`), rendered by Cantus with no\n\
+         //! processing after. Do not edit by hand.\n\n\
+         /// One excerpt: its file (without `.mp3`; under `/units/sounds/` unless it starts with\n\
+         /// `/`), the preset's name and what it is for, each `(English, Spanish)`. Written as\n\
+         /// `snd!(file, name, what, on)` (`main.rs`): the WebAssembly leaves the name and what\n\
+         /// out and reads them from `/unit-text.json`.\n\
          #[cfg_attr(target_arch = \"wasm32\", allow(dead_code))]\n\
          pub struct Sound {\n    pub file: &'static str,\n    pub name: (&'static str, &'static str),\n    pub what: (&'static str, &'static str),\n    /// An effect's dry source (`SOURCES`); empty for an instrument.\n    pub on: &'static str,\n}\n\n\
          /// The excerpts of each card, by its `file`.\npub const SOUNDS: &[(&str, &[Sound])] = &[\n",
@@ -443,12 +840,22 @@ fn main() {
         if !u.audible() || matches!(u, Unit::Effect(cantus_core::EffectKind::Reverb)) {
             continue;
         }
-        let all = entries(u, false);
-        let n = if u.is_instrument() { 4 } else { 3 };
         let c = card(u);
+        if SILENT.contains(&c.as_str()) {
+            continue;
+        }
         if !only.is_empty() && !only.contains(&c) {
             continue;
         }
+        if effects_only && !matches!(u, Unit::Effect(_)) {
+            match kept.get(&c) {
+                Some(b) => code.push_str(b),
+                None => panic!("{c}: no excerpts to keep in units_sounds.rs"),
+            }
+            continue;
+        }
+        let all = entries(u, false);
+        let n = if u.is_instrument() { 4 } else { 3 };
         let _ = writeln!(code, "    ({}, &[", lit(&c));
         // fix/final-d — Tympanum has no preset list: its card plays its modelled kits.
         if matches!(
@@ -459,30 +866,75 @@ fn main() {
             code.push_str("    ]),\n");
             continue;
         }
-        for e in pick(&all, n) {
-            let p = aud::prepare(&empty, Target::None, e, None, aud::TEMPO);
+        // A unit with a Try it manifest: its takes, on its source.
+        if let Some((src, presets)) = tryit(&web, &c).filter(|_| !reals.is_empty()) {
+            for (file, name, what) in &presets {
+                line(&mut code, file, name, what, &src.on);
+            }
+            use_source(&mut used, &src.on, &src.dry, src.name, src.credit, true);
+            code.push_str("    ]),\n");
+            continue;
+        }
+        // The presets in `pick`'s order of range; one too close to its dry take to hear is
+        // passed over for the next.
+        let mut written = 0;
+        for e in pick(&all, all.len()) {
+            if written == n {
+                break;
+            }
             let stem = format!("{c}-{}", e.id.rsplit('.').next().unwrap_or("preset"));
             let name_en = t_in(Locale::En, &e.id);
-            total += mp3(
-                render_prepared(&p),
-                &dir.join(format!("{stem}.mp3")),
-                &name_en,
-            );
-            let _ = writeln!(
-                code,
-                "        snd!({}, ({}, {}), ({}, {}), {}),",
-                lit(&stem),
-                lit(&name_en),
-                lit(&t_in(Locale::Es, &e.id)),
-                lit(&what(e, Locale::En)),
-                lit(&what(e, Locale::Es)),
-                lit(match (u.is_instrument(), e.role()) {
-                    (true, _) => "",
-                    (false, Role::Drums) => "drums",
-                    (false, Role::Vocal) => "vocal",
-                    _ => "creative",
-                })
-            );
+            let path = dir.join(format!("{stem}.mp3"));
+            let real = match (u, source_for(&c, e)) {
+                (Unit::Effect(_), Some(id)) => reals.iter().find(|r| r.id == id),
+                _ => None,
+            };
+            let heard = match (u, real) {
+                (Unit::Effect(kind), Some(r)) => {
+                    on_real(kind, e, r, &path, &name_en).map(|x| (x, r))
+                }
+                _ => None,
+            };
+            let on = match heard {
+                Some(((0, level, apart), r)) => {
+                    println!(
+                        "{stem}: on {} LEFT OUT, {apart:.1} dB from the dry take ({level:+.1} dB as the preset leaves it)",
+                        r.id
+                    );
+                    let _ = std::fs::remove_file(&path);
+                    continue;
+                }
+                Some(((size, level, apart), r)) => {
+                    total += size;
+                    println!(
+                        "{stem}: on {} ({apart:.1} dB from the dry take, {level:+.1} dB as the preset leaves it)",
+                        r.id
+                    );
+                    use_source(
+                        &mut used,
+                        r.id,
+                        &r.file,
+                        r.name.clone(),
+                        r.credit.clone(),
+                        true,
+                    );
+                    r.id
+                }
+                None => {
+                    let p = aud::prepare(&empty, Target::None, e, None, aud::TEMPO);
+                    total += mp3(render_prepared(&p), &path, &name_en);
+                    match (u.is_instrument(), e.role()) {
+                        (true, _) => "",
+                        (false, Role::Drums) => "drums",
+                        (false, Role::Vocal) => "vocal",
+                        _ => "creative",
+                    }
+                }
+            };
+            let name = pair(&name_en, &t_in(Locale::Es, &e.id));
+            let what = pair(&what(e, Locale::En), &what(e, Locale::Es));
+            line(&mut code, &stem, &name, &what, on);
+            written += 1;
         }
         code.push_str("    ]),\n");
     }
@@ -495,7 +947,13 @@ fn main() {
         );
         return;
     }
-    code.push_str("];\n\n/// The dry sources the effects are heard on, by role (`source-<role>.mp3`).\npub const SOURCES: &[(&str, (&str, &str))] = &[\n");
+    code.push_str(
+        "];\n\n/// The dry sources the effects are heard on: (id, file as `Sound::file`, what it is, the\n\
+         /// recording's credit — empty for Cantus's own —, whether each excerpt is matched to its\n\
+         /// loudness by a gain alone rather than left at the preset's own level).\n\
+         #[allow(clippy::type_complexity)]\n\
+         pub const SOURCES: &[(&str, &str, (&str, &str), (&str, &str), bool)] = &[\n",
+    );
     for role in [Role::Drums, Role::Vocal, Role::Creative] {
         let p = aud::source_project(role);
         let prepared = aud::Prepared {
@@ -518,12 +976,19 @@ fn main() {
             Role::Vocal => "preset.browser.source.vocal",
             _ => "preset.browser.source.band",
         };
+        let name = pair(&t_in(Locale::En, key), &t_in(Locale::Es, key));
+        use_source(&mut used, role.id(), &stem, name, pair("", ""), false);
+    }
+    for (id, file, name, credit, matched) in &used {
         let _ = writeln!(
             code,
-            "    ({}, ({}, {})),",
-            lit(role.id()),
-            lit(&t_in(Locale::En, key)),
-            lit(&t_in(Locale::Es, key))
+            "    ({}, {}, ({}, {}), ({}, {}), {matched}),",
+            lit(id),
+            lit(file),
+            lit(&name.0),
+            lit(&name.1),
+            lit(&credit.0),
+            lit(&credit.1)
         );
     }
     code.push_str("];\n");
