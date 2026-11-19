@@ -60,6 +60,15 @@ fn counted<R>(f: impl FnOnce() -> R) -> (R, u64) {
 
 const SIZE: egui::Vec2 = egui::vec2(756.0, 452.0);
 
+/// Every test here takes its turn: the two timing tests ran beside the four others, each
+/// rendering pictures of its own, and timed them (beta.15's release, the macOS runner's
+/// three cores: a lid drag read 2 440 ms at 1.5x, 390 ms on the owner's machine). Cargo
+/// runs one test binary at a time, so in turn they time a picture, not a crowd.
+fn turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    TURN.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn kit_def() -> KitDef {
     KitDef {
         kit: KitRef::default_kit(),
@@ -119,6 +128,7 @@ fn kit(mics: bool) -> Subject {
 /// instrument's outline inside it, every op finite.
 #[test]
 fn every_variant_draws_finite_and_inside_its_picture() {
+    let _turn = turn();
     let mut n = 0;
     for dark in [true, false] {
         for room in Room::ALL {
@@ -174,6 +184,7 @@ fn every_variant_draws_finite_and_inside_its_picture() {
 /// lid, the pair and the room pair of a piano; nothing in the empty room.
 #[test]
 fn the_pick_answers_what_is_drawn_and_nothing_in_the_empty_room() {
+    let _turn = turn();
     let rect = egui::Rect::from_min_size(egui::pos2(20.0, 30.0), SIZE);
     let ctx = egui::Context::default();
     scene::set_blocking(true);
@@ -259,6 +270,7 @@ fn frame(ctx: &egui::Context, sc: &mut scene::Scene, v: Option<&SceneView>, t: f
 /// repaint, and allocates no more than an empty frame — with a selection drawn too.
 #[test]
 fn at_rest_no_repaint_no_build_and_no_allocation() {
+    let _turn = turn();
     scene::set_blocking(true);
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
@@ -298,9 +310,12 @@ fn at_rest_no_repaint_no_build_and_no_allocation() {
 }
 
 /// A lid drag rebuilds the piano's picture quickly: the build and its picture at 1× and
-/// 1.5× (measured here on one thread; the worker does it off the UI's).
+/// 1.5× (measured here on one thread; the worker does it off the UI's) — the worst lid
+/// position, each the best of three, as the kit's test below takes its best of five: one
+/// timing alone read a shared runner's hiccup, not the picture.
 #[test]
 fn a_lid_drag_rebuilds_within_its_budget() {
+    let _turn = turn();
     for ppp in [1.0f32, 1.5] {
         let mut worst = 0.0f64;
         for k in 0..6 {
@@ -309,10 +324,14 @@ fn a_lid_drag_rebuilds_within_its_budget() {
                 Room::Stage,
                 true,
             );
-            let t0 = std::time::Instant::now();
-            let img = scene::image(&v, SIZE, ppp);
-            worst = worst.max(t0.elapsed().as_secs_f64() * 1e3);
-            assert_eq!(img.size[0], (SIZE.x * ppp).round() as usize);
+            let mut best = f64::MAX;
+            for _ in 0..3 {
+                let t0 = std::time::Instant::now();
+                let img = scene::image(&v, SIZE, ppp);
+                best = best.min(t0.elapsed().as_secs_f64() * 1e3);
+                assert_eq!(img.size[0], (SIZE.x * ppp).round() as usize);
+            }
+            worst = worst.max(best);
         }
         println!("lid drag at {ppp}x: worst build {worst:.0} ms");
         // Generous in CI (debug, shared runners): the measured figure is in the report.
@@ -326,6 +345,7 @@ fn a_lid_drag_rebuilds_within_its_budget() {
 /// 1× and 1.5×, by night and by day, printed for the report.
 #[test]
 fn the_kit_builds_within_its_budget() {
+    let _turn = turn();
     for dark in [true, false] {
         let v = view(kit(false), Room::Stage, dark);
         let mut best_build = f64::MAX;
@@ -359,6 +379,7 @@ fn the_kit_builds_within_its_budget() {
 /// the outline's points), which the halo makes up for where it is low.
 #[test]
 fn the_selection_reads_against_the_scene_in_every_theme() {
+    let _turn = turn();
     use cantus_ui::kit::appearance::PRESETS;
     use cantus_ui::kit::color::contrast;
     scene::set_blocking(true);
