@@ -36,7 +36,9 @@ rm -rf "$dir"
 mkdir -p "$dir/debs" "$dir/root" "$dir/lib" "$dir/pc"
 pool=http://archive.ubuntu.com/ubuntu/pool/main/p/pipewire
 fetch() { # name sha256
-  curl -fsSL --retry 3 -o "$dir/debs/$1" "$pool/$1"
+  # --retry-all-errors: a reset connection (curl 56) is not "transient" to plain --retry,
+  # and it cut the beta.15 AppImage job once.
+  curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$dir/debs/$1" "$pool/$1"
   echo "$2  $dir/debs/$1" | sha256sum -c -
   dpkg -x "$dir/debs/$1" "$dir/root"
 }
