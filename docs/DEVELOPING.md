@@ -172,6 +172,10 @@ up yet (`docs/BETA.md`). `.github/workflows/release.yml` does the same on a push
 
 ### A release: one tag, three systems (ADR 0067)
 
+**Read `docs/RELEASING.md` first**: its procedure (candidate, rehearsal, checklist, tag) and
+its lessons. The tag's first job, *preflight*, refuses it without
+`docs/releases/v<version>.preflight.md` ticking every lesson and naming a green rehearsal.
+
 1. Set the version in the workspace's `Cargo.toml` (and `web/src/top.rs`'s `VERSION`),
    write `docs/releases/v<version>.md` from `docs/releases/TEMPLATE.md`, commit, publish
    to `cantus-daw` (`tools/public/publish.sh`).
@@ -190,7 +194,7 @@ up yet (`docs/BETA.md`). `.github/workflows/release.yml` does the same on a push
    latest release holds), and every copy's updater finds its own file.
 
 *Run workflow* on the Actions page builds and tests all three without publishing (the
-files are kept as the run's artifacts). Secrets, all optional: Windows signing as the
+files are kept as the run's artifacts): the rehearsal every tag needs first. Secrets, all optional: Windows signing as the
 workflow's header lists; macOS `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`,
 `APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_APP_PASSWORD` (without them the disk image is signed
 ad hoc and not notarised: Gatekeeper asks the user to allow it once).

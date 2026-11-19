@@ -19,6 +19,9 @@ commercial — in features, performance, quality and stability (`docs/BACKLOG-ex
 5. The newest `docs/roundNN/` — the briefs and every builder's report.
 6. `docs/claude-memory/` — Claude Code's memory from the first machine; its README says how
    to restore it on a new one. Copy the memory back there at the end of each round.
+7. **Before any release: `docs/RELEASING.md`** — the lessons every earlier release paid
+   for. A tag builds nothing until `docs/releases/v<version>.preflight.md` ticks each one
+   and names a green rehearsal (a hand-run of `release.yml`) of the same code.
 
 ## How work is done here
 
@@ -31,6 +34,11 @@ commercial — in features, performance, quality and stability (`docs/BACKLOG-ex
 - **Real-time rules (ADR 0005):** the audio thread never allocates, locks, blocks or does
   I/O (`rt_memory.rs` counts it). `cantus-engine` is `forbid(unsafe_code)`; OS/unsafe code
   lives only in `crates/cantus-rt`. Never let a spinning thread run inside MMCSS.
+- **Tests that pass on a runner too** (`docs/RELEASING.md` L3–L5; beta.15 failed on each):
+  a timing test compares with a reference timed beside it, never a fixed ms or share of a
+  core, and one binary's timing tests take turns; nothing depends on `read_dir`'s order
+  (ext4 hashes it); a start-up clean-up leaves another live process's work alone (a lock) —
+  one binary's tests share a data folder, as two Cantus windows do.
 - **Deterministic maths:** DSP calls `cantus_dsp::math::*`, never std's transcendentals
   (clippy `disallowed-methods` enforces it).
 - **A model change is a schema bump** in `cantus-project` (`SCHEMA_VERSION`, a migration even
