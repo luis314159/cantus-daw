@@ -342,7 +342,7 @@ impl Voicing {
 
     /// What ships (`DSP_VERSION` 10, `docs/round40/chorda-tune.md`): candidate 16, then the
     /// technician's pass — [`tune::SPEC`] applied over it (the unisons centred on their keys,
-    /// the strings tuned on their bridge, the loops' detune room, eighteen unisons redrawn)
+    /// the strings tuned on their bridge, the loops' detune room, sixteen unisons redrawn)
     /// and [`tune::TUNE`], each key's last correction, handed to the keyboard.
     pub fn shipped() -> Self {
         let mut v = Voicing::candidate16();

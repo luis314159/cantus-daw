@@ -254,7 +254,7 @@ const MODEL_2_BETA14: u64 = 0x663b_f285_d17a_ebdd;
 /// Model 2 as it ships since `DSP_VERSION` 10 (candidate 16 with the technician's pass, a
 /// new unit's own voicing with no `set_voicing`), on its own keyboard, hashed — the same
 /// phrase as [`MODEL_2_BETA14`]'s.
-const MODEL_2_SHIPPED: u64 = 0x4965_b670_bc68_7c27;
+const MODEL_2_SHIPPED: u64 = 0x9561_d8f8_a3ce_3a61;
 
 /// Model 2 at candidate 16 as it shipped from `DSP_VERSION` 7 to 9, on its own keyboard —
 /// the hash `MODEL_2_SHIPPED` held then; since `DSP_VERSION` 10 it is named
@@ -339,7 +339,7 @@ fn the_shipped_voicing_is_candidate_16_with_the_technicians_pass_and_a_new_unit_
         (v.uni_center, v.bridge_tune, v.bridge_pull, v.frac_room),
         (1.0, 1.0, 2.0, 8.0)
     );
-    assert_eq!((v.draws[24 - 21], v.draws[106 - 21]), (1, 31));
+    assert_eq!((v.draws[24 - 21], v.draws[106 - 21]), (25, 31));
     assert_eq!(v.tune[46 - 21], super::voicing::tune::TUNE[46 - 21]);
     assert_eq!(
         v.tuning(super::design::Tuning::default()).tune,

@@ -442,14 +442,34 @@ fn tuning_draws() {
                         .iter()
                         .map(|x| key_tune(&v, *m, *x))
                         .collect();
-                    out.lock().unwrap().push((*m, *d, r));
+                    // Its level (dB, both channels' mean power) at the lab's mezzo-forte
+                    // (velocity 75) over 0–0.5, 0.25–1.25 and 1.25–3.4 s.
+                    let (l, rr) = perform(
+                        &mut unit(&v),
+                        &[(0, Ev::On(*m, 75.0 / 127.0, 1))],
+                        FRAMES,
+                        512,
+                        1,
+                    );
+                    let lv = |a: f64, b: f64| {
+                        let (a, b) = ((a * FS) as usize, ((b * FS) as usize).min(l.len()));
+                        let p: f64 = l[a..b]
+                            .iter()
+                            .chain(&rr[a..b])
+                            .map(|x| (*x as f64) * (*x as f64))
+                            .sum::<f64>()
+                            / (2 * (b - a)) as f64;
+                        10.0 * crate::math::log10(p.max(1e-30))
+                    };
+                    let levels = [lv(0.0, 0.5), lv(0.25, 1.25), lv(1.25, 3.4)];
+                    out.lock().unwrap().push((*m, *d, r, levels));
                 }
             });
         }
     });
     let mut o = out.into_inner().unwrap();
     o.sort_by_key(|e| (e.0, e.1));
-    for (m, d, r) in o {
+    for (m, d, r, lv) in o {
         let p1 = r[1]
             .partials
             .iter()
@@ -463,8 +483,8 @@ fn tuning_draws() {
             .map(|p| (p.cents - r[1].pitch).abs())
             .fold(0.0f64, f64::max);
         eprintln!(
-            "key {m} draw {d:2}: beat {:4.1} {:4.1} {:4.1} (med {:4.1}) pitch {:+5.1} p1 {:+5.1} ladder {ladder:4.1}",
-            r[0].beat_worst, r[1].beat_worst, r[2].beat_worst, r[1].beat, r[1].pitch, p1
+            "key {m} draw {d:2}: beat {:4.1} {:4.1} {:4.1} (med {:4.1}) pitch {:+5.1} p1 {:+5.1} ladder {ladder:4.1} level {:.1} {:.1} {:.1}",
+            r[0].beat_worst, r[1].beat_worst, r[2].beat_worst, r[1].beat, r[1].pitch, p1, lv[0], lv[1], lv[2]
         );
     }
 }
