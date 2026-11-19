@@ -220,6 +220,28 @@ both keep their bits.
   smooth fit of the candidate's own partials. Its first gate (each fundamental within 10 c
   of the Salamander's) is kept. The old file is `tuning_pre_r40tune.py`.
 
+## Checks (Windows unless said, at the branch's head)
+
+- `cargo test -p cantus-dsp`: 1 301 passed, 0 failed, 57 ignored.
+  - In an earlier full run, the CPU test failed once while other builders loaded the machine
+    (see Left).
+- `cargo test -p cantus-engine`: 973 passed, 0 failed, 17 ignored.
+  - Pulsus's three golden tests were first run with `CANTUS_GOLDEN_DUMP=1`, which the dump
+    takes for a folder, so they failed. Run again with a folder, they passed: their hashes
+    held.
+- `cantus-ui`, every test binary that plays Chorda (`chorda_*`, `inst_chorda*`, with the new
+  `chorda_tune_e2e`): 35 passed, 0 failed, 8 ignored.
+  - Through the app, Bb2 sounds +0.10 c, B2 +0.01, C3 −0.22 and B0 −0.00 against the curve.
+- `cargo clippy -p cantus-dsp -p cantus-engine -p cantus-ui --all-targets -- -D warnings`:
+  clean.
+- WSL (Ubuntu 24.04, `tools/wsl/check.sh r40/chorda-tune clippy`, then
+  `cargo fmt --all -- --check`): clippy exit 0, plug-ins without the editor exit 0,
+  formatting OK.
+- Not run: the whole workspace suite. The touched crates and every Chorda test above were run
+  instead; the machine's three build slots were shared with other builders all evening.
+- The web excerpts: `render_unit_sounds -- web chorda` (the example now takes card names after
+  the folder and leaves the list and the dry sources alone). Only Chorda's four MP3s changed.
+
 ## The size of the change
 
 `DSP_VERSION` 9 → 10, measured with `CANTUS_GOLDEN_DUMP`:
