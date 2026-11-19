@@ -164,6 +164,13 @@ fn action_also(a: Action) -> &'static [&'static str] {
         Action::MoveToNewWindow => &["screens.view.new_window", "screens.menu.new_window"],
         Action::ToggleFullScreen => &["screens.window.full_screen"],
         Action::ShowScreens => &["screens.view.band", "screens.map.title"],
+        // Round 40: "show the dancers", "bring the dancer back" find the stage's switch.
+        Action::ToggleStage => &[
+            "stage.view.stage",
+            "stage.palette.show",
+            "stage.palette.back",
+            "stage.palette.hide",
+        ],
         _ => &[],
     }
 }

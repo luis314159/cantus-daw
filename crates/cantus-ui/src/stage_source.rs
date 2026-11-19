@@ -54,6 +54,7 @@ pub fn gather(app: &CantusApp, st: &mut StageState) {
         if mode == ViewMode::Hidden {
             continue;
         }
+        super::show::remember(st, d.track, mode);
         let name = app.project().track(d.track).map_or("", |t| t.name.as_str());
         out.push(StageDancer {
             track: d.track,

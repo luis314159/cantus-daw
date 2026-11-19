@@ -244,6 +244,12 @@ fn stage_card(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, rect: Rect
         }
         crate::views::inst::face::cover(b, d, &sd);
     });
+    // Round 40: a dancer on no screen says so over its theatre, with *Show*.
+    let bar = Rect::from_min_size(
+        d.min + Vec2::splat(s.s(6.0)),
+        Vec2::new(d.width() - s.s(12.0), s.s(26.0)),
+    );
+    hidden_bar(app, ui, track, bar, s);
     // Playing it moves with the song; stopped it breathes — at most 60 frames a second,
     // through the ticker (round 38) — and once it holds still it asks for none.
     if app.engine.is_playing() || !app.dance_live.doze.holding() {
@@ -459,6 +465,52 @@ fn show_card(
     });
     app.inst.dancer.placed.insert("view.mode", sw);
     app.inst.dancer.placed.insert("view.top", lr);
+    let hr = Rect::from_min_size(
+        Pos2::new(body.left(), body.top() + s.s(82.0)),
+        Vec2::new(body.width(), s.s(26.0)),
+    );
+    if hr.bottom() <= body.bottom() + s.s(2.0) {
+        hidden_bar(app, ui, track, hr, s);
+    }
+}
+
+/// Round 40 (the owner: "once the dancer is hidden, I don't know how to bring it back"): a
+/// dancer on no screen says why where it is edited — its own *Hide*, the stage switched
+/// off, or the Stage tab closed — with *Show*, which brings it back where it was.
+fn hidden_bar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, rect: Rect, s: &Style) {
+    use crate::stage::{show, ViewMode};
+    if show::dancer_on_screen(app, track) {
+        return;
+    }
+    let why = match show::mode_of(app, track) {
+        None => return,
+        Some(ViewMode::Hidden) => "dance.hidden.own",
+        Some(_) if app.settings.stage.hidden => "dance.hidden.stage",
+        Some(_) => "dance.hidden.tab",
+    };
+    let bw = s.s(84.0).min(rect.width() * 0.45);
+    let br = Rect::from_min_size(
+        Pos2::new(rect.right() - bw - s.s(3.0), rect.top() + s.s(3.0)),
+        Vec2::new(bw, rect.height() - s.s(6.0)),
+    );
+    let words = t(why);
+    with_brush(ui.painter(), |b| {
+        let tint = crate::kit::color::mix(s.t.well, s.t.focus, 0.22);
+        b.rrect(rect, s.r(4.0), crate::kit::Fill::Solid(tint));
+        b.rrect_stroke(rect, s.r(4.0), b.px(), s.t.focus);
+        let tr = Rect::from_min_max(
+            Pos2::new(rect.left() + s.s(9.0), rect.top()),
+            Pos2::new(br.left() - s.s(6.0), rect.bottom()),
+        );
+        let tt = Text::new(&words, Role::Label, s.t.text)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(ktext::Elide::End));
+        let _ = ktext::paint(b, tr, &tt, s.tk());
+    });
+    app.inst.dancer.placed.insert("show_hidden", br);
+    if controls::push(ui, br, s, "dance.hidden.show", "dance.hidden.show_tip").clicked() {
+        show::show_dancer(app, track);
+    }
 }
 
 /// The window's footer for a dancer: the move it dances and the bar and beat (it has no
