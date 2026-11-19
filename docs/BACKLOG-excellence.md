@@ -260,8 +260,9 @@ video, versiones, contenido).
 audio: por estilo (trap, reguetón y latino, house, techno, drum & bass, lo-fi, pop, rock,
 ambiental y cine, orquestal, alabanza e iglesia, chiptune) y por tipo (baterías, loops,
 bajos, teclados, leads, pads, plucks, efectos, texturas, percusión del mundo), cada uno con
-presets, one-shots, loops, kits y una plantilla. Primero con los motores de Cantus a través
-del servidor MCP (cada sonido guardado como receta para reconstruirlo), luego otras
+presets, one-shots, loops, kits y una plantilla. Primero con los motores de Cantus, directo
+desde el código (presets como datos, renderizados sin abrir la app; cada sonido guardado
+como receta para reconstruirlo), luego otras
 herramientas solo con licencia limpia; nunca bibliotecas comerciales remuestreadas. Los
 agentes no oyen: cada archivo pasa medidas (volumen por rol, pico, clics, afinación, loops
 exactos, sin duplicados) y tú escuchas una muestra de cada banco antes de publicarlo.
@@ -1352,14 +1353,21 @@ measurement or been decided against with the reason written down.
     keys, leads, pads, plucks and arps, textures, FX (risers, impacts, sweeps, transitions),
     world percussion. Each bank starts at a floor (e.g. 64 presets, 150 one-shots, 40 loops,
     4 kits, a template) and is judged as a set.
-  - **Made inside Cantus first.** An agent works as an engineer through the MCP server
-    (round 34, `find_presets`, `audition_preset` and the rest): builds presets on Unda,
-    Calor, Modulus, Exemplar, Gravis, Lamina, Organum, Chorda, Pulsus and Tympanum, plays
-    them in phrases, renders, measures, iterates. A preset is a few hundred bytes, editable,
-    and shows what Cantus can do; a rendered file is kept as a **recipe** (project, preset,
-    seed, `DSP_VERSION`), so a bank is rebuilt by a script when the DSP changes and every
-    file has its provenance. *(Check first)* that the MCP tools reach every parameter of
-    every instrument; the gaps are the first work.
+  - **Made from Cantus's own code, not through the app** (the owner: "no con el MCP sino
+    directamente del código"). Round 37's route (ADR 0101) is the base: presets are data
+    (one TOML file per unit under `crates/cantus-ui/presets/`), `examples/preset_tool.rs fit`
+    renders and fits their levels, `examples/render_packs.rs` renders the packs,
+    `tests/preset_render.rs` measures every preset. An engineer agent writes a bank's
+    presets as data on Unda, Calor, Modulus, Exemplar, Gravis, Lamina, Organum, Chorda,
+    Pulsus and Tympanum (and the effects' chains on them), plus its phrases, kits and
+    loops as data (notes, pattern, tempo, key), then grows the tools into one
+    `examples/render_bank.rs <bank>`: the offline engine renders every file headless, the
+    measurements run, and a report says what failed and why; the agent iterates on the data.
+    No app, no MCP round trip: fast, deterministic (offline = real time, the same bytes on
+    every system), runnable in CI. Each file keeps its **recipe** (the data, the seed,
+    `DSP_VERSION`), so a bank is rebuilt by one command when the DSP changes and every file
+    has its provenance. Where an instrument lacks a parameter a sound needs, the gap is
+    built in its engine first, with its null test.
   - **Other tools, only with a clean licence.** Audio rendered from free synths whose
     output is the user's (e.g. Surge XT; their factory presets and wavetables checked one by
     one), CC0 sources (Freesound CC0, Kenney) processed through Cantus, and CC BY with
