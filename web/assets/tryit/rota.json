@@ -17,6 +17,20 @@
   "dry": "/tryit/guitar.mp3",
   "presets": [
     {
+      "id": "guitar",
+      "name": [
+        "Guitar through the rotary",
+        "Guitarra por el rotatorio"
+      ],
+      "what": [
+        "Creative — Pop, Rock",
+        "Creativo — Pop, Rock"
+      ],
+      "wet": "/tryit/rota/guitar.mp3",
+      "level_db": 0.2,
+      "pic": "/tryit/rota/guitar"
+    },
+    {
       "id": "chorale",
       "name": [
         "Chorale",
@@ -45,18 +59,18 @@
       "pic": "/tryit/rota/tremolo"
     },
     {
-      "id": "gospel",
+      "id": "open_back",
       "name": [
-        "Gospel",
-        "Gospel"
+        "Open back, far away",
+        "Trasera abierta, lejos"
       ],
       "what": [
-        "Creative — R&B, Worship · Gospel",
-        "Creativo — R&B, Alabanza · Gospel"
+        "Creative — Ambient · Cinematic, Worship · Gospel",
+        "Creativo — Ambient · Cinemático, Alabanza · Gospel"
       ],
-      "wet": "/tryit/rota/gospel.mp3",
-      "level_db": -2.0,
-      "pic": "/tryit/rota/gospel"
+      "wet": "/tryit/rota/open_back.mp3",
+      "level_db": -1.3,
+      "pic": "/tryit/rota/open_back"
     }
   ]
 }

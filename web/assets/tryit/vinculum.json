@@ -6,12 +6,12 @@
     "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
   ],
   "source": [
-    "A small mix: Cantus's own drums and bass under the CC0 guitar, 90 BPM",
-    "Una pequeña mezcla: la batería y el bajo de Cantus bajo la guitarra CC0, 90 BPM"
+    "A small mix: recorded drums, Cantus's bass and the CC0 guitar, Am, F, C, G at 90 BPM",
+    "Una pequeña mezcla: batería grabada, el bajo de Cantus y la guitarra CC0, Lam, Fa, Do, Sol a 90 BPM"
   ],
   "credit": [
-    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI); drums and bass: Cantus's Pulsus and Gravis",
-    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI); batería y bajo: Pulsus y Gravis de Cantus"
+    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI); drums: Gogodze Phu Vol. II by Karoryfer Samples, CC0, played by Cantus's Tympanum; bass: Cantus's Gravis",
+    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI); batería: Gogodze Phu Vol. II de Karoryfer Samples, CC0, tocada por Tympanum de Cantus; bajo: Gravis de Cantus"
   ],
   "loop": true,
   "dry": "/tryit/vinculum/dry.mp3",
@@ -27,7 +27,7 @@
         "Bus — Pop, Rock"
       ],
       "wet": "/tryit/vinculum/glue.mp3",
-      "level_db": -0.7,
+      "level_db": -0.5,
       "pic": "/tryit/vinculum/glue"
     },
     {
@@ -41,7 +41,7 @@
         "Máster — Pop, Alabanza · Gospel"
       ],
       "wet": "/tryit/vinculum/mix_glue.mp3",
-      "level_db": -1.3,
+      "level_db": -0.9,
       "pic": "/tryit/vinculum/mix_glue"
     },
     {
@@ -55,8 +55,22 @@
         "Bus — Jazz · Soul, Alabanza · Gospel"
       ],
       "wet": "/tryit/vinculum/opto_smooth.mp3",
-      "level_db": -1.2,
+      "level_db": -0.9,
       "pic": "/tryit/vinculum/opto_smooth"
+    },
+    {
+      "id": "valve_master",
+      "name": [
+        "Valve mastering glue",
+        "Pegamento de máster a válvulas"
+      ],
+      "what": [
+        "Master — Pop, Film · Game",
+        "Máster — Pop, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/vinculum/valve_master.mp3",
+      "level_db": -2.5,
+      "pic": "/tryit/vinculum/valve_master"
     }
   ]
 }

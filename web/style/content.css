@@ -69,6 +69,7 @@ main .page-band h2::before, main .plain::before, main .spot-head h2::before, mai
 .spot-feats li::before { content: ""; position: absolute; left: 0.1rem; top: 0.5em; width: 0.45rem; height: 0.45rem; transform: rotate(45deg); background: var(--leaf); }
 .spot-text .btn { justify-self: start; }
 .spot-presets { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+.spot-credit { margin: 0; padding: 0.7rem 1.2rem 0.9rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--ink-2); }
 .spot-preset { position: relative; border-left: 1px solid var(--line); }
 .spot-preset:first-child { border-left: 0; }
 .spot-preset button { width: 100%; display: flex; align-items: center; gap: 0.9rem; padding: 1.1rem 1.2rem 1.3rem; background: transparent; border: 0; cursor: pointer; text-align: left; color: var(--ink); font: inherit; }

@@ -17,6 +17,20 @@
   "dry": "/tryit/guitar.mp3",
   "presets": [
     {
+      "id": "guitar_ambience",
+      "name": [
+        "Guitar ambience",
+        "Ambiente de guitarra"
+      ],
+      "what": [
+        "Creative — Rock, Worship · Gospel",
+        "Creativo — Rock, Alabanza · Gospel"
+      ],
+      "wet": "/tryit/caelum/guitar_ambience.mp3",
+      "level_db": 0.8,
+      "pic": "/tryit/caelum/guitar_ambience"
+    },
+    {
       "id": "octave_shimmer",
       "name": [
         "Octave shimmer",

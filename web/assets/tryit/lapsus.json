@@ -17,18 +17,60 @@
   "dry": "/tryit/guitar.mp3",
   "presets": [
     {
-      "id": "wobble",
+      "id": "half_time",
       "name": [
-        "Warped record",
-        "Disco alabeado"
+        "Half time",
+        "Medio tiempo"
       ],
       "what": [
-        "Creative — Lo-fi",
-        "Creativo — Lo-fi"
+        "Drums — Trap · Hip-hop, House · EDM",
+        "Batería — Trap · Hip-hop, House · EDM"
       ],
-      "wet": "/tryit/lapsus/wobble.mp3",
-      "level_db": 0.0,
-      "pic": "/tryit/lapsus/wobble"
+      "wet": "/tryit/lapsus/half_time.mp3",
+      "level_db": 4.5,
+      "pic": "/tryit/lapsus/half_time"
+    },
+    {
+      "id": "tape_stop",
+      "name": [
+        "Tape stop",
+        "Parada de cinta"
+      ],
+      "what": [
+        "Bus — Trap · Hip-hop, Pop, House · EDM",
+        "Bus — Trap · Hip-hop, Pop, House · EDM"
+      ],
+      "wet": "/tryit/lapsus/tape_stop.mp3",
+      "level_db": -0.1,
+      "pic": "/tryit/lapsus/tape_stop"
+    },
+    {
+      "id": "reverse_half",
+      "name": [
+        "Reverse half",
+        "Media reversa"
+      ],
+      "what": [
+        "Vocal — Pop, Film · Game",
+        "Voz — Pop, Cine · Videojuegos"
+      ],
+      "wet": "/tryit/lapsus/reverse_half.mp3",
+      "level_db": -0.1,
+      "pic": "/tryit/lapsus/reverse_half"
+    },
+    {
+      "id": "baby_scratch",
+      "name": [
+        "Baby scratch",
+        "Baby scratch"
+      ],
+      "what": [
+        "Vocal — Trap · Hip-hop, Rock",
+        "Voz — Trap · Hip-hop, Rock"
+      ],
+      "wet": "/tryit/lapsus/baby_scratch.mp3",
+      "level_db": -0.7,
+      "pic": "/tryit/lapsus/baby_scratch"
     }
   ]
 }

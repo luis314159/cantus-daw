@@ -17,46 +17,60 @@
   "dry": "/tryit/guitar.mp3",
   "presets": [
     {
-      "id": "sub_octaves",
+      "id": "twelve_string",
       "name": [
-        "Sub octaves",
-        "Suboctavas"
+        "Octave up, twelve-string",
+        "Octava arriba, doce cuerdas"
       ],
       "what": [
-        "Creative — Trap · Hip-hop, House · EDM",
-        "Creativo — Trap · Hip-hop, House · EDM"
+        "Bus — Rock, Worship · Gospel",
+        "Bus — Rock, Alabanza · Gospel"
       ],
-      "wet": "/tryit/saltus/sub_octaves.mp3",
+      "wet": "/tryit/saltus/twelve_string.mp3",
+      "level_db": 3.0,
+      "pic": "/tryit/saltus/twelve_string"
+    },
+    {
+      "id": "octaves_both",
+      "name": [
+        "Octaves both ways",
+        "Octavas arriba y abajo"
+      ],
+      "what": [
+        "Bus — Ambient · Cinematic, Worship · Gospel",
+        "Bus — Ambient · Cinemático, Alabanza · Gospel"
+      ],
+      "wet": "/tryit/saltus/octaves_both.mp3",
+      "level_db": 1.5,
+      "pic": "/tryit/saltus/octaves_both"
+    },
+    {
+      "id": "wide_doubler",
+      "name": [
+        "Wide doubler",
+        "Doblador amplio"
+      ],
+      "what": [
+        "Vocal — Pop, Rock",
+        "Voz — Pop, Rock"
+      ],
+      "wet": "/tryit/saltus/wide_doubler.mp3",
       "level_db": 0.2,
-      "pic": "/tryit/saltus/sub_octaves"
+      "pic": "/tryit/saltus/wide_doubler"
     },
     {
-      "id": "octave_up_analog",
+      "id": "dive_bomb",
       "name": [
-        "Octave up, analog",
-        "Octava arriba, analógica"
+        "Dive bomb",
+        "Picado"
       ],
       "what": [
-        "Creative — Rock",
-        "Creativo — Rock"
+        "Creative — Rock, Film · Game",
+        "Creativo — Rock, Cine · Videojuegos"
       ],
-      "wet": "/tryit/saltus/octave_up_analog.mp3",
-      "level_db": -0.4,
-      "pic": "/tryit/saltus/octave_up_analog"
-    },
-    {
-      "id": "whammy_octave",
-      "name": [
-        "Whammy to the octave",
-        "Whammy a la octava"
-      ],
-      "what": [
-        "Creative — Rock",
-        "Creativo — Rock"
-      ],
-      "wet": "/tryit/saltus/whammy_octave.mp3",
-      "level_db": 3.6,
-      "pic": "/tryit/saltus/whammy_octave"
+      "wet": "/tryit/saltus/dive_bomb.mp3",
+      "level_db": 4.8,
+      "pic": "/tryit/saltus/dive_bomb"
     }
   ]
 }

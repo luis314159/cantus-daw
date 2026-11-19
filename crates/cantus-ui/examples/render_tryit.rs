@@ -2,7 +2,7 @@
 //! presets on one take, dry or wet, with the editor's picture for each preset.
 //!
 //! ```text
-//! cargo run --release -p cantus-ui --example render_tryit -- <SampleData> <web> <shots> [unit…] [--presets N] [--takes <dir>]
+//! cargo run --release -p cantus-ui --example render_tryit -- <SampleData> <web> <shots> [unit…] [--presets N] [--takes <dir>] [--content <packs>]
 //! python web/tools/tryit_pictures.py <shots>
 //! ```
 //!
@@ -23,57 +23,134 @@
 //! - **The manifest**: `<web>/assets/tryit/<unit>.json` (what `web/src/tryit.rs` reads), and the
 //!   takes in `<web>/assets/tryit/<unit>/`; the dry take is shared, `<web>/assets/tryit/guitar.mp3`.
 //!
-//! Presets are each unit's factory presets in their order, without the init patch, those for
-//! drums, voice, buses and the master left out (the take is a guitar), and those that need
-//! notes from a track (Fractus's played lanes) — up to `--presets` (4) a unit.
+//! Presets are chosen by hand for each unit's range on a guitar ([`UNITS`]; clean, crunch and
+//! high gain for Arca, overdrive, distortion, fuzz and muff for Fragor…,
+//! `docs/round-fx/sounds.md`) — up to `--presets` (4) a unit. Each must be a factory preset a
+//! guitar can show: not the init patch, not one for drums, voice, buses or the master, not one
+//! that needs notes from a track (Fractus's played lanes).
 //!
 //! **The units a guitar does not suit** ([`OWN`]: Loquax, Lenis, Vinculum, Cedo, Purus) are
 //! heard on a take of their own from `--takes <dir>` (not in the repository; gathered from the
 //! side round's listening sets): `voice.flac` (Britton Rea's *Gettysburg Address*, public
-//! domain), `mix.wav` (Cantus's Pulsus drums and Gravis bass under the CC0 guitar, 90 BPM),
+//! domain), the small mix built here (`shared::mix`: Tympanum on Gogodze Phu Vol. II's
+//! recorded kit, CC0, read from `--content <packs>`, Gravis on the roots and the CC0 guitar),
 //! `pad.wav` (a synthetic pad, 124 BPM) and `faults.wav` (the CC0 guitar with a synthetic hum,
 //! buzz, clicks and crackle). Each names its presets; Loquax's synthesiser plays the
 //! progression's chords as notes; each has its own dry take, at the same loudness.
 
-use cantus_core::{EffectId, EffectKind, EffectSlot};
-use cantus_engine::fx::{FxNote, SongPosition};
-use cantus_engine::{EffectMemory, EffectUnit, EngineHandle};
-use cantus_export::job::Control;
-use cantus_export::settings::Tags;
-use cantus_export::{export_rendered, Audio, ExportSettings, Format, Mp3Mode, Rate};
+#[path = "site_takes/shared.rs"]
+#[allow(dead_code)] // the cards' generator uses the rest
+mod shared;
+
+use cantus_core::EffectKind;
+use cantus_engine::fx::FxNote;
 use cantus_ui::i18n::{t_in, Locale};
 use cantus_ui::preset_catalog::{entries, Entry, Payload, Unit};
 use cantus_ui::preset_tags::Role;
 use cantus_ui::raster::shoot;
-use cantus_ui::{views, welcome_project, CantusApp};
+use cantus_ui::views;
+use shared::{
+    app_with, bars_5_to_8, lufs, mp3_by, progression, site_gain, through, Values, BARS, BPM,
+    GUITAR, MIX, RATE, VOICE,
+};
 use std::path::{Path, PathBuf};
 
-const RATE: u32 = 48_000;
-const BPM: f64 = 90.0;
-const BARS: usize = 8;
-/// Every take's loudness, LUFS (the site's stand-ins were made at the same).
-const TARGET: f64 = -19.3;
-/// No take's peak above this, dBFS (MP3 adds a little on decoding).
-const CEILING: f64 = -1.5;
 /// The pictures' width, points.
 const WIDTH: f32 = 1200.0;
 
-/// The units, in the panel's order: (the site's name, the kind, `demo_editor`'s name).
-const UNITS: &[(&str, EffectKind, &str)] = &[
-    ("fragor", EffectKind::Pedal, "fragor"),
-    ("tabula", EffectKind::Board, "tabula"),
-    ("saltus", EffectKind::PitchShift, "saltus"),
-    ("arca", EffectKind::Amp, "arca"),
-    ("rota", EffectKind::Rotary, "rota"),
-    ("cribrum", EffectKind::AutoFilter, "cribrum"),
-    ("vetus", EffectKind::LoFi, "vetus"),
-    ("lapsus", EffectKind::TimeShaper, "lapsus"),
-    ("caelum", EffectKind::Shimmer, "caelum"),
-    ("fractus", EffectKind::Glitch, "fractus"),
-    ("phasis", EffectKind::Phaser, "phasis"),
+/// The units, in the panel's order: (the site's name, the kind, `demo_editor`'s name, the
+/// presets heard, by the last part of their id — chosen by hand for the unit's range on a
+/// guitar, `docs/round-fx/sounds.md`).
+const UNITS: &[(&str, EffectKind, &str, &[&str])] = &[
+    (
+        "fragor",
+        EffectKind::Pedal,
+        "fragor",
+        &["green_push", "rat_rhythm", "vintage_fuzz", "muff_sustain"],
+    ),
+    (
+        "tabula",
+        EffectKind::Board,
+        "tabula",
+        &["guitar_rig", "blues_crunch", "fuzz_lead", "ambient_swells"],
+    ),
+    (
+        "saltus",
+        EffectKind::PitchShift,
+        "saltus",
+        &["twelve_string", "octaves_both", "wide_doubler", "dive_bomb"],
+    ),
+    (
+        "arca",
+        EffectKind::Amp,
+        "arca",
+        &[
+            "chime_jangle",
+            "british_crunch",
+            "full_stack",
+            "tight_rhythm",
+        ],
+    ),
+    (
+        "rota",
+        EffectKind::Rotary,
+        "rota",
+        &["guitar", "chorale", "tremolo", "open_back"],
+    ),
+    (
+        "cribrum",
+        EffectKind::AutoFilter,
+        "cribrum",
+        &["cry_wah", "funk_wah", "bar_sweep", "talking"],
+    ),
+    (
+        "vetus",
+        EffectKind::LoFi,
+        "vetus",
+        &["worn_cassette", "lofi_hip_hop", "warped_tape", "eight_bit"],
+    ),
+    (
+        "lapsus",
+        EffectKind::TimeShaper,
+        "lapsus",
+        &["half_time", "tape_stop", "reverse_half", "baby_scratch"],
+    ),
+    (
+        "caelum",
+        EffectKind::Shimmer,
+        "caelum",
+        &[
+            "guitar_ambience",
+            "octave_shimmer",
+            "fifth_cathedral",
+            "bloom_pad",
+        ],
+    ),
+    (
+        "fractus",
+        EffectKind::Glitch,
+        "fractus",
+        &[
+            "reverse_build",
+            "gated_sixteenths",
+            "trance_gate",
+            "grain_pad",
+        ],
+    ),
+    (
+        "phasis",
+        EffectKind::Phaser,
+        "phasis",
+        &[
+            "phase90_script",
+            "small_stone",
+            "lamp_chorus",
+            "synced_eighths",
+        ],
+    ),
 ];
 
-/// A unit heard on a take of its own (`--takes`).
+/// A unit heard on a take of its own (`--takes`; `@mix` is built, `shared::mix`).
 struct Own {
     name: &'static str,
     kind: EffectKind,
@@ -92,15 +169,6 @@ struct Own {
     /// The MP3s' artist tag.
     artist: &'static str,
 }
-
-const VOICE: (&str, &str) = (
-    "Voice: Britton Rea, public domain (Wikimedia Commons)",
-    "Voz: Britton Rea, dominio público (Wikimedia Commons)",
-);
-const GUITAR: (&str, &str) = (
-    "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
-    "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
-);
 
 const OWN: &[Own] = &[
     Own {
@@ -139,19 +207,16 @@ const OWN: &[Own] = &[
         name: "vinculum",
         kind: EffectKind::BusCompressor,
         demo: "vinculum",
-        file: "mix.wav",
+        file: "@mix",
         bpm: BPM,
         looped: true,
         chords: false,
         presets: &["glue", "mix_glue", "opto_smooth", "valve_master"],
         source: (
-            "A small mix: Cantus's own drums and bass under the CC0 guitar, 90 BPM",
-            "Una pequeña mezcla: la batería y el bajo de Cantus bajo la guitarra CC0, 90 BPM",
+            "A small mix: recorded drums, Cantus's bass and the CC0 guitar, Am, F, C, G at 90 BPM",
+            "Una pequeña mezcla: batería grabada, el bajo de Cantus y la guitarra CC0, Lam, Fa, Do, Sol a 90 BPM",
         ),
-        credit: (
-            "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI); drums and bass: Cantus's Pulsus and Gravis",
-            "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI); batería y bajo: Pulsus y Gravis de Cantus",
-        ),
+        credit: MIX,
         artist: "Cantus (guitar: Carbonthief, CC0)",
     },
     Own {
@@ -180,8 +245,8 @@ const OWN: &[Own] = &[
         chords: false,
         presets: &["mains_50", "guitar_amp", "vinyl_crackle", "strong"],
         source: (
-            "The CC0 guitar with a synthetic mains hum (50 Hz, drifting), a buzz, clicks and crackle",
-            "La guitarra CC0 con un zumbido de red sintético (50 Hz, que se desvía), un zumbido, clics y crepitar",
+            "The CC0 guitar with a mains hum (50 Hz, drifting), a buzz, clicks and crackle, synthetic, added to show the repair",
+            "La guitarra CC0 con un zumbido de red (50 Hz, que se desvía), un zumbido, clics y crepitar, sintéticos, añadidos para mostrar la reparación",
         ),
         credit: GUITAR,
         artist: "Cantus (guitar: Carbonthief, CC0)",
@@ -191,135 +256,9 @@ const OWN: &[Own] = &[
 /// Loquax's notes: A minor, F, C, G (the progression), a chord a bar.
 const CHORD_NOTES: [[u8; 3]; 4] = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
 
-/// The chord of each bar (`refs/audio/README.md`).
-const CHORDS: [&str; 4] = [
-    "Sample07 (A Minor)",
-    "Sample15 (F Major)",
-    "Sample22 (C Major)",
-    "Sample17 (G Major)",
-];
-
-/// One strum, stereo interleaved at 48 kHz (the `.flac`, or a `.wav` made from it where the
-/// decoder cannot read the FLAC — Carbonthief's are 32-bit).
-fn strum(dir: &Path, stem: &str) -> Vec<f32> {
-    let d = ["flac", "wav"]
-        .iter()
-        .find_map(|ext| {
-            let p = dir.join(format!("{stem}.{ext}"));
-            p.exists()
-                .then(|| cantus_engine::SampleCache::decode_source(&p).ok())
-                .flatten()
-        })
-        .unwrap_or_else(|| panic!("{stem}: not in {}", dir.display()));
-    let ch = d.channels as usize;
-    let mut x: Vec<f32> = d.frames.to_vec();
-    if d.rate != RATE {
-        x = cantus_engine::samples::resample::resample(&x, ch, d.rate, RATE);
-    }
-    if ch == 1 {
-        x.iter().flat_map(|v| [*v, *v]).collect()
-    } else {
-        x
-    }
-}
-
-/// The eight bars, two strums a bar, each faded over 20 ms before the next, peak −6 dBFS.
-fn progression(dir: &Path) -> (Vec<f32>, Vec<f32>) {
-    let beat = (60.0 / BPM * f64::from(RATE)) as usize;
-    let n = BARS * 4 * beat;
-    let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
-    let fade = (0.02 * f64::from(RATE)) as usize;
-    let strums: Vec<Vec<f32>> = CHORDS.iter().map(|c| strum(dir, c)).collect();
-    for bar in 0..BARS {
-        for half in 0..2 {
-            let at = (bar * 4 + half * 2) * beat;
-            let len = 2 * beat;
-            let s = &strums[bar % 4];
-            for i in 0..len.min(s.len() / 2) {
-                let g = if i + fade >= len {
-                    (len - i) as f32 / fade as f32
-                } else {
-                    1.0
-                };
-                l[at + i] += s[2 * i] * g;
-                r[at + i] += s[2 * i + 1] * g;
-            }
-        }
-    }
-    let peak = l
-        .iter()
-        .chain(&r)
-        .fold(0f32, |m, v| m.max(v.abs()))
-        .max(1e-9);
-    let g = cantus_dsp::math::db_to_gain(-6.0) / peak;
-    for v in l.iter_mut().chain(r.iter_mut()) {
-        *v *= g;
-    }
-    (l, r)
-}
-
-/// The take through `slot` on the engine's own unit, the song playing from bar 1, its
-/// latency taken off (aligned with the dry take).
-fn through(
-    l: &[f32],
-    r: &[f32],
-    slot: &EffectSlot,
-    bpm: f64,
-    notes: &[(usize, FxNote)],
-) -> (Vec<f32>, Vec<f32>) {
-    let mut u = EffectUnit::new(slot, RATE as f32);
-    u.configure(&slot.spec);
-    if let Some(need) = u.memory_need() {
-        drop(u.supply(EffectMemory::build(need, RATE as f32)));
-    }
-    let lat = u.latency();
-    let (mut ol, mut or) = (l.to_vec(), r.to_vec());
-    ol.extend(std::iter::repeat_n(0.0, lat));
-    or.extend(std::iter::repeat_n(0.0, lat));
-    let mut at = 0usize;
-    while at < ol.len() {
-        let n = 480.min(ol.len() - at);
-        for (when, note) in notes.iter().filter(|(w, _)| (at..at + n).contains(w)) {
-            u.note(when - at, *note);
-        }
-        u.set_position(&SongPosition {
-            playing: true,
-            tempo_bpm: bpm,
-            tempo_now: bpm,
-            beats: at as f64 * bpm / 60.0 / f64::from(RATE),
-            samples: at as i64,
-            ..Default::default()
-        });
-        u.process(&mut ol[at..at + n], &mut or[at..at + n]);
-        at += n;
-    }
-    (ol[lat..].to_vec(), or[lat..].to_vec())
-}
-
 /// Bars 5 to 8.
 fn second_half(x: &[f32]) -> Vec<f32> {
     bars_5_to_8(x, BPM)
-}
-
-/// Bars 5 to 8 at `bpm`.
-fn bars_5_to_8(x: &[f32], bpm: f64) -> Vec<f32> {
-    let half = BARS / 2 * 4 * (60.0 / bpm * f64::from(RATE)) as usize;
-    x[half..(2 * half).min(x.len())].to_vec()
-}
-
-fn lufs(l: &[f32], r: &[f32]) -> f64 {
-    let mut m = cantus_dsp::terminus::loudness::LoudnessMeter::new(RATE as f32);
-    m.process(l, r);
-    m.integrated().unwrap_or(-120.0)
-}
-
-fn peak_db(l: &[f32], r: &[f32]) -> f64 {
-    let p = l
-        .iter()
-        .chain(r)
-        .fold(0f32, |m, v| m.max(v.abs()))
-        .max(1e-9);
-    20.0 * cantus_dsp::math::log10(f64::from(p))
 }
 
 /// The take at `gain_db`, as the site's MP3.
@@ -331,47 +270,26 @@ fn mp3(l: &[f32], r: &[f32], gain_db: f64, path: &Path, title: &str) -> u64 {
         path,
         title,
         "Cantus (guitar: Carbonthief, CC0)",
+        "Try it",
     )
 }
 
-/// [`mp3`] with its artist tag.
-fn mp3_by(l: &[f32], r: &[f32], gain_db: f64, path: &Path, title: &str, artist: &str) -> u64 {
-    let g = cantus_dsp::math::db_to_gain(gain_db as f32);
-    let samples: Vec<f32> = l
-        .iter()
-        .zip(r)
-        .flat_map(|(a, b)| [*a * g, *b * g])
-        .collect();
-    let s = ExportSettings {
-        format: Format::Mp3,
-        mp3: Mp3Mode::Cbr(96),
-        rate: Rate::Hz(RATE),
-        ..Default::default()
-    };
-    let tags = Tags {
-        title: title.into(),
-        artist: artist.into(),
-        album: "Try it".into(),
-        ..Default::default()
-    };
-    let audio = Audio {
-        rate: RATE,
-        channels: 2,
-        samples,
-    };
-    export_rendered(audio, &s, &tags, path, &Control::new()).expect("the take is written");
-    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
-}
-
-type Values = std::collections::BTreeMap<String, f32>;
-
 /// The values a factory preset loads, when it is one the guitar can show.
 fn guitar_preset(e: &Entry) -> Option<&Values> {
+    let not_guitar = [Role::Drums, Role::Vocal, Role::Bus, Role::Master];
+    if not_guitar.contains(&e.role()) {
+        return None;
+    }
+    playable(e)
+}
+
+/// The values of a factory preset the take can play: not the init patch, no lanes played by
+/// a track's notes (a hand-picked preset may name another role first: a guitar suits it too).
+fn playable(e: &Entry) -> Option<&Values> {
     let Payload::Effect(values) = &e.payload else {
         return None;
     };
-    let not_guitar = [Role::Drums, Role::Vocal, Role::Bus, Role::Master];
-    if e.id.ends_with(".init") || not_guitar.contains(&e.role()) {
+    if e.id.ends_with(".init") {
         return None;
     }
     // Lanes played by a track's notes: the take has none.
@@ -410,34 +328,6 @@ fn context(dark: bool) -> egui::Context {
     ctx
 }
 
-/// The app with the unit's editor open, fed as playing, the preset loaded as the browser
-/// loads it; and the slot as it is then.
-fn app_with(demo: &str, kind: EffectKind, values: &Values) -> (CantusApp, EffectSlot) {
-    let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
-    app.demo_editor(demo);
-    views::fx::demo_feed(&mut app, kind);
-    let (strip, effect, _) = app.fx.open.expect("the editor is open");
-    app.apply_fx_params(
-        strip,
-        effect,
-        values,
-        cantus_ui::preset_browser::APPLY_LABEL,
-    );
-    app.fx.pos = Some(egui::pos2(0.0, 0.0));
-    let mut slot = app
-        .project()
-        .effect(strip, effect)
-        .cloned()
-        .expect("the slot");
-    // Heard alone on the take: no key from another track, no notes, all wet.
-    slot.id = EffectId(1);
-    slot.bypass = false;
-    slot.mix = 1.0;
-    slot.sidechain = None;
-    slot.midi_from = None;
-    (app, slot)
-}
-
 fn shoot_preset(dir: &Path, stem: &str, demo: &str, kind: EffectKind, values: &Values) {
     let k = WIDTH / views::fx::frame::designed_size(kind).x;
     for lang in [Locale::En, Locale::Es] {
@@ -461,24 +351,12 @@ fn shoot_preset(dir: &Path, stem: &str, demo: &str, kind: EffectKind, values: &V
     cantus_ui::i18n::set_locale(Locale::En);
 }
 
-/// A take from `--takes`, stereo at 48 kHz, split into its channels.
-fn take(dir: &Path, file: &str) -> (Vec<f32>, Vec<f32>) {
-    let p = dir.join(file);
-    let d = cantus_engine::SampleCache::decode_source(&p)
-        .unwrap_or_else(|e| panic!("{}: {e:?}", p.display()));
-    let ch = d.channels as usize;
-    let mut x: Vec<f32> = d.frames.to_vec();
-    if d.rate != RATE {
-        x = cantus_engine::samples::resample::resample(&x, ch, d.rate, RATE);
+/// A take from `--takes`, stereo at 48 kHz, split into its channels (`@mix`: the small mix).
+fn take(dir: &Path, file: &str, guitar: &(Vec<f32>, Vec<f32>)) -> (Vec<f32>, Vec<f32>) {
+    if file == "@mix" {
+        return shared::mix(guitar, -20.0);
     }
-    if ch == 1 {
-        (x.clone(), x)
-    } else {
-        (
-            x.iter().step_by(ch).copied().collect(),
-            x.iter().skip(1).step_by(ch).copied().collect(),
-        )
-    }
+    shared::take(&dir.join(file))
 }
 
 /// The progression's chords as notes over `frames`, a chord a bar at `bpm`.
@@ -505,8 +383,15 @@ fn chord_notes(frames: usize, bpm: f64) -> Vec<(usize, FxNote)> {
 }
 
 /// One of [`OWN`]: its dry take, each named preset's take and pictures, and its manifest.
-fn render_own(own: &Own, takes: &Path, out: &Path, shots: &Path, n_presets: usize) -> u64 {
-    let (mut l, mut r) = take(takes, own.file);
+fn render_own(
+    own: &Own,
+    takes: &Path,
+    guitar: &(Vec<f32>, Vec<f32>),
+    out: &Path,
+    shots: &Path,
+    n_presets: usize,
+) -> u64 {
+    let (mut l, mut r) = take(takes, own.file, guitar);
     if own.looped {
         let n = BARS * 4 * (60.0 / own.bpm * f64::from(RATE)) as usize;
         l.resize(n, 0.0);
@@ -531,7 +416,7 @@ fn render_own(own: &Own, takes: &Path, out: &Path, shots: &Path, n_presets: usiz
     std::fs::create_dir_all(&pics).expect("the shots' folder");
     let (dl, dr) = (cut(&l), cut(&r));
     let dry_lufs = lufs(&dl, &dr);
-    let dry_gain = (TARGET - dry_lufs).min(CEILING - peak_db(&dl, &dr));
+    let dry_gain = site_gain(&dl, &dr);
     let mut total = mp3_by(
         &dl,
         &dr,
@@ -539,6 +424,7 @@ fn render_own(own: &Own, takes: &Path, out: &Path, shots: &Path, n_presets: usiz
         &dir.join("dry.mp3"),
         "The dry take",
         own.artist,
+        "Try it",
     );
     println!("{}: dry ({:.1} LUFS after)", own.name, dry_lufs + dry_gain);
     let all = entries(Unit::Effect(own.kind), false);
@@ -555,7 +441,7 @@ fn render_own(own: &Own, takes: &Path, out: &Path, shots: &Path, n_presets: usiz
         let (wl, wr) = through(&l, &r, &slot, own.bpm, &notes);
         let (wl, wr) = (cut(&wl), cut(&wr));
         let loud = lufs(&wl, &wr);
-        let gain = (TARGET - loud).min(CEILING - peak_db(&wl, &wr));
+        let gain = site_gain(&wl, &wr);
         let name_en = t_in(Locale::En, &e.id);
         total += mp3_by(
             &wl,
@@ -564,6 +450,7 @@ fn render_own(own: &Own, takes: &Path, out: &Path, shots: &Path, n_presets: usiz
             &dir.join(format!("{id}.mp3")),
             &name_en,
             own.artist,
+            "Try it",
         );
         shoot_preset(&pics, id, own.demo, own.kind, values);
         presets.push(serde_json::json!({
@@ -612,7 +499,8 @@ fn main() {
         .enumerate()
         .filter(|(i, a)| {
             !a.starts_with("--")
-                && (*i == 0 || !["--presets", "--takes"].contains(&args[i - 1].as_str()))
+                && (*i == 0
+                    || !["--presets", "--takes", "--content"].contains(&args[i - 1].as_str()))
         })
         .map(|(_, a)| a.clone());
     let samples = PathBuf::from(pos.next().expect("the SampleData folder"));
@@ -624,6 +512,14 @@ fn main() {
         .position(|a| a == "--takes")
         .and_then(|i| args.get(i + 1))
         .map(PathBuf::from);
+    // The installed packs Tympanum's recorded kit is read from (the small mix's drums).
+    if let Some(root) = args
+        .iter()
+        .position(|a| a == "--content")
+        .and_then(|i| args.get(i + 1))
+    {
+        cantus_ui::tympanum_load::install(PathBuf::from(root));
+    }
     cantus_ui::i18n::set_thread_locale(Locale::En);
 
     let (l, r) = progression(&samples);
@@ -631,10 +527,10 @@ fn main() {
     let dry_lufs = lufs(&dl, &dr);
     let out = web.join("assets/tryit");
     std::fs::create_dir_all(&out).expect("assets/tryit");
-    let dry_gain = (TARGET - dry_lufs).min(CEILING - peak_db(&dl, &dr));
+    let dry_gain = site_gain(&dl, &dr);
     let mut total = mp3(&dl, &dr, dry_gain, &out.join("guitar.mp3"), "The DI guitar");
 
-    for (name, kind, demo) in UNITS {
+    for (name, kind, demo, picks) in UNITS {
         if !only.is_empty() && !only.iter().any(|o| o == name) {
             continue;
         }
@@ -644,18 +540,30 @@ fn main() {
         let pics = shots.join(name);
         std::fs::create_dir_all(&pics).expect("the shots' folder");
         let all = entries(Unit::Effect(*kind), false);
-        let chosen: Vec<(&Entry, &Values)> = all
+        // The hand-picked presets in their order; a unit without picks, its first guitar ones.
+        let mut chosen: Vec<(&Entry, &Values)> = picks
             .iter()
-            .filter_map(|e| guitar_preset(e).map(|v| (e, v)))
-            .take(n_presets)
+            .map(|id| {
+                all.iter()
+                    .find(|e| e.id.rsplit('.').next() == Some(id))
+                    .and_then(|e| playable(e).map(|v| (e, v)))
+                    .unwrap_or_else(|| panic!("{name}: no guitar preset {id}"))
+            })
             .collect();
+        if chosen.is_empty() {
+            chosen = all
+                .iter()
+                .filter_map(|e| guitar_preset(e).map(|v| (e, v)))
+                .collect();
+        }
+        chosen.truncate(n_presets);
         let mut presets = Vec::new();
         for (e, values) in chosen {
             let (_, slot) = app_with(demo, *kind, values);
             let (wl, wr) = through(&l, &r, &slot, BPM, &[]);
             let (wl, wr) = (second_half(&wl), second_half(&wr));
             let loud = lufs(&wl, &wr);
-            let gain = (TARGET - loud).min(CEILING - peak_db(&wl, &wr));
+            let gain = site_gain(&wl, &wr);
             let stem = e.id.rsplit('.').next().unwrap_or("preset").to_string();
             let name_en = t_in(Locale::En, &e.id);
             total += mp3(&wl, &wr, gain, &dir.join(format!("{stem}.mp3")), &name_en);
@@ -701,7 +609,14 @@ fn main() {
             if !only.is_empty() && !only.iter().any(|o| o == own.name) {
                 continue;
             }
-            total += render_own(own, &takes, &out, &shots, n_presets);
+            total += render_own(
+                own,
+                &takes,
+                &(l.clone(), r.clone()),
+                &out,
+                &shots,
+                n_presets,
+            );
         }
     }
     println!("{} KB of takes in {}", total / 1024, out.display());

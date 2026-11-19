@@ -17,46 +17,60 @@
   "dry": "/tryit/guitar.mp3",
   "presets": [
     {
-      "id": "clean_combo",
+      "id": "chime_jangle",
       "name": [
-        "Clean combo",
-        "Combo limpio"
+        "Chiming jangle",
+        "Campanilla limpia"
       ],
       "what": [
-        "Creative — Rock, Worship · Gospel",
-        "Creativo — Rock, Alabanza · Gospel"
+        "Creative — Pop, Rock",
+        "Creativo — Pop, Rock"
       ],
-      "wet": "/tryit/arca/clean_combo.mp3",
-      "level_db": 2.7,
-      "pic": "/tryit/arca/clean_combo"
+      "wet": "/tryit/arca/chime_jangle.mp3",
+      "level_db": 1.1,
+      "pic": "/tryit/arca/chime_jangle"
     },
     {
-      "id": "sparkle",
+      "id": "british_crunch",
       "name": [
-        "Sparkling clean",
-        "Limpio brillante"
+        "Rhythm crunch",
+        "Crujiente rítmico"
       ],
       "what": [
-        "Creative — Pop, Worship · Gospel",
-        "Creativo — Pop, Alabanza · Gospel"
+        "Creative — Rock",
+        "Creativo — Rock"
       ],
-      "wet": "/tryit/arca/sparkle.mp3",
-      "level_db": 5.0,
-      "pic": "/tryit/arca/sparkle"
+      "wet": "/tryit/arca/british_crunch.mp3",
+      "level_db": -0.0,
+      "pic": "/tryit/arca/british_crunch"
     },
     {
-      "id": "edge_of_breakup",
+      "id": "full_stack",
       "name": [
-        "Edge of break-up",
-        "Al borde de la saturación"
+        "Full stack",
+        "Cabezal a tope"
       ],
       "what": [
-        "Creative — Rock, Jazz · Soul",
-        "Creativo — Rock, Jazz · Soul"
+        "Creative — Rock",
+        "Creativo — Rock"
       ],
-      "wet": "/tryit/arca/edge_of_breakup.mp3",
-      "level_db": 3.3,
-      "pic": "/tryit/arca/edge_of_breakup"
+      "wet": "/tryit/arca/full_stack.mp3",
+      "level_db": -3.0,
+      "pic": "/tryit/arca/full_stack"
+    },
+    {
+      "id": "tight_rhythm",
+      "name": [
+        "Tight rhythm",
+        "Rítmica cerrada"
+      ],
+      "what": [
+        "Creative — Rock",
+        "Creativo — Rock"
+      ],
+      "wet": "/tryit/arca/tight_rhythm.mp3",
+      "level_db": -1.4,
+      "pic": "/tryit/arca/tight_rhythm"
     }
   ]
 }

@@ -31,20 +31,6 @@
       "pic": "/tryit/phasis/phase90_script"
     },
     {
-      "id": "phase90_block",
-      "name": [
-        "Phase 90, block",
-        "Phase 90, logo block"
-      ],
-      "what": [
-        "Creative — Rock, Jazz · Soul",
-        "Creativo — Rock, Jazz · Soul"
-      ],
-      "wet": "/tryit/phasis/phase90_block.mp3",
-      "level_db": -1.9,
-      "pic": "/tryit/phasis/phase90_block"
-    },
-    {
       "id": "small_stone",
       "name": [
         "Small Stone, colour on",
@@ -57,6 +43,34 @@
       "wet": "/tryit/phasis/small_stone.mp3",
       "level_db": -3.4,
       "pic": "/tryit/phasis/small_stone"
+    },
+    {
+      "id": "lamp_chorus",
+      "name": [
+        "Lamp chorus",
+        "Coro de lámpara"
+      ],
+      "what": [
+        "Creative — R&B, Rock",
+        "Creativo — R&B, Rock"
+      ],
+      "wet": "/tryit/phasis/lamp_chorus.mp3",
+      "level_db": 3.2,
+      "pic": "/tryit/phasis/lamp_chorus"
+    },
+    {
+      "id": "synced_eighths",
+      "name": [
+        "Eighths",
+        "Corcheas"
+      ],
+      "what": [
+        "Creative — Pop, House · EDM",
+        "Creativo — Pop, House · EDM"
+      ],
+      "wet": "/tryit/phasis/synced_eighths.mp3",
+      "level_db": -1.2,
+      "pic": "/tryit/phasis/synced_eighths"
     }
   ]
 }
