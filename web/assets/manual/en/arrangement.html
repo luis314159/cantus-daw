@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The arrangement: time, sections and ripple</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="the-arrangement-time-sections-and-ripple">The arrangement: time, sections and ripple</h1>
+<p><em>Cantus 0.1.0-beta.15 and later · <a href="../es/arrangement.html">Leer en español</a></em></p>
+<p>The arrangement is where the song is laid out in time: a row per track, the ruler and the sections lane above them, the tempo track when you show it. This page is about editing <strong>time itself</strong> — making room in a song, taking bars out of it, moving a whole section — and about the <strong>ripple mode</strong>, which makes a clip's edit move what follows it.</p>
+<h2 id="insert-time">Insert time</h2>
+<p>Drag in the ruler to select the time you want to add (say, bars 17–18), then either:</p>
+<ul>
+<li>right-click inside the selection (on a clip or between them) and choose <strong>Insert time</strong>, or</li>
+<li>press <strong>Insert</strong>, or</li>
+<li>open the command palette (<strong>Ctrl+Shift+P</strong>) and run <em>Insert time</em>.</li>
+</ul>
+<p>That much empty time goes in at the start of the selection, <strong>on every track</strong>:</p>
+<ul>
+<li>a clip that runs across that point is split there (both halves keep the whole clip's content, as <em>Split</em> does), and everything after it moves later;</li>
+<li>the automation clips move with the music, and so do the take lanes and the alternate comps;</li>
+<li>the tempo track and the metre changes move too, and the new bars keep the tempo the song had there — inside a tempo ramp, the ramp is cut so the bars before and after play exactly as they did;</li>
+<li>markers and the mixer's cues (its snapshots placed in the song) after the point move; a section across it grows by the new bars; the loop and the punch range move or grow the same way.</li>
+</ul>
+<p>Afterwards the new, empty bars are selected. With no time selected, <strong>Insert</strong> puts one bar in at the bar the playhead is in.</p>
+<h2 id="delete-time">Delete time</h2>
+<p>Select the time and choose <strong>Delete time</strong> in the same menu, or press <strong>Ctrl+Delete</strong> (<strong>Ctrl+Backspace</strong> does the same; ⌘⌫ on a Mac). What lies inside goes on every track — clips across the edges are cut there — and everything after moves earlier to close the gap, with its automation, tempo and metre changes, markers, mixer cues and sections. A marker or a cue inside the deleted time goes with it; a loop or punch range wholly inside it is cleared. A cue holds until the next one, so what follows keeps the scene it played under: when the last cue inside the deleted time was still in effect at its end, a cue of the same snapshot is left where the gap closed. Moving or copying a section works the same way: its bars arrive with their scene, and the music after them keeps its own.</p>
+<p>Deleting time you have just inserted gives the song back exactly: the clips that insert split are joined again, the tempo track is as it was — nothing is left behind.</p>
+<p>Each of these is <strong>one undo step</strong>.</p>
+<h2 id="dragging-a-section-moves-its-bars">Dragging a section moves its bars</h2>
+<p>The sections lane, above the tracks, names the parts of the song (&quot;Verse · 16 bars&quot;). Drag a section by its body and <strong>its bars move on every track</strong>:</p>
+<table>
+<tr><th>Hold</th><th>When you let go (Section drag: <strong>Insert</strong>, the default)</th></tr>
+<tr><td>nothing</td><td>the bars are taken out and put in where they land; what was there moves on — the song rearranged, nothing lost</td></tr>
+<tr><td><strong>Shift</strong></td><td>the bars move and replace what was where they land; where they were is left silent</td></tr>
+<tr><td><strong>Ctrl</strong></td><td>a copy of the bars is put in where it lands; the song after it moves on (it gets longer)</td></tr>
+<tr><td><strong>Ctrl+Shift</strong></td><td>a copy of the bars replaces what was where it lands</td></tr>
+<tr><td><strong>Alt</strong></td><td>(with any of the above) leaves the bar lines: the drop lands where the pointer is</td></tr>
+</table>
+<p>If you would rather a plain drag replace (as FL Studio moves content), choose <strong>Replace</strong> in <em>Settings ▸ Editing ▸ Section drag</em>: then a plain drag replaces and <strong>Shift</strong> inserts. Insert is the default because it never overwrites anything, and it is what Logic and Studio One do when you drag a section.</p>
+<p>While you drag nothing changes yet: the section rides as a ghost, the bars it will replace are tinted in the accent across every track (or, when it inserts, an accent line shows where it will go in), the slot it leaves is outlined in dashes, and the help line at the bottom says exactly what the drop will do. Let go, and it is one undo step.</p>
+<p>The inserting drags carry the section's tempo and metre with its bars; the replacing drags keep the song's clock, as moving a clip does. The markers and the mixer's cues inside the section go with its bars (a copy gets cues of its own).</p>
+<p>To move a section's <strong>name and span alone</strong>, without its music, select the time it should cover and choose <strong>Move the section to the time selection</strong> in the section's menu. Its end can still be dragged to resize it.</p>
+<h2 id="the-ripple-mode">The ripple mode</h2>
+<p>The key with a clip and two chevrons, at the right of the arrangement's tool row beside <em>Follow</em>, switches the ripple mode — or press <strong>Alt+Shift+P</strong>. It cycles:</p>
+<ul>
+<li><strong>Off</strong> (the default, every time Cantus starts): an edit moves only what it touches.</li>
+<li><strong>Ripple · this track</strong>: deleting a clip closes its gap on its track; moving a clip along its track moves the clips after it on that track by as much; drawing a clip's right edge out or in moves what follows it; a paste goes in, and what was after the paste point moves on.</li>
+<li><strong>Ripple · every track</strong>: the same, on every track, with the markers, mixer cues, sections and tempo changes after the edit. Clips on other tracks that started inside a closed stretch are left where they are — the ripple mode never cuts a clip; <em>Delete time</em> does.</li>
+</ul>
+<p>While the mode is on, its key is tinted in the accent and says which one it is. Each edit, with what it moved, is one undo step.</p>
+<h2 id="keys">Keys</h2>
+<table>
+<tr><th>Action</th><th>Key</th></tr>
+<tr><td>Insert time</td><td>Insert</td></tr>
+<tr><td>Delete time</td><td>Ctrl+Delete, Ctrl+Backspace</td></tr>
+<tr><td>Ripple mode (off, this track, every track)</td><td>Alt+Shift+P</td></tr>
+</table>
+<p>The time keys are the arrangement's: they act while it is what you are editing (you clicked in it last) and the pointer is not over another area or a window — over an effect's editor, Ctrl+Delete removes its band and leaves the song's time alone, and Insert in the mixer inserts nothing. Anywhere on the arrangement counts — its ruler, its sections lane, its tool row — floating in a window of its own or maximised too. If you reached it from the keyboard (<strong>Ctrl+F6</strong>, <em>Next area</em>), the keys work wherever the mouse happens to rest, until you press it. When a time key does nothing, the status line says why and how to get there.</p>
+<p>FL Studio inserts space with Ctrl+Insert; the window toolkit Cantus is built on reads that chord as <em>Copy</em> before Cantus sees it, so Cantus uses Insert alone. Every key can be changed in <em>Help ▸ Keyboard shortcuts</em>.</p>
+</main>
+</body>
+</html>

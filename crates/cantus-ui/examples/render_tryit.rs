@@ -17,8 +17,9 @@
 //!   itself left (`level_db`, the wet take against the dry before the gains). MP3, CBR 96
 //!   kbit/s at 48 kHz, the size of the site's other excerpts.
 //! - **The pictures**: the editor as the preset browser leaves it (`apply_fx_params`, one undo
-//!   step) and fed as playing (`demo_feed`), 1200 points wide, in Slate and Paper, English and
-//!   Spanish: `<shots>/<unit>/<preset>-{slate,paper}-{en,es}.png`, made WebP by
+//!   step) and fed as playing (`demo_feed`), 1200 points wide, in the default look's dark and
+//!   light themes (Slate Lapis Night and Paper), English and Spanish:
+//!   `<shots>/<unit>/<preset>-{slate,paper}-{en,es}.png`, made WebP by
 //!   `web/tools/tryit_pictures.py`.
 //! - **The manifest**: `<web>/assets/tryit/<unit>.json` (what `web/src/tryit.rs` reads), and the
 //!   takes in `<web>/assets/tryit/<unit>/`; the dry take is shared, `<web>/assets/tryit/guitar.mp3`.
@@ -331,10 +332,11 @@ fn context(dark: bool) -> egui::Context {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
+    // The default pair (Slate Lapis, ADR 0111 §11): the site shows the look a new install opens in.
     let theme = if dark {
-        cantus_ui::theme::slate_night()
+        cantus_ui::theme::default_theme()
     } else {
-        cantus_ui::theme::slate_paper()
+        cantus_ui::theme::default_light_theme()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     ctx

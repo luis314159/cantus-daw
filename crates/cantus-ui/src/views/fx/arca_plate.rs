@@ -12,7 +12,7 @@ use super::super::host::FxHost;
 use super::super::valve_draw as valve;
 use super::display::View;
 use super::words;
-use crate::kit::color::with_alpha;
+use crate::kit::color::{ensure_contrast_all, mix, over, with_alpha};
 use crate::kit::knob::KnobSize;
 use crate::kit::text::{self as ktext, Role, Src, Text};
 use crate::kit::{with_brush, Brush, Fill, Style};
@@ -25,6 +25,16 @@ pub fn height(k: f32) -> f32 {
 
 /// The lamp and jacks' end of the plate, at 100 %.
 const BADGE_W: f32 = 112.0;
+
+/// The knobs' labels' colour, held to the kit's 4.5:1 on the enamel as it is painted: the
+/// ground, the plate's darker inset over it, and the hammered finish's lighter dimples. The
+/// face's label tone is measured on its cards; on the light themes' mid-green enamel it fell
+/// to about 3.4:1 (the site's pictures, 2026-11-19).
+pub fn label_on_enamel(t: &crate::kit::Tokens) -> egui::Color32 {
+    let inset = over(with_alpha(t.dark_shade, 0.16), t.device_ground);
+    let dimple = mix(t.device_ground, t.light, 0.2);
+    ensure_contrast_all(t.label, &[inset, dimple, t.device_ground], 4.5)
+}
 
 /// A cell on `key` with a label of its own, as wide as its word; its knob's ring of ticks
 /// printed on the plate around it.
@@ -140,6 +150,8 @@ pub fn show(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, r: Rect, v: &Vi
         vec2(BADGE_W * k, r.height()),
     );
     lamp_and_jacks(ui, s, badge, amp, v.effort());
+    let mut ls = *s;
+    ls.t.label = label_on_enamel(&s.t);
     // The groups: an engraved legend over its knobs, an engraved rule between groups.
     type Group<'a> = (&'a str, &'a [(&'static str, &'a str)]);
     let groups: [Group<'_>; 4] = [
@@ -224,7 +236,7 @@ pub fn show(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, r: Rect, v: &Vi
             } else {
                 label
             };
-            labelled(host, &mut child, s, key, label);
+            labelled(host, &mut child, &ls, key, label);
         }
         x += gw;
     }
@@ -272,4 +284,40 @@ fn lamp_and_jacks(ui: &mut egui::Ui, s: &Style, r: Rect, on: bool, effort: f32) 
             engraved(b, s, wr, key, Role::Micro, Align2::CENTER_CENTER, k);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::kit::color::contrast;
+    use crate::kit::color::{mix, over, with_alpha};
+    use crate::kit::skin::{colourways, Unit};
+    use cantus_core::EffectKind;
+
+    /// Every colourway, in every shipped theme: the plate's labels at 4.5:1 or better on
+    /// the enamel's ground, its inset and its dimples.
+    #[test]
+    fn the_plate_s_labels_read_on_the_enamel_in_every_theme() {
+        let mut bad = Vec::new();
+        for (key, make) in crate::theme::PRESETS {
+            let ways = colourways(Unit::Effect(EffectKind::Amp));
+            assert_eq!(ways.len(), 3, "Green enamel, Graphite and Oxblood");
+            for cw in ways {
+                let t = cw.sheet.tokens(&make().kit_tokens());
+                let l = super::label_on_enamel(&t);
+                let inset = over(with_alpha(t.dark_shade, 0.16), t.device_ground);
+                let dimple = mix(t.device_ground, t.light, 0.2);
+                for (what, bg) in [
+                    ("ground", t.device_ground),
+                    ("inset", inset),
+                    ("dimple", dimple),
+                ] {
+                    let c = contrast(l, bg);
+                    if c < 4.5 {
+                        bad.push(format!("{key} {}: {what} {c:.2}", cw.id));
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
+    }
 }

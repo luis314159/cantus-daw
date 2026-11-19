@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chorda: el piano modelado, los pianos grabados y el mezclador del piano</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="chorda-el-piano-modelado-los-pianos-grabados-y-el-mezclador-del-piano">Chorda: el piano modelado, los pianos grabados y el mezclador del piano</h1>
+<p><em>Cantus 0.1.0-beta.15 · <a href="../en/chorda-pianos.html">Read in English</a> · volver al <a href="index.html">manual</a></em></p>
+<p>Chorda es el piano de Cantus. Su sonido propio es <strong>modelado</strong>: cuerdas, martillos y tabla armónica calculados mientras tocas, nada que descargar. También puede tocar un <strong>piano grabado</strong> — un paquete de muestras libre (el Salamander Grand, el Steinway D de bitKlavier, Upright Piano KW, …) o uno que compraste — con la misma ventana, las mismas notas y los mismos canales del mezclador. Este capítulo trata de elegir la fuente, conseguir los pianos, mezclar sus micrófonos y lo que añade un piano grabado: <strong>Añadir nuestra sala</strong> y el <strong>retardo</strong> de un micrófono.</p>
+<h2 id="elegir-la-fuente">Elegir la fuente</h2>
+<p>Abre Chorda (doble clic en su pista). La lista <strong>Fuente</strong> está a la izquierda de la vista <strong>Tocar</strong>; <strong>Todos · Grabado · Modelado</strong> arriba la filtra.</p>
+<ul>
+<li><strong>Modelado</strong> — <em>Chorda 2</em>, el modelo de hoy. <em>Modelos anteriores</em> despliega <em>Chorda 1</em>, guardado para que las canciones antiguas suenen como sonaban.</li>
+<li><strong>Grabado</strong> — los pianos libres que Cantus conoce, primero el Salamander Grand. Un piano que no está en tu disco dice lo que ocupa (<strong>Obtener · 742 MB</strong>); un clic lo descarga de su fuente oficial, con su progreso y <em>Cancelar</em>. Uno en disco dice <strong>En disco</strong>; el que suena, <strong>Sonando</strong>. <em>Piano in 162</em> y <em>Helsinki 1967 Pro</em> solo se obtienen en la página de su autor (un torrent, una cuenta): <strong>Abrir página</strong>, descárgalo allí y luego <em>Instalar desde un archivo…</em>.</li>
+<li><strong>Tus pianos</strong> — lo que instalaste desde un archivo.</li>
+</ul>
+<p>Un clic en un piano que está en disco cambia la fuente: <strong>un paso de deshacer</strong>. Tus notas, tu automatización, tus canales y las rutas del mezclador se quedan; volver al modelo toca sus ajustes exactamente como estaban.</p>
+<h3 id="instalar-desde-un-archivo">Instalar desde un archivo…</h3>
+<p>El recuadro de trazos al final de la lista acepta un <strong>SFZ</strong>, un preset de <strong>Decent Sampler</strong>, un <strong>SF2</strong> o un <strong>zip / tar.gz</strong> con uno. La descarga de un piano que Cantus conoce (reconocida por su tamaño y su suma de comprobación, se llame como se llame) se instala como ese piano; cualquier otra cosa pasa a <em>Tus pianos</em> y suena donde está (un archivo comprimido se descomprime en la carpeta de contenido de Cantus). La lista de kits de Tympanum tiene el mismo recuadro para kits de batería.</p>
+<h2 id="la-vista-tocar">La vista Tocar</h2>
+<p>Como la dibuja el diseño: el piano en su sala (el selector del piano y su acabado sobre la imagen; la sala, el suelo, las paredes y la alfombra en la tarjeta de su esquina — el aspecto, nunca el sonido), el teclado debajo, las tarjetas <strong>Martillo</strong>, <strong>Resonancia</strong> y <strong>Salida</strong>, y <strong>El piano</strong> a la derecha:</p>
+<p><em>(La imagen se dibuja </em><em>Dibujadas</em>* — ligera, por defecto — o <strong>Fotográficas</strong>, con reflejos trazados y sombras suaves: Ajustes ▸ Apariencia ▸ Imágenes de instrumentos. El sonido nunca cambia.)*</p>
+<ul>
+<li><strong>Tapa</strong> — cerrada, vara corta, vara larga.</li>
+<li><strong>Perspectiva · Dónde escuchas</strong> — de sobre los martillos a la sala; debajo, los micros del mezclador a los que llega, y <strong>Abrir el mezclador ›</strong> lleva allí.</li>
+<li><strong>Pedales</strong> — <em>Derecho</em> y <em>Suave</em> dicen dónde está el pie del pianista (controladores 64 y 67) o dónde los pones; <em>Apagadores</em> fija con qué firmeza paran las cuerdas; la curva de abajo muestra los apagadores según el pedal, sombreada la zona de medio pedal.</li>
+</ul>
+<p>Cambiado en esta versión: el nivel de <strong>Sala</strong> de Chorda es el fader del canal <em>Sala</em> del Mezclador, la <strong>Anchura</strong> está en el canal <em>Piano</em> del Mezclador (Chorda 1 la conserva en Salida), <strong>Apagadores</strong> es la fila bajo Pedales y las <strong>macros</strong> están en la vista Editar. La primera vez que abres la nueva vista Tocar, la línea de estado lo dice.</p>
+<h2 id="la-vista-mezclador">La vista Mezclador</h2>
+<p><strong>Mezclador</strong>, arriba en la ventana, muestra el mezclador propio del piano:</p>
+<ul>
+<li>La imagen y una tarjeta de la <strong>salida elegida</strong>: su nombre como lo dice el paquete, quién lo grabó y su licencia. Para bitKlavier, <strong>Imágenes en disco</strong> — cuántas de sus nueve imágenes de micrófono tienes, lo que ocupan y <strong>Obtener las otras n</strong>.</li>
+<li><strong>Salidas</strong> — <strong>Todo a Principal</strong> devuelve cada salida al canal del piano; <strong>Cada micro a su canal</strong> da a cada salida un canal propio en el mezclador de Cantus, en orden, que suena dentro del canal del piano. Un paso de deshacer cada uno. A ganancia unidad el piano separado suena exactamente como sin separar.</li>
+<li>Los canales — <strong>Piano</strong> a la izquierda (el nivel de todo el piano; la Anchura del modelo), las salidas bajo sus familias (<em>Perspectivas</em>, <em>Ruidos</em>; una cabecera pliega sus canales) y <strong>Sala</strong> a la derecha. Cada salida tiene polaridad (ø), paneo, silencio, solo, su fader y su celda <strong>Salida</strong>: <em>Principal</em>, su propio canal o cualquier canal del mezclador.</li>
+<li><strong>Las imágenes de bitKlavier.</strong> Cada imagen de micrófono se descarga aparte (unos 1,5 GB en disco cada una). Una imagen que no está en disco es un canal de trazos con su descarga; una que está en disco se carga o se quita de memoria desde su celda de arriba (<em>como se grabó</em> · <em>sin cargar</em>): una imagen sin cargar no ocupa memoria.</li>
+<li>Las cinco salidas del modelo (Martillos, Pianista, Público, Sala, Mecánica) aparecen; hasta que el modelo las genere por separado suenan juntas en Principal, y la fila lo dice.</li>
+</ul>
+<h2 id="añadir-nuestra-sala">Añadir nuestra sala</h2>
+<p>Un piano grabado lleva la sala donde se grabó (sus micros lejanos la oyen). Un piano grabado de cerca o en seco puede pedir más sala: en el canal <strong>Sala</strong>, <strong>Añadir nuestra sala</strong> recorre <em>No · Sala pequeña · Estudio · Auditorio</em> — las salas donde suenan los kits de Tympanum. Encendida, el fader del canal es el nivel de la sala; suena en el canal del piano. <strong>«No» no añade nada</strong>: no se crea sala, no se ocupa memoria, el piano suena exactamente como antes.</p>
+<h2 id="el-retardo-de-un-micrófono">El retardo de un micrófono</h2>
+<p>Cada salida tiene un retardo (hasta 50 ms) para alinear su micrófono con otro — un par lejano que llega después que el cercano — o para atrasarlo a propósito. Es la celda <strong>Retardo</strong> de cada canal de salida, bajo ø y el paneo: arrástrala de lado (0,05 ms por punto, <code>Mayús</code> 0,01) o haz doble clic y escribe un valor (<code>Intro</code> lo deja, <code>Esc</code> lo deja como estaba); 0 es <em>como se grabó</em> y no añade nada. Cada cambio es un paso de deshacer, y se puede dibujar como automatización. Un retardo que cambia mientras el micrófono suena <strong>se desliza</strong> hasta su nuevo tiempo (sin chasquido ni silencio); en reposo la salida se retrasa exactamente las muestras enteras que pusiste. Cantus construye una línea de retardo solo para las salidas que tienen un retardo o un carril de automatización sobre él; la primera vez que una salida recibe uno, las notas que suenan en ese momento se cortan.</p>
+<h2 id="disco-y-memoria">Disco y memoria</h2>
+<ul>
+<li>Los paquetes se guardan como <strong>FLAC</strong> al instalarse: las imágenes de bitKlavier ocupan unos 1,5 GB cada una en vez de 3,8 GB; cada archivo se comprueba muestra a muestra antes de borrar el original.</li>
+<li>Las muestras largas se <strong>leen del disco</strong> a través de la caché de muestras de Cantus (<em>Caché de muestras…</em> en los ajustes). Varias imágenes de bitKlavier a la vez la llenan deprisa (unos 4 GB cada una); sube su límite si tocas cuatro o más juntas.</li>
+<li>Una imagen cuesta un 6 % de un núcleo del procesador; cuatro imágenes, un 25 %.</li>
+</ul>
+</main>
+</body>
+</html>
