@@ -203,6 +203,9 @@ impl Default for ChordaSettings {
                 bridge_span: 10.0,
                 uni_b: 0.0,
                 uni_b_hold: 0.0,
+                uni_center: 0.0,
+                bridge_tune: 0.0,
+                bridge_pull: 0.0,
                 uni_loss: 0.0,
                 knock_vel: 0.0,
                 landing_tau: 0.0,
@@ -299,6 +302,12 @@ impl std::fmt::Debug for Chorda {
 }
 
 impl Chorda {
+    /// Key index `i`'s strings (a test's look inside).
+    #[cfg(test)]
+    pub(crate) fn key_strings(&self, i: usize) -> &super::string::KeyStrings {
+        self.voices[i].strings()
+    }
+
     /// Allocates every voice, lane and string: off the audio thread.
     pub fn new(fs: f32) -> Chorda {
         Chorda::make(fs, false)
@@ -649,6 +658,9 @@ impl Chorda {
                 self.voicing.uni_b * Voicing::bass_scale(k.key, self.voicing.uni_b_bass) * fade;
             v.uni_loss = self.voicing.uni_loss * fade;
             v.uni_b_hold = self.voicing.uni_b_hold;
+            v.uni_center = self.voicing.uni_center;
+            v.bridge_tune = self.voicing.bridge_tune;
+            v.bridge_pull = self.voicing.bridge_pull;
             if self.voicing.uni_weight_low != 0.0 {
                 v.uni_weight = (v.uni_weight + self.voicing.uni_weight_low * fade).min(1.0);
             }

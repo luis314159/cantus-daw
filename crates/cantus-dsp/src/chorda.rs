@@ -116,3 +116,7 @@ mod tunekit;
 #[cfg(test)]
 #[path = "chorda_tests_tuning.rs"]
 mod tests_tuning;
+
+#[cfg(test)]
+#[path = "chorda_tests_tune_gate.rs"]
+mod tests_tune_gate;

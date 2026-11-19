@@ -251,24 +251,35 @@ fn rests(mut c: Chorda) {
 /// default, and its bits are the same.
 const MODEL_2_BETA14: u64 = 0x663b_f285_d17a_ebdd;
 
-/// Model 2 as it ships since `DSP_VERSION` 7 (candidate 16, a new unit's own voicing with no
-/// `set_voicing`), on its own keyboard, hashed — the same phrase as [`MODEL_2_BETA14`]'s.
+/// Model 2 as it ships since `DSP_VERSION` 10 (candidate 16 with the technician's pass, a
+/// new unit's own voicing with no `set_voicing`), on its own keyboard, hashed — the same
+/// phrase as [`MODEL_2_BETA14`]'s.
 const MODEL_2_SHIPPED: u64 = 0x717d_64b7_22b9_e71b;
 
-/// A new model-2 unit on the keyboard its shipped voicing is designed for, made once.
-fn shipped_piano() -> Chorda {
+/// Model 2 at candidate 16 as it shipped from `DSP_VERSION` 7 to 9, on its own keyboard —
+/// the hash `MODEL_2_SHIPPED` held then; since `DSP_VERSION` 10 it is named
+/// ([`Voicing::candidate16`]) and its bits are the same.
+const MODEL_2_C16: u64 = 0x717d_64b7_22b9_e71b;
+
+/// A new model-2 unit on the keyboard `v` is designed for (one per voicing, made once), `v`
+/// set on it unless it is the default (a new unit's own).
+fn piano_for(v: Voicing) -> Chorda {
     use super::design::{Keyboard, Tuning};
-    use std::sync::{Arc, OnceLock};
-    static K: OnceLock<Arc<Keyboard>> = OnceLock::new();
-    let kb = K
-        .get_or_init(|| {
-            Arc::new(Keyboard::compute(
-                Voicing::default().tuning(Tuning::default()),
-                48_000.0,
-                8,
-            ))
-        })
-        .clone();
+    use std::sync::{Arc, Mutex, OnceLock};
+    static K: OnceLock<Mutex<Vec<(Tuning, Arc<Keyboard>)>>> = OnceLock::new();
+    let t = v.tuning(Tuning::default());
+    let cache = K.get_or_init(|| Mutex::new(Vec::new()));
+    let found = cache
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|e| e.0 == t)
+        .map(|e| e.1.clone());
+    let kb = found.unwrap_or_else(|| {
+        let kb = Arc::new(Keyboard::compute(t, 48_000.0, 8));
+        cache.lock().unwrap().push((t, kb.clone()));
+        kb
+    });
     let mut c = Chorda::new(48_000.0);
     c.set_keyboard(kb);
     let s = ChordaSettings {
@@ -276,14 +287,23 @@ fn shipped_piano() -> Chorda {
         ..ChordaSettings::default()
     };
     c.set(&s, 0.0);
+    if v != Voicing::default() {
+        c.set_voicing(&v);
+    }
     c
 }
 
-/// Round 40, `DSP_VERSION` 7: the shipped voicing is candidate 16 — the lab's spec over
-/// beta.14's, its two tables, the board and room it names (the ones made ahead) — and a new
-/// unit plays it as `set_voicing` of it would, to the bit.
+/// A new model-2 unit on the keyboard its shipped voicing is designed for.
+fn shipped_piano() -> Chorda {
+    piano_for(Voicing::default())
+}
+
+/// Round 40, `DSP_VERSION` 7: candidate 16 is the lab's spec over beta.14's, its two tables,
+/// the board and room it names (the ones made ahead); since `DSP_VERSION` 10 what ships is
+/// it with the technician's pass over it (its spec, then its table on the keyboard) — and a
+/// new unit plays it as `set_voicing` of it would, to the bit.
 #[test]
-fn the_shipped_voicing_is_candidate_16_and_a_new_unit_plays_it() {
+fn the_shipped_voicing_is_candidate_16_with_the_technicians_pass_and_a_new_unit_plays_it() {
     use super::body::BodyVoicing;
     use super::room::RoomVoicing;
     let mut lab = Voicing::beta14();
@@ -293,8 +313,15 @@ fn the_shipped_voicing_is_candidate_16_and_a_new_unit_plays_it() {
         lab.apply(super::voicing::c16::SPEC),
         "a key of the spec is not one"
     );
+    assert_eq!(Voicing::candidate16(), lab);
+    assert!(
+        lab.apply(super::voicing::tune::SPEC),
+        "a key of the technician's spec is not one"
+    );
+    lab.tune = super::voicing::tune::TUNE;
     assert_eq!(Voicing::default(), lab);
-    assert_eq!(Voicing::default(), Voicing::candidate16());
+    assert_eq!(Voicing::default(), Voicing::shipped());
+    assert_ne!(Voicing::default(), Voicing::candidate16());
     assert_eq!(Voicing::default().body, BodyVoicing::default());
     assert_eq!(Voicing::default().room, RoomVoicing::default());
     assert_ne!(Voicing::default(), Voicing::beta14());
@@ -307,6 +334,17 @@ fn the_shipped_voicing_is_candidate_16_and_a_new_unit_plays_it() {
     );
     assert_eq!((v.reg[1][5], v.reg[0][5], v.reg[0][6]), (4.0, 11.0, 0.0));
     assert_eq!(v.hf_keys[72 - 21], 0.5);
+    // The technician's pass: the three fixes on, the redrawn keys, the table on the keyboard.
+    assert_eq!(
+        (v.uni_center, v.bridge_tune, v.bridge_pull, v.frac_room),
+        (1.0, 1.0, 2.0, 8.0)
+    );
+    assert_eq!((v.draws[24 - 21], v.draws[106 - 21]), (1, 31));
+    assert_eq!(v.tune[46 - 21], super::voicing::tune::TUNE[46 - 21]);
+    assert_eq!(
+        v.tuning(super::design::Tuning::default()).tune,
+        super::voicing::tune::TUNE
+    );
     // A new unit is the shipped voicing set on it.
     let ev = phrase();
     let new = perform(&mut shipped_piano(), &ev, 12_000, 256, 1);
@@ -319,12 +357,28 @@ fn the_shipped_voicing_is_candidate_16_and_a_new_unit_plays_it() {
 fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
     let (l, r) = perform(&mut shipped_piano(), &phrase(), 24_000, 256, 1);
     let h = hash(&l, &r);
-    eprintln!("model 2 (shipped voicing, candidate 16) phrase hash: {h:#018x}");
+    eprintln!(
+        "model 2 (shipped voicing, candidate 16 + the technician's pass) phrase hash: {h:#018x}"
+    );
     assert!(l.iter().chain(&r).any(|x| *x != 0.0));
     assert_eq!(
         h, MODEL_2_SHIPPED,
         "model 2 at its shipped voicing moved: {h:#018x}"
     );
+}
+
+#[test]
+fn model_2_at_candidate_16_renders_to_the_bits_it_did() {
+    let (l, r) = perform(
+        &mut piano_for(Voicing::candidate16()),
+        &phrase(),
+        24_000,
+        256,
+        1,
+    );
+    let h = hash(&l, &r);
+    eprintln!("model 2 (candidate 16) phrase hash: {h:#018x}");
+    assert_eq!(h, MODEL_2_C16, "model 2 at candidate 16 moved: {h:#018x}");
 }
 
 #[test]

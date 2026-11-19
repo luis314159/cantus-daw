@@ -217,7 +217,24 @@ pub struct KeyStrings {
     /// and its beats are as shallow as a real unison's.
     ls: [(f64, f64); MAX_STRINGS],
     ls_on: bool,
+    /// The technician's pass (`DSP_VERSION` 10, [`Self::set_bridge_tuned`]): the partials
+    /// the strings are tuned on (`(w rad/sample, the loop's group delay there, the ear's
+    /// weight)`, the first `tuned_n`; none: off), the most a resonance may pull the first
+    /// three (cents; 0: no limit), the fractions and the resonances' gains as laid, and the
+    /// `YZ` they were last tuned for.
+    tuned: [(f64, f64, f64); TUNED_PARTIALS],
+    tuned_n: usize,
+    tuned_cap: f64,
+    base_frac: [f64; MAX_STRINGS],
+    base_g: [f64; BRIDGE_MODES],
+    tuned_yz: f64,
 }
+
+/// The most partials [`KeyStrings::set_bridge_tuned`] weighs.
+pub const TUNED_PARTIALS: usize = 8;
+
+/// Cents per unit of relative frequency (`1200 / ln 2`).
+const CENTS: f64 = 1_731.234_049_066_756;
 
 impl KeyStrings {
     /// Room for strings whose loop is at most `capacity` samples. Allocates.
@@ -254,6 +271,12 @@ impl KeyStrings {
             own: false,
             ls: [(0.0, 0.0); MAX_STRINGS],
             ls_on: false,
+            tuned: [(0.0, 0.0, 0.0); TUNED_PARTIALS],
+            tuned_n: 0,
+            tuned_cap: 0.0,
+            base_frac: [0.0; MAX_STRINGS],
+            base_g: [0.0; BRIDGE_MODES],
+            tuned_yz: -1.0,
         }
     }
 
@@ -281,13 +304,49 @@ impl KeyStrings {
         eps: [f64; MAX_STRINGS],
         hold: Option<f64>,
     ) {
+        self.set_string_stiffness_set(design, eps, hold, 0);
+    }
+
+    /// [`Self::set_string_stiffness_held`], the first `together` strings held as one set
+    /// (`DSP_VERSION` 10, the technician's pass): their scatter as drawn, else the other way,
+    /// else a half, a quarter or an eighth of either — every string of the set scaled alike,
+    /// so a scatter centred on the key stays centred — else none. The strings after the set
+    /// (a horizontal loop) are picked one by one, as before. `together` 0: every string one
+    /// by one, to the bit as [`Self::set_string_stiffness_held`] was.
+    pub fn set_string_stiffness_set(
+        &mut self,
+        design: &LoopDesign,
+        eps: [f64; MAX_STRINGS],
+        hold: Option<f64>,
+        together: usize,
+    ) {
         self.own = eps.iter().take(self.n).any(|e| *e != 0.0);
         if !self.own {
             return;
         }
+        let together = together.min(self.n);
+        let mut set_scale = 1.0;
+        if let (Some(w), true) = (hold, together > 0) {
+            set_scale = 0.0;
+            for k in [1.0, -1.0, 0.5, -0.5, 0.25, -0.25, 0.125, -0.125] {
+                if (0..together)
+                    .all(|i| held_frac(design, self.strings[i].frac, w, k * eps[i]).is_some())
+                {
+                    set_scale = k;
+                    break;
+                }
+            }
+        }
         for (i, e) in eps.iter().enumerate().take(self.n) {
             let mut e = *e;
-            if let Some(w) = hold {
+            if i < together {
+                e *= set_scale;
+                if let Some(w) = hold {
+                    if let Some(a) = held_frac(design, self.strings[i].frac, w, e) {
+                        self.strings[i].frac = a;
+                    }
+                }
+            } else if let Some(w) = hold {
                 // The scatter a fraction in reach can give back (round 40, candidate 8: a
                 // string whose sections took more phase at its first partial than the
                 // fraction holds was clamped there, out by up to 50 cents — D3 and A#1 at
@@ -425,6 +484,7 @@ impl KeyStrings {
         self.nbm = 0;
         self.own = false;
         self.ls_on = false;
+        self.tuned_n = 0;
         for (i, s) in self.strings.iter_mut().enumerate().take(self.n) {
             s.nut.reset(2 * nut);
             s.to_bridge.reset(to);
@@ -441,6 +501,123 @@ impl KeyStrings {
         self.yz = yz;
         self.g_h = g;
         self.alpha_h = alpha;
+        if self.tuned_n > 0 && yz != self.tuned_yz {
+            self.tune_to_bridge();
+        }
+    }
+
+    /// The technician's pass (`DSP_VERSION` 10): tune the vertical strings with the bridge's
+    /// load on them — from the next [`Self::set_loss`] on, and again whenever its `YZ`
+    /// moves. `partials`: `(w rad/sample, the loop's group delay there in samples, the ear's
+    /// weight)` of the key's first partials (at most [`TUNED_PARTIALS`]); `cap`: the most
+    /// (cents) a resonance may pull any of the first three (0: no limit). After
+    /// [`Self::lay`], the stiffness scatter and [`Self::set_bridge_modes`]. Allocates
+    /// nothing.
+    ///
+    /// The unison's strings moving together meet the bridge's reflection
+    /// `−(1 − nY)/(1 + nY)` (`Y` the admittance: `YZ` and its resonances, `n` strings). A
+    /// resistive bridge gives it no phase; a resonance near a partial does, and that partial
+    /// of the strings' in-phase mode moves by the phase over the loop's period
+    /// ([`Self::pull_cents`]) while their opposed modes, which never move the bridge, stay:
+    /// the key sounds off its design and its in-phase and opposed modes beat (candidate
+    /// 16: G2's fundamental −4.7 cents, 19 dB deep). So, as a tuner sets strings on the
+    /// bridge they rest on: the resonances' gains are scaled down until none pulls one of the
+    /// first three partials more than `cap`, and every string's fraction then gives back
+    /// the pull the ear hears — the partials' pulls weighed by `partials`' weights.
+    pub fn set_bridge_tuned(&mut self, partials: &[(f64, f64, f64)], cap: f64) {
+        for (b, s) in self.base_frac.iter_mut().zip(&self.strings) {
+            *b = s.frac;
+        }
+        for (b, m) in self.base_g.iter_mut().zip(&self.bm) {
+            *b = m[3];
+        }
+        self.tuned_n = partials.len().min(TUNED_PARTIALS);
+        self.tuned[..self.tuned_n].copy_from_slice(&partials[..self.tuned_n]);
+        self.tuned_cap = cap;
+        self.tuned_yz = -1.0;
+    }
+
+    /// The phase (rad) the bridge's reflection adds at `w` to the unison's strings moving
+    /// together, against a rigid bridge's.
+    pub fn bridge_phase(&self, w: f64) -> f64 {
+        let (mut yr, mut yi) = (self.yz, 0.0);
+        let (s1, c1) = math::sin_cos(w);
+        let (s2, c2) = math::sin_cos(2.0 * w);
+        for m in &self.bm[..self.nbm] {
+            // `b0 (1 − z⁻²) / (1 + a1 z⁻¹ + a2 z⁻²)` at `z = e^{jw}`, times its gain.
+            let (nr, ni) = (m[0] * (1.0 - c2), m[0] * s2);
+            let (dr, di) = (1.0 + m[1] * c1 + m[2] * c2, -(m[1] * s1 + m[2] * s2));
+            let d = dr * dr + di * di;
+            let k = m[3] * self.yz / d;
+            yr += k * (nr * dr + ni * di);
+            yi += k * (ni * dr - nr * di);
+        }
+        let n = self.nv as f64;
+        math::atan2(-n * yi, 1.0 - n * yr) - math::atan2(n * yi, 1.0 + n * yr)
+    }
+
+    /// How far (cents) the bridge moves the in-phase mode's partial at `w` (rad/sample) on a
+    /// loop of group delay `tau` (samples) there: its phase over the period, `Δω = φ/τ`.
+    pub fn pull_cents(&self, w: f64, tau: f64) -> f64 {
+        CENTS * self.bridge_phase(w) / (w * tau)
+    }
+
+    /// The resonances' gains against their drawn ones (the mean; 1 when none was scaled or
+    /// there are none) — a test's look at the technician's pass.
+    #[cfg(test)]
+    pub fn bridge_gain_scale(&self) -> f64 {
+        if self.nbm == 0 {
+            return 1.0;
+        }
+        self.bm[..self.nbm]
+            .iter()
+            .zip(&self.base_g)
+            .map(|(m, g)| if *g > 0.0 { m[3] / g } else { 1.0 })
+            .sum::<f64>()
+            / self.nbm as f64
+    }
+
+    fn tune_to_bridge(&mut self) {
+        self.tuned_yz = self.yz;
+        if self.nbm == 0 {
+            return;
+        }
+        for (m, g) in self.bm[..self.nbm].iter_mut().zip(&self.base_g) {
+            m[3] = *g;
+        }
+        let n = self.tuned_n;
+        if self.tuned_cap > 0.0 {
+            // The pull is nearly proportional to the gains: two steps land within a hair.
+            for _ in 0..2 {
+                let worst = self.tuned[..n.min(3)]
+                    .iter()
+                    .map(|(w, t, _)| self.pull_cents(*w, *t).abs())
+                    .fold(0.0f64, f64::max);
+                if worst <= self.tuned_cap {
+                    break;
+                }
+                let k = self.tuned_cap / worst;
+                for m in self.bm[..self.nbm].iter_mut() {
+                    m[3] *= k;
+                }
+            }
+        }
+        let (mut sw, mut sp) = (0.0, 0.0);
+        for (w, t, wt) in &self.tuned[..n] {
+            sw += wt;
+            sp += wt * self.pull_cents(*w, *t);
+        }
+        if sw <= 0.0 {
+            return;
+        }
+        // The fractions lower every partial by the pull the ear hears (a fraction's change
+        // moves the partials alike, as a delay does): at the first, that many cents' phase.
+        let (w1, t1, _) = self.tuned[0];
+        let dphi = sp / sw * w1 * t1 / CENTS;
+        for i in 0..self.nv {
+            let base = self.base_frac[i];
+            self.strings[i].frac = frac_for(base, w1, dphi).unwrap_or(base);
+        }
     }
 
     /// The loops from `i` on take the second loss filter (never below 1, never past the
@@ -731,6 +908,11 @@ pub fn held_frac(design: &LoopDesign, frac: f64, w: f64, e: f64) -> Option<f64> 
         let t2 = (*t * (1.0 + e)).clamp(1e-6, std::f64::consts::PI - 1e-6);
         dphi += second_phase(w, *r, t2) - second_phase(w, *r, *t);
     }
+    frac_for(frac, w, dphi)
+}
+
+/// The fraction whose phase at `w` is `frac`'s less `dphi` (none out of reach: `|a| > 0.99`).
+pub fn frac_for(frac: f64, w: f64, dphi: f64) -> Option<f64> {
     // `atan2(a sin w, 1 + a cos w) = θ` is `a = sin θ / sin(w − θ)`.
     let theta = 0.5 * (first_phase(w, frac) - dphi + w);
     let d = math::sin(w - theta);

@@ -467,6 +467,62 @@ pub fn design(f0: f64, b: f64, fs: f64) -> LoopDesign {
     d
 }
 
+/// The cents a design's strings can be detuned each way before the fraction meets its
+/// ±0.99 clamp (the slope's linear reach, as a string's detune is laid).
+pub fn detune_room(d: &LoopDesign) -> f64 {
+    let s = d.frac_per_cent.abs().max(1e-12);
+    ((0.99 - d.frac) / s).min((d.frac + 0.99) / s)
+}
+
+/// [`design`] with at least `room` cents of detune each way (the technician's pass,
+/// `DSP_VERSION` 10): a design whose fraction sits near its clamp (candidate 16's B4 at
+/// +0.950, a cent from +0.99) is laid again with a sample moved between the integer delay
+/// and the fraction, refined, the first partial exact — so the unison's sharp string is
+/// never held flat by the clamp (B4, A#3, C#7 sounded 1.5–2 cents flat). Kept only when its
+/// partials are as good (within the tolerance, or no worse than the first design's); `room`
+/// 0: [`design`] itself.
+pub fn design_with_room(f0: f64, b: f64, fs: f64, room: f64) -> LoopDesign {
+    let d = design(f0, b, fs);
+    if room <= 0.0 || detune_room(&d) >= room {
+        return d;
+    }
+    let tg = targets(f0, b, fs);
+    let w1 = TAU * target_hz(f0, b, 1) / fs;
+    let good = d.worst_cents.max(TOLERANCE_CENTS);
+    for shift in [1i64, -1, 2, -2] {
+        let delay = d.delay as i64 - shift;
+        if delay < 1 {
+            continue;
+        }
+        let mut base = d;
+        base.delay = delay as usize;
+        // The fraction that takes the moved samples' phase at the first partial.
+        let theta = 0.5 * (first_phase(w1, d.frac) - shift as f64 * w1 + w1);
+        let den = math::sin(w1 - theta);
+        if den.abs() <= 1e-12 {
+            continue;
+        }
+        base.frac = (math::sin(theta) / den).clamp(-0.95, 0.95);
+        let mut x: Vec<f64> = Vec::with_capacity(2 * d.sections + 1);
+        for (r, t) in &d.poles[..d.sections] {
+            x.push(*t);
+            x.push(math::ln(1.0 - r));
+        }
+        x.push(base.frac);
+        refine(&mut x, &base, &tg, 300);
+        let mut e = from_params(&x, &base);
+        tune_first(&mut e, w1);
+        e.worst_cents = worst(&e);
+        let mut up = e;
+        tune_first(&mut up, w1 * math::powf(2.0f64, 1.0 / 1200.0));
+        e.frac_per_cent = up.frac - e.frac;
+        if e.worst_cents <= good && detune_room(&e) >= room {
+            return e;
+        }
+    }
+    d
+}
+
 /// A design with at most `max_sections` sections (the sympathetic strings'): the first
 /// partial exact, the others as close as that many sections bring them.
 pub fn design_limited(f0: f64, b: f64, fs: f64, max_sections: usize) -> LoopDesign {
@@ -503,6 +559,14 @@ pub struct Tuning {
     /// The A5–A6 octave's own floor (0: `treble_octave`'s) — the reference stretches its
     /// sixth octave more than its fifth (A5 +5, A6 +14 cents).
     pub treble_octave_hi: f64,
+    /// The cents of detune each way every key's loop keeps before its fraction meets its
+    /// clamp ([`design_with_room`]; 0: none asked — model 1's and beta.14's keyboards).
+    pub frac_room: f64,
+    /// Each key's own tuning against the curve (cents, its whole partial ladder; all 0:
+    /// none — model 1's and beta.14's keyboards): the technician's last pass, what a key
+    /// still needs, measured, to sound on the curve with its unison, bridge, board and room
+    /// around it ([`super::tables::tuning_for`]).
+    pub tune: [f32; super::tables::KEYS],
 }
 
 impl Default for Tuning {
@@ -515,6 +579,8 @@ impl Default for Tuning {
             treble_b: 1.0,
             treble_octave: 1.0,
             treble_octave_hi: 0.0,
+            frac_room: 0.0,
+            tune: [0.0; super::tables::KEYS],
         }
     }
 }
@@ -549,7 +615,10 @@ impl Keyboard {
         let keys = super::tables::keyboard_for(&tuning);
         let threads = threads.clamp(1, 16);
         let one = |k: &super::tables::Key| {
-            let d = (design(k.f0(), k.b, fs), design_limited(k.f0(), k.b, fs, 2));
+            let d = (
+                design_with_room(k.f0(), k.b, fs, tuning.frac_room),
+                design_limited(k.f0(), k.b, fs, 2),
+            );
             done.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             d
         };
