@@ -218,6 +218,13 @@ published; the next one is the patch, every change marked `CANTUS PATCH`:
    against 0.7. Now each due window is painted directly, once per turn, as eframe already
    did for invisible windows: all three at ~110 when all animate; one at 120 while the
    others stay at rest. Linux and macOS keep upstream's path.
+   **Painted in `about_to_wait`, never after an event** (2026-11-18): the first version
+   painted from `check_redraw_requests`, which runs after *every* event, so each event of
+   a 1 000 Hz mouse waited one vsync — 48 handled a second against beta.14's ~1 180, and
+   moves and clicks reached the interface seconds late (the owner: "unusable"). The due
+   windows are now collected there and painted once the queue is empty, each once, in
+   turn (the control flow `Poll` while any is due). `tools/perf/input_flood.ps1` measures
+   it: input events handled a second, and how long input keeps arriving after the moves stop.
 2. **Each window's winit handle** (`src/native/cantus_windows.rs`, `eframe::window_of`,
    synced in `glow_integration.rs` after each pass's viewport output): Cantus reads a
    window's place and screen, places it in physical pixels, and owns a plug-in's editor by
