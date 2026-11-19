@@ -54,4 +54,94 @@ lines = [f'offset {off:+.1f} cents (median, taken out)',
          'GATE ' + ('FAIL' if np.nanmax(np.abs(d1)) > 10 else 'ok') + ' (every key within 10 cents of the reference)']
 open(sys.argv[2] if len(sys.argv) > 2 else 'tuning.log', 'w').write('\n'.join(lines) + '\n')
 print('\n'.join(lines))
-sys.exit(1 if np.nanmax(np.abs(d1)) > 10 else 0)
+
+# Round 40, the technician's pass (2026-11-18, docs/round40/chorda-tune.md): the candidate on
+# its own, every key A0-C8, measured as Cantus's suite measures it (chorda::tunekit): each
+# partial heterodyned to where the FFT found it and averaged over frames (a triangle 4 periods
+# long, every 5 ms); its frequency the power-weighted mean phase advance over 0.1-1.1 s (a
+# beating unison's mean, as the ear hears it, not its strongest string's peak). The key's pitch
+# is partials 1-8 below 5 kHz weighed by power and the dominance region (a log-normal bump at
+# 700 Hz, 1.5 octaves wide); its raggedness is that pitch against its neighbours' mean (the
+# curve's own bend over two semitones is under a hundredth of a cent); every octave (2:1, 4:2)
+# and fifth (3:2) is checked against the same interval on a smooth fit (a quartic in key) of the
+# candidate's own partials. A second view of the suite's gate (chorda::tests_tune_gate, which
+# measures against the designed curve itself and holds twice as tight): this one knows only
+# the render, so its reference is a fit and its tolerances are doubled. Gate 2 fails when a key
+# A0-E6 is more than 2 cents off its neighbours (4 above), or an interval beats more than
+# 0.5 Hz and 4 cents off the fit (5 above E6; a 4:2 1 Hz and 7 cents). Candidate 16 failed it
+# (B0 +16, A#0, C1, E1; 33 intervals); the technician's pass passes it.
+def mean_freq(x, k, near):
+    a = int(((k - 21) * 4 + 0.1) * SR); b = a + SR
+    f0 = 440 * 2 ** ((k - 69) / 12)
+    half = max(16, int(2 * SR / f0))
+    t = np.arange(a - half, b + half)
+    seg = x[a - half:b + half]
+    y = (seg[:, 0] + seg[:, 1]) * np.exp(-2j * np.pi * near * t / SR)
+    c = np.cumsum(np.concatenate([[0], y]))
+    box = (c[half:] - c[:-half]) / half
+    c2 = np.cumsum(np.concatenate([[0], box]))
+    tri = (c2[half:] - c2[:-half]) / half
+    z = tri[::240]
+    if len(z) < 3:
+        return np.nan, 0.0
+    r = np.sum(z[1:] * np.conj(z[:-1]))
+    return near + np.angle(r) * SR / (2 * np.pi * 240), float(np.mean(np.abs(z) ** 2))
+
+
+def key_partials(x, X, k):
+    f0 = 440 * 2 ** ((k - 69) / 12)
+    out = {}
+    for n in range(1, 9):
+        if n * f0 > 5000 or not np.isfinite(X[k][min(n, 6) - 1]):
+            break
+        near = n * f0 * 2 ** ((X[k][n - 1] if n <= 6 else X[k][5] + 0.0) / 1200)
+        f, p = mean_freq(x, k, near)
+        out[n] = (1200 * np.log2(f / (n * f0)), p)
+    return out
+
+
+M = {k: key_partials(c, C, k) for k in range(21, 109)}
+
+
+def pitch_of(k):
+    f0 = 440 * 2 ** ((k - 69) / 12)
+    ws = [(np.sqrt(p) * (0.1 + 0.9 * np.exp(-0.5 * (np.log2(n * f0 / 700) / 1.5) ** 2)), ct)
+          for n, (ct, p) in M[k].items()]
+    return sum(w * ct for w, ct in ws) / sum(w for w, _ in ws)
+
+
+P = np.array([pitch_of(k) for k in range(21, 109)])
+rag = P[1:-1] - 0.5 * (P[:-2] + P[2:])
+tol = np.array([2.0 if k <= 88 else 4.0 for k in range(22, 108)])
+# Above E6 informative only: a 1 s FFT's start point there can land on the board's tail.
+bad = [(k, r) for k, r, t in zip(range(22, 108), rag, tol) if abs(r) > t and k <= 88]
+top = [(k, r) for k, r, t in zip(range(22, 108), rag, tol) if abs(r) > t and k > 88]
+fits = {}
+for n in range(1, 5):
+    ks = [k for k in range(21, 109) if n in M[k]]
+    if len(ks) > 8:
+        fits[n] = np.poly1d(np.polyfit(ks, [M[k][n][0] for k in ks], 4))
+ivs = []
+for lo in range(21, 102):
+    for hi, p, q in ((lo + 12, 2, 1), (lo + 12, 4, 2), (lo + 7, 3, 2)):
+        if hi > 108 or p not in M[lo] or q not in M[hi] or p not in fits or q not in fits:
+            continue
+        err = (M[lo][p][0] - M[hi][q][0]) - (fits[p](lo) - fits[q](hi))
+        hz = p * 440 * 2 ** ((lo - 69) / 12) * err / 1731.234
+        ct, slow = (7.0, 1.0) if p == 4 else ((4.0 if hi <= 88 else 5.0), 0.5)
+        ivs.append((lo, hi, p, q, err, hz, abs(hz) > slow and abs(err) > ct))
+worst_iv = max(ivs, key=lambda x: abs(x[5]))
+bad_iv = [x for x in ivs if x[6]]
+mr = int(np.argmax(np.abs(rag)))
+lines2 = [f'pitch (ear, mean frequency) rms {np.sqrt(np.mean((P - np.median(P)) ** 2)):.2f} cents about its median; '
+          f'most ragged key {22 + mr} {rag[mr]:+.2f}',
+          f'intervals: fastest {worst_iv[0]}-{worst_iv[1]} {worst_iv[2]}:{worst_iv[3]} {worst_iv[4]:+.2f} cents '
+          f'({worst_iv[5]:+.2f} Hz) off the fit; {len(bad_iv)} of {len(ivs)} over tolerance',
+          'GATE2 ' + ('FAIL ' + ' '.join(f'{k}:{r:+.1f}' for k, r in bad[:8])
+                      + ' ' + ' '.join(f'{a}-{b}:{e:+.1f}' for a, b, _, _, e, _, _ in bad_iv[:8])
+                      if bad or bad_iv else 'ok')
+          + ' (every key A0-E6 on a smooth curve, its octaves and fifths with it)'
+          + (' [above E6, informative: ' + ' '.join(f'{k}:{r:+.1f}' for k, r in top) + ']' if top else '')]
+open(sys.argv[2] if len(sys.argv) > 2 else 'tuning.log', 'a').write('\n'.join(lines2) + '\n')
+print('\n'.join(lines2))
+sys.exit(1 if (np.nanmax(np.abs(d1)) > 10 or bad or bad_iv) else 0)

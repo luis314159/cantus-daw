@@ -127,6 +127,11 @@ A candidate goes to the owner only when all four hold (the coordinator's bar, ca
   10 cents of the reference's stretch after the median offset is taken out (exit 1 when not);
   it also prints partials 1–3's rms and the consonant intervals' beats in the test chords.
   Added after the owner heard D3 46 cents flat (a clamped allpass) — run it on every candidate.
+  Its gate 2 (round 40, the technician's pass, `docs/round40/chorda-tune.md`) measures the
+  candidate on its own, all 88 keys, as the suite's kit does: the ear's pitch of each key
+  against its neighbours (2 cents A0–E6) and every octave and fifth against a smooth fit of
+  its own partials (0.5 Hz and 4 cents; a 4:2, 1 Hz and 7). It is a second view of
+  `chorda::tests_tune_gate`, which holds the shipped voicing to the designed curve itself.
 - **(b) none of his complaints measurable** — out of tune (the gate, `tunek.py`), the nasal
   middle C (`p89.sh`: partials 8–9 against the reference's), the ff chord's vibration, the odd
   bass; and **the top octave unchanged** (he liked it: C7–C8 mf→ff, `trial.sh`).

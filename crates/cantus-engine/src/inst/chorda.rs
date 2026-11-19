@@ -95,7 +95,7 @@ pub const SOFT_CC: u8 = 67;
 
 /// A keyboard's identity: the sample rate, the three tuning numbers and model 2's own
 /// keyboard numbers (rounded as [`settled`] rounds them), as bits.
-pub type DesignKey = [u32; 8];
+pub type DesignKey = [u32; 10];
 
 /// Keyboards a session keeps. Never evicted (as Unda's tables): a keyboard the audio thread
 /// holds is never freed there. Designs are made only of tunings that have settled, so a
@@ -231,6 +231,8 @@ pub fn settled(t: Tuning) -> Tuning {
         treble_b: round(t.treble_b, 0.001),
         treble_octave: round(t.treble_octave, 0.001),
         treble_octave_hi: round(t.treble_octave_hi, 0.001),
+        frac_room: round(t.frac_room, 0.001),
+        tune: t.tune.map(|c| round(c as f64, 0.001) as f32),
     }
 }
 
@@ -245,6 +247,14 @@ pub fn key_of(tuning: Tuning, fs: f32) -> DesignKey {
         (t.treble_b as f32).to_bits(),
         (t.treble_octave as f32).to_bits(),
         (t.treble_octave_hi as f32).to_bits(),
+        (t.frac_room as f32).to_bits(),
+        // The technician's table, hashed (FNV-1a over its bits).
+        t.tune.iter().fold(0x811c_9dc5u32, |h, c| {
+            c.to_bits()
+                .to_le_bytes()
+                .iter()
+                .fold(h, |h, b| (h ^ *b as u32).wrapping_mul(0x0100_0193))
+        }),
     ]
 }
 
@@ -1214,10 +1224,12 @@ mod tests {
             ..Tuning::default()
         };
         assert_eq!(key_of(near, 48_000.0), key_of(fitted, 48_000.0));
-        let moves: [fn(&mut Tuning); 3] = [
+        let moves: [fn(&mut Tuning); 5] = [
             |t| t.treble_b = 0.874,
             |t| t.treble_octave = 2.0,
             |t| t.treble_octave_hi = 2.5,
+            |t| t.frac_room = 8.0,
+            |t| t.tune[25] = 1.5,
         ];
         for f in moves {
             let mut t = Tuning::default();

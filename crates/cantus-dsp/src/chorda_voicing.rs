@@ -16,6 +16,10 @@ use std::sync::OnceLock;
 #[path = "chorda_voicing_c16.rs"]
 pub mod c16;
 
+/// The technician's pass over candidate 16 (`DSP_VERSION` 10): its spec and its table.
+#[path = "chorda_voicing_tune.rs"]
+pub mod tune;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Voicing {
     pub body: BodyVoicing,
@@ -272,6 +276,35 @@ pub struct Voicing {
     /// its partial 9 (~2.4 kHz) 20 dB in 1.5 s, Chorda's under the law ~12 for every unison
     /// draw. Set by name as `hf_key.<MIDI key>`.
     pub hf_keys: [f32; KEYS],
+    /// Round 40, the technician's pass (`DSP_VERSION` 10): 1 — each unison's scatters
+    /// centred on the key, as a tuner tunes the unison to the key's pitch (0: not; beta.14's
+    /// and candidate 16's). The strings' detunes (fan and skew) and their stiffness scatter
+    /// each lose their mean, weighed by the strings' shares of the blow (their power) — the
+    /// strings still beat against each other as drawn, but the key's partials sit on the
+    /// design. Uncentred, candidate 16's stiffness scatter moved whole keys' upper partials
+    /// (Bb2 −13 cents as the ear weighs them, B0 +18) and the skewed detune their
+    /// fundamentals by up to 2 cents. With it the stiffness scatter is held as one set: the
+    /// fallbacks a fraction in reach allows (the sign, a half, a quarter, an eighth) scale
+    /// every string's together, so the mean stays nought.
+    pub uni_center: f64,
+    /// Round 40, the technician's last pass: each key's own tuning (cents, its keyboard
+    /// design's whole ladder; all 0: none, beta.14's and candidate 16's) — what a key still
+    /// needs, measured, to sound on the curve with its unison, bridge, board and room around
+    /// it ([`Voicing::tuning`] hands it to the keyboard). Set by name as `tune.<MIDI key>`.
+    pub tune: [f32; KEYS],
+    /// Round 40, the technician's pass: the cents of detune each way every key's loop keeps
+    /// before its fraction meets its clamp ([`super::design::design_with_room`]; 0: none,
+    /// beta.14's and candidate 16's keyboard). Set as `keyboard.frac_room`.
+    pub frac_room: f64,
+    /// Round 40, the technician's pass: 1 — each key's strings tuned with the bridge's load
+    /// on them, so its resonances never pull a fundamental off the design
+    /// ([`super::string::KeyStrings::set_bridge_tuned`]; 0: not, beta.14's and candidate
+    /// 16's — G2 and A#2 sounded 3–5 cents flat).
+    pub bridge_tune: f64,
+    /// Round 40, the technician's pass: with `bridge_tune`, the most (cents) a bridge
+    /// resonance may pull one of a key's first three partials — the key's resonances' gains
+    /// scaled down until none does (0: no limit).
+    pub bridge_pull: f64,
 }
 
 /// The most a key is evened by (dB).
@@ -282,13 +315,13 @@ pub const EVEN_FADE_TO: f64 = 88.0;
 /// The partials a key's evening weighs.
 pub const EVEN_PARTIALS: u32 = 10;
 
-/// What ships since `DSP_VERSION` 7 (round 40, ADR 0098's third amendment): candidate 16 —
-/// [`c16::SPEC`] applied over [`Voicing::beta14`] as the voicing lab applies a spec, with its
-/// two tables ([`c16::PARTIALS`], [`c16::LEVELS`]). Made once; nothing allocates.
+/// What ships since `DSP_VERSION` 10 (round 40, ADR 0098's fourth amendment): candidate 16
+/// ([`Voicing::candidate16`], what shipped from `DSP_VERSION` 7) with the technician's pass
+/// over it ([`Voicing::shipped`]). Made once; nothing allocates.
 impl Default for Voicing {
     fn default() -> Self {
         static SHIPPED: OnceLock<Voicing> = OnceLock::new();
-        *SHIPPED.get_or_init(Voicing::candidate16)
+        *SHIPPED.get_or_init(Voicing::shipped)
     }
 }
 
@@ -304,6 +337,21 @@ impl Voicing {
             ok,
             "candidate 16's spec names a key the voicing does not have"
         );
+        v
+    }
+
+    /// What ships (`DSP_VERSION` 10, `docs/round40/chorda-tune.md`): candidate 16, then the
+    /// technician's pass — [`tune::SPEC`] applied over it (the unisons centred on their keys,
+    /// the strings tuned on their bridge, the loops' detune room, sixteen unisons redrawn)
+    /// and [`tune::TUNE`], each key's last correction, handed to the keyboard.
+    pub fn shipped() -> Self {
+        let mut v = Voicing::candidate16();
+        let ok = v.apply(tune::SPEC);
+        debug_assert!(
+            ok,
+            "the technician's spec names a key the voicing does not have"
+        );
+        v.tune = tune::TUNE;
         v
     }
 
@@ -423,6 +471,11 @@ impl Voicing {
             draws: [0; KEYS],
             felt_soft: [1.0, 55.0, 79.0],
             hf_keys: [1.0; KEYS],
+            uni_center: 0.0,
+            tune: [0.0; KEYS],
+            frac_room: 0.0,
+            bridge_tune: 0.0,
+            bridge_pull: 0.0,
         }
     }
 
@@ -435,6 +488,8 @@ impl Voicing {
             treble_b: self.treble_b,
             treble_octave: self.treble_octave,
             treble_octave_hi: self.treble_octave_hi,
+            frac_room: self.frac_room,
+            tune: self.tune,
             ..base
         }
     }
@@ -738,6 +793,15 @@ impl Voicing {
                 _ => false,
             };
         }
+        if let Some(k) = key.strip_prefix("tune.") {
+            return match k.parse::<u8>() {
+                Ok(m) if (21..=108).contains(&m) => {
+                    self.tune[(m - 21) as usize] = v as f32;
+                    true
+                }
+                _ => false,
+            };
+        }
         if let Some(k) = key.strip_prefix("draw.") {
             return match k.parse::<u8>() {
                 Ok(m) if (21..=108).contains(&m) && (0.0..=255.0).contains(&v) => {
@@ -795,6 +859,7 @@ impl Voicing {
             "even_thud" => &mut self.even_thud,
             "levels_amount" => &mut self.levels_amount,
             "keyboard.treble_octave_hi" => &mut self.treble_octave_hi,
+            "keyboard.frac_room" => &mut self.frac_room,
             "coupling_bass" => &mut self.coupling_bass,
             "bridge.n" => &mut self.bridge[0],
             "bridge.q" => &mut self.bridge[1],
@@ -805,6 +870,9 @@ impl Voicing {
             "uni_b_bass" => &mut self.uni_b_bass,
             "uni_b_hold" => &mut self.uni_b_hold,
             "uni_loss" => &mut self.uni_loss,
+            "uni_center" => &mut self.uni_center,
+            "bridge.tune" => &mut self.bridge_tune,
+            "bridge.pull" => &mut self.bridge_pull,
             "uni_weight_low" => &mut self.uni_weight_low,
             "detune_bass" => &mut self.detune_bass,
             "detune_scale" => &mut self.detune_scale,

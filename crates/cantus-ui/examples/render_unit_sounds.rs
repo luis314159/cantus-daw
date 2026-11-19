@@ -16,6 +16,10 @@
 //! by a gain alone, the source's credit beside them. A unit with a Try it manifest
 //! (`<web>/assets/tryit/<unit>.json`; run `render_tryit` first) lists those takes instead.
 //! `--effects` renders the effects only and keeps every other card's excerpts as they are.
+//!
+//! `-- web chorda` (any card names after the folder) renders those cards' excerpts alone and
+//! leaves the list and the dry sources as they are (a unit re-voiced: its card's files only;
+//! with `--guitar`/`--takes`, the recordings an effect's card is heard on are still made).
 
 use cantus_core::{EffectKind, Snapshot, Ticks};
 use cantus_engine::{render, RenderOptions};
@@ -790,6 +794,17 @@ fn main() {
         .map(|(_, a)| PathBuf::from(a))
         .unwrap_or_else(|| PathBuf::from("web"));
     let effects_only = args.iter().any(|a| a == "--effects");
+    // Cards named after the folder (`-- web chorda`): those alone, the list and the sources
+    // untouched.
+    let only: Vec<String> = args
+        .iter()
+        .enumerate()
+        .filter(|(i, a)| {
+            !a.starts_with("--") && (*i == 0 || !flags.contains(&args[i - 1].as_str()))
+        })
+        .map(|(_, a)| a.clone())
+        .skip(1)
+        .collect();
     let dir = web.join("assets/units/sounds");
     std::fs::create_dir_all(&dir).expect("the folder");
     cantus_ui::i18n::set_thread_locale(Locale::En);
@@ -827,6 +842,9 @@ fn main() {
         }
         let c = card(u);
         if SILENT.contains(&c.as_str()) {
+            continue;
+        }
+        if !only.is_empty() && !only.contains(&c) {
             continue;
         }
         if effects_only && !matches!(u, Unit::Effect(_)) {
@@ -919,6 +937,15 @@ fn main() {
             written += 1;
         }
         code.push_str("    ]),\n");
+    }
+    if !only.is_empty() {
+        println!(
+            "{} KB of excerpts for {:?} in {}",
+            total / 1024,
+            only,
+            dir.display()
+        );
+        return;
     }
     code.push_str(
         "];\n\n/// The dry sources the effects are heard on: (id, file as `Sound::file`, what it is, the\n\
