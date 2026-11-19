@@ -38,6 +38,8 @@ pub mod dock;
 pub mod float;
 #[path = "stage_geom.rs"]
 pub mod geom;
+#[path = "stage_show.rs"]
+pub mod show;
 #[path = "stage_source.rs"]
 pub mod source;
 #[path = "stage_vis.rs"]
@@ -67,23 +69,11 @@ pub fn action(app: &mut crate::app::CantusApp, action: crate::keymap::Action) ->
     true
 }
 
-/// Show or hide the dancers on screen: hidden, none over the workspace and the Stage tab
-/// closed; shown again, the tab back if a dancer is docked.
+/// Show or hide the dancers on screen (*View ▸ Stage*, Alt+D): hidden, none over the
+/// workspace and the Stage tab closed; shown, every dancer on screen again — one its own
+/// *Hide* hid comes back where it was ([`show`]).
 pub fn toggle_shown(app: &mut crate::app::CantusApp) {
-    use crate::views::workspace::Pane;
-    let s = &mut app.settings.stage;
-    s.hidden = !s.hidden;
-    if s.hidden {
-        app.hide_pane(Pane::Stage);
-    } else if app
-        .stage
-        .dancers()
-        .iter()
-        .any(|d| d.mode == ViewMode::Docked)
-    {
-        app.reveal_pane(Pane::Stage);
-    }
-    app.store_settings();
+    show::toggle(app);
 }
 
 /// Redraws a second while the song plays (a dancer's pose changes every frame): 30, what a
@@ -249,6 +239,12 @@ pub struct StageState {
     pub draw_seconds: f64,
     /// The physical pixels drawn by the last redraws (the cost's other half).
     pub drawn_px: u64,
+    /// Where each dancer was last seen showing (round 40: where *Show* brings it back).
+    pub(crate) last_shown: HashMap<TrackId, ViewMode>,
+    /// The card a dancer's *Hide* left (round 40, [`show::Notice`]).
+    pub notice: Option<show::Notice>,
+    /// Where the empty Stage tab's *Show the dancers* was drawn last frame (tests aim at it).
+    pub empty_show: Option<egui::Rect>,
 }
 
 impl StageState {
@@ -343,6 +339,12 @@ impl StageState {
     /// Whether a dancer is being moved or resized.
     pub fn dragging(&self) -> bool {
         self.drag.is_some()
+    }
+
+    /// Where each dancer was last seen showing (floating or docked): where *Show* puts a
+    /// hidden one back ([`show::back_to`]).
+    pub fn last_shown(&self, track: TrackId) -> Option<ViewMode> {
+        self.last_shown.get(&track).copied()
     }
 
     /// The textures alive now (one per dancer shown).

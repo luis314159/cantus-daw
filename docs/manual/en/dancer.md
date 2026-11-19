@@ -77,7 +77,8 @@ keeps the default of its day — Trino before Fuga, Fuga before Compás.
   energy the level decides.
 
 **Edit** has every number as a card, and **Where it shows** (*Floating*, *Docked*,
-*Hidden*; *Always on top*) and its position on the stage.
+*Hidden*; *Always on top*) and its position on the stage. A hidden dancer's window says
+so over its stage, with **Show** ([bringing a hidden dancer back](stage.md#bringing-a-hidden-dancer-back)).
 
 Every number is an ordinary parameter: right-click it for *Automate*, *Learn MIDI
 controller* and the modulators.

@@ -222,9 +222,21 @@ fn minimised_it_pauses() {
 
 #[test]
 fn view_menu_switches_and_the_stage_key_hides_the_dancers() {
+    use cantus_core::{Command, InstrumentKind, InstrumentSpec, NativeSpec};
     let (mut a, ctx, _dir) = app();
     a.run_action(Key::ToggleStreaming);
     assert!(a.settings.stage.streaming && a.settings.stage.companion_open);
+    // A song with no dancer: the key never switches the stage off unseen (round 40) — it
+    // stays on and the status line says how to add one.
+    a.run_action(Key::ToggleStage);
+    assert!(!a.settings.stage.hidden);
+    let track = a.project().tracks[0].id;
+    assert!(a.exec(Command::SetInstrument {
+        track,
+        spec: Box::new(InstrumentSpec::Native(NativeSpec::new(
+            InstrumentKind::Dancer
+        ))),
+    }));
     a.run_action(Key::ToggleStage);
     assert!(a.settings.stage.hidden);
     frames(&mut a, &ctx, 0.0, 2);

@@ -191,6 +191,17 @@ fn main(
     if colours(app, ui, id, &s) {
         return true;
     }
+    // Round 40: a dancer not on screen (its own Hide, or the stage off) comes back from
+    // here, where its track is.
+    if crate::stage::show::mode_of(app, id).is_some()
+        && !crate::stage::show::dancer_on_screen(app, id)
+    {
+        let items = [Item::Separator, act("stage.menu.show_dancer")];
+        if kit::widgets::menu_list(ui, &items, W).1.clicked == Some(1) {
+            crate::stage::show::show_dancer(app, id);
+            return true;
+        }
+    }
     let items = [
         Item::Separator,
         sub(Src::Str(&inst)),

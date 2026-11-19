@@ -25,6 +25,7 @@ mod keys;
 pub mod layout;
 #[path = "transport_menus.rs"]
 pub(crate) mod menus;
+pub use menus::view_menu_ticks;
 #[path = "transport_meter.rs"]
 mod meter;
 #[path = "transport_metro.rs"]

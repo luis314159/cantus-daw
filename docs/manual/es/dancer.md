@@ -87,7 +87,8 @@ su época: Trino antes de Fuga, Fuga antes de Compás.
   de su energía decide el nivel.
 
 **Editar** tiene cada número en una tarjeta, y **Dónde se muestra** (*Flotante*,
-*Acoplado*, *Oculto*; *Siempre encima*) y su posición en el escenario.
+*Acoplado*, *Oculto*; *Siempre encima*) y su posición en el escenario. La ventana de un
+bailarín oculto lo dice sobre su escenario, con **Mostrar** ([traer de vuelta a un bailarín oculto](stage.md#traer-de-vuelta-a-un-bailarín-oculto)).
 
 Cada número es un parámetro corriente: clic derecho para *Automatizar*, *Aprender
 controlador MIDI* y los moduladores.

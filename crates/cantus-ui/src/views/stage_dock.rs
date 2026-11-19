@@ -149,36 +149,81 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     }
     st.dancers = dancers;
     app.stage = st;
+    app.stage.empty_show = None;
     if shown == 0 {
-        with_brush(ui.painter(), |b| empty(b, r, &s));
+        empty(app, ui, r, &s);
     }
     float::apply(app, &actions);
 }
 
-/// What an empty Stage tab says.
-fn empty(b: &mut Brush, r: Rect, s: &Style) {
+/// What an empty Stage tab says: how to dock a dancer here — or, when the song's dancers
+/// are hidden (round 40), that they are, and *Show the dancers*.
+fn empty(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
+    let hidden = super::show::hidden_count(app);
+    let (title, hint) = if hidden > 0 {
+        (
+            t("stage.empty.hidden_title"),
+            if hidden == 1 {
+                t("stage.empty.hidden_one")
+            } else {
+                crate::i18n::tf("stage.empty.hidden_many", &[("n", &hidden.to_string())])
+            },
+        )
+    } else {
+        (t("stage.empty.title"), t("stage.empty.hint"))
+    };
     let k = s.k;
     let c = r.center();
-    let mark = Rect::from_center_size(pos2(c.x, c.y - 30.0 * k), vec2(34.0 * k, 34.0 * k));
-    let u = mark.width() / 12.0;
-    chrome::glyph(b, mark.center(), u, (1.25 * u).max(b.px()), s.t.text_dim);
+    let lift = if hidden > 0 { 22.0 * k } else { 0.0 };
     let w = (r.width() - 32.0 * k).clamp(40.0 * k, 320.0 * k);
-    let title = t("stage.empty.title");
-    let line = Rect::from_center_size(pos2(c.x, c.y + 4.0 * k), vec2(w, 20.0 * k));
-    let tt = Text::new(&title, Role::Body, s.t.text)
-        .align(Align2::CENTER_CENTER)
-        .policy(Policy::Elide(Elide::End));
-    let _ = text::paint(b, line, &tt, s.tk());
-    let hint = t("stage.empty.hint");
-    let lines = prose::wrap(b.ctx(), &hint, Role::Label, s.tk(), w);
-    let block = Rect::from_min_size(pos2(c.x - w * 0.5, c.y + 22.0 * k), vec2(w, lines.height()));
-    let _ = prose::paint(
-        b,
-        block,
-        &lines,
-        Role::Label,
+    let block = with_brush(ui.painter(), |b| {
+        let mark =
+            Rect::from_center_size(pos2(c.x, c.y - 30.0 * k - lift), vec2(34.0 * k, 34.0 * k));
+        let u = mark.width() / 12.0;
+        chrome::glyph(b, mark.center(), u, (1.25 * u).max(b.px()), s.t.text_dim);
+        let line = Rect::from_center_size(pos2(c.x, c.y + 4.0 * k - lift), vec2(w, 20.0 * k));
+        let tt = Text::new(&title, Role::Body, s.t.text)
+            .align(Align2::CENTER_CENTER)
+            .policy(Policy::Elide(Elide::End));
+        let _ = text::paint(b, line, &tt, s.tk());
+        let lines = prose::wrap(b.ctx(), &hint, Role::Label, s.tk(), w);
+        let block = Rect::from_min_size(
+            pos2(c.x - w * 0.5, c.y + 22.0 * k - lift),
+            vec2(w, lines.height()),
+        );
+        let _ = prose::paint(
+            b,
+            block,
+            &lines,
+            Role::Label,
+            s.tk(),
+            s.t.text_dim,
+            Align2::CENTER_TOP,
+        );
+        block
+    });
+    if hidden == 0 {
+        return;
+    }
+    // The way back, under the words: the step to take, lit.
+    let label = t("stage.empty.show");
+    let words = text::measure(
+        ui.ctx(),
+        &Text::new(&label, Role::Control, s.t.text),
         s.tk(),
-        s.t.text_dim,
-        Align2::CENTER_TOP,
+    )
+    .x;
+    let bw = (words + 32.0 * k).max(120.0 * k).min(r.width() - 16.0 * k);
+    let br = Rect::from_center_size(
+        pos2(c.x, block.bottom() + 14.0 * k + s.d(28.0) * 0.5),
+        vec2(bw, s.d(28.0)),
     );
+    let resp = ui.interact(br, ui.id().with("stage-empty-show"), egui::Sense::click());
+    crate::views::audio_parts::paint_button(ui, br, &resp, &label, true, true);
+    let resp = crate::views::hint::said_with(resp, || label.clone());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
+    app.stage.empty_show = Some(br);
+    if resp.clicked() {
+        super::show::show_every(app);
+    }
 }
