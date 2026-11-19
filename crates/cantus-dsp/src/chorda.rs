@@ -104,3 +104,7 @@ mod tests_hash;
 #[cfg(test)]
 #[path = "chorda_tests_voicing3.rs"]
 mod tests_voicing3;
+
+#[cfg(test)]
+#[path = "chorda_tests_tunemap.rs"]
+mod tests_tunemap;

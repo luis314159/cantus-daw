@@ -6,10 +6,12 @@ numeric target, per kit — PASS / FAIL with the recording's value beside ours.
         [--groove <studio groove> <jazz groove> <drskit groove> <virtuosity groove>] [--cues 1,2,…]
 
 Hits: `tympanum_measure hits` (13 articulations x 4 velocities x 4 s). The recordings
-default to `tmp/meas9`'s. Where the analyst's absolute target is beyond the recording itself
+default to `$TYMP_MEAS` (else `$TYMP_WORK/meas9`, else `./meas9`): the recorded kits' hits
+as `tympanum_measure hits` renders them. Where the analyst's absolute target is beyond the recording itself
 (a measure the recording fails), the check passes within a stated margin of the recording:
 the target is the recording, not a number it does not reach.
 """
+import os
 import sys
 import numpy as np
 import soundfile as sf
@@ -19,7 +21,7 @@ SR = 48000
 PIECES = ["kick", "snare", "rimshot", "sidestick", "tom_hi", "tom_mid", "tom_floor",
           "hat_closed", "hat_open", "hat_pedal", "crash", "ride", "ride_bell"]
 VELS = [40, 80, 110, 127]
-MEAS = "F:/projects/daw-r40/tmp/meas9/"
+MEAS = os.path.join(os.environ.get("TYMP_MEAS") or os.path.join(os.environ.get("TYMP_WORK", "."), "meas9"), "")
 REC = {"studio": MEAS + "pack-drskit-tympanum-kit-hits.flac",
        "jazz": MEAS + "pack-virtuosity-drums-kit-hits.flac"}
 

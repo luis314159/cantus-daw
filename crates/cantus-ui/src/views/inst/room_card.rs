@@ -6,10 +6,15 @@
 //!
 //! The caller makes the words ([`Card`]) and measures them once ([`sizes`]: a view that
 //! keeps them allocates nothing at rest); the card answers what was chosen ([`Shown`]).
+//!
+//! Its last row is how the pictures are drawn — *Drawn* or *Photographic* (the owner,
+//! 2026-11-18: it belongs in the instrument, not only in *Settings ▸ Appearance*). It is
+//! the same setting for every instrument; the caller applies it ([`apply_pictures`]).
 
 use crate::i18n::t;
 use crate::kit::text::Src;
 use crate::kit::{with_brush, Brush, Style};
+use crate::scene::SceneBackend;
 use crate::views::inst::inst_mixer::ui::{self as iu, words};
 use crate::views::mixer::look::{Pal, W};
 use cantus_core::inst::room_look::{self, Floor, RoomKind, Rug, Walls};
@@ -103,6 +108,14 @@ pub struct Card<'a> {
     pub look_tip: &'a str,
 }
 
+/// The pictures row's label and its two words (*Drawn*, *Photographic*), from the strings.
+fn pictures_words() -> (String, [String; 2]) {
+    (
+        t("scene.pictures.card"),
+        SceneBackend::ALL.map(|b| t(b.key())),
+    )
+}
+
 /// The card's measures at one scale: the label, the rooms row, each look's label and field
 /// (a field as wide as its longest word: no choice is ever cut).
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -111,6 +124,8 @@ pub struct Sizes {
     label: f32,
     segs: f32,
     parts: [(f32, f32); 3],
+    /// The pictures row: its label and its two choices side by side.
+    pics: (f32, f32),
 }
 
 /// Measure `card` (allocates: a view that keeps the result measures again only when its
@@ -135,22 +150,34 @@ pub fn sizes(ui: &egui::Ui, s: &Style, card: &Card) -> Sizes {
             field,
         )
     });
+    let (pl, pw) = pictures_words();
+    let pics = (
+        iu::width(ui, s, &pl, 12.0, W::Regular),
+        pw.iter()
+            .map(|n| iu::width(ui, s, n, 12.0, W::Medium) + s.s(24.0))
+            .sum::<f32>(),
+    );
     Sizes {
         k: s.k,
         label: iu::width(ui, s, card.label, 12.0, W::Regular),
         segs,
         parts,
+        pics,
     }
 }
 
 const PAD: f32 = 12.0;
 const GAP: f32 = 6.0;
+/// The pictures row's height with its gap above.
+const PICS_ROW: f32 = 34.0;
 
 /// The card's width when `room` points are free, and whether its looks sit on one row
 /// (else Floor · Walls over the Rug).
 pub fn layout(sz: &Sizes, s: &Style, room: f32) -> (f32, bool) {
     let (pad, gap) = (s.s(PAD), s.s(GAP));
-    let segs = (s.s(28.0) + sz.label + s.s(12.0) + sz.segs).max(s.s(300.0));
+    let segs = (s.s(28.0) + sz.label + s.s(12.0) + sz.segs)
+        .max(s.s(28.0) + sz.pics.0 + s.s(12.0) + sz.pics.1)
+        .max(s.s(300.0));
     let one = pad * 2.0 + sz.parts.iter().map(|(l, f)| l + gap + f).sum::<f32>() + 2.0 * s.s(12.0);
     let p = &sz.parts;
     let two = pad * 2.0 + p[0].0 + p[0].1 + p[1].0 + p[1].1 + 2.0 * gap + s.s(12.0);
@@ -163,7 +190,7 @@ pub fn layout(sz: &Sizes, s: &Style, room: f32) -> (f32, bool) {
 
 /// The card's height for its layout.
 pub fn height(s: &Style, fits: bool) -> f32 {
-    s.s(if fits { 104.0 } else { 134.0 })
+    s.s(if fits { 104.0 } else { 134.0 } + PICS_ROW)
 }
 
 /// What the card did this frame: where it stands, its fields, and a room or a look chosen.
@@ -175,6 +202,20 @@ pub struct Shown {
     pub fields: [Rect; 3],
     pub room: Option<RoomKind>,
     pub look: Option<(LookPart, &'static str)>,
+    /// The pictures row (its two choices).
+    pub pictures_row: Rect,
+    /// How the pictures are drawn, when chosen this frame ([`apply_pictures`]).
+    pub pictures: Option<SceneBackend>,
+}
+
+/// Apply a choice of the pictures row: the setting every instrument's picture follows,
+/// stored as *Settings ▸ Appearance* stores it.
+pub fn apply_pictures(app: &mut crate::app::CantusApp, b: SceneBackend) {
+    if app.settings.instrument_pictures != b {
+        app.settings.instrument_pictures = b;
+        crate::scene::backend::set_default(b);
+        app.store_settings();
+    }
 }
 
 /// The card at the picture's bottom right. `open` is the look whose list is open, `opened`
@@ -225,6 +266,8 @@ pub fn show_in(
         fields: [Rect::NOTHING; 3],
         room: None,
         look: None,
+        pictures_row: Rect::NOTHING,
+        pictures: None,
     };
     with_brush(ui.painter(), |b| iu::veil(b, s, rect));
     // Row 1: Room and its rooms.
@@ -304,6 +347,38 @@ pub fn show_in(
         if let Some(word) = field(ui, s, id, card, i, lr, fr, open, opened) {
             shown.look = Some((part, word));
         }
+    }
+    // The last row: how the pictures are drawn.
+    let r5 = Rect::from_min_size(
+        pos2(r1.left(), y + s.s(26.0) + s.s(8.0)),
+        vec2(r1.width(), s.s(26.0)),
+    );
+    let (pl, pw) = pictures_words();
+    with_brush(ui.painter(), |b| {
+        words(b, s, &pl, r5, Align2::LEFT_CENTER, 12.0, W::Regular, p.ink3);
+    });
+    let now = crate::scene::backend::current();
+    let psel = SceneBackend::ALL
+        .iter()
+        .position(|b| *b == now)
+        .unwrap_or(0);
+    let plabels: [Src<'_>; 2] = std::array::from_fn(|i| Src::Str(pw[i].as_str()));
+    let pseg = Rect::from_min_max(
+        pos2(r5.left() + sz.pics.0 + s.s(12.0), r5.top()),
+        pos2(
+            (r5.left() + sz.pics.0 + s.s(12.0) + sz.pics.1).min(r5.right()),
+            r5.bottom(),
+        ),
+    );
+    shown.pictures_row = pseg;
+    let (presp, pchosen) = crate::kit::widgets::Segmented::new(psel, &plabels)
+        .id(id.with("pictures"))
+        .name(&pl)
+        .style(*s)
+        .show_at(ui, pseg);
+    let _ = iu::hint(presp, || t("scene.pictures.hint"));
+    if let Some(i) = pchosen.filter(|i| *i != psel) {
+        shown.pictures = SceneBackend::ALL.get(i).copied();
     }
     probe::note(pic, &shown);
     shown
@@ -486,6 +561,7 @@ pub mod probe {
         pub card: Rect,
         pub rooms: Rect,
         pub fields: [Rect; 3],
+        pub pictures: Rect,
     }
 
     thread_local! {
@@ -510,6 +586,7 @@ pub mod probe {
                     card: shown.card,
                     rooms: shown.rooms,
                     fields: shown.fields,
+                    pictures: shown.pictures_row,
                 });
             }
         });

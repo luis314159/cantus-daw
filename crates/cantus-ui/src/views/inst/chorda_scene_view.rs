@@ -759,6 +759,9 @@ fn room_popover(
     if let Some((part, word)) = shown.look {
         set(app, track, part.key(), word);
     }
+    if let Some(b) = shown.pictures {
+        room_card::apply_pictures(app, b);
+    }
     Some(rect)
 }
 
