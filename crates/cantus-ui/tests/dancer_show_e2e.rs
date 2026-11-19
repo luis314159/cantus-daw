@@ -33,10 +33,10 @@ fn data() -> &'static Path {
     DIR.get_or_init(|| {
         let d = tempfile::tempdir().unwrap();
         std::env::set_var("CANTUS_DATA_DIR", d.path());
-        // A configured copy: no first-run audio setup over the window.
+        // A configured copy: no first-run audio setup or start page over the window.
         std::fs::write(
             d.path().join("settings.json"),
-            r#"{"audio_setup":{"setup_done":true}}"#,
+            r#"{"audio_setup":{"setup_done":true},"start_page_at_start":false}"#,
         )
         .unwrap();
         d
@@ -119,13 +119,18 @@ impl Rig {
             ctrl: b.command && !cfg!(target_os = "macos"),
             mac_cmd: b.command && cfg!(target_os = "macos"),
         };
-        self.frame(vec![Event::Key {
-            key: b.key,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers,
-        }]);
+        // As a window reports it: the modifiers held, then the key.
+        self.frame(vec![
+            Event::ModifiersChanged(modifiers),
+            Event::Key {
+                key: b.key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            },
+        ]);
+        self.frame(vec![Event::ModifiersChanged(egui::Modifiers::NONE)]);
         self.frames(2);
     }
 
@@ -161,6 +166,8 @@ impl Rig {
             })
             .expect("the dancer")
             .id;
+        // The picker opened its window; closed, as a user does to see the stage.
+        self.app.close_inst_editor();
         self.app.set_inst_value(track, "x", 0.5, false);
         self.app.set_inst_value(track, "y", 0.8, false);
         self.app.sync_engine();
@@ -187,6 +194,11 @@ impl Rig {
             &[Button::Pin, Button::Dock, Button::Hide],
             &s,
             Rect::from_min_size(Pos2::ZERO, SCREEN),
+        );
+        assert_eq!(
+            self.app.stage.hovered(self.t).map(|(t, _)| t),
+            Some(track),
+            "the pointer on the dancer shows its pill"
         );
         let hide = pill.buttons[2].1.center();
         self.click(hide);
@@ -307,8 +319,11 @@ fn the_tracks_menu_and_the_editor_show_a_hidden_dancer() {
     let row_h = cantus_ui::kit::menu::height_in(&row, &s);
     let menu = |r: &mut Rig, events: Vec<Event>| -> Vec<Rect> {
         cantus_ui::kit::widgets::record_lists(true);
+        r.t += 0.05;
         let input = egui::RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
+            time: Some(r.t),
+            predicted_dt: 1.0 / 60.0,
             events,
             ..Default::default()
         };
@@ -334,13 +349,14 @@ fn the_tracks_menu_and_the_editor_show_a_hidden_dancer() {
         .find(|l| (l.height() - row_h).abs() < 0.5)
         .copied()
         .expect("the menu offers Show the dancer while it is hidden");
-    let at = Pos2::new(ours.center().x, ours.bottom() - 4.0);
+    let at = cantus_ui::kit::menu::row_in(ours, &row, &s, 1).center();
     let press = |pressed| Event::PointerButton {
         pos: at,
         button: egui::PointerButton::Primary,
         pressed,
         modifiers: Default::default(),
     };
+    menu(&mut r, vec![Event::PointerMoved(at)]);
     menu(&mut r, vec![Event::PointerMoved(at)]);
     menu(&mut r, vec![press(true)]);
     menu(&mut r, vec![press(false)]);

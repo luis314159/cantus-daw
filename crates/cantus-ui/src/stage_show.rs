@@ -141,7 +141,7 @@ pub fn show(app: &mut CantusApp) {
 /// back where it was, in one undo step.
 pub fn show_every(app: &mut CantusApp) {
     app.settings.stage.hidden = false;
-    let tracks: Vec<TrackId> = dancers(app).iter().map(|(t, _)| *t).collect();
+    let tracks: Vec<TrackId> = each(app).map(|(t, _)| t).collect();
     restore(app, &tracks, SHOW_ALL);
     reveal_docked(app);
     app.stage.notice = None;
@@ -150,10 +150,7 @@ pub fn show_every(app: &mut CantusApp) {
 
 /// How many of the song's dancers are not on screen.
 pub fn hidden_count(app: &CantusApp) -> usize {
-    dancers(app)
-        .into_iter()
-        .filter(|(_, m)| !seen(app, *m))
-        .count()
+    each(app).filter(|(_, m)| !seen(app, *m)).count()
 }
 
 /// Put one dancer on screen: the stage on, the dancer back where it was if it was hidden
