@@ -269,6 +269,11 @@ exactos, sin duplicados) y tú escuchas una muestra de cada banco antes de publi
 no está fijo: manda el mejor resultado. Primero un banco piloto, escuchado a ciegas junto a
 un buen pack del mismo estilo, y lo que pierda decide qué se cambia.
 
+**(3e, 2026-11-19)** Chorda: validar la afinación de cada cuerda de cada tecla por separado,
+dentro del instrumento completo (martillo, puente, tabla): las teclas de una cuerda (A0–F#1),
+las dos de G1–F2, las tres desde F#2 y la segunda polarización del modelo 2; cada error con su
+tolerancia razonada, un informe por tecla y una página para que veas cada cuerda.
+
 ## 1. Real use — the test that matters most
 
 - **Cantus cannot read 32-bit integer FLAC** (found in the effects side round, 2026-11-13):
@@ -891,6 +896,28 @@ vocals — then what blind comparisons demand, then build cost on what exists):
   controls put them, a booth, a studio, a hall or a church; pickers for the look (never
   audible, one undo step). Open: the owner's eye against the premium libraries' artwork
   (`docs/round37/scene/`).
+- **Every string of every key in tune, each measured alone inside the instrument (the owner,
+  2026-11-19):** *"en Chorda deberíamos validar afinación de cada cuerda, cuerdas de una nota
+  para ver que suenen afinadas también."* Today two things are checked: one string per key in
+  the bare string model, every partial within a cent (`chorda_tests_string.rs`), and each key
+  whole, its strings mixed, on the curve with its unison's beating bounded (round 40's gate,
+  `chorda_tests_tune_gate.rs`). What is not: **each string of a key, alone, through the whole
+  voice** (hammer, bridge, coupling, soundboard) at the shipped voicing. To build:
+  - a voice hook that sounds one loop of a key and keeps the others still (off, not a sample
+    changes — a null test);
+  - for every key, every loop: the single-string keys A0–F#1 (21–30, `chorda_tables::strings`),
+    both strings of G1–F2 (31–41), the three from F#2 (42 — the function's comment says D2:
+    check which is meant), and model 2's horizontal-polarisation loop on the one- and
+    two-string keys, struck at velocities 0.3, 0.6 and 0.9 and measured with `tunekit` —
+    each loop's partials against its designed pitch (the curve plus its designed unison
+    offset), the offsets inside a unison as designed per register, the polarisation loop
+    against its own vertical string;
+  - tolerances that each say why (a single-string key has no unison to hide in: it is held
+    to the whole key's gate itself), a report per key in `docs/` and a page that shows the
+    owner every string's error;
+  - what it finds is fixed through the voicing lab (`tools/chorda-voicing`), with a
+    `DSP_VERSION` bump and the measured size of the change when the sound moves, and the
+    owner's ear on the keys that moved.
 
 **The piano, as the owner decided it (2026-10-10):**
 
