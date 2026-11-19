@@ -72,6 +72,7 @@ scene.pictures = Imágenes de instrumentos
 scene.pictures.drawn = Dibujadas
 scene.pictures.photo = Fotográficas
 scene.pictures.hint = Cómo se dibujan las imágenes de los instrumentos: Dibujadas es ligero y rápido; Fotográficas añade sombras y reflejos trazados y tarda más en dibujarse. El sonido nunca cambia.
+scene.pictures.card = Imágenes
 
 # r40 integration — la tarjeta de sala que Chorda comparte con Tympanum: qué es cada sala, y su línea de ayuda
 scene.room.stage_meta = un círculo de luz en un escenario oscuro

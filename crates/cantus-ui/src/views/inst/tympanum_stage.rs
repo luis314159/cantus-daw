@@ -864,6 +864,9 @@ fn room_card(
     if let Some((part, word)) = shown.look {
         app.set_inst_text(track, part.key(), Some(word.to_string()));
     }
+    if let Some(b) = shown.pictures {
+        room_card::apply_pictures(app, b);
+    }
 }
 
 // ---- the plan from above, while the scene's stub draws nothing -------------------------

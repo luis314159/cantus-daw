@@ -1,0 +1,6 @@
+# The voicing lab's analyses (round 40 ran them on Python 3.13 with these versions).
+# pip install -r requirements.txt  (into a venv; run every script with python -I)
+numpy>=2.0
+scipy>=1.13
+soundfile>=0.12
+matplotlib>=3.8

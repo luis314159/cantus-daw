@@ -15,20 +15,21 @@
   ],
   "loop": true,
   "dry": "/tryit/guitar.mp3",
+  "dry_source": null,
   "presets": [
     {
-      "id": "guitar_rig",
+      "id": "crunch_amp_rig",
       "name": [
-        "Guitar rig",
-        "Equipo de guitarra"
+        "Crunch amp rig",
+        "Equipo con ampli crunch"
       ],
       "what": [
         "Creative — Pop, Rock",
         "Creativo — Pop, Rock"
       ],
-      "wet": "/tryit/tabula/guitar_rig.mp3",
-      "level_db": 4.5,
-      "pic": "/tryit/tabula/guitar_rig"
+      "wet": "/tryit/tabula/crunch_amp_rig.mp3",
+      "level_db": -0.6,
+      "pic": "/tryit/tabula/crunch_amp_rig"
     },
     {
       "id": "blues_crunch",
@@ -41,8 +42,22 @@
         "Creativo — Rock, Jazz · Soul"
       ],
       "wet": "/tryit/tabula/blues_crunch.mp3",
-      "level_db": 3.9,
+      "level_db": -0.0,
       "pic": "/tryit/tabula/blues_crunch"
+    },
+    {
+      "id": "fuzz_lead",
+      "name": [
+        "Fuzz lead",
+        "Solo con fuzz"
+      ],
+      "what": [
+        "Creative — Rock",
+        "Creativo — Rock"
+      ],
+      "wet": "/tryit/tabula/fuzz_lead.mp3",
+      "level_db": 0.0,
+      "pic": "/tryit/tabula/fuzz_lead"
     },
     {
       "id": "ambient_swells",

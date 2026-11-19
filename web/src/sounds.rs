@@ -1,7 +1,8 @@
 //! A unit's presets, heard (round 37, ADR 0101): on its card a ▶ that plays its first
 //! excerpt, and on its page every excerpt with its name and what it is for — an effect's
-//! with the dry source to compare. The excerpts are rendered by Cantus itself
-//! (`units_sounds.rs`, generated) at the presets' own levels, with no processing after.
+//! with its dry sources to compare and the recordings' credits. The excerpts are rendered by
+//! Cantus itself (`units_sounds.rs`, generated) with no processing after: an effect on a
+//! recording matched to its loudness by a gain alone, the rest at the presets' own levels.
 
 use web_sys::HtmlAudioElement;
 use yew::prelude::*;
@@ -18,8 +19,44 @@ pub fn of(file: &str) -> &'static [Sound] {
         .unwrap_or(&[])
 }
 
-fn src(file: &str) -> String {
-    format!("/units/sounds/{file}.mp3")
+/// An excerpt's address: under `/units/sounds/`, or Try it's own take when it starts with `/`.
+pub fn src(file: &str) -> String {
+    if file.starts_with('/') {
+        format!("{file}.mp3")
+    } else {
+        format!("/units/sounds/{file}.mp3")
+    }
+}
+
+type Source = (
+    &'static str,
+    &'static str,
+    (&'static str, &'static str),
+    (&'static str, &'static str),
+    bool,
+);
+
+/// The dry sources a card's excerpts are heard on, in order, each once.
+fn sources_of(file: &str) -> Vec<&'static Source> {
+    let mut out: Vec<&'static Source> = Vec::new();
+    for s in of(file) {
+        if let Some(src) = SOURCES.iter().find(|x| x.0 == s.on) {
+            if !out.iter().any(|o| o.0 == src.0) {
+                out.push(src);
+            }
+        }
+    }
+    out
+}
+
+/// The credits of the recordings a card's excerpts are heard on, as one line.
+pub fn credits(file: &str, l: crate::lang::Lang) -> Option<String> {
+    let c: Vec<&str> = sources_of(file)
+        .iter()
+        .map(|s| l.t(s.3 .0, s.3 .1))
+        .filter(|c| !c.is_empty())
+        .collect();
+    (!c.is_empty()).then(|| c.join(" · "))
 }
 
 /// The one excerpt playing on the page, so a second play stops the first.
@@ -107,30 +144,34 @@ pub fn preset_sounds(p: &Props) -> Html {
             </li>
         }
     };
-    let effect_source = sounds.first().map(|s| s.on).filter(|on| !on.is_empty());
-    let dry = effect_source
-        .and_then(|on| SOURCES.iter().find(|(r, _)| *r == on))
-        .map(|(r, name)| {
-            row(
-                format!("source-{r}"),
-                l.t("Without the effect", "Sin el efecto").to_string(),
-                l.t(name.0, name.1).to_string(),
-            )
-        });
+    let sources = sources_of(&p.unit);
+    let matched = sources.iter().any(|s| s.4);
+    let dry = sources.iter().map(|s| {
+        row(
+            s.1.to_string(),
+            l.t("Without the effect", "Sin el efecto").to_string(),
+            l.t(s.2 .0, s.2 .1).to_string(),
+        )
+    });
+    let credit = credits(&p.unit, l);
     html! {
         <div class="up-sounds">
             <h4>{ l.t("Hear its presets", "Escucha sus presets") }</h4>
             <ul class="ps-list">
-                if let Some(d) = dry { { d } }
+                { for dry }
                 { for sounds.iter().enumerate().map(|(i, s)| {
                     let (name, what) = crate::unit_text::sound(&p.unit, i, s, l);
                     row(s.file.to_string(), name, what)
                 }) }
             </ul>
-            <p class="ps-note">{ l.t(
+            <p class="ps-note">{ if matched { l.t(
+                "Rendered by Cantus from its factory presets, each matched to the dry take's loudness by a gain alone, with no processing after.",
+                "Renderizados por Cantus desde sus presets de fábrica, cada uno igualado a la sonoridad de la toma seca solo con una ganancia, sin ningún proceso después."
+            ) } else { l.t(
                 "Rendered by Cantus from its factory presets, each at its own level, with no processing after.",
                 "Renderizados por Cantus desde sus presets de fábrica, cada uno a su propio nivel, sin ningún proceso después."
-            ) }</p>
+            ) } }</p>
+            if let Some(c) = credit { <p class="ps-note">{ c }</p> }
         </div>
     }
 }
@@ -166,5 +207,48 @@ pub fn card_sound(p: &Props) -> Html {
                 aria-label={format!("{} {name}", if on { l.t("Stop", "Parar") } else { l.t("Hear", "Escuchar") })}>
             { play_icon(on) }
         </button>
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    fn path(file: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets")
+            .join(src(file).trim_start_matches('/'))
+    }
+
+    /// Every excerpt and every dry source is a file the site serves; an effect's excerpt names
+    /// a source; a recording's credit is there in both languages wherever it is heard.
+    #[test]
+    fn every_excerpt_has_its_file_its_source_and_its_credit() {
+        for (unit, sounds) in SOUNDS {
+            for s in *sounds {
+                assert!(path(s.file).is_file(), "{unit}: no {}", s.file);
+                if !s.on.is_empty() {
+                    assert!(
+                        SOURCES.iter().any(|x| x.0 == s.on),
+                        "{unit}: no source {}",
+                        s.on
+                    );
+                }
+            }
+        }
+        for s in SOURCES {
+            assert!(path(s.1).is_file(), "source {}: no {}", s.0, s.1);
+            assert_eq!(
+                s.3 .0.is_empty(),
+                s.3 .1.is_empty(),
+                "source {}: one language",
+                s.0
+            );
+            assert!(
+                !s.4 || !s.3 .0.is_empty(),
+                "source {}: a recording uncredited",
+                s.0
+            );
+        }
     }
 }

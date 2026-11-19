@@ -110,6 +110,7 @@ tabula.learn.pick = Touch a knob
 tabula.learn.status = Learn: touch the knob on a pedal this macro is to move
 
 # The factory's boards.
+preset.tabula.crunch_amp_rig = Crunch amp rig
 preset.tabula.blues_crunch = Blues crunch
 preset.tabula.ambient_swells = Ambient swells
 preset.tabula.fuzz_lead = Fuzz lead
