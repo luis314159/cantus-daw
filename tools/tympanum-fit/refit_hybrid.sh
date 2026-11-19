@@ -21,9 +21,9 @@ case $KIT in
 esac
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-P=${PYTHON:-/f/projects/daw-r40/downloads/chorda/venv/Scripts/python.exe}
+P=${PYTHON:-${CANTUS_PY:-python}}
 # `SLOT=` (empty) when already inside a build slot.
-SLOT=${SLOT-bash /f/projects/daw-r40/slot.sh}
+SLOT=${SLOT-bash $ROOT/tools/build/slot.sh}
 mkdir -p "$WORK"
 cd "$ROOT"
 run() { $SLOT cargo run -q --release -p cantus-ui --example tympanum_hybrid -- "$@"; }

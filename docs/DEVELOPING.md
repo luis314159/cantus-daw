@@ -257,6 +257,21 @@ it; Flathub's submission is the owner's).
 | `CANTUS_PLUGINS` | the test instruments' folder |
 | `CANTUS_GOLDEN_DUMP` | print the measured size of a golden-hash change |
 
+## Off-line tools (round 40): voicing, measuring, listening
+
+Not part of the build; each folder's README has the setup, the exact commands and what the
+output means. Python ones take their packages from the folder's `requirements.txt` and run with
+`python -I`; none names a machine's folders (environment variables with defaults).
+
+| folder | what |
+|---|---|
+| [`tools/build/`](../tools/build/README.md) | `slot.sh`: at most three cargo builds (and one WSL check) at once on a machine shared by several builders |
+| [`tools/chorda-voicing/`](../tools/chorda-voicing/README.md) | the voicing lab: Chorda against the Salamander — a candidate's spec and tables (`SPEC.md`, `KNOBS.md`), the two analyses and their scores, the tuning gate, the probes, the search, the previews, shipping a candidate as Rust |
+| [`tools/tympanum-fit/`](../tools/tympanum-fit/README.md) | Tympanum: fitting recorded kits into model 5's tables, the calibration cycles, the hybrid's residual, the drum analyses' cues (`accept_b10.py`), the representation ladder |
+| [`tools/listening/`](../tools/listening/README.md) | the blind tests (`chorda_abx`, the ladder's kit), publishing a kit as a claude.ai page, reading results |
+
+The design for round 41's micro-tuning is [`research/instruments/microtuning.md`](../research/instruments/microtuning.md).
+
 ## Where to start reading
 
 [`CLAUDE.md`](../CLAUDE.md) holds the working conventions; [`STATUS.md`](STATUS.md) says what
