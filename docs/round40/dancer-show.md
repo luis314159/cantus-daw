@@ -76,15 +76,34 @@ its own frame:
   while hidden, and its row clicked shows it; the editor's Show clicked shows it.
 - `the_palette_finds_it_as_show_the_dancers_in_both_languages`.
 
-PASS_COUNTS
+`stage_companion::view_menu_switches_and_the_stage_key_hides_the_dancers` now adds a dancer
+first: in a song with no dancer the key no longer switches the stage off unseen (it stays
+on and the status line says how to add one).
+
+**Results.** The whole `cantus-ui` suite (lib + 371 test targets, run in batches of 25 with
+the binaries deleted between them — F: had 28 MB free): **2 977 passed, 4 failed**, none
+from this branch: `slate_window_golden` mixer ×2 (1 774 px, the strip's polarity/swap glyphs
+of master's 79e5cd01, whose goldens were not refreshed — the rendered mixer has no dancer
+in it), `picker::opening_for_a_purpose_offers_instruments_or_effects` (20 instruments
+against 14 expected: the picker's catalogue, untouched here) and
+`scene_vector::a_lid_drag_rebuilds_within_its_budget` (a timing budget: 2 s under three
+parallel builds). Clippy `-D warnings` on `cantus-ui --all-targets`: clean.
 
 ## Shots
 
 `cargo run -p cantus-ui --example shoot_stage -- <dir> show` (with `CANTUS_SHOT_SLATE=1` for
-Slate Night and Slate Paper): `show-{hidden,view-menu,track-menu,tab}-{slate,paper}-{en,es}.png`.
+Slate Night and Slate Paper): `show-{hidden,view-menu,track-menu,tab,editor}-{slate,paper}-{en,es}.png`
+— the card after a Hide; the View menu with *Stage* unticked; the dancer track's menu (a
+right-click on its header) with *Show the dancer*; the Stage tab's *The dancers are hidden*
+with *Show the dancers*; the dancer's window with *Hidden: it shows on no screen* and
+*Show*. The card's menu path is written *View › Stage*: the interface's font has no ▸.
 
 ## Left
 
-- Only a device and the owner confirm the feel of the card's timing (12 s).
+- Only the owner confirms the feel of the card's timing (12 s).
+- When a docked dancer is hidden, the card sits over the Stage tab's foot (both live at the
+  window's bottom right) for its 12 s; both offer the same way back.
+- The inspector's *Shown: Hidden* row stays words only (the track's menu and the editor carry
+  the button).
 - The channel rack and mixer strip have no dancer row: a dancer has no pad and no audio strip
   of its own; the track's menu, the editor and the Stage tab are where it lives.
