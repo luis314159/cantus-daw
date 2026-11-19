@@ -266,7 +266,8 @@ const MODEL_2_C16: u64 = 0x717d_64b7_22b9_e71b;
 fn piano_for(v: Voicing) -> Chorda {
     use super::design::{Keyboard, Tuning};
     use std::sync::{Arc, Mutex, OnceLock};
-    static K: OnceLock<Mutex<Vec<(Tuning, Arc<Keyboard>)>>> = OnceLock::new();
+    type Cache = Mutex<Vec<(Tuning, Arc<Keyboard>)>>;
+    static K: OnceLock<Cache> = OnceLock::new();
     let t = v.tuning(Tuning::default());
     let cache = K.get_or_init(|| Mutex::new(Vec::new()));
     let found = cache
@@ -379,7 +380,12 @@ fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
         let max = d.iter().fold(0.0f64, |m, x| m.max(x.abs()));
         let rms = (d.iter().map(|x| x * x).sum::<f64>() / d.len() as f64).sqrt();
         let rms_of = |a: &[f32], b: &[f32]| {
-            (a.iter().chain(b).map(|x| (*x as f64).powi(2)).sum::<f64>() / d.len() as f64).sqrt()
+            (a.iter()
+                .chain(b)
+                .map(|x| (*x as f64) * (*x as f64))
+                .sum::<f64>()
+                / d.len() as f64)
+                .sqrt()
         };
         let (was, now) = (rms_of(&cl, &cr), rms_of(&l, &r));
         eprintln!(

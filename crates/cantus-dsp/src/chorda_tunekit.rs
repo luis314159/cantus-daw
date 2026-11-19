@@ -13,9 +13,8 @@ use std::f64::consts::TAU;
 #[derive(Clone, Copy, Debug)]
 pub struct Partial {
     pub n: u32,
-    /// Where it was measured from (Hz) and where it is (Hz).
+    /// Where it was measured from (Hz).
     pub near_hz: f64,
-    pub hz: f64,
     /// Its offset from `near_hz` (cents).
     pub cents: f64,
     /// Its mean power over 0.1–1.1 s (dB, relative).
@@ -126,7 +125,6 @@ pub fn measure(l: &[f64], r: &[f64], fs: f64, f0: f64, near: &[f64]) -> KeyTune 
         parts.push(Partial {
             n: i as u32 + 1,
             near_hz: hz,
-            hz: got,
             cents: 1200.0 * math::log2(got / hz),
             level_db: 10.0 * math::log10(p / np + 1e-30),
             beat_db: swing(&lv),
@@ -213,8 +211,9 @@ fn solve3(mut m: [[f64; 3]; 3], mut y: [f64; 3]) -> [f64; 3] {
         for rr in 0..3 {
             if rr != c && m[c][c] != 0.0 {
                 let f = m[rr][c] / m[c][c];
-                for k in 0..3 {
-                    m[rr][k] -= f * m[c][k];
+                let pivot = m[c];
+                for (a, p) in m[rr].iter_mut().zip(pivot) {
+                    *a -= f * p;
                 }
                 y[rr] -= f * y[c];
             }

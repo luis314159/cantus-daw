@@ -15,7 +15,8 @@ const FRAMES: usize = 163_200;
 
 /// The keyboard `v` is designed for at the knobs' defaults, made once per tuning.
 pub fn keyboard_of(v: &Voicing) -> Arc<Keyboard> {
-    static K: OnceLock<Mutex<Vec<(Tuning, Arc<Keyboard>)>>> = OnceLock::new();
+    type Cache = Mutex<Vec<(Tuning, Arc<Keyboard>)>>;
+    static K: OnceLock<Cache> = OnceLock::new();
     let t = v.tuning(Tuning::default());
     let cache = K.get_or_init(|| Mutex::new(Vec::new()));
     if let Some(k) = cache.lock().unwrap().iter().find(|e| e.0 == t) {
