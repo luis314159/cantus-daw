@@ -389,3 +389,19 @@ The size of the change (`DSP_VERSION` 9 → 10), measured (`CANTUS_GOLDEN_DUMP=1
 | The shipped voicing is candidate 16 with the pass; candidate 16 renders its old bits | `tests_voicing3::the_shipped_voicing_is_candidate_16_with_the_technicians_pass_and_a_new_unit_plays_it`, `model_2_at_candidate_16_renders_to_the_bits_it_did` |
 | A Chorda added through the app plays Bb2, B2, C3 and B0 on the curve, on the real engine | `cantus-ui` `chorda_tune_e2e` |
 | The designer's key tells the table and the room apart | `cantus-engine` `inst::chorda` `model_2_asks_for_its_own_keyboard_and_model_1_never_moves` |
+
+### What it costs, and the CI gate (beta.15's release, 2026-11-19)
+
+Candidate 16 costs more than beta.14's voice: 64 pedal-down voices at 48 kHz, the test
+build (`cantus-dsp` at `opt-level` 3), on the owner's machine take **26.5–26.9 %** of one core
+against beta.14's 20.7 % and model 1's 17.7–18.0 %. That is over ADR 0059's quarter
+core, which `measure_model_2s_sixty_four_pedal_down_voices` (ignored, quiet machine) keeps
+asserting: making candidate 16 cheaper without moving a sample is BACKLOG §4b's. The
+technician's pass costs nothing per sample (26.9 % before and after it).
+
+The suite's gate was an absolute 60 % of a core; GitHub's Windows runner times this about
+2.25 times the owner's machine and read 60.8 %, failing beta.15's release. It is now
+`model_2s_sixty_four_pedal_down_voices_cost_at_most_twice_model_1`: both models timed in
+turn in 21 ms windows, the best of 600 each, model 2 under twice model 1 (1.48 alone,
+1.66–1.71 under the whole parallel `cantus-dsp` suite and under two more copies of it beside
+it), and model 2 under real time on any machine.

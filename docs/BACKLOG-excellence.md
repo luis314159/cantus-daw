@@ -940,6 +940,13 @@ with zero dropouts — proved by a published benchmark, not claimed.* The princi
 engines share: **never do work twice, never do work nobody hears, and never let the
 real-time path wait.**
 
+**Chorda candidate 16 back under a quarter core** (2026-11-19, beta.15's release; ADR 0098
+"What it costs"): 64 pedal-down voices take 26.5–26.9 % of one core on the owner's machine
+(test build), beta.14's voice 20.7 %, model 1 17.7 % — over ADR 0059's 25 % by about a
+tenth. Make the third pass's parts (second polarisation loop, uneven unison, arrival-time
+lags, bass formant) cheaper **without moving a sample** (the c16/DSP 10 pins hold), until
+`measure_model_2s_sixty_four_pedal_down_voices` passes again.
+
 **The engine**
 - **Anticipative processing** (REAPER's) / **dual-path buffers** (Cubase's ASIO-Guard,
   Logic's live vs playback): tracks that are *not* armed or monitored are rendered ahead

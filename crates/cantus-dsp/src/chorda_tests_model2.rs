@@ -202,37 +202,71 @@ fn the_bodys_responses_are_two_microphones() {
     assert!(corr.abs() < 0.5, "{corr}");
 }
 
-fn load_of(mut c: Chorda) -> f64 {
+/// 64 voices sounding with the pedal down: middle velocity, A1 to C#7, 37 frames apart.
+fn sixty_four_down(mut c: Chorda) -> Chorda {
     let mut ev = vec![(0usize, Ev::Pedal(1.0))];
     for (i, k) in (30u8..94).enumerate() {
         ev.push((1 + i * 37, Ev::On(k, 0.7, i as u64 + 1)));
     }
-    let blocks = ((0.25 * FS) as usize).div_ceil(256);
-    let seconds = (blocks * 256) as f64 / FS;
     perform(&mut c, &ev, 4_096, 256, 1);
     assert_eq!(c.active_voices(), 64);
-    let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
-    let mut best = f64::INFINITY;
-    for _ in 0..48 {
-        let t = std::time::Instant::now();
-        for _ in 0..blocks {
-            l.fill(0.0);
-            r.fill(0.0);
-            c.process(&mut l, &mut r);
-        }
-        best = best.min(t.elapsed().as_secs_f64() / seconds);
-    }
-    best
+    c
 }
 
+/// One timing of `blocks` 256-frame blocks, as a share of one core in real time.
+fn time_blocks(c: &mut Chorda, l: &mut [f32], r: &mut [f32], blocks: usize) -> f64 {
+    let seconds = (blocks * 256) as f64 / FS;
+    let t = std::time::Instant::now();
+    for _ in 0..blocks {
+        l.fill(0.0);
+        r.fill(0.0);
+        c.process(l, r);
+    }
+    t.elapsed().as_secs_f64() / seconds
+}
+
+fn load_of(c: Chorda) -> f64 {
+    let mut c = sixty_four_down(c);
+    let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
+    (0..48)
+        .map(|_| time_blocks(&mut c, &mut l, &mut r, ((0.25 * FS) as usize).div_ceil(256)))
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// Model 1 and model 2 timed in turn in short windows (4 blocks, 21 ms), the best of 600
+/// each, so a burst of load falls on both alike. A sustained load still reads model 2
+/// dearer — its memory suffers the shared caches more: 1.48 alone, 1.66–1.71 under the
+/// whole parallel `cantus-dsp` suite (the owner's machine, 2026-11-19).
+fn loads_side_by_side() -> (f64, f64) {
+    let (mut one, mut two) = (sixty_four_down(piano()), sixty_four_down(piano2()));
+    let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
+    let (mut a, mut b) = (f64::INFINITY, f64::INFINITY);
+    for _ in 0..600 {
+        a = a.min(time_blocks(&mut one, &mut l, &mut r, 4));
+        b = b.min(time_blocks(&mut two, &mut l, &mut r, 4));
+    }
+    (a, b)
+}
+
+/// Model 2 against model 1 timed beside it. An absolute bound read the CI runner's speed
+/// instead of the piano's: GitHub's Windows runner times this about 2.25 times the
+/// owner's machine, and candidate 16 (round 40), 26.9 % of a core there, read 60.8 % on it
+/// and failed beta.15's release. The ratio is the machine's speed taken out: about 1.17
+/// for beta.14's voice, 1.48 for candidate 16 alone, up to 1.71 under load — the bound, 2,
+/// catches a voice a third dearer than today's. The quarter-core target itself is the
+/// ignored quiet measure below (ADR 0059; candidate 16 is over it, BACKLOG §4b).
 #[test]
-fn model_2s_sixty_four_pedal_down_voices_fit_a_quarter_of_a_core() {
-    let load = load_of(piano2());
+fn model_2s_sixty_four_pedal_down_voices_cost_at_most_twice_model_1() {
+    let (one, two) = loads_side_by_side();
     eprintln!(
-        "model 2, 64 pedal-down voices: {:.1} % of one core",
-        load * 100.0
+        "64 pedal-down voices: model 1 {:.1} %, model 2 {:.1} % of one core, ratio {:.2}",
+        one * 100.0,
+        two * 100.0,
+        two / one
     );
-    assert!(load < 0.6, "{load}");
+    assert!(two / one < 2.0, "model 2 / model 1 = {:.3}", two / one);
+    // A catastrophe guard on any machine: model 2 keeps up with real time.
+    assert!(two < 1.0, "{two}");
 }
 
 #[test]
