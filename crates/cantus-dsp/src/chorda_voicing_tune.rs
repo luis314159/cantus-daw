@@ -2,8 +2,9 @@
 //! `docs/round40/chorda-tune.md`): what ships over candidate 16 so every key A0–C8 sounds
 //! on its curve. [`SPEC`] (applied after candidate 16's, in the voicing lab's format)
 //! switches the model's three root-cause fixes on and redraws the unisons that beat past a
-//! recorded grand's; [`TUNE`] is each key's last correction (cents), measured by
-//! `chorda::tests_tuning::technician_table` and held by the suite's tuning tests.
+//! recorded grand's; [`TUNE`] is each key's last correction (cents), measured with
+//! `chorda::tests_tuning::tuning_map` and iterated (secant steps) until every key A0–E6 sat
+//! within a tenth of a cent, held by `chorda::tests_tune_gate`.
 
 use super::KEYS;
 

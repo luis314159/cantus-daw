@@ -39,50 +39,71 @@ Cantus calls middle C C4, so those keys are MIDI 46, 47 and 48. All 88 keys were
 
 ## The outliers in candidate 16, and their causes
 
-The table gives the ear's pitch and the fundamental against the curve (cents), and the
-deepest beat of the three strongest partials over three velocities (dB). The "after" columns
-are the shipped voicing.
+The table lists every key that was more than 2 cents off by the ear, had its fundamental more
+than 2.5 cents off, or beat deeper than 20 dB, plus A4 and B4. It gives the ear's pitch and
+the fundamental against the curve (cents, at velocity 0.6), and the deepest beat of the
+three strongest partials over velocities 0.35, 0.6 and 0.85 (dB). The "after" columns are
+the shipped voicing. The causes were found by switching each part off in turn (below).
 
 | Key | pitch | p1 | beat | after: pitch | p1 | beat | cause |
 |---|---|---|---|---|---|---|---|
-| A0 (21) | +6.6 | −1.1 | 3.0 | +0.0 | −1.6 | 4.0 | stiffness scatter (one string: nothing to centre against) |
-| B0 (23) | **+17.9** | −0.4 | 4.3 | +0.0 | −0.9 | 1.9 | stiffness scatter (`uni_b_bass` 2) |
-| C1 (24) | −0.0 | +1.8 | 18.1 | −0.0 | −0.0 | 4.6 | bridge resonance on the fundamental (and draw 4) |
-| E1 (28) | +9.1 | −1.0 | 0.4 | +0.0 | −1.2 | 6.9 | stiffness scatter |
-| G#1 (32) | −0.5 | −4.3 | 3.0 | −0.0 | −1.0 | 2.0 | bridge pull on the fundamental |
+| A0 (21) | +6.6 | -1.1 | 3.0 | +0.0 | -1.6 | 4.0 | stiffness scatter (one string: nothing to centre it against) |
+| A#0 (22) | +3.4 | -1.1 | 0.9 | +0.0 | -1.1 | 0.2 | stiffness scatter |
+| B0 (23) | +17.9 | -0.4 | 4.3 | +0.0 | -0.9 | 1.9 | stiffness scatter (`uni_b_bass` 2) |
+| D1 (26) | +2.1 | -0.7 | 2.5 | +0.0 | -0.9 | 4.0 |  |
+| D#1 (27) | +3.1 | -0.8 | 2.4 | +0.0 | -1.2 | 4.6 |  |
+| E1 (28) | +9.1 | -1.0 | 0.4 | +0.0 | -1.2 | 6.9 | stiffness scatter |
+| F#1 (30) | +0.2 | -3.1 | 1.5 | +0.0 | -1.9 | 2.3 | bridge pull on the fundamental |
+| G1 (31) | +1.3 | +2.7 | 4.9 | -0.0 | +2.0 | 2.3 |  |
+| G#1 (32) | -0.5 | -4.3 | 3.0 | -0.0 | -1.0 | 2.0 | bridge pull on the fundamental |
 | A1 (33) | +5.3 | +0.7 | 3.8 | +0.0 | +0.5 | 4.6 | stiffness scatter |
-| A#1 (34) | −9.5 | −2.2 | 9.4 | +0.0 | −1.7 | 8.6 | stiffness scatter |
-| C#2 (37) | +9.4 | +2.3 | 7.4 | −0.0 | +1.7 | 4.2 | stiffness scatter |
-| D2 (38) | +8.8 | −1.4 | 5.6 | +0.0 | −1.7 | 4.5 | stiffness scatter |
-| F2 (41) | −0.7 | −3.4 | 19.6 | +0.0 | −1.9 | 3.5 | bridge pull (in-phase against opposed modes) |
-| G2 (43) | −0.3 | −4.7 | 19.3 | −0.1 | −1.6 | 6.8 | bridge pull |
-| **Bb2 (46)** | **−13.3** | −2.8 | 12.6 | +0.0 | −0.9 | 9.7 | stiffness scatter (and draw 3's bent ladder) |
-| **B2 (47)** | −2.5 | −3.0 | **22.6** | +0.0 | −1.7 | 17.4 | bridge pull, stiffness scatter |
-| **C3 (48)** | **+5.4** | −2.0 | **20.2** | +0.0 | −2.7 | 13.8 | stiffness scatter, bridge pull |
-| D#3 (51) | +1.4 | −2.4 | 21.7 | +0.0 | +1.0 | 17.6 | the unison's draw (redrawn) |
-| F#3 (54) | +5.1 | +1.6 | 21.1 | +0.1 | −2.0 | 11.8 | stiffness scatter; the draw |
-| G3 (55) | +4.3 | −1.1 | 19.2 | +0.0 | −1.5 | 15.4 | stiffness scatter |
-| A#3 (58) | −2.7 | −1.2 | 23.8 | +0.0 | −0.7 | 18.3 | the draw |
-| C#4 (61) | −4.2 | −0.7 | 22.2 | −0.5 | −0.2 | 13.5 | stiffness scatter; the draw |
-| F4 (65) | −1.2 | +1.1 | 23.6 | −0.0 | −0.8 | 18.7 | fraction near its clamp; the draw |
-| B4 (71) | −1.8 | −2.2 | 16.7 | +0.0 | −0.7 | 14.2 | **fraction clamped** (+0.95: a cent of room upward) |
-| E5 (76) | −0.6 | −0.5 | 24.9 | −0.0 | −0.0 | 12.4 | the draw; fraction near its clamp |
-| E7 (100) | −1.1 | −1.1 | 25.2 | −1.1 | −1.1 | 19.3 | the draw |
-| A#7 (106) | +0.3 | +0.3 | **28.4** | +0.5 | +0.5 | 19.7 | the draw |
+| A#1 (34) | -9.5 | -2.2 | 9.4 | +0.0 | -1.7 | 8.6 | stiffness scatter |
+| C#2 (37) | +9.4 | +2.3 | 7.4 | -0.0 | +1.7 | 4.2 | stiffness scatter |
+| D2 (38) | +8.8 | -1.4 | 5.6 | +0.0 | -1.7 | 4.5 | stiffness scatter |
+| D#2 (39) | +2.8 | -1.7 | 4.3 | -0.0 | -1.2 | 2.3 |  |
+| F2 (41) | -0.7 | -3.4 | 19.6 | +0.0 | -1.9 | 3.5 | bridge pull (in-phase against opposed modes) |
+| G2 (43) | -0.3 | -4.7 | 19.3 | -0.1 | -1.6 | 6.8 | bridge pull |
+| A2 (45) | +2.7 | +1.8 | 10.0 | -0.0 | +0.7 | 4.9 | stiffness scatter |
+| A#2 (46) | -13.3 | -2.8 | 12.6 | +0.1 | +0.5 | 10.4 | stiffness scatter; its draw's bent ladder (redrawn) |
+| B2 (47) | -2.5 | -3.0 | 22.6 | +0.0 | -1.7 | 17.4 | bridge pull, stiffness scatter |
+| C3 (48) | +5.4 | -2.0 | 20.2 | +0.0 | -2.7 | 13.8 | stiffness scatter, bridge pull |
+| C#3 (49) | -2.7 | -2.2 | 12.6 | -0.0 | -2.1 | 13.1 | bridge pull |
+| D#3 (51) | +1.4 | -2.4 | 21.7 | +0.0 | +1.2 | 12.5 | the unison's draw (redrawn) |
+| E3 (52) | -1.3 | -1.7 | 21.3 | +0.0 | -1.2 | 16.1 | the draw |
+| F#3 (54) | +5.1 | +1.6 | 21.1 | -0.1 | +1.0 | 12.8 | stiffness scatter; redrawn |
+| G3 (55) | +4.3 | -1.1 | 19.2 | +0.0 | -1.5 | 15.4 | stiffness scatter |
+| G#3 (56) | -1.3 | -3.8 | 14.8 | +0.0 | -0.6 | 14.3 | bridge pull; redrawn |
+| A3 (57) | -2.8 | -2.2 | 15.7 | -0.0 | -0.2 | 16.0 | stiffness scatter |
+| A#3 (58) | -2.7 | -1.2 | 23.8 | +0.0 | -0.7 | 18.3 | the draw (redrawn) |
+| C#4 (61) | -4.2 | -0.7 | 22.2 | -0.0 | -1.4 | 9.5 | stiffness scatter; redrawn |
+| D#4 (63) | +0.2 | +0.8 | 21.0 | +0.1 | -0.2 | 19.4 | the draw (redrawn) |
+| F4 (65) | -1.2 | +1.1 | 23.6 | -0.0 | +0.3 | 19.0 | fraction near its clamp; redrawn |
+| F#4 (66) | -0.6 | -0.7 | 23.3 | +0.0 | -0.1 | 19.2 | the draw (now under the ceiling) |
+| A4 (69) | -1.8 | -1.2 | 16.6 | +0.0 | -0.6 | 18.9 | skewed detune (uncentred) |
+| B4 (71) | -1.8 | -2.2 | 17.0 | +0.0 | -0.7 | 14.3 | **fraction clamped** (+0.95: a cent of room upward) |
+| E5 (76) | -0.6 | -0.5 | 24.9 | +0.2 | +0.3 | 18.4 | fraction near its clamp; redrawn |
+| E6 (88) | -0.0 | -0.0 | 21.2 | -0.1 | -0.1 | 16.5 | redrawn |
+| D#7 (99) | -1.2 | -1.2 | 21.1 | -1.3 | -1.3 | 22.1 | the board's tail (top octave, no table) |
+| E7 (100) | -1.1 | -1.1 | 25.2 | -1.1 | -1.1 | 20.2 | redrawn |
+| F7 (101) | +1.1 | +1.1 | 24.6 | +0.2 | +0.2 | 20.8 | redrawn |
+| G#7 (104) | -0.7 | -0.7 | 21.6 | -0.7 | -0.7 | 21.6 | the board's tail |
+| A#7 (106) | +0.3 | +0.3 | 28.4 | +0.5 | +0.5 | 19.7 | redrawn |
+| B7 (107) | +0.2 | +0.2 | 20.1 | +0.2 | +0.2 | 19.3 |  |
 
-The whole keyboard, at velocity 0.6, and the beat over three velocities:
+The whole keyboard:
 
 | | candidate 16 | shipped |
 |---|---|---|
-| The ear's pitch, worst key | **17.9 c** (B0) | 2.2 c (D#7; 1.0 c A0–E6) |
-| The ear's pitch, rms over 88 keys | 3.6 c | 0.45 c |
-| Keys more than 1 c off (more than 2 c) | 51 (23) | 7 (2), all above E6 |
-| Worst key against its neighbours' mean | 16.2 c | 0.9 c |
-| Fundamental, worst | 4.7 c | 2.7 c (C3) |
-| Octaves 2:1 and fifths 3:2 ≤ 5 kHz off the curve: rms / worst | 2.55 / 9.8 c | 1.17 / 2.7 c |
-| Deepest unison beat (keys over 20 dB) | 28.4 dB (18) | 21.6 dB (2: C#7, G#7, under the top octave's 22) |
-| Median of the keys' deepest beats | 15.8 dB | 14.0 dB |
-| For comparison, the Salamander Grand (same kit) | octaves/fifths 5.8 / 34 c; deepest beats 7.5 (A0–A#1), 16.3 (B1–A#2), 12–28 (middle), 16–20 (treble) | |
+| The ear's pitch at velocity 0.6, worst key | **17.9 c** (B0) | 0.2 c A0–E6; 1.3 c above (B6) |
+| The same at any of the three velocities | 18.3 c | 0.2 c A0–E6; 2.2 c above (D#7 at 0.35) |
+| The ear's pitch, rms over the 88 keys | 3.6 c | 0.39 c |
+| Keys more than 1 c off (more than 2 c), at 0.6 | 50 (21) | 6 (0), all above E6 |
+| Worst key against its neighbours' mean | 16.2 c (B0) | 1.25 c (F6, just past the table's edge) |
+| Fundamental, worst | 4.7 c (G2) | 2.7 c (C3: a 0.2 Hz beat in C2–C3) |
+| Octaves 2:1 and fifths 3:2 (partials ≤ 5 kHz) off the curve: rms / worst | 2.55 / 9.8 c | 1.08 / 2.9 c |
+| Deepest unison beat over three velocities (keys over 20 dB) | 28.4 dB (18 keys) | 22.1 dB (5, all C#7–G#7, under the top octave's 22 but D#7 at pianissimo, 22.1) |
+| Median of the keys' deepest beats | 15.8 dB | 14.2 dB |
+| The Salamander Grand, measured with the same kit | octaves and fifths 5.8 c rms, 34 c worst; deepest beats 7.5 (A0–A#1), 16.3 (B1–A#2), 12–28 (middle), 16–20 (treble) dB | |
 
 What was not a cause:
 
@@ -116,7 +137,7 @@ both keep their bits.
      admittance (`YZ` and its resonances). Its phase over the loop's group delay is that
      partial's pull (`KeyStrings::pull_cents`).
    - The key's resonances are scaled down until none pulls one of the first three partials
-     more than 2 c. Most keys keep them whole; a dozen are scaled to 0.35–0.75
+     more than 2 c. Most keys keep them whole; about fifteen are scaled to 0.35–0.9
      (`tuning_bridge_scale`).
    - The strings' fractions then give back the pull the ear hears: the partials' pulls,
      weighed as the ear weighs them (`ear_weight`).
@@ -127,16 +148,25 @@ both keep their bits.
      only if its partials are as good.
    - Six keys moved: F4, B4, E5, F5, A5 and C#7.
    - The value is in `Tuning`, so it is part of the designer's `DesignKey`.
-4. **Eighteen keys redrawn** (`draw.<key>`): C1, Bb2, D#3, F#3, G#3, A#3, C#4, D#4, F4, E5,
-   F5, F#5, E6, B6, D#7, E7, F7 and A#7.
-   - Each takes the draw whose deepest beat is under its register's ceiling (at all three
-     velocities, 1 dB to spare) and whose median beat is nearest its old one. Their character
-     is kept and their wobble gone.
-   - Bb2's draw 3 had left its ladder 5.3 c bent (its 4:2 octave beat 1.6 Hz). Its draw 2 is
-     straight to 0.9 c and needs no table.
+4. **Sixteen keys redrawn** (`draw.<key>`, the candidate-13 mechanism): C1, Bb2, D#3, F#3,
+   G#3, A#3, C#4, D#4, F4, E5, F#5, E6, B6, E7, F7 and A#7.
+   - Each takes a draw from the 32 the search tried (`tuning_draws`) by three rules.
+     - Its deepest beat is under its register's ceiling at all three velocities, with 1 dB
+       to spare. F4's draw 8 has only 0.3 dB to spare at velocity 0.35.
+     - Its ladder is straight: partials 1–6 within 2 c of its pitch.
+     - Its level is candidate 16's, measured on the lab's keys at mezzo-forte: within 1 dB
+       over 0–0.5 s, 2 dB over 0.25–1.25 s and 3 dB over 1.25–3.4 s. Among the draws that
+       pass, it takes the one whose median beat is nearest the key's old one.
+   - F4 (+3.4 dB over 0.25–1.25 s), F7 (+4.2, then −6.0) and no other key had no draw that
+     kept the level. Their old draws' deep beats were troughs that took the level down.
+   - An earlier pass chose by the beat alone. F5 then stood 6 dB over its neighbours, so that
+     pass was redone with the level rule. F5 and D#7 now keep candidate 16's draws.
+   - Bb2's draw 3 had left its ladder 5.3 c bent (its 4:2 octave beat 1.6 Hz). Its draw 24 is
+     straight to 1.0 c.
 5. **`Voicing::tune`, the technician's last pass, on the keyboard** (`Tuning::tune`, in the
    designer's key; the sympathetic strings move with it).
    - Each key A0–E6 moves its whole ladder by what it still needed: −1.2…+1.1 c.
+   - The table was re-measured for the redrawn keys.
    - It was measured with the kit and iterated with secant steps, three rounds, to under
      0.1 c.
    - A per-voice fraction could not carry it: a fraction near −0.95 moves the fundamental
@@ -178,7 +208,7 @@ both keep their bits.
 - The pins (`chorda_tests_voicing3.rs`):
   - `MODEL_2_BETA14` (held).
   - `MODEL_2_C16` (candidate 16, the old shipped pin, held).
-  - `MODEL_2_SHIPPED` (new: `0x4965_b670_bc68_7c27`).
+  - `MODEL_2_SHIPPED` (new: `0x9561_d8f8_a3ce_3a61`).
   - `the_shipped_voicing_is_candidate_16_with_the_technicians_pass_and_a_new_unit_plays_it`.
   - Model 1's pin is held as well.
 - `cantus-ui` `chorda_tune_e2e`: a Chorda added the way the picker adds one plays Bb2, B2, C3
@@ -192,12 +222,74 @@ both keep their bits.
 
 ## The size of the change
 
-GOLDEN
+`DSP_VERSION` 9 → 10, measured with `CANTUS_GOLDEN_DUMP`:
+
+| Render | max \|Δ\| | RMS of Δ | |
+|---|---|---|---|
+| Every golden hash (`null_tests` `v5`, Pulsus's kits, the scene bakes, the null corpus) | 0 | 0 | none includes model 2 of Chorda |
+| Model 1 (`tests_hash`, an old song through the app) | 0 | 0 | pinned, held |
+| Model 2 at beta.14's voicing and at candidate 16 | 0 | 0 | pinned, held |
+| Model 2 at its default (the pinned 0.5 s phrase) | 0.743 | 0.141 (−17.0 dBFS) | new pin |
+
+The default phrase's difference is near the signal's own size, because the strings' phases
+drift apart within it once their tuning moves. Its RMS goes from 0.187 to 0.202 (+0.64 dB).
+
+Level, measured on the lab's keys at mezzo-forte (`keys_mf`, velocity 75, before against
+after):
+
+| Window | change, rms over the keys | keys moved more than 2 dB | each key against its neighbours, rms |
+|---|---|---|---|
+| 0–0.5 s | 0.27 dB | none | 0.77 → 0.83 dB |
+| 0.25–1.25 s | 0.86 dB | F4 +3.4, F7 +4.2, C5 +2.1 | 2.38 → 2.16 dB |
+| 1.25–3.4 s | 1.42 dB | A1 +5.7, B4 +6.1, F7 −6.0, E2 −3.4, D#3 +2.6, F#5 +2.3, C1 +2.2, F#3 −2.1 | 3.03 → 3.42 dB |
+
+Where the later sustain moved, the key's tuning or its beat was the fault:
+
+- B4's clamped string had held the unison apart.
+- F4's and F7's old deep beats were troughs.
+- A1's stiffness scatter was re-held as one set.
+- E2 (a pair of strings and a horizontal loop) moved by its centring alone: its strings now
+  stand differently against the loop.
 
 ## For the owner's ear
 
-RENDERS
+`F:\projects\daw-r40\compartir\chorda-tune\` holds the following, each rendered `-before`
+(candidate 16, master 2a79ded2's sound, pinned) and `-after` (the shipped voicing) on a model-2
+unit at the mezzo-forte velocity, 24-bit:
+
+- `run-A1-C4`: a chromatic run up and down.
+- `octaves-chords-Bb2-C3`: the octaves Bb1–Bb2 … C3–C4, the fifths Bb2–F3, B2–F#3 and C3–G3,
+  and the Bb, B and C chords open and close.
+- `worst-keys-held`: fourteen keys, 3.5 s each.
+- `sweep-A0-C8`: all 88 keys.
+
+`index.html` plays them side by side, and `notes.txt` (in Spanish) lists what was out of tune
+and by how much, before and after. The renders come from the diagnostic `tune_renders`
+(`CHORDA_RENDER_OUT`, `CHORDA_RENDER_VOICING=before|after`).
 
 ## Left
 
-LEFT
+- **The owner's ear.** These are measures. His listening approval of the retuned voicing
+  stays open, as does his ABX of candidate 16 against the Salamander (BACKLOG).
+- **The top octave (F6–C8) has no table.** Its keys sit within 1.3 c at mezzo-forte and
+  2.2 c at pianissimo (D#7). The board's high band and the room take part of a decaying
+  partial's measured pitch there, and moving a key moved its beat by up to 9 dB, so a table
+  did not converge. Making the measure (or the board's tail) robust there would let it reach
+  a cent.
+- **The fundamentals.** They sit up to 2.7 c off their own ladders (C3 −2.7, C#3 −2.1, G1
+  +2.0): the bridge's allowed 2 c pull plus the scatter's residue. A tuner hears the ladder,
+  and in C2–C3 that is a 0.2 Hz beat. A smaller cap (1 c) took it to 1.8 c but scaled most
+  bass keys' resonances by half, so the c16 colour of their decay would have changed.
+- **The stiffness scatter's upper partials.** Partials 3–6 of a key are still a cent or two
+  apart from one another. That is why the 4:2 octaves are allowed 4.5 c. Centring each
+  partial, not the scatter's mean, would need each string's partials solved at the strike.
+- **The CPU test** `model_2s_sixty_four_pedal_down_voices_fit_a_quarter_of_a_core` failed once
+  in the full parallel suite while other builders loaded the machine (64.3 % against its
+  60 %). Alone it passed at 29.4 % and 54.3 %. The pass adds work only at a strike (the
+  bridge's pulls at eight partials, once a note); the per-sample loop did not change.
+- **The voicing lab's gate** (`tuning.py`, gate 2) is a second view. It flags D#7 at +6.7
+  ragged ("informative" above E6), where the suite's kit measures −1.3. Its 1 s FFT start
+  point lands on the board's tail there.
+- **master's tune map** (`chorda_tests_tunemap.rs`, cantus-03's) still plays model 2 on model
+  1's keyboard. It is ignored and untouched here, and `tests_tuning::tuning_map` replaces it;
+  it can be removed when merged.
