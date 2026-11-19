@@ -108,6 +108,12 @@ mkdir -p "$app/usr/share/icons" "$app/usr/share/applications" "$app/usr/share/me
 cp -a "$icons" "$app/usr/share/icons/"
 install -m644 "$here/$id.desktop" "$app/usr/share/applications/"
 install -m644 "$here/$id.desktop" "$app/"
+# The AppImage catalog (appimage.github.io) rejects a .desktop file that Ubuntu 22.04's
+# desktop-file-validate (0.26) does not pass — beta.14's carried SingleMainWindow, a key
+# that version does not know. Checked here whenever the tool is installed (the CI's image).
+if command -v desktop-file-validate >/dev/null; then
+  desktop-file-validate "$app/$id.desktop"
+fi
 sed "s/@VERSION@/$version/; s/@DATE@/$(date -u +%Y-%m-%d)/" "$here/$id.metainfo.xml" \
   >"$app/usr/share/metainfo/$id.metainfo.xml"
 install -m644 "$here/$id.mime.xml" "$app/usr/share/mime/packages/$id.xml"

@@ -14,4 +14,3 @@ Keywords[es]=DAW;música;audio;MIDI;grabación;mezcla;masterización;sintetizado
 MimeType=application/x-cantus-project;
 StartupNotify=true
 StartupWMClass=cantus
-SingleMainWindow=true
