@@ -28,7 +28,7 @@ const head = (tipX, tipY, n, dir) => {
   return out;
 };
 
-// Polarity, swap and mono below 27 px: smooth, anti-aliased vectors scaled from the 27-px
+// Polarity and mono below 27 px: smooth, anti-aliased vectors scaled from the 27-px
 // drawing (2026-11-18, the owner: the 1-px stair-stepped ring and diagonal looked pixelated
 // on the strip). The stroke keeps a weight that reads at each size; the 27 is unchanged.
 const SMOOTH_W = { 12: 1.25, 16: 1.4, 18: 1.5, 24: 1.75 };
@@ -52,11 +52,13 @@ N.phase = {
 
 // Swap L/R: two arrows passing each other.
 const SWAP27 = '<path class="s1" stroke-width="2" stroke-linecap="round" d="M7 10 H19.5 M20 17 H7.5"/><path class="s1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16.5 7 L20 10 L16.5 13 M10.5 14 L7 17 L10.5 20"/>';
+// (The arrows stay the round-39 pixel drawings below 27: straight runs and solid heads are
+// crisp on the pixel grid, and the owner preferred them, 2026-11-18.)
 N.swap = {
-  12: { svg: scaled27(12, SWAP27) },
-  16: { svg: scaled27(16, SWAP27) },
-  18: { svg: scaled27(18, SWAP27) },
-  24: { svg: scaled27(24, SWAP27) },
+  12: { svg: cells(seg(2, 3, 7, 3).concat(head(9, 3, 2, 1), seg(4, 8, 9, 8), head(2, 8, 2, -1))) },
+  16: { svg: cells(seg(3, 5, 10, 5).concat(head(13, 5, 3, 1), seg(5, 10, 12, 10), head(2, 10, 3, -1))) },
+  18: { svg: cells(seg(4, 6, 11, 6).concat(head(14, 6, 3, 1), seg(6, 11, 13, 11), head(3, 11, 3, -1))) },
+  24: { svg: cells(seg(5, 8, 15, 8).concat(head(18, 8, 3, 1), seg(8, 15, 18, 15), head(5, 15, 3, -1))) },
   27: { svg: SWAP27 },
 };
 
