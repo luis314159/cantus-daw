@@ -373,8 +373,16 @@ fn opening_for_a_purpose_offers_instruments_or_effects() {
         .visible()
         .iter()
         .all(|&i| v.catalog[i].role == Role::Instrument));
+    // The recorded pianos and kits installed on this computer are instruments too (`pack:`
+    // entries, round 40): counted apart, so the count holds on a machine with packs
+    // installed as on one without (it failed on the owner's with six pianos, 2026-11-18).
+    let not_packs = v
+        .visible()
+        .iter()
+        .filter(|&&i| !v.catalog[i].key.starts_with("pack:"))
+        .count();
     assert_eq!(
-        v.visible().len(),
+        not_packs,
         InstrumentKind::ready_kinds().count() + 2 + 2,
         "every ready native kind, Pulsus II and Firmus, and two hosted instruments"
     );
