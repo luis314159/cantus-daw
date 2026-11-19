@@ -716,7 +716,12 @@ fn tryit(web: &Path, card: &str) -> Option<(TrySource, Vec<TryTake>)> {
     } else {
         format!("tryit-{card}")
     };
-    let (mut en, mut es) = two(&m["source"]);
+    let said = if m["dry_source"].is_array() {
+        &m["dry_source"]
+    } else {
+        &m["source"]
+    };
+    let (mut en, mut es) = two(said);
     for s in [&mut en, &mut es] {
         // The page says "Without the effect · <source>": a lower-case start reads on.
         if let Some(c) = s.chars().next() {

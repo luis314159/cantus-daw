@@ -165,3 +165,76 @@ cargo run --release -p cantus-ui --example render_unit_sounds -- web --effects -
 - **Not compared by ear by anyone yet.** The listening page for the owner is
   `F:\projects\daw-fx-d\sounds-review\index.html` (now and new side by side, with the dry
   takes and credits).
+
+## 8. Second pass: the amp after the drives
+
+The coordinator's direction (2026-11-18): drives into a raw DI sound fizzy, and nobody demos
+them that way.
+
+- **Tabula: a new factory board, *Crunch amp rig* / *Equipo con ampli crunch***
+  (`preset.tabula.crunch_amp_rig`, `cantus_core::fx::tabula_presets::factory`):
+  - Fragor's green overdrive as a light push (drive 0.25, level 0.7);
+  - Arca's crunch amp into its vintage 4×12, a dynamic close (Arca's *British crunch*
+    values);
+  - a 375 ms delay at 15 %;
+  - a little Space after.
+
+  Two macros: Drive (Arca's gain 0.3 → 0.85) and Echo (the delay's mix 0 → 40 %). It is
+  Tabula's lead Try it preset and its card's first excerpt.
+- **The two drive boards now end in an amp:**
+  - *Blues crunch*: the overdrive into Arca's clean amp at the edge of break-up and its open
+    1×12.
+  - *Fuzz lead*: the fuzz into Arca's clean amp, the vintage 4×12 and a ribbon.
+
+  *Guitar rig* (the starting board, which the Tabula e2e tests hold to the bit) is left as it
+  is, and Try it no longer shows it. *Ambient swells*, *Phaser funk* and *Wet, dry, wet* have
+  no drive, or a light one for a split; they are unchanged.
+- **The counts:** Tabula has 15 boards. The card and the README say "Fifteen boards …; three
+  hold the amp and its cabinet".
+- **Fragor in Try it and on its card: Fragor into Arca's clean amp and cabinet**
+  (`render_tryit::INTO_AMP`, fixed): *Clean combo*'s amp and gain, into the vintage 4×12
+  with a ribbon. Clean combo's own open 1×12 was tried first. It left the energy above 6 kHz
+  where Fragor alone put it (−21.0 dB against −21.8), so it was not enough.
+  - The dry take is the same chain with Fragor bypassed (`/tryit/fragor/dry.mp3`), so what
+    changes is Fragor alone.
+  - The source reads "Fragor into Arca's clean amp and cabinet" / "Fragor hacia el ampli
+    limpio y la caja de Arca".
+  - The card's dry row reads "the DI guitar into Arca's clean amp and cabinet, Fragor off"
+    (the manifest's `dry_source`).
+- **The README** no longer says "hear them" for Speculum and Comparatio, which have no
+  excerpt now; it says "its card".
+
+**Measured** (`shared::fizz_db`: the share of the energy above 6 kHz, a fourth-order
+Butterworth; the DI alone −53.2 dB):
+
+| Take | Alone into the DI | Into Arca's clean amp, the 4×12 |
+|---|---|---|
+| Fragor *Green push* | −44.7 | −40.0 |
+| Fragor *Thick rhythm* | −21.8 | −27.0 |
+| Fragor *Vintage fuzz* | −18.8 | −26.0 |
+| Fragor *Endless sustain* | −19.6 | −25.7 |
+| the dry take | −53.2 | −43.8 |
+
+- **Tabula:**
+  - *Crunch amp rig* −27.7 dB; *Blues crunch* −34.2; *Fuzz lead* −27.8 (with its amp);
+    *Ambient swells* −55.2.
+  - Arca's own presets sit between −22.1 (*Tight rhythm*) and −36.8 (*Chiming jangle*).
+- **No other unit on the guitar needs the amp:**
+  - Saltus, Rota, Cribrum, Phasis and Fractus sit at −40 to −64 dB, near the DI or under it.
+  - Caelum sits at −39 to −47.
+  - The two loud ones are made to be bright, and are not drives: Vetus *8-bit* at −21.2
+    (aliasing is the point) and one Lapsus preset at −29.2.
+  - Fervor and Calor are never heard on the guitar: Fervor on the mix, the kit and the
+    voice; Calor is a synthesiser.
+- **The boards' levels** (as the preset leaves the guitar, Try it's measure): *Crunch amp rig*
+  −0.6 dB, *Blues crunch* 0.0, *Fuzz lead* 0.0. Arca's `out` is set in the two drive boards:
+  −10 and −3.6 dB, in place of the starting +5.4.
+
+**What `preset_render` holds, and what it does not:**
+- **It never hears a board:** every one of Tabula's 15 measures exactly as its dry source
+  (−22.8 LUFS, +0.0, the same peak), old and new alike. Its audition path does not apply a
+  board preset. That predates this branch; it is for the backlog. The boards' levels above are
+  Try it's.
+- **The run here failed on CPU only,** for presets of Unda, Calor, the sampler, Fragor, Saltus
+  and Arca, which this branch does not touch. The machine was loaded meanwhile (a long Linux
+  test in WSL). No preset failed on level or clipping.

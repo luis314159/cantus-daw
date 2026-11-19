@@ -455,3 +455,67 @@ pub fn app_with(demo: &str, kind: EffectKind, values: &Values) -> (CantusApp, Ef
     slot.midi_from = None;
     (app, slot)
 }
+
+/// A factory preset's values, by its kind and the last part of its id.
+pub fn preset_values(kind: EffectKind, id: &str) -> Values {
+    cantus_ui::preset_catalog::entries(cantus_ui::preset_catalog::Unit::Effect(kind), false)
+        .into_iter()
+        .find_map(|e| match e.payload {
+            cantus_ui::preset_catalog::Payload::Effect(v)
+                if e.id.rsplit('.').next() == Some(id) =>
+            {
+                Some(v)
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no preset {id}"))
+}
+
+/// A slot of `kind` with a factory preset's values, all wet, heard alone.
+pub fn slot_of(kind: EffectKind, values: &Values) -> EffectSlot {
+    let mut scratch = Project::new("scratch");
+    let mut slot = scratch.make_effect(kind);
+    slot.spec.params = cantus_ui::preset_audition::effect_params_after(&slot.spec, values);
+    slot.mix = 1.0;
+    slot
+}
+
+/// The share of a take's energy above 6 kHz, dB (a fourth-order Butterworth high-pass, so the
+/// 2–4 kHz presence a drive and a cabinet keep is not counted): the fizz a distortion leaves
+/// on a direct guitar with no cabinet after it.
+pub fn fizz_db(l: &[f32], r: &[f32]) -> f64 {
+    let w = 2.0 * std::f64::consts::PI * 6000.0 / f64::from(RATE);
+    let (c, s) = (cantus_dsp::math::cos(w), cantus_dsp::math::sin(w));
+    // The two sections of a fourth-order Butterworth.
+    let sections: Vec<[f64; 5]> = [0.541_196_1, 1.306_563]
+        .iter()
+        .map(|q| {
+            let alpha = s / (2.0 * q);
+            let a0 = 1.0 + alpha;
+            [
+                (1.0 + c) / 2.0 / a0,
+                -(1.0 + c) / a0,
+                (1.0 + c) / 2.0 / a0,
+                -2.0 * c / a0,
+                (1.0 - alpha) / a0,
+            ]
+        })
+        .collect();
+    let (mut high, mut all) = (0f64, 0f64);
+    for x in [l, r] {
+        let mut st = [[0f64; 4]; 2];
+        for v in x {
+            let v = f64::from(*v);
+            all += v * v;
+            let mut y = v;
+            for (k, [b0, b1, b2, a1, a2]) in sections.iter().enumerate() {
+                let [x1, x2, y1, y2] = st[k];
+                let out = b0 * y + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+                st[k] = [y, x1, out, y1];
+                y = out;
+            }
+            high += y * y;
+        }
+    }
+    10.0 * cantus_dsp::math::log10((high / all.max(1e-12)).max(1e-12))
+}

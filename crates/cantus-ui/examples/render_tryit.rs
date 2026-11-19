@@ -72,7 +72,12 @@ const UNITS: &[(&str, EffectKind, &str, &[&str])] = &[
         "tabula",
         EffectKind::Board,
         "tabula",
-        &["guitar_rig", "blues_crunch", "fuzz_lead", "ambient_swells"],
+        &[
+            "crunch_amp_rig",
+            "blues_crunch",
+            "fuzz_lead",
+            "ambient_swells",
+        ],
     ),
     (
         "saltus",
@@ -149,6 +154,13 @@ const UNITS: &[(&str, EffectKind, &str, &[&str])] = &[
         ],
     ),
 ];
+
+/// Drive units heard as a guitarist hears them: into Arca's clean amp and cabinet (Clean
+/// combo's amp into the vintage 4×12 and a ribbon, fixed), the dry take the same chain with
+/// the unit bypassed, so what
+/// changes is the unit alone. A distortion into no cabinet leaves fizz no player hears
+/// (`shared::fizz_db` measures it; `docs/round-fx/sounds.md`).
+const INTO_AMP: &[&str] = &["fragor"];
 
 /// A unit heard on a take of its own (`--takes`; `@mix` is built, `shared::mix`).
 struct Own {
@@ -558,10 +570,50 @@ fn main() {
         }
         chosen.truncate(n_presets);
         let mut presets = Vec::new();
+        // The amp after the unit, and the dry take through it alone.
+        let amp = INTO_AMP.contains(name).then(|| {
+            // Arca's clean amp at its Clean combo's gain, into the vintage 4×12 with a ribbon:
+            // the open 1×12 of Clean combo leaves the drives' fizz above 6 kHz where it was.
+            let mut v = shared::preset_values(EffectKind::Amp, "clean_combo");
+            v.insert("cab".into(), 3.0);
+            v.insert("mic".into(), 1.0);
+            shared::slot_of(EffectKind::Amp, &v)
+        });
+        let (dry_url, dry_lufs) = match &amp {
+            Some(a) => {
+                let (al, ar) = through(&l, &r, a, BPM, &[]);
+                let (al, ar) = (second_half(&al), second_half(&ar));
+                total += mp3(
+                    &al,
+                    &ar,
+                    site_gain(&al, &ar),
+                    &dir.join("dry.mp3"),
+                    "The DI guitar into Arca's clean amp",
+                );
+                println!(
+                    "{name}: dry into the amp, fizz {:.1} dB (the DI's {:.1})",
+                    shared::fizz_db(&al, &ar),
+                    shared::fizz_db(&dl, &dr)
+                );
+                (format!("/tryit/{name}/dry.mp3"), lufs(&al, &ar))
+            }
+            None => ("/tryit/guitar.mp3".to_string(), dry_lufs),
+        };
         for (e, values) in chosen {
             let (_, slot) = app_with(demo, *kind, values);
             let (wl, wr) = through(&l, &r, &slot, BPM, &[]);
+            let raw_fizz = shared::fizz_db(&second_half(&wl), &second_half(&wr));
+            let (wl, wr) = match &amp {
+                Some(a) => through(&wl, &wr, a, BPM, &[]),
+                None => (wl, wr),
+            };
             let (wl, wr) = (second_half(&wl), second_half(&wr));
+            println!(
+                "{name}: fizz {:.1} dB ({:.1} with no cabinet after; the DI's {:.1})",
+                shared::fizz_db(&wl, &wr),
+                raw_fizz,
+                shared::fizz_db(&dl, &dr)
+            );
             let loud = lufs(&wl, &wr);
             let gain = site_gain(&wl, &wr);
             let stem = e.id.rsplit('.').next().unwrap_or("preset").to_string();
@@ -571,7 +623,13 @@ fn main() {
             presets.push(serde_json::json!({
                 "id": stem,
                 "name": [name_en, t_in(Locale::Es, &e.id)],
-                "what": [what(e, Locale::En), what(e, Locale::Es)],
+                "what": match &amp {
+                    Some(_) => [
+                        format!("{} · into Arca's clean amp and cabinet", what(e, Locale::En)),
+                        format!("{} · hacia el ampli limpio y la caja de Arca", what(e, Locale::Es)),
+                    ],
+                    None => [what(e, Locale::En), what(e, Locale::Es)],
+                },
                 "wet": format!("/tryit/{name}/{stem}.mp3"),
                 "level_db": ((loud - dry_lufs) * 10.0).round() / 10.0,
                 "pic": format!("/tryit/{name}/{stem}"),
@@ -582,6 +640,19 @@ fn main() {
                 loud + gain
             );
         }
+        let unit_name = t_in(Locale::En, Unit::Effect(*kind).name_key());
+        let unit_name = unit_name.split_whitespace().next().unwrap_or(name);
+        let source = if amp.is_some() {
+            serde_json::json!([
+                format!("Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar, {unit_name} into Arca's clean amp and cabinet"),
+                format!("Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief, {unit_name} hacia el ampli limpio y la caja de Arca")
+            ])
+        } else {
+            serde_json::json!([
+                "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
+                "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+            ])
+        };
         let manifest = serde_json::json!({
             "unit": name,
             "origin": "presets",
@@ -589,16 +660,18 @@ fn main() {
                 "Rendered by Cantus from its factory presets on one take, each matched to one loudness by a gain alone.",
                 "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
             ],
-            "source": [
-                "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
-                "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
-            ],
+            "source": source,
             "credit": [
                 "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
                 "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
             ],
             "loop": true,
-            "dry": "/tryit/guitar.mp3",
+            "dry": dry_url,
+            // What the dry take alone is, where it is not the source itself.
+            "dry_source": amp.as_ref().map(|_| serde_json::json!([
+                format!("the DI guitar into Arca's clean amp and cabinet, {unit_name} off"),
+                format!("la guitarra DI hacia el ampli limpio y la caja de Arca, sin {unit_name}")
+            ])),
             "presets": presets,
         });
         let text = serde_json::to_string_pretty(&manifest).expect("json") + "\n";

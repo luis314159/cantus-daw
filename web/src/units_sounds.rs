@@ -208,10 +208,10 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         snd!("/tryit/cribrum/talking", ("Talking lead", "Lead que habla"), ("Vocal — Pop, Film · Game", "Voz — Pop, Cine · Videojuegos"), "guitar"),
     ]),
     ("fragor", &[
-        snd!("/tryit/fragor/green_push", ("Green push", "Empuje verde"), ("Creative — Pop, Rock", "Creativo — Pop, Rock"), "guitar"),
-        snd!("/tryit/fragor/rat_rhythm", ("Thick rhythm", "Ritmo espeso"), ("Creative — Rock", "Creativo — Rock"), "guitar"),
-        snd!("/tryit/fragor/vintage_fuzz", ("Vintage fuzz", "Fuzz clásico"), ("Creative — Rock", "Creativo — Rock"), "guitar"),
-        snd!("/tryit/fragor/muff_sustain", ("Endless sustain", "Sustain sin fin"), ("Creative — Rock", "Creativo — Rock"), "guitar"),
+        snd!("/tryit/fragor/green_push", ("Green push", "Empuje verde"), ("Creative — Pop, Rock · into Arca's clean amp and cabinet", "Creativo — Pop, Rock · hacia el ampli limpio y la caja de Arca"), "tryit-fragor"),
+        snd!("/tryit/fragor/rat_rhythm", ("Thick rhythm", "Ritmo espeso"), ("Creative — Rock · into Arca's clean amp and cabinet", "Creativo — Rock · hacia el ampli limpio y la caja de Arca"), "tryit-fragor"),
+        snd!("/tryit/fragor/vintage_fuzz", ("Vintage fuzz", "Fuzz clásico"), ("Creative — Rock · into Arca's clean amp and cabinet", "Creativo — Rock · hacia el ampli limpio y la caja de Arca"), "tryit-fragor"),
+        snd!("/tryit/fragor/muff_sustain", ("Endless sustain", "Sustain sin fin"), ("Creative — Rock · into Arca's clean amp and cabinet", "Creativo — Rock · hacia el ampli limpio y la caja de Arca"), "tryit-fragor"),
     ]),
     ("lapsus", &[
         snd!("/tryit/lapsus/half_time", ("Half time", "Medio tiempo"), ("Drums — Trap · Hip-hop, House · EDM", "Batería — Trap · Hip-hop, House · EDM"), "guitar"),
@@ -231,7 +231,7 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         snd!("libra-haas_wide", ("Haas width", "Anchura Haas"), ("Creative — Pop, Ambient · Cinematic", "Creativo — Pop, Ambient · Cinemático"), "mix"),
     ]),
     ("tabula", &[
-        snd!("/tryit/tabula/guitar_rig", ("Guitar rig", "Equipo de guitarra"), ("Creative — Pop, Rock", "Creativo — Pop, Rock"), "guitar"),
+        snd!("/tryit/tabula/crunch_amp_rig", ("Crunch amp rig", "Equipo con ampli crunch"), ("Creative — Pop, Rock", "Creativo — Pop, Rock"), "guitar"),
         snd!("/tryit/tabula/blues_crunch", ("Blues crunch", "Crujido de blues"), ("Creative — Rock, Jazz · Soul", "Creativo — Rock, Jazz · Soul"), "guitar"),
         snd!("/tryit/tabula/fuzz_lead", ("Fuzz lead", "Solo con fuzz"), ("Creative — Rock", "Creativo — Rock"), "guitar"),
         snd!("/tryit/tabula/ambient_swells", ("Ambient swells", "Oleadas ambientales"), ("Creative — Ambient · Cinematic, Film · Game", "Creativo — Ambient · Cinemático, Cine · Videojuegos"), "guitar"),
@@ -309,6 +309,7 @@ pub const SOURCES: &[(&str, &str, (&str, &str), (&str, &str), bool)] = &[
     ("piano", "source-piano", ("a recorded grand piano", "un piano de cola grabado"), ("Piano: Salamander Grand Piano V3 by Alexander Holm (FLAC edition by FreePats), CC BY 3.0, played by Cantus's Chorda", "Piano: Salamander Grand Piano V3 de Alexander Holm (edición FLAC de FreePats), CC BY 3.0, tocado por Chorda de Cantus"), true),
     ("guitar", "/tryit/guitar", ("four chords (Am, F, C, G at 90 BPM) on a DI electric guitar", "cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en una guitarra eléctrica DI"), ("Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)", "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"), true),
     ("pad", "source-pad", ("a synthesiser pad holding Am, F, C, G at 90 BPM", "un pad de sintetizador sosteniendo Lam, Fa, Do, Sol a 90 BPM"), ("Pad: Cantus's own Calor (Velvet pad)", "Pad: Calor de Cantus (Pad de terciopelo)"), true),
+    ("tryit-fragor", "/tryit/fragor/dry", ("the DI guitar into Arca's clean amp and cabinet, Fragor off", "la guitarra DI hacia el ampli limpio y la caja de Arca, sin Fragor"), ("Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)", "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"), true),
     ("tryit-loquax", "/tryit/loquax/dry", ("a spoken voice (the Gettysburg Address read by Britton Rea, public domain); the synthesiser plays Am, F, C, G at 90 BPM", "una voz hablada (el discurso de Gettysburg leído por Britton Rea, dominio público); el sintetizador toca Lam, Fa, Do, Sol a 90 BPM"), ("Voice: Britton Rea, public domain (Wikimedia Commons)", "Voz: Britton Rea, dominio público (Wikimedia Commons)"), true),
     ("tryit-vinculum", "/tryit/vinculum/dry", ("a small mix: recorded drums, Cantus's bass and the CC0 guitar, Am, F, C, G at 90 BPM", "una pequeña mezcla: batería grabada, el bajo de Cantus y la guitarra CC0, Lam, Fa, Do, Sol a 90 BPM"), ("Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI); drums: Gogodze Phu Vol. II by Karoryfer Samples, CC0, played by Cantus's Tympanum; bass: Cantus's Gravis", "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI); batería: Gogodze Phu Vol. II de Karoryfer Samples, CC0, tocada por Tympanum de Cantus; bajo: Gravis de Cantus"), true),
     ("tryit-lenis", "/tryit/lenis/dry", ("a spoken voice (the Gettysburg Address read by Britton Rea, public domain)", "una voz hablada (el discurso de Gettysburg leído por Britton Rea, dominio público)"), ("Voice: Britton Rea, public domain (Wikimedia Commons)", "Voz: Britton Rea, dominio público (Wikimedia Commons)"), true),

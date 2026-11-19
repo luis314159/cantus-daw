@@ -6,15 +6,19 @@
     "Renderizado por Cantus desde sus presets de fábrica sobre una toma, cada uno igualado a una sonoridad solo con una ganancia."
   ],
   "source": [
-    "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar",
-    "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief"
+    "Four chords (Am, F, C, G at 90 BPM) on Carbonthief's DI guitar, Fragor into Arca's clean amp and cabinet",
+    "Cuatro acordes (Lam, Fa, Do, Sol a 90 BPM) en la guitarra DI de Carbonthief, Fragor hacia el ampli limpio y la caja de Arca"
   ],
   "credit": [
     "Guitar: Carbonthief, CC0 (Strummed Guitar Chords, DI)",
     "Guitarra: Carbonthief, CC0 (Strummed Guitar Chords, DI)"
   ],
   "loop": true,
-  "dry": "/tryit/guitar.mp3",
+  "dry": "/tryit/fragor/dry.mp3",
+  "dry_source": [
+    "the DI guitar into Arca's clean amp and cabinet, Fragor off",
+    "la guitarra DI hacia el ampli limpio y la caja de Arca, sin Fragor"
+  ],
   "presets": [
     {
       "id": "green_push",
@@ -23,11 +27,11 @@
         "Empuje verde"
       ],
       "what": [
-        "Creative — Pop, Rock",
-        "Creativo — Pop, Rock"
+        "Creative — Pop, Rock · into Arca's clean amp and cabinet",
+        "Creativo — Pop, Rock · hacia el ampli limpio y la caja de Arca"
       ],
       "wet": "/tryit/fragor/green_push.mp3",
-      "level_db": 2.1,
+      "level_db": 2.0,
       "pic": "/tryit/fragor/green_push"
     },
     {
@@ -37,11 +41,11 @@
         "Ritmo espeso"
       ],
       "what": [
-        "Creative — Rock",
-        "Creativo — Rock"
+        "Creative — Rock · into Arca's clean amp and cabinet",
+        "Creativo — Rock · hacia el ampli limpio y la caja de Arca"
       ],
       "wet": "/tryit/fragor/rat_rhythm.mp3",
-      "level_db": -0.4,
+      "level_db": 4.4,
       "pic": "/tryit/fragor/rat_rhythm"
     },
     {
@@ -51,11 +55,11 @@
         "Fuzz clásico"
       ],
       "what": [
-        "Creative — Rock",
-        "Creativo — Rock"
+        "Creative — Rock · into Arca's clean amp and cabinet",
+        "Creativo — Rock · hacia el ampli limpio y la caja de Arca"
       ],
       "wet": "/tryit/fragor/vintage_fuzz.mp3",
-      "level_db": -0.8,
+      "level_db": 3.0,
       "pic": "/tryit/fragor/vintage_fuzz"
     },
     {
@@ -65,11 +69,11 @@
         "Sustain sin fin"
       ],
       "what": [
-        "Creative — Rock",
-        "Creativo — Rock"
+        "Creative — Rock · into Arca's clean amp and cabinet",
+        "Creativo — Rock · hacia el ampli limpio y la caja de Arca"
       ],
       "wet": "/tryit/fragor/muff_sustain.mp3",
-      "level_db": -1.7,
+      "level_db": 1.0,
       "pic": "/tryit/fragor/muff_sustain"
     }
   ]

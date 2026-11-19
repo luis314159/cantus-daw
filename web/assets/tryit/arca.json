@@ -15,6 +15,7 @@
   ],
   "loop": true,
   "dry": "/tryit/guitar.mp3",
+  "dry_source": null,
   "presets": [
     {
       "id": "chime_jangle",
