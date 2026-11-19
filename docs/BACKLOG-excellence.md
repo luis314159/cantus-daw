@@ -256,6 +256,16 @@ launcher y arreglo en una vista, perfiles de pantalla, modo táctil, la Grid), y
 lo que los usuarios de Bitwig echan de menos (comping MIDI, captura retroactiva, ARA,
 video, versiones, contenido).
 
+**(5, 2026-11-19)** Bancos de sonido por grupos, hechos por agentes en modo ingeniero de
+audio: por estilo (trap, reguetón y latino, house, techno, drum & bass, lo-fi, pop, rock,
+ambiental y cine, orquestal, alabanza e iglesia, chiptune) y por tipo (baterías, loops,
+bajos, teclados, leads, pads, plucks, efectos, texturas, percusión del mundo), cada uno con
+presets, one-shots, loops, kits y una plantilla. Primero con los motores de Cantus a través
+del servidor MCP (cada sonido guardado como receta para reconstruirlo), luego otras
+herramientas solo con licencia limpia; nunca bibliotecas comerciales remuestreadas. Los
+agentes no oyen: cada archivo pasa medidas (volumen por rol, pico, clics, afinación, loops
+exactos, sin duplicados) y tú escuchas una muestra de cada banco antes de publicarlo.
+
 ## 1. Real use — the test that matters most
 
 - **Cantus cannot read 32-bit integer FLAC** (found in the effects side round, 2026-11-13):
@@ -1329,6 +1339,50 @@ measurement or been decided against with the reason written down.
   sixteen kits' grooves), rendered at the round's final sound, CC0, hosted on the
   `content-r37` release with sizes and SHA-256 pinned (manifest format 4). Vetted and not
   added yet: the rest of VSCO 2 CE, Kenney's *Sci-fi* and *Impact Sounds* (CC0).
+- **Sound banks by group, made by a team of audio-engineer agents (the owner, 2026-11-19)**:
+  "hacer un banco de sonido con diferentes grupos … agentes en modo ingeniero de audio para
+  generarlos ya sea con las herramientas de Cantus y otras." The step after round 37's
+  presets and its two CC0 packs: complete **banks**, each a group a producer reaches for —
+  FL's expansions and FL Cloud's sounds, Bitwig's packs, Ableton's Packs — each with its
+  presets, one-shots, loops, kits and a template project, in one key and tempo family.
+  - **Groups.** By style: trap and hip-hop, reggaeton and Latin, house, techno, drum & bass,
+    lo-fi, pop, rock and band, ambient and cinematic, orchestral, worship and church
+    (praise band, choir pads, organ, piano — Cantus's own audience), chiptune. By type,
+    across styles: drum one-shots and kits, drum loops, basses (808, sub, plucked, synth),
+    keys, leads, pads, plucks and arps, textures, FX (risers, impacts, sweeps, transitions),
+    world percussion. Each bank starts at a floor (e.g. 64 presets, 150 one-shots, 40 loops,
+    4 kits, a template) and is judged as a set.
+  - **Made inside Cantus first.** An agent works as an engineer through the MCP server
+    (round 34, `find_presets`, `audition_preset` and the rest): builds presets on Unda,
+    Calor, Modulus, Exemplar, Gravis, Lamina, Organum, Chorda, Pulsus and Tympanum, plays
+    them in phrases, renders, measures, iterates. A preset is a few hundred bytes, editable,
+    and shows what Cantus can do; a rendered file is kept as a **recipe** (project, preset,
+    seed, `DSP_VERSION`), so a bank is rebuilt by a script when the DSP changes and every
+    file has its provenance. *(Check first)* that the MCP tools reach every parameter of
+    every instrument; the gaps are the first work.
+  - **Other tools, only with a clean licence.** Audio rendered from free synths whose
+    output is the user's (e.g. Surge XT; their factory presets and wavetables checked one by
+    one), CC0 sources (Freesound CC0, Kenney) processed through Cantus, and CC BY with
+    credit (ADR 0042). **Never** resampled commercial libraries or plug-ins whose EULA forbids
+    redistributing their sounds as samples; never a sound copied from a reference — a
+    reference is described (pitch, envelope, spectrum, loudness), not sampled. Each tool's
+    terms are recorded in the bank's notes before its first file.
+  - **Agents cannot hear: the gate is measured, the verdict is the owner's.** Every file
+    passes: its role's loudness window (round 37's ±2 LU), true peak ≤ −1 dBTP, no DC, no
+    clicks at the start or end, tails that decay below −90 dBFS or loop at a zero crossing,
+    tuned notes within ±3 cents and named by their root, loops an exact number of bars at
+    their tempo, no near-duplicates in a bank (a distance on spectral descriptors or an
+    audio embedding — CLAP-class models are a research item: licence, size, local only).
+    A second agent reviews each bank against its brief and the gate. Then **the owner
+    listens** to a chosen sample per bank (a page with the sounds by group, as the ABX
+    pages) and approves or sends back; nothing is published without it.
+  - **Delivered on demand** (ADR 0030): each bank a pack with sizes and SHA-256 pinned,
+    tagged for the browser (style, role, key, tempo, character), heard on the website; the
+    upload to the public content release with the owner's OK.
+  - **How it runs.** One agent per bank (a brief: references, floor, character), a reviewer,
+    the owner's listening; at most about three building at once (RAM), never during a
+    performance measurement. Feeds BACKLOG §6l items 4 (the ROMpler), 17 (Loop Starter) and
+    42 (content against FL Cloud and Bitwig's packs), and §5's demo songs and templates.
 
 ## 6. Product
 
