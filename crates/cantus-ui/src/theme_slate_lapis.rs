@@ -29,7 +29,8 @@
 //!   every contrast Slate holds; the text, the keys, the knob and fader caps (the metal),
 //!   the meters, the cables' and the status colours are Slate's.
 //!
-//! Slate stays the default and does not change ([`crate::theme::default_theme`]).
+//! Slate Lapis has been the default since 2026-11-18 (ADR 0111, amended;
+//! [`crate::theme::default_theme`]); Slate, round 39's default, does not change.
 
 use crate::kit::system::System;
 use crate::kit::tokens::Tokens;

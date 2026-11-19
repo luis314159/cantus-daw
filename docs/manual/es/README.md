@@ -247,16 +247,18 @@ con el foco se ilumina); `Shift+F10` abre lo que abriría un clic derecho sobre 
 Guarda la forma de la ventana en *Ver ▸ Disposición ▸ Guardar disposición…*; la disposición se
 conserva entre sesiones.
 
-**El aspecto.** Cantus se dibuja en **Pizarra**: un espacio gris azulado y tranquilo donde los
-paneles se separan por el tono y no por líneas, un solo acento azul significa *activado* o
-*elegido* y nada más, y los colores de tus pistas son una franja y un tinte hasta que eliges una
-pista — entonces se ilumina en toda la ventana (su encabezado, sus clips, su canal y el
-inspector). La letra es Barlow Semi Condensed, cuyas cifras no cambian de ancho al contar; las
-teclas y los campos son pozos planos con un borde oscuro y un labio claro; en silencio nada
-dice «−∞». *Ajustes ▸ Apariencia* (`Ctrl+,`) tiene todos los temas como imágenes, en
-cuatro grupos: las **familias** de la ronda 39 — **Pizarra** (la predeterminada), **Pizarra
-lapislázuli** (un espacio azul noche, la selección en lapislázuli y el oro del logo en el
-reloj, los números de las reglas, el cursor de reproducción y el bucle), **Grafito y oro** y **Tinta de estudio**; los temas
+**El aspecto.** Cantus se dibuja por defecto en **Pizarra lapislázuli**: el espacio tranquilo de
+Pizarra, donde los paneles se separan por el tono y no por líneas, en un azul noche profundo;
+un solo acento lapislázuli significa *activado* o *elegido* y nada más, y el oro del logo marca
+el reloj, los números de las reglas, el cursor de reproducción y el bucle. Los colores de tus
+pistas son una franja y un tinte hasta que eliges una pista — entonces se ilumina en toda la
+ventana (su encabezado, sus clips, su canal y el inspector). La letra es Barlow Semi Condensed,
+cuyas cifras no cambian de ancho al contar; las teclas y los campos son pozos planos con un
+borde oscuro y un labio claro; en silencio nada dice «−∞». *Ajustes ▸ Apariencia* (`Ctrl+,`)
+tiene todos los temas como imágenes, en cuatro grupos: las **familias** de la ronda 39 —
+**Pizarra lapislázuli** (la predeterminada, la primera, Noche y Papel), **Pizarra** (el mismo
+sistema en gris azulado con un acento azul celeste, la predeterminada de 0.1.0-beta.14 y
+beta.15), **Grafito y oro** y **Tinta de estudio**; los temas
 de versiones anteriores, **redibujados** en el aspecto nuevo — **Cantus Noche · Papel**
 (espresso y el cobre del logo, cardenillo en la selección), **Hora azul · Luz de día** (azul
 marino profundo, y blanco con azul), **Peltre · Tiza** (gris pizarra con naranja y lima, y
@@ -268,9 +270,12 @@ contraste** (todo el texto a 7:1). Un clic elige una familia en sus dos luces; u
 una sola luz (Ultravioleta, Laguna, Burdeos, Imprenta) además pasa la ventana a ese modo. Luego
 el modo (**Noche**, **Papel**, o seguir al sistema), el estilo de los cables, los colores del
 icono de la barra de tareas y el recoloreado (tono, saturación, brillo, contraste, cada papel de
-color, o un clic en un elemento para cambiarle el color). Un ajuste guardado por una versión
-anterior abre en el tema que nombra, con tus cambios de color conservados; los temas que hiciste
-tú no se tocan. En los temas de alto contraste y en tus temas antiguos los faders siguen
+color, o un clic en un elemento para cambiarle el color). El tema que elegiste se conserva: un
+ajuste guardado por una versión anterior abre en el tema que nombra, con tus cambios de color
+conservados, y los temas que hiciste tú no se tocan. Si nunca elegiste uno — Pizarra sin tocar en
+un ajuste de beta.14 o beta.15 —, Cantus abre en el tema predeterminado de hoy, Pizarra lapislázuli;
+un clic en la imagen de Pizarra la devuelve, y se queda. En los temas de alto contraste y en tus
+temas antiguos los faders siguen
 ofreciendo dos capuchones (*Faders*: **Clásico** y **Metal**); los demás temas dibujan un solo
 capuchón, iluminado desde arriba.
 

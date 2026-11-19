@@ -26,8 +26,8 @@ fn main() {
     let code = locale.code();
     for kind in ["open", "list", "listening", "proposal", "proposal-end"] {
         for (theme_name, theme) in [
-            ("slate", cantus_ui::theme::slate_night()),
-            ("paper", cantus_ui::theme::slate_paper()),
+            ("slate", cantus_ui::theme::default_theme()),
+            ("paper", cantus_ui::theme::default_light_theme()),
         ] {
             let ctx = egui::Context::default();
             cantus_ui::design::install_fonts(&ctx);

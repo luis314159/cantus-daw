@@ -9,7 +9,7 @@ theme.ultraviolet = Ultravioleta (oscuro)
 theme.lagoon = Laguna (oscuro)
 theme.contrast = Alto contraste (oscuro)
 theme.contrast_light = Alto contraste (claro)
-# ronda 39 (ADR 0111): Pizarra, la predeterminada, y las dos familias opcionales.
+# ronda 39 (ADR 0111): Pizarra, Pizarra lapislázuli (la predeterminada desde el 2026-11-18) y las dos familias opcionales.
 theme.slate_night = Pizarra Noche (oscuro)
 theme.slate_paper = Pizarra Papel (claro)
 theme.slate_lapis_night = Pizarra lapislázuli, Noche (oscuro)

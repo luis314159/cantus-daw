@@ -13,7 +13,7 @@
 //!
 //! - `window-night` (1920 × 1080, the hero): the whole song across the arrangement (intro,
 //!   build, drop, break, drop, outro), the desk Extra large with the selected strip's
-//!   cables, the sample browser and the inspector, in Cantus Night (the default);
+//!   cables, the sample browser and the inspector, in the default theme;
 //!   `window-night-720` / `window-paper-720`: the window as it opens, Night and Paper.
 //! - `mixer`: the desk Extra large with the selected strip's cables, and the inspector.
 //! - `matrix`: the Routing tab (Alt+F9) on the song's desk.
@@ -209,14 +209,20 @@ fn window_with(
     })
 }
 
-/// One view alone, filling `size` points, in Cantus Night.
+/// One view alone, filling `size` points, in the default theme.
 fn alone(
     size: (f32, f32),
     setup: fn(&mut CantusApp),
     draw: fn(&mut CantusApp, &mut egui::Ui),
 ) -> Canvas {
     let ctx = context();
-    let (mut app, mut processor) = playing(&ctx, "slate_night", song(), 6, setup);
+    let (mut app, mut processor) = playing(
+        &ctx,
+        cantus_ui::kit::appearance::DEFAULT_DARK,
+        song(),
+        6,
+        setup,
+    );
     let mut audio = vec![0f32; 800 * 2];
     let k = ppp(); // r37:finish (the shot below is at k)
     raster::shoot(&ctx, egui::vec2(size.0, size.1) / k, k, 10, None, |root| {
@@ -455,10 +461,10 @@ fn trimmed(canvas: &Canvas, margin: f32) -> Rect {
     )
 }
 
-/// A context in Cantus Night (the default theme), for the views drawn alone.
+/// A context in the default theme, for the views drawn alone.
 fn night() -> egui::Context {
     let ctx = context();
-    cantus_ui::theme::apply(&cantus_ui::theme::slate_night(), &ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx);
     ctx
 }
 
@@ -601,10 +607,10 @@ fn score_app(ctx: &egui::Context, preset: &str) -> CantusApp {
     app
 }
 
-/// The piano roll with the staff under it (Alt+S), in Cantus Night.
+/// The piano roll with the staff under it (Alt+S), in the default theme.
 fn score_roll() -> Canvas {
     let ctx = night();
-    let mut app = score_app(&ctx, "slate_night");
+    let mut app = score_app(&ctx, cantus_ui::kit::appearance::DEFAULT_DARK);
     app.score.split_open = true;
     app.score.split_h = 290.0;
     app.score.split_space = 8.5;
@@ -613,11 +619,11 @@ fn score_roll() -> Canvas {
     })
 }
 
-/// The Score pane, in Cantus Paper.
+/// The Score pane, in the default's light twin.
 fn score_pane() -> Canvas {
     let ctx = context();
-    cantus_ui::theme::apply(&cantus_ui::theme::slate_paper(), &ctx);
-    let mut app = score_app(&ctx, "slate_paper");
+    cantus_ui::theme::apply(&cantus_ui::theme::default_light_theme(), &ctx);
+    let mut app = score_app(&ctx, cantus_ui::kit::appearance::DEFAULT_LIGHT);
     app.score.pane_space = 8.0;
     raster::shoot(&ctx, egui::vec2(900.0, 400.0), 1.0, 4, None, |ui| {
         cantus_ui::views::score_view::show(&mut app, ui)
@@ -629,7 +635,7 @@ fn score_page() -> Canvas {
     use cantus_score::layout::{engrave, Format, LayoutOptions, Paper};
     use cantus_ui::views::score_paint::{paint, Placement, ScoreInk};
     let ctx = context();
-    let mut app = score_app(&ctx, "slate_paper");
+    let mut app = score_app(&ctx, cantus_ui::kit::appearance::DEFAULT_LIGHT);
     app.settings.export.tags.artist = "Cantus".into();
     let score = cantus_ui::score::score_of(
         &app,
@@ -675,7 +681,7 @@ fn instrument(kind: &str) -> (Canvas, Option<Rect>) {
     let mut app = studio(
         &ctx,
         cantus_ui::welcome_project(),
-        "slate_night",
+        cantus_ui::kit::appearance::DEFAULT_DARK,
         EngineHandle::dummy(),
     );
     // Exemplar plays the Salamander Grand Piano where its archive is on this machine.
@@ -812,7 +818,7 @@ fn themes() -> Canvas {
     let mut app = studio(
         &ctx,
         cantus_ui::welcome_project(),
-        "slate_night",
+        cantus_ui::kit::appearance::DEFAULT_DARK,
         EngineHandle::dummy(),
     );
     let (cols, chip, gap) = (6usize, Vec2::new(200.0, 92.0), 14.0);
@@ -1008,7 +1014,7 @@ fn shoot_one(name: &str, dir: &Path) {
     match name {
         "window-night" => save(
             &window_with(
-                "slate_night",
+                cantus_ui::kit::appearance::DEFAULT_DARK,
                 (1920.0, 1080.0),
                 whole_song(),
                 22,
@@ -1023,7 +1029,7 @@ fn shoot_one(name: &str, dir: &Path) {
         // of the area keys needs.
         "window-wide" => save(
             &window_with(
-                "slate_night",
+                cantus_ui::kit::appearance::DEFAULT_DARK,
                 (2400.0, 1350.0),
                 whole_song(),
                 22,
@@ -1034,12 +1040,20 @@ fn shoot_one(name: &str, dir: &Path) {
             &path,
         ),
         "window-night-720" => save(
-            &window("slate_night", (1280.0, 720.0), compact),
+            &window(
+                cantus_ui::kit::appearance::DEFAULT_DARK,
+                (1280.0, 720.0),
+                compact,
+            ),
             None,
             &path,
         ),
         "window-paper-720" => save(
-            &window("slate_paper", (1280.0, 720.0), compact),
+            &window(
+                cantus_ui::kit::appearance::DEFAULT_LIGHT,
+                (1280.0, 720.0),
+                compact,
+            ),
             None,
             &path,
         ),
@@ -1054,7 +1068,11 @@ fn shoot_one(name: &str, dir: &Path) {
         "matrix" => save(&alone((700.0, 600.0), nothing, draw_routing), None, &path),
         // The top of the window: the clip browser, the arrangement and the inspector.
         "linked" => {
-            let c = window("slate_night", (1760.0, 1000.0), linked);
+            let c = window(
+                cantus_ui::kit::appearance::DEFAULT_DARK,
+                (1760.0, 1000.0),
+                linked,
+            );
             let top = Rect::from_min_size(
                 egui::Pos2::ZERO,
                 egui::vec2(1760.0, LINKED_ARRANGEMENT + 52.0),

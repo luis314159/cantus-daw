@@ -9,7 +9,7 @@ theme.ultraviolet = Ultraviolet (dark)
 theme.lagoon = Lagoon (dark)
 theme.contrast = High contrast (dark)
 theme.contrast_light = High contrast (light)
-# round 39 (ADR 0111): Slate, the default, and the two optional families.
+# round 39 (ADR 0111): Slate, Slate Lapis (the default since 2026-11-18) and the two optional families.
 theme.slate_night = Slate Night (dark)
 theme.slate_paper = Slate Paper (light)
 theme.slate_lapis_night = Slate Lapis, Night (dark)

@@ -24,7 +24,7 @@ fn context(dark: bool) -> egui::Context {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
-    // `CANTUS_SHOT_SLATE=1`: Slate Night and Slate Paper, the default look (r40:cast).
+    // `CANTUS_SHOT_SLATE=1`: Slate Night and Slate Paper, round 39's default look (r40:cast).
     let slate = std::env::var("CANTUS_SHOT_SLATE").is_ok_and(|v| v == "1");
     let theme = match (slate, dark) {
         (true, true) => cantus_ui::theme_slate::slate_night(),

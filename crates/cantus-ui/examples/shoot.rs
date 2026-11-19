@@ -201,11 +201,12 @@ fn main() {
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
-        // `-dark` is Slate Night, the default theme (round 39); `-light` is Slate Paper.
+        // `-dark` is the default theme (Slate Lapis Night since 2026-11-18); `-light` is its
+        // light twin, Slate Lapis Paper.
         let theme = if dark {
             cantus_ui::theme::default_theme()
         } else {
-            cantus_ui::theme::slate_paper()
+            cantus_ui::theme::default_light_theme()
         };
         cantus_ui::theme::apply(&theme, &ctx);
         // The mixer and `startup` (the whole window) show what the program opens on.
@@ -250,7 +251,13 @@ fn main() {
             continue;
         }
         if kind == "startup" {
-            startup_window(&mut app, &ctx, dark, &dir.join(format!("{name}.png")));
+            startup_window(
+                &mut app,
+                &ctx,
+                dark,
+                scale,
+                &dir.join(format!("{name}.png")),
+            );
             continue;
         }
         app.central = cantus_ui::app::CentralView::Mixer;
@@ -440,8 +447,15 @@ fn main() {
 }
 
 /// The whole window on the startup project — toolbar, arrangement, mixer, inspector — as
-/// the program opens, at 1920 × 1080.
-fn startup_window(app: &mut CantusApp, ctx: &egui::Context, dark: bool, path: &std::path::Path) {
+/// the program opens, on a 1920 × 1080 screen at `scale` (1 = 100 %, 1.5 = 150 %: the window
+/// 1280 × 720 points).
+fn startup_window(
+    app: &mut CantusApp,
+    ctx: &egui::Context,
+    dark: bool,
+    scale: f32,
+    path: &std::path::Path,
+) {
     use cantus_ui::kit::appearance::Mode;
     let tmp = std::env::temp_dir().join("cantus-shoot-startup");
     app.settings_path = tmp.join("settings.json");
@@ -457,8 +471,8 @@ fn startup_window(app: &mut CantusApp, ctx: &egui::Context, dark: bool, path: &s
     }
     shoot(
         ctx,
-        egui::vec2(1920.0, 1080.0),
-        1.0,
+        egui::vec2(1920.0 / scale, 1080.0 / scale),
+        scale,
         8,
         Some(path),
         |root| app.frame(root),

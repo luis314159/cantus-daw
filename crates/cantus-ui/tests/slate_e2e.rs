@@ -1,9 +1,10 @@
-//! Round 39 (ADR 0111): the program boots in **Slate** the way a user starts it —
-//! `CantusApp::assemble` on a fresh data folder — with Slate Night's tokens, its recessed
-//! keys and its face (Barlow Semi Condensed) installed; a setting written before round 39
-//! that names a theme of rounds 24–38 opens in that theme, redrawn; and switching themes from the Appearance
+//! Round 39 (ADR 0111): the program boots in **Slate**'s system the way a user starts it —
+//! `CantusApp::assemble` on a fresh data folder — in the default, Slate Lapis Night (the
+//! amendment of 2026-11-18), with its tokens, Slate's recessed keys and its face (Barlow
+//! Semi Condensed) installed; a setting written before round 39 that names a theme of
+//! rounds 24–38 opens in that theme, redrawn; and switching themes from the Appearance
 //! page's path (`apply_appearance`) carries each family's colours, keys and face, and
-//! comes back to Slate exactly.
+//! comes back to the default exactly.
 //!
 //! A binary of its own: the installed tokens and the face are process-wide.
 
@@ -105,21 +106,22 @@ impl Rig {
 }
 
 #[test]
-fn a_fresh_install_boots_in_slate_and_every_theme_switches_and_comes_back() {
+fn a_fresh_install_boots_in_slate_lapis_and_every_theme_switches_and_comes_back() {
     let _one = serial();
     let dir = data(None);
     let mut r = boot(dir.path());
 
-    // Slate Night, as designed, installed for every painter.
-    let slate = cantus_ui::theme_slate::slate_night_tokens();
+    // The default, Slate Lapis Night (ADR 0111, amended 2026-11-18: Slate's system and face
+    // in a night-blue room), as designed, installed for every painter.
+    let booted = cantus_ui::theme_slate_lapis::slate_lapis_night_tokens();
     let t = tokens::current();
     assert_eq!(t.system, System::SLATE);
     assert_eq!(
         (t.panel, t.toolbar, t.text),
-        (slate.panel, slate.toolbar, slate.text)
+        (booted.panel, booted.toolbar, booted.text)
     );
     assert_eq!(system::face(), Face::Barlow);
-    assert_eq!(r.app.appearance.dark.base, "preset:slate_night");
+    assert_eq!(r.app.appearance.dark.base, "preset:slate_lapis_night");
 
     // Its face is really there: tabular figures (Barlow as `build_faces.py` made it), and
     // words narrower than Plex Sans Condensed sets them.
@@ -131,7 +133,7 @@ fn a_fresh_install_boots_in_slate_and_every_theme_switches_and_comes_back() {
     let slate_word = r.width("Percussion", Role::Body);
 
     // Every shipped theme through the Appearance page's path: its own tokens, keys and
-    // face, then back to Slate, exactly as it booted.
+    // face, then back to the default, exactly as it booted.
     for (id, make) in PRESETS {
         r.switch(id);
         let want = make().kit_tokens();
@@ -152,10 +154,10 @@ fn a_fresh_install_boots_in_slate_and_every_theme_switches_and_comes_back() {
             ),
         }
     }
-    r.switch("slate_night");
+    r.switch("slate_lapis_night");
     let back = tokens::current();
     assert_eq!(back.system, System::SLATE);
-    assert_eq!((back.panel, back.text), (slate.panel, slate.text));
+    assert_eq!((back.panel, back.text), (booted.panel, booted.text));
     assert_eq!(system::face(), Face::Barlow);
     assert!((r.width("Percussion", Role::Body) - slate_word).abs() < 0.01);
 }

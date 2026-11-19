@@ -5,8 +5,8 @@
 //! ```
 //!
 //! The dialog on a sung take: notes and chords (the model not yet downloaded), melody,
-//! drums with their classes, and mid-conversion — in Cantus Night and Paper, English and
-//! Spanish, at 75 %, 100 % and 200 %.
+//! drums with their classes, and mid-conversion — in the default theme, Night and Paper,
+//! English and Spanish, at 75 %, 100 % and 200 %.
 
 use cantus_core::*;
 use cantus_engine::EngineHandle;
@@ -24,9 +24,9 @@ fn context(dark: bool) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let theme = if dark {
-        cantus_ui::theme::slate_night()
+        cantus_ui::theme::default_theme()
     } else {
-        cantus_ui::theme::slate_paper()
+        cantus_ui::theme::default_light_theme()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     ctx

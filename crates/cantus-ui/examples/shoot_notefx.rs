@@ -11,7 +11,7 @@
 //! - `key`: the key's list open over the piano roll's toolbar;
 //! - `rack`: the channel rack, its pattern swung (the groove field on its toolbar).
 //!
-//! Each at 100 and 200 %, in English and Spanish, in Cantus Night and Paper.
+//! Each at 100 and 200 %, in English and Spanish, in the default theme, Night and Paper.
 //!
 //! `cargo run --release -p cantus-ui --example shoot_notefx -- <out-dir> [filter…]` writes
 //! `notefx-<what>-<theme>-<lang>-<scale>.png`; a filter keeps the names holding it.
@@ -61,9 +61,9 @@ fn context(theme: &str) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let t = if theme == "paper" {
-        cantus_ui::theme::slate_paper()
+        cantus_ui::theme::default_light_theme()
     } else {
-        cantus_ui::theme::slate_night()
+        cantus_ui::theme::default_theme()
     };
     cantus_ui::theme::apply(&t, &ctx);
     ctx
@@ -133,9 +133,9 @@ fn app_for(theme: &str) -> CantusApp {
     app.keymap_path = tmp.join("keymap.toml");
     app.appearance_path = tmp.join("appearance.json");
     let (preset, mode) = if theme == "paper" {
-        ("slate_paper", Mode::Light)
+        (cantus_ui::kit::appearance::DEFAULT_LIGHT, Mode::Light)
     } else {
-        ("slate_night", Mode::Dark)
+        (cantus_ui::kit::appearance::DEFAULT_DARK, Mode::Dark)
     };
     app.appearance.mode = mode;
     app.appearance.assign(mode, format!("preset:{preset}"));

@@ -2,7 +2,7 @@
 //! `cargo run -p cantus-ui --example shoot_stems -- <out-dir> [scale] [locale]`.
 //! The panel before the model's first download (its size, licence and provenance), while a
 //! separation runs, *Settings ▸ Models*, and the arrangement after a separation — the new
-//! tracks under the original, their clips wearing the "AI" badge — in Cantus Night and
+//! tracks under the original, their clips wearing the "AI" badge — in the default theme, Night and
 //! Paper. Nothing is downloaded: the stems are the welcome song's own files, renamed.
 
 use cantus_content::models::ReadyModel;
@@ -121,7 +121,7 @@ fn main() {
     std::env::set_var("CANTUS_DATA_DIR", &tmp);
     let themes = [
         ("night", cantus_ui::theme::default_theme()),
-        ("paper", cantus_ui::theme::slate_paper()),
+        ("paper", cantus_ui::theme::default_light_theme()),
     ];
     for (tn, theme) in &themes {
         let context = || {

@@ -1,9 +1,10 @@
-//! Round 39: **Slate Lapis**, the optional theme that goes with the logo's metal, chosen the
-//! way a user chooses it — `CantusApp::assemble` on a fresh data folder, Settings ▸
-//! Appearance, a click on its family's picture — installs Slate's structure in its
-//! night-blue room with the lapis accent, lays the lapis over the selected page's row,
-//! paints the arrangement's playhead and the ruler's bar numbers in the logo's gold
-//! (`lapis2`), and is still there after a restart. Slate stays the default.
+//! **Slate Lapis**, the default since 2026-11-18 (ADR 0111, amended), the way a user meets
+//! it — `CantusApp::assemble` on a fresh data folder installs Slate's structure in its
+//! night-blue room with the lapis accent, lays the lapis over the selected page's row on
+//! Settings ▸ Appearance (its picture the first), paints the arrangement's playhead and the
+//! ruler's bar numbers in the logo's gold (`lapis2`). Slate, round 39's default, chosen on
+//! its picture, is still there after a restart; a beta.14–15 file that never chose a theme
+//! opens in Slate Lapis.
 //!
 //! A binary of its own: the installed tokens and the face are process-wide.
 
@@ -12,7 +13,7 @@ use cantus_ui::app::Files;
 use cantus_ui::kit::system::{self, Face, System};
 use cantus_ui::kit::tokens;
 use cantus_ui::theme_slate_lapis as lapis;
-use cantus_ui::views::workspace_settings::{open, SettingsPage};
+use cantus_ui::views::workspace_settings::{open, tile_of, SettingsPage};
 use cantus_ui::CantusApp;
 use egui::{Color32, Event, PointerButton, Pos2, Shape};
 use std::path::Path;
@@ -122,34 +123,18 @@ fn colours_of(shape: &Shape, out: &mut Vec<Color32>) {
 }
 
 #[test]
-fn slate_lapis_chosen_in_settings_paints_lapis_and_gold_and_survives_a_restart() {
+fn slate_lapis_is_the_default_paints_lapis_and_gold_and_a_chosen_slate_survives_a_restart() {
     let dir = data();
     let mut r = boot(dir.path());
 
-    // A fresh install is Slate Night, with Slate's azure playhead.
+    // A fresh install is Slate Lapis Night (ADR 0111, amended 2026-11-18): Slate's
+    // structure, face and text in a night-blue room, the lapis accent and its tint, the
+    // gold readouts and playhead — installed, the mode following the default.
     let slate = cantus_ui::theme_slate::slate_night_tokens();
-    assert_eq!(r.app.appearance.dark.base, "preset:slate_night");
-    assert_eq!(tokens::current().highlight, slate.highlight);
-    assert_eq!(tokens::current().playhead, slate.playhead);
-
-    // The start page closed, as a user closes it; Settings ▸ Appearance, then a click on
-    // Slate Lapis's picture (the family row's second).
-    r.app.workflow.start.close();
-    r.frames(2);
-    open(&mut r.app, SettingsPage::Appearance);
-    r.frames(3);
-    let tile = r
-        .ctx
-        .read_response(egui::Id::new(("look-family", 1usize)))
-        .expect("Slate Lapis's picture is drawn on Settings ▸ Appearance")
-        .rect;
-    r.click(tile.center());
+    let want = lapis::slate_lapis_night_tokens();
     assert_eq!(r.app.appearance.dark.base, "preset:slate_lapis_night");
     assert_eq!(r.app.appearance.light.base, "preset:slate_lapis_paper");
-
-    // Slate's structure, face and text in a night-blue room, the lapis accent and its
-    // tint, the gold readouts and playhead — installed.
-    let want = lapis::slate_lapis_night_tokens();
+    assert!(r.app.appearance.dark.follows_default);
     let got = tokens::current();
     assert_eq!(got.system, System::SLATE);
     assert_eq!(system::face(), Face::Barlow);
@@ -165,8 +150,20 @@ fn slate_lapis_chosen_in_settings_paints_lapis_and_gold_and_survives_a_restart()
     assert_eq!(got.selection_tint, want.selection_tint);
     assert!(got.selection_tint.a() > 0);
     assert_eq!((got.readout, got.loop_edge), (want.readout, want.loop_edge));
-    // The page chosen in Settings' list wears the lapis: its row through the tint (once
-    // the dialog's fade has run).
+    assert_eq!(got.highlight, Color32::from_rgb(0x7e, 0xa2, 0xf6));
+    assert_eq!(got.selection, want.selection);
+    assert_eq!(got.playhead, lapis::gold(true));
+    assert_eq!(cantus_ui::theme::p().gold, want.highlight);
+
+    // The start page closed, as a user closes it; Settings ▸ Appearance: the default's
+    // picture comes first, and the page chosen in Settings' list wears the lapis — its row
+    // through the tint (once the dialog's fade has run).
+    r.app.workflow.start.close();
+    r.frames(2);
+    open(&mut r.app, SettingsPage::Appearance);
+    r.frames(3);
+    assert_eq!(tile_of("slate_lapis_night"), Some(0));
+    assert_eq!(tile_of("slate_night"), Some(1));
     r.frames(40);
     let painted = r.frame(Vec::new());
     let row = cantus_ui::kit::color::selected_fill(want.menu, want.selection_tint, 1.0);
@@ -175,10 +172,6 @@ fn slate_lapis_chosen_in_settings_paints_lapis_and_gold_and_survives_a_restart()
         painted.contains(&row),
         "the selected page's row is laid with the lapis"
     );
-    assert_eq!(got.highlight, Color32::from_rgb(0x7e, 0xa2, 0xf6));
-    assert_eq!(got.selection, want.selection);
-    assert_eq!(got.playhead, lapis::gold(true));
-    assert_eq!(cantus_ui::theme::p().gold, want.highlight);
 
     // The arrangement paints its playhead in the gold: settings closed, the song two bars
     // in, playing.
@@ -201,28 +194,72 @@ fn slate_lapis_chosen_in_settings_paints_lapis_and_gold_and_survives_a_restart()
         painted.contains(&want.readout_soft),
         "the ruler's bar numbers are read in the second gold"
     );
+    r.app.engine.stop();
+    r.frames(2);
 
-    // The choice is written, and a restart opens in it.
+    // Slate, round 39's default, chosen on its picture: Slate Night installed, azure and
+    // grey, none of Lapis's three.
+    open(&mut r.app, SettingsPage::Appearance);
+    r.frames(3);
+    let tile = r
+        .ctx
+        .read_response(egui::Id::new((
+            "look-family",
+            tile_of("slate_night").unwrap(),
+        )))
+        .expect("Slate's picture is drawn on Settings ▸ Appearance")
+        .rect;
+    r.click(tile.center());
+    assert_eq!(r.app.appearance.dark.base, "preset:slate_night");
+    assert_eq!(r.app.appearance.light.base, "preset:slate_paper");
+    assert!(!r.app.appearance.dark.follows_default);
+    let got = tokens::current();
+    assert_eq!((got.highlight, got.panel), (slate.highlight, slate.panel));
+    assert_eq!(got.selection_tint, Color32::TRANSPARENT);
+
+    // The choice is written, and a restart opens in it: a deliberate Slate stays Slate.
     assert!(dir.path().join("appearance.json").is_file());
     drop(r);
     let r = boot(dir.path());
-    assert_eq!(r.app.appearance.dark.base, "preset:slate_lapis_night");
+    assert_eq!(r.app.appearance.dark.base, "preset:slate_night");
     let back = tokens::current();
-    assert_eq!(back.highlight, want.highlight);
-    assert_eq!(back.playhead, lapis::gold(true));
-    assert_eq!(back.system, System::SLATE);
+    assert_eq!((back.highlight, back.panel), (slate.highlight, slate.panel));
+    assert_eq!(back.playhead, slate.playhead);
+    drop(r);
 
-    // Slate is still the default, unchanged: none of the three is Slate's.
-    assert_eq!(cantus_ui::theme::default_theme().name, "Slate Night");
-    let def = cantus_ui::theme::default_theme().kit_tokens();
-    assert_eq!(def.highlight, slate.highlight);
-    assert_eq!(def.panel, slate.panel);
-    for c in [
-        def.selection_tint,
-        def.readout,
-        def.readout_soft,
-        def.loop_edge,
-    ] {
-        assert_eq!(c, Color32::TRANSPARENT);
+    // A file beta.14–15 wrote for a user who only switched the mode to the system's and
+    // back (version 2, untouched Slate in both modes): no theme was chosen, so the next
+    // start opens in the default, Slate Lapis, and writes nothing until the look changes.
+    let dir = data();
+    let mut v2 = serde_json::to_value(cantus_ui::kit::appearance::Appearance::default()).unwrap();
+    v2["version"] = 2.into();
+    for (mode, id) in [("dark", "slate_night"), ("light", "slate_paper")] {
+        let slot = v2[mode].as_object_mut().unwrap();
+        slot.remove("follows_default");
+        slot.insert("base".into(), format!("preset:{id}").into());
     }
+    let file = dir.path().join("appearance.json");
+    std::fs::write(&file, v2.to_string()).unwrap();
+    let r = boot(dir.path());
+    assert_eq!(r.app.appearance.dark.base, "preset:slate_lapis_night");
+    assert_eq!(r.app.appearance.light.base, "preset:slate_lapis_paper");
+    let got = tokens::current();
+    assert_eq!((got.highlight, got.panel), (want.highlight, want.panel));
+    assert_eq!(got.playhead, lapis::gold(true));
+    assert_eq!(
+        std::fs::read_to_string(&file).unwrap(),
+        v2.to_string(),
+        "the file is the user's: read, not rewritten"
+    );
+
+    // The default itself, the theme a fresh install and any unreadable file get.
+    assert_eq!(cantus_ui::theme::default_theme().name, "Slate Lapis Night");
+    assert_eq!(
+        cantus_ui::theme::default_theme().kit_tokens().highlight,
+        want.highlight
+    );
+    assert_eq!(
+        cantus_ui::theme::default_light_theme().name,
+        "Slate Lapis Paper"
+    );
 }

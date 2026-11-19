@@ -1,6 +1,7 @@
-//! Cantus visual identity as **data**. The default theme is **Slate Night** (round 39, ADR
-//! 0111), with Slate Paper its light twin; [`PRESETS`] lists every shipped theme. Every
-//! colour lives in a JSON file the user can edit; the app reloads it while running.
+//! Cantus visual identity as **data**. The default theme is **Slate Lapis Night** (ADR 0111,
+//! amended 2026-11-18), with Slate Lapis Paper its light twin; [`PRESETS`] lists every
+//! shipped theme. Every colour lives in a JSON file the user can edit; the app reloads it
+//! while running.
 
 use egui::{Color32, CornerRadius, Stroke, Visuals};
 use serde::{Deserialize, Serialize};
@@ -508,8 +509,9 @@ pub use crate::theme_studio_ink::{studio_ink_night, studio_ink_paper};
 pub type Preset = (&'static str, fn() -> Theme);
 
 /// Every shipped theme, in the order the Appearance page lists them (round 39, ADR 0111):
-/// Slate, the default, and its light twin; Slate Lapis, Slate with a lapis accent and gold
-/// details (the logo's metal); the two optional families, Graphite and gold and Studio
+/// Slate Lapis, the default since 2026-11-18 (Slate in a night-blue room with lapis on the
+/// selection and gold details — the logo's metal), and its light twin; Slate, round 39's
+/// default, Night and Paper; the two optional families, Graphite and gold and Studio
 /// ink, each Night and Paper; the themes of rounds 24–38 redrawn in round 39's design
 /// system ([`crate::theme_redrawn`]: Cantus Night and Paper, Blue Hour and Daylight, Pewter
 /// and Chalk — the FL-derived Slate and Paper renamed —, Ink & Gold and Parchment,
@@ -522,10 +524,10 @@ pub type Preset = (&'static str, fn() -> Theme);
 /// sheets) draw with them, and an old `theme.json` that is exactly one of them is
 /// recognised by them ([`crate::kit::appearance::CLASSIC`]).
 pub const PRESETS: [Preset; 24] = [
-    ("theme.slate_night", slate_night),
-    ("theme.slate_paper", slate_paper),
     ("theme.slate_lapis_night", slate_lapis_night),
     ("theme.slate_lapis_paper", slate_lapis_paper),
+    ("theme.slate_night", slate_night),
+    ("theme.slate_paper", slate_paper),
     ("theme.graphite_night", graphite_night),
     ("theme.graphite_paper", graphite_paper),
     ("theme.studio_ink_night", studio_ink_night),
@@ -549,11 +551,18 @@ pub const PRESETS: [Preset; 24] = [
 ];
 
 /// What a fresh install starts with, and the fallback whenever a theme file cannot be
-/// read: **Slate Night** (round 39, ADR 0111 — the owner chose `dir-a`'s direction on
-/// 2026-11-09). Slate Paper is its light twin, one click away, and "follow the system"
-/// too. A saved appearance keeps whatever it names.
+/// read: **Slate Lapis Night** (ADR 0111, amended 2026-11-18 — the owner made Slate Lapis
+/// the default; Slate Night, round 39's default and his choice of 2026-11-09, stays one
+/// click away). [`default_light_theme`] is its light twin, which the light mode and "follow
+/// the system" on a light system show. A saved appearance keeps the theme the user chose
+/// ([`crate::kit::appearance::Appearance::from_json`] says what counts as a choice).
 pub fn default_theme() -> Theme {
-    slate_night()
+    slate_lapis_night()
+}
+
+/// The default's light twin, **Slate Lapis Paper**: what a fresh install's light mode shows.
+pub fn default_light_theme() -> Theme {
+    slate_lapis_paper()
 }
 
 fn current() -> &'static RwLock<Palette> {
@@ -1027,26 +1036,64 @@ mod tests {
     }
 
     #[test]
-    fn the_default_theme_is_slate_night() {
-        // Round 39 (ADR 0111): the owner chose Slate, `dir-a`'s direction; Slate Paper is
-        // its light twin. The design's values, exactly.
+    fn the_default_theme_is_slate_lapis() {
+        // ADR 0111, amended 2026-11-18: the owner made Slate Lapis the default, Slate Lapis
+        // Paper its light twin. The design's values, exactly (`theme_slate_lapis.rs`: round
+        // 40's room "C", lapis on the selection, the logo's gold on the readouts, the
+        // playhead and the loop's edges; Slate's text and system).
         let d = default_theme().palette();
         assert!(d.dark, "the shipped default is a dark theme");
-        assert_eq!(default_theme().name, "Slate Night");
+        assert_eq!(default_theme().name, "Slate Lapis Night");
+        assert_eq!(default_theme(), slate_lapis_night());
         let t = default_theme().kit_tokens();
-        assert_eq!(to_hex(t.ink), "#14191e", "the gutter");
-        assert_eq!(to_hex(t.panel), "#1d2329", "the base");
-        assert_eq!(to_hex(t.toolbar), "#262d34", "the surface");
-        assert_eq!(to_hex(t.text), "#e3e8ed", "ink 1");
-        assert_eq!(to_hex(t.highlight), "#5cafe9", "the accent");
+        assert_eq!(to_hex(t.ink), "#05163d", "the gutter");
+        assert_eq!(to_hex(t.panel), "#0c204c", "the base");
+        assert_eq!(to_hex(t.toolbar), "#13295d", "the surface");
+        assert_eq!(to_hex(t.well), "#0b1c45", "the well");
+        assert_eq!(to_hex(t.text), "#e3e8ed", "ink 1, Slate's");
+        assert_eq!(to_hex(t.highlight), "#7ea2f6", "the accent, lapis");
+        assert_eq!(to_hex(t.brand_bright), "#a5bef9", "the lapis's bright tone");
+        assert_eq!(to_hex(t.selection), "#7ea2f6", "the selection, lapis");
+        assert_eq!(
+            t.selection_tint,
+            Color32::from_rgba_unmultiplied(0x7e, 0xa2, 0xf6, 46),
+            "the lapis over every selected fill"
+        );
+        assert_eq!(to_hex(t.readout), "#e2b85a", "the readouts, gold");
+        assert_eq!(to_hex(t.readout_soft), "#c9a55a", "the second readout gold");
+        assert_eq!(to_hex(t.playhead), "#e2b85a", "the playhead, gold");
+        assert_eq!(to_hex(t.loop_edge), "#e2b85a", "the loop's edges, gold");
         assert_eq!(t.system, crate::kit::system::System::SLATE);
-        assert!(!slate_paper().palette().dark);
-        assert_eq!(slate_paper().kit_tokens().system, t.system);
         assert!(
             luminance(d.ink) < 0.1,
             "the canvas should be dark, got {}",
             to_hex(d.ink)
         );
+        // Its light twin.
+        let light = default_light_theme();
+        assert_eq!(light, slate_lapis_paper());
+        assert_eq!(light.name, "Slate Lapis Paper");
+        assert!(!light.palette().dark);
+        let l = light.kit_tokens();
+        assert_eq!(to_hex(l.panel), "#f3f6ff", "paper's base");
+        assert_eq!(to_hex(l.highlight), "#2443a8", "paper's lapis");
+        assert_eq!(to_hex(l.readout), "#6e5008", "paper's readout gold");
+        assert_eq!(to_hex(l.playhead), "#9a6e1c", "paper's playhead gold");
+        assert_eq!(l.system, t.system);
+        // The default comes first on the Appearance page, its twin second; Slate, round
+        // 39's default, follows them.
+        let keys: Vec<&str> = PRESETS.iter().take(4).map(|(k, _)| *k).collect();
+        assert_eq!(
+            keys,
+            [
+                "theme.slate_lapis_night",
+                "theme.slate_lapis_paper",
+                "theme.slate_night",
+                "theme.slate_paper"
+            ]
+        );
+        assert_eq!(PRESETS[0].1(), default_theme());
+        assert_eq!(PRESETS[1].1(), default_light_theme());
     }
 
     #[test]

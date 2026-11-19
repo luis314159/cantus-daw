@@ -49,10 +49,9 @@ fn themed_ctx(dark: bool) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let theme = if dark {
-        // Cantus Night, the default theme.
         cantus_ui::theme::default_theme()
     } else {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::default_light_theme()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     ctx
