@@ -562,10 +562,15 @@ changes.
   read: it is written, as version 3, the next time the look changes.
 - **What did not change.** Both themes' tokens, the 24-theme legibility (text 4.5:1, non-text
   3:1), the window goldens (`tests/slate_window_golden.rs` names Slate Night and Paper
-  explicitly) and the kit's gallery. The README's and the website's pictures were shot in Slate
-  before this change and are not reshot (`shoot_readme` and most examples name Slate Night and
-  Paper; `shoot_site`, `shoot_rec` and `shoot_views` take the default, so a reshoot draws them
-  in Slate Lapis); their captions no longer call Slate the default.
+  explicitly) and the kit's gallery.
+- **The pictures.** The owner wants the website's and the README's screenshots in the new
+  default. Every example `tools/shots/reshoot.sh` runs now draws in the default pair
+  (`theme::default_theme()` / `default_light_theme()`, `kit::appearance::DEFAULT_DARK` /
+  `DEFAULT_LIGHT`, or the app's own default appearance) — the README's themes gallery
+  excepted —, so the next reshoot, run once on master after the round's branches are merged,
+  draws them in Slate Lapis; until then the committed pictures are Slate's. The README's captions
+  already name Slate Lapis, for the pictures the reshoot makes. The *Try it* pictures (`render_tryit`,
+  `web/tools/tryit_pictures.py`) are not made by reshoot.sh and still name Slate Night and Paper.
 
 ## Consequences
 

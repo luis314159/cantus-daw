@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/window-night.png" alt="Cantus playing its demo song in Slate Night: the sample browser, the arrangement, the mixer with its cables and the inspector">
+  <img src="docs/images/window-night.png" alt="Cantus playing its demo song in Slate Lapis Night, the default look: the sample browser, the arrangement, the mixer with its cables and the inspector">
 </p>
 
 > *"Whatever you do, work at it with all your heart."* — Colossians 3:23
@@ -1281,9 +1281,9 @@ its key. The help line names whatever is under the pointer, and what drives it. 
 interface's size follows the screen until you choose one. English and Spanish, and
 names in any script.
 
-| Slate Night (dark) | Slate Paper (light) |
+| Slate Lapis Night (dark, the default) | Slate Lapis Paper (light) |
 |---|---|
-| ![Workspace, Slate Night](docs/images/window-night-720.png) | ![Workspace, Slate Paper](docs/images/window-paper-720.png) |
+| ![Workspace, Slate Lapis Night](docs/images/window-night-720.png) | ![Workspace, Slate Lapis Paper](docs/images/window-paper-720.png) |
 
 ### Mixer, cables and routing
 
@@ -1347,7 +1347,7 @@ that show the beat, beams by the metre, a grand staff whose split follows the ha
 accidentals and courtesy accidentals in the song's key, tempo and metre changes, dynamics
 from velocity, 8va lines, in the SMuFL font Bravura.
 
-| The Score pane (Slate Paper) | A printed page (A4) |
+| The Score pane (Slate Lapis Paper) | A printed page (A4) |
 |---|---|
 | ![The Score pane](docs/images/score-pane.png) | ![A printed page](docs/images/score-page.png) |
 
@@ -1369,9 +1369,9 @@ a new scene; *Arr. record* writes the launches into the arrangement as you play 
 to arr.* hands every track back to it. Enter, the arrows and the clipboard work on the grid;
 a pad, a key or a note learnt on a slot or a scene launches it.
 
-| Slate Paper | A Launchpad's ring |
+| Slate Lapis Paper | A Launchpad's ring |
 |---|---|
-| ![The session view in Slate Paper](docs/images/session-paper.png) | ![The orange ring a Launchpad shows](docs/images/session-ring.png) |
+| ![The session view in Slate Lapis Paper](docs/images/session-paper.png) | ![The orange ring a Launchpad shows](docs/images/session-ring.png) |
 
 A **Launchpad** (Mini MK3, X, Pro MK3) or an **APC** (mini mk2, APC40 mkII) is found when
 it is plugged in: the pads launch and light in the clips' colours — green while playing,
