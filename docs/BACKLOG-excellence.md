@@ -265,7 +265,9 @@ desde el código (presets como datos, renderizados sin abrir la app; cada sonido
 como receta para reconstruirlo), luego otras
 herramientas solo con licencia limpia; nunca bibliotecas comerciales remuestreadas. Los
 agentes no oyen: cada archivo pasa medidas (volumen por rol, pico, clics, afinación, loops
-exactos, sin duplicados) y tú escuchas una muestra de cada banco antes de publicarlo.
+exactos, sin duplicados) y tú escuchas una muestra de cada banco antes de publicarlo. El método
+no está fijo: manda el mejor resultado. Primero un banco piloto, escuchado a ciegas junto a
+un buen pack del mismo estilo, y lo que pierda decide qué se cambia.
 
 ## 1. Real use — the test that matters most
 
@@ -1353,8 +1355,14 @@ measurement or been decided against with the reason written down.
     keys, leads, pads, plucks and arps, textures, FX (risers, impacts, sweeps, transitions),
     world percussion. Each bank starts at a floor (e.g. 64 presets, 150 one-shots, 40 loops,
     4 kits, a template) and is judged as a set.
-  - **Made from Cantus's own code, not through the app** (the owner: "no con el MCP sino
-    directamente del código"). Round 37's route (ADR 0101) is the base: presets are data
+  - **The method is whatever gives the best result** (the owner: "es una idea … al final debe
+    ser lo que dé el mejor resultado"). Below is the starting route, not a rule: a **pilot
+    bank** (one style, at its floor) goes first, the owner hears it blind beside a
+    first-rank free or commercial pack of the same style, and what it loses on decides what
+    changes — the route, the tools, the instruments' engines, or bringing in a human sound
+    designer for that style. Each bank after it is judged the same way.
+  - **Starting route: made from Cantus's own code, not through the app** (the owner: "no con
+    el MCP sino directamente del código"). Round 37's route (ADR 0101) is the base: presets are data
     (one TOML file per unit under `crates/cantus-ui/presets/`), `examples/preset_tool.rs fit`
     renders and fits their levels, `examples/render_packs.rs` renders the packs,
     `tests/preset_render.rs` measures every preset. An engineer agent writes a bank's
