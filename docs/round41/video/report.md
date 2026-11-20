@@ -6,9 +6,45 @@ Generated files live in `F:\projects\video-work\`, never in the repository.*
 | Step | State |
 |---|---|
 | 1. Facts | done (`ae88ebae`); script corrected |
-| 2. The voice | the owner chose the **stock voice** (2026-11-20); environment, models and tools ready; no take made yet (the machine is held for the integrator's suites) |
-| 3. The film | not started (needs the build slot after "suites done") |
-| 4. The cards | sources written (`tools/video/cards/`), both end cards A and B; **not rendered, not looked at** |
+| 2. The voice | **in progress**: round 1 made 96 takes and 3 passed the gate; the tools were fixed; round 2 (8 takes a line, a calmer grid, spoken spellings) is running in the background; the A/B page waits for its gate |
+| 3. The film | not started (no cargo build until "measurement done") |
+| 4. The cards | sources written, both end cards A and B; **stills rendered in EN and ES and looked at**; three fixes made from them |
+
+## Step 2, round 1 (2026-11-20): 3 of 96 takes passed
+
+Six takes a line, stock voice, exaggeration 0.4–0.6, cfg 0.35–0.5. What the gate found:
+
+- **Too fast.** English ran at 3.5–4 words a second, against a calm 2.3–2.7. Spanish ran at
+  6–7 syllables a second.
+- **Words.** The model read "FL" as "Val" or "Fel", "VST3" as "Vistie Street", and the
+  address as "cantus.com", dropping "daw". "Cantus" was heard as "Candice" on some takes.
+- **Babble after the line**, on several takes (e.g. EN 05-5: 40 s of invented speech).
+- **Flagged as clipped:** these were single float samples at 1.005–1.026, overshoots, not
+  flat tops.
+
+The fixes, committed:
+
+- The model is given spoken spellings ("F.L. Studio", "V.S.T. three", "cantus-daw dot
+  com"; in Spanish "efe ele", "uve ese te tres", "cantus daw punto com").
+- A calmer grid: eight takes, exaggeration 0.3–0.45, cfg 0.2–0.3, temperature 0.6–0.75.
+- The gate:
+  - matches names within two letters with the same first sound;
+  - measures pace with the line's own pauses, 2.0–3.0 and 4.0–6.0;
+  - allows a 10 ms head;
+  - counts a clip only as a flat top of 3 or more samples;
+  - reads the audio as an array, because Whisper wanted ffmpeg for files.
+- Round 1 is kept in `F:\projects\video-work\voice\round1`.
+
+## Step 4: what the stills showed (looked at, 1920 × 1080, on a slate plate)
+
+`F:\projects\video-work\cards\stills\view\{en,es}-<card>.png`. Three fixes came from them:
+
+- the ™ floated high and apart, and now sits at cap height;
+- the count's panel resized as the figure grew, and is now two figures wide;
+- a dot showed before a stroke drew, and no longer does.
+
+Checked at mid-animation: the logo draws on (the border's stroke, the C, the flourishes),
+and a count reads 35 on its way to 42.
 | 5–8 | not started |
 
 ## The owner's answers (2026-11-20)
