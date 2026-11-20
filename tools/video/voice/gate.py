@@ -196,8 +196,8 @@ def main() -> None:
             "lufs": round(lufs, 1),
             "true_peak_db": round(tp, 1),
             "seed": meta["seed"],
-            "exaggeration": meta["exaggeration"],
-            "cfg_weight": meta["cfg_weight"],
+            "exaggeration": meta.get("exaggeration"),
+            "cfg_weight": meta.get("cfg_weight"),
         }
         rows.append(row)
         failed = [k for k, ok in checks.items() if not ok] + ([] if lo <= rate <= hi else ["(pace)"])
