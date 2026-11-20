@@ -227,7 +227,9 @@ impl Key {
     }
 }
 
-/// How many strings key `m` has: one in the lowest notes, two above, three from D2.
+/// How many strings key `m` has: one for A0–F#1 (21–30), two for G1–F2 (31–41), three from
+/// F#2 (42) — as the code has laid them since round 28 (the comment said "three from D2"
+/// until round 41, a slip: no version ever laid three strings on D2–F2).
 pub fn strings(m: u8) -> u8 {
     match m {
         0..=30 => 1,

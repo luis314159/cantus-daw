@@ -308,6 +308,25 @@ impl Chorda {
         self.voices[i].strings()
     }
 
+    /// Round 41 (BACKLOG §3e, every string in tune): key `key`'s loops kept — the
+    /// technician's felt, each loop's share of its hammer and its reflection (`[1; 3]`, as a
+    /// new unit has it: every loop sounds, to the bit; 0: muted, still on the bridge). From
+    /// the key's next strike on a silent voice. For tests and the voicing lab, never the
+    /// instrument's controls.
+    #[doc(hidden)]
+    pub fn set_loops_kept(&mut self, key: u8, keep: [f64; super::string::MAX_STRINGS]) {
+        if (LOWEST..=tables::HIGHEST).contains(&key) {
+            self.voices[(key - LOWEST) as usize].set_kept(keep);
+        }
+    }
+
+    /// What key `key`'s last strike laid for each loop (round 41): its designed detune,
+    /// stiffness scatter and fraction. For tests and the voicing lab.
+    #[doc(hidden)]
+    pub fn loops_laid(&self, key: u8) -> super::string::LaidLoops {
+        self.voices[(key.clamp(LOWEST, tables::HIGHEST) - LOWEST) as usize].laid()
+    }
+
     /// Allocates every voice, lane and string: off the audio thread.
     pub fn new(fs: f32) -> Chorda {
         Chorda::make(fs, false)

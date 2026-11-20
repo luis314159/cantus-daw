@@ -228,6 +228,36 @@ pub struct KeyStrings {
     base_frac: [f64; MAX_STRINGS],
     base_g: [f64; BRIDGE_MODES],
     tuned_yz: f64,
+    /// Round 41 (BACKLOG §3e, every string in tune): each loop's share of its hammer and of
+    /// its reflection kept — the technician's felt. 1 (always, but in a test or the lab):
+    /// every loop sounds, to the bit (a product by 1 is exact). 0: the loop is muted — its
+    /// hammer never meets it and it returns nothing from the bridge, yet it stays on the
+    /// bridge and loads it (the `n` of `v_b = 2 YZ Σa / (1 + n YZ)` is unchanged), so a loop
+    /// sounded alone shows the pull it has inside the instrument. Never reset by a lay.
+    keep: [f64; MAX_STRINGS],
+    /// What the last lay designed for each loop ([`Self::laid`]): its detune (cents), its
+    /// stiffness scatter (its sections' pole angles × `1 + eps`) and its fraction once the
+    /// scatter's hold moved it, before the bridge's tuning.
+    laid_detune: [f64; MAX_STRINGS],
+    laid_eps: [f64; MAX_STRINGS],
+    laid_frac: [f64; MAX_STRINGS],
+}
+
+/// What a key's lay designed for each of its loops (round 41, [`KeyStrings::laid`]): the
+/// vertical strings first, then the horizontal loop.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LaidLoops {
+    /// Loops laid, and how many of them are vertical strings on the shared bridge.
+    pub loops: usize,
+    pub vertical: usize,
+    /// Each loop's designed detune (cents) against the key's design.
+    pub detune_ct: [f64; MAX_STRINGS],
+    /// Each loop's stiffness scatter as applied (its pole angles × `1 + eps`; 0: the design's).
+    pub eps: [f64; MAX_STRINGS],
+    /// Each loop's fraction as the voice designed it (detune and the scatter's hold), and
+    /// as it is now (the bridge's tuning moves the vertical strings').
+    pub designed_frac: [f64; MAX_STRINGS],
+    pub frac: [f64; MAX_STRINGS],
 }
 
 /// The most partials [`KeyStrings::set_bridge_tuned`] weighs.
@@ -277,6 +307,35 @@ impl KeyStrings {
             base_frac: [0.0; MAX_STRINGS],
             base_g: [0.0; BRIDGE_MODES],
             tuned_yz: -1.0,
+            keep: [1.0; MAX_STRINGS],
+            laid_detune: [0.0; MAX_STRINGS],
+            laid_eps: [0.0; MAX_STRINGS],
+            laid_frac: [0.0; MAX_STRINGS],
+        }
+    }
+
+    /// Each loop's share kept (round 41, the technician's felt; see the field): `[1; 3]`
+    /// sounds every loop, to the bit. For tests and the voicing lab, never the instrument.
+    /// Takes effect from the next strike. Allocates nothing.
+    #[doc(hidden)]
+    pub fn set_kept(&mut self, keep: [f64; MAX_STRINGS]) {
+        self.keep = keep;
+    }
+
+    /// What the last lay designed for each loop (round 41).
+    #[doc(hidden)]
+    pub fn laid(&self) -> LaidLoops {
+        let mut frac = [0.0; MAX_STRINGS];
+        for (f, s) in frac.iter_mut().zip(&self.strings).take(self.n) {
+            *f = s.frac;
+        }
+        LaidLoops {
+            loops: self.n,
+            vertical: self.nv,
+            detune_ct: self.laid_detune,
+            eps: self.laid_eps,
+            designed_frac: self.laid_frac,
+            frac,
         }
     }
 
@@ -380,6 +439,8 @@ impl KeyStrings {
                 self.a1s[i][j] = a1;
                 self.a2s[i][j] = a2;
             }
+            self.laid_eps[i] = e;
+            self.laid_frac[i] = self.strings[i].frac;
         }
     }
 
@@ -485,12 +546,17 @@ impl KeyStrings {
         self.own = false;
         self.ls_on = false;
         self.tuned_n = 0;
+        self.laid_detune = [0.0; MAX_STRINGS];
+        self.laid_eps = [0.0; MAX_STRINGS];
+        self.laid_frac = [0.0; MAX_STRINGS];
         for (i, s) in self.strings.iter_mut().enumerate().take(self.n) {
             s.nut.reset(2 * nut);
             s.to_bridge.reset(to);
             s.from_bridge.reset(from);
             s.silence();
             s.frac = (design.frac + detune_ct[i] * design.frac_per_cent).clamp(-0.99, 0.99);
+            self.laid_detune[i] = detune_ct[i];
+            self.laid_frac[i] = s.frac;
         }
     }
 
@@ -577,6 +643,51 @@ impl KeyStrings {
             / self.nbm as f64
     }
 
+    /// The bridge's admittance at `w` (rad/sample) against the strings' impedance: `YZ` and
+    /// its resonances, as [`Self::tick`] solves it (round 41, a test's prediction).
+    #[cfg(test)]
+    fn admittance(&self, w: f64) -> (f64, f64) {
+        let (mut yr, mut yi) = (self.yz, 0.0);
+        let (s1, c1) = math::sin_cos(w);
+        let (s2, c2) = math::sin_cos(2.0 * w);
+        for m in &self.bm[..self.nbm] {
+            let (nr, ni) = (m[0] * (1.0 - c2), m[0] * s2);
+            let (dr, di) = (1.0 + m[1] * c1 + m[2] * c2, -(m[1] * s1 + m[2] * s2));
+            let d = dr * dr + di * di;
+            let k = m[3] * self.yz / d;
+            yr += k * (nr * dr + ni * di);
+            yi += k * (ni * dr - nr * di);
+        }
+        (yr, yi)
+    }
+
+    /// The phase (rad) the bridge's reflection adds at `w` to loop `i` sounding alone — the
+    /// key's other loops muted but on the bridge ([`Self::set_kept`]) — against a rigid
+    /// bridge's (round 41, a test's prediction). A vertical string alone meets
+    /// `−(1 + (n − 2)Y)/(1 + nY)` (the unison together: `−(1 − nY)/(1 + nY)`,
+    /// [`Self::bridge_phase`]): its pull is about `2/(2n)` of the unison's — all of it on a
+    /// single string, a half on a pair, a third in a trichord. A horizontal loop's side is a
+    /// resistance: no phase.
+    #[cfg(test)]
+    pub fn solo_phase(&self, i: usize, w: f64) -> f64 {
+        if i >= self.nv {
+            return 0.0;
+        }
+        let (yr, yi) = self.admittance(w);
+        let n = self.nv as f64;
+        math::atan2((n - 2.0) * yi, 1.0 + (n - 2.0) * yr) - math::atan2(n * yi, 1.0 + n * yr)
+    }
+
+    /// The largest wave loop `i` holds (round 41: a muted loop holds none).
+    #[cfg(test)]
+    pub fn loop_peak(&self, i: usize) -> f64 {
+        let s = &self.strings[i];
+        s.nut
+            .peak()
+            .max(s.to_bridge.peak())
+            .max(s.from_bridge.peak())
+    }
+
     fn tune_to_bridge(&mut self) {
         self.tuned_yz = self.yz;
         if self.nbm == 0 {
@@ -642,7 +753,8 @@ impl KeyStrings {
         // The hammer's mass is shared among the strings it strikes (the vertical ones).
         let n = self.nv.max(1) as f64;
         for (i, s) in self.strings.iter_mut().enumerate().take(self.n) {
-            let v = velocity * weight[i];
+            // A muted loop's hammer never meets it (`keep` 1: the product is exact).
+            let v = velocity * weight[i] * self.keep[i];
             s.hammer = Hammer {
                 active: v > 0.0,
                 y_h: 0.0,
@@ -794,17 +906,25 @@ impl KeyStrings {
             }
             v
         };
-        for s in self.strings.iter_mut().take(nv) {
-            s.from_bridge.write(v_b - s.arrived);
+        for (s, k) in self.strings.iter_mut().zip(&self.keep).take(nv) {
+            // A muted loop returns nothing (`keep` 1: the product is exact).
+            s.from_bridge.write((v_b - s.arrived) * k);
         }
         let mut force = self.z * (2.0 * sum - nv as f64 * v_b);
         // The horizontal loops, each on its own side of the bridge.
         if n > nv {
             let yz = self.yz * self.polar_yz;
-            for (s, x) in self.strings.iter_mut().zip(xs).take(n).skip(nv) {
+            for ((s, x), k) in self
+                .strings
+                .iter_mut()
+                .zip(xs)
+                .zip(&self.keep)
+                .take(n)
+                .skip(nv)
+            {
                 s.arrived = x;
                 let v_h = 2.0 * yz * x / (1.0 + yz);
-                s.from_bridge.write(v_h - x);
+                s.from_bridge.write((v_h - x) * k);
                 force += self.z * (2.0 * x - v_h);
             }
         }

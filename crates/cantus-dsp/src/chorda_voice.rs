@@ -503,6 +503,19 @@ impl Voice {
         &self.strings
     }
 
+    /// Each loop's share kept (round 41, the technician's felt: [`KeyStrings::set_kept`]);
+    /// from the next strike. For tests and the voicing lab.
+    #[doc(hidden)]
+    pub fn set_kept(&mut self, keep: [f64; MAX_STRINGS]) {
+        self.strings.set_kept(keep);
+    }
+
+    /// What the last strike's lay designed for each loop (round 41).
+    #[doc(hidden)]
+    pub fn laid(&self) -> super::string::LaidLoops {
+        self.strings.laid()
+    }
+
     /// A voice for `key`, with strings for loops up to `capacity` samples. Allocates.
     pub fn new(key: Key, capacity: usize, fs: f64) -> Voice {
         let d = ((64.0 * key.impedance * key.speed * key.length * key.length * key.b)
