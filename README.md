@@ -1794,9 +1794,16 @@ shipped unmodified — "IBM Plex" is a Reserved Font Name; Barlow Semi Condensed
 ([licence](crates/cantus-ui/assets/fonts/LICENSE-OFL-Sofia-Sans.txt)), with tabular figures
 by default and without hinting (`tools/fonts/build_faces.py`).
 
+## Community
+
+[**GitHub Discussions**](https://github.com/luis314159/cantus-daw/discussions) is where Cantus's
+people meet, in English or Spanish: ask how to do something (*Q&A*), share a song you made
+with Cantus (*Show and tell*), propose an idea (*Ideas*), and read what is coming
+(*Announcements*). A GitHub account is all it takes.
+
 ## Feedback
 
-Everything goes through [GitHub issues](https://github.com/luis314159/cantus-daw/issues),
+A problem or a request goes through [GitHub issues](https://github.com/luis314159/cantus-daw/issues),
 in English or Spanish: a [bug report](https://github.com/luis314159/cantus-daw/issues/new?template=bug_report.yml),
 a [hardware report](https://github.com/luis314159/cantus-daw/issues/new?template=hardware_report.yml)
 (how Cantus runs with your audio interface, working or not) or a
