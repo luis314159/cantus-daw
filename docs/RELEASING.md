@@ -70,14 +70,20 @@ before copying into it.
 *Paid for:* beta.15 (DRSKit's copy met the kit's XML before its folder on Ubuntu 22.04).
 *Check:* the round's new `read_dir` walks in tests and in the code they reach.
 
-### L5 Tests that share a folder leave each other's work alone
+### L5 Tests that share a folder or the process leave each other's work alone
 
-A test binary's apps share one `CANTUS_DATA_DIR`; whatever an app sweeps at start-up
-(caches, staging, orphans) must leave a live process's work alone — a lock, as
-`install::clear_all_staging` and `user_pack::clean_orphans` take. What races between two
-tests races between two Cantus windows.
-*Paid for:* beta.15 (`tympanum_e2e`: a test's start-up deleted another's install mid-build).
-*Check:* the round's new start-up clean-ups and the folders their tests share.
+A test binary's tests run in parallel in one process. They share one `CANTUS_DATA_DIR`:
+whatever an app sweeps at start-up (caches, staging, orphans) must leave a live process's
+work alone — a lock, as `install::clear_all_staging` and `user_pack::clean_orphans` take;
+what races between two tests races between two Cantus windows. And they share every
+process-wide value: the theme (`theme::apply` installs its palette and the kit's tokens for
+every thread), the locale's fallback, global registries. A test that reads what another
+may set takes turns (one mutex per binary) until the value is per context.
+*Paid for:* beta.15 (`tympanum_e2e`: a test's start-up deleted another's install mid-build;
+`instruments_scale_e2e`: a test's app installed Slate Lapis while another measured Chorda's
+knobs in Slate, about one run in five on a loaded four-core runner).
+*Check:* the round's new start-up clean-ups, the folders their tests share, and the new
+tests that read a process-wide value another test of their binary sets.
 
 ### L6 Every download in CI retries on every error, and is checked
 
@@ -103,3 +109,33 @@ session on the machine: one session watches a run, at most once every five minut
 the others ask it. Job logs need a sign-in; annotations and step lists do not.
 *Paid for:* beta.15 (a second watcher used up the hour, and the first one went blind).
 *Check:* one watcher is named before the tag.
+
+## How the suite runs — the practice to keep
+
+Excellence here means two things at once: **nothing reaches users that the whole suite has
+not passed on its exact code**, and **nobody waits longer than the work needs**. The rules:
+
+1. **A release runs the whole suite once, on its exact code, and never less.** The
+   rehearsal (L1) is that run. The tagged run differs from it only in `docs/releases/`, so
+   it may reuse the rehearsal's result instead of running the suite again — same code to
+   the byte, same result — and builds and packages only. Nothing else is ever skipped:
+   tests chosen by "what changed" miss exactly what beta.15 failed on (tests racing each
+   other, a loaded runner, a file system's order, the network — none in the changed code).
+2. **Every test in its own process, and the suite split across runners.** With
+   `cargo-nextest`, one process per test removes the races of L5 by construction (the
+   theme, the data folder, any global), and partitions run in parallel jobs: the Windows
+   suite's three hours become about one on three runners. Each partition holds the whole
+   suite's rules (`--no-fail-fast`, the time limit with room, L2).
+3. **A flaky test is a bug.** It is never retried in silence: a retry that passes is
+   reported as flaky, the cause is found (as L3–L5's were) and fixed, or the test is
+   quarantined with an issue and a date — never left to pass by luck.
+4. **On a branch, fast feedback first; before master, everything.** A push may run the
+   crates its change touches first (their dependents included, by `cargo metadata`), so
+   its author hears in minutes; nothing merges to master without the whole suite green on
+   Windows and Linux.
+5. **Disk and load before every suite** (`CLAUDE.md`): `df -h` first — beta.15's local
+   check failed to link with 73 MB left on F: — and never two suites at once on one
+   machine, or timing tests fail for the load, not for the code.
+
+These are the practice; building 1 and 2 (the reuse in `release.yml`, nextest and its
+partitions in `ci.yml` and `release.yml`) is in `docs/BACKLOG-excellence.md` §8.

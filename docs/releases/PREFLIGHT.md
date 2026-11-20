@@ -15,7 +15,7 @@ Rehearsal commit: {the cantus-daw commit it ran on, in full}
 - [ ] L2 The whole suite runs (--no-fail-fast) and each test step took under 2/3 of its timeout-minutes.
 - [ ] L3 The round's new timing tests compare with a reference (or best of several over a wide margin) and take turns.
 - [ ] L4 The round's new read_dir walks sort, or create their destinations first.
-- [ ] L5 The round's new start-up clean-ups leave a live process's work alone (lock).
+- [ ] L5 The round's new start-up clean-ups leave a live process's work alone (lock), and tests reading a process-wide value (the theme) take turns.
 - [ ] L6 The round's new downloads retry on every error and are checked.
 - [ ] L7 The last failed run's failures were all fixed in one commit before this rehearsal.
 - [ ] L8 One session watches the release run, at most once every five minutes.
