@@ -37,6 +37,13 @@ pub fn curve_of(v: &Voicing) -> [tables::Key; tables::KEYS] {
 
 /// A model-2 unit voiced `v` on its own keyboard.
 pub fn unit(v: &Voicing) -> Chorda {
+    unit_with(v, None)
+}
+
+/// [`unit`], its action's noises (the key's thud, the blow in the frame, the damper's
+/// landing) at `noise` if given (round 41: 0 lets a weak loop's fundamental be measured
+/// clear of the thud).
+pub fn unit_with(v: &Voicing, noise: Option<f64>) -> Chorda {
     let mut c = Chorda::new(FS as f32);
     c.set_keyboard(keyboard_of(v));
     let mut s = ChordaSettings {
@@ -55,6 +62,23 @@ pub fn unit(v: &Voicing) -> Chorda {
         .and_then(|x| x.parse().ok())
     {
         s.body = x;
+    }
+    // A diagnostic's phantom partials and action noises (`CHORDA_TUNE_PHANTOM`,
+    // `CHORDA_TUNE_NOISE`; round 41).
+    if let Some(x) = std::env::var("CHORDA_TUNE_PHANTOM")
+        .ok()
+        .and_then(|x| x.parse().ok())
+    {
+        s.voice.phantom = x;
+    }
+    if let Some(x) = std::env::var("CHORDA_TUNE_NOISE")
+        .ok()
+        .and_then(|x| x.parse().ok())
+    {
+        s.noise = x;
+    }
+    if let Some(x) = noise {
+        s.noise = x;
     }
     c.set(&s, 0.0);
     c.set_voicing(v);
