@@ -26,6 +26,10 @@ Busca la excelencia (Colosenses 3:23). Escríbeme en español.
 
 ## 0. Antes de empezar
 
+0. **Primero, el error del motor que encontré en la beta.15** (`docs/BACKLOG-excellence.md` §1,
+   el primer punto): un efecto que nunca se envía cuando abro un proyecto después de otro (el EQ
+   del master de Aurora tras Neon Tide). Salió en la beta.15 como problema conocido por mi
+   decisión; se arregla antes que todo lo demás, con su prueba de extremo a extremo.
 1. **Lo que espera mi oído** (nada sale sin él):
    - **Chorda, la ABX del candidato 16** (https://claude.ai/artifact/Jpwa91Tz4V8rbcRrgiXMKg; el
      zip FLAC `compartir\cantus-chorda-abx16.zip` para quien esté fuera de la organización). Por
