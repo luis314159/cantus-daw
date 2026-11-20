@@ -16,6 +16,8 @@ For each `<line>-<take>.wav` with its `.json` (from `takes.py`):
 - **Pace:** the words (English) or syllables (Spanish, `pace.py`'s count) over the speech's
   length head to tail, its pauses included: 2.0-3.0 and 4.0-6.0 a second. The speech must
   end at least 0.3 s before the line's window does.
+- **Ends:** made phrase by phrase, each phrase's raw output must end at least 30 dB under
+  its peak: louder, a word was cut off.
 - **Loudness:** integrated (ITU-R BS.1770, pyloudnorm) and true peak (4x oversampled),
   reported, not gated: the mix sets the level.
 
@@ -47,7 +49,7 @@ SAME = {
 }
 # The names, which Whisper spells as it can: one heard within two letters of the script's,
 # with the same first sound, is the name (a name further off was likely said wrong).
-NAMES = {"cantus": "cqk", "chorda": "ck", "tympanum": "t"}
+NAMES = {"cantus": "cqk", "chorda": "ck", "tympanum": "t", "cantusdaw": "cqk"}
 DOT = {"en": " dot ", "es": " punto "}
 
 
@@ -163,6 +165,8 @@ def main() -> None:
             "tail": 0.03 <= tail <= 0.4,
             "pace": lo <= rate <= hi,
             "fits": head + speech <= meta["window"] - 0.3,
+            # each phrase's raw output ended in its decay, not on a sounding word
+            "ends": all(e <= -30 for e in meta.get("phrase_end_db", [])),
         }
         row = {
             "take": wav.name,
@@ -195,6 +199,15 @@ def main() -> None:
         if not checks["words"]:
             print(f"           heard: {heard.strip()}")
     out = Path(a.takes) / "gate.json"
+    # numpy scalars into plain Python, so json takes them
+    def plain(v):
+        if isinstance(v, dict):
+            return {k: plain(x) for k, x in v.items()}
+        if isinstance(v, (list, tuple)):
+            return [plain(x) for x in v]
+        return v.item() if hasattr(v, "item") else v
+
+    rows = plain(rows)
     out.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     print(out)
 

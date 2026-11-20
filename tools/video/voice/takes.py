@@ -39,7 +39,7 @@ GRID = [
 # What the model is given for what the script writes: names and acronyms as they are said
 # (round 1 read "FL" as "Val", "VST3" as "Vistie Street", and dropped "daw" from the address).
 SPEAK = {
-    "en": {"FL Studio": "F.L. Studio", "VST3": "V.S.T. three", "cantusdaw.com": "cantus-daw dot com"},
+    "en": {"FL Studio": "F-L Studio", "VST3": "vee-ess-tee three", "cantusdaw.com": "cantus-daw dot com"},
     "es": {"FL Studio": "efe ele Studio", "VST3": "uve ese te tres", "cantusdaw.com": "cantus daw punto com",
            "plug-ins": "plugins"},
 }
@@ -49,6 +49,57 @@ def spoken(text: str, lang: str) -> str:
     for k, v in SPEAK[lang].items():
         text = text.replace(k, v)
     return text
+
+
+# Phrase by phrase (round 2: whole lines came out at 3.5-4.5 words a second while the short
+# lines held 2.3-2.9): each phrase between punctuation is made alone and the phrases are
+# joined with a presenter's pauses, so the line breathes where its punctuation says.
+GAP = {",": 0.16, ":": 0.26, ";": 0.26, "—": 0.26, ".": 0.36, "!": 0.36, "?": 0.36}
+HEAD_S, TAIL_S = 0.08, 0.20
+
+
+def phrases(text: str) -> list:
+    """The line cut after its punctuation; a piece under three words joins the next."""
+    import re
+
+    parts = [p.strip() for p in re.split(r"(?<=[,.;:—!?])\s+", text) if p.strip()]
+    out = []
+    carry = ""
+    for p in parts:
+        p = (carry + " " + p).strip() if carry else p
+        if len(p.split()) < 3:
+            carry = p
+            continue
+        out.append(p)
+        carry = ""
+    if carry:
+        if out:
+            out[-1] = out[-1] + " " + carry
+        else:
+            out.append(carry)
+    return out
+
+
+def trim(x, sr: int):
+    """A phrase from 20 ms before its first to 60 ms after its last sound within 40 dB of its
+    peak, faded out over 25 ms; and the level its raw output ended at, in dB under the peak
+    (a word cut off ends loud: the gate fails above -30 dB)."""
+    import numpy as np
+
+    hop = int(sr * 0.02)
+    n = max(len(x) // hop, 1)
+    rms = np.sqrt(np.mean(x[: n * hop].reshape(n, hop) ** 2, axis=1) + 1e-12)
+    peak = float(rms.max())
+    db = 20 * np.log10(rms / peak)
+    loud = np.nonzero(db > -40)[0]
+    first, last = (loud[0], loud[-1]) if len(loud) else (0, n - 1)
+    end_db = float(db[-1])
+    a = max(first * hop - hop, 0)
+    b = min((last + 1) * hop + int(sr * 0.06), len(x))
+    y = x[a:b].copy()
+    fade = min(int(sr * 0.025), len(y))
+    y[len(y) - fade :] *= 0.5 * (1 + np.cos(np.linspace(0, np.pi, fade)))
+    return y, end_db
 
 
 def main() -> None:
@@ -80,19 +131,29 @@ def main() -> None:
             continue
         for k, (seed, exag, cfg, temp) in enumerate(GRID[: a.takes], start=1):
             name = f"{line['n']:02d}-{k}"
-            torch.manual_seed(seed)
-            if device == "cuda":
-                torch.cuda.manual_seed_all(seed)
+            import numpy as np
+
             said = spoken(line["text"], a.lang)
-            wav = model.generate(
-                said,
-                language_id=a.lang,
-                audio_prompt_path=a.ref,
-                exaggeration=exag,
-                cfg_weight=cfg,
-                temperature=temp,
-            )
-            samples = wav.squeeze(0).detach().cpu().numpy()
+            pieces, ends, joined = [], [], [np.zeros(int(model.sr * HEAD_S), np.float32)]
+            for i, phrase in enumerate(phrases(said)):
+                torch.manual_seed(seed + 97 * i)
+                if device == "cuda":
+                    torch.cuda.manual_seed_all(seed + 97 * i)
+                wav = model.generate(
+                    phrase,
+                    language_id=a.lang,
+                    audio_prompt_path=a.ref,
+                    exaggeration=exag,
+                    cfg_weight=cfg,
+                    temperature=temp,
+                )
+                y, end_db = trim(wav.squeeze(0).detach().cpu().numpy().astype(np.float32), model.sr)
+                pieces.append(phrase)
+                ends.append(round(end_db, 1))
+                joined.append(y)
+                joined.append(np.zeros(int(model.sr * GAP.get(phrase[-1], 0.0)), np.float32))
+            joined[-1] = np.zeros(int(model.sr * TAIL_S), np.float32)
+            samples = np.concatenate(joined)
             sf.write(out / f"{name}.wav", samples, model.sr, subtype="FLOAT")
             meta = {
                 "line": line["n"],
@@ -100,6 +161,8 @@ def main() -> None:
                 "lang": a.lang,
                 "text": line["text"],
                 "spoken": said,
+                "phrases": pieces,
+                "phrase_end_db": ends,
                 "start": line["start"],
                 "window": line["window"],
                 "seed": seed,
