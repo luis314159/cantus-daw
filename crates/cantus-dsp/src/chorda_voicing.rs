@@ -305,6 +305,17 @@ pub struct Voicing {
     /// resonance may pull one of a key's first three partials — the key's resonances' gains
     /// scaled down until none does (0: no limit).
     pub bridge_pull: f64,
+    /// Round 41, every unison beatless (`DSP_VERSION` 11): with `bridge_tune`, the most (Hz)
+    /// a bridge resonance may pull one of a key's first three partials — the beat it leaves
+    /// between the unison's in-phase mode and its opposed modes, which the bridge never moves
+    /// (0: none, every voicing before; `KeyStrings::set_bridge_tuned`). Set as
+    /// `bridge.pull_hz`.
+    pub bridge_pull_hz: f64,
+    /// Round 41, every unison beatless (`DSP_VERSION` 11): the share of the `unison`
+    /// control's first cent taken as the technician's (0: none, every voicing before; 1: at
+    /// the control's default the strings are tuned to each other, each cent above it
+    /// detuning them as before) — the owner heard the designed spread as strings out of tune.
+    pub uni_tight: f64,
 }
 
 /// The most a key is evened by (dB).
@@ -476,6 +487,8 @@ impl Voicing {
             frac_room: 0.0,
             bridge_tune: 0.0,
             bridge_pull: 0.0,
+            bridge_pull_hz: 0.0,
+            uni_tight: 0.0,
         }
     }
 
@@ -873,6 +886,8 @@ impl Voicing {
             "uni_center" => &mut self.uni_center,
             "bridge.tune" => &mut self.bridge_tune,
             "bridge.pull" => &mut self.bridge_pull,
+            "bridge.pull_hz" => &mut self.bridge_pull_hz,
+            "uni_tight" => &mut self.uni_tight,
             "uni_weight_low" => &mut self.uni_weight_low,
             "detune_bass" => &mut self.detune_bass,
             "detune_scale" => &mut self.detune_scale,

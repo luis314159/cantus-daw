@@ -138,6 +138,10 @@ pub struct VoiceSettings {
     /// resonance may pull one of a key's first three partials (`Voicing::bridge_pull`; 0:
     /// no limit).
     pub bridge_pull: f64,
+    /// Model 2 (round 41, `DSP_VERSION` 11): with `bridge_tune`, the most (Hz) a bridge
+    /// resonance may pull one of a key's first three partials — the beat its in-phase mode
+    /// keeps against the opposed ones (`Voicing::bridge_pull_hz`; 0: no limit in hertz).
+    pub bridge_pull_hz: f64,
     /// Model 2 (round 40): how far a unison's strings' losses scatter (± this share; 0:
     /// alike).
     pub uni_loss: f64,
@@ -587,6 +591,7 @@ impl Voice {
                 uni_center: 0.0,
                 bridge_tune: 0.0,
                 bridge_pull: 0.0,
+                bridge_pull_hz: 0.0,
                 uni_loss: 0.0,
                 knock_vel: 0.0,
                 landing_tau: 0.0,
@@ -789,7 +794,7 @@ impl Voice {
                     np += 1;
                 }
                 self.strings
-                    .set_bridge_tuned(&parts[..np], settings.bridge_pull);
+                    .set_bridge_tuned(&parts[..np], settings.bridge_pull, settings.bridge_pull_hz);
             }
         }
         let soft = (soft * settings.una_depth).clamp(0.0, 1.0);

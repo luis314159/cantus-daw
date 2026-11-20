@@ -225,6 +225,10 @@ pub struct KeyStrings {
     tuned: [(f64, f64, f64); TUNED_PARTIALS],
     tuned_n: usize,
     tuned_cap: f64,
+    /// Round 41 (`DSP_VERSION` 11, every unison beatless): the most (Hz) a resonance may pull
+    /// one of the first three partials' in-phase mode — the beat it leaves against the
+    /// strings' opposed modes, which the bridge never moves (0: no limit in hertz).
+    tuned_cap_hz: f64,
     base_frac: [f64; MAX_STRINGS],
     base_g: [f64; BRIDGE_MODES],
     tuned_yz: f64,
@@ -304,6 +308,7 @@ impl KeyStrings {
             tuned: [(0.0, 0.0, 0.0); TUNED_PARTIALS],
             tuned_n: 0,
             tuned_cap: 0.0,
+            tuned_cap_hz: 0.0,
             base_frac: [0.0; MAX_STRINGS],
             base_g: [0.0; BRIDGE_MODES],
             tuned_yz: -1.0,
@@ -590,7 +595,12 @@ impl KeyStrings {
     /// bridge they rest on: the resonances' gains are scaled down until none pulls one of the
     /// first three partials more than `cap`, and every string's fraction then gives back
     /// the pull the ear hears — the partials' pulls weighed by `partials`' weights.
-    pub fn set_bridge_tuned(&mut self, partials: &[(f64, f64, f64)], cap: f64) {
+    ///
+    /// `cap_hz` (round 41, `DSP_VERSION` 11; 0: none): the pull held in hertz as well — no
+    /// partial of the first three pulled more than `cap_hz` — for what the ear hears of it is
+    /// the beat between the in-phase mode it moves and the opposed modes it leaves: a cent is
+    /// 0.07 Hz at B2's fundamental, 1.1 Hz at E5's third partial.
+    pub fn set_bridge_tuned(&mut self, partials: &[(f64, f64, f64)], cap: f64, cap_hz: f64) {
         for (b, s) in self.base_frac.iter_mut().zip(&self.strings) {
             *b = s.frac;
         }
@@ -600,6 +610,7 @@ impl KeyStrings {
         self.tuned_n = partials.len().min(TUNED_PARTIALS);
         self.tuned[..self.tuned_n].copy_from_slice(&partials[..self.tuned_n]);
         self.tuned_cap = cap;
+        self.tuned_cap_hz = cap_hz;
         self.tuned_yz = -1.0;
     }
 
@@ -697,7 +708,32 @@ impl KeyStrings {
             m[3] = *g;
         }
         let n = self.tuned_n;
-        if self.tuned_cap > 0.0 {
+        if self.tuned_cap_hz > 0.0 {
+            // Each partial's own cap: the cents cap, or the hertz cap there if tighter. The
+            // pull is nearly proportional to the gains: two steps land within a hair.
+            let cents_per_hz = |w: f64| CENTS * std::f64::consts::TAU / (w * self.fs);
+            for _ in 0..2 {
+                let worst = self.tuned[..n.min(3)]
+                    .iter()
+                    .map(|(w, t, _)| {
+                        let hz_cap = self.tuned_cap_hz * cents_per_hz(*w);
+                        let cap = if self.tuned_cap > 0.0 {
+                            self.tuned_cap.min(hz_cap)
+                        } else {
+                            hz_cap
+                        };
+                        self.pull_cents(*w, *t).abs() / cap
+                    })
+                    .fold(0.0f64, f64::max);
+                if worst <= 1.0 {
+                    break;
+                }
+                let k = 1.0 / worst;
+                for m in self.bm[..self.nbm].iter_mut() {
+                    m[3] *= k;
+                }
+            }
+        } else if self.tuned_cap > 0.0 {
             // The pull is nearly proportional to the gains: two steps land within a hair.
             for _ in 0..2 {
                 let worst = self.tuned[..n.min(3)]

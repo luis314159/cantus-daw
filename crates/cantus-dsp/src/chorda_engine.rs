@@ -206,6 +206,7 @@ impl Default for ChordaSettings {
                 uni_center: 0.0,
                 bridge_tune: 0.0,
                 bridge_pull: 0.0,
+                bridge_pull_hz: 0.0,
                 uni_loss: 0.0,
                 knock_vel: 0.0,
                 landing_tau: 0.0,
@@ -306,6 +307,13 @@ impl Chorda {
     #[cfg(test)]
     pub(crate) fn key_strings(&self, i: usize) -> &super::string::KeyStrings {
         self.voices[i].strings()
+    }
+
+    /// Key index `i`'s voice (a test's look inside: round 41's unison kit renders a clone of
+    /// it alone, its bridge force before the board).
+    #[cfg(test)]
+    pub(crate) fn voice(&self, i: usize) -> &super::voice::Voice {
+        &self.voices[i]
     }
 
     /// Round 41 (BACKLOG §3e, every string in tune): key `key`'s loops kept — the
@@ -680,11 +688,19 @@ impl Chorda {
             v.uni_center = self.voicing.uni_center;
             v.bridge_tune = self.voicing.bridge_tune;
             v.bridge_pull = self.voicing.bridge_pull;
+            v.bridge_pull_hz = self.voicing.bridge_pull_hz;
             if self.voicing.uni_weight_low != 0.0 {
                 v.uni_weight = (v.uni_weight + self.voicing.uni_weight_low * fade).min(1.0);
             }
             if self.voicing.uni_weight_bass != 0.0 {
                 v.uni_weight = (v.uni_weight + self.voicing.weight_bass(k.key)).min(1.0);
+            }
+            if self.voicing.uni_tight != 0.0 {
+                // The unison control's first cent is the technician's (round 41): at its
+                // default (1) the strings are tuned beatless, each cent above it detunes as
+                // before.
+                let u = v.detune_ct;
+                v.detune_ct = u - self.voicing.uni_tight * u.min(1.0);
             }
             if self.voicing.detune_bass != 1.0 {
                 v.detune_ct *= Voicing::bass_scale(k.key, self.voicing.detune_bass);
