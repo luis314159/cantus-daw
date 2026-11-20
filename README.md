@@ -1778,7 +1778,8 @@ look, and `tests/frame_budget.rs` holds the speed.
 | The name and logos | trademarks of Luis Ángel Almazán: free to use to talk about Cantus truthfully | [TRADEMARKS.md](TRADEMARKS.md) |
 | Contributions | merged with the contributor licence agreement | [CONTRIBUTING.md](CONTRIBUTING.md), [CLA.md](CLA.md) |
 
-Which crate is which: [LICENSE](LICENSE); why: [ADR 0001](docs/adr/0001-license.md) and
+Which crate is which: [LICENSE](LICENSE) (a pointer to the two licences, so GitHub's sidebar
+and some catalogues show the licence as unknown or "other"); why: [ADR 0001](docs/adr/0001-license.md) and
 [ADR 0047](docs/adr/0047-licensing-revised.md). Third-party components:
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The bundled fonts
 (in `crates/cantus-ui/assets/fonts/`) are licensed under the SIL Open Font License 1.1:
