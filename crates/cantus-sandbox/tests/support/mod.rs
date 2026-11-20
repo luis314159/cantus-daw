@@ -495,6 +495,26 @@ impl Rig {
     }
 
     /// One audio block, then what the interface does each frame.
+    /// Blocks until the helper has said back parameter `id` of plug-in `effect` at `value`
+    /// (10 s at most). A fault set through a parameter is in the plug-in only then: on a
+    /// loaded Mac runner `settle`'s 64 blocks were not always enough (beta.15).
+    pub fn arrived(&mut self, effect: EffectId, id: u32, value: f64) {
+        let start = std::time::Instant::now();
+        while !self
+            .host
+            .hosted(effect)
+            .and_then(|h| h.param_value(id))
+            .is_some_and(|x| (x - value).abs() < 1e-6)
+        {
+            assert!(
+                start.elapsed() < std::time::Duration::from_secs(10),
+                "parameter {id} of {effect:?} reaches the plug-in"
+            );
+            self.block(256);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+    }
+
     pub fn block(&mut self, frames: usize) -> Vec<f32> {
         let mut buf = vec![0f32; frames * 2];
         self.processor.process(&mut buf, 2);

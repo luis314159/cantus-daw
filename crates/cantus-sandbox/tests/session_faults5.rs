@@ -186,6 +186,7 @@ fn a_save_names_a_plugin_kept_as_it_was_last_said() {
     assert!(rig.host.saved_stale().is_empty(), "both answered");
     rig.set_param(strip, stuck, P_FAULT, HANG_SAVE);
     rig.settle();
+    rig.arrived(stuck, P_FAULT, HANG_SAVE);
     rig.host.ask_states();
     let start = Instant::now();
     while !rig.host.states_in() {
@@ -394,21 +395,8 @@ fn a_state_answered_late_becomes_the_last_good_one() {
     // Both values said back by the helper before the state is asked for: on GitHub's Mac
     // runner (beta.15) 64 blocks were not always enough, the state was asked for before the
     // fault had arrived and came back at once, current — nothing kept as last said.
-    let holds = |rig: &Rig, p: u32, v: f64| {
-        rig.host
-            .hosted(id)
-            .and_then(|h| h.param_value(p))
-            .is_some_and(|x| (x - v).abs() < 1e-6)
-    };
-    let start = Instant::now();
-    while !holds(&rig, P_FAULT, SLOW_SAVE) || !holds(&rig, P_GAIN, -6.0) {
-        assert!(
-            start.elapsed() < Duration::from_secs(10),
-            "the fault and the gain reach the plug-in"
-        );
-        rig.block(256);
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    rig.arrived(id, P_GAIN, -6.0);
+    rig.arrived(id, P_FAULT, SLOW_SAVE);
     let gain_in = |p: &Project| {
         p.all_effects()
             .find(|(_, s)| s.id == id)

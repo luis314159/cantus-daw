@@ -266,6 +266,7 @@ fn a_render_without_its_instance_says_so() {
     let id = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
     rig.set_param(strip, id, P_FAULT, SLOW_SAVE);
     rig.settle();
+    rig.arrived(id, P_FAULT, SLOW_SAVE);
     let p = rig.bus.project().clone();
     assert!(
         !rig.host.render_ready(RenderFor::Export, &p, SR, false),
@@ -459,6 +460,7 @@ fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
     // Its state moves; the host hears nothing of it (what it said last is older).
     rig.set_param(strip, id, P_FAULT, TAG_QUIETLY);
     rig.settle();
+    rig.arrived(id, P_FAULT, TAG_QUIETLY);
     // A device change: let go, its state asked for, loaded again once it is in.
     rig.host.reload_all(SR);
     assert!(rig.host.hosted(id).is_none());
@@ -498,6 +500,7 @@ fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
     let other = rig.insert(strip, GAIN_ID, PluginIsolation::Individually);
     rig.set_param(strip, other, P_FAULT, HANG_SAVE);
     rig.settle();
+    rig.arrived(other, P_FAULT, HANG_SAVE);
     rig.exec(Command::RemoveEffect {
         strip,
         effect: other,

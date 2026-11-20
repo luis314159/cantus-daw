@@ -58,6 +58,7 @@ fn a_render_waits_for_a_plugin_that_is_leaving_and_never_lacks_it_silently() {
     // Its next state takes 3 s.
     rig.set_param(strip, id, P_FAULT, SLOW_SAVE);
     rig.settle();
+    rig.arrived(id, P_FAULT, SLOW_SAVE);
     rig.host.reload_all(SR);
     rig.resync();
     assert!(rig.host.hosted(id).is_none(), "leaving");
@@ -283,6 +284,7 @@ fn a_quiet_tag_is_only_the_plugins_own_doing() {
     let id = rig.insert(strip, GAIN_ID, PluginIsolation::Within);
     rig.set_param(strip, id, P_FAULT, TAG_QUIETLY);
     rig.settle();
+    rig.arrived(id, P_FAULT, TAG_QUIETLY);
     rig.host.ask_states();
     assert!(rig.host.states_in());
     let saved = rig.host.project_for_save(rig.bus.project());
