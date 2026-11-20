@@ -34,7 +34,7 @@ the same packages by their names. JACK needs nothing: it is opened at run time
 
 ```text
 git clone https://github.com/luis314159/cantus-daw.git
-cd cantus
+cd cantus-daw
 cargo run -p xtask -- asio-sdk
 ```
 
