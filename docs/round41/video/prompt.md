@@ -27,7 +27,7 @@ You may run the work yourself or hand the steps to builder agents. If you use ag
 one owner per file, give each the plan, the script and these rules, and review what each
 returns: frames looked at, numbers checked. Never relay an agent's claim unchecked.
 
-## Read first, in this order
+## Read first, in this order (in your worktree, `F:/projects/daw-r41/video`)
 1. `CLAUDE.md`: the project's rules. Follow them, especially: explicit staging, commit only
    to your branch, never push; builds through `F:\projects\daw-r40\slot.sh`; never two
    suites or a CPU measurement at once (ask the other sessions with ListAgents /
@@ -42,9 +42,11 @@ returns: frames looked at, numbers checked. Never relay an agent's claim uncheck
    the app renders itself headless, frame after frame, with the engine stepped between.
 
 ## Work
-- Branch `r41/video` from master, in a worktree of its own:
-  `git worktree add -b r41/video F:/projects/daw-r41/video master`, with an untracked
-  `.cargo/config.toml` (`[build] jobs = 3`, `debug = 0`, `incremental = false`).
+- The plan lives on branch `r41/video-plan` (it is not on master yet). Make your branch from
+  it, in a worktree of its own:
+  `git worktree add -b r41/video F:/projects/daw-r41/video r41/video-plan`.
+  Give it an untracked `.cargo/config.toml` (`[build] jobs = 3`, `debug = 0`,
+  `incremental = false`), and read the files named below in that worktree.
 - Everything generated (frames, takes, renders, the Python environment, downloaded models)
   lives in `F:\projects\video-work\`, never in the repository.
 - Commit only the code and the sources: `film.rs`, `tools/video/` (cards, `build.sh`, the
