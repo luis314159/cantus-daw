@@ -944,6 +944,14 @@ vocals — then what blind comparisons demand, then build cost on what exists):
   - what it finds is fixed through the voicing lab (`tools/chorda-voicing`), with a
     `DSP_VERSION` bump and the measured size of the change when the sound moves, and the
     owner's ear on the keys that moved.
+  - **Built in round 41** (`docs/round41/chorda-strings.md`, the page
+    `docs/round41/chorda-strings.html`, `chorda_tests_strings.rs`): the felt
+    (`Chorda::set_loops_kept`, a null at its default), every loop of every key at three
+    velocities, all within tolerance — the worst E4's first string, +1.35 cents, mostly the
+    technician's table; nothing retuned. `strings()` lays three from F#2 (its comment said
+    D2). Open: the owner's ear; the key's thud pulls the weak fundamentals of G#1–C2 struck
+    alone (a lab question for `knock`); a detune on the fraction moves partials 2–3 up to a
+    cent off its fundamental's offset (a lab item if C#3's unison sounds too pure).
 
 **The piano, as the owner decided it (2026-10-10):**
 

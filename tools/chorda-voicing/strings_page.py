@@ -81,7 +81,10 @@ These are measurements of the model. Nobody has listened to them yet.</p>
 
 <h2>Error against the designed pitch</h2>
 <p>The ear's pitch of each string alone, in cents. Zero means the string is exactly where it
-was designed to be. The green band is the tolerance the tests hold that string to.</p>
+was designed to be. The green band is the tolerance the tests hold that string to: one cent
+up to E6 and 2.5 cents above it, the same as for a whole key. A string of a unison also gets
+what the design itself puts between one string alone and its key (the technician's table
+and part of the bridge's pull). The grey bars show each whole key against its curve.</p>
 <div class="panel">
   <div class="controls" id="controls"></div>
   <svg id="chart" role="img" aria-label="Error in cents of every string, key by key"></svg>
@@ -91,18 +94,27 @@ was designed to be. The green band is the tolerance the tests hold that string t
     <span><i class="dot" style="background:var(--s3)"></i>string 3</span>
     <span><i class="dot" style="background:var(--polar)"></i>horizontal polarisation</span>
     <span><i class="dot" style="background:var(--band-edge)"></i>tolerance</span>
+    <span><i class="dot" style="background:var(--muted);border-radius:0;height:3px"></i>the key whole, against its curve</span>
   </div>
 </div>
 
 <h2>Every key, every string</h2>
-<p>Designed offset: the string's designed detune from the curve, in cents. Error columns:
-the ear's pitch of that string alone minus its designed pitch, one per velocity. Partial 1:
-the fundamental's error at velocity 0.6. Predicted: what the bridge's pull and the
-technician's table account for at velocity 0.6. Red cells are outside the tolerance.</p>
+<p>Designed offset: the string's designed detune from the curve, in cents. The three error
+columns give the ear's pitch of that string alone minus its designed pitch, one column per
+velocity, as the instrument plays it. "Noises off" is the same measurement with the action's
+noises (the key's thud, the hammer's blow in the frame, the damper landing) turned off.
+The thud is the same whichever string sounds, so a quiet string alone hears it relatively
+louder than its key does. Fundamental: the first partial's error at velocity 0.9. Between G#1
+and C2 the thud pulls that weak partial by tens of cents; with the noises off it is within
+2 cents. Predicted: how much the bridge and the technician's table account for. Key whole:
+the whole key, all its strings sounding, against the curve. Red cells are outside the
+tolerance.</p>
 <div class="panel scroll"><table id="table"></table></div>
 </main>
 <script>
-const DATA = __DATA__;
+const ALL = __DATA__;
+const DATA = ALL.loops;
+const KEYS = ALL.keys;
 const NAMES = { s1: "string 1", s2: "string 2", s3: "string 3", polar: "polarisation" };
 const COLOUR = { s1: "var(--s1)", s2: "var(--s2)", s3: "var(--s3)", polar: "var(--polar)" };
 const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -110,17 +122,20 @@ const noteName = m => NOTE[m % 12] + (Math.floor(m / 12) - 1);
 const fmt = (x, d = 2) => x === null || x === undefined ? "–"
   : (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(d);
 let vel = "all";
+let mode = "err";
 
 function tiles() {
   const n = DATA.length;
-  const out = DATA.filter(r => Math.abs(r.err) > r.tol).length;
+  const out = DATA.filter(r => Math.abs(r.err) > r.tol || Math.abs(r.quiet) > r.tol).length;
   const worst = DATA.reduce((a, r) => Math.abs(r.err) > Math.abs(a.err) ? r : a, DATA[0]);
+  const margin = Math.max(...DATA.map(r => Math.abs(r.err) / r.tol));
   const loops = new Set(DATA.map(r => r.key + r.loop)).size;
   const items = [
     ["Strings measured", loops + " (" + n + " strikes)"],
     ["Outside tolerance", out + " of " + n],
-    ["Worst error", fmt(worst.err) + " ct"],
+    ["Worst error", fmt(worst.err) + " cents"],
     ["Worst string", noteName(worst.key) + " " + NAMES[worst.loop] + " at " + worst.vel],
+    ["Closest to its limit", Math.round(margin * 100) + " % of its tolerance"],
   ];
   document.getElementById("tiles").innerHTML = items.map(([l, v]) =>
     `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div></div>`
@@ -132,9 +147,14 @@ function controls() {
   const opts = ["all", "0.3", "0.6", "0.9"];
   el.innerHTML = "<span>Velocity</span>" + opts.map(o =>
     `<button data-v="${o}" aria-pressed="${o === vel}">${o === "all" ? "all three" : o}</button>`
-  ).join("");
-  el.querySelectorAll("button").forEach(b => b.onclick = () => {
+  ).join("") + "<span style='margin-left:16px'>Sound</span>"
+    + `<button data-m="err" aria-pressed="${mode === "err"}">as played</button>`
+    + `<button data-m="quiet" aria-pressed="${mode === "quiet"}">action noises off</button>`;
+  el.querySelectorAll("button[data-v]").forEach(b => b.onclick = () => {
     vel = b.dataset.v; controls(); chart();
+  });
+  el.querySelectorAll("button[data-m]").forEach(b => b.onclick = () => {
+    mode = b.dataset.m; controls(); chart();
   });
 }
 
@@ -142,7 +162,8 @@ function chart() {
   const svg = document.getElementById("chart");
   const W = 1120, H = 340, L = 40, R = 10, T = 10, B = 34;
   const rows = DATA.filter(r => vel === "all" || r.vel.toFixed(1) === vel);
-  const lim = Math.max(2, Math.ceil(Math.max(...DATA.map(r => Math.max(Math.abs(r.err), r.tol))) * 2) / 2);
+  const lim = Math.max(2, Math.ceil(Math.max(...DATA.map(r => Math.max(Math.abs(r.err), r.tol)),
+    ...KEYS.map(k => Math.abs(k.pitch))) * 2) / 2);
   const x = m => L + (m - 20.5) / 88 * (W - L - R);
   const y = c => T + (lim - c) / (2 * lim) * (H - T - B);
   let s = "";
@@ -169,13 +190,20 @@ function chart() {
   }
   s += `<text x="${L}" y="${H - 1}">key</text>`;
   const off = { s1: -0.27, s2: -0.09, s3: 0.09, polar: 0.27 };
+  KEYS.filter(k => vel === "all" ? k.vel.toFixed(1) === "0.6" : k.vel.toFixed(1) === vel)
+    .forEach(k => {
+      const cy = y(Math.max(-lim, Math.min(lim, k.pitch)));
+      s += `<rect x="${x(k.key) - 4}" y="${cy - 1}" width="8" height="2" fill="var(--muted)">`
+        + `<title>${noteName(k.key)} whole key, velocity ${k.vel}: ${fmt(k.pitch)} cents from the curve</title></rect>`;
+    });
   rows.forEach(r => {
-    const bad = Math.abs(r.err) > r.tol;
-    const cy = y(Math.max(-lim, Math.min(lim, r.err)));
+    const e = r[mode];
+    const bad = Math.abs(e) > r.tol;
+    const cy = y(Math.max(-lim, Math.min(lim, e)));
     s += `<circle cx="${x(r.key + off[r.loop])}" cy="${cy}" r="${bad ? 4 : 2.6}" fill="${COLOUR[r.loop]}"`
       + (bad ? ` stroke="var(--bad)" stroke-width="2"` : "")
       + `><title>${noteName(r.key)} (${r.key}) ${NAMES[r.loop]}, velocity ${r.vel}: `
-      + `${fmt(r.err)} cents (tolerance ±${r.tol.toFixed(2)})</title></circle>`;
+      + `${fmt(e)} cents (tolerance ±${r.tol.toFixed(2)})</title></circle>`;
   });
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("width", W);
@@ -187,18 +215,23 @@ function table() {
   const by = {};
   DATA.forEach(r => { (by[r.key + "|" + r.loop] = by[r.key + "|" + r.loop] || []).push(r); });
   let h = `<tr><th class="l">Key</th><th class="l">String</th><th>Designed offset</th>`
-    + `<th>Error 0.3</th><th>Error 0.6</th><th>Error 0.9</th><th>Partial 1 (0.6)</th>`
-    + `<th>Predicted (0.6)</th><th>Tolerance</th></tr>`;
+    + `<th>Error 0.3</th><th>Error 0.6</th><th>Error 0.9</th><th>Noises off 0.6</th>`
+    + `<th>Fundamental 0.9</th><th>Fundamental 0.9, noises off</th>`
+    + `<th>Predicted 0.6</th><th>Tolerance</th><th>Key whole 0.6</th></tr>`;
   let last = 0;
   Object.values(by).forEach(rs => {
     rs.sort((a, b) => a.vel - b.vel);
     const r6 = rs.find(r => r.vel.toFixed(1) === "0.6") || rs[0];
-    const p1 = (r6.partials.find(p => p[0] === 1) || [])[1];
+    const r9 = rs.find(r => r.vel.toFixed(1) === "0.9") || rs[0];
+    const whole = KEYS.find(k => k.key === r6.key && k.vel.toFixed(1) === "0.6");
     const cell = r => `<td class="${Math.abs(r.err) > r.tol ? "bad" : ""}">${fmt(r.err)}</td>`;
     h += `<tr class="${r6.key !== last ? "key" : ""}"><td class="l">${r6.key !== last
       ? noteName(r6.key) + " (" + r6.key + ")" : ""}</td><td class="l">${NAMES[r6.loop]}</td>`
-      + `<td>${fmt(r6.detune)}</td>${rs.map(cell).join("")}<td>${fmt(p1)}</td>`
-      + `<td>${fmt(r6.pred)}</td><td>±${r6.tol.toFixed(2)}</td></tr>`;
+      + `<td>${fmt(r6.detune)}</td>${rs.map(cell).join("")}`
+      + `<td class="${Math.abs(r6.quiet) > r6.tol ? "bad" : ""}">${fmt(r6.quiet)}</td>`
+      + `<td>${fmt(r9.p1)}</td><td>${fmt(r9.p1q)}</td>`
+      + `<td>${fmt(r6.pred)}</td><td>±${r6.tol.toFixed(2)}</td>`
+      + `<td>${r6.key !== last && whole ? fmt(whole.pitch) : ""}</td></tr>`;
     last = r6.key;
   });
   document.getElementById("table").innerHTML = h;
@@ -216,7 +249,7 @@ def main() -> None:
         sys.exit(__doc__)
     with open(sys.argv[1], encoding="utf-8") as f:
         data = json.load(f)
-    for r in data:
+    for r in data["loops"]:
         if "tol" not in r:
             sys.exit("the JSON has no tolerances: write it with the round-41 diagnostic")
     page = PAGE.replace("__DATA__", json.dumps(data, separators=(",", ":")))
