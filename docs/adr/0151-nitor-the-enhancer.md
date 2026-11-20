@@ -26,8 +26,8 @@ answer in Cantus (BACKLOG §6l B9, B10, B12). The owner chose one unit for all t
   preset file (`presets/effects/enhancer.toml`, floor 0 until its presets land), the picker's
   Mastering shelf, the AI's word `nitor` (aliases `enhancer`, `exciter`).
 - **Exported** as a CLAP/VST3 plug-in from the contract on: `com.github.lalmazan.cantus.nitor`,
-  VST3 class id `B9B02B7F-510D7B77-FAF61667-3003FF5F`, blessed in
-  `cantus-plugins/tests/golden/ids.txt` — **forever**. The parameter `out` stays forever.
+  VST3 class id `46395C6F-19D2E9B4-7D15652E-590ED7C6`, blessed in
+  `cantus-plugins/tests/golden/ids.txt` — **forever**, the class id by its rule (SHA-256 of `cantus/vst3/nitor`). The parameters `out` and `key` stay forever.
 
 ## The builder's (to fill in)
 

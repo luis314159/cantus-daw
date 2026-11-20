@@ -611,7 +611,7 @@ pub static ALL: [Descriptor; 43] = [
         full_name: "Cantus Nitor",
         slug: "nitor",
         clap_id: "com.github.lalmazan.cantus.nitor",
-        vst3_cid: [0xB9B02B7F, 0x510D7B77, 0xFAF61667, 0x3003FF5F],
+        vst3_cid: [0x46395C6F, 0x19D2E9B4, 0x7D15652E, 0x590ED7C6],
         clap_features: &[FX, "distortion", "equalizer", STEREO],
         vst3_categories: "Fx|Distortion",
         description: "One-knob enhancer: curated multiband characters under one amount, a low end lifted and tuned to the song's key, harmonics excited band by band.",

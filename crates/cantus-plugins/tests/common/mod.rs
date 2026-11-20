@@ -924,6 +924,9 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("vdecay", 1.0),
             ("out", -1.0),
         ], // fxc:purus
+        // r41:contract — the stub's output, so a sample moves (the nitor builder sets the
+        // amount, a character and the low end here).
+        EffectKind::Enhancer => vec![("out", -3.0)], // r41:nitor
         _ => vec![],
     }
 }
