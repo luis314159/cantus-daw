@@ -51,7 +51,7 @@ SAME = {
 }
 # The names, which Whisper spells as it can: one heard within two letters of the script's,
 # with the same first sound, is the name (a name further off was likely said wrong).
-NAMES = {"cantus": "cqk", "chorda": "ck", "tympanum": "t", "cantusdaw": "cqk"}
+NAMES = {"cantus": "ck", "chorda": "ck", "tympanum": "t", "cantusdaw": "ck", "fides": "f", "nitor": "n"}
 DOT = {"en": " dot ", "es": " punto "}
 
 
@@ -184,6 +184,7 @@ def main() -> None:
             "end_db": round(end_db, 1),
             "checks": checks,
             "heard": heard.strip(),
+            "names": [w for w in got if any(lev(w, n) <= 2 and w[:1] in NAMES[n] for n in NAMES)],
             "rate": round(rate, 2),
             "unit": unit + "/s",
             "speech_s": round(speech, 2),

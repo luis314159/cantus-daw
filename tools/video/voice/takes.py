@@ -39,9 +39,13 @@ GRID = [
 # What the model is given for what the script writes: names and acronyms as they are said
 # (round 1 read "FL" as "Val", "VST3" as "Vistie Street", and dropped "daw" from the address).
 SPEAK = {
-    "en": {"FL Studio": "F-L Studio", "VST3": "vee-ess-tee three", "cantusdaw.com": "cantus-daw dot com"},
+    # The Latin names in Latin's hard consonants (the owner, 2026-11-20): Chorda KOR-da,
+    # Cantus KAN-tus, Tympanum TIM-pa-num (and, if a line ever names them, Fides FEE-des,
+    # Nitor NEE-tor). The address before the name, so "cantusdaw.com" is not caught by it.
+    "en": {"FL Studio": "F-L Studio", "VST3": "vee-ess-tee three", "cantusdaw.com": "kantus-daw dot com",
+           "Cantus": "Kantus", "Chorda": "Korda", "Tympanum": "Timpanum", "Fides": "Feedes", "Nitor": "Neetor"},
     "es": {"FL Studio": "efe ele Studio", "VST3": "uve ese te tres", "cantusdaw.com": "cantus daw punto com",
-           "plug-ins": "plugins"},
+           "plug-ins": "plugins", "Chorda": "Korda", "Tympanum": "Tímpanum"},
 }
 
 
