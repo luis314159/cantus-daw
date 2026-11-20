@@ -64,6 +64,16 @@ fn walk(s: &egui::Shape, clip: Rect, out: &mut Vec<Word>) {
     }
 }
 
+/// This binary's tests take turns (beta.15's AppImage job): the theme is the process's
+/// (`theme::apply` installs its palette and the kit's tokens for every thread), so a test
+/// assembling its app — the default theme, Slate Lapis — while another measured Chorda at
+/// 150 % repainted that one's knob labels in another lettering, and its words "went
+/// missing". The app has one interface thread; only tests run several.
+fn turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    TURN.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The editor's own host: a context of its own, in the app's look, and the textures it
 /// has sent (the fonts' atlas is sent once).
 struct Host {
@@ -214,6 +224,7 @@ fn whole(kind: InstrumentKind, view: View) -> Vec2 {
 
 #[test]
 fn chorda_and_tympanum_read_whole_at_every_scale_and_the_narrowest_window() {
+    let _turn = turn();
     inst::chorda::scene::set_blocking(true);
     let (p, chorda, tymp) = song();
     let mut r = Rig::new(p);
@@ -324,6 +335,7 @@ fn chorda_and_tympanum_read_whole_at_every_scale_and_the_narrowest_window() {
 /// 1 040 × 680 ran past the window's right and foot). A list inside it may scroll.
 #[test]
 fn an_instrument_opens_at_its_own_size_its_view_uncut() {
+    let _turn = turn();
     inst::chorda::scene::set_blocking(true);
     let (p, chorda, tymp) = song();
     let mut r = Rig::new(p);
@@ -415,6 +427,7 @@ fn an_instrument_opens_at_its_own_size_its_view_uncut() {
 /// track's part and the other secondary items give way first.
 #[test]
 fn the_header_keeps_every_instruments_name_whole_at_the_narrowest_window() {
+    let _turn = turn();
     inst::chorda::scene::set_blocking(true);
     let mut p = cantus_ui::welcome_project();
     let mut tracks = Vec::new();
