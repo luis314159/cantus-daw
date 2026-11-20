@@ -6,8 +6,11 @@
 use yew::prelude::*;
 
 use crate::lang::use_lang;
+use crate::unit_text::page;
 
-/// The four paragraphs, English and Spanish.
+/// The four paragraphs, English and Spanish: compiled natively only (the pre-renderer and the
+/// tests); the WebAssembly reads them from `/unit-text.json` (`unit_text::page`).
+#[cfg(not(target_arch = "wasm32"))]
 pub const PARAGRAPHS: [(&str, &str); 4] = [
     (
         "I make Cantus because a musician should be able to finish a song without paying a subscription, creating an account or wondering whether their tools will still be theirs next year. So Cantus is completely free — every instrument, every effect, every feature, for everyone. It sends nothing about you anywhere, and its source is open: the application under the GPL, the engine under the MPL, so it cannot be taken back.",
@@ -34,7 +37,7 @@ pub fn why() -> Html {
     html! {
         <section class="section why">
             <div class="wrap">
-                { for PARAGRAPHS.iter().map(|&(en, es)| html! { <p class="why-p">{ l.t(en, es) }</p> }) }
+                { for (0..).map_while(|i| page("why", i, l)).map(|p| html! { <p class="why-p">{ p }</p> }) }
                 <p class="why-sign">{ "— Luis Ángel Almazán" }</p>
             </div>
         </section>

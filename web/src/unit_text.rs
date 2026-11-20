@@ -66,8 +66,35 @@ pub fn sound(file: &str, i: usize, s: &Sound, l: Lang) -> (String, String) {
     }
 }
 
+/// The pages' long prose, kept out of the WebAssembly the same way (round 41: the Why page
+/// and the FAQ's answers put it 3 KB over its budget; the studio's prose went with them): `(key, paragraphs)`, compiled only
+/// natively; the browser reads `TEXT._pages[key][i]`.
+#[cfg(not(target_arch = "wasm32"))]
+pub const PAGES: &[(&str, &[(&str, &str)])] = &[
+    ("why", &crate::why::PARAGRAPHS),
+    ("faq", &crate::ahead::FAQ_ANSWERS),
+    ("record-mode", &crate::studio::RECORD_POINTS),
+    ("studio", &crate::studio::STUDIO_TEXT),
+];
+
+/// The `i`-th paragraph of the page text `key`, or `None` past its last one.
+pub fn page(key: &str, i: usize, l: Lang) -> Option<String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        browser::get("_pages", key, Some(i as u32), l)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        PAGES
+            .iter()
+            .find(|p| p.0 == key)
+            .and_then(|p| p.1.get(i))
+            .map(|&(en, es)| l.t(en, es).to_string())
+    }
+}
+
 /// The JSON the browser reads: `{"unda":{"what":["en","es"],"features":[["en","es"],…],
-/// "sounds":[["name en","name es","what en","what es"],…]},…}`.
+/// "sounds":[["name en","name es","what en","what es"],…]},…,"_pages":{"why":[["en","es"],…],…}}`.
 #[cfg(feature = "ssr")]
 pub fn json() -> String {
     fn s(t: &str) -> String {
@@ -116,7 +143,21 @@ pub fn json() -> String {
             )
         })
         .collect();
-    format!("{{{}}}\n", units.join(","))
+    let pages: Vec<String> = PAGES
+        .iter()
+        .map(|(key, paras)| {
+            let p: Vec<String> = paras
+                .iter()
+                .map(|&(en, es)| format!("[{},{}]", s(en), s(es)))
+                .collect();
+            format!("{}:[{}]", s(key), p.join(","))
+        })
+        .collect();
+    format!(
+        "{{{},\"_pages\":{{{}}}}}\n",
+        units.join(","),
+        pages.join(",")
+    )
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -214,5 +255,25 @@ mod tests {
         assert!(j.contains("\"unda\":{\"what\":["));
         assert!(j.contains("\"sounds\":[[\"Glass Choir\",\"Coro de cristal\","));
         assert_eq!(j.matches('{').count(), j.matches('}').count());
+    }
+
+    #[test]
+    fn the_json_holds_every_pages_text_and_page_reads_it_in_order() {
+        let j = json();
+        assert!(j.contains(",\"_pages\":{\"why\":[[\"I make Cantus because"));
+        for (key, paras) in PAGES {
+            assert!(j.contains(&format!("\"{key}\":[[")), "{key}");
+            for (i, &(en, es)) in paras.iter().enumerate() {
+                assert!(!en.is_empty() && !es.is_empty(), "{key} {i}");
+                assert_eq!(page(key, i, Lang::En).as_deref(), Some(en));
+                assert_eq!(page(key, i, Lang::Es).as_deref(), Some(es));
+            }
+            assert_eq!(page(key, paras.len(), Lang::En), None);
+        }
+        assert!(!crate::units_data::INSTRUMENTS
+            .iter()
+            .chain(crate::units_data::EFFECTS.iter())
+            .chain(crate::units_data::CONTROLLERS.iter())
+            .any(|u| u.file == "_pages"));
     }
 }
