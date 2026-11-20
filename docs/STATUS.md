@@ -1,8 +1,88 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-18 (the effects side round merged onto round 40 in `fx/final`, for master: **seventeen effects** — Cribrum, Fragor, Lapsus, Vetus, Libra, Tabula, Saltus, Rota, Arca, Loquax, Fractus, Caelum, Vinculum, Lenis, Cedo, Purus, Comparatio (ADRs 0127–0143) — each with its face, a CLAP/VST3 plug-in, presets, an end-to-end test, a manual section and a site card; **two controllers**, Tactus (the X-Y pad) and Calculus (the formula) (ADRs 0144–0145); **issue #1**, the flickering window, fixed with a watchdog, a log file and a safe-graphics start; **Ctrl+G** to a new bus (ADRs 0146–0147); **several screens** (ADR 0148); **the mid-song render glide** (`DSP_VERSION` 8, ADR 0027 amended) and Gravis's Free phase (`DSP_VERSION` 9); Chorda and Tympanum on the site and in the README; the site and README wear the app's logo #03. Version still **0.1.0-beta.14**. Schema 77, `DSP_VERSION` 9, keymap 19. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** Windows, crate by crate, 8 141 pass (145 ignored) on `8aaa71be`; the one red was `preset_render`'s CPU budget (Arca, load-sensitive), which passed quiet twice on the final tree; cantus-ui again on `818b5336`, 2 976 pass + 1 fixed in `a8e40c5f` (Tympanum's *Open the mixer* help line). Linux (WSL Ubuntu 24.04, the workspace) 8 103 pass (145 ignored) on `e245bbe1`; its 2 reds were a race between two `dance_import_e2e` tests sharing one untitled folder (since round 35), fixed in `2db67e4b` (6/6 on both). The four load-sensitive tests (`sync_midi::the_out_thread_sends_on_time`, Chorda's 64-voice budgets, `preset_render`, `scene_vector`) passed quiet twice on Windows. Clippy `-D warnings` and fmt clean on both. After `e245bbe1` only web assets, one doc comment and one test-only fix
+**Updated:** 2026-11-20 (**0.1.0-beta.15 published** for Windows and Linux on 2026-11-20, 14:23Z, public `19fcc455` — macOS held for beta.16, Fragor's *synth_fuzz* over its CPU budget there; then round 41's first two items on master `9d504fa6`: **another project names nothing of the old one** (the effect-id bug beta.15 shipped as its known issue, ADR 0149) and **every Chorda string measured alone** (BACKLOG §3e, all 254 loops in tolerance, nothing retuned); the release lessons and their pre-flight gate (`docs/RELEASING.md`, L1–L8). Schema 77, `DSP_VERSION` 10, keymap 19. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** Windows, the workspace, 8 160 pass (153 ignored) on `7e053734` and WSL Ubuntu 24.04 8 116 on the same, both `--no-fail-fast`; on `r41/effect-ids` (`b6985cdb`) cantus-ui whole 2 987 pass (54 ignored, run in batches of 20 — its ~370 binaries do not fit on F: at once), cantus-engine and cantus-host whole, cantus-sandbox's session suites; `r41/chorda-strings` cantus-dsp's Chorda 124 pass; on the merged `9d504fa6` fmt, workspace clippy `-D warnings` and xtask 50/0 (cantus-03). No whole-workspace suite on `9d504fa6` yet: run it first next session
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what beta.15 and round 41's first items left
+
+**beta.15** (the effects side round and round 40) was cut at `1b049d6c` on 2026-11-19 and
+published on 2026-11-20 for **Windows and Linux** after nine failed release runs. Each failure was a real cause, and each
+fix is on master:
+
+1. **Windows, `cargo fmt`:** it handed rustfmt cantus-ui's every file on one command line
+   (os error 206). fmt is now checked on the Linux job (`beb6b9cd`).
+2. **The AppImage, PipeWire headers:** a reset connection (curl 56) is not retried by plain
+   `--retry`; it now uses `--retry-all-errors` (`73a24c70`).
+3. **Ubuntu 22.04, the DRSKit fixture:** ext4's hash order met the kit's XML before any
+   sub-folder; the destination is now made first (`9fb7df98`).
+4. **Load-sensitive budgets on loaded runners:** Chorda's CPU gate is now a ratio against
+   model 1 (`b9932a6e`), `scene_vector` takes turns (`1307a31f`), and Arca has its own
+   budget (`2df4b230`).
+5. **The Windows suite ran past two hours** and was cancelled: the limits went to 240 and
+   300 minutes (`ea2abd50`).
+6. **`tympanum_e2e`, a shared data folder:** another test's start-up clean removed a live
+   install's staging folder; that folder is now locked (`8adaf6b7`).
+7. **`instruments_scale_e2e`, the process-wide theme:** one test's `theme::apply` repainted
+   another's labels mid-measure; the binary's tests now take turns (`3a41a64f`).
+8. **macOS, `session_faults5`:** 64 blocks did not always carry a save-path fault to the
+   helper. `Rig::arrived` waits for it at all seven sites (`3bbb74b3`, `2096a88f`,
+   `a1f04c40`).
+9. **macOS, Fragor's *synth_fuzz*:** 0.35–0.38 of a core in release against its 0.25.
+   **macOS was held for beta.16** (`CANTUS_RELEASE_MACOS` is true again).
+
+The owner also found an engine bug on the candidate (Aurora's master EQ silent after Neon
+Tide). He chose to ship with it as **a known issue** in the notes (`c07f342b`) and fix it
+first next. The lessons are in **`docs/RELEASING.md`** (L1–L8, "How the suite runs — the
+practice to keep"). A tag now waits for `docs/releases/<tag>.preflight.md`: every lesson
+ticked and a green rehearsal of `release.yml` on a commit that differs only in
+`docs/releases/` (`tools/release/preflight.sh`, the `preflight` job; merged `9d504fa6`).
+
+**Round 41, first items (merged `06dc3104`, `00a8fa66`):**
+
+- **Another project in place names nothing of the old one** (`r41/effect-ids`, ADR 0149,
+  BACKLOG §1 item 0). Ids start again from 1 in every project, and what the engine, the
+  plug-in host and the interface kept by id served the new project's objects of the same id.
+  - The engine handle knows an insert by its **id, place and kind**. A takeover prefers the
+    delivered unit and never takes another kind, on strips, the master and instruments.
+  - Opening, *New*, a demo or a recovery forgets what the engine and the host hold.
+  - A parked plug-in state goes back only into its own plug-in.
+  - `CantusApp::before_other_project` and `other_project` run on every replacing path. They
+    close or forget the effect and instrument windows, A/B, selections, *Last tweaked*, the
+    session clipboard, mapping mode, a strip take, the session performance and a hardware
+    ping.
+  - `project_ids_e2e` covers every demo after every other (42 pairs), *Replace project* with
+    undo and redo, and a delay's echoes never heard in the next song, to the bit. All three
+    fail on the old engine.
+- **Every Chorda string measured alone** (`r41/chorda-strings`, BACKLOG §3e). A technician's
+  felt in `KeyStrings` (a keep factor, a null to the bit) mutes all but one loop. Every key,
+  every loop (the 254 strings and polarisation loops), at velocities 0.3, 0.6 and 0.9, is
+  measured against its designed pitch, as played and with the action's noises off.
+  - All 254 are in tolerance. The worst is E4's first string, +1.35 cents, mostly the
+    technician's table.
+  - No CPU cost: model 2, best of 5, 26.5 % of a core against 26.8 % on master.
+  - The report is `docs/round41/chorda-strings.md` and the page
+    `docs/round41/chorda-strings.html`. `tables::strings`' comment now says F#2, as the code
+    has since round 28.
+
+What waits:
+
+1. **The owner's ear:**
+   - Chorda's findings, measured only: the key's thud on G#1–C2 at 0.9; unisons narrower
+     than designed on partials 2–3 (C#3 0.91 cents against 2.08); whole D#7 at velocity 0.3,
+     −2.81 cents (round 40's gate only measures 0.6).
+   - Everything round 40 left for his ear (below: candidate 16's ABX, Tympanum b10 and b11,
+     bitKlavier against the Salamander).
+2. **beta.16:** macOS (Fragor's *synth_fuzz* budget first). Then round 41's plan
+   (`docs/next-session.md`): microtuning, the effects batch with a contract commit first,
+   BACKLOG §6l item 43 (inputs onto mixer strips by mouse, the owner's 2026-11-20 ask).
+3. **The whole workspace suite on `9d504fa6`**, Windows and WSL, `--no-fail-fast`, before
+   anything else merges. On Windows cantus-ui runs in batches of 20 with each batch's
+   executables deleted after it runs: `bash tools/test/ui-batches.sh`.
+4. **Disk:** round 40's merged worktrees under `F:\projects\daw-r40` (and their targets;
+   `lapis-default`'s is 48 GB) go once the owner says. `tmp\hyb`, `compartir` and
+   `downloads` hold his listening material and stay.
+
 
 ## The next session: what the effects side round left
 

@@ -85,6 +85,11 @@ cargo clippy --workspace --all-targets       # must be clean
 cargo run -p xtask -- notices --check        # third-party notices up to date
 ```
 
+The whole suite is about 8 100 tests now. Run it with `--no-fail-fast`, so one failing
+binary does not hide the rest (`docs/RELEASING.md`). cantus-ui's ~370 test executables
+take about 25 GB. Where the disk cannot hold them, `bash tools/test/ui-batches.sh` runs
+cantus-ui in batches of 20 and deletes each batch's executables after it runs.
+
 On a Windows set to another language, building the plug-ins' library prints `warning:
 linker stdout: Creando biblioteca … .dll.lib` (`linker_messages`): rustc hides MSVC's
 "Creating library" line only in English. It is harmless (CI's English runners never show
