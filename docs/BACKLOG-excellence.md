@@ -805,6 +805,61 @@ vocals — then what blind comparisons demand, then build cost on what exists):
 | **10. Vowel choir**, then lyric singing | Cubase 15 Omnivocal, Synthesizer V 2, Arturia Augmented VOICES, Hollywood Choirs | **Choir now:** FOF/formant synthesis (Rodet's CHANT, Klatt) with published vowel formants, seeded per-voice jitter, vowel morphing — no recorded voice needed. **Lyric singing later:** WORLD-style source–filter synthesis (BSD) with phoneme timing, gated on a voice recorded for Cantus by consenting singers and released CC0; any neural part single-threaded with a fixed reduction order, or rendered offline and cached | a vowel choir pad judged "usable in a mix" by 7 of 10 producers; bit-identical renders. Singing (later): ≥ 90 % word intelligibility and < 10 cents pitch error on sustained notes; every voice's licence and consent in the notices |
 | **11. Acoustic drums** — *partly, round 28: DRSKit in Exemplar, a stereo mixdown (see below the table)* | Superior Drummer 3, EZdrummer 3, Addictive Drums 2 | Mic buses and bleed on Pulsus's layers (each mic a strip), CC4 hi-hat openness, repetition smoothing, CC0 kits (Virtuosity Drums with six mics; Karoryfer) and CC-BY multi-mic kits if ruled in; a browser of CC0 grooves we write | rock, jazz and funk kits with per-mic faders; no identical consecutive sample in a roll (asserted); rated "usable in a mix" against EZdrummer 3's stock kit by a 10-listener panel |
 
+**Strings and winds, modelled and recorded, rendered as Chorda and Tympanum are (the owner,
+2026-11-20).** *"¿Podríamos hacer un emulador de cuerdas y vientos con sonidos generados y
+sampleados con renders profesionales como Chorda y Tympanum?"* This takes item 9 (section
+players over CC0 samples) and item 6's bowed string further: an orchestral instrument family
+with two voices, as Tympanum has them. A *modelled* voice is generated from physics. A
+*recorded* voice plays CC0 libraries and Cantus's own recordings. A *hybrid* voice puts
+recorded attacks under the modelled sustain. All three play in one professional render: the
+players seated on a stage, the microphones you move, the room around them. The bar is
+SWAM (modelled), BBC SO / Spitfire (recorded) and Logic's Studio Strings/Horns (ease).
+
+- **The families.**
+  - *Strings*: violin, viola, cello, double bass, solo and in sections.
+  - *Woodwinds*: flute, oboe, clarinet, bassoon and saxophones.
+  - *Brass*: trumpet, horn, trombone and tuba.
+- **The modelled voice**, in `cantus-dsp` (MPL-2.0; STK is MIT and may be ported, GPL
+  references are read only):
+  - Strings: bowed waveguide strings with a friction bow (Fides's bow, round 41, and its
+    body). The bow's pressure, speed and position, the string chosen, vibrato and a
+    resonating body per instrument, measured against published body responses.
+  - Winds: bores as waveguides with a nonlinear reed (clarinet, sax, oboe, bassoon), a jet
+    (flute) or lips (brass), with tone holes, the bell's radiation, breath noise, and the
+    player's breath and embouchure as controls.
+  - The modelled voice plays legato, portamento and dynamics continuously, with no layers to
+    switch between.
+  - **Check patents before the design** (Audio Modeling's SWAM, Yamaha's VL family —
+    several have expired); this backlog is not legal advice.
+- **The recorded voice**: Exemplar's engine over CC0 libraries (VSCO 2 CE, VCSL), on demand
+  (ADR 0030), and later Cantus's own recordings. Articulations by key-switch and note
+  property: sustain, legato with interval-aware transitions, staccato, spiccato, pizzicato,
+  tremolo, trills, harmonics, col legno and sordino; for winds, flutter and growl. Dynamics
+  cross layers on CC1, with expression on CC11, and release triggers.
+- **The render, Chorda and Tympanum's class**:
+  - the stage drawn from its numbers, each player seated where the orchestra seats them,
+    and a section's size (1–16 players) with seeded variation in each player's tuning,
+    timing and vibrato;
+  - the microphones: close, a Decca tree, outriggers and the room, each to its own strip if
+    wanted (an instrument's named outputs, ADR 0124), and the hall's size and depth;
+  - both looks (*Drawn* / *Photographic*) and every change visible, in both themes, inside
+    the frame budget.
+- **Playing**: MPE, breath controllers and CC1/CC11 drive expression; the piano roll carries
+  each note's articulation and bowing (up/down) as note properties; legato follows overlap;
+  a section can be split (divisi) across the notes of a chord.
+- **Done when**:
+  - A blind ABX against the recorded libraries Cantus can install is taken by the owner and
+    his listeners, solo and in a four-bar phrase per family. The modelled voice is not told
+    apart from the recording, or the result aims the next pass, as Chorda's ABX does.
+  - A four-bar string line with legato and a CC1 swell is rated "finished" by 7 of 10
+    producers, the bar item 9 set.
+  - Pitch is within a cent across any bend; renders repeat to the bit; offline equals real
+    time.
+  - A 16-player section stays under a measured CPU budget, and its voices split across the
+    pool.
+  - Presets are made by ear, 24 for each family, and every pack is on demand with its
+    licence shown.
+
 **Round 28 (2026-10-15; `docs/round28/sound.md`):**
 
 - **Item 4 — Chorda I is built** (ADR 0059, `docs/instruments/chorda.md`), on the published
