@@ -565,6 +565,15 @@ impl EffectUnit {
         }
     }
 
+    /// r41:contract (ADR 0153) — hand the song's key to a unit that reads it
+    /// ([`crate::fx::FxUnit::set_song_key`]); the engine's own kinds (delay, reverb, EQ,
+    /// compressor) do not.
+    pub fn set_song_key(&mut self, key: Option<cantus_core::scale::Key>) {
+        if let Dsp::Fx(u) = &mut self.dsp {
+            u.set_song_key(key);
+        }
+    }
+
     /// A unit around any [`crate::fx::FxUnit`] — for tests of the host (a pure delay that
     /// exercises compensation) and, later, for units the engine did not build itself.
     pub fn from_fx(slot: &EffectSlot, mut unit: Box<dyn crate::fx::FxUnit>) -> Self {
