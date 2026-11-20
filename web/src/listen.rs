@@ -1,4 +1,4 @@
-//! "Hear what it makes": excerpts of the six demo songs that ship with Cantus, rendered by
+//! "Hear what it makes": excerpts of six of the seven demo songs that ship with Cantus, rendered by
 //! the program itself (`cargo run --release -p cantus-ui --example render_demos`).
 
 use gloo_timers::callback::Interval;
@@ -150,8 +150,8 @@ pub fn listen() -> Html {
             <div class="wrap">
                 <div class="sec-head">
                     <h2>{ l.t("Hear what it makes", "Escucha lo que hace") }</h2>
-                    <p class="lede">{ l.t("Excerpts of the six demo songs that come with Cantus. Every sound is one of its own instruments and effects, mastered on the song's own master channel.",
-                                          "Fragmentos de las seis canciones de demostración que vienen con Cantus. Cada sonido es de sus propios instrumentos y efectos, masterizado en el canal master de la canción.") }</p>
+                    <p class="lede">{ l.t("Excerpts of six of the seven demo songs that come with Cantus. Every sound is one of its own instruments and effects, mastered on the song's own master channel.",
+                                          "Fragmentos de seis de las siete canciones de demostración que vienen con Cantus. Cada sonido es de sus propios instrumentos y efectos, masterizado en el canal master de la canción.") }</p>
                 </div>
                 <ol class="songs">{ for rows }</ol>
             </div>

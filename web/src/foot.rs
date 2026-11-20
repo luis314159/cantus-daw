@@ -54,6 +54,7 @@ pub fn footer() -> Html {
                         (to(Route::Ai), l.t("AI on your computer", "IA en tu computadora")),
                         (to(Route::Measured), l.t("Measured", "Medido")),
                         (to(Route::Roadmap), l.t("Roadmap", "Hoja de ruta")),
+                        (to(Route::Why), l.t("Why I'm building it", "Por qué lo construyo")),
                     ]) }
                     { col(l.t("Learn", "Aprende"), vec![
                         (to(Route::Learn), l.t("Learn Cantus", "Aprende Cantus")),
@@ -65,6 +66,7 @@ pub fn footer() -> Html {
                     ]) }
                     { col(l.t("Community", "Comunidad"), vec![
                         (GITHUB.to_string(), "GitHub"),
+                        (gh("discussions"), l.t("Discussions: ask, share, suggest", "Discusiones: pregunta, comparte, propón")),
                         (gh("issues"), l.t("Report a problem", "Reportar un problema")),
                         (gh("blob/master/CONTRIBUTING.md"), l.t("Contribute", "Contribuir")),
                         (format!("{}#support", to(Route::Download)), l.t("Support the project", "Apoya el proyecto")),

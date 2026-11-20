@@ -50,7 +50,7 @@ pub fn json_ld(page: Page) -> String {
             r#""name":"Cantus","alternateName":"Cantus DAW","url":"{home}","#,
             r#""description":"{desc}","applicationCategory":"MultimediaApplication","#,
             r#""applicationSubCategory":"Digital audio workstation","#,
-            r#""operatingSystem":"Windows 11, Linux, macOS (preview)","#,
+            r#""operatingSystem":"{os}","#,
             r#""softwareVersion":"{ver}","downloadUrl":"{dl}","installUrl":"{dlpage}","#,
             r#""license":"https://www.gnu.org/licenses/gpl-3.0.html","isAccessibleForFree":true,"#,
             r#""inLanguage":["en","es"],"image":"{origin}/og.png","#,
@@ -60,11 +60,25 @@ pub fn json_ld(page: Page) -> String {
         ),
         home = json(&home),
         desc = json(&desc),
+        // macOS only while the latest release holds its disk image (shelf.rs).
+        os = if crate::shelf::Shelf::latest().macos {
+            "Windows 11, Linux, macOS (preview)"
+        } else {
+            "Windows 11, Linux"
+        },
         ver = json(VERSION),
         dl = json(DOWNLOAD),
         dlpage = json(&Page::new(l, Route::Download).url()),
         origin = ORIGIN,
         gh = json(GITHUB),
+    )
+}
+
+/// The share image's description, for those who cannot see it.
+fn og_image_alt(l: Lang) -> &'static str {
+    l.t(
+        "Cantus: Finish the song. A free, open-source DAW written in Rust. No account. No telemetry. Beside it, the gold C of the Cantus logo around an orange waveform.",
+        "Cantus: Termina la canción. Un DAW libre y de código abierto escrito en Rust. Sin cuenta. Sin telemetría. Al lado, la C dorada del logo de Cantus alrededor de una onda naranja.",
     )
 }
 
@@ -98,7 +112,9 @@ pub fn block(page: Page) -> String {
             "    <meta property=\"og:image\" content=\"{origin}/{image}\" />\n",
             "    <meta property=\"og:image:width\" content=\"1200\" />\n",
             "    <meta property=\"og:image:height\" content=\"630\" />\n",
+            "    <meta property=\"og:image:alt\" content=\"{image_alt}\" />\n",
             "    <meta name=\"twitter:card\" content=\"summary_large_image\" />\n",
+            "    <meta name=\"twitter:image:alt\" content=\"{image_alt}\" />\n",
             "    <script type=\"application/ld+json\">{ld}</script>\n",
             "    "
         ),
@@ -111,6 +127,7 @@ pub fn block(page: Page) -> String {
         alt = og_locale(alt),
         origin = ORIGIN,
         image = image,
+        image_alt = esc(og_image_alt(page.lang)),
         ld = json_ld(page),
     )
 }

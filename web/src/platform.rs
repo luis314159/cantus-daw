@@ -2,6 +2,7 @@
 //! never sent anywhere). It only decides what the download card says.
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)] // `MacOs` is the system's name, not a stutter of `Os`.
 pub enum Os {
     Windows,
     MacOs,

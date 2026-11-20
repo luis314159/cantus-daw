@@ -7,6 +7,7 @@
 
 use yew::prelude::*;
 
+use crate::lang::Lang;
 use crate::release;
 use crate::top::{STABLE_APPIMAGE, STABLE_DMG};
 
@@ -31,6 +32,28 @@ impl Shelf {
     /// The latest release's, as of the build.
     pub fn latest() -> Shelf {
         Shelf::from_names(release::REL_FILES.iter().map(|f| f.name))
+    }
+
+    /// macOS in a few words, the same wherever the site names its systems (round 41: the hero
+    /// said "macOS preview" while the download card said "Coming soon"). A preview while the
+    /// latest release holds the disk image; while it does not — beta.15 was published for
+    /// Windows and Linux only, macOS held for the next beta — "macOS: next beta".
+    pub fn mac(self, l: Lang) -> &'static str {
+        if self.macos {
+            l.t("macOS preview", "Vista previa para macOS")
+        } else {
+            l.t("macOS: next beta", "macOS: próxima beta")
+        }
+    }
+
+    /// What a system's card says where its download would be, while the latest release has no
+    /// file for it: macOS is held for the next beta; any other system is still to come.
+    pub fn wait(os_is_mac: bool, l: Lang) -> &'static str {
+        if os_is_mac {
+            l.t("Next beta", "Próxima beta")
+        } else {
+            l.t("Coming soon", "Muy pronto")
+        }
     }
 }
 

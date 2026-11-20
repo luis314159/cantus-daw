@@ -11,6 +11,22 @@ use yew::prelude::*;
 use crate::lang::{use_lang, Lang};
 use crate::top::GITHUB;
 
+/// The Cantus release the scorecard's numbers were measured on (docs/scorecard/README.md,
+/// 2026-11-11, an AMD Ryzen 7 7735HS laptop on Windows 11). Releases are not measured again
+/// one by one: while the site offers a newer one, the page says so (round 41).
+const MEASURED_VERSION: &str = "0.1.0-beta.14";
+
+/// "Not measured again on beta 15 yet" — `None` while the download is the measured release.
+pub fn newer_note(l: Lang) -> Option<String> {
+    (crate::top::VERSION != MEASURED_VERSION).then(|| {
+        let v = crate::top::version_short();
+        match l {
+            Lang::En => format!("The download is {v}; these numbers are beta 14's and have not been measured again on {v} yet."),
+            Lang::Es => format!("La descarga es la {v}; estas cifras son de la beta 14 y aún no se han vuelto a medir con la {v}."),
+        }
+    })
+}
+
 /// One bar: (who, value as shown, value to draw, is Cantus).
 type Bar = (&'static str, &'static str, f32, bool);
 
@@ -105,13 +121,9 @@ fn matrix(l: Lang, rows: usize) -> Html {
     // (feature, how many of the eight commercial leaders have it)
     // (Slicer, browser previews and per-pad drum outputs were in the 22 and are built since,
     // round 37; they are not listed as missing.)
-    let more: [(&str, &str, u8); 8] = [
-        ("Convolution reverb", "Reverb por convolución", 7),
-        (
-            "Ripple edit, insert time",
-            "Edición ripple, insertar tiempo",
-            6,
-        ),
+    let more: [(&str, &str, u8); 6] = [
+        // Convolution reverb (7 leaders) and ripple edit / insert time (6) were in the 22 too;
+        // both are built since (Aula, round 39; insert and delete time, round 40).
         ("Clip groups", "Grupos de clips", 6),
         ("AU hosting on macOS", "Alojar AU en macOS", 5),
         ("Video track", "Pista de vídeo", 5),
@@ -178,7 +190,10 @@ fn chips(l: Lang) -> Html {
             <li>{ "Ryzen 7 7735HS · 31 GB" }</li>
             <li>{ "Windows 11" }</li>
             <li>{ "2026-11-09 · 2026-11-11" }</li>
-            <li>{ l.t("beta.14 · REAPER 7.85 · FL Studio 24.1.2", "beta.14 · REAPER 7.85 · FL Studio 24.1.2") }</li>
+            <li>{ l.t("Cantus beta 14 · REAPER 7.85 · FL Studio 24.1.2", "Cantus beta 14 · REAPER 7.85 · FL Studio 24.1.2") }</li>
+            if crate::top::VERSION != MEASURED_VERSION {
+                <li>{ l.t("Not measured again on ", "Aún sin volver a medir en la ") }{ crate::top::version_short() }{ l.t(" yet", "") }</li>
+            }
         </ul>
     }
 }
@@ -192,8 +207,8 @@ fn head(l: Lang, page: bool) -> Html {
                 if page { <h1>{ title }</h1> } else { <h2>{ title }</h2> }
             </div>
             <div>
-                <p class="lede">{ l.t("Cantus, REAPER and FL Studio, five starts each on the same quiet laptop (Cantus beta.14 on 11 November, the others on 9 November), watched by the same script — each beside what it is fair to compare it with. Where Cantus loses, it says so here first.",
-                                      "Cantus, REAPER y FL Studio, cinco arranques cada uno en la misma laptop sin nada más abierto (Cantus beta.14 el 11 de noviembre, los otros el 9 de noviembre), observados por el mismo script — cada uno junto a lo que es justo compararlo. Donde Cantus pierde, aquí lo dice primero.") }</p>
+                <p class="lede">{ l.t("Cantus, REAPER and FL Studio, five starts each on the same quiet laptop (Cantus beta 14 on 11 November 2026, the others on 9 November), watched by the same script — each beside what it is fair to compare it with. Where Cantus loses, it says so here first.",
+                                      "Cantus, REAPER y FL Studio, cinco arranques cada uno en la misma laptop sin nada más abierto (Cantus beta 14 el 11 de noviembre de 2026, los otros el 9 de noviembre), observados por el mismo script — cada uno junto a lo que es justo compararlo. Donde Cantus pierde, aquí lo dice primero.") }</p>
                 { chips(l) }
             </div>
         </div>

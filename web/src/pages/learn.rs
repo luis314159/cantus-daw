@@ -159,6 +159,13 @@ pub const GROUPS: &[Group] = &[
                 ),
             ),
             top(
+                (
+                    "The arrangement: time, sections and ripple",
+                    "El arreglo: tiempo, secciones y ripple",
+                ),
+                "arrangement.html",
+            ),
+            top(
                 ("The audio editor", "El editor de audio"),
                 "audio-editor.html",
             ),
@@ -258,6 +265,20 @@ pub const GROUPS: &[Group] = &[
                     "Pulsus III: kits de batería, una cadena por pad",
                 ),
                 "drum-kits.html",
+            ),
+            top(
+                (
+                    "Chorda: the modelled piano, recorded pianos and the piano's mixer",
+                    "Chorda: el piano modelado, los pianos grabados y el mezclador del piano",
+                ),
+                "chorda-pianos.html",
+            ),
+            top(
+                (
+                    "Tympanum, the acoustic drummer",
+                    "Tympanum, el baterista acústico",
+                ),
+                "tympanum.html",
             ),
             m(
                 (

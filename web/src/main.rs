@@ -63,6 +63,7 @@ macro_rules! long {
     };
 }
 mod units_data;
+mod why; // r41 — why Cantus is made, in its author's words
 /// An excerpt in `units_sounds.rs`: whole natively; in the WebAssembly without its name and
 /// what, which it reads from `/unit-text.json` (`unit_text::sound`), as `long!` does.
 #[cfg(not(target_arch = "wasm32"))]
