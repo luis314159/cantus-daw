@@ -235,12 +235,64 @@ pub fn start_of(kind: EffectKind) -> Start {
         // r41:contract — the stubs are wires: flat until each builder decides (ADR 0071's rule:
         // Nitor sounds on insert at a gentle amount; a board's Fragor pedal takes Fragor's
         // starting knobs for its circuit).
-        K::Enhancer // r41:nitor
-        | K::FragorOverdrive
-        | K::FragorOpAmp
-        | K::FragorSilicon
-        | K::FragorFuzz
-        | K::FragorMuff => Start::Neutral(Flat), // r41:pedals
+        K::Enhancer => Start::Neutral(Flat), // r41:nitor
+        // r41:pedals — a board's Fragor pedal takes Fragor's starting knobs for its circuit:
+        // each circuit's first factory preset, made from Fragor's own (the same bits as
+        // Fragor's preset on one slot), the circuit in.
+        K::FragorOverdrive => preset(
+            "preset.fragor_od.green_push",
+            &[
+                ("od.on", 1.0),
+                ("od.drive", 0.45),
+                ("od.tone", 0.55),
+                ("od.level", 0.55),
+                ("out", -3.5),
+            ],
+        ),
+        K::FragorOpAmp => preset(
+            "preset.fragor_op.rat_rhythm",
+            &[
+                ("op.on", 1.0),
+                ("op.dist", 0.6),
+                ("op.filter", 0.45),
+                ("op.vol", 0.5),
+                ("mono", 1.0),
+                ("out", -5.0),
+            ],
+        ),
+        K::FragorSilicon => preset(
+            "preset.fragor_si.silicon_crunch",
+            &[
+                ("si.on", 1.0),
+                ("si.dist", 0.55),
+                ("si.tone", 0.45),
+                ("si.level", 0.5),
+                ("mono", 1.0),
+                ("out", -7.0),
+            ],
+        ),
+        K::FragorFuzz => preset(
+            "preset.fragor_ge.vintage_fuzz",
+            &[
+                ("ge.on", 1.0),
+                ("ge.fuzz", 0.8),
+                ("ge.bias", 1.0),
+                ("ge.vol", 0.5),
+                ("mono", 1.0),
+                ("out", -5.5),
+            ],
+        ),
+        K::FragorMuff => preset(
+            "preset.fragor_mf.muff_sustain",
+            &[
+                ("mf.on", 1.0),
+                ("mf.sustain", 0.7),
+                ("mf.tone", 0.45),
+                ("mf.vol", 0.5),
+                ("mono", 1.0),
+                ("out", -7.0),
+            ],
+        ), // r41:pedals
         K::Multiband => preset(
             "mb.preset.glue",
             &[

@@ -4296,3 +4296,58 @@ fn the_idle_snap_at_play_never_allocates() {
         FIRST.with(|f| f.get())
     );
 }
+
+/// r41:pedals — Fragor's five circuits as pedals of their own (ADR 0152), each at its heavy
+/// settings on the lead's strip, a lane taking its circuit out and in, one moving its
+/// oversampling across 2x, 4x and 8x (the circuits rebuilt in place) and one its first knob;
+/// played, sought, looped and stopped. Not one allocation.
+#[test]
+fn fragors_circuits_as_pedals_never_allocate() {
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::beats(1),
+        end: Ticks::beats(3),
+    });
+    p.loop_enabled = true;
+    let s0 = p.tracks[0].strip.unwrap();
+    for kind in cantus_core::fx::fragor_pedal::KINDS {
+        let mut slot = p.make_effect(kind);
+        slot.spec = support::heavy::heavy(kind);
+        let id = slot.id;
+        p.strip_mut(s0).unwrap().effects.push(slot);
+        let c = kind.fragor_circuit().unwrap();
+        for (key, a, b) in [
+            (cantus_core::fx::fragor_pedal::switch(c), 1.0, 0.0),
+            ("os", 0.0, 1.0),
+            (cantus_core::fx::fragor_pedal::knobs(c)[0], 0.2, 0.9),
+        ] {
+            let target = AutoTarget::Effect {
+                effect: id,
+                key: key.into(),
+            };
+            let points = vec![
+                AutoPoint::new(Ticks::ZERO, a),
+                AutoPoint::new(Ticks::beats(2), b),
+                AutoPoint::new(Ticks::beats(4), a),
+            ];
+            let clip = p.make_automation_clip("a", target, Ticks::ZERO, Ticks::beats(8), points);
+            p.tracks[0].clips.push(clip);
+        }
+    }
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.play("pedals: settle", 4);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("pedals: play", 60);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+    rig.play("pedals: a seek, then the loop's wraps", 120);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("pedals: stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+} // r41:pedals

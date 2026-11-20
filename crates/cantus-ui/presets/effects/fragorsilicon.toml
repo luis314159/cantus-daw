@@ -1,3 +1,42 @@
-# Fragor's si circuit as a board-only pedal: factory presets (ADR 0101). Names are locale
-# keys (fx/fragor_pedal.*.txt). Empty until the pedals builder makes a few by ear.
-# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+# Fragor silicon distortion (a board-only pedal, ADR 0152): factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.fragor_si.silicon_crunch"
+note = "Fragor's Silicon crunch as a pedal, to the bit: hard clipping with a scooped middle."
+styles = ["rock", "pop"]
+roles = ["creative"]
+[preset.values]
+"mono" = 1
+"out" = -7
+"si.dist" = 0.55
+"si.level" = 0.5
+"si.on" = 1
+"si.tone" = 0.45
+
+[[preset]]
+key = "preset.fragor_si.drum_smash"
+note = "Fragor's Drum smash as a pedal: blended into drums, smack and room, the transients kept."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"mix" = 0.4
+"out" = -4.3
+"si.dist" = 0.5
+"si.level" = 0.5
+"si.on" = 1
+"si.tone" = 0.55
+
+[[preset]]
+key = "preset.fragor_si.silicon_lead"
+note = "The distortion high and the tone open: a cutting lead that sits on top of a band."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"mono" = 1
+"out" = -8
+"si.dist" = 0.85
+"si.level" = 0.5
+"si.on" = 1
+"si.tone" = 0.6

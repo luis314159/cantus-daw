@@ -1,3 +1,54 @@
-# Fragor's od circuit as a board-only pedal: factory presets (ADR 0101). Names are locale
-# keys (fx/fragor_pedal.*.txt). Empty until the pedals builder makes a few by ear.
-# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+# Fragor green overdrive (a board-only pedal, ADR 0152): factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.fragor_od.green_push"
+note = "Fragor's Green push as a pedal, to the bit: the overdrive pushing gently, what a board's pedal starts with."
+styles = ["rock", "pop"]
+roles = ["creative"]
+[preset.values]
+"od.drive" = 0.45
+"od.level" = 0.55
+"od.on" = 1
+"od.tone" = 0.55
+"out" = -3.5
+
+[[preset]]
+key = "preset.fragor_od.blues_edge"
+note = "Fragor's Blues edge as a pedal: just past clean, the guitar's dynamics kept."
+styles = ["rock", "jazz"]
+roles = ["creative"]
+[preset.values]
+"mono" = 1
+"od.drive" = 0.25
+"od.level" = 0.6
+"od.on" = 1
+"od.tone" = 0.5
+"out" = -3.8
+
+[[preset]]
+key = "preset.fragor_od.vocal_grit"
+note = "Fragor's Vocal grit as a pedal: a little overdrive blended under a voice."
+styles = ["rock", "pop"]
+roles = ["vocal"]
+[preset.values]
+"mix" = 0.35
+"od.drive" = 0.4
+"od.level" = 0.5
+"od.on" = 1
+"od.tone" = 0.65
+"out" = -4.3
+
+[[preset]]
+key = "preset.fragor_od.clean_boost"
+note = "The drive all the way down and the level up: the overdrive as a boost, its mid hump tightening the next drive or the amp."
+styles = ["rock", "pop"]
+roles = ["creative"]
+[preset.values]
+"mono" = 1
+"od.drive" = 0.05
+"od.level" = 0.8
+"od.on" = 1
+"od.tone" = 0.6
+"out" = -3

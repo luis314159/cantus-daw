@@ -3162,9 +3162,26 @@ modulate, learn a controller), and the board's **Input**, **Mix** and **Output**
 footswitch; Enter its full editor; Delete takes it off; Ctrl+← and Ctrl+→ move it; ← and →
 choose one of its knobs and ↑ and ↓ turn it (with Shift, finely).
 
+**Fragor's circuits as pedals of their own.** Besides Fragor (three slots in one pedal),
+the board's *Distortion* shelf offers each of Fragor's five circuits as a stompbox of its
+own: the **green overdrive**, the **op-amp distortion**, the **silicon distortion**, the
+**germanium fuzz** and the **triangle muff** — so several drives can stand anywhere in the
+chain, a phaser between a boost and a fuzz, a muff after the compressor, more than three.
+Each wears its circuit's own enclosure, paint and lettering, as on Fragor's board, and its
+three knobs under their pedal's names (Drive, Tone, Level; Distortion, Filter, Volume; Dist,
+Tone, Level; Fuzz, Bias, Volume; Sustain, Tone, Volume). Each is the same circuit as
+Fragor's, to the bit: a pedal sounds exactly as Fragor with only that circuit on its board,
+at every knob. They live only on a board (Fragor is the insert). They have no window of
+their own: under the board, the chosen one shows all it has — its knobs, **Gate**,
+**Input**, **Mix** and **Output**, **Oversampling** (2×, 4×, 8×), **Channels** (stereo, or
+mono as a real pedal: half the work) and **Circuit** (in, or out: a plain wire). A new one
+starts on its first preset, the circuit in; each has three or four presets of its own.
+
 **Presets.** Each of Tabula's presets is a whole board: *Guitar rig*, *Blues crunch*,
-*Ambient swells*, *Fuzz lead*, *Phaser funk*, *Wet, dry, wet*, two for bass, two for synths,
-two for drums and two for voice. Your own presets keep the whole board too.
+*Ambient swells*, *Fuzz lead*, *Phaser funk*, *Wet, dry, wet*, *Stacked drives* (the green
+overdrive as a boost, a phaser, the triangle muff, a clean amp, an echo and a room; its
+*Drive* macro turns both drives), two for bass, two for synths, two for drums and two for
+voice. Your own presets keep the whole board too.
 
 **In another DAW,** the exported Tabula shows the same window; the host automates the
 macros, the input, mix, output and the A/B balance, and the board is saved in its state.

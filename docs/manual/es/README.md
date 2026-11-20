@@ -3424,10 +3424,29 @@ automatizar, modular, aprender un controlador) y la **Entrada**, la **Mezcla** y
 interruptor; Intro su editor completo; Supr lo quita; Ctrl+← y Ctrl+→ lo mueven; ← y →
 eligen una de sus perillas y ↑ y ↓ la giran (con Mayús, finamente).
 
+**Los circuitos de Fragor como pedales propios.** Además de Fragor (tres ranuras en un solo
+pedal), el estante *Distorsión* de la pedalera ofrece cada uno de los cinco circuitos de
+Fragor como un pedal propio: el **overdrive verde**, la **distorsión de op-amp**, la
+**distorsión de silicio**, el **fuzz de germanio** y el **muff triangular** — así varias
+saturaciones pueden estar en cualquier punto de la cadena, un phaser entre un empuje y un
+fuzz, un muff después del compresor, más de tres. Cada uno lleva la caja, la pintura y la
+rotulación de su circuito, como en la pedalera de Fragor, y sus tres perillas con los nombres
+de su pedal (Ganancia, Tono, Nivel; Distorsión, Filtro, Volumen; Dist, Tono, Nivel; Fuzz,
+Bias, Volumen; Sustain, Tono, Volumen). Cada uno es el mismo circuito que el de
+Fragor, bit a bit: un pedal suena exactamente como Fragor con solo ese circuito en su
+pedalera, en cualquier posición de las perillas. Solo viven en una pedalera (Fragor es el
+inserto). No tienen ventana propia: bajo la pedalera, el elegido muestra todo lo que tiene —
+sus perillas, **Puerta**, **Entrada**, **Mezcla** y **Salida**, **Sobremuestreo** (2×, 4×,
+8×), **Canales** (estéreo, o mono como un pedal de verdad: la mitad de trabajo) y
+**Circuito** (dentro, o fuera: un cable). Uno nuevo empieza en su primer preset, con el
+circuito dentro; cada uno tiene tres o cuatro presets propios.
+
 **Presets.** Cada preset de Tabula es una pedalera entera: *Equipo de guitarra*, *Crujido de
 blues*, *Oleadas ambientales*, *Solo con fuzz*, *Funk con phaser*, *Húmedo, seco, húmedo*,
-dos para bajo, dos para sintetizadores, dos para batería y dos para voz. Tus propios presets
-guardan también la pedalera entera.
+*Saturaciones en cadena* (el overdrive verde como empuje, un phaser, el muff triangular, un
+amplificador limpio, un eco y una sala; su macro *Saturación* gira las dos), dos para bajo,
+dos para sintetizadores, dos para batería y dos para voz. Tus propios presets guardan también
+la pedalera entera.
 
 **En otro DAW,** la Tabula exportada muestra la misma ventana; el anfitrión automatiza las
 macros, la entrada, la mezcla, la salida y el balance A/B, y la pedalera se guarda en su

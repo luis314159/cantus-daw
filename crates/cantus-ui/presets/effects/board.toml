@@ -77,3 +77,9 @@ roles = ["vocal"]
 key = "preset.tabula.vocal_doubler"
 styles = ["pop", "rnb"]
 roles = ["vocal"]
+
+# r41:pedals — the showcase of Fragor's circuits as pedals of their own (ADR 0152).
+[[tag]]
+key = "preset.tabula.stacked_drives"
+styles = ["rock"]
+roles = ["creative"]

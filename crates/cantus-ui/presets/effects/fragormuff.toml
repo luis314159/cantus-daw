@@ -1,3 +1,43 @@
-# Fragor's mf circuit as a board-only pedal: factory presets (ADR 0101). Names are locale
-# keys (fx/fragor_pedal.*.txt). Empty until the pedals builder makes a few by ear.
-# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+# Fragor triangle muff (a board-only pedal, ADR 0152): factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.fragor_mf.muff_sustain"
+note = "Fragor's Endless sustain as a pedal, to the bit: the triangle muff under a lead."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"mf.on" = 1
+"mf.sustain" = 0.7
+"mf.tone" = 0.45
+"mf.vol" = 0.5
+"mono" = 1
+"out" = -7
+
+[[preset]]
+key = "preset.fragor_mf.doom_bass"
+note = "Fragor's Doom bass as a pedal: the muff under a bass, dark, half blended with the clean low end."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"mf.on" = 1
+"mf.sustain" = 0.6
+"mf.tone" = 0.3
+"mf.vol" = 0.5
+"mix" = 0.6
+"mono" = 1
+"out" = -4.9
+
+[[preset]]
+key = "preset.fragor_mf.muff_wall"
+note = "The sustain near the top and the tone past noon: a wall of fuzz for chords."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"mf.on" = 1
+"mf.sustain" = 0.9
+"mf.tone" = 0.6
+"mf.vol" = 0.5
+"mono" = 1
+"out" = -8

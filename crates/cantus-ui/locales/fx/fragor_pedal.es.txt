@@ -1,27 +1,48 @@
 # Los cinco circuitos de Fragor como pedales del tablero (ronda 41, ADR 0152) — del constructor de pedals. Gemelo de fragor_pedal.en.txt.
-fx.fragor_pedal.out = Salida
+# Los parámetros llevan las palabras de Fragor (fx.fragor.*): un pedal lee las claves de Fragor.
 effect.fragor_od = Fragor overdrive verde
 picker.dev.fragor_od.name = Overdrive verde
 picker.dev.fragor_od.what = Un circuito de Fragor como pedal
-picker.dev.fragor_od.about = El overdrive verde de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+picker.dev.fragor_od.about = El overdrive verde de Fragor como un pedal propio en el tablero: diodos en el lazo de un amplificador operacional, unos medios que afinan lo que viene después. El mismo circuito que el de Fragor, bit a bit.
 mixer.chain.fragor_od = Overdrive
 effect.fragor_op = Fragor distorsión de op-amp
 picker.dev.fragor_op.name = Distorsión de op-amp
 picker.dev.fragor_op.what = Un circuito de Fragor como pedal
-picker.dev.fragor_op.about = El distorsión de op-amp de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+picker.dev.fragor_op.about = La distorsión de op-amp de Fragor como un pedal propio en el tablero: un op-amp lento hacia unos diodos, espesa y cruda, con un filtro que quita el zumbido. El mismo circuito que el de Fragor, bit a bit.
 mixer.chain.fragor_op = Distorsión
 effect.fragor_si = Fragor distorsión de silicio
 picker.dev.fragor_si.name = Distorsión de silicio
 picker.dev.fragor_si.what = Un circuito de Fragor como pedal
-picker.dev.fragor_si.about = El distorsión de silicio de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+picker.dev.fragor_si.about = La distorsión de silicio de Fragor como un pedal propio en el tablero: un transistor que empuja hacia un recorte duro, los medios hundidos. El mismo circuito que el de Fragor, bit a bit.
 mixer.chain.fragor_si = Distorsión
 effect.fragor_ge = Fragor fuzz de germanio
 picker.dev.fragor_ge.name = Fuzz de germanio
 picker.dev.fragor_ge.what = Un circuito de Fragor como pedal
-picker.dev.fragor_ge.about = El fuzz de germanio de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+picker.dev.fragor_ge.about = El fuzz de germanio de Fragor como un pedal propio en el tablero: dos transistores de germanio, redondo y lanoso, su polarización la pila (bajada, las notas chisporrotean). El mismo circuito que el de Fragor, bit a bit.
 mixer.chain.fragor_ge = Fuzz
 effect.fragor_mf = Fragor muff triangular
 picker.dev.fragor_mf.name = Muff triangular
 picker.dev.fragor_mf.what = Un circuito de Fragor como pedal
-picker.dev.fragor_mf.about = El muff triangular de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+picker.dev.fragor_mf.about = El muff triangular de Fragor como un pedal propio en el tablero: dos etapas que recortan y un tono con los medios hundidos, sustain sin fin. El mismo circuito que el de Fragor, bit a bit.
 mixer.chain.fragor_mf = Muff
+# Los presets (de cada pedal; los hechos de los de Fragor suenan como ellos, bit a bit).
+preset.fragor_od.green_push = Empuje verde
+preset.fragor_od.blues_edge = Filo de blues
+preset.fragor_od.vocal_grit = Voz con grano
+preset.fragor_od.clean_boost = Empuje limpio
+preset.fragor_op.rat_rhythm = Ritmo espeso
+preset.fragor_op.bass_grit = Bajo con grano
+preset.fragor_op.lofi_radio = Radio pequeña
+preset.fragor_si.silicon_crunch = Crujido de silicio
+preset.fragor_si.drum_smash = Batería aplastada
+preset.fragor_si.silicon_lead = Solo de silicio
+preset.fragor_ge.vintage_fuzz = Fuzz clásico
+preset.fragor_ge.dying_battery = Batería agotada
+preset.fragor_ge.fuzz_bass = Fuzz bajo el bajo
+preset.fragor_mf.muff_sustain = Sustain sin fin
+preset.fragor_mf.doom_bass = Bajo pesado
+preset.fragor_mf.muff_wall = Muro de muff
+# El tablero de muestra con dos saturaciones (su lista de fábrica).
+preset.tabula.stacked_drives = Saturaciones en cadena
+# La franja del pedal bajo la pedalera: su circuito dentro o fuera (un cable).
+fragor_pedal.circuit = Circuito

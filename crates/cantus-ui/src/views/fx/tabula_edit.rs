@@ -175,9 +175,7 @@ pub fn randomise(host: &mut dyn FxHost, seed: u64) {
     let spec = host.spec().clone();
     let mut keys: Vec<(PedalId, &str)> = Vec::new();
     for p in spec.pedals() {
-        if p.spec.kind == EffectKind::Pedal {
-            let m =
-                super::fragor::model_of(p.spec.get(cantus_core::fx::fragor::SLOTS[0])).unwrap_or(0);
+        if let Some(m) = super::tabula_board::fragor_circuit(&p.spec) {
             keys.extend(cantus_core::fx::fragor::KNOBS[m].iter().map(|k| (p.id, *k)));
         } else if let Some(f) = super::tabula_faces::of(p.spec.kind) {
             keys.extend(f.knobs.iter().map(|k| (p.id, *k)));

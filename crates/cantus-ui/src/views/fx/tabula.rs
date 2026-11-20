@@ -244,13 +244,21 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
     let kind = p.spec.kind;
     // The face's knobs first, then the unit's other continuous parameters.
     let mut keys: Vec<&'static str> = Vec::new();
-    if kind == EffectKind::Pedal {
-        let m = super::fragor::model_of(p.spec.get(cantus_core::fx::fragor::SLOTS[0])).unwrap_or(0);
+    if let Some(m) = tb::fragor_circuit(&p.spec) {
         keys.extend(cantus_core::fx::fragor::KNOBS[m]);
     } else if let Some(f) = super::tabula_faces::of(kind) {
         keys.extend(f.knobs.iter().copied());
     }
     let faced = keys.len();
+    // r41:pedals — one of Fragor's circuits as a pedal of its own has no window of its own:
+    // everything it has is here — its gate and levels, its quality and channels, and its
+    // circuit (in, or a wire).
+    let whole = kind.fragor_circuit();
+    if let Some(c) = whole {
+        keys.extend(["gate", "in", "mix", "out", "os", "mono"]);
+        keys.push(cantus_core::fx::fragor_pedal::switch(c));
+    }
+    let editor = super::Editor::of(kind).is_some(); // r41:pedals
     for i in kind.params() {
         if keys.len() >= 7 {
             break;
@@ -268,16 +276,11 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
         let Some(mut ph) = super::tabula_host::PedalHost::new(host, id, ptel) else {
             return;
         };
-        let fragor_words = (kind == EffectKind::Pedal).then(|| {
-            super::fragor::knob_labels(
-                super::fragor::model_of(ph.spec().get(cantus_core::fx::fragor::SLOTS[0]))
-                    .unwrap_or(0),
-            )
-        });
+        let fragor_words = tb::fragor_circuit(ph.spec()).map(super::fragor::knob_labels);
         // fx3:saltus — a parameter of its own whose name is longer than a cell takes a
         // wider cell, and one that no longer fits before the button is left to the full
         // editor: nothing elided.
-        let room = cr.body.width() / s.k - 182.0;
+        let room = cr.body.width() / s.k - if editor { 182.0 } else { 8.0 }; // r41:pedals
         let mut used = 0.0;
         for (j, key) in keys.iter().enumerate() {
             let Some(info) = kind.param(key) else {
@@ -285,7 +288,9 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
             };
             // fx3:arca — every cell as wide as the word it prints (its face's word or the
             // parameter's own, in capitals), never its short form.
+            let circuit = whole.is_some() && key.ends_with(".on"); // r41:pedals
             let word = match fragor_words {
+                _ if circuit => "fragor_pedal.circuit",
                 Some(w) if j < 3 => w[j],
                 _ if j < faced => tb::knob_word(key).unwrap_or(info.label_key),
                 _ => info.label_key,
@@ -300,6 +305,7 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
             used += width + 4.0; // fx3:saltus
                                  // The face's knobs in its words; the unit's other parameters in their own.
             let label = match fragor_words {
+                _ if circuit => Src::Key("fragor_pedal.circuit"),
                 Some(w) if j < 3 => Src::Key(w[j]),
                 _ if j < faced => tb::knob_word(key).map_or(Src::Key(info.label_key), Src::Key),
                 _ => Src::Key(info.label_key),
@@ -317,7 +323,10 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
             }
         }
         ui.add_space(s.d(12.0));
-        if controls::key(ui, s, Src::Key("tabula.pedal.open"), "", 170.0, false).clicked() {
+        // r41:pedals — offered only for a pedal with a window of its own.
+        if editor
+            && controls::key(ui, s, Src::Key("tabula.pedal.open"), "", 170.0, false).clicked()
+        {
             open = true;
         }
     });
@@ -879,8 +888,7 @@ fn interact(
 
 /// The word under a pedal's knob `j` (`key`).
 fn knob_label(spec: &EffectSpec, j: usize, key: &str) -> Src<'static> {
-    if spec.kind == EffectKind::Pedal {
-        let m = super::fragor::model_of(spec.get(cantus_core::fx::fragor::SLOTS[0])).unwrap_or(0);
+    if let Some(m) = tb::fragor_circuit(spec) {
         return Src::Key(super::fragor::knob_labels(m)[j.min(2)]);
     }
     match tb::knob_word(key) {

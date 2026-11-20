@@ -319,3 +319,65 @@ fn the_germanium_fuzz_is_fragor_with_its_slot_alone() {
 fn the_triangle_muff_is_fragor_with_its_slot_alone() {
     the_pedal_is_fragor_with_its_slot_alone(KINDS[4]);
 }
+
+/// What each pedal costs (ADR 0152's measurement), in a release build on a quiet machine:
+/// `cargo test --release -p cantus-engine --test fx_fragor_pedal -- --ignored --nocapture`.
+/// For each circuit, stereo at 4x on a guitar's phrase, best of five: the pedal, Fragor with
+/// that circuit alone in a slot, and Fragor's two-pedal board of that circuit and the next
+/// (the case its preset budget is set for); and the memory each holds for its circuits.
+#[test]
+#[ignore]
+fn cpu_of_each_pedal() {
+    let secs = 4.0;
+    let n = (secs * SR) as usize;
+    let input = {
+        let (mut l, mut r) = phrase(n);
+        // No silence: the circuits run the whole time.
+        for i in 0..n {
+            let t = i as f32 / SR;
+            if (1.2..2.4).contains(&t) {
+                let u = t - 1.2;
+                let x = 0.25 * math::exp(-2.0 * u) * math::sin(std::f32::consts::TAU * 196.0 * u);
+                l[i] = x;
+                r[i] = x * 0.9;
+            }
+        }
+        (l, r)
+    };
+    let cost = |unit: &mut Box<dyn FxUnit>| -> f64 {
+        let mut best = f64::MAX;
+        for _ in 0..5 {
+            unit.reset();
+            let (mut l, mut r) = input.clone();
+            let t = std::time::Instant::now();
+            for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
+                unit.process(a, b, None);
+            }
+            best = best.min(t.elapsed().as_secs_f64());
+            std::hint::black_box((&l, &r));
+        }
+        best / f64::from(secs) * 100.0
+    };
+    println!("| Circuit | Pedal | Fragor, one slot | Fragor, two slots | Pedal / two slots |");
+    println!("|---|---|---|---|---|");
+    for (i, kind) in KINDS.iter().enumerate() {
+        let mut p = make(*kind, SR).unwrap();
+        let s = spec(*kind, &[(switch(i), 1.0)]);
+        p.configure(&s);
+        let mut one = make(EffectKind::Pedal, SR).unwrap();
+        one.configure(&as_fragor(&s));
+        let mut two = make(EffectKind::Pedal, SR).unwrap();
+        let mut f = as_fragor(&s);
+        f.set("s2", ((i + 1) % 5) as f32 + 1.0);
+        two.configure(&f);
+        let (a, b, c) = (cost(&mut p), cost(&mut one), cost(&mut two));
+        println!(
+            "| {kind:?} | {a:.2} % | {b:.2} % | {c:.2} % | {:.2} |",
+            a / c
+        );
+    }
+    println!(
+        "memory: one circuit {} bytes; Fragor holds ten, a pedal two",
+        std::mem::size_of::<cantus_dsp::fragor::Pedal>()
+    );
+}

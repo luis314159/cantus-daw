@@ -1,3 +1,43 @@
-# Fragor's op circuit as a board-only pedal: factory presets (ADR 0101). Names are locale
-# keys (fx/fragor_pedal.*.txt). Empty until the pedals builder makes a few by ear.
-# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+# Fragor op-amp distortion (a board-only pedal, ADR 0152): factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.fragor_op.rat_rhythm"
+note = "Fragor's Thick rhythm as a pedal, to the bit: the op-amp distortion for chords, the filter taking the fizz off."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"mono" = 1
+"op.dist" = 0.6
+"op.filter" = 0.45
+"op.on" = 1
+"op.vol" = 0.5
+"out" = -5
+
+[[preset]]
+key = "preset.fragor_op.bass_grit"
+note = "Fragor's Bass grit as a pedal: blended under a bass, grit on top, the lows untouched."
+styles = ["rock", "pop"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.5
+"mono" = 1
+"op.dist" = 0.4
+"op.filter" = 0.6
+"op.on" = 1
+"op.vol" = 0.5
+"out" = 0.4
+
+[[preset]]
+key = "preset.fragor_op.lofi_radio"
+note = "Fragor's Little radio as a pedal: the filter closed, a small radio's speaker."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"mono" = 1
+"op.dist" = 0.3
+"op.filter" = 0.85
+"op.on" = 1
+"op.vol" = 0.6
+"out" = -5.2

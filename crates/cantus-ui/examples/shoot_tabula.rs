@@ -7,7 +7,9 @@
 //! The guitar rig (the starting preset) on the board at mixed sizes, playing, in Slate
 //! English and Paper Spanish at 100 % and in Slate English at 75 %, 150 % and 200 %; the
 //! rig at rest; the A/B split (the delay on A, the spring on B, the chorus after them); the
-//! pedal picker open; and a pedal's full editor opened from the board. `TABULA_ONLY=a,b`
+//! pedal picker open; and a pedal's full editor opened from the board. r41:pedals — Fragor's
+//! five circuits as pedals of their own (`circuits`: the five on one board, the fuzz chosen),
+//! the showcase board of two drives (`stacked`) and the drive shelf (`drives`). `TABULA_ONLY=a,b`
 //! shoots only the names holding one of those words; `TABULA_ANIM=1` the cables' energy as
 //! thirty frames.
 
@@ -59,6 +61,54 @@ fn app_with(state: &str, playing: bool) -> CantusApp {
             });
         }
     }
+    // r41:pedals — the five circuits as pedals of their own, each at its starting preset.
+    if state == "circuits" {
+        use cantus_core::fx::tabula::Pedal;
+        use cantus_core::Command as C;
+        let ids: Vec<PedalId> = app
+            .project()
+            .effect(strip, effect)
+            .unwrap()
+            .spec
+            .pedals()
+            .iter()
+            .map(|p| p.id)
+            .collect();
+        for pedal in ids {
+            app.exec(C::RemovePedal {
+                strip,
+                effect,
+                pedal,
+            });
+        }
+        for (i, kind) in cantus_core::fx::fragor_pedal::KINDS.into_iter().enumerate() {
+            let spec = cantus_core::starting::starting_spec(kind);
+            app.exec(C::InsertPedal {
+                strip,
+                effect,
+                index: i,
+                pedal: Box::new(Pedal::new(PedalId(i as u16), spec)),
+                maps: Vec::new(),
+            });
+        }
+        app.fx.tabula.selected = Some(PedalId(3));
+    }
+    if state == "stacked" {
+        let boards = views::fx::factory_presets(cantus_core::EffectKind::Board);
+        let (_, values) = boards
+            .iter()
+            .find(|(k, _)| *k == "preset.tabula.stacked_drives")
+            .expect("the showcase board");
+        let map: std::collections::BTreeMap<String, f32> =
+            values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+        app.apply_fx_params(strip, effect, &map, "cmd.fx_preset");
+        app.fx.tabula.selected = Some(PedalId(3));
+    }
+    if state == "drives" {
+        let shelf = tabula::picker_shelf(cantus_ui::picker_catalog::Category::Distortion);
+        app.fx.tabula.picker = Some(shelf);
+        app.fx.tabula.picker_hover = Some(2);
+    } // r41:pedals
     if state == "picker" {
         // The modulation shelf, its second pedal under the pointer.
         let shelf = tabula::picker_shelf(cantus_ui::picker_catalog::Category::Modulation);
@@ -114,6 +164,15 @@ fn main() {
         ("picker", true, false, Locale::Es, 1.0),
         ("editor", true, true, Locale::En, 1.0),
         ("editor", true, false, Locale::Es, 1.0),
+        // r41:pedals
+        ("circuits", true, true, Locale::En, 1.0),
+        ("circuits", true, false, Locale::Es, 1.0),
+        ("circuits", false, true, Locale::Es, 1.0),
+        ("circuits", true, true, Locale::En, 1.5),
+        ("stacked", true, true, Locale::En, 1.0),
+        ("stacked", true, false, Locale::Es, 1.0),
+        ("drives", true, true, Locale::En, 1.0),
+        ("drives", true, false, Locale::Es, 1.0),
     ];
     if anim {
         shots.clear();
