@@ -46,7 +46,7 @@ returns: frames looked at, numbers checked. Never relay an agent's claim uncheck
   it, in a worktree of its own:
   `git worktree add -b r41/video F:/projects/daw-r41/video r41/video-plan`.
   Give it an untracked `.cargo/config.toml` (`[build] jobs = 3`, `debug = 0`,
-  `incremental = false`), and read the files named below in that worktree.
+  `incremental = false`), and read the files named above in that worktree.
 - Everything generated (frames, takes, renders, the Python environment, downloaded models)
   lives in `F:\projects\video-work\`, never in the repository.
 - Commit only the code and the sources: `film.rs`, `tools/video/` (cards, `build.sh`, the
@@ -94,7 +94,7 @@ returns: frames looked at, numbers checked. Never relay an agent's claim uncheck
    - The ducking measured.
    - Every caption at most 42 characters a line.
    - A last look at the frames: no overlap, no clipped label, no "no audio device", no
-     dancer.
+     dancer but Onda, and Onda only in its simple groove.
 8. **Stop for the owner.**
    - Send him the EN and ES drafts (SendUserFile) with a short note: what each scene shows,
      what you could not do, and what he should look and listen for.
@@ -105,7 +105,8 @@ returns: frames looked at, numbers checked. Never relay an agent's claim uncheck
 - Real pictures, real sound, honest words.
 - Every number from the code at your commit, and no new measurement.
 - First-rank finish: eased motion, clean typography, intelligible voice.
-- The owner's decisions stand: no dancers, the faith as he placed it.
+- The owner's decisions stand: Slate Lapis Night, Onda as the only dancer, the faith as
+  he placed it.
 
 When something only the owner can judge comes up (a voice, a take, a picture's taste),
 stop and ask. Write your report as `docs/round41/video/report.md`, and say plainly what was
