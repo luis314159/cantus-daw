@@ -46,6 +46,9 @@ def main() -> None:
 
     import soundfile as sf
     import torch
+
+    # The GPU does the work; few CPU threads, so a measurement beside it is not disturbed.
+    torch.set_num_threads(2)
     from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

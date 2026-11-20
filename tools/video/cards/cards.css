@@ -45,7 +45,8 @@ body { font-family: var(--display); color: var(--ink); -webkit-font-smoothing: a
 #title .logo svg { width: 100%; height: 100%; display: block; overflow: visible; }
 #title .word { left: 0; right: 0; top: 610px; text-align: center; font: 600 112px/1 var(--display);
   letter-spacing: 0.01em; color: var(--strong); }
-#title .word sup { font: 500 30px/1 var(--display); vertical-align: top; margin-left: 4px; opacity: 0.7; }
+/* the mark at the cap height, close to the word (as the site's .brand .tm) */
+#title .word sup { font: 500 28px/1 var(--display); vertical-align: baseline; position: relative; top: -2.0em; margin-left: 3px; opacity: 0.7; }
 #title .rule { left: 50%; top: 750px; width: 520px; height: 2px; margin-left: -260px; background: var(--gold-rule);
   transform-origin: 50% 50%; }
 
@@ -56,7 +57,7 @@ body { font-family: var(--display); color: var(--ink); -webkit-font-smoothing: a
 .count .panel::before { content: ""; position: absolute; left: 36px; right: 40px; top: -1px; height: 2px;
   background: var(--gold-rule); transform: scaleX(var(--rule, 1)); transform-origin: 0 50%; }
 .count .n { font: 500 132px/0.86 var(--display); color: var(--strong); letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums; min-width: 1.05em; text-align: right; }
+  font-variant-numeric: tabular-nums; min-width: 1.15em; text-align: right; } /* two figures wide: the panel never resizes while it counts */
 .count .noun { font: 500 54px/1 var(--display); color: var(--ink); }
 .count .sub { position: absolute; left: 36px; top: -44px; font: 600 22px/1 var(--display); letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--gold-text-slate); }
@@ -86,7 +87,7 @@ body { font-family: var(--display); color: var(--ink); -webkit-font-smoothing: a
 .end .brand .tile { width: 180px; height: 180px; }
 .end .brand .tile svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .end .brand .word { font: 600 150px/1 var(--display); letter-spacing: 0.01em; color: #fff; }
-.end .brand .word sup { font: 500 36px/1 var(--display); vertical-align: top; margin-left: 6px; opacity: 0.7; }
+.end .brand .word sup { font: 500 34px/1 var(--display); vertical-align: baseline; position: relative; top: -2.2em; margin-left: 4px; opacity: 0.7; }
 .end .site { margin-top: 38px; font: 500 64px/1 var(--display); color: var(--accent-text); letter-spacing: 0.01em; }
 .end .os { margin-top: 18px; font: 400 36px/1.2 var(--display); color: var(--lapis-ink-2); }
 .end .os b { font-weight: 600; color: var(--lapis-ink); }

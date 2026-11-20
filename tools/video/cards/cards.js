@@ -63,6 +63,8 @@ function draw(el, k) {
   const len = el._len || (el._len = el.getTotalLength());
   el.style.strokeDasharray = `${len} ${len}`;
   el.style.strokeDashoffset = (len * (1 - k)).toFixed(2);
+  // a round cap on a zero-length dash would draw a dot before the stroke starts
+  el.style.opacity = k > 0 ? "1" : "0";
 }
 
 // --- logo #03, read from the app's own asset and inlined, so its parts can move ---

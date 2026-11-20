@@ -86,6 +86,9 @@ def main() -> None:
     a = ap.parse_args()
 
     import numpy as np
+    import torch
+
+    torch.set_num_threads(2)
     import pyloudnorm
     import soundfile as sf
     import whisper
