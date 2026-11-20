@@ -3,7 +3,7 @@
 | File | What it is |
 |---|---|
 | `deps.sh` | The Ubuntu packages a Linux build needs (ALSA, PipeWire, clang for PipeWire's bindings, X11/Wayland, Xvfb, squashfs). On Ubuntu 22.04 it also unpacks PipeWire 1.0.5's headers (pinned) over the system's 0.3.48 library. |
-| `build-appimage.sh <version> <out-dir>` | The AppImage, from the repository root after `cargo build --release`: `<out-dir>/Cantus-<version>-linux-x86_64.AppImage`. |
+| `build-appimage.sh <version> <out-dir>` | The AppImage, from the repository root after `cargo build --release`: `<out-dir>/Cantus-<version>-x86_64.AppImage` (published under the old `…-linux-x86_64` names too, ADR 0067). |
 | `test-fallback.sh <AppImage>` | Proof that the AppImage starts where libpipewire is missing. |
 | `AppRun` | The AppImage's entry: picks the libpipewire stand-in when the system has none. |
 | `stub/make-stub.sh` | Makes that stand-in from the symbols the programs take from the real library. |

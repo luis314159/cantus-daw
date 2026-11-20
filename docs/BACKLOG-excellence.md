@@ -1155,6 +1155,29 @@ every pad and only the kick playing processes in 0.027 s against 0.018 s with no
 ordinary strips. Extending it to every strip (sends' tails, keys, followers, frozen and
 parked strips, the master) is the next step: the same exactness test over the strip fuzz.
 
+- **Fragor's circuits, lane-wise or measured where their time goes (beta.16, 2026-11-20).**
+  *Synth fuzz* (the germanium fuzz into the triangle muff, stereo, at 4x) cost 0.35-0.38 of a
+  core against the pedal budget of 0.25 and held macOS back from beta.15. beta.16 cut it by
+  21 %, the same bits (`tools/test/ab-compare.sh`, `fragor_tests::cpu_synth_fuzz_board`):
+  - each circuit's sample with its sizes as constants;
+  - the junctions' critical voltage worked out once;
+  - the outputs kept from the sample that computed them.
+
+  It is now 0.283 against a pedal budget of 0.30 (`preset_measure::budget`, the owner's
+  choice). Measured and not kept: stepping the two channels' circuits phase by phase, so the
+  processor overlaps them. It gave the same bits and 0-5 % *more* time, so the solver is not
+  bound by latency. The arithmetic counted per sample (~100 ns) is a third of what a sample
+  costs (~300 ns for the fuzz, a loaded machine), and nobody has seen where the rest goes:
+  - **profile it first.** Windows has no sampling profiler installed (samply needs ETW and
+    elevation; WSL has no `perf`); set one up and read Fragor's board on it;
+  - then, by what it shows: the solver written lane-wise (`[f64; 2]` per value, left and right
+    in one instruction where the two channels agree, per-lane selects where they branch: the
+    pivot, the convergence), Estrin's scheme in `fast_exp` (a sound change: `DSP_VERSION`), or
+    a tabulated junction as Arca's triodes have (`arca_fast.rs`).
+
+  *Done when* the stereo fuzz-into-muff board costs no more than 0.25 of a core with the same
+  sound, and Fragor's budget goes back to the tenth-plus Arca rule it had.
+
 ## 4c. A recording mode for high performance (requested 2026-10-10)
 
 *The owner: "a partial pre-render of every channel that feeds the master — audio, instruments,
@@ -2695,3 +2718,21 @@ several images playable (ADR 0050). Accurate-Salamander plays its
 *minimum* edition: its full editions gate sampled releases, hammer and pedal noise and the
 pseudo pedal resonance behind controllers 20–24 (`locc`/`hicc` on regions), which Exemplar's
 SFZ reader does not honour yet — reading region-level controller ranges would bring them.
+
+- **The website's code in CI (beta.16, 2026-11-20; cantus-6f's note).** `web/` is a workspace
+  of its own, and `ci.yml` neither lints nor tests it. Only `site.yml` (on a push to the public
+  master that touches it) and `site-budget.yml` see it. So:
+  - fmt and clippy lints in `web/src/` (`top.rs`, `audio.rs`, `proof.rs`, `platform.rs`) sat on
+    master unseen until round 41's showcase;
+  - a `/learn` test failed unseen;
+  - the WebAssembly grew 3 KB over its 250 000-byte budget and was published that way
+    (`aaf2ac14`).
+
+  Add a `web` job to `ci.yml`:
+  - `cargo fmt --check`;
+  - clippy `-D warnings` for wasm32 and for `--features ssr --all-targets`;
+  - `cargo test --features ssr`;
+  - `trunk build --release` and `wasm_budget.py`.
+
+  Run it on the paths `web/**` and the workspace files it reads. *Done when* a change to
+  `web/` cannot reach master without them.

@@ -531,3 +531,58 @@ fn profile_solver() {
         t.elapsed().as_secs_f64() / n as f64 * 1e9
     );
 }
+
+/// The synth fuzz preset's board (the germanium fuzz into the triangle muff, stereo, 4×) on
+/// a stereo source: its share of a core, best of five, and the output's bytes written to
+/// `CANTUS_FRAGOR_DUMP` when set — two builds' dumps compared byte for byte prove a change
+/// to the solver leaves every sample as it was. Prints; run it alone on a quiet machine
+/// (`--release --ignored --nocapture`).
+#[test]
+#[ignore]
+fn cpu_synth_fuzz_board() {
+    let secs = 4.0;
+    let l: Vec<f32> = pluck(110.0, secs, 0.5, 7)
+        .iter()
+        .zip(pluck(164.8, secs, 0.3, 8))
+        .map(|(a, b)| a + b)
+        .collect();
+    let r: Vec<f32> = pluck(110.3, secs, 0.45, 9)
+        .iter()
+        .zip(pluck(220.0, secs, 0.3, 10))
+        .map(|(a, b)| a + b)
+        .collect();
+    let mut s = board([Some(Model::Fuzz), Some(Model::Muff), None]);
+    s.knobs[Model::Fuzz.index()] = [0.7, 0.9, 0.5];
+    s.knobs[Model::Muff.index()] = [0.4, 0.55, 0.5];
+    let mut best = f64::MAX;
+    let mut out = (Vec::new(), Vec::new());
+    for _ in 0..5 {
+        let mut f = fresh(&s);
+        let t = std::time::Instant::now();
+        let o = run(&mut f, &l, &r, 256);
+        best = best.min(t.elapsed().as_secs_f64());
+        out = o;
+    }
+    let mut f = fresh(&s);
+    let _ = run(&mut f, &l, &r, 256);
+    let it: Vec<String> = [Model::Fuzz, Model::Muff]
+        .iter()
+        .flat_map(|m| {
+            let p = &f.pedals[m.index()];
+            (0..3).map(move |i| format!("{:.2}", p.part(i).iterations_per_step()))
+        })
+        .collect();
+    println!(
+        "synth fuzz board: {:.2} % of a core (stereo, 4x, 48 kHz); iterations per part (fuzz 0-2, muff 0-2): {it:?}",
+        best / f64::from(secs) * 100.0
+    );
+    if let Some(p) = std::env::var_os("CANTUS_FRAGOR_DUMP") {
+        let bytes: Vec<u8> = out
+            .0
+            .iter()
+            .chain(&out.1)
+            .flat_map(|x| x.to_le_bytes())
+            .collect();
+        std::fs::write(p, bytes).unwrap();
+    }
+}

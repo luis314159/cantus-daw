@@ -31,9 +31,19 @@ pub fn plugins_name(version: &str) -> String {
     format!("Cantus-{version}-plugins-windows-x64.zip")
 }
 
-/// `Cantus-0.2.0-linux-x86_64.AppImage`: Linux's one file (ADR 0067), what
-/// `packaging/linux/build-appimage.sh` writes and what an AppImage's updater asks for.
+/// `Cantus-0.2.0-x86_64.AppImage`: Linux's one file (ADR 0067), what
+/// `packaging/linux/build-appimage.sh` writes and what an AppImage's updater asks for first.
+/// The AppImage catalogue's naming (`App-1.0-x86_64.AppImage`, no system in the name),
+/// since beta.16 (ADR 0067's amendment of 2026-11-20).
 pub fn appimage_name(version: &str) -> String {
+    format!("Cantus-{version}-x86_64.AppImage")
+}
+
+/// `Cantus-0.2.0-linux-x86_64.AppImage`: the AppImage's name up to beta.15. Every release
+/// since publishes it too (the same bytes): beta.15's updater asks only for this name, so a
+/// copy that old still finds its update; a new updater falls back to it for an older
+/// release.
+pub fn appimage_name_before_beta16(version: &str) -> String {
     format!("Cantus-{version}-linux-x86_64.AppImage")
 }
 
@@ -44,8 +54,14 @@ pub fn dmg_name(version: &str) -> String {
     format!("Cantus-{version}-macos-universal.dmg")
 }
 
-/// The AppImage under the name that never changes (as [`STABLE_INSTALLER_NAME`]).
+/// The AppImage under the name that never changes (as [`STABLE_INSTALLER_NAME`]): what the
+/// website and the README link. Every release publishes it, the links already out there
+/// with it.
 pub const STABLE_APPIMAGE_NAME: &str = "Cantus-linux-x86_64.AppImage";
+/// The AppImage's stable name in the catalogue's naming, published beside
+/// [`STABLE_APPIMAGE_NAME`] since beta.16 (the same bytes). The site moves its links to it
+/// once a release carries it — before, `releases/latest/download/` would not find it.
+pub const CATALOGUE_STABLE_APPIMAGE_NAME: &str = "Cantus-x86_64.AppImage";
 /// The disk image under the name that never changes (as [`STABLE_INSTALLER_NAME`]).
 pub const STABLE_DMG_NAME: &str = "Cantus-macos-universal.dmg";
 
@@ -203,9 +219,14 @@ impl Release {
     }
 
     /// The file a copy on `target` updates itself from: the versioned name only (the
-    /// stable copy is the same bytes, for the website).
+    /// stable copy is the same bytes, for the website). An AppImage takes the name a
+    /// release before beta.16 used when the new one is not there.
     pub fn update_file(&self, target: Target) -> Option<&Asset> {
-        self.asset(&target.file_name(&self.version_text()))
+        let v = self.version_text();
+        self.asset(&target.file_name(&v)).or_else(|| match target {
+            Target::LinuxX64 => self.asset(&appimage_name_before_beta16(&v)),
+            _ => None,
+        })
     }
 
     pub fn portable(&self) -> Option<&Asset> {

@@ -29,7 +29,9 @@
 #
 # Every file is published twice: versioned (what the app's updater asks for) and under a
 # stable name the website links through releases/latest/download/ (ADR 0048 §7):
-# Cantus-windows-x64-setup.exe, Cantus-linux-x86_64.AppImage, Cantus-macos-universal.dmg.
+# Cantus-windows-x64-setup.exe, Cantus-linux-x86_64.AppImage, Cantus-macos-universal.dmg
+# (the AppImage also as Cantus-x86_64.AppImage and Cantus-<v>-x86_64.AppImage, the AppImage
+# catalogue's naming, since beta.16: beta.15's updater asks for the old versioned name).
 
 name: Release
 
@@ -242,12 +244,16 @@ jobs:
         run: |
           version="$(cargo run -q -p xtask -- version)"
           bash packaging/linux/build-appimage.sh "$version" dist
-          test -s "dist/Cantus-$version-linux-x86_64.AppImage"
+          test -s "dist/Cantus-$version-x86_64.AppImage"
           # Only the file, versioned and under its stable name (whatever else the script
-          # leaves in dist stays out of the release), with their sums.
+          # leaves in dist stays out of the release), with their sums. Each under the
+          # catalogue's name (since beta.16) and the name before it (beta.15's updater, the
+          # links already out there): the same bytes.
           mkdir upload
-          cp "dist/Cantus-$version-linux-x86_64.AppImage" upload/
-          cp "dist/Cantus-$version-linux-x86_64.AppImage" upload/Cantus-linux-x86_64.AppImage
+          cp "dist/Cantus-$version-x86_64.AppImage" upload/
+          cp "dist/Cantus-$version-x86_64.AppImage" "upload/Cantus-$version-linux-x86_64.AppImage"
+          cp "dist/Cantus-$version-x86_64.AppImage" upload/Cantus-x86_64.AppImage
+          cp "dist/Cantus-$version-x86_64.AppImage" upload/Cantus-linux-x86_64.AppImage
           cd upload && sha256sum -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -378,8 +384,10 @@ jobs:
           v="${GITHUB_REF_NAME#v}"
           test -s dist/Cantus-windows-x64-setup.exe
           test -s dist/Cantus-linux-x86_64.AppImage
+          test -s dist/Cantus-x86_64.AppImage
           test -s "dist/Cantus-$v-windows-x64-setup.exe"
           test -s "dist/Cantus-$v-linux-x86_64.AppImage"
+          test -s "dist/Cantus-$v-x86_64.AppImage"
           if [ "$MACOS" = true ]; then
             test -s dist/Cantus-macos-universal.dmg
             test -s "dist/Cantus-$v-macos-universal.dmg"

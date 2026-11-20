@@ -45,7 +45,7 @@ script as environment variables; absent, the script signs ad hoc (ADR 0066).
 | Target | Versioned (the updater asks for it) | Stable (the website links it) |
 |---|---|---|
 | `WindowsX64` | `Cantus-<v>-windows-x64-setup.exe` | `Cantus-windows-x64-setup.exe` |
-| `LinuxX64` | `Cantus-<v>-linux-x86_64.AppImage` | `Cantus-linux-x86_64.AppImage` |
+| `LinuxX64` | `Cantus-<v>-x86_64.AppImage` (beta.16 on; `Cantus-<v>-linux-x86_64.AppImage` before, still published) | `Cantus-linux-x86_64.AppImage` (and `Cantus-x86_64.AppImage` from beta.16) |
 | `MacUniversal` | `Cantus-<v>-macos-universal.dmg` | `Cantus-macos-universal.dmg` |
 
 `Target::of(os, arch)` maps Rust's `OS`/`ARCH`: Windows x86-64, Linux x86-64, macOS on
@@ -140,3 +140,20 @@ carries nothing but the visitor's address, as following the download link does.
   `the_release_s_linux_job_installs_every_package_ci_does`.
 - `web/src/shelf.rs`: one request however many cards ask; a system is available only with its stable file; a kept answer
   lasts an hour and nothing malformed is believed.
+
+## Amendment, 2026-11-20 (beta.16): the AppImage in the catalogue's naming
+
+The AppImage catalogue (appimage.github.io, PR #12206) asks for `App-1.0-x86_64.AppImage`,
+with no system in the name. From beta.16 the AppImage is built as
+`Cantus-<v>-x86_64.AppImage`, and every release publishes the same bytes under four names:
+
+- the two versioned names: the new one, and `Cantus-<v>-linux-x86_64.AppImage`, which is the
+  only one beta.15's updater asks for;
+- the two stable names: `Cantus-linux-x86_64.AppImage`, which the site and the README link,
+  and `Cantus-x86_64.AppImage`.
+
+The updater asks for the new versioned name first, then the old (`Release::update_file`;
+`check.rs` holds both orders). The site and the README move to the new stable name in a
+change after beta.16 is published: `releases/latest/download/` finds a name only once the
+latest release carries it. The old names are dropped when no supported copy asks for them
+any more, an owner's decision with its own amendment.

@@ -170,7 +170,7 @@ jobs:
         run: bash packaging/linux/build-appimage.sh 0.0.0-ci target/appimage-out
       # Without libpipewire: the stand-in in usr/lib/fallback lets it start.
       - name: starts without libpipewire
-        run: bash packaging/linux/test-fallback.sh target/appimage-out/Cantus-0.0.0-ci-linux-x86_64.AppImage
+        run: bash packaging/linux/test-fallback.sh target/appimage-out/Cantus-0.0.0-ci-x86_64.AppImage
 
   # The Flatpak manifest builds (ADR 0065; Flathub's submission is the owner's). By hand
   # (Actions ▸ CI ▸ Run workflow): it builds the whole program inside the SDK, ~40 min.

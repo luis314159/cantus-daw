@@ -729,15 +729,17 @@ fn every_system_and_architecture_asks_for_its_own_file() {
         Target::WindowsX64.file_name("0.3.0"),
         "Cantus-0.3.0-windows-x64-setup.exe"
     );
+    // The AppImage catalogue's naming since beta.16 (no system in the name).
     assert_eq!(
         Target::LinuxX64.file_name("0.3.0"),
-        "Cantus-0.3.0-linux-x86_64.AppImage"
+        "Cantus-0.3.0-x86_64.AppImage"
     );
     assert_eq!(
         Target::MacUniversal.file_name("0.3.0-beta.2"),
         "Cantus-0.3.0-beta.2-macos-universal.dmg"
     );
-    // The stable names the website links (fixed by the round-30 contract).
+    // The stable names the website links (fixed by the round-30 contract). Since beta.16
+    // the AppImage is published under the catalogue's stable name too.
     let stable: Vec<_> = Target::ALL.iter().map(|t| t.stable_name()).collect();
     assert_eq!(
         stable,
@@ -746,6 +748,10 @@ fn every_system_and_architecture_asks_for_its_own_file() {
             "Cantus-linux-x86_64.AppImage",
             "Cantus-macos-universal.dmg"
         ]
+    );
+    assert_eq!(
+        cantus_update::release::CATALOGUE_STABLE_APPIMAGE_NAME,
+        "Cantus-x86_64.AppImage"
     );
     let names: Vec<String> = Target::ALL.iter().map(|t| t.file_name("0.3.0")).collect();
     let files: Vec<(&str, &[u8])> = names
@@ -767,6 +773,17 @@ fn every_system_and_architecture_asks_for_its_own_file() {
             "{t:?}"
         );
     }
+    // A release made before beta.16 names its AppImage the old way, and a release since
+    // carries both names: an AppImage finds its file in either, the new name first.
+    let before = cantus_update::release::appimage_name_before_beta16("0.3.0");
+    let (json, _) = three_systems("0.3.0", &[(before.as_str(), b"ELF".as_slice())]);
+    let r = Release::parse(json.as_bytes()).unwrap();
+    assert_eq!(r.update_file(Target::LinuxX64).unwrap().name, before);
+    let new = Target::LinuxX64.file_name("0.3.0");
+    let both: [(&str, &[u8]); 2] = [(before.as_str(), b"ELF"), (new.as_str(), b"ELF")];
+    let (json, _) = three_systems("0.3.0", &both);
+    let r = Release::parse(json.as_bytes()).unwrap();
+    assert_eq!(r.update_file(Target::LinuxX64).unwrap().name, new);
     // A release made before round 30 (Windows only) has nothing for Linux or a Mac.
     let old = Release::parse(CANTUS.as_bytes()).unwrap();
     assert!(old.update_file(Target::WindowsX64).is_some());
@@ -775,7 +792,9 @@ fn every_system_and_architecture_asks_for_its_own_file() {
 }
 
 /// Each kind on its target: what it is offered, and that the file is verified by its
-/// hash (a publisher set for Windows does not apply to an AppImage or a disk image).
+/// hash (a publisher set for Windows does not apply to an AppImage or a disk image). The
+/// AppImage here carries the name a release before beta.16 gave it: a new copy still
+/// updates from such a release (the new name is `Release::update_file`'s first choice).
 #[test]
 fn an_appimage_and_a_disk_image_download_and_verify_like_the_installer() {
     let image: &[u8] = b"ELF the new AppImage";

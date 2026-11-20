@@ -90,6 +90,24 @@ binary does not hide the rest (`docs/RELEASING.md`). cantus-ui's ~370 test execu
 take about 25 GB. Where the disk cannot hold them, `bash tools/test/ui-batches.sh` runs
 cantus-ui in batches of 20 and deletes each batch's executables after it runs.
 
+The tools that run and check it (`tools/test/`, `tools/release/`):
+
+- `bash tools/test/suite-windows.sh [out-dir]`: the whole suite on Windows in one go. It
+  runs the workspace without cantus-ui, then cantus-ui in batches, with no debug info, and
+  prints the disk and the totals. It took 93 minutes on 2026-11-20. In WSL the same is
+  `tools/wsl/check.sh <branch> test` (Linux, below); it takes a branch name or a commit.
+- `bash tools/test/disk-watch.sh /c`: beside a WSL suite. WSL's disk image is on C:, and it
+  only grows.
+- `bash tools/test/ab-compare.sh --crate … --test … --files …`: an optimisation's proof. It
+  builds the same test binary twice: the named files as they are at a base commit, and as
+  they are in the working tree. Then it runs an ignored test on both, alternately, compares
+  their dumps byte for byte and shows both costs. Use it for the same bits with less CPU,
+  as in beta.16's Fragor solver (`fragor_tests::cpu_synth_fuzz_board`).
+- `pwsh tools/release/release-body.ps1 get|set <tag> <file>`: a published release's text on
+  cantus-daw. `set` checks that GitHub then holds the file to the byte, and refuses a text
+  that quotes the RVR1960 (public text carries the RV1909). Editing a release only with the
+  owner's OK.
+
 On a Windows set to another language, building the plug-ins' library prints `warning:
 linker stdout: Creando biblioteca … .dll.lib` (`linker_messages`): rustc hides MSVC's
 "Creating library" line only in English. It is harmless (CI's English runners never show
@@ -229,7 +247,7 @@ built. `docs/mac-session.md` is the checklist for a session on a real Mac.
 bash packaging/linux/deps.sh                       # once (sudo; Ubuntu 22.04 for releases)
 cargo build --release
 bash packaging/linux/build-appimage.sh 0.2.0 target/dist
-bash packaging/linux/test-fallback.sh target/dist/Cantus-0.2.0-linux-x86_64.AppImage
+bash packaging/linux/test-fallback.sh target/dist/Cantus-0.2.0-x86_64.AppImage
 ```
 
 `build-appimage.sh` (the interface `release.yml` calls, round 30) builds the two levels

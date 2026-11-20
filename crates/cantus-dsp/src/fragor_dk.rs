@@ -89,10 +89,17 @@ const TRIODE_PLATE_STOP: f64 = 1e-3;
 /// The largest step the predictor takes from the last answer (volts).
 const PREDICT: f64 = 0.05;
 
+/// A junction's critical voltage for [`pnjlim`] (`vt` its thermal voltage times emission
+/// coefficient, `is` its saturation current): a constant of the device, worked out once when
+/// the element is added — each Newton iteration paid a logarithm per port for it before.
+fn vcrit(vt: f64, is: f64) -> f64 {
+    vt * math::ln(vt / (std::f64::consts::SQRT_2 * is))
+}
+
 /// SPICE's junction limiting: the new forward voltage of a junction (`vt` its thermal
-/// voltage times emission coefficient, `is` its saturation current), given the old.
-fn pnjlim(new: f64, old: f64, vt: f64, is: f64) -> f64 {
-    let vcrit = vt * math::ln(vt / (std::f64::consts::SQRT_2 * is));
+/// voltage times emission coefficient, `vcrit` its [`vcrit`]), given the old.
+#[inline]
+fn pnjlim(new: f64, old: f64, vt: f64, vcrit: f64) -> f64 {
     if new > vcrit && (new - old).abs() > 2.0 * vt {
         if old > 0.0 {
             let arg = 1.0 + (new - old) / vt;
@@ -280,6 +287,8 @@ pub struct Circuit {
     ni: usize,
     e: [Nl; MAX_E],
     dev: [Dev; MAX_E],
+    /// Each element's junction critical voltage ([`vcrit`]; 0 where it has no junction).
+    vcrit: [f64; MAX_E],
     ne: usize,
     dims: usize,
     /// Each port's block of ports (an NPN's two share one): `[lo, hi)`.
@@ -328,6 +337,11 @@ pub struct Circuit {
     /// The last sample's `q` and port currents (what the node voltages are read from).
     q_last: [f64; MAX_Q],
     i_last: [f64; MAX_NL],
+    /// The outputs as the last sample computed them (its fused rows: the same products in
+    /// the same order as [`Self::read_out`], so the same bits), while `out_fresh` — every
+    /// rebuild, operating point and state set clears it and the outputs are read again.
+    out_abs: [f64; MAX_OUT],
+    out_fresh: bool,
     /// The outputs at the operating point (subtracted from what [`Self::step`] returns).
     y0: [f64; MAX_OUT],
     /// Each port's largest predicted step (fx3:arca — [`PREDICT`] for every element but a
@@ -360,6 +374,7 @@ impl Circuit {
                 nvt: 1.0,
             }; MAX_E],
             dev: [Dev::NONE; MAX_E],
+            vcrit: [0.0; MAX_E],
             ne: 0,
             dims: 0,
             block: [(0, 0); MAX_NL],
@@ -388,6 +403,8 @@ impl Circuit {
             v2: [0.0; MAX_NL],
             q_last: [0.0; MAX_Q],
             i_last: [0.0; MAX_NL],
+            out_abs: [0.0; MAX_OUT],
+            out_fresh: false,
             y0: [0.0; MAX_OUT],
             predict: [PREDICT; MAX_NL],
             stop_scale: [1.0; MAX_NL],
@@ -480,6 +497,11 @@ impl Circuit {
         }
         self.e[self.ne] = e;
         self.dev[self.ne] = Dev::of(&e);
+        self.vcrit[self.ne] = match e {
+            Nl::DiodePair { is, nvt, .. } => vcrit(nvt, is),
+            Nl::Npn { is, vt, .. } => vcrit(vt, is),
+            _ => 0.0,
+        };
         self.ne += 1;
     }
 
@@ -516,6 +538,7 @@ impl Circuit {
     /// Recompute the matrices from the values, for the transient (`dc` false) or the
     /// operating point (`dc` true: capacitors open).
     pub fn rebuild_for(&mut self, dc: bool) {
+        self.out_fresh = false;
         let n = self.n;
         let mut a = [[0.0f64; MAX_N]; MAX_N];
         let stamp = |a: &mut [[f64; MAX_N]; MAX_N], p: u8, q: u8, g: f64| {
@@ -774,8 +797,12 @@ fn invert(a: &mut [[f64; MAX_N]; MAX_N], out: &mut [[f64; MAX_N]; MAX_N], n: usi
     }
 }
 
-/// Solve the `d × d` system `m · x = b` in place (`b` becomes `x`), partial pivoting.
-fn solve_small(m: &mut [[f64; MAX_NL]; MAX_NL], b: &mut [f64; MAX_NL], d: usize) {
+/// Solve the `D × D` system `m · x = b` in place (`b` becomes `x`), partial pivoting. The
+/// size is a constant, so each size's loops are laid out whole by the compiler — the same
+/// operations in the same order as a loop to a run-time `d`, so the same bits.
+#[inline]
+fn solve_small<const D: usize>(m: &mut [[f64; MAX_NL]; MAX_NL], b: &mut [f64; MAX_NL]) {
+    let d = D;
     for col in 0..d {
         let mut piv = col;
         for r in col + 1..d {
@@ -967,17 +994,17 @@ impl Circuit {
         let mut d = 0;
         for k in 0..self.ne {
             match self.e[k] {
-                Nl::DiodePair { is, nvt, .. } => {
+                Nl::DiodePair { nvt, .. } => {
                     let (old, new) = (self.v[d], self.v[d] + dv[d]);
                     // Symmetric: limit the magnitude on whichever side conducts.
                     let s = if new >= 0.0 { 1.0 } else { -1.0 };
                     let o = if old * s > 0.0 { old * s } else { 0.0 };
-                    self.v[d] = s * pnjlim(new * s, o, nvt, is);
+                    self.v[d] = s * pnjlim(new * s, o, nvt, self.vcrit[k]);
                     d += 1;
                 }
-                Nl::Npn { is, vt, .. } => {
+                Nl::Npn { vt, .. } => {
                     for _ in 0..2 {
-                        self.v[d] = pnjlim(self.v[d] + dv[d], self.v[d], vt, is);
+                        self.v[d] = pnjlim(self.v[d] + dv[d], self.v[d], vt, self.vcrit[k]);
                         d += 1;
                     }
                 }
@@ -996,13 +1023,29 @@ impl Circuit {
     }
 
     /// Solve `p + K i(v) − v = 0` from the current `self.v`; returns the port currents.
+    /// Dispatched on the number of ports, so each size runs its own laid-out loops
+    /// ([`Self::newton_d`]): every operation and its order as before, so every bit.
     #[inline]
     fn newton(&mut self, p: &[f64; MAX_NL], iters: usize) -> ([f64; MAX_NL], bool) {
-        let d = self.dims;
-        let mut i = [0.0; MAX_NL];
-        if d == 0 {
-            return (i, true);
+        match self.dims {
+            0 => ([0.0; MAX_NL], true),
+            1 => self.newton_d::<1>(p, iters),
+            2 => self.newton_d::<2>(p, iters),
+            3 => self.newton_d::<3>(p, iters),
+            4 => self.newton_d::<4>(p, iters),
+            _ => self.newton_d::<MAX_NL>(p, iters),
         }
+    }
+
+    /// [`Self::newton`] for a circuit of `D` ports.
+    #[inline]
+    fn newton_d<const D: usize>(
+        &mut self,
+        p: &[f64; MAX_NL],
+        iters: usize,
+    ) -> ([f64; MAX_NL], bool) {
+        let d = D;
+        let mut i = [0.0; MAX_NL];
         let mut di = [[0.0; MAX_NL]; MAX_NL];
         for _ in 0..iters {
             self.iters += 1;
@@ -1028,7 +1071,7 @@ impl Circuit {
             if d == 1 {
                 f[0] /= j[0][0];
             } else {
-                solve_small(&mut j, &mut f, d);
+                solve_small::<D>(&mut j, &mut f);
             }
             let mut big = 0.0f64;
             for (x, w) in f.iter().zip(&self.stop_scale).take(d) {
@@ -1106,13 +1149,42 @@ impl Circuit {
         self.iters as f64 / self.steps.max(1) as f64
     }
 
+    /// The circuit's shape: entries of `q` (inputs and capacitors), rows of the fused matrix,
+    /// ports.
+    pub fn shape(&self) -> (usize, usize, usize) {
+        (self.ni + self.nc, self.rows, self.dims)
+    }
+
     /// One sample: inputs `u` in, outputs (relative to the operating point) into `y`.
+    ///
+    /// Each of Fragor's circuits has a shape of its own ([`Self::shape`]); for those, the
+    /// sample runs with the sizes as constants, its loops laid out whole — the same
+    /// operations in the same order, so the same bits — and any other shape with them read
+    /// at run time.
     #[inline]
     pub fn step(&mut self, u: &[f64], y: &mut [f64; MAX_OUT]) {
+        match self.shape() {
+            // The green overdrive, the op-amp distortion, the silicon distortion's two parts
+            // (`Circuit::shape` of each `Pedal::part`).
+            (10, 10, 1) => self.step_sized(u, y, 10, 10, 1),
+            (11, 12, 2) => self.step_sized(u, y, 11, 12, 2),
+            (8, 8, 2) => self.step_sized(u, y, 8, 8, 2),
+            (9, 9, 1) => self.step_sized(u, y, 9, 9, 1),
+            // The germanium fuzz.
+            (5, 8, 4) => self.step_sized(u, y, 5, 8, 4),
+            // The triangle muff's three parts.
+            (7, 7, 2) => self.step_sized(u, y, 7, 7, 2),
+            (6, 8, 3) => self.step_sized(u, y, 6, 8, 3),
+            (8, 11, 3) => self.step_sized(u, y, 8, 11, 3),
+            (m, rows, d) => self.step_sized(u, y, m, rows, d),
+        }
+    }
+
+    /// [`Self::step`] for `m` entries of `q`, `rows` rows and `d` ports (the circuit's).
+    #[inline(always)]
+    fn step_sized(&mut self, u: &[f64], y: &mut [f64; MAX_OUT], m: usize, rows: usize, d: usize) {
         self.steps += 1;
         let q = self.q(u, 1.0);
-        let m = self.ni + self.nc;
-        let rows = self.rows;
         let mut acc = [0.0f64; ROWS];
         for (col, qj) in self.aq.iter().zip(&q).take(m) {
             for (a, c) in acc.iter_mut().zip(col).take(rows) {
@@ -1120,11 +1192,11 @@ impl Circuit {
             }
         }
         let mut p = [0.0; MAX_NL];
-        p[..self.dims].copy_from_slice(&acc[..self.dims]);
+        p[..d].copy_from_slice(&acc[..d]);
         // Start Newton from the parabola through the last three answers, a step of at
         // most PREDICT volts from the last (past a junction's knee a curve overshoots).
         let v1 = self.v;
-        for k in 0..self.dims {
+        for k in 0..d {
             let guess = 3.0 * (self.v[k] - self.v1[k]) + self.v2[k];
             self.v[k] += (guess - self.v[k]).clamp(-self.predict[k], self.predict[k]);
         }
@@ -1138,7 +1210,7 @@ impl Circuit {
             self.v = v1;
             self.newton(&p, ITER * 8).0
         };
-        for (col, id) in self.ai.iter().zip(&i).take(self.dims) {
+        for (col, id) in self.ai.iter().zip(&i).take(d) {
             for (a, c) in acc.iter_mut().zip(col).take(rows) {
                 *a += c * id;
             }
@@ -1149,8 +1221,11 @@ impl Circuit {
         self.q_last = q;
         self.i_last = i;
         for (o, yo) in y.iter_mut().enumerate().take(self.nout) {
-            *yo = acc[self.out_row + o] - self.y0[o];
+            let a = acc[self.out_row + o];
+            self.out_abs[o] = a;
+            *yo = a - self.y0[o];
         }
+        self.out_fresh = true;
     }
 
     /// The operating point for constant inputs `u` (supplies, and the signal at rest):
@@ -1159,6 +1234,7 @@ impl Circuit {
     /// transient, the outputs there taken as their zero. Allocation-free; a few hundred
     /// small solves.
     pub fn solve_dc(&mut self, u: &[f64]) {
+        self.out_fresh = false;
         self.rebuild_for(true);
         self.v = [0.0; MAX_NL];
         self.j = [0.0; MAX_C];
@@ -1205,7 +1281,11 @@ impl Circuit {
 
     /// An output's absolute value after the last step.
     pub fn output_abs(&self, o: usize) -> f64 {
-        self.read_out(o)
+        if self.out_fresh {
+            self.out_abs[o]
+        } else {
+            self.read_out(o)
+        }
     }
 
     /// The port voltages (for tests: a transistor's `v_be` and `v_bc`, …).
@@ -1272,6 +1352,7 @@ impl Circuit {
         self.v2 = s.v2;
         self.q_last = s.q;
         self.i_last = s.i;
+        self.out_fresh = false;
         self.y0 = s.y0;
     }
 }
