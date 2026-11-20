@@ -13,11 +13,18 @@ The release is 0.1.0-beta.15, for Windows and Linux, with macOS held for beta.16
 **The music:**
 - ***With All Your Heart*** (cinematic pop) opens and closes the video. Its name is the
   motto's own words (Colossians 3:23).
-- ***Aurora*** (cinematic) carries the piano.
+- ***Morning Light*** (pop ballad) carries the piano: Chorda's warm grand from its first
+  bar (`demos/ballad.rs`).
 - ***Neon Tide*** (house) carries the mixer and the effects.
-- ***Midnight Static*** (trap) carries the drums.
+- ***Sunday Strut*** (funk) carries the drums: its sixteenth-note groove with ghost notes
+  played by **Tympanum**, loaded on its drum track as a user loads it.
 
-Check which demo uses which instrument, and swap a song if another shows the unit better.
+Checked against the code at `74f202b1` (step 1, `report.md`): *Aurora* has no piano (its
+instruments are Unda, Calor, Modulus, Exemplar and Gravis), and Chorda plays only in *With
+All Your Heart* and *Morning Light*. **No demo uses Tympanum**: every demo's drums are
+Pulsus II kits (*Midnight Static*'s is the trap kit). So the piano moved to *Morning
+Light*, and the drum shot loads Tympanum on *Sunday Strut*, whose studio-kit groove suits an
+acoustic drummer, with *Each mic to its own strip* (ADR 0124) so the mics stand on strips.
 
 ## The cut
 
@@ -25,10 +32,10 @@ Check which demo uses which instrument, and swap a song if another shows the uni
 |---|---|---|---|---|
 | 1 | 0:00–0:06 | Black, then the arrangement of *With All Your Heart* fades in, playing; a slow push-in on the playhead crossing a bar line | the song's opening bars, no voice for 2 s | logo #03 draws on, gold rule |
 | 2 | 0:06–0:14 | the whole window, the song playing; a pull-back to show arrangement, mixer, browser — **Onda** in the Stage, its steady groove | voice 1 | — |
-| 3 | 0:14–0:24 | the instrument picker, then Chorda's window, *Aurora*'s piano part playing; push-in on the keys moving | voice 2 | "[11] instruments" |
-| 4 | 0:24–0:31 | Tympanum's kit view playing *Midnight Static*'s drums; the mics on strips | voice 3 | — |
-| 5 | 0:31–0:43 | *Neon Tide*'s mixer (FL-shaped desk); the cursor drags an effect onto a strip; its face opens; one knob turns, the sound changes | voice 4 | "[42] effects" |
-| 6 | 0:43–0:52 | three fast shots, one bar each: recording (an armed track, its meter); the session view launching clips; a hosted CLAP/VST3 plug-in's slot | voice 5 | lower third per shot |
+| 3 | 0:14–0:24 | the instrument picker, then Chorda's window, *Morning Light*'s piano part playing; push-in on the keys moving | voice 2 | "[11] instruments" |
+| 4 | 0:24–0:31 | Tympanum's kit view playing *Sunday Strut*'s drums; the mics on strips | voice 3 | — |
+| 5 | 0:31–0:44 | *Neon Tide*'s mixer (FL-shaped desk); the cursor drags an effect onto a strip; its face opens; one knob turns, the sound changes | voice 4 | "[42] effects" |
+| 6 | 0:44–0:52 | three fast shots, one bar each: recording (an armed track, its meter); the session view launching clips; a hosted CLAP/VST3 plug-in's slot | voice 5 | lower third per shot |
 | 7 | 0:52–1:00 | the master channel's mastering chain on *With All Your Heart*; the loudness meter landing | voice 6 | — |
 | 8 | 1:00–1:08 | a slow glide across the desk, the song building; it ends on **Onda** in the Stage, framed close, keeping the beat | voice 7 | "Free · open source" |
 | 9 | 1:08–1:20 | end card over the song's last bars: logo, cantusdaw.com, "Windows · Linux — macOS next", the download button drawn; **Onda** small at the card's side, still in its groove (its frames from the film, keyed out of the Stage, or the app's own transparent video layer, ADR 0088) | voice 8, then the song alone | end card (A or B) |
@@ -55,7 +62,7 @@ loop for a head, and asked for "algo muy simple y constante".
 
 ## The narration
 
-### English (about 175 words)
+### English (about 130 words)
 
 1. *(0:06)* "This is Cantus — a digital audio workstation that's free, open source, and built
    to be the best there is."
@@ -63,14 +70,14 @@ loop for a head, and asked for "algo muy simple y constante".
    Chorda, a modelled grand piano, tuned string by string."
 3. *(0:24)* "And Tympanum: a full acoustic drummer, every microphone on its own channel."
 4. *(0:31)* "Mix on a desk that feels at home if you've used FL Studio. Drag in any of [forty-two]
-   effects — each with a face of its own, and a sound you can hear the moment you add it."
-5. *(0:43)* "Record your voice and your guitar. Launch ideas live. Bring your CLAP and VST3
+   effects, each with its own face — and hear it as you add it."
+5. *(0:44.5)* "Record your voice and your guitar. Launch ideas live. Bring your CLAP and VST3
    plug-ins."
 6. *(0:52)* "Then master it, right on the master channel."
 7. *(1:00)* "No subscription. No paywall. Every feature, for everyone."
 8. *(1:08)* "Cantus. Download it free, at cantusdaw.com."
 
-### Español (unas 190 palabras)
+### Español (unas 120 palabras)
 
 1. *(0:06)* «Esto es Cantus: una estación de trabajo de audio gratuita, de código abierto, y
    hecha para ser la mejor que existe.»
@@ -78,9 +85,9 @@ loop for a head, and asked for "algo muy simple y constante".
    piano de cola modelado, afinado cuerda por cuerda.»
 3. *(0:24)* «Y Tympanum: un baterista acústico completo, cada micrófono en su propio canal.»
 4. *(0:31)* «Mezcla en una consola que se siente como en casa si vienes de FL Studio. Arrastra
-   cualquiera de sus [cuarenta y dos] efectos: cada uno con su propia cara, y un sonido que
-   oyes desde el momento en que lo agregas.»
-5. *(0:43)* «Graba tu voz y tu guitarra. Lanza ideas en vivo. Trae tus plug-ins CLAP y VST3.»
+   cualquiera de sus [cuarenta y dos] efectos, cada uno con su propia cara, y suena desde
+   que lo agregas.»
+5. *(0:44.5)* «Graba tu voz y tu guitarra. Lanza ideas en vivo. Trae tus plug-ins CLAP y VST3.»
 6. *(0:52)* «Y luego masterízalo, ahí mismo, en el canal master.»
 7. *(1:00)* «Sin suscripción. Sin muros de pago. Todo, para todos.»
 8. *(1:08)* «Cantus. Descárgalo gratis en cantusdaw.com.»
@@ -114,8 +121,11 @@ start-up verse.
   every string measured alone and in tolerance.
 - **"feels at home if you've used FL Studio":** FL is the stated reference (`CLAUDE.md`).
   It is a mark of Image-Line, named as a comparison, not an endorsement.
-- **"a sound you can hear the moment you add it":** effects load a starting preset on
-  insert (the owner's 2026-10-16 decision).
+- **"every microphone on its own channel":** Tympanum's *Each mic to its own strip*
+  (ADR 0124, Outputs). It is a choice, not the default, so the drum shot sets it and the
+  picture shows what the line says.
+- **"hear it as you add it":** effects load a starting preset on insert (the owner's
+  2026-10-16 decision).
 - **"Launch ideas live":** the session view (round 33). **"CLAP and VST3 plug-ins":** the
   host (round 17); check that the shot's plug-in is free to show (the test plug-ins, or one
   with a licence that allows it).

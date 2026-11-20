@@ -1,0 +1,17 @@
+# The models the voice tools read, pinned. Downloaded by hand (curl) into
+# F:/projects/video-work/models/<name>/, one directory each, and checked against these
+# SHA-256s before first use. Never committed (ADR 0030: big files stay out).
+
+# Chatterbox Multilingual (Resemble AI, MIT), https://huggingface.co/ResembleAI/chatterbox
+# revision 5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18 (lastModified 2026-06-10)
+# the files ChatterboxMultilingualTTS.from_pretrained asks for (chatterbox-tts 0.1.7):
+chatterbox/ve.pt                                 5698626     4b16d836bc598509860f6fa068165a8bb5e9ac84f05582dfcf278a5a372879f1
+chatterbox/t3_mtl23ls_v2.safetensors             2143989752  b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75
+chatterbox/s3gen.pt                              1057165844  9b9ff07e60b20c136e2b1b3d7563a24604e8d2c4c267888d1ee929dd0151d2a3
+chatterbox/conds.pt                              107374      6552d70568833628ba019c6b03459e77fe71ca197d5c560cef9411bee9d87f4e
+chatterbox/grapheme_mtl_merged_expanded_v1.json  69989       (not in LFS)
+chatterbox/Cangjie5_TC.json                      1920163     (not in LFS)
+
+# Whisper (OpenAI, MIT), the gate's transcriber: large-v3, from openai-whisper 20250625's
+# own URL table (the SHA-256 is the URL's path; checked by hand and by the package):
+whisper/large-v3.pt  3087371615  e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb

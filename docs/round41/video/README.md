@@ -176,8 +176,10 @@ One committed script, `tools/video/build.sh`, a reproducible ffmpeg filtergraph:
 
 1. **The voice:** his own, cloned from a recording he makes (recommended), or a stock voice.
 2. **The end card:** with Colossians 3:23 (see the script's two endings) or without.
-3. **The music:** which demo song carries the video. The script proposes *Aurora* for the
-   open and the piano, with a beat-driven song for the mixer and effects.
+3. **The music:** which demo song carries the video. The script proposes *With All Your
+   Heart* for the open and the close, *Morning Light* for the piano (*Aurora* has no piano,
+   step 1), *Neon Tide* for the mixer and effects, and *Sunday Strut* played by Tympanum
+   for the drums (no demo uses Tympanum).
 4. **Where it is published:** the site's hero, YouTube, both.
 
 ## Where its work goes
