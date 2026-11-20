@@ -191,14 +191,25 @@ impl Page {
     /// The page's meta description: one or two sentences, only what is built.
     pub fn description(self) -> String {
         let l = self.lang;
+        // macOS is named as a preview only while the latest release holds its disk image
+        // (shelf.rs); beta.15 was published for Windows and Linux, macOS held for the next.
+        let mac = crate::shelf::Shelf::latest().macos;
         let s = match self.route {
-            Route::Home => l.t(
+            Route::Home if mac => l.t(
                 "Cantus is a free, open-source DAW written in Rust: arrangement, piano roll, channel rack, a mixer, instruments and effects of its own, and a recording mode that bakes the song so only your take is live. Windows and Linux, macOS in preview. No account, no subscription, no telemetry.",
                 "Cantus es un DAW libre y de código abierto escrito en Rust: arreglo, piano roll, channel rack, un mezclador, instrumentos y efectos propios, y un modo de grabación que pre-renderiza la canción para que solo tu toma esté en vivo. Windows y Linux, macOS en vista previa. Sin cuenta, sin suscripción, sin telemetría.",
             ),
-            Route::Download => l.t(
+            Route::Home => l.t(
+                "Cantus is a free, open-source DAW written in Rust: arrangement, piano roll, channel rack, a mixer, instruments and effects of its own, and a recording mode that bakes the song so only your take is live. Windows and Linux; macOS in the next beta. No account, no subscription, no telemetry.",
+                "Cantus es un DAW libre y de código abierto escrito en Rust: arreglo, piano roll, channel rack, un mezclador, instrumentos y efectos propios, y un modo de grabación que pre-renderiza la canción para que solo tu toma esté en vivo. Windows y Linux; macOS en la próxima beta. Sin cuenta, sin suscripción, sin telemetría.",
+            ),
+            Route::Download if mac => l.t(
                 "Download Cantus for Windows, Linux or the macOS preview: the newest beta, its checksums, what you need and your first steps. Free, with no account.",
                 "Descarga Cantus para Windows, Linux o la vista previa de macOS: la beta más reciente, sus sumas, lo que necesitas y tus primeros pasos. Gratis, sin cuenta.",
+            ),
+            Route::Download => l.t(
+                "Download Cantus for Windows or Linux: the newest beta, its checksums, what you need and your first steps. Free, with no account.",
+                "Descarga Cantus para Windows o Linux: la beta más reciente, sus sumas, lo que necesitas y tus primeros pasos. Gratis, sin cuenta.",
             ),
             Route::Instruments | Route::Effects => l.t(
                 "Every instrument and effect of Cantus's own: synths, a sampler, drums, an organ, a piano, and effects from EQ to reverb, each with its window, its presets heard and its own page. All free.",

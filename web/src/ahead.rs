@@ -5,7 +5,7 @@ use yew::prelude::*;
 
 use crate::lang::use_lang;
 use crate::shelf::use_shelf;
-use crate::top::GITHUB;
+use crate::top::{CLOSED_ISSUES, GITHUB};
 
 #[function_component(Roadmap)]
 pub fn roadmap() -> Html {
@@ -19,8 +19,8 @@ pub fn roadmap() -> Html {
         )
     } else {
         l.t(
-            "macOS, first as a preview, then signed and tried on real Macs",
-            "macOS, primero como vista previa, luego firmado y probado en Mac reales",
+            "macOS: the preview back in the next beta, then signed and tried on real Macs",
+            "macOS: la vista previa de vuelta en la próxima beta, luego firmado y probado en Mac reales",
         )
     };
     let col = |title: &'static str, items: Vec<&'static str>| {
@@ -84,8 +84,8 @@ pub fn faq() -> Html {
         l.t("Yes. Cantus runs on Windows and Linux — an installer for Windows and one AppImage for every Linux distribution, the whole test suite run on both every round — and macOS has a preview: one universal disk image for Apple silicon and Intel, built and tested on GitHub's macOS machines, not yet signed and not yet opened on a real Mac. The first time, macOS blocks it: System Settings → Privacy & Security → Open Anyway. Please report what goes wrong.",
             "Sí. Cantus funciona en Windows y Linux — un instalador para Windows y un AppImage para toda distribución Linux, con todas las pruebas pasadas en ambos en cada ronda — y macOS tiene una vista previa: una imagen de disco universal para Apple silicon e Intel, compilada y probada en las máquinas macOS de GitHub, aún sin firmar y aún no abierta en un Mac real. La primera vez macOS la bloquea: Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente. Cuéntanos lo que falle.")
     } else if shelf.linux {
-        l.t("Yes for Linux: one AppImage for every distribution from Ubuntu 22.04 on, with the whole test suite run on Linux every round. macOS is next, first as a preview.",
-            "Sí para Linux: un AppImage para toda distribución desde Ubuntu 22.04, con todas las pruebas pasadas en Linux en cada ronda. macOS es lo siguiente, primero como vista previa.")
+        l.t("Yes for Linux: one AppImage for every distribution from Ubuntu 22.04 on, with the whole test suite run on Linux every round. macOS had an unsigned preview from beta 11 to beta 14; this beta was published for Windows and Linux only while a check that only the Mac's run caught (one instrument preset over its CPU budget) is fixed, and the macOS preview comes back in the next beta.",
+            "Sí para Linux: un AppImage para toda distribución desde Ubuntu 22.04, con todas las pruebas pasadas en Linux en cada ronda. macOS tuvo una vista previa sin firmar de la beta 11 a la beta 14; esta beta se publicó solo para Windows y Linux mientras se corrige algo que solo detectó la prueba del Mac (un preset de un instrumento por encima de su presupuesto de CPU), y la vista previa para macOS vuelve en la próxima beta.")
     } else {
         l.t("Cantus is made for Windows, Linux and macOS: Windows has its installer today, and the Linux and macOS files are next. Meanwhile you can build it from source.",
             "Cantus está hecho para Windows, Linux y macOS: Windows tiene su instalador hoy, y los archivos de Linux y macOS son lo siguiente. Mientras tanto puedes compilarlo desde el código.")
@@ -105,8 +105,8 @@ pub fn faq() -> Html {
                 <div class="faq">
                     <h2>{ l.t("Questions people ask first", "Las preguntas que más se hacen") }</h2>
                     { faq(l.t("Is it really free?", "¿De verdad es gratis?"), html! { <p>{ l.t(
-                        "Yes. The whole DAW is free and nothing essential sits behind a paywall. Optional sound packs and donations may fund the work later; they never unlock the essentials.",
-                        "Sí. El DAW completo es gratis y nada esencial está detrás de un muro de pago. Los paquetes de sonidos opcionales y las donaciones podrán financiar el trabajo más adelante; nunca desbloquean lo esencial.") }</p> }) }
+                        "Yes. The whole DAW is free and nothing essential sits behind a paywall. Every sound pack Cantus offers today is free as well — CC0 or CC BY with the credit shown — and downloads only when you ask. Donations, and one day optional extras, may fund the work; they never unlock the essentials.",
+                        "Sí. El DAW completo es gratis y nada esencial está detrás de un muro de pago. Cada paquete de sonidos que Cantus ofrece hoy también es gratis — CC0 o CC BY con el crédito a la vista — y se descarga solo cuando lo pides. Las donaciones, y algún día extras opcionales, podrán financiar el trabajo; nunca desbloquean lo esencial.") }</p> }) }
                     { faq(l.t("Why does it not ask me to sign in?", "¿Por qué no me pide iniciar sesión?"), html! { <p>{ l.t(
                         "There is nothing to sign in to. Your projects, audio and MIDI stay on your computer and Cantus has no telemetry. The privacy notice in the repository says exactly what, if anything, leaves your machine.",
                         "No hay nada a lo que iniciar sesión. Tus proyectos, audio y MIDI se quedan en tu computadora y Cantus no tiene telemetría. El aviso de privacidad del repositorio dice exactamente qué sale de tu máquina, si algo sale.") }</p> }) }
@@ -120,7 +120,8 @@ pub fn faq() -> Html {
                     { faq(l.t("Can I release the music I make?", "¿Puedo publicar la música que hago?"), html! { <p>{ l.t(
                         "Yes. The GPL covers the program, not what you create with it; your songs are yours. Each sound pack states its own licence, so check it for the samples you use.",
                         "Sí. La GPL cubre el programa, no lo que creas con él; tus canciones son tuyas. Cada paquete de sonidos indica su propia licencia, así que revísala para los samples que uses.") }</p> }) }
-                    { faq(l.t("Where do I report a problem?", "¿Dónde reporto un problema?"), html! { <p><a href={format!("{GITHUB}/issues")}>{ l.t("On GitHub, in the issue tracker", "En GitHub, en el seguimiento de problemas") }</a>{ l.t(". Say what you did, what you expected and what happened.", ". Cuenta qué hiciste, qué esperabas y qué pasó.") }</p> }) }
+                    { faq(l.t("Where do I report a problem?", "¿Dónde reporto un problema?"), html! { <p><a href={format!("{GITHUB}/issues")}>{ l.t("On GitHub, in the issue tracker", "En GitHub, en el seguimiento de problemas") }</a>{ l.t(". Say what you did, what you expected and what happened. Reports get answered and fixed: the first one, a window that flickered on many screens (14 November 2026), had its cause and a workaround three days later, and the fix shipped in beta 15. ", ". Cuenta qué hiciste, qué esperabas y qué pasó. Los reportes se responden y se corrigen: el primero, una ventana que parpadeaba en muchas pantallas (14 de noviembre de 2026), tuvo su causa y una solución temporal tres días después, y la corrección salió en la beta 15. ") }
+                        <a href={CLOSED_ISSUES}>{ l.t("See the closed issues", "Ver los problemas cerrados") }</a>{ "." }</p> }) }
                     { faq(l.t("Why \u{201C}Cantus\u{201D}?", "¿Por qué «Cantus»?"), html! { <p>{ l.t(
                         "From the cantus firmus: the fixed melody on which polyphony is built. The engine is that fixed line — deterministic and sample-accurate — and everything else is built on top of it.",
                         "Del cantus firmus: la melodía fija sobre la que se construye la polifonía. El motor es esa línea fija — determinista y exacto a la muestra — y todo lo demás se construye encima.") }</p> }) }

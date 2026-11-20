@@ -25,6 +25,16 @@ pub const DOWNLOAD_MACOS: &str =
 /// The stable names those links end in, which the latest release's file list is searched for.
 pub const STABLE_APPIMAGE: &str = "Cantus-linux-x86_64.AppImage";
 pub const STABLE_DMG: &str = "Cantus-macos-universal.dmg";
+/// The calm line beside every download button (round 41): what a beta means for your work.
+pub const BETA_NOTE: (&str, &str) = (
+    "It is a beta: save often and keep backups of your projects.",
+    "Es una beta: guarda a menudo y conserva copias de seguridad de tus proyectos.",
+);
+/// Where a Windows 10 user tells us how it went (the hardware report has a field for the
+/// system): Windows 10 is not tried yet, and only its users can try it.
+pub const WIN10_REPORT: &str = "https://github.com/luis314159/cantus-daw/issues/new?template=hardware_report.yml&title=%5BWindows%2010%5D%20";
+/// The issues already fixed: the honest answer to "does anyone listen?".
+pub const CLOSED_ISSUES: &str = "https://github.com/luis314159/cantus-daw/issues?q=is%3Aissue+is%3Aclosed";
 /// The DAW's version, from the repository's `Cargo.toml` at build time (`build.rs`).
 pub const VERSION: &str = env!("CANTUS_VERSION");
 
@@ -70,16 +80,18 @@ pub fn hero() -> Html {
                     <a class="btn btn-quiet" href="#rack">{ l.t("Play a groove in your browser", "Toca un ritmo en tu navegador") }</a>
                 </div>
                 if *os == Os::Mobile {
-                    <p class="hero-phone">{ icons::desktop() }{ l.t("Cantus is a desktop program: Windows, Linux, macOS preview", "Cantus es un programa de escritorio: Windows, Linux, vista previa para macOS") }</p>
+                    <p class="hero-phone">{ icons::desktop() }{ l.t("Cantus is a desktop program: Windows, Linux", "Cantus es un programa de escritorio: Windows, Linux") }{ " · " }{ shelf.mac(l) }</p>
                 } else {
                     <p class="hero-facts">
                         <span><b>{ "Windows" }</b>{ l.t(" & ", " y ") }<b>{ "Linux" }</b></span>
-                        <span>{ l.t("macOS preview", "Vista previa para macOS") }</span>
+                        <span>{ shelf.mac(l) }</span>
                         <span>{ "CLAP · VST3 · ARA 2" }</span>
                         <span>{ "ASIO · WASAPI · PipeWire" }</span>
                     </p>
                 }
             </div>
+            // TODO(round 41, video): the 60–90 s demo video goes here, in place of or beside the
+            // picture, once it is made (its plan is in docs/round41/video/). No embed until then.
             <div class="hero-stage">
                 <figure class="hero-window">
                     <img src={crate::picture::program(l)} srcset={crate::picture::program_srcset(l)} sizes={crate::picture::PROGRAM_SIZES}
@@ -203,7 +215,8 @@ pub fn proof() -> Html {
                     { stat(true, l.t("1.1", "1,1"), " %", l.t("of a core at rest — REAPER 2.3–3.7 %; on a starter 1.7–2.0 % against FL Studio's 6.6 %", "de un núcleo en reposo — REAPER 2,3–3,7 %; con una plantilla 1,7–2,0 % frente al 6,6 % de FL Studio")) }
                     { stat(false, "140", " MB", l.t("of memory on an empty song, down from 237 — REAPER 62 MB; on a starter 143 against FL Studio's 133", "de memoria con una canción vacía, antes 237 — REAPER 62 MB; con una plantilla 143 frente a los 133 de FL Studio")) }
                 </ul>
-                <p class="how">{ l.t("Same quiet laptop, same script, five starts each (Cantus beta.14 2026-11-11, the others 2026-11-09). ", "La misma laptop tranquila, el mismo script, cinco arranques cada uno (Cantus beta.14 el 2026-11-11, los otros el 2026-11-09). ") }
+                <p class="how">{ l.t("Same quiet laptop (AMD Ryzen 7 7735HS, Windows 11), same script, five starts each: Cantus beta 14 on 2026-11-11, REAPER 7.85 and FL Studio 24.1.2 on 2026-11-09. ", "La misma laptop tranquila (AMD Ryzen 7 7735HS, Windows 11), el mismo script, cinco arranques cada uno: Cantus beta 14 el 2026-11-11, REAPER 7.85 y FL Studio 24.1.2 el 2026-11-09. ") }
+                    { crate::pages::measured::newer_note(l).map(|n| format!("{n} ")).unwrap_or_default() }
                     <a href={crate::nav::href(l, "/measured")}>{ l.t("See how it was measured →", "Mira cómo se midió →") }</a></p>
             </div>
         </section>

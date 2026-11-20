@@ -70,7 +70,13 @@ pub fn record_mode() -> Html {
                 <figure class="record-stage">
                     <div class="backdrop"><div class="window">
                         <img src={shot(what, l)} width="1920" height="1080" loading="lazy"
-                             alt={l.t("Cantus in the recording mode", "Cantus en el modo de grabación")} />
+                             alt={if what == "on" {
+                                 l.t("Neon Tide in the recording mode: every strip that feeds the master baked, the armed vocal take live, and the bar across the window",
+                                     "Neon Tide en el modo de grabación: cada canal que alimenta al máster pre-renderizado, la toma de voz armada en vivo y la barra a lo ancho de la ventana")
+                             } else {
+                                 l.t("The Prepare to record question: what will be rendered, the disk it may take, what stays live, and the master and mix choices",
+                                     "La pregunta de Preparar para grabar: qué se renderizará, el disco que puede ocupar, qué sigue en vivo y las opciones del máster y la mezcla")
+                             }} />
                     </div></div>
                     <figcaption>{ caption }</figcaption>
                 </figure>

@@ -62,8 +62,8 @@ fn chapters(l: Lang) -> [(&'static str, &'static str, String); 6] {
         (
             l.t("Listen", "Escucha"),
             l.t(
-                "Six demo songs made in Cantus",
-                "Seis canciones de demostración hechas en Cantus",
+                "Demo songs made in Cantus",
+                "Canciones de demostración hechas en Cantus",
             ),
             href(l, "/#listen"),
         ),
@@ -230,7 +230,7 @@ pub fn nav() -> Html {
                         </div>
                     </div>
                     <SendLink />
-                    <p class="sheet-note">{ l.t("Cantus runs on Windows, Linux and macOS (preview).", "Cantus funciona en Windows, Linux y macOS (vista previa).") }</p>
+                    <p class="sheet-note">{ l.t("Cantus runs on Windows and Linux", "Cantus funciona en Windows y Linux") }{ " · " }{ crate::shelf::Shelf::latest().mac(l) }</p>
                 </div>
             }
         </header>
