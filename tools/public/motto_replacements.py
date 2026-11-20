@@ -10,6 +10,8 @@ The out file goes OUTSIDE the repository (it quotes the RVR1960). Rules, in orde
   2. Colossians 3:23 up to "Señor" (the release notes)         -> the RV1909, up to "Señor"
   3. "Colosenses 3:23 (RV1909)"                               -> "Colosenses 3:23 (RV1909)"
   4. Psalm 33:3's first five words (docs/round20/verse.md)     -> the RV1909's first five
+  5. Colossians 3:23 from "hacedlo" to "Señor" (a quotation of the clause alone: the
+     release-text tool's refusal list, beta.16)                -> the RV1909's clause
 """
 
 import re
@@ -35,6 +37,13 @@ def upto(text, word):
     return " ".join(words[: i + 1]).rstrip(",")
 
 
+def since(text, word):
+    """The words of `text` from the first that starts with `word`."""
+    words = text.split()
+    i = next(i for i, w in enumerate(words) if w.startswith(word))
+    return " ".join(words[i:])
+
+
 def first(text, n):
     return " ".join(text.split()[:n]).rstrip(",;:.")
 
@@ -50,6 +59,11 @@ def main():
         "regex:%s==>%s" % (pattern(upto(rvr, "Señor")), upto(rv, "Señor")),
         "Colosenses 3:23 (RV1909)==>Colosenses 3:23 (RV1909)",
         "regex:%s==>%s" % (pattern(first(psa, 5)), first(psa_rv, 5)),
+        "regex:%s==>%s"
+        % (
+            pattern(since(upto(rvr, "Señor"), "hacedlo")),
+            since(upto(rv, "Señor"), "hacedlo"),
+        ),
     ]
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(rules) + "\n")

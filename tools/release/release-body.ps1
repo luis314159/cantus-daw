@@ -31,10 +31,12 @@ if ($Action -eq 'get') {
 $body = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $File).Path, [Text.Encoding]::UTF8)
 # The RVR1960 must not be in a public text: the rules of tools/public/motto_replacements.py
 # (Colossians 3:23 up to "Señor", Psalm 33:3's first five words, the "(RVR1960)" mark), the
-# quotations read from the private es.txt; without it, the motto's known words.
+# quotations read from the private es.txt — no RVR1960 wording is written here, as the public
+# repository never holds it (publish.sh's check refuses a blob that does). Without es.txt
+# (the public tree), only the "(RVR1960)" mark is checked.
 $root = (& git rev-parse --show-toplevel).Trim()
 $es = Join-Path $root 'crates/cantus-ui/locales/verses/es.txt'
-$quotes = @('hacedlo de ánimo, como al Señor', '(RVR1960)')
+$quotes = @('(RVR1960)')
 if (Test-Path $es) {
     $verse = @{}
     foreach ($l in Get-Content -LiteralPath $es -Encoding utf8) {
@@ -44,7 +46,12 @@ if (Test-Path $es) {
     if ($verse['COL 3:23']) {
         $w = $verse['COL 3:23'] -split '\s+'
         $i = [array]::FindIndex($w, [Predicate[string]] { param($x) $x.Trim(',', ';', '.') -eq 'Señor' })
-        if ($i -ge 0) { $quotes += ($w[0..$i] -join ' ').TrimEnd(',') }
+        if ($i -ge 0) {
+            $quotes += ($w[0..$i] -join ' ').TrimEnd(',')
+            # The clause alone, from "hacedlo" (motto_replacements.py's fifth rule).
+            $h = [array]::FindIndex($w, [Predicate[string]] { param($x) $x.StartsWith('hacedlo') })
+            if ($h -ge 0 -and $h -le $i) { $quotes += ($w[$h..$i] -join ' ').TrimEnd(',') }
+        }
     }
     if ($verse['PSA 33:3']) { $quotes += ((($verse['PSA 33:3'] -split '\s+')[0..4]) -join ' ').TrimEnd(',', ';', ':', '.') }
 }
