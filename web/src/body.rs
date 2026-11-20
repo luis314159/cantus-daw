@@ -58,7 +58,7 @@ pub fn free() -> Html {
                     <h2>{ l.t("Free, and meant to stay that way", "Libre, y hecho para seguir así") }</h2>
                     <ul class="promises">
                         { promise(l.t("The whole DAW is free.", "El DAW completo es gratis."),
-                                  l.t("Create, save, mix and export without paying. Nothing essential sits behind a paywall.", "Crea, guarda, mezcla y exporta sin pagar. Nada esencial está detrás de un muro de pago.")) }
+                                  l.t("Create, save, mix and export without paying. Nothing sits behind a paywall.", "Crea, guarda, mezcla y exporta sin pagar. Nada está detrás de un muro de pago.")) }
                         { promise(l.t("No account, no telemetry.", "Sin cuenta, sin telemetría."),
                                   l.t("Your projects, audio and MIDI stay on your computer.", "Tus proyectos, audio y MIDI se quedan en tu computadora.")) }
                         { promise(l.t("Open source.", "Código abierto."),
@@ -66,7 +66,7 @@ pub fn free() -> Html {
                         { promise(l.t("The sound packs are free too.", "Los paquetes de sonidos también son gratis."),
                                   l.t("Every pack Cantus offers today is CC0 or CC BY with the credit shown, downloaded only when you ask. The music you make with them is yours.", "Cada paquete que Cantus ofrece hoy es CC0 o CC BY con el crédito a la vista, y se descarga solo cuando lo pides. La música que hagas con ellos es tuya.")) }
                         { promise(l.t("Support is optional.", "Apoyar es opcional."),
-                                  l.t("Donations — and, one day, optional extras — can fund the work, but never unlock the essentials.", "Las donaciones — y, algún día, extras opcionales — pueden financiar el trabajo, pero nunca desbloquean lo esencial.")) }
+                                  l.t("Donations can fund the work, but never unlock anything.", "Las donaciones pueden financiar el trabajo, pero nunca desbloquean nada.")) }
                     </ul>
                 </div>
                 <figure class="verse">

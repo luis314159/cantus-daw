@@ -105,8 +105,8 @@ pub fn faq() -> Html {
                 <div class="faq">
                     <h2>{ l.t("Questions people ask first", "Las preguntas que más se hacen") }</h2>
                     { faq(l.t("Is it really free?", "¿De verdad es gratis?"), html! { <p>{ l.t(
-                        "Yes. The whole DAW is free and nothing essential sits behind a paywall. Every sound pack Cantus offers today is free as well — CC0 or CC BY with the credit shown — and downloads only when you ask. Donations, and one day optional extras, may fund the work; they never unlock the essentials.",
-                        "Sí. El DAW completo es gratis y nada esencial está detrás de un muro de pago. Cada paquete de sonidos que Cantus ofrece hoy también es gratis — CC0 o CC BY con el crédito a la vista — y se descarga solo cuando lo pides. Las donaciones, y algún día extras opcionales, podrán financiar el trabajo; nunca desbloquean lo esencial.") }</p> }) }
+                        "Yes. The whole DAW is free and nothing sits behind a paywall. Every sound pack Cantus offers today is free as well — CC0 or CC BY with the credit shown — and downloads only when you ask. Donations may fund the work; they never unlock anything.",
+                        "Sí. El DAW completo es gratis y nada está detrás de un muro de pago. Cada paquete de sonidos que Cantus ofrece hoy también es gratis — CC0 o CC BY con el crédito a la vista — y se descarga solo cuando lo pides. Las donaciones pueden financiar el trabajo; nunca desbloquean nada.") }</p> }) }
                     { faq(l.t("Why does it not ask me to sign in?", "¿Por qué no me pide iniciar sesión?"), html! { <p>{ l.t(
                         "There is nothing to sign in to. Your projects, audio and MIDI stay on your computer and Cantus has no telemetry. The privacy notice in the repository says exactly what, if anything, leaves your machine.",
                         "No hay nada a lo que iniciar sesión. Tus proyectos, audio y MIDI se quedan en tu computadora y Cantus no tiene telemetría. El aviso de privacidad del repositorio dice exactamente qué sale de tu máquina, si algo sale.") }</p> }) }
