@@ -682,7 +682,10 @@ impl KeyStrings {
     #[cfg(test)]
     pub fn loop_peak(&self, i: usize) -> f64 {
         let s = &self.strings[i];
-        s.nut.peak().max(s.to_bridge.peak()).max(s.from_bridge.peak())
+        s.nut
+            .peak()
+            .max(s.to_bridge.peak())
+            .max(s.from_bridge.peak())
     }
 
     fn tune_to_bridge(&mut self) {
@@ -911,7 +914,14 @@ impl KeyStrings {
         // The horizontal loops, each on its own side of the bridge.
         if n > nv {
             let yz = self.yz * self.polar_yz;
-            for ((s, x), k) in self.strings.iter_mut().zip(xs).zip(&self.keep).take(n).skip(nv) {
+            for ((s, x), k) in self
+                .strings
+                .iter_mut()
+                .zip(xs)
+                .zip(&self.keep)
+                .take(n)
+                .skip(nv)
+            {
                 s.arrived = x;
                 let v_h = 2.0 * yz * x / (1.0 + yz);
                 s.from_bridge.write((v_h - x) * k);
