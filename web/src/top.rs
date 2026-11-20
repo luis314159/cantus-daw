@@ -34,7 +34,8 @@ pub const BETA_NOTE: (&str, &str) = (
 /// system): Windows 10 is not tried yet, and only its users can try it.
 pub const WIN10_REPORT: &str = "https://github.com/luis314159/cantus-daw/issues/new?template=hardware_report.yml&title=%5BWindows%2010%5D%20";
 /// The issues already fixed: the honest answer to "does anyone listen?".
-pub const CLOSED_ISSUES: &str = "https://github.com/luis314159/cantus-daw/issues?q=is%3Aissue+is%3Aclosed";
+pub const CLOSED_ISSUES: &str =
+    "https://github.com/luis314159/cantus-daw/issues?q=is%3Aissue+is%3Aclosed";
 /// The DAW's version, from the repository's `Cargo.toml` at build time (`build.rs`).
 pub const VERSION: &str = env!("CANTUS_VERSION");
 
