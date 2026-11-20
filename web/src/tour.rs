@@ -1,34 +1,65 @@
-//! The product tour: three crops of a real screenshot of Cantus, and the feature list.
+//! The product tour: four views of the real program, and the feature list. The arrangement is
+//! a crop of the program picture the hero shows (`picture.rs`, *Neon Tide*); the piano roll,
+//! the channel rack and the mixer are pictures of their own, of a second song, *Sunday Strut*
+//! (round 41: `cargo run --release -p cantus-ui --example shoot_tour -- <dir> night [es]`, then
+//! `python tools/shots/place.py <dir> tour`).
 
 use yew::prelude::*;
 
 use crate::icons;
-use crate::lang::use_lang;
+use crate::lang::{use_lang, Lang};
 
-/// One crop of the program's picture (`picture.rs`), in source pixels.
+/// One tab's picture and the part of it the tour shows, in the picture's pixels.
 struct Crop {
+    /// The picture, in the page's language (its interface is in it).
+    pic: fn(Lang) -> &'static str,
+    /// Its size in pixels.
+    size: (u32, u32),
     x: u32,
     y: u32,
     w: u32,
     h: u32,
 }
 
+/// The tour's pictures of *Sunday Strut* (`shoot_tour`): the window's size, as the program
+/// picture's.
+const TOUR_SIZE: (u32, u32) = (1912, 1022);
+
 const ARRANGEMENT: Crop = Crop {
+    pic: crate::picture::program,
+    size: crate::picture::SIZE,
     x: 277,
     y: 92,
     w: 1340,
     h: 410,
 };
-const MIXER: Crop = Crop {
+const PIANO_ROLL: Crop = Crop {
+    pic: |l| {
+        l.t(
+            "/program/tour-pianoroll.webp",
+            "/program/tour-pianoroll-es.webp",
+        )
+    },
+    size: TOUR_SIZE,
     x: 277,
-    y: 497,
+    y: 92,
     w: 1340,
-    h: 493,
+    h: 700,
 };
-const INSPECTOR: Crop = Crop {
-    x: 1622,
-    y: 96,
-    w: 290,
+const RACK: Crop = Crop {
+    pic: |l| l.t("/program/tour-rack.webp", "/program/tour-rack-es.webp"),
+    size: TOUR_SIZE,
+    x: 277,
+    y: 92,
+    w: 1340,
+    h: 700,
+};
+const MIXER: Crop = Crop {
+    pic: |l| l.t("/program/tour-mixer.webp", "/program/tour-mixer-es.webp"),
+    size: TOUR_SIZE,
+    x: 277,
+    y: 92,
+    w: 1340,
     h: 700,
 };
 
@@ -40,19 +71,22 @@ pub fn tour() -> Html {
         (l.t("Arrange", "Arreglo"), &ARRANGEMENT, l.t("Cantus — arrangement", "Cantus — arreglo"),
          l.t("<b>Clips on a timeline you can read.</b> Colour-coded tracks, a snapping grid and sections you can name — Intro, Build, Drop — so the shape of the song is always in view.",
              "<b>Clips en una línea de tiempo que se lee.</b> Pistas con color, cuadrícula con imán y secciones con nombre — Intro, Build, Drop — para ver siempre la forma de la canción.")),
+        (l.t("Piano roll", "Piano roll"), &PIANO_ROLL, l.t("Cantus — piano roll", "Cantus — piano roll"),
+         l.t("<b>Melodies, note by note.</b> Each note's velocity stands in the lane beneath it: drag a stem to play it softer or harder. Scales, the other clips' notes as ghosts, and lanes for pitch bend, pressure and any CC.",
+             "<b>Melodías, nota a nota.</b> La velocidad de cada nota está en el carril de abajo: arrastra una barra para tocarla más suave o más fuerte. Escalas, las notas de los otros clips como fantasmas y carriles para pitch bend, presión y cualquier CC.")),
+        (l.t("Channel rack", "Rack de canales"), &RACK, l.t("Cantus — channel rack", "Cantus — rack de canales"),
+         l.t("<b>Program a groove in steps, the FL Studio way.</b> Every track is a row and every step is a note — the same notes the piano roll edits, so switching views converts nothing.",
+             "<b>Programa un ritmo por pasos, al estilo de FL Studio.</b> Cada pista es una fila y cada paso es una nota — las mismas notas que edita el piano roll, así que cambiar de vista no convierte nada.")),
         (l.t("Mix", "Mezcla"), &MIXER, l.t("Cantus — mixer", "Cantus — mezclador"),
          l.t("<b>A mixer in the spirit of FL Studio's.</b> Faders, pan, sends, inserts and groups on every strip, in three widths, with meters that never leave the screen.",
              "<b>Un mezclador al espíritu del de FL Studio.</b> Faders, paneo, envíos, inserts y grupos en cada canal, en tres anchos, con medidores siempre a la vista.")),
-        (l.t("Shape", "Moldea"), &INSPECTOR, l.t("Cantus — inspector", "Cantus — inspector"),
-         l.t("<b>Everything about what you selected, in one place.</b> The inspector follows your selection: track, pad, inserts and the channel sheet, with clear labels and units on every value.",
-             "<b>Todo lo que seleccionaste, en un solo lugar.</b> El inspector sigue tu selección: pista, pad, inserts y la hoja del canal, con etiquetas y unidades claras en cada valor.")),
     ];
     let (_, crop, title, caption) = tabs[*tab];
     let style = format!(
         "--pic:url({});--sw:{};--sh:{};--cx:{};--cy:{};--cw:{};--ch:{}",
-        crate::picture::program(l),
-        crate::picture::SIZE.0,
-        crate::picture::SIZE.1,
+        (crop.pic)(l),
+        crop.size.0,
+        crop.size.1,
         crop.x,
         crop.y,
         crop.w,
@@ -65,7 +99,6 @@ pub fn tour() -> Html {
                     onclick={Callback::from(move |_| tab.set(i))}>{ *name }</button>
         }
     });
-    let narrow = (*tab == 2).then_some("max-width:22rem");
 
     html! {
         <section class="section showcase" id="product">
@@ -77,7 +110,7 @@ pub fn tour() -> Html {
                 </header>
                 <div class="tabs" role="tablist" aria-label={l.t("Views", "Vistas")}>{ for buttons }</div>
                 <div class="stage">
-                    <div class="backdrop"><div class="window" style={narrow}>
+                    <div class="backdrop"><div class="window">
                         <div class="window-bar"><i></i><i></i><i></i><span>{ title }</span></div>
                         <div class={classes!("crop", (*tab == 0).then_some("is-arrange"))} role="img" aria-label={title} {style}></div></div>
                     </div>
