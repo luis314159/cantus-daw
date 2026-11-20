@@ -7,8 +7,8 @@ Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 ## The next session: what beta.15 and round 41's first items left
 
 **beta.15** (the effects side round and round 40) was cut at `1b049d6c` on 2026-11-19 and
-published on 2026-11-20 for **Windows and Linux** after nine failed release runs. Each failure was a real cause, and each
-fix is on master:
+published on 2026-11-20 for **Windows and Linux** after eight failed release runs with nine
+causes between them. Each was real, and each fix is on master:
 
 1. **Windows, `cargo fmt`:** it handed rustfmt cantus-ui's every file on one command line
    (os error 206). fmt is now checked on the Linux job (`beb6b9cd`).
@@ -28,8 +28,14 @@ fix is on master:
 8. **macOS, `session_faults5`:** 64 blocks did not always carry a save-path fault to the
    helper. `Rig::arrived` waits for it at all seven sites (`3bbb74b3`, `2096a88f`,
    `a1f04c40`).
-9. **macOS, Fragor's *synth_fuzz*:** 0.35–0.38 of a core in release against its 0.25.
-   **macOS was held for beta.16** (`CANTUS_RELEASE_MACOS` is true again).
+9. **macOS, Fragor's *synth_fuzz*:** 0.35–0.38 of a core in release against its 0.25 — on
+   every system (measured on Windows in release; only the Mac's debug check caught it, the
+   other presets of Fragor are 0.05–0.15). **macOS was held for beta.16:** the repository
+   variable `CANTUS_RELEASE_MACOS` was set false and the run's failed jobs re-run, so the
+   publish job took the green Windows and Linux files; the variable is true again. The
+   integrator now reads logs, re-runs jobs and sets variables through the owner's
+   fine-grained token for cantus-daw (kept in Windows Credential Manager, never in the
+   repository).
 
 The owner also found an engine bug on the candidate (Aurora's master EQ silent after Neon
 Tide). He chose to ship with it as **a known issue** in the notes (`c07f342b`) and fix it
