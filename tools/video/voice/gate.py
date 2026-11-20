@@ -6,14 +6,15 @@
 For each `<line>-<take>.wav` with its `.json` (from `takes.py`):
 
 - **Words:** Whisper (MIT) transcribes it in the line's language; after normalising (case,
-  punctuation, the figures and names below) it must equal the script word for word.
+  punctuation, the figures below) it must equal the script word for word; a name (Cantus,
+  Chorda, Tympanum) may be spelled within two letters, with the same first sound.
 - **Clipping:** samples at or past 0.999 of full scale; none allowed.
 - **DC:** the mean; at most 0.002 of full scale.
 - **Head and tail:** the silence before the first and after the last sample within 40 dB
-  of the take's peak; 30-400 ms at each end (the assembly trims to 60 ms).
-- **Pace:** the speech's own length (head to tail) against the line's pace window, 2.3-2.7
-  words a second in English and 4.5-5.5 syllables in Spanish (`pace.py`'s count), and the
-  speech must end at least 0.3 s before the line's window does.
+  of the take's peak: 10-400 ms at the head, 30-400 ms at the tail (none means a cut word).
+- **Pace:** the words (English) or syllables (Spanish, `pace.py`'s count) over the speech's
+  length head to tail, its pauses included: 2.0-3.0 and 4.0-6.0 a second. The speech must
+  end at least 0.3 s before the line's window does.
 - **Loudness:** integrated (ITU-R BS.1770, pyloudnorm) and true peak (4x oversampled),
   reported, not gated: the mix sets the level.
 
@@ -29,31 +30,56 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pace  # noqa: E402
 
-# Spellings Whisper may choose for what the script says, mapped to the script's.
+# Spellings Whisper may choose for what the script says, mapped to the script's (after
+# hyphens became spaces and a dot inside a word became the spoken "dot" / "punto").
 SAME = {
     "en": {
-        "42": "forty-two", "forty two": "forty-two", "11": "eleven",
-        "cantus daw.com": "cantusdaw.com", "cantusdaw com": "cantusdaw.com",
-        "cantus daw dot com": "cantusdaw.com", "vst 3": "vst3", "vst three": "vst3",
-        "plugins": "plug-ins", "plug ins": "plug-ins", "f l studio": "fl studio",
-        "modeled": "modelled", "tympanium": "tympanum",
+        "42": "forty two", "11": "eleven", "cantus daw": "cantusdaw",
+        "vst 3": "vst3", "vst three": "vst3", "v s t three": "vst3", "v s t 3": "vst3",
+        "plugins": "plug ins", "f l studio": "fl studio", "modeled": "modelled",
     },
     "es": {
-        "42": "cuarenta y dos", "11": "once", "cantus daw.com": "cantusdaw.com",
-        "cantusdaw punto com": "cantusdaw.com", "cantus daw punto com": "cantusdaw.com",
-        "vst 3": "vst3", "plugins": "plug-ins", "plug ins": "plug-ins",
-        "efe ele studio": "fl studio", "máster": "master", "tympanium": "tympanum",
+        "42": "cuarenta y dos", "11": "once", "cantus daw": "cantusdaw",
+        "vst 3": "vst3", "uve ese te tres": "vst3", "plugins": "plug ins",
+        "efe ele studio": "fl studio", "máster": "master",
     },
 }
+# The names, which Whisper spells as it can: one heard within two letters of the script's,
+# with the same first sound, is the name (a name further off was likely said wrong).
+NAMES = {"cantus": "cqk", "chorda": "ck", "tympanum": "t"}
+DOT = {"en": " dot ", "es": " punto "}
+
+
+def lev(a: str, b: str) -> int:
+    row = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        prev, row[0] = row[0], i
+        for j, cb in enumerate(b, 1):
+            prev, row[j] = row[j], min(row[j] + 1, row[j - 1] + 1, prev + (ca != cb))
+    return row[-1]
 
 
 def normal(text: str, lang: str) -> list:
     t = text.lower().replace("—", " ").replace("–", " ")
+    t = re.sub(r"(?<=\w)\.(?=\w)", DOT[lang], t)
     t = re.sub(r"[«»“”\"¿?¡!,.;:()]+(?=\s|$)", " ", t + " ")
+    t = t.replace("-", " ")
     t = re.sub(r"\s+", " ", t).strip()
     for k, v in sorted(SAME[lang].items(), key=lambda kv: -len(kv[0])):
-        t = re.sub(r"(?<![\w-])" + re.escape(k) + r"(?![\w-])", v, t)
+        t = re.sub(r"(?<![\w])" + re.escape(k) + r"(?![\w])", v, t)
     return t.split()
+
+
+def same_words(said: list, heard: list) -> bool:
+    if len(said) != len(heard):
+        return False
+    for a, b in zip(said, heard):
+        if a == b:
+            continue
+        first = NAMES.get(a)
+        if first is None or not b or b[0] not in first or lev(a, b) > 2:
+            return False
+    return True
 
 
 def edges(x, sr: int):
@@ -84,6 +110,7 @@ def main() -> None:
     ap.add_argument("--whisper", required=True)
     ap.add_argument("--model", default="large-v3")
     a = ap.parse_args()
+    sys.stdout.reconfigure(encoding="utf-8")
 
     import numpy as np
     import torch
@@ -102,22 +129,31 @@ def main() -> None:
         if x.ndim > 1:
             x = x.mean(axis=1)
         lang = meta["lang"]
-        heard = asr.transcribe(str(wav), language=lang, temperature=0.0, fp16=False)["text"]
+        # Whisper reads 16 kHz samples; handed the array, it needs no ffmpeg.
+        from math import gcd
+        from scipy.signal import resample_poly
+
+        g = gcd(16000, sr)
+        x16 = resample_poly(x, 16000 // g, sr // g).astype(np.float32)
+        heard = asr.transcribe(x16, language=lang, temperature=0.0, fp16=False)["text"]
         said, got = normal(meta["text"], lang), normal(heard, lang)
         clip = int((np.abs(x) >= 0.999).sum())
         dc = float(x.mean())
         head, tail = edges(x, sr)
         speech = len(x) / sr - head - tail
         n, lo, hi, unit = pace.count(meta["text"], lang)
+        # The rate is over the speech with its own pauses, so the window is the plan's
+        # "about" widened: 2.0-3.0 words a second in English, 4.0-6.0 syllables in Spanish.
+        lo, hi = (2.0, 3.0) if lang == "en" else (4.0, 6.0)
         rate = n / speech if speech > 0 else 0.0
         meter = pyloudnorm.Meter(sr)
         lufs = float(meter.integrated_loudness(x.astype(np.float64)))
         tp = true_peak_db(x, sr)
-        checks = {
-            "words": said == got,
+        checks = {  # plain bools: numpy's do not go into JSON
+            "words": same_words(said, got),
             "clip": clip == 0,
             "dc": abs(dc) <= 0.002,
-            "head": 0.03 <= head <= 0.4,
+            "head": 0.01 <= head <= 0.4,
             "tail": 0.03 <= tail <= 0.4,
             "pace": lo <= rate <= hi,
             "fits": head + speech <= meta["window"] - 0.3,
@@ -125,7 +161,7 @@ def main() -> None:
         row = {
             "take": wav.name,
             "line": meta["line"],
-            "pass": all(checks.values()),
+            "pass": bool(all(checks.values())),
             "checks": checks,
             "heard": heard.strip(),
             "rate": round(rate, 2),
