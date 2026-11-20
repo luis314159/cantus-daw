@@ -97,7 +97,7 @@ jobs:
           test -f web/dist/manual/en/index.html
           test -f web/dist/_headers
           # The pre-rendered pages: each address its own file, its text in the HTML.
-          for p in es download es/download studio ai roadmap measured learn instruments/unda es/effects/aequalis; do
+          for p in es download es/download studio ai roadmap measured learn why es/why instruments/unda es/effects/aequalis; do
             test -f "web/dist/$p/index.html" || { echo "web/dist/$p/index.html is missing"; exit 1; }
           done
           grep -q "Finish the song" web/dist/index.html

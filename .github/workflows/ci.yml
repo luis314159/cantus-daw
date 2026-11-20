@@ -94,7 +94,10 @@ jobs:
     # A hung test would otherwise bill up to six hours (x2 on Windows). Windows needs the
     # most: clippy 6 min, the suite 90, the schedule fuzz ~27 (beta.11, 2026-11-03 — 120
     # minutes cut its fuzz short after a green suite; 90 had done the same at beta.8).
-    timeout-minutes: 150
+    # beta.15 (2026-11-20): with ~8 100 tests, Windows's job reached 150 minutes inside the
+    # fuzz on master's last two runs (cancelled, nothing failed); Linux took 111. Each limit
+    # holds its job 1.5x over (L2, docs/RELEASING.md): Windows 300, Linux 180.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 300 || 180 }}
     strategy:
       fail-fast: false
       matrix:

@@ -5,8 +5,10 @@ use yew::prelude::*;
 use crate::icons;
 use crate::lang::use_lang;
 use crate::platform::Os;
-use crate::shelf::use_shelf;
-use crate::top::{DOWNLOAD, DOWNLOAD_LINUX, DOWNLOAD_MACOS, GITHUB, RELEASES, VERSION};
+use crate::shelf::{use_shelf, Shelf};
+use crate::top::{
+    BETA_NOTE, DOWNLOAD, DOWNLOAD_LINUX, DOWNLOAD_MACOS, GITHUB, RELEASES, VERSION, WIN10_REPORT,
+};
 
 #[function_component(Engine)]
 pub fn engine() -> Html {
@@ -56,13 +58,15 @@ pub fn free() -> Html {
                     <h2>{ l.t("Free, and meant to stay that way", "Libre, y hecho para seguir así") }</h2>
                     <ul class="promises">
                         { promise(l.t("The whole DAW is free.", "El DAW completo es gratis."),
-                                  l.t("Create, save, mix and export without paying. Nothing essential sits behind a paywall.", "Crea, guarda, mezcla y exporta sin pagar. Nada esencial está detrás de un muro de pago.")) }
+                                  l.t("Create, save, mix and export without paying. Nothing sits behind a paywall.", "Crea, guarda, mezcla y exporta sin pagar. Nada está detrás de un muro de pago.")) }
                         { promise(l.t("No account, no telemetry.", "Sin cuenta, sin telemetría."),
                                   l.t("Your projects, audio and MIDI stay on your computer.", "Tus proyectos, audio y MIDI se quedan en tu computadora.")) }
                         { promise(l.t("Open source.", "Código abierto."),
                                   l.t("App GPL-3.0-or-later, engine MPL-2.0. Read it, build it, change it — and what you change and share stays open.", "App GPL-3.0-o-posterior, motor MPL-2.0. Léelo, compílalo, cámbialo; lo que cambies y compartas sigue abierto.")) }
+                        { promise(l.t("The sound packs are free too.", "Los paquetes de sonidos también son gratis."),
+                                  l.t("Every pack Cantus offers today is CC0 or CC BY with the credit shown, downloaded only when you ask. The music you make with them is yours.", "Cada paquete que Cantus ofrece hoy es CC0 o CC BY con el crédito a la vista, y se descarga solo cuando lo pides. La música que hagas con ellos es tuya.")) }
                         { promise(l.t("Support is optional.", "Apoyar es opcional."),
-                                  l.t("Donations and extra sound packs can fund the work, but never unlock the essentials.", "Las donaciones y los paquetes de sonidos adicionales pueden financiar el trabajo, pero nunca desbloquean lo esencial.")) }
+                                  l.t("Donations can fund the work, but never unlock anything.", "Las donaciones pueden financiar el trabajo, pero nunca desbloquean nada.")) }
                     </ul>
                 </div>
                 <figure class="verse">
@@ -70,7 +74,11 @@ pub fn free() -> Html {
                         { l.t("\u{201C}Whatever you do, work at it with all your heart.\u{201D}",
                               "\u{201C}Y todo lo que hagáis, hacedlo de ánimo, como al Señor, y no á los hombres.\u{201D}") }
                     </blockquote>
-                    <figcaption>{ l.t("Colossians 3:23 — the motto Cantus is built under.", "Colosenses 3:23 (Reina-Valera 1909) — el lema bajo el que se construye Cantus.") }</figcaption>
+                    <figcaption>
+                        { l.t("Colossians 3:23 — the motto Cantus is built under.", "Colosenses 3:23 (Reina-Valera 1909) — el lema bajo el que se construye Cantus.") }
+                        { " " }
+                        <a class="link" href={crate::route::Page::new(l, crate::route::Route::Why).path()}>{ l.t("Why I'm building Cantus \u{2192}", "Por qué construyo Cantus \u{2192}") }</a>
+                    </figcaption>
                 </figure>
             </div>
         </section>
@@ -94,14 +102,14 @@ impl Pick for (&'static str, &'static str) {
 }
 
 /// One system in the download card's row: its file a click away once the latest release
-/// holds it (`shelf.rs`), "Coming soon" until then.
+/// holds it (`shelf.rs`), `wait` until then ("Next beta" for macOS, "Coming soon" otherwise).
 fn platform(
-    l: crate::lang::Lang,
     name: &'static str,
     what: &'static str,
     on: bool,
     href: &'static str,
     cta: &'static str,
+    wait: &'static str,
     note: Option<Html>,
 ) -> Html {
     html! {
@@ -111,7 +119,7 @@ fn platform(
             if on {
                 <a class="btn btn-quiet" href={href}>{ icons::arrow_down() }{ cta }</a>
             } else {
-                <span class="platform-soon">{ l.t("Coming soon", "Muy pronto") }</span>
+                <span class="platform-soon">{ wait }</span>
             }
             if let Some(n) = note.filter(|_| on) { <p class="platform-note">{ n }</p> }
         </li>
@@ -122,20 +130,19 @@ fn platform(
 pub fn get() -> Html {
     let l = use_lang().lang;
     let os = use_state(Os::detect);
-    // Which systems the latest release has a file for, asked of GitHub (shelf.rs): Linux
-    // and macOS say "Available" only when it does; "Coming soon" until then, or when the
-    // check fails.
+    // Which systems the latest release has a file for, read at build time (shelf.rs): Linux
+    // and macOS say "Available" only when it does; until then Linux says "Coming soon" and
+    // macOS "Next beta" (round 41: one phrase for macOS everywhere).
     let shelf = use_shelf();
     let guide = format!("{GITHUB}/blob/master/docs/DEVELOPING.md");
-    let soon = l.t("Coming soon", "Muy pronto");
     let available = l.t("Available", "Disponible");
     // Every system's line in the side list: its file a click away when it is out (a visitor on
-    // Windows can fetch the AppImage for another machine), "Coming soon" until then.
-    let state = |on: bool, href: &str| {
+    // Windows can fetch the AppImage for another machine), what it waits for until then.
+    let state = |on: bool, href: &str, wait: &'static str| {
         if on {
             html! { <a href={href.to_string()}>{ available }</a> }
         } else {
-            html! { { soon } }
+            html! { { wait } }
         }
     };
     // The card speaks to the visitor's system: each gets its own file straight down (the
@@ -164,11 +171,17 @@ pub fn get() -> Html {
             DOWNLOAD_MACOS.to_string(),
         ),
         Os::MacOs | Os::Linux => {
-            let n = if *os == Os::MacOs { "macOS" } else { "Linux" };
+            let mac = *os == Os::MacOs;
+            let n = if mac { "macOS" } else { "Linux" };
             (
-                html! { <>{ n }{ " · " }{ soon }</> },
-                l.t("The installer for your system is coming soon; Windows has its own today. Meanwhile you can build Cantus from source: the guide takes you from a clean machine to a running Cantus.",
-                    "El instalador para tu sistema llega muy pronto; el de Windows ya está disponible. Mientras tanto puedes compilar Cantus desde el código: la guía te lleva de una máquina limpia a un Cantus funcionando."),
+                html! { <>{ n }{ " · " }{ Shelf::wait(mac, l) }</> },
+                if mac {
+                    l.t("The macOS preview was held for the next beta: this one was published for Windows and Linux only. Meanwhile you can build Cantus from source: the guide takes you from a clean machine to a running Cantus.",
+                        "La vista previa para macOS quedó para la próxima beta: esta se publicó solo para Windows y Linux. Mientras tanto puedes compilar Cantus desde el código: la guía te lleva de una máquina limpia a un Cantus funcionando.")
+                } else {
+                    l.t("The installer for your system is coming soon; Windows has its own today. Meanwhile you can build Cantus from source: the guide takes you from a clean machine to a running Cantus.",
+                        "El instalador para tu sistema llega muy pronto; el de Windows ya está disponible. Mientras tanto puedes compilar Cantus desde el código: la guía te lleva de una máquina limpia a un Cantus funcionando.")
+                },
                 l.t("Build from source", "Compilar desde el código"),
                 guide.clone(),
             )
@@ -179,8 +192,8 @@ pub fn get() -> Html {
                 l.t("Cantus is a desktop program for Windows and Linux, with a macOS preview. Come back from your computer to download it, or read the source meanwhile.",
                     "Cantus es un programa de escritorio para Windows y Linux, con una vista previa para macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
             } else if shelf.linux {
-                l.t("Cantus is a desktop program for Windows and Linux, with macOS coming soon. Come back from your computer to download it, or read the source meanwhile.",
-                    "Cantus es un programa de escritorio para Windows y Linux, y muy pronto para macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
+                l.t("Cantus is a desktop program for Windows and Linux; macOS comes back in the next beta. Come back from your computer to download it, or read the source meanwhile.",
+                    "Cantus es un programa de escritorio para Windows y Linux; macOS vuelve en la próxima beta. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
             } else {
                 l.t("Cantus is a desktop program for Windows, with Linux and macOS coming soon. Come back from your computer to download it, or read the source meanwhile.",
                     "Cantus es un programa de escritorio para Windows, y muy pronto para Linux y macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
@@ -213,8 +226,8 @@ pub fn get() -> Html {
         ),
         _ => (
             l.t(
-                "Windows 11, x64 (Windows 10 untested)",
-                "Windows 11, x64 (Windows 10 sin probar)",
+                "Windows 11, x64 (Windows 10 not tried yet)",
+                "Windows 11, x64 (Windows 10 aún sin probar)",
             ),
             l.t(
                 "Any device — WASAPI and ASIO",
@@ -234,7 +247,12 @@ pub fn get() -> Html {
                             <a class="btn btn-primary" href={primary_href}>{ icons::arrow_down() }{ primary }</a>
                             <a class="btn btn-quiet" href={GITHUB}>{ icons::github() }{ l.t("Source code", "Código fuente") }</a>
                         </div>
+                        <p class="note">{ l.t(BETA_NOTE.0, BETA_NOTE.1) }</p>
                         <p class="note">{ lead }</p>
+                        if *os == Os::Windows {
+                            <p class="note">{ l.t("On Windows 10? It has not been tried there yet. ", "¿Usas Windows 10? Aún no se ha probado ahí. ") }
+                                <a href={WIN10_REPORT}>{ l.t("Tell us whether it runs", "Cuéntanos si funciona") }</a>{ l.t(" — that is how Windows 10 joins the list.", " — así entra Windows 10 en la lista.") }</p>
+                        }
                         if direct {
                             <p class="note"><a href={RELEASES}>{ l.t("All downloads, release notes and checksums", "Todas las descargas, notas de la versión y sumas") }</a></p>
                         }
@@ -246,16 +264,18 @@ pub fn get() -> Html {
                             <dt>{ l.t("Audio", "Audio") }</dt><dd>{ audio }</dd>
                             <dt>{ l.t("Plug-ins", "Plug-ins") }</dt><dd>{ l.t("CLAP, VST3; ARA 2 on audio clips", "CLAP, VST3; ARA 2 en clips de audio") }</dd>
                             <dt>{ l.t("Cost", "Costo") }</dt><dd>{ l.t("Free", "Gratis") }</dd>
-                            <dt>{ "Windows" }</dt><dd>{ state(true, DOWNLOAD) }</dd>
-                            <dt>{ "Linux" }</dt><dd>{ state(shelf.linux, DOWNLOAD_LINUX) }</dd>
-                            <dt>{ "macOS" }</dt><dd>{ state(shelf.macos, DOWNLOAD_MACOS) }{ if shelf.macos { l.t(" · preview, unsigned", " · vista previa, sin firmar") } else { "" } }</dd>
+                            <dt>{ "Windows" }</dt><dd>{ state(true, DOWNLOAD, "") }</dd>
+                            <dt>{ "Linux" }</dt><dd>{ state(shelf.linux, DOWNLOAD_LINUX, Shelf::wait(false, l)) }</dd>
+                            <dt>{ "macOS" }</dt><dd>{ state(shelf.macos, DOWNLOAD_MACOS, Shelf::wait(true, l)) }{ if shelf.macos { l.t(" · preview, unsigned", " · vista previa, sin firmar") } else { "" } }</dd>
                         </dl>
                     </aside>
                 </div>
                     <ul class="platforms" aria-label={l.t("Every system", "Cada sistema")}>
-                        { platform(l, "Windows", l.t("Windows 11 · installer, no administrator", "Windows 11 · instalador, sin administrador"), true, DOWNLOAD, l.t("Download", "Descargar"), None) }
-                        { platform(l, "Linux", l.t("x86-64 · one AppImage for every distribution", "x86-64 · un AppImage para toda distribución"), shelf.linux, DOWNLOAD_LINUX, l.t("Download", "Descargar"), None) }
-                        { platform(l, l.t("macOS · preview", "macOS · vista previa"), l.t("Apple silicon and Intel · unsigned disk image", "Apple silicon e Intel · imagen de disco sin firmar"), shelf.macos, DOWNLOAD_MACOS, l.t("Download the preview", "Descargar la vista previa"),
+                        { platform("Windows", l.t("Windows 11 · installer, no administrator", "Windows 11 · instalador, sin administrador"), true, DOWNLOAD, l.t("Download", "Descargar"), "", None) }
+                        { platform("Linux", l.t("x86-64 · one AppImage for every distribution", "x86-64 · un AppImage para toda distribución"), shelf.linux, DOWNLOAD_LINUX, l.t("Download", "Descargar"), Shelf::wait(false, l), None) }
+                        { platform(if shelf.macos { l.t("macOS · preview", "macOS · vista previa") } else { "macOS" },
+                                   if shelf.macos { l.t("Apple silicon and Intel · unsigned disk image", "Apple silicon e Intel · imagen de disco sin firmar") } else { l.t("Apple silicon and Intel · held for the next beta", "Apple silicon e Intel · aplazado a la próxima beta") },
+                                   shelf.macos, DOWNLOAD_MACOS, l.t("Download the preview", "Descargar la vista previa"), Shelf::wait(true, l),
                                    Some(html! { <>{ MAC_NOTE.pick(l) }{ " " }<a href={format!("{GITHUB}/issues")}>{ l.t("Report a problem", "Reportar un problema") }</a></> })) }
                     </ul>
             </div>

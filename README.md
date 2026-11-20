@@ -1,150 +1,163 @@
 <p align="center">
-  <img src="web/assets/logo.svg" width="128" alt="The Cantus mark">
+  <img src="web/assets/logo.svg" width="112" alt="The Cantus mark: a gold C around an orange waveform">
 </p>
 
 <h1 align="center">Cantus™</h1>
 
 <p align="center">
-  A free, open-source digital audio workstation, written in Rust and drawn by hand.<br>
-  <b>Windows · Linux · macOS (preview)</b><br>
-  Created by <b>Luis Ángel Almazán</b> · <a href="https://lalmazan.com">lalmazan.com</a>
+  <b>A free, open-source digital audio workstation for Windows and Linux, in the spirit of FL Studio.</b><br>
+  Eleven instruments and forty-two effects of its own, a mixer you wire with cables, a recording
+  mode for low buffers — and an engine whose export is what you heard, to the bit.
 </p>
 
 <p align="center">
-  <img src="docs/images/window-night.png" alt="Cantus playing its demo song in Slate Lapis Night, the default look: the sample browser, the arrangement, the mixer with its cables and the inspector">
+  <a href="https://github.com/luis314159/cantus-daw/releases/latest"><img src="https://img.shields.io/github/v/release/luis314159/cantus-daw?include_prereleases&label=release" alt="Latest release"></a>
+  <a href="#licences"><img src="https://img.shields.io/badge/licence-GPL--3.0--or--later%20%2B%20MPL--2.0-blue" alt="Licence: application GPL-3.0-or-later, engine MPL-2.0"></a>
+  <a href="https://github.com/luis314159/cantus-daw/actions/workflows/ci.yml"><img src="https://github.com/luis314159/cantus-daw/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI on Windows and Linux"></a>
+  <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-informational" alt="Platforms: Windows and Linux">
 </p>
 
-> *"Whatever you do, work at it with all your heart."* — Colossians 3:23
+<p align="center">
+  <a href="https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe"><img src="https://img.shields.io/badge/Download-Windows%20installer-1a2a66?style=for-the-badge" alt="Download the Windows installer"></a>
+  <a href="https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-linux-x86_64.AppImage"><img src="https://img.shields.io/badge/Download-Linux%20AppImage-1a2a66?style=for-the-badge" alt="Download the Linux AppImage"></a><br>
+  <sub>Free, no account. <a href="https://cantusdaw.com">cantusdaw.com</a> plays its instruments and effects in your browser ·
+  <a href="docs/manual/en/README.md">Manual</a> · <a href="docs/manual/es/README.md">Manual en español</a> ·
+  Created by <b>Luis Ángel Almazán</b> · <a href="https://lalmazan.com">lalmazan.com</a></sub>
+</p>
 
-Cantus takes its name from the *cantus firmus*: the fixed melody on which polyphony is built.
-The engine is that fixed line — deterministic, sample-accurate, allocation-free — and
-everything else is built on top of it. The full vision lives in [idea.md](idea.md); the
-decisions that shape the code live in [docs/adr/](docs/adr/); where the project stands right
-now is in [docs/STATUS.md](docs/STATUS.md).
+<!-- TODO(round 41, video): the 60–90 s demo video goes here, above or in place of the
+     picture, once it is made (its plan is in docs/round41/video/). No embed until then. -->
+<p align="center">
+  <img src="docs/images/window-night.png" alt="Cantus playing its demo song Neon Tide in the Slate Lapis look: the sample browser, the arrangement, the mixer with its cables and the inspector">
+</p>
+
+**Why Cantus.** Finishing a song should not take a subscription, an account, or trust that
+your tools will still be yours next year. Cantus is the whole DAW for free, with no account
+and no telemetry, and open source, so it cannot be taken back. It is built to be measurably
+good rather than to say so: it is [measured against FL Studio and REAPER](#how-it-compares),
+and the row it loses is published beside the ones it wins.
+
+> *"Whatever you do, work at it with all your heart."* — Colossians 3:23, the motto Cantus is
+> built under.
+
+I am a Christian, and that verse is why Cantus is made with excellence and honesty, completely
+free for everyone, with the ambition to become one day the best DAW on the market. The verse
+that greets you at start has a switch that turns it off for good: Cantus never asks you to
+share the belief. [Why I'm building Cantus →](docs/WHY.md) — Luis Ángel Almazán
 
 ## Download
 
-Cantus runs on **Windows** and **Linux** — every release ships for both, and the whole test
-suite runs on both each round — with **macOS as a preview**. Everything is on the
-[releases page](https://github.com/luis314159/cantus-daw/releases/latest), with SHA-256 sums.
+The newest beta is on the [releases page](https://github.com/luis314159/cantus-daw/releases/latest),
+with SHA-256 sums. **It is a beta: save often and keep backups of your projects.**
 
 | System | File | |
 |---|---|---|
-| **Windows 11** (x64) | [`Cantus-windows-x64-setup.exe`](https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe) | installer, no administrator; a portable zip is on the releases page. WASAPI and ASIO |
+| **Windows 11** (x64) | [`Cantus-windows-x64-setup.exe`](https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe) | installer, no administrator; a portable zip is on the releases page. WASAPI and ASIO. Not code-signed yet: SmartScreen asks once (*More info → Run anyway*) |
 | **Linux** (x86-64, Ubuntu 22.04 or newer, or alike) | [`Cantus-linux-x86_64.AppImage`](https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-linux-x86_64.AppImage) | one file for every distribution: `chmod +x` and open it; it updates itself. PipeWire, JACK and ALSA |
-| **macOS** (Apple silicon and Intel) — **preview** | [`Cantus-macos-universal.dmg`](https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-macos-universal.dmg) | see below. Core Audio |
+| **macOS** (Apple silicon and Intel) | — | **in the next beta.** Betas 11 to 14 carried an unsigned preview; beta 15 was published for Windows and Linux only while a check that only the Mac's run caught is fixed |
 
-**The macOS preview** is one universal disk image, built and tested on GitHub's macOS
-machines but **not yet opened on a real Mac, and not signed yet**. The first time, macOS
-blocks it: open *System Settings → Privacy & Security* and choose **Open Anyway**. Please
-[report what goes wrong](https://github.com/luis314159/cantus-daw/issues) — that is how it
-leaves preview.
+**On Windows 10?** Nobody has tried Cantus there yet. If you do,
+[tell us whether it runs](https://github.com/luis314159/cantus-daw/issues/new?template=hardware_report.yml&title=%5BWindows%2010%5D%20)
+— a short report is how Windows 10 joins the list. The same form takes any audio interface,
+working or not.
 
 ## Highlights
 
-- **A new look, drawn by hand: Slate** (ADRs 0108, 0111). Three whole-window directions were
-  drawn from blank sheets beside FL Studio, and Slate was chosen: a calm grey-blue room, panels
-  set apart by value rather than lines, one azure accent spent only on state, your track
-  colours as a stripe and a tint until a track is selected, Barlow Semi Condensed with
-  figures that never shift. Every icon is drawn for each size it sits at; **316 track icons**
-  in 17 families; a top bar in one row; the mixer and its inspector, the cables (four styles),
-  the piano roll's keyboard, the rack and the browser redrawn; logo #03. **Slate Lapis** —
-  Slate in a night-blue room, lapis on the selection and the logo's gold on the clock, the
-  playhead and the loop — is the default; Slate itself, Graphite and gold and Studio ink sit
-  beside it, each dark and light, with the ten themes of
-  earlier versions redrawn in its system and four new ones — twenty-four, each measured easy
-  to read. Delay has a window of its own. It costs no frames: the whole window draws no more
-  than before, and nothing redraws at rest.
-- **Easier every day** (ADRs 0109, 0110, 0113, 0114). A control moved by automation, a
-  modulator, a controller or a VCA says so and how to take it back; the help line is never
-  empty and no word is cut off; recent instruments and effects one right-click away; every
-  area folds, maximises and is reached from the keyboard. The arrangement gains **sections**,
-  **folders**, a mode per automation lane, a track's own icon, and a tool row — Select, Draw,
-  Slice, Erase, Mute, Zoom — with **Follow**.
-- **Sounds for every style, heard before you choose** (ADRs 0098–0101, 0104). **511 factory
-  presets** tagged by style and role, each one levelled and checked by a test, auditioned on
-  a phrase or on your own clip before it touches the song — and **heard on the
-  [website](https://cantusdaw.com/#units)** before you download anything.
-  - **Chorda, model 2**: mics, lid and room, shown as a piano in its room rendered in 3-D.
-  - **Sectio** slices a loop across Exemplar's keys.
-  - **Pulsus** gives every pad its own output and effect chain.
-  - **Two sound packs of our own**, public domain (CC0), downloaded when you ask.
-- **Measured against FL Studio and REAPER, wins and losses alike** (ADRs 0102, 0106, 0107).
-  On the same quiet laptop, like against like (beta.14): on an empty song Cantus's window is
-  ready in **0.76 s** against REAPER 7.85's 1.76 s, on a beat starter in **0.77 s** against FL
-  Studio 24.1.2's 2.49 s, and it is done working sooner. **At rest it uses less CPU than both**
-  (1.1–1.5 % of a core against REAPER's 2.3–3.7 %, 2 % against FL Studio's 6.6 %): a channel
-  whose effects hear silence stops running them, to the same bits. It still holds **more
-  memory** than both. Round 39's engine makes its parts as the song needs them: beta.14 holds
-  **140 MB** on an empty song and **143 MB** on the beat starter (237 and 239 in beta.13),
-  against REAPER's 62 and FL Studio's 133: still behind both. The
-  [scorecard](docs/scorecard/README.md) says so, with the method to repeat every number.
-- **The recording mode** (ADR 0092). *Prepare to record* bakes every strip that feeds the
-  master and leaves only what you record live, so a heavy song plays at a low buffer: on the
-  development machine, 64 tracks with effects went from 224–590 % of each block's time
-  live to 2–4 % in the mode, with no disk underrun in a minute at any buffer from 32 to 1024
-  frames. Mix controls stay live; leaving gives the song back bit for bit.
-  [More below](#the-recording-mode--the-whole-song-baked-only-your-take-live).
-- **A professional studio** (ADRs 0093–0097). VCA faders, mixer snapshots and scene cues; an
-  audio editor with a spectrogram, noise reduction by profile and declick; outboard synths
-  and effects on time after an automatic latency ping; Mackie Control and HUI surfaces;
-  ARA 2 plug-ins on audio clips.
+- **The whole DAW, free.** Arrangement, piano roll, channel rack, mixer, recording and export
+  to WAV, FLAC, MP3 and Ogg with loudness presets — nothing behind a paywall, no account, no
+  telemetry, the source open ([licences](#licences)).
+- **Eleven instruments and forty-two effects of its own**, each with a face of its own and
+  more than 750 factory presets you audition before they touch the song: **Chorda**, a
+  modelled grand piano that also plays recorded pianos; **Tympanum**, an acoustic drummer
+  with microphones you move; Unda (wavetable), Modulus (FM, reads DX7 banks), Arca (amp),
+  Aula (convolution reverb) and the rest. [Hear them on the website](https://cantusdaw.com/#units);
+  the effects also run in other DAWs as CLAP and VST3, bit-identical.
+- **FL Studio's workflow, drawn by hand.** A channel rack where a step *is* a note, linked
+  clips and a clip browser like FL's playlist, and a mixer you wire by dragging cables from
+  port to port. Every knob and fader is a vector drawing, crisp from 75 % to 200 %, in
+  twenty-four themes measured for contrast.
+- **Record at a low buffer.** *Prepare to record* renders every strip that feeds the master
+  and leaves only your take live: 64 tracks with effects went from 224–590 % of each audio
+  block's time to 2–4 % on the development machine. Leaving gives the song back to the bit.
+- **A professional studio.** VCA faders, mixer snapshots and scene cues; an audio editor
+  with a spectrogram, noise reduction and declick; outboard synths and effects kept on time
+  by a latency ping; Mackie Control and HUI surfaces; ARA 2 plug-ins on audio clips.
+- **Perform and write.** A session view of clips and scenes, Ableton Link, MIDI clock and
+  MTC, MPE from the controller to each note; any part engraved as a score, with MusicXML
+  and PDF.
+- **AI that works with you, on your computer.** Claude and other assistants operate Cantus
+  through MCP — every change one undo step, edits asked first — plus stem separation, audio
+  to MIDI and a mastering assistant, with models downloaded only when you ask.
+- **An engine tested to the bit.** The audio thread never allocates, locks or waits; an
+  offline render equals real-time playback sample for sample, on one core or many; more
+  than 8 000 tests hold it, with golden images for the look and a frame budget for speed.
 
-- **A look drawn by hand, FL Studio first** (ADR 0024). Every knob, fader, meter, slot and
-  window frame is painted by Cantus's own vector kit, crisp at any zoom from 75 % to 200 %
-  and on 4K. Twenty-four themes, **Slate Lapis** by default (ADR 0111); the taskbar icon is the Cantus
-  mark, in the colour you choose.
-- **An FL-style mixer with cables.** Drag from a strip's port to another strip (a send, the
-  only output with Ctrl, a sidechain key with Alt), pre- or post-fader sends, a routing
-  matrix (Alt+F9), submixes, groups and a per-channel sheet in the inspector.
-- **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
-  it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
-  (B), as in FL's playlist.
-- **Forty-two effects, two controllers and eleven instruments of its own** — now with
-  **Tympanum**, the acoustic drummer (modelled kits with microphones you move, recorded
-  multi-mic kits, each mic on its own strip), **Chorda** playing recorded pianos too, with its
-  own mixer, **Cribrum** (auto filter), **Fragor** (distortion pedals), **Lapsus** (time
-  shaper), **Vetus** (lo-fi), **Libra** (utility), **Tabula** (pedalboard), **Saltus**
-  (pitch), **Arca** (amp), **Rota** (rotary speaker), **Loquax** (vocoder), **Fractus**
-  (glitch sequencer), **Caelum** (shimmer reverb), **Vinculum** (bus compressor), **Lenis**
-  (resonance suppressor), **Cedo** (ducker), **Purus** (repair) and **Comparatio** (reference
-  comparator), the controllers **Tactus** (X-Y pad) and **Calculus** (formula), and **Aula**,
-  a convolution reverb at zero latency (ADR 0112) — researched against the best on the market
-  and measured — [each one shown below](#instruments), with what it does — plus free sound
-  packs, among them the **Salamander Grand Piano**, streamed from disk.
-- **Each unit wears its own face** (ADR 0074): its colour, material, controls and the
-  display that tells its story, drawn in vectors in light and dark themes. The CLAP and
-  VST3 versions wear the same face in any DAW; *Units wear their own faces* switches back
-  to the plain look.
-- **The score from the piano roll** (ADR 0075). A clip or a track as an engraved staff —
-  spelled in the song's key, beamed and tied as an engraver would — beside the piano roll
-  or in a pane of its own; edit on the staff, export **MusicXML** and vector **PDF**, print.
-- **A session view, in sync, with per-note expression** (ADRs 0076–0080). Live's clip
-  grid beside the arrangement (Tab), played from the keyboard, the mouse, MIDI learn or a
-  Launchpad or APC; **Ableton Link**, **MIDI clock** and **MTC** in and out; **MPE** from the
-  controller to the piano roll's per-note lanes and the instruments.
-- **AI that works with you, on your computer** (ADRs 0081–0086). Claude and the other
-  assistants drive Cantus through **MCP**, every change one undo step and edits asked
-  first; **stem separation** and **audio to MIDI** by models downloaded from their makers
-  when you ask; a **mastering assistant** that proposes a chain of our own effects per
-  platform.
-- **Works with the market's DAWs.** Hosts **CLAP and VST3** plug-ins; ships its own effects as
-  **CLAP/VST3** for any other DAW, bit-identical to the native ones; **MIDI files**, **stems**
-  and **DAWproject** in and out.
-- **Fast, and tested to stay fast.** An audio thread that never allocates, nothing redrawn
-  when nothing moves, and 6 000+ tests — null tests that hold offline renders bit-identical
-  to playback, golden images that hold the look, and a frame budget that fails the build
-  when the UI gets slow.
+The rest is in the [tour](#a-tour), what the latest versions added is
+[in depth](#in-depth-what-the-latest-versions-added), and every feature is in
+[the full list](#everything-it-does).
+
+## Your first song in five minutes
+
+1. **Install** the file for your system (above) and open Cantus. The first time, it asks
+   for your audio device: ASIO or WASAPI on Windows, PipeWire, JACK or ALSA on Linux.
+2. **Hear what it does:** *File ▸ Demo songs…* (`Ctrl+Shift+N`) opens seven songs made only
+   with Cantus's own instruments and effects. Open **Neon Tide** and press `Space`; take it
+   apart.
+3. **Start yours:** *File ▸ New from template…* opens the start page. Pick **Beat** — a drum
+   kit in Pulsus II, Gravis on the bass, an electric piano and a reverb, at 92 BPM.
+4. **Make it yours:** click steps in the **channel rack**, draw or play a melody in the
+   **piano roll**, move faders and add an effect from the **inspector** (*Add an effect*).
+5. **Export it:** *File ▸ Export audio…* (`Ctrl+Shift+E`) and the **Streaming** preset
+   writes an MP3 at −14 LUFS, ready to upload.
+
+The [quick-start manual](docs/manual/en/README.md) ([en español](docs/manual/es/README.md))
+walks the whole path, from install to a mastered song.
+
+## How it compares
+
+Only what has been measured or documented in the project's
+[scorecard](docs/scorecard/README.md), with its date. Cantus was measured as **beta 14**;
+the download is newer and has not been measured again yet. Ardour was not part of the
+measured runs.
+
+| | Cantus | REAPER | FL Studio | Ardour |
+|---|---|---|---|---|
+| Window ready, median of five starts ¹ | **0.76 s** (empty song) · **0.77 s** (*Beat* starter) | 1.76 s (empty project) | 2.49 s (its template) | not measured |
+| CPU at rest, one core's share ¹ | **1.1–1.5 %** (empty) · **1.7–2.0 %** (*Beat*) | 2.3–3.7 % | 6.6–6.7 % | not measured |
+| Private memory after start ¹ | 140 MB (empty) · 143 MB (*Beat*) — **lost** | **62 MB** | **133 MB** | not measured |
+| Price of the full edition ² | free | $60 discounted, $225 commercial | US$449 list (All Plugins) | binaries from $1, or $1–50 a month |
+| Source ² | open: GPL-3.0-or-later app, MPL-2.0 engine | proprietary | proprietary | open: GPL v2 |
+| Systems ² | Windows, Linux (macOS in the next beta) | Windows, macOS, Linux | Windows 10/11, macOS; no Linux | Windows, macOS, Linux |
+
+¹ Same laptop (AMD Ryzen 7 7735HS, 31 GB, Windows 11, *High performance* plan, nothing else
+running), same script, five starts after a warm-up: Cantus 0.1.0-beta.14 on 2026-11-11,
+REAPER 7.85 and FL Studio 24.1.2 on 2026-11-09. Like against like: Cantus's empty song beside
+REAPER's empty project, its *Beat* starter beside FL Studio's template. Method, raw results and
+every earlier run: [`docs/scorecard/README.md`](docs/scorecard/README.md).
+² From each vendor's own pages, read on 2026-11-04 for REAPER 7.84, FL Studio 2026 (26.1.7.5)
+and Ardour 9.8: [`docs/scorecard/features.md`](docs/scorecard/features.md) and its
+[matrix](docs/scorecard/matrix/). Prices change; check the vendor's page. FL Studio is a
+trademark of Image-Line; REAPER of Cockos.
+
+No capacity comparison (tracks or plug-ins before dropouts) is claimed until the live
+DAWbench run is made on a real interface (the scorecard's *Capacity* section says why).
 
 ## A tour
 
-Every picture here is the program itself, drawn headless on its demo song by
-`cargo run --release -p cantus-ui --example shoot_readme` ([how](docs/DEVELOPING.md#3-build-and-run));
-the session view's, sync's and MPE's by `shoot_session`, `shoot_sync` and `shoot_mpe`;
-the AI pictures by `shoot_ai`, `shoot_mastering`, `shoot_stems` and `shoot_transcribe`;
-the instruments and effects by `shoot_skins`; the recording mode and the desk's VCAs by
-`shoot_showcase`; the editor's, external gear's and ARA's by `shoot_editor`,
-`shoot_external` and `shoot -- <dir> 1 ara`.
+Every picture here is the program itself, drawn by Cantus on its own demo songs — nothing
+mocked up. Click a picture to see it full size.
+
+<details>
+<summary>How the pictures are made</summary>
+
+`cargo run --release -p cantus-ui --example shoot_readme` ([how](docs/DEVELOPING.md#3-build-and-run))
+draws them headless; the session view's, sync's and MPE's come from `shoot_session`,
+`shoot_sync` and `shoot_mpe`; the AI pictures from `shoot_ai`, `shoot_mastering`,
+`shoot_stems` and `shoot_transcribe`; the instruments and effects from `shoot_skins`; the
+recording mode and the desk's VCAs from `shoot_showcase`; the editor's, external gear's and
+ARA's from `shoot_editor`, `shoot_external` and `shoot -- <dir> 1 ara`.
+
+</details>
 
 ### The recording mode — the whole song baked, only your take live
 
@@ -1223,7 +1236,7 @@ and [docs/instruments/](docs/instruments/).
 
 ### Controllers
 
-Two modulators with windows of their own (ADRs 0144, 0145). They make no sound: they move
+Two modulators with windows of their own ([design: ADRs 0144 and 0145](docs/adr/)). They make no sound: they move
 the parameters you link to them — an effect's, an instrument's, a hosted plug-in's, a
 send's — as Cantus's other modulators do, each link with its own range, and their own axes
 and knobs can be automated and learnt by a MIDI controller like any parameter.
@@ -1474,6 +1487,108 @@ in its own colours or one of eight others, changed live:
   <img src="docs/images/mark.png" width="70%" alt="The Cantus mark in its own colours and the eight icon colours, on a dark and a light taskbar">
 </p>
 
+## In depth: what the latest versions added
+
+The highlights above, at full length. How to read the references: **ADR** numbers are the
+decision records in [`docs/adr/`](docs/adr/) (one per structural choice, with its tests);
+a **round** is one development cycle, recorded in [`docs/STATUS.md`](docs/STATUS.md); a
+**beta** (beta.14, beta.15…) is a public release on the
+[releases page](https://github.com/luis314159/cantus-daw/releases).
+
+- **A new look, drawn by hand: Slate** (ADRs 0108, 0111). Three whole-window directions were
+  drawn from blank sheets beside FL Studio, and Slate was chosen: a calm grey-blue room, panels
+  set apart by value rather than lines, one azure accent spent only on state, your track
+  colours as a stripe and a tint until a track is selected, Barlow Semi Condensed with
+  figures that never shift. Every icon is drawn for each size it sits at; **316 track icons**
+  in 17 families; a top bar in one row; the mixer and its inspector, the cables (four styles),
+  the piano roll's keyboard, the rack and the browser redrawn; logo #03. **Slate Lapis** —
+  Slate in a night-blue room, lapis on the selection and the logo's gold on the clock, the
+  playhead and the loop — is the default; Slate itself, Graphite and gold and Studio ink sit
+  beside it, each dark and light, with the ten themes of
+  earlier versions redrawn in its system and four new ones — twenty-four, each measured easy
+  to read. Delay has a window of its own. It costs no frames: the whole window draws no more
+  than before, and nothing redraws at rest.
+- **Easier every day** (ADRs 0109, 0110, 0113, 0114). A control moved by automation, a
+  modulator, a controller or a VCA says so and how to take it back; the help line is never
+  empty and no word is cut off; recent instruments and effects one right-click away; every
+  area folds, maximises and is reached from the keyboard. The arrangement gains **sections**,
+  **folders**, a mode per automation lane, a track's own icon, and a tool row — Select, Draw,
+  Slice, Erase, Mute, Zoom — with **Follow**.
+- **Sounds for every style, heard before you choose** (ADRs 0098–0101, 0104). **Factory
+  presets** for every unit (more than 750 today), tagged by style and role, each one levelled and checked by a test, auditioned on
+  a phrase or on your own clip before it touches the song — and **heard on the
+  [website](https://cantusdaw.com/#units)** before you download anything.
+  - **Chorda, model 2**: mics, lid and room, shown as a piano in its room rendered in 3-D.
+  - **Sectio** slices a loop across Exemplar's keys.
+  - **Pulsus** gives every pad its own output and effect chain.
+  - **Two sound packs of our own**, public domain (CC0), downloaded when you ask.
+- **Measured against FL Studio and REAPER, wins and losses alike** (ADRs 0102, 0106, 0107).
+  On the same quiet laptop, like against like (beta.14): on an empty song Cantus's window is
+  ready in **0.76 s** against REAPER 7.85's 1.76 s, on a beat starter in **0.77 s** against FL
+  Studio 24.1.2's 2.49 s, and it is done working sooner. **At rest it uses less CPU than both**
+  (1.1–1.5 % of a core against REAPER's 2.3–3.7 %, 2 % against FL Studio's 6.6 %): a channel
+  whose effects hear silence stops running them, to the same bits. It still holds **more
+  memory** than both. Round 39's engine makes its parts as the song needs them: beta.14 holds
+  **140 MB** on an empty song and **143 MB** on the beat starter (237 and 239 in beta.13),
+  against REAPER's 62 and FL Studio's 133: still behind both. The
+  [scorecard](docs/scorecard/README.md) says so, with the method to repeat every number.
+- **The recording mode** (ADR 0092). *Prepare to record* bakes every strip that feeds the
+  master and leaves only what you record live, so a heavy song plays at a low buffer: on the
+  development machine, 64 tracks with effects went from 224–590 % of each block's time
+  live to 2–4 % in the mode, with no disk underrun in a minute at any buffer from 32 to 1024
+  frames. Mix controls stay live; leaving gives the song back bit for bit.
+  [More below](#the-recording-mode--the-whole-song-baked-only-your-take-live).
+- **A professional studio** (ADRs 0093–0097). VCA faders, mixer snapshots and scene cues; an
+  audio editor with a spectrogram, noise reduction by profile and declick; outboard synths
+  and effects on time after an automatic latency ping; Mackie Control and HUI surfaces;
+  ARA 2 plug-ins on audio clips.
+
+- **A look drawn by hand, FL Studio first** (ADR 0024). Every knob, fader, meter, slot and
+  window frame is painted by Cantus's own vector kit, crisp at any zoom from 75 % to 200 %
+  and on 4K. Twenty-four themes, **Slate Lapis** by default (ADR 0111); the taskbar icon is the Cantus
+  mark, in the colour you choose.
+- **An FL-style mixer with cables.** Drag from a strip's port to another strip (a send, the
+  only output with Ctrl, a sidechain key with Alt), pre- or post-fader sends, a routing
+  matrix (Alt+F9), submixes, groups and a per-channel sheet in the inspector.
+- **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
+  it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
+  (B), as in FL's playlist.
+- **Forty-two effects, two controllers and eleven instruments of its own** — now with
+  **Tympanum**, the acoustic drummer (modelled kits with microphones you move, recorded
+  multi-mic kits, each mic on its own strip), **Chorda** playing recorded pianos too, with its
+  own mixer, **Cribrum** (auto filter), **Fragor** (distortion pedals), **Lapsus** (time
+  shaper), **Vetus** (lo-fi), **Libra** (utility), **Tabula** (pedalboard), **Saltus**
+  (pitch), **Arca** (amp), **Rota** (rotary speaker), **Loquax** (vocoder), **Fractus**
+  (glitch sequencer), **Caelum** (shimmer reverb), **Vinculum** (bus compressor), **Lenis**
+  (resonance suppressor), **Cedo** (ducker), **Purus** (repair) and **Comparatio** (reference
+  comparator), the controllers **Tactus** (X-Y pad) and **Calculus** (formula), and **Aula**,
+  a convolution reverb at zero latency (ADR 0112) — researched against the best on the market
+  and measured — [each one shown below](#instruments), with what it does — plus free sound
+  packs, among them the **Salamander Grand Piano**, streamed from disk.
+- **Each unit wears its own face** (ADR 0074): its colour, material, controls and the
+  display that tells its story, drawn in vectors in light and dark themes. The CLAP and
+  VST3 versions wear the same face in any DAW; *Units wear their own faces* switches back
+  to the plain look.
+- **The score from the piano roll** (ADR 0075). A clip or a track as an engraved staff —
+  spelled in the song's key, beamed and tied as an engraver would — beside the piano roll
+  or in a pane of its own; edit on the staff, export **MusicXML** and vector **PDF**, print.
+- **A session view, in sync, with per-note expression** (ADRs 0076–0080). Live's clip
+  grid beside the arrangement (Tab), played from the keyboard, the mouse, MIDI learn or a
+  Launchpad or APC; **Ableton Link**, **MIDI clock** and **MTC** in and out; **MPE** from the
+  controller to the piano roll's per-note lanes and the instruments.
+- **AI that works with you, on your computer** (ADRs 0081–0086). Claude and the other
+  assistants drive Cantus through **MCP**, every change one undo step and edits asked
+  first; **stem separation** and **audio to MIDI** by models downloaded from their makers
+  when you ask; a **mastering assistant** that proposes a chain of our own effects per
+  platform.
+- **Works with the market's DAWs.** Hosts **CLAP and VST3** plug-ins; ships its own effects as
+  **CLAP/VST3** for any other DAW, bit-identical to the native ones; **MIDI files**, **stems**
+  and **DAWproject** in and out.
+- **Fast, and tested to stay fast.** An audio thread that never allocates, nothing redrawn
+  when nothing moves, and more than 8 000 tests — null tests that hold offline renders bit-identical
+  to playback, golden images that hold the look, and a frame budget that fails the build
+  when the UI gets slow.
+
 ## Everything it does
 
 <details>
@@ -1577,7 +1692,24 @@ everywhere (Enter or a click elsewhere keeps what you typed, Esc puts it back).
 
 </details>
 
-## Build and run
+## Build from source
+
+Three commands, once [Rust](https://rustup.rs) is installed (the repository pins its
+compiler; `rustup` fetches it by itself):
+
+```
+git clone https://github.com/luis314159/cantus-daw.git
+cd cantus-daw
+cargo run --release -p cantus
+```
+
+On **Windows** the build needs the Visual Studio 2022 Build Tools (*Desktop development
+with C++*) and LLVM; `cargo run -p xtask -- asio-sdk` fetches Steinberg's ASIO SDK, without
+which Cantus builds with WASAPI only. On **Linux** (Ubuntu 22.04 or 24.04),
+`bash packaging/linux/deps.sh` installs the packages. Everything else — tests, packaging,
+the plug-in scanner and sandbox — is in [docs/DEVELOPING.md](docs/DEVELOPING.md).
+
+More ways to run it:
 
 ```
 cargo run --release -p cantus                     # build and open Cantus
@@ -1605,8 +1737,8 @@ cargo run -p xtask -- bundle --v3     # a build for modern CPUs (AVX2), 15–25 
 Copy the `.clap` files to `%LOCALAPPDATA%\Programs\Common\CLAP` and the `.vst3` bundles to
 `%LOCALAPPDATA%\Programs\Common\VST3`, then rescan in your DAW.
 
-Requires stable Rust 1.95 or newer. No system libraries are needed on Windows or macOS; on
-Linux install `libasound2-dev` (and `libxkbcommon-dev`, `libwayland-dev` for the window).
+The compiler is pinned by `rust-toolchain.toml`; what each system needs is in
+[docs/DEVELOPING.md §1](docs/DEVELOPING.md#1-install-the-tools-once-per-machine).
 
 ## Tests
 
@@ -1636,23 +1768,49 @@ look, and `tests/frame_budget.rs` holds the speed.
 | `cantus-ai` | GPL-3.0-or-later | `AiProvider` trait, the tool table, command bridge |
 | `cantus-mcp` | GPL-3.0-or-later | the MCP server, written by hand: both protocol generations, permissions, jobs |
 | `cantus-ml` | GPL-3.0-or-later | the machine-learning helper process: stem separation and transcription on ONNX Runtime |
-| `cantus-dance` | GPL-3.0-or-later | the dancing character: its characters, moves, imports and drawing |
 | `cantus-video` | GPL-3.0-or-later | video export: MP4 from the system's H.264 and AAC, WebM (AV1 + Vorbis), a PNG MOV and frames for editors |
 | `cantus-ui` | GPL-3.0-or-later | the interface, its design system and the hand-drawn kit |
 | `cantus` | GPL-3.0-or-later | the binary |
 
-The engine crates (and `cantus-rt`) are MPL-2.0: whoever distributes a modified file
-must publish it, while the engine can still be used unchanged inside other programs. The
-application is GPL-3.0-or-later, and the program as distributed is one combined work under
-it. See [ADR 0001](docs/adr/0001-license.md) and [ADR 0047](docs/adr/0047-licensing-revised.md);
-contributing: [CONTRIBUTING.md](CONTRIBUTING.md) and the [CLA](CLA.md); the name and
-logos: [TRADEMARKS.md](TRADEMARKS.md). The bundled fonts
+## Licences
+
+| What | Licence | Where |
+|---|---|---|
+| The engine: `cantus-core`, `cantus-dsp`, `cantus-engine`, `cantus-project`, `cantus-rt` | **MPL-2.0** — a modified file must be published; the engine can be used unchanged inside other programs | [LICENSE-MPL](LICENSE-MPL) |
+| The application and every other crate | **GPL-3.0-or-later** — the program as distributed is one combined work under it | [LICENSE-GPL](LICENSE-GPL) |
+| The music you make | **yours** — the GPL covers the program, not what you create with it | |
+| Sound packs, downloaded on demand | **CC0** or **CC BY** with the credit shown in the pack and in *Help ▸ Credits* | each pack's licence file |
+| The name and logos | trademarks of Luis Ángel Almazán: free to use to talk about Cantus truthfully | [TRADEMARKS.md](TRADEMARKS.md) |
+| Contributions | merged with the contributor licence agreement | [CONTRIBUTING.md](CONTRIBUTING.md), [CLA.md](CLA.md) |
+
+Which crate is which: [LICENSE](LICENSE) (a pointer to the two licences, so GitHub's sidebar
+and some catalogues show the licence as unknown or "other"); why: [ADR 0001](docs/adr/0001-license.md) and
+[ADR 0047](docs/adr/0047-licensing-revised.md). Third-party components:
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The bundled fonts
 (in `crates/cantus-ui/assets/fonts/`) are licensed under the SIL Open Font License 1.1:
 IBM Plex Sans, Sans Condensed and Mono ([licence](crates/cantus-ui/assets/fonts/LICENSE-OFL.txt)),
 shipped unmodified — "IBM Plex" is a Reserved Font Name; Barlow Semi Condensed
 ([licence](crates/cantus-ui/assets/fonts/LICENSE-OFL-Barlow.txt)) and Sofia Sans
 ([licence](crates/cantus-ui/assets/fonts/LICENSE-OFL-Sofia-Sans.txt)), with tabular figures
 by default and without hinting (`tools/fonts/build_faces.py`).
+
+## Community
+
+[**GitHub Discussions**](https://github.com/luis314159/cantus-daw/discussions) is where Cantus's
+people meet, in English or Spanish: ask how to do something (*Q&A*), share a song you made
+with Cantus (*Show and tell*), propose an idea (*Ideas*), and read what is coming
+(*Announcements*). A GitHub account is all it takes.
+
+## Feedback
+
+A problem or a request goes through [GitHub issues](https://github.com/luis314159/cantus-daw/issues),
+in English or Spanish: a [bug report](https://github.com/luis314159/cantus-daw/issues/new?template=bug_report.yml),
+a [hardware report](https://github.com/luis314159/cantus-daw/issues/new?template=hardware_report.yml)
+(how Cantus runs with your audio interface, working or not) or a
+[feature request](https://github.com/luis314159/cantus-daw/issues/new?template=feature_request.yml).
+Reports get answered and fixed: the first one, a window that flickered on many screens,
+was reported on 14 November 2026, had its cause and a workaround three days later, and the
+fix shipped in beta.15 ([closed issues](https://github.com/luis314159/cantus-daw/issues?q=is%3Aissue+is%3Aclosed)).
 
 ## Support
 

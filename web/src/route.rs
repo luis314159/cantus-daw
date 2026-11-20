@@ -31,6 +31,8 @@ pub enum Route {
     Roadmap,
     /// The manual, tutorials and design notes (`web-extra`'s `pages::learn`).
     Learn,
+    /// Why Cantus is made, in its author's words (round 41, `why.rs`).
+    Why,
 }
 
 /// A page in a language: one address.
@@ -60,6 +62,7 @@ impl Route {
             Route::Ai => "ai/".into(),
             Route::Roadmap => "roadmap/".into(),
             Route::Learn => "learn/".into(),
+            Route::Why => "why/".into(),
         }
     }
 
@@ -77,6 +80,7 @@ impl Route {
             ["ai"] => Route::Ai,
             ["roadmap"] => Route::Roadmap,
             ["learn"] => Route::Learn,
+            ["why"] => Route::Why,
             _ => return None,
         })
     }
@@ -92,6 +96,7 @@ impl Route {
             Route::Ai,
             Route::Roadmap,
             Route::Learn,
+            Route::Why,
             Route::Instruments,
             Route::Effects,
         ];
@@ -185,20 +190,35 @@ impl Page {
             ),
             Route::Roadmap => format!("{}{tail}", l.t("Roadmap", "Hoja de ruta")),
             Route::Learn => format!("{}{tail}", l.t("Learn", "Aprende")),
+            Route::Why => format!(
+                "{}{tail}",
+                l.t("Why I'm building Cantus", "Por qué construyo Cantus")
+            ),
         }
     }
 
     /// The page's meta description: one or two sentences, only what is built.
     pub fn description(self) -> String {
         let l = self.lang;
+        // macOS is named as a preview only while the latest release holds its disk image
+        // (shelf.rs); beta.15 was published for Windows and Linux, macOS held for the next.
+        let mac = crate::shelf::Shelf::latest().macos;
         let s = match self.route {
-            Route::Home => l.t(
+            Route::Home if mac => l.t(
                 "Cantus is a free, open-source DAW written in Rust: arrangement, piano roll, channel rack, a mixer, instruments and effects of its own, and a recording mode that bakes the song so only your take is live. Windows and Linux, macOS in preview. No account, no subscription, no telemetry.",
                 "Cantus es un DAW libre y de código abierto escrito en Rust: arreglo, piano roll, channel rack, un mezclador, instrumentos y efectos propios, y un modo de grabación que pre-renderiza la canción para que solo tu toma esté en vivo. Windows y Linux, macOS en vista previa. Sin cuenta, sin suscripción, sin telemetría.",
             ),
-            Route::Download => l.t(
+            Route::Home => l.t(
+                "Cantus is a free, open-source DAW written in Rust: arrangement, piano roll, channel rack, a mixer, instruments and effects of its own, and a recording mode that bakes the song so only your take is live. Windows and Linux; macOS in the next beta. No account, no subscription, no telemetry.",
+                "Cantus es un DAW libre y de código abierto escrito en Rust: arreglo, piano roll, channel rack, un mezclador, instrumentos y efectos propios, y un modo de grabación que pre-renderiza la canción para que solo tu toma esté en vivo. Windows y Linux; macOS en la próxima beta. Sin cuenta, sin suscripción, sin telemetría.",
+            ),
+            Route::Download if mac => l.t(
                 "Download Cantus for Windows, Linux or the macOS preview: the newest beta, its checksums, what you need and your first steps. Free, with no account.",
                 "Descarga Cantus para Windows, Linux o la vista previa de macOS: la beta más reciente, sus sumas, lo que necesitas y tus primeros pasos. Gratis, sin cuenta.",
+            ),
+            Route::Download => l.t(
+                "Download Cantus for Windows or Linux: the newest beta, its checksums, what you need and your first steps. Free, with no account.",
+                "Descarga Cantus para Windows o Linux: la beta más reciente, sus sumas, lo que necesitas y tus primeros pasos. Gratis, sin cuenta.",
             ),
             Route::Instruments | Route::Effects => l.t(
                 "Every instrument and effect of Cantus's own: synths, a sampler, drums, an organ, a piano, and effects from EQ to reverb, each with its window, its presets heard and its own page. All free.",
@@ -232,6 +252,10 @@ impl Page {
             Route::Learn => l.t(
                 "Learn Cantus: the manual in English and Spanish, from install to a finished song, the design notes and the press kit.",
                 "Aprende Cantus: el manual en inglés y español, de la instalación a una canción terminada, las notas de diseño y el kit de prensa.",
+            ),
+            Route::Why => l.t(
+                "Why Cantus is made, in its author's words: completely free for everyone, built to become one day the best DAW on the market, and under one verse, Colossians 3:23.",
+                "Por qué se hace Cantus, en palabras de su autor: completamente gratis para todos, hecho para llegar a ser algún día el mejor DAW del mercado, y bajo un versículo, Colosenses 3:23.",
             ),
         };
         s.to_string()

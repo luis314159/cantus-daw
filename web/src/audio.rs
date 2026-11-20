@@ -25,7 +25,7 @@ impl Synth {
         let noise = ctx.create_buffer(1, len, rate)?;
         // A fixed-seed xorshift: the same hats and claps every visit.
         let mut s: u32 = 0x9e37_79b9;
-        let mut data: Vec<f32> = (0..len)
+        let data: Vec<f32> = (0..len)
             .map(|_| {
                 s ^= s << 13;
                 s ^= s >> 17;
@@ -33,7 +33,7 @@ impl Synth {
                 (s as f32 / u32::MAX as f32) * 2.0 - 1.0
             })
             .collect();
-        noise.copy_to_channel(&mut data, 0)?;
+        noise.copy_to_channel(&data, 0)?;
 
         let master = ctx.create_gain()?;
         master.gain().set_value(0.8);

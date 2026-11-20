@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: A question, an idea or a song to share / Una pregunta, una idea o una canción para compartir
+    url: https://github.com/luis314159/cantus-daw/discussions
+    about: GitHub Discussions, in English or Spanish — Q&A, Ideas, Show and tell. / GitHub Discussions, en inglés o español — preguntas, ideas y muestra tu canción.
   - name: Quick-start manual / Manual de inicio rápido
     url: https://github.com/luis314159/cantus-daw/blob/master/docs/manual/en/README.md
     about: Install, audio setup, recording, editing, mixing, mastering, export — and the known issues of the beta. / Instalación, audio, grabación, edición, mezcla, masterización, exportación y los problemas conocidos de la beta.

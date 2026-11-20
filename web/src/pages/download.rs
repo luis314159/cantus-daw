@@ -11,8 +11,10 @@ use crate::lang::{use_lang, Lang};
 use crate::nav::{manual, SendLink};
 use crate::platform::Os;
 use crate::release::{self, megabytes, RelFile, REL_DATE, REL_NOTES, REL_VERSION};
-use crate::shelf::use_shelf;
-use crate::top::{DOWNLOAD, DOWNLOAD_LINUX, DOWNLOAD_MACOS, GITHUB, RELEASES};
+use crate::shelf::{use_shelf, Shelf};
+use crate::top::{
+    BETA_NOTE, DOWNLOAD, DOWNLOAD_LINUX, DOWNLOAD_MACOS, GITHUB, RELEASES, WIN10_REPORT,
+};
 
 /// What the page says about one system.
 struct System {
@@ -119,8 +121,8 @@ pub fn download_page() -> Html {
         ),
         Os::MacOs => l.t("Apple silicon or Intel", "Apple silicon o Intel"),
         _ => l.t(
-            "Windows 11 · x64 (10 untested)",
-            "Windows 11 · x64 (10 sin probar)",
+            "Windows 11 · x64 (10 not tried yet)",
+            "Windows 11 · x64 (10 aún sin probar)",
         ),
     };
     let meta = match sys.file {
@@ -159,7 +161,8 @@ pub fn download_page() -> Html {
         };
         let (name, what) = match o {
             Os::Linux => ("Linux", l.t("AppImage · Ubuntu 22.04 and later", "AppImage · Ubuntu 22.04 y posteriores")),
-            Os::MacOs => (l.t("macOS · preview", "macOS · vista previa"), l.t("Universal disk image · unsigned", "Imagen de disco universal · sin firmar")),
+            Os::MacOs if shelf.macos => (l.t("macOS · preview", "macOS · vista previa"), l.t("Universal disk image · unsigned", "Imagen de disco universal · sin firmar")),
+            Os::MacOs => ("macOS", l.t("Held for the next beta; this one is Windows and Linux", "Aplazado a la próxima beta; esta es para Windows y Linux")),
             _ => ("Windows", l.t("Installer or portable zip · x64", "Instalador o zip portátil · x64")),
         };
         let size = s.file.map(|f| format!(" · {}", megabytes(f.size))).unwrap_or_default();
@@ -170,7 +173,7 @@ pub fn download_page() -> Html {
                 if on {
                     <a class={classes!("btn", if o == shown { "btn-primary" } else { "btn-quiet" })} href={s.href}>{ l.t("Download", "Descargar") }</a>
                 } else {
-                    <span class="platform-soon">{ l.t("Coming soon", "Muy pronto") }</span>
+                    <span class="platform-soon">{ Shelf::wait(o == Os::MacOs, l) }</span>
                 }
             </li>
         }
@@ -197,6 +200,11 @@ pub fn download_page() -> Html {
                         </div>
                     }
                     <p class="dl-meta"><b>{ meta }</b><span>{ requirement }</span></p>
+                    <p class="dl-other">{ l.t(BETA_NOTE.0, BETA_NOTE.1) }</p>
+                    if shown == Os::Windows {
+                        <p class="dl-other">{ l.t("On Windows 10? Nobody has tried it there yet. ", "¿Usas Windows 10? Nadie lo ha probado ahí todavía. ") }
+                            <a href={WIN10_REPORT}>{ l.t("Tell us whether it runs", "Cuéntanos si funciona") }</a>{ l.t(" — a short report is how Windows 10 joins the list.", " — un reporte corto es como Windows 10 entra en la lista.") }</p>
+                    }
                     <p class="dl-other">{ l.t("Other systems, the plug-ins alone and every file: ", "Otros sistemas, los plug-ins solos y cada archivo: ") }
                         <a href="#systems">{ l.t("below", "abajo") }</a>{ " · " }<a href={REL_NOTES}>{ l.t("release notes", "notas de la versión") }</a>{ " · " }
                         <a href={format!("{GITHUB}/blob/master/docs/DEVELOPING.md")}>{ l.t("build it yourself", "compílalo tú") }</a></p>
@@ -227,7 +235,7 @@ pub fn download_page() -> Html {
                     <li><span class="step-n">{ "1" }</span><h3>{ l.t("Pick your audio device", "Elige tu dispositivo de audio") }</h3>
                         <p>{ l.t("ASIO or WASAPI on Windows; PipeWire, JACK or ALSA on Linux. The status bar shows the latency your driver reports, so you know what you are playing through.", "ASIO o WASAPI en Windows; PipeWire, JACK o ALSA en Linux. La barra de estado muestra la latencia que informa tu driver, así sabes con qué estás tocando.") }</p></li>
                     <li><span class="step-n">{ "2" }</span><h3>{ l.t("Open a starter or a demo", "Abre una plantilla o una demo") }</h3>
-                        <p>{ l.t("Six demo songs come with it — open Neon Tide and press Space. Every sound in it is Cantus's own.", "Vienen seis canciones de demostración — abre Neon Tide y pulsa Espacio. Cada sonido es de Cantus.") }</p></li>
+                        <p>{ l.t("Seven demo songs come with it (File ▸ Demo songs…, Ctrl+Shift+N) — open Neon Tide and press Space. Every sound in it is Cantus's own.", "Vienen siete canciones de demostración (Archivo ▸ Canciones de demostración…, Ctrl+Shift+N) — abre Neon Tide y pulsa Espacio. Cada sonido es de Cantus.") }</p></li>
                     <li><span class="step-n">{ "3" }</span><h3>{ l.t("Make it yours", "Hazla tuya") }</h3>
                         <p>{ l.t("Draw a pattern in the channel rack, play it into the piano roll, mix it. ", "Dibuja un patrón en el rack de canales, tócalo en el piano roll, mézclalo. ") }
                            <a href={manual(l)}>{ l.t("The manual walks the whole path, in English and Spanish.", "El manual recorre todo el camino, en inglés y español.") }</a></p></li>
