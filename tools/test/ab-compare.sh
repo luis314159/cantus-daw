@@ -41,17 +41,29 @@ for f in $files; do
 done
 restore() { for f in $files; do cp "$work/keep/$f" "$f"; done; }
 trap restore EXIT
+# Builds the test binary into $exe, cargo's messages kept in $work/<which>.json and .log. The
+# tests must compile against both versions of the files: a test that calls a function only
+# the new code has fails the base build, and its error is shown.
 build() {
+  local which="$1"
   # shellcheck disable=SC2086
-  bash "$slot" cargo test --release -p "$crate" $kind --no-run -j "${JOBS:-6}" --message-format=json \
-    2>/dev/null | grep -o '"executable":"[^"]*"' | tail -1 | sed 's/"executable":"//; s/"$//; s#\\\\#/#g'
+  bash "$slot" cargo test --release -p "$crate" $kind --no-run -j "${JOBS:-6}" \
+    --message-format=json > "$work/$which.json" 2> "$work/$which.log" || true
+  exe=$(grep -o '"executable":"[^"]*"' "$work/$which.json" | tail -1 \
+    | sed 's/"executable":"//; s/"$//; s#\\\\#/#g')
+  if [ -z "$exe" ]; then
+    echo "the $which build failed:" >&2
+    grep -o '"rendered":"[^"]*' "$work/$which.json" | head -5 | sed 's/"rendered":"//' >&2
+    tail -5 "$work/$which.log" >&2
+    exit 1
+  fi
 }
 for f in $files; do git show "$base:$f" > "$f"; done
-e=$(build); [ -n "$e" ] || { echo "the base build failed" >&2; exit 1; }
-cp "$e" "$work/base.exe"
+build base
+cp "$exe" "$work/base.exe"
 restore
-e=$(build); [ -n "$e" ] || { echo "the new build failed" >&2; exit 1; }
-cp "$e" "$work/new.exe"
+build new
+cp "$exe" "$work/new.exe"
 echo "base: $base's $files; new: the working tree's"
 dir="$root/crates/$crate"
 same=1
