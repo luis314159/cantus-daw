@@ -57,14 +57,20 @@ Not the F5-TTS checkpoints: they are CC-BY-NC, which ADR 0042 keeps out.
 The takes, the gate and the page (`PY=$WORK/env/tts/Scripts/python`):
 
 ```text
-$PY -I tools/video/voice/takes.py --script docs/round41/video/script.md --lang en --models $WORK/models/chatterbox --out $WORK/voice/en
-$PY -I tools/video/voice/takes.py --script docs/round41/video/script.md --lang es --models $WORK/models/chatterbox --out $WORK/voice/es
-$PY -I tools/video/voice/gate.py --takes $WORK/voice/en --whisper $WORK/models/whisper
-$PY -I tools/video/voice/gate.py --takes $WORK/voice/es --whisper $WORK/models/whisper
-$PY -I tools/video/voice/abpage.py --takes $WORK/voice/en --takes $WORK/voice/es --out $WORK/voice/ab.html
+for L in en es; do
+  $PY -I tools/video/voice/takes.py --script docs/round41/video/script.md --lang $L --models $WORK/models/chatterbox --out $WORK/voice/takes/$L
+  $PY -I tools/video/voice/breathe.py --from $WORK/voice/takes/$L --to $WORK/voice/pool/$L --tag t
+  $PY -I tools/video/voice/gate.py --takes $WORK/voice/pool/$L --whisper $WORK/models/whisper
+done
+$PY -I tools/video/voice/abpage.py --takes $WORK/voice/pool/en --takes $WORK/voice/pool/es --out $WORK/voice/ab.html
 ```
 
-- `takes.py` makes six takes a line from a fixed grid of seed, exaggeration, cfg weight
+- `breathe.py` lengthens the take's own pauses (100 ms or more to 180 ms, 150 ms or more
+  to 320 ms) by inserting silence. The voice is never stretched. The stock voice reads long
+  lines quickly, and this is its pacing.
+- `takes.py --phrases` (each phrase made alone) is kept but is off by default. The model
+  babbles after short inputs.
+- `takes.py` makes eight takes a line from a fixed grid of seed, exaggeration, cfg weight
   and temperature, so any take can be made again exactly. Without `--ref` it uses the
   model's stock voice (version 1, the owner's choice). With `--ref <wav>` it clones a voice,
   only the owner's own, cut with `ref.py`.
