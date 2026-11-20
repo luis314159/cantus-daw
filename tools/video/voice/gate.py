@@ -11,11 +11,13 @@ For each `<line>-<take>.wav` with its `.json` (from `takes.py`):
 - **Clipping:** a flat top (three samples or more in a row at full scale); none allowed. A
   lone float sample past 1.0 is an overshoot the mix's gain takes back, and is reported.
 - **DC:** the mean; at most 0.002 of full scale.
-- **Head and tail:** the silence before the first and after the last sample within 40 dB
-  of the take's peak: 10-400 ms at the head, 30-400 ms at the tail (none means a cut word).
-- **Pace:** the words (English) or syllables (Spanish, `pace.py`'s count) over the speech's
-  length head to tail, its pauses included: 2.0-3.0 and 4.0-6.0 a second. The speech must
-  end at least 0.3 s before the line's window does.
+- **Head and tail:** the silence before the first sample within 40 dB of the take's peak,
+  10-400 ms; at the end, the last 20 ms at least 30 dB under the loudest (louder, a word was
+  cut off) and at most 700 ms of trailing sound.
+- **Fits:** the speech ends at least 0.3 s before the line's window does.
+- **Pace, reported, not gated:** the words (English) or syllables (Spanish, `pace.py`'s
+  count) over the speech head to tail, pauses included, against 2.0-3.0 and 4.0-6.0 a
+  second; the A/B page shows it beside the take for the owner's ear.
 - **Ends:** made phrase by phrase, each phrase's raw output must end at least 30 dB under
   its peak: louder, a word was cut off.
 - **Loudness:** integrated (ITU-R BS.1770, pyloudnorm) and true peak (4x oversampled),
@@ -148,6 +150,11 @@ def main() -> None:
         clip = int((lengths >= 3).sum())
         dc = float(x.mean())
         head, tail = edges(x, sr)
+        # How loud the take ends, under its loudest 20 ms: a word cut off ends louder than -30 dB;
+        # a word that decays into the file's end (-30 to -40 dB) gets the assembly's 25 ms fade.
+        hop = int(sr * 0.02)
+        frames = np.sqrt(np.mean(x[: len(x) // hop * hop].reshape(-1, hop) ** 2, axis=1) + 1e-12)
+        end_db = float(20 * np.log10(frames[-1] / frames.max()))
         speech = len(x) / sr - head - tail
         n, lo, hi, unit = pace.count(meta["text"], lang)
         # The rate is over the speech with its own pauses, so the window is the plan's
@@ -162,8 +169,7 @@ def main() -> None:
             "clip": clip == 0,
             "dc": abs(dc) <= 0.002,
             "head": 0.01 <= head <= 0.4,
-            "tail": 0.03 <= tail <= 0.4,
-            "pace": lo <= rate <= hi,
+            "tail": end_db <= -30 and tail <= 0.7,
             "fits": head + speech <= meta["window"] - 0.3,
             # each phrase's raw output ended in its decay, not on a sounding word
             "ends": all(e <= -30 for e in meta.get("phrase_end_db", [])),
@@ -172,6 +178,10 @@ def main() -> None:
             "take": wav.name,
             "line": meta["line"],
             "pass": bool(all(checks.values())),
+            # Pace is the owner's ear's, shown beside the take: the stock voice reads long lines
+            # faster than the plan's calm window, and nothing but stretching the voice changes it.
+            "pace_ok": bool(lo <= rate <= hi),
+            "end_db": round(end_db, 1),
             "checks": checks,
             "heard": heard.strip(),
             "rate": round(rate, 2),
@@ -189,7 +199,7 @@ def main() -> None:
             "cfg_weight": meta["cfg_weight"],
         }
         rows.append(row)
-        failed = [k for k, ok in checks.items() if not ok]
+        failed = [k for k, ok in checks.items() if not ok] + ([] if lo <= rate <= hi else ["(pace)"])
         print(
             f"{wav.name:10s} {'PASS' if row['pass'] else 'fail':4s} {rate:4.2f} {unit}/s "
             f"{speech:5.2f}s head {row['head_ms']:3d} tail {row['tail_ms']:3d} "

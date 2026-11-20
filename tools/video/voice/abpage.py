@@ -20,6 +20,13 @@ from pathlib import Path
 MIDDLE = {"en": 2.5, "es": 5.0}
 
 
+def pace_note(r: dict, lang: str) -> str:
+    if r.get("pace_ok", True):
+        return ""
+    fast = r["rate"] > MIDDLE[lang]
+    return " · <em>faster than a calm read</em>" if fast else " · <em>slower than a calm read</em>"
+
+
 def best_two(rows: list, lang: str) -> list:
     ok = [r for r in rows if r["pass"]]
     ok.sort(key=lambda r: abs(r["rate"] - MIDDLE[lang]))
@@ -54,7 +61,7 @@ def main() -> None:
                 parts.append(
                     f'<label class="take"><input type="radio" name="{name}" value="{value}">'
                     f'<b>{label}</b><audio controls preload="none" src="{html.escape(src)}"></audio>'
-                    f'<span>{r["speech_s"]} s</span></label>'
+                    f'<span>{r["speech_s"]} s · {r["rate"]} {r["unit"]}{pace_note(r, lang)}</span></label>'
                 )
             parts.append(
                 f'<label class="take"><input type="radio" name="{lang}-{n}" value="neither">'
@@ -83,14 +90,18 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
 .warn { color: var(--gold); margin: 0 0 8px; }
 .take { display: flex; align-items: center; gap: 10px; padding: 4px 0; flex-wrap: wrap; }
 .take b { width: 64px; } .take span { color: var(--muted); font-size: 14px; }
+.take em { color: var(--gold); font-style: normal; }
 audio { height: 32px; max-width: 100%; }
 #picks { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel);
   border-top: 1px solid var(--line); padding: 10px 16px; font: 14px ui-monospace, monospace;
   overflow-wrap: anywhere; }
 </style></head><body>
 <h1>Narration takes</h1>
-<p class="note">Two takes per line that passed the gate (words, clipping, DC, silences, pace).
-The order is by take name, not by any score. Pick one per line, or Neither. The line at the
+<p class="note">Two takes per line that passed the gate: every word heard back as written, no
+clipping, no word cut off, no babble after the line, inside the line's time. Beside each: its
+length and its pace (words a second; in Spanish, syllables, estimated). A calm read is about
+2.5 words or 5 syllables a second; the stock voice reads long lines faster, and only your ear
+can say whether that is too fast. The order is by take name, not by any score. Pick one per line, or Neither. The line at the
 bottom holds your picks; copy it back.</p>
 {{BODY}}
 <div id="picks">Picks: none yet</div>
