@@ -1,17 +1,31 @@
 # The prompt for the video session
 
 *Paste everything below the line into a new Claude Code session opened at
-`F:\projects\cantus`, after the owner has answered the four questions in `README.md`
-("What the owner decides"). Write his answers into the first paragraph where it says
-[ANSWERS].*
+`F:\projects\cantus`. The owner's choices so far are written in; the ones still open are
+asked at the step that needs them.*
 
 ---
 
 You are making the Cantus launch video: 80 seconds, in English and Spanish, for the top of
 cantusdaw.com and the README. It should look professional and polished, as good as any
 commercial DAW's launch film. The owner, Luis, wants it made with AI (you), with a very good
-voice-over. His answers to the plan's questions: [ANSWERS — the voice: his own cloned, or a
-stock voice; the end card A or B; the songs; where it is published].
+voice-over.
+
+**Already decided by the owner (2026-11-20):**
+- the app in **Slate Lapis Night**, the dark theme, in every shot;
+- **Onda**, the oscilloscope dancer, in the video doing something very simple and constant
+  (`script.md`, "Onda, the one dancer"); no other dancer.
+
+**Still his to decide; ask him at the step that needs it, and do not guess:**
+- the voice: his own, cloned from a recording he makes (recommended), or a stock voice;
+  ask before step 2;
+- the end card: A, with Colossians 3:23, or B, without; make both and let him choose;
+- the songs: the script's proposal stands unless he changes it;
+- where it is published: ask at step 8.
+
+You may run the work yourself or hand the steps to builder agents. If you use agents, keep
+one owner per file, give each the plan, the script and these rules, and review what each
+returns: frames looked at, numbers checked. Never relay an agent's claim unchecked.
 
 ## Read first, in this order
 1. `CLAUDE.md`: the project's rules. Follow them, especially: explicit staging, commit only

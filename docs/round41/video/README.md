@@ -68,8 +68,8 @@ session adds one example, `crates/cantus-ui/examples/film.rs`, a director's scri
   GPU; a hosted plug-in's own window): the owner records those shots with OBS at 60 fps
   from a written list, or they are left out.
 
-The app's look for every shot: Slate Lapis Night, the default. One shot of Paper, the
-light theme, shows that both exist.
+The app's look for every shot: **Slate Lapis Night, the dark theme, by the owner's choice
+(2026-11-20).** No light theme appears in the video.
 
 ### 2. The cards: titles and captions in the site's look
 
