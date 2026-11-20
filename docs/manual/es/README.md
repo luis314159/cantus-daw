@@ -71,7 +71,7 @@ botón de descarga de [cantusdaw.com](https://cantusdaw.com), que te da el de tu
 
 - **Windows 11, x64**: `Cantus-<versión>-windows-x64-setup.exe` (o el zip portátil).
 - **macOS, Apple silicon o Intel**: `Cantus-<versión>-macos-universal.dmg`.
-- **Linux x86-64**, Ubuntu 22.04 o más nuevo (o similar): `Cantus-<versión>-linux-x86_64.AppImage`.
+- **Linux x86-64**, Ubuntu 22.04 o más nuevo (o similar): `Cantus-<versión>-x86_64.AppImage`.
 
 `SHA256SUMS.txt`, a su lado, te deja comprobar una descarga: `Get-FileHash <archivo>` en
 Windows, `shasum -a 256 <archivo>` en Mac, `sha256sum <archivo>` en Linux. Unos 200 MB de
@@ -123,7 +123,7 @@ la Papelera; esa carpeta es tuya para borrarla o conservarla.
 
 ### En Linux
 
-1. Descarga `Cantus-<versión>-linux-x86_64.AppImage` — un solo archivo que funciona en la
+1. Descarga `Cantus-<versión>-x86_64.AppImage` — un solo archivo que funciona en la
    mayoría de las distribuciones de los últimos años, sin instalar nada ni pedir
    administrador.
 2. Hazlo ejecutable y ábrelo: en el gestor de archivos, *Propiedades ▸ Permisos ▸ Permitir

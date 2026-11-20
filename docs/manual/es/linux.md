@@ -13,7 +13,7 @@
 
 ## Instalar: la AppImage
 
-1. Descarga `Cantus-<versión>-linux-x86_64.AppImage` de la
+1. Descarga `Cantus-<versión>-x86_64.AppImage` de la
    [página de versiones](https://github.com/luis314159/cantus-daw/releases) — o de
    [cantusdaw.com](https://cantusdaw.com).
 2. Hazla ejecutable: en tu gestor de archivos, *Propiedades ▸ Permisos ▸ Permitir

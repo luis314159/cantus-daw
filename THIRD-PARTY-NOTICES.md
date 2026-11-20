@@ -700,7 +700,7 @@ under the Common Public License 1.0, and NSIS's source code is available from th
 
 ## The Linux AppImage
 
-`Cantus-<version>-linux-x86_64.AppImage` begins with the **AppImage type 2 runtime**
+`Cantus-<version>-x86_64.AppImage` begins with the **AppImage type 2 runtime**
 (<https://github.com/AppImage/type2-runtime>, MIT licence), a separate, statically linked
 program that mounts the image and starts Cantus; it is not linked with Cantus. It is built
 with musl (MIT), squashfuse (BSD-2-Clause), libfuse 3 (its library under the LGPL-2.1: the

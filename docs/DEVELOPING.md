@@ -247,7 +247,7 @@ built. `docs/mac-session.md` is the checklist for a session on a real Mac.
 bash packaging/linux/deps.sh                       # once (sudo; Ubuntu 22.04 for releases)
 cargo build --release
 bash packaging/linux/build-appimage.sh 0.2.0 target/dist
-bash packaging/linux/test-fallback.sh target/dist/Cantus-0.2.0-linux-x86_64.AppImage
+bash packaging/linux/test-fallback.sh target/dist/Cantus-0.2.0-x86_64.AppImage
 ```
 
 `build-appimage.sh` (the interface `release.yml` calls, round 30) builds the two levels

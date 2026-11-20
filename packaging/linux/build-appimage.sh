@@ -5,7 +5,8 @@
 #   bash packaging/linux/build-appimage.sh <version> <out-dir>
 #
 # From the repository root, after `cargo build --release` (and packaging/linux/deps.sh).
-# Writes <out-dir>/Cantus-<version>-linux-x86_64.AppImage and prints its SHA-256.
+# Writes <out-dir>/Cantus-<version>-x86_64.AppImage (the AppImage catalogue's naming since
+# beta.16; release.yml publishes it under the old name too) and prints its SHA-256.
 #
 # What is in it (as the Windows installer carries): the launcher as `cantus`, the program
 # twice — `cantus-x86-64-v3` (AVX2) and `cantus-x86-64-v2` — of which the launcher starts
@@ -165,7 +166,7 @@ if ! echo "$runtime_sha  $runtime" | sha256sum -c - >/dev/null 2>&1; then
     exit 1
   }
 fi
-image="$out/Cantus-$version-linux-x86_64.AppImage"
+image="$out/Cantus-$version-x86_64.AppImage"
 mksquashfs "$app" "$work/app.squashfs" -root-owned -noappend -comp zstd -quiet
 cat "$runtime" "$work/app.squashfs" >"$image"
 chmod 755 "$image"

@@ -70,7 +70,7 @@ download button of [cantusdaw.com](https://cantusdaw.com), which gives you your 
 
 - **Windows 11, x64**: `Cantus-<version>-windows-x64-setup.exe` (or the portable zip).
 - **macOS, Apple silicon or Intel**: `Cantus-<version>-macos-universal.dmg`.
-- **Linux x86-64**, Ubuntu 22.04 or newer (or alike): `Cantus-<version>-linux-x86_64.AppImage`.
+- **Linux x86-64**, Ubuntu 22.04 or newer (or alike): `Cantus-<version>-x86_64.AppImage`.
 
 `SHA256SUMS.txt` beside them lets you check a download: `Get-FileHash <file>` on Windows,
 `shasum -a 256 <file>` on a Mac, `sha256sum <file>` on Linux. About 200 MB of disk. Setting
@@ -120,7 +120,7 @@ delete or keep.
 
 ### On Linux
 
-1. Download `Cantus-<version>-linux-x86_64.AppImage` — one file that runs on most
+1. Download `Cantus-<version>-x86_64.AppImage` — one file that runs on most
    distributions from the last few years, with nothing to install and no administrator.
 2. Make it executable and open it: in a file manager, *Properties ▸ Permissions ▸ Allow
    executing as a program*, or in a terminal
