@@ -22,9 +22,15 @@ session's plan, the script (`script.md`) and the prompt that starts it (`prompt.
   - Every frame looked at before it ships.
 - **In English and in Spanish.** Two narrations and two caption sets, written as Spanish,
   not translated word for word.
-- **The owner's decisions stand.** No dancers: they are off the site and the README. The
-  faith is his to place: an end card with Colossians 3:23 is offered as an option, his
-  choice. Nothing is published without his word.
+- **The owner's decisions stand.**
+  - **One dancer, Onda,** by his choice (2026-11-20): the figure drawn by an oscilloscope's
+    amber trace. It dances something very simple and constant, a steady groove on the beat
+    with none of its drop moves, in the app's own Stage. It is the real dancer as the app
+    renders it, with no special version made for the film. The other dancers stay out, and
+    the site and the README stay without dancers.
+  - The faith is his to place: an end card with Colossians 3:23 is offered as an option,
+    his choice.
+  - Nothing is published without his word.
 
 ## The pipeline
 
@@ -159,7 +165,7 @@ One committed script, `tools/video/build.sh`, a reproducible ffmpeg filtergraph:
   - no debug colour;
   - no clipped label;
   - the look is Slate Lapis;
-  - nothing the owner decided against (dancers).
+  - no dancer but Onda, and Onda only in its simple, constant groove.
 - **The soundtrack:** loudness and true peak, the voice intelligible (the ducking measured:
   music at least 8 dB under the voice in the speech band while it speaks), picture and sound
   in sync (the playhead's position against the audio at three marks, to the frame).

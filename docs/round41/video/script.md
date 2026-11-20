@@ -24,14 +24,34 @@ Check which demo uses which instrument, and swap a song if another shows the uni
 | # | Time | Picture (the real app, `film.rs`) | Sound | Card |
 |---|---|---|---|---|
 | 1 | 0:00–0:06 | Black, then the arrangement of *With All Your Heart* fades in, playing; a slow push-in on the playhead crossing a bar line | the song's opening bars, no voice for 2 s | logo #03 draws on, gold rule |
-| 2 | 0:06–0:14 | the whole window, the song playing; a pull-back to show arrangement, mixer, browser | voice 1 | — |
+| 2 | 0:06–0:14 | the whole window, the song playing; a pull-back to show arrangement, mixer, browser — **Onda** in the Stage, its steady groove | voice 1 | — |
 | 3 | 0:14–0:24 | the instrument picker, then Chorda's window, *Aurora*'s piano part playing; push-in on the keys moving | voice 2 | "[11] instruments" |
 | 4 | 0:24–0:31 | Tympanum's kit view playing *Midnight Static*'s drums; the mics on strips | voice 3 | — |
 | 5 | 0:31–0:43 | *Neon Tide*'s mixer (FL-shaped desk); the cursor drags an effect onto a strip; its face opens; one knob turns, the sound changes | voice 4 | "[42] effects" |
 | 6 | 0:43–0:52 | three fast shots, one bar each: recording (an armed track, its meter); the session view launching clips; a hosted CLAP/VST3 plug-in's slot | voice 5 | lower third per shot |
 | 7 | 0:52–1:00 | the master channel's mastering chain on *With All Your Heart*; the loudness meter landing | voice 6 | — |
-| 8 | 1:00–1:08 | a slow glide across the desk, the song building | voice 7 | "Free · open source" |
-| 9 | 1:08–1:20 | end card over the song's last bars: logo, cantusdaw.com, "Windows · Linux — macOS next", the download button drawn | voice 8, then the song alone | end card (A or B) |
+| 8 | 1:00–1:08 | a slow glide across the desk, the song building; it ends on **Onda** in the Stage, framed close, keeping the beat | voice 7 | "Free · open source" |
+| 9 | 1:08–1:20 | end card over the song's last bars: logo, cantusdaw.com, "Windows · Linux — macOS next", the download button drawn; **Onda** small at the card's side, still in its groove (its frames from the film, keyed out of the Stage, or the app's own transparent video layer, ADR 0088) | voice 8, then the song alone | end card (A or B) |
+
+### Onda, the one dancer (the owner, 2026-11-20)
+
+The owner chose **Onda**, the figure drawn by an oscilloscope's amber trace with a Lissajous
+loop for a head, and asked for "algo muy simple y constante".
+
+- **What it dances:** one steady groove on the beat for the whole video (a sway, a nod, the
+  limbs rippling with the sound), with **none of its drop moves** (the wave snapping square)
+  and no spins or jumps. Choose it from what the app's dancer already does: a calm
+  move-set, a low energy, or the one move held. If the app offers no way to keep it that
+  simple, say so in the report and ask the owner, rather than drawing a special Onda for
+  the film.
+- **Where:**
+  - shot 2, in the Stage, beside the window's work;
+  - shot 8's last beats, framed close;
+  - the end card, small, at the side.
+
+  It never covers a control the narration names.
+- **On the beat to the frame:** its feed follows the same engine clock as the picture and
+  the sound.
 
 ## The narration
 
