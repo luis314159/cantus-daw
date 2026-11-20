@@ -8,7 +8,8 @@ For each `<line>-<take>.wav` with its `.json` (from `takes.py`):
 - **Words:** Whisper (MIT) transcribes it in the line's language; after normalising (case,
   punctuation, the figures below) it must equal the script word for word; a name (Cantus,
   Chorda, Tympanum) may be spelled within two letters, with the same first sound.
-- **Clipping:** samples at or past 0.999 of full scale; none allowed.
+- **Clipping:** a flat top (three samples or more in a row at full scale); none allowed. A
+  lone float sample past 1.0 is an overshoot the mix's gain takes back, and is reported.
 - **DC:** the mean; at most 0.002 of full scale.
 - **Head and tail:** the silence before the first and after the last sample within 40 dB
   of the take's peak: 10-400 ms at the head, 30-400 ms at the tail (none means a cut word).
@@ -137,7 +138,12 @@ def main() -> None:
         x16 = resample_poly(x, 16000 // g, sr // g).astype(np.float32)
         heard = asr.transcribe(x16, language=lang, temperature=0.0, fp16=False)["text"]
         said, got = normal(meta["text"], lang), normal(heard, lang)
-        clip = int((np.abs(x) >= 0.999).sum())
+        # Clipping is a flat top: three samples or more in a row at full scale. The takes are
+        # float, so a lone sample past 1.0 is an overshoot the mix's gain takes back, not a clip.
+        hot = (np.abs(x) >= 0.999).astype(np.int8)
+        runs = np.diff(np.concatenate(([0], hot, [0])))
+        lengths = np.nonzero(runs == -1)[0] - np.nonzero(runs == 1)[0]
+        clip = int((lengths >= 3).sum())
         dc = float(x.mean())
         head, tail = edges(x, sr)
         speech = len(x) / sr - head - tail
@@ -171,6 +177,7 @@ def main() -> None:
             "tail_ms": round(tail * 1000),
             "dc": round(dc, 5),
             "clipped": clip,
+            "peak": round(float(np.abs(x).max()), 4),
             "lufs": round(lufs, 1),
             "true_peak_db": round(tp, 1),
             "seed": meta["seed"],
