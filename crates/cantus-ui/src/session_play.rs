@@ -827,6 +827,18 @@ impl CantusApp {
         }
     }
 
+    /// r41:ids — another project is about to take this one's place: a performance playing
+    /// (or a slot recording) ends now, where it was last heard, into this project — what
+    /// was heard with arrangement record on is committed here, never into the next one,
+    /// whose slots and tracks of the same ids are others — and the conductor starts again.
+    pub(crate) fn end_performance_here(&mut self) {
+        if self.perform.active() || self.perform.recording.is_some() {
+            let at = self.perform.last_tick;
+            self.end_performance(at);
+        }
+        self.perform = Default::default();
+    }
+
     /// The performance ends at `at` (the transport stopped or jumped): what was heard is
     /// committed with arrangement record on, every clip stops, every track plays its
     /// arrangement again.

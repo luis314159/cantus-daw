@@ -13,7 +13,7 @@ use crate::samples::SampleCache;
 use cantus_core::{EffectId, Project, Snapshot, Ticks, TrackId};
 use cpal::traits::{DeviceTrait, StreamTrait};
 use rtrb::{Consumer, Producer, RingBuffer};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -85,8 +85,11 @@ pub struct EngineHandle {
     modulation: crate::modulator::ModTelemetry,
     stats: EngineStats,
     send_failures: u64,
-    /// Effect ids whose unit currently lives in the engine.
-    known_effects: HashSet<EffectId>,
+    /// Effect ids whose unit currently lives in the engine, with where the unit is (`None`:
+    /// delivered by the host, placed by the next snapshot) and its kind. r41:ids — an id
+    /// alone names another insert once another project is in place (ids start again from
+    /// 1 in every project): a slot is known only where it is and as what it is.
+    known_effects: HashMap<EffectId, (Option<cantus_core::StripId>, cantus_core::EffectKind)>,
     /// fx3:tabula — the pedals of the boards the engine runs (ADR 0131).
     known_pedals: crate::fx::tabula::KnownPedals,
     /// For each track hosting a native or hosted instrument, the kind and serial of the
@@ -356,7 +359,7 @@ impl EngineHandle {
             modulation: Default::default(),
             stats: EngineStats::default(),
             send_failures: 0,
-            known_effects: HashSet::new(),
+            known_effects: HashMap::new(),
             known_pedals: Default::default(), // fx3:tabula
             known_instruments: HashMap::new(),
             parts_sent: Default::default(),
@@ -466,7 +469,7 @@ impl EngineHandle {
             modulation: Default::default(),
             stats: EngineStats::default(),
             send_failures: 0,
-            known_effects: HashSet::new(),
+            known_effects: HashMap::new(),
             known_pedals: Default::default(), // fx3:tabula
             known_instruments: HashMap::new(),
             parts_sent: Default::default(),
@@ -512,13 +515,13 @@ impl EngineHandle {
     /// engine does not run yet. Call before [`Self::set_snapshot`] with the snapshot that
     /// holds the slot, which then leaves it alone.
     pub fn add_unit(&mut self, unit: EffectUnit) -> bool {
-        let id = unit.id;
+        let (id, kind) = (unit.id, unit.kind);
         if self
             .tx
             .push(EngineMessage::AddEffect(Box::new(unit)))
             .is_ok()
         {
-            self.known_effects.insert(id);
+            self.known_effects.insert(id, (None, kind)); // r41:ids — placed by the snapshot
             true
         } else {
             self.send_failures += 1;
@@ -529,13 +532,15 @@ impl EngineHandle {
     /// Swap a new unit in for the one the engine runs with the same id; the old one comes
     /// back as garbage and the id stays known.
     pub fn replace_unit(&mut self, unit: EffectUnit) -> bool {
-        let id = unit.id;
+        let (id, kind) = (unit.id, unit.kind);
         if self
             .tx
             .push(EngineMessage::ReplaceEffect(Box::new(unit)))
             .is_ok()
         {
-            self.known_effects.insert(id);
+            // r41:ids — in the place of its predecessor.
+            let place = self.known_effects.get(&id).and_then(|k| k.0);
+            self.known_effects.insert(id, (place, kind));
             true
         } else {
             self.send_failures += 1;
@@ -543,9 +548,39 @@ impl EngineHandle {
         }
     }
 
+    /// r41:ids — another project takes the place of the open one (opening a file, a demo,
+    /// *New*, a recovery). Its ids start again from 1, so every id this handle knows may
+    /// name something else now: the effects, Tabula's pedals and the instruments the engine
+    /// holds are forgotten, and the next snapshot sends a fresh unit for each — the engine
+    /// takes a delivered unit over one it holds, so nothing of the old project is taken
+    /// over (BACKLOG §1: Aurora's master EQ, never sent after Neon Tide). A snapshot that
+    /// waited is the old project's and never goes; nothing is cut against the old one or
+    /// keeps its zones; the key heard, the analyser and the scopes watched let go; every
+    /// voice is released.
+    pub fn forget_project(&mut self) {
+        self.known_effects.clear();
+        self.known_pedals = Default::default();
+        self.known_instruments.clear();
+        self.dance_feeds.retain(|_, _| false);
+        self.pending = None;
+        self.pending_since = None;
+        self.rec.snapshot = None;
+        self.fx_params.clear();
+        self.inst_params.clear();
+        if self.hear_key.is_some() {
+            self.set_hear_key(None);
+        }
+        self.set_analyser(None);
+        if self.scope_ids.iter().any(Option::is_some) {
+            self.scope_ids = [None; crate::fx::speculum::MAX_SCOPES];
+            self.send(EngineMessage::WatchScopes(self.scope_ids));
+        }
+        self.panic();
+    }
+
     /// Whether the engine has (or is about to get) a unit for this effect.
     pub fn knows_effect(&self, id: EffectId) -> bool {
-        self.known_effects.contains(&id)
+        self.known_effects.contains_key(&id)
     }
 
     /// What hosted plug-ins' own windows did since the last call, oldest first.
@@ -1102,27 +1137,34 @@ impl EngineHandle {
         // An effect this snapshot no longer has is forgotten now, not when the engine hands
         // its unit back: a remove and its undo in quick succession then send a fresh unit
         // with the undo's snapshot (round 22, the soak builder's E1).
-        self.known_effects
-            .retain(|id| snapshot.effect_slots().any(|s| s.id == *id));
+        // r41:ids — and one it holds with another place or kind is another insert (another
+        // project's, whose ids started again from 1): forgotten, sent fresh.
+        self.known_effects.retain(|id, (place, kind)| {
+            placed_effects(&snapshot)
+                .any(|(at, s)| s.id == *id && s.spec.kind == *kind && place.is_none_or(|p| p == at))
+        });
         // fx3:tabula — the boards sent whole now bring their pedals.
         let whole: Vec<EffectId> = snapshot
             .effect_slots()
-            .filter(|s| !self.known_effects.contains(&s.id))
+            .filter(|s| !self.known_effects.contains_key(&s.id))
             .map(|s| s.id)
             .collect();
         // The strips' inserts and the master's (ADR 0026).
-        for slot in snapshot.effect_slots() {
-            if !self.known_effects.contains(&slot.id) {
-                let unit = EffectUnit::new(slot, self.sample_rate as f32);
-                if self
-                    .tx
-                    .push(EngineMessage::AddEffect(Box::new(unit)))
-                    .is_ok()
-                {
-                    self.known_effects.insert(slot.id);
-                } else {
-                    self.send_failures += 1;
-                }
+        for (at, slot) in placed_effects(&snapshot) {
+            if let Some(known) = self.known_effects.get_mut(&slot.id) {
+                known.0 = Some(at); // r41:ids — a delivered unit's place, now known
+                continue;
+            }
+            let unit = EffectUnit::new(slot, self.sample_rate as f32);
+            if self
+                .tx
+                .push(EngineMessage::AddEffect(Box::new(unit)))
+                .is_ok()
+            {
+                self.known_effects
+                    .insert(slot.id, (Some(at), slot.spec.kind));
+            } else {
+                self.send_failures += 1;
             }
         }
         // fx3:tabula — Tabula's pedals (ADR 0131): each pedal a board the engine runs lacks,
@@ -1356,12 +1398,17 @@ impl EngineHandle {
                 EngineEvent::GarbageEffect(unit) => {
                     // A replaced unit's id lives on in its successor; so does one whose id the
                     // last snapshot sent still has (a new unit went with it).
-                    let resent = self
-                        .rec
-                        .snapshot
-                        .as_ref()
-                        .is_some_and(|s| s.effect_slots().any(|e| e.id == unit.id));
-                    if !unit.replaced && !resent {
+                    // r41:ids — of its kind: a unit another project's insert left with this
+                    // id is not the one sent for it now.
+                    let resent = self.rec.snapshot.as_ref().is_some_and(|s| {
+                        s.effect_slots()
+                            .any(|e| e.id == unit.id && e.spec.kind == unit.kind)
+                    });
+                    let ours = self
+                        .known_effects
+                        .get(&unit.id)
+                        .is_some_and(|k| k.1 == unit.kind);
+                    if !unit.replaced && !resent && ours {
                         self.known_effects.remove(&unit.id);
                     }
                     drop(unit);
@@ -1562,4 +1609,21 @@ impl EngineHandle {
 /// audio thread the first time a Speculum is watched in it ([`EngineHandle::watch_scope`]).
 fn scope_rings() -> Vec<Option<Consumer<crate::fx::speculum::ScopeChunk>>> {
     (0..crate::fx::speculum::MAX_SCOPES).map(|_| None).collect()
+}
+
+/// r41:ids — every insert of `snapshot` with the chain that holds it: the strips', then the
+/// master's ([`cantus_core::StripId::MASTER`]).
+fn placed_effects(
+    snapshot: &Snapshot,
+) -> impl Iterator<Item = (cantus_core::StripId, &cantus_core::EffectSlot)> {
+    snapshot
+        .strips
+        .iter()
+        .flat_map(|st| st.effects.iter().map(move |e| (st.id, e)))
+        .chain(
+            snapshot
+                .master_effects
+                .iter()
+                .map(|e| (cantus_core::StripId::MASTER, e)),
+        )
 }

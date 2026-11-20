@@ -89,7 +89,7 @@ impl AgentHost for CantusApp {
         match done {
             Ok(()) => {
                 if replaces {
-                    self.epoch += 1;
+                    self.other_project(); // r41:ids
                 }
                 crate::views::transport::sync_service::tempo_edited(self, tempo_edit);
                 self.validate_selection();

@@ -808,6 +808,29 @@ impl Processor {
         &self.stats
     }
 
+    /// r41:ids — what every chain runs, in its order: `(its strip — the master's as
+    /// `StripId::MASTER` —, the insert's id, its unit's kind)`. Allocates: read between
+    /// blocks, by the tests.
+    #[doc(hidden)]
+    pub fn held_effects(&self) -> Vec<(StripId, cantus_core::EffectId, cantus_core::EffectKind)> {
+        let mut out = Vec::new();
+        for (i, id) in self.strip_ids.iter().enumerate() {
+            let Some(id) = *id else {
+                continue;
+            };
+            if let Some(s) = self.nodes.strip(i) {
+                out.extend(s.effects.iter().map(|e| (id, e.id, e.kind)));
+            }
+        }
+        out.extend(
+            self.master
+                .effects
+                .iter()
+                .map(|e| (StripId::MASTER, e.id, e.kind)),
+        );
+        out
+    }
+
     /// Why each insert that is not at rest is not (ADR 0031 §5.1): `(strip, insert's place,
     /// the unit's first failing condition)`, the master's as `StripId::MASTER`. Read between
     /// blocks — the tests and a profiler that shows what keeps a desk running.

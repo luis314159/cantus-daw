@@ -153,17 +153,7 @@ impl Processor {
             self.scratch_effects.push(e);
         }
         for want in snapshot.master_effects.iter().take(MAX_EFFECTS_PER_TRACK) {
-            let found = self
-                .scratch_effects
-                .iter()
-                .position(|e| e.id == want.id)
-                .map(|p| self.scratch_effects.swap_remove(p))
-                .or_else(|| {
-                    self.incoming_effects
-                        .iter()
-                        .position(|e| e.id == want.id)
-                        .map(|p| self.incoming_effects.swap_remove(p))
-                });
+            let found = self.take_effect(want);
             match found {
                 Some(mut unit) => {
                     unit.configure(&want.spec);

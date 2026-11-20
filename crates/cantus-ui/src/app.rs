@@ -898,11 +898,12 @@ impl CantusApp {
         // into this project's history, never into the one coming.
         if replaces {
             self.end_write_pass_here();
+            self.before_other_project(); // r41:ids
         }
         match self.bus.execute(cmd, Origin::User) {
             Ok(()) => {
                 if replaces {
-                    self.epoch += 1;
+                    self.other_project(); // r41:ids
                 }
                 crate::views::transport::sync_service::tempo_edited(self, tempo_edit); // r33:sync
                 true
@@ -1013,13 +1014,16 @@ impl CantusApp {
             return;
         }
         let replaced = self.bus.undo_label_key() == Some(REPLACE_PROJECT);
+        if replaced {
+            self.before_other_project(); // r41:ids
+        }
         let had = self.bus.undo_label_key().is_some(); // r36:record
         if self.bus.undo().is_none() && had && self.bus.record_lock().is_some() {
             self.record_mode_notice(); // r36:record — the mode refused the step
         } // r36:record
         if replaced {
             // Another project is back: ids copied from this one mean other things there.
-            self.epoch += 1;
+            self.other_project(); // r41:ids
         }
         self.validate_selection();
     }
@@ -1029,12 +1033,15 @@ impl CantusApp {
             return;
         }
         let replaced = self.bus.redo_label_key() == Some(REPLACE_PROJECT);
+        if replaced {
+            self.before_other_project(); // r41:ids
+        }
         let had = self.bus.redo_label_key().is_some(); // r36:record
         if self.bus.redo().is_none() && had && self.bus.record_lock().is_some() {
             self.record_mode_notice(); // r36:record — the mode refused the step
         } // r36:record
         if replaced {
-            self.epoch += 1;
+            self.other_project(); // r41:ids
         }
         self.validate_selection();
     }
@@ -3356,13 +3363,70 @@ impl CantusApp {
         crate::editor::close(self); // r36:editor — another project: the window on this one's take closes
         self.close_preset_browser(); // r37:library — and the preset browser, its render cancelled
         self.end_passes();
+        self.before_other_project(); // r41:ids
         self.stop_transport();
         self.bus.reset(project);
-        // The views chosen for the old project's plug-ins this session (ADR 0073): its ids
-        // may come again in the new one, which opens by each plug-in's default.
-        self.fx.hosted.views = Default::default();
-        self.fx.hosted.inst_open = None;
-        self.fx.hosted.inst = Default::default();
+        // r41:ids — the old project is gone and the new one's ids start again from 1
+        // (BACKLOG §1): every plug-in instance is let go, nothing parked for an id, and
+        // what the engine holds is forgotten — the next snapshot sends every unit fresh.
+        self.plugins.forget_project();
+        self.engine.forget_project();
+        self.sent_effects.clear();
+        self.other_project();
+    }
+
+    /// r41:ids — another project is in place (opened, new, a demo, recovered, imported, a
+    /// *Replace project* undone or redone): `epoch` moves, so what was copied from the last
+    /// names nothing here, and the effect windows let go of the old project's ids — the
+    /// open one, A/B's other side, the spec and the redo mark read for an id, and the
+    /// views chosen for its plug-ins this session (ADR 0073: the new one opens by each
+    /// plug-in's default). Where the floating window sits, what is typed in the plug-in
+    /// menus and their grouping, and telemetry a test injected, stay. The engine needs no
+    /// word: it knows an insert by its id, place and kind.
+    pub(crate) fn other_project(&mut self) {
+        self.epoch += 1;
+        let old = std::mem::take(&mut *self.fx);
+        self.fx.pos = old.pos;
+        self.fx.injected = old.injected;
+        self.fx.hosted.search = old.hosted.search;
+        self.fx.hosted.by_category = old.hosted.by_category;
+        self.fx.hosted.folder = old.hosted.folder;
+        // Every other window and choice that names a project id (the audit of round 41):
+        // the EQ's and the compressor's windows (they check only that an insert of that id
+        // exists), an instrument's A/B, preset and editor, the kit editor's pad and kit
+        // name, the selections a step acts on, *Last tweaked*, the session view's
+        // clipboard, a modulator's mapping mode, the pitch editor's notes, a hardware ping
+        // in flight.
+        self.eq_editor.open = None;
+        self.comp_editor.open = None;
+        self.inst.forget_project();
+        self.pulsus.open = None;
+        self.pulsus.selected = None;
+        self.pulsus.kit_name.clear();
+        self.selected_clips.clear();
+        self.selected_tracks.clear();
+        self.selected_strip = None;
+        self.selected_strips.clear();
+        self.time_selection = None;
+        self.automation.last_tweaked = None;
+        self.automation.last_tweaked_with = None;
+        self.session_view.clipboard.clear();
+        self.session_view.clipboard_scene = None;
+        self.modulators.mapping = None;
+        self.modulators.popup = None;
+        self.pitch.view.selected.clear();
+        self.pitch.view.quantise_to = None;
+        crate::external_service::project_replaced(self);
+        self.validate_selection();
+    }
+
+    /// r41:ids — what belongs to the open project and must end into it before another takes
+    /// its place: the session view's performance (and what arrangement record heard), a
+    /// strip take of the mix recorder, a control surface's gesture.
+    pub(crate) fn before_other_project(&mut self) {
+        self.end_performance_here();
+        self.stop_capture();
+        crate::surface::service::gesture_end(self);
     }
 
     /// End a recording and a write pass in progress, into the open project (a question
@@ -3383,10 +3447,9 @@ impl CantusApp {
     pub fn replace_project(&mut self, project: Project) {
         // A save in flight writes the project being replaced: it lands first.
         self.wait_for_save();
-        self.reset_bus_to(project);
-        // A crash card speaks of the project that was open (review #16).
+        self.reset_bus_to(project); // r41:ids — `epoch` moves there
+                                    // A crash card speaks of the project that was open (review #16).
         self.plugin_crashes = Default::default();
-        self.epoch += 1;
         self.path = None;
         self.sync_audio_base();
         self.selected_track = None;
@@ -3582,9 +3645,8 @@ impl CantusApp {
                 return;
             }
         };
-        self.reset_bus_to(loaded.project);
+        self.reset_bus_to(loaded.project); // r41:ids — `epoch` moves there
         self.plugin_crashes = Default::default();
-        self.epoch += 1;
         self.path = Some(path.to_path_buf());
         self.sync_audio_base();
         self.selected_track = None;

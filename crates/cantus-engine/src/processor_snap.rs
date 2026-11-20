@@ -495,17 +495,7 @@ impl Processor {
             self.scratch_effects.push(e);
         }
         for want in wanted.iter().take(MAX_EFFECTS_PER_TRACK) {
-            let found = self
-                .scratch_effects
-                .iter()
-                .position(|e| e.id == want.id)
-                .map(|p| self.scratch_effects.swap_remove(p))
-                .or_else(|| {
-                    self.incoming_effects
-                        .iter()
-                        .position(|e| e.id == want.id)
-                        .map(|p| self.incoming_effects.swap_remove(p))
-                });
+            let found = self.take_effect(want);
             match found {
                 Some(mut unit) => {
                     unit.configure(&want.spec);
@@ -525,6 +515,30 @@ impl Processor {
         while let Some(e) = self.scratch_effects.pop() {
             self.dispose_effect(e);
         }
+    }
+
+    /// r41:ids — the unit for the insert `want`, on a strip or the master: one delivered for
+    /// it first, then the one the chain held (in `scratch_effects`) — and never a unit of
+    /// another kind. The handle sends a unit only for an insert it does not know, so a
+    /// delivered one is newer than any held with its id: after another project (whose ids
+    /// start again from 1), the one the old project's chain left with that id is another
+    /// song's, perhaps another kind (BACKLOG §1). `None`: not delivered yet.
+    pub(super) fn take_effect(
+        &mut self,
+        want: &cantus_core::EffectSlot,
+    ) -> Option<Box<EffectUnit>> {
+        let kind = want.spec.kind;
+        if let Some(p) = self
+            .incoming_effects
+            .iter()
+            .position(|e| e.id == want.id && e.kind == kind)
+        {
+            return Some(self.incoming_effects.swap_remove(p));
+        }
+        self.scratch_effects
+            .iter()
+            .position(|e| e.id == want.id && e.kind == kind)
+            .map(|p| self.scratch_effects.swap_remove(p))
     }
 }
 
@@ -1088,16 +1102,20 @@ impl Processor {
         let Some(mut s) = nodes.track(slot) else {
             return;
         };
-        let have = s.native.as_ref().map(|n| (n.track, n.kind));
-        if kind.is_some() && have == kind.map(|k| (track, k)) {
-            return;
-        }
+        // r41:ids — one delivered for this track and kind goes in even where a unit of that
+        // kind runs: the handle sends one only for a track it does not know, so it is newer
+        // — after another project (whose track ids start again from 1) the unit running is
+        // another song's.
         let incoming = kind.and_then(|k| {
             self.incoming_instruments
                 .iter()
                 .position(|u| u.track == track && u.kind == k)
                 .map(|p| self.incoming_instruments.swap_remove(p))
         });
+        let have = s.native.as_ref().map(|n| (n.track, n.kind));
+        if incoming.is_none() && kind.is_some() && have == kind.map(|k| (track, k)) {
+            return;
+        }
         let old = match incoming {
             Some(u) => s.native.replace(u),
             None => s.native.take(),

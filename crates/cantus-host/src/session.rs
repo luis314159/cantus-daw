@@ -349,7 +349,9 @@ pub struct PluginHost {
     setup: AudioSetup,
     slots: HashMap<EffectId, Hosted>,
     /// State of plug-ins unloaded because their slot left the project.
-    parked: HashMap<EffectId, PluginState>,
+    /// r41:ids — with the plug-in it came from (its format and id): a state goes back only
+    /// into the same plug-in, never into another one that came to hold the id.
+    parked: HashMap<EffectId, (Who, PluginState)>,
     /// Hosted slots whose plug-in could not be loaded: why, where it was tried, whether it
     /// crashed doing it.
     missing: HashMap<EffectId, iso::Missing>,
@@ -886,7 +888,7 @@ impl PluginHost {
         // made with — never with a state parked since (review 3).
         let parked = self.parked.remove(&slot.id);
         let state = match parked {
-            Some(s) if !locked => s,
+            Some((who, s)) if !locked && who == (format, plugin.id.clone()) => s, // r41:ids
             _ => plugin.state.clone(),
         };
         let setup = self.setup;
@@ -966,6 +968,18 @@ impl PluginHost {
             // is in (review isolation-6 #24).
             if self.is_leaving(Parked::Effect(slot.id)) {
                 continue;
+            }
+            // r41:ids — an instance of another plug-in under this id (another project put
+            // in place by *Replace project*, whose ids started again from 1) never serves
+            // it: let go, nothing parked — its state is not this slot's.
+            if self.slots.get(&slot.id).is_some_and(|h| {
+                (h.info.format, h.info.id.as_str())
+                    != (from_project_format(plugin.format), plugin.id.as_str())
+            }) {
+                if let Some(mut h) = self.slots.remove(&slot.id) {
+                    h.close_window_now();
+                    self.retire(h.main);
+                }
             }
             if !self.slots.contains_key(&slot.id) {
                 let locked = slot_locked(project, host, slot.id);
@@ -1138,7 +1152,8 @@ impl PluginHost {
         let inst = match self.instantiate(&info, plugin.isolation, &state, &values, setup, false) {
             Ok(i) => i,
             Err(e) => {
-                self.parked.insert(slot.id, state);
+                self.parked
+                    .insert(slot.id, ((info.format, info.id.clone()), state));
                 return Err(e);
             }
         };
@@ -1175,6 +1190,7 @@ impl PluginHost {
     /// process, once it is in for an isolated one (`idle`), which lives until then. Never
     /// what it said last taken silently (review isolation-6 #24).
     pub(crate) fn let_go(&mut self, of: Parked, name: String, mut main: Box<dyn MainThread>) {
+        let who = who_of(main.as_ref()); // r41:ids
         main.ask_state_now();
         if main.state_waiting() {
             self.leaving.push(Leaving {
@@ -1185,11 +1201,11 @@ impl PluginHost {
             });
         } else {
             let poll = main.poll_state();
-            self.park(of, &name, poll);
+            self.park(of, &name, who, poll);
         }
     }
 
-    fn park(&mut self, of: Parked, name: &str, poll: StatePoll) {
+    fn park(&mut self, of: Parked, name: &str, who: Who, poll: StatePoll) {
         let state = match poll {
             StatePoll::Fresh(s) => s,
             StatePoll::Stale(s, why) => {
@@ -1203,7 +1219,7 @@ impl PluginHost {
         }
         match of {
             Parked::Effect(id) => {
-                self.parked.insert(id, PluginState::new(state));
+                self.parked.insert(id, (who, PluginState::new(state)));
             }
             Parked::Instrument(t, key) => {
                 self.inst_parked.insert((t, key), PluginState::new(state));
@@ -1260,7 +1276,8 @@ impl PluginHost {
             } else {
                 l.main.poll_state()
             };
-            self.park(l.of, &l.name, poll);
+            let who = who_of(l.main.as_ref()); // r41:ids
+            self.park(l.of, &l.name, who, poll);
             self.resync = true;
         }
     }
@@ -1283,6 +1300,45 @@ impl PluginHost {
     /// syncs again, so the slot loads with it.
     pub fn take_resync(&mut self) -> bool {
         std::mem::take(&mut self.resync)
+    }
+
+    /// r41:ids — another project takes the place of the open one: its ids start again from
+    /// 1, so nothing of the old one may serve the new one's slot of the same id. Every
+    /// instance is let go with nothing parked (the old project is saved or given up: its
+    /// states are not asked for), and what was parked, missing, resting or given back for
+    /// an id is forgotten: the next [`Self::sync`] loads each of the new project's plug-ins
+    /// with the state the project holds. Before, a plug-in loaded for the old project's
+    /// id served the new one's (another plug-in's state loaded into it), and a state
+    /// parked for the id went into the new one's (BACKLOG §1). Call it with the engine
+    /// handle's `forget_project`, which sends every unit fresh.
+    pub fn forget_project(&mut self) {
+        let ids: Vec<EffectId> = self.slots.keys().copied().collect();
+        for id in ids {
+            if let Some(mut h) = self.slots.remove(&id) {
+                h.close_window_now();
+                self.retire(h.main);
+            }
+        }
+        let tracks: Vec<cantus_core::TrackId> = self.instruments.keys().copied().collect();
+        for track in tracks {
+            if let Some(mut h) = self.instruments.remove(&track) {
+                h.close_window_now();
+                self.retire(h.main);
+            }
+        }
+        for l in std::mem::take(&mut self.leaving) {
+            self.retire(l.main);
+        }
+        self.parked.clear();
+        self.inst_parked.clear();
+        self.missing.clear();
+        self.inst_missing.clear();
+        self.resting.clear();
+        self.inst_resting.clear();
+        self.give_back.clear();
+        self.inst_give_back.clear();
+        self.tweaks.clear();
+        self.frozen_refusals.clear();
     }
 
     /// The engine was replaced (another audio device, another rate): every plug-in is
@@ -1697,7 +1753,8 @@ impl PluginHost {
         h.close_window_now();
         // What it was given stays for its reload.
         if let Ok(s) = h.main.save_state() {
-            self.parked.insert(effect, PluginState::new(s));
+            let who = (h.info.format, h.info.id.clone()); // r41:ids
+            self.parked.insert(effect, (who, PluginState::new(s)));
         }
         let (_, slot) = find_slot(project, effect)?;
         if engine.knows_effect(effect) {
@@ -2331,6 +2388,13 @@ impl Drop for PluginHost {
             self.close_instrument_window(track);
         }
     }
+}
+
+/// r41:ids — which plug-in an instance is: its format and its id, as a project stores them.
+type Who = (crate::backend::Format, String);
+
+fn who_of(main: &dyn MainThread) -> Who {
+    (main.info().format, main.info().id.clone())
 }
 
 #[cfg(test)]

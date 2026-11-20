@@ -141,6 +141,14 @@ pub struct InstEditors {
 }
 
 impl InstEditors {
+    /// r41:ids — another project is in place (its track ids start again from 1): the editor
+    /// open, A/B's other side and the preset each track was set from were the old one's.
+    pub(crate) fn forget_project(&mut self) {
+        self.open = None;
+        self.ab.clear();
+        self.preset.clear();
+    }
+
     /// r40:fix-f (review of 40a27bb7, finding 6) — the scenes of tracks that are gone, or
     /// no longer host the instrument the scene draws, are dropped (their textures freed,
     /// their place in the shared worker given up); another song loaded (`epoch` changed),
