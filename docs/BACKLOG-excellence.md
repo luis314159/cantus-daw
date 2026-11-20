@@ -276,7 +276,16 @@ tolerancia razonada, un informe por tecla y una página para que veas cada cuerd
 
 ## 1. Real use — the test that matters most
 
-- **An effect never sent after another project was open — first in the next version (the
+- ~~**An effect never sent after another project was open**~~ — **done in round 41**
+  (branch `r41/effect-ids`, ADR 0149). The engine knows an insert by its id, place and kind
+  and takes a delivered unit first. Opening another project forgets what the engine and the
+  plug-in host hold. A parked plug-in state goes back only into its own plug-in. The
+  interface's twenty-odd id-keyed windows, memories and modes let go in
+  `CantusApp::other_project`. `project_ids_e2e` covers every demo after every other,
+  *Replace project* with undo and redo, and a delay's echoes not heard in the next song, to
+  the bit; the sandbox's `project_ids` covers another plug-in under the same id. The entry
+  as it was found:
+  **An effect never sent after another project was open — first in the next version (the
   owner, 2026-11-19, on beta.15's candidate):** Aurora's master EQ showed no input and
   ignored its controls; a second EQ inserted beside it worked. Cause: `Backend::known_effects`
   (`cantus-engine/src/backend.rs`, `send_snapshot`) is a set of bare `EffectId`s, and ids
@@ -2396,6 +2405,34 @@ roll as its reference; it should not lose those, and should close the rest:
     work*.
 42. **Stock content to rival FL Cloud and Bitwig's packs** — §5; an on-demand library large
     enough that item 4's ROMpler and item 17's Loop Starter have material.
+
+### F. Inputs into the mixer, without a key (the owner, 2026-11-20)
+
+43. **A microphone or several inputs onto mixer strips, by mouse, at a glance.** The owner:
+    "agregar un micro a una cinta de la mixer o varios inputs a diferentes cintas debería
+    poderse sin shortcut … ¿se podría hacer más intuitivo?" What exists today:
+    - an input on an audio track: its header's chip, which shows only when the row is
+      tall enough; the inspector's *Recording* section; the track's menu;
+    - on a strip: right-click ▸ *Recording* ▸ *Input ▸* and *Arm*, and only for a strip
+      that already has a track on it. An empty strip offers no input, and no strip shows
+      its input.
+
+    FL's mixer has the input picker at the top of each insert's panel; Cubase, Studio One
+    and REAPER create one track per chosen input in one dialog. To do:
+    - **an input well on every strip** (the hand-drawn kit, its label and value, under the
+      name): it shows *In 1*, *In 1-2* or *—*, opens the device's inputs by their names
+      (*Channels & routing…*), and lights with the input's level while armed;
+    - **on a strip with no track**, the same well makes, in one undo step, an audio track
+      routed to that strip with that input, armed and monitoring on *Auto*, named after the
+      input;
+    - ***Add inputs…*** in the mixer's **+** menu and in the add-track menu: tick several
+      inputs (mono or as pairs), get a strip and an audio track for each, named, armed and
+      ready. This is the band and choir case from §5's worship group;
+    - the arm dot and the input meter on the strip itself, as FL shows them;
+    - the first-start *Record on…* and the manual's §4 pointing to these;
+    - an end-to-end test through `CantusApp::assemble` with a fake device of 8 inputs: four
+      chosen, four strips that record their own input, to the sample; and the picture
+      checked with `shoot`.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 

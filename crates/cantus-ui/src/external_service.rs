@@ -313,6 +313,14 @@ pub fn poll(app: &mut CantusApp) {
     }
 }
 
+/// r41:ids — another project is in place: a ping in flight measured the old one's unit, and
+/// what each unit's last ping came to was about the old one's units (ids start again from
+/// 1): both forgotten, never laid on the new project's unit of the same id.
+pub fn project_replaced(app: &mut CantusApp) {
+    app.external.running.clear();
+    app.external.outcomes.clear();
+}
+
 /// The engine was replaced (an audio restart, another device): a ping in flight is gone.
 pub fn engine_replaced(app: &mut CantusApp) {
     for r in std::mem::take(&mut app.external.running) {
