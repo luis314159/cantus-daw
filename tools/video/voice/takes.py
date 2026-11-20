@@ -51,9 +51,10 @@ def spoken(text: str, lang: str) -> str:
     return text
 
 
-# Phrase by phrase (round 2: whole lines came out at 3.5-4.5 words a second while the short
-# lines held 2.3-2.9): each phrase between punctuation is made alone and the phrases are
-# joined with a presenter's pauses, so the line breathes where its punctuation says.
+# Phrase by phrase, with --phrases: each phrase between punctuation made alone and joined
+# with a presenter's pauses. Tried in round 3 and left off by default: Chatterbox babbles
+# after a short input (line 1's three phrases came out at 12.9 s). Whole lines, with their
+# pauses lengthened afterwards (`breathe.py`), are the way.
 GAP = {",": 0.16, ":": 0.26, ";": 0.26, "—": 0.26, ".": 0.36, "!": 0.36, "?": 0.36}
 HEAD_S, TAIL_S = 0.08, 0.20
 
@@ -111,6 +112,7 @@ def main() -> None:
     ap.add_argument("--ref", default=None)
     ap.add_argument("--takes", type=int, default=8)
     ap.add_argument("--lines", default=None, help="comma-separated line numbers")
+    ap.add_argument("--phrases", action="store_true", help="make each phrase alone (see GAP)")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -135,7 +137,7 @@ def main() -> None:
 
             said = spoken(line["text"], a.lang)
             pieces, ends, joined = [], [], [np.zeros(int(model.sr * HEAD_S), np.float32)]
-            for i, phrase in enumerate(phrases(said)):
+            for i, phrase in enumerate(phrases(said) if a.phrases else [said]):
                 torch.manual_seed(seed + 97 * i)
                 if device == "cuda":
                     torch.cuda.manual_seed_all(seed + 97 * i)
