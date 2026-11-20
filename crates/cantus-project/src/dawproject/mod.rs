@@ -486,6 +486,12 @@ pub fn effect_device_name(kind: EffectKind) -> String {
         EffectKind::Ducker => "Cedo".into(),            // fxb:contract
         EffectKind::Repair => "Purus".into(),           // fxc:contract
         EffectKind::Reference => "Comparatio".into(),   // fxc:contract
+        EffectKind::Enhancer => "Nitor".into(),         // r41:contract
+        EffectKind::FragorOverdrive => "Fragor green overdrive".into(), // r41:contract
+        EffectKind::FragorOpAmp => "Fragor op-amp distortion".into(), // r41:contract
+        EffectKind::FragorSilicon => "Fragor silicon distortion".into(), // r41:contract
+        EffectKind::FragorFuzz => "Fragor germanium fuzz".into(), // r41:contract
+        EffectKind::FragorMuff => "Fragor triangle muff".into(), // r41:contract
         EffectKind::Delay => "Delay".into(),
         EffectKind::Reverb => "Reverb".into(),
         #[allow(unreachable_patterns)]

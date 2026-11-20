@@ -28,6 +28,7 @@ pub mod room_look; // r40:scene (ADR 0126, schema 69): the room, floor, walls an
 // The dancer (round 35, ADR 0087): a character that dances on screen, and makes no sound.
 pub mod dancer;
 pub mod epiano;
+pub mod fides; // r41:contract (ADR 0150): the resonator instrument — fides
 pub mod fm;
 pub mod modulation;
 pub mod organ;
@@ -69,6 +70,15 @@ pub enum InstrumentKind {
     /// kind-wide test (the contract twins, the null corpus and its hashes, the bench)
     /// iterates it.
     AcousticDrums,
+    /// Fides: the resonator instrument — exciters (pluck, pick, bow, mallet, noise, a live
+    /// input) into strings, bars, plates, membranes and tubes with a body (round 41, ADR
+    /// 0150; schema 78). // r41:contract
+    ///
+    /// **Not in [`InstrumentKind::ALL`] yet**: every kind-wide test (the contract twins,
+    /// the null corpus and its hashes, the bench, the undo fuzz's draws) iterates `ALL`, and
+    /// a stub that makes no sound would fail them or move them. The `fides` builder adds it
+    /// to `ALL` in the commit that makes it sound, as Tympanum did.
+    Resonator,
 }
 
 macro_rules! dispatch {
@@ -84,6 +94,7 @@ macro_rules! dispatch {
             InstrumentKind::Chorda => chorda::$item $( ( $($arg),* ) )?,
             InstrumentKind::Dancer => dancer::$item $( ( $($arg),* ) )?,
             InstrumentKind::AcousticDrums => tympanum::$item $( ( $($arg),* ) )?, // r40:p3
+            InstrumentKind::Resonator => fides::$item $( ( $($arg),* ) )?, // r41:contract
         }
     };
 }
@@ -122,6 +133,7 @@ impl InstrumentKind {
         match self {
             InstrumentKind::Chorda => &[("model", chorda::MODEL)],
             InstrumentKind::AcousticDrums => &[("model", tympanum::MODEL)], // r40:p3
+            InstrumentKind::Resonator => &[("model", fides::MODEL)],        // r41:contract
             _ => &[],
         }
     }
