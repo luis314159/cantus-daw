@@ -116,7 +116,12 @@ fn two_drives_on_a_board_sound_as_fragor_reopen_and_undo() {
     );
     for (_, s) in [&pedals[0], &pedals[2]] {
         let c = s.kind.fragor_circuit().unwrap();
-        assert_eq!(s.get(switch(c)), 1.0, "{:?} starts with its circuit in", s.kind);
+        assert_eq!(
+            s.get(switch(c)),
+            1.0,
+            "{:?} starts with its circuit in",
+            s.kind
+        );
     }
     let board = rendered(&mut app);
     assert!(!same(&dry, &board), "the chain is heard in the master");
@@ -152,7 +157,10 @@ fn two_drives_on_a_board_sound_as_fragor_reopen_and_undo() {
     let mut host = DawHost::new(&mut app, strip, effect, "tabula");
     tabula_edit::footswitch(&mut host, ids[2], false);
     drop(host);
-    assert!(!same(&board, &rendered(&mut app)), "the muff's footswitch heard");
+    assert!(
+        !same(&board, &rendered(&mut app)),
+        "the muff's footswitch heard"
+    );
     app.undo();
     assert!(same(&board, &rendered(&mut app)), "and back, to the bit");
 
@@ -163,7 +171,11 @@ fn two_drives_on_a_board_sound_as_fragor_reopen_and_undo() {
     assert!(path.exists());
     app.new_project();
     app.open(&path);
-    assert_eq!(*app.project(), saved_project, "the board reopened as it was");
+    assert_eq!(
+        *app.project(),
+        saved_project,
+        "the board reopened as it was"
+    );
     assert!(same(&board, &rendered(&mut app)), "reopened, to the bit");
 
     // Undo in the session it was made: each pedal off in one step.
@@ -175,7 +187,10 @@ fn two_drives_on_a_board_sound_as_fragor_reopen_and_undo() {
     let mut host = DawHost::new(&mut b, strip, effect, "tabula");
     tabula_edit::add(&mut host, EffectKind::FragorFuzz).expect("the fuzz added");
     drop(host);
-    assert!(!same(&before, &rendered(&mut b)), "the fuzz heard on the rig");
+    assert!(
+        !same(&before, &rendered(&mut b)),
+        "the fuzz heard on the rig"
+    );
     b.undo();
     assert!(same(&before, &rendered(&mut b)), "undone to the bit");
 }

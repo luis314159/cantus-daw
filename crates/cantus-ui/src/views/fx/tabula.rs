@@ -324,8 +324,7 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
         }
         ui.add_space(s.d(12.0));
         // r41:pedals — offered only for a pedal with a window of its own.
-        if editor
-            && controls::key(ui, s, Src::Key("tabula.pedal.open"), "", 170.0, false).clicked()
+        if editor && controls::key(ui, s, Src::Key("tabula.pedal.open"), "", 170.0, false).clicked()
         {
             open = true;
         }

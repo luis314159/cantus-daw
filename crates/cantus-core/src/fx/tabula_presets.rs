@@ -545,7 +545,11 @@ pub fn factory() -> Vec<(&'static str, EffectSpec)> {
                         Pre,
                         &[("od.drive", 0.23), ("od.tone", 0.6), ("od.level", 0.75)],
                     ),
-                    P(K::Phaser, Pre, &[("rate", 0.4), ("fb", 0.35), ("mix", 0.35)]),
+                    P(
+                        K::Phaser,
+                        Pre,
+                        &[("rate", 0.4), ("fb", 0.35), ("mix", 0.35)],
+                    ),
                     P(
                         K::FragorMuff,
                         Pre,
@@ -565,7 +569,10 @@ pub fn factory() -> Vec<(&'static str, EffectSpec)> {
                 ],
                 &[("m1", 0.4), ("m2", 0.5)],
                 &[
-                    (0, &[(3, "mf.sustain", 0.3, 0.9), (1, "od.drive", 0.05, 0.5)]),
+                    (
+                        0,
+                        &[(3, "mf.sustain", 0.3, 0.9), (1, "od.drive", 0.05, 0.5)],
+                    ),
                     (2, &[(5, "mix", 0.0, 0.4)]),
                 ],
             ),
@@ -645,7 +652,10 @@ mod tests {
             .filter(|i| kinds[*i].fragor_circuit().is_some())
             .collect();
         assert_eq!(drives.len(), 2, "{kinds:?}");
-        assert!(drives[1] > drives[0] + 1, "another pedal between the drives");
+        assert!(
+            drives[1] > drives[0] + 1,
+            "another pedal between the drives"
+        );
         for i in drives {
             let p = &spec.pedals()[i];
             let c = p.spec.kind.fragor_circuit().unwrap();

@@ -1960,11 +1960,16 @@ impl CantusApp {
     fn demo_pedal_board(&mut self, strip: StripId, kind: EffectKind) {
         use cantus_core::fx::tabula::{Pedal, PedalId};
         self.add_effect(strip, EffectKind::Board);
-        let Some((effect, ids)) = self
-            .project()
-            .effects_of(strip)
-            .and_then(|e| e.last())
-            .map(|e| (e.id, e.spec.pedals().iter().map(|p| p.id).collect::<Vec<_>>()))
+        let Some((effect, ids)) =
+            self.project()
+                .effects_of(strip)
+                .and_then(|e| e.last())
+                .map(|e| {
+                    (
+                        e.id,
+                        e.spec.pedals().iter().map(|p| p.id).collect::<Vec<_>>(),
+                    )
+                })
         else {
             return;
         };
