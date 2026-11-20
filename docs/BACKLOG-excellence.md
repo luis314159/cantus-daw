@@ -276,6 +276,32 @@ tolerancia razonada, un informe por tecla y una página para que veas cada cuerd
 
 ## 1. Real use — the test that matters most
 
+- **An effect never sent after another project was open — first in the next version (the
+  owner, 2026-11-19, on beta.15's candidate):** Aurora's master EQ showed no input and
+  ignored its controls; a second EQ inserted beside it worked. Cause: `Backend::known_effects`
+  (`cantus-engine/src/backend.rs`, `send_snapshot`) is a set of bare `EffectId`s, and ids
+  restart from 1 in every project — opened after Neon Tide, whose id 35 was a strip's
+  compressor, Aurora's master EQ (also 35) was taken as delivered and never sent; the
+  master's takeover (`graph/master.rs`, ~L179: its own old units, then the incoming ones)
+  found none and skipped the insert, counting a dropped event. On a strip the same id in
+  the same place takes over the old unit before an incoming one (`processor_snap.rs`,
+  ~L501), so a unit of another kind (or another song's state: a delay line, a reverb tail,
+  an IR) could be configured with the new spec. In since round 22: not a regression;
+  restarting Cantus clears it; beta.15's notes list it as a known issue (owner's decision:
+  ship beta.15, fix first after). To do:
+  - a project replaced (`CantusApp::replace_project`, opening a file, recovery — every path
+    that puts another project in place) tells the backend, which forgets `known_effects`
+    and Tabula's `known_pedals` and sends every unit fresh; the engine disposes every unit
+    it held rather than taking any over;
+  - and, so no other path can meet it, `known_effects` keyed by the effect's id *and* its
+    place and kind, and a takeover that prefers a unit delivered for that id over one held;
+  - the same audit for every other id-keyed cache that survives a project (instruments by
+    `TrackId`, strips, pads, modulators, plug-in instances, telemetry rings, analyzers);
+  - an e2e test through `CantusApp::assemble`: open a demo, then another whose ids
+    collide in place and in kind with the first's (both orders, every demo pair), and every
+    insert of the second processes (its analyzer fed, a control moving the output) and
+    equals the same project opened alone, to the bit.
+
 - **Cantus cannot read 32-bit integer FLAC** (found in the effects side round, 2026-11-13):
   `claxon` refuses it ("header without bits per sample info"); the CC0 guitar samples the side
   round renders with are 32-bit and were converted to WAV. A user dropping such a file in
