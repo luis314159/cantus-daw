@@ -98,6 +98,7 @@ fn feature(d: &Descriptor) -> &'static str {
         "cedo" => "cedo,editor",             // fxb:cedo
         "purus" => "purus,editor",           // fxc:purus
         "comparatio" => "comparatio,editor", // fxc:comparatio
+        "nitor" => "nitor,editor",           // r41:contract
         other => panic!("no feature for {other}"),
     }
 }

@@ -1181,6 +1181,10 @@ impl Direct {
                 SR,
                 cantus_engine::fx::fluctus::shape_at,
             ))), // fxb:cedo
+            // r41:contract — the stub, the engine's unit (the nitor builder names its DSP here).
+            EffectKind::Enhancer => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::Enhancer, SR).unwrap())
+            } // r41:nitor
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);

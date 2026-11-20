@@ -157,6 +157,12 @@ pub fn hue_of(kind: EffectKind) -> Function {
         EffectKind::Ducker => Function::Dynamics,   // fxb:contract (cedo)
         EffectKind::Repair => Function::Tone,       // fxc:contract (purus)
         EffectKind::Reference => Function::Output,  // fxc:contract (comparatio)
+        EffectKind::Enhancer => Function::Tone,     // r41:contract (nitor)
+        EffectKind::FragorOverdrive
+        | EffectKind::FragorOpAmp
+        | EffectKind::FragorSilicon
+        | EffectKind::FragorFuzz
+        | EffectKind::FragorMuff => Function::Tone, // r41:contract (pedals)
     }
 }
 
@@ -205,6 +211,7 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Ducker => super::cedo::DESIGNED_SIZE, // fxb:cedo
         EffectKind::Repair => super::purus::designed_size(), // fxc:purus
         EffectKind::Reference => super::comparatio::designed_size(), // fxc:comparatio
+        EffectKind::Enhancer => super::nitor::designed_size(), // r41:contract
         _ => Vec2::new(1000.0, 640.0),
     }
 }

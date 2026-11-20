@@ -34,6 +34,11 @@ pub use fxd::*;
 mod fxb;
 pub use fxb::*;
 
+// r41:contract — round 41's Nitor (ADR 0151): a placeholder face until its builder's.
+#[path = "side_r41.rs"]
+mod r41;
+pub use r41::*;
+
 // fx:cribrum — Cribrum's own face (ADR 0127), in three colourways the user
 // chooses among (ADR 0127 §Colourways); the first, Nocturne, is its face. Every display is
 // a lit screen, dark in both themes (the owner's choice for the round's displays).
@@ -761,6 +766,7 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         EffectKind::Ducker => Some(&CEDO),       // fxb:cedo
         EffectKind::Repair => Some(&PURUS),      // fxc:purus
         EffectKind::Reference => Some(&COMPARATIO), // fxc:comparatio
+        EffectKind::Enhancer => Some(&NITOR),    // r41:contract (a placeholder)
         _ => None,
     }
 }

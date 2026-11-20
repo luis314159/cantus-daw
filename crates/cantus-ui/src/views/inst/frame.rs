@@ -42,6 +42,7 @@ pub fn code_presets(kind: InstrumentKind) -> &'static [FactoryPreset] {
         InstrumentKind::Chorda => chorda::FACTORY_PRESETS,
         InstrumentKind::Dancer => dancer::FACTORY_PRESETS,
         InstrumentKind::AcousticDrums => tympanum::FACTORY_PRESETS, // r40:p3
+        InstrumentKind::Resonator => fides::FACTORY_PRESETS,        // r41:contract
     }
 }
 
@@ -57,6 +58,7 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Chorda => chorda::body(app, ui, track, spec, s),
         InstrumentKind::Dancer => dancer::body(app, ui, track, spec, s),
         InstrumentKind::AcousticDrums => tympanum::body(app, ui, track, spec, s), // r40:p3
+        InstrumentKind::Resonator => fides::body(app, ui, track, spec, s),        // r41:contract
     }
 }
 
@@ -88,6 +90,7 @@ fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Chorda => chorda::play(app, ui, track, spec, s),
         InstrumentKind::Dancer => dancer::play(app, ui, track, spec, s),
         InstrumentKind::AcousticDrums => tympanum::play(app, ui, track, spec, s), // r40:p3
+        InstrumentKind::Resonator => fides::play(app, ui, track, spec, s),        // r41:contract
     }
 }
 
@@ -104,6 +107,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
         InstrumentKind::Chorda => chorda::preview(ui, spec),
         InstrumentKind::Dancer => dancer::preview(ui, spec),
         InstrumentKind::AcousticDrums => tympanum::preview(ui, spec), // r40:p3
+        InstrumentKind::Resonator => fides::preview(ui, spec),        // r41:contract
     }
 }
 
@@ -120,6 +124,7 @@ pub fn demo_setup(app: &mut CantusApp, track: TrackId, kind: InstrumentKind) {
         InstrumentKind::Chorda => chorda::demo_setup(app, track),
         InstrumentKind::Dancer => dancer::demo_setup(app, track),
         InstrumentKind::AcousticDrums => tympanum::demo_setup(app, track), // r40:p3
+        InstrumentKind::Resonator => fides::demo_setup(app, track),        // r41:contract
     }
 }
 
@@ -136,6 +141,7 @@ pub fn demo_feed(app: &mut CantusApp, kind: InstrumentKind) {
         InstrumentKind::Chorda => chorda::demo_feed(app),
         InstrumentKind::Dancer => dancer::demo_feed(app),
         InstrumentKind::AcousticDrums => tympanum::demo_feed(app), // r40:p3
+        InstrumentKind::Resonator => fides::demo_feed(app),        // r41:contract
     }
 }
 

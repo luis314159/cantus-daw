@@ -1,0 +1,5 @@
+# Fides (round 41, ADR 0150) — owned by the fides builder. Every key here needs its twin in fides.es.txt.
+instrument.fides = Fides
+picker.dev.fides.name = Fides
+picker.dev.fides.what = Resonators: strings, bars, membranes
+picker.dev.fides.about = Plucked, bowed and struck: exciters into strings, bars, plates, membranes and tubes with a body — marimba, kalimba, harp, nylon guitar, a bowed cello, glass. Being built.

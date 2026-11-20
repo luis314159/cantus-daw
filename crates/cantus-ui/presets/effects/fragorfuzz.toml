@@ -1,0 +1,3 @@
+# Fragor's ge circuit as a board-only pedal: factory presets (ADR 0101). Names are locale
+# keys (fx/fragor_pedal.*.txt). Empty until the pedals builder makes a few by ear.
+# The tests check every key, value, style and role (`preset_data`, `preset_render`).

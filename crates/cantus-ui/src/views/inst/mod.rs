@@ -39,6 +39,8 @@ pub mod chorda_source;
 /// Saltator, the dancer (round 35, ADR 0087). // r35:dancer
 pub mod dancer; // r35:dancer
 pub mod epiano;
+/// Fides, the resonator instrument (round 41, ADR 0150). // r41:contract
+pub mod fides;
 pub mod fm;
 /// An instrument's own mixer (round 40 phase 3, ADR 0123): Tympanum's and Chorda's. // r40:tymp-ui
 pub mod inst_mixer;
@@ -203,6 +205,7 @@ pub fn kind_from_name(name: &str) -> Option<InstrumentKind> {
         "chorda" | "piano" => InstrumentKind::Chorda,
         "dancer" | "saltator" => InstrumentKind::Dancer, // r35:dancer
         "tympanum" => InstrumentKind::AcousticDrums,     // fix/final-d: the site's shots
+        "fides" => InstrumentKind::Resonator,            // r41:contract
         _ => return None,
     })
 }

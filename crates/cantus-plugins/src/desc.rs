@@ -56,7 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's, Aula (round 39), Delay (round 40) and the effects side round's seventeen.
-pub static ALL: [Descriptor; 42] = [
+pub static ALL: [Descriptor; 43] = [
+    // r41:contract: 43 with Nitor (Fragor's five pedals are board-only: not exported)
     // r39:conv: 24 with Aula; r40:delay: 25 with Delay; fx3:contract, fxa, fxb, fxc: 42 with the side round's seventeen
     Descriptor {
         kind: EffectKind::Eq,
@@ -600,6 +601,21 @@ pub static ALL: [Descriptor; 42] = [
         vst3_categories: "Fx|Analyzer",
         description: "Reference comparator: your mix beside reference tracks at the same loudness, switched without a click, their tone, loudness, dynamics and stereo compared, and a blind test of your ears.",
         compiled: cfg!(feature = "comparatio"),
+    },
+    // r41:contract — round 41's one-knob enhancer (ADR 0151). Its ids are forever from this
+    // commit (blessed in tests/golden/ids.txt). With no song in a host, its low end tunes to
+    // its own `key` choice (C when it follows the song).
+    Descriptor {
+        kind: EffectKind::Enhancer,
+        name: "Nitor",
+        full_name: "Cantus Nitor",
+        slug: "nitor",
+        clap_id: "com.github.lalmazan.cantus.nitor",
+        vst3_cid: [0xB9B02B7F, 0x510D7B77, 0xFAF61667, 0x3003FF5F],
+        clap_features: &[FX, "distortion", "equalizer", STEREO],
+        vst3_categories: "Fx|Distortion",
+        description: "One-knob enhancer: curated multiband characters under one amount, a low end lifted and tuned to the song's key, harmonics excited band by band.",
+        compiled: cfg!(feature = "nitor"),
     },
 ];
 

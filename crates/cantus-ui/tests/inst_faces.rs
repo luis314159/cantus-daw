@@ -31,6 +31,7 @@ fn opened(kind: InstrumentKind, view: View) -> CantusApp {
         InstrumentKind::Chorda => "chorda",
         InstrumentKind::Dancer => "dancer",          // r35:dancer
         InstrumentKind::AcousticDrums => "tympanum", // r40:p3
+        InstrumentKind::Resonator => "fides",        // r41:contract
     };
     a.demo_editor(name);
     a.inst.view = view;

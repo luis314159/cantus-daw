@@ -341,6 +341,36 @@ pub const FILES: &[(FileUnit, &str, &str)] = &[
         "presets/effects/reference.toml",
         include_str!("../presets/effects/reference.toml"),
     ),
+    (
+        FileUnit::Effect(EffectKind::Enhancer), // r41:contract
+        "presets/effects/enhancer.toml",
+        include_str!("../presets/effects/enhancer.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::FragorOverdrive), // r41:contract
+        "presets/effects/fragoroverdrive.toml",
+        include_str!("../presets/effects/fragoroverdrive.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::FragorOpAmp), // r41:contract
+        "presets/effects/fragoropamp.toml",
+        include_str!("../presets/effects/fragoropamp.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::FragorSilicon), // r41:contract
+        "presets/effects/fragorsilicon.toml",
+        include_str!("../presets/effects/fragorsilicon.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::FragorFuzz), // r41:contract
+        "presets/effects/fragorfuzz.toml",
+        include_str!("../presets/effects/fragorfuzz.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::FragorMuff), // r41:contract
+        "presets/effects/fragormuff.toml",
+        include_str!("../presets/effects/fragormuff.toml"),
+    ),
 ];
 
 /// Read one file's text.

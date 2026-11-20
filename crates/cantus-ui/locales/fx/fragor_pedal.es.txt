@@ -1,0 +1,27 @@
+# Los cinco circuitos de Fragor como pedales del tablero (ronda 41, ADR 0152) — del constructor de pedals. Gemelo de fragor_pedal.en.txt.
+fx.fragor_pedal.out = Salida
+effect.fragor_od = Fragor overdrive verde
+picker.dev.fragor_od.name = Overdrive verde
+picker.dev.fragor_od.what = Un circuito de Fragor como pedal
+picker.dev.fragor_od.about = El overdrive verde de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+mixer.chain.fragor_od = Overdrive
+effect.fragor_op = Fragor distorsión de op-amp
+picker.dev.fragor_op.name = Distorsión de op-amp
+picker.dev.fragor_op.what = Un circuito de Fragor como pedal
+picker.dev.fragor_op.about = El distorsión de op-amp de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+mixer.chain.fragor_op = Distorsión
+effect.fragor_si = Fragor distorsión de silicio
+picker.dev.fragor_si.name = Distorsión de silicio
+picker.dev.fragor_si.what = Un circuito de Fragor como pedal
+picker.dev.fragor_si.about = El distorsión de silicio de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+mixer.chain.fragor_si = Distorsión
+effect.fragor_ge = Fragor fuzz de germanio
+picker.dev.fragor_ge.name = Fuzz de germanio
+picker.dev.fragor_ge.what = Un circuito de Fragor como pedal
+picker.dev.fragor_ge.about = El fuzz de germanio de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+mixer.chain.fragor_ge = Fuzz
+effect.fragor_mf = Fragor muff triangular
+picker.dev.fragor_mf.name = Muff triangular
+picker.dev.fragor_mf.what = Un circuito de Fragor como pedal
+picker.dev.fragor_mf.about = El muff triangular de Fragor como un pedal propio en el tablero, el mismo circuito bit a bit. En construcción.
+mixer.chain.fragor_mf = Muff

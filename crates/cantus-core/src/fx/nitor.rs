@@ -25,7 +25,7 @@ pub const TAKES_SIDECHAIN: bool = false;
 /// Whether it hears a track's notes ([`crate::EffectSlot::midi_from`], ADR 0022).
 pub const TAKES_NOTES: bool = false;
 /// The locale prefix of each stepped parameter's choices, by key.
-pub const CHOICES: &[(&str, &str)] = &[("key", "nitor.key")];
+pub const CHOICES: &[(&str, &str)] = &[("key", "fx.nitor.key")];
 
 /// `key`'s value that follows the song's key (ADR 0153: the engine hands every effect the
 /// project's key); 1 … 12 are C … B.
