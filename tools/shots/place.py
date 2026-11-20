@@ -5,7 +5,7 @@ then this; by hand:
     python tools/shots/place.py <shots-dir> [family…]     # needs Pillow; oxipng if installed
 
 `<shots-dir>` holds one folder per example (`site/`, `readme/`, `showcase/`, …), as
-`reshoot.sh` writes them. Families: program, readme, studio, session, score, ai, manual. With none
+`reshoot.sh` writes them. Families: program, tour, readme, studio, session, score, ai, manual. With none
 named, every family.
 
 The table below is the whole recipe: which PNG, which crop, which file it becomes and how it is
@@ -15,6 +15,7 @@ dialog, the sync group and its neighbours, the external gear page's two bands), 
 the layout when a panel changes shape; or fixed pixels (x, y, w, h). The encodings are the ones the committed files
 were made with (checked byte for byte against the round 36–38 sources):
 - the program picture: lossless WebP, then 960 and 1280 px wide at q82 (`web/src/picture.rs`);
+- the tour's pictures of *Sunday Strut* (`shoot_tour`): lossless WebP, cropped by `web/src/tour.rs`;
 - studio/ and ai/: q82, except external/surfaces at q84;
 - session/ and score/: q88, from the README's PNG;
 - the README's PNGs: lossless, optimised with oxipng when it is installed.
@@ -142,6 +143,14 @@ def manual():
     return out
 
 
+def tour():
+    """The tour's piano roll, channel rack and mixer (round 41), whole windows like the program
+    picture: `web/src/tour.rs` shows the part between the browser and the inspector."""
+    return [(f"tour/tour-{view}-night-{lang}.png", None, None,
+             f"web/assets/program/tour-{view}{'' if lang == 'en' else '-es'}.webp", "lossless")
+            for view in ("pianoroll", "rack", "mixer") for lang in ("en", "es")]
+
+
 def png(rows):
     return [(s, c, r, d, "png") for (s, c, r, d) in rows]
 
@@ -160,6 +169,7 @@ FAMILIES = {
         ("site/app-mixer-xl-es.png", None, (960, 513), "web/assets/program/cantus-es-960.webp", ("webp", 82)),
         ("site/app-mixer-xl-es.png", None, (1280, 684), "web/assets/program/cantus-es-1280.webp", ("webp", 82)),
     ],
+    "tour": tour(),
     "readme": png(README),
     "studio": studio(),
     "session": png(SESSION_DOC) + from_doc([
@@ -297,6 +307,6 @@ if __name__ == "__main__":
         if n not in FAMILIES:
             sys.exit(f"no family {n}: {', '.join(FAMILIES)}")
     # The README's PNGs first: session/, score/ and ai/ are made from them.
-    order = [f for f in ("program", "readme", "studio", "session", "score", "ai", "manual")
+    order = [f for f in ("program", "tour", "readme", "studio", "session", "score", "ai", "manual")
              if f in names]
     main(sys.argv[1], order)

@@ -36,7 +36,7 @@ done
 out=${CANTUS_SHOTS:-target/shots/reshoot}
 bin=target/release/examples
 units_ex=(shoot_skins)
-rest_ex=(shoot_site shoot_readme shoot_showcase shoot_editor shoot_external shoot shoot_session
+rest_ex=(shoot_site shoot_tour shoot_readme shoot_showcase shoot_editor shoot_external shoot shoot_session
   shoot_sync shoot_mpe shoot_ai shoot_mastering shoot_stems shoot_transcribe shoot_rec shoot_picker
   shoot_audio_setup shoot_views shoot_notefx)
 case $what in
@@ -71,12 +71,14 @@ if [ "$what" != rest ]; then
   python tools/shots/check_units.py --fix
 fi
 if [ "$what" != units ]; then
-  for d in site readme showcase editor external ara session sync mpe ai mastering stems transcribe manual; do
+  for d in site tour readme showcase editor external ara session sync mpe ai mastering stems transcribe manual; do
     rm -rf "${out:?}/$d"
     mkdir -p "$out/$d"
   done
   run shoot_site "$out/site" night
   run shoot_site "$out/site" night es
+  run shoot_tour "$out/tour" night
+  run shoot_tour "$out/tour" night es
   run shoot_readme "$out/readme" window-night window-paper mixer inspector matrix linked \
     pianoroll rack appearance themes mark packs score
   run shoot_showcase "$out/showcase"

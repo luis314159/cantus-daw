@@ -5,6 +5,7 @@
 use yew::prelude::*;
 
 use crate::lang::{use_lang, Lang};
+use crate::unit_text::page;
 use crate::units::shade_now;
 
 /// The recording mode's pictures, in the page's theme and language.
@@ -16,6 +17,58 @@ fn shot(what: &str, l: Lang) -> String {
     };
     format!("/studio/record-{what}-{theme}-{}.webp", l.code())
 }
+
+/// What the recording mode does, one paragraph per point: compiled natively only; the
+/// WebAssembly reads them from `/unit-text.json` (`unit_text::page`, round 41's budget).
+#[cfg(not(target_arch = "wasm32"))]
+pub const RECORD_POINTS: [(&str, &str); 5] = [
+    (
+        "One click renders every strip that feeds the master — its effects, sends and automation, before its fader — and plays the renders back as streams. Armed tracks stay live with their own effects; the master chain can stay live or be baked too.",
+        "Un clic renderiza cada canal que alimenta al máster — sus efectos, envíos y automatización, antes de su fader — y reproduce los renders como flujos. Las pistas armadas siguen en vivo con sus propios efectos; la cadena del máster puede seguir en vivo o pre-renderizarse también.",
+    ),
+    (
+        "Fader, pan, mute and solo keep working on every baked strip that goes straight to the master, and fader and pan on one that feeds others only before its fader; the question says how many stay locked. Or lock them all. Anything else waits behind the line Recording mode — leave it to edit.",
+        "Fader, paneo, mute y solo siguen funcionando en cada canal pre-renderizado que va directo al máster, y fader y paneo en uno que alimenta a otros solo antes de su fader; la pregunta dice cuántos quedan bloqueados. O bloquéalos todos. Lo demás espera tras el aviso Modo de grabación — sal de él para editar.",
+    ),
+    (
+        "The buffer, the round trip, the CPU before and now, how many strips are baked, what monitoring leaves out, and Leave — always on screen while the mode is on.",
+        "El búfer, el viaje de ida y vuelta, la CPU antes y ahora, cuántos canales están pre-renderizados, qué deja fuera el monitoreo, y Salir — siempre a la vista mientras el modo está activo.",
+    ),
+    (
+        "The baked mix equals the live mix to the bit — the tests hold it at every block size. The mode is never an undo step and never written into your project; going back in renders only what changed since.",
+        "La mezcla pre-renderizada es igual a la mezcla en vivo bit a bit — las pruebas lo sostienen en cada tamaño de bloque. El modo nunca es un paso de deshacer ni se escribe en tu proyecto; volver a entrar renderiza solo lo que cambió.",
+    ),
+    (
+        "It never switches on by itself. A plug-in that cannot render offline is named and stays live, or stops the preparation — you choose before it starts.",
+        "Nunca se activa solo. Un plug-in que no puede renderizar sin conexión se nombra y sigue en vivo, o detiene la preparación — tú eliges antes de empezar.",
+    ),
+];
+
+/// Each studio card's text, in the cards' order: compiled natively only, as
+/// `RECORD_POINTS`.
+#[cfg(not(target_arch = "wasm32"))]
+pub const STUDIO_TEXT: [(&str, &str); 5] = [
+    (
+        "A VCA strip moves its members' gain at the gain stage: their own faders and automation stay where you left them, and a member can follow two VCAs, or a VCA another. Snapshots take the whole desk or chosen channels and recall them in one undo step, with recall-safe and solo-safe strips and an A/B compare; put one on the timeline and the mix changes on that bar.",
+        "Un canal VCA mueve la ganancia de sus miembros en la etapa de ganancia: sus propios faders y su automatización quedan donde los dejaste, y un miembro puede seguir a dos VCA, o un VCA a otro. Los snapshots toman la consola entera o los canales que elijas y los recuperan en un paso de deshacer, con canales a salvo del recall y del solo y una comparación A/B; pon uno en la línea de tiempo y la mezcla cambia en ese compás.",
+    ),
+    (
+        "Edit in audio editor… on any clip: cut, paste, silence, fades with five curves, normalise to peak, RMS or LUFS, reverse, remove silence — each edit a new file and one undo step, the original kept. A spectrogram where you select a region in time and frequency and turn it down; noise reduction by a learned profile; declick and repair. Markers, regions and loop points travel with the file.",
+        "Editar en el editor de audio… en cualquier clip: cortar, pegar, silencio, fundidos con cinco curvas, normalizar a pico, RMS o LUFS, invertir, quitar silencios — cada edición un archivo nuevo y un paso de deshacer, el original conservado. Un espectrograma donde seleccionas una región en tiempo y frecuencia y la atenúas; reducción de ruido por perfil aprendido; declick y reparación. Marcadores, regiones y puntos de loop viajan con el archivo.",
+    ),
+    (
+        "External instrument and External effect units send MIDI and audio out of your interface and bring the result back. Ping sends a burst out and listens for it to return: the trip is measured to the sample, stored with the unit, and delay compensation uses it. An interface that is unplugged is said, never loaded blindly.",
+        "Las unidades Instrumento externo y Efecto externo envían MIDI y audio por tu interfaz y traen el resultado de vuelta. Ping envía una ráfaga y la escucha volver: el viaje se mide a la muestra, se guarda con la unidad y la compensación de retardo lo usa. Una interfaz desconectada se avisa, nunca se carga a ciegas.",
+    ),
+    (
+        "A Mackie Control with its extenders, or a HUI, drives the mixer: motor faders that never fight your hand, V-Pots, transport and jog, banks and flip, scribble strips, meters and the timecode display. Two clicks to set one up; generic MIDI mapping stays beside it.",
+        "Un Mackie Control con sus extensores, o un HUI, maneja el mezclador: faders motorizados que nunca pelean con tu mano, V-Pots, transporte y jog, bancos y flip, scribble strips, medidores y la pantalla de código de tiempo. Dos clics para configurarlo; el mapeo MIDI genérico sigue al lado.",
+    ),
+    (
+        "Cantus hosts ARA 2 plug-ins on audio clips: bind a clip, open the plug-in's editor from it, and each edit gesture is one undo step. The plug-in renders the region and Cantus plays the render, so fades, clip gain and offline export keep working.",
+        "Cantus aloja plug-ins ARA 2 en clips de audio: vincula un clip, abre el editor del plug-in desde él, y cada gesto de edición es un paso de deshacer. El plug-in renderiza la región y Cantus reproduce el render, así los fundidos, la ganancia del clip y la exportación siguen funcionando.",
+    ),
+];
 
 #[function_component(RecordMode)]
 pub fn record_mode() -> Html {
@@ -38,21 +91,32 @@ pub fn record_mode() -> Html {
         }
     });
     let points = [
-        (l.t("Everything baked but your take", "Todo pre-renderizado menos tu toma"),
-         l.t("One click renders every strip that feeds the master — its effects, sends and automation, before its fader — and plays the renders back as streams. Armed tracks stay live with their own effects; the master chain can stay live or be baked too.",
-             "Un clic renderiza cada canal que alimenta al máster — sus efectos, envíos y automatización, antes de su fader — y reproduce los renders como flujos. Las pistas armadas siguen en vivo con sus propios efectos; la cadena del máster puede seguir en vivo o pre-renderizarse también.")),
-        (l.t("Mix while you record", "Mezcla mientras grabas"),
-         l.t("Fader, pan, mute and solo keep working on every baked strip that goes straight to the master, and fader and pan on one that feeds others only before its fader; the question says how many stay locked. Or lock them all. Anything else waits behind the line Recording mode — leave it to edit.",
-             "Fader, paneo, mute y solo siguen funcionando en cada canal pre-renderizado que va directo al máster, y fader y paneo en uno que alimenta a otros solo antes de su fader; la pregunta dice cuántos quedan bloqueados. O bloquéalos todos. Lo demás espera tras el aviso Modo de grabación — sal de él para editar.")),
-        (l.t("A bar you cannot miss", "Una barra imposible de pasar por alto"),
-         l.t("The buffer, the round trip, the CPU before and now, how many strips are baked, what monitoring leaves out, and Leave — always on screen while the mode is on.",
-             "El búfer, el viaje de ida y vuelta, la CPU antes y ahora, cuántos canales están pre-renderizados, qué deja fuera el monitoreo, y Salir — siempre a la vista mientras el modo está activo.")),
-        (l.t("Leave it, and nothing changed", "Sal de él, y nada cambió"),
-         l.t("The baked mix equals the live mix to the bit — the tests hold it at every block size. The mode is never an undo step and never written into your project; going back in renders only what changed since.",
-             "La mezcla pre-renderizada es igual a la mezcla en vivo bit a bit — las pruebas lo sostienen en cada tamaño de bloque. El modo nunca es un paso de deshacer ni se escribe en tu proyecto; volver a entrar renderiza solo lo que cambió.")),
-        (l.t("Optional, never automatic", "Opcional, nunca automático"),
-         l.t("It never switches on by itself. A plug-in that cannot render offline is named and stays live, or stops the preparation — you choose before it starts.",
-             "Nunca se activa solo. Un plug-in que no puede renderizar sin conexión se nombra y sigue en vivo, o detiene la preparación — tú eliges antes de empezar.")),
+        (
+            l.t(
+                "Everything baked but your take",
+                "Todo pre-renderizado menos tu toma",
+            ),
+            page("record-mode", 0, l).unwrap_or_default(),
+        ),
+        (
+            l.t("Mix while you record", "Mezcla mientras grabas"),
+            page("record-mode", 1, l).unwrap_or_default(),
+        ),
+        (
+            l.t(
+                "A bar you cannot miss",
+                "Una barra imposible de pasar por alto",
+            ),
+            page("record-mode", 2, l).unwrap_or_default(),
+        ),
+        (
+            l.t("Leave it, and nothing changed", "Sal de él, y nada cambió"),
+            page("record-mode", 3, l).unwrap_or_default(),
+        ),
+        (
+            l.t("Optional, never automatic", "Opcional, nunca automático"),
+            page("record-mode", 4, l).unwrap_or_default(),
+        ),
     ];
     let rows = points
         .into_iter()
@@ -128,7 +192,7 @@ pub fn studio() -> Html {
     let es = l.t("", "-es");
     let card = |id: &'static str,
                 title: &'static str,
-                text: &'static str,
+                text: String,
                 note: &'static str,
                 img: String,
                 alt: &'static str,
@@ -157,33 +221,28 @@ pub fn studio() -> Html {
                 <div class="studio-grid">
                     { card("vca",
                         l.t("VCA faders, snapshots and scene cues", "Faders VCA, snapshots y cues de escena"),
-                        l.t("A VCA strip moves its members' gain at the gain stage: their own faders and automation stay where you left them, and a member can follow two VCAs, or a VCA another. Snapshots take the whole desk or chosen channels and recall them in one undo step, with recall-safe and solo-safe strips and an A/B compare; put one on the timeline and the mix changes on that bar.",
-                            "Un canal VCA mueve la ganancia de sus miembros en la etapa de ganancia: sus propios faders y su automatización quedan donde los dejaste, y un miembro puede seguir a dos VCA, o un VCA a otro. Los snapshots toman la consola entera o los canales que elijas y los recuperan en un paso de deshacer, con canales a salvo del recall y del solo y una comparación A/B; pon uno en la línea de tiempo y la mezcla cambia en ese compás."),
+                        page("studio", 0, l).unwrap_or_default(),
                         l.t("A VCA at 0 dB touches no sample: a null test holds it.", "Un VCA a 0 dB no toca ninguna muestra: una prueba nula lo sostiene."),
                         format!("/studio/mix-snap-{theme}-{}.webp", l.code()), l.t("The mixer with two VCA strips and the Snapshots menu open", "El mezclador con dos canales VCA y el menú Snapshots abierto"), (1920, 1080)) }
                     { card("editor",
                         l.t("An audio editor, opened from the clip", "Un editor de audio, abierto desde el clip"),
-                        l.t("Edit in audio editor… on any clip: cut, paste, silence, fades with five curves, normalise to peak, RMS or LUFS, reverse, remove silence — each edit a new file and one undo step, the original kept. A spectrogram where you select a region in time and frequency and turn it down; noise reduction by a learned profile; declick and repair. Markers, regions and loop points travel with the file.",
-                            "Editar en el editor de audio… en cualquier clip: cortar, pegar, silencio, fundidos con cinco curvas, normalizar a pico, RMS o LUFS, invertir, quitar silencios — cada edición un archivo nuevo y un paso de deshacer, el original conservado. Un espectrograma donde seleccionas una región en tiempo y frecuencia y la atenúas; reducción de ruido por perfil aprendido; declick y reparación. Marcadores, regiones y puntos de loop viajan con el archivo."),
+                        page("studio", 1, l).unwrap_or_default(),
                         l.t("In its tests: hiss 12 dB down or more, a voice within 1 dB.", "En sus pruebas: el siseo 12 dB más bajo o más, una voz a menos de 1 dB."),
                         format!("/studio/editor-{theme}{es}.webp"), l.t("The audio editor: the waveform over its spectrogram, a selection, markers and the noise reduction controls", "El editor de audio: la onda sobre su espectrograma, una selección, marcadores y los controles de reducción de ruido"),
                         if theme == "night" && es.is_empty() { (1800, 1080) } else { (1500, 900) }) }
                     { card("external",
                         l.t("Outboard gear, on time by itself", "Equipo externo, a tiempo por sí solo"),
-                        l.t("External instrument and External effect units send MIDI and audio out of your interface and bring the result back. Ping sends a burst out and listens for it to return: the trip is measured to the sample, stored with the unit, and delay compensation uses it. An interface that is unplugged is said, never loaded blindly.",
-                            "Las unidades Instrumento externo y Efecto externo envían MIDI y audio por tu interfaz y traen el resultado de vuelta. Ping envía una ráfaga y la escucha volver: el viaje se mide a la muestra, se guarda con la unidad y la compensación de retardo lo usa. Una interfaz desconectada se avisa, nunca se carga a ciegas."),
+                        page("studio", 2, l).unwrap_or_default(),
                         l.t("Hardware cannot be rendered offline: export and freeze refuse a track with outboard gear and say why.", "El hardware no se puede renderizar sin conexión: exportar y congelar rechazan una pista con equipo externo y dicen por qué."),
                         format!("/studio/external-{theme}{es}.webp"), l.t("Settings, MIDI: an external instrument with its measured latency, and an external effect waiting for its ping", "Ajustes, MIDI: un instrumento externo con su latencia medida, y un efecto externo esperando su ping"), (1500, 414)) }
                     { card("surfaces",
                         l.t("Mackie Control and HUI", "Mackie Control y HUI"),
-                        l.t("A Mackie Control with its extenders, or a HUI, drives the mixer: motor faders that never fight your hand, V-Pots, transport and jog, banks and flip, scribble strips, meters and the timecode display. Two clicks to set one up; generic MIDI mapping stays beside it.",
-                            "Un Mackie Control con sus extensores, o un HUI, maneja el mezclador: faders motorizados que nunca pelean con tu mano, V-Pots, transporte y jog, bancos y flip, scribble strips, medidores y la pantalla de código de tiempo. Dos clics para configurarlo; el mapeo MIDI genérico sigue al lado."),
+                        page("studio", 3, l).unwrap_or_default(),
                         l.t("Tested byte for byte against a built-in emulation of both protocols, written from their published notes; trying it on real hardware is still to come.", "Probado byte a byte contra una emulación integrada de ambos protocolos, escrita a partir de sus notas publicadas; falta probarlo con hardware real."),
                         format!("/studio/surfaces-{theme}{es}.webp"), l.t("Settings, MIDI: a Mackie Control, an extender and a HUI, with the last messages sent", "Ajustes, MIDI: un Mackie Control, un extensor y un HUI, con los últimos mensajes enviados"), (1500, 372)) }
                     { card("ara",
                         l.t("ARA 2 plug-ins on your clips", "Plug-ins ARA 2 en tus clips"),
-                        l.t("Cantus hosts ARA 2 plug-ins on audio clips: bind a clip, open the plug-in's editor from it, and each edit gesture is one undo step. The plug-in renders the region and Cantus plays the render, so fades, clip gain and offline export keep working.",
-                            "Cantus aloja plug-ins ARA 2 en clips de audio: vincula un clip, abre el editor del plug-in desde él, y cada gesto de edición es un paso de deshacer. El plug-in renderiza la región y Cantus reproduce el render, así los fundidos, la ganancia del clip y la exportación siguen funcionando."),
+                        page("studio", 4, l).unwrap_or_default(),
                         l.t("ARA plug-ins run inside Cantus's own process, not isolated like other plug-ins — the clip menu says so.", "Los plug-ins ARA corren dentro del proceso de Cantus, no aislados como los demás plug-ins — el menú del clip lo dice."),
                         "/studio/ara-clips.webp".to_string(), l.t("Audio clips in the arrangement, one rendered by an ARA plug-in", "Clips de audio en el arreglo, uno renderizado por un plug-in ARA"), (1500, 420)) }
                 </div>
