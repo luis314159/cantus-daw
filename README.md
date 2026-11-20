@@ -40,6 +40,11 @@ and the row it loses is published beside the ones it wins.
 > *"Whatever you do, work at it with all your heart."* — Colossians 3:23, the motto Cantus is
 > built under.
 
+I am a Christian, and that verse is why Cantus is made with excellence and honesty, completely
+free for everyone, with the ambition to become one day the best DAW on the market. The verse
+that greets you at start has a switch that turns it off for good: Cantus never asks you to
+share the belief. [Why I'm building Cantus →](docs/WHY.md) — Luis Ángel Almazán
+
 ## Download
 
 The newest beta is on the [releases page](https://github.com/luis314159/cantus-daw/releases/latest),

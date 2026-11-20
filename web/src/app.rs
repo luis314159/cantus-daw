@@ -14,7 +14,7 @@ use crate::route::{Page, Route};
 use crate::router::{Arrive, RouteCtx, Visit};
 use crate::theme::{Theme, ThemeCtx};
 use crate::{ahead, ai, body, foot, fx, listen, nav, pages, proof, score, session};
-use crate::{spotlight, studio, top, tour};
+use crate::{spotlight, studio, top, tour, why};
 
 #[derive(Properties, PartialEq)]
 pub struct AppProps {
@@ -185,6 +185,12 @@ fn body_of(page: Page) -> Html {
             </>
         },
         Route::Learn => html! { <pages::learn::Learn /> },
+        Route::Why => html! {
+            <>
+                <PageHead title={l.t("Why I'm building Cantus", "Por qué construyo Cantus")} />
+                <why::Why />
+            </>
+        },
     }
 }
 

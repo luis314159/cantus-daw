@@ -74,7 +74,11 @@ pub fn free() -> Html {
                         { l.t("\u{201C}Whatever you do, work at it with all your heart.\u{201D}",
                               "\u{201C}Y todo lo que hagáis, hacedlo de ánimo, como al Señor, y no á los hombres.\u{201D}") }
                     </blockquote>
-                    <figcaption>{ l.t("Colossians 3:23 — the motto Cantus is built under.", "Colosenses 3:23 (Reina-Valera 1909) — el lema bajo el que se construye Cantus.") }</figcaption>
+                    <figcaption>
+                        { l.t("Colossians 3:23 — the motto Cantus is built under.", "Colosenses 3:23 (Reina-Valera 1909) — el lema bajo el que se construye Cantus.") }
+                        { " " }
+                        <a class="link" href={crate::route::Page::new(l, crate::route::Route::Why).path()}>{ l.t("Why I'm building Cantus \u{2192}", "Por qué construyo Cantus \u{2192}") }</a>
+                    </figcaption>
                 </figure>
             </div>
         </section>

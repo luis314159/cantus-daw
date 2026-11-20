@@ -54,6 +54,7 @@ pub fn footer() -> Html {
                         (to(Route::Ai), l.t("AI on your computer", "IA en tu computadora")),
                         (to(Route::Measured), l.t("Measured", "Medido")),
                         (to(Route::Roadmap), l.t("Roadmap", "Hoja de ruta")),
+                        (to(Route::Why), l.t("Why I'm building it", "Por qué lo construyo")),
                     ]) }
                     { col(l.t("Learn", "Aprende"), vec![
                         (to(Route::Learn), l.t("Learn Cantus", "Aprende Cantus")),

@@ -31,6 +31,8 @@ pub enum Route {
     Roadmap,
     /// The manual, tutorials and design notes (`web-extra`'s `pages::learn`).
     Learn,
+    /// Why Cantus is made, in its author's words (round 41, `why.rs`).
+    Why,
 }
 
 /// A page in a language: one address.
@@ -60,6 +62,7 @@ impl Route {
             Route::Ai => "ai/".into(),
             Route::Roadmap => "roadmap/".into(),
             Route::Learn => "learn/".into(),
+            Route::Why => "why/".into(),
         }
     }
 
@@ -77,6 +80,7 @@ impl Route {
             ["ai"] => Route::Ai,
             ["roadmap"] => Route::Roadmap,
             ["learn"] => Route::Learn,
+            ["why"] => Route::Why,
             _ => return None,
         })
     }
@@ -92,6 +96,7 @@ impl Route {
             Route::Ai,
             Route::Roadmap,
             Route::Learn,
+            Route::Why,
             Route::Instruments,
             Route::Effects,
         ];
@@ -185,6 +190,10 @@ impl Page {
             ),
             Route::Roadmap => format!("{}{tail}", l.t("Roadmap", "Hoja de ruta")),
             Route::Learn => format!("{}{tail}", l.t("Learn", "Aprende")),
+            Route::Why => format!(
+                "{}{tail}",
+                l.t("Why I'm building Cantus", "Por qué construyo Cantus")
+            ),
         }
     }
 
@@ -243,6 +252,10 @@ impl Page {
             Route::Learn => l.t(
                 "Learn Cantus: the manual in English and Spanish, from install to a finished song, the design notes and the press kit.",
                 "Aprende Cantus: el manual en inglés y español, de la instalación a una canción terminada, las notas de diseño y el kit de prensa.",
+            ),
+            Route::Why => l.t(
+                "Why Cantus is made, in its author's words: completely free for everyone, built to become one day the best DAW on the market, and under one verse, Colossians 3:23.",
+                "Por qué se hace Cantus, en palabras de su autor: completamente gratis para todos, hecho para llegar a ser algún día el mejor DAW del mercado, y bajo un versículo, Colosenses 3:23.",
             ),
         };
         s.to_string()
