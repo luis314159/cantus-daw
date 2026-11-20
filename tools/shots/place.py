@@ -307,6 +307,6 @@ if __name__ == "__main__":
         if n not in FAMILIES:
             sys.exit(f"no family {n}: {', '.join(FAMILIES)}")
     # The README's PNGs first: session/, score/ and ai/ are made from them.
-    order = [f for f in ("program", "readme", "studio", "session", "score", "ai", "manual")
+    order = [f for f in ("program", "tour", "readme", "studio", "session", "score", "ai", "manual")
              if f in names]
     main(sys.argv[1], order)

@@ -3,9 +3,10 @@
 //! close-up width, all on *Sunday Strut*: the home's program picture plays *Neon Tide*, so the
 //! tour shows a second song.
 //!
-//! The window is the program picture's (`shoot_site`): 1912 × 1022 at 100 %, the browser
-//! and the inspector at the same widths, and the operating system's caption band on top. The
-//! arrangement pane is closed, so the view fills the space between them, top to bottom.
+//! The window is the program picture's (`shoot_site`) at 100 %, the browser and the inspector
+//! at the same widths and the operating system's caption band on top, but 760 px tall: the
+//! arrangement pane is closed, so the view fills the space between them, top to bottom, and the
+//! tour shows that space at about the shape of the program picture's own crops.
 //! `tools/shots/place.py <dir> tour` writes the WebPs the site serves (`reshoot.sh` runs both).
 //!
 //! `cargo run --release -p cantus-ui --example shoot_tour -- <out-dir> [night|paper] [en|es]`
@@ -25,7 +26,7 @@ use std::path::{Path, PathBuf};
 #[path = "shots_common/studio.rs"]
 mod studio;
 
-const SIZE: (f32, f32) = (1912.0, 1022.0);
+const SIZE: (f32, f32) = (1912.0, 760.0);
 /// The height the caption bar of a real window takes.
 const CAPTION: f32 = 31.0;
 /// The browser's and the inspector's widths, as in the program picture.
@@ -106,6 +107,19 @@ fn shoot(dir: &Path, view: View, paper: bool, spanish: bool) {
     app.settings.stage.hidden = true;
     studio::studio(&mut app, 256);
     app.set_status(i18n::t("status.autosaved"));
+    // The desk ends cleanly: the strips nothing feeds (the empty slots) are removed.
+    let empty: Vec<_> = app
+        .project()
+        .strips
+        .iter()
+        .filter(|s| s.name.is_empty() && s.effects.is_empty())
+        .map(|s| s.id)
+        .collect();
+    for id in empty {
+        app.exec(cantus_core::Command::RemoveStrip { id });
+    }
+    // ... and the song reads as opened, not as edited (no "•" beside its name).
+    app.bus.mark_saved();
 
     // Where the song plays: the solo (bar 20) for the lead's melody, the first chorus
     // (bar 12) for the groove and the desk.

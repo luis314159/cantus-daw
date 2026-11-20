@@ -21,9 +21,9 @@ struct Crop {
     h: u32,
 }
 
-/// The tour's pictures of *Sunday Strut* (`shoot_tour`): the window's size, as the program
-/// picture's.
-const TOUR_SIZE: (u32, u32) = (1912, 1022);
+/// The tour's pictures of *Sunday Strut* (`shoot_tour`): the program picture's width, 760 px
+/// tall. Each shows the view between the browser and the inspector, its tabs to the status bar.
+const TOUR_SIZE: (u32, u32) = (1912, 760);
 
 const ARRANGEMENT: Crop = Crop {
     pic: crate::picture::program,
@@ -41,26 +41,26 @@ const PIANO_ROLL: Crop = Crop {
         )
     },
     size: TOUR_SIZE,
-    x: 277,
-    y: 92,
-    w: 1340,
-    h: 700,
+    x: 278,
+    y: 75,
+    w: 1343,
+    h: 658,
 };
 const RACK: Crop = Crop {
     pic: |l| l.t("/program/tour-rack.webp", "/program/tour-rack-es.webp"),
     size: TOUR_SIZE,
-    x: 277,
-    y: 92,
-    w: 1340,
-    h: 700,
+    x: 278,
+    y: 75,
+    w: 1343,
+    h: 658,
 };
 const MIXER: Crop = Crop {
     pic: |l| l.t("/program/tour-mixer.webp", "/program/tour-mixer-es.webp"),
     size: TOUR_SIZE,
-    x: 277,
-    y: 92,
-    w: 1340,
-    h: 700,
+    x: 278,
+    y: 75,
+    w: 1343,
+    h: 658,
 };
 
 #[function_component(Tour)]
