@@ -7,7 +7,9 @@
 #
 # Runs when the owner pushes a version tag (`git tag v0.2.0 && git push origin v0.2.0`);
 # the tag must equal the workspace version in Cargo.toml. Run by hand (Actions → Release
-# → Run workflow) it builds the files and keeps them as an artifact, publishing nothing.
+# → Run workflow) it builds the files and keeps them as an artifact, publishing nothing:
+# that is the rehearsal docs/RELEASING.md asks for before every tag, and a tag is refused
+# (the preflight job) without docs/releases/<tag>.preflight.md naming a green one.
 #
 # Signing is optional and needs no change here, only secrets/variables in the repository:
 #   PFX:   secrets.CANTUS_SIGN_PFX_BASE64, secrets.CANTUS_SIGN_PFX_PASSWORD,
@@ -52,9 +54,31 @@ env:
   ASIO_SHA256: d5ebf0c20dd2c5f43771fd0c1418f4b361bf52434ee670097cfa6b3a335e2eca
 
 jobs:
+  preflight:
+    # docs/RELEASING.md (beta.15's lessons): a tag builds nothing until its checklist,
+    # docs/releases/<tag>.preflight.md, ticks every lesson there and names a green hand-run
+    # of this workflow on a commit the tag's differs from only in docs/releases/. Run by
+    # hand (the rehearsal itself) it checks nothing.
+    if: github.repository == 'luis314159/cantus-daw'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Every lesson ticked, and the rehearsal green on the same code
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/release/preflight.sh "$GITHUB_REF_NAME"
+
   test:
     # Runs in luis314159/cantus-daw only (round 29: the public repository builds, tests and releases; the private one deploys the site).
     if: github.repository == 'luis314159/cantus-daw'
+    needs: preflight
     runs-on: windows-latest
     # As in ci.yml: a hung test would otherwise bill up to six hours, and 360 test binaries
     # with full debug info can fill a runner's disk. 240 (beta.15): the whole suite, with the
@@ -79,7 +103,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets
         env:
           RUSTFLAGS: -D warnings
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
 
   package:
     needs: test
@@ -174,6 +198,7 @@ jobs:
   linux:
     # Runs in luis314159/cantus-daw only (round 29: the public repository builds, tests and releases; the private one deploys the site).
     if: github.repository == 'luis314159/cantus-daw'
+    needs: preflight
     name: linux (AppImage)
     # 22.04, not latest: an AppImage runs on systems at least as new as the one it was
     # built on (its glibc), so the oldest supported LTS builds it (ADR 0067 §1).
@@ -210,7 +235,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets
         env:
           RUSTFLAGS: -D warnings
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
       - name: Build (the app, the plug-in scanner, the sandbox, the MCP bridge, the ML helper)
         run: cargo build --release -p cantus -p cantus-host -p cantus-sandbox -p cantus-mcp -p cantus-ml --features cantus/video-asm # r34:mcp r34:stems r35:video
       - name: The AppImage
@@ -237,6 +262,7 @@ jobs:
     # a session on a real Mac (the owner, 2026-10-23; docs/mac-session.md). Set it to `true`
     # (Settings > Secrets and variables > Actions > Variables) and the next tag has three.
     if: github.repository == 'luis314159/cantus-daw' && vars.CANTUS_RELEASE_MACOS == 'true'
+    needs: preflight
     name: macos (disk image)
     runs-on: macos-latest
     # 180 (beta.14): the suite took 84 min and the disk image 36, 130 of the 150 there were;
@@ -266,7 +292,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets
         env:
           RUSTFLAGS: -D warnings
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
       # build-dmg.sh builds both architectures, lipos them, makes Cantus.app, and signs
       # with the hardened runtime and notarises only when every secret below is set;
       # otherwise it signs ad hoc (the round-30 contract, docs/round30/BUILDING.md).

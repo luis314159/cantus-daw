@@ -35,6 +35,9 @@ on:
       - "docs/manual/**"
       - "THIRD-PARTY-NOTICES.md"
       - "PRIVACY.md"
+      - "docs/RELEASING.md"
+      - "docs/releases/PREFLIGHT.md"
+      - "tools/release/**"
       - "web/src/top.rs"
       - "web/build.rs"
       - "web/site_version.rs"
@@ -52,6 +55,9 @@ on:
       - "docs/manual/**"
       - "THIRD-PARTY-NOTICES.md"
       - "PRIVACY.md"
+      - "docs/RELEASING.md"
+      - "docs/releases/PREFLIGHT.md"
+      - "tools/release/**"
       - "web/src/top.rs"
       - "web/build.rs"
       - "web/site_version.rs"
@@ -115,9 +121,10 @@ jobs:
         run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets
       # On Linux under Xvfb: the plug-in editor windows' tests need an X server (ADR 0065).
+      # Whole: one run shows every failing binary (docs/RELEASING.md L2).
       - name: test
         shell: bash
-        run: ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}cargo test --workspace
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}cargo test --workspace --no-fail-fast
       # The engine on a three-worker pool with the schedule fuzz's stalls (ADR 0031 R13,
       # round 22; ADR 0038's forked voices): every test binary of the engine, parallel =
       # serial to the bit, with stalls inside the voice forks too.

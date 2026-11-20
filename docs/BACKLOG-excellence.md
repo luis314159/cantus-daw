@@ -274,6 +274,12 @@ dentro del instrumento completo (martillo, puente, tabla): las teclas de una cue
 las dos de G1–F2, las tres desde F#2 y la segunda polarización del modelo 2; cada error con su
 tolerancia razonada, un informe por tecla y una página para que veas cada cuerda.
 
+**(8, 2026-11-19)** Las pruebas como las dice `docs/RELEASING.md`: la versión etiquetada
+reutiliza el resultado del ensayo cuando el código es idéntico (nunca se salta nada más);
+cargo-nextest con un proceso por prueba y la suite repartida en varias máquinas; un tema
+visual por ventana en vez de uno por proceso; y en las ramas, primero lo afectado para
+responder rápido, pero master siempre con la suite completa.
+
 ## 1. Real use — the test that matters most
 
 - ~~**An effect never sent after another project was open**~~ — **done in round 41**
@@ -2567,6 +2573,24 @@ the chosen voice within 10 cents on sustained notes and 20 ms of each syllable's
 component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
 
 ## 8. Polish
+
+- **The suite as `docs/RELEASING.md` keeps it (the owner, 2026-11-19: "buscando siempre hacer
+  todo con excelencia")** — build its practice:
+  1. **The tagged run reuses the rehearsal's result**: when preflight has verified a green
+     rehearsal on code identical but for `docs/releases/`, the tag's jobs build and package
+     and skip the suite (their fmt, clippy and tests passed on that code); anything else and
+     the whole suite runs. A test in xtask holds the condition, so a tag can never skip a
+     suite its code has not passed.
+  2. **`cargo-nextest`, a process per test, partitions across runners** in `ci.yml` and
+     `release.yml`: the races of L5 gone by construction; the Windows suite split in about
+     three jobs (each under its time limit with room); flaky tests reported, never passed
+     by a silent retry; the doctests still run (nextest does not run them).
+  3. **A theme per context**, not per process (cantus-03, 2026-11-19): `theme::apply`'s
+     palette and the kit's tokens kept in the egui context they were applied to, so two
+     windows (or two tests) can never repaint each other; then the turns of
+     `instruments_scale_e2e` and `scene_vector` can go.
+  4. **Affected crates first on a branch push** (`cargo metadata`'s reverse dependencies)
+     for fast feedback; the whole suite still gates master.
 
 - Accessibility (screen-reader semantics for the painted views, keyboard-only operation,
   colour-blind-safe meters), UI zoom tested at every step, high-DPI on every monitor.

@@ -566,3 +566,59 @@ fn a_published_release_starts_the_sites_deploy() {
         "the site takes a dispatch"
     );
 }
+
+/// beta.15's lessons (docs/RELEASING.md) are enforced, not only written: each lesson has its
+/// box in the checklist's template, in order; a tag's three systems wait for the preflight
+/// job, which runs the script that refuses an unticked checklist or a missing rehearsal; and
+/// every suite in the release runs whole, so one run shows every failing binary.
+#[test]
+fn every_release_lesson_has_its_box_and_the_release_waits_for_the_checklist() {
+    let first = |rest: &str| rest.split(' ').next().unwrap_or_default().to_string();
+    let lessons: Vec<String> = read("docs/RELEASING.md")
+        .lines()
+        .filter_map(|l| l.strip_prefix("### "))
+        .filter(|l| l.starts_with('L'))
+        .map(first)
+        .collect();
+    assert!(lessons.len() >= 8, "{lessons:?}");
+    let boxes: Vec<String> = read("docs/releases/PREFLIGHT.md")
+        .lines()
+        .filter_map(|l| l.strip_prefix("- [ ] "))
+        .map(first)
+        .collect();
+    assert_eq!(
+        boxes, lessons,
+        "docs/releases/PREFLIGHT.md needs one box per lesson of docs/RELEASING.md, in order"
+    );
+    let script = read("tools/release/preflight.sh");
+    assert!(script.contains("docs/releases/$tag.preflight.md"));
+    assert!(script.contains("workflow_dispatch"));
+    let wf = read(".github/workflows/release.yml");
+    let jobs = jobs(&wf);
+    let job = |name: &str| {
+        jobs.iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, t)| t.clone())
+            .unwrap_or_else(|| panic!("release.yml has no job {name}"))
+    };
+    let pre = job("preflight");
+    assert!(pre.contains("run: bash tools/release/preflight.sh \"$GITHUB_REF_NAME\""));
+    assert!(pre.contains("fetch-depth: 0"), "the diff needs the history");
+    assert!(
+        pre.contains("actions: read"),
+        "the rehearsal is read through the API"
+    );
+    for name in ["test", "linux", "macos"] {
+        assert!(
+            job(name).contains("needs: preflight"),
+            "release.yml's {name} starts before the preflight"
+        );
+    }
+    let suites = wf.matches("cargo test --workspace").count();
+    assert_eq!(suites, 3, "a suite per system");
+    assert_eq!(
+        wf.matches("cargo test --workspace --no-fail-fast").count(),
+        suites,
+        "every release suite runs whole (RELEASING.md L2)"
+    );
+}
