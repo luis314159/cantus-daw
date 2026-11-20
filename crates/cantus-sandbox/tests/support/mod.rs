@@ -494,7 +494,6 @@ impl Rig {
         self.sync();
     }
 
-    /// One audio block, then what the interface does each frame.
     /// Blocks until the helper has said back parameter `id` of plug-in `effect` at `value`
     /// (10 s at most). A fault set through a parameter is in the plug-in only then: on a
     /// loaded Mac runner `settle`'s 64 blocks were not always enough (beta.15).
@@ -515,6 +514,7 @@ impl Rig {
         }
     }
 
+    /// One audio block, then what the interface does each frame.
     pub fn block(&mut self, frames: usize) -> Vec<f32> {
         let mut buf = vec![0f32; frames * 2];
         self.processor.process(&mut buf, 2);
