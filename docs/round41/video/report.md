@@ -6,8 +6,8 @@ Generated files live in `F:\projects\video-work\`, never in the repository.*
 | Step | State |
 |---|---|
 | 1. Facts | done (`ae88ebae`); script corrected |
-| 2. The voice | **in progress**: round 1 made 96 takes and 3 passed the gate; the tools were fixed; round 2 (8 takes a line, a calmer grid, spoken spellings) is running in the background; the A/B page waits for its gate |
-| 3. The film | not started (no cargo build until "measurement done") |
+| 2. The voice | **the A/B page is ready for the owner's ear**: `F:\projects\video-work\voice\ab.html`, two gated takes per line in English and Spanish (below, "Step 2, rounds 2–3") |
+| 3. The film | not started; cargo is allowed again (the build slot, `-j 3`), and it waits for the takes the owner picks |
 | 4. The cards | sources written, both end cards A and B; **stills rendered in EN and ES and looked at**; three fixes made from them |
 
 ## Step 2, round 1 (2026-11-20): 3 of 96 takes passed
@@ -134,9 +134,47 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
   at. The logo's part selectors, the line breaks and the spacing are unverified until the
   first stills.
 
+## Step 2, rounds 2–3 and the A/B page (2026-11-20)
+
+- **Round 2:** whole lines, the calmer grid, the spoken spellings, 8 takes a line. Under
+  the gate as it then stood, 6 of 64 English takes passed and 8 of 64 Spanish. Every long
+  line still ran fast: 3.5–4.5 words a second in English, 6–7.5 syllables in Spanish.
+- **Round 3, phrase by phrase:** stopped after two takes. The model babbles after a short
+  input: line 1 came out at 12.9 s and 14.7 s. This is kept behind `takes.py --phrases`,
+  off.
+- **What stands:**
+  - New whole-line takes for lines 4 and 5 (`F-L`, `vee-ess-tee three`).
+  - `breathe.py` over every round-2 and round-3 take. It opens the take's own pauses to
+    180 and 320 ms with silence, and never stretches the voice.
+  - The gate, revised:
+    - A take's end is judged by its level: louder than −30 dB under its loudest 20 ms
+      means a word was cut off; up to 700 ms of trailing sound is allowed.
+    - The pace is reported, not failed.
+- **Passed, per line:**
+
+  | Language | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+  |---|---|---|---|---|---|---|---|---|
+  | English | 7/8 | 6/8 | 5/8 | 8/16 | 5/16 | 6/8 | 4/8 | 3/8 |
+  | Spanish | 4/8 | 2/8 | 4/8 | 9/16 | 5/16 | 6/8 | 3/8 | 5/8 |
+
+- **The page:** `F:\projects\video-work\voice\ab.html`, 32 takes in all.
+  - It shows the two passing takes per line nearest a calm pace, in take-name order.
+  - It shows each take's length and pace, and says "faster than a calm read" where it is.
+    That is English lines 1, 2, 4 and 8, and Spanish lines 1, 2 and 4.
+  - **Checked:** every audio link resolves to a file. A headless-Chrome screenshot of the
+    page was looked at: the layout, the notes and the picks bar.
+- **Whisper's spellings on the takes shown** (the gate accepts a name within two letters,
+  same first sound):
+  - "Qantas" for Cantus on both English line-1 takes;
+  - "cantusda.com" on both English line-8 takes;
+  - "Timpanum" on Spanish line 3, take r2-03-4.
+
+  The owner's ear decides whether the name was said right.
+
 ## What nobody has watched or heard yet
 
-Everything.
+No one has heard any take. Claude measured them, and Whisper transcribed them. The card
+stills have been looked at by Claude only.
 
 *(Written by the integrator from the video agent's hand-back, 2026-11-20: the subagent's tool
 policy refused it a report file. Two of its claims were checked against the code: no demo
