@@ -175,6 +175,8 @@ impl InstrumentKind {
             InstrumentKind::Dancer => !dancer::VIEW_KEYS.contains(&key),
             // r40:p3 — a kit's model, its room and its openness controller are set.
             InstrumentKind::AcousticDrums => !tympanum::SET_KEYS.contains(&key),
+            // r41:fides — the model a song was made with and the voices it holds are set.
+            InstrumentKind::Resonator => !fides::SET_KEYS.contains(&key),
             _ => true,
         }
     }

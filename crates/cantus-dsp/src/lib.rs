@@ -52,6 +52,7 @@ pub mod eq;
 pub mod exemplar;
 pub mod expr_glide;
 pub mod fervor;
+pub mod fides; // r41:fides (ADR 0150): the resonator instrument's DSP
 pub mod filter;
 pub mod firmus;
 pub mod flexus;
