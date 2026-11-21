@@ -289,6 +289,12 @@ fn natives_all() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
         ),
         ("organum", PickChoice::Instrument(I::Organ), vec![C::Keys]),
         ("chorda", PickChoice::Instrument(I::Chorda), vec![C::Keys]),
+        // r41:fides — the resonator: marimbas, harps, guitars and bowed strings (ADR 0150).
+        (
+            "fides",
+            PickChoice::Instrument(I::Resonator),
+            vec![C::Keys, C::OtherInstruments],
+        ),
         ("gravis", PickChoice::Instrument(I::Bass), vec![C::Bass]),
         ("pulsus", PickChoice::Pulsus, vec![C::Drums]),
         // r40: the acoustic drummer, beside the drum machine.

@@ -14,11 +14,10 @@ use cantus_ui::picker_catalog::{self, Category};
 use cantus_ui::CantusApp;
 
 #[test]
-#[ignore = "runs once Fides is in ALL — the owner's listening verdict (docs/round41/fides.md)"]
 fn the_picker_lists_fides_in_both_languages_on_the_keys_shelf() {
     for (locale, what) in [
-        (Locale::En, "Resonators: strings, bars, membranes"),
-        (Locale::Es, "Resonadores: cuerdas, barras, membranas"),
+        (Locale::En, "Plucked, bowed and struck"),
+        (Locale::Es, "Pulsado, frotado y golpeado"),
     ] {
         set_thread_locale(locale);
         let devices = picker_catalog::build(std::iter::empty());

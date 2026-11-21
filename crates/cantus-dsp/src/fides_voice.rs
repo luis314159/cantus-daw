@@ -79,6 +79,10 @@ pub struct Res {
     listen: f64,
     pub f0: f64,
     pub t60: f64,
+    /// A waveguide's period at the last control step, which the strike's gain is scaled
+    /// by: taken on the grid, never at a call's start, so a block that begins while the
+    /// loop's lengths glide scales the strike as any other block does.
+    period: f64,
 }
 
 impl Res {
@@ -93,6 +97,7 @@ impl Res {
             listen: 0.2,
             f0: 261.6,
             t60: 1.0,
+            period: 0.0,
         }
     }
 
@@ -109,7 +114,17 @@ impl Res {
         self.modal.clear();
     }
 
-    fn start(&mut self, r: &ResSettings, f0: f64, t60: f64, p: f64, pos: f64, keep: bool) {
+    #[allow(clippy::too_many_arguments)]
+    fn start(
+        &mut self,
+        r: &ResSettings,
+        f0: f64,
+        t60: f64,
+        p: f64,
+        pos: f64,
+        keep: bool,
+        bowed: bool,
+    ) {
         let keep = keep && self.kind == r.kind && self.is_live();
         if !keep {
             self.clear();
@@ -126,8 +141,10 @@ impl Res {
                 t60,
                 p,
                 beta: pos,
+                dc: !bowed,
             };
             self.guide.start(r.kind, r.inharm as f64, &st, keep);
+            self.period = self.guide.period();
         } else {
             let st = ModalStep { f0, t60, p };
             self.modal.start(
@@ -142,7 +159,7 @@ impl Res {
         }
     }
 
-    fn step(&mut self, f0: f64, t60: f64, p: f64, pos: f64, span: u32) {
+    fn step(&mut self, f0: f64, t60: f64, p: f64, pos: f64, span: u32, bowed: bool) {
         self.f0 = f0;
         self.t60 = t60;
         if self.kind.is_guide() {
@@ -151,7 +168,9 @@ impl Res {
                 t60,
                 p,
                 beta: pos,
+                dc: !bowed,
             };
+            self.period = self.guide.period();
             self.guide.design(self.kind, &st, span);
         } else {
             if (pos - self.placed).abs() > 0.002 {
@@ -189,7 +208,7 @@ impl Res {
             // one length is about as loud (in RMS) low as high, as a bar's strike is.
             let p_ref = self.sr / 261.63;
             let g = Gains {
-                strike: ti * (0.5 * (self.guide.period() * p_ref).sqrt()) as f32,
+                strike: ti * (0.5 * (self.period * p_ref).sqrt()) as f32,
                 sustain: ts,
                 out: out_gain,
             };
@@ -618,13 +637,17 @@ impl Voice {
         self.pan_r = sn * std::f32::consts::SQRT_2;
         // ---- the resonators ----
         let pos = self.pos as f64;
+        // The bow on the string until it is lifted off; then the string rings free (taken
+        // on the grid, so where it lifts is the same at every block size).
+        let bowing = kind == ExciterKind::Bow && (self.first || self.exc.bow_active());
         if self.first {
             let keep = self.a.is_live();
-            self.a.start(&s.a, fa, ta, mat_a, pos, keep);
+            self.a.start(&s.a, fa, ta, mat_a, pos, keep, bowing);
             self.b_struck = s.b_on;
             if s.b_on {
                 let keep = self.b.is_live();
-                self.b.start(&s.b, fb, tb, mat_b, pos, keep);
+                self.b
+                    .start(&s.b, fb, tb, mat_b, pos, keep, bowing && !s.serial);
             }
             let contact = e.contact_ms * math::exp2(md(tg::EXC_CONTACT));
             let es = super::exciter::ExciterSettings {
@@ -649,9 +672,9 @@ impl Voice {
                 self.step.level = level * vel_gain * comp * press_gain;
             }
         } else {
-            self.a.step(fa, ta, mat_a, pos, span);
+            self.a.step(fa, ta, mat_a, pos, span, bowing);
             if b_on {
-                self.b.step(fb, tb, mat_b, pos, span);
+                self.b.step(fb, tb, mat_b, pos, span, bowing && !s.serial);
             }
         }
         self.couple = if s.serial {
@@ -659,9 +682,7 @@ impl Voice {
         } else {
             0.0
         };
-        // The bow on the string until it is lifted off; then the string rings free (taken
-        // on the grid, so where it lifts is the same at every block size).
-        self.bowing = kind == ExciterKind::Bow && (self.first || self.exc.bow_active());
+        self.bowing = bowing;
         self.vib_phase = (self.vib_phase + s.vib_rate_hz as f64 * span as f64 / sr as f64).fract();
     }
 }

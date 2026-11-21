@@ -29,6 +29,46 @@ const AP: usize = 4;
 pub const MIN_HZ: f64 = 20.0;
 /// A sample below this is silence for the gate.
 const QUIET: f32 = 1e-8;
+/// The loop's DC blocker's corner, as a fraction of the fundamental (see [`dc_pole`]).
+const DC_CORNER: f64 = 1.0 / 64.0;
+/// Samples the lines hold past the lowest fundamental's period: the Lagrange taps' reach
+/// and the DC blocker's phase lead (about 6 samples at 20 Hz), which lengthens the lines'
+/// share of the period.
+const LINE_SPARE: usize = 48;
+
+/// The pole of the loop's DC blocker for a fundamental `f0`: its corner at `f0 / 64`, far
+/// under the first partial. A loss filter is a low-pass whose gain at DC is capped just
+/// under 1, so without it a loop holds a DC level (a pluck's released displacement leaves
+/// one) for ever — the voice never ends, and its offset thumps when the voice is taken.
+/// The corner is that low because its phase lead, counted in the tuning at the
+/// fundamental, is smaller at the partials above: they sit flat of the harmonic series by
+/// up to `atan(1/64)/2π` of a period (4.3 cents at the top; at `f0 / 32` it was 8.6). The
+/// loop's slowest mode, its DC moved to about `f0 / 20`, dies within seconds even at C2
+/// with a wood's loss (at `f0 / 128` it rang 10⁻⁷ for more than ten).
+fn dc_pole(f0: f64, sr: f64) -> f64 {
+    math::exp(-std::f64::consts::TAU * f0 * DC_CORNER / sr)
+}
+
+/// The DC blocker's pole, its phase delay and its gain at `w0` — none (`1`, `0`, `1`: the
+/// loop exactly as without one) when it is out of use.
+fn dc_design(on: bool, f0: f64, sr: f64, w0: f64) -> (f64, f64, f64) {
+    if on {
+        let r = dc_pole(f0, sr);
+        let (d, g) = dc_response(r, w0);
+        (r, d, g)
+    } else {
+        (1.0, 0.0, 1.0)
+    }
+}
+
+/// The DC blocker `(1 + R)/2 · (1 − z⁻¹)/(1 − R z⁻¹)` (its gain 1 at Nyquist, under 1
+/// below): its phase delay at `w` (negative — a lead) and its gain there.
+fn dc_response(r: f64, w: f64) -> (f64, f64) {
+    let (sn, cs) = math::sin_cos(w);
+    let lead = math::atan2(sn, 1.0 - cs) - math::atan2(r * sn, 1.0 - r * cs);
+    let gain = 0.5 * (1.0 + r) * (2.0 - 2.0 * cs).sqrt() / (1.0 - 2.0 * r * cs + r * r).sqrt();
+    (-lead / w, gain)
+}
 
 #[derive(Clone, Debug)]
 pub struct Guide {
@@ -45,6 +85,11 @@ pub struct Guide {
     g1a: f32,
     a: f32,
     lz: f32,
+    /// The DC blocker: in use, its pole, its gain `(1 + R)/2`, and its states `(x₁, y₁)`.
+    dc_on: bool,
+    dc_r: f32,
+    dc_k: f32,
+    dc: (f32, f32),
     /// The dispersion allpasses' coefficient and states `(x₁, y₁)`.
     c: f32,
     ap: [(f32, f32); AP],
@@ -72,12 +117,18 @@ pub struct GuideStep {
     pub p: f64,
     /// Where the exciter is, from the bridge, 0 … ½.
     pub beta: f64,
+    /// The loop's DC blocker in use: always but while a bow is on the string. The bow's
+    /// stick and slip is timed by the Helmholtz corner, which the blocker's phase lead
+    /// at the low partials carries flat (measured 6–7 cents at a corner of `f0 / 32`);
+    /// drawn, the bow holds the loop anyway, and the blocker comes in when it lifts — a
+    /// bowed note is the same to the bit as without one until then.
+    pub dc: bool,
 }
 
 impl Guide {
     pub fn new(sample_rate: f32) -> Self {
         let sr = sample_rate as f64;
-        let longest = (sr / MIN_HZ).ceil() as usize + 8;
+        let longest = (sr / MIN_HZ).ceil() as usize + LINE_SPARE;
         Guide {
             sr,
             neck: vec![0.0; longest],
@@ -91,6 +142,10 @@ impl Guide {
             g1a: 0.0,
             a: 0.0,
             lz: 0.0,
+            dc_on: false,
+            dc_r: 0.0,
+            dc_k: 1.0,
+            dc: (0.0, 0.0),
             c: 0.0,
             ap: [(0.0, 0.0); AP],
             neck_sign: -1.0,
@@ -116,6 +171,7 @@ impl Guide {
             self.bridge.fill(0.0);
         }
         self.lz = 0.0;
+        self.dc = (0.0, 0.0);
         self.prev = 0.0;
         self.ap = [(0.0, 0.0); AP];
         self.quiet = 0;
@@ -141,6 +197,9 @@ impl Guide {
         let f0 = step.f0.clamp(MIN_HZ, self.max_hz);
         let (_, a) = self.loss(f0, step, loop_hz);
         let period = self.sr / f0 / loop_hz;
+        // The stiffness is fitted to the loss filter alone, as it was before the DC blocker:
+        // the blocker's lead, counted in the fit, tipped a slight `Inharmonicity` (0.12, the
+        // nylon guitar's) from no allpass to one, and the string's level moved 1–3.5 dB.
         self.c = dispersion_fit(b, f0, self.sr, period, |w| loss_delay(a, w)) as f32;
         self.design(kind, step, 0);
         self.live = true;
@@ -173,15 +232,26 @@ impl Guide {
         let loop_hz = self.loop_hz(kind);
         let f0 = s.f0.clamp(MIN_HZ, self.max_hz);
         let (g, a) = self.loss(f0, s, loop_hz);
+        let w0 = std::f64::consts::TAU * f0 / self.sr;
+        // The DC blocker's loss at f0 taken back from the loss filter's, never past the
+        // cap: the loop's gain stays under 1 at every frequency.
+        let (r, dc_delay, dc_gain) = dc_design(s.dc, f0, self.sr, w0);
+        let g = if s.dc { (g / dc_gain).min(0.999_99) } else { g };
+        if s.dc && !self.dc_on {
+            // Coming in (a bow lifted): from rest, so its first output is the loop's own.
+            self.dc = (0.0, 0.0);
+        }
+        self.dc_on = s.dc;
         self.g1a = (g * (1.0 - a)) as f32;
         self.a = a as f32;
-        let w0 = std::f64::consts::TAU * f0 / self.sr;
+        self.dc_r = r as f32;
+        self.dc_k = (0.5 * (1.0 + r)) as f32;
         let fc = 0.7 * f0;
         self.rad_c = (1.0 - math::exp(-std::f64::consts::TAU * fc / self.sr)) as f32;
         let x = f0 / fc;
         self.rad_g = ((1.0 + x * x).sqrt() / x) as f32;
         let period = self.sr / f0 / loop_hz;
-        let mut filt = loss_delay(a, w0);
+        let mut filt = loss_delay(a, w0) + dc_delay;
         if self.c != 0.0 {
             filt += AP as f64 * ap_delay(self.c as f64, w0);
         }
@@ -272,6 +342,11 @@ impl Guide {
             // The bridge: its loss, its stiffness, and the inversion of a fixed end.
             let mut y = self.g1a * to_b + self.a * self.lz;
             self.lz = y;
+            if self.dc_on {
+                let h = self.dc_k * (y - self.dc.0) + self.dc_r * self.dc.1;
+                self.dc = (y, h);
+                y = h;
+            }
             if self.c != 0.0 {
                 for s in self.ap.iter_mut() {
                     let o = self.c * y + s.0 - self.c * s.1;

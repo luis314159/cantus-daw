@@ -101,10 +101,14 @@ impl Fides {
                 }
             }
             let quiet = !any;
+            // The output stage's input is zeros only when the body's is and the body was
+            // still: a body ringing after the last voice ended is heard through the gain
+            // and the tremolo like any other chunk.
+            let out_quiet = quiet && self.body.is_still();
             let (bl, br) = (&mut self.buf_l[..frames], &mut self.buf_r[..frames]);
             self.body.process(bl, br, self.clock, quiet);
             let trem = (self.s.trem_depth + self.global_mods[1]).clamp(0.0, 1.0);
-            self.out.process(bl, br, self.clock, trem, quiet);
+            self.out.process(bl, br, self.clock, trem, out_quiet);
             for f in 0..frames {
                 let (a, b) = (bl[f], br[f]);
                 wrote |= a != 0.0 || b != 0.0;

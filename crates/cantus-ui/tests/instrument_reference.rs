@@ -30,10 +30,23 @@ const SPREAD: f64 = 4.5;
 /// the reference. Raising its output squeezes its fortissimo into the ceiling (a change of
 /// the sound the owner's blind ABX is of); his ear decides (ADR 0098's third amendment,
 /// `docs/BACKLOG-excellence.md`). Its 24 presets were re-trimmed to their windows by `gain`.
-const PENDING: &[(InstrumentKind, &str)] = &[(
-    InstrumentKind::Chorda,
-    "the owner: candidate 16's level against its crest (round 41)",
-)];
+///
+/// Round 41: Fides's new instance (a plucked nylon string in a guitar's body) sits 13.3 LU
+/// under: a pluck's crest is high — its eight-note chord at velocity 127 already peaks at
+/// −1.3 dBFS (`inst_fides`), so its default `gain` cannot make the level up (+9 dB would clip
+/// it; the knob ends at +12). Its 25 presets sit at their roles' targets by `gain`. A
+/// ceiling for its output (as Chorda's) or a default patch with less crest is a change of
+/// the sound the owner approved (2026-11-21): his to decide.
+const PENDING: &[(InstrumentKind, &str)] = &[
+    (
+        InstrumentKind::Chorda,
+        "the owner: candidate 16's level against its crest (round 41)",
+    ),
+    (
+        InstrumentKind::Resonator,
+        "the owner: Fides's default pluck's level against its crest (round 41)",
+    ),
+];
 
 fn triad_project(kind: InstrumentKind) -> Project {
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);

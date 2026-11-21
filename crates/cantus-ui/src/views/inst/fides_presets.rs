@@ -8,50 +8,51 @@
 
 use crate::views::inst::FactoryPreset;
 
-/// The four macros, for a struck or plucked preset.
+/// The four macros, for a struck or plucked preset. Their names are locale keys
+/// (`fides.macro.*`): the macro band shows each in the window's language.
 const STRUCK: &[(&str, &str)] = &[
-    ("macro1.name", "Hardness"),
+    ("macro1.name", "fides.macro.hardness"),
     ("mod1.src", "macro1"),
     ("mod1.dst", "exc.contact"),
-    ("macro2.name", "Decay"),
+    ("macro2.name", "fides.macro.decay"),
     ("mod2.src", "macro2"),
     ("mod2.dst", "a.decay"),
-    ("macro3.name", "Body"),
+    ("macro3.name", "fides.macro.body"),
     ("mod3.src", "macro3"),
     ("mod3.dst", "body.mix"),
-    ("macro4.name", "Position"),
+    ("macro4.name", "fides.macro.position"),
     ("mod4.src", "macro4"),
     ("mod4.dst", "exc.pos"),
 ];
 
 /// … for a bowed one.
 const BOWED: &[(&str, &str)] = &[
-    ("macro1.name", "Pressure"),
+    ("macro1.name", "fides.macro.pressure"),
     ("mod1.src", "macro1"),
     ("mod1.dst", "bow.pressure"),
-    ("macro2.name", "Decay"),
+    ("macro2.name", "fides.macro.decay"),
     ("mod2.src", "macro2"),
     ("mod2.dst", "a.decay"),
-    ("macro3.name", "Body"),
+    ("macro3.name", "fides.macro.body"),
     ("mod3.src", "macro3"),
     ("mod3.dst", "body.mix"),
-    ("macro4.name", "Position"),
+    ("macro4.name", "fides.macro.position"),
     ("mod4.src", "macro4"),
     ("mod4.dst", "exc.pos"),
 ];
 
 /// … for a blown or a noise-driven one.
 const BLOWN: &[(&str, &str)] = &[
-    ("macro1.name", "Colour"),
+    ("macro1.name", "fides.macro.colour"),
     ("mod1.src", "macro1"),
     ("mod1.dst", "noise.color"),
-    ("macro2.name", "Decay"),
+    ("macro2.name", "fides.macro.decay"),
     ("mod2.src", "macro2"),
     ("mod2.dst", "a.decay"),
-    ("macro3.name", "Body"),
+    ("macro3.name", "fides.macro.body"),
     ("mod3.src", "macro3"),
     ("mod3.dst", "body.mix"),
-    ("macro4.name", "Position"),
+    ("macro4.name", "fides.macro.position"),
     ("mod4.src", "macro4"),
     ("mod4.dst", "exc.pos"),
 ];
@@ -125,7 +126,7 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
         &["preset.role.pad", "fides.tag.bowed", "preset.style.ambient", "preset.style.film"],
         ["exc.type" => 2.0, "bow.pressure" => 0.5, "bow.speed" => 0.5, "bow.attack" => 350.0, "bow.release" => 600.0, "exc.pos" => 0.06,
          "a.type" => 10.0, "a.decay" => 5.0, "a.material" => 0.95, "a.listen" => 0.1,
-         "body.type" => 0.0, "release" => 1.2, "width" => 0.6, "mod1.amt" => 0.35, "gain" => -3.2]),
+         "body.type" => 0.0, "release" => 1.2, "width" => 0.6, "mod1.amt" => 0.35, "gain" => -2.4]),
     preset!("fides.preset.xylophone", STRUCK,
         &["preset.role.pluck", "fides.tag.mallets", "preset.style.film", "preset.style.latin"],
         ["exc.type" => 3.0, "exc.contact" => 0.5, "exc.vel_tone" => 0.6, "exc.pos" => 0.38,

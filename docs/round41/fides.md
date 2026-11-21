@@ -199,3 +199,134 @@ out of use and brought back, B switched mid-note.
 
 **Verified only in emulation:** an MPE controller's slide and a hardware knob on the
 noise's colour — the tests write the expressions and the macros.
+
+## Fides in ALL (integration)
+
+*Branch `r41/fides-all` from `r41/integration` e354510b7, after the owner approved Fides by
+ear (2026-11-21).*
+
+**The ALL commit.** `READY` true; `InstrumentKind::ALL` eleven (Fides before the dancer);
+the picker's row (`fides`, Keys and Other instruments — `the_picker_lists_fides_in_both_
+languages_on_the_keys_shelf` runs, no longer ignored); the agents' `INSTRUMENTS` row
+(`fides`, *Fides*) and the MCP golden written again (`CANTUS_TOOLS_DUMP=1`, `ai_mcp_boot`:
+the diff is Fides's id in the two instrument enums and its line in their descriptions,
+nothing else); `inst_contract`'s `per_kind!` (`fides`) and its count (11); `listen.rs`'s
+probe of kinds waiting outside `ALL` left empty; `demos`' *not yet* list names Fides (no
+demo plays it: a demo that does changes that demo's sound and hash, the integrator's
+call). The null corpus's `inst.fides.v8` and the bench's `inst.fides.v1/v8/v32` come from
+`ALL` as every instrument's do (`kernels::instruments`; `the_null_corpus_instruments_all_
+sound` counts it); no stored baseline lists instruments (`perf/baselines` holds the
+laptop's quick run only), so there is no number to enter: the quiet measurement is the
+integrator's.
+
+**What the kind-wide tests found** (each with a test written first that failed on it):
+
+1. *The contract's split, voices and at-rest twins* (`inst_contract`, 3 of Fides's 4
+   failed): a block that began while a waveguide's lengths glided (a release, a bend)
+   scaled the pluck's last leak by another period — the strike's gain is now scaled by the
+   period taken at the control step (`a_string_released_while_its_pluck_still_leaks_is_
+   the_same_at_every_block_size`). And the output stage was told its input was zeros
+   whenever no voice played at a chunk's start, while the body still rang, and skipped its
+   gain and tremolo there (`the_body_s_tail_after_the_last_voice_is_the_same_at_every_
+   block_size`).
+2. *A waveguide's loop held a DC level for ever*: its loss filter is a low-pass whose DC
+   gain is capped at 0.99999, and a pluck's leak (a released displacement) leaves DC in the
+   loop; the DC settled on an `f32` fixed point — voices that never ended (their slots,
+   their CPU), an offset on the output up to −46 dBFS in the probe and **−28 dBFS on the
+   nylon guitar's phrase** (its old render never went silent). A DC blocker in the loop
+   (`(1 + R)/2 · (1 − z⁻¹)/(1 − R z⁻¹)`, corner `f0 / 64`), its phase lead counted in the
+   tuning and its loss at f0 taken back from the loss filter's (never past the cap, so the
+   loop stays under 1 at every frequency); out of the loop while a bow is drawn (its lead
+   carried the bowed tuning 6–7 cents flat at `f0 / 32`; a bowed note is the same bits as
+   before until the bow lifts), in when it lifts. The stiffness is fitted to the loss
+   filter alone, as before (counted in the fit, the lead tipped the nylon's slight
+   Inharmonicity from no allpass to one: +1 to +3.5 dB). `a_released_string_ends_whatever_
+   its_decay_and_material` (plucked and bowed, three decays, two releases, three
+   materials, C2–C6: every voice ends within ten seconds of its release). The pitch tests
+   hold (0.1 cent); the bowed tuning is unchanged to the bit.
+
+   **What it changed in sound** (`probe_the_factory_presets_bits`, 50 renders against the
+   integration's, `FIDES_BITS_BASE`): 18 the same bits (the modal presets without a body
+   ring: kalimba, glass, glass harmonica, glockenspiel, bell, timpani, rain on glass, gong
+   and a steel pan's and a music box's render), 6 within −148 dBFS (celesta, frame drum, the
+   other two: the out-stage fix on a tail); the waveguide presets' RMS within 0.2 dB (marimba, vibraphone and xylophone
+   −0.03 — their tube), but the nylon phrase −0.68 dB (the −28 dBFS DC it lost), the pan
+   flute's notes +0.7 dB (its upper notes +1.4 to +1.8: a noise-driven pipe whose loop no
+   longer integrates the noise's DC) and the dulcimer phrase −0.2. The partials above the
+   fundamental sit up to 4.3 cents flat of where they were (the blocker's lead). **The
+   owner should listen again to the pan flute, the nylon guitar, the harp, the banjo, the
+   dulcimer, the pizzicato and the crystal pluck** in `F:\projects\daw-r41\fides-listen-r41all\`
+   (`examples/fides_listen`, the same phrase and notes as `fides-listen\`): every preset
+   within 0.3 LU of its role's target but the three held by their crest — timpani −4.3,
+   frame drum −2.7 (as before) and glass harmonica −1.9 (its gain +0.8 dB, its phrase peak
+   −0.5 dBFS).
+
+**The words** (cantus-6f's shot of the site card: Spanish labels cut in the window;
+`r41_whole`'s Fides test, from `r41/no-elision`, listed them all — now un-ignored and
+passing; `fides_words`, new: Play with each of the six exciters, Edit and Matrix, at 100
+and 150 %, Night and Paper, both languages, in the sweep's plain kit). Two looks, two
+fixes:
+
+- *Fides's own face* (the window a user sees): the Spanish names reworded to fit a cell
+  whole, never a smaller font — *Tono/vel.*, *Chasquido* (the strike's noise), *Inarmonía*,
+  *Cuerpo* (the body's mix, in the body's card), *Caída/tecla*, *Corte bajo / Corte alto*,
+  *Frec. vib.*, *Demora vib.*, *Frec. trém.*, *Rango bend*, *Seg. tecla*, *Vel. arco*,
+  *Desliz. MPE*, *Marimba* (the resonator); the body's seven kinds in two rows (four and
+  three) as the resonators' twelve are, so *Ninguno* and *Guitarra* are whole.
+- *The plain kit's capitals* (`ux_whole_words`, which reaches Fides now that it is in
+  `ALL`): a 58-pt cell holds about eight capitals, and English was cut there too
+  (VELOCITY TONE, INHARMONICITY, TRANSPOSE …): a designed short form (`<key>.short`, the
+  house's way, as Chorda's) for every label too long, in both languages (28).
+- The factory presets' macro names are locale keys (`fides.macro.*`: *Dureza, Caída,
+  Cuerpo, Posición*); the macro band shows a stored name that is a locale key in the
+  window's language, any other as typed (`frame::macro_name`).
+- The device line, cut at 180 pt in the Devices pane: *Plucked, bowed and struck* /
+  *Pulsado, frotado y golpeado*.
+- Shot in both languages (`shoot_skins fides --es`): `F:/projects/daw-r41/fides-all-shots/{en,es}/fides-slate-100.png`.
+
+**The face's accent: gold → copper (8°).** The house rule (`skin::side` and
+`skin::modulation`'s tests, which reach every unit in `ALL`): no two faces share a
+material and an accent within 20°. On wood every gold is taken — Vetus's walnut at 31°,
+the ring modulator at 52° — so Fides's rosewood now wears copper (a wound string's), its
+dark lightness raised to 0.73 for the accent's 4.5 : 1 on the deck and the title; the teal
+of what rings stays. The owner had not judged the face (fides.md asked whether a design
+sheet should come first): his eye decides it.
+
+**Tests run** (Windows, this branch): `cantus-dsp` fides 14 (+2 probes ignored);
+`cantus-engine` inst_contract 51, inst_fides 7, fides_image 2, listen 14, render_from_bar 7,
+rt_memory 63; `cantus-core` undo_invariants 16; `cantus-ai` 58; `cantus-bench` bench 9;
+`cantus-ui` lib (all), r41_whole 4 (Fides's test un-ignored), fides_words 2,
+fides_pick_e2e 2 (+ the bits probe), ux_whole_words 1, learn_everywhere 12, demos 13,
+instrument_reference 1, preset_render 2, preset_audit 2, ai_mcp_boot 1, agent_tools 14,
+controllers_review4 33, picker 14, frame_budget 19, gain_staging 5, id_clash 3,
+inst_frame 4, inst_shell 3, inst_faces 2, inst_views_scroll 1, instruments_scale_e2e 3,
+library_fixes 3, modulate_everywhere 5, dropdowns_audit 1, stated_preset_counts 1,
+views_budget 1, preset_browser_e2e 3, preset_browser_review 8, room_card_layout 1,
+ux_help_line 1, tympanum_words 2, tympanum_pick_e2e 2. Not run here: the Linux check
+(WSL is the integrator's), the bench's timed run (quiet machine).
+
+**Left for others:** the Inharmonicity knob does nothing below a threshold that grows
+with the loss (at material 0.32, 0.12 fits no allpass: `dispersion_fit`'s `need ≤ 0`) —
+measured here, not changed (it would move the nylon guitar).
+
+**The live input is not built: ADR 0150 does not decide it.** It says only "*input* — a
+track's audio"; which audio, from where, with what latency and what a render or a freeze
+hears are open, and the brief said not to invent them. The three readings, with what
+each costs (the DSP, `Fides::process_input` and `Unit::process_input`, take a mono block
+the length of the call; nothing of them changes with the choice):
+
+| | A. Its own track's device input | B. Its own track's audio clips | C. A sidechain from a strip |
+|---|---|---|---|
+| What excites it | the interface channel(s) `Track::input` names (ADR 0025), as monitoring hears them | the clips on Fides's own track, before they reach the strip | another strip's audio, chosen in the Input card as an effect's key is |
+| Latency | the driver's round trip; the block is in hand when the track runs (`InputBlock`), no block added | none (same pass, same thread) | none: the graph orders the source strip first (`plan_compile`'s sidechain edge); a source with latency needs the key's compensation |
+| Offline render / freeze | **differ from real time by nature** (no device offline): a render hears silence or must use the take recorded on the track | equal to real time; a freeze bakes it | equal to real time; a freeze must wait for its source (the source is not frozen with it) |
+| Model and undo | none (the track's input exists) | none (but the clips no longer go to the strip while Fides takes them — a rule to state) | a field on the instrument (`sidechain: Option<StripId>`, schema bump, migration, fixture), a `Command` with its inverse, an undo-fuzz arm, cycle refusal as for effects |
+| Real-time work | a copy of the track's channels into a preallocated mono block | the clips' render into a preallocated block before the unit | the source strip's output read from its cell (as an effect key reads it) |
+| What it is for | a mic or a guitar played through the resonator live | a recorded loop or a take through it | any track drives it (a drum bus exciting a marimba, a voice a string) |
+
+A would be the "live" in "live input" and breaks *offline = real time* unless its render
+rule is decided; C is the house's own pattern (an effect's key: its strip runs first, `strip_order`) and
+the most useful in a mix; B is the cheapest and the least expected. Until one is chosen
+the *Input* exciter is offered in the editor and is silent (with its own level, attack,
+lift and tone knobs): either the choice lands before beta.17, or the exciter's switch
+hides *Input* until it does — the integrator's or the owner's call.

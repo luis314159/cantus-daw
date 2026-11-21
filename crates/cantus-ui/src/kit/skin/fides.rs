@@ -1,7 +1,7 @@
 //! Fides's face (round 41, ADR 0150): a luthier's bench — a lyre's and a marimba's warm
-//! rosewood, gold for the strings and the struck bars, a teal for what rings, the
-//! instrument drawn on a plan's paper as its display; capped knobs, pill switches and an
-//! engraved plate. Owned by the `fides` builder; one sheet in the house's family
+//! rosewood, copper for the strings and the struck bars (a wound string's), a teal for
+//! what rings, the instrument drawn on a plan's paper as its display; capped knobs, pill
+//! switches and an engraved plate. Owned by the `fides` builder; one sheet in the house's family
 //! (`instruments.rs` lists it), never a copy of a product's dress.
 
 use super::{
@@ -16,7 +16,9 @@ const fn pair(h: f32, s: f32, dark_l: f32, light_l: f32) -> Pair {
     }
 }
 
-/// Fides: rosewood and gold, the ringing partials in teal.
+/// Fides: rosewood and copper, the ringing partials in teal. The copper (8°) because every
+/// warmer gold on wood is another unit's: Vetus's walnut is 31°, the ring modulator 52°
+/// (the house rule: no two faces share a material and an accent within 20°).
 pub const FIDES: Skin = Skin {
     key: "inst.fides",
     surface: Tint {
@@ -24,7 +26,7 @@ pub const FIDES: Skin = Skin {
         sat: 0.16,
         amount: 0.8,
     },
-    accent: Some(pair(38.0, 0.78, 0.66, 0.27)),
+    accent: Some(pair(8.0, 0.72, 0.73, 0.30)),
     accent2: Some(pair(176.0, 0.60, 0.62, 0.27)),
     material: Material::Wood,
     display: Display::Paper,
