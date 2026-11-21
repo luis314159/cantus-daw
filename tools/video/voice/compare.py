@@ -21,6 +21,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from abpage import MIDDLE, TEMPLATE, best_two, pace_note  # noqa: E402
 
 
+# The designed voices by what they are, for the page.
+NICE = {"es-latam": "Latin American, man", "es-latam-f": "Latin American, woman", "en-warm": "designed, man"}
+
+
 def rows_of(folder: Path) -> list:
     rows = json.loads((folder / "gate.json").read_text(encoding="utf-8"))
     for r in rows:
@@ -65,7 +69,8 @@ def main() -> None:
                     by_voice[r["voice"]].append(r)
             for voice in sorted(by_voice):
                 ok = sorted((r for r in by_voice[voice] if r["pass"]), key=lambda r: abs(r["rate"] - MIDDLE[lang]))
-                label = "Qwen · " + voice.replace("built-in ", "").replace("designed ", "").split(" (")[0]
+                key = voice.replace("built-in ", "").replace("designed ", "").split(" (")[0]
+                label = "Qwen · " + NICE.get(key, key)
                 if ok:
                     parts.append(take_html(name, f"qwen:{ok[0]['take'][:-4]}", label, ok[0], lang, out))
                 else:
@@ -74,6 +79,8 @@ def main() -> None:
     page = TEMPLATE.replace("{{BODY}}", "\n".join(parts))
     page = page.replace("<title>Narration takes</title>", "<title>Qwen vs Chatterbox</title>")
     page = page.replace("<h1>Narration takes</h1>", "<h1>Qwen3-TTS beside Chatterbox</h1>")
+    # the labels here are longer than the A/B page's
+    page = page.replace(".take b { width: 64px; flex: none; }", ".take b { width: 190px; flex: none; }")
     page = page.replace(
         page[page.index('<p class="note">Two takes'):page.index("</p>", page.index('<p class="note">Two takes')) + 4],
         '<p class="note">Each line: the Chatterbox take you preferred (A), then the best gated take of each '

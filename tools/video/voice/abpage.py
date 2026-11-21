@@ -89,7 +89,7 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
 .note { color: var(--muted); margin: 0 0 8px; font-size: 14px; }
 .warn { color: var(--gold); margin: 0 0 8px; }
 .take { display: flex; align-items: center; gap: 10px; padding: 4px 0; flex-wrap: wrap; }
-.take b { width: 64px; } .take span { color: var(--muted); font-size: 14px; }
+.take b { width: 64px; flex: none; } .take span { color: var(--muted); font-size: 14px; }
 .take em { color: var(--gold); font-style: normal; }
 audio { height: 32px; max-width: 100%; }
 #picks { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel);
