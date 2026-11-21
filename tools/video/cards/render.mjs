@@ -3,7 +3,7 @@
 // the site's own harness (web/tools/cdp.mjs), one frame per 1/60 s of the card's time:
 //
 //   node tools/video/cards/render.mjs <out-dir> [--lang en|es] [--fps 60] [--scale 2]
-//        [--card <name>]... [--dur <name>=<s>]... [--still <s>] [--os next|all]
+//        [--card <name>]... [--dur <name>=<s>]... [--still <s>] [--os preview|all]
 //
 // Writes <out-dir>/<lang>/<card>/00000.png … at 1920 x 1080 CSS px times --scale (3840 x
 // 2160 by default), alpha kept, and <out-dir>/<lang>/<card>.json with the frame count. With
@@ -28,7 +28,7 @@ const lang = opt("--lang", "en");
 const fps = Number(opt("--fps", 60));
 const scale = Number(opt("--scale", 2));
 const still = opt("--still", null);
-const os = opt("--os", "next"); // the end card's platforms: next (macOS held) or all
+const os = opt("--os", "preview"); // the end card's platforms: macOS as a preview (the owner), or all three alike
 const cards = many("--card").length ? many("--card") : ALL;
 const durs = Object.fromEntries(many("--dur").map((kv) => kv.split("=")).map(([k, v]) => [k, Number(v)]));
 

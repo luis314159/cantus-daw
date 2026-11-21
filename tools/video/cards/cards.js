@@ -20,16 +20,16 @@ const CARDS = {
 // The end card's words. The verse is the app's own translation (locales/verses: the World
 // English Bible and the Reina-Valera 1909, both public domain), its first clause.
 const END = {
-  // The platforms as the release the video points to has them: ?os=next while macOS is
-  // held (beta.15), ?os=all once a release ships it (beta.16's rehearsal was green on all three).
+  // The platforms (the owner, 2026-11-21): macOS as a preview, the default (?os=preview);
+  // ?os=all lists the three alike, for when macOS ships as more than a preview.
   os: {
-    next: {
-      en: "<b>Windows</b> · <b>Linux</b> — macOS next",
-      es: "<b>Windows</b> · <b>Linux</b> — macOS en camino",
+    preview: {
+      en: "<b>Windows</b> · <b>Linux</b> · <b>macOS</b> (preview)",
+      es: "<b>Windows</b> · <b>Linux</b> · <b>macOS</b> (vista previa)",
     },
     all: {
-      en: "<b>Windows</b> · <b>macOS</b> · <b>Linux</b>",
-      es: "<b>Windows</b> · <b>macOS</b> · <b>Linux</b>",
+      en: "<b>Windows</b> · <b>Linux</b> · <b>macOS</b>",
+      es: "<b>Windows</b> · <b>Linux</b> · <b>macOS</b>",
     },
   },
   btn: { en: "Download free", es: "Descarga gratis" },
@@ -179,7 +179,7 @@ function fill() {
   } else if (card.el === "free") {
     $(".line1").innerHTML = `${card.a[lang]}<span class="dot">·</span>${card.b[lang]}`;
   } else if (card.el === "end") {
-    $(".os").innerHTML = END.os[q.get("os") === "all" ? "all" : "next"][lang];
+    $(".os").innerHTML = END.os[q.get("os") === "all" ? "all" : "preview"][lang];
     $(".btn .label").textContent = END.btn[lang];
     if (card.verse) {
       $(".verse").hidden = false;
