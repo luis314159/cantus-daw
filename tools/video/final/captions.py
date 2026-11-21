@@ -33,9 +33,9 @@ WEAK = {"a", "an", "and", "the", "of", "to", "y", "de", "en", "el", "la", "un", 
 
 # The chapters follow the cut (script.md's table): each section's start and its title.
 CHAPTERS = {
-    "en": [(0, "Cantus"), (14, "Instruments: Chorda and Tympanum"), (31, "The mixer and 42 effects"),
+    "en": [(0, "Cantus"), (14, "Instruments: Chorda and Tympanum"), (31, "The mixer and 43 effects"),
            (44, "Record, play live, master"), (60, "Free, for everyone")],
-    "es": [(0, "Cantus"), (14, "Instrumentos: Chorda y Tympanum"), (31, "La consola y 42 efectos"),
+    "es": [(0, "Cantus"), (14, "Instrumentos: Chorda y Tympanum"), (31, "La consola y 43 efectos"),
            (44, "Graba, toca en vivo, masteriza"), (60, "Gratis, para todos")],
 }
 

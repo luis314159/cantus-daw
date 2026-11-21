@@ -56,12 +56,15 @@ def main() -> None:
     ap.add_argument("--lines", default=None)
     ap.add_argument("--takes", type=int, default=3)
     ap.add_argument("--format", default="wav_48000")
+    ap.add_argument("--only-take", type=int, default=None, help="make only this take of TAKES (its seed and settings)")
+    ap.add_argument("--suffix", default="", help="appended to the take names (a line re-made: jon-02-2b)")
+    ap.add_argument("--ledger", default=None, help="the ledger (default: <out>/../ledger.json), shared by every run")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
 
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    ledger_path = out.parent / "ledger.json"
+    ledger_path = Path(a.ledger) if a.ledger else out.parent / "ledger.json"
     ledger = json.loads(ledger_path.read_text(encoding="utf-8")) if ledger_path.exists() else {"spent": 0, "calls": []}
     wanted = None if a.lines is None else {int(x) for x in a.lines.split(",")}
     tag = a.name.lower()
@@ -70,7 +73,9 @@ def main() -> None:
             continue
         said = spoken(line["text"], a.lang)
         for k, (seed, settings) in enumerate(TAKES[: a.takes], start=1):
-            name = f"{tag}-{line['n']:02d}-{k}"
+            if a.only_take is not None and k != a.only_take:
+                continue
+            name = f"{tag}-{line['n']:02d}-{k}{a.suffix}"
             if (out / f"{name}.wav").exists():
                 continue  # made already: never pay twice
             if ledger["spent"] + len(said) > a.budget:

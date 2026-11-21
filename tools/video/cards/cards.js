@@ -4,11 +4,13 @@
 // exact. CSS custom property --t on :root mirrors t, for anything that wants it.
 "use strict";
 
-// The cards: the element they use, how long they run (s), and their words.
+// The cards: the element they use, how long they run (s), and their words. The counts are
+// the release's (round 41, r41/integration), as the site counts them: 11 instrument cards and
+// Firmus, 43 effects offered as inserts (web/src/counts.rs, units_data.rs).
 const CARDS = {
   "title": { el: "title", dur: 6.0 },
-  "count-instruments": { el: "count", dur: 4.5, n: 11, noun: { en: "instruments", es: "instrumentos" } },
-  "count-effects": { el: "count", dur: 4.5, n: 42, noun: { en: "effects", es: "efectos" } },
+  "count-instruments": { el: "count", dur: 4.5, n: 12, noun: { en: "instruments", es: "instrumentos" } },
+  "count-effects": { el: "count", dur: 4.5, n: 43, noun: { en: "effects", es: "efectos" } },
   "lower-record": { el: "lower", dur: 2.6, what: { en: "Recording", es: "Grabación" } },
   "lower-session": { el: "lower", dur: 2.6, what: { en: "Session view", es: "Vista de sesión" } },
   "lower-plugins": { el: "lower", dur: 2.6, what: { en: "CLAP and VST3 plug-ins", es: "Plug-ins CLAP y VST3" } },

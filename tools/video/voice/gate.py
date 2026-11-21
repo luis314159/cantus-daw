@@ -40,7 +40,7 @@ import pace  # noqa: E402
 # hyphens became spaces and a dot inside a word became the spoken "dot" / "punto").
 SAME = {
     "en": {
-        "42": "forty two", "11": "eleven", "cantus daw": "cantusdaw",
+        "42": "forty two", "11": "eleven", "43": "forty three", "12": "twelve", "cantus daw": "cantusdaw",
         "vst 3": "vst3", "vst three": "vst3", "v s t three": "vst3", "v s t 3": "vst3",
         "plugins": "plug ins", "f l studio": "fl studio", "modeled": "modelled",
         # American English flaps the d: "modeled" and "mottled" are said alike, and Whisper
@@ -48,7 +48,7 @@ SAME = {
         "mottled": "modelled",
     },
     "es": {
-        "42": "cuarenta y dos", "11": "once", "cantus daw": "cantusdaw",
+        "42": "cuarenta y dos", "11": "once", "43": "cuarenta y tres", "12": "doce", "cantus daw": "cantusdaw",
         "vst 3": "vst3", "uve ese te tres": "vst3", "plugins": "plug ins",
         "efe ele studio": "fl studio", "máster": "master",
         # b and v are one sound in Spanish: "ve ese te tres" is written BST3 as often as VST3
