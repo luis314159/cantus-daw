@@ -100,7 +100,7 @@ if [[ "$what" == cut || "$what" == all ]]; then
   # The soundtrack as mixed and mastered in Cantus; only the last second faded with the
   # picture's fade to black.
   graph+="[$last]format=yuv420p[vout];[1:a]afade=t=out:st=79.0:d=1.0[aout]"
-  out="$W/draft2-$lang-1080p30.mp4"
+  out="$W/${DRAFT:-draft2}-$lang-1080p30.mp4"
   "$FF" -hide_banner -loglevel error -y "${inputs[@]}" -filter_complex "$graph" -map "[vout]" -map "[aout]" \
     -threads 4 -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -r $FPS -movflags +faststart \
     -c:a aac -b:a 256k -ar 48000 -t 80 "$(winpath "$out")"

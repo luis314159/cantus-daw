@@ -14,10 +14,12 @@
 //!      the last chorus's pickup, so the song's last chord rings out at the film's end;
 //!    - **Voice**: the eight chosen lines (`<voice>/<lang>/chosen.json`), each at its
 //!      `start`, its lead trimmed to 60 ms.
-//! 3. **Cedo** (ADR 0141) on the music's strip, keyed by the voice's strip: 30 ms attack,
-//!    a hold over the gaps between words, a 400 ms release. Its depth is raised until the
-//!    music sits at least `--margin` dB (10) under the voice in the speech band
-//!    (300 Hz–3 kHz) during every line, measured on the two strips' stems.
+//! 3. **The carve** (the owner, draft 3): Aequalis on the music's strip, four dynamic bells
+//!    keyed by the voice's strip, cut 200 Hz – 5 kHz while the voice speaks (40 ms attack,
+//!    450 ms release); the music's level elsewhere stays at draft 2's bed (its fader at
+//!    −3 dB). The carve is deepened until the music sits at least `--margin` dB (10) under
+//!    the voice in the speech band (300 Hz–3 kHz) during every line, measured on the two
+//!    strips' stems; the bed is lowered only if the deepest carve (30 dB) cannot do it.
 //! 4. The master: the export's loudness stage — BS.1770-4 to −14 LUFS integrated under a
 //!    −1 dBTP ceiling, Terminus's true-peak limiter holding the peaks — written as 48 kHz
 //!    24-bit WAV.
@@ -46,11 +48,15 @@ pub const XFADE_BAR: f64 = 12.0;
 pub const JUMP_BARS: f64 = 44.0;
 /// The crossfade's length, seconds.
 const XFADE_S: f64 = 2.0;
-/// Cedo's hold: long enough to stay down over the pauses inside a line (a second's pause
-/// in line 4 let the music up with 250 ms), with a 400 ms release after it.
-const HOLD_MS: f32 = 700.0;
-/// The deepest duck tried.
+/// The deepest carve tried (Aequalis's dynamic range is ±30 dB).
 const MAX_DEPTH: f32 = 30.0;
+/// The carve's bells: centre and Q, together 200 Hz – 5 kHz (each about 1.4 octaves wide).
+const CARVE: [(f32, f32); 4] = [(320.0, 1.0), (850.0, 1.0), (2_100.0, 1.0), (4_300.0, 1.2)];
+/// The carve's threshold on the key (the voice in each band's region), its attack.
+const CARVE_THR: f32 = -60.0;
+const CARVE_ATT: f32 = 40.0;
+/// Draft 2's bed: the music's fader.
+const DRAFT2_BED: f32 = -3.0;
 /// The lead kept before each line's speech.
 const LEAD_S: f64 = 0.06;
 
@@ -69,6 +75,11 @@ struct Opts {
     voice: PathBuf,
     depth: f32,
     margin: f32,
+    /// The music's fader: the bed's level under everything (lowered until every line
+    /// stands clear).
+    bed: f32,
+    /// The carve's release, ms.
+    release: f32,
 }
 
 impl Opts {
@@ -77,8 +88,10 @@ impl Opts {
             lang: "en".into(),
             out: PathBuf::from(r"F:\projects\video-work\soundtrack"),
             voice: PathBuf::from(r"F:\projects\video-work\voice\chosen"),
-            depth: 12.0,
+            depth: 9.0,
             margin: 10.0,
+            bed: DRAFT2_BED,
+            release: 450.0,
         };
         let a: Vec<String> = std::env::args().skip(1).collect();
         let mut i = 0;
@@ -89,6 +102,8 @@ impl Opts {
                 "--out" => o.out = PathBuf::from(v),
                 "--voice" => o.voice = PathBuf::from(v),
                 "--depth" => o.depth = v.parse().expect("--depth dB"),
+                "--bed" => o.bed = v.parse().expect("--bed dB"),
+                "--release" => o.release = v.parse().expect("--release ms"),
                 "--margin" => o.margin = v.parse().expect("--margin dB"),
                 x => panic!("unknown option {x}"),
             }
@@ -190,9 +205,9 @@ fn strip_mut(p: &mut Project, id: StripId) -> &mut cantus_core::MixerStrip {
     p.strips.iter_mut().find(|s| s.id == id).expect("the strip")
 }
 
-/// The project: the Heart edited (one crossfade), the eight lines, Cedo on the music keyed
-/// by the voice, `depth` dB deep.
-fn project(o: &Opts, heart: &Path, lines: &[Line], depth: f32) -> Mix {
+/// The project: the Heart edited (one crossfade), the eight lines, the carve on the music
+/// keyed by the voice, `depth` dB deep, the music's fader at `bed`.
+fn project(o: &Opts, heart: &Path, lines: &[Line], depth: f32, bed: f32) -> Mix {
     let mut p = Project::new(format!("Cantus launch soundtrack ({})", o.lang.to_uppercase()));
     p.tempo_bpm = BPM;
     let song = source(&mut p, heart, "With All Your Heart (rendered by Cantus)");
@@ -232,26 +247,35 @@ fn project(o: &Opts, heart: &Path, lines: &[Line], depth: f32) -> Mix {
         voice.clips.push(c);
     }
     p.tracks.push(voice);
-    // Cedo on the music, its key the voice's strip.
-    let mut duck = p.make_effect(EffectKind::Ducker);
-    duck.sidechain = Some(voice_strip);
-    for (k, v) in [
-        ("trig", 0.0),
-        ("depth", depth),
-        ("thr", -42.0),
-        ("att", 30.0),
-        ("hold", HOLD_MS),
-        ("rel", 400.0),
-        ("rshape", 1.0),
-        ("det", 1.0),
-        ("rms", 15.0),
-    ] {
-        duck.spec.set(k, v);
+    // The carve (the owner, draft 3): Aequalis on the music, four dynamic bells keyed by
+    // the voice's strip (each band's detector hears the key in its own region), cutting
+    // 200 Hz – 5 kHz by `depth` dB while the voice speaks; the rest of the music untouched.
+    let mut carve = p.make_effect(EffectKind::Eq);
+    carve.sidechain = Some(voice_strip);
+    for (i, (hz, q)) in CARVE.iter().enumerate() {
+        for (k, v) in [
+            ("used", 1.0),
+            ("on", 1.0),
+            ("shape", 0.0),
+            ("freq", *hz),
+            ("q", *q),
+            ("gain", 0.0),
+            ("dyn", 1.0),
+            ("key", 1.0),
+            ("dir", 0.0),
+            ("thr", CARVE_THR),
+            ("range", -depth),
+            ("ratio", 20.0),
+            ("att", CARVE_ATT),
+            ("rel", o.release),
+        ] {
+            carve.spec.set(&cantus_core::fx::eq::eq_key(i, k), v);
+        }
     }
     let m = strip_mut(&mut p, music_strip);
     m.name = "Music".into();
-    m.gain_db = -3.0;
-    m.effects.push(duck);
+    m.gain_db = bed;
+    m.effects.push(carve);
     strip_mut(&mut p, voice_strip).name = "Voice".into();
     Mix {
         p,
@@ -363,10 +387,13 @@ struct Duck {
     voice_db: f32,
     margin_db: f32,
     music_between_db: f32,
+    /// The music's full-band RMS, 400 ms before the line against 400 ms once it has begun.
+    entry_drop_db: f32,
 }
 
 fn measure(music: &[f32], voice: &[f32], lines: &[Line]) -> Vec<Duck> {
     let (mb, vb) = (speech_band(music), speech_band(voice));
+    let full: Vec<f32> = music.chunks_exact(2).map(|f| 0.5 * (f[0] + f[1])).collect();
     let mut out = Vec::new();
     for (i, l) in lines.iter().enumerate() {
         let (a, b) = (l.start, l.start + l.speech_s);
@@ -393,6 +420,7 @@ fn measure(music: &[f32], voice: &[f32], lines: &[Line]) -> Vec<Duck> {
             voice_db,
             margin_db: voice_db - music_db,
             music_between_db,
+            entry_drop_db: rms_db(&full, a - 0.6, a - 0.2) - rms_db(&full, a + 0.2, a + 0.6),
         });
     }
     out
@@ -415,6 +443,29 @@ fn steps(mix: &[f32], a: f64, b: f64) -> (f32, f64) {
         last = now;
     }
     worst
+}
+
+/// The music alone where no line speaks (a second after each line until 0.3 s before the
+/// next), as one BS.1770 integrated reading (Terminus's meter), LUFS.
+fn bed_lufs(music: &[f32], lines: &[Line]) -> f64 {
+    let mut m = cantus_dsp::terminus::loudness::LoudnessMeter::new(RATE as f32);
+    let mut from = 1.0;
+    let mut spans = Vec::new();
+    for l in lines {
+        spans.push((from, l.start - 0.3));
+        from = l.start + l.speech_s + 1.0;
+    }
+    spans.push((from, FILM_S - 1.0));
+    for (a, b) in spans {
+        if b - a < 0.5 {
+            continue;
+        }
+        let i0 = (a * RATE as f64) as usize * 2;
+        let i1 = ((b * RATE as f64) as usize * 2).min(music.len());
+        let (l, r): (Vec<f32>, Vec<f32>) = music[i0..i1].chunks_exact(2).map(|f| (f[0], f[1])).unzip();
+        m.process(&l, &r);
+    }
+    m.integrated().unwrap_or(f64::NEG_INFINITY)
 }
 
 fn write_stem(path: &Path, samples: Vec<f32>) {
@@ -444,25 +495,29 @@ fn run() {
     std::fs::create_dir_all(&o.out).expect("the output folder");
     let heart = heart(&o);
     let lines = lines(&o);
-    // The duck deepened until every line stands `margin` dB over the music.
-    let mut depth = o.depth;
-    let mut before = f32::MIN;
-    let (mix, ducks) = loop {
-        let mix = project(&o, &heart, &lines, depth);
+    println!("cantus_dsp::DSP_VERSION {}", cantus_dsp::DSP_VERSION);
+    // The carve deepened until every line stands `margin` dB over the music in the speech
+    // band; the bed lowered only if the deepest carve cannot do it (the owner, draft 3).
+    let mut depth = o.depth.min(MAX_DEPTH);
+    let mut bed = o.bed;
+    let (mix, ducks, music_bed) = loop {
+        let mix = project(&o, &heart, &lines, depth, bed);
         let (music, voice) = stems(&mix);
         let ducks = measure(&music, &voice, &lines);
         let worst = ducks.iter().map(|d| d.margin_db).fold(f32::MAX, f32::min);
-        println!("depth {depth:.1} dB: the closest line stands {worst:.1} dB over the music");
-        // Done when every line stands clear, the deepest is reached, or deepening no
-        // longer helps (the music then comes up in a line's pauses, not under its words).
-        if worst >= o.margin || depth >= MAX_DEPTH || worst - before < 0.3 {
+        println!("bed {bed:.1} dB, carve {depth:.1} dB: the closest line stands {worst:.1} dB over the music");
+        if worst >= o.margin || bed <= -30.0 {
+            let music_bed = bed_lufs(&music, &lines);
             let stem = |w: &str| o.out.join(format!("soundtrack-{}-{w}.wav", o.lang));
             write_stem(&stem("music"), music);
             write_stem(&stem("voice"), voice);
-            break (mix, ducks);
+            break (mix, ducks, music_bed);
         }
-        before = worst;
-        depth = (depth + (o.margin - worst).max(1.5)).min(MAX_DEPTH);
+        if depth < MAX_DEPTH {
+            depth = (depth + (o.margin - worst).max(1.5)).min(MAX_DEPTH);
+        } else {
+            bed = (bed - (o.margin - worst).max(0.5) - 0.3).max(-30.0);
+        }
     };
     // The project, saved.
     let cantus = o.out.join(format!("soundtrack-{}.cantus", o.lang));
@@ -520,7 +575,7 @@ fn run() {
     let (step_mix, step_mix_at) = steps(&samples, xc - 2.0, xc + 2.0);
     // The crossfade alone: the music before the duck (depth 0) over it, against the
     // song's own bars on either side (its own hits, unedited).
-    let (dry, _) = stems(&project(&o, &heart, &lines, 0.0));
+    let (dry, _) = stems(&project(&o, &heart, &lines, 0.0, bed));
     let (step, step_at) = steps(&dry, xc - 1.5, xc + 1.5);
     let song: Vec<f32> = hound::WavReader::open(&heart)
         .expect("heart.wav")
@@ -542,10 +597,16 @@ fn run() {
         n.lufs.unwrap_or(f64::NAN),
         n.dbtp
     );
-    println!("line  speech (s)      music  voice  margin  music between  duck");
+    println!(
+        "the bed: fader {bed:.1} dB; the music alone between the lines {:.1} LUFS as mixed, {:.1} LUFS as heard (after the export's {:+.1} dB)",
+        music_bed,
+        music_bed + n.gain_db as f64,
+        n.gain_db
+    );
+    println!("line  speech (s)      music  voice  margin  music between  carve  full-band drop at entry");
     for d in &ducks {
         println!(
-            "{:>4}  {:5.2}–{:5.2}  {:6.1} {:6.1} {:7.1} {:14.1} {:5.1}",
+            "{:>4}  {:5.2}–{:5.2}  {:6.1} {:6.1} {:7.1} {:14.1} {:6.1} {:6.1}",
             d.n,
             d.from,
             d.to,
@@ -553,7 +614,8 @@ fn run() {
             d.voice_db,
             d.margin_db,
             d.music_between_db,
-            d.music_between_db - d.music_db
+            d.music_between_db - d.music_db,
+            d.entry_drop_db
         );
     }
     println!(
@@ -573,13 +635,19 @@ fn run() {
             "film_bar_12_becomes_song_bar": XFADE_BAR + JUMP_BARS,
             "song_offset_after_s": bar_s(JUMP_BARS),
         },
-        "duck": {"effect": "Cedo (EffectKind::Ducker)", "depth_db": depth, "threshold_db": -42.0,
-                 "attack_ms": 30.0, "hold_ms": HOLD_MS, "release_ms": 400.0, "music_fader_db": -3.0},
+        "dsp_version": cantus_dsp::DSP_VERSION,
+        "carve": {"effect": "Aequalis (EffectKind::Eq), dynamic bells keyed by the voice strip",
+                  "bells_hz_q": CARVE, "range_db": -depth, "threshold_db": CARVE_THR, "ratio": 20.0,
+                  "attack_ms": CARVE_ATT, "release_ms": o.release, "music_fader_db": bed,
+                  "bed_lowered_db": DRAFT2_BED - bed},
+        "bed": {"music_fader_db": bed, "music_between_lines_lufs_as_mixed": music_bed,
+                "music_between_lines_lufs_as_heard": music_bed + n.gain_db as f64},
         "lines": ducks.iter().map(|d| serde_json::json!({
             "line": d.n, "from": d.from, "to": d.to,
             "music_speech_band_db": d.music_db, "voice_speech_band_db": d.voice_db,
             "margin_db": d.margin_db, "music_between_db": d.music_between_db,
-            "duck_db": d.music_between_db - d.music_db,
+            "carve_db": d.music_between_db - d.music_db,
+            "full_band_drop_at_entry_db": d.entry_drop_db,
         })).collect::<Vec<_>>(),
         "loudness_cantus": {
             "as_mixed_lufs": n.measured_lufs, "as_mixed_dbtp": n.measured_dbtp,
