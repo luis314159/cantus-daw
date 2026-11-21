@@ -273,6 +273,8 @@ pub struct Body {
     dry: f32,
     wet: f32,
     still: bool,
+    /// Something came in since the last grid point.
+    fed: bool,
 }
 
 impl Body {
@@ -291,6 +293,7 @@ impl Body {
             dry: 1.0,
             wet: 0.0,
             still: true,
+            fed: false,
         }
     }
 
@@ -385,11 +388,14 @@ impl Body {
         self.re = [[0.0; LANES]; CHUNKS];
         self.im = [[0.0; LANES]; CHUNKS];
         self.still = true;
+        self.fed = false;
     }
 
-    /// Radiate `left`/`right` in place. `quiet`: the input is exact zeros, so a still body
-    /// passes them untouched.
-    pub fn process(&mut self, left: &mut [f32], right: &mut [f32], quiet: bool) {
+    /// Radiate `left`/`right` in place, from the stream's sample `clock`. `quiet`: the input
+    /// is exact zeros, so a still body passes them untouched. Whether it has gone still is
+    /// asked only on the grid of [`super::CTRL`] samples (after a cell of zeros in), so it
+    /// stops at the same sample at every block size.
+    pub fn process(&mut self, left: &mut [f32], right: &mut [f32], clock: u64, quiet: bool) {
         if self.n == 0 || self.wet == 0.0 {
             // The dry gain is exactly 1 with no body.
             return;
@@ -398,8 +404,17 @@ impl Body {
             return;
         }
         let chunks = self.n.div_ceil(LANES);
-        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+        let grid = super::CTRL as u64;
+        for (i, (l, r)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
+            if self.still {
+                // Still: zeros in are zeros out, and it starts only on a sample that is not.
+                if *l == 0.0 && *r == 0.0 {
+                    continue;
+                }
+                self.still = false;
+            }
             let x = 0.5 * (*l + *r);
+            self.fed |= x != 0.0;
             let mut accl = [0.0f32; LANES];
             let mut accr = [0.0f32; LANES];
             for c in 0..chunks {
@@ -416,21 +431,19 @@ impl Body {
             let (bl, br) = (sum8(&accl), sum8(&accr));
             *l = self.dry * *l + self.wet * bl;
             *r = self.dry * *r + self.wet * br;
-        }
-        if quiet {
-            let mut peak = 0f32;
-            for c in 0..chunks {
-                for j in 0..LANES {
-                    peak = peak.max(self.re[c][j].abs()).max(self.im[c][j].abs());
+            if (clock + i as u64 + 1).is_multiple_of(grid) {
+                if !std::mem::take(&mut self.fed) {
+                    let mut peak = 0f32;
+                    for c in 0..chunks {
+                        for j in 0..LANES {
+                            peak = peak.max(self.re[c][j].abs()).max(self.im[c][j].abs());
+                        }
+                    }
+                    if peak < STILL {
+                        self.reset();
+                    }
                 }
             }
-            if peak < STILL {
-                self.reset();
-            } else {
-                self.still = false;
-            }
-        } else {
-            self.still = false;
         }
     }
 }
@@ -454,6 +467,7 @@ pub struct Output {
     gain: f32,
     trem_rate: f32,
     still: bool,
+    fed: bool,
 }
 
 impl Output {
@@ -467,6 +481,7 @@ impl Output {
             gain: 1.0,
             trem_rate: 5.0,
             still: true,
+            fed: false,
         }
     }
 
@@ -495,14 +510,15 @@ impl Output {
             f.clear();
         }
         self.still = true;
+        self.fed = false;
     }
 
     /// In place, from the stream's sample `clock`; `trem` the tremolo's depth now.
-    /// `quiet`: the input is exact zeros.
+    /// `quiet`: the input is exact zeros. The cuts' stillness is asked only on the grid of
+    /// [`super::CTRL`] samples (after a cell of zeros in), as the body's is.
     pub fn process(&mut self, l: &mut [f32], r: &mut [f32], clock: u64, trem: f32, quiet: bool) {
         let filters = self.lo_on || self.hi_on;
         if quiet && (self.still || !filters) {
-            self.still = true;
             return;
         }
         if trem > 0.0 {
@@ -515,7 +531,15 @@ impl Output {
             }
         }
         if filters {
-            for (a, b) in l.iter_mut().zip(r.iter_mut()) {
+            let grid = super::CTRL as u64;
+            for (i, (a, b)) in l.iter_mut().zip(r.iter_mut()).enumerate() {
+                if self.still {
+                    if *a == 0.0 && *b == 0.0 {
+                        continue;
+                    }
+                    self.still = false;
+                }
+                self.fed |= *a != 0.0 || *b != 0.0;
                 if self.lo_on {
                     *a = self.lo[0].tick(*a);
                     *b = self.lo[1].tick(*b);
@@ -524,21 +548,16 @@ impl Output {
                     *a = self.hi[0].tick(*a);
                     *b = self.hi[1].tick(*b);
                 }
-            }
-            if quiet {
-                let peak = self
-                    .lo
-                    .iter()
-                    .chain(self.hi.iter())
-                    .fold(0f32, |m, f| m.max(f.peak()));
-                if peak < 1e-10 {
-                    self.reset();
-                    for x in l.iter_mut().chain(r.iter_mut()) {
-                        *x = 0.0;
+                if (clock + i as u64 + 1).is_multiple_of(grid) && !std::mem::take(&mut self.fed) {
+                    let peak = self
+                        .lo
+                        .iter()
+                        .chain(self.hi.iter())
+                        .fold(0f32, |m, f| m.max(f.peak()));
+                    if peak < 1e-10 {
+                        self.reset();
                     }
                 }
-            } else {
-                self.still = false;
             }
         }
         if self.gain != 1.0 {

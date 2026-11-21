@@ -128,7 +128,12 @@ fn every_shape_is_block_size_independent_and_deterministic() {
         let reference = render_block(&p, 512, 1.0);
         assert!(reference.iter().all(|x| x.is_finite()), "{name}");
         assert!(reference.iter().any(|x| *x != 0.0), "{name} is silent");
-        assert_null(&reference, &render_block(&p, 512, 1.0), 0.0, &format!("{name} twice"));
+        assert_null(
+            &reference,
+            &render_block(&p, 512, 1.0),
+            0.0,
+            &format!("{name} twice"),
+        );
         for block in [1usize, 37, 64, 4096] {
             assert_null(
                 &reference,
@@ -148,16 +153,33 @@ fn the_extras_at_their_defaults_change_no_sample() {
             "B off, whatever B says",
             fides(&[("b.type", 9.0), ("b.decay", 30.0), ("b.level", 6.0)]),
         ),
-        ("cuts at their ends", fides(&[("lowcut", 10.0), ("highcut", 20_000.0)])),
+        (
+            "cuts at their ends",
+            fides(&[("lowcut", 10.0), ("highcut", 20_000.0)]),
+        ),
         ("no tremolo at any rate", fides(&[("trem.rate", 9.0)])),
-        ("no vibrato at any rate", fides(&[("vib.rate", 9.0), ("vib.delay", 0.0)])),
-        ("no strike noise, no noise layer", fides(&[("exc.noise", 0.0), ("noise.level", 0.0)])),
+        (
+            "no vibrato at any rate",
+            fides(&[("vib.rate", 9.0), ("vib.delay", 0.0)]),
+        ),
+        (
+            "no strike noise, no noise layer",
+            fides(&[("exc.noise", 0.0), ("noise.level", 0.0)]),
+        ),
         (
             "a route at depth 0",
-            with_text(fides(&[("mod1.amt", 0.0)]), &[("mod1.src", "vel"), ("mod1.dst", "a.decay")]),
+            with_text(
+                fides(&[("mod1.amt", 0.0)]),
+                &[("mod1.src", "vel"), ("mod1.dst", "a.decay")],
+            ),
         ),
     ] {
-        assert_null(&base, &render_block(&phrase_project(spec), 256, 0.5), 0.0, name);
+        assert_null(
+            &base,
+            &render_block(&phrase_project(spec), 256, 0.5),
+            0.0,
+            name,
+        );
     }
 }
 
@@ -193,8 +215,18 @@ fn mpe_pressure_presses_the_bow_and_slide_moves_it() {
     pressed.expression(9, NoteExpression::Brightness, 0.95);
     let b = run(&mut pressed, 24_000);
     let (tp, tq) = (plain.telemetry(), pressed.telemetry());
-    assert!(tq[tel::PRESSURE] > tp[tel::PRESSURE] + 0.3, "{} {}", tq[tel::PRESSURE], tp[tel::PRESSURE]);
-    assert!(tq[tel::POS] > tp[tel::POS] + 0.05, "{} {}", tq[tel::POS], tp[tel::POS]);
+    assert!(
+        tq[tel::PRESSURE] > tp[tel::PRESSURE] + 0.3,
+        "{} {}",
+        tq[tel::PRESSURE],
+        tp[tel::PRESSURE]
+    );
+    assert!(
+        tq[tel::POS] > tp[tel::POS] + 0.05,
+        "{} {}",
+        tq[tel::POS],
+        tp[tel::POS]
+    );
     assert!(a.0 != b.0, "pressure and slide change the sound");
     // Another note's expression touches nothing of this one.
     let mut other = Unit::new(SR);
@@ -220,7 +252,10 @@ fn a_note_dies_to_exact_silence_and_the_unit_rests_as_new() {
             if u.at_rest() {
                 let (l2, r2) = run(&mut u, 4800);
                 ran += 4800;
-                assert!(l2.iter().chain(&r2).all(|x| *x == 0.0), "{name}: at rest, not silent");
+                assert!(
+                    l2.iter().chain(&r2).all(|x| *x == 0.0),
+                    "{name}: at rest, not silent"
+                );
                 let _ = (l, r);
                 rested = true;
                 break;
@@ -239,13 +274,16 @@ fn a_note_dies_to_exact_silence_and_the_unit_rests_as_new() {
 
 #[test]
 fn an_eight_note_chord_at_full_velocity_keeps_its_headroom() {
-    for (name, spec) in shapes().into_iter().take(3) {
+    // The default and a bowed patch at their own level; a preset's headroom is the preset
+    // render check's (`cantus-ui`'s `preset_render`: the dense riff at velocity 127).
+    for (name, spec) in shapes().into_iter().take(2) {
         let mut p = Project::new("chord");
         let mut t = p.make_track("Fides");
         t.instrument = InstrumentSpec::Native(spec);
         let mut clip = p.make_clip("Chord", Ticks::ZERO, Ticks::beats(4));
         for pitch in [36u8, 48, 55, 60, 64, 67, 72, 79] {
-            clip.notes.push(p.make_note(Ticks::ZERO, Ticks::beats(3), pitch, 127));
+            clip.notes
+                .push(p.make_note(Ticks::ZERO, Ticks::beats(3), pitch, 127));
         }
         t.clips.push(clip);
         p.tracks.push(t);
@@ -297,12 +335,15 @@ fn thirty_two_heavy_voices_render_well_inside_real_time() {
     for k in 0..32u8 {
         u.note_on(note(36 + k, k as u64));
     }
-    let seconds = 2.0;
+    let seconds = 2.0f64;
     let t0 = std::time::Instant::now();
-    let _ = run(&mut u, (seconds * SR) as usize);
+    let _ = run(&mut u, (seconds * SR as f64) as usize);
     let took = t0.elapsed().as_secs_f64();
     assert_eq!(u.active_voices(), 32);
-    println!("32 bowed plates and bells: {:.1} % of real time", 100.0 * took / seconds);
+    println!(
+        "32 bowed plates and bells: {:.1} % of real time",
+        100.0 * took / seconds
+    );
     // Generous: a debug-optimised build on a shared machine.
     assert!(took < 2.0 * seconds, "{took} s for {seconds} s");
 }

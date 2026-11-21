@@ -157,6 +157,9 @@ fn describe(e: ExciterKind, r: ResKind) {
         let b = b.min(l.len());
         db((l[a..b].iter().map(|x| x * x).sum::<f32>() / (b - a) as f32).sqrt())
     };
+    let peak = l.iter().fold(0f32, |m, x| m.max(x.abs()));
+    let at = l.iter().position(|x| x.abs() == peak).unwrap_or(0);
+    println!("{e:?} on {r:?}: peak {:.1} dB at {at}", db(peak));
     println!(
         "{e:?} on {r:?}: RMS 0–0.1 s {:.1}, 0.1–0.5 {:.1}, 0.5–1 {:.1}, 1–1.5 {:.1}, after release {:.1} dB",
         rms(0, 4_800),
@@ -180,13 +183,19 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("wav") => wavs(args.get(1).map_or("fides-lab", String::as_str)),
-        Some("describe") => {
-            for e in [ExciterKind::Pluck, ExciterKind::Bow, ExciterKind::Mallet] {
-                for r in [ResKind::String, ResKind::Tube, ResKind::Pipe] {
-                    describe(e, r);
+        Some("describe") => match (args.get(1), args.get(2)) {
+            (Some(e), Some(r)) => describe(
+                ExciterKind::from_index(e.parse().unwrap_or(0.0)),
+                ResKind::from_index(r.parse().unwrap_or(0.0)),
+            ),
+            _ => {
+                for e in [ExciterKind::Pluck, ExciterKind::Bow, ExciterKind::Mallet] {
+                    for r in [ResKind::String, ResKind::Tube, ResKind::Pipe] {
+                        describe(e, r);
+                    }
                 }
             }
-        }
+        },
         _ => levels(),
     }
 }

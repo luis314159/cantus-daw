@@ -327,8 +327,10 @@ fn pitch_is_within_a_tenth_of_a_cent_at_any_bend() {
 }
 
 /// A bowed string's pitch is the stick and slip's: the loop sets it and the bow's friction
-/// pulls it a little flat as it presses harder (as a real bow does). Measured and held
-/// within 2 cents at the default pressure across the range; printed for the report.
+/// moves it a few cents (the stick lasts a little longer or shorter than the loop's half, as
+/// a real bow's does — Schelleng, Raman). Measured across C2–C6 at three pressures and held
+/// within 3.5 cents at the default; printed for the report. A struck or plucked one is exact
+/// (`pitch_is_within_a_tenth_of_a_cent_at_any_bend`).
 #[test]
 fn a_bowed_string_plays_in_tune() {
     let mut worst = 0f64;
@@ -348,5 +350,58 @@ fn a_bowed_string_plays_in_tune() {
         }
         println!("bowed at pressure {pressure}, speed {speed}:{line} ct");
     }
-    assert!(worst < 2.0, "{worst} ct");
+    assert!(worst < 3.5, "{worst} ct");
+}
+
+#[test]
+#[ignore = "a probe: cargo test -p cantus-dsp --lib fides::tests::probe -- --ignored --nocapture"]
+fn probe_sparse_noise_on_glass() {
+    let mut s = FidesSettings::default();
+    s.exc.kind = ExciterKind::Noise;
+    s.noise.density = 0.12;
+    s.noise.color_hz = 6000.0;
+    s.noise.attack_ms = 800.0;
+    s.noise.decay_ms = 2000.0;
+    s.noise.sustain = 0.6;
+    s.noise.release_ms = 3000.0;
+    s.a.kind = ResKind::Glass;
+    s.a.decay_s = 6.0;
+    s.a.material = 0.95;
+    s.body.kind = BodyKind::None;
+    for key in [36u8, 48, 60, 72, 84] {
+        let (l, _) = render(&s, &[(0, Ev::On(key, 0.8)), (72_000, Ev::Off(key))], 96_000, &|_| 256, &Serial);
+        let peak = l.iter().fold(0f32, |m, x| m.max(x.abs()));
+        println!("key {key}: peak {peak:e}");
+    }
+}
+
+#[test]
+#[ignore = "a probe: cargo test -p cantus-dsp --lib fides::tests::probe -- --ignored --nocapture"]
+fn probe_bowed_glass_and_bar() {
+    for (name, kind, pos, listen, attack) in [
+        ("glass harmonica", ResKind::Glass, 0.06f32, 0.1f32, 350.0f32),
+        ("bowed vibes", ResKind::Marimba, 0.45, 0.5, 500.0),
+        ("default bowed glass", ResKind::Glass, 0.13, 0.37, 120.0),
+    ] {
+        let mut s = FidesSettings::default();
+        s.exc.kind = ExciterKind::Bow;
+        s.exc.pos = pos;
+        s.exc.bow_attack_ms = attack;
+        s.a.kind = kind;
+        s.a.listen = listen;
+        s.a.decay_s = 5.0;
+        s.a.material = 0.95;
+        s.body.kind = BodyKind::None;
+        let (l, _) = render(&s, &[(0, Ev::On(60, 0.8)), (72_000, Ev::Off(60))], 96_000, &|_| 256, &Serial);
+        let rms = |a: usize, b: usize| (l[a..b].iter().map(|x| x * x).sum::<f32>() / (b - a) as f32).sqrt();
+        let peak = l.iter().fold(0f32, |m, x| m.max(x.abs()));
+        let at = l.iter().position(|x| x.abs() == peak).unwrap_or(0);
+        println!(
+            "{name}: peak {peak:.3} at {at}, rms 0–0.25 s {:.4}, 0.25–0.5 {:.4}, 0.5–1 {:.4}, 1–1.5 {:.4}",
+            rms(0, 12_000),
+            rms(12_000, 24_000),
+            rms(24_000, 48_000),
+            rms(48_000, 72_000)
+        );
+    }
 }

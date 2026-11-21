@@ -43,17 +43,17 @@ pub struct Gains {
 fn trims(kind: ResKind) -> (f32, f32, f32) {
     match kind {
         ResKind::String => (0.275, 0.248, 0.50),
-        ResKind::Bar => (3.76, 0.44, 0.079),
-        ResKind::Marimba => (2.15, 0.48, 0.35),
-        ResKind::Tine => (1.18, 0.52, 0.097),
-        ResKind::Plate => (1.85, 0.224, 0.46),
-        ResKind::Membrane => (0.64, 0.32, 0.18),
-        ResKind::Drumhead => (0.50, 0.28, 0.16),
-        ResKind::Tube => (0.56, 0.19, 1.41),
-        ResKind::Pipe => (0.275, 0.248, 0.50),
-        ResKind::Bell => (0.55, 0.25, 0.17),
-        ResKind::Glass => (0.97, 0.285, 0.195),
-        ResKind::Pan => (1.0, 0.26, 0.234),
+        ResKind::Bar => (3.76, 0.44, 0.70),
+        ResKind::Marimba => (2.15, 0.48, 0.41),
+        ResKind::Tine => (1.18, 0.52, 0.217),
+        ResKind::Plate => (1.85, 0.224, 0.99),
+        ResKind::Membrane => (0.64, 0.32, 0.36),
+        ResKind::Drumhead => (0.50, 0.28, 0.076),
+        ResKind::Tube => (0.42, 0.16, 1.41),
+        ResKind::Pipe => (0.275, 0.21, 0.34),
+        ResKind::Bell => (0.55, 0.25, 0.038),
+        ResKind::Glass => (0.97, 0.285, 0.178),
+        ResKind::Pan => (1.0, 0.26, 0.173),
     }
 }
 
@@ -172,6 +172,7 @@ impl Res {
         bowing: bool,
         slope: f32,
         out: &mut [f32],
+        grid_end: bool,
     ) {
         let (ti, ts, tb) = trims(self.kind);
         let out_gain = if bowing { tb } else { 1.0 };
@@ -185,19 +186,34 @@ impl Res {
                 sustain: ts,
                 out: out_gain,
             };
-            self.guide.render(imp, sus, bow, bowing, slope, &g, out);
+            self.guide
+                .render(imp, sus, bow, bowing, slope, &g, out, grid_end);
         } else {
             let g = Gains {
                 strike: ti,
                 sustain: ts,
                 out: out_gain,
             };
-            self.modal.render(imp, sus, bow, bowing, slope, &g, out);
+            self.modal
+                .render(imp, sus, bow, bowing, slope, &g, out, grid_end);
         }
     }
 
     /// The loop's or the fundamental's decay per sample, squared off for a sustained
     /// exciter: `√(1 − r²)`, so steady noise into it comes out at about its own power.
+    /// What a tone right on the resonance gains, inverted: `1 − r` (per period for a
+    /// waveguide, per sample for a mode), so A's partial driving B (in series) comes out of B
+    /// at about its own level.
+    fn tonal_comp(&self, sr: f32) -> f32 {
+        let per_s = 6.907_755 / self.t60.max(1e-3);
+        let rate = if self.kind.is_guide() {
+            self.f0.max(1.0)
+        } else {
+            sr as f64
+        };
+        (1.0 - math::exp(-per_s / rate)) as f32
+    }
+
     /// A waveguide's comb gains by its loop's decay per period, a mode by its own per
     /// sample.
     fn sustain_comp(&self, sr: f32) -> f32 {
@@ -521,7 +537,6 @@ impl Voice {
             noise_level: (own + layer) * vel_gain * press_gain * comp * 4.0,
             noise_band: Biquad::band(color, s.noise.width_oct, sr),
         };
-        self.bowing = kind == ExciterKind::Bow;
         // ---- where, and the pitch ----
         let slide = if self.has_slide {
             s.mpe_slide * (self.slide - 0.5) * 0.4
@@ -616,10 +631,13 @@ impl Voice {
             }
         }
         self.couple = if s.serial {
-            2.0 * self.b.sustain_comp(sr)
+            3.0 * self.b.tonal_comp(sr)
         } else {
             0.0
         };
+        // The bow on the string until it is lifted off; then the string rings free (taken
+        // on the grid, so where it lifts is the same at every block size).
+        self.bowing = kind == ExciterKind::Bow && (self.first || self.exc.bow_active());
         self.vib_phase = (self.vib_phase + s.vib_rate_hz as f64 * span as f64 / sr as f64).fract();
     }
 }
@@ -639,12 +657,20 @@ impl Voice {
                 self.tick(sh, CTRL as u32);
             }
             let input = sh.input.map(|x| &x[at.min(x.len())..(at + k).min(x.len())]);
-            self.run(sh, input, &mut l[at..at + k], &mut r[at..at + k]);
+            let grid_end = (t + k as u64).is_multiple_of(CTRL as u64);
+            self.run(sh, input, &mut l[at..at + k], &mut r[at..at + k], grid_end);
             at += k;
         }
     }
 
-    fn run(&mut self, sh: &Shared, input: Option<&[f32]>, l: &mut [f32], r: &mut [f32]) {
+    fn run(
+        &mut self,
+        sh: &Shared,
+        input: Option<&[f32]>,
+        l: &mut [f32],
+        r: &mut [f32],
+        grid_end: bool,
+    ) {
         let n = l.len();
         self.imp[..n].fill(0.0);
         self.sus[..n].fill(0.0);
@@ -665,6 +691,7 @@ impl Voice {
             self.bowing,
             slope,
             &mut self.out_a[..n],
+            grid_end,
         );
         let b_on = self.b_on;
         if b_on {
@@ -682,6 +709,7 @@ impl Voice {
                     false,
                     slope,
                     &mut self.out_b[..n],
+                    grid_end,
                 );
             } else {
                 self.b.render(
@@ -691,6 +719,7 @@ impl Voice {
                     self.bowing,
                     slope,
                     &mut self.out_b[..n],
+                    grid_end,
                 );
             }
         }
@@ -713,8 +742,8 @@ impl Voice {
         }
         self.peak = peak;
         self.age += n as u64;
-        let over = self.exc.done() && !self.a.is_live() && (!b_on || !self.b.is_live());
-        if over || (self.fade_step > 0.0 && self.fade <= 0.0) {
+        let over = grid_end && self.exc.done() && !self.a.is_live() && (!b_on || !self.b.is_live());
+        if over || (grid_end && self.fade_step > 0.0 && self.fade <= 0.0) {
             self.clear();
             self.ended = true;
         }

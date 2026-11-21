@@ -360,6 +360,11 @@ impl Exciter {
         }
     }
 
+    /// The bow is on the string (drawn, or lifting): once it is off, the string is free.
+    pub fn bow_active(&self) -> bool {
+        self.bow_stage != Stage::Idle
+    }
+
     /// How far the bow is drawn (0 … 1 of its velocity; the input's gate).
     pub fn bow_fraction(&self) -> f32 {
         self.bow

@@ -227,8 +227,9 @@ impl Guide {
 
     /// Render `out.len()` samples, **adding** `g.out` × the wave at the bridge into `out`.
     /// The exciter injects `g.strike × imp + g.sustain × sus`; `bow` is the bow's velocity
-    /// (when `bowing`), met through the friction curve of slope `slope`. Returns whether
-    /// it is still live.
+    /// (when `bowing`), met through the friction curve of slope `slope`. `grid_end`: the
+    /// slice ends on the control grid, where the gate may close. Returns whether it is still
+    /// live.
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
@@ -239,9 +240,17 @@ impl Guide {
         slope: f32,
         g: &super::voice::Gains,
         out: &mut [f32],
+        grid_end: bool,
     ) -> bool {
         if !self.live {
-            return false;
+            // Gone still while its exciter waited (sparse grains, a bow not yet moving): it
+            // wakes with the first thing that reaches it.
+            let fed = bowing && bow.iter().any(|b| *b != 0.0)
+                || imp.iter().chain(sus.iter()).any(|x| *x != 0.0);
+            if !fed {
+                return false;
+            }
+            self.live = true;
         }
         let n = out.len().min(imp.len()).min(sus.len()).min(bow.len());
         let (gi, gs, gain) = (g.strike, g.sustain, g.out);
@@ -293,7 +302,9 @@ impl Guide {
                 self.quiet = 0;
             }
         }
-        if self.quiet > longest {
+        // Only at the control grid's points, so where it stops is the same at every block
+        // size.
+        if grid_end && self.quiet > longest {
             // Every wave has passed the junction below the gate: it is still.
             self.clear();
         }

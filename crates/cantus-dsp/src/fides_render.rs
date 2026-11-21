@@ -102,7 +102,7 @@ impl Fides {
             }
             let quiet = !any;
             let (bl, br) = (&mut self.buf_l[..frames], &mut self.buf_r[..frames]);
-            self.body.process(bl, br, quiet);
+            self.body.process(bl, br, self.clock, quiet);
             let trem = (self.s.trem_depth + self.global_mods[1]).clamp(0.0, 1.0);
             self.out.process(bl, br, self.clock, trem, quiet);
             for f in 0..frames {

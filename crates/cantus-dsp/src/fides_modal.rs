@@ -43,6 +43,7 @@ pub struct Modal {
     gin: [[f32; LANES]; CHUNKS],
     gout: [[f32; LANES]; CHUNKS],
     gbow: [[f32; LANES]; CHUNKS],
+    gbin: [[f32; LANES]; CHUNKS],
     re: [[f32; LANES]; CHUNKS],
     im: [[f32; LANES]; CHUNKS],
     /// The strike's and the microphone's weights, normalised.
@@ -50,6 +51,12 @@ pub struct Modal {
     w_out: [f32; MAX_MODES],
     last: Option<ModalStep>,
     live: bool,
+    /// Something was injected since the last grid point.
+    moved: bool,
+    /// The displacement at the bow a sample ago, and 1/ω₀: the bow meets the velocity (a
+    /// displacement held still is no velocity — the stick must end, as on a string).
+    bow_d: f32,
+    bow_w: f32,
 }
 
 impl Modal {
@@ -66,12 +73,16 @@ impl Modal {
             gin: [[0.0; LANES]; CHUNKS],
             gout: [[0.0; LANES]; CHUNKS],
             gbow: [[0.0; LANES]; CHUNKS],
+            gbin: [[0.0; LANES]; CHUNKS],
             re: [[0.0; LANES]; CHUNKS],
             im: [[0.0; LANES]; CHUNKS],
             w_in: [0.0; MAX_MODES],
             w_out: [0.0; MAX_MODES],
             last: None,
             live: false,
+            moved: false,
+            bow_d: 0.0,
+            bow_w: 1.0,
         }
     }
 
@@ -83,6 +94,8 @@ impl Modal {
         self.re = [[0.0; LANES]; CHUNKS];
         self.im = [[0.0; LANES]; CHUNKS];
         self.live = false;
+        self.moved = false;
+        self.bow_d = 0.0;
     }
 
     /// The modes in use.
@@ -186,6 +199,7 @@ impl Modal {
             self.rel_p = s.p;
         }
         let nyq = 0.45 * self.sr;
+        self.bow_w = (self.sr / (std::f64::consts::TAU * s.f0.max(1.0))) as f32;
         let mut bow_norm = 0.0f64;
         for k in 0..CHUNKS * LANES {
             let (c, l) = (k / LANES, k % LANES);
@@ -195,6 +209,7 @@ impl Modal {
                 self.gin[c][l] = 0.0;
                 self.gout[c][l] = 0.0;
                 self.gbow[c][l] = 0.0;
+                self.gbin[c][l] = 0.0;
                 continue;
             }
             let hz = s.f0 * self.ratio[k];
@@ -209,7 +224,16 @@ impl Modal {
             self.pi[c][l] = (r * sn) as f32;
             self.gin[c][l] = self.w_in[k] * fade as f32;
             self.gout[c][l] = self.w_out[k];
-            let wb = self.w_in[k] as f64 * fade;
+            // A bow drives and hears the low modes (a glass's (2,0), a bar's first): those
+            // under 4.5 × the fundamental, the lower the more. Drawn across every mode, the
+            // modes would cancel at the bow while each grew without bound.
+            let sel = if self.ratio[k] <= 4.5 {
+                1.0 / self.ratio[k].max(0.25)
+            } else {
+                0.0
+            };
+            let wb = self.w_in[k] as f64 * fade * sel;
+            self.gbin[c][l] = wb as f32;
             self.gbow[c][l] = wb as f32;
             bow_norm += wb * wb;
         }
@@ -233,7 +257,7 @@ impl Modal {
 
     /// Render `out.len()` samples, **adding** `g.out` × the microphone's signal. The
     /// exciter injects `g.strike × imp + g.sustain × sus`; `bow` is the bow's velocity when
-    /// `bowing`.
+    /// `bowing`. `grid_end`: the slice ends on the control grid, where the gate may close.
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
@@ -244,33 +268,46 @@ impl Modal {
         slope: f32,
         g: &super::voice::Gains,
         out: &mut [f32],
+        grid_end: bool,
     ) -> bool {
         if !self.live {
-            return false;
+            // Gone still while its exciter waited (sparse grains, a bow not yet moving): it
+            // wakes with the first thing that reaches it.
+            let fed = bowing && bow.iter().any(|b| *b != 0.0)
+                || imp.iter().chain(sus.iter()).any(|x| *x != 0.0);
+            if !fed {
+                return false;
+            }
+            self.live = true;
         }
         let chunks = self.n.div_ceil(LANES);
         let n = out.len().min(imp.len()).min(sus.len()).min(bow.len());
         let (gi, gs, gain) = (g.strike, g.sustain, g.out);
-        let mut moved = false;
+        let mut moved = self.moved;
         for i in 0..n {
-            let mut x = gi * imp[i] + gs * sus[i];
+            let x = gi * imp[i] + gs * sus[i];
+            let mut xb = 0.0f32;
             if bowing {
                 let mut acc = [0.0f32; LANES];
                 for c in 0..chunks {
                     for j in 0..LANES {
-                        acc[j] += self.gbow[c][j] * self.re[c][j];
+                        acc[j] += self.gbow[c][j] * self.im[c][j];
                     }
                 }
-                let vs = sum8(&acc);
+                let d = sum8(&acc);
+                let vs = (d - self.bow_d) * self.bow_w;
+                self.bow_d = d;
                 let dv = bow[i] - vs;
-                x += dv * friction(dv, slope);
+                xb = dv * friction(dv, slope);
             }
-            moved |= x != 0.0;
+            moved |= x != 0.0 || xb != 0.0;
             let mut acc = [0.0f32; LANES];
             for c in 0..chunks {
                 for j in 0..LANES {
                     let (re, im) = (self.re[c][j], self.im[c][j]);
-                    let nre = self.pr[c][j] * re - self.pi[c][j] * im + self.gin[c][j] * x;
+                    let nre = self.pr[c][j] * re - self.pi[c][j] * im
+                        + self.gin[c][j] * x
+                        + self.gbin[c][j] * xb;
                     let nim = self.pi[c][j] * re + self.pr[c][j] * im;
                     self.re[c][j] = nre;
                     self.im[c][j] = nim;
@@ -279,6 +316,11 @@ impl Modal {
             }
             out[i] += gain * sum8(&acc);
         }
+        self.moved = moved;
+        if !grid_end {
+            return self.live;
+        }
+        self.moved = false;
         if !moved {
             let mut peak = 0f32;
             for c in 0..chunks {

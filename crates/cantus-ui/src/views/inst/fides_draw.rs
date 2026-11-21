@@ -13,7 +13,7 @@ use crate::app::CantusApp;
 use crate::kit::color::with_alpha;
 use crate::kit::text::{self as ktext, Role, Text};
 use crate::kit::{Brush, Style};
-use cantus_core::{NativeSpec, TrackId};
+use cantus_core::TrackId;
 use cantus_dsp::fides::exciter::ExciterKind;
 use cantus_dsp::fides::tables::{partials, shape, Partial, ResKind, MAX_MODES};
 use cantus_dsp::fides::{tel, FidesSettings};
@@ -72,7 +72,6 @@ pub fn picture(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
     track: TrackId,
-    spec: &NativeSpec,
     fs: &FidesSettings,
     tele: &cantus_engine::Telemetry,
     d: Rect,

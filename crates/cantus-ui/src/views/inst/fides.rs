@@ -199,7 +199,7 @@ fn picture_card(
     let cr = paint_card(ui, rect, s, &Card::new("instrument.fides", Function::Source).display(display));
     if let Some(d) = cr.display {
         let sd = face::on_display(&ss);
-        draw::picture(app, ui, track, spec, &fs, &tele, d, &sd);
+        draw::picture(app, ui, track, &fs, &tele, d, &sd);
         with_brush(&ui.painter_at(d), |b| face::cover(b, d, &sd));
     }
 }
