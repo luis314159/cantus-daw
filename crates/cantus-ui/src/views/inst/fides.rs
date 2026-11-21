@@ -1,5 +1,5 @@
 //! Fides, the resonator instrument: its editor (round 41, ADR 0150), on the kit's device
-//! shell (ADR 0024 §8) and Fides's own face (`kit/skin/fides.rs`: rosewood, gold, a plan's
+//! shell (ADR 0024 §8) and Fides's own face (`kit/skin/fides.rs`: rosewood, copper, a plan's
 //! paper). Owned by the `fides` builder.
 //!
 //! - **Play**: the instrument as the settings make it, drawn on the display — the
