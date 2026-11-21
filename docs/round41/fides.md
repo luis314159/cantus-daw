@@ -255,7 +255,7 @@ integrator's.
    longer integrates the noise's DC) and the dulcimer phrase −0.2. The partials above the
    fundamental sit up to 4.3 cents flat of where they were (the blocker's lead). **The
    owner should listen again to the pan flute, the nylon guitar, the harp, the banjo, the
-   dulcimer, the pizzicato and the crystal pluck** in `F:\projects\daw-r41ides-listen-r41all\`
+   dulcimer, the pizzicato and the crystal pluck** in `F:\projects\daw-r41\fides-listen-r41all\`
    (`examples/fides_listen`, the same phrase and notes as `fides-listen\`): every preset
    within 0.3 LU of its role's target but the three held by their crest — timpani −4.3,
    frame drum −2.7 (as before) and glass harmonica −1.9 (its gain +0.8 dB, its phrase peak
