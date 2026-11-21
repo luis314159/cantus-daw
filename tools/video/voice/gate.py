@@ -12,9 +12,9 @@ For each `<line>-<take>.wav` with its `.json` (from `takes.py`):
   lone float sample past 1.0 is an overshoot the mix's gain takes back, and is reported.
 - **DC:** the mean; at most 0.002 of full scale.
 - **Head and tail:** the silence before the first sample within 40 dB of the take's peak,
-  10-400 ms; at the end, the last 20 ms at least 30 dB under the loudest (louder, a word was
+  at least 10 ms (a longer lead is trimmed by the assembly); at the end, the last 20 ms at least 30 dB under the loudest (louder, a word was
   cut off) and at most 700 ms of trailing sound.
-- **Fits:** the speech ends at least 0.3 s before the line's window does.
+- **Fits:** the speech itself (head to tail) is at least 0.3 s shorter than the line's window.
 - **Pace, reported, not gated:** the words (English) or syllables (Spanish, `pace.py`'s
   count) over the speech head to tail, pauses included, against 2.0-3.0 and 4.0-6.0 a
   second; the A/B page shows it beside the take for the owner's ear.
@@ -109,13 +109,29 @@ def true_peak_db(x, sr: int) -> float:
     return 20 * np.log10(p) if p > 0 else -200.0
 
 
+def recheck(folder: Path) -> None:
+    """The head and fits rules applied again to measures already in gate.json."""
+    path = folder / "gate.json"
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    for r in rows:
+        meta = json.loads((folder / r["take"].replace(".wav", ".json")).read_text(encoding="utf-8"))
+        r["checks"]["head"] = r["head_ms"] >= 10
+        r["checks"]["fits"] = r["speech_s"] <= meta["window"] - 0.3
+        r["pass"] = all(r["checks"].values())
+    path.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(path, sum(r["pass"] for r in rows), "of", len(rows), "pass")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--takes", required=True)
     ap.add_argument("--whisper", required=True)
     ap.add_argument("--model", default="large-v3")
+    ap.add_argument("--recheck", action="store_true", help="judge gate.json's measures again by these rules, without Whisper")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
+    if a.recheck:
+        return recheck(Path(a.takes))
 
     import numpy as np
     import torch
@@ -171,9 +187,11 @@ def main() -> None:
             "words": same_words(said, got),
             "clip": clip == 0,
             "dc": abs(dc) <= 0.002,
-            "head": 0.01 <= head <= 0.4,
+            # a long lead (Qwen's Base model leaves 0.4-0.9 s) is trimmed by the assembly; only
+            # a head under 10 ms (a word clipped at its start) fails
+            "head": head >= 0.01,
             "tail": end_db <= -30 and tail <= 0.7,
-            "fits": head + speech <= meta["window"] - 0.3,
+            "fits": speech <= meta["window"] - 0.3,
             # each phrase's raw output ended in its decay, not on a sounding word
             "ends": all(e <= -30 for e in meta.get("phrase_end_db", [])),
         }

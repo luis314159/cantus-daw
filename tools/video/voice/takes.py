@@ -43,7 +43,7 @@ SPEAK = {
     # Cantus KAN-tus, Tympanum TIM-pa-num (and, if a line ever names them, Fides FEE-des,
     # Nitor NEE-tor). The address before the name, so "cantusdaw.com" is not caught by it.
     "en": {"FL Studio": "F-L Studio", "VST3": "vee-ess-tee three", "cantusdaw.com": "kantus-daw dot com",
-           "Cantus": "Kantus", "Chorda": "Korda", "Tympanum": "Timpanum", "Fides": "Feedes", "Nitor": "Neetor"},
+           "Cantus": "Kantus", "Chorda": "Korda", "modelled": "modeled", "Tympanum": "Timpanum", "Fides": "Feedes", "Nitor": "Neetor"},
     "es": {"FL Studio": "efe ele Studio", "VST3": "uve ese te tres", "cantusdaw.com": "cantus daw punto com",
            "plug-ins": "plugins", "Chorda": "Korda", "Tympanum": "Tímpanum"},
 }
