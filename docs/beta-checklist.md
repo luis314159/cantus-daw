@@ -991,3 +991,24 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 - [ ] Verificado solo en emulación: los dispositivos de la prueba son una copia de tus
   capturas (ASIO4ALL v2, FL Studio ASIO, FlexASIO, Microphone Array); tus controladores
   reales y su número solo los ve tu equipo.
+
+### Ronda 41 — Fides, el resonador (ADR 0150) <!-- r41:fides -->
+
+- [ ] **Escuchar los ocho presets nombrados, solos** (`F:\projects\daw-r41\fides-listen\`): Marimba,
+  Vibráfono, Kalimba, Steel pan, Arpa, Guitarra de nylon, Chelo con arco y Cristal golpeado,
+  cada uno en su frase (`NN-<preset>.wav`) y en cinco notas de Do2 a Do6 (`NN-<preset>-notes.wav`).
+  Para cada uno: ¿es *convincente solo*? Anota lo que no lo sea (el ataque, la caída, el
+  timbre de los graves o de los agudos, el cuerpo). El panel de diez oyentes es tuyo.
+- [ ] **Tocar Fides en el teclado**: añade Fides (*Teclados*), toca acordes y escalas en todo el
+  rango con el preset por defecto y con Marimba; la velocidad debe dar más fuerza y más brillo.
+  Mantén una nota del Chelo con arco: debe sostener y crecer con el arco; suéltala: se apaga.
+- [ ] **MPE (si tienes un controlador MPE)**: con el Chelo con arco, la presión de cada dedo
+  debe apretar el arco (más áspero, más fuerte), el deslizamiento debe mover el arco hacia el
+  puente o la cejilla (más brillante o más dulce), el bend de cada nota debe doblar solo esa
+  nota. Probado solo con expresiones escritas por las pruebas.
+- [ ] **El dibujo de Tocar**: arrastra sobre la cuerda o la barra para mover dónde se toca; los
+  parciales de abajo deben seguir. Cambia el resonador entre los doce y el excitador entre los
+  seis: el dibujo debe ser cada vez el objeto correcto, sin nada encimado.
+- [ ] **La entrada en vivo** (excitador *Entrada*): necesita que el integrador lleve la señal de
+  una pista al instrumento (`docs/round41/fides.md`); cuando esté, pon una voz o una batería
+  en la entrada y toca acordes: el resonador debe sonar con esa señal.

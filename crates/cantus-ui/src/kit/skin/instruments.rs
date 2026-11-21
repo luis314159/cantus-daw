@@ -20,6 +20,10 @@ use crate::kit::{light, Brush, Fill, State, Style};
 use cantus_core::inst::InstrumentKind;
 use egui::{Pos2, Rect, Vec2};
 
+// r41:fides — Fides's sheet, a file of its own (ADR 0150).
+#[path = "fides.rs"]
+mod fides;
+
 /// Organum's switch: a console organ's ivory stop tab in the lamp's place — standing up
 /// when off; tipped down when on, its back showing above the face and the pilot amber lit
 /// in the tab's foot.
@@ -465,10 +469,11 @@ pub const TYMPANUM: Skin = Skin {
 
 /// Every instrument sheet, Pulsus last.
 #[cfg(test)]
-pub const ALL: [&Skin; 11] = [
+pub const ALL: [&Skin; 12] = [
     &UNDA, &CALOR, &MODULUS, &EXEMPLAR, &GRAVIS, &LAMINA, &ORGANUM, &CHORDA, &SALTATOR,
     &TYMPANUM, // r40:tymp-ui
     &PULSUS,
+    &fides::FIDES, // r41:fides
 ];
 
 /// The sheet of an instrument.
@@ -484,8 +489,7 @@ pub fn of(kind: InstrumentKind) -> &'static Skin {
         InstrumentKind::Chorda => &CHORDA,
         InstrumentKind::Dancer => &SALTATOR,
         InstrumentKind::AcousticDrums => &TYMPANUM, // r40:tymp-ui
-        // r41:contract — Gravis's sheet until the fides builder draws Fides's.
-        InstrumentKind::Resonator => &GRAVIS,
+        InstrumentKind::Resonator => &fides::FIDES, // r41:fides
     }
 }
 
