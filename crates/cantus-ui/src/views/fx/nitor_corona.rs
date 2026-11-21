@@ -15,7 +15,7 @@
 //! smoothed for the eye in [`View`].
 
 use super::super::canvas::{self, Ink};
-use crate::kit::color::{mix, with_alpha};
+use crate::kit::color::{ensure_contrast, mix, with_alpha};
 use crate::kit::text::{Role, Text};
 use crate::kit::{Brush, Fill, Style};
 use cantus_engine::fx::nitor as t;
@@ -171,9 +171,12 @@ const NOTES: [&str; 12] = [
     "nitor.note.11",
 ];
 
-/// The colours of the corona: its glass, the sun gold, the dawn rose.
+/// The colours of the corona: its glass, the sun gold, the dawn rose. Its quiet words (the
+/// bands' names, the readout's labels) are the display's dim ink held to the kit's text
+/// floor, 4.5:1 on the glass (r41:no-elision: the phosphor's dim was 3.8:1 in every theme).
 fn voices(s: &Style) -> (Ink, Color32, Color32) {
-    let ink = Ink::of(s);
+    let mut ink = Ink::of(s);
+    ink.dim = ensure_contrast(ink.dim, ink.ground, 4.5);
     // The sheet's second voice is the sun gold, its lead the dawn rose (`side_r41.rs`).
     (ink, ink.voice(s.hue, true), ink.voice(s.hue, false))
 }
