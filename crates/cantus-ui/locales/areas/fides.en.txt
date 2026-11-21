@@ -1,7 +1,7 @@
 # Fides (round 41, ADR 0150) — owned by the fides builder. Every key here needs its twin in fides.es.txt.
 instrument.fides = Fides
 picker.dev.fides.name = Fides
-picker.dev.fides.what = Resonators: strings, bars, membranes
+picker.dev.fides.what = Plucked, bowed and struck
 picker.dev.fides.about = Plucked, bowed and struck: an exciter into strings, bars, plates, membranes, bells, glass and tubes, with a body — marimba, kalimba, harp, nylon guitar, a bowed cello, glass.
 
 # ---- the parameters ----
@@ -137,3 +137,41 @@ fides.tag.bowed = Bowed
 fides.tag.world = World
 fides.tag.drums = Drums
 fides.tag.texture = Texture
+
+# ---- the factory presets' macros ----
+fides.macro.hardness = Hardness
+fides.macro.pressure = Pressure
+fides.macro.colour = Colour
+fides.macro.decay = Decay
+fides.macro.body = Body
+fides.macro.position = Position
+
+# ---- short forms: what a label too wide for its place shows (the kit's Abbreviate) ----
+fides.glide.short = Glide
+fides.bend.short = Bend
+fides.transpose.short = Transp.
+fides.velocity.short = Velocity
+fides.release.short = Release
+fides.vib_rate.short = Vib rate
+fides.vib_delay.short = Vib delay
+fides.trem_rate.short = Trem rate
+fides.exc.vel_tone.short = Vel tone
+fides.exc.noise.short = Strike
+fides.bow.speed.short = Speed
+fides.noise.sustain.short = Sustain
+fides.noise.release.short = Release
+fides.mpe.press.short = MPE pres
+fides.mpe.slide.short = MPE sld
+fides.res.decay_key.short = Key dec.
+fides.res.inharm.short = Inharm.
+fides.res.modes.short = Partials
+fides.res.tune.short = Tune
+fides.res.keytrack.short = Key trk
+fides.b.on.short = Res. B
+fides.body.mix.short = Body mix
+fides.body.decay.short = Ring
+fides.lowcut.short = Low cut
+fides.highcut.short = High cut
+fides.retrig.short = Restrike
+fides.mode_kind.poly.short = Poly
+fides.resonator.marimba.short = Marimba

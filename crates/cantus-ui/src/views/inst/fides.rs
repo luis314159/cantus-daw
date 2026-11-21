@@ -140,31 +140,35 @@ fn res_keys(b: bool, all: bool) -> &'static [&'static str] {
     }
 }
 
-/// The twelve resonators as two rows of six: a click sets `key`.
+/// A stepped parameter's choices as two rows (the twelve resonators six and six, the
+/// seven bodies four and three — every name with its room): a click sets `key`.
 #[allow(clippy::too_many_arguments)]
-fn resonator_choice(
+fn two_rows(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
     rect: Rect,
     track: TrackId,
     spec: &NativeSpec,
     key: &str,
+    all: &[Src<'static>],
     s: &Style,
 ) {
     let now = spec.get(key).round().max(0.0) as usize;
     let gap = s.s(3.0);
     let h = (rect.height() - gap) * 0.5;
+    let first = all.len().div_ceil(2);
     for row in 0..2 {
         let r = Rect::from_min_size(
             Pos2::new(rect.left(), rect.top() + row as f32 * (h + gap)),
             Vec2::new(rect.width(), h),
         );
-        let labels = &RESONATORS[row * 6..row * 6 + 6];
-        // None lit in the other row: a value past the six (never `usize::MAX`: the painter
-        // adds one to it).
+        let from = row * first;
+        let labels = &all[from..(from + first).min(all.len())];
+        // None lit in the other row: a value past its choices (never `usize::MAX`: the
+        // painter adds one to it).
         let selected = now
-            .checked_sub(row * 6)
-            .filter(|i| *i < 6)
+            .checked_sub(from)
+            .filter(|i| *i < labels.len())
             .unwrap_or(labels.len());
         let name = spec
             .kind
@@ -172,18 +176,18 @@ fn resonator_choice(
             .map(|i| crate::i18n::t(i.label_key))
             .unwrap_or_default();
         let (resp, chosen) = crate::kit::widgets::Segmented::new(selected, labels)
-            .id(egui::Id::new(("fides-res", track.0, key, row)))
+            .id(egui::Id::new(("fides-rows", track.0, key, row)))
             .name(&name)
             .caps(crate::kit::hint::Caps::PARAM)
             .style(*s)
             .show_at(ui, r);
         // A parameter as any switch is: its menu, its mapped mark, the learn mode.
-        app.controllers.inst_words.note(spec.kind, key, || {
-            crate::controllers_words::srcs(&RESONATORS)
-        });
+        app.controllers
+            .inst_words
+            .note(spec.kind, key, || crate::controllers_words::srcs(all));
         let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
         if let Some(i) = chosen.filter(|_| !learning) {
-            app.set_inst_value(track, key, (row * 6 + i) as f32, false);
+            app.set_inst_value(track, key, (from + i) as f32, false);
         }
     }
 }
@@ -307,7 +311,7 @@ fn resonator_card(
         &[47.0, 86.0]
     };
     let r = rows_in(cr.body, s, hs);
-    resonator_choice(app, ui, r[0], track, spec, key, &st);
+    two_rows(app, ui, r[0], track, spec, key, &RESONATORS, &st);
     if all {
         cells(app, ui, r[1], track, spec, &keys[..5], &st, KnobSize::M);
         cells(app, ui, r[2], track, spec, &keys[5..], &st, KnobSize::M);
@@ -316,7 +320,7 @@ fn resonator_card(
     }
 }
 
-/// The body: its seven kinds and its mix, size and ring.
+/// The body: its seven kinds (two rows) and its mix, size and ring.
 fn body_card(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
@@ -327,8 +331,8 @@ fn body_card(
 ) {
     let st = s.function(Function::Tone);
     let cr = paint_card(ui, rect, s, &Card::new("fides.body.type", Function::Tone));
-    let r = rows_in(cr.body, s, &[24.0, 86.0]);
-    switch(app, ui, r[0], track, spec, "body.type", &BODIES, &st);
+    let r = rows_in(cr.body, s, &[47.0, 86.0]);
+    two_rows(app, ui, r[0], track, spec, "body.type", &BODIES, &st);
     cells(
         app,
         ui,
@@ -458,7 +462,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let heights = [
         s.s(card_h(0.0, 24.0 + 6.0 + 86.0 + 6.0 + 86.0)),
         s.s(card_h(0.0, 47.0 + 6.0 + 86.0 + 6.0 + 86.0)),
-        s.s(card_h(0.0, 24.0 + 6.0 + 86.0)),
+        s.s(card_h(0.0, 47.0 + 6.0 + 86.0)),
         s.s(card_h(0.0, 86.0 + 6.0 + 86.0)),
         s.s(card_h(0.0, 86.0)),
         s.s(card_h(0.0, 86.0 + 6.0 + 86.0)),

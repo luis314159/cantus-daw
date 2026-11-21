@@ -1,7 +1,7 @@
 # Fides (ronda 41, ADR 0150) — del constructor de fides. Gemelo de fides.en.txt.
 instrument.fides = Fides
 picker.dev.fides.name = Fides
-picker.dev.fides.what = Resonadores: cuerdas, barras, membranas
+picker.dev.fides.what = Pulsado, frotado y golpeado
 picker.dev.fides.about = Pulsado, frotado y golpeado: un excitador en cuerdas, barras, placas, membranas, campanas, cristal y tubos, con cuerpo — marimba, kalimba, arpa, guitarra de nylon, un chelo con arco, cristal.
 
 # ---- los parámetros ----
@@ -137,3 +137,41 @@ fides.tag.bowed = Con arco
 fides.tag.world = Del mundo
 fides.tag.drums = Tambores
 fides.tag.texture = Textura
+
+# ---- las macros de los presets de fábrica ----
+fides.macro.hardness = Dureza
+fides.macro.pressure = Presión
+fides.macro.colour = Color
+fides.macro.decay = Caída
+fides.macro.body = Cuerpo
+fides.macro.position = Posición
+
+# ---- formas cortas: lo que muestra una etiqueta que no cabe en su sitio (Abbreviate del kit) ----
+fides.glide.short = Portam.
+fides.bend.short = Bend
+fides.transpose.short = Transp.
+fides.velocity.short = Veloc.
+fides.release.short = Liber.
+fides.vib_rate.short = Frec. vib
+fides.vib_delay.short = Ret. vib
+fides.trem_rate.short = Frec trém
+fides.exc.vel_tone.short = Tono vel.
+fides.exc.noise.short = Golpe
+fides.bow.speed.short = Veloc.
+fides.noise.sustain.short = Sost.
+fides.noise.release.short = Liber.
+fides.mpe.press.short = Pres. MPE
+fides.mpe.slide.short = Desl. MPE
+fides.res.decay_key.short = Caída tec
+fides.res.inharm.short = Inarm.
+fides.res.modes.short = Parc.
+fides.res.tune.short = Afin.
+fides.res.keytrack.short = Seg. tec.
+fides.b.on.short = Res. B
+fides.body.mix.short = Mezcla
+fides.body.decay.short = Reson.
+fides.lowcut.short = Corte gr.
+fides.highcut.short = Corte ag.
+fides.retrig.short = Regolpe
+fides.mode_kind.poly.short = Poli
+fides.resonator.marimba.short = Marimba

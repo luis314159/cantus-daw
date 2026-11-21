@@ -262,6 +262,7 @@ const UNITS: &[(&str, &str, What)] = &[
         "tympanum",
         What::Inst(InstrumentKind::AcousticDrums),
     ),
+    ("fides", "fides", What::Inst(InstrumentKind::Resonator)), // r41:fides-all
     ("pulsus", "pulsus", What::Pulsus),
 ];
 

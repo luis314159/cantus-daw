@@ -813,6 +813,17 @@ fn popups(
 
 // ---- the bands -----------------------------------------------------------------------------
 
+/// A macro's stored name as the band shows it: a locale key (a factory preset's, as
+/// `fides.macro.decay`) in the window's language, any other name as it was typed.
+/// r41:fides-all
+pub fn macro_name(stored: &str) -> String {
+    if crate::i18n::has(crate::i18n::Locale::En, stored) {
+        crate::i18n::t(stored)
+    } else {
+        stored.to_string()
+    }
+}
+
 /// The macro card: eight L knobs, each named and printed, each a modulation source you
 /// drag by its name. The card's title collapses it.
 fn macro_band(
@@ -868,9 +879,11 @@ fn macro_band(
         let c = Pos2::new(cell.left() + d * 0.5 + 4.0 * k, cell.center().y);
         let knob_rect = Rect::from_center_size(c, egui::Vec2::splat(d + 6.0 * k));
         let key: &'static str = MACRO_KEYS[m];
+        // r41:fides-all — a factory preset names its macros by locale key (Fides's
+        // `fides.macro.*`): shown in the window's language; a name typed by hand as it is.
         let name = spec
             .text(MACRO_NAME_KEYS[m])
-            .map(str::to_string)
+            .map(macro_name)
             .unwrap_or_else(|| tf("inst.macro_n", &[("n", &(m + 1).to_string())]));
         let mut v = spec.get(key);
         let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
