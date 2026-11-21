@@ -171,10 +171,83 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
 
   The owner's ear decides whether the name was said right.
 
+## Step 2, the owner's verdict and Qwen3-TTS (2026-11-20)
+
+- **His verdict on Chatterbox:** low quality, sounds like AI, in both languages. Of the
+  pairs, he preferred the A takes' cadence. The Spanish must sound Latin American.
+- **His decision:** try Qwen3-TTS; if it fails, ElevenLabs (his account).
+- **The names in Latin's hard consonants:** Chorda KOR-da, Cantus KAN-tus, Tympanum
+  TIM-pa-num. The TTS is given Korda, Kantus and Timpanum (in Spanish, Korda and
+  Tímpanum). The gate accepts Chorda, Korda and Corda, no longer "Qantas", and lists the
+  names it heard in each take.
+- **Qwen3-TTS:** code and weights Apache-2.0. Models pinned in `models.txt`, SHA-256s
+  checked. Its own environment at `env\qwen`, pinned in `requirements-qwen.txt`.
+- **Voices, nobody's:**
+  - English: the built-in Aiden and Ryan, steered by a calm-narrator delivery.
+  - Spanish: two voices designed from descriptions, a man and a woman, "acento
+    latinoamericano neutro, mexicano". Each is held steady across lines: a reference clip is
+    made by VoiceDesign, and the Base model speaks every line in that synthetic voice.
+- **The run:** `tools/video/voice/qwen_run.sh`, with one model in memory at a time. The
+  page is `F:\projects\video-work\voice\ab-qwen.html`. It puts each line's preferred
+  Chatterbox A beside the best gated take of each Qwen voice.
+
+## Step 3, the film draft (2026-11-20; built by a builder agent, reviewed)
+
+- **The file:** `F:\projects\video-work\film\draft-1080p30.mp4`.
+  - 1920 × 1080, 30 fps, 2400 frames, 80.0 s, H.264 and AAC, 23 MB.
+  - The sound is each scene's own engine output, with no narration and no mastering
+    (−12.4 LUFS integrated).
+  - The cards are the English set, with end card B.
+- **The program:** `crates/cantus-ui/examples/film.rs`, with `tools/video/film/draft.sh`
+  and `sheet.sh`. ffmpeg is pinned in `tools/video/film/ffmpeg.txt` (BtbN n8.1.3, SHA-256
+  checked against the release's checksums).
+  - Every scene opens through `CantusApp::assemble` over a data folder of its own.
+  - The manual engine is stepped 48 000 / fps samples a frame, and its output is kept as a
+    WAV.
+  - The look is Slate Lapis Night.
+  - The cursor's clicks are real UI events.
+- **The scenes:**
+
+  | Scene | Cut | Song | What it shows |
+  |---|---|---|---|
+  | s1 | 0:00–0:06 | With All Your Heart | The arrangement playing; a push-in; the title card |
+  | s2 | 0:06–0:14 | With All Your Heart | A pull-back to the whole window; Onda in the Stage |
+  | s3 | 0:14–0:24 | Morning Light | The picker, Chorda's window, and the cursor playing four keys |
+  | s4 | 0:24–0:31 | Sunday Strut | Tympanum's kit, then its mixer with 12 mics, each "Own strip" |
+  | s5 | 0:31–0:44 | Neon Tide | Cribrum inserted from a strip's empty slot; its face; the cutoff dragged |
+  | s6a | 0:44–0:46.7 | — | An armed guitar track with its input meter |
+  | s6b | 0:46.7–0:49.3 | — | Two session clips launched |
+  | s6c | 0:49.3–0:52 | — | A hosted CLAP, the repository's test gain, on a strip |
+  | s7 | 0:52–1:00 | With All Your Heart | Speculum on the master, its loudness view |
+  | s8 | 1:00–1:08 | With All Your Heart | A glide across the desk, ending on Onda |
+  | s9 | 1:08–1:20 | With All Your Heart | End card B, with Onda's Stage inset |
+
+- **Substitutes, and what is not real yet:**
+  - The mixer has no drop target for effects, so an effect is a click on the empty slot,
+    then the picker.
+  - Chorda's keys light only for notes held with the mouse, so the cursor plays them.
+  - The recording take is not real: the manual engine has no input stream. The track is
+    armed, and the song's own guitar, rendered alone, is fed to its input.
+  - The session clips are made by the arrangement drag's own command.
+  - The plug-in is the repository's test gain, with no editor window (the CPU renderer
+    cannot show one).
+  - Onda's end-card inset is a rectangle, not keyed out.
+  - The camera's zooms are soft at 1080p; they will be sharp at scale 2.
+  - Hard cuts only.
+  - The Surprised mood also squares Onda; the film holds Happy.
+- **Looked at:**
+  - The builder looked at contact sheets of every scene, full frames of each, and both
+    sides of every cut.
+  - The session (Claude) looked at a sheet of 11 frames across the cut, taken from the
+    mp4. No overlap, no "no audio device", Lapis Night everywhere, and Onda in shots 2, 8
+    and 9 only.
+- **Not measured:** the frame render time. Renders ran at below-normal priority on a
+  loaded machine.
+
 ## What nobody has watched or heard yet
 
-No one has heard any take. Claude measured them, and Whisper transcribed them. The card
-stills have been looked at by Claude only.
+No one has heard any take or watched the draft. Claude measured the takes, Whisper
+transcribed them, and Claude looked at the frames and card stills.
 
 *(Written by the integrator from the video agent's hand-back, 2026-11-20: the subagent's tool
 policy refused it a report file. Two of its claims were checked against the code: no demo
