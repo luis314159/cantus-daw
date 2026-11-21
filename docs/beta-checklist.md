@@ -1022,7 +1022,7 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 - [ ] **El sub en la tónica**: pon *El sub sigue* en *Tónica*, sube *Sub* en un bombo o un
   bajo. Cambia la tonalidad de la canción en el piano roll (por ejemplo de Sol a Re): el sub
   debe moverse al instante, sin clic. En tus monitores y en unos auriculares: ¿suena afinado?
-- [ ] **Armónicos del bajo** en un portátil o un teléfono: la línea de bajo debe oírse donde
+- [ ] **Armónicos** (tarjeta *Graves*) en un portátil o un teléfono: la línea de bajo debe oírse donde
   antes no se oía.
 - [ ] **Nitor como plug-in** (*Cantus Nitor*, CLAP y VST3) en otro DAW: pon su *Tonalidad*
   en la de la canción; debe sonar igual que en Cantus.
