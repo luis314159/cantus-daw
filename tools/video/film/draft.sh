@@ -46,7 +46,7 @@ if [[ "$what" == cut || "$what" == all ]]; then
   for s in "${SCENES[@]}"; do
     [[ -f "$W/$s.wav" ]] || { echo "missing $s (render it first)" >&2; exit 1; }
     "$FF" -hide_banner -loglevel error -y -framerate $FPS -i "$(winpath "$W/$s")/%05d.png" -i "$(winpath "$W/$s.wav")" \
-      -c:v libx264 -preset veryfast -crf 14 -pix_fmt yuv420p -r $FPS \
+      -threads 4 -c:v libx264 -preset veryfast -crf 14 -pix_fmt yuv420p -r $FPS \
       -c:a pcm_s16le -ar 48000 -shortest "$(winpath "$W/seg/$s.mkv")"
   done
   # Joined, hard cuts (the draft's), a fade in from black and out at the end.
@@ -79,7 +79,7 @@ if [[ "$what" == cut || "$what" == all ]]; then
   fi
   graph+="[$last]format=yuv420p[vout];[0:a]afade=t=in:st=0:d=0.3,afade=t=out:st=78.5:d=1.5[aout]"
   "$FF" -hide_banner -loglevel error -y "${inputs[@]}" -filter_complex "$graph" -map "[vout]" -map "[aout]" \
-    -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -r $FPS -movflags +faststart \
+    -threads 4 -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -r $FPS -movflags +faststart \
     -c:a aac -b:a 192k -t 80 "$(winpath "$W/draft-1080p30.mp4")"
   echo "$W/draft-1080p30.mp4"
 fi

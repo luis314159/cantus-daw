@@ -1140,7 +1140,13 @@ fn take_piano(o: &Opts) {
     let drawn = win.and_then(|w| {
         d.widgets_in(w)
             .into_iter()
-            .filter(|r| r.width() > 300.0 && r.height() < 60.0 && r.width() > 8.0 * r.height())
+            .filter(|r| {
+                w.contains_rect(*r)
+                    && r.top() > w.center().y
+                    && (400.0..900.0).contains(&r.width())
+                    && (16.0..60.0).contains(&r.height())
+                    && r.width() > 8.0 * r.height()
+            })
             .max_by(|a, b| a.width().total_cmp(&b.width()))
     });
     let keys = drawn.or_else(|| keys.zip(win).map(|(k, w)| k.translate(w.min.to_vec2())));
