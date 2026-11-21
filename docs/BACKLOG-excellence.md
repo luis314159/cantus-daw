@@ -620,6 +620,11 @@ between other pedals, beyond Fragor's three slots. Each pedal is the same DK cir
 equals Fragor with only that slot filled, to the bit; a Fragor board costs 0.25 of a core
 today, one circuit a pedal about a third of that. Needs a schema bump, the new pedal kinds
 in Tabula's table, their faces, presets and a showcase board.
+*Round 41 (`pedals`, ADR 0152):* built — the five kinds, each Fragor with only its slot
+filled to the bit (two circuits built, not ten), Fragor's keys, faces and art, 16 presets,
+the *Stacked drives* board, an end-to-end test. Open, the owner's: the faces and the new
+presets by eye and ear; and whether the five want a window of their own (Fragor's window on
+one circuit — today the strip under the board holds what a player sets).
 
 ### 3c. Pitch and time editing of recordings — a Melodyne-class editor (requested 2026-10-07) — **done in round 28** (ADR 0054), except the "later" part
 
