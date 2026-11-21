@@ -286,6 +286,45 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
 - **The page, both languages:** `F:\projects\video-work\voice\ab-eleven.html`, 60 takes.
   Every audio link resolves, and a headless screenshot was looked at.
 
+## Step 2, decided: the narration is Chatterbox's A takes (the owner, 2026-11-21)
+
+- **What he heard:** he listened to `ab-eleven.html` and preferred the Chatterbox A take
+  over Jon, Victoria and Alejandro on every line. He dislikes Gabriela.
+- **The decision:** the narration is the Chatterbox A takes of `ab.html`, in English and
+  Spanish. They are Chatterbox Multilingual's stock voice, round 2, with their own pauses
+  lengthened by `breathe.py`.
+- **No more ElevenLabs calls.** 8 724 characters of 40 000 were spent.
+- **The film's voice track** is `F:\projects\video-work\voice\chosen\{en,es}\`. It holds
+  `01.wav`–`08.wav` and `chosen.json`, made by `tools/video/voice/choose.py`. The script
+  takes `abpage.best_two(...)[0]` for each line; `--pick <line>=<take>` overrides one.
+  - Each line's entry gives its source take, its text, where the line starts in the cut, its
+    window, where its speech begins inside the file, its length and its pace.
+  - Checked against `ab.html`'s first take in every section: all 16 are the takes the owner
+    heard as A.
+  - Every line fits its window. The longest are English line 4 (8.38 s of 13.5) and
+    Spanish line 4 (10.42 s of 13.5).
+  - **The chosen takes:**
+
+    | Line | English | Spanish |
+    |---|---|---|
+    | 1 | r2-01-6 | r2-01-4 |
+    | 2 | r2-02-1 | r2-02-2 |
+    | 3 | r2-03-2 | r2-03-2 |
+    | 4 | r2-04-3 | r2-04-3 |
+    | 5 | r3-05-1 | r2-05-5 |
+    | 6 | r2-06-5 | r2-06-2 |
+    | 7 | r2-07-4 | r2-07-4 |
+    | 8 | r2-08-3 | r2-08-2 |
+
+- **For the owner's ear:** these takes were made before the names' spoken spellings
+  existed. The model was given "Chorda", "Cantus" and "Tympanum" as written, not "Korda",
+  "Kantus" and "Timpanum".
+  - If line 2 says "CHOR-da" rather than KOR-da, or line 1, 3 or 8 misses its name, the
+    line can be made again with Chatterbox on the same grid with the spoken spelling, once
+    the machine is free.
+  - That needs `takes.py --lines <n>`, then `breathe.py` and the gate. He would pick
+    between the old and new takes by ear.
+
 ## Step 3, the film draft (2026-11-20; built by a builder agent, reviewed)
 
 - **The file:** `F:\projects\video-work\film\draft-1080p30.mp4`.
