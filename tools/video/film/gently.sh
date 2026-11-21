@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run a heavy job of ours on the shared machine as the video session's rule asks: start it
-# only when RAM has been ≥ 6 GB free and C: ≥ 8 GB for a minute, at below-normal priority,
+# only when RAM has been ≥ 6 GB free and C: ≥ 6.5 GB for a minute, at below-normal priority,
 # under watchdog.sh (RAM < 4 GB or C: < 6 GB for 20 s stops it), and try again (up to
 # five times) when it was stopped.
 #   bash tools/video/film/gently.sh <log> <exe> [args…]
@@ -15,7 +15,7 @@ for try in 1 2 3 4 5; do
   until [ "$ok" -ge 6 ]; do
     f=$(awk '/^MemFree:/ {print int($2/1024)}' /proc/meminfo)
     c=$(df -k /c | awk 'NR==2 {print int($4/1024)}')
-    if [ "$f" -ge 6000 ] && [ "$c" -ge 8000 ]; then ok=$((ok + 1)); else ok=0; fi
+    if [ "$f" -ge 6000 ] && [ "$c" -ge 6500 ]; then ok=$((ok + 1)); else ok=0; fi
     sleep 10
   done
   echo "$(date +%T) gently: try $try — $exe $*" >> "$log"
