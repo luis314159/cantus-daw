@@ -101,9 +101,27 @@ absolute numbers are high; the integrator measures quiet.
   other CPU failures (Fragor's *Synth fuzz* 0.31, two of Saltus's at 0.11) are other units'
   under the machine's load (three builds beside it), not this branch's.
 
+## Test counts (Windows, this branch; a loaded machine)
+
+- `cantus-core`: 928 pass (the undo fuzz among them: no new command, it stays passing).
+- `cantus-engine`: 1 455 pass; 1 failed — `sync_midi::the_out_thread_sends_on_time`, a
+  timing bound (median 3.4 ms against 0.5) while the machine was out of memory with four
+  builds; nothing of this branch touches MIDI out — rerun alone: 9 of 9 pass.
+- `cantus-bench`: 10 pass.
+- `cantus-ui` (the lib and the touched tests: `pedals_e2e`, `preset_audit`, `tabula_e2e`,
+  `fragor_e2e`, `agent_tools`, `picker`, `fx_frame`, `fragor_colourways`): 630 pass; the one
+  failure, `fx_frame` (the five claimed an editor they do not have), fixed by
+  `EffectKind::has_editor` false for them; `fx_frame` 5 of 5 and `pedals_e2e` pass after it.
+- Release: `preset_render` (above), `fx_fragor_pedal::cpu_of_each_pedal`.
+- Clippy `--all-targets` with `-D warnings` on core, engine, bench and ui: clean. `cargo fmt`
+  on core, engine, bench; `rustfmt` on the touched UI files (`cargo fmt -p cantus-ui` fails
+  here, os error 206).
+- Not run by me: the whole `cantus-ui` suite, `cantus-plugins`, the Linux check (WSL is the
+  integrator's).
+
 ## Shared files touched
 
-`crates/cantus-core/src/starting.rs` (the five starting presets; Nitor's arm split out
+`crates/cantus-core/src/effect.rs` (`has_editor` false for the five), `crates/cantus-core/src/starting.rs` (the five starting presets; Nitor's arm split out
 unchanged), `crates/cantus-core/src/fx/tabula_presets.rs` (one board, one test),
 `crates/cantus-ui/presets/effects/board.toml` (its tag), `crates/cantus-engine/tests/
 {rt_memory.rs, support/heavy.rs}`, `crates/cantus-bench/src/kernels.rs`,
