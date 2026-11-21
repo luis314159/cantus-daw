@@ -226,7 +226,7 @@ impl Processor {
                 }
             };
             self.strip_to_slot.push(slot);
-            self.rebuild_chain(slot, &st.effects);
+            self.rebuild_chain(slot, &st.effects, snapshot.key); // r41:contract
             let sr = self.sample_rate as f32;
             if let Some(mut ss) = nodes.strip(slot) {
                 ss.gain = st.gain;
@@ -479,7 +479,13 @@ impl Processor {
     /// Re-order a strip slot's effect chain to match `wanted`, pulling new units from the
     /// incoming pool and returning dropped ones. No allocation: every Vec involved was
     /// sized at construction and `wanted` is capped at MAX_EFFECTS_PER_TRACK.
-    fn rebuild_chain(&mut self, slot: usize, wanted: &[cantus_core::EffectSlot]) {
+    // r41:contract — `key`, the song's (ADR 0153), handed to every unit after its spec.
+    fn rebuild_chain(
+        &mut self,
+        slot: usize,
+        wanted: &[cantus_core::EffectSlot],
+        key: Option<cantus_core::scale::Key>,
+    ) {
         let nodes = self.nodes.clone();
         let Some(mut s) = nodes.strip(slot) else {
             return;
@@ -499,6 +505,7 @@ impl Processor {
             match found {
                 Some(mut unit) => {
                     unit.configure(&want.spec);
+                    unit.set_song_key(key); // r41:contract
                     let idx = s.effects.len();
                     s.bypass[idx] = want.bypass;
                     s.mix[idx] = want.mix.clamp(0.0, 1.0);
@@ -1050,6 +1057,7 @@ impl Processor {
         {
             unit.configure(spec);
         }
+        unit.set_song_key(snapshot.as_ref().and_then(|s| s.key)); // r41:contract
         let nodes = self.nodes.clone();
         for slot in 0..MAX_STRIPS {
             if self.strip_ids[slot].is_none() {

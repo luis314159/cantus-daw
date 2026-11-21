@@ -28,7 +28,8 @@ all = ["eq", "compressor", "limiter", "space", "multiband", "deesser", "gate", "
   "lenis", # fxb:lenis: wave B's resonance suppressor
   "cedo", # fxb:cedo: wave B's ducker
   "purus", # fxc:purus: wave C's real-time repair
-  "comparatio"] # fxc:comparatio: wave C's reference comparator
+  "comparatio", # fxc:comparatio: wave C's reference comparator
+  "nitor"] # r41:contract: round 41's one-knob enhancer
 # The plug-ins' own editors — the DAW's, running in the host's window (egui 0.36 through
 # baseview). Porta's is the first; the others show the host's generic interface.
 editor = ["dep:cantus-ui", "dep:egui", "dep:egui-baseview", "dep:baseview", "dep:raw-window-handle"]
@@ -87,6 +88,8 @@ cedo = []
 purus = []
 # fxc:comparatio — the fx side round's wave C (ADR 0143).
 comparatio = []
+# r41:contract — round 41's one-knob enhancer (ADR 0151).
+nitor = []
 
 [dependencies]
 cantus-core.workspace = true

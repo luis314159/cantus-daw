@@ -1915,6 +1915,7 @@ impl CantusApp {
             "cedo" | "ducker" => EffectKind::Ducker,    // fxb:contract
             "purus" | "repair" => EffectKind::Repair,   // fxc:contract
             "comparatio" | "reference" => EffectKind::Reference, // fxc:contract
+            "nitor" | "enhancer" => EffectKind::Enhancer, // r41:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

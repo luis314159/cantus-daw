@@ -1,0 +1,22 @@
+# Nitor (round 41, ADR 0151) — owned by the nitor builder. Every key here needs its twin in nitor.es.txt.
+effect.nitor = Nitor enhancer
+fx.nitor.about = One knob that makes a mix shine: curated multiband characters, a low end lifted and tuned to the song's key, harmonics excited band by band. Being built.
+picker.dev.nitor.name = Nitor
+picker.dev.nitor.what = Enhancer: one knob
+picker.dev.nitor.about = One knob that makes a mix shine: curated multiband characters, a low end lifted and tuned to the song's key, harmonics excited band by band. Being built.
+mixer.chain.nitor = Enhance
+fx.nitor.out = Output
+fx.nitor.key = Key
+fx.nitor.key.0 = The song's
+fx.nitor.key.1 = C
+fx.nitor.key.2 = C sharp
+fx.nitor.key.3 = D
+fx.nitor.key.4 = E flat
+fx.nitor.key.5 = E
+fx.nitor.key.6 = F
+fx.nitor.key.7 = F sharp
+fx.nitor.key.8 = G
+fx.nitor.key.9 = A flat
+fx.nitor.key.10 = A
+fx.nitor.key.11 = B flat
+fx.nitor.key.12 = B

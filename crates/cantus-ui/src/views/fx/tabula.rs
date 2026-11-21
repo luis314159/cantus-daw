@@ -417,7 +417,8 @@ fn peaks_of(t: &Telemetry, id: PedalId) -> Option<(f32, f32)> {
 fn shelves() -> Vec<(crate::picker_catalog::Category, Vec<EffectKind>)> {
     use crate::picker::PickChoice;
     use crate::picker_catalog::Category;
-    let devices = crate::picker_catalog::build(std::iter::empty());
+    // r41:contract — the board-only pedals too (ADR 0152).
+    let devices = crate::picker_catalog::board_devices();
     let mut out: Vec<(Category, Vec<EffectKind>)> = Vec::new();
     for c in Category::EFFECTS {
         let kinds: Vec<EffectKind> = devices

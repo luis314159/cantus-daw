@@ -124,6 +124,8 @@ impl Locale {
                 include_str!("../locales/fx/cedo.en.txt"),    // fxb:contract
                 include_str!("../locales/fx/purus.en.txt"),   // fxc:contract
                 include_str!("../locales/fx/comparatio.en.txt"), // fxc:contract
+                include_str!("../locales/fx/nitor.en.txt"),   // r41:contract
+                include_str!("../locales/fx/fragor_pedal.en.txt"), // r41:contract
                 include_str!("../locales/inst/chorda.en.txt"),
                 include_str!("../locales/areas/topbar.en.txt"),
                 include_str!("../locales/areas/pitch.en.txt"),
@@ -176,6 +178,7 @@ impl Locale {
                 include_str!("../locales/areas/owner_look.en.txt"), // r40:look
                 include_str!("../locales/areas/pads.en.txt"),   // r40:pads
                 include_str!("../locales/areas/tympanum.en.txt"), // r40:p3
+                include_str!("../locales/areas/fides.en.txt"),  // r41:contract
                 include_str!("../locales/areas/chorda_source.en.txt"), // r40:p3
                 include_str!("../locales/areas/inst_mixer.en.txt"), // r40:p3
                 include_str!("../locales/areas/screens.en.txt"), // multimon (ADR 0148, proposed)
@@ -270,6 +273,8 @@ impl Locale {
                 include_str!("../locales/fx/cedo.es.txt"),    // fxb:contract
                 include_str!("../locales/fx/purus.es.txt"),   // fxc:contract
                 include_str!("../locales/fx/comparatio.es.txt"), // fxc:contract
+                include_str!("../locales/fx/nitor.es.txt"),   // r41:contract
+                include_str!("../locales/fx/fragor_pedal.es.txt"), // r41:contract
                 include_str!("../locales/inst/chorda.es.txt"),
                 include_str!("../locales/areas/topbar.es.txt"),
                 include_str!("../locales/areas/pitch.es.txt"),
@@ -322,6 +327,7 @@ impl Locale {
                 include_str!("../locales/areas/owner_look.es.txt"), // r40:look
                 include_str!("../locales/areas/pads.es.txt"),   // r40:pads
                 include_str!("../locales/areas/tympanum.es.txt"), // r40:p3
+                include_str!("../locales/areas/fides.es.txt"),  // r41:contract
                 include_str!("../locales/areas/chorda_source.es.txt"), // r40:p3
                 include_str!("../locales/areas/inst_mixer.es.txt"), // r40:p3
                 include_str!("../locales/areas/screens.es.txt"), // multimon (ADR 0148, proposed)

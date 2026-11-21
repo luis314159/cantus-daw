@@ -468,6 +468,13 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         // heavy estimates its room's decay, which it keeps (never as new: it does not rest).
         EffectKind::Repair => (true, false),
         EffectKind::Reference => (true, true), // fxc:comparatio — no reference here: the mix, its meters' steps closed
+        // r41:contract — the stubs are wires (each builder sets its own).
+        EffectKind::Enhancer => (true, true), // r41:nitor
+        EffectKind::FragorOverdrive
+        | EffectKind::FragorOpAmp
+        | EffectKind::FragorSilicon
+        | EffectKind::FragorFuzz
+        | EffectKind::FragorMuff => (true, true), // r41:pedals
         _ => (false, false),
     }
 }
@@ -578,6 +585,12 @@ per_kind! {
     cedo => EffectKind::Ducker, // fxb:contract
     purus => EffectKind::Repair, // fxc:contract
     comparatio => EffectKind::Reference, // fxc:contract
+    nitor => EffectKind::Enhancer, // r41:contract
+    fragor_od => EffectKind::FragorOverdrive, // r41:contract
+    fragor_op => EffectKind::FragorOpAmp, // r41:contract
+    fragor_si => EffectKind::FragorSilicon, // r41:contract
+    fragor_ge => EffectKind::FragorFuzz, // r41:contract
+    fragor_mf => EffectKind::FragorMuff, // r41:contract
 }
 
 // fx3:tabula — Tabula (ADR 0131): a board of one pedal is that unit inserted alone, to
@@ -643,6 +656,6 @@ fn a_board_of_one_is_the_unit() {
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists forty-three: a new kind must be added there. // fxb, fxc:contract
-    assert_eq!(EffectKind::ALL.len(), 43); // fxb:contract: wave B's three; fxc:contract: wave C's two
+    // `per_kind!` lists forty-nine: a new kind must be added there. // fxb, fxc, r41:contract
+    assert_eq!(EffectKind::ALL.len(), 49); // fxc:contract: wave C's two; r41:contract: Nitor and Fragor's five
 }

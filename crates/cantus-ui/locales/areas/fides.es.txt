@@ -1,0 +1,5 @@
+# Fides (ronda 41, ADR 0150) — del constructor de fides. Gemelo de fides.en.txt.
+instrument.fides = Fides
+picker.dev.fides.name = Fides
+picker.dev.fides.what = Resonadores: cuerdas, barras, membranas
+picker.dev.fides.about = Pulsado, frotado y golpeado: excitadores en cuerdas, barras, placas, membranas y tubos con cuerpo — marimba, kalimba, arpa, guitarra de nylon, un chelo con arco, cristal. En construcción.

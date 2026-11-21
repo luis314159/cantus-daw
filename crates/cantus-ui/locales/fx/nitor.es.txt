@@ -1,0 +1,22 @@
+# Nitor (ronda 41, ADR 0151) — del constructor de nitor. Gemelo de nitor.en.txt.
+effect.nitor = Realzador Nitor
+fx.nitor.about = Una perilla que hace brillar una mezcla: caracteres multibanda escogidos, unos graves levantados y afinados a la tonalidad de la canción, armónicos excitados banda por banda. En construcción.
+picker.dev.nitor.name = Nitor
+picker.dev.nitor.what = Realzador: una perilla
+picker.dev.nitor.about = Una perilla que hace brillar una mezcla: caracteres multibanda escogidos, unos graves levantados y afinados a la tonalidad de la canción, armónicos excitados banda por banda. En construcción.
+mixer.chain.nitor = Realce
+fx.nitor.out = Salida
+fx.nitor.key = Tonalidad
+fx.nitor.key.0 = La de la canción
+fx.nitor.key.1 = Do
+fx.nitor.key.2 = Do sostenido
+fx.nitor.key.3 = Re
+fx.nitor.key.4 = Mi bemol
+fx.nitor.key.5 = Mi
+fx.nitor.key.6 = Fa
+fx.nitor.key.7 = Fa sostenido
+fx.nitor.key.8 = Sol
+fx.nitor.key.9 = La bemol
+fx.nitor.key.10 = La
+fx.nitor.key.11 = Si bemol
+fx.nitor.key.12 = Si

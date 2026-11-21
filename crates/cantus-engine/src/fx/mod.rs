@@ -54,6 +54,10 @@ pub mod comparatio; // fxc:contract
 pub mod comparatio_store; // fxc:comparatio
 pub mod purus; // fxc:contract
 
+// r41:contract — round 41 (ADRs 0151, 0152).
+pub mod fragor_pedal; // r41:contract
+pub mod nitor; // r41:contract
+
 use crate::effects::EffectUnit;
 use cantus_core::fx::tabula::PedalId;
 
@@ -95,6 +99,13 @@ pub trait FxUnit: Send + std::fmt::Debug {
     /// New parameter values. Called on the audio thread with each snapshot: read the spec,
     /// set the DSP, never allocate. Changes should glide where a jump would click.
     fn configure(&mut self, spec: &EffectSpec);
+    /// r41:contract (ADR 0153) — the song's key, handed with each snapshot right after
+    /// [`Self::configure`] (and to every pedal of a board): what a unit that follows the
+    /// song reads (Nitor's low end). `None`: the song has none. Called on the audio thread:
+    /// keep it, never allocate. Default: nothing listens, nothing changes.
+    fn set_song_key(&mut self, key: Option<cantus_core::scale::Key>) {
+        let _ = key;
+    }
     /// Process a stereo block in place; `key` is the sidechain when one is routed.
     fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>);
     fn reset(&mut self);
@@ -687,6 +698,16 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::Ducker => Box::new(cedo::Unit::new(sample_rate)),  // fxb:contract
         EffectKind::Repair => Box::new(purus::Unit::new(sample_rate)), // fxc:contract
         EffectKind::Reference => Box::new(comparatio::Unit::new(sample_rate)), // fxc:contract
+        EffectKind::Enhancer => Box::new(nitor::Unit::new(sample_rate)), // r41:contract
+        // r41:contract — Fragor's five circuits, each a board-only pedal of its own.
+        EffectKind::FragorOverdrive
+        | EffectKind::FragorOpAmp
+        | EffectKind::FragorSilicon
+        | EffectKind::FragorFuzz
+        | EffectKind::FragorMuff => Box::new(fragor_pedal::Unit::new(
+            kind.fragor_circuit().unwrap_or(0),
+            sample_rate,
+        )), // r41:contract
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })

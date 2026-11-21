@@ -28,6 +28,7 @@ pub mod chorda;
 pub mod dancer;
 pub mod epiano;
 pub mod expr_play;
+pub mod fides; // r41:contract (ADR 0150): the resonator instrument's unit — fides
 pub mod fm;
 pub mod mpe;
 pub mod organ;
@@ -557,6 +558,7 @@ pub fn make(kind: InstrumentKind, sample_rate: f32) -> Box<dyn InstrumentUnit> {
         InstrumentKind::Chorda => Box::new(chorda::Unit::new(sample_rate)),
         InstrumentKind::Dancer => Box::new(dancer::Unit::new(sample_rate)),
         InstrumentKind::AcousticDrums => Box::new(tympanum::Unit::new(sample_rate)), // r40:p3
+        InstrumentKind::Resonator => Box::new(fides::Unit::new(sample_rate)),        // r41:contract
     }
 }
 

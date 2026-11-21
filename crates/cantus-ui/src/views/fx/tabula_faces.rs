@@ -382,6 +382,45 @@ pub const FACES: &[Face] = &[
         "P",
         T::Hammered,
     ), // fxc:purus
+    // r41:contract — the stubs' only knob; each builder sets its face's knobs. Nitor's
+    // amount and character once it has them (ADR 0151).
+    face(
+        K::Enhancer,
+        &["out"],
+        S::Standard,
+        M::Curve,
+        "N",
+        T::Brushed,
+    ), // r41:nitor
+    // r41:contract — Fragor's five circuits (ADR 0152): each in its case's size as Fragor
+    // draws it on a board (`fragor::SHAPES`), its paint and art from `fragor.rs` once the
+    // pedals builder gives each its three knobs (the board's per-circuit drawing reused).
+    face(
+        K::FragorOverdrive,
+        &["out"],
+        S::Standard,
+        M::Clip,
+        "O",
+        T::Hammered,
+    ), // r41:pedals
+    face(
+        K::FragorOpAmp,
+        &["out"],
+        S::Standard,
+        M::Clip,
+        "R",
+        T::Wrinkle,
+    ), // r41:pedals
+    face(
+        K::FragorSilicon,
+        &["out"],
+        S::Mini,
+        M::Clip,
+        "D",
+        T::Hammered,
+    ), // r41:pedals
+    face(K::FragorFuzz, &["out"], S::Round, M::Clip, "Z", T::Hammered), // r41:pedals
+    face(K::FragorMuff, &["out"], S::Wide, M::Clip, "M", T::Brushed),   // r41:pedals
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.

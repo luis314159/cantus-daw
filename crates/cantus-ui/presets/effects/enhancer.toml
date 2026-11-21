@@ -1,0 +1,3 @@
+# Nitor enhancer: factory presets (ADR 0101). Names are locale keys (fx/nitor.*.txt).
+# Empty until the nitor builder makes them by ear (the floor, 12, in tests/preset_audit.rs).
+# The tests check every key, value, style and role (`preset_data`, `preset_render`).

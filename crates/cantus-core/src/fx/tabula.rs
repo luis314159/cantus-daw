@@ -199,6 +199,8 @@ pub fn board(spec: &EffectSpec) -> &Board {
 /// drawn shape is the pedal's (`Command::SetCedoShape` with its pedal), and its
 /// latency (lookahead, linear phase) the board's as a latent pedal's (ADR 0141,
 /// phase B).
+/// r41:contract — Nitor (ADR 0151) is a pedal, and Fragor's five circuits (ADR 0152) are
+/// pedals and nothing else: board-only kinds (`EffectKind::offered` is false for them).
 pub fn pedal_allowed(kind: EffectKind) -> bool {
     !matches!(
         kind,

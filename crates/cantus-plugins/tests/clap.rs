@@ -248,6 +248,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Repair => "out",
             // fxc:comparatio — its offset (with no reference loaded, rightly no sample moves).
             EffectKind::Reference => "offset",
+            EffectKind::Enhancer => "out", // r41:contract (the nitor builder: its amount)
             _ => "thr",
         };
         let table = params::table(kind);

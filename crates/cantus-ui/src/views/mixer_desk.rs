@@ -597,6 +597,12 @@ pub fn short_name(e: &EffectSlot) -> String {
         K::Ducker => "mixer.chain.cedo",               // fxb:contract
         K::Repair => "mixer.chain.purus",              // fxc:contract
         K::Reference => "mixer.chain.comparatio",      // fxc:contract
+        K::Enhancer => "mixer.chain.nitor",            // r41:contract
+        K::FragorOverdrive => "mixer.chain.fragor_od", // r41:contract
+        K::FragorOpAmp => "mixer.chain.fragor_op",     // r41:contract
+        K::FragorSilicon => "mixer.chain.fragor_si",   // r41:contract
+        K::FragorFuzz => "mixer.chain.fragor_ge",      // r41:contract
+        K::FragorMuff => "mixer.chain.fragor_mf",      // r41:contract
     };
     crate::i18n::t(key)
 }

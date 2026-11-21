@@ -319,6 +319,7 @@ impl Processor {
             I::Bass => 400.0,
             I::Dancer => 2.0, // r35:dancer — its numbers and a matrix, no voices
             I::AcousticDrums => 2.0, // r40:p3 — the stub; tymp-engine measures the real unit
+            I::Resonator => 2.0, // r41:contract — the stub; the fides builder measures the real unit
         };
         let n = &self.nodes;
         let lines: usize = (0..n.lines.len())

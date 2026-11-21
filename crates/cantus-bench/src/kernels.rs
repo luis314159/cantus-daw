@@ -552,6 +552,14 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("sync", 1.0),
             ],
         ), // fxc:comparatio
+        // r41:contract — the stubs' only knob; each builder writes its unit's heaviest
+        // settings here (and in cantus-engine's tests/support/heavy.rs).
+        EffectKind::Enhancer => set(&mut s, &[("out", 1.0)]), // r41:nitor
+        EffectKind::FragorOverdrive
+        | EffectKind::FragorOpAmp
+        | EffectKind::FragorSilicon
+        | EffectKind::FragorFuzz
+        | EffectKind::FragorMuff => set(&mut s, &[("out", 1.0)]), // r41:pedals
     }
     s
 }
@@ -697,6 +705,12 @@ pub fn kind_id(kind: EffectKind) -> &'static str {
         EffectKind::Ducker => "cedo",               // fxb:contract
         EffectKind::Repair => "purus",              // fxc:contract
         EffectKind::Reference => "comparatio",      // fxc:contract
+        EffectKind::Enhancer => "nitor",            // r41:contract
+        EffectKind::FragorOverdrive => "fragor_od", // r41:contract
+        EffectKind::FragorOpAmp => "fragor_op",     // r41:contract
+        EffectKind::FragorSilicon => "fragor_si",   // r41:contract
+        EffectKind::FragorFuzz => "fragor_ge",      // r41:contract
+        EffectKind::FragorMuff => "fragor_mf",      // r41:contract
     }
 }
 
@@ -723,6 +737,8 @@ pub fn instruments() -> Vec<(&'static str, InstrumentSpec)> {
             InstrumentKind::Dancer => "saltator",
             // r40: the acoustic drummer (in ALL since round 40's close).
             InstrumentKind::AcousticDrums => "tympanum",
+            // r41:contract — not in ALL until the fides builder makes it sound.
+            InstrumentKind::Resonator => "fides",
         };
         v.push((
             name,

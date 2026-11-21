@@ -1991,3 +1991,9 @@ comparatio eqamt 360218463
 comparatio eqmax 845388171
 comparatio cantus.sidechain 1368826709
 comparatio cantus.bypass 710603219
+nitor clap com.github.lalmazan.cantus.nitor
+nitor vst3 46395C6F19D2E9B47D15652E590ED7C6
+nitor out 723138143
+nitor key 1746258028
+nitor cantus.sidechain 1368826709
+nitor cantus.bypass 710603219

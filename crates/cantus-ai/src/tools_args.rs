@@ -469,6 +469,8 @@ pub fn native_id(kind: InstrumentKind) -> &'static str {
         InstrumentKind::Chorda => "chorda",
         InstrumentKind::Dancer => "dancer",
         InstrumentKind::AcousticDrums => "tympanum",
+        // r41:contract — not in INSTRUMENTS until the fides builder makes it sound.
+        InstrumentKind::Resonator => "fides",
     }
 }
 
@@ -547,6 +549,14 @@ pub fn effect_names(kind: EffectKind) -> (&'static str, &'static str) {
         K::Ducker => ("cedo", "Cedo"),                // fxb:contract
         K::Repair => ("purus", "Purus"),              // fxc:contract
         K::Reference => ("comparatio", "Comparatio"), // fxc:contract
+        K::Enhancer => ("nitor", "Nitor"),            // r41:contract
+        // r41:contract — board-only pedals (never offered as an insert, so never an id an
+        // agent inserts; named for a board's get_unit).
+        K::FragorOverdrive => ("fragor_od", "Fragor green overdrive"),
+        K::FragorOpAmp => ("fragor_op", "Fragor op-amp distortion"),
+        K::FragorSilicon => ("fragor_si", "Fragor silicon distortion"),
+        K::FragorFuzz => ("fragor_ge", "Fragor germanium fuzz"),
+        K::FragorMuff => ("fragor_mf", "Fragor triangle muff"),
     }
 }
 
@@ -626,6 +636,8 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("reference", EffectKind::Reference),          // fxc:contract
     ("reference_track", EffectKind::Reference),    // fxc:contract
     ("ab_compare", EffectKind::Reference),         // fxc:contract
+    ("enhancer", EffectKind::Enhancer),            // r41:contract
+    ("exciter", EffectKind::Enhancer),             // r41:contract
 ];
 
 /// A native effect kind offered for a new insert, by its id or one of its

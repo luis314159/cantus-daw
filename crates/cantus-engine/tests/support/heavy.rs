@@ -539,6 +539,14 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("sync", 1.0),
             ],
         ), // fxc:comparatio
+        // r41:contract — the stubs' only knob; each builder writes its unit's heaviest
+        // settings here (and in the bench's `kernels::heavy`).
+        EffectKind::Enhancer => set(&mut s, &[("out", 1.0)]), // r41:nitor
+        EffectKind::FragorOverdrive
+        | EffectKind::FragorOpAmp
+        | EffectKind::FragorSilicon
+        | EffectKind::FragorFuzz
+        | EffectKind::FragorMuff => set(&mut s, &[("out", 1.0)]), // r41:pedals
     }
     s
 }
