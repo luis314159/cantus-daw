@@ -30,6 +30,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -50,6 +51,8 @@ SAME = {
         "42": "cuarenta y dos", "11": "once", "cantus daw": "cantusdaw",
         "vst 3": "vst3", "uve ese te tres": "vst3", "plugins": "plug ins",
         "efe ele studio": "fl studio", "máster": "master",
+        # b and v are one sound in Spanish: "ve ese te tres" is written BST3 as often as VST3
+        "bst3": "vst3", "ve ese te tres": "vst3", "bst 3": "vst3",
     },
 }
 # The names, which Whisper spells as it can: one heard within two letters of the script's,
@@ -71,7 +74,13 @@ def normal(text: str, lang: str) -> list:
     t = text.lower().replace("—", " ").replace("–", " ")
     t = re.sub(r"(?<=\w)\.(?=\w)", DOT[lang], t)
     t = re.sub(r"[«»“”\"¿?¡!,.;:()]+(?=\s|$)", " ", t + " ")
+    t = re.sub(r"(?:^|(?<=\s))[«“\"¿¡(]+", "", t)  # opening marks too ("¡Cantus!")
     t = t.replace("-", " ")
+    if lang == "es":
+        # Whisper may drop a written accent ("masterizalo"); the sound is the same
+        t = unicodedata.normalize("NFD", t)
+        t = "".join(c for c in t if unicodedata.category(c) != "Mn" or c == "̃")
+        t = unicodedata.normalize("NFC", t)
     t = re.sub(r"\s+", " ", t).strip()
     for k, v in sorted(SAME[lang].items(), key=lambda kv: -len(kv[0])):
         t = re.sub(r"(?<![\w])" + re.escape(k) + r"(?![\w])", v, t)

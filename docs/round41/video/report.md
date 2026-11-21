@@ -266,9 +266,25 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
   - Victoria said "Cantus" so that Whisper wrote "Countess" and "Contas" on line 8.
   - Whisper hears "modeled" as "mottled" for every engine. In American English the two
     are said alike, so the gate now takes "mottled" as the word.
-- **The Spanish gate** was stopped when C: fell to 4.7 GB, a fall that went on after my
-  processes ended. The page is English only for now:
-  `F:\projects\video-work\voice\ab-eleven.html`.
+- **The Spanish gate:** first stopped when C: fell to 4.7 GB. It ran once the integrator
+  cleared room. Passed per line, out of 3:
+
+  | Voice | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | Total |
+  |---|---|---|---|---|---|---|---|---|---|
+  | Alejandro | 3 | 3 | 3 | 3 | 3 | 3 | 1 | 3 | 22/24 |
+  | Gabriela | 0 | 0 | 1 | 0 | 1 | 3 | 1 | 3 | 9/24 |
+
+  - **Gabriela reads slowly,** at 3.1–4.5 syllables a second. Her long lines (1, 2, 4) do
+    not fit their windows.
+  - **Alejandro** reads at 4.7–5.3 syllables a second on most lines, the calm window.
+    Lines 7 and 8 are slower.
+  - **Spanish normalising, now:**
+    - "BST3" counts as VST3, because b and v are one sound in Spanish.
+    - A dropped written accent counts as the word ("masterizalo").
+    - Opening marks are stripped ("¡Cantus!").
+    - "Tímpano" for Tympanum still fails: it is another word.
+- **The page, both languages:** `F:\projects\video-work\voice\ab-eleven.html`, 60 takes.
+  Every audio link resolves, and a headless screenshot was looked at.
 
 ## Step 3, the film draft (2026-11-20; built by a builder agent, reviewed)
 
