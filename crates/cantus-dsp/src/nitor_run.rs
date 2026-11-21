@@ -178,6 +178,7 @@ impl Nitor {
             parked: false,
             zero_run: 0,
             park_after: (super::chunk::PARK_S * sr) as u64,
+            lift_cache: (0.0, 1.0, 1.0),
             phase: 0,
             cell: super::chunk::Cell::default(),
             clock: 0,
@@ -252,10 +253,7 @@ impl Nitor {
     }
 
     pub fn reset(&mut self) {
-        self.dynamics.reset();
-        self.dynamics.snap_next();
-        let d = self.target.dynamics();
-        self.dynamics.set(&d);
+        self.reset_dynamics();
         self.exciter.reset();
         self.low.reset();
         self.level.reset();
@@ -465,10 +463,16 @@ impl Nitor {
         self.peaks = p;
     }
 
+    /// The dynamics as new: the character's bands when the amount is up, none at all when
+    /// it is not (a Multiplex with bands is not at rest until its gain rings have run).
     pub(super) fn reset_dynamics(&mut self) {
         self.dynamics.reset();
         self.dynamics.snap_next();
-        let d = self.target.dynamics();
+        let d = if self.target.amount > 0.0 && self.target.mix > 0.0 {
+            self.target.dynamics()
+        } else {
+            crate::multiplex::Settings::default()
+        };
         self.dynamics.set(&d);
     }
 }

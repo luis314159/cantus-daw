@@ -147,6 +147,12 @@ fn silence_in_is_exact_silence_out_and_a_new_unit_rests() {
         let out = render(&mut u, &z, &[333], &[]);
         assert!(out.0.iter().chain(&out.1).all(|v| v.to_bits() == 0));
         assert!(u.at_rest(), "{:?}", u.rest_blocker());
+        u.reset();
+        assert!(u.at_rest(), "after a reset: {:?}", u.rest_blocker());
+        let mut v = Nitor::new(SR);
+        v.set(&s);
+        v.reset();
+        assert!(v.at_rest(), "set, then reset: {:?}", v.rest_blocker());
     }
 }
 

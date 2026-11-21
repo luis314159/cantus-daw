@@ -160,7 +160,12 @@ impl Nitor {
                 m.tight = m.tight.min(g);
             }
             if !self.ramps.lift.idle() {
-                let (a1, a2) = lift_gains(self.ramps.lift.next());
+                let v = self.ramps.lift.next();
+                if v != self.lift_cache.0 {
+                    let (a1, a2) = lift_gains(v);
+                    self.lift_cache = (v, a1, a2);
+                }
+                let (_, a1, a2) = self.lift_cache;
                 yl = self.low.lift(0, yl, a1, a2);
                 yr = self.low.lift(1, yr, a1, a2);
             }

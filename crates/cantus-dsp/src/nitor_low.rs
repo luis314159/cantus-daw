@@ -60,7 +60,7 @@ const HOLD_S: f32 = 0.03;
 const PEAK_HOLD_S: f32 = 0.026;
 const REFRACTORY_S: f32 = 0.06;
 const DECAY_S: f32 = 0.12;
-const RISE_S: f32 = 0.003;
+const RISE_S: f32 = 0.0005;
 const FLUSH: f32 = 1e-20;
 
 fn follower(sr: f32, s: f32) -> f32 {
@@ -122,6 +122,10 @@ pub struct Low {
     t_peak_hold: u32,
     t_refractory_len: u32,
     t_refractory: u32,
+    /// The hits are heard on the mid through a one-pole at three times the crossover — the
+    /// low band's own filter would hear them a few milliseconds late.
+    t_det_g: f32,
+    t_det: f32,
     /// The shelf's warped crossover, and this sample's design: its coefficients and mixes.
     tight_g: f32,
     tight_c: SvfCoefs,
@@ -161,7 +165,7 @@ impl Low {
             harm_lp: Svf::default(),
             fast: 0.0,
             slow: 0.0,
-            fast_att: follower(sr, 0.001),
+            fast_att: follower(sr, 0.0003),
             fast_rel: follower(sr, 0.04),
             slow_att: follower(sr, 0.04),
             slow_rel: follower(sr, 0.15),
@@ -175,6 +179,8 @@ impl Low {
             t_peak_hold: 0,
             t_refractory_len: (REFRACTORY_S * sr) as u32,
             t_refractory: 0,
+            t_det_g: 0.1,
+            t_det: 0.0,
             tight_g: 0.1,
             tight_c: SvfCoefs::default(),
             tight_m: (0.0, 0.0),
@@ -191,6 +197,8 @@ impl Low {
         let g = warp(self.xover, self.sr);
         self.band_c = SvfCoefs::new(g, core::f32::consts::SQRT_2);
         self.tight_g = g;
+        let gd = warp(self.xover * 3.0, self.sr);
+        self.t_det_g = gd / (1.0 + gd);
         self.src_c = SvfCoefs::new(
             warp(self.xover * SRC_OVER, self.sr),
             core::f32::consts::SQRT_2,
@@ -396,7 +404,15 @@ impl Low {
     /// The low band's gain for one sample at tightness `t` (0 … 1).
     #[inline]
     pub fn tight_gain(&mut self, lb: f32, t: f32) -> f32 {
-        let a = lb.abs();
+        let _ = lb;
+        // A trapezoidal one-pole low-pass of the mid (`G = g / (1 + g)`).
+        let v = (self.mid - self.t_det) * self.t_det_g;
+        let d = v + self.t_det;
+        self.t_det = d + v;
+        if self.t_det.abs() < FLUSH {
+            self.t_det = 0.0;
+        }
+        let a = d.abs();
         // The fast envelope: the peak, held through a period, then released.
         if a >= self.fast {
             self.fast += (a - self.fast) * self.fast_att;
@@ -467,6 +483,7 @@ impl Low {
         self.t_armed = true;
         self.t_peak_hold = 0;
         self.t_refractory = 0;
+        self.t_det = 0.0;
         self.tight = [Svf::default(); 2];
     }
 
@@ -478,6 +495,7 @@ impl Low {
             && self.t_armed
             && self.t_peak_hold == 0
             && self.t_refractory == 0
+            && crate::rest::z(self.t_det)
             && self.tight.iter().all(Svf::is_clear)
     }
 

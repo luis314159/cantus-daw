@@ -438,6 +438,8 @@ pub struct Nitor {
     /// Samples of exact silence in a row, on the grid, and how many park the dynamics.
     zero_run: u64,
     park_after: u64,
+    /// The lift's level and its two gains as last computed (they change only as it glides).
+    lift_cache: (f32, f32, f32),
     /// Where in the current grid cell, and what the cell runs.
     phase: usize,
     cell: chunk::Cell,
