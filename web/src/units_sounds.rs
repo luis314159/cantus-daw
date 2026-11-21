@@ -296,6 +296,11 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         snd!("/tryit/purus/vinyl_crackle", ("Vinyl clicks and crackle", "Clics y crepitación de vinilo"), ("Master — Lo-fi, Jazz · Soul", "Máster — Lo-fi, Jazz · Soul"), "tryit-purus"),
         snd!("/tryit/purus/strong", ("Strong cleanup", "Limpieza a fondo"), ("Vocal — Lo-fi, Film · Game", "Voz — Lo-fi, Cine · Videojuegos"), "tryit-purus"),
     ]),
+    ("nitor", &[
+        snd!("nitor-beat_punch", ("Beat punch", "Pegada de ritmo"), ("Drums — Trap · Hip-hop, House · EDM", "Batería — Trap · Hip-hop, House · EDM"), "kit"),
+        snd!("nitor-warm_vocal", ("Warm vocal", "Voz cálida"), ("Vocal — R&B, Jazz · Soul, Worship · Gospel", "Voz — R&B, Jazz · Soul, Alabanza · Gospel"), "voice"),
+        snd!("nitor-sub_808", ("808 under the kick", "Un 808 bajo el bombo"), ("Bus — Trap · Hip-hop, Latin · Reggaeton", "Bus — Trap · Hip-hop, Latino · Reguetón"), "mix"),
+    ]),
 ];
 
 /// The dry sources the effects are heard on: (id, file as `Sound::file`, what it is, the

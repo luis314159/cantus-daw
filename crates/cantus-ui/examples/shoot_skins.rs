@@ -292,13 +292,18 @@ fn app_with(demo: &str, what: What) -> CantusApp {
         What::Pulsus => {}
     }
     // fix/final-d — Chorda on the preset its card's first excerpt plays, so the bar reads as
-    // a real instrument's (not *Init*).
-    if let (What::Inst(InstrumentKind::Chorda), Some(t)) = (what, app.inst.open) {
+    // a real instrument's (not *Init*); r41:cards — Fides on its Marimba, the card's first.
+    let first = match what {
+        What::Inst(InstrumentKind::Chorda) => Some("chorda.preset.concert"),
+        What::Inst(InstrumentKind::Resonator) => Some("fides.preset.marimba"),
+        _ => None,
+    };
+    if let (What::Inst(kind), Some(id), Some(t)) = (what, first, app.inst.open) {
         use cantus_ui::preset_catalog::{entries, Payload, Unit};
-        let concert = entries(Unit::Instrument(InstrumentKind::Chorda), false)
+        let concert = entries(Unit::Instrument(kind), false)
             .into_iter()
-            .find(|e| e.id == "chorda.preset.concert")
-            .expect("Chorda's Concert Grand");
+            .find(|e| e.id == id)
+            .unwrap_or_else(|| panic!("{id}: no such preset"));
         if let Payload::Native(spec) = &concert.payload {
             app.apply_inst_spec(t, spec, cantus_ui::preset_browser::APPLY_LABEL);
             app.inst.preset.insert(t, concert.name.clone());

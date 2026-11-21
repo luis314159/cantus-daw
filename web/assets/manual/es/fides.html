@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fides, el resonador</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="fides-el-resonador">Fides, el resonador</h1>
+<p><em>Cantus 0.1.0-beta.17 · <a href="../en/fides.html">Read in English</a> · volver al <a href="index.html">manual</a></em></p>
+<p>Fides suena como suenan los instrumentos acústicos: algo <strong>excita</strong> un objeto — un dedo lo pulsa, una púa lo engancha, un arco lo frota, una baqueta lo golpea, un ruido lo sopla — y el objeto <strong>resuena</strong>: una cuerda, una barra, una lengüeta, una placa, una membrana, un tubo, una campana, un cristal. Un <strong>cuerpo</strong> irradia lo que suena. Nada está grabado: cada nota se calcula con la física mientras tocas, así que responde a cuán fuerte, dónde y cuánto tiempo la tocas, y nunca repite una grabación. Marimba, vibráfono, kalimba, steel pan, arpa, guitarra de nylon, un chelo con arco y cristal son sus primeros presets; la familia va más allá (campanas, gong, timbales, un salterio, una flauta de pan, colchones con arco, lluvia sobre cristal).</p>
+<p>Su nombre es el latín de las cuerdas de una lira — un instrumento de cuerda — y de la fe.</p>
+<p><strong>Añádelo</strong> desde el selector de dispositivos (el <strong>+</strong> sobre las cabeceras de pista, sus estantes <em>Teclados</em> y <em>Otros instrumentos</em>). Un Fides nuevo toca una cuerda de nylon pulsada en el cuerpo de una guitarra.</p>
+<h2 id="la-vista-tocar">La vista Tocar</h2>
+<p><strong>El dibujo</strong> (a la izquierda) es el instrumento tal como está ajustado: el resonador dibujado como un plano — una cuerda entre su puente (a la izquierda) y su cejilla, una barra con los nodos de su primer modo punteados, una lengüeta desde su sujeción, una placa, un parche visto desde arriba con el radio por el que se golpea, un tubo (cerrado a la derecha cuando lo es), una campana, un cristal, un steel pan — el excitador dibujado donde toca y el anillo del micrófono donde se escucha un objeto modal. <strong>Arrastra sobre él</strong> para mover dónde se toca: los parciales de abajo lo siguen.</p>
+<p>Debajo, <strong>los parciales</strong>: cada uno una línea en su frecuencia sobre la fundamental (×1, ×2, ×4 … en un eje logarítmico), tan alta como el golpe la excita donde se toca. Los de una cuerda son sus armónicos con los huecos que corta la posición (tócala a un quinto de su largo y falta cada quinto armónico); los de una barra, sus modos estirados (×2,76, ×5,40 …); los de una barra de marimba están afinados a dos octavas y a tres octavas y una tercera. Mientras suena una nota se encienden con lo que suena la voz más reciente.</p>
+<p><strong>El excitador</strong> (a la derecha): sus seis tipos, las perillas de ese tipo y dónde toca.</p>
+<table>
+<tr><th>Excitador</th><th>Qué es</th><th>Sus perillas</th></tr>
+<tr><td><strong>Pulsar</strong></td><td>la yema de un dedo al soltar: los parciales caen como 1/n desde el primero</td><td>Contacto (ms: una yema 0,6–1,5, la carne del pulgar 2–3), Tono por velocidad, Ruido del golpe (una uña), Tono, Nivel</td></tr>
+<tr><td><strong>Púa</strong></td><td>un plectro: un cuarto del contacto, con su roce</td><td>las mismas</td></tr>
+<tr><td><strong>Arco</strong></td><td>un arco que frota, por una curva de fricción: la cuerda se pega y se suelta (el movimiento de Helmholtz)</td><td>Presión, Velocidad del arco, Ataque, Levantar, Nivel</td></tr>
+<tr><td><strong>Baqueta</strong></td><td>el pulso de fuerza de un resorte de ley de potencia (el contacto de Hunt–Crossley, p = 2,5): más fuerte es más corto y más brillante</td><td>Contacto (una baqueta de lana 1,5–3 ms, de goma 0,5–1, de latón 0,2), Tono por velocidad, Ruido del golpe (el fieltro), Tono, Nivel</td></tr>
+<tr><td><strong>Ruido</strong></td><td>ruido filtrado con su propia envolvente — aliento, viento, lluvia (Densidad por debajo del 100 % lo vuelve granos)</td><td>Color, Anchura, Densidad, Ataque, Liberación</td></tr>
+<tr><td><strong>Entrada</strong></td><td>el audio de una pista en el resonador</td><td>Nivel, Ataque, Levantar, Tono</td></tr>
+</table>
+<p><strong>Posición</strong> es dónde se toca, como fracción del largo desde el extremo que el dibujo pone a la izquierda: el puente de una cuerda, el extremo de una barra, la punta de una lengüeta, el borde de una membrana, el labio de una campana. Cerca del extremo es delgado y brillante; el centro es redondo. <strong>Ruido</strong> pone el generador de ruido bajo cualquier excitador (la resina de un arco, el fieltro de una baqueta).</p>
+<p><strong>El resonador</strong> (abajo): doce tipos.</p>
+<table>
+<tr><th>Resonador</th><th>Qué es</th></tr>
+<tr><td><strong>Cuerda</strong></td><td>una cuerda de guía de onda (las matemáticas de afinación de Gravis): su pérdida concentrada en el puente, su rigidez como pasa-todos — <em>Inarmonicidad</em> estira sus parciales como los de un piano</td></tr>
+<tr><td><strong>Barra</strong></td><td>una barra libre en sus dos extremos (la de un xilófono sin afinar, la de un glockenspiel): modos en 1, 2,76, 5,40, 8,93 …</td></tr>
+<tr><td><strong>Barra de marimba</strong></td><td>una barra rebajada para afinar sus parciales a 1 : 4 : 9,2</td></tr>
+<tr><td><strong>Lengüeta</strong></td><td>una barra sujeta por un extremo (la de una kalimba, una caja de música, una celesta): 1, 6,27, 17,5</td></tr>
+<tr><td><strong>Placa</strong></td><td>los modos de una placa rectangular (la de un gong, una lámina de trueno)</td></tr>
+<tr><td><strong>Membrana</strong></td><td>un parche ideal: los ceros de Bessel (1, 1,59, 2,14, 2,30 …)</td></tr>
+<tr><td><strong>Parche</strong></td><td>el parche de un timbal, afinado por el aire bajo él (1, 1,5, 2, 2,44 …)</td></tr>
+<tr><td><strong>Tubo</strong></td><td>un tubo cerrado por un extremo (el de una flauta de pan): armónicos impares</td></tr>
+<tr><td><strong>Caño</strong></td><td>un tubo abierto en sus dos extremos: todos los armónicos, sus graves irradiados menos</td></tr>
+<tr><td><strong>Campana</strong></td><td>los parciales de una campana de iglesia afinada (hum, prima, tercera, quinta, nominal …)</td></tr>
+<tr><td><strong>Cristal</strong></td><td>los modos de anillo de una copa de vino</td></tr>
+<tr><td><strong>Steel pan</strong></td><td>una nota de steel pan: fundamental, octava y duodécima afinadas</td></tr>
+</table>
+<p><strong>Caída</strong> es cuánto suena la fundamental (T60, el tiempo en bajar 60 dB). <strong>Material</strong> es cómo mueren los agudos: los de la madera de inmediato, los del cristal y el metal tanto como la fundamental. <strong>Inarmonicidad</strong> estira (o comprime) los parciales. <strong>Escucha</strong> es desde dónde se oye un objeto modal (el anillo del micrófono).</p>
+<p><strong>El cuerpo</strong>: Ninguno, Guitarra (su modo de aire cerca de 98 Hz y los de su tapa), Violín (sus modos característicos y la colina del puente cerca de 2,5 kHz), Chelo, Arpa (su caja y su tabla), Caja (la de una kalimba), Casco (la falda de un tambor o de un steel pan) — con su <strong>mezcla</strong>, su <strong>tamaño</strong> (un cuerpo mayor baja sus modos) y su <strong>resonancia</strong>.</p>
+<p><strong>Salida</strong>: Liberación (qué tan rápido se apagan los resonadores al soltar: 60 s los deja sonar como las barras de una marimba), Anchura (las voces repartidas en el estéreo por tecla) y Ganancia.</p>
+<h2 id="la-vista-editar">La vista Editar</h2>
+<p>Cada parte como una tarjeta: el dibujo y el excitador; el <strong>Resonador A</strong> y el <strong>Resonador B</strong> (la luz de B lo enciende), cada uno con todas sus perillas — <em>Caída por tecla</em> (cuánto más rápido muere una nota una octava arriba), <em>Parciales</em> (cuántos modos toca un objeto modal: menos es más ligero para la CPU), <em>Afinación</em> y <em>Fino</em> (B frente a A), <em>Seguimiento de tecla</em> (0 % mantiene la altura del resonador sea cual sea la tecla: un tambor); el <strong>acoplamiento</strong> — <em>Paralelo</em> (el excitador en los dos) o <em>A hacia B</em> (A excita a B, como la barra de una marimba al tubo bajo ella) y lo que se oye de cada uno; el <strong>arco y MPE</strong>; el <strong>ruido</strong> con su envolvente; el <strong>cuerpo</strong>; el <strong>vibrato</strong> (profundidad en cents, frecuencia, un retardo antes de empezar) y el <strong>trémolo</strong> (su fase el reloj de la canción, como el motor de un vibráfono); la <strong>salida</strong> con sus cortes de graves y agudos; la <strong>voz</strong> — Polifónico, Mono o Legato, <em>Golpear de nuevo</em> (encendido: una tecla tocada mientras suena golpea el mismo resonador, como una barra o una cuerda reales; apagado: una voz nueva), Voces, Portamento, Rango de bend, Octava, Transponer, Fino, La4, Velocidad, Liberación y la Semilla de su ruido.</p>
+<h2 id="tocarlo">Tocarlo</h2>
+<ul>
+<li><strong>La velocidad</strong> decide cuán fuerte es el golpe: más fuerte y, por <em>Tono por velocidad</em>, un contacto más corto (más brillante), como el de una baqueta más rápida.</li>
+<li><strong>MPE</strong>: la <strong>presión</strong> de una nota aprieta el arco (<em>Presión MPE</em>: cuánto; con Ruido o Entrada sube el nivel), su <strong>deslizamiento</strong> mueve dónde se toca (<em>Deslizamiento MPE</em>), su <strong>bend</strong> la dobla. El aftertouch, la rueda y la expresión de un controlador sin MPE son fuentes de modulación.</li>
+<li><strong>La afinación</strong> es exacta: los lazos y filtros de la guía de onda se resuelven para la fundamental, y los modos se fijan por sus ángulos — medida dentro de 0,002 cent con cualquier bend.</li>
+<li><strong>El pedal</strong> sostiene las notas soltadas, como la barra apagadora de un vibráfono.</li>
+</ul>
+<h2 id="los-presets">Los presets</h2>
+<p>Marimba · Vibráfono · Kalimba · Steel pan · Arpa · Guitarra de nylon · Chelo con arco · Cristal golpeado · Armónica de cristal · Xilófono · Glockenspiel · Celesta · Caja de música · Campana · Timbales · Pandero · Salterio · Banjo · Pizzicato · Colchón de cuerdas con arco · Vibráfono con arco · Flauta de pan · Lluvia sobre cristal · Gong · Pulsado de cristal. Cada uno tiene cuatro macros: <strong>1</strong> cuán fuerte (el contacto, la presión del arco, el color del ruido), <strong>2</strong> la caída, <strong>3</strong> el cuerpo, <strong>4</strong> dónde se toca.</p>
+<h2 id="lo-que-cuesta">Lo que cuesta</h2>
+<p>Una cuerda pulsada o frotada son unas pocas decenas de operaciones por muestra; un objeto modal, una multiplicación compleja por parcial (48 como mucho). Sus voces se reparten entre los hilos del motor con los bits de uno (ADR 0038). La perilla <em>Parciales</em> es el precio de una voz modal.</p>
+</main>
+</body>
+</html>
