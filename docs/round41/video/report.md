@@ -207,6 +207,29 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
 
   Pace is 2.4–3.1 words a second on most lines, near the calm window without any
   breathing pass. Line 4 runs 2.7–3.4.
+- **The page, built (2026-11-21):** `F:\projects\video-work\voice\ab-qwen.html`.
+  - Its audio links resolve, and a headless screenshot of it was looked at.
+  - **The gate:** Whisper large-v3-turbo, loaded straight onto the GPU in half precision.
+    The first run with large-v3 loaded on the CPU grew C:'s pagefile until C: had 2 GB
+    left, and it was stopped.
+  - **New rule:** a long lead no longer fails a take, because the assembly trims it.
+    Qwen's Base model leaves 0.4–0.9 s before the speech. "Fits" measures the speech
+    itself.
+  - `gate.py --recheck` re-applied the rules to the measures already in `gate.json`.
+- **Passed per line** (lines 1–8, of 5 each):
+
+  | Voice | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | Total |
+  |---|---|---|---|---|---|---|---|---|---|
+  | EN Aiden | 5 | 0 | 2 | 3 | 4 | 5 | 5 | 4 | 28/40 |
+  | EN Ryan | 1 | 4 | 3 | 2 | 1 | 5 | 4 | 3 | 23/40 |
+  | ES man (Latin American) | 5 | 5 | 5 | 4 | 4 | 4 | 5 | 5 | 37/40 |
+  | ES woman (Latin American) | 5 | 5 | 4 | 5 | 4 | 5 | 4 | 4 | 36/40 |
+
+- **Aiden's line 2:** Qwen read "modelled" as "mottled". The model is now given
+  "modeled". The remake stopped on low RAM after 3 of Aiden's 5 takes. Those three are not
+  gated, so the page shows no Aiden take for line 2.
+- **Spanish pace:** 4.5–5.5 syllables a second on every line but 7, which is slower and
+  is marked on the page. Nobody but the owner can judge the accent.
 
 ## Step 3, the film draft (2026-11-20; built by a builder agent, reviewed)
 
