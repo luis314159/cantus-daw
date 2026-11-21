@@ -63,10 +63,13 @@ subs_filter() {
 
 case "$step" in
 render)
+  # The release's app (integration + r41/video): built and run in the r41/video-int worktree
+  # (film/int_worktree.sh), in its own target dir — never another worktree's.
+  FILM_ROOT="${FILM_ROOT:-/f/projects/daw-r41/video-int}"
   export PATH="$HOME/.cargo/bin:$PATH" CARGO_PROFILE_RELEASE_DEBUG=0 CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
-  run bash tools/build/slot.sh cargo build -j 2 -p cantus-test-clap --target-dir target/test-plugins
-  run bash tools/build/slot.sh cargo build --release -j 2 -p cantus-ui --example film
-  heavy "$O/logs/render.log" "$ROOT/target/release/examples/film.exe" --out "$(winpath "$F")" --fps 60 --scale 2
+  (cd "$FILM_ROOT" && run bash tools/build/slot.sh cargo build -j 2 -p cantus-test-clap --target-dir target/test-plugins)
+  (cd "$FILM_ROOT" && run bash tools/build/slot.sh cargo build --release -j 2 -p cantus-ui --example film)
+  heavy "$O/logs/render.log" "$FILM_ROOT/target/release/examples/film.exe" --out "$(winpath "$F")" --fps 60 --scale 2
   ;;
 cards)
   run node tools/video/cards/render.mjs "$(winpath "$F/cards")" --lang "$lang" --scale 2 --fps 60 --os preview
