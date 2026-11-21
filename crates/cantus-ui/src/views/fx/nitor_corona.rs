@@ -269,7 +269,7 @@ fn ring(
     let start = PI * 0.75;
     let span = PI * 1.5;
     let gap = 0.05;
-    for i in 0..4 {
+    for (i, &band_key) in BAND_KEYS.iter().enumerate() {
         let a0 = start + span * i as f32 / 4.0 + gap;
         let a1 = start + span * (i + 1) as f32 / 4.0 - gap;
         b.arc(
@@ -295,7 +295,7 @@ fn ring(
             b,
             at - vec2(0.0, 7.0 * k),
             Align2::CENTER_CENTER,
-            &Text::key(BAND_KEYS[i], Role::Micro, ink.dim),
+            &Text::key(band_key, Role::Micro, ink.dim),
             k,
             None,
         );
