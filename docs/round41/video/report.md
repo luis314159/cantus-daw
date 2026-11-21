@@ -7,7 +7,7 @@ Generated files live in `F:\projects\video-work\`, never in the repository.*
 |---|---|
 | 1. Facts | done (`ae88ebae`); script corrected |
 | 2. The voice | **the A/B page is ready for the owner's ear**: `F:\projects\video-work\voice\ab.html`, two gated takes per line in English and Spanish (below, "Step 2, rounds 2–3") |
-| 3. The film | not started; cargo is allowed again (the build slot, `-j 3`), and it waits for the takes the owner picks |
+| 3. The film | **draft ready for the owner**: `F:\projects\video-work\film\draft-1080p30.mp4` (1080p30, no voice); the 2160p60 final waits for his approval |
 | 4. The cards | sources written, both end cards A and B; **stills rendered in EN and ES and looked at**; three fixes made from them |
 
 ## Step 2, round 1 (2026-11-20): 3 of 96 takes passed
