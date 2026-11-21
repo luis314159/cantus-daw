@@ -80,7 +80,8 @@ if [[ "$what" == cut || "$what" == all ]]; then
   for s in "${SCENES[@]}"; do echo "file '$s.mkv'" >> "$W/seg/list.txt"; done
   "$FF" -hide_banner -loglevel error -y -f concat -safe 0 -i "$(winpath "$W/seg/list.txt")" -c copy "$(winpath "$W/seg/joined.mkv")"
 
-  sound="$S/soundtrack-$lang.wav"
+  # The soundtrack for the lossy encode (-14 LUFS under -2 dBTP; the master WAV is -1 dBTP).
+  sound="$S/soundtrack-$lang-web.wav"
   [[ -f "$sound" ]] || { echo "missing $sound (draft.sh sound $lang)" >&2; exit 1; }
   # The cards over the film, each at its time (script.md's Card column); end card B (A or
   # B waits on the owner). No dancer on the end card (the owner, 2026-11-21).

@@ -489,6 +489,26 @@ fn run() {
     let done = cantus_export::export_mix(job, &s, &Tags::default(), &wav, &Control::new())
         .expect("the soundtrack is exported");
     let n = done.loudness.expect("the loudness stage ran");
+    // For the web's lossy encode (AAC overshoots a -1 dBTP master by about a dB): the same
+    // mix at -14 LUFS under a -2 dBTP ceiling, so the video's sound stays under -1 dBTP.
+    let web = o.out.join(format!("soundtrack-{}-web.wav", o.lang));
+    let job = cantus_export::MixJob {
+        snapshot: Arc::new(snapshot(&mix.p)),
+        render: film_range(),
+        units: Vec::new(),
+        instruments: Vec::new(),
+    };
+    let mut s2 = s.clone();
+    s2.loudness.ceiling_dbtp = -2.0;
+    let web_done = cantus_export::export_mix(job, &s2, &Tags::default(), &web, &Control::new())
+        .expect("the web soundtrack is exported");
+    let nw = web_done.loudness.expect("the loudness stage ran");
+    println!(
+        "{}: written {:.1} LUFS {:.1} dBTP (for the lossy encode)",
+        web.display(),
+        nw.lufs.unwrap_or(f64::NAN),
+        nw.dbtp
+    );
     // The crossfade's continuity, read back from the file.
     let r = hound::WavReader::open(&wav).expect("the export");
     let full = 1.0 / (1u32 << 23) as f32;
@@ -572,6 +592,7 @@ fn run() {
             "song_unedited_bar_12": step_a, "song_unedited_bar_56": step_b,
             "mix": {"largest_step_db": step_mix, "at_s": step_mix_at, "span_s": 2.0},
             "window_ms": 100, "hop_ms": 50},
+        "web": {"wav": web.display().to_string(), "written_lufs": nw.lufs, "written_dbtp": nw.dbtp, "ceiling_dbtp": -2.0},
         "files": {"wav": wav.display().to_string(), "project": cantus.display().to_string()},
     });
     let report = o.out.join(format!("soundtrack-{}.json", o.lang));
