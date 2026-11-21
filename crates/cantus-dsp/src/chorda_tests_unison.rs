@@ -672,7 +672,9 @@ fn tune_listen() {
         .map(|(i, k)| (i as f64 * 4.0, 3.6, *k, mf))
         .collect();
     jobs.push(("named-keys".into(), six, 2.0));
-    let abx = dir.join("abx");
+    // The blind kit's level-matched copies, outside the kit's own folder (`abx/`), so no file
+    // a listener receives carries a name (`tools/chorda-voicing/tune_abx.py` draws them).
+    let abx = dir.join("matched");
     std::fs::create_dir_all(&abx).unwrap();
     std::thread::scope(|s| {
         for (name, notes, tail) in &jobs {

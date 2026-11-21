@@ -4,8 +4,8 @@ pairs and a blind ABX with a preference per pair, offline, standard library only
     python -I tools/chorda-voicing/tune_abx.py <listen dir> [--title "..."]
 
 `<listen dir>` holds what `chorda::tests_unison::tune_listen` renders: `<name>-before.wav` /
-`<name>-after.wav` (as rendered) and `abx/<name>-before.wav` / `abx/<name>-after.wav` (the
-same, both brought to one RMS so a level never tells them apart). Written:
+`<name>-after.wav` (as rendered) and `matched/<name>-before.wav` / `matched/<name>-after.wav`
+(the same, both brought to one RMS so a level never tells them apart). Written:
 
 - `<listen dir>/pares.html` — every pair, named, side by side (not blind);
 - `<listen dir>/abx/index.html` and `abx/audio/<random>.wav` — the blind kit: 16 ABX trials
@@ -29,12 +29,12 @@ import sys
 def pairs(root):
     names = sorted(
         f[: -len("-before.wav")]
-        for f in os.listdir(os.path.join(root, "abx"))
+        for f in os.listdir(os.path.join(root, "matched"))
         if f.endswith("-before.wav")
-        and os.path.exists(os.path.join(root, "abx", f.replace("-before.wav", "-after.wav")))
+        and os.path.exists(os.path.join(root, "matched", f.replace("-before.wav", "-after.wav")))
     )
     if not names:
-        sys.exit(f"no abx/<name>-before.wav / -after.wav pairs in {root}")
+        sys.exit(f"no matched/<name>-before.wav / -after.wav pairs in {root}")
     return names
 
 
@@ -68,7 +68,8 @@ def kit(root, names, title):
                     used.add(tok)
                     break
             shutil.copyfile(
-                os.path.join(out, f"{n}-{which}.wav"), os.path.join(audio, tok + ".wav")
+                os.path.join(root, "matched", f"{n}-{which}.wav"),
+                os.path.join(audio, tok + ".wav"),
             )
             toks[which] = tok
         # Which token is "p" and which "q" is drawn too: the page never says before/after.
