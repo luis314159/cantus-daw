@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- The launch video's cards (docs/round41/video). Open one with
+     /tools/video/cards/cards.html?card=<name>&lang=en|es[&t=<seconds>][&dur=<s>][&debug=1]
+     served from the repository's root (render.mjs does it), so the site's fonts and
+     logo #03 are read from where they live. The names are in cards.js's CARDS. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Video cards</title>
+<link rel="stylesheet" href="cards.css">
+</head>
+<body>
+
+<section class="card" id="title">
+  <div class="layer scrim"></div>
+  <div class="layer logo" data-logo></div>
+  <div class="layer word">Cantus<sup>™</sup></div>
+  <div class="layer rule"></div>
+</section>
+
+<section class="card count" id="count">
+  <div class="layer panel"><span class="sub" hidden></span><span class="n">0</span><span class="noun"></span></div>
+</section>
+
+<section class="card lower" id="lower">
+  <div class="layer panel"><span class="tick"></span><span class="what"></span></div>
+</section>
+
+<section class="card" id="free">
+  <div class="layer scrim"></div>
+  <div class="layer line1"></div>
+  <div class="layer rule"></div>
+</section>
+
+<section class="card end" id="end">
+  <div class="layer ground"></div>
+  <div class="layer block">
+    <div class="brand"><div class="tile" data-logo></div><div class="word">Cantus<sup>™</sup></div></div>
+    <div class="site">cantusdaw.com</div>
+    <div class="os"></div>
+    <div class="btn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg><span class="label"></span></div>
+    <div class="verse" hidden><div class="rule"></div><q></q><cite></cite></div>
+  </div>
+  <div class="layer onda-slot"></div>
+</section>
+
+<script src="cards.js"></script>
+</body>
+</html>

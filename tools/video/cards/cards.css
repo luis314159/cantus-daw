@@ -1,0 +1,110 @@
+/* The launch video's cards, in the site's look (web/style/base.css, round 39): Slate Night
+   surfaces, lapis for what is pressed, gold only in fine marks and rules, Barlow Semi
+   Condensed. Laid out at 1920 x 1080 CSS pixels and rendered at device scale 2 (3840 x 2160),
+   on a transparent page: what is not drawn here is the film beneath.
+
+   Nothing moves by itself: there is no CSS animation or transition. cards.js sets every
+   moving value from one time variable per frame, so a frame is exact and repeatable. */
+
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/web/assets/fonts/barlow-semi-condensed-light.woff2") format("woff2"); font-weight: 300; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/web/assets/fonts/barlow-semi-condensed-regular.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/web/assets/fonts/barlow-semi-condensed-medium.woff2") format("woff2"); font-weight: 500; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/web/assets/fonts/barlow-semi-condensed-semibold.woff2") format("woff2"); font-weight: 600 800; }
+
+:root {
+  /* Slate Night, as the site's :root */
+  --paper: #1d2329; --paper-2: #262d34; --line: #323b44;
+  --ink: #e3e8ed; --ink-2: #b4bdc6; --ink-3: #909ca8; --strong: #f1f4f7;
+  --night: #181d22;
+  /* the lapis stage, as the site's .lapis */
+  --lapis-ink: #f1f3fa; --lapis-ink-2: #c3cce8; --lapis-ink-3: #b8c2e6;
+  --lapis-line: rgba(185, 198, 238, 0.24);
+  --accent: #7ea2f6; --accent-text: #a9c0fa; --accent-ink: #0a1234;
+  --accent-grad: linear-gradient(#97b5f8, #7ea2f6 55%, #6a8fe8);
+  --accent-glow: rgba(126, 162, 246, 0.38);
+  /* gold: marks and rules only */
+  --gold: #e2b84a; --gold-text: #f0cd6a; --gold-text-slate: #e9c466;
+  --gold-rule: linear-gradient(90deg, rgba(226, 184, 74, 0), #e2b84a 8%, #f3d478 50%, #e2b84a 92%, rgba(226, 184, 74, 0));
+  --lapis-ground:
+    radial-gradient(circle at 17px 17px, rgba(233, 196, 102, 0.13) 1.6px, transparent 2.2px) 0 0 / 34px 34px,
+    radial-gradient(70rem 46rem at 62% 38%, #2e4aa0 0%, #1a2a66 46%, #0a1234 100%);
+  --display: "Barlow Semi Condensed", sans-serif;
+  /* the safe area: 5 % of the frame on every side (broadcast title-safe at 1080) */
+  --safe-x: 96px; --safe-y: 54px;
+}
+
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+body { font-family: var(--display); color: var(--ink); -webkit-font-smoothing: antialiased; }
+.card { position: absolute; inset: 0; display: none; }
+.card.on { display: block; }
+.layer { position: absolute; will-change: opacity, transform; }
+
+/* --- the title (shot 1): logo #03 draws on, the wordmark, the gold rule --- */
+#title .scrim { inset: 0; background: radial-gradient(52rem 30rem at 50% 50%, rgba(8, 11, 15, 0.62), rgba(8, 11, 15, 0) 100%); }
+#title .logo { left: 50%; top: 50%; width: 300px; height: 300px; margin: -230px 0 0 -150px; }
+#title .logo svg { width: 100%; height: 100%; display: block; overflow: visible; }
+#title .word { left: 0; right: 0; top: 610px; text-align: center; font: 600 112px/1 var(--display);
+  letter-spacing: 0.01em; color: var(--strong); }
+/* the mark at the cap height, close to the word (as the site's .brand .tm) */
+#title .word sup { font: 500 28px/1 var(--display); vertical-align: baseline; position: relative; top: -2.0em; margin-left: 3px; opacity: 0.7; }
+#title .rule { left: 50%; top: 750px; width: 520px; height: 2px; margin-left: -260px; background: var(--gold-rule);
+  transform-origin: 50% 50%; }
+
+/* --- a count (shots 3 and 5): the figure counted up, its noun beside it --- */
+.count .panel { left: var(--safe-x); bottom: calc(var(--safe-y) + 60px); padding: 26px 40px 30px 36px;
+  background: rgba(24, 29, 34, 0.9); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 24px 48px -28px rgba(0, 0, 0, 0.85); display: flex; align-items: baseline; gap: 22px; }
+.count .panel::before { content: ""; position: absolute; left: 36px; right: 40px; top: -1px; height: 2px;
+  background: var(--gold-rule); transform: scaleX(var(--rule, 1)); transform-origin: 0 50%; }
+.count .n { font: 500 132px/0.86 var(--display); color: var(--strong); letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums; min-width: 1.15em; text-align: right; } /* two figures wide: the panel never resizes while it counts */
+.count .noun { font: 500 54px/1 var(--display); color: var(--ink); }
+.count .sub { position: absolute; left: 36px; top: -44px; font: 600 22px/1 var(--display); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--gold-text-slate); }
+
+/* --- a lower third (shot 6): one line, a gold tick before it --- */
+.lower .panel { left: var(--safe-x); bottom: calc(var(--safe-y) + 60px); padding: 20px 34px 22px 30px;
+  background: rgba(24, 29, 34, 0.9); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 20px 40px -26px rgba(0, 0, 0, 0.85); display: flex; align-items: center; gap: 18px; }
+.lower .tick { width: 3px; height: 44px; border-radius: 2px; background: linear-gradient(#f3d478, #b8862b); }
+.lower .what { font: 500 50px/1 var(--display); color: var(--strong); }
+
+/* --- the claim (shot 8): one line, centred low, the rule under it --- */
+#free .scrim { left: 0; right: 0; bottom: 0; height: 420px;
+  background: linear-gradient(rgba(8, 11, 15, 0), rgba(8, 11, 15, 0.7)); }
+#free .line1 { left: 0; right: 0; bottom: 190px; text-align: center; font: 500 88px/1 var(--display);
+  color: var(--strong); letter-spacing: 0.005em; }
+#free .line1 .dot { color: var(--gold); padding: 0 0.28em; }
+#free .rule { left: 50%; bottom: 160px; width: 420px; height: 2px; margin-left: -210px; background: var(--gold-rule); }
+
+/* --- the end card (shot 9), A with the verse or B without --- */
+.end .ground { inset: 0; background: var(--lapis-ground); }
+.end .ground::after { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(90rem 60rem at 50% 40%, rgba(10, 18, 52, 0) 40%, rgba(5, 9, 26, 0.55) 100%); }
+.end .block { left: 260px; top: 0; bottom: 0; width: 1040px; display: flex; flex-direction: column;
+  justify-content: center; color: var(--lapis-ink); }
+.end .brand { display: flex; align-items: center; gap: 34px; }
+.end .brand .tile { width: 180px; height: 180px; }
+.end .brand .tile svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.end .brand .word { font: 600 150px/1 var(--display); letter-spacing: 0.01em; color: #fff; }
+.end .brand .word sup { font: 500 34px/1 var(--display); vertical-align: baseline; position: relative; top: -2.2em; margin-left: 4px; opacity: 0.7; }
+.end .site { margin-top: 38px; font: 500 64px/1 var(--display); color: var(--accent-text); letter-spacing: 0.01em; }
+.end .os { margin-top: 18px; font: 400 36px/1.2 var(--display); color: var(--lapis-ink-2); }
+.end .os b { font-weight: 600; color: var(--lapis-ink); }
+.end .btn { margin-top: 44px; align-self: flex-start; display: inline-flex; align-items: center; gap: 16px;
+  padding: 26px 40px; border-radius: 12px; font: 600 40px/1 var(--display); color: var(--accent-ink);
+  background: var(--accent-grad);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16) inset, 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 20px 40px -16px var(--accent-glow); }
+.end .btn svg { width: 40px; height: 40px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.end .verse { margin-top: 56px; max-width: 900px; }
+.end .verse .rule { height: 2px; width: 360px; background: var(--gold-rule); background-size: 100% 100%;
+  transform-origin: 0 50%; margin-bottom: 22px; }
+/* upright: the site ships no italic Barlow, and a synthesised slant is not first-rank */
+.end .verse q { display: block; font: 400 36px/1.3 var(--display); color: var(--gold-text); quotes: none; }
+.end .verse cite { display: block; margin-top: 10px; font: 600 22px/1 var(--display); font-style: normal;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold-text); opacity: 0.85; }
+/* Onda's place: the film's Stage keyed out is laid here by build.sh, never covered. */
+.end .onda-slot { right: 150px; top: 300px; width: 420px; height: 560px; }
+.debug .end .onda-slot { outline: 2px dashed rgba(255, 255, 255, 0.35); }
+.debug .card::after { content: ""; position: absolute; inset: var(--safe-y) var(--safe-x);
+  outline: 1px dashed rgba(255, 80, 80, 0.6); pointer-events: none; }
