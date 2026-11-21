@@ -25,6 +25,15 @@ from abpage import MIDDLE, TEMPLATE, best_two, pace_note  # noqa: E402
 NICE = {"es-latam": "Latin American, man", "es-latam-f": "Latin American, woman", "en-warm": "designed, man"}
 
 
+ENGINES = {
+    "qwen": {"short": "Qwen", "name": "Qwen3-TTS",
+             "voices": "The Qwen voices are built-in or designed from a description: nobody's voice."},
+    "eleven": {"short": "ElevenLabs", "name": "ElevenLabs",
+               "voices": "The ElevenLabs voices are library voices under the owner's plan (English: Jon, Victoria; "
+                         "Spanish, Mexican: Alejandro, Gabriela)."},
+}
+
+
 def rows_of(folder: Path) -> list:
     rows = json.loads((folder / "gate.json").read_text(encoding="utf-8"))
     for r in rows:
@@ -49,7 +58,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pair", nargs=3, action="append", metavar=("LANG", "OLD", "NEW"), required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--engine", choices=list(ENGINES), default="qwen")
+    ap.add_argument("--per-voice", type=int, default=1, help="passing takes shown per voice and line")
     a = ap.parse_args()
+    eng = ENGINES[a.engine]
     out = Path(a.out)
     parts = []
     for lang, old_dir, new_dir in a.pair:
@@ -69,25 +81,25 @@ def main() -> None:
                     by_voice[r["voice"]].append(r)
             for voice in sorted(by_voice):
                 ok = sorted((r for r in by_voice[voice] if r["pass"]), key=lambda r: abs(r["rate"] - MIDDLE[lang]))
-                key = voice.replace("built-in ", "").replace("designed ", "").split(" (")[0]
-                label = "Qwen · " + NICE.get(key, key)
-                if ok:
-                    parts.append(take_html(name, f"qwen:{ok[0]['take'][:-4]}", label, ok[0], lang, out))
-                else:
+                key = voice.replace("built-in ", "").replace("designed ", "").replace("ElevenLabs ", "").split(" (")[0]
+                label = eng["short"] + " · " + NICE.get(key, key)
+                for i, r in enumerate(ok[: a.per_voice]):
+                    shown = label if a.per_voice == 1 else f"{label} {i + 1}"
+                    parts.append(take_html(name, f"{a.engine}:{r['take'][:-4]}", shown, r, lang, out))
+                if not ok:
                     parts.append(f'<p class="warn">{html.escape(label)}: no take of {len(by_voice[voice])} passed the gate.</p>')
             parts.append(f'<label class="take"><input type="radio" name="{name}" value="neither"><b>Neither</b></label></section>')
     page = TEMPLATE.replace("{{BODY}}", "\n".join(parts))
-    page = page.replace("<title>Narration takes</title>", "<title>Qwen vs Chatterbox</title>")
-    page = page.replace("<h1>Narration takes</h1>", "<h1>Qwen3-TTS beside Chatterbox</h1>")
+    page = page.replace("<title>Narration takes</title>", f"<title>{eng['short']} vs Chatterbox</title>")
+    page = page.replace("<h1>Narration takes</h1>", f"<h1>{eng['name']} beside Chatterbox</h1>")
     # the labels here are longer than the A/B page's
     page = page.replace(".take b { width: 64px; flex: none; }", ".take b { width: 190px; flex: none; }")
     page = page.replace(
         page[page.index('<p class="note">Two takes'):page.index("</p>", page.index('<p class="note">Two takes')) + 4],
-        '<p class="note">Each line: the Chatterbox take you preferred (A), then the best gated take of each '
-        "Qwen3-TTS voice: every word heard back as written, no clipping, no word cut off, no babble, inside "
+        '<p class="note">Each line: the Chatterbox take you preferred (A), then the best gated takes of each '
+        f"{eng['name']} voice: every word heard back as written, no clipping, no word cut off, no babble, inside "
         "the line's time. Beside each, its length and pace (a calm read is about 2.5 words or 5 syllables a "
-        "second). The Qwen voices are built-in or designed from a description: nobody's voice. Pick one per "
-        "line, or Neither; the line at the bottom holds your picks.</p>",
+        f"second). {eng['voices']} Pick one per line, or Neither; the line at the bottom holds your picks.</p>",
     )
     out.write_text(page, encoding="utf-8")
     print(out)

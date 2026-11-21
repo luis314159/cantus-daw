@@ -42,9 +42,10 @@ SPEAK = {
     # The Latin names in Latin's hard consonants (the owner, 2026-11-20): Chorda KOR-da,
     # Cantus KAN-tus, Tympanum TIM-pa-num (and, if a line ever names them, Fides FEE-des,
     # Nitor NEE-tor). The address before the name, so "cantusdaw.com" is not caught by it.
+    # Spanish letters as Latin America says them: "ve", not Spain's "uve".
     "en": {"FL Studio": "F-L Studio", "VST3": "vee-ess-tee three", "cantusdaw.com": "kantus-daw dot com",
            "Cantus": "Kantus", "Chorda": "Korda", "modelled": "modeled", "Tympanum": "Timpanum", "Fides": "Feedes", "Nitor": "Neetor"},
-    "es": {"FL Studio": "efe ele Studio", "VST3": "uve ese te tres", "cantusdaw.com": "cantus daw punto com",
+    "es": {"FL Studio": "efe ele Studio", "VST3": "ve ese te tres", "cantusdaw.com": "cantus daw punto com",
            "plug-ins": "plugins", "Chorda": "Korda", "Tympanum": "Tímpanum"},
 }
 
