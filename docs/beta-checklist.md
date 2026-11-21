@@ -1029,3 +1029,21 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 - [ ] Verificado solo en emulación: todo lo anterior se midió con renders y pruebas; ningún
   oído lo ha juzgado todavía. Los sonidos para escuchar están en
   `F:\projects\daw-r41\nitor-listen\` (seco y procesado, a la misma sonoridad).
+
+### Ronda 41 — los cinco circuitos de Fragor como pedales propios en Tabula (ADR 0152) <!-- r41:pedals -->
+
+- [ ] **Las caras**: abre Tabula, *Añadir pedal* ▸ estante *Distorsión*: deben estar el
+  overdrive verde, la distorsión de op-amp, la de silicio, el fuzz de germanio y el muff
+  triangular, cada uno con la caja, la pintura y la rotulación que tiene en Fragor, y sus
+  tres perillas con sus nombres. Ponlos los cinco en la pedalera: nada se tapa ni se corta,
+  en Slate y en Paper, al 100 % y al 150 %. (Las imágenes de `docs/round41/pedals/` son de
+  la prueba; tu pantalla es la que decide.)
+- [ ] **El sonido**: carga *Saturaciones en cadena* en una guitarra. Gira la macro
+  *Saturación*: deben subir las dos saturaciones a la vez. Pisa el interruptor del muff:
+  queda el empuje y el phaser. Cada pedal suena como ese circuito solo en Fragor (las
+  pruebas lo comprueban bit a bit; tu oído decide si los presets nuevos — *Empuje limpio*,
+  *Solo de silicio*, *Fuzz bajo el bajo*, *Muro de muff* — valen).
+- [ ] **Bajo la pedalera** con un pedal de estos elegido: sus perillas, Puerta,
+  Mezcla, Salida, Sobremuestreo, Canales y Circuito caben a tu escala; no aparece *Abrir su
+  editor completo* (no tienen ventana propia: dinos si quieres la de Fragor con un solo
+  circuito).

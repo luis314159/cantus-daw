@@ -1,3 +1,43 @@
-# Fragor's ge circuit as a board-only pedal: factory presets (ADR 0101). Names are locale
-# keys (fx/fragor_pedal.*.txt). Empty until the pedals builder makes a few by ear.
-# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+# Fragor germanium fuzz: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.fragor_ge.vintage_fuzz"
+note = "Fragor's Vintage fuzz as a pedal, to the bit: a fresh battery, round, cleaning up with the guitar's volume."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"ge.bias" = 1
+"ge.fuzz" = 0.8
+"ge.on" = 1
+"ge.vol" = 0.5
+"mono" = 1
+"out" = -5.5
+
+[[preset]]
+key = "preset.fragor_ge.dying_battery"
+note = "Fragor's Dying battery as a pedal: the fuzz starved, notes sputter and gate as they fade."
+styles = ["rock", "lofi"]
+roles = ["creative"]
+[preset.values]
+"ge.bias" = 0.25
+"ge.fuzz" = 1
+"ge.on" = 1
+"ge.vol" = 0.65
+"mono" = 1
+"out" = -1.6
+
+[[preset]]
+key = "preset.fragor_ge.fuzz_bass"
+note = "The fuzz half blended under a bass: woolly harmonics over a clean low end."
+styles = ["rock", "lofi"]
+roles = ["creative"]
+[preset.values]
+"ge.bias" = 0.9
+"ge.fuzz" = 0.7
+"ge.on" = 1
+"ge.vol" = 0.5
+"mix" = 0.5
+"mono" = 1
+"out" = -1.3

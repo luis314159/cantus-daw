@@ -1,27 +1,48 @@
 # Fragor's five circuits as board-only pedals (round 41, ADR 0152) — owned by the pedals builder. Every key here needs its twin in fragor_pedal.es.txt.
-fx.fragor_pedal.out = Output
+# The parameters carry Fragor's own words (fx.fragor.*): a pedal reads Fragor's keys.
 effect.fragor_od = Fragor green overdrive
 picker.dev.fragor_od.name = Green overdrive
 picker.dev.fragor_od.what = A Fragor circuit as a pedal
-picker.dev.fragor_od.about = Fragor's green overdrive as a stompbox of its own on the board, the same circuit to the bit. Being built.
+picker.dev.fragor_od.about = Fragor's green overdrive as a stompbox of its own on the board: diodes in an op-amp's loop, a mid hump that tightens what follows. The same circuit as Fragor's, to the bit.
 mixer.chain.fragor_od = Overdrive
 effect.fragor_op = Fragor op-amp distortion
 picker.dev.fragor_op.name = Op-amp distortion
 picker.dev.fragor_op.what = A Fragor circuit as a pedal
-picker.dev.fragor_op.about = Fragor's op-amp distortion as a stompbox of its own on the board, the same circuit to the bit. Being built.
+picker.dev.fragor_op.about = Fragor's op-amp distortion as a stompbox of its own on the board: a slow op-amp into diodes, thick and raw, its filter taking the fizz off. The same circuit as Fragor's, to the bit.
 mixer.chain.fragor_op = Distortion
 effect.fragor_si = Fragor silicon distortion
 picker.dev.fragor_si.name = Silicon distortion
 picker.dev.fragor_si.what = A Fragor circuit as a pedal
-picker.dev.fragor_si.about = Fragor's silicon distortion as a stompbox of its own on the board, the same circuit to the bit. Being built.
+picker.dev.fragor_si.about = Fragor's silicon distortion as a stompbox of its own on the board: a transistor boost into hard clipping, the middle scooped. The same circuit as Fragor's, to the bit.
 mixer.chain.fragor_si = Distortion
 effect.fragor_ge = Fragor germanium fuzz
 picker.dev.fragor_ge.name = Germanium fuzz
 picker.dev.fragor_ge.what = A Fragor circuit as a pedal
-picker.dev.fragor_ge.about = Fragor's germanium fuzz as a stompbox of its own on the board, the same circuit to the bit. Being built.
+picker.dev.fragor_ge.about = Fragor's germanium fuzz as a stompbox of its own on the board: two germanium transistors, round and woolly, its bias the battery (turned down, notes sputter). The same circuit as Fragor's, to the bit.
 mixer.chain.fragor_ge = Fuzz
 effect.fragor_mf = Fragor triangle muff
 picker.dev.fragor_mf.name = Triangle muff
 picker.dev.fragor_mf.what = A Fragor circuit as a pedal
-picker.dev.fragor_mf.about = Fragor's triangle muff as a stompbox of its own on the board, the same circuit to the bit. Being built.
+picker.dev.fragor_mf.about = Fragor's triangle muff as a stompbox of its own on the board: two clipping stages and a scooped tone, endless sustain. The same circuit as Fragor's, to the bit.
 mixer.chain.fragor_mf = Muff
+# The presets (each pedal's own; those made from Fragor's sound as Fragor's do, to the bit).
+preset.fragor_od.green_push = Green push
+preset.fragor_od.blues_edge = Blues edge
+preset.fragor_od.vocal_grit = Vocal grit
+preset.fragor_od.clean_boost = Clean boost
+preset.fragor_op.rat_rhythm = Thick rhythm
+preset.fragor_op.bass_grit = Bass grit
+preset.fragor_op.lofi_radio = Little radio
+preset.fragor_si.silicon_crunch = Silicon crunch
+preset.fragor_si.drum_smash = Drum smash
+preset.fragor_si.silicon_lead = Silicon lead
+preset.fragor_ge.vintage_fuzz = Vintage fuzz
+preset.fragor_ge.dying_battery = Dying battery
+preset.fragor_ge.fuzz_bass = Fuzz under a bass
+preset.fragor_mf.muff_sustain = Endless sustain
+preset.fragor_mf.doom_bass = Doom bass
+preset.fragor_mf.muff_wall = Wall of muff
+# Tabula's showcase board of two drives (its factory list).
+preset.tabula.stacked_drives = Stacked drives
+# The pedal's strip under the board: its circuit in or out (a wire).
+fragor_pedal.circuit = Circuit

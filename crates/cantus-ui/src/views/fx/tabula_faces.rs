@@ -392,12 +392,16 @@ pub const FACES: &[Face] = &[
         "N",
         T::Brushed,
     ), // r41:nitor
-    // r41:contract — Fragor's five circuits (ADR 0152): each in its case's size as Fragor
-    // draws it on a board (`fragor::SHAPES`), its paint and art from `fragor.rs` once the
-    // pedals builder gives each its three knobs (the board's per-circuit drawing reused).
+    // r41:pedals — Fragor's five circuits (ADR 0152): each in its case's size as Fragor
+    // draws it (`fragor::SHAPES`: the overdrive and the op-amp distortion in the common box,
+    // the silicon distortion a mini, the fuzz round, the muff wide) with its three knobs,
+    // Fragor's keys. The board draws them as it draws Fragor's own pedals: each circuit's
+    // finish (`pedals::FRAGOR`), paint, lettering, art and knob words (`fragor.rs`) —
+    // `tabula_board::fragor_circuit`; the motif, letter and texture here stand for a list
+    // that reads the row alone.
     face(
         K::FragorOverdrive,
-        &["out"],
+        &["od.drive", "od.tone", "od.level"],
         S::Standard,
         M::Clip,
         "O",
@@ -405,7 +409,7 @@ pub const FACES: &[Face] = &[
     ), // r41:pedals
     face(
         K::FragorOpAmp,
-        &["out"],
+        &["op.dist", "op.filter", "op.vol"],
         S::Standard,
         M::Clip,
         "R",
@@ -413,14 +417,28 @@ pub const FACES: &[Face] = &[
     ), // r41:pedals
     face(
         K::FragorSilicon,
-        &["out"],
+        &["si.dist", "si.tone", "si.level"],
         S::Mini,
         M::Clip,
         "D",
         T::Hammered,
     ), // r41:pedals
-    face(K::FragorFuzz, &["out"], S::Round, M::Clip, "Z", T::Hammered), // r41:pedals
-    face(K::FragorMuff, &["out"], S::Wide, M::Clip, "M", T::Brushed),   // r41:pedals
+    face(
+        K::FragorFuzz,
+        &["ge.fuzz", "ge.bias", "ge.vol"],
+        S::Round,
+        M::Clip,
+        "Z",
+        T::Hammered,
+    ), // r41:pedals
+    face(
+        K::FragorMuff,
+        &["mf.sustain", "mf.tone", "mf.vol"],
+        S::Wide,
+        M::Clip,
+        "M",
+        T::Brushed,
+    ), // r41:pedals
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.
@@ -447,6 +465,27 @@ mod tests {
                 assert!(f.kind.param(k).is_some(), "{:?}: no key {k}", f.kind);
             }
             assert!(!f.letter.is_empty());
+        }
+    }
+
+    /// r41:pedals — each of Fragor's circuits as a pedal wears its knobs as Fragor's board
+    /// draws that circuit, in its case's natural size.
+    #[test]
+    fn fragors_circuits_wear_fragors_knobs_and_cases() {
+        use crate::kit::skin::pedals::Shape;
+        use crate::views::fx::fragor;
+        for kind in cantus_core::fx::fragor_pedal::KINDS {
+            let m = kind.fragor_circuit().unwrap();
+            let f = of(kind).unwrap();
+            assert_eq!(f.knobs, cantus_core::fx::fragor::KNOBS[m]);
+            let s = match f.shape {
+                PedalShape::Mini => Shape::Mini,
+                PedalShape::Standard => Shape::Standard,
+                PedalShape::Wide => Shape::Wide,
+                PedalShape::Double => Shape::Double,
+                PedalShape::Round => Shape::Round,
+            };
+            assert_eq!(s, fragor::SHAPES[m], "{kind:?}");
         }
     }
 }

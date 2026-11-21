@@ -492,6 +492,9 @@ impl EffectKind {
     /// kind but the old Reverb (Delay has had its window since round 39, ADR 0115).
     pub fn has_editor(self) -> bool {
         !matches!(self, EffectKind::Reverb)
+            // r41:pedals — Fragor's circuits as pedals have no window of their own: the strip
+            // under Tabula's board holds what they have (ADR 0152).
+            && self.fragor_circuit().is_none()
     }
 
     /// A kind that plays an impulse response from a file ([`EffectSpec::ir`],

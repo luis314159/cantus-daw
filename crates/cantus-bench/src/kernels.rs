@@ -575,7 +575,26 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         | EffectKind::FragorOpAmp
         | EffectKind::FragorSilicon
         | EffectKind::FragorFuzz
-        | EffectKind::FragorMuff => set(&mut s, &[("out", 1.0)]), // r41:pedals
+        | EffectKind::FragorMuff => {
+            // r41:pedals — the circuit in, its gain and level high and its tone low (the
+            // fuzz's battery tired), 8x, stereo, the gate on, half wet: Fragor's heavy
+            // board's settings for one circuit.
+            let i = kind.fragor_circuit().unwrap_or(0);
+            let k = cantus_core::fx::fragor_pedal::knobs(i);
+            set(
+                &mut s,
+                &[
+                    (cantus_core::fx::fragor_pedal::switch(i), 1.0),
+                    (k[0], 0.9),
+                    (k[1], 0.3),
+                    (k[2], 0.6),
+                    ("gate", -70.0),
+                    ("os", 2.0),
+                    ("mix", 0.5),
+                    ("out", -6.0),
+                ],
+            );
+        } // r41:pedals
     }
     s
 }

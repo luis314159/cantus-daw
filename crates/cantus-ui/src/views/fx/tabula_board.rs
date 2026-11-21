@@ -38,18 +38,31 @@ pub fn kit_shape(s: PedalShape) -> Shape {
     }
 }
 
-/// The Fragor model a Fragor pedal shows on the board: its first slot's (the green
-/// overdrive when its chain is empty).
-fn fragor_model(spec: &EffectSpec) -> usize {
-    fragor::model_of(spec.get(cantus_core::fx::fragor::SLOTS[0])).unwrap_or(0)
+/// The Fragor circuit a pedal shows on the board, `None` for a unit that is not Fragor's: a
+/// Fragor its first slot's (the green overdrive when its chain is empty); one of Fragor's
+/// circuits as a pedal of its own, that circuit (r41:pedals, ADR 0152).
+pub fn fragor_circuit(spec: &EffectSpec) -> Option<usize> {
+    if spec.kind == EffectKind::Pedal {
+        Some(fragor::model_of(spec.get(cantus_core::fx::fragor::SLOTS[0])).unwrap_or(0))
+    } else {
+        spec.kind.fragor_circuit() // r41:pedals
+    }
+}
+
+/// Whether a pedal's circuit is in: always, but for one of Fragor's circuits as a pedal of
+/// its own with its circuit switched out (a wire) (r41:pedals).
+pub fn circuit_in(spec: &EffectSpec) -> bool {
+    spec.kind
+        .fragor_circuit()
+        .is_none_or(|c| spec.get(cantus_core::fx::fragor_pedal::switch(c)) >= 0.5)
 }
 
 /// A unit's finish on the board: Fragor's pedals their own; every other unit painted from
 /// its own face (ADR 0074) — its surface's hue as the enamel, its accent as the band —
 /// each kind a shade of its own so two units of one family never look alike.
 pub fn finish_of(kind: EffectKind, spec: &EffectSpec) -> Finish {
-    if kind == EffectKind::Pedal {
-        return pal::FRAGOR[fragor_model(spec)];
+    if let Some(m) = fragor_circuit(spec) {
+        return pal::FRAGOR[m];
     }
     let sk = crate::kit::skin::of_effect(kind);
     let i = EffectKind::ALL.iter().position(|k| *k == kind).unwrap_or(0) as f32;
@@ -204,8 +217,7 @@ pub fn norm(spec: &EffectSpec, key: &str) -> f32 {
 /// under them, into `out`.
 pub fn knobs_of<'a>(spec: &EffectSpec, hot: Option<usize>, out: &mut Vec<Knob<'a>>) {
     out.clear();
-    if spec.kind == EffectKind::Pedal {
-        let m = fragor_model(spec);
+    if let Some(m) = fragor_circuit(spec) {
         let labels = fragor::knob_labels(m);
         for (j, key) in cantus_core::fx::fragor::KNOBS[m].iter().enumerate() {
             out.push(Knob {
@@ -234,8 +246,8 @@ pub fn knobs_of<'a>(spec: &EffectSpec, hot: Option<usize>, out: &mut Vec<Knob<'a
 
 /// The keys of the knobs a pedal shows, in their order on its face.
 pub fn knob_keys(spec: &EffectSpec) -> Vec<&'static str> {
-    if spec.kind == EffectKind::Pedal {
-        return cantus_core::fx::fragor::KNOBS[fragor_model(spec)].to_vec();
+    if let Some(m) = fragor_circuit(spec) {
+        return cantus_core::fx::fragor::KNOBS[m].to_vec();
     }
     faces::of(spec.kind).map_or(Vec::new(), |f| f.knobs.to_vec())
 }
@@ -257,8 +269,7 @@ pub fn denorm(i: &cantus_core::EffectParamInfo, x: f32) -> f32 {
 
 /// The name a pedal letters and the line under it.
 pub fn names_of(spec: &EffectSpec) -> (Src<'static>, Src<'static>) {
-    if spec.kind == EffectKind::Pedal {
-        let m = fragor_model(spec);
+    if let Some(m) = fragor_circuit(spec) {
         return (
             Src::Key(fragor::NAMES[m]),
             Src::Key("picker.dev.fragor.name"),
@@ -315,8 +326,7 @@ pub fn pedal(b: &mut Brush, s: &Style, r: Rect, l: &Look<'_>) -> pd::Hits {
     } else {
         names_of(l.spec)
     };
-    let (motif, letter, texture) = if kind == EffectKind::Pedal {
-        let m = fragor_model(l.spec);
+    let (motif, letter, texture) = if let Some(m) = fragor_circuit(l.spec) {
         (fragor::MOTIFS[m], fragor::LETTERS[m], fragor::TEXTURES[m])
     } else {
         match faces::of(kind) {
@@ -337,8 +347,13 @@ pub fn pedal(b: &mut Brush, s: &Style, r: Rect, l: &Look<'_>) -> pd::Hits {
         texture,
         shape: l.shape,
         knobs: &knobs,
-        on: l.on,
-        glow: if l.on { 0.25 + 0.75 * l.glow } else { 0.0 },
+        // r41:pedals — one of Fragor's circuits with its circuit out is a wire: its LED dark.
+        on: l.on && circuit_in(l.spec),
+        glow: if l.on && circuit_in(l.spec) {
+            0.25 + 0.75 * l.glow
+        } else {
+            0.0
+        },
         lifted: l.lifted,
         switch_hot: l.hot == Some(9),
     };
@@ -1088,7 +1103,13 @@ pub fn picker(
         if cell.bottom() > r.bottom() + 1.0 {
             break;
         }
-        let spec = EffectSpec::new(*kind);
+        // r41:pedals — one of Fragor's circuits on the shelf as it comes onto the board (its
+        // starting preset, the circuit in: its LED lit).
+        let spec = if kind.fragor_circuit().is_some() {
+            cantus_core::starting::starting_spec(*kind)
+        } else {
+            EffectSpec::new(*kind)
+        };
         let shape = faces::of(*kind).map_or(Shape::Standard, |f| kit_shape(f.shape));
         let nat = pd::size_of(shape);
         let fit = ((cell.width() - 18.0 * k) / nat.x)
@@ -1118,7 +1139,16 @@ pub fn picker(
                 bare: true,
             },
         );
-        let (name, what) = names_of(&spec);
+        // r41:pedals — on the shelf beside its circuits as pedals of their own, the whole
+        // Fragor (three slots) is named as the unit it is, not as its first circuit.
+        let (name, what) = if *kind == EffectKind::Pedal {
+            (
+                Src::Key("picker.dev.fragor.name"),
+                Src::Key("picker.dev.fragor.what"),
+            )
+        } else {
+            names_of(&spec)
+        };
         let ny = pr.bottom() + 12.0 * k;
         ktext::paint(
             b,
