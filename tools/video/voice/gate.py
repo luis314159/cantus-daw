@@ -42,6 +42,9 @@ SAME = {
         "42": "forty two", "11": "eleven", "cantus daw": "cantusdaw",
         "vst 3": "vst3", "vst three": "vst3", "v s t three": "vst3", "v s t 3": "vst3",
         "plugins": "plug ins", "f l studio": "fl studio", "modeled": "modelled",
+        # American English flaps the d: "modeled" and "mottled" are said alike, and Whisper
+        # writes the commoner word for both engines' takes
+        "mottled": "modelled",
     },
     "es": {
         "42": "cuarenta y dos", "11": "once", "cantus daw": "cantusdaw",
@@ -110,12 +113,13 @@ def true_peak_db(x, sr: int) -> float:
 
 
 def recheck(folder: Path) -> None:
-    """The head and fits rules applied again to measures already in gate.json."""
+    """The words, head and fits rules applied again to what gate.json already holds."""
     path = folder / "gate.json"
     rows = json.loads(path.read_text(encoding="utf-8"))
     for r in rows:
         meta = json.loads((folder / r["take"].replace(".wav", ".json")).read_text(encoding="utf-8"))
         r["checks"]["head"] = r["head_ms"] >= 10
+        r["checks"]["words"] = same_words(normal(meta["text"], meta["lang"]), normal(r["heard"], meta["lang"]))
         r["checks"]["fits"] = r["speech_s"] <= meta["window"] - 0.3
         r["pass"] = all(r["checks"].values())
     path.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")

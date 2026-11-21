@@ -231,6 +231,45 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
 - **Spanish pace:** 4.5–5.5 syllables a second on every line but 7, which is slower and
   is marked on the page. Nobody but the owner can judge the accent.
 
+## Step 2, ElevenLabs (2026-11-21)
+
+- **The owner's verdict:** Qwen sounds horrible and is dropped. He prefers Chatterbox's A
+  takes.
+- **His plan:** ElevenLabs Starter, 40 000 characters a month. The key stays in Windows
+  Credential Manager (`cantus-elevenlabs`) and is used only through `eleven-api.ps1`.
+- **The model:** `eleven_multilingual_v2`, which the API itself describes as best for
+  voice-overs. Output is WAV, 48 kHz, 16-bit, as the API gives it.
+- **Voices,** ElevenLabs library voices added to the account:
+
+  | Language | Voice | Id |
+  |---|---|---|
+  | English | Jon, Warm & Grounded Storyteller (American) | `MFZUKuGQUsGJPQjTS4wC` |
+  | English | Victoria, Warm, Trustworthy (American) | `qSeXEcewz7tA0Q0qk9fH` |
+  | Spanish | Alejandro, Expressive and Polished (Mexican narrator) | `NWqMOQLlMBaUbjKYdhbW` |
+  | Spanish | Gabriela, Warm, Rich and Balanced (Mexican, narrative) | `hHjbwzYZW17oh0p05AKv` |
+
+- **Takes:** 3 per line per voice, each with its own seed and settings (stability
+  0.45–0.65, speed 0.92–0.95).
+  - The names are spelled as they are said: Kantus, Korda, Timpanum.
+  - In Spanish, "ve ese te tres", as Latin America says the letters.
+- **Characters spent: 8 724**, by the ledger (`F:\projects\video-work\voice\eleven\ledger.json`).
+  The budget was 20 000.
+- **The English gate,** passed per line out of 3:
+
+  | Voice | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | Total |
+  |---|---|---|---|---|---|---|---|---|---|
+  | Jon | 2 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 23/24 |
+  | Victoria | 0 | 0 | 2 | 0 | 1 | 1 | 2 | 0 | 6/24 |
+
+  - Victoria's files start within 5–10 ms and often end loud (−14 to −30 dB): cut short,
+    by the gate's rules.
+  - Victoria said "Cantus" so that Whisper wrote "Countess" and "Contas" on line 8.
+  - Whisper hears "modeled" as "mottled" for every engine. In American English the two
+    are said alike, so the gate now takes "mottled" as the word.
+- **The Spanish gate** was stopped when C: fell to 4.7 GB, a fall that went on after my
+  processes ended. The page is English only for now:
+  `F:\projects\video-work\voice\ab-eleven.html`.
+
 ## Step 3, the film draft (2026-11-20; built by a builder agent, reviewed)
 
 - **The file:** `F:\projects\video-work\film\draft-1080p30.mp4`.
