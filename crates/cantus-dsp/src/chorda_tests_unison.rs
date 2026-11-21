@@ -83,9 +83,8 @@ pub struct KeyModes {
     pub alone: Vec<Vec<f64>>,
     /// The unison together, per partial.
     pub together: Vec<PartialModes>,
-    /// What the voice laid: each loop's detune (cents) and stiffness scatter.
+    /// What the voice laid: each loop's detune (cents).
     pub detune_ct: [f64; MAX_STRINGS],
-    pub eps: [f64; MAX_STRINGS],
 }
 
 impl KeyModes {
@@ -154,17 +153,6 @@ impl KeyModes {
     pub fn heard(&self, n: u32) -> Option<Beat> {
         most_heard_beat(self.partial(n)?, BEAT_SECONDS, FLOOR_DB, MIN_DEPTH_DB)
     }
-
-    /// The partial's level under the key's strongest partial (dB, ≤ 0).
-    pub fn below_top(&self, n: u32) -> f64 {
-        let top = self
-            .together
-            .iter()
-            .map(|p| p.peak_db)
-            .fold(f64::MIN, f64::max);
-        self.partial(n)
-            .map_or(f64::NEG_INFINITY, |p| p.peak_db - top)
-    }
 }
 
 /// Key `m` of `v` at `vel`: each loop alone and the unison together (its first
@@ -179,7 +167,7 @@ pub fn key_modes_to(v: &Voicing, m: u8, vel: f32, partials: u32) -> KeyModes {
     let curve_key = curve_of(v)[i];
     let curve: Vec<f64> = (1..=partials)
         .map(|n| curve_key.partial(n))
-        .take_while(|f| *f < 5_000.0 && *f < 0.45 * FS)
+        .take_while(|f| *f < 5_000.0)
         .collect();
     let curve = if curve.is_empty() {
         vec![curve_key.partial(1)]
@@ -220,7 +208,6 @@ pub fn key_modes_to(v: &Voicing, m: u8, vel: f32, partials: u32) -> KeyModes {
         alone,
         together,
         detune_ct: laid.detune_ct,
-        eps: laid.eps,
     }
 }
 
@@ -641,7 +628,8 @@ fn tune_listen() {
         .map(|s| s.split(',').filter_map(|x| x.trim().parse().ok()).collect())
         .unwrap_or_else(|| vec![48, 49, 50, 47, 64, 76]);
     let (pp, mf, ff) = (40.0 / 127.0, 75.0 / 127.0, 110.0 / 127.0);
-    let mut jobs: Vec<(String, Vec<(f64, f64, u8, f32)>, f64)> = Vec::new();
+    type Notes = Vec<(f64, f64, u8, f32)>;
+    let mut jobs: Vec<(String, Notes, f64)> = Vec::new();
     for &k in &keys {
         let name = key_name(k).replace('#', "s");
         jobs.push((
@@ -756,9 +744,6 @@ pub fn search_target() -> f64 {
 /// The gate: no audible beat on partials 1–3 swells and falls a whole time in the first five
 /// seconds — no beat faster than one every five seconds while it sounds.
 pub const BEAT_GATE_CYCLES: f64 = 1.0;
-
-/// The same bound as a rate (Hz): one beat in [`BEAT_SECONDS`].
-pub const BEAT_GATE_HZ: f64 = 1.0 / BEAT_SECONDS;
 
 /// Diagnostic, the technician's search (round 41): for each key of `CHORDA_TUNE_KEYS` with a
 /// unison, on `CHORDA_TUNE_SPEC` over the shipped voicing, the least `uni_tight` (0: the
@@ -1062,7 +1047,9 @@ fn unison_optimise() {
                     let i = (*m - tables::LOWEST) as usize;
                     let want = key_levels(shipped, *m);
                     let pairs: &[f32] = if tables::strings(*m) == 3 { &[0.0, 1.0] } else { &[0.0] };
-                    let mut best: Option<(f64, f32, f32, f32, f64, [f64; 3], f32)> = None;
+                    // (score, pair, scatter, width, swells, level changes, bridge share)
+                    type Pick = (f64, f32, f32, f32, f64, [f64; 3], f32);
+                    let mut best: Option<Pick> = None;
                     for &pair in pairs {
                         for (&b, &c) in UNI_B_TRIES
                             .iter()

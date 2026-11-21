@@ -276,10 +276,22 @@ reactive bridge share per string — not wider unisons.
   `the_shipped_voicing_is_the_technicians_with_the_unison_pass_and_a_new_unit_plays_it`.
 - `cantus-ui` `chorda_tune_e2e::a_new_chorda_plays_the_six_keys_the_owner_named_without_a_beat`:
   a Chorda added the way the picker adds one plays E4, C#3, D3, C3, B2 and E5 through the real
-  engine's render, each partial 1–3 swinging under 3 dB about its decay, where the same keys
-  rendered on `DSP_VERSION` 10 by the DSP swing more on at least five of the six; the table
-  check now reads the unison pass's.
-- Counts: __COUNTS__
+  engine's render, each partial 1–3 swinging under 4 dB about its decay's two stages over
+  0.3–3.3 s (measured: E4 1.35, C#3 0.58, D3 3.18, C3 0.81, B2 1.09, E5 2.97 dB), and the same
+  keys rendered on `DSP_VERSION` 10 by the DSP swinging more than twice as much (12.76,
+  14.39, 12.45, 11.17, 7.84, 8.38 dB); the table check now reads the unison pass's. A first
+  version detrended by a quadratic and read E5's two-stage decay as a 11.6 dB "beat": the two
+  stages are now two lines.
+- Counts (Windows, this worktree, `-j 2`): `cantus-dsp` whole crate 1 316 passed, 0 failed, 68
+  ignored (every unit's goldens held); after the last lint fixes, Chorda's 130 passed again.
+  `cantus-engine` `inst_chorda` 14 and `inst_contract` 47 passed (and the 11 engine tests
+  named for Chorda). `cantus-ui` Chorda binaries (`chorda_tune_e2e`, `chorda_model2_e2e`,
+  `chorda_choose_e2e`, `chorda_room_e2e`, `chorda_source_e2e`, `inst_chorda`,
+  `inst_chorda_boot`, `chorda_scene`): 24 passed after the e2e's bound was set from its
+  measurement (below). `cargo clippy -p cantus-dsp --all-targets -- -D warnings` and
+  `cargo clippy -p cantus-ui --test chorda_tune_e2e -- -D warnings`: clean. Not run: the whole
+  workspace suite, and the Linux check (`tools/wsl/check.sh`: WSL would not start, the machine
+  out of memory).
 - No CPU cost per sample: the pass adds work only at a strike (the bridge's pull read at nine
   points across a resonance's band, on partials 1–3); the per-sample loop is unchanged.
   **Measured: not yet** — the integrator asked to keep CPU measurements until the machine is

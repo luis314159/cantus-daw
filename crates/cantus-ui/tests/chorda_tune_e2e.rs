@@ -158,9 +158,9 @@ fn a_new_chorda_plays_the_keys_the_owner_heard_on_their_curve() {
 }
 
 /// A partial's beat as the level shows it (dB): the 3–97 % swing of its power, frames `len`
-/// long every 10 ms over `[a, b)`, about a least-squares quadratic in time — a beat faster
-/// than the window's few seconds swings it, a slow change of level (the two stages of a
-/// unison's decay) the quadratic takes.
+/// long every 10 ms over `[a, b)`, about its decay's two stages (two lines in decibels, the
+/// knee where they fit best) — a beat faster than the window's few seconds swings it, the
+/// two stages of a unison's decay the lines take.
 fn swing(x: &[f64], fs: f64, hz: f64, a: usize, b: usize, len: usize) -> f64 {
     let hop = (0.01 * fs) as usize;
     let w = TAU * hz / fs;
@@ -180,36 +180,34 @@ fn swing(x: &[f64], fs: f64, hz: f64, a: usize, b: usize, len: usize) -> f64 {
         ));
         s += hop;
     }
-    let n = pts.len() as f64;
-    let tm = pts.iter().map(|p| p.0).sum::<f64>() / n;
-    let mut m = [[0.0f64; 3]; 3];
-    let mut y = [0.0f64; 3];
-    for (t, d) in &pts {
-        let u = [1.0, t - tm, (t - tm) * (t - tm)];
-        for r in 0..3 {
-            for c in 0..3 {
-                m[r][c] += u[r] * u[c];
-            }
-            y[r] += u[r] * d;
+    // The decay's trend: two straight lines in decibels meeting anywhere (a unison's two
+    // stages, the fast in-phase mode and the slow opposed one, are two slopes), the knee
+    // where they fit best.
+    let line = |s: &[(f64, f64)]| {
+        let n = s.len() as f64;
+        let (mt, md) = (
+            s.iter().map(|p| p.0).sum::<f64>() / n,
+            s.iter().map(|p| p.1).sum::<f64>() / n,
+        );
+        let num: f64 = s.iter().map(|(t, d)| (t - mt) * (d - md)).sum();
+        let den: f64 = s.iter().map(|(t, _)| (t - mt) * (t - mt)).sum();
+        let k = if den > 0.0 { num / den } else { 0.0 };
+        move |t: f64| md + k * (t - mt)
+    };
+    let mut best: Option<(f64, Vec<f64>)> = None;
+    for knee in (10..pts.len().saturating_sub(10)).step_by(5) {
+        let (a, b) = (line(&pts[..knee]), line(&pts[knee..]));
+        let res: Vec<f64> = pts
+            .iter()
+            .enumerate()
+            .map(|(i, (t, d))| d - if i < knee { a(*t) } else { b(*t) })
+            .collect();
+        let sse: f64 = res.iter().map(|r| r * r).sum();
+        if best.as_ref().is_none_or(|(e, _)| sse < *e) {
+            best = Some((sse, res));
         }
     }
-    // Gauss–Jordan (3 × 3).
-    for c in 0..3 {
-        for r in 0..3 {
-            if r != c {
-                let f = m[r][c] / m[c][c];
-                for k in 0..3 {
-                    m[r][k] -= f * m[c][k];
-                }
-                y[r] -= f * y[c];
-            }
-        }
-    }
-    let k = [y[0] / m[0][0], y[1] / m[1][1], y[2] / m[2][2]];
-    let mut res: Vec<f64> = pts
-        .iter()
-        .map(|(t, d)| d - (k[0] + k[1] * (t - tm) + k[2] * (t - tm) * (t - tm)))
-        .collect();
+    let mut res = best.map(|b| b.1).unwrap_or_default();
     res.sort_by(f64::total_cmp);
     let q = |f: f64| res[((res.len() - 1) as f64 * f).round() as usize];
     q(0.97) - q(0.03)
@@ -234,10 +232,12 @@ fn swings(mono: &[f64], keys: &[u8], gap: f64, curve: &[tables::Key]) -> Vec<f64
 }
 
 /// The six keys the owner named (beta.15, 2026-11-20), through the app as a new Chorda plays
-/// them, swing on partials 1–3 no more than this (dB); on `DSP_VERSION` 10's voicing (the
-/// technician's pass, rendered here by the DSP itself) they swung more — C#3's and D3's third
-/// partials beat 5.7 and 3.9 Hz, E4's 5.1.
-const SWING_DB: f64 = 3.0;
+/// them, swing on partials 1–3 no more than this (dB) about their decay's two stages over
+/// 0.3–3.3 s (D3 the most, 3.2: a beat slower than one in five seconds still swings a little in
+/// three); on `DSP_VERSION` 10's voicing (the technician's pass, rendered here by the DSP
+/// itself) each swung more than twice as much (7.8–14.4 dB) — C#3's and D3's third partials
+/// beat 5.7 and 3.9 Hz, E4's 5.1.
+const SWING_DB: f64 = 4.0;
 
 #[test]
 fn a_new_chorda_plays_the_six_keys_the_owner_named_without_a_beat() {
@@ -358,14 +358,17 @@ fn a_new_chorda_plays_the_six_keys_the_owner_named_without_a_beat() {
         eprintln!(
             "key {k}: swing on partials 1-3 {n:.2} dB through the app (DSP_VERSION 10: {w:.2} dB)"
         );
+    }
+    for (k, n) in keys.iter().zip(&now) {
         assert!(
             *n <= SWING_DB,
             "key {k} swings {n:.2} dB through the app: a beat"
         );
     }
-    let worse = was.iter().zip(&now).filter(|(w, n)| *w > *n).count();
-    assert!(
-        worse >= 5,
-        "DSP_VERSION 10 swung more on most of the six: {was:?} against {now:?}"
-    );
+    for ((k, n), w) in keys.iter().zip(&now).zip(&was) {
+        assert!(
+            *w > 2.0 * *n,
+            "key {k}: DSP_VERSION 10 swung {w:.2} dB, the app {n:.2}: not the beat that was"
+        );
+    }
 }

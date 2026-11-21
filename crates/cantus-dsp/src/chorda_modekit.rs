@@ -162,10 +162,11 @@ pub fn hermitian_eigen(mut a: Vec<Vec<Cx>>) -> (Vec<f64>, Vec<Vec<Cx>>) {
                     row[p] = x.mul(gpp).add(y.mul(gqp));
                     row[q] = x.mul(gpq).add(y.mul(gqq));
                 }
-                for k in 0..n {
-                    let (x, y) = (a[p][k], a[q][k]);
-                    a[p][k] = gpp.conj().mul(x).add(gqp.conj().mul(y));
-                    a[q][k] = gpq.conj().mul(x).add(gqq.conj().mul(y));
+                let (head, tail) = a.split_at_mut(q);
+                for (xp, xq) in head[p].iter_mut().zip(tail[0].iter_mut()) {
+                    let (x, y) = (*xp, *xq);
+                    *xp = gpp.conj().mul(x).add(gqp.conj().mul(y));
+                    *xq = gpq.conj().mul(x).add(gqq.conj().mul(y));
                 }
                 a[p][q] = Cx::ZERO;
                 a[q][p] = Cx::ZERO;
@@ -206,9 +207,9 @@ pub fn solve(mut m: Vec<Vec<Cx>>, mut y: Vec<Cx>) -> Vec<Cx> {
             if f.norm2() == 0.0 {
                 continue;
             }
-            for k in c..n {
-                let t = m[c][k];
-                m[r][k] = m[r][k].sub(f.mul(t));
+            let (head, tail) = m.split_at_mut(r);
+            for (mr, mc) in tail[0][c..].iter_mut().zip(&head[c][c..]) {
+                *mr = mr.sub(f.mul(*mc));
             }
             let t = y[c];
             y[r] = y[r].sub(f.mul(t));
@@ -407,9 +408,8 @@ pub fn modes(y: &[Cx], k_max: usize, hop_s: f64, hz: f64) -> Vec<Mode> {
 #[derive(Clone, Debug)]
 pub struct PartialModes {
     pub n: u32,
-    /// Where it was heterodyned (Hz) and the fit's span (s from the strike).
+    /// Where it was heterodyned (Hz).
     pub near_hz: f64,
-    pub span: (f64, f64),
     /// Strongest first.
     pub modes: Vec<Mode>,
     /// Its peak level in the fit (dB, the baseband's scale).
@@ -417,13 +417,6 @@ pub struct PartialModes {
 }
 
 impl PartialModes {
-    /// The strongest mode's offset from `hz` (cents).
-    pub fn cents_of_strongest(&self, hz: f64) -> f64 {
-        self.modes
-            .first()
-            .map_or(f64::NAN, |m| 1_200.0 * math::log2(m.hz / hz))
-    }
-
     /// The modes' power-weighted mean frequency over the fit's first second (Hz) — the
     /// pitch a beating set gives the ear (`tunekit`'s measure, from the modes).
     pub fn mean_hz(&self) -> f64 {
@@ -479,13 +472,10 @@ pub fn analyse(
         if let Some(cut) = y.iter().rposition(|z| z.abs() > 3.16e-4 * peak) {
             y.truncate(cut + 1);
         }
-        let start = first.max(len / 2) as f64 / fs;
-        let span = (start, start + y.len() as f64 * HOP_S);
         let modes = modes(&y, k_max, HOP_S, hz);
         out.push(PartialModes {
             n: i as u32 + 1,
             near_hz: hz,
-            span,
             modes,
             peak_db: 20.0 * math::log10(peak),
         });
@@ -499,8 +489,6 @@ pub struct Beat {
     /// Its rate (Hz) and its deepest swing (dB, peak to trough) while audible.
     pub rate: f64,
     pub depth_db: f64,
-    /// The two modes (indices into the partial's modes).
-    pub pair: (usize, usize),
     /// How many whole swells the ear hears of it: its rate times the time it is audible.
     pub cycles: f64,
 }
@@ -549,7 +537,6 @@ pub fn fastest_beat(
                     best = Some(Beat {
                         rate,
                         depth_db: depth,
-                        pair: (i, j),
                         cycles: rate * heard as f64 * 0.02,
                     });
                 }
@@ -603,7 +590,6 @@ pub fn most_heard_beat(
                 best = Some(Beat {
                     rate,
                     depth_db: depth,
-                    pair: (i, j),
                     cycles,
                 });
             }
