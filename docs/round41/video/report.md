@@ -456,6 +456,40 @@ centring the block. It would be a small change to `cards.css` and a re-cut. Not 
   - The master stays at −14 LUFS / −1 dBTP.
 - **Draft 3** is being made by the film builder.
 
+## Draft 3 approved; the finished files prepared (2026-11-21)
+
+- **The owner approved draft 3:** "Los videos me gustan", both languages.
+- **Built:** `tools/video/final/` has `captions.py`, `build.sh` and `checks.py`. The README's
+  step 8 gives the commands.
+- **Held:** the 3840 × 2160 / 60 fps render waits while a two-hour test suite runs, so its
+  timing tests do not share the CPU.
+- **Made already** (light work), in `F:\projects\video-work\final\`:
+  - **Captions,** `cantus-en.srt` (14) and `cantus-es.srt` (15). The longest line is 41
+    characters, and each caption has at most two lines, placed on the speech's own timing.
+  - **Chapters** (each at least 10 s):
+
+    | Time | English | Spanish |
+    |---|---|---|
+    | 0:00 | Cantus | Cantus |
+    | 0:14 | Instruments: Chorda and Tympanum | Instrumentos: Chorda y Tympanum |
+    | 0:31 | The mixer and 42 effects | La consola y 42 efectos |
+    | 0:44 | Record, play live, master | Graba, toca en vivo, masteriza |
+    | 1:00 | Free, for everyone | Gratis, para todos |
+
+  - **The poster:** the title card fully drawn, at 3.5 s, the same in both languages. Chosen
+    from four candidates that were looked at.
+  - **The burned captions' style:** Barlow Semi Condensed on a translucent slate box. The
+    vertical layout uses the frame's middle three quarters over the frame blurred. Both were
+    looked at on single frames of draft 3.
+- **`checks.py` on draft 3's data:**
+  - **Sync:** the three marks are within a frame. The picture and the sound differ by 14 ms
+    at s7 and s8, and the measured lag is 0 ms (0.5 ms at Spanish s8).
+  - **The carve:** every line is ≥ 10.0 dB over the music. The tightest is English line 4,
+    at 10.0 dB.
+  - **The captions:** pass.
+- **Chosen without the owner, open to his change:** the loop's 18 s (0:31–0:49, the mixer)
+  and the vertical's first 30 s.
+
 ## What nobody has watched or heard yet
 
 Nobody has heard draft 2's mix. The ducking and the crossfade are measured only. The owner
