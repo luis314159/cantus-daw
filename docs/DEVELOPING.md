@@ -107,6 +107,23 @@ The tools that run and check it (`tools/test/`, `tools/release/`):
   cantus-daw. `set` checks that GitHub then holds the file to the byte, and refuses a text
   that quotes the RVR1960 (public text carries the RV1909). Editing a release only with the
   owner's OK.
+- `pwsh tools/release/gh-api.ps1 GET|POST|PATCH <path> [body] [-OutFile f]`: GitHub's API
+  for cantus-daw with the token from Windows Credential Manager (target `cantus-daw-github`),
+  read at the moment of use and never printed: runs, jobs, logs, a rehearsal's dispatch
+  (`POST repos/luis314159/cantus-daw/actions/workflows/release.yml/dispatches '{"ref":"master"}'`).
+- `pwsh -NoProfile -File tools/release/watch-run.ps1 -RunId <id>`: a release or rehearsal
+  watched as its jobs finish, one poll every five minutes (L8); through a filter, use
+  `grep --line-buffered` (a buffered grep hid two finished jobs on 2026-11-21).
+- `python -I tools/test/timing_tests.py crates/<crate>/src`: the crate's non-ignored tests
+  that time something (L3: each must take the binary's turn, `crate::timing_turn` in
+  cantus-dsp).
+- `python -I tools/merge/keep_both.py <files>`: an integrator's additive conflicts resolved
+  by keeping both sides (ours, then theirs), CRLF kept; refuses a diff3 base. Check the seam
+  after (a blank line between two added sections).
+- `bash tools/wsl/guarded.sh <ref> clippy|test [floor-GB]`: `check.sh` in WSL, shut down if
+  C: falls under the floor (WSL's memory grows Windows' paging file on C:).
+  `bash tools/wsl/list-clones.sh` and `tools/wsl/prune-clones.sh` (run inside WSL): the old
+  CI clones' sizes, and their removal (a clone with uncommitted changes is kept).
 
 On a Windows set to another language, building the plug-ins' library prints `warning:
 linker stdout: Creando biblioteca … .dll.lib` (`linker_messages`): rustc hides MSVC's
