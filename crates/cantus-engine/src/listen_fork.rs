@@ -319,7 +319,12 @@ impl Processor {
             I::Bass => 400.0,
             I::Dancer => 2.0, // r35:dancer — its numbers and a matrix, no voices
             I::AcousticDrums => 2.0, // r40:p3 — the stub; tymp-engine measures the real unit
-            I::Resonator => 2.0, // r41:contract — the stub; the fides builder measures the real unit
+            // r41:fix-fides — a fork of the real unit counted by the allocator: 1 347 KB at
+            // 48 kHz (36 voices, each two waveguides' lines sized for 20 Hz — in proportion
+            // to the rate: 2 360 KB at 96 — and two 48-mode banks; the lanes; the body).
+            // A large unit's working-set figure is level with its count (Chorda 5 621
+            // counted, 5 150 here): `tests/fides_image.rs` holds it within 10 %.
+            I::Resonator => 1_400.0,
         };
         let n = &self.nodes;
         let lines: usize = (0..n.lines.len())

@@ -977,7 +977,13 @@ mod tests {
                 (e as f64 - base_est as f64) / 4e3
             );
         }
-        for k in InstrumentKind::ALL.iter() {
+        // The kinds not yet in `ALL` are measured too (Fides, round 41: its figure in
+        // `approx_bytes` comes from here before the owner's verdict lets it in).
+        let waiting = [InstrumentKind::Resonator];
+        let kinds = InstrumentKind::ALL
+            .iter()
+            .chain(waiting.iter().filter(|k| !InstrumentKind::ALL.contains(k)));
+        for k in kinds {
             let mut p = song();
             p.tracks[0].instrument = InstrumentSpec::Native(NativeSpec::new(*k));
             let (m, e) = image(&p);
