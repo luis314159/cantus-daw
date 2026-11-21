@@ -27,11 +27,15 @@ use std::collections::BTreeMap;
 /// Which theme the interface shows.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum Mode {
-    /// The default: Slate Lapis Night (ADR 0111, amended 2026-11-18).
-    #[default]
+    /// Slate Lapis Night unless the user chose another dark theme (ADR 0111, amended
+    /// 2026-11-18): the default until 2026-11-20.
     Dark,
     Light,
-    /// Dark or light, as the operating system is.
+    /// Dark or light, as the operating system is: **the default** (ADR 0111, amended
+    /// 2026-11-20 — light unless the system is dark, as the AppImage catalogue's review
+    /// asked and the owner accepted), Slate Lapis Paper on a light system and Slate Lapis
+    /// Night on a dark one.
+    #[default]
     System,
 }
 
@@ -101,16 +105,20 @@ pub const DEFAULT_DARK: &str = "slate_lapis_night";
 pub const DEFAULT_LIGHT: &str = "slate_lapis_paper";
 
 /// The file format [`Appearance`] writes. Version 3 (2026-11-18) records, per mode, whether
-/// the user ever chose its theme ([`Slot::follows_default`]).
-pub const VERSION: u32 = 3;
+/// the user ever chose its theme ([`Slot::follows_default`]); version 4 (2026-11-20) is the
+/// one whose default mode follows the system ([`Mode::System`]): a file before it that
+/// shows the old default, Dark, without a theme of the user's in either mode, follows the
+/// system from now on ([`Appearance::from_json`]).
+pub const VERSION: u32 = 4;
 
 /// The presets each version of the file shipped as the defaults of its modes (dark, light):
 /// what an untouched mode of a file of that version names. Version 2 is round 39's file
 /// (beta.14–15, Slate); a version-2 file of the releases before round 39 names their
 /// default (Cantus Night) and was kept as a choice when round 39 changed the default, as it
 /// is now. The last row is today's.
-pub const DEFAULTS_BY_VERSION: [(u32, &str, &str); 2] = [
+pub const DEFAULTS_BY_VERSION: [(u32, &str, &str); 3] = [
     (2, "slate_night", "slate_paper"),
+    (3, "slate_lapis_night", "slate_lapis_paper"),
     (VERSION, DEFAULT_DARK, DEFAULT_LIGHT),
 ];
 
@@ -507,6 +515,16 @@ impl Appearance {
                 slot.follows_default = never_chose;
             }
         }
+        // Before version 4 the default mode was Dark, and a file says nothing of whether the
+        // user picked it: a Dark with neither mode's theme ever chosen or changed is the old
+        // default, and follows the system as a fresh install does (ADR 0111, amended
+        // 2026-11-20). Light or System, or a theme chosen or changed in either mode, is a
+        // choice and stays.
+        let untouched = |s: &Slot| s.follows_default && s.is_pristine();
+        if version < 4 && self.mode == Mode::Dark && untouched(&self.dark) && untouched(&self.light)
+        {
+            self.mode = Mode::System;
+        }
         if version <= VERSION {
             self.version = VERSION;
         }
@@ -864,7 +882,8 @@ mod tests {
     #[test]
     fn a_fresh_install_shows_slate_lapis_and_an_old_choice_shows_its_theme() {
         let a = Appearance::default();
-        assert_eq!(a.mode, Mode::Dark);
+        // The mode follows the system (ADR 0111, amended 2026-11-20).
+        assert_eq!(a.mode, Mode::System);
         assert_eq!(a.dark.base, "preset:slate_lapis_night");
         assert_eq!(a.light.base, "preset:slate_lapis_paper");
         // A file a user saved before round 39 names a theme of rounds 24–38 (here round 24's
@@ -1050,6 +1069,53 @@ mod tests {
         assert_eq!(a, Appearance::default());
     }
 
+    #[test]
+    fn a_file_before_version_4_that_shows_the_old_default_follows_the_system() {
+        // ADR 0111, amendment of 2026-11-20: a fresh install follows the system.
+        assert_eq!(Appearance::default().mode, Mode::System);
+        assert_eq!(Mode::default(), Mode::System);
+        let fresh = Appearance::default();
+        assert_eq!(fresh.resolve(false).name, "Slate Lapis Paper");
+        assert_eq!(fresh.resolve(true).name, "Slate Lapis Night");
+
+        // A file of `version` in `mode`, its slots as `edit` leaves them.
+        let file = |version: u32, mode: Mode, edit: &dyn Fn(&mut Appearance)| {
+            let mut a = Appearance {
+                mode,
+                ..Default::default()
+            };
+            edit(&mut a);
+            let mut v = serde_json::to_value(&a).unwrap();
+            v["version"] = version.into();
+            Appearance::from_json(&v.to_string()).unwrap()
+        };
+        let none = |_: &mut Appearance| {};
+        // beta.15 (version 3): the old default, untouched — the system's now.
+        assert_eq!(file(3, Mode::Dark, &none).mode, Mode::System);
+        // A choice of mode stays.
+        assert_eq!(file(3, Mode::Light, &none).mode, Mode::Light);
+        assert_eq!(file(3, Mode::System, &none).mode, Mode::System);
+        // Dark with a theme picked for either mode, or a recolour on top, is a choice.
+        let picked = |a: &mut Appearance| a.assign(Mode::Light, "preset:slate_paper".into());
+        assert_eq!(file(3, Mode::Dark, &picked).mode, Mode::Dark);
+        let recoloured = |a: &mut Appearance| a.set_token(Mode::Dark, Tok::Cap, Color32::RED);
+        assert_eq!(file(3, Mode::Dark, &recoloured).mode, Mode::Dark);
+        // From version 4 the file's Dark is the user's.
+        assert_eq!(file(VERSION, Mode::Dark, &none).mode, Mode::Dark);
+        let back = Appearance::from_json(&Appearance::default().to_json()).unwrap();
+        assert_eq!(back, Appearance::default());
+        // beta.14–15 (version 2), untouched Slate and Dark: today's default pair, following
+        // the system.
+        let old = version_2(
+            Slot::preset("slate_night"),
+            Slot::preset("slate_paper"),
+            |v| v["mode"] = "Dark".into(),
+        );
+        let a = Appearance::from_json(&old).unwrap();
+        assert_eq!(a.mode, Mode::System);
+        assert_eq!(a.resolve(false).name, "Slate Lapis Paper");
+    }
+
     /// A file as beta.14–15 wrote it (version 2, no record of a choice), its modes naming
     /// `dark` and `light`, with `edit` applied to its value.
     fn version_2(dark: Slot, light: Slot, edit: impl FnOnce(&mut serde_json::Value)) -> String {
@@ -1078,7 +1144,7 @@ mod tests {
         // naming the default is no choice.
         let fresh = Appearance::default();
         assert_eq!(fresh.version, VERSION);
-        assert_eq!(VERSION, 3);
+        assert_eq!(VERSION, 4);
         assert!(fresh.dark.follows_default && fresh.light.follows_default);
         assert_eq!(fresh.resolve_mode(Mode::Dark), theme::default_theme());
         assert_eq!(

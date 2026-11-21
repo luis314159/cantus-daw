@@ -247,7 +247,9 @@ con el foco se ilumina); `Shift+F10` abre lo que abriría un clic derecho sobre 
 Guarda la forma de la ventana en *Ver ▸ Disposición ▸ Guardar disposición…*; la disposición se
 conserva entre sesiones.
 
-**El aspecto.** Cantus se dibuja por defecto en **Pizarra lapislázuli**: el espacio tranquilo de
+**El aspecto.** Cantus se dibuja por defecto en **Pizarra lapislázuli**, en la luz de tu sistema
+— **Papel** si es claro, **Noche** si es oscuro, hasta que elijas un modo en *Ajustes ▸
+Apariencia*. Noche es el espacio tranquilo de
 Pizarra, donde los paneles se separan por el tono y no por líneas, en un azul noche profundo;
 un solo acento lapislázuli significa *activado* o *elegido* y nada más, y el oro del logo marca
 el reloj, los números de las reglas, el cursor de reproducción y el bucle. Los colores de tus

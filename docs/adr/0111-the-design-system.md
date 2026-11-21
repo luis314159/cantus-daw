@@ -1,7 +1,7 @@
 # ADR 0111 — The design system: Slate by default, the families beside it
 
 **Status:** Accepted (round 39; drafted by builder *kit*, completed at the close-out from the
-owner's approvals and the builds) · **Date:** 2026-11-09, completed 2026-11-10, amended 2026-11-12 (§10) and 2026-11-18 (§11: Slate Lapis the default) · **Round:** 39 · **Extends:** ADR 0024 (the kit), ADR 0046
+owner's approvals and the builds) · **Date:** 2026-11-09, completed 2026-11-10, amended 2026-11-12 (§10), 2026-11-18 (§11: Slate Lapis the default) and 2026-11-20 (§12: the mode follows the system) · **Round:** 39 · **Extends:** ADR 0024 (the kit), ADR 0046
 (the theme family), ADR 0103 (materials) · **Supersedes:** ADR 0046 §1–2 (the default and the
 shipped list) · **Schema:** none (the project model is untouched; a theme file gains an
 optional `system` with a serde default) · **Measured by:** ADR 0108
@@ -572,6 +572,32 @@ changes.
   already name Slate Lapis, for the pictures the reshoot makes. The *Try it* pictures (`render_tryit`,
   `web/tools/tryit_pictures.py`) are not made by reshoot.sh and still name Slate Night and Paper.
 
+### 12. Amendment, 2026-11-20: a fresh install follows the system
+
+The AppImage catalogue's review of Cantus (AppImage/appimage.github.io, PR 12206) asked for a
+light look by default, dark only when the system is dark; the owner accepted it (*"Sí, vamos
+a hacerle caso"*). The themes do not change — Slate Lapis Paper and Slate Lapis Night are the
+pair (§11) — only the mode a fresh install starts in.
+
+- **The default mode** is *Follow the system* (`kit::appearance::Mode::System`, the enum's
+  default): Slate Lapis Paper on a light system, Slate Lapis Night on a dark one, and a
+  system that says nothing (`egui::Context::system_theme` is `None`) counts as light. While
+  the program runs it follows the system's changes (`CantusApp::poll_appearance`, as before
+  for a user who had picked the mode). Following the system writes nothing.
+- **A user's mode is kept.** Night, Paper or the system picked on Settings ▸ Appearance or
+  the appearance editor is written and stays, whatever the system does.
+- **Old files.** `appearance.json` goes to **version 4**. Until now the default mode was Dark,
+  and a file does not say whether its user picked it. A file before version 4 whose mode is
+  Dark and whose two modes never chose a theme and are untouched (§11's test: no theme picked,
+  no recolour, knob or form) is the old default, and follows the system from now on — the
+  same rule §11 applied to the themes. Light, System, or Dark with a theme picked or changed
+  in either mode is a choice and stays. The one case no file can tell apart: a user who
+  clicked Dark while it was already the default reads as never having chosen; one click on
+  Night brings it back, and from then on it stays. The file is not rewritten when it is read.
+- **What did not change.** The splash keeps its own look, Slate Lapis Night, on either system
+  (it is drawn before the appearance is read); every theme's tokens; the screenshots, which
+  set their mode explicitly.
+
 ## Consequences
 
 - Every view inherits the family's colours, face, keys and wells from the kit; views that
@@ -590,7 +616,15 @@ changes.
   (the retirement reversed; an old `theme.json` that is exactly an old preset opens in it).
 - `kit::appearance::tests::a_mode_that_never_chose_its_theme_shows_today_s_default_and_a_choice_stays`
   (§11: version-2 files' untouched Slate opens in Slate Lapis, every other value is kept;
-  version 3 records a choice, Slate Night picked stays; a hand-edited base is a choice).
+  version 3 records a choice, Slate Night picked stays; a hand-edited base is a choice;
+  §12: version 4, its default mode the system's).
+- `kit::appearance::tests::a_file_before_version_4_that_shows_the_old_default_follows_the_system`
+  (§12: an untouched Dark follows the system; Light, System, a picked or recoloured theme stay).
+- `tests/theme_follows_os_e2e.rs` — §12 through `assemble`: a fresh install on a light system
+  opens in Slate Lapis Paper, on a dark one in Slate Lapis Night, on a silent one in the
+  light, and follows the system as it changes, writing nothing; Night clicked on Settings ▸
+  Appearance on a light system is written and survives a restart; a beta.15 file of the old
+  untouched Dark follows the system and is not rewritten; one whose user chose Light stays.
 - `tests/themes39.rs` — every redrawn and new theme keeps every promise as written and
   resolves to its tokens; is of round 39's system (recessed, a round-39 face, flat); stands on
   Slate's ladder in its light; the restored keep their light and id, the FL pair is renamed,
@@ -613,7 +647,7 @@ changes.
 - `tests/slate_budget.rs` — ADR 0108's budget.
 - `kit::icons::tests` — every family glyph drawn at every size, its inks all named, inked.
 - `tests/slate_lapis_e2e.rs` — Slate Lapis, the default (§11), through `assemble` on a fresh
-  data folder: its night-blue room, accent, tint and gold installed, its tile first on
+  data folder on a dark system (§12): its night-blue room, accent, tint and gold installed, its tile first on
   Settings ▸ Appearance, the chosen page's row laid with the lapis, the playhead and the
   ruler's numbers painted in the gold; Slate chosen on its tile installs Slate's tokens (all
   three clear) and is kept across a restart; a beta.14–15 file of untouched Slate opens in
