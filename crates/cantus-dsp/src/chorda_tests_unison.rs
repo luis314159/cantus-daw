@@ -162,7 +162,8 @@ impl KeyModes {
             .iter()
             .map(|p| p.peak_db)
             .fold(f64::MIN, f64::max);
-        self.partial(n).map_or(f64::NEG_INFINITY, |p| p.peak_db - top)
+        self.partial(n)
+            .map_or(f64::NEG_INFINITY, |p| p.peak_db - top)
     }
 }
 
@@ -680,7 +681,10 @@ fn tune_listen() {
                 let pair = [play(before, notes, *tail), play(after, notes, *tail)];
                 for ((l, r), which) in pair.iter().zip(["before", "after"]) {
                     let peak = l.iter().chain(r).fold(0.0f32, |m, x| m.max(x.abs()));
-                    eprintln!("{name}-{which}: peak {peak:.3}, rms {:.1} dBFS", rms_db(l, r));
+                    eprintln!(
+                        "{name}-{which}: peak {peak:.3}, rms {:.1} dBFS",
+                        rms_db(l, r)
+                    );
                     write_wav(&dir.join(format!("{name}-{which}.wav")), l, r);
                 }
                 // The blind test's copies: both at one RMS (−24 dBFS, lowered together if a
@@ -696,8 +700,10 @@ fn tune_listen() {
                     .fold(0.0f64, f64::max);
                 for (((l, r), g), which) in pair.iter().zip(&gains).zip(["before", "after"]) {
                     let k = crate::math::powf(10.0f64, (g - over) / 20.0) as f32;
-                    let (l, r): (Vec<f32>, Vec<f32>) =
-                        (l.iter().map(|x| x * k).collect(), r.iter().map(|x| x * k).collect());
+                    let (l, r): (Vec<f32>, Vec<f32>) = (
+                        l.iter().map(|x| x * k).collect(),
+                        r.iter().map(|x| x * k).collect(),
+                    );
                     write_wav(&abx.join(format!("{name}-{which}.wav")), &l, &r);
                 }
             });
@@ -860,7 +866,10 @@ fn unison_retable() {
             next[i] = ((now as f64 - step) * 100.0).round() as f32 / 100.0;
         }
         eprintln!("round {r}: worst {worst:.2} cents");
-        prev = m.iter().map(|(k, t)| (v.tune[(*k - tables::LOWEST) as usize], t.pitch)).collect();
+        prev = m
+            .iter()
+            .map(|(k, t)| (v.tune[(*k - tables::LOWEST) as usize], t.pitch))
+            .collect();
         v.tune = next;
     }
     let m = map(&v, &keys, 0.6, threads());
@@ -872,7 +881,12 @@ fn unison_retable() {
         .enumerate()
         .map(|(c, ch)| {
             let vals: Vec<String> = ch.iter().map(|x| format!("{x:.2}")).collect();
-            format!("    {}, // {}–{}", vals.join(", "), 21 + c * 8, 21 + c * 8 + ch.len() - 1)
+            format!(
+                "    {}, // {}–{}",
+                vals.join(", "),
+                21 + c * 8,
+                21 + c * 8 + ch.len() - 1
+            )
         })
         .collect();
     eprintln!("TABLE\n{}", rows.join("\n"));

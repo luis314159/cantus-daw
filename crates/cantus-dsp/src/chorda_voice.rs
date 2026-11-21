@@ -803,8 +803,11 @@ impl Voice {
                     *p = (w, design.group_delay(w), ear_weight(&key, k as u32 + 1));
                     np += 1;
                 }
-                self.strings
-                    .set_bridge_tuned(&parts[..np], settings.bridge_pull, settings.bridge_pull_hz);
+                self.strings.set_bridge_tuned(
+                    &parts[..np],
+                    settings.bridge_pull,
+                    settings.bridge_pull_hz,
+                );
             }
         }
         let soft = (soft * settings.una_depth).clamp(0.0, 1.0);

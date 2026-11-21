@@ -174,7 +174,10 @@ fn swing(x: &[f64], fs: f64, hz: f64, a: usize, b: usize, len: usize) -> f64 {
             re += x[s + i] * hann * ph.cos();
             im -= x[s + i] * hann * ph.sin();
         }
-        pts.push(((s - a) as f64 / fs, 10.0 * (re * re + im * im + 1e-30).log10()));
+        pts.push((
+            (s - a) as f64 / fs,
+            10.0 * (re * re + im * im + 1e-30).log10(),
+        ));
         s += hop;
     }
     let n = pts.len() as f64;
@@ -355,7 +358,10 @@ fn a_new_chorda_plays_the_six_keys_the_owner_named_without_a_beat() {
         eprintln!(
             "key {k}: swing on partials 1-3 {n:.2} dB through the app (DSP_VERSION 10: {w:.2} dB)"
         );
-        assert!(*n <= SWING_DB, "key {k} swings {n:.2} dB through the app: a beat");
+        assert!(
+            *n <= SWING_DB,
+            "key {k} swings {n:.2} dB through the app: a beat"
+        );
     }
     let worse = was.iter().zip(&now).filter(|(w, n)| *w > *n).count();
     assert!(

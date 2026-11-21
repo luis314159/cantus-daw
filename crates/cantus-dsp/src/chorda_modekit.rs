@@ -117,9 +117,18 @@ pub fn baseband(x: &[f64], fs: f64, hz: f64, len: usize, hop: usize, first: usiz
 pub fn hermitian_eigen(mut a: Vec<Vec<Cx>>) -> (Vec<f64>, Vec<Vec<Cx>>) {
     let n = a.len();
     let mut v: Vec<Vec<Cx>> = (0..n)
-        .map(|i| (0..n).map(|j| if i == j { Cx::ONE } else { Cx::ZERO }).collect())
+        .map(|i| {
+            (0..n)
+                .map(|j| if i == j { Cx::ONE } else { Cx::ZERO })
+                .collect()
+        })
         .collect();
-    let total: f64 = a.iter().flatten().map(|z| z.norm2()).sum::<f64>().max(1e-300);
+    let total: f64 = a
+        .iter()
+        .flatten()
+        .map(|z| z.norm2())
+        .sum::<f64>()
+        .max(1e-300);
     for _sweep in 0..60 {
         let off: f64 = (0..n)
             .flat_map(|i| (0..n).filter(move |j| *j != i).map(move |j| (i, j)))
@@ -518,7 +527,11 @@ pub fn fastest_beat(
             let mut heard = 0usize;
             for s in 0..=steps {
                 let t = s as f64 * 0.02;
-                let whole: f64 = p.modes.iter().map(|m| lin(2.0 * m.level_db(t))).sum::<f64>();
+                let whole: f64 = p
+                    .modes
+                    .iter()
+                    .map(|m| lin(2.0 * m.level_db(t)))
+                    .sum::<f64>();
                 let whole = whole.sqrt();
                 if 20.0 * math::log10(whole.max(1e-300)) < p.peak_db - floor_db {
                     continue;
@@ -565,7 +578,11 @@ pub fn most_heard_beat(
             let (mut depth, mut heard) = (f64::NEG_INFINITY, 0usize);
             for s in 0..=steps {
                 let t = s as f64 * 0.02;
-                let whole: f64 = p.modes.iter().map(|m| lin(2.0 * m.level_db(t))).sum::<f64>();
+                let whole: f64 = p
+                    .modes
+                    .iter()
+                    .map(|m| lin(2.0 * m.level_db(t)))
+                    .sum::<f64>();
                 let whole = whole.sqrt();
                 if 20.0 * math::log10(whole.max(1e-300)) < p.peak_db - floor_db {
                     continue;

@@ -375,7 +375,9 @@ fn the_shipped_voicing_is_the_technicians_with_the_unison_pass_and_a_new_unit_pl
 fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
     let (l, r) = perform(&mut shipped_piano(), &phrase(), 24_000, 256, 1);
     let h = hash(&l, &r);
-    eprintln!("model 2 (shipped voicing, the technician's + the unison pass) phrase hash: {h:#018x}");
+    eprintln!(
+        "model 2 (shipped voicing, the technician's + the unison pass) phrase hash: {h:#018x}"
+    );
     assert!(l.iter().chain(&r).any(|x| *x != 0.0));
     if std::env::var_os("CANTUS_GOLDEN_DUMP").is_some() {
         // The size of the change from the technician's pass (`DSP_VERSION` 10 → 11).
