@@ -286,44 +286,54 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
 - **The page, both languages:** `F:\projects\video-work\voice\ab-eleven.html`, 60 takes.
   Every audio link resolves, and a headless screenshot was looked at.
 
-## Step 2, decided: the narration is Chatterbox's A takes (the owner, 2026-11-21)
+## Step 2, decided: the narration is ElevenLabs, Jon and Alejandro (the owner, 2026-11-21)
 
-- **What he heard:** he listened to `ab-eleven.html` and preferred the Chatterbox A take
-  over Jon, Victoria and Alejandro on every line. He dislikes Gabriela.
-- **The decision:** the narration is the Chatterbox A takes of `ab.html`, in English and
-  Spanish. They are Chatterbox Multilingual's stock voice, round 2, with their own pauses
-  lengthened by `breathe.py`.
-- **No more ElevenLabs calls.** 8 724 characters of 40 000 were spent.
-- **The film's voice track** is `F:\projects\video-work\voice\chosen\{en,es}\`. It holds
-  `01.wav`–`08.wav` and `chosen.json`, made by `tools/video/voice/choose.py`. The script
-  takes `abpage.best_two(...)[0]` for each line; `--pick <line>=<take>` overrides one.
-  - Each line's entry gives its source take, its text, where the line starts in the cut, its
-    window, where its speech begins inside the file, its length and its pace.
-  - Checked against `ab.html`'s first take in every section: all 16 are the takes the owner
-    heard as A.
-  - Every line fits its window. The longest are English line 4 (8.38 s of 13.5) and
-    Spanish line 4 (10.42 s of 13.5).
-  - **The chosen takes:**
+- **The decision:** the owner likes the first take of each ElevenLabs voice on
+  `ab-eleven.html`, except Gabriela's. He finds ElevenLabs better throughout.
+  - English is **Jon** (`MFZUKuGQUsGJPQjTS4wC`).
+  - Spanish is **Alejandro** (`NWqMOQLlMBaUbjKYdhbW`, a Mexican narrator).
+  - Each line uses that voice's first take as the page shows it: its passing take nearest
+    a calm pace.
+  - The model is `eleven_multilingual_v2`; the audio is WAV, 48 kHz, 16-bit, as the API
+    gives it.
+- ~~The narration is Chatterbox's A takes~~: struck. The integrator misread the owner, and
+  Chatterbox is out.
+- **No more ElevenLabs calls.** 8 724 characters of 40 000 were spent. No chosen line needed
+  a new take.
+- **The voice track:** `F:\projectsideo-workoice\chosen\{en,es}\`, holding `01.wav`–`08.wav`
+  and `chosen.json`.
+  - It is made by `tools/video/voice/choose.py --voice jon` (`alejandro`). The script takes the
+    first take `compare.py` shows for that voice; `--pick <line>=<take>` overrides one line.
+  - The manifest gives, per line: the source take, the text, the line's start and window,
+    where the speech begins, its length, its pace, what Whisper heard, and the voice and its id.
+  - Checked against `ab-eleven.html`: in every section, the first Jon or Alejandro take on
+    the page is the one chosen, 16 of 16.
+- **The chosen takes:**
 
-    | Line | English | Spanish |
-    |---|---|---|
-    | 1 | r2-01-6 | r2-01-4 |
-    | 2 | r2-02-1 | r2-02-2 |
-    | 3 | r2-03-2 | r2-03-2 |
-    | 4 | r2-04-3 | r2-04-3 |
-    | 5 | r3-05-1 | r2-05-5 |
-    | 6 | r2-06-5 | r2-06-2 |
-    | 7 | r2-07-4 | r2-07-4 |
-    | 8 | r2-08-3 | r2-08-2 |
+  | Line | English (Jon) | Speech / window | Spanish (Alejandro) | Speech / window |
+  |---|---|---|---|---|
+  | 1 | jon-01-2 | 5.78 / 8.0 s | alejandro-01-1 | 7.15 / 8.0 s |
+  | 2 | jon-02-2 | 8.68 / 10.0 s | alejandro-02-1 | 8.61 / 10.0 s |
+  | 3 | jon-03-1 | 4.75 / 7.0 s | alejandro-03-2 | 5.25 / 7.0 s |
+  | 4 | jon-04-2 | 9.26 / 13.5 s | alejandro-04-1 | 12.57 / 13.5 s |
+  | 5 | jon-05-2 | 5.84 / 7.5 s | alejandro-05-1 | 5.94 / 7.5 s |
+  | 6 | jon-06-3 | 1.98 / 8.0 s | alejandro-06-1 | 3.52 / 8.0 s |
+  | 7 | jon-07-3 | 3.15 / 8.0 s | alejandro-07-2 | 4.27 / 8.0 s |
+  | 8 | jon-08-3 | 3.01 / 12.0 s | alejandro-08-1 | 4.00 / 12.0 s |
 
-- **For the owner's ear:** these takes were made before the names' spoken spellings
-  existed. The model was given "Chorda", "Cantus" and "Tympanum" as written, not "Korda",
-  "Kantus" and "Timpanum".
-  - If line 2 says "CHOR-da" rather than KOR-da, or line 1, 3 or 8 misses its name, the
-    line can be made again with Chatterbox on the same grid with the spoken spelling, once
-    the machine is free.
-  - That needs `takes.py --lines <n>`, then `breathe.py` and the gate. He would pick
-    between the old and new takes by ear.
+  Every line fits its window. The tightest are Spanish line 1 (0.85 s to spare) and
+  Spanish line 4 (0.93 s).
+- **The names, from Whisper's transcripts:**
+  - **Cantus:** heard as "Kantus" in English lines 1 and 8, and as "Cantus" in Spanish.
+    Both are the hard K.
+  - **Chorda:** heard as "Korda" in English line 2 and "Corda" in Spanish line 2. Both are
+    KOR-da, not CHOR-da.
+  - **Tympanum:** heard as "tympaneum" in English line 3 and "Timpanum" in Spanish line 3.
+    Both are TIM.
+  - **The address:** heard as "KANTUSDAO.com" and "cantusdau.com". "Daw" said as one word,
+    as written.
+  - No line was heard with a wrong name. Whisper's spelling is not the owner's ear, and he
+    listened to these takes on the page.
 
 ## Step 3, the film draft (2026-11-20; built by a builder agent, reviewed)
 
