@@ -979,9 +979,9 @@ mod tests {
                 (e as f64 - base_est as f64) / 4e3
             );
         }
-        // The kinds not yet in `ALL` are measured too (Fides, round 41: its figure in
-        // `approx_bytes` comes from here before the owner's verdict lets it in).
-        let waiting = [InstrumentKind::Resonator];
+        // The kinds not yet in `ALL` are measured too (a kind waiting for the owner's
+        // verdict has its figure in `approx_bytes` from here; Fides waited in round 41).
+        let waiting: [InstrumentKind; 0] = [];
         let kinds = InstrumentKind::ALL
             .iter()
             .chain(waiting.iter().filter(|k| !InstrumentKind::ALL.contains(k)));

@@ -772,7 +772,7 @@ pub fn instruments() -> Vec<(&'static str, InstrumentSpec)> {
             InstrumentKind::Dancer => "saltator",
             // r40: the acoustic drummer (in ALL since round 40's close).
             InstrumentKind::AcousticDrums => "tympanum",
-            // r41:contract — not in ALL until the fides builder makes it sound.
+            // r41:fides — the resonator (in ALL since the owner approved it, 2026-11-21).
             InstrumentKind::Resonator => "fides",
         };
         v.push((

@@ -20,8 +20,8 @@ use crate::model::TrackIcon;
 
 pub const NAME_KEY: &str = "instrument.fides";
 pub const ICON: TrackIcon = TrackIcon::Strings;
-/// Offered in the instrument picker once it is built (the `fides` builder sets it).
-pub const READY: bool = false;
+/// Offered in the instrument picker: the owner approved its sound (2026-11-21).
+pub const READY: bool = true;
 /// The model version stored with every new instance (ADR 0059's rule): an improved model
 /// is a new number, and a song keeps the one it was made with.
 pub const MODEL: f32 = 1.0;

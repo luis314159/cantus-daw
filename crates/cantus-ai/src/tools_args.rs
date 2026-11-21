@@ -429,6 +429,13 @@ pub const INSTRUMENTS: &[(&str, &str, InstrumentChoice, &str)] = &[
         InstrumentChoice::Native(InstrumentKind::AcousticDrums),
         "acoustic drummer: modelled kits with movable virtual microphones and recorded multi-mic kits, each mic its own output; pieces on General MIDI drum notes (kick 36, snare 38, closed hat 42…)",
     ),
+    // r41:fides — the resonator (ADR 0150).
+    (
+        "fides",
+        "Fides",
+        InstrumentChoice::Native(InstrumentKind::Resonator),
+        "resonator: an exciter (pluck, pick, bow, mallet, noise) into strings, bars, plates, membranes, bells, glass and tubes through a body — marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, bowed cello, struck glass",
+    ),
     (
         "dancer",
         "Saltator",
@@ -469,8 +476,7 @@ pub fn native_id(kind: InstrumentKind) -> &'static str {
         InstrumentKind::Chorda => "chorda",
         InstrumentKind::Dancer => "dancer",
         InstrumentKind::AcousticDrums => "tympanum",
-        // r41:contract — not in INSTRUMENTS until the fides builder makes it sound.
-        InstrumentKind::Resonator => "fides",
+        InstrumentKind::Resonator => "fides", // r41:fides
     }
 }
 

@@ -74,10 +74,9 @@ pub enum InstrumentKind {
     /// input) into strings, bars, plates, membranes and tubes with a body (round 41, ADR
     /// 0150; schema 78). // r41:contract
     ///
-    /// **Not in [`InstrumentKind::ALL`] yet**: every kind-wide test (the contract twins,
-    /// the null corpus and its hashes, the bench, the undo fuzz's draws) iterates `ALL`, and
-    /// a stub that makes no sound would fail them or move them. The `fides` builder adds it
-    /// to `ALL` in the commit that makes it sound, as Tympanum did.
+    /// In [`InstrumentKind::ALL`] (and so the picker) since the owner approved its sound
+    /// (2026-11-21, round 41): every kind-wide test (the contract twins, the null corpus
+    /// and its hashes, the bench, the undo fuzz's draws) iterates it.
     Resonator,
 }
 
@@ -100,7 +99,7 @@ macro_rules! dispatch {
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 10] = [
+    pub const ALL: [InstrumentKind; 11] = [
         InstrumentKind::Wavetable,
         InstrumentKind::Analog,
         InstrumentKind::Fm,
@@ -110,6 +109,7 @@ impl InstrumentKind {
         InstrumentKind::Organ,
         InstrumentKind::Chorda,
         InstrumentKind::AcousticDrums,
+        InstrumentKind::Resonator, // r41:fides — the owner's ear approved it (2026-11-21)
         InstrumentKind::Dancer,
     ];
 
