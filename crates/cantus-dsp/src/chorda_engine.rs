@@ -689,6 +689,10 @@ impl Chorda {
             let fade = self.voicing.unison_fade(k.key);
             v.uni_b =
                 self.voicing.uni_b * Voicing::bass_scale(k.key, self.voicing.uni_b_bass) * fade;
+            let bk = self.voicing.uni_b_keys[(k.key - LOWEST) as usize];
+            if bk != 1.0 {
+                v.uni_b *= bk as f64;
+            }
             v.uni_loss = if self.voicing.uni_loss_top != 0.0 {
                 // Round 41: the loss scatter kept where the other scatters fade.
                 self.voicing.uni_loss * (fade + (1.0 - fade) * self.voicing.uni_loss_top)
@@ -700,7 +704,7 @@ impl Chorda {
             v.bridge_tune = self.voicing.bridge_tune;
             v.bridge_pull = self.voicing.bridge_pull;
             v.bridge_pull_hz = self.voicing.bridge_pull_hz;
-            v.uni_pair = self.voicing.uni_pair;
+            v.uni_pair = self.voicing.uni_pair[(k.key - LOWEST) as usize] as f64;
             if self.voicing.uni_weight_low != 0.0 {
                 v.uni_weight = (v.uni_weight + self.voicing.uni_weight_low * fade).min(1.0);
             }

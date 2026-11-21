@@ -115,6 +115,22 @@ impl KeyModes {
         }
     }
 
+    /// The largest difference (cents) between two vertical strings alone at partial `n` (the
+    /// horizontal loop is the same wire's other polarisation, set its designed `polar_ct`
+    /// apart on purpose, and judged with the unison it rings in).
+    pub fn alone_spread_ct(&self, n: u32) -> f64 {
+        let cs: Vec<f64> = (0..self.vertical)
+            .map(|l| self.alone_cents(l, n))
+            .filter(|c| c.is_finite())
+            .collect();
+        if cs.len() < 2 {
+            return 0.0;
+        }
+        let lo = cs.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = cs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        hi - lo
+    }
+
     /// The unison's partial `n`.
     pub fn partial(&self, n: u32) -> Option<&PartialModes> {
         self.together.iter().find(|p| p.n == n)
@@ -150,11 +166,17 @@ impl KeyModes {
     }
 }
 
-/// Key `m` of `v` at `vel`: each loop alone and the unison together.
+/// Key `m` of `v` at `vel`: each loop alone and the unison together (its first
+/// [`PARTIALS`]).
 pub fn key_modes(v: &Voicing, m: u8, vel: f32) -> KeyModes {
+    key_modes_to(v, m, vel, PARTIALS)
+}
+
+/// [`key_modes`] on the unison's first `partials` only (the gates read 1–3).
+pub fn key_modes_to(v: &Voicing, m: u8, vel: f32, partials: u32) -> KeyModes {
     let i = (m - tables::LOWEST) as usize;
     let curve_key = curve_of(v)[i];
-    let curve: Vec<f64> = (1..=PARTIALS)
+    let curve: Vec<f64> = (1..=partials)
         .map(|n| curve_key.partial(n))
         .take_while(|f| *f < 5_000.0 && *f < 0.45 * FS)
         .collect();
@@ -203,6 +225,11 @@ pub fn key_modes(v: &Voicing, m: u8, vel: f32) -> KeyModes {
 
 /// Every key of `keys` at every velocity of [`VELOCITIES`], on `threads` threads, sorted.
 pub fn map_keys(v: &Voicing, keys: &[u8], threads: usize) -> Vec<KeyModes> {
+    map_keys_to(v, keys, threads, PARTIALS)
+}
+
+/// [`map_keys`] on the first `partials` only.
+pub fn map_keys_to(v: &Voicing, keys: &[u8], threads: usize, partials: u32) -> Vec<KeyModes> {
     let _ = keyboard_of(v);
     let jobs: Vec<(u8, f32)> = keys
         .iter()
@@ -214,7 +241,7 @@ pub fn map_keys(v: &Voicing, keys: &[u8], threads: usize) -> Vec<KeyModes> {
             let (out, jobs) = (&out, &jobs);
             s.spawn(move || {
                 for (m, x) in jobs.iter().skip(t).step_by(threads) {
-                    let r = key_modes(v, *m, *x);
+                    let r = key_modes_to(v, *m, *x, partials);
                     out.lock().unwrap().push(r);
                 }
             });
@@ -247,8 +274,19 @@ pub fn diag_voicing() -> Voicing {
     v
 }
 
+/// How many loops key `m` lays on `v`: its strings, and the horizontal loop on a key of one
+/// or two strings when model 2's polarisation is on.
+pub fn loops_of(v: &Voicing, m: u8) -> usize {
+    let n = tables::strings(m) as usize;
+    n + usize::from(v.polar != 0.0 && n < 3)
+}
+
+/// The threads a map runs on: `CHORDA_THREADS`, else the machine's (at most 16).
 pub fn threads() -> usize {
-    std::thread::available_parallelism().map_or(4, |n| n.get().min(16))
+    std::env::var("CHORDA_THREADS")
+        .ok()
+        .and_then(|x| x.parse().ok())
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |n| n.get().min(16)))
 }
 
 /// The kit itself on the real model: a key of one string and no horizontal loop rings one
@@ -520,12 +558,12 @@ pub fn key_levels(v: &Voicing, m: u8) -> [f64; 3] {
 }
 
 /// Diagnostic: each key of `CHORDA_TUNE_KEYS` — its level over the three windows of
-/// [`key_levels`] on the shipped voicing and on `CHORDA_TUNE_SPEC` over it, and the change
+/// [`key_levels`] on `DSP_VERSION` 10's voicing ([`Voicing::technician`]) and on `CHORDA_TUNE_SPEC` over the shipped one, and the change
 /// (dB). `CHORDA_TUNE_BASE` (a spec) sets the comparison's first voicing instead.
 #[test]
 #[ignore]
 fn unison_levels() {
-    let mut a = Voicing::default();
+    let mut a = Voicing::technician();
     if let Ok(spec) = std::env::var("CHORDA_TUNE_BASE") {
         assert!(a.apply(&spec), "a key of CHORDA_TUNE_BASE is not one");
     }
@@ -580,7 +618,7 @@ pub fn key_name(m: u8) -> String {
 /// and held 7 s, then at piano and at forte, 5 s each — and `<key>-phrase`: the key, its
 /// octave below, a chord holding it, a short line around it ending on it; and `six-keys`, the
 /// named keys one after another. Each rendered on the voicing before (`CHORDA_TUNE_BASE` over
-/// the shipped one; the shipped one if unset) and after (`CHORDA_TUNE_SPEC` over it), 24-bit,
+/// `DSP_VERSION` 10's, [`Voicing::technician`]) and after (`CHORDA_TUNE_SPEC` over it), 24-bit,
 /// as `-before.wav` / `-after.wav`. Run with
 /// `cargo test -p cantus-dsp --lib tune_listen -- --ignored --nocapture`.
 #[test]
@@ -592,7 +630,7 @@ fn tune_listen() {
     };
     let dir = std::path::PathBuf::from(out);
     std::fs::create_dir_all(&dir).unwrap();
-    let mut before = Voicing::default();
+    let mut before = Voicing::technician();
     if let Ok(spec) = std::env::var("CHORDA_TUNE_BASE") {
         assert!(before.apply(&spec), "a key of CHORDA_TUNE_BASE is not one");
     }
@@ -844,17 +882,32 @@ fn unison_retable() {
     eprintln!("SPEC {}", spec.join(","));
 }
 
-/// The least `uni_tight` for key `m` on `v` (bisection, eight steps) whose fastest audible
-/// beat on partials 1–3 over [`VELOCITIES`] is under [`search_target()`], and that beat.
+/// The most the loops of a unison, each alone, may stand apart on partials 1–3 (cents): a
+/// fraction of a cent, as a fine technician leaves a unison — 0.5 cent is a beat every 7 s
+/// at C4's fundamental, every 2.3 s at its third partial.
+pub const ALONE_SPREAD_CT: f64 = 0.5;
+
+/// The least `uni_tight` for key `m` on `v` (bisection, eight steps) whose unison, at every
+/// velocity of [`VELOCITIES`], the ear hears beat fewer than [`search_target()`] times on
+/// partials 1–3 and whose loops alone stand within [`ALONE_SPREAD_CT`] of each other there —
+/// and the swells heard (past the target when no width meets both).
 pub fn least_tight(v: &Voicing, m: u8) -> (f32, f64) {
     let i = (m - tables::LOWEST) as usize;
     let at = |x: f32| {
         let mut w = *v;
         w.uni_tight[i] = x;
-        VELOCITIES
+        let swells = VELOCITIES
             .iter()
             .map(|vel| together_beat(&w, m, *vel))
-            .fold(0.0f64, f64::max)
+            .fold(0.0f64, f64::max);
+        // The loops alone (their frequencies do not depend on the velocity).
+        let k = key_modes_to(&w, m, 0.6, 3);
+        let apart = (1..=3).map(|n| k.alone_spread_ct(n)).fold(0.0f64, f64::max);
+        if apart > ALONE_SPREAD_CT {
+            swells.max(search_target() + apart)
+        } else {
+            swells
+        }
     };
     let first = at(0.0);
     if first <= search_target() {
@@ -887,7 +940,7 @@ pub fn least_tight(v: &Voicing, m: u8) -> (f32, f64) {
 #[ignore]
 fn unison_voice_search() {
     let base = diag_voicing();
-    let shipped = Voicing::default();
+    let shipped = Voicing::technician();
     let keys: Vec<u8> = diag_keys()
         .into_iter()
         .filter(|m| tables::strings(*m) > 1)
@@ -952,4 +1005,224 @@ fn unison_voice_search() {
         .flat_map(|(m, c, t)| [format!("coupling.{m}={c}"), format!("uni_tight.{m}={t}")])
         .collect();
     eprintln!("SPEC {}", spec.join(","));
+}
+
+/// The stiffness scatter's scales the optimiser tries (against `uni_b`'s).
+pub const UNI_B_TRIES: [f32; 5] = [0.02, 0.05, 0.1, 0.2, 0.35];
+
+/// The bridge's shares of the strings' loss the optimiser tries (against the register's).
+pub const COUPLING_TRIES: [f32; 4] = [1.0, 0.6, 0.35, 0.2];
+
+/// Diagnostic, the technician's pass per key (round 41): for each key of `CHORDA_TUNE_KEYS`
+/// with a unison, on `CHORDA_TUNE_SPEC` over the shipped voicing, every way of laying it the
+/// pass knows — the fan or the pair (three strings), the stiffness scatter at each of
+/// [`UNI_B_TRIES`], the bridge's share of the strings' loss at each of [`COUPLING_TRIES`] (a
+/// unison tuned closer rings less of a detuned one's slow second stage; less of the loss
+/// through the bridge lets it sustain as it did) — each as wide as it can be without a beat the ear counts
+/// ([`least_tight`]), and the one that keeps the key's level over 0–0.5, 0.25–1.25 and
+/// 1.25–3.4 s ([`key_levels`]) closest to the shipped voicing's (the sum of the three
+/// changes' sizes, the attack's weighed double). Prints each key's choice and the spec.
+#[test]
+#[ignore]
+fn unison_optimise() {
+    let base = diag_voicing();
+    let shipped = Voicing::technician();
+    let keys: Vec<u8> = diag_keys()
+        .into_iter()
+        .filter(|m| loops_of(&base, *m) > 1)
+        .collect();
+    let out = Mutex::new(Vec::new());
+    let th = threads();
+    std::thread::scope(|s| {
+        for t in 0..th {
+            let (out, keys, base, shipped) = (&out, &keys, &base, &shipped);
+            s.spawn(move || {
+                for m in keys.iter().skip(t).step_by(th) {
+                    let i = (*m - tables::LOWEST) as usize;
+                    let want = key_levels(shipped, *m);
+                    let pairs: &[f32] = if tables::strings(*m) == 3 { &[0.0, 1.0] } else { &[0.0] };
+                    let mut best: Option<(f64, f32, f32, f32, f64, [f64; 3], f32)> = None;
+                    for &pair in pairs {
+                        for (&b, &c) in UNI_B_TRIES
+                            .iter()
+                            .flat_map(|b| COUPLING_TRIES.iter().map(move |c| (b, c)))
+                        {
+                            let mut v = *base;
+                            v.uni_pair[i] = pair;
+                            v.uni_b_keys[i] = b;
+                            v.couplings[i] = c;
+                            let (tight, swells) = least_tight(&v, *m);
+                            if swells > search_target() {
+                                continue;
+                            }
+                            v.uni_tight[i] = tight;
+                            let got = key_levels(&v, *m);
+                            let d = [got[0] - want[0], got[1] - want[1], got[2] - want[2]];
+                            let score = 2.0 * d[0].abs() + d[1].abs() + d[2].abs();
+                            if best.is_none_or(|x| score < x.0) {
+                                best = Some((score, pair, b, tight, swells, d, c));
+                            }
+                        }
+                    }
+                    if let Some((score, pair, b, tight, swells, d, c)) = best {
+                        eprintln!(
+                            "key {m}: pair {pair} uni_b x{b} coupling x{c} uni_tight {tight:.3} swells {swells:.2}; level {:+.2} {:+.2} {:+.2} dB (score {score:.2})",
+                            d[0], d[1], d[2]
+                        );
+                        out.lock().unwrap().push((*m, pair, b, tight, c));
+                    } else {
+                        eprintln!("key {m}: nothing under the target");
+                    }
+                }
+            });
+        }
+    });
+    let mut o = out.into_inner().unwrap();
+    o.sort_by_key(|e| e.0);
+    let spec: Vec<String> = o
+        .iter()
+        .flat_map(|(m, p, b, t, c)| {
+            let mut v = vec![format!("uni_b.{m}={b}"), format!("uni_tight.{m}={t}")];
+            if *p != 0.0 {
+                v.push(format!("uni_pair.{m}={p}"));
+            }
+            if *c != 1.0 {
+                v.push(format!("coupling.{m}={c}"));
+            }
+            v
+        })
+        .collect();
+    eprintln!("SPEC {}", spec.join(","));
+}
+
+/// The shipped voicing's every key A0–C8 at every velocity of [`VELOCITIES`], measured once
+/// for every gate here.
+fn shipped_modes() -> &'static [KeyModes] {
+    static M: std::sync::OnceLock<Vec<KeyModes>> = std::sync::OnceLock::new();
+    M.get_or_init(|| {
+        let keys: Vec<u8> = (tables::LOWEST..=tables::HIGHEST).collect();
+        map_keys_to(&Voicing::default(), &keys, threads(), 3)
+    })
+}
+
+/// The bound on a string alone's ear's pitch against the curve (cents): half a cent of its
+/// own (a beat every 7 s at C4's fundamental against a string on the curve, far under the
+/// ear's discrimination of a piano tone's pitch) and the quarter cent the table may leave
+/// between a string alone and the unison together (the in-phase mode's pull the bridge gives
+/// the unison and not the string alone, and the board's and the room's share of the whole
+/// key's measure).
+pub const ALONE_PITCH_CT: f64 = 0.75;
+
+/// Every unison is nearly beatless, as a fine technician leaves it: on partials 1–3, at
+/// any velocity, no audible beat swells and falls a whole time in its first five seconds
+/// ([`most_heard_beat`]) — no beat faster than one in five seconds while it sounds. The owner
+/// heard C#3's third partials beating 5.7 Hz, E4's 5.1 and D3's 3.9 as strings out of tune
+/// (beta.15).
+#[test]
+fn every_unison_is_beatless_on_its_first_three_partials() {
+    let mut worst = (0.0f64, 0.0f64, 0u8, 0u32, 0.0f32);
+    for k in shipped_modes() {
+        for n in 1..=3 {
+            let Some(b) = k.heard(n) else {
+                continue;
+            };
+            assert!(
+                b.cycles < BEAT_GATE_CYCLES,
+                "key {} ({}) at {}: partial {n} beats {:.3} Hz, {:.2} swells heard, {:.1} dB deep",
+                k.key,
+                key_name(k.key),
+                k.vel,
+                b.rate,
+                b.cycles,
+                b.depth_db
+            );
+            if b.cycles > worst.0 {
+                worst = (b.cycles, b.rate, k.key, n, k.vel);
+            }
+        }
+    }
+    eprintln!(
+        "most swells heard on partials 1-3: key {} p{} at {}: {:.2} ({:.3} Hz)",
+        worst.2, worst.3, worst.4, worst.0, worst.1
+    );
+}
+
+/// The strings of each unison, each alone (the others muted on the bridge), stand within a
+/// fraction of a cent of each other on partials 1–3 ([`ALONE_SPREAD_CT`]) — a technician
+/// tunes each string to the others by their beats.
+#[test]
+fn the_strings_of_each_unison_alone_agree_within_half_a_cent() {
+    let mut worst = (0.0f64, 0u8, 0u32);
+    for k in shipped_modes().iter().filter(|k| k.vertical > 1) {
+        for n in 1..=3u32 {
+            let d = k.alone_spread_ct(n);
+            assert!(
+                d <= ALONE_SPREAD_CT + 0.02,
+                "key {} ({}) at {}: its strings alone {d:.3} cents apart on partial {n}",
+                k.key,
+                key_name(k.key),
+                k.vel
+            );
+            if d > worst.0 {
+                worst = (d, k.key, n);
+            }
+        }
+    }
+    eprintln!(
+        "widest strings alone: key {} p{}: {:.3} cents",
+        worst.1, worst.2, worst.0
+    );
+}
+
+/// The ear's pitch (cents) of loop `l` of `k` alone: its partials 1–3 against the curve,
+/// weighed by a struck string's amplitude and the ear's dominance region
+/// ([`super::voice::ear_weight`]).
+pub fn alone_pitch(k: &KeyModes, curve: &tables::Key, l: usize) -> f64 {
+    let (mut sw, mut sc) = (0.0, 0.0);
+    for n in 1..=3u32 {
+        let c = k.alone_cents(l, n);
+        if c.is_finite() {
+            let w = super::voice::ear_weight(curve, n);
+            sw += w;
+            sc += w * c;
+        }
+    }
+    if sw > 0.0 {
+        sc / sw
+    } else {
+        f64::NAN
+    }
+}
+
+/// Each string alone sits on the key's designed pitch: its ear's pitch on partials 1–3
+/// within [`ALONE_PITCH_CT`] of the curve — the technician's table folded so that a string
+/// alone and the unison together (`tests_tune_gate`, the whole key through the instrument)
+/// both land.
+#[test]
+fn every_string_alone_sounds_its_keys_pitch() {
+    let curve = curve_of(&Voicing::default());
+    let mut worst = (0.0f64, 0u8, 0usize);
+    for k in shipped_modes() {
+        let key = curve[(k.key - tables::LOWEST) as usize];
+        for l in 0..k.vertical {
+            let p = alone_pitch(k, &key, l);
+            assert!(
+                p.abs() <= ALONE_PITCH_CT,
+                "key {} ({}) s{} at {}: alone {p:+.2} cents from its curve",
+                k.key,
+                key_name(k.key),
+                l + 1,
+                k.vel
+            );
+            if p.abs() > worst.0 {
+                worst = (p.abs(), k.key, l);
+            }
+        }
+    }
+    eprintln!(
+        "worst string alone off its key's pitch: key {} s{}: {:.2} cents",
+        worst.1,
+        worst.2 + 1,
+        worst.0
+    );
 }
