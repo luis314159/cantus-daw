@@ -5,7 +5,7 @@
 <h1 align="center">Cantus™</h1>
 
 <p align="center">
-  <b>A free, open-source digital audio workstation for Windows and Linux, in the spirit of FL Studio.</b><br>
+  <b>A free, open-source digital audio workstation for Windows, Linux and macOS (preview), in the spirit of FL Studio.</b><br>
   Eleven instruments and forty-two effects of its own, a mixer you wire with cables, a recording
   mode for low buffers — and an engine whose export is what you heard, to the bit.
 </p>
@@ -14,12 +14,12 @@
   <a href="https://github.com/luis314159/cantus-daw/releases/latest"><img src="https://img.shields.io/github/v/release/luis314159/cantus-daw?include_prereleases&label=release" alt="Latest release"></a>
   <a href="#licences"><img src="https://img.shields.io/badge/licence-GPL--3.0--or--later%20%2B%20MPL--2.0-blue" alt="Licence: application GPL-3.0-or-later, engine MPL-2.0"></a>
   <a href="https://github.com/luis314159/cantus-daw/actions/workflows/ci.yml"><img src="https://github.com/luis314159/cantus-daw/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI on Windows and Linux"></a>
-  <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-informational" alt="Platforms: Windows and Linux">
+  <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20preview-informational" alt="Platforms: Windows, Linux and macOS (preview)">
 </p>
 
 <p align="center">
   <a href="https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe"><img src="https://img.shields.io/badge/Download-Windows%20installer-1a2a66?style=for-the-badge" alt="Download the Windows installer"></a>
-  <a href="https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-linux-x86_64.AppImage"><img src="https://img.shields.io/badge/Download-Linux%20AppImage-1a2a66?style=for-the-badge" alt="Download the Linux AppImage"></a><br>
+  <a href="https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-x86_64.AppImage"><img src="https://img.shields.io/badge/Download-Linux%20AppImage-1a2a66?style=for-the-badge" alt="Download the Linux AppImage"></a><br>
   <sub>Free, no account. <a href="https://cantusdaw.com">cantusdaw.com</a> plays its instruments and effects in your browser ·
   <a href="docs/manual/en/README.md">Manual</a> · <a href="docs/manual/es/README.md">Manual en español</a> ·
   Created by <b>Luis Ángel Almazán</b> · <a href="https://lalmazan.com">lalmazan.com</a></sub>
@@ -53,8 +53,8 @@ with SHA-256 sums. **It is a beta: save often and keep backups of your projects.
 | System | File | |
 |---|---|---|
 | **Windows 11** (x64) | [`Cantus-windows-x64-setup.exe`](https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe) | installer, no administrator; a portable zip is on the releases page. WASAPI and ASIO. Not code-signed yet: SmartScreen asks once (*More info → Run anyway*) |
-| **Linux** (x86-64, Ubuntu 22.04 or newer, or alike) | [`Cantus-linux-x86_64.AppImage`](https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-linux-x86_64.AppImage) | one file for every distribution: `chmod +x` and open it; it updates itself. PipeWire, JACK and ALSA |
-| **macOS** (Apple silicon and Intel) | — | **in the next beta.** Betas 11 to 14 carried an unsigned preview; beta 15 was published for Windows and Linux only while a check that only the Mac's run caught is fixed |
+| **Linux** (x86-64, Ubuntu 22.04 or newer, or alike) | [`Cantus-x86_64.AppImage`](https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-x86_64.AppImage) | one file for every distribution: `chmod +x` and open it; it updates itself. PipeWire, JACK and ALSA |
+| **macOS 11** or newer (Apple silicon and Intel) — **preview** | [`Cantus-macos-universal.dmg`](https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-macos-universal.dmg) | one universal disk image, built and tested on GitHub's Macs but **not yet opened on a real Mac, and not signed**: the first time, macOS blocks it (*System Settings → Privacy & Security → Open Anyway*). Core Audio. [Tell us how it went](https://github.com/luis314159/cantus-daw/issues) |
 
 **On Windows 10?** Nobody has tried Cantus there yet. If you do,
 [tell us whether it runs](https://github.com/luis314159/cantus-daw/issues/new?template=hardware_report.yml&title=%5BWindows%2010%5D%20)
@@ -127,7 +127,7 @@ measured runs.
 | Private memory after start ¹ | 140 MB (empty) · 143 MB (*Beat*) — **lost** | **62 MB** | **133 MB** | not measured |
 | Price of the full edition ² | free | $60 discounted, $225 commercial | US$449 list (All Plugins) | binaries from $1, or $1–50 a month |
 | Source ² | open: GPL-3.0-or-later app, MPL-2.0 engine | proprietary | proprietary | open: GPL v2 |
-| Systems ² | Windows, Linux (macOS in the next beta) | Windows, macOS, Linux | Windows 10/11, macOS; no Linux | Windows, macOS, Linux |
+| Systems ² | Windows, Linux, macOS (preview) | Windows, macOS, Linux | Windows 10/11, macOS; no Linux | Windows, macOS, Linux |
 
 ¹ Same laptop (AMD Ryzen 7 7735HS, 31 GB, Windows 11, *High performance* plan, nothing else
 running), same script, five starts after a warm-up: Cantus 0.1.0-beta.14 on 2026-11-11,

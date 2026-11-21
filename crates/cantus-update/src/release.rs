@@ -55,12 +55,12 @@ pub fn dmg_name(version: &str) -> String {
 }
 
 /// The AppImage under the name that never changes (as [`STABLE_INSTALLER_NAME`]): what the
-/// website and the README link. Every release publishes it, the links already out there
-/// with it.
+/// website and the README linked until beta.16. Every release publishes it, the links
+/// already out there with it.
 pub const STABLE_APPIMAGE_NAME: &str = "Cantus-linux-x86_64.AppImage";
 /// The AppImage's stable name in the catalogue's naming, published beside
-/// [`STABLE_APPIMAGE_NAME`] since beta.16 (the same bytes). The site moves its links to it
-/// once a release carries it — before, `releases/latest/download/` would not find it.
+/// [`STABLE_APPIMAGE_NAME`] since beta.16 (the same bytes): what the website and the README
+/// link from beta.16 on.
 pub const CATALOGUE_STABLE_APPIMAGE_NAME: &str = "Cantus-x86_64.AppImage";
 /// The disk image under the name that never changes (as [`STABLE_INSTALLER_NAME`]).
 pub const STABLE_DMG_NAME: &str = "Cantus-macos-universal.dmg";

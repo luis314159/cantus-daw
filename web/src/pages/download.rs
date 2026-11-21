@@ -25,10 +25,20 @@ struct System {
     hash_cmd: &'static str,
 }
 
+impl System {
+    /// The name the downloaded file is saved under: the stable name `href` ends in, not the
+    /// versioned one (the same bytes) — the chmod and hash lines name the file the visitor has.
+    fn saved_as(&self) -> &'static str {
+        self.href.rsplit('/').next().unwrap_or("")
+    }
+}
+
 fn system(l: Lang, os: Os) -> System {
     match os {
         Os::Linux => System {
-            file: release::file("linux-x86_64.AppImage"),
+            // The versioned file in the catalogue's naming (beta.16 on), else the old one.
+            file: release::file(&format!("{}-x86_64.AppImage", release::REL_VERSION))
+                .or_else(|| release::file("linux-x86_64.AppImage")),
             href: DOWNLOAD_LINUX,
             cta: l.t("Download the AppImage", "Descargar el AppImage"),
             hash_cmd: "sha256sum",
@@ -129,7 +139,11 @@ pub fn download_page() -> Html {
         Some(f) => format!("{REL_VERSION} · {} · {REL_DATE}", megabytes(f.size)),
         None => format!("{REL_VERSION} · {REL_DATE}"),
     };
-    let file_name = sys.file.map(|f| f.name).unwrap_or("");
+    let file_name = if sys.file.is_some() {
+        sys.saved_as()
+    } else {
+        ""
+    };
     let cmd = if shown == Os::Windows {
         format!("{} .\\{file_name}", sys.hash_cmd)
     } else {
@@ -255,5 +269,36 @@ pub fn download_page() -> Html {
             </div>
         </section>
         </>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The chmod and hash lines name the file the button saves (r41: they named the versioned
+    /// file while the button saved the stable one — "No such file"), and the latest release
+    /// holds it under that name with the hash and size the page shows.
+    #[test]
+    fn each_systems_lines_name_the_file_its_button_saves_with_the_hash_shown() {
+        for os in [Os::Linux, Os::MacOs, Os::Windows] {
+            let s = system(Lang::En, os);
+            let Some(shown) = s.file else { continue };
+            let name = s.saved_as();
+            assert!(
+                name.starts_with("Cantus-") && !name.contains(REL_VERSION),
+                "{name}"
+            );
+            let saved = release::REL_FILES
+                .iter()
+                .find(|f| f.name == name)
+                .unwrap_or_else(|| panic!("the latest release has no {name}"));
+            assert_eq!(saved.sha256, shown.sha256, "{name}");
+            assert_eq!(saved.size, shown.size, "{name}");
+        }
+        assert_eq!(
+            system(Lang::En, Os::Linux).saved_as(),
+            "Cantus-x86_64.AppImage"
+        );
     }
 }

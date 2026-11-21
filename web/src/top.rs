@@ -17,13 +17,15 @@ pub const RELEASES: &str = "https://github.com/luis314159/cantus-daw/releases";
 pub const DOWNLOAD: &str =
     "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe";
 /// Linux's AppImage and the Mac's disk image, the same way (ADR 0067). The download card
-/// links them only when the latest release holds them (`shelf.rs`).
+/// links them only when the latest release holds them (`shelf.rs`). The AppImage under the
+/// AppImage catalogue's naming (beta.16 on, ADR 0067's amendment); every release still
+/// publishes it as `Cantus-linux-x86_64.AppImage` too, for the links already out there.
 pub const DOWNLOAD_LINUX: &str =
-    "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-linux-x86_64.AppImage";
+    "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-x86_64.AppImage";
 pub const DOWNLOAD_MACOS: &str =
     "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-macos-universal.dmg";
 /// The stable names those links end in, which the latest release's file list is searched for.
-pub const STABLE_APPIMAGE: &str = "Cantus-linux-x86_64.AppImage";
+pub const STABLE_APPIMAGE: &str = "Cantus-x86_64.AppImage";
 pub const STABLE_DMG: &str = "Cantus-macos-universal.dmg";
 /// The calm line beside every download button (round 41): what a beta means for your work.
 pub const BETA_NOTE: (&str, &str) = (
