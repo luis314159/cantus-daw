@@ -150,5 +150,9 @@ Also: `nitor_e2e.rs`'s unused `use std::sync::Arc` (a warning under CI's `-D war
 
 Run: core 933 pass (all of it, the undo fuzz included); DSP `nitor` 18 + `nitor_alloc` 1;
 engine `song_key` 4, `master_chain` 16, `fx_contract` 102; UI `freeze` 94, `ai_mcp_boot` 1,
-`stated_preset_counts` 1, `nitor_e2e` 1. Clippy `-D warnings` on cantus-core, -dsp, -engine,
--ai (all targets) and on cantus-ui's library and the touched test targets.
+`stated_preset_counts` 1, `nitor_e2e` 1. Clippy `-D warnings` clean on cantus-core, -dsp,
+-engine, -ai (all targets) and on cantus-ui's library and the touched test targets — with three
+lints allowed for the run, every hit of them Fides's (another session's files, left alone):
+`needless_range_loop` and `collapsible_if` in `cantus-dsp/src/fides_{body,modal}.rs` (five),
+`disallowed_methods` (`f32::log10`) in `cantus-engine/tests/inst_fides.rs:293`; none of the
+lines this branch adds uses a std transcendental.
