@@ -12,7 +12,8 @@ For each `<line>-<take>.wav` with its `.json` (from `takes.py`):
   lone float sample past 1.0 is an overshoot the mix's gain takes back, and is reported.
 - **DC:** the mean; at most 0.002 of full scale.
 - **Head and tail:** the silence before the first sample within 40 dB of the take's peak,
-  at least 10 ms (a longer lead is trimmed by the assembly); at the end, the last 20 ms at least 30 dB under the loudest (louder, a word was
+  at least 10 ms, or the first 10 ms quiet (30 dB under the loudest 20 ms: a lone early sample
+  is not a word cut at its start); a longer lead is trimmed by the assembly; at the end, the last 20 ms at least 30 dB under the loudest (louder, a word was
   cut off) and at most 700 ms of trailing sound.
 - **Fits:** the speech itself (head to tail) is at least 0.3 s shorter than the line's window.
 - **Pace, reported, not gated:** the words (English) or syllables (Spanish, `pace.py`'s
@@ -112,6 +113,21 @@ def edges(x, sr: int):
     return loud[0] / sr, (len(x) - 1 - loud[-1]) / sr
 
 
+def quiet_start(x, sr: int) -> bool:
+    """Whether the first 10 ms hold no speech: their RMS at least 30 dB under the take's
+    loudest 20 ms. A lone early sample over the head's -40 dB line (a breath's edge, the
+    encoder's first sample) then is not a word cut at its start."""
+    import numpy as np
+
+    hop = int(sr * 0.02)
+    n = len(x) // hop
+    if n == 0:
+        return False
+    loudest = float(np.sqrt(np.mean(x[: n * hop].reshape(n, hop) ** 2, axis=1)).max())
+    first = float(np.sqrt(np.mean(x[: int(sr * 0.01)] ** 2)))
+    return loudest > 0 and 20 * np.log10(max(first, 1e-12) / loudest) <= -30
+
+
 def true_peak_db(x, sr: int) -> float:
     import numpy as np
     from scipy.signal import resample_poly
@@ -127,10 +143,16 @@ def recheck(folder: Path) -> None:
     rows = json.loads(path.read_text(encoding="utf-8"))
     for r in rows:
         meta = json.loads((folder / r["take"].replace(".wav", ".json")).read_text(encoding="utf-8"))
-        r["checks"]["head"] = r["head_ms"] >= 10
+        x = None
+        if r["head_ms"] < 10 and (folder / r["take"]).exists():
+            import soundfile as sf
+
+            x, sr = sf.read(folder / r["take"], dtype="float32")
+            x = x.mean(axis=1) if x.ndim > 1 else x
+        r["checks"]["head"] = bool(r["head_ms"] >= 10 or (x is not None and quiet_start(x, sr)))
         r["checks"]["words"] = same_words(normal(meta["text"], meta["lang"]), normal(r["heard"], meta["lang"]))
         r["checks"]["fits"] = r["speech_s"] <= meta["window"] - 0.3
-        r["pass"] = all(r["checks"].values())
+        r["pass"] = bool(all(r["checks"].values()))
     path.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     print(path, sum(r["pass"] for r in rows), "of", len(rows), "pass")
 
@@ -202,7 +224,7 @@ def main() -> None:
             "dc": abs(dc) <= 0.002,
             # a long lead (Qwen's Base model leaves 0.4-0.9 s) is trimmed by the assembly; only
             # a head under 10 ms (a word clipped at its start) fails
-            "head": head >= 0.01,
+            "head": head >= 0.01 or quiet_start(x, sr),
             "tail": end_db <= -30 and tail <= 0.7,
             "fits": speech <= meta["window"] - 0.3,
             # each phrase's raw output ended in its decay, not on a sounding word
