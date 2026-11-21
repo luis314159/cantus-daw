@@ -178,7 +178,7 @@ pub fn effects() -> Html {
                             <img src={format!("/units/{}-{}{}.webp", fx.file, shade, pic_lang(l))} width={fx.big_in(l).0.to_string()} height={fx.big_in(l).1.to_string()}
                                  alt={format!("{} — {}", fx.name, l.t(fx.kind.0, fx.kind.1))} loading="lazy" />
                         </div>
-                        <figcaption><strong>{ fx.name }</strong>{ " — " }{ l.t(fx.pitch.0, fx.pitch.1) }</figcaption>
+                        <figcaption><strong>{ fx.name }</strong>{ " — " }{ crate::unit_text::pitch(fx, l) }</figcaption>
                         <AbPlayer key={file} file={file} song={song} />
                     </figure>
                 </div>

@@ -17,9 +17,11 @@
 //! (`<web>/assets/tryit/<unit>.json`; run `render_tryit` first) lists those takes instead.
 //! `--effects` renders the effects only and keeps every other card's excerpts as they are.
 //!
-//! `-- web chorda` (any card names after the folder) renders those cards' excerpts alone and
-//! leaves the list and the dry sources as they are (a unit re-voiced: its card's files only;
-//! with `--guitar`/`--takes`, the recordings an effect's card is heard on are still made).
+//! `-- web chorda` (any card names after the folder) renders those cards' excerpts alone, puts
+//! their blocks into `units_sounds.rs` (a new card in its place in the picker's order) and
+//! leaves every other card's block and the dry sources as they are (a unit re-voiced or a new
+//! card: its files only; with `--guitar`/`--takes`, the recordings an effect's card is heard
+//! on are still made).
 
 use cantus_core::{EffectKind, Snapshot, Ticks};
 use cantus_engine::{render, RenderOptions};
@@ -666,10 +668,13 @@ fn on_real(
 
 /// The excerpts already in `units_sounds.rs`, by card (each block's text).
 fn kept_blocks(web: &Path) -> std::collections::BTreeMap<String, String> {
-    let mut out = std::collections::BTreeMap::new();
-    let Ok(text) = std::fs::read_to_string(web.join("src/units_sounds.rs")) else {
-        return out;
-    };
+    let text = std::fs::read_to_string(web.join("src/units_sounds.rs")).unwrap_or_default();
+    blocks(&text).into_iter().collect()
+}
+
+/// The cards' blocks of a `units_sounds.rs` text, in its order.
+fn blocks(text: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
     let mut cur: Option<(String, String)> = None;
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("    (\"") {
@@ -683,12 +688,56 @@ fn kept_blocks(web: &Path) -> std::collections::BTreeMap<String, String> {
             body.push_str(line);
             body.push('\n');
             if line == "    ])," {
-                let (n, b) = cur.take().expect("a block");
-                out.insert(n, b);
+                out.push(cur.take().expect("a block"));
             }
         }
     }
     out
+}
+
+/// `-- web nitor` (r41): the named cards' new blocks put into `units_sounds.rs` — each in
+/// its place, a new card after the card before it in the picker's order — and every other
+/// card's block, the dry sources and their list left as they are. A named card heard on a
+/// source the list does not hold yet stops it: render every card then.
+fn splice(web: &Path, code: &str, order: &[String], used: &[Used]) {
+    let path = web.join("src/units_sounds.rs");
+    let read = std::fs::read_to_string(&path).expect("units_sounds.rs");
+    // A checkout with `core.autocrlf` has CRLF lines: read as LF, written back as it was.
+    let crlf = read.contains("\r\n");
+    let text = read.replace("\r\n", "\n");
+    const HEAD: &str = "pub const SOUNDS: &[(&str, &[Sound])] = &[\n";
+    const TAIL: &str = "];\n\n/// The dry sources";
+    let (head, rest) = text.split_at(text.find(HEAD).expect("SOUNDS") + HEAD.len());
+    let (_, tail) = rest.split_at(rest.find(TAIL).expect("SOURCES"));
+    for (id, ..) in used {
+        assert!(
+            tail.contains(&format!("    ({},", lit(id))),
+            "the source {id} is not in units_sounds.rs yet: render every card"
+        );
+    }
+    let mut all = blocks(&text);
+    for (name, body) in blocks(code) {
+        if let Some(b) = all.iter_mut().find(|(n, _)| *n == name) {
+            b.1 = body;
+            continue;
+        }
+        let before = order
+            .iter()
+            .position(|c| *c == name)
+            .map(|i| &order[..i])
+            .unwrap_or_default();
+        let at = all
+            .iter()
+            .rposition(|(n, _)| before.contains(n))
+            .map_or(0, |i| i + 1);
+        all.insert(at, (name, body));
+    }
+    let middle: String = all.into_iter().map(|(_, b)| b).collect();
+    let mut out = format!("{head}{middle}{tail}");
+    if crlf {
+        out = out.replace('\n', "\r\n");
+    }
+    std::fs::write(&path, out).expect("the list");
 }
 
 /// A Try it manifest's source: `on`, its dry file, what it is, its credit.
@@ -940,6 +989,8 @@ fn main() {
         code.push_str("    ]),\n");
     }
     if !only.is_empty() {
+        let order: Vec<String> = units().into_iter().map(card).collect();
+        splice(&web, &code, &order, &used);
         println!(
             "{} KB of excerpts for {:?} in {}",
             total / 1024,

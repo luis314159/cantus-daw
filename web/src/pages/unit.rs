@@ -91,7 +91,7 @@ pub fn unit_page(p: &UnitProps) -> Html {
                 <header class="uf-head">
                     <span class="eyebrow">{ l.t(u.kind.0, u.kind.1) }</span>
                     <h1>{ u.name }</h1>
-                    <p class="lede">{ l.t(u.pitch.0, u.pitch.1) }</p>
+                    <p class="lede">{ crate::unit_text::pitch(u, l) }</p>
                 </header>
             </div></div>
             <div class="section uf-body"><div class="wrap">

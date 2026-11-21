@@ -28,7 +28,7 @@ DOC = os.path.join(ROOT, "docs", "images", "units")
 
 NAMES = """aequalis comprimo terminus culmen multiplex sibilus porta tonsor impetus discrimen spatium
 fervor latitudo speculum tonus aula concentus flexus phasis tremor vibrans anulus translatio fluctus
-cribrum fragor lapsus vetus libra saltus arca rota loquax fractus caelum vinculum lenis cedo purus comparatio tactus calculus unda calor modulus exemplar gravis organum lamina chorda tympanum pulsus delay""".split()
+cribrum fragor lapsus vetus libra saltus arca rota loquax fractus caelum vinculum lenis cedo purus comparatio nitor tactus calculus unda calor modulus exemplar gravis organum lamina chorda tympanum fides pulsus delay""".split()
 # Delay has its own window since round 39 (ADR 0115): `shoot_skins` shoots it like the rest.
 # Tabula's pictures are made by `TABULA_WEB=1 shoot_tabula` (the rig playing), not here. A unit
 # whose shots are missing is skipped with a line, so the side round's later units (vinculum …

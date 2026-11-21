@@ -230,7 +230,7 @@ impl Page {
                     "{} — {}. {}",
                     u.name,
                     l.t(u.kind.0, u.kind.1),
-                    l.t(u.pitch.0, u.pitch.1)
+                    crate::unit_text::pitch(u, l)
                 );
             }
             Route::Measured => l.t(

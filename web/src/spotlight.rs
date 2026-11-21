@@ -178,7 +178,7 @@ pub fn spotlight() -> Html {
                         <div class="spot-text">
                             <span class="eyebrow">{ l.t(u.kind.0, u.kind.1) }</span>
                             <h3>{ u.name }</h3>
-                            <p class="spot-pitch">{ l.t(u.pitch.0, u.pitch.1) }</p>
+                            <p class="spot-pitch">{ crate::unit_text::pitch(u, l) }</p>
                             <ul class="spot-feats">{ for feats }</ul>
                             <a class="btn btn-quiet" href={page}>{ format!("{} {} →", l.t("Everything about", "Todo sobre"), u.name) }</a>
                         </div>
