@@ -405,3 +405,87 @@ The suite's gate was an absolute 60 % of a core; GitHub's Windows runner times t
 turn in 21 ms windows, the best of 600 each, model 2 under twice model 1 (1.48 alone,
 1.66–1.71 under the whole parallel `cantus-dsp` suite and under two more copies of it beside
 it), and model 2 under real time on any machine.
+
+## Amended by the unison pass: every unison beatless (round 41, `DSP_VERSION` 11 — awaiting the owner's ear)
+
+The owner, 2026-11-20, on beta.15: *"Chorda: some notes sound like some of their strings are
+slightly out of tune … E4, C#3, D3, C3, B2, E5. Alone, they sound like one of the strings
+inside the key is out of tune."* He decided: no comparison against a recorded piano; measure
+each string of each note and adjust it; review all 88 keys. Round 41's first measurement
+(`docs/round41/chorda-strings.md`) had found every loop "within tolerance" — of its own
+design, which scattered each unison's strings on purpose. `docs/round41/chorda-tune.md` has
+every number.
+
+### 9. What a tuner hears is measured, and held
+
+1. **Each unison's modes, read off its sound** (`chorda::modekit`, tests only): a key's
+   strings once the hammer has left them are a linear system, so near each partial the
+   unison rings as a few damped sinusoids (one per loop, as the bridge couples them); each
+   partial heterodyned, low-passed and decimated, fitted by ESPRIT (Roy & Kailath 1989) to a
+   thousandth of a hertz, on the voice's own bridge force (action noises and phantom
+   partials off: neither moves a string's frequency). Each string alone is read the same way
+   with the others muted on the bridge (round 41's felt).
+2. **A beat the ear counts** is a pair of modes that swings the partial's level by a
+   decibel or more while it sounds within 40 dB of its peak, for at least one whole swell in
+   the first five seconds (`most_heard_beat`): slower than one in five seconds, or heard for
+   less than a cycle (a fast first stage over a slow second), it is a change of level, not a
+   beat.
+3. **The bounds** (`chorda::tests_unison`, in the normal suite): on partials 1–3 of every
+   unison at velocities 0.3, 0.6 and 0.9, no beat the ear counts; the vertical strings
+   alone within half a cent of each other there (a beat every 7 s at C4's fundamental, every
+   2.3 s at its third partial — a fraction of a cent, as a fine technician leaves a unison);
+   each string alone's pitch (its partials 1–3 as the ear weighs them) within 0.75 cent of its
+   key's pitch (the curve and its table), the table within 0.65 cent. The whole key's gate (`tests_tune_gate`, the fourth amendment's) still holds.
+
+### 10. The causes, and what fixes each (`chorda::voicing::unison`, over the technician's)
+
+1. **The stiffness scatter moved the strings' upper partials by tens of cents** (`uni_b` 0.054,
+   twice at A0): C#3's third partials stood at −14.7, +2.5 and +10.0 cents, beating 5.7 Hz (E4
+   5.1, D3 3.9). Round 41's first measurement held each string to its *designed* partials, so
+   this passed. Each key's scatter is now scaled (`uni_b.<key>`, 0.02–0.35).
+2. **The designed fan** (±1–2 cents on every partial) beat on the upper partials faster than
+   the bridge can lock (its loss is the same on every partial, so it locks strings within a
+   number of hertz). `uni_tight.<key>` takes a share of the `unison` control's first cent
+   as the technician's: at the default each unison is as wide as it can be with no beat the
+   ear counts and its strings alone within half a cent (median 0.66; the control's cents above
+   1 detune as before, so the presets keep their character). `uni_pair.<key>` lays a
+   three-string unison as two strings alike and one apart (35 keys): one slow mode instead of
+   two that beat each other.
+3. **The bridge's resonances** pulled the in-phase mode up to 2 cents from the opposed ones,
+   and one lying on a partial split it unseen (C2: 0.9 Hz). `bridge.pull_hz` 0.1 holds the
+   pull on partials 1–3 in hertz too, read across a ±2 % band.
+4. **What the tuned unisons cost**, the slow second stage a detuned unison rang by beating,
+   was given back where the bounds allow: `coupling.<key>` (16 keys, 0.2–0.6) takes less of
+   the strings' loss through the bridge. Each key's four values were chosen by
+   `chorda::tests_unison::unison_optimise` to keep its level closest to `DSP_VERSION` 10's;
+   still, over 1.25–3.4 s the keys moved 4.5 dB rms, a third of them 6 dB or more (C3, E5,
+   most of G4–A6). That is for the owner's ear.
+5. **The technician's table, re-measured** on the tuned unisons (A0–E6 within 0.04 cent),
+   folded to ±0.61 cent (it was ±1.21): a string alone and the whole key both land. Above E6
+   nought but B6, D#7 (+0.5) and A#7 (−0.5).
+
+Each is a voicing knob, neutral at 0 or 1 in every earlier voicing; `Voicing::technician()`
+is `DSP_VERSION` 10's, pinned by name with its old hash. Songs on model 2 play the tuned
+unisons (render and freeze caches key on the version); model 1 untouched; no schema bump.
+
+### What the tests hold (fifth amendment)
+
+| What | Test |
+|---|---|
+| The kit finds close modes to a thousandth of a hertz | `chorda::modekit::tests::the_kit_finds_close_modes_to_a_thousandth_of_a_hertz` |
+| No unison beats the ear counts on partials 1–3, three velocities | `chorda::tests_unison::every_unison_is_beatless_on_its_first_three_partials` |
+| The strings of each unison alone within half a cent | `tests_unison::the_strings_of_each_unison_alone_agree_within_half_a_cent` |
+| Each string alone on its key's pitch; the table within 0.65 cent | `tests_unison::every_string_alone_sounds_its_keys_pitch` |
+| The whole key on the curve, octaves and fifths, depth ceilings (the fourth amendment's) | `chorda::tests_tune_gate` |
+| The shipped voicing is the technician's with the unison pass; the technician's renders its old bits | `tests_voicing3::the_shipped_voicing_is_the_technicians_with_the_unison_pass_and_a_new_unit_plays_it`, `model_2_at_the_technicians_pass_renders_to_the_bits_it_did` |
+| A Chorda added through the app plays the six keys the owner named without a beat | `cantus-ui` `chorda_tune_e2e::a_new_chorda_plays_the_six_keys_the_owner_named_without_a_beat` |
+
+### The size of the change (`DSP_VERSION` 10 → 11)
+
+| Render | max \|Δ\| | RMS of Δ | |
+|---|---|---|---|
+| Every other unit's goldens, model 1, beta.14's, candidate 16's and the technician's voicings | 0 | 0 | pinned, held |
+| Model 2 at its default (the pinned 0.5 s phrase) | 0.393 | 0.0802 (−21.9 dBFS) | the phrase's RMS 0.2015 → 0.2180 (+0.68 dB); new pin `0x2dca_3cab_2f21_fbbc` |
+
+Each key at mezzo-forte against `DSP_VERSION` 10: 0.93 / 4.17 / 4.47 dB rms over 0–0.5 /
+0.25–1.25 / 1.25–3.4 s (key by key in `docs/round41/chorda-tune.md`).

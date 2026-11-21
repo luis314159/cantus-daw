@@ -251,10 +251,15 @@ fn rests(mut c: Chorda) {
 /// default, and its bits are the same.
 const MODEL_2_BETA14: u64 = 0x663b_f285_d17a_ebdd;
 
-/// Model 2 as it ships since `DSP_VERSION` 10 (candidate 16 with the technician's pass, a
-/// new unit's own voicing with no `set_voicing`), on its own keyboard, hashed — the same
-/// phrase as [`MODEL_2_BETA14`]'s.
-const MODEL_2_SHIPPED: u64 = 0x9561_d8f8_a3ce_3a61;
+/// Model 2 as it ships since `DSP_VERSION` 11 (the technician's pass with the unison pass
+/// over it, a new unit's own voicing with no `set_voicing`), on its own keyboard, hashed —
+/// the same phrase as [`MODEL_2_BETA14`]'s.
+const MODEL_2_SHIPPED: u64 = 0x2dca_3cab_2f21_fbbc;
+
+/// Model 2 at the technician's pass as it shipped in `DSP_VERSION` 10 (beta.15, beta.16) —
+/// the hash `MODEL_2_SHIPPED` held then; since `DSP_VERSION` 11 it is named
+/// ([`Voicing::technician`]) and its bits are the same.
+const MODEL_2_TECHNICIAN: u64 = 0x9561_d8f8_a3ce_3a61;
 
 /// Model 2 at candidate 16 as it shipped from `DSP_VERSION` 7 to 9, on its own keyboard —
 /// the hash `MODEL_2_SHIPPED` held then; since `DSP_VERSION` 10 it is named
@@ -300,11 +305,13 @@ fn shipped_piano() -> Chorda {
 }
 
 /// Round 40, `DSP_VERSION` 7: candidate 16 is the lab's spec over beta.14's, its two tables,
-/// the board and room it names (the ones made ahead); since `DSP_VERSION` 10 what ships is
-/// it with the technician's pass over it (its spec, then its table on the keyboard) — and a
-/// new unit plays it as `set_voicing` of it would, to the bit.
+/// the board and room it names (the ones made ahead); `DSP_VERSION` 10 shipped it with the
+/// technician's pass over it (its spec, then its table on the keyboard), named since
+/// `DSP_VERSION` 11 ([`Voicing::technician`]); what ships now is that with the unison pass
+/// over it (its spec, then its table) — and a new unit plays it as `set_voicing` of it
+/// would, to the bit.
 #[test]
-fn the_shipped_voicing_is_candidate_16_with_the_technicians_pass_and_a_new_unit_plays_it() {
+fn the_shipped_voicing_is_the_technicians_with_the_unison_pass_and_a_new_unit_plays_it() {
     use super::body::BodyVoicing;
     use super::room::RoomVoicing;
     let mut lab = Voicing::beta14();
@@ -320,8 +327,15 @@ fn the_shipped_voicing_is_candidate_16_with_the_technicians_pass_and_a_new_unit_
         "a key of the technician's spec is not one"
     );
     lab.tune = super::voicing::tune::TUNE;
+    assert_eq!(Voicing::technician(), lab);
+    assert!(
+        lab.apply(super::voicing::unison::SPEC),
+        "a key of the unison spec is not one"
+    );
+    lab.tune = super::voicing::unison::TUNE;
     assert_eq!(Voicing::default(), lab);
     assert_eq!(Voicing::default(), Voicing::shipped());
+    assert_ne!(Voicing::default(), Voicing::technician());
     assert_ne!(Voicing::default(), Voicing::candidate16());
     assert_eq!(Voicing::default().body, BodyVoicing::default());
     assert_eq!(Voicing::default().room, RoomVoicing::default());
@@ -341,10 +355,13 @@ fn the_shipped_voicing_is_candidate_16_with_the_technicians_pass_and_a_new_unit_
         (1.0, 1.0, 2.0, 8.0)
     );
     assert_eq!((v.draws[24 - 21], v.draws[106 - 21]), (25, 31));
-    assert_eq!(v.tune[46 - 21], super::voicing::tune::TUNE[46 - 21]);
+    // The unison pass: the pull held in hertz, each key's unison laid, the new table on the
+    // keyboard.
+    assert_eq!(v.bridge_pull_hz, 0.1);
+    assert_eq!(v.tune[46 - 21], super::voicing::unison::TUNE[46 - 21]);
     assert_eq!(
         v.tuning(super::design::Tuning::default()).tune,
-        super::voicing::tune::TUNE
+        super::voicing::unison::TUNE
     );
     // A new unit is the shipped voicing set on it.
     let ev = phrase();
@@ -359,13 +376,13 @@ fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
     let (l, r) = perform(&mut shipped_piano(), &phrase(), 24_000, 256, 1);
     let h = hash(&l, &r);
     eprintln!(
-        "model 2 (shipped voicing, candidate 16 + the technician's pass) phrase hash: {h:#018x}"
+        "model 2 (shipped voicing, the technician's + the unison pass) phrase hash: {h:#018x}"
     );
     assert!(l.iter().chain(&r).any(|x| *x != 0.0));
     if std::env::var_os("CANTUS_GOLDEN_DUMP").is_some() {
-        // The size of the change from candidate 16 (`DSP_VERSION` 9 → 10).
+        // The size of the change from the technician's pass (`DSP_VERSION` 10 → 11).
         let (cl, cr) = perform(
-            &mut piano_for(Voicing::candidate16()),
+            &mut piano_for(Voicing::technician()),
             &phrase(),
             24_000,
             256,
@@ -389,7 +406,7 @@ fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
         };
         let (was, now) = (rms_of(&cl, &cr), rms_of(&l, &r));
         eprintln!(
-            "against candidate 16: max |Δ| {max:.4}, RMS Δ {rms:.5} ({:.1} dBFS); the phrase's RMS {was:.4} -> {now:.4} ({:+.2} dB)",
+            "against DSP_VERSION 10: max |Δ| {max:.4}, RMS Δ {rms:.5} ({:.1} dBFS); the phrase's RMS {was:.4} -> {now:.4} ({:+.2} dB)",
             20.0 * crate::math::log10(rms.max(1e-12)),
             20.0 * crate::math::log10(now / was)
         );
@@ -397,6 +414,23 @@ fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
     assert_eq!(
         h, MODEL_2_SHIPPED,
         "model 2 at its shipped voicing moved: {h:#018x}"
+    );
+}
+
+#[test]
+fn model_2_at_the_technicians_pass_renders_to_the_bits_it_did() {
+    let (l, r) = perform(
+        &mut piano_for(Voicing::technician()),
+        &phrase(),
+        24_000,
+        256,
+        1,
+    );
+    let h = hash(&l, &r);
+    eprintln!("model 2 (the technician's pass, DSP_VERSION 10) phrase hash: {h:#018x}");
+    assert_eq!(
+        h, MODEL_2_TECHNICIAN,
+        "model 2 at the technician's pass moved: {h:#018x}"
     );
 }
 

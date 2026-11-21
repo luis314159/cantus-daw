@@ -20,6 +20,10 @@ pub mod c16;
 #[path = "chorda_voicing_tune.rs"]
 pub mod tune;
 
+/// The unison pass over the technician's (`DSP_VERSION` 11): its spec and its table.
+#[path = "chorda_voicing_unison.rs"]
+pub mod unison;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Voicing {
     pub body: BodyVoicing,
@@ -305,6 +309,37 @@ pub struct Voicing {
     /// resonance may pull one of a key's first three partials — the key's resonances' gains
     /// scaled down until none does (0: no limit).
     pub bridge_pull: f64,
+    /// Round 41, every unison beatless (`DSP_VERSION` 11): with `bridge_tune`, the most (Hz)
+    /// a bridge resonance may pull one of a key's first three partials — the beat it leaves
+    /// between the unison's in-phase mode and its opposed modes, which the bridge never moves
+    /// (0: none, every voicing before; `KeyStrings::set_bridge_tuned`). Set as
+    /// `bridge.pull_hz`.
+    pub bridge_pull_hz: f64,
+    /// Round 41, every unison beatless (`DSP_VERSION` 11): each key's share of the `unison`
+    /// control's first cent taken as the technician's (0: none, every voicing before; 1: at
+    /// the control's default the key's strings are tuned to each other; each cent above it
+    /// detunes them as before) — the owner heard the designed spread as strings out of
+    /// tune. Set by name as `uni_tight.<MIDI key>`, or `uni_tight` for every key.
+    pub uni_tight: [f32; KEYS],
+    /// Round 41 (`DSP_VERSION` 11): each key's share of its strings' loss that goes through
+    /// the bridge, scaled (1: the register's, every voicing before) — a unison tuned closer
+    /// rings less of the slow second stage a detuned one rang (Weinreich 1977), so its
+    /// bridge takes less of the strings' loss and the key sustains as it did. Set by name as
+    /// `coupling.<MIDI key>`.
+    pub couplings: [f32; KEYS],
+    /// Round 41 (`DSP_VERSION` 11): the strings' loss scatter's share where the unison
+    /// scatters have faded out (0: faded with them, every voicing before; 1: whole to C8). A
+    /// unison tuned to one pitch rings its slow second stage only if its strings differ: a
+    /// loss scatter (the loop's loss filter is linear-phase) makes them differ in decay, never
+    /// in pitch — an aftersound with no beat. Set as `uni_loss_top`.
+    pub uni_loss_top: f64,
+    /// Round 41 (`DSP_VERSION` 11): 1 — a key's three-string unison laid as two strings
+    /// alike and a third apart (`VoiceSettings::uni_pair`; 0: the designed fan, every
+    /// voicing before). Set by name as `uni_pair.<MIDI key>`, or `uni_pair` for every key.
+    pub uni_pair: [f32; KEYS],
+    /// Round 41 (`DSP_VERSION` 11): each key's stiffness scatter scaled (1: `uni_b`'s, every
+    /// voicing before). Set by name as `uni_b.<MIDI key>`.
+    pub uni_b_keys: [f32; KEYS],
 }
 
 /// The most a key is evened by (dB).
@@ -315,9 +350,9 @@ pub const EVEN_FADE_TO: f64 = 88.0;
 /// The partials a key's evening weighs.
 pub const EVEN_PARTIALS: u32 = 10;
 
-/// What ships since `DSP_VERSION` 10 (round 40, ADR 0098's fourth amendment): candidate 16
-/// ([`Voicing::candidate16`], what shipped from `DSP_VERSION` 7) with the technician's pass
-/// over it ([`Voicing::shipped`]). Made once; nothing allocates.
+/// What ships since `DSP_VERSION` 11 (round 41, ADR 0098's fifth amendment): the
+/// technician's pass of `DSP_VERSION` 10 ([`Voicing::technician`]) with the unison pass over
+/// it ([`Voicing::shipped`]). Made once; nothing allocates.
 impl Default for Voicing {
     fn default() -> Self {
         static SHIPPED: OnceLock<Voicing> = OnceLock::new();
@@ -340,11 +375,12 @@ impl Voicing {
         v
     }
 
-    /// What ships (`DSP_VERSION` 10, `docs/round40/chorda-tune.md`): candidate 16, then the
-    /// technician's pass — [`tune::SPEC`] applied over it (the unisons centred on their keys,
-    /// the strings tuned on their bridge, the loops' detune room, sixteen unisons redrawn)
-    /// and [`tune::TUNE`], each key's last correction, handed to the keyboard.
-    pub fn shipped() -> Self {
+    /// What shipped in `DSP_VERSION` 10 (`docs/round40/chorda-tune.md`; beta.15 and
+    /// beta.16): candidate 16, then the technician's pass — [`tune::SPEC`] applied over it
+    /// (the unisons centred on their keys, the strings tuned on their bridge, the loops'
+    /// detune room, sixteen unisons redrawn) and [`tune::TUNE`], each key's last correction,
+    /// handed to the keyboard.
+    pub fn technician() -> Self {
         let mut v = Voicing::candidate16();
         let ok = v.apply(tune::SPEC);
         debug_assert!(
@@ -352,6 +388,19 @@ impl Voicing {
             "the technician's spec names a key the voicing does not have"
         );
         v.tune = tune::TUNE;
+        v
+    }
+
+    /// What ships (`DSP_VERSION` 11, `docs/round41/chorda-tune.md`): the technician's pass,
+    /// then the unison pass — [`unison::SPEC`] applied over it (no bridge resonance pulling
+    /// a partial 1–3 more than 0.1 Hz; each unison as wide as it can be without a beat the
+    /// ear counts, its stiffness scatter, pattern and bridge share keeping the key's level)
+    /// and [`unison::TUNE`], each key's last correction re-measured, handed to the keyboard.
+    pub fn shipped() -> Self {
+        let mut v = Voicing::technician();
+        let ok = v.apply(unison::SPEC);
+        debug_assert!(ok, "the unison spec names a key the voicing does not have");
+        v.tune = unison::TUNE;
         v
     }
 
@@ -476,6 +525,12 @@ impl Voicing {
             frac_room: 0.0,
             bridge_tune: 0.0,
             bridge_pull: 0.0,
+            bridge_pull_hz: 0.0,
+            uni_tight: [0.0; KEYS],
+            couplings: [1.0; KEYS],
+            uni_loss_top: 0.0,
+            uni_pair: [0.0; KEYS],
+            uni_b_keys: [1.0; KEYS],
         }
     }
 
@@ -793,6 +848,46 @@ impl Voicing {
                 _ => false,
             };
         }
+        if let Some(k) = key.strip_prefix("coupling.") {
+            return match k.parse::<u8>() {
+                Ok(m) if (21..=108).contains(&m) => {
+                    self.couplings[(m - 21) as usize] = v as f32;
+                    true
+                }
+                _ => false,
+            };
+        }
+        if key == "uni_pair" {
+            self.uni_pair = [v as f32; KEYS];
+            return true;
+        }
+        for (prefix, table) in [
+            ("uni_pair.", &mut self.uni_pair),
+            ("uni_b.", &mut self.uni_b_keys),
+        ] {
+            if let Some(k) = key.strip_prefix(prefix) {
+                return match k.parse::<u8>() {
+                    Ok(m) if (21..=108).contains(&m) => {
+                        table[(m - 21) as usize] = v as f32;
+                        true
+                    }
+                    _ => false,
+                };
+            }
+        }
+        if key == "uni_tight" {
+            self.uni_tight = [v as f32; KEYS];
+            return true;
+        }
+        if let Some(k) = key.strip_prefix("uni_tight.") {
+            return match k.parse::<u8>() {
+                Ok(m) if (21..=108).contains(&m) => {
+                    self.uni_tight[(m - 21) as usize] = v as f32;
+                    true
+                }
+                _ => false,
+            };
+        }
         if let Some(k) = key.strip_prefix("tune.") {
             return match k.parse::<u8>() {
                 Ok(m) if (21..=108).contains(&m) => {
@@ -873,6 +968,8 @@ impl Voicing {
             "uni_center" => &mut self.uni_center,
             "bridge.tune" => &mut self.bridge_tune,
             "bridge.pull" => &mut self.bridge_pull,
+            "bridge.pull_hz" => &mut self.bridge_pull_hz,
+            "uni_loss_top" => &mut self.uni_loss_top,
             "uni_weight_low" => &mut self.uni_weight_low,
             "detune_bass" => &mut self.detune_bass,
             "detune_scale" => &mut self.detune_scale,

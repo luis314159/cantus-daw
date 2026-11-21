@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chorda: prueba a ciegas</title>
+<style>
+:root { --bg: #f7f6f2; --fg: #1d1d1b; --muted: #5b5a55; --line: #d9d6cc; --accent: #2f5d8a; --card: #ffffff; --on: #e3ecf5; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #17181a; --fg: #ecebe6; --muted: #a8a69e; --line: #34363a; --accent: #8db6e0; --card: #202225; --on: #26384a; }
+}
+body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px 16px; }
+main { max-width: 760px; margin: 0 auto; }
+h1 { font-size: 1.4rem; margin: 0 0 4px; }
+h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+p, li { color: var(--muted); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 12px 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; min-width: 64px; }
+button.play.on { background: var(--on); border-color: var(--accent); }
+button.choice.sel { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.what { font-weight: 600; color: var(--fg); }
+.small { font-size: .9rem; }
+textarea { width: 100%; box-sizing: border-box; min-height: 60px; font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+table { border-collapse: collapse; width: 100%; }
+td, th { padding: 6px; border-bottom: 1px solid var(--line); text-align: left; }
+</style>
+</head>
+<body>
+<main>
+<h1>__TITLE__</h1>
+<p>Dos versiones de las mismas notas: una es como suena Chorda hoy, la otra con cada cuerda de cada tecla medida y afinada. No se dice cuál es cuál hasta el final. Escucha con audífonos, al volumen de siempre.<br>
+<span class="small">Two versions of the same notes, one as Chorda sounds today, one with every string measured and tuned; which is which is revealed only at the end.</span></p>
+
+<section id="abx"></section>
+<section id="pref"></section>
+<section id="done"></section>
+<div id="clips" hidden></div>
+</main>
+<script>
+const ITEMS = __ITEMS__;
+const SEED = __SEED__;
+const REVEAL = __REVEAL__;
+const KIT = __KITID__;
+const TRIALS = 16;
+const STORE = "cantus-tune-" + KIT;
+function rnd(n) { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; }
+function unveil() {
+  let x = SEED, s = [];
+  for (let i = 0; i < REVEAL.length; i += 2) { x = (Math.imul(1103515245, x) + 12345) & 0x7fffffff; s.push(parseInt(REVEAL.substr(i, 2), 16) ^ ((x >>> 16) & 0xff)); }
+  return JSON.parse(new TextDecoder().decode(new Uint8Array(s)));
+}
+function fresh() {
+  const abx = [];
+  for (let i = 0; i < TRIALS; i++) { const it = ITEMS[i % ITEMS.length]; abx.push({ id: it.id, x: rnd(2) ? "p" : "q", flip: !!rnd(2), answer: null, plays: 0 }); }
+  for (let i = abx.length - 1; i > 0; i--) { const j = rnd(i + 1); [abx[i], abx[j]] = [abx[j], abx[i]]; }
+  const pref = ITEMS.map(it => ({ id: it.id, flip: !!rnd(2), choice: null, note: "" }));
+  return { kit: KIT, abx: abx, pref: pref, at: 0, phase: "abx" };
+}
+let st; try { st = JSON.parse(localStorage.getItem(STORE)); } catch (e) { st = null; }
+if (!st || st.kit !== KIT) st = fresh();
+function save() { try { localStorage.setItem(STORE, JSON.stringify(st)); } catch (e) {} }
+const els = {};
+function clip(url) { if (!els[url]) { const a = new Audio(); a.preload = "auto"; a.src = url; document.getElementById("clips").appendChild(a); els[url] = a; } return els[url]; }
+let playing = null, playBtn = null;
+function play(url, btn) {
+  if (playing) { playing.pause(); }
+  if (playBtn) playBtn.classList.remove("on");
+  const a = clip(url); const t = playing && playing !== a ? playing.currentTime : 0;
+  a.currentTime = Math.min(t, (a.duration || 1e9) - 0.05); a.play(); playing = a; playBtn = btn; btn.classList.add("on");
+  a.onended = () => btn.classList.remove("on");
+}
+function stop() { if (playing) playing.pause(); if (playBtn) playBtn.classList.remove("on"); playing = null; }
+function item(id) { return ITEMS.find(i => i.id === id); }
+function button(label, cls, fn) { const b = document.createElement("button"); b.textContent = label; b.className = cls; b.onclick = fn; return b; }
+function render() {
+  const A = document.getElementById("abx"), P = document.getElementById("pref"), D = document.getElementById("done");
+  A.innerHTML = P.innerHTML = D.innerHTML = "";
+  if (st.phase === "abx") {
+    const t = st.abx[st.at], it = item(t.id);
+    const [a, b] = t.flip ? [it.q, it.p] : [it.p, it.q];
+    const x = t.x === "p" ? it.p : it.q;
+    A.innerHTML = `<h2>Parte 1 · ABX — ${st.at + 1} de ${TRIALS}</h2><p>A y B son las dos versiones. X es una de ellas: ¿cuál? Puedes cambiar entre ellas mientras suenan (sigue en el mismo punto).</p><div class="card"><div class="what">${t.id}</div><div class="row" id="pl"></div><div class="row" id="ch" style="margin-top:12px"></div></div>`;
+    const pl = A.querySelector("#pl"), ch = A.querySelector("#ch");
+    for (const [l, u] of [["A", a], ["B", b], ["X", x]]) pl.appendChild(button("▶ " + l, "play", e => { t.plays++; play(u, e.target); }));
+    pl.appendChild(button("■", "play", stop));
+    for (const ans of ["A", "B"]) {
+      const bt = button("X es " + ans, "choice" + (t.answer === ans ? " sel" : ""), () => { t.answer = ans; save(); render(); }); ch.appendChild(bt);
+    }
+    ch.appendChild(button("Siguiente →", "", () => { if (!t.answer) return; stop(); st.at++; if (st.at >= TRIALS) { st.phase = "pref"; st.at = 0; } save(); render(); }));
+  } else if (st.phase === "pref") {
+    const q = st.pref[st.at], it = item(q.id);
+    const [one, two] = q.flip ? [it.q, it.p] : [it.p, it.q];
+    P.innerHTML = `<h2>Parte 2 · ¿Cuál suena más afinada? — ${st.at + 1} de ${st.pref.length}</h2><p>Escucha si alguna cuerda dentro de una tecla suena desafinada (un batido, una nota que "ondula").</p><div class="card"><div class="what">${q.id}</div><div class="row" id="pl"></div><div class="row" id="ch" style="margin-top:12px"></div><p class="small">Nota (opcional):</p><textarea id="note"></textarea></div>`;
+    const pl = P.querySelector("#pl"), ch = P.querySelector("#ch");
+    pl.appendChild(button("▶ 1", "play", e => play(one, e.target)));
+    pl.appendChild(button("▶ 2", "play", e => play(two, e.target)));
+    pl.appendChild(button("■", "play", stop));
+    for (const [lab, val] of [["1 más afinada", "1"], ["Iguales", "="], ["2 más afinada", "2"]]) ch.appendChild(button(lab, "choice" + (q.choice === val ? " sel" : ""), () => { q.choice = val; q.note = P.querySelector("#note").value; save(); render(); }));
+    const n = P.querySelector("#note"); n.value = q.note; n.oninput = () => { q.note = n.value; save(); };
+    ch.appendChild(button("Siguiente →", "", () => { if (!q.choice) return; stop(); st.at++; if (st.at >= st.pref.length) st.phase = "done"; save(); render(); }));
+  } else {
+    const key = unveil();
+    let right = 0;
+    for (const t of st.abx) { const it = item(t.id); const aIsP = !t.flip; const xIsA = (t.x === "p") === aIsP; if ((t.answer === "A") === xIsA) right++; }
+    let p = 0; const C = (n, k) => { let c = 1; for (let i = 0; i < k; i++) c = c * (n - i) / (i + 1); return c; };
+    for (let k = right; k <= TRIALS; k++) p += C(TRIALS, k) / Math.pow(2, TRIALS);
+    const rows = st.pref.map(q => { const one = q.flip ? "q" : "p"; const two = q.flip ? "p" : "q"; const name = tok => (key[q.id] === "before") === (tok === "p") ? "antes" : "después"; const pick = q.choice === "=" ? "iguales" : name(q.choice === "1" ? one : two); return `<tr><td>${q.id}</td><td>${pick}</td><td>${(q.note || "").replace(/</g, "&lt;")}</td></tr>`; }).join("");
+    D.innerHTML = `<h2>Resultado</h2><div class="card"><p class="what">ABX: ${right} de ${TRIALS} (p = ${p.toFixed(4)}, una cola)</p><p>Con 12 o más de 16 (p &lt; 0.04) la diferencia se oye.</p><table><tr><th>Par</th><th>Elegiste como más afinada</th><th>Nota</th></tr>${rows}</table><div class="row" style="margin-top:12px" id="dl"></div></div>`;
+    D.querySelector("#dl").appendChild(button("Descargar respuestas (.json)", "", () => {
+      const blob = new Blob([JSON.stringify({ kit: KIT, abx: st.abx, pref: st.pref, right: right, p: p, reveal: key }, null, 1)], { type: "application/json" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = KIT + "-respuestas.json"; a.click();
+    }));
+    D.querySelector("#dl").appendChild(button("Empezar de nuevo", "", () => { if (confirm("¿Borrar las respuestas y empezar otra vez?")) { st = fresh(); save(); render(); } }));
+  }
+}
+render();
+</script>
+</body>
+</html>

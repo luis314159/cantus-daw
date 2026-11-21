@@ -267,7 +267,7 @@ fn tuning_wav() {
 }
 
 /// Write a stereo 24-bit WAV at 48 kHz.
-fn write_wav(path: &std::path::Path, l: &[f32], r: &[f32]) {
+pub fn write_wav(path: &std::path::Path, l: &[f32], r: &[f32]) {
     let spec = hound::WavSpec {
         channels: 2,
         sample_rate: 48_000,
@@ -286,7 +286,7 @@ fn write_wav(path: &std::path::Path, l: &[f32], r: &[f32]) {
 }
 
 /// Notes `(start s, length s, key, velocity 0…1)` played on `v`, `tail` seconds after the last.
-fn play(v: &Voicing, notes: &[(f64, f64, u8, f32)], tail: f64) -> (Vec<f32>, Vec<f32>) {
+pub fn play(v: &Voicing, notes: &[(f64, f64, u8, f32)], tail: f64) -> (Vec<f32>, Vec<f32>) {
     let mut ev = Vec::new();
     let mut end: f64 = 0.0;
     for (i, (t, len, k, vel)) in notes.iter().enumerate() {
