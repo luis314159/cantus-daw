@@ -30,16 +30,21 @@ pub const MIN_HZ: f64 = 20.0;
 /// A sample below this is silence for the gate.
 const QUIET: f32 = 1e-8;
 /// The loop's DC blocker's corner, as a fraction of the fundamental (see [`dc_pole`]).
-const DC_CORNER: f64 = 1.0 / 32.0;
+const DC_CORNER: f64 = 1.0 / 64.0;
 /// Samples the lines hold past the lowest fundamental's period: the Lagrange taps' reach
-/// and the DC blocker's phase lead (about 12 samples at 20 Hz), which lengthens the lines'
+/// and the DC blocker's phase lead (about 6 samples at 20 Hz), which lengthens the lines'
 /// share of the period.
 const LINE_SPARE: usize = 48;
 
-/// The pole of the loop's DC blocker for a fundamental `f0`: its corner at `f0 / 32`, far
+/// The pole of the loop's DC blocker for a fundamental `f0`: its corner at `f0 / 64`, far
 /// under the first partial. A loss filter is a low-pass whose gain at DC is capped just
 /// under 1, so without it a loop holds a DC level (a pluck's released displacement leaves
 /// one) for ever — the voice never ends, and its offset thumps when the voice is taken.
+/// The corner is that low because its phase lead, counted in the tuning at the
+/// fundamental, is smaller at the partials above: they sit flat of the harmonic series by
+/// up to `atan(1/64)/2π` of a period (4.3 cents at the top; at `f0 / 32` it was 8.6). The
+/// loop's slowest mode, its DC moved to about `f0 / 20`, dies within seconds even at C2
+/// with a wood's loss (at `f0 / 128` it rang 10⁻⁷ for more than ten).
 fn dc_pole(f0: f64, sr: f64) -> f64 {
     math::exp(-std::f64::consts::TAU * f0 * DC_CORNER / sr)
 }
@@ -114,8 +119,9 @@ pub struct GuideStep {
     pub beta: f64,
     /// The loop's DC blocker in use: always but while a bow is on the string. The bow's
     /// stick and slip is timed by the Helmholtz corner, which the blocker's phase lead
-    /// at the low partials would carry some 7 cents flat; drawn, the bow holds the loop
-    /// anyway, and the blocker comes in when it lifts.
+    /// at the low partials carries flat (measured 6–7 cents at a corner of `f0 / 32`);
+    /// drawn, the bow holds the loop anyway, and the blocker comes in when it lifts — a
+    /// bowed note is the same to the bit as without one until then.
     pub dc: bool,
 }
 
@@ -191,11 +197,10 @@ impl Guide {
         let f0 = step.f0.clamp(MIN_HZ, self.max_hz);
         let (_, a) = self.loss(f0, step, loop_hz);
         let period = self.sr / f0 / loop_hz;
-        let on = step.dc;
-        let r = dc_pole(f0, self.sr);
-        self.c = dispersion_fit(b, f0, self.sr, period, |w| {
-            loss_delay(a, w) + if on { dc_response(r, w).0 } else { 0.0 }
-        }) as f32;
+        // The stiffness is fitted to the loss filter alone, as it was before the DC blocker:
+        // the blocker's lead, counted in the fit, tipped a slight `Inharmonicity` (0.12, the
+        // nylon guitar's) from no allpass to one, and the string's level moved 1–3.5 dB.
+        self.c = dispersion_fit(b, f0, self.sr, period, |w| loss_delay(a, w)) as f32;
         self.design(kind, step, 0);
         self.live = true;
     }
