@@ -69,9 +69,9 @@ if [[ "$what" == cut || "$what" == all ]]; then
       last="v$n"; n=$((n + 1))
     done
     # Onda at the end card's side: the Stage of s9-end, cut from its frames, in the card's
-    # place for it (420 x 560 at 1350, 300).
+    # place for it (420 x 560 at 1350, 300); the pane's tab bar (30 points) left out.
     if [[ -d "$C/end-b" && -f "$W/s9-end.json" ]]; then
-      read -r sx sy sw sh < <(node -e 'const j=require(process.argv[1]);const s=j.stage||[0,0,420,560];const k=j.scale||1;console.log(Math.round(s[0]*k),Math.round(s[1]*k),Math.round(s[2]*k),Math.round(s[3]*k))' "$(winpath "$W/s9-end.json")")
+      read -r sx sy sw sh < <(node -e 'const j=require(process.argv[1]);const s=j.stage||[0,0,420,590];const k=j.scale||1;const t=30;console.log(Math.round(s[0]*k),Math.round((s[1]+t)*k),Math.round(s[2]*k),Math.round((s[3]-t)*k))' "$(winpath "$W/s9-end.json")")
       inputs+=(-framerate $FPS -i "$(winpath "$W/s9-end")/%05d.png")
       graph+="[$n:v]crop=$sw:$sh:$sx:$sy,scale=420:560:force_original_aspect_ratio=decrease,setpts=PTS+68/TB[o$n];[$last][o$n]overlay=x=1350+(420-w)/2:y=300+(560-h)/2:eof_action=pass[v$n];"
       last="v$n"; n=$((n + 1))
