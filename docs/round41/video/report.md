@@ -300,7 +300,7 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
   Chatterbox is out.
 - **No more ElevenLabs calls.** 8 724 characters of 40 000 were spent. No chosen line needed
   a new take.
-- **The voice track:** `F:\projectsideo-workoice\chosen\{en,es}\`, holding `01.wav`–`08.wav`
+- **The voice track:** `F:\projects\video-work\voice\chosen\{en,es}\`, holding `01.wav`–`08.wav`
   and `chosen.json`.
   - It is made by `tools/video/voice/choose.py --voice jon` (`alejandro`). The script takes the
     first take `compare.py` shows for that voice; `--pick <line>=<take>` overrides one line.
