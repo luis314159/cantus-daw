@@ -254,7 +254,7 @@ const MODEL_2_BETA14: u64 = 0x663b_f285_d17a_ebdd;
 /// Model 2 as it ships since `DSP_VERSION` 11 (the technician's pass with the unison pass
 /// over it, a new unit's own voicing with no `set_voicing`), on its own keyboard, hashed —
 /// the same phrase as [`MODEL_2_BETA14`]'s.
-const MODEL_2_SHIPPED: u64 = 0x9561_d8f8_a3ce_3a61;
+const MODEL_2_SHIPPED: u64 = 0x2dca_3cab_2f21_fbbc;
 
 /// Model 2 at the technician's pass as it shipped in `DSP_VERSION` 10 (beta.15, beta.16) —
 /// the hash `MODEL_2_SHIPPED` held then; since `DSP_VERSION` 11 it is named
