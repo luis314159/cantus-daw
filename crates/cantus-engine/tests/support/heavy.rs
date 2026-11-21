@@ -539,9 +539,27 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("sync", 1.0),
             ],
         ), // fxc:comparatio
-        // r41:contract — the stubs' only knob; each builder writes its unit's heaviest
-        // settings here (and in the bench's `kernels::heavy`).
-        EffectKind::Enhancer => set(&mut s, &[("out", 1.0)]), // r41:nitor
+        // r41:nitor — every part on: the Loud character at full amount (its four bands
+        // squeezed from above and below), the tonic sub, the bass's harmonics, the tightening,
+        // the lift, the three exciter bands at 4×, the level match.
+        EffectKind::Enhancer => set(
+            &mut s,
+            &[
+                ("amount", 1.0),
+                ("char", 4.0),
+                ("sub", 0.6),
+                ("submode", 1.0),
+                ("harm", 0.5),
+                ("tight", 0.6),
+                ("lift", 0.7),
+                ("xover", 120.0),
+                ("body", 0.5),
+                ("pres", 0.6),
+                ("air", 0.7),
+                ("color", 0.3),
+                ("key", 8.0),
+            ],
+        ), // r41:nitor
         EffectKind::FragorOverdrive
         | EffectKind::FragorOpAmp
         | EffectKind::FragorSilicon

@@ -1012,3 +1012,20 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 - [ ] **La entrada en vivo** (excitador *Entrada*): necesita que el integrador lleve la señal de
   una pista al instrumento (`docs/round41/fides.md`); cuando esté, pon una voz o una batería
   en la entrada y toca acordes: el resonador debe sonar con esa señal.
+
+### Ronda 41 — Nitor, el realzador de una perilla (ADR 0151) <!-- r41:nitor -->
+
+- [ ] **Insertar Nitor** (*Añadir inserción ▸ Masterización ▸ Nitor*) en una mezcla que
+  suena: empieza en *Brillo suave*. Gira **Cantidad** de 0 a 100 % con cada carácter
+  (Claro, Pegada, Cálido, Aire, Fuerte): el volumen debe quedar igual (*Igualar nivel*) y
+  cambiar el color. Apágalo y enciéndelo (bypass): ¿se oye la mejora y no solo más volumen?
+- [ ] **El sub en la tónica**: pon *El sub sigue* en *Tónica*, sube *Sub* en un bombo o un
+  bajo. Cambia la tonalidad de la canción en el piano roll (por ejemplo de Sol a Re): el sub
+  debe moverse al instante, sin clic. En tus monitores y en unos auriculares: ¿suena afinado?
+- [ ] **Armónicos del bajo** en un portátil o un teléfono: la línea de bajo debe oírse donde
+  antes no se oía.
+- [ ] **Nitor como plug-in** (*Cantus Nitor*, CLAP y VST3) en otro DAW: pon su *Tonalidad*
+  en la de la canción; debe sonar igual que en Cantus.
+- [ ] Verificado solo en emulación: todo lo anterior se midió con renders y pruebas; ningún
+  oído lo ha juzgado todavía. Los sonidos para escuchar están en
+  `F:\projects\daw-r41\nitor-listen\` (seco y procesado, a la misma sonoridad).

@@ -297,6 +297,8 @@ output means. Python ones take their packages from the folder's `requirements.tx
 | [`tools/tympanum-fit/`](../tools/tympanum-fit/README.md) | Tympanum: fitting recorded kits into model 5's tables, the calibration cycles, the hybrid's residual, the drum analyses' cues (`accept_b10.py`), the representation ladder |
 | [`tools/listening/`](../tools/listening/README.md) | the blind tests (`chorda_abx`, the ladder's kit), publishing a kit as a claude.ai page, reading results |
 | `cantus-dsp/examples/fides_sounds.rs`, `cantus-ui/examples/fides_listen.rs` | Fides (round 41, ADR 0150): every exciter on every resonator's level and partials straight from the DSP (`-- levels`, `-- describe <exc> <res>`, `-- wav <dir>`); every factory preset rendered through the engine as WAV and its level fitted to its role (`-- <dir> [fit]`) <!-- r41:fides --> |
+| `crates/cantus-ui/examples/nitor_listen.rs` | <!-- r41:nitor --> Nitor's presets for the ear: each beside its dry source, both at −18 LUFS, as WAV pairs (`cargo run -p cantus-ui --example nitor_listen -- <dir>`) |
+| `crates/cantus-ui/examples/shoot_nitor.rs` | <!-- r41:nitor --> Nitor's design sheet: its states in Slate English and Paper Spanish, 75–200 %, at rest and playing (`cargo run -p cantus-ui --example shoot_nitor -- <dir>`) |
 
 The design for round 41's micro-tuning is [`research/instruments/microtuning.md`](../research/instruments/microtuning.md).
 

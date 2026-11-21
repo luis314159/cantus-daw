@@ -29,9 +29,8 @@ fn floor(unit: Unit) -> usize {
         Unit::Effect(EffectKind::Rotary) => 0, // fx3:contract (rota)
         Unit::Effect(EffectKind::Amp) => 0,    // fx3:contract (arca)
         // r41:contract — round 41's stubs have no presets yet: each builder deletes its own
-        // line when its presets land (Nitor 12; Fragor's pedals a few each, its floor
-        // set by the pedals builder with the owner, as board-only pedals).
-        Unit::Effect(EffectKind::Enhancer) => 0, // r41:contract (nitor)
+        // line when its presets land (Fragor's pedals a few each, its floor set by the pedals
+        // builder with the owner, as board-only pedals). r41:nitor — Nitor's landed (13).
         Unit::Effect(
             EffectKind::FragorOverdrive
             | EffectKind::FragorOpAmp

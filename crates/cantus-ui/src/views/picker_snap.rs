@@ -80,6 +80,7 @@ impl Subject {
             EffectKind::Repair => "purus",              // fxc:contract
             EffectKind::Reference => "comparatio",      // fxc:contract
             EffectKind::Delay => "delay",               // r39:delay
+            EffectKind::Enhancer => "nitor",            // r41:nitor
             _ => "eq",
         }
     }
