@@ -84,7 +84,11 @@ pub fn picture(
     let lad = Rect::from_min_max(pos2(inner.left(), split + s.s(4.0)), inner.max);
     let live = tele[tel::ALIVE] > 0.5 && tele[tel::KEY] >= 0.0;
     let pos = if live { tele[tel::POS] } else { fs.exc.pos };
-    let level = if live { tele[tel::LEVEL].clamp(0.0, 1.0) } else { 0.0 };
+    let level = if live {
+        tele[tel::LEVEL].clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
     // The drag: where it is played, along the resonator (the left half is the pos range).
     let id = egui::Id::new(("fides-pos", track.0));
     let resp = ui.interact(obj, id, Sense::click_and_drag());
@@ -149,7 +153,11 @@ fn object(
             );
             let px = x0 + (x1 - x0) * pos;
             let lift = obj.height() * 0.3 * level.sqrt();
-            b.polyline(&[pos2(x0, c.y), pos2(px, c.y - lift), pos2(x1, c.y)], w, ink);
+            b.polyline(
+                &[pos2(x0, c.y), pos2(px, c.y - lift), pos2(x1, c.y)],
+                w,
+                ink,
+            );
         }
         ResKind::Tube | ResKind::Pipe => {
             let r = Rect::from_center_size(c, vec2(obj.width() * 0.94, obj.height() * 0.34));
@@ -187,7 +195,10 @@ fn object(
         }
         ResKind::Tine => {
             let clamp = Rect::from_min_max(
-                pos2(obj.right() - obj.width() * 0.12, obj.top() + obj.height() * 0.2),
+                pos2(
+                    obj.right() - obj.width() * 0.12,
+                    obj.top() + obj.height() * 0.2,
+                ),
                 pos2(obj.right(), obj.bottom() - obj.height() * 0.2),
             );
             b.rrect(clamp, s.r(2.0), crate::kit::Fill::Solid(dim));
@@ -233,10 +244,8 @@ fn object(
             // The radius it is struck along, from the rim (left) to the centre.
             b.dashed(&[pos2(c.x - rx, c.y), c], s.s(1.0), dim, s.s(3.0), s.s(3.0));
             if fs.a.kind == ResKind::Pan {
-                let note = Rect::from_center_size(
-                    pos2(c.x - rx * 0.45, c.y),
-                    vec2(rx * 0.55, ry * 0.7),
-                );
+                let note =
+                    Rect::from_center_size(pos2(c.x - rx * 0.45, c.y), vec2(rx * 0.55, ry * 0.7));
                 b.rrect_stroke(note, note.height() * 0.5, s.s(1.0), dim);
             }
         }
@@ -262,7 +271,10 @@ fn bell_or_glass(b: &mut Brush, obj: Rect, kind: ResKind, ink: Color32, fill: Co
             let bowl = 0.66;
             if u <= bowl {
                 let v = u / bowl;
-                (top + u * h, wmax * (1.0 - 0.15 * v * v) * (1.0 - v).max(0.0).sqrt().max(0.12))
+                (
+                    top + u * h,
+                    wmax * (1.0 - 0.15 * v * v) * (1.0 - v).max(0.0).sqrt().max(0.12),
+                )
             } else {
                 (top + u * h, wmax * 0.08)
             }
@@ -297,7 +309,10 @@ fn strike_point(obj: Rect, kind: ResKind, pos: f32, s: &Style) -> Pos2 {
         }
         ResKind::Plate => {
             let r = Rect::from_center_size(c, vec2(obj.width() * 0.94, obj.height() * 0.8));
-            pos2(r.left() + r.width() * p, r.top() + r.height() * (0.31 + 0.53 * p))
+            pos2(
+                r.left() + r.width() * p,
+                r.top() + r.height() * (0.31 + 0.53 * p),
+            )
         }
         ResKind::Membrane | ResKind::Drumhead | ResKind::Pan => {
             let rx = obj.width().min(obj.height() * 2.6) * 0.47;
@@ -334,7 +349,15 @@ fn exciter(
     match fs.exc.kind {
         ExciterKind::Pluck => {
             // A fingertip: an arc under the string, pulling.
-            b.arc(p + vec2(0.0, s.s(8.0)), s.s(6.0), 3.6, 5.8, s.s(2.4), hue, true);
+            b.arc(
+                p + vec2(0.0, s.s(8.0)),
+                s.s(6.0),
+                3.6,
+                5.8,
+                s.s(2.4),
+                hue,
+                true,
+            );
         }
         ExciterKind::Pick => {
             let t = [
@@ -349,7 +372,13 @@ fn exciter(
             let a = p + vec2(-s.s(34.0), s.s(10.0));
             let z = p + vec2(s.s(34.0), -s.s(10.0));
             b.segment(a, z, w, hue, true);
-            b.segment(a + vec2(0.0, -s.s(5.0)), z + vec2(0.0, -s.s(5.0)), s.s(2.4), ink, true);
+            b.segment(
+                a + vec2(0.0, -s.s(5.0)),
+                z + vec2(0.0, -s.s(5.0)),
+                s.s(2.4),
+                ink,
+                true,
+            );
             b.rrect(
                 Rect::from_center_size(z + vec2(s.s(2.0), -s.s(2.5)), vec2(s.s(6.0), s.s(8.0))),
                 s.r(1.5),
@@ -358,7 +387,13 @@ fn exciter(
         }
         ExciterKind::Mallet => {
             let head = p + vec2(s.s(6.0), -s.s(9.0));
-            b.segment(head, head + vec2(s.s(26.0), -s.s(18.0)), s.s(2.0), ink, true);
+            b.segment(
+                head,
+                head + vec2(s.s(26.0), -s.s(18.0)),
+                s.s(2.0),
+                ink,
+                true,
+            );
             b.circle(head, s.s(5.5), crate::kit::Fill::Solid(hue));
         }
         ExciterKind::Noise => {
@@ -408,7 +443,12 @@ fn partial_ladder(
         b.vline(x, axis, axis + s.s(3.0), s.s(1.0), dim);
         let txt = format!("×{mark:.0}");
         let lr = Rect::from_center_size(pos2(x, axis + s.s(8.0)), vec2(s.s(30.0), s.s(10.0)));
-        let _ = ktext::paint(b, lr, &Text::new(&txt, Role::Micro, dim).align(Align2::CENTER_CENTER), s.tk());
+        let _ = ktext::paint(
+            b,
+            lr,
+            &Text::new(&txt, Role::Micro, dim).align(Align2::CENTER_CENTER),
+            s.tk(),
+        );
         mark *= 2.0;
     }
     let height = axis - r.top() - s.s(2.0);

@@ -160,7 +160,10 @@ fn resonator_choice(
             Vec2::new(rect.width(), h),
         );
         let labels = &RESONATORS[row * 6..row * 6 + 6];
-        let selected = now.checked_sub(row * 6).filter(|i| *i < 6).unwrap_or(usize::MAX);
+        let selected = now
+            .checked_sub(row * 6)
+            .filter(|i| *i < 6)
+            .unwrap_or(usize::MAX);
         let name = spec
             .kind
             .param(key)
@@ -173,9 +176,9 @@ fn resonator_choice(
             .style(*s)
             .show_at(ui, r);
         // A parameter as any switch is: its menu, its mapped mark, the learn mode.
-        app.controllers
-            .inst_words
-            .note(spec.kind, key, || crate::controllers_words::srcs(&RESONATORS));
+        app.controllers.inst_words.note(spec.kind, key, || {
+            crate::controllers_words::srcs(&RESONATORS)
+        });
         let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
         if let Some(i) = chosen.filter(|_| !learning) {
             app.set_inst_value(track, key, (row * 6 + i) as f32, false);
@@ -196,7 +199,12 @@ fn picture_card(
     let fs = settings(spec);
     let tele = app.inst_telemetry();
     let display = (rect.height() / s.k - 24.0 - 1.0 - 6.0).max(60.0);
-    let cr = paint_card(ui, rect, s, &Card::new("instrument.fides", Function::Source).display(display));
+    let cr = paint_card(
+        ui,
+        rect,
+        s,
+        &Card::new("instrument.fides", Function::Source).display(display),
+    );
     if let Some(d) = cr.display {
         let sd = face::on_display(&ss);
         draw::picture(app, ui, track, &fs, &tele, d, &sd);
@@ -209,7 +217,8 @@ fn rows_in(rect: Rect, s: &Style, hs: &[f32]) -> Vec<Rect> {
     let mut y = rect.top();
     hs.iter()
         .map(|h| {
-            let r = Rect::from_min_size(Pos2::new(rect.left(), y), Vec2::new(rect.width(), s.s(*h)));
+            let r =
+                Rect::from_min_size(Pos2::new(rect.left(), y), Vec2::new(rect.width(), s.s(*h)));
             y += s.s(*h + 6.0);
             r
         })
@@ -228,10 +237,24 @@ fn exciter_card(
 ) {
     let sd = s.function(Function::Dynamics);
     let fs = settings(spec);
-    let cr = paint_card(ui, rect, s, &Card::new("fides.exc.type", Function::Dynamics));
+    let cr = paint_card(
+        ui,
+        rect,
+        s,
+        &Card::new("fides.exc.type", Function::Dynamics),
+    );
     let r = rows_in(cr.body, s, &[24.0, 86.0, 86.0]);
     switch(app, ui, r[0], track, spec, "exc.type", &EXCITERS, &sd);
-    cells(app, ui, r[1], track, spec, exciter_keys(fs.exc.kind), &sd, KnobSize::M);
+    cells(
+        app,
+        ui,
+        r[1],
+        track,
+        spec,
+        exciter_keys(fs.exc.kind),
+        &sd,
+        KnobSize::M,
+    );
     let second: &[&str] = if fs.exc.kind == ExciterKind::Bow {
         &["exc.pos", "mpe.press", "mpe.slide", "noise.level"]
     } else {
@@ -264,10 +287,23 @@ fn resonator_card(
     let tail = if b { 96.0 } else { 0.0 };
     let cr = paint_card(ui, rect, s, &Card::new(title, Function::Source).tail(tail));
     if b {
-        lamp(app, ui, tail_rect(&cr, s, tail), track, spec, "b.on", Src::Key("fides.b.on"), &st);
+        lamp(
+            app,
+            ui,
+            tail_rect(&cr, s, tail),
+            track,
+            spec,
+            "b.on",
+            Src::Key("fides.b.on"),
+            &st,
+        );
     }
     let keys = res_keys(b, all);
-    let hs: &[f32] = if all { &[47.0, 86.0, 86.0] } else { &[47.0, 86.0] };
+    let hs: &[f32] = if all {
+        &[47.0, 86.0, 86.0]
+    } else {
+        &[47.0, 86.0]
+    };
     let r = rows_in(cr.body, s, hs);
     resonator_choice(app, ui, r[0], track, spec, key, &st);
     if all {
@@ -291,7 +327,16 @@ fn body_card(
     let cr = paint_card(ui, rect, s, &Card::new("fides.body.type", Function::Tone));
     let r = rows_in(cr.body, s, &[24.0, 86.0]);
     switch(app, ui, r[0], track, spec, "body.type", &BODIES, &st);
-    cells(app, ui, r[1], track, spec, &["body.mix", "body.size", "body.decay"], &st, KnobSize::M);
+    cells(
+        app,
+        ui,
+        r[1],
+        track,
+        spec,
+        &["body.mix", "body.size", "body.decay"],
+        &st,
+        KnobSize::M,
+    );
 }
 
 /// A card of cells: the title, and `keys` across its body.
@@ -355,7 +400,16 @@ fn coupling_card(
     let cr = paint_card(ui, rect, s, &Card::new("fides.couple", Function::Source));
     let r = rows_in(cr.body, s, &[24.0, 86.0]);
     switch(app, ui, r[0], track, spec, "couple", &COUPLINGS, &st);
-    cells(app, ui, r[1], track, spec, &["couple.mix"], &st, KnobSize::M);
+    cells(
+        app,
+        ui,
+        r[1],
+        track,
+        spec,
+        &["couple.mix"],
+        &st,
+        KnobSize::M,
+    );
 }
 
 /// The voice: its play mode in the title, its numbers in two rows, *Strike again* lit.
@@ -369,11 +423,25 @@ fn voice_card(
 ) {
     let so = s.function(Function::Output);
     let tail = 300.0;
-    let cr = paint_card(ui, rect, s, &Card::new("fides.voice", Function::Output).tail(tail));
+    let cr = paint_card(
+        ui,
+        rect,
+        s,
+        &Card::new("fides.voice", Function::Output).tail(tail),
+    );
     let t = tail_rect(&cr, s, tail);
     let parts = super::organ::parts::split(t, s.s(6.0), &[0.62, 0.38]);
     switch(app, ui, parts[0], track, spec, "mode", &MODES, &so);
-    lamp(app, ui, parts[1], track, spec, "retrig", Src::Key("fides.retrig"), &so);
+    lamp(
+        app,
+        ui,
+        parts[1],
+        track,
+        spec,
+        "retrig",
+        Src::Key("fides.retrig"),
+        &so,
+    );
     let r = rows_in(cr.body, s, &[86.0, 86.0]);
     let first = ["poly", "glide", "bend", "octave", "transpose", "fine"];
     let second = ["a4", "velocity", "release", "seed"];
@@ -431,7 +499,12 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         Function::Dynamics,
         &[
             &["noise.level", "noise.color", "noise.width", "noise.density"],
-            &["noise.attack", "noise.decay", "noise.sustain", "noise.release"],
+            &[
+                "noise.attack",
+                "noise.decay",
+                "noise.sustain",
+                "noise.release",
+            ],
         ],
     );
     let r5 = rows.row(heights[4], &[0.56, 0.44]);
@@ -444,7 +517,13 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         s,
         "fides.motion",
         Function::Mod,
-        &[&["vib.depth", "vib.rate", "vib.delay", "trem.depth", "trem.rate"]],
+        &[&[
+            "vib.depth",
+            "vib.rate",
+            "vib.delay",
+            "trem.depth",
+            "trem.rate",
+        ]],
     );
     cells_card(
         app,
@@ -499,7 +578,10 @@ pub fn demo_feed(app: &mut CantusApp) {
     t[tel::F0] = 261.6;
     t[tel::LEVEL] = 0.35;
     t[tel::POS] = 0.4;
-    for (k, lvl) in [0.02f32, 0.012, 0.006, 0.002, 0.001, 0.0005].iter().enumerate() {
+    for (k, lvl) in [0.02f32, 0.012, 0.006, 0.002, 0.001, 0.0005]
+        .iter()
+        .enumerate()
+    {
         t[tel::MODES + k] = *lvl;
     }
     app.inst.injected = Some(t);

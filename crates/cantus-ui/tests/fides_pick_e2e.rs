@@ -89,7 +89,10 @@ fn choosing_fides_adds_a_track_that_plays_a_phrase_and_a_preset() {
         .expect("a native instrument");
     assert_eq!(spec.kind, InstrumentKind::Resonator);
     // Its model is stored with it (ADR 0059's rule), and it plays a plucked string.
-    assert_eq!(spec.params.get("model"), Some(&cantus_core::inst::fides::MODEL));
+    assert_eq!(
+        spec.params.get("model"),
+        Some(&cantus_core::inst::fides::MODEL)
+    );
     assert_eq!(spec.get("exc.type"), 0.0);
     assert_eq!(spec.get("a.type"), 0.0);
 
@@ -97,10 +100,12 @@ fn choosing_fides_adds_a_track_that_plays_a_phrase_and_a_preset() {
     let mut p = app.project().clone();
     let mut c = p.make_clip("Phrase", Ticks::ZERO, Ticks::beats(4));
     for (i, pitch) in [48u8, 55, 60, 64, 67, 72].iter().enumerate() {
-        c.notes.push(p.make_note(Ticks(i as i64 * PPQ / 2), Ticks(PPQ / 2), *pitch, 100));
+        c.notes
+            .push(p.make_note(Ticks(i as i64 * PPQ / 2), Ticks(PPQ / 2), *pitch, 100));
     }
     for pitch in [52u8, 59, 64] {
-        c.notes.push(p.make_note(Ticks(3 * PPQ), Ticks(PPQ), pitch, 90));
+        c.notes
+            .push(p.make_note(Ticks(3 * PPQ), Ticks(PPQ), pitch, 90));
     }
     assert!(app.exec(cantus_core::Command::InsertClip {
         track,

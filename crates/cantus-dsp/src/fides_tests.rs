@@ -369,7 +369,13 @@ fn probe_sparse_noise_on_glass() {
     s.a.material = 0.95;
     s.body.kind = BodyKind::None;
     for key in [36u8, 48, 60, 72, 84] {
-        let (l, _) = render(&s, &[(0, Ev::On(key, 0.8)), (72_000, Ev::Off(key))], 96_000, &|_| 256, &Serial);
+        let (l, _) = render(
+            &s,
+            &[(0, Ev::On(key, 0.8)), (72_000, Ev::Off(key))],
+            96_000,
+            &|_| 256,
+            &Serial,
+        );
         let peak = l.iter().fold(0f32, |m, x| m.max(x.abs()));
         println!("key {key}: peak {peak:e}");
     }
@@ -392,8 +398,16 @@ fn probe_bowed_glass_and_bar() {
         s.a.decay_s = 5.0;
         s.a.material = 0.95;
         s.body.kind = BodyKind::None;
-        let (l, _) = render(&s, &[(0, Ev::On(60, 0.8)), (72_000, Ev::Off(60))], 96_000, &|_| 256, &Serial);
-        let rms = |a: usize, b: usize| (l[a..b].iter().map(|x| x * x).sum::<f32>() / (b - a) as f32).sqrt();
+        let (l, _) = render(
+            &s,
+            &[(0, Ev::On(60, 0.8)), (72_000, Ev::Off(60))],
+            96_000,
+            &|_| 256,
+            &Serial,
+        );
+        let rms = |a: usize, b: usize| {
+            (l[a..b].iter().map(|x| x * x).sum::<f32>() / (b - a) as f32).sqrt()
+        };
         let peak = l.iter().fold(0f32, |m, x| m.max(x.abs()));
         let at = l.iter().position(|x| x.abs() == peak).unwrap_or(0);
         println!(

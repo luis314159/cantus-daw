@@ -4,7 +4,9 @@
 //! engraved plate. Owned by the `fides` builder; one sheet in the house's family
 //! (`instruments.rs` lists it), never a copy of a product's dress.
 
-use super::{Case, Display, KnobShape, Lettering, Material, Pair, Plate, Skin, SwitchShape, Tint, Weight};
+use super::{
+    Case, Display, KnobShape, Lettering, Material, Pair, Plate, Skin, SwitchShape, Tint, Weight,
+};
 use crate::kit::color::Hsl;
 
 const fn pair(h: f32, s: f32, dark_l: f32, light_l: f32) -> Pair {

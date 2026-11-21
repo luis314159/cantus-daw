@@ -83,7 +83,9 @@ fn write_gain(src: &mut String, label: &str, gain: f32) {
     let Some(at) = src.find(&format!("\"{label}\"")) else {
         return;
     };
-    let end = src[at + 1..].find("preset!(").map_or(src.len(), |e| at + 1 + e);
+    let end = src[at + 1..]
+        .find("preset!(")
+        .map_or(src.len(), |e| at + 1 + e);
     let block = &src[at..end];
     let Some(g) = block.find("\"gain\" => ") else {
         return;
