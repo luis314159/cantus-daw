@@ -14,6 +14,7 @@ use cantus_ui::picker_catalog::{self, Category};
 use cantus_ui::CantusApp;
 
 #[test]
+#[ignore = "runs once Fides is in ALL — the owner's listening verdict (docs/round41/fides.md)"]
 fn the_picker_lists_fides_in_both_languages_on_the_keys_shelf() {
     for (locale, what) in [
         (Locale::En, "Resonators: strings, bars, membranes"),
@@ -139,4 +140,93 @@ fn choosing_fides_adds_a_track_that_plays_a_phrase_and_a_preset() {
     let out = play(&mut app, &mut proc_, 3);
     let peak = out.iter().fold(0.0f32, |m, x| m.max(x.abs()));
     assert!(peak > 0.01 && peak < 1.0, "the marimba: peak {peak}");
+}
+
+/// A probe (round 41's review fixes): every factory preset's audition phrase and its five
+/// notes rendered through the engine at its defaults, each render's bits hashed — and, with
+/// `FIDES_BITS_DIR`, written there as raw `f32`; with `FIDES_BITS_BASE` too, each compared
+/// with the render of the same name there (the largest difference, in dB under full scale).
+/// `cargo test -p cantus-ui --test fides_pick_e2e probe -- --ignored --nocapture`
+#[test]
+#[ignore = "a probe: the presets' bits, before and after a DSP change"]
+fn probe_the_factory_presets_bits() {
+    use cantus_core::{InstrumentSpec, NativeSpec, Snapshot};
+    use cantus_ui::preset_audition as aud;
+    use cantus_ui::preset_catalog::{entries, Payload, Unit};
+    let render = |p: &Project, end: Ticks| -> Vec<f32> {
+        let snap = std::sync::Arc::new(Snapshot::compile(p, 0));
+        cantus_engine::render(
+            snap,
+            &cantus_engine::RenderOptions {
+                sample_rate: 48_000,
+                start: Ticks::ZERO,
+                end: Some(end),
+                tail_seconds: aud::TAIL,
+                compensate_latency: true,
+                ..Default::default()
+            },
+        )
+        .expect("a render")
+        .samples
+    };
+    let notes = |spec: &NativeSpec| {
+        let mut p = aud::phrase_project(
+            InstrumentSpec::Native(spec.clone()),
+            cantus_ui::preset_tags::Role::Keys,
+        );
+        let mut clip = p.make_clip("notes", Ticks::ZERO, Ticks::beats(20));
+        for (i, key) in [36u8, 48, 60, 72, 84].iter().enumerate() {
+            let at = Ticks::beats(4 * i as i64);
+            clip.notes.push(p.make_note(at, Ticks::beats(3), *key, 100));
+        }
+        p.tracks[0].clips = vec![clip];
+        render(&p, Ticks::beats(20))
+    };
+    let dir = std::env::var_os("FIDES_BITS_DIR").map(std::path::PathBuf::from);
+    let base = std::env::var_os("FIDES_BITS_BASE").map(std::path::PathBuf::from);
+    set_thread_locale(Locale::En);
+    let unit = Unit::Instrument(InstrumentKind::Resonator);
+    for (i, e) in entries(unit, false).iter().enumerate() {
+        let Payload::Native(spec) = &e.payload else {
+            continue;
+        };
+        let name = e.id.trim_start_matches("fides.preset.");
+        let p = aud::phrase_project(InstrumentSpec::Native(spec.clone()), e.role());
+        let phrase = render(&p, Ticks::beats((4.0 * aud::BARS) as i64));
+        for (what, x) in [("phrase", phrase), ("notes", notes(spec))] {
+            let hash = x.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, v| {
+                (h ^ v.to_bits() as u64).wrapping_mul(0x0100_0000_01b3)
+            });
+            let file = format!("{:02}-{name}-{what}.f32", i + 1);
+            let mut diff = String::new();
+            if let Some(b) = &base {
+                let old: Vec<f32> = std::fs::read(b.join(&file))
+                    .unwrap_or_default()
+                    .chunks_exact(4)
+                    .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                    .collect();
+                let d = if old.len() != x.len() {
+                    f32::INFINITY
+                } else {
+                    old.iter()
+                        .zip(&x)
+                        .fold(0f32, |m, (a, b)| m.max((a - b).abs()))
+                };
+                diff = if d == 0.0 {
+                    "  same bits".into()
+                } else {
+                    format!(
+                        "  differs, at most {:.1} dBFS",
+                        20.0 * cantus_dsp::math::log10(d.max(1e-30))
+                    )
+                };
+            }
+            println!("{file}: {hash:016x}{diff}");
+            if let Some(d) = &dir {
+                std::fs::create_dir_all(d).unwrap();
+                let bytes: Vec<u8> = x.iter().flat_map(|v| v.to_le_bytes()).collect();
+                std::fs::write(d.join(&file), bytes).unwrap();
+            }
+        }
+    }
 }
