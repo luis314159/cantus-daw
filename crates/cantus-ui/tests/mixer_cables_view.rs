@@ -211,6 +211,7 @@ fn on_cable(r: &Rig, d: &DrawnCable) -> Pos2 {
 /// round 25 drew it.
 #[test]
 fn cable_options_round_trip_and_old_desks_read_as_today() {
+    let _theme_turn = theme_turn();
     let opts = CableOpts {
         scope: CableScope::In,
         outputs: false,
@@ -254,6 +255,7 @@ fn cable_options_round_trip_and_old_desks_read_as_today() {
 /// and a click where the hidden output ran selects nothing.
 #[test]
 fn only_sends_shown_draws_and_selects_no_output_or_key() {
+    let _theme_turn = theme_turn();
     let (mut r, ids, key) = wide_rig();
     let out = r
         .drawn(Route::output(ids[1], ids[9]))
@@ -315,6 +317,7 @@ fn only_sends_shown_draws_and_selects_no_output_or_key() {
 /// them. In *All*, the scope decides what is lit.
 #[test]
 fn the_in_scope_draws_the_feeders_cables() {
+    let _theme_turn = theme_turn();
     let (mut r, ids, key) = wide_rig();
     let feeders = [Route::send(ids[3], ids[1]), Route::output(ids[5], ids[1])];
     let own = [
@@ -361,6 +364,7 @@ fn the_in_scope_draws_the_feeders_cables() {
 /// it go, and Delete then leaves the route alone.
 #[test]
 fn delete_on_a_hidden_kind_does_nothing() {
+    let _theme_turn = theme_turn();
     let (mut r, ids, _) = wide_rig();
     let route = Route::output(ids[1], ids[9]);
     let out = r.drawn(route).expect("the output's cable");
@@ -385,6 +389,7 @@ fn delete_on_a_hidden_kind_does_nothing() {
 /// grabbed; without the outputs into the master the selection's master route is gone.
 #[test]
 fn detail_switches_hide_pills_and_master_outputs() {
+    let _theme_turn = theme_turn();
     let (mut r, ids, _) = wide_rig();
     // Strip 5 goes to the master: selected, its master route shows.
     r.app.select_strip(ids[4]);
@@ -424,6 +429,7 @@ fn detail_switches_hide_pills_and_master_outputs() {
 /// options and closes it.
 #[test]
 fn the_options_menu_switches_kinds_and_resets() {
+    let _theme_turn = theme_turn();
     let (mut r, _, _) = wide_rig();
     let key = mixer::title_rect(&r.ctx, "cable-options").expect("the options key");
     let switch = mixer::title_rect(&r.ctx, "cables").expect("the view switch");
@@ -475,6 +481,7 @@ fn the_options_menu_switches_kinds_and_resets() {
 /// row lies over a key it does not belong to.
 #[test]
 fn the_title_row_never_overlaps() {
+    let _theme_turn = theme_turn();
     const KEYS: [&str; 9] = [
         "menu",
         "add",
@@ -571,6 +578,7 @@ fn the_title_row_never_overlaps() {
 /// here, that none is missing or falls back to English).
 #[test]
 fn the_options_words_exist_in_both_languages() {
+    let _theme_turn = theme_turn();
     let mut keys: Vec<&str> = vec![
         "cables.menu.options",
         "cables.menu.scope",
@@ -606,6 +614,7 @@ fn the_options_words_exist_in_both_languages() {
 /// open, as in the key's menu.
 #[test]
 fn the_desk_menu_holds_the_cable_options() {
+    let _theme_turn = theme_turn();
     let (mut r, _, _) = wide_rig();
     mixer::open_menu(&mut r.app, None, egui::pos2(20.0, 300.0));
     let texts = r.idle(2);
@@ -638,6 +647,7 @@ fn the_desk_menu_holds_the_cable_options() {
 /// 100 % and 200 %.
 #[test]
 fn the_options_menu_reads_whole_in_both_languages() {
+    let _theme_turn = theme_turn();
     let bands = [
         "cables.menu.scope",
         "cables.menu.kinds",
@@ -677,4 +687,19 @@ fn the_options_menu_reads_whole_in_both_languages() {
         }
     }
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

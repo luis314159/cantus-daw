@@ -123,6 +123,7 @@ fn voice(app: &CantusApp, st: f32) -> Pos2 {
 
 #[test]
 fn the_alidade_and_the_slimmer_hand_turn_the_voices_each_drag_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!((value(&app, "pa"), value(&app, "pb")), (12.0, 7.0));
     // The alidade from its jewel (+12) to the spiral's +19 (a fifth, an octave up).
@@ -159,6 +160,7 @@ fn the_alidade_and_the_slimmer_hand_turn_the_voices_each_drag_one_undo_step() {
 
 #[test]
 fn the_decay_rack_follows_a_drag_and_takes_none_while_infinite() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(value(&app, "decay"), 6.5, "Octave shimmer's 6.5 s");
     let (rack, y) = app.fx.caelum.decay_rack(6.5).expect("the rack is drawn");
@@ -192,6 +194,7 @@ fn the_decay_rack_follows_a_drag_and_takes_none_while_infinite() {
 /// the whole per cent under the pointer, one drag one undo step.
 #[test]
 fn the_sustain_rider_follows_a_drag_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(value(&app, "isus"), 1.0, "infinite means infinite");
     let (gauge, from) = app
@@ -209,4 +212,19 @@ fn the_sustain_rider_follows_a_drag_one_undo_step() {
     );
     app.undo();
     assert_eq!(value(&app, "isus"), 1.0, "one drag, one undo step");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

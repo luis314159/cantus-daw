@@ -48,6 +48,7 @@ fn play_sine(a: &mut CantusApp, dbfs: f32, secs: f32) {
 
 #[test]
 fn the_editor_paints_its_parts_at_rest() {
+    let _theme_turn = theme_turn();
     let (mut a, _, _) = with_limiter();
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
     // Labels and section names are set in capitals, and a label wider than its cell
@@ -84,6 +85,7 @@ fn the_editor_paints_its_parts_at_rest() {
 /// EBU conformance tests check: a stereo −23 dBFS sine reads −23.0 LUFS integrated.
 #[test]
 fn the_editor_reads_a_minus_23_sine_as_minus_23_lufs() {
+    let _theme_turn = theme_turn();
     let (mut a, _, _) = with_limiter();
     play_sine(&mut a, -23.0, 12.0);
     let st = &a.fx.limiter;
@@ -104,6 +106,7 @@ fn the_editor_reads_a_minus_23_sine_as_minus_23_lufs() {
 /// length, loses nothing.
 #[test]
 fn columns_arrive_once_whatever_the_frame_rate() {
+    let _theme_turn = theme_turn();
     let mut st = State::default();
     let mut dsp = Terminus::new(48_000.0);
     let mut total = 0;
@@ -138,6 +141,7 @@ fn col(gr: f32, energy: f32) -> Column {
 /// bars, bars 2–3 as they were heard the second time — replaced, not appended.
 #[test]
 fn a_second_take_of_a_bar_replaces_the_first() {
+    let _theme_turn = theme_turn();
     let mut st = State::default();
     let bar = PPQ * 4;
     // 120 BPM: a bar is 2 s = 200 columns; a column is 9.6 ticks.
@@ -168,6 +172,7 @@ fn a_second_take_of_a_bar_replaces_the_first() {
 /// Loudness measured from the song history agrees with the meter that heard it.
 #[test]
 fn the_song_is_measured_as_bs1770_measures_it() {
+    let _theme_turn = theme_turn();
     let (mut a, _, _) = with_limiter();
     // Play at 120 BPM from bar 1: the dummy engine's position is set by hand each frame.
     let mut dsp = Terminus::new(48_000.0);
@@ -244,6 +249,7 @@ fn drag(a: &mut CantusApp, ctx: &egui::Context, from: egui::Pos2, to: egui::Pos2
 /// The ceiling is a line you drag, and the drag is one undo step.
 #[test]
 fn dragging_the_ceiling_line_sets_the_ceiling_in_one_step() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, _) = with_limiter();
     let ctx = ctx();
     frames(&mut a, &ctx, vec![]);
@@ -262,6 +268,7 @@ fn dragging_the_ceiling_line_sets_the_ceiling_in_one_step() {
 /// The gain strip on the left edge: drag up for more gain.
 #[test]
 fn dragging_the_gain_strip_raises_the_gain() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, _) = with_limiter();
     let ctx = ctx();
     frames(&mut a, &ctx, vec![]);
@@ -279,6 +286,7 @@ fn dragging_the_gain_strip_raises_the_gain() {
 /// A peak label in the song view is a button: clicking it moves the playhead to it.
 #[test]
 fn clicking_a_peak_label_goes_there() {
+    let _theme_turn = theme_turn();
     let (mut a, _, _) = with_limiter();
     let ctx = ctx();
     let per_col = PPQ as f64 * 2.0 * 0.01;
@@ -316,6 +324,7 @@ fn clicking_a_peak_label_goes_there() {
 /// A delivery profile sets the target, the ceiling and true peak together: one undo step.
 #[test]
 fn a_profile_is_one_step_and_names_itself() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, fx) = with_limiter();
     let atsc = PROFILES.iter().find(|p| p.key.ends_with("atsc")).unwrap();
     a.set_fx_param(s0, fx, "tp", 0.0, false);
@@ -352,6 +361,7 @@ fn a_profile_is_one_step_and_names_itself() {
 /// The verdict is words: on target, turned down by how much, and a true peak over.
 #[test]
 fn the_verdict_says_what_the_platform_will_do() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let spotify = &PROFILES[0];
     let (ok, words) = verdict(Some(-14.3), -1.2, -14.0, -1.0, Some(spotify));
@@ -370,6 +380,7 @@ fn the_verdict_says_what_the_platform_will_do() {
 /// Every factory preset names only parameters the limiter has, in range, and has a name.
 #[test]
 fn the_factory_presets_are_valid() {
+    let _theme_turn = theme_turn();
     assert!(cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Limiter).len() >= 6);
     for (label, params) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Limiter) {
         let name = cantus_ui::i18n::t(label);
@@ -386,6 +397,7 @@ fn the_factory_presets_are_valid() {
 /// The demo the screenshots use paints a real history in both themes: labels, loudness.
 #[test]
 fn the_demo_paints_labels_and_loudness_in_both_themes() {
+    let _theme_turn = theme_turn();
     for dark in [false, true] {
         let mut a = app(cantus_ui::welcome_project());
         let theme = if dark {
@@ -405,4 +417,19 @@ fn the_demo_paints_labels_and_loudness_in_both_themes() {
         assert!((-20.0..-4.0).contains(&i), "demo loudness {i}");
     }
     cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx());
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

@@ -70,6 +70,7 @@ type Case = (&'static str, EffectKind, &'static [(&'static str, f32)]);
 
 #[test]
 fn wave_a_s_windows_never_cut_or_clip_a_word() {
+    let _theme_turn = theme_turn();
     let cases: &[Case] = &[
         ("loquax", EffectKind::Vocoder, &[]),
         (
@@ -130,6 +131,7 @@ fn wave_a_s_windows_never_cut_or_clip_a_word() {
 /// display — the microphone, the bank and the meters — is the same size, scaled.
 #[test]
 fn loquax_s_display_keeps_its_size_in_every_language_and_scale() {
+    let _theme_turn = theme_turn();
     let mut heights = Vec::new();
     for lang in [Locale::En, Locale::Es] {
         cantus_ui::i18n::set_thread_locale(lang);
@@ -165,6 +167,7 @@ fn loquax_s_display_keeps_its_size_in_every_language_and_scale() {
 /// keys held and the frozen cloud's among them.
 #[test]
 fn fractus_s_pages_never_cut_or_clip_a_word() {
+    let _theme_turn = theme_turn();
     let pages = views::fx::fractus::PAGES.len();
     assert_eq!(pages, 4);
     let mut bad = Vec::new();
@@ -206,6 +209,7 @@ fn fractus_s_pages_never_cut_or_clip_a_word() {
 /// gives up its height on every page.
 #[test]
 fn fractus_s_pages_are_one_row_each() {
+    let _theme_turn = theme_turn();
     for lang in [Locale::En, Locale::Es] {
         cantus_ui::i18n::set_thread_locale(lang);
         let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
@@ -274,6 +278,7 @@ fn sill_value(app: &CantusApp, key: &str) -> f32 {
 
 #[test]
 fn caelum_s_sill_buttons_throw_the_endless_settings() {
+    let _theme_turn = theme_turn();
     let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
     app.demo_editor("caelum");
     views::fx::demo_feed(&mut app, EffectKind::Shimmer);
@@ -320,4 +325,19 @@ fn caelum_s_sill_buttons_throw_the_endless_settings() {
     );
     app.undo();
     assert_eq!(sill_value(&app, "isus"), 1.0, "one click, one undo step");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

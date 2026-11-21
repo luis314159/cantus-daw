@@ -224,6 +224,7 @@ fn whole(kind: InstrumentKind, view: View) -> Vec2 {
 
 #[test]
 fn chorda_and_tympanum_read_whole_at_every_scale_and_the_narrowest_window() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     inst::chorda::scene::set_blocking(true);
     let (p, chorda, tymp) = song();
@@ -335,6 +336,7 @@ fn chorda_and_tympanum_read_whole_at_every_scale_and_the_narrowest_window() {
 /// 1 040 × 680 ran past the window's right and foot). A list inside it may scroll.
 #[test]
 fn an_instrument_opens_at_its_own_size_its_view_uncut() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     inst::chorda::scene::set_blocking(true);
     let (p, chorda, tymp) = song();
@@ -427,6 +429,7 @@ fn an_instrument_opens_at_its_own_size_its_view_uncut() {
 /// track's part and the other secondary items give way first.
 #[test]
 fn the_header_keeps_every_instruments_name_whole_at_the_narrowest_window() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     inst::chorda::scene::set_blocking(true);
     let mut p = cantus_ui::welcome_project();
@@ -483,4 +486,19 @@ fn the_header_keeps_every_instruments_name_whole_at_the_narrowest_window() {
         bad.len(),
         bad.join("\n")
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

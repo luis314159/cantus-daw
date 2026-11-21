@@ -140,6 +140,7 @@ fn at(app: &CantusApp, lane: usize, step: usize, amount: f32) -> Pos2 {
 
 #[test]
 fn a_block_is_painted_by_a_drag_its_height_the_amount_in_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(laid(&app).steps, 16, "a bar of sixteenths");
     let before: Pattern = spec(&app).fractus.as_deref().cloned().unwrap();
@@ -183,6 +184,7 @@ fn a_block_is_painted_by_a_drag_its_height_the_amount_in_one_undo_step() {
 
 #[test]
 fn a_shift_stroke_sets_the_chance_of_the_blocks_it_passes() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     // The filter sweep's block: steps 0..8 at 40 %.
     assert_eq!(
@@ -209,6 +211,7 @@ fn a_shift_stroke_sets_the_chance_of_the_blocks_it_passes() {
 
 #[test]
 fn a_right_click_erases_a_block() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(lane(&app, 8).len(), 1, "the delay throw on step 6");
     let p = at(&app, 8, 6, 0.5);
@@ -223,6 +226,7 @@ fn a_right_click_erases_a_block() {
 
 #[test]
 fn the_page_keys_and_a_lane_s_name_open_pages_and_change_no_sound() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     let project = app.project().clone();
     assert_eq!(app.fx.fractus.page, 0, "the sequencer's page");
@@ -251,6 +255,7 @@ fn the_page_keys_and_a_lane_s_name_open_pages_and_change_no_sound() {
 
 #[test]
 fn freeze_and_the_style_switch_are_thrown_by_a_click_one_undo_step_each() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(spec(&app).get("cfreeze"), 0.0);
     let lamp = app
@@ -285,4 +290,19 @@ fn freeze_and_the_style_switch_are_thrown_by_a_click_one_undo_step_each() {
     assert_eq!(spec(&app).get("pstyle"), 1.0, "clean");
     app.undo();
     assert_eq!(spec(&app).get("pstyle"), 0.0, "one click, one undo step");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

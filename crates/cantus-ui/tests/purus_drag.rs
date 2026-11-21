@@ -152,6 +152,7 @@ fn spot(app: &CantusApp, act: Act) -> Pos2 {
 
 #[test]
 fn the_bench_s_toggles_and_keys_each_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open(&[]);
     // The starting preset: the hum module on at 50 Hz, the others off.
     assert_eq!((value(&app, "hon"), value(&app, "hhz")), (1.0, 50.0));
@@ -196,6 +197,7 @@ fn the_bench_s_toggles_and_keys_each_one_undo_step() {
 
 #[test]
 fn the_comb_s_needles_drag_the_fundamental_each_drag_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open(&[("hmode", 0.0)]);
     assert_eq!(value(&app, "hhz"), 50.0);
     // The fundamental's needle from 50 Hz to where 60 Hz is on the rail.
@@ -232,6 +234,7 @@ fn the_comb_s_needles_drag_the_fundamental_each_drag_one_undo_step() {
 
 #[test]
 fn the_room_s_tail_drags_the_reduction_and_the_early_mark_each_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open(&[("hon", 0.0), ("von", 1.0)]);
     assert_eq!((value(&app, "vamount"), value(&app, "vkeep")), (12.0, 50.0));
     let g = app.fx.purus.tail.expect("the tail is drawn");
@@ -276,4 +279,19 @@ fn the_room_s_tail_drags_the_reduction_and_the_early_mark_each_one_undo_step() {
         egui::pos2(x, g.y_of(-24.0)),
     );
     assert_eq!(value(&app, "vamount"), 12.0, "off: the reduction untouched");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

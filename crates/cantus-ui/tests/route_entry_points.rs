@@ -162,6 +162,7 @@ fn send_of(app: &CantusApp, from: StripId, to: StripId) -> Option<Send> {
 /// output untouched, one undo step.
 #[test]
 fn a_cable_dragged_from_a_real_port_sends_at_0_db() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::desk(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -177,6 +178,7 @@ fn a_cable_dragged_from_a_real_port_sends_at_0_db() {
 /// its level and tap kept (`cmd.move_route`).
 #[test]
 fn a_real_end_mark_dragged_moves_the_route() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::desk(starter_project());
     let s = r.ids();
     r.app.set_strip_send(
@@ -223,6 +225,7 @@ fn a_real_end_mark_dragged_moves_the_route() {
 /// Extra large's "+" row is a port too: dragged onto a column, it sends there.
 #[test]
 fn the_plus_row_dragged_onto_a_strip_sends() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::desk(starter_project());
     mixer::set_width_mode(&mut r.app, WidthMode::Xl);
     r.idle(3);
@@ -239,6 +242,7 @@ fn the_plus_row_dragged_onto_a_strip_sends() {
 /// The selected send cable's chip beside its pill.
 #[test]
 fn the_selected_pills_chip_makes_it_pre() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::desk(starter_project());
     // The level pills are an option of the cable view since round 39 (des-mixer).
     {
@@ -272,6 +276,7 @@ fn the_selected_pills_chip_makes_it_pre() {
 /// The route menu's *Pre-fader* radio, opened from a send row's right-click.
 #[test]
 fn the_route_menus_radio_makes_it_pre() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::desk(starter_project());
     mixer::set_width_mode(&mut r.app, WidthMode::Xl);
     let s = r.ids();
@@ -299,6 +304,7 @@ fn open(r: &mut Rig, route: Route) {
 /// names.
 #[test]
 fn a_sends_route_menu_rows_each_do_what_they_say() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::desk(starter_project());
     let s = r.ids();
     let route = Route::send(s[1], s[5]);
@@ -350,6 +356,7 @@ fn a_sends_route_menu_rows_each_do_what_they_say() {
 /// An output's menu: Make this a send, Show the destination, Remove (back to the master).
 #[test]
 fn an_outputs_route_menu_rows_each_do_what_they_say() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::desk(starter_project());
     let s = r.ids();
     r.app.exec(cantus_core::Command::SetStripOutput {
@@ -383,6 +390,7 @@ fn an_outputs_route_menu_rows_each_do_what_they_say() {
 /// A key's menu: Open the keyed effect, Remove.
 #[test]
 fn a_keys_route_menu_rows_each_do_what_they_say() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::desk(starter_project());
     let s = r.ids();
     r.app.add_effect(s[6], EffectKind::Compressor);
@@ -406,4 +414,19 @@ fn a_keys_route_menu_rows_each_do_what_they_say() {
     let e = &r.app.project().strip(s[6]).unwrap().effects[0];
     assert_eq!(e.sidechain, None);
     assert_eq!(r.label(), Some("cmd.remove_route"));
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

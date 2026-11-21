@@ -163,6 +163,7 @@ fn themes() -> [(&'static str, Theme); 4] {
 
 #[test]
 fn slate_costs_no_allocation_no_draw_call_and_no_triangle_more_than_beta_13() {
+    let _theme_turn = theme_turn();
     let _one = serial();
     let mut rows = Vec::new();
     for (name, theme) in themes() {
@@ -184,6 +185,7 @@ fn slate_costs_no_allocation_no_draw_call_and_no_triangle_more_than_beta_13() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn slate_timing() {
+    let _theme_turn = theme_turn();
     let _one = serial();
     let ms = |frames: Vec<Frame>| {
         let mut v: Vec<f64> = frames.iter().map(|f| f.time.as_secs_f64() * 1e3).collect();
@@ -212,4 +214,19 @@ fn slate_timing() {
         best[1].0,
         best[0].0
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

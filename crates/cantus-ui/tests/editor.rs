@@ -164,6 +164,7 @@ impl Rig {
 
 #[test]
 fn a_take_opens_from_its_clip_and_is_read_whole() {
+    let _theme_turn = theme_turn();
     let x = take();
     let mut r = rig(&x);
     r.open();
@@ -177,6 +178,7 @@ fn a_take_opens_from_its_clip_and_is_read_whole() {
 
 #[test]
 fn an_edit_is_a_new_content_addressed_file_and_one_undo_step() {
+    let _theme_turn = theme_turn();
     let x = take();
     let mut r = rig(&x);
     r.open();
@@ -231,6 +233,7 @@ fn an_edit_is_a_new_content_addressed_file_and_one_undo_step() {
 
 #[test]
 fn an_edit_that_changes_nothing_writes_nothing() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     let before = r.source();
@@ -243,6 +246,7 @@ fn an_edit_that_changes_nothing_writes_nothing() {
 
 #[test]
 fn delete_needs_a_selection_and_shortens_a_clip_that_showed_the_whole_take() {
+    let _theme_turn = theme_turn();
     let x = take();
     let mut r = rig(&x);
     r.open();
@@ -288,6 +292,7 @@ fn delete_needs_a_selection_and_shortens_a_clip_that_showed_the_whole_take() {
 
 #[test]
 fn noise_reduction_learns_a_stretch_and_cleans_the_take() {
+    let _theme_turn = theme_turn();
     let x = take();
     let mut r = rig(&x);
     r.open();
@@ -354,6 +359,7 @@ fn noise_reduction_learns_a_stretch_and_cleans_the_take() {
 
 #[test]
 fn remove_silence_cuts_the_quiet_and_keeps_the_phrases() {
+    let _theme_turn = theme_turn();
     let n = RATE as usize;
     let tone = |k: usize| -> Vec<f32> {
         (0..k)
@@ -383,6 +389,7 @@ fn remove_silence_cuts_the_quiet_and_keeps_the_phrases() {
 
 #[test]
 fn normalize_and_fades_and_reverse_are_each_a_step() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     let steps = |r: &Rig| r.app.project().audio_pool.len();
@@ -404,6 +411,7 @@ fn normalize_and_fades_and_reverse_are_each_a_step() {
 
 #[test]
 fn the_editor_keeps_cut_copy_paste_delete_while_open_and_lets_go_when_closed() {
+    let _theme_turn = theme_turn();
     use cantus_ui::keymap::Action;
     let mut r = rig(&take());
     assert!(
@@ -427,6 +435,7 @@ fn the_editor_keeps_cut_copy_paste_delete_while_open_and_lets_go_when_closed() {
 
 #[test]
 fn undo_redo_while_open_makes_the_window_read_the_clips_file_again() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     r.do_edit(Edit::Silence); // refused (no selection) — nothing changes
@@ -445,6 +454,7 @@ fn undo_redo_while_open_makes_the_window_read_the_clips_file_again() {
 
 #[test]
 fn the_window_paints_headless_in_both_themes_with_its_words() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     r.app.editor.session.as_mut().unwrap().sel = Some(Sel::new(10_000, 40_000));
@@ -519,6 +529,7 @@ fn call(
 
 #[test]
 fn the_agents_edit_a_take_in_one_undo_step() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     let id = r.clip.0;
     let plan = call(
@@ -551,6 +562,7 @@ fn the_agents_edit_a_take_in_one_undo_step() {
 
 #[test]
 fn the_agents_denoise_by_a_noise_stretch_and_amount_zero_changes_nothing() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     let id = r.clip.0;
     let args = |amount: f64| serde_json::json!({"clip": id, "noise_start_seconds": 0.0, "noise_end_seconds": 0.5, "amount": amount});
@@ -583,6 +595,7 @@ fn clip_of(r: &Rig) -> cantus_core::Clip {
 
 #[test]
 fn a_cut_or_paste_while_an_edit_is_on_its_way_is_held_and_said() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     r.app.editor.session.as_mut().unwrap().sel = Some(Sel::new(1_000, 9_000));
@@ -603,6 +616,7 @@ fn a_cut_or_paste_while_an_edit_is_on_its_way_is_held_and_said() {
 
 #[test]
 fn gain_like_edits_keep_the_warp_and_a_reversal_drops_it_and_says_so() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     let mut region = clip_of(&r).audio.unwrap();
     region.warp = Some(Box::new(cantus_core::warp::Warp::new(RATE, 120.0)));
@@ -624,6 +638,7 @@ fn gain_like_edits_keep_the_warp_and_a_reversal_drops_it_and_says_so() {
 
 #[test]
 fn another_project_closes_the_window() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     r.app.new_project();
@@ -641,6 +656,7 @@ fn another_project_closes_the_window() {
 
 #[test]
 fn a_save_as_while_an_edit_is_made_puts_its_file_in_the_new_folder() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     editor::act(&mut r.app, Act::Edit(Edit::Gain { db: -4.0 }));
@@ -659,6 +675,7 @@ fn a_save_as_while_an_edit_is_made_puts_its_file_in_the_new_folder() {
 
 #[test]
 fn a_result_for_a_closed_window_leaves_no_file() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     editor::act(&mut r.app, Act::Edit(Edit::Gain { db: -5.0 }));
@@ -674,6 +691,7 @@ fn a_result_for_a_closed_window_leaves_no_file() {
 
 #[test]
 fn a_declined_agent_edit_leaves_no_file() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     let id = r.clip.0;
     let plan = call(
@@ -690,6 +708,7 @@ fn a_declined_agent_edit_leaves_no_file() {
 
 #[test]
 fn the_agents_bad_arguments_are_bad_arguments() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     let id = r.clip.0;
     for args in [
@@ -706,6 +725,7 @@ fn the_agents_bad_arguments_are_bad_arguments() {
 
 #[test]
 fn marks_are_saved_with_the_file_and_move_with_a_cut() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     let n = RATE as usize;
@@ -729,6 +749,7 @@ fn marks_are_saved_with_the_file_and_move_with_a_cut() {
 
 #[test]
 fn a_paste_from_another_rate_and_channel_count_is_conformed() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     // Half a second of stereo at 44.1 kHz.
@@ -745,6 +766,7 @@ fn a_paste_from_another_rate_and_channel_count_is_conformed() {
 
 #[test]
 fn a_file_pastes_and_opens_from_disk() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     let other = r.dir.path().join("other.wav");
@@ -762,6 +784,7 @@ fn a_file_pastes_and_opens_from_disk() {
 
 #[test]
 fn a_selection_becomes_a_clip_of_its_own_in_one_step() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     let tracks = r.app.project().tracks.len();
@@ -784,6 +807,7 @@ fn a_selection_becomes_a_clip_of_its_own_in_one_step() {
 
 #[test]
 fn unused_audio_is_listed_with_its_size_and_removed_in_one_step() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     r.do_edit(Edit::Gain { db: -6.0 });
@@ -811,6 +835,7 @@ fn unused_audio_is_listed_with_its_size_and_removed_in_one_step() {
 
 #[test]
 fn a_click_on_a_five_minute_take_is_found_in_detail_and_repaired() {
+    let _theme_turn = theme_turn();
     let n = RATE as usize * 300;
     let clean: Vec<f32> = (0..n)
         .map(|i| 0.3 * cantus_dsp::math::sin(i as f32 * 0.031))
@@ -901,6 +926,7 @@ fn edit_files_under(dir: &Path) -> Vec<PathBuf> {
 
 #[test]
 fn each_project_keeps_its_edits_in_its_own_folder_and_never_cleans_anothers() {
+    let _theme_turn = theme_turn();
     let mut a = rig(&take());
     let mut b = beside(&a, "B");
     // B edits (and is not even saved): its file is in Audio/B, nothing of A's.
@@ -928,6 +954,7 @@ fn each_project_keeps_its_edits_in_its_own_folder_and_never_cleans_anothers() {
 
 #[test]
 fn a_file_a_sibling_project_refers_to_is_never_deleted() {
+    let _theme_turn = theme_turn();
     let mut a = rig(&take());
     a.open();
     a.do_edit(Edit::Gain { db: -6.0 });
@@ -950,6 +977,7 @@ fn a_file_a_sibling_project_refers_to_is_never_deleted() {
 
 #[test]
 fn a_pending_agent_edit_and_a_running_one_are_never_swept() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     let id = r.clip.0;
     // An agent's edit, planned and not yet made (its card waits): pending, referenced.
@@ -986,6 +1014,7 @@ fn a_pending_agent_edit_and_a_running_one_are_never_swept() {
 
 #[test]
 fn a_half_written_file_is_cleaned_only_when_a_cut_session_left_it() {
+    let _theme_turn = theme_turn();
     let r = rig(&take());
     let dir = r.dir.path().join("Audio").join("song");
     std::fs::create_dir_all(&dir).unwrap();
@@ -1013,6 +1042,7 @@ fn a_half_written_file_is_cleaned_only_when_a_cut_session_left_it() {
 
 #[test]
 fn remove_unused_audio_is_always_asked_first() {
+    let _theme_turn = theme_turn();
     let def = cantus_ui::ai_tools::find("remove_unused_audio").expect("the tool");
     assert_eq!(def.class, cantus_ai::ToolClass::Destructive);
     // A host run the pump asks about before it runs — files only or not.
@@ -1021,6 +1051,7 @@ fn remove_unused_audio_is_always_asked_first() {
 
 #[test]
 fn a_clip_an_ara_plugin_edits_is_not_opened_and_never_handed_its_binding() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     let mut region = clip_of(&r).audio.unwrap();
     region.ara = Some(Box::new(cantus_core::ara::AraClip {
@@ -1055,6 +1086,7 @@ fn a_clip_an_ara_plugin_edits_is_not_opened_and_never_handed_its_binding() {
 
 #[test]
 fn in_the_recording_mode_an_edit_is_refused_before_any_work_in_the_modes_words() {
+    let _theme_turn = theme_turn();
     let mut r = rig(&take());
     r.open();
     r.app
@@ -1064,4 +1096,19 @@ fn in_the_recording_mode_an_edit_is_refused_before_any_work_in_the_modes_words()
     assert!(!r.app.editor.busy(), "no job started");
     assert_eq!(r.status(), cantus_ui::i18n::t("record.notice"));
     assert!(r.audio_files().is_empty());
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

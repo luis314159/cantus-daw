@@ -265,6 +265,7 @@ impl Rig {
 
 #[test]
 fn a_double_click_on_an_audio_clip_opens_its_notes() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     assert_eq!(r.app.central, CentralView::PianoRoll);
@@ -285,6 +286,7 @@ fn a_double_click_on_an_audio_clip_opens_its_notes() {
 
 #[test]
 fn a_drag_moves_a_notes_pitch_in_one_step_and_undo_gives_it_back() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let before = r.app.project().clone();
@@ -309,6 +311,7 @@ fn a_drag_moves_a_notes_pitch_in_one_step_and_undo_gives_it_back() {
 
 #[test]
 fn split_join_macros_and_the_original() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     // Split: the tool, a click inside the third note.
@@ -351,6 +354,7 @@ fn split_join_macros_and_the_original() {
 
 #[test]
 fn midi_out_and_the_double_make_their_clips() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -387,6 +391,7 @@ fn midi_out_and_the_double_make_their_clips() {
 
 #[test]
 fn every_pitch_string_is_in_both_languages() {
+    let _theme_turn = theme_turn();
     for key in [
         "pitch.analysing",
         "pitch.original",
@@ -410,6 +415,7 @@ fn every_pitch_string_is_in_both_languages() {
 /// the file), the take as sung plays the file, and the double plays a render of its own.
 #[test]
 fn the_demo_project_opens_and_plays_its_edits() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     let path = cantus_ui::pitch::demo::write_demo(dir.path()).unwrap();
     let p = cantus_project::load(&path, true).unwrap().project;
@@ -465,6 +471,7 @@ fn the_demo_project_opens_and_plays_its_edits() {
 /// arrangement leaves the melody there, at the voice's place.
 #[test]
 fn the_midi_chip_dragged_onto_a_track_leaves_the_melody_there() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let keys = r.app.project().tracks[0].id;
@@ -489,6 +496,7 @@ fn the_midi_chip_dragged_onto_a_track_leaves_the_melody_there() {
 /// A clip played backwards: MIDI out reads it as it sounds, last note first.
 #[test]
 fn a_reversed_clip_gives_its_notes_as_they_sound() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -518,6 +526,7 @@ fn a_reversed_clip_gives_its_notes_as_they_sound() {
 /// key, Shift+↑ an octave, Alt+↑ ten cents, Esc lets the notes go (never the clip).
 #[test]
 fn the_edit_keys_act_on_the_notes() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     r.pointer = Some(r.blob(0).center());
@@ -553,6 +562,7 @@ fn store(r: &mut Rig, e: cantus_core::pitch::PitchEdit) {
 /// ↑/↓ from a note moved off the key land on the key's next note (scale snap).
 #[test]
 fn a_key_step_from_an_off_key_note_lands_on_the_key() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -576,6 +586,7 @@ fn a_key_step_from_an_off_key_note_lands_on_the_key() {
 /// Alt+↑/↓ (10 cents) works whenever the editor has the focus, the pointer anywhere.
 #[test]
 fn ten_cents_with_the_pointer_away_from_the_notes() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     r.app.pitch.view.selected = vec![r.app.pitch.view.blobs[0].0];
@@ -593,6 +604,7 @@ fn ten_cents_with_the_pointer_away_from_the_notes() {
 /// bars, and play from the selection starts a beat before the note's first edge.
 #[test]
 fn a_reversed_slice_opens_on_its_slice_with_its_bars() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     let (t, c) = r.voice();
     // The window: one second from 0.8 s (beats 1.6 … 3.6), played backwards.
@@ -659,6 +671,7 @@ fn a_reversed_slice_opens_on_its_slice_with_its_bars() {
 /// its two notes, at their places.
 #[test]
 fn midi_out_gives_the_notes_the_clip_plays() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     let (t, c) = r.voice();
     // The take's second and third notes are sung 0.85 … 2.30 s: beats 1.7 … 4.6.
@@ -692,6 +705,7 @@ fn midi_out_gives_the_notes_the_clip_plays() {
 /// would be lost); halves with the same edit still glue.
 #[test]
 fn glue_keeps_pitch_edits_or_refuses() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -720,6 +734,7 @@ fn glue_keeps_pitch_edits_or_refuses() {
 /// The key in words: one notation with the notes (letters), the mode in lower case.
 #[test]
 fn the_key_reads_as_the_notes_do() {
+    let _theme_turn = theme_turn();
     use cantus_core::pitch::PitchKey;
     use cantus_ui::i18n::{set_thread_locale, Locale};
     let a_minor = PitchKey { tonic: 9, scale: 2 };
@@ -739,6 +754,7 @@ fn the_key_reads_as_the_notes_do() {
 /// scrolls sideways (its knobs keep their words whole).
 #[test]
 fn the_note_panel_fits_its_width() {
+    let _theme_turn = theme_turn();
     for (w, scrolled) in [(1600.0f32, false), (1000.0, false), (640.0, true)] {
         let mut r = Rig::new();
         r.size = vec2(w, 900.0);
@@ -761,6 +777,7 @@ fn the_note_panel_fits_its_width() {
 /// menu offers them: nothing on the bar is out of reach.
 #[test]
 fn a_narrow_bar_folds_into_its_more_menu() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let mut r = Rig::new();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
@@ -802,6 +819,7 @@ fn a_narrow_bar_folds_into_its_more_menu() {
 /// notes within an eighth; a note with none near stays.
 #[test]
 fn quantise_onto_another_tracks_notes() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     let keys = r.app.project().tracks[0].id;
     let mut c = r
@@ -843,6 +861,7 @@ fn quantise_onto_another_tracks_notes() {
 /// analysed it says so instead of doing nothing.
 #[test]
 fn the_clip_menu_makes_midi_and_a_double() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     let (t, c) = r.voice();
     let tracks = r.app.project().tracks.len();
@@ -866,6 +885,7 @@ fn the_clip_menu_makes_midi_and_a_double() {
 /// The inspector's *Edit pitch* says what it does on the help line.
 #[test]
 fn the_inspectors_pitch_button_explains_itself() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     let (t, c) = r.voice();
     r.app.select_clip(t, c);
@@ -886,6 +906,7 @@ fn the_inspectors_pitch_button_explains_itself() {
 /// per edit, not once per frame.
 #[test]
 fn an_idle_editor_builds_its_curves_once() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -913,6 +934,7 @@ fn an_idle_editor_builds_its_curves_once() {
 /// command), a double-click pulls its centre onto its note.
 #[test]
 fn the_pitch_lane_edits_notes_in_the_arrangement() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     let (t, c) = r.voice();
     let _ = r.app.pitch_take(t, c);
@@ -1053,6 +1075,7 @@ fn press_lane(
 /// raw press, under windows and menus too).
 #[test]
 fn the_pitch_lane_takes_presses_only_where_it_is_seen() {
+    let _theme_turn = theme_turn();
     let (mut r, t, lanes) = with_lane();
     let n = lane_notes(&r, t, lanes)[1].clone();
     let at = n.rect.center();
@@ -1076,6 +1099,7 @@ fn the_pitch_lane_takes_presses_only_where_it_is_seen() {
 /// sideways neither (review 2: it committed the analysed edit, or snapped an off-key note).
 #[test]
 fn a_sideways_slip_on_a_lane_note_changes_nothing() {
+    let _theme_turn = theme_turn();
     let (mut r, t, lanes) = with_lane();
     r.app.pitch.view.snap = cantus_ui::views::pitch::Snap::Semitone;
     let n = lane_notes(&r, t, lanes)[1].clone();
@@ -1092,6 +1116,7 @@ fn a_sideways_slip_on_a_lane_note_changes_nothing() {
 /// under the pointer (review 2: the lane re-fitted, the scale shrank, the note drifted).
 #[test]
 fn a_dragged_lane_note_stays_under_the_pointer() {
+    let _theme_turn = theme_turn();
     let (mut r, t, lanes) = with_lane();
     r.app.pitch.view.snap = cantus_ui::views::pitch::Snap::Semitone;
     let notes = lane_notes(&r, t, lanes);
@@ -1132,6 +1157,7 @@ fn a_dragged_lane_note_stays_under_the_pointer() {
 /// An idle arrangement lays the lanes out once, not every frame (review 2).
 #[test]
 fn an_idle_pitch_lane_is_laid_out_once() {
+    let _theme_turn = theme_turn();
     let (mut r, _t, _lanes) = with_lane();
     r.idle(3);
     let before = r.app.pitch.lane.builds;
@@ -1149,6 +1175,7 @@ fn an_idle_pitch_lane_is_laid_out_once() {
 /// 2: only edited takes were offered).
 #[test]
 fn quantise_onto_an_analysed_unedited_take() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -1201,6 +1228,7 @@ fn quantise_onto_an_analysed_unedited_take() {
 /// and *Quantise* snaps to it (review 2: it said 1/16 and did nothing).
 #[test]
 fn a_deleted_quantise_target_falls_back_to_the_grid() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -1224,6 +1252,7 @@ fn a_deleted_quantise_target_falls_back_to_the_grid() {
 /// quantise field could vanish).
 #[test]
 fn the_pitch_bar_keeps_its_more_key_at_every_width() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let mut r = Rig::new();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
@@ -1267,6 +1296,7 @@ fn the_pitch_bar_keeps_its_more_key_at_every_width() {
 /// melody onto an existing instrument track — the MIDI chip's drag (review 2).
 #[test]
 fn a_very_narrow_bar_offers_everything_in_its_more_menu() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.app.workspace.hide(Pane::Inspector);
     r.size = vec2(480.0, 900.0);
@@ -1317,6 +1347,7 @@ fn a_very_narrow_bar_offers_everything_in_its_more_menu() {
 /// the clip's end (review 2: the repeat was untested).
 #[test]
 fn midi_out_repeats_a_looped_clips_notes() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     let (t, c) = r.voice();
     // A 3-beat loop in an 8-beat clip: the first two notes (A3, C4) in each period.
@@ -1357,6 +1388,7 @@ fn midi_out_repeats_a_looped_clips_notes() {
 /// (review 2: only unedited halves were glued in the test).
 #[test]
 fn halves_with_the_same_edit_glue_and_keep_it() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -1390,6 +1422,7 @@ fn halves_with_the_same_edit_glue_and_keep_it() {
 /// (review 2: untested).
 #[test]
 fn edit_pitch_is_disabled_while_the_file_is_missing() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     let (t, c) = r.voice();
     let source = r
@@ -1422,6 +1455,7 @@ fn edit_pitch_is_disabled_while_the_file_is_missing() {
 /// the same words either way).
 #[test]
 fn the_inspectors_ab_row_says_what_a_click_does() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
@@ -1445,4 +1479,19 @@ fn the_inspectors_ab_row_says_what_a_click_does() {
     r.idle(3);
     assert!(r.stored().unwrap().bypass, "the click compared");
     assert!(tip_of(&r, "pitch.inspector.original_tip"), "{:?}", r.texts);
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

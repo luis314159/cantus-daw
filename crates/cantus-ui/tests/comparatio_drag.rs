@@ -210,6 +210,7 @@ fn temp(name: &str) -> PathBuf {
 
 #[test]
 fn the_selector_lamps_and_blind_keys_each_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open(&[]);
     assert_eq!(spec(&app).get("listen"), 0.0, "your mix, at its defaults");
     let cases: [(Act, f32); 6] = [
@@ -251,6 +252,7 @@ fn the_selector_lamps_and_blind_keys_each_one_undo_step() {
 
 #[test]
 fn the_reference_list_answers_its_keys_each_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open(&[]);
     let three = listed(&app);
     assert_eq!(three.len(), 3, "the demo's list: {three:?}");
@@ -314,6 +316,7 @@ fn the_reference_list_answers_its_keys_each_one_undo_step() {
 
 #[test]
 fn a_drag_across_the_overview_loops_that_stretch_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open(&[]);
     assert_eq!(spec(&app).get("sync"), 0.0);
     // The overview's window: under the name line, along the strip.
@@ -341,6 +344,7 @@ fn a_drag_across_the_overview_loops_that_stretch_one_undo_step() {
 
 #[test]
 fn send_to_aequalis_puts_the_match_eq_before_the_unit_and_updates_it() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open(&[]);
     let (strip, effect, _) = app.fx.open.unwrap();
     let chain = |app: &CantusApp| -> Vec<(EffectId, EffectKind)> {
@@ -398,6 +402,7 @@ fn send_to_aequalis_puts_the_match_eq_before_the_unit_and_updates_it() {
 /// each switch one undo step.
 #[test]
 fn each_reference_keeps_its_own_loop() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open(&[]);
     let r = app.fx.comparatio.overview.expect("laid out");
     let (from, to) = (
@@ -426,4 +431,19 @@ fn each_reference_keeps_its_own_loop() {
     let s = spec(&app);
     assert!(compared(&app).unwrap().ends_with("Album master.wav"));
     assert_eq!(s.get("sync"), 0.0, "one switch, one undo step");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

@@ -30,6 +30,7 @@ fn app_in(dir: &std::path::Path, project: Option<Project>) -> CantusApp {
 
 #[test]
 fn every_action_has_a_palette_entry_and_a_name_in_both_languages() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -98,6 +99,7 @@ fn every_action_has_a_palette_entry_and_a_name_in_both_languages() {
 
 #[test]
 fn the_palette_finds_in_both_languages_and_learns_what_is_used() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     let dir = tempfile::tempdir().unwrap();
     i18n::set_thread_locale(Locale::Es);
@@ -138,6 +140,7 @@ fn the_palette_finds_in_both_languages_and_learns_what_is_used() {
 
 #[test]
 fn the_palette_opens_on_its_key_runs_a_row_and_counts_it() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -194,6 +197,7 @@ fn the_palette_opens_on_its_key_runs_a_row_and_counts_it() {
 
 #[test]
 fn the_history_goes_to_any_step_and_marks_the_save() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -245,6 +249,7 @@ fn the_history_goes_to_any_step_and_marks_the_save() {
 
 #[test]
 fn every_starter_is_a_project_that_saves_loads_and_opens_untitled() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -285,6 +290,7 @@ fn every_starter_is_a_project_that_saves_loads_and_opens_untitled() {
 
 #[test]
 fn a_users_project_template_is_kept_listed_opened_and_deleted() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -363,6 +369,7 @@ fn lead_project() -> Project {
 
 #[test]
 fn a_track_template_inserts_as_one_step_with_new_ids_and_finds_its_return_by_name() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -455,6 +462,7 @@ fn a_track_template_inserts_as_one_step_with_new_ids_and_finds_its_return_by_nam
 
 #[test]
 fn a_track_template_is_offered_in_the_picker_and_the_palette() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -512,6 +520,7 @@ fn a_track_template_is_offered_in_the_picker_and_the_palette() {
 
 #[test]
 fn opened_and_saved_projects_become_recent() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app_in(dir.path(), None);
@@ -542,6 +551,7 @@ fn opened_and_saved_projects_become_recent() {
 /// modulator riding its own track's arpeggiator — and each insert undoes as one step.
 #[test]
 fn a_track_template_carries_its_note_effects_with_ids_of_their_own() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -641,6 +651,7 @@ fn build_test_gain() -> std::path::PathBuf {
 /// waited for, as a save does — never the project's last copy of it.
 #[test]
 fn a_template_keeps_a_hosted_plug_in_as_it_is_now() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -699,6 +710,7 @@ fn a_template_keeps_a_hosted_plug_in_as_it_is_now() {
 /// replaces — every send and output names a strip that is there after the insert.
 #[test]
 fn a_track_template_never_routes_by_number_or_to_the_strip_it_replaces() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -755,6 +767,7 @@ fn frame(a: &mut CantusApp, ctx: &egui::Context) {
 /// deleted, never each frame — a frame touches no disk.
 #[test]
 fn the_start_page_reads_the_disk_when_it_opens_not_each_frame() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -780,6 +793,7 @@ fn the_start_page_reads_the_disk_when_it_opens_not_each_frame() {
 /// Review 10: a track template saved over under its own name is offered as it is now.
 #[test]
 fn a_track_template_saved_over_is_offered_as_it_is_now() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -813,6 +827,7 @@ fn a_track_template_saved_over_is_offered_as_it_is_now() {
 /// temporary file that does not stay behind.
 #[test]
 fn the_workflow_files_are_written_whole() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     let mut r = cantus_ui::recent::Recent::load(cantus_ui::recent::path(dir.path()));
     r.note(&dir.path().join("a.cantus"));
@@ -840,6 +855,7 @@ fn the_workflow_files_are_written_whole() {
 /// Review 11: Ctrl+Shift+P closes the palette while its field has the keys.
 #[test]
 fn the_palettes_key_closes_it_while_its_field_has_the_keys() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -880,6 +896,7 @@ fn the_palettes_key_closes_it_while_its_field_has_the_keys() {
 /// and master write) comes back reading, so the global arm cannot overwrite on Play.
 #[test]
 fn a_template_never_carries_an_automation_mode() {
+    let _theme_turn = theme_turn();
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
     let dir = tempfile::tempdir().unwrap();
@@ -917,6 +934,7 @@ fn a_template_never_carries_an_automation_mode() {
 /// the multiband, the stereo tool, the maximiser and Speculum, each with its preset.
 #[test]
 fn the_starters_returns_are_full_wet_and_the_mastering_chain_has_its_presets() {
+    let _theme_turn = theme_turn();
     use cantus_ui::templates::{BAND_REVERB, BEAT_REVERB, MASTERING_CHAIN};
     let _l = lang();
     i18n::set_thread_locale(Locale::En);
@@ -982,6 +1000,7 @@ fn the_starters_returns_are_full_wet_and_the_mastering_chain_has_its_presets() {
 /// "Automatic (6) · V6" showed two engines on one screen).
 #[test]
 fn the_cores_field_and_the_now_line_count_alike() {
+    let _theme_turn = theme_turn();
     use cantus_ui::engines::Engine;
     use cantus_ui::views::settings_audio::{now_line, workers_count, workers_label};
     let _l = lang();
@@ -1018,6 +1037,7 @@ fn the_cores_field_and_the_now_line_count_alike() {
 /// no doubled words, no placeholder left, nothing of the system's English in Spanish.
 #[test]
 fn the_real_time_priority_line_reads_in_every_form() {
+    let _theme_turn = theme_turn();
     use cantus_rt::thread::{Grant, MmcssPriority, PriorityReport, Refusal};
     use cantus_rt::Promotion;
     let _l = lang();
@@ -1123,6 +1143,7 @@ fn the_real_time_priority_line_reads_in_every_form() {
 /// the right), and nothing is cut to "…" (the record offset's caption was "CORR…").
 #[test]
 fn the_audio_page_reads_whole_in_both_languages() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::{settings_audio, workspace_settings};
     type Seen = Vec<(String, bool, egui::Rect, egui::Rect)>;
     fn walk(shape: &egui::Shape, clip: egui::Rect, out: &mut Seen) {
@@ -1189,4 +1210,19 @@ fn the_audio_page_reads_whole_in_both_languages() {
             }
         }
     }
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

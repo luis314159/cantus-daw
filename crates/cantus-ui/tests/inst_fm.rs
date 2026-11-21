@@ -35,6 +35,7 @@ fn paint_inst(app: &mut cantus_ui::CantusApp) -> String {
 
 #[test]
 fn it_opens_in_every_view_and_paints_its_name_and_numbers() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_fm();
     fm::demo_setup(&mut a, track);
     a.open_inst_editor(track);
@@ -58,6 +59,7 @@ fn it_opens_in_every_view_and_paints_its_name_and_numbers() {
 
 #[test]
 fn wiring_the_graph_is_one_undo_step_each() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_fm();
     let s0 = spec(&a, track);
     fm::connect(&mut a, track, &s0, 1, 0);
@@ -86,6 +88,7 @@ fn wiring_the_graph_is_one_undo_step_each() {
 
 #[test]
 fn a_two_way_drag_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_fm();
     let before = spec(&a, track);
     let k = &OP_KEYS[0];
@@ -110,6 +113,7 @@ fn a_two_way_drag_is_one_undo_step() {
 
 #[test]
 fn an_algorithm_is_one_undo_step_and_names_itself() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_fm();
     let before = spec(&a, track);
     assert!(fm::algorithm_changes(&before, 5) > 0);
@@ -150,6 +154,7 @@ fn test_voice() -> sysex::DxVoice {
 
 #[test]
 fn sysex_reads_what_it_writes_byte_for_byte() {
+    let _theme_turn = theme_turn();
     let voices: Vec<_> = (0..32)
         .map(|i| {
             let mut v = test_voice();
@@ -187,6 +192,7 @@ fn sysex_reads_what_it_writes_byte_for_byte() {
 
 #[test]
 fn importing_a_dx_voice_is_one_undo_step_with_the_published_scalings() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_fm();
     let before = spec(&a, track);
     fm::import_bytes(&mut a, track, &sysex::voice_sysex(&test_voice()));
@@ -219,6 +225,7 @@ fn importing_a_dx_voice_is_one_undo_step_with_the_published_scalings() {
 
 #[test]
 fn bake_writes_the_easy_macros_into_the_patch_in_one_step() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_fm();
     let s = spec(&a, track);
     fm::connect(&mut a, track, &s, 1, 0);
@@ -263,6 +270,7 @@ fn bake_writes_the_easy_macros_into_the_patch_in_one_step() {
 
 #[test]
 fn every_factory_preset_sets_what_it_names_in_one_step() {
+    let _theme_turn = theme_turn();
     assert!(cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Fm).len() >= 8);
     for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Fm) {
         let (mut a, track) = with_fm();
@@ -292,6 +300,7 @@ fn every_factory_preset_sets_what_it_names_in_one_step() {
 /// and with the matrix grid in the graph's place.
 #[test]
 fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
+    let _theme_turn = theme_turn();
     let mut found = Vec::new();
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         for (page, grid) in [
@@ -332,6 +341,7 @@ fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
 /// takes the whole drag back; a modulation chip dropped on it connects it.
 #[test]
 fn a_cell_drag_is_one_undo_step_and_a_dropped_source_connects() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_fm();
     a.open_inst_editor(track);
     let ctx = ctx();
@@ -377,6 +387,7 @@ fn a_cell_drag_is_one_undo_step_and_a_dropped_source_connects() {
 /// and the grid, Edit at 200 % and in Spanish — the design review.
 #[test]
 fn shots() {
+    let _theme_turn = theme_turn();
     let Some(dir) = std::env::var_os("CANTUS_INST_SHOTS").map(std::path::PathBuf::from) else {
         return;
     };
@@ -487,4 +498,19 @@ fn shots() {
     }
     cantus_ui::i18n::set_thread_locale(en);
     cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx());
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

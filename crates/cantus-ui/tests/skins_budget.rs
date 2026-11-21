@@ -291,6 +291,7 @@ fn frame(r: &mut Rig, k: f32, i: usize) -> (f64, f64, usize) {
 
 #[test]
 fn three_editors_wear_their_faces_in_one_frame() {
+    let _theme_turn = theme_turn();
     for (faces, k, ppp) in [
         (Faces::Theirs, 1.0, 1.0),
         (Faces::Rich, 1.0, 1.0),
@@ -342,6 +343,7 @@ struct Run {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn three_editors_frame_time() {
+    let _theme_turn = theme_turn();
     let mut over = Vec::new();
     for (faces, k, ppp) in [
         (Faces::Theirs, 1.0, 1.0),
@@ -444,4 +446,19 @@ fn three_editors_frame_time() {
         }
     }
     assert!(over.is_empty(), "over the 4 ms window budget: {over:#?}");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

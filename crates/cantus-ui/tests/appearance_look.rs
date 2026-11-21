@@ -22,6 +22,7 @@ fn walk(shape: &egui::Shape, verts: &mut Vec<(Pos2, Color32)>, texts: &mut Vec<(
 
 #[test]
 fn the_base_theme_menus_carry_each_themes_swatch() {
+    let _theme_turn = theme_turn();
     for locale in cantus_ui::i18n::Locale::ALL {
         for ppp in [0.75f32, 2.0] {
             cantus_ui::i18n::set_thread_locale(locale);
@@ -107,6 +108,7 @@ fn the_base_theme_menus_carry_each_themes_swatch() {
 /// from the theme, so every text field draws its selection with them.
 #[test]
 fn every_theme_selects_text_legibly() {
+    let _theme_turn = theme_turn();
     use cantus_ui::kit::color::contrast;
     for (id, make) in PRESETS {
         let theme = make();
@@ -139,6 +141,7 @@ fn every_theme_selects_text_legibly() {
 /// its ends and halfway.
 #[test]
 fn the_selection_fill_shows_under_every_knob() {
+    let _theme_turn = theme_turn();
     use cantus_ui::kit::color::contrast;
     use cantus_ui::kit::ThemeKnobs;
     for (id, make) in PRESETS {
@@ -181,6 +184,7 @@ fn the_selection_fill_shows_under_every_knob() {
 /// process-wide; apply must not read them back).
 #[test]
 fn apply_gives_egui_its_own_themes_selection() {
+    let _theme_turn = theme_turn();
     use cantus_ui::theme;
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let other = {
@@ -218,6 +222,7 @@ fn apply_gives_egui_its_own_themes_selection() {
 /// grouped as a fill, apart from every other token's name, in both languages.
 #[test]
 fn every_text_field_is_the_kits_and_the_fill_is_named_as_one() {
+    let _theme_turn = theme_turn();
     let src = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut stack = vec![src];
     let mut bare = Vec::new();
@@ -271,4 +276,19 @@ fn every_text_field_is_the_kits_and_the_fill_is_named_as_one() {
         }
     }
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

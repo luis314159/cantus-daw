@@ -121,6 +121,7 @@ fn three() -> (Rig, [(StripId, EffectId); 3]) {
 /// Three analysers at once, every frame measured by each: none lost at 60 frames a second.
 #[test]
 fn three_analysers_at_once_lose_no_frame() {
+    let _theme_turn = theme_turn();
     let (mut rig, ids) = three();
     for _ in 0..30 {
         rig.step();
@@ -177,6 +178,7 @@ fn three_analysers_at_once_lose_no_frame() {
 #[test]
 #[ignore]
 fn three_analysers_draw_within_the_frame_budget() {
+    let _theme_turn = theme_turn();
     let (mut rig, _) = three();
     for _ in 0..60 {
         rig.step();
@@ -192,4 +194,19 @@ fn three_analysers_draw_within_the_frame_budget() {
         p95.as_secs_f64() * 1e3 < 2.0 * budget.max(8.0),
         "p95 {p95:?}"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

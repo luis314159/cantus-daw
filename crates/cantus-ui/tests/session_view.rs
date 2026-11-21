@@ -62,6 +62,7 @@ const BANNED: &[&str] = &[
 
 #[test]
 fn the_session_files_say_no_bare_word_and_draw_no_stock_widget() {
+    let _theme_turn = theme_turn();
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files: Vec<PathBuf> = std::fs::read_dir(src.join("views"))
         .unwrap()
@@ -152,6 +153,7 @@ fn frame(r: &mut Rig) -> (u64, usize, usize, bool) {
 
 #[test]
 fn a_full_session_stays_in_budget() {
+    let _theme_turn = theme_turn();
     let mut r = rig(16, 32);
     for _ in 0..4 {
         frame(&mut r);
@@ -166,6 +168,7 @@ fn a_full_session_stays_in_budget() {
 
 #[test]
 fn an_idle_grid_asks_for_no_repaint() {
+    let _theme_turn = theme_turn();
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
@@ -187,6 +190,7 @@ fn an_idle_grid_asks_for_no_repaint() {
 /// tests — a palette installed is the process's, and they read it in parallel.
 #[test]
 fn the_pane_draws_headless_in_the_light_theme_with_no_scene() {
+    let _theme_turn = theme_turn();
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
@@ -216,6 +220,7 @@ fn the_pane_draws_headless_in_the_light_theme_with_no_scene() {
 #[test]
 #[ignore]
 fn session_timing() {
+    let _theme_turn = theme_turn();
     let mut r = rig(16, 32);
     for _ in 0..10 {
         frame(&mut r);
@@ -231,4 +236,19 @@ fn session_timing() {
     let p95 = times[times.len() * 95 / 100];
     println!("session 16x32: median {med:?}, p95 {p95:?}");
     assert!(p95 < Duration::from_millis(16), "{p95:?}");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

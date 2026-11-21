@@ -71,6 +71,7 @@ fn click(a: &mut CantusApp, ctx: &egui::Context, at: Pos2) {
 
 #[test]
 fn the_picker_files_it_on_the_visual_shelf_and_a_new_one_names_who_dances() {
+    let _theme_turn = theme_turn();
     use cantus_ui::picker_catalog::Category;
     let natives = cantus_ui::picker_catalog::build(std::iter::empty());
     let d = natives
@@ -92,6 +93,7 @@ fn the_picker_files_it_on_the_visual_shelf_and_a_new_one_names_who_dances() {
 
 #[test]
 fn the_window_paints_both_views_in_both_themes_with_the_character_dancing() {
+    let _theme_turn = theme_turn();
     let _look = LOOK.write().unwrap_or_else(|e| e.into_inner());
     let (mut a, _) = dancer_app();
     for theme in [cantus_ui::theme::slate(), cantus_ui::theme::paper()] {
@@ -129,6 +131,7 @@ fn the_window_paints_both_views_in_both_themes_with_the_character_dancing() {
 /// *Export video…* in the stage card opens the video export's dialog.
 #[test]
 fn export_video_opens_the_video_export_from_the_window() {
+    let _theme_turn = theme_turn();
     let (mut a, _) = dancer_app();
     a.inst.view = View::Play;
     let c = ctx();
@@ -141,6 +144,7 @@ fn export_video_opens_the_video_export_from_the_window() {
 
 #[test]
 fn a_pad_plays_its_move_live_while_held() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = dancer_app();
     a.inst.view = View::Play;
     let c = ctx();
@@ -162,6 +166,7 @@ fn a_pad_plays_its_move_live_while_held() {
 
 #[test]
 fn react_to_steps_through_the_channels_in_one_undo_step_each() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = dancer_app();
     a.inst.view = View::Play;
     let c = ctx();
@@ -183,6 +188,7 @@ fn react_to_steps_through_the_channels_in_one_undo_step_each() {
 
 #[test]
 fn choosing_a_character_is_one_step_and_a_preset_keeps_who_dances_and_where() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = dancer_app();
     a.set_inst_text(
         track,
@@ -218,6 +224,7 @@ fn choosing_a_character_is_one_step_and_a_preset_keeps_who_dances_and_where() {
 
 #[test]
 fn midi_learn_reaches_its_move_and_names_its_choices() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::controllers::value_words;
     let (mut a, track) = dancer_app();
     a.midi_port_names = vec!["Keys".into()];
@@ -288,6 +295,7 @@ fn midi_learn_reaches_its_move_and_names_its_choices() {
 /// changed, a preview at most 30 times a second.
 #[test]
 fn the_window_draws_again_only_what_moved() {
+    let _theme_turn = theme_turn();
     let _look = LOOK.read().unwrap_or_else(|e| e.into_inner());
     let (mut a, _) = dancer_app();
     a.inst.view = View::Play;
@@ -328,6 +336,7 @@ fn the_window_draws_again_only_what_moved() {
 #[test]
 #[ignore]
 fn the_window_timing() {
+    let _theme_turn = theme_turn();
     let (mut a, _) = dancer_app();
     a.inst.view = View::Play;
     let c = ctx();
@@ -363,6 +372,7 @@ fn the_window_timing() {
 /// every tile shown at some scroll, partly or whole.
 #[test]
 fn every_character_fits_the_picker() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::inst::dancer::pick::{grid, placed, MIN_SIDE};
     let n = cantus_dance::cast::builtin().len() + 1;
     for k in [1.0f32, 1.5] {
@@ -413,6 +423,7 @@ fn frame_at(a: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, events: Ve
 /// the one drawn under the pointer, not one scrolled away (one undo step).
 #[test]
 fn the_picker_scrolled_chooses_a_tile_from_its_lower_rows() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = dancer_app();
     a.inst.view = View::Edit;
     let c = ctx();
@@ -491,6 +502,7 @@ fn the_picker_scrolled_chooses_a_tile_from_its_lower_rows() {
 /// tiles smoothly (by points, not whole rows); the wheel over the tiles too.
 #[test]
 fn the_picker_scrolls_with_the_kits_scrollbar_and_the_wheel() {
+    let _theme_turn = theme_turn();
     let (mut a, _track) = dancer_app();
     // The Edit view, whose card is the smaller one.
     a.inst.view = View::Edit;
@@ -558,4 +570,19 @@ fn the_picker_scrolls_with_the_kits_scrollbar_and_the_wheel() {
         a.inst.dancer.pick.scroll < dragged,
         "the wheel scrolled back"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

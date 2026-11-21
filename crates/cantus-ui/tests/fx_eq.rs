@@ -92,6 +92,7 @@ fn key(k: egui::Key, modifiers: egui::Modifiers) -> Vec<egui::Event> {
 
 #[test]
 fn the_chips_show_mode_latency_and_analyser_at_rest() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, fx) = with_eq();
     a.add_eq_band(s0, fx, EqShape::Bell, 1_000.0, 6.0);
     a.set_fx_param(s0, fx, "mode", 2.0, false);
@@ -132,6 +133,7 @@ fn the_chips_show_mode_latency_and_analyser_at_rest() {
 /// both back.
 #[test]
 fn rubber_band_selects_and_a_multi_band_drag_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, fx) = with_eq();
     a.add_eq_band(s0, fx, EqShape::Bell, 400.0, 3.0);
     a.add_eq_band(s0, fx, EqShape::Bell, 1_600.0, -3.0);
@@ -173,6 +175,7 @@ fn rubber_band_selects_and_a_multi_band_drag_is_one_undo_step() {
 /// one undo step removes it.
 #[test]
 fn pulling_the_curve_makes_a_band_in_one_step() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, _fx) = with_eq();
     let ctx = ctx();
     frame(&ctx, &mut a, vec![]);
@@ -193,6 +196,7 @@ fn pulling_the_curve_makes_a_band_in_one_step() {
 /// bypasses, Delete removes.
 #[test]
 fn the_keyboard_edits_bands() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, fx) = with_eq();
     a.add_eq_band(s0, fx, EqShape::Bell, 440.0, 0.0);
     a.add_eq_band(s0, fx, EqShape::Bell, 2_000.0, 3.0);
@@ -234,6 +238,7 @@ fn the_keyboard_edits_bands() {
 
 #[test]
 fn typed_values_are_read_the_way_musicians_write_them() {
+    let _theme_turn = theme_turn();
     assert_eq!(parse::parse_freq("2k"), Some(2_000.0));
     assert!((parse::parse_freq("A4").unwrap() - 440.0).abs() < 1e-3);
     let c = parse::parse_freq("C#2+13").unwrap();
@@ -244,6 +249,7 @@ fn typed_values_are_read_the_way_musicians_write_them() {
 /// Double-clicking a dot opens the value boxes; Enter sets what was typed, as one step.
 #[test]
 fn double_clicking_a_dot_types_its_values() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, fx) = with_eq();
     a.add_eq_band(s0, fx, EqShape::Bell, 1_000.0, 2.0);
     let ctx = ctx();
@@ -290,6 +296,7 @@ fn double_clicking_a_dot_types_its_values() {
 
 #[test]
 fn split_makes_a_pair_in_one_step() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, fx) = with_eq();
     a.add_eq_band(s0, fx, EqShape::Bell, 900.0, 4.0);
     let before = spec(&a, s0);
@@ -306,6 +313,7 @@ fn split_makes_a_pair_in_one_step() {
 
 #[test]
 fn the_audition_is_one_command_and_ends_with_the_editor() {
+    let _theme_turn = theme_turn();
     let (mut a, s0, fx) = with_eq();
     a.add_eq_band(s0, fx, EqShape::Bell, 900.0, 4.0);
     a.set_eq_solo(s0, fx, Some(0));
@@ -324,6 +332,7 @@ fn the_audition_is_one_command_and_ends_with_the_editor() {
 /// EQ match: a fit becomes ordinary bands at free numbers, in one step.
 #[test]
 fn a_match_becomes_editable_bands_in_one_step() {
+    let _theme_turn = theme_turn();
     use cantus_dsp::aequalis::fit::{fit, FitOptions};
     let (mut a, s0, fx) = with_eq();
     a.add_eq_band(s0, fx, EqShape::LowCut, 40.0, 0.0);
@@ -354,6 +363,7 @@ fn a_match_becomes_editable_bands_in_one_step() {
 
 #[test]
 fn factory_presets_are_whole_eqs_with_names_in_both_languages() {
+    let _theme_turn = theme_turn();
     let presets = cantus_ui::views::fx::factory_presets(EffectKind::Eq);
     assert!(presets.len() >= 6);
     for (label, params) in presets {
@@ -384,6 +394,7 @@ fn factory_presets_are_whole_eqs_with_names_in_both_languages() {
 /// no panic, and the demo shows what it promises.
 #[test]
 fn the_demo_paints_in_both_themes() {
+    let _theme_turn = theme_turn();
     for dark in [false, true] {
         let mut a = app(cantus_ui::welcome_project());
         let ctx = ctx();
@@ -402,4 +413,19 @@ fn the_demo_paints_in_both_themes() {
             assert!(has(&text, want), "{want:?} missing: {text}");
         }
     }
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

@@ -182,6 +182,7 @@ impl Rig {
 /// takes the output back.
 #[test]
 fn a_click_follows_the_desks_grammar() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(welcome_project());
     let ids = r.strips();
     let (a, ret, bus, comp_host) = (ids[0], ids[9], ids[10], ids[11]);
@@ -226,6 +227,7 @@ fn a_click_follows_the_desks_grammar() {
 /// gate keyed from the row, one step.
 #[test]
 fn alt_on_a_strip_with_nothing_to_key_offers_a_duck_or_a_gate() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(welcome_project());
     let ids = r.strips();
     let (a, host) = (ids[1], ids[12]);
@@ -247,6 +249,7 @@ fn alt_on_a_strip_with_nothing_to_key_offers_a_duck_or_a_gate() {
 /// why and names the strip — and the click issues nothing.
 #[test]
 fn a_loop_cell_refuses_and_says_why() {
+    let _theme_turn = theme_turn();
     let mut p = welcome_project();
     let (a, b) = (p.strips[0].id, p.strips[9].id);
     p.strip_mut(a).unwrap().output = Some(b);
@@ -278,6 +281,7 @@ fn a_loop_cell_refuses_and_says_why() {
 /// the level a decibel, Delete removes, Ctrl+Z still undoes (passed on to the keymap).
 #[test]
 fn the_keys_move_the_focus_and_act() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(welcome_project());
     let ids = r.strips();
     let (a, c0) = (ids[2], ids[8]);
@@ -327,6 +331,7 @@ fn the_keys_move_the_focus_and_act() {
 /// it back to 0 dB, and the drag is one undo step.
 #[test]
 fn a_drag_on_a_send_is_its_level_and_a_double_click_is_0_db() {
+    let _theme_turn = theme_turn();
     let mut p = welcome_project();
     let (a, ret) = (p.strips[0].id, p.strips[9].id);
     p.strip_mut(a).unwrap().sends.push(Send::new(ret));
@@ -364,6 +369,7 @@ fn a_drag_on_a_send_is_its_level_and_a_double_click_is_0_db() {
 /// crosses, one undo step that undoes exactly.
 #[test]
 fn ctrl_drag_down_a_column_copies_the_send() {
+    let _theme_turn = theme_turn();
     let mut p = welcome_project();
     let ret = p.strips[9].id;
     let src = p.strips[0].id;
@@ -396,6 +402,7 @@ fn ctrl_drag_down_a_column_copies_the_send() {
 /// A track row is a radio: a click plays the track into that strip (or the master).
 #[test]
 fn a_track_row_routes_the_track() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(welcome_project());
     let track = r.app.project().tracks[0].id;
     let to = r.strips()[12];
@@ -409,6 +416,7 @@ fn a_track_row_routes_the_track() {
 /// every strip back.
 #[test]
 fn in_use_hides_the_strips_nothing_routes() {
+    let _theme_turn = theme_turn();
     let mut p = welcome_project();
     while p.strips.len() < 40 {
         let s = p.make_strip("");
@@ -439,6 +447,7 @@ fn in_use_hides_the_strips_nothing_routes() {
 /// Alt+F9 (every preset) shows and hides the Routing tab, in the lower zone.
 #[test]
 fn alt_f9_opens_the_routing_tab() {
+    let _theme_turn = theme_turn();
     use cantus_ui::keymap::{Action, Binding, Preset};
     for preset in Preset::ALL {
         let map = preset.keymap();
@@ -462,6 +471,7 @@ fn alt_f9_opens_the_routing_tab() {
 /// one picks nothing, and the hint says what the tap means.
 #[test]
 fn the_tap_switch_picks_and_explains() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let ctx = ctx();
     let rect = egui::Rect::from_min_size(pos2(20.0, 20.0), vec2(80.0, 22.0));
@@ -511,6 +521,7 @@ fn the_tap_switch_picks_and_explains() {
 /// destination into view.
 #[test]
 fn show_the_destination_from_the_matrix_brings_the_desk_forward() {
+    let _theme_turn = theme_turn();
     let mut p = welcome_project();
     while p.strips.len() < 64 {
         let s = p.make_strip("");
@@ -559,6 +570,7 @@ fn show_the_destination_from_the_matrix_brings_the_desk_forward() {
 /// (`CantusApp::dispatch_keys`).
 #[test]
 fn the_typing_piano_plays_and_releases_while_the_matrix_has_the_focus() {
+    let _theme_turn = theme_turn();
     let p = welcome_project();
     let mut r = Rig::new(p);
     let ids = r.strips();
@@ -595,6 +607,7 @@ fn the_typing_piano_plays_and_releases_while_the_matrix_has_the_focus() {
 /// copy is Ctrl+drag.
 #[test]
 fn shift_drag_on_a_send_is_the_fine_level() {
+    let _theme_turn = theme_turn();
     let mut p = welcome_project();
     let (a, ret) = (p.strips[0].id, p.strips[9].id);
     p.strip_mut(a).unwrap().sends.push(Send {
@@ -629,4 +642,19 @@ fn shift_drag_on_a_send_is_the_fine_level() {
         .count();
     assert_eq!(others, 0, "nothing copied");
     assert_eq!(r.last_label().as_deref(), Some("cmd.set_strip_send"));
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

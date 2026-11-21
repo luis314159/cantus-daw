@@ -163,6 +163,7 @@ fn in_probe_hue(c: egui::Color32) -> bool {
 
 #[test]
 fn every_units_body_paints_in_its_face_never_with_the_plain_tokens() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     skin::set_override(Some(&PROBE));
     let mut problems = Vec::new();
@@ -266,6 +267,7 @@ fn every_units_body_paints_in_its_face_never_with_the_plain_tokens() {
 /// face off. Each unit's open menu is painted in its own face.
 #[test]
 fn every_unit_s_header_menu_wears_its_face() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     skin::set_override(None);
     skin::set_enabled(true);
@@ -316,4 +318,19 @@ fn every_unit_s_header_menu_wears_its_face() {
         }
     }
     assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

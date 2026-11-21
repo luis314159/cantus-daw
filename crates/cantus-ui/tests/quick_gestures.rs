@@ -287,6 +287,7 @@ fn band() -> Project {
 
 #[test]
 fn a_double_click_on_a_header_opens_the_instrument_and_never_renames() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     // A native instrument: its editor, a tab of the workspace, on screen.
     let lead = r.track(LEAD);
@@ -342,6 +343,7 @@ fn a_double_click_on_a_header_opens_the_instrument_and_never_renames() {
 
 #[test]
 fn a_click_on_the_letters_selects_and_renames_with_the_name_selected() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     r.app.select_track(r.track(LEAD));
     r.idle(2);
@@ -374,6 +376,7 @@ fn a_click_on_the_letters_selects_and_renames_with_the_name_selected() {
 
 #[test]
 fn a_click_on_the_header_outside_the_letters_never_renames() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let drums = r.track(DRUMS);
     // Under the name line, and on the name line right of the letters.
@@ -393,6 +396,7 @@ fn a_click_on_the_header_outside_the_letters_never_renames() {
 
 #[test]
 fn typing_with_a_track_selected_never_starts_a_rename() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     r.click(r.header_body(LEAD));
     assert_eq!(r.app.selected_track, Some(r.track(LEAD)));
@@ -423,6 +427,7 @@ fn typing_with_a_track_selected_never_starts_a_rename() {
 
 #[test]
 fn esc_leaves_the_old_name_and_no_undo_step() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let (_, letters) = r.header(LEAD);
     r.click(letters.center());
@@ -438,6 +443,7 @@ fn esc_leaves_the_old_name_and_no_undo_step() {
 
 #[test]
 fn while_the_name_is_open_no_shortcut_fires() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let (_, letters) = r.header(LEAD);
     r.click(letters.center());
@@ -461,6 +467,7 @@ fn while_the_name_is_open_no_shortcut_fires() {
 
 #[test]
 fn hovering_the_letters_shows_a_text_cursor_and_says_what_a_click_does() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let (_, letters) = r.header(LEAD);
     r.hover(letters.center());
@@ -481,6 +488,7 @@ fn hovering_the_letters_shows_a_text_cursor_and_says_what_a_click_does() {
 
 #[test]
 fn a_double_click_on_a_notes_clip_opens_the_piano_roll_on_it() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     // The piano roll behind the mixer, the arrangement focused.
     r.app.show_central(CentralView::Mixer);
@@ -534,6 +542,7 @@ fn a_double_click_on_a_notes_clip_opens_the_piano_roll_on_it() {
 
 #[test]
 fn a_double_click_on_a_step_pattern_opens_the_channel_rack() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     r.app.show_central(CentralView::PianoRoll);
     r.idle(3);
@@ -556,6 +565,7 @@ fn a_double_click_on_a_step_pattern_opens_the_channel_rack() {
 
 #[test]
 fn an_automation_clip_an_audio_clip_and_an_empty_lane_keep_their_double_clicks() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     // Automation: its editor (ADR 0027), on that clip.
     r.app.show_central(CentralView::Mixer);
@@ -613,6 +623,7 @@ fn an_automation_clip_an_audio_clip_and_an_empty_lane_keep_their_double_clicks()
 
 #[test]
 fn the_rack_opens_only_for_step_shaped_content() {
+    let _theme_turn = theme_turn();
     use cantus_ui::clips::{editor_for, rack_grid, ClipEditor};
     let p = band();
     let grid = Ticks::SIXTEENTH;
@@ -669,6 +680,7 @@ fn the_rack_opens_only_for_step_shaped_content() {
 /// with nothing lost.
 #[test]
 fn the_rack_opens_only_when_it_loses_nothing() {
+    let _theme_turn = theme_turn();
     use cantus_ui::clips::{editor_for, rack_grid, ClipEditor};
     let mut p = band();
     let keys_inst = p.tracks[LEAD].instrument.clone();
@@ -734,6 +746,7 @@ fn the_rack_opens_only_when_it_loses_nothing() {
 
 #[test]
 fn a_double_click_on_a_sixteenth_line_opens_the_roll_and_on_triplets_the_rack_at_triplets() {
+    let _theme_turn = theme_turn();
     let mut p = band();
     let mut line = p.make_clip("Bass line", Ticks::beats(16), Ticks::beats(4));
     for (i, pitch) in [36u8, 43, 48, 39].into_iter().enumerate() {
@@ -770,6 +783,7 @@ fn a_double_click_on_a_sixteenth_line_opens_the_roll_and_on_triplets_the_rack_at
 /// Review 6: the rack opens with the clip's track in view (and selected), however far down.
 #[test]
 fn the_rack_opens_with_the_clips_track_in_view() {
+    let _theme_turn = theme_turn();
     let mut p = Project::new("Many");
     for i in 0..40 {
         let t = p.make_track(format!("Synth {i}"));
@@ -815,6 +829,7 @@ fn the_rack_opens_with_the_clips_track_in_view() {
 /// the window over it does not make it "not in front": F8 closes it.
 #[test]
 fn f8_closes_a_docked_editor_under_a_floating_window() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let lead = r.track(LEAD);
     r.app.select_track(lead);
@@ -863,6 +878,7 @@ fn f8_closes_a_docked_editor_under_a_floating_window() {
 /// row's resize grip; a click on them still selects this track and opens its name.
 #[test]
 fn the_letters_win_over_the_neighbours_bands_on_short_rows() {
+    let _theme_turn = theme_turn();
     for (base, height) in [(40.0f32, 0.34f32), (22.0, 0.6)] {
         let mut p = band();
         for t in &mut p.tracks {
@@ -911,6 +927,7 @@ fn layer_of(ctx: &egui::Context, key: u64) -> Option<egui::LayerId> {
 
 #[test]
 fn open_editor_restores_a_minimised_instrument_and_brings_it_in_front() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let lead = r.track(LEAD);
     r.app.open_inst_editor(lead);
@@ -970,6 +987,7 @@ fn open_editor_restores_a_minimised_instrument_and_brings_it_in_front() {
 
 #[test]
 fn open_editor_raises_a_floating_editor_above_another() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let (lead, drums) = (r.track(LEAD), r.track(DRUMS));
     let a = cantus_ui::views::inst::editor_id(lead).value();
@@ -1002,6 +1020,7 @@ fn open_editor_raises_a_floating_editor_above_another() {
 
 #[test]
 fn open_editor_restores_a_minimised_effect_editor() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let strip = r.app.project().strips[0].id;
     let slot = r.app.bus.new_effect(cantus_core::EffectKind::Eq);
@@ -1032,6 +1051,7 @@ fn open_editor_restores_a_minimised_effect_editor() {
 /// tab, its window under another — comes forward; only the frontmost one closes.
 #[test]
 fn f8_brings_an_editor_forward_and_closes_only_the_frontmost() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(band());
     let (lead, drums) = (r.track(LEAD), r.track(DRUMS));
     r.app.select_track(lead);
@@ -1107,6 +1127,7 @@ fn f8_brings_an_editor_forward_and_closes_only_the_frontmost() {
 /// step) and opens the second in the same click, its name selected — whichever is above.
 #[test]
 fn a_click_on_another_name_commits_the_first_and_opens_the_second() {
+    let _theme_turn = theme_turn();
     for (first, second) in [(LEAD, BASS), (BASS, LEAD)] {
         let mut r = Rig::new(band());
         let (_, letters) = r.header(first);
@@ -1136,6 +1157,7 @@ fn a_click_on_another_name_commits_the_first_and_opens_the_second() {
 /// the row — at full size they overflowed into the rows round it.
 #[test]
 fn on_short_rows_the_name_field_stays_inside_its_row() {
+    let _theme_turn = theme_turn();
     for (base, height) in [(40.0f32, 0.34f32), (22.0, 0.6)] {
         let mut p = band();
         for t in &mut p.tracks {
@@ -1165,6 +1187,7 @@ fn on_short_rows_the_name_field_stays_inside_its_row() {
 /// hover hint.
 #[test]
 fn on_short_rows_a_clips_label_fits_the_clip_or_hides() {
+    let _theme_turn = theme_turn();
     for (base, height, shown) in [
         (40.0f32, 0.34f32, true),
         (22.0, 0.6, true),
@@ -1215,4 +1238,19 @@ fn on_short_rows_a_clips_label_fits_the_clip_or_hides() {
         let h = cantus_ui::kit::hint::current(&r.ctx).expect("the clip's hint");
         assert_eq!(h.name, "Melody", "{base}×{height}: {h:?}");
     }
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

@@ -255,6 +255,7 @@ fn undo_restores(app: &mut CantusApp, before: &Project) {
 
 #[test]
 fn a_number_cell_dragged_moves_the_strip_in_one_undo_step() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -282,6 +283,7 @@ fn a_number_cell_dragged_moves_the_strip_in_one_undo_step() {
 
 #[test]
 fn a_click_on_a_number_cell_still_selects_and_moves_nothing() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -294,6 +296,7 @@ fn a_click_on_a_number_cell_still_selects_and_moves_nothing() {
 
 #[test]
 fn escape_cancels_a_strip_drag() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -315,6 +318,7 @@ fn escape_cancels_a_strip_drag() {
 
 #[test]
 fn the_selection_moves_as_one_block() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -331,6 +335,7 @@ fn the_selection_moves_as_one_block() {
 
 #[test]
 fn a_strip_dropped_on_the_right_dock_is_pinned_there() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -358,6 +363,7 @@ fn a_strip_dropped_on_the_right_dock_is_pinned_there() {
 
 #[test]
 fn a_group_dragged_by_its_separator_moves_every_member() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     let s = r.ids();
     r.app.create_strip_group(&[s[1], s[2]]);
@@ -380,6 +386,7 @@ fn a_group_dragged_by_its_separator_moves_every_member() {
 
 #[test]
 fn a_track_dropped_on_a_strip_routes_it() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -412,6 +419,7 @@ fn a_track_dropped_on_a_strip_routes_it() {
 
 #[test]
 fn an_arrangement_header_dragged_carries_its_track() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::window(starter_project());
     r.idle(4);
     let track = r.app.project().tracks[0].id;
@@ -440,6 +448,7 @@ fn an_arrangement_header_dragged_carries_its_track() {
 
 #[test]
 fn the_plate_shows_on_a_strip_nothing_feeds_and_not_on_a_return_fed_by_sends() {
+    let _theme_turn = theme_turn();
     let mut p = starter_project();
     let ret = p.strips.iter().find(|x| x.dock == Dock::Right).unwrap().id;
     let src = p.strips[0].id;
@@ -469,6 +478,7 @@ fn the_plate_shows_on_a_strip_nothing_feeds_and_not_on_a_return_fed_by_sends() {
 
 #[test]
 fn the_plate_opens_route_here_and_routes_the_selected_track() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -497,6 +507,7 @@ fn the_plate_opens_route_here_and_routes_the_selected_track() {
 
 #[test]
 fn a_return_plate_offers_the_sends_first() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -524,6 +535,7 @@ fn a_return_plate_offers_the_sends_first() {
 
 #[test]
 fn a_new_return_with_a_reverb_from_the_add_send_list() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -545,6 +557,7 @@ fn a_new_return_with_a_reverb_from_the_add_send_list() {
 
 #[test]
 fn shift_f10_opens_the_selected_strips_route_menu_and_the_strip_menu_says_so() {
+    let _theme_turn = theme_turn();
     // The whole window: Shift+F10 is the keymap's *Route menu* (rebindable), acting while
     // the mixer is what is being edited.
     let mut r = Rig::window(starter_project());
@@ -598,6 +611,7 @@ fn shift_f10_opens_the_selected_strips_route_menu_and_the_strip_menu_says_so() {
 
 #[test]
 fn a_channel_rack_channel_dragged_carries_its_track() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::window(starter_project());
     r.app.central = cantus_ui::app::CentralView::ChannelRack;
     r.idle(4);
@@ -642,6 +656,7 @@ fn receiving() -> (Rig, StripId, StripId) {
 
 #[test]
 fn receives_lists_the_senders_and_mixes_them_from_the_return() {
+    let _theme_turn = theme_turn();
     let (mut r, src, ret) = receiving();
     let level = r.id_rect(egui::Id::new(("insp-recv-level", ret.0, src.0)));
     let before = r.app.project().clone();
@@ -667,6 +682,7 @@ fn receives_lists_the_senders_and_mixes_them_from_the_return() {
 
 #[test]
 fn a_receives_name_selects_its_source() {
+    let _theme_turn = theme_turn();
     let (mut r, src, ret) = receiving();
     let name = r.id_rect(egui::Id::new(("insp-recv-name", ret.0, src.0, 1u8)));
     r.click(name.center());
@@ -675,6 +691,7 @@ fn a_receives_name_selects_its_source() {
 
 #[test]
 fn an_empty_receives_opens_route_here() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::window(starter_project());
     r.size = vec2(1600.0, 2400.0);
     let s = r.ids();
@@ -702,6 +719,7 @@ fn an_empty_receives_opens_route_here() {
 /// fader under that click does not move — and lets the route go.
 #[test]
 fn a_click_on_a_port_then_on_a_strip_sends() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -733,6 +751,7 @@ fn a_click_on_a_port_then_on_a_strip_sends() {
 /// the other way round. (Round 25: in Spanish the bar cut "Esc: cancelar".)
 #[test]
 fn the_hint_bar_keeps_the_modifiers_whole_while_routing() {
+    let _theme_turn = theme_turn();
     for locale in cantus_ui::i18n::Locale::ALL {
         let mut r = Rig::window(starter_project());
         cantus_ui::i18n::set_thread_locale(locale);
@@ -754,6 +773,7 @@ fn the_hint_bar_keeps_the_modifiers_whole_while_routing() {
 /// Ctrl held at the second click: the destination becomes the only output.
 #[test]
 fn ctrl_at_the_second_click_routes_the_output() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -772,6 +792,7 @@ fn ctrl_at_the_second_click_routes_the_output() {
 /// refused strip keeps it armed (the chip says why) and issues nothing.
 #[test]
 fn an_armed_route_is_let_go_by_esc_empty_space_or_its_own_strip() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -818,6 +839,7 @@ fn an_armed_route_is_let_go_by_esc_empty_space_or_its_own_strip() {
 /// before this one.
 #[test]
 fn an_armed_route_lets_go_when_the_desk_is_hidden_and_a_selected_cable_stays() {
+    let _theme_turn = theme_turn();
     use cantus_core::routing::Route;
     use cantus_ui::views::workspace::Pane;
     let mut r = Rig::window(starter_project());
@@ -875,6 +897,7 @@ fn an_armed_route_lets_go_when_the_desk_is_hidden_and_a_selected_cable_stays() {
 /// destination), and a click on a strip's mute while armed routes instead of muting.
 #[test]
 fn the_selected_strips_chip_arms_a_route_too() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     // FL's row is the Rows menu's to show (off by default since round 39).
     cantus_ui::views::mixer::set_row(
@@ -911,6 +934,7 @@ fn the_selected_strips_chip_arms_a_route_too() {
 /// before that run's first member.
 #[test]
 fn a_drop_before_a_separator_lands_before_that_runs_first_member() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     let s = r.ids();
     let right: Vec<StripId> = r
@@ -964,6 +988,7 @@ fn a_drop_before_a_separator_lands_before_that_runs_first_member() {
 /// for the dock (`CantusApp::show_pane`).
 #[test]
 fn the_chain_line_opens_a_hidden_inspector() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::workspace::Pane;
     let mut r = Rig::window(starter_project());
     mixer::set_width_mode(&mut r.app, mixer::layout::WidthMode::Xl);
@@ -988,6 +1013,7 @@ fn the_chain_line_opens_a_hidden_inspector() {
 /// track is held over the desk, and the track order is unchanged.
 #[test]
 fn an_arrangement_header_dropped_on_a_strip_routes_it_and_keeps_the_order() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::window(cantus_ui::welcome_project());
     r.idle(4);
     let order: Vec<_> = r.app.project().tracks.iter().map(|t| t.id).collect();
@@ -1027,6 +1053,7 @@ fn an_arrangement_header_dropped_on_a_strip_routes_it_and_keeps_the_order() {
 /// narrow sheet cuts its end.
 #[test]
 fn a_receives_key_row_names_the_insert_as_the_chain_line_does() {
+    let _theme_turn = theme_turn();
     let (mut r, src, ret) = receiving();
     let comp = r.app.duck_strip_from(ret, src).expect("a keyed compressor");
     let _ = comp;
@@ -1044,6 +1071,7 @@ fn a_receives_key_row_names_the_insert_as_the_chain_line_does() {
 /// nothing; Esc cancels.
 #[test]
 fn a_level_typed_in_the_route_menu_sets_the_send_in_one_step() {
+    let _theme_turn = theme_turn();
     use cantus_core::routing::Route;
     let mut r = Rig::new(starter_project());
     let s = r.ids();
@@ -1160,6 +1188,7 @@ fn a_level_typed_in_the_route_menu_sets_the_send_in_one_step() {
 /// it, letting the keyboard go. The whole window, as a musician has it.
 #[test]
 fn the_level_field_keeps_the_keyboard_while_it_is_open() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::window(starter_project());
     r.idle(3);
     let s = r.ids();
@@ -1218,6 +1247,7 @@ fn the_level_field_keeps_the_keyboard_while_it_is_open() {
 /// ▸* first, then every strip by dock; a reverb return from there is one undo step.
 #[test]
 fn the_inspectors_add_send_offers_a_new_return() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::window(starter_project());
     r.size = vec2(1600.0, 2400.0);
     let s = r.ids();
@@ -1278,6 +1308,7 @@ fn the_inspectors_add_send_offers_a_new_return() {
 /// makes nothing: no route, no move, no command.
 #[test]
 fn what_the_desk_carried_lets_go_when_it_is_hidden() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::workspace::Pane;
     for case in ["cable", "press", "strip"] {
         let mut r = Rig::window(starter_project());
@@ -1334,6 +1365,7 @@ fn what_the_desk_carried_lets_go_when_it_is_hidden() {
 /// right-click selected.
 #[test]
 fn esc_on_the_level_field_keeps_the_selected_cable() {
+    let _theme_turn = theme_turn();
     use cantus_core::routing::Route;
     let mut r = Rig::window(starter_project());
     r.idle(3);
@@ -1363,6 +1395,7 @@ fn esc_on_the_level_field_keeps_the_selected_cable() {
 /// offers its automation clip and *Modulate…*.
 #[test]
 fn a_sends_menu_automates_and_modulates_its_level() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     // FL's row is the Rows menu's to show (off by default since round 39).
     cantus_ui::views::mixer::set_row(
@@ -1405,4 +1438,19 @@ fn a_sends_menu_automates_and_modulates_its_level() {
             .any(|c| c.automation.as_ref().is_some_and(|a| a.target == target))),
         "an automation clip on the send's level"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

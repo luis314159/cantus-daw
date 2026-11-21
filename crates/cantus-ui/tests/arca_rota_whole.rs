@@ -61,6 +61,7 @@ type Case = (&'static str, EffectKind, &'static [(&'static str, f32)]);
 
 #[test]
 fn arca_rota_and_the_lamp_vibe_are_never_cut() {
+    let _theme_turn = theme_turn();
     let cases: &[Case] = &[
         ("arca", EffectKind::Amp, &[("model", 4.0), ("cab", 4.0)]),
         (
@@ -92,6 +93,7 @@ fn arca_rota_and_the_lamp_vibe_are_never_cut() {
 /// models — four to a board, in English and Spanish at 75 % and 100 %.
 #[test]
 fn every_pedal_face_on_the_board_reads_whole() {
+    let _theme_turn = theme_turn();
     let mut specs: Vec<EffectSpec> = Vec::new();
     for f in views::fx::tabula_faces::FACES {
         if f.kind == EffectKind::Pedal {
@@ -132,4 +134,19 @@ fn every_pedal_face_on_the_board_reads_whole() {
         }
     }
     assert!(bad.is_empty(), "words not read whole:\n{}", bad.join("\n"));
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

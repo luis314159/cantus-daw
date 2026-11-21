@@ -41,6 +41,7 @@ fn has(text: &str, want: &str) -> bool {
 
 #[test]
 fn it_opens_in_every_view_and_paints_real_numbers() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_unda();
     a.open_inst_editor(track);
     a.inst.view = View::Edit;
@@ -85,6 +86,7 @@ fn it_opens_in_every_view_and_paints_real_numbers() {
 
 #[test]
 fn the_partes_and_grana_panels_show_their_own_picture_and_knobs() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_unda();
     a.open_inst_editor(track);
     a.inst.view = View::Edit;
@@ -102,6 +104,7 @@ fn the_partes_and_grana_panels_show_their_own_picture_and_knobs() {
 
 #[test]
 fn the_demo_is_alive() {
+    let _theme_turn = theme_turn();
     let mut a = app(cantus_ui::starter_project());
     a.demo_editor("wavetable");
     assert!(a.inst.injected.is_some(), "the demo feeds telemetry");
@@ -117,6 +120,7 @@ fn the_demo_is_alive() {
 /// overlapping — at 75 %, 100 % and 200 %, in English and in Spanish, for each engine.
 #[test]
 fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
+    let _theme_turn = theme_turn();
     let mut found = Vec::new();
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         for engine in [0.0, 1.0, 2.0] {
@@ -155,6 +159,7 @@ fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
 /// whole drag back; a modulation chip dropped on a cell connects it.
 #[test]
 fn a_cell_drag_is_one_undo_step_and_a_dropped_source_connects() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_unda();
     a.open_inst_editor(track);
     let ctx = ctx();
@@ -200,6 +205,7 @@ fn a_cell_drag_is_one_undo_step_and_a_dropped_source_connects() {
 /// Spanish — the design review.
 #[test]
 fn shots() {
+    let _theme_turn = theme_turn();
     let Some(dir) = std::env::var_os("CANTUS_INST_SHOTS").map(std::path::PathBuf::from) else {
         return;
     };
@@ -293,6 +299,7 @@ fn shots() {
 
 #[test]
 fn a_gesture_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_unda();
     for v in [0.1, 0.2, 0.35] {
         a.set_inst_value(track, "osc1.pos", v, true);
@@ -322,6 +329,7 @@ fn a_gesture_is_one_undo_step() {
 
 #[test]
 fn presets_set_what_they_name_and_name_their_macros() {
+    let _theme_turn = theme_turn();
     assert!(
         cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Wavetable).len() >= 8
     );
@@ -373,6 +381,7 @@ fn presets_set_what_they_name_and_name_their_macros() {
 
 #[test]
 fn every_preset_keeps_its_headroom_on_a_loud_chord() {
+    let _theme_turn = theme_turn();
     use std::sync::Arc;
     let mut report = Vec::new();
     for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Wavetable) {
@@ -404,6 +413,7 @@ fn every_preset_keeps_its_headroom_on_a_loud_chord() {
 
 #[test]
 fn a_table_file_is_imported_in_one_step_with_its_frame_size() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("four.wav");
     let samples: Vec<f32> = (0..4 * 256)
@@ -453,6 +463,7 @@ fn wav_with(chunks: &[(&[u8; 4], Vec<u8>)], samples: usize) -> Vec<u8> {
 
 #[test]
 fn every_format_says_its_frame_size() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     let check = |name: &str, bytes: Vec<u8>, want: (usize, &str)| {
         let path = dir.path().join(name);
@@ -510,6 +521,7 @@ fn every_format_says_its_frame_size() {
 
 #[test]
 fn a_surge_wt_becomes_a_wav_the_engine_reads() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     for (flags, name) in [(0u16, "float"), (0x04 | 0x08, "int16"), (0x04, "int15")] {
         let mut b = b"vawt".to_vec();
@@ -560,6 +572,7 @@ fn a_surge_wt_becomes_a_wav_the_engine_reads() {
 
 #[test]
 fn every_english_string_has_its_spanish_twin() {
+    let _theme_turn = theme_turn();
     let keys = |s: &str| -> std::collections::BTreeSet<String> {
         s.lines()
             .map(str::trim)
@@ -577,4 +590,19 @@ fn every_english_string_has_its_spanish_twin() {
             info.label_key
         );
     }
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

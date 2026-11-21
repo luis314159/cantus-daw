@@ -24,6 +24,7 @@ fn draw(a: &mut cantus_ui::CantusApp, ui: &mut egui::Ui) {
 
 #[test]
 fn every_instrument_opens_in_the_shell_in_both_themes() {
+    let _theme_turn = theme_turn();
     let shots = std::env::var_os("CANTUS_INST_SHOTS").map(std::path::PathBuf::from);
     if let Some(d) = &shots {
         let _ = std::fs::create_dir_all(d);
@@ -84,6 +85,7 @@ fn kind_file(kind: InstrumentKind) -> &'static str {
 
 #[test]
 fn the_keyboard_follows_the_view_until_it_is_chosen() {
+    let _theme_turn = theme_turn();
     let (mut a, _) = open(InstrumentKind::Organ);
     a.inst.view = View::Play;
     assert!(cantus_ui::views::inst::keyboard_shown(&a));
@@ -95,6 +97,7 @@ fn the_keyboard_follows_the_view_until_it_is_chosen() {
 
 #[test]
 fn alt_k_toggles_the_keyboard_card_of_the_editor_in_front() {
+    let _theme_turn = theme_turn();
     let (mut a, _) = open(InstrumentKind::Analog);
     a.inst.view = View::Play;
     assert!(cantus_ui::views::inst::keyboard_shown(&a));
@@ -110,4 +113,19 @@ fn alt_k_toggles_the_keyboard_card_of_the_editor_in_front() {
     // Once per press: the next frames leave it alone.
     let _ = paint(&c, egui::vec2(1200.0, 820.0), 3, |ui| draw(&mut a, ui));
     assert!(!cantus_ui::views::inst::keyboard_shown(&a));
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }
