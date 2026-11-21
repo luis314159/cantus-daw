@@ -1135,7 +1135,16 @@ fn take_piano(o: &Opts) {
     if let Some(w) = win {
         d.note("window", serde_json::json!([w.left(), w.top(), w.width(), w.height()]));
     }
-    let keys = keys.zip(win).map(|(k, w)| k.translate(w.min.to_vec2()));
+    // The keys as this window drew them: the long, flat control (its first-open place, kept
+    // relative to the window, only if none is found).
+    let drawn = win.and_then(|w| {
+        d.widgets_in(w)
+            .into_iter()
+            .filter(|r| r.width() > 300.0 && r.height() < 60.0 && r.width() > 8.0 * r.height())
+            .max_by(|a, b| a.width().total_cmp(&b.width()))
+    });
+    let keys = drawn.or_else(|| keys.zip(win).map(|(k, w)| k.translate(w.min.to_vec2())));
+    d.note("keys_in_shot", keys.map_or(serde_json::Value::Null, |k| serde_json::json!([k.left(), k.top(), k.width(), k.height()])));
     match keys {
         Some(k) => {
             // The push-in on the keys, and the cursor plays them on the beat: D, A, D, A
@@ -1663,14 +1672,19 @@ fn take_session(o: &Opts) {
     // Two clips of the second scene launched by their own launchers: the chords, then the
     // lead (Live's way: a click on a clip's triangle).
     if let Some(g) = &geo {
-        let col = |name: &str| {
-            let n = cantus_ui::i18n::t(name);
-            g.tracks
-                .iter()
-                .position(|t| d.app.project().track(*t).is_some_and(|x| x.name == n))
-        };
-        for (key, at) in [("demos.track.chords", 0.4f32), ("demos.track.lead", 1.4)] {
-            match col(key) {
+        let cols: Vec<(Option<usize>, f32)> = [("demos.track.chords", 0.4f32), ("demos.track.lead", 1.4)]
+            .iter()
+            .map(|(name, at)| {
+                let n = cantus_ui::i18n::t(name);
+                let i = g
+                    .tracks
+                    .iter()
+                    .position(|t| d.app.project().track(*t).is_some_and(|x| x.name == n));
+                (i, *at)
+            })
+            .collect();
+        for (i, at) in cols {
+            match i {
                 Some(i) if g.scenes.len() > 1 => {
                     let l = cantus_ui::views::session::paint::launcher_rect(g.cell(i, 1), g.k);
                     d.until(at);
