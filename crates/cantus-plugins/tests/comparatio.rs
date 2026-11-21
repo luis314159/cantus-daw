@@ -173,9 +173,24 @@ fn a_reference_loaded_with_the_state_is_heard_matched_and_the_mix_is_untouched()
         "read at the host's rate on the plug-in's own thread: {:?}",
         store::status(&path)
     );
-    // A few more seconds of the mix: the unit has its reference now and measures it beside.
-    let (ol, _) = run(&mut p, &ml, &mr);
-    assert_eq!(ol, ml, "still your mix, untouched");
+    // More of the mix until the unit holds its reference and its whole file's loudness (the
+    // host's next blocks hand it over: on beta.16's macOS rehearsal it came late, and the
+    // match was still gliding where the loudness was read).
+    use cantus_engine::fx::comparatio::t;
+    // Its panel open, so the unit publishes what it holds (the audio is the same either way).
+    host.editor_open
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+    let mut rounds = 0;
+    loop {
+        let (ol, _) = run(&mut p, &ml, &mr);
+        assert_eq!(ol, ml, "still your mix, untouched");
+        let tel = host.telemetry();
+        if tel[t::REF_LEN] > 0.0 && tel[t::WHOLE].is_finite() {
+            break;
+        }
+        rounds += 1;
+        assert!(rounds < 15, "the unit never took its reference: {tel:?}");
+    }
     // The reference heard: the host sets listen (a parameter like any other).
     let listen = host.table.by_key("listen").unwrap().index;
     host.set_value(listen, 1.0);
@@ -183,8 +198,19 @@ fn a_reference_loaded_with_the_state_is_heard_matched_and_the_mix_is_untouched()
     // depend on how much of it the unit heard before the switch (the read's timing).
     let refl = host.table.by_key("refl").unwrap().index;
     host.set_value(refl, 1.0);
+    // The crossfade and the match's glide landed first (whatever the machine's speed),
+    // then the four seconds heard.
+    let mut rounds = 0;
+    loop {
+        let _ = run(&mut p, &ml[..SR as usize / 2], &mr[..SR as usize / 2]);
+        let tel = host.telemetry();
+        if tel[t::FADE] >= 1.0 && (tel[t::GAIN] - tel[t::TARGET]).abs() < 0.01 {
+            break;
+        }
+        rounds += 1;
+        assert!(rounds < 40, "the switch never landed: {tel:?}");
+    }
     let heard = run(&mut p, &ml, &mr);
-    // From half a second on (the crossfade and the match's glide done).
     let h = SR as usize / 2;
     let tail = &heard.0[h..];
     let mix_db = lufs(&ml[h..], &mr[h..]);
