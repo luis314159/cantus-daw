@@ -107,6 +107,16 @@ units and ranges beside each key; the manual (`docs/manual/en/fides.md`) says wh
 
 ## What the tests hold
 
+- `cantus-dsp` `fides::tests`: pitch within 0.1 cent at every bend for the struck and plucked
+  resonators (worst measured 0.0014 cent, E1–A6); a bowed string measured (a few cents, the
+  stick and slip's); renders the same at every block size and repeated, and the pool's reversed
+  jobs the serial bits; every exciter on every resonator finite, bounded and sounding.
+- `cantus-engine` `inst_fides`: the same through the engine's render; the extras at their
+  defaults change no sample; MPE's pressure and slide reach the bow; exact silence, rest and as
+  good as new; the eight-note chord's headroom; 32 heavy voices inside real time.
+- `cantus-core` `undo_invariants::fides_edits_undo_and_redo_among_the_others`.
+- `cantus-ui` `fides_pick_e2e` (runs with the commit that puts Fides in `ALL`).
+
 - `cantus-project`'s `schema_78_keeps_fides_nitor_and_fragor_s_five_pedals`: the fixture's
   Fides track loads with its kind and its gain, and no older fixture holds one.
 - Every existing test unchanged (the kind is outside `ALL`): the null corpus, the contract
