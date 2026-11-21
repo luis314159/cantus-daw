@@ -15,7 +15,7 @@
 //! - **the unison sounding together**: its modes per partial, their power-weighted pitch, and
 //!   the fastest beat audible between them — what the ear hears as "a string out of tune".
 
-use super::modekit::{analyse, fastest_beat, Beat, PartialModes};
+use super::modekit::{analyse, fastest_beat, most_heard_beat, Beat, PartialModes};
 use super::string::MAX_STRINGS;
 use super::tables;
 use super::tests_tuning::{curve_of, keyboard_of};
@@ -34,7 +34,7 @@ pub const PARTIALS: u32 = 8;
 /// the partial's level by at least [`MIN_DEPTH_DB`], over the first [`BEAT_SECONDS`].
 pub const FLOOR_DB: f64 = 40.0;
 pub const MIN_DEPTH_DB: f64 = 1.0;
-pub const BEAT_SECONDS: f64 = 3.0;
+pub const BEAT_SECONDS: f64 = 5.0;
 /// The velocities every key is struck at.
 pub const VELOCITIES: [f32; 3] = [0.3, 0.6, 0.9];
 const CENTS: f64 = 1_200.0 / std::f64::consts::LN_2;
@@ -131,6 +131,12 @@ impl KeyModes {
     /// The fastest audible beat of the unison's partial `n`.
     pub fn beat(&self, n: u32) -> Option<Beat> {
         fastest_beat(self.partial(n)?, BEAT_SECONDS, FLOOR_DB, MIN_DEPTH_DB)
+    }
+
+    /// The audible beat of the unison's partial `n` the ear hears most swells of in its
+    /// first [`BEAT_SECONDS`] ([`most_heard_beat`]).
+    pub fn heard(&self, n: u32) -> Option<Beat> {
+        most_heard_beat(self.partial(n)?, BEAT_SECONDS, FLOOR_DB, MIN_DEPTH_DB)
     }
 
     /// The partial's level under the key's strongest partial (dB, ≤ 0).
@@ -361,4 +367,589 @@ fn unison_modes() {
             eprintln!("  p{} {:.2} Hz: {}", p.n, p.near_hz, ms.join(" | "));
         }
     }
+}
+
+/// One key's summary over [`VELOCITIES`]: the fastest audible beat on partials 1–3 (Hz, its
+/// depth dB, its partial), the farthest any loop alone sits from the curve on partials 1–3
+/// (cents), the widest two strings alone stand apart there (Hz), the unison together's
+/// partials 1–3 against the curve at velocity 0.6 (cents) and the fastest beat on 4–8 (Hz).
+#[derive(Clone, Debug, Default)]
+pub struct KeySummary {
+    pub key: u8,
+    pub strings: usize,
+    pub beat: f64,
+    pub beat_depth: f64,
+    pub beat_partial: u32,
+    pub alone_ct: f64,
+    pub alone_spread_hz: f64,
+    pub together_ct: [f64; 3],
+    pub upper_beat: f64,
+    /// The most swells heard of a beat on partials 1–3 in the first five seconds, its rate.
+    pub cycles: f64,
+    pub cycles_rate: f64,
+}
+
+/// [`KeySummary`] of each key in `maps` (every velocity of a key together).
+pub fn summarise(maps: &[KeyModes]) -> Vec<KeySummary> {
+    let mut out: Vec<KeySummary> = Vec::new();
+    for k in maps {
+        if out.last().is_none_or(|s| s.key != k.key) {
+            out.push(KeySummary {
+                key: k.key,
+                strings: k.vertical,
+                together_ct: [f64::NAN; 3],
+                ..KeySummary::default()
+            });
+        }
+        let s = out.last_mut().expect("a key");
+        for n in 1..=3u32 {
+            if let Some(b) = k.beat(n) {
+                if b.rate > s.beat {
+                    (s.beat, s.beat_depth, s.beat_partial) = (b.rate, b.depth_db, n);
+                }
+            }
+            if let Some(b) = k.heard(n) {
+                if b.cycles > s.cycles {
+                    (s.cycles, s.cycles_rate) = (b.cycles, b.rate);
+                }
+            }
+            for l in 0..k.loops {
+                let c = k.alone_cents(l, n);
+                if c.is_finite() && c.abs() > s.alone_ct.abs() {
+                    s.alone_ct = c;
+                }
+            }
+            s.alone_spread_hz = s.alone_spread_hz.max(k.alone_spread_hz(n));
+            if k.vel == 0.6 {
+                s.together_ct[(n - 1) as usize] = k.together_cents(n);
+            }
+        }
+        for n in 4..=PARTIALS {
+            if let Some(b) = k.beat(n) {
+                s.upper_beat = s.upper_beat.max(b.rate);
+            }
+        }
+    }
+    out
+}
+
+/// Diagnostic: every key of `CHORDA_TUNE_KEYS` (all if unset) at velocities 0.3, 0.6 and 0.9
+/// on `CHORDA_TUNE_SPEC` over the shipped voicing, one line each ([`KeySummary`]); with
+/// `CHORDA_UNISON_JSON` the same as JSON (`tools/chorda-voicing/unison_page.py`). Run with
+/// `cargo test -p cantus-dsp --lib unison_table -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn unison_table() {
+    let v = diag_voicing();
+    let maps = map_keys(&v, &diag_keys(), threads());
+    let sums = summarise(&maps);
+    eprintln!("key n | beat p1-3 Hz (dB, partial) | alone worst ct | alone spread Hz | together p1 p2 p3 ct | beat p4-8 Hz | swells in 5 s (Hz)");
+    let mut json = String::from("[\n");
+    for (i, s) in sums.iter().enumerate() {
+        eprintln!(
+            "{:3} {} | {:.3} ({:4.1}, p{}) | {} | {:.3} | {} {} {} | {:.3} | {:.2} ({:.3})",
+            s.key,
+            s.strings,
+            s.beat,
+            s.beat_depth,
+            s.beat_partial,
+            fmt(s.alone_ct, 5, 2),
+            s.alone_spread_hz,
+            fmt(s.together_ct[0], 5, 2),
+            fmt(s.together_ct[1], 5, 2),
+            fmt(s.together_ct[2], 5, 2),
+            s.upper_beat,
+            s.cycles,
+            s.cycles_rate
+        );
+        let num = |x: f64| {
+            if x.is_finite() {
+                format!("{x:.4}")
+            } else {
+                "null".into()
+            }
+        };
+        json += &format!(
+            "{{\"key\":{},\"cycles\":{},\"strings\":{},\"beat\":{},\"depth\":{},\"partial\":{},\"alone\":{},\"spread\":{},\"together\":[{},{},{}],\"upper\":{}}}{}\n",
+            s.key,
+            num(s.cycles),
+            s.strings,
+            num(s.beat),
+            num(s.beat_depth),
+            s.beat_partial,
+            num(s.alone_ct),
+            num(s.alone_spread_hz),
+            num(s.together_ct[0]),
+            num(s.together_ct[1]),
+            num(s.together_ct[2]),
+            num(s.upper_beat),
+            if i + 1 < sums.len() { "," } else { "" }
+        );
+    }
+    json += "]\n";
+    if let Ok(path) = std::env::var("CHORDA_UNISON_JSON") {
+        std::fs::write(&path, json).expect("the JSON written");
+        eprintln!("wrote {path}");
+    }
+}
+
+/// Key `m`'s level on a unit voiced `v` (the whole instrument, as played) struck at the lab's
+/// mezzo-forte (velocity 75), over 0–0.5, 0.25–1.25 and 1.25–3.4 s (dB, both channels' mean
+/// power) — round 40's measure of what a retune did to a key's colour of decay.
+pub fn key_levels(v: &Voicing, m: u8) -> [f64; 3] {
+    use super::tests_engine::{perform, Ev};
+    let frames = (3.4 * FS) as usize;
+    let (l, r) = perform(
+        &mut super::tests_tuning::unit(v),
+        &[(0, Ev::On(m, 75.0 / 127.0, 1))],
+        frames,
+        512,
+        1,
+    );
+    let lv = |a: f64, b: f64| {
+        let (a, b) = ((a * FS) as usize, ((b * FS) as usize).min(l.len()));
+        let p: f64 = l[a..b]
+            .iter()
+            .chain(&r[a..b])
+            .map(|x| (*x as f64) * (*x as f64))
+            .sum::<f64>()
+            / (2 * (b - a)) as f64;
+        10.0 * crate::math::log10(p.max(1e-30))
+    };
+    [lv(0.0, 0.5), lv(0.25, 1.25), lv(1.25, 3.4)]
+}
+
+/// Diagnostic: each key of `CHORDA_TUNE_KEYS` — its level over the three windows of
+/// [`key_levels`] on the shipped voicing and on `CHORDA_TUNE_SPEC` over it, and the change
+/// (dB). `CHORDA_TUNE_BASE` (a spec) sets the comparison's first voicing instead.
+#[test]
+#[ignore]
+fn unison_levels() {
+    let mut a = Voicing::default();
+    if let Ok(spec) = std::env::var("CHORDA_TUNE_BASE") {
+        assert!(a.apply(&spec), "a key of CHORDA_TUNE_BASE is not one");
+    }
+    let b = diag_voicing();
+    let keys = diag_keys();
+    let out = Mutex::new(Vec::new());
+    let th = threads();
+    std::thread::scope(|s| {
+        for t in 0..th {
+            let (out, keys, a, b) = (&out, &keys, &a, &b);
+            s.spawn(move || {
+                for m in keys.iter().skip(t).step_by(th) {
+                    let r = (*m, key_levels(a, *m), key_levels(b, *m));
+                    out.lock().unwrap().push(r);
+                }
+            });
+        }
+    });
+    let mut o = out.into_inner().unwrap();
+    o.sort_by_key(|e| e.0);
+    eprintln!("key | before 0-0.5 0.25-1.25 1.25-3.4 dB | after | change");
+    let mut sq = [0.0f64; 3];
+    for (m, x, y) in &o {
+        let d = [y[0] - x[0], y[1] - x[1], y[2] - x[2]];
+        for (s, v) in sq.iter_mut().zip(d) {
+            *s += v * v;
+        }
+        eprintln!(
+            "{m:3} | {:6.1} {:6.1} {:6.1} | {:6.1} {:6.1} {:6.1} | {:+5.2} {:+5.2} {:+5.2}",
+            x[0], x[1], x[2], y[0], y[1], y[2], d[0], d[1], d[2]
+        );
+    }
+    let n = o.len().max(1) as f64;
+    eprintln!(
+        "rms change: {:.2} {:.2} {:.2} dB",
+        (sq[0] / n).sqrt(),
+        (sq[1] / n).sqrt(),
+        (sq[2] / n).sqrt()
+    );
+}
+
+/// A key's name (C4 = 60).
+pub fn key_name(m: u8) -> String {
+    const N: [&str; 12] = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+    ];
+    format!("{}{}", N[(m % 12) as usize], m as i32 / 12 - 1)
+}
+
+/// The listening set for the owner (`CHORDA_RENDER_OUT` the folder): for each key of
+/// `CHORDA_LISTEN_KEYS` (the six he named if unset) `<key>-held` — struck alone at mezzo-forte
+/// and held 7 s, then at piano and at forte, 5 s each — and `<key>-phrase`: the key, its
+/// octave below, a chord holding it, a short line around it ending on it; and `six-keys`, the
+/// named keys one after another. Each rendered on the voicing before (`CHORDA_TUNE_BASE` over
+/// the shipped one; the shipped one if unset) and after (`CHORDA_TUNE_SPEC` over it), 24-bit,
+/// as `-before.wav` / `-after.wav`. Run with
+/// `cargo test -p cantus-dsp --lib tune_listen -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn tune_listen() {
+    use super::tests_tuning::{play, write_wav};
+    let Ok(out) = std::env::var("CHORDA_RENDER_OUT") else {
+        return;
+    };
+    let dir = std::path::PathBuf::from(out);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut before = Voicing::default();
+    if let Ok(spec) = std::env::var("CHORDA_TUNE_BASE") {
+        assert!(before.apply(&spec), "a key of CHORDA_TUNE_BASE is not one");
+    }
+    let after = diag_voicing();
+    let keys: Vec<u8> = std::env::var("CHORDA_LISTEN_KEYS")
+        .ok()
+        .map(|s| s.split(',').filter_map(|x| x.trim().parse().ok()).collect())
+        .unwrap_or_else(|| vec![48, 49, 50, 47, 64, 76]);
+    let (pp, mf, ff) = (40.0 / 127.0, 75.0 / 127.0, 110.0 / 127.0);
+    let mut jobs: Vec<(String, Vec<(f64, f64, u8, f32)>, f64)> = Vec::new();
+    for &k in &keys {
+        let name = key_name(k).replace('#', "s");
+        jobs.push((
+            format!("{name}-held"),
+            vec![(0.0, 7.0, k, mf), (7.5, 5.0, k, pp), (13.0, 5.0, k, ff)],
+            1.5,
+        ));
+        // A major or minor triad holding the key, under it where there is room.
+        let chord = if k >= 52 {
+            vec![k - 7, k - 3, k]
+        } else {
+            vec![k, k + 4, k + 7]
+        };
+        let mut ph = vec![(0.0, 3.5, k, mf), (4.0, 3.5, k - 12, mf), (4.0, 3.5, k, mf)];
+        for c in &chord {
+            ph.push((8.0, 3.5, *c, mf));
+        }
+        for (i, d) in [-2i32, 0, 2, 4, 2, 0].iter().enumerate() {
+            let t = 12.0 + 0.45 * i as f64;
+            ph.push((t, 0.42, (k as i32 + d) as u8, mf));
+        }
+        ph.push((12.0 + 0.45 * 6.0, 4.0, k, mf));
+        jobs.push((format!("{name}-phrase"), ph, 2.0));
+    }
+    let six: Vec<_> = keys
+        .iter()
+        .enumerate()
+        .map(|(i, k)| (i as f64 * 4.0, 3.6, *k, mf))
+        .collect();
+    jobs.push(("named-keys".into(), six, 2.0));
+    let abx = dir.join("abx");
+    std::fs::create_dir_all(&abx).unwrap();
+    std::thread::scope(|s| {
+        for (name, notes, tail) in &jobs {
+            let (dir, abx, before, after) = (&dir, &abx, &before, &after);
+            s.spawn(move || {
+                let pair = [play(before, notes, *tail), play(after, notes, *tail)];
+                for ((l, r), which) in pair.iter().zip(["before", "after"]) {
+                    let peak = l.iter().chain(r).fold(0.0f32, |m, x| m.max(x.abs()));
+                    eprintln!("{name}-{which}: peak {peak:.3}, rms {:.1} dBFS", rms_db(l, r));
+                    write_wav(&dir.join(format!("{name}-{which}.wav")), l, r);
+                }
+                // The blind test's copies: both at one RMS (−24 dBFS, lowered together if a
+                // peak would pass −1 dBFS), so a level never tells them apart.
+                let gains: Vec<f64> = pair.iter().map(|(l, r)| -24.0 - rms_db(l, r)).collect();
+                let over = pair
+                    .iter()
+                    .zip(&gains)
+                    .map(|((l, r), g)| {
+                        let p = l.iter().chain(r).fold(0.0f32, |m, x| m.max(x.abs())) as f64;
+                        20.0 * crate::math::log10(p.max(1e-12)) + g + 1.0
+                    })
+                    .fold(0.0f64, f64::max);
+                for (((l, r), g), which) in pair.iter().zip(&gains).zip(["before", "after"]) {
+                    let k = crate::math::powf(10.0f64, (g - over) / 20.0) as f32;
+                    let (l, r): (Vec<f32>, Vec<f32>) =
+                        (l.iter().map(|x| x * k).collect(), r.iter().map(|x| x * k).collect());
+                    write_wav(&abx.join(format!("{name}-{which}.wav")), &l, &r);
+                }
+            });
+        }
+    });
+}
+
+/// The RMS of a stereo render (dBFS, both channels).
+fn rms_db(l: &[f32], r: &[f32]) -> f64 {
+    let p = l
+        .iter()
+        .chain(r)
+        .map(|x| (*x as f64) * (*x as f64))
+        .sum::<f64>()
+        / (l.len() + r.len()).max(1) as f64;
+    10.0 * crate::math::log10(p.max(1e-30))
+}
+
+/// The most swells (whole beats) the ear hears on partials 1–3 of key `m`'s unison at `vel` on
+/// `v` in the first [`BEAT_SECONDS`] — the together render alone (no loop muted), for a search.
+pub fn together_beat(v: &Voicing, m: u8, vel: f32) -> f64 {
+    let i = (m - tables::LOWEST) as usize;
+    let key = curve_of(v)[i];
+    let near: Vec<f64> = (1..=3)
+        .map(|n| key.partial(n))
+        .enumerate()
+        .filter(|(n, f)| *n == 0 || *f < 5_000.0)
+        .map(|(_, f)| f)
+        .collect();
+    let x = dry(v, m, vel, [1.0; MAX_STRINGS]);
+    let loops = tables::strings(m) as usize + usize::from(v.polar != 0.0 && tables::strings(m) < 3);
+    analyse(&x, FS, key.f0(), &near, T0, SECONDS, loops + 2)
+        .iter()
+        .filter_map(|p| most_heard_beat(p, BEAT_SECONDS, FLOOR_DB, MIN_DEPTH_DB))
+        .map(|b| b.cycles)
+        .fold(0.0, f64::max)
+}
+
+/// The search's target (swells heard in the first five seconds): under the gate's one, with
+/// room for what the search does not see (`CHORDA_SEARCH` overrides it).
+pub fn search_target() -> f64 {
+    std::env::var("CHORDA_SEARCH")
+        .ok()
+        .and_then(|x| x.parse().ok())
+        .unwrap_or(0.75)
+}
+
+/// The gate: no audible beat on partials 1–3 swells and falls a whole time in the first five
+/// seconds — no beat faster than one every five seconds while it sounds.
+pub const BEAT_GATE_CYCLES: f64 = 1.0;
+
+/// The same bound as a rate (Hz): one beat in [`BEAT_SECONDS`].
+pub const BEAT_GATE_HZ: f64 = 1.0 / BEAT_SECONDS;
+
+/// Diagnostic, the technician's search (round 41): for each key of `CHORDA_TUNE_KEYS` with a
+/// unison, on `CHORDA_TUNE_SPEC` over the shipped voicing, the least `uni_tight` (0: the
+/// designed spread … 1: none) whose fastest audible beat on partials 1–3, at velocities 0.3,
+/// 0.6 and 0.9, is under [`search_target()`] — each unison kept as wide as it can be without a beat
+/// the ear counts (a slightly detuned unison locked on its bridge rings the slow second stage
+/// of its decay, Weinreich 1977; a tuned-dead one does not). Bisection, eight steps. Prints
+/// the table as Rust.
+#[test]
+#[ignore]
+fn unison_search() {
+    let base = diag_voicing();
+    let keys: Vec<u8> = diag_keys()
+        .into_iter()
+        .filter(|m| tables::strings(*m) > 1)
+        .collect();
+    let out = Mutex::new(Vec::new());
+    let th = threads();
+    let worst = |v: &Voicing, m: u8| {
+        VELOCITIES
+            .iter()
+            .map(|x| together_beat(v, m, *x))
+            .fold(0.0f64, f64::max)
+    };
+    std::thread::scope(|s| {
+        for t in 0..th {
+            let (out, keys, base) = (&out, &keys, &base);
+            s.spawn(move || {
+                for m in keys.iter().skip(t).step_by(th) {
+                    let i = (*m - tables::LOWEST) as usize;
+                    let at = |x: f32| {
+                        let mut v = *base;
+                        v.uni_tight[i] = x;
+                        worst(&v, *m)
+                    };
+                    let (mut lo, mut hi) = (0.0f32, 1.0f32);
+                    let first = at(0.0);
+                    let tight = if first <= search_target() {
+                        0.0
+                    } else {
+                        for _ in 0..8 {
+                            let mid = 0.5 * (lo + hi);
+                            if at(mid) <= search_target() {
+                                hi = mid;
+                            } else {
+                                lo = mid;
+                            }
+                        }
+                        hi
+                    };
+                    let last = at(tight);
+                    out.lock().unwrap().push((*m, tight, first, last));
+                }
+            });
+        }
+    });
+    let mut o = out.into_inner().unwrap();
+    o.sort_by_key(|e| e.0);
+    for (m, t, a, b) in &o {
+        eprintln!("key {m}: uni_tight {t:.4}  beat {a:.3} -> {b:.3} Hz");
+    }
+    let spec: Vec<String> = o
+        .iter()
+        .map(|(m, t, _, _)| format!("uni_tight.{m}={t}"))
+        .collect();
+    eprintln!("SPEC {}", spec.join(","));
+}
+
+/// Diagnostic, the technician's last pass re-measured (round 41): each key A0–E6 of
+/// `CHORDA_TUNE_SPEC` over the shipped voicing struck at velocity 0.6 through the whole
+/// instrument and measured as round 40's gate measures it (`tunekit`), its table entry moved
+/// by what it still needs (secant steps from the second round; `CHORDA_TUNE_ROUNDS`, 3), and
+/// the table printed as Rust and as a spec. Keys above E6 keep no table (round 40: there the
+/// board's tail is as much of the measure as the strings, and a table does not converge).
+#[test]
+#[ignore]
+fn unison_retable() {
+    use super::tests_tuning::map;
+    let mut v = diag_voicing();
+    let rounds: usize = std::env::var("CHORDA_TUNE_ROUNDS")
+        .ok()
+        .and_then(|x| x.parse().ok())
+        .unwrap_or(3);
+    let keys: Vec<u8> = (21u8..=88).collect();
+    let mut prev: Vec<(f32, f64)> = Vec::new();
+    for r in 0..rounds {
+        let m = map(&v, &keys, 0.6, threads());
+        let mut worst = 0.0f64;
+        let mut next = v.tune;
+        for (j, (k, t)) in m.iter().enumerate() {
+            let i = (*k - tables::LOWEST) as usize;
+            let (now, err) = (v.tune[i], t.pitch);
+            worst = worst.max(err.abs());
+            // A secant step once two rounds are in (the table's slope is not exactly 1: the
+            // board's share moves with the key), else the whole error.
+            let step = match prev.get(j) {
+                Some((was, e0)) if (err - e0).abs() > 1e-3 && (now - was).abs() > 1e-4 => {
+                    let slope = (err - e0) / (now - was) as f64;
+                    if (0.3..=3.0).contains(&slope) {
+                        err / slope
+                    } else {
+                        err
+                    }
+                }
+                _ => err,
+            };
+            next[i] = ((now as f64 - step) * 100.0).round() as f32 / 100.0;
+        }
+        eprintln!("round {r}: worst {worst:.2} cents");
+        prev = m.iter().map(|(k, t)| (v.tune[(*k - tables::LOWEST) as usize], t.pitch)).collect();
+        v.tune = next;
+    }
+    let m = map(&v, &keys, 0.6, threads());
+    let worst = m.iter().map(|(_, t)| t.pitch.abs()).fold(0.0f64, f64::max);
+    eprintln!("final: worst {worst:.2} cents");
+    let rows: Vec<String> = v
+        .tune
+        .chunks(8)
+        .enumerate()
+        .map(|(c, ch)| {
+            let vals: Vec<String> = ch.iter().map(|x| format!("{x:.2}")).collect();
+            format!("    {}, // {}–{}", vals.join(", "), 21 + c * 8, 21 + c * 8 + ch.len() - 1)
+        })
+        .collect();
+    eprintln!("TABLE\n{}", rows.join("\n"));
+    let spec: Vec<String> = (21u8..=108)
+        .map(|k| format!("tune.{k}={}", v.tune[(k - 21) as usize]))
+        .collect();
+    eprintln!("SPEC {}", spec.join(","));
+}
+
+/// The least `uni_tight` for key `m` on `v` (bisection, eight steps) whose fastest audible
+/// beat on partials 1–3 over [`VELOCITIES`] is under [`search_target()`], and that beat.
+pub fn least_tight(v: &Voicing, m: u8) -> (f32, f64) {
+    let i = (m - tables::LOWEST) as usize;
+    let at = |x: f32| {
+        let mut w = *v;
+        w.uni_tight[i] = x;
+        VELOCITIES
+            .iter()
+            .map(|vel| together_beat(&w, m, *vel))
+            .fold(0.0f64, f64::max)
+    };
+    let first = at(0.0);
+    if first <= search_target() {
+        return (0.0, first);
+    }
+    let (mut lo, mut hi) = (0.0f32, 1.0f32);
+    let mut best = at(1.0);
+    for _ in 0..8 {
+        let mid = 0.5 * (lo + hi);
+        let b = at(mid);
+        if b <= search_target() {
+            (hi, best) = (mid, b);
+        } else {
+            lo = mid;
+        }
+    }
+    (hi, best)
+}
+
+/// Diagnostic, the technician's search with the bridge re-voiced (round 41): for each key of
+/// `CHORDA_TUNE_KEYS` with a unison, on `CHORDA_TUNE_SPEC` over the shipped voicing — its
+/// unison as wide as it can be without a beat the ear counts ([`least_tight`]), and its
+/// bridge's share of the strings' loss (`coupling.<key>`) lowered until its sustain is the
+/// shipped voicing's again: the mean of its level's change over 0.25–1.25 s and 1.25–3.4 s
+/// ([`key_levels`]) within a tenth of a decibel of none (bisection on the share's log, from
+/// a tenth to one). A unison tuned closer rings less of the slow second stage a detuned one
+/// rang (Weinreich 1977), so less of the strings' loss goes through the bridge. Prints the
+/// spec.
+#[test]
+#[ignore]
+fn unison_voice_search() {
+    let base = diag_voicing();
+    let shipped = Voicing::default();
+    let keys: Vec<u8> = diag_keys()
+        .into_iter()
+        .filter(|m| tables::strings(*m) > 1)
+        .collect();
+    let out = Mutex::new(Vec::new());
+    let th = threads();
+    std::thread::scope(|s| {
+        for t in 0..th {
+            let (out, keys, base, shipped) = (&out, &keys, &base, &shipped);
+            s.spawn(move || {
+                for m in keys.iter().skip(t).step_by(th) {
+                    let i = (*m - tables::LOWEST) as usize;
+                    let want = key_levels(shipped, *m);
+                    let trial = |c: f32| {
+                        let mut v = *base;
+                        v.couplings[i] = c;
+                        let (tight, beat) = least_tight(&v, *m);
+                        v.uni_tight[i] = tight;
+                        let got = key_levels(&v, *m);
+                        let d = 0.5 * ((got[1] - want[1]) + (got[2] - want[2]));
+                        (tight, beat, d, got)
+                    };
+                    let at_one = trial(1.0);
+                    let mut pick = (1.0f32, at_one);
+                    if at_one.2 < -0.1 {
+                        // Lower the share (log bisection): the sustain rises as it falls.
+                        let (mut lo, mut hi) = (crate::math::ln(0.1f64), 0.0f64);
+                        for _ in 0..7 {
+                            let mid = 0.5 * (lo + hi);
+                            let c = crate::math::exp(mid) as f32;
+                            let r = trial(c);
+                            if (r.2).abs() < (pick.1 .2).abs() {
+                                pick = (c, r);
+                            }
+                            if r.2 < 0.0 {
+                                hi = mid;
+                            } else {
+                                lo = mid;
+                            }
+                            if r.2.abs() <= 0.1 {
+                                break;
+                            }
+                        }
+                    }
+                    let (c, (tight, beat, d, got)) = pick;
+                    eprintln!(
+                        "key {m}: coupling {c:.3} uni_tight {tight:.3} beat {beat:.3} Hz, level change {:+.2} {:+.2} {:+.2} dB",
+                        got[0] - want[0],
+                        got[1] - want[1],
+                        got[2] - want[2]
+                    );
+                    let _ = d;
+                    out.lock().unwrap().push((*m, c, tight));
+                }
+            });
+        }
+    });
+    let mut o = out.into_inner().unwrap();
+    o.sort_by_key(|e| e.0);
+    let spec: Vec<String> = o
+        .iter()
+        .flat_map(|(m, c, t)| [format!("coupling.{m}={c}"), format!("uni_tight.{m}={t}")])
+        .collect();
+    eprintln!("SPEC {}", spec.join(","));
 }

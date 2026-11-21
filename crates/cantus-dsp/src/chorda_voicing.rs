@@ -311,11 +311,28 @@ pub struct Voicing {
     /// (0: none, every voicing before; `KeyStrings::set_bridge_tuned`). Set as
     /// `bridge.pull_hz`.
     pub bridge_pull_hz: f64,
-    /// Round 41, every unison beatless (`DSP_VERSION` 11): the share of the `unison`
+    /// Round 41, every unison beatless (`DSP_VERSION` 11): each key's share of the `unison`
     /// control's first cent taken as the technician's (0: none, every voicing before; 1: at
-    /// the control's default the strings are tuned to each other, each cent above it
-    /// detuning them as before) — the owner heard the designed spread as strings out of tune.
-    pub uni_tight: f64,
+    /// the control's default the key's strings are tuned to each other; each cent above it
+    /// detunes them as before) — the owner heard the designed spread as strings out of
+    /// tune. Set by name as `uni_tight.<MIDI key>`, or `uni_tight` for every key.
+    pub uni_tight: [f32; KEYS],
+    /// Round 41 (`DSP_VERSION` 11): each key's share of its strings' loss that goes through
+    /// the bridge, scaled (1: the register's, every voicing before) — a unison tuned closer
+    /// rings less of the slow second stage a detuned one rang (Weinreich 1977), so its
+    /// bridge takes less of the strings' loss and the key sustains as it did. Set by name as
+    /// `coupling.<MIDI key>`.
+    pub couplings: [f32; KEYS],
+    /// Round 41 (`DSP_VERSION` 11): the strings' loss scatter's share where the unison
+    /// scatters have faded out (0: faded with them, every voicing before; 1: whole to C8). A
+    /// unison tuned to one pitch rings its slow second stage only if its strings differ: a
+    /// loss scatter (the loop's loss filter is linear-phase) makes them differ in decay, never
+    /// in pitch — an aftersound with no beat. Set as `uni_loss_top`.
+    pub uni_loss_top: f64,
+    /// Round 41 (`DSP_VERSION` 11): 1 — each three-string unison laid as two strings alike
+    /// and a third apart (`VoiceSettings::uni_pair`; 0: the designed fan, every voicing
+    /// before). Set as `uni_pair`.
+    pub uni_pair: f64,
 }
 
 /// The most a key is evened by (dB).
@@ -488,7 +505,10 @@ impl Voicing {
             bridge_tune: 0.0,
             bridge_pull: 0.0,
             bridge_pull_hz: 0.0,
-            uni_tight: 0.0,
+            uni_tight: [0.0; KEYS],
+            couplings: [1.0; KEYS],
+            uni_loss_top: 0.0,
+            uni_pair: 0.0,
         }
     }
 
@@ -806,6 +826,28 @@ impl Voicing {
                 _ => false,
             };
         }
+        if let Some(k) = key.strip_prefix("coupling.") {
+            return match k.parse::<u8>() {
+                Ok(m) if (21..=108).contains(&m) => {
+                    self.couplings[(m - 21) as usize] = v as f32;
+                    true
+                }
+                _ => false,
+            };
+        }
+        if key == "uni_tight" {
+            self.uni_tight = [v as f32; KEYS];
+            return true;
+        }
+        if let Some(k) = key.strip_prefix("uni_tight.") {
+            return match k.parse::<u8>() {
+                Ok(m) if (21..=108).contains(&m) => {
+                    self.uni_tight[(m - 21) as usize] = v as f32;
+                    true
+                }
+                _ => false,
+            };
+        }
         if let Some(k) = key.strip_prefix("tune.") {
             return match k.parse::<u8>() {
                 Ok(m) if (21..=108).contains(&m) => {
@@ -887,7 +929,8 @@ impl Voicing {
             "bridge.tune" => &mut self.bridge_tune,
             "bridge.pull" => &mut self.bridge_pull,
             "bridge.pull_hz" => &mut self.bridge_pull_hz,
-            "uni_tight" => &mut self.uni_tight,
+            "uni_loss_top" => &mut self.uni_loss_top,
+            "uni_pair" => &mut self.uni_pair,
             "uni_weight_low" => &mut self.uni_weight_low,
             "detune_bass" => &mut self.detune_bass,
             "detune_scale" => &mut self.detune_scale,

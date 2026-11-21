@@ -709,8 +709,12 @@ impl KeyStrings {
         }
         let n = self.tuned_n;
         if self.tuned_cap_hz > 0.0 {
-            // Each partial's own cap: the cents cap, or the hertz cap there if tighter. The
-            // pull is nearly proportional to the gains: two steps land within a hair.
+            // Each partial's own cap: the cents cap, or the hertz cap there if tighter. A
+            // resonance lying on the partial gives the reflection no phase at its centre yet
+            // splits the in-phase mode in two (C2's second partial: 1.5 Hz apart, before
+            // round 41), so the pull is read across the band a resonance spans (±2 %, a Q-30
+            // mode's width and more) and its largest held. The pull is nearly proportional
+            // to the gains: two steps land within a hair.
             let cents_per_hz = |w: f64| CENTS * std::f64::consts::TAU / (w * self.fs);
             for _ in 0..2 {
                 let worst = self.tuned[..n.min(3)]
@@ -722,7 +726,10 @@ impl KeyStrings {
                         } else {
                             hz_cap
                         };
-                        self.pull_cents(*w, *t).abs() / cap
+                        let pull = (-4..=4)
+                            .map(|k| self.pull_cents(*w * (1.0 + 0.005 * k as f64), *t).abs())
+                            .fold(0.0f64, f64::max);
+                        pull / cap
                     })
                     .fold(0.0f64, f64::max);
                 if worst <= 1.0 {

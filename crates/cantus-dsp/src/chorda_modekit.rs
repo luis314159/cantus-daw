@@ -492,6 +492,8 @@ pub struct Beat {
     pub depth_db: f64,
     /// The two modes (indices into the partial's modes).
     pub pair: (usize, usize),
+    /// How many whole swells the ear hears of it: its rate times the time it is audible.
+    pub cycles: f64,
 }
 
 /// The fastest audible beat among `p`'s modes over its first `seconds`. A pair swings the
@@ -513,6 +515,7 @@ pub fn fastest_beat(
         for j in i + 1..p.modes.len() {
             let (a, b) = (p.modes[i], p.modes[j]);
             let mut depth = f64::NEG_INFINITY;
+            let mut heard = 0usize;
             for s in 0..=steps {
                 let t = s as f64 * 0.02;
                 let whole: f64 = p.modes.iter().map(|m| lin(2.0 * m.level_db(t))).sum::<f64>();
@@ -524,6 +527,7 @@ pub fn fastest_beat(
                 let d = 20.0 * math::log10((whole + m) / (whole - m).max(1e-12 * whole));
                 if d >= min_depth_db {
                     depth = depth.max(d);
+                    heard += 1;
                 }
             }
             if depth.is_finite() {
@@ -533,8 +537,58 @@ pub fn fastest_beat(
                         rate,
                         depth_db: depth,
                         pair: (i, j),
+                        cycles: rate * heard as f64 * 0.02,
                     });
                 }
+            }
+        }
+    }
+    best
+}
+
+/// The audible beat among `p`'s modes the ear hears most swells of over its first
+/// `seconds` (as [`fastest_beat`] judges a pair audible): a pair counts as a beat once it
+/// swells and falls a whole time or more while audible — slower, or heard for less than a
+/// cycle (a fast first stage over a slow second), it is a change of level, not a beat.
+pub fn most_heard_beat(
+    p: &PartialModes,
+    seconds: f64,
+    floor_db: f64,
+    min_depth_db: f64,
+) -> Option<Beat> {
+    let steps = (seconds / 0.02).ceil() as usize;
+    let lin = |db: f64| math::powf(10.0f64, db / 20.0);
+    let mut best: Option<Beat> = None;
+    for i in 0..p.modes.len() {
+        for j in i + 1..p.modes.len() {
+            let (a, b) = (p.modes[i], p.modes[j]);
+            let (mut depth, mut heard) = (f64::NEG_INFINITY, 0usize);
+            for s in 0..=steps {
+                let t = s as f64 * 0.02;
+                let whole: f64 = p.modes.iter().map(|m| lin(2.0 * m.level_db(t))).sum::<f64>();
+                let whole = whole.sqrt();
+                if 20.0 * math::log10(whole.max(1e-300)) < p.peak_db - floor_db {
+                    continue;
+                }
+                let m = lin(a.level_db(t)).min(lin(b.level_db(t)));
+                let d = 20.0 * math::log10((whole + m) / (whole - m).max(1e-12 * whole));
+                if d >= min_depth_db {
+                    depth = depth.max(d);
+                    heard += 1;
+                }
+            }
+            if heard == 0 {
+                continue;
+            }
+            let rate = (a.hz - b.hz).abs();
+            let cycles = rate * heard as f64 * 0.02;
+            if best.is_none_or(|x| cycles > x.cycles) {
+                best = Some(Beat {
+                    rate,
+                    depth_db: depth,
+                    pair: (i, j),
+                    cycles,
+                });
             }
         }
     }

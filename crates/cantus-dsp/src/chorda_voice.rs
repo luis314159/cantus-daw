@@ -142,6 +142,13 @@ pub struct VoiceSettings {
     /// resonance may pull one of a key's first three partials — the beat its in-phase mode
     /// keeps against the opposed ones (`Voicing::bridge_pull_hz`; 0: no limit in hertz).
     pub bridge_pull_hz: f64,
+    /// Model 2 (round 41, `DSP_VERSION` 11): 1 — a three-string unison laid as two strings
+    /// alike and the third apart by the fan's whole width, no skew (`Voicing::uni_pair`; 0:
+    /// the designed fan). Two strings alike share one mode the bridge never hears; the third
+    /// makes one slow mode it does, which a slight detune locks to the strings' pitch on
+    /// their bridge (Weinreich 1977): a second stage with no beat in it, where a fan of three
+    /// rings two slow modes that beat against each other.
+    pub uni_pair: f64,
     /// Model 2 (round 40): how far a unison's strings' losses scatter (± this share; 0:
     /// alike).
     pub uni_loss: f64,
@@ -592,6 +599,7 @@ impl Voice {
                 bridge_tune: 0.0,
                 bridge_pull: 0.0,
                 bridge_pull_hz: 0.0,
+                uni_pair: 0.0,
                 uni_loss: 0.0,
                 knock_vel: 0.0,
                 landing_tau: 0.0,
@@ -687,12 +695,14 @@ impl Voice {
         if !self.active {
             self.key = key;
             let spread = settings.detune_ct * (0.7 + 0.3 * key_hash(dk));
+            let pair = settings.uni_pair != 0.0 && key.strings == 3;
             let mut detune = match key.strings {
+                3 if pair => [0.0, 0.0, 2.0 * spread],
                 3 => [-spread, 0.0, spread],
                 2 => [-0.5 * spread, 0.5 * spread, 0.0],
                 _ => [0.0; MAX_STRINGS],
             };
-            if settings.uni_skew != 0.0 && key.strings > 1 {
+            if settings.uni_skew != 0.0 && key.strings > 1 && !pair {
                 for (i, d) in detune.iter_mut().enumerate().take(key.strings as usize) {
                     *d += settings.uni_skew * spread * string_hash(dk, i as u8, 0x5E);
                 }
