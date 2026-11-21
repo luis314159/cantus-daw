@@ -98,6 +98,16 @@ pub fn budget(unit: Unit) -> f64 {
         // 21 % cheaper to the same bits, to 0.283, a loaded machine. The other presets are
         // 0.05–0.12. Back to 0.25 when the BACKLOG §4b item on Fragor's circuits is done.
         Unit::Effect(EffectKind::Pedal) => 0.30,
+        // r41:pedals — one of Fragor's circuits as a pedal of its own (ADR 0152): the same
+        // circuit by Newton at 4x; its stereo presets (Drum smash, Vocal grit, Green push)
+        // measured 0.06-0.10 alone, the muff's mono ones 0.09-0.10 on a loaded machine.
+        Unit::Effect(
+            EffectKind::FragorOverdrive
+            | EffectKind::FragorOpAmp
+            | EffectKind::FragorSilicon
+            | EffectKind::FragorFuzz
+            | EffectKind::FragorMuff,
+        ) => 0.15, // r41:pedals
         // fx3:arca — the amp's preamp valves and power amp solved by Newton at 4× (ADR 0134):
         // its high gain, four circuits two of them hard-clipping, measured 25–31 % of a core;
         // its dark lead at 0.34 of the run's median-scaled share on a loaded Linux machine

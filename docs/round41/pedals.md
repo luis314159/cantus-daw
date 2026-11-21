@@ -92,13 +92,22 @@ absolute numbers are high; the integrator measures quiet.
   five times less per drive on a board, and a fifth of the circuits rebuilt when its
   oversampling changes on the audio thread.
 
+- **The preset render check** (`cargo test --release -p cantus-ui --test preset_render`,
+  loaded machine): every one of the five pedals' 16 presets and *Stacked drives* inside its
+  level window (the twelve made from Fragor's within 0.3 LU before any fit; the four new
+  fitted by `preset_tool fit`: Clean boost −11 dB, Silicon lead −6.6, Fuzz under a bass
+  −1.3, Wall of muff −5.6), no clipping; CPU 0.04–0.10 of a core (*Drum smash*, stereo, at
+  0.093–0.10), so the five get a budget line of 0.15 (`preset_measure::budget`). The run's
+  other CPU failures (Fragor's *Synth fuzz* 0.31, two of Saltus's at 0.11) are other units'
+  under the machine's load (three builds beside it), not this branch's.
+
 ## Shared files touched
 
 `crates/cantus-core/src/starting.rs` (the five starting presets; Nitor's arm split out
 unchanged), `crates/cantus-core/src/fx/tabula_presets.rs` (one board, one test),
 `crates/cantus-ui/presets/effects/board.toml` (its tag), `crates/cantus-engine/tests/
 {rt_memory.rs, support/heavy.rs}`, `crates/cantus-bench/src/kernels.rs`,
-`crates/cantus-ui/tests/preset_audit.rs` (floor 3), `crates/cantus-ui/src/app.rs`
+`crates/cantus-ui/tests/preset_audit.rs` (floor 3), `crates/cantus-ui/src/preset_measure.rs` (a budget line), `crates/cantus-ui/src/app.rs`
 (`demo_editor`'s pedal names, `demo_pedal_board`), `crates/cantus-ui/src/views/picker_snap.rs`,
 `crates/cantus-ui/src/agent_units.rs`, `crates/cantus-ui/examples/shoot_tabula.rs`,
 `docs/manual/{en,es}/README.md`, `docs/beta-checklist.md`. Every line marked `r41:pedals`.
