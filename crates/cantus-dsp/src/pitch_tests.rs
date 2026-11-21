@@ -255,6 +255,7 @@ fn the_tracker_rests_exactly() {
 /// The offline analysis is a function of the take: the same bits twice; and it is fast.
 #[test]
 fn the_offline_analysis_is_deterministic_and_fast() {
+    let _turn = crate::timing_turn();
     let sr = 48_000.0;
     let vib = testkit::vibrato(180.0, 40.0, 5.0);
     let x = testkit::voice(sr, 20.0, Vowel::A, 0.5, &vib);

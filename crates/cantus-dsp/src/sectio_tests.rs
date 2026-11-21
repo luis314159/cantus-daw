@@ -169,6 +169,7 @@ fn the_grid_steps_at_the_tempo() {
 /// read at once, with what is there: no points, the frames the file holds, no tempo.
 #[test]
 fn a_hostile_count_or_length_is_read_as_what_is_there() {
+    let _turn = crate::timing_turn();
     let mut cue = 0xFFFF_FFFFu32.to_le_bytes().to_vec();
     cue.extend([0u8; 8]);
     let mut smpl = vec![0u8; 28];

@@ -735,6 +735,7 @@ fn complex_follows_a_moving_pitch() {
 /// stands in for a first transposition while the render is made.
 #[test]
 fn a_sketch_of_a_minute_is_quick() {
+    let _turn = crate::timing_turn();
     let n = 60 * 48_000;
     let (x, _) = hits(n, 3_000, 21_000, 43);
     let nz = band_noise(n, 47);
