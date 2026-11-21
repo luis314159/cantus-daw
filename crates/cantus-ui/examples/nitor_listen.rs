@@ -19,8 +19,9 @@ use std::sync::Arc;
 /// The loudness each pair is brought to, LUFS.
 const TARGET: f64 = -18.0;
 
-fn render_stretch(p: &Project, start: Ticks, end: Ticks) -> (Vec<f32>, u32) {
+fn render_stretch(p: &Project, start: Ticks, end: Ticks) -> (Vec<f32>, u32, f64) {
     let snap = Arc::new(Snapshot::compile(p, 0));
+    let t0 = std::time::Instant::now();
     let r = render(
         snap,
         &RenderOptions {
@@ -32,7 +33,9 @@ fn render_stretch(p: &Project, start: Ticks, end: Ticks) -> (Vec<f32>, u32) {
         },
     )
     .expect("render");
-    (r.samples, r.sample_rate)
+    let secs = r.samples.len() as f64 / 2.0 / f64::from(r.sample_rate);
+    let share = t0.elapsed().as_secs_f64() / secs.max(1e-9);
+    (r.samples, r.sample_rate, share)
 }
 
 fn write_wav(path: &Path, x: &[f32], sr: u32) {
@@ -86,9 +89,9 @@ fn main() {
         .enumerate()
     {
         let prepared = aud::prepare(&empty, Target::None, e, None, aud::TEMPO);
-        let (mut wet, sr) = render_stretch(&prepared.project, prepared.start, prepared.end);
+        let (mut wet, sr, cpu) = render_stretch(&prepared.project, prepared.start, prepared.end);
         let dry_p = aud::source_project(e.role());
-        let (mut dry, _) = render_stretch(
+        let (mut dry, _, cpu_dry) = render_stretch(
             &dry_p,
             Ticks::ZERO,
             Ticks::from_beats_f64(aud::BARS * 4.0),
@@ -101,14 +104,23 @@ fn main() {
         write_wav(&dir.join(format!("{:02}-{short}-wet.wav", i + 1)), &wet, sr);
         let _ = writeln!(
             readme,
-            "{:02} {:<34} {:<16} change {:+.2} LU   peak {:.1} dBFS",
+            "{:02} {:<34} {:<10} change {:+.2} LU   peak {:.1} dBFS   cpu {:.3} (dry {:.3})",
             i + 1,
             e.name,
             format!("{:?}", e.role()),
             lw - ld,
-            peak_db(&wet)
+            peak_db(&wet),
+            cpu,
+            cpu_dry
         );
-        println!("{:02} {} {:+.2} LU", i + 1, e.name, lw - ld);
+        println!(
+            "{:02} {} {:+.2} LU, cpu {:.3} of a core (the dry source {:.3})",
+            i + 1,
+            e.name,
+            lw - ld,
+            cpu,
+            cpu_dry
+        );
     }
     std::fs::write(dir.join("README.txt"), readme).expect("readme");
     println!("{}", dir.display());

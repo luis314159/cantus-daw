@@ -195,7 +195,7 @@ impl Nitor {
                     let er = v * self.exciter.tick(1, b, xr, even);
                     al += el;
                     ar += er;
-                    m.excite[b] = m.excite[b].max(el.abs().max(er.abs()));
+                    m.excite[b] = m.excite[b].max(v);
                     added = true;
                 }
             }

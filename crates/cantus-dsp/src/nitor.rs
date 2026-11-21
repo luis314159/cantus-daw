@@ -459,7 +459,7 @@ pub struct Meter {
     pub pre_db: f32,
     /// Multiplex's band gains now, dB.
     pub band_db: [f32; BANDS],
-    /// The exciter's harmonics added, per band, peak in the block (linear).
+    /// The exciter's level in force per band over the block, 0 … 1 (0: the band is off).
     pub excite: [f32; 3],
     /// The sub's and the low harmonics' peaks in the block, the tight gain now (dB).
     pub sub: f32,

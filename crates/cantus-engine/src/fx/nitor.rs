@@ -21,7 +21,7 @@
 //! | 7 | the sample rate, Hz |
 //! | 8 | 1 while something runs, 0 while Nitor is a wire |
 //! | 9–12 | the character's four band gains now, dB |
-//! | 13–15 | the exciter's harmonics added (body, presence, air), the block's peak, dBFS |
+//! | 13–15 | the exciter's level in force (body, presence, air), 0 … 1 |
 //! | 16 | the sub's peak, dBFS |
 //! | 17 | the low harmonics' peak, dBFS |
 //! | 18 | the tightening's lowest gain in the block, dB |
@@ -172,9 +172,7 @@ impl FxUnit for Unit {
         t[T_RATE] = self.dsp.sample_rate();
         t[T_ACTIVE] = if m.active { 1.0 } else { 0.0 };
         t[T_BANDS..T_BANDS + 4].copy_from_slice(&m.band_db);
-        for (i, e) in m.excite.iter().enumerate() {
-            t[T_EXCITE + i] = dbfs(*e);
-        }
+        t[T_EXCITE..T_EXCITE + 3].copy_from_slice(&m.excite);
         t[T_SUB] = dbfs(m.sub);
         t[T_HARM] = dbfs(m.harm);
         t[T_TIGHT] = m.tight_db;

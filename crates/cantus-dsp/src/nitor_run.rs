@@ -247,7 +247,12 @@ impl Nitor {
         self.ramps.snap();
         self.mix.snap();
         self.out.snap();
-        self.dynamics.snap();
+        // Parked (or off), the dynamics are a new Multiplex already: its own `snap` would
+        // start its gain rings at unity rather than at the bands' static gains, which is not
+        // what a new one holds.
+        if !self.parked && !self.ramps.dynamics.idle() {
+            self.dynamics.snap();
+        }
         self.low.set_xover(self.target.xover_hz, true);
         self.clear_idle();
     }

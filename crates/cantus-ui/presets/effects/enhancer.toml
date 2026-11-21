@@ -75,7 +75,7 @@ roles = ["vocal"]
 key = "preset.nitor.bright_acoustic"
 note = "An acoustic guitar or a piano brought forward: air and body."
 styles = ["rock", "worship", "jazz"]
-roles = ["keys"]
+roles = ["creative"]
 [preset.values]
 "amount" = 0.4
 "body" = 0.15
@@ -94,7 +94,7 @@ roles = ["bus"]
 key = "preset.nitor.sub_808"
 note = "A sine on the song's tonic under every kick and bass hit, its tail shortened."
 styles = ["trap", "latin"]
-roles = ["bass"]
+roles = ["bus"]
 [preset.values]
 "sub" = 0.6
 "submode" = 1
@@ -104,7 +104,7 @@ roles = ["bass"]
 key = "preset.nitor.small_speakers"
 note = "The bass's harmonics, so a phone or a laptop plays the line it cannot reach."
 styles = ["trap", "house", "pop"]
-roles = ["bass"]
+roles = ["bus"]
 [preset.values]
 "harm" = 0.6
 "xover" = 120
@@ -113,7 +113,7 @@ roles = ["bass"]
 key = "preset.nitor.octave_sub"
 note = "An octave under the bass line, phase-locked to it, the root a little lifted."
 styles = ["house", "latin", "rnb"]
-roles = ["bass"]
+roles = ["bus"]
 [preset.values]
 "lift" = 0.3
 "sub" = 0.5
@@ -122,7 +122,7 @@ roles = ["bass"]
 key = "preset.nitor.root_bloom"
 note = "The song's root note blooms in the low end, with a little warmth."
 styles = ["ambient", "film", "worship"]
-roles = ["pad"]
+roles = ["creative"]
 [preset.values]
 "amount" = 0.25
 "char" = 2

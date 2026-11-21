@@ -214,13 +214,16 @@ fn body_ui(
         },
     };
     // The facets answer first, then everything is drawn with what they did.
+    // Each is the `char` parameter: a click chooses it, its menu automates or learns it.
     let mut hot = None;
+    let name = frame::tr("fx.nitor.char");
     for (i, r) in p.facets.iter().enumerate() {
         let resp = ui.interact(*r, ui.id().with(("nitor.facet", i)), Sense::click());
+        let learnt = super::controls::stepped_offer(ui, s, host, "char", name, &resp);
         if resp.hovered() {
             hot = Some(i);
         }
-        if resp.clicked() && i != chosen {
+        if resp.clicked() && !learnt && i != chosen {
             host.set("char", i as f32, None);
         }
         st.facets[i] = Some(*r);
@@ -232,6 +235,7 @@ fn body_ui(
         for (i, r) in p.facets.iter().enumerate() {
             corona::facet(b, s, *r, i, i == chosen, hot == Some(i));
         }
+        corona::what(b, s, p.what, chosen);
         corona::horizon(b, s, &p, &st.view, &reading, &words);
     });
     // The one knob, the sun's own.

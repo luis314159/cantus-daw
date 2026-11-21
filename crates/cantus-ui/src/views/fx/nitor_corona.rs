@@ -6,15 +6,15 @@
 //!   presence, air (lower right), in a three-quarter circle — each arc as long as its
 //!   share and lit by its gain now: sun gold where the character lifts, dawn rose where it
 //!   holds back, its dB beside it;
-//! - **the rays** beyond the ring are the harmonics the exciter adds, in three fans (body,
-//!   presence, air), each ray's length the band's harmonics in dB over −60;
+//! - **the rays** beyond the ring are the exciter, in three fans (body, presence, air), each
+//!   ray's length the band's level in force (the character's and the knob's);
 //! - **the horizon** under the sun is the low end: the sub's wave on the song's tonic (or
 //!   the octave it follows), the note's name large, the tightening's dip, the lift's mark.
 //!
 //! Every number from the engine's telemetry (`cantus_engine::fx::nitor`'s `T_*` slots),
 //! smoothed for the eye in [`View`].
 
-use super::canvas::{self, Ink};
+use super::super::canvas::{self, Ink};
 use crate::kit::color::{mix, with_alpha};
 use crate::kit::text::{Role, Text};
 use crate::kit::{Brush, Fill, Style};
@@ -37,7 +37,8 @@ pub struct Reading {
     pub seen: bool,
     pub active: bool,
     pub bands_db: [f32; 4],
-    pub excite_db: [f32; 3],
+    /// The exciter's level in force per band, 0 … 1.
+    pub excite: [f32; 3],
     pub sub_db: f32,
     pub harm_db: f32,
     pub tight_db: f32,
@@ -64,7 +65,7 @@ impl Reading {
             ..Reading::default()
         };
         r.bands_db.copy_from_slice(&tel[t::T_BANDS..t::T_BANDS + 4]);
-        r.excite_db.copy_from_slice(&tel[t::T_EXCITE..t::T_EXCITE + 3]);
+        r.excite.copy_from_slice(&tel[t::T_EXCITE..t::T_EXCITE + 3]);
         r
     }
 }
@@ -85,7 +86,7 @@ impl View {
             *v += (to - *v) * (1.0 - (-dt / k).exp());
         };
         for i in 0..3 {
-            let to = ((r.excite_db[i] + 60.0) / 48.0).clamp(0.0, 1.0);
+            let to = r.excite[i].clamp(0.0, 1.0);
             ease(&mut self.rays[i], to, 0.03, 0.35);
         }
         for i in 0..4 {
@@ -100,8 +101,9 @@ impl View {
 #[derive(Copy, Clone, Debug)]
 pub struct Parts {
     pub glass: Rect,
-    /// The characters' facets, down the left.
+    /// The characters' facets, down the left, and the chosen one's words under them.
     pub facets: [Rect; 5],
+    pub what: Rect,
     /// The sun: its centre, the knob's box, the ring's radius.
     pub sun: Pos2,
     pub knob: Rect,
@@ -111,30 +113,39 @@ pub struct Parts {
 }
 
 pub fn parts(glass: Rect, k: f32) -> Parts {
-    let side = 232.0 * k;
+    let side = 250.0 * k;
     let pad = 16.0 * k;
     let left = Rect::from_min_max(
         pos2(glass.left() + pad, glass.top() + pad),
         pos2(glass.left() + pad + side, glass.bottom() - pad),
     );
-    let fh = (left.height() - 4.0 * 8.0 * k) / 5.0;
+    let fh = 44.0 * k;
+    let gap = 7.0 * k;
     let mut facets = [Rect::NOTHING; 5];
     for (i, f) in facets.iter_mut().enumerate() {
-        let y = left.top() + i as f32 * (fh + 8.0 * k);
+        let y = left.top() + i as f32 * (fh + gap);
         *f = Rect::from_min_size(pos2(left.left(), y), vec2(side, fh));
     }
+    let what = Rect::from_min_max(
+        pos2(left.left(), facets[4].bottom() + 12.0 * k),
+        left.max,
+    );
     let horizon = Rect::from_min_max(
         pos2(glass.right() - pad - side, glass.top() + pad),
         pos2(glass.right() - pad, glass.bottom() - pad),
     );
     let mid_l = left.right() + pad;
     let mid_r = horizon.left() - pad;
-    let sun = pos2(0.5 * (mid_l + mid_r), glass.top() + 0.47 * glass.height());
-    let ring = (0.5 * (mid_r - mid_l)).min(0.40 * glass.height()) * 0.58;
-    let knob = Rect::from_center_size(sun + vec2(0.0, 6.0 * k), vec2(120.0 * k, 132.0 * k));
+    let sun = pos2(0.5 * (mid_l + mid_r), glass.top() + 0.56 * glass.height());
+    // Room for the rays (up to 100 points) and their words over the ring.
+    let ring = ((0.5 * (mid_r - mid_l)) - 120.0 * k)
+        .min(sun.y - glass.top() - 128.0 * k)
+        .max(96.0 * k);
+    let knob = Rect::from_center_size(sun + vec2(0.0, 4.0 * k), vec2(120.0 * k, 132.0 * k));
     Parts {
         glass,
         facets,
+        what,
         sun,
         knob,
         ring,
@@ -161,7 +172,8 @@ const NOTES: [&str; 12] = [
 /// The colours of the corona: its glass, the sun gold, the dawn rose.
 fn voices(s: &Style) -> (Ink, Color32, Color32) {
     let ink = Ink::of(s);
-    (ink, ink.voice(s.hue, false), ink.voice(s.hue, true))
+    // The sheet's second voice is the sun gold, its lead the dawn rose (`side_r41.rs`).
+    (ink, ink.voice(s.hue, true), ink.voice(s.hue, false))
 }
 
 /// The glass, the halo, the ring and the rays (the knob is the caller's, over it).
@@ -201,8 +213,8 @@ fn rays(b: &mut Brush, p: &Parts, v: &View, gold: Color32, rose: Color32, ink: &
             let ang = a0 + (a1 - a0) * u;
             // A gentle crown: the middle rays a little longer.
             let crown = 1.0 - 0.35 * (2.0 * u - 1.0).powi(2);
-            let r0 = p.ring + 14.0 * k;
-            let len = (10.0 + 70.0 * lit * crown) * k;
+            let r0 = p.ring + 16.0 * k;
+            let len = (10.0 + 88.0 * lit * crown) * k;
             let dir = Vec2::angled(ang);
             let c = mix(rose, gold, 0.35 + 0.65 * lit);
             b.segment(
@@ -225,9 +237,9 @@ fn rays(b: &mut Brush, p: &Parts, v: &View, gold: Color32, rose: Color32, ink: &
         let mid = Vec2::angled(0.5 * (a0 + a1));
         canvas::put(
             b,
-            p.sun + mid * (p.ring + 104.0 * k),
+            p.sun + mid * (p.ring + 118.0 * k),
             Align2::CENTER_CENTER,
-            &Text::key(FAN_KEYS[i], Role::Micro, ink.dim),
+            &Text::key(FAN_KEYS[i], Role::Micro, with_alpha(gold, 0.9)),
             k,
             None,
         );
@@ -264,27 +276,27 @@ fn ring(
             b.arc(p.sun, p.ring, mid - half, mid + half, 6.0 * k, c, true);
         }
         let mid = Vec2::angled(0.5 * (a0 + a1));
-        let at = p.sun + mid * (p.ring - 22.0 * k);
-        if rd.seen && rd.active {
-            canvas::putf(
-                b,
-                at,
-                Align2::CENTER_CENTER,
-                Role::Micro,
-                ink.text,
-                k,
-                None,
-                format_args!("{db:+.1}"),
-            );
-        }
+        let at = p.sun + mid * (p.ring - 30.0 * k);
         canvas::put(
             b,
-            p.sun + mid * (p.ring + 20.0 * k),
+            at - vec2(0.0, 7.0 * k),
             Align2::CENTER_CENTER,
             &Text::key(BAND_KEYS[i], Role::Micro, ink.dim),
             k,
             None,
         );
+        if rd.seen && rd.active {
+            canvas::putf(
+                b,
+                at + vec2(0.0, 7.0 * k),
+                Align2::CENTER_CENTER,
+                Role::Micro,
+                ink.text,
+                k,
+                None,
+                format_args!("{db:+.1} dB"),
+            );
+        }
     }
 }
 
@@ -388,6 +400,33 @@ pub fn horizon(b: &mut Brush, s: &Style, p: &Parts, v: &View, rd: &Reading, word
     };
     line(b, y, "nitor.d.tight", v.tight, "dB", rose);
     line(b, y + 24.0 * k, "nitor.d.match", rd.match_db, "dB", ink.text);
+    // The parts' light: what the sub, the bass's harmonics and the exciter add now.
+    let mut y = y + 58.0 * k;
+    let rays = (v.rays[0] + v.rays[1] + v.rays[2]) / 3.0;
+    for (key, share, c) in [
+        ("fx.nitor.sub", v.sub, gold),
+        ("fx.nitor.harm", ((rd.harm_db + 60.0) / 54.0).clamp(0.0, 1.0), gold),
+        ("nitor.card.exciter", rays, rose),
+    ] {
+        canvas::put(
+            b,
+            pos2(r.left() + 14.0 * k, y),
+            Align2::LEFT_TOP,
+            &Text::key(key, Role::Micro, ink.dim),
+            k,
+            None,
+        );
+        let bar = Rect::from_min_size(
+            pos2(r.left() + 14.0 * k, y + 15.0 * k),
+            vec2(r.width() - 28.0 * k, 5.0 * k),
+        );
+        b.rrect(bar, 2.5 * k, Fill::Solid(with_alpha(ink.grid_strong, 0.9)));
+        if share > 0.005 {
+            let lit = Rect::from_min_size(bar.min, vec2(bar.width() * share, bar.height()));
+            b.rrect(lit, 2.5 * k, Fill::Solid(c));
+        }
+        y += 32.0 * k;
+    }
 }
 
 /// The words the horizon reads from the spec.
@@ -423,26 +462,36 @@ pub fn facet(b: &mut Brush, s: &Style, r: Rect, i: usize, chosen: bool, hot: boo
     loop_pts.push(pts[0]);
     b.polyline(&loop_pts, if chosen { 1.6 * k } else { 1.0 * k }, edge);
     let name = format!("fx.nitor.char.{i}");
+    // A jewel: lit on the chosen character.
+    let jewel = pos2(r.left() + 26.0 * k, r.center().y);
+    b.circle_stroke(jewel, 5.0 * k, 1.2 * k, edge);
+    if chosen {
+        b.circle(jewel, 3.6 * k, Fill::Solid(gold));
+    }
     canvas::put(
         b,
-        pos2(r.left() + 22.0 * k, r.top() + 8.0 * k),
-        Align2::LEFT_TOP,
+        pos2(r.left() + 42.0 * k, r.center().y),
+        Align2::LEFT_CENTER,
         &Text::key(&name, Role::Label, if chosen { gold } else { ink.text }),
         k,
         None,
     );
-    if chosen {
-        let what = format!("fx.nitor.char.{i}.what");
-        canvas::line_in(
-            b,
-            Rect::from_min_max(
-                pos2(r.left() + 22.0 * k, r.top() + 28.0 * k),
-                pos2(r.right() - 14.0 * k, r.bottom() - 4.0 * k),
-            ),
-            Role::Micro,
-            ink.text,
-            k,
-            format_args!("{}", crate::i18n::t(&what)),
-        );
-    }
+}
+
+/// The chosen character's line, wrapped under the facets.
+pub fn what(b: &mut Brush, s: &Style, r: Rect, chosen: usize) {
+    let k = s.k;
+    let (ink, _, _) = voices(s);
+    let key = format!("fx.nitor.char.{chosen}.what");
+    let words = crate::i18n::t(&key);
+    let lines = crate::kit::prose::wrap(b.ctx(), &words, Role::Body, k, r.width() - 8.0 * k);
+    let _ = crate::kit::prose::paint(
+        b,
+        r.shrink2(vec2(4.0 * k, 0.0)),
+        &lines,
+        Role::Body,
+        k,
+        ink.text,
+        Align2::LEFT_TOP,
+    );
 }

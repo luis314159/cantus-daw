@@ -60,3 +60,36 @@ fn band_levels_of_programme_at_the_reference() {
         }
     }
 }
+
+#[test]
+fn what_each_character_does_to_the_programme() {
+    let input = programme(8.0, 1.0, 37);
+    let dry = loudness(&input, 3 * SR as usize);
+    for c in Character::ALL {
+        for amount in [0.35f32, 1.0] {
+            let mut u = Nitor::new(SR);
+            u.set(&NitorSettings {
+                amount,
+                character: c,
+                ..NitorSettings::default()
+            });
+            let mut l = input.0.clone();
+            let mut r = input.1.clone();
+            for (a, b) in l.chunks_mut(512).zip(r.chunks_mut(512)) {
+                u.process(a, b);
+            }
+            let m = *u.meter();
+            let wet = loudness(&(l, r), 3 * SR as usize);
+            eprintln!(
+                "{c:?} at {:.0} %: match {:+.2} dB, pre {:+.1} dB, bands {:?}, exciter {:?}, out {:+.2} LU",
+                100.0 * amount,
+                m.match_db,
+                m.pre_db,
+                m.band_db.map(|v| (v * 10.0).round() / 10.0),
+                m.excite,
+                wet - dry
+            );
+            assert!(m.match_db < 0.5, "{c:?}: the match takes back what the character adds");
+        }
+    }
+}

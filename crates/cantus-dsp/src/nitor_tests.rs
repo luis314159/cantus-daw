@@ -314,3 +314,19 @@ fn the_level_match_holds_the_loudness_of_every_character() {
         assert!(o.0.iter().chain(&o.1).all(|v| v.is_finite()));
     }
 }
+
+#[test]
+fn a_snap_on_a_new_unit_changes_nothing() {
+    // A host snaps every unit at the start of a stream (the exported plug-in does).
+    let input = programme(1.0, 1.0, 31);
+    for s in [heavy(), NitorSettings { amount: 0.35, ..NitorSettings::default() }] {
+        let mut a = Nitor::new(SR);
+        a.set(&s);
+        a.reset();
+        let mut b = a.clone();
+        b.snap();
+        let x = render(&mut a, &input, &[256], &[]);
+        let y = render(&mut b, &input, &[256], &[]);
+        assert_eq!(first_difference(&x, &y), None);
+    }
+}

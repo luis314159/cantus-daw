@@ -18,21 +18,12 @@ impl Rng {
         self.0 ^= self.0 << 17;
         ((self.0 >> 40) as f32 / (1u64 << 24) as f32) * 2.0 - 1.0
     }
-
-    pub fn below(&mut self, n: usize) -> usize {
-        (((self.next() + 1.0) * 0.5) * n as f32) as usize % n.max(1)
-    }
 }
 
 pub fn sine(hz: f32, amp: f32, n: usize) -> Vec<f32> {
     (0..n)
         .map(|i| amp * math::sin(core::f32::consts::TAU * hz * i as f32 / SR))
         .collect()
-}
-
-pub fn noise(n: usize, seed: u64, amp: f32) -> Vec<f32> {
-    let mut r = Rng(seed | 1);
-    (0..n).map(|_| amp * r.next()).collect()
 }
 
 /// A song-like stereo programme: a bass on G (G1, then C2, D2, G1 a bar each, 120 bpm), a
