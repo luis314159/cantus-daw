@@ -241,11 +241,15 @@ fn sixty_four_pedal_down_voices() -> f64 {
 
 #[test]
 fn sixty_four_pedal_down_voices_fit_a_quarter_of_a_core() {
+    let _turn = crate::timing_turn();
     let load = sixty_four_pedal_down_voices();
     eprintln!("64 pedal-down voices: {:.1} % of one core", load * 100.0);
-    // A test build on a shared machine: a generous bound here; the release figure is
-    // measured by the ignored test below and written in ADR 0059.
-    assert!(load < 0.6, "{load}");
+    // No fixed share of a core (docs/RELEASING.md L3): the bound of 0.6 read 0.571 on the
+    // owner's machine under the whole cantus-dsp suite (2026-11-21), the machine's load
+    // and not the piano's. Model 1's cost against a reference timed beside it is model 2's
+    // ratio test (chorda_tests_model2); here a catastrophe guard alone — it keeps up with
+    // real time. The release figure is the ignored quiet measure below (ADR 0059).
+    assert!(load < 1.0, "{load}");
 }
 
 #[test]

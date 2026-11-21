@@ -413,6 +413,7 @@ fn the_mixer_levels_drive_the_filter() {
 
 #[test]
 fn cpu_per_voice_at_each_quality() {
+    let _turn = crate::timing_turn();
     for (quality, ceiling_ns) in [
         (Quality::Draft, 1500.0),
         (Quality::Good, 3000.0),
