@@ -77,12 +77,7 @@ fn no_word_is_cut_in_fides_s_window_in_either_language() {
             let mut names: Vec<String> = p.tracks.iter().map(|t| t.name.clone()).collect();
             names.extend(p.strips.iter().map(|s| s.name.clone()));
             names.retain(|n| n.chars().count() >= 3);
-            // The Matrix's slot switch (`mod.on`) is the frame's, every instrument's: not
-            // Fides's words (reported to the integrator; "Activa" is cut in Spanish there).
-            let shared = cantus_ui::i18n::t("mod.on").to_uppercase();
-            let ours = |full: &str| {
-                !names.iter().any(|n| full.contains(n.as_str())) && full.to_uppercase() != shared
-            };
+            let ours = |full: &str| !names.iter().any(|n| full.contains(n.as_str()));
             for c in probe::take().into_iter().filter(|c| ours(&c.full)) {
                 cuts.push(format!(
                     "{look:?} {case:?}: {:?} → {:?} ({}, {:.0} pt)",

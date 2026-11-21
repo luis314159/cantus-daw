@@ -135,7 +135,6 @@ fn tabula_with_each_of_fragors_pedals_reads_whole_in_both_languages() {
 }
 
 #[test]
-#[ignore = "Fides's labels are fixed on r41/fides-all; un-ignore once merged"]
 fn fides_window_reads_whole_in_every_view_and_both_languages() {
     use cantus_ui::views::inst::View;
     let _theme_turn = theme_turn();
