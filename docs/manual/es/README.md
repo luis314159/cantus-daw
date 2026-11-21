@@ -3282,6 +3282,66 @@ referencia…** en su ventana, o suelta un archivo encima; la sesión guarda la 
 referencia (nunca su audio) y dice cuándo falta un archivo o ha cambiado; el bounce sin
 conexión del anfitrión oye tu mezcla. *Enviar a Aequalis* es solo de Cantus.
 
+<!-- r41:nitor -->
+### Nitor, el realzador
+
+**Nitor** (en latín, *brillo, esplendor*) hace brillar una pista o una mezcla con una perilla:
+lo que hacen Soundgoodizer, Low Lifter y los excitadores de Maximus de FL Studio, en una
+unidad. Insértelo desde **Añadir inserción ▾ ▸ Masterización ▸ Nitor**; empieza como *Brillo
+suave*, un tercio del carácter *Claro*. Gire la perilla grande, **Cantidad**, en medio de la
+corona: es todo lo que la mayoría de las pistas necesita.
+
+**Con el nivel igualado.** Nitor mantiene su salida tan fuerte como su entrada (*Igualar
+nivel*, encendido por omisión): lo que oye al girarlo es el color, no el volumen — una
+comparación honrada. Apáguelo cuando quiera también el empuje.
+
+**Los caracteres** — las cinco facetas a la izquierda de la corona (pulse una):
+
+- **Claro**: pulido general — los graves sujetos, los detalles levantados desde abajo, un poco de aire.
+- **Pegada**: para ritmos — los graves apretados, los golpes dejados pasar, presencia.
+- **Cálido**: armónicos pares en el cuerpo, los agudos suavizados, el bajo más redondo.
+- **Aire**: los agudos abiertos por compresión hacia arriba y aire excitado.
+- **Fuerte**: densidad — cada banda apretada por arriba y por abajo.
+
+Cada carácter son cuatro bandas de dinámica (la *fase dinámica* de Multiplex: sin latencia,
+sin giro de fase mientras ninguna banda se mueve) con el excitador y los graves que necesita.
+Actúa igual sobre una pista suave que sobre un bus fuerte: Nitor mide la sonoridad de la
+entrada y ajusta a ella los umbrales del carácter.
+
+**Los graves** (su tarjeta, y su lectura a la derecha de la corona):
+
+- **Sub**, siguiendo **al bajo, una octava abajo** (una senoide atada al bajo que suena —
+  siempre afinada con él) o **a la tónica de la canción** (una senoide en la nota de la
+  tonalidad, de 32,7 Hz para Do a 61,7 Hz para Si, abierta por cada golpe de los graves: un
+  808 bajo el bombo, afinado).
+- **Armónicos del bajo**: del segundo al quinto armónico del bajo, para que un teléfono o un
+  portátil toquen la línea que no alcanzan (el oído oye la fundamental que falta).
+- **Apretar**: tras cada golpe los graves suenan 30 ms y luego bajan (hasta −12 dB al 100 %)
+  hasta el siguiente — el retumbo acortado, el golpe intacto.
+- **Realce en la tónica**: la nota de la tonalidad florece — hasta +6 dB en su fundamental y
+  +3 dB en su octava.
+- **Banda grave hasta**: dónde acaban los graves (40–250 Hz).
+
+**La tonalidad** viene de la canción (su *Tonalidad* en la barra del piano roll): cambie la del proyecto y el sub
+y el realce se mueven con ella al instante. *Tonalidad* en la tarjeta de Salida fija una
+(Do … Si) — una muestra en otra tonalidad, o el complemento en otro DAW.
+
+**El excitador**: añade armónicos — y solo armónicos — en **Cuerpo** (hacia 400 Hz),
+**Presencia** (2,5 kHz) y **Aire** (sobre 7 kHz), sobremuestreado cuatro veces. **Color** va
+de los armónicos pares (cálidos, como una válvula) a los impares (brillantes, ásperos). Cada
+banda añade la misma parte de armónicos por fuerte que suene.
+
+**Salida**: *Igualar nivel*, *Tonalidad*, *Mezcla* (seco y procesado) y *Salida*.
+
+En sus valores por omisión — la cantidad a 0 y cada parte a 0 — Nitor deja el sonido
+intacto, bit a bit. No añade latencia. Trece preajustes de fábrica: brillo suave, pulido de
+mezcla, resplandor del máster, pegada de ritmo, un bombo apretado con sub afinado, voz cálida,
+aire en la voz, acústica brillante, fuerte y denso, un 808 bajo el bombo, bajo en altavoces
+pequeños, sub a la octava, la tónica florece.
+
+**En otro DAW** Nitor es el complemento *Cantus Nitor* (CLAP y VST3): sin canción que seguir,
+ponga su *Tonalidad* en la de la canción (lee Do si se deja en *La de la canción*).
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

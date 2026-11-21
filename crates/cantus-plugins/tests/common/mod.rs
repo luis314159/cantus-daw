@@ -924,9 +924,19 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("vdecay", 1.0),
             ("out", -1.0),
         ], // fxc:purus
-        // r41:contract — the stub's output, so a sample moves (the nitor builder sets the
-        // amount, a character and the low end here).
-        EffectKind::Enhancer => vec![("out", -3.0)], // r41:nitor
+        // r41:nitor — a character, the tonic sub on its own key (the plug-in has no song),
+        // the tightening and two exciter bands.
+        EffectKind::Enhancer => vec![
+            ("amount", 0.7),
+            ("char", 1.0),
+            ("sub", 0.4),
+            ("submode", 1.0),
+            ("tight", 0.4),
+            ("pres", 0.3),
+            ("air", 0.2),
+            ("key", 10.0),
+            ("out", -3.0),
+        ], // r41:nitor
         _ => vec![],
     }
 }
@@ -1059,6 +1069,8 @@ pub enum Direct {
     /// fxb:cedo — Cedo, the ducker: its DSP, its shape as the engine passes it (the
     /// classic pump when the spec draws none).
     Cedo(Box<cantus_dsp::cedo::Cedo>),
+    /// r41:nitor — Nitor, the enhancer: its DSP, tuned to its own key (no song here).
+    Nitor(Box<cantus_dsp::nitor::Nitor>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -1184,9 +1196,9 @@ impl Direct {
                 SR,
                 cantus_engine::fx::fluctus::shape_at,
             ))), // fxb:cedo
-            // r41:contract — the stub, the engine's unit (the nitor builder names its DSP here).
+            // r41:nitor — Nitor's DSP itself (the plug-in has no song: its own key).
             EffectKind::Enhancer => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Enhancer, SR).unwrap())
+                Direct::Nitor(Box::new(cantus_dsp::nitor::Nitor::new(SR)))
             } // r41:nitor
             k => panic!("{k:?} is not exported"),
         };
@@ -1285,6 +1297,7 @@ impl Direct {
                 };
             }
             Direct::Lenis(x) => x.set(&fx::lenis::settings(spec)), // fxb:lenis
+            Direct::Nitor(x) => x.set(&fx::nitor::settings(spec, None)), // r41:nitor
             // fxb:cedo — the settings, then the shape's points.
             Direct::Cedo(x) => {
                 x.set(&fx::cedo::settings(spec));
@@ -1359,6 +1372,7 @@ impl Direct {
             } // fxb:vinculum
             Direct::Lenis(x) => x.restart(),    // fxb:lenis: as the engine's reset
             Direct::Cedo(x) => x.reset(),       // fxb:cedo
+            Direct::Nitor(x) => x.reset(),      // r41:nitor
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
             Direct::Delay(x) => x.reset(),
@@ -1402,6 +1416,7 @@ impl Direct {
             Direct::Vinculum(x, _) => x.latency(), // fxb:vinculum
             Direct::Lenis(x) => x.latency(),       // fxb:lenis
             Direct::Cedo(x) => x.latency(),        // fxb:cedo
+            Direct::Nitor(x) => x.latency(),       // r41:nitor
             Direct::Purus(x) => x.latency(),       // fxc:purus
             Direct::Comparatio(x) => x.latency(),  // fxc:comparatio
             Direct::Wire => 0,
@@ -1467,6 +1482,7 @@ impl Direct {
             } // fxb:vinculum
             Direct::Lenis(x) => x.process(l, r),     // fxb:lenis
             Direct::Cedo(x) => x.process(l, r, key), // fxb:cedo
+            Direct::Nitor(x) => x.process(l, r),     // r41:nitor
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
             Direct::Delay(x) => x.process(l, r),

@@ -232,11 +232,12 @@ pub fn start_of(kind: EffectKind) -> Start {
         // fxc:comparatio — it measures until a reference is loaded and pressed: the mix heard,
         // the integrated match ready.
         K::Reference => Start::Neutral(Measures), // fxc:comparatio
+        // r41:nitor — Nitor sounds on insert at a gentle amount: a third of the Clear
+        // character, level-matched (its default), so what changes is the colour.
+        K::Enhancer => preset("preset.nitor.gentle", &[("amount", 0.35)]), // r41:nitor
         // r41:contract — the stubs are wires: flat until each builder decides (ADR 0071's rule:
-        // Nitor sounds on insert at a gentle amount; a board's Fragor pedal takes Fragor's
-        // starting knobs for its circuit).
-        K::Enhancer // r41:nitor
-        | K::FragorOverdrive
+        // a board's Fragor pedal takes Fragor's starting knobs for its circuit).
+        K::FragorOverdrive
         | K::FragorOpAmp
         | K::FragorSilicon
         | K::FragorFuzz
