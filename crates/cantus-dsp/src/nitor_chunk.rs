@@ -240,6 +240,14 @@ impl Nitor {
         self.dynamics.skip(n);
         self.low.skip(n);
         self.level.skip(n);
+        // The mix glides on, sample by sample as a busy cell would move it, though it shapes
+        // nothing here (round 41's review: it stood still, and a Nitor colouring nothing never
+        // came to rest after a Mix change).
+        if !self.mix.landed() {
+            for _ in 0..n {
+                self.mix.next();
+            }
+        }
         if self.out.landed() && self.out.v == 1.0 {
             return;
         }

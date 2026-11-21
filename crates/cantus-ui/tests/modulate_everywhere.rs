@@ -26,6 +26,11 @@ fn unwired(drawn: Vec<(String, bool)>) -> Vec<String> {
 fn every_native_effect_editor_offers_modulate_on_every_control() {
     let mut bad = Vec::new();
     for kind in EffectKind::ALL {
+        // Fragor's five circuits are pedals of a board alone (round 41, ADR 0152): no
+        // insert of their own to open, their knobs drawn on Tabula's board.
+        if kind.fragor_circuit().is_some() {
+            continue;
+        }
         let mut a = app(cantus_ui::starter_project());
         let s0 = a.project().tracks[0].strip.unwrap();
         a.add_effect(s0, kind);
@@ -87,6 +92,44 @@ fn every_native_effect_editor_offers_modulate_on_every_control() {
     }
     bad.dedup();
     assert!(bad.is_empty(), "controls without Modulate…: {bad:#?}");
+}
+
+/// Fragor's five circuits, edited on a board alone (round 41, ADR 0152): Tabula's window
+/// with the five on its board draws their knobs, and each offers modulation.
+#[test]
+fn fragor_s_pedals_on_a_board_offer_modulate_on_every_control() {
+    use cantus_ui::views::fx::host::DawHost;
+    use cantus_ui::views::fx::tabula_edit;
+    let mut a = app(cantus_ui::starter_project());
+    let s0 = a.project().tracks[0].strip.unwrap();
+    a.add_effect(s0, EffectKind::Board);
+    let fx = a.project().strip(s0).unwrap().effects[0].id;
+    let EffectSpec { board, .. } = &a.project().strip(s0).unwrap().effects[0].spec;
+    let rig: Vec<_> = board
+        .as_ref()
+        .map(|b| b.pedals.iter().map(|p| p.id).collect())
+        .unwrap_or_default();
+    for id in rig {
+        tabula_edit::remove(&mut DawHost::new(&mut a, s0, fx, "tabula"), id);
+    }
+    let pedals: Vec<EffectKind> = EffectKind::ALL
+        .into_iter()
+        .filter(|k| k.fragor_circuit().is_some())
+        .collect();
+    assert_eq!(pedals.len(), 5);
+    for k in &pedals {
+        tabula_edit::add(&mut DawHost::new(&mut a, s0, fx, "tabula"), *k).expect("a pedal");
+    }
+    a.open_effect_editor(s0, fx);
+    probe::start();
+    paint_editors(&mut a, egui::vec2(1600.0, 1000.0));
+    let drawn = probe::take();
+    assert!(
+        drawn.iter().filter(|(_, m)| *m).count() >= pedals.len(),
+        "the board drew its pedals' knobs: {drawn:?}"
+    );
+    let bad = unwired(drawn);
+    assert!(bad.is_empty(), "pedal controls without Modulate…: {bad:#?}");
 }
 
 #[test]

@@ -19,7 +19,6 @@ use cantus_engine::{render, EngineHandle, Processor, RenderOptions};
 use cantus_ui::app::Files;
 use cantus_ui::CantusApp;
 use std::path::Path;
-use std::sync::Arc;
 
 const SR: usize = 48_000;
 

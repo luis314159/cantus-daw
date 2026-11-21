@@ -109,6 +109,11 @@ pub fn params() -> &'static [EffectParamInfo] {
     PARAMS
 }
 
+/// Whether a Nitor whose `key` is `key` tunes to the song's key (as [`tonic`] reads it).
+pub fn follows_song(key: f32) -> bool {
+    key.round().clamp(0.0, 12.0) as u8 == 0
+}
+
 /// The tonic Nitor tunes to: `key` = 0 follows `song` (the project's tonic, 0 = C … 11 =
 /// B, `None` when the song has no key: then C); 1 … 12 fix it.
 pub fn tonic(key: f32, song: Option<u8>) -> u8 {

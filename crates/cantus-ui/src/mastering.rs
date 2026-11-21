@@ -229,9 +229,12 @@ fn eq_slot(mut slot: EffectSlot, g: &[f32; OCTAVES], out: f32) -> EffectSlot {
     slot
 }
 
-/// Run `chain` over `mix`, then the master strip after it.
+/// Run `chain` over `mix`, then the master strip after it. The chain is the assistant's own
+/// — its EQ, compressor, stereo and limiter — and none of them follows the song's key
+/// ([`cantus_core::EffectSpec::reads_song_key`]): the trials hand none (round 41's review).
 pub fn trial(chain: &[EffectSlot], mix: &[f32], sr: u32, post: &Post) -> Vec<f32> {
-    let mut out = cantus_engine::listen::run_chain(chain, true, sr, mix);
+    debug_assert!(chain.iter().all(|s| !s.spec.reads_song_key()));
+    let mut out = cantus_engine::listen::run_chain(chain, true, sr, None, mix);
     post.apply(&mut out);
     out
 }

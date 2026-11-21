@@ -13,7 +13,9 @@
 //! can stand a pure delay in), with each slot's bypass, mix and the chain switch, and
 //! trimmed by the chain's latency so sample 0 is still the song's first tick. The master's
 //! fader, balance and width are not applied (no stem takes the master strip). A master
-//! insert keyed from a strip hears no key here: a stem is heard alone.
+//! insert keyed from a strip hears no key here: a stem is heard alone. Each unit is handed
+//! the song's key after its spec, as on the master (ADR 0153; round 41's review: Nitor
+//! following the song was tuned to C here).
 
 use crate::effects::EffectUnit;
 use cantus_core::{EffectSlot, Snapshot};
@@ -41,17 +43,20 @@ impl Through {
         Self::of_chain(
             &snapshot.master_effects,
             snapshot.master_fx_enabled,
+            snapshot.key,
             sample_rate,
             block,
             make_unit,
         )
     }
 
-    /// A copy of `chain` (switched on or off as a whole by `on`), or `None` when it is
-    /// empty — the mastering assistant's trial runs (round 34, ADR 0084).
+    /// A copy of `chain` (switched on or off as a whole by `on`), each unit handed the
+    /// song's key `key` after its spec (ADR 0153), or `None` when it is empty — the
+    /// mastering assistant's trial runs (round 34, ADR 0084).
     pub(crate) fn of_chain(
         chain: &[EffectSlot],
         on: bool,
+        key: Option<cantus_core::scale::Key>,
         sample_rate: f32,
         block: usize,
         make_unit: &mut dyn FnMut(&EffectSlot, f32) -> EffectUnit,
@@ -64,6 +69,7 @@ impl Through {
             .map(|slot| {
                 let mut u = make_unit(slot, sample_rate);
                 u.configure(&slot.spec);
+                u.set_song_key(key);
                 (u, slot.bypass, slot.mix.clamp(0.0, 1.0))
             })
             .collect();

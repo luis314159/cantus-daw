@@ -24,7 +24,7 @@ pub const FIDES: Skin = Skin {
         sat: 0.16,
         amount: 0.8,
     },
-    accent: Some(pair(38.0, 0.78, 0.66, 0.30)),
+    accent: Some(pair(38.0, 0.78, 0.66, 0.27)),
     accent2: Some(pair(176.0, 0.60, 0.62, 0.27)),
     material: Material::Wood,
     display: Display::Paper,

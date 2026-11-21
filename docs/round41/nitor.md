@@ -100,3 +100,59 @@ floor-0 line deleted), `docs/manual/{en,es}/README.md`, `docs/beta-checklist.md`
   suites of the touched crates, `cargo fmt`.
 - The integrator: the site's card (`web/src/units_data.rs`), the quiet CPU measurement, the
   Linux check.
+
+## Review fixes (integration)
+
+Branch `r41/fix-nitor` from `r41/integration` 4f1b74b9e: round 41's integrated review, five
+findings, each confirmed by a read and, where it is behaviour, by a test that failed first.
+
+1. **A freeze ignored the song's key that Nitor follows.** `freeze::subject_with` wrote
+   `project.key` only for note effects; a Nitor on `key` 0 (the default), alone or as a
+   Tabula pedal, follows it since ADR 0153 — a key change reused a render tuned to the old
+   key. Now **`EffectSpec::reads_song_key`** (in `effect.rs`, beside `takes_notes`; Nitor's
+   own `fx::nitor::follows_song`, a board when a pedal does) is the one place that says it,
+   and the subject holds the key when any effect of the region's strips (and of the master,
+   when the whole mix is in it) reads it. The guard (`Touch::Global`) then refuses a key
+   change while such a strip is frozen. Tests: core `freeze::an_effect_following_the_song_s_key_puts_the_key_in_the_freeze`
+   (red first: the content key did not move) — Nitor, a board's Nitor, and Nitor on its own
+   key (which leaves the key out); the app (`cantus-ui/tests/freeze.rs`
+   `a_frozen_strip_with_nitor_following_the_song_refuses_a_key_change`): frozen in C, the key
+   change refused and said, the mix the live one to the bit, thawed the new key heard; and the
+   engine's guard `song_key::an_effect_whose_sound_moves_with_the_key_says_it_reads_it` —
+   every kind at heavy settings rendered in C and in G: a sound that moves with the key must
+   say `reads_song_key`, so the next key-following unit cannot forget it.
+2. **Stems through the master and the mastering assistant's trials tuned Nitor to C.**
+   `Through::of_chain` now takes the key and hands it to each unit after its spec, as the
+   master does; `Through::new` passes the snapshot's, `listen::run_chain` takes it
+   (`run_chain(chain, on, sr, key, audio)`). The assistant's own chain (EQ, compressor,
+   stereo, limiter) follows no key, so `mastering::trial` hands none and says so (a
+   `debug_assert`). Tests (red first, max difference 0.133 with the line taken out):
+   `song_key::a_stem_through_the_master_hears_the_song_s_key` (the lead alone through Nitor
+   following a song in G is the master's own output, within 1e-6; in C it differs) and
+   `song_key::a_trial_of_a_master_chain_is_the_real_render_in_the_song_s_key`.
+3. **A Nitor colouring nothing never rested after a Mix change.** `idle_chunk` moved only
+   the output glide; `set` starts the mix glide whatever the state, so `rest_blocker` said
+   "glides" for ever. The idle chunk now moves the mix sample by sample (exactly as a busy
+   cell would; it shapes nothing there). Test: `nitor_tests::a_mix_change_with_nothing_to_colour_lands_within_the_glide`
+   — at amount 0 a Mix change is still a wire to the bit and at rest within the 20 ms glide,
+   at every block pattern; colouring later is to the bit a unit that had that Mix from the
+   start. Every other Nitor test (18 with it) and `nitor_alloc` unchanged.
+4. **Stale contract words.** The agent's description (`agent_units.rs`) and the MCP kind
+   list (`tools_mixer.rs`) still said Nitor passes the sound through: both now describe it and
+   every parameter key with its range; the golden `mcp-tools-list.json` re-blessed
+   (`CANTUS_TOOLS_DUMP=1`, `ai_mcp_boot`), its diff Nitor's words only.
+5. **Tabula's count.** r41/pedals added *Stacked drives*: 16 boards, four of them holding the
+   amp (crunch amp rig, blues crunch, fuzz lead, stacked drives). README's Tabula lines and
+   the site's card (count and feature line, both languages) changed, nothing else there;
+   `stated_preset_counts` passes.
+
+Also: `nitor_e2e.rs`'s unused `use std::sync::Arc` (a warning under CI's `-D warnings`) gone.
+
+Run: core 933 pass (all of it, the undo fuzz included); DSP `nitor` 18 + `nitor_alloc` 1;
+engine `song_key` 4, `master_chain` 16, `fx_contract` 102; UI `freeze` 94, `ai_mcp_boot` 1,
+`stated_preset_counts` 1, `nitor_e2e` 1. Clippy `-D warnings` clean on cantus-core, -dsp,
+-engine, -ai (all targets) and on cantus-ui's library and the touched test targets — with three
+lints allowed for the run, every hit of them Fides's (another session's files, left alone):
+`needless_range_loop` and `collapsible_if` in `cantus-dsp/src/fides_{body,modal}.rs` (five),
+`disallowed_methods` (`f32::log10`) in `cantus-engine/tests/inst_fides.rs:293`; none of the
+lines this branch adds uses a std transcendental.

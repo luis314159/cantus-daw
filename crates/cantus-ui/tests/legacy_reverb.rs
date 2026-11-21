@@ -12,10 +12,16 @@ use std::sync::Arc;
 #[test]
 fn the_picker_and_the_insert_menus_no_longer_offer_it() {
     assert!(!EffectKind::Reverb.offered());
+    // Every other kind is offered, but Fragor's five circuits: pedals of a board alone
+    // (round 41, ADR 0152), never an insert of their own.
     assert!(EffectKind::ALL
         .into_iter()
-        .filter(|k| *k != EffectKind::Reverb)
+        .filter(|k| *k != EffectKind::Reverb && k.fragor_circuit().is_none())
         .all(EffectKind::offered));
+    assert!(EffectKind::ALL
+        .into_iter()
+        .filter(|k| k.fragor_circuit().is_some())
+        .all(|k| !k.offered()));
     let devices = cantus_ui::picker_catalog::build(std::iter::empty());
     assert!(
         !devices

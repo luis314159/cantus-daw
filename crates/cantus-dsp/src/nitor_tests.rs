@@ -346,3 +346,37 @@ fn a_snap_on_a_new_unit_changes_nothing() {
         assert_eq!(first_difference(&x, &y), None);
     }
 }
+
+/// r41 review: with nothing to colour (amount 0), a Mix change still glides — and lands
+/// within the glide, so the unit comes to rest (it said "glides" for ever) and stays a wire;
+/// what it does once it colours again is what a unit that had that Mix all along does.
+#[test]
+fn a_mix_change_with_nothing_to_colour_lands_within_the_glide() {
+    let input = programme(1.5, 1.0, 43);
+    let glide = (GLIDE_MS * 0.001 * SR).round() as usize;
+    let at = 24_000;
+    let mix = NitorSettings {
+        mix: 0.4,
+        ..NitorSettings::default()
+    };
+    let colour = NitorSettings { amount: 0.6, ..mix };
+    for blocks in BLOCKS {
+        let mut u = Nitor::new(SR);
+        u.set(&NitorSettings::default());
+        let part = (
+            input.0[..at + glide].to_vec(),
+            input.1[..at + glide].to_vec(),
+        );
+        let out = render(&mut u, &part, blocks, &[(at, mix)]);
+        assert_eq!(first_difference(&out, &part), None, "{blocks:?}");
+        assert!(u.at_rest(), "{blocks:?}: {:?}", u.rest_blocker());
+        // Colouring again later: as a unit that had this Mix from the start.
+        let mut a = Nitor::new(SR);
+        a.set(&NitorSettings::default());
+        let mut b = Nitor::new(SR);
+        b.set(&mix);
+        let x = render(&mut a, &input, blocks, &[(at, mix), (48_000, colour)]);
+        let y = render(&mut b, &input, blocks, &[(48_000, colour)]);
+        assert_eq!(first_difference(&x, &y), None, "{blocks:?}");
+    }
+}

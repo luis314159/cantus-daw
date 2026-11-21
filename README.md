@@ -1035,9 +1035,9 @@ Tabula is a pedalboard of Cantus's own effects: drives, the valve amp and its ca
 - An A/B split whose lanes meet in time, to the sample
 - Footswitches that never move the latency; no click on any change
 - Eight macros with learn, and Randomise within musical ranges
-- Fifteen boards for guitar, bass, synths, drums and voice; three hold the amp and its cabinet
+- Sixteen boards for guitar, bass, synths, drums and voice; four hold the amp and its cabinet
 
-<sub>15 factory presets — [hear them](https://cantusdaw.com/#unit-tabula) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tabula-light.png)</sub>
+<sub>16 factory presets — [hear them](https://cantusdaw.com/#unit-tabula) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tabula-light.png)</sub>
 
 </details>
 <details>
