@@ -325,3 +325,28 @@ fn pitch_is_within_a_tenth_of_a_cent_at_any_bend() {
     }
     assert!(worst[0].0 < 0.1, "{}", worst[0].1);
 }
+
+/// A bowed string's pitch is the stick and slip's: the loop sets it and the bow's friction
+/// pulls it a little flat as it presses harder (as a real bow does). Measured and held
+/// within 2 cents at the default pressure across the range; printed for the report.
+#[test]
+fn a_bowed_string_plays_in_tune() {
+    let mut worst = 0f64;
+    for (pressure, speed) in [(0.5f32, 0.5f32), (0.3, 0.4), (0.8, 0.7)] {
+        let mut s = FidesSettings::default();
+        s.exc.kind = ExciterKind::Bow;
+        s.exc.bow_pressure = pressure;
+        s.exc.bow_speed = speed;
+        s.exc.bow_attack_ms = 40.0;
+        let mut line = String::new();
+        for key in [36u8, 48, 60, 72, 84] {
+            let e = pitch_error(&s, key, 0.0, 0.0);
+            line += &format!(" {key}: {e:+.3}");
+            if pressure == 0.5 {
+                worst = worst.max(e.abs());
+            }
+        }
+        println!("bowed at pressure {pressure}, speed {speed}:{line} ct");
+    }
+    assert!(worst < 2.0, "{worst} ct");
+}

@@ -131,10 +131,62 @@ fn wavs(dir: &str) {
     println!("written to {dir}");
 }
 
+/// The amplitude of the partial at `hz` over `from..to` (Goertzel), dB re full scale.
+fn partial_db(x: &[f32], hz: f64, from: usize, to: usize) -> f32 {
+    let w = std::f64::consts::TAU * hz / SR as f64;
+    let (mut re, mut im) = (0.0f64, 0.0f64);
+    let to = to.min(x.len());
+    for (n, v) in x.iter().enumerate().take(to).skip(from) {
+        let (s, c) = math::sin_cos(w * n as f64);
+        // A Hann window over the span.
+        let u = (n - from) as f64 / (to - from) as f64;
+        let h = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * u);
+        re += *v as f64 * c * h;
+        im += *v as f64 * s * h;
+    }
+    let amp = 4.0 * (re * re + im * im).sqrt() / (to - from) as f64;
+    db(amp as f32)
+}
+
+/// One exciter on one resonator at C3: its levels over time and its first partials.
+fn describe(e: ExciterKind, r: ResKind) {
+    let s = settings(e, r);
+    let (l, _) = play(&s, &[(0, 48, 100.0 / 127.0, 72_000)], 120_000);
+    let f0 = 440.0 * math::exp2((48.0 - 69.0) / 12.0);
+    let rms = |a: usize, b: usize| {
+        let b = b.min(l.len());
+        db((l[a..b].iter().map(|x| x * x).sum::<f32>() / (b - a) as f32).sqrt())
+    };
+    println!(
+        "{e:?} on {r:?}: RMS 0–0.1 s {:.1}, 0.1–0.5 {:.1}, 0.5–1 {:.1}, 1–1.5 {:.1}, after release {:.1} dB",
+        rms(0, 4_800),
+        rms(4_800, 24_000),
+        rms(24_000, 48_000),
+        rms(48_000, 72_000),
+        rms(76_800, 120_000)
+    );
+    let mut line = String::new();
+    for k in 1..=10 {
+        let ratio = match r {
+            ResKind::Tube => (2 * k - 1) as f64,
+            _ => k as f64,
+        };
+        line += &format!(" {:.1}", partial_db(&l, f0 * ratio, 9_600, 33_600));
+    }
+    println!("  partials 1–10 at 0.2–0.7 s (dB):{line}");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("wav") => wavs(args.get(1).map_or("fides-lab", String::as_str)),
+        Some("describe") => {
+            for e in [ExciterKind::Pluck, ExciterKind::Bow, ExciterKind::Mallet] {
+                for r in [ResKind::String, ResKind::Tube, ResKind::Pipe] {
+                    describe(e, r);
+                }
+            }
+        }
         _ => levels(),
     }
 }

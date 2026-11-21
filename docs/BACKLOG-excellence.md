@@ -2736,3 +2736,19 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
 
   Run it on the paths `web/**` and the workspace files it reads. *Done when* a change to
   `web/` cannot reach master without them.
+
+- **Fides after round 41** (§3e item 6, §6l A2; ADR 0150) <!-- r41:fides -->. Round 41 built the
+  resonator: six exciters, twelve resonators, two coupled, seven bodies, MPE on the bow,
+  25 presets. What its first round leaves, each *done when* the owner hears it:
+  - **The live input** reaches the instrument: the processor hands an instrument track the
+    audio of the track its sidechain names (as an effect's key is handed), and Fides's
+    `Unit::process_input` plays it. *Done when* a voice on one track excites a Fides string
+    on another, through `CantusApp::assemble` and the real engine.
+  - **A blown exciter** (a jet into a pipe, a reed into a tube: the flute's and the
+    clarinet's nonlinearities, Fletcher & Rossing ch. 16–17) beside the bow; today a bow on a
+    tube whistles on a high mode and the pan flute is noise into a tube.
+  - **Sympathetic strings** (a harp's, a sitar's): the body's input feeding a bank of
+    undamped strings tuned to the song's key (ADR 0153 hands every unit the key).
+  - **Each preset judged "convincing in solo" by the 10-listener panel** (the owner's), and
+    a blind comparison against Chromaphone, Collision and Sculpture on the eight named
+    instruments (BACKLOG §0's scorecard).

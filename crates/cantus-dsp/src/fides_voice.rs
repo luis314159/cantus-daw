@@ -605,6 +605,9 @@ impl Voice {
             // Its comp now that A is designed.
             let comp = self.a.sustain_comp(sr);
             self.step.noise_level = (own + layer) * vel_gain * press_gain * comp * 4.0;
+            if kind == ExciterKind::Input {
+                self.step.level = level * vel_gain * comp * press_gain;
+            }
         } else {
             self.a.step(fa, ta, mat_a, pos, span);
             if s.b_on {

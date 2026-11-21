@@ -49,6 +49,13 @@ pub struct Guide {
     c: f32,
     ap: [(f32, f32); AP],
     neck_sign: f32,
+    /// A tube's or a pipe's open end radiates its lows less than its highs: a first-order
+    /// high-pass at 0.7·f0 (`rad_c` its low-pass's step), scaled so the fundamental keeps
+    /// its level; a string's bridge passes the wave as it is.
+    radiate: bool,
+    rad_c: f32,
+    rad_g: f32,
+    prev: f32,
     quiet: u32,
     live: bool,
     /// The highest fundamental this rate allows (the lines' and filters' least delays).
@@ -87,6 +94,10 @@ impl Guide {
             c: 0.0,
             ap: [(0.0, 0.0); AP],
             neck_sign: -1.0,
+            radiate: false,
+            rad_c: 0.0,
+            rad_g: 1.0,
+            prev: 0.0,
             quiet: 0,
             live: false,
             max_hz: sr / 12.0,
@@ -105,6 +116,7 @@ impl Guide {
             self.bridge.fill(0.0);
         }
         self.lz = 0.0;
+        self.prev = 0.0;
         self.ap = [(0.0, 0.0); AP];
         self.quiet = 0;
         self.live = false;
@@ -117,6 +129,7 @@ impl Guide {
             self.clear();
         }
         self.neck_sign = if kind == ResKind::Tube { 1.0 } else { -1.0 };
+        self.radiate = kind != ResKind::String;
         let loop_hz = self.loop_hz(kind);
         // A string's stiffness, B up to 4·10⁻⁴ (a piano's mid-range): its partials stretch
         // as `n·√(1 + B n²)`. Tubes and pipes have none.
@@ -163,6 +176,10 @@ impl Guide {
         self.g1a = (g * (1.0 - a)) as f32;
         self.a = a as f32;
         let w0 = std::f64::consts::TAU * f0 / self.sr;
+        let fc = 0.7 * f0;
+        self.rad_c = (1.0 - math::exp(-std::f64::consts::TAU * fc / self.sr)) as f32;
+        let x = f0 / fc;
+        self.rad_g = ((1.0 + x * x).sqrt() / x) as f32;
         let period = self.sr / f0 / loop_hz;
         let mut filt = loss_delay(a, w0);
         if self.c != 0.0 {
@@ -194,8 +211,9 @@ impl Guide {
         let len = buf.len();
         let mut y = 0.0f32;
         for (j, hj) in h.iter().enumerate() {
+            // `back` < `len` (the lengths are clamped well inside the lines): no division.
             let back = m0 + j;
-            let idx = (w + len - back) % len;
+            let idx = if w >= back { w - back } else { w + len - back };
             y += hj * buf[idx];
         }
         y
@@ -263,7 +281,12 @@ impl Guide {
             if self.wn == lenn {
                 self.wn = 0;
             }
-            out[i] += gain * to_b;
+            if self.radiate {
+                self.prev += self.rad_c * (to_b - self.prev);
+                out[i] += gain * self.rad_g * (to_b - self.prev);
+            } else {
+                out[i] += gain * to_b;
+            }
             if to_b.abs() < QUIET && vs.abs() < QUIET && inj == 0.0 && bow[i] == 0.0 {
                 self.quiet += 1;
             } else {

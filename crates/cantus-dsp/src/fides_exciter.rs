@@ -77,7 +77,7 @@ impl Default for ExciterSettings {
         ExciterSettings {
             kind: ExciterKind::Pluck,
             level_db: 0.0,
-            contact_ms: 2.0,
+            contact_ms: 0.6,
             vel_tone: 0.5,
             tone_hz: 20_000.0,
             noise: 0.0,

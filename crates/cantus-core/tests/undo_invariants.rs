@@ -8159,3 +8159,103 @@ fn fxc_reference_command(rng: &mut Lcg, project: &mut Project) -> (bool, Command
         },
     )
 }
+
+// ---- r41:fides — Fides (ADR 0150): a resonator inserted, its exciter, resonators, body and
+// numbers set and cleared, a modulation slot's text set, all among the other commands; undo
+// all and redo all restore the song to the bit.
+
+#[test]
+fn fides_edits_undo_and_redo_among_the_others() {
+    use cantus_core::inst::fides::PARAMS;
+    let mut kinds = [0usize; 4];
+    for seed in 1..=40u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x510E_527F).wrapping_add(41));
+        let mut orng = Lcg(seed.wrapping_mul(0x9B05_688C).wrapping_add(3));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..60 {
+            let mut scratch = bus.project().clone();
+            let ours: Vec<TrackId> = scratch
+                .tracks
+                .iter()
+                .filter(|t| {
+                    t.instrument
+                        .native()
+                        .is_some_and(|n| n.kind == InstrumentKind::Resonator)
+                })
+                .map(|t| t.id)
+                .collect();
+            let k = if ours.is_empty() {
+                0
+            } else {
+                orng.below(4) as usize
+            };
+            let cmd = match k {
+                0 => {
+                    let mut t = scratch.make_track("Fides");
+                    t.instrument =
+                        InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Resonator));
+                    Some(Command::InsertTrack {
+                        index: 0,
+                        track: Box::new(t),
+                    })
+                }
+                1 => {
+                    let track = ours[orng.below(ours.len() as u64) as usize];
+                    let info = &PARAMS[orng.below(PARAMS.len() as u64) as usize];
+                    let u = orng.below(1000) as f32 / 999.0;
+                    Some(Command::SetInstrumentValue {
+                        track,
+                        key: info.key.to_string(),
+                        value: info.min + (info.max - info.min) * u,
+                    })
+                }
+                2 => {
+                    let track = ours[orng.below(ours.len() as u64) as usize];
+                    let info = &PARAMS[orng.below(PARAMS.len() as u64) as usize];
+                    Some(Command::ClearInstrumentValue {
+                        track,
+                        key: info.key.to_string(),
+                    })
+                }
+                _ => {
+                    let track = ours[orng.below(ours.len() as u64) as usize];
+                    let (key, text) = [
+                        ("mod1.src", "mpe.press"),
+                        ("mod1.dst", "bow.pressure"),
+                        ("mod2.src", "macro1"),
+                        ("mod2.dst", "body.size"),
+                        ("macro1.name", "Body"),
+                    ][orng.below(5) as usize];
+                    Some(Command::SetInstrumentText {
+                        track,
+                        key: key.to_string(),
+                        text: Some(text.to_string()),
+                    })
+                }
+            };
+            let cmd = match cmd {
+                Some(c) => c,
+                None => random_command(&mut rng, &mut scratch),
+            };
+            bus.reserve_ids(scratch.next_id);
+            if bus.execute(cmd, Origin::User).is_ok() {
+                kinds[k] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        kinds.iter().all(|k| *k > 0),
+        "an edit never applied: {kinds:?}"
+    );
+}

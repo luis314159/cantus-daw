@@ -80,7 +80,7 @@ params! {
     EXC = ("exc.type", "fides.exc.type", 0.0, 5.0, 0.0, "", false, true),
     EXC_LEVEL = ("exc.level", "fides.exc.level", -24.0, 12.0, 0.0, "dB", false, false),
     // How long the finger, the pick or the mallet touches, at velocity 100.
-    EXC_CONTACT = ("exc.contact", "fides.exc.contact", 0.05, 20.0, 2.0, "ms", true, false),
+    EXC_CONTACT = ("exc.contact", "fides.exc.contact", 0.05, 20.0, 0.6, "ms", true, false),
     // How much a harder strike shortens the contact (brighter), after the power-law spring.
     EXC_VEL_TONE = ("exc.vel_tone", "fides.exc.vel_tone", 0.0, 1.0, 0.5, "%", false, false),
     // A low-pass on what the exciter sends (20 kHz: open).
@@ -165,14 +165,14 @@ params! {
 /// How many parameters there are: the length of the engine's value array.
 pub const COUNT: usize = PARAMS.len();
 
-/// The exciter types, in `exc.type`'s order (locale keys `fides.exc.<name>`).
+/// The exciter types, in `exc.type`'s order (locale keys `fides.exciter.<name>`).
 pub const EXCITERS: [&str; 6] = ["pluck", "pick", "bow", "mallet", "noise", "input"];
-/// The resonator types, in `a.type`'s order (locale keys `fides.res.<name>`).
+/// The resonator types, in `a.type`'s order (locale keys `fides.resonator.<name>`).
 pub const RESONATORS: [&str; 12] = [
     "string", "bar", "marimba", "tine", "plate", "membrane", "drumhead", "tube", "pipe", "bell",
     "glass", "pan",
 ];
-/// The bodies, in `body.type`'s order (locale keys `fides.body.<name>`).
+/// The bodies, in `body.type`'s order (locale keys `fides.body_kind.<name>`).
 pub const BODIES: [&str; 7] = ["none", "guitar", "violin", "cello", "harp", "box", "shell"];
 
 pub fn params() -> &'static [InstParamInfo] {
