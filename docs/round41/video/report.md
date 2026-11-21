@@ -490,10 +490,47 @@ centring the block. It would be a small change to `cards.css` and a re-cut. Not 
 - **Chosen without the owner, open to his change:** the loop's 18 s (0:31–0:49, the mixer)
   and the vertical's first 30 s.
 
+## The counts, as the release that carries the video has them (2026-11-21)
+
+The video ships with the release that carries round 41 (beta.17, with Fides and Nitor). Its
+numbers are checked against `r41/integration` (`8a24a2cea`), counted as the site and the
+README count them.
+
+| Where | Was | Now | Source |
+|---|---|---|---|
+| Narration line 2 (EN / ES) | Eleven / Once | **Twelve / Doce** | `web/src/units_data.rs` `INSTRUMENTS: [Unit; 11]` (with Fides) + Firmus (`counts::instruments_with_firmus`); README "Twelve instruments" |
+| Narration line 4 (EN / ES) | forty-two / cuarenta y dos | **forty-three / cuarenta y tres** | `EFFECTS: [Unit; 43]`; the app's `EffectKind::ALL` 49 less the old Reverb and the five board-only Fragor pedals (`offered`) |
+| Card `count-instruments` | 11 | **12** | as line 2 |
+| Card `count-effects` | 42 | **43** | as line 4 |
+| Chapter 0:31 (EN / ES) | 42 | **43** | as line 4 |
+| Captions | 11 / 42 | **12 / 43** | generated from the script's lines |
+
+- **No other number is stated.** The script, the cards, the chapters and the captions were
+  checked; "CLAP and VST3" is a name, not a count.
+- **Lines 2 and 4 were re-made** with ElevenLabs: one take each in Jon and Alejandro, with
+  the same seed and settings as the chosen take.
+  - That spent 592 characters; the ledger now stands at 9 316 of 40 000.
+  - All four pass the gate. `jon-04-2b`'s first sample crosses −40 dB, but its first 5 ms
+    sit at −45 dB and the speech starts at about 20 ms. The gate now accepts a quiet first
+    10 ms.
+  - They fit their windows: EN 7.79 s of 10.0 and 9.80 s of 13.5; ES 8.29 s of 10.0 and
+    12.71 s of 13.5.
+- **The voice track:** `choose.py --pick 2=… --pick 4=…`.
+- **The soundtracks were re-mixed** with DSP_VERSION 11.
+  - The carve is 16.4 dB in English and 13.8 dB in Spanish, with the bed not lowered.
+  - The margins are 11.1–21.1 dB.
+  - The master reads −14.0 LUFS and −1.15 / −1.12 dBTP on Cantus's meter.
+  - `checks.py` passes: sync at three marks within a frame, every line ≥ 10 dB, captions
+    ≤ 42 characters.
+- **For the integrator:** the picture is rendered by `film.rs` from `r41/video`, which is
+  master's app. Its pickers show neither Fides nor Nitor. The 4K picture would show the
+  release's app if it were rendered from the `r41/video-int` worktree, built from
+  integration.
+
 ## What nobody has watched or heard yet
 
-Nobody has heard draft 2's mix. The ducking and the crossfade are measured only. The owner
-has watched draft 1 and heard the voice takes.
+Nobody has heard the re-made lines 2 and 4. They need the owner's ear: they were checked by
+Whisper and the gate only.
 
 *(Written by the integrator from the video agent's hand-back, 2026-11-20: the subagent's tool
 policy refused it a report file. Two of its claims were checked against the code: no demo
