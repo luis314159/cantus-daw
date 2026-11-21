@@ -727,3 +727,164 @@ fn resonator_b_switched_on_mid_note_waits_for_the_next_note() {
     );
     assert!(off[second..] != again[second..]);
 }
+
+/// The ALL commit (the instrument contract's twins): the output stage's gain and tremolo
+/// apply to the body's ringing tail after the last voice has ended, whatever the block size.
+/// The stage was told its input was zeros whenever no voice played at a chunk's start —
+/// with the body still ringing — and skipped its gain and tremolo there, so a block that
+/// began after the voice ended sounded the tail unscaled.
+#[test]
+fn the_body_s_tail_after_the_last_voice_is_the_same_at_every_block_size() {
+    let mut s = FidesSettings {
+        gain_db: -6.0,
+        release_s: 0.05,
+        ..Default::default()
+    };
+    s.a.kind = ResKind::Bar;
+    s.a.decay_s = 0.08;
+    s.body.kind = BodyKind::Guitar;
+    s.body.mix = 1.0;
+    s.body.decay = 4.0;
+    let score = [(100, Ev::On(60, 0.9)), (2_000, Ev::Off(60))];
+    // The voice ends while the body still rings (what the test is about).
+    let mut f = Fides::new(SR);
+    f.set(&s);
+    f.note_on(60, 0.9, 61);
+    let (mut l, mut r) = (vec![0.0; 2_000], vec![0.0; 2_000]);
+    f.process(&mut l, &mut r);
+    f.note_off(60, 61);
+    let mut ended_ringing = false;
+    for _ in 0..200 {
+        l[..64].fill(0.0);
+        r[..64].fill(0.0);
+        f.process(&mut l[..64], &mut r[..64]);
+        if f.active_voices() == 0 {
+            ended_ringing = !f.body.is_still();
+            break;
+        }
+    }
+    assert!(ended_ringing, "the voice ends while the body rings");
+    for trem in [0.0, 0.4] {
+        let s = FidesSettings {
+            trem_depth: trem,
+            ..s
+        };
+        let reference = render(&s, &score, 30_000, &|_| 512, &Serial);
+        for (name, other) in [
+            ("1", render(&s, &score, 30_000, &|_| 1, &Serial)),
+            ("7", render(&s, &score, 30_000, &|_| 7, &Serial)),
+            (
+                "ragged",
+                render(
+                    &s,
+                    &score,
+                    30_000,
+                    &|b| [1, 300, 7, 64, 129][b % 5],
+                    &Serial,
+                ),
+            ),
+        ] {
+            assert_eq!(
+                first_difference(&reference, &other),
+                None,
+                "tremolo {trem}, blocks of {name}"
+            );
+        }
+    }
+}
+
+/// The ALL commit (the instrument contract's split twins): a low string released while its
+/// pluck's leak still feeds it. The release shortens the loss at the next control step and
+/// the loop's lengths glide to their new values; the strike's gain (scaled by the loop's
+/// period) was taken at the start of every call, so a block that began mid-glide scaled
+/// the leak's last samples by another period, and the render moved with the block size.
+#[test]
+fn a_string_released_while_its_pluck_still_leaks_is_the_same_at_every_block_size() {
+    let s = FidesSettings::default();
+    let score = [
+        (1_000, Ev::On(36, 0.4)),
+        (1_210, Ev::On(38, 0.15)),
+        (2_003, Ev::Off(36)),
+        (2_003, Ev::Off(38)),
+        (2_500, Ev::Bend(-1.3)),
+    ];
+    let reference = render(&s, &score, 12_000, &|_| 512, &Serial);
+    for (name, other) in [
+        ("1", render(&s, &score, 12_000, &|_| 1, &Serial)),
+        ("7", render(&s, &score, 12_000, &|_| 7, &Serial)),
+        (
+            "ragged",
+            render(
+                &s,
+                &score,
+                12_000,
+                &|b| [1, 300, 7, 64, 129][b % 5],
+                &Serial,
+            ),
+        ),
+    ] {
+        assert_eq!(
+            first_difference(&reference, &other),
+            None,
+            "blocks of {name}"
+        );
+    }
+}
+
+/// The ALL commit: a waveguide's loop held a DC level for ever. Its loss filter is a
+/// low-pass whose gain at DC is capped just under 1 (0.99999), and a pluck's leak (a
+/// released displacement) leaves DC in the loop; with a short decay the loss is mostly the
+/// low-pass, the DC decayed at 10⁻⁵ a period and settled on an `f32` fixed point — a voice
+/// that never ended (its slot, its CPU) with an offset up to −46 dBFS on the output, a
+/// thump when the voice was taken. Every voice ends within ten seconds of its release,
+/// plucked or bowed (the blocker comes in when the bow lifts).
+#[test]
+fn a_released_string_ends_whatever_its_decay_and_material() {
+    let mut hung = Vec::new();
+    for (exc, decay) in [ExciterKind::Pluck, ExciterKind::Bow]
+        .into_iter()
+        .flat_map(|e| [0.08f32, 0.5, 4.0].map(|d| (e, d)))
+    {
+        for release in [0.05f32, 0.4] {
+            for material in [0.0f32, 0.45, 1.0] {
+                for key in [36u8, 60, 84] {
+                    let mut s = FidesSettings {
+                        release_s: release,
+                        ..Default::default()
+                    };
+                    s.exc.kind = exc;
+                    s.a.decay_s = decay;
+                    s.a.material = material;
+                    let mut f = Fides::new(SR);
+                    f.set(&s);
+                    f.note_on(key, 0.8, 1);
+                    let (mut l, mut r) = (vec![0.0; 512], vec![0.0; 512]);
+                    let mut ended = false;
+                    for b in 0..(11 * 48_000 / 512) {
+                        if b == 20 {
+                            f.note_off(key, 1);
+                        }
+                        l.fill(0.0);
+                        r.fill(0.0);
+                        f.process(&mut l, &mut r);
+                        if b > 20 && f.active_voices() == 0 {
+                            ended = true;
+                            break;
+                        }
+                    }
+                    if !ended {
+                        let peak = l.iter().fold(0f32, |m, x| m.max(x.abs()));
+                        hung.push(format!(
+                            "{exc:?} decay {decay} release {release} material {material} key {key}: {peak:e}"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        hung.is_empty(),
+        "voices that never ended:\n{}",
+        hung.join("\n")
+    );
+}
