@@ -467,6 +467,7 @@ fn extreme_ratios_stream_exactly_as_in_memory_and_are_never_late() {
 /// then the voice fades out and is counted, as in real time.
 #[test]
 fn an_offline_wait_for_a_block_that_never_comes_is_bounded() {
+    let _turn = crate::timing_turn();
     let data = noise(200_000, 41);
     let levels = levels_of(&data, 1, 0);
     let pool = Arc::new(Pool::new(1, idle).with_patience(std::time::Duration::from_millis(200)));

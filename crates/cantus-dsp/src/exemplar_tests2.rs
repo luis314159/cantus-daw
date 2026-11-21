@@ -177,6 +177,7 @@ fn built_in_numbers_are_the_ones_presets_name() {
 
 #[test]
 fn measured_alias_floors_and_cost() {
+    let _turn = crate::timing_turn();
     // Printed for the report (`cargo test -p cantus-dsp measured -- --nocapture`); the
     // pass criteria are in `transposing_up_does_not_alias_at_high_or_best`.
     for q in [

@@ -953,6 +953,7 @@ fn the_buses_together_are_the_kit() {
 /// cymbals and toms, oversampled drive) for two seconds of audio.
 #[test]
 fn a_full_pool_renders_within_budget() {
+    let _turn = crate::timing_turn();
     let heavy = PadSettings {
         decay: 3.0,
         modes: 32,

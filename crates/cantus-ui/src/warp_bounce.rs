@@ -75,12 +75,16 @@ fn rendered(c: &cantus_core::AudioClipSnapshot) -> Option<std::sync::Arc<cantus_
     c.data.clone().filter(|_| c.zero_at == Some((c.start, 0.0)))
 }
 
-/// A file name not yet taken in `dir`.
-fn free_name(dir: &Path, stem: &str) -> PathBuf {
+/// A file name not yet taken in `dir`, taken there at once: the file is made empty, atomically
+/// (`create_new`), so two bounces started together — two tests of one binary, or two
+/// Cantus windows sharing the data folder — never pick the same name and write over each
+/// other (beta.16's CI on Linux: one test read another's bounce). The bounce writes it.
+fn reserve_name(dir: &Path, stem: &str) -> Result<PathBuf, String> {
     let clean: String = stem
         .chars()
         .map(|c| if "\\/:*?\"<>|".contains(c) { '_' } else { c })
         .collect();
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     for n in 0.. {
         let name = if n == 0 {
             format!("{clean}.wav")
@@ -88,8 +92,14 @@ fn free_name(dir: &Path, stem: &str) -> PathBuf {
             format!("{clean} {n}.wav")
         };
         let p = dir.join(name);
-        if !p.exists() {
-            return p;
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&p)
+        {
+            Ok(_) => return Ok(p),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.to_string()),
         }
     }
     unreachable!()
@@ -112,19 +122,32 @@ impl CantusApp {
             Some(b) => b.join("Audio"),
             None => crate::app::data_dir().join("bounces"),
         };
-        let file = free_name(&dir, &tf("warp.bounce.file", &[("name", &c.name)]));
+        let file = match reserve_name(&dir, &tf("warp.bounce.file", &[("name", &c.name)])) {
+            Ok(f) => f,
+            Err(e) => {
+                self.set_error(tf("warp.bounce.failed", &[("error", &e)]));
+                return false;
+            }
+        };
         let snapshot = Snapshot::compile(self.project(), 0);
         let base = self.audio_base().map(Path::to_path_buf);
         let rate = self.engine.sample_rate.round().max(1.0) as u32;
         let (tx, rx) = std::sync::mpsc::channel();
         let id = c.id;
+        let reserved = file.clone();
         let spawned = std::thread::Builder::new()
             .name("cantus-warp-bounce".into())
             .spawn(move || {
                 let warp = Some(std::sync::Arc::new(warp));
-                let _ = tx.send(write(snapshot, base, id, warp, rate, &file));
+                let written = write(snapshot, base, id, warp, rate, &file);
+                if written.is_err() {
+                    // The name it took, given back.
+                    let _ = std::fs::remove_file(&file);
+                }
+                let _ = tx.send(written);
             });
         if spawned.is_err() {
+            let _ = std::fs::remove_file(&reserved);
             return false;
         }
         let tempo = self.project().tempo_map();
@@ -292,5 +315,29 @@ mod tests {
         assert!(rendered(&c).is_none(), "another window's render");
         c.zero_at = Some((c.start, 0.0));
         assert!(rendered(&c).is_some(), "its own render");
+    }
+}
+
+#[cfg(test)]
+mod reserve_tests {
+    use super::reserve_name;
+
+    #[test]
+    fn two_bounces_started_together_take_two_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let names: Vec<_> = std::thread::scope(|s| {
+            let hs: Vec<_> = (0..8)
+                .map(|_| s.spawn(|| reserve_name(dir.path(), "clicks (warped)").unwrap()))
+                .collect();
+            hs.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        let mut unique = names.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), 8, "every bounce its own file: {names:?}");
+        assert!(
+            names.iter().all(|p| p.exists()),
+            "each name is taken at once"
+        );
     }
 }

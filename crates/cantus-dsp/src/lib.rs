@@ -162,3 +162,12 @@ pub use pulsus::{DrumVoice, PadSettings, Pulsus, SampleRef, MAX_DRUM_VOICES, MAX
 pub use reverb::{Reverb, ReverbSettings};
 pub use smoother::Smoother;
 pub use spectrum::SpectrumAnalyser;
+
+/// The crate's tests that time something take turns (docs/RELEASING.md L3): beta.16's
+/// release run failed on Linux with Chorda's model 2 timed 2.13 times model 1 while the
+/// other timing tests of the binary ran beside it. Each takes this first.
+#[cfg(test)]
+pub(crate) fn timing_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    TURN.lock().unwrap_or_else(|e| e.into_inner())
+}
