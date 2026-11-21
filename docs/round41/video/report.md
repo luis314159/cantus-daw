@@ -388,10 +388,57 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
 - **Not measured:** the frame render time. Renders ran at below-normal priority on a
   loaded machine.
 
+## Step 3/5, draft 2: the owner's changes (2026-11-21; the film builder, reviewed)
+
+The owner watched draft 1 and asked for three changes:
+
+1. **No dancer on the end card.** s9 is re-rendered without Onda or the Stage. Onda stays
+   in shot 2 and at the end of shot 8.
+2. **One song.**
+   - *With All Your Heart*, rendered by Cantus's export, plays from bar 1.
+   - One 2 s equal-power crossfade: from bar 12 (0:24.83) into bar 56, the last chorus.
+     The song then runs to its last chord, with a 1 s fade at 1:19.
+   - No other song is heard.
+   - s6a, s7, s8 and s9 are re-rendered to show the bars heard.
+3. **The voice on top.**
+   - Cedo sits on the music strip, keyed by the voice: attack 30 ms, hold 700 ms, release
+     400 ms. The music fader is at −3 dB.
+   - Depth is 17.2 dB in English and 13.5 dB in Spanish.
+   - Every line is at least 10 dB over the music in the speech band.
+     - English margins: 18.3, 15.3, 15.0, 11.2, 13.7, 11.8, 17.2, 21.1 dB.
+     - Spanish margins: 14.5, 15.9, 11.7, 10.4, 10.6, 10.6, 14.3, 17.5 dB.
+
+**The soundtrack, mixed in Cantus:**
+- `crates/cantus-ui/examples/soundtrack.rs`, one project per language.
+- The projects, stems and masters are in `F:\projects\video-work\soundtrack\`.
+- The masters: −14.0 LUFS, −1.1 dBTP. Cantus's meter and ffmpeg agree.
+- The mp4s are encoded from a −2 dBTP export, because AAC raised −1 to −0.2.
+
+**The drafts:**
+- `F:\projects\video-work\film\draft2-en-1080p30.mp4`
+- `F:\projects\video-work\film\draft2-es-1080p30.mp4`
+
+**What the session checked itself:**
+- ffprobe: 1080p30, 2400 frames, 80.000 s, both languages.
+- ffmpeg ebur128 on the mp4s: English −14.0 LUFS, peak −1.1 dBTP; Spanish −14.0 LUFS,
+  −1.5 dBTP.
+- A sheet of nine frames per language: the end card holds the card alone, and the Spanish
+  cards read in Spanish.
+
+**Judged by measurement only:**
+- The crossfade: its largest step is 8.6 dB at 23.98 s, read as the song's own hit, not
+  the edit.
+- The ducking margins.
+
+Nobody has heard them yet.
+
+**Proposed:** without the dancer, the end card's free right half could be balanced by
+centring the block. It would be a small change to `cards.css` and a re-cut. Not done yet.
+
 ## What nobody has watched or heard yet
 
-No one has heard any take or watched the draft. Claude measured the takes, Whisper
-transcribed them, and Claude looked at the frames and card stills.
+Nobody has heard draft 2's mix. The ducking and the crossfade are measured only. The owner
+has watched draft 1 and heard the voice takes.
 
 *(Written by the integrator from the video agent's hand-back, 2026-11-20: the subagent's tool
 policy refused it a report file. Two of its claims were checked against the code: no demo
