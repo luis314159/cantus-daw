@@ -1041,9 +1041,18 @@ fn subject_with(
     o.insert("sources".into(), Value::Array(sources));
     // Round 31 (ADR 0069): the key the region's note effects read and the pooled grooves its
     // clips play — written only where they are, so every other subject is as it was.
+    // Round 41 (ADR 0153, its review): the key the region's effects follow too — on its
+    // strips, and on the master when the whole mix is in it.
     let region_tracks = || project.tracks.iter().filter(|t| r.tracks.contains(&t.id));
     if let Some(k) = project.key {
-        if region_tracks().any(|t| crate::notefx::reads_project_key(&t.note_fx)) {
+        let effects_follow = project
+            .strips
+            .iter()
+            .filter(|s| r.strips.contains(&s.id))
+            .flat_map(|s| s.effects.iter())
+            .chain(project.master.effects.iter().filter(|_| r.whole))
+            .any(|e| e.spec.reads_song_key());
+        if effects_follow || region_tracks().any(|t| crate::notefx::reads_project_key(&t.note_fx)) {
             o.insert("key".into(), value(&k));
         }
     }

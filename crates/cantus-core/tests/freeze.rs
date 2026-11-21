@@ -1733,3 +1733,58 @@ fn a_track_delay_is_locked_inside_a_frozen_region() {
         Some(FreezeTarget::Strip(s.group))
     );
 }
+
+/// r41 review: since ADR 0153 an effect can follow the song's key — Nitor on `key` 0 (its
+/// default), alone or as a board's pedal — and then the key is part of what a frozen strip
+/// sounds like: a key change is refused while it is frozen (it would reuse a render tuned
+/// to the old key), and the content key moves with it. A Nitor on a key of its own leaves
+/// the key out, as every other effect does.
+#[test]
+fn an_effect_following_the_song_s_key_puts_the_key_in_the_freeze() {
+    let in_c = Some(Key::new(0, ScaleKind::Major));
+    let in_g = Some(Key::new(7, ScaleKind::Major));
+    let with = |spec: EffectSpec| {
+        let s = song();
+        let mut p = s.bus.project().clone();
+        let mut slot = p.make_effect(spec.kind);
+        slot.spec = spec;
+        p.strip_mut(s.synth_strip).unwrap().effects.push(slot);
+        p.key = in_c;
+        (CommandBus::new(p), s.synth_strip)
+    };
+    let nitor = EffectSpec::new(EffectKind::Enhancer);
+    assert!(nitor.reads_song_key(), "Nitor follows the song by default");
+    let mut fixed = nitor.clone();
+    fixed.set("key", 3.0).unwrap();
+    assert!(!fixed.reads_song_key());
+    let mut board = EffectSpec::new(EffectKind::Board);
+    board.board = Some(Box::new(Board {
+        pedals: vec![Pedal::new(PedalId(0), nitor.clone())],
+        macros: Vec::new(),
+    }));
+    assert!(
+        board.reads_song_key(),
+        "a board whose pedal follows the song"
+    );
+    for (what, spec, follows) in [
+        ("Nitor", nitor, true),
+        ("a board's Nitor", board, true),
+        ("Nitor on its own key", fixed, false),
+    ] {
+        let (mut bus, strip) = with(spec);
+        let t = FreezeTarget::Strip(strip);
+        let before = key(&bus, t);
+        let mut moved = bus.project().clone();
+        moved.key = in_g;
+        let after = freeze::content_key(&moved, t).unwrap();
+        assert_eq!(before != after, follows, "{what}: the content key");
+        freeze(&mut bus, t);
+        let refused = refused_by(&mut bus, Command::SetProjectKey { key: in_g });
+        assert_eq!(
+            refused.is_some(),
+            follows,
+            "{what}: a key change while frozen"
+        );
+        assert_eq!(freeze::consistent(bus.project()), Ok(()), "{what}");
+    }
+}

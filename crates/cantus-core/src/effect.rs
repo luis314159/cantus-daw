@@ -767,6 +767,20 @@ impl EffectSpec {
         self.kind.takes_notes() || self.pedal_specs().any(|s| s.takes_notes())
     }
 
+    /// Whether this effect, as set, follows the song's key — the key the engine hands every
+    /// unit (ADR 0153, `FxUnit::set_song_key`) — so that a change of the project's key is
+    /// something to hear (a freeze's content key holds the key then): Nitor on `key` 0, and
+    /// a board when one of its pedals does. **The one place that says it** (round 41's
+    /// review): a kind that comes to follow the song's key answers here, and the engine's
+    /// `song_key` test fails for one whose sound moves with the key while this says no.
+    pub fn reads_song_key(&self) -> bool {
+        let own = match self.kind {
+            EffectKind::Enhancer => fx::nitor::follows_song(self.get("key")),
+            _ => false,
+        };
+        own || self.pedal_specs().any(|s| s.reads_song_key())
+    }
+
     // ---- the routed API (fx3:contract, ADR 0131): a board's `p{id}.{key}` is its pedal's
     // ---- `key`; every other key, and every key of every other kind, is the spec's own.
 
