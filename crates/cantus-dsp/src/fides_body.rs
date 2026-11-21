@@ -397,7 +397,12 @@ impl Body {
     /// stops at the same sample at every block size.
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32], clock: u64, quiet: bool) {
         if self.n == 0 || self.wet == 0.0 {
-            // The dry gain is exactly 1 with no body.
+            // The dry gain is exactly 1 with no body. Taken out of use mid-ring (no body, a
+            // mix of 0), what it held is let go at once (review 3): frozen, it would ring
+            // when it came back, and the instrument would never be at rest.
+            if !self.still {
+                self.reset();
+            }
             return;
         }
         if quiet && self.still {
@@ -496,6 +501,18 @@ impl Output {
         }
         for f in self.hi.iter_mut() {
             f.set(hi);
+        }
+        // A cut taken out of use lets go of its state (review 3): frozen, it would ring
+        // when it came back, and with both off the stage would never be still.
+        if !self.lo_on {
+            self.lo.iter_mut().for_each(|f| f.clear());
+        }
+        if !self.hi_on {
+            self.hi.iter_mut().for_each(|f| f.clear());
+        }
+        if !self.lo_on && !self.hi_on {
+            self.still = true;
+            self.fed = false;
         }
         self.gain = math::db_to_gain(s.gain_db);
         self.trem_rate = s.trem_rate_hz;
