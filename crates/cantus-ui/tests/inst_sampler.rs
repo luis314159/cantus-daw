@@ -33,6 +33,7 @@ fn paint_inst(app: &mut cantus_ui::CantusApp) -> String {
 
 #[test]
 fn the_editor_opens_in_every_view_and_shows_its_map_and_seam() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_sampler();
     cantus_ui::views::inst::demo_setup(&mut a, track, InstrumentKind::Sampler);
     cantus_ui::views::inst::demo_feed(&mut a, InstrumentKind::Sampler);
@@ -82,6 +83,7 @@ fn three_zone_import() -> import::Import {
 
 #[test]
 fn an_import_is_one_undo_step_and_replaces_the_zones() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_sampler();
     a.set_inst_value(track, "z9.gen", 2.0, false);
     a.set_inst_value(track, "gain", -3.0, false);
@@ -99,6 +101,7 @@ fn an_import_is_one_undo_step_and_replaces_the_zones() {
 
 #[test]
 fn dragging_a_zone_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_sampler();
     smp::apply_import(&mut a, track, three_zone_import());
     let before = spec(&a, track);
@@ -121,6 +124,7 @@ fn dragging_a_zone_is_one_undo_step() {
 
 #[test]
 fn every_factory_preset_sets_what_it_names() {
+    let _theme_turn = theme_turn();
     for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Sampler) {
         let (mut a, track) = with_sampler();
         let target = cantus_ui::views::inst::preset_spec(InstrumentKind::Sampler, p);
@@ -145,6 +149,7 @@ fn every_factory_preset_sets_what_it_names() {
 
 #[test]
 fn dropped_files_become_zones_in_one_step() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     let spec_wav = hound::WavSpec {
         channels: 1,
@@ -223,6 +228,7 @@ fn parse_sfz(text: &str) -> import::Import {
 
 #[test]
 fn sfz_maps_the_priority_opcodes_and_logs_the_rest() {
+    let _theme_turn = theme_turn();
     let imp = parse_sfz(SFZ);
     assert_eq!(imp.zones.len(), 4);
     let soft = &imp.zones[0];
@@ -268,6 +274,7 @@ fn sfz_maps_the_priority_opcodes_and_logs_the_rest() {
 
 #[test]
 fn sfz_export_round_trips() {
+    let _theme_turn = theme_turn();
     let imp = parse_sfz(SFZ);
     let (mut a, track) = with_sampler();
     smp::apply_import(&mut a, track, imp);
@@ -335,6 +342,7 @@ const DSPRESET: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn decent_sampler_multiplies_volume_adds_pan_and_maps_tags() {
+    let _theme_turn = theme_turn();
     let meta = |_: &str| None;
     let imp = ds::parse(DSPRESET, Path::new("C:/lib"), &meta).unwrap();
     assert_eq!(imp.zones.len(), 3);
@@ -480,6 +488,7 @@ fn tiny_sf2(frames: usize) -> Vec<u8> {
 
 #[test]
 fn a_soundfont_preset_becomes_zones_and_wav_files() {
+    let _theme_turn = theme_turn();
     let sf = sf2::parse(&tiny_sf2(2_000)).unwrap();
     assert_eq!(sf.name, "Tiny");
     assert_eq!(
@@ -512,6 +521,7 @@ fn a_soundfont_preset_becomes_zones_and_wav_files() {
 
 #[test]
 fn wav_metadata_gives_root_fine_tune_and_loop() {
+    let _theme_turn = theme_turn();
     let mut fmt = Vec::new();
     fmt.extend(1u16.to_le_bytes());
     fmt.extend(1u16.to_le_bytes());
@@ -545,6 +555,7 @@ fn wav_metadata_gives_root_fine_tune_and_loop() {
 /// `data` chunk is still found, and a FLAC (no chunks) is answered from its first bytes.
 #[test]
 fn file_metadata_skips_the_audio_and_finds_chunks_after_it() {
+    let _theme_turn = theme_turn();
     let mut fmt = Vec::new();
     fmt.extend(1u16.to_le_bytes());
     fmt.extend(2u16.to_le_bytes());
@@ -673,6 +684,7 @@ fn demo_at_origin(view: View) -> (cantus_ui::CantusApp, TrackId) {
 
 #[test]
 fn every_word_fits_its_box_at_three_quarters_double_size_and_in_spanish() {
+    let _theme_turn = theme_turn();
     use cantus_ui::i18n::{set_thread_locale, Locale};
     for (locale, k) in [
         (Locale::En, 1.0),
@@ -711,6 +723,7 @@ fn every_word_fits_its_box_at_three_quarters_double_size_and_in_spanish() {
 
 #[test]
 fn a_drag_on_a_cell_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = demo_at_origin(View::Play);
     let before = spec(&a, track);
     let c = ctx();
@@ -719,7 +732,7 @@ fn a_drag_on_a_cell_is_one_undo_step() {
     let attack = cantus_ui::i18n::t("smp.attack").to_uppercase();
     let (_, r, _) = texts(&shapes)
         .into_iter()
-        .find(|(s, _, _)| *s == attack)
+        .find(|(s, _, _)| s.to_uppercase() == attack)
         .expect("the amplitude card's attack cell is painted");
     let p = r.center();
     let mut frames = vec![
@@ -755,6 +768,7 @@ fn a_drag_on_a_cell_is_one_undo_step() {
 /// A drag on a zone's cell moves the zone's number and is one undo step too.
 #[test]
 fn a_drag_on_a_zone_cell_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = demo_at_origin(View::Edit);
     let before = spec(&a, track);
     let n = a.inst.sampler.selected.expect("the demo selects a zone");
@@ -765,7 +779,7 @@ fn a_drag_on_a_zone_cell_is_one_undo_step() {
     // The zone card is the first card with a GAIN cell from the top.
     let (_, r, _) = texts(&shapes)
         .into_iter()
-        .filter(|(s, _, _)| *s == gain)
+        .filter(|(s, _, _)| s.to_uppercase() == gain)
         .min_by(|a, b| a.1.top().total_cmp(&b.1.top()))
         .expect("the zone card's gain cell is painted");
     let p = r.center();
@@ -820,6 +834,7 @@ fn opens_a_dialog(s: &str) -> bool {
 /// the part of the design review the window's scroll hides.
 #[test]
 fn the_whole_edit_view_for_the_design_review() {
+    let _theme_turn = theme_turn();
     let Some(dir) = std::env::var_os("CANTUS_INST_SHOTS").map(std::path::PathBuf::from) else {
         return;
     };
@@ -848,10 +863,26 @@ fn the_whole_edit_view_for_the_design_review() {
 /// — and the undo gives the seeded order back.
 #[test]
 fn an_import_plays_its_round_robins_in_order_even_on_an_old_exemplar() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_sampler();
     a.set_inst_value(track, "rr.order", 0.0, false);
     smp::apply_import(&mut a, track, three_zone_import());
     assert_eq!(spec(&a, track).get("rr.order"), 1.0);
     a.undo();
     assert_eq!(spec(&a, track).get("rr.order"), 0.0);
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

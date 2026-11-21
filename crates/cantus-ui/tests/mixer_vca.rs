@@ -96,6 +96,7 @@ fn painted_text(shapes: &[egui::epaint::ClippedShape]) -> String {
 
 #[test]
 fn a_vca_strip_has_a_fader_and_none_of_the_audio_rows() {
+    let _theme_turn = theme_turn();
     let (p, vca, member) = project();
     let mut r = Rig::new(p);
     // Polarity, width and the EQ are Wide's and Large's rows (des-mixer).
@@ -114,6 +115,7 @@ fn a_vca_strip_has_a_fader_and_none_of_the_audio_rows() {
 
 #[test]
 fn the_snapshots_menu_lists_the_snapshots_and_the_cues() {
+    let _theme_turn = theme_turn();
     let (p, _, _) = project();
     let mut r = Rig::new(p);
     r.frames(4);
@@ -128,6 +130,7 @@ fn the_snapshots_menu_lists_the_snapshots_and_the_cues() {
 
 #[test]
 fn a_recall_through_the_app_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     use cantus_core::mix_cmd::MixCommand;
     use cantus_core::Command;
     let (p, _, member) = project();
@@ -153,4 +156,19 @@ fn a_recall_through_the_app_is_one_undo_step() {
         now == before,
         "one undo step puts back what the recall changed"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

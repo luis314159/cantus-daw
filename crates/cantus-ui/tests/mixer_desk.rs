@@ -193,6 +193,7 @@ fn hint_now(ctx: &egui::Context) -> (String, String) {
 /// numbered.
 #[test]
 fn the_desk_has_no_label_column_and_no_minus_infinity() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 900.0));
     let text = r.idle(2);
     for word in [
@@ -219,6 +220,7 @@ fn the_desk_has_no_label_column_and_no_minus_infinity() {
 /// too tall: the sends row is always reachable.
 #[test]
 fn a_short_desk_fits_first_then_scrolls() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1280.0, 330.0));
     r.idle(2);
     assert!(
@@ -248,6 +250,7 @@ fn a_short_desk_fits_first_then_scrolls() {
 /// A tall desk shows every row and needs no scrolling.
 #[test]
 fn a_tall_desk_shows_every_row() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 1000.0));
     // Polarity and width are Wide's and Large's rows (des-mixer).
     mixer::set_width_mode(&mut r.app, WidthMode::Wide);
@@ -275,6 +278,7 @@ fn a_tall_desk_shows_every_row() {
 /// names scrolls the strips sideways.
 #[test]
 fn only_visible_strips_are_laid_out_and_the_wheel_scrolls_sideways() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(grown(64), vec2(1000.0, 800.0));
     r.idle(2);
     let laid = r.app.mixer.strips_laid_out();
@@ -292,6 +296,7 @@ fn only_visible_strips_are_laid_out_and_the_wheel_scrolls_sideways() {
 /// Shift+wheel moves the strip under the pointer along the desk.
 #[test]
 fn shift_wheel_reorders_the_strip_under_the_pointer() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 900.0));
     r.idle(2);
     let s3 = r.app.project().strips[2].id;
@@ -308,6 +313,7 @@ fn shift_wheel_reorders_the_strip_under_the_pointer() {
 /// never moves a fader.
 #[test]
 fn ctrl_wheel_moves_a_fader_or_steps_the_width() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 900.0));
     r.idle(2);
     let s1 = r.app.project().strips[0].id;
@@ -333,6 +339,7 @@ fn ctrl_wheel_moves_a_fader_or_steps_the_width() {
 /// fader in dB.
 #[test]
 fn the_hint_bar_reads_the_strip() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 1000.0));
     // Width is Wide's and Large's (des-mixer).
     mixer::set_width_mode(&mut r.app, WidthMode::Wide);
@@ -355,6 +362,7 @@ fn the_hint_bar_reads_the_strip() {
 /// there, Ctrl+click routes it there only, and an arrow that would loop does nothing.
 #[test]
 fn the_send_row_routes_the_selected_strip() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 1000.0));
     // FL's row is the Rows menu's to show (off by default since round 39).
     mixer::set_row(&mut r.app, mixer::layout::Row::Sends, true);
@@ -386,6 +394,7 @@ fn the_send_row_routes_the_selected_strip() {
 /// A strip selected elsewhere (the arrangement, the inspector) is scrolled into view.
 #[test]
 fn the_selected_strip_is_scrolled_into_view() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(grown(64), vec2(1000.0, 800.0));
     r.idle(2);
     assert_eq!(r.app.mixer.scroll().0, 0.0);
@@ -401,6 +410,7 @@ fn the_selected_strip_is_scrolled_into_view() {
 /// selection moves them all.
 #[test]
 fn selection_and_ganged_faders() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 1000.0));
     r.idle(2);
     let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
@@ -449,6 +459,7 @@ fn selection_and_ganged_faders() {
 /// The width mode is kept per window layout.
 #[test]
 fn the_width_mode_is_kept_per_layout() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 900.0));
     r.app.mixer.load_prefs(&dir.path().join("layouts.json"));
@@ -476,6 +487,7 @@ fn the_width_mode_is_kept_per_layout() {
 
 #[test]
 fn wider_modes_show_more() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     let compact = r.idle(2);
     assert!(
@@ -510,6 +522,7 @@ fn wider_modes_show_more() {
 /// Rename in place: a double-click on the name, type, Enter.
 #[test]
 fn a_strip_is_renamed_in_place() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 900.0));
     r.idle(2);
     let s2 = r.app.project().strips[1].id;
@@ -541,6 +554,7 @@ fn a_strip_is_renamed_in_place() {
 /// Spanish, and the UI at 75 % and 200 %: the desk paints, with every row named.
 #[test]
 fn the_desk_paints_in_spanish_and_at_every_scale() {
+    let _theme_turn = theme_turn();
     for ppp in [0.75f32, 1.0, 2.0] {
         let mut r = Rig::new(starter_project(), vec2(1280.0, 720.0) / ppp);
         cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
@@ -556,6 +570,7 @@ fn the_desk_paints_in_spanish_and_at_every_scale() {
 /// The pan law lives in the master's menu (des-mixer: no chip on the strip).
 #[test]
 fn the_master_carries_the_pan_law() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 1000.0));
     r.idle(2);
     mixer::open_menu(&mut r.app, Some(StripId::MASTER), pos2(60.0, 300.0));
@@ -612,6 +627,7 @@ fn on_run(r: &Rig, d: &cantus_ui::views::mixer::DrawnCable) -> Pos2 {
 /// cable view decides the rest — the selection's (the default), all, or none.
 #[test]
 fn the_band_draws_the_selections_cables_port_to_port() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     let ids = with_returns(&mut r);
     r.app.select_strip(ids[1]);
@@ -657,6 +673,7 @@ fn the_band_draws_the_selections_cables_port_to_port() {
 /// in the hint bar.
 #[test]
 fn a_cable_carries_its_level_pre_and_the_doubled_warning() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     // The level pills are an option of the cable view since round 39 (des-mixer).
     {
@@ -708,6 +725,7 @@ fn a_cable_carries_its_level_pre_and_the_doubled_warning() {
 /// go; a drag on a pill sets the send's level.
 #[test]
 fn a_cable_is_selected_removed_and_its_pill_dragged() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     // The level pills are an option of the cable view since round 39 (des-mixer).
     {
@@ -772,6 +790,7 @@ fn a_cable_is_selected_removed_and_its_pill_dragged() {
 /// notes still selected in the piano roll (the keymap's Delete runs before the desk).
 #[test]
 fn delete_on_a_selected_cable_removes_the_cable_not_the_notes() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     mixer::set_width_mode(&mut r.app, WidthMode::Wide);
     let ids = with_returns(&mut r);
@@ -838,6 +857,7 @@ fn delete_on_a_selected_cable_removes_the_cable_not_the_notes() {
 /// click on it scrolls that strip into view.
 #[test]
 fn an_end_out_of_view_is_a_chip_that_scrolls_to_it() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(grown(64), vec2(1000.0, 800.0));
     let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
     r.app.set_strip_send(ids[1], Send::new(ids[50]));
@@ -863,6 +883,7 @@ fn an_end_out_of_view_is_a_chip_that_scrolls_to_it() {
 /// follows the last send; the output chip says where the strip goes.
 #[test]
 fn extra_large_send_rows_switch_and_set_their_sends() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     mixer::set_width_mode(&mut r.app, WidthMode::Xl);
     let ids = with_returns(&mut r);
@@ -913,6 +934,7 @@ fn extra_large_send_rows_switch_and_set_their_sends() {
 /// band's pills overlap neither each other nor the ports, and the band's words fit.
 #[test]
 fn the_band_reads_without_overlaps_at_every_scale_and_language() {
+    let _theme_turn = theme_turn();
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         for ppp in [0.75f32, 2.0] {
             for mode in [WidthMode::Wide, WidthMode::Xl] {
@@ -1013,6 +1035,7 @@ fn delete_key() -> Event {
 /// nothing on the last pass) never has its cable removed by Delete.
 #[test]
 fn delete_never_removes_a_cable_that_is_not_drawn() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     mixer::set_width_mode(&mut r.app, WidthMode::Wide);
     let ids = with_returns(&mut r);
@@ -1060,6 +1083,7 @@ fn delete_never_removes_a_cable_that_is_not_drawn() {
 /// for itself then; with nothing of the desk's to cancel, Esc clears as before.
 #[test]
 fn esc_on_the_desk_cancels_its_own_things_and_clears_nothing_else() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     mixer::set_width_mode(&mut r.app, WidthMode::Wide);
     let ids = with_returns(&mut r);
@@ -1141,6 +1165,7 @@ fn esc_on_the_desk_cancels_its_own_things_and_clears_nothing_else() {
 /// selection sends (one undo step), and a refusal is said in the hint bar.
 #[test]
 fn the_from_selected_arrow_acts_for_the_selection_and_says_a_refusal() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1400.0, 1000.0));
     // FL's row is the Rows menu's to show (off by default since round 39).
     mixer::set_row(&mut r.app, mixer::layout::Row::Sends, true);
@@ -1187,6 +1212,7 @@ fn the_from_selected_arrow_acts_for_the_selection_and_says_a_refusal() {
 /// chip.
 #[test]
 fn a_cable_with_both_ends_off_on_one_side_draws_nothing() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(grown(64), vec2(1000.0, 800.0));
     mixer::set_width_mode(&mut r.app, WidthMode::Wide);
     let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
@@ -1212,6 +1238,7 @@ fn a_cable_with_both_ends_off_on_one_side_draws_nothing() {
 /// pulling the plug out of that jack moves the selection's route, never another's.
 #[test]
 fn hovering_a_strip_never_moves_the_selections_lanes() {
+    let _theme_turn = theme_turn();
     for view in [CableView::Selected, CableView::All] {
         let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
         // The level pills are an option of the cable view since round 39 (des-mixer).
@@ -1323,6 +1350,7 @@ fn hovering_a_strip_never_moves_the_selections_lanes() {
 /// each legend word once.
 #[test]
 fn the_legend_words_never_read_the_same() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::mixer::layout::Row;
     for locale in cantus_ui::i18n::Locale::ALL {
         cantus_ui::i18n::set_thread_locale(locale);
@@ -1398,6 +1426,7 @@ fn the_legend_words_never_read_the_same() {
 /// pill.
 #[test]
 fn the_hovers_cables_are_pointable_and_hung_by_their_span() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     {
         let mut p = r.app.mixer.prefs();
@@ -1468,6 +1497,7 @@ fn the_hovers_cables_are_pointable_and_hung_by_their_span() {
 /// scrolls with the middle instead of lying over the master.
 #[test]
 fn the_right_dock_never_covers_the_master() {
+    let _theme_turn = theme_turn();
     for w in [300.0f32, 360.0, 420.0, 520.0, 800.0] {
         for mode in WidthMode::ALL {
             let mut r = Rig::new(starter_project(), vec2(w, 340.0));
@@ -1499,6 +1529,7 @@ fn the_right_dock_never_covers_the_master() {
 /// strips' numbers stay in sight — and an untouched name keeps following its track.
 #[test]
 fn a_strip_rename_opens_with_the_name_it_shows_clear_of_the_numbers() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 700.0));
     mixer::set_width_mode(&mut r.app, WidthMode::Compact);
     let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
@@ -1599,6 +1630,7 @@ fn colours_in(shapes: &[egui::epaint::ClippedShape], area: egui::Rect) -> Vec<eg
 /// the modulation hue — as the desk's send knob and row do.
 #[test]
 fn a_modulated_sends_pill_shows_its_modulation() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
     // The level pills are an option of the cable view since round 39 (des-mixer).
     {
@@ -1653,6 +1685,7 @@ fn a_modulated_sends_pill_shows_its_modulation() {
 /// returns docked right keeps every docked strip on screen, at every width.
 #[test]
 fn the_right_dock_never_leaves_the_window() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(grown(24), vec2(1400.0, 700.0));
     let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
     for id in &ids[18..24] {
@@ -1682,6 +1715,7 @@ fn the_right_dock_never_leaves_the_window() {
 /// beside the strips; a click on an insert opens its editor.
 #[test]
 fn the_insert_panel_shows_the_selected_strips_inserts_and_opens_them() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(grown(12), vec2(1500.0, 760.0));
     let strip = r.app.project().strips[2].id;
     let slot = r.app.bus.new_effect(cantus_core::EffectKind::Saturator);
@@ -1737,6 +1771,7 @@ fn the_insert_panel_shows_the_selected_strips_inserts_and_opens_them() {
 /// each density, scrolled to either end, no strip's column runs under either pill.
 #[test]
 fn the_overflow_pill_never_covers_a_strip() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(grown(64), vec2(1400.0, 700.0));
     for mode in [WidthMode::Compact, WidthMode::Wide, WidthMode::Xl] {
         mixer::set_width_mode(&mut r.app, mode);
@@ -1800,6 +1835,7 @@ fn the_overflow_pill_never_covers_a_strip() {
 /// on one makes the strips up to it in one undo step, the last selected.
 #[test]
 fn the_desk_fills_its_width_with_the_next_empty_strips() {
+    let _theme_turn = theme_turn();
     for w in [1920.0f32, 1280.0] {
         for mode in [WidthMode::Compact, WidthMode::Wide, WidthMode::Xl] {
             let mut r = Rig::new(welcome_project(), vec2(w, 700.0));
@@ -1879,6 +1915,7 @@ fn the_desk_fills_its_width_with_the_next_empty_strips() {
 /// pill is less than a strip. Paged to the end: no right slot, the middle runs to the dock.
 #[test]
 fn the_desk_folds_only_what_does_not_fit() {
+    let _theme_turn = theme_turn();
     for (w, mode) in [
         (1920.0f32, WidthMode::Xl),
         (1280.0, WidthMode::Wide),
@@ -1969,6 +2006,7 @@ fn the_desk_folds_only_what_does_not_fit() {
 /// widths (fails before: at some of them the room beside a one-digit pill held a strip).
 #[test]
 fn the_overflow_slot_fits_its_count() {
+    let _theme_turn = theme_turn();
     let mode = WidthMode::Wide;
     let pitch = mode.pitch();
     let slot = |n_strips: usize, w: f32| -> Option<(usize, f32, egui::Rect)> {
@@ -2019,4 +2057,19 @@ fn the_overflow_slot_fits_its_count() {
         "a one-digit slot ({one}) under a two-digit one ({two})"
     );
     assert!(one <= 31.0, "one digit needs about 30 pt: {one}");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

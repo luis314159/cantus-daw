@@ -38,6 +38,7 @@ fn files_in(dir: &std::path::Path) -> Vec<String> {
 
 #[test]
 fn the_dialog_opens_with_the_last_choices_and_the_songs_title() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -62,6 +63,7 @@ fn the_dialog_opens_with_the_last_choices_and_the_songs_title() {
 
 #[test]
 fn the_choices_persist_in_the_settings_file() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -93,6 +95,7 @@ fn the_choices_persist_in_the_settings_file() {
 
 #[test]
 fn an_export_runs_off_the_interface_thread_and_says_so() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -114,6 +117,7 @@ fn an_export_runs_off_the_interface_thread_and_says_so() {
 
 #[test]
 fn export_to_takes_the_format_from_the_extension() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -135,6 +139,7 @@ fn claxon_head(p: &std::path::Path) -> [u8; 4] {
 
 #[test]
 fn a_stopped_export_leaves_no_file() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -154,6 +159,7 @@ fn a_stopped_export_leaves_no_file() {
 
 #[test]
 fn stems_come_out_in_the_chosen_format() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -173,6 +179,7 @@ fn stems_come_out_in_the_chosen_format() {
 
 #[test]
 fn the_dialog_renders_in_both_themes_and_languages() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let input = egui::RawInput {
@@ -214,6 +221,7 @@ fn the_dialog_renders_in_both_themes_and_languages() {
 
 #[test]
 fn every_key_of_the_dialog_has_words_in_both_languages() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let src = include_str!("../locales/areas/export_audio.en.txt");
     let keys: Vec<&str> = src
@@ -229,4 +237,19 @@ fn every_key_of_the_dialog_has_words_in_both_languages() {
         }
     }
     i18n::set_thread_locale(Locale::En);
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

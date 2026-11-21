@@ -36,6 +36,7 @@ fn kit(a: &cantus_ui::CantusApp, track: TrackId) -> PulsusParams {
 
 #[test]
 fn the_editor_opens_in_both_views_and_paints_its_pads() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = kit_app(PulsusParams::studio());
     pulsus_editor::open(&mut a, track);
     for view in [View::Play, View::Edit] {
@@ -63,6 +64,7 @@ fn the_editor_opens_in_both_views_and_paints_its_pads() {
 
 #[test]
 fn a_model_one_kit_offers_the_upgrade_and_it_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let mut old = PulsusParams {
         version: 1,
         ..PulsusParams::default()
@@ -95,6 +97,7 @@ fn a_model_one_kit_offers_the_upgrade_and_it_is_one_undo_step() {
 
 #[test]
 fn a_knob_gesture_and_a_layer_edit_are_one_undo_step_each() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = kit_app(PulsusParams::studio());
     let before = kit(&a, track);
     let snare = before.pads[2].id;
@@ -119,6 +122,7 @@ fn a_knob_gesture_and_a_layer_edit_are_one_undo_step_each() {
 
 #[test]
 fn loading_a_factory_kit_sets_what_it_names_in_one_step() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = kit_app(PulsusParams::default());
     let before = kit(&a, track);
     let factory = PulsusParams::factory();
@@ -138,6 +142,7 @@ fn loading_a_factory_kit_sets_what_it_names_in_one_step() {
 /// The selection is a pad, not a row: adding a pad below it keeps it on the same drum.
 #[test]
 fn the_selection_follows_the_pad_when_a_lower_one_arrives() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = kit_app(PulsusParams::default());
     let k = kit(&a, track);
     let snare = k.pads[2].id;
@@ -261,6 +266,7 @@ fn open_at_origin(view: View) -> (cantus_ui::CantusApp, TrackId) {
 
 #[test]
 fn every_word_fits_its_box_at_three_quarters_double_size_and_in_spanish() {
+    let _theme_turn = theme_turn();
     use cantus_ui::i18n::{set_thread_locale, Locale};
     for (locale, k) in [
         (Locale::En, 1.0),
@@ -293,6 +299,7 @@ fn every_word_fits_its_box_at_three_quarters_double_size_and_in_spanish() {
 
 #[test]
 fn a_drag_on_a_cell_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = open_at_origin(View::Play);
     let before = kit(&a, track);
     let c = ctx();
@@ -301,7 +308,7 @@ fn a_drag_on_a_cell_is_one_undo_step() {
     let decay = cantus_ui::i18n::t("pad.decay").to_uppercase();
     let (_, r, _) = texts(&shapes)
         .into_iter()
-        .find(|(s, _, _)| *s == decay)
+        .find(|(s, _, _)| s.to_uppercase() == decay)
         .expect("the voice card's decay cell is painted");
     let p = r.center();
     let mut frames = vec![
@@ -339,6 +346,7 @@ fn a_drag_on_a_cell_is_one_undo_step() {
 /// The grid's words at 4.5:1 and its marks at 3:1 on the cells, in every shipped theme.
 #[test]
 fn the_pad_grid_passes_contrast_in_every_theme() {
+    let _theme_turn = theme_turn();
     use cantus_ui::kit::color::{contrast, mix};
     use cantus_ui::theme;
     for (name, th) in [
@@ -366,6 +374,7 @@ fn the_pad_grid_passes_contrast_in_every_theme() {
 
 #[test]
 fn screenshots_in_slate_and_paper() {
+    let _theme_turn = theme_turn();
     let Some(dir) = std::env::var_os("CANTUS_INST_SHOTS").map(std::path::PathBuf::from) else {
         return;
     };
@@ -401,4 +410,19 @@ fn opens_a_dialog(s: &str) -> bool {
     .iter()
     .map(|k| cantus_ui::i18n::t(k))
     .any(|l| l == s || l.to_uppercase() == s)
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

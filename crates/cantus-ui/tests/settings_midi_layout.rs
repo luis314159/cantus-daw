@@ -95,6 +95,7 @@ fn columns_read(l: &InputsLayout) {
 
 #[test]
 fn the_inputs_table_fits_the_default_window_at_100_and_200_percent() {
+    let _theme_turn = theme_turn();
     for zoom in [1.0, 2.0] {
         let (l, texts) = settings_midi(vec2(1920.0, 1080.0), zoom);
         columns_read(&l);
@@ -119,6 +120,7 @@ fn the_inputs_table_fits_the_default_window_at_100_and_200_percent() {
 
 #[test]
 fn a_narrow_window_scrolls_the_table_to_every_column() {
+    let _theme_turn = theme_turn();
     // A 1366 × 768 laptop at 200 %: the window is narrower than the table.
     let (l, _) = settings_midi(vec2(1366.0, 768.0), 2.0);
     columns_read(&l);
@@ -133,4 +135,19 @@ fn a_narrow_window_scrolls_the_table_to_every_column() {
             l.content
         );
     }
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

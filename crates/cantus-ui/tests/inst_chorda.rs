@@ -56,6 +56,7 @@ fn edit_text(a: &mut CantusApp, ctx: &egui::Context) -> String {
 
 #[test]
 fn it_opens_in_every_view_and_draws_the_piano_from_above() {
+    let _theme_turn = theme_turn();
     let (mut a, _) = with_chorda();
     let ctx = ctx();
     for view in [View::Play, View::Edit, View::Matrix] {
@@ -96,6 +97,7 @@ fn it_opens_in_every_view_and_draws_the_piano_from_above() {
 
 #[test]
 fn a_cell_turned_is_one_undo_step_and_a_dropped_source_connects() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_chorda();
     a.inst.view = View::Play;
     let ctx = ctx();
@@ -127,6 +129,7 @@ fn a_cell_turned_is_one_undo_step_and_a_dropped_source_connects() {
 
 #[test]
 fn the_tuning_curve_follows_the_stretch() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_chorda();
     let ctx = ctx();
     let stretched = edit_text(&mut a, &ctx);
@@ -174,6 +177,7 @@ fn demo() -> (CantusApp, TrackId) {
 
 #[test]
 fn no_text_is_elided_or_overlaps_at_75_100_and_200_percent() {
+    let _theme_turn = theme_turn();
     for k in [0.75, 1.0, 2.0] {
         let (mut a, track) = demo();
         let ctx = ctx();
@@ -185,6 +189,7 @@ fn no_text_is_elided_or_overlaps_at_75_100_and_200_percent() {
 
 #[test]
 fn no_text_is_elided_or_overlaps_in_spanish() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let mut found = Vec::new();
     for k in [0.75, 1.0] {
@@ -203,6 +208,7 @@ fn no_text_is_elided_or_overlaps_in_spanish() {
 
 #[test]
 fn presets_set_what_they_name() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_chorda();
     // Round 37 (ADR 0098, ADR 0101's floor): at least twenty-four, voiced for model 2.
     assert!(chorda::FACTORY_PRESETS.len() >= 24);
@@ -271,6 +277,7 @@ fn presets_set_what_they_name() {
 
 #[test]
 fn the_inspector_reads_the_tuning_as_the_knobs_do() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut spec = NativeSpec::new(InstrumentKind::Chorda);
     assert!(
@@ -288,6 +295,7 @@ fn the_inspector_reads_the_tuning_as_the_knobs_do() {
 
 #[test]
 fn while_the_strings_are_designed_the_editor_says_so() {
+    let _theme_turn = theme_turn();
     let (mut a, _) = with_chorda();
     let ctx = ctx();
     let mut t = [0.0; cantus_engine::TELEMETRY_LEN];
@@ -306,6 +314,7 @@ fn while_the_strings_are_designed_the_editor_says_so() {
 
 #[test]
 fn the_tuning_is_set_never_automated() {
+    let _theme_turn = theme_turn();
     let (mut a, track) = with_chorda();
     let clips = |a: &CantusApp| {
         a.project()
@@ -331,6 +340,7 @@ fn the_tuning_is_set_never_automated() {
 
 #[test]
 fn screenshots_for_the_design_review() {
+    let _theme_turn = theme_turn();
     inst_keys::shots(InstrumentKind::Chorda, "chorda");
     // The whole Edit view at once (review of round 37's first delivery: the room and the
     // action's noise sit at its foot, under the window's fold), in both themes.
@@ -367,6 +377,22 @@ fn screenshots_for_the_design_review() {
 
 #[test]
 fn the_editor_uses_kit_parts_and_tokens_only() {
+    let _theme_turn = theme_turn();
     let found = inst_keys::lint(&["chorda.rs", "chorda_draw.rs"]);
     assert!(found.is_empty(), "{found:#?}");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

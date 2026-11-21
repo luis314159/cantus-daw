@@ -146,6 +146,7 @@ fn locales() -> [cantus_ui::i18n::Locale; 2] {
 
 #[test]
 fn it_opens_in_every_view_and_paints_what_it_is() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_calor();
     a.open_inst_editor(track);
@@ -181,6 +182,7 @@ fn it_opens_in_every_view_and_paints_what_it_is() {
 
 #[test]
 fn every_string_it_paints_is_translated() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     for locale in locales() {
         let (mut a, track) = with_calor();
@@ -226,6 +228,7 @@ fn every_string_it_paints_is_translated() {
 
 #[test]
 fn a_drag_on_the_filter_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_calor();
     let before = spec(&a, track);
@@ -245,6 +248,7 @@ fn a_drag_on_the_filter_is_one_undo_step() {
 
 #[test]
 fn a_knob_gesture_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_calor();
     for v in [0.3, 0.5, 0.9] {
@@ -274,6 +278,7 @@ fn window_frames(
 
 #[test]
 fn dragging_a_cell_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_calor();
     a.open_inst_editor(track);
@@ -320,6 +325,7 @@ fn dragging_a_cell_is_one_undo_step() {
 
 #[test]
 fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let mut bad = Vec::new();
     for locale in locales() {
@@ -368,6 +374,7 @@ fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages()
 
 #[test]
 fn presets_set_what_they_name_and_name_their_macros() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     assert!(
         cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Analog).len() >= 8,
@@ -405,6 +412,7 @@ fn presets_set_what_they_name_and_name_their_macros() {
 
 #[test]
 fn rerolling_a_card_is_one_undo_step_and_moves_that_card_alone() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_calor();
     let before = analog_cards(&spec(&a, track));
@@ -434,6 +442,7 @@ fn analog_cards(s: &NativeSpec) -> Vec<[f32; 3]> {
 /// `$CALOR_SHOTS` when it is set, else only rendered.
 #[test]
 fn the_edit_view_renders() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let dir = std::env::var_os("CALOR_SHOTS").map(std::path::PathBuf::from);
     for (name, theme) in [
@@ -465,4 +474,19 @@ fn the_edit_view_renders() {
         );
     }
     cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx());
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

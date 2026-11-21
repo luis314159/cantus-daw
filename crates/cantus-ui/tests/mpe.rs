@@ -42,6 +42,7 @@ fn notes(a: &CantusApp, t: TrackId, c: ClipId) -> Vec<Note> {
 
 #[test]
 fn slicing_a_note_gives_each_half_what_it_sounded() {
+    let _theme_turn = theme_turn();
     let (mut a, t, c, id) = bent();
     a.selected_notes = vec![id];
     assert_eq!(a.slice_at(Ticks::beats(1)), 1);
@@ -63,6 +64,7 @@ fn slicing_a_note_gives_each_half_what_it_sounded() {
 
 #[test]
 fn transposing_moving_and_copying_carry_the_curves() {
+    let _theme_turn = theme_turn();
     let (mut a, t, c, id) = bent();
     let before = notes(&a, t, c)[0].expr.clone();
     a.selected_notes = vec![id];
@@ -81,6 +83,7 @@ fn transposing_moving_and_copying_carry_the_curves() {
 
 #[test]
 fn an_expression_edit_is_one_named_step_and_reaches_linked_copies() {
+    let _theme_turn = theme_turn();
     let (mut a, t, c, id) = bent();
     a.focus_arrangement();
     a.select_clip(t, c);
@@ -113,6 +116,7 @@ fn an_expression_edit_is_one_named_step_and_reaches_linked_copies() {
 /// frame takes is printed (`--nocapture`; the release timing is the frame_budget suite's).
 #[test]
 fn a_dense_mpe_clip_stays_in_the_frame_budget() {
+    let _theme_turn = theme_turn();
     use egui::vec2;
     let build = |with: bool| {
         let mut p = Project::new("dense");
@@ -194,6 +198,7 @@ fn a_dense_mpe_clip_stays_in_the_frame_budget() {
 /// input — the engine is told none, so a keyboard on channel 2 stays an ordinary keyboard.
 #[test]
 fn a_marked_port_that_is_not_open_is_no_mpe_input() {
+    let _theme_turn = theme_turn();
     let (mut a, _, _, _) = bent();
     a.settings.mpe_ports = vec!["Seaboard".into()];
     a.midi_port_names = vec!["Keys".into()];
@@ -211,6 +216,7 @@ fn a_marked_port_that_is_not_open_is_no_mpe_input() {
 /// transport stopped) never opens a note in the next: the take starts empty.
 #[test]
 fn a_take_starts_without_the_last_ones_mpe_events() {
+    let _theme_turn = theme_turn();
     use cantus_engine::inst::mpe::{ExprInput, MpeIn};
     let mut a = app(cantus_ui::starter_project());
     let track = a.selected_track.unwrap();
@@ -243,4 +249,19 @@ fn a_take_starts_without_the_last_ones_mpe_events() {
         !c.notes.iter().any(|n| n.pitch == 70),
         "a stale note-on opened a note"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

@@ -122,6 +122,7 @@ fn probe_window(formula: bool, look: u8, k: f32, dark: bool, error: bool) -> Vec
 
 #[test]
 fn the_controllers_windows_never_cut_or_clip_a_word() {
+    let _theme_turn = theme_turn();
     let mut bad = Vec::new();
     for (lang, dark) in [(Locale::En, true), (Locale::Es, false)] {
         i18n::set_thread_locale(lang);
@@ -149,6 +150,7 @@ fn the_controllers_windows_never_cut_or_clip_a_word() {
 /// display (the owner's rule: the window grows rather than the display shrinking).
 #[test]
 fn a_longer_language_grows_the_window_not_the_display() {
+    let _theme_turn = theme_turn();
     let ctx = context(true);
     for formula in [false, true] {
         i18n::set_thread_locale(Locale::En);
@@ -160,4 +162,19 @@ fn a_longer_language_grows_the_window_not_the_display() {
     }
     i18n::set_thread_locale(Locale::En);
     const { assert!(fxd_xy::PAD >= 440.0 && fxd_formula::SCREEN_W >= 520.0) };
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

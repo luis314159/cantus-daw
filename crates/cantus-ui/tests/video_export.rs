@@ -35,6 +35,7 @@ fn input() -> egui::RawInput {
 
 #[test]
 fn the_dialog_renders_in_both_themes_and_languages_for_every_format() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     for dark in [false, true] {
@@ -82,6 +83,7 @@ fn the_dialog_renders_in_both_themes_and_languages_for_every_format() {
 
 #[test]
 fn a_video_export_runs_off_the_interface_thread_and_lands_as_a_file() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -109,6 +111,7 @@ fn a_video_export_runs_off_the_interface_thread_and_lands_as_a_file() {
 
 #[test]
 fn a_stop_leaves_nothing_and_a_missing_range_says_why() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -132,6 +135,7 @@ fn a_stop_leaves_nothing_and_a_missing_range_says_why() {
 
 #[test]
 fn agents_have_export_video() {
+    let _theme_turn = theme_turn();
     let tool = cantus_ui::ai_tools::find("export_video").expect("registered");
     assert_eq!((tool.input_schema)()["required"][0], "file");
     assert!(cantus_ui::ai_tools::find("get_video_export").is_some());
@@ -139,6 +143,7 @@ fn agents_have_export_video() {
 
 #[test]
 fn every_key_of_the_video_area_has_words_in_both_languages() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let src = include_str!("../locales/areas/video.en.txt");
     let keys: Vec<&str> = src
@@ -169,6 +174,7 @@ fn mov_settings(a: &CantusApp) -> cantus_ui::video_export::VideoSettings {
 /// ticker go by it — and an audio export does not start.
 #[test]
 fn a_video_export_holds_the_render_as_an_audio_export_does() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -188,6 +194,7 @@ fn a_video_export_holds_the_render_as_an_audio_export_does() {
 /// (review 1 #2).
 #[test]
 fn a_plug_in_lost_in_the_render_is_said_not_finished_silently() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -205,6 +212,7 @@ fn a_plug_in_lost_in_the_render_is_said_not_finished_silently() {
 /// (review 1 #4), and the answer comes.
 #[test]
 fn the_encoders_are_found_off_the_interface_thread() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -229,6 +237,7 @@ fn the_encoders_are_found_off_the_interface_thread() {
 /// The title reads over every background offered, in both themes (review 1 #6).
 #[test]
 fn the_title_reads_over_every_background_in_every_theme() {
+    let _theme_turn = theme_turn();
     use cantus_ui::video_export::job;
     for theme in [
         cantus_ui::theme::default_theme(),
@@ -262,6 +271,7 @@ fn the_title_reads_over_every_background_in_every_theme() {
 /// file with it is replaced (review 1 #8).
 #[test]
 fn the_pace_is_measured_and_the_estimate_is_honest() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -287,6 +297,7 @@ fn the_pace_is_measured_and_the_estimate_is_honest() {
 /// even when an export (or an agent) waits for them (review 2 #1).
 #[test]
 fn only_an_mp4_asks_for_encoders_and_never_on_this_thread() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -314,6 +325,7 @@ fn only_an_mp4_asks_for_encoders_and_never_on_this_thread() {
 /// (review 2 #2).
 #[test]
 fn closing_stops_a_video_and_removes_its_part() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -335,6 +347,7 @@ fn closing_stops_a_video_and_removes_its_part() {
 /// naming it, before anything is made (review 2 #3).
 #[test]
 fn an_audio_export_during_a_video_is_refused_in_words() {
+    let _theme_turn = theme_turn();
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
@@ -351,4 +364,19 @@ fn an_audio_export_during_a_video_is_refused_in_words() {
     vx::stop(&mut a);
     vx::wait(&mut a);
     assert_eq!(vx::busy_words(&a), None);
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

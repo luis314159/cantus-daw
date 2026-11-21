@@ -236,6 +236,7 @@ fn opened(e: &Editor) -> Rig {
 /// Opening selects the name, so what is typed replaces it; Enter commits and closes.
 #[test]
 fn enter_commits_what_was_typed_over_the_selected_name() {
+    let _theme_turn = theme_turn();
     for e in editors() {
         let mut r = opened(&e);
         r.type_text("Zed");
@@ -255,6 +256,7 @@ fn enter_commits_what_was_typed_over_the_selected_name() {
 /// clear stays.
 #[test]
 fn esc_cancels_closes_and_reaches_nothing_else() {
+    let _theme_turn = theme_turn();
     for e in editors() {
         let mut r = opened(&e);
         let old = (e.name)(&r);
@@ -276,6 +278,7 @@ fn esc_cancels_closes_and_reaches_nothing_else() {
 /// A click elsewhere commits, closes and lets the keyboard go.
 #[test]
 fn a_click_elsewhere_commits_and_closes() {
+    let _theme_turn = theme_turn();
     for e in editors() {
         let mut r = opened(&e);
         r.type_text("Wren");
@@ -289,6 +292,7 @@ fn a_click_elsewhere_commits_and_closes() {
 /// While a field holds the keyboard, the app's shortcuts wait: Ctrl+Z undoes nothing.
 #[test]
 fn shortcuts_wait_while_a_field_holds_the_keyboard() {
+    let _theme_turn = theme_turn();
     for e in editors() {
         let mut r = opened(&e);
         let rev = r.app.bus.revision();
@@ -303,6 +307,7 @@ fn shortcuts_wait_while_a_field_holds_the_keyboard() {
 /// leaves the dialog, a click elsewhere keeps the words and lets the keyboard go.
 #[test]
 fn the_layout_name_dialog_follows_the_rules() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(3);
     r.app.naming_layout = Some("Mix A".into());
@@ -339,6 +344,7 @@ fn the_layout_name_dialog_follows_the_rules() {
 /// without them.
 #[test]
 fn an_untouched_rename_runs_no_command_and_names_are_trimmed() {
+    let _theme_turn = theme_turn();
     for e in editors() {
         for close in ["enter", "away"] {
             let mut r = opened(&e);
@@ -367,6 +373,7 @@ fn an_untouched_rename_runs_no_command_and_names_are_trimmed() {
 /// Final review, fields 5: Esc in an export tag cancels the tag only — the dialog stays.
 #[test]
 fn esc_in_an_export_tag_cancels_the_tag_and_keeps_the_dialog() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(starter_project());
     r.idle(2);
     cantus_ui::views::export::open(&mut r.app, None);
@@ -400,4 +407,19 @@ fn esc_in_an_export_tag_cancels_the_tag_and_keeps_the_dialog() {
         r.app.export.dialog.is_none(),
         "a second Esc closes the dialog"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

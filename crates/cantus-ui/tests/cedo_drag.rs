@@ -147,6 +147,7 @@ fn at(app: &CantusApp, u: f32, a: f32) -> Pos2 {
 
 #[test]
 fn the_shape_s_points_drag_bend_come_and_go_each_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     let s0 = spec(&app);
     assert_eq!(value(&app, "trig"), 1.0, "Classic pump: Tempo");
@@ -225,6 +226,7 @@ fn the_shape_s_points_drag_bend_come_and_go_each_one_undo_step() {
 
 #[test]
 fn the_envelope_s_handles_and_the_threshold_drag_in_sidechain() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     set(&mut app, size, "trig", 0.0);
     let s = spec(&app);
@@ -272,6 +274,7 @@ fn the_envelope_s_handles_and_the_threshold_drag_in_sidechain() {
 
 #[test]
 fn the_trigger_is_chosen_on_its_card_and_on_its_flag_each_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(value(&app, "trig"), 1.0);
     for (i, want) in [(0usize, 0.0), (2, 2.0), (1, 1.0)] {
@@ -299,6 +302,7 @@ fn the_trigger_is_chosen_on_its_card_and_on_its_flag_each_one_undo_step() {
 
 #[test]
 fn the_band_strip_s_crossover_drags_and_its_split_switches() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert!(app.fx.cedo.band_strip().is_none(), "Whole: no strip");
     set(&mut app, size, "band", 1.0);
@@ -333,6 +337,7 @@ fn the_band_strip_s_crossover_drags_and_its_split_switches() {
 
 #[test]
 fn the_gauge_dragged_down_ducks_deeper() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(value(&app, "depth"), 9.0, "Classic pump: 9 dB");
     let g = app.fx.cedo.gauge().expect("the gauge is drawn");
@@ -362,6 +367,7 @@ fn latency(s: &EffectSpec) -> usize {
 /// go — never during the drag — and the drag and its new floor are one undo step.
 #[test]
 fn dragging_the_crossover_moves_the_latency_only_at_the_release() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     set(&mut app, size, "band", 1.0);
     set(&mut app, size, "xover", 1.0);
@@ -430,4 +436,19 @@ fn dragging_the_crossover_moves_the_latency_only_at_the_release() {
     // A floor chosen on the card keeps its latency whatever the crossover.
     set(&mut app, size, "lfloor", 3.0);
     assert_eq!(latency(&spec(&app)), 1_325, "80 Hz: 27.6 ms");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

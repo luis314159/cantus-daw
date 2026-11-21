@@ -319,6 +319,7 @@ const HD: egui::Vec2 = egui::vec2(1920.0, 1080.0);
 /// The mixer alone, 64 strips playing at 1080p: what the desk itself costs.
 #[test]
 fn mixer64_alone_stays_in_budget() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(64, false, HD);
     rig.play();
@@ -349,6 +350,7 @@ fn mixer64_alone_stays_in_budget() {
 /// Sixteen strips: the same, and the desk costs no more than at 64.
 #[test]
 fn mixer16_alone_stays_in_budget() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(16, false, HD);
     rig.play();
@@ -365,6 +367,7 @@ fn mixer16_alone_stays_in_budget() {
 /// here is what the window must never exceed again.
 #[test]
 fn mixer64_window_stays_in_budget() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(64, true, HD);
     rig.play();
@@ -385,6 +388,7 @@ fn mixer64_window_stays_in_budget() {
 /// Nothing moving: the desk asks for no frame at all.
 #[test]
 fn an_idle_desk_requests_no_repaint() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(16, false, HD);
     // Never played: every meter is at silence from the first frame.
@@ -432,6 +436,7 @@ fn timing(name: &str, rig: &mut Rig, budget_ms: f64) {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer64_window_timing() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(64, true, HD);
     rig.play();
@@ -441,6 +446,7 @@ fn mixer64_window_timing() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer16_window_timing() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(16, true, HD);
     rig.play();
@@ -450,6 +456,7 @@ fn mixer16_window_timing() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer64_alone_timing() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(64, false, HD);
     rig.play();
@@ -459,6 +466,7 @@ fn mixer64_alone_timing() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer16_alone_timing() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(16, false, HD);
     rig.play();
@@ -512,6 +520,7 @@ fn cable_view(rig: &mut Rig, view: views::mixer::layout::CableView) {
 /// and *Off* none; the band stays idle when nothing moves.
 #[test]
 fn the_cable_band_costs_no_allocation_and_no_draw_call() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(wired(64), false, HD);
@@ -568,6 +577,7 @@ fn the_cable_band_costs_no_allocation_and_no_draw_call() {
 /// triangles are held to their own ceiling (measured, below), not A–C's.
 #[test]
 fn every_cable_style_costs_no_allocation_and_no_draw_call() {
+    let _theme_turn = theme_turn();
     use cantus_ui::settings::CableStyle;
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(wired(64), false, HD);
@@ -617,6 +627,7 @@ const JACK_TRIS: usize = 400_000;
 /// The wired desk at rest, cables on: no frame is asked for.
 #[test]
 fn a_wired_idle_desk_requests_no_repaint() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::with(wired(64), false, HD);
     cable_view(&mut rig, views::mixer::layout::CableView::All);
@@ -628,6 +639,7 @@ fn a_wired_idle_desk_requests_no_repaint() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer64_wired_all_timing() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::with(wired(64), false, HD);
     cable_view(&mut rig, views::mixer::layout::CableView::All);
@@ -695,6 +707,7 @@ fn fastest(frames: &[Frame]) -> Duration {
 ///   so a busy test machine does not decide it).
 #[test]
 fn the_band_in_wide_with_every_look_costs_no_allocation() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(wired_every_look(64), false, HD);
@@ -776,6 +789,7 @@ fn the_band_in_wide_with_every_look_costs_no_allocation() {
 /// ~17 allocations a hovered desk control costs; they are egui's, below.)
 #[test]
 fn the_hint_bar_costs_no_allocation() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     use cantus_ui::kit::hint::{self, Caps};
     use std::fmt::Write as _;
@@ -901,6 +915,7 @@ fn the_hint_bar_costs_no_allocation() {
 /// than that.
 #[test]
 fn a_hovered_desk_control_costs_only_what_egui_charges_for_a_hover() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let away = egui::pos2(-100.0, -100.0);
     // The desk: 64 strips, Wide, a fader hovered.
@@ -1008,6 +1023,7 @@ fn hover_fader(rig: &mut Rig, index: usize) -> Vec<Frame> {
 /// that no local machine reproduces), a second is not.
 #[test]
 fn a_hovered_bus_with_many_inputs_costs_no_allocation() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(bus_desk(), false, HD);
@@ -1056,6 +1072,7 @@ fn a_hovered_bus_with_many_inputs_costs_no_allocation() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn a_hovered_bus_with_many_inputs_timing() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(bus_desk(), false, HD);
@@ -1108,6 +1125,7 @@ fn test_clap() -> std::path::PathBuf {
 /// feedback's, the clocks) allocate nothing — a hosted parameter is looked up, not copied.
 #[test]
 fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     use cantus_core::controller::*;
     let (engine, _processor) = EngineHandle::manual(48_000.0);
@@ -1158,6 +1176,7 @@ fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
 /// offers idle; and the offers alone, called over a drawn control, allocate nothing.
 #[test]
 fn an_editors_idle_stepped_controls_cost_no_allocation() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     use cantus_core::{EffectKind, InstrumentKind, InstrumentSpec, NativeSpec};
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
@@ -1260,6 +1279,7 @@ const WAVETABLE_EDITOR_ALLOCS: u64 = 1_560;
 /// frame. The test plug-in's fault selector has 25 steps.
 #[test]
 fn a_hosted_choices_word_asks_for_one_step() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     use cantus_core::controller::MappingTarget;
     let (engine, _processor) = EngineHandle::manual(48_000.0);
@@ -1425,6 +1445,7 @@ const HOSTED500_ALLOCS: u64 = 200;
 /// a scrolled frame allocates within its measured bound.
 #[test]
 fn a_500_parameter_plugin_scrolls_drawing_only_the_rows_in_view() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let frames = hosted500_frames(160);
     let warm = &frames[5..];
@@ -1465,6 +1486,7 @@ fn a_500_parameter_plugin_scrolls_drawing_only_the_rows_in_view() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn a_500_parameter_plugin_scroll_timing() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let frames = hosted500_frames(240);
     let mut ms: Vec<f64> = frames[20..]
@@ -1487,6 +1509,7 @@ const HOSTED_ONE_CARD_MAX_DRAWN: usize = 72;
 /// window — scrolled from its first row to its last: only the rows in view are drawn.
 #[test]
 fn one_page_of_500_parameters_draws_only_its_rows_in_view() {
+    let _theme_turn = theme_turn();
     let _look = one_look(); // one look at a time (r39:el-views)
     let frames = hosted_frames(160, five_hundred_in(500));
     let warm = &frames[5..];
@@ -1508,3 +1531,18 @@ fn one_page_of_500_parameters_draws_only_its_rows_in_view() {
 
 #[path = "stage_budget/frame.rs"] // r35:stage
 mod stage_budget; // r35:stage — a dancer on screen (ADR 0091)
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
+}

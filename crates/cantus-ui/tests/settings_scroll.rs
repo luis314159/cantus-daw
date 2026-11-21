@@ -97,6 +97,7 @@ fn click(w: &mut Win, at: Pos2) -> Vec<(String, Rect)> {
 /// window still scrolls under the wheel.
 #[test]
 fn the_settings_window_scrolls_to_the_plug_ins() {
+    let _theme_turn = theme_turn();
     // A small laptop's screen: the Plug-ins page is taller than the window.
     let mut w = Win::new(vec2(1366.0, 560.0));
     for _ in 0..30 {
@@ -154,6 +155,7 @@ fn the_settings_window_scrolls_to_the_plug_ins() {
 /// Updates, Channels & routing.
 #[test]
 fn every_kit_window_claims_what_it_paints() {
+    let _theme_turn = theme_turn();
     type Open = fn(&mut CantusApp);
     let cases: [(&str, Open); 5] = [
         ("cantus-settings", |a| a.show_settings = true),
@@ -186,4 +188,19 @@ fn every_kit_window_claims_what_it_paints() {
             "{id}: the pointer over it is over it"
         );
     }
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

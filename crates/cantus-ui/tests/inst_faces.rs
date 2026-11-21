@@ -64,6 +64,7 @@ fn titles(kind: InstrumentKind) -> &'static [&'static str] {
 
 #[test]
 fn every_card_title_of_a_unit_is_set_one_way() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     for on in [true, false] {
         skin::set_enabled(on);
@@ -114,6 +115,7 @@ fn every_card_title_of_a_unit_is_set_one_way() {
 
 #[test]
 fn four_instrument_faces_in_one_frame_settle_their_caches() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     skin::set_enabled(true);
     let ctx = support::ctx();
@@ -160,4 +162,19 @@ fn four_instrument_faces_in_one_frame_settle_their_caches() {
         settled,
         "(skin tokens, worn misses, display colours) made again in steady state"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

@@ -43,6 +43,7 @@ fn sliced_app(dir: &std::path::Path) -> (cantus_ui::CantusApp, TrackId) {
 
 #[test]
 fn the_slices_card_reads_whole_in_both_languages() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     for (locale, want, count) in [
         (
@@ -73,6 +74,7 @@ fn the_slices_card_reads_whole_in_both_languages() {
 
 #[test]
 fn screenshots_for_the_design_review() {
+    let _theme_turn = theme_turn();
     let Some(out) = std::env::var_os("CANTUS_KEYS_SHOTS").map(std::path::PathBuf::from) else {
         return;
     };
@@ -97,4 +99,19 @@ fn screenshots_for_the_design_review() {
         });
     }
     cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &support::ctx());
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

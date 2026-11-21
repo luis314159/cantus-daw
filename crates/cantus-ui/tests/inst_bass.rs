@@ -152,6 +152,7 @@ fn faults(all: &[Word], area: Rect) -> Vec<String> {
 
 #[test]
 fn every_engine_opens_in_every_view_with_its_picture() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let pictures = [
         (0.0, "Pitch over time"),
@@ -182,6 +183,7 @@ fn every_engine_opens_in_every_view_with_its_picture() {
 
 #[test]
 fn a_knob_gesture_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_bass();
     for v in [300.0, 450.0, 700.0] {
@@ -198,6 +200,7 @@ fn a_knob_gesture_is_one_undo_step() {
 
 #[test]
 fn dragging_a_cell_is_one_undo_step() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_bass();
     a.open_inst_editor(track);
@@ -244,6 +247,7 @@ fn dragging_a_cell_is_one_undo_step() {
 
 #[test]
 fn dragging_the_pluck_marker_sets_millimetres_in_one_undo_step() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_bass();
     a.set_inst_value(track, "engine", 2.0, false);
@@ -300,6 +304,7 @@ fn dragging_the_pluck_marker_sets_millimetres_in_one_undo_step() {
 
 #[test]
 fn switching_engines_is_one_step_and_keeps_every_engines_settings() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let (mut a, track) = with_bass();
     a.set_inst_value(track, "str.pluck", 300.0, false);
@@ -315,6 +320,7 @@ fn switching_engines_is_one_step_and_keeps_every_engines_settings() {
 
 #[test]
 fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let mut bad = Vec::new();
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
@@ -364,6 +370,7 @@ fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages()
 
 #[test]
 fn presets_set_what_they_name_and_name_their_macros() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     assert!(cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Bass).len() >= 8);
     for preset in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Bass) {
@@ -410,6 +417,7 @@ fn presets_set_what_they_name_and_name_their_macros() {
 
 #[test]
 fn every_label_is_translated_in_both_languages() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     use cantus_ui::i18n::{set_thread_locale, t, Locale};
     let mut keys: Vec<&str> = PARAMS.iter().map(|p| p.label_key).collect();
@@ -465,6 +473,7 @@ fn every_label_is_translated_in_both_languages() {
 /// `$GRAVIS_SHOTS` when it is set, else only rendered.
 #[test]
 fn every_engine_renders_in_both_themes() {
+    let _theme_turn = theme_turn();
     let _turn = turn();
     let dir = std::env::var_os("GRAVIS_SHOTS").map(std::path::PathBuf::from);
     for (tn, theme) in [
@@ -497,4 +506,19 @@ fn every_engine_renders_in_both_themes() {
         }
     }
     cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx());
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

@@ -120,6 +120,7 @@ impl Rig {
 /// beside it.
 #[test]
 fn the_clip_menus_colour_row_is_inside_the_menu() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(vec2(1600.0, 900.0));
     r.idle(3);
     cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
@@ -154,6 +155,7 @@ fn the_clip_menus_colour_row_is_inside_the_menu() {
 /// other tiles still say how to drag them.
 #[test]
 fn the_chosen_tile_says_it_is_the_paint_source() {
+    let _theme_turn = theme_turn();
     let mut r = Rig::new(vec2(1600.0, 900.0));
     r.app.show_pane(cantus_ui::views::workspace::Pane::Clips);
     r.idle(3);
@@ -181,6 +183,7 @@ fn the_chosen_tile_says_it_is_the_paint_source() {
 /// title without the menu's "…", its buttons the kit's (Save lit) — in both languages.
 #[test]
 fn the_layout_name_dialog_is_a_kit_dialog_in_the_middle() {
+    let _theme_turn = theme_turn();
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1600.0, 900.0));
         cantus_ui::i18n::set_thread_locale(locale);
@@ -218,6 +221,7 @@ fn the_layout_name_dialog_is_a_kit_dialog_in_the_middle() {
 /// name and every gesture it takes — is the long one now.
 #[test]
 fn a_long_hint_reads_whole_at_1280_by_720() {
+    let _theme_turn = theme_turn();
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
         cantus_ui::i18n::set_thread_locale(locale);
@@ -245,6 +249,7 @@ fn a_long_hint_reads_whole_at_1280_by_720() {
 /// at 1280 × 720 (Spanish ones were cut mid-word with room beside them).
 #[test]
 fn the_colours_with_a_meaning_are_named_whole() {
+    let _theme_turn = theme_turn();
     const ROLES: [&str; 12] = [
         "kit.token.accent.selection",
         "kit.token.accent.highlight",
@@ -302,6 +307,7 @@ fn hint_bar_texts(r: &Rig, texts: &[(String, egui::Rect)]) -> Vec<String> {
 /// window. A word cut with "…" that is not the hint's own fails.
 #[test]
 fn every_hint_reads_whole_at_1280_by_720() {
+    let _theme_turn = theme_turn();
     use cantus_ui::app::{CentralView, EditFocus};
     use cantus_ui::views::piano_roll::Tool;
     for (locale, (w, h, step)) in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es]
@@ -474,6 +480,7 @@ fn every_hint_reads_whole_at_1280_by_720() {
 /// hover has a menu: its glyph stays at the bar's right).
 #[test]
 fn a_wrapped_hint_keeps_its_capability_icons() {
+    let _theme_turn = theme_turn();
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
         cantus_ui::i18n::set_thread_locale(locale);
@@ -509,6 +516,7 @@ fn a_wrapped_hint_keeps_its_capability_icons() {
 /// section, no two words touch.
 #[test]
 fn the_level_section_never_runs_a_caption_into_its_value() {
+    let _theme_turn = theme_turn();
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
         cantus_ui::i18n::set_thread_locale(locale);
@@ -570,6 +578,7 @@ fn the_level_section_never_runs_a_caption_into_its_value() {
 /// languages, at 1280 × 720 and at 200 % (the tip was cut where its advice was).
 #[test]
 fn the_delay_rows_hints_read_whole() {
+    let _theme_turn = theme_turn();
     let flat = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         for (w, h) in [(1280.0f32, 720.0f32), (640.0, 360.0)] {
@@ -598,4 +607,19 @@ fn the_delay_rows_hints_read_whole() {
         }
     }
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

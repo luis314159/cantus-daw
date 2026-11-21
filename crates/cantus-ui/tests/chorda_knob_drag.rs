@@ -108,6 +108,7 @@ fn drag(at: egui::Pos2, px: f32, step: f32) -> Vec<(String, f32, f32, f32)> {
 #[test]
 #[ignore]
 fn measure_every_knob_dragged() {
+    let _theme_turn = theme_turn();
     for (step, what) in [(2.0, "slow, 2 px a frame"), (8.0, "quick, 8 px a frame")] {
         eprintln!("== {what}: 80 px up, 0.40 of the range expected");
         for (name, x, y) in KNOBS {
@@ -131,10 +132,26 @@ fn measure_every_knob_dragged() {
 #[test]
 #[ignore]
 fn shoot_the_edit_view() {
+    let _theme_turn = theme_turn();
     let (mut app, ctx, size) = app();
     app.inst.view = views::inst::View::Edit;
     let out = std::path::Path::new("F:/projects/daw-r38/shots/chorda-edit.png");
     cantus_ui::raster::shoot(&ctx, size, 1.0, 8, Some(out), |ui| {
         views::inst::window_in(&mut app, ui)
     });
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

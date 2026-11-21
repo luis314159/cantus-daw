@@ -31,6 +31,7 @@ fn pan(a: &CantusApp) -> (TrackId, StripId, AutoTarget) {
 
 #[test]
 fn a_new_modulator_on_a_parameter_is_one_undo_step_on_its_own_host() {
+    let _theme_turn = theme_turn();
     let mut a = app(starter_project());
     let (_, s, target) = pan(&a);
     let before = a.project().clone();
@@ -53,6 +54,7 @@ fn a_new_modulator_on_a_parameter_is_one_undo_step_on_its_own_host() {
 
 #[test]
 fn connecting_disconnecting_and_a_dragged_depth_are_one_step_each() {
+    let _theme_turn = theme_turn();
     let mut a = app(starter_project());
     let (t, _, target) = pan(&a);
     let id = a
@@ -81,6 +83,7 @@ fn connecting_disconnecting_and_a_dragged_depth_are_one_step_each() {
 
 #[test]
 fn a_depth_choice_edits_the_mapping_modulator_and_connects_it() {
+    let _theme_turn = theme_turn();
     let mut a = app(starter_project());
     let (t, _, target) = pan(&a);
     let lfo = a
@@ -126,6 +129,7 @@ fn a_depth_choice_edits_the_mapping_modulator_and_connects_it() {
 
 #[test]
 fn bake_is_one_step_that_keeps_the_sound_and_drops_the_route() {
+    let _theme_turn = theme_turn();
     let mut a = app(starter_project());
     let (t, _, target) = pan(&a);
     let id = a
@@ -154,6 +158,7 @@ fn bake_is_one_step_that_keeps_the_sound_and_drops_the_route() {
 
 #[test]
 fn knobs_moved_while_a_pass_records_become_automation_clips() {
+    let _theme_turn = theme_turn();
     let mut a = app(starter_project());
     let (_, s, target) = pan(&a);
     let steps = a.bus.history().len();
@@ -212,6 +217,7 @@ fn knobs_moved_while_a_pass_records_become_automation_clips() {
 /// plain drag moves the value; a mapping modulator makes a plain drag a depth drag.
 #[test]
 fn alt_drag_on_a_modulated_knob_moves_the_depth_not_the_value() {
+    let _theme_turn = theme_turn();
     let run = |offer: Offer, mods: egui::Modifiers| -> (f32, Option<Choice>) {
         let ctx = ctx();
         let mut v = 0.5f32;
@@ -303,6 +309,7 @@ fn alt_drag_on_a_modulated_knob_moves_the_depth_not_the_value() {
 /// (nesting, ADR 0057), a folded one its title alone.
 #[test]
 fn the_modulators_section_draws_every_kind() {
+    let _theme_turn = theme_turn();
     use cantus_ui::kit::automate::probe;
     let mut p = starter_project();
     let t = p.tracks[0].id;
@@ -390,6 +397,7 @@ fn the_modulators_section_draws_every_kind() {
 /// leaves the modulator itself out.
 #[test]
 fn a_handle_dropped_on_an_amount_nests_one_modulator_in_another() {
+    let _theme_turn = theme_turn();
     use egui::{pos2, Event, Modifiers, PointerButton, Pos2};
     let mut p = starter_project();
     let t = p.tracks[0].id;
@@ -466,14 +474,16 @@ fn a_handle_dropped_on_an_amount_nests_one_modulator_in_another() {
     frame(&mut a, vec![]);
     let text = frame(&mut a, vec![]);
     // The list's Connect part: between its band and the New band.
+    // In any theme's lettering: section names are capitals in Slate only.
     let connect = text
+        .to_uppercase()
         .split_once("|CONNECT|")
         .and_then(|(_, rest)| rest.split_once("|NEW MODULATOR|"))
         .map(|(c, _)| c.to_string())
         .unwrap_or_else(|| panic!("the list is drawn: {text}"));
-    assert!(connect.contains("Dice"), "{connect}");
+    assert!(connect.contains("DICE"), "{connect}");
     assert!(
-        !connect.contains("Wobble"),
+        !connect.contains("WOBBLE"),
         "never its own amount: {connect}"
     );
     a.modulators.popup = None;
@@ -485,6 +495,7 @@ fn a_handle_dropped_on_an_amount_nests_one_modulator_in_another() {
 /// runs the modulators' popup — a mapping left naming a modulator that is gone is let go.
 #[test]
 fn the_shipped_frame_runs_the_modulators_popup() {
+    let _theme_turn = theme_turn();
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(starter_project());
     a.settings_path = dir.path().join("settings.json");
@@ -518,6 +529,7 @@ fn the_shipped_frame_runs_the_modulators_popup() {
 /// gain. (The strip's pan and width, and the master's three, go through the same code.)
 #[test]
 fn a_handle_dropped_on_a_desk_fader_connects_and_alt_drag_edits_its_depth() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::mixer::{self, Control};
     use egui::{pos2, Event, Modifiers, PointerButton, Pos2};
     let mut a = app(starter_project());
@@ -647,6 +659,7 @@ fn build_test_plugin() -> std::path::PathBuf {
 /// records both while a pass records — not only the last one the frame ran.
 #[test]
 fn two_parameters_a_plugin_window_moves_in_one_frame_are_both_recorded() {
+    let _theme_turn = theme_turn();
     use cantus_engine::fx::FxParamEvent;
     let mut a = app(starter_project());
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
@@ -761,6 +774,7 @@ fn drop_handle(
 /// drag: a double-click still resets the fader to unity, as every other control does.
 #[test]
 fn a_desk_fader_double_clicked_while_a_modulator_maps_goes_to_unity() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::mixer::{self, Control};
     let mut a = app(starter_project());
     let (_, s, _) = pan(&a);
@@ -791,6 +805,7 @@ fn a_desk_fader_double_clicked_while_a_modulator_maps_goes_to_unity() {
 /// on the desk's send knob (the selected strip's send, FL's send row) connects the send.
 #[test]
 fn a_handle_dropped_on_a_desk_send_knob_connects_the_send() {
+    let _theme_turn = theme_turn();
     use cantus_ui::views::mixer::{self, Control};
     let mut a = app(starter_project());
     let (t, s, _) = pan(&a);
@@ -834,6 +849,7 @@ fn a_handle_dropped_on_a_desk_send_knob_connects_the_send() {
 /// where the pinned strip stood).
 #[test]
 fn a_handle_dropped_on_the_level_volume_connects_the_volume() {
+    let _theme_turn = theme_turn();
     let mut a = app(starter_project());
     let (t, s, _) = pan(&a);
     a.select_track(t);
@@ -872,6 +888,7 @@ fn a_handle_dropped_on_the_level_volume_connects_the_volume() {
 /// mark.
 #[test]
 fn the_level_section_shows_its_modulation_on_its_bars() {
+    let _theme_turn = theme_turn();
     use cantus_ui::kit::automate::probe;
     // The marks the Level section draws, by value, with these routes modulated.
     let marks = |routes: &[fn(StripId) -> AutoTarget]| -> Vec<(String, &'static str)> {
@@ -933,4 +950,19 @@ fn the_level_section_shows_its_modulation_on_its_bars() {
         vec![("inspector.width".to_string(), "bar")],
         "only what is modulated"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

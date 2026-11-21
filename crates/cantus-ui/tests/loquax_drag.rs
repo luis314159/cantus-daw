@@ -174,6 +174,7 @@ fn level_y(plot: egui::Rect, db: f32) -> f32 {
 
 #[test]
 fn a_stroke_across_the_bank_draws_the_band_levels_in_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(value(&app, "bands"), 16.0, "Robot's sixteen bands");
     let plot = app.fx.loquax.plot().expect("the bank is drawn");
@@ -205,6 +206,7 @@ fn a_stroke_across_the_bank_draws_the_band_levels_in_one_undo_step() {
 
 #[test]
 fn the_menu_chooses_the_object_and_the_colourway() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(value(&app, "obj"), 0.0, "the gooseneck, the default");
     // The ⋯ menu's last rows: the object's band and its three, the colourways' band and its
@@ -239,6 +241,7 @@ fn the_menu_chooses_the_object_and_the_colourway() {
 
 #[test]
 fn the_carrier_and_the_roles_are_thrown_by_a_click() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(value(&app, "src"), 1.0, "the synthesiser");
     let seg = |key: &str, i: usize, n: usize| {
@@ -268,4 +271,19 @@ fn the_carrier_and_the_roles_are_thrown_by_a_click() {
     );
     app.undo();
     assert_eq!(value(&app, "swap"), 0.0, "one click, one undo step");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

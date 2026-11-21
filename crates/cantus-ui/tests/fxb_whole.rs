@@ -111,18 +111,21 @@ fn check(unit: &'static str, kind: EffectKind, states: States) {
 
 #[test]
 fn vinculum_s_window_never_cuts_or_clips_a_word() {
+    let _theme_turn = theme_turn();
     let [(u, k, s), _, _] = units();
     check(u, k, s);
 }
 
 #[test]
 fn lenis_s_window_never_cuts_or_clips_a_word() {
+    let _theme_turn = theme_turn();
     let [_, (u, k, s), _] = units();
     check(u, k, s);
 }
 
 #[test]
 fn cedo_s_window_never_cuts_or_clips_a_word() {
+    let _theme_turn = theme_turn();
     let [_, _, (u, k, s)] = units();
     check(u, k, s);
 }
@@ -130,10 +133,26 @@ fn cedo_s_window_never_cuts_or_clips_a_word() {
 /// Each unit's states are named once, the first its start.
 #[test]
 fn each_unit_names_its_design_states() {
+    let _theme_turn = theme_turn();
     for (unit, _, states) in units() {
         assert_eq!(states[0].0, "start", "{unit}");
         for (i, (a, _)) in states.iter().enumerate() {
             assert!(states[i + 1..].iter().all(|(b, _)| a != b), "{unit}: {a}");
         }
     }
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

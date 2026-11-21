@@ -91,6 +91,7 @@ fn value(app: &CantusApp, key: &str) -> f32 {
 
 #[test]
 fn arca_s_microphone_is_dragged_on_the_cone_and_in_the_side_view() {
+    let _theme_turn = theme_turn();
     let (mut app, ctx, size) = open("arca", EffectKind::Amp);
     let (c, rad) = app.fx.arca.cone().expect("the cone is drawn");
     let reach = rad * 0.80;
@@ -122,6 +123,7 @@ fn arca_s_microphone_is_dragged_on_the_cone_and_in_the_side_view() {
 
 #[test]
 fn rota_s_switch_is_thrown_and_its_microphones_dragged() {
+    let _theme_turn = theme_turn();
     let (mut app, ctx, size) = open("rota", EffectKind::Rotary);
     assert_eq!(value(&app, "speed"), 1.0, "slow");
     let fast = app.fx.rota.speed_rects()[2].center();
@@ -176,4 +178,19 @@ fn rota_s_switch_is_thrown_and_its_microphones_dragged() {
         (spread, dist),
         "one gesture, one undo step"
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

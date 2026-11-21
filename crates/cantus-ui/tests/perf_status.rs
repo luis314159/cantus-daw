@@ -29,6 +29,7 @@ fn project() -> Project {
 
 #[test]
 fn every_node_is_named_as_the_user_names_it() {
+    let _theme_turn = theme_turn();
     let _app = support::app(Project::new("locale"));
     let p = project();
     let t = &p.tracks[0];
@@ -93,6 +94,7 @@ fn every_node_is_named_as_the_user_names_it() {
 
 #[test]
 fn a_real_overrun_reaches_the_status_bar() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
     let (engine, mut processor) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::from_parts(Some(project()), engine, false);
@@ -143,6 +145,7 @@ fn a_real_overrun_reaches_the_status_bar() {
 /// never reaches the status line of a shot, though the engine still counts it.
 #[test]
 fn a_hushed_app_never_says_a_dropout() {
+    let _theme_turn = theme_turn();
     cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
     let (engine, mut processor) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::from_parts(Some(project()), engine, false);
@@ -178,4 +181,19 @@ fn a_hushed_app_never_says_a_dropout() {
         "the engine still reports it"
     );
     assert!(!text.contains("Dropout: "), "hushed: {text}");
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

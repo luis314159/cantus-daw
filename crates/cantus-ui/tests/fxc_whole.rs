@@ -67,6 +67,7 @@ fn states(unit: &str) -> &'static [(&'static str, &'static [(&'static str, f32)]
 
 #[test]
 fn wave_c_s_windows_never_cut_or_clip_a_word() {
+    let _theme_turn = theme_turn();
     let mut bad = Vec::new();
     for (unit, kind) in [
         ("purus", EffectKind::Repair),
@@ -105,6 +106,7 @@ fn wave_c_s_windows_never_cut_or_clip_a_word() {
 /// is the same size, scaled.
 #[test]
 fn the_displays_keep_their_size_in_every_language_and_scale() {
+    let _theme_turn = theme_turn();
     for (unit, kind) in [
         ("purus", EffectKind::Repair),
         ("comparatio", EffectKind::Reference),
@@ -187,6 +189,7 @@ fn value(app: &CantusApp, key: &str) -> f32 {
 /// out, the mains keys and the decay's keys — each press one undo step.
 #[test]
 fn purus_s_bench_answers_the_pointer() {
+    let _theme_turn = theme_turn();
     let mut app = open("purus", EffectKind::Repair, &[]);
     frames(&mut app, EffectKind::Repair, None);
     let bench = app.fx.purus.bench.clone().expect("the bench is laid out");
@@ -212,6 +215,7 @@ fn purus_s_bench_answers_the_pointer() {
 /// A, B and X choose what is heard, an answer counts and moves to the next trial.
 #[test]
 fn comparatio_s_console_answers_the_pointer() {
+    let _theme_turn = theme_turn();
     use views::fx::comparatio::Act;
     let mut app = open("comparatio", EffectKind::Reference, &[]);
     frames(&mut app, EffectKind::Reference, None);
@@ -242,4 +246,19 @@ fn comparatio_s_console_answers_the_pointer() {
         "an answer moves to the next trial"
     );
     assert_eq!(app.fx.comparatio.blind.answers.len(), 1);
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }

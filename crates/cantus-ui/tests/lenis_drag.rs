@@ -121,6 +121,7 @@ fn hz_at(app: &CantusApp, x: f32) -> f32 {
 
 #[test]
 fn the_focus_s_gates_drag_along_the_screen_each_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     // The starting preset, Gentle: the focus from 150 Hz to the top.
     assert_eq!((value(&app, "lo"), value(&app, "hi")), (150.0, 20_000.0));
@@ -156,6 +157,7 @@ fn the_focus_s_gates_drag_along_the_screen_each_one_undo_step() {
 
 #[test]
 fn each_band_s_node_drags_in_frequency_and_amount_and_switches_on_in_the_same_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     for n in 0..cantus_core::fx::lenis::BANDS {
         assert_eq!(band(&app, n, "on"), 0.0, "band {n} starts off");
@@ -214,6 +216,7 @@ fn each_band_s_node_drags_in_frequency_and_amount_and_switches_on_in_the_same_st
 
 #[test]
 fn the_depth_dial_turns_and_a_double_click_turns_it_to_none() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     assert_eq!(value(&app, "depth"), 0.5, "Gentle: half");
     let (c, rad) = app.fx.lenis.dial().expect("the dial is drawn");
@@ -233,6 +236,7 @@ fn the_depth_dial_turns_and_a_double_click_turns_it_to_none() {
 
 #[test]
 fn the_push_keys_choose_each_one_undo_step() {
+    let _theme_turn = theme_turn();
     let (mut app, size) = open();
     let start = ["qual", "curve", "delta", "chan"].map(|k| value(&app, k));
     assert_eq!(
@@ -272,4 +276,19 @@ fn the_push_keys_choose_each_one_undo_step() {
         ["qual", "curve", "delta", "chan"].map(|k| value(&app, k)),
         start
     );
+}
+
+/// This binary's tests take turns (docs/RELEASING.md L5): `theme::apply` installs its palette
+/// and the kit's tokens for the whole process, so a test applying a theme repainted another's
+/// words mid-measure (beta.16's rehearsal, macOS: fx_limiter's dark demo cut "GAIN REDUCTION").
+/// The app has one interface thread; only tests run several.
+fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    // Every test starts in the app's own look, whatever the test before it applied.
+    cantus_ui::theme::apply(
+        &cantus_ui::theme::default_theme(),
+        &egui::Context::default(),
+    );
+    turn
 }
