@@ -154,8 +154,16 @@ struct Key {
     rect: Rect,
 }
 
+/// What the interface's input is fed with, a block at a time, as a device would.
+struct Feed {
+    ring: rtrb::Producer<f32>,
+    data: Vec<f32>,
+    pos: usize,
+}
+
 /// One scene's app, engine, clock, cursor and camera.
 struct Director {
+    feed: Option<Feed>,
     app: CantusApp,
     ctx: egui::Context,
     proc: Processor,
@@ -236,6 +244,7 @@ impl Director {
         // The demo interface (no "no audio device" line), at the block the engine runs.
         studio::studio(&mut app, block as u32);
         let mut d = Director {
+            feed: None,
             app,
             ctx,
             proc,
@@ -247,7 +256,8 @@ impl Director {
             frame: 0,
             rolling: false,
             engine_idle: true,
-            pointer: Pos2::new(o.size.x * 0.55, o.size.y * 0.55),
+            // Off the window until a scene shows the cursor: nothing hovered, no hint.
+            pointer: Pos2::new(-200.0, -200.0),
             cursor: false,
             ripples: Vec::new(),
             audio: Vec::new(),
@@ -332,6 +342,13 @@ impl Director {
         let block = self.buf.len() / 2;
         if self.rolling || self.engine_idle {
             for _ in 0..spf / block {
+                if let Some(f) = self.feed.as_mut() {
+                    for _ in 0..block {
+                        let v = f.data.get(f.pos).copied().unwrap_or(0.0);
+                        f.pos += 1;
+                        let _ = f.ring.push(v);
+                    }
+                }
                 self.proc.process(&mut self.buf, 2);
                 if self.rolling {
                     self.audio.extend_from_slice(&self.buf);
@@ -392,6 +409,8 @@ impl Director {
     /// Start writing frames (the scene's 0).
     fn roll(&mut self) {
         self.rolling = true;
+        // Clicks made while setting the scene up leave no ripple in it.
+        self.ripples.clear();
     }
 
     /// Frames for `ms` milliseconds.
@@ -861,21 +880,65 @@ impl Director {
         id
     }
 
-    /// Every dancer in the song but `except` hidden (`view.mode` hidden), and said in the
-    /// JSON: no other dancer reaches a frame.
+    /// Every dancer the song brings (Neon Tide's Trino) taken out — its track removed and
+    /// the strip it took left unnamed, as a person deletes a track — and said in the JSON:
+    /// no other dancer reaches a frame.
     fn no_other_dancers(&mut self, except: Option<TrackId>) {
-        let others: Vec<TrackId> = self
+        let others: Vec<(TrackId, Option<StripId>)> = self
             .app
             .project()
             .tracks
             .iter()
             .filter(|t| dancer::is_dancer(&t.instrument) && Some(t.id) != except)
-            .map(|t| t.id)
+            .map(|t| (t.id, t.strip))
             .collect();
-        for t in &others {
-            self.app.set_inst_value(*t, "view.mode", 2.0, false);
+        for (t, strip) in &others {
+            self.app.exec(cantus_core::Command::RemoveTrack { id: *t });
+            if let Some(s) = strip {
+                self.app.exec(cantus_core::Command::SetStripName {
+                    id: *s,
+                    name: String::new(),
+                });
+            }
         }
-        self.note("other_dancers_hidden", others.len().into());
+        self.note("other_dancers_removed", others.len().into());
+    }
+
+    /// The desk large: the arrangement folded, the strips wide (names across, inserts).
+    fn big_desk(&mut self) {
+        self.app.show_central(cantus_ui::app::CentralView::Mixer);
+        self.app
+            .workspace
+            .toggle_fold(cantus_ui::views::workspace::Pane::Arrangement);
+        cantus_ui::views::mixer::set_width_mode(
+            &mut self.app,
+            cantus_ui::views::mixer::layout::WidthMode::Wide,
+        );
+    }
+
+    /// Where the words `s` are painted, every place, top to bottom of the paint order.
+    fn texts_all(&self, s: &str) -> Vec<Rect> {
+        self.texts
+            .iter()
+            .filter(|p| p.text.trim() == s && p.seen.is_positive())
+            .map(|p| p.seen)
+            .collect()
+    }
+
+    /// Press the button where the cursor is (with a ripple), hold `ms`, let go.
+    fn press_hold(&mut self, ms: f32) {
+        self.ripples.push((self.frame, self.pointer));
+        self.button(true, PointerButton::Primary);
+        self.idle(self.frames_for(ms));
+        self.button(false, PointerButton::Primary);
+    }
+
+    /// The camera fits `r` (points) with a margin, at most `max` zoom.
+    fn fit(&self, r: Rect, margin: f32, max: f32) -> Rect {
+        let z = (self.o.size.x / (r.width() + 2.0 * margin))
+            .min(self.o.size.y / (r.height() + 2.0 * margin))
+            .clamp(1.0, max);
+        self.framing(r.center(), z)
     }
 
     /// Where beat `beat` lies on the arrangement's timeline, and the middle of its rows.
@@ -892,7 +955,7 @@ impl Director {
     /// The rect of the window drawn on top (the last of the middle layers), if any.
     fn top_window(&self) -> Option<Rect> {
         self.ctx.memory(|m| {
-            let seen = m.visible_layer_ids();
+            let seen = m.areas().visible_layer_ids();
             let all: Vec<egui::LayerId> = m.layer_ids().collect();
             all.into_iter()
                 .rev()
@@ -950,6 +1013,10 @@ fn take_open(o: &Opts) {
     let _onda = d.add_onda(true, (0.5, 0.9, 1.0));
     // Shot 1 shows no dancer: the Stage is off until shot 2.
     d.app.settings.stage.hidden = true;
+    // The devices browser at the left (View ▸ Devices), as the script's shot 2 shows it.
+    d.app
+        .workspace
+        .reveal(cantus_ui::views::workspace::Pane::Devices);
     d.idle(8);
     d.play_from(Ticks::ZERO, 0.0);
     d.roll();
@@ -993,6 +1060,27 @@ fn take_piano(o: &Opts) {
     // Chorda's strings designed before the shot (the picker asks for them when it opens).
     cantus_engine::inst::chorda::warm(RATE as f32);
     d.idle(10);
+    // Where the window's keys are: the window opened once before the shot (it opens in the
+    // same place again), its keyboard found by its hint, closed.
+    d.app.open_inst_editor(piano);
+    d.idle(12);
+    let hint = cantus_ui::i18n::t("ux.hint.keyboard");
+    let head: String = hint.chars().take(18).collect();
+    // Kept relative to the window: it may open elsewhere the second time.
+    let keys = d
+        .top_window()
+        .and_then(|w| d.control(w, &head).map(|k| k.translate(-w.min.to_vec2())));
+    d.note(
+        "keys",
+        keys.map_or(serde_json::Value::Null, |k| {
+            serde_json::json!([k.left(), k.top(), k.width(), k.height()])
+        }),
+    );
+    if keys.is_none() {
+        eprintln!("s3: the keyboard was not found by its hint “{head}”");
+    }
+    d.app.close_inst_editor();
+    d.idle(6);
     let chorus = d.bar(12.0);
     d.play_from(chorus, 1.5);
     d.roll();
@@ -1019,7 +1107,11 @@ fn take_piano(o: &Opts) {
     );
     d.did("picker::open(ReplaceInstrument) for the piano track (its header's swap)");
     d.idle(d.frames_for(500.0));
-    let tile = d.text("Chorda");
+    // The tile, not the details pane's title: the leftmost "Chorda" in the picker.
+    let tile = d
+        .texts_all("Chorda")
+        .into_iter()
+        .min_by(|a, b| a.left().total_cmp(&b.left()));
     match tile {
         Some(t) => {
             d.go(t.center());
@@ -1039,15 +1131,38 @@ fn take_piano(o: &Opts) {
     d.app.open_inst_editor(piano);
     d.did("open_inst_editor(piano)");
     d.idle(d.frames_for(300.0));
-    if let Some(w) = d.top_window() {
+    let win = d.top_window();
+    if let Some(w) = win {
         d.note("window", serde_json::json!([w.left(), w.top(), w.width(), w.height()]));
-        d.go(Pos2::new(w.right() - 40.0, w.bottom() + 30.0).min(d.screen().max - Vec2::splat(30.0)));
-        d.until(5.2);
-        // The keys: the window's lower part.
-        let keys = Pos2::new(w.center().x, w.bottom() - w.height() * 0.18);
-        let r = d.framing(keys, 1.45);
-        d.frame_to(r, 3500.0);
-        d.note("push_in_on", serde_json::json!([keys.x, keys.y]));
+    }
+    let keys = keys.zip(win).map(|(k, w)| k.translate(w.min.to_vec2()));
+    match keys {
+        Some(k) => {
+            // The push-in on the keys, and the cursor plays them on the beat: D, A, D, A
+            // (74 BPM, from the chorus's first beat), each held a little under a beat.
+            d.go(Pos2::new(k.center().x + 60.0, k.bottom() + 40.0));
+            d.until(4.2);
+            let r = d.framing(Pos2::new(k.center().x, k.center().y - 40.0), 1.5);
+            d.frame_to(r, 2400.0);
+            d.note("push_in_on", serde_json::json!([k.center().x, k.center().y]));
+            let white = |note: u8| -> Pos2 {
+                let map = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
+                let i = (note as usize / 12 - 3) * 7 + map[note as usize % 12];
+                let w = k.width() / 36.0;
+                Pos2::new(k.left() + (i as f32 + 0.5) * w, k.top() + 0.8 * k.height())
+            };
+            let beat = 60.0 / d.app.project().tempo_bpm as f32;
+            for (n, b) in [(74u8, 7.0f32), (81, 8.0), (86, 9.0), (81, 10.0)] {
+                let at = b * beat;
+                let lead = 0.3;
+                d.until(at - lead);
+                d.glide(white(n), lead * 1000.0 - 40.0);
+                d.until(at);
+                d.press_hold(beat * 650.0);
+            }
+            d.go(Pos2::new(k.center().x + 140.0, k.bottom() + 50.0));
+        }
+        None => d.did("no keyboard rect: no keys played"),
     }
     d.until(10.0);
     d.finish();
@@ -1139,6 +1254,18 @@ fn take_drums(o: &Opts) {
     d.roll();
     d.cursor = true;
     d.pointer = Pos2::new(d.o.size.x * 0.7, d.o.size.y * 0.75);
+    d.idle(1);
+    // The window framed, a slow push-in.
+    if let Some(w) = d.top_window() {
+        let r = d.fit(w, 30.0, 1.35);
+        d.camera.push(Key {
+            at: 0,
+            frames: 0,
+            rect: d.fit(w, 120.0, 1.35),
+        });
+        d.frame_to(r, 6500.0);
+        d.note("window", serde_json::json!([w.left(), w.top(), w.width(), w.height()]));
+    }
     d.until(3.2);
     // To the instrument's mixer: its tab in the window's header.
     let w = d.top_window().unwrap_or(d.screen());
@@ -1195,28 +1322,58 @@ fn take_mixer(o: &Opts) {
     let mut d = Director::new(o, "s5-mixer", (31.0, 44.0));
     d.open_demo("house");
     d.no_other_dancers(None);
-    d.app.show_central(cantus_ui::app::CentralView::Mixer);
+    d.big_desk();
     let target = d.track("demos.track.chords");
     let strip = d.strip_of(target);
     d.idle(10);
+    // Where the face's cutoff knob sits in its window: Cribrum inserted once before the
+    // shot, the knob found by its hint (the biggest control named so), then undone.
+    d.app
+        .add_picked_effect(strip, &PickChoice::Effect(cantus_core::EffectKind::AutoFilter));
+    d.idle(14);
+    let mut cut_knob: Option<Rect> = None;
+    if let Some(w) = d.top_window() {
+        for r in d.widgets_in(w) {
+            let name = d.hint_at(r.center()).unwrap_or_default().to_lowercase();
+            if name.contains("cutoff") && r.width() < 120.0 && r.height() < 120.0 {
+                if cut_knob.is_none_or(|k| r.area() > k.area()) {
+                    cut_knob = Some(r);
+                }
+            }
+        }
+        cut_knob = cut_knob.map(|k| k.translate(-w.min.to_vec2()));
+    }
+    if cut_knob.is_none() {
+        eprintln!("s5: no control named Cutoff in the face");
+    }
+    d.app.undo();
+    d.idle(8);
     d.play_from(d.bar(16.0), 1.5);
     // Where the strip's first empty insert is: by its hint, in the strip's column.
     let name = cantus_ui::i18n::t("demos.track.chords");
     let col = d.text(&name).map(|r| {
         Rect::from_min_max(
-            Pos2::new(r.center().x - 40.0, 40.0),
-            Pos2::new(r.center().x + 40.0, d.o.size.y),
+            Pos2::new(r.center().x - 32.0, r.top() - 10.0),
+            Pos2::new(r.center().x + 32.0, d.o.size.y),
         )
     });
     let slot = col.and_then(|c| {
         d.control(c, "insert")
+            .or_else(|| d.control(c, "add an effect"))
             .or_else(|| d.control(c, "effect"))
     });
     if slot.is_none() {
-        if let Some(c) = col {
-            eprintln!("s5: hints in the column: {:?}", d.hints_in(c));
+        match col {
+            Some(c) => eprintln!("s5: hints in the column: {:?}", d.hints_in(c)),
+            None => eprintln!("s5: the strip's name “{name}” is not painted"),
         }
     }
+    d.note(
+        "slot",
+        slot.map_or(serde_json::Value::Null, |s| {
+            serde_json::json!([s.left(), s.top(), s.width(), s.height()])
+        }),
+    );
     d.roll();
     d.cursor = true;
     d.pointer = Pos2::new(d.o.size.x * 0.5, d.o.size.y * 0.45);
@@ -1228,7 +1385,18 @@ fn take_mixer(o: &Opts) {
             d.click();
         }
         None => {
-            d.did("no empty insert found by its hint: the picker opened by its call");
+            // The inspector's way: the strip selected, *Add an effect* under its inserts.
+            d.app.select_strip(strip);
+            d.idle(2);
+            match d.text("Add an effect") {
+                Some(a) => {
+                    d.go(a.center());
+                    d.idle(d.frames_for(200.0));
+                    d.click();
+                    d.did("the strip selected by its call; the inspector's Add an effect clicked");
+                }
+                None => d.did("no empty insert and no Add an effect on screen"),
+            }
         }
     }
     d.idle(d.frames_for(300.0));
@@ -1241,7 +1409,11 @@ fn take_mixer(o: &Opts) {
         d.idle(d.frames_for(300.0));
     }
     d.until(3.2);
-    match d.text("Cribrum") {
+    let tile = d
+        .texts_all("Cribrum")
+        .into_iter()
+        .min_by(|a, b| a.left().total_cmp(&b.left()));
+    match tile {
         Some(t) => {
             d.go(t.center());
             d.idle(d.frames_for(600.0));
@@ -1250,7 +1422,8 @@ fn take_mixer(o: &Opts) {
         None => {
             d.did("no Cribrum tile: add_picked_effect called");
             cantus_ui::views::picker::close(&mut d.app);
-            d.app.add_picked_effect(strip, &PickChoice::Effect(cantus_core::EffectKind::AutoFilter));
+            d.app
+                .add_picked_effect(strip, &PickChoice::Effect(cantus_core::EffectKind::AutoFilter));
         }
     }
     d.idle(d.frames_for(500.0));
@@ -1261,38 +1434,35 @@ fn take_mixer(o: &Opts) {
         .and_then(|e| e.iter().find(|e| e.spec.kind == cantus_core::EffectKind::AutoFilter))
         .map(|e| e.id);
     d.note("effect_added", effect.is_some().into());
-    // The face: its window, the knob named for the cutoff.
+    // The face: its window framed, then the cutoff knob (Filter A's, the lowest "Cutoff").
     d.until(5.0);
-    let w = d.top_window();
-    if let Some(w) = w {
+    if let Some(w) = d.top_window() {
         d.note("face", serde_json::json!([w.left(), w.top(), w.width(), w.height()]));
-        let r = d.framing(w.center(), (d.o.size.x / (w.width() + 160.0)).clamp(1.0, 1.5));
+        let r = d.fit(w, 40.0, 1.5);
         d.frame_to(r, 1200.0);
     }
-    let knob = d
-        .text("Cutoff")
-        .or_else(|| d.text("Frequency"))
-        .or_else(|| d.text("Freq"));
+    let knob = d.top_window().zip(cut_knob).map(|(w, k)| k.translate(w.min.to_vec2()));
     match knob {
         Some(k) => {
-            // The knob sits over its label.
-            let at = Pos2::new(k.center().x, k.top() - 22.0);
+            let at = k.center();
             d.go(at);
             d.idle(d.frames_for(300.0));
-            let down = at + Vec2::new(0.0, 120.0);
-            d.drag(down, 2600.0);
-            d.note("knob", serde_json::json!([at.x, at.y]));
+            // Down: the cutoff falls, the chords go dark; then part of the way back.
+            d.drag(at + Vec2::new(0.0, 110.0), 2600.0);
+            d.idle(d.frames_for(500.0));
+            d.drag(at + Vec2::new(0.0, -50.0), 1600.0);
+            d.note("knob", serde_json::json!([at.x, at.y, k.width(), k.height()]));
         }
-        None => d.did("no Cutoff label in the face: no knob turned"),
+        None => d.did("no Cutoff knob found in the face: no knob turned"),
     }
-    d.until(11.5);
+    d.until(11.6);
     let full = d.screen();
-    d.frame_to(full, 1400.0);
+    d.frame_to(full, 1300.0);
     d.until(13.0);
     d.finish();
 }
 
-/// Shot 7 (0:52–1:00): *With All Your Heart* into its first chorus on the desk, the master
+// Shot 7 (0:52–1:00): *With All Your Heart* into its first chorus on the desk, the master
 /// selected, its chain in view; Speculum, the last insert, opened: the loudness meter
 /// landing against the song's target.
 fn take_master(o: &Opts) {
@@ -1381,15 +1551,11 @@ fn take_record(o: &Opts) {
         .map(|r| r.samples.chunks_exact(2).map(|f| 0.5 * (f[0] + f[1])).collect())
         .unwrap_or_default();
     d.note("input_seconds", (input.len() as f64 / RATE).into());
-    let (mut ring, consumer) = rtrb::RingBuffer::<f32>::new(RATE as usize * 30);
-    for v in &input {
-        let _ = ring.push(*v);
-    }
-    d.proc.attach_input(consumer, 1);
+    let (ring, consumer) = rtrb::RingBuffer::<f32>::new(RATE as usize);
     // The guitar's track, armed, its input the interface's first.
     let mut t = d.app.bus.new_track("Guitar take".to_string());
     t.input = Some(cantus_core::audio::TrackInput {
-        monitor: cantus_core::audio::MonitorMode::Off,
+        monitor: cantus_core::audio::MonitorMode::On,
         ..cantus_core::audio::TrackInput::mono(0)
     });
     t.armed = true;
@@ -1400,8 +1566,20 @@ fn take_record(o: &Opts) {
         track: Box::new(t),
     });
     d.app.select_track(id);
+    // The song's own guitar part muted: the guitar heard is the one coming in.
+    d.app.exec(cantus_core::Command::SetTrackMute {
+        id: guitar,
+        muted: true,
+    });
     d.idle(6);
-    // The input starts with the song: the pre-roll plays it from its start.
+    // The input starts with the song: the pre-roll plays it from its start, fed a block at
+    // a time (a backlog is shed, as from a device whose clock runs ahead).
+    d.proc.attach_input(consumer, 1);
+    d.feed = Some(Feed {
+        ring,
+        data: input,
+        pos: 0,
+    });
     d.play_from(at, pre);
     d.roll();
     d.cursor = true;
@@ -1464,18 +1642,44 @@ fn take_session(o: &Opts) {
     d.idle(d.frames_for(1500.0));
     d.roll();
     d.cursor = true;
-    d.pointer = Pos2::new(d.o.size.x * 0.5, d.o.size.y * 0.5);
-    d.until(0.3);
-    let launcher = d.app.session_view.geo.as_ref().and_then(|g| {
-        (g.scenes.len() > 1).then(|| g.scene(1))
-    });
-    match launcher {
-        Some(r) => {
-            d.go(r.center());
-            d.idle(d.frames_for(150.0));
-            d.click();
+    // The grid framed: its clip columns, the first rows.
+    let geo = d.app.session_view.geo.clone();
+    if let Some(g) = &geo {
+        let n = g.tracks.len().min(10);
+        let rows = g.scenes.len().min(4);
+        if n > 0 && rows > 0 {
+            let r = g.head(0).union(g.cell(n - 1, rows - 1));
+            let fr = d.fit(r, 16.0, 1.6);
+            d.camera.push(Key {
+                at: 0,
+                frames: 0,
+                rect: fr,
+            });
+            d.note("grid", serde_json::json!([r.left(), r.top(), r.width(), r.height()]));
+            d.pointer = Pos2::new(r.center().x, r.bottom() + 30.0);
         }
-        None => d.did("no second scene's launcher drawn"),
+    }
+    d.until(0.25);
+    // Two clips of the second scene launched by their own launchers: the chords, then the
+    // lead (Live's way: a click on a clip's triangle).
+    if let Some(g) = &geo {
+        let col = |name: &str| {
+            let n = cantus_ui::i18n::t(name);
+            g.tracks
+                .iter()
+                .position(|t| d.app.project().track(*t).is_some_and(|x| x.name == n))
+        };
+        for (key, at) in [("demos.track.chords", 0.4f32), ("demos.track.lead", 1.4)] {
+            match col(key) {
+                Some(i) if g.scenes.len() > 1 => {
+                    let l = cantus_ui::views::session::paint::launcher_rect(g.cell(i, 1), g.k);
+                    d.until(at);
+                    d.go(l.center());
+                    d.click();
+                }
+                _ => d.did("no column for a clip to launch"),
+            }
+        }
     }
     d.until(cut.1 - cut.0);
     d.finish();
@@ -1572,27 +1776,27 @@ fn take_desk(o: &Opts) {
     d.open_demo("heart");
     d.no_other_dancers(None);
     d.add_onda(true, (0.5, 0.9, 1.0));
-    d.app.show_central(cantus_ui::app::CentralView::Mixer);
+    d.app.settings.stage.hidden = false;
+    d.big_desk();
     d.app
         .workspace
         .reveal(cantus_ui::views::workspace::Pane::Stage);
     d.idle(10);
     d.play_from(d.bar(52.0), 1.5);
     d.roll();
-    d.idle(1);
     let s = d.screen();
-    let start = d.framing(Pos2::new(s.width() * 0.25, s.height() * 0.62), 1.5);
+    let start = d.framing(Pos2::new(s.width() * 0.2, s.height() * 0.45), 1.35);
     d.camera.push(Key {
         at: 0,
         frames: 0,
         rect: start,
     });
-    let across = d.framing(Pos2::new(s.width() * 0.62, s.height() * 0.62), 1.5);
+    let across = d.framing(Pos2::new(s.width() * 0.52, s.height() * 0.45), 1.35);
     d.frame_to(across, 4800.0);
     d.until(5.0);
     match leaf_of(&d, cantus_ui::views::workspace::Pane::Stage) {
         Some(st) => {
-            let z = (s.height() / (st.height() + 80.0)).clamp(1.2, 2.4);
+            let z = (s.height() / (st.height() + 80.0)).clamp(1.2, 2.0);
             let r = d.framing(st.center(), z);
             d.frame_to(r, 2200.0);
             d.note("stage", serde_json::json!([st.left(), st.top(), st.width(), st.height()]));
@@ -1610,6 +1814,7 @@ fn take_end(o: &Opts) {
     d.open_demo("heart");
     d.no_other_dancers(None);
     d.add_onda(true, (0.5, 0.9, 1.0));
+    d.app.settings.stage.hidden = false;
     d.app
         .workspace
         .reveal(cantus_ui::views::workspace::Pane::Stage);
