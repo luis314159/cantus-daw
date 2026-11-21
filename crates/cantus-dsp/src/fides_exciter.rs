@@ -437,7 +437,8 @@ impl Exciter {
         self.noise.clear();
         self.noise.set(step.noise_band);
         self.env = 0.0;
-        let plays_noise = s.kind == ExciterKind::Noise || n.level > 0.0;
+        // The modulated level too: a route that raises it from the first step plays it.
+        let plays_noise = s.kind == ExciterKind::Noise || n.level > 0.0 || step.noise_level > 0.0;
         self.env_stage = if plays_noise {
             Stage::Attack
         } else {
@@ -448,6 +449,22 @@ impl Exciter {
         self.env_rel = math::exp(-4.6 / (n.release_ms.max(0.5) * 0.001 * sr));
         self.env_sus = n.sustain.clamp(0.0, 1.0);
         self.density = n.density.clamp(0.0, 1.0);
+    }
+
+    /// The control step mid-note (review 2). The noise generator's band follows the
+    /// step's — its coefficients only, the state running on (a direct-form filter retuned
+    /// every 32 samples moves without a click, as the tone's low-pass does) — so a route or
+    /// a knob on the noise's colour or width is heard while the note is held. And a noise
+    /// layer that was not playing (its level 0 at the note's start) comes in when its level
+    /// rises above 0 while the key is held, on its own envelope from the attack, as a layer
+    /// that starts with the note would; once it plays, its level only scales it. After the
+    /// key is let go nothing starts. No allocation.
+    pub fn follow(&mut self, step: &ExcStep) {
+        self.noise.set(step.noise_band);
+        if self.env_stage == Stage::Idle && self.held && step.noise_level > 0.0 {
+            self.env = 0.0;
+            self.env_stage = Stage::Attack;
+        }
     }
 
     /// The key is let go: the bow lifts, the noise releases.

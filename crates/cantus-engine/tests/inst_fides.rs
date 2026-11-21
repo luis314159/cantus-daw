@@ -290,7 +290,10 @@ fn an_eight_note_chord_at_full_velocity_keeps_its_headroom() {
         let out = render_block(&p, 512, 1.0);
         let peak = out.iter().fold(0f32, |m, x| m.max(x.abs()));
         assert!(peak < 1.0, "{name}: {peak}");
-        println!("{name}: chord peak {:.1} dBFS", 20.0 * peak.log10());
+        println!(
+            "{name}: chord peak {:.1} dBFS",
+            20.0 * cantus_dsp::math::log10(peak)
+        );
     }
 }
 

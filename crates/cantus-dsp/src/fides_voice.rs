@@ -72,6 +72,10 @@ pub struct Res {
     pub guide: Guide,
     pub modal: Modal,
     pos: f64,
+    /// Where a modal object's strike and microphone weights were last placed: they are
+    /// placed again once the position has moved 0.002 from there (review 1 — compared with
+    /// the last step's, a slow slide never moved them).
+    placed: f64,
     listen: f64,
     pub f0: f64,
     pub t60: f64,
@@ -85,6 +89,7 @@ impl Res {
             guide: Guide::new(sr),
             modal: Modal::new(sr),
             pos: 0.13,
+            placed: 0.13,
             listen: 0.2,
             f0: 261.6,
             t60: 1.0,
@@ -111,6 +116,7 @@ impl Res {
         }
         self.kind = r.kind;
         self.pos = pos;
+        self.placed = pos;
         self.listen = r.listen as f64;
         self.f0 = f0;
         self.t60 = t60;
@@ -148,7 +154,7 @@ impl Res {
             };
             self.guide.design(self.kind, &st, span);
         } else {
-            if (pos - self.pos).abs() > 0.002 {
+            if (pos - self.placed).abs() > 0.002 {
                 let mut table = [Partial {
                     ratio: 0.0,
                     m: 0,
@@ -157,6 +163,7 @@ impl Res {
                 partials(self.kind, &mut table);
                 self.modal.place(&table, pos, self.listen);
                 self.modal.design_again();
+                self.placed = pos;
             }
             self.modal.design(&ModalStep { f0, t60, p });
         }
@@ -243,6 +250,9 @@ pub struct Voice {
     pub a: Res,
     pub b: Res,
     b_on: bool,
+    /// B was started with this note (it was on at the note's start, and has stayed on):
+    /// B switched on mid-note waits for the next note (review 4).
+    b_struck: bool,
     serial: bool,
     step: ExcStep,
     bowing: bool,
@@ -290,6 +300,7 @@ impl Voice {
             a: Res::new(sample_rate),
             b: Res::new(sample_rate),
             b_on: false,
+            b_struck: false,
             serial: false,
             step: ExcStep::default(),
             bowing: false,
@@ -380,6 +391,7 @@ impl Voice {
         self.exc.clear();
         self.a.clear();
         self.b.clear();
+        self.b_struck = false;
         self.fade = 1.0;
         self.fade_step = 0.0;
         self.peak = 0.0;
@@ -537,6 +549,10 @@ impl Voice {
             noise_level: (own + layer) * vel_gain * press_gain * comp * 4.0,
             noise_band: Biquad::band(color, s.noise.width_oct, sr),
         };
+        if !self.first {
+            // The noise's band and its level's start follow the step (review 2).
+            self.exc.follow(&self.step);
+        }
         // ---- where, and the pitch ----
         let slide = if self.has_slide {
             s.mpe_slide * (self.slide - 0.5) * 0.4
@@ -576,10 +592,18 @@ impl Voice {
         let (fb, tb) = (hz(pb), t60_of(&s.b, pb, md(tg::B_DECAY)));
         let mat_b = material_p(s.b.material + md(tg::B_MATERIAL));
         // ---- the gains ----
-        self.b_on = s.b_on;
+        // B sounds when it was struck with this note: switched on mid-note it waits for the
+        // next one (never started, its kind and state are another note's), and A keeps its
+        // level meanwhile; switched off mid-note it is let go, so it cannot come back frozen.
+        if !self.first && !s.b_on && self.b_struck {
+            self.b.clear();
+            self.b_struck = false;
+        }
+        let b_on = s.b_on && (self.first || self.b_struck);
+        self.b_on = b_on;
         self.serial = s.serial;
         let mix = (s.mix + md(tg::MIX)).clamp(0.0, 1.0);
-        let (ga, gb) = if s.b_on {
+        let (ga, gb) = if b_on {
             ((2.0 * (1.0 - mix)).min(1.0), (2.0 * mix).min(1.0))
         } else {
             (1.0, 0.0)
@@ -597,6 +621,7 @@ impl Voice {
         if self.first {
             let keep = self.a.is_live();
             self.a.start(&s.a, fa, ta, mat_a, pos, keep);
+            self.b_struck = s.b_on;
             if s.b_on {
                 let keep = self.b.is_live();
                 self.b.start(&s.b, fb, tb, mat_b, pos, keep);
@@ -625,8 +650,7 @@ impl Voice {
             }
         } else {
             self.a.step(fa, ta, mat_a, pos, span);
-            if s.b_on {
-                // B switched on mid-note waits for the next note (it was never struck).
+            if b_on {
                 self.b.step(fb, tb, mat_b, pos, span);
             }
         }

@@ -143,9 +143,9 @@ impl Modal {
         let count = partials(kind, &mut table).min(modes.clamp(1, MAX_MODES));
         // Inharmonicity stretches (or squeezes) each partial's ratio as a power.
         let e = 1.0 + 0.12 * inharm.clamp(-1.0, 1.0);
-        for k in 0..MAX_MODES {
-            self.ratio[k] = if k < count {
-                math::powf(table[k].ratio, e)
+        for (k, (r, t)) in self.ratio.iter_mut().zip(table.iter()).enumerate() {
+            *r = if k < count {
+                math::powf(t.ratio, e)
             } else {
                 0.0
             };
@@ -290,8 +290,8 @@ impl Modal {
             if bowing {
                 let mut acc = [0.0f32; LANES];
                 for c in 0..chunks {
-                    for j in 0..LANES {
-                        acc[j] += self.gbow[c][j] * self.im[c][j];
+                    for (a, (g, m)) in acc.iter_mut().zip(self.gbow[c].iter().zip(&self.im[c])) {
+                        *a += g * m;
                     }
                 }
                 let d = sum8(&acc);
@@ -303,7 +303,7 @@ impl Modal {
             moved |= x != 0.0 || xb != 0.0;
             let mut acc = [0.0f32; LANES];
             for c in 0..chunks {
-                for j in 0..LANES {
+                for (j, a) in acc.iter_mut().enumerate() {
                     let (re, im) = (self.re[c][j], self.im[c][j]);
                     let nre = self.pr[c][j] * re - self.pi[c][j] * im
                         + self.gin[c][j] * x
@@ -311,7 +311,7 @@ impl Modal {
                     let nim = self.pi[c][j] * re + self.pr[c][j] * im;
                     self.re[c][j] = nre;
                     self.im[c][j] = nim;
-                    acc[j] += self.gout[c][j] * nim;
+                    *a += self.gout[c][j] * nim;
                 }
             }
             out[i] += gain * sum8(&acc);

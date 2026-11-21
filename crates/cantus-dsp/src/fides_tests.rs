@@ -419,3 +419,311 @@ fn probe_bowed_glass_and_bar() {
         );
     }
 }
+
+// ---- round 41's integrated review: the fixes' tests ----
+
+/// A route from macro `m` (1 … 8) to `dst` at `depth`.
+fn macro_route(m: u16, dst: u16, depth: f32) -> crate::modmatrix::ModRoute {
+    crate::modmatrix::ModRoute {
+        src: VOICE_SOURCES as u16 + m - 1,
+        dst,
+        depth,
+        ..Default::default()
+    }
+}
+
+/// One note held from 0 on a new instance of `s` with `routes`, rendered in blocks of 128;
+/// before each block `each(f, block's first sample)` may change the instance.
+fn held(
+    s: &FidesSettings,
+    routes: &[crate::modmatrix::ModRoute],
+    frames: usize,
+    each: &dyn Fn(&mut Fides, usize),
+) -> (Vec<f32>, Fides) {
+    let mut f = Fides::new(SR);
+    f.set(s);
+    f.set_routes(routes);
+    f.note_on(60, 0.8, 1);
+    let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
+    for at in (0..frames).step_by(128) {
+        each(&mut f, at);
+        let n = 128.min(frames - at);
+        f.process(&mut l[at..at + n], &mut r[at..at + n]);
+    }
+    (l, f)
+}
+
+/// Review 1: a slow position (an MPE slide, the Position macro) moves where a bowed modal
+/// object is played — the strike and the bow's weights are placed again once it has moved
+/// 0.002 from where they were last placed, however small each step is.
+#[test]
+fn a_slow_position_moves_a_bowed_modal_object() {
+    for kind in [ResKind::Marimba, ResKind::Plate, ResKind::Glass] {
+        let mut s = FidesSettings::default();
+        s.exc.kind = ExciterKind::Bow;
+        s.a.kind = kind;
+        s.a.material = 0.9;
+        s.body.kind = BodyKind::None;
+        let route = [macro_route(1, target::EXC_POS, 0.25)];
+        let frames = 96_000;
+        let still = held(&s, &route, frames, &|_, _| {}).0;
+        // 0 → 1 over the two seconds: 0.25 / 3 000 steps ≈ 0.00008 a step.
+        let ramp = |f: &mut Fides, at: usize| {
+            let mut m = [0.0; 8];
+            m[0] = at as f32 / frames as f32;
+            f.set_macros(&m);
+        };
+        let (moved, f) = held(&s, &route, frames, &ramp);
+        assert!(
+            (f.newest().position() - (s.exc.pos + 0.25)).abs() < 0.01,
+            "{kind:?}: the position ramped"
+        );
+        let diff = still
+            .iter()
+            .zip(&moved)
+            .fold(0f32, |m, (a, b)| m.max((a - b).abs()));
+        let peak = still.iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!(
+            diff > 0.05 * peak,
+            "{kind:?}: the slow position never moved the bow ({diff} of {peak})"
+        );
+        assert!(moved.iter().all(|x| x.is_finite() && x.abs() < 4.0));
+    }
+}
+
+/// Review 2: the noise generator's band follows every step (a route or a knob on its
+/// colour or width moves it mid-note), click-free; a noise level raised mid-note on a patch
+/// that started with none brings the layer in on its own attack; after the key is let go
+/// it does not.
+#[test]
+fn the_noise_band_and_level_follow_the_note() {
+    use super::exciter::{Biquad, ExcStep, Exciter, ExciterSettings, NoiseSettings, Rng};
+    let hammer = crate::lamina::voice::HammerShape::new();
+    let band = |hz: f32| Biquad::band(hz, 1.0, SR);
+    let step = |level: f32, hz: f32| ExcStep {
+        level: 1.0,
+        noise_level: level,
+        noise_band: band(hz),
+        ..Default::default()
+    };
+    let noise = NoiseSettings {
+        sustain: 1.0,
+        ..Default::default()
+    };
+    let run = |e: &mut Exciter, st: &ExcStep, n: usize| {
+        let mut out = vec![0.0f32; n];
+        for c in out.chunks_mut(CTRL) {
+            e.follow(st);
+            let (mut imp, mut bow) = (vec![0.0; c.len()], vec![0.0; c.len()]);
+            e.render(st, &hammer, None, &mut imp, c, &mut bow);
+        }
+        out
+    };
+    // Energy above and below 3 kHz, by a first difference against the signal.
+    let tilt = |x: &[f32]| {
+        let e: f32 = x.iter().map(|v| v * v).sum();
+        let d: f32 = x.windows(2).map(|w| (w[1] - w[0]) * (w[1] - w[0])).sum();
+        d / e.max(1e-30)
+    };
+    let noise_exc = ExciterSettings {
+        kind: ExciterKind::Noise,
+        ..Default::default()
+    };
+    let mut e = Exciter::new(SR);
+    let low = step(1.0, 500.0);
+    e.start(&noise_exc, &noise, &low, 0.8, 0.0, 0.5, 261.6, Rng(7));
+    let before = run(&mut e, &low, 9_600);
+    let high = step(1.0, 8_000.0);
+    let after = run(&mut e, &high, 9_600);
+    let (t0, t1) = (tilt(&before[4_800..]), tilt(&after[4_800..]));
+    assert!(t1 > 10.0 * t0, "the band moved up: {t0} → {t1}");
+    // Click-free: no sample after the change jumps past the band's own steady range.
+    let peak = |x: &[f32]| x.iter().fold(0f32, |m, v| m.max(v.abs()));
+    assert!(
+        peak(&after[..480]) < 2.0 * peak(&after[4_800..]).max(peak(&before[4_800..])),
+        "a click where the band moved: {} vs {}",
+        peak(&after[..480]),
+        peak(&after[4_800..])
+    );
+    // A pluck with no noise layer at its start, the layer raised mid-note.
+    let pluck = ExciterSettings::default();
+    let none = step(0.0, 2_000.0);
+    let mut e = Exciter::new(SR);
+    e.start(
+        &pluck,
+        &NoiseSettings::default(),
+        &none,
+        0.8,
+        0.0,
+        0.5,
+        261.6,
+        Rng(7),
+    );
+    let quiet = run(&mut e, &none, 4_800);
+    let raised = step(1.0, 2_000.0);
+    let late = run(&mut e, &raised, 4_800);
+    assert!(peak(&late) > 0.05, "a noise level raised mid-note is heard");
+    // … from its attack (5 ms), not at once.
+    assert!(peak(&late[..24]) < 0.25 * peak(&late[240..480]));
+    let _ = quiet;
+    // Let go: a level raised after the key is up starts nothing.
+    let mut e = Exciter::new(SR);
+    e.start(
+        &pluck,
+        &NoiseSettings::default(),
+        &none,
+        0.8,
+        0.0,
+        0.5,
+        261.6,
+        Rng(7),
+    );
+    let _ = run(&mut e, &none, 4_800);
+    e.release();
+    let after_up = run(&mut e, &raised, 4_800);
+    assert_eq!(peak(&after_up), 0.0);
+    assert!(e.done());
+
+    // Through the instrument: Macro 1 on the noise's colour (the blown presets') and on its
+    // level (a patch whose own level is 0) both change the held note.
+    let mut s = FidesSettings::default();
+    s.exc.kind = ExciterKind::Noise;
+    s.noise.sustain = 0.8;
+    s.a.kind = ResKind::Tube;
+    s.body.kind = BodyKind::None;
+    let raise = |f: &mut Fides, at: usize| {
+        let mut m = [0.0; 8];
+        m[0] = if at >= 24_000 { 1.0 } else { 0.0 };
+        f.set_macros(&m);
+    };
+    for (what, s, route) in [
+        ("colour", s, macro_route(1, target::NOISE_COLOR, 2.0)),
+        (
+            "level",
+            FidesSettings {
+                exc: ExciterSettings {
+                    kind: ExciterKind::Bow,
+                    ..s.exc
+                },
+                noise: NoiseSettings {
+                    level: 0.0,
+                    ..s.noise
+                },
+                ..s
+            },
+            macro_route(1, target::NOISE_LEVEL, 0.5),
+        ),
+    ] {
+        let a = held(&s, &[route], 48_000, &|_, _| {}).0;
+        let b = held(&s, &[route], 48_000, &raise).0;
+        assert_eq!(
+            a[..24_000],
+            b[..24_000],
+            "{what}: the same until the macro moves"
+        );
+        assert!(
+            a[24_000..] != b[24_000..],
+            "{what}: the macro is heard mid-note"
+        );
+        assert!(b.iter().all(|x| x.is_finite() && x.abs() < 4.0));
+    }
+}
+
+/// Review 3: a body or an output cut taken out of use mid-ring is cleared, not frozen: the
+/// instrument comes to rest, and the stage brought back later sounds nothing from nothing.
+#[test]
+fn a_stage_taken_out_mid_ring_comes_to_rest() {
+    let base = || FidesSettings {
+        lowcut_hz: 80.0,
+        highcut_hz: 9_000.0,
+        ..Default::default()
+    };
+    type Change = fn(&mut FidesSettings);
+    let cases: [(&str, Change); 4] = [
+        ("body none", |s| s.body.kind = BodyKind::None),
+        ("body mix 0", |s| s.body.mix = 0.0),
+        ("cuts off", |s| {
+            s.lowcut_hz = 10.0;
+            s.highcut_hz = 20_000.0;
+        }),
+        ("low cut off", |s| s.lowcut_hz = 10.0),
+    ];
+    for (name, change) in cases {
+        let mut f = Fides::new(SR);
+        f.set(&base());
+        f.note_on(48, 0.9, 1);
+        let (mut l, mut r) = (vec![0.0; 256], vec![0.0; 256]);
+        for _ in 0..40 {
+            f.process(&mut l, &mut r);
+        }
+        f.note_off(48, 1);
+        let mut s = base();
+        change(&mut s);
+        f.set(&s);
+        let mut rested = false;
+        for _ in 0..(60 * 48_000 / 256) {
+            l.fill(0.0);
+            r.fill(0.0);
+            f.process(&mut l, &mut r);
+            if f.at_rest() {
+                rested = true;
+                break;
+            }
+        }
+        assert!(rested, "{name}: never came to rest");
+        // Back as it was: nothing sounds from nothing.
+        f.set(&base());
+        for _ in 0..200 {
+            l.fill(0.0);
+            r.fill(0.0);
+            assert!(!f.process(&mut l, &mut r), "{name}: sound from nothing");
+        }
+        assert!(f.at_rest(), "{name}");
+    }
+}
+
+/// Review 4: resonator B switched on mid-note waits for the next note (it was never
+/// struck); switched off and on again within a note, it stays silent until the next one.
+#[test]
+fn resonator_b_switched_on_mid_note_waits_for_the_next_note() {
+    let mut s = FidesSettings::default();
+    s.exc.kind = ExciterKind::Bow;
+    s.b.kind = ResKind::Bell;
+    s.body.kind = BodyKind::None;
+    let with_b = FidesSettings { b_on: true, ..s };
+    let frames = 48_000;
+    let second = 36_096;
+    // `plan(at)`: whether B is on at sample `at`; a second note at `second`.
+    let play = |plan: &dyn Fn(usize) -> bool| {
+        let mut f = Fides::new(SR);
+        f.set(if plan(0) { &with_b } else { &s });
+        f.note_on(55, 0.8, 1);
+        let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
+        let mut on = plan(0);
+        for at in (0..frames).step_by(128) {
+            if plan(at) != on {
+                on = plan(at);
+                f.set(if on { &with_b } else { &s });
+            }
+            if at == second {
+                f.note_on(62, 0.8, 2);
+            }
+            let n = 128.min(frames - at);
+            f.process(&mut l[at..at + n], &mut r[at..at + n]);
+        }
+        l
+    };
+    // On at 0.25 s: until the second note, as if it never came on.
+    let never = play(&|_| false);
+    let late = play(&|at| at >= 12_032);
+    assert!(never[..second] == late[..second], "B waited");
+    assert!(never[second..] != late[second..], "the next note has B");
+    // On, off at 0.25 s, on again at 0.5 s: from the off, as if it stayed off.
+    let off = play(&|at| at < 12_032);
+    let again = play(&|at| !(12_032..24_064).contains(&at));
+    assert!(
+        off[..second] == again[..second],
+        "B stayed silent until the next note"
+    );
+    assert!(off[second..] != again[second..]);
+}
