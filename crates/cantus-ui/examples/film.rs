@@ -474,18 +474,6 @@ impl Director {
         self.button(false, PointerButton::Primary);
     }
 
-    fn key(&mut self, key: egui::Key) {
-        for pressed in [true, false] {
-            self.step(vec![Event::Key {
-                key,
-                physical_key: None,
-                pressed,
-                repeat: false,
-                modifiers: Modifiers::NONE,
-            }]);
-        }
-    }
-
     /// The arrow and the ripples, over everything, in points.
     fn cursor_shapes(&self) -> Vec<ClippedShape> {
         let mut shapes = Vec::new();
@@ -734,14 +722,6 @@ impl Director {
             .map(|p| p.seen)
     }
 
-    /// [`Self::text`] or a failure listing what is painted.
-    fn must(&self, s: &str) -> Rect {
-        self.text(s).unwrap_or_else(|| {
-            let all: Vec<&str> = self.texts.iter().map(|p| p.text.as_str()).collect();
-            panic!("{}: “{s}” is not on screen; painted: {all:?}", self.name)
-        })
-    }
-
     /// The interactive widgets drawn last frame whose centre is inside `region`, smallest
     /// first.
     fn widgets_in(&self, region: Rect) -> Vec<Rect> {
@@ -794,14 +774,6 @@ impl Director {
             out.push((r, h));
         }
         out
-    }
-
-    fn must_control(&mut self, region: Rect, want: &str) -> Rect {
-        if let Some(r) = self.control(region, want) {
-            return r;
-        }
-        let seen = self.hints_in(region);
-        panic!("{}: no control “{want}” in {region:?}; found {seen:?}", self.name)
     }
 
     // ---- the song -------------------------------------------------------------------------
@@ -1489,7 +1461,7 @@ fn take_master(o: &Opts) {
     d.app.show_central(cantus_ui::app::CentralView::Mixer);
     d.app.select_master();
     d.idle(10);
-    d.play_from(d.bar(31.0), 2.0);
+    d.play_from(d.bar(heard_bar(52.0)), 2.0);
     d.roll();
     d.cursor = true;
     d.pointer = Pos2::new(d.o.size.x * 0.45, d.o.size.y * 0.5);
@@ -1539,7 +1511,7 @@ fn take_record(o: &Opts) {
     d.open_demo("heart");
     d.no_other_dancers(None);
     let guitar = d.track("demos.track.guitar");
-    let at = d.bar(33.0);
+    let at = d.bar(heard_bar(44.0));
     // The guitar alone, from a little before the shot to its end.
     let pre = 1.5f32;
     let p = d.app.project().clone();
@@ -1782,6 +1754,19 @@ fn take_plugin(o: &Opts) {
     d.finish();
 }
 
+/// The soundtrack's edit (`soundtrack.rs`): *With All Your Heart* from bar 1, and from its
+/// bar 12 (a 2-s crossfade there) 44 bars ahead, so its last chord rings at the film's end.
+/// The Heart bar heard at film time `film_s`: what s6a, s7, s8 and s9 play and show.
+fn heard_bar(film_s: f64) -> f64 {
+    let bar = 4.0 * 60.0 / 116.0;
+    let b = film_s / bar;
+    if b >= 12.0 {
+        b + 44.0
+    } else {
+        b
+    }
+}
+
 /// Where `pane` is docked (as laid out last frame).
 fn leaf_of(d: &Director, pane: cantus_ui::views::workspace::Pane) -> Option<Rect> {
     let dock = &d.app.workspace.dock;
@@ -1789,7 +1774,7 @@ fn leaf_of(d: &Director, pane: cantus_ui::views::workspace::Pane) -> Option<Rect
     dock.leaf(path.node_path()).ok().map(|l| l.rect)
 }
 
-/// Shot 8 (1:00–1:08): the build into the last chorus; a slow glide across the desk, ending
+/// Shot 8 (1:00–1:08): the bars the soundtrack plays there (the outro); a slow glide across the desk, ending
 /// on Onda in the Stage, framed close.
 fn take_desk(o: &Opts) {
     let mut d = Director::new(o, "s8-desk", (60.0, 68.0));
@@ -1802,7 +1787,7 @@ fn take_desk(o: &Opts) {
         .workspace
         .reveal(cantus_ui::views::workspace::Pane::Stage);
     d.idle(10);
-    d.play_from(d.bar(52.0), 1.5);
+    d.play_from(d.bar(heard_bar(60.0)), 1.5);
     d.roll();
     let s = d.screen();
     let start = d.framing(Pos2::new(s.width() * 0.2, s.height() * 0.45), 1.35);
@@ -1827,27 +1812,15 @@ fn take_desk(o: &Opts) {
     d.finish();
 }
 
-/// Shot 9 (1:08–1:20): the song's last twelve seconds behind the end card; the window with
-/// Onda in the Stage, whose rect the JSON gives (the card keeps Onda's place at its side).
+/// Shot 9 (1:08–1:20): the song's ending behind the end card, which covers it; no dancer.
 fn take_end(o: &Opts) {
     let mut d = Director::new(o, "s9-end", (68.0, 80.0));
     d.open_demo("heart");
     d.no_other_dancers(None);
-    d.add_onda(true, (0.5, 0.9, 1.0));
-    d.app.settings.stage.hidden = false;
-    d.app
-        .workspace
-        .reveal(cantus_ui::views::workspace::Pane::Stage);
     d.idle(10);
-    let p = d.app.project().clone();
-    let end = cantus_ui::demos::seconds(&p);
-    let tick = p.tempo_map().tick_at_seconds((end - 12.0).max(0.0));
-    d.play_from(Ticks(tick.round() as i64), 1.0);
+    // The bars the soundtrack plays there, the song's ending. No dancer (the owner, 2026-11-21).
+    d.play_from(d.bar(heard_bar(68.0)), 1.0);
     d.roll();
-    d.idle(2);
-    if let Some(st) = leaf_of(&d, cantus_ui::views::workspace::Pane::Stage) {
-        d.note("stage", serde_json::json!([st.left(), st.top(), st.width(), st.height()]));
-    }
     d.until(12.0);
     d.finish();
 }
