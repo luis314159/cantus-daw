@@ -49,6 +49,14 @@ pub fn fragor_circuit(spec: &EffectSpec) -> Option<usize> {
     }
 }
 
+/// Whether a pedal's circuit is in: always, but for one of Fragor's circuits as a pedal of
+/// its own with its circuit switched out (a wire) (r41:pedals).
+pub fn circuit_in(spec: &EffectSpec) -> bool {
+    spec.kind
+        .fragor_circuit()
+        .is_none_or(|c| spec.get(cantus_core::fx::fragor_pedal::switch(c)) >= 0.5)
+}
+
 /// A unit's finish on the board: Fragor's pedals their own; every other unit painted from
 /// its own face (ADR 0074) — its surface's hue as the enamel, its accent as the band —
 /// each kind a shade of its own so two units of one family never look alike.
@@ -339,8 +347,13 @@ pub fn pedal(b: &mut Brush, s: &Style, r: Rect, l: &Look<'_>) -> pd::Hits {
         texture,
         shape: l.shape,
         knobs: &knobs,
-        on: l.on,
-        glow: if l.on { 0.25 + 0.75 * l.glow } else { 0.0 },
+        // r41:pedals — one of Fragor's circuits with its circuit out is a wire: its LED dark.
+        on: l.on && circuit_in(l.spec),
+        glow: if l.on && circuit_in(l.spec) {
+            0.25 + 0.75 * l.glow
+        } else {
+            0.0
+        },
         lifted: l.lifted,
         switch_hot: l.hot == Some(9),
     };
@@ -1090,7 +1103,13 @@ pub fn picker(
         if cell.bottom() > r.bottom() + 1.0 {
             break;
         }
-        let spec = EffectSpec::new(*kind);
+        // r41:pedals — one of Fragor's circuits on the shelf as it comes onto the board (its
+        // starting preset, the circuit in: its LED lit).
+        let spec = if kind.fragor_circuit().is_some() {
+            cantus_core::starting::starting_spec(*kind)
+        } else {
+            EffectSpec::new(*kind)
+        };
         let shape = faces::of(*kind).map_or(Shape::Standard, |f| kit_shape(f.shape));
         let nat = pd::size_of(shape);
         let fit = ((cell.width() - 18.0 * k) / nat.x)
@@ -1120,7 +1139,16 @@ pub fn picker(
                 bare: true,
             },
         );
-        let (name, what) = names_of(&spec);
+        // r41:pedals — on the shelf beside its circuits as pedals of their own, the whole
+        // Fragor (three slots) is named as the unit it is, not as its first circuit.
+        let (name, what) = if *kind == EffectKind::Pedal {
+            (
+                Src::Key("picker.dev.fragor.name"),
+                Src::Key("picker.dev.fragor.what"),
+            )
+        } else {
+            names_of(&spec)
+        };
         let ny = pr.bottom() + 12.0 * k;
         ktext::paint(
             b,

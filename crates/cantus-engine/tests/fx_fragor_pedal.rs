@@ -36,7 +36,7 @@ fn phrase(frames: usize) -> (Vec<f32>, Vec<f32>) {
         (2.45, 146.8),
     ];
     let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
-    for i in 0..frames {
+    for (i, (l, r)) in l.iter_mut().zip(r.iter_mut()).enumerate() {
         let t = i as f32 / SR;
         if (1.2..2.4).contains(&t) {
             continue; // exact silence
@@ -52,8 +52,8 @@ fn phrase(frames: usize) -> (Vec<f32>, Vec<f32>) {
                     * (math::sin(w) + 0.4 * math::sin(2.0 * w) + 0.2 * math::sin(3.0 * w));
             }
         }
-        l[i] = x;
-        r[i] = x * 0.93 + noise() * 0.001;
+        *l = x;
+        *r = x * 0.93 + noise() * 0.001;
     }
     (l, r)
 }
@@ -333,13 +333,13 @@ fn cpu_of_each_pedal() {
     let input = {
         let (mut l, mut r) = phrase(n);
         // No silence: the circuits run the whole time.
-        for i in 0..n {
+        for (i, (l, r)) in l.iter_mut().zip(r.iter_mut()).enumerate() {
             let t = i as f32 / SR;
             if (1.2..2.4).contains(&t) {
                 let u = t - 1.2;
                 let x = 0.25 * math::exp(-2.0 * u) * math::sin(std::f32::consts::TAU * 196.0 * u);
-                l[i] = x;
-                r[i] = x * 0.9;
+                *l = x;
+                *r = x * 0.9;
             }
         }
         (l, r)

@@ -3435,10 +3435,11 @@ de su pedal (Ganancia, Tono, Nivel; Distorsión, Filtro, Volumen; Dist, Tono, Ni
 Bias, Volumen; Sustain, Tono, Volumen). Cada uno es el mismo circuito que el de
 Fragor, bit a bit: un pedal suena exactamente como Fragor con solo ese circuito en su
 pedalera, en cualquier posición de las perillas. Solo viven en una pedalera (Fragor es el
-inserto). No tienen ventana propia: bajo la pedalera, el elegido muestra todo lo que tiene —
-sus perillas, **Puerta**, **Entrada**, **Mezcla** y **Salida**, **Sobremuestreo** (2×, 4×,
-8×), **Canales** (estéreo, o mono como un pedal de verdad: la mitad de trabajo) y
-**Circuito** (dentro, o fuera: un cable). Uno nuevo empieza en su primer preset, con el
+inserto). No tienen ventana propia: bajo la pedalera, el elegido muestra lo que se ajusta —
+sus perillas, **Puerta**, **Mezcla** y **Salida**, **Sobremuestreo** (2×, 4×, 8×),
+**Canales** (estéreo, o mono como un pedal de verdad: la mitad de trabajo) y **Circuito**
+(dentro, o fuera: un cable; su luz se apaga). Su propio nivel de entrada, como el de Fragor,
+queda para la automatización y el asistente. Uno nuevo empieza en su primer preset, con el
 circuito dentro; cada uno tiene tres o cuatro presets propios.
 
 **Presets.** Cada preset de Tabula es una pedalera entera: *Equipo de guitarra*, *Crujido de

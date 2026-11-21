@@ -1005,7 +1005,7 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
   queda el empuje y el phaser. Cada pedal suena como ese circuito solo en Fragor (las
   pruebas lo comprueban bit a bit; tu oído decide si los presets nuevos — *Empuje limpio*,
   *Solo de silicio*, *Fuzz bajo el bajo*, *Muro de muff* — valen).
-- [ ] **Bajo la pedalera** con un pedal de estos elegido: sus perillas, Puerta, Entrada,
+- [ ] **Bajo la pedalera** con un pedal de estos elegido: sus perillas, Puerta,
   Mezcla, Salida, Sobremuestreo, Canales y Circuito caben a tu escala; no aparece *Abrir su
   editor completo* (no tienen ventana propia: dinos si quieres la de Fragor con un solo
   circuito).

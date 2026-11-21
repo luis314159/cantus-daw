@@ -3172,9 +3172,10 @@ three knobs under their pedal's names (Drive, Tone, Level; Distortion, Filter, V
 Tone, Level; Fuzz, Bias, Volume; Sustain, Tone, Volume). Each is the same circuit as
 Fragor's, to the bit: a pedal sounds exactly as Fragor with only that circuit on its board,
 at every knob. They live only on a board (Fragor is the insert). They have no window of
-their own: under the board, the chosen one shows all it has — its knobs, **Gate**,
-**Input**, **Mix** and **Output**, **Oversampling** (2×, 4×, 8×), **Channels** (stereo, or
-mono as a real pedal: half the work) and **Circuit** (in, or out: a plain wire). A new one
+their own: under the board, the chosen one shows what a player sets — its knobs, **Gate**,
+**Mix** and **Output**, **Oversampling** (2×, 4×, 8×), **Channels** (stereo, or mono as a
+real pedal: half the work) and **Circuit** (in, or out: a plain wire; its light goes dark).
+Its own input level, as Fragor's, is there for automation and the assistant. A new one
 starts on its first preset, the circuit in; each has three or four presets of its own.
 
 **Presets.** Each of Tabula's presets is a whole board: *Guitar rig*, *Blues crunch*,

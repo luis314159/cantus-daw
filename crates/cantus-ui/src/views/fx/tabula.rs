@@ -251,11 +251,12 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
     }
     let faced = keys.len();
     // r41:pedals — one of Fragor's circuits as a pedal of its own has no window of its own:
-    // everything it has is here — its gate and levels, its quality and channels, and its
-    // circuit (in, or a wire).
+    // what a player sets is here — its gate, mix and output, its quality and channels, and
+    // its circuit (in, or a wire); its input (the board's Input beside it does that work)
+    // is for automation, the agents and a one-slot Fragor's presets.
     let whole = kind.fragor_circuit();
     if let Some(c) = whole {
-        keys.extend(["gate", "in", "mix", "out", "os", "mono"]);
+        keys.extend(["gate", "mix", "out", "os", "mono"]);
         keys.push(cantus_core::fx::fragor_pedal::switch(c));
     }
     let editor = super::Editor::of(kind).is_some(); // r41:pedals
@@ -298,7 +299,7 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
             let t = crate::kit::text::Text::key(word, crate::kit::text::Role::Label, s.t.text)
                 .caps(true);
             let w = crate::kit::text::measure(ui.ctx(), &t, s.k).x / s.k * 1.15 + 12.0;
-            let width = w.max(78.0);
+            let width = w.max(if whole.is_some() { 72.0 } else { 78.0 }); // r41:pedals
             if j >= faced && used + width > room {
                 break;
             }
@@ -310,11 +311,21 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
                 _ if j < faced => tb::knob_word(key).map_or(Src::Key(info.label_key), Src::Key),
                 _ => Src::Key(info.label_key),
             };
-            let out = Cell::param(info, ph.spec().get(key))
+            // r41:pedals — a stepped parameter with choices reads as its word (4x, Mono, On).
+            let prefix = kind.choices().iter().find(|(k, _)| k == key).map(|c| c.1);
+            let choice = move |v: f32, b: &mut String| {
+                if let Some(p) = prefix {
+                    b.push_str(&crate::i18n::t(&format!("{p}.{}", v.round() as i32)));
+                }
+            };
+            let mut cell = Cell::param(info, ph.spec().get(key))
                 .size(Size::M)
                 .width(width) // fx3:saltus
-                .label(label)
-                .show_in(ui, s, &mut ph, key);
+                .label(label);
+            if prefix.is_some() && info.stepped {
+                cell = cell.format(&choice);
+            }
+            let out = cell.show_in(ui, s, &mut ph, key);
             if let Some(v) = out.changed {
                 ph.set(key, v, Some(key));
             }
