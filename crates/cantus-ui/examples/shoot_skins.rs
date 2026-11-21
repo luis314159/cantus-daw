@@ -245,6 +245,8 @@ const UNITS: &[(&str, &str, What)] = &[
     ("cedo", "cedo", What::Fx(EffectKind::Ducker)),
     ("purus", "purus", What::Fx(EffectKind::Repair)),
     ("comparatio", "comparatio", What::Fx(EffectKind::Reference)),
+    // r41: Nitor (ADR 0151); Fides is with the instruments below.
+    ("nitor", "nitor", What::Fx(EffectKind::Enhancer)),
     ("unda", "unda", What::Inst(InstrumentKind::Wavetable)),
     ("calor", "calor", What::Inst(InstrumentKind::Analog)),
     ("modulus", "modulus", What::Inst(InstrumentKind::Fm)),
@@ -257,6 +259,7 @@ const UNITS: &[(&str, &str, What)] = &[
     ),
     ("organum", "organum", What::Inst(InstrumentKind::Organ)),
     ("chorda", "chorda", What::Inst(InstrumentKind::Chorda)),
+    ("fides", "fides", What::Inst(InstrumentKind::Resonator)), // r41
     (
         "tympanum",
         "tympanum",

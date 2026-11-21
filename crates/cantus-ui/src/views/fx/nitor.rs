@@ -275,10 +275,13 @@ fn body_ui(
     }
 }
 
-/// The amount, an XL knob in the corona's middle.
+/// The amount, an XL knob in the corona's middle — drawn in the style of the glass it sits
+/// on ([`sun_style`]), never in the theme's card ink (cantus-6f: dark words on the dark
+/// glass in Slate Lapis Paper).
 fn sun_knob(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style) {
     use super::controls;
     use crate::kit::text::Src;
+    let s = &sun_style(s);
     let spec = host.spec();
     let Some(info) = spec.kind.param("amount") else {
         return;
@@ -294,6 +297,14 @@ fn sun_knob(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style) {
     if out.done {
         host.end_gesture();
     }
+}
+
+/// The style the sun knob is drawn in over the corona's glass (`s`: the unit's worn style):
+/// the display's (`skin::display_style`: every surface a shade of the glass, its words the
+/// glass's own ink, dark in every theme), so its label and value read on the glass whatever
+/// the theme.
+pub fn sun_style(s: &Style) -> Style {
+    crate::kit::skin::display_style(s)
 }
 
 /// The inspector's line: the character and its amount ("Clear · 35 %").

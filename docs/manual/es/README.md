@@ -3316,13 +3316,13 @@ entrada y ajusta a ella los umbrales del carácter.
   siempre afinada con él) o **a la tónica de la canción** (una senoide en la nota de la
   tonalidad, de 32,7 Hz para Do a 61,7 Hz para Si, abierta por cada golpe de los graves: un
   808 bajo el bombo, afinado).
-- **Armónicos del bajo**: del segundo al quinto armónico del bajo, para que un teléfono o un
+- **Armónicos**: del segundo al quinto armónico del bajo, para que un teléfono o un
   portátil toquen la línea que no alcanzan (el oído oye la fundamental que falta).
 - **Apretar**: tras cada golpe los graves suenan 30 ms y luego bajan (hasta −12 dB al 100 %)
   hasta el siguiente — el retumbo acortado, el golpe intacto.
-- **Realce en la tónica**: la nota de la tonalidad florece — hasta +6 dB en su fundamental y
+- **Realzar tónica**: la nota de la tonalidad florece — hasta +6 dB en su fundamental y
   +3 dB en su octava.
-- **Banda grave hasta**: dónde acaban los graves (40–250 Hz).
+- **Graves hasta**: dónde acaban los graves (40–250 Hz).
 
 **La tonalidad** viene de la canción (su *Tonalidad* en la barra del piano roll): cambie la del proyecto y el sub
 y el realce se mueven con ella al instante. *Tonalidad* en la tarjeta de Salida fija una

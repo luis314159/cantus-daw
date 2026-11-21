@@ -293,6 +293,17 @@ pub fn size_for(least: egui::Vec2) -> egui::Vec2 {
     shell::INSTRUMENT.max(least + chrome + shell::grid_room())
 }
 
+/// The width of a matrix row's *On* button at 100 %: 56 points, or more when its word in
+/// the worn face's capitals and its switch need it (r41:no-elision: "ACTIVA" in Fides's
+/// face was cut to "AC…" in Spanish).
+fn on_width(ui: &egui::Ui) -> f32 {
+    let s = Style::current();
+    let word = Text::key("mod.on", Role::Label, egui::Color32::TRANSPARENT).caps(true);
+    let w = ktext::measure(ui.ctx(), &word, s.t.text_scale).x;
+    // The cap's padding, its switch's slot and the gap to the word (`kit::led::button`).
+    56f32.max(w + 6.0 + kit::skin::switches::slot_w(s.skin.switch) + 5.0 + 6.0 + 2.0)
+}
+
 /// [`window_in`] with the editor's body `size` points (a review's shot of a whole view, taller
 /// than the window). r37:piano
 pub fn window_in_sized(app: &mut CantusApp, ui: &mut egui::Ui, size: egui::Vec2) {
@@ -1576,7 +1587,13 @@ pub fn matrix(
                 app.set_inst_value(track, k.curve, i as f32, false);
             }
             let mut live = on;
-            let lresp = led_button(ui, &mut live, Src::Key("mod.on"), &t("mod.on"), 56.0);
+            let lresp = led_button(
+                ui,
+                &mut live,
+                Src::Key("mod.on"),
+                &t("mod.on"),
+                on_width(ui),
+            );
             let learning = crate::controllers::stepped_inst(app, ui, track, spec, k.on, &lresp);
             if lresp.changed() && !learning {
                 app.set_inst_value(track, k.on, if live { 1.0 } else { 0.0 }, false);
