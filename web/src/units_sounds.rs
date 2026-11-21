@@ -72,6 +72,12 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         snd!("tympanum-swing", ("Jazz Birch · swing on the ride", "Jazz Birch · swing en el ride"), ("Drums — Jazz · Soul · through Vinculum, Tonsor and Terminus on its strip", "Batería — Jazz · Soul · por Vinculum, Tonsor y Terminus en su canal"), ""),
         snd!("tympanum-boom_bap", ("Studio Maple · boom bap", "Studio Maple · boom bap"), ("Drums — Trap · Hip-hop · through Vinculum, Tonsor and Terminus on its strip", "Batería — Trap · Hip-hop · por Vinculum, Tonsor y Terminus en su canal"), ""),
     ]),
+    ("fides", &[
+        snd!("fides-marimba", ("Marimba", "Marimba"), ("Pluck — Pop, Latin · Reggaeton, Film · Game", "Pulsado — Pop, Latino · Reguetón, Cine · Videojuegos"), ""),
+        snd!("fides-vibraphone", ("Vibraphone", "Vibráfono"), ("Keys — R&B, Lo-fi, Jazz · Soul", "Teclas — R&B, Lo-fi, Jazz · Soul"), ""),
+        snd!("fides-cello", ("Bowed cello", "Chelo con arco"), ("Lead — Film · Game, Worship · Gospel", "Solista — Cine · Videojuegos, Alabanza · Gospel"), ""),
+        snd!("fides-glass_harmonica", ("Glass harmonica", "Armónica de cristal"), ("Pad — Ambient · Cinematic, Film · Game", "Pad — Ambient · Cinemático, Cine · Videojuegos"), ""),
+    ]),
     ("pulsus", &[
         snd!("pulsus-classic", ("Pulsus (classic)", "Pulsus (clásico)"), ("Drums — Pop", "Batería — Pop"), ""),
         snd!("pulsus-studio", ("Studio", "Estudio"), ("Drums — Pop, Rock", "Batería — Pop, Rock"), ""),
