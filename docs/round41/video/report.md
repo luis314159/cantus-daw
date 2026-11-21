@@ -190,6 +190,23 @@ Asked the owner: the voice, the changed songs, the shorter line 4, and line 7's 
 - **The run:** `tools/video/voice/qwen_run.sh`, with one model in memory at a time. The
   page is `F:\projects\video-work\voice\ab-qwen.html`. It puts each line's preferred
   Chatterbox A beside the best gated take of each Qwen voice.
+- **Where it paused** (2026-11-20, the integrator's order: C: had under 2 GB free):
+  - **Done:**
+    - the Spanish references, all eight passing the gate (references `es-latam-4` and
+      `es-latam-f-4` chosen, the nearest 5 syllables a second);
+    - the English takes, 80, with the names re-made in their spoken spellings, and gated;
+    - the Spanish takes, 80.
+  - **Not done:** the Spanish gate and the page.
+  - **Resume:** `bash tools/video/voice/qwen_run.sh /f/projects/video-work 4`.
+- **The English gate, passed per line** (Aiden / Ryan, of 5 each):
+
+  | Voice | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+  |---|---|---|---|---|---|---|---|---|
+  | Aiden | 5 | 4 | 2 | 2 | 4 | 5 | 5 | 5 |
+  | Ryan | 1 | 4 | 3 | 2 | 1 | 5 | 3 | 4 |
+
+  Pace is 2.4–3.1 words a second on most lines, near the calm window without any
+  breathing pass. Line 4 runs 2.7–3.4.
 
 ## Step 3, the film draft (2026-11-20; built by a builder agent, reviewed)
 
