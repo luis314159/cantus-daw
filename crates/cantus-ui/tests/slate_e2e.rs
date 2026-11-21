@@ -75,6 +75,9 @@ impl Rig {
                 )),
                 time: Some(self.t),
                 predicted_dt: 1.0 / 60.0,
+                // A dark system: the default mode follows it (ADR 0111, amended
+                // 2026-11-20), and the default this test boots in is the night.
+                system_theme: Some(egui::Theme::Dark),
                 ..Default::default()
             };
             let app = &mut self.app;

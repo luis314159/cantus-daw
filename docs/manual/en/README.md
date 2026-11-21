@@ -236,7 +236,9 @@ glyph is lit); `Shift+F10` opens what a right-click on the selection opens; `Esc
 opened last. Every area that holds more than it shows scrolls. Save the arrangement of the
 window under *View ▸ Layout ▸ Save layout…*; the layout is kept between sessions.
 
-**The look.** Cantus is drawn in **Slate Lapis** by default: Slate's calm room, where panels
+**The look.** Cantus is drawn in **Slate Lapis** by default, in your system's light — **Paper**
+on a light system, **Night** on a dark one, until you pick a mode on *Settings ▸ Appearance*.
+Night is Slate's calm room, where panels
 are set apart by value rather than by lines, in a deep night blue; one lapis accent means *on*
 or *selected* and nothing else, and the logo's gold marks the clock, the rulers' numbers, the
 playhead and the loop. Your track colours are a stripe and a tint until you select a track —
