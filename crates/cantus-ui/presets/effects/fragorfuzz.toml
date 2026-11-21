@@ -1,4 +1,4 @@
-# Fragor germanium fuzz (a board-only pedal, ADR 0152): factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# Fragor germanium fuzz: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
@@ -40,4 +40,4 @@ roles = ["creative"]
 "ge.vol" = 0.5
 "mix" = 0.5
 "mono" = 1
-"out" = -3
+"out" = -1.3

@@ -1,7 +1,7 @@
 # ADR 0152 — Fragor's five circuits as pedals of their own on Tabula's board
 
-**Status:** Accepted as a contract (round 41; the owner's ask of 2026-11-18, BACKLOG §3b); the
-`pedals` builder fills in the units and the faces · **Date:** 2026-11-20 · **Builds on:** ADR
+**Status:** Accepted (round 41; the owner's ask of 2026-11-18, BACKLOG §3b); built by the
+`pedals` builder, the faces and new presets awaiting the owner's eye and ear · **Date:** 2026-11-20 · **Builds on:** ADR
 0128 (Fragor), ADR 0131 (Tabula) · **Schema:** 78
 
 ## Context
@@ -73,11 +73,31 @@ chain, between other pedals, beyond Fragor's three slots.
 
 ## Consequences
 
-- One circuit costs about a third of a two-pedal Fragor board (BACKLOG §3b).
+- A pedal costs what Fragor costs with that circuit alone (Fragor already runs only the
+  circuits on its board): 0.39–0.49 of a two-pedal Fragor board holding it and another heavy
+  circuit, stereo at 4× (measured on a loaded machine, `fx_fragor_pedal::cpu_of_each_pedal`;
+  `docs/round41/pedals.md`), half that in mono. Its memory is a fifth of Fragor's (two
+  circuits of 40 704 bytes, not ten).
+- Several drives on one board cost what each costs, added.
 - A song with one of these pedals does not open in beta.16 or older (schema 78).
 
 ## What the tests hold
 
-- `fx_contract::a_board_of_one_is_the_unit` covers the five (pedal-allowed kinds).
-- `tabula_faces::every_pedal_has_one_face_of_its_own_keys` holds a face for each.
+- **Each pedal is Fragor with only its slot filled, to the bit** (`cantus-engine`
+  `fx_fragor_pedal`, one test per circuit): defaults, noon, heavy, the structure changing
+  mid-note, three drawn settings with seeks and resets; blocks of 1, 64, 1024 and random
+  splittings; samples, latency, rest and telemetry, every block; rest and skip as the engine
+  does them.
+- The tables are Fragor's keys, ranges and words with a null default; a pedal reads as its
+  one-slot Fragor; its defaults touch no sample and add no latency (`fragor_pedal::tests`,
+  core and engine).
+- `fx_contract::a_board_of_one_is_the_unit`, rest and split invariance cover the five at
+  their heavy settings; `rt_memory::fragors_circuits_as_pedals_never_allocate`.
+- `tabula_faces::every_pedal_has_one_face_of_its_own_keys` and
+  `fragors_circuits_wear_fragors_knobs_and_cases`.
+- `tabula_presets::the_showcase_board_stacks_two_drives_around_another_pedal`; the preset
+  audit's floor of three each.
+- **End to end** (`cantus-ui` `pedals_e2e`): through `CantusApp::assemble`, two drives around
+  a phaser on a board, heard, equal to the bit to the three inserted in a row with each drive
+  a one-slot Fragor, a footswitch, saved and reopened to the bit, undo.
 - `schema_78_…` reads the board of five back in order.

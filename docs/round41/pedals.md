@@ -69,7 +69,28 @@ between other pedals, beyond Fragor's three slots. Branch `r41/pedals` from `r41
 
 ## Measured
 
-(CPU: see below — filled from `fx_fragor_pedal::cpu_of_each_pedal`.)
+`cargo test --release -p cantus-engine --test fx_fragor_pedal -- --ignored --nocapture`
+(`cpu_of_each_pedal`): stereo, 4×, 48 kHz, a guitar's phrase, best of five, 256-sample
+blocks. **The machine was loaded** (three other builds running): the ratios hold, the
+absolute numbers are high; the integrator measures quiet.
+
+| Circuit | Pedal | Fragor, that slot alone | Fragor, two slots (it and the next) | Pedal / two slots |
+|---|---|---|---|---|
+| Green overdrive | 5.76 % | 6.26 % | 12.34 % | 0.47 |
+| Op-amp distortion | 9.10 % | 8.77 % | 20.99 % | 0.43 |
+| Silicon distortion | 12.81 % | 14.65 % | 26.11 % | 0.49 |
+| Germanium fuzz | 13.09 % | 12.74 % | 33.62 % | 0.39 |
+| Triangle muff | 20.08 % | 20.80 % | 24.41 % (with the overdrive) | 0.82 |
+
+- A pedal costs what Fragor costs with that slot alone, within the noise: Fragor already
+  runs only the circuits on its board, so the per-sample work is the same. Against a
+  two-pedal Fragor board it is 0.39–0.49 of it when the other circuit is a heavy one (the
+  muff beside the cheap overdrive is 0.82), and mono (every factory preset but two) halves
+  it again. *About a third* (BACKLOG §3b) holds against Fragor's 0.30 preset budget for its
+  heaviest two-pedal board: the heaviest pedal, the muff, 0.20 stereo, 0.10 mono.
+- **Memory**: one circuit is 40 704 bytes; Fragor holds ten (407 kB), a pedal two (81 kB) —
+  five times less per drive on a board, and a fifth of the circuits rebuilt when its
+  oversampling changes on the audio thread.
 
 ## Shared files touched
 

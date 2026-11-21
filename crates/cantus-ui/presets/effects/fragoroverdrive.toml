@@ -1,4 +1,4 @@
-# Fragor green overdrive (a board-only pedal, ADR 0152): factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# Fragor green overdrive: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
@@ -51,4 +51,4 @@ roles = ["creative"]
 "od.level" = 0.8
 "od.on" = 1
 "od.tone" = 0.6
-"out" = -3
+"out" = -11

@@ -1,4 +1,4 @@
-# Fragor triangle muff (a board-only pedal, ADR 0152): factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# Fragor triangle muff: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
@@ -40,4 +40,4 @@ roles = ["creative"]
 "mf.tone" = 0.6
 "mf.vol" = 0.5
 "mono" = 1
-"out" = -8
+"out" = -5.6
