@@ -825,18 +825,20 @@ fn begin(
 /// bypass and mix, the chain switched by `on`), trimmed by the chain's latency so sample 0
 /// is the input's sample 0 and every input sample comes out: what a master chain does to a
 /// mix, without rendering the song again — the mastering assistant's trials (ADR 0084).
+/// Each unit is handed the song's key `key` after its spec, as the master's are (ADR 0153).
 /// Units that follow the song's position hear none here; the assistant's final numbers come
 /// from a real render.
 pub fn run_chain(
     chain: &[cantus_core::EffectSlot],
     on: bool,
     sample_rate: u32,
+    key: Option<cantus_core::scale::Key>,
     audio: &[f32],
 ) -> Vec<f32> {
     const BLOCK: usize = 512;
     let sr = sample_rate as f32;
     let Some(mut t) =
-        crate::stems::through::Through::of_chain(chain, on, sr, BLOCK, &mut |s, sr| {
+        crate::stems::through::Through::of_chain(chain, on, key, sr, BLOCK, &mut |s, sr| {
             EffectUnit::new(s, sr)
         })
     else {
