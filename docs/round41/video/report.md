@@ -435,6 +435,27 @@ Nobody has heard them yet.
 **Proposed:** without the dancer, the end card's free right half could be balanced by
 centring the block. It would be a small change to `cards.css` and a re-cut. Not done yet.
 
+## The owner on draft 2, and his decisions (2026-11-21)
+
+- **His verdict on draft 2:** "Se me hace bien."
+- **The opening instrument** is the song's **Piano** track: Chorda, preset "Pop Forward"
+  (`chorda.preset.pop`, width 0.8), playing the intro's arpeggio alone. He wants it to be the
+  round-41 Chorda (DSP_VERSION 11, on `r41/integration`).
+  - The song is rendered from a throwaway worktree, `r41/video-int` (integration with
+    r41/video merged on top), so r41/video's own history stays its own.
+- **End card B,** without the verse.
+- **The platform line:** "Windows · Linux · macOS (preview)" / "(vista previa)".
+  `--os preview` is now the default and `--os all` lists the three alike. Stills of both
+  languages were looked at.
+- **The end card stays as it is,** not centred.
+- **The mix:** instead of lowering the music under the voice, the voice's band (about
+  200 Hz–5 kHz) is carved out of the music while the voice speaks.
+  - It is done in Cantus, with a sidechain-keyed band duck on the music strip.
+  - The music keeps draft 2's broadband level.
+  - The voice stays at least 10 dB over the music in the speech band on every line.
+  - The master stays at −14 LUFS / −1 dBTP.
+- **Draft 3** is being made by the film builder.
+
 ## What nobody has watched or heard yet
 
 Nobody has heard draft 2's mix. The ducking and the crossfade are measured only. The owner
