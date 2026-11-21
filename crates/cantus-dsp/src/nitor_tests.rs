@@ -255,7 +255,11 @@ fn the_exciter_adds_the_same_share_at_any_level() {
 
 #[test]
 fn lift_raises_the_tonic_and_its_octave() {
-    for (hz, want) in [(49.0f32, low::LIFT_DB), (98.0, 0.5 * low::LIFT_DB), (300.0, 0.0)] {
+    for (hz, want) in [
+        (49.0f32, low::LIFT_DB),
+        (98.0, 0.5 * low::LIFT_DB),
+        (300.0, 0.0),
+    ] {
         let x = sine(hz, 0.2, 72_000);
         let input = (x.clone(), x);
         let mut u = Nitor::new(SR);
@@ -267,7 +271,10 @@ fn lift_raises_the_tonic_and_its_octave() {
         });
         let o = render(&mut u, &input, &[64], &[]);
         let g = db(tone(&o.0, hz, 24_000)) - db(0.2);
-        assert!((g - f64::from(want)).abs() < 1.0, "{hz} Hz: {g} dB, want {want}");
+        assert!(
+            (g - f64::from(want)).abs() < 1.0,
+            "{hz} Hz: {g} dB, want {want}"
+        );
     }
 }
 
@@ -310,7 +317,10 @@ fn the_level_match_holds_the_loudness_of_every_character() {
         });
         let o = render(&mut u, &input, &[256], &[]);
         let wet = loudness(&o, 3 * SR as usize);
-        assert!((wet - dry).abs() < 0.5, "{c:?}: {wet:.2} against {dry:.2} LUFS");
+        assert!(
+            (wet - dry).abs() < 0.5,
+            "{c:?}: {wet:.2} against {dry:.2} LUFS"
+        );
         assert!(o.0.iter().chain(&o.1).all(|v| v.is_finite()));
     }
 }
@@ -319,7 +329,13 @@ fn the_level_match_holds_the_loudness_of_every_character() {
 fn a_snap_on_a_new_unit_changes_nothing() {
     // A host snaps every unit at the start of a stream (the exported plug-in does).
     let input = programme(1.0, 1.0, 31);
-    for s in [heavy(), NitorSettings { amount: 0.35, ..NitorSettings::default() }] {
+    for s in [
+        heavy(),
+        NitorSettings {
+            amount: 0.35,
+            ..NitorSettings::default()
+        },
+    ] {
         let mut a = Nitor::new(SR);
         a.set(&s);
         a.reset();

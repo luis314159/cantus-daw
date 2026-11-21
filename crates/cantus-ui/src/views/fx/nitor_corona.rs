@@ -92,7 +92,12 @@ impl View {
         for i in 0..4 {
             ease(&mut self.bands[i], r.bands_db[i], 0.05, 0.25);
         }
-        ease(&mut self.sub, ((r.sub_db + 60.0) / 54.0).clamp(0.0, 1.0), 0.03, 0.3);
+        ease(
+            &mut self.sub,
+            ((r.sub_db + 60.0) / 54.0).clamp(0.0, 1.0),
+            0.03,
+            0.3,
+        );
         ease(&mut self.tight, r.tight_db.min(0.0), 0.02, 0.2);
     }
 }
@@ -126,10 +131,7 @@ pub fn parts(glass: Rect, k: f32) -> Parts {
         let y = left.top() + i as f32 * (fh + gap);
         *f = Rect::from_min_size(pos2(left.left(), y), vec2(side, fh));
     }
-    let what = Rect::from_min_max(
-        pos2(left.left(), facets[4].bottom() + 12.0 * k),
-        left.max,
-    );
+    let what = Rect::from_min_max(pos2(left.left(), facets[4].bottom() + 12.0 * k), left.max);
     let horizon = Rect::from_min_max(
         pos2(glass.right() - pad - side, glass.top() + pad),
         pos2(glass.right() - pad, glass.bottom() - pad),
@@ -204,7 +206,11 @@ pub fn paint(b: &mut Brush, s: &Style, p: &Parts, v: &View, rd: &Reading, amount
 fn rays(b: &mut Brush, p: &Parts, v: &View, gold: Color32, rose: Color32, ink: &Ink, k: f32) {
     use std::f32::consts::PI;
     // The fans over the top half: body on the left, presence above, air on the right.
-    let fans = [(-PI * 0.95, -PI * 0.68), (-PI * 0.63, -PI * 0.37), (-PI * 0.32, -PI * 0.05)];
+    let fans = [
+        (-PI * 0.95, -PI * 0.68),
+        (-PI * 0.63, -PI * 0.37),
+        (-PI * 0.32, -PI * 0.05),
+    ];
     for (i, (a0, a1)) in fans.iter().enumerate() {
         let n = 15;
         let lit = v.rays[i];
@@ -266,7 +272,15 @@ fn ring(
     for i in 0..4 {
         let a0 = start + span * i as f32 / 4.0 + gap;
         let a1 = start + span * (i + 1) as f32 / 4.0 - gap;
-        b.arc(p.sun, p.ring, a0, a1, 6.0 * k, with_alpha(ink.grid_strong, 0.9), true);
+        b.arc(
+            p.sun,
+            p.ring,
+            a0,
+            a1,
+            6.0 * k,
+            with_alpha(ink.grid_strong, 0.9),
+            true,
+        );
         let db = v.bands[i];
         let share = (db.abs() / 8.0).clamp(0.0, 1.0);
         if share > 0.01 {
@@ -346,14 +360,26 @@ pub fn horizon(b: &mut Brush, s: &Style, p: &Parts, v: &View, rd: &Reading, word
     );
     y += 64.0 * k;
     // The sub's wave: a sine whose height is the sub's level now.
-    let wave = Rect::from_min_size(pos2(r.left() + 14.0 * k, y), vec2(r.width() - 28.0 * k, 54.0 * k));
-    b.hline(wave.left(), wave.right(), wave.center().y, 1.0 * k, with_alpha(ink.grid, 0.9));
+    let wave = Rect::from_min_size(
+        pos2(r.left() + 14.0 * k, y),
+        vec2(r.width() - 28.0 * k, 54.0 * k),
+    );
+    b.hline(
+        wave.left(),
+        wave.right(),
+        wave.center().y,
+        1.0 * k,
+        with_alpha(ink.grid, 0.9),
+    );
     let mut pts = [Pos2::ZERO; 64];
     let amp = 0.45 * wave.height() * (0.08 + 0.92 * v.sub);
     for (i, q) in pts.iter_mut().enumerate() {
         let u = i as f32 / 63.0;
         let ph = u * std::f32::consts::TAU * 2.0;
-        *q = pos2(wave.left() + u * wave.width(), wave.center().y - amp * ph.sin());
+        *q = pos2(
+            wave.left() + u * wave.width(),
+            wave.center().y - amp * ph.sin(),
+        );
     }
     canvas::trace(b, &pts, 2.0 * k, mix(gold, rose, 0.25), &ink);
     canvas::put(
@@ -399,13 +425,24 @@ pub fn horizon(b: &mut Brush, s: &Style, p: &Parts, v: &View, rd: &Reading, word
         );
     };
     line(b, y, "nitor.d.tight", v.tight, "dB", rose);
-    line(b, y + 24.0 * k, "nitor.d.match", rd.match_db, "dB", ink.text);
+    line(
+        b,
+        y + 24.0 * k,
+        "nitor.d.match",
+        rd.match_db,
+        "dB",
+        ink.text,
+    );
     // The parts' light: what the sub, the bass's harmonics and the exciter add now.
     let mut y = y + 58.0 * k;
     let rays = (v.rays[0] + v.rays[1] + v.rays[2]) / 3.0;
     for (key, share, c) in [
         ("fx.nitor.sub", v.sub, gold),
-        ("fx.nitor.harm", ((rd.harm_db + 60.0) / 54.0).clamp(0.0, 1.0), gold),
+        (
+            "fx.nitor.harm",
+            ((rd.harm_db + 60.0) / 54.0).clamp(0.0, 1.0),
+            gold,
+        ),
         ("nitor.card.exciter", rays, rose),
     ] {
         canvas::put(
@@ -457,7 +494,11 @@ pub fn facet(b: &mut Brush, s: &Style, r: Rect, i: usize, chosen: bool, hot: boo
         with_alpha(ink.plate, 0.55)
     };
     b.polygon(&pts, ground);
-    let edge = if chosen { gold } else { with_alpha(ink.edge, 0.9) };
+    let edge = if chosen {
+        gold
+    } else {
+        with_alpha(ink.edge, 0.9)
+    };
     let mut loop_pts = pts.to_vec();
     loop_pts.push(pts[0]);
     b.polyline(&loop_pts, if chosen { 1.6 * k } else { 1.0 * k }, edge);

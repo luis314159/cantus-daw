@@ -81,7 +81,6 @@ impl Gain {
     }
 }
 
-
 /// What the input side knew at its last grid point: all the wet side reads of it.
 #[derive(Copy, Clone, Debug, PartialEq)]
 struct AtGrid {

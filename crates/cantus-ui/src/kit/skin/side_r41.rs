@@ -7,8 +7,8 @@
 //! dawn rose over sun gold on lacquer — are no other unit's (`side.rs`'s tests).
 
 use super::{
-    chsl, Case, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin,
-    SwitchShape, Tint, Weight,
+    chsl, Case, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin, SwitchShape,
+    Tint, Weight,
 };
 
 /// Nitor's sheet.

@@ -50,4 +50,53 @@ floor-0 line deleted), `docs/manual/{en,es}/README.md`, `docs/beta-checklist.md`
 
 ## Measured
 
-(filled in below as the runs finish)
+| What | Measured |
+|---|---|
+| Every default, and every character at amount 0 (match on/off, mix 0.5, tonic sub mode, odd crossover), blocks 1/37/64/512/mixed, −0.0 and denormals in the input | **the input to the bit**; at rest |
+| Heavy settings (every part on, Loud at 100 %), changes at samples 40 000 / 70 001 / 90 000, blocks 1, 37, 64, 512, mixed | **identical to the bit** across block sizes |
+| A render resumed from a fork mid-song | the whole render's second half to the bit |
+| Heavy settings, 1.5 s of song then silence | at rest within 20 s (the match forgets at 8 s, the dynamics park at 0.5 s); skipping = processing silence = a new unit, to the bit |
+| Turning everything back to 0 mid-song | the input to the bit from 0.2 s after (the glides and the match's way back) |
+| Tonic sub, a 98 Hz tone, key G then D | the sub at 49.0 Hz, then 36.7 Hz; > 30 dB over the other note |
+| Octave sub on 110 Hz | the sub at 55 Hz, > 20 dB over neighbours |
+| Exciter, presence at 2 kHz | colour 0: the 2nd harmonic > 20 dB over the 3rd; colour 1: the reverse; the fundamental within 0.5 dB |
+| Exciter's share at −6 and −46 dBFS | within 0.5 dB of each other |
+| Lift at 1, tonic G | +6 dB at 49 Hz (±1), +3 dB at 98 Hz (±1, the fundamental's bell adds 0.8), 0 dB at 300 Hz |
+| Tight at 1 on a 50 Hz note struck every 0.5 s | the hit within 1.5 dB, the tail 9.3 dB down |
+| The level match, each character at 100 % on 8 s of programme | within 0.5 LU of the dry (the match: +0.2 … +0.6 dB — the characters' downward compression of the lows reads a little quieter K-weighted) |
+| Level independence | the four bands' peaks and the character's gains identical at 0 and −20 dB of input |
+| The e2e (`nitor_e2e`, through `CantusApp::assemble`) | inserted: *Gentle shine*, 383 986 of 768 000 samples moved, −14.09 → −14.09 LUFS; tonic sub in G: G1 −17.9 dB / D1 −75.1 dB; project in D: G1 −74.1 / D1 −17.9; live with the key changed mid-play: −17.8/−57.3 then −59.0/−17.9 dB; live in odd blocks = offline to the bit; amount 0 and every part off = the dry song to the bit |
+| The 13 presets on their audition sources (`nitor_listen`) | loudness change −0.46 … +0.01 LU (the window is ±2) |
+| CPU, each preset's whole render (the source's instruments included) | 0.040 … 0.094 of a core; the dry sources alone 0.012 … 0.031 — Nitor's share 0.03 … 0.065 (budget 0.10). **Measured on a machine out of memory with three other builds** (0.2 GB free): to be measured quiet by the integrator |
+| Plug-in (CLAP and VST3) | bit-identical to the DSP and to the engine, at its starting preset and at test settings, automated at any block size; ids blessed (14 new parameters) |
+
+## Tests
+
+- DSP: `nitor_tests` 15 + `nitor_tests_measure` 2 + alloc 1 (`tests/nitor_alloc.rs`: every
+  character and part, settings changed between blocks, parked and woken, `skip`, `snap`,
+  `reset` — no allocation).
+- Core: `fx::nitor` 2 (the defaults are nulls, every stepped key names its choices); 640 in the
+  crate pass.
+- Engine: `fx_contract` (the null, block sizes, rest twins at defaults and heavy, the board of
+  one) — 102 pass; `rt_memory` 62; `song_key` 1.
+- Plug-ins: 118 (clap 26, vst3 21 …), ids blessed.
+- UI: `nitor_e2e` 1, `preset_audit` 2, `fx_lint` 1, `learn_everywhere` 11 of 12 (the failure
+  is `FragorOverdrive: its editor drew no parameter` — the pedals' stub, not Nitor's;
+  Nitor's `char` now offers its automation and learn on every facet), the skin tests 37.
+
+## Verified only by measurement (no ear, no eye but mine yet)
+
+- No one has **heard** Nitor: the characters' recipes were set from measured band peaks of a
+  synthetic programme, not by ear. The owner's listening is the judgement
+  (`F:\projects\daw-r41\nitor-listen\`).
+- The face is a **design sheet v1** for the owner's OK (`docs/round41/nitor/`).
+- The plug-in in our own CLAP/VST3 harness only, not in a third-party DAW.
+
+## Left
+
+- The owner: the sheet (approve or redirect), the presets' sound.
+- After his OK: the face's finish (pointer tests for the facets and the sun knob, the 75–200 %
+  probe at every state, colourways if he wants them), clippy on the UI crate and the whole
+  suites of the touched crates, `cargo fmt`.
+- The integrator: the site's card (`web/src/units_data.rs`), the quiet CPU measurement, the
+  Linux check.

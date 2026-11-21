@@ -71,7 +71,10 @@ fn nitor_allocates_nothing_after_new() {
     // Signals and buffers made before counting.
     let n = 4_096;
     let tone: Vec<f32> = (0..n)
-        .map(|i| 0.3 * cantus_dsp::math::sin(i as f32 * 0.02) + 0.1 * cantus_dsp::math::sin(i as f32 * 0.31))
+        .map(|i| {
+            0.3 * cantus_dsp::math::sin(i as f32 * 0.02)
+                + 0.1 * cantus_dsp::math::sin(i as f32 * 0.31)
+        })
         .collect();
     let mut l = vec![0.0f32; n];
     let mut r = vec![0.0f32; n];

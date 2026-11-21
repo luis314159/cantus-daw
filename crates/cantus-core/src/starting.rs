@@ -237,11 +237,9 @@ pub fn start_of(kind: EffectKind) -> Start {
         K::Enhancer => preset("preset.nitor.gentle", &[("amount", 0.35)]), // r41:nitor
         // r41:contract — the stubs are wires: flat until each builder decides (ADR 0071's rule:
         // a board's Fragor pedal takes Fragor's starting knobs for its circuit).
-        K::FragorOverdrive
-        | K::FragorOpAmp
-        | K::FragorSilicon
-        | K::FragorFuzz
-        | K::FragorMuff => Start::Neutral(Flat), // r41:pedals
+        K::FragorOverdrive | K::FragorOpAmp | K::FragorSilicon | K::FragorFuzz | K::FragorMuff => {
+            Start::Neutral(Flat)
+        } // r41:pedals
         K::Multiband => preset(
             "mb.preset.glue",
             &[

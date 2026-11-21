@@ -91,11 +91,8 @@ fn main() {
         let prepared = aud::prepare(&empty, Target::None, e, None, aud::TEMPO);
         let (mut wet, sr, cpu) = render_stretch(&prepared.project, prepared.start, prepared.end);
         let dry_p = aud::source_project(e.role());
-        let (mut dry, _, cpu_dry) = render_stretch(
-            &dry_p,
-            Ticks::ZERO,
-            Ticks::from_beats_f64(aud::BARS * 4.0),
-        );
+        let (mut dry, _, cpu_dry) =
+            render_stretch(&dry_p, Ticks::ZERO, Ticks::from_beats_f64(aud::BARS * 4.0));
         let (lw, ld) = (lufs(&wet, 2, sr as f32), lufs(&dry, 2, sr as f32));
         gain_to(&mut wet, lw);
         gain_to(&mut dry, ld);

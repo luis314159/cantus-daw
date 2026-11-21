@@ -53,7 +53,12 @@ fn band_levels_of_programme_at_the_reference() {
             if gain < 1.0 {
                 let (lv1, lo1, _) = band_stats(c, 1.0);
                 for i in 0..BANDS {
-                    assert!((lv[i] - lv1[i]).abs() < 1.5, "{c:?} band {i}: {} vs {}", lv[i], lv1[i]);
+                    assert!(
+                        (lv[i] - lv1[i]).abs() < 1.5,
+                        "{c:?} band {i}: {} vs {}",
+                        lv[i],
+                        lv1[i]
+                    );
                     assert!((lo[i] - lo1[i]).abs() < 1.5, "{c:?} band {i}");
                 }
             }
@@ -89,7 +94,13 @@ fn what_each_character_does_to_the_programme() {
                 m.excite,
                 wet - dry
             );
-            assert!(m.match_db < 0.5, "{c:?}: the match takes back what the character adds");
+            // The match takes back whatever the character did to the loudness, either way.
+            assert!((wet - dry).abs() < 0.5, "{c:?}: {:+.2} LU", wet - dry);
+            assert!(
+                m.match_db.abs() < 6.0,
+                "{c:?}: a match of {:+.2} dB",
+                m.match_db
+            );
         }
     }
 }

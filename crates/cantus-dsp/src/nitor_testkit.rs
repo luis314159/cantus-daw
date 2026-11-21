@@ -48,9 +48,8 @@ pub fn programme(seconds: f32, gain: f32, seed: u64) -> (Vec<f32>, Vec<f32>) {
         ph[0] = (ph[0] + f / SR).fract();
         let env_b = math::exp(-in_beat * 3.0);
         let p = core::f32::consts::TAU * ph[0];
-        let bass = 0.22
-            * env_b
-            * (math::sin(p) + 0.45 * math::sin(2.0 * p) + 0.2 * math::sin(3.0 * p));
+        let bass =
+            0.22 * env_b * (math::sin(p) + 0.45 * math::sin(2.0 * p) + 0.2 * math::sin(3.0 * p));
         // The pad: the chord's third and fifth an octave and two up, soft, wide.
         let mut pad_l = 0.0;
         let mut pad_r = 0.0;
@@ -69,9 +68,8 @@ pub fn programme(seconds: f32, gain: f32, seed: u64) -> (Vec<f32>, Vec<f32>) {
         }
         // The kick: a falling sine, every beat.
         let kf = 50.0 + 120.0 * math::exp(-in_beat * 40.0);
-        let kick = 0.5
-            * math::exp(-in_beat * 9.0)
-            * math::sin(core::f32::consts::TAU * kf * in_beat);
+        let kick =
+            0.5 * math::exp(-in_beat * 9.0) * math::sin(core::f32::consts::TAU * kf * in_beat);
         // The snare on two and four; the hats on the eighths.
         let beat_no = (i / beat) % 4;
         let nz = rng.next();
@@ -156,9 +154,8 @@ pub fn rms(x: &[f32]) -> f64 {
 
 /// The first sample where two renders' bits differ.
 pub fn first_difference(a: &(Vec<f32>, Vec<f32>), b: &(Vec<f32>, Vec<f32>)) -> Option<usize> {
-    (0..a.0.len()).find(|&i| {
-        a.0[i].to_bits() != b.0[i].to_bits() || a.1[i].to_bits() != b.1[i].to_bits()
-    })
+    (0..a.0.len())
+        .find(|&i| a.0[i].to_bits() != b.0[i].to_bits() || a.1[i].to_bits() != b.1[i].to_bits())
 }
 
 /// Every part on, the Loud character at full amount: the heaviest settings.

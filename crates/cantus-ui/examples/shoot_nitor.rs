@@ -41,7 +41,8 @@ fn app_with(sh: &Shot) -> CantusApp {
     let (strip, effect, _) = app.fx.open.expect("the unit is open");
     let kv = settings(sh.state);
     if !kv.is_empty() {
-        views::fx::host::DawHost::new(&mut app, strip, effect, "nitor").set_many(kv, "cmd.fx_preset");
+        views::fx::host::DawHost::new(&mut app, strip, effect, "nitor")
+            .set_many(kv, "cmd.fx_preset");
     }
     if sh.playing {
         views::fx::demo_feed(&mut app, KIND);

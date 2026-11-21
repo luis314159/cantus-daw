@@ -360,7 +360,10 @@ impl Low {
     }
 
     pub fn sub_clear(&self) -> bool {
-        self.src.is_clear() && self.divider.at_rest() && crate::rest::z(self.osc) && crate::rest::z(self.gate)
+        self.src.is_clear()
+            && self.divider.at_rest()
+            && crate::rest::z(self.osc)
+            && crate::rest::z(self.gate)
     }
 
     // ---- the harmonics ----------------------------------------------------------------

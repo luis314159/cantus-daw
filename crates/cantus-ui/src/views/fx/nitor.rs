@@ -41,12 +41,22 @@ pub const DESIGN_STATES: &[(&str, &[(&str, f32)])] = &[
     ("punch", &[("amount", 0.7), ("char", 1.0), ("tight", 0.4)]),
     (
         "warm",
-        &[("amount", 0.55), ("char", 2.0), ("body", 0.2), ("lift", 0.4)],
+        &[
+            ("amount", 0.55),
+            ("char", 2.0),
+            ("body", 0.2),
+            ("lift", 0.4),
+        ],
     ),
     ("air", &[("amount", 0.6), ("char", 3.0), ("pres", 0.15)]),
     (
         "low",
-        &[("sub", 0.6), ("submode", 1.0), ("tight", 0.3), ("harm", 0.4)],
+        &[
+            ("sub", 0.6),
+            ("submode", 1.0),
+            ("tight", 0.3),
+            ("harm", 0.4),
+        ],
     ),
 ];
 
@@ -155,7 +165,11 @@ const EXCITER: &[Item] = &[
     Item::Knob("color", "fx.nitor.color"),
 ];
 const OUTPUT: &[Item] = &[
-    Item::Switch("match", "fx.nitor.match", &["fx.nitor.match.0", "fx.nitor.match.1"]),
+    Item::Switch(
+        "match",
+        "fx.nitor.match",
+        &["fx.nitor.match.0", "fx.nitor.match.1"],
+    ),
     Item::Choice("key", "fx.nitor.key", KEYS),
     Item::Knob("mix", "fx.nitor.mix"),
     Item::Knob("out", "fx.nitor.out"),
@@ -355,7 +369,11 @@ fn song(t: f32, seed: &mut u32) -> (f32, f32) {
     let kick = 0.7 * exp(-tb / 0.15) * sin(TAU * (50.0 * tb + 3.0 * (1.0 - exp(-tb / 0.03))));
     let ts = (t % (2.0 * beat) - beat).max(0.0);
     let n = noise(seed);
-    let snare = if ts > 0.0 { 0.3 * exp(-ts / 0.08) * n } else { 0.0 };
+    let snare = if ts > 0.0 {
+        0.3 * exp(-ts / 0.08) * n
+    } else {
+        0.0
+    };
     let th = t % (beat * 0.5);
     let hats = 0.06 * exp(-th / 0.025) * noise(seed);
     let bass = 0.25 * exp(-tb / 0.5) * (sin(TAU * 49.0 * t) + 0.35 * sin(TAU * 98.0 * t));

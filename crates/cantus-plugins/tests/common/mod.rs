@@ -1197,9 +1197,7 @@ impl Direct {
                 cantus_engine::fx::fluctus::shape_at,
             ))), // fxb:cedo
             // r41:nitor — Nitor's DSP itself (the plug-in has no song: its own key).
-            EffectKind::Enhancer => {
-                Direct::Nitor(Box::new(cantus_dsp::nitor::Nitor::new(SR)))
-            } // r41:nitor
+            EffectKind::Enhancer => Direct::Nitor(Box::new(cantus_dsp::nitor::Nitor::new(SR))), // r41:nitor
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);

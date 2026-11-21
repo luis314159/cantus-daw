@@ -73,7 +73,6 @@ impl Ramp {
     pub fn idle(&self) -> bool {
         self.left == 0 && self.v == 0.0
     }
-
 }
 
 /// The parts' glides, gathered so `set` and `process` read alike.
@@ -227,8 +226,10 @@ impl Nitor {
         self.mix.to(s.mix.clamp(0.0, 1.0));
         self.out.to(crate::math::db_to_gain(s.out_db));
         self.low.set_tonic(s.tonic);
-        self.low
-            .set_xover(s.xover_hz, snap || !self.ramps.low_band() || self.low.band_clear());
+        self.low.set_xover(
+            s.xover_hz,
+            snap || !self.ramps.low_band() || self.low.band_clear(),
+        );
         if snap {
             self.ramps.snap();
             self.mix.snap();
@@ -347,7 +348,9 @@ impl Nitor {
             ("level", &|| {
                 self.level.is_clear() && (!self.ramps.idle() || !self.level_live)
             }),
-            ("glides", &|| self.ramps.landed() && self.mix.landed() && self.out.landed()),
+            ("glides", &|| {
+                self.ramps.landed() && self.mix.landed() && self.out.landed()
+            }),
             ("exciter", &|| {
                 (0..excite::BANDS).all(|b| self.exciter.is_clear(b))
             }),

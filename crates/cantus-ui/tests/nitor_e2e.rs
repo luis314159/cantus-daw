@@ -70,7 +70,9 @@ fn tone_db(x: &[f32], hz: f64, a: f64, b: f64) -> f64 {
         re += f64::from(*v) * w.cos();
         im += f64::from(*v) * w.sin();
     }
-    20.0 * (2.0 * (re * re + im * im).sqrt() / (j - i) as f64).max(1e-12).log10()
+    20.0 * (2.0 * (re * re + im * im).sqrt() / (j - i) as f64)
+        .max(1e-12)
+        .log10()
 }
 
 /// K-weighted loudness of interleaved stereo from `a` seconds, LUFS (no gates).
@@ -115,7 +117,11 @@ fn song() -> Project {
     let chord = line(
         &mut p,
         "Chord",
-        &[(67, 0.0, 16.0, 80), (71, 0.0, 16.0, 80), (74, 0.0, 16.0, 80)],
+        &[
+            (67, 0.0, 16.0, 80),
+            (71, 0.0, 16.0, 80),
+            (74, 0.0, 16.0, 80),
+        ],
     );
     p.tracks.push(chord);
     p
@@ -141,7 +147,11 @@ fn nitor_colours_the_strip_follows_the_song_s_key_and_is_a_wire_at_zero_on_the_b
     // Inserted as the picker inserts it: the starting preset, which sounds at once.
     app.add_effect(strip, EffectKind::Enhancer);
     let fx = app.project().strip(strip).unwrap().effects[0].clone();
-    assert_eq!(fx.spec.get("amount"), 0.35, "Gentle shine: a third of Clear");
+    assert_eq!(
+        fx.spec.get("amount"),
+        0.35,
+        "Gentle shine: a third of Clear"
+    );
     assert_eq!(fx.spec.get("match"), 1.0, "level-matched");
     let fx = fx.id;
     let wet = rendered(&mut app, 8);
@@ -149,23 +159,35 @@ fn nitor_colours_the_strip_follows_the_song_s_key_and_is_a_wire_at_zero_on_the_b
     let (ld, lw) = (loudness(&dry, 1.5), loudness(&wet, 1.5));
     eprintln!("the starting preset: {moved} samples moved, {ld:.2} → {lw:.2} LUFS");
     assert!(moved > dry.len() / 2, "it changes the sound");
-    assert!((lw - ld).abs() < 0.5, "and not the loudness: {ld:.2} → {lw:.2}");
+    assert!(
+        (lw - ld).abs() < 0.5,
+        "and not the loudness: {ld:.2} → {lw:.2}"
+    );
 
     // The sub on the song's tonic.
     set(&mut app, strip, fx, "sub", 1.0);
     set(&mut app, strip, fx, "submode", 1.0);
     set(&mut app, strip, fx, "match", 0.0);
     let in_g = rendered(&mut app, 8);
-    let (g1, d1) = (tone_db(&in_g, 49.0, 1.0, 4.0), tone_db(&in_g, 36.71, 1.0, 4.0));
+    let (g1, d1) = (
+        tone_db(&in_g, 49.0, 1.0, 4.0),
+        tone_db(&in_g, 36.71, 1.0, 4.0),
+    );
     eprintln!("in G: G1 {g1:.1} dB, D1 {d1:.1} dB");
     assert!(g1 - d1 > 20.0, "the sub on G1: {g1:.1} against {d1:.1}");
     app.exec(Command::SetProjectKey {
         key: Some(Key::new(2, ScaleKind::Major)),
     });
     let in_d = rendered(&mut app, 8);
-    let (g1d, d1d) = (tone_db(&in_d, 49.0, 1.0, 4.0), tone_db(&in_d, 36.71, 1.0, 4.0));
+    let (g1d, d1d) = (
+        tone_db(&in_d, 49.0, 1.0, 4.0),
+        tone_db(&in_d, 36.71, 1.0, 4.0),
+    );
     eprintln!("in D: G1 {g1d:.1} dB, D1 {d1d:.1} dB");
-    assert!(d1d - g1d > 20.0, "the sub moved to D1: {d1d:.1} against {g1d:.1}");
+    assert!(
+        d1d - g1d > 20.0,
+        "the sub moved to D1: {d1d:.1} against {g1d:.1}"
+    );
 
     // Live: the key changed while it plays — the sub moves within the next blocks.
     let play = |proc_: &mut Processor, frames: usize, out: &mut Vec<f32>| {
@@ -195,10 +217,19 @@ fn nitor_colours_the_strip_follows_the_song_s_key_and_is_a_wire_at_zero_on_the_b
     app.sync_engine();
     play(&mut proc_, 2 * SR, &mut live);
     app.toggle_play();
-    let (lg, ld1) = (tone_db(&live, 49.0, 0.5, 2.0), tone_db(&live, 36.71, 0.5, 2.0));
-    let (lg2, ld2) = (tone_db(&live, 49.0, 2.5, 4.0), tone_db(&live, 36.71, 2.5, 4.0));
+    let (lg, ld1) = (
+        tone_db(&live, 49.0, 0.5, 2.0),
+        tone_db(&live, 36.71, 0.5, 2.0),
+    );
+    let (lg2, ld2) = (
+        tone_db(&live, 49.0, 2.5, 4.0),
+        tone_db(&live, 36.71, 2.5, 4.0),
+    );
     eprintln!("live: G1 {lg:.1} / D1 {ld1:.1} dB, then G1 {lg2:.1} / D1 {ld2:.1} dB");
-    assert!(lg - ld1 > 20.0 && ld2 - lg2 > 20.0, "the sub followed the key live");
+    assert!(
+        lg - ld1 > 20.0 && ld2 - lg2 > 20.0,
+        "the sub followed the key live"
+    );
     // Live in odd blocks equals the offline render (in G for its first two seconds).
     let offline_g = in_g[..2 * SR * 2].to_vec();
     let first = &live[..2 * SR * 2];
