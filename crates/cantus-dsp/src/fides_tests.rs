@@ -633,11 +633,10 @@ fn the_noise_band_and_level_follow_the_note() {
 /// instrument comes to rest, and the stage brought back later sounds nothing from nothing.
 #[test]
 fn a_stage_taken_out_mid_ring_comes_to_rest() {
-    let base = || {
-        let mut s = FidesSettings::default();
-        s.lowcut_hz = 80.0;
-        s.highcut_hz = 9_000.0;
-        s
+    let base = || FidesSettings {
+        lowcut_hz: 80.0,
+        highcut_hz: 9_000.0,
+        ..Default::default()
     };
     type Change = fn(&mut FidesSettings);
     let cases: [(&str, Change); 4] = [

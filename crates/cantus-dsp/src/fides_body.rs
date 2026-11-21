@@ -364,10 +364,10 @@ impl Body {
             0.0
         };
         self.n = used;
-        for k in 0..CHUNKS * LANES {
+        for (k, cf) in coefs.iter().enumerate() {
             let (c, l) = (k / LANES, k % LANES);
             let (pr, pi, g, gl, gr) = if k < used {
-                coefs[k]
+                *cf
             } else {
                 (0.0, 0.0, 0.0, 0.0, 0.0)
             };
@@ -436,17 +436,15 @@ impl Body {
             let (bl, br) = (sum8(&accl), sum8(&accr));
             *l = self.dry * *l + self.wet * bl;
             *r = self.dry * *r + self.wet * br;
-            if (clock + i as u64 + 1).is_multiple_of(grid) {
-                if !std::mem::take(&mut self.fed) {
-                    let mut peak = 0f32;
-                    for c in 0..chunks {
-                        for j in 0..LANES {
-                            peak = peak.max(self.re[c][j].abs()).max(self.im[c][j].abs());
-                        }
+            if (clock + i as u64 + 1).is_multiple_of(grid) && !std::mem::take(&mut self.fed) {
+                let mut peak = 0f32;
+                for c in 0..chunks {
+                    for j in 0..LANES {
+                        peak = peak.max(self.re[c][j].abs()).max(self.im[c][j].abs());
                     }
-                    if peak < STILL {
-                        self.reset();
-                    }
+                }
+                if peak < STILL {
+                    self.reset();
                 }
             }
         }
