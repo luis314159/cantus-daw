@@ -50,7 +50,9 @@ fn the_stable_installer_name_is_the_same_in_the_packager_the_workflow_and_the_si
 
 /// The stable names of the three systems' files (ADR 0067): the release workflow checks
 /// each is there before publishing, and the website links each through
-/// `releases/latest/download/` of the repository the updater asks.
+/// `releases/latest/download/` of the repository the updater asks — the AppImage under the
+/// catalogue's stable name since beta.16 (ADR 0067's amendment), which the workflow checks
+/// too.
 #[test]
 fn every_system_s_stable_name_is_in_the_workflow_and_on_the_site() {
     let wf = read(".github/workflows/release.yml");
@@ -61,8 +63,16 @@ fn every_system_s_stable_name_is_in_the_workflow_and_on_the_site() {
             wf.contains(&format!("dist/{stable}")),
             "release.yml does not check dist/{stable}"
         );
+        let linked = match t {
+            release::Target::LinuxX64 => release::CATALOGUE_STABLE_APPIMAGE_NAME,
+            _ => stable,
+        };
+        assert!(
+            wf.contains(&format!("dist/{linked}")),
+            "release.yml does not check dist/{linked}"
+        );
         let url = format!(
-            "https://github.com/{}/releases/latest/download/{stable}",
+            "https://github.com/{}/releases/latest/download/{linked}",
             cantus_update::updater::REPO
         );
         assert!(
