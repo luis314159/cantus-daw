@@ -125,7 +125,10 @@ def main() -> None:
     import soundfile as sf
     import whisper
 
-    asr = whisper.load_model(a.model, download_root=a.whisper)
+    # Straight onto the GPU in half precision: loading on the CPU first committed ~6 GB and
+    # grew the system disk's pagefile on a machine already short of memory (2026-11-21).
+    gpu = torch.cuda.is_available()
+    asr = whisper.load_model(a.model, device="cuda" if gpu else "cpu", download_root=a.whisper)
     rows = []
     for meta_path in sorted(Path(a.takes).glob("*-*.json")):
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -140,7 +143,7 @@ def main() -> None:
 
         g = gcd(16000, sr)
         x16 = resample_poly(x, 16000 // g, sr // g).astype(np.float32)
-        heard = asr.transcribe(x16, language=lang, temperature=0.0, fp16=False)["text"]
+        heard = asr.transcribe(x16, language=lang, temperature=0.0, fp16=gpu)["text"]
         said, got = normal(meta["text"], lang), normal(heard, lang)
         # Clipping is a flat top: three samples or more in a row at full scale. The takes are
         # float, so a lone sample past 1.0 is an overshoot the mix's gain takes back, not a clip.

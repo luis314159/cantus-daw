@@ -30,7 +30,9 @@ for w in $want; do
     chatterbox) hf ResembleAI/chatterbox 5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18 chatterbox \
         ve.pt t3_mtl23ls_v2.safetensors s3gen.pt grapheme_mtl_merged_expanded_v1.json conds.pt Cangjie5_TC.json ;;
     whisper) fetch https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt \
-        "$M/whisper/large-v3.pt" && echo whisper/large-v3.pt ;;
+        "$M/whisper/large-v3.pt" && echo whisper/large-v3.pt
+      fetch https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a/large-v3-turbo.pt \
+        "$M/whisper/large-v3-turbo.pt" && echo whisper/large-v3-turbo.pt ;;
     qwen)
       hf Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice 0c0e3051f131929182e2c023b9537f8b1c68adfe qwen3-tts-1.7b-customvoice $QWEN_FILES
       hf Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign 5ecdb67327fd37bb2e042aab12ff7391903235d3 qwen3-tts-1.7b-voicedesign $QWEN_FILES

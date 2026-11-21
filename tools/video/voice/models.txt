@@ -15,6 +15,8 @@ chatterbox/Cangjie5_TC.json                      1920163     (not in LFS)
 # Whisper (OpenAI, MIT), the gate's transcriber: large-v3, from openai-whisper 20250625's
 # own URL table (the SHA-256 is the URL's path; checked by hand and by the package):
 whisper/large-v3.pt  3087371615  e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb
+# large-v3-turbo, half the memory, the Qwen run's default (qwen_run.sh WHISPER=)
+whisper/large-v3-turbo.pt  1617941637  aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a
 
 # Qwen3-TTS (Alibaba Qwen): weights Apache-2.0 (each model card's licence field), code
 # Apache-2.0 (github.com/QwenLM/Qwen3-TTS LICENSE; the qwen-tts 0.1.1 package on PyPI).

@@ -14,12 +14,14 @@ M=$WORK/models
 V=$WORK/voice
 T=tools/video/voice
 export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 HF_HOME=$WORK/cache/hf
+# the gate's ear: large-v3-turbo (1.6 GB) by default, large-v3 (3.1 GB) with WHISPER=large-v3
+WHISPER=${WHISPER:-large-v3-turbo}
 
 if [ "$FROM" -le 1 ]; then
   for v in es-latam es-latam-f; do
     $PY -I $T/takes_qwen.py design-ref --model $M/qwen3-tts-1.7b-voicedesign --voice $v --lang es --out $V/qwen/ref --takes 4
   done
-  $PY -I $T/gate.py --takes $V/qwen/ref --whisper $M/whisper
+  $PY -I $T/gate.py --takes $V/qwen/ref --whisper $M/whisper --model $WHISPER
 fi
 if [ "$FROM" -le 2 ]; then
   for sp in Aiden Ryan; do
@@ -43,6 +45,6 @@ print(ok[0]['take'] if ok else '')" "$V/qwen/ref/gate.json" "$v")
   done
 fi
 if [ "$FROM" -le 4 ]; then
-  for l in en es; do $PY -I $T/gate.py --takes $V/qwen/$l --whisper $M/whisper; done
+  for l in en es; do $PY -I $T/gate.py --takes $V/qwen/$l --whisper $M/whisper --model $WHISPER; done
 fi
 $PY -I $T/compare.py --pair en $V/pool/en $V/qwen/en --pair es $V/pool/es $V/qwen/es --out $V/ab-qwen.html
