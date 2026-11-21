@@ -160,10 +160,12 @@ fn resonator_choice(
             Vec2::new(rect.width(), h),
         );
         let labels = &RESONATORS[row * 6..row * 6 + 6];
+        // None lit in the other row: a value past the six (never `usize::MAX`: the painter
+        // adds one to it).
         let selected = now
             .checked_sub(row * 6)
             .filter(|i| *i < 6)
-            .unwrap_or(usize::MAX);
+            .unwrap_or(labels.len());
         let name = spec
             .kind
             .param(key)

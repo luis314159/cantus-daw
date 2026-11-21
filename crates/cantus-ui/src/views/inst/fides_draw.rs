@@ -109,7 +109,35 @@ pub fn picture(
     let dim = s.t.text_dim;
     let hue = super::face::accent_on(s, s.hue);
     let ring = super::face::voice2(s, s.hue);
+    // With B on, A above and B under it (a marimba's tube under its bar), joined by a
+    // dotted line when A drives B.
+    let (obj, under) = if fs.b_on {
+        let cut = obj.top() + obj.height() * 0.66;
+        (
+            Rect::from_min_max(obj.min, pos2(obj.right(), cut)),
+            Some(Rect::from_min_max(
+                pos2(obj.left() + obj.width() * 0.2, cut),
+                pos2(obj.right() - obj.width() * 0.2, obj.bottom()),
+            )),
+        )
+    } else {
+        (obj, None)
+    };
     crate::kit::with_brush(&ui.painter_at(d), |b| {
+        if let Some(rb) = under {
+            let mut fb = *fs;
+            fb.a = fs.b;
+            object(b, rb, &fb, pos, 0.0, dim, dim, hue, s);
+            if fs.serial {
+                b.dashed(
+                    &[pos2(rb.center().x, obj.center().y), rb.center()],
+                    s.s(1.0),
+                    dim,
+                    s.s(2.0),
+                    s.s(3.0),
+                );
+            }
+        }
         object(b, obj, fs, pos, level, ink, dim, hue, s);
         exciter(b, obj, fs, pos, hue, ink, s);
         if !fs.a.kind.is_guide() {
