@@ -503,8 +503,10 @@ mod tests {
     #[test]
     fn more_pictures_than_a_page_let_the_oldest_go_and_never_what_is_shown() {
         let ctx = egui::Context::default();
-        let mut th = Thumbs::default();
-        th.enabled = true;
+        let mut th = Thumbs {
+            enabled: true,
+            ..Default::default()
+        };
         let subjects: Vec<Subject> = cantus_core::EffectKind::ALL
             .iter()
             .map(|k| Subject::Effect(*k))
