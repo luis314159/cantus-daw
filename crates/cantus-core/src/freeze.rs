@@ -764,8 +764,15 @@ const STRIP_COSMETIC: &[&str] = &[
     "recall_safe",
     "solo_safe",
 ];
-/// A frozen strip's own live controls (and where it goes).
-const STRIP_LIVE: &[&str] = &["gain_db", "pan", "width", "muted", "sends", "output"];
+/// A frozen strip's own live controls (and where it goes). Its own pan law is applied with
+/// its pan, after the tap (ADR 0100 §3), so it is live with it: the guard keeps it live
+/// (`StripLevel`), and the key leaves it out — a law of `None` is never written, so only a
+/// root with a law of its own keys otherwise (and is re-keyed on load, `repair`). Seed 378
+/// of the main undo fuzz: the law set on a frozen root moved its key without a refusal.
+/// // r41:fuzz-two
+const STRIP_LIVE: &[&str] = &[
+    "gain_db", "pan", "width", "muted", "sends", "output", "pan_law",
+];
 const TRACK_COSMETIC: &[&str] = &[
     "name",
     "color",

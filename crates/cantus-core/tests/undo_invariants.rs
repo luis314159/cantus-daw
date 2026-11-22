@@ -2043,7 +2043,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // r36:ara — a clip bound to an ARA plug-in or let go (ADR 0097), from `arng`.
             if arng.below(5) == 0 {
                 let (k, cmd) = round36_ara_command(&mut arng, bus.project());
-                let ok = bus.execute(cmd, origins[arng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[arng.below(5) as usize], seed);
                 ara_done[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2054,7 +2054,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // r33:mpe — an expression edit now and then, undone with the rest.
             if mrng.below(8) == 0 {
                 let cmd = round33_mpe_command(&mut mrng, bus.project());
-                let ok = bus.execute(cmd, origins[mrng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[mrng.below(5) as usize], seed);
                 mpe_done[usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2064,7 +2064,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             }
             if srng.below(10) == 0 {
                 let cmd = round32_score_command(&mut srng, &mut bus.project().clone());
-                let ok = bus.execute(cmd, origins[srng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[srng.below(5) as usize], seed);
                 scored[usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2077,7 +2077,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             if qrng.below(3) == 0 {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = round33_session_command(&mut qrng, &mut scratch);
-                let ok = bus.execute(cmd, origins[qrng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[qrng.below(5) as usize], seed);
                 bus.reserve_ids(scratch.next_id);
                 sessioned[k][usize::from(!ok)] += 1;
                 if ok {
@@ -2090,7 +2090,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // the global quantisation, from a stream of its own (`lrng`).
             if lrng.below(8) == 0 {
                 let cmd = round33_launcher_command(&mut lrng, bus.project());
-                let ok = bus.execute(cmd, origins[lrng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[lrng.below(5) as usize], seed);
                 launched[usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2101,7 +2101,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // r36:editor — a file's marks (ADR 0096 §6), from a stream of their own (`erng`).
             if erng.below(4) == 0 {
                 let (k, cmd) = round36_marks_command(&mut erng, bus.project());
-                let ok = bus.execute(cmd, origins[erng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[erng.below(5) as usize], seed);
                 marked[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2112,7 +2112,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // r34:stems — a file's provenance (ADR 0085), from a stream of its own (`prng`).
             if prng.below(4) == 0 {
                 let (k, cmd) = round34_provenance_command(&mut prng, bus.project());
-                let ok = bus.execute(cmd, origins[prng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[prng.below(5) as usize], seed);
                 provenanced[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2124,7 +2124,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             if xrng.below(6) == 0 {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = round36_mix_command(&mut xrng, &mut scratch);
-                let ok = bus.execute(cmd, origins[xrng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[xrng.below(5) as usize], seed);
                 bus.reserve_ids(scratch.next_id);
                 mixed[k][usize::from(!ok)] += 1;
                 if ok {
@@ -2139,7 +2139,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = round36_external_command(&mut urng, &mut scratch);
                 bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[urng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[urng.below(5) as usize], seed);
                 externaled[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2154,7 +2154,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = round37_padout_command(&mut krng, &mut scratch);
                 bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[krng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[krng.below(5) as usize], seed);
                 padded[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2169,7 +2169,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let mut scratch = bus.project().clone();
                 let (is_refs, cmd) = fxc_reference_command(&mut crng, &mut scratch);
                 bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[crng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[crng.below(5) as usize], seed);
                 if is_refs {
                     referenced[usize::from(!ok)] += 1;
                 }
@@ -2184,7 +2184,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = fx3_board_command(&mut trng, &mut scratch);
                 bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[trng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[trng.below(5) as usize], seed);
                 boarded[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2203,6 +2203,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     &origins,
                     &mut controlled,
                     &mut checkpoints,
+                    seed,
                 );
             }
             // Id allocation mutates `next_id` outside the command system; keep the two in
@@ -5871,7 +5872,21 @@ fn round36_mix_command(rng: &mut Lcg, scratch: &mut Project) -> (usize, Command)
                 .unwrap_or(GroupId(u64::MAX - 3));
             let vca = (rng.below(4) != 0 && !vcas.is_empty())
                 .then(|| vcas[rng.below(vcas.len() as u64) as usize]);
-            (2, Command::Mix(M::SetGroupVca { id: g, vca }))
+            // r41:fuzz-two — a VCA put back at a place of the list (the inverse of taking
+            // one away, drawn for itself), from the same draws: a group of even id with no
+            // VCA, at an index up to one past the end (refused).
+            let len = scratch.mix.group_vcas.len();
+            match vca {
+                Some(vca) if g.0.is_multiple_of(2) && scratch.mix.group_vca(g).is_none() => (
+                    2,
+                    Command::Mix(M::InsertGroupVca {
+                        index: (g.0 / 2) as usize % (len + 2),
+                        id: g,
+                        vca,
+                    }),
+                ),
+                vca => (2, Command::Mix(M::SetGroupVca { id: g, vca })),
+            }
         }
         3 => {
             let scope: Vec<StripId> = if rng.below(2) == 0 {
@@ -7955,17 +7970,31 @@ const FXD_FORMULAS: [&str; 6] = [
 const FXD_BROKEN: [&str; 4] = ["a*Sin(", "MouseX", "1 +", "foo(1)"];
 
 #[inline(never)]
+/// A side stream's command (the main fuzz's own streams), executed: whether it applied.
+/// Applied or refused, no frozen sound moves — checked here, so the command that moved one
+/// is the one named (r41:fuzz-two, seed 378: a side stream's `SetStripPanLaw` moved a
+/// frozen key, and the main stream's next command was blamed).
+fn side_execute(bus: &mut CommandBus, cmd: Command, origin: Origin, seed: u64) -> bool {
+    let shown: String = format!("{cmd:?}").chars().take(600).collect();
+    let ok = bus.execute(cmd, origin).is_ok();
+    cantus_core::freeze::consistent(bus.project()).unwrap_or_else(|t| {
+        panic!("seed {seed}: {t:?} no longer sounds as frozen after {shown} (a side stream's)")
+    });
+    ok
+}
+
 fn fxd_step(
     drng: &mut Lcg,
     bus: &mut CommandBus,
     origins: &[Origin; 5],
     controlled: &mut [[usize; 2]; FXD_KINDS],
     checkpoints: &mut Vec<Project>,
+    seed: u64,
 ) {
     let mut scratch = bus.project().clone();
     let (k, cmd) = fxd_controller_command(drng, &mut scratch);
     bus.reserve_ids(scratch.next_id);
-    let ok = bus.execute(cmd, origins[drng.below(5) as usize]).is_ok();
+    let ok = side_execute(bus, cmd, origins[drng.below(5) as usize], seed);
     controlled[k][usize::from(!ok)] += 1;
     if ok {
         let mut snap = bus.project().clone();

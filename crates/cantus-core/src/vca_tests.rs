@@ -509,3 +509,126 @@ fn nothing_routes_audio_into_a_vca() {
     )
     .is_err());
 }
+
+/// r41:fuzz-two — seed 481 of the main undo fuzz (with the Fides key arm): undoing the
+/// removal of a group's VCA put the pair back at the end of the list, not where it was.
+/// Taken from the middle, it comes back in its place; redo and undo round trip exactly.
+#[test]
+fn a_group_vca_taken_from_the_middle_comes_back_in_its_place() {
+    let (mut p, _) = desk();
+    let (a, b, c) = (vca(&mut p, "A"), vca(&mut p, "B"), vca(&mut p, "C"));
+    let mut groups = Vec::new();
+    for n in 0..4 {
+        let g = crate::model::GroupId(p.alloc_id());
+        p.strip_groups.push(crate::model::StripGroup {
+            id: g,
+            name: format!("{n}"),
+            color: crate::model::Color::PALETTE[0],
+            collapsed: false,
+        });
+        groups.push(g);
+    }
+    p.mix.group_vcas = vec![(groups[0], a), (groups[1], b), (groups[2], c)];
+    let start = p.clone();
+    let take = Command::Mix(MixCommand::SetGroupVca {
+        id: groups[1],
+        vca: None,
+    });
+    let undo = exec(&mut p, take.clone()).unwrap();
+    assert_eq!(
+        undo,
+        Command::Mix(MixCommand::InsertGroupVca {
+            index: 1,
+            id: groups[1],
+            vca: b
+        })
+    );
+    assert_eq!(p.mix.group_vcas, vec![(groups[0], a), (groups[2], c)]);
+    let taken = p.clone();
+    let redo = exec(&mut p, undo.clone()).unwrap();
+    assert_eq!(p, start, "undone: the same list, in the same order");
+    assert_eq!(redo, take);
+    for _ in 0..3 {
+        let undo2 = exec(&mut p, redo.clone()).unwrap();
+        assert_eq!(undo2, undo);
+        assert_eq!(p, taken);
+        assert_eq!(exec(&mut p, undo2).unwrap(), redo);
+        assert_eq!(p, start);
+    }
+    // The first and the last, too; a change in place and an addition undo in place.
+    for (i, g) in [(0, groups[0]), (2, groups[2])] {
+        let undo = exec(
+            &mut p,
+            Command::Mix(MixCommand::SetGroupVca { id: g, vca: None }),
+        )
+        .unwrap();
+        assert!(matches!(
+            undo,
+            Command::Mix(MixCommand::InsertGroupVca { index, .. }) if index == i
+        ));
+        exec(&mut p, undo).unwrap();
+        assert_eq!(p, start);
+    }
+    for c in [
+        Command::Mix(MixCommand::SetGroupVca {
+            id: groups[1],
+            vca: Some(c),
+        }),
+        Command::Mix(MixCommand::SetGroupVca {
+            id: groups[3],
+            vca: Some(a),
+        }),
+    ] {
+        let undo = exec(&mut p, c).unwrap();
+        exec(&mut p, undo).unwrap();
+        assert_eq!(p, start);
+    }
+    // Through the bus: one undo step each way, the order kept.
+    let mut bus = crate::CommandBus::new(start.clone());
+    bus.execute(take, crate::Origin::User).unwrap();
+    bus.undo().unwrap();
+    assert_eq!(bus.project(), &start);
+    bus.redo().unwrap();
+    assert_eq!(bus.project(), &taken);
+    bus.undo().unwrap();
+    assert_eq!(bus.project(), &start);
+    // The inverse is a command like any other: it serializes and comes back the same.
+    let json = serde_json::to_string(&undo).unwrap();
+    assert_eq!(serde_json::from_str::<Command>(&json).unwrap(), undo);
+}
+
+/// r41:fuzz-two — the inverse refuses what it cannot put back exactly, the project as it was.
+#[test]
+fn putting_a_group_vca_back_refuses_what_is_not_its_place() {
+    let (mut p, ids) = desk();
+    let (a, b) = (vca(&mut p, "A"), vca(&mut p, "B"));
+    let mut groups = Vec::new();
+    for n in 0..2 {
+        let g = crate::model::GroupId(p.alloc_id());
+        p.strip_groups.push(crate::model::StripGroup {
+            id: g,
+            name: format!("{n}"),
+            color: crate::model::Color::PALETTE[0],
+            collapsed: false,
+        });
+        groups.push(g);
+    }
+    p.mix.group_vcas = vec![(groups[0], a)];
+    // B's own strip sits in group 1; group 1 following B is no cycle, but A following
+    // group 0's B would be: A is in group 0.
+    p.strip_mut(a).unwrap().group = Some(groups[1]);
+    follow(&mut p, b, &[a]);
+    let before = p.clone();
+    let put = |index: usize, id, vca| Command::Mix(MixCommand::InsertGroupVca { index, id, vca });
+    for bad in [
+        put(2, groups[1], b),                    // past the end
+        put(0, groups[0], b),                    // the group has one
+        put(0, crate::model::GroupId(9_999), b), // no such group
+        put(0, groups[1], ids[0]),               // not a VCA
+        put(1, groups[1], b),                    // B follows A, which sits in group 1: a cycle
+    ] {
+        let label = format!("{bad:?}");
+        assert!(exec(&mut p, bad).is_err(), "{label} applied");
+        assert_eq!(p, before, "{label}: a refusal changes nothing");
+    }
+}

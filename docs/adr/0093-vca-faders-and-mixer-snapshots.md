@@ -67,6 +67,13 @@ shows −3 dB).
   `vcas`/`recall_safe`/`solo_safe` fields themselves stay scrubbed from the strip's raw part.
 - A VCA in its own group follows nothing through it: the cycle check uses the same edges as the
   reach (review 1).
+- **The group VCA list's order is exact on undo** (round 41, the undo fuzz's seed 481):
+  `SetGroupVca { vca: None }` takes the pair from its place in `mix.group_vcas`, and its
+  inverse is `MixCommand::InsertGroupVca { index, id, vca }`, which puts it back there (it had
+  been appended at the end). The new variant is additive: `SetGroupVca` and every saved project
+  are unchanged (undo history is not saved). `InsertGroupVca` refuses an index past the end, a
+  group that already has a VCA, an unknown group, a strip that is not a VCA and a cycle, the
+  project unchanged; its own inverse takes the pair away again.
 
 ### 2. Snapshots: state, never structure
 
