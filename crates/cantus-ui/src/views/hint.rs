@@ -353,10 +353,20 @@ pub fn button(ui: &mut egui::Ui, words: String) -> egui::Response {
 /// The words a stock egui widget paints in a menu or popup (a checkbox, a button the menus
 /// still build): the help line's fallback for the entry under the pointer, said as the
 /// entry says itself (round 39, ADR 0109).
+///
+/// Only a control's own words (round 41: the launch video's frames showed the whole
+/// instrument picker — "Replace the instrument on Piano S M L Curated Name Vendor …
+/// Search 13 devices …" — spelled along the status line while the pointer rested on the
+/// picker's panel, which takes clicks so they do not reach its scrim). A widget that holds
+/// other controls — a dialog's panel, its scrim, a popup's ground, a list of rows that are
+/// controls — is a container: it says nothing here; the control under the pointer, when
+/// there is one, says its own. A control's words may take two lines (a start page's card:
+/// its name over what it holds).
 fn menu_words(ctx: &Context) -> Option<String> {
     let p = ctx.pointer_latest_pos()?;
     let hit = ctx.viewport(|v| {
-        v.interact_widgets
+        let w = v
+            .interact_widgets
             .hovered
             .iter()
             .filter_map(|id| v.this_pass.widgets.get(*id))
@@ -365,10 +375,16 @@ fn menu_words(ctx: &Context) -> Option<String> {
                     && w.sense.senses_click()
                     && w.interact_rect.contains(p)
             })
-            .map(|w| (w.layer_id, w.interact_rect))
-            .next()
+            .min_by(|a, b| a.interact_rect.area().total_cmp(&b.interact_rect.area()))?;
+        let holds = v.this_pass.widgets.get_layer(w.layer_id).any(|o| {
+            o.id != w.id
+                && (o.sense.senses_click() || o.sense.senses_drag())
+                && o.interact_rect.is_positive()
+                && w.interact_rect.contains_rect(o.interact_rect)
+        });
+        (!holds).then_some((w.layer_id, w.interact_rect))
     })?;
-    let words = ctx.graphics(|g| {
+    ctx.graphics(|g| {
         let mut out = String::new();
         for c in g.get(hit.0)?.all_entries() {
             if let egui::Shape::Text(t) = &c.shape {
@@ -382,8 +398,7 @@ fn menu_words(ctx: &Context) -> Option<String> {
             }
         }
         (!out.is_empty()).then_some(out)
-    })?;
-    Some(words)
+    })
 }
 
 /// The help line is never empty (round 39, ADR 0109): where no control wrote a hint this
