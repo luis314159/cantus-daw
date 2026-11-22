@@ -725,7 +725,7 @@ mod tests {
 
     #[test]
     fn a_value_of_words_is_one_ink_whole() {
-        let ink = Color32::from_rgb(1, 2, 3);
+        let ink = crate::kit::tokens::current().get(crate::kit::Tok::TextDim);
         with_unit_ink(Some(ink), || {
             for s in WORDS {
                 for role in ROLES {
@@ -745,7 +745,7 @@ mod tests {
 
     #[test]
     fn a_number_and_its_unit_split_as_before() {
-        let ink = Color32::from_rgb(1, 2, 3);
+        let ink = crate::kit::tokens::current().get(crate::kit::Tok::TextDim);
         for unit_ink in [None, Some(ink)] {
             with_unit_ink(unit_ink, || {
                 for s in NUMBERS {
