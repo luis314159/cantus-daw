@@ -47,6 +47,7 @@ fn fork_track(s: &TrackSlot) -> Option<TrackSlot> {
         pan: s.pan,
         audible: s.audible,
         strip: s.strip,
+        key: s.key, // r41:fides-input
         peak: s.peak,
         peak_block: s.peak_block,
         inst_quiet: s.inst_quiet, // fx/final

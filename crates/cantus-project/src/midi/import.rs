@@ -1042,6 +1042,7 @@ pub fn import_commands(
             lane_modes: Vec::new(),         // r39:arrange
             glyph: None,                    // r39:arrange
             record_tap: Default::default(), // r40:pads
+            sidechain: None,                // r41:fides-input
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

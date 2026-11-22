@@ -36,6 +36,76 @@ const DC_CORNER: f64 = 1.0 / 64.0;
 /// share of the period.
 const LINE_SPARE: usize = 48;
 
+/// r41:fides-input — the stiffness allpasses' coefficient for `Inharmonicity` `inharm`
+/// (−1 … 1): the fitted partial `n` (`dispersion_fit`'s) where a stiff string with
+/// `B = 4·10⁻⁴·inharm²` puts it, `n·√((1 + B n²)/(1 + B))` times the fundamental — or,
+/// below 0, as far under `n` as that is over it — with the loop's own dispersion (the loss
+/// filter's, `other`) counted. So 0 is harmonic and every step moves the partials.
+///
+/// Gravis's `dispersion_fit` only ever stretches, and only past what the loss filter
+/// already stretches: below a threshold that rose with the loss (at material 0.32, an
+/// Inharmonicity of 0.12) it gave no allpass, and the knob did nothing there (round 41).
+/// Where it gave one, this is that coefficient, to the bit; below, a coefficient of the
+/// other sign takes the loss's stretch back to the stiffness's (a positive allpass delays
+/// the high partials more than the low).
+pub fn stiffness_fit(
+    inharm: f64,
+    f0: f64,
+    sr: f64,
+    period: f64,
+    other: impl Fn(f64) -> f64,
+) -> f64 {
+    let b = 4e-4 * inharm * inharm;
+    let n_fit = ((0.3 * sr).min(5_000.0) / f0).floor().clamp(2.0, 12.0);
+    let w0 = std::f64::consts::TAU * f0 / sr;
+    let stretch = ((1.0 + b * n_fit * n_fit) / (1.0 + b)).sqrt();
+    let ratio = if inharm >= 0.0 { stretch } else { 1.0 / stretch };
+    let wn = w0 * n_fit * ratio;
+    let tau_n = period / ratio;
+    let need = (period - tau_n) - (other(w0) - other(wn));
+    if inharm > 0.0 && b > 1e-9 && need > 0.0 {
+        // The old fit's own case: its coefficient, unchanged.
+        return dispersion_fit(b, f0, sr, period, other);
+    }
+    if need == 0.0 {
+        return 0.0;
+    }
+    let spread = |c: f64| AP as f64 * (ap_delay(c, w0) - ap_delay(c, wn));
+    // A coefficient whose spread is `need`: negative to stretch (within the length budget
+    // `dispersion_fit` keeps: 40 % of the loop), positive to draw in (its spread falls from
+    // 0 as it grows; 0.9 at most).
+    let (mut lo, mut hi) = if need > 0.0 {
+        let (mut lo, mut hi) = (-0.97f64, 0.0f64);
+        for _ in 0..40 {
+            let mid = 0.5 * (lo + hi);
+            if AP as f64 * ap_delay(mid, w0) > 0.4 * period {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        if spread(hi) <= need {
+            return hi;
+        }
+        (hi, 0.0)
+    } else {
+        if spread(0.9) >= need {
+            return 0.9;
+        }
+        (0.0, 0.9)
+    };
+    // `spread` falls as `c` rises over the whole range: bisect for `spread(c) = need`.
+    for _ in 0..50 {
+        let mid = 0.5 * (lo + hi);
+        if spread(mid) > need {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
 /// The pole of the loop's DC blocker for a fundamental `f0`: its corner at `f0 / 64`, far
 /// under the first partial. A loss filter is a low-pass whose gain at DC is capped just
 /// under 1, so without it a loop holds a DC level (a pluck's released displacement leaves
@@ -187,20 +257,21 @@ impl Guide {
         self.neck_sign = if kind == ResKind::Tube { 1.0 } else { -1.0 };
         self.radiate = kind != ResKind::String;
         let loop_hz = self.loop_hz(kind);
-        // A string's stiffness, B up to 4·10⁻⁴ (a piano's mid-range): its partials stretch
-        // as `n·√(1 + B n²)`. Tubes and pipes have none.
-        let b = if kind == ResKind::String {
-            4e-4 * inharm.max(0.0) * inharm.max(0.0)
-        } else {
-            0.0
-        };
+        // A string's stiffness (`stiffness_fit`): B up to 4·10⁻⁴ (a piano's mid-range), its
+        // partials stretched as `n·√(1 + B n²)` — or, below 0, drawn in as far. Tubes and
+        // pipes have none.
+        let inharm = if kind == ResKind::String { inharm } else { 0.0 };
         let f0 = step.f0.clamp(MIN_HZ, self.max_hz);
         let (_, a) = self.loss(f0, step, loop_hz);
         let period = self.sr / f0 / loop_hz;
         // The stiffness is fitted to the loss filter alone, as it was before the DC blocker:
         // the blocker's lead, counted in the fit, tipped a slight `Inharmonicity` (0.12, the
         // nylon guitar's) from no allpass to one, and the string's level moved 1–3.5 dB.
-        self.c = dispersion_fit(b, f0, self.sr, period, |w| loss_delay(a, w)) as f32;
+        self.c = if kind == ResKind::String {
+            stiffness_fit(inharm, f0, self.sr, period, |w| loss_delay(a, w)) as f32
+        } else {
+            0.0
+        };
         self.design(kind, step, 0);
         self.live = true;
     }

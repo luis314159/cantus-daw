@@ -632,6 +632,9 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // Pulsus: pad parameters and pad names. `SetInstrumentParam` is deliberately
         // aimed at *any* track, kit or not, so the "not applicable" path is exercised as
         // well as the working one — a command that fails must leave nothing behind.
+        // r41:fides-input (ADR 0154): an instrument's sidechain set, let go, routed around,
+        // swapped away with its instrument — and the refusals.
+        17 => fides_key_command(rng, project),
         18..=19 if tracks > 0 => {
             let ti = rng.below(tracks as u64) as usize;
             let id = project.tracks[ti].id;
@@ -8257,5 +8260,132 @@ fn fides_edits_undo_and_redo_among_the_others() {
     assert!(
         kinds.iter().all(|k| *k > 0),
         "an edit never applied: {kinds:?}"
+    );
+}
+
+/// r41:fides-input — an instrument's sidechain (ADR 0154): a Fides track brought in keyed
+/// or not, keyed from a strip or let go, routed (into its own key: refused), swapped for
+/// another instrument (its key goes with it, and comes back on undo), its key's strip
+/// removed (refused while keyed) — and a key asked of an instrument that takes none.
+fn fides_key_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    let fides: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| t.instrument.takes_sidechain())
+        .map(|t| t.id)
+        .collect();
+    let strips: Vec<StripId> = project.strips.iter().map(|s| s.id).collect();
+    let strip = |rng: &mut Lcg| -> Option<StripId> {
+        if strips.is_empty() || rng.below(5) == 0 {
+            None
+        } else {
+            Some(strips[rng.below(strips.len() as u64) as usize])
+        }
+    };
+    let k = if fides.is_empty() { 0 } else { rng.below(8) };
+    let pick = |rng: &mut Lcg| fides[rng.below(fides.len() as u64) as usize];
+    match k {
+        0 => {
+            let mut t = project.make_track("Fides");
+            t.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Resonator));
+            t.sidechain = strip(rng);
+            Command::InsertTrack {
+                index: rng.below(project.tracks.len() as u64 + 1) as usize,
+                track: Box::new(t),
+            }
+        }
+        1..=3 => Command::SetTrackSidechain {
+            track: pick(rng),
+            source: strip(rng),
+        },
+        4 => Command::SetTrackStrip {
+            id: pick(rng),
+            strip: strip(rng),
+        },
+        5 => Command::SetInstrument {
+            track: pick(rng),
+            spec: Box::new(InstrumentSpec::default()),
+        },
+        6 => {
+            let t = pick(rng);
+            match project.track(t).and_then(|t| t.sidechain) {
+                Some(id) => Command::RemoveStrip { id },
+                None => Command::SetTrackSidechain {
+                    track: t,
+                    source: strip(rng),
+                },
+            }
+        }
+        _ => {
+            let other = project
+                .tracks
+                .iter()
+                .find(|t| !t.instrument.takes_sidechain())
+                .map_or_else(|| pick(rng), |t| t.id);
+            Command::SetTrackSidechain {
+                track: other,
+                source: strip(rng),
+            }
+        }
+    }
+}
+
+/// r41:fides-input — an instrument's sidechain among every other command (ADR 0154): undo
+/// all and redo all restore the song; no stored key ever sits on an instrument that takes
+/// none, or closes a loop (the strips stay in an order with every key before its track).
+#[test]
+fn fides_sidechain_undo_and_redo_among_the_others() {
+    let (mut applied, mut refused, mut keyed) = (0usize, 0usize, 0usize);
+    for seed in 1..=40u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(79));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for i in 0..80 {
+            let mut scratch = bus.project().clone();
+            let cmd = if i % 2 == 0 {
+                fides_key_command(&mut rng, &mut scratch)
+            } else {
+                random_command(&mut rng, &mut scratch)
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ours = i % 2 == 0;
+            match bus.execute(cmd, Origin::User) {
+                Ok(_) if ours => applied += 1,
+                Err(_) if ours => refused += 1,
+                _ => {}
+            }
+            let p = bus.project();
+            for t in &p.tracks {
+                assert!(
+                    t.sidechain.is_none() || t.instrument.takes_sidechain(),
+                    "seed {seed}: a key on an instrument that takes none"
+                );
+                if let Some(k) = t.sidechain {
+                    keyed += 1;
+                    let order = p.strip_order();
+                    let at = |id: StripId| order.iter().position(|i| p.strips[*i].id == id);
+                    for d in t.destinations().into_iter().flatten() {
+                        assert!(
+                            at(k) < at(d),
+                            "seed {seed}: a key after the strip its track plays into"
+                        );
+                    }
+                }
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        applied > 200 && refused > 20 && keyed > 100,
+        "applied {applied}, refused {refused}, keyed {keyed}"
     );
 }

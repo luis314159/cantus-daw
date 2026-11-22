@@ -1925,6 +1925,23 @@ fn main() {
         }));
         p.strip_mut(s2).unwrap().effects.push(board);
     }
+    // r41:fides-input — Schema 79 (ADR 0154): the Fides track hears the third strip as its
+    // input (its sidechain), set as the command sets it — so the key is one with no loop.
+    if upto >= 79 {
+        let fides = p
+            .tracks
+            .iter()
+            .find(|t| t.name == "Fides")
+            .map(|t| t.id)
+            .expect("the Fides track");
+        let key = p.strips.get(2).map(|s| s.id).expect("a third strip");
+        Command::SetTrackSidechain {
+            track: fides,
+            source: Some(key),
+        }
+        .apply(&mut p)
+        .expect("a key with no loop");
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

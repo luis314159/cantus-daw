@@ -211,19 +211,6 @@ impl Unit {
         &self.f
     }
 
-    /// The live input (a track's audio, mono) for the Input exciter, added with the
-    /// block: [`Fides::process_input`]. The processor's sidechain to an instrument is the
-    /// integrator's (round 41: `docs/round41/fides.md`).
-    pub fn process_input(
-        &mut self,
-        left: &mut [f32],
-        right: &mut [f32],
-        input: &[f32],
-        par: &dyn cantus_dsp::par::Parallel,
-    ) -> bool {
-        self.f.process_input(left, right, input, par)
-    }
-
     /// The slow routes applied to the spec's values: the settings for the next `CTRL`.
     fn modulate(&mut self) {
         let mut v = self.base;
@@ -253,16 +240,24 @@ impl Unit {
         self.f.set(&settings_from(&v));
     }
 
+    /// r41:fides-input — `input`, the live input for the Input exciter (ADR 0154): the
+    /// strip the track is keyed from, mono, as long as the call; `None` when unkeyed (the
+    /// render as it always was, to the bit).
     fn run(
         &mut self,
         left: &mut [f32],
         right: &mut [f32],
+        input: Option<&[f32]>,
         par: &dyn cantus_dsp::par::Parallel,
     ) -> bool {
         let n = left.len().min(right.len());
+        let call = |f: &mut Fides, l: &mut [f32], r: &mut [f32], at: usize| match input {
+            Some(x) => f.process_input(l, r, &x[at.min(x.len())..(at + l.len()).min(x.len())], par),
+            None => f.process_par(l, r, par),
+        };
         if self.n_slow == 0 {
             self.t += n as u64;
-            return self.f.process_par(&mut left[..n], &mut right[..n], par);
+            return call(&mut self.f, &mut left[..n], &mut right[..n], 0);
         }
         let mut wrote = false;
         let mut at = 0;
@@ -271,9 +266,12 @@ impl Unit {
                 self.modulate();
             }
             let k = ((CTRL - self.t % CTRL) as usize).min(n - at);
-            wrote |= self
-                .f
-                .process_par(&mut left[at..at + k], &mut right[at..at + k], par);
+            wrote |= call(
+                &mut self.f,
+                &mut left[at..at + k],
+                &mut right[at..at + k],
+                at,
+            );
             at += k;
             self.t += k as u64;
         }
@@ -427,7 +425,7 @@ impl InstrumentUnit for Unit {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
-        self.run(left, right, &cantus_dsp::par::Serial)
+        self.run(left, right, None, &cantus_dsp::par::Serial)
     }
 
     fn process_par(
@@ -436,7 +434,18 @@ impl InstrumentUnit for Unit {
         right: &mut [f32],
         par: &dyn cantus_dsp::par::Parallel,
     ) -> bool {
-        self.run(left, right, par)
+        self.run(left, right, None, par)
+    }
+
+    // r41:fides-input — the Input exciter's live input (ADR 0154).
+    fn process_input(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        input: &[f32],
+        par: &dyn cantus_dsp::par::Parallel,
+    ) -> bool {
+        self.run(left, right, Some(input), par)
     }
 
     fn splits_voices(&self) -> bool {

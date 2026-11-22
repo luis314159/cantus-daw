@@ -41,6 +41,9 @@ pub(crate) struct TrackSlot {
     pub audible: bool,
     /// The strip slot this track feeds; `None` is the master.
     pub strip: Option<usize>,
+    /// r41:fides-input — the strip slot its instrument hears as its input (ADR 0154): its
+    /// key's post-fader output, this pass. Set only when the plan runs that strip first.
+    pub key: Option<usize>,
     /// The block's peak, and the block it belongs to.
     pub peak: f32,
     pub peak_block: u64,
@@ -126,6 +129,7 @@ impl TrackSlot {
             pan: 0.0,
             audible: true,
             strip: None,
+            key: None, // r41:fides-input
             peak: 0.0,
             peak_block: 0,
             inst_quiet: 0,
@@ -774,8 +778,26 @@ fn track_segment(
                         forks: &nodes.forks,
                         on: ctx.split_voices,
                     };
+                    // r41:fides-input — keyed (ADR 0154): its key's post-fader output, this
+                    // pass, in mono — silence if that strip made none.
+                    let keyed = match s.key.filter(|_| outs.count == 0) {
+                        Some(k) => {
+                            match nodes.read(&nodes.strips[k].key) {
+                                Some(b) if b.pass == ctx.pass => {
+                                    for (i, x) in mono.iter_mut().enumerate() {
+                                        *x = (b.l[sub + i] + b.r[sub + i]) * 0.5;
+                                    }
+                                }
+                                _ => mono.fill(0.0),
+                            }
+                            true
+                        }
+                        None => false,
+                    };
                     // r37:drums — a unit with outputs of its own renders them in one sweep.
-                    let sig = if outs.count == 0 {
+                    let sig = if keyed {
+                        u.unit.process_input(l, r, mono, &par)
+                    } else if outs.count == 0 {
                         u.unit.process_par(l, r, &par)
                     } else {
                         u.unit.process_buses(l, r, &mut |bus, off, a, b| {

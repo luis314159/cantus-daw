@@ -39,7 +39,9 @@ pub const MAX_NODES: usize = MAX_TRACKS + MAX_STRIPS + 1;
 const MAX_INPUTS: usize = MAX_TRACKS + MAX_STRIPS * (1 + MAX_SENDS_PER_STRIP);
 /// Dependencies: the audio inputs, plus a key and a note source per insert, plus a tap's
 /// wait for its source (ADR 0100, r37:drums).
-const MAX_EDGES: usize = MAX_INPUTS + (MAX_STRIPS + 1) * MAX_EFFECTS_PER_TRACK * 2 + MAX_TRACKS;
+/// r41:fides-input — and a track's wait for the strip its instrument hears (ADR 0154).
+const MAX_EDGES: usize =
+    MAX_INPUTS + (MAX_STRIPS + 1) * MAX_EFFECTS_PER_TRACK * 2 + MAX_TRACKS + MAX_TRACKS;
 /// Not in the order.
 const NONE: u16 = u16::MAX;
 
@@ -79,6 +81,14 @@ pub struct GraphPlan {
     nodes: Vec<NodeRef>,
     /// The strips in processing order (snapshot indices), each once.
     order: Vec<u16>,
+    /// r41:fides-input — each track's node, and each place of [`Self::order`]'s (ADR 0154):
+    /// a track whose instrument hears a strip runs right after that strip, so the nodes are
+    /// the tracks, then each strip followed by the tracks keyed from it, then the master.
+    track_nodes: Vec<u16>,
+    strip_nodes: Vec<u16>,
+    /// Each track's key, as the plan honours it (a snapshot strip index; [`NONE`]: none —
+    /// no key, or one whose strip cannot run first).
+    track_keys: Vec<u16>,
     /// Each node's canonical inputs (ADR 0031 §1.3): `inputs[input_start[n]..input_start[n + 1]]`.
     input_start: Vec<u32>,
     inputs: Vec<Input>,
@@ -216,6 +226,12 @@ pub fn topology_key(snap: &Snapshot) -> u64 {
     for t in &snap.tracks {
         h.word(t.id.0);
         h.opt(t.strip.map(|s| s as u64));
+        // r41:fides-input — the strip its instrument hears (ADR 0154): mixed in only when
+        // there is one, so every other project keys as it did.
+        if let Some(k) = t.sidechain {
+            h.word(0x5EED_0154);
+            h.word(k.0);
+        }
         // Freezing (ADR 0064): mixed in only when set, so a project without it keys as
         // it always did.
         if t.rest {
@@ -300,6 +316,9 @@ impl GraphPlan {
                 v
             },
             order: Vec::with_capacity(MAX_STRIPS),
+            track_nodes: Vec::with_capacity(MAX_TRACKS),
+            strip_nodes: Vec::with_capacity(MAX_STRIPS),
+            track_keys: Vec::with_capacity(MAX_TRACKS),
             input_start: with(MAX_NODES + 1, &[0, 0]),
             inputs: Vec::with_capacity(MAX_INPUTS),
             succ_start: with(MAX_NODES + 1, &[0, 0]),
@@ -366,7 +385,19 @@ impl GraphPlan {
 
     /// The node index of the strip at place `place` of [`Self::order`].
     pub fn strip_node(&self, place: usize) -> usize {
-        self.tracks + place
+        self.strip_nodes[place] as usize
+    }
+
+    /// r41:fides-input — the node index of snapshot track `ti` (ADR 0154).
+    pub fn track_node(&self, ti: usize) -> usize {
+        self.track_nodes[ti] as usize
+    }
+
+    /// r41:fides-input — the strip (a snapshot index) track `ti`'s instrument hears, when
+    /// the plan runs it first (ADR 0154); `None` for no key, or one heard as silence (its
+    /// strip not processed, resting, or not before every strip the track plays into).
+    pub fn track_key(&self, ti: usize) -> Option<u16> {
+        self.track_keys.get(ti).copied().filter(|k| *k != NONE)
     }
 
     /// Node `n`'s inputs in canonical order (ADR 0031 §1.3): the tracks that feed it in

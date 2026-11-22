@@ -115,6 +115,10 @@ pub struct TrackSnapshot {
     pub tap: Option<crate::padout::Tap>,
     /// r40:pads — where the track's recording taps its signal (ADR 0118).
     pub record_tap: crate::rec_tap::RecordTap,
+    /// r41:fides-input — the strip its instrument hears as its input (ADR 0154,
+    /// `Track::key`): that strip's post-fader output, by id as an insert's key is. The
+    /// engine runs the track after it; a strip it cannot run first is silence.
+    pub sidechain: Option<crate::model::StripId>,
 }
 
 impl TrackSnapshot {
@@ -417,6 +421,7 @@ impl Snapshot {
                 buses: Vec::new(),        // r37:drums
                 tap: None,                // r37:drums
                 record_tap: t.record_tap, // r40:pads
+                sidechain: t.key(),       // r41:fides-input
             })
             .collect::<Vec<_>>();
         // The kinds each track's lanes drive (ADR 0068): what a seek chases.

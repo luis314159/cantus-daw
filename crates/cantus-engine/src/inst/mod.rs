@@ -208,6 +208,20 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
         let _ = par;
         self.process(left, right)
     }
+    /// r41:fides-input — [`Self::process_par`] for a unit whose track is keyed from a strip
+    /// (ADR 0154): `input`, mono and as long as the call, is that strip's post-fader output
+    /// this segment. The same rules as `process`. Called only for a kind that takes a
+    /// sidechain (`InstrumentKind::takes_sidechain`); the default ignores it.
+    fn process_input(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        input: &[f32],
+        par: &dyn cantus_dsp::par::Parallel,
+    ) -> bool {
+        let _ = input;
+        self.process_par(left, right, par)
+    }
     // ---- Round 37 (ADR 0100): instruments with several outputs. // r37:drums
 
     /// [`Self::process`] for a unit that plays into more than its track's strip (an

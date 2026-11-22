@@ -612,6 +612,13 @@ pub struct Track {
     /// before its strip's inserts (the default, every older track) or after them.
     #[serde(default, skip_serializing_if = "crate::rec_tap::RecordTap::is_before")]
     pub record_tap: crate::rec_tap::RecordTap,
+    /// r41:fides-input — the strip whose audio its instrument hears as its input (schema 79,
+    /// ADR 0154): a sidechain, as an insert's key ([`crate::effect::EffectSlot::sidechain`]) —
+    /// that strip's post-fader output, processed before the track. Only an instrument that
+    /// takes one ([`InstrumentSpec::takes_sidechain`]: Fides's *Input* exciter) holds it;
+    /// `None` — every older track — hears nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sidechain: Option<StripId>,
 }
 
 /// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
@@ -1112,6 +1119,13 @@ impl Track {
         out
     }
 
+    /// r41:fides-input — the strip its instrument hears (ADR 0154): its sidechain, when the
+    /// instrument takes one. What orders the strips and what the engine is told.
+    pub fn key(&self) -> Option<StripId> {
+        self.sidechain
+            .filter(|_| self.instrument.takes_sidechain())
+    }
+
     /// Whether one of the instrument's own outputs (not the track's) plays into `strip`.
     pub fn feeds_through_bus(&self, strip: StripId) -> bool {
         self.instrument.feeds_strip(strip) // r40:p3 — a pad's or a named output's (ADR 0123)
@@ -1592,6 +1606,11 @@ impl Project {
                 .filter(|s| s.keys().any(|k| k == id))
                 .map(|s| s.id),
         );
+        // r41:fides-input — an instrument keyed from it (ADR 0154): the track runs after it,
+        // so every strip the track plays into does too.
+        for t in self.tracks.iter().filter(|t| t.key() == Some(id)) {
+            out.extend(t.destinations().into_iter().flatten());
+        }
         out
     }
 
@@ -1786,6 +1805,7 @@ impl Project {
             lane_modes: Vec::new(),         // r39:arrange
             glyph: None,                    // r39:arrange
             record_tap: Default::default(), // r40:pads
+            sidechain: None,                // r41:fides-input
         }
     }
 
