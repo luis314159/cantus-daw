@@ -31,3 +31,7 @@ series instead of all at once.
 - Watch the suite's duration against the job's time limit every round — the full suite's, not one that stops at its first failure (beta.15: Windows passed 2 h once the Chorda gate stopped failing early; limits now 240 Win / 300 Linux, macOS).
 - Poll the GitHub API at most once every ~5 min (60 req/h shared per IP).
 See [[round-40]], [[feedback-ci-linux]], [[feedback-work-standards-r36]].
+
+Enforced in the repo (owner 2026-11-19: "que el proceso de release forcemos a que se lean"): docs/RELEASING.md (L1-L8) + docs/releases/PREFLIGHT.md + release.yml job preflight (tools/release/preflight.sh) refuse a tag without docs/releases/v<version>.preflight.md all ticked and a green hand-run rehearsal on the same code; branch r40/release-lessons 9ffbf763, to merge only after beta.15. A new lesson = a ### Ln in RELEASING.md + its box in PREFLIGHT.md (an xtask test checks).
+
+Practice (owner 2026-11-19, "buscando siempre hacer todo con excelencia"): a release runs the whole suite once on its exact code — the tagged run may reuse the rehearsal's result (identical code) but nothing is ever skipped by "what changed"; nextest, a process per test, partitions; flaky = bug; affected-first on branches, everything before master; df -h and no two suites at once. In RELEASING.md + BACKLOG §8 (r40/release-lessons 5b221315).

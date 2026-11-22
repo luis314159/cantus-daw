@@ -25,3 +25,5 @@ Round 39, Phase A: three whole-window directions were drawn (A Slate, B Graphite
 - **Logo #03 ("the metal") is the default** (owner 2026-11-09, after seeing 4 enriched variants of #10 — kept on record in r39/logo). Small masters redrawn (m03/).
 - **Lapis #7EA2F6 / #2443A8 is the WEBSITE accent only** (owner corrected 2026-11-09: "no planeaba cambios de colores de la app por lo del logo") — the app keeps Slate azure #5CAFE9 / #1F6EC2. Gold rejected as an accent (collides with solo amber). Website redesigned to match #03 (r39/web).
 - **"Slate Lapis" theme** (lapis accent + gold hairline playhead/loop) added as a NEW optional theme (owner 2026-11-09); Slate stays the default unchanged.
+
+**2026-11-18: the owner made Slate Lapis the default theme** ("Que slate lapis sea el tema default please"). Builder on r40/lapis-default: default_theme() → slate_lapis_night, light twin Slate Lapis Paper, ADR 0111 amendment; deliberate Slate choices stay. Handed to cantus-03 for beta.15.
