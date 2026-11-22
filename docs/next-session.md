@@ -25,10 +25,15 @@ Busca la excelencia (Colosenses 3:23). Escríbeme en español.
 ## 0. Antes de empezar
 
 1. Corre la suite completa sobre master con `--no-fail-fast`: Windows con
-   `bash tools/test/suite-windows.sh` y Linux en WSL con `bash tools/wsl/guarded.sh master test`
-   (vigila C:; el disco de WSL y el archivo de paginación viven ahí). Ninguna otra compilación al
-   mismo tiempo que una suite (las pruebas de tiempo).
-2. Revisa la RAM antes de lanzar constructores: con el navegador del dueño abierto quedan 2–4 GB;
+   `bash tools/test/suite-windows.sh` y luego —nunca a la vez— Linux en WSL con
+   `bash tools/wsl/guarded.sh master test` (vigila C:; el disco de WSL y el archivo de paginación
+   viven ahí). Ninguna otra compilación al mismo tiempo que una suite (las pruebas de tiempo).
+2. **Publica la ronda 41 como beta.17** antes de construir nada: la ronda 41 está en el master
+   privado (`84b0466a0`) pero **no** en cantus-daw, a propósito — publicarla allí redespliega la
+   web con las tarjetas de Fides y Nitor mientras la beta.16 que se descarga no los tiene. Sigue
+   `docs/RELEASING.md`: versión 0.1.0-beta.17 y sus notas, `publish.sh`, el ensayo, el preflight
+   (L1–L8), el tag con el OK del dueño; la web se actualiza sola con la release.
+3. Revisa la RAM antes de lanzar constructores: con el navegador del dueño abierto quedan 2–4 GB;
    hasta tres constructores a `-j 2`, cada uno esperando ≥ 3 GB libres (`tools/build/slot.sh`).
 
 ## 1. La ronda 42: dos o tres cosas, con contrato primero
