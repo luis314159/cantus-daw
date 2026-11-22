@@ -881,7 +881,7 @@ impl Director {
         for s in &subjects {
             let _ = self.app.picker_view.thumbs.get(*s);
         }
-        let mut frames = 0;
+        let mut frames = 0u32;
         while (!self.app.picker_view.thumbs.idle() || frames < 2) && frames < 6_000 {
             self.step(Vec::new());
             frames += 1;
