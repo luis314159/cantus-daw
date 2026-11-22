@@ -129,6 +129,7 @@ pub mod purus; // fx-e:purus
 
 // fx-c:comparatio — the reference-track comparator (DSP phase; no kind yet).
 pub mod comparatio; // fx-c:comparatio
+
 // r41:nitor — the one-knob enhancer (ADR 0151).
 pub mod nitor; // r41:nitor
 

@@ -470,7 +470,15 @@ pub const TYMPANUM: Skin = Skin {
 /// Every instrument sheet, Pulsus last.
 #[cfg(test)]
 pub const ALL: [&Skin; 12] = [
-    &UNDA, &CALOR, &MODULUS, &EXEMPLAR, &GRAVIS, &LAMINA, &ORGANUM, &CHORDA, &SALTATOR,
+    &UNDA,
+    &CALOR,
+    &MODULUS,
+    &EXEMPLAR,
+    &GRAVIS,
+    &LAMINA,
+    &ORGANUM,
+    &CHORDA,
+    &SALTATOR,
     &TYMPANUM, // r40:tymp-ui
     &PULSUS,
     &fides::FIDES, // r41:fides
