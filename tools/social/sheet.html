@@ -1,0 +1,114 @@
+<!doctype html>
+<!-- The contact sheet render.mjs writes as sheet.png: every image it rendered (served from
+     /out/), the avatars with their circle crops at the sizes the platforms show, the YouTube
+     banner with the crops each screen shows, the headers with the avatar over their corner. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Social images: sheet</title>
+<style>
+@font-face { font-family: B; src: url("/web/assets/fonts/barlow-semi-condensed-regular.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: B; src: url("/web/assets/fonts/barlow-semi-condensed-semibold.woff2") format("woff2"); font-weight: 600; }
+html, body { margin: 0; width: 2400px; background: #181d22; color: #e3e8ed; font: 400 20px/1.3 B, sans-serif; }
+main { padding: 48px 56px 64px; }
+h1 { margin: 0 0 6px; font: 600 40px/1 B; color: #fff; }
+.lede { color: #909ca8; margin-bottom: 30px; }
+h2 { margin: 40px 0 16px; font: 600 26px/1 B; color: #f0cd6a; letter-spacing: 0.04em; text-transform: uppercase; }
+.row { display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start; }
+figure { margin: 0; }
+figcaption { margin-top: 8px; font-size: 18px; color: #b4bdc6; }
+figcaption b { color: #fff; font-weight: 600; }
+.frame { position: relative; display: inline-block; line-height: 0; }
+.frame img { display: block; }
+.mark { position: absolute; pointer-events: none; box-sizing: border-box; }
+.dash { border: 3px dashed #ff5a5a; }
+.circle { border-radius: 50%; box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.55); outline: 3px dashed #ff5a5a; }
+.clip { overflow: hidden; }
+.tag { position: absolute; font: 600 16px/1 B; color: #fff; background: rgba(0, 0, 0, 0.7); padding: 4px 7px; border-radius: 4px; white-space: nowrap; }
+.round { border-radius: 50%; display: block; }
+.chips { display: flex; gap: 22px; align-items: flex-end; }
+.chips > div { text-align: center; font-size: 16px; color: #909ca8; }
+.light { background: #f1f4f7; padding: 14px; border-radius: 10px; }
+.dark { background: #0f0f0f; padding: 14px; border-radius: 10px; }
+.badge { position: absolute; right: 8px; bottom: 8px; font: 600 15px/1 B; color: #fff; background: rgba(0, 0, 0, 0.8); padding: 3px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main id="m">
+  <h1>Cantus — social images</h1>
+  <div class="lede" id="lede"></div>
+</main>
+<script>
+"use strict";
+const m = document.getElementById("m");
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
+const img = (src, w, extra = "") => `<img src="/out/${src}" width="${w}" ${extra}>`;
+const cap = (o, note = "") => `<figcaption><b>${o.file}</b> · ${o.size} · ${o.use}${note ? " · " + note : ""}</figcaption>`;
+const section = (title) => { m.append(el("h2", "", title)); const r = el("div", "row"); m.append(r); return r; };
+const box = (x, y, w, h, cls, label, lx = 6, ly = 6) =>
+  `<div class="mark ${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"></div>` +
+  (label ? `<div class="tag" style="left:${x + lx}px;top:${y + ly}px">${label}</div>` : "");
+
+window.sheetReady = (async () => {
+  const outs = await (await fetch("/out/outputs.json")).json();
+  const sizes = {};
+  await Promise.all(outs.map((o) => new Promise((ok) => {
+    const i = new Image(); i.onload = () => { sizes[o.file] = `${i.naturalWidth} × ${i.naturalHeight}`; ok(); }; i.onerror = ok; i.src = "/out/" + o.file;
+  })));
+  for (const o of outs) o.size = sizes[o.file] ?? "MISSING";
+  const by = Object.fromEntries(outs.map((o) => [o.file, o]));
+  document.getElementById("lede").textContent = `${outs.length} files, rendered by tools/social/render.mjs. Red dashes: what a platform crops or covers.`;
+
+  // --- avatars ---
+  let r = section("Avatars — one mark, every platform crops it to a circle");
+  const a = by["avatar-1080.png"];
+  r.append(el("figure", "", `<div class="frame" style="overflow:hidden">${img(a.file, 420)}<div class="mark circle" style="left:0;top:0;width:420px;height:420px"></div></div>${cap(a, "circle crop marked")}`));
+  const sizesShown = [[160, "X profile"], [98, "YouTube channel"], [77, "Instagram profile (mobile)"], [48, "comments"], [32, "notifications"], [24, "YouTube comment"]];
+  const chips = (bg) => `<div class="chips ${bg}">` + sizesShown.map(([s, l]) => `<div>${img("avatar-400.png", s, 'class="round"')}<br>${s} px<br>${l}</div>`).join("") + "</div>";
+  r.append(el("figure", "", `${chips("dark")}<div style="height:14px"></div>${chips("light")}<figcaption>As shown, circle-cropped, on dark and light pages</figcaption>`));
+  const small = ["avatar-1000.jpg", "avatar-800.png", "avatar-400.png", "avatar-320.png"].map((f) => by[f]);
+  r.append(el("figure", "", `<div class="row" style="gap:18px">${small.map((o) => img(o.file, 150)).join("")}</div><figcaption>${small.map((o) => `<b>${o.file}</b> ${o.size} (${o.use})`).join("<br>")}</figcaption>`));
+
+  // --- YouTube: watermark, banner ---
+  r = section("YouTube — banner (2560 × 1440) with what each screen shows; watermark");
+  const b = by["youtube-banner.jpg"], k = 1280 / 2560;
+  const crop = (w, label) => box((2560 - w) / 2 * k, 508.5 * k, w * k, 423 * k, "dash", label, 6, -26);
+  r.append(el("figure", "", `<div class="frame">${img(b.file, 1280)}${box(0, 0, 1280, 720, "dash", "TV: the whole image")}` +
+    `${crop(2560, "")}${crop(1855, "")}${crop(1546, "")}` +
+    `<div class="tag" style="left:8px;top:${508.5 * k - 28}px">desktop max 2560 × 423</div>` +
+    `<div class="tag" style="left:${(2560 - 1855) / 2 * k + 8}px;top:${931.5 * k + 6}px">tablet 1855 × 423</div>` +
+    `<div class="tag" style="left:${(2560 - 1546) / 2 * k + 8}px;top:${931.5 * k + 34}px">safe area = phone 1546 × 423</div></div>${cap(b)}`));
+  const strip = (w, label) => `<div style="width:${w * 0.35}px;height:${423 * 0.35}px;overflow:hidden;position:relative;border-radius:6px;margin-bottom:10px">` +
+    `<img src="/out/${b.file}" style="position:absolute;width:${2560 * 0.35}px;left:${-(2560 - w) / 2 * 0.35}px;top:${-508.5 * 0.35}px"></div><div style="font-size:16px;color:#909ca8;margin:-4px 0 12px">${label}</div>`;
+  r.append(el("figure", "", `${strip(2560, "desktop, widest")}${strip(1855, "tablet")}${strip(1546, "phone (the safe area)")}`));
+  const wm = by["youtube-watermark.png"];
+  r.append(el("figure", "", `<div class="frame"><img src="/docs/images/window-night-720.png" width="640">` +
+    `<img src="/out/${wm.file}" style="position:absolute;right:10px;bottom:10px;width:60px;opacity:.8"></div>` +
+    `<div style="margin-top:10px">${img(wm.file, 150, 'style="background:repeating-conic-gradient(#555 0 25%,#777 0 50%) 0 0/20px 20px"')}</div>${cap(wm, "on a player, and at 1:1 on a checkerboard (transparent)")}`));
+
+  // --- thumbnails ---
+  r = section("YouTube — the launch video's thumbnails");
+  for (const f of ["youtube-thumb-en.png", "youtube-thumb-es.png"]) {
+    const o = by[f];
+    r.append(el("figure", "", `<div class="frame">${img(o.file, 640)}<div class="badge">1:20</div></div>${cap(o)}`));
+  }
+  r.append(el("figure", "", ["en", "es"].map((l) => `<div class="frame" style="margin-bottom:14px">${img(`youtube-thumb-${l}.png`, 246, 'style="border-radius:8px"')}<div class="badge" style="font-size:12px">1:20</div></div>`).join("<br>") +
+    `<figcaption>At a phone's<br>suggestion size<br>(246 px)<br><b>-4k.jpg</b>: ${by["youtube-thumb-en-4k.jpg"].size}</figcaption>`));
+
+  // --- headers ---
+  r = section("Headers — X and Mastodon 1500 × 500, Bluesky 3000 × 1000; the avatar over the corner");
+  for (const f of ["header-en-1500x500.png", "header-es-1500x500.png", "bluesky-banner-en.jpg", "bluesky-banner-es.jpg"]) {
+    const o = by[f], w = 1060, s = w / 1500;
+    // X on a desktop: a 134 px avatar 16 px from the left, its centre on the header's bottom edge;
+    // X may also crop 60 px from the top and the bottom.
+    r.append(el("figure", "", `<div class="frame" style="margin-bottom:${67 * s}px">${img(o.file, w)}` +
+      box(0, 60 * s, w, 380 * s, "dash", "X may crop to this band", w - 210, 6) +
+      `<img src="/out/avatar-400.png" class="round" style="position:absolute;left:${16 * s}px;top:${(500 - 67) * s}px;width:${134 * s}px;box-shadow:0 0 0 4px #181d22"></div>${cap(o)}`));
+  }
+  await Promise.all([...document.images].map((i) => (i.complete ? 0 : new Promise((ok) => { i.onload = ok; i.onerror = ok; }))));
+  await document.fonts.ready;
+  return true;
+})();
+</script>
+</body>
+</html>

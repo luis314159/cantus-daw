@@ -1,0 +1,87 @@
+/* Cantus's social images, in the launch video's look (tools/video/cards/cards.css): logo
+   #03's lapis ground with its faint gold dots, Slate Night ink, lapis for what is pressed,
+   gold only in marks and rules, Barlow Semi Condensed. Lapis Night only (the owner). */
+
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/web/assets/fonts/barlow-semi-condensed-light.woff2") format("woff2"); font-weight: 300; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/web/assets/fonts/barlow-semi-condensed-regular.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/web/assets/fonts/barlow-semi-condensed-medium.woff2") format("woff2"); font-weight: 500; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/web/assets/fonts/barlow-semi-condensed-semibold.woff2") format("woff2"); font-weight: 600 800; }
+
+:root {
+  --ink: #e3e8ed; --strong: #f1f4f7;
+  --lapis-ink: #f1f3fa; --lapis-ink-2: #c3cce8; --lapis-ink-3: #b8c2e6;
+  --accent-text: #a9c0fa;
+  --gold: #e2b84a; --gold-text: #f0cd6a;
+  --gold-rule: linear-gradient(90deg, rgba(226, 184, 74, 0), #e2b84a 8%, #f3d478 50%, #e2b84a 92%, rgba(226, 184, 74, 0));
+  --dots: radial-gradient(circle at 17px 17px, rgba(233, 196, 102, 0.13) 1.6px, transparent 2.2px) 0 0 / 34px 34px;
+  --deep: #0a1234;
+  --display: "Barlow Semi Condensed", sans-serif;
+}
+
+html, body { margin: 0; width: var(--w); height: var(--h); overflow: hidden; background: transparent; }
+body { font-family: var(--display); color: var(--lapis-ink); -webkit-font-smoothing: antialiased; }
+.asset { position: absolute; inset: 0; display: none; overflow: hidden; }
+.asset.on { display: block; }
+.asset > * { position: absolute; }
+.ground { background: var(--dots), radial-gradient(120% 120% at 30% 40%, #2e4aa0 0%, #1a2a66 46%, #0a1234 100%); }
+.ground::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--gold-rule); }
+sup { font-weight: 500; vertical-align: baseline; position: relative; opacity: 0.7; }
+.tile { display: block; }
+/* a window picture: rounded, its edge, its shadow; faded into the ground on its left */
+.shot img, .win img { display: block; width: 100%; border-radius: 14px;
+  box-shadow: 0 0 0 1px rgba(185, 198, 238, 0.22), 0 40px 80px -30px rgba(0, 0, 0, 0.8); }
+.shot { -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 38%); mask-image: linear-gradient(90deg, transparent 0%, #000 38%); }
+
+/* --- the avatar: full-bleed, so a square, a rounded square or a circle all keep it whole --- */
+#avatar .mark { inset: 0; width: 100%; height: 100%; }
+
+/* --- the watermark: the tile alone, the page transparent around it --- */
+#watermark .tile { inset: 0; width: 100%; height: 100%; }
+
+/* --- YouTube's banner: 2560 x 1440, the safe area 1546 x 423 at (507, 508.5) --- */
+#banner .shot { left: 1640px; top: 250px; width: 1720px; opacity: 0.8; }
+#banner .veil { inset: 0; background: linear-gradient(90deg, rgba(10, 18, 52, 0.55) 0%, rgba(10, 18, 52, 0.15) 60%, rgba(10, 18, 52, 0) 80%); }
+#banner .safe { left: 507px; top: 508.5px; width: 1546px; height: 423px; display: flex; align-items: center; gap: 34px; }
+#banner .safe .tile { width: 340px; height: 340px; margin-left: -32px; flex: none; }
+#banner .word { font: 600 168px/0.9 var(--display); letter-spacing: 0.01em; color: #fff; }
+#banner .word sup { font-size: 36px; top: -2.6em; margin-left: 6px; }
+#banner .line { margin-top: 26px; font: 500 44px/1.1 var(--display); color: var(--lapis-ink); }
+#banner .line.es { margin-top: 8px; font-weight: 400; font-size: 40px; color: var(--lapis-ink-2); }
+#banner .foot { margin-top: 30px; display: flex; align-items: baseline; gap: 32px; }
+#banner .site { font: 600 46px/1 var(--display); color: var(--accent-text); }
+#banner .os { font: 400 36px/1 var(--display); color: var(--lapis-ink-2); padding-left: 32px; border-left: 2px solid rgba(226, 184, 74, 0.7); }
+
+/* --- the 3:1 header: 1500 x 500, the avatar over its bottom-left corner --- */
+#header .shot { left: 760px; top: 46px; width: 900px; opacity: 0.9; }
+#header .veil { inset: 0; background: linear-gradient(90deg, rgba(10, 18, 52, 0.5), rgba(10, 18, 52, 0) 55%); }
+#header .text { left: 96px; top: 84px; width: 760px; }
+#header .brand { display: flex; align-items: center; gap: 10px; font: 600 46px/1 var(--display); color: #fff; }
+#header .brand .tile { width: 78px; height: 78px; margin: -6px 0 -6px -10px; }
+#header .brand sup { font-size: 14px; top: -1.9em; margin-left: 2px; }
+#header h1 { margin: 26px 0 0 -4px; font: 300 100px/1 var(--display); letter-spacing: -0.02em; color: #fff; }
+#header h1 i { font-style: normal; color: var(--gold); }
+#header .line { margin-top: 20px; font: 400 28px/1.25 var(--display); color: var(--lapis-ink-2); }
+#header .site { margin-top: 18px; font: 600 28px/1 var(--display); color: var(--accent-text); }
+
+/* --- the thumbnail: 1280 x 720 --- */
+#thumb .win { left: 560px; top: 64px; width: 960px; }
+#thumb .piano { left: 700px; top: 404px; width: 420px; height: 262px; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 0 0 2px rgba(226, 184, 74, 0.75), 0 30px 60px -20px rgba(0, 0, 0, 0.9); }
+#thumb .piano img { position: absolute; width: 788px; left: -172px; top: -68px; }
+#thumb .piano span { position: absolute; left: 12px; bottom: 12px; padding: 6px 12px; border-radius: 8px;
+  background: rgba(10, 14, 20, 0.82); font: 500 22px/1 var(--display); color: #fff; }
+#thumb .veil { inset: 0; background: linear-gradient(90deg, rgba(10, 18, 52, 0.96) 0%, rgba(10, 18, 52, 0.85) 36%, rgba(10, 18, 52, 0) 58%); }
+#thumb .text { left: 56px; top: 50px; }
+#thumb .brand { display: flex; align-items: center; gap: 8px; font: 600 64px/1 var(--display); color: #fff; }
+#thumb .brand .tile { width: 104px; height: 104px; margin: -10px 0 -10px -14px; }
+#thumb .big { margin-top: 18px; display: flex; flex-direction: column; font: 600 200px/0.86 var(--display);
+  letter-spacing: -0.01em; color: #fff; text-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
+.lang-en #thumb .b1, .lang-es #thumb .b2 { color: var(--gold-text); }
+#thumb .chips { margin-top: 30px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+#thumb .chips span { padding: 10px 18px; border-radius: 10px; font: 500 34px/1 var(--display); color: #fff;
+  background: rgba(10, 18, 52, 0.85); box-shadow: 0 0 0 1px rgba(185, 198, 238, 0.3); }
+
+/* ?debug=1: the banner's safe area, the header's avatar corner */
+.debug #banner .safe { outline: 3px dashed rgba(255, 80, 80, 0.8); }
+.debug #header::before { content: ""; position: absolute; left: 16px; bottom: -66px; width: 134px; height: 134px;
+  border-radius: 50%; outline: 3px dashed rgba(255, 80, 80, 0.8); z-index: 5; }

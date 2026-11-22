@@ -97,9 +97,12 @@ One post a week, not more, each with one picture or a short clip and one link:
 - what a release fixed, with the issue it came from;
 - a measurement, with its date and machine — including when Cantus loses.
 
-Where: the owner's own accounts (X/Twitter, Mastodon — the Rust and Linux audio communities
-are active there, Bluesky, Instagram/TikTok for short clips), and the GitHub release notes,
-which the site's Atom feed (`/releases.xml`) already carries.
+Where: **Cantus's own accounts, @cantusdaw** (the owner opens them; the kit is
+`docs/social/`: `setup.md`, `accounts.md`, `youtube-launch.md`, the images from
+`tools/social/`) — YouTube for the videos, Instagram Reels and TikTok for the same vertical
+clip, Bluesky and Mastodon where the Rust and Linux audio communities are, X with the logo,
+one line and the link — with the owner's personal accounts sharing their posts; and the
+GitHub release notes, which the site's Atom feed (`/releases.xml`) already carries.
 
 ## Phase 5 — measuring it, without tracking visitors
 
