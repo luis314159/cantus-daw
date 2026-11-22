@@ -172,7 +172,10 @@ fn heart(o: &Opts) -> PathBuf {
     };
     let done = cantus_export::export_mix(job, &s, &Tags::default(), &path, &Control::new())
         .expect("the Heart is rendered");
-    println!("heart.wav: {:.2} s, peak {:.1} dBFS", done.seconds, done.peak_db);
+    println!(
+        "heart.wav: {:.2} s, peak {:.1} dBFS",
+        done.seconds, done.peak_db
+    );
     path
 }
 
@@ -208,7 +211,10 @@ fn strip_mut(p: &mut Project, id: StripId) -> &mut cantus_core::MixerStrip {
 /// The project: the Heart edited (one crossfade), the eight lines, the carve on the music
 /// keyed by the voice, `depth` dB deep, the music's fader at `bed`.
 fn project(o: &Opts, heart: &Path, lines: &[Line], depth: f32, bed: f32) -> Mix {
-    let mut p = Project::new(format!("Cantus launch soundtrack ({})", o.lang.to_uppercase()));
+    let mut p = Project::new(format!(
+        "Cantus launch soundtrack ({})",
+        o.lang.to_uppercase()
+    ));
     p.tempo_bpm = BPM;
     let song = source(&mut p, heart, "With All Your Heart (rendered by Cantus)");
     // The music: bar 1 at 0:00; at bar 12 a 2-s equal-power crossfade into bar 56.
@@ -372,7 +378,10 @@ fn rms_db(x: &[f32], a: f64, b: f64) -> f32 {
     if i1 <= i0 {
         return f32::NEG_INFINITY;
     }
-    let e: f64 = x[i0..i1].iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>()
+    let e: f64 = x[i0..i1]
+        .iter()
+        .map(|v| (*v as f64) * (*v as f64))
+        .sum::<f64>()
         / (i1 - i0) as f64;
     (10.0 * cantus_dsp::math::log10(e.max(1e-20))) as f32
 }
@@ -462,7 +471,8 @@ fn bed_lufs(music: &[f32], lines: &[Line]) -> f64 {
         }
         let i0 = (a * RATE as f64) as usize * 2;
         let i1 = ((b * RATE as f64) as usize * 2).min(music.len());
-        let (l, r): (Vec<f32>, Vec<f32>) = music[i0..i1].chunks_exact(2).map(|f| (f[0], f[1])).unzip();
+        let (l, r): (Vec<f32>, Vec<f32>) =
+            music[i0..i1].chunks_exact(2).map(|f| (f[0], f[1])).unzip();
         m.process(&l, &r);
     }
     m.integrated().unwrap_or(f64::NEG_INFINITY)
@@ -603,7 +613,9 @@ fn run() {
         music_bed + n.gain_db as f64,
         n.gain_db
     );
-    println!("line  speech (s)      music  voice  margin  music between  carve  full-band drop at entry");
+    println!(
+        "line  speech (s)      music  voice  margin  music between  carve  full-band drop at entry"
+    );
     for d in &ducks {
         println!(
             "{:>4}  {:5.2}–{:5.2}  {:6.1} {:6.1} {:7.1} {:14.1} {:6.1} {:6.1}",
@@ -664,5 +676,6 @@ fn run() {
         "files": {"wav": wav.display().to_string(), "project": cantus.display().to_string()},
     });
     let report = o.out.join(format!("soundtrack-{}.json", o.lang));
-    std::fs::write(&report, serde_json::to_string_pretty(&json).expect("json")).expect("the report");
+    std::fs::write(&report, serde_json::to_string_pretty(&json).expect("json"))
+        .expect("the report");
 }

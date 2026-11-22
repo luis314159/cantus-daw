@@ -251,13 +251,46 @@ bash tools/video/film/heart_diff.sh $WORK/soundtrack/heart.wav $WORK/soundtrack3
 - **The carve:** every line ≥ 10 dB over the music, and the music's full-band drop small
   (`$WORK/soundtrack3/soundtrack-<lang>.json`).
 
-## Still to build (steps 6–8 of the plan)
+## 8. The finished files (the owner approved draft 3 on 2026-11-21)
 
-These wait for the owner's approval of the draft. They go in one `build.sh`:
-- the 2160p60 master;
-- the YouTube file;
-- the site's MP4 and WebM, with a poster;
-- the muted loop;
-- the vertical cut;
-- the SRTs (at most 42 characters a line) and the chapters;
-- sync at three marks.
+`tools/video/final/` makes the finished files. The 4K render is heavy: it is held while a
+test suite's timing tests or a CPU measurement run.
+
+```text
+bash tools/video/final/build.sh captions          # cantus-<lang>.srt, chapters-<lang>.txt / .ffmeta (final/captions.py)
+bash tools/video/final/build.sh render            # the scenes at 3840 x 2160, 60 fps, into $WORK/film4k (both languages share them)
+bash tools/video/final/build.sh cards en          # the cards at scale 2, 60 fps; then es
+bash tools/video/final/build.sh all en            # master, YouTube, site, vertical, then the loop; then: all es
+py -3.12 -I tools/video/final/checks.py --work $WORK   # files, loudness, sync at three marks, the carve, the captions
+```
+
+`DRY=1` prints a step's commands without running them.
+
+**The files,** in `$WORK/final/`:
+
+| File | What |
+|---|---|
+| `cantus-<lang>-master.mkv` | 3840 × 2160, 60 fps, FFV1 (lossless), 48 kHz 24-bit PCM from the −1 dBTP master, chapters. Kept by the owner. |
+| `cantus-<lang>-2160p.mp4` | YouTube: H.264 High CRF 16, 60 fps, AAC 320 k from the −2 dBTP export, chapters. |
+| `cantus-<lang>-1080p.mp4` / `.webm` | The site: H.264 and VP9, two passes to at most 12 MB, 30 fps, captions burned in (Barlow Semi Condensed on a translucent slate box), chapters. |
+| `cantus-poster.jpg` | The title card drawn, at 3.5 s: the same in both languages. |
+| `cantus-loop.mp4` / `.webm` | The site's hero: 0:31–0:49, the mixer at work, muted, no captions, faded at both ends. |
+| `cantus-<lang>-vertical.mp4` | 1080 × 1920, the first 30 s: the frame's middle three quarters over itself blurred, captions under it. |
+| `cantus-<lang>.srt`, `chapters-<lang>.txt` | For YouTube: captions and description chapters. |
+
+**How the captions are made:** they follow the speech as placed. Each line's speech begins at
+its `start`, so the time is shared by the characters each caption holds. Each line is at most
+42 characters and each caption at most two lines, broken at sentences, then at clauses. Lines
+are balanced, never start with a dash, and never end on a small word.
+
+**What `checks.py` checks:**
+- every file's size, length, picture and sound against its spec;
+- −14 LUFS ± 0.5 and true peak ≤ −1 dBTP (ffmpeg's ebur128);
+- sync at three marks, s1 at 3 s, s7 at 55 s, s8 at 64 s: the song's place the picture shows
+  against the place the soundtrack plays, and their measured cross-correlation, both within a
+  frame;
+- every line's margin and the music's drop at its entry;
+- the captions' rules.
+
+Nothing is published without the owner's word. The site's deploy and YouTube go through the
+integrator session.

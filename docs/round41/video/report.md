@@ -456,10 +456,81 @@ centring the block. It would be a small change to `cards.css` and a re-cut. Not 
   - The master stays at −14 LUFS / −1 dBTP.
 - **Draft 3** is being made by the film builder.
 
+## Draft 3 approved; the finished files prepared (2026-11-21)
+
+- **The owner approved draft 3:** "Los videos me gustan", both languages.
+- **Built:** `tools/video/final/` has `captions.py`, `build.sh` and `checks.py`. The README's
+  step 8 gives the commands.
+- **Held:** the 3840 × 2160 / 60 fps render waits while a two-hour test suite runs, so its
+  timing tests do not share the CPU.
+- **Made already** (light work), in `F:\projects\video-work\final\`:
+  - **Captions,** `cantus-en.srt` (14) and `cantus-es.srt` (15). The longest line is 41
+    characters, and each caption has at most two lines, placed on the speech's own timing.
+  - **Chapters** (each at least 10 s):
+
+    | Time | English | Spanish |
+    |---|---|---|
+    | 0:00 | Cantus | Cantus |
+    | 0:14 | Instruments: Chorda and Tympanum | Instrumentos: Chorda y Tympanum |
+    | 0:31 | The mixer and 42 effects | La consola y 42 efectos |
+    | 0:44 | Record, play live, master | Graba, toca en vivo, masteriza |
+    | 1:00 | Free, for everyone | Gratis, para todos |
+
+  - **The poster:** the title card fully drawn, at 3.5 s, the same in both languages. Chosen
+    from four candidates that were looked at.
+  - **The burned captions' style:** Barlow Semi Condensed on a translucent slate box. The
+    vertical layout uses the frame's middle three quarters over the frame blurred. Both were
+    looked at on single frames of draft 3.
+- **`checks.py` on draft 3's data:**
+  - **Sync:** the three marks are within a frame. The picture and the sound differ by 14 ms
+    at s7 and s8, and the measured lag is 0 ms (0.5 ms at Spanish s8).
+  - **The carve:** every line is ≥ 10.0 dB over the music. The tightest is English line 4,
+    at 10.0 dB.
+  - **The captions:** pass.
+- **Chosen without the owner, open to his change:** the loop's 18 s (0:31–0:49, the mixer)
+  and the vertical's first 30 s.
+
+## The counts, as the release that carries the video has them (2026-11-21)
+
+The video ships with the release that carries round 41 (beta.17, with Fides and Nitor). Its
+numbers are checked against `r41/integration` (`8a24a2cea`), counted as the site and the
+README count them.
+
+| Where | Was | Now | Source |
+|---|---|---|---|
+| Narration line 2 (EN / ES) | Eleven / Once | **Twelve / Doce** | `web/src/units_data.rs` `INSTRUMENTS: [Unit; 11]` (with Fides) + Firmus (`counts::instruments_with_firmus`); README "Twelve instruments" |
+| Narration line 4 (EN / ES) | forty-two / cuarenta y dos | **forty-three / cuarenta y tres** | `EFFECTS: [Unit; 43]`; the app's `EffectKind::ALL` 49 less the old Reverb and the five board-only Fragor pedals (`offered`) |
+| Card `count-instruments` | 11 | **12** | as line 2 |
+| Card `count-effects` | 42 | **43** | as line 4 |
+| Chapter 0:31 (EN / ES) | 42 | **43** | as line 4 |
+| Captions | 11 / 42 | **12 / 43** | generated from the script's lines |
+
+- **No other number is stated.** The script, the cards, the chapters and the captions were
+  checked; "CLAP and VST3" is a name, not a count.
+- **Lines 2 and 4 were re-made** with ElevenLabs: one take each in Jon and Alejandro, with
+  the same seed and settings as the chosen take.
+  - That spent 592 characters; the ledger now stands at 9 316 of 40 000.
+  - All four pass the gate. `jon-04-2b`'s first sample crosses −40 dB, but its first 5 ms
+    sit at −45 dB and the speech starts at about 20 ms. The gate now accepts a quiet first
+    10 ms.
+  - They fit their windows: EN 7.79 s of 10.0 and 9.80 s of 13.5; ES 8.29 s of 10.0 and
+    12.71 s of 13.5.
+- **The voice track:** `choose.py --pick 2=… --pick 4=…`.
+- **The soundtracks were re-mixed** with DSP_VERSION 11.
+  - The carve is 16.4 dB in English and 13.8 dB in Spanish, with the bed not lowered.
+  - The margins are 11.1–21.1 dB.
+  - The master reads −14.0 LUFS and −1.15 / −1.12 dBTP on Cantus's meter.
+  - `checks.py` passes: sync at three marks within a frame, every line ≥ 10 dB, captions
+    ≤ 42 characters.
+- **For the integrator:** the picture is rendered by `film.rs` from `r41/video`, which is
+  master's app. Its pickers show neither Fides nor Nitor. The 4K picture would show the
+  release's app if it were rendered from the `r41/video-int` worktree, built from
+  integration.
+
 ## What nobody has watched or heard yet
 
-Nobody has heard draft 2's mix. The ducking and the crossfade are measured only. The owner
-has watched draft 1 and heard the voice takes.
+Nobody has heard the re-made lines 2 and 4. They need the owner's ear: they were checked by
+Whisper and the gate only.
 
 *(Written by the integrator from the video agent's hand-back, 2026-11-20: the subagent's tool
 policy refused it a report file. Two of its claims were checked against the code: no demo

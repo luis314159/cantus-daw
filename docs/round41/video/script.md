@@ -6,8 +6,12 @@ about 5 syllables a second in Spanish. The Spanish is written as Spanish, not tr
 word for word.*
 
 **Before recording, check every bracketed fact** against the repository at the video's
-commit. On 2026-11-20 (master `7b287c39`) the site counts **11 instruments** (`INSTRUMENTS`
-plus Firmus, `web/src/counts.rs`) and **42 effects** (`EFFECTS`, `web/src/units_data.rs`).
+commit. The video ships with the release that carries round 41 (beta.17, with Fides and Nitor), so
+its counts are `r41/integration`'s (2026-11-21, `8a24a2cea`), counted as the site and the README
+count them: **12 instruments** (`INSTRUMENTS`, 11 cards with Fides, plus Firmus,
+`web/src/counts.rs`) and **43 effects** (`EFFECTS`, `web/src/units_data.rs`: the app's
+`EffectKind::offered`, 49 kinds less the old Reverb and the five board-only Fragor pedals).
+The first count, at master `7b287c39`, was 11 and 42.
 The release is 0.1.0-beta.15, for Windows and Linux, with macOS held for beta.16.
 
 **The music:**
@@ -32,9 +36,9 @@ acoustic drummer, with *Each mic to its own strip* (ADR 0124) so the mics stand 
 |---|---|---|---|---|
 | 1 | 0:00–0:06 | Black, then the arrangement of *With All Your Heart* fades in, playing; a slow push-in on the playhead crossing a bar line | the song's opening bars, no voice for 2 s | logo #03 draws on, gold rule |
 | 2 | 0:06–0:14 | the whole window, the song playing; a pull-back to show arrangement, mixer, browser — **Onda** in the Stage, its steady groove | voice 1 | — |
-| 3 | 0:14–0:24 | the instrument picker, then Chorda's window, *Morning Light*'s piano part playing; push-in on the keys moving | voice 2 | "[11] instruments" |
+| 3 | 0:14–0:24 | the instrument picker, then Chorda's window, *Morning Light*'s piano part playing; push-in on the keys moving | voice 2 | "[12] instruments" |
 | 4 | 0:24–0:31 | Tympanum's kit view playing *Sunday Strut*'s drums; the mics on strips | voice 3 | — |
-| 5 | 0:31–0:44 | *Neon Tide*'s mixer (FL-shaped desk); the cursor drags an effect onto a strip; its face opens; one knob turns, the sound changes | voice 4 | "[42] effects" |
+| 5 | 0:31–0:44 | *Neon Tide*'s mixer (FL-shaped desk); the cursor drags an effect onto a strip; its face opens; one knob turns, the sound changes | voice 4 | "[43] effects" |
 | 6 | 0:44–0:52 | three fast shots, one bar each: recording (an armed track, its meter); the session view launching clips; a hosted CLAP/VST3 plug-in's slot | voice 5 | lower third per shot |
 | 7 | 0:52–1:00 | the master channel's mastering chain on *With All Your Heart*; the loudness meter landing | voice 6 | — |
 | 8 | 1:00–1:08 | a slow glide across the desk, the song building; it ends on **Onda** in the Stage, framed close, keeping the beat | voice 7 | "Free · open source" |
@@ -66,10 +70,10 @@ loop for a head, and asked for "algo muy simple y constante".
 
 1. *(0:06)* "This is Cantus — a digital audio workstation that's free, open source, and built
    to be the best there is."
-2. *(0:14)* "Play it the way you hear it. [Eleven] instruments made from the ground up — like
+2. *(0:14)* "Play it the way you hear it. [Twelve] instruments made from the ground up — like
    Chorda, a modelled grand piano, tuned string by string."
 3. *(0:24)* "And Tympanum: a full acoustic drummer, every microphone on its own channel."
-4. *(0:31)* "Mix on a desk that feels at home if you've used FL Studio. Drag in any of [forty-two]
+4. *(0:31)* "Mix on a desk that feels at home if you've used FL Studio. Drag in any of [forty-three]
    effects, each with its own face — and hear it as you add it."
 5. *(0:44.5)* "Record your voice and your guitar. Launch ideas live. Bring your CLAP and VST3
    plug-ins."
@@ -81,11 +85,11 @@ loop for a head, and asked for "algo muy simple y constante".
 
 1. *(0:06)* «Esto es Cantus: una estación de trabajo de audio gratuita, de código abierto, y
    hecha para ser la mejor que existe.»
-2. *(0:14)* «Toca como lo escuchas. [Once] instrumentos hechos desde cero, como Chorda: un
+2. *(0:14)* «Toca como lo escuchas. [Doce] instrumentos hechos desde cero, como Chorda: un
    piano de cola modelado, afinado cuerda por cuerda.»
 3. *(0:24)* «Y Tympanum: un baterista acústico completo, cada micrófono en su propio canal.»
 4. *(0:31)* «Mezcla en una consola que se siente como en casa si vienes de FL Studio. Arrastra
-   cualquiera de sus [cuarenta y dos] efectos, cada uno con su propia cara, y suena desde
+   cualquiera de sus [cuarenta y tres] efectos, cada uno con su propia cara, y suena desde
    que lo agregas.»
 5. *(0:44.5)* «Graba tu voz y tu guitarra. Lanza ideas en vivo. Trae tus plug-ins CLAP y VST3.»
 6. *(0:52)* «Y luego masterízalo, ahí mismo, en el canal master.»
