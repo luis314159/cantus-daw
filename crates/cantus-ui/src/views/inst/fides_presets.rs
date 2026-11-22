@@ -105,7 +105,7 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
         &["preset.role.pluck", "fides.tag.strings", "preset.style.film", "preset.style.worship", "preset.style.ambient"],
         ["exc.contact" => 1.3, "exc.pos" => 0.3,
          "a.decay" => 7.0, "a.material" => 0.35, "a.decay_key" => 0.55, "a.inharm" => 0.08,
-         "body.type" => 4.0, "body.mix" => 0.55, "release" => 60.0, "width" => 0.7, "velocity" => 0.75, "gain" => 0.0]),
+         "body.type" => 4.0, "body.mix" => 0.55, "release" => 60.0, "width" => 0.7, "velocity" => 0.75, "gain" => -0.4]),
     preset!("fides.preset.nylon", STRUCK,
         &["preset.role.pluck", "fides.tag.strings", "preset.style.latin", "preset.style.pop", "preset.style.worship"],
         ["exc.contact" => 0.8, "exc.noise" => 0.1, "exc.pos" => 0.14,
