@@ -4,6 +4,9 @@
 # everything; the public one (luis314159/cantus-daw) only ever receives this script's output.
 #
 #   bash tools/public/publish.sh <private-folder> [--push]
+#   PUBLISH_BRANCH=rc/<version> bash tools/public/publish.sh <private-folder> --push
+#       (a release candidate: the rewritten master pushed as that branch, the public master
+#       untouched until the release is out — docs/RELEASING.md, step 1)
 #
 # <private-folder> holds the owner's identities.mailmap and forbid.txt (outside every
 # repository). Without --push it stops after the check, leaving the rewritten clone in
@@ -61,5 +64,17 @@ if [ "$PUSH" = "--push" ]; then
     git -C "$DIR" merge-base --is-ancestor public/master master \
       || { echo "refused: master is not a fast-forward of the public master" >&2; exit 1; }
   fi
-  git -C "$DIR" push public master
+  if [ -n "${PUBLISH_BRANCH:-}" ]; then
+    # A release candidate (docs/RELEASING.md, step 1): the same rewritten master pushed as a
+    # branch of its own, so the rehearsal and the tag can run on it while the public master
+    # — and the site, which deploys on every push to it that touches web/ or Cargo.toml —
+    # stays on the release that can be downloaded. Master follows once the release is out.
+    case "$PUBLISH_BRANCH" in
+      rc/*) ;;
+      *) echo "refused: PUBLISH_BRANCH must be rc/<version>" >&2; exit 1 ;;
+    esac
+    git -C "$DIR" push public "master:refs/heads/$PUBLISH_BRANCH"
+  else
+    git -C "$DIR" push public master
+  fi
 fi
