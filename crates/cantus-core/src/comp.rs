@@ -181,6 +181,18 @@ pub(crate) fn apply_seam(
     }
     let was = r.start;
     let d = at - was;
+    // Still a seam once moved, or its inverse could not move it back (round 41, the main
+    // fuzz on more seeds: a right window as long as its loop's period grew past it, looped,
+    // and the undo was refused as "not a comp seam").
+    let (mut nl, mut nr) = (l, r);
+    nl.length = at - nl.start;
+    let end = nr.end();
+    (nr.start, nr.length, nr.offset) = (at, end - at, nr.offset + d);
+    if !is_seam(&nl, &nr, &held) {
+        return Err(CommandError::InvalidValue(
+            "the seam moved would not be one".into(),
+        ));
+    }
     if let Some(c) = t.arranged_mut(left) {
         // r33:session
         c.length = at - c.start;
@@ -289,6 +301,29 @@ mod tests {
         let s = crate::Snapshot::compile(&p, 1);
         let tr = &s.tracks[0];
         assert!(tr.audio.iter().all(|a| a.xin.is_none() && a.xout.is_none()));
+    }
+
+    #[test]
+    fn a_seam_never_moves_where_it_would_not_be_one() {
+        // Round 41 (the main fuzz on more seeds): a right window exactly its loop's period
+        // long is a seam; moved earlier it grew past the period and looped — no seam — so
+        // the move's inverse was refused and the undo with it. Refused now, nothing moved;
+        // a move that keeps it within its period still applies and undoes.
+        let (mut p, t, l, r) = comped();
+        let c = p.track_mut(t).unwrap().clip_mut(r).unwrap();
+        c.content_length = Some(Ticks::beats(4));
+        let before = p.clone();
+        let seam = |at: Ticks| Command::SetCompSeam {
+            track: t,
+            left: l,
+            right: r,
+            at,
+        };
+        assert!(seam(Ticks::beats(3)).apply(&mut p).is_err());
+        assert_eq!(p, before, "a refusal moves nothing");
+        let undo = seam(Ticks::beats(5)).apply(&mut p).unwrap();
+        undo.apply(&mut p).unwrap();
+        assert_eq!(p, before);
     }
 
     #[test]

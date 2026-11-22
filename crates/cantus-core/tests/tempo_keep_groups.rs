@@ -691,3 +691,100 @@ fn laying_a_large_selection_keeps_to_its_budget() {
     );
     assert!(best < 0.05, "{:.1} ms", best * 1e3);
 }
+
+/// One track, a 48 kHz source, the tempo `points` (none: the song's 120), the windows:
+/// `(start, length, offset, fine offset, link)`.
+fn song_of(
+    points: Vec<TempoPoint>,
+    windows: &[(i64, i64, i64, i32, Option<u64>)],
+) -> (CommandBus, TrackId, Vec<ClipId>) {
+    let (bus, t, _) = song(points, &[]);
+    let mut p = bus.project().clone();
+    let sid = p.audio_pool[0].id;
+    let mut ids = Vec::new();
+    for &(start, length, offset, slip, link) in windows {
+        let mut c = p.make_audio_clip("w", sid, Ticks(start), Ticks(length));
+        c.offset = Ticks(offset);
+        c.audio.as_mut().unwrap().slip_frames = slip;
+        c.link = link.map(LinkId);
+        ids.push(c.id);
+        p.tracks[0].clips.push(c);
+    }
+    (CommandBus::new(p), t, ids)
+}
+
+/// Round 41 (the takes-and-tempo fuzz): two unlinked windows stacked at one place, five
+/// frames apart in their file — two takes, each its own exact line — and a linked window
+/// between them, within its half tick of both. Chained with the linked window, the two were
+/// one take: a tempo edit kept one and moved the other five frames onto it. Each keeps the
+/// frame it plays, to half a frame; the linked one joins the nearer.
+#[test]
+fn a_linked_window_between_two_takes_never_joins_them() {
+    let at = 16 * B;
+    let w = [
+        (at, 8 * B, 3 * B / 2, 37, None),
+        (at, 8 * B, 3 * B / 2, 32, None),
+        (at, 8 * B, 3 * B / 2, 35, Some(9_999)),
+    ];
+    let (mut bus, t, ids) = song_of(vec![], &w);
+    let play = |bus: &CommandBus, id: ClipId| {
+        let c = clip(bus, t, id);
+        frame(&bus.project().tempo_map(), &c, c.start.0 as f64)
+    };
+    let was: Vec<f64> = ids.iter().map(|&i| play(&bus, i)).collect();
+    for bpm in [97.3, 151.9, 64.2] {
+        run(&mut bus, Command::SetTempo { bpm });
+        for k in 0..2 {
+            let now = play(&bus, ids[k]);
+            assert!(
+                (now - was[k]).abs() <= 0.5,
+                "{bpm}: take {k} plays {now} where it played {}",
+                was[k]
+            );
+        }
+        let half_tick = 0.5 * 60.0 / (bpm * 960.0) * RATE;
+        let linked = play(&bus, ids[2]);
+        assert!(
+            (linked - was[0]).abs() <= half_tick + 1e-9,
+            "{bpm}: the linked window at {linked}, its take at {}",
+            was[0]
+        );
+    }
+}
+
+/// The pieces of a split linked window (one origin, one fine offset) are one shift: in a map
+/// where the first piece's half tick is short (240 bpm) and the second's long (60), an
+/// unlinked window fifteen frames off is within the second's reach and not the first's —
+/// joining the take by each piece's own reach would tear the split.
+#[test]
+fn a_split_linked_window_joins_one_take_whatever_each_pieces_reach() {
+    let points = vec![pt(0, 240.0, false), pt(16, 60.0, false)];
+    let w = [
+        (4 * B, 4 * B, 3 * B, 0, Some(9_999)),
+        (24 * B, 4 * B, 23 * B, 0, Some(9_999)),
+        (4 * B, 4 * B, 3 * B, 15, None),
+    ];
+    let (mut bus, t, ids) = song_of(points, &w);
+    let unlinked = |bus: &CommandBus| {
+        let c = clip(bus, t, ids[2]);
+        frame(&bus.project().tempo_map(), &c, c.start.0 as f64)
+    };
+    let was = unlinked(&bus);
+    // The second section sped up first: the second piece is a tick off the unlinked line in
+    // the new map, so a piece joining the take alone would move by a tick and the other not.
+    for bpm in [200.0, 90.0, 130.0] {
+        run(
+            &mut bus,
+            Command::SetTempoPoint {
+                index: 1,
+                point: pt(16, bpm, false),
+            },
+        );
+        let (a, b) = (clip(&bus, t, ids[0]), clip(&bus, t, ids[1]));
+        assert_eq!(a.start - a.offset, b.start - b.offset, "{bpm}: one origin");
+        assert!(
+            (unlinked(&bus) - was).abs() <= 0.5,
+            "{bpm}: the unlinked take"
+        );
+    }
+}

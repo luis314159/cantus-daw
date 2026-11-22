@@ -22,6 +22,26 @@ impl Lcg {
     }
 }
 
+/// The seeds a fuzz runs: `default`, or `CANTUS_FUZZ_SEEDS` — `a..=b` or one seed — to run
+/// many more by hand (`CANTUS_FUZZ_SEEDS=1..=2000 cargo test -p cantus-core --test
+/// undo_invariants`), or the one that failed. A fuzz's draws shift whenever an arm is added,
+/// so a bug a few seeds hid can surface on any later change (round 41: seed 33).
+fn fuzz_seeds(default: std::ops::RangeInclusive<u64>) -> std::ops::RangeInclusive<u64> {
+    let Ok(v) = std::env::var("CANTUS_FUZZ_SEEDS") else {
+        return default;
+    };
+    let v = v.trim();
+    let parse = |t: &str| {
+        t.trim()
+            .parse::<u64>()
+            .unwrap_or_else(|_| panic!("CANTUS_FUZZ_SEEDS: {v:?} is not `a..=b` or a seed"))
+    };
+    match v.split_once("..=") {
+        Some((a, b)) => parse(a)..=parse(b),
+        None => parse(v)..=parse(v),
+    }
+}
+
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
     match rng.below(49) {
@@ -1987,7 +2007,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                                                    // fxc:comparatio - Comparatio's reference lists, applied and refused.
     let mut referenced = [0usize; 2];
     // 120 sequences (round 31: one arm more spreads the draws thinner).
-    for seed in 1..=120u64 {
+    for seed in fuzz_seeds(1..=120) {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
         let mut grng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(17));
@@ -2448,13 +2468,15 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         // track ends up where its linked-clip, cut-time and duplicate batches are refused, as
         // they must be (15 of its 43 refusals, each one of those families' own refusal
         // paths). The floor stays far above a degenerate generator's.
+        // (Both floors are measured on the default seeds, 1 to 120; a seed run by hand
+        // beyond them, `CANTUS_FUZZ_SEEDS`, is checked for its invariants alone.)
         assert!(
-            applied >= 75,
+            seed > 120 || applied >= 75,
             "seed {seed}: too few commands applied ({applied})"
         );
         // r36:mix - the mix stream's own floor.
         assert!(
-            mixed_applied >= 3,
+            seed > 120 || mixed_applied >= 3,
             "seed {seed}: too few mix commands applied ({mixed_applied})"
         );
         assert!(bus.project().tracks.len() + 1 >= 2 || applied > 0);
@@ -2490,6 +2512,11 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             );
         }
         assert!(!bus.can_redo());
+    }
+    // The coverage below counts the default 120 sequences; a hand-picked few
+    // (`CANTUS_FUZZ_SEEDS`, a failure's seed) are checked for their invariants alone.
+    if fuzz_seeds(1..=120).count() < 120 {
+        return;
     }
     // The clipboard arms must really run: pastes of clips, ones that bring a file with
     // them, cuts of clips and of notes, and note pastes that grow their clip; and the link
@@ -4095,6 +4122,14 @@ struct Win {
     frame: f64,
     /// The line it reads: one number for every window of one take.
     line: f64,
+    /// How far off its take's line it may sit, through the map it was measured in (0
+    /// unlinked): half a tick at its content origin or at its entry, the longer
+    /// (`tempo::keep::linked_reach`). Measured with the map of the project it was taken
+    /// from — a window before an edit sat off its line by the *old* map's half tick, which
+    /// a faster new tempo makes several times longer than the new one's (seed 33 with one
+    /// arm more: 63 to 293 bpm, a linked window ten frames off its take's unlinked line
+    /// where the new half tick is five).
+    slack: f64,
 }
 
 fn windows_of(p: &Project) -> Vec<Win> {
@@ -4135,6 +4170,11 @@ fn windows_of(p: &Project) -> Vec<Win> {
                 rate,
                 frame,
                 line: if a.reverse { frame + to } else { frame - to },
+                slack: if c.link.is_some() {
+                    cantus_core::tempo::keep::linked_reach(&map, c.start - c.offset, entry, rate)
+                } else {
+                    0.0
+                },
             });
         }
     }
@@ -4172,36 +4212,119 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
     };
     // A linked window sits within half a tick of its take's line (review 5) — the tick
     // rounded at its content origin, or at its entry, the longer (review 6): within that
-    // (and a frame) it is the take's.
-    let slack = |w: &Win| {
-        if w.linked {
-            let half = |t: f64| 0.5 * map.seconds_between_f64(t, t + 1.0) * w.rate;
-            let e = if w.reverse { w.end } else { w.start }.0 as f64;
-            half(w.origin.0.max(0) as f64).max(half(e))
+    // (and a frame) it is the take's. Half a tick *before* the edit, where it sat off its
+    // line and where `keep` joined it to its take (`Win::slack`, measured in the map it
+    // was taken from): the new map's half tick is shorter whenever the tempo rises.
+    let slack = |w: &Win| w.slack;
+    // The line each window is the take of (ADR 0060 §4): an unlinked window's own — the
+    // exact lines; a linked one's, the nearest unlinked window's of its file and direction
+    // within a frame and its slack, or its own when there is none (`true`: such linked
+    // windows chain among themselves, within their slack); the pieces of a forward linked
+    // window that share its origin and fine offset, as one. Round 41 (the takes-and-tempo
+    // fuzz): a linked window within its slack of two exact lines joined them into one take.
+    let anchors: std::collections::HashMap<_, (f64, bool)> = before
+        .iter()
+        .map(|w| {
+            // A forward linked window's pieces (its origin and fine offset shared) are one.
+            let pieces = before.iter().filter(|c| {
+                std::ptr::eq(*c, w)
+                    || (c.linked
+                        && !c.reverse
+                        && !w.reverse
+                        && (c.source, c.origin, c.slip) == (w.source, w.origin, w.slip))
+            });
+            let anchor = if w.linked {
+                pieces
+                    .flat_map(|c| {
+                        before
+                            .iter()
+                            .filter(move |u| {
+                                !u.linked
+                                    && (u.source, u.reverse) == (c.source, c.reverse)
+                                    && (u.line - c.line).abs() <= 1.0 + c.slack
+                            })
+                            .map(move |u| (u.line, (u.line - c.line).abs()))
+                    })
+                    .min_by(|x, y| x.1.total_cmp(&y.1))
+                    .map_or((w.line, true), |(l, _)| (l, false))
+            } else {
+                (w.line, false)
+            };
+            (w.key, anchor)
+        })
+        .collect();
+    // The takes: windows of one file and direction whose lines are within a frame — or,
+    // linked with no exact line near, within their slack — chained (a line a frame from
+    // another a frame from a third is one take, as `keep` chains them).
+    let near = |o: &Win, b: &Win| {
+        let ((x, xa), (y, ya)) = (anchors[&o.key], anchors[&b.key]);
+        let reach = if xa && ya {
+            slack(o).max(slack(b))
         } else {
             0.0
-        }
+        };
+        o.source == b.source && o.reverse == b.reverse && (x - y).abs() <= 1.0 + reach
     };
+    let mut take_of: Vec<usize> = (0..before.len()).collect();
+    fn root(t: &mut [usize], mut i: usize) -> usize {
+        while t[i] != i {
+            t[i] = t[t[i]];
+            i = t[i];
+        }
+        i
+    }
+    for i in 0..before.len() {
+        for j in i + 1..before.len() {
+            if near(&before[i], &before[j]) {
+                let (x, y) = (root(&mut take_of, i), root(&mut take_of, j));
+                take_of[x] = y;
+            }
+        }
+    }
+    let take_id: std::collections::HashMap<_, usize> = (0..before.len())
+        .map(|i| (before[i].key, root(&mut take_of, i)))
+        .collect();
     let mut checked = 0;
     for (i, (b, a)) in live.iter().enumerate() {
-        // Its line's head: where the line comes in, among the windows left in place.
-        let head = live
+        // Its take: the windows left in place on its line.
+        let take: Vec<&Win> = live
             .iter()
-            .filter(|(o, _)| {
-                o.source == b.source
-                    && o.reverse == b.reverse
-                    && (o.line - b.line).abs() <= 1.0 + slack(o).max(slack(b))
-            })
-            .min_by_key(|(o, _)| if o.reverse { -o.end.0 } else { o.start.0 })
+            .filter(|(o, _)| take_id[&o.key] == take_id[&b.key])
             .map(|(o, _)| *o)
+            .collect();
+        // Its head: where the line comes in.
+        let head = *take
+            .iter()
+            .min_by_key(|o| if o.reverse { -o.end.0 } else { o.start.0 })
             .expect("itself");
+        // The frame the take keeps where it comes in: its head's — or, when the head is
+        // linked (whole ticks, up to half a tick off its take), its earliest unlinked
+        // window's line there: a take is laid on an unlinked window's exact line (ADR 0060
+        // §4, review 6). Round 41 (seed 33): a linked head stacked on an unlinked window
+        // ten frames off it was taken as the line, and the unlinked window kept exactly
+        // was called torn.
+        let exact = take
+            .iter()
+            .filter(|o| !o.linked)
+            .min_by_key(|o| o.start.0)
+            .filter(|_| head.linked);
+        let kept = head.frame + exact.map_or(0.0, |u| u.line - head.line);
+        // Windows of the take entering with its head (stacked twins, within a frame or a
+        // linked window's slack of it): any of them may be the one it keeps — as far off
+        // as their lines are apart.
+        let entry = |o: &Win| if o.reverse { o.end } else { o.start };
+        let tie = take
+            .iter()
+            .filter(|o| !std::ptr::eq(**o, head) && entry(o) == entry(head))
+            .map(|o| (o.line - head.line).abs())
+            .fold(0.0, f64::max);
         // The frame the line plays at this window's entry now, from the head's kept entry.
         let run = if b.reverse {
             map.seconds_between(b.end, head.end)
         } else {
             map.seconds_between(head.start, b.start)
         };
-        let want = head.frame + run * b.rate;
+        let want = kept + run * b.rate;
         // The head and the windows that shared its origin and fine offset: exactly on its
         // line (half a frame); the others on it within their own rounding and a frame.
         let with_head = !b.reverse
@@ -4210,12 +4333,13 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
             && !head.linked
             && (b.origin, b.slip) == (head.origin, head.slip);
         let tolerance = if std::ptr::eq(head, *b) {
-            // A linked head is laid on its take's exact line, which it sat off by its slack.
-            reach(a) + slack(b)
+            // A linked head is laid on its take's exact line by whole ticks (within a frame
+            // of the one found here); with no unlinked window on it, on its own frame.
+            reach(a) + if exact.is_some() { 1.0 } else { tie }
         } else if with_head {
-            0.5 + 1e-6
+            0.5 + 1e-6 + tie
         } else {
-            reach(a) + reach(head) + 1.0 + slack(b)
+            reach(a) + reach(head) + 1.0 + slack(b) + tie
         };
         if (a.frame - want).abs() > tolerance {
             return Err(format!(
@@ -8390,4 +8514,357 @@ fn fides_sidechain_undo_and_redo_among_the_others() {
         applied > 200 && refused > 20 && keyed > 100,
         "applied {applied}, refused {refused}, keyed {keyed}"
     );
+}
+
+// --- r41:take-tempo — takes through tempo changes --------------------------------------
+//
+// Round 41: one arm more in the main fuzz moved seed 33 onto a recorded take whose two
+// windows stacked at one place — one linked, one unlinked ten frames earlier in its file —
+// through a tempo rise from 63.5 to 293.4 bpm, and the take rule's check called it torn
+// ("frame 94217.7 where its take puts 94228.5"). `tempo::keep` was right (ADR 0060 §4,
+// review 6: a take is laid on its unlinked window's exact line; the linked one follows it by
+// whole ticks); the check measured how far the linked window had sat off that line with the
+// *new* map's half tick (5.1 frames) where it sat off by the old one's (23.6). The check now
+// measures it in the map it was taken from (`Win::slack`), the case is pinned below, and a
+// fuzz of its own mixes takes and tempo edits so no arm of the main fuzz has to draw it.
+
+/// A 48 kHz recorded file in `p`'s pool: its id.
+fn take_source(p: &mut Project) -> AudioSourceId {
+    let sid = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id: sid,
+        name: "voice".into(),
+        path: "C:/rec/voice.wav".into(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 384_000,
+        sha256: None,
+        recorded: true,
+    });
+    sid
+}
+
+/// Seed 33's take, minimised: a linked window and an unlinked one at the same place on one
+/// line of the file (its fine offset −10 frames, under half a tick at 63.5 bpm), the linked
+/// one first on the track. A rise to 293.4 bpm lays the take on the unlinked window's line
+/// (the head `keep` picks among the two, being the lower line), the linked one onto it by
+/// whole ticks — 10.75 frames from where it played, within half a tick of the old map. The
+/// take rule holds, both windows play the take's line, and the step undoes and redoes to
+/// the bit.
+#[test]
+fn a_linked_window_stacked_on_its_take_keeps_it_through_a_tempo_rise() {
+    let mut p = Project::new("seed 33");
+    p.tempo_bpm = 63.484_001_159_667_97;
+    let sid = take_source(&mut p);
+    let mut t = p.make_track("Voice");
+    let window = |p: &mut Project, slip: i32, link: Option<LinkId>| {
+        let mut c = p.make_audio_clip("voice", sid, Ticks(14_683), Ticks(10_277));
+        c.offset = Ticks(1_994);
+        c.audio.as_mut().unwrap().slip_frames = slip;
+        c.link = link;
+        c
+    };
+    let linked = window(&mut p, 0, Some(LinkId(96)));
+    let plain = window(&mut p, -10, None);
+    let (tid, lid, pid) = (t.id, linked.id, plain.id);
+    t.clips.push(linked);
+    t.clips.push(plain);
+    p.tracks.push(t);
+    let mut bus = CommandBus::new(p);
+    let start = bus.project().clone();
+    let before = windows_of(bus.project());
+    assert_eq!(before.len(), 2);
+    bus.execute(
+        Command::SetTempo {
+            bpm: 293.447_998_046_875,
+        },
+        Origin::User,
+    )
+    .expect("the tempo applies");
+    let edited = bus.project().clone();
+    let after = windows_of(&edited);
+    // The take rule, as the main fuzz checks it.
+    let n = takes_kept(&before, &after, &edited, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(n, 2);
+    // Each window, against the take's exact line — the unlinked window's frame at their
+    // one entry, which it keeps (half a frame); the linked one within half a tick of it
+    // (the new map's: it is laid on the line by whole ticks).
+    let frame = |ws: &[Win], c: ClipId| ws.iter().find(|w| w.key.1 == Some(c)).unwrap().frame;
+    let line = frame(&before, pid);
+    assert!((frame(&after, pid) - line).abs() <= 0.5 + 1e-9);
+    let map = edited.tempo_map();
+    let half = cantus_core::tempo::keep::linked_reach(
+        &map,
+        Ticks(14_683 - 9_216),
+        Ticks(14_683),
+        48_000.0,
+    );
+    assert!((frame(&after, lid) - line).abs() <= half + 1e-9);
+    assert!(
+        (frame(&before, lid) - frame(&after, lid)).abs() > half,
+        "the case: the linked window moves by more than the new half tick"
+    );
+    let c = edited.track(tid).unwrap().clip(lid).unwrap();
+    assert_eq!(
+        c.offset,
+        Ticks(9_216),
+        "whole ticks, its fine offset its group's"
+    );
+    assert_eq!(c.audio.as_ref().unwrap().slip_frames, 0);
+    // One step, exact both ways.
+    bus.undo().unwrap();
+    assert_eq!(*bus.project(), start, "undo");
+    bus.redo().unwrap();
+    assert_eq!(*bus.project(), edited, "redo");
+    assert!(!bus.can_redo());
+}
+
+/// One draw of the takes-and-tempo fuzz: tempo edits (the song's tempo, rises and falls far
+/// apart; the tempo track's commands), recorded windows laid down (forwards and reversed,
+/// linked or not), a window of one take stacked on another — an unlinked twin a few frames
+/// off, a linked one a tick off (seed 33's shape), a sibling of its group further on its
+/// line — splits, links made and let go, slips, re-anchors and removals.
+fn take_tempo_command(rng: &mut Lcg, project: &mut Project, sid: AudioSourceId) -> Command {
+    let tracks: Vec<TrackId> = project.tracks.iter().map(|t| t.id).collect();
+    let track = tracks[rng.below(tracks.len() as u64) as usize];
+    let audio: Vec<Clip> = project
+        .track(track)
+        .map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| c.audio.is_some())
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let picked = audio
+        .get(rng.below(audio.len().max(1) as u64) as usize)
+        .cloned();
+    let k = rng.below(13);
+    let Some(c) = picked.filter(|_| k >= 7) else {
+        return match k {
+            0..=2 | 7.. => Command::SetTempo {
+                bpm: f64::from(rng.f32(20.0, 300.0)),
+            },
+            3 | 4 => round29_tempo_command(rng, project),
+            _ => {
+                let start = rng.below(60_000) as i64;
+                let length = 1 + rng.below(12_000) as i64;
+                let mut c = project.make_audio_clip("take", sid, Ticks(start), Ticks(length));
+                c.offset = Ticks(rng.below(12_500) as i64 - 500);
+                let a = c.audio.as_mut().unwrap();
+                a.slip_frames = rng.below(81) as i32 - 40;
+                a.reverse = rng.below(6) == 0;
+                if rng.below(3) == 0 {
+                    c.link = Some(LinkId(project.alloc_id()));
+                }
+                Command::InsertClip {
+                    track,
+                    clip: Box::new(c),
+                }
+            }
+        };
+    };
+    match k {
+        7 | 8 => {
+            // Another window of the take: stacked on it, or further on its line.
+            let mut w = c.clone();
+            w.id = ClipId(project.alloc_id());
+            match rng.below(3) {
+                0 => {
+                    w.link = None;
+                    let a = w.audio.as_mut().unwrap();
+                    a.slip_frames += rng.below(41) as i32 - 20;
+                }
+                1 => {
+                    w.link = Some(LinkId(project.alloc_id()));
+                    w.offset += Ticks(rng.below(3) as i64 - 1);
+                }
+                _ => {
+                    // Its group's sibling (the same content), later on the same line.
+                    let d = rng.below(6_000) as i64;
+                    w.start += Ticks(d);
+                    w.offset += Ticks(d);
+                }
+            }
+            Command::InsertClip {
+                track,
+                clip: Box::new(w),
+            }
+        }
+        9 if c.length.0 > 1 => {
+            // A split by tick arithmetic: the halves share the origin and fine offset.
+            let cut = 1 + rng.below(c.length.0 as u64 - 1) as i64;
+            let mut right = c.clone();
+            right.id = ClipId(project.alloc_id());
+            right.start = c.start + Ticks(cut);
+            right.length = c.length - Ticks(cut);
+            right.offset = c.offset + Ticks(cut);
+            Command::Batch {
+                label_key: "cmd.split_clip".into(),
+                commands: vec![
+                    Command::SetClipBounds {
+                        track,
+                        clip: c.id,
+                        start: c.start,
+                        length: Ticks(cut),
+                    },
+                    Command::InsertClip {
+                        track,
+                        clip: Box::new(right),
+                    },
+                ],
+            }
+        }
+        10 => Command::SetClipLink {
+            track,
+            clip: c.id,
+            link: (rng.below(2) == 0).then(|| LinkId(project.alloc_id())),
+        },
+        11 => {
+            if rng.below(2) == 0 {
+                Command::SetClipOffset {
+                    track,
+                    clip: c.id,
+                    offset: c.offset + Ticks(rng.below(201) as i64 - 100),
+                }
+            } else {
+                // A fine offset moved: refused on a linked window (it is its group's).
+                let slip = c.audio.as_ref().unwrap().slip_frames;
+                Command::SetClipAnchors {
+                    track,
+                    anchors: vec![(c.id, c.offset, slip + rng.below(61) as i32 - 30)],
+                }
+            }
+        }
+        _ => Command::RemoveClip { track, clip: c.id },
+    }
+}
+
+/// Takes and tempo edits mixed in a fuzz of their own (round 41, after seed 33), so the
+/// main fuzz's draws — which move whenever it gains an arm — are not what covers them: after
+/// every tempo edit applied (alone, or as a gesture of merged frames) each take keeps its
+/// frame where it comes in and its windows on its line (`takes_kept`, the main fuzz's rule),
+/// links still share their content, and every step undoes and redoes to the bit. Seed 33's
+/// shape — a linked window and an unlinked one of one take on one line — is counted, so the
+/// draws cannot drift off it unseen. `CANTUS_FUZZ_SEEDS` runs more.
+#[test]
+fn takes_through_tempo_edits_keep_their_lines_and_undo_exactly() {
+    let plain_tempo = |c: &Command| {
+        matches!(
+            c,
+            Command::SetTempo { .. }
+                | Command::SetTempoTrack { .. }
+                | Command::InsertTempoPoint { .. }
+                | Command::RemoveTempoPoint { .. }
+                | Command::SetTempoPoint { .. }
+        )
+    };
+    // Tempo edits applied, gestures among them, windows checked, stacked lines (a linked
+    // and an unlinked window of one take) through a tempo edit, take edits applied, refused.
+    let (mut tempos, mut gestures, mut checked, mut stacked) = (0usize, 0usize, 0usize, 0usize);
+    let (mut edits, mut refused) = (0usize, 0usize);
+    for seed in fuzz_seeds(1..=200) {
+        let mut rng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(4_141));
+        let mut p = Project::new("takes");
+        p.tempo_bpm = f64::from(rng.f32(40.0, 240.0));
+        let sid = take_source(&mut p);
+        for name in ["Voice", "Guitar"] {
+            let t = p.make_track(name);
+            p.tracks.push(t);
+        }
+        let mut bus = CommandBus::new(p);
+        let norm = |p: &Project| {
+            let mut p = p.clone();
+            p.next_id = 0;
+            p
+        };
+        let mut checkpoints = vec![norm(bus.project())];
+        for step in 0..80u64 {
+            let mut scratch = bus.project().clone();
+            let cmd = take_tempo_command(&mut rng, &mut scratch, sid);
+            bus.reserve_ids(scratch.next_id);
+            let shown: String = format!("{cmd:?}").chars().take(400).collect();
+            let tempo = cantus_core::tempo::keep::changes_tempo(&cmd);
+            let before = tempo.then(|| windows_of(bus.project()));
+            let gesture = matches!(
+                cmd,
+                Command::SetTempo { .. }
+                    | Command::SetTempoTrack { .. }
+                    | Command::SetTempoPoint { .. }
+            ) && rng.below(4) == 0;
+            let plain = plain_tempo(&cmd);
+            let result = if gesture {
+                let key = MergeKey::of(&("takes", seed, step));
+                let first = bus.execute_merging(cmd.clone(), Origin::User, key);
+                if first.is_ok() {
+                    let mut last = cmd.clone();
+                    for _ in 0..1 + rng.below(5) {
+                        let frame = jittered(&last, &mut rng);
+                        if bus
+                            .execute_merging(frame.clone(), Origin::User, key)
+                            .is_ok()
+                        {
+                            last = frame;
+                        }
+                    }
+                    bus.end_gesture();
+                    gestures += 1;
+                }
+                first
+            } else {
+                bus.execute(cmd, Origin::User)
+            };
+            links::check(bus.project())
+                .unwrap_or_else(|e| panic!("seed {seed}: {e} after {shown}"));
+            let Ok(()) = result else {
+                refused += 1;
+                continue;
+            };
+            if let Some(b) = before.as_ref() {
+                tempos += 1;
+                checked += takes_kept(b, &windows_of(bus.project()), bus.project(), plain)
+                    .unwrap_or_else(|e| panic!("seed {seed}, step {step}: {e} after {shown}"));
+                stacked += usize::from(b.iter().any(|x| {
+                    x.linked
+                        && b.iter().any(|y| {
+                            !y.linked
+                                && (y.source, y.reverse, y.start) == (x.source, x.reverse, x.start)
+                                && (y.line - x.line).abs() <= 1.0 + x.slack
+                                && (y.line - x.line).abs() > 1.0
+                        })
+                }));
+            } else {
+                edits += 1;
+            }
+            checkpoints.push(norm(bus.project()));
+        }
+        for i in (1..checkpoints.len()).rev() {
+            assert!(bus.undo().is_some(), "seed {seed}: undo {i}");
+            assert_eq!(
+                norm(bus.project()),
+                checkpoints[i - 1],
+                "seed {seed}: undo to checkpoint {}",
+                i - 1
+            );
+        }
+        assert!(!bus.can_undo(), "seed {seed}");
+        for (i, want) in checkpoints.iter().enumerate().skip(1) {
+            assert!(bus.redo().is_some(), "seed {seed}: redo {i}");
+            assert_eq!(norm(bus.project()), *want, "seed {seed}: redo {i}");
+        }
+        assert!(!bus.can_redo(), "seed {seed}");
+    }
+    eprintln!(
+        "takes and tempo: {tempos} tempo edits ({gestures} gestures), {checked} windows \
+         checked, {stacked} with a linked window off its take's line, {edits} take edits, \
+         {refused} refused"
+    );
+    // The floors for the default 200 seeds (scaled down for fewer by hand).
+    let seeds = fuzz_seeds(1..=200).count();
+    assert!(
+        tempos >= seeds * 15 && checked >= seeds * 40 && stacked >= seeds / 4,
+        "too few: {tempos} tempo edits, {checked} windows, {stacked} stacked lines"
+    );
+    assert!(gestures > 0 && edits >= seeds * 20 && refused > 0);
 }
