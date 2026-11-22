@@ -156,6 +156,20 @@ fn unit_ink(face: Face) -> Option<Color32> {
         .flatten()
 }
 
+/// A value's number and its unit, split at the first space ("−3.5 dB" → ("−3.5", "dB");
+/// "−∞ dB", "1/4 note", "35 %"), when the text before it is a number: an optional sign
+/// (+ - − ±), then a digit, a decimal point or ∞. Words ("The song's", "de la canción",
+/// "C sharp", "L 50") are no number followed by its unit and stay whole. No allocation.
+fn number_and_unit(s: &str) -> Option<(&str, &str)> {
+    let (num, unit) = s.split_once(' ')?;
+    let mut rest = num
+        .chars()
+        .skip_while(|c| matches!(c, '+' | '-' | '\u{2212}' | '\u{b1}'));
+    let numeric = matches!(rest.next(), Some('0'..='9' | '.' | '\u{221e}'))
+        && num.chars().any(|c| c.is_ascii_digit() || c == '\u{221e}');
+    (numeric && !unit.is_empty()).then_some((num, unit))
+}
+
 fn job(s: &str, role: Role, k: f32, face: Face) -> LayoutJob {
     let mut j = LayoutJob::default();
     let format = |r: Role| {
@@ -179,9 +193,10 @@ fn job(s: &str, role: Role, k: f32, face: Face) -> LayoutJob {
     };
     // A value's unit ("2.40 kHz", "-12.5 dB") is set after the number in the smaller
     // condensed face, as FL sets an LCD's fraction smaller: the digits keep their mono
-    // columns and the whole still fits a 64-pt cell.
-    match (role, s.split_once(' ')) {
-        (Role::Value | Role::Hero, Some((num, unit))) if !unit.is_empty() => {
+    // columns and the whole still fits a 64-pt cell. A value of words ("The song's",
+    // "C sharp", "L 50") is no number with a unit: it is set whole, in the value's ink.
+    match (role, number_and_unit(s)) {
+        (Role::Value | Role::Hero, Some((num, unit))) => {
             j.append(num, 0.0, format(role));
             let mut f = format(Role::Label);
             // r39:el-controls — the unit in ink 3 in a recessed family (the role's own face).
@@ -603,4 +618,175 @@ pub fn paint_face(
         rect: Rect::from_min_size(pos, size),
         shortened,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `job` as it stood before round 41's fix (every first space split a value), word for
+    /// word: a number and its unit are held to the very same job.
+    fn legacy_job(s: &str, role: Role, k: f32, face: Face) -> LayoutJob {
+        let mut j = LayoutJob::default();
+        let format = |r: Role| {
+            let font_id = match face.letters {
+                _ if face.mono && matches!(role, Role::Value | Role::Hero) => r.mono_plain(k),
+                Some((w, c)) if r == role => r.lettered(w, c, k),
+                _ => r.font(k),
+            };
+            let extra = if r == role {
+                face.tracking_milli as f32 * 0.001 * r.size() * k
+            } else {
+                0.0
+            };
+            TextFormat {
+                font_id,
+                extra_letter_spacing: r.tracking() * k + extra,
+                color: Color32::PLACEHOLDER,
+                valign: Align::BOTTOM,
+                ..Default::default()
+            }
+        };
+        match (role, s.split_once(' ')) {
+            (Role::Value | Role::Hero, Some((num, unit))) if !unit.is_empty() => {
+                j.append(num, 0.0, format(role));
+                let mut f = format(Role::Label);
+                if let Some(ink) = unit_ink(face) {
+                    f.color = ink;
+                }
+                j.append(unit, 2.0 * k, f);
+            }
+            _ => j.append(s, 0.0, format(role)),
+        }
+        j.wrap.max_rows = 1;
+        j
+    }
+
+    /// Words a value or a choice shows (Nitor's Key, Sub follows; Off, Tonic; a pan's side).
+    const WORDS: &[&str] = &[
+        "The song's",
+        "de la canción",
+        "La",
+        "Off",
+        "Tonic",
+        "On",
+        "C sharp",
+        "E flat",
+        "Do sostenido",
+        "The bass, an octave down",
+        "La tónica de la canción",
+        "Octave down",
+        "L 50",
+        "R 12",
+        "C#4 major",
+    ];
+
+    /// Numbers with their units, as the units' formatters write them.
+    const NUMBERS: &[&str] = &[
+        "\u{2212}3.5 dB",
+        "-12.5 dB",
+        "+6.0 dB",
+        "2.2 kHz",
+        "250 ms",
+        "+8 ct",
+        "35 %",
+        "1/4 note",
+        ".5 s",
+        "\u{b1}3 st",
+        "\u{2212}\u{221e} dB",
+        "\u{221e} s",
+        "120.00 BPM",
+        "4:1 ratio",
+    ];
+
+    /// The text of a job's section `i`.
+    fn part(j: &LayoutJob, i: usize) -> &str {
+        let r = &j.sections[i].byte_range;
+        &j.text[r.start.0..r.end.0]
+    }
+
+    const ROLES: [Role; 2] = [Role::Value, Role::Hero];
+
+    fn faces() -> [Face; 3] {
+        [
+            Face::ROLE,
+            Face {
+                letters: None,
+                tracking_milli: 0,
+                mono: true,
+            },
+            Face {
+                letters: Some((crate::kit::skin::Weight::SemiBold, true)),
+                tracking_milli: 40,
+                mono: false,
+            },
+        ]
+    }
+
+    #[test]
+    fn a_value_of_words_is_one_ink_whole() {
+        let ink = Color32::from_rgb(1, 2, 3);
+        with_unit_ink(Some(ink), || {
+            for s in WORDS {
+                for role in ROLES {
+                    for face in faces() {
+                        let j = job(s, role, 1.0, face);
+                        assert_eq!(j.text, *s);
+                        assert_eq!(j.sections.len(), 1, "{s:?} in {role:?} split in two");
+                        let f = &j.sections[0].format;
+                        assert_eq!(f.color, Color32::PLACEHOLDER, "{s:?}: one ink");
+                        let word = job("Off", role, 1.0, face);
+                        assert_eq!(*f, word.sections[0].format, "{s:?}: the value's face");
+                    }
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn a_number_and_its_unit_split_as_before() {
+        let ink = Color32::from_rgb(1, 2, 3);
+        for unit_ink in [None, Some(ink)] {
+            with_unit_ink(unit_ink, || {
+                for s in NUMBERS {
+                    for role in ROLES {
+                        for face in faces() {
+                            for k in [1.0, 1.25, 2.0] {
+                                let j = job(s, role, k, face);
+                                assert_eq!(j.sections.len(), 2, "{s:?}: number and unit");
+                                assert_eq!(j, legacy_job(s, role, k, face), "{s:?} moved");
+                                let (num, unit) = s.split_once(' ').unwrap();
+                                assert_eq!(part(&j, 0), num);
+                                assert_eq!(part(&j, 1), unit);
+                                if face == Face::ROLE {
+                                    let want = unit_ink.unwrap_or(Color32::PLACEHOLDER);
+                                    assert_eq!(j.sections[1].format.color, want, "{s:?}");
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn a_number_joined_to_its_unit_stays_whole() {
+        for s in ["2.2kHz", "+8ct", "35%", "\u{2212}3.5dB", "C", "R12", "L50"] {
+            for role in ROLES {
+                let j = job(s, role, 1.0, Face::ROLE);
+                assert_eq!(j, legacy_job(s, role, 1.0, Face::ROLE), "{s:?} moved");
+                assert_eq!(j.sections.len(), 1, "{s:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_label_is_never_split() {
+        for s in WORDS.iter().chain(NUMBERS) {
+            for role in [Role::Label, Role::Section, Role::Micro] {
+                assert_eq!(job(s, role, 1.0, Face::ROLE).sections.len(), 1, "{s:?}");
+            }
+        }
+    }
 }
