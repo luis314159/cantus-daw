@@ -45,7 +45,8 @@ into a body and an output stage. Files: `cantus-core/src/inst/fides.rs` (the tab
   *Velocity tone* ½; *bow* — a velocity envelope the resonator meets through Smith's friction
   curve as the STK gives it (MIT): `min(1, (|(Δv + 0.001)·(5 − 4·pressure)| + 0.75)^−4)`, the
   stick and slip inside the resonator's loop; *noise* — band-passed noise or sparse grains
-  through an ADSR, also a layer under any exciter; *input* — a track's audio. Every pulse has the
+  through an ADSR, also a layer under any exciter; *input* — a track's audio: **another
+  strip's post-fader output, chosen as an insert's key is (a sidechain; ADR 0154)**. Every pulse has the
   same area in samples at every rate. Strike and sustained parts leave the exciter apart, so
   each resonator takes them at its own gains.
 - **The waveguide** (`fides_string.rs`, string, tube, pipe) is **two loops meeting at the
@@ -98,6 +99,16 @@ into a body and an output stage. Files: `cantus-core/src/inst/fides.rs` (the tab
 
 **The parameter table** (keys forever once shipped) is `cantus_core::inst::fides::PARAMS`, its
 units and ranges beside each key; the manual (`docs/manual/en/fides.md`) says what each does.
+
+**Amended by ADR 0154 (round 41):** the *Input* exciter's audio is a sidechain from a strip
+(`Track::sidechain`, schema 79), run before the track by the plan and compensated as the
+track's own latency. **Inharmonicity** (round 41, `fides::string::stiffness_fit`): the
+fitted partial moves from where the loop puts it as far as a stiff string with
+`B = 4·10⁻⁴·inharm²` moves it from the harmonic (a negative setting draws it in, as far as the
+four sections can) — where Gravis's fit, given the loss filter's dispersion, added only what
+the stiffness asked past the loss's own and did nothing under a threshold that rose with the
+loss. At 0 nothing changed; above the old threshold the partials stretch by the loss's share
+more than before.
 
 ## Consequences
 

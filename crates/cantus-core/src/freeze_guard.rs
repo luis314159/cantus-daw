@@ -118,6 +118,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
             vec![TrackMix(*id), input(was), input(*strip)]
         }
         SetTrackInput { id, .. } | SetTrackArmed { id, .. } => vec![TrackSource(*id)],
+        // r41:fides-input — what its instrument hears is its source (ADR 0154).
+        SetTrackSidechain { track, .. } => vec![TrackSource(*track)],
         SetTrackRecordTap { .. } => vec![], // r40:pads — where a take is tapped, not a sound
         // ---- strips ----------------------------------------------------------------------
         InsertStrip { .. } | RemoveStrip { .. } => vec![Global],

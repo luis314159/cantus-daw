@@ -476,6 +476,11 @@ impl InstrumentSpec {
         }
     }
 
+    /// r41:fides-input — whether it hears another strip's audio as its input (ADR 0154).
+    pub fn takes_sidechain(&self) -> bool {
+        self.native().is_some_and(|n| n.kind.takes_sidechain())
+    }
+
     pub fn firmus(&self) -> Option<&FirmusParams> {
         match self {
             InstrumentSpec::Firmus(p) => Some(p),

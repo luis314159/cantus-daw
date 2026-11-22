@@ -203,6 +203,13 @@ impl InstrumentKind {
         ) || matches!(tympanum::bleed_key(key), Some((_, _, "on")))
     }
 
+    /// r41:fides-input — whether it hears another strip's audio as its input (ADR 0154): a
+    /// sidechain, chosen as an effect's key is ([`crate::model::Track::sidechain`]). Fides,
+    /// whose *Input* exciter plays it.
+    pub fn takes_sidechain(self) -> bool {
+        self == InstrumentKind::Resonator
+    }
+
     /// Whether it makes sound. A dancer does not (ADR 0087): what checks an instrument's
     /// level, its tone or its voices passes it by.
     pub fn sounds(self) -> bool {

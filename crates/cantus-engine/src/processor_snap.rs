@@ -311,6 +311,12 @@ impl Processor {
             let slot = self.track_to_slot[ti];
             if let Some(mut s) = nodes.track(slot) {
                 s.strip = t.strip.and_then(|s| self.strip_to_slot.get(s).copied());
+                // r41:fides-input — the strip its instrument hears, as the plan runs it
+                // first (ADR 0154).
+                s.key = self
+                    .plan
+                    .track_key(ti)
+                    .and_then(|k| self.strip_to_slot.get(k as usize).copied());
                 // r37:drums — its outputs' taps, or its source (ADR 0100), in slots.
                 s.outs.clear();
                 for (k, tap) in t.buses.iter().enumerate() {
@@ -453,6 +459,13 @@ impl Processor {
                 if let Some(mut s) = nodes.strip(*k) {
                     s.is_key = true;
                 }
+            }
+        }
+        // r41:fides-input — and the strips an instrument hears (ADR 0154).
+        for i in 0..self.track_to_slot.len() {
+            let key = nodes.track(self.track_to_slot[i]).and_then(|s| s.key);
+            if let Some(mut s) = key.and_then(|k| nodes.strip(k)) {
+                s.is_key = true;
             }
         }
     }
@@ -613,6 +626,10 @@ impl Processor {
         // so what it feeds arrives no earlier and every other path waits for it.
         let mut leave = [0usize; MAX_TRACKS];
         let mut feeds = [None; MAX_TRACKS];
+        // r41:fides-input — a track whose instrument hears a strip leaves after that strip
+        // (ADR 0154): at its key's arrival through its chain, plus its own latency — met in
+        // the strips' walk below, once that strip's is known.
+        let mut keyed = [None; MAX_TRACKS];
         for ti in 0..self.track_to_slot.len() {
             let slot = self.track_to_slot[ti];
             let Some(s) = nodes.track(slot) else {
@@ -625,6 +642,10 @@ impl Processor {
             let latency = s.latency();
             leave[slot] = latency;
             feeds[slot] = s.strip;
+            if s.key.is_some() {
+                keyed[slot] = s.key;
+                continue;
+            }
             match s.strip {
                 Some(d) if deaf[d] => {}
                 // Not held back — but a strip of monitored input only knows how late it
@@ -650,6 +671,21 @@ impl Processor {
             }
             let p = arrive[slot] + own[slot];
             post[slot] = p;
+            // r41:fides-input — the tracks keyed from it leave after it (ADR 0154).
+            for ti in 0..self.track_to_slot.len() {
+                let t = self.track_to_slot[ti];
+                if keyed[t] != Some(slot) {
+                    continue;
+                }
+                leave[t] += p;
+                let latency = leave[t];
+                match feeds[t] {
+                    Some(d) if deaf[d] => {}
+                    Some(d) => arrive[d] = arrive[d].max(latency),
+                    None if quick(t, None) => {}
+                    None => master = master.max(latency),
+                }
+            }
             let Some(st) = nodes.strip(slot) else {
                 continue;
             };

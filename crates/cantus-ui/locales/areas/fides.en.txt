@@ -175,3 +175,8 @@ fides.highcut.short = High cut
 fides.retrig.short = Restrike
 fides.mode_kind.poly.short = Poly
 fides.resonator.marimba.short = Marimba
+# r41:fides-input — the Input exciter's source (ADR 0154)
+fides.input.from = Input from
+fides.input.none = No strip
+fides.input.tip = What excites the instrument while a note is held: any strip of the desk after its fader — a sidechain, with no send to set up
+fides.input.silent = Choose a strip: silent until then

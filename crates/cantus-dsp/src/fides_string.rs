@@ -36,6 +36,50 @@ const DC_CORNER: f64 = 1.0 / 64.0;
 /// share of the period.
 const LINE_SPARE: usize = 48;
 
+/// r41:fides-input — the stiffness allpasses' coefficient for `Inharmonicity` `inharm`
+/// (−1 … 1): the fitted partial `n` (`dispersion_fit`'s) moved **on top of** where the
+/// loop already puts it — its loss filter's own stretch kept — as far as a stiff string with
+/// `B = 4·10⁻⁴·inharm²` moves it from the harmonic, `n·√((1 + B n²)/(1 + B))`; below 0, as
+/// far the other way (drawn in, as far as four sections can: strong settings at low pitches
+/// stop at the coefficient's ceiling, 0.9). At 0 it is no allpass, as it always was.
+///
+/// Gravis's fit, given the loss filter's dispersion, only adds what the stiffness asks past
+/// what the loss already stretches: under a threshold that rose with the loss (at material
+/// 0.32, an Inharmonicity of 0.12) it gave no allpass, and the knob did nothing there (round
+/// 41). Counting the stiffness from the loop's own dispersion makes every step move the
+/// partials; above the old threshold the partials are stretched by the loss's share more than
+/// before (the fix's change in sound, `docs/round41/fides.md`).
+pub fn stiffness_fit(inharm: f64, f0: f64, sr: f64, period: f64) -> f64 {
+    let b = 4e-4 * inharm * inharm;
+    if b <= 1e-9 {
+        return 0.0;
+    }
+    if inharm > 0.0 {
+        return dispersion_fit(b, f0, sr, period, |_| 0.0);
+    }
+    let n_fit = ((0.3 * sr).min(5_000.0) / f0).floor().clamp(2.0, 12.0);
+    let w0 = std::f64::consts::TAU * f0 / sr;
+    let stretch = ((1.0 + b * n_fit * n_fit) / (1.0 + b)).sqrt();
+    let wn = w0 * n_fit / stretch;
+    // The delay the partial must gain: negative (a positive coefficient, whose spread
+    // falls from 0 as it grows).
+    let need = period - period * stretch;
+    let spread = |c: f64| AP as f64 * (ap_delay(c, w0) - ap_delay(c, wn));
+    if spread(0.9) >= need {
+        return 0.9;
+    }
+    let (mut lo, mut hi) = (0.0f64, 0.9f64);
+    for _ in 0..50 {
+        let mid = 0.5 * (lo + hi);
+        if spread(mid) > need {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
 /// The pole of the loop's DC blocker for a fundamental `f0`: its corner at `f0 / 64`, far
 /// under the first partial. A loss filter is a low-pass whose gain at DC is capped just
 /// under 1, so without it a loop holds a DC level (a pluck's released displacement leaves
@@ -187,20 +231,17 @@ impl Guide {
         self.neck_sign = if kind == ResKind::Tube { 1.0 } else { -1.0 };
         self.radiate = kind != ResKind::String;
         let loop_hz = self.loop_hz(kind);
-        // A string's stiffness, B up to 4·10⁻⁴ (a piano's mid-range): its partials stretch
-        // as `n·√(1 + B n²)`. Tubes and pipes have none.
-        let b = if kind == ResKind::String {
-            4e-4 * inharm.max(0.0) * inharm.max(0.0)
+        // A string's stiffness (`stiffness_fit`): B up to 4·10⁻⁴ (a piano's mid-range), its
+        // partials stretched as `n·√(1 + B n²)` over where the loop puts them — or, below 0,
+        // drawn in as far. Tubes and pipes have none. (The DC blocker's lead is left out of
+        // the fit, as it was: counted, it tipped the nylon guitar's level 1–3.5 dB.)
+        let f0 = step.f0.clamp(MIN_HZ, self.max_hz);
+        let period = self.sr / f0 / loop_hz;
+        self.c = if kind == ResKind::String {
+            stiffness_fit(inharm, f0, self.sr, period) as f32
         } else {
             0.0
         };
-        let f0 = step.f0.clamp(MIN_HZ, self.max_hz);
-        let (_, a) = self.loss(f0, step, loop_hz);
-        let period = self.sr / f0 / loop_hz;
-        // The stiffness is fitted to the loss filter alone, as it was before the DC blocker:
-        // the blocker's lead, counted in the fit, tipped a slight `Inharmonicity` (0.12, the
-        // nylon guitar's) from no allpass to one, and the string's level moved 1–3.5 dB.
-        self.c = dispersion_fit(b, f0, self.sr, period, |w| loss_delay(a, w)) as f32;
         self.design(kind, step, 0);
         self.live = true;
     }

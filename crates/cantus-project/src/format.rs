@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 78; // r41: 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 79; // r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -351,6 +351,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_75_to_76, // fxc — Purus, Comparatio and its references (ADRs 0142–0143)
     migrate_76_to_77, // fxd — the X-Y pad and the formula controller (ADRs 0144–0145)
     migrate_77_to_78, // r41:contract — Fides, Nitor, Fragor's five pedals (ADRs 0150–0152)
+    migrate_78_to_79, // r41:fides-input — an instrument's sidechain (ADR 0154)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1245,6 +1246,14 @@ fn migrate_77_to_78(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 79 (round 41, ADR 0154): a track's `sidechain`, the strip its instrument hears as
+/// its input (Fides's *Input* exciter). Absent — every older track — is none, which is what
+/// they heard, so nothing is written; an older build would drop the field and silence it.
+// r41:fides-input
+fn migrate_78_to_79(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
 /// the default character changed, an old song keeps the one it showed).
 fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
@@ -1695,7 +1704,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v78.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // r41:fides-input — no longer the newest (79): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(78));
         let p = report.file.project;
         let fides = p
             .tracks
@@ -1727,6 +1737,33 @@ mod tests {
             .instrument
             .native()
             .is_none_or(|n| n.kind != InstrumentKind::Resonator)));
+    }
+
+    /// r41:fides-input — Schema 79 (ADR 0154): the fixture's Fides track hears the third
+    /// strip as its input, and it round-trips; every older file (78) opens with no track
+    /// keyed.
+    #[test]
+    fn schema_79_keeps_fides_s_sidechain() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v79.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        let fides = p
+            .tracks
+            .iter()
+            .find(|t| t.name == "Fides")
+            .expect("the Fides track");
+        let third = p.strips[2].id;
+        assert_eq!(fides.sidechain, Some(third));
+        assert_eq!(fides.key(), Some(third), "an instrument that takes it");
+        let order = p.strip_order();
+        let at = |id| order.iter().position(|i| p.strips[*i].id == id);
+        let dests: Vec<_> = fides.destinations().into_iter().flatten().collect();
+        assert!(dests.iter().all(|d| at(third) < at(*d)), "the key first");
+        let old = std::fs::read_to_string(dir.join("v78.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p.tracks.iter().all(|t| t.sidechain.is_none()));
     }
 
     /// fxd:contract — Schema 77 (the effects side round's wave D): the fixture holds

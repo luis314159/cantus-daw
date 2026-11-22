@@ -540,6 +540,7 @@ inspector.strip = Canal del mezclador
 inspector.strip_n = Canal {n}
 inspector.strip_master = Esta pista va directa al máster. Enrútala a un canal para darle inserts.
 cmd.set_track_strip = enrutar pista
+cmd.set_track_sidechain = entrada del instrumento
 cmd.insert_strip = añadir canal
 cmd.remove_strip = quitar canal
 cmd.set_strip_name = renombrar canal

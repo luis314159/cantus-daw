@@ -326,7 +326,8 @@ fn blank(project: &Project, s: &MixerStrip) -> bool {
         .master
         .effects
         .iter()
-        .any(|e| e.sidechain == Some(s.id));
+        .any(|e| e.sidechain == Some(s.id))
+        || project.tracks.iter().any(|t| t.sidechain == Some(s.id)); // r41:fides-input
     project.tracks_on_strip(s.id).next().is_none()
         && !reached
         && s.name.is_empty()
