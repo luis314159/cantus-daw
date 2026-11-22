@@ -2230,6 +2230,13 @@ the engine has neither; each is a feature of its own, with its null tests first:
   (a schema bump). The engine needs a recording tap after the strip's insert chain for the
   track's input, its latency compensated so the take lands on the grid. Tests: *Before FX*
   equals today's take to the bit; *After FX* equals the input rendered through the chain.
+- **The picker's pictures ready before the first look** (round 41, found making the launch
+  video). Each real-look thumbnail is drawn from its device's own editor a few a frame, when its
+  tile is first asked for, so on a fresh profile the tiles further down the list show their
+  card for a moment as you scroll (FL shows every picture at once). Make them during idle after
+  start-up, a few a frame at background priority, from the disk cache first; the atlas keeps one
+  page (r41/thumb-store), so warm the most-used first. Test: after the idle warm-up, opening
+  either picker and scrolling to its end shows no card; the frame budget at rest is unchanged.
 
 ## 6k. Automation with Python, and hands in front of the camera (requested 2026-11-17)
 
