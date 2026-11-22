@@ -80,7 +80,17 @@ edge as an insert's key, so nothing new is learned and nothing is routed twice.
 - **A** (a microphone straight into Fides) is reached through C: the microphone's track
   monitors into its strip, and Fides is keyed from it — live, with the input's latency, and in
   a render with the take recorded on that track.
-- The AI tools and the MCP server do not yet set an instrument's key (`docs/round41/fides.md`).
+- **The agents and the routing views** (`r41/key-wiring`): `set_track`'s `sidechain_strip_id`
+  sets and clears it as `set_effect`'s sets an insert's, refused as the command refuses (in words:
+  an instrument that takes no input, the master, a VCA, a strip not there, a loop), and
+  `get_track` reads it back; the unit catalogue says which instruments take one. The key is a
+  route of the routing module like an insert's — `RouteKind::TrackKey(track)`,
+  `EdgeKind::TrackKey`, `Feeders::track_keys`, its `route_check` agreeing with the command,
+  moved by its source and removed by `routing::plan` — so the desk draws it as a key cable
+  (dashed, the dynamics hue, the key glyph) from the key strip to the strip the track plays
+  into, the matrix marks its cell as a key, and the route menu, the strip's menu, the
+  inspector's Receives and its Sidechain section (a *From* list of the strips the command
+  takes) list it.
 
 ## What the tests hold
 
@@ -104,3 +114,10 @@ edge as an insert's key, so nothing new is learned and nothing is routed twice.
 - `cantus-ui` `tests/fides_input_e2e.rs`: through `CantusApp::assemble`, the picker and the
   pointer in Fides's window, the source's audio excites Fides through the real engine
   wiring; one undo step; a save and a load keep it.
+- `cantus-ai` `tools_music::an_agent_keys_fides_s_input_from_a_strip_and_is_refused_a_loop`
+  (every refusal in words, set, read back, cleared, each undo exact); `cantus-ui`
+  `fides_input_e2e::an_agent_keys_fides_s_input_through_the_server` (the assembled app's MCP
+  server: refusals with their reason and no step, set in one step, heard through the engine,
+  the user's undo); `cantus-core` `routing::a_keyed_instrument_is_an_edge_a_feeder_and_a_route_
+  the_commands_agree_with`; the matrix's random graphs (`routing_cells`) with keyed Fides
+  tracks.

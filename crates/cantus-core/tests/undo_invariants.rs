@@ -1318,6 +1318,7 @@ fn routing_batch(rng: &mut Lcg, project: &mut Project) -> Command {
             routing::EdgeKind::Output => Route::output(e.from, e.to),
             routing::EdgeKind::Send { .. } => Route::send(e.from, e.to),
             routing::EdgeKind::Key { effect } => Route::key(e.from, e.to, effect),
+            routing::EdgeKind::TrackKey { track } => Route::track_key(project, e.from, track),
         });
     let cmd = match rng.below(12) {
         0 => {

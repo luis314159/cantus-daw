@@ -10,7 +10,9 @@
 //! Kick → Drum bus cable: its route to the master lit, the rest dimmed), `drag` (a cable
 //! from the Chords' output jack held over the Drum bus: "Route Chords to Drum bus"),
 //! `refused` (from the Drum bus held over the Kick: a loop), `stopped` (Show all, the
-//! transport stopped: nothing moves).
+//! transport stopped: nothing moves), `fides` (r41:key-wiring, ADR 0154: a Fides track keyed
+//! from the Kick, its strip selected — the key's dashed cable into it). `CANTUS_SHOOT_LANG=es`
+//! for Spanish (the file name gains `-es`).
 
 use cantus_core::StripId;
 use cantus_engine::EngineHandle;
@@ -33,6 +35,7 @@ enum Case {
     Drag,
     Refused,
     Stopped,
+    Fides,
 }
 
 impl Case {
@@ -44,6 +47,7 @@ impl Case {
             Case::Drag => "drag",
             Case::Refused => "refused",
             Case::Stopped => "stopped",
+            Case::Fides => "fides",
         }
     }
 }
@@ -66,6 +70,9 @@ fn strip(app: &CantusApp, name: &str) -> StripId {
 const FRAMES: usize = 30;
 
 fn shoot(dir: &Path, style: CableStyle, case: Case, preset: &str, dark: bool) {
+    let es = std::env::var("CANTUS_SHOOT_LANG").is_ok_and(|l| l == "es");
+    // The demo song is made in English (its strips are found by name), the window then
+    // speaks the language asked for.
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
@@ -81,6 +88,9 @@ fn shoot(dir: &Path, style: CableStyle, case: Case, preset: &str, dark: bool) {
     let mode = app.appearance.mode;
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.settings.cable_style = Some(style);
+    if es {
+        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    }
     app.attach(&ctx);
     app.show_central(CentralView::Mixer);
     mixer::set_width_mode(&mut app, WidthMode::Wide);
@@ -91,9 +101,30 @@ fn shoot(dir: &Path, style: CableStyle, case: Case, preset: &str, dark: bool) {
         .strip(kick)
         .and_then(|s| s.output)
         .expect("the kick goes to the drum bus");
+    // r41:key-wiring — Fides, added through the picker, its input keyed from the Kick.
+    let fides = (case == Case::Fides).then(|| {
+        use cantus_ui::picker::{PickChoice, PickPurpose};
+        let purpose = PickPurpose::AddInstrument { index: None };
+        app.open_picker(purpose.clone());
+        app.apply_pick(
+            purpose,
+            PickChoice::Instrument(cantus_core::InstrumentKind::Resonator),
+        );
+        app.picker = None;
+        let t = app.project().tracks.last().expect("the new track");
+        let (track, strip) = (t.id, t.strip.expect("its own strip"));
+        assert!(app.exec(cantus_core::Command::SetTrackSidechain {
+            track,
+            source: Some(kick),
+        }));
+        // The picker opens the new instrument's window: put away, the desk in view.
+        app.close_instrument_window(track);
+        strip
+    });
     app.select_strip(match case {
         Case::Drag => chords,
         Case::Refused => bus,
+        Case::Fides => fides.expect("Fides's strip"),
         _ => kick,
     });
     let mut prefs = app.mixer.prefs();
@@ -112,9 +143,10 @@ fn shoot(dir: &Path, style: CableStyle, case: Case, preset: &str, dark: bool) {
     let zoom = 1.25;
     let points = vec2(1920.0 / zoom, 1080.0 / zoom);
     let file = format!(
-        "cables39-{}-{}-{preset}.png",
+        "cables39-{}-{}-{preset}{}.png",
         style_name(style),
-        case.name()
+        case.name(),
+        if es { "-es" } else { "" }
     );
     let path = dir.join(&file);
     // Where the pointer goes: the hovered cable's middle (found in the frame before), or
@@ -217,6 +249,7 @@ fn main() {
         Case::Drag,
         Case::Refused,
         Case::Stopped,
+        Case::Fides,
     ];
     for style in CableStyle::ALL {
         for case in cases {

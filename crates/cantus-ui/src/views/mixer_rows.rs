@@ -1965,7 +1965,8 @@ pub(super) fn fill_n(out: &mut String, template: &str, n: usize) {
 }
 
 /// How the lit strip (the one under the pointer, else the selected one) reaches strip `c`:
-/// its output, a send (its level in dB) or a key into one of `c`'s inserts.
+/// its output, a send (its level in dB) or a key into one of `c`'s inserts or into an
+/// instrument playing into `c` (ADR 0154).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(super) enum Reach {
     Out,
@@ -1990,7 +1991,12 @@ pub(super) fn reach(app: &CantusApp, lit: Option<StripId>, c: &Col) -> Option<Re
     }
     let keyed = p
         .strip(c.sn.id)
-        .is_some_and(|me| me.effects.iter().any(|e| e.sidechain == Some(from)));
+        .is_some_and(|me| me.effects.iter().any(|e| e.sidechain == Some(from)))
+        // r41:key-wiring — or an instrument playing into it (ADR 0154).
+        || p
+            .tracks
+            .iter()
+            .any(|t| t.strip == Some(c.sn.id) && t.key() == Some(from));
     keyed.then_some(Reach::Key)
 }
 

@@ -395,7 +395,9 @@ impl Desk {
                 .strips
                 .iter()
                 .filter(|o| o.effects.iter().any(|e| e.sidechain == Some(s.id)))
-                .count();
+                .count()
+                // r41:key-wiring — and the instruments it keys (ADR 0154).
+                + p.tracks.iter().filter(|t| t.key() == Some(s.id)).count();
             (usize::from(s.output.is_some()) + s.sends.len() + keys) as u16
         }));
         self.sends_in.clear();

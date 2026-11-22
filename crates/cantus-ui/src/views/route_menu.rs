@@ -89,6 +89,8 @@ pub(crate) enum Pick {
     MakeSend(StripId),
     /// Open the keyed effect's editor (`host`, `effect`).
     OpenKeyed(StripId, EffectId),
+    /// r41:key-wiring — open the keyed instrument's window (ADR 0154).
+    OpenKeyedInstrument(cantus_core::TrackId),
     /// Bring a strip into view on the desk and flash its number, the selection kept.
     Show(StripId),
     /// Select every strip routed or sending into this one.
@@ -472,6 +474,14 @@ fn effect_label(app: &CantusApp, host: StripId, effect: EffectId) -> String {
     }
 }
 
+/// r41:key-wiring — what a track's key feeds, in words: "Marimba's input".
+pub(crate) fn track_input_label(app: &CantusApp, track: cantus_core::TrackId) -> String {
+    app.project()
+        .track(track)
+        .map(|t| tf("routing.track_key.input", &[("track", &t.name)]))
+        .unwrap_or_default()
+}
+
 /// The selection, the strip itself left out.
 fn others(app: &CantusApp, strip: StripId) -> Vec<StripId> {
     let mut v = app.strip_selection();
@@ -678,6 +688,18 @@ fn route_rows(app: &CantusApp, r: Route, e: &mut Vec<Row>) {
                     Pick::OpenKeyed(r.to, x),
                 ));
             }
+        }
+        // r41:key-wiring — an instrument's key (ADR 0154): "Key · Drums → Marimba's input
+        // on Marimba".
+        RouteKind::TrackKey(track) => {
+            let input = track_input_label(app, track);
+            let names: [(&str, &dyn std::fmt::Display); 3] =
+                [("from", &from), ("to", &to), ("effect", &input)];
+            e.push(Row::band(Label::Own(tf("routing.menu.key_title", &names))));
+            e.push(Row::pick(
+                Label::Key("routing.menu.open_keyed_instrument"),
+                Pick::OpenKeyedInstrument(track),
+            ));
         }
     }
     e.push(Row::separator());
@@ -1273,6 +1295,7 @@ fn apply(app: &mut CantusApp, ctx: &Context, pick: Pick) {
             app.output_to_send(from);
         }
         Pick::OpenKeyed(host, effect) => app.open_effect_editor(host, effect),
+        Pick::OpenKeyedInstrument(track) => app.open_inst_editor(track),
         Pick::Show(strip) => {
             // From the matrix or the inspector the desk may be behind another tab: bring
             // it to the front first, or the request would wait unseen.

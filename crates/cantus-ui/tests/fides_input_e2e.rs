@@ -365,3 +365,87 @@ fn an_agent_keys_fides_s_input_through_the_server() {
     r.app.undo();
     assert_eq!(r.app.project().track(track).unwrap().sidechain, None);
 }
+
+/// r41:key-wiring — the key is a route like an insert's (ADR 0154), seen where a user looks
+/// for routes: on the desk (the mixer, Fides's strip selected, the Cables key on) a key
+/// cable from the source's strip into Fides's; a click selects it and Delete takes the key
+/// away, one step of undo; Fides's strip's inspector lists it under Receives.
+#[test]
+fn fides_s_key_is_a_cable_on_the_desk_and_a_row_of_the_inspector() {
+    use cantus_core::routing::{Route, RouteKind};
+    use cantus_ui::views::mixer::{self, layout::CableView, layout::WidthMode};
+    let _turn = turn();
+    let data = tempfile::tempdir().unwrap();
+    let mut r = Rig::new(data.path(), song());
+    let source = r.app.project().tracks[0].strip.expect("the source's strip");
+    let purpose = PickPurpose::AddInstrument { index: None };
+    r.app.open_picker(purpose.clone());
+    r.app
+        .apply_pick(purpose, PickChoice::Instrument(InstrumentKind::Resonator));
+    r.app.picker = None;
+    r.app.workflow.start.close();
+    r.app.audio_setup.first_run = None;
+    let track = r.app.project().tracks.last().unwrap().id;
+    let own = r.app.project().track(track).and_then(|t| t.strip).unwrap();
+    assert!(r.app.exec(cantus_core::Command::SetTrackSidechain {
+        track,
+        source: Some(source),
+    }));
+    let name = r.app.project().track(track).unwrap().name.clone();
+    r.app.show_central(cantus_ui::app::CentralView::Mixer);
+    r.app
+        .workspace
+        .toggle_fold(cantus_ui::views::workspace::Pane::Arrangement);
+    mixer::set_width_mode(&mut r.app, WidthMode::Wide);
+    r.app.select_strip(own);
+    let mut prefs = r.app.mixer.prefs();
+    prefs.cables = CableView::Selected;
+    r.app.mixer.set_prefs(prefs);
+    let texts = r.frames(4);
+    // The desk: one key cable, from the source into Fides's strip.
+    let route = Route {
+        from: source,
+        to: own,
+        kind: RouteKind::TrackKey(track),
+    };
+    let cable = r
+        .app
+        .mixer
+        .cables()
+        .iter()
+        .find(|d| d.route == route)
+        .copied()
+        .unwrap_or_else(|| panic!("no key cable: {:?}", r.app.mixer.cables()));
+    assert_eq!(format!("{:?}", cable.kind), "Key", "drawn as a key");
+    // The inspector: Receives names the key.
+    let want = format!("{name}, input ← key");
+    assert!(
+        texts.iter().any(|(t, _)| *t == want),
+        "the inspector's Receives does not say {want:?}"
+    );
+    // A click on the cable selects it; Delete takes the key away, one step of undo.
+    let at = r.app.mixer.cable_point(&cable);
+    r.click(at);
+    assert_eq!(r.app.mixer.selected_cable(), Some(route));
+    let depth = r.app.bus.history().len();
+    r.frame(vec![Event::Key {
+        key: egui::Key::Delete,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }]);
+    r.frames(2);
+    assert_eq!(r.app.project().track(track).unwrap().sidechain, None);
+    assert_eq!(r.app.bus.history().len(), depth + 1, "one undo step");
+    r.app.undo();
+    assert_eq!(
+        r.app.project().track(track).unwrap().sidechain,
+        Some(source)
+    );
+    r.frames(2);
+    assert!(
+        r.app.mixer.cables().iter().any(|d| d.route == route),
+        "the undone key is drawn again"
+    );
+}

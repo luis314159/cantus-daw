@@ -718,7 +718,7 @@ fn open_menu(app: &mut CantusApp, ui: &egui::Ui, r: usize, c: usize, at: Pos2) {
     } else if cell.output {
         Some(Route::output(from, to))
     } else if cell.keys > 0 {
-        first_key(app, from, to).map(|e| Route::key(from, to, e))
+        first_key(app, from, to)
     } else {
         None
     };
@@ -731,18 +731,26 @@ fn open_menu(app: &mut CantusApp, ui: &egui::Ui, r: usize, c: usize, at: Pos2) {
     }
 }
 
-/// The first insert of `host` keyed from `from`.
-fn first_key(app: &CantusApp, from: StripId, host: StripId) -> Option<EffectId> {
+/// The first key from `from` into `host`: an insert of it keyed from `from`, else an
+/// instrument playing into it keyed from `from` (ADR 0154).
+fn first_key(app: &CantusApp, from: StripId, host: StripId) -> Option<Route> {
     let p = app.project();
     let chain = if host.is_master() {
         &p.master.effects
     } else {
         &p.strip(host)?.effects
     };
+    let to = (!host.is_master()).then_some(host);
     chain
         .iter()
         .find(|e| e.sidechain == Some(from))
-        .map(|e| e.id)
+        .map(|e| Route::key(from, host, e.id))
+        .or_else(|| {
+            p.tracks
+                .iter()
+                .find(|t| t.strip == to && t.key() == Some(from))
+                .map(|t| Route::track_key(p, from, t.id))
+        })
 }
 
 /// Shift+drag along a column: the send of row `start` copied to every other strip row
@@ -803,8 +811,8 @@ fn remove(app: &mut CantusApp, r: usize, c: usize) {
     } else if cell.output && col != Col::Master {
         app.remove_route(Route::output(from, to));
     } else if cell.keys > 0 {
-        if let Some(e) = first_key(app, from, to) {
-            app.remove_route(Route::key(from, to, e));
+        if let Some(route) = first_key(app, from, to) {
+            app.remove_route(route);
         }
     }
 }
@@ -1056,7 +1064,21 @@ fn prose(app: &CantusApp, r: usize, c: usize, m: Modifiers) -> (String, String) 
         }));
     }
     if cell.keys > 0 {
-        add(tf("matrix.cell.keys", &[("n", &cell.keys)]));
+        // The inserts keyed here, then each instrument keyed here by name (ADR 0154).
+        let inserts = p.effects_of(to).map_or(0, |v| {
+            v.iter().filter(|e| e.sidechain == Some(from)).count()
+        });
+        if inserts > 0 {
+            add(tf("matrix.cell.keys", &[("n", &inserts)]));
+        }
+        let host = (!to.is_master()).then_some(to);
+        for k in p
+            .tracks
+            .iter()
+            .filter(|k| k.strip == host && k.key() == Some(from))
+        {
+            add(tf("matrix.cell.track_key", &[("track", &k.name)]));
+        }
     }
     if cell.send.is_none() && !cell.output {
         let grammar = Grammar::from_modifiers(m);

@@ -33,6 +33,10 @@ pub enum RouteKind {
     /// an insert that takes a key and is not keyed from the source yet, or room for a new
     /// keyed insert (the duck and gate offers).
     Key(Option<EffectId>),
+    /// r41:key-wiring — a track's instrument hearing the source as its input (ADR 0154):
+    /// `to` is the strip the track plays into (the master when it plays straight there),
+    /// where the cable ends.
+    TrackKey(TrackId),
 }
 
 /// Why a route cannot be made. Every refusal but [`RouteRefusal::AlreadyThere`] means the
@@ -116,6 +120,24 @@ impl Route {
             kind: RouteKind::Key(Some(effect)),
         }
     }
+
+    /// r41:key-wiring — `track`'s instrument keyed from `from` (ADR 0154), its cable ending
+    /// on the strip the track plays into.
+    pub fn track_key(project: &Project, from: StripId, track: TrackId) -> Route {
+        Route {
+            from,
+            to: track_end(project, track),
+            kind: RouteKind::TrackKey(track),
+        }
+    }
+}
+
+/// r41:key-wiring — where a track's key cable ends: the strip it plays into, or the master.
+pub fn track_end(project: &Project, track: TrackId) -> StripId {
+    project
+        .track(track)
+        .and_then(|t| t.strip)
+        .unwrap_or(StripId::MASTER)
 }
 
 /// Which end of a route a drag moves.
@@ -137,6 +159,9 @@ pub struct Feeders {
     pub sends: Vec<(StripId, Send)>,
     /// Strips that key one of its inserts: (the key source, the keyed insert).
     pub keys: Vec<(StripId, EffectId)>,
+    /// r41:key-wiring — strips a track playing into it hears as its instrument's input
+    /// (ADR 0154): (the key source, the keyed track).
+    pub track_keys: Vec<(StripId, TrackId)>,
     /// Tracks whose notes open one of its inserts (ADR 0022): (the track, the insert).
     pub notes: Vec<(TrackId, EffectId)>,
 }
@@ -151,6 +176,7 @@ impl Feeders {
             + self.outputs.len()
             + self.sends.len()
             + self.keys.len()
+            + self.track_keys.len()
             + self.notes.len()
     }
 }
@@ -194,6 +220,13 @@ pub fn feeders(project: &Project, id: StripId) -> Feeders {
             f.notes.push((t, e.id));
         }
     }
+    f.track_keys.extend(
+        project
+            .tracks
+            .iter()
+            .filter(|t| t.strip == target)
+            .filter_map(|t| t.key().map(|k| (k, t.id))),
+    );
     f
 }
 
@@ -307,11 +340,17 @@ pub enum EdgeKind {
     Key {
         effect: EffectId,
     },
+    /// r41:key-wiring — a track's instrument keyed from `from` (ADR 0154); `to` is the strip
+    /// the track plays into.
+    TrackKey {
+        track: TrackId,
+    },
 }
 
 /// Every route of the project, once each: per strip in project order its output (the
 /// master's included) and then its sends in list order; then every key, per keyed host in
-/// project order and the master last, in chain order.
+/// project order and the master last, in chain order; then every keyed track's key (ADR
+/// 0154), in track order.
 pub fn edges(project: &Project) -> Vec<Edge> {
     let mut out = Vec::new();
     edges_into(project, &mut out);
@@ -361,6 +400,17 @@ pub fn edges_into(project: &Project, out: &mut Vec<Edge>) {
             })
         }));
     }
+    // r41:key-wiring — an instrument's key, to the strip its track plays into.
+    let on_desk = |id: StripId| id.is_master() || project.strip(id).is_some_and(|s| s.on_desk());
+    out.extend(project.tracks.iter().filter_map(|t| {
+        let from = t.key()?;
+        let to = t.strip.unwrap_or(StripId::MASTER);
+        (on_desk(from) && on_desk(to)).then_some(Edge {
+            from,
+            to,
+            kind: EdgeKind::TrackKey { track: t.id },
+        })
+    }));
 }
 
 impl Project {
@@ -446,6 +496,31 @@ impl Project {
                         Ok(())
                     }
                     None => key_anywhere(chain, from),
+                }
+            }
+            // r41:key-wiring — as `SetTrackSidechain` checks it (ADR 0154); `to` is not
+            // read: the track's own destinations are what a loop is checked against.
+            RouteKind::TrackKey(track) => {
+                let Some(t) = self.track(track) else {
+                    return Err(NotKeyable);
+                };
+                if !t.instrument.takes_sidechain() {
+                    return Err(NotKeyable);
+                }
+                if t.key() == Some(from) {
+                    return Err(AlreadyThere);
+                }
+                for d in t.destinations().into_iter().flatten() {
+                    if d == from {
+                        return Err(ToItself);
+                    }
+                    self.no_loop(from, d)?;
+                }
+                if self.can_key_track(track, from) {
+                    Ok(())
+                } else {
+                    // A VCA: no audio to hear.
+                    Err(NotKeyable)
                 }
             }
         }

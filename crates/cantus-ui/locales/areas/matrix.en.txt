@@ -26,6 +26,7 @@ matrix.cell.output = Output · Right-click: the route menu · Alt+click: key a s
 matrix.cell.send = Send, {tap}
 matrix.cell.send_do = Drag: level · Double-click: 0 dB · Ctrl+click: make it the output · Shift+drag: fine · Ctrl+drag: copy along the column · Right-click: the route menu
 matrix.cell.keys = keys {n} insert(s) here
+matrix.cell.track_key = keys {track}'s input
 matrix.cell.track_on = The track plays into this strip
 matrix.cell.track_off = Click: the track plays into this strip
 matrix.cell.notes = notes into {n} insert(s)

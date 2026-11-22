@@ -109,6 +109,11 @@ routing.receives.key_tip = Clic: abrir el efecto · clic derecho: el menú de es
 routing.menu.row_output = Salida → {to}
 routing.menu.row_send = Envío → {to}
 routing.menu.row_key = Sidechain ← {from} en {effect}
+# r41:key-wiring — el sidechain de un instrumento (ADR 0154): Fides oye otro canal como su entrada.
+routing.track_key.input = la entrada de {track}
+routing.menu.open_keyed_instrument = Abrir el instrumento con sidechain
+routing.receives.track_key = {track}, entrada ← clave
+routing.receives.track_key_tip = Clic: abrir el instrumento · clic derecho: el menú de esta ruta
 
 # Modo clic (respuesta 2 del dueño): un clic en un puerto o en la ficha ▼ arma una ruta; el
 # siguiente clic en un canal la hace.
