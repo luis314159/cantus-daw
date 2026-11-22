@@ -1,6 +1,6 @@
 //! The thumbnails' cache (ADR 0029 §3): real-look pictures of the native devices, made
-//! once per look and kept — in one texture atlas in memory (so the whole gallery draws
-//! its pictures as one mesh) and as PNG files on disk (so the next start shows them at
+//! once per look and kept — in a texture atlas in memory (so the whole gallery draws its
+//! pictures as one mesh a page) and as PNG files on disk (so the next start shows them at
 //! once).
 //!
 //! A picture is asked for with [`Thumbs::get`]; until it is ready the tile shows its drawn
@@ -31,9 +31,13 @@ pub const H: usize = 260;
 const PPP: f32 = 0.8;
 /// The corner radius baked into a picture, in pixels.
 const RADIUS: f32 = 9.0;
-/// The atlas: four pictures across, seven down.
+/// An atlas page: four pictures across, seven down. One page holds what a gallery shows at
+/// once; a picture not shown for the longest is let go for a new one (the store once held
+/// 28 and dropped every later picture — 43 effects — asking for it again every frame), and
+/// a second page is opened only when more than a page's worth is shown at once.
 const COLS: usize = 4;
 const ROWS: usize = 7;
+const PER_PAGE: usize = COLS * ROWS;
 
 /// What the cache has done, for tests and the frame budget.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -56,9 +60,14 @@ pub struct Thumbs {
     /// Off: no pictures are made (tests, and until the app turns it on); tiles show cards.
     pub enabled: bool,
     disk: Option<PathBuf>,
-    atlas: Option<TextureHandle>,
-    /// Where each picture of the current look sits in the atlas.
-    slots: HashMap<Subject, usize>,
+    /// The atlas pages (most often one).
+    pages: Vec<TextureHandle>,
+    /// Where each picture of the current look sits: its page and slot.
+    slots: HashMap<Subject, (usize, usize)>,
+    /// The frame each picture was last asked for ([`Thumbs::get`]), to let the oldest go.
+    seen: HashMap<Subject, u64>,
+    /// Frames pumped.
+    frame: u64,
     look: u64,
     wanted: VecDeque<Subject>,
     busy: HashSet<Subject>,
@@ -78,8 +87,10 @@ impl Default for Thumbs {
         Thumbs {
             enabled: false,
             disk: None,
-            atlas: None,
+            pages: Vec::new(),
             slots: HashMap::new(),
+            seen: HashMap::new(),
+            frame: 0,
             look: 0,
             wanted: VecDeque::new(),
             busy: HashSet::new(),
@@ -135,8 +146,11 @@ impl Thumbs {
         if !self.enabled {
             return None;
         }
-        if let (Some(&slot), Some(atlas)) = (self.slots.get(&s), &self.atlas) {
-            return Some((atlas.id(), uv(slot)));
+        self.seen.insert(s, self.frame);
+        if let Some(&(page, slot)) = self.slots.get(&s) {
+            if let Some(atlas) = self.pages.get(page) {
+                return Some((atlas.id(), uv(slot)));
+            }
         }
         if !self.busy.contains(&s) && !self.failed.contains(&s) && !self.wanted.contains(&s) {
             self.wanted.push_back(s);
@@ -154,11 +168,13 @@ impl Thumbs {
         if !self.enabled {
             return;
         }
+        self.frame += 1;
         let look = look_key();
         if look != self.look {
             // Another theme or language: other pictures. The atlas is reused.
             self.look = look;
             self.slots.clear();
+            self.seen.clear();
             self.failed.clear();
             self.wanted.clear();
             // A capture in the old look is dropped (its editor has the old words).
@@ -260,22 +276,52 @@ impl Thumbs {
     }
 
     fn upload(&mut self, ctx: &Context, s: Subject, img: &ColorImage) {
-        let used: HashSet<usize> = self.slots.values().copied().collect();
-        let Some(slot) = (0..COLS * ROWS).find(|i| !used.contains(i)) else {
-            return;
-        };
+        let (page, slot) = self.place(s);
         let img = fit(img);
-        let atlas = self.atlas.get_or_insert_with(|| {
+        while self.pages.len() <= page {
             let blank = ColorImage::filled([COLS * W, ROWS * H], egui::Color32::TRANSPARENT);
-            ctx.load_texture("picker-thumbs", blank, TextureOptions::LINEAR)
-        });
-        atlas.set_partial(
+            let name = format!("picker-thumbs-{}", self.pages.len());
+            self.pages
+                .push(ctx.load_texture(name, blank, TextureOptions::LINEAR));
+        }
+        self.pages[page].set_partial(
             [(slot % COLS) * W, (slot / COLS) * H],
             img,
             TextureOptions::LINEAR,
         );
-        self.slots.insert(s, slot);
+        self.slots.insert(s, (page, slot));
         self.stats.uploads += 1;
+    }
+
+    /// Where `s`'s picture goes: its own place if it has one, else a free slot, else the
+    /// slot of the picture asked for longest ago — never one asked for in this frame or the
+    /// last (it is on screen); with every slot on screen, a slot of a new page.
+    fn place(&mut self, s: Subject) -> (usize, usize) {
+        if let Some(&at) = self.slots.get(&s) {
+            return at;
+        }
+        let used: HashSet<(usize, usize)> = self.slots.values().copied().collect();
+        for page in 0..self.pages.len().max(1) {
+            if let Some(i) = (0..PER_PAGE).find(|i| !used.contains(&(page, *i))) {
+                return (page, i);
+            }
+        }
+        let recent = self.frame.saturating_sub(1);
+        let oldest = self
+            .slots
+            .keys()
+            .copied()
+            .filter(|k| self.seen.get(k).copied().unwrap_or(0) < recent)
+            .min_by_key(|k| (self.seen.get(k).copied().unwrap_or(0), format!("{k:?}")));
+        match oldest {
+            Some(k) => self.slots.remove(&k).expect("a placed picture"),
+            None => (self.pages.len(), 0),
+        }
+    }
+
+    /// The pictures held now, and the atlas pages (for tests and the frame budget).
+    pub fn held(&self) -> (usize, usize) {
+        (self.slots.len(), self.pages.len())
     }
 }
 
@@ -295,7 +341,7 @@ fn fit(img: &ColorImage) -> ColorImage {
 
 /// The UV rect of atlas slot `i`.
 fn uv(i: usize) -> Rect {
-    let (aw, ah) = ((COLS * W) as f32, (ROWS * H) as f32);
+    let (aw, ah) = ((COLS * W) as f32, (ROWS * H) as f32); // one page
     let (x, y) = (((i % COLS) * W) as f32, ((i / COLS) * H) as f32);
     Rect::from_min_size(
         egui::pos2(x / aw, y / ah),
@@ -449,5 +495,49 @@ mod tests {
         assert_ne!(wood, glass, "a sheet that changes changes the pictures");
         assert_ne!(wood, on);
         assert_eq!(look_key(), on, "and the same faces find the same pictures");
+    }
+
+    /// The store held 28 pictures and dropped every later one — and asked for it again every
+    /// frame. Now the one asked for longest ago is let go; what is on screen is never let
+    /// go, and more than a page on screen opens a second page.
+    #[test]
+    fn more_pictures_than_a_page_let_the_oldest_go_and_never_what_is_shown() {
+        let ctx = egui::Context::default();
+        let mut th = Thumbs::default();
+        th.enabled = true;
+        let subjects: Vec<Subject> = cantus_core::EffectKind::ALL
+            .iter()
+            .map(|k| Subject::Effect(*k))
+            .collect();
+        assert!(subjects.len() > PER_PAGE, "more effects than a page");
+        let img = ColorImage::filled([W, H], egui::Color32::WHITE);
+        // A gallery scrolled a few at a time: each frame shows 12 and takes their pictures.
+        for start in (0..subjects.len() - 12).step_by(4) {
+            th.frame += 1;
+            for s in &subjects[start..start + 12] {
+                if th.get(*s).is_none() {
+                    th.upload(&ctx, *s, &img);
+                }
+            }
+            for s in &subjects[start..start + 12] {
+                assert!(th.get(*s).is_some(), "{s:?} is shown with its picture");
+            }
+            assert!(th.held().0 <= PER_PAGE);
+        }
+        assert_eq!(th.held().1, 1, "one page held every view");
+        // Everything shown at once: a second page, and every picture in.
+        th.frame += 1;
+        for s in &subjects {
+            if th.get(*s).is_none() {
+                th.upload(&ctx, *s, &img);
+            }
+        }
+        for s in &subjects {
+            assert!(th.get(*s).is_some(), "{s:?}");
+        }
+        assert_eq!(
+            th.held(),
+            (subjects.len(), subjects.len().div_ceil(PER_PAGE))
+        );
     }
 }
