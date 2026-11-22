@@ -3,6 +3,10 @@
 //! the software renderer in `cantus_ui::raster`, into PNG files — for the design review,
 //! and for machines whose display is locked or absent.
 //!
+//! `picker-status`: the whole window with the instrument picker open on its first track and
+//! the pointer resting on the picker's panel, the status line at its foot in view (round 41:
+//! it spelled the picker's words there).
+//!
 //! The engine is the dummy one, so the analyser and the meters are fed here: a mix of
 //! tones and noise through the very EQ the editor shows, and a compressor history made by
 //! running the real compressor over a drum-like signal.
@@ -211,7 +215,7 @@ fn main() {
         cantus_ui::theme::apply(&theme, &ctx);
         // The mixer and `startup` (the whole window) show what the program opens on.
         // `master` too: the startup project's mastering chain (round 19).
-        let project = if matches!(kind, "" | "startup" | "master") {
+        let project = if matches!(kind, "" | "startup" | "master" | "picker-status") {
             cantus_ui::demos::startup_project()
         } else {
             welcome_project()
@@ -248,6 +252,16 @@ fn main() {
                 |root| app.frame(root),
             );
             println!("wrote {}", path.display());
+            continue;
+        }
+        if kind == "picker-status" {
+            picker_window(
+                &mut app,
+                &ctx,
+                dark,
+                scale,
+                &dir.join(format!("{name}.png")),
+            );
             continue;
         }
         if kind == "startup" {
@@ -475,6 +489,43 @@ fn startup_window(
         scale,
         8,
         Some(path),
+        |root| app.frame(root),
+    );
+    println!("wrote {}", path.display());
+}
+
+/// [`startup_window`] with the instrument picker open on the first track ("Replace the
+/// instrument on …") and the pointer on the panel's own ground, under its top edge between
+/// the title and the size keys: what the status line says there (round 41).
+fn picker_window(
+    app: &mut CantusApp,
+    ctx: &egui::Context,
+    dark: bool,
+    scale: f32,
+    path: &std::path::Path,
+) {
+    use cantus_ui::kit::appearance::Mode;
+    let tmp = std::env::temp_dir().join("cantus-shoot-picker");
+    app.settings_path = tmp.join("settings.json");
+    app.layouts_path = tmp.join("layouts.json");
+    app.keymap_path = tmp.join("keymap.toml");
+    app.appearance_path = tmp.join("appearance.json");
+    app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
+    app.attach(ctx);
+    studio::studio(app, 256);
+    if let Some(track) = app.project().tracks.first().map(|t| t.id) {
+        app.open_picker(cantus_ui::picker::PickPurpose::ReplaceInstrument { track });
+    }
+    let size = egui::vec2(1920.0 / scale, 1080.0 / scale);
+    let panel = views::picker::panel_rect(egui::Rect::from_min_size(egui::Pos2::ZERO, size));
+    let at = egui::pos2(panel.center().x, panel.top() + 5.0);
+    cantus_ui::raster::shoot_at(
+        ctx,
+        size,
+        scale,
+        8,
+        Some(path),
+        |_| Some(at),
         |root| app.frame(root),
     );
     println!("wrote {}", path.display());

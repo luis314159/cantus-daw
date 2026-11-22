@@ -66,6 +66,9 @@ impl Rig {
             screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, SCREEN)),
             time: Some(self.t),
             predicted_dt: 1.0 / 60.0,
+            // A dark system: the default follows it (ADR 0111, amended 2026-11-20), and
+            // this test is about the night.
+            system_theme: Some(egui::Theme::Dark),
             events,
             ..Default::default()
         };

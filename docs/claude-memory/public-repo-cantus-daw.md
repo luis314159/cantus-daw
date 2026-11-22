@@ -17,13 +17,13 @@ How it works now (ADR 0049 amended 2026-10-20):
 - Work stays in the private `luis314159/cantus` (F:\projects\cantus, origin). It deploys
   cantusdaw.com (site.yml guarded to that repo). CI, release, null hashes, audit, macOS and
   perf workflows are guarded to run only in cantus-daw (free minutes there).
-- To publish: `GITLEAKS=F:/projects/daw-r29/pubtools/gl/gitleaks.exe bash
-  tools/public/publish.sh F:/projects/daw-r26/private --push` — fresh clone, filter-repo
+- To publish: `GITLEAKS=F:/projects/publish-tools/gitleaks-8.30.1/gitleaks.exe bash
+  tools/public/publish.sh F:/projects/publish-tools/private --push` — fresh clone, filter-repo
   (pip-installed 2.47.0 by hash), check.sh, fast-forward-only push. Releases are tags
   pushed to cantus-daw (from the publish clone), never to the private repo.
 - NEVER add the public remote to F:\projects\cantus or push private refs there.
-- The owner's private folder (identities.mailmap, forbid.txt) is F:\projects\daw-r26\private
-  — keep it when cleaning round folders.
+- The owner's private folder (identities.mailmap, forbid.txt) is F:\projects\publish-tools\private
+  — NEVER delete F:\projects\publish-tools when cleaning round folders (the daw-r26 copy was lost; rebuilt 2026-11-18 from both histories' identities, hashes proved identical).
 - New research screenshots: `git add -f` in the private repo only (ignored by .gitignore).
 
 See [[round-29]], [[decision-round30-platforms]].
@@ -45,3 +45,5 @@ Round 30 (another session, cantus-5a, worktrees F:\projects\daw-r30) must releas
 beta.3+; it shares the WSL clone ~/cantus-ci — use a separate clone for checks.
 
 Correction (2026-10-23): the website deploys from **cantus-daw** (site.yml is guarded to the public repo; the Cloudflare secrets live there), so a site change goes live only after publish.sh --push.
+
+2026-11-18: the private folder and gitleaks were gone (deleted with old round folders). Rebuilt in F:\projects\publish-tools (mailmap: both private addresses -> the GitHub no-reply; forbid.txt: the two addresses + the employer; gitleaks 8.30.1, SHA-256 d29144de...c4e verified). The rewrite reproduced every published hash (fast-forward d6615402 -> cc82b873 -> ef9d43c2). v0.1.0-beta.15 tagged from the publish clone (owner asked).

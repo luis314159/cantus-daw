@@ -1889,6 +1889,59 @@ fn main() {
         );
         p.tracks[0].clips.push(knob);
     }
+    // r41:contract — Schema 78 (round 41, ADRs 0150–0152): a Fides track (the resonator, its
+    // stub's gain at -3 dB) before the last track; on the first strip a Nitor with its key fixed
+    // to G (8) and its output at -1.5 dB; on the second strip a board of Fragor's five circuits
+    // as pedals of their own, in order. The builders keep this block in step with their tables.
+    if upto >= 78 {
+        use cantus_core::fx::tabula::{Board, Pedal, PedalId};
+        let mut fides = p.make_track("Fides");
+        let mut n = NativeSpec::new(InstrumentKind::Resonator);
+        n.set("gain", -3.0).unwrap();
+        fides.instrument = InstrumentSpec::Native(n);
+        let at = p.tracks.len().saturating_sub(1);
+        p.tracks.insert(at, fides);
+        let s1 = p.strips.first().map(|s| s.id).expect("a first strip");
+        let mut nitor = p.make_effect(EffectKind::Enhancer);
+        nitor.spec.set("key", 8.0).unwrap();
+        nitor.spec.set("out", -1.5).unwrap();
+        p.strip_mut(s1).unwrap().effects.push(nitor);
+        let s2 = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        let mut board = p.make_effect(EffectKind::Board);
+        let kinds = [
+            EffectKind::FragorOverdrive,
+            EffectKind::FragorOpAmp,
+            EffectKind::FragorSilicon,
+            EffectKind::FragorFuzz,
+            EffectKind::FragorMuff,
+        ];
+        board.spec.board = Some(Box::new(Board {
+            pedals: kinds
+                .iter()
+                .enumerate()
+                .map(|(i, k)| Pedal::new(PedalId(i as u16), EffectSpec::new(*k)))
+                .collect(),
+            macros: Vec::new(),
+        }));
+        p.strip_mut(s2).unwrap().effects.push(board);
+    }
+    // r41:fides-input — Schema 79 (ADR 0154): the Fides track hears the third strip as its
+    // input (its sidechain), set as the command sets it — so the key is one with no loop.
+    if upto >= 79 {
+        let fides = p
+            .tracks
+            .iter()
+            .find(|t| t.name == "Fides")
+            .map(|t| t.id)
+            .expect("the Fides track");
+        let key = p.strips.get(2).map(|s| s.id).expect("a third strip");
+        Command::SetTrackSidechain {
+            track: fides,
+            source: Some(key),
+        }
+        .apply(&mut p)
+        .expect("a key with no loop");
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

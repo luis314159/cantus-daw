@@ -3,8 +3,9 @@
 //! (`docs/round-fx/comparatio.md`) says why it is built as it is.
 //!
 //! **A monitoring unit.** You load a reference track (a file, stored by path in
-//! [`crate::EffectSpec::ir`] and set with `Command::SetEffectIr`, as Aula's response and
-//! Arca's cabinet are — never copied into the project) and switch between your mix and the
+//! [`crate::EffectSpec::ir`] and set with `Command::SetReferences` — or `Command::SetEffectIr`,
+//! as Aula's response and Arca's cabinet are, which lists the file too — never copied into
+//! the project) and switch between your mix and the
 //! reference **at the same loudness**. Its place is the master's last insert; it may sit on
 //! any strip. **An export, a freeze, a stem or any other render hears the mix, never the
 //! reference**: the engine takes the reference out of every snapshot it renders from
@@ -273,8 +274,18 @@ pub fn switch_command(
     }
 }
 
+/// Whether `SetReferences` sets this pair back exactly: no list, or a valid one not empty,
+/// that holds the one compared (ADR 0143's amendment: the model's invariant, held by every
+/// command and by the repair on load). A pair that is not — a slot brought in whole by hand
+/// — is put back by its whole slot instead.
+pub fn settable(refs: Option<&References>, ir: Option<&IrFile>) -> bool {
+    let list_ok = refs.is_none_or(|r| !r.is_empty() && r.valid().is_ok());
+    let held = ir.is_none_or(|f| refs.is_some_and(|r| r.find(&f.path).is_some()));
+    list_ok && held
+}
+
 /// The references a spec shows: its list, with the one compared added when an older file
-/// (or a command that set only `ir`) left it out.
+/// left it out (a project is repaired on load, so only a slot brought in whole by hand).
 pub fn listed(refs: Option<&References>, ir: Option<&IrFile>) -> Vec<Reference> {
     let mut out: Vec<Reference> = refs.map(|r| r.list.clone()).unwrap_or_default();
     if let Some(f) = ir {
@@ -397,7 +408,8 @@ pub fn params() -> &'static [EffectParamInfo] {
 /// References a command would refuse (a hand edit), repaired on load: a list on a slot that
 /// is not a Comparatio taken off, empty and repeated paths dropped, the list cut to
 /// [`MAX_REFERENCES`] (the one compared kept), the one compared added when the list lacks
-/// it, an empty list `None`. How many slots were changed. Never to the audio thread.
+/// it or there is no list (ADR 0143's amendment), an empty path compared taken off, an
+/// empty list `None`. How many slots were changed. Never to the audio thread.
 pub fn repair_project(project: &mut crate::model::Project) -> usize {
     let mut changed = 0;
     for e in project.all_effects_mut() {
@@ -407,9 +419,18 @@ pub fn repair_project(project: &mut crate::model::Project) -> usize {
             }
             continue;
         }
-        let Some(r) = e.spec.refs.as_deref() else {
-            continue;
-        };
+        // ADR 0143's amendment: a file compared with no list (a project of phase A's, or a
+        // hand edit) is listed too; an empty path is no file.
+        let blank = e
+            .spec
+            .ir
+            .as_deref()
+            .is_some_and(|f| f.path.trim().is_empty());
+        if blank {
+            e.spec.ir = None;
+        }
+        let none = References::default();
+        let r = e.spec.refs.as_deref().unwrap_or(&none);
         let mut clean = References {
             list: Vec::new(),
             eq: r.eq,
@@ -436,10 +457,12 @@ pub fn repair_project(project: &mut crate::model::Project) -> usize {
                 }
             }
         }
-        if clean != *r {
-            changed += 1;
-            e.spec.refs = (!clean.is_empty()).then(|| Box::new(clean));
+        let clean = (!clean.is_empty()).then(|| Box::new(clean));
+        let relisted = clean != e.spec.refs;
+        if relisted {
+            e.spec.refs = clean;
         }
+        changed += usize::from(blank || relisted);
     }
     changed
 }
@@ -585,6 +608,45 @@ mod tests {
         assert_eq!(r.list.len(), MAX_REFERENCES);
         assert!(r.find("11.wav").is_some(), "the one compared kept");
         assert!(fx[fx.len() - 1].spec.refs.is_none());
+        assert_eq!(repair_project(&mut p), 0, "repaired once");
+    }
+
+    /// ADR 0143's amendment: a file compared with no list (phase A's projects, a hand edit)
+    /// is listed on load, an empty one taken off, a list written empty made `None` — every
+    /// pair after it one `SetReferences` sets back exactly.
+    #[test]
+    fn a_file_compared_without_a_list_is_listed_on_load() {
+        let mut p = crate::model::Project::default();
+        let s = p.strips[0].id;
+        let make = |p: &mut crate::model::Project, refs: Option<References>, ir: Option<&str>| {
+            let mut e = p.make_effect(crate::EffectKind::Reference);
+            e.spec.refs = refs.map(Box::new);
+            e.spec.ir = ir.map(|f| Box::new(IrFile::new(f)));
+            e
+        };
+        let slots = [
+            make(&mut p, None, Some("old.flac")),
+            make(&mut p, None, Some(" ")),
+            make(&mut p, Some(References::default()), None),
+            make(&mut p, None, None),
+        ];
+        assert!(!settable(
+            slots[0].spec.refs.as_deref(),
+            slots[0].spec.ir.as_deref()
+        ));
+        assert!(!settable(slots[2].spec.refs.as_deref(), None));
+        assert!(settable(None, None));
+        p.strip_mut(s).unwrap().effects.extend(slots);
+        assert_eq!(repair_project(&mut p), 3);
+        let fx = &p.strip(s).unwrap().effects;
+        let at = fx.len() - 4;
+        let r = fx[at].spec.refs.as_deref().expect("listed");
+        assert_eq!(r.list, vec![Reference::new("old.flac")]);
+        assert!(fx[at + 1].spec.ir.is_none() && fx[at + 1].spec.refs.is_none());
+        assert!(fx[at + 2].spec.refs.is_none(), "an empty list: None");
+        for e in &fx[at..] {
+            assert!(settable(e.spec.refs.as_deref(), e.spec.ir.as_deref()));
+        }
         assert_eq!(repair_project(&mut p), 0, "repaired once");
     }
 

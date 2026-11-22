@@ -56,7 +56,9 @@ pub mod vinculum; // fxb:contract
 
 // fxc:contract — the side round's wave C (ADRs 0142–0143).
 pub mod comparatio; // fxc:contract
-pub mod purus; // fxc:contract
+pub mod fragor_pedal; // r41:contract (ADR 0152)
+pub mod nitor;
+pub mod purus; // fxc:contract // r41:contract (ADR 0151)
 
 /// How any parameter's value is printed and read back (shared by the DAW's knobs and the
 /// exported plug-ins, ADR 0020).

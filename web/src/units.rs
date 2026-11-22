@@ -19,7 +19,7 @@ pub struct Unit {
     pub file: &'static str,
     pub name: &'static str,
     pub kind: (&'static str, &'static str),
-    /// One line: why it is worth a try.
+    /// One line: why it is worth a try (`long!`: read through `unit_text::pitch`).
     pub pitch: (&'static str, &'static str),
     /// What it does, in two or three sentences.
     pub what: (&'static str, &'static str),
@@ -216,7 +216,7 @@ pub fn units() -> Html {
                     <span class="uc-text">
                         <strong>{ u.name }</strong>
                         <span class="uc-kind">{ l.t(u.kind.0, u.kind.1) }</span>
-                        <span class="uc-pitch">{ l.t(u.pitch.0, u.pitch.1) }</span>
+                        <span class="uc-pitch">{ crate::unit_text::pitch(u, l) }</span>
                         <span class="uc-more" aria-hidden="true">{ l.t("See it large", "Verlo en grande") }{ " →" }</span>
                     </span>
                 </button>
@@ -294,7 +294,7 @@ pub fn units() -> Html {
                     </figure>
                     <div class="up-body">
                         <div class="up-main">
-                            <p class="up-pitch">{ l.t(u.pitch.0, u.pitch.1) }</p>
+                            <p class="up-pitch">{ crate::unit_text::pitch(u, l) }</p>
                             <p class="up-what">{ crate::unit_text::what(u, l) }</p>
                             if let Some((file, song)) = u.ab {
                                 <div class="up-ab">

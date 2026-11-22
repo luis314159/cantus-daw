@@ -106,6 +106,21 @@ pub enum EffectKind {
     Repair, // fxc:contract
     /// Comparatio, the reference comparator: a reference track at the mix's loudness, A/B and blind (`fx::comparatio`, its file in [`EffectSpec::ir`]). // fxc:contract
     Reference, // fxc:contract
+    // r41:contract — round 41 (ADRs 0151, 0152), appended: board presets store a kind by its
+    // index in `ALL`.
+    /// Nitor, the one-knob enhancer: curated multiband characters, a low end tuned to the
+    /// song's key, an exciter by band (`fx::nitor`). // r41:contract
+    Enhancer, // r41:contract
+    /// Fragor's the green overdrive (TS808) as a board-only pedal of its own (`fx::fragor_pedal`). // r41:contract
+    FragorOverdrive, // r41:contract
+    /// Fragor's the op-amp distortion (RAT) as a board-only pedal of its own (`fx::fragor_pedal`). // r41:contract
+    FragorOpAmp, // r41:contract
+    /// Fragor's the silicon distortion (DS-1) as a board-only pedal of its own (`fx::fragor_pedal`). // r41:contract
+    FragorSilicon, // r41:contract
+    /// Fragor's the germanium fuzz (Fuzz Face) as a board-only pedal of its own (`fx::fragor_pedal`). // r41:contract
+    FragorFuzz, // r41:contract
+    /// Fragor's the triangle muff (Big Muff) as a board-only pedal of its own (`fx::fragor_pedal`). // r41:contract
+    FragorMuff, // r41:contract
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -228,7 +243,8 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 43] = [
+    pub const ALL: [EffectKind; 49] = [
+        // r41:contract: 49 with Nitor and Fragor's five pedals
         // fxb:contract: 41 with wave B's three; fxc:contract: 43 with wave C's two
         // fxa:contract: 38 with wave A's three
         // fx3:contract: 35 with wave 3's four
@@ -277,12 +293,32 @@ impl EffectKind {
         EffectKind::Ducker,              // fxb:contract
         EffectKind::Repair,              // fxc:contract
         EffectKind::Reference,           // fxc:contract
+        EffectKind::Enhancer,            // r41:contract
+        EffectKind::FragorOverdrive,     // r41:contract
+        EffectKind::FragorOpAmp,         // r41:contract
+        EffectKind::FragorSilicon,       // r41:contract
+        EffectKind::FragorFuzz,          // r41:contract
+        EffectKind::FragorMuff,          // r41:contract
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
     /// only for the projects that use it (Spatium is the reverb). // r37:library
     pub fn offered(self) -> bool {
         self != EffectKind::Reverb // r37:library
+            && self.fragor_circuit().is_none() // r41:contract — board-only (ADR 0152)
+    }
+
+    /// r41:contract — the Fragor circuit a board-only pedal kind is (0 … 4, Fragor's model
+    /// order: overdrive, op-amp, silicon, fuzz, muff), `None` for every other kind (ADR 0152).
+    pub fn fragor_circuit(self) -> Option<usize> {
+        match self {
+            EffectKind::FragorOverdrive => Some(0),
+            EffectKind::FragorOpAmp => Some(1),
+            EffectKind::FragorSilicon => Some(2),
+            EffectKind::FragorFuzz => Some(3),
+            EffectKind::FragorMuff => Some(4),
+            _ => None,
+        }
     }
 
     pub fn name_key(self) -> &'static str {
@@ -331,6 +367,12 @@ impl EffectKind {
             EffectKind::Ducker => fx::cedo::NAME_KEY, // fxb:contract
             EffectKind::Repair => fx::purus::NAME_KEY, // fxc:contract
             EffectKind::Reference => fx::comparatio::NAME_KEY, // fxc:contract
+            EffectKind::Enhancer => fx::nitor::NAME_KEY, // r41:contract
+            EffectKind::FragorOverdrive => fx::fragor_pedal::NAME_KEYS[0], // r41:contract
+            EffectKind::FragorOpAmp => fx::fragor_pedal::NAME_KEYS[1], // r41:contract
+            EffectKind::FragorSilicon => fx::fragor_pedal::NAME_KEYS[2], // r41:contract
+            EffectKind::FragorFuzz => fx::fragor_pedal::NAME_KEYS[3], // r41:contract
+            EffectKind::FragorMuff => fx::fragor_pedal::NAME_KEYS[4], // r41:contract
         }
     }
 
@@ -381,6 +423,12 @@ impl EffectKind {
             EffectKind::Ducker => fx::cedo::params(), // fxb:contract
             EffectKind::Repair => fx::purus::params(), // fxc:contract
             EffectKind::Reference => fx::comparatio::params(), // fxc:contract
+            EffectKind::Enhancer => fx::nitor::params(), // r41:contract
+            EffectKind::FragorOverdrive => fx::fragor_pedal::params(0), // r41:contract
+            EffectKind::FragorOpAmp => fx::fragor_pedal::params(1), // r41:contract
+            EffectKind::FragorSilicon => fx::fragor_pedal::params(2), // r41:contract
+            EffectKind::FragorFuzz => fx::fragor_pedal::params(3), // r41:contract
+            EffectKind::FragorMuff => fx::fragor_pedal::params(4), // r41:contract
         }
     }
 
@@ -431,6 +479,12 @@ impl EffectKind {
             EffectKind::Ducker => fx::cedo::SPARSE, // fxb:contract
             EffectKind::Repair => fx::purus::SPARSE, // fxc:contract
             EffectKind::Reference => fx::comparatio::SPARSE, // fxc:contract
+            EffectKind::Enhancer => fx::nitor::SPARSE, // r41:contract
+            EffectKind::FragorOverdrive => fx::fragor_pedal::SPARSE, // r41:contract
+            EffectKind::FragorOpAmp => fx::fragor_pedal::SPARSE, // r41:contract
+            EffectKind::FragorSilicon => fx::fragor_pedal::SPARSE, // r41:contract
+            EffectKind::FragorFuzz => fx::fragor_pedal::SPARSE, // r41:contract
+            EffectKind::FragorMuff => fx::fragor_pedal::SPARSE, // r41:contract
         }
     }
 
@@ -438,6 +492,9 @@ impl EffectKind {
     /// kind but the old Reverb (Delay has had its window since round 39, ADR 0115).
     pub fn has_editor(self) -> bool {
         !matches!(self, EffectKind::Reverb)
+            // r41:pedals — Fragor's circuits as pedals have no window of their own: the strip
+            // under Tabula's board holds what they have (ADR 0152).
+            && self.fragor_circuit().is_none()
     }
 
     /// A kind that plays an impulse response from a file ([`EffectSpec::ir`],
@@ -499,6 +556,12 @@ impl EffectKind {
             EffectKind::Ducker => fx::cedo::TAKES_SIDECHAIN, // fxb:contract
             EffectKind::Repair => fx::purus::TAKES_SIDECHAIN, // fxc:contract
             EffectKind::Reference => fx::comparatio::TAKES_SIDECHAIN, // fxc:contract
+            EffectKind::Enhancer => fx::nitor::TAKES_SIDECHAIN, // r41:contract
+            EffectKind::FragorOverdrive => fx::fragor_pedal::TAKES_SIDECHAIN, // r41:contract
+            EffectKind::FragorOpAmp => fx::fragor_pedal::TAKES_SIDECHAIN, // r41:contract
+            EffectKind::FragorSilicon => fx::fragor_pedal::TAKES_SIDECHAIN, // r41:contract
+            EffectKind::FragorFuzz => fx::fragor_pedal::TAKES_SIDECHAIN, // r41:contract
+            EffectKind::FragorMuff => fx::fragor_pedal::TAKES_SIDECHAIN, // r41:contract
         }
     }
 
@@ -549,6 +612,12 @@ impl EffectKind {
             EffectKind::Ducker => fx::cedo::TAKES_NOTES, // fxb:contract
             EffectKind::Repair => fx::purus::TAKES_NOTES, // fxc:contract
             EffectKind::Reference => fx::comparatio::TAKES_NOTES, // fxc:contract
+            EffectKind::Enhancer => fx::nitor::TAKES_NOTES, // r41:contract
+            EffectKind::FragorOverdrive => fx::fragor_pedal::TAKES_NOTES, // r41:contract
+            EffectKind::FragorOpAmp => fx::fragor_pedal::TAKES_NOTES, // r41:contract
+            EffectKind::FragorSilicon => fx::fragor_pedal::TAKES_NOTES, // r41:contract
+            EffectKind::FragorFuzz => fx::fragor_pedal::TAKES_NOTES, // r41:contract
+            EffectKind::FragorMuff => fx::fragor_pedal::TAKES_NOTES, // r41:contract
             _ => false,
         }
     }
@@ -591,6 +660,12 @@ impl EffectKind {
             EffectKind::Ducker => fx::cedo::CHOICES, // fxb:contract
             EffectKind::Repair => fx::purus::CHOICES, // fxc:contract
             EffectKind::Reference => fx::comparatio::CHOICES, // fxc:contract
+            EffectKind::Enhancer => fx::nitor::CHOICES, // r41:contract
+            EffectKind::FragorOverdrive => fx::fragor_pedal::CHOICES, // r41:contract
+            EffectKind::FragorOpAmp => fx::fragor_pedal::CHOICES, // r41:contract
+            EffectKind::FragorSilicon => fx::fragor_pedal::CHOICES, // r41:contract
+            EffectKind::FragorFuzz => fx::fragor_pedal::CHOICES, // r41:contract
+            EffectKind::FragorMuff => fx::fragor_pedal::CHOICES, // r41:contract
             _ => &[],
         }
     }
@@ -690,6 +765,20 @@ impl EffectSpec {
     /// its pedals can (fx3:contract).
     pub fn takes_notes(&self) -> bool {
         self.kind.takes_notes() || self.pedal_specs().any(|s| s.takes_notes())
+    }
+
+    /// Whether this effect, as set, follows the song's key — the key the engine hands every
+    /// unit (ADR 0153, `FxUnit::set_song_key`) — so that a change of the project's key is
+    /// something to hear (a freeze's content key holds the key then): Nitor on `key` 0, and
+    /// a board when one of its pedals does. **The one place that says it** (round 41's
+    /// review): a kind that comes to follow the song's key answers here, and the engine's
+    /// `song_key` test fails for one whose sound moves with the key while this says no.
+    pub fn reads_song_key(&self) -> bool {
+        let own = match self.kind {
+            EffectKind::Enhancer => fx::nitor::follows_song(self.get("key")),
+            _ => false,
+        };
+        own || self.pedal_specs().any(|s| s.reads_song_key())
     }
 
     // ---- the routed API (fx3:contract, ADR 0131): a board's `p{id}.{key}` is its pedal's

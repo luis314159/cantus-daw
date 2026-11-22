@@ -254,6 +254,20 @@ pub fn move_route(project: &Project, route: Route, end: End, to: StripId) -> Opt
             }]
         }
         (RouteKind::Key(_), _) => return None,
+        // r41:key-wiring — a track's key moves only by its source (ADR 0154).
+        (RouteKind::TrackKey(track), End::Source) => {
+            if project.track(track)?.key() != Some(route.from) {
+                return None;
+            }
+            project
+                .route_check(to, route.to, RouteKind::TrackKey(track))
+                .ok()?;
+            vec![Command::SetTrackSidechain {
+                track,
+                source: Some(to),
+            }]
+        }
+        (RouteKind::TrackKey(_), End::Destination) => return None,
     };
     batch("cmd.move_route", commands)
 }
@@ -293,6 +307,15 @@ pub fn remove_route(project: &Project, route: Route) -> Option<Command> {
             }
         }
         RouteKind::Key(None) => return None,
+        RouteKind::TrackKey(track) => {
+            if project.track(track)?.key() != Some(route.from) {
+                return None;
+            }
+            Command::SetTrackSidechain {
+                track,
+                source: None,
+            }
+        }
     };
     batch("cmd.remove_route", vec![command])
 }

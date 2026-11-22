@@ -245,7 +245,27 @@ pub fn fold(s: &str) -> String {
 }
 
 /// The native catalogue: (slug, choice, categories), in the order it is shown.
+/// r41:contract — the natives an insert may take: the board-only kinds (Fragor's five
+/// circuits, ADR 0152; `EffectKind::offered` false) left out. Tabula's shelves read
+/// [`board_devices`], which keeps them.
 fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
+    let mut v = natives_all();
+    v.retain(|(_, c, _)| !matches!(c, PickChoice::Effect(k) if !k.offered()));
+    v
+}
+
+/// r41:contract — every native device a board may hold, the board-only pedals with them, in
+/// the catalogue's order (what Tabula's shelves are built from).
+pub fn board_devices() -> Vec<Device> {
+    natives_all()
+        .into_iter()
+        .enumerate()
+        .map(|(i, (slug, choice, cats))| native(i, slug, choice, cats))
+        .collect()
+}
+
+/// Every native device, the board-only kinds included.
+fn natives_all() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
     use Category as C;
     use EffectKind as E;
     use InstrumentKind as I;
@@ -269,6 +289,12 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
         ),
         ("organum", PickChoice::Instrument(I::Organ), vec![C::Keys]),
         ("chorda", PickChoice::Instrument(I::Chorda), vec![C::Keys]),
+        // r41:fides — the resonator: marimbas, harps, guitars and bowed strings (ADR 0150).
+        (
+            "fides",
+            PickChoice::Instrument(I::Resonator),
+            vec![C::Keys, C::OtherInstruments],
+        ),
         ("gravis", PickChoice::Instrument(I::Bass), vec![C::Bass]),
         ("pulsus", PickChoice::Pulsus, vec![C::Drums]),
         // r40: the acoustic drummer, beside the drum machine.
@@ -435,6 +461,35 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
             PickChoice::Effect(E::Reference),
             vec![C::Mastering, C::Utility],
         ), // fxc:contract
+        ("nitor", PickChoice::Effect(E::Enhancer), vec![C::Mastering]), // r41:contract
+        // r41:contract — Fragor's five circuits: board-only (ADR 0152). In the catalogue so
+        // Tabula's shelf offers them; `EffectKind::offered` keeps them out of every insert
+        // menu and the main picker's effect list (the filter below).
+        (
+            "fragor_od",
+            PickChoice::Effect(E::FragorOverdrive),
+            vec![C::Distortion],
+        ),
+        (
+            "fragor_op",
+            PickChoice::Effect(E::FragorOpAmp),
+            vec![C::Distortion],
+        ),
+        (
+            "fragor_si",
+            PickChoice::Effect(E::FragorSilicon),
+            vec![C::Distortion],
+        ),
+        (
+            "fragor_ge",
+            PickChoice::Effect(E::FragorFuzz),
+            vec![C::Distortion],
+        ),
+        (
+            "fragor_mf",
+            PickChoice::Effect(E::FragorMuff),
+            vec![C::Distortion],
+        ),
     ];
     // A scaffold instrument stays out of the picker until it is ready (`ready_kinds`).
     v.retain(|(_, c, _)| match c {
@@ -446,7 +501,7 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
 
 /// The slug of a native choice, if it is one.
 pub fn slug_of(choice: &PickChoice) -> Option<&'static str> {
-    natives()
+    natives_all() // r41:contract — a board-only pedal has its slug too
         .into_iter()
         .find(|(_, c, _)| c == choice)
         .map(|(s, _, _)| s)

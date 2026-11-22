@@ -157,6 +157,7 @@ impl Processor {
             match found {
                 Some(mut unit) => {
                     unit.configure(&want.spec);
+                    unit.set_song_key(snapshot.key); // r41:contract
                     let m = &mut self.master;
                     let idx = m.effects.len();
                     m.bypass[idx] = want.bypass;

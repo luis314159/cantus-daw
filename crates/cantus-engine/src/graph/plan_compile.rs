@@ -26,12 +26,66 @@ impl GraphPlan {
                 self.order.push(si as u16);
             }
         }
-        // Nodes: the tracks, the strips in order, the master.
+        // Ids to indices, for the keys and the note sources.
+        sc.strip_ids.clear();
+        for (si, st) in snap.strips.iter().take(strips).enumerate() {
+            sc.strip_ids.insert(st.id.0, si as u16);
+        }
+        sc.track_ids.clear();
+        for (ti, t) in snap.tracks.iter().take(tracks).enumerate() {
+            sc.track_ids.insert(t.id.0, ti as u16);
+        }
+        // r41:fides-input — each track's key (ADR 0154), honoured when its strip is
+        // processed, runs, and comes before the strip the track plays into (a loop a
+        // hand-edited file could hold is heard as silence, as an insert's later key is). A
+        // track with outputs of its own, or one, is never keyed (no such instrument takes
+        // a key).
+        self.track_keys.clear();
+        let mut keyed = false;
+        for t in snap.tracks.iter().take(tracks) {
+            let k = t
+                .sidechain
+                .and_then(|id| sc.strip_ids.get(id.0))
+                .filter(|&k| {
+                    let kp = sc.pos[k as usize];
+                    let before = match t.strip {
+                        Some(d) if d < strips => sc.pos[d] == NONE || sc.pos[d] > kp,
+                        _ => true,
+                    };
+                    kp != NONE
+                        && before
+                        && !t.rest
+                        && !snap.strips[k as usize].rest
+                        && t.tap.is_none()
+                        && t.buses.is_empty()
+                });
+            keyed |= k.is_some();
+            self.track_keys.push(k.unwrap_or(NONE));
+        }
+        // Nodes: the tracks, the strips in order — each followed by the tracks keyed from
+        // it — and the master.
         self.nodes.clear();
-        self.nodes
-            .extend((0..tracks).map(|t| NodeRef::Track(t as u16)));
-        self.nodes
-            .extend(self.order.iter().map(|s| NodeRef::Strip(*s)));
+        self.track_nodes.clear();
+        self.track_nodes.resize(tracks, NONE);
+        self.strip_nodes.clear();
+        for ti in 0..tracks {
+            if self.track_keys[ti] == NONE {
+                self.track_nodes[ti] = self.nodes.len() as u16;
+                self.nodes.push(NodeRef::Track(ti as u16));
+            }
+        }
+        for &si in &self.order {
+            self.strip_nodes.push(self.nodes.len() as u16);
+            self.nodes.push(NodeRef::Strip(si));
+            if keyed {
+                for ti in 0..tracks {
+                    if self.track_keys[ti] == si {
+                        self.track_nodes[ti] = self.nodes.len() as u16;
+                        self.nodes.push(NodeRef::Track(ti as u16));
+                    }
+                }
+            }
+        }
         self.nodes.push(NodeRef::Master);
         let count = self.nodes.len();
         let master = (count - 1) as u16;
@@ -44,18 +98,20 @@ impl GraphPlan {
             NodeRef::Master => false,
         }));
         let pos = &sc.pos;
+        let strip_nodes = &self.strip_nodes;
+        let track_nodes = &self.track_nodes;
         let frozen = |si: usize| snap.strips[si].frozen.as_ref().is_some_and(|f| f.plays());
         // A strip's node, or NONE when it is not in the order (never processed) or gathers
         // nothing (frozen).
         let node_of = |si: usize| -> u16 {
             match pos.get(si) {
-                Some(&p) if p != NONE && !frozen(si) => tracks as u16 + p,
+                Some(&p) if p != NONE && !frozen(si) => strip_nodes[p as usize],
                 _ => NONE,
             }
         };
         let node_any = |si: usize| -> u16 {
             match pos.get(si) {
-                Some(&p) if p != NONE => tracks as u16 + p,
+                Some(&p) if p != NONE => strip_nodes[p as usize],
                 _ => NONE,
             }
         };
@@ -76,7 +132,7 @@ impl GraphPlan {
         for (place, &si) in self.order.iter().enumerate() {
             let si = si as usize;
             let st = &snap.strips[si];
-            let me = tracks as u16 + place as u16;
+            let me = strip_nodes[place];
             // Into a strip processed after this one, or lost (and nothing from a resting
             // strip).
             let later = |d: u16| {
@@ -130,15 +186,8 @@ impl GraphPlan {
             }
         }
 
-        // Dependencies: every input, plus each insert's key strip and note track.
-        sc.strip_ids.clear();
-        for (si, st) in snap.strips.iter().take(strips).enumerate() {
-            sc.strip_ids.insert(st.id.0, si as u16);
-        }
-        sc.track_ids.clear();
-        for (ti, t) in snap.tracks.iter().take(tracks).enumerate() {
-            sc.track_ids.insert(t.id.0, ti as u16);
-        }
+        // Dependencies: every input, plus each insert's key strip and note track, and each
+        // instrument's key strip.
         sc.edges.clear();
         sc.stamp.clear();
         sc.stamp.resize(count, NONE);
@@ -152,7 +201,7 @@ impl GraphPlan {
             };
             for i in &self.inputs[self.input_start[n] as usize..self.input_start[n + 1] as usize] {
                 let from = match *i {
-                    Input::Track(t) => t,
+                    Input::Track(t) => track_nodes[t as usize],
                     Input::Out(s) | Input::Send(s, _) => node_any(s as usize),
                 };
                 edge(from, &mut sc.stamp, &mut sc.edges);
@@ -162,8 +211,13 @@ impl GraphPlan {
                 NodeRef::Track(t) => {
                     if let Some(src) = snap.tracks[t as usize].tap.map(|x| x.source) {
                         if src < tracks && !snap.tracks[src].rest {
-                            edge(src as u16, &mut sc.stamp, &mut sc.edges);
+                            edge(track_nodes[src], &mut sc.stamp, &mut sc.edges);
                         }
+                    }
+                    // r41:fides-input — the strip its instrument hears runs first.
+                    let k = self.track_keys[t as usize];
+                    if k != NONE {
+                        edge(node_any(k as usize), &mut sc.stamp, &mut sc.edges);
                     }
                     continue;
                 }

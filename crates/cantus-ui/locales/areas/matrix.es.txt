@@ -25,6 +25,7 @@ matrix.cell.output = Salida · Clic derecho: el menú de la ruta · Alt+clic: ll
 matrix.cell.send = Envío, {tap}
 matrix.cell.send_do = Arrastrar: nivel · Doble clic: 0 dB · Ctrl+clic: convertirlo en la salida · Mayús+arrastrar: fino · Ctrl+arrastrar: copiar por la columna · Clic derecho: el menú de la ruta
 matrix.cell.keys = llave en {n} inserto(s) de aquí
+matrix.cell.track_key = llave en la entrada de {track}
 matrix.cell.track_on = La pista suena en este canal
 matrix.cell.track_off = Clic: la pista suena en este canal
 matrix.cell.notes = notas hacia {n} inserto(s)

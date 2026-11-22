@@ -206,6 +206,8 @@ impl Default for ChordaSettings {
                 uni_center: 0.0,
                 bridge_tune: 0.0,
                 bridge_pull: 0.0,
+                bridge_pull_hz: 0.0,
+                uni_pair: 0.0,
                 uni_loss: 0.0,
                 knock_vel: 0.0,
                 landing_tau: 0.0,
@@ -306,6 +308,13 @@ impl Chorda {
     #[cfg(test)]
     pub(crate) fn key_strings(&self, i: usize) -> &super::string::KeyStrings {
         self.voices[i].strings()
+    }
+
+    /// Key index `i`'s voice (a test's look inside: round 41's unison kit renders a clone of
+    /// it alone, its bridge force before the board).
+    #[cfg(test)]
+    pub(crate) fn voice(&self, i: usize) -> &super::voice::Voice {
+        &self.voices[i]
     }
 
     /// Round 41 (BACKLOG §3e, every string in tune): key `key`'s loops kept — the
@@ -639,6 +648,11 @@ impl Chorda {
             if cs != 1.0 {
                 v.coupling = (v.coupling * cs).clamp(0.0, 0.95);
             }
+            let ck = self.voicing.couplings[(k.key - LOWEST) as usize];
+            if ck != 1.0 {
+                // The key's own share (round 41), after the register's clamp.
+                v.coupling = (v.coupling * ck as f64).clamp(0.0, 0.95);
+            }
             if self.voicing.vel_curve != 1.0 {
                 v.vel_curve *= self.voicing.vel_curve;
             }
@@ -675,16 +689,35 @@ impl Chorda {
             let fade = self.voicing.unison_fade(k.key);
             v.uni_b =
                 self.voicing.uni_b * Voicing::bass_scale(k.key, self.voicing.uni_b_bass) * fade;
-            v.uni_loss = self.voicing.uni_loss * fade;
+            let bk = self.voicing.uni_b_keys[(k.key - LOWEST) as usize];
+            if bk != 1.0 {
+                v.uni_b *= bk as f64;
+            }
+            v.uni_loss = if self.voicing.uni_loss_top != 0.0 {
+                // Round 41: the loss scatter kept where the other scatters fade.
+                self.voicing.uni_loss * (fade + (1.0 - fade) * self.voicing.uni_loss_top)
+            } else {
+                self.voicing.uni_loss * fade
+            };
             v.uni_b_hold = self.voicing.uni_b_hold;
             v.uni_center = self.voicing.uni_center;
             v.bridge_tune = self.voicing.bridge_tune;
             v.bridge_pull = self.voicing.bridge_pull;
+            v.bridge_pull_hz = self.voicing.bridge_pull_hz;
+            v.uni_pair = self.voicing.uni_pair[(k.key - LOWEST) as usize] as f64;
             if self.voicing.uni_weight_low != 0.0 {
                 v.uni_weight = (v.uni_weight + self.voicing.uni_weight_low * fade).min(1.0);
             }
             if self.voicing.uni_weight_bass != 0.0 {
                 v.uni_weight = (v.uni_weight + self.voicing.weight_bass(k.key)).min(1.0);
+            }
+            let tight = self.voicing.uni_tight[(k.key - LOWEST) as usize] as f64;
+            if tight != 0.0 {
+                // The unison control's first cent is the technician's (round 41): at its
+                // default (1) the strings are tuned as close as the key's beat allows, each
+                // cent above it detunes as before.
+                let u = v.detune_ct;
+                v.detune_ct = u - tight * u.min(1.0);
             }
             if self.voicing.detune_bass != 1.0 {
                 v.detune_ct *= Voicing::bass_scale(k.key, self.voicing.detune_bass);

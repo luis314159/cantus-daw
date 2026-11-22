@@ -20,6 +20,13 @@
 //! *inside* a take moves its later windows against the bars — natural speed; a warp is the
 //! answer — never against each other.
 //!
+//! **The exact lines first** (round 41). The unlinked windows make the lines (within a
+//! frame of each other); a linked window, whole ticks off its take by rounding, joins the
+//! line of the unlinked window nearest it within its half tick — the forward pieces that
+//! share its origin and fine offset as one — and linked windows with no such line chain
+//! among themselves. A linked window within reach of two lines no longer joins them into
+//! one take (which moved an unlinked window off the frame it played).
+//!
 //! A window the command itself moved or changed is the command's. A linked window's fine
 //! offset is its group's, so only its offset moves (to within half a tick). A warp that
 //! follows the tempo reads content ticks and is left alone; a looping window repeats its
@@ -192,26 +199,103 @@ pub fn before(project: &Project, cmd: &Command) -> Option<Kept> {
     // The tick is rounded at its content origin, so half a tick there — or at its entry,
     // whichever is longer (review 6: an origin in a slower section lost it again).
     let slack: Vec<f64> = windows.iter().map(|w| linked_slack(&map, w)).collect();
-    let mut order: Vec<usize> = (0..windows.len()).collect();
-    order.sort_by(|&a, &b| {
-        let (x, y) = (&windows[a], &windows[b]);
+    let by_line = |a: &usize, b: &usize| {
+        let (x, y) = (&windows[*a], &windows[*b]);
         (x.source, x.reverse)
             .cmp(&(y.source, y.reverse))
-            .then(line[a].total_cmp(&line[b]))
-    });
+            .then(line[*a].total_cmp(&line[*b]))
+    };
+    // Chain sorted windows into lines: each joins the line before when within a frame and
+    // the slack of either (one sorted pass).
+    let chain = |order: &[usize], lines: &mut Vec<Vec<usize>>| {
+        let first = lines.len();
+        for &i in order {
+            let joins = lines[first..]
+                .last()
+                .and_then(|l| l.last())
+                .is_some_and(|&p| {
+                    let (x, y) = (&windows[p], &windows[i]);
+                    x.source == y.source
+                        && x.reverse == y.reverse
+                        && (line[i] - line[p]).abs() <= 1.0 + slack[i].max(slack[p])
+                });
+            match lines.last_mut() {
+                Some(l) if joins => l.push(i),
+                _ => lines.push(vec![i]),
+            }
+        }
+    };
+    // The exact lines first: the unlinked windows, within a frame of each other. Round 41
+    // (the takes-and-tempo fuzz): chained together with the linked ones, a linked window
+    // within its half tick of two unlinked lines five frames apart joined them into one take,
+    // and the edit moved one of them five frames onto the other — an unlinked window
+    // re-anchored off the frame it played.
+    let (mut free, linked): (Vec<usize>, Vec<usize>) =
+        (0..windows.len()).partition(|&i| windows[i].link.is_none());
+    free.sort_by(by_line);
     let mut lines: Vec<Vec<usize>> = Vec::new();
-    for i in order {
-        let joins = lines.last().and_then(|l| l.last()).is_some_and(|&p| {
-            let (x, y) = (&windows[p], &windows[i]);
-            x.source == y.source
-                && x.reverse == y.reverse
-                && (line[i] - line[p]).abs() <= 1.0 + slack[i].max(slack[p])
+    chain(&free, &mut lines);
+    // Each linked window joins the line of the unlinked window nearest its own, within a
+    // frame and its slack (a binary search: one sorted pass, review 5's budget) — the
+    // forward ones sharing their origin and fine offset as one (a split's pieces: their
+    // slacks differ where the tempo does, and one shift keeps them a split); the rest chain
+    // among themselves, as before.
+    let line_of_free: HashMap<usize, usize> = lines
+        .iter()
+        .enumerate()
+        .flat_map(|(l, ws)| ws.iter().map(move |&i| (i, l)))
+        .collect();
+    let nearest = |i: usize| -> Option<(usize, f64)> {
+        let w = &windows[i];
+        let at = free.partition_point(|&u| {
+            let x = &windows[u];
+            (x.source, x.reverse)
+                .cmp(&(w.source, w.reverse))
+                .then(line[u].total_cmp(&line[i]))
+                .is_lt()
         });
-        match lines.last_mut() {
-            Some(l) if joins => l.push(i),
-            _ => lines.push(vec![i]),
+        [at.checked_sub(1), Some(at)]
+            .into_iter()
+            .flatten()
+            .filter_map(|k| free.get(k).copied())
+            .filter(|&u| {
+                let x = &windows[u];
+                x.source == w.source
+                    && x.reverse == w.reverse
+                    && (line[u] - line[i]).abs() <= 1.0 + slack[i]
+            })
+            .map(|u| (u, (line[u] - line[i]).abs()))
+            .min_by(|x, y| x.1.total_cmp(&y.1))
+    };
+    let mut pieces: Vec<Vec<usize>> = Vec::new();
+    let mut piece_of: HashMap<(AudioSourceId, Ticks, i32), usize> = HashMap::new();
+    for i in linked {
+        let w = &windows[i];
+        if w.reverse {
+            pieces.push(vec![i]);
+            continue;
+        }
+        match piece_of.get(&(w.source, w.origin().0, w.slip)) {
+            Some(&k) => pieces[k].push(i),
+            None => {
+                piece_of.insert((w.source, w.origin().0, w.slip), pieces.len());
+                pieces.push(vec![i]);
+            }
         }
     }
+    let mut alone = Vec::new();
+    for piece in pieces {
+        let near = piece
+            .iter()
+            .filter_map(|&i| nearest(i))
+            .min_by(|x, y| x.1.total_cmp(&y.1));
+        match near {
+            Some((u, _)) => lines[line_of_free[&u]].extend(piece),
+            None => alone.extend(piece),
+        }
+    }
+    alone.sort_by(by_line);
+    chain(&alone, &mut lines);
     Some(Kept {
         bpm: project.tempo_bpm,
         points: project.tempo_points.clone(),

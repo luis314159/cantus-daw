@@ -1915,7 +1915,17 @@ impl CantusApp {
             "cedo" | "ducker" => EffectKind::Ducker,    // fxb:contract
             "purus" | "repair" => EffectKind::Repair,   // fxc:contract
             "comparatio" | "reference" => EffectKind::Reference, // fxc:contract
+            "nitor" | "enhancer" => EffectKind::Enhancer, // r41:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
+            // r41:pedals — Fragor's circuits as pedals of their own (board-only).
+            k if cantus_core::fx::fragor_pedal::STEMS.contains(&k) => {
+                let i = cantus_core::fx::fragor_pedal::STEMS
+                    .iter()
+                    .position(|s| *s == k)
+                    .unwrap_or(0);
+                self.demo_pedal_board(strip, cantus_core::fx::fragor_pedal::KINDS[i]);
+                return;
+            } // r41:pedals
             _ => EffectKind::Eq,
         };
         self.add_effect(strip, kind);
@@ -1944,6 +1954,45 @@ impl CantusApp {
         views::fx::demo_setup(self, strip, effect, kind);
         self.open_effect_editor(strip, effect);
     }
+
+    /// r41:pedals — a board-only pedal pictured as it is used: Tabula on `strip`, holding
+    /// that pedal alone (its starting preset), chosen, the window open.
+    fn demo_pedal_board(&mut self, strip: StripId, kind: EffectKind) {
+        use cantus_core::fx::tabula::{Pedal, PedalId};
+        self.add_effect(strip, EffectKind::Board);
+        let Some((effect, ids)) =
+            self.project()
+                .effects_of(strip)
+                .and_then(|e| e.last())
+                .map(|e| {
+                    (
+                        e.id,
+                        e.spec.pedals().iter().map(|p| p.id).collect::<Vec<_>>(),
+                    )
+                })
+        else {
+            return;
+        };
+        for pedal in ids {
+            self.exec(Command::RemovePedal {
+                strip,
+                effect,
+                pedal,
+            });
+        }
+        self.exec(Command::InsertPedal {
+            strip,
+            effect,
+            index: 0,
+            pedal: Box::new(Pedal::new(
+                PedalId(0),
+                cantus_core::starting::starting_spec(kind),
+            )),
+            maps: Vec::new(),
+        });
+        self.open_effect_editor(strip, effect);
+        self.fx.tabula.selected = Some(PedalId(0));
+    } // r41:pedals
 
     // ---- the mix recorder ----------------------------------------------------------
 

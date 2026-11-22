@@ -391,10 +391,18 @@ fn every_native_instrument_plays_in_some_demo() {
     // A scaffold is not in the picker, nor in a demo (round 28's Chorda was, until it
     // played). Tympanum is in the picker since round 40's close, but no demo plays it until
     // the owner has judged its sound blind (BACKLOG); the list fails once a demo does.
-    const NOT_YET: &[(InstrumentKind, &str)] = &[(
-        InstrumentKind::AcousticDrums,
-        "Tympanum: its sound waits for the owner's blind listening (BACKLOG)",
-    )];
+    // Fides is in the picker since the owner approved its presets (2026-11-21, round 41);
+    // a demo that plays it changes that demo's sound and its null hash — the integrator's.
+    const NOT_YET: &[(InstrumentKind, &str)] = &[
+        (
+            InstrumentKind::AcousticDrums,
+            "Tympanum: its sound waits for the owner's blind listening (BACKLOG)",
+        ),
+        (
+            InstrumentKind::Resonator,
+            "Fides: in the picker since round 41; no demo plays it yet (a demo's sound moves)",
+        ),
+    ];
     for kind in InstrumentKind::ready_kinds() {
         match NOT_YET.iter().find(|(k, _)| *k == kind) {
             Some((_, why)) => assert!(

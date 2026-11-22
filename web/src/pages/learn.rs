@@ -280,6 +280,13 @@ pub const GROUPS: &[Group] = &[
                 ),
                 "tympanum.html",
             ),
+            top(
+                (
+                    "Fides, the resonator: plucked, bowed and struck",
+                    "Fides, el resonador: pulsado, frotado y golpeado",
+                ),
+                "fides.html",
+            ),
             m(
                 (
                     "Sounds: the browser and sound packs",

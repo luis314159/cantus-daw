@@ -395,7 +395,9 @@ impl Desk {
                 .strips
                 .iter()
                 .filter(|o| o.effects.iter().any(|e| e.sidechain == Some(s.id)))
-                .count();
+                .count()
+                // r41:key-wiring — and the instruments it keys (ADR 0154).
+                + p.tracks.iter().filter(|t| t.key() == Some(s.id)).count();
             (usize::from(s.output.is_some()) + s.sends.len() + keys) as u16
         }));
         self.sends_in.clear();
@@ -597,6 +599,12 @@ pub fn short_name(e: &EffectSlot) -> String {
         K::Ducker => "mixer.chain.cedo",               // fxb:contract
         K::Repair => "mixer.chain.purus",              // fxc:contract
         K::Reference => "mixer.chain.comparatio",      // fxc:contract
+        K::Enhancer => "mixer.chain.nitor",            // r41:contract
+        K::FragorOverdrive => "mixer.chain.fragor_od", // r41:contract
+        K::FragorOpAmp => "mixer.chain.fragor_op",     // r41:contract
+        K::FragorSilicon => "mixer.chain.fragor_si",   // r41:contract
+        K::FragorFuzz => "mixer.chain.fragor_ge",      // r41:contract
+        K::FragorMuff => "mixer.chain.fragor_mf",      // r41:contract
     };
     crate::i18n::t(key)
 }

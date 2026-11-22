@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chorda: antes y después</title>
+<style>
+:root { --bg: #f7f6f2; --fg: #1d1d1b; --muted: #5b5a55; --line: #d9d6cc; --accent: #2f5d8a; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #17181a; --fg: #ecebe6; --muted: #a8a69e; --line: #34363a; --accent: #8db6e0; }
+}
+body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px 16px; }
+main { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 1.4rem; margin: 0 0 4px; }
+p { color: var(--muted); margin: 0 0 16px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+thead th { color: var(--muted); font-weight: 600; font-size: .9rem; }
+audio { width: 100%; min-width: 180px; }
+@media (max-width: 600px) { table, tbody, tr, th, td { display: block; } thead { display: none; } td::before { color: var(--muted); font-size: .85rem; } td:nth-child(2)::before { content: "Antes (beta.16)"; } td:nth-child(3)::before { content: "Después"; } }
+</style>
+</head>
+<body>
+<main>
+<h1>__TITLE__</h1>
+<p>Pares sin ocultar: cada fila, antes (como suena hoy, beta.16) y después (cada cuerda medida y afinada). Para la prueba a ciegas abre <code>abx/index.html</code>.<br>
+Plain pairs: before (as it sounds today) and after (every string measured and tuned). The blind test is <code>abx/index.html</code>.</p>
+<table>
+<thead><tr><th>Qué</th><th>Antes (beta.16)</th><th>Después</th></tr></thead>
+<tbody>
+__ROWS__
+</tbody>
+</table>
+</main>
+</body>
+</html>

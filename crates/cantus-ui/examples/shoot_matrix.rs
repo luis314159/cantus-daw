@@ -8,12 +8,16 @@
 //!   on a cell a send would close a loop through (hatched; the hint bar says why);
 //! - `matrix-inuse`: the same with *In use* on;
 //! - `matrix-64`: sixty-four strips, many routes, *In use* by default, scrolled;
-//! - `insp-tap`: the inspector of the strip with the pre-fader send — the live switch.
+//! - `insp-tap`: the inspector of the strip with the pre-fader send — the live switch;
+//! - `matrix-fides` (r41:key-wiring, ADR 0154): the same song with a Fides track keyed from
+//!   the first track's strip, the pointer on that key's cell (the hint bar names it);
+//! - `insp-fides`: the inspector of Fides's strip, its Receives and its Sidechain open —
+//!   the key's rows.
 //!
 //! `scale` is the interface's zoom (0.75 … 2.0); the hint bar is drawn under the matrix.
 //! `CANTUS_SHOOT_KINDS=matrix,insp-tap` picks pictures; `CANTUS_SHOOT_SIZE=w,h` the size.
 
-use cantus_core::{Command, EffectKind, Send, SendTap, StripId};
+use cantus_core::{Command, EffectKind, InstrumentKind, Send, SendTap, StripId};
 use cantus_engine::EngineHandle;
 use cantus_ui::kit::{self, Style};
 use cantus_ui::raster::shoot_at;
@@ -93,6 +97,23 @@ fn scene(app: &mut CantusApp, extra: usize) -> (StripId, (StripId, StripId)) {
     (b, (reverb, bus))
 }
 
+/// r41:key-wiring — a Fides track on a strip of its own, its input keyed from `key` (ADR
+/// 0154), added through the picker as a user adds it. Returns its strip.
+fn add_fides(app: &mut CantusApp, key: StripId) -> StripId {
+    use cantus_ui::picker::{PickChoice, PickPurpose};
+    let purpose = PickPurpose::AddInstrument { index: None };
+    app.open_picker(purpose.clone());
+    app.apply_pick(purpose, PickChoice::Instrument(InstrumentKind::Resonator));
+    app.picker = None;
+    let t = app.project().tracks.last().expect("the new track");
+    let (track, strip) = (t.id, t.strip.expect("its own strip"));
+    assert!(app.exec(Command::SetTrackSidechain {
+        track,
+        source: Some(key),
+    }));
+    strip
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
@@ -129,10 +150,24 @@ fn main() {
             } else {
                 0
             };
-            let (pre, (row, col)) = scene(&mut app, extra);
+            let (pre, (mut row, mut col)) = scene(&mut app, extra);
             let path = dir.join(format!("{kind}-{theme_name}-{code}-z{zoom}.png"));
-            if kind == "insp-tap" {
-                app.select_strip(pre);
+            let fides = kind.ends_with("-fides").then(|| {
+                let key = app.project().tracks[0]
+                    .strip
+                    .expect("the first track's strip");
+                (key, add_fides(&mut app, key))
+            });
+            if let Some((key, strip)) = fides {
+                (row, col) = (key, strip);
+            }
+            if kind == "insp-tap" || kind == "insp-fides" {
+                app.select_strip(fides.map_or(pre, |(_, strip)| strip));
+                if fides.is_some() {
+                    for key in ["routing.receives.band", "inspector.sidechain"] {
+                        views::inspector::unfold(&ctx, key);
+                    }
+                }
                 let size = egui::vec2(290.0, 1320.0);
                 shoot_at(
                     &ctx,
@@ -151,7 +186,7 @@ fn main() {
                 continue;
             }
             match kind {
-                "matrix" => app.routing_view.set_in_use(false),
+                "matrix" | "matrix-fides" => app.routing_view.set_in_use(false),
                 "matrix-inuse" => app.routing_view.set_in_use(true),
                 _ => {}
             }

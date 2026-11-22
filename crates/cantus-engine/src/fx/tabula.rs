@@ -1081,6 +1081,12 @@ impl Unit {
 }
 
 impl FxUnit for Unit {
+    /// r41:contract (ADR 0153) — every pedal hears the song's key, as an insert does.
+    fn set_song_key(&mut self, key: Option<cantus_core::scale::Key>) {
+        for k in &mut self.kids {
+            k.unit.set_song_key(key);
+        }
+    }
     fn fork(&self) -> Option<Box<dyn FxUnit>> {
         // Every pedal must fork for the board to.
         let mut kids = Vec::with_capacity(ROOM);

@@ -1,6 +1,6 @@
 //! The units' long text — what each does and what stands out (`units_data.rs`'s `what` and
-//! `features`) — kept out of the WebAssembly (round 39: it was a fifth of it, and the budget
-//! is 250 KB gzipped). The pre-renderer, which has it all natively, writes it to
+//! `features`; since round 41 its one line, `pitch`, too) — kept out of the WebAssembly
+//! (round 39: it was a fifth of it, and the budget is 250 KB gzipped). The pre-renderer, which has it all natively, writes it to
 //! `/unit-text.json` beside the pages (and into their HTML); the browser fetches that once
 //! before the app starts (`main.rs`), so the app's first render matches the static page.
 //! Natively (the pre-renderer, the tests) the text is read straight from `units_data.rs`.
@@ -41,6 +41,19 @@ pub fn features(u: &Unit, l: Lang) -> Vec<String> {
             .iter()
             .map(|f| l.t(f.0, f.1).to_string())
             .collect()
+    }
+}
+
+/// Its one line: why it is worth a try (r41: out of the WebAssembly with the rest — the
+/// round's two new cards would have put it over its budget).
+pub fn pitch(u: &Unit, l: Lang) -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        browser::get(u.file, "pitch", None, l).unwrap_or_default()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        l.t(u.pitch.0, u.pitch.1).to_string()
     }
 }
 
@@ -134,10 +147,12 @@ pub fn json() -> String {
                 })
                 .collect();
             format!(
-                "{}:{{\"what\":[{},{}],\"features\":[{}],\"sounds\":[{}]}}",
+                "{}:{{\"what\":[{},{}],\"pitch\":[{},{}],\"features\":[{}],\"sounds\":[{}]}}",
                 s(u.file),
                 s(u.what.0),
                 s(u.what.1),
+                s(u.pitch.0),
+                s(u.pitch.1),
                 feats.join(","),
                 sounds.join(",")
             )
@@ -200,7 +215,7 @@ mod browser {
         })
     }
 
-    /// Fetches the text once; on any failure the units show their pitch and pictures only.
+    /// Fetches the text once; on any failure the units show their names, kinds and pictures only.
     pub async fn load() {
         use wasm_bindgen_futures::JsFuture;
         let got: Option<JsValue> = async {
@@ -243,6 +258,14 @@ mod tests {
                 u.file
             );
             assert!(!u.what.0.is_empty() && !u.features.is_empty(), "{}", u.file);
+            // r41: its one line travels too, whole in both languages.
+            assert!(
+                j.contains(&format!("\"pitch\":[\"{}\",", u.pitch.0)),
+                "{}: its pitch",
+                u.file
+            );
+            assert!(!u.pitch.0.is_empty() && !u.pitch.1.is_empty(), "{}", u.file);
+            assert_eq!(pitch(u, Lang::Es), u.pitch.1);
         }
         // Every card's excerpts, named, in the order the page lists them (the WebAssembly
         // reads them by their index).

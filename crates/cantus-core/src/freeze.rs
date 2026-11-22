@@ -157,6 +157,11 @@ pub fn region(project: &Project, target: FreezeTarget) -> Region {
             // then everything that audio is made of (review 1: a follower of a bus heard
             // silence in the render, and the bus's tracks were not locked).
             grow_by_modulators(project, &mut r, &|tgt| source_target_of(tgt) == Some(t));
+            // r41:fides-input — and the strip its instrument hears (ADR 0154), with all it is
+            // made of.
+            if let Some(k) = project.track(t).and_then(|x| x.key()) {
+                r.strips.insert(k);
+            }
             for s in r.strips.clone() {
                 let sr = region(project, FreezeTarget::Strip(s));
                 r.hears_root |= sr.tracks.contains(&t);
@@ -185,6 +190,8 @@ pub fn region(project: &Project, target: FreezeTarget) -> Region {
                     };
                     for t in project.tracks_on_strip(id) {
                         r.tracks.insert(t.id);
+                        // r41:fides-input — an instrument's key is in its sound (ADR 0154).
+                        stack.extend(t.key());
                     }
                     for o in &project.strips {
                         if o.id != id && o.feeds().any(|to| to == id) {
@@ -383,6 +390,14 @@ pub fn pre_only_senders(project: &Project, r: &Region, root: Option<StripId>) ->
         .iter()
         .filter(|s| r.strips.contains(&s.id))
         .flat_map(|s| s.effects.iter().filter_map(|e| e.sidechain))
+        // r41:fides-input — an instrument's key too (ADR 0154).
+        .chain(
+            project
+                .tracks
+                .iter()
+                .filter(|t| r.tracks.contains(&t.id))
+                .filter_map(|t| t.key()),
+        )
         .collect();
     for s in project.strips.iter().filter(|s| r.strips.contains(&s.id)) {
         if Some(s.id) == root || keyed.contains(&s.id) || r.listened.contains(&s.id) {
@@ -421,6 +436,8 @@ fn reaches_strip(project: &Project, from: StripId, to: StripId) -> bool {
         if let Some(st) = project.strip(x) {
             stack.extend(st.effects.iter().filter_map(|e| e.sidechain));
         }
+        // r41:fides-input — the key of an instrument playing into it (ADR 0154).
+        stack.extend(project.tracks_on_strip(x).filter_map(|t| t.key()));
         stack.extend(
             project
                 .strips
@@ -747,8 +764,15 @@ const STRIP_COSMETIC: &[&str] = &[
     "recall_safe",
     "solo_safe",
 ];
-/// A frozen strip's own live controls (and where it goes).
-const STRIP_LIVE: &[&str] = &["gain_db", "pan", "width", "muted", "sends", "output"];
+/// A frozen strip's own live controls (and where it goes). Its own pan law is applied with
+/// its pan, after the tap (ADR 0100 §3), so it is live with it: the guard keeps it live
+/// (`StripLevel`), and the key leaves it out — a law of `None` is never written, so only a
+/// root with a law of its own keys otherwise (and is re-keyed on load, `repair`). Seed 378
+/// of the main undo fuzz: the law set on a frozen root moved its key without a refusal.
+/// // r41:fuzz-two
+const STRIP_LIVE: &[&str] = &[
+    "gain_db", "pan", "width", "muted", "sends", "output", "pan_law",
+];
 const TRACK_COSMETIC: &[&str] = &[
     "name",
     "color",
@@ -1041,9 +1065,18 @@ fn subject_with(
     o.insert("sources".into(), Value::Array(sources));
     // Round 31 (ADR 0069): the key the region's note effects read and the pooled grooves its
     // clips play — written only where they are, so every other subject is as it was.
+    // Round 41 (ADR 0153, its review): the key the region's effects follow too — on its
+    // strips, and on the master when the whole mix is in it.
     let region_tracks = || project.tracks.iter().filter(|t| r.tracks.contains(&t.id));
     if let Some(k) = project.key {
-        if region_tracks().any(|t| crate::notefx::reads_project_key(&t.note_fx)) {
+        let effects_follow = project
+            .strips
+            .iter()
+            .filter(|s| r.strips.contains(&s.id))
+            .flat_map(|s| s.effects.iter())
+            .chain(project.master.effects.iter().filter(|_| r.whole))
+            .any(|e| e.spec.reads_song_key());
+        if effects_follow || region_tracks().any(|t| crate::notefx::reads_project_key(&t.note_fx)) {
             o.insert("key".into(), value(&k));
         }
     }
@@ -1760,6 +1793,14 @@ pub fn dormant(project: &Project, plays: &dyn Fn(FreezeTarget) -> bool) -> Dorma
                 wake_notes.push(t);
             }
         }
+        // r41:fides-input — an instrument that runs hears its key (ADR 0154).
+        for t in project.tracks.iter().filter(|t| {
+            !d.tracks.contains(&t.id) && !d.notes.contains(&t.id) && !d.sources.contains(&t.id)
+        }) {
+            if let Some(k) = t.key().filter(|k| d.strips.contains(k)) {
+                wake_strips.push(k);
+            }
+        }
         // Modulators driving anything that runs.
         let runs = |target: &AutoTarget| -> bool {
             match target {
@@ -1952,6 +1993,13 @@ pub fn region_through(project: &Project, track: TrackId, strip: StripId) -> Regi
         return r;
     };
     r.strips.insert(strip);
+    // r41:fides-input — the strip the track's instrument hears (ADR 0154).
+    if let Some(k) = project.track(track).and_then(|t| t.key()) {
+        let kr = region(project, FreezeTarget::Strip(k));
+        r.strips.extend(kr.strips);
+        r.tracks.extend(kr.tracks);
+        r.whole |= kr.whole;
+    }
     for e in &st.effects {
         if let Some(k) = e.sidechain {
             let kr = region(project, FreezeTarget::Strip(k));

@@ -539,6 +539,51 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("sync", 1.0),
             ],
         ), // fxc:comparatio
+        // r41:nitor — every part on: the Loud character at full amount (its four bands
+        // squeezed from above and below), the tonic sub, the bass's harmonics, the tightening,
+        // the lift, the three exciter bands at 4×, the level match.
+        EffectKind::Enhancer => set(
+            &mut s,
+            &[
+                ("amount", 1.0),
+                ("char", 4.0),
+                ("sub", 0.6),
+                ("submode", 1.0),
+                ("harm", 0.5),
+                ("tight", 0.6),
+                ("lift", 0.7),
+                ("xover", 120.0),
+                ("body", 0.5),
+                ("pres", 0.6),
+                ("air", 0.7),
+                ("color", 0.3),
+                ("key", 8.0),
+            ],
+        ), // r41:nitor
+        EffectKind::FragorOverdrive
+        | EffectKind::FragorOpAmp
+        | EffectKind::FragorSilicon
+        | EffectKind::FragorFuzz
+        | EffectKind::FragorMuff => {
+            // r41:pedals — the circuit in, its gain and level high and its tone low (the
+            // fuzz's battery tired), 8x, stereo, the gate on, half wet: Fragor's heavy
+            // board's settings for one circuit.
+            let i = kind.fragor_circuit().unwrap_or(0);
+            let k = cantus_core::fx::fragor_pedal::knobs(i);
+            set(
+                &mut s,
+                &[
+                    (cantus_core::fx::fragor_pedal::switch(i), 1.0),
+                    (k[0], 0.9),
+                    (k[1], 0.3),
+                    (k[2], 0.6),
+                    ("gate", -70.0),
+                    ("os", 2.0),
+                    ("mix", 0.5),
+                    ("out", -6.0),
+                ],
+            );
+        } // r41:pedals
     }
     s
 }

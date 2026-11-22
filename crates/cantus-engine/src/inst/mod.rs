@@ -28,6 +28,7 @@ pub mod chorda;
 pub mod dancer;
 pub mod epiano;
 pub mod expr_play;
+pub mod fides; // r41:contract (ADR 0150): the resonator instrument's unit — fides
 pub mod fm;
 pub mod mpe;
 pub mod organ;
@@ -206,6 +207,20 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     ) -> bool {
         let _ = par;
         self.process(left, right)
+    }
+    /// r41:fides-input — [`Self::process_par`] for a unit whose track is keyed from a strip
+    /// (ADR 0154): `input`, mono and as long as the call, is that strip's post-fader output
+    /// this segment. The same rules as `process`. Called only for a kind that takes a
+    /// sidechain (`InstrumentKind::takes_sidechain`); the default ignores it.
+    fn process_input(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        input: &[f32],
+        par: &dyn cantus_dsp::par::Parallel,
+    ) -> bool {
+        let _ = input;
+        self.process_par(left, right, par)
     }
     // ---- Round 37 (ADR 0100): instruments with several outputs. // r37:drums
 
@@ -557,6 +572,7 @@ pub fn make(kind: InstrumentKind, sample_rate: f32) -> Box<dyn InstrumentUnit> {
         InstrumentKind::Chorda => Box::new(chorda::Unit::new(sample_rate)),
         InstrumentKind::Dancer => Box::new(dancer::Unit::new(sample_rate)),
         InstrumentKind::AcousticDrums => Box::new(tympanum::Unit::new(sample_rate)), // r40:p3
+        InstrumentKind::Resonator => Box::new(fides::Unit::new(sample_rate)),        // r41:contract
     }
 }
 

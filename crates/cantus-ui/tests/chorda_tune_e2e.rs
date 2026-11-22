@@ -65,7 +65,7 @@ fn a_new_chorda_plays_the_keys_the_owner_heard_on_their_curve() {
     // The keyboard a new Chorda plays carries the technician's table.
     let reference = cantus_engine::inst::chorda::reference();
     assert_eq!(reference.tune, Voicing::default().tune);
-    assert_eq!(reference.tune, cantus_dsp::chorda::voicing::tune::TUNE);
+    assert_eq!(reference.tune, cantus_dsp::chorda::voicing::unison::TUNE);
     cantus_engine::inst::chorda::ensure(reference, 48_000.0);
 
     app.apply_pick(
@@ -153,6 +153,222 @@ fn a_new_chorda_plays_the_keys_the_owner_heard_on_their_curve() {
         assert!(
             pitch.abs() <= 1.5,
             "key {k} sounds {pitch:+.2} cents off its curve through the app"
+        );
+    }
+}
+
+/// A partial's beat as the level shows it (dB): the 3–97 % swing of its power, frames `len`
+/// long every 10 ms over `[a, b)`, about its decay's two stages (two lines in decibels, the
+/// knee where they fit best) — a beat faster than the window's few seconds swings it, the
+/// two stages of a unison's decay the lines take.
+fn swing(x: &[f64], fs: f64, hz: f64, a: usize, b: usize, len: usize) -> f64 {
+    let hop = (0.01 * fs) as usize;
+    let w = TAU * hz / fs;
+    let mut pts = Vec::new();
+    let mut s = a;
+    while s + len <= b {
+        let (mut re, mut im) = (0.0, 0.0);
+        for i in 0..len {
+            let hann = 0.5 - 0.5 * (TAU * (i as f64 + 0.5) / len as f64).cos();
+            let ph = w * (s + i) as f64;
+            re += x[s + i] * hann * ph.cos();
+            im -= x[s + i] * hann * ph.sin();
+        }
+        pts.push((
+            (s - a) as f64 / fs,
+            10.0 * (re * re + im * im + 1e-30).log10(),
+        ));
+        s += hop;
+    }
+    // The decay's trend: two straight lines in decibels meeting anywhere (a unison's two
+    // stages, the fast in-phase mode and the slow opposed one, are two slopes), the knee
+    // where they fit best.
+    let line = |s: &[(f64, f64)]| {
+        let n = s.len() as f64;
+        let (mt, md) = (
+            s.iter().map(|p| p.0).sum::<f64>() / n,
+            s.iter().map(|p| p.1).sum::<f64>() / n,
+        );
+        let num: f64 = s.iter().map(|(t, d)| (t - mt) * (d - md)).sum();
+        let den: f64 = s.iter().map(|(t, _)| (t - mt) * (t - mt)).sum();
+        let k = if den > 0.0 { num / den } else { 0.0 };
+        move |t: f64| md + k * (t - mt)
+    };
+    let mut best: Option<(f64, Vec<f64>)> = None;
+    for knee in (10..pts.len().saturating_sub(10)).step_by(5) {
+        let (a, b) = (line(&pts[..knee]), line(&pts[knee..]));
+        let res: Vec<f64> = pts
+            .iter()
+            .enumerate()
+            .map(|(i, (t, d))| d - if i < knee { a(*t) } else { b(*t) })
+            .collect();
+        let sse: f64 = res.iter().map(|r| r * r).sum();
+        if best.as_ref().is_none_or(|(e, _)| sse < *e) {
+            best = Some((sse, res));
+        }
+    }
+    let mut res = best.map(|b| b.1).unwrap_or_default();
+    res.sort_by(f64::total_cmp);
+    let q = |f: f64| res[((res.len() - 1) as f64 * f).round() as usize];
+    q(0.97) - q(0.03)
+}
+
+/// The deepest swing of partials 1–3 of each of `keys`, struck one every `gap` seconds in
+/// `mono` (48 kHz), over 0.3–3.3 s of each.
+fn swings(mono: &[f64], keys: &[u8], gap: f64, curve: &[tables::Key]) -> Vec<f64> {
+    let fs = 48_000.0;
+    keys.iter()
+        .enumerate()
+        .map(|(i, k)| {
+            let key = curve[(*k - tables::LOWEST) as usize];
+            let at = (gap * i as f64 * fs) as usize;
+            let (a, b) = (at + (0.3 * fs) as usize, at + (3.3 * fs) as usize);
+            let len = ((4.0 * fs / key.f0()) as usize).max(64);
+            (1..=3u32)
+                .map(|n| swing(mono, fs, key.partial(n), a, b, len))
+                .fold(0.0f64, f64::max)
+        })
+        .collect()
+}
+
+/// The six keys the owner named (beta.15, 2026-11-20), through the app as a new Chorda plays
+/// them, swing on partials 1–3 no more than this (dB) about their decay's two stages over
+/// 0.3–3.3 s (D3 the most, 3.2: a beat slower than one in five seconds still swings a little in
+/// three); on `DSP_VERSION` 10's voicing (the technician's pass, rendered here by the DSP
+/// itself) each swung more than twice as much (7.8–14.4 dB) — C#3's and D3's third partials
+/// beat 5.7 and 3.9 Hz, E4's 5.1.
+const SWING_DB: f64 = 4.0;
+
+#[test]
+fn a_new_chorda_plays_the_six_keys_the_owner_named_without_a_beat() {
+    use cantus_dsp::chorda::design::{Keyboard, Tuning};
+    use cantus_dsp::chorda::{Chorda, ChordaSettings};
+    let files = Files::read(data(), Some(cantus_ui::i18n::Locale::En));
+    let ctx = egui::Context::default();
+    let (engine, _proc) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::assemble(&ctx, files, None, engine, None, None, None, false);
+    let reference = cantus_engine::inst::chorda::reference();
+    cantus_engine::inst::chorda::ensure(reference, 48_000.0);
+    app.apply_pick(
+        PickPurpose::AddInstrument { index: None },
+        PickChoice::Instrument(InstrumentKind::Chorda),
+    );
+    let track = app
+        .project()
+        .tracks
+        .iter()
+        .find(|t| {
+            t.instrument
+                .native()
+                .is_some_and(|n| n.kind == InstrumentKind::Chorda)
+        })
+        .map(|t| t.id)
+        .expect("the new Chorda track");
+    // E4, C#3, D3, C3, B2, E5 — one every 4 s or so, at the lab's mezzo-forte.
+    let keys = [64u8, 49, 50, 48, 47, 76];
+    let beat = 60.0 / app.project().tempo_bpm;
+    let gap_beats = (4.0 / beat).ceil() as i64;
+    let gap = gap_beats as f64 * beat;
+    let mut clip = app.bus.new_clip(
+        "Six",
+        Ticks::ZERO,
+        Ticks::beats(gap_beats * keys.len() as i64),
+    );
+    for (i, k) in keys.iter().enumerate() {
+        let n = app.bus.new_note(
+            Ticks::beats(gap_beats * i as i64),
+            Ticks::beats(gap_beats - 1),
+            *k,
+            75,
+        );
+        clip.notes.push(n);
+    }
+    assert!(app.exec(Command::InsertClip {
+        track,
+        clip: Box::new(clip),
+    }));
+    let others: Vec<TrackId> = app
+        .project()
+        .tracks
+        .iter()
+        .map(|t| t.id)
+        .filter(|t| *t != track)
+        .collect();
+    for id in others {
+        assert!(app.exec(Command::RemoveTrack { id }));
+    }
+    let p = app.project().clone();
+    assert!(p.tempo_points.is_empty(), "one tempo");
+    let r = render(
+        Arc::new(Snapshot::compile(&p, 1)),
+        &RenderOptions {
+            tail_seconds: 0.5,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mono: Vec<f64> = r
+        .samples
+        .chunks(2)
+        .map(|c| c[0] as f64 + c[1] as f64)
+        .collect();
+    let mut curve_t = reference;
+    curve_t.tune = [0.0; tables::KEYS];
+    let curve = tables::keyboard_for(&curve_t);
+    let now = swings(&mono, &keys, gap, &curve);
+
+    // The same keys on `DSP_VERSION` 10's voicing, by the DSP itself.
+    let was_v = Voicing::technician();
+    let kb = Arc::new(Keyboard::compute(
+        was_v.tuning(Tuning::default()),
+        48_000.0,
+        8,
+    ));
+    let mut c = Chorda::new(48_000.0);
+    c.set_keyboard(kb);
+    c.set(
+        &ChordaSettings {
+            model: 2,
+            ..ChordaSettings::default()
+        },
+        0.0,
+    );
+    c.set_voicing(&was_v);
+    let fs = 48_000.0;
+    let total = (gap * keys.len() as f64 * fs) as usize;
+    let (mut l, mut rr) = (vec![0.0f32; total], vec![0.0f32; total]);
+    let mut at = 0;
+    for (i, k) in keys.iter().enumerate() {
+        let on = (gap * i as f64 * fs) as usize;
+        while at < on {
+            let end = (at + 512).min(on);
+            c.process(&mut l[at..end], &mut rr[at..end]);
+            at = end;
+        }
+        c.note_on(*k, 75.0 / 127.0, i as u64 + 1);
+    }
+    while at < total {
+        let end = (at + 512).min(total);
+        c.process(&mut l[at..end], &mut rr[at..end]);
+        at = end;
+    }
+    let was_mono: Vec<f64> = l.iter().zip(&rr).map(|(a, b)| (*a + *b) as f64).collect();
+    let was = swings(&was_mono, &keys, gap, &curve);
+    for ((k, n), w) in keys.iter().zip(&now).zip(&was) {
+        eprintln!(
+            "key {k}: swing on partials 1-3 {n:.2} dB through the app (DSP_VERSION 10: {w:.2} dB)"
+        );
+    }
+    for (k, n) in keys.iter().zip(&now) {
+        assert!(
+            *n <= SWING_DB,
+            "key {k} swings {n:.2} dB through the app: a beat"
+        );
+    }
+    for ((k, n), w) in keys.iter().zip(&now).zip(&was) {
+        assert!(
+            *w > 2.0 * *n,
+            "key {k}: DSP_VERSION 10 swung {w:.2} dB, the app {n:.2}: not the beat that was"
         );
     }
 }

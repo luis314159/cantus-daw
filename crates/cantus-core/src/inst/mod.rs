@@ -28,6 +28,7 @@ pub mod room_look; // r40:scene (ADR 0126, schema 69): the room, floor, walls an
 // The dancer (round 35, ADR 0087): a character that dances on screen, and makes no sound.
 pub mod dancer;
 pub mod epiano;
+pub mod fides; // r41:contract (ADR 0150): the resonator instrument — fides
 pub mod fm;
 pub mod modulation;
 pub mod organ;
@@ -69,6 +70,14 @@ pub enum InstrumentKind {
     /// kind-wide test (the contract twins, the null corpus and its hashes, the bench)
     /// iterates it.
     AcousticDrums,
+    /// Fides: the resonator instrument — exciters (pluck, pick, bow, mallet, noise, a live
+    /// input) into strings, bars, plates, membranes and tubes with a body (round 41, ADR
+    /// 0150; schema 78). // r41:contract
+    ///
+    /// In [`InstrumentKind::ALL`] (and so the picker) since the owner approved its sound
+    /// (2026-11-21, round 41): every kind-wide test (the contract twins, the null corpus
+    /// and its hashes, the bench, the undo fuzz's draws) iterates it.
+    Resonator,
 }
 
 macro_rules! dispatch {
@@ -84,12 +93,13 @@ macro_rules! dispatch {
             InstrumentKind::Chorda => chorda::$item $( ( $($arg),* ) )?,
             InstrumentKind::Dancer => dancer::$item $( ( $($arg),* ) )?,
             InstrumentKind::AcousticDrums => tympanum::$item $( ( $($arg),* ) )?, // r40:p3
+            InstrumentKind::Resonator => fides::$item $( ( $($arg),* ) )?, // r41:contract
         }
     };
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 10] = [
+    pub const ALL: [InstrumentKind; 11] = [
         InstrumentKind::Wavetable,
         InstrumentKind::Analog,
         InstrumentKind::Fm,
@@ -99,6 +109,7 @@ impl InstrumentKind {
         InstrumentKind::Organ,
         InstrumentKind::Chorda,
         InstrumentKind::AcousticDrums,
+        InstrumentKind::Resonator, // r41:fides — the owner's ear approved it (2026-11-21)
         InstrumentKind::Dancer,
     ];
 
@@ -122,6 +133,7 @@ impl InstrumentKind {
         match self {
             InstrumentKind::Chorda => &[("model", chorda::MODEL)],
             InstrumentKind::AcousticDrums => &[("model", tympanum::MODEL)], // r40:p3
+            InstrumentKind::Resonator => &[("model", fides::MODEL)],        // r41:contract
             _ => &[],
         }
     }
@@ -163,6 +175,8 @@ impl InstrumentKind {
             InstrumentKind::Dancer => !dancer::VIEW_KEYS.contains(&key),
             // r40:p3 — a kit's model, its room and its openness controller are set.
             InstrumentKind::AcousticDrums => !tympanum::SET_KEYS.contains(&key),
+            // r41:fides — the model a song was made with and the voices it holds are set.
+            InstrumentKind::Resonator => !fides::SET_KEYS.contains(&key),
             _ => true,
         }
     }
@@ -187,6 +201,13 @@ impl InstrumentKind {
             crate::inst_out::output_key(key),
             Some((_, crate::inst_out::OutputField::On))
         ) || matches!(tympanum::bleed_key(key), Some((_, _, "on")))
+    }
+
+    /// r41:fides-input — whether it hears another strip's audio as its input (ADR 0154): a
+    /// sidechain, chosen as an effect's key is ([`crate::model::Track::sidechain`]). Fides,
+    /// whose *Input* exciter plays it.
+    pub fn takes_sidechain(self) -> bool {
+        self == InstrumentKind::Resonator
     }
 
     /// Whether it makes sound. A dancer does not (ADR 0087): what checks an instrument's

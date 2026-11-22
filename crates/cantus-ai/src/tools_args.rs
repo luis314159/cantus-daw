@@ -429,6 +429,13 @@ pub const INSTRUMENTS: &[(&str, &str, InstrumentChoice, &str)] = &[
         InstrumentChoice::Native(InstrumentKind::AcousticDrums),
         "acoustic drummer: modelled kits with movable virtual microphones and recorded multi-mic kits, each mic its own output; pieces on General MIDI drum notes (kick 36, snare 38, closed hat 42…)",
     ),
+    // r41:fides — the resonator (ADR 0150).
+    (
+        "fides",
+        "Fides",
+        InstrumentChoice::Native(InstrumentKind::Resonator),
+        "resonator: an exciter (pluck, pick, bow, mallet, noise) into strings, bars, plates, membranes, bells, glass and tubes through a body — marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, bowed cello, struck glass; its input exciter plays another strip's sound, the track's sidechain_strip_id (set_track)",
+    ),
     (
         "dancer",
         "Saltator",
@@ -469,6 +476,7 @@ pub fn native_id(kind: InstrumentKind) -> &'static str {
         InstrumentKind::Chorda => "chorda",
         InstrumentKind::Dancer => "dancer",
         InstrumentKind::AcousticDrums => "tympanum",
+        InstrumentKind::Resonator => "fides", // r41:fides
     }
 }
 
@@ -547,6 +555,14 @@ pub fn effect_names(kind: EffectKind) -> (&'static str, &'static str) {
         K::Ducker => ("cedo", "Cedo"),                // fxb:contract
         K::Repair => ("purus", "Purus"),              // fxc:contract
         K::Reference => ("comparatio", "Comparatio"), // fxc:contract
+        K::Enhancer => ("nitor", "Nitor"),            // r41:contract
+        // r41:contract — board-only pedals (never offered as an insert, so never an id an
+        // agent inserts; named for a board's get_unit).
+        K::FragorOverdrive => ("fragor_od", "Fragor green overdrive"),
+        K::FragorOpAmp => ("fragor_op", "Fragor op-amp distortion"),
+        K::FragorSilicon => ("fragor_si", "Fragor silicon distortion"),
+        K::FragorFuzz => ("fragor_ge", "Fragor germanium fuzz"),
+        K::FragorMuff => ("fragor_mf", "Fragor triangle muff"),
     }
 }
 
@@ -626,6 +642,8 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("reference", EffectKind::Reference),          // fxc:contract
     ("reference_track", EffectKind::Reference),    // fxc:contract
     ("ab_compare", EffectKind::Reference),         // fxc:contract
+    ("enhancer", EffectKind::Enhancer),            // r41:contract
+    ("exciter", EffectKind::Enhancer),             // r41:contract
 ];
 
 /// A native effect kind offered for a new insert, by its id or one of its

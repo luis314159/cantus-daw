@@ -3743,3 +3743,44 @@ fn the_inspector_says_how_many_inserts_were_rendered_and_how_big_the_render_is()
     assert!(text.contains(&want), "{want:?} in {text}");
     assert!(text.contains("Unfreeze"), "the key says Unfreeze: {text}");
 }
+
+/// Round 41's review: Nitor following the song's key (its default) on a frozen strip — a
+/// key change is refused and said (the render was made in the old key), the frozen mix is
+/// the live one in that key, and thawed, the new key is heard.
+#[test]
+fn a_frozen_strip_with_nitor_following_the_song_refuses_a_key_change() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("nitor-key");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut nitor = p.make_effect(EffectKind::Enhancer);
+    for (k, v) in [
+        ("amount", 0.5),
+        ("sub", 1.0),
+        ("submode", 1.0),
+        ("lift", 1.0),
+    ] {
+        nitor.spec.set(k, v).unwrap();
+    }
+    assert!(nitor.spec.reads_song_key());
+    p.strip_mut(strip).unwrap().effects.push(nitor);
+    p.key = Some(Key::new(0, ScaleKind::Major));
+    app.bus = CommandBus::new(p);
+    let in_c = mix(&mut app);
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_some());
+    same_bits(&mix(&mut app), &in_c, "frozen in C");
+    let in_g = Some(Key::new(7, ScaleKind::Major));
+    assert!(!app.exec(Command::SetProjectKey { key: in_g }), "refused");
+    assert!(app.status.error);
+    assert_eq!(app.project().key, Some(Key::new(0, ScaleKind::Major)));
+    same_bits(&mix(&mut app), &in_c, "still C");
+    // Thawed, the key moves and is heard.
+    app.unfreeze_target(FreezeTarget::Strip(strip));
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_none());
+    assert!(app.exec(Command::SetProjectKey { key: in_g }));
+    let g = mix(&mut app);
+    assert_eq!(g.len(), in_c.len());
+    assert!(g != in_c, "the key is heard");
+}

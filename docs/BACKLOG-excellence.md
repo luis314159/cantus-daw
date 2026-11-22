@@ -620,6 +620,11 @@ between other pedals, beyond Fragor's three slots. Each pedal is the same DK cir
 equals Fragor with only that slot filled, to the bit; a Fragor board costs 0.25 of a core
 today, one circuit a pedal about a third of that. Needs a schema bump, the new pedal kinds
 in Tabula's table, their faces, presets and a showcase board.
+*Round 41 (`pedals`, ADR 0152):* built — the five kinds, each Fragor with only its slot
+filled to the bit (two circuits built, not ten), Fragor's keys, faces and art, 16 presets,
+the *Stacked drives* board, an end-to-end test. Open, the owner's: the faces and the new
+presets by eye and ear; and whether the five want a window of their own (Fragor's window on
+one circuit — today the strip under the board holds what a player sets).
 
 ### 3c. Pitch and time editing of recordings — a Melodyne-class editor (requested 2026-10-07) — **done in round 28** (ADR 0054), except the "later" part
 
@@ -2225,6 +2230,13 @@ the engine has neither; each is a feature of its own, with its null tests first:
   (a schema bump). The engine needs a recording tap after the strip's insert chain for the
   track's input, its latency compensated so the take lands on the grid. Tests: *Before FX*
   equals today's take to the bit; *After FX* equals the input rendered through the chain.
+- **The picker's pictures ready before the first look** (round 41, found making the launch
+  video). Each real-look thumbnail is drawn from its device's own editor a few a frame, when its
+  tile is first asked for, so on a fresh profile the tiles further down the list show their
+  card for a moment as you scroll (FL shows every picture at once). Make them during idle after
+  start-up, a few a frame at background priority, from the disk cache first; the atlas keeps one
+  page (r41/thumb-store), so warm the most-used first. Test: after the idle warm-up, opening
+  either picker and scrolling to its end shows no card; the frame budget at rest is unchanged.
 
 ## 6k. Automation with Python, and hands in front of the camera (requested 2026-11-17)
 
@@ -2791,3 +2803,19 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
 
   Run it on the paths `web/**` and the workspace files it reads. *Done when* a change to
   `web/` cannot reach master without them.
+
+- **Fides after round 41** (§3e item 6, §6l A2; ADR 0150) <!-- r41:fides -->. Round 41 built the
+  resonator: six exciters, twelve resonators, two coupled, seven bodies, MPE on the bow,
+  25 presets. What its first round leaves, each *done when* the owner hears it:
+  - **The live input** reaches the instrument: the processor hands an instrument track the
+    audio of the track its sidechain names (as an effect's key is handed), and Fides's
+    `Unit::process_input` plays it. *Done when* a voice on one track excites a Fides string
+    on another, through `CantusApp::assemble` and the real engine.
+  - **A blown exciter** (a jet into a pipe, a reed into a tube: the flute's and the
+    clarinet's nonlinearities, Fletcher & Rossing ch. 16–17) beside the bow; today a bow on a
+    tube whistles on a high mode and the pan flute is noise into a tube.
+  - **Sympathetic strings** (a harp's, a sitar's): the body's input feeding a bank of
+    undamped strings tuned to the song's key (ADR 0153 hands every unit the key).
+  - **Each preset judged "convincing in solo" by the 10-listener panel** (the owner's), and
+    a blind comparison against Chromaphone, Collision and Sculpture on the eight named
+    instruments (BACKLOG §0's scorecard).

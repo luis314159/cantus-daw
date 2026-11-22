@@ -83,6 +83,8 @@ impl Rig {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
             time: Some(self.t),
             predicted_dt: 1.0 / 60.0,
+            // A dark system: the default mode follows it (ADR 0111, amended 2026-11-20).
+            system_theme: Some(egui::Theme::Dark),
             events,
             ..Default::default()
         };
@@ -208,7 +210,8 @@ fn a_restored_theme_and_a_new_one_chosen_in_settings_paint_and_survive_a_restart
     r.click(tile.center());
     assert_eq!(r.app.appearance.dark.base, "preset:cantus_night");
     assert_eq!(r.app.appearance.light.base, "preset:cantus_paper");
-    assert_eq!(r.app.appearance.mode, Mode::Dark);
+    // A family's tile leaves the mode as it is: still the system's, dark here.
+    assert_eq!(r.app.appearance.mode, Mode::System);
     let want = redrawn::cantus_night_tokens();
     let got = tokens::current();
     assert_eq!(

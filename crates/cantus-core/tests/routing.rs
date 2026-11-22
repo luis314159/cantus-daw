@@ -1434,3 +1434,90 @@ fn a_new_bus_folds_the_tracks_reaching_it_into_a_folder_named_as_it() {
     };
     assert!(plan::new_bus(&p, &[s[1]], &[], bus, Some(taken)).is_none());
 }
+
+// ---- r41:key-wiring — an instrument's key is a route like an insert's (ADR 0154) ------
+
+#[test]
+fn a_keyed_instrument_is_an_edge_a_feeder_and_a_route_the_commands_agree_with() {
+    let (mut p, s) = desk(4);
+    let mut fides = p.make_track("Fides");
+    fides.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Resonator));
+    fides.strip = Some(s[1]);
+    let track = fides.id;
+    p.tracks.push(fides);
+    let mut plain = p.make_track("Plain");
+    plain.strip = Some(s[3]);
+    let plain_id = plain.id;
+    p.tracks.push(plain);
+    apply(
+        &mut p,
+        Command::SetStripOutput {
+            id: s[1],
+            output: Some(s[2]),
+        },
+    );
+    // Unkeyed: no edge, no feeder.
+    assert!(!routing::edges(&p)
+        .iter()
+        .any(|e| matches!(e.kind, EdgeKind::TrackKey { .. })));
+    // What route_check says is what the command does.
+    let check = |p: &Project, from: StripId, track: TrackId| {
+        let to = routing::track_end(p, track);
+        let said = p.route_check(from, to, RouteKind::TrackKey(track));
+        let does = Command::SetTrackSidechain {
+            track,
+            source: Some(from),
+        }
+        .apply(&mut p.clone())
+        .is_ok();
+        assert_eq!(
+            said.is_ok() || said == Err(RouteRefusal::AlreadyThere),
+            does,
+            "{from:?} → {track:?}: {said:?}"
+        );
+        said
+    };
+    assert_eq!(check(&p, s[1], track), Err(RouteRefusal::ToItself));
+    assert!(matches!(
+        check(&p, s[2], track),
+        Err(RouteRefusal::Loop { .. })
+    ));
+    assert_eq!(check(&p, s[0], plain_id), Err(RouteRefusal::NotKeyable));
+    assert_eq!(check(&p, s[0], track), Ok(()));
+    let before = p.clone();
+    apply(
+        &mut p,
+        Command::SetTrackSidechain {
+            track,
+            source: Some(s[0]),
+        },
+    );
+    assert_eq!(check(&p, s[0], track), Err(RouteRefusal::AlreadyThere));
+    // One edge, last, from the key to the strip the track plays into; a feeder of it.
+    let edges = routing::edges(&p);
+    assert_eq!(
+        edges.last(),
+        Some(&Edge {
+            from: s[0],
+            to: s[1],
+            kind: EdgeKind::TrackKey { track },
+        })
+    );
+    assert_eq!(p.feeders(s[1]).track_keys, vec![(s[0], track)]);
+    let route = Route::track_key(&p, s[0], track);
+    assert_eq!(route.to, s[1]);
+    // Its source moved (to a strip it may take, not to one that loops), and removed.
+    assert!(plan::move_route(&p, route, End::Source, s[2]).is_none());
+    assert!(plan::move_route(&p, route, End::Destination, s[3]).is_none());
+    let moved = applies_and_undoes(
+        &p,
+        plan::move_route(&p, route, End::Source, s[3]).expect("moves"),
+    );
+    assert_eq!(moved.track(track).unwrap().sidechain, Some(s[3]));
+    let removed = applies_and_undoes(&p, plan::remove_route(&p, route).expect("removes"));
+    assert_eq!(removed.track(track).unwrap().sidechain, None);
+    assert!(
+        removed == before,
+        "removing it gives the unkeyed project back"
+    );
+}

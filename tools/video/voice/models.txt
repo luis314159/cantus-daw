@@ -1,0 +1,33 @@
+# The models the voice tools read, pinned. Downloaded by hand (curl) into
+# F:/projects/video-work/models/<name>/, one directory each, and checked against these
+# SHA-256s before first use. Never committed (ADR 0030: big files stay out).
+
+# Chatterbox Multilingual (Resemble AI, MIT), https://huggingface.co/ResembleAI/chatterbox
+# revision 5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18 (lastModified 2026-06-10)
+# the files ChatterboxMultilingualTTS.from_pretrained asks for (chatterbox-tts 0.1.7):
+chatterbox/ve.pt                                 5698626     4b16d836bc598509860f6fa068165a8bb5e9ac84f05582dfcf278a5a372879f1
+chatterbox/t3_mtl23ls_v2.safetensors             2143989752  b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75
+chatterbox/s3gen.pt                              1057165844  9b9ff07e60b20c136e2b1b3d7563a24604e8d2c4c267888d1ee929dd0151d2a3
+chatterbox/conds.pt                              107374      6552d70568833628ba019c6b03459e77fe71ca197d5c560cef9411bee9d87f4e
+chatterbox/grapheme_mtl_merged_expanded_v1.json  69989       (not in LFS)
+chatterbox/Cangjie5_TC.json                      1920163     (not in LFS)
+
+# Whisper (OpenAI, MIT), the gate's transcriber: large-v3, from openai-whisper 20250625's
+# own URL table (the SHA-256 is the URL's path; checked by hand and by the package):
+whisper/large-v3.pt  3087371615  e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb
+# large-v3-turbo, half the memory, the Qwen run's default (qwen_run.sh WHISPER=)
+whisper/large-v3-turbo.pt  1617941637  aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a
+
+# Qwen3-TTS (Alibaba Qwen): weights Apache-2.0 (each model card's licence field), code
+# Apache-2.0 (github.com/QwenLM/Qwen3-TTS LICENSE; the qwen-tts 0.1.1 package on PyPI).
+# Only built-in and designed voices are used; the Base model speaks a designed (synthetic)
+# voice's reference clip, never a person's recording. fetch_models.sh downloads them.
+# Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice, revision 0c0e3051f131929182e2c023b9537f8b1c68adfe
+qwen3-tts-1.7b-customvoice/model.safetensors                   3833402552  38b1d5971bdbd982b561cccec982669a53b0537c3cf5e9bd4778ed07bb2f5137
+qwen3-tts-1.7b-customvoice/speech_tokenizer/model.safetensors  682293092   836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258
+# Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign, revision 5ecdb67327fd37bb2e042aab12ff7391903235d3
+qwen3-tts-1.7b-voicedesign/model.safetensors                   3833402552  391e8db219f292c515297cdceeb43e4eae67cdde35fa57e79a6a8a532fca0522
+qwen3-tts-1.7b-voicedesign/speech_tokenizer/model.safetensors  682293092   836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258
+# Qwen/Qwen3-TTS-12Hz-1.7B-Base, revision fd4b254389122332181a7c3db7f27e918eec64e3
+qwen3-tts-1.7b-base/model.safetensors                          3857413744  38fc7fc51c5e776e840414b6fd443962e9411b9654888fd7913e4da643cb857c
+qwen3-tts-1.7b-base/speech_tokenizer/model.safetensors         682293092   836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258

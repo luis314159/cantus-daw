@@ -1161,7 +1161,7 @@ fn paint_drag(
             let g = match route.kind {
                 RouteKind::Output => Gesture::Output,
                 RouteKind::Send => Gesture::Send,
-                RouteKind::Key(_) => Gesture::Key,
+                RouteKind::Key(_) | RouteKind::TrackKey(_) => Gesture::Key,
             };
             let gone = over.is_none();
             let bufs = (&mut v.drag.pts, &mut v.drag.tmp);

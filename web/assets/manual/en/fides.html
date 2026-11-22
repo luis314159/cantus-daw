@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fides, the resonator</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="fides-the-resonator">Fides, the resonator</h1>
+<p><em>Cantus 0.1.0-beta.17 · <a href="../es/fides.html">Leer en español</a> · back to the <a href="index.html">manual</a></em></p>
+<p>Fides makes sound the way acoustic instruments do: something <strong>excites</strong> an object — a finger plucks it, a pick snaps it, a bow drags it, a mallet strikes it, noise blows on it — and the object <strong>resonates</strong>: a string, a bar, a tine, a plate, a membrane, a tube, a bell, a glass. A <strong>body</strong> radiates what it rings with. Nothing is sampled: every note is computed from the physics as you play, so it answers to how hard, where and how long you play it, and it never repeats a recording. Marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, a bowed cello and glass are its first presets; the family goes further (bells, gongs, timpani, a hammered dulcimer, a pan flute, bowed pads, rain on glass).</p>
+<p>Its name is the Latin for the strings of a lyre — a stringed instrument — and for faith.</p>
+<p><strong>Add it</strong> from the device picker (the <strong>+</strong> above the track headers, its <em>Keys</em> shelf, and <em>Other instruments</em>). A new Fides plays a plucked nylon string in a guitar's body.</p>
+<h2 id="the-play-view">The Play view</h2>
+<p><strong>The picture</strong> (left) is the instrument as it is set: the resonator drawn as a plan — a string between its bridge (left) and its nut, a bar with the nodes of its first mode dashed, a tine from its clamp, a plate, a drumhead seen from above with the radius it is struck along, a tube (closed at the right when it is one), a bell, a glass, a pan — the exciter drawn where it plays it, and the microphone's ring where a modal object is heard from. <strong>Drag across it</strong> to move where it is played: the partials below follow.</p>
+<p>Under it, <strong>the partials</strong>: each a line at its frequency over the fundamental (×1, ×2, ×4 … on a log axis), as tall as the strike excites it where it is played. A string's are its harmonics with the gaps the position cuts (play it at a fifth of the length and every fifth harmonic is gone); a bar's are its stretched modes (×2.76, ×5.40 …); a marimba bar's are tuned to two octaves and three octaves and a third. While a note sounds they light with what the newest voice rings.</p>
+<p><strong>The exciter</strong> (right): its six kinds, the knobs that kind has, and where it plays.</p>
+<table>
+<tr><th>Exciter</th><th>What it is</th><th>Its knobs</th></tr>
+<tr><td><strong>Pluck</strong></td><td>a fingertip letting go: the partials fall as 1/n from the first</td><td>Contact (ms: a fingertip 0.6–1.5, a thumb's flesh 2–3), Velocity tone, Strike noise (a nail), Tone, Level</td></tr>
+<tr><td><strong>Pick</strong></td><td>a plectrum: a quarter of the contact, with its scrape</td><td>the same</td></tr>
+<tr><td><strong>Bow</strong></td><td>a bow drawn across, by a friction curve: the string sticks and slips (Helmholtz motion)</td><td>Pressure, Bow speed, Attack, Lift, Level</td></tr>
+<tr><td><strong>Mallet</strong></td><td>a power-law spring's force pulse (the Hunt–Crossley contact, p = 2.5): harder is shorter and brighter</td><td>Contact (a yarn mallet 1.5–3 ms, rubber 0.5–1, brass 0.2), Velocity tone, Strike noise (felt), Tone, Level</td></tr>
+<tr><td><strong>Noise</strong></td><td>band-passed noise through its own envelope — breath, wind, rain (Density below 100 % makes it grains)</td><td>Colour, Width, Density, Attack, Release</td></tr>
+<tr><td><strong>Input</strong></td><td>a track's audio into the resonator</td><td>Level, Attack, Lift, Tone</td></tr>
+</table>
+<p><strong>Position</strong> is where it is played, as a fraction of the length from the end the picture draws at the left: a string's bridge, a bar's end, a tine's tip, a membrane's rim, a bell's lip. Near the end is thin and bright; the middle is round. <strong>Noise</strong> lays the noise generator under any exciter (a bow's rosin, a mallet's felt).</p>
+<p><strong>The resonator</strong> (below): twelve kinds.</p>
+<table>
+<tr><th>Resonator</th><th>What it is</th></tr>
+<tr><td><strong>String</strong></td><td>a waveguide string (Gravis's tuning maths): its loss lumped at the bridge, its stiffness as allpasses — <em>Inharmonicity</em> stretches its partials as a piano's</td></tr>
+<tr><td><strong>Bar</strong></td><td>a free–free bar (a xylophone's untuned, a glockenspiel's): modes at 1, 2.76, 5.40, 8.93 …</td></tr>
+<tr><td><strong>Marimba bar</strong></td><td>a bar undercut to tune its partials to 1 : 4 : 9.2</td></tr>
+<tr><td><strong>Tine</strong></td><td>a bar clamped at one end (a kalimba's, a music box's, a celesta's): 1, 6.27, 17.5</td></tr>
+<tr><td><strong>Plate</strong></td><td>a rectangular plate's modes (a gong's, a thunder sheet's)</td></tr>
+<tr><td><strong>Membrane</strong></td><td>an ideal drumhead: the Bessel zeros (1, 1.59, 2.14, 2.30 …)</td></tr>
+<tr><td><strong>Drumhead</strong></td><td>a kettledrum's head, tuned by the air under it (1, 1.5, 2, 2.44 …)</td></tr>
+<tr><td><strong>Tube</strong></td><td>a tube closed at one end (a pan flute's): odd harmonics</td></tr>
+<tr><td><strong>Pipe</strong></td><td>a pipe open at both ends: every harmonic, its lows radiated less</td></tr>
+<tr><td><strong>Bell</strong></td><td>a tuned church bell's partials (hum, prime, tierce, quint, nominal …)</td></tr>
+<tr><td><strong>Glass</strong></td><td>a wine glass's ring modes</td></tr>
+<tr><td><strong>Pan</strong></td><td>a steel-pan note: fundamental, octave and twelfth tuned</td></tr>
+</table>
+<p><strong>Decay</strong> is how long the fundamental rings (T60, the time to fall 60 dB). <strong>Material</strong> is how the highs die: wood's die at once, glass's and metal's ring as long as the fundamental. <strong>Inharmonicity</strong> stretches (or squeezes) the partials. <strong>Listen</strong> is where a modal object is heard from (the microphone's ring).</p>
+<p><strong>The body</strong>: None, Guitar (its air mode near 98 Hz and its top's modes), Violin (its signature modes and the bridge hill near 2.5 kHz), Cello, Harp (its soundbox and soundboard), Box (a kalimba's), Shell (a drum's or a pan's skirt) — with its <strong>mix</strong>, <strong>size</strong> (a bigger body lowers its modes) and <strong>ring</strong>.</p>
+<p><strong>Output</strong>: Release (how fast the resonators are damped when you let go: 60 s lets them ring as a marimba's bars do), Width (voices spread across the stereo by key) and Gain.</p>
+<h2 id="the-edit-view">The Edit view</h2>
+<p>Every part as a card: the picture and the exciter; <strong>Resonator A</strong> and <strong>Resonator B</strong> (B's lamp turns it on), each with every knob — <em>Key decay</em> (how much faster a note an octave up dies), <em>Partials</em> (how many modes a modal object plays: fewer is lighter on the CPU), <em>Tune</em> and <em>Fine</em> (B against A), <em>Key track</em> (0 % holds the resonator's pitch whatever the key: a drum); the <strong>coupling</strong> — <em>Parallel</em> (the exciter into both) or <em>A into B</em> (A drives B, as a marimba's bar drives the tube under it) and what is heard of each; the <strong>bow and MPE</strong>; the <strong>noise</strong> with its envelope; the <strong>body</strong>; <strong>vibrato</strong> (depth in cents, rate, a delay before it starts) and <strong>tremolo</strong> (its phase the song's clock, as a vibraphone's motor); the <strong>output</strong> with its low and high cuts; the <strong>voice</strong> — Poly, Mono or Legato, <em>Strike again</em> (on: a key struck while it rings strikes the same resonator again, as a real bar or string; off: a new voice), Voices, Glide, Bend range, Octave, Transpose, Fine, A4, Velocity, Release and the Seed of its noise.</p>
+<h2 id="playing-it">Playing it</h2>
+<ul>
+<li><strong>Velocity</strong> sets how hard the strike is: louder and, by <em>Velocity tone</em>, a shorter contact (brighter), as a faster mallet's is.</li>
+<li><strong>MPE</strong>: a note's <strong>pressure</strong> presses the bow (<em>MPE pressure</em>: how much; with Noise or Input it raises the level), its <strong>slide</strong> moves where it is played (<em>MPE slide</em>), its <strong>pitch bend</strong> bends it. A non-MPE controller's aftertouch, wheel and expression are modulation sources.</li>
+<li><strong>Pitch</strong> is exact: the waveguide's loops and filters are solved for the fundamental, and the modes are set by their angles — measured within 0.002 cent at every bend.</li>
+<li><strong>The sustain pedal</strong> holds released notes, as a vibraphone's damper bar.</li>
+</ul>
+<h2 id="the-presets">The presets</h2>
+<p>Marimba · Vibraphone · Kalimba · Steel pan · Harp · Nylon guitar · Bowed cello · Struck glass · Glass harmonica · Xylophone · Glockenspiel · Celesta · Music box · Bell · Timpani · Frame drum · Hammered dulcimer · Banjo · Pizzicato · Bowed strings pad · Bowed vibraphone · Pan flute · Rain on glass · Gong · Crystal pluck. Each has four macros: <strong>1</strong> how hard (the contact, the bow's pressure, the noise's colour), <strong>2</strong> the decay, <strong>3</strong> the body, <strong>4</strong> where it is played.</p>
+<h2 id="what-it-costs">What it costs</h2>
+<p>A plucked or bowed string is a few dozen operations a sample; a modal object one complex multiplication a partial (48 at most). Its voices split across the engine's threads with the bits of one (ADR 0038). The <em>Partials</em> knob is the price of a modal voice.</p>
+</main>
+</body>
+</html>

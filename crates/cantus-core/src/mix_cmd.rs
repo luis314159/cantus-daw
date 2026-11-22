@@ -60,6 +60,15 @@ pub enum MixCommand {
         id: GroupId,
         vca: Option<StripId>,
     },
+    /// A group's VCA put back at `index` of the list, where it was: the inverse of taking it
+    /// away with `SetGroupVca { vca: None }` (exact, ADR 0004 — the list's order is the
+    /// project's; seed 481 of the main undo fuzz found it appended). Its own inverse takes it
+    /// away again. // r41:fuzz-two
+    InsertGroupVca {
+        index: usize,
+        id: GroupId,
+        vca: StripId,
+    },
     /// A recall of everything leaves the channel alone.
     SetRecallSafe {
         id: StripId,
@@ -85,7 +94,7 @@ impl MixCommand {
             RemoveCue { .. } => "cmd.mix.remove_cue",
             SetCue { .. } => "cmd.mix.set_cue",
             SetStripVcas { .. } => "cmd.mix.set_vcas",
-            SetGroupVca { .. } => "cmd.mix.set_group_vca",
+            SetGroupVca { .. } | InsertGroupVca { .. } => "cmd.mix.set_group_vca",
             SetRecallSafe { .. } => "cmd.mix.set_safe",
             SetSoloSafe { .. } => "cmd.mix.set_solo_safe",
         }
@@ -252,7 +261,32 @@ pub fn apply(c: MixCommand, project: &mut Project) -> Result<Command, CommandErr
                 project.mix.group_vcas = before;
                 return Err(invalid("vca cycle"));
             }
-            inv(SetGroupVca { id, vca: old })
+            match (at, old, vca) {
+                // Taken away: put back where it was, not at the end. // r41:fuzz-two
+                (Some(index), Some(vca), None) => inv(InsertGroupVca { index, id, vca }),
+                _ => inv(SetGroupVca { id, vca: old }),
+            }
+        }
+        InsertGroupVca { index, id, vca } => {
+            if project.strip_group(id).is_none() {
+                return Err(CommandError::GroupNotFound(id));
+            }
+            if !project.is_vca(vca) {
+                return Err(invalid("vca"));
+            }
+            if project.mix.group_vca(id).is_some() {
+                return Err(invalid("group has a vca"));
+            }
+            let len = project.mix.group_vcas.len();
+            if index > len {
+                return Err(CommandError::IndexOutOfRange { index, len });
+            }
+            project.mix.group_vcas.insert(index, (id, vca));
+            if project.vca_cycle() {
+                project.mix.group_vcas.remove(index);
+                return Err(invalid("vca cycle"));
+            }
+            inv(SetGroupVca { id, vca: None })
         }
         SetRecallSafe { id, safe } => {
             let s = project
@@ -361,7 +395,7 @@ pub fn touches(c: &MixCommand, project: &Project) -> Vec<Touch> {
         // Who follows a VCA changes the fader stage of a bus's inputs (a freeze region's
         // strips): the mix of everything whose VCAs change (review 1, item 1).
         SetStripVcas { id, .. } => followers(project, &[*id]),
-        SetGroupVca { id, .. } => {
+        SetGroupVca { id, .. } | InsertGroupVca { id, .. } => {
             let ids: Vec<StripId> = project.strips_in_group(*id).map(|s| s.id).collect();
             followers(project, &ids)
         }

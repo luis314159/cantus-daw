@@ -109,6 +109,8 @@ pub mod fxd_xy; // fxd
 pub mod lenis;
 /// Loquax, the vocoder (fx side round, wave A). // fxa:contract
 pub mod loquax;
+/// Nitor, the one-knob enhancer (round 41, ADR 0151). // r41:contract
+pub mod nitor;
 /// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
 /// The pedals' artwork: textures, illustrations, lettering. // fx:fragor
 pub mod pedal_art;
@@ -196,6 +198,7 @@ pub struct FxEditors {
     pub lenis: lenis::State,           // fxb:contract
     pub cedo: cedo::State,             // fxb:contract
     pub purus: purus::State,           // fxc:contract
+    pub nitor: nitor::State,           // r41:contract
     pub comparatio: comparatio::State, // fxc:contract
     pub delay: delay::State,           // r39:delay
     /// The X-Y pad's and the formula controller's window (fxd step 3).
@@ -566,6 +569,7 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::ResonanceSuppressor => lenis::FACTORY_PRESETS, // fxb:contract
         EffectKind::Ducker => cedo::FACTORY_PRESETS, // fxb:contract
         EffectKind::Repair => purus::FACTORY_PRESETS, // fxc:contract
+        EffectKind::Enhancer => nitor::FACTORY_PRESETS, // r41:contract
         EffectKind::Reference => comparatio::FACTORY_PRESETS, // fxc:contract
         EffectKind::Delay => delay::FACTORY_PRESETS, // r39:delay
         _ => &[],
@@ -688,6 +692,7 @@ pub enum Editor {
     Lenis(Box<lenis::State>),           // fxb:contract
     Cedo(Box<cedo::State>),             // fxb:contract
     Purus(Box<purus::State>),           // fxc:contract
+    Nitor(Box<nitor::State>),           // r41:contract
     Comparatio(Box<comparatio::State>), // fxc:contract
     Delay(Box<delay::State>),           // r39:delay
 }
@@ -736,6 +741,7 @@ impl Editor {
             EffectKind::ResonanceSuppressor => Some(Editor::Lenis(Box::default())), // fxb:contract
             EffectKind::Ducker => Some(Editor::Cedo(Box::default())), // fxb:contract
             EffectKind::Repair => Some(Editor::Purus(Box::default())), // fxc:contract
+            EffectKind::Enhancer => Some(Editor::Nitor(Box::default())), // r41:contract
             EffectKind::Reference => Some(Editor::Comparatio(Box::default())), // fxc:contract
             EffectKind::Delay => Some(Editor::Delay(Box::default())), // r39:delay
             _ => None,
@@ -785,6 +791,7 @@ impl Editor {
             Editor::Lenis(st) => lenis::editor(host, st, ui), // fxb:contract
             Editor::Cedo(st) => cedo::editor(host, st, ui), // fxb:contract
             Editor::Purus(st) => purus::editor(host, st, ui), // fxc:contract
+            Editor::Nitor(st) => nitor::editor(host, st, ui), // r41:contract
             Editor::Comparatio(st) => comparatio::editor(host, st, ui), // fxc:contract
             Editor::Delay(st) => delay::editor(host, st, ui), // r39:delay
         }
@@ -843,6 +850,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::Ducker // fxb:contract
         | EffectKind::Repair // fxc:contract
         | EffectKind::Reference // fxc:contract
+        | EffectKind::Enhancer // r41:contract
         | EffectKind::Delay // r39:delay
         | EffectKind::External => {
             let mut pos = app.fx.pos;
@@ -901,6 +909,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::ResonanceSuppressor => lenis::framed(app, ui, strip, effect), // fxb:contract
                     EffectKind::Ducker => cedo::framed(app, ui, strip, effect), // fxb:contract
                     EffectKind::Repair => purus::framed(app, ui, strip, effect), // fxc:contract
+                    EffectKind::Enhancer => nitor::framed(app, ui, strip, effect), // r41:contract
                     EffectKind::Reference => comparatio::framed(app, ui, strip, effect), // fxc:contract
                     EffectKind::Delay => delay::framed(app, ui, strip, effect), // r39:delay
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
@@ -959,6 +968,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::ResonanceSuppressor => lenis::preview(ui, spec), // fxb:contract
         EffectKind::Ducker => cedo::preview(ui, spec), // fxb:contract
         EffectKind::Repair => purus::preview(ui, spec), // fxc:contract
+        EffectKind::Enhancer => nitor::preview(ui, spec), // r41:contract
         EffectKind::Reference => comparatio::preview(ui, spec), // fxc:contract
         EffectKind::Delay => delay::preview(ui, spec), // r39:delay
         _ => {
@@ -1011,6 +1021,7 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::ResonanceSuppressor => lenis::demo_setup(app, strip, effect), // fxb:contract
         EffectKind::Ducker => cedo::demo_setup(app, strip, effect), // fxb:contract
         EffectKind::Repair => purus::demo_setup(app, strip, effect), // fxc:contract
+        EffectKind::Enhancer => nitor::demo_setup(app, strip, effect), // r41:contract
         EffectKind::Reference => comparatio::demo_setup(app, strip, effect), // fxc:contract
         EffectKind::Delay => delay::demo_setup(app, strip, effect), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
@@ -1061,6 +1072,7 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::ResonanceSuppressor => lenis::demo_feed(app), // fxb:contract
         EffectKind::Ducker => cedo::demo_feed(app), // fxb:contract
         EffectKind::Repair => purus::demo_feed(app), // fxc:contract
+        EffectKind::Enhancer => nitor::demo_feed(app), // r41:contract
         EffectKind::Reference => comparatio::demo_feed(app), // fxc:contract
         EffectKind::Delay => delay::demo_feed(app), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),

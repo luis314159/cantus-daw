@@ -110,6 +110,11 @@ routing.receives.key_tip = Click: open the effect · right-click: this route's m
 routing.menu.row_output = Output → {to}
 routing.menu.row_send = Send → {to}
 routing.menu.row_key = Key ← {from} on {effect}
+# r41:key-wiring — an instrument's key (ADR 0154): Fides hears another strip as its input.
+routing.track_key.input = {track}'s input
+routing.menu.open_keyed_instrument = Open the keyed instrument
+routing.receives.track_key = {track}, input ← key
+routing.receives.track_key_tip = Click: open the instrument · right-click: this route's menu
 
 # Click mode (the owner's answer 2): a click on a port or the ▼ chip arms a route; the next
 # click on a strip makes it.

@@ -36,6 +36,7 @@
 - [Round 33: Ableton core](round-33.md) — session view, Link (GPL cantus-link), clock/MTC, MPE; schema 47; Win 5 137 + Linux 5 120; beta.8 released 2026-10-30 (Win+Linux); next = round 34 AI
 - [Decision: round 35 = dancing character](decision-round35-dancer.md) — owner 2026-10-29 left it to me: §6i whole in round 35, after round 34 (AI)
 - [Round 34: AI](round-34.md) — MCP server, 63 tools, mastering, stems, audio to MIDI; Win 5 590 + fuzz 985; beta.9; next = round 35 dancer
+- [Owner's Claude API key](reference-anthropic-key.md) — in Windows Credential Manager (target cantus-daw); never in repo/memory/logs; ask before spending
 - [Dancer quality bar](feedback-dancer-quality.md) — owner 2026-10-31: characters super professional and fun; show GIF previews before done
 - [Round 35: the dancer](round-35.md) — §6i done; beta.10 released 2026-11-02 (Win+Linux); Win 5 972 + Linux 5 934; next = round 36 the professional studio (docs/next-session.md)
 - [Showcase must sell](feedback-showcase-sell.md) — owner 2026-11-03: web + README sell instruments/effects (click for detail, big pictures) and new features strongly, honestly
@@ -45,11 +46,20 @@
 - [Decision: round 39 = UX + graphics](decision-round39-ux-graphics.md) — owner 2026-11-08: all UX/graphics; a dedicated design agent draws every element by hand from blank sheets, owner approves; dancer off at start (r38)
 - [Round 38: at rest + Chorda scene](round-38.md) — beta.13 released 2026-11-09; quiet scorecard won window/quiet/rest vs REAPER and FL, memory lost; next = round 39 UX/graphics (docs/next-session.md)
 - [More agents for round 39](feedback-more-agents-r39.md) — owner 2026-11-09: several agents per visual aspect + more on pending items; cargo builders still ~3 (RAM); never during perf measurement
-- [Decision: Slate is the default look](decision-slate-default.md) — owner 2026-11-09 chose direction A Slate; icons set 1 rejected: more elegant, compare with FL and other DAWs; logo #03 default; Slate Lapis optional; dancers off site/README
+- [Decision: Slate is the default look](decision-slate-default.md) — owner 2026-11-09 chose direction A Slate; 2026-11-18 Slate LAPIS made the default; icons set 1 rejected: more elegant, compare with FL and other DAWs; logo #03 default; Slate Lapis optional; dancers off site/README
 - [Round 39: UX + graphics](round-39.md) — Slate + kit + icons + every view redrawn, 24 themes, Delay window, Aula, memory 237→140 MB private quiet (still behind REAPER/FL); schema 61; closed as beta.14; next = docs/next-session.md (round 40)
 - [Themes must be legible](feedback-themes-legible.md) — every theme easy to work/read; measured non-text 3:1 + text 4.5:1 across all themes
 - [Decision: Chorda as good as Salamander](decision-chorda-like-salamander.md) — owner 2026-11-12: round 40 first; his ABX baseline 0–7 vs Salamander, bass worse than model 1
 - [Decision: round 39 answers](decision-round39-answers.md) — owner 2026-11-12 answered the 22: dock at edge, configurable maximise/top bar, mute in colour, pad mixer track like FL, softer Bordeaux/Pewter, Delay sync+plug-in; no legal review
-- [Round 40: Chorda, Tympanum, pictures, mixer bands](round-40.md) — on master bcc241f5 + thumb fix ad3afa0b + Tympanum polish 3ff4d75b + Chorda chip 477cb6b4 (pushed private): c16 default (DSP 7), Tympanum in picker, schema 71, Win 7 183 / Linux 7 142; owner ABX of c16 (https://claude.ai/artifact/Jpwa91Tz4V8rbcRrgiXMKg) + Tympanum ABX in BACKLOG; no beta.15 yet
-- [FX side round](fx-side-round.md) — 2nd session from 2026-11-13: 19 effects/controllers + issue #1 fixes + bus Ctrl+G + multi-monitor in C:\projects\daw-fx; fx/final integrates in parallel; master+push+site when all done (no public repo/tag)
-- [Release lessons (beta.15)](feedback-release-lessons.md) — rehearse the 3-OS matrix with --no-fail-fast before tagging; ratio timing gates; no fs-order or shared-folder test assumptions; docs/RELEASING.md + preflight enforce it
+- [Round 40: Chorda, Tympanum, pictures, mixer bands](round-40.md) — beta.15 PUBLISHED 2026-11-20 14:23Z Win+Linux (public 19fcc455; macOS → beta.16, Fragor synth_fuzz CPU); r41 effect-ids (ADR 0149) + chorda-strings + release-lessons merged, private master 7b287c39 (STATUS merged); owner listening + disk cleanup (needs OK) pending
+- [FX side round](fx-side-round.md) — cantus-03's session (C:\projects\daw-fx, F:\projects\daw-fx-d — its own, it cleaned them 2026-11-20); shipped in beta.15
+- [Release lessons (beta.15)](feedback-release-lessons.md) — rehearse the 3-OS matrix with --no-fail-fast before tagging; ratio timing gates; no fs-order or shared-folder test assumptions
+- [GitHub token for cantus-daw](reference-github-token.md) — Credential Manager target cantus-daw-github, used via ~/.cantus-tools/gh-api.ps1 (logs, re-runs, variables); never print it; decisions still need the owner
+- [Decision: video in Lapis Night with Onda](decision-video-onda-lapis.md) — owner 2026-11-20: launch video dark theme only, Onda simple groove; Chatterbox not F5-TTS (NC); plan on r41/video-plan
+- [Decision: round 41 content](decision-round41-content.md) — owner 2026-11-20: resonators + one-knob enhancer + Fragor pedals in Tabula; microtuning to r42; AppImage dual-name rename in beta.16
+- [Decision: Cantus packs always free](decision-packs-always-free.md) — owner 2026-11-20: Cantus's own sound packs free forever; third parties may sell theirs; launch video uses stock voice now, his cloned voice later
+- [Tools go in the repo](feedback-tools-in-repo.md) — owner 2026-11-20: every session tool (tests, release, video) committed under tools/ and named in DEVELOPING §4
+- [Round 41: beta.16 + Fides, Nitor, Fragor pedals](round-41.md) — beta.16 PUBLISHED 2026-11-22 (Win+Linux+macOS; tag daf3d22f after 4 rehearsals); r41/integration holds round 41 (approved by ear), Win suite 8 278 green; WSL check + master merge pending
+- [Name pronunciation](reference-name-pronunciation.md) — Chorda = KOR-da (ch = k); Cantus KAN-tus, Tympanum TIM-pa-num; for narration/TTS
+- [ElevenLabs (Starter)](reference-elevenlabs.md) — owner bought Starter 2026-11-21 for the video voice; key in Credential Manager target cantus-elevenlabs; not usable for sound packs
+- [Owner delegates: decide for excellence](decision-owner-delegates-excellence.md) — 2026-11-22: pending choices are mine by the excellence bar; ask only for his accounts/money/admin/legal; decisions taken for video + Fides

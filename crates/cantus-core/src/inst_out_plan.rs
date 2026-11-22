@@ -284,6 +284,7 @@ fn to_main(project: &Project, track: TrackId, outputs: &[OutputView]) -> Result<
                 .any(|x| x.strip == Some(s) || x.feeds_through_bus(s))
                 || after.strips.iter().any(|x| x.feeds().any(|to| to == s))
                 || after.strips.iter().any(|x| x.keys().any(|k| k == s))
+                || after.tracks.iter().any(|x| x.sidechain == Some(s)) // r41:fides-input
                 || after.strips.iter().any(|x| x.vcas.contains(&s))
                 || after.master.effects.iter().any(|e| e.sidechain == Some(s));
             if !used {

@@ -315,7 +315,8 @@ fn mute_solo(sh: &mut Sheet<'_>, m: &MixerStrip) {
 
 /// Sidechain (des-mixer): for each keyed insert, *Key into* (the key glyph, the unit, its
 /// place in the chain) and *From* (the source's colour as a 6-pt square, its name; a list
-/// that keys it from another strip).
+/// that keys it from another strip) — and for each instrument playing into it that takes
+/// an input (Fides, ADR 0154), *Key into* its input and *From*, the strips its command takes.
 pub fn sidechain(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
     use super::look::Lead;
     use crate::kit::glyph_mixer::MGlyph;
@@ -323,25 +324,87 @@ pub fn sidechain(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
         return;
     };
     let keyed: Vec<_> = m.effects.iter().filter(|e| e.sidechain.is_some()).collect();
+    // r41:key-wiring — the instruments on it that hear an input, keyed or not.
+    let p = app.project();
+    let inputs: Vec<_> = p
+        .tracks_on_strip(m.id)
+        .filter(|t| t.instrument.takes_sidechain())
+        .collect();
     let state = sheet::name(sh.fmt.get(
         cache::key(("insp-key-state", m.id)),
         app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60),
-        |b| match keyed.first().and_then(|e| e.sidechain) {
-            Some(src) => super::strip_label(app, src, b),
-            None => b.push_str(&crate::i18n::t("inspector.none")),
+        |b| {
+            match keyed
+                .first()
+                .and_then(|e| e.sidechain)
+                .or_else(|| inputs.iter().find_map(|t| t.key()))
+            {
+                Some(src) => super::strip_label(app, src, b),
+                None => b.push_str(&crate::i18n::t("inspector.none")),
+            }
         },
     ));
     if !sh.fold("inspector.sidechain", false, &state) {
         return;
     }
     sh.band("inspector.sidechain", Function::Dynamics, None, false, None);
+    let stamp = app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60);
+    for t in &inputs {
+        let input = sheet::name(
+            sh.fmt
+                .get(cache::key(("insp-key-input", t.id)), stamp, |b| {
+                    b.push_str(&crate::views::route_menu::track_input_label(app, t.id))
+                }),
+        );
+        let row = sh.field_row();
+        sh.label(row.label, "inspector.key_into", false);
+        super::look::field(
+            sh.b,
+            &sh.s,
+            row.value,
+            crate::kit::State::REST,
+            Lead::Mixer(MGlyph::Key),
+            &input,
+            "",
+            false,
+        );
+        let src = t.key();
+        let from = sheet::name(sh.fmt.get(
+            cache::key(("insp-key-tfrom", t.id)),
+            stamp,
+            |b| match src {
+                Some(src) => super::strip_label(app, src, b),
+                None => b.push_str(&crate::i18n::t("inspector.none")),
+            },
+        ));
+        let color = src
+            .and_then(|id| {
+                let st = &p.strips[p.strip_index(id)?];
+                st.color.or_else(|| {
+                    p.tracks
+                        .iter()
+                        .find(|t| t.strip == Some(id))
+                        .map(|t| t.color)
+                })
+            })
+            .map(crate::theme::track_color);
+        sh.menu_row_with(
+            "inspector.key_from",
+            color.map_or(Lead::None, Lead::Swatch),
+            &from,
+            "",
+            super::MenuId::TrackSidechain(t.id),
+            false,
+        );
+    }
     if keyed.is_empty() {
+        if !inputs.is_empty() {
+            return;
+        }
         let none = crate::i18n::t("inspector.none");
         sh.text_row("inspector.key_from", &none, false, true);
         return;
     }
-    let p = app.project();
-    let stamp = app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60);
     for e in keyed {
         let place = m.effects.iter().position(|x| x.id == e.id).unwrap_or(0) + 1;
         let unit = sheet::name(sh.fmt.get(cache::key(("insp-key-unit", e.id)), stamp, |b| {

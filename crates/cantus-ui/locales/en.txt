@@ -540,6 +540,7 @@ inspector.strip = Mixer strip
 inspector.strip_n = Strip {n}
 inspector.strip_master = This track goes straight to the master. Route it to a strip to give it inserts.
 cmd.set_track_strip = route track
+cmd.set_track_sidechain = instrument input
 cmd.insert_strip = add mixer strip
 cmd.remove_strip = remove mixer strip
 cmd.set_strip_name = rename strip

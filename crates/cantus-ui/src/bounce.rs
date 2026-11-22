@@ -291,6 +291,7 @@ fn key_refusal(p: &Project, plan: &Plan) -> Option<String> {
 /// Whether strip `s` keys an insert or is followed by a modulator.
 fn heard_elsewhere(p: &Project, s: StripId) -> bool {
     p.all_effects().any(|(_, e)| e.sidechain == Some(s))
+        || p.tracks.iter().any(|t| t.sidechain == Some(s)) // r41:fides-input
         || p.all_modulators()
             .any(|(host, m)| listens(p, host, m) == Some(Listen::Strip(s)))
 }
@@ -1274,6 +1275,13 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
                     source: Some(new),
                 });
             }
+        }
+        // r41:fides-input — and an instrument keyed from it (ADR 0154).
+        for t in project.tracks.iter().filter(|t| t.sidechain == Some(old)) {
+            commands.push(Command::SetTrackSidechain {
+                track: t.id,
+                source: Some(new),
+            });
         }
         for (host, m) in project.all_modulators() {
             if listens(&project, host, m) == Some(Listen::Strip(old)) {

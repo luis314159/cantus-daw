@@ -71,6 +71,12 @@ pub fn function_of(kind: EffectKind) -> Function {
         EffectKind::Ducker => Function::Dynamics,   // fxb:contract (cedo)
         EffectKind::Repair => Function::Tone,       // fxc:contract (purus)
         EffectKind::Reference => Function::Output,  // fxc:contract (comparatio)
+        EffectKind::Enhancer => Function::Tone,     // r41:contract (nitor)
+        EffectKind::FragorOverdrive
+        | EffectKind::FragorOpAmp
+        | EffectKind::FragorSilicon
+        | EffectKind::FragorFuzz
+        | EffectKind::FragorMuff => Function::Tone, // r41:contract (pedals)
     }
 }
 

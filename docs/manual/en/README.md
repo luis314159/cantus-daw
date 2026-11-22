@@ -236,7 +236,9 @@ glyph is lit); `Shift+F10` opens what a right-click on the selection opens; `Esc
 opened last. Every area that holds more than it shows scrolls. Save the arrangement of the
 window under *View ▸ Layout ▸ Save layout…*; the layout is kept between sessions.
 
-**The look.** Cantus is drawn in **Slate Lapis** by default: Slate's calm room, where panels
+**The look.** Cantus is drawn in **Slate Lapis** by default, in your system's light — **Paper**
+on a light system, **Night** on a dark one, until you pick a mode on *Settings ▸ Appearance*.
+Night is Slate's calm room, where panels
 are set apart by value rather than by lines, in a deep night blue; one lapis accent means *on*
 or *selected* and nothing else, and the logo's gold marks the clock, the rulers' numbers, the
 playhead and the loop. Your track colours are a stripe and a tint until you select a track —
@@ -3028,6 +3030,64 @@ reference…** in its window, or drop a file on it; the session keeps each refer
 audio) and says when a file is missing or changed; the host's offline bounce hears your mix.
 *Send to Aequalis* is Cantus's own.
 
+<!-- r41:nitor -->
+### Nitor, the enhancer
+
+**Nitor** (Latin for *brightness, splendour*) makes a track or a mix shine with one knob —
+the role of FL Studio's Soundgoodizer, Low Lifter and Maximus exciters in one unit. Insert it
+from **Add insert ▾ ▸ Mastering ▸ Nitor**; it starts as *Gentle shine*, a third of the
+*Clear* character. Turn the big **Amount** knob in the middle of the corona: that is all most
+tracks need.
+
+**Level-matched.** Nitor keeps its output as loud as its input (*Level match*, on by
+default): what you hear when you turn it is the colour, not the loudness — an honest A/B.
+Switch it off when you want the lift too.
+
+**The characters** — the five facets down the corona's left (click one):
+
+- **Clear**: all-round polish — the lows held, the details lifted from underneath, a little air.
+- **Punch**: for beats — the lows tightened, the hits let through, presence.
+- **Warm**: even harmonics in the body, the top smoothed, the bass rounder.
+- **Air**: the top opened by upward compression and excited air.
+- **Loud**: density — every band squeezed from above and below.
+
+Each character is four bands of dynamics (Multiplex's *dynamic phase*: no latency, no phase
+shift while no band moves) with the exciter and the low end it needs. It acts alike on a
+quiet stem and on a loud bus: Nitor measures the input's loudness and sets the character's
+thresholds from it.
+
+**The low end** (its card, and its readout down the corona's right):
+
+- **Sub**, following **the bass, an octave down** (a sine locked to the bass that plays — always
+  in tune with it) or **the song's tonic** (a sine on the key's root, from 32.7 Hz for C to
+  61.7 Hz for B, opened by each hit of the low end: an 808 under the kick, in key).
+- **Bass harmonics**: the bass's second to fifth harmonics, so a phone or a laptop plays the
+  line it cannot reach (the ear hears the missing fundamental).
+- **Tight**: after each hit the low end is let ring 30 ms, then turned down (to −12 dB at
+  100 %) until the next — the boom shortened, the hit kept.
+- **Lift on the tonic**: the song's root note blooms — up to +6 dB on its fundamental, +3 dB
+  on its octave.
+- **Low band up to**: where the low end ends (40–250 Hz).
+
+**The key** comes from the song (its *Key* on the piano roll's toolbar): change the project's key and the sub and the
+lift move with it at once. *Key* in the Output card fixes one instead (C … B) — a sample in
+another key, or the plug-in in another DAW.
+
+**The exciter**: harmonics added — and only harmonics — at **Body** (around 400 Hz),
+**Presence** (2.5 kHz) and **Air** (above 7 kHz), oversampled four times. **Colour** goes from
+even harmonics (warm, like a valve) to odd ones (bright, edgy). Each band adds the same share
+of harmonics however loud it is.
+
+**Output**: *Level match*, *Key*, *Mix* (dry and wet) and *Output*.
+
+At its defaults — the amount at 0 and every part at 0 — Nitor leaves the sound untouched, to
+the bit. It adds no latency. Thirteen factory presets: gentle shine, mix polish, master glow,
+beat punch, a tight kick with a tuned sub, warm vocal, vocal air, bright acoustic, loud and
+dense, an 808 under the kick, bass on small speakers, an octave sub, root bloom.
+
+**In another DAW** Nitor is the plug-in *Cantus Nitor* (CLAP and VST3): with no song to follow,
+set its *Key* to the song's (it reads C when left on *The song's*).
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an
@@ -3162,9 +3222,27 @@ modulate, learn a controller), and the board's **Input**, **Mix** and **Output**
 footswitch; Enter its full editor; Delete takes it off; Ctrl+← and Ctrl+→ move it; ← and →
 choose one of its knobs and ↑ and ↓ turn it (with Shift, finely).
 
+**Fragor's circuits as pedals of their own.** Besides Fragor (three slots in one pedal),
+the board's *Distortion* shelf offers each of Fragor's five circuits as a stompbox of its
+own: the **green overdrive**, the **op-amp distortion**, the **silicon distortion**, the
+**germanium fuzz** and the **triangle muff** — so several drives can stand anywhere in the
+chain, a phaser between a boost and a fuzz, a muff after the compressor, more than three.
+Each wears its circuit's own enclosure, paint and lettering, as on Fragor's board, and its
+three knobs under their pedal's names (Drive, Tone, Level; Distortion, Filter, Volume; Dist,
+Tone, Level; Fuzz, Bias, Volume; Sustain, Tone, Volume). Each is the same circuit as
+Fragor's, to the bit: a pedal sounds exactly as Fragor with only that circuit on its board,
+at every knob. They live only on a board (Fragor is the insert). They have no window of
+their own: under the board, the chosen one shows what a player sets — its knobs, **Gate**,
+**Mix** and **Output**, **Oversampling** (2×, 4×, 8×), **Channels** (stereo, or mono as a
+real pedal: half the work) and **Circuit** (in, or out: a plain wire; its light goes dark).
+Its own input level, as Fragor's, is there for automation and the assistant. A new one
+starts on its first preset, the circuit in; each has three or four presets of its own.
+
 **Presets.** Each of Tabula's presets is a whole board: *Guitar rig*, *Blues crunch*,
-*Ambient swells*, *Fuzz lead*, *Phaser funk*, *Wet, dry, wet*, two for bass, two for synths,
-two for drums and two for voice. Your own presets keep the whole board too.
+*Ambient swells*, *Fuzz lead*, *Phaser funk*, *Wet, dry, wet*, *Stacked drives* (the green
+overdrive as a boost, a phaser, the triangle muff, a clean amp, an echo and a room; its
+*Drive* macro turns both drives), two for bass, two for synths, two for drums and two for
+voice. Your own presets keep the whole board too.
 
 **In another DAW,** the exported Tabula shows the same window; the host automates the
 macros, the input, mix, output and the A/B balance, and the board is saved in its state.

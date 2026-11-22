@@ -80,6 +80,13 @@ impl Subject {
             EffectKind::Repair => "purus",              // fxc:contract
             EffectKind::Reference => "comparatio",      // fxc:contract
             EffectKind::Delay => "delay",               // r39:delay
+            EffectKind::Enhancer => "nitor",            // r41:nitor
+            // r41:pedals — board-only: pictured on a board of their own (`demo_editor`).
+            EffectKind::FragorOverdrive => "fragor_od", // r41:pedals
+            EffectKind::FragorOpAmp => "fragor_op",     // r41:pedals
+            EffectKind::FragorSilicon => "fragor_si",   // r41:pedals
+            EffectKind::FragorFuzz => "fragor_ge",      // r41:pedals
+            EffectKind::FragorMuff => "fragor_mf",      // r41:pedals
             _ => "eq",
         }
     }

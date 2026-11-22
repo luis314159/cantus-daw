@@ -235,6 +235,14 @@ pub enum Command {
         id: TrackId,
         strip: Option<StripId>,
     },
+    /// r41:fides-input — the strip the track's instrument hears as its input (ADR 0154), or
+    /// none: a sidechain, chosen as an insert's key is. Refused for an instrument that takes
+    /// none, a strip with no audio (a VCA, the master) and a key that would close a loop (a
+    /// strip the track plays into, or one that reaches it).
+    SetTrackSidechain {
+        track: TrackId,
+        source: Option<StripId>,
+    },
 
     // --- mixer strips -----------------------------------------------------------------
     /// Add a strip at `index` in the mixer's order. The `+` at the end of the mixer, and
@@ -614,7 +622,9 @@ pub enum Command {
     },
     /// r39:conv — Aula's response from a file ([`crate::EffectSpec::ir`], ADR 0112), or
     /// none (`None`: Cantus's own, by its `ir` parameter). Refused for any other kind and
-    /// for an empty path.
+    /// for an empty path. On a Comparatio it is the one compared, and a file its list does
+    /// not hold is added to the list in the same step (a ninth refused; ADR 0143's
+    /// amendment) — the inverse is a `SetReferences` of the pair it replaced.
     SetEffectIr {
         strip: StripId,
         effect: EffectId,
@@ -661,7 +671,8 @@ pub enum Command {
     /// B) and the one compared ([`crate::EffectSpec::ir`]), set together; the inverse is the
     /// pair it replaced. An empty list is written as `None`. Refused for any other kind, a
     /// list [`crate::fx::comparatio::References::valid`] refuses, and a reference compared
-    /// that the list does not hold.
+    /// that the list does not hold. (A pair no command sets, on a slot brought in whole by
+    /// hand, is put back by a `ReplaceEffect` of the slot as it was: the undo stays exact.)
     SetReferences {
         strip: StripId,
         effect: EffectId,
@@ -1142,6 +1153,7 @@ impl Command {
             SetTrackGain { .. } => "cmd.set_track_gain",
             SetTrackPan { .. } => "cmd.set_track_pan",
             SetTrackStrip { .. } => "cmd.set_track_strip",
+            SetTrackSidechain { .. } => "cmd.set_track_sidechain", // r41:fides-input
             InsertStrip { .. } => "cmd.insert_strip",
             RemoveStrip { .. } => "cmd.remove_strip",
             SetStripName { .. } => "cmd.set_strip_name",
@@ -1771,6 +1783,10 @@ impl Command {
                     return Err(CommandError::InvalidValue("a VCA has no audio".into()));
                     // r36:mix
                 }
+                // r41:fides-input — its sidechain, as `SetTrackSidechain` checks it.
+                if let Some(src) = track.sidechain {
+                    check_track_key(project, &track, src)?;
+                }
                 // A delay a bounce could not have kept (review 3).
                 if track.lateness.is_some_and(|l| !l.is_valid()) {
                     return Err(CommandError::InvalidValue("lateness".into()));
@@ -1880,11 +1896,32 @@ impl Command {
                         return Err(CommandError::StripNotFound(sid));
                     }
                 }
+                // r41:fides-input — a keyed instrument plays after its key (ADR 0154): into
+                // its key's strip, or one that reaches it, is a loop.
+                if let (Some(k), Some(d)) = (project.track(id).and_then(|t| t.sidechain), strip) {
+                    if d == k || project.routing_would_cycle(k, Some(d)) {
+                        return Err(CommandError::RoutingCycle(d));
+                    }
+                }
                 let t = project
                     .track_mut(id)
                     .ok_or(CommandError::TrackNotFound(id))?;
                 let old = std::mem::replace(&mut t.strip, strip);
                 Ok(SetTrackStrip { id, strip: old })
+            }
+            // r41:fides-input — an instrument's sidechain (ADR 0154).
+            SetTrackSidechain { track, source } => {
+                let t = project
+                    .track(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                if let Some(src) = source {
+                    check_track_key(project, t, src)?;
+                }
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let old = std::mem::replace(&mut t.sidechain, source);
+                Ok(SetTrackSidechain { track, source: old })
             }
 
             InsertStrip { index, strip } => {
@@ -1917,6 +1954,7 @@ impl Command {
                     .strip_index(id)
                     .ok_or(CommandError::StripNotFound(id))?;
                 let fed = project.tracks.iter().any(|t| t.strip == Some(id))
+                    || project.tracks.iter().any(|t| t.sidechain == Some(id)) // r41:fides-input
                     || project.tracks.iter().any(|t| t.feeds_through_bus(id)) // r37:drums
                     || project.strips.iter().any(|s| s.feeds().any(|to| to == id))
                     || project.strips.iter().any(|s| s.keys().any(|k| k == id))
@@ -2366,9 +2404,30 @@ impl Command {
                     .track_mut(track)
                     .ok_or(CommandError::TrackNotFound(track))?;
                 let old = std::mem::replace(&mut t.instrument, *spec);
-                Ok(SetInstrument {
+                // r41:fides-input — an instrument that takes no sidechain lets the track's go
+                // (ADR 0154): no key is ever held where nothing hears it. Undone, both come
+                // back.
+                let key = if t.instrument.takes_sidechain() {
+                    None
+                } else {
+                    t.sidechain.take()
+                };
+                let undo = SetInstrument {
                     track,
                     spec: Box::new(old),
+                };
+                Ok(match key {
+                    None => undo,
+                    Some(k) => Batch {
+                        label_key: "cmd.set_instrument".into(),
+                        commands: vec![
+                            undo,
+                            SetTrackSidechain {
+                                track,
+                                source: Some(k),
+                            },
+                        ],
+                    },
                 })
             }
 
@@ -2732,6 +2791,19 @@ impl Command {
                 if ir.as_ref().is_some_and(|f| f.path.trim().is_empty()) {
                     return Err(CommandError::InvalidValue("impulse response path".into()));
                 }
+                if e.spec.kind == crate::EffectKind::Reference {
+                    // fxc:comparatio (ADR 0143's amendment): the one compared is always one
+                    // its list holds — a file not listed is added after the others, in the
+                    // same step (a ninth refused); the inverse is the pair it replaced.
+                    let mut refs = e.spec.refs.as_deref().cloned().unwrap_or_default();
+                    if let Some(f) = &ir {
+                        if refs.find(&f.path).is_none() {
+                            refs.list
+                                .push(crate::fx::comparatio::Reference::new(f.path.clone()));
+                        }
+                    }
+                    return set_references(e, strip, effect, Some(Box::new(refs)), ir);
+                }
                 let old = std::mem::replace(&mut e.spec.ir, ir);
                 Ok(SetEffectIr {
                     strip,
@@ -2843,27 +2915,7 @@ impl Command {
                 if e.spec.kind != crate::EffectKind::Reference {
                     return Err(CommandError::InvalidValue("references".into()));
                 }
-                let refs = refs.filter(|r| !r.is_empty());
-                if let Some(r) = &refs {
-                    r.valid()
-                        .map_err(|why| CommandError::InvalidValue(why.into()))?;
-                }
-                if let Some(f) = &selected {
-                    let held = refs.as_ref().is_some_and(|r| r.find(&f.path).is_some());
-                    if !held {
-                        return Err(CommandError::InvalidValue(
-                            "a reference compared that the list does not hold".into(),
-                        ));
-                    }
-                }
-                let old_refs = std::mem::replace(&mut e.spec.refs, refs);
-                let old_ir = std::mem::replace(&mut e.spec.ir, selected);
-                Ok(SetReferences {
-                    strip,
-                    effect,
-                    refs: old_refs,
-                    selected: old_ir,
-                })
+                set_references(e, strip, effect, refs, selected)
             }
             // fx3:contract — Tabula's board (`crate::command_board`, the tabula builder's).
             InsertPedal {
@@ -3916,6 +3968,91 @@ fn chain_mut(project: &mut Project, strip: StripId) -> Result<&mut Vec<EffectSlo
     project
         .effects_of_mut(strip)
         .ok_or(CommandError::StripNotFound(strip))
+}
+
+/// r41:fides-input — a track's sidechain (ADR 0154), checked as an insert's key is: an
+/// instrument that takes one, a strip that is there and has audio (no VCA, never the
+/// master), and no loop — the key may not be a strip the track plays into, nor reach one.
+fn check_track_key(
+    project: &Project,
+    track: &crate::model::Track,
+    source: StripId,
+) -> Result<(), CommandError> {
+    if !track.instrument.takes_sidechain() {
+        return Err(CommandError::InvalidValue("sidechain".into()));
+    }
+    if project.is_vca(source) {
+        return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+    }
+    if source.is_master() {
+        return Err(CommandError::RoutingCycle(source));
+    }
+    if project.strip(source).is_none() {
+        return Err(CommandError::StripNotFound(source));
+    }
+    for d in track.destinations().into_iter().flatten() {
+        if d == source || project.routing_would_cycle(source, Some(d)) {
+            return Err(CommandError::RoutingCycle(d));
+        }
+    }
+    Ok(())
+}
+
+impl Project {
+    /// r41:fides-input — whether `SetTrackSidechain` takes `source` for `track` (ADR 0154):
+    /// the strips an instrument's input chooser offers.
+    pub fn can_key_track(&self, track: TrackId, source: StripId) -> bool {
+        self.track(track)
+            .is_some_and(|t| check_track_key(self, t, source).is_ok())
+    }
+}
+
+/// fxc:comparatio — a Comparatio's references and the one compared set together
+/// (`SetReferences`, and `SetEffectIr` on a Comparatio — ADR 0143 and its amendment). An
+/// empty list is written as `None`; refused: a list [`References::valid`] refuses, and one
+/// compared that the list does not hold. The inverse is the pair it replaced — or, when that
+/// pair is one no command sets (a slot brought in whole with its file not in its list, or a
+/// list written empty: a hand-made slot), the whole slot as it was, so the undo is exact
+/// either way.
+///
+/// [`References::valid`]: crate::fx::comparatio::References::valid
+fn set_references(
+    e: &mut EffectSlot,
+    strip: StripId,
+    effect: EffectId,
+    refs: Option<Box<crate::fx::comparatio::References>>,
+    selected: Option<Box<crate::fx::aula::IrFile>>,
+) -> Result<Command, CommandError> {
+    let refs = refs.filter(|r| !r.is_empty());
+    if let Some(r) = &refs {
+        r.valid()
+            .map_err(|why| CommandError::InvalidValue(why.into()))?;
+    }
+    if let Some(f) = &selected {
+        let held = refs.as_ref().is_some_and(|r| r.find(&f.path).is_some());
+        if !held {
+            return Err(CommandError::InvalidValue(
+                "a reference compared that the list does not hold".into(),
+            ));
+        }
+    }
+    let settable = crate::fx::comparatio::settable(e.spec.refs.as_deref(), e.spec.ir.as_deref());
+    let before = (!settable).then(|| Box::new(e.clone()));
+    let old_refs = std::mem::replace(&mut e.spec.refs, refs);
+    let old_ir = std::mem::replace(&mut e.spec.ir, selected);
+    Ok(match before {
+        None => Command::SetReferences {
+            strip,
+            effect,
+            refs: old_refs,
+            selected: old_ir,
+        },
+        Some(slot) => Command::ReplaceEffect {
+            strip,
+            effect,
+            slot,
+        },
+    })
 }
 
 /// The routes a whole new slot brings (`ReplaceEffect`): its key and its note source,

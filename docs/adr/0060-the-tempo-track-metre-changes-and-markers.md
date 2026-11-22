@@ -134,7 +134,13 @@ stays a seam and glue still glues. The final rule (reviews 3–4) has three part
    section too — and the next edit tore the take at its edges; moves chain linked windows
    with the same reach, met or across a gap). A take is laid on an unlinked window's exact
    line when it has one, so a linked first piece never drags the rest by its rounding
-   (review 6). After it runs, each take keeps the frame where it comes in — a forward take at
+   (review 6). The exact lines come first (round 41): the unlinked windows within a frame
+   of each other make them; a linked window joins the line of the unlinked window nearest
+   it within its reach — the forward pieces sharing its origin and fine offset as one, so a
+   split stays a split — and linked windows with no line in reach chain among themselves
+   (a fuzz of takes and tempo edits found a linked window within half a tick of two lines
+   five frames apart joining them, and the edit moving one unlinked window onto the
+   other's line). After it runs, each take keeps the frame where it comes in — a forward take at
    its earliest window's start, a reversed one at its latest window's end — and runs on
    from there at natural speed through the new map; every window is re-anchored onto that
    line (`audio_time::anchor`: whole ticks, the rest in `slip_frames`), and **the windows

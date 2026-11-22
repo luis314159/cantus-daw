@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>A free, open-source digital audio workstation for Windows, Linux and macOS (preview), in the spirit of FL Studio.</b><br>
-  Eleven instruments and forty-two effects of its own, a mixer you wire with cables, a recording
+  Twelve instruments and forty-three effects of its own, a mixer you wire with cables, a recording
   mode for low buffers — and an engine whose export is what you heard, to the bit.
 </p>
 
@@ -66,7 +66,7 @@ working or not.
 - **The whole DAW, free.** Arrangement, piano roll, channel rack, mixer, recording and export
   to WAV, FLAC, MP3 and Ogg with loudness presets — nothing behind a paywall, no account, no
   telemetry, the source open ([licences](#licences)).
-- **Eleven instruments and forty-two effects of its own**, each with a face of its own and
+- **Twelve instruments and forty-three effects of its own**, each with a face of its own and
   more than 750 factory presets you audition before they touch the song: **Chorda**, a
   modelled grand piano that also plays recorded pianos; **Tympanum**, an acoustic drummer
   with microphones you move; Unda (wavetable), Modulus (FM, reads DX7 banks), Arca (amp),
@@ -249,7 +249,7 @@ clip menu says so. ARA hosting is new: tell us which plug-ins you tried.
 
 ### Instruments
 
-Ten instruments with a face of their own — click a picture for it full size, or a name below for what it does.
+Eleven instruments with a face of their own — click a picture for it full size, or a name below for what it does.
 
 <table>
 <tr>
@@ -268,6 +268,7 @@ Ten instruments with a face of their own — click a picture for it full size, o
 <td align="center" valign="top" width="33%"><a href="docs/images/units/tympanum-dark.png"><img src="docs/images/units/thumbs/tympanum.jpg" alt="Tympanum, its window"></a><br><b>Tympanum</b><br><sub>Acoustic drummer</sub></td>
 </tr>
 <tr>
+<td align="center" valign="top" width="33%"><a href="docs/images/units/fides-dark.png"><img src="docs/images/units/thumbs/fides.jpg" alt="Fides, its window"></a><br><b>Fides</b><br><sub>Physical-modelling resonator</sub></td>
 <td align="center" valign="top" width="33%"><a href="docs/images/units/pulsus-dark.png"><img src="docs/images/units/thumbs/pulsus.jpg" alt="Pulsus II, its window"></a><br><b>Pulsus II</b><br><sub>Drum instrument</sub></td>
 </tr>
 </table>
@@ -426,6 +427,23 @@ Tympanum is Cantus's acoustic drummer, grown from Pulsus's engine. Its modelled 
 
 </details>
 <details>
+<summary><b>Fides</b> — Physical-modelling resonator. Pluck, bow or strike strings, bars, plates, membranes, bells and glass: every note computed from the physics as you play.</summary>
+
+<a href="docs/images/units/fides-dark.png"><img src="docs/images/units/fides-dark.png" alt="Fides — Physical-modelling resonator, its window in Cantus"></a>
+
+Fides makes sound as acoustic instruments do: an exciter — a finger, a pick, a bow, a mallet, noise — sets an object ringing, and a body radiates it. Nothing is sampled, so each note answers to how hard, where and how long you play it; its window draws the instrument as a plan, and dragging on it moves where it is played. Marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, a bowed cello and struck glass lead its presets.
+
+- Five exciters: pluck, pick, a bow that sticks and slips, a mallet, and noise as a layer under any of them
+- Twelve resonators — string, tube, pipe, bars, tine, plate, membrane, drumhead, bell, glass, steel pan — two at once, side by side or one into the other
+- Seven bodies, from a guitar's and a cello's to a box and a shell, continuous in size and ring
+- In tune: struck and plucked notes within 0.0014 cent from E1 to A6, at every bend
+- MPE: pressure presses the bow, slide moves where it is played, a tuning per note
+- The same notes give the same samples live and rendered, at any block size
+
+<sub>25 factory presets — [hear them](https://cantusdaw.com/#unit-fides) · [manual](docs/manual/en/fides.md) · [light theme](docs/images/units/fides-light.png)</sub>
+
+</details>
+<details>
 <summary><b>Pulsus II</b> — Drum instrument. A drum instrument of synthesized and sampled pads: 808, 909 and modal voices, 16 layers per pad.</summary>
 
 <a href="docs/images/units/pulsus-dark.png"><img src="docs/images/units/pulsus-dark.png" alt="Pulsus II — Drum instrument, its window in Cantus"></a>
@@ -445,11 +463,11 @@ Pulsus II is the drum instrument behind the channel rack: each pad is a kick, sn
 
 They share one modulation model — eight macros and a matrix you connect by dragging a
 source onto a knob — one frame (Play · Edit · Matrix; Tympanum's Kit · Mixer · Matrix), and
-the project's undo. Firmus, the simple synth every new track starts with, makes eleven.
+the project's undo. Firmus, the simple synth every new track starts with, makes twelve.
 
 ### Effects
 
-Forty-two effects, each in a window with a face of its own; all of them are also CLAP and
+Forty-three effects, each in a window with a face of its own; all of them are also CLAP and
 VST3 plug-ins for other DAWs.
 Seven of them can be heard with and without, on the same excerpt of a demo song, at
 [cantusdaw.com](https://cantusdaw.com/#effects).
@@ -518,6 +536,7 @@ Seven of them can be heard with and without, on the same excerpt of a demo song,
 <tr>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/purus-dark.png"><img src="docs/images/units/thumbs/purus.jpg" alt="Purus, its window"></a><br><b>Purus</b><br><sub>Repair</sub></td>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/comparatio-dark.png"><img src="docs/images/units/thumbs/comparatio.jpg" alt="Comparatio, its window"></a><br><b>Comparatio</b><br><sub>Reference comparator</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/nitor-dark.png"><img src="docs/images/units/thumbs/nitor.jpg" alt="Nitor, its window"></a><br><b>Nitor</b><br><sub>One-knob enhancer</sub></td>
 </tr>
 </table>
 
@@ -1035,9 +1054,9 @@ Tabula is a pedalboard of Cantus's own effects: drives, the valve amp and its ca
 - An A/B split whose lanes meet in time, to the sample
 - Footswitches that never move the latency; no click on any change
 - Eight macros with learn, and Randomise within musical ranges
-- Fifteen boards for guitar, bass, synths, drums and voice; three hold the amp and its cabinet
+- Sixteen boards for guitar, bass, synths, drums and voice; four hold the amp and its cabinet
 
-<sub>15 factory presets — [hear them](https://cantusdaw.com/#unit-tabula) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tabula-light.png)</sub>
+<sub>16 factory presets — [hear them](https://cantusdaw.com/#unit-tabula) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tabula-light.png)</sub>
 
 </details>
 <details>
@@ -1225,6 +1244,23 @@ Comparatio sits on the master's last insert and holds up to eight reference trac
 - Blind ABX with the exact chance of guessing; renders never hear a reference
 
 <sub>14 factory presets — [its card](https://cantusdaw.com/#unit-comparatio) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/comparatio-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Nitor</b> — One-knob enhancer. One knob makes a track or a mix shine, level-matched so you hear the colour and not the loudness.</summary>
+
+<a href="docs/images/units/nitor-dark.png"><img src="docs/images/units/nitor-dark.png" alt="Nitor — One-knob enhancer, its window in Cantus"></a>
+
+Nitor turns up one of five characters — Clear, Punch, Warm, Air, Loud — each a recipe of four-band dynamics, downward and upward, with what it adds to the highs and the lows. It brings any programme to one loudness before it acts and back after, so it does the same on a quiet stem as on a loud bus, and its output is matched to its input. On top of the knob: a sub an octave under the bass or on the song's key, the bass's harmonics for small speakers, and harmonics excited band by band.
+
+- One knob over five characters: Clear, Punch, Warm, Air and Loud
+- Level-matched: every character at full within 0.5 LU of the dry signal
+- The same result at any input level: −20 dB in, the same bands and gains
+- A sub that follows the bass an octave down, or sits on the song's key and follows it when it changes
+- Harmonics only, by band (body, presence, air), even to odd, oversampled 4×
+- No latency, and at 0 the signal untouched, to the bit; also a CLAP and VST3 plug-in
+
+<sub>13 factory presets — [hear them](https://cantusdaw.com/#unit-nitor) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/nitor-light.png)</sub>
 
 </details>
 
@@ -1553,8 +1589,10 @@ a **round** is one development cycle, recorded in [`docs/STATUS.md`](docs/STATUS
 - **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
   it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
   (B), as in FL's playlist.
-- **Forty-two effects, two controllers and eleven instruments of its own** — now with
-  **Tympanum**, the acoustic drummer (modelled kits with microphones you move, recorded
+- **Forty-three effects, two controllers and twelve instruments of its own** — now with
+  **Fides**, the physical-modelling resonator (plucked, bowed and struck strings, bars,
+  plates, membranes, bells and glass), **Nitor** (one-knob enhancer), **Tympanum**, the
+  acoustic drummer (modelled kits with microphones you move, recorded
   multi-mic kits, each mic on its own strip), **Chorda** playing recorded pianos too, with its
   own mixer, **Cribrum** (auto filter), **Fragor** (distortion pedals), **Lapsus** (time
   shaper), **Vetus** (lo-fi), **Libra** (utility), **Tabula** (pedalboard), **Saltus**
@@ -1622,7 +1660,7 @@ cables drawn under the desk, the routing matrix, solo with connected routes, a t
 channel EQ, a dry/wet per insert slot, ten slots per strip, multi-selection with ganged
 faders, submixes, docks, groups with colours, a pan law per project, width and polarity.
 
-**Effects** (ADRs 0017–0018, 0026). The forty-two above, each in a window with presets, A/B, a display
+**Effects** (ADRs 0017–0018, 0026). The forty-three above, each in a window with presets, A/B, a display
 that is the control and a face of its own (ADRs 0074, 0115), plus the older Reverb, edited in the inspector;
 design notes in `docs/plugins/`.
 

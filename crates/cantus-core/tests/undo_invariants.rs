@@ -22,6 +22,26 @@ impl Lcg {
     }
 }
 
+/// The seeds a fuzz runs: `default`, or `CANTUS_FUZZ_SEEDS` — `a..=b` or one seed — to run
+/// many more by hand (`CANTUS_FUZZ_SEEDS=1..=2000 cargo test -p cantus-core --test
+/// undo_invariants`), or the one that failed. A fuzz's draws shift whenever an arm is added,
+/// so a bug a few seeds hid can surface on any later change (round 41: seed 33).
+fn fuzz_seeds(default: std::ops::RangeInclusive<u64>) -> std::ops::RangeInclusive<u64> {
+    let Ok(v) = std::env::var("CANTUS_FUZZ_SEEDS") else {
+        return default;
+    };
+    let v = v.trim();
+    let parse = |t: &str| {
+        t.trim()
+            .parse::<u64>()
+            .unwrap_or_else(|_| panic!("CANTUS_FUZZ_SEEDS: {v:?} is not `a..=b` or a seed"))
+    };
+    match v.split_once("..=") {
+        Some((a, b)) => parse(a)..=parse(b),
+        None => parse(v)..=parse(v),
+    }
+}
+
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
     match rng.below(49) {
@@ -632,6 +652,11 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // Pulsus: pad parameters and pad names. `SetInstrumentParam` is deliberately
         // aimed at *any* track, kit or not, so the "not applicable" path is exercised as
         // well as the working one — a command that fails must leave nothing behind.
+        // r41:fides-input (ADR 0154): an instrument's sidechain has its own fuzz,
+        // `fides_sidechain_undo_and_redo_among_the_others`, which draws these arms between
+        // its own; 17 stays a rename here, so every other arm's draws keep their meaning
+        // (drawn here, it moved seed 33 onto a take's frame after a tempo change — reported
+        // in docs/round41/fides.md, *Fides's input as a sidechain*).
         18..=19 if tracks > 0 => {
             let ti = rng.below(tracks as u64) as usize;
             let id = project.tracks[ti].id;
@@ -1313,6 +1338,7 @@ fn routing_batch(rng: &mut Lcg, project: &mut Project) -> Command {
             routing::EdgeKind::Output => Route::output(e.from, e.to),
             routing::EdgeKind::Send { .. } => Route::send(e.from, e.to),
             routing::EdgeKind::Key { effect } => Route::key(e.from, e.to, effect),
+            routing::EdgeKind::TrackKey { track } => Route::track_key(project, e.from, track),
         });
     let cmd = match rng.below(12) {
         0 => {
@@ -1982,7 +2008,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                                                    // fxc:comparatio - Comparatio's reference lists, applied and refused.
     let mut referenced = [0usize; 2];
     // 120 sequences (round 31: one arm more spreads the draws thinner).
-    for seed in 1..=120u64 {
+    for seed in fuzz_seeds(1..=120) {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
         let mut grng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(17));
@@ -2017,7 +2043,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // r36:ara — a clip bound to an ARA plug-in or let go (ADR 0097), from `arng`.
             if arng.below(5) == 0 {
                 let (k, cmd) = round36_ara_command(&mut arng, bus.project());
-                let ok = bus.execute(cmd, origins[arng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[arng.below(5) as usize], seed);
                 ara_done[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2028,7 +2054,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // r33:mpe — an expression edit now and then, undone with the rest.
             if mrng.below(8) == 0 {
                 let cmd = round33_mpe_command(&mut mrng, bus.project());
-                let ok = bus.execute(cmd, origins[mrng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[mrng.below(5) as usize], seed);
                 mpe_done[usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2038,7 +2064,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             }
             if srng.below(10) == 0 {
                 let cmd = round32_score_command(&mut srng, &mut bus.project().clone());
-                let ok = bus.execute(cmd, origins[srng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[srng.below(5) as usize], seed);
                 scored[usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2051,7 +2077,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             if qrng.below(3) == 0 {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = round33_session_command(&mut qrng, &mut scratch);
-                let ok = bus.execute(cmd, origins[qrng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[qrng.below(5) as usize], seed);
                 bus.reserve_ids(scratch.next_id);
                 sessioned[k][usize::from(!ok)] += 1;
                 if ok {
@@ -2064,7 +2090,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // the global quantisation, from a stream of its own (`lrng`).
             if lrng.below(8) == 0 {
                 let cmd = round33_launcher_command(&mut lrng, bus.project());
-                let ok = bus.execute(cmd, origins[lrng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[lrng.below(5) as usize], seed);
                 launched[usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2075,7 +2101,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // r36:editor — a file's marks (ADR 0096 §6), from a stream of their own (`erng`).
             if erng.below(4) == 0 {
                 let (k, cmd) = round36_marks_command(&mut erng, bus.project());
-                let ok = bus.execute(cmd, origins[erng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[erng.below(5) as usize], seed);
                 marked[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2086,7 +2112,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             // r34:stems — a file's provenance (ADR 0085), from a stream of its own (`prng`).
             if prng.below(4) == 0 {
                 let (k, cmd) = round34_provenance_command(&mut prng, bus.project());
-                let ok = bus.execute(cmd, origins[prng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[prng.below(5) as usize], seed);
                 provenanced[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2098,7 +2124,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             if xrng.below(6) == 0 {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = round36_mix_command(&mut xrng, &mut scratch);
-                let ok = bus.execute(cmd, origins[xrng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[xrng.below(5) as usize], seed);
                 bus.reserve_ids(scratch.next_id);
                 mixed[k][usize::from(!ok)] += 1;
                 if ok {
@@ -2113,7 +2139,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = round36_external_command(&mut urng, &mut scratch);
                 bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[urng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[urng.below(5) as usize], seed);
                 externaled[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2128,7 +2154,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = round37_padout_command(&mut krng, &mut scratch);
                 bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[krng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[krng.below(5) as usize], seed);
                 padded[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2143,7 +2169,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let mut scratch = bus.project().clone();
                 let (is_refs, cmd) = fxc_reference_command(&mut crng, &mut scratch);
                 bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[crng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[crng.below(5) as usize], seed);
                 if is_refs {
                     referenced[usize::from(!ok)] += 1;
                 }
@@ -2158,7 +2184,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let mut scratch = bus.project().clone();
                 let (k, cmd) = fx3_board_command(&mut trng, &mut scratch);
                 bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[trng.below(5) as usize]).is_ok();
+                let ok = side_execute(&mut bus, cmd, origins[trng.below(5) as usize], seed);
                 boarded[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
@@ -2177,6 +2203,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     &origins,
                     &mut controlled,
                     &mut checkpoints,
+                    seed,
                 );
             }
             // Id allocation mutates `next_id` outside the command system; keep the two in
@@ -2443,13 +2470,15 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         // track ends up where its linked-clip, cut-time and duplicate batches are refused, as
         // they must be (15 of its 43 refusals, each one of those families' own refusal
         // paths). The floor stays far above a degenerate generator's.
+        // (Both floors are measured on the default seeds, 1 to 120; a seed run by hand
+        // beyond them, `CANTUS_FUZZ_SEEDS`, is checked for its invariants alone.)
         assert!(
-            applied >= 75,
+            seed > 120 || applied >= 75,
             "seed {seed}: too few commands applied ({applied})"
         );
         // r36:mix - the mix stream's own floor.
         assert!(
-            mixed_applied >= 3,
+            seed > 120 || mixed_applied >= 3,
             "seed {seed}: too few mix commands applied ({mixed_applied})"
         );
         assert!(bus.project().tracks.len() + 1 >= 2 || applied > 0);
@@ -2485,6 +2514,11 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             );
         }
         assert!(!bus.can_redo());
+    }
+    // The coverage below counts the default 120 sequences; a hand-picked few
+    // (`CANTUS_FUZZ_SEEDS`, a failure's seed) are checked for their invariants alone.
+    if fuzz_seeds(1..=120).count() < 120 {
+        return;
     }
     // The clipboard arms must really run: pastes of clips, ones that bring a file with
     // them, cuts of clips and of notes, and note pastes that grow their clip; and the link
@@ -4090,6 +4124,14 @@ struct Win {
     frame: f64,
     /// The line it reads: one number for every window of one take.
     line: f64,
+    /// How far off its take's line it may sit, through the map it was measured in (0
+    /// unlinked): half a tick at its content origin or at its entry, the longer
+    /// (`tempo::keep::linked_reach`). Measured with the map of the project it was taken
+    /// from — a window before an edit sat off its line by the *old* map's half tick, which
+    /// a faster new tempo makes several times longer than the new one's (seed 33 with one
+    /// arm more: 63 to 293 bpm, a linked window ten frames off its take's unlinked line
+    /// where the new half tick is five).
+    slack: f64,
 }
 
 fn windows_of(p: &Project) -> Vec<Win> {
@@ -4130,6 +4172,11 @@ fn windows_of(p: &Project) -> Vec<Win> {
                 rate,
                 frame,
                 line: if a.reverse { frame + to } else { frame - to },
+                slack: if c.link.is_some() {
+                    cantus_core::tempo::keep::linked_reach(&map, c.start - c.offset, entry, rate)
+                } else {
+                    0.0
+                },
             });
         }
     }
@@ -4167,36 +4214,119 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
     };
     // A linked window sits within half a tick of its take's line (review 5) — the tick
     // rounded at its content origin, or at its entry, the longer (review 6): within that
-    // (and a frame) it is the take's.
-    let slack = |w: &Win| {
-        if w.linked {
-            let half = |t: f64| 0.5 * map.seconds_between_f64(t, t + 1.0) * w.rate;
-            let e = if w.reverse { w.end } else { w.start }.0 as f64;
-            half(w.origin.0.max(0) as f64).max(half(e))
+    // (and a frame) it is the take's. Half a tick *before* the edit, where it sat off its
+    // line and where `keep` joined it to its take (`Win::slack`, measured in the map it
+    // was taken from): the new map's half tick is shorter whenever the tempo rises.
+    let slack = |w: &Win| w.slack;
+    // The line each window is the take of (ADR 0060 §4): an unlinked window's own — the
+    // exact lines; a linked one's, the nearest unlinked window's of its file and direction
+    // within a frame and its slack, or its own when there is none (`true`: such linked
+    // windows chain among themselves, within their slack); the pieces of a forward linked
+    // window that share its origin and fine offset, as one. Round 41 (the takes-and-tempo
+    // fuzz): a linked window within its slack of two exact lines joined them into one take.
+    let anchors: std::collections::HashMap<_, (f64, bool)> = before
+        .iter()
+        .map(|w| {
+            // A forward linked window's pieces (its origin and fine offset shared) are one.
+            let pieces = before.iter().filter(|c| {
+                std::ptr::eq(*c, w)
+                    || (c.linked
+                        && !c.reverse
+                        && !w.reverse
+                        && (c.source, c.origin, c.slip) == (w.source, w.origin, w.slip))
+            });
+            let anchor = if w.linked {
+                pieces
+                    .flat_map(|c| {
+                        before
+                            .iter()
+                            .filter(move |u| {
+                                !u.linked
+                                    && (u.source, u.reverse) == (c.source, c.reverse)
+                                    && (u.line - c.line).abs() <= 1.0 + c.slack
+                            })
+                            .map(move |u| (u.line, (u.line - c.line).abs()))
+                    })
+                    .min_by(|x, y| x.1.total_cmp(&y.1))
+                    .map_or((w.line, true), |(l, _)| (l, false))
+            } else {
+                (w.line, false)
+            };
+            (w.key, anchor)
+        })
+        .collect();
+    // The takes: windows of one file and direction whose lines are within a frame — or,
+    // linked with no exact line near, within their slack — chained (a line a frame from
+    // another a frame from a third is one take, as `keep` chains them).
+    let near = |o: &Win, b: &Win| {
+        let ((x, xa), (y, ya)) = (anchors[&o.key], anchors[&b.key]);
+        let reach = if xa && ya {
+            slack(o).max(slack(b))
         } else {
             0.0
-        }
+        };
+        o.source == b.source && o.reverse == b.reverse && (x - y).abs() <= 1.0 + reach
     };
+    let mut take_of: Vec<usize> = (0..before.len()).collect();
+    fn root(t: &mut [usize], mut i: usize) -> usize {
+        while t[i] != i {
+            t[i] = t[t[i]];
+            i = t[i];
+        }
+        i
+    }
+    for i in 0..before.len() {
+        for j in i + 1..before.len() {
+            if near(&before[i], &before[j]) {
+                let (x, y) = (root(&mut take_of, i), root(&mut take_of, j));
+                take_of[x] = y;
+            }
+        }
+    }
+    let take_id: std::collections::HashMap<_, usize> = (0..before.len())
+        .map(|i| (before[i].key, root(&mut take_of, i)))
+        .collect();
     let mut checked = 0;
     for (i, (b, a)) in live.iter().enumerate() {
-        // Its line's head: where the line comes in, among the windows left in place.
-        let head = live
+        // Its take: the windows left in place on its line.
+        let take: Vec<&Win> = live
             .iter()
-            .filter(|(o, _)| {
-                o.source == b.source
-                    && o.reverse == b.reverse
-                    && (o.line - b.line).abs() <= 1.0 + slack(o).max(slack(b))
-            })
-            .min_by_key(|(o, _)| if o.reverse { -o.end.0 } else { o.start.0 })
+            .filter(|(o, _)| take_id[&o.key] == take_id[&b.key])
             .map(|(o, _)| *o)
+            .collect();
+        // Its head: where the line comes in.
+        let head = *take
+            .iter()
+            .min_by_key(|o| if o.reverse { -o.end.0 } else { o.start.0 })
             .expect("itself");
+        // The frame the take keeps where it comes in: its head's — or, when the head is
+        // linked (whole ticks, up to half a tick off its take), its earliest unlinked
+        // window's line there: a take is laid on an unlinked window's exact line (ADR 0060
+        // §4, review 6). Round 41 (seed 33): a linked head stacked on an unlinked window
+        // ten frames off it was taken as the line, and the unlinked window kept exactly
+        // was called torn.
+        let exact = take
+            .iter()
+            .filter(|o| !o.linked)
+            .min_by_key(|o| o.start.0)
+            .filter(|_| head.linked);
+        let kept = head.frame + exact.map_or(0.0, |u| u.line - head.line);
+        // Windows of the take entering with its head (stacked twins, within a frame or a
+        // linked window's slack of it): any of them may be the one it keeps — as far off
+        // as their lines are apart.
+        let entry = |o: &Win| if o.reverse { o.end } else { o.start };
+        let tie = take
+            .iter()
+            .filter(|o| !std::ptr::eq(**o, head) && entry(o) == entry(head))
+            .map(|o| (o.line - head.line).abs())
+            .fold(0.0, f64::max);
         // The frame the line plays at this window's entry now, from the head's kept entry.
         let run = if b.reverse {
             map.seconds_between(b.end, head.end)
         } else {
             map.seconds_between(head.start, b.start)
         };
-        let want = head.frame + run * b.rate;
+        let want = kept + run * b.rate;
         // The head and the windows that shared its origin and fine offset: exactly on its
         // line (half a frame); the others on it within their own rounding and a frame.
         let with_head = !b.reverse
@@ -4205,12 +4335,13 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
             && !head.linked
             && (b.origin, b.slip) == (head.origin, head.slip);
         let tolerance = if std::ptr::eq(head, *b) {
-            // A linked head is laid on its take's exact line, which it sat off by its slack.
-            reach(a) + slack(b)
+            // A linked head is laid on its take's exact line by whole ticks (within a frame
+            // of the one found here); with no unlinked window on it, on its own frame.
+            reach(a) + if exact.is_some() { 1.0 } else { tie }
         } else if with_head {
-            0.5 + 1e-6
+            0.5 + 1e-6 + tie
         } else {
-            reach(a) + reach(head) + 1.0 + slack(b)
+            reach(a) + reach(head) + 1.0 + slack(b) + tie
         };
         if (a.frame - want).abs() > tolerance {
             return Err(format!(
@@ -5741,7 +5872,21 @@ fn round36_mix_command(rng: &mut Lcg, scratch: &mut Project) -> (usize, Command)
                 .unwrap_or(GroupId(u64::MAX - 3));
             let vca = (rng.below(4) != 0 && !vcas.is_empty())
                 .then(|| vcas[rng.below(vcas.len() as u64) as usize]);
-            (2, Command::Mix(M::SetGroupVca { id: g, vca }))
+            // r41:fuzz-two — a VCA put back at a place of the list (the inverse of taking
+            // one away, drawn for itself), from the same draws: a group of even id with no
+            // VCA, at an index up to one past the end (refused).
+            let len = scratch.mix.group_vcas.len();
+            match vca {
+                Some(vca) if g.0.is_multiple_of(2) && scratch.mix.group_vca(g).is_none() => (
+                    2,
+                    Command::Mix(M::InsertGroupVca {
+                        index: (g.0 / 2) as usize % (len + 2),
+                        id: g,
+                        vca,
+                    }),
+                ),
+                vca => (2, Command::Mix(M::SetGroupVca { id: g, vca })),
+            }
         }
         3 => {
             let scope: Vec<StripId> = if rng.below(2) == 0 {
@@ -7825,17 +7970,31 @@ const FXD_FORMULAS: [&str; 6] = [
 const FXD_BROKEN: [&str; 4] = ["a*Sin(", "MouseX", "1 +", "foo(1)"];
 
 #[inline(never)]
+/// A side stream's command (the main fuzz's own streams), executed: whether it applied.
+/// Applied or refused, no frozen sound moves — checked here, so the command that moved one
+/// is the one named (r41:fuzz-two, seed 378: a side stream's `SetStripPanLaw` moved a
+/// frozen key, and the main stream's next command was blamed).
+fn side_execute(bus: &mut CommandBus, cmd: Command, origin: Origin, seed: u64) -> bool {
+    let shown: String = format!("{cmd:?}").chars().take(600).collect();
+    let ok = bus.execute(cmd, origin).is_ok();
+    cantus_core::freeze::consistent(bus.project()).unwrap_or_else(|t| {
+        panic!("seed {seed}: {t:?} no longer sounds as frozen after {shown} (a side stream's)")
+    });
+    ok
+}
+
 fn fxd_step(
     drng: &mut Lcg,
     bus: &mut CommandBus,
     origins: &[Origin; 5],
     controlled: &mut [[usize; 2]; FXD_KINDS],
     checkpoints: &mut Vec<Project>,
+    seed: u64,
 ) {
     let mut scratch = bus.project().clone();
     let (k, cmd) = fxd_controller_command(drng, &mut scratch);
     bus.reserve_ids(scratch.next_id);
-    let ok = bus.execute(cmd, origins[drng.below(5) as usize]).is_ok();
+    let ok = side_execute(bus, cmd, origins[drng.below(5) as usize], seed);
     controlled[k][usize::from(!ok)] += 1;
     if ok {
         let mut snap = bus.project().clone();
@@ -8158,4 +8317,766 @@ fn fxc_reference_command(rng: &mut Lcg, project: &mut Project) -> (bool, Command
             selected,
         },
     )
+}
+
+/// fxc:comparatio — a Comparatio on the master and the bus that holds it (the r41 refs-ir
+/// fix's tests).
+fn comparatio_on_master(slot: impl FnOnce(&mut EffectSlot)) -> (CommandBus, EffectId) {
+    let mut bus = CommandBus::default();
+    let mut scratch = bus.project().clone();
+    let mut e = scratch.make_effect(EffectKind::Reference);
+    slot(&mut e);
+    let id = e.id;
+    bus.reserve_ids(scratch.next_id);
+    bus.execute(
+        Command::InsertEffect {
+            strip: StripId::MASTER,
+            index: 0,
+            slot: Box::new(e),
+        },
+        Origin::User,
+    )
+    .expect("a Comparatio on the master");
+    (bus, id)
+}
+
+/// Undo every step back to the first state the bus held after `from`, then redo them all:
+/// each state exactly the one it was.
+fn undo_redo_exact(bus: &mut CommandBus, states: &[Project]) {
+    for i in (1..states.len()).rev() {
+        assert!(bus.undo().is_some(), "undo {i} refused");
+        assert_eq!(bus.project(), &states[i - 1], "after undo {i}");
+    }
+    for (i, s) in states.iter().enumerate().skip(1) {
+        assert!(bus.redo().is_some(), "redo {i} refused");
+        assert_eq!(bus.project(), s, "after redo {i}");
+    }
+}
+
+fn comparatio_refs(bus: &CommandBus, id: EffectId) -> (Vec<String>, Option<String>) {
+    let e = bus.project().effect(StripId::MASTER, id).expect("the slot");
+    let list = e
+        .spec
+        .refs
+        .as_deref()
+        .map(|r| r.list.iter().map(|x| x.path.clone()).collect())
+        .unwrap_or_default();
+    (list, e.spec.ir.as_deref().map(|f| f.path.clone()))
+}
+
+/// The undo fuzz's seed 517 with Fides's key in arm 17 (r41/fuzz-two), reduced: a reference
+/// set by file (`SetEffectIr`, the command ADR 0143 phase A named) on a Comparatio with no
+/// list, then a list set (`SetReferences`). The list-less pair the file left was one
+/// `SetReferences` refuses, so its inverse could not apply. ADR 0143's amendment: the one
+/// compared is always one its list holds — `SetEffectIr` on a Comparatio lists the file in
+/// the same step, its inverse the pair it replaced.
+#[test]
+fn a_reference_set_by_file_is_listed_and_every_step_undoes_exactly() {
+    use cantus_core::fx::comparatio::{Reference, References};
+    let (mut bus, id) = comparatio_on_master(|_| {});
+    let mut states = vec![bus.project().clone()];
+    let file = |p: &str| Some(Box::new(IrFile::new(p)));
+    let ir = |bus: &mut CommandBus, p: Option<Box<IrFile>>| {
+        bus.execute(
+            Command::SetEffectIr {
+                strip: StripId::MASTER,
+                effect: id,
+                ir: p,
+                pedal: None,
+            },
+            Origin::Script,
+        )
+    };
+    ir(&mut bus, file("references/master 3.flac")).expect("a file set");
+    assert_eq!(
+        comparatio_refs(&bus, id),
+        (
+            vec!["references/master 3.flac".to_string()],
+            Some("references/master 3.flac".to_string())
+        ),
+        "the file compared is listed"
+    );
+    states.push(bus.project().clone());
+    bus.execute(
+        Command::SetReferences {
+            strip: StripId::MASTER,
+            effect: id,
+            refs: Some(Box::new(References {
+                list: vec![Reference::new("a.wav")],
+                eq: None,
+            })),
+            selected: file("a.wav"),
+        },
+        Origin::User,
+    )
+    .expect("a list set");
+    states.push(bus.project().clone());
+    // Another file: added after what the list holds; one it holds: the list unchanged.
+    ir(&mut bus, file("b.wav")).expect("a second file");
+    assert_eq!(comparatio_refs(&bus, id).0, ["a.wav", "b.wav"]);
+    states.push(bus.project().clone());
+    ir(&mut bus, file("a.wav")).expect("a listed file");
+    assert_eq!(comparatio_refs(&bus, id).0, ["a.wav", "b.wav"]);
+    states.push(bus.project().clone());
+    // Cleared: nothing compared, the list kept.
+    ir(&mut bus, None).expect("cleared");
+    assert_eq!(
+        comparatio_refs(&bus, id),
+        (vec!["a.wav".into(), "b.wav".into()], None)
+    );
+    states.push(bus.project().clone());
+    // Refused: an empty path, and a ninth reference.
+    assert!(ir(&mut bus, file(" ")).is_err());
+    bus.execute(
+        Command::SetReferences {
+            strip: StripId::MASTER,
+            effect: id,
+            refs: Some(Box::new(References {
+                list: (0..8).map(|i| Reference::new(format!("{i}.wav"))).collect(),
+                eq: None,
+            })),
+            selected: None,
+        },
+        Origin::User,
+    )
+    .expect("eight");
+    states.push(bus.project().clone());
+    assert!(ir(&mut bus, file("ninth.wav")).is_err(), "a ninth");
+    assert_eq!(
+        bus.project(),
+        states.last().unwrap(),
+        "a refusal changes nothing"
+    );
+    ir(&mut bus, file("7.wav")).expect("one of the eight");
+    states.push(bus.project().clone());
+    undo_redo_exact(&mut bus, &states);
+}
+
+/// A slot that comes in whole with a pair no command would set — the file compared not in
+/// its list, or a list written empty — is put back exactly by the inverse of whatever sets
+/// its references next (the whole slot as it was), so undo never fails on it.
+#[test]
+fn a_list_less_reference_brought_in_whole_still_undoes_exactly() {
+    use cantus_core::fx::comparatio::{Reference, References};
+    let crafted: [fn(&mut EffectSlot); 3] = [
+        |e| e.spec.ir = Some(Box::new(IrFile::new("references/master 3.flac"))),
+        |e| e.spec.refs = Some(Box::default()),
+        |e| {
+            e.spec.ir = Some(Box::new(IrFile::new("x.wav")));
+            e.spec.refs = Some(Box::new(References {
+                list: vec![Reference::new("y.wav")],
+                eq: None,
+            }));
+        },
+    ];
+    for craft in crafted {
+        for by_file in [false, true] {
+            let (mut bus, id) = comparatio_on_master(craft);
+            let states = {
+                let mut s = vec![bus.project().clone()];
+                let cmd = if by_file {
+                    Command::SetEffectIr {
+                        strip: StripId::MASTER,
+                        effect: id,
+                        ir: Some(Box::new(IrFile::new("z.wav"))),
+                        pedal: None,
+                    }
+                } else {
+                    Command::SetReferences {
+                        strip: StripId::MASTER,
+                        effect: id,
+                        refs: Some(Box::new(References {
+                            list: vec![Reference::new("a.wav")],
+                            eq: None,
+                        })),
+                        selected: Some(Box::new(IrFile::new("a.wav"))),
+                    }
+                };
+                bus.execute(cmd, Origin::User).expect("applied");
+                s.push(bus.project().clone());
+                s
+            };
+            undo_redo_exact(&mut bus, &states);
+        }
+    }
+}
+
+// ---- r41:fides — Fides (ADR 0150): a resonator inserted, its exciter, resonators, body and
+// numbers set and cleared, a modulation slot's text set, all among the other commands; undo
+// all and redo all restore the song to the bit.
+
+#[test]
+fn fides_edits_undo_and_redo_among_the_others() {
+    use cantus_core::inst::fides::PARAMS;
+    let mut kinds = [0usize; 4];
+    for seed in 1..=40u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x510E_527F).wrapping_add(41));
+        let mut orng = Lcg(seed.wrapping_mul(0x9B05_688C).wrapping_add(3));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..60 {
+            let mut scratch = bus.project().clone();
+            let ours: Vec<TrackId> = scratch
+                .tracks
+                .iter()
+                .filter(|t| {
+                    t.instrument
+                        .native()
+                        .is_some_and(|n| n.kind == InstrumentKind::Resonator)
+                })
+                .map(|t| t.id)
+                .collect();
+            let k = if ours.is_empty() {
+                0
+            } else {
+                orng.below(4) as usize
+            };
+            let cmd = match k {
+                0 => {
+                    let mut t = scratch.make_track("Fides");
+                    t.instrument =
+                        InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Resonator));
+                    Some(Command::InsertTrack {
+                        index: 0,
+                        track: Box::new(t),
+                    })
+                }
+                1 => {
+                    let track = ours[orng.below(ours.len() as u64) as usize];
+                    let info = &PARAMS[orng.below(PARAMS.len() as u64) as usize];
+                    let u = orng.below(1000) as f32 / 999.0;
+                    Some(Command::SetInstrumentValue {
+                        track,
+                        key: info.key.to_string(),
+                        value: info.min + (info.max - info.min) * u,
+                    })
+                }
+                2 => {
+                    let track = ours[orng.below(ours.len() as u64) as usize];
+                    let info = &PARAMS[orng.below(PARAMS.len() as u64) as usize];
+                    Some(Command::ClearInstrumentValue {
+                        track,
+                        key: info.key.to_string(),
+                    })
+                }
+                _ => {
+                    let track = ours[orng.below(ours.len() as u64) as usize];
+                    let (key, text) = [
+                        ("mod1.src", "mpe.press"),
+                        ("mod1.dst", "bow.pressure"),
+                        ("mod2.src", "macro1"),
+                        ("mod2.dst", "body.size"),
+                        ("macro1.name", "Body"),
+                    ][orng.below(5) as usize];
+                    Some(Command::SetInstrumentText {
+                        track,
+                        key: key.to_string(),
+                        text: Some(text.to_string()),
+                    })
+                }
+            };
+            let cmd = match cmd {
+                Some(c) => c,
+                None => random_command(&mut rng, &mut scratch),
+            };
+            bus.reserve_ids(scratch.next_id);
+            if bus.execute(cmd, Origin::User).is_ok() {
+                kinds[k] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        kinds.iter().all(|k| *k > 0),
+        "an edit never applied: {kinds:?}"
+    );
+}
+
+/// r41:fides-input — an instrument's sidechain (ADR 0154): a Fides track brought in keyed
+/// or not, keyed from a strip or let go, routed (into its own key: refused), swapped for
+/// another instrument (its key goes with it, and comes back on undo), its key's strip
+/// removed (refused while keyed) — and a key asked of an instrument that takes none.
+fn fides_key_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    let fides: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| t.instrument.takes_sidechain())
+        .map(|t| t.id)
+        .collect();
+    let strips: Vec<StripId> = project.strips.iter().map(|s| s.id).collect();
+    let strip = |rng: &mut Lcg| -> Option<StripId> {
+        if strips.is_empty() || rng.below(5) == 0 {
+            None
+        } else {
+            Some(strips[rng.below(strips.len() as u64) as usize])
+        }
+    };
+    let k = if fides.is_empty() { 0 } else { rng.below(8) };
+    let pick = |rng: &mut Lcg| fides[rng.below(fides.len() as u64) as usize];
+    match k {
+        0 => {
+            let mut t = project.make_track("Fides");
+            t.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Resonator));
+            t.sidechain = strip(rng);
+            Command::InsertTrack {
+                index: rng.below(project.tracks.len() as u64 + 1) as usize,
+                track: Box::new(t),
+            }
+        }
+        1..=3 => Command::SetTrackSidechain {
+            track: pick(rng),
+            source: strip(rng),
+        },
+        4 => Command::SetTrackStrip {
+            id: pick(rng),
+            strip: strip(rng),
+        },
+        5 => Command::SetInstrument {
+            track: pick(rng),
+            spec: Box::new(InstrumentSpec::default()),
+        },
+        6 => {
+            let t = pick(rng);
+            match project.track(t).and_then(|t| t.sidechain) {
+                Some(id) => Command::RemoveStrip { id },
+                None => Command::SetTrackSidechain {
+                    track: t,
+                    source: strip(rng),
+                },
+            }
+        }
+        _ => {
+            let other = project
+                .tracks
+                .iter()
+                .find(|t| !t.instrument.takes_sidechain())
+                .map_or_else(|| pick(rng), |t| t.id);
+            Command::SetTrackSidechain {
+                track: other,
+                source: strip(rng),
+            }
+        }
+    }
+}
+
+/// r41:fides-input — an instrument's sidechain among every other command (ADR 0154): undo
+/// all and redo all restore the song; no stored key ever sits on an instrument that takes
+/// none, or closes a loop (the strips stay in an order with every key before its track).
+#[test]
+fn fides_sidechain_undo_and_redo_among_the_others() {
+    let (mut applied, mut refused, mut keyed) = (0usize, 0usize, 0usize);
+    for seed in 1..=40u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(79));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for i in 0..80 {
+            let mut scratch = bus.project().clone();
+            let cmd = if i % 2 == 0 {
+                fides_key_command(&mut rng, &mut scratch)
+            } else {
+                random_command(&mut rng, &mut scratch)
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ours = i % 2 == 0;
+            match bus.execute(cmd, Origin::User) {
+                Ok(_) if ours => applied += 1,
+                Err(_) if ours => refused += 1,
+                _ => {}
+            }
+            let p = bus.project();
+            for t in &p.tracks {
+                assert!(
+                    t.sidechain.is_none() || t.instrument.takes_sidechain(),
+                    "seed {seed}: a key on an instrument that takes none"
+                );
+                if let Some(k) = t.sidechain {
+                    keyed += 1;
+                    let order = p.strip_order();
+                    let at = |id: StripId| order.iter().position(|i| p.strips[*i].id == id);
+                    for d in t.destinations().into_iter().flatten() {
+                        assert!(
+                            at(k) < at(d),
+                            "seed {seed}: a key after the strip its track plays into"
+                        );
+                    }
+                }
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        applied > 200 && refused > 20 && keyed > 100,
+        "applied {applied}, refused {refused}, keyed {keyed}"
+    );
+}
+
+// --- r41:take-tempo — takes through tempo changes --------------------------------------
+//
+// Round 41: one arm more in the main fuzz moved seed 33 onto a recorded take whose two
+// windows stacked at one place — one linked, one unlinked ten frames earlier in its file —
+// through a tempo rise from 63.5 to 293.4 bpm, and the take rule's check called it torn
+// ("frame 94217.7 where its take puts 94228.5"). `tempo::keep` was right (ADR 0060 §4,
+// review 6: a take is laid on its unlinked window's exact line; the linked one follows it by
+// whole ticks); the check measured how far the linked window had sat off that line with the
+// *new* map's half tick (5.1 frames) where it sat off by the old one's (23.6). The check now
+// measures it in the map it was taken from (`Win::slack`), the case is pinned below, and a
+// fuzz of its own mixes takes and tempo edits so no arm of the main fuzz has to draw it.
+
+/// A 48 kHz recorded file in `p`'s pool: its id.
+fn take_source(p: &mut Project) -> AudioSourceId {
+    let sid = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id: sid,
+        name: "voice".into(),
+        path: "C:/rec/voice.wav".into(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 384_000,
+        sha256: None,
+        recorded: true,
+    });
+    sid
+}
+
+/// Seed 33's take, minimised: a linked window and an unlinked one at the same place on one
+/// line of the file (its fine offset −10 frames, under half a tick at 63.5 bpm), the linked
+/// one first on the track. A rise to 293.4 bpm lays the take on the unlinked window's line
+/// (the head `keep` picks among the two, being the lower line), the linked one onto it by
+/// whole ticks — 10.75 frames from where it played, within half a tick of the old map. The
+/// take rule holds, both windows play the take's line, and the step undoes and redoes to
+/// the bit.
+#[test]
+fn a_linked_window_stacked_on_its_take_keeps_it_through_a_tempo_rise() {
+    let mut p = Project::new("seed 33");
+    p.tempo_bpm = 63.484_001_159_667_97;
+    let sid = take_source(&mut p);
+    let mut t = p.make_track("Voice");
+    let window = |p: &mut Project, slip: i32, link: Option<LinkId>| {
+        let mut c = p.make_audio_clip("voice", sid, Ticks(14_683), Ticks(10_277));
+        c.offset = Ticks(1_994);
+        c.audio.as_mut().unwrap().slip_frames = slip;
+        c.link = link;
+        c
+    };
+    let linked = window(&mut p, 0, Some(LinkId(96)));
+    let plain = window(&mut p, -10, None);
+    let (tid, lid, pid) = (t.id, linked.id, plain.id);
+    t.clips.push(linked);
+    t.clips.push(plain);
+    p.tracks.push(t);
+    let mut bus = CommandBus::new(p);
+    let start = bus.project().clone();
+    let before = windows_of(bus.project());
+    assert_eq!(before.len(), 2);
+    bus.execute(
+        Command::SetTempo {
+            bpm: 293.447_998_046_875,
+        },
+        Origin::User,
+    )
+    .expect("the tempo applies");
+    let edited = bus.project().clone();
+    let after = windows_of(&edited);
+    // The take rule, as the main fuzz checks it.
+    let n = takes_kept(&before, &after, &edited, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(n, 2);
+    // Each window, against the take's exact line — the unlinked window's frame at their
+    // one entry, which it keeps (half a frame); the linked one within half a tick of it
+    // (the new map's: it is laid on the line by whole ticks).
+    let frame = |ws: &[Win], c: ClipId| ws.iter().find(|w| w.key.1 == Some(c)).unwrap().frame;
+    let line = frame(&before, pid);
+    assert!((frame(&after, pid) - line).abs() <= 0.5 + 1e-9);
+    let map = edited.tempo_map();
+    let half = cantus_core::tempo::keep::linked_reach(
+        &map,
+        Ticks(14_683 - 9_216),
+        Ticks(14_683),
+        48_000.0,
+    );
+    assert!((frame(&after, lid) - line).abs() <= half + 1e-9);
+    assert!(
+        (frame(&before, lid) - frame(&after, lid)).abs() > half,
+        "the case: the linked window moves by more than the new half tick"
+    );
+    let c = edited.track(tid).unwrap().clip(lid).unwrap();
+    assert_eq!(
+        c.offset,
+        Ticks(9_216),
+        "whole ticks, its fine offset its group's"
+    );
+    assert_eq!(c.audio.as_ref().unwrap().slip_frames, 0);
+    // One step, exact both ways.
+    bus.undo().unwrap();
+    assert_eq!(*bus.project(), start, "undo");
+    bus.redo().unwrap();
+    assert_eq!(*bus.project(), edited, "redo");
+    assert!(!bus.can_redo());
+}
+
+/// One draw of the takes-and-tempo fuzz: tempo edits (the song's tempo, rises and falls far
+/// apart; the tempo track's commands), recorded windows laid down (forwards and reversed,
+/// linked or not), a window of one take stacked on another — an unlinked twin a few frames
+/// off, a linked one a tick off (seed 33's shape), a sibling of its group further on its
+/// line — splits, links made and let go, slips, re-anchors and removals.
+fn take_tempo_command(rng: &mut Lcg, project: &mut Project, sid: AudioSourceId) -> Command {
+    let tracks: Vec<TrackId> = project.tracks.iter().map(|t| t.id).collect();
+    let track = tracks[rng.below(tracks.len() as u64) as usize];
+    let audio: Vec<Clip> = project
+        .track(track)
+        .map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| c.audio.is_some())
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let picked = audio
+        .get(rng.below(audio.len().max(1) as u64) as usize)
+        .cloned();
+    let k = rng.below(13);
+    let Some(c) = picked.filter(|_| k >= 7) else {
+        return match k {
+            0..=2 | 7.. => Command::SetTempo {
+                bpm: f64::from(rng.f32(20.0, 300.0)),
+            },
+            3 | 4 => round29_tempo_command(rng, project),
+            _ => {
+                let start = rng.below(60_000) as i64;
+                let length = 1 + rng.below(12_000) as i64;
+                let mut c = project.make_audio_clip("take", sid, Ticks(start), Ticks(length));
+                c.offset = Ticks(rng.below(12_500) as i64 - 500);
+                let a = c.audio.as_mut().unwrap();
+                a.slip_frames = rng.below(81) as i32 - 40;
+                a.reverse = rng.below(6) == 0;
+                if rng.below(3) == 0 {
+                    c.link = Some(LinkId(project.alloc_id()));
+                }
+                Command::InsertClip {
+                    track,
+                    clip: Box::new(c),
+                }
+            }
+        };
+    };
+    match k {
+        7 | 8 => {
+            // Another window of the take: stacked on it, or further on its line.
+            let mut w = c.clone();
+            w.id = ClipId(project.alloc_id());
+            match rng.below(3) {
+                0 => {
+                    w.link = None;
+                    let a = w.audio.as_mut().unwrap();
+                    a.slip_frames += rng.below(41) as i32 - 20;
+                }
+                1 => {
+                    w.link = Some(LinkId(project.alloc_id()));
+                    w.offset += Ticks(rng.below(3) as i64 - 1);
+                }
+                _ => {
+                    // Its group's sibling (the same content), later on the same line.
+                    let d = rng.below(6_000) as i64;
+                    w.start += Ticks(d);
+                    w.offset += Ticks(d);
+                }
+            }
+            Command::InsertClip {
+                track,
+                clip: Box::new(w),
+            }
+        }
+        9 if c.length.0 > 1 => {
+            // A split by tick arithmetic: the halves share the origin and fine offset.
+            let cut = 1 + rng.below(c.length.0 as u64 - 1) as i64;
+            let mut right = c.clone();
+            right.id = ClipId(project.alloc_id());
+            right.start = c.start + Ticks(cut);
+            right.length = c.length - Ticks(cut);
+            right.offset = c.offset + Ticks(cut);
+            Command::Batch {
+                label_key: "cmd.split_clip".into(),
+                commands: vec![
+                    Command::SetClipBounds {
+                        track,
+                        clip: c.id,
+                        start: c.start,
+                        length: Ticks(cut),
+                    },
+                    Command::InsertClip {
+                        track,
+                        clip: Box::new(right),
+                    },
+                ],
+            }
+        }
+        10 => Command::SetClipLink {
+            track,
+            clip: c.id,
+            link: (rng.below(2) == 0).then(|| LinkId(project.alloc_id())),
+        },
+        11 => {
+            if rng.below(2) == 0 {
+                Command::SetClipOffset {
+                    track,
+                    clip: c.id,
+                    offset: c.offset + Ticks(rng.below(201) as i64 - 100),
+                }
+            } else {
+                // A fine offset moved: refused on a linked window (it is its group's).
+                let slip = c.audio.as_ref().unwrap().slip_frames;
+                Command::SetClipAnchors {
+                    track,
+                    anchors: vec![(c.id, c.offset, slip + rng.below(61) as i32 - 30)],
+                }
+            }
+        }
+        _ => Command::RemoveClip { track, clip: c.id },
+    }
+}
+
+/// Takes and tempo edits mixed in a fuzz of their own (round 41, after seed 33), so the
+/// main fuzz's draws — which move whenever it gains an arm — are not what covers them: after
+/// every tempo edit applied (alone, or as a gesture of merged frames) each take keeps its
+/// frame where it comes in and its windows on its line (`takes_kept`, the main fuzz's rule),
+/// links still share their content, and every step undoes and redoes to the bit. Seed 33's
+/// shape — a linked window and an unlinked one of one take on one line — is counted, so the
+/// draws cannot drift off it unseen. `CANTUS_FUZZ_SEEDS` runs more.
+#[test]
+fn takes_through_tempo_edits_keep_their_lines_and_undo_exactly() {
+    let plain_tempo = |c: &Command| {
+        matches!(
+            c,
+            Command::SetTempo { .. }
+                | Command::SetTempoTrack { .. }
+                | Command::InsertTempoPoint { .. }
+                | Command::RemoveTempoPoint { .. }
+                | Command::SetTempoPoint { .. }
+        )
+    };
+    // Tempo edits applied, gestures among them, windows checked, stacked lines (a linked
+    // and an unlinked window of one take) through a tempo edit, take edits applied, refused.
+    let (mut tempos, mut gestures, mut checked, mut stacked) = (0usize, 0usize, 0usize, 0usize);
+    let (mut edits, mut refused) = (0usize, 0usize);
+    for seed in fuzz_seeds(1..=200) {
+        let mut rng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(4_141));
+        let mut p = Project::new("takes");
+        p.tempo_bpm = f64::from(rng.f32(40.0, 240.0));
+        let sid = take_source(&mut p);
+        for name in ["Voice", "Guitar"] {
+            let t = p.make_track(name);
+            p.tracks.push(t);
+        }
+        let mut bus = CommandBus::new(p);
+        let norm = |p: &Project| {
+            let mut p = p.clone();
+            p.next_id = 0;
+            p
+        };
+        let mut checkpoints = vec![norm(bus.project())];
+        for step in 0..80u64 {
+            let mut scratch = bus.project().clone();
+            let cmd = take_tempo_command(&mut rng, &mut scratch, sid);
+            bus.reserve_ids(scratch.next_id);
+            let shown: String = format!("{cmd:?}").chars().take(400).collect();
+            let tempo = cantus_core::tempo::keep::changes_tempo(&cmd);
+            let before = tempo.then(|| windows_of(bus.project()));
+            let gesture = matches!(
+                cmd,
+                Command::SetTempo { .. }
+                    | Command::SetTempoTrack { .. }
+                    | Command::SetTempoPoint { .. }
+            ) && rng.below(4) == 0;
+            let plain = plain_tempo(&cmd);
+            let result = if gesture {
+                let key = MergeKey::of(&("takes", seed, step));
+                let first = bus.execute_merging(cmd.clone(), Origin::User, key);
+                if first.is_ok() {
+                    let mut last = cmd.clone();
+                    for _ in 0..1 + rng.below(5) {
+                        let frame = jittered(&last, &mut rng);
+                        if bus
+                            .execute_merging(frame.clone(), Origin::User, key)
+                            .is_ok()
+                        {
+                            last = frame;
+                        }
+                    }
+                    bus.end_gesture();
+                    gestures += 1;
+                }
+                first
+            } else {
+                bus.execute(cmd, Origin::User)
+            };
+            links::check(bus.project())
+                .unwrap_or_else(|e| panic!("seed {seed}: {e} after {shown}"));
+            let Ok(()) = result else {
+                refused += 1;
+                continue;
+            };
+            if let Some(b) = before.as_ref() {
+                tempos += 1;
+                checked += takes_kept(b, &windows_of(bus.project()), bus.project(), plain)
+                    .unwrap_or_else(|e| panic!("seed {seed}, step {step}: {e} after {shown}"));
+                stacked += usize::from(b.iter().any(|x| {
+                    x.linked
+                        && b.iter().any(|y| {
+                            !y.linked
+                                && (y.source, y.reverse, y.start) == (x.source, x.reverse, x.start)
+                                && (y.line - x.line).abs() <= 1.0 + x.slack
+                                && (y.line - x.line).abs() > 1.0
+                        })
+                }));
+            } else {
+                edits += 1;
+            }
+            checkpoints.push(norm(bus.project()));
+        }
+        for i in (1..checkpoints.len()).rev() {
+            assert!(bus.undo().is_some(), "seed {seed}: undo {i}");
+            assert_eq!(
+                norm(bus.project()),
+                checkpoints[i - 1],
+                "seed {seed}: undo to checkpoint {}",
+                i - 1
+            );
+        }
+        assert!(!bus.can_undo(), "seed {seed}");
+        for (i, want) in checkpoints.iter().enumerate().skip(1) {
+            assert!(bus.redo().is_some(), "seed {seed}: redo {i}");
+            assert_eq!(norm(bus.project()), *want, "seed {seed}: redo {i}");
+        }
+        assert!(!bus.can_redo(), "seed {seed}");
+    }
+    eprintln!(
+        "takes and tempo: {tempos} tempo edits ({gestures} gestures), {checked} windows \
+         checked, {stacked} with a linked window off its take's line, {edits} take edits, \
+         {refused} refused"
+    );
+    // The floors for the default 200 seeds (scaled down for fewer by hand).
+    let seeds = fuzz_seeds(1..=200).count();
+    assert!(
+        tempos >= seeds * 15 && checked >= seeds * 40 && stacked >= seeds / 4,
+        "too few: {tempos} tempo edits, {checked} windows, {stacked} stacked lines"
+    );
+    assert!(gestures > 0 && edits >= seeds * 20 && refused > 0);
 }

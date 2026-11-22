@@ -991,3 +991,67 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 - [ ] Verificado solo en emulación: los dispositivos de la prueba son una copia de tus
   capturas (ASIO4ALL v2, FL Studio ASIO, FlexASIO, Microphone Array); tus controladores
   reales y su número solo los ve tu equipo.
+
+### Ronda 41 — Fides, el resonador (ADR 0150) <!-- r41:fides -->
+
+- [ ] **Escuchar los ocho presets nombrados, solos** (`F:\projects\daw-r41\fides-listen\`): Marimba,
+  Vibráfono, Kalimba, Steel pan, Arpa, Guitarra de nylon, Chelo con arco y Cristal golpeado,
+  cada uno en su frase (`NN-<preset>.wav`) y en cinco notas de Do2 a Do6 (`NN-<preset>-notes.wav`).
+  Para cada uno: ¿es *convincente solo*? Anota lo que no lo sea (el ataque, la caída, el
+  timbre de los graves o de los agudos, el cuerpo). El panel de diez oyentes es tuyo.
+- [ ] **Tocar Fides en el teclado**: añade Fides (*Teclados*), toca acordes y escalas en todo el
+  rango con el preset por defecto y con Marimba; la velocidad debe dar más fuerza y más brillo.
+  Mantén una nota del Chelo con arco: debe sostener y crecer con el arco; suéltala: se apaga.
+- [ ] **MPE (si tienes un controlador MPE)**: con el Chelo con arco, la presión de cada dedo
+  debe apretar el arco (más áspero, más fuerte), el deslizamiento debe mover el arco hacia el
+  puente o la cejilla (más brillante o más dulce), el bend de cada nota debe doblar solo esa
+  nota. Probado solo con expresiones escritas por las pruebas.
+- [ ] **El dibujo de Tocar**: arrastra sobre la cuerda o la barra para mover dónde se toca; los
+  parciales de abajo deben seguir. Cambia el resonador entre los doce y el excitador entre los
+  seis: el dibujo debe ser cada vez el objeto correcto, sin nada encimado.
+- [ ] **La entrada en vivo** (excitador *Entrada*, ADR 0154 — un sidechain de un canal): en una
+  canción con una batería o una voz en su canal, añade Fides, pon el excitador en *Entrada*; la
+  tarjeta debe decir *Elige un canal: en silencio hasta entonces*. En *Entrada de*, elige el canal
+  de la batería y mantén un acorde: el resonador debe sonar con cada golpe, a tiempo con la
+  batería (también con un limitador en el canal de la batería). La lista no debe ofrecer el
+  canal de Fides ni uno al que Fides llega. Exporta la canción: debe sonar igual que al
+  tocarla. <!-- r41:fides-input -->
+- [ ] **Un micrófono en Fides** (con una interfaz real, en dúplex): una pista con la entrada del
+  micrófono armada y en escucha, en su canal; Fides con *Entrada de* en ese canal: canta o toca y
+  mantén notas en Fides — el resonador debe responder en vivo, con la latencia de la interfaz y
+  nada más. Verificado solo en emulación (pistas y renders de prueba). <!-- r41:fides-input -->
+
+### Ronda 41 — Nitor, el realzador de una perilla (ADR 0151) <!-- r41:nitor -->
+
+- [ ] **Insertar Nitor** (*Añadir inserción ▸ Masterización ▸ Nitor*) en una mezcla que
+  suena: empieza en *Brillo suave*. Gira **Cantidad** de 0 a 100 % con cada carácter
+  (Claro, Pegada, Cálido, Aire, Fuerte): el volumen debe quedar igual (*Igualar nivel*) y
+  cambiar el color. Apágalo y enciéndelo (bypass): ¿se oye la mejora y no solo más volumen?
+- [ ] **El sub en la tónica**: pon *El sub sigue* en *Tónica*, sube *Sub* en un bombo o un
+  bajo. Cambia la tonalidad de la canción en el piano roll (por ejemplo de Sol a Re): el sub
+  debe moverse al instante, sin clic. En tus monitores y en unos auriculares: ¿suena afinado?
+- [ ] **Armónicos** (tarjeta *Graves*) en un portátil o un teléfono: la línea de bajo debe oírse donde
+  antes no se oía.
+- [ ] **Nitor como plug-in** (*Cantus Nitor*, CLAP y VST3) en otro DAW: pon su *Tonalidad*
+  en la de la canción; debe sonar igual que en Cantus.
+- [ ] Verificado solo en emulación: todo lo anterior se midió con renders y pruebas; ningún
+  oído lo ha juzgado todavía. Los sonidos para escuchar están en
+  `F:\projects\daw-r41\nitor-listen\` (seco y procesado, a la misma sonoridad).
+
+### Ronda 41 — los cinco circuitos de Fragor como pedales propios en Tabula (ADR 0152) <!-- r41:pedals -->
+
+- [ ] **Las caras**: abre Tabula, *Añadir pedal* ▸ estante *Distorsión*: deben estar el
+  overdrive verde, la distorsión de op-amp, la de silicio, el fuzz de germanio y el muff
+  triangular, cada uno con la caja, la pintura y la rotulación que tiene en Fragor, y sus
+  tres perillas con sus nombres. Ponlos los cinco en la pedalera: nada se tapa ni se corta,
+  en Slate y en Paper, al 100 % y al 150 %. (Las imágenes de `docs/round41/pedals/` son de
+  la prueba; tu pantalla es la que decide.)
+- [ ] **El sonido**: carga *Saturaciones en cadena* en una guitarra. Gira la macro
+  *Saturación*: deben subir las dos saturaciones a la vez. Pisa el interruptor del muff:
+  queda el empuje y el phaser. Cada pedal suena como ese circuito solo en Fragor (las
+  pruebas lo comprueban bit a bit; tu oído decide si los presets nuevos — *Empuje limpio*,
+  *Solo de silicio*, *Fuzz bajo el bajo*, *Muro de muff* — valen).
+- [ ] **Bajo la pedalera** con un pedal de estos elegido: sus perillas, Puerta,
+  Mezcla, Salida, Sobremuestreo, Canales y Circuito caben a tu escala; no aparece *Abrir su
+  editor completo* (no tienen ventana propia: dinos si quieres la de Fragor con un solo
+  circuito).

@@ -27,6 +27,14 @@ const SUNG: [(f64, f64, f32); 4] = [
     (2.45, 3.05, 62.0),
 ];
 
+/// The binary's tests take turns (docs/RELEASING.md L5): run in parallel, two of them now and
+/// then ended a conversion without its new track (2 in 40 runs of the binary under load,
+/// never alone) — they share the process's data folder and the conversion's workers.
+fn turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    TURN.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn data_dir() {
     static DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
     let d = DIR.get_or_init(|| {
@@ -153,6 +161,7 @@ fn run_until_done(r: &mut Rig) {
 
 #[test]
 fn melody_from_the_dialog_is_one_undo_step_on_a_new_track() {
+    let _turn = turn();
     let mut r = voice_rig();
     let before = comparable(r.app.project());
     let steps = r.app.bus.history().len();
@@ -201,6 +210,7 @@ fn melody_from_the_dialog_is_one_undo_step_on_a_new_track() {
 
 #[test]
 fn melody_keeps_only_notes_as_long_as_the_shortest_asked() {
+    let _turn = turn();
     // The sung notes last 0.6, 0.6, 0.7 and 0.6 s: at 650 ms only the third is kept.
     let r = voice_rig();
     let (t, c) = ids(&r.app);
@@ -224,6 +234,7 @@ fn melody_keeps_only_notes_as_long_as_the_shortest_asked() {
 
 #[test]
 fn bends_are_kept_as_per_note_curves_when_asked() {
+    let _turn = turn();
     let mut r = voice_rig();
     let (t, c) = ids(&r.app);
     run::open(&mut r.app, t, c);
@@ -233,6 +244,11 @@ fn bends_are_kept_as_per_note_curves_when_asked() {
     s.quantize = Grid::Eighth;
     run::start(&mut r.app);
     run_until_done(&mut r);
+    assert!(
+        matches!(r.app.transcribe.last, Some(Ok(_))),
+        "{:?}",
+        r.app.transcribe.last
+    );
     let clip = &r.app.project().tracks[2].clips[0];
     assert!(
         clip.notes
@@ -253,6 +269,7 @@ fn bends_are_kept_as_per_note_curves_when_asked() {
 
 #[test]
 fn placement_turns_bends_into_curves_and_keeps_the_classes_asked() {
+    let _turn = turn();
     let mut r = voice_rig();
     let (t, c) = ids(&r.app);
     let src = tr::source(&r.app, t, c).unwrap();
@@ -336,6 +353,7 @@ fn placement_turns_bends_into_curves_and_keeps_the_classes_asked() {
 
 #[test]
 fn drums_through_the_helper_without_a_model() {
+    let _turn = turn();
     // Kicks every half second at 44.1 kHz.
     let rate = 44_100u32;
     let mut x = vec![0.0f32; 3 * rate as usize];
@@ -377,6 +395,7 @@ fn drums_through_the_helper_without_a_model() {
 
 #[test]
 fn polyphonic_without_its_model_asks_to_download_and_stop_changes_nothing() {
+    let _turn = turn();
     let mut r = voice_rig();
     let before = comparable(r.app.project());
     let (t, c) = ids(&r.app);
@@ -411,6 +430,7 @@ fn call(
 
 #[test]
 fn the_agent_tool_converts_in_one_named_step_and_never_downloads() {
+    let _turn = turn();
     let _one = AGENTS.lock().unwrap_or_else(|p| p.into_inner());
     let mut r = voice_rig();
     let mut c = agent(&mut r);
@@ -496,6 +516,7 @@ static AGENTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
 fn the_agents_drum_job_leaves_nothing_in_the_job_table() {
+    let _turn = turn();
     let _one = AGENTS.lock().unwrap_or_else(|p| p.into_inner());
     let mut r = voice_rig();
     let models = cantus_content::models::Models::new(
@@ -556,6 +577,7 @@ fn the_agents_drum_job_leaves_nothing_in_the_job_table() {
 
 #[test]
 fn the_tools_said_names_its_target() {
+    let _turn = turn();
     let r = voice_rig();
     let (t, c) = ids(&r.app);
     let src = tr::source(&r.app, t, c).unwrap();
@@ -570,6 +592,7 @@ fn the_tools_said_names_its_target() {
 
 #[test]
 fn every_transcribe_string_is_in_both_languages() {
+    let _turn = turn();
     let keys = [
         "transcribe.menu",
         "transcribe.title",
@@ -602,6 +625,7 @@ fn agent_job(
 
 #[test]
 fn remove_is_refused_while_an_agents_conversion_reads_its_take() {
+    let _turn = turn();
     use cantus_ai::tool::JobCx;
     use cantus_ui::stems_ui::models;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -666,6 +690,7 @@ fn session_rig() -> (Rig, TrackId, ClipId) {
 
 #[test]
 fn a_session_clip_is_refused_with_words_that_say_why() {
+    let _turn = turn();
     let (mut r, t, c) = session_rig();
     assert!(r.app.project().track(t).unwrap().clip(c).is_some());
     let e = tr::source(&r.app, t, c).unwrap_err();
@@ -686,6 +711,7 @@ fn a_session_clip_is_refused_with_words_that_say_why() {
 
 #[test]
 fn a_drum_conversions_kit_speaks_the_interfaces_language() {
+    let _turn = turn();
     let r = voice_rig();
     let (t, c) = ids(&r.app);
     let src = tr::source(&r.app, t, c).unwrap();

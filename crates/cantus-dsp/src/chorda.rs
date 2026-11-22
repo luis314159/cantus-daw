@@ -120,3 +120,11 @@ mod tests_tune_gate;
 #[cfg(test)]
 #[path = "chorda_tests_strings.rs"]
 mod tests_strings;
+
+#[cfg(test)]
+#[path = "chorda_modekit.rs"]
+mod modekit;
+
+#[cfg(test)]
+#[path = "chorda_tests_unison.rs"]
+mod tests_unison;

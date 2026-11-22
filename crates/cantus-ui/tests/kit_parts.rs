@@ -335,3 +335,49 @@ fn the_shell_frames_the_body_between_header_and_footer() {
     assert!(out.events.is_empty());
     assert_eq!(out.k, 1.0);
 }
+
+/// A value of words ("The song's", "de la canción": Nitor's Key) is painted whole in the
+/// value's one ink; a number keeps its unit in the unit's ink (round 41, value-words).
+#[test]
+fn a_value_of_words_is_painted_in_one_ink() {
+    default_thread_locale(Locale::En);
+    let ctx = gallery::offscreen_context();
+    let ink = Color32::from_rgb(9, 8, 7);
+    let sections = |s: &str| {
+        frame(&ctx, |_, _| {
+            text::with_unit_ink(Some(ink), || {
+                let t = Text::new(s, Role::Value, Color32::WHITE);
+                let (g, cut) = cache::with(&ctx, |c| text::fit(&ctx, c, &t, 1.0, 400.0)).unwrap();
+                assert!(!cut, "{s:?} whole");
+                g.job
+                    .sections
+                    .iter()
+                    .map(|x| {
+                        let r = &x.byte_range;
+                        (g.job.text[r.start.0..r.end.0].to_string(), x.format.color)
+                    })
+                    .collect::<Vec<_>>()
+            })
+        })
+    };
+    for s in ["The song's", "de la canción", "C sharp", "Off", "L 50"] {
+        assert_eq!(
+            sections(s),
+            [(s.to_string(), Color32::PLACEHOLDER)],
+            "{s:?}"
+        );
+    }
+    for (s, num, unit) in [
+        ("\u{2212}3.5 dB", "\u{2212}3.5", "dB"),
+        ("250 ms", "250", "ms"),
+    ] {
+        assert_eq!(
+            sections(s),
+            [
+                (num.to_string(), Color32::PLACEHOLDER),
+                (unit.to_string(), ink)
+            ],
+            "{s:?}"
+        );
+    }
+}

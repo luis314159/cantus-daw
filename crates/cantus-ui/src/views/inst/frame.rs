@@ -42,6 +42,7 @@ pub fn code_presets(kind: InstrumentKind) -> &'static [FactoryPreset] {
         InstrumentKind::Chorda => chorda::FACTORY_PRESETS,
         InstrumentKind::Dancer => dancer::FACTORY_PRESETS,
         InstrumentKind::AcousticDrums => tympanum::FACTORY_PRESETS, // r40:p3
+        InstrumentKind::Resonator => fides::FACTORY_PRESETS,        // r41:contract
     }
 }
 
@@ -57,6 +58,7 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Chorda => chorda::body(app, ui, track, spec, s),
         InstrumentKind::Dancer => dancer::body(app, ui, track, spec, s),
         InstrumentKind::AcousticDrums => tympanum::body(app, ui, track, spec, s), // r40:p3
+        InstrumentKind::Resonator => fides::body(app, ui, track, spec, s),        // r41:contract
     }
 }
 
@@ -88,6 +90,7 @@ fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Chorda => chorda::play(app, ui, track, spec, s),
         InstrumentKind::Dancer => dancer::play(app, ui, track, spec, s),
         InstrumentKind::AcousticDrums => tympanum::play(app, ui, track, spec, s), // r40:p3
+        InstrumentKind::Resonator => fides::play(app, ui, track, spec, s),        // r41:contract
     }
 }
 
@@ -104,6 +107,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
         InstrumentKind::Chorda => chorda::preview(ui, spec),
         InstrumentKind::Dancer => dancer::preview(ui, spec),
         InstrumentKind::AcousticDrums => tympanum::preview(ui, spec), // r40:p3
+        InstrumentKind::Resonator => fides::preview(ui, spec),        // r41:contract
     }
 }
 
@@ -120,6 +124,7 @@ pub fn demo_setup(app: &mut CantusApp, track: TrackId, kind: InstrumentKind) {
         InstrumentKind::Chorda => chorda::demo_setup(app, track),
         InstrumentKind::Dancer => dancer::demo_setup(app, track),
         InstrumentKind::AcousticDrums => tympanum::demo_setup(app, track), // r40:p3
+        InstrumentKind::Resonator => fides::demo_setup(app, track),        // r41:contract
     }
 }
 
@@ -136,6 +141,7 @@ pub fn demo_feed(app: &mut CantusApp, kind: InstrumentKind) {
         InstrumentKind::Chorda => chorda::demo_feed(app),
         InstrumentKind::Dancer => dancer::demo_feed(app),
         InstrumentKind::AcousticDrums => tympanum::demo_feed(app), // r40:p3
+        InstrumentKind::Resonator => fides::demo_feed(app),        // r41:contract
     }
 }
 
@@ -285,6 +291,17 @@ pub fn size_for(least: egui::Vec2) -> egui::Vec2 {
     }
     let chrome = egui::vec2(0.0, shell::HEADER + shell::FOOTER);
     shell::INSTRUMENT.max(least + chrome + shell::grid_room())
+}
+
+/// The width of a matrix row's *On* button at 100 %: 56 points, or more when its word in
+/// the worn face's capitals and its switch need it (r41:no-elision: "ACTIVA" in Fides's
+/// face was cut to "AC…" in Spanish).
+fn on_width(ui: &egui::Ui) -> f32 {
+    let s = Style::current();
+    let word = Text::key("mod.on", Role::Label, egui::Color32::TRANSPARENT).caps(true);
+    let w = ktext::measure(ui.ctx(), &word, s.t.text_scale).x;
+    // The cap's padding, its switch's slot and the gap to the word (`kit::led::button`).
+    56f32.max(w + 6.0 + kit::skin::switches::slot_w(s.skin.switch) + 5.0 + 6.0 + 2.0)
 }
 
 /// [`window_in`] with the editor's body `size` points (a review's shot of a whole view, taller
@@ -807,6 +824,17 @@ fn popups(
 
 // ---- the bands -----------------------------------------------------------------------------
 
+/// A macro's stored name as the band shows it: a locale key (a factory preset's, as
+/// `fides.macro.decay`) in the window's language, any other name as it was typed.
+/// r41:fides-all
+pub fn macro_name(stored: &str) -> String {
+    if crate::i18n::has(crate::i18n::Locale::En, stored) {
+        crate::i18n::t(stored)
+    } else {
+        stored.to_string()
+    }
+}
+
 /// The macro card: eight L knobs, each named and printed, each a modulation source you
 /// drag by its name. The card's title collapses it.
 fn macro_band(
@@ -862,9 +890,11 @@ fn macro_band(
         let c = Pos2::new(cell.left() + d * 0.5 + 4.0 * k, cell.center().y);
         let knob_rect = Rect::from_center_size(c, egui::Vec2::splat(d + 6.0 * k));
         let key: &'static str = MACRO_KEYS[m];
+        // r41:fides-all — a factory preset names its macros by locale key (Fides's
+        // `fides.macro.*`): shown in the window's language; a name typed by hand as it is.
         let name = spec
             .text(MACRO_NAME_KEYS[m])
-            .map(str::to_string)
+            .map(macro_name)
             .unwrap_or_else(|| tf("inst.macro_n", &[("n", &(m + 1).to_string())]));
         let mut v = spec.get(key);
         let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
@@ -1570,7 +1600,13 @@ pub fn matrix(
                 app.set_inst_value(track, k.curve, i as f32, false);
             }
             let mut live = on;
-            let lresp = led_button(ui, &mut live, Src::Key("mod.on"), &t("mod.on"), 56.0);
+            let lresp = led_button(
+                ui,
+                &mut live,
+                Src::Key("mod.on"),
+                &t("mod.on"),
+                on_width(ui),
+            );
             let learning = crate::controllers::stepped_inst(app, ui, track, spec, k.on, &lresp);
             if lresp.changed() && !learning {
                 app.set_inst_value(track, k.on, if live { 1.0 } else { 0.0 }, false);

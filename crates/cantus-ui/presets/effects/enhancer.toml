@@ -1,0 +1,129 @@
+# Nitor enhancer: factory presets (ADR 0101). Names are locale keys (fx/nitor.*.txt).
+# Every preset keeps the level match on (its default): it changes the sound, not the loudness.
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` checks the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.nitor.gentle"
+note = "The starting point: a third of the Clear character on anything."
+styles = ["pop", "rock", "worship"]
+roles = ["bus"]
+[preset.values]
+"amount" = 0.35
+
+[[preset]]
+key = "preset.nitor.mix_polish"
+note = "A mix bus made clearer: the details lifted, a little air on top."
+styles = ["pop", "house", "rnb"]
+roles = ["master"]
+[preset.values]
+"amount" = 0.6
+"air" = 0.1
+
+[[preset]]
+key = "preset.nitor.master_glow"
+note = "A light glow on a finished mix, the low end's harmonics for small speakers."
+styles = ["pop", "worship", "film"]
+roles = ["master"]
+[preset.values]
+"amount" = 0.4
+"harm" = 0.15
+"mix" = 0.8
+
+[[preset]]
+key = "preset.nitor.beat_punch"
+note = "A beat with more hit: the lows tightened, presence, the attacks let through."
+styles = ["trap", "house"]
+roles = ["drums"]
+[preset.values]
+"amount" = 0.7
+"char" = 1
+
+[[preset]]
+key = "preset.nitor.tight_kick"
+note = "A kick shortened, with a sine on the song's tonic under it."
+styles = ["trap", "house"]
+roles = ["drums"]
+[preset.values]
+"amount" = 0.4
+"char" = 1
+"sub" = 0.3
+"submode" = 1
+"tight" = 0.6
+
+[[preset]]
+key = "preset.nitor.warm_vocal"
+note = "A voice made warmer: even harmonics in its body, its top smoothed."
+styles = ["rnb", "jazz", "worship"]
+roles = ["vocal"]
+[preset.values]
+"amount" = 0.55
+"body" = 0.2
+"char" = 2
+
+[[preset]]
+key = "preset.nitor.vocal_air"
+note = "A voice opened up: air on top, a little presence."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"amount" = 0.5
+"char" = 3
+"pres" = 0.15
+
+[[preset]]
+key = "preset.nitor.bright_acoustic"
+note = "An acoustic guitar or a piano brought forward: air and body."
+styles = ["rock", "worship", "jazz"]
+roles = ["creative"]
+[preset.values]
+"amount" = 0.4
+"body" = 0.15
+"char" = 3
+
+[[preset]]
+key = "preset.nitor.loud_bus"
+note = "A bus made denser and louder-sounding, at the same loudness."
+styles = ["house", "trap", "rock"]
+roles = ["bus"]
+[preset.values]
+"amount" = 0.6
+"char" = 4
+
+[[preset]]
+key = "preset.nitor.sub_808"
+note = "A sine on the song's tonic under every kick and bass hit, its tail shortened."
+styles = ["trap", "latin"]
+roles = ["bus"]
+[preset.values]
+"sub" = 0.6
+"submode" = 1
+"tight" = 0.3
+
+[[preset]]
+key = "preset.nitor.small_speakers"
+note = "The bass's harmonics, so a phone or a laptop plays the line it cannot reach."
+styles = ["trap", "house", "pop"]
+roles = ["bus"]
+[preset.values]
+"harm" = 0.6
+"xover" = 120
+
+[[preset]]
+key = "preset.nitor.octave_sub"
+note = "An octave under the bass line, phase-locked to it, the root a little lifted."
+styles = ["house", "latin", "rnb"]
+roles = ["bus"]
+[preset.values]
+"lift" = 0.3
+"sub" = 0.5
+
+[[preset]]
+key = "preset.nitor.root_bloom"
+note = "The song's root note blooms in the low end, with a little warmth."
+styles = ["ambient", "film", "worship"]
+roles = ["creative"]
+[preset.values]
+"amount" = 0.25
+"char" = 2
+"lift" = 0.6
