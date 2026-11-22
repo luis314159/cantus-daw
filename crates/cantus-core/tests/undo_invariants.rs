@@ -632,9 +632,11 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // Pulsus: pad parameters and pad names. `SetInstrumentParam` is deliberately
         // aimed at *any* track, kit or not, so the "not applicable" path is exercised as
         // well as the working one — a command that fails must leave nothing behind.
-        // r41:fides-input (ADR 0154): an instrument's sidechain set, let go, routed around,
-        // swapped away with its instrument — and the refusals.
-        17 => fides_key_command(rng, project),
+        // r41:fides-input (ADR 0154): an instrument's sidechain has its own fuzz,
+        // `fides_sidechain_undo_and_redo_among_the_others`, which draws these arms between
+        // its own; 17 stays a rename here, so every other arm's draws keep their meaning
+        // (drawn here, it moved seed 33 onto a take's frame after a tempo change — reported
+        // in docs/round41/fides.md, *Fides's input as a sidechain*).
         18..=19 if tracks > 0 => {
             let ti = rng.below(tracks as u64) as usize;
             let id = project.tracks[ti].id;

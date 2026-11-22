@@ -175,3 +175,8 @@ fides.highcut.short = Corte ag.
 fides.retrig.short = Regolpe
 fides.mode_kind.poly.short = Poli
 fides.resonator.marimba.short = Marimba
+# r41:fides-input — the Input exciter's source (ADR 0154)
+fides.input.from = Entrada de
+fides.input.none = Ningún canal
+fides.input.tip = Lo que excita el instrumento mientras se mantiene una nota: cualquier canal de la mesa después de su fader — un sidechain, sin envío que configurar
+fides.input.silent = Elige un canal: en silencio hasta entonces

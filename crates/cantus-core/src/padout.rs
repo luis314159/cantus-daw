@@ -362,6 +362,7 @@ fn merge_pads(project: &Project, track: TrackId, every: bool) -> Result<Command,
             .filter(|x| !moved.contains(&x.id))
             .any(|x| x.feeds().any(|to| to == s))
             || project.strips.iter().any(|x| x.keys().any(|k| k == s))
+            || project.tracks.iter().any(|x| x.sidechain == Some(s)) // r41:fides-input
             || project.strips.iter().any(|x| x.vcas.contains(&s))
             || project
                 .master
@@ -464,6 +465,7 @@ pub fn orphans(project: &Project) -> Vec<StripId> {
                     .filter(|x| !gone.contains(&x.id))
                     .any(|x| x.feeds().any(|to| to == s.id) || x.keys().any(|k| k == s.id))
                 && !project.strips.iter().any(|x| x.vcas.contains(&s.id))
+                && !project.tracks.iter().any(|x| x.sidechain == Some(s.id)) // r41:fides-input
                 && !project
                     .master
                     .effects

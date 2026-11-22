@@ -4005,6 +4005,15 @@ fn check_track_key(
     Ok(())
 }
 
+impl Project {
+    /// r41:fides-input — whether `SetTrackSidechain` takes `source` for `track` (ADR 0154):
+    /// the strips an instrument's input chooser offers.
+    pub fn can_key_track(&self, track: TrackId, source: StripId) -> bool {
+        self.track(track)
+            .is_some_and(|t| check_track_key(self, t, source).is_ok())
+    }
+}
+
 /// The routes a whole new slot brings (`ReplaceEffect`): its key and its note source,
 /// checked as `SetEffectSidechain` and `SetEffectMidiSource` check them.
 fn check_effect_routes(

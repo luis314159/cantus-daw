@@ -1009,9 +1009,17 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 - [ ] **El dibujo de Tocar**: arrastra sobre la cuerda o la barra para mover dónde se toca; los
   parciales de abajo deben seguir. Cambia el resonador entre los doce y el excitador entre los
   seis: el dibujo debe ser cada vez el objeto correcto, sin nada encimado.
-- [ ] **La entrada en vivo** (excitador *Entrada*): necesita que el integrador lleve la señal de
-  una pista al instrumento (`docs/round41/fides.md`); cuando esté, pon una voz o una batería
-  en la entrada y toca acordes: el resonador debe sonar con esa señal.
+- [ ] **La entrada en vivo** (excitador *Entrada*, ADR 0154 — un sidechain de un canal): en una
+  canción con una batería o una voz en su canal, añade Fides, pon el excitador en *Entrada*; la
+  tarjeta debe decir *Elige un canal: en silencio hasta entonces*. En *Entrada de*, elige el canal
+  de la batería y mantén un acorde: el resonador debe sonar con cada golpe, a tiempo con la
+  batería (también con un limitador en el canal de la batería). La lista no debe ofrecer el
+  canal de Fides ni uno al que Fides llega. Exporta la canción: debe sonar igual que al
+  tocarla. <!-- r41:fides-input -->
+- [ ] **Un micrófono en Fides** (con una interfaz real, en dúplex): una pista con la entrada del
+  micrófono armada y en escucha, en su canal; Fides con *Entrada de* en ese canal: canta o toca y
+  mantén notas en Fides — el resonador debe responder en vivo, con la latencia de la interfaz y
+  nada más. Verificado solo en emulación (pistas y renders de prueba). <!-- r41:fides-input -->
 
 ### Ronda 41 — Nitor, el realzador de una perilla (ADR 0151) <!-- r41:nitor -->
 

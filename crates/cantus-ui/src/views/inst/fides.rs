@@ -261,13 +261,86 @@ fn exciter_card(
         &sd,
         KnobSize::M,
     );
-    let second: &[&str] = if fs.exc.kind == ExciterKind::Bow {
-        &["exc.pos", "mpe.press", "mpe.slide", "noise.level"]
-    } else {
-        &["exc.pos", "velocity", "noise.level", "mpe.slide"]
+    let second: &[&str] = match fs.exc.kind {
+        ExciterKind::Bow => &["exc.pos", "mpe.press", "mpe.slide", "noise.level"],
+        // r41:fides-input — what it hears beside where it plays it (ADR 0154).
+        ExciterKind::Input => &["exc.pos", "velocity"],
+        _ => &["exc.pos", "velocity", "noise.level", "mpe.slide"],
     };
     if r[2].bottom() <= cr.body.bottom() + 0.5 {
-        cells(app, ui, r[2], track, spec, second, &sd, KnobSize::M);
+        if fs.exc.kind == ExciterKind::Input {
+            let parts = super::organ::parts::split(r[2], s.s(6.0), &[0.55, 0.45]);
+            input_source(app, ui, parts[0], track, &sd);
+            cells(app, ui, parts[1], track, spec, second, &sd, KnobSize::M);
+        } else {
+            cells(app, ui, r[2], track, spec, second, &sd, KnobSize::M);
+        }
+    }
+}
+
+/// r41:fides-input — the Input exciter's source (ADR 0154): the strip whose audio excites
+/// it, chosen as an insert's key is (any strip of the desk after its fader, but one that
+/// would close a loop), or none — and then it says so: the exciter is silent until one is.
+fn input_source(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect, track: TrackId, s: &Style) {
+    use crate::views::fx::{controls, frame};
+    let current = app.project().track(track).and_then(|t| t.sidechain);
+    let w = rect.width() / s.k;
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(rect)
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    controls::caption(&mut child, s, Src::Key("fides.input.from"), w);
+    let shown = match current {
+        Some(k) => app.capture_label(cantus_engine::CaptureTarget::Strip(k)),
+        None => crate::i18n::t("fides.input.none"),
+    };
+    let id = egui::Id::new(("fides-input", track.0));
+    if let Some(at) = controls::field(&mut child, s, id, &shown, frame::tr("fides.input.tip"), w) {
+        let project = app.project();
+        let options: Vec<(cantus_core::StripId, String)> = project
+            .strips
+            .iter()
+            .map(|x| x.id)
+            .filter(|k| project.can_key_track(track, *k))
+            .map(|k| (k, app.capture_label(cantus_engine::CaptureTarget::Strip(k))))
+            .collect();
+        let mut items = vec![frame::radio(Src::Key("fides.input.none"), current.is_none())];
+        items.extend(
+            options
+                .iter()
+                .map(|(k, text)| frame::radio(Src::Str(text), current == Some(*k))),
+        );
+        if let Some(i) = controls::list(&mut child, s, id, at, w.max(180.0), &items) {
+            let source = if i == 0 {
+                None
+            } else {
+                options.get(i - 1).map(|o| o.0)
+            };
+            drop(items);
+            if source != current {
+                app.exec(cantus_core::Command::SetTrackSidechain { track, source });
+            }
+        }
+    }
+    if current.is_none() {
+        let line = Rect::from_min_size(
+            Pos2::new(rect.left(), child.cursor().min.y + s.s(4.0)),
+            Vec2::new(rect.width(), s.d(14.0)),
+        );
+        if line.bottom() <= rect.bottom() + 0.5 {
+            with_brush(&ui.painter_at(rect), |b| {
+                let t = crate::kit::text::Text {
+                    src: Src::Key("fides.input.silent"),
+                    role: crate::kit::text::Role::Micro,
+                    caps: false,
+                    align: egui::Align2::LEFT_CENTER,
+                    policy: crate::kit::text::Policy::Abbreviate,
+                    color: s.t.text_dim,
+                };
+                let _ = crate::kit::text::paint(b, line, &t, s.tk());
+            });
+        }
     }
 }
 

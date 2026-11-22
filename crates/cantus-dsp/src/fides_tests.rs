@@ -192,8 +192,14 @@ fn voices_on_the_pool_are_the_serial_bits() {
 /// to `near`, low-passed by two boxcars of four of its periods (whose nulls fall on every
 /// other harmonic of it), and the slope of its unwrapped phase fitted by least squares.
 fn measure_hz(x: &[f32], near: f64, from: f64, to: f64) -> f64 {
+    let len = ((4.0 * SR as f64 / near).round() as usize).max(4);
+    measure_hz_over(x, near, from, to, len)
+}
+
+/// [`measure_hz`] with its two boxcars `len` samples long: longer, for a partial among its
+/// neighbours.
+fn measure_hz_over(x: &[f32], near: f64, from: f64, to: f64, len: usize) -> f64 {
     let sr = SR as f64;
-    let len = ((4.0 * sr / near).round() as usize).max(4);
     let w = std::f64::consts::TAU * near / sr;
     let mut re: Vec<f64> = Vec::with_capacity(x.len());
     let mut im: Vec<f64> = Vec::with_capacity(x.len());
@@ -887,4 +893,83 @@ fn a_released_string_ends_whatever_its_decay_and_material() {
         "voices that never ended:\n{}",
         hung.join("\n")
     );
+}
+
+/// r41:fides-input — Inharmonicity acts over its whole range: the stiffness allpasses'
+/// coefficient moves at every step of 0.01 from −1 to 1, at every pitch and loss, and is
+/// Gravis's fit to the bit wherever that fit gave one (above the old threshold).
+#[test]
+fn the_stiffness_fit_moves_at_every_step_and_keeps_the_old_fit_where_it_had_one() {
+    use crate::gravis::string::{dispersion_fit, loss_delay};
+    let sr = SR as f64;
+    let (mut kept, mut new) = (0, 0);
+    for f0 in [41.2f64, 65.4, 130.8, 261.6, 523.3, 1046.5] {
+        for a in [0.0f64, 0.2, 0.5, 0.8, 0.95] {
+            let period = sr / f0;
+            let other = |w: f64| loss_delay(a, w);
+            let mut last = f64::INFINITY;
+            for i in -100..=100 {
+                let inharm = i as f64 / 100.0;
+                let c = string::stiffness_fit(inharm, f0, sr, period, other);
+                assert!(c.is_finite() && c.abs() < 0.98, "{f0} Hz, a {a}, {inharm}: {c}");
+                assert!(
+                    c < last,
+                    "{f0} Hz, a {a}: Inharmonicity {inharm} does not move the fit ({c} after {last})"
+                );
+                last = c;
+                if inharm > 0.0 {
+                    let old = dispersion_fit(4e-4 * inharm * inharm, f0, sr, period, other);
+                    if old != 0.0 {
+                        assert_eq!(c.to_bits(), old.to_bits(), "{f0} Hz, a {a}, {inharm}");
+                        kept += 1;
+                    } else {
+                        new += 1;
+                    }
+                }
+            }
+        }
+    }
+    println!("{kept} steps kept the old fit's coefficient, {new} under its threshold now move");
+    assert!(kept > 0 && new > 0);
+}
+
+/// r41:fides-input — what the steps do to a string's partials: the fitted partial (the
+/// 12th at C3) where a stiff string puts it, `√((1 + 144 B)/(1 + B))` over the harmonic,
+/// rising at every step under the old threshold (at material 0.32 it was 0.12, the nylon
+/// guitar's: nothing moved under it) and above it, and the fundamental in tune throughout.
+#[test]
+fn inharmonicity_moves_a_string_s_partials_at_every_step() {
+    let key = 48u8;
+    let f0 = 440.0 * math::exp2((key as f64 - 69.0) / 12.0);
+    let mut last = f64::NEG_INFINITY;
+    for inharm in [0.0f32, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5] {
+        let mut s = FidesSettings::default();
+        s.a.kind = ResKind::String;
+        s.a.material = 0.32;
+        s.a.decay_s = 8.0;
+        s.a.decay_key = 0.0;
+        s.a.inharm = inharm;
+        s.exc.kind = ExciterKind::Pluck;
+        s.body.kind = BodyKind::None;
+        s.width = 0.0;
+        let mut f = Fides::new(SR);
+        f.set(&s);
+        f.note_on(key, 0.9, 7);
+        let frames = (0.6 * SR) as usize;
+        let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
+        for at in (0..frames).step_by(256) {
+            let n = 256.min(frames - at);
+            f.process(&mut l[at..at + n], &mut r[at..at + n]);
+        }
+        let b = 4e-4 * (inharm as f64) * (inharm as f64);
+        let want = 1200.0 * math::log2(((1.0 + 144.0 * b) / (1.0 + b)).sqrt());
+        let near = 12.0 * f0 * math::exp2(want / 1200.0);
+        let got = cents(measure_hz_over(&l, near, 0.03, 0.25, 2400) / 12.0, f0);
+        let fund = cents(measure_hz(&l, f0, 0.05, 0.55), f0);
+        println!("Inharmonicity {inharm}: partial 12 {got:+.3} ct (a stiff string's {want:+.3}), fundamental {fund:+.4} ct");
+        assert!(fund.abs() < 0.1, "{inharm}: the fundamental {fund:+.4} ct");
+        assert!((got - want).abs() < 0.5, "{inharm}: partial 12 at {got:+.3}, not {want:+.3}");
+        assert!(got > last + 0.05, "{inharm}: partial 12 did not move ({got:+.3} after {last:+.3})");
+        last = got;
+    }
 }

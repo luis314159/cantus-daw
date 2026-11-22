@@ -41,7 +41,7 @@ the newest voice rings.
 | **Bow** | a bow drawn across, by a friction curve: the string sticks and slips (Helmholtz motion) | Pressure, Bow speed, Attack, Lift, Level |
 | **Mallet** | a power-law spring's force pulse (the Hunt–Crossley contact, p = 2.5): harder is shorter and brighter | Contact (a yarn mallet 1.5–3 ms, rubber 0.5–1, brass 0.2), Velocity tone, Strike noise (felt), Tone, Level |
 | **Noise** | band-passed noise through its own envelope — breath, wind, rain (Density below 100 % makes it grains) | Colour, Width, Density, Attack, Release |
-| **Input** | a track's audio into the resonator | Level, Attack, Lift, Tone |
+| **Input** | another strip's audio into the resonator, while a note is held: chosen under *Input from* in its card, as a compressor's key is (any strip after its fader, a sidechain — a drum bus ringing a marimba, a voice driving a string); with none chosen it is silent and says so | Level, Attack, Lift, Tone |
 
 **Position** is where it is played, as a fraction of the length from the end the picture
 draws at the left: a string's bridge, a bar's end, a tine's tip, a membrane's rim, a bell's
@@ -67,7 +67,7 @@ under any exciter (a bow's rosin, a mallet's felt).
 
 **Decay** is how long the fundamental rings (T60, the time to fall 60 dB). **Material** is how
 the highs die: wood's die at once, glass's and metal's ring as long as the fundamental.
-**Inharmonicity** stretches (or squeezes) the partials. **Listen** is where a modal object is
+**Inharmonicity** stretches (or squeezes) the partials: on a string, at 0 they are harmonic, above it a stiff string's (a piano's at 100 %), below it drawn in as far — every step moves them. **Listen** is where a modal object is
 heard from (the microphone's ring).
 
 **The body**: None, Guitar (its air mode near 98 Hz and its top's modes), Violin (its

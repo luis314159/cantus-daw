@@ -42,7 +42,7 @@ encienden con lo que suena la voz más reciente.
 | **Arco** | un arco que frota, por una curva de fricción: la cuerda se pega y se suelta (el movimiento de Helmholtz) | Presión, Velocidad del arco, Ataque, Levantar, Nivel |
 | **Baqueta** | el pulso de fuerza de un resorte de ley de potencia (el contacto de Hunt–Crossley, p = 2,5): más fuerte es más corto y más brillante | Contacto (una baqueta de lana 1,5–3 ms, de goma 0,5–1, de latón 0,2), Tono por velocidad, Ruido del golpe (el fieltro), Tono, Nivel |
 | **Ruido** | ruido filtrado con su propia envolvente — aliento, viento, lluvia (Densidad por debajo del 100 % lo vuelve granos) | Color, Anchura, Densidad, Ataque, Liberación |
-| **Entrada** | el audio de una pista en el resonador | Nivel, Ataque, Levantar, Tono |
+| **Entrada** | el audio de otro canal en el resonador, mientras se mantiene una nota: se elige en *Entrada de*, en su tarjeta, como la clave de un compresor (cualquier canal después de su fader, un sidechain — un bus de batería que hace sonar una marimba, una voz que mueve una cuerda); sin ninguno elegido no suena, y lo dice | Nivel, Ataque, Levantar, Tono |
 
 **Posición** es dónde se toca, como fracción del largo desde el extremo que el dibujo pone a la
 izquierda: el puente de una cuerda, el extremo de una barra, la punta de una lengüeta, el borde
@@ -69,7 +69,7 @@ fieltro de una baqueta).
 
 **Caída** es cuánto suena la fundamental (T60, el tiempo en bajar 60 dB). **Material** es cómo
 mueren los agudos: los de la madera de inmediato, los del cristal y el metal tanto como la
-fundamental. **Inarmonicidad** estira (o comprime) los parciales. **Escucha** es desde dónde se
+fundamental. **Inarmonicidad** estira (o comprime) los parciales: en una cuerda, en 0 son armónicos, por encima los de una cuerda rígida (los de un piano al 100 %), por debajo se recogen otro tanto — cada paso los mueve. **Escucha** es desde dónde se
 oye un objeto modal (el anillo del micrófono).
 
 **El cuerpo**: Ninguno, Guitarra (su modo de aire cerca de 98 Hz y los de su tapa), Violín (sus
