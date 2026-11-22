@@ -238,6 +238,7 @@ fn the_stream_starts_at_the_note_on_and_stops_before_the_note_off() {
         muted: false,
         release: 0,
         expr: None,
+        art: None,
     };
     n.expr = bend(&[(0, 0.0), (480, 2.0), (2000, 5.0)]).boxed();
     let (p, t, _) = project_with(vec![n]);
@@ -272,6 +273,7 @@ fn the_command_sets_and_its_inverse_restores_exactly() {
         muted: false,
         release: 0,
         expr: None,
+        art: None,
     };
     let (mut p, t, c) = project_with(vec![n]);
     let before = p.clone();
@@ -321,6 +323,7 @@ fn a_note_without_expression_serialises_as_before() {
         muted: false,
         release: 0,
         expr: None,
+        art: None,
     };
     let s = serde_json::to_string(&n).unwrap();
     assert!(!s.contains("expr"), "{s}");

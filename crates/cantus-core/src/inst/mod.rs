@@ -26,6 +26,7 @@ pub mod chorda_source; // r40:p3 (ADR 0125): Chorda's recorded source and its mi
 pub mod room_look; // r40:scene (ADR 0126, schema 69): the room, floor, walls and rug a scene draws
 
 // The dancer (round 35, ADR 0087): a character that dances on screen, and makes no sound.
+pub mod arcus; // r42:contract (ADR 0157): the bowed string — arcus
 pub mod dancer;
 pub mod epiano;
 pub mod fides; // r41:contract (ADR 0150): the resonator instrument — fides
@@ -78,6 +79,13 @@ pub enum InstrumentKind {
     /// (2026-11-21, round 41): every kind-wide test (the contract twins, the null corpus
     /// and its hashes, the bench, the undo fuzz's draws) iterates it.
     Resonator,
+    /// Arcus: the bowed string — the cello and the double bass first, on Fides's bow and
+    /// body (round 42, ADR 0157; schema 81). // r42:contract
+    ///
+    /// **Not in [`InstrumentKind::ALL`] yet**: every kind-wide test iterates `ALL`, and a
+    /// stub that makes no sound would fail them or move them. The `arcus` builder adds it in
+    /// the commit that makes it sound, as Fides did.
+    BowedString,
 }
 
 macro_rules! dispatch {
@@ -94,6 +102,7 @@ macro_rules! dispatch {
             InstrumentKind::Dancer => dancer::$item $( ( $($arg),* ) )?,
             InstrumentKind::AcousticDrums => tympanum::$item $( ( $($arg),* ) )?, // r40:p3
             InstrumentKind::Resonator => fides::$item $( ( $($arg),* ) )?, // r41:contract
+            InstrumentKind::BowedString => arcus::$item $( ( $($arg),* ) )?, // r42:contract
         }
     };
 }
@@ -134,6 +143,7 @@ impl InstrumentKind {
             InstrumentKind::Chorda => &[("model", chorda::MODEL)],
             InstrumentKind::AcousticDrums => &[("model", tympanum::MODEL)], // r40:p3
             InstrumentKind::Resonator => &[("model", fides::MODEL)],        // r41:contract
+            InstrumentKind::BowedString => &[("model", arcus::MODEL)],      // r42:contract
             _ => &[],
         }
     }

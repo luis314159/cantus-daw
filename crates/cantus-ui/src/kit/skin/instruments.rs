@@ -498,6 +498,8 @@ pub fn of(kind: InstrumentKind) -> &'static Skin {
         InstrumentKind::Dancer => &SALTATOR,
         InstrumentKind::AcousticDrums => &TYMPANUM, // r40:tymp-ui
         InstrumentKind::Resonator => &fides::FIDES, // r41:fides
+        // r42:contract — Fides's sheet until the arcus builder draws Arcus's.
+        InstrumentKind::BowedString => &fides::FIDES,
     }
 }
 

@@ -78,6 +78,11 @@ pub struct Note {
     /// roll — `None` on an ordinary note, which then serialises and plays exactly as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expr: Option<Box<note_expr::NoteExpr>>,
+    /// How the note is played (schema 81, ADR 0158): its articulation, and its bow when it is
+    /// bowed. `None` — every older note — lets the instrument decide, and is not written.
+    /// // r42:contract
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub art: Option<crate::note_art::NoteArt>, // r42:contract
 }
 
 impl Note {
@@ -619,6 +624,10 @@ pub struct Track {
     /// `None` — every older track — hears nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sidechain: Option<StripId>,
+    /// The track's tuning against the project's (schema 80, ADR 0155): `Follow` — every
+    /// older track — is not written. // r42:contract
+    #[serde(default, skip_serializing_if = "crate::tuning::TrackTuning::is_follow")]
+    pub tuning: crate::tuning::TrackTuning, // r42:contract
 }
 
 /// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
@@ -1313,6 +1322,11 @@ pub struct Project {
     /// (`Track::folder`). // r39:arrange
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub folders: Vec<crate::arrange::TrackFolder>, // r39:arrange
+    /// The project's tuning (schema 80, ADR 0155): what every pitched instrument plays in,
+    /// unless its track says otherwise. 12-TET at 440 Hz — every older project — is not
+    /// written. // r42:contract
+    #[serde(default, skip_serializing_if = "crate::tuning::Tuning::is_default")]
+    pub tuning: crate::tuning::Tuning, // r42:contract
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1366,6 +1380,7 @@ impl Project {
             external_units: Vec::new(),  // r36:external
             sections: Vec::new(),        // r39:arrange
             folders: Vec::new(),         // r39:arrange
+            tuning: Default::default(),  // r42:contract
             next_id: 1,
         }
     }
@@ -1805,6 +1820,7 @@ impl Project {
             glyph: None,                    // r39:arrange
             record_tap: Default::default(), // r40:pads
             sidechain: None,                // r41:fides-input
+            tuning: Default::default(),     // r42:contract
         }
     }
 
@@ -1903,6 +1919,7 @@ impl Project {
             muted: false,
             release: 0,
             expr: None,
+            art: None,
         }
     }
 }

@@ -593,7 +593,8 @@ fn new_note(n: &RecordedNote, content: Ticks, ids: Ids) -> Note {
         velocity: n.velocity.clamp(1, 127),
         muted: false,
         release: n.release.min(127),
-        expr: n.expr.clone(), // r33:mpe
+        expr: n.expr.clone(), // r33:mpe,
+        art: None,
     }
 }
 

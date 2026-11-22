@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 79; // r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 81; // r42: 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning (ADR 0155), 82 reserved (strings-rec); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -352,6 +352,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_76_to_77, // fxd — the X-Y pad and the formula controller (ADRs 0144–0145)
     migrate_77_to_78, // r41:contract — Fides, Nitor, Fragor's five pedals (ADRs 0150–0152)
     migrate_78_to_79, // r41:fides-input — an instrument's sidechain (ADR 0154)
+    migrate_79_to_80, // r42:contract — the project's and the tracks' tuning (ADR 0155)
+    migrate_80_to_81, // r42:contract — Arcus and the note's articulation (ADRs 0157, 0158)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1254,6 +1256,21 @@ fn migrate_78_to_79(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 80 (round 42, ADR 0155): the project's `tuning` and each track's. Absent — every
+/// older song — is 12-TET at 440 Hz, followed by every track, which is what they played, so
+/// nothing is written; an older build would drop a tuning and play the song in 12-TET.
+// r42:contract
+fn migrate_79_to_80(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 81 (round 42, ADRs 0157, 0158): the instrument `BowedString` (Arcus) and a note's
+/// `art` (its articulation and bow). Nothing older holds either, so nothing is written.
+// r42:contract
+fn migrate_80_to_81(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
 /// the default character changed, an old song keeps the one it showed).
 fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
@@ -1739,6 +1756,75 @@ mod tests {
             .is_none_or(|n| n.kind != InstrumentKind::Resonator)));
     }
 
+    /// r42:contract — Schema 80 (ADR 0155): the fixture's project plays in Werckmeister III in
+    /// E flat at 415 Hz, its first track in equal temperament, its second in its own 31-EDO;
+    /// it round-trips; every older file (79) opens in 12-TET at 440, every track following.
+    #[test]
+    fn schema_80_keeps_the_tunings() {
+        use cantus_core::tuning::{Temperament, TrackTuning, TuningSystem};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v80.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        // No longer the newest (81): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(80));
+        let p = report.file.project;
+        assert_eq!(p.tuning.a4_hz, 415.0);
+        assert!(matches!(
+            p.tuning.system,
+            TuningSystem::Temperament {
+                id: Temperament::WerckmeisterIii,
+                key: 3,
+                ..
+            }
+        ));
+        assert_eq!(p.tracks[0].tuning, TrackTuning::Equal);
+        let TrackTuning::Own { tuning } = &p.tracks[1].tuning else {
+            panic!("the second track's own tuning")
+        };
+        let TuningSystem::Scale(s) = &tuning.system else {
+            panic!("a scale")
+        };
+        assert_eq!(s.degrees.len(), 31);
+        let old = std::fs::read_to_string(dir.join("v79.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p.tuning.is_default());
+        assert!(p.tracks.iter().all(|t| t.tuning.is_follow()));
+    }
+
+    /// r42:contract — Schema 81 (ADRs 0157, 0158): the fixture holds an Arcus track, and the
+    /// first clip's first two notes carry an articulation (pizzicato; legato with a down bow);
+    /// every older file (80) has neither.
+    #[test]
+    fn schema_81_keeps_arcus_and_the_notes_articulation() {
+        use cantus_core::inst::InstrumentKind;
+        use cantus_core::note_art::{Articulation, Bow};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v81.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        assert!(p.tracks.iter().any(|t| t
+            .instrument
+            .native()
+            .is_some_and(|n| n.kind == InstrumentKind::BowedString)));
+        let notes = &p.tracks[0].clips[0].notes;
+        let a = notes[0].art.expect("the first note's articulation");
+        assert_eq!(a.articulation, Articulation::Pizzicato);
+        let b = notes[1].art.expect("the second note's");
+        assert_eq!(
+            (b.articulation, b.bow),
+            (Articulation::Legato, Some(Bow::Down))
+        );
+        let old = std::fs::read_to_string(dir.join("v80.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter())
+            .flat_map(|c| c.notes.iter())
+            .all(|n| n.art.is_none()));
+    }
+
     /// r41:fides-input — Schema 79 (ADR 0154): the fixture's Fides track hears the third
     /// strip as its input, and it round-trips; every older file (78) opens with no track
     /// keyed.
@@ -1747,7 +1833,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v79.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // r42:contract — no longer the newest (81): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(79));
         let p = report.file.project;
         let fides = p
             .tracks

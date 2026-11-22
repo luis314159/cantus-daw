@@ -1,0 +1,5 @@
+# Arcus (ronda 42, ADR 0157) — del constructor de arcus. Gemelo de arcus.en.txt.
+instrument.arcus = Arcus
+picker.dev.arcus.name = Arcus
+picker.dev.arcus.what = Cuerdas frotadas: chelo y contrabajo
+picker.dev.arcus.about = Una cuerda frotada modelada — el chelo y el contrabajo, arco, legato, pizzicato y trémolo, su vibrato cantado por el cuerpo. En construcción.

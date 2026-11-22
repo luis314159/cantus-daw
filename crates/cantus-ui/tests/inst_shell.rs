@@ -81,6 +81,7 @@ fn kind_file(kind: InstrumentKind) -> &'static str {
         InstrumentKind::Dancer => "saltator", // r35:dancer
         InstrumentKind::AcousticDrums => "tympanum", // r40:p3
         InstrumentKind::Resonator => "fides", // r41:contract
+        InstrumentKind::BowedString => "arcus", // r42:contract
     }
 }
 

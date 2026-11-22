@@ -119,6 +119,37 @@ pub struct TrackSnapshot {
     /// `Track::key`): that strip's post-fader output, by id as an insert's key is. The
     /// engine runs the track after it; a strip it cannot run first is silence.
     pub sidechain: Option<crate::model::StripId>,
+    /// r42:contract — the track's tuning, resolved (ADR 0155): what its instrument adds to
+    /// each key's pitch, and whether it is the MTS-ESP master's (the engine then reads the
+    /// master's table each block, ADR 0156).
+    pub tuning: TrackTuningSnap,
+}
+
+/// r42:contract — a track's resolved tuning (ADR 0155).
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct TrackTuningSnap {
+    /// The semitones each key sits from 12-TET at A440; `EQUAL` for every older track.
+    pub table: std::sync::Arc<crate::tuning::TuningTable>,
+    /// The track plays in the MTS-ESP master's tuning (`TuningSystem::External`).
+    pub external: bool,
+    /// The tuning itself, for a unit that designs from more than the table (Chorda's
+    /// stretch against the scale) and for the master's diapason with an external table.
+    pub tuning: std::sync::Arc<crate::tuning::Tuning>,
+}
+
+impl TrackTuningSnap {
+    /// The track's tuning in `project`, resolved off the audio thread.
+    pub fn of(project: &crate::model::Project, track: &crate::model::Track) -> Self {
+        let t = track.tuning.resolve(&project.tuning);
+        if t.is_default() {
+            return TrackTuningSnap::default();
+        }
+        TrackTuningSnap {
+            table: std::sync::Arc::new(t.offsets()),
+            external: matches!(t.system, crate::tuning::TuningSystem::External),
+            tuning: std::sync::Arc::new(t.into_owned()),
+        }
+    }
 }
 
 impl TrackSnapshot {
@@ -418,10 +449,11 @@ impl Snapshot {
                     .collect(),
                 note_fx: t.note_fx.clone(),
                 direct,
-                buses: Vec::new(),        // r37:drums
-                tap: None,                // r37:drums
-                record_tap: t.record_tap, // r40:pads
-                sidechain: t.key(),       // r41:fides-input
+                buses: Vec::new(),                       // r37:drums
+                tap: None,                               // r37:drums
+                record_tap: t.record_tap,                // r40:pads
+                sidechain: t.key(),                      // r41:fides-input
+                tuning: TrackTuningSnap::of(project, t), // r42:contract
             })
             .collect::<Vec<_>>();
         // The kinds each track's lanes drive (ADR 0068): what a seek chases.

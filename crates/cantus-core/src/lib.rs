@@ -46,6 +46,7 @@ pub mod mix_snap; // r36:mix
 pub mod model;
 pub mod modulator;
 pub mod notation;
+pub mod note_art; // r42:contract (ADR 0158): the note's articulation and bow
 pub mod notefx;
 mod notefx_cmd;
 pub mod padout; // r37:drums (ADR 0100): instruments with several outputs, split to strips
@@ -70,6 +71,8 @@ pub mod starting;
 pub mod starting_user; // fx3:start
 pub mod tempo;
 pub mod time;
+pub mod tuning; // r42:contract (ADR 0155): the project's tuning
+pub mod tuning_cmd; // r42:contract
 pub mod vca; // r36:mix
 pub mod warp;
 

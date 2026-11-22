@@ -476,7 +476,8 @@ pub fn native_id(kind: InstrumentKind) -> &'static str {
         InstrumentKind::Chorda => "chorda",
         InstrumentKind::Dancer => "dancer",
         InstrumentKind::AcousticDrums => "tympanum",
-        InstrumentKind::Resonator => "fides", // r41:fides
+        InstrumentKind::Resonator => "fides",   // r41:fides
+        InstrumentKind::BowedString => "arcus", // r42:contract
     }
 }
 

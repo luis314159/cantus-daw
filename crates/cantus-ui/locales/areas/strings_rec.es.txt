@@ -1,0 +1,10 @@
+# Las cuerdas grabadas y la articulación de la nota (ronda 42, ADR 0158) — del constructor de strings-rec. Gemelo de strings_rec.en.txt.
+cmd.set_note_art = ajustar la articulación de las notas
+art.sustain = Sostenido
+art.legato = Legato
+art.staccato = Staccato
+art.spiccato = Spiccato
+art.pizzicato = Pizzicato
+art.tremolo = Trémolo
+art.bow.down = Arco abajo
+art.bow.up = Arco arriba

@@ -243,6 +243,12 @@ pub enum Command {
         track: TrackId,
         source: Option<StripId>,
     },
+    /// r42:contract — the track's tuning against the project's (ADR 0155): follow it, equal
+    /// temperament, or its own. The inverse is the old one.
+    SetTrackTuning {
+        track: TrackId,
+        tuning: crate::tuning::TrackTuning,
+    },
 
     // --- mixer strips -----------------------------------------------------------------
     /// Add a strip at `index` in the mixer's order. The `+` at the end of the mixer, and
@@ -1011,6 +1017,11 @@ pub enum Command {
     SetProjectKey {
         key: Option<crate::scale::Key>,
     },
+    /// r42:contract — the project's tuning (ADR 0155): the diapason, the system, the keyboard
+    /// map. A Scala import is this command holding the parsed scale. The inverse is the old one.
+    SetProjectTuning {
+        tuning: Box<crate::tuning::Tuning>,
+    },
     /// A note clip's groove and its amounts, or none (content: a link group shares it).
     /// Refused on an audio or automation clip, for a source that is not there, and for
     /// amounts out of range.
@@ -1096,6 +1107,13 @@ pub enum Command {
         edit: crate::model::note_expr::ExprEdit,
         notes: Vec<(NoteId, Option<Box<crate::model::note_expr::NoteExpr>>)>,
     },
+    /// r42:contract — each named note's articulation and bow (ADR 0158; `None` lets the
+    /// instrument decide), matched by id; the inverse gives back the old ones.
+    SetNoteArt {
+        track: TrackId,
+        clip: ClipId,
+        arts: Vec<(NoteId, Option<crate::note_art::NoteArt>)>,
+    },
 
     /// An edit of the session view's grid (round 33, ADR 0076). // r33:session
     Session(crate::session::SessionCommand), // r33:session
@@ -1154,6 +1172,9 @@ impl Command {
             SetTrackPan { .. } => "cmd.set_track_pan",
             SetTrackStrip { .. } => "cmd.set_track_strip",
             SetTrackSidechain { .. } => "cmd.set_track_sidechain", // r41:fides-input
+            SetTrackTuning { .. } => "cmd.set_track_tuning",       // r42:contract
+            SetProjectTuning { .. } => "cmd.set_project_tuning",   // r42:contract
+            SetNoteArt { .. } => "cmd.set_note_art",               // r42:contract
             InsertStrip { .. } => "cmd.insert_strip",
             RemoveStrip { .. } => "cmd.remove_strip",
             SetStripName { .. } => "cmd.set_strip_name",
@@ -1400,6 +1421,9 @@ impl Command {
                 },
             ) => a == b && ka == kb,
             (SetProjectKey { .. }, SetProjectKey { .. }) => true,
+            // r42:contract — a diapason dragged, a track's tuning set, merge into one step.
+            (SetProjectTuning { .. }, SetProjectTuning { .. }) => true,
+            (SetTrackTuning { track: a, .. }, SetTrackTuning { track: b, .. }) => a == b,
             // Round 32 (ADR 0075): a part's name typed letter by letter.
             (SetTrackScore { track: a, .. }, SetTrackScore { track: b, .. }) => a == b,
             (
@@ -1922,6 +1946,15 @@ impl Command {
                     .ok_or(CommandError::TrackNotFound(track))?;
                 let old = std::mem::replace(&mut t.sidechain, source);
                 Ok(SetTrackSidechain { track, source: old })
+            }
+            // r42:contract — a track's tuning (ADR 0155).
+            SetTrackTuning { track, tuning } => {
+                crate::tuning_cmd::check_track(&tuning)?;
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let old = std::mem::replace(&mut t.tuning, tuning);
+                Ok(SetTrackTuning { track, tuning: old })
             }
 
             InsertStrip { index, strip } => {
@@ -3602,6 +3635,14 @@ impl Command {
                 value,
             } => crate::notefx_cmd::set_param(project, track, effect, key, value),
             SetProjectKey { key } => crate::notefx_cmd::set_key(project, key),
+            // r42:contract — the project's tuning (ADR 0155).
+            SetProjectTuning { tuning } => {
+                crate::tuning_cmd::check(&tuning)?;
+                let old = std::mem::replace(&mut project.tuning, *tuning);
+                Ok(SetProjectTuning {
+                    tuning: Box::new(old),
+                })
+            }
             SetClipGroove {
                 track,
                 clip,
@@ -3911,6 +3952,8 @@ impl Command {
                 edit,
                 notes,
             } => crate::model::note_expr::cmd::apply(project, track, clip, edit, notes),
+            // r42:contract — the notes' articulation (ADR 0158).
+            SetNoteArt { track, clip, arts } => crate::note_art::apply(project, track, clip, arts),
 
             Session(c) => crate::session::apply(c, project), // r33:session
             Mix(c) => crate::mix_cmd::apply(c, project),     // r36:mix

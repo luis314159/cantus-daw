@@ -1,0 +1,18 @@
+# La afinación del proyecto (ronda 42, ADR 0155-0156) — del constructor de tuning-face. Gemelo de tuning.en.txt.
+cmd.set_project_tuning = ajustar la afinación del proyecto
+cmd.set_track_tuning = ajustar la afinación de la pista
+tuning.temper.pythagorean = Pitagórica
+tuning.temper.meantone_quarter = Mesotónica de un cuarto de coma
+tuning.temper.meantone_sixth = Mesotónica de un sexto de coma
+tuning.temper.werckmeister_iii = Werckmeister III
+tuning.temper.werckmeister_iv = Werckmeister IV
+tuning.temper.kirnberger_ii = Kirnberger II
+tuning.temper.kirnberger_iii = Kirnberger III
+tuning.temper.vallotti = Vallotti
+tuning.temper.young_1799 = Young (1799)
+tuning.temper.kellner = Kellner
+tuning.temper.neidhardt = Neidhardt
+tuning.temper.bach_lehman = Bach (Lehman)
+tuning.temper.just_major = Entonación justa, mayor
+tuning.temper.just_minor = Entonación justa, menor
+tuning.temper.barbershop_7 = Barbershop (límite 7)

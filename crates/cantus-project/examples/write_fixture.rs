@@ -1942,6 +1942,84 @@ fn main() {
         .apply(&mut p)
         .expect("a key with no loop");
     }
+    // r42:contract — Schema 80 (ADR 0155): the project in Werckmeister III in E flat at 415 Hz;
+    // its first track in equal temperament, its second in its own 31-EDO (a Scala scale).
+    if upto >= 80 {
+        use cantus_core::tuning::{
+            ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
+        };
+        Command::SetProjectTuning {
+            tuning: Box::new(Tuning {
+                a4_hz: 415.0,
+                system: TuningSystem::Temperament {
+                    id: Temperament::WerckmeisterIii,
+                    key: 3,
+                    follow_song_key: false,
+                },
+                map: None,
+            }),
+        }
+        .apply(&mut p)
+        .expect("a tuning");
+        let ids: Vec<TrackId> = p.tracks.iter().map(|t| t.id).collect();
+        Command::SetTrackTuning {
+            track: ids[0],
+            tuning: TrackTuning::Equal,
+        }
+        .apply(&mut p)
+        .expect("equal");
+        let edo31 = ScalaScale {
+            description: "31 equal divisions of the octave".to_string(),
+            degrees: (1..=31)
+                .map(|i| ScaleDegree::Cents(1200.0 * f64::from(i) / 31.0))
+                .collect(),
+        };
+        Command::SetTrackTuning {
+            track: ids[1],
+            tuning: TrackTuning::Own {
+                tuning: Tuning {
+                    system: TuningSystem::Scale(edo31),
+                    ..Tuning::default()
+                },
+            },
+        }
+        .apply(&mut p)
+        .expect("its own");
+    }
+    // r42:contract — Schema 81 (ADRs 0157, 0158): an Arcus track before the last; the first
+    // clip's first note pizzicato, its second legato with a down bow.
+    if upto >= 81 {
+        use cantus_core::note_art::{Articulation, Bow, NoteArt};
+        let mut arcus = p.make_track("Arcus");
+        arcus.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::BowedString));
+        let at = p.tracks.len().saturating_sub(1);
+        p.tracks.insert(at, arcus);
+        let track = p.tracks[0].id;
+        let clip = p.tracks[0].clips[0].id;
+        let notes: Vec<_> = p.tracks[0].clips[0].notes.iter().map(|n| n.id).collect();
+        Command::SetNoteArt {
+            track,
+            clip,
+            arts: vec![
+                (
+                    notes[0],
+                    Some(NoteArt {
+                        articulation: Articulation::Pizzicato,
+                        bow: None,
+                    }),
+                ),
+                (
+                    notes[1],
+                    Some(NoteArt {
+                        articulation: Articulation::Legato,
+                        bow: Some(Bow::Down),
+                    }),
+                ),
+            ],
+        }
+        .apply(&mut p)
+        .expect("two notes' articulation");
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

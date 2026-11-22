@@ -1134,7 +1134,8 @@ fn clipboard_paste_notes(rng: &mut Lcg, project: &mut Project) -> Command {
             velocity: 1 + rng.below(127) as u8,
             muted: rng.below(5) == 0,
             release: 0,
-            expr: None, // r33:mpe
+            expr: None, // r33:mpe,
+            art: None,
         })
         .collect();
     // Release velocities (ADR 0068), from what was drawn: the main stream is as it was.
@@ -9079,4 +9080,161 @@ fn takes_through_tempo_edits_keep_their_lines_and_undo_exactly() {
         "too few: {tempos} tempo edits, {checked} windows, {stacked} stacked lines"
     );
     assert!(gestures > 0 && edits >= seeds * 20 && refused > 0);
+}
+
+// --- r42:contract — the project's and the tracks' tuning, the notes' articulation ----------
+
+/// r42:contract — a tuning or an articulation (ADRs 0155, 0158): the project's tuning set
+/// (a diapason, a temperament in a key, a Scala scale, the MTS-ESP master's, back to the
+/// default, and out of range: refused), a track's (follow, equal, its own, an unknown track:
+/// refused), and some notes' articulation and bow (a note named twice: refused).
+fn tuning_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::note_art::{Articulation, Bow, NoteArt};
+    use cantus_core::tuning::{
+        ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
+    };
+    let tuning = |rng: &mut Lcg| -> Tuning {
+        let system = match rng.below(5) {
+            0 => TuningSystem::Equal,
+            1 | 2 => TuningSystem::Temperament {
+                id: Temperament::ALL[rng.below(Temperament::ALL.len() as u64) as usize],
+                key: rng.below(12) as u8,
+                follow_song_key: rng.below(2) == 0,
+            },
+            3 => TuningSystem::Scale(ScalaScale {
+                description: "fuzz".into(),
+                degrees: (1..=1 + rng.below(30))
+                    .map(|i| {
+                        if i % 3 == 0 {
+                            ScaleDegree::Ratio(i + 1, i)
+                        } else {
+                            ScaleDegree::Cents(i as f64 * 37.5)
+                        }
+                    })
+                    .collect(),
+            }),
+            _ => TuningSystem::External,
+        };
+        let a4_hz = match rng.below(4) {
+            0 => 440.0,
+            1 => 415.0,
+            2 => f64::from(rng.f32(380.0, 480.0)),
+            _ => 600.0, // out of range: refused
+        };
+        Tuning {
+            a4_hz,
+            system,
+            map: None,
+        }
+    };
+    let tracks: Vec<TrackId> = project.tracks.iter().map(|t| t.id).collect();
+    match rng.below(6) {
+        0 | 1 => Command::SetProjectTuning {
+            tuning: Box::new(if rng.below(4) == 0 {
+                Tuning::default()
+            } else {
+                tuning(rng)
+            }),
+        },
+        2 | 3 if !tracks.is_empty() => Command::SetTrackTuning {
+            track: tracks[rng.below(tracks.len() as u64) as usize],
+            tuning: match rng.below(3) {
+                0 => TrackTuning::Follow,
+                1 => TrackTuning::Equal,
+                _ => TrackTuning::Own {
+                    tuning: tuning(rng),
+                },
+            },
+        },
+        2 | 3 => Command::SetTrackTuning {
+            track: TrackId(u64::MAX),
+            tuning: TrackTuning::Equal,
+        },
+        _ => {
+            let found = project.tracks.iter().find_map(|t| {
+                t.clips
+                    .iter()
+                    .find(|c| !c.notes.is_empty())
+                    .map(|c| (t.id, c.id, c.notes.iter().map(|n| n.id).collect::<Vec<_>>()))
+            });
+            let Some((track, clip, ids)) = found else {
+                return random_command(rng, project);
+            };
+            let art = |rng: &mut Lcg| {
+                (rng.below(4) != 0).then(|| NoteArt {
+                    articulation: Articulation::ALL
+                        [rng.below(Articulation::ALL.len() as u64) as usize],
+                    bow: match rng.below(3) {
+                        0 => None,
+                        1 => Some(Bow::Down),
+                        _ => Some(Bow::Up),
+                    },
+                })
+            };
+            let mut arts = Vec::new();
+            for id in &ids {
+                if rng.below(2) == 0 {
+                    arts.push((*id, art(rng)));
+                }
+            }
+            if rng.below(8) == 0 {
+                if let Some(first) = arts.first().copied() {
+                    arts.push(first); // a note named twice: refused
+                }
+            }
+            Command::SetNoteArt { track, clip, arts }
+        }
+    }
+}
+
+/// r42:contract — tunings and articulations among every other command: undo all and redo all
+/// restore the song; a stored tuning always passes its own command's check.
+#[test]
+fn tuning_and_articulation_undo_and_redo_among_the_others() {
+    let (mut applied, mut refused) = (0usize, 0usize);
+    for seed in fuzz_seeds(1..=40) {
+        let mut rng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(80));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for i in 0..80 {
+            let mut scratch = bus.project().clone();
+            let ours = i % 2 == 0;
+            let cmd = if ours {
+                tuning_command(&mut rng, &mut scratch)
+            } else {
+                random_command(&mut rng, &mut scratch)
+            };
+            bus.reserve_ids(scratch.next_id);
+            match bus.execute(cmd, Origin::User) {
+                Ok(_) if ours => applied += 1,
+                Err(_) if ours => refused += 1,
+                _ => {}
+            }
+            let p = bus.project();
+            assert!(
+                cantus_core::tuning_cmd::check(&p.tuning).is_ok(),
+                "seed {seed}: a stored project tuning its command refuses"
+            );
+            for t in &p.tracks {
+                assert!(
+                    cantus_core::tuning_cmd::check_track(&t.tuning).is_ok(),
+                    "seed {seed}: a stored track tuning its command refuses"
+                );
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        applied > 400 && refused > 40,
+        "applied {applied}, refused {refused}"
+    );
 }

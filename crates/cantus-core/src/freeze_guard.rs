@@ -120,6 +120,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         SetTrackInput { id, .. } | SetTrackArmed { id, .. } => vec![TrackSource(*id)],
         // r41:fides-input — what its instrument hears is its source (ADR 0154).
         SetTrackSidechain { track, .. } => vec![TrackSource(*track)],
+        // r42:contract — a track's tuning is its instrument's sound (ADR 0155).
+        SetTrackTuning { track, .. } => vec![TrackSource(*track)],
         SetTrackRecordTap { .. } => vec![], // r40:pads — where a take is tapped, not a sound
         // ---- strips ----------------------------------------------------------------------
         InsertStrip { .. } | RemoveStrip { .. } => vec![Global],
@@ -216,6 +218,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         // The key reaches every chain that reads it, a pooled groove every clip that plays
         // it: applied, then the frozen keys checked. A groove added is played by nothing.
         SetProjectKey { .. } | RemoveGroove { .. } | SetGroove { .. } => vec![Global],
+        // r42:contract — the project's tuning reaches every instrument that follows it.
+        SetProjectTuning { .. } => vec![Global],
         InsertGroove { .. } => vec![],
         // How a part is written never changes what it plays (ADR 0075).
         SetTrackScore { .. } => vec![],
@@ -286,6 +290,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | RemoveNotes { track, clip, .. }
         | SetNotes { track, clip, .. }
         | SetNoteExpr { track, clip, .. }
+        | SetNoteArt { track, clip, .. } // r42:contract
         // Controller lanes play into the frozen instrument (ADR 0068).
         | SetClipLanes { track, clip, .. } => clip_touches(project, *track, *clip),
         SetClipContent {

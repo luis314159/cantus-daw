@@ -774,6 +774,8 @@ pub fn instruments() -> Vec<(&'static str, InstrumentSpec)> {
             InstrumentKind::AcousticDrums => "tympanum",
             // r41:fides — the resonator (in ALL since the owner approved it, 2026-11-21).
             InstrumentKind::Resonator => "fides",
+            // r42:contract — the bowed string (not in ALL until the arcus builder adds it).
+            InstrumentKind::BowedString => "arcus",
         };
         v.push((
             name,

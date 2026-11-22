@@ -23,6 +23,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 pub mod analog;
+pub mod arcus; // r42:contract (ADR 0157): the bowed string's unit — arcus
 pub mod bass;
 pub mod chorda;
 pub mod dancer;
@@ -168,6 +169,21 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
         false
     }
     fn controller(&mut self, _controller: Controller, _value: f32) {}
+    /// r42:contract — the track's tuning (ADR 0155): the semitones each key sits from 12-TET
+    /// at A440, added where the unit's key first becomes a pitch (`docs/round42/pitch-map.md`).
+    /// Called on the audio thread after [`Self::configure`] with each snapshot, and each block
+    /// for a track that follows the MTS-ESP master; never allocate. At
+    /// [`TuningTable::EQUAL`](cantus_core::tuning::TuningTable::EQUAL) the unit's output is
+    /// unchanged to the bit. Default: nothing (an unpitched unit).
+    fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        let _ = table;
+    }
+    /// r42:contract — how the note `id` that starts next is played (ADR 0158): its
+    /// articulation and bow, handed just before its [`Self::note_on`]. A note without one
+    /// gets no call. Default: nothing (the unit decides).
+    fn note_art(&mut self, id: u64, art: cantus_core::note_art::NoteArt) {
+        let _ = (id, art);
+    }
     /// A program change from live MIDI (round 29, ADR 0062): a hosted instrument hears it
     /// as MIDI; a native one has no programs. Default: nothing.
     fn program(&mut self, _program: u8) {}
@@ -573,6 +589,7 @@ pub fn make(kind: InstrumentKind, sample_rate: f32) -> Box<dyn InstrumentUnit> {
         InstrumentKind::Dancer => Box::new(dancer::Unit::new(sample_rate)),
         InstrumentKind::AcousticDrums => Box::new(tympanum::Unit::new(sample_rate)), // r40:p3
         InstrumentKind::Resonator => Box::new(fides::Unit::new(sample_rate)),        // r41:contract
+        InstrumentKind::BowedString => Box::new(arcus::Unit::new(sample_rate)),      // r42:contract
     }
 }
 

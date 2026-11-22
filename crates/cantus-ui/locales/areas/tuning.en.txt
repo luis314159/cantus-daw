@@ -1,0 +1,18 @@
+# The project's tuning (round 42, ADRs 0155-0156) — owned by the tuning-face builder. Every key here needs its twin in tuning.es.txt.
+cmd.set_project_tuning = set the project's tuning
+cmd.set_track_tuning = set the track's tuning
+tuning.temper.pythagorean = Pythagorean
+tuning.temper.meantone_quarter = Quarter-comma meantone
+tuning.temper.meantone_sixth = Sixth-comma meantone
+tuning.temper.werckmeister_iii = Werckmeister III
+tuning.temper.werckmeister_iv = Werckmeister IV
+tuning.temper.kirnberger_ii = Kirnberger II
+tuning.temper.kirnberger_iii = Kirnberger III
+tuning.temper.vallotti = Vallotti
+tuning.temper.young_1799 = Young (1799)
+tuning.temper.kellner = Kellner
+tuning.temper.neidhardt = Neidhardt
+tuning.temper.bach_lehman = Bach (Lehman)
+tuning.temper.just_major = Just intonation, major
+tuning.temper.just_minor = Just intonation, minor
+tuning.temper.barbershop_7 = Barbershop (7-limit)

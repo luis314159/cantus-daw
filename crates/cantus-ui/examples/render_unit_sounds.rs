@@ -59,6 +59,7 @@ fn card(u: Unit) -> String {
             cantus_core::InstrumentKind::Dancer => "saltator",
             cantus_core::InstrumentKind::AcousticDrums => "tympanum", // r40:p3
             cantus_core::InstrumentKind::Resonator => "fides",        // r41:contract
+            cantus_core::InstrumentKind::BowedString => "arcus", // r42:contract
         }
         .to_string(),
         Unit::Kit => "pulsus".into(),

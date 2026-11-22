@@ -977,6 +977,7 @@ pub fn import_commands(
                 muted: false,
                 release: n.release,
                 expr: n.expr.clone(),
+                art: None,
             })
             .collect();
         let clip = Clip {
@@ -1043,6 +1044,7 @@ pub fn import_commands(
             glyph: None,                    // r39:arrange
             record_tap: Default::default(), // r40:pads
             sidechain: None,                // r41:fides-input
+            tuning: Default::default(),     // r42:contract
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

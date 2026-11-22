@@ -329,6 +329,9 @@ impl Processor {
             // A large unit's working-set figure is level with its count (Chorda 5 621
             // counted, 5 150 here): `tests/fides_image.rs` holds it within 10 %.
             I::Resonator => 1_400.0,
+            // r42:contract — the stub holds nothing; the `arcus` builder counts the real
+            // unit's fork (as `tests/fides_image.rs` does for Fides).
+            I::BowedString => 2.0,
         };
         let n = &self.nodes;
         let lines: usize = (0..n.lines.len())

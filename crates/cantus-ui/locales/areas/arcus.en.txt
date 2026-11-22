@@ -1,0 +1,5 @@
+# Arcus (round 42, ADR 0157) — owned by the arcus builder. Every key here needs its twin in arcus.es.txt.
+instrument.arcus = Arcus
+picker.dev.arcus.name = Arcus
+picker.dev.arcus.what = Bowed strings: cello and double bass
+picker.dev.arcus.about = A modelled bowed string — the cello and the double bass, arco, legato, pizzicato and tremolo, its vibrato sung by the body. Being built.

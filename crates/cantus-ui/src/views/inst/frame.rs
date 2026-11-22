@@ -43,6 +43,7 @@ pub fn code_presets(kind: InstrumentKind) -> &'static [FactoryPreset] {
         InstrumentKind::Dancer => dancer::FACTORY_PRESETS,
         InstrumentKind::AcousticDrums => tympanum::FACTORY_PRESETS, // r40:p3
         InstrumentKind::Resonator => fides::FACTORY_PRESETS,        // r41:contract
+        InstrumentKind::BowedString => arcus::FACTORY_PRESETS,      // r42:contract
     }
 }
 
@@ -59,6 +60,7 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Dancer => dancer::body(app, ui, track, spec, s),
         InstrumentKind::AcousticDrums => tympanum::body(app, ui, track, spec, s), // r40:p3
         InstrumentKind::Resonator => fides::body(app, ui, track, spec, s),        // r41:contract
+        InstrumentKind::BowedString => arcus::body(app, ui, track, spec, s),      // r42:contract
     }
 }
 
@@ -91,6 +93,7 @@ fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Dancer => dancer::play(app, ui, track, spec, s),
         InstrumentKind::AcousticDrums => tympanum::play(app, ui, track, spec, s), // r40:p3
         InstrumentKind::Resonator => fides::play(app, ui, track, spec, s),        // r41:contract
+        InstrumentKind::BowedString => arcus::play(app, ui, track, spec, s),      // r42:contract
     }
 }
 
@@ -108,6 +111,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
         InstrumentKind::Dancer => dancer::preview(ui, spec),
         InstrumentKind::AcousticDrums => tympanum::preview(ui, spec), // r40:p3
         InstrumentKind::Resonator => fides::preview(ui, spec),        // r41:contract
+        InstrumentKind::BowedString => arcus::preview(ui, spec),      // r42:contract
     }
 }
 
@@ -125,6 +129,7 @@ pub fn demo_setup(app: &mut CantusApp, track: TrackId, kind: InstrumentKind) {
         InstrumentKind::Dancer => dancer::demo_setup(app, track),
         InstrumentKind::AcousticDrums => tympanum::demo_setup(app, track), // r40:p3
         InstrumentKind::Resonator => fides::demo_setup(app, track),        // r41:contract
+        InstrumentKind::BowedString => arcus::demo_setup(app, track),      // r42:contract
     }
 }
 
@@ -142,6 +147,7 @@ pub fn demo_feed(app: &mut CantusApp, kind: InstrumentKind) {
         InstrumentKind::Dancer => dancer::demo_feed(app),
         InstrumentKind::AcousticDrums => tympanum::demo_feed(app), // r40:p3
         InstrumentKind::Resonator => fides::demo_feed(app),        // r41:contract
+        InstrumentKind::BowedString => arcus::demo_feed(app),      // r42:contract
     }
 }
 

@@ -1,0 +1,10 @@
+# The recorded strings and the note's articulation (round 42, ADR 0158) — owned by the strings-rec builder. Every key here needs its twin in strings_rec.es.txt.
+cmd.set_note_art = set the notes' articulation
+art.sustain = Sustain
+art.legato = Legato
+art.staccato = Staccato
+art.spiccato = Spiccato
+art.pizzicato = Pizzicato
+art.tremolo = Tremolo
+art.bow.down = Down bow
+art.bow.up = Up bow
