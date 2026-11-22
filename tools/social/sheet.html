@@ -30,7 +30,8 @@ figcaption b { color: #fff; font-weight: 600; }
 .chips > div { text-align: center; font-size: 16px; color: #909ca8; }
 .light { background: #f1f4f7; padding: 14px; border-radius: 10px; }
 .dark { background: #0f0f0f; padding: 14px; border-radius: 10px; }
-.badge { position: absolute; right: 8px; bottom: 8px; font: 600 15px/1 B; color: #fff; background: rgba(0, 0, 0, 0.8); padding: 3px 5px; border-radius: 4px; }
+/* where YouTube lays its own duration: marked, never part of the thumbnail */
+.badge { position: absolute; right: 8px; bottom: 8px; font: 600 13px/1 B; color: #ff8a8a; border: 2px dashed #ff5a5a; padding: 4px 6px; border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -90,9 +91,9 @@ window.sheetReady = (async () => {
   r = section("YouTube — the launch video's thumbnails");
   for (const f of ["youtube-thumb-en.png", "youtube-thumb-es.png"]) {
     const o = by[f];
-    r.append(el("figure", "", `<div class="frame">${img(o.file, 640)}<div class="badge">1:20</div></div>${cap(o)}`));
+    r.append(el("figure", "", `<div class="frame">${img(o.file, 640)}<div class="badge">YouTube's duration</div></div>${cap(o, "the dashed box is where YouTube lays its own duration; nothing is painted there")}`));
   }
-  r.append(el("figure", "", ["en", "es"].map((l) => `<div class="frame" style="margin-bottom:14px">${img(`youtube-thumb-${l}.png`, 246, 'style="border-radius:8px"')}<div class="badge" style="font-size:12px">1:20</div></div>`).join("<br>") +
+  r.append(el("figure", "", ["en", "es"].map((l) => `<div class="frame" style="margin-bottom:14px">${img(`youtube-thumb-${l}.png`, 246, 'style="border-radius:8px"')}<div class="badge" style="font-size:10px;padding:2px 3px">duration</div></div>`).join("<br>") +
     `<figcaption>At a phone's<br>suggestion size<br>(246 px)<br><b>-4k.jpg</b>: ${by["youtube-thumb-en-4k.jpg"].size}</figcaption>`));
 
   // --- headers ---
