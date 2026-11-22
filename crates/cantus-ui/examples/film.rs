@@ -834,6 +834,56 @@ impl Director {
         out
     }
 
+    /// Every device picture of the picker made before the scene rolls: the picker opened as
+    /// `purpose` (instruments or effects), every device of the catalogue asked for
+    /// (`Thumbs::get`, the grid's own call), and frames run — the picker's own frame pumps
+    /// its captures and workers — until `Thumbs::idle` says all are in; then closed. On a
+    /// fresh profile the pictures are drawn lazily, a few a frame, so a list wheeled to its
+    /// end on the first opening shows the placeholders; here every tile has its real face.
+    fn warm_thumbs(&mut self, purpose: cantus_ui::picker::PickPurpose) {
+        use cantus_ui::views::picker_snap::Subject;
+        let idle = self.engine_idle;
+        self.engine_idle = false;
+        cantus_ui::views::picker::open(&mut self.app, purpose);
+        self.idle(2);
+        let subjects: Vec<Subject> = self
+            .app
+            .picker_view
+            .catalog
+            .iter()
+            .filter_map(|d| match &d.choice {
+                PickChoice::Instrument(k) => Some(Subject::Instrument(*k)),
+                PickChoice::Pulsus => Some(Subject::Pulsus),
+                PickChoice::Effect(k) => Subject::of_effect(*k),
+                _ => None,
+            })
+            .collect();
+        for s in &subjects {
+            let _ = self.app.picker_view.thumbs.get(*s);
+        }
+        let mut frames = 0;
+        while (!self.app.picker_view.thumbs.idle() || frames < 2) && frames < 6_000 {
+            self.step(Vec::new());
+            frames += 1;
+            if frames % 20 == 0 {
+                // The workers fill and shrink on threads: give them a moment.
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
+        let ready = subjects
+            .iter()
+            .filter(|s| self.app.picker_view.thumbs.get(**s).is_some())
+            .count();
+        self.note(
+            "thumbs_warmed",
+            serde_json::json!({"asked": subjects.len(), "ready": ready, "frames": frames}),
+        );
+        eprintln!("{}: {ready} of {} picker pictures ready after {frames} frames", self.name, subjects.len());
+        cantus_ui::views::picker::close(&mut self.app);
+        self.idle(2);
+        self.engine_idle = idle;
+    }
+
     // ---- the song -------------------------------------------------------------------------
 
     /// The track whose name is `name` (a locale key's words).
@@ -1086,6 +1136,8 @@ fn take_piano(o: &Opts) {
     d.open_demo("ballad");
     d.no_other_dancers(None);
     let piano = d.track("demos.track.piano");
+    // Every instrument's picture made before the shot (Fides's among them).
+    d.warm_thumbs(cantus_ui::picker::PickPurpose::ReplaceInstrument { track: piano });
     d.app.select_track(piano);
     // Chorda's strings designed before the shot (the picker asks for them when it opens).
     cantus_engine::inst::chorda::warm(RATE as f32);
@@ -1373,6 +1425,8 @@ fn take_mixer(o: &Opts) {
     d.big_desk();
     let target = d.track("demos.track.chords");
     let strip = d.strip_of(target);
+    // Every effect's picture made before the shot (Nitor's among them).
+    d.warm_thumbs(cantus_ui::picker::PickPurpose::AddEffect { strip });
     d.idle(10);
     // Where the face's cutoff knob sits in its window: Cribrum inserted once before the
     // shot, the knob found by its hint (the biggest control named so), then undone.
