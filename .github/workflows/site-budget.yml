@@ -94,10 +94,13 @@ jobs:
       # The runner's Chrome; Lighthouse CI serves web/dist itself (gzip on), so the weights
       # are what a visitor downloads (Cloudflare's Brotli makes them a little smaller).
       # Measured even when the WebAssembly is over, so one run shows every line.
+      # The CPU is calibrated to the runner (web/tools/lhci_calibrated.mjs): the mobile
+      # preset's 4x slowdown of a slower runner emulated a slower phone, and the same page's
+      # LCP read 1 884 ms on one runner and 2 106 ms on another (docs/RELEASING.md L3).
       - name: Lighthouse CI
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         working-directory: web
-        run: npx --yes "@lhci/cli@${LHCI_VERSION}" autorun --config=./lighthouserc.json
+        run: node tools/lhci_calibrated.mjs ./lighthouserc.json
 
       - name: Keep the reports
         if: always()

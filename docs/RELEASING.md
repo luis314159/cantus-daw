@@ -17,7 +17,15 @@ round had already met.
 1. **The candidate.** Version in `Cargo.toml` and `web/src/top.rs`, the release notes
    `docs/releases/v<version>.md` (from `TEMPLATE.md`), the round's suite green on Windows
    and in WSL (`tools/wsl/check.sh`). Publish it to `cantus-daw` (`tools/public/publish.sh`).
-2. **The rehearsal.** On `cantus-daw`: *Actions → Release → Run workflow* on `master`. It
+   **When the release changes the site** (a unit's card; the version on the download page —
+   every release's `Cargo.toml` redeploys it), publish the candidate as a branch instead:
+   `PUBLISH_BRANCH=rc/<version> bash tools/public/publish.sh <private-folder> --push`. The
+   site deploys on every push to the public master, so a candidate pushed there shows what
+   the downloadable release does not have yet (beta.17: Fides and Nitor while beta.16 was
+   the download). Rehearse and tag on the branch; publish `master` once the release is out
+   (the same commits: a fast-forward).
+2. **The rehearsal.** On `cantus-daw`: *Actions → Release → Run workflow* on `master` (or on
+   the candidate's `rc/<version>` branch). It
    runs the release's three jobs exactly — clippy, the **whole** suite (`--no-fail-fast`)
    and every package — and publishes nothing. If any job fails, read **every** failure in
    the run, fix them all in one commit, publish, rehearse again (L7).

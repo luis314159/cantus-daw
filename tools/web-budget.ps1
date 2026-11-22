@@ -68,7 +68,9 @@ if (-not $env:CHROME_PATH) {
 New-Item -ItemType Directory -Force $run | Out-Null
 Push-Location $run
 try {
-    & npx --yes "@lhci/cli@$LhciVersion" autorun "--config=$rc" "--collect.staticDistDir=$dist" "--upload.outputDir=$out"
+    # The CPU calibrated to this machine (web/tools/lhci_calibrated.mjs), as site-budget.yml does.
+    $env:LHCI_VERSION = $LhciVersion
+    & node (Join-Path $web "tools\lhci_calibrated.mjs") $rc "--collect.staticDistDir=$dist" "--upload.outputDir=$out"
     if ($LASTEXITCODE -ne 0) { $failed += "Lighthouse" }
 } finally { Pop-Location }
 
