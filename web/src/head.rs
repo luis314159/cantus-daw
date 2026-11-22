@@ -96,6 +96,7 @@ pub fn block(page: Page) -> String {
     format!(
         concat!(
             "<title>{title}</title>\n",
+            "{lcp}",
             "    <meta name=\"description\" content=\"{desc}\" />\n",
             "    <link rel=\"canonical\" href=\"{url}\" />\n",
             "    <link rel=\"alternate\" hreflang=\"en\" href=\"{en}\" />\n",
@@ -119,6 +120,7 @@ pub fn block(page: Page) -> String {
             "    "
         ),
         title = title,
+        lcp = lcp_preload(page),
         desc = desc,
         url = url,
         en = en,
@@ -129,6 +131,23 @@ pub fn block(page: Page) -> String {
         image = image,
         image_alt = esc(og_image_alt(page.lang)),
         ld = json_ld(page),
+    )
+}
+
+/// The home's largest paint, its program picture, asked for before anything else the page
+/// needs (the fonts' preloads follow in `index.html`): on a slow phone the picture waited
+/// behind the HTML and both fonts — two thirds of a second of the simulated LCP's 2.0 s (the
+/// site budget, cantus-daw run 45084840767). The same `srcset` and `sizes` as the `<img>`, so
+/// the browser fetches the one file the picture then uses. Only the home has the picture.
+fn lcp_preload(page: Page) -> String {
+    if page.route != Route::Home {
+        return String::new();
+    }
+    format!(
+        "    <link rel=\"preload\" as=\"image\" href=\"{src}\" imagesrcset=\"{set}\" imagesizes=\"{sizes}\" fetchpriority=\"high\" />\n",
+        src = crate::picture::program(page.lang),
+        set = crate::picture::program_srcset(page.lang),
+        sizes = crate::picture::PROGRAM_SIZES,
     )
 }
 
@@ -168,6 +187,23 @@ pub fn sitemap(lastmod: &str, extra: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_home_preloads_its_picture_as_its_img_asks_for_it() {
+        for lang in [Lang::En, Lang::Es] {
+            let home = block(Page::new(lang, Route::Home));
+            let want = format!(
+                r#"<link rel="preload" as="image" href="{}" imagesrcset="{}" imagesizes="{}" fetchpriority="high" />"#,
+                crate::picture::program(lang),
+                crate::picture::program_srcset(lang),
+                crate::picture::PROGRAM_SIZES
+            );
+            assert!(home.contains(&want), "{home}");
+            assert!(home.find(&want) < home.find("<meta name=\"description\""));
+            let other = block(Page::new(lang, Route::Download));
+            assert!(!other.contains(r#"rel="preload""#));
+        }
+    }
 
     #[test]
     fn the_head_names_both_languages_and_its_own_address() {
