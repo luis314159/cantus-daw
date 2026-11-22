@@ -10,7 +10,7 @@ low=0
 while tasklist //FI "PID eq $pid" 2>/dev/null | grep -q "$pid"; do
   free_kb=$(awk '/^MemFree:/ {print $2}' /proc/meminfo)
   c_kb=$(df -k /c | awk 'NR==2 {print $4}')
-  if [ "${free_kb:-0}" -lt 4194304 ] || [ "${c_kb:-0}" -lt 6291456 ]; then
+  if [ "${free_kb:-0}" -lt $(( ${GENTLY_STOP_MB:-4096} * 1024 )) ] || [ "${c_kb:-0}" -lt 6291456 ]; then
     low=$((low + 1))
     echo "$(date +%T) watchdog: RAM free $((free_kb / 1024)) MB, C: free $((c_kb / 1024)) MB (low $low/3)" >> "$log"
     if [ "$low" -ge 3 ]; then
