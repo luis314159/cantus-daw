@@ -401,7 +401,10 @@ difference −62 dBFS), **Banjo** (0.08; +0.05 / +0.02 dB). Under the old thresh
 try moved exactly these): the harp, the nylon, the cello and some of the banjo's notes; the
 dulcimer and the banjo's phrase were above it, and now stretch more by the loss's share. **The
 owner should listen again to the harp, the nylon guitar, the bowed cello, the dulcimer and the
-banjo.** The bowed tuning at 0 is the round's (+3.1, +2.5, +1.2, +0.2, −1.2 cents, C2–C6).
+banjo.** Rendered in `F:\projects\daw-r41\fides-listen-input\` (`examples/fides_listen`, the
+same phrase and notes as `fides-listen\`); against their roles' targets: harp +0.4 LU, nylon
++1.0, cello −0.3, dulcimer −0.1, banjo 0.0.
+The bowed tuning at 0 is the round's (+3.1, +2.5, +1.2, +0.2, −1.2 cents, C2–C6).
 
 **Tests** (Windows, this branch): `cantus-core` `fides_sidechain` 5, `undo_invariants` (its
 `fides_sidechain_undo_and_redo_among_the_others`: 40 seeds × 80 commands, half the key's own
