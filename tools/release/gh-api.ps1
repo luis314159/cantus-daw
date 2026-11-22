@@ -46,12 +46,12 @@ $headers = @{
     'User-Agent'           = 'cantus-release-tools'
 }
 $uri = if ($Path -match '^https://') { $Path } else { "https://api.github.com/$($Path.TrimStart('/'))" }
-$args = @{ Method = $Method; Uri = $uri; Headers = $headers }
-if ($Body) { $args.Body = $Body; $args.ContentType = 'application/json' }
+$req = @{ Method = $Method; Uri = $uri; Headers = $headers }
+if ($Body) { $req.Body = $Body; $req.ContentType = 'application/json' }
 if ($OutFile) {
-    Invoke-WebRequest @args -OutFile $OutFile | Out-Null
+    Invoke-WebRequest @req -UseBasicParsing -OutFile $OutFile | Out-Null
     "saved $OutFile"
 } else {
-    $r = Invoke-WebRequest @args
+    $r = Invoke-WebRequest @req -UseBasicParsing
     if ($r.Content) { $r.Content } else { "HTTP $($r.StatusCode)" }
 }
