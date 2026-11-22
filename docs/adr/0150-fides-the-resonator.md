@@ -102,11 +102,13 @@ units and ranges beside each key; the manual (`docs/manual/en/fides.md`) says wh
 
 **Amended by ADR 0154 (round 41):** the *Input* exciter's audio is a sidechain from a strip
 (`Track::sidechain`, schema 79), run before the track by the plan and compensated as the
-track's own latency. **Inharmonicity** (round 41, `fides::string::stiffness_fit`): the fitted
-partial is where a stiff string with `B = 4·10⁻⁴·inharm²` puts it at every setting — the loss
-filter's own stretch counted, so 0 is harmonic and a negative setting draws the partials in —
-where Gravis's fit, which only adds stretch past the loss's, did nothing under a threshold
-that rose with the loss; above it, the same coefficient to the bit.
+track's own latency. **Inharmonicity** (round 41, `fides::string::stiffness_fit`): the
+fitted partial moves from where the loop puts it as far as a stiff string with
+`B = 4·10⁻⁴·inharm²` moves it from the harmonic (a negative setting draws it in, as far as the
+four sections can) — where Gravis's fit, given the loss filter's dispersion, added only what
+the stiffness asked past the loss's own and did nothing under a threshold that rose with the
+loss. At 0 nothing changed; above the old threshold the partials stretch by the loss's share
+more than before.
 
 ## Consequences
 

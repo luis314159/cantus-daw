@@ -67,7 +67,7 @@ under any exciter (a bow's rosin, a mallet's felt).
 
 **Decay** is how long the fundamental rings (T60, the time to fall 60 dB). **Material** is how
 the highs die: wood's die at once, glass's and metal's ring as long as the fundamental.
-**Inharmonicity** stretches (or squeezes) the partials: on a string, at 0 they are harmonic, above it a stiff string's (a piano's at 100 %), below it drawn in as far — every step moves them. **Listen** is where a modal object is
+**Inharmonicity** stretches (or squeezes) the partials: on a string, above 0 as a stiff string's are (a piano's at 100 %), below 0 drawn in — every step moves them. **Listen** is where a modal object is
 heard from (the microphone's ring).
 
 **The body**: None, Guitar (its air mode near 98 Hz and its top's modes), Violin (its

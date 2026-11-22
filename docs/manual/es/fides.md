@@ -69,7 +69,7 @@ fieltro de una baqueta).
 
 **Caída** es cuánto suena la fundamental (T60, el tiempo en bajar 60 dB). **Material** es cómo
 mueren los agudos: los de la madera de inmediato, los del cristal y el metal tanto como la
-fundamental. **Inarmonicidad** estira (o comprime) los parciales: en una cuerda, en 0 son armónicos, por encima los de una cuerda rígida (los de un piano al 100 %), por debajo se recogen otro tanto — cada paso los mueve. **Escucha** es desde dónde se
+fundamental. **Inarmonicidad** estira (o comprime) los parciales: en una cuerda, por encima de 0 como los de una cuerda rígida (los de un piano al 100 %), por debajo de 0 se recogen — cada paso los mueve. **Escucha** es desde dónde se
 oye un objeto modal (el anillo del micrófono).
 
 **El cuerpo**: Ninguno, Guitarra (su modo de aire cerca de 98 Hz y los de su tapa), Violín (sus

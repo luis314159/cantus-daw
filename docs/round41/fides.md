@@ -330,3 +330,100 @@ the most useful in a mix; B is the cheapest and the least expected. Until one is
 the *Input* exciter is offered in the editor and is silent (with its own level, attack,
 lift and tone knobs): either the choice lands before beta.17, or the exciter's switch
 hides *Input* until it does — the integrator's or the owner's call.
+
+## Fides's input as a sidechain (integration)
+
+*Branch `r41/fides-input` from `r41/integration` e6df297ad. The integrator decided, with the
+owner's mandate (2026-11-22): option **C** of the table above — ADR 0154.*
+
+**What was built.** The *Input* exciter hears another strip's post-fader output, chosen as an
+insert's key is:
+
+- **Model** — `Track::sidechain: Option<StripId>` (schema 79, an empty migration, fixture
+  `v79.cantus`: the Fides track keyed from the third strip); `InstrumentKind::takes_sidechain`
+  (Fides alone), `Track::key()`. `SetTrackSidechain { track, source }` (`cmd.set_track_sidechain`,
+  both locales), refused for an instrument that takes none, a VCA, the master, a missing strip
+  and every loop (its own strip, a strip it plays into or one that reaches it). The key is an
+  edge of `Project::downstream`, so the existing walk refuses every later route back into it
+  (outputs, sends, inserts' keys); `SetTrackStrip` refuses a keyed track into its key or into a
+  strip reaching it; `RemoveStrip` (and the plans that remove strips: `inst_out_plan`, `padout`,
+  the templates' blank strip, the bounce's "heard elsewhere") counts a track's key as a use;
+  `InsertTrack` checks a key it brings; `SetInstrument` to an instrument that takes none lets the
+  key go in the same step (its inverse a `Batch` that brings both back); a bounce of a strip
+  whole moves the instruments' keys to the new strip. Freezing: the key's strip and its sources
+  join a frozen track's region, `region_through`, `dormant` (a running keyed track wakes its
+  key), `pre_only_senders` and `reaches_strip`. `Project::can_key_track` is what the chooser
+  offers.
+- **Engine** — the plan runs a keyed track's node right after its key strip (the tracks, then
+  each strip followed by the tracks keyed from it, then the master) with a dependency edge, so
+  the serial engine and the pool both run the strip first; `topology_key` mixes the key in only
+  when set (every other project's plan unchanged). The key strip keeps its post-fader buffer
+  (`is_key`); the track's segment reads that pass's buffer into the slot's mono scratch and calls
+  `InstrumentUnit::process_input` (new, defaulting to `process_par`; Fides's unit runs it through
+  its control-step loop — the old inherent `process_input` skipped the slow routes and the step
+  clock, and is gone). Nothing allocates. A key the plan cannot honour (not processed, resting,
+  or not before the strip the track plays into) is silence. **Latency**: a keyed track leaves at
+  its key strip's output time plus its own latency (`compensate`), so everything else waits for
+  it — unlike an insert's key (ADR 0018), because here the key *is* the sound.
+- **UI** — Fides's *Input* card (Play and Edit): *Input from* over the kit's field and its list
+  (`controls::field`/`list`, as the keyed effects' editors) — *No strip* first, then the strips
+  the command would take, each named as the capture menu names it — beside *Position* and
+  *Velocity*; with none chosen, *Choose a strip: silent until then* (*Entrada de*, *Ningún
+  canal*, *Elige un canal: en silencio hasta entonces*). The manual (both languages) and the beta
+  checklist (*la entrada en vivo*, *un micrófono en Fides*) say so.
+
+**Inharmonicity, over its whole range.** Gravis's `dispersion_fit`, given the loss filter's
+dispersion, added only what the stiffness asked past what the loss already gave, so under a
+threshold that rose with the loss the string got no allpass and the knob did nothing (and below
+0 a string ignored it altogether). Fides's own `string::stiffness_fit` now counts the stiffness
+from where the loop puts the partial: the fitted partial moves from there as far as a stiff
+string with `B = 4·10⁻⁴·inharm²` moves it from the harmonic (Gravis's fit with no other
+dispersion), and below 0 as far the other way (a positive coefficient, as far as four sections
+can — strong settings at low pitches stop at 0.9). At 0 it is no allpass, as before. Measured
+(`inharmonicity_moves_a_string_s_partials_at_every_step`, C3, material 0.32 — the nylon's, where
+0.12 used to fit nothing): partial 12 moves +0.125, +0.496, +1.107, +1.973, +4.437 and +12.281
+cents at 0.05, 0.1, 0.15, 0.2, 0.3 and 0.5 — a stiff string's +0.124 … +12.289, within 0.01 cent
+— the fundamental within 0.0013 cent throughout. (At 0 that partial sits 1.8 cents under the
+harmonic: the Lagrange reads, which neither fit counts.) A first try that kept the old
+coefficient wherever it was nonzero and took the loss's stretch back below the threshold could
+not work: four first-order sections cannot undo the loss's dispersion at material 0.32 (the
+coefficient stuck at its ceiling and the partial did not move) — and no fix can keep both 0's and
+the old threshold's bits while moving at every step between them (the two ends sound alike).
+
+**What changed in sound** (`fides_pick_e2e::probe_the_factory_presets_bits`, 50 renders against
+`e6df297ad`'s): **40 the same bits** — every preset whose Inharmonicity is 0 or not on a string.
+The five string presets with Inharmonicity above 0 move: **Harp** (A 0.08; RMS +0.13 dB notes,
++0.24 dB phrase; the difference −57 / −45 dBFS RMS), **Nylon guitar** (0.12; +1.16 / +0.96 dB —
+the allpass the knob now asks for lifts the string, as the round's DC-blocker note found),
+**Bowed cello** (0.05; +0.52 / −0.22 dB; a bow's stick and slip makes any partial's move a new
+waveform: the difference −18 / −22 dBFS RMS), **Hammered dulcimer** (A and B 0.15; 0.00 dB, the
+difference −62 dBFS), **Banjo** (0.08; +0.05 / +0.02 dB). Under the old threshold (the earlier
+try moved exactly these): the harp, the nylon, the cello and some of the banjo's notes; the
+dulcimer and the banjo's phrase were above it, and now stretch more by the loss's share. **The
+owner should listen again to the harp, the nylon guitar, the bowed cello, the dulcimer and the
+banjo.** The bowed tuning at 0 is the round's (+3.1, +2.5, +1.2, +0.2, −1.2 cents, C2–C6).
+
+**Tests** (Windows, this branch): `cantus-core` `fides_sidechain` 5, `undo_invariants` (its
+`fides_sidechain_undo_and_redo_among_the_others`: 40 seeds × 80 commands, half the key's own
+arms) and the whole crate; `cantus-project` `schema_79_keeps_fides_s_sidechain` and the crate;
+`cantus-engine` `fides_input` 6 (no key → Fides as it was, to the bit; a keyed pluck the unkeyed
+bits; a silent key nothing; the source excites Fides at −28.8 dBFS RMS; blocks of 1, 37, 64, 512,
+1000 and 4096 and live in irregular blocks the same bits; the pool at W = 1, 3, 7 the serial
+bits, no conflict; a loop heard as silence offline and on the pool; a 186-sample latent key strip
+moves Fides's onset by exactly 186 samples); `cantus-dsp` fides 16 (`the_stiffness_fit_moves_at_
+every_step`: 526 steps up from 0 the old fit left dead now move); `cantus-ui` `fides_input_e2e`
+(through `assemble`, the picker and the pointer in Fides's window: the card says it is silent,
+the list leaves Fides's own strip out, the source is chosen, played through the processor the
+source excites Fides at −21.0 dBFS RMS, one undo step, a save and a load keep it).
+
+**Found, not fixed:** an arm for the key drawn inside the main fuzz
+(`undo_all_restores_initial_state_for_random_sequences`, arm 17, which falls through to a rename)
+moved seed 33 onto a failure with nothing of the key in it: *frame 94217.7 where its take puts
+94228.5 after `SetTempo { bpm: 293.4 }`* — a take's frame after a tempo change, an existing bug
+the new draws uncovered. The key's fuzz stays in its own test; arm 17 is still the rename, so the
+main fuzz's draws are unchanged. For the integrator.
+
+**Left:** the AI tools and the MCP server do not set an instrument's key; the mixer and the
+routing view draw no cable for it (the Input card is where it is seen); the nylon guitar's +1 dB
+(a re-trim after the owner listens); a microphone into Fides through a real interface (the
+checklist).

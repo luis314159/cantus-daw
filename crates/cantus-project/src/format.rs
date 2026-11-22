@@ -1704,7 +1704,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v78.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // r41:fides-input — no longer the newest (79): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(78));
         let p = report.file.project;
         let fides = p
             .tracks
@@ -1758,10 +1759,8 @@ mod tests {
         assert_eq!(fides.key(), Some(third), "an instrument that takes it");
         let order = p.strip_order();
         let at = |id| order.iter().position(|i| p.strips[*i].id == id);
-        assert!(
-            at(third) < at(fides.strip.expect("its strip")),
-            "the key first"
-        );
+        let dests: Vec<_> = fides.destinations().into_iter().flatten().collect();
+        assert!(dests.iter().all(|d| at(third) < at(*d)), "the key first");
         let old = std::fs::read_to_string(dir.join("v78.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tracks.iter().all(|t| t.sidechain.is_none()));
