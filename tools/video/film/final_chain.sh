@@ -23,14 +23,18 @@ step() {
   say "exit $? $name"
 }
 winpath() { cygpath -w "$1" 2>/dev/null || echo "$1"; }
-if [[ -n "${1:-}" ]]; then
+# CHAIN_FROM=all skips the scenes and cards (already made) and starts at the deliverables.
+if [[ -n "${1:-}" && "${CHAIN_FROM:-}" != all ]]; then
   step "scenes" bash tools/video/film/gently.sh "$L/g-scenes.log" "$FILM_ROOT/target/release/examples/film.exe" \
     --out "$(winpath "$WORK/film4k")" --fps 60 --scale 2 --scene "$1"
 fi
 for lang in en es; do
+  [[ "${CHAIN_FROM:-}" == all ]] && break
   step "cards-$lang" bash tools/video/film/gently.sh "$L/g-cards-$lang.log" "$(command -v bash)" tools/video/final/build.sh cards "$lang"
 done
+# The encodes need far less memory than a render: lower floors (gently.sh).
 for lang in en es; do
+  export GENTLY_START_MB="${ENCODE_START_MB:-3000}" GENTLY_STOP_MB="${ENCODE_STOP_MB:-1500}"
   step "all-$lang" bash tools/video/final/build.sh all "$lang"
 done
 say "start checks"
