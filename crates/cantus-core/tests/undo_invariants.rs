@@ -5876,7 +5876,7 @@ fn round36_mix_command(rng: &mut Lcg, scratch: &mut Project) -> (usize, Command)
             // VCA, at an index up to one past the end (refused).
             let len = scratch.mix.group_vcas.len();
             match vca {
-                Some(vca) if g.0 % 2 == 0 && scratch.mix.group_vca(g).is_none() => (
+                Some(vca) if g.0.is_multiple_of(2) && scratch.mix.group_vca(g).is_none() => (
                     2,
                     Command::Mix(M::InsertGroupVca {
                         index: (g.0 / 2) as usize % (len + 2),
