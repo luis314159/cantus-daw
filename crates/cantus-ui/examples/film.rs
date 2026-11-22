@@ -466,6 +466,65 @@ impl Director {
         self.button(false, PointerButton::Primary);
     }
 
+    /// Real wheel events over `ms`: `points` scrolled (positive takes a list down), eased, a
+    /// part every frame (a flick on a mouse wheel or a trackpad).
+    fn fling(&mut self, points: f32, ms: f32) {
+        let n = self.frames_for(ms);
+        let mut done = 0.0;
+        for i in 1..=n {
+            let to = points * ease(i as f32 / n as f32);
+            let d = to - done;
+            done = to;
+            self.step(vec![Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: Vec2::new(0.0, -d),
+                phase: egui::TouchPhase::Move,
+                modifiers: self.mods,
+            }]);
+        }
+    }
+
+    /// In the open device picker: the cursor into its grid, the list wheeled down by `step`
+    /// points at a time (at most `max`) until the tile labelled `name` is wholly in view, the
+    /// tile hovered for `hold_ms`, the list wheeled back to where it was. Said in the JSON.
+    fn show_tile(&mut self, name: &str, step: f32, max: f32, hold_ms: f32) {
+        let panel = cantus_ui::views::picker::panel_rect(self.screen());
+        let grid = Rect::from_min_max(
+            Pos2::new(panel.left() + 210.0, panel.top() + 65.0),
+            Pos2::new(panel.right() - 330.0, panel.bottom() - 60.0),
+        );
+        // The label sits under its tile's picture: in view when the picture is too.
+        let seen = |d: &Director| {
+            d.texts_all(name)
+                .into_iter()
+                .filter(|r| {
+                    grid.contains(r.center()) && r.top() > grid.top() + 175.0 && r.bottom() < grid.bottom()
+                })
+                .min_by(|a, b| a.left().total_cmp(&b.left()))
+        };
+        self.go(grid.center());
+        let mut scrolled = 0.0;
+        while seen(self).is_none() && scrolled < max {
+            self.fling(step, 260.0);
+            scrolled += step;
+            self.idle(self.frames_for(80.0));
+        }
+        match seen(self) {
+            Some(label) => {
+                let over = Pos2::new(label.center().x, label.top() - 70.0);
+                self.go(over);
+                self.idle(self.frames_for(hold_ms));
+                self.note(&format!("shown_{name}"), serde_json::json!([over.x, over.y, scrolled]));
+            }
+            None => self.did(&format!("{name}'s tile not brought into view within {max} points")),
+        }
+        if scrolled > 0.0 {
+            self.go(grid.center());
+            self.fling(-scrolled - step, 420.0);
+            self.idle(self.frames_for(150.0));
+        }
+    }
+
     /// Press where the cursor is, move to `p` over `ms` (eased), let go.
     fn drag(&mut self, p: Pos2, ms: f32) {
         self.ripples.push((self.frame, self.pointer));
@@ -1078,7 +1137,10 @@ fn take_piano(o: &Opts) {
         cantus_ui::picker::PickPurpose::ReplaceInstrument { track: piano },
     );
     d.did("picker::open(ReplaceInstrument) for the piano track (its header's swap)");
-    d.idle(d.frames_for(500.0));
+    d.idle(d.frames_for(250.0));
+    // Fides seen (the integrator, for the release): the list wheeled down until its tile is
+    // in view, the tile hovered, the list wheeled back.
+    d.show_tile("Fides", 260.0, 1_600.0, 800.0);
     // The tile, not the details pane's title: the leftmost "Chorda" in the picker.
     let tile = d
         .texts_all("Chorda")
@@ -1087,7 +1149,7 @@ fn take_piano(o: &Opts) {
     match tile {
         Some(t) => {
             d.go(t.center());
-            d.idle(d.frames_for(700.0));
+            d.idle(d.frames_for(300.0));
             d.double_click();
         }
         None => {
@@ -1395,7 +1457,9 @@ fn take_mixer(o: &Opts) {
         d.did("picker::open(AddEffect) on the chords' strip");
         d.idle(d.frames_for(300.0));
     }
-    d.until(3.2);
+    // Nitor seen (the integrator, for the release): the list wheeled down to the mastering
+    // shelf until its tile is in view, the tile hovered, the list wheeled back to the top.
+    d.show_tile("Nitor", 1_200.0, 8_000.0, 800.0);
     let tile = d
         .texts_all("Cribrum")
         .into_iter()
@@ -1403,7 +1467,7 @@ fn take_mixer(o: &Opts) {
     match tile {
         Some(t) => {
             d.go(t.center());
-            d.idle(d.frames_for(600.0));
+            d.idle(d.frames_for(250.0));
             d.double_click();
         }
         None => {
