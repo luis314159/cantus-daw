@@ -77,7 +77,8 @@ impl Opts {
         while i < args.len() {
             let a = args[i].as_str();
             let v = args.get(i + 1).cloned().unwrap_or_default();
-            let num = |s: &str| -> f32 { s.parse().unwrap_or_else(|_| panic!("{a} wants a number")) };
+            let num =
+                |s: &str| -> f32 { s.parse().unwrap_or_else(|_| panic!("{a} wants a number")) };
             match a {
                 "--fps" => o.fps = num(&v) as u32,
                 "--width" => o.size.x = num(&v),
@@ -202,7 +203,10 @@ struct Director {
 
 /// The block the engine runs in: the largest divisor of a frame's samples up to 512.
 fn block_of(spf: usize) -> usize {
-    (1..=512.min(spf)).rev().find(|b| spf % b == 0).unwrap_or(1)
+    (1..=512.min(spf))
+        .rev()
+        .find(|b| spf.is_multiple_of(*b))
+        .unwrap_or(1)
 }
 
 impl Director {
@@ -385,7 +389,7 @@ impl Director {
         }
         self.t += 1.0 / self.o.fps as f64;
         if self.rolling {
-            if self.wanted && self.frame % self.o.every == 0 {
+            if self.wanted && self.frame.is_multiple_of(self.o.every) {
                 self.write(out.shapes);
             }
             self.frame += 1;
@@ -498,7 +502,9 @@ impl Director {
             d.texts_all(name)
                 .into_iter()
                 .filter(|r| {
-                    grid.contains(r.center()) && r.top() > grid.top() + 175.0 && r.bottom() < grid.bottom()
+                    grid.contains(r.center())
+                        && r.top() > grid.top() + 175.0
+                        && r.bottom() < grid.bottom()
                 })
                 .min_by(|a, b| a.left().total_cmp(&b.left()))
         };
@@ -514,9 +520,14 @@ impl Director {
                 let over = Pos2::new(label.center().x, label.top() - 70.0);
                 self.go(over);
                 self.idle(self.frames_for(hold_ms));
-                self.note(&format!("shown_{name}"), serde_json::json!([over.x, over.y, scrolled]));
+                self.note(
+                    &format!("shown_{name}"),
+                    serde_json::json!([over.x, over.y, scrolled]),
+                );
             }
-            None => self.did(&format!("{name}'s tile not brought into view within {max} points")),
+            None => self.did(&format!(
+                "{name}'s tile not brought into view within {max} points"
+            )),
         }
         if scrolled > 0.0 {
             self.fling(-scrolled - step, 350.0);
@@ -664,7 +675,10 @@ impl Director {
         let src: Vec<[u8; 4]> = (0..w * h).map(|i| c.pixel(i % w, i / w)).collect();
         let mut pix = tiny_skia::Pixmap::new(w as u32, h as u32).expect("a frame");
         let (vx, vy) = (view.left() * ppp, view.top() * ppp);
-        let (sx, sy) = (view.width() * ppp / w as f32, view.height() * ppp / h as f32);
+        let (sx, sy) = (
+            view.width() * ppp / w as f32,
+            view.height() * ppp / h as f32,
+        );
         let px = pix.pixels_mut();
         for y in 0..h {
             let fy = (vy + (y as f32 + 0.5) * sy - 0.5).clamp(0.0, (h - 1) as f32);
@@ -685,7 +699,8 @@ impl Director {
                     let bot = cc[k] as f32 * (1.0 - tx) + d[k] as f32 * tx;
                     (top * (1.0 - ty) + bot * ty).round() as u8
                 };
-                px[y * w + x] = tiny_skia::ColorU8::from_rgba(ch(0), ch(1), ch(2), 255).premultiply();
+                px[y * w + x] =
+                    tiny_skia::ColorU8::from_rgba(ch(0), ch(1), ch(2), 255).premultiply();
             }
         }
         std::fs::write(&path, pix.encode_png().expect("png")).expect("a frame is written");
@@ -870,7 +885,7 @@ impl Director {
         while (!self.app.picker_view.thumbs.idle() || frames < 2) && frames < 6_000 {
             self.step(Vec::new());
             frames += 1;
-            if frames % 20 == 0 {
+            if frames.is_multiple_of(20) {
                 // The workers fill and shrink on threads: give them a moment.
                 std::thread::sleep(std::time::Duration::from_millis(5));
             }
@@ -883,7 +898,11 @@ impl Director {
             "thumbs_warmed",
             serde_json::json!({"asked": subjects.len(), "ready": ready, "frames": frames}),
         );
-        eprintln!("{}: {ready} of {} picker pictures ready after {frames} frames", self.name, subjects.len());
+        eprintln!(
+            "{}: {ready} of {} picker pictures ready after {frames} frames",
+            self.name,
+            subjects.len()
+        );
         cantus_ui::views::picker::close(&mut self.app);
         self.idle(2);
         self.engine_idle = idle;
@@ -1030,7 +1049,10 @@ impl Director {
     fn arrangement_at(&self, beat: f64) -> Option<Pos2> {
         let g = self.app.arrangement.geometry()?;
         let x = g.left + (beat as f32 - g.scroll_beats) * g.px_per_beat;
-        let bottom = g.rows.last().map_or(g.body_top + 200.0, |r| r.top + r.height);
+        let bottom = g
+            .rows
+            .last()
+            .map_or(g.body_top + 200.0, |r| r.top + r.height);
         let y = (g.body_top + bottom.min(g.lanes_bottom)) / 2.0;
         Some(Pos2::new(x, y))
     }
@@ -1142,7 +1164,10 @@ fn take_piano(o: &Opts) {
     d.no_other_dancers(None);
     let piano = d.track("demos.track.piano");
     // Every instrument's picture made before the shot (Fides's among them).
-    d.warm_thumbs(cantus_ui::picker::PickPurpose::ReplaceInstrument { track: piano }, None);
+    d.warm_thumbs(
+        cantus_ui::picker::PickPurpose::ReplaceInstrument { track: piano },
+        None,
+    );
     d.app.select_track(piano);
     // Chorda's strings designed before the shot (the picker asks for them when it opens).
     cantus_engine::inst::chorda::warm(RATE as f32);
@@ -1223,7 +1248,10 @@ fn take_piano(o: &Opts) {
     d.idle(d.frames_for(300.0));
     let win = d.top_window();
     if let Some(w) = win {
-        d.note("window", serde_json::json!([w.left(), w.top(), w.width(), w.height()]));
+        d.note(
+            "window",
+            serde_json::json!([w.left(), w.top(), w.width(), w.height()]),
+        );
     }
     // The keys as this window drew them: the long, flat control (its first-open place, kept
     // relative to the window, only if none is found).
@@ -1240,7 +1268,12 @@ fn take_piano(o: &Opts) {
             .max_by(|a, b| a.width().total_cmp(&b.width()))
     });
     let keys = drawn.or_else(|| keys.zip(win).map(|(k, w)| k.translate(w.min.to_vec2())));
-    d.note("keys_in_shot", keys.map_or(serde_json::Value::Null, |k| serde_json::json!([k.left(), k.top(), k.width(), k.height()])));
+    d.note(
+        "keys_in_shot",
+        keys.map_or(serde_json::Value::Null, |k| {
+            serde_json::json!([k.left(), k.top(), k.width(), k.height()])
+        }),
+    );
     match keys {
         Some(k) => {
             // The push-in on the keys, and the cursor plays them on the beat: D, A, D, A
@@ -1249,7 +1282,10 @@ fn take_piano(o: &Opts) {
             d.until(4.2);
             let r = d.framing(Pos2::new(k.center().x, k.center().y - 40.0), 1.5);
             d.frame_to(r, 2400.0);
-            d.note("push_in_on", serde_json::json!([k.center().x, k.center().y]));
+            d.note(
+                "push_in_on",
+                serde_json::json!([k.center().x, k.center().y]),
+            );
             let white = |note: u8| -> Pos2 {
                 let map = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
                 let i = (note as usize / 12 - 3) * 7 + map[note as usize % 12];
@@ -1283,7 +1319,15 @@ fn one_drum_track(d: &mut Director) -> TrackId {
     for key in ["demos.track.snare", "demos.track.hats", "demos.track.toms"] {
         let t = d.track(key);
         others.push(t);
-        let clips: Vec<_> = d.app.project().track(t).unwrap().clips.iter().map(|c| c.id).collect();
+        let clips: Vec<_> = d
+            .app
+            .project()
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .map(|c| c.id)
+            .collect();
         for c in clips {
             cmds.push(cantus_core::Command::MoveClipToTrack {
                 from: t,
@@ -1303,7 +1347,13 @@ fn one_drum_track(d: &mut Director) -> TrackId {
     assert!(ok, "the drums' clips moved");
     // The emptied tracks go (their strips stay, unused).
     for t in others {
-        let i = d.app.project().tracks.iter().position(|x| x.id == t).unwrap();
+        let i = d
+            .app
+            .project()
+            .tracks
+            .iter()
+            .position(|x| x.id == t)
+            .unwrap();
         let _ = i;
         d.app.exec(cantus_core::Command::RemoveTrack { id: t });
     }
@@ -1369,7 +1419,10 @@ fn take_drums(o: &Opts) {
             rect: d.fit(w, 120.0, 1.35),
         });
         d.frame_to(r, 6500.0);
-        d.note("window", serde_json::json!([w.left(), w.top(), w.width(), w.height()]));
+        d.note(
+            "window",
+            serde_json::json!([w.left(), w.top(), w.width(), w.height()]),
+        );
     }
     d.until(3.2);
     // To the instrument's mixer: its tab in the window's header.
@@ -1437,28 +1490,51 @@ fn take_mixer(o: &Opts) {
         // The tiles the shot rests on: the list's top (EQ, Dynamics) where Cribrum is picked,
         // and its end (Stereo, Mastering, Utility) where Nitor is shown.
         let rest = [
-            E::Eq, E::AutoFilter, E::ResonanceSuppressor, E::Compressor, E::Gate, E::DeEsser,
-            E::Multiband, E::Limiter, E::Clipper, E::Transient, E::TransientSplit,
-            E::BusCompressor, E::Ducker, E::Stereo, E::Maximizer, E::Reference, E::Enhancer,
-            E::Analyzer, E::Utility, E::Repair,
+            E::Eq,
+            E::AutoFilter,
+            E::ResonanceSuppressor,
+            E::Compressor,
+            E::Gate,
+            E::DeEsser,
+            E::Multiband,
+            E::Limiter,
+            E::Clipper,
+            E::Transient,
+            E::TransientSplit,
+            E::BusCompressor,
+            E::Ducker,
+            E::Stereo,
+            E::Maximizer,
+            E::Reference,
+            E::Enhancer,
+            E::Analyzer,
+            E::Utility,
+            E::Repair,
         ];
         let subjects = rest.iter().filter_map(|k| Subject::of_effect(*k)).collect();
-        d.warm_thumbs(cantus_ui::picker::PickPurpose::AddEffect { strip }, Some(subjects));
+        d.warm_thumbs(
+            cantus_ui::picker::PickPurpose::AddEffect { strip },
+            Some(subjects),
+        );
     }
     d.idle(10);
     // Where the face's cutoff knob sits in its window: Cribrum inserted once before the
     // shot, the knob found by its hint (the biggest control named so), then undone.
-    d.app
-        .add_picked_effect(strip, &PickChoice::Effect(cantus_core::EffectKind::AutoFilter));
+    d.app.add_picked_effect(
+        strip,
+        &PickChoice::Effect(cantus_core::EffectKind::AutoFilter),
+    );
     d.idle(14);
     let mut cut_knob: Option<Rect> = None;
     if let Some(w) = d.top_window() {
         for r in d.widgets_in(w) {
             let name = d.hint_at(r.center()).unwrap_or_default().to_lowercase();
-            if name.contains("cutoff") && r.width() < 120.0 && r.height() < 120.0 {
-                if cut_knob.is_none_or(|k| r.area() > k.area()) {
-                    cut_knob = Some(r);
-                }
+            if name.contains("cutoff")
+                && r.width() < 120.0
+                && r.height() < 120.0
+                && cut_knob.is_none_or(|k| r.area() > k.area())
+            {
+                cut_knob = Some(r);
             }
         }
         cut_knob = cut_knob.map(|k| k.translate(-w.min.to_vec2()));
@@ -1544,8 +1620,10 @@ fn take_mixer(o: &Opts) {
         None => {
             d.did("no Cribrum tile: add_picked_effect called");
             cantus_ui::views::picker::close(&mut d.app);
-            d.app
-                .add_picked_effect(strip, &PickChoice::Effect(cantus_core::EffectKind::AutoFilter));
+            d.app.add_picked_effect(
+                strip,
+                &PickChoice::Effect(cantus_core::EffectKind::AutoFilter),
+            );
         }
     }
     d.idle(d.frames_for(500.0));
@@ -1553,17 +1631,26 @@ fn take_mixer(o: &Opts) {
         .app
         .project()
         .effects_of(strip)
-        .and_then(|e| e.iter().find(|e| e.spec.kind == cantus_core::EffectKind::AutoFilter))
+        .and_then(|e| {
+            e.iter()
+                .find(|e| e.spec.kind == cantus_core::EffectKind::AutoFilter)
+        })
         .map(|e| e.id);
     d.note("effect_added", effect.is_some().into());
     // The face: its window framed, then the cutoff knob (Filter A's, the lowest "Cutoff").
     d.until(5.0);
     if let Some(w) = d.top_window() {
-        d.note("face", serde_json::json!([w.left(), w.top(), w.width(), w.height()]));
+        d.note(
+            "face",
+            serde_json::json!([w.left(), w.top(), w.width(), w.height()]),
+        );
         let r = d.fit(w, 40.0, 1.5);
         d.frame_to(r, 1200.0);
     }
-    let knob = d.top_window().zip(cut_knob).map(|(w, k)| k.translate(w.min.to_vec2()));
+    let knob = d
+        .top_window()
+        .zip(cut_knob)
+        .map(|(w, k)| k.translate(w.min.to_vec2()));
     match knob {
         Some(k) => {
             let at = k.center();
@@ -1573,7 +1660,10 @@ fn take_mixer(o: &Opts) {
             d.drag(at + Vec2::new(0.0, 110.0), 2600.0);
             d.idle(d.frames_for(500.0));
             d.drag(at + Vec2::new(0.0, -50.0), 1600.0);
-            d.note("knob", serde_json::json!([at.x, at.y, k.width(), k.height()]));
+            d.note(
+                "knob",
+                serde_json::json!([at.x, at.y, k.width(), k.height()]),
+            );
         }
         None => d.did("no Cutoff knob found in the face: no knob turned"),
     }
@@ -1629,7 +1719,10 @@ fn take_master(o: &Opts) {
     d.idle(d.frames_for(400.0));
     if let Some(w) = d.top_window() {
         d.go(Pos2::new(w.right() + 30.0, w.center().y).min(d.screen().max - Vec2::splat(30.0)));
-        let r = d.framing(w.center(), (d.o.size.x / (w.width() + 200.0)).clamp(1.0, 1.35));
+        let r = d.framing(
+            w.center(),
+            (d.o.size.x / (w.width() + 200.0)).clamp(1.0, 1.35),
+        );
         d.frame_to(r, 2500.0);
     }
     d.until(8.0);
@@ -1664,13 +1757,20 @@ fn take_record(o: &Opts) {
     let opts = cantus_engine::RenderOptions {
         sample_rate: RATE as u32,
         start: from,
-        end: Some(Ticks(from.0 + (seconds * bpm / 60.0 * cantus_core::PPQ as f64) as i64)),
+        end: Some(Ticks(
+            from.0 + (seconds * bpm / 60.0 * cantus_core::PPQ as f64) as i64,
+        )),
         tail_seconds: 0.0,
         block_frames: 512,
         ..Default::default()
     };
     let input: Vec<f32> = cantus_engine::render(std::sync::Arc::new(snap), &opts)
-        .map(|r| r.samples.chunks_exact(2).map(|f| 0.5 * (f[0] + f[1])).collect())
+        .map(|r| {
+            r.samples
+                .chunks_exact(2)
+                .map(|f| 0.5 * (f[0] + f[1]))
+                .collect()
+        })
         .unwrap_or_default();
     d.note("input_seconds", (input.len() as f64 / RATE).into());
     let (ring, consumer) = rtrb::RingBuffer::<f32>::new(RATE as usize);
@@ -1681,7 +1781,12 @@ fn take_record(o: &Opts) {
         ..cantus_core::audio::TrackInput::mono(0)
     });
     t.armed = true;
-    t.color = d.app.project().track(guitar).map(|g| g.color).unwrap_or(t.color);
+    t.color = d
+        .app
+        .project()
+        .track(guitar)
+        .map(|g| g.color)
+        .unwrap_or(t.color);
     let id = t.id;
     d.app.exec(cantus_core::Command::InsertTrack {
         index: 0,
@@ -1710,7 +1815,11 @@ fn take_record(o: &Opts) {
         if let Some(r) = g.rows.first() {
             let c = Pos2::new(g.left * 0.6, r.top + r.height / 2.0);
             let fr = d.framing(Pos2::new(c.x + 300.0, c.y + 120.0), 1.5);
-            d.camera.push(Key { at: 0, frames: 0, rect: fr });
+            d.camera.push(Key {
+                at: 0,
+                frames: 0,
+                rect: fr,
+            });
             let fr2 = d.framing(Pos2::new(c.x + 330.0, c.y + 130.0), 1.6);
             d.frame_to(fr2, 2600.0);
             d.note("armed_row", serde_json::json!([c.x, c.y]));
@@ -1777,7 +1886,10 @@ fn take_session(o: &Opts) {
                 frames: 0,
                 rect: fr,
             });
-            d.note("grid", serde_json::json!([r.left(), r.top(), r.width(), r.height()]));
+            d.note(
+                "grid",
+                serde_json::json!([r.left(), r.top(), r.width(), r.height()]),
+            );
             d.pointer = Pos2::new(r.center().x, r.bottom() + 30.0);
         }
     }
@@ -1785,17 +1897,18 @@ fn take_session(o: &Opts) {
     // Two clips of the second scene launched by their own launchers: the chords, then the
     // lead (Live's way: a click on a clip's triangle).
     if let Some(g) = &geo {
-        let cols: Vec<(Option<usize>, f32)> = [("demos.track.chords", 0.4f32), ("demos.track.lead", 1.4)]
-            .iter()
-            .map(|(name, at)| {
-                let n = cantus_ui::i18n::t(name);
-                let i = g
-                    .tracks
-                    .iter()
-                    .position(|t| d.app.project().track(*t).is_some_and(|x| x.name == n));
-                (i, *at)
-            })
-            .collect();
+        let cols: Vec<(Option<usize>, f32)> =
+            [("demos.track.chords", 0.4f32), ("demos.track.lead", 1.4)]
+                .iter()
+                .map(|(name, at)| {
+                    let n = cantus_ui::i18n::t(name);
+                    let i = g
+                        .tracks
+                        .iter()
+                        .position(|t| d.app.project().track(*t).is_some_and(|x| x.name == n));
+                    (i, *at)
+                })
+                .collect();
         for (i, at) in cols {
             match i {
                 Some(i) if g.scenes.len() > 1 => {
@@ -1815,7 +1928,9 @@ fn take_session(o: &Opts) {
 /// The repository's test gain plug-in (CLAP), built by `tools/video/film/draft.sh` into
 /// `target/test-plugins`: a hosted plug-in that is free to show.
 fn test_gain() -> PathBuf {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..");
     root.join("target")
         .join("test-plugins")
         .join("debug")
@@ -1844,7 +1959,9 @@ fn take_plugin(o: &Opts) {
         let file = folder.join("Cantus Test Gain.clap");
         let _ = std::fs::copy(&lib, &file);
         use cantus_host::Backend;
-        let plugins = cantus_host::clap::ClapBackend.scan(&file).unwrap_or_default();
+        let plugins = cantus_host::clap::ClapBackend
+            .scan(&file)
+            .unwrap_or_default();
         let info = plugins.first().cloned();
         let (modified, size) = cantus_host::db::stamp(&file).unwrap_or((0, 0));
         d.app.plugins.db_path = None;
@@ -1859,7 +1976,9 @@ fn take_plugin(o: &Opts) {
         d.app.plugins.default_isolation = cantus_core::PluginIsolation::Within;
         match info {
             Some(i) => {
-                let ok = d.app.add_picked_effect(strip, &PickChoice::Hosted(Box::new(i)));
+                let ok = d
+                    .app
+                    .add_picked_effect(strip, &PickChoice::Hosted(Box::new(i)));
                 d.note("plugin_added", ok.into());
                 d.did("add_picked_effect(Hosted test gain) on the lead's strip");
             }
@@ -1939,7 +2058,10 @@ fn take_desk(o: &Opts) {
             let z = (s.height() / (st.height() + 80.0)).clamp(1.2, 2.0);
             let r = d.framing(st.center(), z);
             d.frame_to(r, 2200.0);
-            d.note("stage", serde_json::json!([st.left(), st.top(), st.width(), st.height()]));
+            d.note(
+                "stage",
+                serde_json::json!([st.left(), st.top(), st.width(), st.height()]),
+            );
         }
         None => d.did("no Stage pane in the dock"),
     }
@@ -1976,7 +2098,10 @@ type Take = fn(&Opts);
 
 /// Every take, with the scenes it writes.
 const TAKES: &[(&[&str], Take)] = &[
-    (&["look-heart", "look-ballad", "look-funk", "look-house"], take_look),
+    (
+        &["look-heart", "look-ballad", "look-funk", "look-house"],
+        take_look,
+    ),
     (&["s1-open", "s2-window"], take_open),
     (&["s3-piano"], take_piano),
     (&["s4-drums"], take_drums),
