@@ -196,3 +196,39 @@ and a drop; the overview's loop; Send to Aequalis inserted then updated in place
 undo step), `comparatio_e2e` (through `CantusApp::assemble`: a WAV loaded as the editor loads
 it, no render holds it, live = offline for the mix, the reference heard within 0.1 LU of the
 mix, back to the mix to the bit), `learn_everywhere`, `preset_audit`, `fxc_whole`.
+
+## Amendment — round 41: the one compared is always listed (2026-11-22)
+
+**Found:** the undo fuzz (seed 517 with Fides's key drawn in arm 17, r41/fuzz-two) failed
+an undo: `SetEffectIr` — still the phase-A way to set the reference — set a Comparatio's
+`ir` with no list holding it; a `SetReferences` after it returned the inverse
+`refs: None, selected: Some(…)`, a pair its own check refuses, so the undo could not apply.
+A phase-A project (an `ir` and no `refs`) loaded the same state: the repair on load skipped a
+slot with no list at all, so the editor's next *Load reference…* left an undo that failed.
+
+**Decision:** the model's invariant is phase B's own words — **the one compared is always one
+its list holds** — and every path into the model keeps it:
+
+- `SetEffectIr` on a Comparatio **adds the file to the list in the same step** (after the
+  others; a ninth refused, as `SetReferences` refuses it; clearing it leaves the list), and
+  its inverse is a `SetReferences` of the pair it replaced. Refusing the command on a
+  Comparatio was the other choice; keeping it working keeps phase A's documented way (and any
+  script that took it) valid, and no editor, agent tool or plug-in path uses it (the editor
+  and Send to Aequalis use `SetReferences`, the agents' `set_impulse_response` takes Aula
+  alone, the plug-in keeps its state and repairs it with `repair_project`).
+- `repair_project` (on load, and the plug-in's state) **lists a file compared with no list**,
+  takes off an empty path compared, and writes a list left empty as `None`.
+- A slot brought in whole (`InsertEffect`, `ReplaceEffect`, a pasted strip) is not checked;
+  if one ever carries a pair no command sets, the inverse of the next `SetReferences` or
+  `SetEffectIr` on it is a `ReplaceEffect` of the slot as it was
+  (`fx::comparatio::settable` says which), so the undo is exact either way.
+
+No schema change: the saved model is the same; a phase-A file is listed on load.
+
+**Tests:** `undo_invariants::a_reference_set_by_file_is_listed_and_every_step_undoes_exactly`
+(the reduced sequence — failed before, at the `SetReferences` undo — plus a second file, a
+listed one, clearing, an empty path and a ninth refused, every step undone and redone to
+the bit), `a_list_less_reference_brought_in_whole_still_undoes_exactly` (three hand-made
+pairs, each by `SetReferences` and by `SetEffectIr`), `fx::comparatio::tests::
+a_file_compared_without_a_list_is_listed_on_load`; the main fuzz 1..=600 with its own draws
+and with Fides's key in arm 17, and the takes-through-tempo fuzz 1..=200.

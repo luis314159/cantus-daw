@@ -622,7 +622,9 @@ pub enum Command {
     },
     /// r39:conv — Aula's response from a file ([`crate::EffectSpec::ir`], ADR 0112), or
     /// none (`None`: Cantus's own, by its `ir` parameter). Refused for any other kind and
-    /// for an empty path.
+    /// for an empty path. On a Comparatio it is the one compared, and a file its list does
+    /// not hold is added to the list in the same step (a ninth refused; ADR 0143's
+    /// amendment) — the inverse is a `SetReferences` of the pair it replaced.
     SetEffectIr {
         strip: StripId,
         effect: EffectId,
@@ -669,7 +671,8 @@ pub enum Command {
     /// B) and the one compared ([`crate::EffectSpec::ir`]), set together; the inverse is the
     /// pair it replaced. An empty list is written as `None`. Refused for any other kind, a
     /// list [`crate::fx::comparatio::References::valid`] refuses, and a reference compared
-    /// that the list does not hold.
+    /// that the list does not hold. (A pair no command sets, on a slot brought in whole by
+    /// hand, is put back by a `ReplaceEffect` of the slot as it was: the undo stays exact.)
     SetReferences {
         strip: StripId,
         effect: EffectId,
@@ -2788,6 +2791,19 @@ impl Command {
                 if ir.as_ref().is_some_and(|f| f.path.trim().is_empty()) {
                     return Err(CommandError::InvalidValue("impulse response path".into()));
                 }
+                if e.spec.kind == crate::EffectKind::Reference {
+                    // fxc:comparatio (ADR 0143's amendment): the one compared is always one
+                    // its list holds — a file not listed is added after the others, in the
+                    // same step (a ninth refused); the inverse is the pair it replaced.
+                    let mut refs = e.spec.refs.as_deref().cloned().unwrap_or_default();
+                    if let Some(f) = &ir {
+                        if refs.find(&f.path).is_none() {
+                            refs.list
+                                .push(crate::fx::comparatio::Reference::new(f.path.clone()));
+                        }
+                    }
+                    return set_references(e, strip, effect, Some(Box::new(refs)), ir);
+                }
                 let old = std::mem::replace(&mut e.spec.ir, ir);
                 Ok(SetEffectIr {
                     strip,
@@ -2899,27 +2915,7 @@ impl Command {
                 if e.spec.kind != crate::EffectKind::Reference {
                     return Err(CommandError::InvalidValue("references".into()));
                 }
-                let refs = refs.filter(|r| !r.is_empty());
-                if let Some(r) = &refs {
-                    r.valid()
-                        .map_err(|why| CommandError::InvalidValue(why.into()))?;
-                }
-                if let Some(f) = &selected {
-                    let held = refs.as_ref().is_some_and(|r| r.find(&f.path).is_some());
-                    if !held {
-                        return Err(CommandError::InvalidValue(
-                            "a reference compared that the list does not hold".into(),
-                        ));
-                    }
-                }
-                let old_refs = std::mem::replace(&mut e.spec.refs, refs);
-                let old_ir = std::mem::replace(&mut e.spec.ir, selected);
-                Ok(SetReferences {
-                    strip,
-                    effect,
-                    refs: old_refs,
-                    selected: old_ir,
-                })
+                set_references(e, strip, effect, refs, selected)
             }
             // fx3:contract — Tabula's board (`crate::command_board`, the tabula builder's).
             InsertPedal {
@@ -4009,6 +4005,54 @@ impl Project {
         self.track(track)
             .is_some_and(|t| check_track_key(self, t, source).is_ok())
     }
+}
+
+/// fxc:comparatio — a Comparatio's references and the one compared set together
+/// (`SetReferences`, and `SetEffectIr` on a Comparatio — ADR 0143 and its amendment). An
+/// empty list is written as `None`; refused: a list [`References::valid`] refuses, and one
+/// compared that the list does not hold. The inverse is the pair it replaced — or, when that
+/// pair is one no command sets (a slot brought in whole with its file not in its list, or a
+/// list written empty: a hand-made slot), the whole slot as it was, so the undo is exact
+/// either way.
+///
+/// [`References::valid`]: crate::fx::comparatio::References::valid
+fn set_references(
+    e: &mut EffectSlot,
+    strip: StripId,
+    effect: EffectId,
+    refs: Option<Box<crate::fx::comparatio::References>>,
+    selected: Option<Box<crate::fx::aula::IrFile>>,
+) -> Result<Command, CommandError> {
+    let refs = refs.filter(|r| !r.is_empty());
+    if let Some(r) = &refs {
+        r.valid()
+            .map_err(|why| CommandError::InvalidValue(why.into()))?;
+    }
+    if let Some(f) = &selected {
+        let held = refs.as_ref().is_some_and(|r| r.find(&f.path).is_some());
+        if !held {
+            return Err(CommandError::InvalidValue(
+                "a reference compared that the list does not hold".into(),
+            ));
+        }
+    }
+    let settable = crate::fx::comparatio::settable(e.spec.refs.as_deref(), e.spec.ir.as_deref());
+    let before = (!settable).then(|| Box::new(e.clone()));
+    let old_refs = std::mem::replace(&mut e.spec.refs, refs);
+    let old_ir = std::mem::replace(&mut e.spec.ir, selected);
+    Ok(match before {
+        None => Command::SetReferences {
+            strip,
+            effect,
+            refs: old_refs,
+            selected: old_ir,
+        },
+        Some(slot) => Command::ReplaceEffect {
+            strip,
+            effect,
+            slot,
+        },
+    })
 }
 
 /// The routes a whole new slot brings (`ReplaceEffect`): its key and its note source,

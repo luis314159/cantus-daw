@@ -8319,6 +8319,188 @@ fn fxc_reference_command(rng: &mut Lcg, project: &mut Project) -> (bool, Command
     )
 }
 
+/// fxc:comparatio — a Comparatio on the master and the bus that holds it (the r41 refs-ir
+/// fix's tests).
+fn comparatio_on_master(slot: impl FnOnce(&mut EffectSlot)) -> (CommandBus, EffectId) {
+    let mut bus = CommandBus::default();
+    let mut scratch = bus.project().clone();
+    let mut e = scratch.make_effect(EffectKind::Reference);
+    slot(&mut e);
+    let id = e.id;
+    bus.reserve_ids(scratch.next_id);
+    bus.execute(
+        Command::InsertEffect {
+            strip: StripId::MASTER,
+            index: 0,
+            slot: Box::new(e),
+        },
+        Origin::User,
+    )
+    .expect("a Comparatio on the master");
+    (bus, id)
+}
+
+/// Undo every step back to the first state the bus held after `from`, then redo them all:
+/// each state exactly the one it was.
+fn undo_redo_exact(bus: &mut CommandBus, states: &[Project]) {
+    for i in (1..states.len()).rev() {
+        assert!(bus.undo().is_some(), "undo {i} refused");
+        assert_eq!(bus.project(), &states[i - 1], "after undo {i}");
+    }
+    for (i, s) in states.iter().enumerate().skip(1) {
+        assert!(bus.redo().is_some(), "redo {i} refused");
+        assert_eq!(bus.project(), s, "after redo {i}");
+    }
+}
+
+fn comparatio_refs(bus: &CommandBus, id: EffectId) -> (Vec<String>, Option<String>) {
+    let e = bus.project().effect(StripId::MASTER, id).expect("the slot");
+    let list = e
+        .spec
+        .refs
+        .as_deref()
+        .map(|r| r.list.iter().map(|x| x.path.clone()).collect())
+        .unwrap_or_default();
+    (list, e.spec.ir.as_deref().map(|f| f.path.clone()))
+}
+
+/// The undo fuzz's seed 517 with Fides's key in arm 17 (r41/fuzz-two), reduced: a reference
+/// set by file (`SetEffectIr`, the command ADR 0143 phase A named) on a Comparatio with no
+/// list, then a list set (`SetReferences`). The list-less pair the file left was one
+/// `SetReferences` refuses, so its inverse could not apply. ADR 0143's amendment: the one
+/// compared is always one its list holds — `SetEffectIr` on a Comparatio lists the file in
+/// the same step, its inverse the pair it replaced.
+#[test]
+fn a_reference_set_by_file_is_listed_and_every_step_undoes_exactly() {
+    use cantus_core::fx::comparatio::{Reference, References};
+    let (mut bus, id) = comparatio_on_master(|_| {});
+    let mut states = vec![bus.project().clone()];
+    let file = |p: &str| Some(Box::new(IrFile::new(p)));
+    let ir = |bus: &mut CommandBus, p: Option<Box<IrFile>>| {
+        bus.execute(
+            Command::SetEffectIr {
+                strip: StripId::MASTER,
+                effect: id,
+                ir: p,
+                pedal: None,
+            },
+            Origin::Script,
+        )
+    };
+    ir(&mut bus, file("references/master 3.flac")).expect("a file set");
+    assert_eq!(
+        comparatio_refs(&bus, id),
+        (
+            vec!["references/master 3.flac".to_string()],
+            Some("references/master 3.flac".to_string())
+        ),
+        "the file compared is listed"
+    );
+    states.push(bus.project().clone());
+    bus.execute(
+        Command::SetReferences {
+            strip: StripId::MASTER,
+            effect: id,
+            refs: Some(Box::new(References {
+                list: vec![Reference::new("a.wav")],
+                eq: None,
+            })),
+            selected: file("a.wav"),
+        },
+        Origin::User,
+    )
+    .expect("a list set");
+    states.push(bus.project().clone());
+    // Another file: added after what the list holds; one it holds: the list unchanged.
+    ir(&mut bus, file("b.wav")).expect("a second file");
+    assert_eq!(comparatio_refs(&bus, id).0, ["a.wav", "b.wav"]);
+    states.push(bus.project().clone());
+    ir(&mut bus, file("a.wav")).expect("a listed file");
+    assert_eq!(comparatio_refs(&bus, id).0, ["a.wav", "b.wav"]);
+    states.push(bus.project().clone());
+    // Cleared: nothing compared, the list kept.
+    ir(&mut bus, None).expect("cleared");
+    assert_eq!(
+        comparatio_refs(&bus, id),
+        (vec!["a.wav".into(), "b.wav".into()], None)
+    );
+    states.push(bus.project().clone());
+    // Refused: an empty path, and a ninth reference.
+    assert!(ir(&mut bus, file(" ")).is_err());
+    bus.execute(
+        Command::SetReferences {
+            strip: StripId::MASTER,
+            effect: id,
+            refs: Some(Box::new(References {
+                list: (0..8).map(|i| Reference::new(format!("{i}.wav"))).collect(),
+                eq: None,
+            })),
+            selected: None,
+        },
+        Origin::User,
+    )
+    .expect("eight");
+    states.push(bus.project().clone());
+    assert!(ir(&mut bus, file("ninth.wav")).is_err(), "a ninth");
+    assert_eq!(
+        bus.project(),
+        states.last().unwrap(),
+        "a refusal changes nothing"
+    );
+    ir(&mut bus, file("7.wav")).expect("one of the eight");
+    states.push(bus.project().clone());
+    undo_redo_exact(&mut bus, &states);
+}
+
+/// A slot that comes in whole with a pair no command would set — the file compared not in
+/// its list, or a list written empty — is put back exactly by the inverse of whatever sets
+/// its references next (the whole slot as it was), so undo never fails on it.
+#[test]
+fn a_list_less_reference_brought_in_whole_still_undoes_exactly() {
+    use cantus_core::fx::comparatio::{Reference, References};
+    let crafted: [fn(&mut EffectSlot); 3] = [
+        |e| e.spec.ir = Some(Box::new(IrFile::new("references/master 3.flac"))),
+        |e| e.spec.refs = Some(Box::default()),
+        |e| {
+            e.spec.ir = Some(Box::new(IrFile::new("x.wav")));
+            e.spec.refs = Some(Box::new(References {
+                list: vec![Reference::new("y.wav")],
+                eq: None,
+            }));
+        },
+    ];
+    for craft in crafted {
+        for by_file in [false, true] {
+            let (mut bus, id) = comparatio_on_master(craft);
+            let states = {
+                let mut s = vec![bus.project().clone()];
+                let cmd = if by_file {
+                    Command::SetEffectIr {
+                        strip: StripId::MASTER,
+                        effect: id,
+                        ir: Some(Box::new(IrFile::new("z.wav"))),
+                        pedal: None,
+                    }
+                } else {
+                    Command::SetReferences {
+                        strip: StripId::MASTER,
+                        effect: id,
+                        refs: Some(Box::new(References {
+                            list: vec![Reference::new("a.wav")],
+                            eq: None,
+                        })),
+                        selected: Some(Box::new(IrFile::new("a.wav"))),
+                    }
+                };
+                bus.execute(cmd, Origin::User).expect("applied");
+                s.push(bus.project().clone());
+                s
+            };
+            undo_redo_exact(&mut bus, &states);
+        }
+    }
+}
+
 // ---- r41:fides — Fides (ADR 0150): a resonator inserted, its exciter, resonators, body and
 // numbers set and cleared, a modulation slot's text set, all among the other commands; undo
 // all and redo all restore the song to the bit.
