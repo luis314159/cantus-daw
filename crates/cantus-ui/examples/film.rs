@@ -502,7 +502,7 @@ impl Director {
                 })
                 .min_by(|a, b| a.left().total_cmp(&b.left()))
         };
-        self.go(grid.center());
+        self.glide(grid.center(), 250.0);
         let mut scrolled = 0.0;
         while seen(self).is_none() && scrolled < max {
             self.fling(step, 260.0);
@@ -519,9 +519,8 @@ impl Director {
             None => self.did(&format!("{name}'s tile not brought into view within {max} points")),
         }
         if scrolled > 0.0 {
-            self.go(grid.center());
-            self.fling(-scrolled - step, 420.0);
-            self.idle(self.frames_for(150.0));
+            self.fling(-scrolled - step, 350.0);
+            self.idle(self.frames_for(100.0));
         }
     }
 
@@ -1140,7 +1139,7 @@ fn take_piano(o: &Opts) {
     d.idle(d.frames_for(250.0));
     // Fides seen (the integrator, for the release): the list wheeled down until its tile is
     // in view, the tile hovered, the list wheeled back.
-    d.show_tile("Fides", 260.0, 1_600.0, 800.0);
+    d.show_tile("Fides", 260.0, 1_600.0, 700.0);
     // The tile, not the details pane's title: the leftmost "Chorda" in the picker.
     let tile = d
         .texts_all("Chorda")
@@ -1149,7 +1148,7 @@ fn take_piano(o: &Opts) {
     match tile {
         Some(t) => {
             d.go(t.center());
-            d.idle(d.frames_for(300.0));
+            d.idle(d.frames_for(200.0));
             d.double_click();
         }
         None => {
@@ -1459,7 +1458,7 @@ fn take_mixer(o: &Opts) {
     }
     // Nitor seen (the integrator, for the release): the list wheeled down to the mastering
     // shelf until its tile is in view, the tile hovered, the list wheeled back to the top.
-    d.show_tile("Nitor", 1_200.0, 8_000.0, 800.0);
+    d.show_tile("Nitor", 1_800.0, 8_000.0, 700.0);
     let tile = d
         .texts_all("Cribrum")
         .into_iter()
