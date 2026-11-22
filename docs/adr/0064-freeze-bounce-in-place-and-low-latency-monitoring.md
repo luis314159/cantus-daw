@@ -175,6 +175,16 @@ new command does not build until it is classified (§4c's rule, enforced by the 
   follower) are applied and **checked**: if a frozen key moved, the inverse is applied and
   the command refused.
 
+**A frozen strip's own pan law** (round 41, the undo fuzz's seed 378) is live with its pan:
+the law is applied after the tap, with the pan (ADR 0100 §3), so the guard touches only the
+strip's level (`StripLevel`, live on a root nothing in its region hears) and the key leaves
+the root's `pan_law` out with its other live controls (`STRIP_LIVE`). It had been in the key,
+so setting it moved the key without a refusal. A law of `None` is never written, so every
+key but a root's with a law of its own is unchanged (`SUBJECT_VERSION` stays 3); such a root
+is re-keyed on load (`freeze::repair`) and its render made again. A root heard by its own
+follower keeps its pan, and its law, in the key and locked; a region strip's law is locked
+as its pan is.
+
 The invariant — *after any command, applied or refused, every frozen target's stored key is
 its content key* — is what the undo fuzz checks after every one of its commands (arm 47
 freezes, unfreezes and tries wrong keys; the other 47 arms run against the frozen

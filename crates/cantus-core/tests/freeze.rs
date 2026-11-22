@@ -1788,3 +1788,236 @@ fn an_effect_following_the_song_s_key_puts_the_key_in_the_freeze() {
         assert_eq!(freeze::consistent(bus.project()), Ok(()), "{what}");
     }
 }
+
+/// r41:fuzz-two — seed 378 of the main undo fuzz: a frozen strip's own pan law set (a side
+/// stream's `SetStripPanLaw`) moved its key without a refusal, and the next command was
+/// blamed. The law is applied after the tap, with the strip's pan (ADR 0100 §3): it stays
+/// live with the pan — outside the key — unless something in the region hears the strip;
+/// a region strip's law is locked as its pan is.
+#[test]
+fn a_frozen_strips_own_pan_law_stays_live_with_its_pan_and_a_region_strips_is_locked() {
+    let mut s = song();
+    let target = FreezeTarget::Strip(s.group);
+    let before = key(&s.bus, target);
+    for law in [Some(PanLaw::ZeroDb), Some(PanLaw::Minus6dB), None] {
+        let mut p = s.bus.project().clone();
+        Command::SetStripPanLaw { id: s.group, law }
+            .apply(&mut p)
+            .unwrap();
+        assert_eq!(
+            freeze::content_key(&p, target).unwrap(),
+            before,
+            "{law:?}: the root's law is no part of its frozen sound"
+        );
+    }
+    freeze(&mut s.bus, target);
+    for law in [Some(PanLaw::ZeroDb), None] {
+        assert_eq!(
+            refused_by(&mut s.bus, Command::SetStripPanLaw { id: s.group, law }),
+            None,
+            "{law:?}: the frozen strip's own law stays live"
+        );
+        assert_eq!(freeze::consistent(s.bus.project()), Ok(()), "{law:?}");
+    }
+    // A strip of the region (the key's): its law places what the bus gathers.
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::SetStripPanLaw {
+                id: s.kick_strip,
+                law: Some(PanLaw::ZeroDb),
+            }
+        ),
+        Some(target)
+    );
+    // Heard by its own follower, the root's pan is in its sound, and so is its law.
+    let mut s = song();
+    let delay = s.delay;
+    follower(
+        &mut s.bus,
+        ModHost::Strip(s.synth_strip),
+        cantus_core::modulator::Listen::Host,
+        AutoTarget::Effect {
+            effect: delay,
+            key: "feedback".into(),
+        },
+    );
+    let heard = FreezeTarget::Strip(s.synth_strip);
+    assert!(moves(
+        &s,
+        heard,
+        Command::SetStripPanLaw {
+            id: s.synth_strip,
+            law: Some(PanLaw::ZeroDb),
+        }
+    ));
+    freeze(&mut s.bus, heard);
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::SetStripPanLaw {
+                id: s.synth_strip,
+                law: Some(PanLaw::ZeroDb),
+            }
+        ),
+        Some(heard)
+    );
+    assert_eq!(freeze::consistent(s.bus.project()), Ok(()));
+}
+
+/// r41:fuzz-two — the audit seed 378 asked for: every clip-level edit of a track a frozen
+/// strip gathers is refused, the project unchanged — on the clip itself and through a linked
+/// sibling on a track outside the region (an edit through one changes them all); the same
+/// edits on a clip of its own outside go through.
+#[test]
+fn every_clip_edit_that_reaches_a_frozen_region_is_refused_directly_or_through_a_sibling() {
+    let s = song();
+    let mut p = s.bus.project().clone();
+    let link = LinkId(p.alloc_id());
+    let drums_clip = p.track(s.drums).unwrap().clips[0].id;
+    let mut twin = p.track(s.drums).unwrap().clips[0].clone();
+    twin.id = ClipId(p.alloc_id());
+    twin.start = Ticks::beats(16);
+    twin.link = Some(link);
+    let twin_id = twin.id;
+    p.track_mut(s.drums).unwrap().clips[0].link = Some(link);
+    p.track_mut(s.lonely).unwrap().clips.push(twin);
+    // A clip of the lonely track's own, outside every region.
+    let own = p.track(s.lonely).unwrap().clips[0].id;
+    let mut bus = CommandBus::new(p);
+    links::check(bus.project()).unwrap();
+    let target = FreezeTarget::Strip(s.group);
+    freeze(&mut bus, target);
+    let swing = cantus_core::groove::GrooveSource::builtins()
+        .next()
+        .unwrap();
+    let edits = |track: TrackId, clip: ClipId, note: &Note| -> Vec<Command> {
+        vec![
+            Command::SetClipSkipNoteFx {
+                track,
+                clip,
+                skip: true,
+            },
+            Command::SetClipGroove {
+                track,
+                clip,
+                groove: Some(cantus_core::groove::ClipGroove::new(swing)),
+            },
+            Command::SetClipMute {
+                track,
+                clip,
+                muted: true,
+            },
+            Command::SetClipBounds {
+                track,
+                clip,
+                start: Ticks::beats(1),
+                length: Ticks::beats(4),
+            },
+            Command::SetClipOffset {
+                track,
+                clip,
+                offset: Ticks::QUARTER,
+            },
+            Command::SetClipLoop {
+                track,
+                clip,
+                content_length: Some(Ticks::beats(2)),
+            },
+            Command::SetClipLanes {
+                track,
+                clip,
+                lanes: vec![ClipLane::new(
+                    LaneKind::Cc(1),
+                    vec![AutoPoint::new(Ticks::ZERO, 0.5)],
+                )],
+            },
+            Command::SetClipLane {
+                track,
+                clip,
+                lane: 1,
+            },
+            Command::SetNotes {
+                track,
+                clip,
+                notes: vec![Note {
+                    velocity: 30,
+                    ..note.clone()
+                }],
+            },
+            Command::InsertNotes {
+                track,
+                clip,
+                notes: vec![Note {
+                    id: NoteId(9_999),
+                    pitch: 64,
+                    ..note.clone()
+                }],
+            },
+            Command::RemoveNotes {
+                track,
+                clip,
+                ids: vec![note.id],
+            },
+            Command::SetClipLink {
+                track,
+                clip,
+                link: None,
+            },
+            Command::RemoveClip { track, clip },
+        ]
+    };
+    let note = bus.project().track(s.drums).unwrap().clips[0].notes[0].clone();
+    for (what, track, clip) in [
+        ("the region's clip", s.drums, drums_clip),
+        ("its sibling outside", s.lonely, twin_id),
+    ] {
+        for cmd in edits(track, clip, &note) {
+            let label = format!("{what}: {cmd:?}");
+            assert_eq!(
+                refused_by(&mut bus, cmd),
+                Some(target),
+                "{label} was not refused"
+            );
+        }
+        assert_eq!(
+            refused_by(
+                &mut bus,
+                Command::MoveClipToTrack {
+                    from: track,
+                    to: s.synth,
+                    clip,
+                }
+            ),
+            Some(target),
+            "{what}: moved away"
+        );
+    }
+    // Into the region from outside.
+    assert_eq!(
+        refused_by(
+            &mut bus,
+            Command::MoveClipToTrack {
+                from: s.lonely,
+                to: s.bass,
+                clip: own,
+            }
+        ),
+        Some(target)
+    );
+    assert_eq!(freeze::consistent(bus.project()), Ok(()));
+    // The lonely track's own clip is nothing the frozen strip hears.
+    let own_note = bus.project().track(s.lonely).unwrap().clips[0].notes[0].clone();
+    let mut applied = 0;
+    for cmd in edits(s.lonely, own, &own_note) {
+        let label = format!("{cmd:?}");
+        let mut probe = bus.project().clone();
+        if cmd.clone().apply(&mut probe).is_err() {
+            continue; // refused for its own reason, not a freeze
+        }
+        assert_eq!(refused_by(&mut bus, cmd), None, "{label} was refused");
+        assert_eq!(freeze::consistent(bus.project()), Ok(()), "{label}");
+        applied += 1;
+    }
+    assert!(applied >= 10, "the outside edits applied: {applied}");
+}
