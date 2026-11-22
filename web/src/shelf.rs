@@ -72,8 +72,11 @@ mod tests {
         let none = Shelf::from_names(["Cantus-windows-x64-setup.exe", "SHA256SUMS.txt"]);
         assert_eq!(none, Shelf::default());
         // The versioned file alone is not what the button links.
-        let versioned = Shelf::from_names(["Cantus-0.2.0-linux-x86_64.AppImage"]);
+        let versioned = Shelf::from_names(["Cantus-0.2.0-x86_64.AppImage"]);
         assert!(!versioned.linux);
+        // Nor is the old stable name alone (beta.15 and before): the button links the new one.
+        let old = Shelf::from_names(["Cantus-linux-x86_64.AppImage"]);
+        assert!(!old.linux);
         let both = Shelf::from_names([STABLE_APPIMAGE, STABLE_DMG]);
         assert_eq!(
             both,

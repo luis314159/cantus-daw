@@ -149,11 +149,15 @@ with no system in the name. From beta.16 the AppImage is built as
 
 - the two versioned names: the new one, and `Cantus-<v>-linux-x86_64.AppImage`, which is the
   only one beta.15's updater asks for;
-- the two stable names: `Cantus-linux-x86_64.AppImage`, which the site and the README link,
-  and `Cantus-x86_64.AppImage`.
+- the two stable names: `Cantus-x86_64.AppImage`, which the site and the README link from
+  beta.16 on, and `Cantus-linux-x86_64.AppImage`, which they linked before (the links
+  already out there).
 
 The updater asks for the new versioned name first, then the old (`Release::update_file`;
 `check.rs` holds both orders). The site and the README move to the new stable name in a
 change after beta.16 is published: `releases/latest/download/` finds a name only once the
-latest release carries it. The old names are dropped when no supported copy asks for them
+latest release carries it (done after beta.16's publication: `web/src/top.rs`'s
+`DOWNLOAD_LINUX` and `STABLE_APPIMAGE`, the download page's versioned file, the README; xtask's
+`every_system_s_stable_name_is_in_the_workflow_and_on_the_site` holds the site to the
+catalogue's name and the workflow to both). The old names are dropped when no supported copy asks for them
 any more, an owner's decision with its own amendment.
