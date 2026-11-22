@@ -100,7 +100,10 @@ fn a_key_is_refused_where_nothing_hears_it_or_it_would_close_a_loop() {
     assert_eq!(p.track(fides).unwrap().key(), Some(s[0]));
     let order = p.strip_order();
     let at = |id: StripId| order.iter().position(|i| p.strips[*i].id == id).unwrap();
-    assert!(at(s[0]) < at(s[1]), "the key before the strip Fides plays into");
+    assert!(
+        at(s[0]) < at(s[1]),
+        "the key before the strip Fides plays into"
+    );
 }
 
 #[test]

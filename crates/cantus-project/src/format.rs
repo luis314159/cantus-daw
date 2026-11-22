@@ -1758,7 +1758,10 @@ mod tests {
         assert_eq!(fides.key(), Some(third), "an instrument that takes it");
         let order = p.strip_order();
         let at = |id| order.iter().position(|i| p.strips[*i].id == id);
-        assert!(at(third) < at(fides.strip.expect("its strip")), "the key first");
+        assert!(
+            at(third) < at(fides.strip.expect("its strip")),
+            "the key first"
+        );
         let old = std::fs::read_to_string(dir.join("v78.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tracks.iter().all(|t| t.sidechain.is_none()));

@@ -58,7 +58,8 @@ impl Rig {
             ..Default::default()
         };
         let app = &mut self.app;
-        let out = self.ctx.run_ui(input, |ui| app.frame(ui));
+        let mut out = self.ctx.run_ui(input, |ui| app.frame(ui));
+        out.textures_delta.clear();
         fn walk(shape: &egui::Shape, out: &mut Vec<(String, Rect)>) {
             match shape {
                 egui::Shape::Text(t) => out.push((
@@ -177,12 +178,17 @@ fn a_track_s_audio_chosen_in_fides_s_window_excites_it_audibly() {
     }));
     let unkeyed = r.play(3);
 
-    // Its window, Play: the Input card says nothing is chosen, and that it is silent.
+    // Its window, Play (the start page put away): the Input card says nothing is chosen,
+    // and that it is silent.
+    r.app.workflow.start.close();
+    r.app.audio_setup.first_run = None;
     r.app.open_inst_editor(track);
     r.app.inst.view = View::Play;
     let texts = r.frames(4);
     assert!(
-        texts.iter().any(|(t, _)| t == "Choose a strip: silent until then"),
+        texts
+            .iter()
+            .any(|(t, _)| t == "Choose a strip: silent until then"),
         "the Input card does not say it is silent"
     );
     let field = r.find("No strip").expect("the Input card's source field");
@@ -192,7 +198,9 @@ fn a_track_s_audio_chosen_in_fides_s_window_excites_it_audibly() {
         .app
         .capture_label(cantus_engine::CaptureTarget::Strip(source_strip));
     let own = r.app.project().track(track).and_then(|t| t.strip).unwrap();
-    let own_label = r.app.capture_label(cantus_engine::CaptureTarget::Strip(own));
+    let own_label = r
+        .app
+        .capture_label(cantus_engine::CaptureTarget::Strip(own));
     let listed = r.frames(2);
     assert!(
         !listed.iter().any(|(t, _)| *t == own_label),
@@ -203,7 +211,14 @@ fn a_track_s_audio_chosen_in_fides_s_window_excites_it_audibly() {
         .rev()
         .find(|(t, _)| *t == want)
         .map(|(_, rect)| rect.center())
-        .unwrap_or_else(|| panic!("the list does not offer {want}"));
+        .unwrap_or_else(|| {
+            let seen: Vec<&String> = listed
+                .iter()
+                .map(|(t, _)| t)
+                .filter(|t| t.contains("Strip") || t.contains("strip") || t.contains('·'))
+                .collect();
+            panic!("the list does not offer {want}: {seen:?}")
+        });
     r.click(item);
     assert_eq!(
         r.app.project().track(track).and_then(|t| t.sidechain),

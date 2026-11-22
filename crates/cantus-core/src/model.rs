@@ -1122,8 +1122,7 @@ impl Track {
     /// r41:fides-input — the strip its instrument hears (ADR 0154): its sidechain, when the
     /// instrument takes one. What orders the strips and what the engine is told.
     pub fn key(&self) -> Option<StripId> {
-        self.sidechain
-            .filter(|_| self.instrument.takes_sidechain())
+        self.sidechain.filter(|_| self.instrument.takes_sidechain())
     }
 
     /// Whether one of the instrument's own outputs (not the track's) plays into `strip`.

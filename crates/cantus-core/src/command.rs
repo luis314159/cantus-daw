@@ -1895,10 +1895,7 @@ impl Command {
                 }
                 // r41:fides-input — a keyed instrument plays after its key (ADR 0154): into
                 // its key's strip, or one that reaches it, is a loop.
-                if let (Some(k), Some(d)) = (
-                    project.track(id).and_then(|t| t.sidechain),
-                    strip,
-                ) {
+                if let (Some(k), Some(d)) = (project.track(id).and_then(|t| t.sidechain), strip) {
                     if d == k || project.routing_would_cycle(k, Some(d)) {
                         return Err(CommandError::RoutingCycle(d));
                     }

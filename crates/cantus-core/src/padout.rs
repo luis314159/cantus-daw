@@ -94,7 +94,7 @@ pub(crate) fn append_taps(project: &Project, tracks: &mut Vec<TrackSnapshot>) {
                 buses: Vec::new(),
                 tap: Some(Tap { source: i, bus }),
                 record_tap: Default::default(), // r40:pads — a tap records nothing
-                sidechain: None, // r41:fides-input — a tap hears nothing of its own
+                sidechain: None,                // r41:fides-input — a tap hears nothing of its own
             };
             tracks.push(tap);
             tracks[i].buses.push(at);

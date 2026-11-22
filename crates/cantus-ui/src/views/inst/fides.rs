@@ -305,7 +305,10 @@ fn input_source(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect, track: Track
             .filter(|k| project.can_key_track(track, *k))
             .map(|k| (k, app.capture_label(cantus_engine::CaptureTarget::Strip(k))))
             .collect();
-        let mut items = vec![frame::radio(Src::Key("fides.input.none"), current.is_none())];
+        let mut items = vec![frame::radio(
+            Src::Key("fides.input.none"),
+            current.is_none(),
+        )];
         items.extend(
             options
                 .iter()

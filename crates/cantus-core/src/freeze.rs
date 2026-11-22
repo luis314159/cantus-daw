@@ -1787,15 +1787,9 @@ pub fn dormant(project: &Project, plays: &dyn Fn(FreezeTarget) -> bool) -> Dorma
             }
         }
         // r41:fides-input — an instrument that runs hears its key (ADR 0154).
-        for t in project
-            .tracks
-            .iter()
-            .filter(|t| {
-                !d.tracks.contains(&t.id)
-                    && !d.notes.contains(&t.id)
-                    && !d.sources.contains(&t.id)
-            })
-        {
+        for t in project.tracks.iter().filter(|t| {
+            !d.tracks.contains(&t.id) && !d.notes.contains(&t.id) && !d.sources.contains(&t.id)
+        }) {
             if let Some(k) = t.key().filter(|k| d.strips.contains(k)) {
                 wake_strips.push(k);
             }

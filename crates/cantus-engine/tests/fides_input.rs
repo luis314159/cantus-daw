@@ -271,7 +271,10 @@ fn a_key_that_would_close_a_loop_is_heard_as_silence() {
         ),
     ] {
         let snap = Snapshot::compile(p, 1);
-        assert!(snap.tracks[1].sidechain.is_some(), "{what}: the key is sent");
+        assert!(
+            snap.tracks[1].sidechain.is_some(),
+            "{what}: the key is sent"
+        );
         let plan = cantus_engine::graph::compile(&snap);
         assert_eq!(plan.track_key(1), None, "{what}: not honoured");
         same_bits(&offline(p, 512), &want, what);
@@ -306,7 +309,11 @@ fn a_latent_key_strip_delays_fides_with_the_mix() {
     assert_eq!(b, a + lat, "Fides is not where the mix is");
     let mut rig = Rig::new(&latent, Workers::SERIAL);
     rig.play(&[512]);
-    assert_eq!(rig.p.stats().latency_samples as usize, lat, "the mix's latency");
+    assert_eq!(
+        rig.p.stats().latency_samples as usize,
+        lat,
+        "the mix's latency"
+    );
     // And as heard live, it is the offline render.
     let reference = offline(&latent, 512);
     let mut rig = Rig::new(&latent, Workers::SERIAL);
