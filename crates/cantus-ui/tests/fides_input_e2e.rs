@@ -148,6 +148,12 @@ fn song() -> Project {
     p
 }
 
+/// The tests point `CANTUS_DATA_DIR` at a folder of their own: they take turns.
+fn turn() -> std::sync::MutexGuard<'static, ()> {
+    static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    TURN.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn rms_db(x: &[f32]) -> f64 {
     let e = x.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>() / x.len().max(1) as f64;
     10.0 * cantus_dsp::math::log10(e.max(1e-30))
@@ -155,6 +161,7 @@ fn rms_db(x: &[f32]) -> f64 {
 
 #[test]
 fn a_track_s_audio_chosen_in_fides_s_window_excites_it_audibly() {
+    let _turn = turn();
     let data = tempfile::tempdir().unwrap();
     let mut r = Rig::new(data.path(), song());
     let source_strip = r.app.project().tracks[0].strip.expect("the source's strip");
@@ -262,4 +269,99 @@ fn a_track_s_audio_chosen_in_fides_s_window_excites_it_audibly() {
             .and_then(|t| t.sidechain),
         Some(source_strip)
     );
+}
+
+/// r41:key-wiring — an agent keys Fides's input through the MCP server the assembled app
+/// serves (`set_track`'s `sidechain_strip_id`), the way `set_effect` keys an insert: a
+/// source that would close a loop is refused with the reason, an instrument that takes no
+/// input too; the source's strip is set, heard through the real engine wiring, and taken
+/// back by one step of the user's undo.
+#[test]
+fn an_agent_keys_fides_s_input_through_the_server() {
+    use cantus_mcp::Answer;
+    use serde_json::json;
+    let _turn = turn();
+    let data = tempfile::tempdir().unwrap();
+    let mut r = Rig::new(data.path(), song());
+    assert!(r.app.ai.is_wired(), "assemble makes the MCP server");
+    let source_track = r.app.project().tracks[0].id;
+    let source_strip = r.app.project().tracks[0].strip.expect("the source's strip");
+    let purpose = PickPurpose::AddInstrument { index: None };
+    r.app.open_picker(purpose.clone());
+    r.app
+        .apply_pick(purpose, PickChoice::Instrument(InstrumentKind::Resonator));
+    r.app.picker = None;
+    let track = r.app.project().tracks.last().unwrap().id;
+    let own = r.app.project().track(track).and_then(|t| t.strip).unwrap();
+    r.app.set_inst_value(track, "exc.type", 5.0, false);
+    let mut p = r.app.project().clone();
+    let mut held = p.make_clip("Held", Ticks::ZERO, Ticks::beats(4));
+    for pitch in [48u8, 55] {
+        held.notes
+            .push(p.make_note(Ticks::ZERO, Ticks::beats(4), pitch, 100));
+    }
+    assert!(r.app.exec(cantus_core::Command::InsertClip {
+        track,
+        clip: Box::new(held),
+    }));
+    let unkeyed = r.play(3);
+
+    let server = r.app.ai.server().unwrap().clone();
+    let mut client = cantus_mcp::client::TestClient::legacy(server, "2025-11-25");
+    let mut call = |app: &mut CantusApp, args: serde_json::Value| {
+        client.call_tool("set_track", args, &mut || {
+            cantus_ui::ai_mcp::pump(app);
+            if let Some(agents) = app.ai.agents_mut() {
+                let ids: Vec<u64> = agents.asks().map(|x| x.id).collect();
+                for id in ids {
+                    agents.answer(id, Answer::Allow);
+                }
+            }
+        })
+    };
+    // Refused: its own strip (a loop), and the source track's instrument (no input).
+    let depth = r.app.bus.history().len();
+    let e = call(
+        &mut r.app,
+        json!({"track_id": track.0, "sidechain_strip_id": own.0}),
+    );
+    assert!(e.is_error && e.text.contains("a loop"), "{}", e.text);
+    let e = call(
+        &mut r.app,
+        json!({"track_id": source_track.0, "sidechain_strip_id": own.0}),
+    );
+    assert!(
+        e.is_error && e.text.contains("takes no input"),
+        "{}",
+        e.text
+    );
+    assert_eq!(r.app.bus.history().len(), depth, "a refusal is no step");
+    // Set: one step, answered with the source.
+    let ok = call(
+        &mut r.app,
+        json!({"track_id": track.0, "sidechain_strip_id": source_strip.0}),
+    );
+    assert!(!ok.is_error, "{}", ok.text);
+    assert_eq!(
+        ok.structured.unwrap()["sidechain_strip_id"],
+        json!(source_strip.0)
+    );
+    assert_eq!(r.app.bus.history().len(), depth + 1, "one undo step");
+    assert_eq!(
+        r.app.project().track(track).unwrap().sidechain,
+        Some(source_strip)
+    );
+    // Heard through the engine: the source excites Fides.
+    let keyed = r.play(3);
+    let part: Vec<f32> = keyed
+        .chunks_exact(2)
+        .zip(unkeyed.chunks_exact(2))
+        .map(|(a, b)| a[0] - b[0])
+        .collect();
+    let heard = rms_db(&part[24_000..72_000]);
+    println!("Fides keyed by an agent: {heard:.1} dBFS RMS over beats 1–3");
+    assert!(heard > -45.0, "Fides is not heard: {heard:.1} dBFS");
+    // The user's undo takes the agent's step back.
+    r.app.undo();
+    assert_eq!(r.app.project().track(track).unwrap().sidechain, None);
 }

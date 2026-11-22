@@ -141,7 +141,8 @@ pub fn set_track_schema() -> Value {
             "soloed": {"type": "boolean"},
             "index": {"type": "integer", "minimum": 0, "description": "Move the track to this place in the list (0 is the top)."},
             "strip_id": args::s_strip("Route the track into this strip (\"master\": straight to the master, with no inserts)"),
-            "icon": {"type": ["string", "null"], "pattern": "^[a-z0-9-]{1,48}$", "description": "The icon of the user's choice before the track's name, by its id in the track icon library (\"kick\", \"mic\", \"eguitar\", \"treble-clef\"…), or null for none."}
+            "icon": {"type": ["string", "null"], "pattern": "^[a-z0-9-]{1,48}$", "description": "The icon of the user's choice before the track's name, by its id in the track icon library (\"kick\", \"mic\", \"eguitar\", \"treble-clef\"…), or null for none."},
+            "sidechain_strip_id": {"type": ["integer", "null"], "minimum": 1, "description": "The strip whose sound (after its fader) the track's instrument hears as its input, a sidechain: Fides's input exciter plays it (exc.type input). Only an instrument that takes an input (fides); never a VCA, the master, the strip the track plays into or one that reaches it (a loop). null: none (the input exciter is silent)."}
         }),
         &["track_id"],
     )
@@ -210,6 +211,19 @@ pub fn set_track(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
             cmds.push(Command::SetTrackStrip { id, strip });
         }
     }
+    // r41:key-wiring — the instrument's sidechain (ADR 0154), refused as the command
+    // refuses it, in words an agent can act on.
+    if a.0.get("sidechain_strip_id").is_some() {
+        let source = match a.opt_u64("sidechain_strip_id")? {
+            None => None,
+            Some(s) => {
+                let src = cantus_core::StripId(s);
+                Some(track_key(p, t, src, a.has("strip_id"))?)
+            }
+        };
+        done.insert("sidechain_strip_id".into(), json!(source.map(|s| s.0)));
+        cmds.push(Command::SetTrackSidechain { track: id, source });
+    }
     let said = Said::new("ai.tools.set_track")
         .name("name", args::clean(&t.name))
         .nested("what", words::fields(done.keys()));
@@ -219,6 +233,43 @@ pub fn set_track(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
         said,
         Value::Object(done),
     ))
+}
+
+/// r41:key-wiring — `src` as `t`'s sidechain, or why `SetTrackSidechain` would refuse it:
+/// an instrument that takes no input, the master, a VCA, a strip that is not there, a loop.
+/// With the track's strip changing in the same call (`moving`) the loop is left to the
+/// command, which checks it against the strip it is given.
+fn track_key(
+    p: &Project,
+    t: &cantus_core::Track,
+    src: cantus_core::StripId,
+    moving: bool,
+) -> Res<cantus_core::StripId> {
+    const K: &str = "sidechain_strip_id";
+    if !t.instrument.takes_sidechain() {
+        return Err(ToolError::bad(
+            K,
+            "this track's instrument takes no input (only fides hears a sidechain)",
+        ));
+    }
+    if src.is_master() {
+        return Err(ToolError::bad(
+            K,
+            "the master cannot be an instrument's input",
+        ));
+    }
+    p.strip(src)
+        .ok_or_else(|| ToolError::NotFound(format!("strip {}", src.0)))?;
+    if p.is_vca(src) {
+        return Err(ToolError::bad(K, "a VCA has no audio"));
+    }
+    if !moving && !p.can_key_track(t.id, src) {
+        return Err(ToolError::bad(
+            K,
+            "a loop: the track plays into that strip, or into one it reaches",
+        ));
+    }
+    Ok(src)
 }
 
 pub fn set_instrument_schema() -> Value {
