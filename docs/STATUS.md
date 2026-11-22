@@ -1,8 +1,30 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-20 (**0.1.0-beta.15 published** for Windows and Linux on 2026-11-20, 14:23Z, public `19fcc455` — macOS held for beta.16, Fragor's *synth_fuzz* over its CPU budget there; then round 41's first two items on master `9d504fa6`: **another project names nothing of the old one** (the effect-id bug beta.15 shipped as its known issue, ADR 0149) and **every Chorda string measured alone** (BACKLOG §3e, all 254 loops in tolerance, nothing retuned); the release lessons and their pre-flight gate (`docs/RELEASING.md`, L1–L8). Schema 77, `DSP_VERSION` 10, keymap 19. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** Windows, the workspace, 8 160 pass (153 ignored) on `7e053734` and WSL Ubuntu 24.04 8 116 on the same, both `--no-fail-fast`; on `r41/effect-ids` (`b6985cdb`) cantus-ui whole 2 987 pass (54 ignored, run in batches of 20 — its ~370 binaries do not fit on F: at once), cantus-engine and cantus-host whole, cantus-sandbox's session suites; `r41/chorda-strings` cantus-dsp's Chorda 124 pass; on the merged `9d504fa6` fmt, workspace clippy `-D warnings` and xtask 50/0 (cantus-03). No whole-workspace suite on `9d504fa6` yet: run it first next session
+**Updated:** 2026-11-22 (**0.1.0-beta.16 published** for Windows, Linux and **macOS (a preview)** on 2026-11-22, tag on cantus-daw `daf3d22f` after four rehearsals; then **round 41**: Fides the resonator instrument (ADR 0150) with its input as a sidechain from another strip (ADR 0154), Nitor the one-knob enhancer (ADR 0151) and the song's key reaching effects (ADR 0153), Fragor's five circuits as Tabula pedals (ADR 0152), every Chorda string in tune (`DSP_VERSION` 11), a fresh install following the system's light or dark; the integrated review's 18 findings and the undo fuzz's five fixed; the launch video made (`tools/video/`). Schema 79, `DSP_VERSION` 11. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** on `r41/integration` Windows 8 316 pass (167 ignored) and WSL Ubuntu 24.04 8 274, both `--no-fail-fast`; each run's two failures fixed and rerun alone (kit_lint's token rule; transcribe_convert's tests now take turns; Chorda's real-time guard failed only with the two suites at once on one machine)
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 41 left
+
+Round 41 is on master (merged from `r41/integration`, report `docs/round41/integration.md`).
+beta.16 shipped first, on its own fixes: four rehearsals, because a loaded runner found what
+the rehearsal before had not — Chorda's model-2 ratio beside the binary's other timing tests
+(cantus-dsp's timing tests now take turns), Comparatio's plug-in test measuring before its
+switch landed, warp_bounce's shared bounce name, and the Windows test step past two thirds of
+its limit (330 minutes now). Every lesson is in `docs/releases/v0.1.0-beta.16.preflight.md`.
+
+What is next is `docs/next-session.md` (round 42: microtuning, strings and winds, an effect).
+Left from round 41:
+
+1. **Publish the launch video** (`F:\projects\video-work\final\`, 45 of 45 checks; the
+   pipeline in `tools/video/README.md`): the owner uploads it to YouTube from his account
+   (captions and chapters made); the site's loop and video with the web session.
+2. **Verified only in emulation:** Fides's MPE and its sidechain from a real microphone, Nitor as
+   a plug-in in another DAW (`docs/beta-checklist.md`, Ronda 41).
+3. The picker's pictures ready before the first look (BACKLOG §6j); the bowed string's tuning in
+   Fides (a few cents, `docs/round41/fides.md`).
+4. Never run two suites at once on this machine (the WSL suite and the Windows one): the timing
+   tests read the other's load (round 41's integration did, and paid for a rerun).
 
 ## The next session: what beta.15 and round 41's first items left
 
