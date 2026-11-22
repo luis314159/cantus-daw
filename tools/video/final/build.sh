@@ -106,7 +106,8 @@ youtube)
   ;;
 site)
   # Two passes to a size: 12 MB over 80 s, the audio's share taken first.
-  kbps=$(( SITE_MB * 8 * 1000 / 80 - 140 ))
+  # 5 % kept for the container and two-pass drift (English came out at 12.0 MB on 12).
+  kbps=$(( SITE_MB * 8 * 1000 * 95 / 100 / 80 - 140 ))
   vf="scale=1920:1080:flags=lanczos,fps=30,$(subs_filter "$lang" 13 22)"
   src=(-i "$(winpath "$O/cantus-$lang-master.mkv")" -i "$(winpath "$S/soundtrack-$lang-web.wav")")
   heavy "$O/logs/site1-$lang.log" "$FF" -hide_banner -loglevel error -y "${src[@]}" -map 0:v -vf "$vf" \
@@ -142,8 +143,9 @@ vertical)
     -c:a aac -b:a 192k -af "afade=t=out:st=$(calc "$VERT_S - 1.5"):d=1.5" "$(winpath "$O/cantus-$lang-vertical.mp4")"
   ;;
 all)
-  for s in captions master youtube site vertical; do DRY="${DRY:-}" bash "$0" "$s" "$lang"; done
-  [[ "$lang" == en ]] && DRY="${DRY:-}" bash "$0" loop
+  # Every step's failure is the run's (a language with no loop is no failure).
+  for s in captions master youtube site vertical; do DRY="${DRY:-}" bash "$0" "$s" "$lang" || exit $?; done
+  if [[ "$lang" == en ]]; then DRY="${DRY:-}" bash "$0" loop || exit $?; fi
   ;;
 *) echo "unknown step: $step" >&2; exit 2 ;;
 esac

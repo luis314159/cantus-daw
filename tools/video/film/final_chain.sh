@@ -38,6 +38,8 @@ for lang in en es; do
   step "all-$lang" bash tools/video/final/build.sh all "$lang"
 done
 say "start checks"
-py -3.12 -I tools/video/final/checks.py --work "$(winpath "$WORK")" --lang en es > "$L/checks.log" 2>&1
+# checks.py needs numpy: the voice tools' environment has it (tools/video/voice/requirements.txt).
+PYCHECK="${PYCHECK:-$WORK/env/tts/Scripts/python.exe}"
+"$PYCHECK" -I tools/video/final/checks.py --work "$(winpath "$WORK")" --lang en es > "$L/checks.log" 2>&1
 say "exit $? checks"
 say "done"
