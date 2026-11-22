@@ -860,3 +860,92 @@ fn an_agent_draws_cedo_s_shape_and_routes_its_notes() {
         ToolError::BadArgument { .. }
     ));
 }
+
+/// r41:key-wiring — an agent keys Fides's input from a strip (ADR 0154) through `set_track`,
+/// as it keys an effect through `set_effect`: set, read back, cleared, each one undo step
+/// that gives the project back exactly; refused as `SetTrackSidechain` refuses, in words.
+#[test]
+fn an_agent_keys_fides_s_input_from_a_strip_and_is_refused_a_loop() {
+    let mut p = cantus_core::Project::new("test");
+    let mut vca = p.make_strip("VCA");
+    vca.kind = cantus_core::vca::StripKind::Vca;
+    let vca_id = vca.id.0;
+    p.strips.push(vca);
+    let mut h = cantus_ai::bridge::BareHost {
+        bus: cantus_core::CommandBus::new(p),
+        dir: None,
+    };
+    let f = edit_ok(&mut h, "add_track", json!({"kind": "fides"}));
+    let (fides, own) = (id(&f, "track_id"), id(&f, "strip_id"));
+    let s = edit_ok(&mut h, "add_track", json!({"kind": "unda"}));
+    let (source_track, source) = (id(&s, "track_id"), id(&s, "strip_id"));
+    let bus = id(
+        &edit_ok(&mut h, "add_strip", json!({"name": "Bus", "tracks": []})),
+        "strip_id",
+    );
+    edit_ok(&mut h, "set_strip", json!({"strip_id": own, "output": bus}));
+    let refused = |h: &mut cantus_ai::bridge::BareHost, track: u64, key: u64| {
+        edit_err(
+            h,
+            "set_track",
+            json!({"track_id": track, "sidechain_strip_id": key}),
+        )
+        .to_string()
+    };
+    // An instrument that takes no input; the master; a VCA; a strip that is not there;
+    // its own strip and the bus it plays into (loops).
+    let e = refused(&mut h, source_track, own);
+    assert!(e.contains("takes no input"), "{e}");
+    let e = refused(&mut h, fides, StripId::MASTER.0);
+    assert!(e.contains("master"), "{e}");
+    let e = refused(&mut h, fides, vca_id);
+    assert!(e.contains("VCA"), "{e}");
+    let e = refused(&mut h, fides, 9_999);
+    assert!(e.contains("not found"), "{e}");
+    for loop_ in [own, bus] {
+        let e = refused(&mut h, fides, loop_);
+        assert!(e.contains("a loop"), "{loop_}: {e}");
+    }
+    // Keyed from the source's strip: one undo step, read back by get_track.
+    let r = edit_ok(
+        &mut h,
+        "set_track",
+        json!({"track_id": fides, "sidechain_strip_id": source}),
+    );
+    assert_eq!(r["sidechain_strip_id"], json!(source));
+    let t = h.bus.project().track(TrackId(fides)).unwrap();
+    assert_eq!(t.sidechain, Some(StripId(source)));
+    let g = read_ok(&mut h, "get_track", json!({"track_id": fides}));
+    assert_eq!(g["sidechain_strip_id"], json!(source));
+    let g = read_ok(&mut h, "get_track", json!({"track_id": source_track}));
+    assert!(g.get("sidechain_strip_id").is_none(), "{g}");
+    // The track sent into its key in the same call: the command refuses the pair.
+    assert!(matches!(
+        edit_err(
+            &mut h,
+            "set_track",
+            json!({"track_id": fides, "strip_id": source, "sidechain_strip_id": source})
+        ),
+        ToolError::Failed(_)
+    ));
+    // And later, alone: a keyed track is not sent into its key.
+    assert!(matches!(
+        edit_err(
+            &mut h,
+            "set_track",
+            json!({"track_id": fides, "strip_id": source})
+        ),
+        ToolError::Failed(_)
+    ));
+    // Cleared with null.
+    let r = edit_ok(
+        &mut h,
+        "set_track",
+        json!({"track_id": fides, "sidechain_strip_id": null}),
+    );
+    assert_eq!(r["sidechain_strip_id"], json!(null));
+    assert_eq!(
+        h.bus.project().track(TrackId(fides)).unwrap().sidechain,
+        None
+    );
+}

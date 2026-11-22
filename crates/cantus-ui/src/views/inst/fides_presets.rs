@@ -110,7 +110,7 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
         &["preset.role.pluck", "fides.tag.strings", "preset.style.latin", "preset.style.pop", "preset.style.worship"],
         ["exc.contact" => 0.8, "exc.noise" => 0.1, "exc.pos" => 0.14,
          "a.decay" => 3.5, "a.material" => 0.32, "a.decay_key" => 0.45, "a.inharm" => 0.12,
-         "body.type" => 1.0, "body.mix" => 0.6, "release" => 0.25, "width" => 0.35, "gain" => 9.8]),
+         "body.type" => 1.0, "body.mix" => 0.6, "release" => 0.25, "width" => 0.35, "gain" => 8.8]),
     preset!("fides.preset.cello", BOWED,
         &["preset.role.lead", "fides.tag.bowed", "preset.style.film", "preset.style.worship"],
         ["exc.type" => 2.0, "bow.pressure" => 0.55, "bow.speed" => 0.5, "bow.attack" => 160.0, "bow.release" => 260.0, "exc.pos" => 0.11,

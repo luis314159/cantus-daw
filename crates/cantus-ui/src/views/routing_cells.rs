@@ -69,7 +69,8 @@ pub struct Cell {
     /// A strip row: its output goes here. A track row: the track plays into this column.
     pub output: bool,
     pub send: Option<SendMark>,
-    /// The column's inserts keyed from the row.
+    /// The column's inserts keyed from the row, and the instruments playing into the
+    /// column keyed from it (ADR 0154).
     pub keys: u8,
     /// A track row: the column's inserts that hear the track's notes.
     pub notes: u8,
@@ -182,6 +183,18 @@ impl Grid {
                 keys_something[*k] = true;
             }
         }
+        // r41:key-wiring — an instrument's key orders its strip before every strip the
+        // track plays into (ADR 0154).
+        for t in &p.tracks {
+            if let Some(k) = t.key().and_then(|k| index.get(&k)) {
+                keys_something[*k] = true;
+                for d in t.destinations().into_iter().flatten() {
+                    if let Some(d) = index.get(&d) {
+                        next[*k].push(*d);
+                    }
+                }
+            }
+        }
         let words = n.div_ceil(64).max(1);
         let mut reach = vec![0u64; n * words];
         let mut stack = Vec::new();
@@ -283,7 +296,8 @@ impl Grid {
                 match (*col, col_strips[c]) {
                     (Col::Master, _) => {
                         cell.output = src.output.is_none();
-                        cell.keys = count(p.master.effects.iter(), |e| e.sidechain == Some(src.id));
+                        cell.keys = count(p.master.effects.iter(), |e| e.sidechain == Some(src.id))
+                            .saturating_add(track_keys(p, None, src.id));
                     }
                     (Col::Strip(to), Some(j)) => {
                         let dst = &p.strips[j];
@@ -295,7 +309,8 @@ impl Grid {
                             tap: x.tap,
                             doubled: routing::doubled(p, src.id, to),
                         });
-                        cell.keys = count(dst.effects.iter(), |e| e.sidechain == Some(src.id));
+                        cell.keys = count(dst.effects.iter(), |e| e.sidechain == Some(src.id))
+                            .saturating_add(track_keys(p, Some(to), src.id));
                         if !cell.itself && cell.send.is_none() {
                             cell.refused = if reaches(j, i) {
                                 Some(Refused::Loop)
@@ -332,6 +347,12 @@ impl Grid {
     }
 }
 
+/// r41:key-wiring — the tracks playing into `to` (`None`: the master) whose instrument is
+/// keyed from `from` (ADR 0154).
+fn track_keys(p: &Project, to: Option<StripId>, from: StripId) -> u8 {
+    count(p.tracks.iter(), |t| t.strip == to && t.key() == Some(from))
+}
+
 fn count<T>(items: impl Iterator<Item = T>, f: impl Fn(&T) -> bool) -> u8 {
     items.filter(|x| f(x)).count().min(u8::MAX as usize) as u8
 }
@@ -355,7 +376,8 @@ mod tests {
     }
 
     /// A random graph built only from routes `route_check` allows: outputs, sends (some
-    /// pre-fader, some off, a strip with all sixteen) and keys.
+    /// pre-fader, some off, a strip with all sixteen), keys — and instruments keyed from
+    /// a strip (ADR 0154).
     fn random_project(seed: u64) -> Project {
         let mut rng = Lcg(seed);
         let mut p = Project::default();
@@ -366,7 +388,7 @@ mod tests {
         let ids: Vec<StripId> = p.strips.iter().map(|s| s.id).collect();
         for _ in 0..ids.len() * 3 {
             let (a, b) = (ids[rng.below(ids.len())], ids[rng.below(ids.len())]);
-            match rng.below(3) {
+            match rng.below(4) {
                 0 if p.route_check(a, b, RouteKind::Output).is_ok() => {
                     p.strip_mut(a).unwrap().output = Some(b);
                 }
@@ -387,6 +409,19 @@ mod tests {
                     let mut slot = p.make_effect(EffectKind::Compressor);
                     slot.sidechain = Some(a);
                     p.strip_mut(b).unwrap().effects.push(slot);
+                }
+                // r41:key-wiring — a Fides playing into `b`, keyed from `a` when it may be.
+                3 => {
+                    let mut t = p.make_track("Fides");
+                    t.instrument = cantus_core::InstrumentSpec::Native(
+                        cantus_core::NativeSpec::new(cantus_core::InstrumentKind::Resonator),
+                    );
+                    t.strip = Some(b);
+                    let id = t.id;
+                    p.tracks.push(t);
+                    if p.can_key_track(id, a) {
+                        p.track_mut(id).unwrap().sidechain = Some(a);
+                    }
                 }
                 _ => {}
             }
@@ -484,7 +519,9 @@ mod tests {
                         let m = cell.send.expect("a send");
                         assert_eq!((m.level, m.enabled, m.tap), (level, enabled, tap));
                     }
-                    EdgeKind::Key { .. } => assert!(cell.keys > 0, "seed {seed}: a key"),
+                    EdgeKind::Key { .. } | EdgeKind::TrackKey { .. } => {
+                        assert!(cell.keys > 0, "seed {seed}: a key")
+                    }
                 }
                 if !e.to.is_master() {
                     seen += 1;

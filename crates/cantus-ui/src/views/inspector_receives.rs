@@ -2,7 +2,8 @@
 //! channel sheet (round 25, ADR 0041; design §4.4; Bitwig's send-receive pane): a row per
 //! sender (its lamp, its name, its send level as the sheet's value well, a `PRE` chip on a
 //! pre-fader send, a `×2` chip on a doubled one), a row per strip routed into it, a row
-//! per keyed insert of its own; fed only by its tracks, a quiet line pointing at the Input
+//! per keyed insert of its own and per instrument playing into it keyed from another strip
+//! (ADR 0154); fed only by its tracks, a quiet line pointing at the Input
 //! row; fed by nothing, a *Nothing feeds this strip — route here* well that opens the
 //! route-here menu. A return can be mixed from its own sheet.
 //!
@@ -20,7 +21,7 @@ use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::{cache, led, Function, State, Tok};
 use crate::views::route_menu::{self, Pick};
 use cantus_core::routing::Route;
-use cantus_core::{Command, EffectId, MergeKey, MixerStrip, Send, SendTap, StripId};
+use cantus_core::{Command, EffectId, MergeKey, MixerStrip, Send, SendTap, StripId, TrackId};
 use egui::{pos2, Align2, Id, Rect, Sense};
 
 /// The section for `ms` (`None`: the master, or no strip — the section stands dimmed).
@@ -54,6 +55,13 @@ pub fn receives(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
         if let Some(from) = fx.sidechain {
             any = true;
             keyed(sh, app, from, host, fx.id);
+        }
+    }
+    // r41:key-wiring — an instrument's key (ADR 0154).
+    for t in p.tracks.iter().filter(|t| t.strip == Some(host)) {
+        if let Some(from) = t.key() {
+            any = true;
+            track_keyed(sh, app, from, host, t.id);
         }
     }
     if any {
@@ -169,6 +177,7 @@ fn kind_tag(r: Route) -> u8 {
         cantus_core::routing::RouteKind::Output => 0,
         cantus_core::routing::RouteKind::Send => 1,
         cantus_core::routing::RouteKind::Key(_) => 2,
+        cantus_core::routing::RouteKind::TrackKey(_) => 3,
     }
 }
 
@@ -434,6 +443,75 @@ fn keyed(sh: &mut Sheet<'_>, app: &CantusApp, from: StripId, host: StripId, effe
     }
     if vr.clicked() {
         sh.acts.push(Act::OpenEditor(host, effect));
+    }
+    if vr.secondary_clicked() {
+        open_menu(sh, &vr, route);
+    }
+}
+
+/// r41:key-wiring — an instrument playing into the strip keyed from `from` (ADR 0154): the
+/// source's name, and in the value well the key glyph and "Marimba, input ← key"; a click
+/// opens the instrument, a right-click the route's menu — as an insert's key row.
+fn track_keyed(sh: &mut Sheet<'_>, app: &CantusApp, from: StripId, host: StripId, track: TrackId) {
+    let s = sh.s.function(Function::Dynamics);
+    let row = sh.row();
+    let r = full_value(sh, &row);
+    let stamp = app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60);
+    let what = sh
+        .fmt
+        .get(cache::key(("insp-recv-tkey", host, track)), stamp, |b| {
+            if let Some(t) = app.project().track(track) {
+                b.push_str(&crate::i18n::tf(
+                    "routing.receives.track_key",
+                    &[("track", &t.name)],
+                ));
+            }
+        });
+    let what = sheet::name(what);
+    let need =
+        text::measure(sh.ui.ctx(), &Text::new(&what, Role::Body, s.t.text), s.tk()).x + s.s(40.0);
+    // As wide as the words need, the source's name keeping 48 pt (a strip's short name):
+    // Spanish "Fides, entrada ← clave" was cut at an insert's three fifths.
+    let w = need
+        .min(r.width() - s.s(20.0 + 4.0 + 48.0))
+        .max((r.width() * 0.44).max(s.s(80.0)));
+    let value = Rect::from_min_max(pos2(r.right() - w, r.top()), r.max);
+    let name = Rect::from_min_max(
+        pos2(r.left() + s.s(20.0), r.top()),
+        pos2(value.left() - s.s(4.0), r.bottom()),
+    );
+    let route = Route::track_key(app.project(), from, track);
+    name_cell(sh, app, name, host, from, route, false);
+    let vr = sh.ui.interact(
+        value,
+        Id::new(("insp-recv-tkeyin", host.0, track.0)),
+        Sense::click(),
+    );
+    let st = State::of(&vr, false);
+    super::look::field(
+        sh.b,
+        &s,
+        value,
+        st,
+        super::look::Lead::Mixer(crate::kit::glyph_mixer::MGlyph::Key),
+        &what,
+        "",
+        false,
+    );
+    if vr.hovered() {
+        let tip = sh.fmt.tr("routing.receives.track_key_tip");
+        hint::set_text(
+            sh.ui.ctx(),
+            &what,
+            tip,
+            Caps {
+                menu: true,
+                ..Caps::NONE
+            },
+        );
+    }
+    if vr.clicked() {
+        sh.acts.push(Act::OpenInstrument(track));
     }
     if vr.secondary_clicked() {
         open_menu(sh, &vr, route);

@@ -434,7 +434,7 @@ pub const INSTRUMENTS: &[(&str, &str, InstrumentChoice, &str)] = &[
         "fides",
         "Fides",
         InstrumentChoice::Native(InstrumentKind::Resonator),
-        "resonator: an exciter (pluck, pick, bow, mallet, noise) into strings, bars, plates, membranes, bells, glass and tubes through a body — marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, bowed cello, struck glass",
+        "resonator: an exciter (pluck, pick, bow, mallet, noise) into strings, bars, plates, membranes, bells, glass and tubes through a body — marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, bowed cello, struck glass; its input exciter plays another strip's sound, the track's sidechain_strip_id (set_track)",
     ),
     (
         "dancer",

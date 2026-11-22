@@ -364,6 +364,8 @@ pub fn instrument_entry(id: &str) -> Option<Value> {
         "params": params, "presets": presets,
     });
     if let C::Native(kind) = choice {
+        // r41:key-wiring — whether it hears a sidechain (set_track's sidechain_strip_id).
+        v["sidechain"] = json!(kind.takes_sidechain());
         v["playable"] = match range_words(*kind) {
             Some(r) => json!(r),
             None => json!("the whole MIDI range"),

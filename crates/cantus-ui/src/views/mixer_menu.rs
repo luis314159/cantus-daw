@@ -1750,6 +1750,24 @@ fn route_entries(app: &CantusApp, id: StripId, e: &mut Vec<Entry>) {
             ));
         }
     }
+    // r41:key-wiring — the instruments playing into it keyed from another strip (ADR 0154).
+    for t in p.tracks.iter().filter(|t| t.strip == Some(id)) {
+        if let Some(from) = t.key() {
+            rows.push(Entry::act(
+                Label::Own(crate::i18n::tf(
+                    "routing.menu.row_key",
+                    &[
+                        ("from", &name(from)),
+                        (
+                            "effect",
+                            &crate::views::route_menu::track_input_label(app, t.id),
+                        ),
+                    ],
+                )),
+                Act::OpenRoute(Route::track_key(p, from, t.id)),
+            ));
+        }
+    }
     if !rows.is_empty() {
         e.push(Entry::band("routing.menu.routes"));
         e.extend(rows);

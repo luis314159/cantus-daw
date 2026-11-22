@@ -197,6 +197,10 @@ pub fn track_summary(p: &Project, t: &Track) -> Value {
         if !p.tracks.is_empty() {
             v["index"] = json!(p.track_index(t.id).unwrap_or(0));
         }
+        // r41:key-wiring — the strip its instrument hears as its input (ADR 0154).
+        if let Some(sc) = t.key() {
+            v["sidechain_strip_id"] = json!(sc.0);
+        }
     })
 }
 

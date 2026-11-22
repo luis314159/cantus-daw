@@ -102,7 +102,9 @@ pub fn show(
                 .filter(|x| x.send_to(ms.id).is_some())
                 .count()
                 + p.strips.iter().filter(|x| x.output == Some(ms.id)).count()
-                + ms.effects.iter().filter(|e| e.sidechain.is_some()).count();
+                + ms.effects.iter().filter(|e| e.sidechain.is_some()).count()
+                // r41:key-wiring — an instrument on it keyed from another strip.
+                + p.tracks_on_strip(ms.id).filter(|t| t.key().is_some()).count();
             if others == 0 && cantus_core::routing::is_fed(p, ms.id) {
                 let none = sheet::name(sh.fmt.tr("inspector.none"));
                 if sh.fold("routing.receives.band", false, &none) {

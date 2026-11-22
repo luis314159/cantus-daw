@@ -151,6 +151,12 @@ pub(crate) fn route_of(e: &Edge) -> Route {
         EdgeKind::Output => Route::output(e.from, e.to),
         EdgeKind::Send { .. } => Route::send(e.from, e.to),
         EdgeKind::Key { effect } => Route::key(e.from, e.to, effect),
+        // r41:key-wiring — an instrument's key (ADR 0154), ending on its track's strip.
+        EdgeKind::TrackKey { track } => Route {
+            from: e.from,
+            to: e.to,
+            kind: cantus_core::routing::RouteKind::TrackKey(track),
+        },
     }
 }
 
@@ -158,7 +164,7 @@ fn kind_of(e: &Edge) -> Kind {
     match e.kind {
         EdgeKind::Output => Kind::Output,
         EdgeKind::Send { .. } => Kind::Send,
-        EdgeKind::Key { .. } => Kind::Key,
+        EdgeKind::Key { .. } | EdgeKind::TrackKey { .. } => Kind::Key,
     }
 }
 
@@ -422,7 +428,7 @@ fn collect(
         let kind_shown = match e.kind {
             EdgeKind::Output => opts.outputs,
             EdgeKind::Send { .. } => opts.sends,
-            EdgeKind::Key { .. } => opts.keys,
+            EdgeKind::Key { .. } | EdgeKind::TrackKey { .. } => opts.keys,
         };
         let route = route_of(e);
         let chain = v.band.hot == Some(route)
@@ -1378,6 +1384,14 @@ fn describe(v: &mut MixerView, app: &CantusApp, k: usize) {
             }
         }
         EdgeKind::Key { .. } => v.buf.push_str(&v.words.kind[2]),
+        // r41:key-wiring — "key · Fides": the track whose instrument hears it.
+        EdgeKind::TrackKey { track } => {
+            v.buf.push_str(&v.words.kind[2]);
+            if let Some(t) = app.project().track(track) {
+                v.buf.push_str(" \u{b7} ");
+                v.buf.push_str(&t.name);
+            }
+        }
     }
 }
 

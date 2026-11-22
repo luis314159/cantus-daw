@@ -24,6 +24,8 @@ pub enum MenuId {
     Slot(StripId, EffectId),
     Send(StripId, StripId),
     Sidechain(StripId, EffectId),
+    /// r41:key-wiring — the strip a track's instrument hears as its input (ADR 0154).
+    TrackSidechain(TrackId),
     Wave(TrackId, FirmusParam),
     PadVoice(TrackId, usize),
     Choke(TrackId, usize),
@@ -445,6 +447,23 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 ));
             }
         }
+        // r41:key-wiring — the strips the command would take (ADR 0154), as Fides's Input
+        // card offers them.
+        MenuId::TrackSidechain(t) => {
+            let cur = p.track(t).and_then(|x| x.sidechain);
+            out.push(act(
+                Label::Key("kit.inspector.none"),
+                radio(cur.is_none()),
+                Choice::Sidechain(None),
+            ));
+            for s in p.strips.iter().filter(|s| p.can_key_track(t, s.id)) {
+                out.push(act(
+                    Label::Text(strip_entry(app, s.id)),
+                    radio(cur == Some(s.id)),
+                    Choice::Sidechain(Some(s.id)),
+                ));
+            }
+        }
         MenuId::Wave(t, param) => {
             let cur = p
                 .track(t)
@@ -744,6 +763,9 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                 effect,
                 source,
             });
+        }
+        (MenuId::TrackSidechain(track), Choice::Sidechain(source)) => {
+            app.exec(Command::SetTrackSidechain { track, source });
         }
         (MenuId::Wave(t, param), Choice::Wave(w)) => {
             app.exec(Command::SetInstrumentParam {
