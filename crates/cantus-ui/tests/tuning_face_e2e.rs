@@ -2,9 +2,10 @@
 //! made by `CantusApp::assemble` with the real engine wiring, a Chorda track added as the
 //! picker adds one, and
 //!
-//! - **a Scala file from outside bytes** — `marvel12.scl` of Surge's MIT `tuning-library`
-//!   test set (`research/tuning-library-tests/`) — read through the Tuning window's import
-//!   action into one `SetProjectTuning`, the song keeping the file's 12 degrees as written;
+//! - **a Scala file from outside bytes** — `12-shuffled.scl` of Surge's MIT `tuning-library`
+//!   test set (committed in `crates/cantus-core/tests/data/tuning-library/`, its degrees
+//!   written out of order) — read through the Tuning window's import action into one
+//!   `SetProjectTuning`, the song keeping the file's 12 degrees as written;
 //! - **Chorda plays it**: each key's measured pitch moves from its equal-temperament pitch by
 //!   the table every unit reads (`Tuning::offsets()`), within 0.1 cent (Chorda's own stretch
 //!   is in both renders, so it cancels);
@@ -12,12 +13,12 @@
 //! - **undone and redone**: the import is one step with its exact inverse;
 //! - the window's summary and the top bar's line say it, and say nothing at the default.
 //!
-//! Honest note: until the `tuning` builder's `Tuning::offsets()` fills Scala scales, the
-//! table is the diapason's (flat) and the measured move is 0; the comparison is the same
-//! one, so at the merge it measures the scale. Its own test binary: it points
-//! `CANTUS_DATA_DIR` at a temporary folder. r42:tuning-face
+//! The file's degree 9 is 1000 c, so with Scala's template (degree 0 on key 60, key 69 at the
+//! diapason) every key sits 100 c below its degree: A4 keeps 440 Hz, C4 moves −100 c and D4
+//! −200 c (`12-shuffled`'s 100 c degree). Its own test binary: it points `CANTUS_DATA_DIR` at a
+//! temporary folder. r42:tuning-face
 
-use cantus_core::tuning::{ScaleDegree, TuningSystem};
+use cantus_core::tuning::{ScaleDegree, TuningSystem, TuningTable};
 use cantus_core::*;
 use cantus_engine::{render, EngineHandle, RenderOptions};
 use cantus_ui::app::Files;
@@ -29,8 +30,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 const FS: f64 = 48_000.0;
-/// The keys measured: A4 (the diapason's), C#4 and E4 (marvel's 115.7 and 383.8 cents).
-const KEYS: [u8; 3] = [69, 61, 64];
+/// The keys measured: A4 (the diapason's), C4 and D4 (in `12-shuffled.scl`, −100 c and −200 c).
+const KEYS: [u8; 3] = [69, 60, 62];
 
 fn data() -> &'static Path {
     static DIR: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
@@ -44,7 +45,7 @@ fn data() -> &'static Path {
 
 fn outside(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../research/tuning-library-tests")
+        .join("../cantus-core/tests/data/tuning-library")
         .join(name)
 }
 
@@ -85,8 +86,9 @@ fn partial(x: &[f64], start: usize, near: f64) -> f64 {
     f
 }
 
-/// Each key of [`KEYS`]'s fundamental as the song's Chorda renders now, Hz.
-fn measured(app: &CantusApp) -> Vec<f64> {
+/// Each key of [`KEYS`]'s fundamental as the song's Chorda renders now, Hz, looked for near
+/// the pitch `table` gives the key (±2.5 %: a key left where it was is not found there).
+fn measured(app: &CantusApp, table: &TuningTable) -> Vec<f64> {
     let mut p = app.project().clone();
     p.tracks.retain(|t| {
         t.instrument
@@ -110,7 +112,8 @@ fn measured(app: &CantusApp) -> Vec<f64> {
     KEYS.iter()
         .enumerate()
         .map(|(i, k)| {
-            let want = 440.0 * 2f64.powf((f64::from(*k) - 69.0) / 12.0);
+            let key = f64::from(*k) + f64::from(table.at(*k));
+            let want = 440.0 * 2f64.powf((key - 69.0) / 12.0);
             let at = (4.0 * i as f64 * beat * FS) as usize;
             partial(&mono, at + (0.3 * FS) as usize, want)
         })
@@ -141,6 +144,9 @@ fn a_scala_file_imported_through_the_window_is_what_chorda_plays_and_exports() {
         app.tuning.mts.is_some(),
         "the boot path loads MTS-ESP's link"
     );
+    // r42 fix-engine (review reach 6): and hands it to the engine.
+    let held = format!("{:?}", app.engine.external_tuning());
+    assert!(held.contains("MtsLink"), "the engine follows the link: {held}");
     let reference = cantus_engine::inst::chorda::reference();
     cantus_engine::inst::chorda::ensure(reference, 48_000.0);
     app.apply_pick(
@@ -181,7 +187,7 @@ fn a_scala_file_imported_through_the_window_is_what_chorda_plays_and_exports() {
         clip: Box::new(clip),
     }));
     assert!(tuning::words::project_summary(app.project()).is_none());
-    let equal = measured(&app);
+    let equal = measured(&app, &TuningTable::EQUAL);
     // A4 is A4: the piano is in tune before anything is imported.
     assert!(
         (1200.0 * (equal[0] / 440.0).log2()).abs() < 3.0,
@@ -191,24 +197,29 @@ fn a_scala_file_imported_through_the_window_is_what_chorda_plays_and_exports() {
 
     // The window's import action, on outside bytes.
     tuning::open(&mut app, Target::Project);
-    let said = tuning::io::import(&mut app, Target::Project, &outside("marvel12.scl"), None)
-        .expect("marvel12.scl reads");
-    assert!(said.contains("marvel12.scl"), "{said}");
+    let said = tuning::io::import(&mut app, Target::Project, &outside("12-shuffled.scl"), None)
+        .expect("12-shuffled.scl reads");
+    assert!(said.contains("12-shuffled.scl"), "{said}");
     let tu = app.project().tuning.clone();
     let TuningSystem::Scale(scale) = &tu.system else {
         panic!("a scale: {tu:?}");
     };
-    assert_eq!(scale.description, "Marvel[12] hobbit in 197-tET");
+    assert_eq!(scale.description, "22-edo, mode 3 1 1 3 1 3 1 3 1 1 3 1");
     assert_eq!(scale.degrees.len(), 12);
-    assert_eq!(scale.degrees[0], ScaleDegree::Cents(115.73604));
+    assert_eq!(scale.degrees[0], ScaleDegree::Cents(200.0));
+    assert_eq!(scale.degrees[1], ScaleDegree::Cents(100.0));
     assert_eq!(scale.degrees[11], ScaleDegree::Ratio(2, 1));
     assert_eq!(tu.a4_hz, 440.0, "no keyboard map: the diapason stays");
     let summary = tuning::words::project_summary(app.project()).expect("said");
-    assert_eq!(summary, "Marvel[12] hobbit in 197-tET \u{b7} A440");
+    assert_eq!(summary, "22-edo, mode 3 1 1 3 1 3 1 3 1 1 3 1 \u{b7} A440");
 
     // Chorda plays the table every unit reads.
     let table = tu.offsets();
-    let tuned = measured(&app);
+    let cents: Vec<f32> = KEYS.iter().map(|k| 100.0 * table.at(*k)).collect();
+    for (c, want) in cents.iter().zip([0.0f32, -100.0, -200.0]) {
+        assert!((c - want).abs() < 1e-3, "the file's table: {cents:?}");
+    }
+    let tuned = measured(&app, &table);
     for (i, k) in KEYS.iter().enumerate() {
         let moved = 1200.0 * (tuned[i] / equal[i]).log2();
         let want = 100.0 * f64::from(table.at(*k));
@@ -360,7 +371,7 @@ fn chordas_own_tuning_changes_only_chorda() {
         .samples
     };
     let synth_before = synth_alone(&app);
-    let equal = measured(&app);
+    let equal = measured(&app, &TuningTable::EQUAL);
 
     // The card's action: the preset in E.
     let spec = app
@@ -392,13 +403,13 @@ fn chordas_own_tuning_changes_only_chorda() {
     ));
     assert_eq!(
         tuning::table_of(&app, Target::Track(synth)),
-        cantus_core::tuning::TuningTable::EQUAL
+        TuningTable::EQUAL
     );
     assert_eq!(tuning::chorda::a4_of(&app, synth), tuning::chorda::A4::Knob);
 
     // Chorda plays its own table.
     let table = mine.offsets();
-    let tuned = measured(&app);
+    let tuned = measured(&app, &table);
     for (i, k) in KEYS.iter().enumerate() {
         let moved = 1200.0 * (tuned[i] / equal[i]).log2();
         let want = 100.0 * f64::from(table.at(*k));

@@ -40,7 +40,7 @@ const KINDS: [&str; 9] = [
 const SIZE: egui::Vec2 = egui::vec2(1440.0, 900.0);
 
 fn tests_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../research/tuning-library-tests")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cantus-core/tests/data/tuning-library")
 }
 
 fn set_up(app: &mut CantusApp, kind: &str) -> Option<Target> {
