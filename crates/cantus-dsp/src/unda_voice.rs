@@ -89,7 +89,7 @@ pub struct Voice {
     relvel: f32,
     /// The note being sounded, in semitones (gliding towards `target`).
     pub pitch: f32,
-    target: f32,
+    pub(crate) target: f32,
     glide: f32,
     pub env: [Env; 4],
     lfo: [LfoVoice; 8],
@@ -200,6 +200,7 @@ impl Voice {
         &mut self,
         s: &Settings,
         key: u8,
+        tune: f32, // r42:tuning — the key's offset in semitones (0.0 by default)
         id: u64,
         velocity: f32,
         stolen: bool,
@@ -246,7 +247,7 @@ impl Voice {
         self.drift_ct = s.drift * 5.0 * (2.0 * unit(&[seed, 4]) - 1.0);
         self.drift_oct = s.drift * (1.0 / 6.0) * (2.0 * unit(&[seed, 5]) - 1.0);
         self.rnd_value = 2.0 * unit(&[seed, 3]) - 1.0;
-        self.target = key as f32;
+        self.target = key as f32 + tune; // r42:tuning
         match from {
             Some(p) if s.glide_s > 0.0 => {
                 self.pitch = p;
@@ -282,7 +283,8 @@ impl Voice {
     }
 
     /// Move to another note without a new attack (legato, or a mono voice returning).
-    pub fn glide_to(&mut self, s: &Settings, key: u8, id: u64, base_sr: f32) {
+    /// `tune`: the key's offset in semitones (r42:tuning, `0.0` by default).
+    pub fn glide_to(&mut self, s: &Settings, key: u8, tune: f32, id: u64, base_sr: f32) {
         self.key = key;
         self.id = id;
         // Another note now: none of the last one's expression (ADR 0080, as Gravis does).
@@ -290,7 +292,7 @@ impl Voice {
         self.pressure = 0.0;
         self.slide = 0.0;
         self.expr_to = [0.0; 3];
-        self.target = key as f32;
+        self.target = key as f32 + tune; // r42:tuning
         self.glide = if s.glide_s > 0.0 {
             (self.target - self.pitch) / (s.glide_s * base_sr).max(1.0)
         } else {

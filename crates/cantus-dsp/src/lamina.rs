@@ -271,6 +271,9 @@ const SILENCE: f32 = 1e-7;
 pub struct Lamina {
     sr: f32,
     s: LaminaSettings,
+    /// r42:tuning — each key's offset in semitones (ADR 0155): the folded key's own, so a
+    /// scale that is not octave-periodic is followed by pitch class only.
+    tuning: [f32; 128],
     configured: bool,
     shape: Box<HammerShape>,
     voices: Box<[Voice]>,
@@ -313,6 +316,7 @@ impl Lamina {
             alloc: Allocator::new(32),
             pedal: 0.0,
             bend: 1.0,
+            tuning: [0.0; 128], // r42:tuning
             stolen: 0,
             last: 0,
             released: [0; MAX_VOICES],
@@ -391,7 +395,9 @@ impl Lamina {
         }
         let age = s.age.clamp(0.0, 1.0);
         let spread = s.spread_ct * (1.0 + age) * key_hash(k, 1);
-        let hz = s.a4_hz * math::powf(2f32, (k as f32 - 69.0 + spread / 100.0) / 12.0) * self.bend;
+        // r42:tuning — `k + 0.0` by default: the bits stay.
+        let tuned = k as f32 + crate::tuning::at(&self.tuning, k);
+        let hz = s.a4_hz * math::powf(2f32, (tuned - 69.0 + spread / 100.0) / 12.0) * self.bend;
         let v = shaped_velocity(velocity, s.vel_curve);
         let hardness = (s.hardness + s.hardness_vel * (v - 0.5) * 0.6 + curve_at(&s.curve_hard, k))
             .clamp(0.0, 1.0);
@@ -495,6 +501,14 @@ impl Lamina {
 
     pub fn pedal(&self) -> f32 {
         self.pedal
+    }
+
+    /// r42:tuning — the project's tuning (ADR 0155), for the notes struck from now on (a
+    /// ringing tine keeps its pitch); the same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if !crate::tuning::same(&self.tuning, table) {
+            self.tuning = *table;
+        }
     }
 
     /// Pitch bend, semitones: every ringing tine and every new one.

@@ -239,6 +239,8 @@ pub mod tel {
 pub struct Fides {
     sr: f32,
     s: FidesSettings,
+    /// r42:tuning — each key's offset in semitones from 12-TET at A440 (ADR 0155).
+    tuning: [f32; 128],
     voices: Vec<Voice>,
     alloc: Allocator,
     matrix: ModMatrix,
@@ -278,6 +280,7 @@ impl Fides {
         Fides {
             sr: sample_rate,
             s,
+            tuning: [0.0; 128], // r42:tuning
             voices: (0..MAX_VOICES + GHOSTS)
                 .map(|_| Voice::new(sample_rate))
                 .collect(),
@@ -313,6 +316,14 @@ impl Fides {
 
     /// New settings (audio thread, no allocation): the voices take them at their next
     /// control step.
+    /// r42:tuning — the project's tuning (ADR 0155), for the notes struck from now on (a
+    /// ringing resonator keeps its pitch); the same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if !crate::tuning::same(&self.tuning, table) {
+            self.tuning = *table;
+        }
+    }
+
     pub fn set(&mut self, s: &FidesSettings) {
         self.s = *s;
         self.s.poly = s.poly.clamp(1, MAX_VOICES);
@@ -403,7 +414,9 @@ impl Fides {
             } => self.start(voice, key, id, velocity, stolen),
             Action::Glide { voice, key, id } => {
                 let s = self.s;
+                let tune = crate::tuning::at(&self.tuning, key); // r42:tuning
                 if let Some(v) = self.voices.get_mut(voice) {
+                    v.tune_next(tune);
                     v.glide_to(&s, key, id);
                 }
             }
@@ -461,6 +474,7 @@ impl Fides {
             clock: self.clock,
             input: None,
         };
+        self.voices[voice].tune_next(crate::tuning::at(&self.tuning, key)); // r42:tuning
         self.voices[voice].start(&sh, key, id, velocity, rng, keep);
         self.newest = voice;
     }

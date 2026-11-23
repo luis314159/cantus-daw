@@ -163,6 +163,10 @@ pub struct EngineHandle {
     /// The devices' side: the driver, the input stream, latencies, the loopback probe.
     pub(crate) dev: crate::devices::HandleDevices,
     sync: Option<crate::transport::sync::SyncHandle>, // r33:sync
+    /// r42:tuning — the MTS-ESP master (ADR 0156) compiles read for `External` tracks, and
+    /// every one sent to the engine (kept, so the audio thread never drops the last).
+    external_tuning: Arc<dyn crate::tuning::ExternalTuning>,
+    external_sent: Vec<Arc<dyn crate::tuning::ExternalTuning>>,
 }
 
 impl std::fmt::Debug for EngineHandle {
@@ -397,7 +401,9 @@ impl EngineHandle {
             inst_params: Vec::new(),
             rec,
             dev: Default::default(),
-            sync: Some(sync), // r33:sync
+            sync: Some(sync),                                     // r33:sync
+            external_tuning: Arc::new(crate::tuning::NoExternal), // r42:tuning
+            external_sent: Vec::new(),                            // r42:tuning
         };
         handle.dev = crate::devices::HandleDevices {
             driver: driver_name,
@@ -507,8 +513,20 @@ impl EngineHandle {
             inst_params: Vec::new(),
             rec: Default::default(),
             dev: Default::default(),
-            sync: None, // r33:sync
+            sync: None,                                           // r33:sync
+            external_tuning: Arc::new(crate::tuning::NoExternal), // r42:tuning
+            external_sent: Vec::new(),                            // r42:tuning
         }
+    }
+
+    /// r42:tuning — the MTS-ESP link (ADR 0156; `tuning-face` implements it in
+    /// `crate::mts`): tracks whose tuning is `External` read the master's table through it,
+    /// once per live block, and every snapshot compiled from now on (an offline render's
+    /// among them) takes the table it reads at its compile. Call from the main thread.
+    pub fn set_external_tuning(&mut self, ext: Arc<dyn crate::tuning::ExternalTuning>) {
+        self.external_tuning = ext.clone();
+        self.external_sent.push(ext.clone());
+        self.send(EngineMessage::SetExternalTuning(ext));
     }
 
     /// Deliver a unit built elsewhere (a hosted plug-in, ADR 0019) for an effect id the
@@ -898,6 +916,7 @@ impl EngineHandle {
         // A render's compile never takes the playing snapshot's warp renders away.
         self.samples.set_offline(render);
         let mut snapshot = Snapshot::compile_reusing(project, revision, prev); // r33:session
+        crate::tuning::fill_external(&mut snapshot, &*self.external_tuning); // r42:tuning
         if render {
             // r36:external — an offline render plays no gear; live, units not available give
             // no link and trips are re-based (ADR 0094)

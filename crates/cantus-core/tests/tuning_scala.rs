@@ -5,7 +5,7 @@
 //! archive's files is copied: it has no licence). The whole archive is swept by
 //! `tuning_scala_archive.rs` (`#[ignore]`, `tools/test/scala-archive.sh`).
 
-use cantus_core::tuning::{ScaleDegree, ScalaScale};
+use cantus_core::tuning::{ScalaScale, ScaleDegree};
 use cantus_core::tuning_scala::{
     parse_degree, read_kbm, read_scl, write_kbm, write_scl, ScalaError,
 };
@@ -85,7 +85,10 @@ fn surge_s_files_read_as_its_tests_say() {
     assert_eq!(b.description, "31 equal divisions of octave");
     assert_eq!(a, b);
     for (i, c) in cents(&a).iter().enumerate() {
-        assert!((c - 1200.0 * (i as f64 + 1.0) / 31.0).abs() < 1e-3, "31edo {i}");
+        assert!(
+            (c - 1200.0 * (i as f64 + 1.0) / 31.0).abs() < 1e-3,
+            "31edo {i}"
+        );
     }
     // A non-octave period (3/1), exact ratios, a one-step scale.
     let e = read_scl(&data("ED3-17.scl")).unwrap();
@@ -111,11 +114,18 @@ fn surge_s_files_read_as_its_tests_say() {
 
 #[test]
 fn surge_s_must_fail_set_fails_and_its_lenient_cases_load() {
-    for f in ["bad/badnote.scl", "bad/blanknote.scl", "bad/missingnote.scl"] {
+    for f in [
+        "bad/badnote.scl",
+        "bad/blanknote.scl",
+        "bad/missingnote.scl",
+    ] {
         assert!(read_scl(&data(f)).is_err(), "{f} must fail");
     }
     // "Trailing data is OK."
-    assert_eq!(read_scl(&data("bad/extraline.scl")).unwrap().degrees.len(), 17);
+    assert_eq!(
+        read_scl(&data("bad/extraline.scl")).unwrap().degrees.len(),
+        17
+    );
     for f in [
         "bad/blank-line.kbm",
         "bad/empty-bad.kbm",
@@ -129,9 +139,27 @@ fn surge_s_must_fail_set_fails_and_its_lenient_cases_load() {
     }
     // Each refusal states its reason.
     let e = read_scl(&data("bad/missingnote.scl")).unwrap_err();
-    assert!(matches!(e, ScalaError::FewerPitches { count: 17, found: 16 }), "{e}");
+    assert!(
+        matches!(
+            e,
+            ScalaError::FewerPitches {
+                count: 17,
+                found: 16
+            }
+        ),
+        "{e}"
+    );
     let e = read_kbm(&data("bad/missing-note.kbm")).unwrap_err();
-    assert!(matches!(e, ScalaError::ShortMap { size: 12, found: 11 }), "{e}");
+    assert!(
+        matches!(
+            e,
+            ScalaError::ShortMap {
+                size: 12,
+                found: 11
+            }
+        ),
+        "{e}"
+    );
     let e = read_kbm(&data("bad/empty-bad.kbm")).unwrap_err();
     assert!(e.to_string().contains("formal octave"), "{e}");
 }
@@ -145,13 +173,32 @@ fn surge_s_keyboard_maps_read() {
     let x = None;
     assert_eq!(
         m.mapping,
-        vec![Some(0), x, Some(1), x, Some(2), Some(3), x, Some(4), x, Some(5), x, Some(6)]
+        vec![
+            Some(0),
+            x,
+            Some(1),
+            x,
+            Some(2),
+            Some(3),
+            x,
+            Some(4),
+            x,
+            Some(5),
+            x,
+            Some(6)
+        ]
     );
     let a = read_kbm(&data("mapping-a442-7-to-12.kbm")).unwrap();
-    assert_eq!((a.middle_key, a.reference_key, a.octave_degree), (59, 69, 7));
+    assert_eq!(
+        (a.middle_key, a.reference_key, a.octave_degree),
+        (59, 69, 7)
+    );
     assert_eq!(a.reference_hz, 442.0);
     let p = read_kbm(&data("piano.kbm")).unwrap();
-    assert_eq!((p.size, p.first_key, p.last_key, p.middle_key), (0, 21, 108, 21));
+    assert_eq!(
+        (p.size, p.first_key, p.last_key, p.middle_key),
+        (0, 21, 108, 21)
+    );
     let k = read_kbm(&data("128.kbm")).unwrap();
     assert_eq!((k.size, k.middle_key, k.reference_key), (0, 0, 60));
     let e = read_kbm(&data("31-edo.kbm")).unwrap();
@@ -192,7 +239,10 @@ fn every_archive_quirk_reads_and_round_trips_to_the_same_cents() {
     assert!((s.degrees[6].cents() - big).abs() < 1e-9);
     assert_eq!(s.degrees[10], ScaleDegree::Ratio(3, 1), "the period is 3/1");
     let text = write_scl(&s);
-    assert!(text.contains("\r\n 600.0\r\n"), "a cents value keeps its period");
+    assert!(
+        text.contains("\r\n 600.0\r\n"),
+        "a cents value keeps its period"
+    );
     let back = read_scl(&cantus_core::tuning_scala::latin1(&text)).unwrap();
     assert_eq!(back.description, s.description);
     for (a, b) in s.degrees.iter().zip(&back.degrees) {

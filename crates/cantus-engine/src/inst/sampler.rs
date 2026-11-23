@@ -363,6 +363,11 @@ fn init_zone(trim_db: f32) -> (ZoneParams, Source) {
 }
 
 impl InstrumentUnit for Unit {
+    /// r42:tuning — the track's tuning (ADR 0155), at the DSP's insertion point.
+    fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        self.ex.set_tuning(&table.0);
+    }
+
     fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
         // A zone streaming from disk reads through the reader's boards: not state a copy
         // can own (ADR 0050), so a range render pre-rolls instead.

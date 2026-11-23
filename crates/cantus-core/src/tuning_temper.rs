@@ -123,20 +123,7 @@ pub fn cents(id: Temperament) -> [f64; 12] {
         // Neidhardt III, "große Stadt" (1724), in twelfths of the PC.
         Temperament::Neidhardt => {
             let u = pc / 12.0;
-            from_fifths([
-                2.0 * u,
-                2.0 * u,
-                2.0 * u,
-                u,
-                0.0,
-                u,
-                u,
-                u,
-                0.0,
-                u,
-                u,
-                0.0,
-            ])
+            from_fifths([2.0 * u, 2.0 * u, 2.0 * u, u, 0.0, u, u, u, 0.0, u, u, 0.0])
         }
         // Lehman (2005): ⅙ SC on F–C–G–D–A–E, E–B–F♯–C♯ pure, 1/12 SC on C♯–G♯ and
         // D♯–A♯, the schisma on G♯–D♯, A♯–F pure.

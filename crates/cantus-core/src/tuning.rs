@@ -120,7 +120,12 @@ impl Tuning {
         let cents_of = |d: i64| -> f64 {
             let q = d.div_euclid(n);
             let r = d.rem_euclid(n);
-            q as f64 * period + if r == 0 { 0.0 } else { degrees[(r - 1) as usize] }
+            q as f64 * period
+                + if r == 0 {
+                    0.0
+                } else {
+                    degrees[(r - 1) as usize]
+                }
         };
         let default_map = KeyboardMap::scala_default();
         let map = self.map.as_ref().unwrap_or(&default_map);

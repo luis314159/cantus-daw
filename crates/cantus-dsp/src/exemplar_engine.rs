@@ -104,6 +104,8 @@ impl Exemplar {
             keys_down: 0,
             released_buf: [0; MAX_VOICES],
             peak: 0.0,
+            tuning: [0.0; 128], // r42:tuning
+            tune_up: 0.0,       // r42:tuning
             lanes: crate::par::Lanes::new(LANES, SPAN),
             lane_end: [u16::MAX; LANES],
             ended: vec![false; MAX_LAYERS].into_boxed_slice(),
@@ -148,10 +150,14 @@ impl Exemplar {
             // within the levels the zone has.
             let z = &self.zones[zi];
             let g = &self.globals;
-            let shift = (z.hi as f32 - z.root as f32).max(0.0) * z.keytrack / 100.0
+            let mut shift = (z.hi as f32 - z.root as f32).max(0.0) * z.keytrack / 100.0
                 + (z.tune_ct + self.groups[z.group as usize].tune_ct + g.tune_ct) / 100.0
                 + g.transpose
                 + g.bend_range.max(0.0);
+            if self.tune_up > 0.0 {
+                // r42:tuning — the highest key a tuning raises (guarded: the bits stay).
+                shift += self.tune_up * z.keytrack.max(0.0) / 100.0;
+            }
             let ratio = src.rate / self.fs * crate::math::exp2(shift / 12.0);
             let reach = if ratio >= 2.0 {
                 crate::math::log2(ratio).floor() as usize
@@ -203,6 +209,19 @@ impl Exemplar {
 
     pub fn globals(&self) -> &Globals {
         &self.globals
+    }
+
+    /// r42:tuning — the project's tuning (ADR 0155), for the notes started from now on (a
+    /// sounding layer keeps its pitch); the same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if crate::tuning::same(&self.tuning, table) {
+            return;
+        }
+        self.tuning = *table;
+        self.tune_up = table
+            .iter()
+            .filter(|v| v.is_finite())
+            .fold(0.0f32, |a, &v| a.max(v));
     }
 
     pub fn set_globals(&mut self, g: &Globals) {

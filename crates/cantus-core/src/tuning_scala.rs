@@ -54,7 +54,10 @@ impl fmt::Display for ScalaError {
                 write!(f, "line {line} should hold the {what}: {text:?}")
             }
             ScalaError::TooMany { count } => {
-                write!(f, "{count} degrees: more than the {MAX_DEGREES} Cantus keeps")
+                write!(
+                    f,
+                    "{count} degrees: more than the {MAX_DEGREES} Cantus keeps"
+                )
             }
             ScalaError::FewerPitches { count, found } => {
                 write!(f, "the count says {count} pitches, the file has {found}")
@@ -392,7 +395,10 @@ pub fn write_kbm(map: &KeyboardMap) -> String {
         t.push_str(&format!("! {comment}\r\n{value}\r\n"));
     };
     field("Size of map:", map.size.to_string());
-    field("First MIDI note number to retune:", map.first_key.to_string());
+    field(
+        "First MIDI note number to retune:",
+        map.first_key.to_string(),
+    );
     field("Last MIDI note number to retune:", map.last_key.to_string());
     field(
         "Middle note where the first entry of the mapping is mapped to:",

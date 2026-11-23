@@ -141,7 +141,10 @@ impl fmt::Display for MtsError {
             MtsError::NotTuning => write!(f, "not a MIDI tuning message"),
             MtsError::UnknownMessage(s) => write!(f, "unknown MIDI tuning message {s:02X}"),
             MtsError::Length { want, got } => {
-                write!(f, "a MIDI tuning message of {got} bytes where {want} were due")
+                write!(
+                    f,
+                    "a MIDI tuning message of {got} bytes where {want} were due"
+                )
             }
             MtsError::NotSevenBit => write!(f, "a data byte past 7 bits"),
         }
@@ -157,7 +160,13 @@ fn xor(bytes: &[u8]) -> u8 {
 
 fn name_of(b: &[u8]) -> String {
     b.iter()
-        .map(|&c| if (0x20..0x7F).contains(&c) { char::from(c) } else { ' ' })
+        .map(|&c| {
+            if (0x20..0x7F).contains(&c) {
+                char::from(c)
+            } else {
+                ' '
+            }
+        })
         .collect::<String>()
         .trim_end()
         .to_string()
@@ -165,7 +174,10 @@ fn name_of(b: &[u8]) -> String {
 
 fn name_bytes(name: &str) -> [u8; 16] {
     let mut out = [b' '; 16];
-    for (o, c) in out.iter_mut().zip(name.chars().filter(|c| c.is_ascii() && !c.is_ascii_control())) {
+    for (o, c) in out.iter_mut().zip(
+        name.chars()
+            .filter(|c| c.is_ascii() && !c.is_ascii_control()),
+    ) {
         *o = c as u8;
     }
     out

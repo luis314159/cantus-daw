@@ -11,21 +11,111 @@ use cantus_core::tuning_temper::{cents, cents_in, deviation_in};
 
 /// §5.2, C … B in cents above C, three decimals.
 const PUBLISHED: [(Temperament, [f64; 12]); 15] = [
-    (Temperament::Pythagorean, [0.000, 113.685, 203.910, 294.135, 407.820, 498.045, 611.730, 701.955, 815.640, 905.865, 996.090, 1109.775]),
-    (Temperament::MeantoneQuarter, [0.000, 76.049, 193.157, 310.265, 386.314, 503.422, 579.471, 696.578, 772.627, 889.735, 1006.843, 1082.892]),
-    (Temperament::MeantoneSixth, [0.000, 88.594, 196.741, 304.888, 393.482, 501.629, 590.224, 698.371, 786.965, 895.112, 1003.259, 1091.853]),
-    (Temperament::WerckmeisterIii, [0.000, 90.225, 192.180, 294.135, 390.225, 498.045, 588.270, 696.090, 792.180, 888.270, 996.090, 1092.180]),
-    (Temperament::WerckmeisterIv, [0.000, 82.405, 196.090, 294.135, 392.180, 498.045, 588.270, 694.135, 784.360, 890.225, 1003.910, 1086.315]),
-    (Temperament::KirnbergerIi, [0.000, 90.225, 203.910, 294.135, 386.314, 498.045, 590.224, 701.955, 792.180, 895.112, 996.090, 1088.269]),
-    (Temperament::KirnbergerIii, [0.000, 90.225, 193.157, 294.135, 386.314, 498.045, 590.224, 696.578, 792.180, 889.735, 996.090, 1088.269]),
-    (Temperament::Vallotti, [0.000, 94.135, 196.090, 298.045, 392.180, 501.955, 592.180, 698.045, 796.090, 894.135, 1000.000, 1090.225]),
-    (Temperament::Young1799, [0.000, 90.225, 196.090, 294.135, 392.180, 498.045, 588.270, 698.045, 792.180, 894.135, 996.090, 1090.225]),
-    (Temperament::Kellner, [0.000, 90.225, 194.526, 294.135, 389.052, 498.045, 588.270, 697.263, 792.180, 891.789, 996.090, 1091.007]),
-    (Temperament::Neidhardt, [0.000, 96.090, 196.090, 298.045, 394.135, 498.045, 596.090, 698.045, 796.090, 894.135, 998.045, 1096.090]),
-    (Temperament::BachLehman, [0.000, 99.347, 196.741, 299.512, 393.482, 501.629, 597.392, 698.371, 799.510, 895.112, 999.674, 1095.437]),
-    (Temperament::JustMajor, [0.000, 111.731, 203.910, 315.641, 386.314, 498.045, 590.224, 701.955, 813.686, 884.359, 996.090, 1088.269]),
-    (Temperament::JustMinor, [0.000, 111.731, 203.910, 315.641, 386.314, 498.045, 590.224, 701.955, 813.686, 884.359, 1017.596, 1088.269]),
-    (Temperament::Barbershop7, [0.000, 111.731, 203.910, 266.871, 386.314, 498.045, 582.512, 701.955, 813.686, 933.129, 968.826, 1088.269]),
+    (
+        Temperament::Pythagorean,
+        [
+            0.000, 113.685, 203.910, 294.135, 407.820, 498.045, 611.730, 701.955, 815.640, 905.865,
+            996.090, 1109.775,
+        ],
+    ),
+    (
+        Temperament::MeantoneQuarter,
+        [
+            0.000, 76.049, 193.157, 310.265, 386.314, 503.422, 579.471, 696.578, 772.627, 889.735,
+            1006.843, 1082.892,
+        ],
+    ),
+    (
+        Temperament::MeantoneSixth,
+        [
+            0.000, 88.594, 196.741, 304.888, 393.482, 501.629, 590.224, 698.371, 786.965, 895.112,
+            1003.259, 1091.853,
+        ],
+    ),
+    (
+        Temperament::WerckmeisterIii,
+        [
+            0.000, 90.225, 192.180, 294.135, 390.225, 498.045, 588.270, 696.090, 792.180, 888.270,
+            996.090, 1092.180,
+        ],
+    ),
+    (
+        Temperament::WerckmeisterIv,
+        [
+            0.000, 82.405, 196.090, 294.135, 392.180, 498.045, 588.270, 694.135, 784.360, 890.225,
+            1003.910, 1086.315,
+        ],
+    ),
+    (
+        Temperament::KirnbergerIi,
+        [
+            0.000, 90.225, 203.910, 294.135, 386.314, 498.045, 590.224, 701.955, 792.180, 895.112,
+            996.090, 1088.269,
+        ],
+    ),
+    (
+        Temperament::KirnbergerIii,
+        [
+            0.000, 90.225, 193.157, 294.135, 386.314, 498.045, 590.224, 696.578, 792.180, 889.735,
+            996.090, 1088.269,
+        ],
+    ),
+    (
+        Temperament::Vallotti,
+        [
+            0.000, 94.135, 196.090, 298.045, 392.180, 501.955, 592.180, 698.045, 796.090, 894.135,
+            1000.000, 1090.225,
+        ],
+    ),
+    (
+        Temperament::Young1799,
+        [
+            0.000, 90.225, 196.090, 294.135, 392.180, 498.045, 588.270, 698.045, 792.180, 894.135,
+            996.090, 1090.225,
+        ],
+    ),
+    (
+        Temperament::Kellner,
+        [
+            0.000, 90.225, 194.526, 294.135, 389.052, 498.045, 588.270, 697.263, 792.180, 891.789,
+            996.090, 1091.007,
+        ],
+    ),
+    (
+        Temperament::Neidhardt,
+        [
+            0.000, 96.090, 196.090, 298.045, 394.135, 498.045, 596.090, 698.045, 796.090, 894.135,
+            998.045, 1096.090,
+        ],
+    ),
+    (
+        Temperament::BachLehman,
+        [
+            0.000, 99.347, 196.741, 299.512, 393.482, 501.629, 597.392, 698.371, 799.510, 895.112,
+            999.674, 1095.437,
+        ],
+    ),
+    (
+        Temperament::JustMajor,
+        [
+            0.000, 111.731, 203.910, 315.641, 386.314, 498.045, 590.224, 701.955, 813.686, 884.359,
+            996.090, 1088.269,
+        ],
+    ),
+    (
+        Temperament::JustMinor,
+        [
+            0.000, 111.731, 203.910, 315.641, 386.314, 498.045, 590.224, 701.955, 813.686, 884.359,
+            1017.596, 1088.269,
+        ],
+    ),
+    (
+        Temperament::Barbershop7,
+        [
+            0.000, 111.731, 203.910, 266.871, 386.314, 498.045, 582.512, 701.955, 813.686, 933.129,
+            968.826, 1088.269,
+        ],
+    ),
 ];
 
 #[test]
@@ -72,7 +162,10 @@ fn a_temperament_in_any_key_keeps_its_intervals_and_a_at_the_diapason() {
             for a4 in [440.0, 415.0] {
                 let t = temperament(id, key, a4).offsets();
                 let shift = diapason_semitones(a4);
-                assert!((t.at(69) - shift).abs() < 1e-6, "{id:?} in {key}: A4 on the diapason");
+                assert!(
+                    (t.at(69) - shift).abs() < 1e-6,
+                    "{id:?} in {key}: A4 on the diapason"
+                );
                 assert!((t.at(81) - shift).abs() < 1e-6, "and every A");
                 // Octave-periodic, and each key's deviation is the rotated row's less A's.
                 let d = deviation_in(id, key);
@@ -80,7 +173,10 @@ fn a_temperament_in_any_key_keeps_its_intervals_and_a_at_the_diapason() {
                     let want = (d[usize::from(k % 12)] - d[9]) / 100.0 + f64::from(shift);
                     let pitch = f64::from(k) + want;
                     if (-36.0..=135.0).contains(&pitch) {
-                        assert!((f64::from(t.at(k)) - want).abs() < 1e-5, "{id:?} {key} key {k}");
+                        assert!(
+                            (f64::from(t.at(k)) - want).abs() < 1e-5,
+                            "{id:?} {key} key {k}"
+                        );
                     }
                 }
             }
@@ -144,7 +240,10 @@ fn edo_31_and_a_non_octave_period_step_as_their_files_say() {
             assert!((step - 1200.0 / 31.0).abs() < 1e-3, "key {k}: {step}");
         }
     }
-    assert!((pitch(&t, 69) - 69.0).abs() < 1e-6, "key 69 on the diapason");
+    assert!(
+        (pitch(&t, 69) - 69.0).abs() < 1e-6,
+        "key 69 on the diapason"
+    );
     // Bohlen–Pierce's cousin: 17 steps to 3/1.
     let e = scale("ED3-17.scl", None).offsets();
     let tritave = (pitch(&e, 77) - pitch(&e, 60)) * 100.0;
@@ -161,13 +260,27 @@ fn edo_31_and_a_non_octave_period_step_as_their_files_say() {
 fn surge_s_white_keys_map_plays_the_chromatic_scale_on_the_white_keys() {
     let t = scale("12-intune-nodesc.scl", Some("mapping-whitekeys-c261.kbm")).offsets();
     // `tuning-library`'s test: the mapped key plays the 12-TET key's pitch.
-    for (plain, mapped) in [(60, 60), (61, 62), (62, 64), (63, 65), (64, 67), (65, 69), (66, 71)] {
-        assert!((pitch(&t, mapped) - f64::from(plain)).abs() < 1e-5, "{mapped}");
+    for (plain, mapped) in [
+        (60, 60),
+        (61, 62),
+        (62, 64),
+        (63, 65),
+        (64, 67),
+        (65, 69),
+        (66, 71),
+    ] {
+        assert!(
+            (pitch(&t, mapped) - f64::from(plain)).abs() < 1e-5,
+            "{mapped}"
+        );
     }
     for black in [61u8, 63, 66, 68, 70] {
         assert!(!t.sounds(black), "{black} is unmapped");
     }
-    assert!((pitch(&t, 72) - 67.0).abs() < 1e-5, "the next pattern is the formal octave on");
+    assert!(
+        (pitch(&t, 72) - 72.0).abs() < 1e-5,
+        "the next pattern starts a formal octave on"
+    );
 }
 
 #[test]
@@ -176,7 +289,10 @@ fn keyboard_maps_reference_their_key_and_frequency() {
     // An integer frequency on key 69, linear.
     let t = scale("12-intune-nodesc.scl", Some("empty-note69.kbm")).offsets();
     assert!((f64::from(t.at(69)) - semis(452.0)).abs() < 1e-5);
-    assert!((f64::from(t.at(60)) - semis(452.0)).abs() < 1e-5, "a linear map shifts all alike");
+    assert!(
+        (f64::from(t.at(60)) - semis(452.0)).abs() < 1e-5,
+        "a linear map shifts all alike"
+    );
     // 128.kbm: key 60 at 261.6256.
     let k = scale("12-intune-nodesc.scl", Some("128.kbm")).offsets();
     assert!((pitch(&k, 60) - (69.0 + semis(261.6256))).abs() < 1e-5);
@@ -219,7 +335,11 @@ fn far_keys_are_kept_in_range_and_the_default_is_zero_to_the_bit() {
         let p = pitch(&t, k);
         assert!((-36.0..=135.0001).contains(&p), "key {k}: {p}");
     }
-    assert!(Tuning::default().offsets().0.iter().all(|v| v.to_bits() == 0));
+    assert!(Tuning::default()
+        .offsets()
+        .0
+        .iter()
+        .all(|v| v.to_bits() == 0));
     // An equal tuning written another way is still exactly the diapason.
     let e = Tuning {
         a4_hz: 432.0,

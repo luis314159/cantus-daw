@@ -42,6 +42,8 @@ pub(super) struct Start {
     pub stolen: bool,
     /// Glide from this pitch (semitones).
     pub from: Option<f32>,
+    /// r42:tuning — the key's offset in semitones (ADR 0155), `0.0` by default.
+    pub tune: f32,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -73,7 +75,7 @@ pub(super) struct Voice {
     uni_cents: f32,
     uni_pan: f32,
     pub pitch: f32,
-    pitch_to: f32,
+    pub(crate) pitch_to: f32,
     glide_rate: f32,
     /// Oversampling factor and the rate the operators run at.
     pub factor: usize,
@@ -257,7 +259,7 @@ impl Voice {
         };
         self.uni_cents = spread * 0.5 * p.uni_detune;
         self.uni_pan = spread * p.uni_spread;
-        self.pitch_to = n.key as f32;
+        self.pitch_to = n.key as f32 + n.tune; // r42:tuning
         self.pitch = n.from.unwrap_or(self.pitch_to);
         self.glide_rate = if p.glide > 0.0 {
             (self.pitch_to - self.pitch).abs() / p.glide
@@ -351,13 +353,14 @@ impl Voice {
     }
 
     /// Legato: move to a new note without a new attack.
-    pub fn glide_to(&mut self, key: u8, id: u64, p: &Patch) {
+    /// `tune`: the key's offset in semitones (r42:tuning, `0.0` by default).
+    pub fn glide_to(&mut self, key: u8, tune: f32, id: u64, p: &Patch) {
         self.key = key;
         self.id = id;
         // Another note now: none of the last one's expression (ADR 0080, as Gravis does).
         self.mpe[..3].copy_from_slice(&[0.0; 3]);
         self.mpe_to = [0.0; 3];
-        self.pitch_to = key as f32;
+        self.pitch_to = key as f32 + tune; // r42:tuning
         self.glide_rate = if p.glide > 0.0 {
             (self.pitch_to - self.pitch).abs() / p.glide
         } else {

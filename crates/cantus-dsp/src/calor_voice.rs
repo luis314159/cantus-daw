@@ -51,6 +51,8 @@ pub struct Shared<'a> {
     pub routes_env: bool,
     /// Stream position (base samples) of the first frame rendered.
     pub clock: u64,
+    /// r42:tuning — each key's offset in semitones (ADR 0155), `0.0` by default.
+    pub tuning: &'a [f32; 128],
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]

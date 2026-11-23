@@ -54,7 +54,11 @@ fn words_round_trip_and_stay_in_range() {
         let p = 69.0 + 12.0 * (hz / 440.0f64).log2();
         assert_eq!(encode_word(p), w, "{hz}");
     }
-    assert_eq!(encode_word(500.0), [0x7F, 0x7F, 0x7E], "never the reserved word");
+    assert_eq!(
+        encode_word(500.0),
+        [0x7F, 0x7F, 0x7E],
+        "never the reserved word"
+    );
     assert_eq!(encode_word(-3.0), [0, 0, 0]);
 }
 
@@ -145,7 +149,10 @@ fn our_messages_decode_alike_in_an_independent_reader() {
         let m = write_octave(ALL_DEVICES, true, ALL_CHANNELS, &dev, two);
         let (a, b) = (ours(&m), libmts_pitches(&m));
         for k in 0..128 {
-            assert!((a[k] - b[k]).abs() * 100.0 < 0.013, "two-byte {two}, key {k}");
+            assert!(
+                (a[k] - b[k]).abs() * 100.0 < 0.013,
+                "two-byte {two}, key {k}"
+            );
         }
     }
 }
@@ -155,9 +162,9 @@ fn the_bulk_dump_of_12_tet_is_the_spec_s_and_its_checksum_conventions_are_read()
     let d = write_key_dump(ALL_DEVICES, 0, "12-TET A440", &TuningTable::EQUAL);
     assert_eq!(d.len(), 408);
     let head = [
-        0xF0, 0x7E, 0x7F, 0x08, 0x01, 0x00, 0x31, 0x32, 0x2D, 0x54, 0x45, 0x54, 0x20, 0x41,
-        0x34, 0x34, 0x30, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
-        0x02, 0x00, 0x00,
+        0xF0, 0x7E, 0x7F, 0x08, 0x01, 0x00, 0x31, 0x32, 0x2D, 0x54, 0x45, 0x54, 0x20, 0x41, 0x34,
+        0x34, 0x30, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x02, 0x00,
+        0x00,
     ];
     assert_eq!(&d[..head.len()], &head);
     assert_eq!(d[406], 0x12, "CA-020's checksum");
@@ -241,10 +248,15 @@ fn every_message_s_layout_round_trips() {
             program,
             checksum,
             ..
-        } => assert_eq!((device, bank, program, checksum), (5, Some(2), 9, Checksum::Spec)),
+        } => assert_eq!(
+            (device, bank, program, checksum),
+            (5, Some(2), 9, Checksum::Spec)
+        ),
         m => panic!("{m:?}"),
     }
-    let cents = [0.0, -9.775, -7.82, -5.865, -9.775, -1.955, -11.73, -3.91, -7.82, -11.73, -3.91, -7.82];
+    let cents = [
+        0.0, -9.775, -7.82, -5.865, -9.775, -1.955, -11.73, -3.91, -7.82, -11.73, -3.91, -7.82,
+    ];
     for two in [false, true] {
         let m = write_octave_dump(1, 0, 3, "W3", &cents, two);
         assert_eq!(m.len(), if two { 49 } else { 37 });
@@ -273,7 +285,10 @@ fn every_message_s_layout_round_trips() {
             assert!((p[k] - k as f64 - f64::from(t.0[k])).abs() * 100.0 < 0.0031);
         }
     }
-    assert_eq!(write_dump_request(0, None, 7), [0xF0, 0x7E, 0x00, 0x08, 0x00, 0x07, 0xF7]);
+    assert_eq!(
+        write_dump_request(0, None, 7),
+        [0xF0, 0x7E, 0x00, 0x08, 0x00, 0x07, 0xF7]
+    );
     assert_eq!(
         parse(&write_dump_request(0, Some(1), 7)).unwrap(),
         MtsMessage::DumpRequest {
@@ -283,7 +298,9 @@ fn every_message_s_layout_round_trips() {
         }
     );
     // The banked single-note change, non-real-time (07 with 7E).
-    let m = [0xF0, 0x7E, 0x00, 0x08, 0x07, 0x01, 0x02, 0x01, 0x45, 0x45, 0x00, 0x00, 0xF7];
+    let m = [
+        0xF0, 0x7E, 0x00, 0x08, 0x07, 0x01, 0x02, 0x01, 0x45, 0x45, 0x00, 0x00, 0xF7,
+    ];
     match parse(&m).unwrap() {
         MtsMessage::NoteChange {
             realtime,
@@ -299,8 +316,14 @@ fn every_message_s_layout_round_trips() {
         m => panic!("{m:?}"),
     }
     // Refusals with their reasons.
-    assert_eq!(parse(&[0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7]), Err(MtsError::NotTuning));
-    assert_eq!(parse(&[0xF0, 0x7E, 0x00, 0x08, 0x0A, 0xF7]), Err(MtsError::UnknownMessage(0x0A)));
+    assert_eq!(
+        parse(&[0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7]),
+        Err(MtsError::NotTuning)
+    );
+    assert_eq!(
+        parse(&[0xF0, 0x7E, 0x00, 0x08, 0x0A, 0xF7]),
+        Err(MtsError::UnknownMessage(0x0A))
+    );
     assert!(matches!(parse(&bank[..300]), Err(MtsError::Length { .. })));
 }
 

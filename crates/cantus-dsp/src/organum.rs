@@ -484,6 +484,14 @@ impl Organum {
 
     /// New settings. Allocation-free, cheap unless the drawbars, leakage or brilliance
     /// moved (then the wheel gains are rebuilt and glide there over 5 ms).
+    /// r42:tuning — the project's tuning (ADR 0155): the wheels retuned when it changed.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if self.gen.set_offsets(table) {
+            self.gen
+                .tune(self.s.tuning, self.s.a4_hz.clamp(300.0, 600.0) as f64);
+        }
+    }
+
     pub fn set(&mut self, s: &OrganSettings) {
         let first = !self.configured;
         let old = self.s;

@@ -119,7 +119,7 @@ impl Processor {
                         s.instrument = SlotInstrument::Tap;
                     }
                 } else {
-                    apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
+                    apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets, &t.tuning);
                 }
                 // Its note effects and the key they read (ADR 0069).
                 s.configure_notefx(&t.note_fx, snapshot.key);

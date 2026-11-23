@@ -247,7 +247,8 @@ impl Calor {
                     v.snap();
                 }
                 self.voices[phys] = v;
-                self.last_pitch[phys] = key as f32;
+                let p = self.tuned(key); // r42:tuning
+                self.last_pitch[phys] = p;
                 self.newest = phys;
                 continue;
             }
@@ -273,7 +274,8 @@ impl Calor {
                 from,
             );
             self.voices[phys] = nv;
-            self.last_pitch[phys] = key as f32;
+            let p = self.tuned(key); // r42:tuning
+            self.last_pitch[phys] = p;
             self.newest = phys;
         }
     }
@@ -292,7 +294,7 @@ impl Calor {
         self.voices = voices;
         for j in 0..stack {
             if let Some(p) = self.last_pitch.get_mut(alloc_voice * stack + j) {
-                *p = key as f32;
+                *p = key as f32 + self.tuning[usize::from(key & 0x7F)]; // r42:tuning
             }
         }
     }
