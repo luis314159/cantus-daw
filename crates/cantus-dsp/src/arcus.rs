@@ -377,6 +377,9 @@ pub struct Arcus {
     buf_l: Vec<f32>,
     buf_r: Vec<f32>,
     body: Body,
+    /// The radiation's first-order high-pass (its step, and each side's state `(x₁, y₁)`).
+    rad_c: f32,
+    rad: [(f32, f32); 4],
     out: Output,
     hammer: HammerShape,
     hammer_area: f32,

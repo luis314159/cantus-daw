@@ -43,6 +43,48 @@ Fides's bow measured +3.1 to −1.2 cents of pitch offset from C2 to C6 and its 
   the loop's length, deterministic; the bowed pitch ≤ 1 cent from its target over the grid,
   plucked 0.1 cent.
 
+## The builder's design (round 42, the `arcus` builder)
+
+Files: `cantus-core/src/inst/arcus.rs` (the table), `cantus-dsp/src/arcus*.rs` (the DSP),
+`cantus-engine/src/inst/arcus.rs` (the unit), `cantus-ui/src/views/inst/arcus*.rs` and
+`kit/skin/arcus.rs` (the editor and its face); the measurements in `docs/round42/arcus.md`.
+
+- **A string in physical units** (`arcus_string.rs`): Fides's topology — two loops meeting at
+  the bow, the loss lumped at the bridge, the neck loop solved for the exact period on
+  `gravis::string`'s public tuning maths — in velocity waves (m/s), each string with its
+  length, tension and so its impedance `Z₀ = T/(2Lf₀)` (`arcus_tables.rs`, the sources cited
+  there and their status). No stiffness allpass: orchestral strings sit far under
+  Schelleng's 0.1 cent per n².
+- **The bow** is McIntyre–Schumacher–Woodhouse's junction solved exactly: with `R = F/(2Z)`
+  and `u = v_b − v_h`, stick while `|u| ≤ R·μs`, else the hyperbolic curve's slip is a
+  quadratic's larger root (closed form, no iteration; the Friedlander rule for its
+  hysteresis). The **thermal option** (one contact temperature heated by the slip's power,
+  `μ(θ) = μd + (μs − μd)/(1 + θ)`) is behind the same switch; measured, it keeps Helmholtz
+  motion in a narrower band and settles fewer attacks, so the hyperbolic curve is the default.
+- **The string's torsion at the contact** (added after measuring): the bow moves the string's
+  surface, translation and twist in series, so a sticking bow is not a rigid end; the twist's
+  short, heavily damped loops (speed ×5, impedance ×3, Q 5) carry away the ripple between bow
+  and bridge. Without it the Helmholtz region spanned 0.3–0.85 of Schelleng's upper force and
+  8 of 48 test attacks settled within 50 ms; with it 0.15–1.0 (Schelleng's "1 to 10") and a
+  Guettler wedge of good attacks. Its Q is below the literature's tens: said so.
+- **The gesture** (`arcus_voice*.rs`): the dynamic `d` sets speed (geometric pp → ff), β
+  (closer to the bridge as it grows) and force (0.42 of Schelleng's upper limit, the middle of
+  the measured region) together (Askenfelt 1989's direction); the velocity sets the attack in
+  the model's own measured terms — the speed gained a period `α = a·P/v` from 0.18 to 1.45,
+  the force at 0.65 of Schelleng's limit while it accelerates; a re-bow slows the bow through
+  zero on the ringing string and starts the other way; a slur moves the loop's length over the
+  finger's 3 ms with the bow going on; staccato stops the bow on the string, spiccato bounces
+  it, tremolo reverses it at its rate; the direction alternates or is the note's (`note_art`).
+- **Pizzicato** is Fides's pluck exciter on the same string (DC blocker in, as Fides's).
+- **The pitch**: the bowed offset measured offline per key × dynamic × contact point
+  (`arcus_pitch_data.rs`, `tools/arcus/pitch-table.sh`, two passes) corrects the loop while the
+  bow is on; the free and plucked string is exact (the loop's own design).
+- **The body** is Fides's (`fides::body::Body`): the cello's, and for the double bass the
+  cello's scaled by 1.72 with a radiation corner (two first-order high-passes at 120 Hz) that
+  matches the Smolken bass's harmonic balance; vibrato is the loop's length moving, so the AM
+  comes from the body.
+- **Determinism, rest, the pool** as Fides's; voices on lanes summed in order (ADR 0038).
+
 ## Consequences
 
 - One more instrument in the null corpus and the bench; its model version stored (ADR 0059).

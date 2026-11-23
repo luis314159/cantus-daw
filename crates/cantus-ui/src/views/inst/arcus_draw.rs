@@ -22,7 +22,7 @@ use cantus_dsp::math;
 use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Sense};
 
 /// The diagram's ranges: β and force (as a share of the upper limit at β 0.1).
-const BETA: (f32, f32) = (0.03, 0.3);
+const BETA: (f32, f32) = (0.04, 0.3);
 const FORCE: (f32, f32) = (0.02, 3.0);
 
 /// What the picture shows: the newest voice's bowing, or the settings' at their dynamic on
@@ -65,6 +65,7 @@ pub fn now(fs: &ArcusSettings, tele: &cantus_engine::Telemetry) -> Now {
         fs.bow_force as f64,
         fs.bow_speed as f64,
         z0,
+        48_000.0 / spec.strings[string].open_hz(),
     );
     Now {
         live,

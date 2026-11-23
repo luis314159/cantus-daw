@@ -20,7 +20,8 @@ impl Arcus {
     fn render(&mut self, left: &mut [f32], right: &mut [f32], par: &dyn Parallel) -> bool {
         let n = left.len().min(right.len());
         let sounding = self.voices.iter().any(|v| v.active());
-        if !sounding && self.body.is_still() && self.out.is_still() {
+        let rad_still = self.rad.iter().all(|r| *r == (0.0, 0.0));
+        if !sounding && rad_still && self.body.is_still() && self.out.is_still() {
             self.clock += n as u64;
             self.peak = 0.0;
             return false;
@@ -80,9 +81,29 @@ impl Arcus {
                     self.alloc.voice_finished(i);
                 }
             }
-            let quiet = !any;
+            let quiet = !any && self.rad.iter().all(|r| *r == (0.0, 0.0));
             let out_quiet = quiet && self.body.is_still();
             let (bl, br) = (&mut self.buf_l[..frames], &mut self.buf_r[..frames]);
+            // The radiation: a first-order high-pass `(1 + R)/2 · (1 − z⁻¹)/(1 − R z⁻¹)`
+            // (unity at Nyquist), its state let go at exact zeros so the instance rests.
+            if self.rad_c > 0.0 {
+                let (r, k) = (self.rad_c, 0.5 * (1.0 + self.rad_c));
+                // Two stages: 12 dB an octave under the corner.
+                for stage in 0..4 {
+                    let buf: &mut [f32] = if stage % 2 == 0 { &mut *bl } else { &mut *br };
+                    let (mut x1, mut y1) = self.rad[stage];
+                    if quiet && x1 == 0.0 && y1 == 0.0 {
+                        continue;
+                    }
+                    for x in buf.iter_mut() {
+                        let y = k * (*x - x1) + r * y1;
+                        x1 = *x;
+                        y1 = if y.abs() < 1e-20 && *x == 0.0 { 0.0 } else { y };
+                        *x = y1;
+                    }
+                    self.rad[stage] = (x1, y1);
+                }
+            }
             self.body.process(bl, br, self.clock, quiet);
             self.out.process(bl, br, self.clock, 0.0, out_quiet);
             for f in 0..frames {

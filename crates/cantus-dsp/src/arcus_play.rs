@@ -4,6 +4,7 @@
 
 use super::voice::{NoteTech, Shared};
 use super::*;
+use crate::math;
 
 impl Arcus {
     /// Build an instance (allocates: never on the audio thread).
@@ -32,6 +33,8 @@ impl Arcus {
             buf_l: vec![0.0; CHUNK],
             buf_r: vec![0.0; CHUNK],
             body,
+            rad_c: 0.0,
+            rad: [(0.0, 0.0); 4],
             out,
             hammer,
             hammer_area,
@@ -63,6 +66,12 @@ impl Arcus {
         self.alloc.set_mode(self.s.mode, Default::default());
         self.body.set(&self.s.body());
         self.out.set(&self.s.output());
+        let fr = self.s.instrument.spec().radiation_hz;
+        self.rad_c = if fr > 0.0 {
+            math::exp(-std::f32::consts::TAU * fr / self.sr)
+        } else {
+            0.0
+        };
     }
 
     /// The pitch table the bowed notes are corrected by (`None`: none — the tool that
@@ -339,6 +348,7 @@ impl Arcus {
         }
         self.alloc.clear();
         self.body.reset();
+        self.rad = [(0.0, 0.0); 4];
         self.out.reset();
         self.clock = 0;
         self.sustain = false;
@@ -353,6 +363,7 @@ impl Arcus {
     pub fn at_rest(&self) -> bool {
         self.voices.iter().all(|v| !v.active())
             && self.alloc.is_clear()
+            && self.rad.iter().all(|r| *r == (0.0, 0.0))
             && self.body.is_still()
             && self.out.is_still()
     }

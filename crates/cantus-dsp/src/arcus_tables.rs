@@ -130,6 +130,13 @@ pub struct InstrumentSpec {
     pub trim_db: f32,
     /// The bridge's corner rounding, Hz (`string::StringStep::corner_hz`).
     pub corner_hz: f64,
+    /// Where the body's radiation efficiency stops rising, Hz: a box radiates a slow
+    /// vibration poorly (its pressure follows the volume velocity's rate of change, +6 dB an
+    /// octave), so below this the strings' fundamentals are heard weaker than their partials
+    /// — matched to the references by `tools/arcus/compare.sh`: the Smolken bass's D2 has
+    /// its first harmonics level with its fundamental (120 Hz here), the Karoryfer cello's A3
+    /// a strong fundamental (none: Fides's cello body alone).
+    pub radiation_hz: f32,
 }
 
 impl InstrumentSpec {
@@ -159,28 +166,28 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
             length_m: 0.69,
             tension_n: 147.0,
             t60_s: 5.0,
-            p: 1.1,
+            p: 0.61,
         },
         StringSpec {
             open: 43,
             length_m: 0.69,
             tension_n: 132.0,
             t60_s: 4.5,
-            p: 1.1,
+            p: 0.61,
         },
         StringSpec {
             open: 50,
             length_m: 0.69,
             tension_n: 128.0,
             t60_s: 4.0,
-            p: 1.0,
+            p: 0.55,
         },
         StringSpec {
             open: 57,
             length_m: 0.69,
             tension_n: 142.0,
             t60_s: 3.5,
-            p: 0.9,
+            p: 0.50,
         },
     ],
     top: 84,
@@ -189,12 +196,13 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.05, 0.40),
         beta: (0.13, 0.075),
-        place: (0.5, 0.48),
+        place: (0.42, 0.42),
     },
     vib_hz: 5.5,
     vib_ct: 18.0,
-    trim_db: 0.0,
+    trim_db: 13.0,
     corner_hz: 0.0,
+    radiation_hz: 0.0,
 };
 
 /// The double bass, in orchestral tuning: E1 A1 D2 G2 over 1 060 mm.
@@ -205,28 +213,28 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
             length_m: 1.06,
             tension_n: 290.0,
             t60_s: 6.0,
-            p: 1.2,
+            p: 0.66,
         },
         StringSpec {
             open: 33,
             length_m: 1.06,
             tension_n: 290.0,
             t60_s: 5.5,
-            p: 1.2,
+            p: 0.66,
         },
         StringSpec {
             open: 38,
             length_m: 1.06,
             tension_n: 280.0,
             t60_s: 5.0,
-            p: 1.1,
+            p: 0.61,
         },
         StringSpec {
             open: 43,
             length_m: 1.06,
             tension_n: 260.0,
             t60_s: 4.5,
-            p: 1.0,
+            p: 0.55,
         },
     ],
     top: 67,
@@ -235,12 +243,13 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.06, 0.45),
         beta: (0.14, 0.08),
-        place: (0.5, 0.48),
+        place: (0.42, 0.42),
     },
     vib_hz: 5.3,
     vib_ct: 16.0,
-    trim_db: 0.0,
+    trim_db: 14.0,
     corner_hz: 0.0,
+    radiation_hz: 120.0,
 };
 
 /// The violin: G3 D4 A4 E5 over 328 mm.
@@ -251,28 +260,28 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
             length_m: 0.328,
             tension_n: 46.0,
             t60_s: 3.0,
-            p: 1.0,
+            p: 0.55,
         },
         StringSpec {
             open: 62,
             length_m: 0.328,
             tension_n: 47.0,
             t60_s: 2.8,
-            p: 1.0,
+            p: 0.55,
         },
         StringSpec {
             open: 69,
             length_m: 0.328,
             tension_n: 53.0,
             t60_s: 2.5,
-            p: 0.9,
+            p: 0.50,
         },
         StringSpec {
             open: 76,
             length_m: 0.328,
             tension_n: 80.0,
             t60_s: 2.2,
-            p: 0.8,
+            p: 0.44,
         },
     ],
     top: 100,
@@ -281,12 +290,13 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.05, 0.45),
         beta: (0.12, 0.065),
-        place: (0.5, 0.48),
+        place: (0.42, 0.42),
     },
     vib_hz: 5.8,
     vib_ct: 22.0,
-    trim_db: 0.0,
+    trim_db: 13.0,
     corner_hz: 0.0,
+    radiation_hz: 0.0,
 };
 
 /// The viola: C3 G3 D4 A4 over 370 mm.
@@ -297,28 +307,28 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
             length_m: 0.37,
             tension_n: 60.0,
             t60_s: 3.5,
-            p: 1.0,
+            p: 0.55,
         },
         StringSpec {
             open: 55,
             length_m: 0.37,
             tension_n: 55.0,
             t60_s: 3.2,
-            p: 1.0,
+            p: 0.55,
         },
         StringSpec {
             open: 62,
             length_m: 0.37,
             tension_n: 50.0,
             t60_s: 3.0,
-            p: 0.9,
+            p: 0.50,
         },
         StringSpec {
             open: 69,
             length_m: 0.37,
             tension_n: 58.0,
             t60_s: 2.6,
-            p: 0.9,
+            p: 0.50,
         },
     ],
     top: 93,
@@ -327,12 +337,13 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.05, 0.42),
         beta: (0.125, 0.07),
-        place: (0.5, 0.48),
+        place: (0.42, 0.42),
     },
     vib_hz: 5.6,
     vib_ct: 20.0,
-    trim_db: 0.0,
+    trim_db: 13.0,
     corner_hz: 0.0,
+    radiation_hz: 0.0,
 };
 
 /// The friction curve's constants: the hyperbolic law

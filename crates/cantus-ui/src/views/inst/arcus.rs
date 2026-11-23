@@ -141,6 +141,62 @@ fn instrument_card(
         &sd,
         KnobSize::M,
     );
+    let below = Rect::from_min_max(
+        Pos2::new(cr.body.left(), r[2].bottom() + s.s(10.0)),
+        cr.body.max,
+    );
+    if below.height() >= s.s(16.0) {
+        readout(app, ui, below, spec, &sd);
+    }
+}
+
+/// The note now, as a player reads it: its name, the string it is on, its dynamic's
+/// marking, and the bow's three numbers (β, force, speed) — label and value in pairs.
+fn readout(app: &CantusApp, ui: &egui::Ui, rect: Rect, spec: &NativeSpec, s: &Style) {
+    use crate::kit::text::{paint, Policy, Role, Text};
+    const NAMES: [&str; 12] = [
+        "C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B",
+    ];
+    let fs = settings(spec);
+    let n = draw::now(&fs, &app.inst_telemetry());
+    let key = n.key.round().max(0.0) as usize;
+    let note = format!("{}{}", NAMES[key % 12], key as i32 / 12 - 1);
+    let open = fs.instrument.spec().strings[n.string.min(3)].open as usize;
+    let string = NAMES[open % 12].to_string();
+    let marks = ["pp", "p", "mp", "mf", "f", "ff"];
+    let mark = marks[((n.dynamic.clamp(0.0, 1.0) * 5.0).round() as usize).min(5)].to_string();
+    let bow = format!(
+        "β {:.2} · {:.2} N · {:.0} cm/s",
+        n.beta,
+        n.force,
+        100.0 * n.speed.abs()
+    );
+    let rows: [(&str, &str); 4] = [
+        ("arcus.read.note", &note),
+        ("arcus.read.string", &string),
+        ("arcus.read.dynamic", &mark),
+        ("arcus.read.bow", &bow),
+    ];
+    let line = s.s(18.0);
+    let label_w = (rect.width() * 0.32).min(s.s(110.0));
+    with_brush(&ui.painter_at(rect), |b| {
+        for (i, (key, value)) in rows.iter().enumerate() {
+            let y = rect.top() + i as f32 * line;
+            if y + line > rect.bottom() + 0.5 {
+                break;
+            }
+            let lr = Rect::from_min_size(Pos2::new(rect.left(), y), Vec2::new(label_w, line));
+            let vr = Rect::from_min_max(
+                Pos2::new(rect.left() + label_w + s.s(8.0), y),
+                Pos2::new(rect.right(), y + line),
+            );
+            let mut t = Text::key(key, Role::Label, s.t.text_dim).align(egui::Align2::LEFT_CENTER);
+            t.policy = Policy::Abbreviate;
+            let _ = paint(b, lr, &t, s.tk());
+            let v = Text::new(value, Role::Value, s.t.text).align(egui::Align2::LEFT_CENTER);
+            let _ = paint(b, vr, &v, s.tk());
+        }
+    });
 }
 
 /// A card of cells: the title, and `keys` across its body.

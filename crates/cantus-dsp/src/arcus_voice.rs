@@ -92,35 +92,59 @@ pub struct Bowing {
     pub force: f64,
     pub f_min: f64,
     pub f_max: f64,
+    /// Schelleng's own upper limit, `2Z₀v_b/((μs − μd)β)`: the unit the force is placed in.
+    pub schelleng: f64,
 }
 
 /// The region of Helmholtz motion at `beta` for a bow at `v_bow` on a string of impedance
 /// `z0`, as this model measures it (N): `(lower, upper)`.
 pub fn limits(z0: f64, v_bow: f64, beta: f64) -> (f64, f64) {
+    // Fitted to `tests_gate2::the_helmholtz_region_has_schelleng_s_shape` (the cello's open
+    // D at 10 cm/s): the lower limit 0.21 of Schelleng's F_max at β 0.1, falling as β^−1.5;
+    // the upper 0.84 of it there, falling only as β^−0.23 in newtons.
     let f_max = schelleng_max(z0, v_bow, beta);
-    (
-        (0.3 * f_max * math::powf(0.1 / beta.max(1e-3), 1.4)).min(f_max),
-        f_max,
-    )
+    let b = beta.max(1e-3) / 0.1;
+    let hi = 0.84 * f_max * math::powf(b, 0.77);
+    let lo = (0.21 * f_max * math::powf(b, -0.5)).min(hi);
+    (lo, hi)
+}
+
+/// The least β the bowing takes: under it the measured region narrows past the force's
+/// place (at β 0.04 it spans 0.5–0.7 of Schelleng's limit), and the bow–bridge segment must
+/// stay five samples long at the rate (`period` the note's, in samples) for the junction's
+/// lines to hold it.
+pub fn min_beta(period: f64) -> f64 {
+    (5.0 / period.max(1.0)).max(0.055)
 }
 
 /// The bowing of dynamic `d` (0 … 1) at the contact point `pos` (−1 … 1) with the force's
 /// trim `place` (−1 … 1, an octave of force either way) and the speed's `speed` (×), on a
-/// string of impedance `z0`.
-pub fn bowing(spec: &InstrumentSpec, d: f64, pos: f64, place: f64, speed: f64, z0: f64) -> Bowing {
+/// string of impedance `z0`, for a note whose period is `period` samples.
+#[allow(clippy::too_many_arguments)]
+pub fn bowing(
+    spec: &InstrumentSpec,
+    d: f64,
+    pos: f64,
+    place: f64,
+    speed: f64,
+    z0: f64,
+    period: f64,
+) -> Bowing {
     let b = &spec.bowing;
     let d = d.clamp(0.0, 1.0);
     let v = b.speed.0 * math::powf(b.speed.1 / b.speed.0, d) * speed.clamp(0.25, 4.0);
     let beta = ((b.beta.0 + (b.beta.1 - b.beta.0) * d) * math::exp2(-0.85 * pos.clamp(-1.0, 1.0)))
-        .clamp(0.02, 0.35);
+        .clamp(min_beta(period), 0.35);
     let (f_min, f_max) = limits(z0, v, beta);
+    let schelleng = schelleng_max(z0, v, beta);
     let k = (b.place.0 + (b.place.1 - b.place.0) * d) * math::exp2(place.clamp(-1.0, 1.0));
     Bowing {
         speed: v,
         beta,
-        force: f_max * k,
+        force: schelleng * k,
         f_min,
         f_max,
+        schelleng,
     }
 }
 
@@ -149,16 +173,16 @@ pub fn attack_of(
     let accel = alpha * bw.speed / period_s.max(1e-4);
     let u = (math::ln(alpha / 0.045) / math::ln(4.0)).clamp(0.0, 1.0);
     let phi = 0.2 + (0.65 - 0.2) * u;
-    let force = (phi * bw.f_max).max(0.25 * bw.force);
+    let force = (phi * bw.schelleng).max(0.25 * bw.force);
     (accel as f32, force as f32)
 }
 
 /// The output's scale: the bridge's force (`2·Z₀·v`) to the instrument's level.
 const OUT: f32 = 0.06;
 /// The pluck's scale into the string (m/s per unit of Fides's pulse).
-const PLUCK: f32 = 0.9;
+const PLUCK: f32 = 2.5;
 /// The bow-hair noise's relative roughness at 0 dB.
-const ROUGH: f32 = 0.12;
+const ROUGH: f32 = 0.02;
 
 /// One voice.
 #[derive(Clone, Debug)]

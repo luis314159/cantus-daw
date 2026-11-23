@@ -130,6 +130,17 @@ fn main() {
                 5.5,
             ));
         }
+        // Beside the ABX references: the Karoryfer cello's A3 at p, mf and f (its files
+        // `A2_*_d.wav`, named an octave low), the Smolken bass's D2.
+        let abx = if inst == Instrument::Cello { 57u8 } else { 38u8 };
+        for (dyn_name, vel) in [("p", 0.35f32), ("mf", 0.6), ("f", 0.85)] {
+            jobs.push((
+                format!("{name}-abx-{abx}-{dyn_name}"),
+                base,
+                vec![(0.05, Ev::On(abx, vel)), (4.05, Ev::Off(abx))],
+                5.0,
+            ));
+        }
         // Four bars, legato, with a CC1 swell (a simple line in D minor).
         let line: Vec<(u8, f64)> = [
             (50, 2.0),

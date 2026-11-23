@@ -166,6 +166,19 @@ fn main() {
         let left = measure(*inst, *lo, *keys, Some(t1));
         let fin: Vec<f32> = first[j].iter().zip(&left).map(|(a, b)| a + b).collect();
         let worst = left.iter().fold(0f32, |m, x| m.max(x.abs()));
+        for (i, l) in left.iter().enumerate() {
+            if l.abs() > 1.0 {
+                let (k, rest) = (i / (DYN.len() * POS.len()), i % (DYN.len() * POS.len()));
+                eprintln!(
+                    "  {name} key {} d {} pos {}: offset {:+.2}, left {:+.2}",
+                    *lo as usize + k,
+                    DYN[rest / POS.len()],
+                    POS[rest % POS.len()],
+                    first[j][i],
+                    l
+                );
+            }
+        }
         let span = first[j].iter().fold((0f32, 0f32), |(lo, hi), x| (lo.min(*x), hi.max(*x)));
         eprintln!(
             "{name}: offsets {:+.2} … {:+.2} ct; left after pass 1 at most {worst:.3} ct",

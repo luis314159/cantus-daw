@@ -87,6 +87,10 @@ arcus.dir_kind.down = Down
 arcus.dir_kind.up = Up
 
 # ---- the picture ----
+arcus.read.note = Note
+arcus.read.string = String
+arcus.read.dynamic = Dynamic
+arcus.read.bow = Bow
 arcus.draw.beta = Distance from the bridge (β)
 arcus.draw.force = Force
 arcus.draw.region = Helmholtz region

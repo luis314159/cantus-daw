@@ -119,6 +119,7 @@ impl Voice {
         // The attack from the velocity: a harder note accelerates sooner and presses more
         // (the Guettler region measured on this model, `docs/round42/arcus.md`).
         let z0 = spec.strings[self.string_ix].z0();
+        let f = 440.0 * math::exp2((self.note as f64 - 69.0) / 12.0);
         let bw = bowing(
             spec,
             self.d as f64,
@@ -126,8 +127,8 @@ impl Voice {
             s.bow_force as f64,
             s.bow_speed as f64,
             z0,
+            sh.sr as f64 / f,
         );
-        let f = 440.0 * math::exp2((self.note as f64 - 69.0) / 12.0);
         let (accel, f_attack) = attack_of(
             s,
             self.velocity,

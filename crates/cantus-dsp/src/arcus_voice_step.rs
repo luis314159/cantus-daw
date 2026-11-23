@@ -106,6 +106,7 @@ impl Voice {
             s.bow_force as f64,
             s.bow_speed as f64,
             st.z0(),
+            sr as f64 / f,
         );
         self.beta = bw.beta as f32;
         self.f_min = bw.f_min as f32;
