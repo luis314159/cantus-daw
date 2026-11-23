@@ -269,6 +269,48 @@ impl PreviewJob {
     }
 }
 
+/// r42 fix-engine — the preview's snapshot: the song compiled as the file's render compiles
+/// it, the MTS-ESP master's table in the tracks that follow it (review reach 13).
+fn preview_snapshot(
+    project: &cantus_core::Project,
+    revision: u64,
+    external: &dyn cantus_engine::tuning::ExternalTuning,
+) -> Snapshot {
+    let mut snapshot = Snapshot::compile(project, revision);
+    cantus_engine::tuning::fill_external(&mut snapshot, external);
+    snapshot
+}
+
+#[cfg(test)]
+mod preview_tuning {
+    use cantus_core::tuning::{Tuning, TuningSystem, TuningTable};
+
+    #[derive(Debug)]
+    struct Master(TuningTable);
+
+    impl cantus_engine::tuning::ExternalTuning for Master {
+        fn read(&self, out: &mut TuningTable) -> bool {
+            *out = self.0;
+            true
+        }
+    }
+
+    #[test]
+    fn the_preview_plays_the_mts_esp_masters_table() {
+        let mut p = cantus_core::Project::new("v");
+        let t = p.make_track("t");
+        p.tracks.push(t);
+        p.tuning = Tuning {
+            system: TuningSystem::External,
+            ..Tuning::default()
+        };
+        let mut table = TuningTable::EQUAL;
+        table.0[60] = 0.3;
+        let snap = super::preview_snapshot(&p, 1, &Master(table));
+        assert_eq!(*snap.tracks[0].tuning.table, table);
+    }
+}
+
 /// The dancers' timelines around `at` (song seconds) for the dialog's preview: the song
 /// compiled and rendered offline as the file's render does — automation, notes and
 /// modulators — from up to four seconds before (as far back as the range's start) to just
@@ -281,6 +323,9 @@ pub fn preview_render(app: &CantusApp, at: f64, range_start: Ticks) -> PreviewJo
     let project = app.bus.project().clone();
     let revision = app.bus.revision();
     let rate = app.engine.sample_rate.round() as u32;
+    // r42 fix-engine (review reach 13): the MTS-ESP master's table, as the file's render
+    // takes it.
+    let external = app.engine.external_tuning().clone();
     let progress = Arc::new(RenderProgress::default());
     let p = progress.clone();
     let spawned = std::thread::Builder::new()
@@ -295,7 +340,7 @@ pub fn preview_render(app: &CantusApp, at: f64, range_start: Ticks) -> PreviewJo
                 let first = map.seconds_at(range_start.0 as f64);
                 let from = Ticks(map.tick_at_seconds((at - 4.0).max(first)).floor() as i64);
                 let to = Ticks(map.tick_at_seconds(at + 0.1).ceil() as i64);
-                let snapshot = Arc::new(Snapshot::compile(&project, revision));
+                let snapshot = Arc::new(preview_snapshot(&project, revision, &*external));
                 let opts = RenderOptions {
                     sample_rate: rate,
                     channels: 2,

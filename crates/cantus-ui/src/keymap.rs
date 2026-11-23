@@ -2618,6 +2618,54 @@ play-pause = [\"Enter\"]
         assert!(map.conflicts().is_empty());
     }
 
+    /// r42 fix-engine (review reach 7): a map saved before the Tuning window (version 19)
+    /// gets its key where it is free — whichever key the Cantus preset gives it — and a user
+    /// who bound that key to something else keeps it, the window left unbound.
+    #[test]
+    fn a_version_19_file_gets_the_tuning_key_where_it_is_free() {
+        let want = Keymap::default().bindings_for(Action::OpenTuning).to_vec();
+        assert!(!want.is_empty(), "the preset binds the Tuning window");
+        let ours = Keymap::default().to_toml();
+        let line = ours
+            .lines()
+            .find(|l| l.trim_start().starts_with("open-tuning"))
+            .expect("the window's line")
+            .to_string();
+        let v19 = |drop: &[&str], extra: &str| -> String {
+            let mut lines: Vec<String> = ours
+                .lines()
+                .filter(|l| !drop.iter().any(|d| l.trim_start().starts_with(d)))
+                .map(|l| {
+                    if l.starts_with("version") {
+                        "version = 19".to_string()
+                    } else {
+                        l.to_string()
+                    }
+                })
+                .collect();
+            lines.push(extra.to_string());
+            lines.join("
+")
+        };
+        let text = v19(&["open-tuning"], "");
+        assert!(!text.contains("open-tuning"));
+        let map = Keymap::from_toml(&text).unwrap();
+        assert_eq!(map.bindings_for(Action::OpenTuning), want.as_slice());
+        assert!(map.conflicts().is_empty());
+        // The user gave that key to the panic button: theirs it stays.
+        let mine = line.replacen("open-tuning", "panic", 1);
+        let text = v19(&["open-tuning", "panic"], &mine);
+        let map = Keymap::from_toml(&text).unwrap();
+        assert_eq!(map.bindings_for(Action::Panic), want.as_slice());
+        assert!(map.bindings_for(Action::OpenTuning).is_empty());
+        assert!(map.conflicts().is_empty());
+        // A file of this version without the line chose to leave it unbound.
+        let text =
+            v19(&["open-tuning"], "").replace("version = 19", &format!("version = {FILE_VERSION}"));
+        let map = Keymap::from_toml(&text).unwrap();
+        assert!(map.bindings_for(Action::OpenTuning).is_empty());
+    }
+
     #[test]
     fn a_version_5_file_gets_the_route_menu_key() {
         // A map saved by round 25's builders: version 5, no line for the route menu.

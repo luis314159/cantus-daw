@@ -1310,52 +1310,60 @@ impl CantusApp {
         self.engine = EngineHandle::dummy();
         self.engine.samples = samples;
         match EngineHandle::start(&self.settings.audio.to_config()) {
-            Ok(engine) => {
-                let samples = std::mem::take(&mut self.engine.samples);
-                self.engine = engine;
-                self.engine.samples = samples;
-                self.engine
-                    .set_record_offset(self.settings.audio.record_offset_frames);
-                // Hosted plug-ins load again, for the new engine and its rate.
-                self.plugins.reload_all(self.engine.sample_rate);
-                // Chorda's strings for the new rate come with the snapshot's Chorda tracks
-                // and the instrument picker (round 38); a rate met before is kept.
-                self.midi_inputs = None;
-                self.controllers.reopened();
-                if self.engine.is_live() {
-                    let inputs = MidiInputs::open_with(
-                        self.engine.midi_sender(),
-                        self.controllers.tap.clone(),
-                    );
-                    self.midi_port_names = inputs.names.clone();
-                    self.midi_inputs = Some(inputs);
-                }
-                crate::views::transport::sync_service::engine_replaced(self); // r33:sync
-                                                                              // r33:mpe — the MPE ports and zones for the new engine (ADR 0080)
-                crate::mpe::input::publish(self);
-                // The new engine has never seen this project.
-                self.synced_revision = u64::MAX;
-                self.live_track_sent = None;
-                // Nor its frozen renders' folders, nor low-latency monitoring (ADR 0064).
-                crate::freeze::engine_replaced(self);
-                self.sync_engine();
-                self.sync_live_track();
-                crate::audio_setup::apply_routing(self);
-                self.audio_error = None;
-                self.set_status(tf(
-                    "settings.audio_opened",
-                    &[
-                        ("device", &self.engine.device_name),
-                        ("rate", &(self.engine.sample_rate as u32)),
-                    ],
-                ));
-            }
+            Ok(engine) => self.adopt_engine(engine),
             Err(e) => {
                 self.audio_error = Some(e.to_string());
                 self.set_error(tf("settings.audio_failed", &[("error", &e.to_string())]));
             }
         }
         self.store_settings();
+    }
+
+    /// An engine just opened in place of the one closed (`restart_audio`'s, or a test's
+    /// manual one — r42 fix-engine, so the end-to-end tests reach it): the samples carried
+    /// over, plug-ins reloaded, MIDI, sync, MPE, MTS-ESP's link, frozen renders and routing
+    /// handed to it, and the project sent.
+    pub fn adopt_engine(&mut self, engine: EngineHandle) {
+        let samples = std::mem::take(&mut self.engine.samples);
+        self.engine = engine;
+        self.engine.samples = samples;
+        self.engine
+            .set_record_offset(self.settings.audio.record_offset_frames);
+        // Hosted plug-ins load again, for the new engine and its rate.
+        self.plugins.reload_all(self.engine.sample_rate);
+        // Chorda's strings for the new rate come with the snapshot's Chorda tracks
+        // and the instrument picker (round 38); a rate met before is kept.
+        self.midi_inputs = None;
+        self.controllers.reopened();
+        if self.engine.is_live() {
+            let inputs = MidiInputs::open_with(
+                self.engine.midi_sender(),
+                self.controllers.tap.clone(),
+            );
+            self.midi_port_names = inputs.names.clone();
+            self.midi_inputs = Some(inputs);
+        }
+        crate::views::transport::sync_service::engine_replaced(self); // r33:sync
+                                                                      // r33:mpe — the MPE ports and zones for the new engine (ADR 0080)
+        crate::mpe::input::publish(self);
+        // r42 fix-engine — nor MTS-ESP's link (review correctness 3).
+        views::tuning::engine_replaced(self);
+        // The new engine has never seen this project.
+        self.synced_revision = u64::MAX;
+        self.live_track_sent = None;
+        // Nor its frozen renders' folders, nor low-latency monitoring (ADR 0064).
+        crate::freeze::engine_replaced(self);
+        self.sync_engine();
+        self.sync_live_track();
+        crate::audio_setup::apply_routing(self);
+        self.audio_error = None;
+        self.set_status(tf(
+            "settings.audio_opened",
+            &[
+                ("device", &self.engine.device_name),
+                ("rate", &(self.engine.sample_rate as u32)),
+            ],
+        ));
     }
 
     /// Rescan MIDI inputs — what a user reaches for after plugging a keyboard in.
@@ -3882,6 +3890,10 @@ impl CantusApp {
             self.synced_revision = u64::MAX; // r36:ara
         }
         self.ara_after_sync(); // r36:ara — the plug-in's edits and transport wishes
+        // r42 fix-engine — the MTS-ESP master's table moved under a song that follows it.
+        if views::tuning::master_moved(self) {
+            self.synced_revision = u64::MAX;
+        }
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;

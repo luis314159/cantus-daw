@@ -13,17 +13,26 @@
 # ~/.cantus-tools/scala-archive). Wrap the cargo step in tools/build/slot.sh on a machine
 # whose builds share slots (SLOT=1 does it). A corporate proxy may answer with an HTML page
 # for a while: the script checks the bytes and says so — wait and run it again; never
-# bypass the proxy or TLS.
+# bypass the proxy or TLS. A hand-run tool, never part of CI (ADR 0155): the download retries
+# on every error (docs/RELEASING.md L6) and is checked by its SHA-256 (`sha256sum`, or
+# `shasum -a 256` on a stock macOS).
 set -euo pipefail
+sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
 dir="${1:-${SCALA_ARCHIVE_DIR:-$HOME/.cantus-tools/scala-archive}}"
 url='https://web.archive.org/web/20260404005834id_/https://huygens-fokker.org/docs/scales.zip'
 want='d2218f2fa6acd3b11c116e0626bd178af927636e2ed26d0ab7a4c27741b97b9a'
 here="$(cd "$(dirname "$0")/../.." && pwd)"
 mkdir -p "$dir"
 zip="$dir/scales-v94.zip"
-if [ ! -f "$zip" ] || [ "$(sha256sum "$zip" | cut -d' ' -f1)" != "$want" ]; then
+if [ ! -f "$zip" ] || [ "$(sha256 "$zip")" != "$want" ]; then
   echo "fetching the archive (version 94) from the Wayback Machine…"
-  curl -sSL --fail -o "$zip.part" "$url"
+  curl -sSL --fail --retry 5 --retry-all-errors --retry-delay 5 -o "$zip.part" "$url"
   if [ "$(head -c 2 "$zip.part")" != "PK" ]; then
     echo "not a zip (a proxy's page?): wait a few minutes and run again" >&2
     rm -f "$zip.part"
@@ -31,7 +40,7 @@ if [ ! -f "$zip" ] || [ "$(sha256sum "$zip" | cut -d' ' -f1)" != "$want" ]; then
   fi
   mv "$zip.part" "$zip"
 fi
-got="$(sha256sum "$zip" | cut -d' ' -f1)"
+got="$(sha256 "$zip")"
 if [ "$got" != "$want" ]; then
   echo "SHA-256 $got, not version 94's $want" >&2
   exit 1

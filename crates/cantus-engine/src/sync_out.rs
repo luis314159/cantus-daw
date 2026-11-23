@@ -252,15 +252,11 @@ fn run(
         // r36:external — the unit routes as set now: a port is opened (through the pool, which
         // controller feedback and clock share) for each route; a route gone is retired, so the
         // note-offs for it still go out (never dropped).
-        if let Ok(r) = unit_routes.try_lock() {
-            let refused = unit_ports.update(&r, |key| {
-                pool.get(key)
-                    .map(|p| Box::new(crate::midi::pool::Pooled(p)) as Box<dyn OutPort>)
-            });
-            stats.refused.fetch_add(refused, Ordering::Relaxed);
-        }
         // r42:tuning — an instrument's MTS tuning, out as soon as its route's port is open
         // (a route not open yet keeps its messages for the next look).
+        // r42 fix-engine (review reach 8): before the routes are looked at again, so a
+        // removed instrument's reset reaches the port it had; and a route whose port was
+        // refused keeps its messages until the port opens (the interface counts them sent).
         if let Ok(mut q) = sysex.try_lock() {
             // Bounded: a route that never arrives keeps no more than a few tables.
             let over = q.len().saturating_sub(1024);
@@ -270,10 +266,15 @@ fn run(
                     p.write(bytes);
                     false
                 }
-                // Not in the table yet (sent before its route arrived): kept. In it but
-                // refused a port: dropped, as its notes are.
-                None => !unit_ports.knows(*route),
+                None => true,
             });
+        }
+        if let Ok(r) = unit_routes.try_lock() {
+            let refused = unit_ports.update(&r, |key| {
+                pool.get(key)
+                    .map(|p| Box::new(crate::midi::pool::Pooled(p)) as Box<dyn OutPort>)
+            });
+            stats.refused.fetch_add(refused, Ordering::Relaxed);
         }
         if unit_ports.prune(|route| {
             due.iter()

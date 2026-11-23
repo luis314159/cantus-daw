@@ -65,6 +65,11 @@ pub struct TuningUi {
     /// The project's table last published as master, with the history's revision it was
     /// made from.
     published: Option<(u64, TuningTable)>,
+    /// r42 fix-engine — whether the song plays the MTS-ESP master's tuning anywhere, at the
+    /// history's revision it was looked at, and the master's table last seen (`None`: no
+    /// master) — a change recompiles ([`master_moved`]).
+    follows_at: Option<(u64, bool)>,
+    master_seen: Option<Option<TuningTable>>,
 }
 
 /// A cadence (I–IV–V–I, or i–iv–V–i in a minor song) on one track's instrument.
@@ -267,6 +272,55 @@ pub fn set_master(app: &mut CantusApp, on: bool, reinitialize: bool) {
     }
 }
 
+/// r42 fix-engine — whether the song plays the MTS-ESP master's tuning anywhere: the
+/// project's (its strips, the tracks that follow it) or a track's own.
+pub fn follows_master(p: &cantus_core::Project) -> bool {
+    let ext = |t: &Tuning| matches!(t.system, TuningSystem::External);
+    ext(&p.tuning)
+        || p
+            .tracks
+            .iter()
+            .any(|t| matches!(&t.tuning, TrackTuning::Own { tuning } if ext(tuning)))
+}
+
+/// r42 fix-engine — each sync, for a song that plays the MTS-ESP master's tuning: the
+/// master's table read now, and `true` (the engine needs a fresh snapshot) when it is not
+/// the one seen last, or the master came or went (review correctness 2, 7, 8; reach 5). The
+/// live engine follows the master each block on its own; a snapshot is what Chorda's design
+/// (made off the audio thread), the pitched effects' tables, a track left by its master and
+/// every offline copy read.
+pub fn master_moved(app: &mut CantusApp) -> bool {
+    let rev = app.bus.revision();
+    let follows = match app.tuning.follows_at {
+        Some((r, f)) if r == rev => f,
+        _ => {
+            let f = follows_master(app.project());
+            app.tuning.follows_at = Some((rev, f));
+            f
+        }
+    };
+    let Some(link) = app.tuning.mts.as_ref().filter(|_| follows) else {
+        app.tuning.master_seen = None;
+        return false;
+    };
+    let mut table = TuningTable::EQUAL;
+    let now = cantus_engine::tuning::ExternalTuning::read(link, &mut table).then_some(table);
+    if app.tuning.master_seen == Some(now) {
+        return false;
+    }
+    app.tuning.master_seen = Some(now);
+    true
+}
+
+/// r42 fix-engine — a new engine (an audio restart) follows the same MTS-ESP link (review
+/// correctness 3, reach 3): every export and live block of it reads the master.
+pub fn engine_replaced(app: &mut CantusApp) {
+    if let Some(link) = app.tuning.mts.clone() {
+        app.engine
+            .set_external_tuning(std::sync::Arc::new(link));
+    }
+}
+
 /// Load MTS-ESP from its standard place (the boot, on the main thread): a machine without
 /// it gets the reason the window shows.
 pub fn load_mts(app: &mut CantusApp) {
@@ -281,6 +335,10 @@ pub fn install_mts(app: &mut CantusApp, link: MtsLink) {
     app.engine
         .set_external_tuning(std::sync::Arc::new(link.clone()));
     app.tuning.mts = Some(link);
+    // r42 fix-engine — the boot's first snapshot was compiled before the link (review
+    // correctness 2): compiled again with it.
+    app.tuning.master_seen = None;
+    app.force_resync();
 }
 
 /// The track the audition plays on: the one the window edits, else the selected track,

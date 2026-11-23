@@ -228,7 +228,8 @@ pub struct SyncService {
     unit_routes: Vec<(u64, String, u8)>,
     /// r42:tuning — the tuning last sent as MTS SysEx to each route (ADR 0155): sent again
     /// only when it changes, or to a new out thread.
-    mts_sent: std::collections::HashMap<u64, cantus_core::tuning::Tuning>,
+    /// r42 fix-engine: keyed by the table sent (review correctness 13).
+    mts_sent: std::collections::HashMap<u64, cantus_core::tuning::TuningTable>,
 }
 
 impl std::fmt::Debug for SyncService {
@@ -308,21 +309,54 @@ impl SyncService {
     /// r42:tuning — an external instrument's tuning as MIDI Tuning Standard SysEx to its
     /// route (ADR 0155): every key's real-time single-note change (two messages of 64),
     /// sent when it is not the one sent last. Returns whether it was sent.
-    pub fn send_mts(&mut self, route: u64, tuning: &cantus_core::tuning::Tuning) -> bool {
+    ///
+    /// r42 fix-engine: the table itself, compared by its bits (an `External` track's is the
+    /// master's, which moves under the same `Tuning`).
+    pub fn send_mts(&mut self, route: u64, table: &cantus_core::tuning::TuningTable) -> bool {
         let Some(o) = &self.out else {
             return false;
         };
-        if self.mts_sent.get(&route) == Some(tuning) {
+        if self.mts_sent.get(&route) == Some(table) {
             return false;
         }
-        let table = tuning.offsets();
         let all = cantus_core::tuning_mts::ALL_DEVICES;
         o.send_sysex(
             route,
-            cantus_core::tuning_mts::write_table_changes(all, 0, &table),
+            cantus_core::tuning_mts::write_table_changes(all, 0, table),
         );
-        self.mts_sent.insert(route, tuning.clone());
+        self.mts_sent.insert(route, *table);
         true
+    }
+
+    /// r42 fix-engine — every route that retunes by MTS now with its table (review reach 8):
+    /// each sent when it changed; a route sent a tuning before and not wanted now (MTS off,
+    /// the unit disabled or removed) is sent 12-TET at A440 once and forgotten, so switching
+    /// it on again sends its table afresh.
+    pub fn send_mts_tables(&mut self, wanted: &[(u64, cantus_core::tuning::TuningTable)]) {
+        if self.out.is_none() {
+            return;
+        }
+        let gone: Vec<u64> = self
+            .mts_sent
+            .keys()
+            .copied()
+            .filter(|r| !wanted.iter().any(|(w, _)| w == r))
+            .collect();
+        for route in gone {
+            if self.mts_sent.get(&route) != Some(&cantus_core::tuning::TuningTable::EQUAL) {
+                self.send_mts(route, &cantus_core::tuning::TuningTable::EQUAL);
+            }
+            self.mts_sent.remove(&route);
+        }
+        for (route, table) in wanted {
+            self.send_mts(*route, table);
+        }
+    }
+
+    /// r42 fix-engine — the MIDI ports the out thread opens (tests: a pool of test ports
+    /// instead of the system's). Before [`Self::attach`].
+    pub fn use_pool(&mut self, pool: Arc<cantus_engine::midi::pool::OutPool>) {
+        self.pool = Some(pool);
     }
 
     /// The routes the running out thread holds (`None`: no out thread). r36:external

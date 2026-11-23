@@ -158,6 +158,39 @@ impl ExprRoute {
         }
     }
 }
+/// r42 fix-engine — how a hosted instrument is told its track's tuning (ADR 0156): an
+/// MTS-ESP client (Surge XT, Vital, Pianoteq …) retunes itself from the MTS-ESP master, so
+/// Cantus sends it per-note tuning only where its track's table differs from what MTS-ESP
+/// gives (nothing when the track follows the master, or follows the project Cantus
+/// publishes as master). A plug-in that does not read MTS-ESP is set to `NoteExpression`:
+/// it gets the whole table per note, as with no master.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TuningBy {
+    /// The default: the plug-in reads MTS-ESP; Cantus sends what MTS-ESP does not give it.
+    #[default]
+    MtsEsp,
+    /// The whole table as per-note tuning (CLAP/VST3 note expression, the MPE route's
+    /// bend), whatever MTS-ESP holds.
+    NoteExpression,
+}
+
+impl TuningBy {
+    pub const ALL: [TuningBy; 2] = [TuningBy::MtsEsp, TuningBy::NoteExpression];
+
+    pub fn is_default(&self) -> bool {
+        *self == TuningBy::MtsEsp
+    }
+
+    /// The i18n key it is shown with.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            TuningBy::MtsEsp => "tuning.by.mts_esp",
+            TuningBy::NoteExpression => "tuning.by.note_expression",
+        }
+    }
+}
+
 /// A hosted plug-in in an insert slot.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExternalPlugin {
@@ -187,6 +220,10 @@ pub struct ExternalPlugin {
     /// ([`ExprRoute::automatic`]). Not written while `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expression: Option<ExprRoute>,
+    /// r42 fix-engine — how it is told its track's tuning (schema 80's, ADR 0156): MTS-ESP
+    /// (the default, not written) or per-note tuning.
+    #[serde(default, skip_serializing_if = "TuningBy::is_default")]
+    pub tuning_by: TuningBy,
 }
 
 impl ExternalPlugin {
@@ -201,6 +238,7 @@ impl ExternalPlugin {
             params: BTreeMap::new(),
             isolation: None,
             expression: None,
+            tuning_by: TuningBy::MtsEsp, // r42 fix-engine
         }
     }
 }

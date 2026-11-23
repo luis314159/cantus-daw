@@ -1095,6 +1095,12 @@ símbolos C (`crates/cantus-rt/tests/fake_mts/`); ningún equipo de esta ronda t
   como instrumento en una pista (y, si puedes, ábrelo en otro programa): debe tocar en la
   afinación de Cantus (su pantalla de afinación dice *MTS-ESP*). Cambia el temperamento en
   Cantus: Surge debe seguirlo. Desmarca la casilla: Surge vuelve a su afinación.
+- [ ] **Sin afinar dos veces** <!-- r42 fix-engine -->: con Cantus como maestro (o siguiendo a
+  Surge como fuente), toca Surge XT insertado en una pista que sigue al proyecto, en *A4* y en
+  *Mi♭4*, y compáralo con un afinador (o con Exemplar en otra pista): debe dar el tono de la
+  tabla, no el doble de su desvío. En el inspector de la pista, *Afinación por* debe decir
+  *MTS-ESP*; cámbialo a *Expresión por nota* en un plug-in que no lea MTS-ESP (el sintetizador
+  de prueba, o uno sin MTS-ESP): entonces debe ser él quien suene afinado.
 - [ ] **Dos maestros**: con Surge como fuente, intenta *Ser el maestro* en Cantus: debe
   negarse diciendo que otro programa dirige. Cierra Cantus a la fuerza siendo maestro
   (Administrador de tareas), ábrelo otra vez: si MTS-ESP lo ofrece, *Reiniciar MTS-ESP* debe

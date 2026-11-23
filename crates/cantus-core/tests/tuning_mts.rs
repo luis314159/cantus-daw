@@ -341,3 +341,83 @@ fn an_unmapped_key_is_sent_as_no_change() {
     parse(&d).unwrap().apply(&mut p);
     assert_eq!(p[61], 99.0, "no change kept the stored pitch");
 }
+
+/// r42 fix-engine (review reach 9) — outside bytes: Scale Workshop's MTS exporter test
+/// (MIT; `tests/data/scale-workshop/SOURCE.md`). Its scale's 128 frequencies, as its
+/// `Scale::getFrequencyRange(0, 128)` gives them, turned into frequency words by our encoder,
+/// hash to the SHA-256 its test expects; our bulk dump of them, with its checksum convention,
+/// hashes to its dump's; and our reader takes that dump, naming the convention.
+#[test]
+fn scale_workshop_s_bulk_dump_hashes_are_ours() {
+    use sha2::{Digest, Sha256};
+    let b64 = |bytes: &[u8]| cantus_core::external::base64_encode(&Sha256::digest(bytes));
+    // `test-data.ts`: the intervals' values, the equave last.
+    let ratios = [
+        cantus_dsp::math::exp2(100.0 / 1200.0),
+        528.0 / 440.0,
+        cantus_dsp::math::exp2(4.0 / 5.0),
+        5.0 / 3.0,
+        std::f64::consts::E / 2.0,
+        3_486_784_401.0 / 3_276_800_000.0,
+        2.0,
+    ];
+    let size = ratios.len() as i64;
+    let ratio = |index: i64| {
+        let equaves = index.div_euclid(size);
+        let r = index.rem_euclid(size);
+        let e = 2f64.powi(equaves as i32);
+        if r == 0 {
+            e
+        } else {
+            ratios[r as usize - 1] * e
+        }
+    };
+    // `ftomts`: its MTS value of a frequency.
+    let mts = |f: f64| -> f64 {
+        if f <= 0.0 {
+            0.0
+        } else if f > 13_289.656616 {
+            127.999878
+        } else {
+            let v = 69.0 + 12.0 * cantus_dsp::math::log2(f / 440.0);
+            (v * 1_000_000.0).round() / 1_000_000.0
+        }
+    };
+    let pitches: [Option<f64>; 128] =
+        std::array::from_fn(|k| Some(mts(440.0 * ratio(k as i64 - 69))));
+    let words: Vec<u8> = pitches
+        .iter()
+        .flat_map(|p| encode_word(p.unwrap()))
+        .collect();
+    assert_eq!(words.len(), 384);
+    assert_eq!(b64(&words), "NLwkn1HRQKdNAyYdxl6RQwfz0JvFyShWaB0DHHtPVZo=");
+    // The dump: ours, written with CA-020's checksum; Scale Workshop's convention inverts it.
+    let mut dump = write_key_dump_of(0x00, 1, "Test Scale", &pitches);
+    assert_eq!(dump.len(), 408);
+    assert_eq!(&dump[6..22], b"Test Scale      ", "the name padded with spaces");
+    assert_eq!(&dump[22..406], words.as_slice());
+    let theirs = dump[1..406]
+        .iter()
+        .filter(|b| **b < 0x80)
+        .fold(0xFFu8, |a, b| a ^ b)
+        & 0x7F;
+    assert_eq!(theirs, !dump[406] & 0x7F, "the inverted spec value");
+    dump[406] = theirs;
+    assert_eq!(b64(&dump), "Ghut5DZnxeRXQE0TbOJl6Sh66xI2x1QouHhVhIdQXrQ=");
+    match parse(&dump).unwrap() {
+        MtsMessage::KeyDump {
+            checksum,
+            name,
+            keys,
+            ..
+        } => {
+            assert_eq!(checksum, Checksum::ScaleWorkshop);
+            assert_eq!(name, "Test Scale");
+            for (k, (got, want)) in keys.iter().zip(&pitches).enumerate() {
+                let (g, w) = (got.unwrap(), want.unwrap().min(PITCH_TOP));
+                assert!((g - w).abs() <= 0.5 / 16384.0 + 1e-12, "key {k}: {g} vs {w}");
+            }
+        }
+        m => panic!("{m:?}"),
+    }
+}

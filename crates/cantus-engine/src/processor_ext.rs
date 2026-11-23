@@ -281,6 +281,16 @@ impl Processor {
                 continue;
             }
             let channel = self.ext.channel[slot];
+            // r42 fix-engine (review correctness 14): the keys its tuning leaves unmapped
+            // sound nothing on the synth either (its MTS table skips them).
+            let mut unmapped = [0u64; 2];
+            if let Some(s) = nodes.track(slot) {
+                for (k, v) in s.tuning.0.iter().enumerate() {
+                    if v.is_nan() {
+                        unmapped[k >> 6] |= 1 << (k & 63);
+                    }
+                }
+            }
             let Some(ob) = nodes.read(&nodes.tracks[slot].outbox) else {
                 nodes.conflict();
                 continue;
@@ -291,6 +301,8 @@ impl Processor {
             ob.drain_from(&mut cursor, |at, note| {
                 let (bytes, n) = bytes_of(note, channel);
                 match note {
+                    FxNote::On { pitch, .. }
+                        if unmapped[usize::from(pitch >> 6 & 1)] & (1 << (pitch & 63)) != 0 => {}
                     FxNote::On { pitch, .. } => {
                         // A note-on only while the reserve for note-offs is free.
                         if run.out_free() > OFF_RESERVE

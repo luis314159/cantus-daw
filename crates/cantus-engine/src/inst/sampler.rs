@@ -428,7 +428,14 @@ impl InstrumentUnit for Unit {
                 if let Some(st) = super::stream::lookup(data) {
                     // A streamed sample carries every level its file has; the zone keeps
                     // the ones its own range needs, as in memory (ADR 0050, review 5).
-                    let shift = model::max_shift_of(spec, &self.vals[n], 12.0);
+                    // r42 fix-engine (review correctness 10): and the highest key the
+                    // tuning raises, scaled by the zone's keytrack (`set_tuning` comes before
+                    // `configure` for Exemplar; nothing is added at the default).
+                    let mut shift = model::max_shift_of(spec, &self.vals[n], 12.0);
+                    let up = self.ex.tune_up();
+                    if up > 0.0 {
+                        shift += up * self.vals[n][zf::KEYTRACK].max(0.0) / 100.0;
+                    }
                     let mut src = Source::from_stream(&st);
                     src.limit_levels(1 + levels_for(shift, data.rate));
                     self.srcs[n] = src;

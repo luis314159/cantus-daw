@@ -5101,6 +5101,11 @@ fn round33_mpe_command(rng: &mut Lcg, project: &Project) -> Command {
             0 => None,
             i => Some(ExprRoute::ALL[i as usize - 1]),
         };
+        // r42 fix-engine — how its hosted instrument is told the tuning (ADR 0156).
+        if rng.below(2) == 0 {
+            let by = cantus_core::external::TuningBy::ALL[rng.below(2) as usize];
+            return Command::SetInstrumentTuningBy { track, by };
+        }
         return Command::SetInstrumentExpression { track, route };
     }
     let (track, clip, id, len) = notes[rng.below(notes.len() as u64) as usize];

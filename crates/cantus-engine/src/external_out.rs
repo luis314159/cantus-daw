@@ -111,11 +111,6 @@ impl UnitPorts {
             .any(|u| u.route == route && u.port.is_some())
     }
 
-    /// r42:tuning — whether `route` is in the table as the interface last set it.
-    pub fn knows(&self, route: u64) -> bool {
-        self.table.iter().any(|(r, _, _)| *r == route)
-    }
-
     /// The connection of `route`.
     pub fn port(&mut self, route: u64) -> Option<&mut Box<dyn OutPort>> {
         if let Some(i) = self.live.iter().position(|u| u.route == route) {

@@ -57,6 +57,8 @@ pub struct Unda {
     free: [FreeLfo; 8],
     free_val: [f32; 8],
     last_pitch: Option<f32>,
+    /// r42 fix-engine — the key `last_pitch` was played on (a tuning moves it while held).
+    last_key: u8,
     /// r42:tuning — each key's offset in semitones from 12-TET at A440 (ADR 0155).
     tuning: [f32; 128],
     stolen: u32,
@@ -92,6 +94,7 @@ impl Unda {
             free: [FreeLfo::default(); 8],
             free_val: [0.0; 8],
             last_pitch: None,
+            last_key: 0, // r42 fix-engine
             tuning: [0.0; 128], // r42:tuning
             stolen: 0,
             peak: [0.0; 2],
@@ -124,6 +127,17 @@ impl Unda {
                 v.target += d;
                 v.pitch += d;
             }
+        }
+        // r42 fix-engine (review correctness 11): the glide's origin moves with a note
+        // still sounding on its key (a released note's is the pitch that was heard).
+        let k = usize::from(self.last_key & 0x7F);
+        let d = table[k] - self.tuning[k];
+        let held = self
+            .voices
+            .iter()
+            .any(|v| v.active && v.key == self.last_key);
+        if let Some(p) = self.last_pitch.as_mut().filter(|_| held && d.is_finite()) {
+            *p += d;
         }
         self.tuning = *table;
     }
@@ -183,11 +197,13 @@ impl Unda {
                 };
                 v.control(s, &g, true);
                 self.last_pitch = Some(key as f32 + tune); // r42:tuning
+                self.last_key = key; // r42 fix-engine
             }
             Action::Glide { voice, key, id } => {
                 let tune = crate::tuning::at(&self.tuning, key); // r42:tuning
                 self.voices[voice].glide_to(&self.s, key, tune, id, self.sr);
                 self.last_pitch = Some(key as f32 + tune);
+                self.last_key = key; // r42 fix-engine
             }
             Action::Release { voice } => self.voices[voice].release(0.0),
             Action::Nothing => {}
@@ -429,3 +445,21 @@ impl Unda {
 
 #[path = "unda_par.rs"]
 mod par;
+
+/// r42 fix-engine (review correctness 11): a tuning set while a note sounds moves the pitch a
+/// glide would start from with it.
+#[cfg(test)]
+mod fix_engine_tuning {
+    use super::*;
+
+    #[test]
+    fn a_retune_moves_the_glide_origin_of_a_sounding_note() {
+        let mut u = Unda::new(48_000.0);
+        u.note_on(60, 1, 0.8);
+        assert!(u.voices.iter().any(|v| v.active && v.key == 60));
+        let mut table = [0.0f32; 128];
+        table[60] = 0.5;
+        u.set_tuning(&table);
+        assert_eq!(u.last_pitch, Some(60.5), "from where it sounds now");
+    }
+}

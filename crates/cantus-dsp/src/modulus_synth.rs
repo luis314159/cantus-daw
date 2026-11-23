@@ -85,6 +85,8 @@ pub struct Modulus {
     bend_raw: f32,
     clock: u64,
     last_pitch: Option<f32>,
+    /// r42 fix-engine — the key `last_pitch` was played on (a tuning moves it while held).
+    last_key: u8,
     /// r42:tuning — each key's offset in semitones from 12-TET at A440 (ADR 0155).
     tuning: [f32; 128],
     released: [usize; MAX_VOICES],
@@ -108,6 +110,7 @@ impl Modulus {
             bend_raw: 0.0,
             clock: 0,
             last_pitch: None,
+            last_key: 0, // r42 fix-engine
             tuning: [0.0; 128], // r42:tuning
             released: [0; MAX_VOICES],
             stolen: 0,
@@ -134,6 +137,17 @@ impl Modulus {
                 v.pitch_to += d;
                 v.pitch += d;
             }
+        }
+        // r42 fix-engine (review correctness 11): the glide's origin moves with a note
+        // still sounding on its key (a released note's is the pitch that was heard).
+        let k = usize::from(self.last_key & 0x7F);
+        let d = table[k] - self.tuning[k];
+        let held = self
+            .voices
+            .iter()
+            .any(|v| v.active && v.key == self.last_key);
+        if let Some(p) = self.last_pitch.as_mut().filter(|_| held && d.is_finite()) {
+            *p += d;
         }
         self.tuning = *table;
     }
@@ -221,6 +235,7 @@ impl Modulus {
             } => {
                 self.start_voice(voice, key, id, velocity);
                 self.last_pitch = Some(key as f32 + crate::tuning::at(&self.tuning, key));
+                self.last_key = key; // r42 fix-engine
                 // r42:tuning
             }
             Action::Glide { voice, key, id } => {
@@ -229,6 +244,7 @@ impl Modulus {
                     self.voices[v].glide_to(key, tune, id, &self.patch);
                 }
                 self.last_pitch = Some(key as f32 + tune);
+                self.last_key = key; // r42 fix-engine
             }
             Action::Release { voice } => {
                 for v in voice * u..voice * u + u {
@@ -412,5 +428,23 @@ impl Modulus {
                 op.time.stage as f32
             };
         }
+    }
+}
+
+/// r42 fix-engine (review correctness 11): a tuning set while a note sounds moves the pitch a
+/// glide would start from with it.
+#[cfg(test)]
+mod fix_engine_tuning {
+    use super::*;
+
+    #[test]
+    fn a_retune_moves_the_glide_origin_of_a_sounding_note() {
+        let mut u = Modulus::new(48_000.0);
+        u.note_on(60, 1, 0.8);
+        assert!(u.voices.iter().any(|v| v.active && v.key == 60));
+        let mut table = [0.0f32; 128];
+        table[60] = 0.5;
+        u.set_tuning(&table);
+        assert_eq!(u.last_pitch, Some(60.5), "from where it sounds now");
     }
 }

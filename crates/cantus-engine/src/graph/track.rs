@@ -106,6 +106,16 @@ pub(crate) struct TrackSlot {
     /// MTS-ESP master's (refreshed each live block, ADR 0156).
     pub tuning: cantus_core::tuning::TuningTable,
     pub tuning_external: bool,
+    /// r42 fix-engine — it plays the master's table read live (not the compiled one): when
+    /// the master goes, the compiled table comes back (review correctness 8).
+    pub tuning_live: bool,
+    /// r42 fix-engine — its hosted instrument reads MTS-ESP itself (`TuningBy::MtsEsp`), and
+    /// what MTS-ESP gives it now (ADR 0156): the unit is handed only the rest of the table.
+    pub tuning_by_mts: bool,
+    pub tuning_heard: Option<cantus_core::tuning::TuningTable>,
+    /// r42 fix-engine — its instrument leaves unmapped keys to each zone (Exemplar: a zone
+    /// at keytrack 0, a drum kit's, plays every key; review correctness 6).
+    pub tuning_per_zone: bool,
 }
 
 impl TrackSlot {
@@ -163,25 +173,53 @@ impl TrackSlot {
             }, // r37:drums
             tuning: cantus_core::tuning::TuningTable::EQUAL, // r42:tuning
             tuning_external: false, // r42:tuning
+            tuning_live: false,     // r42 fix-engine
+            tuning_by_mts: false,   // r42 fix-engine
+            tuning_heard: None,     // r42 fix-engine
+            tuning_per_zone: false, // r42 fix-engine
         }
     }
 
     /// r42:tuning — hand `table` to whichever instrument it holds (each keeps its own copy
     /// and does nothing when it is the one it has): Firmus, the native or hosted unit.
     /// Pulsus is unpitched. No allocation.
+    ///
+    /// r42 fix-engine: a hosted instrument that reads MTS-ESP itself is handed only what
+    /// MTS-ESP does not give it ([`crate::tuning::beyond`]; review correctness 1).
     pub fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
         self.tuning = *table;
         self.synth.set_tuning(&table.0);
         if let Some(n) = self.native.as_mut() {
-            n.unit.set_tuning(table);
+            match self.tuning_heard.as_ref().filter(|_| self.tuning_by_mts) {
+                Some(heard) => n.unit.set_tuning(&crate::tuning::beyond(table, heard)),
+                None => n.unit.set_tuning(table),
+            }
         }
+    }
+
+    /// r42:tuning — a key its keyboard map leaves unmapped sounds nothing; fix-engine: an
+    /// instrument that decides per zone (Exemplar) is given it.
+    #[inline]
+    pub fn unmapped(&self, key: u8) -> bool {
+        !self.tuning_per_zone && !self.tuning.sounds(key)
+    }
+
+    /// r42 fix-engine — what MTS-ESP gives its clients now (ADR 0156): a hosted instrument
+    /// that reads it is handed the rest of its table again when it changed. No allocation.
+    pub fn set_heard(&mut self, heard: Option<&cantus_core::tuning::TuningTable>) {
+        if !self.tuning_by_mts || self.tuning_heard.as_ref() == heard {
+            return;
+        }
+        self.tuning_heard = heard.copied();
+        let t = self.tuning;
+        self.set_tuning(&t);
     }
 
     pub fn note_on(&mut self, pitch: u8, velocity: u8, tag: u64) {
         if self.outboard {
             return; // r36:external
         }
-        if !self.tuning.sounds(pitch) {
+        if self.unmapped(pitch) {
             return; // r42:tuning — a key its keyboard map leaves unmapped sounds nothing
         }
         match self.instrument {
@@ -206,7 +244,7 @@ impl TrackSlot {
         if self.outboard {
             return; // r36:external
         }
-        if !self.tuning.sounds(pitch) {
+        if self.unmapped(pitch) {
             return; // r42:tuning
         }
         match self.instrument {

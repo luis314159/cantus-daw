@@ -258,6 +258,18 @@ impl Calor {
                 v.pitch += d;
             }
         }
+        // r42 fix-engine (review correctness 11): a glide starts from where a held note is
+        // now — a voice still sounding has its last pitch moved with it (a released one's is
+        // the pitch that was heard).
+        for (phys, v) in self.voices.iter().enumerate() {
+            let k = usize::from(v.key & 0x7F);
+            let d = table[k] - self.tuning[k];
+            if let Some(p) = self.last_pitch.get_mut(phys) {
+                if v.active && d.is_finite() && p.is_finite() {
+                    *p += d;
+                }
+            }
+        }
         self.tuning = *table;
     }
 
@@ -328,5 +340,25 @@ fn note_seed(id: u64, live_count: u64) -> u64 {
         mix64(id ^ live_count.wrapping_mul(0x9e37_79b9_7f4a_7c15))
     } else {
         hash3(id, 0xca10, 0)
+    }
+}
+
+/// r42 fix-engine (review correctness 11): a tuning set while a note sounds moves the pitch a
+/// glide would start from with it.
+#[cfg(test)]
+mod fix_engine_tuning {
+    use super::*;
+
+    #[test]
+    fn a_retune_moves_the_glide_origin_of_a_sounding_note() {
+        let mut c = Calor::new(48_000.0);
+        c.note_on(60, 0.8, 1);
+        let mut table = [0.0f32; 128];
+        table[60] = 0.5;
+        c.set_tuning(&table);
+        let phys = (0..MAX_VOICES)
+            .find(|&i| c.voices[i].active && c.voices[i].key == 60)
+            .expect("a voice on 60");
+        assert_eq!(c.last_pitch[phys], 60.5, "from where it sounds now");
     }
 }

@@ -254,6 +254,11 @@ impl Synth {
     }
 
     fn press(&mut self, key: u8, vel: f32) {
+        // r42 fix-engine (review correctness 14): a key the tuning leaves unmapped sounds
+        // nothing, as on every instrument.
+        if self.tuning[usize::from(key & 0x7F)].is_nan() {
+            return;
+        }
         let played = &self.voices[..MAX_VOICES];
         let slot = played
             .iter()

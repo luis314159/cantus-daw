@@ -151,3 +151,8 @@ tuning.chorda.p.saloon = De cantina
 tuning.chorda.p.slightly_out = Un poco desafinado
 tuning.chorda.p.baroque = Barroca, La 415
 tuning.chorda.p.verdi = Verdi, La 432
+# r42 fix-engine — cómo recibe un instrumento alojado la afinación de su pista (ADR 0156).
+cmd.tuning.by = Afinación por
+tuning.by = Afinación por
+tuning.by.mts_esp = MTS-ESP
+tuning.by.note_expression = Expresión por nota

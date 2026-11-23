@@ -178,6 +178,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | RemovePad { track, .. }
         | SetInstrumentParam { track, .. }
         | SetInstrumentExpression { track, .. }
+        | SetInstrumentTuningBy { track, .. }
         | SetPadName { track, .. }
         | SetPadSample { track, .. }
         | SetPadLayers { track, .. }

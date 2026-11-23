@@ -238,10 +238,17 @@ fn publish_routes(app: &mut CantusApp) {
 /// r42:tuning — every instrument set to retune by MTS (ADR 0155) hears its track's tuning
 /// as MTS SysEx, sent when it changes (a cheap comparison each frame; the table is built only
 /// then).
+///
+/// r42 fix-engine (review correctness 13, reach 8): a track in the MTS-ESP master's tuning
+/// sends the master's table (as the engine plays it), and again when the master changes; an
+/// instrument switched off MTS, disabled or removed is sent 12-TET at A440 once, so the synth
+/// does not stay tuned, and is sent its table afresh when switched on again.
 pub fn send_tunings(app: &mut CantusApp) {
     let p = app.project();
     let root = p.key.map(|k| k.root);
-    let wanted: Vec<(u64, cantus_core::tuning::Tuning)> = p
+    let mut master: Option<Option<cantus_core::tuning::TuningTable>> = None;
+    let mts = app.tuning.mts.clone();
+    let wanted: Vec<(u64, cantus_core::tuning::TuningTable)> = p
         .external_units
         .iter()
         .filter(|u| {
@@ -251,12 +258,21 @@ pub fn send_tunings(app: &mut CantusApp) {
             let m = u.midi.as_ref()?;
             let track = p.track(u.track)?;
             let t = track.tuning.resolve(&p.tuning).resolved_for_key(root);
-            Some((cantus_core::external_unit::route_for(u.id, m), t))
+            let table = if matches!(t.system, cantus_core::tuning::TuningSystem::External) {
+                let read = master.get_or_insert_with(|| {
+                    let mut out = cantus_core::tuning::TuningTable::EQUAL;
+                    mts.as_ref()
+                        .is_some_and(|l| cantus_engine::tuning::ExternalTuning::read(l, &mut out))
+                        .then_some(out)
+                });
+                t.offsets_with(read.as_ref())
+            } else {
+                t.offsets()
+            };
+            Some((cantus_core::external_unit::route_for(u.id, m), table))
         })
         .collect();
-    for (route, t) in wanted {
-        app.sync.send_mts(route, &t);
-    }
+    app.sync.send_mts_tables(&wanted);
 }
 
 /// The presence the engine handle is given.
@@ -275,8 +291,10 @@ pub fn presence(app: &CantusApp) -> ExternalPresence {
 
 /// Each frame: routes, presence, pings.
 pub fn poll(app: &mut CantusApp) {
-    publish_routes(app);
+    // r42 fix-engine — the tunings first: a removed instrument's reset goes out while its
+    // route is still known.
     send_tunings(app); // r42:tuning
+    publish_routes(app);
                        // Nothing outboard: nothing to look at (no port enumeration on a project without units).
     if !app.project().external_units.is_empty() || app.external.is_pinging() {
         let p = presence(app);
