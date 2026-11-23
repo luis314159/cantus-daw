@@ -221,13 +221,26 @@ pub struct LoopPoints {
 /// third of its length (at most 400 ms). `None` when the note has no steady part a loop of
 /// half a second fits.
 pub fn find_loop(data: &[f32], channels: usize, rate: f32, hz: f64) -> Option<LoopPoints> {
+    find_loop_at(data, channels, rate, hz, 0.3, 0.6)
+}
+
+/// [`find_loop`] starting `start` of the way into the steady part and `len` of it long (the
+/// next try when a loop clicks: another place, a shorter loop).
+pub fn find_loop_at(
+    data: &[f32],
+    channels: usize,
+    rate: f32,
+    hz: f64,
+    start: f64,
+    len: f64,
+) -> Option<LoopPoints> {
     use cantus_dsp::exemplar::analysis::{find_best_loop, seam_error_xf_db};
     let m = mono(data, channels);
     let (a, b) = steady_span(&m, rate)?;
-    let span = b - a;
-    let ls = (a + span * 3 / 10) as i64;
+    let span = (b - a) as f64;
+    let ls = (a as f64 + span * start) as i64;
     let period = rate as f64 / hz.max(10.0);
-    let want = (span as f64 * 0.6).min(span as f64 - span as f64 * 0.35);
+    let want = (span * len).min(span * (0.95 - start));
     if want < rate as f64 * 0.5 {
         return None;
     }

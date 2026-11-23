@@ -272,15 +272,32 @@ fn measure(rel: &str, bytes: &[u8], meta: libs::Meta) -> Option<Measured> {
     };
     if sustained(meta.art) {
         let hz = cents.map_or(hint, |c| an::hz_of_key(c / 100.0));
-        if let Some(lp) = an::find_loop(&a.samples, a.channels, rate, hz) {
+        // The first loop that plays click-free: the usual place, then others, shorter.
+        let mut worst = None;
+        for (start, len) in [
+            (0.3, 0.6),
+            (0.2, 0.5),
+            (0.45, 0.45),
+            (0.25, 0.35),
+            (0.5, 0.3),
+        ] {
+            let Some(lp) = an::find_loop_at(&a.samples, a.channels, rate, hz, start, len) else {
+                continue;
+            };
             let ex = click_check(&a.samples, a.channels, rate, lp.ls, lp.le, lp.xf);
-            out.loop_err_db = lp.err_db;
-            out.seam_excess_db = ex;
             if ex <= 3.0 {
+                out.loop_err_db = lp.err_db;
+                out.seam_excess_db = ex;
                 out.looped = Some([lp.ls, lp.le]);
                 out.xf_ms = lp.xf as f32 / rate * 1000.0;
-            } else {
-                eprintln!("{rel}: its loop clicks ({ex:.1} dB): left unlooped");
+                break;
+            }
+            worst = Some(ex);
+        }
+        if out.looped.is_none() {
+            if let Some(ex) = worst {
+                out.seam_excess_db = ex;
+                eprintln!("{rel}: every loop tried clicks ({ex:.1} dB): left unlooped");
             }
         }
     }
@@ -416,6 +433,7 @@ fn instrument(id: &str, name: &str, legato: bool, ms: &[Measured]) -> StringsIns
         sfz: format!("Cantus/{id}.sfz"),
         name: name.to_string(),
         switch: (arts.len() > 1).then_some(switch),
+        like: None,
         default_art: None,
         legato: legato.then_some([90.0, 60.0, 90.0]),
         dynamics_cc: 1,

@@ -30,6 +30,10 @@ pub struct StringsInstrument {
     /// `switch + k` (sustain first, the default); none when it has one articulation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub switch: Option<u8>,
+    /// A preset of another instrument of the pack (its `sfz`): its zones, with this one's
+    /// settings — the articulation in force, the legato — so the manifest holds them once.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub like: Option<String>,
     /// The articulation in force before any keyswitch is pressed (`None`: the sustain).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_art: Option<String>,
@@ -198,9 +202,27 @@ pub fn sfz(inst: &StringsInstrument, up: usize) -> String {
     s
 }
 
+/// The instruments of `build` with a preset's zones taken from the instrument it is like.
+pub fn resolved(build: &StringsBuild) -> Vec<StringsInstrument> {
+    build
+        .instruments
+        .iter()
+        .map(|i| match &i.like {
+            Some(base) => {
+                let mut v = i.clone();
+                if let Some(b) = build.instruments.iter().find(|b| &b.sfz == base) {
+                    v.zones = b.zones.clone();
+                }
+                v
+            }
+            None => i.clone(),
+        })
+        .collect()
+}
+
 /// Write every instrument of `build` into the pack's folder `root`: how many files.
 pub fn build(build: &StringsBuild, root: &Path) -> std::io::Result<usize> {
-    for inst in &build.instruments {
+    for inst in &resolved(build) {
         let path = root.join(&inst.sfz);
         let up = Path::new(&inst.sfz)
             .parent()
@@ -223,6 +245,7 @@ mod tests {
             sfz: "Cantus/cello.sfz".into(),
             name: "Cello".into(),
             switch: Some(24),
+            like: None,
             default_art: None,
             legato: Some([80.0, 50.0, 100.0]),
             dynamics_cc: 1,

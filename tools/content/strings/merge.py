@@ -87,7 +87,8 @@ def sha(path):
 
 
 def sfz_size(build):
-    return sum(200 * len(i["zones"]) + 2000 for i in build["instruments"])
+    zones = {i["sfz"]: len(i["zones"]) for i in build["instruments"]}
+    return sum(200 * zones.get(i.get("like") or i["sfz"], 0) + 2000 for i in build["instruments"])
 
 
 ARTS = {"tremolo": ("Tremolo", "Trémolo"), "spiccato": ("Spiccato", "Spiccato"),
@@ -107,7 +108,9 @@ def presets(build):
             continue
         for art in ARTS:
             if art in arts:
-                v = dict(i)
+                v = {k: x for k, x in i.items() if k != "zones"}
+                v["zones"] = []
+                v["like"] = i["sfz"]
                 v["sfz"] = i["sfz"][:-4] + "-" + art + ".sfz"
                 v["name"] = i["name"] + " — " + ARTS[art][0]
                 v["default_art"] = art
@@ -126,6 +129,7 @@ def es_name(name):
 
 def entry(pid, spec, build):
     used = sorted({z["file"] for i in build["instruments"] for z in i["zones"]})
+    zones_of = {i["sfz"]: len(i["zones"]) for i in build["instruments"]}
     p = {
         "id": pid, "version": 1,
         "name": {"en": spec["name"][0], "es": spec["name"][1]},
@@ -142,7 +146,8 @@ def entry(pid, spec, build):
         z = zipfile.ZipFile(zpath)
         sizes = {i.filename[len(strip):]: i.file_size for i in z.infolist() if i.filename.startswith(strip)}
         folders = sorted({f.rsplit("/", 1)[0] + "/*.wav" for f in used})
-        keep = [f for f in sizes if any(f.startswith(x[:-5] + "/") and f.count("/") == x.count("/") and f.lower().endswith(".wav") for x in folders)]
+        prefixes = [x[: -len("*.wav")] for x in folders]
+        keep = [f for f in sizes if f.lower().endswith(".wav") and any(f.startswith(q) and "/" not in f[len(q):] for q in prefixes)]
         extra = [n for n in ("LICENSE", "readme.txt", "README.md") if n in sizes]
         p["installed_size"] = sum(sizes[f] for f in keep + extra) + sfz_size(build)
         p["source"] = {"zip": {"url": url, "size": os.path.getsize(zpath), "sha256": sha(zpath),
@@ -181,8 +186,65 @@ def main():
         print(pid, new["installed_size"] // 1_000_000, "MB", len(new["instruments"]), "instruments")
     m["format"] = max(m["format"], 6)
     m["updated"] = CHECKED
+    write(m, measured.keys())
+
+
+def leaf(x):
+    return isinstance(x, dict) and all(not isinstance(v, (dict, list)) or (isinstance(v, list) and all(not isinstance(e, (dict, list)) for e in v)) for v in x.values())
+
+
+def fmt(x, ind):
+    """indent=1 JSON, with a list of flat objects (files, zones) one object to a line."""
+    pad = " " * ind
+    if isinstance(x, dict):
+        if not x:
+            return "{}"
+        items = [pad + " " + json.dumps(k, ensure_ascii=False) + ": " + fmt(v, ind + 1) for k, v in x.items()]
+        return "{\n" + ",\n".join(items) + "\n" + pad + "}"
+    if isinstance(x, list):
+        if not x:
+            return "[]"
+        if all(leaf(e) for e in x) and all(isinstance(e, dict) for e in x):
+            items = [pad + " " + json.dumps(e, ensure_ascii=False) for e in x]
+        else:
+            items = [pad + " " + fmt(e, ind + 1) for e in x]
+        return "[\n" + ",\n".join(items) + "\n" + pad + "]"
+    return json.dumps(x, ensure_ascii=False)
+
+
+def write(m, ids):
+    """The manifest's text with its header updated and the packs `ids` replaced or appended,
+    every other pack's text as it was."""
+    text = open(MANIFEST, encoding="utf-8").read().replace("\r\n", "\n")
+    text = text.replace('"format": 5,', '"format": %d,' % m["format"], 1)
+    import re
+    text = re.sub(r'"updated": "[0-9-]+"', '"updated": "%s"' % m["updated"], text, count=1)
+    for pid in ids:
+        new = fmt(next(p for p in m["packs"] if p["id"] == pid), 2)
+        key = '"id": "%s",' % pid
+        at = text.find("\n   " + key)
+        if at >= 0:
+            start = text.rfind("\n  {", 0, at) + 3
+            depth, k = 0, start
+            while True:
+                if text[k] == "{":
+                    depth += 1
+                elif text[k] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                elif text[k] == '"':
+                    k += 1
+                    while text[k] != '"':
+                        k += 2 if text[k] == "\\" else 1
+                k += 1
+            text = text[:start] + new + text[k + 1:]
+        else:
+            end = text.rindex("\n ]\n}")
+            text = text[:end] + ",\n  " + new + text[end:]
+    json.loads(text)
     with open(MANIFEST, "w", encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(m, indent=1, ensure_ascii=False) + "\n")
+        f.write(text)
 
 
 main()

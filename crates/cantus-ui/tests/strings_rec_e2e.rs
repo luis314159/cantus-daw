@@ -185,6 +185,7 @@ fn pack(dir: &Path) -> (Pack, std::path::PathBuf) {
                 sfz: "Cantus/cello.sfz".into(),
                 name: "Tiny cello".into(),
                 switch: Some(24),
+                like: None,
                 default_art: None,
                 legato: Some([60.0, 50.0, 100.0]),
                 dynamics_cc: 1,
