@@ -43,6 +43,7 @@ impl Voice {
         if !keep {
             self.clear();
             self.vib_age = 0;
+            self.trim = 0.0;
         }
         self.active = true;
         self.ended = false;

@@ -157,6 +157,17 @@ pub struct BowedString {
     sticking: bool,
     /// The last sample's excess of the bow's pull over what the stick holds (`|u| − Rμs`).
     excess: f32,
+    /// The slips' timing (the closed loop's ear): samples since the stream began here, the
+    /// stick's length so far, where in the last interval the latest slip began (0 … 1), the
+    /// last main slip's time, the loop's own period, and the intervals measured since the
+    /// voice last read them.
+    clock: u64,
+    stuck: f64,
+    onset_at: f64,
+    last_onset: f64,
+    loop_period: f64,
+    meas_sum: f64,
+    meas_n: u32,
     /// … the slip equation's discriminant then, and the slip.
     disc: f32,
     last_slip: f32,
@@ -269,6 +280,13 @@ impl BowedString {
             tor_live: false,
             sticking: false,
             excess: 0.0,
+            clock: 0,
+            stuck: 0.0,
+            onset_at: 1.0,
+            last_onset: -1.0,
+            loop_period: 100.0,
+            meas_sum: 0.0,
+            meas_n: 0,
             disc: 0.0,
             last_slip: 0.0,
             curve: Curve::default(),
@@ -298,6 +316,15 @@ impl BowedString {
         self.live
     }
 
+    /// The motion's periods measured since the last call (their sum, in samples, and how
+    /// many), and forget them.
+    pub fn take_periods(&mut self) -> (f64, u32) {
+        let out = (self.meas_sum, self.meas_n);
+        self.meas_sum = 0.0;
+        self.meas_n = 0;
+        out
+    }
+
     /// Whether the bow holds the string now (for the editor and tests).
     pub fn is_sticking(&self) -> bool {
         self.sticking
@@ -325,6 +352,10 @@ impl BowedString {
         self.live = false;
         self.sticking = false;
         self.excess = 0.0;
+        self.stuck = 0.0;
+        self.last_onset = -1.0;
+        self.meas_sum = 0.0;
+        self.meas_n = 0;
         self.disc = 0.0;
         self.last_slip = 0.0;
         self.theta = 0.0;
@@ -432,6 +463,7 @@ impl BowedString {
         self.dc_r = r as f32;
         self.dc_k = (0.5 * (1.0 + r)) as f32;
         let period = self.sr / f0;
+        self.loop_period = period;
         let filt = loss_delay(a, w0) + dc_delay + cr_delay;
         let avail = (period - filt).max(4.2);
         let db = (s.beta.clamp(0.0, 0.5) * avail).clamp(2.05, avail - 2.1);
@@ -543,6 +575,7 @@ impl BowedString {
             let vn = Self::read(&self.neck, self.wn, self.dn);
             let vb = Self::read(&self.bridge, self.wb, self.db);
             let vh = vn + vb;
+            self.clock += 1;
             let mut inj = strike[i];
             let mut slip = 0.0f32;
             let mut moving = false;
@@ -582,6 +615,7 @@ impl BowedString {
                                         // without it the period locks to whole samples
                                         // (−4.5 cents at E4, whatever the loop).
                                         let tau = self.excess / (self.excess - excess);
+                                        self.onset_at = tau as f64;
                                         let w = 1.0 - tau;
                                         u - w * slip
                                     } else {
@@ -628,6 +662,27 @@ impl BowedString {
                         out
                     }
                 };
+                // A main slip (one after a stick of most of a period): the time it began, to a
+                // fraction of a sample, and the interval since the last — a period of the
+                // motion the bow sustains, when it is within 10 % of the loop's.
+                if slip == 0.0 {
+                    self.stuck += 1.0;
+                } else if self.sticking {
+                    let at = self.clock as f64 - 1.0 + self.onset_at;
+                    let p = self.dn + self.db;
+                    if self.stuck >= 0.5 * p * (1.0 - self.db / p) {
+                        if self.last_onset >= 0.0 {
+                            let iv = at - self.last_onset;
+                            if (iv / self.loop_period - 1.0).abs() < 0.1 {
+                                self.meas_sum += iv;
+                                self.meas_n += 1;
+                            }
+                        }
+                        self.last_onset = at;
+                    }
+                    self.stuck = 0.0;
+                }
+                self.onset_at = 1.0;
                 self.sticking = slip == 0.0;
                 // The bow's force moves the surface: the translation takes its share, the
                 // twist the rest.

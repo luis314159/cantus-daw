@@ -241,6 +241,8 @@ pub struct Voice {
     tmp: [f32; CTRL],
     bow_on: bool,
     stop_lift: bool,
+    /// The closed loop's trim on the table's correction, cents.
+    trim: f64,
     fade: f32,
     fade_step: f32,
     peak: f32,
@@ -305,6 +307,7 @@ impl Voice {
             tmp: [0.0; CTRL],
             bow_on: false,
             stop_lift: false,
+            trim: 0.0,
             fade: 1.0,
             fade_step: 0.0,
             peak: 0.0,

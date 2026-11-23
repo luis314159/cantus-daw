@@ -132,9 +132,19 @@ impl Voice {
             self.roughs[..span].fill(0.0);
         }
         // The pitch the loop is set to: the bowed pitch corrected by the measured table.
+        // The bowed pitch: the table measured offline, and a closed loop at the control rate
+        // that trims what is left from the motion's own periods (the main slips' times, to a
+        // fraction of a sample — `string::BowedString::take_periods`), held within 15 cents.
+        let (sum, count) = self.string.take_periods();
+        if self.bow_on && count > 0 && sh.table.is_some() {
+            let measured = sum / count as f64;
+            let target = sr as f64 / f;
+            let heard = 1200.0 * math::log2(target / measured);
+            self.trim = (self.trim + (0.35 * heard).clamp(-3.0, 3.0)).clamp(-15.0, 15.0);
+        }
         let corr = if self.bow_on {
             sh.table.map_or(0.0, |t| {
-                t.cents(self.inst, semis, self.d as f64, pos as f64)
+                t.cents(self.inst, semis, self.d as f64, pos as f64) + self.trim
             })
         } else {
             0.0
