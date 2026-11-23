@@ -12,6 +12,54 @@ pub fn key_name(pc: u8) -> &'static str {
     ROOT_NAMES[usize::from(pc % 12)]
 }
 
+/// The natural notes' letters and pitch classes.
+const LETTERS: [(char, u8); 7] = [
+    ('C', 0),
+    ('D', 2),
+    ('E', 4),
+    ('F', 5),
+    ('G', 7),
+    ('A', 9),
+    ('B', 11),
+];
+
+/// The note `semitones` above `root` (spelt as [`key_name`] spells it), named as the interval
+/// of `letters` letter steps from it: a major third (4, 2) above E is G#, above Ab is C —
+/// sharps in sharp keys, flats in flat keys, `#` and `b` as the fonts have them.
+pub fn spell_above(root: u8, semitones: u8, letters: usize) -> String {
+    let name = key_name(root);
+    let first = name.chars().next().unwrap_or('C');
+    let at = LETTERS.iter().position(|(l, _)| *l == first).unwrap_or(0);
+    let (letter, natural) = LETTERS[(at + letters) % 7];
+    let target = (root % 12 + semitones % 12) % 12;
+    // The accidental the letter needs to reach the target, from −2 to +2 semitones.
+    let shift = (i16::from(target) - i16::from(natural) + 18).rem_euclid(12) - 6;
+    let accidental = match shift {
+        -2 => "bb",
+        -1 => "b",
+        1 => "#",
+        2 => "##",
+        _ => "",
+    };
+    format!("{letter}{accidental}")
+}
+
+/// The major third above `root`, spelt as a third (E–G#, Ab–C).
+pub fn major_third(root: u8) -> String {
+    spell_above(root, 4, 2)
+}
+
+/// The perfect fifth above `root`, spelt as a fifth (E–B, F#–C#, Ab–Eb).
+pub fn fifth_above(root: u8) -> String {
+    spell_above(root, 7, 4)
+}
+
+/// A key with its octave, its note named as the song's key names it: "C4" (60), "Eb4",
+/// "A4" (69).
+pub fn key_with_octave(key: u8) -> String {
+    format!("{}{}", key_name(key), i32::from(key) / 12 - 1)
+}
+
 /// The diapason as the summary writes it: "A415", "A442.5".
 pub fn a4_short(hz: f64) -> String {
     tf("tuning.summary.a4", &[("hz", &hz_text(hz))])
@@ -44,9 +92,14 @@ pub fn system_name(tu: &Tuning, key: Option<Key>) -> String {
     }
 }
 
-/// A Scala scale's name: its description's first words, or "Scala scale, 31 notes".
+/// A Scala scale's name: its description's first words, or "Scala scale, 31 notes" — a
+/// scale of Cantus's own (Chorda's *Slightly out*, stored by a fixed name) in the
+/// interface's language.
 pub fn scale_name(s: &cantus_core::tuning::ScalaScale) -> String {
     let d = s.description.trim();
+    if d == super::chorda::SLIGHTLY_OUT_ID {
+        return t("tuning.chorda.p.slightly_out");
+    }
     if d.is_empty() {
         tf(
             "tuning.summary.scale_notes",
@@ -133,7 +186,7 @@ pub fn degree_written(d: &ScaleDegree) -> String {
     match *d {
         // As the file wrote it: the shortest decimal that reads back to the same number.
         ScaleDegree::Cents(c) => format!("{c}"),
-        ScaleDegree::Ratio(n, 1) => format!("{n}"),
+        // A ratio stays a ratio ("2/1"): a bare "2" would read as a number of cents.
         ScaleDegree::Ratio(n, d) => format!("{n}/{d}"),
     }
 }
@@ -161,6 +214,60 @@ pub fn signed_cents(c: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every root's major third is a third — two letters up, four semitones up — with no
+    /// double accidental (r42 integration: "E–Ab" read as a diminished fourth).
+    #[test]
+    fn a_major_third_is_spelt_as_a_third_over_every_root() {
+        let pc = |n: &str| {
+            let mut ch = n.chars();
+            let l = ch.next().unwrap();
+            let base = LETTERS.iter().find(|(x, _)| *x == l).unwrap().1 as i16;
+            let acc: i16 = ch.map(|c| if c == '#' { 1 } else { -1 }).sum();
+            (base + acc).rem_euclid(12) as u8
+        };
+        let letter = |n: &str| LETTERS.iter().position(|(x, _)| n.starts_with(*x)).unwrap();
+        for root in 0..12u8 {
+            let third = major_third(root);
+            assert_eq!(pc(&third), (root + 4) % 12, "{} {third}", key_name(root));
+            assert_eq!(
+                (letter(key_name(root)) + 2) % 7,
+                letter(&third),
+                "{} {third}",
+                key_name(root)
+            );
+            assert!(!third.contains("##") && !third.contains("bb"), "{third}");
+        }
+        assert_eq!(major_third(4), "G#");
+        assert_eq!(major_third(8), "C");
+        assert_eq!(major_third(1), "E#");
+        assert_eq!(major_third(3), "G");
+        assert_eq!(major_third(11), "D#");
+    }
+
+    /// r42 fix-ui (review ui#5): every root's fifth is a fifth — four letters up, seven
+    /// semitones up, no double accidental (B–F#, never B–Gb; F#–C#, never F#–Db).
+    #[test]
+    fn a_fifth_is_spelt_as_a_fifth_over_every_root() {
+        let letter = |n: &str| LETTERS.iter().position(|(x, _)| n.starts_with(*x)).unwrap();
+        let pc = |n: &str| {
+            let base = LETTERS[letter(n)].1 as i16;
+            let acc: i16 = n[1..].chars().map(|c| if c == '#' { 1 } else { -1 }).sum();
+            (base + acc).rem_euclid(12) as u8
+        };
+        for root in 0..12u8 {
+            let f = fifth_above(root);
+            assert_eq!(pc(&f), (root + 7) % 12, "{} {f}", key_name(root));
+            assert_eq!((letter(key_name(root)) + 4) % 7, letter(&f), "{f}");
+            assert!(!f.contains("##") && !f.contains("bb"), "{f}");
+        }
+        assert_eq!(fifth_above(11), "F#");
+        assert_eq!(fifth_above(6), "C#");
+        assert_eq!(fifth_above(8), "Eb");
+        assert_eq!(key_with_octave(60), "C4");
+        assert_eq!(key_with_octave(63), "Eb4");
+        assert_eq!(key_with_octave(69), "A4");
+    }
     use cantus_core::tuning::Temperament;
 
     #[test]
@@ -208,6 +315,8 @@ mod tests {
         assert_eq!(signed_cents(-11.7301), "\u{2212}11.73");
         assert_eq!(signed_cents(0.001), "0.00");
         assert_eq!(degree_written(&ScaleDegree::Ratio(3, 2)), "3/2");
+        // r42 fix-ui (review ui#20): the octave reads as a ratio, never as a bare "2".
+        assert_eq!(degree_written(&ScaleDegree::Ratio(2, 1)), "2/1");
         assert!((degree_cents(&ScaleDegree::Ratio(3, 2)) - 701.955).abs() < 1e-3);
     }
 }

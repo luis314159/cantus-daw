@@ -1,4 +1,4 @@
-//! Project ▸ Tuning reads whole (the house rule, ADR 0109: nothing elided, dropped,
+//! Options ▸ Tuning… reads whole (the house rule, ADR 0109: nothing elided, dropped,
 //! abbreviated or painted past its place, in English or Spanish), as `r41_whole` holds
 //! round 41's windows: the window in each of its states — a new song, a temperament in a
 //! key, one following the song's key, a Scala scale of 31 notes read from outside bytes, a
@@ -117,8 +117,17 @@ fn probe_window(
     k: f32,
     dark: bool,
 ) -> (Vec<String>, Vec<(String, egui::Rect)>) {
+    probe_window_in(app, k, dark, tuning::SIZE + egui::vec2(80.0, 80.0))
+}
+
+/// [`probe_window`] in a room of `room` points.
+fn probe_window_in(
+    app: &mut CantusApp,
+    k: f32,
+    dark: bool,
+    room: egui::Vec2,
+) -> (Vec<String>, Vec<(String, egui::Rect)>) {
     let ctx = context(dark);
-    let room = tuning::SIZE + egui::vec2(80.0, 80.0);
     let mut keys = Vec::new();
     probe::start_clipped();
     cantus_ui::raster::shoot(&ctx, room, k, 3, None, |root| {
@@ -158,6 +167,58 @@ fn the_tuning_window_reads_whole_in_every_state_and_both_languages() {
                         let overlap = ra.intersect(*rb);
                         if overlap.width() > 1.0 && overlap.height() > 1.0 {
                             bad.push(format!("{state} {lang:?} {k}: {a} overlaps {b}"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    i18n::set_thread_locale(Locale::En);
+    bad.sort();
+    bad.dedup();
+    assert!(bad.is_empty(), "not read whole:\n{}", bad.join("\n"));
+}
+
+/// r42 fix-ui (review ui#18): on a narrow screen (a 1 280-px laptop at 200 % is 640 points)
+/// the window stacks its pictures under its controls — side by side above ~1 120 points,
+/// stacked below — and still reads whole with nothing overlapping, in both languages.
+#[test]
+fn the_tuning_window_adapts_to_a_narrow_screen() {
+    let _turn = theme_turn();
+    let mut bad = Vec::new();
+    let body = |w: f32| egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, 600.0));
+    assert_eq!(tuning::split(body(964.0), 1.0).2, tuning::Layout::Beside);
+    assert_eq!(
+        tuning::split(body(964.0), 1.0).0.width(),
+        500.0,
+        "the default unchanged"
+    );
+    assert_eq!(tuning::split(body(600.0), 1.0).2, tuning::Layout::Stacked);
+    for w in [500.0f32, 700.0, 964.0, 1600.0] {
+        let (l, r, _) = tuning::split(body(w), 1.0);
+        assert!(
+            l.width() > 0.0 && r.width() > 0.0 && !l.intersects(r),
+            "{w}: {l:?} {r:?}"
+        );
+    }
+    for lang in [Locale::En, Locale::Es] {
+        i18n::set_thread_locale(lang);
+        for state in STATES {
+            for room in [egui::vec2(640.0, 720.0), egui::vec2(900.0, 640.0)] {
+                let (mut app, _) = app_in(state);
+                let (words, keys) = probe_window_in(&mut app, 1.0, true, room);
+                for c in words {
+                    bad.push(format!("{state} {lang:?} {room:?}: {c}"));
+                }
+                let controls: Vec<&(String, egui::Rect)> = keys
+                    .iter()
+                    .filter(|(n, _)| !n.contains('#') && !n.starts_with("note"))
+                    .collect();
+                for (i, (a, ra)) in controls.iter().enumerate() {
+                    for (b, rb) in &controls[i + 1..] {
+                        let overlap = ra.intersect(*rb);
+                        if overlap.width() > 1.0 && overlap.height() > 1.0 {
+                            bad.push(format!("{state} {lang:?} {room:?}: {a} overlaps {b}"));
                         }
                     }
                 }
@@ -274,6 +335,14 @@ fn chordas_temperament_card_reads_whole_in_both_languages() {
                 seen()
             };
             let plain = seen_in("plain");
+            // r42 fix-ui: the card's own words in a plain song (the thirds all equal) read
+            // whole there too — they are the card's, not Chorda's view's.
+            let all_equal = i18n::t("tuning.chorda.all_equal");
+            for c in &plain {
+                if c.contains(&all_equal) || c.contains(&i18n::t("tuning.chorda.thirds")) {
+                    bad.push(format!("chorda plain {lang:?} {k} dark {dark}: {c}"));
+                }
+            }
             for state in ["own", "project"] {
                 for c in seen_in(state) {
                     if !plain.contains(&c) {

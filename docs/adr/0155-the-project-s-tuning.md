@@ -61,12 +61,22 @@ A tuning must reach all of them without changing one sample of a song that uses 
    per-note tuning expression at note-on only when the offset is not zero (CLAP
    `NOTE_EXPRESSION_TUNING`, VST3 `kTuningTypeID`, the MPE route's member bend); a plain MIDI
    route gets MTS SysEx when the user turns it on.
-5. **The surface:** Project ▸ Tuning (the system, the diapason with its presets 415–443, the
+5. **The surface:** Options ▸ Tuning… (the system, the diapason with its presets 415–443, the
    temperament and its key, *follow the song's key*, import/export Scala, a circle of fifths
    coloured by each fifth's and third's beat rate, an audition), the track's override in its
    inspector, Chorda's Edit ▸ Tuning (its stretch and unisons stay its own); a one-line summary
    only when the tuning is not the default ("Werckmeister III in E flat · A415", the key named as the song's key is named — the fonts
 have no ♯ or ♭).
+6. **The window's rules** (the mid-round review, `docs/round42/fix-ui.md`): it opens with
+   *Options ▸ Tuning…* and **Ctrl+Shift+T** (⌘⇧T) — not Ctrl+Alt+T, GNOME's and Ubuntu's
+   terminal key; keymap version 20 brings it where it is free. It is **modal for keys** as the
+   export dialog: only Undo, Redo and its own key pass; Esc closes it. Any replaced project
+   closes it with its cadence (ids start again at 1). **Notes are named with letters in every
+   language** — C D E F G A B with `#`/`b`, A4 for the diapason — as the song's key, the piano
+   roll and the inspector name them (the Spanish strings that said "La4", "Do4" now say "A4",
+   "C4"); a note above a root is spelt by interval (E's major third is G#, its fifth B). A
+   keyboard map belongs to a scale: another system drops it, and a `.kbm` alone over equal
+   temperament or a temperament makes their twelve notes a Scala scale with it.
 
 ## Consequences
 

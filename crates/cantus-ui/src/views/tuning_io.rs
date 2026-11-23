@@ -13,17 +13,100 @@ use cantus_core::tuning::{KeyboardMap, ScalaScale, ScaleDegree, Tuning, TuningSy
 use cantus_core::tuning_scala;
 use std::path::{Path, PathBuf};
 
-/// Why a Scala file was refused (the reason `cantus_core::tuning_scala` states).
+/// Why a Scala file was refused, in the interface's language (the reason
+/// `cantus_core::tuning_scala` states, each in its own words — r42 fix-ui, review ui#16).
 pub type ScalaError = String;
+
+/// The words of a field a Scala error names (`tuning.scala.what.*`).
+fn what_words(what: &str) -> String {
+    let key = match what {
+        "description" => "tuning.scala.what.description",
+        "number of notes" => "tuning.scala.what.count",
+        "pitch value (a blank line)" => "tuning.scala.what.pitch_blank",
+        "pitch value" => "tuning.scala.what.pitch",
+        "mapping entry (a degree or x)" => "tuning.scala.what.entry",
+        "map size" => "tuning.scala.what.map_size",
+        "first key" => "tuning.scala.what.first_key",
+        "last key" => "tuning.scala.what.last_key",
+        "middle key" => "tuning.scala.what.middle_key",
+        "reference key" => "tuning.scala.what.reference_key",
+        "reference frequency" => "tuning.scala.what.reference_hz",
+        "formal octave degree" => "tuning.scala.what.octave_degree",
+        other => return other.to_string(),
+    };
+    t(key)
+}
+
+/// A Scala error in the interface's language.
+pub fn scala_why(e: &tuning_scala::ScalaError) -> String {
+    use tuning_scala::ScalaError as E;
+    match e {
+        E::NotUtf8 => t("tuning.scala.not_utf8"),
+        E::Missing { what, line } => tf(
+            "tuning.scala.missing",
+            &[("what", &what_words(what)), ("line", &line.to_string())],
+        ),
+        E::Bad { what, line, text } => tf(
+            "tuning.scala.bad",
+            &[
+                ("what", &what_words(what)),
+                ("line", &line.to_string()),
+                ("text", text),
+            ],
+        ),
+        E::TooMany { count } => tf(
+            "tuning.scala.too_many",
+            &[
+                ("n", &count.to_string()),
+                ("max", &cantus_core::tuning_cmd::MAX_DEGREES.to_string()),
+            ],
+        ),
+        E::FewerPitches { count, found } => tf(
+            "tuning.scala.fewer",
+            &[("n", &count.to_string()), ("found", &found.to_string())],
+        ),
+        E::ShortMap { size, found } => tf(
+            "tuning.scala.short_map",
+            &[("n", &size.to_string()), ("found", &found.to_string())],
+        ),
+        E::ReferenceUnmapped => t("tuning.scala.reference_unmapped"),
+    }
+}
+
+/// Why `tuning_cmd::check` refused a tuning, in the interface's language.
+fn check_why(e: &cantus_core::CommandError) -> String {
+    let raw = e.to_string();
+    let key = [
+        ("diapason out of range", "tuning.check.a4"),
+        ("temperament key", "tuning.check.key"),
+        ("scale degrees", "tuning.check.degrees"),
+        ("scale degree", "tuning.check.degree"),
+        ("keyboard map keys", "tuning.check.map_keys"),
+        ("keyboard map reference", "tuning.check.map_reference"),
+        ("keyboard map size", "tuning.check.map_size"),
+    ]
+    .into_iter()
+    .find(|(what, _)| raw.ends_with(what));
+    match key {
+        Some((_, k)) => t(k),
+        None => raw,
+    }
+}
+
+/// A file that could not be read or written: its name, in the interface's language (the
+/// system's own words stay out: they are in the system's language).
+fn cannot(key: &str, p: &Path) -> String {
+    tf(key, &[("file", &file_name(p))])
+}
 
 /// A `.scl`: its description and its degrees, as written (`tuning_scala::read_scl`).
 pub fn read_scl(bytes: &[u8]) -> Result<ScalaScale, ScalaError> {
-    tuning_scala::read_scl(bytes).map_err(|e| e.to_string())
+    tuning_scala::read_scl(bytes).map_err(|e| scala_why(&e))
 }
 
 /// A `.kbm` (`tuning_scala::read_kbm`).
 pub fn read_kbm(bytes: &[u8]) -> Result<KeyboardMap, ScalaError> {
-    tuning_scala::read_kbm(bytes).map_err(|e| e.to_string())
+    tuning_scala::read_kbm(bytes).map_err(|e| scala_why(&e))
 }
 
 /// A `.scl` as Scala writes one (`tuning_scala::write_scl`).
@@ -71,7 +154,7 @@ pub fn import(
     scl: &Path,
     kbm: Option<&Path>,
 ) -> Result<String, String> {
-    let read = |p: &Path| std::fs::read(p).map_err(|e| format!("{}: {e}", p.display()));
+    let read = |p: &Path| std::fs::read(p).map_err(|_| cannot("tuning.io.cannot_read", p));
     let scale = read_scl(&read(scl)?).map_err(|e| tf("tuning.io.refused", &[("why", &e)]))?;
     let beside = scl.with_extension("kbm");
     let kbm_path = kbm
@@ -92,7 +175,7 @@ pub fn import(
         map,
     };
     if let Err(e) = cantus_core::tuning_cmd::check(&tu) {
-        return Err(tf("tuning.io.refused", &[("why", &e.to_string())]));
+        return Err(tf("tuning.io.refused", &[("why", &check_why(&e))]));
     }
     super::set(app, target, tu.clone());
     let name = file_name(scl);
@@ -105,12 +188,23 @@ pub fn import(
     })
 }
 
+/// The map row's *Import a keyboard map…*: the system's file dialog for one `.kbm`.
+pub fn import_map_dialog(app: &mut CantusApp, target: Target) {
+    let Some(kbm) = rfd::FileDialog::new()
+        .add_filter(t("tuning.io.filter"), &["kbm"])
+        .pick_file()
+    else {
+        return;
+    };
+    app.tuning.last = Some(import_map(app, target, &kbm));
+}
+
 /// *Export…*: `path` (a `.scl`) and, when the tuning has a keyboard map, the `.kbm` beside
 /// it. Returns the files written.
 pub fn export(app: &CantusApp, target: Target, path: &Path) -> Result<Vec<PathBuf>, String> {
     let scl = path.with_extension("scl");
     let write = |p: &Path, text: &str| {
-        std::fs::write(p, latin1(text)).map_err(|e| format!("{}: {e}", p.display()))
+        std::fs::write(p, latin1(text)).map_err(|_| cannot("tuning.io.cannot_write", p))
     };
     write(&scl, &write_scl(&scale_for_export(app, target)))?;
     let mut out = vec![scl.clone()];
@@ -152,15 +246,21 @@ pub fn import_dialog(app: &mut CantusApp, target: Target) {
     });
 }
 
-/// A `.kbm` alone: the tuning keeps its scale, with this keyboard map.
+/// A `.kbm` alone: the tuning keeps what it plays, with this keyboard map — a scale its
+/// scale; equal temperament, a temperament or the master's table become the twelve degrees
+/// they play, as a Scala scale (a map belongs to a scale: the window shows and removes it
+/// only there — r42 fix-ui, review ui#4).
 pub fn import_map(app: &mut CantusApp, target: Target, kbm: &Path) -> Result<String, String> {
-    let bytes = std::fs::read(kbm).map_err(|e| format!("{}: {e}", kbm.display()))?;
+    let bytes = std::fs::read(kbm).map_err(|_| cannot("tuning.io.cannot_read", kbm))?;
     let map = read_kbm(&bytes).map_err(|e| tf("tuning.io.refused", &[("why", &e)]))?;
     let mut tu = super::tuning_of(app, target);
+    if !matches!(tu.system, TuningSystem::Scale(_)) {
+        tu.system = TuningSystem::Scale(scale_for_export(app, target));
+    }
     tu.map = Some(map);
     tu.a4_hz = 440.0;
     if let Err(e) = cantus_core::tuning_cmd::check(&tu) {
-        return Err(tf("tuning.io.refused", &[("why", &e.to_string())]));
+        return Err(tf("tuning.io.refused", &[("why", &check_why(&e))]));
     }
     super::set(app, target, tu);
     Ok(tf("tuning.io.imported", &[("file", &file_name(kbm))]))
@@ -217,5 +317,45 @@ mod tests {
         )
         .unwrap_err();
         assert!(!e.is_empty(), "a stated reason");
+    }
+
+    /// r42 fix-ui (review ui#16): the reason is said in the interface's language — no
+    /// English left in a Spanish line, for every refusal the reader states.
+    #[test]
+    fn a_refusal_reads_in_spanish() {
+        use cantus_core::tuning_scala::ScalaError as E;
+        crate::i18n::set_thread_locale(crate::i18n::Locale::Es);
+        let all = [
+            E::NotUtf8,
+            E::Missing {
+                what: "number of notes",
+                line: 3,
+            },
+            E::Bad {
+                what: "reference frequency",
+                line: 6,
+                text: "abc".into(),
+            },
+            E::TooMany { count: 5000 },
+            E::FewerPitches {
+                count: 17,
+                found: 16,
+            },
+            E::ShortMap { size: 12, found: 4 },
+            E::ReferenceUnmapped,
+        ];
+        for e in &all {
+            let es = scala_why(e);
+            for english in [" the ", "line ", "pitches", "should hold", "entries"] {
+                assert!(!es.contains(english), "{e:?} -> {es}");
+            }
+        }
+        let short = read_scl(b"two\n2\n100.0\n").unwrap_err();
+        assert!(!short.contains("the count says"), "{short}");
+        let refused = check_why(&cantus_core::CommandError::InvalidValue(
+            "tuning: diapason out of range".into(),
+        ));
+        assert_eq!(refused, t("tuning.check.a4"));
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
     }
 }

@@ -149,8 +149,27 @@ pub fn field_rects(rect: Rect, s: &Style, steppers: bool) -> FieldRects {
 /// `steppers`.
 pub fn menu_field(b: &mut Brush, rect: Rect, s: &Style, st: State, value: &str, steppers: bool) {
     super::widgets::note_field(rect, value);
+    field_face(b, rect, s, st, value, steppers, true);
+}
+
+/// Paint a value field: the menu field's well and its ‹ › when `steppers`, but no ▾ — a
+/// value stepped (or typed) in place that opens no list (r42 fix-ui: a field that looks
+/// like a drop-down must open one).
+pub fn value_field(b: &mut Brush, rect: Rect, s: &Style, st: State, value: &str, steppers: bool) {
+    field_face(b, rect, s, st, value, steppers, false);
+}
+
+fn field_face(
+    b: &mut Brush,
+    rect: Rect,
+    s: &Style,
+    st: State,
+    value: &str,
+    steppers: bool,
+    list: bool,
+) {
     if s.t.system.recessed() {
-        menu_field_slate(b, rect, s, st, value, steppers);
+        menu_field_slate(b, rect, s, st, value, steppers, list);
         return;
     }
     b.register(rect, "menu_field", FIELD_TOKENS, &[s.hue_tok]);
@@ -164,10 +183,17 @@ pub fn menu_field(b: &mut Brush, rect: Rect, s: &Style, st: State, value: &str, 
         egui::pos2(r.field.right() - s.s(6.0) - chev * 0.5, r.field.center().y),
         Vec2::splat(chev),
     );
-    glyph::paint(b, arrow, Glyph::Down, if st.hovered { ink } else { dim });
+    if list {
+        glyph::paint(b, arrow, Glyph::Down, if st.hovered { ink } else { dim });
+    }
+    let end = if list {
+        arrow.left() - s.s(3.0)
+    } else {
+        r.field.right() - s.s(7.0)
+    };
     let inner = Rect::from_min_max(
         egui::pos2(r.field.left() + s.s(7.0), r.field.top()),
-        egui::pos2(arrow.left() - s.s(3.0), r.field.bottom()),
+        egui::pos2(end, r.field.bottom()),
     );
     let t = Text::new(value, Role::Control, ink).align(Align2::LEFT_CENTER);
     let _ = text::paint(b, inner, &t, s.tk());
@@ -195,7 +221,16 @@ pub fn chevron(b: &mut Brush, c: egui::Pos2, w: f32, h: f32, up: bool, sw: f32, 
 /// A drop-down in a recessed family (round 39, `des-controls`' fields sheet): the value at
 /// the left in Regular 12, a chevron 7 × 4 in an 18-pt zone at the right — ink 2, ink 1
 /// under the hand and open; open, it points up and the field wears the focus ring.
-fn menu_field_slate(b: &mut Brush, rect: Rect, s: &Style, st: State, value: &str, steppers: bool) {
+/// Without `list`, the same well with no chevron (a value field).
+fn menu_field_slate(
+    b: &mut Brush,
+    rect: Rect,
+    s: &Style,
+    st: State,
+    value: &str,
+    steppers: bool,
+    list: bool,
+) {
     b.register(rect, "menu_field", FIELD_TOKENS, &[]);
     let r = field_rects(rect, s, steppers);
     let rr = s.s(s.t.radius);
@@ -224,9 +259,11 @@ fn menu_field_slate(b: &mut Brush, rect: Rect, s: &Style, st: State, value: &str
             },
         )
     };
-    let zone = s.s(18.0);
-    let cc = egui::pos2(r.field.right() - zone * 0.5, r.field.center().y);
-    chevron(b, cc, s.s(7.0), s.s(4.0), st.lit, s.s(1.25), quiet);
+    let zone = if list { s.s(18.0) } else { s.s(8.0) };
+    if list {
+        let cc = egui::pos2(r.field.right() - zone * 0.5, r.field.center().y);
+        chevron(b, cc, s.s(7.0), s.s(4.0), st.lit, s.s(1.25), quiet);
+    }
     let inner = Rect::from_min_max(
         egui::pos2(r.field.left() + s.s(8.0), r.field.top()),
         egui::pos2(r.field.right() - zone, r.field.bottom()),

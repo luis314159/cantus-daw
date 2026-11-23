@@ -88,6 +88,13 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     if input {
         app.picker_warm.last_input = now;
     }
+    // r42 fix-ui (review ui#12): never while the song plays or records — the pictures can
+    // wait, the audio's cores and caches cannot; the quiet is counted again from the stop.
+    // No frame is asked for meanwhile: the transport's own passes bring it back.
+    if app.engine.is_playing() || app.is_recording() {
+        app.picker_warm.last_input = now;
+        return;
+    }
     let wait_start = started + app.picker_warm.start_delay - now;
     let wait_quiet = app.picker_warm.last_input + app.picker_warm.quiet - now;
     let wait = wait_start.max(wait_quiet);
@@ -99,7 +106,11 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     if !app.picker_warm.queued {
         app.picker_warm.queued = true;
         let subjects = order(app);
-        // The worker draws in the look this thread draws in.
+        app.picker_view.thumbs.warm(subjects);
+    }
+    // The worker draws in the look this thread draws in — as it is now (r42 fix-ui: a
+    // language or faces switched after the warm-up began reaches the next capture).
+    {
         let s = &app.settings;
         app.picker_view
             .thumbs
@@ -117,7 +128,6 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
                     .collect(),
                 locale: crate::i18n::locale(),
             });
-        app.picker_view.thumbs.warm(subjects);
     }
     app.picker_view.thumbs.pump(ctx);
     if app.picker_view.thumbs.warm_left() == 0 && app.picker_view.thumbs.idle() {

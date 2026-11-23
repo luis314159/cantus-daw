@@ -16,8 +16,45 @@ use egui::{Align2, Id, Pos2, Rect, Response, Sense, Ui, Vec2};
 
 /// The window at 100 %.
 pub const SIZE: Vec2 = Vec2::new(1000.0, 740.0);
-/// The controls' column.
+/// The controls' column, at its widest.
 const LEFT: f32 = 500.0;
+/// The narrowest controls' column beside the pictures; below it they stack.
+const LEFT_MIN: f32 = 380.0;
+/// The pictures' narrowest side beside the controls.
+const RIGHT_MIN: f32 = 300.0;
+
+/// How the window lays out its two halves.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Layout {
+    /// The controls at the left, the pictures at the right.
+    Beside,
+    /// The controls above, the pictures under them (a narrow screen, or 200 % on a small
+    /// one — r42 fix-ui, review ui#18).
+    Stacked,
+}
+
+/// The controls' rect, the pictures' and the layout in the window's `body` (the room
+/// between its title and its footer) at scale `k`: side by side while the controls keep
+/// [`LEFT_MIN`] and the pictures [`RIGHT_MIN`] (the column shrinking from [`LEFT`] to half
+/// the room as the window narrows), stacked below that.
+pub fn split(body: Rect, k: f32) -> (Rect, Rect, Layout) {
+    let gap = 24.0 * k;
+    let w = body.width();
+    if w >= (LEFT_MIN + RIGHT_MIN) * k + gap {
+        // The pictures keep at least 44 % of the room; the controls the rest, up to LEFT.
+        let lw = (LEFT * k)
+            .min(w - gap - (RIGHT_MIN * k).max(0.44 * w))
+            .max(LEFT_MIN * k);
+        let left = Rect::from_min_size(body.min, Vec2::new(lw, body.height()));
+        let right = Rect::from_min_max(Pos2::new(left.right() + gap, body.top()), body.max);
+        (left, right, Layout::Beside)
+    } else {
+        let lh = (body.height() * 0.52).round();
+        let left = Rect::from_min_size(body.min, Vec2::new(w, lh));
+        let right = Rect::from_min_max(Pos2::new(body.left(), left.bottom() + 16.0 * k), body.max);
+        (left, right, Layout::Stacked)
+    }
+}
 /// A row's caption column.
 pub(super) const CAPTION: f32 = 124.0;
 
@@ -80,19 +117,24 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
                 Pos2::new(rect.left() + 18.0 * k, rect.bottom() - 52.0 * k),
                 Pos2::new(rect.right() - 18.0 * k, rect.bottom() - 14.0 * k),
             );
-            let left = Rect::from_min_max(
+            let body = Rect::from_min_max(
                 Pos2::new(rect.left() + 18.0 * k, head.bottom() + 8.0 * k),
-                Pos2::new(rect.left() + (18.0 + LEFT) * k, foot.top() - 10.0 * k),
+                Pos2::new(rect.right() - 18.0 * k, foot.top() - 10.0 * k),
             );
-            let right = Rect::from_min_max(
-                Pos2::new(left.right() + 24.0 * k, left.top()),
-                Pos2::new(rect.right() - 18.0 * k, left.bottom()),
-            );
+            let (left, right, side) = split(body, k);
             with_brush(ui.painter(), |b| {
-                let side = Rect::from_min_max(
-                    Pos2::new(right.left() - 12.0 * k, head.bottom()),
-                    Pos2::new(rect.right(), foot.top() - 4.0 * k),
-                );
+                let side = match side {
+                    // Side by side: the pictures' ground from the column to the edge.
+                    Layout::Beside => Rect::from_min_max(
+                        Pos2::new(right.left() - 12.0 * k, head.bottom()),
+                        Pos2::new(rect.right(), foot.top() - 4.0 * k),
+                    ),
+                    // Stacked: under the controls, the window's whole width.
+                    Layout::Stacked => Rect::from_min_max(
+                        Pos2::new(rect.left(), right.top() - 8.0 * k),
+                        Pos2::new(rect.right(), foot.top() - 4.0 * k),
+                    ),
+                };
                 crate::views::workspace_settings::side_ground(b, side, &s);
             });
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(left));
@@ -253,10 +295,29 @@ fn pictures(app: &CantusApp, ui: &mut Ui, r: Rect, target: Target) {
         cantus_core::tuning::TuningSystem::Temperament { key, .. } => key,
         _ => app.project().key.map_or(0, |k| k.root),
     };
+    // Stacked under the controls the room is wide and short: the circle and its legend at
+    // the left, the degrees beside them (r42 fix-ui, review ui#18).
+    let wide = twelve && r.width() > r.height() * 1.3;
+    let (pic, r) = if wide {
+        let cw = (r.height() - 50.0 * k).min(r.width() * 0.45).max(160.0 * k);
+        (
+            Rect::from_min_size(r.min, Vec2::new(cw, r.height())),
+            Rect::from_min_max(Pos2::new(r.left() + cw + 16.0 * k, r.top()), r.max),
+        )
+    } else {
+        (r, r)
+    };
     let mut y = r.top();
     if twelve {
-        let side = (r.width().min(330.0 * k)).min(r.height() * 0.52);
-        let cr = Rect::from_center_size(Pos2::new(r.center().x, y + side * 0.5), Vec2::splat(side));
+        let side = (pic.width().min(330.0 * k)).min(if wide {
+            pic.height() - 50.0 * k
+        } else {
+            pic.height() * 0.52
+        });
+        let cr = Rect::from_center_size(
+            Pos2::new(pic.center().x, pic.top() + side * 0.5),
+            Vec2::splat(side),
+        );
         let centres = with_brush(ui.painter(), |b| circle::paint(b, cr, &s, &table, tonic));
         // The circle's centre: the tonic it is tuned to, and the diapason under it.
         let mid = Rect::from_center_size(cr.center(), Vec2::new(side * 0.4, 52.0 * k));
@@ -290,10 +351,12 @@ fn pictures(app: &CantusApp, ui: &mut Ui, r: Rect, target: Target) {
                 );
             }
         }
-        y = cr.bottom() + 6.0 * k;
-        let lr = Rect::from_min_size(Pos2::new(r.left(), y), Vec2::new(r.width(), 36.0 * k));
+        let ly = cr.bottom() + 6.0 * k;
+        let lr = Rect::from_min_size(Pos2::new(pic.left(), ly), Vec2::new(pic.width(), 36.0 * k));
         with_brush(ui.painter(), |b| circle::legend(b, lr, &s));
-        y = lr.bottom() + 8.0 * k;
+        if !wide {
+            y = lr.bottom() + 8.0 * k;
+        }
     }
     let (rows, heads): (Vec<circle::Row>, [&str; 5]) = match &scale {
         Some(sc) => (

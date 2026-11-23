@@ -9,7 +9,7 @@ use super::{words, Target};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::kit::text::Src;
-use crate::kit::widgets::{menu_field, segmented};
+use crate::kit::widgets::{segmented, MenuField};
 use crate::kit::{with_brush, Fill, Style};
 use crate::views::audio_parts as parts;
 use crate::views::workspace_settings::note;
@@ -43,16 +43,78 @@ fn seg(ui: &mut Ui, selected: usize, labels: &[Src<'_>], name: &str) -> (Option<
     ((i != selected).then_some(i), r)
 }
 
+/// A field that opens a list (its ▾), published as `name`; greyed and still when not
+/// `enabled` (the key a followed song's key sets).
 fn field(
+    ui: &mut Ui,
+    value: &str,
+    name: &str,
+    steppers: bool,
+    enabled: bool,
+) -> (egui::Response, crate::kit::widgets::FieldClicks) {
+    let wd = width(ui);
+    let words = t(name);
+    let (r, c) = MenuField::new(value)
+        .steppers(steppers)
+        .name(&words)
+        .size(wd, 24.0)
+        .enabled(enabled)
+        .show(ui);
+    put(ui, name, r.rect);
+    (r, c)
+}
+
+/// A value that opens no list (no ▾): a scale's name, a diapason stepped or typed.
+fn value_field(
     ui: &mut Ui,
     value: &str,
     name: &str,
     steppers: bool,
 ) -> (egui::Response, crate::kit::widgets::FieldClicks) {
     let wd = width(ui);
-    let (r, c) = menu_field(ui, value, steppers, false, &t(name), wd);
+    let words = t(name);
+    let (r, c) = MenuField::new(value)
+        .steppers(steppers)
+        .list(false)
+        .name(&words)
+        .size(wd, 24.0)
+        .show(ui);
     put(ui, name, r.rect);
     (r, c)
+}
+
+/// A frequency typed in hertz ("415", "442,5"): within the diapason's range, or `None`.
+pub(super) fn parse_hz(words: &str) -> Option<f64> {
+    let hz = words
+        .trim()
+        .trim_end_matches(|c: char| c.is_alphabetic() || c.is_whitespace())
+        .replace(',', ".")
+        .parse::<f64>()
+        .ok()?;
+    (hz.is_finite() && (A4_MIN_HZ..=A4_MAX_HZ).contains(&hz)).then(|| (hz * 100.0).round() / 100.0)
+}
+
+/// The diapason being typed over its field (`words` holds what is typed): `Some(Some(hz))`
+/// on Enter with a frequency in range, `Some(None)` when the typing ends without one (Esc,
+/// or words that are not a frequency), `None` while it goes on.
+pub(super) fn type_hz(
+    ui: &mut Ui,
+    rect: Rect,
+    id: egui::Id,
+    words: &mut String,
+) -> Option<Option<f64>> {
+    let s = Style::current();
+    let out = crate::kit::field::Field::new(id)
+        .role(crate::kit::text::Role::Value)
+        .centered()
+        .scale(s.k)
+        .opens_when_shown()
+        .show(ui, rect, words);
+    match out.event {
+        Some(crate::kit::field::Event::Commit) => Some(parse_hz(words)),
+        Some(crate::kit::field::Event::Cancel) => Some(None),
+        None => None,
+    }
 }
 
 /// A switch row of the kit (a lamp and its words), published as `name`.
@@ -168,14 +230,7 @@ fn system_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
             _ => None,
         };
         if let Some(system) = system {
-            super::set(
-                app,
-                target,
-                Tuning {
-                    system,
-                    ..tu.clone()
-                },
-            );
+            super::choose_system(app, target, system);
         }
     }
     match &tu.system {
@@ -185,7 +240,7 @@ fn system_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
             key,
             follow_song_key,
         } => temperament_rows(app, ui, target, &tu, *id, *key, *follow_song_key),
-        TuningSystem::Scale(s) => scale_rows(ui, &tu, s),
+        TuningSystem::Scale(s) => scale_rows(app, ui, target, &tu, s),
         TuningSystem::External => {
             let words = match app.tuning.mts.as_ref() {
                 Some(m) if m.follows() => match m.master_name() {
@@ -210,7 +265,7 @@ fn temperament_rows(
 ) {
     let song_key = app.project().key;
     let (f, _) = row(ui, "tuning.row.temperament", |ui| {
-        field(ui, &t(id.name_key()), "temperament", false)
+        field(ui, &t(id.name_key()), "temperament", false, true)
     });
     let options: Vec<(Temperament, String)> = Temperament::ALL
         .iter()
@@ -222,22 +277,16 @@ fn temperament_rows(
             key,
             follow_song_key: follow,
         };
-        super::set(
-            app,
-            target,
-            Tuning {
-                system,
-                ..tu.clone()
-            },
-        );
+        super::set(app, target, super::with_system(tu, system));
     }
     let shown = super::effective(tu, song_key);
     let shown_key = match shown.system {
         TuningSystem::Temperament { key, .. } => key,
         _ => key,
     };
+    // Following the song's key, the key is the song's: shown, greyed, still (review ui#14).
     let (f, clicks) = row(ui, "tuning.row.key", |ui| {
-        field(ui, words::key_name(shown_key), "key", true)
+        field(ui, words::key_name(shown_key), "key", true, !follow)
     });
     let options: Vec<(u8, String)> = (0..12u8)
         .map(|k| (k, words::key_name(k).to_string()))
@@ -259,33 +308,19 @@ fn temperament_rows(
             key: k,
             follow_song_key: false,
         };
-        super::set_merging(
-            app,
-            target,
-            Tuning {
-                system,
-                ..tu.clone()
-            },
-            "key",
-        );
+        super::set_merging(app, target, super::with_system(tu, system), "key");
     }
     let label = t("tuning.follow_song_key");
+    // It can always be unticked (review ui#3): greyed only while off with no key to follow.
     if row(ui, "", |ui| {
-        check(ui, follow, song_key.is_some(), &label, "follow")
+        check(ui, follow, song_key.is_some() || follow, &label, "follow")
     }) {
         let system = TuningSystem::Temperament {
             id,
             key: song_key.map_or(key, |k| k.root),
             follow_song_key: !follow,
         };
-        super::set(
-            app,
-            target,
-            Tuning {
-                system,
-                ..tu.clone()
-            },
-        );
+        super::set(app, target, super::with_system(tu, system));
     }
     match song_key {
         Some(k) if follow => note(
@@ -301,10 +336,17 @@ fn temperament_rows(
     }
 }
 
-fn scale_rows(ui: &mut Ui, tu: &Tuning, s: &cantus_core::tuning::ScalaScale) {
+fn scale_rows(
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    target: Target,
+    tu: &Tuning,
+    s: &cantus_core::tuning::ScalaScale,
+) {
     let name = words::scale_name(s);
+    // The scale's name is a value, not a list: another scale comes from *Import*.
     row(ui, "tuning.row.scale", |ui| {
-        field(ui, &name, "scale", false)
+        value_field(ui, &name, "scale", false)
     });
     let period = s
         .degrees
@@ -314,7 +356,11 @@ fn scale_rows(ui: &mut Ui, tu: &Tuning, s: &cantus_core::tuning::ScalaScale) {
     note(
         ui,
         &tf(
-            "tuning.scale.notes",
+            if s.degrees.len() == 1 {
+                "tuning.scale.notes_one"
+            } else {
+                "tuning.scale.notes"
+            },
             &[("n", &s.degrees.len().to_string()), ("period", &period)],
         ),
         false,
@@ -325,12 +371,34 @@ fn scale_rows(ui: &mut Ui, tu: &Tuning, s: &cantus_core::tuning::ScalaScale) {
             "tuning.map.some",
             &[
                 ("size", &m.size.to_string()),
-                ("key", &crate::controllers::note_name(m.reference_key)),
+                // Named as the rest of the window names keys (review ui#25): Eb4, not D#4.
+                ("key", &words::key_with_octave(m.reference_key)),
                 ("hz", &words::hz_text(m.reference_hz)),
             ],
         ),
     };
-    row(ui, "tuning.row.map", |ui| field(ui, &map, "map", false));
+    // The map's list: none (degree 0 on C4), or a `.kbm` read in.
+    let (f, _) = row(ui, "tuning.row.map", |ui| {
+        field(ui, &map, "map", false, true)
+    });
+    let options = [
+        (false, t("tuning.map.remove")),
+        (true, t("tuning.map.import")),
+    ];
+    match pick(&f, &options, tu.map.is_none().then_some(false)) {
+        Some(false) if tu.map.is_some() => {
+            super::set(
+                app,
+                target,
+                Tuning {
+                    map: None,
+                    ..tu.clone()
+                },
+            );
+        }
+        Some(true) => super::io::import_map_dialog(app, target),
+        _ => {}
+    }
 }
 
 fn pitch_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
@@ -342,9 +410,27 @@ fn pitch_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
         "tuning.row.a4"
     };
     let value = tf("tuning.hz", &[("hz", &words::hz_text(tu.a4_hz))]);
-    let (_, clicks) = row(ui, caption, |ui| field(ui, &value, "a4", true));
+    // The diapason: ‹ › a hertz, or a click on the value types one (review ui#14) — a
+    // value field, no list.
+    let mut typed = None;
+    let id = egui::Id::new(("tuning-a4", super::target_salt(target)));
+    let clicks = row(ui, caption, |ui| {
+        let (resp, clicks) = value_field(ui, &value, "a4", true);
+        if let Some(words) = app.tuning.typing_a4.as_mut() {
+            let s = Style::current();
+            let r = crate::kit::well::field_rects(resp.rect, &s, true).field;
+            typed = type_hz(ui, r, id, words);
+        }
+        clicks
+    });
+    if clicks.open && app.tuning.typing_a4.is_none() {
+        app.tuning.typing_a4 = Some(words::hz_text(tu.a4_hz));
+    }
     let step = |hz: f64, d: f64| ((hz + d) * 10.0).round() / 10.0;
-    let next = if clicks.prev {
+    let next = if let Some(done) = typed {
+        app.tuning.typing_a4 = None;
+        done
+    } else if clicks.prev {
         Some(step(tu.a4_hz, -1.0))
     } else if clicks.next {
         Some(step(tu.a4_hz, 1.0))
@@ -423,7 +509,7 @@ fn mts_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
     let state = lib.master_state();
     let status = match state {
         MasterState::Ours => match lib.clients() {
-            Some(n) => tf("tuning.mts.ours_clients", &[("n", &n.to_string())]),
+            Some(n) => clients_words(n),
             None => t("tuning.mts.ours"),
         },
         MasterState::Free => t("tuning.mts.free"),
@@ -436,8 +522,7 @@ fn mts_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
         super::tuning_of(app, Target::Project).system,
         TuningSystem::External
     );
-    let enabled = project && !external && !matches!(state, MasterState::Unsupported);
-    let on = state == MasterState::Ours;
+    let (on, enabled) = super::master_switch(app, target);
     let label = t("tuning.mts.master");
     if row(ui, "", |ui| check(ui, on, enabled, &label, "master")) {
         super::set_master(app, !on, false);
@@ -466,9 +551,19 @@ fn mts_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
     }
 }
 
+/// "Cantus leads the tuning; 2 programs follow it." — one program in its own words.
+pub(super) fn clients_words(n: i32) -> String {
+    match n {
+        i32::MIN..=0 => t("tuning.mts.ours_clients_none"),
+        1 => t("tuning.mts.ours_clients_one"),
+        _ => tf("tuning.mts.ours_clients", &[("n", &n.to_string())]),
+    }
+}
+
 fn audition_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
     band_row(ui, "tuning.band.audition");
-    let track = super::audition_track(app, target);
+    let place = super::audition_place(app, target);
+    let track = place.ok();
     let (tonic, minor) = super::audition_key(app, target);
     let playing = app.tuning.audition.is_some();
     let label = if playing {
@@ -497,9 +592,29 @@ fn audition_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
             super::start_audition(app, target, now);
         }
     }
-    let words = match track.and_then(|t| app.project().track(t)) {
-        Some(t) => tf("tuning.audition.on", &[("track", &t.name)]),
-        None => crate::i18n::t("tuning.audition.no_track"),
+    // Where it plays, or why it cannot (review ui#6, ui#7).
+    let words = match place {
+        Ok(id) => app
+            .project()
+            .track(id)
+            .map(|t| tf("tuning.audition.on", &[("track", &t.name)]))
+            .unwrap_or_default(),
+        Err(why) => t(why),
     };
     note(ui, &words, false);
+}
+
+#[cfg(test)]
+mod tests {
+    /// r42 fix-ui (review ui#14): a diapason typed as a musician types it — "442,5" or
+    /// "415 Hz" — within the range, or nothing.
+    #[test]
+    fn a_typed_diapason_reads_as_hertz_in_range() {
+        assert_eq!(super::parse_hz("415"), Some(415.0));
+        assert_eq!(super::parse_hz(" 442,5 "), Some(442.5));
+        assert_eq!(super::parse_hz("430.54 Hz"), Some(430.54));
+        assert_eq!(super::parse_hz("abc"), None);
+        assert_eq!(super::parse_hz("10"), None, "out of range");
+        assert_eq!(super::parse_hz("NaN"), None);
+    }
 }

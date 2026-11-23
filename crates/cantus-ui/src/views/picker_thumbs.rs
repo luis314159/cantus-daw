@@ -52,11 +52,16 @@ pub struct Stats {
     pub disk_loads: u32,
     /// Pictures put into the atlas.
     pub uploads: u32,
+    /// Pictures made ahead and dropped: the look changed while they were made.
+    pub stale: u32,
 }
 
 enum Done {
     Image(Subject, u64, ColorImage),
     Failed(Subject, u64),
+    /// r42 fix-ui: made while the theme changed under it — neither saved nor shown, and not
+    /// a failure (the new look makes it again).
+    Stale(Subject),
 }
 
 /// See the module docs.
@@ -167,6 +172,20 @@ impl WorkerLook {
 /// the units' faces — the switch and every sheet (`skin::sheets_digest`; round 32), so a
 /// picture made plain, or before a sheet changed, is never shown for a face.
 pub fn look_key() -> u64 {
+    use crate::kit::cache;
+    cache::key((
+        theme_key(),
+        crate::i18n::locale().code(),
+        crate::kit::skin::enabled(),
+        crate::kit::skin::sheets_digest(),
+        REV,
+    ))
+}
+
+/// The installed theme's part of [`look_key`]: every token. Process-wide (the tokens are
+/// global and live), so a worker reads the same value the interface thread does — it
+/// checks it after a capture to know the theme did not change under it.
+pub fn theme_key() -> u64 {
     use crate::kit::{cache, Tok};
     let t = crate::kit::tokens::current();
     let colours: Vec<[u8; 4]> = Tok::ALL.iter().map(|k| t.get(*k).to_array()).collect();
@@ -178,10 +197,6 @@ pub fn look_key() -> u64 {
         t.depth.to_bits(),
         t.density.to_bits(),
         t.text_scale.to_bits(),
-        crate::i18n::locale().code(),
-        crate::kit::skin::enabled(),
-        crate::kit::skin::sheets_digest(),
-        REV,
     ))
 }
 
@@ -287,15 +302,25 @@ impl Thumbs {
             self.ahead = Some(s);
             let (tx, ctx2, wear) = (self.tx.clone(), ctx.clone(), self.worker_look.clone());
             let path = self.file(s, look);
+            // r42 fix-ui (review ui#11): the picture is saved under this look's file only
+            // if it was made in this look — the language and faces the worker wears are this
+            // thread's, and the theme (global, live) did not change during the capture.
+            let theme = theme_key();
+            let worn =
+                wear.locale == crate::i18n::locale() && wear.faces == crate::kit::skin::enabled();
             std::thread::Builder::new()
                 .name("cantus-picker-ahead".into())
                 .spawn(move || {
+                    // Background priority (review ui#12): below the interface, never MMCSS.
+                    let _ = cantus_rt::thread::lower_background_thread();
                     let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         wear.wear();
                         picker_snap::capture(&ctx2, s, PPP)
                             .map(|frame| picker_snap::finish(frame, W, RADIUS))
                     }));
+                    let same_look = worn && theme_key() == theme;
                     let msg = match made {
+                        Ok(Some(_)) if !same_look => Done::Stale(s),
                         Ok(Some(img)) => {
                             if let Some(p) = path {
                                 save_png(&img, &p);
@@ -357,6 +382,16 @@ impl Thumbs {
                     if l == self.look {
                         self.failed.insert(s);
                     }
+                }
+                // Made in another look than its file's: dropped; a tile that asks makes it
+                // on demand, and a new look warms it again.
+                Done::Stale(s) => {
+                    self.busy.remove(&s);
+                    self.disk_only.remove(&s);
+                    if self.ahead == Some(s) {
+                        self.ahead = None;
+                    }
+                    self.stats.stale += 1;
                 }
             }
         }

@@ -192,3 +192,41 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
         "at rest {rest_ms} ms, empty {empty_ms} ms"
     );
 }
+
+/// r42 fix-ui (review ui#12): the warm-up never runs while the song plays — quiet hands and
+/// a long start-up notwithstanding — and begins once the transport has stopped and the
+/// quiet has been counted again from the stop.
+#[test]
+fn the_warm_up_waits_while_the_song_plays() {
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = ctx();
+    let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+    app.picker_view
+        .thumbs
+        .enable(Some(dir.path().to_path_buf()));
+    app.engine.set_heard_for_tests(cantus_core::Ticks(0), true);
+    let mut t = 0.0;
+    for _ in 0..200 {
+        pass(&mut app, &ctx, t, Vec::new());
+        t += 0.05;
+    }
+    assert_eq!(
+        app.picker_view.thumbs.stats.captures, 0,
+        "nothing made while the song plays"
+    );
+    app.engine.set_heard_for_tests(cantus_core::Ticks(0), false);
+    // Stopped: not at once (the quiet counts from the stop) …
+    pass(&mut app, &ctx, t, Vec::new());
+    assert_eq!(app.picker_view.thumbs.stats.captures, 0, "the quiet first");
+    // … then it begins.
+    let mut steps = 0;
+    while app.picker_view.thumbs.stats.captures == 0 && steps < 400 {
+        t += 0.05;
+        pass(&mut app, &ctx, t, Vec::new());
+        steps += 1;
+    }
+    assert!(
+        app.picker_view.thumbs.stats.captures > 0,
+        "it begins after the stop"
+    );
+}

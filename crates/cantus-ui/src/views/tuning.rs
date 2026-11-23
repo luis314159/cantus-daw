@@ -1,4 +1,4 @@
-//! Project ▸ Tuning (round 42, ADR 0155's surface and ADR 0156): where a professional sets
+//! Options ▸ Tuning… (round 42, ADR 0155's surface and ADR 0156): where a professional sets
 //! the song's tuning — the system (equal temperament, a historical temperament in a key, a
 //! Scala scale with its keyboard map, the MTS-ESP master's), the diapason and its presets,
 //! *follow the song's key*, Scala import and export, the circle of fifths coloured by each
@@ -28,7 +28,7 @@ mod window;
 #[path = "tuning_words.rs"]
 pub mod words;
 
-pub use window::{geo, geo_names, show, SIZE};
+pub use window::{geo, geo_names, show, split, Layout, SIZE};
 
 use crate::app::CantusApp;
 use cantus_core::scale::Key;
@@ -60,8 +60,12 @@ pub struct TuningUi {
     pub mts: Option<MtsLink>,
     /// Why *Be the MTS-ESP master* was refused, until the next attempt.
     pub master_refused: Option<cantus_rt::mts::Refusal>,
-    /// The key Chorda's presets rotate to, once chosen in its card.
-    pub chorda_key: Option<u8>,
+    /// The key Chorda's presets rotate to, once chosen in a track's card — each track its
+    /// own (r42 fix-ui, review ui#8); forgotten with the project (ids start again).
+    pub chorda_key: std::collections::BTreeMap<TrackId, u8>,
+    /// The diapason being typed over its field (the window's, or Chorda's card's own A4),
+    /// while it is.
+    pub typing_a4: Option<String>,
     /// The project's table last published as master, with the history's revision it was
     /// made from.
     published: Option<(u64, TuningTable)>,
@@ -86,18 +90,45 @@ pub const CHORD_SECONDS: f64 = 0.75;
 /// The audition's chords.
 pub const STEPS: usize = 4;
 
-/// Open the window on `target` (*Project ▸ Tuning…*, `Ctrl+Alt+T`, or a track's *Its own…*).
+/// Open the window on `target` (*Options ▸ Tuning…*, `Ctrl+Shift+T`, or a track's *Its own…*).
 pub fn open(app: &mut CantusApp, target: Target) {
     app.tuning.open = Some(target);
     app.tuning.fresh = true;
     app.tuning.last = None;
     app.tuning.master_refused = None;
+    app.tuning.typing_a4 = None;
 }
 
 /// Close it; a cadence playing stops.
 pub fn close(app: &mut CantusApp) {
     stop_audition(app);
     app.tuning.open = None;
+    app.tuning.typing_a4 = None;
+}
+
+/// Another project is in place (`CantusApp::other_project`: New, Open, a demo, a recovery,
+/// a *Replace project* undone or redone): the window on the old one closes with its cadence
+/// — the ids start again from 1, so a `Target::Track` or a cadence's held keys would land on
+/// the new project's track of that id (r42 fix-ui, review ui#1) — and what was chosen for the
+/// old one's tracks and files is forgotten. MTS-ESP's link and its master stay.
+pub fn project_replaced(app: &mut CantusApp) {
+    close(app);
+    app.tuning.chorda_key.clear();
+    app.tuning.last = None;
+    app.tuning.published = None;
+}
+
+/// Whether the window holds the keys (it is modal, as the export dialog): only Undo, Redo
+/// and its own shortcut pass to the project behind it (r42 fix-ui, review ui#1).
+pub fn holds_keys(app: &CantusApp) -> bool {
+    app.tuning.open.is_some()
+}
+
+/// The actions that reach past the open window: Undo, Redo (the manual promises Ctrl+Z
+/// there) and the key that closes it again.
+pub fn passes(action: crate::keymap::Action) -> bool {
+    use crate::keymap::Action;
+    matches!(action, Action::Undo | Action::Redo | Action::OpenTuning)
 }
 
 /// `t` as it sounds in a song in `key`: *follow the song's key* rotates a temperament to
@@ -125,6 +156,21 @@ pub fn track_mode(app: &CantusApp, target: Target) -> Option<TrackTuning> {
     match target {
         Target::Project => None,
         Target::Track(id) => app.project().track(id).map(|t| t.tuning.clone()),
+    }
+}
+
+/// `tu` in another `system`, its diapason kept: a keyboard map belongs to a scale, so any
+/// other system drops it (r42 fix-ui, review ui#4: Equal kept a map no row could show or
+/// remove, and the summary said "mapped").
+pub fn with_system(tu: &Tuning, system: TuningSystem) -> Tuning {
+    let map = match system {
+        TuningSystem::Scale(_) => tu.map.clone(),
+        _ => None,
+    };
+    Tuning {
+        a4_hz: tu.a4_hz,
+        system,
+        map,
     }
 }
 
@@ -159,7 +205,7 @@ pub fn set_merging(app: &mut CantusApp, target: Target, t: Tuning, what: &'stati
     app.exec_merging(command(target, t), key)
 }
 
-fn target_salt(target: Target) -> u64 {
+pub(crate) fn target_salt(target: Target) -> u64 {
     match target {
         Target::Project => u64::MAX,
         Target::Track(id) => id.0,
@@ -267,6 +313,39 @@ pub fn set_master(app: &mut CantusApp, on: bool, reinitialize: bool) {
     }
 }
 
+/// The System segment's choice for `target`: its diapason kept, a keyboard map dropped
+/// unless it is a scale ([`with_system`]). MTS-ESP chosen for the song: Cantus follows the
+/// master, so it cannot also be one — it resigns first, or it would go on publishing its
+/// own table (12-TET at the diapason, having no master to read) to every client (r42
+/// fix-ui, review ui#2).
+pub fn choose_system(app: &mut CantusApp, target: Target, system: TuningSystem) -> bool {
+    if target == Target::Project && matches!(system, TuningSystem::External) {
+        let ours = app.tuning.mts.as_ref().is_some_and(|m| m.is_master());
+        if ours {
+            set_master(app, false, false);
+        }
+    }
+    let tu = tuning_of(app, target);
+    set(app, target, with_system(&tu, system))
+}
+
+/// *Be the MTS-ESP master*: whether it is on, and whether it can be switched — always when
+/// on (it can always be switched off), else only for the project's tuning, a song that does
+/// not follow MTS-ESP, and a library that can lead.
+pub fn master_switch(app: &CantusApp, target: Target) -> (bool, bool) {
+    use cantus_rt::mts::MasterState;
+    let Some(state) = app.tuning.mts.as_ref().and_then(|m| m.master_state()) else {
+        return (false, false);
+    };
+    let on = state == MasterState::Ours;
+    let external = matches!(
+        tuning_of(app, Target::Project).system,
+        TuningSystem::External
+    );
+    let can = target == Target::Project && !external && state != MasterState::Unsupported;
+    (on, on || can)
+}
+
 /// Load MTS-ESP from its standard place (the boot, on the main thread): a machine without
 /// it gets the reason the window shows.
 pub fn load_mts(app: &mut CantusApp) {
@@ -283,21 +362,61 @@ pub fn install_mts(app: &mut CantusApp, link: MtsLink) {
     app.tuning.mts = Some(link);
 }
 
-/// The track the audition plays on: the one the window edits, else the selected track,
-/// else the first — whichever plays an instrument.
-pub fn audition_track(app: &CantusApp, target: Target) -> Option<TrackId> {
+/// Whether `target` plays twelve notes to the octave — what the circle of fifths compares
+/// and the cadence's I–IV–V–I is made of: not a Scala scale of another size (or one a
+/// keyboard map lays out its own way), every key of the middle octave and its fifth and
+/// third sounding.
+pub fn plays_twelve(app: &CantusApp, target: Target) -> bool {
+    let tu = effective(&tuning_of(app, target), app.project().key);
+    if let TuningSystem::Scale(sc) = &tu.system {
+        let octave = sc
+            .degrees
+            .last()
+            .is_some_and(|d| (words::degree_cents(d) - 1200.0).abs() < 50.0);
+        if !(sc.degrees.len() == 12 && tu.map.is_none() && octave) {
+            return false;
+        }
+    }
+    circle::twelve_to_the_octave(&table_of(app, target))
+}
+
+/// Where the cadence plays, or why it cannot (a locale key).
+pub fn audition_place(app: &CantusApp, target: Target) -> Result<TrackId, &'static str> {
     let p = app.project();
     let plays = |id: TrackId| {
         p.track(id)
             .is_some_and(|t| !crate::record_session::is_audio_track(t))
     };
-    match target {
-        Target::Track(id) if plays(id) => Some(id),
-        _ => app
-            .selected_track
-            .filter(|t| plays(*t))
-            .or_else(|| p.tracks.iter().map(|t| t.id).find(|t| plays(*t))),
+    if !plays_twelve(app, target) {
+        return Err("tuning.audition.not_twelve");
     }
+    match target {
+        Target::Track(id) if plays(id) => Ok(id),
+        Target::Track(_) => Err("tuning.audition.no_track"),
+        Target::Project => {
+            // The project's tuning sounds only on a track that follows it (r42 fix-ui,
+            // review ui#6): a selected track with its own Werckmeister plays its own.
+            let follows =
+                |id: TrackId| plays(id) && p.track(id).is_some_and(|t| t.tuning.is_follow());
+            if let Some(id) = app.selected_track.filter(|t| follows(*t)) {
+                return Ok(id);
+            }
+            if let Some(id) = p.tracks.iter().map(|t| t.id).find(|t| follows(*t)) {
+                return Ok(id);
+            }
+            if p.tracks.iter().any(|t| plays(t.id)) {
+                Err("tuning.audition.none_follows")
+            } else {
+                Err("tuning.audition.no_track")
+            }
+        }
+    }
+}
+
+/// The track the audition plays on: the one the window edits; for the project's tuning the
+/// selected track when it follows the project, else the first instrument track that does.
+pub fn audition_track(app: &CantusApp, target: Target) -> Option<TrackId> {
+    audition_place(app, target).ok()
 }
 
 /// The cadence's tonic: the temperament's key (or the song's, when it follows it), else the

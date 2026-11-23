@@ -1246,6 +1246,7 @@ pub struct MenuField<'a> {
     id: Option<egui::Id>,
     caps: Caps,
     enabled: bool,
+    list: bool,
 }
 
 impl<'a> MenuField<'a> {
@@ -1264,6 +1265,7 @@ impl<'a> MenuField<'a> {
                 ..Caps::NONE
             },
             enabled: true,
+            list: true,
         }
     }
     pub fn steppers(mut self, on: bool) -> Self {
@@ -1297,6 +1299,16 @@ impl<'a> MenuField<'a> {
     /// What the hint bar says it can do (a menu by default).
     pub fn caps(mut self, caps: Caps) -> Self {
         self.caps = caps;
+        self
+    }
+    /// Whether it opens a list (the default): without one it is a value field — no ▾, and
+    /// the hint bar promises no menu (r42 fix-ui: a field that looks like a drop-down opens
+    /// one).
+    pub fn list(mut self, on: bool) -> Self {
+        self.list = on;
+        if !on {
+            self.caps.menu = false;
+        }
         self
     }
     /// Off (does not apply here): dimmed, not hidden, and not clickable.
@@ -1350,7 +1362,11 @@ impl<'a> MenuField<'a> {
         }
         if ui.is_rect_visible(rect) {
             with_brush(ui.painter(), |b| {
-                well::menu_field(b, rect, s, st, self.value, self.steppers)
+                if self.list {
+                    well::menu_field(b, rect, s, st, self.value, self.steppers)
+                } else {
+                    well::value_field(b, rect, s, st, self.value, self.steppers)
+                }
             });
         }
         (resp, c)
