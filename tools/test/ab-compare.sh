@@ -49,11 +49,13 @@ build() {
   # shellcheck disable=SC2086
   bash "$slot" cargo test --release -p "$crate" $kind --no-run -j "${JOBS:-6}" \
     --message-format=json > "$work/$which.json" 2> "$work/$which.log" || true
-  exe=$(grep -o '"executable":"[^"]*"' "$work/$which.json" | tail -1 \
+  # -a: cargo's JSON can carry a localized linker's bytes (a Spanish Windows's "Creando
+  # biblioteca"), and grep would answer "Binary file matches" instead of the path.
+  exe=$(grep -ao '"executable":"[^"]*"' "$work/$which.json" | tail -1 \
     | sed 's/"executable":"//; s/"$//; s#\\\\#/#g')
   if [ -z "$exe" ]; then
     echo "the $which build failed:" >&2
-    grep -o '"rendered":"[^"]*' "$work/$which.json" | head -5 | sed 's/"rendered":"//' >&2
+    grep -ao '"rendered":"[^"]*' "$work/$which.json" | head -5 | sed 's/"rendered":"//' >&2
     tail -5 "$work/$which.log" >&2
     exit 1
   fi
