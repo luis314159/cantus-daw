@@ -33,7 +33,7 @@ fn pass(app: &mut CantusApp, ctx: &egui::Context, time: f64, events: Vec<egui::E
         ..Default::default()
     };
     let t0 = Instant::now();
-    let _ = ctx.run(input, |ctx| picker_warm::frame(app, ctx));
+    let _ = ctx.run_ui(input, |ui| picker_warm::frame(app, &ui.ctx().clone()));
     t0.elapsed().as_secs_f64() * 1e3
 }
 
@@ -123,7 +123,7 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
             ..Default::default()
         };
         let t0 = Instant::now();
-        let _ = ctx2.run(input, |_| {});
+        let _ = ctx2.run_ui(input, |_| {});
         empty.push(t0.elapsed().as_secs_f64() * 1e3);
     }
     let median = |v: &mut Vec<f64>| {

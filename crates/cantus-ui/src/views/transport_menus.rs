@@ -1011,7 +1011,8 @@ mod summary_tests {
         crate::design::install_style(&ctx);
         let mut widths = ([0.0f32; 4], 0.0f32, 0.0f32);
         for _ in 0..3 {
-            let _ = ctx.run(egui::RawInput::default(), |ctx| {
+            let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let ctx = &ui.ctx().clone();
                 let s = super::Style::current();
                 let w = super::brand_widths(&app, ctx, &s);
                 let sum = super::p::measure(ctx, &line, super::Role::Label, 11.0, &s);
