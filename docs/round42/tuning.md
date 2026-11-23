@@ -124,7 +124,11 @@ single-note changes for every key, sent when it changes or to a new out thread.
   is pulled by Tonus to B flat and corrected to its tuned pitch; the scale snap measures to
   tuned notes; Nitor's tonic and Loquax's carrier sit on the tuned key; at the default each is
   the untuned one to the bit.
-- **End to end** (`cantus-ui/tests/tuning_engine_e2e.rs`): E2E.
+- **End to end** (`cantus-ui/tests/tuning_engine_e2e.rs`, `CantusApp::assemble`, the
+  picker's hosted CLAP test synth, `SetProjectTuning`, the user's WAV export): Werckmeister
+  III in E flat at A415 — Exemplar and the CLAP synth at the table's pitch within 0.0001 c on
+  keys 57, 63, 70; Chorda moved from its own voicing by the table's offset within 0.04 c, so
+  the three agree; undo exports the untuned song to the bit.
 
 ## Verified only in emulation
 

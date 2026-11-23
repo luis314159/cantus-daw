@@ -244,7 +244,9 @@ pub fn send_tunings(app: &mut CantusApp) {
     let wanted: Vec<(u64, cantus_core::tuning::Tuning)> = p
         .external_units
         .iter()
-        .filter(|u| u.mts && u.enabled && u.kind == cantus_core::external_unit::UnitKind::Instrument)
+        .filter(|u| {
+            u.mts && u.enabled && u.kind == cantus_core::external_unit::UnitKind::Instrument
+        })
         .filter_map(|u| {
             let m = u.midi.as_ref()?;
             let track = p.track(u.track)?;
@@ -275,7 +277,7 @@ pub fn presence(app: &CantusApp) -> ExternalPresence {
 pub fn poll(app: &mut CantusApp) {
     publish_routes(app);
     send_tunings(app); // r42:tuning
-    // Nothing outboard: nothing to look at (no port enumeration on a project without units).
+                       // Nothing outboard: nothing to look at (no port enumeration on a project without units).
     if !app.project().external_units.is_empty() || app.external.is_pinging() {
         let p = presence(app);
         if app.engine.set_external_presence(p) {

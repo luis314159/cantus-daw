@@ -76,12 +76,31 @@ fn song() -> Project {
     {
         let mut t = p.make_track(["Chorda", "Exemplar", "Synth"][i]);
         if let Some(k) = kind {
-            t.instrument = InstrumentSpec::Native(NativeSpec::new(k));
+            let mut spec = NativeSpec::new(k);
+            if k == InstrumentKind::Chorda {
+                // What makes a piano's partial beat (its unisons, their coupling, the
+                // sympathetic strings, the phantoms) off for the measure: a beating partial
+                // has no one frequency to read to a tenth of a cent (`tuning_instruments.rs`).
+                for (key, v) in [
+                    ("unison", 0.0),
+                    ("coupling", 0.0),
+                    ("sympathy", 0.0),
+                    ("phantom", 0.0),
+                ] {
+                    assert!(spec.set(key, v).is_some(), "chorda: {key}");
+                }
+            }
+            t.instrument = InstrumentSpec::Native(spec);
         }
         let at = Ticks::beats(8 * i as i64);
         let mut clip = p.make_clip("keys", at, Ticks::beats(6));
         for (j, &key) in KEYS.iter().enumerate() {
-            let n = p.make_note(Ticks::beats(2 * j as i64), Ticks::beats(1) + Ticks::EIGHTH, key, 100);
+            let n = p.make_note(
+                Ticks::beats(2 * j as i64),
+                Ticks::beats(1) + Ticks::EIGHTH,
+                key,
+                100,
+            );
             clip.notes.push(n);
         }
         t.clips.push(clip);
@@ -142,7 +161,9 @@ fn exported(a: &mut CantusApp, name: &str) -> Vec<f64> {
         hound::SampleFormat::Float => r.samples::<f32>().map(|x| f64::from(x.unwrap())).collect(),
         hound::SampleFormat::Int => {
             let full = f64::from(1u32 << (r.spec().bits_per_sample - 1));
-            r.samples::<i32>().map(|x| f64::from(x.unwrap()) / full).collect()
+            r.samples::<i32>()
+                .map(|x| f64::from(x.unwrap()) / full)
+                .collect()
         }
     };
     s.chunks_exact(ch).map(|f| f[0]).collect()
@@ -243,11 +264,17 @@ fn chorda_exemplar_and_a_hosted_clap_synth_play_werckmeister_iii_in_e_flat_at_41
         println!(
             "Chorda          key {key}: {before:.4} → {after:.4} Hz, moved {moved:+.4} c ({off:+.4} c)"
         );
-        assert!(off.abs() < 0.1, "Chorda key {key}: {off:+.4} c off the table");
+        assert!(
+            off.abs() < 0.1,
+            "Chorda key {key}: {off:+.4} c off the table"
+        );
         // In tune with the sines: what it adds of its own is what it added untuned.
         let own = cents(before, et(key));
         let with = cents(after, want);
-        assert!((with - own).abs() < 0.1, "Chorda key {key}: {with:+.4} vs {own:+.4} c");
+        assert!(
+            (with - own).abs() < 0.1,
+            "Chorda key {key}: {with:+.4} vs {own:+.4} c"
+        );
     }
     // Undone: the untuned song, to the bit.
     a.undo();

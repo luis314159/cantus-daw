@@ -21,6 +21,7 @@ ask us to carry. Nothing here limits the rights each licence gives you.
 - [Drivers Cantus links to but does not include](#drivers-cantus-links-to-but-does-not-include)
 - [The installer](#the-installer)
 - [The Rust toolchain](#the-rust-toolchain)
+- [Microtuning: test data and the formats' sources](#microtuning-test-data-and-the-formats-sources)
 - [Content](#content) — the sound packs Cantus downloads when you ask, and their
   credits, generated from the content manifest
 - [Rust crates](#rust-crates) — every crate compiled into the program, generated from
@@ -727,6 +728,29 @@ release 2.3.0 (<https://github.com/Celemony/ARA_API>), Copyright (c) 2012-2025 C
 Software GmbH, published under the **Apache License, Version 2.0** (text: `LICENSE-APACHE` in
 the repository). The bindings are marked as generated from it. "ARA" is Celemony's name;
 Cantus claims no endorsement by, or partnership with, Celemony Software GmbH.
+
+## Microtuning: test data and the formats' sources <!-- r42:tuning -->
+
+Cantus's Scala reader is tested with files from Surge's **tuning-library**
+(<https://github.com/surge-synthesizer/tuning-library>, `tests/data`), kept in
+`crates/cantus-core/tests/data/tuning-library/` and not part of any build. They are under the
+**MIT License**:
+
+```text
+Copyright 2019-2020, Paul Walker
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+The Scala scale archive (Manuel Op de Coul, huygens-fokker.org) is read by a test tool from
+its download (`tools/test/scala-archive.sh`); none of its files is in Cantus. The MIDI Tuning
+Standard is the MIDI Manufacturers Association's; ODDSound's MTS-ESP client (0BSD) was read
+for its behaviour, and a test ports its decoding as an independent oracle. The historical
+temperaments are built from their published construction rules.
 
 ## Content
 

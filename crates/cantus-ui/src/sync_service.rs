@@ -317,7 +317,10 @@ impl SyncService {
         }
         let table = tuning.offsets();
         let all = cantus_core::tuning_mts::ALL_DEVICES;
-        o.send_sysex(route, cantus_core::tuning_mts::write_table_changes(all, 0, &table));
+        o.send_sysex(
+            route,
+            cantus_core::tuning_mts::write_table_changes(all, 0, &table),
+        );
         self.mts_sent.insert(route, tuning.clone());
         true
     }
