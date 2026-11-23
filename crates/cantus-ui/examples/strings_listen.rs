@@ -150,7 +150,7 @@ fn line(p: &mut Project, c: &mut Clip, lo: u8, hi: u8) {
     for (at, len, d, slur) in notes {
         let mut len = Ticks::from_beats_f64(len);
         if slur {
-            len = len + overlap;
+            len += overlap;
         }
         let n = p.make_note(
             Ticks::from_beats_f64(at),
