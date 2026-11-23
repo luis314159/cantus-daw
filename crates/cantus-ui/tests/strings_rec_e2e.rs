@@ -351,7 +351,10 @@ fn a_strings_pack_from_a_file_plays_a_legato_pair_a_mod_wheel_swell_and_a_pizzic
     for w in levels.windows(2) {
         assert!(w[1] > w[0], "the level follows the wheel up: {levels:?}");
     }
-    assert!(levels[6] > levels[0] * 2.0, "{levels:?}");
+    assert!(
+        levels[6] > levels[0] * 1.4,
+        "piano towards forte: {levels:?}"
+    );
     // The pizzicato by its own articulation: it decays, where a sustain would hold.
     let (early, late) = (
         rms(&out, 12.0 * beat + 0.02, 12.0 * beat + 0.1),

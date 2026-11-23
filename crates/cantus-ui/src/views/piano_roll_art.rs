@@ -176,8 +176,10 @@ pub(super) fn paint(
     b.register(lane, "art_lane", &[kit::Tok::Panel], &[]);
     b.rect(lane, Fill::Solid(t.panel));
     let room = crate::views::room::Room::of(t);
-    let h = (lane.height() * 0.32).clamp(s.s(8.0), s.s(16.0));
-    let (art_y, bow_y) = (lane.bottom() - h * 0.9, lane.bottom() - h * 2.1);
+    // The marks under the lane's name, the bow above the articulation, as a score stacks them.
+    let h = (lane.height() * 0.26).clamp(s.s(10.0), s.s(20.0));
+    let mid = lane.center().y + s.s(6.0);
+    let (art_y, bow_y) = (mid + h * 0.6, mid - h * 0.7);
     let from = geo.beats(lane.left()) - 0.5;
     let to = geo.beats(lane.right()) + 0.5;
     let mut last_col = i32::MIN;
@@ -186,7 +188,8 @@ pub(super) fn paint(
         if beat < from || beat > to {
             continue;
         }
-        let x = b.snap_mid(geo.x(beat));
+        // A note at the lane's edge keeps its whole mark in view.
+        let x = b.snap_mid(geo.x(beat).max(lane.left() + h * 0.6));
         // Notes starting in one column (a chord) share one mark: the first drawn.
         let col = (x / (h * 1.1)).round() as i32;
         let selected = sel.contains(selected_ids, n.id);
@@ -234,8 +237,8 @@ pub fn open_menu_for(ctx: &egui::Context, note: NoteId, at: Pos2) {
     ctx.data_mut(|d| {
         d.insert_temp(id, note);
         d.insert_temp(id.with("at"), at);
+        d.insert_temp(id.with("open"), true);
     });
-    egui::Popup::open_id(ctx, id);
 }
 
 /// The lane as a control: a click on a note's column opens its menu (shown by
@@ -289,7 +292,10 @@ pub(super) fn grid_menu(
         open_menu_for(ui.ctx(), note, at);
     }
     let id = popup_id();
-    if !egui::Popup::is_id_open(ui.ctx(), id) {
+    let mut open = ui
+        .data(|d| d.get_temp::<bool>(id.with("open")))
+        .unwrap_or(false);
+    if !open {
         return;
     }
     let Some(note) = ui.data(|d| d.get_temp::<NoteId>(id)) else {
@@ -307,6 +313,7 @@ pub(super) fn grid_menu(
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .frame(crate::views::clips_chrome::menu_frame())
         .at_position(at + vec2(4.0, 4.0))
+        .open_bool(&mut open)
         .show(|ui| {
             let (items, changes) = menu_items(current);
             let refs: Vec<kit::menu::Item<'_>> = items.iter().map(|i| i.item()).collect();
@@ -317,6 +324,10 @@ pub(super) fn grid_menu(
                 }
             }
         });
+    if picked.is_some() {
+        open = false;
+    }
+    ui.data_mut(|d| d.insert_temp(id.with("open"), open));
     if let Some(change) = picked {
         apply(app, track, clip, note, change);
     }
