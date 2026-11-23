@@ -77,9 +77,10 @@ fn an_mts_instrument_hears_its_tuning_as_sysex_on_its_own_port() {
     for m in synth.0.lock().unwrap().iter() {
         tuning_mts::parse(m).unwrap().apply(&mut p);
     }
-    for k in 2..128usize {
-        let want = k as f64 + f64::from(table.0[k]);
-        assert!((p[k] - want).abs() * 100.0 < 0.0031, "key {k}");
+    // (Keys 0 and 1 at A415 lie below the frequency word's range.)
+    for (k, (got, off)) in p.iter().zip(table.0).enumerate().skip(2) {
+        let want = k as f64 + f64::from(off);
+        assert!((got - want).abs() * 100.0 < 0.0031, "key {k}");
     }
     // A route refused a port drops its messages (as its notes are).
     thread.send_sysex(9, messages.clone());

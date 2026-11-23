@@ -235,7 +235,8 @@ fn every_archive_quirk_reads_and_round_trips_to_the_same_cents() {
     assert_eq!(s.degrees[4], ScaleDegree::Ratio(5, 1));
     assert_eq!(s.degrees[5], ScaleDegree::Ratio(4, 375));
     // Terms past 64 bits: the exact cents (both are 3^n·5^m / 2^k, coprime).
-    let big = 1200.0 * cantus_dsp::math::log2(1709671705179880612640625f64 / 1208925819614629174706176f64);
+    let big = 1200.0
+        * cantus_dsp::math::log2(1709671705179880612640625f64 / 1208925819614629174706176f64);
     assert!((s.degrees[6].cents() - big).abs() < 1e-9);
     assert_eq!(s.degrees[10], ScaleDegree::Ratio(3, 1), "the period is 3/1");
     let text = write_scl(&s);

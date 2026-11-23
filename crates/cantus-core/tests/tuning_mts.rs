@@ -4,6 +4,8 @@
 //! 0BSD `libMTSClient::parseMIDIData` (its behaviour, as an independent oracle) — plus the
 //! three checksum conventions and every message's layout.
 
+#![allow(clippy::needless_range_loop)] // tables read key by key, as the tests say them
+
 use cantus_core::tuning::{Temperament, Tuning, TuningSystem, TuningTable};
 use cantus_core::tuning_mts::*;
 

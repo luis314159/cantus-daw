@@ -5,6 +5,8 @@
 //! keyboard map against what Surge's MIT `tuning-library` tests hold for the same files;
 //! non-octave periods; unmapped keys.
 
+#![allow(clippy::needless_range_loop)] // tables read key by key, as the tests say them
+
 use cantus_core::tuning::*;
 use cantus_core::tuning_scala::{read_kbm, read_scl};
 use cantus_core::tuning_temper::{cents, cents_in, deviation_in};
@@ -247,7 +249,10 @@ fn edo_31_and_a_non_octave_period_step_as_their_files_say() {
     // Bohlen–Pierce's cousin: 17 steps to 3/1.
     let e = scale("ED3-17.scl", None).offsets();
     let tritave = (pitch(&e, 77) - pitch(&e, 60)) * 100.0;
-    assert!((tritave - 1200.0 * cantus_dsp::math::log2(3f64)).abs() < 1e-3, "{tritave}");
+    assert!(
+        (tritave - 1200.0 * cantus_dsp::math::log2(3f64)).abs() < 1e-3,
+        "{tritave}"
+    );
     // A one-step scale (Carlos Alpha, 78 c).
     let c = scale("carlos-alpha.scl", None).offsets();
     assert!(((pitch(&c, 70) - pitch(&c, 69)) * 100.0 - 78.0).abs() < 1e-3);

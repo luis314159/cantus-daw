@@ -57,10 +57,17 @@ fn line(kind: Option<InstrumentKind>, set: &[(&str, f32)]) -> Project {
     p
 }
 
+/// A name, the instrument (`None`: Firmus) and the settings it plays with.
+type Played = (
+    &'static str,
+    Option<InstrumentKind>,
+    Vec<(&'static str, f32)>,
+);
+
 #[test]
 #[ignore = "a dump for tools/test/ab-compare.sh"]
 fn tuning_null_dump() {
-    let instruments: Vec<(&str, Option<InstrumentKind>, Vec<(&str, f32)>)> = vec![
+    let instruments: Vec<Played> = vec![
         ("firmus", None, vec![]),
         ("calor", Some(InstrumentKind::Analog), vec![]),
         (

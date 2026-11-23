@@ -90,7 +90,25 @@ single-note changes for every key, sent when it changes or to a new out thread.
 - **Temperaments:** every row equals the published table (§5.2) within 0.0011 c; every rotation
   keeps every interval within 1e-9 c, A on the diapason.
 - **Pitch, every instrument** (Werckmeister III in E flat at A415, keys 45/57/63/70, the key's
-  strongest partial before and after): RESULTS.
+  strongest partial before and after, its frequency from the phase slope over 0.7 s): every
+  instrument within **0.04 c** of its table — Firmus, Calor, Unda, Modulus, Gravis (synth,
+  mono string, poly strings), Lamina, Organum, Exemplar, Fides within 0.003 c; Chorda's first
+  partial within 0.036 c. For the measure, what makes a partial beat is switched off (a
+  second oscillator's detune, Calor's drift/chorus/other oscillators, Organum's vibrato,
+  rotor, leakage and its 16' wheel, Chorda's unison, coupling, sympathy and phantoms): a
+  beating partial has no single frequency to read to a tenth of a cent (with them on the
+  offsets measured 0.1–1 c off, both renders' beating differing). The path is the same.
+- **Chorda's design:** every one of its 88 designed keys' first partial moves by its table's
+  offset within 0.0004 c; the default table keeps the reference design's key, to the bit.
+- **The default:** a track playing `Equal` in a tuned project renders the untuned song to the
+  bit for every instrument; Pulsus and Tympanum ignore a tuning (its unmapped keys too);
+  `tuning_null.rs` + `tools/test/ab-compare.sh` against `r42/contract`: AB.
+- **Block sizes** 1, 64, 512 and 1000 equal to the bit with the tuning set; **offline = live**
+  (irregular live blocks) to the bit for every instrument but Chorda (whose live keyboard
+  comes from its designer: its own tests hold that path); a track following an MTS-ESP master
+  plays the master's table live (read each block) and offline (the compile's table), to the
+  bit of the same table set as a temperament; no allocation (`rt_memory`: a master whose table
+  moves every read, five instruments playing, a temperament installed while playing).
 - **MTS:** the MMA's nine consistent example words decode within 0.001 Hz; our dumps decode alike
   in an independent oracle (ODDSound's 0BSD parser's behaviour) within 0.0062 c.
 

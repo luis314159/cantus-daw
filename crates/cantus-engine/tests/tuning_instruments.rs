@@ -337,31 +337,33 @@ fn unpitched_instruments_ignore_the_tuning_even_its_unmapped_keys() {
 
 #[test]
 fn an_unmapped_key_sounds_nothing_and_the_mapped_ones_play() {
-    let mut t = Tuning::default();
-    t.map = Some(KeyboardMap {
-        size: 12,
-        first_key: 0,
-        last_key: 127,
-        middle_key: 60,
-        reference_key: 69,
-        reference_hz: 440.0,
-        octave_degree: 12,
-        // Only the white keys: C D E F G A B.
-        mapping: vec![
-            Some(0),
-            None,
-            Some(2),
-            None,
-            Some(4),
-            Some(5),
-            None,
-            Some(7),
-            None,
-            Some(9),
-            None,
-            Some(11),
-        ],
-    });
+    let t = Tuning {
+        map: Some(KeyboardMap {
+            size: 12,
+            first_key: 0,
+            last_key: 127,
+            middle_key: 60,
+            reference_key: 69,
+            reference_hz: 440.0,
+            octave_degree: 12,
+            // Only the white keys: C D E F G A B.
+            mapping: vec![
+                Some(0),
+                None,
+                Some(2),
+                None,
+                Some(4),
+                Some(5),
+                None,
+                Some(7),
+                None,
+                Some(9),
+                None,
+                Some(11),
+            ],
+        }),
+        ..Tuning::default()
+    };
     let firmus = &pitched()[0];
     let black = offline(&project(firmus, &[61, 63], t.clone()), 256);
     assert!(black.iter().all(|&s| s == 0.0), "unmapped keys are silent");
