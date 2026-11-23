@@ -304,16 +304,15 @@ pub enum A4 {
     Own(f64),
 }
 
-/// [`A4`] for `track`. r42:tuning-face interim — at the merge with `tuning` this asks
-/// `cantus_core::inst::chorda::follows_tuning(&table)` (the table not 12-TET A440 to the
-/// bit) and `effective_a4(spec, &resolved)`; the same decision, made here until then.
+/// [`A4`] for `track`: `cantus_core::inst::chorda::follows_tuning` of the table the track
+/// plays (the engine's decision: not 12-TET A440 to the bit), the resolved tuning's A4 then.
 pub fn a4_of(app: &CantusApp, track: TrackId) -> A4 {
     let p = app.project();
     let Some(tr) = p.track(track) else {
         return A4::Knob;
     };
     let resolved = super::effective(&tr.tuning.resolve(&p.tuning), p.key);
-    if super::table_of(app, Target::Track(track)).is_equal() {
+    if !cantus_core::inst::chorda::follows_tuning(&super::table_of(app, Target::Track(track))) {
         return A4::Knob;
     }
     match tr.tuning {
@@ -693,19 +692,13 @@ pub fn body(
     }
 }
 
-/// The keys whose major thirds beat least and most, in words.
+/// The major thirds nearest pure and farthest from it, named by their two notes ("E–G#").
 fn purest(ui: &Ui, r: Rect, table: &cantus_core::tuning::TuningTable, s: &Style) {
     let k = s.k;
-    let mut order: Vec<u8> = (0..12).collect();
-    order.sort_by(|a, b| {
-        super::circle::third_beats(table, *a)
-            .partial_cmp(&super::circle::third_beats(table, *b))
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(a.cmp(b))
-    });
+    let order = super::circle::thirds_by_purity(table);
     let names = |v: &[u8]| {
         v.iter()
-            .map(|p| words::key_name(*p))
+            .map(|p| format!("{}\u{2013}{}", words::key_name(*p), words::key_name(*p + 4)))
             .collect::<Vec<_>>()
             .join(" \u{b7} ")
     };

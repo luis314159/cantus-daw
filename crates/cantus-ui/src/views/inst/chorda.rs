@@ -149,20 +149,22 @@ fn now_of(tele: &cantus_engine::Telemetry) -> Now {
 
 /// While the engine is still designing the tuning asked for (the piano silent, or on its
 /// previous tuning): what to say, with the design's progress.
-pub fn designing(app: &CantusApp, spec: &NativeSpec) -> Option<String> {
+pub fn designing(app: &CantusApp, track: TrackId, spec: &NativeSpec) -> Option<String> {
     let tele = app.inst_telemetry();
     if tele[tel::ALIVE] < 0.5 || tele[tel::DESIGNED] > 0.5 {
         return None;
     }
-    caption(spec, app.engine.sample_rate as f32)
+    // r42 — the design the engine makes under the track's tuning (ADR 0155).
+    let table = crate::views::tuning::table_of(app, crate::views::tuning::Target::Track(track));
+    caption(spec, &table.0, app.engine.sample_rate as f32)
 }
 
 /// What the editor says of a tuning the piano does not play yet: its design's progress,
 /// or — when this session cannot design it (sound review 2: it read "0 %" for good) —
 /// that the piano keeps the tuning it has.
-fn caption(spec: &NativeSpec, fs: f32) -> Option<String> {
+fn caption(spec: &NativeSpec, offsets: &[f32; 128], fs: f32) -> Option<String> {
     words(cantus_engine::inst::chorda::design(
-        tuning_of(&values_of(spec)),
+        cantus_engine::inst::chorda::tuning_for(&values_of(spec), offsets),
         fs,
     ))
 }
@@ -249,11 +251,18 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
 pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
     let tele = app.inst_telemetry();
     let now = now_of(&tele);
-    let busy = designing(app, spec);
+    let busy = designing(app, track, spec);
     let (vs, hardness) = settings_from(&values_of(spec));
     let grip = vs.voice.damper as f32;
     let decay = vs.voice.decay;
-    let a4 = spec.get("a4") as f64;
+    // r42 — the diapason Chorda plays at: its own, or its track's tuning's (ADR 0155).
+    let a4 = cantus_core::inst::chorda::effective_a4(
+        spec,
+        &crate::views::tuning::effective(
+            &crate::views::tuning::tuning_of(app, crate::views::tuning::Target::Track(track)),
+            app.project().key,
+        ),
+    );
     let gutter = s.d(4.0);
     let small = s.s(card_h(0.0, 86.0));
     // Model 2 has a fourth row: its microphones, lid and room (round 37). r37:piano
@@ -689,7 +698,7 @@ mod tests {
         let mut spec = NativeSpec::new(InstrumentKind::Chorda);
         spec.set("a4", 441.23);
         cantus_engine::inst::chorda::refuse_for_tests(tuning_of(&values_of(&spec)), 48_000.0);
-        let said = super::caption(&spec, 48_000.0).expect("a caption");
+        let said = super::caption(&spec, &[0.0; 128], 48_000.0).expect("a caption");
         assert_eq!(said, crate::i18n::t("chorda.no_room"));
         assert!(!said.contains('%'), "{said}");
     }

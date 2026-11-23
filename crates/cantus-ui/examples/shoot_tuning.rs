@@ -13,14 +13,11 @@
 //! Werckmeister III), `chorda-own` (only Chorda in Werckmeister III in E, from its own
 //! Temperament card), `chorda-plain` (Chorda in a song with no tuning: its own A4 knob).
 //!
-//! **Interim, said plainly:** until the `tuning` builder's `Tuning::offsets()` fills the
-//! temperaments, `werck` and `follow` draw the circle and the degrees from the published
-//! tables (`research/instruments/microtuning-verified.md` §5.2, rotated as §5.4 says, A at
-//! the diapason) through `views::tuning::design_preview`; every other state reads the app's
-//! own table. r42:tuning-face
+//! The circle and the degrees are drawn from the real tables (`Tuning::offsets()`).
+//! r42:tuning-face
 
 use cantus_core::scale::{Key, ScaleKind};
-use cantus_core::tuning::{Temperament, TrackTuning, Tuning, TuningSystem, TuningTable};
+use cantus_core::tuning::{Temperament, TrackTuning, Tuning, TuningSystem};
 use cantus_core::Command;
 use cantus_engine::EngineHandle;
 use cantus_ui::kit::appearance::Mode;
@@ -42,30 +39,6 @@ const KINDS: [&str; 9] = [
 ];
 const SIZE: egui::Vec2 = egui::vec2(1440.0, 900.0);
 
-/// Werckmeister III and Vallotti from C, cents (§5.2).
-const WERCK3: [f64; 12] = [
-    0.0, 90.225, 192.180, 294.135, 390.225, 498.045, 588.270, 696.090, 792.180, 888.270, 996.090,
-    1092.180,
-];
-const VALLOTTI: [f64; 12] = [
-    0.0, 94.135, 196.090, 298.045, 392.180, 501.955, 592.180, 698.045, 796.090, 894.135, 1000.0,
-    1090.225,
-];
-
-/// A row from C rotated to `key` (§5.4), A at `a4`: semitones from 12-TET at A440 per key.
-fn table(row: &[f64; 12], key: u8, a4: f64) -> TuningTable {
-    let k = usize::from(key % 12);
-    let dev = |p: usize| {
-        let r = row[(p + 12 - k) % 12] + 100.0 * k as f64 - if k > p { 1200.0 } else { 0.0 };
-        r - 100.0 * p as f64
-    };
-    let shift = 12.0 * cantus_dsp::math::log2(a4 / 440.0);
-    let a = dev(9);
-    TuningTable(std::array::from_fn(|n| {
-        ((dev(n % 12) - a) / 100.0 + shift) as f32
-    }))
-}
-
 fn tests_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../research/tuning-library-tests")
 }
@@ -84,7 +57,6 @@ fn set_up(app: &mut CantusApp, kind: &str) -> Option<Target> {
     match kind {
         "equal" => Some(Target::Project),
         "werck" | "inspector" | "chorda" => {
-            tuning::design_preview(Some(table(&WERCK3, 3, 415.0)));
             tuning::set(app, Target::Project, werck);
             (kind == "werck").then_some(Target::Project)
         }
@@ -92,7 +64,6 @@ fn set_up(app: &mut CantusApp, kind: &str) -> Option<Target> {
             app.exec(Command::SetProjectKey {
                 key: Some(Key::new(2, ScaleKind::Minor)),
             });
-            tuning::design_preview(Some(table(&VALLOTTI, 2, 440.0)));
             tuning::set(
                 app,
                 Target::Project,
@@ -143,7 +114,6 @@ fn shoot(dir: &Path, kind: &str, dark: bool, zoom: f32) {
     };
     app.appearance.assign(mode, base.into());
     app.attach(&ctx);
-    tuning::design_preview(None);
     let target = set_up(&mut app, kind);
     let mut maximise = None;
     if kind.starts_with("chorda") {
@@ -162,7 +132,6 @@ fn shoot(dir: &Path, kind: &str, dark: bool, zoom: f32) {
                 .iter()
                 .find(|p| p.name == "tuning.temper.werckmeister_iii")
                 .expect("the preset");
-            tuning::design_preview(Some(table(&WERCK3, 4, 440.0)));
             app.exec(tuning::chorda::preset_command(&spec, track, p, 4));
         }
     } else if kind == "inspector" {
@@ -196,7 +165,6 @@ fn shoot(dir: &Path, kind: &str, dark: bool, zoom: f32) {
             frame += 1;
         },
     );
-    tuning::design_preview(None);
     println!("{}", path.display());
 }
 

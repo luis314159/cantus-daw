@@ -101,28 +101,10 @@ pub fn close(app: &mut CantusApp) {
 }
 
 /// `t` as it sounds in a song in `key`: *follow the song's key* rotates a temperament to
-/// the song's tonic (ADR 0155 §5). A thin wrapper of the `tuning` builder's
-/// `Tuning::resolved_for_key`, which the engine's snapshot resolves through (the merge makes
-/// this body that call: r42:tuning-face interim).
+/// the song's tonic (ADR 0155 §5): `Tuning::resolved_for_key`, as the engine's snapshot
+/// resolves it.
 pub fn effective(t: &Tuning, key: Option<Key>) -> Tuning {
-    match (&t.system, key) {
-        (
-            TuningSystem::Temperament {
-                id,
-                follow_song_key: true,
-                ..
-            },
-            Some(k),
-        ) => Tuning {
-            system: TuningSystem::Temperament {
-                id: *id,
-                key: k.root % 12,
-                follow_song_key: true,
-            },
-            ..t.clone()
-        },
-        _ => t.clone(),
-    }
+    t.resolved_for_key(key.map(|k| k.root))
 }
 
 /// The tuning `target` edits now (a track that follows the project, or plays equal, shows
@@ -219,22 +201,7 @@ pub fn table_of(app: &CantusApp, target: Target) -> TuningTable {
             .is_some_and(|m| cantus_engine::tuning::ExternalTuning::read(m, &mut ext));
         return t.offsets_with(read.then_some(&ext));
     }
-    if let (TuningSystem::Temperament { .. }, Some(p)) = (&t.system, PREVIEW.with(|p| p.get())) {
-        return p;
-    }
     t.offsets()
-}
-
-thread_local! {
-    /// r42:tuning-face interim — the design sheet's temperament table, until the `tuning`
-    /// builder's `Tuning::offsets()` fills the temperaments (the merge removes it).
-    static PREVIEW: std::cell::Cell<Option<TuningTable>> = const { std::cell::Cell::new(None) };
-}
-
-/// The design sheet's temperament table (the `shoot_tuning` example only; see `PREVIEW`).
-#[doc(hidden)]
-pub fn design_preview(table: Option<TuningTable>) {
-    PREVIEW.with(|p| p.set(table));
 }
 
 /// Every pass, whether the window is open or not: the cadence's next chord, and — when
@@ -310,9 +277,9 @@ pub fn load_mts(app: &mut CantusApp) {
 
 /// Give the app (and its engine) `link`: the boot's standard library, or a test's fake.
 pub fn install_mts(app: &mut CantusApp, link: MtsLink) {
-    // r42:tuning-face — at the merge with `tuning`: the engine reads the master's table
-    // through the same link (`EngineHandle::set_external_tuning`, theirs):
-    // app.engine.set_external_tuning(std::sync::Arc::new(link.clone()));
+    // The engine reads the MTS-ESP master's table through the same link (ADR 0156).
+    app.engine
+        .set_external_tuning(std::sync::Arc::new(link.clone()));
     app.tuning.mts = Some(link);
 }
 

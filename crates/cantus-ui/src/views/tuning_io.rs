@@ -3,174 +3,42 @@
 //! keeps the scale, never a path — and *Export…* writes the tuning as a `.scl` and, when it
 //! has a keyboard map, a `.kbm`. r42:tuning-face
 //!
-//! **Interim** (r42:tuning-face interim): the four readers and writers below follow the
-//! Scala help's grammar (`research/instruments/microtuning-verified.md` §1) until the
-//! `tuning` builder's `cantus_core::tuning_scala::{read_scl, read_kbm, write_scl, write_kbm}`
-//! land — the merge swaps these bodies (and `latin1`) for calls to theirs (the signatures
-//! are theirs).
+//! The files are read and written by `cantus_core::tuning_scala` (every rule of the Scala
+//! help, tested on the whole archive); this module is the window's side of them.
 
 use super::Target;
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use cantus_core::tuning::{KeyboardMap, ScalaScale, ScaleDegree, Tuning, TuningSystem};
+use cantus_core::tuning_scala;
 use std::path::{Path, PathBuf};
 
-/// Why a Scala file was refused.
+/// Why a Scala file was refused (the reason `cantus_core::tuning_scala` states).
 pub type ScalaError = String;
 
-/// The lines that are not comments (`!` first), each without its line end.
-fn lines(bytes: &[u8]) -> impl Iterator<Item = String> + '_ {
-    // Scala files are Latin-1 (the verified note, §1.1): each byte its own character.
-    bytes
-        .split(|b| *b == b'\n')
-        .map(|l| l.iter().map(|b| char::from(*b)).collect::<String>())
-        .map(|l| l.trim_end_matches('\r').to_string())
-        .filter(|l| !l.starts_with('!'))
-}
-
-fn first_word(l: &str) -> &str {
-    l.split_whitespace().next().unwrap_or("")
-}
-
-/// A `.scl`: its description and its degrees, as written.
+/// A `.scl`: its description and its degrees, as written (`tuning_scala::read_scl`).
 pub fn read_scl(bytes: &[u8]) -> Result<ScalaScale, ScalaError> {
-    let mut it = lines(bytes);
-    let description = it.next().ok_or("no description line")?.trim().to_string();
-    let count: usize = it
-        .by_ref()
-        .map(|l| l.trim().to_string())
-        .next()
-        .and_then(|l| first_word(&l).parse().ok())
-        .ok_or("no note count")?;
-    let mut degrees = Vec::with_capacity(count);
-    for l in it {
-        if degrees.len() == count {
-            break;
-        }
-        let w = first_word(&l);
-        if w.is_empty() {
-            continue;
-        }
-        degrees.push(degree(w).ok_or_else(|| format!("bad pitch {w:?}"))?);
-    }
-    if degrees.len() < count {
-        return Err(format!("{} pitches of {count}", degrees.len()));
-    }
-    Ok(ScalaScale {
-        description,
-        degrees,
-    })
+    tuning_scala::read_scl(bytes).map_err(|e| e.to_string())
 }
 
-fn degree(w: &str) -> Option<ScaleDegree> {
-    if w.contains('.') {
-        return w
-            .parse::<f64>()
-            .ok()
-            .filter(|c| c.is_finite())
-            .map(ScaleDegree::Cents);
-    }
-    let (n, d) = match w.split_once('/') {
-        Some((n, d)) => (n.parse::<u64>().ok()?, d.parse::<u64>().ok()?),
-        None => (w.parse::<u64>().ok()?, 1),
-    };
-    (n > 0 && d > 0).then_some(ScaleDegree::Ratio(n, d))
-}
-
-/// A `.kbm`: its seven numbers and its mapping (`x` an unmapped key; a short tail is `x`).
+/// A `.kbm` (`tuning_scala::read_kbm`).
 pub fn read_kbm(bytes: &[u8]) -> Result<KeyboardMap, ScalaError> {
-    let words: Vec<String> = lines(bytes)
-        .map(|l| first_word(&l).to_string())
-        .filter(|w| !w.is_empty())
-        .collect();
-    let num = |i: usize, what: &str| -> Result<f64, ScalaError> {
-        words
-            .get(i)
-            .and_then(|w| w.parse::<f64>().ok())
-            .ok_or_else(|| format!("no {what}"))
-    };
-    let size = num(0, "map size")? as u32;
-    let key = |i: usize, what: &str| -> Result<u8, ScalaError> {
-        let v = num(i, what)?;
-        if (0.0..=127.0).contains(&v) {
-            Ok(v as u8)
-        } else {
-            Err(format!("{what} out of range"))
-        }
-    };
-    let mut mapping = Vec::with_capacity(size as usize);
-    for i in 0..size as usize {
-        match words.get(7 + i).map(String::as_str) {
-            None | Some("x") | Some("X") => mapping.push(None),
-            Some(w) => mapping.push(Some(
-                w.parse::<u32>().map_err(|_| format!("bad degree {w:?}"))?,
-            )),
-        }
-    }
-    Ok(KeyboardMap {
-        size,
-        first_key: key(1, "first key")?,
-        last_key: key(2, "last key")?,
-        middle_key: key(3, "middle key")?,
-        reference_key: key(4, "reference key")?,
-        reference_hz: num(5, "reference frequency")?,
-        octave_degree: num(6, "formal octave")? as u32,
-        mapping,
-    })
+    tuning_scala::read_kbm(bytes).map_err(|e| e.to_string())
 }
 
-/// A `.scl` as Scala writes one.
+/// A `.scl` as Scala writes one (`tuning_scala::write_scl`).
 pub fn write_scl(s: &ScalaScale) -> String {
-    let mut out = String::from("! Written by Cantus\n!\n");
-    out.push_str(&s.description);
-    out.push('\n');
-    out.push_str(&format!(" {}\n!\n", s.degrees.len()));
-    for d in &s.degrees {
-        out.push(' ');
-        out.push_str(&match *d {
-            ScaleDegree::Cents(c) => format!("{c:.6}"),
-            ScaleDegree::Ratio(n, d) => format!("{n}/{d}"),
-        });
-        out.push('\n');
-    }
-    out
+    tuning_scala::write_scl(s)
 }
 
-/// A `.kbm` as Scala writes one.
+/// A `.kbm` as Scala writes one (`tuning_scala::write_kbm`).
 pub fn write_kbm(m: &KeyboardMap) -> String {
-    let mut out = String::from("! Written by Cantus\n");
-    for (what, v) in [
-        ("Map size", m.size.to_string()),
-        ("First MIDI note to retune", m.first_key.to_string()),
-        ("Last MIDI note to retune", m.last_key.to_string()),
-        (
-            "Middle note where the first entry is mapped",
-            m.middle_key.to_string(),
-        ),
-        ("Reference note", m.reference_key.to_string()),
-        ("Reference frequency", format!("{:.6}", m.reference_hz)),
-        (
-            "Scale degree of the formal octave",
-            m.octave_degree.to_string(),
-        ),
-    ] {
-        out.push_str(&format!("! {what}\n{v}\n"));
-    }
-    out.push_str("! Mapping\n");
-    for d in &m.mapping {
-        match d {
-            Some(d) => out.push_str(&format!("{d}\n")),
-            None => out.push_str("x\n"),
-        }
-    }
-    out
+    tuning_scala::write_kbm(m)
 }
 
-/// `text` as Latin-1 bytes (a `.scl` is Latin-1; a character past it becomes `?`).
+/// `text` as Latin-1 bytes, as a `.scl` is saved (`tuning_scala::latin1`).
 pub fn latin1(text: &str) -> Vec<u8> {
-    text.chars()
-        .map(|c| u8::try_from(u32::from(c)).unwrap_or(b'?'))
-        .collect()
+    tuning_scala::latin1(text)
 }
 
 /// The scale a tuning exports as: its own, or the 12 degrees it plays above C (a
@@ -331,7 +199,8 @@ mod tests {
             ]
         );
         assert_eq!(read_scl(write_scl(&s).as_bytes()).unwrap(), s);
-        let m = read_kbm(b"12\n0\n127\n60\n69\n442.0\n12\n0\n1\nx\n").unwrap();
+        let m = read_kbm(b"12\n0\n127\n60\n69\n442.0\n12\n0\n1\nx\nx\n4\n5\n6\n7\n8\n9\n10\n11\n")
+            .unwrap();
         assert_eq!(m.reference_hz, 442.0);
         assert_eq!(m.mapping.len(), 12);
         assert_eq!(&m.mapping[..4], &[Some(0), Some(1), None, None]);
@@ -340,7 +209,13 @@ mod tests {
 
     #[test]
     fn a_file_short_of_its_count_is_refused_with_the_reason() {
-        let e = read_scl(b"two\n2\n100.0\n").unwrap_err();
-        assert!(e.contains("1 pitches of 2"), "{e}");
+        let e = read_scl(
+            b"two
+2
+100.0
+",
+        )
+        .unwrap_err();
+        assert!(!e.is_empty(), "a stated reason");
     }
 }

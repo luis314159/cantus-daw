@@ -30,7 +30,7 @@ const KEYS_H: f32 = 40.0;
 
 /// The Play view.
 pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
-    let busy = designing(app, spec);
+    let busy = designing(app, track, spec); // r42 — under the track's tuning
     moved_once(app);
     // The player's cards run along the foot, under the source list as well as the piano
     // (fx/final: under the piano alone their eight knobs had 520 points and ran out of

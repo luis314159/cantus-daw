@@ -42,6 +42,23 @@ pub fn fifth_from_pure(table: &TuningTable, pc: u8) -> f64 {
     100.0 * (7.0 + f64::from(table.at(k + 7)) - f64::from(table.at(k))) - 701.955_000_865_4
 }
 
+/// The major third's size from pure (5/4, 386.31 c), in cents: what makes a third sound
+/// pure or rough whatever its register (its beat rate grows with its pitch).
+pub fn third_from_pure(table: &TuningTable, pc: u8) -> f64 {
+    let k = C4 + pc % 12;
+    100.0 * (4.0 + f64::from(table.at(k + 4)) - f64::from(table.at(k))) - 386.313_713_864_8
+}
+
+/// The twelve major thirds, purest first (by their size from pure; ties by note).
+pub fn thirds_by_purity(table: &TuningTable) -> [u8; 12] {
+    let mut order: [u8; 12] = std::array::from_fn(|i| i as u8);
+    // To a hundredth of a cent: thirds the table makes equal are a tie (the f32 table's own
+    // rounding must not order them), broken by note.
+    let size = |p: u8| (third_from_pure(table, p).abs() * 100.0).round() as i64;
+    order.sort_by(|a, b| size(*a).cmp(&size(*b)).then(a.cmp(b)));
+    order
+}
+
 /// The beat rate's colour: the meters' own scale, from their low colour (pure) through
 /// their middle to their clip colour (beating fast). `x` = 0 … 1.
 pub fn beat_colour(s: &Style, x: f64) -> Color32 {
@@ -305,6 +322,52 @@ mod tests {
         assert_eq!(from_twelve(77.419), "C# \u{2212}22.58");
         assert_eq!(from_twelve(1200.0), "C 0.00");
         assert_eq!(from_twelve(701.955), "G +1.96");
+    }
+
+    #[test]
+    fn werckmeister_iii_in_e_has_its_purest_thirds_where_the_tables_put_them() {
+        use cantus_core::tuning::{Temperament, Tuning, TuningSystem};
+        let t = Tuning {
+            a4_hz: 440.0,
+            system: TuningSystem::Temperament {
+                id: Temperament::WerckmeisterIii,
+                key: 4,
+                follow_song_key: false,
+            },
+            map: None,
+        }
+        .offsets();
+        assert!(!t.is_equal(), "the real table");
+        // Each third against the published table (§5.2, `werck3.scl`) rotated to E (its C on
+        // E, §5.4): an outside source, not our own tables.
+        const W3: [f64; 12] = [
+            0.0, 90.225, 192.180, 294.135, 390.225, 498.045, 588.270, 696.090, 792.180, 888.270,
+            996.090, 1092.180,
+        ];
+        let size = |p: u8| {
+            let o = usize::from((p + 12 - 4) % 12);
+            let up = W3[(o + 4) % 12] + if o + 4 >= 12 { 1200.0 } else { 0.0 };
+            up - W3[o]
+        };
+        for pc in 0..12u8 {
+            let ours = third_from_pure(&t, pc) + 386.313_713_864_8;
+            assert!(
+                (ours - size(pc)).abs() < 0.01,
+                "{pc}: {ours} vs {}",
+                size(pc)
+            );
+        }
+        // Purest first by size from pure, ties by note: E–G# and A–C# (390.2 c), then the
+        // 396.1 c ones — D–F#, F#–A#, B–D# (equal in the table: a tie, by note).
+        let order = thirds_by_purity(&t);
+        assert_eq!(&order[..5], &[4, 9, 2, 6, 11], "{order:?}");
+        for w in order.windows(2) {
+            let (a, b) = (
+                third_from_pure(&t, w[0]).abs(),
+                third_from_pure(&t, w[1]).abs(),
+            );
+            assert!(a <= b + 0.01, "{order:?}: {a} then {b}");
+        }
     }
 
     #[test]

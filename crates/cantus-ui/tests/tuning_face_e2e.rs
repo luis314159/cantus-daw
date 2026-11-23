@@ -48,32 +48,41 @@ fn outside(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// The phase-advance frequency of the partial near `hz` over `x[a..b)` (frames `len` long,
-/// a quarter apart): the heterodyned signal's mean rotation, as `chorda_tune_e2e` measures.
-fn partial(x: &[f64], hz: f64, a: usize, b: usize, len: usize) -> f64 {
-    let hop = len / 4;
+fn bin(x: &[f64], start: usize, n: usize, hz: f64) -> (f64, f64) {
     let w = TAU * hz / FS;
-    let frame = |s: usize| {
-        let (mut re, mut im) = (0.0, 0.0);
-        for i in 0..len {
-            let hann = 0.5 - 0.5 * (TAU * (i as f64 + 0.5) / len as f64).cos();
-            let ph = w * (s + i) as f64;
-            re += x[s + i] * hann * ph.cos();
-            im -= x[s + i] * hann * ph.sin();
-        }
-        (re, im)
-    };
-    let (mut ar, mut ai) = (0.0, 0.0);
-    let mut s = a;
-    let mut prev = frame(s);
-    while s + hop + len <= b {
-        let next = frame(s + hop);
-        ar += next.0 * prev.0 + next.1 * prev.1;
-        ai += next.1 * prev.0 - next.0 * prev.1;
-        prev = next;
-        s += hop;
+    let (mut re, mut im) = (0.0, 0.0);
+    for i in 0..n {
+        let win = 0.5 - 0.5 * (TAU * i as f64 / n as f64).cos();
+        let v = x[start + i] * win;
+        re += v * (w * i as f64).cos();
+        im -= v * (w * i as f64).sin();
     }
-    hz + ai.atan2(ar) * FS / (TAU * hop as f64)
+    (re, im)
+}
+
+const N: usize = 32_768;
+
+/// The strongest frequency within ±2.5 % of `near`, refined by its phase slope over three
+/// hops (`tuning_engine_e2e`'s measure: a steady partial to a millionth).
+fn partial(x: &[f64], start: usize, near: f64) -> f64 {
+    let mut best = (0.0, near);
+    for i in 0..=500 {
+        let f = near * (0.975 + 0.05 * i as f64 / 500.0);
+        let (re, im) = bin(x, start, N, f);
+        if re * re + im * im > best.0 {
+            best = (re * re + im * im, f);
+        }
+    }
+    let mut f = best.1;
+    for hop in [256usize, 4096, 8192] {
+        let (a_re, a_im) = bin(x, start, N, f);
+        let (b_re, b_im) = bin(x, start + hop, N, f);
+        let d = b_im.atan2(b_re) - a_im.atan2(a_re);
+        let want = TAU * f * hop as f64 / FS;
+        let r = (d - want + std::f64::consts::PI).rem_euclid(TAU) - std::f64::consts::PI;
+        f += r / (TAU * hop as f64 / FS);
+    }
+    f
 }
 
 /// Each key of [`KEYS`]'s fundamental as the song's Chorda renders now, Hz.
@@ -103,11 +112,22 @@ fn measured(app: &CantusApp) -> Vec<f64> {
         .map(|(i, k)| {
             let want = 440.0 * 2f64.powf((f64::from(*k) - 69.0) / 12.0);
             let at = (4.0 * i as f64 * beat * FS) as usize;
-            let (a, b) = (at + (0.15 * FS) as usize, at + (1.15 * FS) as usize);
-            let len = ((6.0 * FS / want) as usize).max(64);
-            partial(&mono, want, a, b, len)
+            partial(&mono, at + (0.3 * FS) as usize, want)
         })
         .collect()
+}
+
+/// What makes a piano's partial beat (its unisons, their coupling, the sympathetic strings,
+/// the phantoms) off for the measure, as `tuning_engine_e2e` does: a beating partial has no
+/// one frequency to read to a tenth of a cent.
+fn still_strings(app: &mut CantusApp, track: TrackId) {
+    for key in ["unison", "coupling", "sympathy", "phantom"] {
+        assert!(app.exec(Command::SetInstrumentValue {
+            track,
+            key: key.into(),
+            value: 0.0,
+        }));
+    }
 }
 
 #[test]
@@ -148,6 +168,7 @@ fn a_scala_file_imported_through_the_window_is_what_chorda_plays_and_exports() {
     for id in others {
         assert!(app.exec(Command::RemoveTrack { id }));
     }
+    still_strings(&mut app, track);
     let mut clip = app.bus.new_clip("Keys", Ticks::ZERO, Ticks::beats(16));
     for (i, k) in KEYS.iter().enumerate() {
         let n = app
@@ -306,6 +327,7 @@ fn chordas_own_tuning_changes_only_chorda() {
             assert!(app.exec(Command::RemoveClip { track: t, clip }));
         }
     }
+    still_strings(&mut app, chorda);
     let mut clip = app.bus.new_clip("Keys", Ticks::ZERO, Ticks::beats(16));
     for (i, k) in KEYS.iter().enumerate() {
         let n = app
