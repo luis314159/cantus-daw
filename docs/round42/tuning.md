@@ -62,7 +62,10 @@ folded key's own offset), Organum (each wheel by its key's offset, a multiplicat
 when it is not zero), Exemplar (`(key + off − root)·keytrack`, glides between tuned keys, the
 streamed zones' mip reach raised by the largest upward offset), Chorda (the offsets in its
 technician's table — part of the design key, so a tuning is a design of its own and the same
-tuning reuses one; `chorda::with_offsets`; `prepare` asks for the tuned design), Fides
+tuning reuses one; `chorda::tuning_for`; `prepare` asks for the tuned design; **its
+diapason** by the owner's rule, `cantus_core::inst::chorda::effective_a4`: its own `a4` where
+its track's table is 12-TET A440, the tuning's otherwise — stretch, stiffness and unison stay
+its own), Fides
 (`Voice::tune_next`, scaled by the keytrack with the key).
 
 **Pitched effects** (`FxUnit::set_tuning`, handed with the song's key): a strip follows its
@@ -102,7 +105,10 @@ single-note changes for every key, sent when it changes or to a new out thread.
   offset within 0.0004 c; the default table keeps the reference design's key, to the bit.
 - **The default:** a track playing `Equal` in a tuned project renders the untuned song to the
   bit for every instrument; Pulsus and Tympanum ignore a tuning (its unmapped keys too);
-  `tuning_null.rs` + `tools/test/ab-compare.sh` against `r42/contract`: AB.
+  **bit-identical** to the contract's code: `tuning_null.rs` (13 instrument settings incl.
+  Calor mono with glide and Gravis's three engines, and Tonus, Saltus, Nitor and Loquax on a
+  strip — 27 MB of samples) built against the contract's DSP and engine files and against the
+  round's, by `tools/test/ab-compare.sh --base r42/contract` (`DSP_VERSION` stays 11).
 - **Block sizes** 1, 64, 512 and 1000 equal to the bit with the tuning set; **offline = live**
   (irregular live blocks) to the bit for every instrument but Chorda (whose live keyboard
   comes from its designer: its own tests hold that path); a track following an MTS-ESP master
