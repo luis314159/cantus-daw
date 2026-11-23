@@ -20,7 +20,12 @@ use serde::{Deserialize, Serialize};
 ///   pack instrument ([`Plays`]: Tympanum's kits, Chorda's pianos) and a DrumGizmo kit as
 ///   its file; a build that keeps every microphone (`Build::multichannel`); a piano built
 ///   from the Salamander/bitKlavier naming ([`PianoBuild`]).
-pub const FORMAT: u32 = 5;
+/// - 6 (round 42, ADR 0158; r42:strings-rec): recorded strings instruments written at
+///   install from their measured zones (`strings`, [`crate::stringsbuild`]).
+pub const FORMAT: u32 = 6;
+
+/// The first format that may carry a strings build. // r42:strings-rec
+pub const FORMAT_STRINGS: u32 = 6;
 
 /// The first format that may carry a pack's mode, `plays`, a multichannel build or a
 /// piano build. // r40:p3
@@ -341,6 +346,10 @@ pub struct Pack {
     /// A piano built at install from the Salamander/bitKlavier naming (`chorda-src`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub piano: Option<PianoBuild>,
+    /// r42:strings-rec — recorded strings instruments written as SFZ at install, from their
+    /// zones measured offline (ADR 0158, `stringsbuild`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strings: Option<crate::stringsbuild::StringsBuild>,
 }
 
 /// How Cantus gets a pack (the owner, 2026-11-12; ADR 0042 amended). r40:p3
@@ -912,6 +921,12 @@ impl Manifest {
                         p.licence
                     )));
                 }
+            }
+            // r42:strings-rec — a strings build needs the format that knows it.
+            if p.strings.is_some() && self.format < FORMAT_STRINGS {
+                return Err(bad(format!(
+                    "a strings build needs manifest format {FORMAT_STRINGS}"
+                )));
             }
             let stated = p.licence_kind();
             let licence = match stated {

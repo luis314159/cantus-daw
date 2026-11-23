@@ -228,8 +228,18 @@ fn popup_id() -> egui::Id {
     egui::Id::new("pr-note-art-menu")
 }
 
-/// The lane as a control: a click on a note's column opens its menu.
-#[allow(clippy::too_many_arguments)]
+/// Open the note's menu for `note` at `at` on the next frame, as a click would (the shots).
+pub fn open_menu_for(ctx: &egui::Context, note: NoteId, at: Pos2) {
+    let id = popup_id();
+    ctx.data_mut(|d| {
+        d.insert_temp(id, note);
+        d.insert_temp(id.with("at"), at);
+    });
+    egui::Popup::open_id(ctx, id);
+}
+
+/// The lane as a control: a click on a note's column opens its menu (shown by
+/// [`grid_menu`], once a frame).
 pub(super) fn input(
     app: &mut CantusApp,
     ui: &egui::Ui,
@@ -250,10 +260,14 @@ pub(super) fn input(
                 .and_then(|c| note_at(geo, c, p.x))
                 .map(|id| (id, p))
         });
-    open_menu(app, ui, resp, hit, track, clip);
+    if let Some((note, at)) = hit {
+        open_menu_for(ui.ctx(), note, at);
+    }
 }
 
-/// The note's menu from the grid: a double-click on a note.
+/// The note's menu: opened by a double-click on a note in the grid (or a click on its mark
+/// in the lane), shown here once a frame — its articulations and bows, the current ones
+/// checked; a choice is applied to the note or its selection.
 pub(super) fn grid_menu(
     app: &mut CantusApp,
     ui: &egui::Ui,
@@ -271,51 +285,38 @@ pub(super) fn grid_menu(
                 .and_then(|c| geo.hit(&c.notes, p))
                 .map(|(id, _)| (id, p))
         });
-    open_menu(app, ui, resp, hit, track, clip);
-}
-
-/// Open (on `hit`) and show the note's menu: its articulations and bows, the current ones
-/// checked; a choice is applied to the note or its selection.
-fn open_menu(
-    app: &mut CantusApp,
-    ui: &egui::Ui,
-    resp: &egui::Response,
-    hit: Option<(NoteId, Pos2)>,
-    track: TrackId,
-    clip: ClipId,
-) {
+    if let Some((note, at)) = hit {
+        open_menu_for(ui.ctx(), note, at);
+    }
     let id = popup_id();
-    if let Some((note, _)) = hit {
-        ui.data_mut(|d| d.insert_temp(id, note));
+    if !egui::Popup::is_id_open(ui.ctx(), id) {
+        return;
     }
     let Some(note) = ui.data(|d| d.get_temp::<NoteId>(id)) else {
         return;
     };
+    let at = ui
+        .data(|d| d.get_temp::<Pos2>(id.with("at")))
+        .unwrap_or(resp.rect.center());
     let current = clip_of(app, track, clip)
         .and_then(|c| c.note(note))
         .and_then(|n| n.art);
-    let mut popup = egui::Popup::from_response(resp)
+    let mut picked = None;
+    egui::Popup::from_response(resp)
         .id(id)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .frame(crate::views::clips_chrome::menu_frame())
-        .open_memory(hit.map(|_| egui::SetOpenCommand::Bool(true)));
-    if let Some((_, p)) = hit {
-        popup = popup.at_position(p + vec2(4.0, 4.0));
-        ui.data_mut(|d| d.insert_temp(id.with("at"), p));
-    } else if let Some(p) = ui.data(|d| d.get_temp::<Pos2>(id.with("at"))) {
-        popup = popup.at_position(p + vec2(4.0, 4.0));
-    }
-    let mut picked = None;
-    popup.show(|ui| {
-        let (items, changes) = menu_items(current);
-        let refs: Vec<kit::menu::Item<'_>> = items.iter().map(|i| i.item()).collect();
-        if let Some(i) = kit::widgets::menu_list(ui, &refs, 180.0).1.clicked {
-            picked = changes.get(i).copied().flatten();
-            if picked.is_some() {
-                ui.close();
+        .at_position(at + vec2(4.0, 4.0))
+        .show(|ui| {
+            let (items, changes) = menu_items(current);
+            let refs: Vec<kit::menu::Item<'_>> = items.iter().map(|i| i.item()).collect();
+            if let Some(i) = kit::widgets::menu_list(ui, &refs, 180.0).1.clicked {
+                picked = changes.get(i).copied().flatten();
+                if picked.is_some() {
+                    ui.close();
+                }
             }
-        }
-    });
+        });
     if let Some(change) = picked {
         apply(app, track, clip, note, change);
     }

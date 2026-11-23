@@ -433,6 +433,14 @@ pub fn install(
         }
         None => (files, bytes),
     };
+    // r42:strings-rec — recorded strings written as SFZ from their measured zones (ADR 0158).
+    let (files, bytes) = match &pack.strings {
+        Some(b) => {
+            crate::stringsbuild::build(b, &staging)?;
+            size_of(&staging)
+        }
+        None => (files, bytes),
+    };
     let receipt = Receipt {
         id: pack.id.clone(),
         version: pack.version,

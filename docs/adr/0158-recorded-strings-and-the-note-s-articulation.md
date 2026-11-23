@@ -53,3 +53,27 @@ measured against its source (pitch per zone ±1 cent after the files' octave fix
 click-free by an offline spectral check, CC1 crossfade monotone in level); an end-to-end test
 that installs a pack from a local file through `CantusApp::assemble`, writes a four-bar line
 with a legato pair and a CC1 swell, and hears it.
+
+## Amendment (round 42, `strings-rec`): how it was built
+
+- **Delivery.** The note's art rides in the snapshot's `NoteEvent` (`art`, `None` on every
+  note-off and on a note without one; not part of the events' order). The engine's `fire` —
+  the one place an arrangement clip, a session clip's projection, an offline render, a freeze
+  or a stem turns an event into a note-on — hands it to the instrument just before the
+  note-on; the note effects carry it on the notes they move (`notefx::Msg::art`), not on an
+  arpeggio's own. Live input carries none. A hosted plug-in, Firmus and a kit hear nothing.
+- **The clip's look-ahead** (`note_art::tie_legato`, when the snapshot compiles): a note
+  marked *legato* that starts while no earlier note sounds, at most an eighth after the last
+  one ended, ties that note to itself (its note-off one tick after the legato note's start).
+- **Exemplar (schema 82).** A zone's articulation and bow (`z{n}.art`, `.bow`), its continuous
+  controller crossfade (`.xfcc`, `.xfinlo` … `.xfouthi`, `.xfcurve`: SFZ's `xfin_loccN` …,
+  `xf_cccurve`), and the scripted legato (`legato`, `legato.xf`, `legato.glide`,
+  `legato.skip`), all defaulted so every older instrument plays as it did. A note's
+  articulation chooses its zones (the nearest the key has when it lacks it); with none, the
+  keyswitch does. The bow turns while the instrument sounds and starts down after a silence; a
+  slurred note keeps the bow it slurs from.
+- **The packs** carry their zones measured offline (`stringsbuild`, manifest format 6): the
+  root each sample sounds (the octave fix: VSCO 2 CE's and the Bigcat cello's names are an
+  octave low), the cents to its key, the loop kept only when Exemplar plays it click-free;
+  the install writes them as plain SFZ with Cantus's three opcodes (`cantus_articulation`,
+  `cantus_bow`, `cantus_legato*`).

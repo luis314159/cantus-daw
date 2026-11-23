@@ -33,6 +33,7 @@ if [ "$only" = all ] || [ "$only" = vsco ]; then
   sha=440300901dfe9275fd84e0b7763af1f8443ae62e
   sfz=6dd651d55dde97fd4028699be9d4481f26917891
   api=https://api.github.com/repos/sgossner/VSCO-2-CE/git/trees
+  curl -sS --fail -m 120 -o "$dir/vsco_LICENSE" "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/$sha/LICENSE"
   curl -sS -m 120 -o "$dir/vsco_tree.json" "$api/$sha?recursive=1"
   curl -sS -m 120 -o "$dir/vsco_sfz_tree.json" "$api/$sfz?recursive=1"
   python -I -c "

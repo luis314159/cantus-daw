@@ -2819,3 +2819,13 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
   - **Each preset judged "convincing in solo" by the 10-listener panel** (the owner's), and
     a blind comparison against Chromaphone, Collision and Sculpture on the eight named
     instruments (BACKLOG §0's scorecard).
+
+<!-- r42:strings-rec -->
+- **Recorded strings, after round 42 (ADR 0158).** What the CC0 content cannot give and the
+  round could not record: true legato intervals, release samples, more than two dynamics for
+  VSCO's sections, a solo viola, non-vibrato sustains (but VSCO's bass). Next: Cantus's own
+  CC0 quartet session (sustain and non-vibrato at 4–5 dynamics, up and down bows, legato
+  intervals, harmonics, sordino, col legno; close and room); a spectral dynamics morph (not
+  only the layers' crossfade and a filter); editing a zone's articulation, bow and controller
+  crossfade in Exemplar's zone card (today they come from the instrument file: the card's
+  title shows them); a hosted instrument's key-switch map driven by the note's articulation.
