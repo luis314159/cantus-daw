@@ -500,14 +500,14 @@ impl Gravis {
         if self.s.engine == Engine::String {
             n
         } else {
-            n + f64::from(self.tuning[usize::from(key & 0x7F)])
+            n + f64::from(crate::tuning::at(&self.tuning, key))
         }
     }
 
     /// r42:tuning — a string's key offset (held as `note_tune` while it sounds).
     fn string_tune(&self, key: u8) -> f32 {
         if self.s.engine == Engine::String {
-            self.tuning[usize::from(key & 0x7F)]
+            crate::tuning::at(&self.tuning, key)
         } else {
             0.0
         }
@@ -611,7 +611,7 @@ impl Gravis {
             // r42:tuning — each poly string carries its own key's offset in its base (a
             // string here is set to its pitch, not fretted).
             self.note_tune = 0.0;
-            let note = self.note_of(key) + f64::from(self.tuning[usize::from(key & 0x7F)]);
+            let note = self.note_of(key) + f64::from(crate::tuning::at(&self.tuning, key));
             let pitch = note + self.extra();
             let s = self.s.string;
             let i = self

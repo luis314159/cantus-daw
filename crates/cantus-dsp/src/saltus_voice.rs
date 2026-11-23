@@ -348,7 +348,6 @@ impl Voices {
     }
 
     /// The lane's level and balance for settings `s`.
-
     fn mix(s: &SaltusSettings, k: usize) -> (f32, f32) {
         match s.mode {
             Mode::Octave => ([s.sub1, s.sub2, s.up1][k], 0.0),

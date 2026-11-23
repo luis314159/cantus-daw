@@ -94,6 +94,9 @@ impl TrackSlot {
     /// A live MPE note on: to a native unit with its id and channel; Firmus and Pulsus play
     /// it as a plain live key.
     pub(crate) fn note_on_mpe(&mut self, key: u8, velocity: u8, id: u64, channel: u8) {
+        if !self.tuning.sounds(key) {
+            return; // r42:tuning — a key its keyboard map leaves unmapped sounds nothing
+        }
         match (self.instrument, self.native.as_mut()) {
             (SlotInstrument::Native, Some(n)) => n.unit.note_on(crate::inst::NoteOn {
                 key,

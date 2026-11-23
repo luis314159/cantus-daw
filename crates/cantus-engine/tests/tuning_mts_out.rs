@@ -36,7 +36,10 @@ fn connect(name: &str) -> Option<Box<dyn OutPort>> {
 fn until(ready: impl Fn() -> bool) {
     let t = Instant::now();
     while !ready() {
-        assert!(t.elapsed() < Duration::from_secs(60), "the out thread never sent it");
+        assert!(
+            t.elapsed() < Duration::from_secs(60),
+            "the out thread never sent it"
+        );
         std::thread::yield_now();
     }
 }
@@ -83,6 +86,9 @@ fn an_mts_instrument_hears_its_tuning_as_sysex_on_its_own_port() {
     thread.set_unit_routes(vec![(7, "Synth".into(), 0), (9, "Nowhere".into(), 0)]);
     std::thread::sleep(Duration::from_millis(50));
     drop(thread);
-    assert!(other.0.lock().unwrap().is_empty(), "another route hears nothing");
+    assert!(
+        other.0.lock().unwrap().is_empty(),
+        "another route hears nothing"
+    );
     assert_eq!(synth.0.lock().unwrap().len(), messages.len());
 }

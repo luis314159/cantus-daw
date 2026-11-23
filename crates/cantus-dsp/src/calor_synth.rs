@@ -263,7 +263,7 @@ impl Calor {
 
     /// r42:tuning — a key's tuned pitch.
     pub(crate) fn tuned(&self, key: u8) -> f32 {
-        key as f32 + self.tuning[usize::from(key & 0x7F)]
+        key as f32 + crate::tuning::at(&self.tuning, key)
     }
 
     pub fn set_macros(&mut self, macros: &[f32; 8]) {

@@ -202,8 +202,23 @@ fn steady(name: &str) -> &'static [(&'static str, f32)] {
             ("mix.osc2", 0.0),
             ("mix.osc3", 0.0),
         ],
-        "organum" => &[("leak", -80.0), ("leak.bar", -80.0)],
-        "chorda" => &[("unison", 0.0)],
+        // One 8' drawbar: the 16' wheel's octave sits on the 8' (a gear-tuned octave is not
+        // quite 2:1, so the two beat).
+        "organum" => &[
+            ("u1", 0.0),
+            ("u2", 0.0),
+            ("vib.upper", 0.0),
+            ("vib.lower", 0.0),
+            ("rot.speed", 0.0),
+            ("leak", -80.0),
+            ("leak.bar", -80.0),
+        ],
+        "chorda" => &[
+            ("unison", 0.0),
+            ("coupling", 0.0),
+            ("sympathy", 0.0),
+            ("phantom", 0.0),
+        ],
         _ => &[],
     }
 }
@@ -232,10 +247,20 @@ fn every_pitched_instrument_plays_each_key_at_its_table_s_pitch() {
     let mut worst = 0.0f64;
     let mut failed = Vec::new();
     for inst in pitched() {
-        let plain = left(&offline(&steady_project(&inst, &KEYS, Tuning::default()), 256));
+        let plain = left(&offline(
+            &steady_project(&inst, &KEYS, Tuning::default()),
+            256,
+        ));
         let tuned = left(&offline(&steady_project(&inst, &KEYS, tuning.clone()), 256));
         for (i, &key) in KEYS.iter().enumerate() {
-            let (h, f_plain) = strongest(&plain, i, key);
+            // The piano's first partial: its higher ones meet the body's modes, which do
+            // not move with the tuning (as a real soundboard's do not).
+            let (h, f_plain) = if inst.name == "chorda" {
+                let f0 = 440.0 * math::exp2((f64::from(key) - 69.0) / 12.0);
+                (1, harmonic(&plain, i, f0))
+            } else {
+                strongest(&plain, i, key)
+            };
             let want = f64::from(table.at(key));
             let f_tuned = harmonic(&tuned, i, f_plain * math::exp2(want / 12.0));
             let got = 12.0 * math::log2(f_tuned / f_plain);
@@ -254,7 +279,10 @@ fn every_pitched_instrument_plays_each_key_at_its_table_s_pitch() {
         }
     }
     println!("worst: {worst:.4} c");
-    assert!(failed.is_empty(), "off their table by 0.1 c or more: {failed:?}");
+    assert!(
+        failed.is_empty(),
+        "off their table by 0.1 c or more: {failed:?}"
+    );
 }
 
 #[test]
@@ -463,4 +491,37 @@ fn a_track_that_follows_the_mts_esp_master_plays_its_table_live_and_offline() {
     let none = live(&p, frames, None);
     let plain = offline(&project(firmus, &KEYS, Tuning::default()), 256);
     assert_null(&plain[..frames * 2], &none, 0.0, "no master");
+}
+
+#[test]
+fn chorda_designs_each_key_at_its_table_s_offset_and_reuses_the_design() {
+    use cantus_engine::inst::chorda;
+    let spec = NativeSpec::new(InstrumentKind::Chorda);
+    let knobs = chorda::tuning_of(&chorda::values_of(&spec));
+    let table = werck3_e_flat_415().offsets();
+    // The default: the same tuning, so the same design (its key, to the bit).
+    let same = chorda::with_offsets(knobs, &cantus_core::tuning::TuningTable::EQUAL.0);
+    assert_eq!(
+        chorda::key_of(same, SR as f32),
+        chorda::key_of(knobs, SR as f32)
+    );
+    let tuned = chorda::with_offsets(knobs, &table.0);
+    assert_ne!(
+        chorda::key_of(tuned, SR as f32),
+        chorda::key_of(knobs, SR as f32)
+    );
+    let a = chorda::ensure(knobs, SR as f32);
+    let b = chorda::ensure(tuned, SR as f32);
+    let mut worst = 0.0f64;
+    for (ka, kb) in a.keys.iter().zip(b.keys.iter()) {
+        let want = f64::from(table.at(ka.key)) * 100.0;
+        let got = 1200.0 * math::log2(kb.f1 / ka.f1);
+        worst = worst.max((got - want).abs());
+        assert!(
+            (got - want).abs() < 0.002,
+            "key {}: {got:.4} c for {want:.4}",
+            ka.key
+        );
+    }
+    println!("Chorda's designed keys: worst {worst:.5} c from the table");
 }

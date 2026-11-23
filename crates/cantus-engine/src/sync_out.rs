@@ -59,6 +59,9 @@ pub fn connect_system(name: &str) -> Option<Box<dyn OutPort>> {
     }
 }
 
+/// r42:tuning — SysEx waiting for an external instrument's route: `(route, message)`.
+type SysexQueue = Arc<Mutex<Vec<(u64, Vec<u8>)>>>;
+
 /// The running thread.
 pub struct MidiOut {
     choices: Arc<Mutex<Vec<PortChoice>>>,
@@ -66,7 +69,7 @@ pub struct MidiOut {
     routes: Arc<Mutex<Vec<(u64, String, u8)>>>,
     /// r42:tuning — SysEx for an external instrument's route (its MTS tuning, ADR 0155),
     /// sent by the thread as soon as the route's port is open.
-    sysex: Arc<Mutex<Vec<(u64, Vec<u8>)>>>,
+    sysex: SysexQueue,
     stop: Arc<AtomicBool>,
     pub stats: Arc<OutStats>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -116,7 +119,7 @@ impl MidiOut {
         let choices: Arc<Mutex<Vec<PortChoice>>> = Arc::default();
         let routes: Arc<Mutex<Vec<(u64, String, u8)>>> = Arc::default(); // r36:external
         let r2 = routes.clone(); // r36:external
-        let sysex: Arc<Mutex<Vec<(u64, Vec<u8>)>>> = Arc::default(); // r42:tuning
+        let sysex: SysexQueue = Arc::default(); // r42:tuning
         let x2 = sysex.clone(); // r42:tuning
         let stop = Arc::new(AtomicBool::new(false));
         let stats = Arc::new(OutStats::default());
@@ -181,7 +184,7 @@ fn run(
     pool: Arc<crate::midi::pool::OutPool>,
     choices: Arc<Mutex<Vec<PortChoice>>>,
     unit_routes: Arc<Mutex<Vec<(u64, String, u8)>>>, // r36:external
-    sysex: Arc<Mutex<Vec<(u64, Vec<u8>)>>>,          // r42:tuning
+    sysex: SysexQueue,                               // r42:tuning
     stop: Arc<AtomicBool>,
     stats: Arc<OutStats>,
 ) {

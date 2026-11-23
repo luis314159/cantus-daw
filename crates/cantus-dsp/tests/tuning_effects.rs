@@ -20,7 +20,10 @@ fn a415() -> [f32; 128] {
 fn tonus_pulls_a_voice_to_the_nearest_tuned_note_and_to_its_tuned_pitch() {
     // A voice at 440 Hz: in 12-TET at A440 it is A4; at A415 it is (nearly) B flat 4.
     let voice = testkit::voice(SR, 1.5, testkit::Vowel::A, 0.5, |_| 440.0);
-    for (table, key, tuned) in [([0.0f32; 128], 69, 69.0f32), (a415(), 70, 70.0 + a415()[70])] {
+    for (table, key, tuned) in [
+        ([0.0f32; 128], 69, 69.0f32),
+        (a415(), 70, 70.0 + a415()[70]),
+    ] {
         let mut t = Tonus::new(SR);
         t.set(&TonusSettings::default());
         t.set_tuning(&table);
@@ -53,7 +56,10 @@ fn the_scale_snap_measures_its_distances_to_the_tuned_notes() {
     let mut table = [0.0f32; 128];
     table[60] = 0.5;
     assert_eq!(choose(60.6, &allowed, None).map(|x| x.0), Some(61));
-    assert_eq!(choose_tuned(60.6, &allowed, None, &table).map(|x| x.0), Some(60));
+    assert_eq!(
+        choose_tuned(60.6, &allowed, None, &table).map(|x| x.0),
+        Some(60)
+    );
 }
 
 #[test]
@@ -66,7 +72,10 @@ fn nitor_s_tonic_sits_on_the_tuned_tonic() {
         );
         let hz = cantus_dsp::nitor::tonic_hz_tuned(tonic, &a415());
         let want = 415.0 * cantus_dsp::math::exp2((f32::from(24 + tonic) - 69.0) / 12.0);
-        assert!((hz / want - 1.0).abs() < 1e-5, "tonic {tonic}: {hz} for {want}");
+        assert!(
+            (hz / want - 1.0).abs() < 1e-5,
+            "tonic {tonic}: {hz} for {want}"
+        );
     }
 }
 

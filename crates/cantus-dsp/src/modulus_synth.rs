@@ -201,7 +201,7 @@ impl Modulus {
                 copies: u,
                 stolen,
                 from,
-                tune: self.tuning[usize::from(key & 0x7F)], // r42:tuning
+                tune: crate::tuning::at(&self.tuning, key), // r42:tuning
             };
             self.voices[v].start(st, &c);
             self.voices[v].tick(span, &c);
@@ -220,11 +220,11 @@ impl Modulus {
                 ..
             } => {
                 self.start_voice(voice, key, id, velocity);
-                self.last_pitch = Some(key as f32 + self.tuning[usize::from(key & 0x7F)]);
+                self.last_pitch = Some(key as f32 + crate::tuning::at(&self.tuning, key));
                 // r42:tuning
             }
             Action::Glide { voice, key, id } => {
-                let tune = self.tuning[usize::from(key & 0x7F)]; // r42:tuning
+                let tune = crate::tuning::at(&self.tuning, key); // r42:tuning
                 for v in voice * u..voice * u + u {
                     self.voices[v].glide_to(key, tune, id, &self.patch);
                 }

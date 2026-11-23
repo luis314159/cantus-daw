@@ -40,7 +40,12 @@ fn line(kind: Option<InstrumentKind>, set: &[(&str, f32)]) -> Project {
     let keys = [36u8, 48, 55, 60, 64, 67, 72, 84, 61, 63, 66, 70];
     for (i, &k) in keys.iter().enumerate() {
         // Overlapping notes: legato and glides where the instrument has them.
-        let n = p.make_note(Ticks::EIGHTH * i as i64, Ticks::QUARTER, k, 60 + (i as u8 * 5));
+        let n = p.make_note(
+            Ticks::EIGHTH * i as i64,
+            Ticks::QUARTER,
+            k,
+            60 + (i as u8 * 5),
+        );
         clip.notes.push(n);
     }
     for k in [48u8, 55, 64, 71] {
@@ -66,8 +71,16 @@ fn tuning_null_dump() {
         ("unda", Some(InstrumentKind::Wavetable), vec![]),
         ("modulus", Some(InstrumentKind::Fm), vec![]),
         ("gravis", Some(InstrumentKind::Bass), vec![]),
-        ("gravis-string", Some(InstrumentKind::Bass), vec![("engine", 2.0)]),
-        ("gravis-strings", Some(InstrumentKind::Bass), vec![("engine", 2.0), ("mode", 2.0)]),
+        (
+            "gravis-string",
+            Some(InstrumentKind::Bass),
+            vec![("engine", 2.0)],
+        ),
+        (
+            "gravis-strings",
+            Some(InstrumentKind::Bass),
+            vec![("engine", 2.0), ("mode", 2.0)],
+        ),
         ("lamina", Some(InstrumentKind::ElectricPiano), vec![]),
         ("organum", Some(InstrumentKind::Organ), vec![]),
         ("exemplar", Some(InstrumentKind::Sampler), vec![]),

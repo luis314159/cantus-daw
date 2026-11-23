@@ -294,7 +294,7 @@ impl Calor {
         self.voices = voices;
         for j in 0..stack {
             if let Some(p) = self.last_pitch.get_mut(alloc_voice * stack + j) {
-                *p = key as f32 + self.tuning[usize::from(key & 0x7F)]; // r42:tuning
+                *p = key as f32 + crate::tuning::at(&self.tuning, key); // r42:tuning
             }
         }
     }

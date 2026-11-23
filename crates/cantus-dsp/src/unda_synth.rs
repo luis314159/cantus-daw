@@ -172,7 +172,7 @@ impl Unda {
                 };
                 self.ages += 1;
                 let (s, sr) = (&*self.s, self.sr);
-                let tune = self.tuning[usize::from(key & 0x7F)]; // r42:tuning
+                let tune = crate::tuning::at(&self.tuning, key); // r42:tuning
                 let v = &mut self.voices[voice];
                 v.start(s, key, tune, id, velocity, stolen, from, self.ages, sr);
                 let g = Globals {
@@ -185,7 +185,7 @@ impl Unda {
                 self.last_pitch = Some(key as f32 + tune); // r42:tuning
             }
             Action::Glide { voice, key, id } => {
-                let tune = self.tuning[usize::from(key & 0x7F)]; // r42:tuning
+                let tune = crate::tuning::at(&self.tuning, key); // r42:tuning
                 self.voices[voice].glide_to(&self.s, key, tune, id, self.sr);
                 self.last_pitch = Some(key as f32 + tune);
             }

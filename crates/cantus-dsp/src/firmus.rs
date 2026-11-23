@@ -186,7 +186,7 @@ impl Firmus {
                 s.filter_release_s,
             );
             if v.is_active() {
-                Self::tune(v, s, tuning[usize::from(v.pitch)]); // r42:tuning
+                Self::tune(v, s, crate::tuning::at(tuning, v.pitch)); // r42:tuning
             }
         }
     }
@@ -205,7 +205,7 @@ impl Firmus {
         self.tuning = *table;
         let s = &self.settings;
         for v in self.voices.iter_mut().filter(|v| v.is_active()) {
-            Self::tune(v, s, table[usize::from(v.pitch)]);
+            Self::tune(v, s, crate::tuning::at(table, v.pitch));
         }
     }
 
@@ -247,7 +247,7 @@ impl Firmus {
         v.filter.reset();
         v.amp_env.reset();
         v.filter_env.reset();
-        Self::tune(v, &self.settings, self.tuning[usize::from(v.pitch)]); // r42:tuning
+        Self::tune(v, &self.settings, crate::tuning::at(&self.tuning, v.pitch)); // r42:tuning
         v.amp_env.gate_on();
         v.filter_env.gate_on();
     }

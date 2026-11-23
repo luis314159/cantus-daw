@@ -52,7 +52,7 @@ impl Voice {
             };
         }
         // r42:tuning — the key's offset (`+ 0.0` by default keeps the bits).
-        self.target = key as f32 + sh.tuning[usize::from(key & 0x7F)];
+        self.target = key as f32 + crate::tuning::at(sh.tuning, key);
         self.pitch = self.target;
         self.glide_to(sh, from);
         for (l, set) in self.lfo.iter_mut().zip(s.lfo.iter()) {
@@ -77,7 +77,7 @@ impl Voice {
         if let Some(v) = vel {
             self.vel = v;
         }
-        self.target = key as f32 + sh.tuning[usize::from(key & 0x7F)]; // r42:tuning
+        self.target = key as f32 + crate::tuning::at(sh.tuning, key); // r42:tuning
         self.released = false;
         self.glide_to(sh, Some(from));
         if retrigger {

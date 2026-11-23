@@ -4392,7 +4392,12 @@ fn the_mts_esp_refresh_and_a_tuning_never_allocate() {
         }
         let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(16));
         for i in 0..16 {
-            let n = p.make_note(Ticks::beats(i), Ticks::QUARTER, 48 + (i as u8 * 5) % 24, 100);
+            let n = p.make_note(
+                Ticks::beats(i),
+                Ticks::QUARTER,
+                48 + (i as u8 * 5) % 24,
+                100,
+            );
             clip.notes.push(n);
         }
         tr.clips.push(clip);
@@ -4400,7 +4405,9 @@ fn the_mts_esp_refresh_and_a_tuning_never_allocate() {
     }
     let mut rig = Rig::new();
     rig.tx
-        .push(EngineMessage::SetExternalTuning(Arc::new(MovingMaster::default())))
+        .push(EngineMessage::SetExternalTuning(Arc::new(
+            MovingMaster::default(),
+        )))
         .unwrap();
     let snap = Snapshot::compile(&p, 1);
     for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
