@@ -136,14 +136,38 @@ fn bin(x: &[f64], start: usize, n: usize, hz: f64) -> (f64, f64) {
 
 const N: usize = 32_768;
 
+/// r42 fix-engine (review reach 10): [`bin`]'s magnitude for the coarse search, faster — the
+/// window computed once and the oscillator turned by one complex multiplication a sample
+/// (its drift over 32 768 samples is ~1e-11 rad, nothing to an arg-max). The fine measure
+/// keeps `bin`'s exact sines.
+fn coarse_power(x: &[f64], start: usize, hz: f64) -> f64 {
+    static WINDOW: std::sync::OnceLock<Vec<f64>> = std::sync::OnceLock::new();
+    let win = WINDOW.get_or_init(|| {
+        (0..N)
+            .map(|i| 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / N as f64))
+            .collect()
+    });
+    let (s, c) = math::sin_cos(std::f64::consts::TAU * hz / f64::from(SR));
+    let (mut or, mut oi) = (1.0f64, 0.0f64);
+    let (mut re, mut im) = (0.0, 0.0);
+    for (v, w) in x[start..start + N].iter().zip(win) {
+        let v = v * w;
+        re += v * or;
+        im -= v * oi;
+        let next = or * c - oi * s;
+        oi = or * s + oi * c;
+        or = next;
+    }
+    re * re + im * im
+}
+
 /// The strongest frequency within ±2.5 % of `near` (a coarse search), then its phase slope
 /// over two hops (256 and 4 096 samples): a steady partial's frequency to a millionth.
 fn partial(x: &[f64], start: usize, near: f64) -> (f64, f64) {
     let mut best = (0.0, near);
     for i in 0..=500 {
         let f = near * (0.975 + 0.05 * i as f64 / 500.0);
-        let (re, im) = bin(x, start, N, f);
-        let m = re * re + im * im;
+        let m = coarse_power(x, start, f);
         if m > best.0 {
             best = (m, f);
         }
@@ -398,6 +422,19 @@ fn live(
     frames: usize,
     external: Option<Arc<dyn cantus_engine::tuning::ExternalTuning>>,
 ) -> Vec<f32> {
+    live_with(p, frames, external, false, |_| {})
+}
+
+/// [`live`], r42 fix-engine: `replace` swaps every instrument for a fresh one of its kind
+/// once the snapshot is installed (a plug-in's restart, an isolation move); `each` is told
+/// the frames played before every block.
+fn live_with(
+    p: &Project,
+    frames: usize,
+    external: Option<Arc<dyn cantus_engine::tuning::ExternalTuning>>,
+    replace: bool,
+    mut each: impl FnMut(usize),
+) -> Vec<f32> {
     let snap = Arc::new(Snapshot::compile(p, 1));
     let instruments = cantus_engine::inst::units_for(&snap, SR as f32, |_, _| false);
     let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64 + instruments.len());
@@ -412,7 +449,7 @@ fn live(
     tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
         .ok();
     let plan = cantus_engine::graph::compile(&snap);
-    tx.push(EngineMessage::SetSnapshotPlanned(snap, plan)).ok();
+    tx.push(EngineMessage::SetSnapshotPlanned(snap.clone(), plan)).ok();
     proc.settle();
     while let Ok(ev) = rx.pop() {
         if let EngineEvent::PdcNeed { count, delay } = ev {
@@ -423,12 +460,20 @@ fn live(
             proc.settle();
         }
     }
+    if replace {
+        for unit in cantus_engine::inst::units_for(&snap, SR as f32, |_, _| false) {
+            tx.push(EngineMessage::ReplaceInstrument(unit)).ok();
+        }
+        proc.settle();
+        while rx.pop().is_ok() {}
+    }
     tx.push(EngineMessage::Seek(Ticks::ZERO)).ok();
     tx.push(EngineMessage::Play).ok();
     let sizes = [128usize, 333, 512, 96, 1024, 17, 256, 1];
     let mut out = Vec::with_capacity(frames * 2);
     let mut i = 0;
     while out.len() / 2 < frames {
+        each(out.len() / 2);
         let n = sizes[i % sizes.len()].min(frames - out.len() / 2);
         i += 1;
         let mut buf = vec![0f32; n * 2];
@@ -493,6 +538,66 @@ fn a_track_that_follows_the_mts_esp_master_plays_its_table_live_and_offline() {
     let none = live(&p, frames, None);
     let plain = offline(&project(firmus, &KEYS, Tuning::default()), 256);
     assert_null(&plain[..frames * 2], &none, 0.0, "no master");
+}
+
+/// r42 fix-engine (review correctness 5): a unit swapped in for its track's (a plug-in's
+/// restart, an isolation move) plays the track's tuning at once. The control: untuned, the
+/// swap changes nothing; tuned, the swapped unit sounds as the one it replaced.
+#[test]
+fn a_unit_swapped_in_plays_its_tracks_tuning() {
+    let calor = pitched()
+        .into_iter()
+        .find(|i| i.kind == Some(InstrumentKind::Analog))
+        .expect("Calor");
+    for t in [Tuning::default(), werck3_e_flat_415()] {
+        let p = project(&calor, &KEYS[1..3], t.clone());
+        let frames = 4 * SR as usize;
+        let kept = live(&p, frames, None);
+        let swapped = live_with(&p, frames, None, true, |_| {});
+        assert_null(&kept, &swapped, 0.0, &format!("swapped, {:?}", t.system));
+    }
+}
+
+/// A master that leaves when told (an `AtomicBool`).
+#[derive(Debug)]
+struct Leaving(cantus_core::tuning::TuningTable, Arc<std::sync::atomic::AtomicBool>);
+
+impl cantus_engine::tuning::ExternalTuning for Leaving {
+    fn read(&self, out: &mut cantus_core::tuning::TuningTable) -> bool {
+        if self.1.load(std::sync::atomic::Ordering::Relaxed) {
+            return false;
+        }
+        *out = self.0;
+        true
+    }
+}
+
+/// r42 fix-engine (review correctness 8): when the master goes, a live track that followed
+/// it plays the table it was compiled with again (equal temperament at its diapason) — the
+/// notes after it went sound as the untuned song's, to the bit.
+#[test]
+fn a_track_whose_master_goes_plays_its_compiled_table_again() {
+    let firmus = &pitched()[0];
+    let external = Tuning {
+        system: TuningSystem::External,
+        ..Tuning::default()
+    };
+    let p = project(firmus, &KEYS, external);
+    let plain = offline(&project(firmus, &KEYS, Tuning::default()), 256);
+    let frames = plain.len() / 2 - SR as usize / 8;
+    let gone = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let master = Leaving(werck3_e_flat_415().offsets(), gone.clone());
+    let heard = live_with(&p, frames, Some(Arc::new(master)), false, |at| {
+        if at >= SR as usize {
+            gone.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    });
+    // The first key, under the master: tuned (it is not the plain song's).
+    let first = ..SR as usize;
+    assert!(heard[first.clone()] != plain[first], "played the master's table first");
+    // From 4 s (the third key, long after the master left): the untuned song's.
+    let from = 4 * SR as usize * 2;
+    assert_null(&plain[from..frames * 2], &heard[from..], 0.0, "the master gone");
 }
 
 #[test]

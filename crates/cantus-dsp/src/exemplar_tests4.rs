@@ -141,3 +141,48 @@ fn live_notes_on_one_drums_keys_take_turns_together() {
     }
     assert_eq!(turns, [1, 2, 1, 2, 1, 2]);
 }
+
+/// r42 fix-engine (review correctness 6): a key the tuning leaves unmapped sounds nothing in
+/// a pitched zone and plays as always in a zone at keytrack 0 (a drum kit's): a kit under a
+/// keyboard map keeps its notes.
+#[test]
+fn an_unmapped_key_silences_pitched_zones_only() {
+    let mut e = Exemplar::new(48_000.0);
+    e.set_globals(&Globals {
+        amp: [0.1, 0.1, 1_000.0, 1.0, 5.0],
+        vel_amp: 0.0,
+        ..Globals::default()
+    });
+    let drum = ZoneParams {
+        lo: 36,
+        hi: 47,
+        keytrack: 0.0,
+        one_shot: true,
+        ..ZoneParams::default()
+    };
+    let pitched = ZoneParams {
+        lo: 48,
+        hi: 72,
+        root: 60,
+        ..ZoneParams::default()
+    };
+    e.put_zone(0, &drum, &source_of(vec![0.5; 4_800], 1, 48_000.0, false));
+    e.put_zone(1, &pitched, &source_of(vec![0.5; 4_800], 1, 48_000.0, false));
+    let mut table = [0.0f32; 128];
+    table[38] = f32::NAN;
+    table[61] = f32::NAN;
+    e.set_tuning(&table);
+    let mut hit = |key: u8, id: u64| -> f32 {
+        e.note_on(key, 1.0, LIVE_IDS + id);
+        let (mut l, mut r) = (vec![0.0; 256], vec![0.0; 256]);
+        e.process(&mut l, &mut r);
+        e.note_off(key, LIVE_IDS + id, 0.0);
+        let peak = l.iter().fold(0.0f32, |a, v| a.max(v.abs()));
+        let (mut l, mut r) = (vec![0.0; 9_600], vec![0.0; 9_600]);
+        e.process(&mut l, &mut r);
+        peak
+    };
+    assert!(hit(38, 1) > 0.0, "the drum's key plays though unmapped");
+    assert_eq!(hit(61, 2), 0.0, "an unmapped pitched key sounds nothing");
+    assert!(hit(62, 3) > 0.0, "a mapped pitched key plays");
+}

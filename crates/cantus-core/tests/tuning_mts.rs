@@ -414,7 +414,7 @@ fn scale_workshop_s_bulk_dump_hashes_are_ours() {
             assert_eq!(checksum, Checksum::ScaleWorkshop);
             assert_eq!(name, "Test Scale");
             for (k, (got, want)) in keys.iter().zip(&pitches).enumerate() {
-                let (g, w) = (got.unwrap(), want.unwrap().min(PITCH_TOP));
+                let (g, w) = (got.unwrap(), want.unwrap().clamp(0.0, PITCH_TOP));
                 assert!((g - w).abs() <= 0.5 / 16384.0 + 1e-12, "key {k}: {g} vs {w}");
             }
         }

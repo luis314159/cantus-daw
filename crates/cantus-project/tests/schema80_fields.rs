@@ -51,8 +51,14 @@ fn mts_and_tuning_by_are_saved_and_read_back() {
     let p = song(true, TuningBy::NoteExpression);
     let (back, text) = round_trip(&p);
     assert_eq!(back, p);
-    assert!(back.external_units[0].mts);
-    let by = back.tracks.iter().find_map(|t| t.instrument.external());
+    let unit = back.external_units.last().expect("the unit");
+    assert_eq!(unit.id, ExternalUnitId(7));
+    assert!(unit.mts);
+    let by = back
+        .tracks
+        .iter()
+        .find(|t| t.name == "Hosted")
+        .and_then(|t| t.instrument.external());
     assert_eq!(by.map(|x| x.tuning_by), Some(TuningBy::NoteExpression));
     assert!(text.contains("\"mts\""), "the switch written");
     assert!(text.contains("\"tuning_by\""));

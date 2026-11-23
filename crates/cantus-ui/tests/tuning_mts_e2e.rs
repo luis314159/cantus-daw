@@ -28,7 +28,7 @@ use cantus_ui::picker::{PickChoice, PickPurpose};
 use cantus_ui::views::tuning;
 use cantus_ui::CantusApp;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
 const SR: f64 = 48_000.0;
@@ -241,7 +241,7 @@ fn plays(x: &[f64], track: usize, table: &TuningTable) -> bool {
     got.iter().zip(&want).all(|(g, w)| (g - w).abs() < 0.1)
 }
 
-fn temper(id: Temperament, key: u8, a4: f32) -> Tuning {
+fn temper(id: Temperament, key: u8, a4: f64) -> Tuning {
     Tuning {
         a4_hz: a4,
         system: TuningSystem::Temperament {
@@ -304,6 +304,9 @@ fn a_song_in_the_masters_tuning_follows_it_through_changes_exports_and_a_new_eng
     assert!(a.tuning.mts.as_ref().unwrap().read(&mut read2));
     assert_ne!(read2, read);
     assert_eq!(live_table(&a), read2);
+    // The strips' and the master's pitched effects follow it too (the project's table).
+    let snap = a.engine.sent_snapshot().unwrap().clone();
+    assert_eq!(*snap.tuning.table, read2, "the effects' table");
     // Unchanged, it compiles nothing more.
     let compiles = a.engine.compiles();
     a.sync_engine();
@@ -424,4 +427,122 @@ fn as_the_master_cantus_publishes_its_tuning_and_tunes_no_client_twice() {
     }
     tuning::set_master(&mut a, false, false);
     assert!(!client.read(&mut heard), "resigned");
+}
+
+/// The test's MIDI port: every message the out thread writes to it.
+#[derive(Clone, Default)]
+struct Port(Arc<Mutex<Vec<Vec<u8>>>>);
+
+impl cantus_engine::midi::OutPort for Port {
+    fn write(&mut self, bytes: &[u8]) -> bool {
+        self.0.lock().unwrap().push(bytes.to_vec());
+        true
+    }
+}
+
+static SYNTH: Mutex<Option<Port>> = Mutex::new(None);
+
+fn connect(name: &str) -> Option<Box<dyn cantus_engine::midi::OutPort>> {
+    let p = (name == "Hardware Synth")
+        .then(|| SYNTH.lock().unwrap().clone())
+        .flatten();
+    p.map(|p| Box::new(p) as Box<dyn cantus_engine::midi::OutPort>)
+}
+
+/// Each frame's poll until the port holds `n` messages (or a minute).
+fn until_sent(a: &mut CantusApp, port: &Port, n: usize) {
+    let t = Instant::now();
+    while port.0.lock().unwrap().len() < n {
+        cantus_ui::external_service::poll(a);
+        assert!(t.elapsed() < Duration::from_secs(60), "never sent");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+/// The table the port's messages `from..` leave on a synth.
+fn table_heard(port: &Port, from: usize) -> TuningTable {
+    let mut p = cantus_core::tuning_mts::equal_pitches();
+    for m in port.0.lock().unwrap()[from..].iter() {
+        cantus_core::tuning_mts::parse(m).unwrap().apply(&mut p);
+    }
+    cantus_core::tuning_mts::table_of(&p)
+}
+
+fn near(a: &TuningTable, b: &TuningTable) -> bool {
+    // Keys 0 and 1 at A415 lie below the frequency word's range.
+    (2..128).all(|k| (a.0[k] - b.0[k]).abs() < 1e-4)
+}
+
+/// r42 fix-engine (review correctness 13, reach 8): an external instrument retuned by MTS
+/// SysEx, through `external_service::poll` and the MIDI-out thread: its track's table sent;
+/// switched off, 12-TET at A440 sent once (the synth does not stay tuned); on again, its table
+/// afresh; in the MTS-ESP master's tuning, the master's table — and again when it changes.
+#[test]
+fn an_mts_instrument_is_sent_its_table_reset_when_off_and_follows_the_master() {
+    use cantus_core::external_unit::{Now, Present, UnitKind};
+    let _t = turn();
+    let port = Port::default();
+    *SYNTH.lock().unwrap() = Some(port.clone());
+    let mut a = assembled();
+    a.sync_service_mut()
+        .use_pool(cantus_engine::midi::pool::OutPool::new(connect));
+    let (_seam, handle) = cantus_engine::transport::sync::pair();
+    a.sync_service_mut().attach(Some(handle));
+    a.external.present_override = Some(Present {
+        device: Some("Interface".into()),
+        in_channels: 8,
+        out_channels: 8,
+        midi_outputs: vec!["Hardware Synth".into()],
+    });
+    a.external.now_override = Some(Now {
+        device: "Interface".into(),
+        rtt: 600,
+        buffer: 256,
+        rate: 48_000,
+    });
+    let track = a.project().tracks[0].id;
+    assert!(cantus_ui::external_service::add_unit(
+        &mut a,
+        track,
+        UnitKind::Instrument
+    ));
+    let werck = temper(Temperament::WerckmeisterIii, 3, 415.0);
+    set_project_tuning(&mut a, werck.clone());
+    let switch = |a: &mut CantusApp, on: bool| {
+        let mut u = a.project().external_units[0].clone();
+        u.mts = on;
+        assert!(a.exec(Command::SetExternalUnit { unit: Box::new(u) }));
+    };
+    switch(&mut a, true);
+    until_sent(&mut a, &port, 2);
+    assert!(near(&table_heard(&port, 0), &werck.offsets()), "its table");
+    // Off: one reset to 12-TET at A440.
+    switch(&mut a, false);
+    until_sent(&mut a, &port, 4);
+    assert!(near(&table_heard(&port, 2), &TuningTable::EQUAL), "reset");
+    for _ in 0..20 {
+        cantus_ui::external_service::poll(&mut a);
+    }
+    assert_eq!(port.0.lock().unwrap().len(), 4, "once");
+    // On again: the same tuning sent afresh.
+    switch(&mut a, true);
+    until_sent(&mut a, &port, 6);
+    assert!(near(&table_heard(&port, 4), &werck.offsets()), "again");
+    // The master's tuning: the master's table, and again when it moves.
+    let master = MtsLink::open(fake());
+    let meantone = temper(Temperament::MeantoneQuarter, 0, 440.0).offsets();
+    master.become_master(false, &meantone, "Meantone").unwrap();
+    set_project_tuning(
+        &mut a,
+        Tuning {
+            system: TuningSystem::External,
+            ..Tuning::default()
+        },
+    );
+    until_sent(&mut a, &port, 8);
+    assert!(near(&table_heard(&port, 6), &meantone), "the master's");
+    master.publish_all(&werck.offsets(), "Werckmeister");
+    until_sent(&mut a, &port, 10);
+    assert!(near(&table_heard(&port, 8), &werck.offsets()), "it moved");
+    master.resign_master();
 }

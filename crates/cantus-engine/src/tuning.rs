@@ -123,6 +123,60 @@ mod tests {
         }
     }
 
+    /// r42 fix-engine (review correctness 1): what a hosted MTS-ESP client is still sent —
+    /// nothing where its track's table is MTS-ESP's, the difference elsewhere; an unmapped
+    /// key stays unmapped.
+    #[test]
+    fn a_client_is_sent_only_what_mts_esp_does_not_give_it() {
+        let mut heard = TuningTable::EQUAL;
+        heard.0[60] = 0.25;
+        heard.0[62] = f32::NAN;
+        let same = beyond(&heard, &heard);
+        assert!(same.0.iter().enumerate().all(|(k, v)| if k == 62 {
+            v.is_nan()
+        } else {
+            v.to_bits() == 0
+        }));
+        let mut own = heard;
+        own.0[60] = 0.5;
+        own.0[62] = 0.1;
+        let rest = beyond(&own, &heard);
+        assert_eq!(rest.0[60], 0.25);
+        assert_eq!(rest.0[62], 0.1, "MTS-ESP leaves it unmapped: sent whole");
+        assert_eq!(rest.0[61].to_bits(), 0);
+    }
+
+    /// r42 fix-engine: a compile records what MTS-ESP gives its clients — the outside
+    /// master's table, the project's while Cantus leads, nothing without a master.
+    #[test]
+    fn a_compile_records_what_mts_esp_gives_its_clients() {
+        #[derive(Debug)]
+        struct Leading;
+        impl ExternalTuning for Leading {
+            fn read(&self, _out: &mut TuningTable) -> bool {
+                false
+            }
+            fn leads(&self) -> bool {
+                true
+            }
+        }
+        let mut p = cantus_core::Project::new("t");
+        p.tuning = cantus_core::tuning::Tuning {
+            a4_hz: 415.0,
+            ..Default::default()
+        };
+        let mut snap = cantus_core::Snapshot::compile(&p, 1);
+        fill_external(&mut snap, &NoExternal);
+        assert!(snap.mts_heard.is_none());
+        let mut want = TuningTable::EQUAL;
+        want.0[60] = 0.25;
+        fill_external(&mut snap, &Fixed(want));
+        assert_eq!(snap.mts_heard.as_deref(), Some(&want));
+        fill_external(&mut snap, &Leading);
+        assert_eq!(snap.mts_heard.as_deref(), Some(&*snap.tuning.table));
+        assert!(!snap.tuning.table.is_equal(), "the project's A415");
+    }
+
     #[test]
     fn a_compile_takes_the_master_s_table_for_external_tracks_only() {
         use cantus_core::tuning::{TrackTuning, Tuning, TuningSystem};
