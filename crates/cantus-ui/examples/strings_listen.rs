@@ -54,21 +54,19 @@ fn lay_out(sources: &Path, pack: &cantus_content::manifest::Pack) -> PathBuf {
             });
             let dir = sources.join("x").join(&pack.id);
             if !dir.join(".laid").exists() {
-                let mut a = zip::ZipArchive::new(std::fs::File::open(sources.join(local)).unwrap())
-                    .unwrap();
-                for i in 0..a.len() {
-                    let mut e = a.by_index(i).unwrap();
-                    let n = e.name().map(|n| n.to_string()).unwrap_or_default();
-                    let Some(rel) = n.strip_prefix(z.strip.as_str()) else {
+                use cantus_project::dawproject::zip;
+                let mut f = std::fs::File::open(sources.join(local)).unwrap();
+                for e in zip::directory(&mut f).unwrap() {
+                    let Some(rel) = e.name.strip_prefix(z.strip.as_str()) else {
                         continue;
                     };
-                    if n.ends_with('/') || !(rel.to_ascii_lowercase().ends_with(".wav")) {
+                    if !rel.to_ascii_lowercase().ends_with(".wav") {
                         continue;
                     }
                     let to = dir.join(rel);
                     std::fs::create_dir_all(to.parent().unwrap()).unwrap();
-                    let mut f = std::fs::File::create(&to).unwrap();
-                    std::io::copy(&mut e, &mut f).unwrap();
+                    let bytes = zip::read_entry(&mut f, &e, 1 << 30).unwrap();
+                    std::fs::write(&to, bytes).unwrap();
                 }
                 std::fs::write(dir.join(".laid"), b"").unwrap();
             }
@@ -181,7 +179,7 @@ fn abx(mid: &[u8], name: &str, p: &mut Project, c: &mut Clip) -> Ticks {
         .iter()
         .find(|(_, m)| m == "pizzicato")
         .map(|(t, _)| *t)
-        .unwrap_or(Ticks::MAX);
+        .unwrap_or(Ticks(i64::MAX));
     let t = imp
         .tracks
         .iter()
