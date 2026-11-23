@@ -154,15 +154,16 @@ fn instrument_card(
 /// marking, and the bow's three numbers (β, force, speed) — label and value in pairs.
 fn readout(app: &CantusApp, ui: &egui::Ui, rect: Rect, spec: &NativeSpec, s: &Style) {
     use crate::kit::text::{paint, Policy, Role, Text};
-    const NAMES: [&str; 12] = [
-        "C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B",
-    ];
+    // The notes' names in the window's language (`arcus.notes`: C … B, Do … Si).
+    let names_text = crate::i18n::t("arcus.notes");
+    let names: Vec<&str> = names_text.split(',').map(|n| n.trim()).collect();
+    let name = |k: usize| names.get(k % 12).copied().unwrap_or("?").to_string();
     let fs = settings(spec);
     let n = draw::now(&fs, &app.inst_telemetry());
     let key = n.key.round().max(0.0) as usize;
-    let note = format!("{}{}", NAMES[key % 12], key as i32 / 12 - 1);
+    let note = format!("{}{}", name(key), key as i32 / 12 - 1);
     let open = fs.instrument.spec().strings[n.string.min(3)].open as usize;
-    let string = NAMES[open % 12].to_string();
+    let string = name(open);
     let marks = ["pp", "p", "mp", "mf", "f", "ff"];
     let mark = marks[((n.dynamic.clamp(0.0, 1.0) * 5.0).round() as usize).min(5)].to_string();
     let bow = format!(

@@ -113,7 +113,7 @@ pub fn picture(
     let split = inner.top() + inner.height() * 0.42;
     let top = Rect::from_min_max(inner.min, pos2(inner.right(), split - s.s(6.0)));
     let dia = Rect::from_min_max(
-        pos2(inner.left() + s.s(30.0), split + s.s(6.0)),
+        pos2(inner.left() + s.s(46.0), split + s.s(6.0)),
         pos2(inner.right() - s.s(4.0), inner.bottom() - s.s(14.0)),
     );
     let n = now(fs, tele);
@@ -268,7 +268,7 @@ fn diagram(
     );
     label(
         b,
-        Rect::from_min_size(pos2(r.left() - s.s(30.0), r.top()), vec2(s.s(28.0), s.s(11.0))),
+        Rect::from_min_size(pos2(r.left() - s.s(46.0), r.top()), vec2(s.s(43.0), s.s(11.0))),
         "arcus.draw.force",
         Align2::RIGHT_TOP,
         dim,

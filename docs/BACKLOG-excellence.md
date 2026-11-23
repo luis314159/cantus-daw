@@ -2819,3 +2819,16 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
   - **Each preset judged "convincing in solo" by the 10-listener panel** (the owner's), and
     a blind comparison against Chromaphone, Collision and Sculpture on the eight named
     instruments (BACKLOG §0's scorecard).
+
+**Arcus after its first round (round 42, ADR 0157; `docs/round42/arcus.md`).** <!-- r42:arcus -->
+- **The violin and the viola** pass the same gate: at 48 kHz their upper notes leave the
+  bow–bridge segment a few samples long (an oversampled junction, or a fractional-position bow).
+- **Measured bodies**: a double bass's and a viola's admittance (borrowed instruments, Pérez
+  Carrillo's glissando method), the CNSM violin admittance (CC BY 4.0) fitted; the cello's body
+  checked against a measured one (Fritz 2007's thresholds).
+- **The torsion's Q** brought towards the literature's tens with the attacks kept (a finite bow
+  width, or the thermal friction refined) — the default's Q 5 is what the Guettler wedge needed.
+- **The Schelleng upper limit**: ours falls as β^−0.23 where Schelleng's falls as 1/β; the lower
+  limit moves with the bow's speed where Schoonderwaldt's machine found it fixed.
+- **The next techniques** (harmonics, sordino, sul ponticello and tasto as their own sounds,
+  col legno), **sections** (seeded players, divisi), the stage and the hybrid voice (§3e).

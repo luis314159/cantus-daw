@@ -91,6 +91,7 @@ arcus.read.note = Note
 arcus.read.string = String
 arcus.read.dynamic = Dynamic
 arcus.read.bow = Bow
+arcus.notes = C, C♯, D, E♭, E, F, F♯, G, A♭, A, B♭, B
 arcus.draw.beta = Distance from the bridge (β)
 arcus.draw.force = Force
 arcus.draw.region = Helmholtz region
