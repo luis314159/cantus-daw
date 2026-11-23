@@ -245,11 +245,14 @@ fn main() {
             let (mut p, mut c) = project_of(&dir.join(&inst.sfz), &inst.name, 72.0);
             line(&mut p, &mut c, lo, hi);
             p.tracks[0].clips.push(c);
-            write_pair(
+            let lufs = write_pair(
                 &out,
                 &format!("{}-{id}-line", pack.id),
                 &rendered(&p, Ticks::beats(16)),
             );
+            if let Some(l) = lufs {
+                levels.insert(format!("{}/{}", pack.id, inst.sfz), serde_json::json!(l));
+            }
         }
         if let Some(mid) = &mid {
             let bytes = std::fs::read(mid).expect("the ABX phrase");
