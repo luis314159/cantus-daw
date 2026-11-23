@@ -280,6 +280,8 @@ pub enum Action {
     PreviousArea,
     /// The preset browser on the selected track's instrument (Ctrl+F: find a preset).
     BrowsePresets,
+    /// Project ▸ Tuning (Ctrl+Alt+T): the song's tuning (round 42, ADR 0155). // r42:tuning-face
+    OpenTuning,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -347,7 +349,7 @@ impl Action {
         )
     }
 
-    pub const ALL: [Action; 145] = [
+    pub const ALL: [Action; 146] = [
         // r35:video — 122 with ExportVideo
         Action::PlayPause,
         Action::Stop,
@@ -502,6 +504,7 @@ impl Action {
         Action::NextArea,
         Action::PreviousArea,
         Action::BrowsePresets,
+        Action::OpenTuning, // r42:tuning-face
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -649,6 +652,7 @@ impl Action {
             Action::NextArea => "next-area",
             Action::PreviousArea => "previous-area",
             Action::BrowsePresets => "browse-presets",
+            Action::OpenTuning => "open-tuning", // r42:tuning-face
             Action::NewFromTemplate => "new-from-template",
             Action::SaveAsTemplate => "save-as-template",
             Action::SaveTrackTemplate => "save-track-template",
@@ -731,7 +735,8 @@ impl Action {
             | CollapseArea
             | NextArea
             | PreviousArea
-            | BrowsePresets => Category::View,
+            | BrowsePresets
+            | OpenTuning => Category::View, // r42:tuning-face
             MidiLearnMode => Category::Tools,
             LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
@@ -1263,6 +1268,14 @@ fn common() -> Vec<(Action, Binding)> {
         // Ctrl+F finds a preset for the selected track's instrument (Ableton's Ctrl+F finds
         // in its browser).
         (BrowsePresets, Binding::cmd(Key::F)),
+        // r42:tuning-face — Ctrl+Alt+T: the song's tuning (ADR 0155).
+        (
+            OpenTuning,
+            Binding {
+                alt: true,
+                ..Binding::cmd(Key::T)
+            },
+        ),
         (PreviousArea, Binding::cmd_shift(Key::F6)),
         (
             MaximizeArea,
@@ -1694,6 +1707,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 19 {
             map.fill_in(&NEW_IN_V19); // multimon
         }
+        if file.version.unwrap_or(1) < 20 {
+            map.fill_in(&NEW_IN_V20); // r42:tuning-face
+        }
         Ok(map)
     }
 
@@ -1776,8 +1792,11 @@ struct KeymapFile {
 /// version 17 insert and delete time and the ripple mode (round 40, ADR 0116); version 18
 /// the selection to a new bus (ADR 0147); version 19 several screens' layouts (Alt+1 …
 /// Alt+9), full screen (F11), *Move to a new window* (Shift+F11) and the screens map
-/// (Ctrl+F11) (ADR 0148).
-pub const FILE_VERSION: u32 = 19;
+/// (Ctrl+F11) (ADR 0148); version 20 the song's tuning (Ctrl+Alt+T, round 42, ADR 0155).
+pub const FILE_VERSION: u32 = 20; // r42:tuning-face
+
+/// Actions added in version 20 (round 42): Ctrl+Alt+T opens Project ▸ Tuning.
+const NEW_IN_V20: [Action; 1] = [Action::OpenTuning]; // r42:tuning-face
 
 /// Actions added in version 18 (ADR 0147): Ctrl+G routes the selection to a new bus.
 const NEW_IN_V18: [Action; 1] = [Action::RouteToNewBus];
@@ -2242,7 +2261,8 @@ play-pause = [\"Enter\"]
             &[Binding::key(Key::Enter)]
         );
         assert!(map.bindings_for(Action::SessionLaunch).is_empty());
-        assert_eq!(FILE_VERSION, 19);
+        // r42:tuning-face — version 20: the song's tuning (Ctrl+Alt+T).
+        assert_eq!(FILE_VERSION, 20);
         // Every preset gives the session's keys and none of them twice.
         for p in Preset::ALL {
             let m = p.keymap();

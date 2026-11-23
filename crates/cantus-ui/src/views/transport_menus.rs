@@ -27,6 +27,8 @@ const MENU_KEY: f32 = 28.0;
 /// The most the name and the summary take before they elide (their whole in the hint).
 const NAME_MAX: f32 = 200.0;
 const SUMMARY_MAX: f32 = 180.0;
+/// What the song's tuning may add to the summary (r42:tuning-face).
+const TUNING_MAX: f32 = 260.0;
 
 thread_local! {
     /// The project's name and its dirty mark, rebuilt in place each frame.
@@ -72,7 +74,8 @@ fn with_summary<R>(app: &CantusApp, f: impl FnOnce(&str) -> R) -> R {
     SUMMARY.with(|c| {
         let mut c = c.borrow_mut();
         let pr = app.project();
-        let key = (pr.tracks.len(), pr.strips.len(), pr.content_end().0);
+        let tuning = views::tuning::words::summary_key(pr); // r42:tuning-face
+        let key = (pr.tracks.len(), pr.strips.len(), pr.content_end().0, tuning);
         if c.0 != Some(key) {
             c.0 = Some(key);
             c.1 = summary(app);
@@ -90,11 +93,20 @@ pub fn brand_widths(app: &CantusApp, ctx: &egui::Context, s: &Style) -> [f32; 4]
         name_into(app, &mut n);
         p::measure(ctx, &n, Role::Title, 13.0, s).min(NAME_MAX * k)
     });
-    let summary =
-        with_summary(app, |w| p::measure(ctx, w, Role::Label, 11.0, s)).min(SUMMARY_MAX * k);
+    // r42:tuning-face — a song in a tuning of its own says it too (ADR 0155 §5), whole.
+    let most = SUMMARY_MAX
+        + if app.project().tuning.is_default() {
+            0.0
+        } else {
+            TUNING_MAX
+        };
+    let summary = with_summary(app, |w| p::measure(ctx, w, Role::Label, 11.0, s)).min(most * k);
     let mark = (MARK + 8.0 + MENU_KEY + 8.0) * k;
     [
-        (LOGO_W * k + menus.max(name + 8.0 * k + summary)).ceil(),
+        // The name is painted one point wider than measured (`name_line`), the summary
+        // after it: the full form holds both whole (r42:tuning-face — a tuned song's longer
+        // line lost "A415" to an ellipsis by that point).
+        (LOGO_W * k + menus.max(name + 1.0 + 8.0 * k + summary)).ceil(),
         (LOGO_W * k + menus.max(name)).ceil(),
         (mark + name).ceil(),
         (mark - 8.0 * k).ceil(),
@@ -912,7 +924,8 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
 }
 
 /// What a summary line was made from: the tracks, the strips, the song's end.
-type SummaryKey = Option<(usize, usize, i64)>;
+/// r42:tuning-face — and the song's tuning (`tuning::words::summary_key`): it is in the line.
+type SummaryKey = Option<(usize, usize, i64, u64)>;
 
 thread_local! {
     /// The summary line and what it was made from: made again only when that changes (no
@@ -928,14 +941,19 @@ pub fn summary(app: &CantusApp) -> String {
     let bar = views::bars::bar_len(p, cantus_core::Ticks(0)).0.max(1);
     let bars = (end.0 + bar - 1) / bar;
     let secs = views::bars::seconds_between(p, cantus_core::Ticks(0), end).max(0.0) as u64;
-    crate::i18n::tf(
+    let line = crate::i18n::tf(
         "topbar.summary_line",
         &[
             ("tracks", &p.tracks.len().to_string()),
             ("bars", &bars.to_string()),
             ("time", &format!("{}:{:02}", secs / 60, secs % 60)),
         ],
-    )
+    );
+    // r42:tuning-face — only when the song is not in the default tuning (ADR 0155 §5).
+    match views::tuning::words::project_summary(p) {
+        Some(tuning) => format!("{line} \u{b7} {tuning}"),
+        None => line,
+    }
 }
 
 #[cfg(test)]
@@ -959,6 +977,58 @@ mod summary_tests {
         assert!(
             line.contains(" bars \u{b7} ") && line.contains(':'),
             "{line}"
+        );
+    }
+
+    /// r42:tuning-face — a song in a tuning of its own says it after its length, and only
+    /// then (ADR 0155 §5).
+    #[test]
+    fn the_summary_names_the_tuning_only_when_it_is_not_the_default() {
+        use cantus_core::tuning::{Temperament, Tuning, TuningSystem};
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
+        let mut app = crate::CantusApp::from_parts(
+            Some(crate::starter_project()),
+            cantus_engine::EngineHandle::dummy(),
+            false,
+        );
+        assert!(!super::summary(&app).contains("A44"));
+        app.exec(cantus_core::Command::SetProjectTuning {
+            tuning: Box::new(Tuning {
+                a4_hz: 415.0,
+                system: TuningSystem::Temperament {
+                    id: Temperament::WerckmeisterIii,
+                    key: 3,
+                    follow_song_key: false,
+                },
+                map: None,
+            }),
+        });
+        let line = super::summary(&app);
+        assert!(
+            line.ends_with(" \u{b7} Werckmeister III in Eb \u{b7} A415"),
+            "{line}"
+        );
+        // The full form is as wide as the name and the whole line (none of it elided).
+        let ctx = egui::Context::default();
+        crate::design::install_fonts(&ctx);
+        crate::design::install_style(&ctx);
+        let mut widths = ([0.0f32; 4], 0.0f32, 0.0f32);
+        crate::raster::shoot(&ctx, egui::vec2(800.0, 200.0), 1.0, 3, None, |ui| {
+            let ctx = ui.ctx().clone();
+            let s = super::Style::current();
+            let w = super::brand_widths(&app, &ctx, &s);
+            let sum = super::p::measure(&ctx, &line, super::Role::Label, 11.0, &s);
+            let mut n = String::new();
+            super::name_into(&app, &mut n);
+            let name = super::p::measure(&ctx, &n, super::Role::Title, 13.0, &s);
+            widths = (w, sum, name);
+        });
+        let (w, sum, name) = widths;
+        assert!(
+            w[0] >= super::LOGO_W + name + 1.0 + 8.0 + sum,
+            "full {} < logo {} + name {name} + 8 + summary {sum}",
+            w[0],
+            super::LOGO_W
         );
     }
 }

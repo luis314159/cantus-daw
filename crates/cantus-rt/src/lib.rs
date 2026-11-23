@@ -43,6 +43,7 @@ pub mod fork;
 pub mod fpenv;
 pub mod ipc;
 pub mod memory;
+pub mod mts; // r42:tuning-face — MTS-ESP loaded at run time (ADR 0156)
 pub mod pad;
 pub mod place; // r34:tools — a no-replace rename (the exporter's never-replace)
 pub mod private; // r34:mcp — owner-only files (the MCP token)

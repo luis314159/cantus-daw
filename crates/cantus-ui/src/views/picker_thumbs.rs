@@ -39,6 +39,10 @@ const COLS: usize = 4;
 const ROWS: usize = 7;
 const PER_PAGE: usize = COLS * ROWS;
 
+/// r42:tuning-face: what a pass of the idle warm-up may cost the interface thread beyond a
+/// plain pass, ms (a quarter of a 60 Hz frame): its editors are drawn on a worker.
+pub const WARM_BUDGET_MS: f64 = 4.0;
+
 /// What the cache has done, for tests and the frame budget.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Stats {
@@ -78,6 +82,18 @@ pub struct Thumbs {
     rx: Receiver<Done>,
     /// The look whose old neighbours on disk were last pruned.
     pruned: u64,
+    /// r42:tuning-face — the pictures made ahead, while the app is idle (BACKLOG §6j): every
+    /// device in the order asked ([`Thumbs::warm`], the most used first), and those still to
+    /// make in this look. Lower than anything a tile asks for: one a pump, after them.
+    warm_all: Vec<Subject>,
+    warming: VecDeque<Subject>,
+    /// Pictures made ahead only to the disk: the atlas's page was full (it keeps the most
+    /// used; the rest come back from their files in a frame).
+    disk_only: HashSet<Subject>,
+    /// The picture being made ahead on its worker, if one is (one at a time).
+    ahead: Option<Subject>,
+    /// What a worker needs of the interface thread's look to draw as it draws.
+    worker_look: WorkerLook,
     pub stats: Stats,
 }
 
@@ -99,8 +115,51 @@ impl Default for Thumbs {
             tx,
             rx,
             pruned: 0,
+            warm_all: Vec::new(),
+            warming: VecDeque::new(),
+            disk_only: HashSet::new(),
+            ahead: None,
+            worker_look: WorkerLook::default(),
             stats: Stats::default(),
         }
+    }
+}
+
+/// r42:tuning-face: what a worker wears to draw a picture as the interface thread draws
+/// it: the thread-local parts of the look (the units' faces switch, their colourways and
+/// views) and the language.
+#[derive(Clone, Debug)]
+pub struct WorkerLook {
+    pub faces: bool,
+    pub colourways: Vec<(String, String)>,
+    pub views: Vec<(String, String)>,
+    pub locale: crate::i18n::Locale,
+}
+
+impl Default for WorkerLook {
+    fn default() -> Self {
+        WorkerLook {
+            faces: crate::kit::skin::enabled(),
+            colourways: Vec::new(),
+            views: Vec::new(),
+            locale: crate::i18n::locale(),
+        }
+    }
+}
+
+impl WorkerLook {
+    /// Wear it on this thread (a worker's).
+    pub fn wear(&self) {
+        crate::i18n::set_thread_locale(self.locale);
+        crate::kit::skin::set_enabled(self.faces);
+        crate::kit::skin::set_colourways(
+            self.colourways
+                .iter()
+                .map(|(u, id)| (u.as_str(), id.as_str())),
+        );
+        crate::views::fx::unit_view::set_views(
+            self.views.iter().map(|(u, id)| (u.as_str(), id.as_str())),
+        );
     }
 }
 
@@ -127,6 +186,12 @@ pub fn look_key() -> u64 {
 }
 
 impl Thumbs {
+    /// r42:tuning-face: what the warm-up's worker must wear to draw as this thread draws
+    /// (the units' faces, their colourways and views, the language).
+    pub fn set_worker_look(&mut self, look: WorkerLook) {
+        self.worker_look = look;
+    }
+
     /// Turn pictures on, kept under `disk` (a folder; `None` keeps them in memory only).
     pub fn enable(&mut self, disk: Option<PathBuf>) {
         self.enabled = true;
@@ -158,9 +223,94 @@ impl Thumbs {
         None
     }
 
+    /// Whether a picture is being made ahead now.
+    pub fn making_ahead(&self) -> bool {
+        self.ahead.is_some()
+    }
+
     /// Whether every picture asked for is in.
     pub fn idle(&self) -> bool {
         self.wanted.is_empty() && self.busy.is_empty() && self.capturing.is_none()
+    }
+
+    /// r42:tuning-face — make `subjects`' pictures ahead (BACKLOG §6j), in this order (the
+    /// most used first: the atlas keeps one page of them, the rest go to the disk only),
+    /// after anything a tile asks for, one a pump. Again in a new look.
+    pub fn warm(&mut self, subjects: impl IntoIterator<Item = Subject>) {
+        for s in subjects {
+            if !self.warm_all.contains(&s) {
+                self.warm_all.push(s);
+                self.warming.push_back(s);
+            }
+        }
+    }
+
+    /// How many pictures the warm-up has still to make or read in this look.
+    pub fn warm_left(&self) -> usize {
+        self.warming.len()
+    }
+
+    /// Whether `s`'s picture is ready to show at once: in the atlas, or made on disk (read
+    /// back in a frame, no editor drawn).
+    pub fn ready(&self, s: Subject) -> bool {
+        self.slots.contains_key(&s) || self.file(s, self.look).is_some_and(|p| p.exists())
+    }
+
+    /// The next picture to make ahead, if nothing a tile asked for waits: read back from
+    /// its file while the atlas has room, made (one editor) when it has no file. Returns
+    /// whether it started a capture.
+    fn warm_one(&mut self, ctx: &Context, look: u64) -> bool {
+        if self.ahead.is_some() {
+            return false;
+        }
+        while let Some(s) = self.warming.pop_front() {
+            if self.slots.contains_key(&s) || self.busy.contains(&s) || self.failed.contains(&s) {
+                continue;
+            }
+            let room = self.slots.len() + self.busy.len() < PER_PAGE;
+            if self.file(s, look).is_some_and(|p| p.exists()) {
+                if !room {
+                    continue; // On disk: ready in a frame when its tile asks.
+                }
+                self.wanted.push_back(s);
+                return false;
+            }
+            if !room {
+                self.disk_only.insert(s);
+            }
+            // Made on a worker of its own, the whole capture there: the editor staged in a
+            // scratch application, drawn, tessellated, filled, shrunk and written (round 42:
+            // drawn here, a step of a heavy editor stalled the window 0.9 s). Only the upload
+            // of its finished picture comes back to this thread.
+            self.stats.captures += 1;
+            self.busy.insert(s);
+            self.ahead = Some(s);
+            let (tx, ctx2, wear) = (self.tx.clone(), ctx.clone(), self.worker_look.clone());
+            let path = self.file(s, look);
+            std::thread::Builder::new()
+                .name("cantus-picker-ahead".into())
+                .spawn(move || {
+                    let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        wear.wear();
+                        picker_snap::capture(&ctx2, s, PPP)
+                            .map(|frame| picker_snap::finish(frame, W, RADIUS))
+                    }));
+                    let msg = match made {
+                        Ok(Some(img)) => {
+                            if let Some(p) = path {
+                                save_png(&img, &p);
+                            }
+                            Done::Image(s, look, img)
+                        }
+                        _ => Done::Failed(s, look),
+                    };
+                    let _ = tx.send(msg);
+                    ctx2.request_repaint();
+                })
+                .ok();
+            return true;
+        }
+        false
     }
 
     /// Once a frame: take in what the workers finished, start what is wanted.
@@ -181,17 +331,29 @@ impl Thumbs {
             if let Some(c) = self.capturing.take() {
                 self.busy.remove(&c.subject());
             }
+            // r42:tuning-face — the warm-up begins again in the new look.
+            self.warming = self.warm_all.iter().copied().collect();
+            self.disk_only.clear();
         }
         while let Ok(done) = self.rx.try_recv() {
             match done {
                 Done::Image(s, l, img) => {
                     self.busy.remove(&s);
-                    if l == self.look {
+                    if self.ahead == Some(s) {
+                        self.ahead = None;
+                    }
+                    // r42:tuning-face — a picture made ahead past the atlas's page stays on
+                    // disk, unless a tile asked for it meanwhile.
+                    let ahead_only = self.disk_only.remove(&s) && !self.seen.contains_key(&s);
+                    if l == self.look && !ahead_only {
                         self.upload(ctx, s, &img);
                     }
                 }
                 Done::Failed(s, l) => {
                     self.busy.remove(&s);
+                    if self.ahead == Some(s) {
+                        self.ahead = None;
+                    }
                     if l == self.look {
                         self.failed.insert(s);
                     }
@@ -248,7 +410,16 @@ impl Thumbs {
                 None => self.capturing = Some(c),
             }
         }
-        if !self.idle() {
+        // r42:tuning-face — then one picture made ahead, when nothing else is being made.
+        if !captured && self.wanted.is_empty() && self.capturing.is_none() {
+            self.warm_one(ctx, look);
+        }
+        // A picture made ahead on its worker asks for the frame it lands in itself: the
+        // window is not kept repainting while it waits (r42:tuning-face).
+        let only_ahead = self.wanted.is_empty()
+            && self.capturing.is_none()
+            && self.busy.iter().all(|b| Some(*b) == self.ahead);
+        if !self.idle() && !only_ahead {
             crate::views::workspace_ticker::moving(
                 ctx,
                 crate::views::workspace_ticker::Reason::Background,

@@ -61,6 +61,7 @@ pub mod picker_panel;
 pub mod picker_side;
 pub mod picker_snap;
 pub mod picker_thumbs;
+pub mod picker_warm; // r42:tuning-face — the picker's pictures made during idle (BACKLOG §6j)
 pub mod pitch;
 pub mod pitch_lane;
 pub mod plugin_notice;
@@ -102,6 +103,7 @@ pub mod screens_map; // multimon — Screens and windows (ADR 0148 §9)
 pub mod session; // r33:launcher
 pub mod settings_audio;
 pub mod transport;
+pub mod tuning; // r42:tuning-face — Project ▸ Tuning (ADR 0155, 0156)
 pub mod unsaved;
 pub mod update;
 pub mod verse;

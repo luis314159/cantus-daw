@@ -40,6 +40,8 @@ pub enum MenuId {
     HostedView(crate::views::plugin_notice::Target),
     /// How a track's hosted instrument hears per-note expression (round 33, ADR 0080).
     Expression(TrackId),
+    /// r42:tuning-face — a track's tuning against the project's (ADR 0155).
+    Tuning(TrackId),
 }
 
 /// What a row of a list does.
@@ -84,6 +86,8 @@ enum Choice {
     ForgetSlot,
     /// A track's automation mode (round 31, ADR 0068).
     AutoMode(cantus_core::AutoMode),
+    /// r42:tuning-face — 0 follow the project, 1 equal temperament, 2 its own (the window).
+    Tuning(u8),
 }
 
 /// One row, owning its words until the list closes.
@@ -323,6 +327,28 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                     Label::Key(key),
                     radio(now == Some(r)),
                     Choice::Expression(r),
+                ));
+            }
+        }
+        // r42:tuning-face — the track's tuning (ADR 0155).
+        MenuId::Tuning(t) => {
+            let cur = p.track(t).map(|t| match t.tuning {
+                cantus_core::tuning::TrackTuning::Follow => 0u8,
+                cantus_core::tuning::TrackTuning::Equal => 1,
+                cantus_core::tuning::TrackTuning::Own { .. } => 2,
+            });
+            for (i, key) in [
+                "tuning.track.follow",
+                "tuning.track.equal",
+                "tuning.track.own_menu",
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                out.push(act(
+                    Label::Key(key),
+                    radio(cur == Some(i as u8)),
+                    Choice::Tuning(i as u8),
                 ));
             }
         }
@@ -787,6 +813,31 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
         (MenuId::AddPad(t), Choice::AddPad(v)) => app.add_pad(t, v),
         (MenuId::AutoMode(track), Choice::AutoMode(mode)) => {
             app.exec(Command::SetTrackAutoMode { track, mode });
+        }
+        // r42:tuning-face — follow, equal, or its own: the Tuning window for this track.
+        (MenuId::Tuning(track), Choice::Tuning(m)) => {
+            use crate::views::tuning::{self as tu, Target};
+            use cantus_core::tuning::TrackTuning;
+            match m {
+                0 => {
+                    tu::set_track_mode(app, track, TrackTuning::Follow);
+                }
+                1 => {
+                    tu::set_track_mode(app, track, TrackTuning::Equal);
+                }
+                // Its own starts from what it plays now, then the window opens on it.
+                _ => {
+                    let own = app
+                        .project()
+                        .track(track)
+                        .is_some_and(|t| matches!(t.tuning, TrackTuning::Own { .. }));
+                    if !own {
+                        let tuning = tu::tuning_of(app, Target::Track(track));
+                        tu::set_track_mode(app, track, TrackTuning::Own { tuning });
+                    }
+                    tu::open(app, Target::Track(track));
+                }
+            }
         }
         (MenuId::ClipLink(t, c), Choice::Link(a)) => {
             // *Link to…* hangs from the row the menu hung from.

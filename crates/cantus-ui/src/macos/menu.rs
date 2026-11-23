@@ -158,6 +158,12 @@ pub fn options(_keymap: &Keymap) -> Menu {
                 pick: Pick::Action(Action::OpenSettings),
                 key: None,
             },
+            // r42:tuning-face — the song's tuning (ADR 0155), FL's project settings' place.
+            Entry::Item {
+                label: t("tuning.menu"),
+                pick: Pick::Action(Action::OpenTuning),
+                key: None,
+            },
             Entry::Separator,
             page(SettingsPage::Audio),
             page(SettingsPage::Midi),

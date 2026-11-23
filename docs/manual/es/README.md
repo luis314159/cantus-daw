@@ -59,6 +59,7 @@ También: [Equipo externo y superficies de control](external-gear.md) - un sinte
 
 Además: [Importar un personaje](import-characters.md) — un bailarín con tu propio personaje de Lottie, hoja de sprites o DragonBones. <!-- r35:import -->
 Además: [Editar un clip con un plug-in ARA](ara.md) — un plug-in ARA 2, que ve toda la grabación, renderiza tu clip de audio. <!-- r36:ara -->
+Además: [La afinación de la canción](tuning.md) — un temperamento histórico en cualquier tonalidad, un La 415 barroco, una escala Scala, una pista con la suya, y MTS-ESP para seguir o dirigir a otros programas. <!-- r42:tuning-face -->
 
 La IA en este manual: [Agentes de IA (MCP)](#agentes-de-ia-mcp) — conecta a Claude u otro
 asistente; [El asistente de mastering](#el-asistente-de-mastering); [Escuchar, para agentes de IA](#escuchar-para-agentes-de-ia).

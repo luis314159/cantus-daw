@@ -211,6 +211,8 @@ fn name_key(app: &CantusApp) -> u64 {
     p.name.hash(&mut h);
     app.bus.is_dirty().hash(&mut h);
     (p.tracks.len(), p.content_end().0).hash(&mut h);
+    // r42:tuning-face — the song's tuning is in the summary too (ADR 0155 §5).
+    super::tuning::words::summary_key(p).hash(&mut h);
     h.finish()
 }
 

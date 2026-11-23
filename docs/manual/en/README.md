@@ -58,6 +58,7 @@ Also: [External gear and control surfaces](external-gear.md) - a hardware synth 
 
 Also: [Importing a character](import-characters.md) — a dancer wearing your own Lottie, sprite sheet or DragonBones character. <!-- r35:import -->
 Also: [Editing a clip with an ARA plug-in](ara.md) — an ARA 2 plug-in that sees the whole recording renders your audio clip. <!-- r36:ara -->
+Also: [The song’s tuning](tuning.md) — a historical temperament in any key, a baroque A415, a Scala scale, a track of its own, and MTS-ESP to follow or lead other programs. <!-- r42:tuning-face -->
 
 AI in this manual: [AI agents (MCP)](#ai-agents-mcp) — connect Claude or another assistant;
 [The mastering assistant](#the-mastering-assistant); [Listening for AI agents](#listening-for-ai-agents).

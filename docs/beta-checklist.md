@@ -1075,3 +1075,36 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 - [ ] Verificado solo en emulación: las alturas se midieron en renders (0,1 cent), las
   SysEx en un puerto de prueba y con un decodificador independiente (el de ODDSound); ningún
   sintetizador real ni ningún oído las ha juzgado todavía.
+
+### Ronda 42 — la afinación de la canción y MTS-ESP (ADR 0155, 0156) <!-- r42:tuning-face -->
+
+Lo verificado solo en emulación: MTS-ESP se probó contra una biblioteca falsa con los mismos
+símbolos C (`crates/cantus-rt/tests/fake_mts/`); ningún equipo de esta ronda tenía `LIBMTS`.
+
+- [ ] **Instalar MTS-ESP** (el *MTS-ESP Mini* de ODDSound, gratuito, o Surge XT) en Windows (y,
+  si puedes, en macOS y Linux). Abre Cantus: *Opciones ▸ Afinación…* (Ctrl+Alt+T). La banda
+  *MTS-ESP* debe decir *Conectado* y la opción *MTS-ESP* del sistema ya no debe estar atenuada.
+  Sin instalarlo, debe decir que no está instalado y por qué.
+- [ ] **Cantus como cliente de Surge XT**: en Surge XT (como programa aparte, o como plug-in en
+  otro DAW) carga una escala (*Tuning ▸ Load .scl*) y activa *Act as MTS-ESP source*. En Cantus
+  elige *MTS-ESP* como sistema: la ventana debe decir *Siguiendo al maestro de MTS-ESP* (con el
+  nombre de la escala); toca Chorda o Exemplar: deben sonar en la escala de Surge. Cambia la
+  escala en Surge mientras suena: Cantus debe seguirla al momento.
+- [ ] **Surge XT como cliente de Cantus**: con Surge sin ser fuente, en Cantus pon
+  *Werckmeister III* en *Eb* a *415* y marca **Ser el maestro de MTS-ESP**. Inserta Surge XT
+  como instrumento en una pista (y, si puedes, ábrelo en otro programa): debe tocar en la
+  afinación de Cantus (su pantalla de afinación dice *MTS-ESP*). Cambia el temperamento en
+  Cantus: Surge debe seguirlo. Desmarca la casilla: Surge vuelve a su afinación.
+- [ ] **Dos maestros**: con Surge como fuente, intenta *Ser el maestro* en Cantus: debe
+  negarse diciendo que otro programa dirige. Cierra Cantus a la fuerza siendo maestro
+  (Administrador de tareas), ábrelo otra vez: si MTS-ESP lo ofrece, *Reiniciar MTS-ESP* debe
+  liberar el lugar.
+- [ ] **Escuchar la cadencia** (*Tocar una cadencia en …*) en Chorda con Equal, Werckmeister III
+  en Do y en Fa#, mesotónico de un cuarto de coma en Do y en Fa#: las terceras de Do en el
+  mesotónico deben sonar puras y quietas; las de Fa# ásperas. ¿El círculo de quintas cuenta lo
+  mismo que oyes?
+- [ ] **Mirar la ventana** en tu pantalla, en Slate Lapis Night y Paper, al 100 % y al 200 %,
+  en inglés y en español: nada se corta ni se solapa; la línea de la barra superior dice la
+  afinación solo cuando no es la predeterminada.
+- [ ] **macOS**: la app firmada carga `/Library/Application Support/MTS-ESP/libMTS.dylib` (el
+  permiso *disable-library-validation*).

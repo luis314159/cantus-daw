@@ -207,7 +207,7 @@ fn card(
     display: f32,
     keys: &[&str],
     paint: impl FnOnce(&mut crate::kit::Brush, Rect, &Style),
-) {
+) -> (Option<Rect>, Rect) {
     let sf = s.function(f);
     let mut c = Card::new(title, f);
     if display > 0.0 {
@@ -224,6 +224,7 @@ fn card(
     if !keys.is_empty() {
         cells(app, ui, cr.body, track, spec, keys, &sf, KnobSize::M);
     }
+    (cr.display, cr.body) // r42:tuning-face — where the tuning's line and A4 go
 }
 
 /// The display's height that makes a card `h` points tall (at the style's scale) with a
@@ -259,6 +260,8 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let m2 = model2(spec);
     let mut heights = vec![
         s.s(card_h(170.0, 86.0)),
+        // r42:tuning-face — Chorda's own tuning and its presets (the owner, 2026-11-22).
+        s.s(card_h(0.0, crate::views::tuning::chorda::BODY)),
         s.s(card_h(110.0, 86.0)),
         small * 2.0 + gutter,
     ];
@@ -291,7 +294,10 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         &["unison", "coupling", "phantom"],
         |b, d, sf| draw::grand(b, d, sf, &keys, &now, grip, busy.as_deref()),
     );
-    card(
+    // r42:tuning-face — the song's tuning (ADR 0155) on a line of its own under the
+    // stretch: Chorda's stretch, stiffness and unisons stay its own, beside it.
+    let line_h = s.d(20.0);
+    let (tune, body) = card(
         app,
         ui,
         track,
@@ -301,11 +307,72 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         "chorda.tuning",
         Function::Tone,
         170.0,
-        &["a4", "stretch", "stiffness"],
-        |b, d, sf| draw::stretch(b, d, sf, &keys, a4, busy.is_some()),
+        &[],
+        |b, d, sf| {
+            let top = Rect::from_min_max(d.min, Pos2::new(d.right(), d.bottom() - line_h));
+            draw::stretch(b, top, sf, &keys, a4, busy.is_some())
+        },
+    );
+    if let Some(d) = tune {
+        let line = Rect::from_min_max(Pos2::new(d.left(), d.bottom() - line_h), d.max);
+        crate::views::tuning::chorda_line(app, ui, track, line, s); // r42:tuning-face
+    }
+    // r42:tuning-face — the A4 rule (one diapason): Chorda's own knob only while the track
+    // plays no tuning; else the project's diapason greyed, or its own tuning's A4.
+    {
+        use crate::views::tuning::chorda::{a4_cell, a4_of, A4};
+        let sf = s.function(Function::Tone);
+        let third = body.width() / 3.0;
+        let part = |i: f32| {
+            Rect::from_min_size(
+                Pos2::new(body.left() + third * i, body.top()),
+                Vec2::new(third, body.height()),
+            )
+        };
+        match a4_of(app, track) {
+            A4::Knob => cells(app, ui, part(0.0), track, spec, &["a4"], &sf, KnobSize::M),
+            other => a4_cell(app, ui, track, part(0.0), other, s),
+        }
+        cells(
+            app,
+            ui,
+            part(1.0),
+            track,
+            spec,
+            &["stretch"],
+            &sf,
+            KnobSize::M,
+        );
+        cells(
+            app,
+            ui,
+            part(2.0),
+            track,
+            spec,
+            &["stiffness"],
+            &sf,
+            KnobSize::M,
+        );
+    }
+    // r42:tuning-face — Chorda's own tuning: the project's or its own, the presets, the key,
+    // the circle and its purest keys, the cadence.
+    let rt = rows.row(heights[1], &[1.0]);
+    let tc = paint_card(
+        ui,
+        rt[0],
+        s,
+        &Card::new("tuning.chorda.card", Function::Tone),
+    );
+    crate::views::tuning::chorda::body(
+        app,
+        ui,
+        track,
+        spec,
+        tc.body.shrink2(Vec2::new(s.d(10.0), s.d(6.0))),
+        s,
     );
 
-    let r2 = rows.row(heights[1], &[0.5, 0.5]);
+    let r2 = rows.row(heights[2], &[0.5, 0.5]);
     card(
         app,
         ui,
@@ -333,7 +400,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         |b, d, sf| draw::ring(b, d, sf, &keys, now.key, decay),
     );
 
-    let r3 = rows.row(heights[2], &[0.5, 0.5]);
+    let r3 = rows.row(heights[3], &[0.5, 0.5]);
     card(
         app,
         ui,
@@ -343,7 +410,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         s,
         "chorda.pedals",
         Function::Dynamics,
-        display_for(heights[2], s, true),
+        display_for(heights[3], s, true),
         &["pedal", "damper", "una"],
         |b, d, sf| draw::pedals(b, d, sf, &now, grip),
     );
@@ -385,7 +452,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         none,
     );
     if m2 {
-        let r4 = rows.row(heights[3], &[0.6, 0.4]);
+        let r4 = rows.row(heights[4], &[0.6, 0.4]);
         let st = (
             vs.persp as f32,
             vs.lid as f32,
