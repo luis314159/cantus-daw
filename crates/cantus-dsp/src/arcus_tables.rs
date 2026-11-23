@@ -190,18 +190,18 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
             p: 0.50,
         },
     ],
-    top: 84,
+    top: 79,
     body: BodyKind::Cello,
     body_size: 1.0,
     bowing: Bowing {
-        speed: (0.05, 0.40),
+        speed: (0.05, 0.35),
         beta: (0.13, 0.075),
-        place: (0.42, 0.42),
+        place: (0.42, 0.27),
     },
     vib_hz: 5.5,
     vib_ct: 18.0,
     trim_db: 13.0,
-    corner_hz: 0.0,
+    corner_hz: 3000.0,
     radiation_hz: 0.0,
 };
 
@@ -243,12 +243,12 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.06, 0.45),
         beta: (0.14, 0.08),
-        place: (0.42, 0.42),
+        place: (0.42, 0.27),
     },
     vib_hz: 5.3,
     vib_ct: 16.0,
     trim_db: 14.0,
-    corner_hz: 0.0,
+    corner_hz: 2000.0,
     radiation_hz: 120.0,
 };
 
@@ -290,12 +290,12 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.05, 0.45),
         beta: (0.12, 0.065),
-        place: (0.42, 0.42),
+        place: (0.42, 0.27),
     },
     vib_hz: 5.8,
     vib_ct: 22.0,
     trim_db: 13.0,
-    corner_hz: 0.0,
+    corner_hz: 5000.0,
     radiation_hz: 0.0,
 };
 
@@ -337,12 +337,12 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.05, 0.42),
         beta: (0.125, 0.07),
-        place: (0.42, 0.42),
+        place: (0.42, 0.27),
     },
     vib_hz: 5.6,
     vib_ct: 20.0,
     trim_db: 13.0,
-    corner_hz: 0.0,
+    corner_hz: 4000.0,
     radiation_hz: 0.0,
 };
 

@@ -125,6 +125,8 @@ fn main() {
     let path = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "crates/cantus-dsp/src/arcus_pitch_data.rs".into());
+    // The cello and the double bass (the violin and the viola are not offered: their tables
+    // stay empty — `docs/round42/arcus.md`).
     let ranges: Vec<(Instrument, &str, u8, usize)> = Instrument::ALL
         .iter()
         .map(|i| {
@@ -135,7 +137,12 @@ fn main() {
                 Instrument::Violin => "VIOLIN",
                 Instrument::Viola => "VIOLA",
             };
-            (*i, name, s.bottom(), (s.top - s.bottom() + 1) as usize)
+            let keys = if matches!(i, Instrument::Cello | Instrument::Bass) {
+                (s.top - s.bottom() + 1) as usize
+            } else {
+                0
+            };
+            (*i, name, s.bottom(), keys)
         })
         .collect();
     // Pass 1: no correction — the offset itself.

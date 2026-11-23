@@ -133,7 +133,7 @@ pub fn bowing(
     let b = &spec.bowing;
     let d = d.clamp(0.0, 1.0);
     let v = b.speed.0 * math::powf(b.speed.1 / b.speed.0, d) * speed.clamp(0.25, 4.0);
-    let beta = ((b.beta.0 + (b.beta.1 - b.beta.0) * d) * math::exp2(-0.85 * pos.clamp(-1.0, 1.0)))
+    let beta = ((b.beta.0 + (b.beta.1 - b.beta.0) * d) * math::exp2(-0.5 * pos.clamp(-1.0, 1.0)))
         .clamp(min_beta(period), 0.35);
     let (f_min, f_max) = limits(z0, v, beta);
     let schelleng = schelleng_max(z0, v, beta);

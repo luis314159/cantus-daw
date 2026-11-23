@@ -12,7 +12,7 @@ use std::cell::Cell;
 
 thread_local! {
     /// The corner the probes bow with (the instrument's by default).
-    pub(super) static CORNER: Cell<f64> = const { Cell::new(0.0) };
+    pub(super) static CORNER: Cell<f64> = const { Cell::new(3000.0) };
     /// The friction curve the probes bow with (`None`: the default).
     pub(super) static CURVE: Cell<Option<super::string::Curve>> = const { Cell::new(None) };
     /// The torsion the probes bow with (`Some(None)`: none; `None`: the default).
@@ -348,7 +348,7 @@ fn probe_curves() {
         }
     }
     CURVE.with(|c| c.set(None));
-    CORNER.with(|c| c.set(0.0));
+    CORNER.with(|c| c.set(3000.0));
 }
 
 #[test]

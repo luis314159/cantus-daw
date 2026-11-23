@@ -155,6 +155,11 @@ pub struct BowedString {
     tor_share: f32,
     tor_live: bool,
     sticking: bool,
+    /// The last sample's excess of the bow's pull over what the stick holds (`|u| − Rμs`).
+    excess: f32,
+    /// … the slip equation's discriminant then, and the slip.
+    disc: f32,
+    last_slip: f32,
     curve: Curve,
     theta: f32,
     th_keep: f32,
@@ -263,6 +268,9 @@ impl BowedString {
             tor_share: 1.0,
             tor_live: false,
             sticking: false,
+            excess: 0.0,
+            disc: 0.0,
+            last_slip: 0.0,
             curve: Curve::default(),
             theta: 0.0,
             th_keep: 0.0,
@@ -316,6 +324,9 @@ impl BowedString {
         self.quiet = 0;
         self.live = false;
         self.sticking = false;
+        self.excess = 0.0;
+        self.disc = 0.0;
+        self.last_slip = 0.0;
         self.theta = 0.0;
     }
 
@@ -392,7 +403,10 @@ impl BowedString {
         };
         // The corner's one-pole `c/(1 − (1 − c)z⁻¹)`: its delay at f0 counted, its loss there
         // taken back from the loss filter's.
-        let (cr_c, cr_delay, cr_gain) = if s.corner_hz > 0.0 && s.corner_hz < 0.45 * self.sr {
+        // Only while the bow is drawn (it rounds the Helmholtz corner the bow makes and keeps
+        // its timing between the samples; a plucked or free string keeps its own decay, which
+        // a corner near a high fundamental would shorten).
+        let (cr_c, cr_delay, cr_gain) = if !s.dc && s.corner_hz > 0.0 && s.corner_hz < 0.45 * self.sr {
             let c = 1.0 - math::exp(-std::f64::consts::TAU * s.corner_hz / self.sr);
             let b = 1.0 - c;
             let (sn, cs) = math::sin_cos(w0);
@@ -553,17 +567,49 @@ impl BowedString {
                 let sgn = if u < 0.0 { -1.0 } else { 1.0 };
                 let bowed = match b.friction {
                     Friction::Hyperbolic => {
-                        if self.sticking && au <= r * self.curve.mu_s {
+                        let excess = au - r * self.curve.mu_s;
+                        let out = if self.sticking && excess <= 0.0 {
                             u
                         } else {
                             match slip_root(&self.curve, au, r) {
                                 Some(x) => {
                                     slip = sgn * x;
-                                    u - slip
+                                    if self.sticking && self.excess <= 0.0 && excess > 0.0 {
+                                        // The stick ended between the samples: at the
+                                        // crossing's fraction of the interval (the excess
+                                        // capacity's line through zero), so the slip's
+                                        // onset keeps its time to a fraction of a sample —
+                                        // without it the period locks to whole samples
+                                        // (−4.5 cents at E4, whatever the loop).
+                                        let tau = self.excess / (self.excess - excess);
+                                        let w = 1.0 - tau;
+                                        u - w * slip
+                                    } else {
+                                        u - slip
+                                    }
                                 }
-                                None => u,
+                                None => {
+                                    // The slip ended between the samples: where the
+                                    // quadratic's discriminant crossed zero (its roots
+                                    // vanish), the stick holding for the rest of it.
+                                    let b = self.curve.v0 + r * self.curve.mu_d - au;
+                                    let c = self.curve.v0 * (r * self.curve.mu_s - au);
+                                    let disc = b * b - 4.0 * c;
+                                    if !self.sticking && self.disc >= 0.0 && disc < 0.0 {
+                                        let tau = self.disc / (self.disc - disc);
+                                        u - tau * self.last_slip
+                                    } else {
+                                        u
+                                    }
+                                }
                             }
-                        }
+                        };
+                        self.excess = excess;
+                        let b = self.curve.v0 + r * self.curve.mu_d - au;
+                        let c = self.curve.v0 * (r * self.curve.mu_s - au);
+                        self.disc = b * b - 4.0 * c;
+                        self.last_slip = slip;
+                        out
                     }
                     Friction::Thermal => {
                         let cap = r * self.curve.thermal(self.theta);

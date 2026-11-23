@@ -16,9 +16,9 @@ use super::tables::Instrument;
 mod data;
 
 /// The dynamics the table is measured at.
-pub const DYN: [f64; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
+pub const DYN: [f64; 9] = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0];
 /// The contact points (`bow.pos`) it is measured at.
-pub const POS: [f64; 3] = [-1.0, 0.0, 1.0];
+pub const POS: [f64; 5] = [-1.0, -0.5, 0.0, 0.5, 1.0];
 
 /// One instrument's table: cents for each key from `lo`, each dynamic, each contact point
 /// (`cents[(k·DYN.len() + d)·POS.len() + p]`).

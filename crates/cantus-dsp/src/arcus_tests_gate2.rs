@@ -133,13 +133,10 @@ fn the_attack_settles_within_guettler_and_askenfelt_s_limits() {
                     let b = attack(inst, key, vel);
                     let t = attack_time(&b).unwrap_or(0.5);
                     // Guettler & Askenfelt's limits, 50 ms (about 10 periods of the violin's
-                    // open G) and 90 ms (18) for a multiple flyback: in ms for the cello; for
-                    // the double bass, whose E1 has a period of 24 ms, in those periods.
-                    let periods = if inst == Instrument::Bass {
-                        (b.period / SR as f64) / (1.0 / 196.0)
-                    } else {
-                        1.0
-                    };
+                    // open G, where they were judged) and 90 ms (18) for a multiple flyback:
+                    // in ms, or in those periods for a string slower than that G (the cello's
+                    // C2 has a period of 15 ms, the bass's E1 of 24).
+                    let periods = (b.period / SR as f64) / (1.0 / 196.0);
                     let limit =
                         if multiple_flyback(&b, t) { 0.09 } else { 0.05 } * periods.max(1.0);
                     count += 1;
@@ -394,4 +391,27 @@ fn probe_harmonics() {
         let rel: Vec<String> = h.iter().map(|x| format!("{:+.1}", 20.0 * math::log10(x / h[0]))).collect();
         println!("{name}: {}", rel.join(" "));
     }
+}
+
+#[test]
+#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate2::probe -- --ignored --nocapture"]
+fn probe_pitch_quantization() {
+    use super::tests::{cents, measure_hz};
+    use super::tests_gate::CORNER;
+    let inst = Instrument::Cello;
+    let z0 = inst.spec().strings[3].z0();
+    for corner in [0.0f64, 3000.0, 2000.0] {
+        CORNER.with(|c| c.set(corner));
+        let mut line = format!("corner {corner:5.0}:");
+        for c in [-20.0f64, -12.0, -6.0, -3.0, 0.0, 3.0, 6.0, 12.0, 20.0] {
+            let key = 64.0 + c / 100.0;
+            let fmax = schelleng_max(z0, 0.15, 0.1) as f32;
+            let b = bow_string(inst, 3, key, 0.1, 0.42 * fmax, 0.15, 8.0, 1.2, Friction::Hyperbolic);
+            let want = 440.0 * math::exp2((key - 69.0) / 12.0);
+            let e = cents(measure_hz(&b.out, want, 0.5, 1.15), want);
+            line += &format!(" {c:+.0}→{:+.2}", e);
+        }
+        println!("{line}");
+    }
+    CORNER.with(|c| c.set(3000.0));
 }

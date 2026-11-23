@@ -406,3 +406,44 @@ fn a_plucked_note_is_within_a_tenth_of_a_cent() {
     println!("worst plucked: {}", worst.1);
     assert!(worst.0 < 0.1, "{}", worst.1);
 }
+
+/// A project's tuning reaches Arcus (ADR 0155): Werckmeister III in E flat at A415, as the
+/// track's table hands it (semitones from 12-TET at A440) — the plucked pitch within 0.1 cent
+/// of the table's, the bowed within the bowed gate's cent.
+#[test]
+fn werckmeister_iii_at_415_moves_the_measured_pitch_by_the_table() {
+    // Werckmeister III's deviations from equal temperament on C, cents (the standard table).
+    const W3: [f64; 12] = [
+        0.0, -9.775, -7.82, -5.865, -9.775, -1.955, -11.73, -3.91, -7.82, -11.73, -3.91, -7.82,
+    ];
+    let shift = 12.0 * math::log2(415.0f64 / 440.0);
+    let mut table = [0.0f32; 128];
+    for (k, t) in table.iter_mut().enumerate() {
+        *t = (W3[(k + 12 - 3) % 12] / 100.0 + shift) as f32;
+    }
+    let play = |tech: Technique, key: u8| {
+        let s = ArcusSettings {
+            technique: tech,
+            vib_depth: 0.0,
+            body_mix: 0.0,
+            pizz_decay: 3.0,
+            ..ArcusSettings::default()
+        };
+        let mut f = Arcus::new(SR);
+        f.set(&s);
+        f.set_tuning(&table);
+        f.note_on(key, 0.6, 1);
+        let frames = 72_000;
+        let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
+        f.process(&mut l, &mut r);
+        let want = 440.0 * math::exp2((key as f64 + table[key as usize] as f64 - 69.0) / 12.0);
+        cents(measure_hz(&l, want, 0.5, 1.45), want)
+    };
+    for key in [43u8, 50, 55, 57, 62] {
+        let p = play(Technique::Pizzicato, key);
+        let b = play(Technique::Arco, key);
+        println!("key {key}: plucked {p:+.3} ct, bowed {b:+.3} ct from the table's pitch");
+        assert!(p.abs() < 0.1, "plucked {key}: {p}");
+        assert!(b.abs() <= 1.0, "bowed {key}: {b}");
+    }
+}
