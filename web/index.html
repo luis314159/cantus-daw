@@ -57,7 +57,9 @@
     <link data-trunk rel="copy-file" href="assets/googleab35ce06721c1480.html" />
     <link data-trunk rel="copy-file" href="assets/_headers" />
     <!-- Round 39 (P0-2/P0-3): the hero's two weights arrive with the page, and every style
-         sheet is inlined in order (about 15 KB compressed): no request blocks the first paint. -->
+         sheet is inlined in order: no request blocks the first paint. The pre-renderer
+         minifies them (about 21 KB compressed) and keeps the home's page within two round
+         trips of a slow line (prerender.rs, web/tools/wasm_budget.py). -->
     <link rel="preload" href="/fonts/barlow-semi-condensed-regular.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/barlow-semi-condensed-medium.woff2" as="font" type="font/woff2" crossorigin />
     <link data-trunk rel="inline" href="style/base.css" />

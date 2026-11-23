@@ -37,70 +37,209 @@ fn body(page: Page) -> String {
 /// the app starts once the page has loaded and the browser has reported the first picture
 /// (`fetchpriority="high"`) as painted — so the app's own copy of it paints at once, from the
 /// decoded image — or as soon as something larger than it has painted (a wide screen, where
-/// the headline is the largest), or after 2.5 s at the latest; the preload goes. The text and the links work meanwhile; the players and the rack wait.
+/// the headline is the largest), or after 2.5 s at the latest; the preload goes. The text and
+/// the links work meanwhile; the players and the rack wait.
+///
+/// The app's script waits with it (round 41, the site budget): Trunk imports it statically and
+/// preloads it with its snippet, two requests that shared the slow phone's line with the
+/// picture; here it is imported once the picture has painted, and the faces no first paint
+/// uses ([`LATE_FACES`]) are declared then too.
 const START_NOW: &str = "const wasm = await init(";
 const START_AFTER_PAINT: &str = concat!(
-    "await new Promise((go) => {
-",
-    "  let done = false;
-",
-    "  const start = () => { if (!done) { done = true; setTimeout(go, 0); } };
-",
-    "  setTimeout(start, 2500);
-",
-    "  const first = document.querySelector('img[fetchpriority=\"high\"]');
-",
-    "  const painted = () => {
-",
-    "    if (!first || !window.PerformanceObserver) return start();
-",
-    "    // the picture's share of the screen: the largest paint is it, or something larger
-",
-    "    const r = first.getBoundingClientRect();
-",
-    "    const area = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)) *
-",
-    "      Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
-",
-    "    if (area === 0) return start();
-",
-    "    try {
-",
-    "      new PerformanceObserver((list) => {
-",
-    "        if (list.getEntries().some((e) => e.element === first || e.size >= area)) start();
-",
-    "      }).observe({ type: \"largest-contentful-paint\", buffered: true });
-",
-    "    } catch (e) { start(); }
-",
-    "  };
-",
-    "  if (document.readyState === \"complete\") painted(); else addEventListener(\"load\", painted, { once: true });
-",
-    "});
-",
-    "const wasm = await init("
+    "await new Promise((go) => {\n",
+    "  let done = false;\n",
+    "  const start = () => {\n",
+    "    if (done) return;\n",
+    "    done = true;\n",
+    "    // the faces the first paint does not use, now that it is done (prerender.rs)\n",
+    "    const late = document.getElementById(\"late-faces\");\n",
+    "    if (late) document.head.insertAdjacentHTML(\"beforeend\", late.textContent);\n",
+    "    setTimeout(go, 0);\n",
+    "  };\n",
+    "  setTimeout(start, 2500);\n",
+    "  const first = document.querySelector('img[fetchpriority=\"high\"]');\n",
+    "  const painted = () => {\n",
+    "    if (!first || !window.PerformanceObserver) return start();\n",
+    "    // the picture's share of the screen: the largest paint is it, or something larger\n",
+    "    const r = first.getBoundingClientRect();\n",
+    "    const area = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)) *\n",
+    "      Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));\n",
+    "    if (area === 0) return start();\n",
+    "    try {\n",
+    "      new PerformanceObserver((list) => {\n",
+    "        if (list.getEntries().some((e) => e.element === first || e.size >= area)) start();\n",
+    "      }).observe({ type: \"largest-contentful-paint\", buffered: true });\n",
+    "    } catch (e) { start(); }\n",
+    "  };\n",
+    "  if (document.readyState === \"complete\") painted(); else addEventListener(\"load\", painted, { once: true });\n",
+    "});\n",
 );
+/// Trunk's static import of the app's script: `import init, * as bindings from '/….js';`.
+const IMPORT_OPEN: &str = "import init, * as bindings from '";
 
 /// The template with the app's start deferred (see [`START_AFTER_PAINT`]).
 pub fn defer_start(template: &str) -> Result<String, String> {
     if !template.contains(START_NOW) {
         return Err("no trunk loader (`const wasm = await init(`) in the template".into());
     }
-    let mut t = template.replacen(START_NOW, START_AFTER_PAINT, 1);
-    // `<link rel="preload" href="/cantus-web-….wasm" … as="fetch" type="application/wasm">`
-    while let Some(i) = t.find(r#"<link rel="preload" href="/cantus-web-"#) {
-        let end = t[i..]
-            .find('>')
-            .map(|j| i + j + 1)
-            .ok_or("an unclosed preload")?;
-        if !t[i..end].contains("application/wasm") {
-            break;
+    let i = template
+        .find(IMPORT_OPEN)
+        .ok_or("no trunk import (`import init, * as bindings from '…'`) in the template")?;
+    let from = i + IMPORT_OPEN.len();
+    let to = template[from..]
+        .find("';")
+        .map(|j| from + j)
+        .ok_or("an unclosed trunk import")?;
+    let script = template[from..to].to_string();
+    let mut line_end = to + 2;
+    while template[line_end..].starts_with(['\r', '\n']) {
+        line_end += 1;
+    }
+    let mut t = template[..i].to_string() + &template[line_end..];
+    let start = format!(
+        "{START_AFTER_PAINT}const bindings = await import('{script}');\nconst init = bindings.default;\n{START_NOW}"
+    );
+    t = t.replacen(START_NOW, &start, 1);
+    // `<link rel="preload" href="/cantus-web-….wasm" … as="fetch" type="application/wasm">`,
+    // and `<link rel="modulepreload" href="/cantus-web-….js" …>` with its snippets'.
+    for open in [
+        r#"<link rel="preload" href="/cantus-web-"#,
+        r#"<link rel="modulepreload" href="/cantus-web-"#,
+        r#"<link rel="modulepreload" href="/snippets/"#,
+    ] {
+        while let Some(i) = t.find(open) {
+            let end = t[i..]
+                .find('>')
+                .map(|j| i + j + 1)
+                .ok_or("an unclosed preload")?;
+            if open.contains("\"preload\"") && !t[i..end].contains("application/wasm") {
+                break;
+            }
+            t.replace_range(i..end, "");
         }
-        t.replace_range(i..end, "");
     }
     Ok(t)
+}
+
+/// The faces no page's first paint uses (round 41, the site budget): Light (300) sets only the
+/// rack's tempo, below the first screen, yet the first layout asked for it beside the hero's
+/// picture. Their `@font-face` rules leave the inlined style for `<noscript id="late-faces">`:
+/// without script it applies as it is; with script, its text is declared once the first
+/// picture has painted ([`START_AFTER_PAINT`]) — the same face, from the same file.
+const LATE_FACES: &[&str] = &["/fonts/barlow-semi-condensed-light.woff2"];
+
+/// The template with [`LATE_FACES`] declared after the first paint.
+pub fn defer_faces(template: &str) -> Result<String, String> {
+    let mut t = template.to_string();
+    let mut moved = String::new();
+    for url in LATE_FACES {
+        let style = t.find("<style").ok_or("no <style> in the template")?;
+        let at = t[style..]
+            .find(url)
+            .map(|j| style + j)
+            .ok_or_else(|| format!("no @font-face for {url} in the template's style"))?;
+        let open = t[..at]
+            .rfind("@font-face")
+            .ok_or_else(|| format!("{url} is not in an @font-face"))?;
+        let close = t[at..]
+            .find('}')
+            .map(|j| at + j + 1)
+            .ok_or("an unclosed @font-face")?;
+        if t[open..at].contains('}') {
+            return Err(format!("{url} is not in an @font-face"));
+        }
+        moved.push_str(&t[open..close]);
+        t.replace_range(open..close, "");
+    }
+    let head = t.find("</head>").ok_or("no </head> in the template")?;
+    t.insert_str(
+        head,
+        &format!("<noscript id=\"late-faces\"><style>{moved}</style></noscript>"),
+    );
+    Ok(t)
+}
+
+/// Every inlined `<style>` of the template minified ([`minify_css`]): Trunk inlines the style
+/// sheets as written, comments and all, and the page's first 14 KB, 29 KB and 44 KB each cost
+/// a slow phone one more round trip before anything else can start (TCP's slow start: the home
+/// at 44.1 KB took 3, the beta.16 one 2 — the site budget's LCP, 1.88 s then, 2.11 s now).
+pub fn minify_styles(template: &str) -> Result<String, String> {
+    let mut out = String::with_capacity(template.len());
+    let mut rest = template;
+    while let Some(i) = rest.find("<style>") {
+        let from = i + "<style>".len();
+        let to = rest[from..]
+            .find("</style>")
+            .map(|j| from + j)
+            .ok_or("an unclosed <style>")?;
+        out.push_str(&rest[..from]);
+        out.push_str(&minify_css(&rest[from..to]));
+        rest = &rest[to..];
+    }
+    out.push_str(rest);
+    Ok(out)
+}
+
+/// CSS without its comments and the white space nothing reads: each run of white space becomes
+/// one space, and none is kept beside `{`, `}` or `;`, nor a `;` before `}`. Strings and
+/// `url(…)` are copied as they are, and so is the space beside a comma (a custom property's
+/// value keeps it as written). What the browser parses is unchanged: its CSSOM is the same.
+pub fn minify_css(css: &str) -> String {
+    let b = css.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    let mut space = false;
+    let tight = |c: u8| matches!(c, b'{' | b'}' | b';');
+    let mut i = 0;
+    while i < b.len() {
+        let c = b[i];
+        if c == b'/' && b.get(i + 1) == Some(&b'*') {
+            // a comment is no white space: `.a/**/.b` stays one compound selector
+            i = css[i + 2..].find("*/").map_or(b.len(), |j| i + 2 + j + 2);
+            continue;
+        }
+        if c.is_ascii_whitespace() {
+            space = true;
+            i += 1;
+            continue;
+        }
+        if space && !out.is_empty() && !tight(c) && !tight(*out.last().unwrap()) {
+            out.push(b' ');
+        }
+        space = false;
+        if c == b'}' && out.last() == Some(&b';') {
+            out.pop();
+        }
+        let raw_end = if c == b'"' || c == b'\'' {
+            // a string, to its closing quote (a backslash escapes the next byte)
+            let mut j = i + 1;
+            while j < b.len() && b[j] != c {
+                j += if b[j] == b'\\' { 2 } else { 1 };
+            }
+            Some((j + 1).min(b.len()))
+        } else if b[i..].starts_with(b"url(") {
+            // an unquoted address may hold `/*`; a quoted one is a string just after
+            let j = i + 4;
+            if matches!(b.get(j), Some(b'"' | b'\'')) {
+                None
+            } else {
+                Some(css[j..].find(')').map_or(b.len(), |k| j + k + 1))
+            }
+        } else {
+            None
+        };
+        match raw_end {
+            Some(end) => {
+                out.extend_from_slice(&b[i..end]);
+                i = end;
+            }
+            None => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    // Only ASCII bytes were dropped or added, so the bytes are still UTF-8.
+    String::from_utf8(out).unwrap_or_else(|_| css.to_string())
 }
 
 /// Trunk's `index.html` with `page`'s head and body in it.
@@ -199,7 +338,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             )
         })?
     };
-    let template = defer_start(&template)?;
+    let template = defer_start(&defer_faces(&minify_styles(&template)?)?)?;
     let pages = Page::all();
     for &page in &pages {
         let html = fill(&template, page)?;
@@ -266,21 +405,84 @@ mod tests {
 
     #[test]
     fn the_app_starts_after_the_first_paint_and_is_not_preloaded() {
+        // Trunk 0.21's loader and preloads, as it writes them.
         let t = concat!(
-            "<head><script type=\"module\">
-import init from '/cantus-web-1.js';
-",
-            "const wasm = await init({ module_or_path: '/cantus-web-1_bg.wasm' });
-</script>",
-            "<link rel=\"modulepreload\" href=\"/cantus-web-1.js\">",
-            "<link rel=\"preload\" href=\"/cantus-web-1_bg.wasm\" as=\"fetch\" type=\"application/wasm\"></head>"
+            "<head><link rel=\"modulepreload\" href=\"/cantus-web-1.js\" crossorigin=\"anonymous\" integrity=\"sha384-x\">",
+            "<link rel=\"modulepreload\" href=\"/snippets/cantus-web-2/inline0.js\" crossorigin=\"anonymous\" integrity=\"sha384-y\">",
+            "<link rel=\"preload\" href=\"/cantus-web-1_bg.wasm\" crossorigin=\"anonymous\" integrity=\"sha384-z\" as=\"fetch\" type=\"application/wasm\">",
+            "<script type=\"module\">\nimport init, * as bindings from '/cantus-web-1.js';\n",
+            "const wasm = await init({ module_or_path: '/cantus-web-1_bg.wasm' });\n",
+            "window.wasmBindings = bindings;\n</script></head>"
         );
         let d = defer_start(t).unwrap();
         assert!(d.contains("addEventListener(\"load\"") && d.contains("largest-contentful-paint"));
-        assert!(d.find("addEventListener").unwrap() < d.find("const wasm = await init(").unwrap());
+        // nothing of the app's is asked for before the picture has painted
         assert!(!d.contains("application/wasm"));
-        assert!(d.contains("modulepreload"));
+        assert!(!d.contains("modulepreload"));
+        assert!(!d.contains("import init"));
+        let wait = d.find("addEventListener(\"load\"").unwrap();
+        let import = d
+            .find("const bindings = await import('/cantus-web-1.js');")
+            .unwrap();
+        let init = d.find("const init = bindings.default;").unwrap();
+        let run = d
+            .find("const wasm = await init({ module_or_path: '/cantus-web-1_bg.wasm' });")
+            .unwrap();
+        assert!(wait < import && import < init && init < run);
+        assert!(d.contains("window.wasmBindings = bindings;"));
+        // and the late faces are declared when it starts
+        assert!(d.find("late-faces").unwrap() < wait);
         assert!(defer_start("<html></html>").is_err());
+        assert!(defer_start("<script>const wasm = await init({});</script>").is_err());
+    }
+
+    #[test]
+    fn the_light_face_waits_for_the_first_paint() {
+        let t = concat!(
+            "<head><style>@font-face{font-family:\"B\";src:url(\"/fonts/barlow-semi-condensed-regular.woff2\") format(\"woff2\");font-weight:400}",
+            "@font-face{font-family:\"B\";src:url(\"/fonts/barlow-semi-condensed-light.woff2\") format(\"woff2\");font-weight:300}",
+            ".tempo output{font:300 1.5rem/1 B}</style></head><body></body>"
+        );
+        let d = defer_faces(t).unwrap();
+        let (head, body) = d.split_once("<noscript id=\"late-faces\">").unwrap();
+        assert!(!head.contains("light.woff2") && head.contains("regular.woff2"));
+        assert!(head.contains(".tempo output{font:300 1.5rem/1 B}"));
+        assert_eq!(
+            body,
+            "<style>@font-face{font-family:\"B\";src:url(\"/fonts/barlow-semi-condensed-light.woff2\") format(\"woff2\");font-weight:300}</style></noscript></head><body></body>"
+        );
+        assert!(defer_faces("<head><style>a{}</style></head>").is_err());
+    }
+
+    #[test]
+    fn the_inlined_style_loses_only_what_nothing_reads() {
+        assert_eq!(
+            minify_css("/* a comment */\r\n.a , .b > .c {\r\n  color : red ;\r\n  margin: 0 auto;\r\n}\r\n"),
+            ".a , .b > .c{color : red;margin: 0 auto}"
+        );
+        assert_eq!(
+            minify_css("@media (min-width: 52rem) and (prefers-reduced-motion: no-preference) {\n  .x { width: calc(100% - 2rem); }\n}"),
+            "@media (min-width: 52rem) and (prefers-reduced-motion: no-preference){.x{width: calc(100% - 2rem)}}"
+        );
+        // strings and addresses as they are, comment-like text and spaces included
+        assert_eq!(
+            minify_css(".q::before { content: \"a  /* b */ ; }\"; background: url(data:image/svg+xml,%3Csvg/*x*/) , url('x  y.png'); }"),
+            ".q::before{content: \"a  /* b */ ; }\";background: url(data:image/svg+xml,%3Csvg/*x*/) , url('x  y.png')}"
+        );
+        assert_eq!(
+            minify_css("a { content: 'it\\'s  ok' }"),
+            "a{content: 'it\\'s  ok'}"
+        );
+        // a comment is no white space, and white space beside one stays one space
+        assert_eq!(minify_css(".a/**/.b{x:1}"), ".a.b{x:1}");
+        assert_eq!(minify_css(".a /* c */ .b{x:1}"), ".a .b{x:1}");
+        assert_eq!(minify_css("a{b:c}  "), "a{b:c}");
+        assert_eq!(minify_css(".é ,\r\n  .ü{x:«1» }"), ".é , .ü{x:«1»}");
+        let page = "<head><style>\n/* x */ a { b: c; }\n</style><style> d { e: f } </style></head><body> a  b </body>";
+        assert_eq!(
+            minify_styles(page).unwrap(),
+            "<head><style>a{b: c}</style><style>d{e: f}</style></head><body> a  b </body>"
+        );
     }
 
     #[test]
