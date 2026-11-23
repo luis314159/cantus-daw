@@ -69,7 +69,7 @@ pub extern "C" fn MTS_GetNumClients() -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn MTS_ShouldFilterNote(note: c_char, _channel: c_char) -> bool {
+pub extern "C" fn MTS_ShouldFilterNote(note: c_char, _channel: i8) -> bool {
     MASTER.load(Ordering::SeqCst) && FILTER[(note as u8 & 127) as usize].load(Ordering::SeqCst)
 }
 
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn MTS_SetScaleName(name: *const c_char) {
 }
 
 #[no_mangle]
-pub extern "C" fn MTS_FilterNote(on: bool, note: c_char, _channel: c_char) {
+pub extern "C" fn MTS_FilterNote(on: bool, note: c_char, _channel: i8) {
     FILTER[(note as u8 & 127) as usize].store(on, Ordering::SeqCst);
 }
 

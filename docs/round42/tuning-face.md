@@ -58,7 +58,8 @@ whenever the history's revision gives another table.
 
 **The picker's pictures made ahead** (`views/picker_warm.rs`, `r42:tuning-face` lines in
 `views/picker_thumbs.rs`): after the start-up (4 s) and while no hand moves (1.5 s), with the
-picker closed, the pictures are made one editor at a time after anything a tile asks for —
+picker closed, the pictures are made one editor at a time on a worker, after anything a tile
+asks for —
 the recent devices, the favourites, then the instruments and the effects in the catalogue's
 order; the atlas's one page keeps the first 28, the rest go to the disk cache only (read back
 in a frame when their tile asks). Done, it stops and asks for no frame. Again in a new look:
@@ -115,8 +116,17 @@ linked from both manual indexes. The design sheet: `shoot_tuning` (named in DEVE
 ## Measured
 
 - The window's tests and shots run on the dummy engine; pitch measured on the offline render.
-- The warm-up (Windows, other builders compiling, so ratios only): see the report's final
-  numbers (p50/p99/max per pass beside a plain pass).
+- The picker's warm-up (Windows, two other builders compiling — the integrator measures
+  quiet): drawn on the interface thread at first, a pass took up to 0.9 s (50 of 400 over a
+  60 Hz frame); every editor's capture frame exceeded a 4 ms slice there. Now each capture
+  runs whole on a worker of its own (`cantus-picker-ahead`, wearing the interface thread's
+  faces, colourways, views and language; a panic there gives a card, never a crash) and the
+  interface thread only uploads the finished picture: 55 pictures, 6 291 passes, **p50
+  0.024 ms, p99 0.135 ms, max 2.93 ms** per pass against a plain pass of 0.003 ms; none over
+  the 4 ms budget; at rest 0.004 ms vs 0.003 ms. The worker's pictures were looked at (Chorda's
+  piano, Tympanum's kit, Comprimo's face): as the picker draws them.
+- Chorda's pitch under a tuning: on the contract's `offsets()` (flat), the measured moves are
+  0.000 c and the table 0.000 c — the comparison becomes the real one at the merge.
 
 ## Verified only in emulation
 

@@ -79,12 +79,14 @@ type FnVoid = unsafe extern "C" fn();
 type FnBool = unsafe extern "C" fn() -> bool;
 type FnTable = unsafe extern "C" fn() -> *const f64;
 type FnName = unsafe extern "C" fn() -> *const c_char;
-type FnKeyFilter = unsafe extern "C" fn(c_char, c_char) -> bool;
+/// `(char midinote, signed char midichannel)`: the channel is `i8` on every system (`char`
+/// is unsigned on ARM).
+type FnKeyFilter = unsafe extern "C" fn(c_char, i8) -> bool;
 type FnRegisterMaster = unsafe extern "C" fn(*mut c_void);
 type FnInt = unsafe extern "C" fn() -> i32;
 type FnSetTable = unsafe extern "C" fn(*const f64);
 type FnSetName = unsafe extern "C" fn(*const c_char);
-type FnFilterNote = unsafe extern "C" fn(bool, c_char, c_char);
+type FnFilterNote = unsafe extern "C" fn(bool, c_char, i8);
 
 /// The functions a client needs: without one of them the file is not `LIBMTS`.
 const CLIENT_SYMBOLS: [&str; 4] = [
