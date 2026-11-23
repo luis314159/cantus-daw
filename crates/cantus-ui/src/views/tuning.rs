@@ -70,7 +70,14 @@ pub struct TuningUi {
     /// master) — a change recompiles ([`master_moved`]).
     follows_at: Option<(u64, bool)>,
     master_seen: Option<Option<TuningTable>>,
+    /// When a master's change last recompiled: a master that retunes continuously (dynamic
+    /// tuning) recompiles at most every [`MASTER_RECOMPILE`] (the live engine follows it
+    /// each block meanwhile).
+    master_compiled: Option<std::time::Instant>,
 }
+
+/// r42 fix-engine — the least time between two recompiles a master's changes cause.
+pub const MASTER_RECOMPILE: std::time::Duration = std::time::Duration::from_millis(200);
 
 /// A cadence (I–IV–V–I, or i–iv–V–i in a minor song) on one track's instrument.
 #[derive(Clone, Debug)]
@@ -308,7 +315,15 @@ pub fn master_moved(app: &mut CantusApp) -> bool {
     if app.tuning.master_seen == Some(now) {
         return false;
     }
+    if app
+        .tuning
+        .master_compiled
+        .is_some_and(|t| t.elapsed() < MASTER_RECOMPILE)
+    {
+        return false; // seen again at a later sync
+    }
     app.tuning.master_seen = Some(now);
+    app.tuning.master_compiled = Some(std::time::Instant::now());
     true
 }
 

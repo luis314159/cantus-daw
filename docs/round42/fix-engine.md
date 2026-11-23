@@ -44,7 +44,21 @@ checklist's and menus' names and the Tuning window's key (reach 7's binding) are
 
 ## Measured
 
-(filled at the end of the round's runs)
+- **Each test failed first** (a red run on this machine: each fix switched off in place, the tests run, the fix restored): Loquax's, Calor's, Unda's, Modulus's and
+  Exemplar's DSP tests; `rt_memory`'s MTS-ESP refresh (the audio thread freed the first
+  `NoExternal`); the swapped unit and the leaving master in `tuning_instruments`; the outboard
+  unmapped key. Others fail by construction: `TuningTable`'s derived `PartialEq` made `NAN ≠ NAN`;
+  `12-shuffled` and the e2e/fixture tests use API this branch adds. Two are weaker. The streamed
+  levels test calls the unit itself, so it holds `configure`'s use of the reach, not the
+  processor's ordering. Gravis's slide was not run red (the old code is a larger revert); by its
+  numbers it jumps 0.5 semitone at the slide's start.
+- **Scale Workshop's hashes**: both SHA-256 match on the first run: the 384 words, and the
+  408-byte dump with its checksum convention. Every one of the 128 words is byte for byte what
+  its exporter writes, edges included (key 0 at 0.45 Hz → `00 00 00`, the top keys → `7F 7F 7E`).
+- **`tuning_instruments`** (opt-level 3, Windows, two other builders compiling): 98 s for its
+  11 tests before. Its coarse search took ~5.6·10⁹ `sin_cos`. That search now uses a window
+  computed once and a rotating oscillator: 17 s for the 11 (the same load). The fine phase-slope measure is
+  unchanged, so the results are the same to the printed digit.
 
 ## Verified only in emulation
 

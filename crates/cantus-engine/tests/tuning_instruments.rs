@@ -594,7 +594,7 @@ fn a_track_whose_master_goes_plays_its_compiled_table_again() {
     });
     // The first key, under the master: tuned (it is not the plain song's).
     let first = ..SR as usize;
-    assert!(heard[first.clone()] != plain[first], "played the master's table first");
+    assert!(heard[first] != plain[first], "played the master's table first");
     // From 4 s (the third key, long after the master left): the untuned song's.
     let from = 4 * SR as usize * 2;
     assert_null(&plain[from..frames * 2], &heard[from..], 0.0, "the master gone");
