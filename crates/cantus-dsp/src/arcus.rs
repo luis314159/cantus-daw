@@ -24,6 +24,8 @@
 //! (ADR 0038); a voice ends when its bow is off and its string is still, and [`Arcus::at_rest`]
 //! is exact.
 
+#[path = "arcus_ear.rs"]
+pub mod ear;
 #[path = "arcus_pitch.rs"]
 pub mod pitch;
 #[path = "arcus_play.rs"]

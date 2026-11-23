@@ -11,6 +11,10 @@ const STOP_S: f32 = 0.04;
 const STOP_LIFT_S: f32 = 0.025;
 /// The bow's usable length, m (a cello bow's hair is about 0.65 m).
 const BOW_M: f32 = 0.65;
+/// The pitch loop: it moves by `TRIM_GAIN` of what each of its ear's windows heard, never
+/// more than `TRIM_STEP` cents a move.
+const TRIM_GAIN: f64 = 0.6;
+const TRIM_STEP: f64 = 2.0;
 
 fn smooth(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);
@@ -132,15 +136,17 @@ impl Voice {
             self.roughs[..span].fill(0.0);
         }
         // The pitch the loop is set to: the bowed pitch corrected by the measured table.
-        // The bowed pitch: the table measured offline, and a closed loop at the control rate
-        // that trims what is left from the motion's own periods (the main slips' times, to a
-        // fraction of a sample — `string::BowedString::take_periods`), held within 15 cents.
-        let (sum, count) = self.string.take_periods();
-        if self.bow_on && count > 0 && sh.table.is_some() {
-            let measured = sum / count as f64;
-            let target = sr as f64 / f;
-            let heard = 1200.0 * math::log2(target / measured);
-            self.trim = (self.trim + (0.35 * heard).clamp(-3.0, 3.0)).clamp(-15.0, 15.0);
+        // The bowed pitch: the table measured offline, and a closed loop that trims what is
+        // left, held within 15 cents: it hears the fundamental's phase against the target
+        // (`ear`) and moves by what each of its windows heard.
+        if self.bow_on && sh.table.is_some() {
+            if let Some(heard) = self.ear.take() {
+                self.trim = (self.trim + (TRIM_GAIN * heard).clamp(-TRIM_STEP, TRIM_STEP))
+                    .clamp(-15.0, 15.0);
+            }
+            self.ear.aim(f / sr as f64, sr as f64);
+        } else {
+            self.ear.reset();
         }
         let corr = if self.bow_on {
             sh.table.map_or(0.0, |t| {
@@ -345,6 +351,9 @@ impl Voice {
             #[cfg(test)]
             if self.record {
                 self.slips.extend_from_slice(&probe[..k]);
+            }
+            if self.bow_on {
+                self.ear.hear(&self.tmp[..k]);
             }
             for j in 0..k {
                 let mut x = self.tmp[j];

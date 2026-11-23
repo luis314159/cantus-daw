@@ -78,7 +78,15 @@ Files: `cantus-core/src/inst/arcus.rs` (the table), `cantus-dsp/src/arcus*.rs` (
 - **Pizzicato** is Fides's pluck exciter on the same string (DC blocker in, as Fides's).
 - **The pitch**: the bowed offset measured offline per key × dynamic × contact point
   (`arcus_pitch_data.rs`, `tools/arcus/pitch-table.sh`, two passes) corrects the loop while the
-  bow is on; the free and plucked string is exact (the loop's own design).
+  bow is on, and a closed loop trims what is left: its **ear** (`arcus::ear`) is a heterodyne
+  of the voice's own output at the target (a phasor that follows the vibrato and the glides),
+  summed over triangle-weighted windows of whole periods (at least four and 20 ms), the phase
+  of one window against the last the fundamental's offset — the quantity the gate measures.
+  The trim moves by 0.6 of each window's offset, at most 2 cents a move, within ±15. (The first
+  loop timed the main slips; on the lowest strings at pp far over the fingerboard the motion
+  settles for a second with the slips' period steady and the fundamental's phase drifting, and
+  four held-out points stayed 1.0–1.4 cents off.) The free and plucked string is exact (the
+  loop's own design).
 - **The body** is Fides's (`fides::body::Body`): the cello's, and for the double bass the
   cello's scaled by 1.72 with a radiation corner (two first-order high-passes at 120 Hz) that
   matches the Smolken bass's harmonic balance; vibrato is the loop's length moving, so the AM

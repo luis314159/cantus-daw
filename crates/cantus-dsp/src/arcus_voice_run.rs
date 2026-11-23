@@ -44,6 +44,7 @@ impl Voice {
             self.clear();
             self.vib_age = 0;
             self.trim = 0.0;
+            self.ear.reset();
         }
         self.active = true;
         self.ended = false;
@@ -172,6 +173,8 @@ impl Voice {
         self.note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
         self.glide = was - self.note;
         self.tuning = 0.0;
+        // The ear starts over on the new note (a window across the change hears neither).
+        self.ear.reset();
         let ms = if s.porta_ms > 0.0 {
             s.porta_ms
         } else if sh.ctl.porta {
