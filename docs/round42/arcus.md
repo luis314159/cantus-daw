@@ -69,8 +69,11 @@ design* section; the player's view is `docs/manual/en/arcus.md` (and `es`).
 5. **Body**: the cello's and bass's signature modes ring within 1 % of the table over the
    body's size; the impulse dies; the loop is passive. Against Fritz 2007: the table's own
    fidelity only — no measured cello admittance was found.
-6. **CPU**: not claimed (a loaded machine). The bench's `inst.arcus.v1/v8/v32` come with
-   `ALL`; the integrator measures quiet.
+6. **CPU** (`tests_gate2::probe_cpu`, release, best of five, **two other builds running —
+   not a claim**): one cello voice with its body and output stage **0.48 % of a core** at
+   48 kHz (1.16× Fides's bowed string timed beside it, 0.42 %); eight voices 2.34 % (0.29 %
+   each past the first). Sixteen across the pool: the pool = serial tests hold the bits; the
+   bench's `inst.arcus.v1/v8/v32` come with `ALL`, the integrator measures quiet.
 7. **The house invariants** (all pass): a new instance silent and at rest; every instrument ×
    technique × friction × mode finite and sounding; block sizes 1, 37, 64, 512, ragged the same
    bits; the pool the serial bits; exact rest and as good as new; 12-TET the same bits, an
@@ -116,3 +119,23 @@ hashes did not move.
 tasto on the lowest strings); the violin and the viola (out of the picker: at 48 kHz their upper
 notes leave the bow–bridge segment too few samples — an oversampled junction; their bodies
 unmeasured); Fides's model 2 on Arcus's junction.
+
+## Tests (Windows, this branch)
+
+`cantus-dsp` arcus 17 (+5 probes ignored: Schelleng, curves, torsion, harmonics, quantization,
+CPU) — the pitch gate held as measured (164/168; the gate's last four points open); `cantus-core`
+inst (arcus 2 among them); `cantus-engine` `inst_arcus` 8, `arcus_image` 1,
+`rt_memory::an_arcus_never_allocates`; `cantus-ui` `arcus_pick_e2e` 1 (+1 ignored until `ALL`:
+the picker), the lib's skin, i18n and arcus tests (41), `kit_lint`; clippy `--all-targets -D
+warnings` on dsp, core, engine and ui; rustfmt. Not run here: the Linux check (WSL is the
+integrator's), the whole UI suite.
+
+## For the ALL commit (after the owner's verdict)
+
+`READY` true and `BowedString` in `InstrumentKind::ALL`; the picker's row (Other instruments);
+the agents' `INSTRUMENTS` row (`arcus`, *Arcus*) and the MCP golden (`CANTUS_TOOLS_DUMP=1`);
+`inst_contract`'s `per_kind!` and count; the null corpus's `inst.arcus.*` and the bench come from
+`ALL`; un-ignore `arcus_pick_e2e`'s picker test; the manual's index line; the site's card
+(`web/src/units_data.rs`, within the wasm budget). A new Arcus stores its four macros' names and
+routes (`NativeSpec::new`), so a test that expects a fresh spec to serialise to its kind alone
+must not iterate `ALL` blindly (today only Organ is checked).
