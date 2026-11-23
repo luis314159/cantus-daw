@@ -200,7 +200,7 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     },
     vib_hz: 5.5,
     vib_ct: 18.0,
-    trim_db: 13.0,
+    trim_db: 8.0,
     corner_hz: 3000.0,
     radiation_hz: 0.0,
 };
@@ -247,7 +247,7 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     },
     vib_hz: 5.3,
     vib_ct: 16.0,
-    trim_db: 14.0,
+    trim_db: 9.0,
     corner_hz: 2000.0,
     radiation_hz: 120.0,
 };

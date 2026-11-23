@@ -175,14 +175,14 @@ fn the_tuning_at_12_tet_is_the_same_bits_and_a_table_moves_the_pitch() {
     let a = run(&mut plain, 24_000);
     let mut equal = Unit::new(SR);
     equal.configure(&spec, &[]);
-    equal.set_tuning(&tuning::TuningTable::EQUAL);
+    equal.set_tuning(&cantus_core::tuning::TuningTable::EQUAL);
     equal.note_on(note(50, 1));
     assert_eq!(run(&mut equal, 24_000), a, "12-TET at A440 adds nothing");
     let mut t = [0.0f32; 128];
     t[50] = 0.31;
     let mut tuned = Unit::new(SR);
     tuned.configure(&spec, &[]);
-    tuned.set_tuning(&tuning::TuningTable(t));
+    tuned.set_tuning(&cantus_core::tuning::TuningTable(t));
     tuned.note_on(note(50, 1));
     let _ = run(&mut tuned, 24_000);
     let want = 440.0 * cantus_dsp::math::exp2((50.31 - 69.0) / 12.0);
