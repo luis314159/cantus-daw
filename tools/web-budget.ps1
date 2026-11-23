@@ -5,7 +5,8 @@
 
 .DESCRIPTION
   Builds web/ with trunk and pre-renders every page (unless -NoBuild), then:
-    - the WebAssembly <= 250 000 bytes gzipped (web/tools/wasm_budget.py);
+    - the WebAssembly <= 250 000 bytes gzipped and the home's page <= 42 000
+      (web/tools/wasm_budget.py);
     - Lighthouse CI on its mobile preset, three runs, the median held to
       web/lighthouserc.json: first visit <= 1 MB, LCP <= 2.0 s, CLS <= 0.02,
       accessibility 100.
@@ -52,7 +53,7 @@ if (-not (Test-Path (Join-Path $dist "index.html"))) { throw "no build in $dist 
 $failed = @()
 
 & python -I (Join-Path $web "tools\wasm_budget.py") $dist
-if ($LASTEXITCODE -ne 0) { $failed += "WebAssembly" }
+if ($LASTEXITCODE -ne 0) { $failed += "WebAssembly or the home's page" }
 
 if (-not $env:CHROME_PATH) {
     $chrome = @(

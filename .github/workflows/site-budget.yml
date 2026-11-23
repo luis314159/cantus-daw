@@ -8,12 +8,13 @@ name: Site budget
 #   cumulative layout shift       <= 0.02        cumulative-layout-shift
 #   accessibility                 100            categories:accessibility
 # and the WebAssembly <= 250 000 bytes gzipped (web/tools/wasm_budget.py, the one line
-# Lighthouse cannot measure). Then every kind of page, both languages, light and dark, 1440 and
-# 390 px, has each text measured against the pixels behind it (WCAG AA, web/tools/contrast.mjs
-# --quick), and the motion is held to transform/opacity and to stillness under reduced motion
-# (web/tools/motion.mjs). The limits live in web/lighthouserc.json and wasm_budget.py;
-# tools/web-budget.ps1 runs the same checks against a local build. It measures, it does not
-# deploy: site.yml publishes whatever this says.
+# Lighthouse cannot measure), with the home's page <= 42 000 (two round trips of the simulated
+# line: a byte more costs the LCP 150 ms, so it is spelled out). Then every kind of page, both
+# languages, light and dark, 1440 and 390 px, has each text measured against the pixels behind
+# it (WCAG AA, web/tools/contrast.mjs --quick), and the motion is held to transform/opacity and
+# to stillness under reduced motion (web/tools/motion.mjs). The limits live in
+# web/lighthouserc.json and wasm_budget.py; tools/web-budget.ps1 runs the same checks against a
+# local build. It measures, it does not deploy: site.yml publishes whatever this says.
 
 on:
   push:
@@ -73,7 +74,7 @@ jobs:
           # What site.yml publishes: every page pre-rendered (round 39, P1-1).
           cargo run --features ssr -- prerender dist
 
-      - name: WebAssembly <= 250 000 bytes gzipped
+      - name: WebAssembly <= 250 000 bytes gzipped, the home's page <= 42 000
         run: python3 web/tools/wasm_budget.py web/dist
 
       - uses: actions/setup-node@v4
