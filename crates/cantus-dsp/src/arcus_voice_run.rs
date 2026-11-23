@@ -127,7 +127,14 @@ impl Voice {
             s.bow_speed as f64,
             z0,
         );
-        let (accel, f_attack) = attack_of(s, self.velocity, &bw, tech == NoteTech::Staccato);
+        let f = 440.0 * math::exp2((self.note as f64 - 69.0) / 12.0);
+        let (accel, f_attack) = attack_of(
+            s,
+            self.velocity,
+            &bw,
+            tech == NoteTech::Staccato,
+            1.0 / f,
+        );
         self.accel = accel;
         self.f_attack = f_attack;
         if keep && self.bowing {

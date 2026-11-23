@@ -317,14 +317,24 @@ impl Voice {
                 None
             };
             let grid_end = b == self.span;
+            #[cfg(test)]
+            let mut probe = [0.0f32; CTRL];
+            #[cfg(test)]
+            let probe_arg = Some(&mut probe[..k]);
+            #[cfg(not(test))]
+            let probe_arg = None;
             self.string.render(
                 &self.strike[a..b],
                 bow,
                 gain,
                 &mut self.tmp[..k],
-                None,
+                probe_arg,
                 grid_end,
             );
+            #[cfg(test)]
+            if self.record {
+                self.slips.extend_from_slice(&probe[..k]);
+            }
             for j in 0..k {
                 let mut x = self.tmp[j];
                 if self.fade_step > 0.0 {

@@ -40,6 +40,9 @@ mod tests;
 #[cfg(test)]
 #[path = "arcus_tests_gate.rs"]
 mod tests_gate;
+#[cfg(test)]
+#[path = "arcus_tests_gate2.rs"]
+mod tests_gate2;
 #[path = "arcus_voice.rs"]
 pub mod voice;
 

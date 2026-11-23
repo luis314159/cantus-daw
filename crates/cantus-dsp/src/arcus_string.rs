@@ -67,6 +67,37 @@ impl Friction {
     }
 }
 
+/// The string's torsion as the bow meets it: the bow drags the string's surface, which
+/// moves by the string's translation and its twist, so a sticking bow is not a rigid end for
+/// the transverse waves — the twist yields, and its waves (fast, and heavily damped by the
+/// string's own losses) carry away what would ring between the bow and the bridge. After
+/// Woodhouse & Loach's measurements of torsional waves on violin strings (*Acustica* 85,
+/// 1999: torsional Q in the tens, a wave speed several times the transverse — NV, from the
+/// literature's summary) and Pitteroff & Woodhouse's bowed-string model with torsion
+/// (*Acustica* 84, 1998, NV): `ratio` is the torsional speed over the transverse,
+/// `impedance` the torsional impedance at the surface over the transverse, `q` its Q. The
+/// defaults (5, 3, 5) were chosen by measurement (`tests_gate::probe_torsion`, the cello's
+/// open D): with no torsion the Helmholtz region at 10 cm/s spans 0.3–0.85 of Schelleng's
+/// upper force and 8 of 48 attacks settle within 50 ms; with these it spans 0.15–1.0 (the
+/// "1 to 10" Schelleng names) and 15 of 48 do, along a Guettler wedge — a heavily damped
+/// twist, its Q under the literature's tens (said so in `docs/round42/arcus.md`).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Torsion {
+    pub ratio: f64,
+    pub impedance: f32,
+    pub q: f32,
+}
+
+impl Default for Torsion {
+    fn default() -> Self {
+        Torsion {
+            ratio: 5.0,
+            impedance: 3.0,
+            q: 5.0,
+        }
+    }
+}
+
 /// What [`BowedString::design`] needs each control step.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct StringStep {
@@ -113,6 +144,16 @@ pub struct BowedString {
     /// The string's impedance now, kg/s, and `1/(2Z₀)`.
     z0: f32,
     half_y: f32,
+    torsion: Option<Torsion>,
+    tor_n: Vec<f32>,
+    tor_b: Vec<f32>,
+    wtn: usize,
+    wtb: usize,
+    dtn: f32,
+    dtb: f32,
+    tor_g: f32,
+    tor_share: f32,
+    tor_live: bool,
     sticking: bool,
     curve: Curve,
     theta: f32,
@@ -211,6 +252,16 @@ impl BowedString {
             dc: (0.0, 0.0),
             z0: 1.0,
             half_y: 0.5,
+            torsion: Some(Torsion::default()),
+            tor_n: vec![0.0; longest / 2 + 8],
+            tor_b: vec![0.0; longest / 4 + 8],
+            wtn: 0,
+            wtb: 0,
+            dtn: 2.0,
+            dtb: 1.0,
+            tor_g: 0.0,
+            tor_share: 1.0,
+            tor_live: false,
             sticking: false,
             curve: Curve::default(),
             theta: 0.0,
@@ -257,6 +308,11 @@ impl BowedString {
         self.lz = 0.0;
         self.cr = 0.0;
         self.dc = (0.0, 0.0);
+        if self.tor_live {
+            self.tor_n.fill(0.0);
+            self.tor_b.fill(0.0);
+            self.tor_live = false;
+        }
         self.quiet = 0;
         self.live = false;
         self.sticking = false;
@@ -277,7 +333,30 @@ impl BowedString {
     /// The string under the bow changed (a legato across strings): its impedance.
     pub fn set_z0(&mut self, z0: f32) {
         self.z0 = z0.max(1e-3);
-        self.half_y = 0.5 / self.z0;
+        match self.torsion {
+            Some(t) => {
+                let zr = self.z0 * t.impedance.max(0.05);
+                let z_eff = self.z0 * zr / (self.z0 + zr);
+                self.half_y = 0.5 / z_eff;
+                self.tor_share = z_eff / self.z0;
+                self.tor_g = math::exp(-std::f32::consts::PI / (2.0 * t.q.max(0.5)));
+            }
+            None => {
+                self.half_y = 0.5 / self.z0;
+                self.tor_share = 1.0;
+            }
+        }
+    }
+
+    /// The torsion the bow meets (`None`: a rigid contact, the classic point bow).
+    pub fn set_torsion(&mut self, t: Option<Torsion>) {
+        self.torsion = t;
+        if t.is_none() {
+            self.tor_n.fill(0.0);
+            self.tor_b.fill(0.0);
+            self.tor_live = false;
+        }
+        self.set_z0(self.z0);
     }
 
     pub fn z0(&self) -> f32 {
@@ -349,6 +428,11 @@ impl BowedString {
         }
         let dn = dn.min(self.neck.len() as f64 - 6.0);
         let db = db.min(self.bridge.len() as f64 - 6.0);
+        if let Some(t) = self.torsion {
+            let k = t.ratio.max(2.0);
+            self.dtn = ((dn / k).max(1.0) as f32).min(self.tor_n.len() as f32 - 3.0);
+            self.dtb = ((db / k).max(1.0) as f32).min(self.tor_b.len() as f32 - 3.0);
+        }
         if span == 0 {
             self.dn = dn;
             self.db = db;
@@ -372,6 +456,21 @@ impl BowedString {
         }
         y
     }
+}
+
+/// A line read `d` samples back, linearly between two (the torsion's lines: no pitch rides on
+/// them).
+#[inline]
+fn lerp_read(buf: &[f32], w: usize, d: f32) -> f32 {
+    let len = buf.len();
+    let m = (d as usize).max(1);
+    let f = d - m as f32;
+    let at = |back: usize| {
+        let idx = if w >= back { w - back } else { w + len - back };
+        buf[idx]
+    };
+    let (a, b) = (at(m), at(m + 1));
+    a + (b - a) * f.max(0.0)
 }
 
 /// The DC blocker `(1 + R)/2 · (1 − z⁻¹)/(1 − R z⁻¹)`: its phase delay at `w` (negative, a
@@ -433,7 +532,19 @@ impl BowedString {
             let mut inj = strike[i];
             let mut slip = 0.0f32;
             let mut moving = false;
+            let twist = self.torsion.is_some() && (self.tor_live || bow.is_some());
+            let (rn, rb) = if twist {
+                (
+                    lerp_read(&self.tor_n, self.wtn, self.dtn),
+                    lerp_read(&self.tor_b, self.wtb, self.dtb),
+                )
+            } else {
+                (0.0, 0.0)
+            };
+            let mut inj_r = 0.0f32;
             if let Some(b) = bow {
+                // The surface's velocity: the translation's and the twist's.
+                let vh = vh + rn + rb;
                 let (vbow, force) = (b.v[i], b.force[i].max(0.0));
                 moving = vbow != 0.0 || force != 0.0;
                 let r = force * self.half_y * (1.0 + b.rough[i]).max(0.0);
@@ -472,7 +583,10 @@ impl BowedString {
                     }
                 };
                 self.sticking = slip == 0.0;
-                inj += bowed;
+                // The bow's force moves the surface: the translation takes its share, the
+                // twist the rest.
+                inj += bowed * self.tor_share;
+                inj_r = bowed - bowed * self.tor_share;
             } else {
                 self.sticking = false;
                 if self.theta != 0.0 {
@@ -484,6 +598,15 @@ impl BowedString {
             }
             if let Some(p) = probe.as_deref_mut() {
                 p[i] = slip;
+            }
+            if twist {
+                let g = self.tor_g;
+                let (lb, ln) = (self.tor_b.len(), self.tor_n.len());
+                self.tor_b[self.wtb] = -g * (rn + inj_r);
+                self.tor_n[self.wtn] = -g * (rb + inj_r);
+                self.wtb = if self.wtb + 1 == lb { 0 } else { self.wtb + 1 };
+                self.wtn = if self.wtn + 1 == ln { 0 } else { self.wtn + 1 };
+                self.tor_live = true;
             }
             let to_b = vn + inj;
             let to_n = vb + inj;
@@ -511,7 +634,8 @@ impl BowedString {
                 self.wn = 0;
             }
             out[i] += gain * to_b;
-            if to_b.abs() < QUIET && vh.abs() < QUIET && inj == 0.0 && !moving {
+            let twisting = (rn.abs() + rb.abs()) >= QUIET;
+            if to_b.abs() < QUIET && vh.abs() < QUIET && inj == 0.0 && !moving && !twisting {
                 self.quiet += 1;
             } else {
                 self.quiet = 0;

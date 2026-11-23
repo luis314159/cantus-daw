@@ -125,21 +125,32 @@ pub fn bowing(spec: &InstrumentSpec, d: f64, pos: f64, place: f64, speed: f64, z
 }
 
 /// The attack a velocity asks for (Guettler 2002's two coordinates): the bow's acceleration
-/// to the stroke's speed (m/s²) and the force it is placed with (N) — a harder note
-/// accelerates sooner and presses more, inside the region where the Helmholtz motion starts
-/// at once (`tests_gate::the_attack_settles_within_guettler_s_limits`).
-pub fn attack_of(s: &ArcusSettings, velocity: f32, bw: &Bowing, staccato: bool) -> (f32, f32) {
-    let x = velocity.clamp(0.0, 1.0);
-    let va = s.vel_attack.clamp(0.0, 1.0);
-    let soft = 60.0 + (15.0 - 60.0) * x;
-    let wide = 90.0 + (8.0 - 90.0) * x;
-    let mut t_acc_ms = (soft * (1.0 - va) + wide * va) * s.bow_attack.clamp(0.25, 4.0);
+/// to the stroke's speed (m/s²) and the force it is placed with (N), for a string of period
+/// `period_s`. In this model's own measured terms (`tests_gate::probe_torsion`, the region
+/// where the Helmholtz motion starts within 50 ms): the speed gained a period, `α = a·P/v`,
+/// from 0.18 (the softest) to 1.45 (the hardest) — a harder note accelerates sooner, a low
+/// string speaks slower — with the force at 0.65 of Schelleng's upper limit, lighter where
+/// the acceleration is slower than the region's (the wedge's lower edge: 0.2 at `α` 0.045).
+pub fn attack_of(
+    s: &ArcusSettings,
+    velocity: f32,
+    bw: &Bowing,
+    staccato: bool,
+    period_s: f64,
+) -> (f32, f32) {
+    let x = velocity.clamp(0.0, 1.0) as f64;
+    let va = s.vel_attack.clamp(0.0, 1.0) as f64;
+    // The velocity's share of the attack: at 0 every note the middle one.
+    let x = 0.5 + (x - 0.5) * (2.0 * va).min(1.0);
+    let mut alpha = 0.18 * math::powf(8.0, x) / s.bow_attack.clamp(0.25, 4.0) as f64;
     if staccato {
-        t_acc_ms *= 0.4;
+        alpha *= 2.5;
     }
-    let accel = bw.speed as f32 / (0.001 * t_acc_ms.max(1.0));
-    let force = (bw.force as f32) * (1.0 + 0.6 * va * (x - 0.4)).max(0.5);
-    (accel, force)
+    let accel = alpha * bw.speed / period_s.max(1e-4);
+    let u = (math::ln(alpha / 0.045) / math::ln(4.0)).clamp(0.0, 1.0);
+    let phi = 0.2 + (0.65 - 0.2) * u;
+    let force = (phi * bw.f_max).max(0.25 * bw.force);
+    (accel as f32, force as f32)
 }
 
 /// The output's scale: the bridge's force (`2·Z₀·v`) to the instrument's level.
@@ -152,7 +163,6 @@ const ROUGH: f32 = 0.12;
 /// One voice.
 #[derive(Clone, Debug)]
 pub struct Voice {
-    sr: f32,
     active: bool,
     ended: bool,
     released: bool,
@@ -204,19 +214,22 @@ pub struct Voice {
     roughs: [f32; CTRL],
     strike: [f32; CTRL],
     sus: [f32; CTRL],
-    zero_bow: [f32; CTRL],
     tmp: [f32; CTRL],
     bow_on: bool,
     stop_lift: bool,
     fade: f32,
     fade_step: f32,
     peak: f32,
+    /// Tests: every sample's slip, recorded while `record` is set.
+    #[cfg(test)]
+    pub record: bool,
+    #[cfg(test)]
+    pub slips: Vec<f32>,
 }
 
 impl Voice {
     pub fn new(sample_rate: f32) -> Self {
         Voice {
-            sr: sample_rate,
             active: false,
             ended: false,
             released: false,
@@ -265,13 +278,16 @@ impl Voice {
             roughs: [0.0; CTRL],
             strike: [0.0; CTRL],
             sus: [0.0; CTRL],
-            zero_bow: [0.0; CTRL],
             tmp: [0.0; CTRL],
             bow_on: false,
             stop_lift: false,
             fade: 1.0,
             fade_step: 0.0,
             peak: 0.0,
+            #[cfg(test)]
+            record: false,
+            #[cfg(test)]
+            slips: Vec::new(),
         }
     }
 

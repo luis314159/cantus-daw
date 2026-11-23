@@ -15,11 +15,14 @@ thread_local! {
     pub(super) static CORNER: Cell<f64> = const { Cell::new(0.0) };
     /// The friction curve the probes bow with (`None`: the default).
     pub(super) static CURVE: Cell<Option<super::string::Curve>> = const { Cell::new(None) };
+    /// The torsion the probes bow with (`Some(None)`: none; `None`: the default).
+    pub(super) static TORSION: Cell<Option<Option<super::string::Torsion>>> = const { Cell::new(None) };
 }
 
 /// What the bow did, sample by sample: the slip (0 while it sticks).
 pub(super) struct Bowed {
     pub slips: Vec<f32>,
+    #[allow(dead_code)]
     pub out: Vec<f32>,
     pub period: f64,
     pub beta: f64,
@@ -82,6 +85,9 @@ pub(super) fn bow_gesture(
     };
     if let Some(k) = CURVE.with(|c| c.get()) {
         s.set_curve(k);
+    }
+    if let Some(t) = TORSION.with(|c| c.get()) {
+        s.set_torsion(t);
     }
     s.start(st.z0() as f32, &step, false);
     let n = (seconds * SR as f64) as usize;
@@ -264,302 +270,6 @@ fn probe_schelleng_cello_d() {
 
 #[test]
 #[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture"]
-fn probe_one_row() {
-    let inst = Instrument::Cello;
-    let z0 = inst.spec().strings[2].z0();
-    let speed = 0.1f32;
-    let beta = 0.1f64;
-    let fmax = schelleng_max(z0, speed as f64, beta) as f32;
-    for frac in [0.4f32, 0.5, 0.6] {
-        let b = bow_string(
-            inst,
-            2,
-            50.0,
-            beta,
-            fmax * frac,
-            speed,
-            20.0,
-            0.8,
-            Friction::Hyperbolic,
-        );
-        let from = (0.5 * SR) as usize;
-        let long = (0.6 * (1.0 - b.beta) * b.period) as usize;
-        let main = onsets_after(&b.slips, from, long);
-        let gaps: Vec<usize> = main.windows(2).map(|w| w[1] - w[0]).collect();
-        // The stick runs.
-        let mut runs = Vec::new();
-        let mut st = 0;
-        for i in from..b.slips.len() {
-            if b.slips[i] == 0.0 {
-                st += 1
-            } else if st > 0 {
-                runs.push(st);
-                st = 0;
-            }
-        }
-        println!(
-            "F/Fmax {frac}: {:?} main {} periods {:.1} gaps {:?}",
-            classify(&b, from),
-            main.len(),
-            (b.slips.len() - from) as f64 / b.period,
-            gaps
-        );
-        println!("   sticks {:?}", &runs[..runs.len().min(40)]);
-    }
-}
-
-#[test]
-#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture"]
-fn probe_guettler_cello_d() {
-    // The Guettler diagram of the open D: force (× F_max) against the bow's acceleration,
-    // the pre-Helmholtz time in ms ("--": not within 0.4 s).
-    let inst = Instrument::Cello;
-    let z0 = inst.spec().strings[2].z0();
-    let (speed, beta) = (0.15f32, 0.1f64);
-    let fmax = schelleng_max(z0, speed as f64, beta) as f32;
-    println!("open D, v {speed} m/s, β {beta}, F_max {fmax:.2} N; rows a (m/s²)");
-    for accel in [0.5f32, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0] {
-        let mut line = format!("a {accel:5.1}:");
-        for frac in [0.1f32, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.85, 1.0] {
-            let b = bow_string(
-                inst,
-                2,
-                50.0,
-                beta,
-                fmax * frac,
-                speed,
-                accel,
-                0.45,
-                Friction::Hyperbolic,
-            );
-            line += &match attack_time(&b) {
-                Some(t) => format!(" {:4.0}", 1000.0 * t),
-                None => "   --".to_string(),
-            };
-        }
-        println!("{line}");
-    }
-}
-
-#[test]
-#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture"]
-fn probe_attack_detail() {
-    let inst = Instrument::Cello;
-    let z0 = inst.spec().strings[2].z0();
-    let (speed, beta) = (0.15f32, 0.1f64);
-    let fmax = schelleng_max(z0, speed as f64, beta) as f32;
-    for (accel, frac) in [(8.0f32, 0.5f32), (32.0, 0.5), (32.0, 1.0)] {
-        let b = bow_string(
-            inst,
-            2,
-            50.0,
-            beta,
-            fmax * frac,
-            speed,
-            accel,
-            0.3,
-            Friction::Hyperbolic,
-        );
-        let all = onsets(&b.slips, 0, b.period);
-        let gaps: Vec<i64> = all.windows(2).map(|w| (w[1] - w[0]) as i64).collect();
-        let mut runs = Vec::new();
-        let (mut st, mut sl) = (0, 0);
-        for x in &b.slips[..(0.15 * SR) as usize] {
-            if *x == 0.0 {
-                if sl > 0 {
-                    runs.push(-(sl as i64));
-                    sl = 0;
-                }
-                st += 1;
-            } else {
-                if st > 0 {
-                    runs.push(st as i64);
-                    st = 0;
-                }
-                sl += 1;
-            }
-        }
-        println!(
-            "a {accel} F {frac}: attack {:?}\n  gaps {:?}\n  runs(+stick,-slip) {:?}",
-            attack_time(&b),
-            &gaps[..gaps.len().min(30)],
-            &runs[..runs.len().min(60)]
-        );
-    }
-}
-
-#[test]
-#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture"]
-fn probe_guettler_ramped() {
-    // The attack's force (× F_max) against the acceleration, the force gliding to 0.5·F_max
-    // once the bow has its speed: the pre-Helmholtz time in ms.
-    let inst = Instrument::Cello;
-    let z0 = inst.spec().strings[2].z0();
-    let (speed, beta) = (0.15f32, 0.1f64);
-    let fmax = schelleng_max(z0, speed as f64, beta) as f32;
-    println!(
-        "open D ramped to 0.5 F_max ({:.2} N); rows a (m/s²), columns attack force × F_max",
-        0.5 * fmax
-    );
-    for accel in [1.0f32, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0] {
-        let mut line = format!("a {accel:5.1}:");
-        for frac in [0.03f32, 0.06, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 1.0] {
-            let b = bow_gesture(
-                inst,
-                2,
-                50.0,
-                beta,
-                (fmax * frac, 0.5 * fmax),
-                speed,
-                accel,
-                0.45,
-                Friction::Hyperbolic,
-            );
-            line += &match attack_time(&b) {
-                Some(t) => format!(" {:4.0}", 1000.0 * t),
-                None => "   --".to_string(),
-            };
-        }
-        println!("{line}");
-    }
-}
-
-#[test]
-#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture"]
-fn probe_corner() {
-    let inst = Instrument::Cello;
-    let z0 = inst.spec().strings[2].z0();
-    let (speed, beta) = (0.15f32, 0.1f64);
-    let fmax = schelleng_max(z0, speed as f64, beta) as f32;
-    for corner in [0.0f64, 8000.0, 5000.0, 3500.0, 2500.0] {
-        CORNER.with(|c| c.set(corner));
-        println!("corner {corner} Hz");
-        for accel in [2.0f32, 4.0, 8.0, 16.0, 32.0] {
-            let mut line = format!("a {accel:5.1}:");
-            for frac in [0.1f32, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7] {
-                let b = bow_gesture(
-                    inst,
-                    2,
-                    50.0,
-                    beta,
-                    (fmax * frac, 0.5 * fmax),
-                    speed,
-                    accel,
-                    0.45,
-                    Friction::Hyperbolic,
-                );
-                line += &match attack_time(&b) {
-                    Some(t) => format!(" {:4.0}", 1000.0 * t),
-                    None => "   --".to_string(),
-                };
-            }
-            println!("{line}");
-        }
-        let mut line = "steady 0.1 m/s β .1:".to_string();
-        let fm = schelleng_max(z0, 0.1, 0.1) as f32;
-        for frac in [0.05f32, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0, 1.2] {
-            let b = bow_string(
-                inst,
-                2,
-                50.0,
-                0.1,
-                fm * frac,
-                0.1,
-                20.0,
-                0.8,
-                Friction::Hyperbolic,
-            );
-            line += match classify(&b, (0.5 * SR) as usize) {
-                Motion::Helmholtz => " H",
-                Motion::Multiple => " m",
-                Motion::Raucous => " R",
-                Motion::Sliding => " .",
-            };
-        }
-        println!("{line}");
-    }
-}
-
-#[test]
-#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture"]
-fn probe_thermal_attack() {
-    let inst = Instrument::Cello;
-    let z0 = inst.spec().strings[2].z0();
-    let (speed, beta) = (0.15f32, 0.1f64);
-    let fmax = schelleng_max(z0, speed as f64, beta) as f32;
-    for fr in [Friction::Thermal, Friction::Hyperbolic] {
-        for corner in [0.0f64, 3500.0] {
-            CORNER.with(|c| c.set(corner));
-            println!("{fr:?} corner {corner}");
-            for accel in [1.0f32, 2.0, 4.0, 8.0, 16.0, 32.0] {
-                let mut line = format!("a {accel:5.1}:");
-                for frac in [0.1f32, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7] {
-                    let b = bow_gesture(
-                        inst,
-                        2,
-                        50.0,
-                        beta,
-                        (fmax * frac, 0.5 * fmax),
-                        speed,
-                        accel,
-                        0.45,
-                        fr,
-                    );
-                    line += &match attack_time(&b) {
-                        Some(t) => format!(" {:4.0}", 1000.0 * t),
-                        None => "   --".to_string(),
-                    };
-                }
-                println!("{line}");
-            }
-            let fm = schelleng_max(z0, 0.1, 0.1) as f32;
-            let mut line = "steady 0.1 m/s β .1:".to_string();
-            for frac in [0.05f32, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0, 1.2] {
-                let b = bow_string(inst, 2, 50.0, 0.1, fm * frac, 0.1, 20.0, 0.8, fr);
-                line += match classify(&b, (0.5 * SR) as usize) {
-                    Motion::Helmholtz => " H",
-                    Motion::Multiple => " m",
-                    Motion::Raucous => " R",
-                    Motion::Sliding => " .",
-                };
-            }
-            println!("{line}");
-        }
-    }
-    CORNER.with(|c| c.set(0.0));
-    let b = bow_gesture(
-        inst,
-        2,
-        50.0,
-        beta,
-        (fmax * 0.5, 0.5 * fmax),
-        speed,
-        8.0,
-        0.2,
-        Friction::Hyperbolic,
-    );
-    let mut runs = Vec::new();
-    let (mut st, mut sl) = (0, 0);
-    for x in &b.slips[(0.03 * SR) as usize..(0.12 * SR) as usize] {
-        if *x == 0.0 {
-            if sl > 0 {
-                runs.push(-(sl as i64));
-                sl = 0;
-            }
-            st += 1;
-        } else {
-            if st > 0 {
-                runs.push(st as i64);
-                st = 0;
-            }
-            sl += 1;
-        }
-    }
-    println!("runs 30-120 ms (+stick -slip): {:?}", runs);
-}
-
-#[test]
-#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture"]
 fn probe_curves() {
     use super::string::Curve;
     let inst = Instrument::Cello;
@@ -639,4 +349,57 @@ fn probe_curves() {
     }
     CURVE.with(|c| c.set(None));
     CORNER.with(|c| c.set(0.0));
+}
+
+#[test]
+#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture"]
+fn probe_torsion() {
+    use super::string::Torsion;
+    let inst = Instrument::Cello;
+    let z0 = inst.spec().strings[2].z0();
+    let (speed, beta) = (0.15f32, 0.1f64);
+    let fmax = schelleng_max(z0, speed as f64, beta) as f32;
+    let mut cases: Vec<(String, Option<Torsion>)> = vec![("none".into(), None)];
+    for ratio in [5.0f64, 7.0] {
+        for imp in [1.0f32, 1.5, 2.0, 3.0] {
+            for q in [3.0f32, 5.0, 8.0] {
+                cases.push((format!("ratio {ratio} Z {imp} Q {q}"), Some(Torsion { ratio, impedance: imp, q })));
+            }
+        }
+    }
+    for (name, t) in &cases {
+        TORSION.with(|c| c.set(Some(*t)));
+        let fm = schelleng_max(z0, 0.1, 0.1) as f32;
+        let mut steady = String::new();
+        for frac in [0.05f32, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0, 1.2, 1.5, 2.0] {
+            let b = bow_string(inst, 2, 50.0, 0.1, fm * frac, 0.1, 20.0, 0.8, Friction::Hyperbolic);
+            steady += match classify(&b, (0.5 * SR) as usize) {
+                Motion::Helmholtz => "H",
+                Motion::Multiple => "m",
+                Motion::Raucous => "R",
+                Motion::Sliding => ".",
+            };
+        }
+        let mut good = 0;
+        let mut sum = 0.0;
+        let mut cells = 0;
+        let mut grid = String::new();
+        for accel in [1.0f32, 2.0, 4.0, 8.0, 16.0, 32.0] {
+            for frac in [0.2f32, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.3] {
+                let b = bow_gesture(inst, 2, 50.0, beta, (fmax * frac, 0.5 * fmax), speed, accel, 0.4, Friction::Hyperbolic);
+                let t = attack_time(&b).unwrap_or(0.4);
+                cells += 1;
+                sum += t;
+                if t <= 0.05 {
+                    good += 1;
+                    grid += "+";
+                } else {
+                    grid += ".";
+                }
+            }
+            grid += "|";
+        }
+        println!("{name:24}: steady {steady}  attacks <=50 ms {good}/{cells} {grid} mean {:.0} ms", 1000.0 * sum / cells as f64);
+    }
+    TORSION.with(|c| c.set(None));
 }
