@@ -70,7 +70,9 @@ fn fork_track(s: &TrackSlot) -> Option<TrackSlot> {
         send_dirty: s.send_dirty, // r36:external
         notefx: s.notefx.clone(),
         source_line: s.source_line,
-        outs: s.outs.clone(), // r37:drums
+        outs: s.outs.clone(),               // r37:drums
+        tuning: s.tuning,                   // r42:tuning
+        tuning_external: s.tuning_external, // r42:tuning
     })
 }
 
@@ -636,6 +638,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         shuffle: _,
         split_voices: _,
         offline: _,
+        external_tuning: _, // r42:tuning — the fork reads no master (a render is a snapshot)
         low_latency: _,
         master_bake: _, // r36:record
         click: _,

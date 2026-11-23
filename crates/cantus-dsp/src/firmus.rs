@@ -111,6 +111,9 @@ pub struct Firmus {
     /// fx/final — settings have been given (`set_settings`): the first are taken at once,
     /// with no glide from the factory's, as every effect's first configure is.
     configured: bool,
+    /// r42:tuning — each key's offset in semitones from 12-TET at A440 (ADR 0155), added
+    /// where the key becomes a pitch: `0.0` everywhere by default, so every bit is kept.
+    tuning: [f32; 128],
 }
 
 #[inline]
@@ -129,6 +132,7 @@ impl Firmus {
             cutoff_log2: Smoother::new(math::log2(settings.cutoff_hz), 0.01, sample_rate),
             settings,
             configured: false,
+            tuning: [0.0; 128], // r42:tuning
         };
         s.apply_settings();
         s
@@ -162,6 +166,7 @@ impl Firmus {
 
     fn apply_settings(&mut self) {
         let s = &self.settings;
+        let tuning = &self.tuning; // r42:tuning
         self.gain.set_target(db_to_lin(s.gain_db));
         self.cutoff_log2
             .set_target(math::log2(s.cutoff_hz.max(10.0)));
@@ -181,15 +186,36 @@ impl Firmus {
                 s.filter_release_s,
             );
             if v.is_active() {
-                Self::tune(v, s);
+                Self::tune(v, s, crate::tuning::at(tuning, v.pitch)); // r42:tuning
             }
         }
     }
 
-    fn tune(v: &mut Voice, s: &FirmusSettings) {
-        v.base_hz = pitch_hz(v.pitch as f32);
+    /// r42:tuning — the project's tuning (ADR 0155): a table of semitones per key, kept;
+    /// the sounding voices move to it. The same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if self
+            .tuning
+            .iter()
+            .zip(table)
+            .all(|(a, b)| a.to_bits() == b.to_bits())
+        {
+            return;
+        }
+        self.tuning = *table;
+        let s = &self.settings;
+        for v in self.voices.iter_mut().filter(|v| v.is_active()) {
+            Self::tune(v, s, crate::tuning::at(table, v.pitch));
+        }
+    }
+
+    /// `off`: the key's tuning offset (r42:tuning), `0.0` by default — `pitch + 0.0` keeps
+    /// the bits.
+    fn tune(v: &mut Voice, s: &FirmusSettings, off: f32) {
+        let pitch = v.pitch as f32 + off; // r42:tuning
+        v.base_hz = pitch_hz(pitch);
         v.osc1.set_frequency(v.base_hz);
-        let p2 = v.pitch as f32 + s.osc2_semitones + s.osc2_detune_cents / 100.0;
+        let p2 = pitch + s.osc2_semitones + s.osc2_detune_cents / 100.0;
         v.osc2.set_frequency(pitch_hz(p2));
     }
 
@@ -221,7 +247,7 @@ impl Firmus {
         v.filter.reset();
         v.amp_env.reset();
         v.filter_env.reset();
-        Self::tune(v, &self.settings);
+        Self::tune(v, &self.settings, crate::tuning::at(&self.tuning, v.pitch)); // r42:tuning
         v.amp_env.gate_on();
         v.filter_env.gate_on();
     }

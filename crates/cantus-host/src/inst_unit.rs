@@ -41,6 +41,9 @@ struct Held {
     id: i32,
     channel: u8,
     key: u8,
+    /// r42:tuning — its key's offset in semitones (ADR 0155): every tuning expression the
+    /// note gets afterwards rides on it.
+    tune: f32,
 }
 
 pub struct HostedInstrument {
@@ -58,6 +61,8 @@ pub struct HostedInstrument {
     support: crate::backend::ExprSupport,
     route: cantus_core::external::ExprRoute,
     mpe: mpe::MpeOut,
+    /// r42:tuning — the track's tuning (ADR 0155), sent per note only where it is not zero.
+    tuning: [f32; 128],
 }
 
 impl std::fmt::Debug for HostedInstrument {
@@ -103,6 +108,7 @@ impl HostedInstrument {
             support: Default::default(),
             route: cantus_core::external::ExprRoute::NoteExpression,
             mpe: mpe::MpeOut::default(),
+            tuning: [0.0; 128], // r42:tuning
         }
     }
 
@@ -241,14 +247,35 @@ impl InstrumentUnit for HostedInstrument {
     fn note_on(&mut self, note: NoteOn) {
         let id = plugin_note_id(note.id);
         let mut note = note;
+        // r42:tuning — the key's offset (an unmapped key's NAN never comes: the track skips
+        // its note).
+        let tune = self.tuning[usize::from(note.key & 127)];
+        let tune = if tune.is_finite() { tune } else { 0.0 };
         if self.route == cantus_core::external::ExprRoute::MpeMidi {
             note.channel = self.mpe_channel(id);
+            if tune != 0.0 {
+                // Its member channel bent to the key's pitch before the note sounds.
+                let msg = mpe::MpeOut::message(note.channel, ExprKind::Bend, tune);
+                self.mpe.sent(note.channel, ExprKind::Bend, msg);
+                let (status, data1, data2) = msg;
+                self.push(
+                    note.channel,
+                    0,
+                    -1,
+                    NoteKind::Midi {
+                        status,
+                        data1,
+                        data2,
+                    },
+                );
+            }
         }
         if self.held.len() < self.held.capacity() {
             self.held.push(Held {
                 id,
                 channel: note.channel & 15,
                 key: note.key,
+                tune,
             });
         }
         self.push(
@@ -259,6 +286,25 @@ impl InstrumentUnit for HostedInstrument {
                 velocity: note.velocity.clamp(0.0, 1.0),
             },
         );
+        if tune != 0.0 && self.route == cantus_core::external::ExprRoute::NoteExpression {
+            // CLAP's `NOTE_EXPRESSION_TUNING`, VST3's `kTuningTypeID`: right after the note.
+            self.push(
+                note.channel,
+                note.key,
+                id,
+                NoteKind::Expression {
+                    expression: HostExpression::Tuning,
+                    value: f64::from(tune),
+                },
+            );
+        }
+    }
+
+    /// r42:tuning — the track's tuning (ADR 0155): each new note carries its key's offset
+    /// as a per-note tuning (nothing at all where it is zero: the default sends what it
+    /// always sent). A plain MIDI route (`Off`) cannot carry it.
+    fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        self.tuning = table.0;
     }
 
     fn note_off(&mut self, key: u8, id: u64, velocity: f32) {
@@ -293,6 +339,11 @@ impl InstrumentUnit for HostedInstrument {
         match self.route {
             cantus_core::external::ExprRoute::Off => return,
             cantus_core::external::ExprRoute::MpeMidi => {
+                let value = if expression == NoteExpression::Tuning && h.tune != 0.0 {
+                    value + h.tune // r42:tuning
+                } else {
+                    value
+                };
                 let kind = match expression {
                     NoteExpression::Tuning => ExprKind::Bend,
                     NoteExpression::Pressure => ExprKind::Pressure,
@@ -317,6 +368,10 @@ impl InstrumentUnit for HostedInstrument {
             cantus_core::external::ExprRoute::NoteExpression => {}
         }
         let (expression, value) = match expression {
+            // r42:tuning — on the key's offset (guarded: a -0.0 stays as it was).
+            NoteExpression::Tuning if h.tune != 0.0 => {
+                (HostExpression::Tuning, f64::from(value + h.tune))
+            }
             NoteExpression::Tuning => (HostExpression::Tuning, f64::from(value)),
             NoteExpression::Pressure => (HostExpression::Pressure, f64::from(value)),
             NoteExpression::Brightness => (HostExpression::Brightness, f64::from(value)),

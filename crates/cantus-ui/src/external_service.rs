@@ -235,6 +235,30 @@ fn publish_routes(app: &mut CantusApp) {
     app.sync.set_unit_routes(r);
 }
 
+/// r42:tuning — every instrument set to retune by MTS (ADR 0155) hears its track's tuning
+/// as MTS SysEx, sent when it changes (a cheap comparison each frame; the table is built only
+/// then).
+pub fn send_tunings(app: &mut CantusApp) {
+    let p = app.project();
+    let root = p.key.map(|k| k.root);
+    let wanted: Vec<(u64, cantus_core::tuning::Tuning)> = p
+        .external_units
+        .iter()
+        .filter(|u| {
+            u.mts && u.enabled && u.kind == cantus_core::external_unit::UnitKind::Instrument
+        })
+        .filter_map(|u| {
+            let m = u.midi.as_ref()?;
+            let track = p.track(u.track)?;
+            let t = track.tuning.resolve(&p.tuning).resolved_for_key(root);
+            Some((cantus_core::external_unit::route_for(u.id, m), t))
+        })
+        .collect();
+    for (route, t) in wanted {
+        app.sync.send_mts(route, &t);
+    }
+}
+
 /// The presence the engine handle is given.
 pub fn presence(app: &CantusApp) -> ExternalPresence {
     ExternalPresence {
@@ -252,7 +276,8 @@ pub fn presence(app: &CantusApp) -> ExternalPresence {
 /// Each frame: routes, presence, pings.
 pub fn poll(app: &mut CantusApp) {
     publish_routes(app);
-    // Nothing outboard: nothing to look at (no port enumeration on a project without units).
+    send_tunings(app); // r42:tuning
+                       // Nothing outboard: nothing to look at (no port enumeration on a project without units).
     if !app.project().external_units.is_empty() || app.external.is_pinging() {
         let p = presence(app);
         if app.engine.set_external_presence(p) {

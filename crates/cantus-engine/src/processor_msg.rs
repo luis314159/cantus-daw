@@ -34,6 +34,7 @@ impl Processor {
                     self.install_snapshot(snapshot, Some(plan))
                 }
                 EngineMessage::Automation(rt) => self.auto_arrived(rt),
+                EngineMessage::SetExternalTuning(ext) => self.external_tuning = ext, // r42:tuning
                 // The session view (ADR 0076 §7): its presses go to the conductor beside the
                 // engine handle (`EngineHandle::send`), never here; one that does is nothing.
                 EngineMessage::Session(_) => {}

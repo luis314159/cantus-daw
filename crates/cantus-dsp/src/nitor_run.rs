@@ -196,6 +196,16 @@ impl Nitor {
 
     /// New settings, between blocks. The first call takes them at once; later ones glide
     /// over [`GLIDE_MS`]. No allocation.
+    /// r42:tuning — the strip's tuning (ADR 0155): the tonic sub and the lift move to the
+    /// tonic's tuned pitch; the same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if crate::tuning::same(&self.low.tuning, table) {
+            return;
+        }
+        self.low.tuning = *table;
+        self.low.set_tonic(self.target.tonic);
+    }
+
     pub fn set(&mut self, s: &NitorSettings) {
         let snap = !self.configured;
         self.configured = true;

@@ -130,6 +130,8 @@ pub struct Voices {
     peak: Option<u64>,
     window: u64,
     cand: (u64, f32),
+    /// r42:tuning — the strip's tuning (ADR 0155): where each harmony note sits.
+    pub tuning: [f32; 128],
 }
 
 impl Voices {
@@ -154,6 +156,7 @@ impl Voices {
             peak: None,
             window: 0,
             cand: (0, 0.0),
+            tuning: [0.0; 128], // r42:tuning
         }
     }
 
@@ -294,12 +297,14 @@ impl Voices {
         match s.harmony_source {
             HarmonySource::Scale => {
                 let allowed = scale::resolve(s.scale, s.key, &[NoteState::Scale; 12]);
-                self.note = scale::choose(self.p, &allowed, self.note).map(|x| x.0);
+                self.note =
+                    scale::choose_tuned(self.p, &allowed, self.note, &self.tuning).map(|x| x.0);
                 if let Some(n) = self.note {
                     let degrees = s.scale.degrees();
                     for v in 0..2 {
                         let t = degree_step(n, s.voices[v].degree, s.key as i32 % 12, degrees);
-                        self.lanes[v].target = (t - n) as f32 + cents(v);
+                        self.lanes[v].target =
+                            (t - n) as f32 + tuned_step(&self.tuning, t, n) + cents(v);
                     }
                 }
             }
@@ -318,13 +323,13 @@ impl Voices {
                 self.note = if m == 0 {
                     None
                 } else {
-                    scale::choose(self.p, &allowed, self.note).map(|x| x.0)
+                    scale::choose_tuned(self.p, &allowed, self.note, &self.tuning).map(|x| x.0)
                 };
                 for v in 0..2 {
                     self.lanes[v].target = match self.note {
                         Some(n) => {
-                            (degree_step(n, s.voices[v].degree, 0, &degrees[..m]) - n) as f32
-                                + cents(v)
+                            let t = degree_step(n, s.voices[v].degree, 0, &degrees[..m]);
+                            (t - n) as f32 + tuned_step(&self.tuning, t, n) + cents(v)
                         }
                         None => self.lanes[v].target,
                     };
@@ -333,7 +338,9 @@ impl Voices {
             HarmonySource::Melody => {
                 for v in 0..2 {
                     if let Some(k) = keys.newest(v) {
-                        self.lanes[v].target = k as f32 - self.p_c + cents(v);
+                        // r42:tuning — the key's tuned pitch (`+ 0.0` by default).
+                        let k = k as f32 + crate::tuning::at(&self.tuning, k);
+                        self.lanes[v].target = k - self.p_c + cents(v);
                     }
                 }
             }
@@ -457,4 +464,11 @@ impl Voices {
             .filter(|l| l.gate > 0.0 && self.voiced)
             .map(|l| l.shift)
     }
+}
+
+/// r42:tuning — how much the interval from note `n` to note `t` moves in a tuning: `t`'s
+/// offset less `n`'s (`+0.0` at the default, so the sum keeps its bits).
+fn tuned_step(tune: &crate::tuning::Table, t: i32, n: i32) -> f32 {
+    let at = |x: i32| crate::tuning::at(tune, x.clamp(0, 127) as u8);
+    at(t) - at(n)
 }

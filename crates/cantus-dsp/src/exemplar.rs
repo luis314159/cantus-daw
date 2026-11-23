@@ -393,6 +393,11 @@ pub struct Exemplar {
     cut: u32,
     /// Times its voices woke the stream reader (fourth review #1).
     wakes: u32,
+    /// r42:tuning — each key's offset in semitones (ADR 0155), scaled by a zone's keytrack
+    /// (a drum zone at 0 stays put), and the largest upward one (a streamed zone's mip
+    /// reach).
+    tuning: [f32; 128],
+    tune_up: f32,
 }
 
 /// The longest span one fork of the parallel render covers, in frames.

@@ -138,17 +138,31 @@ pub struct TrackTuningSnap {
 }
 
 impl TrackTuningSnap {
-    /// The track's tuning in `project`, resolved off the audio thread.
-    pub fn of(project: &crate::model::Project, track: &crate::model::Track) -> Self {
-        let t = track.tuning.resolve(&project.tuning);
+    /// r42:tuning — the project's own tuning, resolved off the audio thread.
+    pub fn of_project(project: &crate::model::Project) -> Self {
+        Self::resolved(project.tuning.resolved_for_key(project.key.map(|k| k.root)))
+    }
+
+    /// r42:tuning — a resolved tuning's table (`EQUAL` and nothing else at the default).
+    pub fn resolved(t: crate::tuning::Tuning) -> Self {
         if t.is_default() {
             return TrackTuningSnap::default();
         }
         TrackTuningSnap {
             table: std::sync::Arc::new(t.offsets()),
             external: matches!(t.system, crate::tuning::TuningSystem::External),
-            tuning: std::sync::Arc::new(t.into_owned()),
+            tuning: std::sync::Arc::new(t),
         }
+    }
+
+    /// The track's tuning in `project`, resolved off the audio thread.
+    pub fn of(project: &crate::model::Project, track: &crate::model::Track) -> Self {
+        // r42:tuning — a temperament that follows the song's key takes its root here.
+        let t = track
+            .tuning
+            .resolve(&project.tuning)
+            .resolved_for_key(project.key.map(|k| k.root));
+        Self::resolved(t)
     }
 }
 
@@ -330,6 +344,10 @@ pub struct Snapshot {
     pub swaps: Vec<(usize, usize)>,
     /// The song's key (ADR 0069): what the note effects that follow it read.
     pub key: Option<crate::scale::Key>,
+    /// r42:tuning — the project's tuning, resolved (ADR 0155): what a pitched effect on a
+    /// strip no track owns (a bus, the master) follows; a track's own strip follows the
+    /// track's (`TrackSnapshot::tuning`).
+    pub tuning: TrackTuningSnap,
     // r33:session
     /// The notes the snapshot playing when this one was sent had started and this one ends
     /// sooner ([`Snapshot::cut_from`], ADR 0076 §7): installed while playing, the engine
@@ -545,6 +563,7 @@ impl Snapshot {
             kept_pitch: kept_pitch(project),
             swaps: Vec::new(),
             key: project.key,
+            tuning: TrackTuningSnap::of_project(project), // r42:tuning
             // r33:session
             cuts: Vec::new(),
             // r33:session

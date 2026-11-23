@@ -95,6 +95,7 @@ pub mod tonsor;
 pub mod tonus;
 pub mod translatio;
 pub mod tremor;
+pub mod tuning; // r42:tuning — the project's tuning table every pitched unit reads
 pub mod tympanum; // r40:p3 (ADR 0124): the acoustic drummer's DSP — tymp-engine
 pub mod tympanum_residual; // r40:drums-hyb (ADR 0124 amended): the hybrid voice — a recorded residual under the model
 pub mod unda;

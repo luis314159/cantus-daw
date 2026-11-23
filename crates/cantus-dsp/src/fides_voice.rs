@@ -258,6 +258,9 @@ impl Res {
 #[derive(Clone, Debug)]
 pub struct Voice {
     sr: f32,
+    /// r42:tuning — the offset of the key the next [`Voice::start`] or
+    /// [`Voice::glide_to`] plays (ADR 0155), `0.0` unless [`Voice::tune_next`] says.
+    next_tune: f32,
     active: bool,
     ended: bool,
     released: bool,
@@ -329,6 +332,7 @@ impl Voice {
             press: 0.0,
             slide: 0.0,
             has_slide: false,
+            next_tune: 0.0, // r42:tuning
             vib_phase: 0.0,
             age: 0,
             rnd: 0.0,
@@ -440,9 +444,15 @@ impl Voice {
         }
     }
 
+    /// r42:tuning — the offset in semitones (ADR 0155) of the key the next note plays: added
+    /// where the key becomes the note, so the keytrack scales it with the key.
+    pub fn tune_next(&mut self, tune: f32) {
+        self.next_tune = tune;
+    }
+
     /// Legato: the voice moves to `key`, gliding when the glide is on, and is not struck.
     pub fn glide_to(&mut self, s: &FidesSettings, key: u8, id: u64) {
-        let to = key as f32 + s.transpose_st + s.fine_ct * 0.01;
+        let to = key as f32 + self.next_tune + s.transpose_st + s.fine_ct * 0.01; // r42:tuning
         if s.glide_ms > 0.0 {
             self.glide += self.note - to;
         }
@@ -482,7 +492,7 @@ impl Voice {
         self.key = key;
         self.id = id;
         self.velocity = velocity.clamp(0.0, 1.0);
-        self.note = key as f32 + s.transpose_st + s.fine_ct * 0.01;
+        self.note = key as f32 + self.next_tune + s.transpose_st + s.fine_ct * 0.01; // r42:tuning
         self.glide = 0.0;
         self.tuning = 0.0;
         self.press = 0.0;

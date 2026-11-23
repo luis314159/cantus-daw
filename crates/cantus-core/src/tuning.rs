@@ -25,7 +25,9 @@ pub const A4_PRESETS_HZ: [f64; 6] = [415.0, 430.0, 432.0, 440.0, 442.0, 443.0];
 /// A project's or a track's tuning.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tuning {
-    /// The frequency of A4 (MIDI key 69) — or, with a keyboard map, of its reference key.
+    /// The frequency of A4 (MIDI key 69) — the diapason. With a keyboard map, the map's
+    /// reference key sounds at its `reference_hz` scaled by `a4_hz / 440` (r42:tuning): a
+    /// `.kbm` imported at 440 keeps its numbers, and A415 lowers the whole map alike.
     #[serde(default = "a4_default")]
     pub a4_hz: f64,
     #[serde(default, skip_serializing_if = "TuningSystem::is_equal")]
@@ -56,12 +58,33 @@ impl Tuning {
         *self == Tuning::default()
     }
 
+    /// r42:tuning — this tuning in a song whose key's root is `song_key_root` (0 = C): a
+    /// temperament that follows the song's key takes that root as its key; anything else is
+    /// itself. Every resolution of a track's table goes through it, so a change of the song's
+    /// key re-rotates with no command of its own; the tuning window calls it too.
+    pub fn resolved_for_key(&self, song_key_root: Option<u8>) -> Tuning {
+        let mut t = self.clone();
+        if let (
+            TuningSystem::Temperament {
+                key,
+                follow_song_key: true,
+                ..
+            },
+            Some(root),
+        ) = (&mut t.system, song_key_root)
+        {
+            *key = root % 12;
+        }
+        t
+    }
+
     /// The semitones each MIDI key sits from 12-TET at A440 — what every unit reads (ADR
     /// 0155). Exactly `0.0` everywhere at the default.
     ///
-    /// **Contract:** complete for [`TuningSystem::Equal`] with any diapason; the other
-    /// systems return the diapason's table until the `tuning` builder fills them
-    /// (`tuning_temper`, `tuning_scala`). `External` takes the table its caller read from
+    /// Every system (r42:tuning): `Equal` at the diapason; a temperament rotated to its key
+    /// with A at the diapason (as Pianoteq and Logic anchor it); a Scala scale through its
+    /// keyboard map (none: degree 0 on key 60, key 69 at the diapason — Scala's template),
+    /// any period, an unmapped key `NAN`. `External` takes the table its caller read from
     /// the MTS-ESP master ([`Tuning::offsets_with`]).
     pub fn offsets(&self) -> TuningTable {
         self.offsets_with(None)
@@ -73,15 +96,76 @@ impl Tuning {
         if self.is_default() {
             return TuningTable::EQUAL;
         }
-        if let (TuningSystem::External, Some(t)) = (&self.system, external) {
-            return *t;
-        }
         let shift = diapason_semitones(self.a4_hz);
-        // r42:contract — the temperaments, Scala scales and keyboard maps are the
-        // `tuning` builder's (ADR 0155); until then they sound as equal temperament.
-        TuningTable([shift; 128])
+        match (&self.system, &self.map) {
+            // r42:tuning — the master's table is absolute: no diapason on top of it.
+            (TuningSystem::External, _) => match external {
+                Some(t) => *t,
+                None => TuningTable([shift; 128]),
+            },
+            (TuningSystem::Equal, None) => TuningTable([shift; 128]),
+            _ => self.mapped(shift),
+        }
+    }
+
+    /// r42:tuning — the degrees of the system (cents above degree 0, the last the period)
+    /// and their table through the keyboard map (Scala's "octave extension").
+    fn mapped(&self, shift: f32) -> TuningTable {
+        let degrees = self.system.degree_cents();
+        let n = degrees.len() as i64;
+        if n == 0 {
+            return TuningTable([shift; 128]);
+        }
+        let period = degrees[degrees.len() - 1];
+        let cents_of = |d: i64| -> f64 {
+            let q = d.div_euclid(n);
+            let r = d.rem_euclid(n);
+            q as f64 * period
+                + if r == 0 {
+                    0.0
+                } else {
+                    degrees[(r - 1) as usize]
+                }
+        };
+        let default_map = KeyboardMap::scala_default();
+        let map = self.map.as_ref().unwrap_or(&default_map);
+        // The reference key's degree; a map that leaves it unmapped (refused on import)
+        // takes degree 0 rather than fail here.
+        let ref_degree = map.degree_of(map.reference_key, n).unwrap_or(0);
+        let ref_cents = cents_of(ref_degree);
+        // The reference key's frequency, as semitones from A440; the diapason scales the
+        // whole map (a `.kbm` at 440 keeps its numbers; A415 lowers it all alike).
+        let ref_semis = if map.reference_hz == A4_DEFAULT_HZ {
+            0.0
+        } else {
+            12.0 * cantus_dsp::math::log2(map.reference_hz / A4_DEFAULT_HZ)
+        };
+        let base = ref_semis + f64::from(shift) + 69.0;
+        let mut out = [0.0f32; 128];
+        for (key, o) in out.iter_mut().enumerate() {
+            let k = key as u8;
+            if k < map.first_key || k > map.last_key {
+                // Not retuned (the Scala help leaves it to the instrument): 12-TET at the
+                // diapason, never silent.
+                *o = shift;
+                continue;
+            }
+            let Some(d) = map.degree_of(k, n) else {
+                *o = f32::NAN;
+                continue;
+            };
+            // The key's pitch as a fractional MIDI key, kept between 1 Hz and 20 kHz.
+            let pitch = ((cents_of(d) - ref_cents) / 100.0 + base).clamp(PITCH_MIN, PITCH_MAX);
+            *o = (pitch - f64::from(k)) as f32;
+        }
+        TuningTable(out)
     }
 }
+
+/// r42:tuning — the lowest and highest pitch a tuning gives a key, as fractional MIDI keys
+/// (1 Hz and 20 kHz): a far mapping never asks an instrument for a pitch it cannot make.
+pub const PITCH_MIN: f64 = -36.0;
+pub const PITCH_MAX: f64 = 135.0;
 
 /// `12·log2(a4 / 440)`, deterministically (`cantus_dsp::math`), `0.0` at 440.
 pub fn diapason_semitones(a4_hz: f64) -> f32 {
@@ -117,6 +201,21 @@ pub enum TuningSystem {
 impl TuningSystem {
     pub fn is_equal(&self) -> bool {
         matches!(self, TuningSystem::Equal)
+    }
+
+    /// r42:tuning — the system's degrees above degree 0 in cents, the last the period:
+    /// `Equal` twelve hundreds, a temperament its twelve rotated pitches above C, a scale
+    /// its file's. `External` has none (its table comes whole).
+    pub fn degree_cents(&self) -> Vec<f64> {
+        match self {
+            TuningSystem::Equal => (1..=12).map(|i| f64::from(i) * 100.0).collect(),
+            TuningSystem::Temperament { id, key, .. } => {
+                let c = crate::tuning_temper::cents_in(*id, *key);
+                c[1..].iter().copied().chain([1200.0]).collect()
+            }
+            TuningSystem::Scale(s) => s.degrees.iter().map(|d| d.cents()).collect(),
+            TuningSystem::External => Vec::new(),
+        }
     }
 }
 
@@ -194,6 +293,19 @@ pub enum ScaleDegree {
     Ratio(u64, u64),
 }
 
+impl ScaleDegree {
+    /// r42:tuning — the degree in cents (a ratio's `1200·log2(n/d)`, each term's logarithm
+    /// apart so 64-bit terms keep their precision).
+    pub fn cents(self) -> f64 {
+        match self {
+            ScaleDegree::Cents(c) => c,
+            ScaleDegree::Ratio(n, d) => {
+                1200.0 * (cantus_dsp::math::log2(n as f64) - cantus_dsp::math::log2(d as f64))
+            }
+        }
+    }
+}
+
 /// A Scala `.scl` scale: its description and its degrees above 1/1, the last the period.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct ScalaScale {
@@ -219,6 +331,43 @@ pub struct KeyboardMap {
     /// Each position's degree; `None` (`x` in the file) is an unmapped key — it sounds nothing.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mapping: Vec<Option<u32>>,
+}
+
+impl KeyboardMap {
+    /// r42:tuning — Scala's template (and what no map means): a linear map with degree 0
+    /// on key 60 and key 69 at 440 Hz.
+    pub fn scala_default() -> Self {
+        KeyboardMap {
+            size: 0,
+            first_key: 0,
+            last_key: 127,
+            middle_key: 60,
+            reference_key: 69,
+            reference_hz: A4_DEFAULT_HZ,
+            octave_degree: 0,
+            mapping: Vec::new(),
+        }
+    }
+
+    /// r42:tuning — the scale degree `key` plays (`None`: unmapped), for a scale of
+    /// `scale_len` degrees: key `middle + k·size + i` plays `mapping[i] + k·octave`. A
+    /// formal octave of 0 with a pattern means the scale's own period (as Surge's
+    /// `tuning-library` reads it); a size of 0 is a linear map.
+    pub fn degree_of(&self, key: u8, scale_len: i64) -> Option<i64> {
+        let offset = i64::from(key) - i64::from(self.middle_key);
+        if self.size == 0 {
+            return Some(offset);
+        }
+        let size = i64::from(self.size);
+        let (k, i) = (offset.div_euclid(size), offset.rem_euclid(size));
+        let octave = if self.octave_degree == 0 {
+            scale_len
+        } else {
+            i64::from(self.octave_degree)
+        };
+        let entry = self.mapping.get(i as usize).copied().flatten()?;
+        Some(i64::from(entry) + k * octave)
+    }
 }
 
 /// A track's tuning against the project's (ADR 0155).

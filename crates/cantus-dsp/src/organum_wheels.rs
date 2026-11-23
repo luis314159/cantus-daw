@@ -207,6 +207,10 @@ pub struct Generator {
     pub out: [f32; WHEELS],
     hz: [f64; WHEELS],
     sr: f64,
+    /// r42:tuning — each MIDI key's offset in semitones (ADR 0155): a wheel takes its own
+    /// key's. One wheel serves several keys through the drawbars' footages, so only an
+    /// octave-periodic tuning is consistent; a non-octave scale is followed by pitch class.
+    offsets: [f32; 128],
 }
 
 /// A fixed, arbitrary starting phase per wheel (the wheels were never aligned).
@@ -229,6 +233,7 @@ impl Generator {
             out: [0.0; WHEELS],
             hz: [0.0; WHEELS],
             sr: sample_rate.max(1.0) as f64,
+            offsets: [0.0; 128], // r42:tuning
         };
         g.reset();
         g.tune(Tuning::Gear, 440.0);
@@ -245,10 +250,34 @@ impl Generator {
     /// Set every wheel's increment. Cheap enough for the audio thread (91 `powf` at most).
     pub fn tune(&mut self, tuning: Tuning, a4: f64) {
         for w in 0..WHEELS {
-            let hz = wheel_hz(w, tuning, a4).min(self.sr * 0.49);
+            let mut hz = wheel_hz(w, tuning, a4);
+            // r42:tuning — the wheel's key offset, a multiplication taken only when it is
+            // not zero (the increment's rounding would otherwise move no bit, but a product
+            // by exactly 1 is not guaranteed for every expression).
+            let off = self.offset_of(w);
+            if off != 0.0 {
+                hz *= math::exp2(f64::from(off) / 12.0);
+            }
+            let hz = hz.min(self.sr * 0.49);
             self.hz[w] = hz;
             self.inc[w] = (hz / self.sr * 4_294_967_296.0).round() as u32;
         }
+    }
+
+    /// r42:tuning — the offsets of the project's tuning; `true` when they changed (the
+    /// caller tunes again).
+    pub fn set_offsets(&mut self, table: &[f32; 128]) -> bool {
+        if crate::tuning::same(&self.offsets, table) {
+            return false;
+        }
+        self.offsets = *table;
+        true
+    }
+
+    /// r42:tuning — wheel `w`'s offset: its key's, an unmapped key's `0.0`.
+    fn offset_of(&self, w: usize) -> f32 {
+        let midi = (FIRST_WHEEL_MIDI + w as i32).clamp(0, 127) as u8;
+        crate::tuning::at(&self.offsets, midi)
     }
 
     /// The frequency wheel `w` actually runs at (after the phase increment's rounding).

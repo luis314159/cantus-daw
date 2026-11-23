@@ -60,6 +60,8 @@ pub struct Calor {
     ghosts: [Voice; GHOSTS],
     /// Each physical voice's last pitch: where its next note glides from.
     last_pitch: [f32; MAX_VOICES],
+    /// r42:tuning — each key's offset in semitones from 12-TET at A440 (ADR 0155).
+    tuning: [f32; 128],
     /// Allocator voices with a stack still sounding.
     alloc_busy: [bool; MAX_VOICES],
     os: Oversampler,
@@ -112,6 +114,7 @@ impl Calor {
             voices: [Voice::default(); MAX_VOICES],
             ghosts: [Voice::default(); GHOSTS],
             last_pitch: [f32::NAN; MAX_VOICES],
+            tuning: [0.0; 128], // r42:tuning
             alloc_busy: [false; MAX_VOICES],
             os: Oversampler::new(),
             factor: 1,
@@ -240,6 +243,29 @@ impl Calor {
         ]);
     }
 
+    /// r42:tuning — the project's tuning (ADR 0155): semitones per key from 12-TET at
+    /// A440, added where a key becomes a pitch. Sounding voices move by their key's change
+    /// (a glide keeps going); the same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if crate::tuning::same(&self.tuning, table) {
+            return;
+        }
+        for v in self.voices.iter_mut().chain(self.ghosts.iter_mut()) {
+            let k = usize::from(v.key & 0x7F);
+            let d = table[k] - self.tuning[k];
+            if v.active && d.is_finite() {
+                v.target += d;
+                v.pitch += d;
+            }
+        }
+        self.tuning = *table;
+    }
+
+    /// r42:tuning — a key's tuned pitch.
+    pub(crate) fn tuned(&self, key: u8) -> f32 {
+        key as f32 + crate::tuning::at(&self.tuning, key)
+    }
+
     pub fn set_macros(&mut self, macros: &[f32; 8]) {
         self.globals[src::MACRO1..src::MACRO1 + 8].copy_from_slice(macros);
     }
@@ -261,6 +287,7 @@ impl Calor {
             routes_shape_filter: self.routes_shape_filter,
             routes_env: self.routes_env,
             clock: self.clock,
+            tuning: &self.tuning, // r42:tuning
         }
     }
 

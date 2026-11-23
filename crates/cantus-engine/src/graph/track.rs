@@ -102,6 +102,10 @@ pub(crate) struct TrackSlot {
     pub source_line: Option<usize>,
     /// Its instrument's other outputs, or the bus it carries as a tap (ADR 0100). // r37:drums
     pub outs: crate::padout::Outs, // r37:drums
+    /// r42:tuning — the table its instrument plays in (ADR 0155), and whether it is the
+    /// MTS-ESP master's (refreshed each live block, ADR 0156).
+    pub tuning: cantus_core::tuning::TuningTable,
+    pub tuning_external: bool,
 }
 
 impl TrackSlot {
@@ -157,12 +161,28 @@ impl TrackSlot {
             } else {
                 crate::padout::Outs::new()
             }, // r37:drums
+            tuning: cantus_core::tuning::TuningTable::EQUAL, // r42:tuning
+            tuning_external: false, // r42:tuning
+        }
+    }
+
+    /// r42:tuning — hand `table` to whichever instrument it holds (each keeps its own copy
+    /// and does nothing when it is the one it has): Firmus, the native or hosted unit.
+    /// Pulsus is unpitched. No allocation.
+    pub fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        self.tuning = *table;
+        self.synth.set_tuning(&table.0);
+        if let Some(n) = self.native.as_mut() {
+            n.unit.set_tuning(table);
         }
     }
 
     pub fn note_on(&mut self, pitch: u8, velocity: u8, tag: u64) {
         if self.outboard {
             return; // r36:external
+        }
+        if !self.tuning.sounds(pitch) {
+            return; // r42:tuning — a key its keyboard map leaves unmapped sounds nothing
         }
         match self.instrument {
             SlotInstrument::Firmus => self.synth.note_on(pitch, velocity, tag),
@@ -185,6 +205,9 @@ impl TrackSlot {
     pub fn note_on_seq(&mut self, pitch: u8, velocity: u8, tag: u64, ordinal: u32) {
         if self.outboard {
             return; // r36:external
+        }
+        if !self.tuning.sounds(pitch) {
+            return; // r42:tuning
         }
         match self.instrument {
             SlotInstrument::Native => {

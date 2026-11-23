@@ -73,6 +73,9 @@ pub mod tempo;
 pub mod time;
 pub mod tuning; // r42:contract (ADR 0155): the project's tuning
 pub mod tuning_cmd; // r42:contract
+pub mod tuning_mts; // r42:tuning — the MIDI Tuning Standard, read and written
+pub mod tuning_scala; // r42:tuning — Scala `.scl` and `.kbm`, read and written
+pub mod tuning_temper; // r42:tuning — the named temperaments' tables
 pub mod vca; // r36:mix
 pub mod warp;
 

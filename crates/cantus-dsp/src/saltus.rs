@@ -488,6 +488,16 @@ impl Saltus {
         self.path
     }
 
+    /// r42:tuning — the strip's tuning (ADR 0155): the harmony and melody notes at their
+    /// tuned pitches; the same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if crate::tuning::same(&self.voices.tuning, table) {
+            return;
+        }
+        self.voices.tuning = *table;
+        self.voices.retarget(&self.s, &self.keys);
+    }
+
     pub fn set(&mut self, s: &SaltusSettings) {
         let old = self.path;
         self.s = *s;

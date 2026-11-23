@@ -132,7 +132,11 @@ impl Exemplar {
         let z = &self.zones[zi];
         let g = &self.globals;
         let grp = &self.groups[z.group as usize];
-        (key as f64 - z.root as f64) * z.keytrack as f64 / 100.0
+        // r42:tuning — the key's offset rides with the key (`+ 0.0` keeps the bits; a
+        // keytrack of 0 cancels it, as it cancels the key).
+        (key as f64 + f64::from(crate::tuning::at(&self.tuning, key)) - z.root as f64)
+            * z.keytrack as f64
+            / 100.0
             + (z.tune_ct + grp.tune_ct + g.tune_ct - self.sources[zi].tune_ct) as f64 / 100.0
             + g.transpose as f64
     }
@@ -461,7 +465,9 @@ impl Exemplar {
                 continue;
             }
             let kt = self.zones[self.layers[i].zone as usize].keytrack as f64 / 100.0;
-            let d = (to as f64 - from as f64) * kt;
+            // r42:tuning — between the two keys' tuned pitches.
+            let tuned = |k: u8| k as f64 + f64::from(crate::tuning::at(&self.tuning, k));
+            let d = (tuned(to) - tuned(from)) * kt;
             let l = &mut self.layers[i];
             l.semis += d;
             l.key = to;

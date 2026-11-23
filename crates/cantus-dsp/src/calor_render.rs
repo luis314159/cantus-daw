@@ -52,6 +52,7 @@ impl Calor {
                     routes_shape_filter: self.routes_shape_filter,
                     routes_env: self.routes_env,
                     clock: self.clock,
+                    tuning: &self.tuning, // r42:tuning
                 };
                 let bl = &mut self.buf_l[..os_n];
                 let br = &mut self.buf_r[..os_n];

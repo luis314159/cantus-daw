@@ -106,6 +106,13 @@ pub trait FxUnit: Send + std::fmt::Debug {
     fn set_song_key(&mut self, key: Option<cantus_core::scale::Key>) {
         let _ = key;
     }
+    /// r42:tuning (ADR 0155) — the tuning of the strip's track (or the project's, on a bus
+    /// or the master), handed with the song's key: where a pitched effect's notes sit
+    /// (Tonus's targets, Saltus's harmony, Nitor's tonic, Loquax's carrier). Audio thread:
+    /// keep it, never allocate. Default: nothing is pitched, nothing changes.
+    fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        let _ = table;
+    }
     /// Process a stereo block in place; `key` is the sidechain when one is routed.
     fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>);
     fn reset(&mut self);

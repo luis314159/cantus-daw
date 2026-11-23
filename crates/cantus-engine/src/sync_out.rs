@@ -59,11 +59,17 @@ pub fn connect_system(name: &str) -> Option<Box<dyn OutPort>> {
     }
 }
 
+/// r42:tuning — SysEx waiting for an external instrument's route: `(route, message)`.
+type SysexQueue = Arc<Mutex<Vec<(u64, Vec<u8>)>>>;
+
 /// The running thread.
 pub struct MidiOut {
     choices: Arc<Mutex<Vec<PortChoice>>>,
     /// The external instruments' ports: route number → port name (ADR 0094). r36:external
     routes: Arc<Mutex<Vec<(u64, String, u8)>>>,
+    /// r42:tuning — SysEx for an external instrument's route (its MTS tuning, ADR 0155),
+    /// sent by the thread as soon as the route's port is open.
+    sysex: SysexQueue,
     stop: Arc<AtomicBool>,
     pub stats: Arc<OutStats>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -113,16 +119,19 @@ impl MidiOut {
         let choices: Arc<Mutex<Vec<PortChoice>>> = Arc::default();
         let routes: Arc<Mutex<Vec<(u64, String, u8)>>> = Arc::default(); // r36:external
         let r2 = routes.clone(); // r36:external
+        let sysex: SysexQueue = Arc::default(); // r42:tuning
+        let x2 = sysex.clone(); // r42:tuning
         let stop = Arc::new(AtomicBool::new(false));
         let stats = Arc::new(OutStats::default());
         let (c2, s2, st2) = (choices.clone(), stop.clone(), stats.clone());
         let thread = std::thread::Builder::new()
             .name("cantus-midi-out".into())
-            .spawn(move || run(ring, shared, pool, c2, r2, s2, st2))
+            .spawn(move || run(ring, shared, pool, c2, r2, x2, s2, st2))
             .ok();
         MidiOut {
             choices,
             routes, // r36:external
+            sysex,  // r42:tuning
             stop,
             stats,
             thread,
@@ -135,6 +144,14 @@ impl MidiOut {
     pub fn set_unit_routes(&self, routes: Vec<(u64, String, u8)>) {
         if let Ok(mut r) = self.routes.lock() {
             *r = routes;
+        }
+    }
+
+    /// r42:tuning — SysEx messages for an external instrument's `route` (its MTS tuning, ADR
+    /// 0155), each written whole to the route's port once it is open. Main thread.
+    pub fn send_sysex(&self, route: u64, messages: Vec<Vec<u8>>) {
+        if let Ok(mut q) = self.sysex.lock() {
+            q.extend(messages.into_iter().map(|m| (route, m)));
         }
     }
 
@@ -160,12 +177,14 @@ impl Drop for MidiOut {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run(
     mut ring: Consumer<Stamped>,
     shared: Arc<SyncShared>,
     pool: Arc<crate::midi::pool::OutPool>,
     choices: Arc<Mutex<Vec<PortChoice>>>,
     unit_routes: Arc<Mutex<Vec<(u64, String, u8)>>>, // r36:external
+    sysex: SysexQueue,                               // r42:tuning
     stop: Arc<AtomicBool>,
     stats: Arc<OutStats>,
 ) {
@@ -239,6 +258,22 @@ fn run(
                     .map(|p| Box::new(crate::midi::pool::Pooled(p)) as Box<dyn OutPort>)
             });
             stats.refused.fetch_add(refused, Ordering::Relaxed);
+        }
+        // r42:tuning — an instrument's MTS tuning, out as soon as its route's port is open
+        // (a route not open yet keeps its messages for the next look).
+        if let Ok(mut q) = sysex.try_lock() {
+            // Bounded: a route that never arrives keeps no more than a few tables.
+            let over = q.len().saturating_sub(1024);
+            q.drain(..over);
+            q.retain(|(route, bytes)| match unit_ports.port(*route) {
+                Some(p) => {
+                    p.write(bytes);
+                    false
+                }
+                // Not in the table yet (sent before its route arrived): kept. In it but
+                // refused a port: dropped, as its notes are.
+                None => !unit_ports.knows(*route),
+            });
         }
         if unit_ports.prune(|route| {
             due.iter()

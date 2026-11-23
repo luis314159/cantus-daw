@@ -111,6 +111,8 @@ pub(crate) mod track;
 /// The clips' controller lanes into the track nodes' instruments (ADR 0068).
 #[path = "graph/track_controls.rs"]
 pub(crate) mod track_controls;
+#[path = "processor_tuning.rs"] // r42:tuning
+pub(crate) mod tuning_rt; // r42:tuning
 
 use exec::Nodes;
 use master::MasterStrip;
@@ -220,6 +222,9 @@ pub struct Processor {
     split_voices: bool,
     /// An offline render: frozen renders' readers wait for their blocks (ADR 0064).
     offline: bool,
+    /// r42:tuning — the MTS-ESP master (ADR 0156), read each live block by the tracks that
+    /// follow it; an offline render plays the table its snapshot was compiled with.
+    external_tuning: Arc<dyn crate::tuning::ExternalTuning>,
     /// Low-latency monitoring (ADR 0064 §4): the insert limit in samples, when on.
     low_latency: Option<usize>,
     click: Click,
@@ -435,7 +440,8 @@ impl Processor {
             shuffle: None,
             split_voices: std::env::var("CANTUS_VOICE_SPLIT").map_or(true, |v| v.trim() != "0"),
             offline: false,
-            master_bake: Default::default(), // r36:record
+            external_tuning: Arc::new(crate::tuning::NoExternal), // r42:tuning
+            master_bake: Default::default(),                      // r36:record
             low_latency: None,
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),
@@ -924,6 +930,7 @@ impl Processor {
         self.note_at = self.clock;
 
         self.drain_messages();
+        self.refresh_external_tuning(); // r42:tuning
         self.sync_block(frames); // r33:sync
         self.propose_scene_tempos(frames); // r33:session
         self.drain_midi();
@@ -1133,6 +1140,7 @@ fn apply_instrument(
     spec: &InstrumentSpec,
     samples: &[Option<Arc<cantus_core::SampleData>>],
     assets: &crate::inst::Assets,
+    tuning: &cantus_core::snapshot::TrackTuningSnap, // r42:tuning
 ) {
     let wanted = match spec {
         InstrumentSpec::Firmus(_) => SlotInstrument::Firmus,
@@ -1165,6 +1173,25 @@ fn apply_instrument(
                 crate::pulsus_kit::configure(d, k, samples);
             }
         }
+    }
+    // r42:tuning — the track's tuning after every configure (ADR 0155): a unit swapped in
+    // since, or configured afresh, plays in it at once.
+    // An unpitched instrument (Pulsus, Tympanum, the dancer) plays every key as it is: no
+    // keyboard map silences a drum.
+    let unpitched = match spec {
+        InstrumentSpec::Pulsus(_) => true,
+        InstrumentSpec::Native(n) => matches!(
+            n.kind,
+            cantus_core::InstrumentKind::AcousticDrums | cantus_core::InstrumentKind::Dancer
+        ),
+        _ => false,
+    };
+    if unpitched {
+        slot.tuning_external = false;
+        slot.set_tuning(&cantus_core::tuning::TuningTable::EQUAL);
+    } else {
+        slot.tuning_external = tuning.external;
+        slot.set_tuning(&tuning.table);
     }
 }
 

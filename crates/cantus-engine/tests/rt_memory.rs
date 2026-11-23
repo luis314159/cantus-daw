@@ -4351,3 +4351,88 @@ fn fragors_circuits_as_pedals_never_allocate() {
         FIRST.with(|f| f.get())
     );
 } // r41:pedals
+
+/// r42:tuning — an MTS-ESP master whose table moves every read (ADR 0156): the stand-in a
+/// test can hand the engine.
+#[derive(Debug, Default)]
+struct MovingMaster(std::sync::atomic::AtomicU32);
+
+impl cantus_engine::tuning::ExternalTuning for MovingMaster {
+    fn read(&self, out: &mut cantus_core::tuning::TuningTable) -> bool {
+        let n = self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        for (k, o) in out.0.iter_mut().enumerate() {
+            *o = ((k as u32 + n) % 7) as f32 * 0.01 - 0.03;
+        }
+        true
+    }
+}
+
+/// r42:tuning (ADR 0155, 0156) — a project in the MTS-ESP master's tuning: each live block
+/// reads the master's table and hands it to every pitched instrument (Firmus, Calor,
+/// Exemplar, Organum, Gravis) while they play; a tuned snapshot installed while playing. Not
+/// one allocation.
+#[test]
+fn the_mts_esp_refresh_and_a_tuning_never_allocate() {
+    let mut p = Project::new("tuned");
+    p.tuning = cantus_core::tuning::Tuning {
+        system: cantus_core::tuning::TuningSystem::External,
+        ..Default::default()
+    };
+    let kinds = [
+        None,
+        Some(InstrumentKind::Analog),
+        Some(InstrumentKind::Sampler),
+        Some(InstrumentKind::Organ),
+        Some(InstrumentKind::Bass),
+    ];
+    for kind in kinds {
+        let mut tr = p.make_track("tuned");
+        if let Some(k) = kind {
+            tr.instrument = InstrumentSpec::Native(NativeSpec::new(k));
+        }
+        let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(16));
+        for i in 0..16 {
+            let n = p.make_note(
+                Ticks::beats(i),
+                Ticks::QUARTER,
+                48 + (i as u8 * 5) % 24,
+                100,
+            );
+            clip.notes.push(n);
+        }
+        tr.clips.push(clip);
+        p.tracks.push(tr);
+    }
+    let mut rig = Rig::new();
+    rig.tx
+        .push(EngineMessage::SetExternalTuning(Arc::new(
+            MovingMaster::default(),
+        )))
+        .unwrap();
+    let snap = Snapshot::compile(&p, 1);
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+        rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("warm", 8);
+    rig.allocations.clear();
+    rig.play("following the master", 120);
+    // A project tuning of its own installed while playing (the table built off the thread).
+    p.tuning = cantus_core::tuning::Tuning {
+        a4_hz: 415.0,
+        system: cantus_core::tuning::TuningSystem::Temperament {
+            id: cantus_core::tuning::Temperament::WerckmeisterIii,
+            key: 3,
+            follow_song_key: false,
+        },
+        map: None,
+    };
+    rig.snapshot(&p);
+    rig.play("a temperament installed", 60);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the tuning allocated: {:?}",
+        rig.allocations
+    );
+}

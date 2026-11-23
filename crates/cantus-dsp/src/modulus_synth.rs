@@ -85,6 +85,8 @@ pub struct Modulus {
     bend_raw: f32,
     clock: u64,
     last_pitch: Option<f32>,
+    /// r42:tuning — each key's offset in semitones from 12-TET at A440 (ADR 0155).
+    tuning: [f32; 128],
     released: [usize; MAX_VOICES],
     stolen: u32,
 }
@@ -106,6 +108,7 @@ impl Modulus {
             bend_raw: 0.0,
             clock: 0,
             last_pitch: None,
+            tuning: [0.0; 128], // r42:tuning
             released: [0; MAX_VOICES],
             stolen: 0,
         };
@@ -118,6 +121,23 @@ impl Modulus {
     }
 
     /// Take a new patch. No allocation: the patch is copied into the one already held.
+    /// r42:tuning — the project's tuning (ADR 0155). Sounding voices move by their key's
+    /// change; the same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if crate::tuning::same(&self.tuning, table) {
+            return;
+        }
+        for v in self.voices.iter_mut().filter(|v| v.active) {
+            let k = usize::from(v.key & 0x7F);
+            let d = table[k] - self.tuning[k];
+            if d.is_finite() {
+                v.pitch_to += d;
+                v.pitch += d;
+            }
+        }
+        self.tuning = *table;
+    }
+
     pub fn set_patch(&mut self, p: &Patch) {
         self.patch.as_mut().clone_from(p);
         let m = p.env_macro;
@@ -181,6 +201,7 @@ impl Modulus {
                 copies: u,
                 stolen,
                 from,
+                tune: crate::tuning::at(&self.tuning, key), // r42:tuning
             };
             self.voices[v].start(st, &c);
             self.voices[v].tick(span, &c);
@@ -199,13 +220,15 @@ impl Modulus {
                 ..
             } => {
                 self.start_voice(voice, key, id, velocity);
-                self.last_pitch = Some(key as f32);
+                self.last_pitch = Some(key as f32 + crate::tuning::at(&self.tuning, key));
+                // r42:tuning
             }
             Action::Glide { voice, key, id } => {
+                let tune = crate::tuning::at(&self.tuning, key); // r42:tuning
                 for v in voice * u..voice * u + u {
-                    self.voices[v].glide_to(key, id, &self.patch);
+                    self.voices[v].glide_to(key, tune, id, &self.patch);
                 }
-                self.last_pitch = Some(key as f32);
+                self.last_pitch = Some(key as f32 + tune);
             }
             Action::Release { voice } => {
                 for v in voice * u..voice * u + u {

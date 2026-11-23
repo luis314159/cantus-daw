@@ -226,6 +226,9 @@ pub struct SyncService {
     pool: Option<Arc<cantus_engine::midi::pool::OutPool>>,
     /// The external instruments' routes given to the out thread (ADR 0094). r36:external
     unit_routes: Vec<(u64, String, u8)>,
+    /// r42:tuning — the tuning last sent as MTS SysEx to each route (ADR 0155): sent again
+    /// only when it changes, or to a new out thread.
+    mts_sent: std::collections::HashMap<u64, cantus_core::tuning::Tuning>,
 }
 
 impl std::fmt::Debug for SyncService {
@@ -302,6 +305,26 @@ impl SyncService {
         }
     }
 
+    /// r42:tuning — an external instrument's tuning as MIDI Tuning Standard SysEx to its
+    /// route (ADR 0155): every key's real-time single-note change (two messages of 64),
+    /// sent when it is not the one sent last. Returns whether it was sent.
+    pub fn send_mts(&mut self, route: u64, tuning: &cantus_core::tuning::Tuning) -> bool {
+        let Some(o) = &self.out else {
+            return false;
+        };
+        if self.mts_sent.get(&route) == Some(tuning) {
+            return false;
+        }
+        let table = tuning.offsets();
+        let all = cantus_core::tuning_mts::ALL_DEVICES;
+        o.send_sysex(
+            route,
+            cantus_core::tuning_mts::write_table_changes(all, 0, &table),
+        );
+        self.mts_sent.insert(route, tuning.clone());
+        true
+    }
+
     /// The routes the running out thread holds (`None`: no out thread). r36:external
     pub fn out_unit_routes(&self) -> Option<Vec<(u64, String, u8)>> {
         self.out.as_ref().map(|o| o.unit_routes())
@@ -321,6 +344,7 @@ impl SyncService {
     pub fn attach(&mut self, handle: Option<SyncHandle>) {
         self.out = None;
         self.out_ports.clear();
+        self.mts_sent.clear(); // r42:tuning — a new out thread hears the tunings again
         let Some(mut h) = handle else {
             self.shared = None;
             *self.engine.lock().unwrap_or_else(|e| e.into_inner()) = None;

@@ -531,7 +531,14 @@ impl NitorSettings {
 
 /// The tonic's fundamental in octave 1 (C1 = 32.70 Hz … B1 = 61.74 Hz), A4 = 440 Hz.
 pub fn tonic_hz(tonic: u8) -> f32 {
-    let midi = 24.0 + f32::from(tonic % 12);
+    tonic_hz_tuned(tonic, &crate::tuning::EQUAL)
+}
+
+/// r42:tuning — [`tonic_hz`] in a tuning (ADR 0155): the tonic's key in octave 1 at its
+/// table's pitch (`+ 0.0` by default keeps the bits).
+pub fn tonic_hz_tuned(tonic: u8, tune: &crate::tuning::Table) -> f32 {
+    let key = 24 + tonic % 12;
+    let midi = 24.0 + f32::from(tonic % 12) + crate::tuning::at(tune, key);
     440.0 * crate::math::exp2((midi - 69.0) / 12.0)
 }
 

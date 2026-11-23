@@ -81,6 +81,10 @@ impl MidiEvent {
 /// UI → engine.
 #[derive(Debug)]
 pub enum EngineMessage {
+    /// r42:tuning — the MTS-ESP master's table (ADR 0156): read each block by the tracks
+    /// whose tuning is `External`. The handle keeps every one it sent, so the audio thread
+    /// never drops the last of one.
+    SetExternalTuning(Arc<dyn crate::tuning::ExternalTuning>),
     /// Run an external unit's latency ping (ADR 0094): the transport must be stopped. The
     /// job comes back as [`EngineEvent::PingDone`], finished or refused. r36:external
     StartPing(Box<crate::external_ping::PingJob>),

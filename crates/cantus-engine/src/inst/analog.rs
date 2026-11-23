@@ -335,6 +335,11 @@ pub fn route_target(key: &str) -> Option<(u16, f32)> {
 }
 
 impl InstrumentUnit for Unit {
+    /// r42:tuning — the track's tuning (ADR 0155), at the DSP's insertion point.
+    fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        self.calor.set_tuning(&table.0);
+    }
+
     fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
         Some(Box::new(self.clone()))
     } // r34:listen

@@ -119,7 +119,7 @@ impl Processor {
                         s.instrument = SlotInstrument::Tap;
                     }
                 } else {
-                    apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
+                    apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets, &t.tuning);
                 }
                 // Its note effects and the key they read (ADR 0069).
                 s.configure_notefx(&t.note_fx, snapshot.key);
@@ -204,7 +204,7 @@ impl Processor {
                 strip_used[i] = true;
             }
         }
-        for st in snapshot.strips.iter().take(MAX_STRIPS) {
+        for (strip_ix, st) in snapshot.strips.iter().enumerate().take(MAX_STRIPS) {
             let slot = match self.strip_slot_for(st.id) {
                 Some(i) => i,
                 None => {
@@ -226,7 +226,9 @@ impl Processor {
                 }
             };
             self.strip_to_slot.push(slot);
-            self.rebuild_chain(slot, &st.effects, snapshot.key); // r41:contract
+            // r41:contract — the song's key; r42:tuning — the strip's tuning.
+            let tuning = super::tuning_rt::strip_tuning(&snapshot, strip_ix);
+            self.rebuild_chain(slot, &st.effects, snapshot.key, tuning);
             let sr = self.sample_rate as f32;
             if let Some(mut ss) = nodes.strip(slot) {
                 ss.gain = st.gain;
@@ -498,6 +500,7 @@ impl Processor {
         slot: usize,
         wanted: &[cantus_core::EffectSlot],
         key: Option<cantus_core::scale::Key>,
+        tuning: &cantus_core::tuning::TuningTable, // r42:tuning
     ) {
         let nodes = self.nodes.clone();
         let Some(mut s) = nodes.strip(slot) else {
@@ -519,6 +522,7 @@ impl Processor {
                 Some(mut unit) => {
                     unit.configure(&want.spec);
                     unit.set_song_key(key); // r41:contract
+                    unit.set_tuning(tuning); // r42:tuning
                     let idx = s.effects.len();
                     s.bypass[idx] = want.bypass;
                     s.mix[idx] = want.mix.clamp(0.0, 1.0);

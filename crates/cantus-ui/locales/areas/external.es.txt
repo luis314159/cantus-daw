@@ -56,6 +56,9 @@ external.trim_name = Ajuste sumado a la medición
 external.level = {db} dB
 external.level_name = Nivel del retorno
 external.on = Activo
+# r42:tuning — el instrumento afinado por SysEx del MIDI Tuning Standard
+external.mts = MTS
+external.mts_name = Enviar la afinación de la pista al instrumento como SysEx del MIDI Tuning Standard
 external.remove = Quitar
 
 # --- superficies de control en Ajustes ---

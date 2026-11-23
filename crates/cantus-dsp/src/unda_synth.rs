@@ -57,6 +57,8 @@ pub struct Unda {
     free: [FreeLfo; 8],
     free_val: [f32; 8],
     last_pitch: Option<f32>,
+    /// r42:tuning — each key's offset in semitones from 12-TET at A440 (ADR 0155).
+    tuning: [f32; 128],
     stolen: u32,
     peak: [f32; 2],
     released: [usize; ALLOC_MAX],
@@ -90,6 +92,7 @@ impl Unda {
             free: [FreeLfo::default(); 8],
             free_val: [0.0; 8],
             last_pitch: None,
+            tuning: [0.0; 128], // r42:tuning
             stolen: 0,
             peak: [0.0; 2],
             released: [0; ALLOC_MAX],
@@ -108,6 +111,23 @@ impl Unda {
     }
 
     /// New settings. Allocation-free: the settings are copied into the box held.
+    /// r42:tuning — the project's tuning (ADR 0155). Sounding voices move by their key's
+    /// change; the same table again changes nothing.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        if crate::tuning::same(&self.tuning, table) {
+            return;
+        }
+        for v in self.voices.iter_mut().filter(|v| v.active) {
+            let k = usize::from(v.key & 0x7F);
+            let d = table[k] - self.tuning[k];
+            if d.is_finite() {
+                v.target += d;
+                v.pitch += d;
+            }
+        }
+        self.tuning = *table;
+    }
+
     pub fn set(&mut self, s: &Settings) {
         (*self.s).clone_from(s);
         self.alloc.set_polyphony(s.polyphony.min(MAX_VOICES));
@@ -152,8 +172,9 @@ impl Unda {
                 };
                 self.ages += 1;
                 let (s, sr) = (&*self.s, self.sr);
+                let tune = crate::tuning::at(&self.tuning, key); // r42:tuning
                 let v = &mut self.voices[voice];
-                v.start(s, key, id, velocity, stolen, from, self.ages, sr);
+                v.start(s, key, tune, id, velocity, stolen, from, self.ages, sr);
                 let g = Globals {
                     sr: self.sr,
                     oversample: s.oversample,
@@ -161,11 +182,12 @@ impl Unda {
                     free_lfo: &self.free_val,
                 };
                 v.control(s, &g, true);
-                self.last_pitch = Some(key as f32);
+                self.last_pitch = Some(key as f32 + tune); // r42:tuning
             }
             Action::Glide { voice, key, id } => {
-                self.voices[voice].glide_to(&self.s, key, id, self.sr);
-                self.last_pitch = Some(key as f32);
+                let tune = crate::tuning::at(&self.tuning, key); // r42:tuning
+                self.voices[voice].glide_to(&self.s, key, tune, id, self.sr);
+                self.last_pitch = Some(key as f32 + tune);
             }
             Action::Release { voice } => self.voices[voice].release(0.0),
             Action::Nothing => {}

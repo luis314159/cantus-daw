@@ -208,6 +208,38 @@ pub fn tuning_of(values: &[f32; N]) -> Tuning {
     })
 }
 
+/// r42:tuning — `t` with the project's tuning (ADR 0155) in its technician's table: each
+/// key's offset, in cents, on top of what the knobs and the voicing gave it. The design key
+/// hashes that table, so a tuning is a design of its own and the same tuning reuses one; at
+/// the default (every offset zero) `t` comes back unchanged, to the bit.
+pub fn with_offsets(mut t: Tuning, offsets: &[f32; 128]) -> Tuning {
+    if cantus_dsp::tuning::is_equal(offsets) {
+        return t;
+    }
+    for (i, c) in t.tune.iter_mut().enumerate() {
+        let key = (21 + i).min(127) as u8;
+        *c += 100.0 * cantus_dsp::tuning::at(offsets, key);
+    }
+    t
+}
+
+/// r42:tuning — the design parameter values ask for in a track tuned by `offsets` (ADR 0155,
+/// `cantus_core::inst::chorda::follows_tuning`): at 12-TET A440 exactly [`tuning_of`] (the
+/// bits of every older song: Chorda's own `a4`); otherwise the tuning's diapason, which the
+/// offsets carry, in place of Chorda's `a4` (designed at 440), with its stretch, stiffness
+/// and voicing kept.
+pub fn tuning_for(values: &[f32; N], offsets: &[f32; 128]) -> Tuning {
+    let table = cantus_core::tuning::TuningTable(*offsets);
+    if !cantus_core::inst::chorda::follows_tuning(&table) {
+        return tuning_of(values);
+    }
+    let mut v = *values;
+    if let Some(i) = PARAMS.iter().position(|p| p.key == "a4") {
+        v[i] = 440.0;
+    }
+    with_offsets(tuning_of(&v), offsets)
+}
+
 /// The keyboard a new Chorda plays: the parameters' defaults' tuning (model 2's own). It is
 /// the one [`warm`] asks for first.
 pub fn reference() -> Tuning {
@@ -594,7 +626,9 @@ pub fn prepare(snapshot: &cantus_core::Snapshot, fs: f32) {
     for t in &snapshot.tracks {
         if let Some(n) = t.instrument.native() {
             if n.kind == cantus_core::InstrumentKind::Chorda {
-                ask(Some((t.id.0, fs.to_bits())), tuning_of(&values_of(n)), fs);
+                // r42:tuning — the track's tuning is part of the design.
+                let tuning = tuning_for(&values_of(n), &t.tuning.table.0);
+                ask(Some((t.id.0, fs.to_bits())), tuning, fs);
             }
         }
     }
@@ -739,6 +773,8 @@ pub struct Unit {
     cc_pedal: f32,
     param_pedal: f32,
     pedal: f32,
+    /// r42:tuning — the track's tuning (ADR 0155), designed into the keyboard.
+    offsets: [f32; 128],
 }
 
 impl Unit {
@@ -784,6 +820,7 @@ impl Unit {
             cc_pedal: 0.0,
             param_pedal: 0.0,
             pedal: 0.0,
+            offsets: [0.0; 128], // r42:tuning
         };
         u.update();
         u
@@ -857,6 +894,23 @@ impl Unit {
         }
     }
 
+    /// The keyboard its knobs and the track's tuning ask for (r42:tuning): taken if it is
+    /// designed, else waited for as configure always did.
+    fn retarget(&mut self) {
+        self.want_tuning = tuning_for(&self.base, &self.offsets);
+        self.want = key_of(self.want_tuning, self.fs);
+        if let Some(k) = lookup(self.want) {
+            self.dsp.set_keyboard(k);
+            self.have = Some(self.want);
+        } else if !self.struck && self.have.is_some() && can_arrive(self.want) {
+            // Nothing played yet: silent until its own tuning is designed, never another —
+            // unless it will not come, then the keyboard it has plays (lock-free: the audio
+            // thread configures).
+            self.dsp.clear_keyboard();
+            self.have = None;
+        }
+    }
+
     pub fn dsp(&self) -> &Chorda {
         &self.dsp
     }
@@ -868,24 +922,24 @@ impl InstrumentUnit for Unit {
     } // r34:listen
     fn configure(&mut self, spec: &NativeSpec, _assets: &super::Assets) {
         self.base = values_of(spec);
-        self.want_tuning = tuning_of(&self.base);
-        self.want = key_of(self.want_tuning, self.fs);
         routes(spec, &mut self.matrix);
         for (m, key) in MACRO_KEYS.iter().enumerate() {
             self.sources[m] = spec.get(key);
         }
         self.per_note = self.reads(SRC_VEL) || self.reads(SRC_KEY);
         self.update();
-        if let Some(k) = lookup(self.want) {
-            self.dsp.set_keyboard(k);
-            self.have = Some(self.want);
-        } else if !self.struck && self.have.is_some() && can_arrive(self.want) {
-            // Nothing played yet: silent until its own tuning is designed, never another —
-            // unless it will not come, then the keyboard it has plays (lock-free: the audio
-            // thread configures).
-            self.dsp.clear_keyboard();
-            self.have = None;
+        self.retarget();
+    }
+
+    /// r42:tuning — the project's tuning (ADR 0155): part of the keyboard's design, so a new
+    /// one is a redesign (off the audio thread, asked for by [`prepare`]); until it arrives
+    /// the keyboard playing goes on. The same table again changes nothing.
+    fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        if cantus_dsp::tuning::same(&self.offsets, &table.0) {
+            return;
         }
+        self.offsets = table.0;
+        self.retarget();
     }
 
     fn note_on(&mut self, note: NoteOn) {

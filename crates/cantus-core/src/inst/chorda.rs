@@ -163,6 +163,26 @@ pub fn params() -> &'static [InstParamInfo] {
     PARAMS
 }
 
+/// r42:tuning — whether Chorda plays in its track's tuning (ADR 0155): when the resolved
+/// tuning's table is not 12-TET at A440 to the bit. Then that tuning is the diapason and its
+/// per-key offsets are designed in; Chorda's own `a4` is not used. Otherwise (every older
+/// song, a track playing `Equal`) Chorda's `a4` is the diapason, as before. `stretch`,
+/// `stiffness` and `unison` are Chorda's own in every case, on top of the offsets.
+pub fn follows_tuning(table: &crate::tuning::TuningTable) -> bool {
+    !table.is_equal()
+}
+
+/// r42:tuning — the diapason Chorda plays at (what the engine designs and the editor shows):
+/// its own `a4` when its track's resolved tuning leaves every key at 12-TET A440
+/// ([`follows_tuning`]), the tuning's `a4_hz` otherwise.
+pub fn effective_a4(spec: &super::NativeSpec, resolved: &crate::tuning::Tuning) -> f64 {
+    if follows_tuning(&resolved.offsets()) {
+        resolved.a4_hz
+    } else {
+        f64::from(spec.get("a4"))
+    }
+}
+
 /// The modulation sources it produces (tags from `modulation::SOURCES`).
 pub const SOURCES: &[&str] = &[
     "macro1", "macro2", "macro3", "macro4", "macro5", "macro6", "macro7", "macro8", "vel", "key",
