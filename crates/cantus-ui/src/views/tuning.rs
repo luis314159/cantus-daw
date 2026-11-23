@@ -15,6 +15,8 @@
 //! controls), `tuning_circle.rs` (the circle and the degrees), `tuning_io.rs` (Scala files),
 //! `tuning_words.rs` (the summary line and the names).
 
+#[path = "tuning_chorda.rs"]
+pub mod chorda;
 #[path = "tuning_circle.rs"]
 pub mod circle;
 #[path = "tuning_io.rs"]
@@ -58,6 +60,8 @@ pub struct TuningUi {
     pub mts: Option<MtsLink>,
     /// Why *Be the MTS-ESP master* was refused, until the next attempt.
     pub master_refused: Option<cantus_rt::mts::Refusal>,
+    /// The key Chorda's presets rotate to, once chosen in its card.
+    pub chorda_key: Option<u8>,
     /// The project's table last published as master, with the history's revision it was
     /// made from.
     published: Option<(u64, TuningTable)>,
@@ -72,6 +76,7 @@ impl Default for TuningUi {
             last: None,
             mts: None,
             master_refused: None,
+            chorda_key: None,
             published: None,
         }
     }

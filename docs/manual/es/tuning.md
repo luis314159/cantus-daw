@@ -60,8 +60,8 @@ del La4.
 
 Debajo, **los grados**: los cents de cada nota sobre Do, sus cents **desde el temperamento
 igual** (en el La4 elegido: La marca 0) y los batidos de su quinta y su tercera. Una escala que
-no es de doce por octava muestra sus grados como los escribió su archivo, en cents, y desde la
-división igual de su periodo en otros tantos pasos.
+no es de doce por octava muestra sus grados como los escribió su archivo, en cents, y la tecla
+más cercana de un teclado de doce notas con su distancia ("C +38.71": el grado 0 es Do).
 
 ## Archivos Scala
 
@@ -107,13 +107,32 @@ En el inspector de una pista, **Afinación** dice lo que toca y abre una lista:
 afinación, en la pista que edita la ventana, en la pista seleccionada o en la primera pista de
 instrumento: así oye el color del temperamento antes que la canción.
 
-## Chorda
+## Chorda: una afinación propia, desde dentro de Chorda
 
-La vista *Editar* de Chorda dice, bajo su estiramiento, qué afinación toca el piano
-("Afinación: Werckmeister III en Eb · A415 (la del proyecto)"); un clic abre la ventana. El
-**estiramiento**, la **rigidez** y los **unísonos** de Chorda siguen siendo suyos: un afinador
-de pianos estira las octavas de cualquier temperamento, y Chorda hace lo mismo sobre la
-afinación de la canción.
+Chorda puede tocar en una afinación propia mientras el resto de la canción sigue como está. Su
+vista *Editar* tiene una tarjeta **Temperamento**:
+
+- **Suena en**: *La del proyecto* (lo predeterminado) o *La suya*.
+- **Afinación**: los preajustes, en grupos — *Igual* (De concierto, estirada al afinar; De
+  estudio, ajustada; Brillante, estiramiento amplio), *Históricas* y *Entonación justa* (cada
+  una en la **Tónica** de abajo: Werckmeister III en E, mesotónica en D …), *Carácter*
+  (Honky-tonk, Vertical de salón antiguo, De cantina, Un poco desafinado, Barroca La 415, Verdi
+  La 432) y *Suyas*. Elegir una da a Chorda su afinación propia y ajusta el estiramiento y los
+  unísonos que necesita, en un solo paso del historial (**Ctrl+Z** lo devuelve todo).
+- **Tónica**: dónde se asienta una afinación histórica o justa (‹ › un semitono).
+- **Suyas**: *Guardar como mía* guarda la afinación actual como un archivo Scala suyo (en la
+  carpeta `Tuning` de los datos), que aparece en *Suyas*; *Importar…* y *Exportar…* leen y
+  escriben `.scl` / `.kbm`.
+- **Cadencia**: óigala antes de tocar.
+- El **círculo de quintas** y las **terceras mayores más puras y más ásperas** dicen qué
+  tonalidades suenan tranquilas y cuáles ásperas.
+
+El **La4** sigue una regla, para que nada antiguo cambie: mientras la pista no toca ninguna
+afinación, la perilla A4 de Chorda es la altura, como en toda canción anterior; cuando toca la
+del proyecto, la perilla muestra el La4 del proyecto, atenuado ("la del proyecto"); con una
+afinación propia, ajusta el La4 de esa afinación. La línea bajo el estiramiento dice qué
+afinación toca el piano; un clic en ella abre *Proyecto ▸ Afinación*. El **estiramiento**, la
+**rigidez** y los **unísonos** de Chorda siguen siendo suyos.
 
 ## Conviene saber
 

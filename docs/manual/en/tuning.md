@@ -56,8 +56,8 @@ the pitch of A4.
 
 Under it, **the degrees**: each note's cents above C, its cents **from equal temperament** (at
 the chosen A4: A reads 0), and its fifth's and third's beat rates. A scale that is not twelve
-to the octave lists its degrees as its file wrote them, in cents, and from the equal division
-of its period into as many steps.
+to the octave lists its degrees as its file wrote them, in cents, and the nearest key of a
+twelve-note keyboard with its distance ("C +38.71": degree 0 is C).
 
 ## Scala files
 
@@ -101,12 +101,31 @@ In a track's inspector, **Tuning** says what it plays and opens a list:
 track the window edits, the selected track, or the first instrument track — so you hear the
 temperament's colour before the song.
 
-## Chorda
+## Chorda: a tuning of its own, from inside Chorda
 
-Chorda's *Edit* view says, under its stretch, which tuning the piano plays ("Tuning:
-Werckmeister III in Eb · A415 (the project's)"); a click opens the window. Chorda's own
-**stretch**, **stiffness** and **unisons** stay its own: a piano technician stretches the
-octaves of any temperament, and Chorda does the same on top of the song's tuning.
+Chorda can play in a tuning of its own while the rest of the song stays as it is. Its *Edit*
+view has a **Temperament** card:
+
+- **Plays in**: *The project's tuning* (the default) or *Its own*.
+- **Tuning**: the presets, in groups — *Equal* (Concert, stretched as tuned; Studio tight;
+  Bright, wide stretch), *Historical* and *Just intonation* (each in the **Key** below:
+  Werckmeister III in E, meantone in D …), *Character* (Honky-tonk, Old parlour upright, Saloon,
+  Slightly out, Baroque A415, Verdi A432) and *Yours*. Choosing one gives Chorda its own tuning
+  and sets the stretch and the unisons it needs, in one step of the history (**Ctrl+Z** puts
+  all of it back).
+- **Key**: where a historical or just tuning sits (‹ › a semitone).
+- **Yours**: *Save as mine* keeps the current tuning as a Scala file of yours (in the data
+  folder's `Tuning`), listed under *Yours*; *Import…* and *Export…* read and write `.scl` / `.kbm`.
+- **Cadence**: hear it before playing.
+- The **circle of fifths** and the **purest and roughest major thirds** say which keys sound
+  calm and which rough.
+
+**A4** follows one rule, so nothing old changes: while the track plays no tuning, Chorda's own
+A4 knob is the pitch, as in every older song; when it plays the project's tuning, the knob
+shows the project's A4, greyed ("the project's"); with a tuning of its own, it sets that
+tuning's A4. The line under the stretch says which tuning the piano plays; a click on it opens
+*Project ▸ Tuning*. Chorda's **stretch**, **stiffness** and **unisons** stay its own: a piano
+technician stretches the octaves of any temperament, and Chorda does the same on top of it.
 
 ## Good to know
 

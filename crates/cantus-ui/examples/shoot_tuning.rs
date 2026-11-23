@@ -9,7 +9,9 @@
 //! Kinds: `equal` (a new song), `werck` (Werckmeister III in Eb at A415), `follow` (Vallotti
 //! following a song in D minor), `scale` (31-EDO read from the MIT `tuning-library`'s test
 //! file through the window's import), `track` (a track's own tuning), `inspector` (the
-//! track's override row), `chorda` (Chorda's Edit view and its tuning line).
+//! track's override row), `chorda` (Chorda's Edit view following the project's
+//! Werckmeister III), `chorda-own` (only Chorda in Werckmeister III in E, from its own
+//! Temperament card), `chorda-plain` (Chorda in a song with no tuning: its own A4 knob).
 //!
 //! **Interim, said plainly:** until the `tuning` builder's `Tuning::offsets()` fills the
 //! temperaments, `werck` and `follow` draw the circle and the degrees from the published
@@ -27,7 +29,7 @@ use cantus_ui::views::workspace_device as device;
 use cantus_ui::{raster, welcome_project, CantusApp};
 use std::path::{Path, PathBuf};
 
-const KINDS: [&str; 7] = [
+const KINDS: [&str; 9] = [
     "equal",
     "werck",
     "follow",
@@ -35,6 +37,8 @@ const KINDS: [&str; 7] = [
     "track",
     "inspector",
     "chorda",
+    "chorda-own",
+    "chorda-plain",
 ];
 const SIZE: egui::Vec2 = egui::vec2(1440.0, 900.0);
 
@@ -142,11 +146,25 @@ fn shoot(dir: &Path, kind: &str, dark: bool, zoom: f32) {
     tuning::design_preview(None);
     let target = set_up(&mut app, kind);
     let mut maximise = None;
-    if kind == "chorda" {
+    if kind.starts_with("chorda") {
         app.demo_editor("chorda");
         app.inst.view = cantus_ui::views::inst::View::Edit;
         let track = app.selected_track.unwrap_or(app.project().tracks[0].id);
         maximise = app.instrument_window_key(track);
+        if kind == "chorda-own" {
+            // The owner's ask: only Chorda in Werckmeister III in E, the song left in 12-TET.
+            let spec = app
+                .project()
+                .track(track)
+                .and_then(|t| t.instrument.native().cloned())
+                .expect("Chorda");
+            let p = tuning::chorda::PRESETS
+                .iter()
+                .find(|p| p.name == "tuning.temper.werckmeister_iii")
+                .expect("the preset");
+            tuning::design_preview(Some(table(&WERCK3, 4, 440.0)));
+            app.exec(tuning::chorda::preset_command(&spec, track, p, 4));
+        }
     } else if kind == "inspector" {
         let id = app.project().tracks[0].id;
         app.select_track(id);
@@ -179,10 +197,6 @@ fn shoot(dir: &Path, kind: &str, dark: bool, zoom: f32) {
         },
     );
     tuning::design_preview(None);
-    if std::env::var_os("CANTUS_SHOOT_DEBUG").is_some() {
-        let room = cantus_ui::views::transport::room(&ctx, SIZE.x);
-        eprintln!("{kind}: top bar menus block {:.1} (full)", room.left_max);
-    }
     println!("{}", path.display());
 }
 

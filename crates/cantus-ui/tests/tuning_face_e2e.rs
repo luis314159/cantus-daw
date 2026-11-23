@@ -76,9 +76,14 @@ fn partial(x: &[f64], hz: f64, a: usize, b: usize, len: usize) -> f64 {
     hz + ai.atan2(ar) * FS / (TAU * hop as f64)
 }
 
-/// Each key of [`KEYS`]'s fundamental as the song renders now, Hz.
+/// Each key of [`KEYS`]'s fundamental as the song's Chorda renders now, Hz.
 fn measured(app: &CantusApp) -> Vec<f64> {
-    let p = app.project().clone();
+    let mut p = app.project().clone();
+    p.tracks.retain(|t| {
+        t.instrument
+            .native()
+            .is_some_and(|n| n.kind == InstrumentKind::Chorda)
+    });
     let r = render(
         Arc::new(Snapshot::compile(&p, 1)),
         &RenderOptions {
@@ -233,4 +238,168 @@ fn a_file_the_scala_grammar_refuses_is_refused_with_its_reason_and_changes_nothi
         assert!(e.starts_with("Not read: "), "{bad}: {e}");
         assert_eq!(app.project().tuning, before, "{bad}");
     }
+}
+
+/// The owner's ask (2026-11-22): only Chorda in another tuning, the song left as it is.
+/// Through Chorda's Temperament card's action, *Werckmeister III* in E: one undo step that
+/// gives the Chorda track a tuning of its own; Chorda plays its table (measured, against its
+/// own equal-temperament render), while a synthesiser on another track keeps 12-TET at 440
+/// (its table equal to the bit, and its render the same to the bit as before Chorda's
+/// tuning), and the project's tuning stays the default. Undone, all of it goes.
+#[test]
+fn chordas_own_tuning_changes_only_chorda() {
+    let files = Files::read(data(), Some(cantus_ui::i18n::Locale::En));
+    let ctx = egui::Context::default();
+    let (engine, _proc) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::assemble(&ctx, files, None, engine, None, None, None, false);
+    cantus_engine::inst::chorda::ensure(cantus_engine::inst::chorda::reference(), 48_000.0);
+    app.apply_pick(
+        PickPurpose::AddInstrument { index: None },
+        PickChoice::Instrument(InstrumentKind::Chorda),
+    );
+    let chorda = app
+        .project()
+        .tracks
+        .iter()
+        .find(|t| {
+            t.instrument
+                .native()
+                .is_some_and(|n| n.kind == InstrumentKind::Chorda)
+        })
+        .map(|t| t.id)
+        .expect("Chorda");
+    app.apply_pick(
+        PickPurpose::AddInstrument { index: None },
+        PickChoice::Instrument(InstrumentKind::Analog),
+    );
+    let synth = app
+        .project()
+        .tracks
+        .iter()
+        .find(|t| {
+            t.instrument
+                .native()
+                .is_some_and(|n| n.kind == InstrumentKind::Analog)
+        })
+        .map(|t| t.id)
+        .expect("Calor");
+    let others: Vec<TrackId> = app
+        .project()
+        .tracks
+        .iter()
+        .map(|t| t.id)
+        .filter(|t| *t != chorda && *t != synth)
+        .collect();
+    for id in others {
+        assert!(app.exec(Command::RemoveTrack { id }));
+    }
+    for t in [chorda, synth] {
+        let clips: Vec<ClipId> = app
+            .project()
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .map(|c| c.id)
+            .collect();
+        for clip in clips {
+            assert!(app.exec(Command::RemoveClip { track: t, clip }));
+        }
+    }
+    let mut clip = app.bus.new_clip("Keys", Ticks::ZERO, Ticks::beats(16));
+    for (i, k) in KEYS.iter().enumerate() {
+        let n = app
+            .bus
+            .new_note(Ticks::beats(4 * i as i64), Ticks::beats(3), *k, 80);
+        clip.notes.push(n);
+    }
+    assert!(app.exec(Command::InsertClip {
+        track: chorda,
+        clip: Box::new(clip)
+    }));
+    let mut a4 = app.bus.new_clip("A", Ticks::ZERO, Ticks::beats(4));
+    a4.notes
+        .push(app.bus.new_note(Ticks::ZERO, Ticks::beats(3), 69, 100));
+    assert!(app.exec(Command::InsertClip {
+        track: synth,
+        clip: Box::new(a4)
+    }));
+    let synth_alone = |app: &CantusApp| {
+        let mut solo = app.project().clone();
+        solo.tracks.retain(|t| t.id == synth);
+        render(
+            Arc::new(Snapshot::compile(&solo, 1)),
+            &RenderOptions {
+                tail_seconds: 0.0,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .samples
+    };
+    let synth_before = synth_alone(&app);
+    let equal = measured(&app);
+
+    // The card's action: the preset in E.
+    let spec = app
+        .project()
+        .track(chorda)
+        .unwrap()
+        .instrument
+        .native()
+        .unwrap()
+        .clone();
+    let preset = tuning::chorda::PRESETS
+        .iter()
+        .find(|p| p.name == "tuning.temper.werckmeister_iii")
+        .unwrap();
+    let before = app.project().clone();
+    assert!(app.exec(tuning::chorda::preset_command(&spec, chorda, preset, 4)));
+    assert!(
+        app.project().tuning.is_default(),
+        "the song keeps its tuning"
+    );
+    let mine = tuning::tuning_of(&app, Target::Track(chorda));
+    assert!(matches!(
+        mine.system,
+        TuningSystem::Temperament {
+            key: 4,
+            follow_song_key: false,
+            ..
+        }
+    ));
+    assert_eq!(
+        tuning::table_of(&app, Target::Track(synth)),
+        cantus_core::tuning::TuningTable::EQUAL
+    );
+    assert_eq!(tuning::chorda::a4_of(&app, synth), tuning::chorda::A4::Knob);
+
+    // Chorda plays its own table.
+    let table = mine.offsets();
+    let tuned = measured(&app);
+    for (i, k) in KEYS.iter().enumerate() {
+        let moved = 1200.0 * (tuned[i] / equal[i]).log2();
+        let want = 100.0 * f64::from(table.at(*k));
+        assert!(
+            (moved - want).abs() < 0.1,
+            "Chorda key {k}: moved {moved} c, table {want} c"
+        );
+    }
+
+    // The synthesiser beside it is as it was, to the bit.
+    assert!(
+        synth_alone(&app) == synth_before,
+        "the other track left in 12-TET at 440"
+    );
+
+    // Undone: the track follows the project again, its stretch and unisons as they were.
+    app.undo();
+    assert_eq!(
+        app.project().track(chorda).unwrap().tuning,
+        before.track(chorda).unwrap().tuning
+    );
+    assert_eq!(
+        app.project().track(chorda).unwrap().instrument,
+        before.track(chorda).unwrap().instrument
+    );
 }

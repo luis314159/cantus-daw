@@ -177,15 +177,21 @@ pub fn twelve_rows(table: &TuningTable, a4_hz: f64) -> Vec<Row> {
         .collect()
 }
 
+/// The nearest 12-TET semitone to `cents` above degree 0 (which key 60, C, plays) and the
+/// distance from it: "C +38.71", "C# −22.58".
+pub fn from_twelve(cents: f64) -> String {
+    let n = (cents / 100.0).round();
+    let pc = (n as i64).rem_euclid(12) as u8;
+    format!("{} {}", key_name(pc), signed_cents(cents - 100.0 * n))
+}
+
 /// The degrees of a scale that is not 12 to the octave: as written, in cents, and from the
-/// equal division of its period into as many steps.
+/// nearest 12-TET semitone (its name: a 31-note scale's degrees against the keyboard's).
 pub fn scale_rows(s: &ScalaScale) -> Vec<Row> {
-    let n = s.degrees.len().max(1);
-    let period = s.degrees.last().map(degree_cents).unwrap_or(1200.0);
     let mut out = vec![Row {
         name: "0".into(),
         cents: "0.00".into(),
-        from_equal: "0.00".into(),
+        from_equal: from_twelve(0.0),
         fifth: "1/1".into(),
         third: String::new(),
         fifth_x: 0.0,
@@ -193,11 +199,10 @@ pub fn scale_rows(s: &ScalaScale) -> Vec<Row> {
     }];
     for (i, d) in s.degrees.iter().enumerate() {
         let c = degree_cents(d);
-        let equal = period * (i + 1) as f64 / n as f64;
         out.push(Row {
             name: (i + 1).to_string(),
             cents: format!("{c:.2}"),
-            from_equal: signed_cents(c - equal),
+            from_equal: from_twelve(c),
             // In a scale's table the fourth column is the degree as written.
             fifth: degree_written(d),
             third: String::new(),
@@ -292,6 +297,14 @@ mod tests {
         // G4 raised to a pure fifth over C4.
         t.0[67] = (1.955_000_865 / 100.0) as f32;
         assert!(fifth_beats(&t, 0) < 0.01, "{}", fifth_beats(&t, 0));
+    }
+
+    #[test]
+    fn a_degree_is_named_by_its_nearest_semitone() {
+        assert_eq!(from_twelve(38.709_677), "C +38.71");
+        assert_eq!(from_twelve(77.419), "C# \u{2212}22.58");
+        assert_eq!(from_twelve(1200.0), "C 0.00");
+        assert_eq!(from_twelve(701.955), "G +1.96");
     }
 
     #[test]

@@ -301,7 +301,7 @@ fn pictures(app: &CantusApp, ui: &mut Ui, r: Rect, target: Target) {
             [
                 "tuning.table.degree",
                 "tuning.table.cents",
-                "tuning.table.from_equal_n",
+                "tuning.table.from_12",
                 "tuning.table.written",
                 "",
             ],
@@ -361,6 +361,18 @@ fn degree_table(ui: &mut Ui, r: Rect, rows: &[circle::Row], heads: &[&str; 5], b
                 Align2::RIGHT_CENTER
             };
             let mut hr = col_rect(head, i);
+            // What the deviation is measured from, on the heading's hint.
+            if i == 2 {
+                let id = Id::new(("tuning-table-head", i));
+                if ui.interact(hr, id, Sense::hover()).hovered() {
+                    let why = if beats {
+                        "tuning.table.from_equal_hint"
+                    } else {
+                        "tuning.table.from_12_hint"
+                    };
+                    crate::kit::hint::set_text(ui.ctx(), &t(why), "", crate::kit::hint::Caps::NONE);
+                }
+            }
             if beats && (i == 3 || i == 4) {
                 hr.max.x -= 14.0 * k; // over the number, not its dot
             }
@@ -413,7 +425,10 @@ fn degree_table(ui: &mut Ui, r: Rect, rows: &[circle::Row], heads: &[&str; 5], b
                             let x = if i == 3 { row.fifth_x } else { row.third_x };
                             let dot = Pos2::new(cr.right() - 4.0 * k, cr.center().y);
                             b.circle(dot, 4.0 * k, Fill::Solid(circle::beat_colour(&s, x)));
-                            Rect::from_min_max(cr.min, Pos2::new(cr.right() - 14.0 * k, cr.bottom()))
+                            Rect::from_min_max(
+                                cr.min,
+                                Pos2::new(cr.right() - 14.0 * k, cr.bottom()),
+                            )
                         } else {
                             cr
                         };
