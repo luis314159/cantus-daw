@@ -169,6 +169,8 @@ pub struct CantusApp {
     pub picker: Option<crate::picker::PickPurpose>,
     /// The device picker's view: the catalogue, the search, favourites, thumbnails.
     pub picker_view: views::picker::PickerView,
+    /// r42:tuning-face — the picker's pictures made ahead while the window is quiet.
+    pub picker_warm: views::picker_warm::Warm,
     /// The preset browser (round 37, ADR 0101). // r37:library
     pub presets: crate::preset_browser::Browser, // r37:library
     /// The *Link to…* picker (round 26, ADR 0037).
@@ -292,6 +294,8 @@ pub struct CantusApp {
     pub unsaved_prompt: Option<views::unsaved::Then>,
     /// The export dialog and a running export (ADR 0033).
     pub export: views::export::ExportUi,
+    /// Project ▸ Tuning and MTS-ESP's link (round 42, ADR 0155-0156). // r42:tuning-face
+    pub tuning: views::tuning::TuningUi,
     auditions: Vec<(TrackId, u8, Instant)>,
     frame_times: Vec<f32>,
     /// Automation (ADR 0027): the last tweaked parameter, the lanes as the knobs read
@@ -588,6 +592,9 @@ impl CantusApp {
         views::plugin_notice::apply_default(&mut app);
         // Frozen renders' folders and low-latency monitoring (round 29, ADR 0064).
         crate::freeze::wire(&mut app);
+        // r42:tuning-face — MTS-ESP from its standard place, loaded here on the main thread
+        // (ADR 0156): the engine follows a master through it; Cantus publishes when it is one.
+        views::tuning::load_mts(&mut app);
         app.appearance = appearance;
         app.appearance_path = appearance_path.clone();
         app.appearance_watch = views::appearance_file::Watch::new(appearance_path);
@@ -835,6 +842,8 @@ impl CantusApp {
             recovery: None,
             unsaved_prompt: None,
             export: Default::default(),
+            tuning: Default::default(), // r42:tuning-face
+            picker_warm: Default::default(), // r42:tuning-face
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
             automation: Default::default(),
@@ -4432,6 +4441,14 @@ impl CantusApp {
                     self.workspace.toggle_fold(p);
                 }
             }
+            // r42:tuning-face — Project ▸ Tuning (ADR 0155), or closed when open.
+            OpenTuning => {
+                if self.tuning.open.is_some() {
+                    views::tuning::close(self);
+                } else {
+                    views::tuning::open(self, views::tuning::Target::Project);
+                }
+            }
             BrowsePresets => {
                 // r39:ux-b — the preset browser on the selected track's instrument, or
                 // closed when it is open (ADR 0110).
@@ -4967,6 +4984,9 @@ impl CantusApp {
         views::record_bar::frame(self, ctx); // r36:record — its questions
         views::interop::frame(self, ctx);
         views::export_dialog::show(self, ctx);
+        views::tuning::show(self, ctx); // r42:tuning-face — Project ▸ Tuning
+        views::tuning::frame(self, ctx); // r42:tuning-face — its audition, MTS-ESP's master
+        views::picker_warm::frame(self, ctx); // r42:tuning-face — pictures made ahead
         crate::video_export::frame(self, ctx); // r35:video — the video dialog and its export
         crate::transcribe_ui::view::show(self, ctx); // r34:transcribe
         crate::editor::view::show(self, ctx); // r36:editor

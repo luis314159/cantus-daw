@@ -78,6 +78,14 @@ pub struct Thumbs {
     rx: Receiver<Done>,
     /// The look whose old neighbours on disk were last pruned.
     pruned: u64,
+    /// r42:tuning-face — the pictures made ahead, while the app is idle (BACKLOG §6j): every
+    /// device in the order asked ([`Thumbs::warm`], the most used first), and those still to
+    /// make in this look. Lower than anything a tile asks for: one a pump, after them.
+    warm_all: Vec<Subject>,
+    warming: VecDeque<Subject>,
+    /// Pictures made ahead only to the disk: the atlas's page was full (it keeps the most
+    /// used; the rest come back from their files in a frame).
+    disk_only: HashSet<Subject>,
     pub stats: Stats,
 }
 
@@ -99,6 +107,9 @@ impl Default for Thumbs {
             tx,
             rx,
             pruned: 0,
+            warm_all: Vec::new(),
+            warming: VecDeque::new(),
+            disk_only: HashSet::new(),
             stats: Stats::default(),
         }
     }
@@ -163,6 +174,60 @@ impl Thumbs {
         self.wanted.is_empty() && self.busy.is_empty() && self.capturing.is_none()
     }
 
+    /// r42:tuning-face — make `subjects`' pictures ahead (BACKLOG §6j), in this order (the
+    /// most used first: the atlas keeps one page of them, the rest go to the disk only),
+    /// after anything a tile asks for, one a pump. Again in a new look.
+    pub fn warm(&mut self, subjects: impl IntoIterator<Item = Subject>) {
+        for s in subjects {
+            if !self.warm_all.contains(&s) {
+                self.warm_all.push(s);
+                self.warming.push_back(s);
+            }
+        }
+    }
+
+    /// How many pictures the warm-up has still to make or read in this look.
+    pub fn warm_left(&self) -> usize {
+        self.warming.len()
+    }
+
+    /// Whether `s`'s picture is ready to show at once: in the atlas, or made on disk (read
+    /// back in a frame, no editor drawn).
+    pub fn ready(&self, s: Subject) -> bool {
+        self.slots.contains_key(&s) || self.file(s, self.look).is_some_and(|p| p.exists())
+    }
+
+    /// The next picture to make ahead, if nothing a tile asked for waits: read back from
+    /// its file while the atlas has room, made (one editor) when it has no file. Returns
+    /// whether it started a capture.
+    fn warm_one(&mut self, ctx: &Context, look: u64) -> bool {
+        while let Some(s) = self.warming.pop_front() {
+            if self.slots.contains_key(&s) || self.busy.contains(&s) || self.failed.contains(&s) {
+                continue;
+            }
+            let room = self.slots.len() + self.busy.len() < PER_PAGE;
+            if self.file(s, look).is_some_and(|p| p.exists()) {
+                if !room {
+                    continue; // On disk: ready in a frame when its tile asks.
+                }
+                self.wanted.push_back(s);
+                return false;
+            }
+            if !room {
+                self.disk_only.insert(s);
+            }
+            self.stats.captures += 1;
+            self.busy.insert(s);
+            let mut c = picker_snap::Capture::start(ctx, s, PPP);
+            match c.step() {
+                Some(got) => self.captured(ctx, s, look, got),
+                None => self.capturing = Some(c),
+            }
+            return true;
+        }
+        false
+    }
+
     /// Once a frame: take in what the workers finished, start what is wanted.
     pub fn pump(&mut self, ctx: &Context) {
         if !self.enabled {
@@ -181,12 +246,18 @@ impl Thumbs {
             if let Some(c) = self.capturing.take() {
                 self.busy.remove(&c.subject());
             }
+            // r42:tuning-face — the warm-up begins again in the new look.
+            self.warming = self.warm_all.iter().copied().collect();
+            self.disk_only.clear();
         }
         while let Ok(done) = self.rx.try_recv() {
             match done {
                 Done::Image(s, l, img) => {
                     self.busy.remove(&s);
-                    if l == self.look {
+                    // r42:tuning-face — a picture made ahead past the atlas's page stays on
+                    // disk, unless a tile asked for it meanwhile.
+                    let ahead_only = self.disk_only.remove(&s) && !self.seen.contains_key(&s);
+                    if l == self.look && !ahead_only {
                         self.upload(ctx, s, &img);
                     }
                 }
@@ -248,7 +319,11 @@ impl Thumbs {
                 None => self.capturing = Some(c),
             }
         }
-        if !self.idle() {
+        // r42:tuning-face — then one picture made ahead, when nothing else is being made.
+        if !captured && self.wanted.is_empty() && self.capturing.is_none() {
+            self.warm_one(ctx, look);
+        }
+        if !self.idle() || !self.warming.is_empty() {
             crate::views::workspace_ticker::moving(
                 ctx,
                 crate::views::workspace_ticker::Reason::Background,

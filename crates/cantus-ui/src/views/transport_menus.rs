@@ -27,6 +27,8 @@ const MENU_KEY: f32 = 28.0;
 /// The most the name and the summary take before they elide (their whole in the hint).
 const NAME_MAX: f32 = 200.0;
 const SUMMARY_MAX: f32 = 180.0;
+/// What the song's tuning may add to the summary (r42:tuning-face).
+const TUNING_MAX: f32 = 260.0;
 
 thread_local! {
     /// The project's name and its dirty mark, rebuilt in place each frame.
@@ -72,7 +74,7 @@ fn with_summary<R>(app: &CantusApp, f: impl FnOnce(&str) -> R) -> R {
     SUMMARY.with(|c| {
         let mut c = c.borrow_mut();
         let pr = app.project();
-        let key = (pr.tracks.len(), pr.strips.len(), pr.content_end().0);
+        let key = (pr.tracks.len(), pr.strips.len(), pr.content_end().0, app.bus.revision()); // r42:tuning-face
         if c.0 != Some(key) {
             c.0 = Some(key);
             c.1 = summary(app);
@@ -90,8 +92,9 @@ pub fn brand_widths(app: &CantusApp, ctx: &egui::Context, s: &Style) -> [f32; 4]
         name_into(app, &mut n);
         p::measure(ctx, &n, Role::Title, 13.0, s).min(NAME_MAX * k)
     });
-    let summary =
-        with_summary(app, |w| p::measure(ctx, w, Role::Label, 11.0, s)).min(SUMMARY_MAX * k);
+    // r42:tuning-face — a song in a tuning of its own says it too (ADR 0155 §5), whole.
+    let most = SUMMARY_MAX + if app.project().tuning.is_default() { 0.0 } else { TUNING_MAX };
+    let summary = with_summary(app, |w| p::measure(ctx, w, Role::Label, 11.0, s)).min(most * k);
     let mark = (MARK + 8.0 + MENU_KEY + 8.0) * k;
     [
         (LOGO_W * k + menus.max(name + 8.0 * k + summary)).ceil(),
@@ -912,7 +915,8 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
 }
 
 /// What a summary line was made from: the tracks, the strips, the song's end.
-type SummaryKey = Option<(usize, usize, i64)>;
+/// r42:tuning-face — and the history's revision: the song's tuning is in the line too.
+type SummaryKey = Option<(usize, usize, i64, u64)>;
 
 thread_local! {
     /// The summary line and what it was made from: made again only when that changes (no
@@ -928,14 +932,19 @@ pub fn summary(app: &CantusApp) -> String {
     let bar = views::bars::bar_len(p, cantus_core::Ticks(0)).0.max(1);
     let bars = (end.0 + bar - 1) / bar;
     let secs = views::bars::seconds_between(p, cantus_core::Ticks(0), end).max(0.0) as u64;
-    crate::i18n::tf(
+    let line = crate::i18n::tf(
         "topbar.summary_line",
         &[
             ("tracks", &p.tracks.len().to_string()),
             ("bars", &bars.to_string()),
             ("time", &format!("{}:{:02}", secs / 60, secs % 60)),
         ],
-    )
+    );
+    // r42:tuning-face — only when the song is not in the default tuning (ADR 0155 §5).
+    match views::tuning::words::project_summary(p) {
+        Some(tuning) => format!("{line} \u{b7} {tuning}"),
+        None => line,
+    }
 }
 
 #[cfg(test)]

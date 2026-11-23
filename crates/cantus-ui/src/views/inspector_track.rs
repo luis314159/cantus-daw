@@ -103,6 +103,23 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
     // How its automation is written (round 31, ADR 0068): Read, Write, Touch, Latch.
     let mode = sheet::name(sh.fmt.tr(track.auto_mode.label_key()));
     sh.menu_row("automodes.mode", &mode, MenuId::AutoMode(id), false);
+    // r42:tuning-face — the track's tuning against the project's (ADR 0155): Follows the
+    // project, Equal temperament, or its own (the Tuning window, for this track).
+    if !crate::record_session::is_audio_track(track) {
+        let key = app.project().key;
+        let text = sh.fmt.get(
+            cache::key(("insp-tuning", id)),
+            app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60),
+            |b| {
+                b.push_str(&crate::views::tuning::words::track_mode_text(
+                    &track.tuning,
+                    key,
+                ))
+            },
+        );
+        let text = sheet::name(text);
+        sh.menu_row("tuning.row.track", &text, MenuId::Tuning(id), false);
+    }
 }
 
 /// The track's colour: the palette in a well, the chosen one ringed.

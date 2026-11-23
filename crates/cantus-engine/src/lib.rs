@@ -48,6 +48,7 @@ pub mod samples;
 pub mod sched;
 pub mod stems;
 pub mod transport;
+pub mod mts; // r42:tuning-face — ExternalTuning on MTS-ESP (ADR 0156)
 pub mod tuning; // r42:contract (ADR 0155, 0156): the tuning's engine side and the MTS-ESP seam
 pub mod warp;
 

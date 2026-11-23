@@ -207,7 +207,7 @@ fn card(
     display: f32,
     keys: &[&str],
     paint: impl FnOnce(&mut crate::kit::Brush, Rect, &Style),
-) {
+) -> Option<Rect> {
     let sf = s.function(f);
     let mut c = Card::new(title, f);
     if display > 0.0 {
@@ -224,6 +224,7 @@ fn card(
     if !keys.is_empty() {
         cells(app, ui, cr.body, track, spec, keys, &sf, KnobSize::M);
     }
+    cr.display // r42:tuning-face — where the tuning's line goes
 }
 
 /// The display's height that makes a card `h` points tall (at the style's scale) with a
@@ -291,7 +292,10 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         &["unison", "coupling", "phantom"],
         |b, d, sf| draw::grand(b, d, sf, &keys, &now, grip, busy.as_deref()),
     );
-    card(
+    // r42:tuning-face — the song's tuning (ADR 0155) on a line of its own under the
+    // stretch: Chorda's stretch, stiffness and unisons stay its own, beside it.
+    let line_h = s.d(20.0);
+    let tune = card(
         app,
         ui,
         track,
@@ -302,8 +306,15 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         Function::Tone,
         170.0,
         &["a4", "stretch", "stiffness"],
-        |b, d, sf| draw::stretch(b, d, sf, &keys, a4, busy.is_some()),
+        |b, d, sf| {
+            let top = Rect::from_min_max(d.min, Pos2::new(d.right(), d.bottom() - line_h));
+            draw::stretch(b, top, sf, &keys, a4, busy.is_some())
+        },
     );
+    if let Some(d) = tune {
+        let line = Rect::from_min_max(Pos2::new(d.left(), d.bottom() - line_h), d.max);
+        crate::views::tuning::chorda_line(app, ui, track, line, s); // r42:tuning-face
+    }
 
     let r2 = rows.row(heights[1], &[0.5, 0.5]);
     card(
