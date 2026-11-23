@@ -33,7 +33,8 @@ fn pass(app: &mut CantusApp, ctx: &egui::Context, time: f64, events: Vec<egui::E
         ..Default::default()
     };
     let t0 = Instant::now();
-    let _ = ctx.run_ui(input, |ui| picker_warm::frame(app, &ui.ctx().clone()));
+    let mut out = ctx.run_ui(input, |ui| picker_warm::frame(app, &ui.ctx().clone()));
+    out.textures_delta.clear();
     t0.elapsed().as_secs_f64() * 1e3
 }
 
@@ -123,7 +124,8 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
             ..Default::default()
         };
         let t0 = Instant::now();
-        let _ = ctx2.run_ui(input, |_| {});
+        let mut out = ctx2.run_ui(input, |_| {});
+        out.textures_delta.clear();
         empty.push(t0.elapsed().as_secs_f64() * 1e3);
     }
     let median = |v: &mut Vec<f64>| {
@@ -133,6 +135,18 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
     let (rest_ms, empty_ms) = (median(&mut rest), median(&mut empty));
     steps.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let worst = steps.last().copied().unwrap_or(0.0);
+    let over = steps.iter().filter(|ms| **ms > 1000.0 / 60.0).count();
+    let top: Vec<String> = steps
+        .iter()
+        .rev()
+        .take(6)
+        .map(|ms| format!("{ms:.0}"))
+        .collect();
+    eprintln!(
+        "warm-up passes over a 60 Hz frame: {over} of {} (the slowest, ms: {})",
+        steps.len(),
+        top.join(", ")
+    );
     let typical = steps[steps.len() / 2];
     eprintln!(
         "warm-up: {} pictures, {captures} editors drawn, {} passes; a pass {typical:.2} ms typical, {worst:.1} ms worst; at rest {rest_ms:.3} ms vs an empty pass {empty_ms:.3} ms",

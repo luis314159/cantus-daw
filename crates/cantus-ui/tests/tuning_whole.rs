@@ -211,3 +211,78 @@ fn the_top_bar_says_a_tuned_songs_line_whole() {
     i18n::set_thread_locale(Locale::En);
     assert!(bad.is_empty(), "not read whole:\n{}", bad.join("\n"));
 }
+
+/// Chorda's Temperament card reads whole (the owner's ask of 2026-11-22): Chorda's Edit view
+/// with its own *Werckmeister III* in E, and following the project's tuning, in both themes
+/// at 100 % and dark at 75, 150 and 200 %, in both languages — every word cut there that is
+/// not cut in Chorda's Edit view of a song with no tuning (what the card added).
+#[test]
+fn chordas_temperament_card_reads_whole_in_both_languages() {
+    use cantus_core::InstrumentKind;
+    use cantus_ui::kit::shell::Shell;
+    use cantus_ui::views::inst::View;
+    let _turn = theme_turn();
+    let kind = InstrumentKind::Chorda;
+    cantus_ui::views::inst::chorda::scene::set_blocking(true);
+    let mut bad = Vec::new();
+    for lang in [Locale::En, Locale::Es] {
+        i18n::set_thread_locale(lang);
+        for (k, dark) in SCALES {
+            let mut seen_in = |state: &str| {
+                let ctx = context(dark);
+                let mut app =
+                    CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+                app.demo_editor("chorda");
+                let track = app.inst.open.expect("Chorda is open");
+                match state {
+                    "own" => {
+                        let spec = app
+                            .project()
+                            .track(track)
+                            .and_then(|t| t.instrument.native().cloned())
+                            .unwrap();
+                        let p = tuning::chorda::PRESETS
+                            .iter()
+                            .find(|p| p.name == "tuning.temper.meantone_quarter")
+                            .unwrap();
+                        app.exec(tuning::chorda::preset_command(&spec, track, p, 4));
+                    }
+                    "project" => {
+                        tuning::set(
+                            &mut app,
+                            Target::Project,
+                            Tuning {
+                                a4_hz: 415.0,
+                                system: TuningSystem::Temperament {
+                                    id: Temperament::Barbershop7,
+                                    key: 3,
+                                    follow_song_key: false,
+                                },
+                                map: None,
+                            },
+                        );
+                    }
+                    _ => {}
+                }
+                app.inst.view = View::Edit;
+                Shell::new(("inst", track.0)).set_scale(&ctx, k);
+                let size = cantus_ui::views::inst::editor_size(kind) * k;
+                probe::start_clipped();
+                cantus_ui::raster::shoot(&ctx, size, 1.0, 3, None, |ui| {
+                    cantus_ui::views::inst::window_in(&mut app, ui);
+                });
+                seen()
+            };
+            let plain = seen_in("plain");
+            for state in ["own", "project"] {
+                for c in seen_in(state) {
+                    if !plain.contains(&c) {
+                        bad.push(format!("chorda {state} {lang:?} {k} dark {dark}: {c}"));
+                    }
+                }
+            }
+        }
+    }
+    i18n::set_thread_locale(Locale::En);
+    assert!(bad.is_empty(), "not read whole:\n{}", bad.join("\n"));
+}
