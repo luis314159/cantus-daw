@@ -69,7 +69,9 @@ pub enum MasterState {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Refusal {
     /// Another master is registered (ODDSound: "only one master … at any one time").
-    Another { can_reinitialize: bool },
+    Another {
+        can_reinitialize: bool,
+    },
     Unsupported,
 }
 
@@ -283,7 +285,10 @@ impl Mts {
             return None;
         }
         // SAFETY: non-null, NUL-terminated, valid until the master renames — copied now.
-        let s = unsafe { CStr::from_ptr(p) }.to_string_lossy().trim().to_string();
+        let s = unsafe { CStr::from_ptr(p) }
+            .to_string_lossy()
+            .trim()
+            .to_string();
         (!s.is_empty()).then_some(s)
     }
 }
@@ -479,8 +484,8 @@ mod sys {
 
     impl Lib {
         pub fn open(path: &std::path::Path) -> Result<Lib, String> {
-            let c = std::ffi::CString::new(path.as_os_str().as_bytes())
-                .map_err(|e| e.to_string())?;
+            let c =
+                std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(|e| e.to_string())?;
             // SAFETY: a NUL-terminated path valid for the call.
             let h = unsafe { libc::dlopen(c.as_ptr(), libc::RTLD_NOW) };
             if h.is_null() {
@@ -528,12 +533,18 @@ mod tests {
             let name = p.file_name().unwrap().to_string_lossy().to_lowercase();
             assert!(name.starts_with("libmts"), "{name}");
         }
-        assert!(cfg!(not(any(windows, target_os = "macos", target_os = "linux"))) || standard_path().is_some());
+        assert!(
+            cfg!(not(any(windows, target_os = "macos", target_os = "linux")))
+                || standard_path().is_some()
+        );
     }
 
     #[test]
     fn a_missing_file_is_not_installed() {
         let p = std::env::temp_dir().join("cantus-no-such-libmts.bin");
-        assert_eq!(Mts::open(&p).unwrap_err(), LoadError::NotInstalled(p.clone()));
+        assert_eq!(
+            Mts::open(&p).unwrap_err(),
+            LoadError::NotInstalled(p.clone())
+        );
     }
 }

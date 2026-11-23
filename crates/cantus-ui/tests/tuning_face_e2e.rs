@@ -112,7 +112,10 @@ fn a_scala_file_imported_through_the_window_is_what_chorda_plays_and_exports() {
     let (engine, _proc) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::assemble(&ctx, files, None, engine, None, None, None, false);
     // The boot loaded MTS-ESP (or said why not): the window has its link.
-    assert!(app.tuning.mts.is_some(), "the boot path loads MTS-ESP's link");
+    assert!(
+        app.tuning.mts.is_some(),
+        "the boot path loads MTS-ESP's link"
+    );
     let reference = cantus_engine::inst::chorda::reference();
     cantus_engine::inst::chorda::ensure(reference, 48_000.0);
     app.apply_pick(
@@ -183,8 +186,14 @@ fn a_scala_file_imported_through_the_window_is_what_chorda_plays_and_exports() {
     for (i, k) in KEYS.iter().enumerate() {
         let moved = 1200.0 * (tuned[i] / equal[i]).log2();
         let want = 100.0 * f64::from(table.at(*k));
-        eprintln!("key {k}: equal {:.3} Hz, tuned {:.3} Hz, moved {moved:+.3} c, table {want:+.3} c", equal[i], tuned[i]);
-        assert!((moved - want).abs() < 0.1, "key {k}: moved {moved} c, table {want} c");
+        eprintln!(
+            "key {k}: equal {:.3} Hz, tuned {:.3} Hz, moved {moved:+.3} c, table {want:+.3} c",
+            equal[i], tuned[i]
+        );
+        assert!(
+            (moved - want).abs() < 0.1,
+            "key {k}: moved {moved} c, table {want} c"
+        );
     }
 
     // Exported, and read back to the same cents.
@@ -215,9 +224,12 @@ fn a_file_the_scala_grammar_refuses_is_refused_with_its_reason_and_changes_nothi
     let (engine, _proc) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::assemble(&ctx, files, None, engine, None, None, None, false);
     let before = app.project().tuning.clone();
-    for bad in ["bad/missingnote.scl", "bad/badnote.scl", "bad/blanknote.scl"] {
-        let e = tuning::io::import(&mut app, Target::Project, &outside(bad), None)
-            .expect_err(bad);
+    for bad in [
+        "bad/missingnote.scl",
+        "bad/badnote.scl",
+        "bad/blanknote.scl",
+    ] {
+        let e = tuning::io::import(&mut app, Target::Project, &outside(bad), None).expect_err(bad);
         assert!(e.starts_with("Not read: "), "{bad}: {e}");
         assert_eq!(app.project().tuning, before, "{bad}");
     }

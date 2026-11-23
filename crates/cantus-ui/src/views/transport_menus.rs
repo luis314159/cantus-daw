@@ -74,7 +74,8 @@ fn with_summary<R>(app: &CantusApp, f: impl FnOnce(&str) -> R) -> R {
     SUMMARY.with(|c| {
         let mut c = c.borrow_mut();
         let pr = app.project();
-        let key = (pr.tracks.len(), pr.strips.len(), pr.content_end().0, app.bus.revision()); // r42:tuning-face
+        let tuning = views::tuning::words::summary_key(pr); // r42:tuning-face
+        let key = (pr.tracks.len(), pr.strips.len(), pr.content_end().0, tuning);
         if c.0 != Some(key) {
             c.0 = Some(key);
             c.1 = summary(app);
@@ -93,7 +94,12 @@ pub fn brand_widths(app: &CantusApp, ctx: &egui::Context, s: &Style) -> [f32; 4]
         p::measure(ctx, &n, Role::Title, 13.0, s).min(NAME_MAX * k)
     });
     // r42:tuning-face — a song in a tuning of its own says it too (ADR 0155 §5), whole.
-    let most = SUMMARY_MAX + if app.project().tuning.is_default() { 0.0 } else { TUNING_MAX };
+    let most = SUMMARY_MAX
+        + if app.project().tuning.is_default() {
+            0.0
+        } else {
+            TUNING_MAX
+        };
     let summary = with_summary(app, |w| p::measure(ctx, w, Role::Label, 11.0, s)).min(most * k);
     let mark = (MARK + 8.0 + MENU_KEY + 8.0) * k;
     [
@@ -915,7 +921,7 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
 }
 
 /// What a summary line was made from: the tracks, the strips, the song's end.
-/// r42:tuning-face — and the history's revision: the song's tuning is in the line too.
+/// r42:tuning-face — and the song's tuning (`tuning::words::summary_key`): it is in the line.
 type SummaryKey = Option<(usize, usize, i64, u64)>;
 
 thread_local! {
@@ -998,6 +1004,29 @@ mod summary_tests {
         assert!(
             line.ends_with(" \u{b7} Werckmeister III in Eb \u{b7} A415"),
             "{line}"
+        );
+        // The full form is as wide as the name and the whole line (none of it elided).
+        let ctx = egui::Context::default();
+        crate::design::install_fonts(&ctx);
+        crate::design::install_style(&ctx);
+        let mut widths = ([0.0f32; 4], 0.0f32, 0.0f32);
+        for _ in 0..3 {
+            let _ = ctx.run(egui::RawInput::default(), |ctx| {
+                let s = super::Style::current();
+                let w = super::brand_widths(&app, ctx, &s);
+                let sum = super::p::measure(ctx, &line, super::Role::Label, 11.0, &s);
+                let mut n = String::new();
+                super::name_into(&app, &mut n);
+                let name = super::p::measure(ctx, &n, super::Role::Title, 13.0, &s);
+                widths = (w, sum, name);
+            });
+        }
+        let (w, sum, name) = widths;
+        assert!(
+            w[0] + 0.5 >= super::LOGO_W + name + 8.0 + sum,
+            "full {} < logo {} + name {name} + 8 + summary {sum}",
+            w[0],
+            super::LOGO_W
         );
     }
 }

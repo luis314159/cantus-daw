@@ -17,7 +17,7 @@ use egui::{Align2, Id, Pos2, Rect, Response, Sense, Ui, Vec2};
 /// The window at 100 %.
 pub const SIZE: Vec2 = Vec2::new(1000.0, 740.0);
 /// The controls' column.
-const LEFT: f32 = 452.0;
+const LEFT: f32 = 500.0;
 /// A row's caption column.
 pub(super) const CAPTION: f32 = 124.0;
 
@@ -48,7 +48,10 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let (r, _) = ui.allocate_exact_size(screen.size(), Sense::click());
             with_brush(ui.painter(), |b| {
-                b.rect(r, Fill::Solid(crate::views::workspace_settings::scrim_fill(&s)))
+                b.rect(
+                    r,
+                    Fill::Solid(crate::views::workspace_settings::scrim_fill(&s)),
+                )
             });
         });
     let size = (SIZE * k).min(screen.size() - Vec2::splat(24.0));
@@ -68,7 +71,11 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             if crate::views::workspace_settings::title(ui, head, &s, Glyph::Key, title) {
                 close = true;
             }
-            put(ui, "close", Rect::from_min_max(Pos2::new(head.right() - 44.0 * k, head.top()), head.max));
+            put(
+                ui,
+                "close",
+                Rect::from_min_max(Pos2::new(head.right() - 44.0 * k, head.top()), head.max),
+            );
             let foot = Rect::from_min_max(
                 Pos2::new(rect.left() + 18.0 * k, rect.bottom() - 52.0 * k),
                 Pos2::new(rect.right() - 18.0 * k, rect.bottom() - 14.0 * k),
@@ -234,7 +241,11 @@ fn pictures(app: &CantusApp, ui: &mut Ui, r: Rect, target: Target) {
     let tu = super::effective(&super::tuning_of(app, target), app.project().key);
     let table = super::table_of(app, target);
     let scale = match &tu.system {
-        cantus_core::tuning::TuningSystem::Scale(sc) if !(sc.degrees.len() == 12 && tu.map.is_none()) => Some(sc.clone()),
+        cantus_core::tuning::TuningSystem::Scale(sc)
+            if !(sc.degrees.len() == 12 && tu.map.is_none()) =>
+        {
+            Some(sc.clone())
+        }
         _ => None,
     };
     let twelve = scale.is_none() && circle::twelve_to_the_octave(&table);
@@ -245,10 +256,7 @@ fn pictures(app: &CantusApp, ui: &mut Ui, r: Rect, target: Target) {
     let mut y = r.top();
     if twelve {
         let side = (r.width().min(330.0 * k)).min(r.height() * 0.52);
-        let cr = Rect::from_center_size(
-            Pos2::new(r.center().x, y + side * 0.5),
-            Vec2::splat(side),
-        );
+        let cr = Rect::from_center_size(Pos2::new(r.center().x, y + side * 0.5), Vec2::splat(side));
         let centres = with_brush(ui.painter(), |b| circle::paint(b, cr, &s, &table, tonic));
         // The circle's centre: the tonic it is tuned to, and the diapason under it.
         let mid = Rect::from_center_size(cr.center(), Vec2::new(side * 0.4, 52.0 * k));
@@ -347,7 +355,11 @@ fn degree_table(ui: &mut Ui, r: Rect, rows: &[circle::Row], heads: &[&str; 5], b
             if key.is_empty() {
                 continue;
             }
-            let align = if i == 0 { Align2::LEFT_CENTER } else { Align2::RIGHT_CENTER };
+            let align = if i == 0 {
+                Align2::LEFT_CENTER
+            } else {
+                Align2::RIGHT_CENTER
+            };
             let _ = text::paint(
                 b,
                 col_rect(head, i),
@@ -367,16 +379,30 @@ fn degree_table(ui: &mut Ui, r: Rect, rows: &[circle::Row], heads: &[&str; 5], b
         .max_height(body.height())
         .show(&mut child, |ui| {
             let w = body.width() - 12.0 * k;
+            ui.spacing_mut().item_spacing.y = 0.0;
             for (n, row) in rows.iter().enumerate() {
                 let (line, _) = ui.allocate_exact_size(Vec2::new(w, 18.0 * k), Sense::hover());
                 with_brush(ui.painter(), |b| {
                     if n % 2 == 1 {
-                        b.rect(line, Fill::Solid(crate::kit::color::with_alpha(s.t.text, 0.04)));
+                        b.rect(
+                            line,
+                            Fill::Solid(crate::kit::color::with_alpha(s.t.text, 0.04)),
+                        );
                     }
-                    let words = [&row.name, &row.cents, &row.from_equal, &row.fifth, &row.third];
+                    let words = [
+                        &row.name,
+                        &row.cents,
+                        &row.from_equal,
+                        &row.fifth,
+                        &row.third,
+                    ];
                     for (i, w) in words.iter().enumerate() {
                         let cr = col_rect(line, i);
-                        let align = if i == 0 { Align2::LEFT_CENTER } else { Align2::RIGHT_CENTER };
+                        let align = if i == 0 {
+                            Align2::LEFT_CENTER
+                        } else {
+                            Align2::RIGHT_CENTER
+                        };
                         let ink = if i == 0 { s.t.text } else { s.t.readout };
                         if beats && (i == 3 || i == 4) {
                             let x = if i == 3 { row.fifth_x } else { row.third_x };
@@ -403,7 +429,10 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect, target: Target) -> bool 
     let s = Style::current();
     let k = s.k;
     let buttons = Rect::from_min_max(Pos2::new(rect.right() - 330.0 * k, rect.top()), rect.max);
-    let status = Rect::from_min_max(rect.min, Pos2::new(buttons.left() - 16.0 * k, rect.bottom()));
+    let status = Rect::from_min_max(
+        rect.min,
+        Pos2::new(buttons.left() - 16.0 * k, rect.bottom()),
+    );
     let tu = super::tuning_of(app, target);
     let words = if tu.is_default() {
         t("tuning.summary.default")

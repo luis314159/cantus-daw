@@ -42,7 +42,9 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
     let dir = tempfile::tempdir().unwrap();
     let ctx = ctx();
     let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
-    app.picker_view.thumbs.enable(Some(dir.path().to_path_buf()));
+    app.picker_view
+        .thumbs
+        .enable(Some(dir.path().to_path_buf()));
     let all: Vec<Subject> = picker_warm::order(&mut app);
     assert!(all.len() > 30, "every device with an editor: {}", all.len());
     // The recently chosen first.
@@ -54,13 +56,19 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
         pass(&mut app, &ctx, t, Vec::new());
         t += 0.1;
     }
-    assert_eq!(app.picker_view.thumbs.stats.captures, 0, "not during the start-up");
+    assert_eq!(
+        app.picker_view.thumbs.stats.captures, 0,
+        "not during the start-up"
+    );
     let moving = vec![egui::Event::PointerMoved(egui::pos2(100.0, 100.0))];
     for _ in 0..20 {
         pass(&mut app, &ctx, t, moving.clone());
         t += 0.05;
     }
-    assert_eq!(app.picker_view.thumbs.stats.captures, 0, "not under a moving hand");
+    assert_eq!(
+        app.picker_view.thumbs.stats.captures, 0,
+        "not under a moving hand"
+    );
 
     // Quiet: it makes them, one editor at a time.
     let mut steps = Vec::new();
@@ -96,7 +104,10 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
         }
         assert!(got, "{s:?} shows its picture");
     }
-    assert_eq!(th.stats.captures, captures, "no editor drawn while scrolling");
+    assert_eq!(
+        th.stats.captures, captures,
+        "no editor drawn while scrolling"
+    );
 
     // Done, it asks for nothing: a pass costs what an empty pass costs.
     let mut rest = Vec::new();

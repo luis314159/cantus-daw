@@ -29,6 +29,7 @@ pub mod master_tap; // r35:stage — the master for the stage's visualiser (ADR 
 pub mod messages;
 pub mod midi;
 pub mod modulator;
+pub mod mts; // r42:tuning-face — ExternalTuning on MTS-ESP (ADR 0156)
 pub mod need_mailbox; // integration of round 39: a request too large for the event (ADR 0112)
 pub mod notefx;
 pub mod padout; // r37:drums (ADR 0100): instruments with several outputs
@@ -48,7 +49,6 @@ pub mod samples;
 pub mod sched;
 pub mod stems;
 pub mod transport;
-pub mod mts; // r42:tuning-face — ExternalTuning on MTS-ESP (ADR 0156)
 pub mod tuning; // r42:contract (ADR 0155, 0156): the tuning's engine side and the MTS-ESP seam
 pub mod warp;
 

@@ -55,7 +55,7 @@ pub fn beat_colour(s: &Style, x: f64) -> Color32 {
 
 /// Where a fifth's beat rate reaches the scale's top, per second (Pythagorean's wolf and
 /// meantone's beat far faster; equal temperament's fifth beats under one per second).
-pub const FIFTH_TOP: f64 = 3.0;
+pub const FIFTH_TOP: f64 = 8.0;
 /// Where a major third's reaches it (equal temperament's beats about 10, Pythagorean's 16).
 pub const THIRD_TOP: f64 = 16.0;
 
@@ -93,7 +93,15 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, table: &TuningTable, tonic: u
         let fifth = beat_colour(s, fifth_beats(table, pc) / FIFTH_TOP);
         b.arc(c, r_out, a0 + gap, a0 + step - gap, w, fifth, false);
         let third = beat_colour(s, third_beats(table, pc) / THIRD_TOP);
-        b.arc(c, r_in, a0 - step * 0.5 + gap, a0 + step * 0.5 - gap, w, third, false);
+        b.arc(
+            c,
+            r_in,
+            a0 - step * 0.5 + gap,
+            a0 + step * 0.5 - gap,
+            w,
+            third,
+            false,
+        );
         let p = c + Vec2::angled(a0) * r_label;
         centres[usize::from(pc)] = p;
         let on = pc == tonic % 12;
@@ -114,7 +122,13 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, table: &TuningTable, tonic: u
         );
         // A tick where each fifth ends, between two arcs.
         let tick = Vec2::angled(a0);
-        b.segment(c + tick * (r_out - w), c + tick * (r_out + w), 1.0 * k, s.t.edge, false);
+        b.segment(
+            c + tick * (r_out - w),
+            c + tick * (r_out + w),
+            1.0 * k,
+            s.t.edge,
+            false,
+        );
     }
     centres
 }
@@ -199,11 +213,11 @@ pub fn hover_words(table: &TuningTable, pc: u8) -> String {
     tf(
         "tuning.circle.hover",
         &[
-            ("note", key_name(pc)),
-            ("fifth", key_name(pc + 7)),
+            ("note", &key_name(pc)),
+            ("fifth", &key_name(pc + 7)),
             ("fbeats", &format!("{:.2}", fifth_beats(table, pc))),
             ("fcents", &signed_cents(fifth_from_pure(table, pc))),
-            ("third", key_name(pc + 4)),
+            ("third", &key_name(pc + 4)),
             ("tbeats", &format!("{:.2}", third_beats(table, pc))),
         ],
     )
@@ -228,7 +242,10 @@ pub fn legend(b: &mut Brush, rect: Rect, s: &Style) {
             let x0 = bar.left() + bar.width() * i as f32 / n as f32;
             let x1 = bar.left() + bar.width() * (i + 1) as f32 / n as f32;
             let seg = Rect::from_min_max(Pos2::new(x0, bar.top()), Pos2::new(x1, bar.bottom()));
-            b.rect(seg, crate::kit::Fill::Solid(beat_colour(s, i as f64 / (n - 1) as f64)));
+            b.rect(
+                seg,
+                crate::kit::Fill::Solid(beat_colour(s, i as f64 / (n - 1) as f64)),
+            );
         }
         let words = tf(key, &[("top", &format!("{top:.0}"))]);
         let _ = text::paint(
@@ -251,8 +268,16 @@ mod tests {
     fn equal_temperaments_fifths_and_thirds_beat_as_the_books_say() {
         let t = TuningTable::EQUAL;
         // At middle C: the fifth C–G beats about 0.89 per second, the third C–E about 10.4.
-        assert!((fifth_beats(&t, 0) - 0.889).abs() < 0.01, "{}", fifth_beats(&t, 0));
-        assert!((third_beats(&t, 0) - 10.38).abs() < 0.05, "{}", third_beats(&t, 0));
+        assert!(
+            (fifth_beats(&t, 0) - 0.889).abs() < 0.01,
+            "{}",
+            fifth_beats(&t, 0)
+        );
+        assert!(
+            (third_beats(&t, 0) - 10.38).abs() < 0.05,
+            "{}",
+            third_beats(&t, 0)
+        );
         assert!((fifth_from_pure(&t, 0) + 1.955).abs() < 1e-3);
         assert!(twelve_to_the_octave(&t));
         let rows = twelve_rows(&t, 440.0);

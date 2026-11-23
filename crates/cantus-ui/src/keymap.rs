@@ -2261,7 +2261,8 @@ play-pause = [\"Enter\"]
             &[Binding::key(Key::Enter)]
         );
         assert!(map.bindings_for(Action::SessionLaunch).is_empty());
-        assert_eq!(FILE_VERSION, 20); // r42:tuning-face
+        // r42:tuning-face — version 20: the song's tuning (Ctrl+Alt+T).
+        assert_eq!(FILE_VERSION, 20);
         // Every preset gives the session's keys and none of them twice.
         for p in Preset::ALL {
             let m = p.keymap();

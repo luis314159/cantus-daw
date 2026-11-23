@@ -64,7 +64,11 @@ pub fn read_scl(bytes: &[u8]) -> Result<ScalaScale, ScalaError> {
 
 fn degree(w: &str) -> Option<ScaleDegree> {
     if w.contains('.') {
-        return w.parse::<f64>().ok().filter(|c| c.is_finite()).map(ScaleDegree::Cents);
+        return w
+            .parse::<f64>()
+            .ok()
+            .filter(|c| c.is_finite())
+            .map(ScaleDegree::Cents);
     }
     let (n, d) = match w.split_once('/') {
         Some((n, d)) => (n.parse::<u64>().ok()?, d.parse::<u64>().ok()?),
@@ -98,7 +102,9 @@ pub fn read_kbm(bytes: &[u8]) -> Result<KeyboardMap, ScalaError> {
     for i in 0..size as usize {
         match words.get(7 + i).map(String::as_str) {
             None | Some("x") | Some("X") => mapping.push(None),
-            Some(w) => mapping.push(Some(w.parse::<u32>().map_err(|_| format!("bad degree {w:?}"))?)),
+            Some(w) => mapping.push(Some(
+                w.parse::<u32>().map_err(|_| format!("bad degree {w:?}"))?,
+            )),
         }
     }
     Ok(KeyboardMap {
@@ -137,10 +143,16 @@ pub fn write_kbm(m: &KeyboardMap) -> String {
         ("Map size", m.size.to_string()),
         ("First MIDI note to retune", m.first_key.to_string()),
         ("Last MIDI note to retune", m.last_key.to_string()),
-        ("Middle note where the first entry is mapped", m.middle_key.to_string()),
+        (
+            "Middle note where the first entry is mapped",
+            m.middle_key.to_string(),
+        ),
         ("Reference note", m.reference_key.to_string()),
         ("Reference frequency", format!("{:.6}", m.reference_hz)),
-        ("Scale degree of the formal octave", m.octave_degree.to_string()),
+        (
+            "Scale degree of the formal octave",
+            m.octave_degree.to_string(),
+        ),
     ] {
         out.push_str(&format!("! {what}\n{v}\n"));
     }

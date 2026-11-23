@@ -37,7 +37,7 @@ pub fn system_name(tu: &Tuning, key: Option<Key>) -> String {
         TuningSystem::Equal => t("tuning.system.equal_name"),
         TuningSystem::Temperament { id, key, .. } => tf(
             "tuning.summary.temper",
-            &[("name", &t(id.name_key())), ("key", key_name(*key))],
+            &[("name", &t(id.name_key())), ("key", &key_name(*key))],
         ),
         TuningSystem::Scale(s) => scale_name(s),
         TuningSystem::External => t("tuning.system.external_name"),
@@ -85,6 +85,32 @@ pub fn project_summary(p: &cantus_core::Project) -> Option<String> {
     (!p.tuning.is_default()).then(|| summary_of(&p.tuning, p.key))
 }
 
+/// What the summary is made from, without making it (no allocation): the top bar's widths
+/// are measured again only when it changes.
+pub fn summary_key(p: &cantus_core::Project) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    let tu = &p.tuning;
+    tu.a4_hz.to_bits().hash(&mut h);
+    tu.map.is_some().hash(&mut h);
+    match &tu.system {
+        TuningSystem::Equal => 0u8.hash(&mut h),
+        TuningSystem::Temperament {
+            id,
+            key,
+            follow_song_key,
+        } => {
+            (1u8, *id, *key, *follow_song_key).hash(&mut h);
+            if *follow_song_key {
+                p.key.map(|k| k.root).hash(&mut h);
+            }
+        }
+        TuningSystem::Scale(s) => (2u8, s.description.as_str(), s.degrees.len()).hash(&mut h),
+        TuningSystem::External => 3u8.hash(&mut h),
+    }
+    h.finish()
+}
+
 /// A track's override, as its inspector row reads it: "Follows the project", "Equal
 /// temperament", or its own tuning's summary.
 pub fn track_mode_text(mode: &TrackTuning, key: Option<Key>) -> String {
@@ -105,7 +131,8 @@ pub fn track_mode_text(mode: &TrackTuning, key: Option<Key>) -> String {
 /// A degree as its file wrote it: "3/2", "701.955".
 pub fn degree_written(d: &ScaleDegree) -> String {
     match *d {
-        ScaleDegree::Cents(c) => format!("{c:.3}"),
+        // As the file wrote it: the shortest decimal that reads back to the same number.
+        ScaleDegree::Cents(c) => format!("{c}"),
         ScaleDegree::Ratio(n, d) if d == 1 => format!("{n}"),
         ScaleDegree::Ratio(n, d) => format!("{n}/{d}"),
     }

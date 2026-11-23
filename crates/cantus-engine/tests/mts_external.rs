@@ -41,11 +41,8 @@ fn rustc() -> std::ffi::OsString {
         return r;
     }
     if let Some(cargo) = std::env::var_os("CARGO") {
-        let beside = PathBuf::from(cargo).with_file_name(if cfg!(windows) {
-            "rustc.exe"
-        } else {
-            "rustc"
-        });
+        let beside =
+            PathBuf::from(cargo).with_file_name(if cfg!(windows) { "rustc.exe" } else { "rustc" });
         if beside.is_file() {
             return beside.into_os_string();
         }
@@ -105,7 +102,11 @@ fn werck_415() -> TuningTable {
 fn hz_and_semitones_convert_both_ways_exactly_enough() {
     let t = werck_415();
     let hz = hz_of(&t);
-    assert!((hz[69] - 415.0).abs() < 1e-3, "A4 at the diapason: {}", hz[69]);
+    assert!(
+        (hz[69] - 415.0).abs() < 1e-3,
+        "A4 at the diapason: {}",
+        hz[69]
+    );
     let mut back = TuningTable::EQUAL;
     table_of(&hz, &mut back);
     for k in 0..KEYS {
@@ -155,7 +156,10 @@ fn cantus_follows_a_master_and_leads_its_clients() {
     assert!(follower.read(&mut out));
     for k in 0..KEYS {
         if k == 61 {
-            assert!(out.0[k].is_nan(), "the master's unmapped key sounds nothing");
+            assert!(
+                out.0[k].is_nan(),
+                "the master's unmapped key sounds nothing"
+            );
         } else {
             assert!((out.0[k] - table.0[k]).abs() < 1e-5, "key {k}");
         }

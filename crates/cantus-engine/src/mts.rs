@@ -99,7 +99,8 @@ impl MtsLink {
 
     /// Whether another program is the master now.
     pub fn follows(&self) -> bool {
-        self.library().is_some_and(|m| !m.is_master() && m.has_master())
+        self.library()
+            .is_some_and(|m| !m.is_master() && m.has_master())
     }
 }
 

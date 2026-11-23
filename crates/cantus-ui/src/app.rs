@@ -842,7 +842,7 @@ impl CantusApp {
             recovery: None,
             unsaved_prompt: None,
             export: Default::default(),
-            tuning: Default::default(), // r42:tuning-face
+            tuning: Default::default(),      // r42:tuning-face
             picker_warm: Default::default(), // r42:tuning-face
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),

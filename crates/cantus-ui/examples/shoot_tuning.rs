@@ -27,17 +27,25 @@ use cantus_ui::views::workspace_device as device;
 use cantus_ui::{raster, welcome_project, CantusApp};
 use std::path::{Path, PathBuf};
 
-const KINDS: [&str; 7] = ["equal", "werck", "follow", "scale", "track", "inspector", "chorda"];
+const KINDS: [&str; 7] = [
+    "equal",
+    "werck",
+    "follow",
+    "scale",
+    "track",
+    "inspector",
+    "chorda",
+];
 const SIZE: egui::Vec2 = egui::vec2(1440.0, 900.0);
 
 /// Werckmeister III and Vallotti from C, cents (§5.2).
 const WERCK3: [f64; 12] = [
-    0.0, 90.225, 192.180, 294.135, 390.225, 498.045, 588.270, 696.090, 792.180, 888.270,
-    996.090, 1092.180,
+    0.0, 90.225, 192.180, 294.135, 390.225, 498.045, 588.270, 696.090, 792.180, 888.270, 996.090,
+    1092.180,
 ];
 const VALLOTTI: [f64; 12] = [
-    0.0, 94.135, 196.090, 298.045, 392.180, 501.955, 592.180, 698.045, 796.090, 894.135,
-    1000.0, 1090.225,
+    0.0, 94.135, 196.090, 298.045, 392.180, 501.955, 592.180, 698.045, 796.090, 894.135, 1000.0,
+    1090.225,
 ];
 
 /// A row from C rotated to `key` (§5.4), A at `a4`: semitones from 12-TET at A440 per key.
@@ -81,7 +89,11 @@ fn set_up(app: &mut CantusApp, kind: &str) -> Option<Target> {
                 key: Some(Key::new(2, ScaleKind::Minor)),
             });
             tuning::design_preview(Some(table(&VALLOTTI, 2, 440.0)));
-            tuning::set(app, Target::Project, temper(Temperament::Vallotti, 0, true, 440.0));
+            tuning::set(
+                app,
+                Target::Project,
+                temper(Temperament::Vallotti, 0, true, 440.0),
+            );
             Some(Target::Project)
         }
         "scale" => {
@@ -149,15 +161,23 @@ fn shoot(dir: &Path, kind: &str, dark: bool, zoom: f32) {
         (zoom * 100.0).round() as u32
     ));
     let mut frame = 0;
-    raster::shoot_at(&ctx, SIZE, zoom, 12, Some(&path), |_| None, |root| {
-        if frame == 6 {
-            if let Some(key) = maximise {
-                device::toggle_maximise(root.ctx(), key);
+    raster::shoot_at(
+        &ctx,
+        SIZE,
+        zoom,
+        12,
+        Some(&path),
+        |_| None,
+        |root| {
+            if frame == 6 {
+                if let Some(key) = maximise {
+                    device::toggle_maximise(root.ctx(), key);
+                }
             }
-        }
-        app.frame(root);
-        frame += 1;
-    });
+            app.frame(root);
+            frame += 1;
+        },
+    );
     tuning::design_preview(None);
     println!("{}", path.display());
 }

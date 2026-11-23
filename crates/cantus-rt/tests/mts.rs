@@ -72,7 +72,8 @@ fn rustc() -> std::ffi::OsString {
         return r;
     }
     if let Some(cargo) = std::env::var_os("CARGO") {
-        let beside = PathBuf::from(cargo).with_file_name(if cfg!(windows) { "rustc.exe" } else { "rustc" });
+        let beside =
+            PathBuf::from(cargo).with_file_name(if cfg!(windows) { "rustc.exe" } else { "rustc" });
         if beside.is_file() {
             return beside.into_os_string();
         }
@@ -123,7 +124,10 @@ fn a_client_reads_nothing_without_a_master_and_the_masters_table_with_one() {
     assert!(client.has_master());
     assert!(client.read(&mut out));
     assert_eq!(out, hz);
-    assert_eq!(client.scale_name().as_deref(), Some("Werckmeister III in Eb"));
+    assert_eq!(
+        client.scale_name().as_deref(),
+        Some("Werckmeister III in Eb")
+    );
     assert!(client.should_filter(61) && !client.should_filter(60));
     // The master does not follow itself.
     let mut own = [0.0; KEYS];
@@ -224,7 +228,15 @@ fn a_library_that_is_not_libmts_is_refused_by_name() {
     });
     let rustc = rustc();
     let ok = std::process::Command::new(rustc)
-        .args(["--edition", "2021", "--crate-type", "cdylib", "--crate-name", "not_mts", "-o"])
+        .args([
+            "--edition",
+            "2021",
+            "--crate-type",
+            "cdylib",
+            "--crate-name",
+            "not_mts",
+            "-o",
+        ])
         .arg(&file)
         .arg(&src)
         .status()

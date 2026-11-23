@@ -34,12 +34,21 @@ fn seg(ui: &mut Ui, selected: usize, labels: &[Src<'_>], name: &str) -> (Option<
     for j in 0..labels.len() {
         let w = r.width() / n;
         let x = r.left() + w * j as f32;
-        put(ui, format!("{name}#{j}"), Rect::from_min_size(egui::pos2(x, r.top()), egui::vec2(w, r.height())));
+        put(
+            ui,
+            format!("{name}#{j}"),
+            Rect::from_min_size(egui::pos2(x, r.top()), egui::vec2(w, r.height())),
+        );
     }
     ((i != selected).then_some(i), r)
 }
 
-fn field(ui: &mut Ui, value: &str, name: &str, steppers: bool) -> (egui::Response, crate::kit::widgets::FieldClicks) {
+fn field(
+    ui: &mut Ui,
+    value: &str,
+    name: &str,
+    steppers: bool,
+) -> (egui::Response, crate::kit::widgets::FieldClicks) {
     let wd = width(ui);
     let (r, c) = menu_field(ui, value, steppers, false, &t(name), wd);
     put(ui, name, r.rect);
@@ -57,9 +66,16 @@ fn check(ui: &mut Ui, on: bool, enabled: bool, label: &str, name: &str) -> bool 
 fn veil_segment(ui: &Ui, r: Rect, n: usize, i: usize) {
     let s = Style::current();
     let w = r.width() / n as f32;
-    let seg = Rect::from_min_size(egui::pos2(r.left() + w * i as f32, r.top()), egui::vec2(w, r.height()));
+    let seg = Rect::from_min_size(
+        egui::pos2(r.left() + w * i as f32, r.top()),
+        egui::vec2(w, r.height()),
+    );
     with_brush(ui.painter(), |b| {
-        b.rrect(seg.shrink(1.0), s.r(3.0), Fill::Solid(crate::kit::color::with_alpha(s.t.panel, 0.6)))
+        b.rrect(
+            seg.shrink(1.0),
+            s.r(3.0),
+            Fill::Solid(crate::kit::color::with_alpha(s.t.panel, 0.6)),
+        )
     });
 }
 
@@ -76,7 +92,11 @@ pub(super) fn body(app: &mut CantusApp, ui: &mut Ui, target: Target) {
 }
 
 fn track_rows(app: &mut CantusApp, ui: &mut Ui, id: cantus_core::TrackId) {
-    let name = app.project().track(id).map(|t| t.name.clone()).unwrap_or_default();
+    let name = app
+        .project()
+        .track(id)
+        .map(|t| t.name.clone())
+        .unwrap_or_default();
     band_row(ui, "tuning.band.track");
     note(ui, &tf("tuning.track.which", &[("track", &name)]), false);
     let mode = super::track_mode(app, Target::Track(id)).unwrap_or_default();
@@ -86,9 +106,9 @@ fn track_rows(app: &mut CantusApp, ui: &mut Ui, id: cantus_core::TrackId) {
         TrackTuning::Own { .. } => 2,
     };
     let labels = [
-        Src::Key("tuning.track.follow"),
-        Src::Key("tuning.track.equal"),
-        Src::Key("tuning.track.own"),
+        Src::Key("tuning.plays.follow"),
+        Src::Key("tuning.plays.equal"),
+        Src::Key("tuning.plays.own"),
     ];
     if let (Some(i), _) = row(ui, "tuning.row.plays", |ui| seg(ui, at, &labels, "track")) {
         let next = match i {
@@ -122,7 +142,11 @@ fn system_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
         Src::Key("tuning.system.scale"),
         Src::Key("tuning.system.external"),
     ];
-    let mts_here = app.tuning.mts.as_ref().is_some_and(|m| m.library().is_some());
+    let mts_here = app
+        .tuning
+        .mts
+        .as_ref()
+        .is_some_and(|m| m.library().is_some());
     let (clicked, r) = row(ui, "tuning.row.system", |ui| seg(ui, at, &labels, "system"));
     if !mts_here {
         veil_segment(ui, r, 4, 3);
@@ -144,14 +168,23 @@ fn system_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
             _ => None,
         };
         if let Some(system) = system {
-            super::set(app, target, Tuning { system, ..tu.clone() });
+            super::set(
+                app,
+                target,
+                Tuning {
+                    system,
+                    ..tu.clone()
+                },
+            );
         }
     }
     match &tu.system {
         TuningSystem::Equal => note(ui, &t("tuning.system.equal_hint"), false),
-        TuningSystem::Temperament { id, key, follow_song_key } => {
-            temperament_rows(app, ui, target, &tu, *id, *key, *follow_song_key)
-        }
+        TuningSystem::Temperament {
+            id,
+            key,
+            follow_song_key,
+        } => temperament_rows(app, ui, target, &tu, *id, *key, *follow_song_key),
         TuningSystem::Scale(s) => scale_rows(ui, &tu, s),
         TuningSystem::External => {
             let words = match app.tuning.mts.as_ref() {
@@ -163,9 +196,6 @@ fn system_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
             };
             note(ui, &words, false);
         }
-    }
-    if !mts_here && at != 3 {
-        note(ui, &t("tuning.mts.absent_short"), false);
     }
 }
 
@@ -179,20 +209,44 @@ fn temperament_rows(
     follow: bool,
 ) {
     let song_key = app.project().key;
-    let (f, _) = row(ui, "tuning.row.temperament", |ui| field(ui, &t(id.name_key()), "temperament", false));
-    let options: Vec<(Temperament, String)> = Temperament::ALL.iter().map(|x| (*x, t(x.name_key()))).collect();
+    let (f, _) = row(ui, "tuning.row.temperament", |ui| {
+        field(ui, &t(id.name_key()), "temperament", false)
+    });
+    let options: Vec<(Temperament, String)> = Temperament::ALL
+        .iter()
+        .map(|x| (*x, t(x.name_key())))
+        .collect();
     if let Some(next) = pick(&f, &options, Some(id)) {
-        let system = TuningSystem::Temperament { id: next, key, follow_song_key: follow };
-        super::set(app, target, Tuning { system, ..tu.clone() });
+        let system = TuningSystem::Temperament {
+            id: next,
+            key,
+            follow_song_key: follow,
+        };
+        super::set(
+            app,
+            target,
+            Tuning {
+                system,
+                ..tu.clone()
+            },
+        );
     }
     let shown = super::effective(tu, song_key);
     let shown_key = match shown.system {
         TuningSystem::Temperament { key, .. } => key,
         _ => key,
     };
-    let (f, clicks) = row(ui, "tuning.row.key", |ui| field(ui, words::key_name(shown_key), "key", true));
-    let options: Vec<(u8, String)> = (0..12u8).map(|k| (k, words::key_name(k).to_string())).collect();
-    let mut next = if follow { None } else { pick(&f, &options, Some(key)) };
+    let (f, clicks) = row(ui, "tuning.row.key", |ui| {
+        field(ui, words::key_name(shown_key), "key", true)
+    });
+    let options: Vec<(u8, String)> = (0..12u8)
+        .map(|k| (k, words::key_name(k).to_string()))
+        .collect();
+    let mut next = if follow {
+        None
+    } else {
+        pick(&f, &options, Some(key))
+    };
     if !follow && clicks.prev {
         next = Some((key + 11) % 12);
     }
@@ -200,22 +254,46 @@ fn temperament_rows(
         next = Some((key + 1) % 12);
     }
     if let Some(k) = next {
-        let system = TuningSystem::Temperament { id, key: k, follow_song_key: false };
-        super::set_merging(app, target, Tuning { system, ..tu.clone() }, "key");
+        let system = TuningSystem::Temperament {
+            id,
+            key: k,
+            follow_song_key: false,
+        };
+        super::set_merging(
+            app,
+            target,
+            Tuning {
+                system,
+                ..tu.clone()
+            },
+            "key",
+        );
     }
     let label = t("tuning.follow_song_key");
-    if row(ui, "", |ui| check(ui, follow, song_key.is_some(), &label, "follow")) {
+    if row(ui, "", |ui| {
+        check(ui, follow, song_key.is_some(), &label, "follow")
+    }) {
         let system = TuningSystem::Temperament {
             id,
             key: song_key.map_or(key, |k| k.root),
             follow_song_key: !follow,
         };
-        super::set(app, target, Tuning { system, ..tu.clone() });
+        super::set(
+            app,
+            target,
+            Tuning {
+                system,
+                ..tu.clone()
+            },
+        );
     }
     match song_key {
         Some(k) if follow => note(
             ui,
-            &tf("tuning.follow.on", &[("key", &crate::notefx_ui::key_name(Some(k)))]),
+            &tf(
+                "tuning.follow.on",
+                &[("key", &crate::notefx_ui::key_name(Some(k)))],
+            ),
             false,
         ),
         None => note(ui, &t("tuning.follow.no_key"), false),
@@ -225,8 +303,14 @@ fn temperament_rows(
 
 fn scale_rows(ui: &mut Ui, tu: &Tuning, s: &cantus_core::tuning::ScalaScale) {
     let name = words::scale_name(s);
-    row(ui, "tuning.row.scale", |ui| field(ui, &name, "scale", false));
-    let period = s.degrees.last().map(words::degree_written).unwrap_or_default();
+    row(ui, "tuning.row.scale", |ui| {
+        field(ui, &name, "scale", false)
+    });
+    let period = s
+        .degrees
+        .last()
+        .map(words::degree_written)
+        .unwrap_or_default();
     note(
         ui,
         &tf(
@@ -252,7 +336,11 @@ fn scale_rows(ui: &mut Ui, tu: &Tuning, s: &cantus_core::tuning::ScalaScale) {
 fn pitch_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
     let tu = super::tuning_of(app, target);
     band_row(ui, "tuning.band.pitch");
-    let caption = if tu.map.is_some() { "tuning.row.a4_map" } else { "tuning.row.a4" };
+    let caption = if tu.map.is_some() {
+        "tuning.row.a4_map"
+    } else {
+        "tuning.row.a4"
+    };
     let value = tf("tuning.hz", &[("hz", &words::hz_text(tu.a4_hz))]);
     let (_, clicks) = row(ui, caption, |ui| field(ui, &value, "a4", true));
     let step = |hz: f64, d: f64| ((hz + d) * 10.0).round() / 10.0;
@@ -265,17 +353,39 @@ fn pitch_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
     };
     if let Some(hz) = next {
         let hz = hz.clamp(A4_MIN_HZ, A4_MAX_HZ);
-        super::set_merging(app, target, Tuning { a4_hz: hz, ..tu.clone() }, "a4");
+        super::set_merging(
+            app,
+            target,
+            Tuning {
+                a4_hz: hz,
+                ..tu.clone()
+            },
+            "a4",
+        );
     }
     let labels: Vec<String> = A4_PRESETS_HZ.iter().map(|h| words::hz_text(*h)).collect();
     let srcs: Vec<Src<'_>> = labels.iter().map(|l| Src::Str(l)).collect();
-    let at = A4_PRESETS_HZ.iter().position(|h| *h == tu.a4_hz).unwrap_or(usize::MAX);
+    let at = A4_PRESETS_HZ
+        .iter()
+        .position(|h| *h == tu.a4_hz)
+        .unwrap_or(usize::MAX);
     if let (Some(i), _) = row(ui, "tuning.row.presets", |ui| seg(ui, at, &srcs, "preset")) {
         if let Some(hz) = A4_PRESETS_HZ.get(i) {
-            super::set(app, target, Tuning { a4_hz: *hz, ..tu.clone() });
+            super::set(
+                app,
+                target,
+                Tuning {
+                    a4_hz: *hz,
+                    ..tu.clone()
+                },
+            );
         }
     }
-    let hint = if tu.map.is_some() { "tuning.a4.map_hint" } else { "tuning.a4.hint" };
+    let hint = if tu.map.is_some() {
+        "tuning.a4.map_hint"
+    } else {
+        "tuning.a4.hint"
+    };
     note(ui, &t(hint), false);
 }
 
@@ -322,7 +432,10 @@ fn mts_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
     };
     note(ui, &status, false);
     let project = target == Target::Project;
-    let external = matches!(super::tuning_of(app, Target::Project).system, TuningSystem::External);
+    let external = matches!(
+        super::tuning_of(app, Target::Project).system,
+        TuningSystem::External
+    );
     let enabled = project && !external && !matches!(state, MasterState::Unsupported);
     let on = state == MasterState::Ours;
     let label = t("tuning.mts.master");
@@ -361,8 +474,15 @@ fn audition_rows(app: &mut CantusApp, ui: &mut Ui, target: Target) {
     let label = if playing {
         t("tuning.audition.stop")
     } else {
-        let mode = if minor { "tuning.audition.minor" } else { "tuning.audition.major" };
-        tf("tuning.audition.play", &[("key", words::key_name(tonic)), ("mode", &t(mode))])
+        let mode = if minor {
+            "tuning.audition.minor"
+        } else {
+            "tuning.audition.major"
+        };
+        tf(
+            "tuning.audition.play",
+            &[("key", &words::key_name(tonic)), ("mode", &t(mode))],
+        )
     };
     let clicked = row(ui, "tuning.row.audition", |ui| {
         let b = parts::button(ui, &label, true, track.is_some(), 160.0);

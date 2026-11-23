@@ -222,9 +222,11 @@ pub fn table_of(app: &CantusApp, target: Target) -> TuningTable {
     let t = effective(&tuning_of(app, target), app.project().key);
     if matches!(t.system, TuningSystem::External) {
         let mut ext = TuningTable::EQUAL;
-        let read = app.tuning.mts.as_ref().is_some_and(|m| {
-            cantus_engine::tuning::ExternalTuning::read(m, &mut ext)
-        });
+        let read = app
+            .tuning
+            .mts
+            .as_ref()
+            .is_some_and(|m| cantus_engine::tuning::ExternalTuning::read(m, &mut ext));
         return t.offsets_with(read.then_some(&ext));
     }
     if let (TuningSystem::Temperament { .. }, Some(p)) = (&t.system, PREVIEW.with(|p| p.get())) {
@@ -265,11 +267,20 @@ fn publish_if_changed(app: &mut CantusApp) {
         return;
     }
     let rev = app.bus.revision();
-    if app.tuning.published.as_ref().is_some_and(|(r, _)| *r == rev) {
+    if app
+        .tuning
+        .published
+        .as_ref()
+        .is_some_and(|(r, _)| *r == rev)
+    {
         return;
     }
     let table = table_of(app, Target::Project);
-    let changed = app.tuning.published.as_ref().is_none_or(|(_, t)| *t != table);
+    let changed = app
+        .tuning
+        .published
+        .as_ref()
+        .is_none_or(|(_, t)| *t != table);
     if changed {
         let name = words::summary_of(&app.project().tuning, app.project().key);
         link.publish_all(&table, &name);
@@ -337,7 +348,8 @@ pub fn audition_track(app: &CantusApp, target: Target) -> Option<TrackId> {
 pub fn audition_key(app: &CantusApp, target: Target) -> (u8, bool) {
     let key = app.project().key;
     let tu = effective(&tuning_of(app, target), key);
-    let minor = key.is_some_and(|k| k.scale.intervals().contains(&3) && !k.scale.intervals().contains(&4));
+    let minor =
+        key.is_some_and(|k| k.scale.intervals().contains(&3) && !k.scale.intervals().contains(&4));
     let tonic = match tu.system {
         TuningSystem::Temperament { key, .. } => key,
         _ => key.map_or(0, |k| k.root),
@@ -437,10 +449,18 @@ pub fn chorda_line(
         TrackTuning::Follow => Target::Project,
         _ => Target::Track(track),
     };
-    let resp = ui.interact(line, egui::Id::new(("chorda-tuning-line", track.0)), egui::Sense::click());
+    let resp = ui.interact(
+        line,
+        egui::Id::new(("chorda-tuning-line", track.0)),
+        egui::Sense::click(),
+    );
     let sd = crate::views::inst::face::on_display(&s.function(crate::kit::Function::Tone));
     crate::kit::with_brush(ui.painter(), |b| {
-        let ink = if resp.hovered() { sd.t.text } else { sd.t.text_dim };
+        let ink = if resp.hovered() {
+            sd.t.text
+        } else {
+            sd.t.text_dim
+        };
         let _ = text::paint(
             b,
             line.shrink2(egui::vec2(8.0 * s.k, 0.0)),
