@@ -970,4 +970,34 @@ mod summary_tests {
             "{line}"
         );
     }
+
+    /// r42:tuning-face — a song in a tuning of its own says it after its length, and only
+    /// then (ADR 0155 §5).
+    #[test]
+    fn the_summary_names_the_tuning_only_when_it_is_not_the_default() {
+        use cantus_core::tuning::{Temperament, Tuning, TuningSystem};
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
+        let mut app = crate::CantusApp::from_parts(
+            Some(crate::starter_project()),
+            cantus_engine::EngineHandle::dummy(),
+            false,
+        );
+        assert!(!super::summary(&app).contains("A44"));
+        app.exec(cantus_core::Command::SetProjectTuning {
+            tuning: Box::new(Tuning {
+                a4_hz: 415.0,
+                system: TuningSystem::Temperament {
+                    id: Temperament::WerckmeisterIii,
+                    key: 3,
+                    follow_song_key: false,
+                },
+                map: None,
+            }),
+        });
+        let line = super::summary(&app);
+        assert!(
+            line.ends_with(" \u{b7} Werckmeister III in Eb \u{b7} A415"),
+            "{line}"
+        );
+    }
 }
