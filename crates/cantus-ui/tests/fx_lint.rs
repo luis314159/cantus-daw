@@ -22,6 +22,16 @@ const ON_THE_KIT: &[&str] = &[
     "views/inst/chorda_scene_room.rs",
     "views/inst/chorda_scene_shade.rs",
     "views/inst/chorda_scene_view.rs",
+    // r42:arcus-look — Arcus's picture (ADR 0126's amendment): its palette is
+    // kit/skin/scene_bowed.rs.
+    "views/inst/arcus_draw.rs",
+    "views/inst/arcus_draw_body.rs",
+    "views/inst/chorda_scene_px_bowed.rs",
+    "scene/bowed.rs",
+    "scene/bowed_draw.rs",
+    "scene/bowed_fit.rs",
+    "scene/bowed_head.rs",
+    "scene/bowed_mesh.rs",
     "views/inst/dancer.rs",
     "views/inst/dancer_controls.rs",
     "views/inst/dancer_moves.rs",

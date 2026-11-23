@@ -20,6 +20,7 @@ mod draw;
 #[path = "arcus_presets.rs"]
 mod presets;
 
+pub use draw::picture_for_tests;
 pub use presets::FACTORY_PRESETS;
 
 use super::face;

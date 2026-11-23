@@ -62,6 +62,8 @@ pub enum Part {
     /// The piano's main pair, and the room pair.
     Pair,
     RoomPair,
+    /// Arcus's cello or double bass (r42:arcus-look).
+    Bowed,
 }
 
 /// A gradient stop: offset, colour, alpha.

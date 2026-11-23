@@ -135,3 +135,36 @@ The owner's and the integrator's decisions of the same day, and what the port fo
 7. **A per-pixel picture while a control glides** is asked for `quick` (`PixelBackend::
    render(model, ppp, quick)`), and once at rest again in full; the vector picture is the
    same either way, so it is never built twice.
+
+## Amendment — round 42, `arcus-look`: Arcus's cello and double bass (2026-11-22)
+
+The owner found Arcus's first picture ugly (*"Mejóralo, se ve muy feo"*: a flat cello lying
+sideways) and asked for Chorda's and Tympanum's class — and for **the same engine**
+(*"Usa el mismo motor gráfico de Chorda y Tympanum"*). So the bowed strings are the
+engine's third and fourth subjects, added beside the piano and the kit, never a renderer of
+their own:
+
+1. **`Subject::Bowed { instrument }`** (`scene/mod.rs`), framed by `BOWED_FRAME`, built by
+   `bowed_draw::bowed_scene` as `piano_scene` and `kit_scene` are (the room from `rooms`,
+   the floor's mirror, the key's shadows, the falloff, the per-pixel model kept when the
+   backend asks), and baked per pixel by the photographic renderer's own arm
+   (`chorda_scene_hybrid.rs` → `chorda_scene_px_bowed.rs`). Settings ▸ Appearance ▸
+   Instrument pictures switches it with the others.
+2. **The geometry is the trade's**, renderer-neutral (`scene/bowed{,_mesh,_head,_fit}.rs`):
+   the outline as three curves meeting at the corners from the measured Stradivari
+   'Davidov' (757 mm; 340 / 232 / 436 mm), its low arching and purfling 4 mm in (Hargrave,
+   *The Strad*, 2001), a 3/4 orchestral bass's measures, the standard set-up (stop, neck,
+   overstand, bridge, afterlength, clearances), carved f-holes, the bridge with its heart
+   and kidneys, the scroll as a logarithmic volute of two and a half turns, pegs or
+   machines, endpin, strings. Built once per instrument (`bowed_mesh::mesh`); both pictures
+   draw the same surfaces.
+3. **What the engine gained, for any subject**: `Part::Bowed`; the per-pixel texture
+   `Tex::Tonewood` (a quartered tonewood's grain and maple's flame); in the Drawn picture a
+   cell shaded at both its row edges (a gradient, not a flat facet) and decals drawn into
+   the cell they lie on (so a far cell never covers an f-hole or the purfling). Chorda's and
+   Tympanum's pictures are untouched to the pixel (`tests/scene_identity.rs`, their hashes
+   measured on the tree before).
+4. **Live, over the picture**: what Arcus plays (the sounding string lit and swinging, the
+   stopping finger with the vibrato, the bow at its contact with its pressure, camber and
+   travel, pizzicato's finger, tremolo) is drawn each frame through the kit's brush from the
+   build's camera and `bowed::rig` — no rebuild while playing; at rest one textured quad.

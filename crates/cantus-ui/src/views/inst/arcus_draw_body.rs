@@ -1,362 +1,406 @@
-//! The instrument drawn (a child of `views::inst::arcus::draw`): a cello or a double bass in
-//! its real proportions, lying across the display with its scroll to the right.
+//! What the instrument plays, drawn live over its picture (a child of
+//! `views::inst::arcus::draw`; r42:arcus-look). The cello or the bass and its room are the
+//! scene engine's picture (`scene::bowed*`), baked and cached; over it, every frame and
+//! cheaply, from the same camera and the instrument's own geometry (`scene::bowed::rig`):
+//! **the sounding string** lit and swinging as loud as it sounds between the bridge and
+//! the finger; **the stopping finger** where the note stops the string, rocking with the
+//! vibrato; **the bow** across that string at its real contact point (β of the stopped
+//! length from the bridge), tilted over the bridge's arch to reach it alone, its hair
+//! pressed into the string and flattened (and a little darker) as hard as it presses, the
+//! stick's camber, the frog with its pearl eye, sliding along its length as it moves —
+//! a blur behind it as fast — or **pizzicato's finger** pulling the string, or
+//! **tremolo's** short strokes.
 
 use super::Now;
+use crate::kit::appearance::rgb;
 use crate::kit::color::{mix, with_alpha};
+use crate::kit::skin::scene::bowed::live as pal;
 use crate::kit::{Brush, Fill, Style};
-use cantus_dsp::arcus::tables::Instrument;
+use crate::scene::bowed::{Bowed, Rig};
+use crate::scene::geo::{Camera, V3};
 use cantus_dsp::arcus::{ArcusSettings, Technique};
-use egui::{pos2, vec2, Color32, Pos2, Rect};
+use egui::{Color32, Pos2, Rect, Vec2};
 
-/// An instrument's measures, m from its bottom end: the body's length and its widest
-/// bout, the bridge, the nut, the scroll's end, where the fingerboard starts, the string
-/// spacing at the bridge; and its outline's half-widths (along the body, over the widest).
-struct Shape {
-    body: f32,
-    width: f32,
-    bridge: f32,
-    nut: f32,
-    end: f32,
-    board: f32,
-    spacing: f32,
-    outline: &'static [(f32, f32)],
+/// Where the picture's camera puts world points (cm) on the screen.
+#[derive(Copy, Clone)]
+pub struct View {
+    pub cam: Camera,
+    /// The picture's corner and its scale from the build's points to the screen's.
+    pub origin: Pos2,
+    pub k: Vec2,
 }
 
-/// A cello: a 750 mm body, 690 mm of string (Arcus's tables).
-const CELLO: Shape = Shape {
-    body: 0.75,
-    width: 0.44,
-    bridge: 0.35,
-    nut: 1.04,
-    end: 1.25,
-    board: 0.47,
-    spacing: 0.016,
-    outline: &[
-        (0.0, 0.30),
-        (0.02, 0.62),
-        (0.08, 0.88),
-        (0.2, 1.0),
-        (0.32, 0.92),
-        (0.40, 0.72),
-        (0.47, 0.60),
-        (0.54, 0.62),
-        (0.60, 0.76),
-        (0.70, 0.86),
-        (0.80, 0.84),
-        (0.90, 0.66),
-        (0.97, 0.36),
-        (1.0, 0.16),
-    ],
-};
+impl View {
+    pub fn p(&self, w: V3) -> Pos2 {
+        let q = self.cam.p(w);
+        self.origin + Vec2::new(q.x * self.k.x, q.y * self.k.y)
+    }
 
-/// A double bass: an 1 100 mm body with sloped shoulders, 1 060 mm of string.
-const BASS: Shape = Shape {
-    body: 1.10,
-    width: 0.68,
-    bridge: 0.55,
-    nut: 1.61,
-    end: 1.85,
-    board: 0.70,
-    spacing: 0.022,
-    outline: &[
-        (0.0, 0.28),
-        (0.03, 0.6),
-        (0.1, 0.88),
-        (0.22, 1.0),
-        (0.34, 0.93),
-        (0.42, 0.76),
-        (0.5, 0.68),
-        (0.57, 0.72),
-        (0.63, 0.78),
-        (0.70, 0.74),
-        (0.78, 0.62),
-        (0.86, 0.46),
-        (0.94, 0.28),
-        (1.0, 0.14),
-    ],
-};
-
-fn shape(i: Instrument) -> &'static Shape {
-    match i {
-        Instrument::Bass => &BASS,
-        _ => &CELLO,
+    /// How many points a centimetre at `w` spans across the screen.
+    pub fn scale(&self, w: V3) -> f32 {
+        self.cam.s * self.k.x / self.cam.depth(w).max(1.0)
     }
 }
 
-/// The outline's half-width at `u` (0 … 1 along the body): a Catmull–Rom curve through its
-/// points, so the bouts flow into the waist without a flat or a bump.
-fn half(sh: &Shape, u: f32) -> f32 {
-    let p = sh.outline;
-    let u = u.clamp(0.0, 1.0);
-    let i = p
-        .windows(2)
-        .position(|w| u <= w[1].0)
-        .unwrap_or(p.len() - 2);
-    let at = |j: isize| p[j.clamp(0, p.len() as isize - 1) as usize].1;
-    let (w0, w1, w2, w3) = (at(i as isize - 1), at(i as isize), at(i as isize + 1), at(i as isize + 2));
-    let (u1, u2) = (p[i].0, p[i + 1].0);
-    let t = ((u - u1) / (u2 - u1).max(1e-6)).clamp(0.0, 1.0);
-    let (t2, t3) = (t * t, t * t * t);
-    0.5 * (2.0 * w1
-        + (w2 - w0) * t
-        + (2.0 * w0 - 5.0 * w1 + 4.0 * w2 - w3) * t2
-        + (3.0 * w1 - w0 - 3.0 * w2 + w3) * t3)
+/// What a frame draws: the instrument, what it plays, the bow's place along its hair (0
+/// the frog, 1 the tip), the time (vibrato, tremolo), the theme's lit colour for the
+/// sounding string.
+pub struct Play<'a> {
+    pub b: Bowed,
+    pub rig: &'a Rig,
+    pub fs: &'a ArcusSettings,
+    pub n: &'a Now,
+    pub travel: f32,
+    pub time: f64,
+    pub vibrato: f32,
+    pub lit: Color32,
 }
 
-/// The colours the instrument is drawn in, from the face's own (its amber's varnish) and the
-/// display's ink: a dark (ebony, the f-holes) and a pale (the hair, the strings) that keep
-/// their sense in both themes.
-struct Ink {
-    wood: Color32,
-    wood_edge: Color32,
-    glow: Color32,
-    deep: Color32,
-    pale: Color32,
-    metal: Color32,
-    lit: Color32,
-    bow: Color32,
+fn c(s: [u8; 3]) -> Color32 {
+    rgb(s)
 }
 
-fn ink(s: &Style) -> Ink {
-    let amber = crate::views::inst::face::voice2(s, s.hue);
-    let garnet = crate::views::inst::face::accent_on(s, s.hue);
-    let (deep, pale) = if s.t.dark {
-        (s.t.ink, s.t.text)
-    } else {
-        (s.t.text, s.t.panel_light)
-    };
-    Ink {
-        wood: mix(amber, deep, 0.42),
-        wood_edge: mix(amber, deep, 0.7),
-        glow: with_alpha(mix(amber, pale, 0.35), 0.55),
-        deep: mix(deep, amber, 0.08),
-        pale: mix(pale, amber, 0.12),
-        metal: mix(s.t.text_dim, pale, 0.4),
-        lit: amber,
-        bow: garnet,
-    }
-}
-
-/// Paint the instrument of `fs` playing `n` in `r`.
-pub fn instrument(b: &mut Brush, r: Rect, fs: &ArcusSettings, n: &Now, s: &Style) {
-    let sh = shape(fs.instrument);
-    let k = (r.width() / sh.end).min(0.8 * r.height() / sh.width);
-    let x0 = r.center().x - 0.5 * sh.end * k;
-    let cy = r.center().y;
-    let x = |m: f32| x0 + m * k;
-    let c = ink(s);
-    // ---- the body: its outline, its varnish's light, the purfling ----
-    let steps = 120;
-    let mut top = Vec::with_capacity(steps + 1);
-    let mut bot = Vec::with_capacity(steps + 1);
-    let mut top_in = Vec::with_capacity(steps + 1);
-    let mut bot_in = Vec::with_capacity(steps + 1);
-    for i in 0..=steps {
-        let u = i as f32 / steps as f32;
-        let hw = 0.5 * sh.width * k * half(sh, u);
-        let px = x(u * sh.body);
-        top.push(pos2(px, cy - hw));
-        bot.push(pos2(px, cy + hw));
-        top_in.push(pos2(px, cy - (hw - s.s(3.5)).max(0.0)));
-        bot_in.push(pos2(px, cy + (hw - s.s(3.5)).max(0.0)));
-    }
-    b.between(&top, &bot, c.wood);
-    b.radial(
-        r,
-        pos2(x(0.24 * sh.body), cy - 0.12 * sh.width * k),
-        vec2(0.32 * sh.body * k, 0.34 * sh.width * k),
-        &[(0.0, c.glow), (1.0, with_alpha(c.glow, 0.0))],
-        8,
-    );
-    b.polyline(&top, s.s(1.6), c.wood_edge);
-    b.polyline(&bot, s.s(1.6), c.wood_edge);
-    b.polyline(&top_in, s.s(0.8), with_alpha(c.deep, 0.6));
-    b.polyline(&bot_in, s.s(0.8), with_alpha(c.deep, 0.6));
-    // ---- the f-holes, either side of the bridge ----
-    let xb = x(sh.bridge);
-    for side in [-1.0f32, 1.0] {
-        let yc = cy + side * 0.15 * sh.width * k;
-        let len = 0.17 * sh.body * k;
-        let pts: Vec<Pos2> = (0..=16)
-            .map(|i| {
-                let t = i as f32 / 16.0 - 0.5;
-                pos2(xb + t * len, yc + side * 0.035 * sh.width * k * (std::f32::consts::PI * t * 2.0).sin())
-            })
-            .collect();
-        b.polyline(&pts, s.s(1.6), c.deep);
-        b.circle(pts[0], s.s(2.2), Fill::Solid(c.deep));
-        b.circle(pts[16], s.s(2.2), Fill::Solid(c.deep));
-    }
-    // ---- the neck, the fingerboard, the pegbox and the scroll ----
-    let xn = x(sh.nut);
-    let board_w = |m: f32| {
-        let u = ((m - sh.board) / (sh.nut - sh.board)).clamp(0.0, 1.0);
-        (4.6 - 1.4 * u) * sh.spacing * k
-    };
-    let neck = Rect::from_min_max(
-        pos2(x(sh.body * 0.96), cy - 1.6 * sh.spacing * k),
-        pos2(xn, cy + 1.6 * sh.spacing * k),
-    );
-    b.rrect(neck, s.r(2.0), Fill::Solid(c.wood));
-    let board_top: Vec<Pos2> = (0..=8)
-        .map(|i| {
-            let m = sh.board + (sh.nut - sh.board) * i as f32 / 8.0;
-            pos2(x(m), cy - 0.5 * board_w(m))
-        })
-        .collect();
-    let board_bot: Vec<Pos2> = board_top.iter().map(|p| pos2(p.x, 2.0 * cy - p.y)).collect();
-    b.between(&board_top, &board_bot, c.deep);
-    let pegbox = Rect::from_min_max(
-        pos2(xn, cy - 1.3 * sh.spacing * k),
-        pos2(x(sh.end) - 2.2 * sh.spacing * k, cy + 1.3 * sh.spacing * k),
-    );
-    b.rrect(pegbox, s.r(2.0), Fill::Solid(c.wood_edge));
-    let scroll = pos2(x(sh.end) - 1.6 * sh.spacing * k, cy);
-    b.circle(scroll, 1.9 * sh.spacing * k, Fill::Solid(c.wood));
-    b.circle_stroke(scroll, 1.9 * sh.spacing * k, s.s(1.2), c.wood_edge);
-    b.circle_stroke(scroll, 1.0 * sh.spacing * k, s.s(1.0), c.wood_edge);
-    for j in 0..4 {
-        let px = pegbox.left() + pegbox.width() * (0.2 + 0.2 * j as f32);
-        let py = if j % 2 == 0 { pegbox.top() } else { pegbox.bottom() };
-        let tip = pos2(px, py + if j % 2 == 0 { -2.0 } else { 2.0 } * sh.spacing * k);
-        b.segment(pos2(px, py), tip, s.s(3.0), c.deep, true);
-    }
-    // ---- the tailpiece and the bridge ----
-    let tail = [
-        pos2(x(0.03 * sh.body), cy - 0.9 * sh.spacing * k),
-        pos2(x(sh.bridge - 0.2 * sh.body), cy - 2.0 * sh.spacing * k),
-    ];
-    let tail_b: Vec<Pos2> = tail.iter().map(|p| pos2(p.x, 2.0 * cy - p.y)).collect();
-    b.between(&tail, &tail_b, c.deep);
-    let bridge = Rect::from_center_size(
-        pos2(xb, cy),
-        vec2(s.s(4.0), 4.6 * sh.spacing * k),
-    );
-    b.rrect(bridge, s.r(1.0), Fill::Solid(c.pale));
-    // ---- the strings: the sounding one lit and swinging ----
-    let spec = fs.instrument.spec();
-    let open = spec.strings[n.string].open_hz();
+/// Where the note stops its string (its share of the open length from the bridge).
+pub fn stop(fs: &ArcusSettings, n: &Now) -> f32 {
+    let open = fs.instrument.spec().strings[n.string.min(3)].open_hz();
     let f = 440.0 * ((n.key as f64 - 69.0) / 12.0).exp2();
-    let stop = (open / f).clamp(0.1, 1.0) as f32;
-    let string_y = |i: usize, m: f32| {
-        // Spread at the bridge, closer at the nut (the fingerboard narrows); the lowest
-        // string at the bottom.
-        let u = ((m - sh.bridge) / (sh.nut - sh.bridge)).clamp(0.0, 1.0);
-        let gap = sh.spacing * k * (1.0 - 0.35 * u);
-        cy + (1.5 - i as f32) * gap
+    (open / f).clamp(0.08, 1.0) as f32
+}
+
+/// Paint what `pl` plays through `v` (clipped by the painter to the picture).
+pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
+    let rig = pl.rig;
+    let i = pl.n.string.min(3);
+    let [_, bridge, nut] = rig.strings[i];
+    let along = nut - bridge;
+    let st = stop(pl.fs, pl.n);
+    let ex = rig.pose.ex;
+    let ez = rig.pose.ez;
+    let d = pl.b.dims();
+    let k = d.body / 75.7;
+    // The finger rocks along the string with the vibrato.
+    let wob = (pl.time * 5.5 * std::f64::consts::TAU).sin() as f32;
+    let rock = pl.vibrato.clamp(0.0, 1.0) * 0.18 * k * wob;
+    let finger = bridge + along * st + along.norm() * rock;
+    let pizz = pl.fs.technique == Technique::Pizzicato;
+    // The bow at β of the stopped length; a pluck where the settings pluck (over the
+    // fingerboard's end by default).
+    let tc = if pizz {
+        pl.fs.pizz_pos.clamp(0.05, 0.6)
+    } else {
+        pl.n.beta.clamp(0.02, 0.6)
     };
-    let x_tail = tail[1].x;
-    for i in 0..4 {
-        let sounding = i == n.string && (n.live || n.level > 0.0);
-        let w = s.s(1.0 + 0.35 * (3 - i) as f32);
-        let col = if i == n.string { c.lit } else { c.metal };
-        let ya = string_y(i, sh.bridge);
-        b.segment(pos2(x_tail, ya), pos2(xb, ya), w, with_alpha(col, 0.7), false);
-        b.segment(pos2(xb, ya), pos2(xn, string_y(i, sh.nut)), w, col, false);
-        if sounding && n.level > 0.0 {
-            // The string's swing between the bridge and the finger, as loud as it sounds.
-            let xf = xb + (xn - xb) * stop;
-            let amp = s.s(6.0) * n.level.sqrt().min(1.0);
-            let lo: Vec<Pos2> = (0..=16)
-                .map(|j| {
-                    let t = j as f32 / 16.0;
-                    let px = xb + (xf - xb) * t;
-                    let py = string_y(i, sh.bridge + (sh.nut - sh.bridge) * stop * t);
-                    pos2(px, py - amp * (std::f32::consts::PI * t).sin())
-                })
-                .collect();
-            let hi: Vec<Pos2> = lo.iter().enumerate().map(|(j, p)| {
-                let t = j as f32 / 16.0;
-                pos2(p.x, p.y + 2.0 * amp * (std::f32::consts::PI * t).sin())
-            }).collect();
-            b.between(&lo, &hi, with_alpha(c.lit, 0.25));
-        }
+    let contact = bridge + (finger - bridge) * tc;
+    let sounding = pl.n.live && pl.n.level > 0.0;
+    // ---- the sounding string, lit, and its swing ----
+    let amp = if sounding {
+        (0.08 + 0.55 * pl.n.level.sqrt().min(1.0)) * k
+    } else {
+        0.0
+    };
+    let side = rig.normal[i].cross(along.norm()).norm();
+    let pulled = if pizz && sounding { amp * 0.8 } else { 0.0 };
+    let px = b.px();
+    let w0 = (rig.gauge[i] * 2.0 * v.scale(contact)).max(px * 1.1);
+    let mut line = [Pos2::ZERO; 25];
+    let mut lo = [Pos2::ZERO; 25];
+    let mut hi = [Pos2::ZERO; 25];
+    for (j, ((p, l), h)) in line
+        .iter_mut()
+        .zip(lo.iter_mut())
+        .zip(hi.iter_mut())
+        .enumerate()
+    {
+        let t = j as f32 / 24.0;
+        // A pluck pulls the string into a corner at the finger's point.
+        let shape = if t < tc {
+            t / tc
+        } else {
+            (1.0 - t) / (1.0 - tc)
+        };
+        let w = bridge + (finger - bridge) * t - side * (pulled * shape);
+        let env = (std::f32::consts::PI * t).sin();
+        *p = v.p(w);
+        *l = v.p(w + side * (amp * env));
+        *h = v.p(w - side * (amp * env));
     }
-    // ---- the left hand's finger where the note stops the string ----
-    let xf = xb + (xn - xb) * stop;
-    let yf = string_y(n.string, sh.bridge + (sh.nut - sh.bridge) * stop);
-    if stop < 0.995 {
-        let tip = Rect::from_center_size(pos2(xf, yf - s.s(5.0)), vec2(s.s(9.0), s.s(13.0)));
-        b.rrect(tip, s.r(4.5), Fill::Solid(with_alpha(c.pale, 0.9)));
-        b.rrect_stroke(tip, s.r(4.5), s.s(1.0), c.deep);
+    if sounding {
+        b.between(&lo, &line, with_alpha(pl.lit, 0.16));
+        b.between(&line, &hi, with_alpha(pl.lit, 0.16));
+        b.polyline(&lo, px, with_alpha(pl.lit, 0.45));
+        b.polyline(&hi, px, with_alpha(pl.lit, 0.45));
     }
-    // ---- the bow, or the plucking finger ----
-    let xc = xb + (xf - xb) * n.beta.clamp(0.0, 0.5);
-    let yc = string_y(n.string, sh.bridge + (sh.nut - sh.bridge) * stop * n.beta);
-    if fs.technique == Technique::Pizzicato {
-        let tip = Rect::from_center_size(pos2(xc + s.s(10.0), yc - s.s(6.0)), vec2(s.s(10.0), s.s(14.0)));
-        b.rrect(tip, s.r(5.0), Fill::Solid(with_alpha(c.pale, 0.9)));
-        b.rrect_stroke(tip, s.r(5.0), s.s(1.0), c.bow);
-        for j in 0..3 {
-            let dx = s.s(4.0 + 4.0 * j as f32);
-            b.segment(pos2(xc + s.s(16.0) + dx, yc - s.s(14.0)), pos2(xc + s.s(16.0) + dx, yc - s.s(8.0)), s.s(1.0), c.bow, true);
-        }
+    let core = if sounding {
+        pl.lit
+    } else {
+        mix(pl.lit, c(pal::SILVER), 0.5)
+    };
+    let glow = with_alpha(pl.lit, if sounding { 0.5 } else { 0.2 });
+    b.glow_polyline(&line, w0, core, glow, s.s(if sounding { 3.0 } else { 1.5 }));
+    // ---- the left hand's finger, stopping the string ----
+    let up = along.norm();
+    if st < 0.995 {
+        let j1 = finger + ex * (1.5 * k) + ez * (2.2 * k) + up * (0.4 * k);
+        let j2 = j1 + ex * (2.6 * k) + ez * (0.9 * k) + up * (0.6 * k);
+        fingertip(b, v, finger, j1, j2, 0.78 * k, false);
+    }
+    if pizz {
+        let tip = contact - side * pulled;
+        let j1 = tip - ex * (1.7 * k) + ez * (2.0 * k) - up * (0.5 * k);
+        let j2 = j1 - ex * (2.6 * k) + ez * (0.7 * k) - up * (0.8 * k);
+        fingertip(b, v, tip, j1, j2, 0.72 * k, true);
         return;
     }
-    bow(b, r, s, &c, fs, n, pos2(xc, yc), sh, k);
+    bow(b, v, pl, contact, i);
 }
 
-/// The bow across the string at `at`: tilted to reach that string over the bridge's arch,
-/// its hair pressed in as hard as it presses, its arrow its speed and direction.
-#[allow(clippy::too_many_arguments)]
-fn bow(
-    b: &mut Brush,
-    r: Rect,
-    s: &Style,
-    c: &Ink,
-    fs: &ArcusSettings,
-    n: &Now,
-    at: Pos2,
-    sh: &Shape,
-    k: f32,
-) {
-    // The bow crosses at an angle that reaches its string over the arched bridge: the
-    // lowest string with the bow tipped one way, the highest the other.
-    let tilt = (n.string as f32 - 1.5) * 0.11;
-    let dir = vec2(tilt.sin(), tilt.cos());
-    let len = (0.75 * sh.width * k).min(r.height() * 1.05);
-    let press = (n.force / n.hi.max(1e-3)).clamp(0.0, 1.5);
-    let hair_a = at - dir * (0.5 * len);
-    let hair_b = at + dir * (0.5 * len);
-    // The stick, a little off the hair, bending towards it as the bow presses.
-    let normal = vec2(dir.y, -dir.x);
-    let gap = s.s(7.0) * (1.0 - 0.45 * press.min(1.0));
-    let stick: Vec<Pos2> = (0..=12)
-        .map(|j| {
-            let t = j as f32 / 12.0;
-            let bend = 1.0 - (2.0 * t - 1.0).powi(2);
-            hair_a + (hair_b - hair_a) * t + normal * (gap + s.s(4.0) * (1.0 - bend))
-        })
-        .collect();
-    b.polyline(&stick, s.s(2.6), c.wood_edge);
-    // The hair: pale, its contact on the string darker and wider as it presses.
-    b.segment(hair_a, hair_b, s.s(3.0), with_alpha(c.pale, 0.95), true);
-    let contact = s.s(4.0 + 6.0 * press.min(1.0));
+/// A finger: its tip pressing at `tip`, its joints `j1`, `j2` (its hand beyond, faded
+/// out), `r` cm thick, its nail toward the viewer; a soft shadow under it.
+fn fingertip(b: &mut Brush, v: &View, tip: V3, j1: V3, j2: V3, r: f32, right: bool) {
+    let (pt, p1, p2) = (v.p(tip), v.p(j1), v.p(j2));
+    let w = 2.0 * r * v.scale(tip);
+    let shade = c(pal::SKIN_SHADE);
+    let skin = c(pal::SKIN);
+    let off = Vec2::new(w * 0.28, w * 0.34);
     b.segment(
-        at - dir * contact,
-        at + dir * contact,
-        s.s(3.0 + 2.0 * press.min(1.2)),
-        mix(c.pale, c.bow, (0.4 + 0.5 * press).min(1.0)),
+        pt + off,
+        p1 + off,
+        w * 1.05,
+        with_alpha(c(pal::SHADOW), 0.28),
         true,
     );
-    // The frog at the bow's lower end.
-    let frog = Rect::from_center_size(hair_b + normal * s.s(4.0), vec2(s.s(10.0), s.s(16.0)));
-    b.rrect(frog, s.r(2.0), Fill::Solid(c.deep));
-    // Its motion: down-bow (the frog moving away) or up; tremolo's short strokes.
-    let speed = (n.speed.abs() / 0.35).clamp(0.0, 1.0);
-    let along = if n.speed < 0.0 { -1.0 } else { 1.0 };
-    let base = at + normal * s.s(22.0);
-    let arrow = |b: &mut Brush, from: Pos2, l: f32, sign: f32| {
-        let to = from + dir * (sign * l);
-        b.segment(from, to, s.s(1.8), c.bow, true);
-        let back = dir * (-sign * s.s(5.0));
-        b.segment(to, to + back + normal * s.s(3.5), s.s(1.8), c.bow, true);
-        b.segment(to, to + back - normal * s.s(3.5), s.s(1.8), c.bow, true);
+    // The hand beyond, fading.
+    for j in 0..4 {
+        let (a, e) = (j as f32 / 4.0, (j + 1) as f32 / 4.0);
+        let alpha = 1.0 - e * 0.85;
+        let (qa, qe) = (p1 + (p2 - p1) * a, p1 + (p2 - p1) * e);
+        b.segment(qa, qe, w * 1.12, with_alpha(shade, alpha), true);
+        b.segment(qa, qe, w * 0.8, with_alpha(skin, alpha), true);
+    }
+    b.segment(pt, p1, w * 1.06, shade, true);
+    b.segment(pt, p1, w * 0.78, skin, true);
+    let dir = (p1 - pt).normalized();
+    let hl = Vec2::new(-dir.y, dir.x) * (w * if right { 0.16 } else { -0.16 });
+    let lit = with_alpha(c(pal::NAIL), 0.55);
+    b.segment(
+        pt + dir * (w * 0.2) + hl,
+        p1 - dir * (w * 0.15) + hl,
+        w * 0.22,
+        lit,
+        true,
+    );
+    // The nail near the tip.
+    let nail = pt + dir * (w * 0.55);
+    let nc = mix(c(pal::NAIL), skin, 0.25);
+    b.segment(
+        nail - dir * (w * 0.18),
+        nail + dir * (w * 0.22),
+        w * 0.5,
+        nc,
+        true,
+    );
+}
+
+/// The bow's measures: its hair's length and ribbon's width, cm (French bows for both; a
+/// bass's a touch shorter and wider).
+fn measures(b: Bowed) -> (f32, f32) {
+    match b {
+        Bowed::Cello => (60.0, 1.1),
+        Bowed::Bass => (56.0, 1.6),
+    }
+}
+
+/// The bow across string `i` at `contact`.
+fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) {
+    let rig = pl.rig;
+    let k = pl.b.dims().body / 75.7;
+    let [_, bridge, nut] = rig.strings[i];
+    let sdir = (nut - bridge).norm();
+    let n = rig.normal[i];
+    let mut dir = sdir.cross(n).norm();
+    if dir.dot(rig.pose.ex) < 0.0 {
+        dir = -dir;
+    }
+    let (hair, ribbon) = measures(pl.b);
+    let press = (pl.n.force / pl.n.hi.max(1e-3)).clamp(0.0, 1.6);
+    let trem = pl.fs.technique == Technique::Tremolo;
+    let at = if trem {
+        let rate = f64::from(pl.fs.trem_rate.max(2.0));
+        0.72 + 0.035 * (pl.time * rate * std::f64::consts::PI).sin() as f32
+    } else {
+        pl.travel
+    }
+    .clamp(0.06, 0.94);
+    let speed = (pl.n.speed.abs() / 0.35).clamp(0.0, 1.0);
+    let sign = if pl.n.speed < 0.0 { -1.0f32 } else { 1.0 };
+    let base = contact + n * rig.gauge[i];
+    let one = |b: &mut Brush, shift: f32, alpha: f32| {
+        let c0 = base + dir * shift;
+        let frog = c0 - dir * (at * hair);
+        let tip = c0 + dir * ((1.0 - at) * hair);
+        let dent = 0.32 * press * k.sqrt();
+        let (h0, h1) = (frog + n * dent, tip + n * dent);
+        let wv = ribbon * 0.5;
+        let a = |p: V3| v.p(p);
+        let col = |cc: Color32| with_alpha(cc, alpha);
+        // The hair: a ribbon bent at the string.
+        let across = |f: f32| [a(h0 + sdir * f), a(c0 + sdir * f), a(h1 + sdir * f)];
+        b.between(&across(-wv), &across(wv), col(c(pal::HAIR_SHADE)));
+        b.between(&across(-wv * 0.55), &across(wv * 0.2), col(c(pal::HAIR)));
+        // Where it grips: wider and darker the harder it presses.
+        let grip = (1.0 + 3.0 * press.min(1.2)) * k.sqrt();
+        let g = |f: f32| [a(c0 - dir * grip + sdir * f), a(c0 + dir * grip + sdir * f)];
+        let gc = with_alpha(c(pal::HAIR_GRIP), 0.35 + 0.4 * press.min(1.0));
+        b.between(&g(-wv), &g(wv), col(gc));
+        // The stick with its camber, thicker at the frog.
+        let mut stick = [Pos2::ZERO; 17];
+        for (j, q) in stick.iter_mut().enumerate() {
+            let t = j as f32 / 16.0;
+            let h = 2.1 + (1.55 - 2.1) * t - 1.45 * (std::f32::consts::PI * t).sin().powf(1.3);
+            *q = a(frog.lerp(tip, t) + n * (h + dent * (1.0 - (2.0 * t - 1.0).abs())));
+        }
+        let ws = 0.85 * v.scale(c0);
+        let lift = Vec2::new(0.0, -ws * 0.18);
+        for j in 0..16 {
+            let w = ws * (1.0 - 0.38 * j as f32 / 16.0);
+            b.segment(stick[j], stick[j + 1], w, col(c(pal::STICK)), true);
+        }
+        for j in 0..16 {
+            let w = ws * (1.0 - 0.38 * j as f32 / 16.0) * 0.32;
+            let lc = with_alpha(c(pal::STICK_LIT), 0.8);
+            b.segment(stick[j] + lift, stick[j + 1] + lift, w, col(lc), true);
+        }
+        // The head and its white tip plate.
+        let hp = |u: f32, w: f32| a(tip + dir * u + n * w);
+        let head = [
+            hp(-0.4, 0.0),
+            hp(0.5, 0.0),
+            hp(0.95, 0.55),
+            hp(0.85, 1.75),
+            hp(-1.4, 1.55),
+        ];
+        b.polygon(&head, col(c(pal::STICK)));
+        b.segment(
+            hp(0.5, 0.0),
+            hp(0.95, 0.55),
+            ws * 0.3,
+            col(c(pal::TIP)),
+            true,
+        );
+        b.segment(
+            hp(0.95, 0.55),
+            hp(0.85, 1.7),
+            ws * 0.3,
+            col(c(pal::TIP)),
+            true,
+        );
+        // The frog: ebony, its silver ferrule, pearl slide and eye; the button behind.
+        let fp = |u: f32, w: f32| a(frog + dir * u + n * w);
+        let body = [
+            fp(0.4, 0.0),
+            fp(-4.3, 0.15),
+            fp(-4.6, 1.5),
+            fp(-4.1, 2.05),
+            fp(0.2, 2.05),
+            fp(0.7, 1.3),
+        ];
+        b.polygon(&body, col(c(pal::FROG)));
+        b.segment(
+            fp(-4.0, 1.95),
+            fp(0.1, 1.95),
+            ws * 0.22,
+            col(c(pal::FROG_LIT)),
+            true,
+        );
+        b.segment(
+            fp(0.25, 0.1),
+            fp(0.6, 1.25),
+            ws * 0.5,
+            col(c(pal::SILVER)),
+            true,
+        );
+        b.segment(
+            fp(-4.0, 0.2),
+            fp(-0.3, 0.12),
+            ws * 0.28,
+            col(c(pal::PEARL)),
+            true,
+        );
+        b.circle(fp(-2.4, 1.1), ws * 0.36, Fill::Solid(col(c(pal::PEARL))));
+        b.segment(stick[0], fp(-6.4, 2.1), ws * 0.95, col(c(pal::STICK)), true);
+        b.segment(
+            fp(-6.2, 2.1),
+            fp(-7.6, 2.1),
+            ws * 0.9,
+            col(c(pal::SILVER)),
+            true,
+        );
     };
-    if fs.technique == Technique::Tremolo {
-        arrow(b, base, s.s(10.0), 1.0);
-        arrow(b, base + normal * s.s(9.0), s.s(10.0), -1.0);
-    } else if speed > 0.02 {
-        arrow(b, base, s.s(8.0) + 0.3 * len * speed, along);
+    // Its motion: a blur trailing behind it as fast as it moves; tremolo's both ways.
+    if trem {
+        one(b, -1.2 * k, 0.22);
+        one(b, 1.2 * k, 0.22);
+    } else if speed > 0.05 && pl.n.live {
+        one(b, -sign * 2.6 * speed * k, 0.12);
+        one(b, -sign * 1.3 * speed * k, 0.24);
+    }
+    one(b, 0.0, 1.0);
+}
+
+/// Where the bow meets the string along its hair after `dt` seconds at `speed` m/s (down
+/// toward the tip, up toward the frog), held a hand from either end.
+pub fn travel(b: Bowed, at: f32, speed: f32, dt: f32) -> f32 {
+    let (hair, _) = measures(b);
+    (at + speed * 100.0 * dt.clamp(0.0, 0.1) / hair).clamp(0.08, 0.92)
+}
+
+/// The inspector's thumbnail: the instrument's outline upright, small, its strings.
+pub fn thumbnail(b: &mut Brush, r: Rect, which: Bowed, s: &Style) {
+    let d = which.dims();
+    let o = crate::scene::bowed::outline(which, 2);
+    let total = d.body + d.neck + d.pegbox + d.scroll_r * 2.0;
+    let k = (r.height() / total).min(r.width() / (d.body * 0.62));
+    let base = Pos2::new(r.center().x, r.bottom());
+    let p = |x: f32, y: f32| Pos2::new(base.x + x * k, base.y - y * k);
+    let wood = mix(c(pal::STICK_LIT), s.t.text_dim, 0.25);
+    let edge = mix(c(pal::STICK), s.t.text, 0.15);
+    let mut ring = [Pos2::ZERO; 256];
+    let m = o.len().min(ring.len());
+    for (q, &(x, y)) in ring.iter_mut().zip(o.iter()) {
+        *q = p(x, y);
+    }
+    // A fan from the middle (the outline is star-shaped about it).
+    let mid = p(0.0, d.body * 0.5);
+    for j in 0..m {
+        b.between(&[mid, ring[j]], &[mid, ring[(j + 1) % m]], wood);
+    }
+    b.polyline(&ring[..m], s.s(1.0), edge);
+    let (yb, yn) = (d.body - d.stop, d.body + d.neck);
+    b.segment(
+        p(0.0, yn - d.board),
+        p(0.0, yn),
+        d.board_w.1 * k,
+        c(pal::FROG),
+        true,
+    );
+    b.segment(
+        p(0.0, yn),
+        p(0.0, yn + d.pegbox),
+        d.head_w * 0.7 * k,
+        edge,
+        true,
+    );
+    let sc = p(0.0, yn + d.pegbox + d.scroll_r * 0.6);
+    b.circle(sc, d.scroll_r * 0.8 * k, Fill::Solid(edge));
+    for j in 0..4 {
+        let x = (1.5 - j as f32) * d.spacing.1;
+        b.segment(
+            p(x * 0.6, yb - d.after),
+            p(x, yb),
+            s.s(0.6),
+            c(pal::SILVER),
+            false,
+        );
+        b.segment(p(x, yb), p(x * 0.45, yn), s.s(0.6), c(pal::SILVER), false);
     }
 }

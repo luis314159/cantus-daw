@@ -139,6 +139,9 @@ pub struct InstEditors {
     /// picture, 1 the Mixer view's band. Each keeps its own build, so a frame at rest
     /// rebuilds nothing.
     pub tympanum_scenes: std::collections::BTreeMap<(u64, u8), crate::scene::Scene>,
+    /// r42:arcus-look — Arcus's scenes (its cello or bass in its room) by track, and where
+    /// its bow meets the string along the hair (0 the frog … 1 the tip) when last drawn.
+    pub arcus_scenes: std::collections::BTreeMap<u64, (crate::scene::Scene, f32, f64)>,
     /// r40:fix-f — the song the scenes were drawn for (`CantusApp`'s epoch): another song
     /// loaded, every scene goes.
     pub scenes_epoch: u64,
@@ -161,6 +164,7 @@ impl InstEditors {
         if self.scenes_epoch != epoch {
             self.scenes_epoch = epoch;
             self.tympanum_scenes.clear();
+            self.arcus_scenes.clear();
             self.chorda.clear_scenes();
             return;
         }
@@ -180,6 +184,8 @@ impl InstEditors {
         });
         self.chorda
             .retain_scenes(|id| kind(id) == Some(InstrumentKind::Chorda));
+        self.arcus_scenes
+            .retain(|id, _| kind(*id) == Some(InstrumentKind::BowedString));
     }
 
     pub fn on_b(&self, track: TrackId) -> bool {

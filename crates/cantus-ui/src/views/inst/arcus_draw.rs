@@ -1,8 +1,8 @@
 //! Arcus's pictures (a child of `views::inst::arcus`).
 //!
-//! - **The instrument** (Play): the cello or the double bass lying across the display, its
-//!   scroll to the right — the body's outline with its bouts, purfling and f-holes, the
-//!   tailpiece, the bridge, the fingerboard and the four strings, **the sounding one lit**
+//! - **The instrument** (Play): the cello or the double bass standing on its endpin in its
+//!   room — the scene engine's picture (r42:arcus-look, `scene::bowed*`), Drawn or
+//!   Photographic as *Settings ▸ Appearance* says — and over it, live, **the sounding string lit**
 //!   and swinging as loud as it sounds; the left hand's **finger** where the note stops the
 //!   string; **the bow** across the string at its real contact point (β of the stopped length
 //!   from the bridge), tilted to reach that string over the bridge's arch, its hair pressed
@@ -113,8 +113,36 @@ fn drag(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, r: Rect, salt: &
     }
 }
 
-/// Paint the instrument in `d` (Play) and take its drag. `tele` is the newest voice's
-/// telemetry (zeros with no engine).
+/// Which of the scene's instruments `fs` plays.
+pub fn bowed_of(fs: &ArcusSettings) -> crate::scene::bowed::Bowed {
+    match fs.instrument {
+        cantus_dsp::arcus::tables::Instrument::Bass => crate::scene::bowed::Bowed::Bass,
+        _ => crate::scene::bowed::Bowed::Cello,
+    }
+}
+
+/// The scene `fs`'s instrument is drawn as (r42:arcus-look): the cello or the double bass
+/// standing in the studio's live room Chorda and Tympanum stand in, in the theme's light.
+pub fn scene_view(fs: &ArcusSettings, s: &Style) -> crate::scene::SceneView {
+    crate::scene::SceneView {
+        subject: crate::scene::Subject::Bowed {
+            instrument: bowed_of(fs),
+        },
+        room: crate::scene::Room::Studio,
+        look: Default::default(),
+        dark: s.t.dark,
+        selected: None,
+        hovered: None,
+        sounding: Vec::new(),
+        accent: super::face::accent_on(s, s.hue),
+        ink: s.t.text,
+    }
+}
+
+/// Paint the instrument in `d` (Play) and take its drag: the scene engine's picture of the
+/// cello or the bass in its room (baked, cached: at rest a frame paints one textured
+/// quad), and over it, live, the sounding string, the finger and the bow. `tele` is the
+/// newest voice's telemetry (zeros with no engine).
 #[allow(clippy::too_many_arguments)]
 pub fn picture(
     app: &mut CantusApp,
@@ -125,12 +153,72 @@ pub fn picture(
     d: Rect,
     s: &Style,
 ) {
-    let inner = d.shrink(s.s(10.0));
-    drag(app, ui, track, inner, "picture");
+    drag(app, ui, track, d.shrink(s.s(4.0)), "picture");
     let n = now(fs, tele);
-    crate::kit::with_brush(&ui.painter_at(d), |b| {
-        body::instrument(b, inner, fs, &n, s);
-    });
+    let view = scene_view(fs, s);
+    let painter = ui.painter_at(d);
+    let time = ui.input(|i| i.time);
+    let entry = app
+        .inst
+        .arcus_scenes
+        .entry(track.0)
+        .or_insert_with(|| (crate::scene::Scene::default(), 0.5, time));
+    let moving = entry.0.paint(&painter, d, &view);
+    let b = bowed_of(fs);
+    // The bow's place along its hair, carried from frame to frame as it moves.
+    if n.live {
+        entry.1 = body::travel(b, entry.1, n.speed, (time - entry.2) as f32);
+    }
+    entry.2 = time;
+    let travel = entry.1;
+    let Some(built) = entry.0.built() else {
+        return;
+    };
+    let shown = entry.0.rect().unwrap_or(d);
+    let v = body::View {
+        cam: built.cam,
+        origin: shown.min,
+        k: egui::vec2(
+            shown.width() / built.size.x.max(1.0),
+            shown.height() / built.size.y.max(1.0),
+        ),
+    };
+    let rig = crate::scene::bowed::rig(b);
+    let pl = body::Play {
+        b,
+        rig: &rig,
+        fs,
+        n: &n,
+        travel,
+        time,
+        vibrato: tele[tel::VIBRATO].clamp(0.0, 1.0),
+        lit: super::face::voice2(s, s.hue),
+    };
+    crate::kit::with_brush(&painter, |br| body::live(br, &v, &pl, s));
+    if moving || (n.live && n.level > 0.0) {
+        crate::views::workspace_ticker::moving(
+            ui.ctx(),
+            crate::views::workspace_ticker::Reason::Live,
+        );
+    }
+}
+
+/// For the tests (r42:arcus-look): `track`'s Arcus picture alone in `rect`, as Play draws
+/// it on its display — the scene and what it plays, live.
+#[doc(hidden)]
+pub fn picture_for_tests(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, rect: Rect) {
+    let Some(fs) = app
+        .project()
+        .track(track)
+        .and_then(|t| t.instrument.native())
+        .map(cantus_engine::inst::arcus::settings)
+    else {
+        return;
+    };
+    let tele = app.inst_telemetry();
+    let s = Style::current().function(crate::kit::Function::Source);
+    let sd = super::face::on_display(&s);
+    picture(app, ui, track, &fs, &tele, rect, &sd);
 }
 
 /// Paint the Schelleng diagram in `d` (Edit) and take its drag.
@@ -222,7 +310,10 @@ fn diagram(
     );
     label(
         b,
-        Rect::from_min_size(pos2(r.left() - s.s(46.0), r.top()), vec2(s.s(43.0), s.s(11.0))),
+        Rect::from_min_size(
+            pos2(r.left() - s.s(46.0), r.top()),
+            vec2(s.s(43.0), s.s(11.0)),
+        ),
         "arcus.draw.force",
         Align2::RIGHT_TOP,
         dim,
@@ -244,6 +335,5 @@ fn diagram(
 
 /// The inspector's thumbnail: the instrument, small.
 pub fn thumbnail(b: &mut Brush, r: Rect, fs: &ArcusSettings, s: &Style) {
-    let n = now(fs, &[0.0; cantus_engine::TELEMETRY_LEN]);
-    body::instrument(b, r, fs, &n, s);
+    body::thumbnail(b, r, bowed_of(fs), s);
 }

@@ -8,6 +8,8 @@
 //! ADR 0104's per-pixel renderer grown up; the bake runs on the scene's worker, never the
 //! UI thread.
 
+#[path = "chorda_scene_px_bowed.rs"]
+pub mod bowed;
 #[path = "chorda_scene_px_gear.rs"]
 pub mod gear;
 #[path = "chorda_scene_px_geo.rs"]
@@ -470,6 +472,41 @@ fn bake_view(
                 key: geo::cm(120.0, 400.0, 220.0),
                 focus: geo::cm(-6.0, 0.0, -4.0),
                 far: far_of(&cam, &sk::points(&pieces)),
+            };
+            let r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
+            raster::bake(&g, split, &r, &cam, w, h, q, threads)
+        }
+        Subject::Bowed { instrument } => {
+            // r42:arcus-look — Arcus's cello or double bass, framed as the Drawn picture
+            // frames it.
+            use crate::scene::bowed_draw as bd;
+            let b = *instrument;
+            let d = b.dims();
+            let mut sc = bd::camera(b, view.room);
+            let pts = bd::points(b);
+            let fr = bd::frame_for(size);
+            sc.fit(&pts, fit_box(&fr, size), fr.margin, fr.anchor);
+            if let Some(c) = fitted {
+                sc = *c;
+            }
+            let cam = camera_of(&sc, ppp);
+            let mid = crate::scene::bowed::Pose::of(b).at(0.0, d.body * 0.5, 0.0);
+            let built = room::build(
+                &mut g,
+                view.room,
+                (mid.x, mid.z),
+                view.look,
+                sc.pos.z,
+                view.dark,
+                m.glow,
+            );
+            let split = g.tris.len();
+            bowed::build(&mut g, b);
+            let pl = Place {
+                mid: geo::cm(mid.x, mid.y, mid.z),
+                key: geo::cm(mid.x - 110.0, 360.0, mid.z + 200.0),
+                focus: geo::cm(mid.x, 0.0, mid.z),
+                far: far_of(&cam, &pts),
             };
             let r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
             raster::bake(&g, split, &r, &cam, w, h, q, threads)
