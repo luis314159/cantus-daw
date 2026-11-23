@@ -78,6 +78,8 @@ fn follow(env: &mut f32, a: f32, att: f32, rel: f32) {
 #[derive(Clone, Debug)]
 pub struct Low {
     sr: f32,
+    /// r42:tuning — the strip's tuning (ADR 0155): the tonic's pitch in it.
+    pub tuning: [f32; 128],
     xover: f32,
     xover_to: f32,
     phase: usize,
@@ -151,6 +153,7 @@ impl Low {
             src: Svf::default(),
             divider: Divider::new(sr),
             tonic_hz: super::tonic_hz(0),
+            tuning: [0.0; 128], // r42:tuning
             osc: 0.0,
             gate: 0.0,
             gate_att: follower(sr, 0.005),
@@ -236,7 +239,7 @@ impl Low {
 
     /// The tonic (0 = C … 11 = B): the tonic sub and the lift move to it at once.
     pub fn set_tonic(&mut self, tonic: u8) {
-        let hz = super::tonic_hz(tonic);
+        let hz = super::tonic_hz_tuned(tonic, &self.tuning); // r42:tuning
         if hz != self.tonic_hz {
             self.tonic_hz = hz;
             self.design_lift();

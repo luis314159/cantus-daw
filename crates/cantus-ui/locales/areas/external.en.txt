@@ -56,6 +56,9 @@ external.trim_name = Trim added to the measurement
 external.level = {db} dB
 external.level_name = Return level
 external.on = On
+# r42:tuning — the instrument retuned by MIDI Tuning Standard SysEx
+external.mts = MTS
+external.mts_name = Send the track's tuning to the instrument as MIDI Tuning Standard SysEx
 external.remove = Remove
 
 # --- control surfaces in Settings ---

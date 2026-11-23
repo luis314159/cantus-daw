@@ -280,6 +280,12 @@ pub struct ExternalUnit {
     /// the unit is removed (`None`: the unit did not change it).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub restore_input: Option<RestoreInput>,
+    /// r42:tuning — an instrument retuned by the MIDI Tuning Standard (ADR 0155): the
+    /// track's tuning is sent to its port as MTS SysEx (real-time single-note changes, every
+    /// key) whenever it changes. Off by default (and not written): a synth that does not read
+    /// MTS ignores it, but most never asked for it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mts: bool,
 }
 
 /// What a track's input was before a unit took it.
@@ -321,6 +327,7 @@ impl ExternalUnit {
             return_db: 0.0,
             enabled: true,
             restore_input: None,
+            mts: false, // r42:tuning
         }
     }
 
@@ -340,6 +347,7 @@ impl ExternalUnit {
             return_db: 0.0,
             enabled: true,
             restore_input: None,
+            mts: false, // r42:tuning
         }
     }
 

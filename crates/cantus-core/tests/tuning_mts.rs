@@ -51,7 +51,7 @@ fn words_round_trip_and_stay_in_range() {
         (443.0, [0x45, 0x0F, 0x07]),
         (261.6255653, [0x3C, 0x00, 0x00]),
     ] {
-        let p = 69.0 + 12.0 * (hz / 440.0f64).log2();
+        let p = 69.0 + 12.0 * cantus_dsp::math::log2(hz / 440.0f64);
         assert_eq!(encode_word(p), w, "{hz}");
     }
     assert_eq!(

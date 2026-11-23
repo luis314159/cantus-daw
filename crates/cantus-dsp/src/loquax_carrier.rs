@@ -132,6 +132,8 @@ pub struct Synth {
     voices: [Voice; MAX_VOICES + 1],
     /// The velocities of the keys held (0: up), whether or not the voices run.
     held: [f32; 128],
+    /// r42:tuning — the strip's tuning (ADR 0155): each key's carrier at its pitch.
+    pub tuning: [f32; 128],
     serial: u32,
     ka: f32,
     kr: f32,
@@ -145,6 +147,7 @@ impl Synth {
             p: SynthParams::default(),
             voices: [Voice::default(); MAX_VOICES + 1],
             held: [0.0; 128],
+            tuning: [0.0; 128], // r42:tuning
             serial: 0,
             ka: 1.0,
             kr: 1.0,
@@ -262,7 +265,9 @@ impl Synth {
                     .min_by_key(|&i| (!played[i].released, played[i].serial))
                     .unwrap_or(0)
             });
-        self.start(slot, key, f32::from(key), vel);
+        // r42:tuning — the key's tuned pitch (`+ 0.0` by default).
+        let note = f32::from(key) + crate::tuning::at(&self.tuning, key);
+        self.start(slot, key, note, vel);
     }
 
     /// Start a voice for every key held (the unit has just engaged).

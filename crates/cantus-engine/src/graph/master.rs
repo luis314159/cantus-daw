@@ -158,6 +158,7 @@ impl Processor {
                 Some(mut unit) => {
                     unit.configure(&want.spec);
                     unit.set_song_key(snapshot.key); // r41:contract
+                    unit.set_tuning(&snapshot.tuning.table); // r42:tuning — the project's
                     let m = &mut self.master;
                     let idx = m.effects.len();
                     m.bypass[idx] = want.bypass;

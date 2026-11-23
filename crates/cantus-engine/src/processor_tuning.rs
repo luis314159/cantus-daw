@@ -33,3 +33,18 @@ impl Processor {
         }
     }
 }
+
+/// The tuning a strip's pitched effects follow (ADR 0155): its tracks' when every track that
+/// feeds it plays in one (a track's own strip), the project's otherwise (a bus, a strip no
+/// track feeds). Allocation-free.
+pub(crate) fn strip_tuning(snapshot: &cantus_core::Snapshot, strip: usize) -> &TuningTable {
+    let mut found: Option<&TuningTable> = None;
+    for t in snapshot.tracks.iter().filter(|t| t.strip == Some(strip)) {
+        match found {
+            None => found = Some(&t.tuning.table),
+            Some(f) if cantus_dsp::tuning::same(&f.0, &t.tuning.table.0) => {}
+            Some(_) => return &snapshot.tuning.table,
+        }
+    }
+    found.unwrap_or(&snapshot.tuning.table)
+}

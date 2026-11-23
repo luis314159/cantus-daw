@@ -1087,6 +1087,12 @@ impl FxUnit for Unit {
             k.unit.set_song_key(key);
         }
     }
+    /// r42:tuning — every pedal hears the strip's tuning, as an insert does.
+    fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        for k in &mut self.kids {
+            k.unit.set_tuning(table);
+        }
+    }
     fn fork(&self) -> Option<Box<dyn FxUnit>> {
         // Every pedal must fork for the board to.
         let mut kids = Vec::with_capacity(ROOM);

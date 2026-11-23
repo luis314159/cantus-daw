@@ -37,9 +37,10 @@ impl ExternalTuning for NoExternal {
 pub fn fill_external(snapshot: &mut cantus_core::Snapshot, ext: &dyn ExternalTuning) {
     let mut table = TuningTable::EQUAL;
     let mut read: Option<bool> = None;
-    for t in snapshot.tracks.iter_mut().filter(|t| t.tuning.external) {
+    let tracks = snapshot.tracks.iter_mut().map(|t| &mut t.tuning);
+    for t in tracks.chain([&mut snapshot.tuning]).filter(|t| t.external) {
         if *read.get_or_insert_with(|| ext.read(&mut table)) {
-            t.tuning.table = std::sync::Arc::new(table);
+            t.table = std::sync::Arc::new(table);
         }
     }
 }

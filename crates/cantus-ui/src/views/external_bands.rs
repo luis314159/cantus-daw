@@ -257,6 +257,21 @@ fn unit_block(app: &mut CantusApp, ui: &mut Ui, u: &ExternalUnit) {
         if by != 0 {
             next.return_db = (u.return_db + by as f32).clamp(-60.0, 24.0);
         }
+        // r42:tuning — an instrument that retunes by MTS SysEx (ADR 0155), off by default.
+        if u.kind == UnitKind::Instrument {
+            let mut mts = u.mts;
+            if led_button(
+                ui,
+                &mut mts,
+                Src::Key("external.mts"),
+                &t("external.mts_name"),
+                60.0,
+            )
+            .changed()
+            {
+                next.mts = mts;
+            }
+        }
         let mut on = u.enabled;
         if led_button(
             ui,

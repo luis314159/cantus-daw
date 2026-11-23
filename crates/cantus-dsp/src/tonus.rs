@@ -153,6 +153,8 @@ pub const MAX_EVENTS: usize = 1024;
 #[derive(Clone, Debug)]
 pub struct Tonus {
     sample_rate: f32,
+    /// r42:tuning — the strip's tuning (ADR 0155): where each target note sits.
+    tuning: [f32; 128],
     tracker: PitchTracker,
     shifter: Shifter,
     s: TonusSettings,
@@ -200,6 +202,7 @@ impl Tonus {
             tracker,
             shifter,
             allowed: [Allowed::Target; 12],
+            tuning: [0.0; 128], // r42:tuning
             held: Held::default(),
             events: [(0, NoteEvent::AllOff); MAX_EVENTS],
             n_events: 0,
@@ -240,6 +243,12 @@ impl Tonus {
 
     pub fn settings(&self) -> &TonusSettings {
         &self.s
+    }
+
+    /// r42:tuning — the strip's tuning (ADR 0155): the notes it pulls to sit at their tuned
+    /// pitches.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        self.tuning = *table;
     }
 
     pub fn set(&mut self, s: &TonusSettings) {
@@ -399,9 +408,11 @@ impl Tonus {
     fn decide(&mut self) {
         let s = &self.s;
         let pick = match s.source {
-            Source::Scale => scale::choose(self.p, &self.allowed, self.target),
+            Source::Scale => scale::choose_tuned(self.p, &self.allowed, self.target, &self.tuning),
             Source::Midi if self.held.is_empty() => None,
-            Source::Midi => scale::choose(self.p, &self.held.allowed(), self.target),
+            Source::Midi => {
+                scale::choose_tuned(self.p, &self.held.allowed(), self.target, &self.tuning)
+            }
             Source::Melody => self.held.last().map(|n| (n as i32, false)),
         };
         let t = pick.map(|x| x.0);
@@ -413,8 +424,10 @@ impl Tonus {
         self.bypass = pick.is_some_and(|x| x.1);
         self.c_target = match pick {
             Some((n, false)) => {
-                let want = n as f32 - self.p;
-                want * flex_gain(((n as f32 - self.p_c) * 100.0).abs(), s.flex_cents)
+                // r42:tuning — the note's tuned pitch (`n + 0.0` by default).
+                let n = n as f32 + crate::tuning::at(&self.tuning, n.clamp(0, 127) as u8);
+                let want = n - self.p;
+                want * flex_gain(((n - self.p_c) * 100.0).abs(), s.flex_cents)
             }
             _ => 0.0,
         };

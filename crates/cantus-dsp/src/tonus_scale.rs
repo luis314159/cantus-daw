@@ -128,6 +128,18 @@ pub const HYSTERESIS: f32 = 0.12;
 /// whether it is a bypass note, given the current one (`current`, kept unless a new one is
 /// nearer by more than [`HYSTERESIS`]). `None` when every class is removed.
 pub fn choose(p: f32, allowed: &[Allowed; 12], current: Option<i32>) -> Option<(i32, bool)> {
+    choose_tuned(p, allowed, current, &crate::tuning::EQUAL)
+}
+
+/// r42:tuning — [`choose`] in a tuning (ADR 0155): each note `n` sits at `n + tune[n]`, the
+/// distances measured to those pitches (`+ 0.0` at the default keeps every bit).
+pub fn choose_tuned(
+    p: f32,
+    allowed: &[Allowed; 12],
+    current: Option<i32>,
+    tune: &crate::tuning::Table,
+) -> Option<(i32, bool)> {
+    let at = |n: i32| n as f32 + crate::tuning::at(tune, n.clamp(0, 127) as u8);
     let base = p.round() as i32;
     let mut best: Option<(i32, f32)> = None;
     for o in -12..=12 {
@@ -135,7 +147,7 @@ pub fn choose(p: f32, allowed: &[Allowed; 12], current: Option<i32>) -> Option<(
         if allowed[n.rem_euclid(12) as usize] == Allowed::Removed {
             continue;
         }
-        let d = (p - n as f32).abs();
+        let d = (p - at(n)).abs();
         if best.is_none_or(|(_, bd)| d < bd) {
             best = Some((n, d));
         }
@@ -143,7 +155,7 @@ pub fn choose(p: f32, allowed: &[Allowed; 12], current: Option<i32>) -> Option<(
     let (mut n, d) = best?;
     if let Some(c) = current {
         if c != n && allowed[c.rem_euclid(12) as usize] != Allowed::Removed {
-            let dc = (p - c as f32).abs();
+            let dc = (p - at(c)).abs();
             if dc - d < HYSTERESIS {
                 n = c;
             }

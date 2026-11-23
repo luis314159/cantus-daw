@@ -442,6 +442,11 @@ impl Loquax {
     }
 
     /// New settings: allocation-free. A new band count or order clears the banks.
+    /// r42:tuning — the strip's tuning (ADR 0155), for the carrier's notes from now on.
+    pub fn set_tuning(&mut self, table: &[f32; 128]) {
+        self.synth.tuning = *table;
+    }
+
     pub fn set(&mut self, s: &LoquaxSettings) {
         let mut s = *s;
         s.bands = s.bands.clamp(MIN_BANDS, MAX_BANDS);

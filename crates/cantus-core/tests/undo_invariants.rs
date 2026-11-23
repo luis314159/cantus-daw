@@ -6225,6 +6225,7 @@ fn round36_external_command(rng: &mut Lcg, project: &mut Project) -> (usize, Com
             u.trim_ms = rng.below(1000) as f32 - 500.0;
             u.return_db = rng.below(60) as f32 - 30.0;
             u.enabled = rng.below(4) != 0;
+            u.mts = rng.below(2) == 0; // r42:tuning — the MTS switch
             (2, Command::SetExternalUnit { unit: Box::new(u) })
         }
         3 if !units.is_empty() => (

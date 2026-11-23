@@ -111,6 +111,11 @@ impl Unit {
 }
 
 impl FxUnit for Unit {
+    /// r42:tuning — the strip's tuning (ADR 0155), where this unit's notes sit.
+    fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        self.dsp.set_tuning(&table.0);
+    }
+
     fn fork(&self) -> Option<Box<dyn FxUnit>> {
         Some(Box::new(self.clone()))
     }

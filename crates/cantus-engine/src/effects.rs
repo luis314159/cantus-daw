@@ -574,6 +574,14 @@ impl EffectUnit {
         }
     }
 
+    /// r42:tuning (ADR 0155) — hand the strip's tuning to a unit that reads it
+    /// ([`crate::fx::FxUnit::set_tuning`]).
+    pub fn set_tuning(&mut self, table: &cantus_core::tuning::TuningTable) {
+        if let Dsp::Fx(u) = &mut self.dsp {
+            u.set_tuning(table);
+        }
+    }
+
     /// A unit around any [`crate::fx::FxUnit`] — for tests of the host (a pure delay that
     /// exercises compensation) and, later, for units the engine did not build itself.
     pub fn from_fx(slot: &EffectSlot, mut unit: Box<dyn crate::fx::FxUnit>) -> Self {

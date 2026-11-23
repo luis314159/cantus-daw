@@ -114,6 +114,11 @@ The tools that run and check it (`tools/test/`, `tools/release/`):
 - `pwsh -NoProfile -File tools/release/watch-run.ps1 -RunId <id>`: a release or rehearsal
   watched as its jobs finish, one poll every five minutes (L8); through a filter, use
   `grep --line-buffered` (a buffered grep hid two finished jobs on 2026-11-21).
+- `bash tools/test/scala-archive.sh [dir]`: the Scala scale archive (version 94, 5 401
+  files) through Cantus's Scala reader (round 42). It fetches the archive from its fixed
+  Wayback Machine copy, checks its SHA-256, unpacks it outside the repository (it has no
+  licence: never committed) and runs the `#[ignore]` test `tuning_scala_archive`. `SLOT=1`
+  wraps the build in `tools/build/slot.sh`.
 - `python -I tools/test/timing_tests.py crates/<crate>/src`: the crate's non-ignored tests
   that time something (L3: each must take the binary's turn, `crate::timing_turn` in
   cantus-dsp).

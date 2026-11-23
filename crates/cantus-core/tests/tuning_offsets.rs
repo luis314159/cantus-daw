@@ -193,7 +193,7 @@ fn werckmeister_iii_in_e_flat_at_415_is_these_cents() {
     let third = (pitch(67) - pitch(63)) * 100.0;
     assert!((fifth - 696.090).abs() < 1e-3, "{fifth}");
     assert!((third - 390.225).abs() < 1e-3, "{third}");
-    let hz = 440.0 * 2f64.powf((pitch(69) - 69.0) / 12.0);
+    let hz = 440.0 * cantus_dsp::math::exp2((pitch(69) - 69.0) / 12.0);
     assert!((hz - 415.0).abs() < 1e-3);
     assert!(!t.is_equal());
 }
@@ -226,7 +226,7 @@ fn a_12_tet_scale_file_is_equal_temperament() {
         assert!(t.at(k).abs() < 1e-6, "key {k}");
     }
     // Surge's expectations: A69 = 440, C60 = 261.625565301.
-    let hz = |k| 440.0 * 2f64.powf((pitch(&t, k) - 69.0) / 12.0);
+    let hz = |k| 440.0 * cantus_dsp::math::exp2((pitch(&t, k) - 69.0) / 12.0);
     assert!((hz(69) - 440.0).abs() < 1e-9);
     assert!((hz(60) - 261.625565301).abs() < 1e-6);
 }
@@ -247,7 +247,7 @@ fn edo_31_and_a_non_octave_period_step_as_their_files_say() {
     // Bohlen–Pierce's cousin: 17 steps to 3/1.
     let e = scale("ED3-17.scl", None).offsets();
     let tritave = (pitch(&e, 77) - pitch(&e, 60)) * 100.0;
-    assert!((tritave - 1200.0 * 3f64.log2()).abs() < 1e-3, "{tritave}");
+    assert!((tritave - 1200.0 * cantus_dsp::math::log2(3f64)).abs() < 1e-3, "{tritave}");
     // A one-step scale (Carlos Alpha, 78 c).
     let c = scale("carlos-alpha.scl", None).offsets();
     assert!(((pitch(&c, 70) - pitch(&c, 69)) * 100.0 - 78.0).abs() < 1e-3);
@@ -285,7 +285,7 @@ fn surge_s_white_keys_map_plays_the_chromatic_scale_on_the_white_keys() {
 
 #[test]
 fn keyboard_maps_reference_their_key_and_frequency() {
-    let semis = |hz: f64| 12.0 * (hz / 440.0).log2();
+    let semis = |hz: f64| 12.0 * cantus_dsp::math::log2(hz / 440.0);
     // An integer frequency on key 69, linear.
     let t = scale("12-intune-nodesc.scl", Some("empty-note69.kbm")).offsets();
     assert!((f64::from(t.at(69)) - semis(452.0)).abs() < 1e-5);

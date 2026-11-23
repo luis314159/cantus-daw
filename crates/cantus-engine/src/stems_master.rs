@@ -40,14 +40,19 @@ impl Through {
         block: usize,
         make_unit: &mut dyn FnMut(&EffectSlot, f32) -> EffectUnit,
     ) -> Option<Box<Through>> {
-        Self::of_chain(
+        let mut t = Self::of_chain(
             &snapshot.master_effects,
             snapshot.master_fx_enabled,
             snapshot.key,
             sample_rate,
             block,
             make_unit,
-        )
+        )?;
+        // r42:tuning — the project's tuning, as on the master (ADR 0155).
+        for (u, _, _) in &mut t.units {
+            u.set_tuning(&snapshot.tuning.table);
+        }
+        Some(t)
     }
 
     /// A copy of `chain` (switched on or off as a whole by `on`), each unit handed the

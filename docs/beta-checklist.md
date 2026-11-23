@@ -1055,3 +1055,23 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
   Mezcla, Salida, Sobremuestreo, Canales y Circuito caben a tu escala; no aparece *Abrir su
   editor completo* (no tienen ventana propia: dinos si quieres la de Fragor con un solo
   circuito).
+
+### Ronda 42 — la afinación del proyecto en cada instrumento (ADR 0155) <!-- r42:tuning -->
+
+- [ ] **Escucha la afinación** en Chorda, Exemplar, Calor y Organum: un proyecto en
+  *Werckmeister III en Mi bemol, La = 415* (ventana *Proyecto ▸ Afinación*). Toca una cadencia
+  en Mi bemol mayor y otra en Fa sostenido mayor: la primera debe sonar más pura (terceras
+  más quietas), la segunda más tensa — eso es el temperamento, no un error. ¿Te suena bien?
+- [ ] **Un sintetizador de hardware con MTS** (si tienes uno que lea *MIDI Tuning Standard*,
+  p. ej. muchos de Sequential, Novation, Korg o un módulo con MTS): crea su unidad externa
+  (*Equipo externo*), enciende **MTS** en su fila y pon el proyecto en Werckmeister III. El
+  sintetizador debe afinarse solo (cada tecla a su altura); compara con un afinador. Apaga
+  **MTS**: el sintetizador vuelve a recibir solo las notas.
+- [ ] **Un plug-in CLAP o VST3 que lea la afinación por nota** (Surge XT, Vital): en un
+  proyecto temperado debe sonar a la misma altura que Exemplar en la misma tecla.
+- [ ] **Scala como prueba externa**: con el programa Scala (gratis) genera un volcado MTS
+  de Werckmeister III (*Bulk tuning dump*) y un mensaje de escala/octava; impórtalos (o
+  pásame los ficheros `.syx`) — deben coincidir tecla a tecla con los de Cantus a 0,01 cents.
+- [ ] Verificado solo en emulación: las alturas se midieron en renders (0,1 cent), las
+  SysEx en un puerto de prueba y con un decodificador independiente (el de ODDSound); ningún
+  sintetizador real ni ningún oído las ha juzgado todavía.
