@@ -92,6 +92,8 @@ node tools/contrast.mjs [dist] [--quick] [--only /download/,/es/] [--json out.js
 node tools/motion.mjs [dist]
 node tools/shoot.mjs <out-dir> [dist] [--only /,/download/] [--full] [--el .selector] [--frames /,24,120]
 node tools/frames.mjs [dist] [--page /] [--width 1440] [--cpu 4] [--runs 3] [--css "rules"]
+node tools/lcp_graph.mjs [dist] [--runs 3] [--slowdown 4] [--page /] [--quiet]
+node tools/same_look.mjs <distA> <distB> [--only /,/es/,/download/]
 ```
 
 - `contrast.mjs` opens every page (or `--quick`: one of each kind, both languages) in the light
@@ -103,6 +105,16 @@ node tools/frames.mjs [dist] [--page /] [--width 1440] [--cpu 4] [--runs 3] [--c
 - `frames.mjs` scrolls a page 12 px a frame with the CPU slowed (`--cpu 4`) and reports frame
   times; `--css` switches an effect off to find what a cost comes from. Compare two builds back
   to back on a quiet machine.
+- `lcp_graph.mjs` is the site budget's LCP taken apart (round 41): Lighthouse's mobile preset
+  replays the page on a modelled slow 4G, and its LCP is the end of the last request or task
+  it counts. It prints both estimates' requests and tasks with their simulated start and end.
+  Same Lighthouse, server and calibrated CPU as the budget. Two things it showed: the home's
+  page must stay within two round trips (`tools/wasm_budget.py`), and any request that ends
+  before the hero's picture has painted shares the line with it.
+- `same_look.mjs` proves a change invisible: two builds, page by page. It compares the style
+  as the browser parsed it (every rule, in order) and full-page screenshots, with the app and
+  without script. A page that draws differently twice is retried; run it with one build on
+  both sides to see which pages do (`/instruments/`, `/effects/…`, at times `/es/`).
 
 ## Publishing
 
