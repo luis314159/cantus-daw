@@ -140,14 +140,18 @@ pub struct TrackTuningSnap {
 impl TrackTuningSnap {
     /// The track's tuning in `project`, resolved off the audio thread.
     pub fn of(project: &crate::model::Project, track: &crate::model::Track) -> Self {
-        let t = track.tuning.resolve(&project.tuning);
+        // r42:tuning — a temperament that follows the song's key takes its root here.
+        let t = track
+            .tuning
+            .resolve(&project.tuning)
+            .resolved_for_key(project.key.map(|k| k.root));
         if t.is_default() {
             return TrackTuningSnap::default();
         }
         TrackTuningSnap {
             table: std::sync::Arc::new(t.offsets()),
             external: matches!(t.system, crate::tuning::TuningSystem::External),
-            tuning: std::sync::Arc::new(t.into_owned()),
+            tuning: std::sync::Arc::new(t),
         }
     }
 }
