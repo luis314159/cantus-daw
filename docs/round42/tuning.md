@@ -111,6 +111,14 @@ single-note changes for every key, sent when it changes or to a new out thread.
   moves every read, five instruments playing, a temperament installed while playing).
 - **MTS:** the MMA's nine consistent example words decode within 0.001 Hz; our dumps decode alike
   in an independent oracle (ODDSound's 0BSD parser's behaviour) within 0.0062 c.
+- **MTS to hardware:** the MIDI-out thread writes the table's two single-note messages whole
+  to the instrument's own port (none to another route's), and they read back as the table
+  within 0.0031 c (`tuning_mts_out.rs`).
+- **Pitched effects** (`cantus-dsp/tests/tuning_effects.rs`): at A415 a voice sung at 440 Hz
+  is pulled by Tonus to B flat and corrected to its tuned pitch; the scale snap measures to
+  tuned notes; Nitor's tonic and Loquax's carrier sit on the tuned key; at the default each is
+  the untuned one to the bit.
+- **End to end** (`cantus-ui/tests/tuning_engine_e2e.rs`): E2E.
 
 ## Verified only in emulation
 

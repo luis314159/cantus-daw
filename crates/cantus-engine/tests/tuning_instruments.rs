@@ -527,3 +527,41 @@ fn chorda_designs_each_key_at_its_table_s_offset_and_reuses_the_design() {
     }
     println!("Chorda's designed keys: worst {worst:.5} c from the table");
 }
+
+/// The owner's rule for Chorda's diapason (round 42): in a song with no tuning its own `a4`
+/// is the diapason, as in every older song; in a tuned one the tuning's is, and its `a4` is
+/// not used (`cantus_core::inst::chorda::effective_a4`, which the editor reads too).
+#[test]
+fn chorda_s_own_a4_is_its_diapason_only_where_the_track_plays_no_tuning() {
+    use cantus_core::inst::chorda::effective_a4;
+    let at = |a4: &'static [(&'static str, f32)]| Inst {
+        name: "chorda",
+        kind: Some(InstrumentKind::Chorda),
+        set: a4,
+    };
+    let (c432, c440) = (at(&[("a4", 432.0)]), at(&[]));
+    // A song with no tuning: 432, measured (its first partial against Chorda at 440).
+    let f432 = left(&offline(
+        &steady_project(&c432, &[69], Tuning::default()),
+        256,
+    ));
+    let f440 = left(&offline(
+        &steady_project(&c440, &[69], Tuning::default()),
+        256,
+    ));
+    let a = harmonic(&f432, 0, 432.0);
+    let b = harmonic(&f440, 0, 440.0);
+    let got = 1200.0 * math::log2(a / b);
+    let want = 1200.0 * math::log2(432.0 / 440.0);
+    println!("Chorda at a4 = 432: {a:.4} Hz against {b:.4} Hz ({got:+.4} c for {want:+.4} c)");
+    assert!((got - want).abs() < 0.1, "{got:+.4} c for {want:+.4} c");
+    let mut spec = NativeSpec::new(InstrumentKind::Chorda);
+    spec.set("a4", 432.0);
+    assert_eq!(effective_a4(&spec, &Tuning::default()), 432.0);
+    // A tuned song: the tuning's diapason; Chorda's own a4 changes nothing, to the bit.
+    let t = werck3_e_flat_415();
+    assert_eq!(effective_a4(&spec, &t), 415.0);
+    let a = offline(&project(&c432, &KEYS[1..3], t.clone()), 256);
+    let b = offline(&project(&c440, &KEYS[1..3], t), 256);
+    assert_null(&b, &a, 0.0, "Chorda's a4 under a tuning");
+}

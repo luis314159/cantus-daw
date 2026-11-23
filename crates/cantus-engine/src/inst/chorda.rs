@@ -223,6 +223,23 @@ pub fn with_offsets(mut t: Tuning, offsets: &[f32; 128]) -> Tuning {
     t
 }
 
+/// r42:tuning — the design parameter values ask for in a track tuned by `offsets` (ADR 0155,
+/// `cantus_core::inst::chorda::follows_tuning`): at 12-TET A440 exactly [`tuning_of`] (the
+/// bits of every older song: Chorda's own `a4`); otherwise the tuning's diapason, which the
+/// offsets carry, in place of Chorda's `a4` (designed at 440), with its stretch, stiffness
+/// and voicing kept.
+pub fn tuning_for(values: &[f32; N], offsets: &[f32; 128]) -> Tuning {
+    let table = cantus_core::tuning::TuningTable(*offsets);
+    if !cantus_core::inst::chorda::follows_tuning(&table) {
+        return tuning_of(values);
+    }
+    let mut v = *values;
+    if let Some(i) = PARAMS.iter().position(|p| p.key == "a4") {
+        v[i] = 440.0;
+    }
+    with_offsets(tuning_of(&v), offsets)
+}
+
 /// The keyboard a new Chorda plays: the parameters' defaults' tuning (model 2's own). It is
 /// the one [`warm`] asks for first.
 pub fn reference() -> Tuning {
@@ -610,7 +627,7 @@ pub fn prepare(snapshot: &cantus_core::Snapshot, fs: f32) {
         if let Some(n) = t.instrument.native() {
             if n.kind == cantus_core::InstrumentKind::Chorda {
                 // r42:tuning — the track's tuning is part of the design.
-                let tuning = with_offsets(tuning_of(&values_of(n)), &t.tuning.table.0);
+                let tuning = tuning_for(&values_of(n), &t.tuning.table.0);
                 ask(Some((t.id.0, fs.to_bits())), tuning, fs);
             }
         }
@@ -880,7 +897,7 @@ impl Unit {
     /// The keyboard its knobs and the track's tuning ask for (r42:tuning): taken if it is
     /// designed, else waited for as configure always did.
     fn retarget(&mut self) {
-        self.want_tuning = with_offsets(tuning_of(&self.base), &self.offsets);
+        self.want_tuning = tuning_for(&self.base, &self.offsets);
         self.want = key_of(self.want_tuning, self.fs);
         if let Some(k) = lookup(self.want) {
             self.dsp.set_keyboard(k);
