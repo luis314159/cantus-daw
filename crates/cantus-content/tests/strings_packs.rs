@@ -45,7 +45,7 @@ fn files(src: &std::path::Path, pack: &cantus_content::manifest::Pack) -> HashMa
                 "sneakybass.zip",
             ]
             .into_iter()
-            .find(|l| std::fs::metadata(src.join(l)).map(|m| m.len()) == Ok(z.size))
+            .find(|l| std::fs::metadata(src.join(l)).is_ok_and(|m| m.len() == z.size))
             .expect("a local copy of the pack's zip");
             let mut a =
                 zip::ZipArchive::new(std::fs::File::open(src.join(local)).unwrap()).unwrap();

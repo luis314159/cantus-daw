@@ -202,6 +202,40 @@ pub fn sfz(inst: &StringsInstrument, up: usize) -> String {
     s
 }
 
+impl StringsBuild {
+    /// What the manifest checks: each instrument's file a relative `.sfz` path no other
+    /// writes, a preset like an instrument of the pack, every zone's file a relative path, its
+    /// keys in order and its articulation one Exemplar knows.
+    pub fn validate(&self) -> Result<(), String> {
+        let mut seen = std::collections::HashSet::new();
+        for i in &self.instruments {
+            crate::manifest::check_path(&i.sfz).map_err(|e| format!("{}: {e}", i.sfz))?;
+            if !i.sfz.to_ascii_lowercase().ends_with(".sfz") || !seen.insert(i.sfz.as_str()) {
+                return Err(format!("{}: an .sfz file, once", i.sfz));
+            }
+            if let Some(base) = &i.like {
+                if !self
+                    .instruments
+                    .iter()
+                    .any(|b| &b.sfz == base && b.like.is_none())
+                {
+                    return Err(format!(
+                        "{}: like {base}, which the pack does not write",
+                        i.sfz
+                    ));
+                }
+            }
+            for z in &i.zones {
+                crate::manifest::check_path(&z.file).map_err(|e| format!("{}: {e}", z.file))?;
+                if z.lo > z.hi || z.root > 127 || !ARTICULATIONS.contains(&z.art.as_str()) {
+                    return Err(format!("{}: its keys or its articulation", z.file));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// The instruments of `build` with a preset's zones taken from the instrument it is like.
 pub fn resolved(build: &StringsBuild) -> Vec<StringsInstrument> {
     build

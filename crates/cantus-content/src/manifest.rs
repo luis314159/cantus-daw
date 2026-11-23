@@ -928,6 +928,10 @@ impl Manifest {
                     "a strings build needs manifest format {FORMAT_STRINGS}"
                 )));
             }
+            if let Some(b) = &p.strings {
+                b.validate()
+                    .map_err(|e| bad(format!("strings build: {e}")))?;
+            }
             let stated = p.licence_kind();
             let licence = match stated {
                 Some(l) => l,
@@ -1006,8 +1010,13 @@ impl Manifest {
                 if !i.gain_db.is_finite() || i.gain_db.abs() > 24.0 {
                     return Err(bad_inst("the gain must be within ±24 dB"));
                 }
+                // r42:strings-rec — or an instrument the strings build writes at install.
+                let built = p
+                    .strings
+                    .as_ref()
+                    .is_some_and(|b| b.instruments.iter().any(|x| x.sfz == i.file));
                 if let Source::Files(files) = &p.source {
-                    if !files.iter().any(|f| f.to.eq_ignore_ascii_case(&i.file)) {
+                    if !built && !files.iter().any(|f| f.to.eq_ignore_ascii_case(&i.file)) {
                         return Err(bad_inst("its file is not among the pack's files"));
                     }
                 }
