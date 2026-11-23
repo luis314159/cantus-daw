@@ -166,7 +166,8 @@ fn main() {
         "//! Arcus's bowed-pitch table — **generated** by `tools/arcus/pitch-table.sh`\n\
          //! (`examples/arcus_pitch_table.rs`); do not edit by hand. Cents each bowed key sounds\n\
          //! from its loop, per key × dynamic ({:?}) × contact point ({:?}), measured twice (the\n\
-         //! offset, then what was left with it applied) at 48 kHz with no vibrato and no body.\n",
+         //! offset, then what was left with it applied) at 48 kHz with no vibrato and no body.\n\n\
+         #![allow(clippy::approx_constant)] // measured cents that happen to read like π or √2\n",
         DYN, POS
     );
     for (j, (inst, name, lo, keys)) in ranges.iter().enumerate() {
@@ -186,7 +187,9 @@ fn main() {
                 );
             }
         }
-        let span = first[j].iter().fold((0f32, 0f32), |(lo, hi), x| (lo.min(*x), hi.max(*x)));
+        let span = first[j]
+            .iter()
+            .fold((0f32, 0f32), |(lo, hi), x| (lo.min(*x), hi.max(*x)));
         eprintln!(
             "{name}: offsets {:+.2} … {:+.2} ct; left after pass 1 at most {worst:.3} ct",
             span.0, span.1

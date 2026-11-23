@@ -24,6 +24,9 @@ enum Ev {
     Cc1(f32),
 }
 
+/// A render: its file's name, the settings, the score, its length (s).
+type Job = (String, ArcusSettings, Vec<(f64, Ev)>, f64);
+
 fn id(k: u8) -> u64 {
     k as u64 + 7_000
 }
@@ -97,7 +100,10 @@ fn legato(line: &[(u8, f64)], bpm: f64, vel: f32, lo: f32, hi: f32) -> (Vec<(f64
         let u = j as f64 / steps as f64;
         // Bars 2 and 3 up, bar 4 down.
         let (time, v) = if u < 2.0 / 3.0 {
-            (0.2 + bar + u * 1.5 * 2.0 * bar, lo + (hi - lo) * (u * 1.5) as f32)
+            (
+                0.2 + bar + u * 1.5 * 2.0 * bar,
+                lo + (hi - lo) * (u * 1.5) as f32,
+            )
         } else {
             let w = (u - 2.0 / 3.0) * 3.0;
             (0.2 + 3.0 * bar + w * bar, hi + (lo - hi) * w as f32)
@@ -109,7 +115,11 @@ fn legato(line: &[(u8, f64)], bpm: f64, vel: f32, lo: f32, hi: f32) -> (Vec<(f64
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let out = PathBuf::from(args.get(1).cloned().unwrap_or_else(|| "arcus-listen".into()));
+    let out = PathBuf::from(
+        args.get(1)
+            .cloned()
+            .unwrap_or_else(|| "arcus-listen".into()),
+    );
     let levels = args.iter().any(|a| a == "levels");
     std::fs::create_dir_all(&out).expect("out dir");
     for (name, inst, note, phrase_shift) in [
@@ -120,7 +130,7 @@ fn main() {
             instrument: inst,
             ..ArcusSettings::default()
         };
-        let mut jobs: Vec<(String, ArcusSettings, Vec<(f64, Ev)>, f64)> = Vec::new();
+        let mut jobs: Vec<Job> = Vec::new();
         // A solo note at three dynamics (the velocity alone: pp, mf, ff).
         for (dyn_name, vel) in [("pp", 0.22f32), ("mf", 0.6), ("ff", 0.98)] {
             jobs.push((
@@ -132,7 +142,11 @@ fn main() {
         }
         // Beside the ABX references: the Karoryfer cello's A3 at p, mf and f (its files
         // `A2_*_d.wav`, named an octave low), the Smolken bass's D2.
-        let abx = if inst == Instrument::Cello { 57u8 } else { 38u8 };
+        let abx = if inst == Instrument::Cello {
+            57u8
+        } else {
+            38u8
+        };
         for (dyn_name, vel) in [("p", 0.35f32), ("mf", 0.6), ("f", 0.85)] {
             jobs.push((
                 format!("{name}-abx-{abx}-{dyn_name}"),
@@ -155,7 +169,7 @@ fn main() {
             (52, 4.0),
         ]
         .iter()
-        .map(|(k, b)| ((*k as i32 + phrase_shift) as u8, *b))
+        .map(|(k, b)| ((*k + phrase_shift) as u8, *b))
         .collect();
         let (ev, secs) = legato(&line, 72.0, 0.55, 0.3, 0.85);
         jobs.push((format!("{name}-phrase-legato-cc1"), base, ev, secs));
@@ -194,9 +208,14 @@ fn main() {
         for (file, s, ev, secs) in jobs {
             let (l, r) = render(&s, &ev, secs);
             let peak = l.iter().chain(&r).fold(0f32, |m, x| m.max(x.abs())) as f64;
-            let rms = (l.iter().map(|x| (*x as f64).powi(2)).sum::<f64>() / l.len() as f64).sqrt();
+            let rms =
+                (l.iter().map(|x| (*x as f64) * (*x as f64)).sum::<f64>() / l.len() as f64).sqrt();
             if levels {
-                println!("{file:28} peak {:6.1} dBFS  RMS {:6.1} dBFS", db(peak), db(rms));
+                println!(
+                    "{file:28} peak {:6.1} dBFS  RMS {:6.1} dBFS",
+                    db(peak),
+                    db(rms)
+                );
             }
             write(&out.join(format!("{file}.wav")), &l, &r);
         }

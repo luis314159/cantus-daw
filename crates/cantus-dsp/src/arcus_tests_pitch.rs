@@ -53,9 +53,21 @@ fn the_bowed_pitch_is_within_a_cent_on_the_grid_and_between() {
             // the table.
             let held: [(f64, f64, f32); 4] = [
                 (DYN[(n * 3) % DYN.len()], POS[(n * 2) % POS.len()], 0.0),
-                (0.06 + 0.11 * (n % 9) as f64, -0.9 + 0.37 * (n % 5) as f64, 37.0),
-                (0.93 - 0.13 * (n % 7) as f64, 0.85 - 0.41 * (n % 4) as f64, -23.0),
-                (0.31 + 0.07 * (n % 5) as f64, 0.62 - 0.29 * (n % 6) as f64, 49.0),
+                (
+                    0.06 + 0.11 * (n % 9) as f64,
+                    -0.9 + 0.37 * (n % 5) as f64,
+                    37.0,
+                ),
+                (
+                    0.93 - 0.13 * (n % 7) as f64,
+                    0.85 - 0.41 * (n % 4) as f64,
+                    -23.0,
+                ),
+                (
+                    0.31 + 0.07 * (n % 5) as f64,
+                    0.62 - 0.29 * (n % 6) as f64,
+                    49.0,
+                ),
             ];
             for (d, p, fine) in held {
                 let e = offset(inst, key, fine, d, p, true);
@@ -95,7 +107,12 @@ fn the_bowed_pitch_is_within_a_cent_on_the_grid_and_between() {
     // cents) are pp far over the fingerboard on the lowest strings, where the loop has few
     // clean periods to hear in the measure's half second. Held as measured — the gate's last
     // points are the report's open item, and a change that loses ground fails here.
-    assert!(over <= 4, "{over} of {} over a cent; the worst {}", all.len(), worst.1);
+    assert!(
+        over <= 4,
+        "{over} of {} over a cent; the worst {}",
+        all.len(),
+        worst.1
+    );
     assert!(worst.0 <= 2.0, "the worst {}", worst.1);
     assert!(median <= 0.3, "median {median}");
 }

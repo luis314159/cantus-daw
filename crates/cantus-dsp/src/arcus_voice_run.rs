@@ -130,13 +130,8 @@ impl Voice {
             z0,
             sh.sr as f64 / f,
         );
-        let (accel, f_attack) = attack_of(
-            s,
-            self.velocity,
-            &bw,
-            tech == NoteTech::Staccato,
-            1.0 / f,
-        );
+        let (accel, f_attack) =
+            attack_of(s, self.velocity, &bw, tech == NoteTech::Staccato, 1.0 / f);
         self.accel = accel;
         self.f_attack = f_attack;
         if keep && self.bowing {

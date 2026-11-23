@@ -437,16 +437,17 @@ impl BowedString {
         // Only while the bow is drawn (it rounds the Helmholtz corner the bow makes and keeps
         // its timing between the samples; a plucked or free string keeps its own decay, which
         // a corner near a high fundamental would shorten).
-        let (cr_c, cr_delay, cr_gain) = if !s.dc && s.corner_hz > 0.0 && s.corner_hz < 0.45 * self.sr {
-            let c = 1.0 - math::exp(-std::f64::consts::TAU * s.corner_hz / self.sr);
-            let b = 1.0 - c;
-            let (sn, cs) = math::sin_cos(w0);
-            let gain = c / (1.0 - 2.0 * b * cs + b * b).sqrt();
-            let _ = sn;
-            (c, loss_delay(b, w0), gain)
-        } else {
-            (1.0, 0.0, 1.0)
-        };
+        let (cr_c, cr_delay, cr_gain) =
+            if !s.dc && s.corner_hz > 0.0 && s.corner_hz < 0.45 * self.sr {
+                let c = 1.0 - math::exp(-std::f64::consts::TAU * s.corner_hz / self.sr);
+                let b = 1.0 - c;
+                let (sn, cs) = math::sin_cos(w0);
+                let gain = c / (1.0 - 2.0 * b * cs + b * b).sqrt();
+                let _ = sn;
+                (c, loss_delay(b, w0), gain)
+            } else {
+                (1.0, 0.0, 1.0)
+            };
         self.cr_c = cr_c as f32;
         let g = g / cr_gain;
         let g = if s.dc {

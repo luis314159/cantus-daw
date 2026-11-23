@@ -4363,7 +4363,10 @@ fn an_arcus_never_allocates() {
         let mut ids = Vec::new();
         for (name, set) in [
             ("Cello", vec![("mode", 2.0f32)]),
-            ("Bass pizz", vec![("inst", 1.0), ("tech", 1.0), ("mode", 0.0)]),
+            (
+                "Bass pizz",
+                vec![("inst", 1.0), ("tech", 1.0), ("mode", 0.0)],
+            ),
         ] {
             let mut t = p.make_track(name);
             ids.push(t.id);
@@ -4374,12 +4377,8 @@ fn an_arcus_never_allocates() {
             t.instrument = InstrumentSpec::Native(spec);
             let mut c = p.make_clip("line", Ticks::ZERO, Ticks::beats(8));
             for (b, key, len) in [(0i64, 50u8, 3i64), (2, 53, 2), (4, 57, 1), (6, 55, 2)] {
-                c.notes.push(p.make_note(
-                    Ticks::beats(b),
-                    Ticks::beats(len),
-                    key,
-                    90,
-                ));
+                c.notes
+                    .push(p.make_note(Ticks::beats(b), Ticks::beats(len), key, 90));
             }
             t.clips.push(c);
             p.tracks.push(t);

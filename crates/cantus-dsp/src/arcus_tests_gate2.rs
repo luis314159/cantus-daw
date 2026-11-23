@@ -20,7 +20,17 @@ fn span(beta: f64, speed: f32) -> Option<(f64, f64)> {
     for i in 0..18 {
         let frac = 0.03 * math::powf(2.0f64, i as f64 * 0.4);
         let f = fmax * frac;
-        let b = bow_string(inst, 2, 50.0, beta, f as f32, speed, 20.0, 0.8, Friction::Hyperbolic);
+        let b = bow_string(
+            inst,
+            2,
+            50.0,
+            beta,
+            f as f32,
+            speed,
+            20.0,
+            0.8,
+            Friction::Hyperbolic,
+        );
         if classify(&b, (0.5 * SR) as usize) == Motion::Helmholtz {
             held.push(f);
         }
@@ -231,18 +241,31 @@ fn the_vibrato_moves_each_partial_differently_through_the_body_and_not_without_i
     let swings_body: Vec<f64> = (1..=8)
         .map(|n| swing_db(&envelope(&render(1.0), f0, n, 0.8)))
         .collect();
-    let swings_dry: Vec<f64> = (1..=8).map(|n| swing_db(&envelope(&dry, f0, n, 0.8))).collect();
+    let swings_dry: Vec<f64> = (1..=8)
+        .map(|n| swing_db(&envelope(&dry, f0, n, 0.8)))
+        .collect();
     println!("each harmonic's swing with the body (dB): {swings_body:.1?}");
     println!("… without it: {swings_dry:.1?}");
     let mean = swings_body.iter().sum::<f64>() / 8.0;
-    let spread = (swings_body.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / 8.0).sqrt();
+    let spread = (swings_body
+        .iter()
+        .map(|s| (s - mean) * (s - mean))
+        .sum::<f64>()
+        / 8.0)
+        .sqrt();
     let dry_max = swings_dry.iter().cloned().fold(0.0, f64::max);
     let body_max = swings_body.iter().cloned().fold(0.0, f64::max);
     // Through the body the partials swing, each its own way (Fletcher & Sanders 1967;
     // Mellody & Wakefield 2000); without it they hardly move.
-    assert!(body_max > 3.0, "the strongest swing with the body: {body_max:.1} dB");
+    assert!(
+        body_max > 3.0,
+        "the strongest swing with the body: {body_max:.1} dB"
+    );
     assert!(spread > 1.0, "the swings' spread: {spread:.2} dB");
-    assert!(body_max > 2.0 * dry_max, "with {body_max:.1} dB, without {dry_max:.1} dB");
+    assert!(
+        body_max > 2.0 * dry_max,
+        "with {body_max:.1} dB, without {dry_max:.1} dB"
+    );
 }
 
 #[test]
@@ -269,10 +292,16 @@ fn the_vibrato_s_rate_and_depth_are_its_defaults() {
     let tail = &cents[cents.len() / 3..];
     let max = tail.iter().cloned().fold(f64::MIN, f64::max);
     let min = tail.iter().cloned().fold(f64::MAX, f64::min);
-    let crossings = tail.windows(2).filter(|w| w[0] < 0.0 && w[1] >= 0.0).count();
+    let crossings = tail
+        .windows(2)
+        .filter(|w| w[0] < 0.0 && w[1] >= 0.0)
+        .count();
     let secs = tail.len() as f64 * 32.0 / SR as f64;
     let rate = crossings as f64 / secs;
-    println!("vibrato at A3: {rate:.2} Hz, ±{:.1} cents", 0.5 * (max - min));
+    println!(
+        "vibrato at A3: {rate:.2} Hz, ±{:.1} cents",
+        0.5 * (max - min)
+    );
     // Geringer & Allen 2004: ~5.5 Hz; the gate's ±15–25 cents (a cello's A3, its D string's
     // fifth: the depth widens a little above the bottom of the range, MacLeod 2008).
     assert!((5.3..=6.2).contains(&rate), "{rate} Hz");
@@ -310,7 +339,7 @@ fn the_bodies_ring_at_their_signature_modes_and_die_away() {
         body.process(&mut l, &mut r, 0, false);
         // Passive and stable: what it rings with dies away (the second half's energy a sliver
         // of the first's), and it comes to rest exactly.
-        let e = |x: &[f32]| x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>();
+        let e = |x: &[f32]| x.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>();
         let (first, second) = (e(&l[..n / 2]), e(&l[n / 2..]));
         assert!(second < 1e-3 * first, "{inst:?}: {second} after {first}");
         let mut modes = [BodyMode::default(); BODY_MODES];
@@ -328,11 +357,12 @@ fn the_bodies_ring_at_their_signature_modes_and_die_away() {
                     best = (hz, mag);
                 }
             }
-            println!(
-                "{inst:?}: a mode of {want:.1} Hz rings at {:.1} Hz",
+            println!("{inst:?}: a mode of {want:.1} Hz rings at {:.1} Hz", best.0);
+            assert!(
+                (best.0 / want - 1.0).abs() <= 0.01,
+                "{inst:?}: {want} → {}",
                 best.0
             );
-            assert!((best.0 / want - 1.0).abs() <= 0.01, "{inst:?}: {want} → {}", best.0);
         }
     }
 }
@@ -358,7 +388,7 @@ fn a_plucked_string_loses_energy_every_period() {
         let period = (SR as f64 / (440.0 * math::exp2((key as f64 - 69.0) / 12.0))) as usize;
         let energy: Vec<f64> = l[(0.05 * SR) as usize..]
             .chunks(period * 4)
-            .map(|c| c.iter().map(|v| (*v as f64).powi(2)).sum::<f64>())
+            .map(|c| c.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>())
             .collect();
         let rises = energy.windows(2).filter(|w| w[1] > w[0] * 1.0001).count();
         assert!(rises == 0, "{inst:?}: the energy rose {rises} times");
@@ -370,7 +400,11 @@ fn a_plucked_string_loses_energy_every_period() {
 fn probe_harmonics() {
     let key = 50u8;
     let f0 = 440.0 * math::exp2((key as f64 - 69.0) / 12.0);
-    for (name, body, tors) in [("dry", 0.0f32, true), ("body", 1.0, true), ("dry, no torsion", 0.0, false)] {
+    for (name, body, tors) in [
+        ("dry", 0.0f32, true),
+        ("body", 1.0, true),
+        ("dry, no torsion", 0.0, false),
+    ] {
         let mut a = Arcus::new(SR);
         a.set(&ArcusSettings {
             body_mix: body,
@@ -387,8 +421,13 @@ fn probe_harmonics() {
         let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
         a.process(&mut l, &mut r);
         let (s0, s1) = ((0.6 * SR) as usize, (1.4 * SR) as usize);
-        let h: Vec<f64> = (1..=12).map(|n| magnitude(&l[s0..s1], f0 * n as f64)).collect();
-        let rel: Vec<String> = h.iter().map(|x| format!("{:+.1}", 20.0 * math::log10(x / h[0]))).collect();
+        let h: Vec<f64> = (1..=12)
+            .map(|n| magnitude(&l[s0..s1], f0 * n as f64))
+            .collect();
+        let rel: Vec<String> = h
+            .iter()
+            .map(|x| format!("{:+.1}", 20.0 * math::log10(x / h[0])))
+            .collect();
         println!("{name}: {}", rel.join(" "));
     }
 }
@@ -406,7 +445,17 @@ fn probe_pitch_quantization() {
         for c in [-20.0f64, -12.0, -6.0, -3.0, 0.0, 3.0, 6.0, 12.0, 20.0] {
             let key = 64.0 + c / 100.0;
             let fmax = schelleng_max(z0, 0.15, 0.1) as f32;
-            let b = bow_string(inst, 3, key, 0.1, 0.42 * fmax, 0.15, 8.0, 1.2, Friction::Hyperbolic);
+            let b = bow_string(
+                inst,
+                3,
+                key,
+                0.1,
+                0.42 * fmax,
+                0.15,
+                8.0,
+                1.2,
+                Friction::Hyperbolic,
+            );
             let want = 440.0 * math::exp2((key - 69.0) / 12.0);
             let e = cents(measure_hz(&b.out, want, 0.5, 1.15), want);
             line += &format!(" {c:+.0}→{:+.2}", e);
@@ -414,4 +463,59 @@ fn probe_pitch_quantization() {
         println!("{line}");
     }
     CORNER.with(|c| c.set(3000.0));
+}
+
+/// The cost of one voice and of sixteen across a pool, beside Fides's bowed string timed in
+/// turn on the same machine (a ratio, so another build running beside it moves both): not a
+/// claim — the integrator's quiet bench is.
+#[test]
+#[ignore = "a probe: cargo test -p cantus-dsp --release --lib arcus::tests_gate2::probe_cpu -- --ignored --nocapture"]
+fn probe_cpu() {
+    use crate::fides::exciter::ExciterKind;
+    use crate::fides::{Fides, FidesSettings};
+    let secs = 4.0f64;
+    let frames = (secs * SR as f64) as usize;
+    let time_arcus = |voices: u8| {
+        let mut a = Arcus::new(SR);
+        a.set(&ArcusSettings {
+            mode: crate::voices::PlayMode::Poly,
+            poly: 8,
+            ..ArcusSettings::default()
+        });
+        for v in 0..voices {
+            a.note_on(36 + 3 * v, 0.7, v as u64);
+        }
+        let (mut l, mut r) = (vec![0.0; 256], vec![0.0; 256]);
+        let t0 = std::time::Instant::now();
+        for _ in 0..frames / 256 {
+            a.process(&mut l, &mut r);
+        }
+        t0.elapsed().as_secs_f64()
+    };
+    let time_fides = || {
+        let mut f = Fides::new(SR);
+        let mut s = FidesSettings::default();
+        s.exc.kind = ExciterKind::Bow;
+        f.set(&s);
+        f.note_on(48, 0.7, 1);
+        let (mut l, mut r) = (vec![0.0; 256], vec![0.0; 256]);
+        let t0 = std::time::Instant::now();
+        for _ in 0..frames / 256 {
+            f.process(&mut l, &mut r);
+        }
+        t0.elapsed().as_secs_f64()
+    };
+    let mut best = (f64::MAX, f64::MAX, f64::MAX);
+    for _ in 0..5 {
+        best.0 = best.0.min(time_arcus(1));
+        best.1 = best.1.min(time_fides());
+        best.2 = best.2.min(time_arcus(8));
+    }
+    println!(
+        "one Arcus voice: {:.3} % of a core at 48 kHz ({:.2}× Fides's bowed string, {:.3} %); eight: {:.3} %",
+        100.0 * best.0 / secs,
+        best.0 / best.1,
+        100.0 * best.1 / secs,
+        100.0 * best.2 / secs
+    );
 }

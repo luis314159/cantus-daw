@@ -71,9 +71,15 @@ fn render_block(p: &Project, block: usize, tail: f64) -> Vec<f32> {
 fn shapes() -> Vec<(&'static str, NativeSpec)> {
     vec![
         ("default (a cello, legato)", arcus(&[])),
-        ("a double bass, re-bowed", arcus(&[("inst", 1.0), ("mode", 1.0)])),
+        (
+            "a double bass, re-bowed",
+            arcus(&[("inst", 1.0), ("mode", 1.0)]),
+        ),
         ("pizzicato, poly", arcus(&[("tech", 1.0), ("mode", 0.0)])),
-        ("tremolo, thermal", arcus(&[("tech", 2.0), ("bow.friction", 1.0)])),
+        (
+            "tremolo, thermal",
+            arcus(&[("tech", 2.0), ("bow.friction", 1.0)]),
+        ),
         (
             "portamento, no vibrato, cut",
             arcus(&[
@@ -204,7 +210,12 @@ fn cc1_mpe_pressure_and_slide_move_the_bow() {
     swelled.note_on(note(50, 9));
     let _ = run(&mut swelled, 24_000);
     let (tp, ts) = (plain.telemetry(), swelled.telemetry());
-    assert!(ts[tel::DYNAMIC] > tp[tel::DYNAMIC] + 0.2, "{} {}", ts[tel::DYNAMIC], tp[tel::DYNAMIC]);
+    assert!(
+        ts[tel::DYNAMIC] > tp[tel::DYNAMIC] + 0.2,
+        "{} {}",
+        ts[tel::DYNAMIC],
+        tp[tel::DYNAMIC]
+    );
     assert!(ts[tel::SPEED].abs() > tp[tel::SPEED].abs() * 1.5);
     // MPE pressure on the dynamic, slide on the contact point.
     let mut pressed = Unit::new(SR);
@@ -215,7 +226,12 @@ fn cc1_mpe_pressure_and_slide_move_the_bow() {
     let b = run(&mut pressed, 24_000);
     let tq = pressed.telemetry();
     assert!(tq[tel::DYNAMIC] > tp[tel::DYNAMIC] + 0.2);
-    assert!(tq[tel::BETA] < tp[tel::BETA] * 0.9, "{} {}", tq[tel::BETA], tp[tel::BETA]);
+    assert!(
+        tq[tel::BETA] < tp[tel::BETA] * 0.9,
+        "{} {}",
+        tq[tel::BETA],
+        tp[tel::BETA]
+    );
     assert!(a.0 != b.0);
     // Another note's expression touches nothing of this one.
     let mut other = Unit::new(SR);
@@ -243,14 +259,26 @@ fn a_note_s_own_articulation_and_bow_reach_it() {
     ] {
         let mut u = Unit::new(SR);
         u.configure(&spec, &[]);
-        u.note_art(4, NoteArt { articulation: art, bow });
+        u.note_art(
+            4,
+            NoteArt {
+                articulation: art,
+                bow,
+            },
+        );
         u.note_on(note(50, 4));
         let x = run(&mut u, 24_000);
         assert!(x != plain, "{art:?} {bow:?} changed nothing");
         // An art named for another note is not this one's.
         let mut v = Unit::new(SR);
         v.configure(&spec, &[]);
-        v.note_art(5, NoteArt { articulation: art, bow });
+        v.note_art(
+            5,
+            NoteArt {
+                articulation: art,
+                bow,
+            },
+        );
         v.note_on(note(50, 4));
         assert_eq!(run(&mut v, 24_000), plain, "{art:?}: another note's art");
     }
@@ -294,7 +322,10 @@ fn a_note_dies_to_exact_silence_and_the_unit_rests_as_new() {
 fn a_chord_at_full_velocity_keeps_its_headroom() {
     for (name, spec) in [
         ("cello, poly", arcus(&[("mode", 0.0)])),
-        ("bass pizzicato, poly", arcus(&[("inst", 1.0), ("tech", 1.0), ("mode", 0.0)])),
+        (
+            "bass pizzicato, poly",
+            arcus(&[("inst", 1.0), ("tech", 1.0), ("mode", 0.0)]),
+        ),
     ] {
         let mut p = Project::new("chord");
         let mut t = p.make_track("Arcus");

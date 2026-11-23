@@ -61,7 +61,8 @@ fn read_midi(path: &str) -> Vec<Vec<(f64, Ev)>> {
                 let data = &body[i..i + n];
                 i += n;
                 if kind == 0x51 {
-                    tempo = ((data[0] as u32) << 16 | (data[1] as u32) << 8 | data[2] as u32) as f64;
+                    tempo =
+                        ((data[0] as u32) << 16 | (data[1] as u32) << 8 | data[2] as u32) as f64;
                 } else if kind == 0x06 && data == b"pizzicato" {
                     ev.push((secs, Ev::Pizz));
                 }
@@ -79,7 +80,11 @@ fn read_midi(path: &str) -> Vec<Vec<(f64, Ev)>> {
                 0xB0 if body[i] == 1 => ev.push((secs, Ev::Cc1(body[i + 1]))),
                 _ => {}
             }
-            i += if matches!(b & 0xF0, 0xC0 | 0xD0) { 1 } else { 2 };
+            i += if matches!(b & 0xF0, 0xC0 | 0xD0) {
+                1
+            } else {
+                2
+            };
         }
         tracks.push(ev);
     }
@@ -150,7 +155,9 @@ fn write(path: &Path, l: &[f32], r: &[f32], gain: f32) {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let midi = args.get(1).map_or("tools/arcus/abx_phrase.mid", |s| s.as_str());
+    let midi = args
+        .get(1)
+        .map_or("tools/arcus/abx_phrase.mid", |s| s.as_str());
     let out = Path::new(args.get(2).map_or("abx", |s| s.as_str()));
     std::fs::create_dir_all(out).expect("out dir");
     let tracks = read_midi(midi);

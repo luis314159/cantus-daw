@@ -20,10 +20,15 @@ fn read(path: &str) -> (Vec<f32>, f64) {
         hound::SampleFormat::Float => r.samples::<f32>().map(|s| s.unwrap()).collect(),
         hound::SampleFormat::Int => {
             let full = (1i64 << (spec.bits_per_sample - 1)) as f32;
-            r.samples::<i32>().map(|s| s.unwrap() as f32 / full).collect()
+            r.samples::<i32>()
+                .map(|s| s.unwrap() as f32 / full)
+                .collect()
         }
     };
-    let mono = all.chunks(ch).map(|c| c.iter().sum::<f32>() / ch as f32).collect();
+    let mono = all
+        .chunks(ch)
+        .map(|c| c.iter().sum::<f32>() / ch as f32)
+        .collect();
     (mono, spec.sample_rate as f64)
 }
 
@@ -51,7 +56,10 @@ fn main() {
     for path in &args[1..] {
         let (x, sr) = read(path);
         // The steady part: the second quarter to the third of the file.
-        let (a, b) = (x.len() / 4, (x.len() * 3 / 4).min(x.len() / 4 + (2.0 * sr) as usize));
+        let (a, b) = (
+            x.len() / 4,
+            (x.len() * 3 / 4).min(x.len() / 4 + (2.0 * sr) as usize),
+        );
         // The fundamental: the autocorrelation's peak within a major third of `near`, then
         // the strongest of a fine scan around it.
         let seg = &x[a..(a + (0.4 * sr) as usize).min(b)];
@@ -108,13 +116,24 @@ fn main() {
             .map(|b| format!("{:+.1}", 10.0 * math::log10((b.1 / b.0).max(1e-24))))
             .collect();
         // The attack: the first time the 10 ms RMS reaches 90 % of the steady RMS.
-        let steady = (x[a..b].iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / (b - a) as f64)
+        let steady = (x[a..b]
+            .iter()
+            .map(|v| (*v as f64) * (*v as f64))
+            .sum::<f64>()
+            / (b - a) as f64)
             .sqrt();
         let win = (0.01 * sr) as usize;
-        let onset = x.iter().position(|v| v.abs() > 0.01 * steady as f32).unwrap_or(0);
+        let onset = x
+            .iter()
+            .position(|v| v.abs() > 0.01 * steady as f32)
+            .unwrap_or(0);
         let mut t90 = f64::NAN;
         for i in (onset..x.len().saturating_sub(win)).step_by(win / 4) {
-            let r = (x[i..i + win].iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / win as f64)
+            let r = (x[i..i + win]
+                .iter()
+                .map(|v| (*v as f64) * (*v as f64))
+                .sum::<f64>()
+                / win as f64)
                 .sqrt();
             if r >= 0.9 * steady {
                 t90 = (i - onset) as f64 / sr;

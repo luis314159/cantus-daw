@@ -363,7 +363,14 @@ fn probe_torsion() {
     for ratio in [5.0f64, 7.0] {
         for imp in [1.0f32, 1.5, 2.0, 3.0] {
             for q in [3.0f32, 5.0, 8.0] {
-                cases.push((format!("ratio {ratio} Z {imp} Q {q}"), Some(Torsion { ratio, impedance: imp, q })));
+                cases.push((
+                    format!("ratio {ratio} Z {imp} Q {q}"),
+                    Some(Torsion {
+                        ratio,
+                        impedance: imp,
+                        q,
+                    }),
+                ));
             }
         }
     }
@@ -371,8 +378,20 @@ fn probe_torsion() {
         TORSION.with(|c| c.set(Some(*t)));
         let fm = schelleng_max(z0, 0.1, 0.1) as f32;
         let mut steady = String::new();
-        for frac in [0.05f32, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0, 1.2, 1.5, 2.0] {
-            let b = bow_string(inst, 2, 50.0, 0.1, fm * frac, 0.1, 20.0, 0.8, Friction::Hyperbolic);
+        for frac in [
+            0.05f32, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0, 1.2, 1.5, 2.0,
+        ] {
+            let b = bow_string(
+                inst,
+                2,
+                50.0,
+                0.1,
+                fm * frac,
+                0.1,
+                20.0,
+                0.8,
+                Friction::Hyperbolic,
+            );
             steady += match classify(&b, (0.5 * SR) as usize) {
                 Motion::Helmholtz => "H",
                 Motion::Multiple => "m",
@@ -386,7 +405,17 @@ fn probe_torsion() {
         let mut grid = String::new();
         for accel in [1.0f32, 2.0, 4.0, 8.0, 16.0, 32.0] {
             for frac in [0.2f32, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.3] {
-                let b = bow_gesture(inst, 2, 50.0, beta, (fmax * frac, 0.5 * fmax), speed, accel, 0.4, Friction::Hyperbolic);
+                let b = bow_gesture(
+                    inst,
+                    2,
+                    50.0,
+                    beta,
+                    (fmax * frac, 0.5 * fmax),
+                    speed,
+                    accel,
+                    0.4,
+                    Friction::Hyperbolic,
+                );
                 let t = attack_time(&b).unwrap_or(0.4);
                 cells += 1;
                 sum += t;
@@ -399,7 +428,10 @@ fn probe_torsion() {
             }
             grid += "|";
         }
-        println!("{name:24}: steady {steady}  attacks <=50 ms {good}/{cells} {grid} mean {:.0} ms", 1000.0 * sum / cells as f64);
+        println!(
+            "{name:24}: steady {steady}  attacks <=50 ms {good}/{cells} {grid} mean {:.0} ms",
+            1000.0 * sum / cells as f64
+        );
     }
     TORSION.with(|c| c.set(None));
 }
