@@ -47,11 +47,11 @@ abajo, o siempre arriba), y empieza abajo tras un silencio.
 
 ## La vista Tocar
 
-**El dibujo** (izquierda) es la cuerda tal como se frota: el puente a la izquierda, el dedo
-donde la nota pisa la cuerda, el diapasón y la cejilla; **el arco** cruzándola en su punto de
-contacto, tan grueso como aprieta, su flecha tan larga como se mueve y en su dirección.
+**El dibujo** (izquierda) es el instrumento tal como se toca: la cuerda que suena iluminada,
+el dedo donde la nota la pisa, **el arco** cruzándola en su punto de contacto, apretando y
+moviéndose como lo hace (arrastra sobre el dibujo para mover el contacto y la fuerza).
 
-Debajo, **el diagrama de Schelleng**: la fuerza del arco (arriba) contra su distancia al
+En la vista Editar, **el diagrama de Schelleng**: la fuerza del arco (arriba) contra su distancia al
 puente (a lo ancho), ambas en escala logarítmica. La región ámbar es donde la cuerda mantiene
 su movimiento de Helmholtz — el tono limpio, que canta. Encima el arco aprieta demasiado para
 su velocidad (un crujido áspero); debajo, demasiado poco (un sonido de superficie, soplado,
@@ -61,9 +61,11 @@ fuerza (arriba y abajo).
 
 **La tarjeta del instrumento** (derecha): *Chelo* o *Contrabajo*; *Arco*, *Pizzicato* o
 *Trémolo*; y los cuatro números que gira un músico — **Dinámica** (la dinámica sin
-controlador ni parte de la velocidad), **Contacto** (−1 sobre el diapasón, sul tasto, … +1
-cerca del puente), **Fuerza** (una octava más ligera o más pesada que la de la dinámica),
-**Vel. arco**.
+controlador ni parte de la velocidad), **Contacto** (× la distancia al puente de la propia
+dinámica: ×0,7 más cerca del puente, ×1,4 hacia el diapasón, sul tasto), **Fuerza** (× la de la
+dinámica, ×0,5 … ×2), **Vel. arco** (× la suya). La lectura de debajo dice los mismos números y
+lo que hacen: la nota, la cuerda, la marca de la dinámica, β, la fuerza en newtons con la región
+en la que debe quedarse, la velocidad del arco en cm/s.
 
 Debajo: **Vibrato** (profundidad, frecuencia, demora), **Cuerpo y cuerda** (cuánto cuerpo se
 oye, su tamaño, cuánto resuena) y **Salida** (*Resonancia*: cuánto suena una nota cuando el
@@ -110,7 +112,7 @@ octava, transposición, fino, la semilla de sus pequeñas variaciones).
 Veinticuatro, del chelo y del contrabajo: las líneas llanas y cantabile, sul tasto y junto al
 puente, sin vibrato, détaché y marcato, portamento, dobles cuerdas, pizzicato de orquesta y
 resonante (y el pizzicato de jazz del contrabajo), trémolo, un arco lento, MPE. Sus cuatro
-macros: la dinámica, el vibrato, el contacto, el cuerpo.
+macros, también las de un Arcus nuevo: Expresión (la dinámica), Contacto, Cuerpo, Vibrato.
 
 El violín y la viola están en el mismo motor pero aún no se ofrecen: esperan la misma puerta
 medida que pasaron el chelo y el contrabajo.

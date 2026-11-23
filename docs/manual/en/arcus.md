@@ -47,11 +47,11 @@ or always up), and starts down after a rest.
 
 ## The Play view
 
-**The picture** (left) is the string as it is bowed: the bridge at the left, the finger
-where the note stops the string, the fingerboard and the nut; **the bow** across it at its
-contact point, as thick as it presses, its arrow as long as it moves and pointing its way.
+**The picture** (left) is the instrument as it is played: the sounding string lit, the
+finger where the note stops it, **the bow** across it at its contact point, pressing and
+moving as it does (drag across the picture to move the contact and the force).
 
-Under it, **the Schelleng diagram**: the bow's force (up) against its distance from the
+On the Edit view, **the Schelleng diagram**: the bow's force (up) against its distance from the
 bridge (across), both on log scales. The amber region is where the string keeps its
 Helmholtz motion — the clean, singing tone. Above it the bow presses too hard for its speed
 (a raucous crunch); under it too lightly (a breathy, whistling surface sound); the region
@@ -60,9 +60,11 @@ narrows towards the bridge, as Schelleng drew it in 1973. The garnet point is th
 
 **The instrument's card** (right): *Cello* or *Double bass*; *Arco*, *Pizzicato* or
 *Tremolo*; and the four numbers a player turns — **Dynamic** (the dynamic with no
-controller and no velocity's share), **Contact** (−1 over the fingerboard, sul tasto, … +1
-near the bridge), **Force** (an octave lighter or heavier than the dynamic's own),
-**Bow speed**.
+controller and no velocity's share), **Contact** (× the dynamic's own distance from the
+bridge: ×0.7 nearer the bridge, ×1.4 towards the fingerboard, sul tasto), **Force** (× the
+dynamic's own, ×0.5 … ×2), **Bow speed** (× its own). The read-out under them says the same
+numbers and what they make: the note, the string, the dynamic's marking, β, the force in
+newtons with the region it must stay in, the bow's speed in cm/s.
 
 Under them: **Vibrato** (depth, rate, delay), **Body and string** (how much of the body is
 heard, its size, how long it rings) and **Output** (*Ring*: how long a note rings once the bow
@@ -105,7 +107,7 @@ times, bend range, octave, transpose, fine, the seed of its small variations).
 Twenty-four, the cello's and the double bass's: the plain and cantabile lines, sul tasto and
 near the bridge, without vibrato, détaché and marcato, portamento, double stops, pizzicato
 orchestral and ringing (and the bass's jazz pizzicato), tremolo, a slow bow, MPE. Their four
-macros: the dynamic, the vibrato, the contact, the body.
+macros, a new Arcus's too: Expression (the dynamic), Contact, Body, Vibrato.
 
 The violin and the viola are in the same engine but not yet offered: they wait for the same
 measured gate the cello and the bass passed.
