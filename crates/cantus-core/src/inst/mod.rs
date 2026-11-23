@@ -187,6 +187,8 @@ impl InstrumentKind {
             InstrumentKind::AcousticDrums => !tympanum::SET_KEYS.contains(&key),
             // r41:fides — the model a song was made with and the voices it holds are set.
             InstrumentKind::Resonator => !fides::SET_KEYS.contains(&key),
+            // r42:arcus — the model a song was made with and the voices it holds are set.
+            InstrumentKind::BowedString => !arcus::SET_KEYS.contains(&key),
             _ => true,
         }
     }

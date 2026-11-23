@@ -25,6 +25,7 @@
 
 pub mod aequalis;
 pub mod anulus;
+pub mod arcus; // r42:arcus (ADR 0157): the bowed string's DSP
 // r39:conv — Aula, the convolution reverb (ADR 0112)
 pub mod aula;
 pub mod aula_conv;

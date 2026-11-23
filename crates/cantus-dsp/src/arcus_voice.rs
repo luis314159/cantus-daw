@@ -1,0 +1,401 @@
+//! One Arcus voice (a child of `arcus`): a string, the bow's gesture on it (its speed, force
+//! and contact point through the attack, the stroke, a bow change and the lift), Fides's pluck
+//! for pizzicato, the vibrato and the pitch — stepped on the control grid, rendered between.
+
+use super::pitch::PitchTable;
+use super::string::{Bow, BowedString, StringStep};
+use super::tables::{schelleng_max, Instrument, InstrumentSpec};
+use super::{ArcusSettings, Art, BowDir, Controls, Technique, VibSource, CTRL};
+use crate::fides::exciter::{
+    Biquad, ExcStep, Exciter, ExciterKind, ExciterSettings, NoiseSettings, Rng,
+};
+use crate::lamina::voice::HammerShape;
+use crate::math;
+
+#[path = "arcus_voice_run.rs"]
+mod run;
+#[path = "arcus_voice_step.rs"]
+mod step;
+
+/// What every voice reads while it renders (the instance's, shared).
+pub struct Shared<'a> {
+    pub s: &'a ArcusSettings,
+    pub sr: f32,
+    pub ctl: &'a Controls,
+    pub tuning: &'a [f32; 128],
+    pub hammer: &'a HammerShape,
+    pub hammer_area: f32,
+    pub table: Option<&'static PitchTable>,
+    /// The stream's sample at the start of the slice being rendered.
+    pub clock: u64,
+}
+
+/// How one note is played.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum NoteTech {
+    #[default]
+    Arco,
+    Staccato,
+    Spiccato,
+    Pizzicato,
+    Tremolo,
+}
+
+impl NoteTech {
+    /// The note's own articulation over the instrument's technique.
+    pub fn of(t: Technique, art: Option<Art>) -> NoteTech {
+        match art {
+            Some(Art::Staccato) => NoteTech::Staccato,
+            Some(Art::Spiccato) => NoteTech::Spiccato,
+            Some(Art::Pizzicato) => NoteTech::Pizzicato,
+            Some(Art::Tremolo) => NoteTech::Tremolo,
+            Some(Art::Sustain | Art::Legato) => NoteTech::Arco,
+            None => match t {
+                Technique::Arco => NoteTech::Arco,
+                Technique::Pizzicato => NoteTech::Pizzicato,
+                Technique::Tremolo => NoteTech::Tremolo,
+            },
+        }
+    }
+
+    pub fn is_bowed(self) -> bool {
+        self != NoteTech::Pizzicato
+    }
+}
+
+/// The bow's gesture.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum Phase {
+    /// Off the string.
+    #[default]
+    Off,
+    /// Accelerating from rest to the stroke's speed.
+    Attack,
+    /// Drawn.
+    Hold,
+    /// A bow change: slowing to the reversal, then the new stroke's attack.
+    Change,
+    /// Stopped on the string (a staccato's end): the string is held still.
+    Stop,
+    /// Lifting.
+    Release,
+}
+
+/// The bowing for a dynamic `d` on a string: speed (m/s), β and force (N), and the region
+/// of Helmholtz motion around it as this model measures it (`tests_gate`'s Schelleng test on
+/// the cello's open D: the upper limit near Schelleng's `F_max = 2Z₀v_b/((μs − μd)β)`, the
+/// lower near `0.3·F_max·(0.1/β)^1.4` — Schelleng's `β⁻²` law, a little gentler).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Bowing {
+    pub speed: f64,
+    pub beta: f64,
+    pub force: f64,
+    pub f_min: f64,
+    pub f_max: f64,
+}
+
+/// The region of Helmholtz motion at `beta` for a bow at `v_bow` on a string of impedance
+/// `z0`, as this model measures it (N): `(lower, upper)`.
+pub fn limits(z0: f64, v_bow: f64, beta: f64) -> (f64, f64) {
+    let f_max = schelleng_max(z0, v_bow, beta);
+    (
+        (0.3 * f_max * math::powf(0.1 / beta.max(1e-3), 1.4)).min(f_max),
+        f_max,
+    )
+}
+
+/// The bowing of dynamic `d` (0 … 1) at the contact point `pos` (−1 … 1) with the force's
+/// trim `place` (−1 … 1, an octave of force either way) and the speed's `speed` (×), on a
+/// string of impedance `z0`.
+pub fn bowing(spec: &InstrumentSpec, d: f64, pos: f64, place: f64, speed: f64, z0: f64) -> Bowing {
+    let b = &spec.bowing;
+    let d = d.clamp(0.0, 1.0);
+    let v = b.speed.0 * math::powf(b.speed.1 / b.speed.0, d) * speed.clamp(0.25, 4.0);
+    let beta = ((b.beta.0 + (b.beta.1 - b.beta.0) * d) * math::exp2(-0.85 * pos.clamp(-1.0, 1.0)))
+        .clamp(0.02, 0.35);
+    let (f_min, f_max) = limits(z0, v, beta);
+    let k = (b.place.0 + (b.place.1 - b.place.0) * d) * math::exp2(place.clamp(-1.0, 1.0));
+    Bowing {
+        speed: v,
+        beta,
+        force: f_max * k,
+        f_min,
+        f_max,
+    }
+}
+
+/// The attack a velocity asks for (Guettler 2002's two coordinates): the bow's acceleration
+/// to the stroke's speed (m/s²) and the force it is placed with (N) — a harder note
+/// accelerates sooner and presses more, inside the region where the Helmholtz motion starts
+/// at once (`tests_gate::the_attack_settles_within_guettler_s_limits`).
+pub fn attack_of(s: &ArcusSettings, velocity: f32, bw: &Bowing, staccato: bool) -> (f32, f32) {
+    let x = velocity.clamp(0.0, 1.0);
+    let va = s.vel_attack.clamp(0.0, 1.0);
+    let soft = 60.0 + (15.0 - 60.0) * x;
+    let wide = 90.0 + (8.0 - 90.0) * x;
+    let mut t_acc_ms = (soft * (1.0 - va) + wide * va) * s.bow_attack.clamp(0.25, 4.0);
+    if staccato {
+        t_acc_ms *= 0.4;
+    }
+    let accel = bw.speed as f32 / (0.001 * t_acc_ms.max(1.0));
+    let force = (bw.force as f32) * (1.0 + 0.6 * va * (x - 0.4)).max(0.5);
+    (accel, force)
+}
+
+/// The output's scale: the bridge's force (`2·Z₀·v`) to the instrument's level.
+const OUT: f32 = 0.06;
+/// The pluck's scale into the string (m/s per unit of Fides's pulse).
+const PLUCK: f32 = 0.9;
+/// The bow-hair noise's relative roughness at 0 dB.
+const ROUGH: f32 = 0.12;
+
+/// One voice.
+#[derive(Clone, Debug)]
+pub struct Voice {
+    sr: f32,
+    active: bool,
+    ended: bool,
+    released: bool,
+    first: bool,
+    key: u8,
+    id: u64,
+    velocity: f32,
+    tech: NoteTech,
+    inst: Instrument,
+    pub string: BowedString,
+    string_ix: usize,
+    pluck: Exciter,
+    rng: Rng,
+    rough: Biquad,
+    // ---- the bow ----
+    phase: Phase,
+    bowing: bool,
+    dir: f32,
+    next_dir: f32,
+    v_mag: f32,
+    force: f32,
+    accel: f32,
+    f_attack: f32,
+    t: u32,
+    stroke: f64,
+    jitter: f32,
+    // ---- the dynamic, the pitch ----
+    d: f32,
+    press: f32,
+    has_press: bool,
+    slide: f32,
+    tuning: f32,
+    note: f32,
+    glide: f32,
+    glide_step: f32,
+    vib_phase: f64,
+    vib_age: u32,
+    vib_wander: (f32, f32),
+    vib_now: f32,
+    beta: f32,
+    f_min: f32,
+    f_max: f32,
+    f0: f64,
+    // ---- the step's buffers ----
+    span: usize,
+    pos: usize,
+    v: [f32; CTRL],
+    fbuf: [f32; CTRL],
+    roughs: [f32; CTRL],
+    strike: [f32; CTRL],
+    sus: [f32; CTRL],
+    zero_bow: [f32; CTRL],
+    tmp: [f32; CTRL],
+    bow_on: bool,
+    stop_lift: bool,
+    fade: f32,
+    fade_step: f32,
+    peak: f32,
+}
+
+impl Voice {
+    pub fn new(sample_rate: f32) -> Self {
+        Voice {
+            sr: sample_rate,
+            active: false,
+            ended: false,
+            released: false,
+            first: false,
+            key: 60,
+            id: 0,
+            velocity: 0.0,
+            tech: NoteTech::Arco,
+            inst: Instrument::Cello,
+            string: BowedString::new(sample_rate),
+            string_ix: 0,
+            pluck: Exciter::new(sample_rate),
+            rng: Rng(1),
+            rough: Biquad::default(),
+            phase: Phase::Off,
+            bowing: false,
+            dir: 1.0,
+            next_dir: 1.0,
+            v_mag: 0.0,
+            force: 0.0,
+            accel: 0.0,
+            f_attack: 0.0,
+            t: 0,
+            stroke: 0.0,
+            jitter: 0.0,
+            d: 0.5,
+            press: 0.0,
+            has_press: false,
+            slide: 0.5,
+            tuning: 0.0,
+            note: 60.0,
+            glide: 0.0,
+            glide_step: 0.0,
+            vib_phase: 0.0,
+            vib_age: 0,
+            vib_wander: (0.0, 0.0),
+            vib_now: 0.0,
+            beta: 0.1,
+            f_min: 0.0,
+            f_max: 0.0,
+            f0: 261.6,
+            span: CTRL,
+            pos: 0,
+            v: [0.0; CTRL],
+            fbuf: [0.0; CTRL],
+            roughs: [0.0; CTRL],
+            strike: [0.0; CTRL],
+            sus: [0.0; CTRL],
+            zero_bow: [0.0; CTRL],
+            tmp: [0.0; CTRL],
+            bow_on: false,
+            stop_lift: false,
+            fade: 1.0,
+            fade_step: 0.0,
+            peak: 0.0,
+        }
+    }
+
+    pub fn active(&self) -> bool {
+        self.active
+    }
+    pub fn key(&self) -> u8 {
+        self.key
+    }
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+    pub fn released(&self) -> bool {
+        self.released
+    }
+    pub fn fade(&self) -> f32 {
+        self.fade
+    }
+    pub fn peak(&self) -> f32 {
+        self.peak
+    }
+    pub fn is_plucked(&self) -> bool {
+        self.tech == NoteTech::Pizzicato
+    }
+    pub fn technique(&self) -> NoteTech {
+        self.tech
+    }
+    pub fn phase(&self) -> Phase {
+        self.phase
+    }
+    /// The bow's velocity now (m/s, signed: + down-bow).
+    pub fn bow_velocity(&self) -> f32 {
+        self.dir * self.v_mag
+    }
+    pub fn bow_force(&self) -> f32 {
+        self.force
+    }
+    /// Schelleng's limits for the bowing now, N.
+    pub fn limits(&self) -> (f32, f32) {
+        (self.f_min, self.f_max)
+    }
+    pub fn beta(&self) -> f32 {
+        self.beta
+    }
+    pub fn dynamic(&self) -> f32 {
+        self.d
+    }
+    pub fn string_index(&self) -> usize {
+        self.string_ix
+    }
+    pub fn f0(&self) -> f64 {
+        self.f0
+    }
+    /// The vibrato's excursion now, cents.
+    pub fn vibrato(&self) -> f32 {
+        self.vib_now
+    }
+    /// Whether the bow holds the string now.
+    pub fn sticking(&self) -> bool {
+        self.string.is_sticking()
+    }
+
+    /// Whether the bow is on the string in this step.
+    pub fn bow_on(&self) -> bool {
+        self.bow_on
+    }
+
+    /// It ended since the last call (the instance hands its slot back).
+    pub fn take_ended(&mut self) -> bool {
+        std::mem::take(&mut self.ended)
+    }
+
+    /// Silence at once and forget everything.
+    pub fn clear(&mut self) {
+        self.active = false;
+        self.ended = false;
+        self.released = false;
+        self.string.clear();
+        self.pluck.clear();
+        self.rough.clear();
+        self.phase = Phase::Off;
+        self.bowing = false;
+        self.v_mag = 0.0;
+        self.force = 0.0;
+        self.bow_on = false;
+        self.stop_lift = false;
+        self.fade = 1.0;
+        self.fade_step = 0.0;
+        self.peak = 0.0;
+        self.glide = 0.0;
+        self.glide_step = 0.0;
+        self.has_press = false;
+    }
+
+    /// Fade out over 4 ms (taken by a new note, a choke), then end.
+    pub fn fade_out(&mut self, sr: f32) {
+        if self.active {
+            self.fade_step = 1.0 / (0.004 * sr);
+        }
+    }
+
+    /// A per-note expression: `0` tuning (semitones), `1` pressure, `2` slide (0 … 1).
+    pub fn expression(&mut self, which: u8, value: f32) {
+        match which {
+            0 => self.tuning = value,
+            1 => {
+                self.press = value.clamp(0.0, 1.0);
+                self.has_press = true;
+            }
+            2 => self.slide = value.clamp(0.0, 1.0),
+            _ => {}
+        }
+    }
+
+    /// The key is let go: the bow lifts (a short stroke ends by itself).
+    pub fn release(&mut self) {
+        if !self.active || self.released {
+            return;
+        }
+        self.released = true;
+        if matches!(self.phase, Phase::Attack | Phase::Hold | Phase::Change) {
+            self.phase = Phase::Release;
+            self.t = 0;
+        }
+        self.pluck.release();
+    }
+}
