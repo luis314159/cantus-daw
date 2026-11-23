@@ -6,7 +6,7 @@
 //! eye — and the cello's ebony pegs or the bass's geared machines, the strings wound on
 //! them in their silks.
 
-use super::bowed::{board_r, board_w, board_z, nut_y, string_local, Bowed, Dims, Pose};
+use super::bowed::{board_r, board_w, board_z, nut_y, string_local, Dims, Pose};
 use super::bowed_mesh::{Mesh, Patch, Rod, Role};
 use super::geo::{v, V3};
 use std::f32::consts::{PI, TAU};
@@ -59,7 +59,7 @@ fn paddle(m: &mut Mesh, role: Role, c: V3, e1: V3, e2: V3, a: f32, b: f32, t: f3
 
 /// The fingerboard, the nut, the neck, the pegbox, the scroll, the pegs or machines and
 /// the strings' ends wound on them.
-pub fn neck(m: &mut Mesh, d: &Dims, pose: &Pose, b: Bowed) {
+pub fn neck(m: &mut Mesh, d: &Dims, pose: &Pose) {
     let yn = nut_y(d);
     let ye = yn - d.board;
     let rb = board_r(d);
@@ -183,11 +183,11 @@ pub fn neck(m: &mut Mesh, d: &Dims, pose: &Pose, b: Bowed) {
             |r, c| [ny(r), c as f32 * 0.4],
         ),
     ));
-    head(m, d, pose, b, yn, nz);
+    head(m, d, pose, yn, nz);
 }
 
 /// The pegbox, the scroll and the pegs or machines, from the nut's top (`yn`, `nz`).
-fn head(m: &mut Mesh, d: &Dims, pose: &Pose, b: Bowed, yn: f32, nz: f32) {
+fn head(m: &mut Mesh, d: &Dims, pose: &Pose, yn: f32, nz: f32) {
     let slope = (board_z(d, yn) - board_z(d, yn - 10.0)) / 10.0;
     let tau = 13f32.to_radians();
     let phi = slope.atan() - tau;
@@ -299,8 +299,8 @@ fn head(m: &mut Mesh, d: &Dims, pose: &Pose, b: Bowed, yn: f32, nz: f32) {
             |r, c| [r as f32, c as f32],
         ),
     ));
-    scroll(m, d, &hp, len, wid(len), dep(len), wu, wf, wx);
-    pegs(m, d, pose, b, &hp, len, &wid, &dep, wu, wf, wx);
+    scroll(m, d, &hp, len, wid(len), dep(len), wx);
+    pegs(m, d, pose, &hp, len, &wid, &dep, wu, wf, wx);
 }
 
 /// The volute: r(θ) = R₀·e^(−kθ) from just behind the pegbox's top, over the top, forward
@@ -313,8 +313,6 @@ fn scroll(
     len: f32,
     w: f32,
     dep: f32,
-    wu: V3,
-    wf: V3,
     wx: V3,
 ) {
     let r0 = d.scroll_r;
@@ -389,7 +387,6 @@ fn scroll(
             },
         ));
     }
-    let _ = (wu, wf);
 }
 
 /// The cello's four ebony pegs (alternating sides up the pegbox, A nearest the nut) or the
@@ -399,7 +396,6 @@ fn pegs(
     m: &mut Mesh,
     d: &Dims,
     pose: &Pose,
-    b: Bowed,
     hp: &dyn Fn(f32, f32, f32) -> V3,
     len: f32,
     wid: &dyn Fn(f32) -> f32,
@@ -522,5 +518,4 @@ fn pegs(
             ));
         }
     }
-    let _ = (b, wu);
 }

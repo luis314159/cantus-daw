@@ -4,7 +4,7 @@
 //! tailpiece with its fret and fine tuners, the saddle and tailgut, the endpin and its
 //! collar, and the four strings in their steel or tungsten.
 
-use super::bowed::{arch, bridge_y, dist, reach, rib, string_local, tail_z, Dims, Pose};
+use super::bowed::{arch, bridge_y, dist, reach, string_local, tail_z, Dims, Pose};
 use super::bowed_head::grid;
 use super::bowed_mesh::{Mesh, Poly, Rod, Role};
 use super::geo::{v, V3};
@@ -448,5 +448,4 @@ pub fn fittings(m: &mut Mesh, d: &Dims, pose: &Pose, o: &[(f32, f32)]) {
         ));
         m.rods.push((role, Rod { a: bw, b: nw, r }));
     }
-    let _ = rib(d, 0.0);
 }

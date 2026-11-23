@@ -171,7 +171,7 @@ fn build(b: Bowed) -> Mesh {
     let mut m = Mesh::default();
     let o = outline(b, 8);
     body(&mut m, d, &pose, &o);
-    super::bowed_head::neck(&mut m, d, &pose, b);
+    super::bowed_head::neck(&mut m, d, &pose);
     super::bowed_fit::fittings(&mut m, d, &pose, &o);
     m
 }

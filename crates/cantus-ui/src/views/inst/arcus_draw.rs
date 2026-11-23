@@ -7,7 +7,7 @@
 //!   string; **the bow** across the string at its real contact point (β of the stopped length
 //!   from the bridge), tilted to reach that string over the bridge's arch, its hair pressed
 //!   into the string as hard as it presses (darker and bent: the force over the region's
-//!   top), its arrow as long and pointing as it moves; a pluck's finger for pizzicato, the
+//!   top), sliding along its hair as it moves (a blur behind it as fast); a pluck's finger for pizzicato, the
 //!   short strokes of tremolo. A drag across it moves the contact (left and right) and the
 //!   force (up and down), one undo step a drag.
 //! - **The Schelleng diagram** (Edit): the bow's force against its distance from the bridge,
