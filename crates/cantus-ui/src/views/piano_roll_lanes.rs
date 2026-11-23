@@ -37,6 +37,8 @@ pub enum LaneRow {
     Ctl(LaneKind),
     /// The selected notes' per-note expression of one kind (ADR 0080).
     Expr(cantus_core::model::note_expr::ExprKind),
+    /// r42:strings-rec — the notes' articulation and bow (ADR 0158, `piano_roll_art.rs`).
+    Art,
 }
 
 /// How a controller lane is drawn on.
@@ -106,6 +108,9 @@ pub struct LanesView {
     pub on_notes: [bool; 3],
     /// An expression stroke under way.
     pub(super) expr_drag: Option<super::expr::Stroke>,
+    /// r42:strings-rec — the articulation lane is shown (a view of the notes, as the
+    /// release's).
+    pub art: bool,
 }
 
 impl Default for LanesView {
@@ -122,6 +127,7 @@ impl Default for LanesView {
             expr: [false; 3],
             on_notes: [true; 3],
             expr_drag: None,
+            art: false, // r42:strings-rec
         }
     }
 }
@@ -153,6 +159,9 @@ pub fn rows(v: &LanesView, clip: &Clip) -> Vec<LaneRow> {
     out.push(LaneRow::Velocity);
     if v.release {
         out.push(LaneRow::Release);
+    }
+    if v.art {
+        out.push(LaneRow::Art); // r42:strings-rec
     }
     for (k, on) in cantus_core::model::note_expr::ExprKind::ALL
         .iter()
@@ -222,6 +231,7 @@ fn row_name(row: LaneRow) -> String {
         LaneRow::Release => t("automodes.lane.release"),
         LaneRow::Ctl(k) => lane_name(k),
         LaneRow::Expr(k) => t(k.key()),
+        LaneRow::Art => t("art.lane"), // r42:strings-rec
     }
 }
 
@@ -242,7 +252,7 @@ fn cell_parts(cell: Rect, row: LaneRow, s: &Style) -> CellParts {
     );
     let key = s.s(14.0);
     let action = match row {
-        LaneRow::Release => None,
+        LaneRow::Release | LaneRow::Art => None, // r42:strings-rec
         _ => Some(Rect::from_center_size(
             pos2(top.right() - key * 0.5, top.center().y),
             vec2(key, key),
@@ -370,7 +380,7 @@ pub fn cell_input(
                         app.piano_roll.lanes.expr[kind as usize] = false;
                     }
                 }
-                LaneRow::Release => {}
+                LaneRow::Release | LaneRow::Art => {} // r42:strings-rec
             }
         }
         if let Some(keys) = parts.tools {
@@ -406,6 +416,7 @@ fn row_hint(row: LaneRow) -> &'static str {
         LaneRow::Ctl(LaneKind::PitchBend) => "automodes.lane.bend_tip",
         LaneRow::Ctl(_) => "automodes.lane.ctl_tip",
         LaneRow::Expr(_) => "mpe.lane.tip",
+        LaneRow::Art => "art.lane_tip", // r42:strings-rec
     }
 }
 
@@ -485,6 +496,10 @@ fn add_menu(app: &mut CantusApp, ui: &mut Ui, resp: &egui::Response, track: Trac
             let v = &mut app.piano_roll.lanes;
             v.release = !v.release;
         }
+        Some(Pick::Art) => {
+            let v = &mut app.piano_roll.lanes; // r42:strings-rec
+            v.art = !v.art;
+        }
         Some(Pick::Follow) => {
             let v = &mut app.piano_roll.lanes;
             v.follow = !v.follow;
@@ -504,6 +519,7 @@ fn add_menu(app: &mut CantusApp, ui: &mut Ui, resp: &egui::Response, track: Trac
 #[derive(Copy, Clone, Debug)]
 enum Pick {
     Release,
+    Art, // r42:strings-rec
     Follow,
     Page(Option<u8>),
     Lane(LaneKind),
@@ -562,6 +578,14 @@ fn menu_items(v: &LanesView, have: &[LaneKind], page: Option<u8>) -> (Vec<Row>, 
                 false,
                 false,
                 Some(Pick::Release),
+            );
+            // r42:strings-rec — the notes' articulation and bow (ADR 0158).
+            push(
+                t("art.lane"),
+                if v.art { Check::On } else { Check::Off },
+                false,
+                false,
+                Some(Pick::Art),
             );
             push(
                 t("automodes.lane.follow"),

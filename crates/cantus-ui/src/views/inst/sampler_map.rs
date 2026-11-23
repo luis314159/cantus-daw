@@ -838,6 +838,25 @@ pub const CC_ZONE_FIELDS: [usize; 18] = [
     zf::RTDECAY,
 ];
 
+/// r42:strings-rec — what a zone says of how it is played (ADR 0158), for its card's title:
+/// " · Pizzicato · Up bow", or nothing for a zone of any articulation and bow. The tags come
+/// from its instrument file (`cantus_articulation=`, `cantus_bow=` in an SFZ).
+pub fn zone_art_words(z: &Zone) -> String {
+    use cantus_core::note_art::Articulation;
+    let mut out = String::new();
+    let a = z.get(zf::ART) as usize;
+    if let Some(art) = a.checked_sub(1).and_then(|i| Articulation::ALL.get(i)) {
+        out.push_str(" \u{b7} ");
+        out.push_str(&t(art.name_key()));
+    }
+    match z.get(zf::BOW) as u8 {
+        1 => out.push_str(&format!(" \u{b7} {}", t("art.bow.down"))),
+        2 => out.push_str(&format!(" \u{b7} {}", t("art.bow.up"))),
+        _ => {}
+    }
+    out
+}
+
 /// Cells to a row in the zone card.
 pub const ZONE_PER_ROW: usize = 8;
 
@@ -922,7 +941,7 @@ pub fn zone_card(
         .cloned();
     let title = sel
         .as_ref()
-        .map(|(n, z)| format!("{} \u{b7} #{n}", zone_name(z)));
+        .map(|(n, z)| format!("{} \u{b7} #{n}{}", zone_name(z), zone_art_words(z))); // r42:strings-rec
     let look = CardLook {
         title: title
             .as_deref()

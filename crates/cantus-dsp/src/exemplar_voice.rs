@@ -304,6 +304,15 @@ pub struct Layer {
     pub late: bool,
     /// It played its head only, too fast to stream (third review #9): counted, told.
     pub cut: bool,
+    /// r42:strings-rec — the zone's controller crossfade (`ZoneParams::xfcc` …), and the
+    /// legato crossfade: its position 0…1 and per-sample step (0: none; up, it fades in and
+    /// stays; down, it fades out and ends), heard as `x(2 − x)` (ADR 0158).
+    pub xfcc: i16,
+    pub xfin: [u8; 2],
+    pub xfout: [u8; 2],
+    pub xf_gain: bool,
+    pub leg: f32,
+    pub leg_step: f32,
 }
 
 impl Layer {

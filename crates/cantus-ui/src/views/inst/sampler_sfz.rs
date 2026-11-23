@@ -242,7 +242,24 @@ const KNOWN: &[&str] = &[
     "pitchlfo_freq",
     "pitchlfo_depth",
     "pitchlfo_delay",
+    // r42:strings-rec — the controller crossfade's curve, and Cantus's own (ADR 0158): a
+    // zone's articulation and bow, the scripted legato. Other players ignore them.
+    "xf_cccurve",
+    "cantus_articulation",
+    "cantus_bow",
+    "cantus_legato",
+    "cantus_legato_crossfade",
+    "cantus_legato_glide",
+    "cantus_legato_skip",
 ];
+
+/// r42:strings-rec — whether `k` is one of SFZ's controller crossfade points
+/// (`xfin_locc1`, `xfout_hicc11` …).
+fn is_cc_crossfade(k: &str) -> bool {
+    ["xfin_locc", "xfin_hicc", "xfout_locc", "xfout_hicc"]
+        .iter()
+        .any(|p| k.strip_prefix(p).is_some_and(|n| n.parse::<u8>().is_ok()))
+}
 
 /// Silently ignored: labels, hints and the like, which change no sound.
 fn ignorable(k: &str) -> bool {
@@ -450,7 +467,7 @@ pub fn parse_flat(
             continue;
         }
         for k in ops.keys() {
-            let cc_key = k.starts_with("on_locc") || k.starts_with("on_hicc");
+            let cc_key = k.starts_with("on_locc") || k.starts_with("on_hicc") || is_cc_crossfade(k); // r42:strings-rec
             if !KNOWN.contains(&k.as_str()) && !ignorable(k) && !cc_key {
                 *unsupported.entry(k.clone()).or_default() += 1;
             }
@@ -707,6 +724,50 @@ fn region_to_zone(ops: &Ops, offset: i32, meta: Option<&Meta>, z: &mut Zone) {
     {
         z.set(zf::FC, 1.0);
     }
+    cc_crossfade_and_art(ops, z); // r42:strings-rec
+}
+
+/// r42:strings-rec — a region's controller crossfade (the first controller it names: SFZ
+/// gives each its own, Exemplar follows one per zone) and its articulation and bow (ADR
+/// 0158). SFZ's defaults: in from 0 at 0, out from 127 at 127 (full gain everywhere).
+fn cc_crossfade_and_art(ops: &Ops, z: &mut Zone) {
+    let cc = ops
+        .keys()
+        .filter(|k| is_cc_crossfade(k))
+        .filter_map(|k| {
+            k.trim_start_matches(|c: char| !c.is_ascii_digit())
+                .parse::<u8>()
+                .ok()
+        })
+        .min();
+    if let Some(cc) = cc.filter(|c| *c <= 127) {
+        let at = |k: &str, d: f32| num(ops, &format!("{k}{cc}")).unwrap_or(d).clamp(0.0, 127.0);
+        z.set(zf::XFCC, cc as f32)
+            .set(zf::XFINLO, at("xfin_locc", 0.0))
+            .set(zf::XFINHI, at("xfin_hicc", 0.0))
+            .set(zf::XFOUTLO, at("xfout_locc", 127.0))
+            .set(zf::XFOUTHI, at("xfout_hicc", 127.0));
+        if ops.get("xf_cccurve").is_some_and(|c| c == "gain") {
+            z.set(zf::XFCURVE, 1.0);
+        }
+    }
+    if let Some(a) = ops.get("cantus_articulation") {
+        let code = cantus_core::note_art::Articulation::ALL
+            .iter()
+            .position(|x| x.name_key().trim_start_matches("art.") == a.trim());
+        if let Some(i) = code {
+            z.set(zf::ART, i as f32 + 1.0);
+        }
+    }
+    match ops.get("cantus_bow").map(|b| b.trim()) {
+        Some("down") => {
+            z.set(zf::BOW, 1.0);
+        }
+        Some("up") => {
+            z.set(zf::BOW, 2.0);
+        }
+        _ => {}
+    }
 }
 
 /// The instrument-wide opcodes (as the first region sees them) onto Exemplar's own keys.
@@ -762,6 +823,23 @@ fn instrument_values(first: Option<&Ops>, control: &Ops, out: &mut Import) {
         }
         if let Some(d) = num(ops, "pitchlfo_delay") {
             v.push(("lfo1.delay".into(), (d * 1000.0).clamp(0.0, 5_000.0)));
+        }
+    }
+    // r42:strings-rec — the scripted legato (ADR 0158): `cantus_legato=on`, its times in
+    // seconds, as SFZ's are.
+    if ops
+        .get("cantus_legato")
+        .is_some_and(|v| v.trim() == "on" || v.trim() == "1")
+    {
+        v.push(("legato".into(), 1.0));
+    }
+    for (k, key, hi) in [
+        ("cantus_legato_crossfade", "legato.xf", 1_000.0),
+        ("cantus_legato_glide", "legato.glide", 1_000.0),
+        ("cantus_legato_skip", "legato.skip", 1_000.0),
+    ] {
+        if let Some(t) = num(ops, k) {
+            v.push((key.into(), (t * 1000.0).clamp(0.0, hi)));
         }
     }
     let offset = num(control, "note_offset").unwrap_or(0.0) as i32

@@ -303,6 +303,7 @@ impl ArpState {
                     tag,
                     ordinal: k as u32,
                     live: h.live,
+                    art: None, // r42:strings-rec — an arpeggio's own notes
                 },
             );
             self.sound[self.n_sound] = Sound {
@@ -369,6 +370,7 @@ fn off_of(s: &Sound) -> Msg {
         tag: s.tag,
         ordinal: 0,
         live: s.live,
+        art: None, // r42:strings-rec
     }
 }
 

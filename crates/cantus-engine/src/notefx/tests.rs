@@ -26,6 +26,7 @@ fn events(notes: &[(i64, i64, u8)]) -> Vec<NoteEvent> {
             note,
             ordinal: 0,
             release: 0,
+            art: None, // r42:strings-rec
         });
         ev.push(NoteEvent {
             tick: Ticks(s + l),
@@ -34,6 +35,7 @@ fn events(notes: &[(i64, i64, u8)]) -> Vec<NoteEvent> {
             note,
             ordinal: 0,
             release: 0,
+            art: None, // r42:strings-rec
         });
     }
     ev.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));
@@ -346,6 +348,7 @@ fn live(on: bool, pitch: u8) -> Msg {
         tag: u64::MAX,
         ordinal: 0,
         live: true,
+        art: None, // r42:strings-rec
     }
 }
 

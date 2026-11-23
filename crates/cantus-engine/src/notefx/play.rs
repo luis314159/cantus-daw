@@ -79,6 +79,7 @@ pub(crate) fn msg_of(ev: &NoteEvent) -> Msg {
         tag: ev.note.0,
         ordinal: ev.ordinal,
         live: false,
+        art: ev.art, // r42:strings-rec
     }
 }
 

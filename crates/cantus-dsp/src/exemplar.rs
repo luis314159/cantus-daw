@@ -35,6 +35,14 @@ pub mod stream;
 #[path = "exemplar_engine.rs"]
 mod engine;
 
+// r42:strings-rec — the note's articulation and bow, the controller crossfade (ADR 0158).
+#[path = "exemplar_art.rs"]
+pub mod art;
+
+#[cfg(test)]
+#[path = "exemplar_art_tests.rs"]
+mod art_tests;
+
 #[cfg(test)]
 #[path = "exemplar_tests.rs"]
 mod tests;
@@ -149,6 +157,15 @@ pub struct Globals {
     /// any point cycles as the whole render does there. Off — every Exemplar saved before
     /// — draws the turn from the note's id, as it always did.
     pub rr_in_order: bool,
+    /// r42:strings-rec — the scripted legato (ADR 0158, `exemplar_legato.rs`): on, a note
+    /// that starts while another sustained note is held crossfades out of it and glides from
+    /// its pitch; off, only a note marked legato does. Then the crossfade and the glide, in ms
+    /// for an interval of nothing (each lengthens by its twelfth per semitone, up to twice),
+    /// and how far into its sample the new note starts (past its attack).
+    pub legato: bool,
+    pub legato_xf_ms: f32,
+    pub legato_glide_ms: f32,
+    pub legato_skip_ms: f32,
 }
 
 impl Default for Globals {
@@ -184,6 +201,10 @@ impl Default for Globals {
             // The parameter's default (`rr.order` = 1): an Exemplar saved before has it
             // written as 0 by the schema's migration.
             rr_in_order: true,
+            legato: false,         // r42:strings-rec
+            legato_xf_ms: 80.0,    // r42:strings-rec
+            legato_glide_ms: 50.0, // r42:strings-rec
+            legato_skip_ms: 0.0,   // r42:strings-rec
         }
     }
 }
@@ -274,6 +295,19 @@ pub struct ZoneParams {
     pub cc: u8,
     pub cclo: u8,
     pub cchi: u8,
+    /// r42:strings-rec — the articulation the zone plays (0: any; else
+    /// `cantus_core::note_art::Articulation`'s index + 1) and its bow (0 any, 1 down, 2 up):
+    /// a note that names one plays only the zones of it (`exemplar_art.rs`).
+    pub art: u8,
+    pub bow: u8,
+    /// r42:strings-rec — a **continuous** crossfade by a controller (SFZ `xfin_loccN` …
+    /// `xfout_hiccN`, `xf_cccurve`; ADR 0158): the controller (−1 none) and the ranges its
+    /// value fades the zone in across and out across, 0…127; power (squares sum to 1) unless
+    /// `xf_gain`. Followed while the note sounds, ramped sample by sample.
+    pub xfcc: i16,
+    pub xfin: [u8; 2],
+    pub xfout: [u8; 2],
+    pub xf_gain: bool,
 }
 
 impl Default for ZoneParams {
@@ -313,6 +347,12 @@ impl Default for ZoneParams {
             cc: 64,
             cclo: 64,
             cchi: 127,
+            art: 0,            // r42:strings-rec
+            bow: 0,            // r42:strings-rec
+            xfcc: -1,          // r42:strings-rec
+            xfin: [0, 0],      // r42:strings-rec
+            xfout: [127, 127], // r42:strings-rec
+            xf_gain: false,    // r42:strings-rec
         }
     }
 }
@@ -335,6 +375,13 @@ struct Slot {
     /// The level the note's attack layers had reached when released.
     reached: f32,
     layers: u16,
+    /// r42:strings-rec — the articulation its zones were chosen by (0: none, the keyswitch
+    /// decides), its bow (0 none, 1 down, 2 up), what it plays (the articulation of its
+    /// zones, 0 untagged), and whether a legato note has already crossfaded out of it.
+    art: u8,
+    bow: u8,
+    kind: u8,
+    legato_out: bool,
 }
 
 /// The sampler.
@@ -393,6 +440,12 @@ pub struct Exemplar {
     cut: u32,
     /// Times its voices woke the stream reader (fourth review #1).
     wakes: u32,
+    /// r42:strings-rec — the articulation handed for the next note (its id, articulation
+    /// and bow codes: `exemplar_art.rs`), the last bow played, and how far into their
+    /// samples the layers being started begin (a legato note's, ms).
+    pending_art: Option<(u64, u8, u8)>,
+    bow_last: u8,
+    start_skip_ms: f32,
 }
 
 /// The longest span one fork of the parallel render covers, in frames.

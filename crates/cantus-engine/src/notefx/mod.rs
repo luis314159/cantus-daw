@@ -46,6 +46,9 @@ pub struct Msg {
     pub ordinal: u32,
     /// From live input (not a clip): an instrument plays it as a live note.
     pub live: bool,
+    /// r42:strings-rec — a note-on's articulation (`NoteEvent::art`, ADR 0158): kept by the
+    /// stages that move a note (`..m`), not by the notes an arpeggio makes.
+    pub art: Option<cantus_core::note_art::NoteArt>, // r42:strings-rec
 }
 
 impl Msg {
@@ -58,6 +61,7 @@ impl Msg {
             tag,
             ordinal: 0,
             live: false,
+            art: None, // r42:strings-rec
         }
     }
 
@@ -70,6 +74,7 @@ impl Msg {
             tag,
             ordinal: 0,
             live: false,
+            art: None, // r42:strings-rec
         }
     }
 }

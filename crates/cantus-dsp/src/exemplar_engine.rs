@@ -13,6 +13,10 @@ mod render;
 #[path = "exemplar_trigger.rs"]
 mod trigger;
 
+// r42:strings-rec — the scripted legato (ADR 0158).
+#[path = "exemplar_legato.rs"]
+mod legato;
+
 pub use trigger::crossfade;
 
 /// Ids at or above this are live input (one per key, `cantus_engine`'s `native_id`).
@@ -112,6 +116,9 @@ impl Exemplar {
             late: 0,
             cut: 0,
             wakes: 0,
+            pending_art: None,  // r42:strings-rec
+            bow_last: 0,        // r42:strings-rec
+            start_skip_ms: 0.0, // r42:strings-rec
         }
     }
 
@@ -135,7 +142,9 @@ impl Exemplar {
                 continue;
             };
             let start = self.zones[zi].region.start.max(0) as usize;
-            let vel = (self.globals.start_vel_ms.max(0.0) * src.rate / 1000.0).ceil();
+            // r42:strings-rec — a legato note starts past its attack (`legato_skip_ms`).
+            let ms = self.globals.start_vel_ms.max(0.0) + self.globals.legato_skip_ms.max(0.0);
+            let vel = (ms * src.rate / 1000.0).ceil();
             let end = start + vel as usize;
             let head = st.head_frames(0);
             if end + 2 * BLOCK <= head {
@@ -321,6 +330,7 @@ impl Exemplar {
 
     fn start_note(&mut self, key: u8, vel: f32, id: u64, ordinal: Option<u32>) {
         let key = key.min(127);
+        let (art, bow) = self.take_art(id); // r42:strings-rec
         if self.in_switch_range(key) {
             self.keyswitch = key as i16;
             return;
@@ -364,9 +374,15 @@ impl Exemplar {
                     released: false,
                     reached: 0.0,
                     layers: 0,
+                    ..Slot::default()
                 };
+                // r42:strings-rec — its articulation and bow, and the note it slurs from.
+                let from = self.prepare_note(voice, art, bow);
                 let first = if legato { Trig::Legato } else { Trig::First };
                 self.start_zones(voice, first, 1.0);
+                if let Some(from) = from {
+                    self.slur(from, voice); // r42:strings-rec
+                }
             }
             Action::Glide {
                 voice,
@@ -480,6 +496,8 @@ impl Exemplar {
         }
         self.alloc.clear();
         self.keys_down = 0;
+        self.pending_art = None; // r42:strings-rec
+        self.bow_last = 0; // r42:strings-rec
         self.keyswitch = -1;
         self.live_rr = [0; 128];
         self.live_lanes = [(0, 0); LIVE_LANES];
@@ -502,6 +520,7 @@ impl Exemplar {
     /// held, so skipping it is exact.
     pub fn at_rest(&self) -> bool {
         !self.layers.iter().any(|l| l.active)
+            && self.pending_art.is_none() // r42:strings-rec
             && self.alloc.is_clear()
             && self.keys_down == 0
             && self.keyswitch == -1

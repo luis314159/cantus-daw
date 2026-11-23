@@ -35,6 +35,11 @@ pub struct NoteEvent {
     /// For a note-off, the note's release velocity (`Note::release`, ADR 0068): 0 — none
     /// given — is what every note-off carried before. 0 on a note-on.
     pub release: u8,
+    /// r42:strings-rec — a note-on's articulation and bow (`Note::art`, ADR 0158): handed to
+    /// the instrument just before the note starts (`InstrumentUnit::note_art`). `None` on a
+    /// note-off and on every note without one, which plays exactly as before. Not part of
+    /// the events' order (sorted by tick, off before on, pitch, voice tag).
+    pub art: Option<crate::note_art::NoteArt>, // r42:strings-rec
 }
 
 impl NoteEvent {
@@ -907,6 +912,7 @@ fn compile_events(track: &Track, pool: &[crate::groove::Groove]) -> (Vec<NoteEve
                     note: tag,
                     ordinal: 0,
                     release: 0,
+                    art: n.art, // r42:strings-rec
                 });
                 events.push(NoteEvent {
                     tick: off,
@@ -915,6 +921,7 @@ fn compile_events(track: &Track, pool: &[crate::groove::Groove]) -> (Vec<NoteEve
                     note: tag,
                     ordinal: 0,
                     release: n.release,
+                    art: None, // r42:strings-rec
                 });
                 if let Some(from) = from.as_mut() {
                     from.extend([clip.id.0, clip.id.0]);
@@ -928,7 +935,8 @@ fn compile_events(track: &Track, pool: &[crate::groove::Groove]) -> (Vec<NoteEve
     if let Some(from) = from {
         tell_copies_apart(&mut events, &from);
     }
-    // Offs before ons at the same tick so a retriggered pitch restarts cleanly.
+    crate::note_art::tie_legato(&mut events); // r42:strings-rec (ADR 0158): look-ahead
+                                              // Offs before ons at the same tick so a retriggered pitch restarts cleanly.
     let direct = match direct {
         None => {
             events.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));

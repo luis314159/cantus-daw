@@ -296,6 +296,7 @@ fn ev(tick: i64, on: bool, note: u64) -> NoteEvent {
         note: NoteId(note),
         ordinal: 0,
         release: 0,
+        art: None, // r42:strings-rec
     }
 }
 

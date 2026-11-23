@@ -81,6 +81,7 @@ pub fn bake_until(
             tag: e.note.0,
             ordinal: e.ordinal,
             live: false,
+            art: e.art, // r42:strings-rec
         };
         // What is due before this tick fires first; what is due on it, after every event on
         // it is in (the engine's order inside a sample).

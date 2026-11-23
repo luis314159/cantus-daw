@@ -57,12 +57,8 @@ impl Exemplar {
         if self.sources[zi].is_empty() || self.groups[z.group as usize].mute {
             return false;
         }
-        let sw = if self.keyswitch >= 0 {
-            self.keyswitch
-        } else {
-            self.globals.sw_default
-        };
-        if z.sw >= 0 && z.sw != sw {
+        // r42:strings-rec — the keyswitch in force, or the note's articulation, and its bow.
+        if !self.art_ok(zi, s) {
             return false;
         }
         if z.seqlen > 1 && (s.rr % z.seqlen as u32) + 1 != z.seq as u32 {
@@ -289,7 +285,11 @@ impl Exemplar {
         let rate_ratio = self.sources[zi].rate as f64 / fs as f64;
         let bend = (self.bend * g.bend_range / 2.0) as f64;
         let ratio = rate_ratio * math::powf(2f64, (semis + bend) / 12.0);
-        let offset = (g.start_vel_ms * (1.0 - s.vel) * self.sources[zi].rate / 1000.0) as i64;
+        let mut offset = (g.start_vel_ms * (1.0 - s.vel) * self.sources[zi].rate / 1000.0) as i64;
+        // r42:strings-rec — a legato note's layers start past their attack.
+        if self.start_skip_ms > 0.0 {
+            offset += (self.start_skip_ms * self.sources[zi].rate / 1000.0) as i64;
+        }
         let mut region = z.region;
         if release {
             region.looping = false;
@@ -349,6 +349,13 @@ impl Exemplar {
         l.vel = s.vel;
         l.relvel = 0.0;
         l.rnd = s.rnd * 2.0 - 1.0;
+        // r42:strings-rec — the controller crossfade it follows, and no legato fade yet.
+        l.xfcc = z.xfcc;
+        l.xfin = z.xfin;
+        l.xfout = z.xfout;
+        l.xf_gain = z.xf_gain;
+        l.leg = 1.0;
+        l.leg_step = 0.0;
         l.play.start(
             sources[zi].clone(),
             region,
@@ -387,9 +394,13 @@ impl Exemplar {
         s.released = true;
         s.key_down = false;
         s.reached = reached;
-        self.start_zones_of(voice, Trig::Release, relvel);
-        if fire_key {
-            self.start_zones_of(voice, Trig::ReleaseKey, relvel);
+        // r42:strings-rec — a note a legato note slurred out of has no release: the line
+        // goes on.
+        if !s.legato_out {
+            self.start_zones_of(voice, Trig::Release, relvel);
+            if fire_key {
+                self.start_zones_of(voice, Trig::ReleaseKey, relvel);
+            }
         }
         if self.slots[voice].layers == 0 {
             self.alloc.voice_finished(voice);
