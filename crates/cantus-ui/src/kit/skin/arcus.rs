@@ -1,5 +1,5 @@
-//! Arcus's face (round 42, ADR 0157) — **design sheet v1, for the owner's approval**: a
-//! cello's case — dark varnished maple, a garnet accent for the bow and what it presses
+//! Arcus's face (round 42, ADR 0157) — **design sheet v2, for the owner's approval**: a
+//! cello's case — varnished maple (its hue a maple's 32°, not a rose's), a garnet accent for the bow and what it presses
 //! (the varnish's red, cooler than Fides's copper and every other wood's gold), an amber
 //! second accent for the rosin's region (where the Helmholtz motion holds), the instrument
 //! drawn under glass as its display; skirted knobs, pill switches and an engraved plate.
@@ -23,8 +23,8 @@ const fn pair(h: f32, s: f32, dark_l: f32, light_l: f32) -> Pair {
 pub const ARCUS: Skin = Skin {
     key: "inst.arcus",
     surface: Tint {
-        hue: 14.0,
-        sat: 0.22,
+        hue: 32.0,
+        sat: 0.20,
         amount: 0.85,
     },
     accent: Some(pair(335.0, 0.62, 0.74, 0.34)),

@@ -77,8 +77,10 @@ params! {
     DYN_SRC = ("dyn.src", "arcus.dyn.src", 0.0, 5.0, 0.0, "", false, true),
 
     // ---- the bow ----
-    BOW_POS = ("bow.pos", "arcus.bow.pos", -1.0, 1.0, 0.0, "", false, false),
-    BOW_FORCE = ("bow.force", "arcus.bow.force", -1.0, 1.0, 0.0, "", false, false),
+    // × the dynamic's own distance from the bridge (under 1 nearer the bridge, over 1 towards
+    // the fingerboard), and × its own force: the read-out shows both beside β and newtons.
+    BOW_POS = ("bow.pos", "arcus.bow.pos", 0.7, 1.4, 1.0, "×", true, false),
+    BOW_FORCE = ("bow.force", "arcus.bow.force", 0.5, 2.0, 1.0, "×", true, false),
     BOW_SPEED = ("bow.speed", "arcus.bow.speed", 0.5, 2.0, 1.0, "%", true, false),
     BOW_ATTACK = ("bow.attack", "arcus.bow.attack", 0.25, 4.0, 1.0, "%", true, false),
     BOW_RELEASE = ("bow.release", "arcus.bow.release", 5.0, 2000.0, 120.0, "ms", true, false),
@@ -143,6 +145,30 @@ pub const DIRECTIONS: [&str; 3] = ["alt", "down", "up"];
 pub fn params() -> &'static [InstParamInfo] {
     PARAMS
 }
+
+/// A new Arcus's four macros, named as a player reads them (Chorda's way): each mapped to
+/// what it says — the expression (the dynamic), the contact point, the body, the vibrato.
+pub const DEFAULT_MACROS: &[(&str, &str)] = &[
+    ("macro1.name", "arcus.macro.expression"),
+    ("mod1.src", "macro1"),
+    ("mod1.dst", "dyn"),
+    ("macro2.name", "arcus.macro.contact"),
+    ("mod2.src", "macro2"),
+    ("mod2.dst", "bow.pos"),
+    ("macro3.name", "arcus.macro.body"),
+    ("mod3.src", "macro3"),
+    ("mod3.dst", "body.mix"),
+    ("macro4.name", "arcus.macro.vibrato"),
+    ("mod4.src", "macro4"),
+    ("mod4.dst", "vib.depth"),
+];
+/// … and their depths (a macro at 0 changes nothing).
+pub const DEFAULT_DEPTHS: &[(&str, f32)] = &[
+    ("mod1.amt", 0.4),
+    ("mod2.amt", 0.5),
+    ("mod3.amt", -0.4),
+    ("mod4.amt", 0.5),
+];
 
 /// The modulation sources it produces (tags from `modulation::SOURCES`): the macros and the
 /// controllers (the unit evaluates every route on the control grid from these). The order

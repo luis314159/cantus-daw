@@ -95,6 +95,7 @@ arcus.notes = C, C♯, D, E♭, E, F, F♯, G, A♭, A, B♭, B
 arcus.draw.beta = Distance from the bridge (β)
 arcus.draw.force = Force
 arcus.draw.region = Helmholtz region
+arcus.schelleng = Schelleng diagram
 
 # ---- the factory presets, their tags and macros ----
 arcus.preset.cello = Cello
@@ -124,6 +125,7 @@ arcus.preset.bass_tremolo = Bass tremolo
 arcus.tag.cello = Cello
 arcus.tag.bass = Double bass
 arcus.tag.pizz = Pizzicato
+arcus.macro.expression = Expression
 arcus.macro.dynamic = Dynamic
 arcus.macro.vibrato = Vibrato
 arcus.macro.contact = Contact

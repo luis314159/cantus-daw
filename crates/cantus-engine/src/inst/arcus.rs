@@ -61,8 +61,10 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         vel_dyn: v[ix::VEL_DYN],
         vel_attack: v[ix::VEL_ATTACK],
         dyn_src: DynSource::from_index(v[ix::DYN_SRC]),
-        bow_pos: v[ix::BOW_POS],
-        bow_force: v[ix::BOW_FORCE],
+        // The knobs read × (the read-out's units); the DSP takes octaves: β × 2^(−pos/2),
+        // the force × 2^force.
+        bow_pos: (-2.0 * math::log2(v[ix::BOW_POS].max(1e-3))).clamp(-1.0, 1.0),
+        bow_force: math::log2(v[ix::BOW_FORCE].max(1e-3)).clamp(-1.0, 1.0),
         bow_speed: v[ix::BOW_SPEED],
         bow_attack: v[ix::BOW_ATTACK],
         bow_release_ms: v[ix::BOW_RELEASE],

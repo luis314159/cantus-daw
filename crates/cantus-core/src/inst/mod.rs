@@ -358,6 +358,15 @@ impl NativeSpec {
                 room_look::RoomKind::Stage.key().to_string(),
             );
         }
+        // r42:arcus — a new Arcus names its four macros, each mapped (Chorda's way).
+        if kind == InstrumentKind::BowedString {
+            for (k, v) in arcus::DEFAULT_MACROS {
+                text.insert(k.to_string(), v.to_string());
+            }
+            for (k, v) in arcus::DEFAULT_DEPTHS {
+                params.insert(k.to_string(), *v);
+            }
+        }
         NativeSpec {
             kind,
             params,

@@ -91,7 +91,8 @@ fn rows_in(rect: Rect, s: &Style, hs: &[f32]) -> Vec<Rect> {
         .collect()
 }
 
-/// The picture's card: the string and the diagram on the display.
+/// The picture's card: the instrument (Play) or the Schelleng diagram (Edit) on the display.
+#[allow(clippy::too_many_arguments)]
 fn picture_card(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
@@ -99,20 +100,25 @@ fn picture_card(
     spec: &NativeSpec,
     rect: Rect,
     s: &Style,
+    diagram: bool,
 ) {
     let ss = s.function(Function::Source);
     let fs = settings(spec);
     let tele = app.inst_telemetry();
     let display = (rect.height() / s.k - 24.0 - 1.0 - 6.0).max(60.0);
-    let cr = paint_card(
-        ui,
-        rect,
-        s,
-        &Card::new("instrument.arcus", Function::Source).display(display),
-    );
+    let title = if diagram {
+        "arcus.schelleng"
+    } else {
+        "instrument.arcus"
+    };
+    let cr = paint_card(ui, rect, s, &Card::new(title, Function::Source).display(display));
     if let Some(d) = cr.display {
         let sd = face::on_display(&ss);
-        draw::picture(app, ui, track, &fs, &tele, d, &sd);
+        if diagram {
+            draw::schelleng(app, ui, track, &fs, &tele, d, &sd);
+        } else {
+            draw::picture(app, ui, track, &fs, &tele, d, &sd);
+        }
         with_brush(&ui.painter_at(d), |b| face::cover(b, d, &sd));
     }
 }
@@ -166,17 +172,23 @@ fn readout(app: &CantusApp, ui: &egui::Ui, rect: Rect, spec: &NativeSpec, s: &St
     let string = name(open);
     let marks = ["pp", "p", "mp", "mf", "f", "ff"];
     let mark = marks[((n.dynamic.clamp(0.0, 1.0) * 5.0).round() as usize).min(5)].to_string();
-    let bow = format!(
-        "β {:.2} · {:.2} N · {:.0} cm/s",
-        n.beta,
+    // The knobs' own values (×) beside what they make: the read-out and the knob agree.
+    let contact = format!("× {:.2} · β {:.2}", spec.get("bow.pos"), n.beta);
+    let force = format!(
+        "× {:.2} · {:.2} N ({:.2}–{:.2})",
+        spec.get("bow.force"),
         n.force,
-        100.0 * n.speed.abs()
+        n.lo,
+        n.hi
     );
-    let rows: [(&str, &str); 4] = [
+    let speed = format!("× {:.2} · {:.0} cm/s", spec.get("bow.speed"), 100.0 * n.speed.abs());
+    let rows: [(&str, &str); 6] = [
         ("arcus.read.note", &note),
         ("arcus.read.string", &string),
         ("arcus.read.dynamic", &mark),
-        ("arcus.read.bow", &bow),
+        ("arcus.bow.pos", &contact),
+        ("arcus.bow.force", &force),
+        ("arcus.bow.speed", &speed),
     ];
     let line = s.s(18.0);
     let label_w = (rect.width() * 0.32).min(s.s(110.0));
@@ -256,7 +268,7 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let mut rows = Rows::new(area, s);
     let r1 = rows.row(h1, &[0.58, 0.42]);
     let r2 = rows.row(h2, &[0.40, 0.33, 0.27]);
-    picture_card(app, ui, track, spec, r1[0], s);
+    picture_card(app, ui, track, spec, r1[0], s, false);
     instrument_card(app, ui, track, spec, r1[1], s);
     cells_card(
         app,
@@ -309,7 +321,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let (area, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), total), Sense::hover());
     let mut rows = Rows::new(area, s);
     let r1 = rows.row(heights[0], &[0.55, 0.45]);
-    picture_card(app, ui, track, spec, r1[0], s);
+    picture_card(app, ui, track, spec, r1[0], s, true);
     instrument_card(app, ui, track, spec, r1[1], s);
     let r2 = rows.row(heights[1], &[1.0]);
     switched_card(
@@ -457,5 +469,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     t[tel::DYNAMIC] = 0.6;
     t[tel::LEVEL] = 0.35;
     t[tel::STICK] = 1.0;
+    t[tel::FMIN] = 0.5;
+    t[tel::FMAX] = 2.1;
     app.inst.injected = Some(t);
 }
