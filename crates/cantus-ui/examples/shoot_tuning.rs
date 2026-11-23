@@ -179,6 +179,10 @@ fn shoot(dir: &Path, kind: &str, dark: bool, zoom: f32) {
         },
     );
     tuning::design_preview(None);
+    if std::env::var_os("CANTUS_SHOOT_DEBUG").is_some() {
+        let room = cantus_ui::views::transport::room(&ctx, SIZE.x);
+        eprintln!("{kind}: top bar menus block {:.1} (full)", room.left_max);
+    }
     println!("{}", path.display());
 }
 

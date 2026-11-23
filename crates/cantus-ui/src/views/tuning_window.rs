@@ -341,7 +341,7 @@ fn pictures(app: &CantusApp, ui: &mut Ui, r: Rect, target: Target) {
 fn degree_table(ui: &mut Ui, r: Rect, rows: &[circle::Row], heads: &[&str; 5], beats: bool) {
     let s = Style::current();
     let k = s.k;
-    let cols: [f32; 5] = [0.14, 0.22, 0.22, 0.21, 0.21];
+    let cols: [f32; 5] = [0.12, 0.2, 0.2, 0.24, 0.24];
     let col_rect = |line: Rect, i: usize| {
         let x0 = line.left() + line.width() * cols[..i].iter().sum::<f32>();
         Rect::from_min_size(
@@ -360,9 +360,13 @@ fn degree_table(ui: &mut Ui, r: Rect, rows: &[circle::Row], heads: &[&str; 5], b
             } else {
                 Align2::RIGHT_CENTER
             };
+            let mut hr = col_rect(head, i);
+            if beats && (i == 3 || i == 4) {
+                hr.max.x -= 14.0 * k; // over the number, not its dot
+            }
             let _ = text::paint(
                 b,
-                col_rect(head, i),
+                hr,
                 &Text::key(key, Role::Label, s.t.text_dim)
                     .align(align)
                     .policy(Policy::Abbreviate),
@@ -404,11 +408,15 @@ fn degree_table(ui: &mut Ui, r: Rect, rows: &[circle::Row], heads: &[&str; 5], b
                             Align2::RIGHT_CENTER
                         };
                         let ink = if i == 0 { s.t.text } else { s.t.readout };
-                        if beats && (i == 3 || i == 4) {
+                        // A beat rate's colour dot after its number, at the column's end.
+                        let cr = if beats && (i == 3 || i == 4) {
                             let x = if i == 3 { row.fifth_x } else { row.third_x };
-                            let dot = Pos2::new(cr.left() + 6.0 * k, cr.center().y);
+                            let dot = Pos2::new(cr.right() - 4.0 * k, cr.center().y);
                             b.circle(dot, 4.0 * k, Fill::Solid(circle::beat_colour(&s, x)));
-                        }
+                            Rect::from_min_max(cr.min, Pos2::new(cr.right() - 14.0 * k, cr.bottom()))
+                        } else {
+                            cr
+                        };
                         let _ = text::paint(
                             b,
                             cr,

@@ -103,7 +103,10 @@ pub fn brand_widths(app: &CantusApp, ctx: &egui::Context, s: &Style) -> [f32; 4]
     let summary = with_summary(app, |w| p::measure(ctx, w, Role::Label, 11.0, s)).min(most * k);
     let mark = (MARK + 8.0 + MENU_KEY + 8.0) * k;
     [
-        (LOGO_W * k + menus.max(name + 8.0 * k + summary)).ceil(),
+        // The name is painted one point wider than measured (`name_line`), the summary
+        // after it: the full form holds both whole (r42:tuning-face — a tuned song's longer
+        // line lost "A415" to an ellipsis by that point).
+        (LOGO_W * k + menus.max(name + 1.0 + 8.0 * k + summary)).ceil(),
         (LOGO_W * k + menus.max(name)).ceil(),
         (mark + name).ceil(),
         (mark - 8.0 * k).ceil(),
@@ -1010,21 +1013,19 @@ mod summary_tests {
         crate::design::install_fonts(&ctx);
         crate::design::install_style(&ctx);
         let mut widths = ([0.0f32; 4], 0.0f32, 0.0f32);
-        for _ in 0..3 {
-            let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
-                let ctx = &ui.ctx().clone();
-                let s = super::Style::current();
-                let w = super::brand_widths(&app, ctx, &s);
-                let sum = super::p::measure(ctx, &line, super::Role::Label, 11.0, &s);
-                let mut n = String::new();
-                super::name_into(&app, &mut n);
-                let name = super::p::measure(ctx, &n, super::Role::Title, 13.0, &s);
-                widths = (w, sum, name);
-            });
-        }
+        crate::raster::shoot(&ctx, egui::vec2(800.0, 200.0), 1.0, 3, None, |ui| {
+            let ctx = ui.ctx().clone();
+            let s = super::Style::current();
+            let w = super::brand_widths(&app, &ctx, &s);
+            let sum = super::p::measure(&ctx, &line, super::Role::Label, 11.0, &s);
+            let mut n = String::new();
+            super::name_into(&app, &mut n);
+            let name = super::p::measure(&ctx, &n, super::Role::Title, 13.0, &s);
+            widths = (w, sum, name);
+        });
         let (w, sum, name) = widths;
         assert!(
-            w[0] + 0.5 >= super::LOGO_W + name + 8.0 + sum,
+            w[0] >= super::LOGO_W + name + 1.0 + 8.0 + sum,
             "full {} < logo {} + name {name} + 8 + summary {sum}",
             w[0],
             super::LOGO_W

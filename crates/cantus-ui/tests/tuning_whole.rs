@@ -181,3 +181,33 @@ fn theme_turn() -> std::sync::MutexGuard<'static, ()> {
     );
     turn
 }
+
+/// The top bar of a song in a tuning of its own says it whole: the name, the song's line and
+/// the tuning after it ("4 tracks · 4 bars · 0:08 · Werckmeister III in Eb · A415"), in
+/// both themes and both languages, on a 1440-point bar.
+#[test]
+fn the_top_bar_says_a_tuned_songs_line_whole() {
+    let _turn = theme_turn();
+    let mut bad = Vec::new();
+    for lang in [Locale::En, Locale::Es] {
+        i18n::set_thread_locale(lang);
+        for dark in [true, false] {
+            let (mut app, _) = app_in("temperament");
+            tuning::close(&mut app);
+            let ctx = context(dark);
+            probe::start_clipped();
+            let mut full = 0.0;
+            cantus_ui::raster::shoot(&ctx, egui::vec2(1440.0, 44.0), 1.0, 4, None, |ui| {
+                cantus_ui::views::transport::show(&mut app, ui);
+                full = cantus_ui::views::transport::room(ui.ctx(), 1440.0).left_max;
+            });
+            for c in seen() {
+                if c.contains("A415") || c.contains("Meso") || c.contains("meantone") {
+                    bad.push(format!("{lang:?} dark {dark} (menus block {full:.1}): {c}"));
+                }
+            }
+        }
+    }
+    i18n::set_thread_locale(Locale::En);
+    assert!(bad.is_empty(), "not read whole:\n{}", bad.join("\n"));
+}
