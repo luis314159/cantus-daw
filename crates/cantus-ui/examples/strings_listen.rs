@@ -110,7 +110,7 @@ fn rendered(p: &Project, end: Ticks) -> Vec<f32> {
 }
 
 /// Write `x` peak-normalised to −1 dBFS, and a copy at −23 LUFS beside it.
-fn write_pair(out: &Path, name: &str, x: &[f32]) {
+fn write_pair(out: &Path, name: &str, x: &[f32]) -> Option<f64> {
     let peak = x.iter().fold(0f32, |m, v| m.max(v.abs())).max(1e-9);
     let at = |g: f32| x.iter().map(|v| v * g).collect::<Vec<f32>>();
     let a = at(cantus_dsp::math::powf(10f32, -1.0 / 20.0) / peak);
@@ -118,7 +118,8 @@ fn write_pair(out: &Path, name: &str, x: &[f32]) {
     let (l, r): (Vec<f32>, Vec<f32>) = x.chunks(2).map(|f| (f[0], f[1])).unzip();
     let mut m = cantus_dsp::terminus::loudness::LoudnessMeter::new(RATE as f32);
     m.process(&l, &r);
-    if let Some(lufs) = m.integrated() {
+    let lufs = m.integrated();
+    if let Some(lufs) = lufs {
         let g = cantus_dsp::math::powf(10f32, (-23.0 - lufs as f32) / 20.0);
         let b = at(g);
         cantus_content::wav::write_stereo_24(&out.join(format!("{name}-lufs23.wav")), RATE, &b)
@@ -128,6 +129,7 @@ fn write_pair(out: &Path, name: &str, x: &[f32]) {
             20.0 * cantus_dsp::math::log10(peak)
         );
     }
+    lufs
 }
 
 /// The four-bar line in the middle of `lo..=hi`: the legato pair, the swell, détaché notes.
@@ -180,11 +182,21 @@ fn abx(mid: &[u8], name: &str, p: &mut Project, c: &mut Clip) -> Ticks {
         .find(|(_, m)| m == "pizzicato")
         .map(|(t, _)| *t)
         .unwrap_or(Ticks(i64::MAX));
+    // By its name, or by its channel (the phrase: the cello on channel 1, the bass on 2).
+    let channel = if name == "Cello" { 0 } else { 1 };
     let t = imp
         .tracks
         .iter()
         .find(|t| t.label.english().contains(name))
-        .unwrap_or_else(|| panic!("the track {name}"));
+        .or_else(|| {
+            imp.tracks
+                .iter()
+                .find(|t| t.channel == channel && !t.notes.is_empty())
+        })
+        .unwrap_or_else(|| {
+            let names: Vec<String> = imp.tracks.iter().map(|t| t.label.english()).collect();
+            panic!("the track {name} among {names:?}")
+        });
     for n in &t.notes {
         let mut note = p.make_note(n.start, n.length, n.pitch, n.velocity);
         if n.start >= pizz {
@@ -217,6 +229,8 @@ fn main() {
     let mid = args.next().map(PathBuf::from);
     std::fs::create_dir_all(&out).unwrap();
     let manifest = cantus_content::Manifest::bundled();
+    // Each line's loudness before normalising: what `merge.py` levels the instruments by.
+    let mut levels = serde_json::Map::new();
     for pack in manifest.packs.iter().filter(|p| p.strings.is_some()) {
         let dir = lay_out(&sources, pack);
         for inst in &pack.strings.as_ref().unwrap().instruments {
@@ -254,4 +268,9 @@ fn main() {
             }
         }
     }
+    std::fs::write(
+        out.join("levels.json"),
+        serde_json::to_string_pretty(&levels).unwrap(),
+    )
+    .unwrap();
 }

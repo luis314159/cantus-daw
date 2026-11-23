@@ -1,16 +1,20 @@
 """Round 42 (strings-rec, ADR 0158): put the recorded strings' packs into the manifest.
 
-    python -I tools/content/strings/merge.py <sources> <strings.json> <content.json>
+    python -I tools/content/strings/merge.py <sources> <strings.json> <content.json> [levels.json]
 
 <sources> is what fetch_sources.sh fetched (the zips, vsco/); <strings.json> what the
 strings_map example measured (each pack's `strings` build); <content.json> the manifest,
 rewritten in place with each strings pack added or replaced (the others kept as they are).
+[levels.json] (written by render.sh: each instrument's four-bar line, in LUFS) levels every
+instrument and preset so its line plays at -16 LUFS, as the native instruments sit (ADR 0039).
 Sizes and SHA-256 are computed here from the bytes, never typed (ADR 0030). The cards say
 honestly what the packs are: a finished sketch — two to five dynamics, no recorded legato.
 """
 import hashlib, json, os, sys, zipfile
 
 SRC, MEASURED, MANIFEST = sys.argv[1], sys.argv[2], sys.argv[3]
+LEVELS = json.load(open(sys.argv[4], encoding="utf-8")) if len(sys.argv) > 4 else {}
+TARGET_LUFS = -16.0
 CC0 = "https://creativecommons.org/publicdomain/zero/1.0/legalcode"
 CHECKED = "2026-11-22"
 VSCO_SHA = "440300901dfe9275fd84e0b7763af1f8443ae62e"
@@ -169,6 +173,10 @@ def entry(pid, spec, build):
         "file": i["sfz"], "shelf": spec["shelf"].get(i["sfz"].split("/")[-1][:-4].split("-")[0], "samplers"),
         "gain_db": 0.0, "voices": 48,
     } for i in build["instruments"]]
+    for i in build["instruments"]:
+        heard = LEVELS.get(pid + "/" + i["sfz"])
+        if heard is not None:
+            i["gain_db"] = round(max(-24.0, min(24.0, i["gain_db"] + TARGET_LUFS - heard)), 1)
     p["strings"] = build
     return p
 
