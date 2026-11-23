@@ -508,7 +508,7 @@ pub fn body(
             app.project().key,
         ),
         (None, false) => words::project_summary(app.project())
-            .map_or_else(|| t("tuning.chorda.project_equal_short"), |s| s),
+            .unwrap_or_else(|| t("tuning.chorda.project_equal_short")),
     };
     let (f, _) = place(ui, ctl, |ui| {
         menu_field(

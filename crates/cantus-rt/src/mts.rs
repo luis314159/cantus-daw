@@ -207,8 +207,8 @@ impl Mts {
                 clear_filter: lib.get("MTS_ClearNoteFilter"),
             }
         };
-        // Never unloaded (see the module's notes).
-        std::mem::forget(lib);
+        // Never unloaded (see the module's notes): `Lib` has no `Drop`, nothing frees it.
+        let _ = lib;
         Ok(Mts {
             path: path.to_path_buf(),
             f,
@@ -414,7 +414,6 @@ impl Mts {
         };
         // SAFETY: the test library's levers are `extern "C" fn(bool)`.
         let f: Option<unsafe extern "C" fn(bool)> = unsafe { lib.get(name) };
-        std::mem::forget(lib);
         match f {
             // SAFETY: as above.
             Some(f) => {
@@ -439,6 +438,7 @@ mod sys {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
+    /// A loaded library's handle. It has no `Drop`: a library is never unloaded.
     pub struct Lib(*mut c_void);
 
     impl Lib {
@@ -480,6 +480,7 @@ mod sys {
     use std::ffi::c_void;
     use std::os::unix::ffi::OsStrExt;
 
+    /// A loaded library's handle. It has no `Drop`: a library is never unloaded.
     pub struct Lib(*mut c_void);
 
     impl Lib {

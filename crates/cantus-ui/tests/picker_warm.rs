@@ -2,9 +2,10 @@
 //! BACKLOG §6j; round 42): on a fresh profile, after the idle warm-up, every device's
 //! picture is ready — the most used in the atlas, the rest on disk — so opening either
 //! picker and scrolling to its end draws no editor and shows each tile's picture within two
-//! frames (no card lingering); the warm-up waits for the start-up and for a quiet hand; once
-//! done it asks for no frame (the frame budget at rest unchanged); and what each of its steps
-//! costs on the interface thread is measured beside a plain frame of the same window.
+//! frames (no card lingering); the warm-up waits for the start-up and for a quiet hand; its
+//! passes cost a plain pass and at most a quarter of a frame (p99), never a frame more
+//! (max) — the editors drawn on a worker; once done it asks for no frame (the frame budget
+//! at rest unchanged); each measured beside a plain pass of the same window.
 //! r42:tuning-face
 
 use cantus_engine::EngineHandle;
@@ -84,11 +85,22 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
     for s in &all {
         assert!(th.ready(*s), "{s:?} ready");
     }
+    // `CANTUS_KEEP_WARM` (a folder): the pictures made on the worker, kept to be looked at.
+    if let Some(keep) = std::env::var_os("CANTUS_KEEP_WARM") {
+        let keep = std::path::PathBuf::from(keep);
+        let _ = std::fs::create_dir_all(&keep);
+        for e in std::fs::read_dir(dir.path()).unwrap().flatten() {
+            let _ = std::fs::copy(e.path(), keep.join(e.file_name()));
+        }
+    }
     let (held, pages) = th.held();
     assert_eq!(pages, 1, "one atlas page");
     assert!(held >= 20.min(all.len()), "the most used held: {held}");
     let captures = th.stats.captures;
-    assert!(captures as usize <= all.len(), "each made once: {captures}");
+    assert!(
+        captures as usize <= all.len(),
+        "each made at most once: {captures}"
+    );
 
     // Opening the picker and scrolling to its end: every tile's picture within two frames,
     // and no editor drawn.
@@ -133,6 +145,11 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
         v[v.len() / 2]
     };
     let (rest_ms, empty_ms) = (median(&mut rest), median(&mut empty));
+    // The budget (the owner is sensitive to input lag): a pass of the warm-up costs a plain
+    // pass and at most a slice of a frame. The editors are drawn on a worker; this thread
+    // only uploads each finished picture.
+    let budget = empty_ms + cantus_ui::views::picker_thumbs::WARM_BUDGET_MS;
+    let over_budget = steps.iter().filter(|ms| **ms > budget).count();
     steps.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let worst = steps.last().copied().unwrap_or(0.0);
     let over = steps.iter().filter(|ms| **ms > 1000.0 / 60.0).count();
@@ -152,6 +169,22 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
         "warm-up: {} pictures, {captures} editors drawn, {} passes; a pass {typical:.2} ms typical, {worst:.1} ms worst; at rest {rest_ms:.3} ms vs an empty pass {empty_ms:.3} ms",
         all.len(),
         steps.len()
+    );
+    let p = |q: f64| steps[((steps.len() - 1) as f64 * q).round() as usize];
+    eprintln!(
+        "warm-up per pass: p50 {:.3} ms, p99 {:.3} ms, max {worst:.2} ms; a plain pass {empty_ms:.3} ms (p50 ratio {:.2}); {over_budget} passes over {budget:.2} ms",
+        p(0.5),
+        p(0.99),
+        p(0.5) / empty_ms.max(1e-6)
+    );
+    assert!(
+        p(0.99) <= budget,
+        "p99 {} ms over the budget {budget} ms",
+        p(0.99)
+    );
+    assert!(
+        worst <= budget + 1000.0 / 60.0,
+        "a pass of {worst} ms: more than a frame over the budget"
     );
     // At rest it is an empty pass (a reference timed beside it, never a fixed figure).
     assert!(

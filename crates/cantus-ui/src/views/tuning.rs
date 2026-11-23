@@ -45,7 +45,7 @@ pub enum Target {
 }
 
 /// The window's state that is not the song's.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TuningUi {
     /// The window, when open, and which tuning it edits.
     pub open: Option<Target>,
@@ -65,21 +65,6 @@ pub struct TuningUi {
     /// The project's table last published as master, with the history's revision it was
     /// made from.
     published: Option<(u64, TuningTable)>,
-}
-
-impl Default for TuningUi {
-    fn default() -> Self {
-        TuningUi {
-            open: None,
-            fresh: false,
-            audition: None,
-            last: None,
-            mts: None,
-            master_refused: None,
-            chorda_key: None,
-            published: None,
-        }
-    }
 }
 
 /// A cadence (I–IV–V–I, or i–iv–V–i in a minor song) on one track's instrument.

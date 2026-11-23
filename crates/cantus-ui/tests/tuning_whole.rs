@@ -228,7 +228,7 @@ fn chordas_temperament_card_reads_whole_in_both_languages() {
     for lang in [Locale::En, Locale::Es] {
         i18n::set_thread_locale(lang);
         for (k, dark) in SCALES {
-            let mut seen_in = |state: &str| {
+            let seen_in = |state: &str| {
                 let ctx = context(dark);
                 let mut app =
                     CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);

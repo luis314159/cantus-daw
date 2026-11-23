@@ -133,7 +133,7 @@ pub fn degree_written(d: &ScaleDegree) -> String {
     match *d {
         // As the file wrote it: the shortest decimal that reads back to the same number.
         ScaleDegree::Cents(c) => format!("{c}"),
-        ScaleDegree::Ratio(n, d) if d == 1 => format!("{n}"),
+        ScaleDegree::Ratio(n, 1) => format!("{n}"),
         ScaleDegree::Ratio(n, d) => format!("{n}/{d}"),
     }
 }

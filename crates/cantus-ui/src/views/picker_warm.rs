@@ -3,7 +3,9 @@
 //! asked for, so on a fresh profile the tiles further down showed their card for a moment
 //! as one scrolled (FL shows every picture at once). Now, once the window has been quiet a
 //! while after start-up, the pictures are made at background priority — one editor at a
-//! time, after anything a tile asks for — the most used devices first (the recent ones, the
+//! time on a worker of its own (the interface thread only uploads each finished picture: a
+//! capture drawn on it stalled the window up to 0.9 s), after anything a tile asks for —
+//! the most used devices first (the recent ones, the
 //! favourites, then the catalogue's order): those the atlas's page holds are kept in it, the
 //! rest written to the disk cache, read back in a frame when their tile asks. With every
 //! picture made the warm-up stops and asks for no frame: the frame budget at rest is
@@ -97,6 +99,24 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     if !app.picker_warm.queued {
         app.picker_warm.queued = true;
         let subjects = order(app);
+        // The worker draws in the look this thread draws in.
+        let s = &app.settings;
+        app.picker_view
+            .thumbs
+            .set_worker_look(super::picker_thumbs::WorkerLook {
+                faces: s.unit_faces,
+                colourways: s
+                    .unit_colourways
+                    .iter()
+                    .map(|(u, c)| (u.clone(), c.clone()))
+                    .collect(),
+                views: s
+                    .unit_views
+                    .iter()
+                    .map(|(u, v)| (u.clone(), v.clone()))
+                    .collect(),
+                locale: crate::i18n::locale(),
+            });
         app.picker_view.thumbs.warm(subjects);
     }
     app.picker_view.thumbs.pump(ctx);
