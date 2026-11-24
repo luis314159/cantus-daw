@@ -44,6 +44,9 @@ function Show($when) {
 }
 
 Show "before"
+# Linux must say which blocks are free, or diskpart has nothing to give back (2026-11-23: a
+# compact without it went 135 -> 118 GB with 25 GB in use; fstrim as root needs no password).
+wsl -d $Distro -u root -- fstrim -av
 wsl --shutdown
 Start-Sleep -Seconds 3
 # diskpart compacts a non-sparse image; WSL may have made it sparse.
