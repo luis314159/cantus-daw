@@ -70,8 +70,11 @@
   articulation, bow, keyswitch, delay, controller crossfade (the CC, the ranges it fades in
   and out across, the curve). Each edit is a command and one undo step; readouts are in words
   (*Pizz.*, *Down*, *CC 1*, *Power*) with designed short labels in both languages, and the
-  title names the zone's articulation and bow. Shots: `docs/round42/strings-rec/art-zone-*`
-  (all eight in `F:\projects\daw-r42\listen\strings-rec\shots\`); test: `strings_rec_zone.rs`.
+  title names the zone's articulation and bow. Shots: `docs/round42/strings-rec/art-zone-*`;
+  all of them, Spanish at 75 %, 100 % and 200 % too, are in
+  `F:\projects\daw-r42\listen\strings-rec\shots\`. Test: `strings_rec_zone.rs`. Exemplar's
+  existing *Keyswitch* labels now read *Tecla(s) de cambio* in Spanish (short form
+  *T. CAMBIO*), whole at 75–200 %.
 
 ### The packs (on demand, credited, never in git)
 
@@ -110,8 +113,13 @@
     period, crossfaded over a third (≤ 400 ms), **kept only if Exemplar plays it click-free**
     (the seam's energy above about 5 kHz, by the second difference, within 3 dB of the loop's
     own 90th percentile); five places tried. 713 loops kept, none clicking.
-- **Levels**: every instrument and preset levelled so its four-bar line plays at −16 LUFS
-  (`render.sh` measures, `merge.py` sets `gain_db`, within ±24 dB).
+- **Levels**, the house's way (`strings_listen -- fit`, the rule of `preset_tool -- fit`).
+  Every instrument and preset aims at its role's target on its role's phrase, with the mod
+  wheel at half: a bass −16, a bowed sustain a pad's −19, a short note a pluck's −21 LUFS. It
+  never goes above the headroom of the dense riff at velocity 127 **with the mod wheel full**
+  (−1 dBFS), so no preset clips the master at ff with its default gain. A second pass moved
+  nothing (all within 0.05 dB). The riff's headroom binds most of them: stacked string samples
+  at ff carry a large crest, so their phrases sit under the role's target.
 - **The cards** say what the content is: *"A finished sketch, honestly: two dynamic layers, no
   recorded legato (Cantus scripts it by overlap), loops found by Cantus"* (and in Spanish), with
   the credits (Versilian Studios / Sam Gossner with Ivy Audio / Simon Dalzell; Karoryfer Lecolds
@@ -167,9 +175,22 @@
     | short notes within 1 / 5 cents (reported) | 23.6 % / 72.0 % | 46.9 % / 81.6 % |
 
     The integrator's bar is 99 % of measurable sustains within a cent: 98.9 % falls short by
-    one zone (six are 1.09–2.72 cents off). The test holds 98.5 % until the integrator rules,
-    with all measurable sustains within 3 cents and every sustain within 5. A pluck's pitch
-    falls as it rings, so a short note has no single pitch to a cent.
+    one zone. The six misses were looked at one by one (`strings_tune_probe` with
+    `CANTUS_PROBE_FILES`: every measure over the loop's turns, each half of the loop, and the
+    part before it):
+    - VSCO solo violin `ArcoVib_G4_f` (−1.20 c) and Smolken `arco_d2_f_down` (+2.65 c): the
+      player drifts 4–5 cents within the loop, and the measures weigh the drift differently;
+    - VSCO solo bass `SusNV_F#0_v3` and `SusNV_G0_v3` (−1.09 c each): 23–24 Hz, where the
+      measures spread over 2.5 cents at so few periods a frame;
+    - VSCO violas `susvib_G4_v2` (−1.15 c): the section's spread, with the partials' fit 1.9
+      cents above the time-domain measures;
+    - Smolken `arco_a3_ff_down` (+2.72 c, unlooped): YIN alone reads 2.7 cents under the
+      others, and the consensus took YIN.
+
+    None is the loop sitting apart from the rest of the zone. The test holds what holds
+    (98.9 %, these six named in it), with all measurable sustains within 3 cents and every
+    sustain within 5. A pluck's pitch falls as it rings, so a short note has no single pitch
+    to a cent.
   - Every one of the 713 loops is click-free.
 - Content: 118 passed (the manifest valid, the strings build written, its validation).
 
@@ -192,10 +213,8 @@
     on the Bigcat cello and the Smolken bass, its 30 ms overlaps slurred, the bar after the
     marker plucked. These are Arcus's references.
 
-  Rendered again after the tuning correction (same names; levels unchanged). Say which presets
-  are acceptable. Each line is levelled to −16 LUFS, so a forte phrase can peak above full
-  scale inside the mix (the ABX bass rendered at +4.3 dBFS before its −1 dBFS normalising):
-  say if the strings should sit lower. The legato's crossfade, glide and start (90 / 60 / 90 ms)
+  Rendered again after the tuning correction and the house's levels (same names, `-lufs23`
+  copies). Say which presets are acceptable. The legato's crossfade, glide and start (90 / 60 / 90 ms)
   were set by measurement, not by ear.
 - The lane's and the zone card's look (`docs/round42/strings-rec/`, every shot in
   `F:\projects\daw-r42\listen\strings-rec\shots\`) and the checklist's *Ronda 42* item.
