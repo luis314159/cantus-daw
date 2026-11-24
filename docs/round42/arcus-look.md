@@ -61,7 +61,8 @@ meshes and materials for that engine, not a new renderer.
 - **The room furnished as Chorda's** (sheet v4, `scene/bowed_props.rs`):
   - the cellist's chair behind the cello, or the bassist's stool beside the bass;
   - two microphones on boom stands at the instrument's sides, never in front of it: a pencil
-    low on the f-holes and a large-diaphragm condenser higher. They are the engine's own
+    at the bridge's height aimed down onto the bridge and the f-holes, and a
+    large-diaphragm condenser higher. They are the engine's own
     `gear::KitMic` in both pictures.
 - **Live, over the baked picture** (`views/inst/arcus_draw_body.rs`, from the build's camera
   and `bowed::rig`):
@@ -107,8 +108,8 @@ each picture is drawn.
 
 | What | Value |
 |---|---|
-| A frame, Arcus live (string, finger, bow) ÷ Chorda's picture at rest, timed beside it, best of 5 | 2.98 – 3.3 × (the test holds it under 6 ×) |
-| A frame, best of 30 (debug build) | Arcus live 0.089 ms · Chorda at rest 0.025 ms |
+| A frame, Arcus live (string, finger, bow) ÷ Chorda's picture at rest, timed beside it, best of 5 | 1.9 – 2.2 × on the approved v4 tree (2.98 – 3.3 × on v3); the test holds it under 6 × |
+| A frame, best of 30 (debug build) | Arcus live 0.111 ms · Chorda at rest 0.046 ms (v4; v3: 0.089 / 0.025 ms) |
 | Builds while a note plays | 0 (only what it plays is drawn) |
 | At rest | no repaint, no rebuild, no allocation beyond an empty frame (19 = 19) |
 | A picture built (on the worker, debug build, 590 × 300 at 1×) | Drawn ≈ 0.3 – 0.5 s, Photographic ≈ 0.2 – 0.3 s; at 3× ≈ 0.8 / 1.3 s |
@@ -126,8 +127,17 @@ each picture is drawn.
 
 ## Verified only on screen
 
-The pictures were looked at in `docs/round42/arcus/sheet-v3/` (100 % and 200 %, Night and
-Paper, English and Spanish, and the frame strips). The owner's verdict is pending.
+The pictures were looked at against Chorda's in `docs/round42/arcus/sheet-v3/` and
+`sheet-v4/` (100 % and 200 %, Night and Paper, English and Spanish, the frame strips).
+**The owner approved v4** (*"la imagen se ve bien, dale"*, relayed by the integrator); v4 is
+the approved set. One refinement after his verdict: the left pencil now stands at the
+bridge's height and aims down onto the bridge and the f-holes (it pointed low, toward the
+floor, in the v4 shots).
+
+Clippy: `cargo clippy -p cantus-ui --no-deps --all-targets -- -D warnings` is clean. The
+full run without `--no-deps` still fails on `r42/arcus-look` alone, in the arcus builder's
+`cantus-dsp/src/arcus_pitch_data.rs` (approx_constant). Their fix
+(`#![allow(clippy::approx_constant)]`) is on `r42/arcus` and arrives with the merge.
 
 ## For the integrator
 

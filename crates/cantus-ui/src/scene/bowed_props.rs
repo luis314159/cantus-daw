@@ -163,15 +163,18 @@ pub fn furniture(m: &mut Mesh, b: Bowed, pose: &Pose) {
 }
 
 /// The two microphones an engineer puts up for `b`: a small-diaphragm pencil out to the
-/// left, low, on the f-holes and the bridge; a large-diaphragm condenser out to the right,
-/// higher, on the whole instrument — both on boom stands, both beside the instrument.
+/// left at the bridge's height, angled a little down onto the bridge and the f-holes; a
+/// large-diaphragm condenser out to the right, higher, on the whole instrument — both on
+/// boom stands, both beside the instrument.
 pub fn mics(b: Bowed) -> Vec<KitMic> {
     let d = b.dims();
     let pose = Pose::of(b);
     let k = d.body / 75.7;
-    let low = pose.at(0.0, d.body * 0.4, d.arch);
+    // The pencil's target: the bridge, between the f-holes, where an engineer aims a
+    // close mic on a cello or a bass.
+    let low = pose.at(0.0, super::bowed::bridge_y(d), d.arch + d.bridge_h * 0.5);
     let high = pose.at(0.0, d.body * 0.62, d.arch);
-    let pencil = low + v(-70.0 * k, -6.0 * k, 18.0 * k);
+    let pencil = low + v(-64.0 * k, 16.0 * k, 24.0 * k);
     let ldc = high + v(66.0 * k, 22.0 * k, 22.0 * k);
     vec![
         KitMic {
