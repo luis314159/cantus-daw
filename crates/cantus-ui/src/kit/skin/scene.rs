@@ -924,3 +924,7 @@ pub mod ink {
     pub const CHIP_DARK: C3 = [0.32, 0.30, 0.28];
     pub const CHIP_LIGHT: C3 = [0.95, 0.93, 0.90];
 }
+
+/// r42:arcus-look — the bowed strings' materials (Arcus's cello and double bass).
+#[path = "scene_bowed.rs"]
+pub mod bowed;

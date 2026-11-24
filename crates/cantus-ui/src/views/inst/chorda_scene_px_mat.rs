@@ -64,6 +64,14 @@ pub enum Tex {
     },
     /// The music desk's fretwork.
     Fret,
+    /// r42:arcus-look — a tonewood cut on the quarter (a violin family's plates): its
+    /// grain's straight lines along `uv.0`, `lines` a metre across, and, with `flame` > 0,
+    /// maple's flame — the curl's bright and dark stripes across the grain.
+    Tonewood {
+        seed: u32,
+        lines: f32,
+        flame: f32,
+    },
 }
 
 /// A material.
@@ -290,6 +298,27 @@ pub fn wood(u: f32, v: f32, seed: u32, fp: f32) -> f32 {
     if pore_w > 0.2 {
         let pores = noise(u * 260.0, v * 1400.0, seed + 11);
         t += 0.25 * pore_w * smooth(0.7, 0.95, pores);
+    }
+    t.clamp(0.0, 1.0)
+}
+
+/// r42:arcus-look — a quartered tonewood at `u` (along the grain) and `v` (across), metres:
+/// 0 the early wood's pale … 1 the late wood's dark line, the flame's stripes when `flame`
+/// is above 0; `fp` metres a pixel covers (a grain finer than a pixel fades to its mean).
+pub fn tonewood(u: f32, v: f32, seed: u32, lines: f32, flame: f32, fp: f32) -> f32 {
+    let warp = fbm(u * 2.0, v * 9.0, seed, 2) * 1.4 + (u * 3.1 + seed as f32).sin() * 0.25;
+    let x = v * lines + warp;
+    let f = x - x.floor();
+    let late = smooth(0.55, 0.82, f) * (1.0 - smooth(0.86, 1.0, f));
+    let fade = smooth(0.22, 0.55, lines * fp);
+    let mut t =
+        0.32 + 0.5 * (late + (0.3 - late) * fade) + 0.18 * fbm(u * 6.0, v * 40.0, seed + 3, 3);
+    if flame > 0.0 {
+        // The curl: stripes ~1 cm apart, leaning and wavering across the board.
+        let ph = u * 520.0 + v * 140.0 + 5.0 * fbm(v * 6.0, u * 1.5, seed + 9, 2);
+        let curl = 0.5 + 0.5 * ph.sin();
+        let curl = smooth(0.25, 0.75, curl);
+        t = t * (1.0 - 0.75 * flame) + (0.15 + 0.7 * curl) * 0.75 * flame;
     }
     t.clamp(0.0, 1.0)
 }
