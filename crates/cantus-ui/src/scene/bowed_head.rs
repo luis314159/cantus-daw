@@ -38,7 +38,8 @@ fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
 /// A flattened ellipsoid (a peg's thumb piece, a machine's key) round `c`: half-sizes `a`
 /// along `e1`, `b` along `e2`, `t` along their normal.
 #[allow(clippy::too_many_arguments)]
-fn paddle(m: &mut Mesh, role: Role, c: V3, e1: V3, e2: V3, a: f32, b: f32, t: f32) {
+pub(super) fn paddle(m: &mut Mesh, role: Role, c: V3, e1: V3, e2: V3, a: f32, b: f32, t: f32) {
+    // r42:arcus-upper (the chinrest)
     let e3 = e1.cross(e2).norm();
     let p = grid(
         9,

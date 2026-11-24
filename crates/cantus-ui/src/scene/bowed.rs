@@ -438,7 +438,13 @@ pub fn bridge_r(d: &Dims) -> f32 {
 
 /// String `i`'s place across at the bridge and the nut (lowest at the viewer's right).
 pub fn string_x(d: &Dims, i: usize) -> (f32, f32) {
-    let k = 1.5 - i as f32;
+    // Held under the chin, the lowest string lies on the player's left, -x (on the cello
+    // and the bass, played from behind, on +x). // r42:arcus-upper
+    let k = if d.held {
+        i as f32 - 1.5
+    } else {
+        1.5 - i as f32
+    }; // r42:arcus-upper
     (k * d.spacing.1, k * d.spacing.0)
 }
 

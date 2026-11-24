@@ -159,11 +159,8 @@ pub fn furniture(m: &mut Mesh, b: Bowed, pose: &Pose) {
     match b {
         Bowed::Cello => chair(m, v(foot.x + 8.0, 0.0, foot.z - 80.0), 0.12),
         Bowed::Bass => stool(m, v(foot.x - 46.0, 0.0, foot.z - 50.0)),
-        Bowed::Violin | Bowed::Viola => {
-            // r42:arcus-upper
-            // The player's chair, empty, behind where the instrument is held. // r42:arcus-upper
-            chair(m, v(-58.0, 0.0, -70.0), 0.25); // r42:arcus-upper
-        } // r42:arcus-upper
+        // Held in the air, framed close: nothing beside it to cross the picture.
+        Bowed::Violin | Bowed::Viola => {} // r42:arcus-upper
     }
 }
 
@@ -173,6 +170,10 @@ pub fn furniture(m: &mut Mesh, b: Bowed, pose: &Pose) {
 /// boom stands, both beside the instrument.
 pub fn mics(b: Bowed) -> Vec<KitMic> {
     let d = b.dims();
+    if d.held {
+        // A violin or a viola, framed close: any stand would cross it. // r42:arcus-upper
+        return Vec::new(); // r42:arcus-upper
+    } // r42:arcus-upper
     let pose = Pose::of(b);
     let k = d.body / 75.7;
     // The pencil's target: the bridge, between the f-holes, where an engineer aims a

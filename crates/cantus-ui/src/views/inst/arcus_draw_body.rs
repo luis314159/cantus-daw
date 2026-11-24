@@ -74,9 +74,10 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     let [_, bridge, nut] = rig.strings[i];
     let along = nut - bridge;
     let st = stop(pl.fs, pl.n);
-    let ex = rig.pose.ex;
-    let ez = rig.pose.ez;
     let d = pl.b.dims();
+    // The player's left, where the left hand comes from: +x behind a cello, -x under a chin.
+    let ex = if d.held { -rig.pose.ex } else { rig.pose.ex }; // r42:arcus-upper
+    let ez = rig.pose.ez;
     let k = d.body / 75.7;
     // The finger rocks along the string with the vibrato.
     let wob = (pl.time * 5.5 * std::f64::consts::TAU).sin() as f32;
@@ -223,6 +224,10 @@ fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) {
     if dir.dot(rig.pose.ex) < 0.0 {
         dir = -dir;
     }
+    // The frog toward the player's right: -x behind a cello, +x under a chin. // r42:arcus-upper
+    if pl.b.dims().held {
+        dir = -dir;
+    } // r42:arcus-upper
     let (hair, ribbon) = measures(pl.b);
     let press = (pl.n.force / pl.n.hi.max(1e-3)).clamp(0.0, 1.6);
     let trem = pl.fs.technique == Technique::Tremolo;

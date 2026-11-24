@@ -369,6 +369,7 @@ pub fn fittings(m: &mut Mesh, d: &Dims, pose: &Pose, o: &[(f32, f32)]) {
         // A violin's or a viola's end button (the collar above) and no pin: it is held; its
         // foot (for the floor's shadow) under its middle. // r42:arcus-upper
         m.foot = pose.at(0.0, 0.5 * d.body, -d.rib_lo); // r42:arcus-upper
+        super::bowed_upper::chinrest(m, d, pose); // r42:arcus-upper
         draw_strings(m, d, pose); // r42:arcus-upper
         return; // r42:arcus-upper
     }

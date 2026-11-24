@@ -44,15 +44,15 @@ pub fn camera(b: Bowed, room: Room) -> Camera {
         Room::Hall => 7.0,
         _ => 8.0,
     };
-    // A violin or a viola held: from a little higher, onto its top. // r42:arcus-upper
-    let el = if d.held { el + 12.0 } else { el }; // r42:arcus-upper
-                                                  // A violin or a viola held: closer, as a photographer frames a small instrument. // r42:arcus-upper
+    // A violin or a viola held: from the hall's middle and a little higher, onto its top and
+    // across the bow; closer, as a photographer frames a small instrument. // r42:arcus-upper
+    let (az, el) = if d.held { (4.0, el + 7.0) } else { (-24.0, el) }; // r42:arcus-upper
     let dist = if d.held {
-        140.0 + 2.2 * d.body
+        250.0 + 2.2 * d.body
     } else {
         300.0 + 2.2 * d.body
     }; // r42:arcus-upper
-    Camera::new(v(mid.x, mid.y, mid.z), -24.0, el, dist) // r42:arcus-upper
+    Camera::new(v(mid.x, mid.y, mid.z), az, el, dist) // r42:arcus-upper
 }
 
 /// The points the camera fits: the body, the head, the endpin's foot.
@@ -71,6 +71,13 @@ pub fn points(b: Bowed) -> Vec<V3> {
     if !d.held {
         // r42:arcus-upper
         p.push(pose.at(0.0, -d.endpin, -d.rib_lo * 0.5));
+    } else {
+        // Held: a margin round it, so the room shows as round the cello. // r42:arcus-upper
+        let mid = pose.at(0.0, 0.5 * (d.body + d.neck), 0.0);
+        let len = d.body + d.neck + d.pegbox;
+        for (dx, dy) in [(-0.47, 0.0), (0.47, 0.0), (0.0, 0.3), (0.0, -0.3)] {
+            p.push(mid + v(dx * len, dy * len, 0.0));
+        }
     } // r42:arcus-upper
     p
 }
@@ -265,7 +272,10 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             continue;
         }
         let mat = material(b, *role);
-        let bi = bias(*role);
+        // Held, the fingerboard runs toward the camera over the top's large cells: its ebony
+        // a little nearer, so no cell of the top shows through its side. // r42:arcus-upper
+        let held = b.dims().held && *role == Role::Ebony; // r42:arcus-upper
+        let bi = bias(*role) + if held { 1.0 } else { 0.0 }; // r42:arcus-upper
         for cell in p.cells() {
             let mut q: Vec<V3> = Vec::with_capacity(4);
             let mut nq: Vec<V3> = Vec::with_capacity(4);

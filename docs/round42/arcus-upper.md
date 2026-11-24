@@ -102,14 +102,27 @@ the Instrument card's four choices): the violin and the viola as meshes on the s
 engine (`Subject::Bowed` gained `Violin` and `Viola`; `scene/bowed_upper.rs`: **their own
 outlines** from their measures — the 'Messiah' Stradivari, 356 mm, 104 / 54.5 / 83 mm
 half-widths, corners at 147 and 229 mm; a 16-inch viola, 406 mm, 119 / 66 / 96 — with their ribs,
-arching, set-up and string gauges; a closer camera for them; `scene/bowed_upper_stand.rs`: a chromed instrument stand
-with a padded cradle and neck fork — nobody holds them, so they stand as a maker's photograph
-shows them, leant back 11°, in the cello's studio with its two boom microphones). Both looks,
+arching, set-up and string gauges; a closer camera for them; in v1 and v2 a chromed instrument stand, since replaced by pose B). Both looks,
 both themes, 100 % and 200 %. The live string, finger and bow are the cello's rig on the new
-meshes. Chorda's and Tympanum's pictures untouched (`scene_identity`). **Sent to the integrator
-for the owner**; the pose waits for his choice — (A) in an open velvet-lined case on a small
-table, three-quarter from above, the bow across the strings at its contact when it sounds, or
-(B) at the playing angle in the air with the bow — and is not built yet.
+meshes. Chorda's and Tympanum's pictures untouched (`scene_identity`).
+
+**Pose B, built (sheet v3, `docs/round42/arcus-upper/sheet-v3/`)** — the owner chose (B), the
+playing angle in the air with the bow, over (A), the open case. The stand is gone
+(`bowed_upper_stand.rs` deleted; `Dims::stand` became `Dims::held`): `bowed_upper::held` sets the
+instrument at a seated player's shoulder (112 cm), its way end-button to scroll toward the
+player's left and the hall (`TOWARD`), its top rolled ~30° toward the bow (`UP`). Held under the
+chin, the lowest string lies on the player's left, so `string_x` mirrors for a held instrument
+(the cello's and the bass's unchanged), the bow's frog comes from the player's right and the
+left hand's finger from the player's left (`arcus_draw_body.rs`); a Guarneri-style ebony
+chinrest (cup, raised lip, foot, two nickel barrels) on the bass side; the fingerboard's
+overstand raised (1.3 / 1.5 cm) so it clears the arching. The camera looks from the hall's
+middle a little above (azimuth 4°, +7° elevation), closer, and fits a margin round the
+instrument; no microphones and no chair round a held instrument (at that distance their
+stands crossed it). The varnish is an amber-brown oil varnish (less gloss, the maple's flame
+stronger), the Photographic picture's toning kept nearer that brown. Shots: `scene-*` (the
+baked picture alone) and `arcus-{violin,viola}-play-*`, `arcus-violin-pizz-*` (the card with the
+live string, finger and bow), both looks, both themes, 100 % and 200 %. **Waits for the
+owner's approval.**
 
 ### 4. Studies and comparison
 
@@ -325,8 +338,8 @@ the ADR, resolved additively). Every line I touched in Arcus's files carries `//
   removed. `arcus_pitch.rs`: the violin's and viola's rows read `upper::pitch_data`
   (`arcus_pitch_data.rs`'s empty rows kept referenced; its generator may drop them).
 - `cantus-engine/src/inst/arcus.rs`: `oversample: None`. `tests/rt_memory.rs`: one test.
-- UI: `scene/bowed.rs` (`Bowed::Violin/Viola`, `Dims::stand`, the outlines), `bowed_draw.rs`
-  (materials, fit points, the camera), `bowed_fit.rs` (no endpin on a stand; the E string steel),
+- UI: `scene/bowed.rs` (`Bowed::Violin/Viola`, `Dims::held`, the outlines, `string_x` mirrored when held), `bowed_draw.rs`
+  (materials, fit points, the camera), `bowed_fit.rs` (no endpin when held; the chinrest; the E string steel), `bowed_head.rs` (`paddle` shared),
   `bowed_mesh.rs`, `bowed_props.rs`, `scene/mod.rs`, `kit/skin/scene_bowed.rs` (two palettes),
   `views/inst/arcus.rs` (the four choices; `FACTORY_PRESETS` joins the upper presets),
   `arcus_draw.rs`, `arcus_draw_body.rs`, `chorda_scene_px_bowed.rs`, `i18n.rs` (the
@@ -343,8 +356,7 @@ the ADR, resolved additively). Every line I touched in Arcus's files carries `//
 - **The owner's ears**: the renders and the ABX pairs (`abx.html`); then violin and viola go
   wherever the cello goes (they are inside Arcus, which enters the picker in the arcus builder's
   `ALL` commit — its picker text "cello and double bass" would then name all four).
-- **The owner's eyes**: sheet v2, and his choice of the pose (A, the open case; B, the
-  playing angle) — then the pose is built.
+- **The owner's eyes**: sheet v3, pose B as he chose it — not done until he approves it.
 
 *Left for the round (not owner items, shared with the arcus builder's pass 2):* the attack's
 swell and the release (outside the study's band, the shared gesture), a real pizzicato (the

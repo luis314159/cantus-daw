@@ -1,5 +1,5 @@
 //! r42:arcus-upper — Arcus's violin and viola for the scene engine (the cello's subject,
-//! `scene::bowed`): their measures, their outline and the stand they rest on.
+//! `scene::bowed`): their measures, their outline, the pose they are held in and the chinrest.
 //!
 //! **Sources** (measures are facts; no drawing is copied): the violin's body and bouts are the
 //! Stradivari "Messiah" (1716) as its published measures give them — 356 mm long, 166 / 109 /
@@ -18,10 +18,13 @@
 //! nobody holds it here, so it floats where a seated player holds it — on the left shoulder at
 //! about 1.1 m, its scroll to the player's left and forward and a little up, its top turned
 //! up and toward the player's right, as every photograph of a violinist from the hall shows
-//! it — with the bow across its strings at the contact (the live picture's, the cello's). The
-//! room is the cello's: the player's chair behind, the two microphones beside.
+//! it — with the bow across its strings at the contact (the live picture's, the cello's). Held
+//! under the chin its lowest string lies on the player's left (`bowed::string_x` mirrors it),
+//! so the bow's frog comes from the player's right. The room is the cello's, without its chair
+//! and microphones: at a violin's distance their stands would cross it.
 
 use super::bowed::{Dims, Pose};
+use super::bowed_mesh::{Mesh, Rod, Role};
 use super::geo::{v, V3};
 
 pub const VIOLIN: Dims = Dims {
@@ -39,7 +42,7 @@ pub const VIOLIN: Dims = Dims {
     board_w: (2.35, 4.25),
     spacing: (0.55, 1.13),
     clear: 0.35,
-    overstand: 0.6,
+    overstand: 1.3,
     after: 5.5,
     tail_len: 11.0,
     tail_w: (1.6, 4.0),
@@ -72,7 +75,7 @@ pub const VIOLA: Dims = Dims {
     board_w: (2.5, 4.7),
     spacing: (0.6, 1.25),
     clear: 0.4,
-    overstand: 0.7,
+    overstand: 1.5,
     after: 6.2,
     tail_len: 12.5,
     tail_w: (1.7, 4.4),
@@ -199,16 +202,66 @@ pub fn held(d: &Dims) -> Pose {
 
 /// The body's way, end button to scroll (the player's left is the viewer's right).
 pub const TOWARD: V3 = V3 {
-    x: 0.80,
-    y: 0.20,
-    z: 0.48,
+    x: 0.85,
+    y: 0.30,
+    z: 0.40,
 };
 /// Where the top faces before it is squared to the body's way: up, and turned to the player's
 /// right (the viewer's left) and a little toward the hall.
 pub const UP: V3 = V3 {
-    x: -0.55,
-    y: 0.78,
-    z: 0.25,
+    x: -0.45,
+    y: 0.82,
+    z: 0.36,
 };
 /// The instrument's middle over the floor, cm (a seated player's shoulder).
 pub const HEIGHT: f32 = 112.0;
+
+/// The chinrest a violin or a viola is never seen without: an ebony cup over the lower bout on
+/// the bass side (where the player's jaw rests, left of the tailpiece as the player sees it),
+/// clamped to the end block by two nickel barrels — its measures the usual Guarneri model's
+/// (a cup about 7 × 5 cm for the violin, its rim 2 cm over the top), in proportion on the viola.
+pub fn chinrest(m: &mut Mesh, d: &Dims, pose: &Pose) {
+    let k = d.body / 35.6;
+    let z = d.arch * 0.55;
+    // The cup, its rounded hollow facing the jaw, and its raised outer lip.
+    let cup = pose.at(-4.4 * k, 3.3 * k, z + 1.3 * k);
+    super::bowed_head::paddle(
+        m,
+        Role::Ebony,
+        cup,
+        pose.ex,
+        pose.ey,
+        3.5 * k,
+        2.6 * k,
+        0.75 * k,
+    );
+    let lip = pose.at(-6.2 * k, 3.0 * k, z + 1.9 * k);
+    let tilt = (pose.ez * 0.8 - pose.ex * 0.6).norm();
+    super::bowed_head::paddle(
+        m,
+        Role::Ebony,
+        lip,
+        pose.ey,
+        tilt,
+        3.0 * k,
+        0.75 * k,
+        0.6 * k,
+    );
+    // Its foot over the edge, and the two barrels down the ribs.
+    let foot = pose.at(-3.0 * k, 0.9 * k, z + 0.4 * k);
+    super::bowed_head::paddle(
+        m,
+        Role::Ebony,
+        foot,
+        pose.ex,
+        pose.ey,
+        2.2 * k,
+        0.9 * k,
+        0.5 * k,
+    );
+    for x in [-2.2f32, -6.4] {
+        let a = pose.at(x * k, 1.2 * k, d.arch * 0.5 + 0.9 * k);
+        let b = pose.at(x * k, -0.15 * k, -d.rib_lo * 0.5);
+        m.rods.push((Role::Nickel, Rod { a, b, r: 0.22 * k }));
+    }
+}

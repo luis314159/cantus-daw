@@ -22,7 +22,16 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         let f = finish(m, seed);
         // Deeper and more saturated (red kept, blue taken): under the clear coat's white
         // reflection a varnish's orange must still read orange, not brown or salmon.
-        let k = |c: [f32; 3]| [c[0] * 0.56, c[1] * 0.40, c[2] * 0.26];
+        // A violin's or a viola's oil varnish kept nearer its amber-brown, less of the blue
+        // taken (the Photographic picture's orange read as plastic at a violin's size).
+        let held = b.dims().held; // r42:arcus-upper
+        let k = |c: [f32; 3]| {
+            if held {
+                [c[0] * 0.40, c[1] * 0.31, c[2] * 0.23] // r42:arcus-upper
+            } else {
+                [c[0] * 0.56, c[1] * 0.40, c[2] * 0.26]
+            }
+        };
         PMat {
             tex: Tex::Tonewood { seed, lines, flame },
             base: k(f.base),
