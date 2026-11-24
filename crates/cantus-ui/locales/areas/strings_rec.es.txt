@@ -50,3 +50,8 @@ art.abbr.up = Arriba
 
 # r42 fix2-model — la articulación en los archivos exportados (revisión 7, ADR 0158).
 interop.report.x_note_art = Las articulaciones y arcos de {n} notas (pizzicato, staccato, legato…) no caben en DAWproject: allí suenan como decida el instrumento
+
+# r42 fix3-suite — las celdas de la tarjeta del legato (vista Editar de Exemplar).
+smp.legato_xf.short = FUNDIDO
+smp.legato_glide.short = PORTAM
+smp.legato_skip.short = INICIO

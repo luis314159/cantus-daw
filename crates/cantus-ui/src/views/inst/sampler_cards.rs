@@ -279,6 +279,16 @@ const VOICE: Section<'static> = Section {
     keys: &["voices", "glide", "bend", "transpose", "tune"],
     selector: Some(("mode", &PLAY_MODES)),
 };
+/// r42 fix3-suite — the scripted legato (ADR 0158; schema 82): off or on in its title bar (the
+/// selector, with its MIDI-learn offer as every stepped parameter has), and its crossfade,
+/// glide and how far past the attack an overlapping note starts.
+const LEGATO_ONOFF: [&str; 2] = ["smp.legato.off", "smp.legato.on"];
+const LEGATO: Section<'static> = Section {
+    title: "smp.card.legato",
+    function: Function::Output,
+    keys: &["legato.xf", "legato.glide", "legato.skip"],
+    selector: Some(("legato", &LEGATO_ONOFF)),
+};
 const KEYSWITCH: Section<'static> = Section {
     title: "smp.card.keyswitch",
     function: Function::Output,
@@ -785,7 +795,8 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     );
     let e = take(row_h);
     let ks = need(s, &KEYSWITCH, KnobSize::M);
-    let esplit = e.right() - ks;
+    let lg = need(s, &LEGATO, KnobSize::M);
+    let esplit = e.right() - ks - lg - gut;
     group_card(
         app,
         ui,
@@ -800,7 +811,17 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         ui,
         track,
         spec,
-        Rect::from_min_max(pos2(esplit, e.top()), e.max),
+        Rect::from_min_max(pos2(esplit, e.top()), pos2(esplit + lg, e.bottom())),
+        s,
+        &LEGATO,
+        KnobSize::M,
+    );
+    section(
+        app,
+        ui,
+        track,
+        spec,
+        Rect::from_min_max(pos2(e.right() - ks, e.top()), e.max),
         s,
         &KEYSWITCH,
         KnobSize::M,
