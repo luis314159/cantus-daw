@@ -12,7 +12,7 @@ const SWELL_DB: (f32, f32) = (20.0, 10.0);
 /// string's peak so far.
 const SNAP_S: f32 = 0.025;
 pub(super) const SNAP_TAU_S: f32 = 0.005;
-pub(super) const SNAP_GAIN: f32 = 0.5;
+pub(super) const SNAP_GAIN: f32 = 0.0;
 
 impl Voice {
     /// The dynamic this voice is asked for now (0 … 1).

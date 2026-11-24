@@ -377,8 +377,9 @@ impl Voice {
             if self.bow_on {
                 self.ear.hear(&self.tmp[..k]);
             }
-            // A pluck's snap: band noise over its first 25 ms, at the string's peak so far.
-            if self.snap_n > 0 {
+            // A pluck's snap (pass 2) measured the thump further from the recordings: off
+            // (`SNAP_GAIN` 0) until a pluck model with the finger's release replaces it.
+            if self.snap_n > 0 && super::run::SNAP_GAIN > 0.0 {
                 let keep = math::exp(-1.0 / (super::run::SNAP_TAU_S * sh.sr));
                 for x in self.tmp[..k].iter_mut() {
                     if self.snap_n == 0 {

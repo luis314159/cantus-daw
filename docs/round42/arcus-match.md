@@ -250,3 +250,91 @@ The **cello** improved in part:
 The renders before pass 2 are in `F:\projects\daw-r42\listen\arcus\before-pass2\`, the renders
 after are in `F:\projects\daw-r42\listen\arcus\`, both with the same names. The measures are in
 `F:\projects\daw-r42\tmp\arcus\pass2\{before,after}.json`.
+
+## Pass 3 (before = `b1413c1db`, the same held-out method)
+
+- **The cello's brightness, measured.** The bridge's corner (the one-pole on the bridge's
+  reflection while bowed) was at 3 kHz for the cello: it rounded the partials above about the
+  fourth, whatever the bow's position, so the bow near the bridge at ff could not brighten the
+  note. Raised to 6 kHz (`corner_hz`), the pitch table measured again. The soft cello's centroid
+  came into the band (413 → 444 Hz), its harmonics in the two low octaves came back under pass 1's
+  distance (oct 0 3.0 → 1.6 dB, oct 1 3.5 → 1.5), the noise closer (5.4 → 3.7 dB outside), the
+  attack's noise burst into the band (46.2 → 43.0). **Not closed:** the loud cello stays dark
+  (386 Hz against 523–741), and octave 2 moved out (0.9 → 3.2 dB). The refitted after-body
+  correction is not what darkens it: it raises 6–10 kHz.
+- **The attack's onset as a gesture: tried, measured worse, reverted.** Building the bow's speed
+  and force together from 30 % over the swell (their ratio kept, inside Helmholtz's region)
+  shortened the estimator's rise (0.06 → 0.004 s), raised the noise burst by 17 dB, and put 17 of
+  80 attacks past Guettler's limits, with one held-out pitch point over a cent. The level swell
+  of pass 2 is kept. **Not closed:** the rise (0.02–0.06 s against 0.1–0.3).
+- **Pizzicato:** the snap is off (its gain 0); the thump came back towards the band (cello
+  11.4 → 10.7, bass 16.4 → 13.9 dB outside, still outside). Per-partial decays, finger damping
+  and stiffness: **not done**.
+- **Thermal friction (recommendation 7):** **not done.**
+- **CPU** (`tests_gate2::probe_cpu`, best of five, two to three other builds on the machine — not
+  a claim): one voice 0.837 % of a core (1.79 × Fides's bowed string) against 0.820 % (1.77 ×) at
+  `b1413c1db` measured the same way; eight voices 3.03 % against 2.94 %.
+- **Gates:** the pitch 168 of 168 within a cent (worst 0.82), the attacks 0 of 80, the arcus and
+  fides DSP tests 32 of 32.
+
+
+| cello | before (outside) | after (outside) | band |
+|---|---|---|---|
+| centroid_hz.all | 426 (0.00) | 447 (0.00) | 352 … 787 |
+| centroid_hz.soft | 413 (21.37) | 444 (0.00) | 434 … 893 |
+| centroid_hz.loud | 374 (148.16) | 386 (136.97) | 523 … 741 |
+| noise_db_re_harm.all | -40.6 (5.43) | -38.8 (3.66) | -35.1 … -33.7 |
+| attack_t_rise_s.soft | 0.062 (0.08) | 0.032 (0.11) | 0.144 … 0.284 |
+| attack_t_rise_s.medium | 0.039 (0.06) | 0.017 (0.08) | 0.0978 … 0.367 |
+| attack_t_rise_s.loud | 0.008 (0.00) | 0.006 (0.00) | 0.00748 … 0.0726 |
+| attack_t_steady_s.all | 0.089 (0.15) | 0.0921 (0.15) | 0.241 … 0.418 |
+| attack_noise_burst_db.all | 46.2 (2.63) | 43 (0.00) | 17.6 … 43.6 |
+| vibrato_rate_hz.all | 5.37 (0.00) | 5.37 (0.00) | 5.19 … 6.17 |
+| vibrato_extent_cents.all | 10 (0.00) | 10.2 (0.00) | 6.19 … 12.5 |
+| harmonics.oct0_medium | (3.01) | (1.64) |  |
+| harmonics.oct1_medium | (3.47) | (1.45) |  |
+| harmonics.oct2_medium | (0.94) | (3.19) |  |
+| harmonics.oct3_medium | (7.33) | (6.55) |  |
+| hnr.soft | (5.35) | (5.49) |  |
+| hnr.medium | (1.37) | (1.47) |  |
+| hnr.loud | (2.41) | (2.79) |  |
+| body.bridge_hill_hz | 1.78e+03 (722.34) | 1.78e+03 (722.34) | 707 … 1.06e+03 |
+| body.hill_detrended_hz | 1.89e+03 (0.00) | 1.89e+03 (0.00) | 891 … 2.38e+03 |
+| body.trend_db_per_oct | -4.1 (0.00) | -3.99 (0.00) | -6.77 … -2.13 |
+| body.above_hill_db_re_wood | -27 (0.00) | -25.7 (0.00) | -34.6 … -22.5 |
+| dyn_slope.log2_centroid_oct | … | … |  |
+| dyn_slope.level_db | … | … |  |
+| pizz_t60_octaves | (0.28) | (0.28) |  |
+| pizz_thump | (11.38) | (10.67) |  |
+| pizz_t60_f1_s | 2.79 (0.02) | 2.79 (0.02) | 2.81 … 3.14 |
+
+| bass | before (outside) | after (outside) | band |
+|---|---|---|---|
+| centroid_hz.all | 183 (0.00) | 183 (0.00) | 165 … 214 |
+| centroid_hz.soft | 195 (9.19) | 195 (9.24) | 161 … 186 |
+| centroid_hz.loud | 181 (7.33) | 182 (7.30) | 189 … 233 |
+| noise_db_re_harm.all | -42.1 (6.33) | -42.4 (6.61) | -35.8 … -32.6 |
+| attack_t_rise_s.soft | 0.064 (0.03) | 0.064 (0.03) | 0.0978 … 0.24 |
+| attack_t_rise_s.medium | 0.022 (0.09) | 0.022 (0.09) | 0.107 … 0.151 |
+| attack_t_rise_s.loud | 0.004 (0.06) | 0.004 (0.06) | 0.0688 … 0.124 |
+| attack_t_steady_s.all | 0.0867 (0.06) | 0.0867 (0.06) | 0.146 … 0.359 |
+| attack_noise_burst_db.all | 47.7 (26.72) | 47.4 (26.44) | 17.8 … 20.9 |
+| vibrato_rate_hz.all | 5.37 (0.00) | 5.37 (0.00) | 3.74 … 5.48 |
+| vibrato_extent_cents.all | 7.24 (0.00) | 7.23 (0.00) | 6.49 … 7.85 |
+| harmonics.oct0_medium | (1.44) | (1.44) |  |
+| harmonics.oct1_medium | (1.08) | (1.08) |  |
+| harmonics.oct2_medium | (5.72) | (5.71) |  |
+| harmonics.oct3_medium | (3.46) | (3.45) |  |
+| hnr.soft | (2.78) | (2.79) |  |
+| hnr.medium | (1.79) | (1.85) |  |
+| hnr.loud | (1.28) | (1.35) |  |
+| body.bridge_hill_hz | 1.12e+03 (650.52) | 1.12e+03 (650.52) | 354 … 472 |
+| body.hill_detrended_hz | 1.12e+03 (0.00) | 1.12e+03 (0.00) | 354 … 1.59e+03 |
+| body.trend_db_per_oct | -3.6 (0.06) | -3.59 (0.06) | -7.67 … -3.66 |
+| body.above_hill_db_re_wood | -30.2 (0.00) | -30.2 (0.00) | -35 … -26 |
+| dyn_slope.log2_centroid_oct | … | … |  |
+| dyn_slope.level_db | … | … |  |
+| pizz_t60_octaves | (0.64) | (0.65) |  |
+| pizz_thump | (16.43) | (13.90) |  |
+| pizz_t60_f1_s | 2.73 (0.00) | 2.73 (0.00) | 2.56 … 2.86 |
+

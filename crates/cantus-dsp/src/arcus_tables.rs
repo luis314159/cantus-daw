@@ -243,7 +243,9 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     vib_hz: 5.5,
     vib_ct: 18.0,
     trim_db: 16.0,
-    corner_hz: 3000.0,
+    // Pass 3: 3 kHz rounded the cello's upper partials under the cellos' band at ff (the
+    // bow near the bridge could not brighten it): 6 kHz.
+    corner_hz: 6000.0,
     radiation_hz: 0.0,
     balance_db_st: 0.47,
     balance_key: 57.0,
