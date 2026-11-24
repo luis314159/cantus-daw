@@ -50,6 +50,25 @@ Branch `r42/arcus-upper` (worktree `F:\projects\daw-r42\arcus-upper`). Build onl
    Apply to the violin musician and both mannequins.
 3. Shots to send: cello and violin, musician and mannequin, 100 % and 200 %.
 
+## Done since (a27ccff1d)
+
+- The left hand behind the neck: `live_behind` (sleeve, palm, thumb, finger bases) →
+  the body's two outline fans and the neck's hull stamped back from the picture's texture
+  (`hand::stamp_body`, `hand::stamp`; meshes kept in `app.inst.arcus_stamps`, so nothing is
+  allocated at rest) → `live` (finger arches, string, bow, bow arm). Test
+  `the_left_hand_passes_behind_the_neck` (both looks, both figures, violin and cello, at 2×).
+- Elbows by a desired direction from the shoulder (the pole): cellist left arm out to the
+  side at chest height (down 30, out 12, forward 4 cm), bow arm hanging down and out (down 22,
+  out 14, forward 6); violinist left elbow under the violin (down 24, in 10, forward 12), bow
+  arm out to the right (down 12, out 18, forward 8). Wrist kept straight (the wrist on the
+  elbow–palm line). A cello's hand spans a minor third (3 semitones), a violin's a fourth.
+- Reference numbers (Hopper et al. 2017, Med. Probl. Perform. Art., 31 cellists, bowing
+  arm at the tip on the A string, loud): shoulder flexion ~107°, internal rotation ~59°,
+  abduction ~77°; trunk left rotation 5–16°. Turner-Stokes & Reid 1999: shoulder elevation
+  greater on the cello, elbow flexion greater on the violin. Left-arm angles: pedagogy
+  (elbow out at about chest height on the cello; under the violin for the violin), not yet
+  measured from photographs side by side.
+
 ## Next (coordinator's order, 2026-11-24)
 
 1. Violin musician: softer hairline, jaw/cheek form, neck in shade; frame higher/wider (bow
