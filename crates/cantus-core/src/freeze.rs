@@ -940,6 +940,20 @@ pub fn region_key(project: &Project, r: &Region) -> String {
 
 /// The subject of region `r`: see [`subject`]; `reach` says which automation and
 /// modulation reach it.
+/// r42 fix-engine — an effect whose sound follows the tuning (ADR 0155): Tonus's targets,
+/// Saltus's harmony, Nitor's tonic, Loquax's carrier, and a board with one of them.
+fn follows_tuning(spec: &crate::EffectSpec) -> bool {
+    use crate::EffectKind::*;
+    match spec.kind {
+        AutoTune | PitchShift | Vocoder | Enhancer => true,
+        Board => spec
+            .pedals()
+            .iter()
+            .any(|p| matches!(p.spec.kind, AutoTune | PitchShift | Vocoder | Enhancer)),
+        _ => false,
+    }
+}
+
 fn subject_with(
     project: &Project,
     r: &Region,
@@ -988,7 +1002,20 @@ fn subject_with(
             } else {
                 &[]
             };
-            track_part(t, live)
+            let mut part = track_part(t, live);
+            // r42 fix-engine (review correctness 4, ADR 0155): the tuning the track plays in,
+            // resolved against the project's and the song's key — written only where it is
+            // not the default, so every other subject is as it was.
+            let plays = t
+                .tuning
+                .resolve(&project.tuning)
+                .resolved_for_key(project.key.map(|k| k.root));
+            if !plays.is_default() {
+                if let Value::Object(m) = &mut part {
+                    m.insert("plays_in".into(), value(&plays));
+                }
+            }
+            part
         })
         .collect();
     // Automation clips wherever they sit — in no order of tracks (moving a track is
@@ -1079,6 +1106,21 @@ fn subject_with(
         if effects_follow || region_tracks().any(|t| crate::notefx::reads_project_key(&t.note_fx)) {
             o.insert("key".into(), value(&k));
         }
+    }
+    // r42 fix-engine (review correctness 4): the project's tuning the region's pitched
+    // effects follow (a bus, the master, a strip its tracks disagree on) — only where it is
+    // not the default and an effect there follows the song.
+    let song_tuning = project.tuning.resolved_for_key(project.key.map(|k| k.root));
+    if !song_tuning.is_default()
+        && project
+            .strips
+            .iter()
+            .filter(|s| r.strips.contains(&s.id))
+            .flat_map(|s| s.effects.iter())
+            .chain(project.master.effects.iter().filter(|_| r.whole))
+            .any(|e| follows_tuning(&e.spec))
+    {
+        o.insert("tuning".into(), value(&song_tuning));
     }
     let grooves: Vec<Value> = project
         .grooves

@@ -2021,3 +2021,56 @@ fn every_clip_edit_that_reaches_a_frozen_region_is_refused_directly_or_through_a
     }
     assert!(applied >= 10, "the outside edits applied: {applied}");
 }
+
+/// r42 fix-engine (review correctness 4, ADR 0155): a frozen render made in one tuning is
+/// not kept under another. The project's tuning moves the key of every region whose tracks
+/// follow it; a song key a temperament follows moves it too; a track in its own `Equal` does
+/// not; and at the default every key is the one it was before round 42.
+#[test]
+fn the_key_follows_the_tuning_its_tracks_play_in() {
+    use cantus_core::tuning::{Temperament, TrackTuning, Tuning, TuningSystem};
+    let s = song();
+    let werck = |follow| Tuning {
+        a4_hz: 415.0,
+        system: TuningSystem::Temperament {
+            id: Temperament::WerckmeisterIii,
+            key: 3,
+            follow_song_key: follow,
+        },
+        map: None,
+    };
+    let synth = FreezeTarget::Track(s.synth);
+    let set = |t: Tuning| Command::SetProjectTuning {
+        tuning: Box::new(t),
+    };
+    assert!(moves(&s, synth, set(werck(false))), "the project's tuning");
+    assert!(moves(&s, FreezeTarget::Strip(s.group), set(werck(false))));
+    // The default is the subject as it was: setting it changes nothing.
+    assert!(!moves(&s, synth, set(Tuning::default())));
+    // A track in plain 12-TET does not hear the project's tuning.
+    let mut equal = song();
+    equal
+        .bus
+        .execute(
+            Command::SetTrackTuning {
+                track: equal.synth,
+                tuning: TrackTuning::Equal,
+            },
+            Origin::User,
+        )
+        .unwrap();
+    assert!(!moves(&equal, synth, set(werck(false))));
+    // A temperament that follows the song's key: the key moves it.
+    let mut follows = song();
+    follows.bus.execute(set(werck(true)), Origin::User).unwrap();
+    let key = |root| Command::SetProjectKey {
+        key: Some(cantus_core::scale::Key::new(
+            root,
+            cantus_core::scale::ScaleKind::Major,
+        )),
+    };
+    follows.bus.execute(key(0), Origin::User).unwrap();
+    assert!(moves(&follows, synth, key(7)), "rotated to G");
+    // Without one, the song's key is nothing the synth hears.
+    assert!(!moves(&s, synth, key(7)));
+}

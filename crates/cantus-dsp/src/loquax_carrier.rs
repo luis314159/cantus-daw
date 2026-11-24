@@ -254,6 +254,11 @@ impl Synth {
     }
 
     fn press(&mut self, key: u8, vel: f32) {
+        // r42 fix-engine (review correctness 14): a key the tuning leaves unmapped sounds
+        // nothing, as on every instrument.
+        if self.tuning[usize::from(key & 0x7F)].is_nan() {
+            return;
+        }
         let played = &self.voices[..MAX_VOICES];
         let slot = played
             .iter()
@@ -369,5 +374,34 @@ impl Synth {
             self.serial = 0;
         }
         (l * self.gain, r * self.gain)
+    }
+}
+
+/// r42 fix-engine (review correctness 14): a key the strip's tuning leaves unmapped starts no
+/// carrier voice, as it plays no note on any instrument.
+#[cfg(test)]
+mod fix_engine_unmapped {
+    use super::*;
+
+    #[test]
+    fn an_unmapped_key_starts_no_carrier() {
+        let mut s = Synth::new(48_000.0);
+        s.tuning[61] = f32::NAN;
+        s.note(
+            NoteKind::On {
+                key: 61,
+                velocity: 1.0,
+            },
+            true,
+        );
+        assert_eq!(s.sounding(), 0, "unmapped: silent");
+        s.note(
+            NoteKind::On {
+                key: 62,
+                velocity: 1.0,
+            },
+            true,
+        );
+        assert_eq!(s.sounding(), 1, "mapped: it sounds");
     }
 }

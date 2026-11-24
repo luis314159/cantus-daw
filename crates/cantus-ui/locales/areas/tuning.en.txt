@@ -151,3 +151,8 @@ tuning.chorda.p.saloon = Saloon
 tuning.chorda.p.slightly_out = Slightly out
 tuning.chorda.p.baroque = Baroque, A415
 tuning.chorda.p.verdi = Verdi, A432
+# r42 fix-engine — how a hosted instrument is told its track's tuning (ADR 0156).
+cmd.tuning.by = Tuning by
+tuning.by = Tuning by
+tuning.by.mts_esp = MTS-ESP
+tuning.by.note_expression = Note expression

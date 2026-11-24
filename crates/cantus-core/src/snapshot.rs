@@ -371,6 +371,12 @@ pub struct Snapshot {
     /// The recording mode's baked master (ADR 0092 §3): one render the master stage plays
     /// in place of its chain and fader; `None` (every snapshot but the mode's). // r36:record
     pub master_frozen: Option<crate::freeze::FrozenPlay>, // r36:record
+    /// r42 fix-engine — the table MTS-ESP gives its clients as this snapshot was compiled
+    /// (ADR 0156): the outside master's, or the project's while Cantus is the master; `None`
+    /// with no master (and at compile, before the engine's link fills it). A hosted plug-in
+    /// that reads MTS-ESP itself hears only the difference from it (an offline render's; the
+    /// live engine reads the link each block).
+    pub mts_heard: Option<std::sync::Arc<crate::tuning::TuningTable>>,
 }
 
 impl Snapshot {
@@ -572,6 +578,7 @@ impl Snapshot {
             vca_by_lane: vca.by_lane,                        // r36:mix
             mix_scenes: crate::mix_scene::timeline(project), // r36:mix
             master_frozen: None,                             // r36:record
+            mts_heard: None, // r42 fix-engine: `cantus_engine::tuning::fill_external`
         }
     }
 

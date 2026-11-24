@@ -218,10 +218,21 @@ impl Exemplar {
             return;
         }
         self.tuning = *table;
-        self.tune_up = table
+        let up = table
             .iter()
             .filter(|v| v.is_finite())
             .fold(0.0f32, |a, &v| a.max(v));
+        // r42 fix-engine (review correctness 10): the streamed zones' starts reach the
+        // levels the new tuning's highest key needs (allocation-free).
+        if up.to_bits() != self.tune_up.to_bits() {
+            self.tune_up = up;
+            self.publish_starts();
+        }
+    }
+
+    /// r42 fix-engine — the most semitones the tuning raises any key (`0.0` at the default).
+    pub fn tune_up(&self) -> f32 {
+        self.tune_up
     }
 
     pub fn set_globals(&mut self, g: &Globals) {

@@ -600,6 +600,13 @@ pub enum Command {
         track: TrackId,
         route: Option<crate::external::ExprRoute>,
     },
+    /// r42 fix-engine — how a track's hosted instrument is told the track's tuning (ADR
+    /// 0156): MTS-ESP (it reads the master itself) or per-note tuning. Refused for a track
+    /// without one.
+    SetInstrumentTuningBy {
+        track: TrackId,
+        by: crate::external::TuningBy,
+    },
     /// Freeze a mixer strip (round 29, ADR 0064) — `Some` with its content key now, which
     /// is checked — or unfreeze it (`None`).
     SetStripFrozen {
@@ -1208,6 +1215,7 @@ impl Command {
             SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
             SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => "cmd.set_plugin_isolation",
             SetInstrumentExpression { .. } => "cmd.mpe.route",
+            SetInstrumentTuningBy { .. } => "cmd.tuning.by", // r42 fix-engine
             SetStripFrozen {
                 frozen: Some(_), ..
             }
@@ -3121,6 +3129,11 @@ impl Command {
                 let plugin = instrument_plugin_mut(project, track)?;
                 let old = std::mem::replace(&mut plugin.expression, route);
                 Ok(SetInstrumentExpression { track, route: old })
+            }
+            SetInstrumentTuningBy { track, by } => {
+                let plugin = instrument_plugin_mut(project, track)?;
+                let old = std::mem::replace(&mut plugin.tuning_by, by);
+                Ok(SetInstrumentTuningBy { track, by: old })
             }
             SetStripFrozen { strip, frozen } => {
                 let s = project

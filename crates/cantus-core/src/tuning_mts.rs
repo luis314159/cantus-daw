@@ -418,8 +418,14 @@ fn framed(body: Vec<u8>) -> Vec<u8> {
 }
 
 fn words(table: &TuningTable) -> Vec<u8> {
+    words_of(&pitches_of(table))
+}
+
+/// r42 fix-engine — the 128 frequency words of `pitches` (fractional MIDI keys; `None`:
+/// "no change").
+fn words_of(pitches: &[Option<f64>; 128]) -> Vec<u8> {
     let mut out = Vec::with_capacity(384);
-    for p in pitches_of(table) {
+    for p in *pitches {
         out.extend(match p {
             Some(p) => encode_word(p),
             None => [0x7F, 0x7F, 0x7F],
@@ -430,9 +436,21 @@ fn words(table: &TuningTable) -> Vec<u8> {
 
 /// `01`: the bulk dump of a table (408 bytes), CA-020's checksum.
 pub fn write_key_dump(device: u8, program: u8, name: &str, table: &TuningTable) -> Vec<u8> {
+    write_key_dump_of(device, program, name, &pitches_of(table))
+}
+
+/// r42 fix-engine — [`write_key_dump`] of pitches in `f64` (fractional MIDI keys; `None`
+/// "no change"): what a table of f32 offsets cannot hold to the word's last step far from
+/// 12-TET (the outside-bytes test compares Scale Workshop's dump with it).
+pub fn write_key_dump_of(
+    device: u8,
+    program: u8,
+    name: &str,
+    pitches: &[Option<f64>; 128],
+) -> Vec<u8> {
     let mut b = vec![NON_REAL_TIME, device & 0x7F, TUNING, 0x01, program & 0x7F];
     b.extend(name_bytes(name));
-    b.extend(words(table));
+    b.extend(words_of(pitches));
     b.push(xor(&b));
     framed(b)
 }

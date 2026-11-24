@@ -4404,11 +4404,6 @@ fn the_mts_esp_refresh_and_a_tuning_never_allocate() {
         p.tracks.push(tr);
     }
     let mut rig = Rig::new();
-    rig.tx
-        .push(EngineMessage::SetExternalTuning(Arc::new(
-            MovingMaster::default(),
-        )))
-        .unwrap();
     let snap = Snapshot::compile(&p, 1);
     for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
         rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
@@ -4417,6 +4412,13 @@ fn the_mts_esp_refresh_and_a_tuning_never_allocate() {
     rig.tx.push(EngineMessage::Play).unwrap();
     rig.play("warm", 8);
     rig.allocations.clear();
+    // r42 fix-engine (review correctness 9): the link arrives while counting — the "no
+    // MTS-ESP" it replaces is freed by nobody on the audio thread. The handle keeps the link
+    // alive (as `EngineHandle::set_external_tuning` does).
+    let link: Arc<dyn cantus_engine::tuning::ExternalTuning> = Arc::new(MovingMaster::default());
+    rig.tx
+        .push(EngineMessage::SetExternalTuning(link.clone()))
+        .unwrap();
     rig.play("following the master", 120);
     // A project tuning of its own installed while playing (the table built off the thread).
     p.tuning = cantus_core::tuning::Tuning {
@@ -4435,4 +4437,5 @@ fn the_mts_esp_refresh_and_a_tuning_never_allocate() {
         "the tuning allocated: {:?}",
         rig.allocations
     );
+    drop(link);
 }

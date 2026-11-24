@@ -1262,3 +1262,42 @@ fn ordinary_playback_wakes_the_reader_not_once() {
         assert!(wakes <= 1, "delay {delay}: {wakes} wakes in steady state");
     }
 }
+
+/// r42 fix-engine (review correctness 10): a streamed zone keeps the mip levels the tuning's
+/// highest key needs. The processor hands Exemplar its track's table before `configure`
+/// (which sizes a streamed zone's levels); a tuning that raises keys by two octaves pins
+/// starts at more levels than the same zone untuned, and the untuned zone pins what it
+/// always pinned.
+#[test]
+fn a_tuning_that_raises_keys_keeps_the_levels_it_needs() {
+    use einst::InstrumentUnit;
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    cache_here(dir.path());
+    let a = file(dir.path(), "up.wav", 300_000, 35);
+    let mut z = Zone::new(Some(a.to_string_lossy().into()), 60, 60, 60);
+    z.set(cantus_core::inst::sampler::zf::START, 150_000.0);
+    let spec = spec_of(&[z]);
+    let snap = attach(&project(&spec, &[]), &mut streaming());
+    let pinned = |table: Option<&cantus_core::tuning::TuningTable>| {
+        let mut u = einst::sampler::Unit::new(48_000.0);
+        if let Some(t) = table {
+            u.set_tuning(t);
+        }
+        u.configure(&spec, &snap.tracks[0].assets);
+        let starts = u.dsp().starts().clone();
+        (0..starts.len()).map(|i| starts.get(i)).collect::<Vec<_>>()
+    };
+    let plain = pinned(None);
+    assert!(plain.iter().any(|p| *p != 0), "a start pinned");
+    assert_eq!(
+        pinned(Some(&cantus_core::tuning::TuningTable::EQUAL)),
+        plain
+    );
+    let up = cantus_core::tuning::TuningTable([24.0; 128]);
+    assert_ne!(
+        pinned(Some(&up)),
+        plain,
+        "more levels for keys two octaves up"
+    );
+}

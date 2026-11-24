@@ -257,11 +257,9 @@ pub struct Gravis {
     expr_fresh: bool,
     note_id: u64,
     note_key: u8,
-    /// r42:tuning — each key's offset in semitones (ADR 0155), and the held offset of the
-    /// mono string's note: a string's fret is `round(note − open)`, so its tuning rides with
-    /// the bends (`extra`) instead of the note.
+    /// r42:tuning — each key's offset in semitones (ADR 0155), in every engine's note
+    /// (`note_of`).
     tuning: [f32; 128],
-    note_tune: f32,
     vel: f32,
     rnd: f32,
     has_pitch: bool,
@@ -320,7 +318,6 @@ impl Gravis {
             note_id: NO_ID,
             note_key: 60,
             tuning: [0.0; 128], // r42:tuning
-            note_tune: 0.0,     // r42:tuning
             vel: 0.0,
             rnd: 0.0,
             has_pitch: false,
@@ -493,24 +490,14 @@ impl Gravis {
         self.s.mode == VoiceMode::Strings && self.s.engine == Engine::String
     }
 
-    /// The key as a pitch; the synth and the 808 take its tuning here (r42:tuning), the
-    /// string through [`Self::string_tune`].
+    /// The key as a pitch, its tuning in it (r42:tuning) — every engine's: the synth's, the
+    /// 808's and the string's. r42 fix-engine (review correctness 12): the mono string's
+    /// offset rides in the glide's target too, so a slide moves from one tuned pitch to the
+    /// next with no jump at its start (a fretted slide passes equal-tempered frets, as a
+    /// real neck's, and lands on the tuned pitch).
     fn note_of(&self, key: u8) -> f64 {
         let n = key as f64 + self.s.transpose_st as f64;
-        if self.s.engine == Engine::String {
-            n
-        } else {
-            n + f64::from(crate::tuning::at(&self.tuning, key))
-        }
-    }
-
-    /// r42:tuning — a string's key offset (held as `note_tune` while it sounds).
-    fn string_tune(&self, key: u8) -> f32 {
-        if self.s.engine == Engine::String {
-            crate::tuning::at(&self.tuning, key)
-        } else {
-            0.0
-        }
+        n + f64::from(crate::tuning::at(&self.tuning, key))
     }
 
     /// r42:tuning — the project's tuning (ADR 0155). A sounding note keeps its pitch until
@@ -581,13 +568,7 @@ impl Gravis {
 
     /// The pitch now plus what bends and tunes it (the string is tuned to this).
     fn extra(&self) -> f64 {
-        let e = self.bend.value + self.expr_tuning + self.s.fine_ct * 0.01;
-        // r42:tuning — only a tuned string adds (a guarded sum: the bits stay).
-        (if self.note_tune != 0.0 {
-            e + self.note_tune
-        } else {
-            e
-        }) as f64
+        (self.bend.value + self.expr_tuning + self.s.fine_ct * 0.01) as f64
     }
 
     /// Whether the voice is still making sound (for the legato window).
@@ -610,8 +591,7 @@ impl Gravis {
         if self.strings_mode() {
             // r42:tuning — each poly string carries its own key's offset in its base (a
             // string here is set to its pitch, not fretted).
-            self.note_tune = 0.0;
-            let note = self.note_of(key) + f64::from(crate::tuning::at(&self.tuning, key));
+            let note = self.note_of(key);
             let pitch = note + self.extra();
             let s = self.s.string;
             let i = self
@@ -684,7 +664,6 @@ impl Gravis {
         let a4 = self.s.a4 as f64;
         self.note_key = key;
         self.note_id = id;
-        self.note_tune = self.string_tune(key); // r42:tuning
         self.expr_tuning = 0.0;
         self.expr_to = 0.0;
         self.expr_fresh = true;
@@ -749,7 +728,6 @@ impl Gravis {
         self.expr_tuning = 0.0;
         self.expr_to = 0.0;
         self.expr_fresh = true;
-        self.note_tune = self.string_tune(key); // r42:tuning
         if glide && self.has_pitch {
             let n = self.glide_samples(from, note);
             self.glide.start(note, n, s.glide_shape);
@@ -1050,13 +1028,7 @@ impl Gravis {
         self.expr_fresh = false;
         crate::expr_glide::toward(&mut self.expr_tuning, self.expr_to, self.expr_k);
         let base = self.glide.next();
-        let e = bend + self.expr_tuning + self.s.fine_ct * 0.01;
-        // r42:tuning — the held string offset, guarded (see `extra`).
-        let extra = (if self.note_tune != 0.0 {
-            e + self.note_tune
-        } else {
-            e
-        }) as f64;
+        let extra = (bend + self.expr_tuning + self.s.fine_ct * 0.01) as f64;
         let pitch = base + extra;
         let a4 = self.s.a4 as f64;
         let base_hz = hz(pitch, a4);

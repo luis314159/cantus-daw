@@ -85,7 +85,7 @@ fn app_in(state: &str) -> (CantusApp, Target) {
         }
         "scale" => {
             let scl = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../../research/tuning-library-tests/31edo.scl");
+                .join("../cantus-core/tests/data/tuning-library/31edo.scl");
             let said = tuning::io::import(&mut app, Target::Project, &scl, None);
             assert!(said.is_ok(), "{said:?}");
             app.tuning.last = Some(said);

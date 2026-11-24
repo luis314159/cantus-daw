@@ -401,9 +401,9 @@ impl EngineHandle {
             inst_params: Vec::new(),
             rec,
             dev: Default::default(),
-            sync: Some(sync),                                     // r33:sync
-            external_tuning: Arc::new(crate::tuning::NoExternal), // r42:tuning
-            external_sent: Vec::new(),                            // r42:tuning
+            sync: Some(sync),                              // r33:sync
+            external_tuning: crate::tuning::no_external(), // r42:tuning
+            external_sent: Vec::new(),                     // r42:tuning
         };
         handle.dev = crate::devices::HandleDevices {
             driver: driver_name,
@@ -513,9 +513,9 @@ impl EngineHandle {
             inst_params: Vec::new(),
             rec: Default::default(),
             dev: Default::default(),
-            sync: None,                                           // r33:sync
-            external_tuning: Arc::new(crate::tuning::NoExternal), // r42:tuning
-            external_sent: Vec::new(),                            // r42:tuning
+            sync: None,                                    // r33:sync
+            external_tuning: crate::tuning::no_external(), // r42:tuning
+            external_sent: Vec::new(),                     // r42:tuning
         }
     }
 
@@ -527,6 +527,12 @@ impl EngineHandle {
         self.external_tuning = ext.clone();
         self.external_sent.push(ext.clone());
         self.send(EngineMessage::SetExternalTuning(ext));
+    }
+
+    /// r42 fix-engine — the MTS-ESP link this engine follows (`NoExternal` until one is
+    /// given): the boot's and an audio restart's tests read it.
+    pub fn external_tuning(&self) -> &Arc<dyn crate::tuning::ExternalTuning> {
+        &self.external_tuning
     }
 
     /// Deliver a unit built elsewhere (a hosted plug-in, ADR 0019) for an effect id the

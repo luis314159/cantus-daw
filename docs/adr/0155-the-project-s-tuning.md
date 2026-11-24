@@ -60,7 +60,12 @@ A tuning must reach all of them without changing one sample of a song that uses 
    Loquax's carrier) follow the strip's track's table. Hosted instruments receive a
    per-note tuning expression at note-on only when the offset is not zero (CLAP
    `NOTE_EXPRESSION_TUNING`, VST3 `kTuningTypeID`, the MPE route's member bend); a plain MIDI
-   route gets MTS SysEx when the user turns it on.
+   route gets MTS SysEx when the user turns it on. The MPE route's bend is a 14-bit member
+   bend over ±48 semitones (the zone's range): steps of 0.586 cents, so a key lands within
+   0.29 cents of its table (the 0.1-cent target is the native units'), and an offset beyond
+   ±48 semitones (a far non-octave map) is clipped there — a plug-in that takes CLAP or VST3
+   note expressions has neither limit. A hosted MTS-ESP client is sent only what MTS-ESP does
+   not give it (ADR 0156).
 5. **The surface:** Project ▸ Tuning (the system, the diapason with its presets 415–443, the
    temperament and its key, *follow the song's key*, import/export Scala, a circle of fifths
    coloured by each fifth's and third's beat rate, an audition), the track's override in its
@@ -74,7 +79,14 @@ have no ♯ or ♭).
   end-to-end one); `DSP_VERSION` stays 11.
 - Old versions refuse a schema-80 song (as every bump).
 - Unpitched instruments (Pulsus, Tympanum, a drum sampler at keytrack 0) are unaffected by
-  construction.
+  construction: a keyboard map's unmapped key (`NAN`) silences a key only where it is pitched —
+  Exemplar decides per zone (a zone at keytrack 0 plays every key; review correctness 6). A
+  hosted drum plug-in cannot be told apart from a hosted synth: on a song with a map that leaves
+  keys unmapped, set its track to *Equal temperament* (the track's own `Equal`), which plays
+  every key as it is.
+- A frozen render keeps the tuning it was made in: the region's tracks' resolved tunings (and
+  the project's, where a pitched effect of the region follows it) are in its content key,
+  written only where they are not the default (review correctness 4).
 - Organum (one wheel serves several keys) and Lamina (keys folded by octaves) follow only the
   pitch class of a non-octave scale; they say so in their tuning summary.
 
@@ -84,6 +96,9 @@ Per instrument: the default table touches no sample; a tuned key's measured pitc
 table within 0.1 cent (Chorda's keys, every model instrument's, Exemplar's zones), 1 cent for
 the bowed string; block-size independence and offline = real time with a tuning set; the
 Scala parser over the whole archive (every file parses or is refused for a stated reason,
-round-trip to the same cents); MTS bytes from the MMA's published example; the end-to-end
+round-trip to the same cents) — a hand-run tool (`tools/test/scala-archive.sh`, the `#[ignore]`
+test `tuning_scala_archive`), not part of CI, since the archive has no licence and is never
+committed; in CI, Surge's MIT `tuning-library` files; MTS bytes from the MMA's published example
+and Scale Workshop's exporter test (its dump's SHA-256 matched by ours); the end-to-end
 test: a project in Werckmeister III at A415 plays Chorda, Exemplar and a hosted CLAP test
 synth in tune with each other through `CantusApp::assemble`.

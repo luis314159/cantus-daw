@@ -1047,3 +1047,36 @@ fn a_slap_is_calibrated_against_a_finger_pluck() {
         }
     }
 }
+
+/// r42 fix-engine (review correctness 12): the mono string's slide between two tuned keys
+/// starts where the first key sounds — its tuning rides in the glide, with no jump by the
+/// change of offset — and lands on the second key's tuned pitch.
+#[test]
+fn a_string_slide_between_tuned_keys_starts_without_a_jump() {
+    let mut s = clean_string();
+    s.glide_ms = 100.0;
+    s.glide_shape = GlideShape::Linear;
+    let mut g = Gravis::new(SR);
+    g.set(&s);
+    let mut table = [0.0f32; 128];
+    table[40] = 0.3;
+    table[52] = -0.2;
+    g.set_tuning(&table);
+    g.note_on(40, 1, 1.0);
+    render(&mut g, 2400);
+    let before = g.readout().pitch as f64;
+    assert!(
+        (before - 40.3).abs() < 0.01,
+        "the first key tuned: {before}"
+    );
+    g.note_on(52, 2, 1.0); // held over: a slide
+    render(&mut g, 1);
+    let start = g.readout().pitch as f64;
+    assert!(
+        (start - before).abs() < 0.05,
+        "the slide starts where the key sounds: {before} then {start}"
+    );
+    render(&mut g, 9600);
+    let end = g.readout().pitch as f64;
+    assert!((end - 51.8).abs() < 0.01, "lands tuned: {end}");
+}

@@ -47,6 +47,11 @@ impl Exemplar {
         if s.key < z.lo || s.key > z.hi || v7 < z.vlo || v7 > z.vhi {
             return false;
         }
+        // r42 fix-engine (review correctness 6): a key the tuning leaves unmapped sounds
+        // nothing in a pitched zone; a zone at keytrack 0 (a drum kit's) plays it as always.
+        if z.keytrack != 0.0 && self.tuning[usize::from(s.key & 0x7F)].is_nan() {
+            return false;
+        }
         self.trigger_ok(zi, s)
     }
 

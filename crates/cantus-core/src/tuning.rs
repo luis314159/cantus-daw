@@ -400,8 +400,23 @@ impl TrackTuning {
 
 /// The semitones each MIDI key sits from 12-TET at A440 (ADR 0155). `f32::NAN` marks a key a
 /// keyboard map leaves unmapped: a unit plays nothing for it.
-#[derive(Copy, Clone, Debug, PartialEq)]
+///
+/// Two tables are equal when every entry has the same bits (r42 fix-engine, review
+/// correctness 15): an unmapped key's `NAN` equals itself, so a snapshot or a published
+/// table that did not change is seen as unchanged.
+#[derive(Copy, Clone, Debug)]
 pub struct TuningTable(pub [f32; 128]);
+
+impl PartialEq for TuningTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.0
+            .iter()
+            .zip(&other.0)
+            .all(|(a, b)| a.to_bits() == b.to_bits())
+    }
+}
+
+impl Eq for TuningTable {}
 
 impl TuningTable {
     /// 12-TET at A440: every entry `0.0`.
@@ -434,6 +449,25 @@ impl Default for TuningTable {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// r42 fix-engine (review correctness 15): a table with an unmapped key equals itself,
+    /// so `same_until` and the master's publish see an unchanged tuning as unchanged.
+    #[test]
+    fn a_table_with_an_unmapped_key_equals_itself() {
+        let mut t = TuningTable::EQUAL;
+        t.0[61] = f32::NAN;
+        t.0[62] = 0.25;
+        let copy = t;
+        assert_eq!(t, copy);
+        let mut other = t;
+        other.0[62] = 0.5;
+        assert_ne!(t, other);
+        let snap = crate::snapshot::TrackTuningSnap {
+            table: std::sync::Arc::new(t),
+            ..Default::default()
+        };
+        assert_eq!(snap.clone(), snap);
+    }
 
     #[test]
     fn the_default_is_equal_to_the_bit() {

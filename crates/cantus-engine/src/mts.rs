@@ -162,4 +162,9 @@ impl ExternalTuning for MtsLink {
             m.publish(&hz_of(table));
         }
     }
+
+    /// r42 fix-engine — Cantus is the master (an atomic flag: the audio thread asks it).
+    fn leads(&self) -> bool {
+        self.is_master()
+    }
 }

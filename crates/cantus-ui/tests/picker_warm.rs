@@ -182,10 +182,9 @@ fn after_the_idle_warm_up_every_picture_is_ready_and_the_rest_is_quiet() {
         "p99 {} ms over the budget {budget} ms",
         p(0.99)
     );
-    assert!(
-        worst <= budget + 1000.0 / 60.0,
-        "a pass of {worst} ms: more than a frame over the budget"
-    );
+    // r42 fix-engine (review reach 2, docs/RELEASING.md L3): no gate on the single slowest
+    // pass — one deschedule of a loaded runner is not the warm-up's cost; the p99 above is
+    // the gate, `worst` is reported.
     // At rest it is an empty pass (a reference timed beside it, never a fixed figure).
     assert!(
         rest_ms <= empty_ms * 3.0 + 0.05,

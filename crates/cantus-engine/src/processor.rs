@@ -440,8 +440,8 @@ impl Processor {
             shuffle: None,
             split_voices: std::env::var("CANTUS_VOICE_SPLIT").map_or(true, |v| v.trim() != "0"),
             offline: false,
-            external_tuning: Arc::new(crate::tuning::NoExternal), // r42:tuning
-            master_bake: Default::default(),                      // r36:record
+            external_tuning: crate::tuning::no_external(), // r42:tuning; fix-engine: never freed here
+            master_bake: Default::default(),               // r36:record
             low_latency: None,
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),
@@ -1141,6 +1141,7 @@ fn apply_instrument(
     samples: &[Option<Arc<cantus_core::SampleData>>],
     assets: &crate::inst::Assets,
     tuning: &cantus_core::snapshot::TrackTuningSnap, // r42:tuning
+    heard: Option<&cantus_core::tuning::TuningTable>, // r42 fix-engine — MTS-ESP's table
 ) {
     let wanted = match spec {
         InstrumentSpec::Firmus(_) => SlotInstrument::Firmus,
@@ -1154,6 +1155,11 @@ fn apply_instrument(
     match spec {
         InstrumentSpec::Native(n) => {
             if let Some(u) = slot.native.as_mut() {
+                // r42 fix-engine (review correctness 10): Exemplar sizes its streamed zones'
+                // mip levels in `configure`, so it knows the tuning's reach first.
+                if n.kind == cantus_core::InstrumentKind::Sampler {
+                    u.unit.set_tuning(&tuning.table);
+                }
                 u.unit.configure(n, assets);
             }
         }
@@ -1186,6 +1192,18 @@ fn apply_instrument(
         ),
         _ => false,
     };
+    // r42 fix-engine — a hosted instrument that reads MTS-ESP itself hears only the rest
+    // of the table (ADR 0156).
+    slot.tuning_by_mts = matches!(
+        spec,
+        InstrumentSpec::External(p) if p.tuning_by == cantus_core::external::TuningBy::MtsEsp
+    );
+    slot.tuning_heard = heard.copied().filter(|_| slot.tuning_by_mts);
+    slot.tuning_live = false;
+    slot.tuning_per_zone = matches!(
+        spec,
+        InstrumentSpec::Native(n) if n.kind == cantus_core::InstrumentKind::Sampler
+    );
     if unpitched {
         slot.tuning_external = false;
         slot.set_tuning(&cantus_core::tuning::TuningTable::EQUAL);

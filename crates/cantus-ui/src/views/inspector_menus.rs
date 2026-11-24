@@ -42,6 +42,8 @@ pub enum MenuId {
     Expression(TrackId),
     /// r42:tuning-face — a track's tuning against the project's (ADR 0155).
     Tuning(TrackId),
+    /// r42 fix-engine — how a track's hosted instrument is told its tuning (ADR 0156).
+    TuningBy(TrackId),
 }
 
 /// What a row of a list does.
@@ -88,6 +90,8 @@ enum Choice {
     AutoMode(cantus_core::AutoMode),
     /// r42:tuning-face — 0 follow the project, 1 equal temperament, 2 its own (the window).
     Tuning(u8),
+    /// r42 fix-engine — MTS-ESP or per-note tuning for a hosted instrument (ADR 0156).
+    TuningBy(cantus_core::external::TuningBy),
 }
 
 /// One row, owning its words until the list closes.
@@ -327,6 +331,21 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                     Label::Key(key),
                     radio(now == Some(r)),
                     Choice::Expression(r),
+                ));
+            }
+        }
+        // r42 fix-engine — how the hosted instrument is told the tuning (ADR 0156).
+        MenuId::TuningBy(t) => {
+            let now = p
+                .track(t)
+                .and_then(|t| t.instrument.external())
+                .map(|x| x.tuning_by);
+            out.push(band("tuning.by"));
+            for by in cantus_core::external::TuningBy::ALL {
+                out.push(act(
+                    Label::Key(by.label_key()),
+                    radio(now == Some(by)),
+                    Choice::TuningBy(by),
                 ));
             }
         }
@@ -693,6 +712,17 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
         }
         (MenuId::Expression(track), Choice::Expression(route)) => {
             app.exec(Command::SetInstrumentExpression { track, route });
+        }
+        // r42 fix-engine
+        (MenuId::TuningBy(track), Choice::TuningBy(by)) => {
+            let now = app
+                .project()
+                .track(track)
+                .and_then(|t| t.instrument.external())
+                .map(|x| x.tuning_by);
+            if now != Some(by) {
+                app.exec(Command::SetInstrumentTuningBy { track, by });
+            }
         }
         (MenuId::Hosting(t), Choice::Hosting(a)) => crate::views::plugin_notice::run_menu(
             app,

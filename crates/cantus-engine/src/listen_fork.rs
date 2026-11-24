@@ -73,6 +73,10 @@ fn fork_track(s: &TrackSlot) -> Option<TrackSlot> {
         outs: s.outs.clone(),               // r37:drums
         tuning: s.tuning,                   // r42:tuning
         tuning_external: s.tuning_external, // r42:tuning
+        tuning_live: s.tuning_live,         // r42 fix-engine
+        tuning_by_mts: s.tuning_by_mts,     // r42 fix-engine
+        tuning_heard: s.tuning_heard,       // r42 fix-engine
+        tuning_per_zone: s.tuning_per_zone, // r42 fix-engine
     })
 }
 
