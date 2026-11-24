@@ -6,7 +6,7 @@
 //!
 //! ```text
 //! cargo run --release -p cantus-ui --example tympanum_abx -- <dir> [--downloads <dir>]
-//!     [--key <dir>] [--wav | --flac]
+//!     [--key <dir>] [--wav | --flac] [--wav-twin <dir>]
 //! ```
 //!
 //! The four packs (`drskit-tympanum`, `virtuosity-drums`, `tympanum-hybrid-studio`,
@@ -32,7 +32,10 @@
 //! optional ABX hybrid vs recording), `LEEME.md` / `README.md`. Into `--key` (default
 //! `<dir>-key`, never sent): `key.json` (which source each token and file is, the items, the
 //! packs and the residuals' model hashes) and `levels.csv` (each file's loudness before and
-//! after, its stereo balance and width, its first onset).
+//! after, its stereo balance and width, its first onset), `hits.csv` (each piece's hits'
+//! levels). `--wav-twin <dir>`: the same kit (the same id, names, samples and page) with
+//! 24-bit WAV clips into `<dir>` too — the one to publish, whose answers pool with the FLAC
+//! kit's.
 
 mod items;
 #[path = "../abx_kit/kit.rs"]
@@ -77,16 +80,19 @@ struct Args {
     downloads: PathBuf,
     key: PathBuf,
     flac: bool,
+    twin: Option<PathBuf>,
 }
 
 fn usage() -> ! {
-    eprintln!("usage: tympanum_abx <dir> [--downloads <dir>] [--key <dir>] [--wav | --flac]");
+    eprintln!(
+        "usage: tympanum_abx <dir> [--downloads <dir>] [--key <dir>] [--wav | --flac] [--wav-twin <dir>]"
+    );
     std::process::exit(2);
 }
 
 fn args() -> Args {
     let mut it = std::env::args().skip(1);
-    let (mut dir, mut downloads, mut key, mut flac) = (None, None, None, true);
+    let (mut dir, mut downloads, mut key, mut flac, mut twin) = (None, None, None, true, None);
     while let Some(a) = it.next() {
         let mut val = || it.next().unwrap_or_else(|| usage());
         match a.as_str() {
@@ -94,6 +100,7 @@ fn args() -> Args {
             "--key" => key = Some(PathBuf::from(val())),
             "--wav" => flac = false,
             "--flac" => flac = true,
+            "--wav-twin" => twin = Some(PathBuf::from(val())),
             _ if a.starts_with("--") => usage(),
             _ if dir.is_none() => dir = Some(PathBuf::from(a)),
             _ => usage(),
@@ -111,6 +118,7 @@ fn args() -> Args {
             .unwrap_or_else(|| PathBuf::from("F:/projects/daw-r42/downloads/tympanum")),
         key,
         flac,
+        twin,
     }
 }
 
@@ -304,6 +312,10 @@ fn main() {
         }
     }
     let _ = std::fs::remove_dir_all(a.dir.join("audio"));
+    if let Some(t) = &a.twin {
+        let _ = std::fs::remove_dir_all(t.join("audio"));
+        std::fs::create_dir_all(t.join("audio")).expect("the twin's folder");
+    }
     std::fs::create_dir_all(a.dir.join("audio")).expect("the kit's folder");
     std::fs::create_dir_all(&a.key).expect("the key's folder");
     let mut rng = names::Rng::new();
@@ -471,9 +483,23 @@ fn main() {
                         };
                         w.unwrap_or_else(|e| panic!("{}: {e}", path.display()));
                         first = Some(path.clone());
+                        if let Some(t) = &a.twin {
+                            let tw = t.join("audio").join(&file).with_extension("wav");
+                            kit::write_wav(&tw, l, r, SR)
+                                .unwrap_or_else(|e| panic!("{}: {e}", tw.display()));
+                        }
                     }
                     Some(f) => {
                         std::fs::copy(f, &path).expect("the catch question's copy");
+                        if let Some(t) = &a.twin {
+                            std::fs::copy(
+                                t.join("audio")
+                                    .join(f.file_name().unwrap())
+                                    .with_extension("wav"),
+                                t.join("audio").join(&file).with_extension("wav"),
+                            )
+                            .expect("the twin's catch copy");
+                        }
                     }
                 }
                 bytes += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
@@ -563,6 +589,13 @@ fn main() {
     std::fs::write(a.dir.join("index.html"), &page).expect("index.html");
     std::fs::write(a.dir.join("README.md"), README_EN).expect("README.md");
     std::fs::write(a.dir.join("LEEME.md"), README_ES).expect("LEEME.md");
+    if let Some(t) = &a.twin {
+        // The same page, its files' names ending in .wav (only the FILES table names files).
+        let twin = page.replace(&format!(".{ext}\""), ".wav\"");
+        std::fs::write(t.join("index.html"), twin).expect("the twin's index.html");
+        std::fs::write(t.join("README.md"), README_EN).expect("README.md");
+        std::fs::write(t.join("LEEME.md"), README_ES).expect("LEEME.md");
+    }
     bytes += (page.len() + README_EN.len() + README_ES.len()) as u64;
     let created = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

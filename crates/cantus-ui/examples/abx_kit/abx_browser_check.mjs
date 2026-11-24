@@ -3,6 +3,7 @@
 // any subject since round 42 — Tympanum's kit).
 //
 //   PW_DIR=<folder with node_modules/playwright-core> node abx_browser_check.mjs <kit dir> [--mock <abx.html> <subject.json>]
+//   (ABX_ONLY=edge,chrome,firefox,online picks runs; ABX_SAVE=<dir> keeps each downloaded results file)
 //
 // `<kit dir>` is a generated kit (`chorda_abx`, `tympanum_abx`), or with `--mock` a folder to
 // build a stand-in kit into (short tones, every item of the subject, the real template). The
@@ -252,6 +253,8 @@ async function run(name, browserType, launch, url, mode) {
  {
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
   const text = fs.readFileSync(await dl.path(), "utf8"); const d = JSON.parse(text);
+  // ABX_SAVE=<dir>: keep each run's downloaded results (to read back with abx_read.py).
+  if (process.env.ABX_SAVE) { fs.mkdirSync(process.env.ABX_SAVE, { recursive: true }); fs.writeFileSync(path.join(process.env.ABX_SAVE, `${name}-${mode}-${dl.suggestedFilename()}`), text); }
   ok(d.kit && d.about.device === "headphones" && d.listener === "Tester" && d.abx.every(x => x.answer && x.at) && d.pref.every(q => q.choice && q.at) && d.extra.every(x => x.answer) && d.started && d.mainDone && d.extraDone && d.exported, `${tag} Download: the JSON holds answers, form, timestamps (${dl.suggestedFilename()})`);
  }
  // Start again: two presses.
