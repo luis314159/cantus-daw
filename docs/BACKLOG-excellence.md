@@ -889,7 +889,16 @@ built as Chorda, Tympanum and Arcus were:
      property), with slides, hammer-ons, pull-offs, bends, natural and artificial harmonics,
      palm mute and dead notes.
    - **Noise and body.** Finger and pick noise on the strings, and the body's sympathy.
-   - **The electric.** The pickups (position, single coil or humbucker) feed the amp chain.
+   - **The electric, one guitar for every style (the owner, 2026-11-24)**: clean, funk,
+     country (the twang, chicken picking, the B-bender), pop, worship (clean with delay and
+     swells), blues, rock, metal (7- and 8-string, drop tunings, high gain, palm-muted
+     chugs, pinch harmonics) and jazz (a hollow body, flatwound strings).
+     - **The guitar.** The pickups (bridge, middle and neck, single coil, P-90 or humbucker,
+       the coil split) and the whammy bar.
+     - **The sound around it.** Feedback and sustain from the amp's level, and Fragor's
+       pedals and the amp/cabinet chain (§3b) as the rig.
+     - **Ready in one choice.** A preset per style loads the guitar, the rig and the playing
+       defaults together.
    - **The bar.** Ample Guitar and the modelled guitars of Logic and Native Instruments; FL
      Studio and Ableton ship no guitar at this level.
    - **Two more fretted voices in the family (the owner, 2026-11-24): a banjo and a lap
@@ -905,17 +914,21 @@ built as Chorda, Tympanum and Arcus were:
        sawmill (gDGCD). Tenor: CGDA, Irish GDAE. Plectrum: CGBD.
      - **Body.** The head's tension and its bright, short decay.
      - **Playing.** Rolls as a tool (forward, backward, forward-reverse) and clawhammer.
-   - **The lap steel.**
-     - **Strings.** Six, seven, eight and ten, single or double neck (console steel), and the
-       resonator (Dobro-style squareneck).
-     - **Tunings.** C6, A6, E13, C13, B11, open E, open G (Dobro's GBDGBD), open D and E7.
-       The ten-string's pedal-steel E9 and C6 are kept for its own item.
-     - **The bar.** It slides every string under it together, so pitch glides continuously.
-       Its vibrato, slants and lifts are written as the note's glides in the adaptive piano
-       roll's bar lane.
-     - **Playing.** Picks or fingers, and volume-pedal swells.
-     - **Later.** The pedal steel: its pedals and knee levers that raise or lower chosen
-       strings.
+   - **The steel guitars and the slide (the owner, 2026-11-24): the lap steel, the pedal
+     steel and slide on any guitar.** The steel is played with a slide or bar.
+     - **The lap steel.** Six, seven, eight and ten strings, single or double neck (console
+       steel), and the resonator (Dobro-style squareneck). Tunings: C6, A6, E13, C13, B11,
+       open E, open G (Dobro's GBDGBD), open D and E7.
+     - **The pedal steel, built with the lap steel and not after it.** Ten strings (E9 and C6,
+       or a twelve-string universal), its pedals and knee levers raising or lowering chosen
+       strings, each set by the user. The pedals' and levers' moves are written in a lane,
+       and played live from a MIDI pedal or CC.
+     - **The bar or slide.** It moves every string under it together, so pitch glides
+       continuously. Its vibrato, slants and lifts are written as the note's glides in the
+       adaptive piano roll's bar lane.
+     - **Slide on the guitars.** A bottleneck of glass or metal on the acoustic, the electric
+       and the resonator, in open tunings: open G, open D, open E and DADGAD.
+     - **Playing.** Picks or fingers, blocking, and volume-pedal swells.
 2. **Winds: woodwinds and brass**, one instrument, its own and not part of Arcus. A bore is a
    waveguide with tone holes and a bell. Its exciter is a reed (clarinet, oboe, bassoon,
    saxophones), a jet at an edge (flute) or the lips (brass). Breath, embouchure and breath
@@ -934,6 +947,75 @@ built as Chorda, Tympanum and Arcus were:
    winds.
 6. **Hand and Latin percussion: congas, bongos, cajón, shaker, tambourine and the rest** on
    Tympanum's engine, played by hand (strokes as note properties: open, slap, muted, heel).
+7. **Mexican regional music: norteño, banda, sierreño, mariachi, son jarocho and the
+   rest (the owner, 2026-11-24).**
+   - **Research first.** Each instrument and its playing are confirmed with musicians and
+     recordings before the design. The owner has heard a bajo sexto in norteño "played very
+     percussively, as if struck", without being sure it is one.
+
+     A first reading to be checked: norteño's bajo sexto (12 strings in six double courses)
+     and bajo quinto (10 strings in five, common in today's norteño and sierreño) play the
+     bass line and the chords together. The chords are struck with a pick and damped at
+     once: the *apagado*, the chop that makes them sound like a drum.
+
+     The study names every such technique as norteños call them and writes it as a
+     technique in the adaptive piano roll.
+   - **Norteño and conjunto.**
+     - The diatonic button accordion (below).
+     - The bajo sexto and bajo quinto, with that stroke.
+     - The tololoche, an upright bass, plucked and slapped.
+     - The drums.
+     - The saxophone of norteño-sax.
+   - **Sierreño.** The requinto (a 12-string guitar for the lead), the bajo quinto or sexto,
+     and the tuba of sierreño con tuba.
+   - **Banda sinaloense.** Its winds are covered by item 2's woodwinds and brass, plus the
+     charchetas (alto horns) and the valve trombone. The rest:
+     - **The tuba or sousaphone**, carrying the bass.
+     - **The tambora**, a bass drum with a cymbal mounted on top.
+     - **The tarola**, its snare.
+     - **The ensemble.** Its swing, the tuba's articulation and the clarinets' trills and
+       runs are written as techniques.
+   - **Mariachi.** The vihuela, a small 5-string guitar strummed in its *mánicos*. The
+     guitarrón (the bass), the violins (Arcus) and the trumpets (item 2).
+   - **Son jarocho.** The jarana, the requinto jarocho, the arpa jarocha (item 5's harp in its
+     tuning), the quijada (a jawbone) and the tarima, the dancers' platform.
+   - **Marimba.** The Chiapas and Guatemalan marimba with its tremolo, item 4's bars at their
+     size.
+   - **Cumbia and tropical.** The güira, guacharaca, timbales and the accordion.
+8. **The accordion (the owner, 2026-11-24).**
+   - **Three kinds.** The diatonic button accordion of norteño (the GCF, FB♭E♭ and EAD three
+     rows, push and pull giving different notes), the chromatic button accordion and the
+     piano accordion.
+   - **The bellows is the performance.** Pressure and direction are a control: a CC, a
+     breath controller or the mod wheel. The bellows shakes and the turn of direction are
+     techniques.
+   - **Tuning and registers.** The reeds' wet tuning (dry, swing, tremolo and musette, its
+     beating set by ear). The registers chosen by switches.
+   - **The left hand.** The bass and chord buttons.
+   - **Also.** The bandoneón and the concertina, as kinds of the same instrument.
+9. **The world's instruments, family by family (the owner, 2026-11-24).** Each is built on the
+   family's model (plucked, bowed, blown, struck), with its tunings, its own techniques and
+   a recording study. Where a model cannot reach the bar yet, a CC0 recorded voice is used.
+   - **Latin America.** The charango, the quena, the zampoña, the bombo legüero, the cuatro
+     (Venezuelan and Puerto Rican), the tres cubano, the cavaquinho, the surdo, the pandeiro
+     and the berimbau.
+   - **Spain and flamenco.** The flamenco guitar, with rasgueado, golpe and alzapúa, and the
+     cajón and palmas.
+   - **Ireland and Scotland.** The fiddle (Arcus), the tin whistle, the uilleann pipes, the
+     Highland bagpipes and the bodhrán.
+   - **India.** The sitar, with its sympathetic strings and the curved bridge's buzz; the
+     tanpura; the tabla, with its bols as techniques; the bansuri.
+   - **The Middle East and North Africa.** The oud, the qanun, the ney and the darbuka.
+     Maqam tunings come from the project's tuning (ADR 0155).
+   - **East Asia.** The koto, the guzheng, the shamisen, the erhu, the shakuhachi and the
+     taiko.
+   - **Africa.** The kora, the mbira or kalimba, the balafon and the djembe.
+   - **Elsewhere.**
+     - The ukulele.
+     - The steel pan.
+     - The harmonica: blues, with its bends, and chromatic.
+     - The church pipe organ: stops, ranks, the swell box and the room, for worship music
+       beside Organum's tonewheel.
 
 **One piano roll that adapts to each instrument (the owner, 2026-11-24; before the guitar).**
 *"Quisiera que evaluáramos si cada instrumento debería tener su piano roll o si nuestro piano
