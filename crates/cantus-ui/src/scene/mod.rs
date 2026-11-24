@@ -17,6 +17,8 @@ pub mod bowed_fit;
 pub mod bowed_head;
 pub mod bowed_mesh;
 pub mod bowed_props;
+pub mod bowed_upper; // r42:arcus-upper
+pub mod bowed_upper_stand; // r42:arcus-upper
 pub mod compose;
 pub mod display;
 pub mod draw;

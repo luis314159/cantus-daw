@@ -48,6 +48,46 @@ pub const BASS_MAPLE: Mat = wood(
     60.0,
     0.15,
 );
+/// r42:arcus-upper — a violin's top and maple: a golden-orange Cremonese varnish, lighter
+/// than the cello's (the "Messiah"'s colour as its photographs show it).
+pub const VIOLIN_TOP: Mat = wood(
+    srgb(192, 112, 48),
+    srgb(130, 64, 24),
+    srgb(228, 154, 80),
+    0.80,
+    0.95,
+    72.0,
+    0.10,
+);
+pub const VIOLIN_MAPLE: Mat = wood(
+    srgb(178, 90, 36),
+    srgb(106, 46, 18),
+    srgb(234, 152, 74),
+    0.80,
+    0.95,
+    72.0,
+    0.16,
+);
+/// r42:arcus-upper — a viola's: a deeper red-brown varnish, between the violin's and the
+/// bass's.
+pub const VIOLA_TOP: Mat = wood(
+    srgb(166, 80, 36),
+    srgb(106, 44, 18),
+    srgb(206, 120, 60),
+    0.76,
+    0.92,
+    68.0,
+    0.10,
+);
+pub const VIOLA_MAPLE: Mat = wood(
+    srgb(152, 66, 28),
+    srgb(90, 34, 14),
+    srgb(208, 118, 56),
+    0.76,
+    0.92,
+    68.0,
+    0.16,
+);
 /// The bridge: pale maple, unvarnished (a wax's faint sheen), its medullary flecks.
 pub const BRIDGE: Mat = wood(
     srgb(226, 198, 150),

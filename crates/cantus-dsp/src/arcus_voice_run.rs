@@ -43,13 +43,16 @@ impl Voice {
         keep: bool,
     ) {
         let s = sh.s;
-        let keep = keep && self.active && self.inst == s.instrument;
+        let keep = keep && self.active && self.inst == s.instrument && self.same_rate(sh); // r42:arcus-upper
         if !keep {
             self.clear();
             self.vib_age = 0;
             self.trim = 0.0;
             self.ear.reset();
+            self.enter_rate(sh); // r42:arcus-upper
         }
+        let sh_rate = self.at_rate(sh); // r42:arcus-upper
+        let sh = &sh_rate; // r42:arcus-upper
         self.active = true;
         self.ended = false;
         self.released = false;
@@ -146,13 +149,14 @@ impl Voice {
         // The attack from the velocity: a harder note accelerates sooner and presses more
         // (the Guettler region measured on this model, `docs/round42/arcus.md`).
         let z0 = spec.strings[self.string_ix].z0();
+        let open_hz = spec.strings[self.string_ix].open_hz(); // r42:arcus-upper
         let f = 440.0 * math::exp2((self.note as f64 - 69.0) / 12.0);
         let bw = bowing(
             spec,
             self.d as f64,
             self.contact(sh) as f64,
-            s.bow_force as f64,
-            s.bow_speed as f64,
+            s.bow_force as f64 + super::super::upper::force_trim(self.inst, open_hz, f), // r42:arcus-upper
+            s.bow_speed as f64 * super::super::upper::speed_scale(self.inst, open_hz, f), // r42:arcus-upper
             z0,
             sh.sr as f64 / f,
         );
@@ -190,6 +194,8 @@ impl Voice {
     /// A slur to `key`: the bow goes on, the finger moves (at once, or as a portamento when
     /// asked); a key let go and returned to is held again.
     pub fn glide_to(&mut self, sh: &Shared, key: u8, id: u64, velocity: f32) {
+        let sh_rate = self.at_rate(sh); // r42:arcus-upper
+        let sh = &sh_rate; // r42:arcus-upper
         let s = sh.s;
         let was = self.note + self.glide;
         self.key = key;

@@ -179,7 +179,8 @@ impl Locale {
                 include_str!("../locales/areas/pads.en.txt"),   // r40:pads
                 include_str!("../locales/areas/tympanum.en.txt"), // r40:p3
                 include_str!("../locales/areas/fides.en.txt"),  // r41:contract
-                include_str!("../locales/areas/arcus.en.txt"), // r42:contract
+                include_str!("../locales/areas/arcus.en.txt"),  // r42:contract
+                include_str!("../locales/areas/arcus_upper.en.txt"), // r42:arcus-upper
                 include_str!("../locales/areas/tuning.en.txt"), // r42:contract
                 include_str!("../locales/areas/strings_rec.en.txt"), // r42:contract
                 include_str!("../locales/areas/chorda_source.en.txt"), // r40:p3
@@ -331,7 +332,8 @@ impl Locale {
                 include_str!("../locales/areas/pads.es.txt"),   // r40:pads
                 include_str!("../locales/areas/tympanum.es.txt"), // r40:p3
                 include_str!("../locales/areas/fides.es.txt"),  // r41:contract
-                include_str!("../locales/areas/arcus.es.txt"), // r42:contract
+                include_str!("../locales/areas/arcus.es.txt"),  // r42:contract
+                include_str!("../locales/areas/arcus_upper.es.txt"), // r42:arcus-upper
                 include_str!("../locales/areas/tuning.es.txt"), // r42:contract
                 include_str!("../locales/areas/strings_rec.es.txt"), // r42:contract
                 include_str!("../locales/areas/chorda_source.es.txt"), // r40:p3

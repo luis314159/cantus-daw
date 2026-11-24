@@ -36,7 +36,12 @@ fn scenes(dir: &std::path::Path, zoom: f32, only: Option<&str>) {
     cantus_ui::views::inst::chorda::scene::hybrid::register();
     scene::set_blocking(true);
     let size = egui::vec2(590.0, 300.0);
-    for (name, b) in [("cello", Bowed::Cello), ("bass", Bowed::Bass)] {
+    for (name, b) in [
+        ("cello", Bowed::Cello),
+        ("bass", Bowed::Bass),
+        ("violin", Bowed::Violin), // r42:arcus-upper
+        ("viola", Bowed::Viola),   // r42:arcus-upper
+    ] {
         for (look, be) in [
             ("drawn", SceneBackend::Vector),
             ("photo", SceneBackend::PerPixel),

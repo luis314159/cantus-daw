@@ -159,6 +159,11 @@ pub fn furniture(m: &mut Mesh, b: Bowed, pose: &Pose) {
     match b {
         Bowed::Cello => chair(m, v(foot.x + 8.0, 0.0, foot.z - 80.0), 0.12),
         Bowed::Bass => stool(m, v(foot.x - 46.0, 0.0, foot.z - 50.0)),
+        Bowed::Violin | Bowed::Viola => {
+            // r42:arcus-upper
+            super::bowed_upper_stand::stand(m, d, pose); // r42:arcus-upper
+            chair(m, v(foot.x - 46.0, 0.0, foot.z - 78.0), 0.55); // r42:arcus-upper
+        } // r42:arcus-upper
     }
 }
 

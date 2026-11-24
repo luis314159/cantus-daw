@@ -58,8 +58,8 @@ impl Instrument {
         match self {
             Instrument::Cello => &CELLO,
             Instrument::Bass => &BASS,
-            Instrument::Violin => &VIOLIN,
-            Instrument::Viola => &VIOLA,
+            Instrument::Violin => &super::upper::tables::VIOLIN, // r42:arcus-upper
+            Instrument::Viola => &super::upper::tables::VIOLA,   // r42:arcus-upper
         }
     }
 }
@@ -387,111 +387,7 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     matched: BASS_MATCH,
 };
 
-/// The violin: G3 D4 A4 E5 over 328 mm.
-pub const VIOLIN: InstrumentSpec = InstrumentSpec {
-    strings: [
-        StringSpec {
-            open: 55,
-            length_m: 0.328,
-            tension_n: 46.0,
-            t60_s: 3.0,
-            p: 0.55,
-        },
-        StringSpec {
-            open: 62,
-            length_m: 0.328,
-            tension_n: 47.0,
-            t60_s: 2.8,
-            p: 0.55,
-        },
-        StringSpec {
-            open: 69,
-            length_m: 0.328,
-            tension_n: 53.0,
-            t60_s: 2.5,
-            p: 0.50,
-        },
-        StringSpec {
-            open: 76,
-            length_m: 0.328,
-            tension_n: 80.0,
-            t60_s: 2.2,
-            p: 0.44,
-        },
-    ],
-    top: 100,
-    body: BodyKind::Violin,
-    body_size: 1.0,
-    bowing: Bowing {
-        speed: (0.05, 0.45),
-        beta: (0.12, 0.065),
-        place: (0.42, 0.27),
-    },
-    vib_hz: 5.8,
-    vib_ct: 22.0,
-    trim_db: 13.0,
-    corner_hz: 5000.0,
-    swell_s: (0.25, 0.05),
-    swell_db: (20.0, 10.0),
-    pizz_t60: &[],
-    radiation_hz: 0.0,
-    balance_db_st: 0.0,
-    balance_key: 60.0,
-    matched: NEUTRAL,
-};
-
-/// The viola: C3 G3 D4 A4 over 370 mm.
-pub const VIOLA: InstrumentSpec = InstrumentSpec {
-    strings: [
-        StringSpec {
-            open: 48,
-            length_m: 0.37,
-            tension_n: 60.0,
-            t60_s: 3.5,
-            p: 0.55,
-        },
-        StringSpec {
-            open: 55,
-            length_m: 0.37,
-            tension_n: 55.0,
-            t60_s: 3.2,
-            p: 0.55,
-        },
-        StringSpec {
-            open: 62,
-            length_m: 0.37,
-            tension_n: 50.0,
-            t60_s: 3.0,
-            p: 0.50,
-        },
-        StringSpec {
-            open: 69,
-            length_m: 0.37,
-            tension_n: 58.0,
-            t60_s: 2.6,
-            p: 0.50,
-        },
-    ],
-    top: 93,
-    body: BodyKind::Violin,
-    body_size: 1.17,
-    bowing: Bowing {
-        speed: (0.05, 0.42),
-        beta: (0.125, 0.07),
-        place: (0.42, 0.27),
-    },
-    vib_hz: 5.6,
-    vib_ct: 20.0,
-    trim_db: 13.0,
-    corner_hz: 4000.0,
-    swell_s: (0.25, 0.05),
-    swell_db: (20.0, 10.0),
-    pizz_t60: &[],
-    radiation_hz: 0.0,
-    balance_db_st: 0.0,
-    balance_key: 60.0,
-    matched: NEUTRAL,
-};
+// The violin's and the viola's tables are `upper::tables` (`arcus_upper_tables.rs`). // r42:arcus-upper
 
 /// The friction curve's constants: the hyperbolic law
 /// `μ(Δv) = μd + (μs − μd)·v₀/(v₀ + |Δv|)` (Woodhouse's "hyperbolic" curve as Galluzzo,

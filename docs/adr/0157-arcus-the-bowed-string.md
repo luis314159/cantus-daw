@@ -149,3 +149,32 @@ motion tied to the vibrato. **The measure.** `tools/arcus/study_compare.py` judg
 notes by the study's own estimator against the band of real instruments
 (`docs/round42/arcus-match.md`, pass 2). The gates hold: the pitch 168 of 168 within a cent,
 the attacks 0 of 80 over Guettler's limits.
+## Amendment (round 42, the `arcus-upper` builder): the violin and the viola
+
+<!-- r42:arcus-upper -->
+
+**Context.** At 48 kHz a violin's upper notes leave the bow–bridge segment (`β·P` samples)
+too short for the junction's lines and for the motion between bow and bridge: the voice's
+`min_beta` forced β above the player's from E5 up (0.14 at E6, 0.27 at E7, against ~0.06 at
+ff), and above E6 the motion broke (−30 to −50 cents, the energy between the harmonics).
+
+**Decision.** The violin's voices run **at 4× the rate**, the viola's at 2× — the string, the
+bow, the pluck and the pitch loop, their control steps as often in time as the cello's — and
+come back through a linear-phase half-band cascade (23 + 75 taps, flat to 20 kHz, ≥ 90 dB
+down from 28 kHz; 21 samples of latency); the body, the match and the output stage stay at
+the rate (`arcus::upper`). Chosen by measurement (`upper_tests_rate::probe_rate`) over 1× and
+2× and over a locally oversampled bridge segment (whose rate changes inside the loop would put
+an interpolator's delay and ripple round the loop every period). The cello and the double bass
+run the code they ran, at 1×: their output is the same to the bit (a test holds it). On the
+upper strings the bridge's corner rounding is at least 6 × the note's fundamental and the bow
+lightens and slows high on a string (half an octave of force and a fifth of speed at two
+octaves up), as players bow there. Their strings are Percival's measured lengths and decays
+and Rossing's tension ranges; the violin's body is **fitted to the CNSM dataset's measured
+bridge admittance** (CC BY 4.0) by positive modes; the viola's is the violin's at 1.12 × its
+size (the study's measured A0s, 250 against 281 Hz; no measured viola admittance exists in the
+open). Their dynamic is mapped the players' way (the study's database: force ×5, β ×0.4, speed
+×3 pp → ff) and their noise, vibrato and pluck matched by the study's own estimator. The body radiates each mode above 700 Hz with its own sign and strength and carries a cloud of 60 modes the fit does not resolve (900 Hz – 9 kHz): the measured admittance alone moves a vibrato's partials ±0.6 dB, the recorded violins ±1.5 – 2.2; with them ±1.4 (violin) / ±1.5 (viola).
+
+**Consequences.** A violin voice costs about 1.5 × a cello voice at 1×, a viola voice 1.15 ×
+(measured beside each other on a loaded machine; a quiet bench must say how much); its memory is the cello's (the lines already hold its period at 4×). The
+instruments stay out of the picker until the owner's listening verdict, as the cello's.

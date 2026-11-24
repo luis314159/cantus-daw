@@ -126,8 +126,8 @@ impl Voice {
             spec,
             self.d as f64,
             pos as f64,
-            s.bow_force as f64,
-            s.bow_speed as f64,
+            s.bow_force as f64 + super::super::upper::force_trim(self.inst, st.open_hz(), f), // r42:arcus-upper
+            s.bow_speed as f64 * super::super::upper::speed_scale(self.inst, st.open_hz(), f), // r42:arcus-upper
             st.z0(),
             sr as f64 / f,
         );
@@ -146,7 +146,7 @@ impl Voice {
         }
         // The bow-hair noise: the friction's roughness, a band of noise.
         if self.bow_on && s.bow_noise_db > -60.0 {
-            let lvl = ROUGH * math::db_to_gain(s.bow_noise_db);
+            let lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale(); // r42:arcus-upper
             for j in 0..span {
                 let w = self.rng.bipolar();
                 self.roughs[j] = lvl * self.rough.tick(w);
@@ -180,7 +180,7 @@ impl Voice {
             p: p_loss,
             beta: if plucked { s.pizz_pos as f64 } else { bw.beta },
             dc: !self.bow_on,
-            corner_hz: spec.corner_hz,
+            corner_hz: super::super::upper::corner_hz(self.inst, spec.corner_hz, f), // r42:arcus-upper
         };
         if self.first {
             self.string.start(st.z0() as f32, &step, true);
@@ -343,15 +343,17 @@ impl Voice {
     }
 
     /// Render the voice **added** into `l`/`r` (mono: the same into both), from the
-    /// stream's sample `sh.clock`.
-    pub fn render(&mut self, sh: &Shared, l: &mut [f32], r: &mut [f32]) {
+    /// stream's sample `sh.clock`, at the voice's own rate (`upper::render` calls it).
+    pub(super) fn render_core(&mut self, sh: &Shared, l: &mut [f32], r: &mut [f32]) {
+        // r42:arcus-upper
         let n = l.len().min(r.len());
         let mut i = 0;
         let mut peak = 0f32;
         while i < n && self.active {
             if self.first || self.pos >= self.span {
                 let t = sh.clock + i as u64;
-                let span = CTRL - (t % CTRL as u64) as usize;
+                let grid = CTRL * self.rate.os; // r42:arcus-upper
+                let span = grid - (t % grid as u64) as usize; // r42:arcus-upper
                 self.step(sh, span);
             }
             let k = (n - i).min(self.span - self.pos);
@@ -370,7 +372,7 @@ impl Voice {
             };
             let grid_end = b == self.span;
             #[cfg(test)]
-            let mut probe = [0.0f32; CTRL];
+            let mut probe = [0.0f32; SPAN]; // r42:arcus-upper
             #[cfg(test)]
             let probe_arg = Some(&mut probe[..k]);
             #[cfg(not(test))]

@@ -36,6 +36,8 @@ fn pmat(b: Bowed, r: Role) -> PMat {
     let (top, maple) = match b {
         Bowed::Cello => (pal::CELLO_TOP, pal::CELLO_MAPLE),
         Bowed::Bass => (pal::BASS_TOP, pal::BASS_MAPLE),
+        Bowed::Violin => (pal::VIOLIN_TOP, pal::VIOLIN_MAPLE), // r42:arcus-upper
+        Bowed::Viola => (pal::VIOLA_TOP, pal::VIOLA_MAPLE),    // r42:arcus-upper
     };
     match r {
         Role::Top => tone(&top, 520.0, 0.0, 71),

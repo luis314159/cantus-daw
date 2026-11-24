@@ -72,7 +72,8 @@ const SIZE: egui::Vec2 = egui::vec2(1040.0, 680.0);
 #[test]
 fn every_bowed_scene_draws_finite_and_inside_its_picture() {
     let size = egui::vec2(590.0, 420.0);
-    for b in [Bowed::Cello, Bowed::Bass] {
+    for b in [Bowed::Cello, Bowed::Bass, Bowed::Violin, Bowed::Viola] {
+        // r42:arcus-upper
         for room in Room::ALL {
             for dark in [true, false] {
                 let st = scene::stats(&view(b, room, dark), size);
@@ -95,7 +96,8 @@ fn every_bowed_scene_draws_finite_and_inside_its_picture() {
 #[test]
 fn the_pick_finds_the_instrument_and_nothing_in_the_empty_room() {
     let rect = egui::Rect::from_min_size(egui::pos2(20.0, 30.0), egui::vec2(590.0, 420.0));
-    for b in [Bowed::Cello, Bowed::Bass] {
+    for b in [Bowed::Cello, Bowed::Bass, Bowed::Violin, Bowed::Viola] {
+        // r42:arcus-upper
         let v = view(b, Room::Studio, true);
         let pts = scene::instrument_points(rect, &v);
         assert!(

@@ -16,6 +16,12 @@ use crate::math;
 mod run;
 #[path = "arcus_voice_step.rs"]
 mod step;
+#[path = "arcus_upper_voice.rs"] // r42:arcus-upper
+mod upper; // r42:arcus-upper
+
+/// The longest control step a voice renders: the grid's `CTRL` samples at the rate, which an
+/// upper string's voice at `os ×` the rate counts as `CTRL · os` of its own. // r42:arcus-upper
+const SPAN: usize = CTRL * super::upper::MAX_OS; // r42:arcus-upper
 
 /// What every voice reads while it renders (the instance's, shared).
 pub struct Shared<'a> {
@@ -233,12 +239,12 @@ pub struct Voice {
     // ---- the step's buffers ----
     span: usize,
     pos: usize,
-    v: [f32; CTRL],
-    fbuf: [f32; CTRL],
-    roughs: [f32; CTRL],
-    strike: [f32; CTRL],
-    sus: [f32; CTRL],
-    tmp: [f32; CTRL],
+    v: [f32; SPAN],      // r42:arcus-upper
+    fbuf: [f32; SPAN],   // r42:arcus-upper
+    roughs: [f32; SPAN], // r42:arcus-upper
+    strike: [f32; SPAN], // r42:arcus-upper
+    sus: [f32; SPAN],    // r42:arcus-upper
+    tmp: [f32; SPAN],    // r42:arcus-upper
     bow_on: bool,
     stop_lift: bool,
     /// The closed loop's trim on the table's correction, cents.
@@ -257,6 +263,8 @@ pub struct Voice {
     fade: f32,
     fade_step: f32,
     peak: f32,
+    /// The rate the voice runs at (the upper strings' `os ×`) and its way back. // r42:arcus-upper
+    rate: upper::Rate, // r42:arcus-upper
     /// Tests: every sample's slip, recorded while `record` is set.
     #[cfg(test)]
     pub record: bool,
@@ -310,12 +318,12 @@ impl Voice {
             f0: 261.6,
             span: CTRL,
             pos: 0,
-            v: [0.0; CTRL],
-            fbuf: [0.0; CTRL],
-            roughs: [0.0; CTRL],
-            strike: [0.0; CTRL],
-            sus: [0.0; CTRL],
-            tmp: [0.0; CTRL],
+            v: [0.0; SPAN],      // r42:arcus-upper
+            fbuf: [0.0; SPAN],   // r42:arcus-upper
+            roughs: [0.0; SPAN], // r42:arcus-upper
+            strike: [0.0; SPAN], // r42:arcus-upper
+            sus: [0.0; SPAN],    // r42:arcus-upper
+            tmp: [0.0; SPAN],    // r42:arcus-upper
             bow_on: false,
             stop_lift: false,
             trim: 0.0,
@@ -328,6 +336,7 @@ impl Voice {
             fade: 1.0,
             fade_step: 0.0,
             peak: 0.0,
+            rate: upper::Rate::new(sample_rate), // r42:arcus-upper
             #[cfg(test)]
             record: false,
             #[cfg(test)]
@@ -336,7 +345,7 @@ impl Voice {
     }
 
     pub fn active(&self) -> bool {
-        self.active
+        self.active || self.rate.drain > 0 // r42:arcus-upper
     }
     pub fn key(&self) -> u8 {
         self.key
@@ -407,6 +416,7 @@ impl Voice {
     /// Silence at once and forget everything.
     pub fn clear(&mut self) {
         self.active = false;
+        self.rate.drain = 0; // r42:arcus-upper
         self.ended = false;
         self.released = false;
         self.string.clear();
@@ -429,7 +439,7 @@ impl Voice {
     /// Fade out over 4 ms (taken by a new note, a choke), then end.
     pub fn fade_out(&mut self, sr: f32) {
         if self.active {
-            self.fade_step = 1.0 / (0.004 * sr);
+            self.fade_step = 1.0 / (0.004 * sr * self.rate.os as f32); // r42:arcus-upper
         }
     }
 

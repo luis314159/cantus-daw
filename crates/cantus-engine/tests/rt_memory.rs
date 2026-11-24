@@ -4586,3 +4586,69 @@ fn an_arcus_never_allocates() {
         );
     }
 } // r42:arcus
+
+/// r42:arcus-upper — the violin and the viola (their voices at 4× the rate, the way back,
+/// the fitted body): no allocation, with the pool and without.
+#[test]
+fn an_arcus_violin_and_viola_never_allocate() {
+    for workers in [None, Some(Workers::parallel(3))] {
+        let mut p = demo_project();
+        p.tempo_bpm = 120.0;
+        let mut ids = Vec::new();
+        for (name, set) in [
+            ("Violin", vec![("inst", 2.0f32), ("mode", 2.0)]),
+            (
+                "Viola pizz",
+                vec![("inst", 3.0), ("tech", 1.0), ("mode", 0.0)],
+            ),
+        ] {
+            let mut t = p.make_track(name);
+            ids.push(t.id);
+            let mut spec = NativeSpec::new(InstrumentKind::BowedString);
+            for (k, v) in set {
+                spec.set(k, v).unwrap();
+            }
+            t.instrument = InstrumentSpec::Native(spec);
+            let mut c = p.make_clip("line", Ticks::ZERO, Ticks::beats(8));
+            for (b, key, len) in [(0i64, 74u8, 3i64), (2, 77, 2), (4, 81, 1), (6, 79, 2)] {
+                c.notes
+                    .push(p.make_note(Ticks::beats(b), Ticks::beats(len), key, 90));
+            }
+            t.clips.push(c);
+            p.tracks.push(t);
+        }
+        let pool = workers.is_some();
+        let mut rig = Rig::with(workers);
+        let snap = Snapshot::compile(&p, 1);
+        for u in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+            rig.tx.push(EngineMessage::AddInstrument(u)).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("arcus upper start", 40);
+        rig.tx
+            .push(EngineMessage::NoteOn {
+                track: ids[0],
+                pitch: 88,
+                velocity: 110,
+            })
+            .unwrap();
+        rig.play("arcus upper live note", 20);
+        rig.tx
+            .push(EngineMessage::NoteOff {
+                track: ids[0],
+                pitch: 88,
+            })
+            .unwrap();
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+        rig.play("arcus upper seek", 30);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("arcus upper stopped", 20);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "pool {pool}: the audio thread allocated or freed: {:?} (first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+} // r42:arcus-upper

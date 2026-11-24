@@ -44,7 +44,13 @@ pub fn camera(b: Bowed, room: Room) -> Camera {
         Room::Hall => 7.0,
         _ => 8.0,
     };
-    Camera::new(v(mid.x, mid.y, mid.z), -24.0, el, 300.0 + 2.2 * d.body)
+    // A violin or a viola on its stand: closer, as a photographer frames a small instrument. // r42:arcus-upper
+    let dist = if d.stand {
+        140.0 + 2.2 * d.body
+    } else {
+        300.0 + 2.2 * d.body
+    }; // r42:arcus-upper
+    Camera::new(v(mid.x, mid.y, mid.z), -24.0, el, dist) // r42:arcus-upper
 }
 
 /// The points the camera fits: the body, the head, the endpin's foot.
@@ -60,7 +66,10 @@ pub fn points(b: Bowed) -> Vec<V3> {
     for x in [-d.head_w * 1.4, d.head_w * 1.4] {
         p.push(pose.at(x, top, -d.scroll_r));
     }
-    p.push(pose.at(0.0, -d.endpin, -d.rib_lo * 0.5));
+    if !d.stand {
+        // r42:arcus-upper
+        p.push(pose.at(0.0, -d.endpin, -d.rib_lo * 0.5));
+    } // r42:arcus-upper
     p
 }
 
@@ -69,6 +78,8 @@ pub fn material(b: Bowed, r: Role) -> Mat {
     let (top, maple) = match b {
         Bowed::Cello => (pal::CELLO_TOP, pal::CELLO_MAPLE),
         Bowed::Bass => (pal::BASS_TOP, pal::BASS_MAPLE),
+        Bowed::Violin => (pal::VIOLIN_TOP, pal::VIOLIN_MAPLE), // r42:arcus-upper
+        Bowed::Viola => (pal::VIOLA_TOP, pal::VIOLA_MAPLE),    // r42:arcus-upper
     };
     match r {
         Role::Top => top,
