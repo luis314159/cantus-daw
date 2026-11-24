@@ -2854,6 +2854,7 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
      it stays an option.
   *Done when* every class's row sits in its band and the owner's ABX against the recordings
   cannot pick Arcus above chance.
+
 **Arcus after its first round (round 42, ADR 0157; `docs/round42/arcus.md`).** <!-- r42:arcus -->
 - **The violin and the viola** pass the same gate: at 48 kHz their upper notes leave the
   bow–bridge segment a few samples long (an oversampled junction, or a fractional-position bow).
