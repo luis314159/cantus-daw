@@ -25,7 +25,7 @@ fn main() {
     for what in ["lane", "menu", "zone"] {
         for theme in ["night", "paper"] {
             for lang in [Locale::En, Locale::Es] {
-                for scale in [1.0f32, 2.0] {
+                for scale in [0.75f32, 1.0, 2.0] {
                     let name = format!(
                         "art-{what}-{theme}-{}-{}",
                         lang.code(),
