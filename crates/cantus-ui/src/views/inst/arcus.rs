@@ -21,8 +21,15 @@ mod draw;
 #[path = "arcus_presets.rs"]
 mod presets;
 
+#[path = "arcus_upper_presets.rs"] // r42:arcus-upper
+mod upper_presets; // r42:arcus-upper
+
 pub use draw::picture_for_tests;
-pub use presets::FACTORY_PRESETS;
+
+/// The factory presets: the cello's and the bass's, then the violin's and the viola's. // r42:arcus-upper
+const PRESET_COUNT: usize = presets::FACTORY_PRESETS.len() + upper_presets::PRESETS.len(); // r42:arcus-upper
+pub const FACTORY_PRESETS: &[super::FactoryPreset] = // r42:arcus-upper
+    &upper_presets::joined::<PRESET_COUNT>(presets::FACTORY_PRESETS, upper_presets::PRESETS); // r42:arcus-upper
 
 use super::face;
 use super::organ::parts::{cells, paint_card, switch, tail_rect, Card, Rows};

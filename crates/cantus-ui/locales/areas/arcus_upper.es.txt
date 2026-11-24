@@ -1,0 +1,17 @@
+# r42:arcus-upper — el violín y la viola de Arcus: sus presets y etiquetas.
+arcus.tag.violin = Violín
+arcus.tag.viola = Viola
+arcus.preset.violin = Violín
+arcus.preset.violin_cantabile = Violín cantabile
+arcus.preset.violin_tasto = Violín sul tasto
+arcus.preset.violin_plain = Violín sin vibrato
+arcus.preset.violin_detache = Violín détaché
+arcus.preset.violin_portamento = Violín portamento
+arcus.preset.violin_pizz = Violín pizzicato
+arcus.preset.violin_tremolo = Violín trémolo
+arcus.preset.viola = Viola
+arcus.preset.viola_cantabile = Viola cantabile
+arcus.preset.viola_tasto = Viola sul tasto
+arcus.preset.viola_detache = Viola détaché
+arcus.preset.viola_pizz = Viola pizzicato
+arcus.preset.viola_tremolo = Viola trémolo

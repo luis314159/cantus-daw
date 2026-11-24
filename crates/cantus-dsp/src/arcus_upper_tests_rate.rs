@@ -137,3 +137,34 @@ fn probe_corner() {
         }
     }
 }
+
+#[test]
+#[ignore = "a probe: cargo test -p cantus-dsp --release --lib arcus::upper_tests_rate::probe_top -- --ignored --nocapture"]
+fn probe_top() {
+    for key in [97u8, 100] {
+        for (speed, force, pos) in [
+            (1.0f32, 0.0f32, 0.0f32),
+            (0.7, 0.0, 0.0),
+            (0.5, 0.0, 0.0),
+            (1.0, -0.5, 0.0),
+            (1.0, 0.5, 0.0),
+            (1.0, 0.0, 0.5),
+            (1.0, 0.0, -0.5),
+            (0.7, -0.5, 0.5),
+        ] {
+            let s = ArcusSettings {
+                bow_speed: speed,
+                bow_force: force,
+                bow_pos: pos,
+                ..held(Instrument::Violin, None)
+            };
+            let (x, beta) = play(&s, key, 0.95, 1.6);
+            let f = 440.0 * math::exp2((key as f64 - 69.0) / 12.0);
+            println!(
+                "key {key} ff speed ×{speed} force {force:+} pos {pos:+}: {:+.2} ct {:.0} dB β {beta:.3}",
+                cents_off(&x, key),
+                inharmonic_db(&x, (0.8 * SR) as usize, f)
+            );
+        }
+    }
+}

@@ -19,6 +19,10 @@ mod step;
 #[path = "arcus_upper_voice.rs"] // r42:arcus-upper
 mod upper; // r42:arcus-upper
 
+/// The longest control step a voice renders: the grid's `CTRL` samples at the rate, which an
+/// upper string's voice at `os ×` the rate counts as `CTRL · os` of its own. // r42:arcus-upper
+const SPAN: usize = CTRL * super::upper::MAX_OS; // r42:arcus-upper
+
 /// What every voice reads while it renders (the instance's, shared).
 pub struct Shared<'a> {
     pub s: &'a ArcusSettings,
@@ -235,12 +239,12 @@ pub struct Voice {
     // ---- the step's buffers ----
     span: usize,
     pos: usize,
-    v: [f32; CTRL],
-    fbuf: [f32; CTRL],
-    roughs: [f32; CTRL],
-    strike: [f32; CTRL],
-    sus: [f32; CTRL],
-    tmp: [f32; CTRL],
+    v: [f32; SPAN],      // r42:arcus-upper
+    fbuf: [f32; SPAN],   // r42:arcus-upper
+    roughs: [f32; SPAN], // r42:arcus-upper
+    strike: [f32; SPAN], // r42:arcus-upper
+    sus: [f32; SPAN],    // r42:arcus-upper
+    tmp: [f32; SPAN],    // r42:arcus-upper
     bow_on: bool,
     stop_lift: bool,
     /// The closed loop's trim on the table's correction, cents.
@@ -307,12 +311,12 @@ impl Voice {
             f0: 261.6,
             span: CTRL,
             pos: 0,
-            v: [0.0; CTRL],
-            fbuf: [0.0; CTRL],
-            roughs: [0.0; CTRL],
-            strike: [0.0; CTRL],
-            sus: [0.0; CTRL],
-            tmp: [0.0; CTRL],
+            v: [0.0; SPAN],      // r42:arcus-upper
+            fbuf: [0.0; SPAN],   // r42:arcus-upper
+            roughs: [0.0; SPAN], // r42:arcus-upper
+            strike: [0.0; SPAN], // r42:arcus-upper
+            sus: [0.0; SPAN],    // r42:arcus-upper
+            tmp: [0.0; SPAN],    // r42:arcus-upper
             bow_on: false,
             stop_lift: false,
             trim: 0.0,

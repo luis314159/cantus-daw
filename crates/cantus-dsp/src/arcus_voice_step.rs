@@ -110,8 +110,8 @@ impl Voice {
             spec,
             self.d as f64,
             pos as f64,
-            s.bow_force as f64,
-            s.bow_speed as f64,
+            s.bow_force as f64 + super::super::upper::force_trim(self.inst, st.open_hz(), f), // r42:arcus-upper
+            s.bow_speed as f64 * super::super::upper::speed_scale(self.inst, st.open_hz(), f), // r42:arcus-upper
             st.z0(),
             sr as f64 / f,
         );
@@ -320,7 +320,8 @@ impl Voice {
         while i < n && self.active {
             if self.first || self.pos >= self.span {
                 let t = sh.clock + i as u64;
-                let span = CTRL - (t % CTRL as u64) as usize;
+                let grid = CTRL * self.rate.os; // r42:arcus-upper
+                let span = grid - (t % grid as u64) as usize; // r42:arcus-upper
                 self.step(sh, span);
             }
             let k = (n - i).min(self.span - self.pos);
@@ -339,7 +340,7 @@ impl Voice {
             };
             let grid_end = b == self.span;
             #[cfg(test)]
-            let mut probe = [0.0f32; CTRL];
+            let mut probe = [0.0f32; SPAN]; // r42:arcus-upper
             #[cfg(test)]
             let probe_arg = Some(&mut probe[..k]);
             #[cfg(not(test))]

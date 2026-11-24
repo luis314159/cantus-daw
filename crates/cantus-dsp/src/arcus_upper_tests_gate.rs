@@ -272,7 +272,10 @@ fn the_violin_s_helmholtz_region_has_schelleng_s_wedge() {
 
 #[test]
 fn the_vibrato_moves_the_violin_s_partials_through_its_fitted_body() {
-    let key = 74u8; // D5 on the A string
+    // D4 on the D string: low enough that the vibrato's sweep of the sixth harmonic stays
+    // inside the measure's 20 ms window (a fixed heterodyne hears a partial sweeping out of
+    // its window as a swing of its own).
+    let key = 62u8;
     let f0 = 440.0 * math::exp2((key as f64 - 69.0) / 12.0);
     let render = |body: f32| {
         let mut a = Arcus::new(SR);
@@ -315,9 +318,9 @@ fn the_vibrato_moves_the_violin_s_partials_through_its_fitted_body() {
         20.0 * math::log10(e[e.len() * 19 / 20] / e[e.len() / 20])
     };
     let (wet, dry) = (render(1.0), render(0.0));
-    let sw: Vec<f64> = (1..=8).map(|n| swing(&wet, n)).collect();
-    let sd: Vec<f64> = (1..=8).map(|n| swing(&dry, n)).collect();
-    println!("violin D5: each harmonic's swing with the body {sw:.1?} dB, without {sd:.1?}");
+    let sw: Vec<f64> = (1..=6).map(|n| swing(&wet, n)).collect();
+    let sd: Vec<f64> = (1..=6).map(|n| swing(&dry, n)).collect();
+    println!("violin D4: each harmonic's swing with the body {sw:.1?} dB, without {sd:.1?}");
     let (bw, dw) = (
         sw.iter().cloned().fold(0.0, f64::max),
         sd.iter().cloned().fold(0.0, f64::max),

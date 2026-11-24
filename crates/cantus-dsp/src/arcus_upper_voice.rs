@@ -88,7 +88,8 @@ impl Voice {
 
     /// Render the voice **added** into `l`/`r` (mono: the same into both), from the
     /// stream's sample `sh.clock` (at the rate). At `os > 1` the string runs a control span
-    /// at a time (the grid's `CTRL` samples at the voice's rate, `CTRL / os` at the rate),
+    /// at a time (the grid's `CTRL` samples at the rate, `CTRL · os` at the voice's: its
+    /// control steps as often in time as the cello's),
     /// where alone a voice can end; its way back then rings out for [`TAIL`] samples from
     /// that span's end, so what is heard never depends on where the blocks were cut.
     pub fn render(&mut self, sh: &Shared, l: &mut [f32], r: &mut [f32]) {
@@ -98,7 +99,7 @@ impl Voice {
         }
         let os = self.rate.os;
         let n = l.len().min(r.len());
-        let grid = (super::super::CTRL / os) as u64;
+        let grid = super::super::CTRL as u64;
         let mut hi_l = std::mem::take(&mut self.rate.hi_l);
         let mut hi_r = std::mem::take(&mut self.rate.hi_r);
         let mut done = 0;

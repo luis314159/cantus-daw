@@ -264,7 +264,7 @@ pub fn corner_hz(inst: Instrument, spec_hz: f64, f0: f64) -> f64 {
 }
 
 /// The corner's least ratio to the fundamental on the upper strings.
-pub const CORNER_PER_F0: f64 = 3.0;
+pub const CORNER_PER_F0: f64 = 6.0;
 
 #[cfg(not(test))]
 fn corner_ratio() -> f64 {
@@ -280,4 +280,29 @@ thread_local! {
 #[cfg(test)]
 fn corner_ratio() -> f64 {
     CORNER_RATIO.with(|c| c.get())
+}
+
+/// How a violinist or a violist bows high on a string: lighter and slower as the stopped
+/// length shortens (the force's place in its region, in octaves; the speed's scale), so the
+/// Helmholtz motion holds to the top of the range — on this model the top fifth of the
+/// violin's E string bowed ff with the open string's bowing goes raucous (−25 to −40 cents,
+/// the energy between the harmonics: `upper_tests_rate::probe_top`), and half an octave
+/// lighter or a third slower brings it back. Nothing for the cello and the bass.
+pub fn force_trim(inst: Instrument, open_hz: f64, f0: f64) -> f64 {
+    match inst {
+        Instrument::Cello | Instrument::Bass => 0.0,
+        Instrument::Violin | Instrument::Viola => {
+            0.35 * math::log2((open_hz / f0.max(1.0)).clamp(0.1, 1.0))
+        }
+    }
+}
+
+/// The bow speed's scale high on a string (see [`force_trim`]).
+pub fn speed_scale(inst: Instrument, open_hz: f64, f0: f64) -> f64 {
+    match inst {
+        Instrument::Cello | Instrument::Bass => 1.0,
+        Instrument::Violin | Instrument::Viola => {
+            math::powf((open_hz / f0.max(1.0)).clamp(0.1, 1.0), 0.25)
+        }
+    }
 }

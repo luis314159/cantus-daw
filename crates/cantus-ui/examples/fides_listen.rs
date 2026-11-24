@@ -127,6 +127,9 @@ fn main() {
         .join("src/views/inst")
         .join(file);
     let mut src = std::fs::read_to_string(&source).expect("the presets' source");
+    // The violin's and the viola's presets live in their own file. // r42:arcus-upper
+    let upper_source = source.with_file_name("arcus_upper_presets.rs"); // r42:arcus-upper
+    let mut upper_src = std::fs::read_to_string(&upper_source).unwrap_or_default(); // r42:arcus-upper
     println!("| # | Preset | Role | LUFS | Off (LU) | Phrase peak | Notes peak |");
     println!("|---|---|---|---|---|---|---|");
     for (i, e) in entries(unit, false).iter().enumerate() {
@@ -161,15 +164,24 @@ fn main() {
                 out = phrase(&spec, role);
                 level = lufs(&out, 2, RATE as f32);
             }
-            write_gain(&mut src, &e.id, spec.get("gain"));
+            if arcus && spec.get("inst") >= 1.5 {
+                // r42:arcus-upper
+                write_gain(&mut upper_src, &e.id, spec.get("gain")); // r42:arcus-upper
+            } else {
+                // r42:arcus-upper
+                write_gain(&mut src, &e.id, spec.get("gain"));
+            } // r42:arcus-upper
         }
         let name = e.id.trim_start_matches(prefix);
         write_wav(&dir.join(format!("{:02}-{name}.wav", i + 1)), &out);
         // Arcus's notes in each instrument's range (`inst` 1: the double bass).
-        let keys = match (arcus, spec.get("inst") >= 0.5) {
+        let keys = match (arcus, spec.get("inst").round() as i32) {
+            // r42:arcus-upper
             (false, _) => [36, 48, 60, 72, 84],
-            (true, false) => [36, 43, 50, 57, 64],
-            (true, true) => [28, 35, 40, 47, 55],
+            (true, 0) => [36, 43, 50, 57, 64],
+            (true, 2) => [55, 62, 69, 76, 88], // r42:arcus-upper
+            (true, 3) => [48, 55, 62, 69, 81], // r42:arcus-upper
+            (true, _) => [28, 35, 40, 47, 55],
         };
         let n = notes(&spec, keys);
         write_wav(&dir.join(format!("{:02}-{name}-notes.wav", i + 1)), &n);
@@ -186,6 +198,11 @@ fn main() {
     }
     if fit {
         std::fs::write(&source, src).expect("the presets' source written");
+        if arcus && !upper_src.is_empty() {
+            // r42:arcus-upper
+            std::fs::write(&upper_source, upper_src).expect("the upper presets written");
+            // r42:arcus-upper
+        } // r42:arcus-upper
         println!("gains written to {}", source.display());
     }
 }
