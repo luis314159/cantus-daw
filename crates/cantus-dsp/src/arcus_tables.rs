@@ -246,11 +246,19 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     // Pass 3: 3 kHz rounded the cello's upper partials under the cellos' band at ff (the
     // bow near the bridge could not brighten it): 6 kHz.
     corner_hz: 6000.0,
-    radiation_hz: 0.0,
+    // Pass 4: the bow's static push on the string reached the bridge as a DC force the body
+    // passed (most of the first second's power, decaying with the string's loss): no box
+    // radiates it, so the measured body's radiation ends in a high-pass under the strings.
+    radiation_hz: RADIATION_DC_HZ,
     balance_db_st: 0.47,
     balance_key: 57.0,
     matched: CELLO_MATCH,
 };
+
+/// Pass 4: the measured bodies' radiation corner under the strings' fundamentals, Hz (two
+/// first-order stages: −0.3 dB at the bass's E1, −0.1 at the cello's C2): what a body never
+/// radiates — the bow's static push on the string, a DC force on the bridge — taken out.
+pub const RADIATION_DC_HZ: f32 = 8.0;
 
 /// The double bass, in orchestral tuning: E1 A1 D2 G2 over 1 060 mm.
 pub const BASS: InstrumentSpec = InstrumentSpec {
@@ -298,7 +306,8 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     // Pass 2: its own body and correction made it ~10 dB hotter than the cello: 6 dB.
     trim_db: 6.0,
     corner_hz: 2000.0,
-    radiation_hz: 0.0, // pass 2: the measured body carries the radiation (its estimate is of recordings)
+    // Pass 2: the measured body carries the radiation; pass 4: its DC taken out (the cello's).
+    radiation_hz: RADIATION_DC_HZ,
     balance_db_st: 0.16,
     balance_key: 47.5,
     matched: BASS_MATCH,
