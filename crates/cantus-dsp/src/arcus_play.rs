@@ -70,6 +70,8 @@ impl Arcus {
             self.s.bow_noise_db += m.noise_db;
         }
         self.s.pizz_decay *= m.pizz_decay;
+        self.s.vib_depth *= m.vib_depth;
+        self.s.vib_rate *= m.vib_rate;
         self.eq.design(&m, self.sr);
         self.alloc.set_polyphony(self.s.poly);
         self.alloc.set_mode(self.s.mode, Default::default());

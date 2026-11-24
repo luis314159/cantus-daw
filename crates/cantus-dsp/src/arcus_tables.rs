@@ -165,6 +165,9 @@ pub struct Match {
     pub noise_db: f32,
     /// A plucked note's ring, × model 1's.
     pub pizz_decay: f32,
+    /// The vibrato's depth and rate, × model 1's.
+    pub vib_depth: f32,
+    pub vib_rate: f32,
 }
 
 /// No match: model 1.
@@ -172,6 +175,8 @@ pub const NEUTRAL: Match = Match {
     eq_db: [0.0; EQ_BANDS],
     noise_db: 0.0,
     pizz_decay: 1.0,
+    vib_depth: 1.0,
+    vib_rate: 1.0,
 };
 
 impl InstrumentSpec {
@@ -408,6 +413,25 @@ pub fn schelleng_max(z0: f64, v_bow: f64, beta: f64) -> f64 {
     2.0 * z0 * v_bow / ((MU_S - MU_D) as f64 * beta.max(1e-3))
 }
 
-/// The cello's and the double bass's match (`tools/arcus/match.sh fit`).
-pub const CELLO_MATCH: Match = NEUTRAL;
-pub const BASS_MATCH: Match = NEUTRAL;
+/// The cello's and the double bass's match (`tools/arcus/match.sh fit`, five passes on two
+/// thirds of the notes; `docs/round42/arcus-match.md` has the held-out distances).
+pub const CELLO_MATCH: Match = Match {
+    eq_db: [
+        -9.7, -6.9, -5.5, -3.1, -0.8, -1.4, -2.9, 0.6, 2.8, 1.8, 8.1, 12.0,
+    ],
+    noise_db: 0.0,
+    pizz_decay: 0.81,
+    vib_depth: 0.80,
+    vib_rate: 1.00,
+};
+pub const BASS_MATCH: Match = Match {
+    // The bass's correction is left flat: fitted (… 6.4 dB at 10 kHz, −8.4 at 630 Hz) it
+    // moved the held-out notes *away* from the references (spectrum 4.76 → 5.07 dB, the
+    // centroid 0 → 2.2 semitones outside their spread): their upper bands carry the rooms'
+    // and the bows' noise more than the instrument (`docs/round42/arcus-match.md`).
+    eq_db: [0.0; EQ_BANDS],
+    noise_db: 0.0,
+    pizz_decay: 0.67,
+    vib_depth: 0.44,
+    vib_rate: 1.0,
+};

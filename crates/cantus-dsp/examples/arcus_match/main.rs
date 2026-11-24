@@ -102,27 +102,32 @@ struct Dist {
     noise: f64,
 }
 
+/// A level under this (dB of the whole) is the recordings' noise floor, not the instrument's:
+/// both sides are compared clamped to it.
+const FLOOR: f64 = -60.0;
+
 fn distance(a: &Features, refs: &[&Note]) -> Dist {
     let rms = |v: &[f64]| (v.iter().map(|x| x * x).sum::<f64>() / v.len().max(1) as f64).sqrt();
     let mut h = Vec::new();
     for k in 0..20 {
         if let (Some(x), Some(s)) = (
             a.harm[k],
-            spread(refs, &|f| f.harm[k].filter(|v| *v > -60.0)),
+            spread(refs, &|f| f.harm[k].map(|v| v.max(FLOOR))),
         ) {
-            h.push(excess(x, s));
+            h.push(excess(x.max(FLOOR), s));
         }
     }
     let mut l = Vec::new();
     for b in 2..BANDS - 2 {
-        if let Some(s) = spread(refs, &|f| Some(f.ltas[b])) {
-            l.push(excess(a.ltas[b], s));
+        if let Some(s) = spread(refs, &|f| Some(f.ltas[b].max(FLOOR))) {
+            l.push(excess(a.ltas[b].max(FLOOR), s));
         }
     }
     let c = spread(refs, &|f| Some(12.0 * math::log2(f.centroid_hz.max(1.0)))).map_or(0.0, |s| {
         excess(12.0 * math::log2(a.centroid_hz.max(1.0)), s)
     });
-    let n = spread(refs, &|f| Some(f.noise_db)).map_or(0.0, |s| excess(a.noise_db, s));
+    let n = spread(refs, &|f| Some(f.noise_db.max(FLOOR)))
+        .map_or(0.0, |s| excess(a.noise_db.max(FLOOR), s));
     Dist {
         harm: rms(&h),
         ltas: rms(&l),
@@ -151,12 +156,14 @@ fn pool<'a>(all: &'a [Note], k: Key) -> Vec<&'a Note> {
         .collect()
 }
 
-/// One pass of the fit for one instrument: the correction moved by 0.7 of the median gap
-/// between the references' third-octave spectrum and Arcus's (its mean taken out: the level
-/// is the presets' fit's), the noise by the median gap, the pluck's ring by the median ratio.
+/// One pass of the fit for one instrument: the correction moved by half the median gap
+/// between the references' third-octave spectrum and Arcus's, smoothed across the bands (its
+/// mean taken out: the level is the presets' fit's); the noise by how far it lies outside the
+/// references' spread; the vibrato's depth and rate and the pluck's ring (its fundamental's)
+/// by the median ratio.
 fn fit_pass(all: &[Note], keys: &[Key], inst: Inst, m: &mut Match) {
     let mut gaps: Vec<Vec<f64>> = vec![Vec::new(); EQ_BANDS];
-    let (mut noise, mut ring) = (Vec::new(), Vec::new());
+    let (mut noise, mut ring, mut vib, mut rate) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for k in keys.iter().filter(|k| k.0 == inst && !held_out(k.2, k.3)) {
         let refs = pool(all, *k);
         if refs.is_empty() {
@@ -169,17 +176,37 @@ fn fit_pass(all: &[Note], keys: &[Key], inst: Inst, m: &mut Match) {
                 for b in 0..BANDS {
                     let bh = band_hz(b);
                     if (12.0 * math::log2(bh / *hz as f64)).abs() <= 4.5 {
-                        let r = median(refs.iter().map(|n| n.f.ltas[b]).collect());
-                        g.push(r - a.ltas[b]);
+                        let r = median(refs.iter().map(|n| n.f.ltas[b].max(FLOOR)).collect());
+                        g.push(r - a.ltas[b].max(FLOOR));
                     }
                 }
                 if !g.is_empty() {
                     gaps[e].push(g.iter().sum::<f64>() / g.len() as f64);
                 }
             }
-            noise.push(median(refs.iter().map(|n| n.f.noise_db).collect()) - a.noise_db);
+            // The noise moves only by how far it lies outside the references' spread (the
+            // recordings' floor and room are in theirs: inside it, it is the instrument's).
+            if let Some(sp) = spread(&refs, &|f| Some(f.noise_db.max(FLOOR))) {
+                let x = a.noise_db.max(FLOOR);
+                noise.push(if x < sp.0 {
+                    sp.0 - x
+                } else if x > sp.1 {
+                    sp.1 - x
+                } else {
+                    0.0
+                });
+            }
+            let rv: Vec<f64> = refs.iter().filter_map(|n| n.f.vib.map(|v| v.1)).collect();
+            if let (false, Some(v)) = (rv.is_empty(), a.vib) {
+                vib.push(median(rv) / v.1);
+            }
+            let rr: Vec<f64> = refs.iter().filter_map(|n| n.f.vib.map(|v| v.0)).collect();
+            if let (false, Some(v)) = (rr.is_empty(), a.vib) {
+                rate.push(median(rr) / v.0);
+            }
         } else {
-            for p in 0..4 {
+            // The fundamental's ring (the upper partials' follow the string's own losses).
+            for p in 0..1 {
                 let r: Vec<f64> = refs
                     .iter()
                     .filter_map(|n| n.f.t60.get(p).copied().flatten())
@@ -190,7 +217,16 @@ fn fit_pass(all: &[Note], keys: &[Key], inst: Inst, m: &mut Match) {
             }
         }
     }
-    let step: Vec<f64> = gaps.iter().map(|g| 0.7 * median(g.clone())).collect();
+    // Half of each band's median gap, smoothed with its neighbours (¼ ½ ¼: the sections
+    // overlap, and fitted one by one they fight).
+    let raw: Vec<f64> = gaps.iter().map(|g| median(g.clone())).collect();
+    let step: Vec<f64> = (0..EQ_BANDS)
+        .map(|e| {
+            let at = |i: usize| raw[i.min(EQ_BANDS - 1)];
+            let lo = if e == 0 { at(0) } else { at(e - 1) };
+            0.5 * (0.25 * lo + 0.5 * at(e) + 0.25 * at(e + 1))
+        })
+        .collect();
     let mean = step.iter().sum::<f64>() / step.len() as f64;
     for (e, s) in step.iter().enumerate() {
         m.eq_db[e] =
@@ -200,6 +236,14 @@ fn fit_pass(all: &[Note], keys: &[Key], inst: Inst, m: &mut Match) {
         m.noise_db = ((m.noise_db as f64 + 0.7 * median(noise)).clamp(-24.0, 24.0) * 10.0).round()
             as f32
             / 10.0;
+    }
+    if !vib.is_empty() {
+        m.vib_depth =
+            ((m.vib_depth as f64 * median(vib)).clamp(0.3, 2.0) * 100.0).round() as f32 / 100.0;
+    }
+    if !rate.is_empty() {
+        m.vib_rate =
+            ((m.vib_rate as f64 * median(rate)).clamp(0.5, 2.0) * 100.0).round() as f32 / 100.0;
     }
     if !ring.is_empty() {
         m.pizz_decay =
@@ -212,10 +256,12 @@ fn write_tables(path: &Path, cello: &Match, bass: &Match) {
     let lit = |m: &Match| {
         let eq: Vec<String> = m.eq_db.iter().map(|g| format!("{g:.1}")).collect();
         format!(
-            "Match {{\n    eq_db: [{}],\n    noise_db: {:.1},\n    pizz_decay: {:.2},\n}}",
+            "Match {{\n    eq_db: [{}],\n    noise_db: {:.1},\n    pizz_decay: {:.2},\n    vib_depth: {:.2},\n    vib_rate: {:.2},\n}}",
             eq.join(", "),
             m.noise_db,
-            m.pizz_decay
+            m.pizz_decay,
+            m.vib_depth,
+            m.vib_rate
         )
     };
     for (name, m) in [("CELLO_MATCH", cello), ("BASS_MATCH", bass)] {
@@ -283,7 +329,7 @@ fn main() {
     if fit {
         cello = NEUTRAL;
         bass = NEUTRAL;
-        for pass in 0..3 {
+        for pass in 0..5 {
             fit_pass(&all, &keys, Inst::Cello, &mut cello);
             fit_pass(&all, &keys, Inst::Bass, &mut bass);
             println!("pass {pass}: cello {cello:?}\n        bass {bass:?}");
@@ -295,6 +341,10 @@ fn main() {
     // Before (model 1) and after (model 2 with the match), on the held-out notes.
     let mut csv = String::from("inst,tech,key,dyn,held_out,refs,before_harm,before_ltas,before_centroid_st,before_noise,after_harm,after_ltas,after_centroid_st,after_noise,ref_attack_ms,arcus_attack_ms,ref_vib_hz,ref_vib_ct,arcus_vib_hz,arcus_vib_ct,ref_t60_1,arcus_t60_1,ref_thump_db,arcus_thump_db,arcus_rms_db\n");
     let mut sums: BTreeMap<(Inst, bool, bool), Vec<(Dist, Dist)>> = BTreeMap::new();
+    // The other measures, reference against Arcus before and after, by instrument and
+    // technique: (attack ms, vibrato rate, vibrato depth, T60 of partial 1, thump, centroid).
+    type Row = [(f64, f64, f64); 6];
+    let mut others: BTreeMap<(Inst, bool), Vec<Row>> = BTreeMap::new();
     for k in &keys {
         let refs = pool(&all, *k);
         if refs.is_empty() {
@@ -305,6 +355,22 @@ fn main() {
         let after = render(*k, 2, Some(m));
         let (db, da) = (distance(&before, &refs), distance(&after, &refs));
         let hold = held_out(k.2, k.3);
+        {
+            let r = |g: &dyn Fn(&Features) -> Option<f64>| {
+                median(refs.iter().filter_map(|n| g(&n.f)).collect())
+            };
+            let row = |g: &dyn Fn(&Features) -> Option<f64>| {
+                (r(g), g(&before).unwrap_or(0.0), g(&after).unwrap_or(0.0))
+            };
+            others.entry((k.0, k.1)).or_default().push([
+                row(&|f| Some(f.attack_ms)),
+                row(&|f| f.vib.map(|v| v.0)),
+                row(&|f| f.vib.map(|v| v.1)),
+                row(&|f| f.t60.first().copied().flatten()),
+                row(&|f| if k.1 { Some(f.thump_db) } else { None }),
+                row(&|f| Some(f.centroid_hz)),
+            ]);
+        }
         sums.entry((k.0, k.1, hold)).or_default().push((db, da));
         let rv = median(refs.iter().filter_map(|n| n.f.vib.map(|v| v.0)).collect());
         let rd = median(refs.iter().filter_map(|n| n.f.vib.map(|v| v.1)).collect());
@@ -340,6 +406,39 @@ fn main() {
         }
     }
     std::fs::write(out.join("distances.csv"), csv).expect("the csv");
+    println!(
+        "
+the other measures (medians over every note: references / before / after):"
+    );
+    for ((inst, pizz), rows) in &others {
+        let names = [
+            "attack ms",
+            "vibrato Hz",
+            "vibrato ±ct",
+            "T60 1 s",
+            "thump dB",
+            "centroid Hz",
+        ];
+        let mut line = String::new();
+        for (i, name) in names.iter().enumerate() {
+            let col = |j: usize| {
+                median(
+                    rows.iter()
+                        .map(|r| [r[i].0, r[i].1, r[i].2][j])
+                        .filter(|v| *v != 0.0)
+                        .collect(),
+                )
+            };
+            let _ = write!(
+                line,
+                " {name} {:.1} / {:.1} / {:.1};",
+                col(0),
+                col(1),
+                col(2)
+            );
+        }
+        println!("  {inst:?} {}:{line}", if *pizz { "pizz" } else { "arco" });
+    }
     println!("\nheld-out medians (dB; centroid in semitones), before → after:");
     for ((inst, pizz, hold), v) in &sums {
         if !hold {

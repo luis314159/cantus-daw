@@ -21,7 +21,12 @@ impl Arcus {
         let n = left.len().min(right.len());
         let sounding = self.voices.iter().any(|v| v.active());
         let rad_still = self.rad.iter().all(|r| *r == (0.0, 0.0));
-        if !sounding && rad_still && self.body.is_still() && self.out.is_still() {
+        if !sounding
+            && rad_still
+            && self.body.is_still()
+            && self.eq.is_still()
+            && self.out.is_still()
+        {
             self.clock += n as u64;
             self.peak = 0.0;
             return false;

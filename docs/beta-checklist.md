@@ -1077,3 +1077,11 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
   escritas por las pruebas.
 - [ ] **La cara (hoja de diseño v1)**: `docs/round42/arcus/sheet/` (Slate y Paper, 100 % y 200 %)
   y `sheet-es/`: arrastra el punto del arco en el diagrama de Schelleng; ¿es la cara que quieres?
+- [ ] **Los presets de Arcus en su frase** (`F:\projects\daw-r42\listen\arcus-presets\`: cada
+  preset en la frase de su papel y en cinco notas sostenidas, a su nivel ajustado): ¿alguno
+  demasiado fuerte o flojo frente a los demás? ¿alguno que no suene a lo que dice su nombre?
+- [ ] **El arco nuevo de Fides (modelo 2)**: los presets *Bowed cello* y *Bowed strings pad* de
+  Fides en `F:\projects\daw-r42\listen\fides-presets\` (`NN-cello*.wav`, `NN-string_pad*.wav`)
+  suenan ahora con el arco de Arcus, afinados a menos de un cent. ¿Mejor o peor que antes? (Una
+  canción hecha antes conserva el arco viejo.)
+- [ ] **Arcus ajustado a las grabaciones (modelo 2)**: compara `F:\projects\daw-r42\listen\arcus\before\` (antes) con `F:\projects\daw-r42\listen\arcus\` (después), y mira las gráficas de `docs/round42/arcus-match/` (la banda azul son las grabaciones). ¿El chelo suena más a chelo? ¿Algún agudo áspero o silbante (el ajuste sube los agudos del chelo hasta +12 dB a 10 kHz)?

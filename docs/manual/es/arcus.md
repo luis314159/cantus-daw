@@ -106,6 +106,12 @@ octava, transposición, fino, la semilla de sus pequeñas variaciones).
   Wakefield, 2000).
 - **La afinación** del proyecto (Proyecto ▸ Afinación) le llega como a todo instrumento con
   altura.
+- **Ajustado a grabaciones** — medido nota a nota contra chelos y contrabajos grabados (las
+  grabaciones anecoicas de la Universidad de Iowa, TinySOL, VSCO 2, el chelo de Karoryfer, el
+  contrabajo de Smolken: armónicos, espectro, ruido, vibrato, la resonancia del pizzicato) y
+  corregido hacia ellos: el color del chelo, la profundidad del vibrato y la resonancia del
+  pizzicato de los dos. Una canción hecha con el primer Arcus conserva su sonido (su modelo
+  se guarda con ella).
 
 ## Presets
 

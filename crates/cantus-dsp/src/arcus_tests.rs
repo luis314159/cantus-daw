@@ -447,3 +447,33 @@ fn werckmeister_iii_at_415_moves_the_measured_pitch_by_the_table() {
         assert!(b.abs() <= 1.0, "bowed {key}: {b}");
     }
 }
+
+#[test]
+#[ignore = "a probe"]
+fn probe_rest() {
+    let mut f = Arcus::new(SR);
+    f.set(&ArcusSettings::default());
+    f.note_on(50, 0.8, 1);
+    let (mut l, mut r) = (vec![0.0; 256], vec![0.0; 256]);
+    for _ in 0..80 {
+        f.process(&mut l, &mut r);
+    }
+    f.note_off(50, 1);
+    for i in 0..4000 {
+        l.fill(0.0);
+        r.fill(0.0);
+        f.process(&mut l, &mut r);
+        if i % 500 == 0 {
+            println!(
+                "{i}: voices {} alloc {} rad {} eq {} body {} out {} peak {:e}",
+                f.voices.iter().filter(|v| v.active()).count(),
+                f.alloc.is_clear(),
+                f.rad.iter().all(|r| *r == (0.0, 0.0)),
+                f.eq.is_still(),
+                f.body.is_still(),
+                f.out.is_still(),
+                l.iter().fold(0f32, |m, x| m.max(x.abs()))
+            );
+        }
+    }
+}
