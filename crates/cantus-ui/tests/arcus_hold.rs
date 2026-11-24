@@ -328,12 +328,23 @@ fn the_left_hand_passes_behind_the_neck() {
                 // A centimetre at the hand, in points: what a finger's or the string's
                 // width is kept clear by.
                 let cm = (to_px(lp.palm + rig.pose.ex) - to_px(lp.palm)).length();
+                // What of the arm is drawn in front of the neck (any piece not wholly hidden
+                // by it), with its width: points under it are not the neck's to show.
+                let (pieces, np) = hand::left_pieces(&arm, &lp);
+                let fronts: Vec<_> = pieces[..np]
+                    .iter()
+                    .filter(|pc| {
+                        ![pc.a, pc.a.lerp(pc.b, 0.5), pc.b]
+                            .iter()
+                            .all(|&w| hand::hidden_by_neck(w, eye, d, &rig.pose))
+                    })
+                    .map(|pc| (to_px(pc.a), to_px(pc.b), pc.ra.max(pc.rb)))
+                    .collect();
                 let clear = |p: egui::Pos2| {
                     !near_seg(p, to_px(bridge), to_px(nut), 1.5 + 0.3 * cm)
-                        && lp.fingers.iter().all(|f| {
-                            (0..3)
-                                .all(|s| !near_seg(p, to_px(f[s]), to_px(f[s + 1]), 1.0 + 1.0 * cm))
-                        })
+                        && fronts
+                            .iter()
+                            .all(|&(a, e, r)| !near_seg(p, a, e, 1.5 + r * cm))
                 };
                 let pixel = |p: egui::Pos2| {
                     let got = canvas.pixel((p.x * PPP) as usize, (p.y * PPP) as usize);
@@ -352,7 +363,8 @@ fn the_left_hand_passes_behind_the_neck() {
                 // Along the thumb and the upper arm: where the neck or the body hides
                 // them, the picture's own pixels.
                 let mut samples = Vec::new();
-                for t in [0.1, 0.3, 0.5, 0.7, 0.9] {
+                for i in 1..20 {
+                    let t = i as f32 / 20.0;
                     for s in 0..3 {
                         samples.push((lp.thumb[s].lerp(lp.thumb[s + 1], t), true));
                     }
@@ -371,18 +383,27 @@ fn the_left_hand_passes_behind_the_neck() {
                     let (got, want, diff) = pixel(p);
                     assert!(
                         diff <= 40,
-                        "{be:?} {b:?} {hold:?}: at {p:?} the figure shows over the instrument                          (got {got:?}, the picture's {want:?})"
+                        "{be:?} {b:?} {hold:?}: at {p:?} the figure shows over the instrument (got {got:?}, the picture's {want:?})"
                     );
                     checked += 1;
                 }
-                // The playing finger's middle joint is the figure's, over the fingerboard.
-                let (got, want, diff) = pixel(to_px(lp.fingers[j][1]));
+                // The playing finger's arch is the figure's, over the fingerboard: along it
+                // from its knuckle to its tip, the picture shows the finger somewhere.
+                let f = lp.fingers[j];
+                let shows = (0..3)
+                    .flat_map(|s| [0.25f32, 0.5, 0.75].map(move |t| f[s].lerp(f[s + 1], t)))
+                    .map(|w| pixel(to_px(w)).2)
+                    .max()
+                    .unwrap_or(0);
                 assert!(
-                    diff > 40,
-                    "{be:?} {b:?} {hold:?}: the playing finger's arch is hidden                      (got {got:?}, the picture's {want:?})"
+                    shows > 40,
+                    "{be:?} {b:?} {hold:?}: the playing finger's arch is hidden ({shows} at most)"
                 );
+                // Under a chin the hand's back covers the thumb from the picture's eye and
+                // the upper arm passes under the body in the open; behind a cello the neck
+                // and the body hide the thumb and the arm.
                 assert!(
-                    checked >= 1,
+                    checked >= 1 || d.held,
                     "{be:?} {b:?} {hold:?}: no part of the thumb or the arm lies behind the instrument"
                 );
             }
@@ -454,8 +475,9 @@ fn the_left_arm_keeps_the_photographs_angles() {
                      {ez:.1}) cm, {below_hand:.0} cm under the knuckles, {out:.0} cm out"
                 );
                 assert!(wrist < 3.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
+                // (A cellist's hand comes up beside the shoulder: the elbow folds more.)
                 assert!(
-                    (50.0..=130.0).contains(&elbow),
+                    (if d.held { 50.0 } else { 30.0 }..=130.0).contains(&elbow),
                     "{b:?} {hold:?}: elbow {elbow:.0}°"
                 );
                 if d.held {
