@@ -259,6 +259,11 @@ fn cents(f: f64, want: f64) -> f64 {
 /// One held note with a bend (global, ±2 st) or an MPE tuning, A alone, no body: its
 /// fundamental's error in cents.
 fn pitch_error(s: &FidesSettings, key: u8, bend: f32, tuning: f32) -> f64 {
+    pitch_error_over(s, key, bend, tuning, 0.2, 1.2)
+}
+
+/// The same, measured over `from … to` seconds of a note held to `to` + 0.05.
+fn pitch_error_over(s: &FidesSettings, key: u8, bend: f32, tuning: f32, from: f64, to: f64) -> f64 {
     let mut f = Fides::new(SR);
     let mut s = *s;
     s.body.kind = BodyKind::None;
@@ -269,14 +274,14 @@ fn pitch_error(s: &FidesSettings, key: u8, bend: f32, tuning: f32) -> f64 {
     if tuning != 0.0 {
         f.expression(7, 0, tuning);
     }
-    let frames = (1.25 * SR) as usize;
+    let frames = ((to + 0.05) * SR as f64) as usize;
     let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
     for at in (0..frames).step_by(256) {
         let n = 256.min(frames - at);
         f.process(&mut l[at..at + n], &mut r[at..at + n]);
     }
     let want = 440.0 * math::exp2((key as f64 + bend as f64 + tuning as f64 - 69.0) / 12.0);
-    let got = measure_hz(&l, want, 0.2, 1.2);
+    let got = measure_hz(&l, want, from, to);
     cents(got, want)
 }
 
@@ -334,29 +339,58 @@ fn pitch_is_within_a_tenth_of_a_cent_at_any_bend() {
 
 /// A bowed string's pitch is the stick and slip's: the loop sets it and the bow's friction
 /// moves it a few cents (the stick lasts a little longer or shorter than the loop's half, as
-/// a real bow's does — Schelleng, Raman). Measured across C2–C6 at three pressures and held
-/// within 3.5 cents at the default; printed for the report. A struck or plucked one is exact
-/// (`pitch_is_within_a_tenth_of_a_cent_at_any_bend`).
+/// a real bow's does — Schelleng, Raman). Model 1 (round 41's STK bow, every song made
+/// before) is measured at five bowings from C2 to A♯7 and held within 3.5 cents at the
+/// default on C2–C6, as it was (0.2–1.2 s); model 2 (round 42, `bow2`: Arcus's junction and
+/// its closed loop) is held within a cent at every bowing and key, measured over 0.6–1.9 s (its
+/// loop's ear settles over its first windows, a few hundred milliseconds at C2). A struck or
+/// plucked one is exact (`pitch_is_within_a_tenth_of_a_cent_at_any_bend`).
 #[test]
 fn a_bowed_string_plays_in_tune() {
-    let mut worst = 0f64;
-    for (pressure, speed) in [(0.5f32, 0.5f32), (0.3, 0.4), (0.8, 0.7)] {
-        let mut s = FidesSettings::default();
-        s.exc.kind = ExciterKind::Bow;
-        s.exc.bow_pressure = pressure;
-        s.exc.bow_speed = speed;
-        s.exc.bow_attack_ms = 40.0;
-        let mut line = String::new();
-        for key in [36u8, 48, 60, 72, 84] {
-            let e = pitch_error(&s, key, 0.0, 0.0);
-            line += &format!(" {key}: {e:+.3}");
-            if pressure == 0.5 {
-                worst = worst.max(e.abs());
+    let (mut worst1, mut worst2) = (0f64, (0f64, String::new()));
+    for model in [1u8, 2] {
+        for (pressure, speed) in [
+            (0.5f32, 0.5f32),
+            (0.3, 0.4),
+            (0.8, 0.7),
+            (0.0, 0.2),
+            (1.0, 1.0),
+        ] {
+            let mut s = FidesSettings::default();
+            s.model = model;
+            s.exc.kind = ExciterKind::Bow;
+            s.exc.bow_pressure = pressure;
+            s.exc.bow_speed = speed;
+            s.exc.bow_attack_ms = 40.0;
+            let mut line = String::new();
+            for key in [36u8, 43, 48, 55, 60, 67, 72, 79, 84, 91, 96, 100, 103, 106] {
+                let e = if model == 1 {
+                    pitch_error(&s, key, 0.0, 0.0)
+                } else {
+                    pitch_error_over(&s, key, 0.0, 0.0, 0.6, 1.9)
+                };
+                line += &format!(" {key}: {e:+.3}");
+                if model == 1 && pressure == 0.5 && key % 12 == 0 && key <= 84 {
+                    worst1 = worst1.max(e.abs());
+                }
+                if model == 2 && e.abs() > worst2.0 {
+                    worst2 = (
+                        e.abs(),
+                        format!("key {key} pressure {pressure} speed {speed}"),
+                    );
+                }
             }
+            println!("model {model}, bowed at pressure {pressure}, speed {speed}:{line} ct");
         }
-        println!("bowed at pressure {pressure}, speed {speed}:{line} ct");
     }
-    assert!(worst < 3.5, "{worst} ct");
+    println!("model 2's worst: {:.3} ct ({})", worst2.0, worst2.1);
+    assert!(worst1 < 3.5, "model 1: {worst1} ct");
+    assert!(
+        worst2.0 < 1.0,
+        "model 2: {:.3} ct at {}",
+        worst2.0,
+        worst2.1
+    );
 }
 
 #[test]
@@ -990,5 +1024,77 @@ fn inharmonicity_moves_a_string_s_partials_at_every_step() {
             "{inharm}: partial 12 did not move ({got:+.3} after {last:+.3})"
         );
         last = got;
+    }
+}
+
+/// A probe (round 42, model 2's bow): the bowed pitch in windows over three seconds, to tell
+/// a loop still settling from a motion that holds another pitch:
+/// `cargo test -p cantus-dsp --release --lib fides::tests::probe_model2 -- --ignored --nocapture`.
+#[test]
+#[ignore = "a probe"]
+fn probe_model2_windows() {
+    for (pressure, speed) in [(0.5f32, 0.5f32), (0.0, 0.2), (1.0, 1.0), (0.8, 0.7)] {
+        for key in [36u8, 48, 72, 79, 84, 91, 96] {
+            let mut s = FidesSettings::default();
+            s.exc.kind = ExciterKind::Bow;
+            s.exc.bow_pressure = pressure;
+            s.exc.bow_speed = speed;
+            s.exc.bow_attack_ms = 40.0;
+            s.body.kind = BodyKind::None;
+            s.width = 0.0;
+            let mut f = Fides::new(SR);
+            f.set(&s);
+            f.note_on(key, 0.8, 7);
+            let frames = (3.0 * SR) as usize;
+            let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
+            for at in (0..frames).step_by(256) {
+                let n = 256.min(frames - at);
+                f.process(&mut l[at..at + n], &mut r[at..at + n]);
+            }
+            let want = 440.0 * math::exp2((key as f64 - 69.0) / 12.0);
+            let w: Vec<String> = [(0.2, 1.2), (1.2, 2.0), (2.0, 2.95)]
+                .iter()
+                .map(|(a, b)| format!("{:+.2}", cents(measure_hz(&l, want, *a, *b), want)))
+                .collect();
+            let rms = (l[96_000..].iter().map(|x| x * x).sum::<f32>() / 48_000.0).sqrt();
+            println!("pressure {pressure} speed {speed} key {key}: {w:?} rms {rms:.4}");
+        }
+    }
+}
+
+/// A probe (round 42, model 2's bow at the top): the bowed pitch at high keys with the grip
+/// scaled further (over `bow2::pitch_scale`'s; `FIDES_GRIP` and `FIDES_KEYS`, comma lists,
+/// choose them), to find where the motion holds Helmholtz's period:
+/// `cargo test -p cantus-dsp --release --lib fides::tests::probe_model2_grip -- --ignored --nocapture`.
+#[test]
+#[ignore = "a probe"]
+fn probe_model2_grip() {
+    let scales: Vec<f32> = match std::env::var("FIDES_GRIP") {
+        Ok(v) => v.split(',').filter_map(|x| x.parse().ok()).collect(),
+        Err(_) => vec![1.0, 0.7, 0.5, 0.35, 0.25, 0.18, 0.12],
+    };
+    let keys: Vec<u8> = match std::env::var("FIDES_KEYS") {
+        Ok(v) => v.split(',').filter_map(|x| x.parse().ok()).collect(),
+        Err(_) => vec![72, 79, 84, 88, 91, 96, 100, 103, 106],
+    };
+    for key in keys {
+        let mut line = String::new();
+        for &scale in &scales {
+            super::bow2::GRIP_SCALE.with(|g| g.set(scale));
+            let mut worst = 0f64;
+            for pressure in [0.0f32, 0.5, 1.0] {
+                let mut s = FidesSettings::default();
+                s.exc.kind = ExciterKind::Bow;
+                s.exc.bow_pressure = pressure;
+                s.exc.bow_attack_ms = 40.0;
+                let e = pitch_error(&s, key, 0.0, 0.0);
+                if e.abs() > worst.abs() {
+                    worst = e;
+                }
+            }
+            line += &format!(" ×{scale}: {worst:+.2}");
+        }
+        super::bow2::GRIP_SCALE.with(|g| g.set(1.0));
+        println!("key {key}:{line}");
     }
 }

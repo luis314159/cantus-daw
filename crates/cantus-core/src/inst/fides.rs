@@ -23,8 +23,10 @@ pub const ICON: TrackIcon = TrackIcon::Strings;
 /// Offered in the instrument picker: the owner approved its sound (2026-11-21).
 pub const READY: bool = true;
 /// The model version stored with every new instance (ADR 0059's rule): an improved model
-/// is a new number, and a song keeps the one it was made with.
-pub const MODEL: f32 = 1.0;
+/// is a new number, and a song keeps the one it was made with. 1: round 41's; 2 (round 42,
+/// r42:arcus): a waveguide drawn by the bow meets Arcus's friction junction, its pitch held
+/// within a cent by the motion's own periods (`cantus_dsp::fides::bow2`).
+pub const MODEL: f32 = 2.0;
 
 /// Set, never automated or modulated: the model a song was made with, and how many voices
 /// the unit holds.
@@ -52,7 +54,7 @@ macro_rules! params {
 
 params! {
     // ---- the model and the voice ----
-    MODEL = ("model", "fides.model", 1.0, 1.0, MODEL, "", false, true),
+    MODEL = ("model", "fides.model", 1.0, 2.0, MODEL, "", false, true),
     POLY = ("poly", "fides.poly", 1.0, 32.0, 16.0, "", false, true),
     // 0 Poly · 1 Mono · 2 Legato
     MODE = ("mode", "fides.mode", 0.0, 2.0, 0.0, "", false, true),

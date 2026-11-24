@@ -83,6 +83,8 @@ pub struct Res {
     /// by: taken on the grid, never at a call's start, so a block that begins while the
     /// loop's lengths glide scales the strike as any other block does.
     period: f64,
+    /// Model 2's bow (`bow2::place` of the pressure; 0 for model 1): set before each step.
+    pub bow2: f32,
 }
 
 impl Res {
@@ -98,6 +100,7 @@ impl Res {
             f0: 261.6,
             t60: 1.0,
             period: 0.0,
+            bow2: 0.0,
         }
     }
 
@@ -142,6 +145,7 @@ impl Res {
                 p,
                 beta: pos,
                 dc: !bowed,
+                bow2: if bowed { self.bow2 } else { 0.0 },
             };
             self.guide.start(r.kind, r.inharm as f64, &st, keep);
             self.period = self.guide.period();
@@ -169,6 +173,7 @@ impl Res {
                 p,
                 beta: pos,
                 dc: !bowed,
+                bow2: if bowed { self.bow2 } else { 0.0 },
             };
             self.period = self.guide.period();
             self.guide.design(self.kind, &st, span);
@@ -640,6 +645,14 @@ impl Voice {
         // The bow on the string until it is lifted off; then the string rings free (taken
         // on the grid, so where it lifts is the same at every block size).
         let bowing = kind == ExciterKind::Bow && (self.first || self.exc.bow_active());
+        // Model 2's bow (round 42, `bow2`): the grip the pressure places in Schelleng's wedge.
+        let b2 = if s.model >= 2 {
+            super::bow2::place(self.pressure)
+        } else {
+            0.0
+        };
+        self.a.bow2 = b2;
+        self.b.bow2 = b2;
         if self.first {
             let keep = self.a.is_live();
             self.a.start(&s.a, fa, ta, mat_a, pos, keep, bowing);

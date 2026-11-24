@@ -132,3 +132,41 @@ more than before.
   Fides track loads with its kind and its gain, and no older fixture holds one.
 - Every existing test unchanged (the kind is outside `ALL`): the null corpus, the contract
   twins, the golden hashes.
+
+## Amendment (round 42): model 2, the bow
+
+**Context.** Round 41 measured Fides's bowed string +3.1 … −1.2 cents off from C2 to C6 at
+the default bow (up to +6.4 and −9.0 at other pressures, C2–C6), and its period tracker failed;
+round 42's model-1 correction table could not take it under a cent (the STK's bow table is a
+smooth curve evaluated once a sample: the moment the string breaks away falls on a sample and
+the period locks to whole samples; at light pressure it is chaotic).
+
+**Decision.** `model` 2 (`MODEL` 2.0, stored with every new instance; a song keeps its own —
+the key has been stored with every Fides since round 41, so no file changes meaning and no
+schema moves): a waveguide string drawn by the bow meets **Arcus's junction**
+(`cantus_dsp::fides::bow2`, on `arcus::string::slip_root` — McIntyre, Schumacher & Woodhouse's
+junction with the hyperbolic rosin curve, the stick's end and the slip's end timed between
+samples), in Fides's units and scale-free in the bow's speed (the grip `R` is a share of
+Schelleng's upper limit `|v_b|/((μs − μd)·β)`, `v₀` half the bow's speed — the pressure places
+the bow in the wedge at every position, and a ramp of the bow is a ramp of the note, as in
+model 1); the bridge's corner while bowed (a one-pole at 3 kHz or six times the note's pitch,
+its delay counted); the bow–bridge segment never under five samples; above 350 Hz the grip
+scaled by `(350/f)^1.6` (measured: the region's upper force falls much faster than `v/β` when
+a period is a few dozen samples); and a **closed loop** that hears the fundamental's phase
+from the string's own output (`arcus::ear`) and trims the loop's length by it (0.6 of each
+window's offset, at most 2 cents a move, within ±20). A bowed tube or pipe (its far end does
+not invert: not a bowed string's loop — model 2's junction on it grew without bound in
+`the_noise_band_and_level_follow_the_note`) and the bowed modal resonators (their pitch is
+their modes') keep model 1's friction. Model 1 is untouched, to the bit.
+
+**Consequences.** `DSP_VERSION` 12. A new bowed Fides plays in tune and sounds different from
+model 1 (another friction law: the owner's ear judges it); the factory presets' bowed
+waveguides (Bowed cello, Bowed strings pad) are the only factory renders that differ. Songs
+made before keep model 1.
+
+**What the tests hold.** `fides::tests::a_bowed_string_plays_in_tune`: model 2 within a cent
+at five bowings (pressure 0–1, speed 0.2–1) from C2 to A♯7, measured over 0.6–1.9 s; model 1
+as before. `cantus-ui` `fides_bowed_pitch`: the factory presets that bow a string (Bowed cello,
+Bowed strings pad) through the engine (the body and output on, vibrato off) within a cent C2–G5
+after the attack — measured within 0.02 (model 1 there: up to +1.96). The probes
+`probe_model2_windows` and `probe_model2_grip` print the settling and the grip's law.

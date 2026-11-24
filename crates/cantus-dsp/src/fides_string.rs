@@ -16,6 +16,7 @@
 //! inverts): their phase delays at `f0` are computed and the neck loop is solved for the
 //! rest, so the fundamental is right to `f64`'s precision at every bend.
 
+use super::bow2::{self, Bow2};
 use super::exciter::friction;
 use super::tables::ResKind;
 use crate::gravis::string::{
@@ -149,6 +150,12 @@ pub struct Guide {
     live: bool,
     /// The highest fundamental this rate allows (the lines' and filters' least delays).
     pub max_hz: f64,
+    /// Model 2's bow (`bow2`): in use while a bow is drawn on a model-2 instance, the
+    /// bridge's corner (its one-pole's step and state, 1: none) with it.
+    b2_on: bool,
+    b2: Bow2,
+    cr_c: f32,
+    cr: f32,
 }
 
 /// What [`Guide::design`] needs each control step.
@@ -167,6 +174,9 @@ pub struct GuideStep {
     /// drawn, the bow holds the loop anyway, and the blocker comes in when it lifts — a
     /// bowed note is the same to the bit as without one until then.
     pub dc: bool,
+    /// Model 2's bow (round 42): the grip's share of Schelleng's limit (`bow2::place`)
+    /// while a model-2 bow is drawn; 0 for model 1, or with no bow.
+    pub bow2: f32,
 }
 
 impl Guide {
@@ -200,6 +210,10 @@ impl Guide {
             quiet: 0,
             live: false,
             max_hz: sr / 12.0,
+            b2_on: false,
+            b2: Bow2::default(),
+            cr_c: 1.0,
+            cr: 0.0,
         }
     }
 
@@ -220,6 +234,8 @@ impl Guide {
         self.ap = [(0.0, 0.0); AP];
         self.quiet = 0;
         self.live = false;
+        self.cr = 0.0;
+        self.b2.reset();
     }
 
     /// A note starts on it: its kind (string, tube, pipe) and stiffness, then the first
@@ -228,6 +244,9 @@ impl Guide {
         if !keep {
             self.clear();
         }
+        // Model 2's loop starts over on a new note (a string struck again keeps its waves).
+        self.b2.ear.reset();
+        self.b2.trim = 0.0;
         self.neck_sign = if kind == ResKind::Tube { 1.0 } else { -1.0 };
         self.radiate = kind != ResKind::String;
         let loop_hz = self.loop_hz(kind);
@@ -271,8 +290,35 @@ impl Guide {
     /// lengths glide from step to step and stand still between equal steps.
     pub fn design(&mut self, kind: ResKind, s: &GuideStep, span: u32) {
         let loop_hz = self.loop_hz(kind);
-        let f0 = s.f0.clamp(MIN_HZ, self.max_hz);
+        let mut f0 = s.f0.clamp(MIN_HZ, self.max_hz);
+        // Model 2's bow: the loop hears the motion's periods and is trimmed by them; the
+        // bridge's corner is in the loop while it is drawn (`bow2`).
+        // A string only: a tube's or a pipe's loop is not a bowed string's (its far end does not
+        // invert), and keeps model 1's friction.
+        let b2 = s.bow2 > 0.0 && !s.dc && kind == ResKind::String;
+        let mut corner = (1.0f64, 0.0f64, 1.0f64);
+        if b2 {
+            if !self.b2_on {
+                self.b2.reset();
+                self.cr = 0.0;
+            }
+            self.b2.listen(f0 / self.sr, self.sr);
+            f0 = (f0 * math::exp2(-self.b2.trim / 1200.0)).clamp(MIN_HZ, self.max_hz);
+            let w = std::f64::consts::TAU * f0 / self.sr;
+            let hz = bow2::CORNER_HZ.max(bow2::CORNER_PER_F0 * f0);
+            if hz < 0.45 * self.sr {
+                let c = 1.0 - math::exp(-std::f64::consts::TAU * hz / self.sr);
+                let b = 1.0 - c;
+                let cs = math::cos(w);
+                corner = (c, loss_delay(b, w), c / (1.0 - 2.0 * b * cs + b * b).sqrt());
+            }
+        } else if self.b2_on {
+            self.cr = 0.0;
+        }
+        self.b2_on = b2;
+        self.cr_c = corner.0 as f32;
         let (g, a) = self.loss(f0, s, loop_hz);
+        let g = if b2 { (g / corner.2).min(0.999_99) } else { g };
         let w0 = std::f64::consts::TAU * f0 / self.sr;
         // The DC blocker's loss at f0 taken back from the loss filter's, never past the
         // cap: the loop's gain stays under 1 at every frequency.
@@ -292,12 +338,21 @@ impl Guide {
         let x = f0 / fc;
         self.rad_g = ((1.0 + x * x).sqrt() / x) as f32;
         let period = self.sr / f0 / loop_hz;
-        let mut filt = loss_delay(a, w0) + dc_delay;
+        let mut filt = loss_delay(a, w0) + dc_delay + corner.1;
         if self.c != 0.0 {
             filt += AP as f64 * ap_delay(self.c as f64, w0);
         }
         let avail = (period - filt).max(4.2);
-        let db = (s.beta.clamp(0.0, 0.5) * avail).clamp(2.05, avail - 2.1);
+        // Model 2's bow keeps its bow–bridge segment `MIN_SEGMENT` samples long (Arcus's
+        // rule: shorter, the junction's lines cannot hold the corner).
+        let beta = if b2 {
+            s.beta
+                .clamp(0.0, 0.5)
+                .max((bow2::MIN_SEGMENT / avail).min(0.5))
+        } else {
+            s.beta.clamp(0.0, 0.5)
+        };
+        let db = (beta * avail).clamp(2.05, avail - 2.1);
         let mut dn = avail - db;
         for _ in 0..3 {
             let total = lagrange_delay(dn, w0) + lagrange_delay(db, w0);
@@ -305,6 +360,9 @@ impl Guide {
         }
         let dn = dn.min(self.neck.len() as f64 - 6.0);
         let db = db.min(self.bridge.len() as f64 - 6.0);
+        if b2 {
+            self.b2.design(s.bow2 * bow2::pitch_scale(f0), beta);
+        }
         if span == 0 {
             self.dn = dn;
             self.db = db;
@@ -374,7 +432,9 @@ impl Guide {
             let vb = Self::read(&self.bridge, self.wb, self.db);
             let vs = vn + vb;
             let mut inj = gi * imp[i] + gs * sus[i];
-            if bowing {
+            if bowing && self.b2_on {
+                inj += self.b2.junction(bow[i], vs);
+            } else if bowing {
                 let dv = bow[i] - vs;
                 inj += dv * friction(dv, slope);
             }
@@ -383,6 +443,10 @@ impl Guide {
             // The bridge: its loss, its stiffness, and the inversion of a fixed end.
             let mut y = self.g1a * to_b + self.a * self.lz;
             self.lz = y;
+            if self.cr_c < 1.0 {
+                self.cr += self.cr_c * (y - self.cr);
+                y = self.cr;
+            }
             if self.dc_on {
                 let h = self.dc_k * (y - self.dc.0) + self.dc_r * self.dc.1;
                 self.dc = (y, h);
@@ -405,6 +469,9 @@ impl Guide {
             self.wn += 1;
             if self.wn == lenn {
                 self.wn = 0;
+            }
+            if self.b2_on {
+                self.b2.ear.hear_one(to_b);
             }
             if self.radiate {
                 self.prev += self.rad_c * (to_b - self.prev);

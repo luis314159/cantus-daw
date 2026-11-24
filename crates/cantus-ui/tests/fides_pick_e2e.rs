@@ -144,7 +144,9 @@ fn choosing_fides_adds_a_track_that_plays_a_phrase_and_a_preset() {
 /// A probe (round 41's review fixes): every factory preset's audition phrase and its five
 /// notes rendered through the engine at its defaults, each render's bits hashed — and, with
 /// `FIDES_BITS_DIR`, written there as raw `f32`; with `FIDES_BITS_BASE` too, each compared
-/// with the render of the same name there (the largest difference, in dB under full scale).
+/// with the render of the same name there (the largest difference, in dB under full scale);
+/// with `FIDES_MODEL`, every preset at that model (round 42: model 1 against model 2 is the
+/// size of model 2's change).
 /// `cargo test -p cantus-ui --test fides_pick_e2e probe -- --ignored --nocapture`
 #[test]
 #[ignore = "a probe: the presets' bits, before and after a DSP change"]
@@ -189,6 +191,14 @@ fn probe_the_factory_presets_bits() {
         let Payload::Native(spec) = &e.payload else {
             continue;
         };
+        let mut spec = spec.clone();
+        if let Some(m) = std::env::var("FIDES_MODEL")
+            .ok()
+            .and_then(|m| m.parse::<f32>().ok())
+        {
+            spec.set("model", m);
+        }
+        let spec = &spec;
         let name = e.id.trim_start_matches("fides.preset.");
         let p = aud::phrase_project(InstrumentSpec::Native(spec.clone()), e.role());
         let phrase = render(&p, Ticks::beats((4.0 * aud::BARS) as i64));

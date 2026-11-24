@@ -19,6 +19,8 @@
 
 #[path = "fides_body.rs"]
 pub mod body;
+#[path = "fides_bow2.rs"]
+pub mod bow2;
 #[path = "fides_exciter.rs"]
 pub mod exciter;
 #[path = "fides_modal.rs"]
@@ -90,6 +92,10 @@ impl Default for ResSettings {
 /// Everything the unit sets (`cantus_engine::inst::fides::settings`).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FidesSettings {
+    /// The model a song was made with (ADR 0059's rule): 1, round 41's; 2, round 42's bow
+    /// (`bow2`: Arcus's junction, its pitch held by the fundamental it hears). Only a
+    /// waveguide string drawn by the bow differs; everything else is model 1's to the bit.
+    pub model: u8,
     pub poly: usize,
     pub mode: PlayMode,
     pub retrig: bool,
@@ -125,6 +131,7 @@ pub struct FidesSettings {
 impl Default for FidesSettings {
     fn default() -> Self {
         FidesSettings {
+            model: 2,
             poly: 16,
             mode: PlayMode::Poly,
             retrig: true,

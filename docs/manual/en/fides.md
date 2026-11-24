@@ -100,7 +100,11 @@ Glide, Bend range, Octave, Transpose, Fine, A4, Velocity, Release and the Seed o
   it raises the level), its **slide** moves where it is played (*MPE slide*), its **pitch bend**
   bends it. A non-MPE controller's aftertouch, wheel and expression are modulation sources.
 - **Pitch** is exact: the waveguide's loops and filters are solved for the fundamental, and the
-  modes are set by their angles — measured within 0.002 cent at every bend.
+  modes are set by their angles — measured within 0.002 cent at every bend. A **bowed** string
+  is within a cent of its key too: its bow is Arcus's (the friction of a rosined bow, timed
+  between samples) and it listens to its own fundamental and corrects the string's length by
+  it. (A song made before 0.1.0-beta.18 keeps the bow it was made with, a few cents off as it
+  always was.)
 - **The sustain pedal** holds released notes, as a vibraphone's damper bar.
 
 ## The presets
