@@ -138,8 +138,18 @@ fn fit_tunes(ms: &mut [Measured], fs: &[(String, Vec<u8>)]) {
                     an::yin_cents(&x, rate, from, to, root)
                         .filter(|c| (c - m.root as f64 * 100.0).abs() < an::NEAR_CENTS)
                 };
+                // A sustain: the partials' fit and YIN, two measures of a different kind; where
+                // they agree within two cents their mean (each one's noise halved), where they do
+                // not the fit has caught another peak of an ensemble's spread: YIN's. A short
+                // note: the fit over its tone.
                 let fit = if m.meta.art == "tremolo" {
                     yin().or_else(|| an::harmonic_cents(&x, rate, from, to, root))
+                } else if held {
+                    match (an::harmonic_cents(&x, rate, from, to, root), yin()) {
+                        (Some(f), Some(y)) if (f - y).abs() <= 2.0 => Some(0.5 * (f + y)),
+                        (Some(_), Some(y)) => Some(y),
+                        (f, y) => f.or(y),
+                    }
                 } else {
                     an::harmonic_cents(&x, rate, from, to, root)
                 };

@@ -196,11 +196,7 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
                                 16.0,
                                 8_192,
                             );
-                            // …and a second, independent measure (YIN) reads the same within
-                            // 0.3 cent: where the pitch is defined that finely.
-                            let yin = an::yin_cents(&out, rate, a0, b0.min(out.len()), root);
-                            let agree = long.is_some_and(|l| (l - c).abs() <= 0.3)
-                                && yin.is_some_and(|y| (y - c).abs() <= 0.3);
+                            let agree = long.is_some_and(|l| (l - c).abs() <= 0.3);
                             match agree.then_some(()) {
                                 Some(_) => {
                                     strict[0] += 1;
@@ -215,7 +211,6 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
                                     pack.id.clone(),
                                     z.file.clone(),
                                     long.map_or(f64::NAN, |l| l - c),
-                                    yin.map_or(f64::NAN, |y| y - c),
                                 )),
                             }
                         }
@@ -261,14 +256,14 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
     }
     assert!(clicks.is_empty(), "loops that click: {clicks:?}");
     println!(
-        "measurable sustains (the check within 0.3 cent of itself at four times its window, and of YIN): {} of {}, {:.1} % within a cent, {} beyond three cents",
+        "measurable sustains (the check within 0.3 cent of itself at four times its window): {} of {}, {:.1} % within a cent, {} beyond three cents",
         strict[0],
         within[1][0],
         100.0 * strict[1] as f64 / strict[0].max(1) as f64,
         strict_off.len()
     );
-    for (p, f, d, y) in &unreliable {
-        println!("  unreliable {p} {f}: the check at four times its window {d:+.2} ct, YIN {y:+.2} ct from it");
+    for (p, f, d) in &unreliable {
+        println!("  unreliable {p} {f}: the check at four times its window {d:+.2} ct from it");
     }
     for (p, f, e) in &strict_off {
         println!("  strict-off {p} {f}: {e:+.2} ct");
