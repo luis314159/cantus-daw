@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- Cantus's social-account images (docs/social/accounts.md). Open one with
+     /tools/social/social.html?asset=<name>&lang=en|es[&debug=1]
+     served from the repository's root (render.mjs does it), so the site's fonts, logo #03
+     and the README's window picture are read from where they live. The assets are named in
+     social.js's ASSETS; render.mjs writes each at its platform's size. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Social images</title>
+<link rel="stylesheet" href="social.css">
+</head>
+<body>
+
+<!-- The round mark: avatars on every platform (a circle crop keeps it whole). -->
+<section class="asset" id="avatar">
+  <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
+    <defs>
+      <radialGradient id="a-lapis" cx="0.4" cy="0.35" r="0.85"><stop offset="0" stop-color="#2E4AA0"/><stop offset="0.6" stop-color="#1A2A66"/><stop offset="1" stop-color="#0A1234"/></radialGradient>
+      <linearGradient id="a-leaf" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#FFF4C2"/><stop offset="0.25" stop-color="#EBC455"/><stop offset="0.5" stop-color="#B8862B"/><stop offset="0.72" stop-color="#F3D478"/><stop offset="1" stop-color="#8A5E14"/></linearGradient>
+      <linearGradient id="a-verm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8A4C"/><stop offset="1" stop-color="#B7410E"/></linearGradient>
+      <pattern id="a-dots" width="34" height="34" patternUnits="userSpaceOnUse"><circle cx="17" cy="17" r="2.2" fill="#E9C466" fill-opacity="0.2"/></pattern>
+      <filter id="a-emb" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity="0.5"/></filter>
+      <radialGradient id="a-vig" cx="0.5" cy="0.5" r="0.5"><stop offset="0.7" stop-color="#050a1e" stop-opacity="0"/><stop offset="1" stop-color="#050a1e" stop-opacity="0.45"/></radialGradient>
+    </defs>
+    <rect width="1024" height="1024" fill="url(#a-lapis)"/>
+    <rect width="1024" height="1024" fill="url(#a-dots)"/>
+    <rect width="1024" height="1024" fill="url(#a-vig)"/>
+    <circle cx="512" cy="512" r="452" fill="none" stroke="url(#a-leaf)" stroke-width="9"/>
+    <!-- logo #03's C, diamonds, shine and waveform, centred on its own box (480, 512) and enlarged -->
+    <g transform="translate(512 512) scale(1.12) translate(-480 -512)">
+      <g filter="url(#a-emb)">
+        <path d="M711.8,702.7 A285,285 0 1 1 711.8,321.3 L673.8,363.4 A200,200 0 1 0 673.8,660.6 Z" fill="url(#a-leaf)"/>
+        <path d="M711.8,702.7 A285,285 0 1 1 711.8,321.3 L673.8,363.4 A200,200 0 1 0 673.8,660.6 Z" fill="none" stroke="#5A3A08" stroke-opacity=".55" stroke-width="3"/>
+        <path d="M711.8,287.3 l34,34 l-34,34 l-34,-34 Z" fill="url(#a-leaf)" stroke="#5A3A08" stroke-opacity=".5" stroke-width="3"/>
+        <path d="M711.8,668.7 l34,34 l-34,34 l-34,-34 Z" fill="url(#a-leaf)" stroke="#5A3A08" stroke-opacity=".5" stroke-width="3"/>
+      </g>
+      <path d="M300,420 C290,470 290,554 300,604" stroke="#FFF8DA" stroke-opacity=".55" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <g fill="url(#a-verm)"><rect x="470" y="477" width="16" height="70" rx="8"/><rect x="498" y="452" width="16" height="120" rx="8"/><rect x="526" y="427" width="16" height="170" rx="8"/><rect x="554" y="457" width="16" height="110" rx="8"/><rect x="582" y="437" width="16" height="150" rx="8"/><rect x="610" y="472" width="16" height="80" rx="8"/><rect x="638" y="487" width="16" height="50" rx="8"/></g>
+    </g>
+  </svg>
+</section>
+
+<!-- YouTube's watermark: logo #03's small-size drawing, on a transparent page. -->
+<section class="asset" id="watermark">
+  <img class="tile" src="/crates/cantus-ui/assets/logos/small/03-48.svg" alt="">
+</section>
+
+<!-- YouTube's banner: everything that matters inside the 1546 x 423 centred safe area. -->
+<section class="asset ground" id="banner">
+  <div class="shot"><img src="/docs/images/window-night.png" alt=""></div>
+  <div class="veil"></div>
+  <div class="safe">
+    <img class="tile" src="/crates/cantus-ui/assets/logos/03.svg" alt="">
+    <div class="words">
+      <div class="word">Cantus<sup>™</sup></div>
+      <div class="line" data-t="banner-en"></div>
+      <div class="line es" data-t="banner-es"></div>
+      <div class="foot"><span class="site">cantusdaw.com</span><span class="os" data-t="os"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- The 3:1 header (X, Mastodon at 1500 x 500; Bluesky at 3000 x 1000). The avatar covers
+     the bottom-left corner on all three, so the words sit up and in from it. -->
+<section class="asset ground" id="header">
+  <div class="shot"><img src="/docs/images/window-night.png" alt=""></div>
+  <div class="veil"></div>
+  <div class="text">
+    <div class="brand"><img class="tile" src="/crates/cantus-ui/assets/logos/03.svg" alt=""><span class="word">Cantus<sup>™</sup></span></div>
+    <h1 data-t="hero"></h1>
+    <div class="line" data-t="header-line"></div>
+    <div class="site">cantusdaw.com</div>
+  </div>
+</section>
+
+<!-- The launch video's thumbnail (1280 x 720): two big words, the logo, the app. -->
+<section class="asset ground" id="thumb">
+  <div class="win"><img src="/docs/images/window-night.png" alt=""></div>
+  <div class="piano"><img src="/web/assets/units/chorda-dark.webp" alt=""><span data-t="piano"></span></div>
+  <div class="veil"></div>
+  <div class="text">
+    <div class="brand"><img class="tile" src="/crates/cantus-ui/assets/logos/03.svg" alt=""><span class="word">Cantus</span></div>
+    <div class="big"><span class="b1" data-t="big1"></span><span class="b2" data-t="big2"></span></div>
+    <div class="chips"><span data-t="chip1"></span><span data-t="chip2"></span></div>
+  </div>
+</section>
+
+<script src="social.js"></script>
+</body>
+</html>
