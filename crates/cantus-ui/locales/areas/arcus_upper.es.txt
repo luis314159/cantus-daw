@@ -15,3 +15,11 @@ arcus.preset.viola_tasto = Viola sul tasto
 arcus.preset.viola_detache = Viola détaché
 arcus.preset.viola_pizz = Viola pizzicato
 arcus.preset.viola_tremolo = Viola trémolo
+
+# Lo que sostiene el instrumento en su imagen (preferencia de este equipo; solo la imagen).
+arcus_upper.hold = Sostenido por
+arcus_upper.hold.air = Nada
+arcus_upper.hold.stand = Soporte
+arcus_upper.hold.player = Músico
+arcus_upper.hold.mannequin = Maniquí
+arcus_upper.finger = Yema del dedo

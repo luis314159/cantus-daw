@@ -71,7 +71,7 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
         let hr = hf.cross(hu).norm();
         let (a, bb, c) = HEAD;
         let head = chin + hu * (bb * 0.78) - hf * (c * 0.15) + hr * (a * 0.5);
-        let neck = head + down * 19.0 - f * 2.5 + r * 1.5;
+        let neck = head + down * 19.0 - f * 3.5 + r * 4.0;
         let ls = neck - r * 17.0 + down * 2.5;
         let rs = neck + r * 17.0 + down * 2.5;
         let chest = neck + down * 15.0 - f * 2.0;
