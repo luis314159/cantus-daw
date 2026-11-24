@@ -222,6 +222,9 @@ fn main() {
         ("bass-play", View::Play, 1.0, 0.0, 2.0, 45.0),
         ("cello-pizz", View::Play, 0.0, 1.0, 1.0, 50.0),
         ("cello-trem", View::Play, 0.0, 2.0, 3.0, 64.0),
+        ("violin-play", View::Play, 2.0, 0.0, 2.0, 76.0), // r42:arcus-upper
+        ("viola-play", View::Play, 3.0, 0.0, 2.0, 67.0),  // r42:arcus-upper
+        ("violin-pizz", View::Play, 2.0, 1.0, 2.0, 74.0), // r42:arcus-upper
     ];
     if args.iter().any(|a| a == "--edit") {
         states.push(("cello-edit", View::Edit, 0.0, 0.0, 2.0, 57.0));
@@ -257,7 +260,8 @@ fn main() {
                         tele[cantus_dsp::arcus::tel::STRING] = string;
                         tele[cantus_dsp::arcus::tel::KEY] = key;
                         tele[cantus_dsp::arcus::tel::VIBRATO] = 0.4;
-                        if inst > 0.5 {
+                        if (inst - 1.0).abs() < 0.5 {
+                            // r42:arcus-upper (the bass alone)
                             tele[cantus_dsp::arcus::tel::FORCE] = 2.6;
                             tele[cantus_dsp::arcus::tel::FMIN] = 0.9;
                             tele[cantus_dsp::arcus::tel::FMAX] = 3.6;

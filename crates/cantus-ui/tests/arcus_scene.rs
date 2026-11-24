@@ -84,9 +84,15 @@ fn every_bowed_scene_draws_finite_and_inside_its_picture() {
                     x0 >= 0.0 && y0 >= 0.0 && x1 <= size.x && y1 <= size.y,
                     "{b:?} in {room:?}: inside the picture ({x0} {y0} {x1} {y1})"
                 );
-                // Standing: taller than wide, filling the picture's height above the
-                // caption's band.
-                assert!(y1 - y0 > 0.75 * size.y && y1 - y0 > 1.4 * (x1 - x0));
+                if b.dims().held {
+                    // r42:arcus-upper — held at the playing angle: wider than tall, filling
+                    // the picture's width.
+                    assert!(x1 - x0 > 0.6 * size.x && x1 - x0 > 1.2 * (y1 - y0), "{b:?}");
+                } else {
+                    // Standing: taller than wide, filling the picture's height above the
+                    // caption's band.
+                    assert!(y1 - y0 > 0.75 * size.y && y1 - y0 > 1.4 * (x1 - x0));
+                }
                 assert!(y1 <= size.y - 50.0, "{b:?}: the caption's band is free");
             }
         }

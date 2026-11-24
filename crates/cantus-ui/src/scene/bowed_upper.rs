@@ -14,12 +14,15 @@
 //! **The outlines**: each its own three curves (`VIOLIN_HALF`, `VIOLA_HALF`), drawn from its
 //! measures — the bouts' widths and places, the corners, the waist — as the cello's are.
 //!
-//! **The stand**: a violin or a viola is not stood on the floor and cannot be held without a
-//! player, so it rests as a maker's or a photographer's picture shows it — upright on an
-//! instrument stand, its lower bout in a padded cradle, its neck in a padded fork, leant back a
-//! little — at a seated player's height, in the cello's room (chair, microphones).
+//! **The pose** (the owner's choice, B): a violin or a viola cannot stand on the floor and
+//! nobody holds it here, so it floats where a seated player holds it — on the left shoulder at
+//! about 1.1 m, its scroll to the player's left and forward and a little up, its top turned
+//! up and toward the player's right, as every photograph of a violinist from the hall shows
+//! it — with the bow across its strings at the contact (the live picture's, the cello's). The
+//! room is the cello's: the player's chair behind, the two microphones beside.
 
-use super::bowed::Dims;
+use super::bowed::{Dims, Pose};
+use super::geo::{v, V3};
 
 pub const VIOLIN: Dims = Dims {
     body: 35.6,
@@ -43,15 +46,15 @@ pub const VIOLIN: Dims = Dims {
     pegbox: 5.6,
     scroll_r: 1.9,
     head_w: 2.45,
-    endpin: 70.0,
-    lean: 11.0,
-    roll: 10.0,
+    endpin: 0.0,
+    lean: 0.0,
+    roll: 0.0,
     gauge: [0.040, 0.036, 0.031, 0.014],
     f_len: 7.4,
     f_upper: 2.1,
     f_lower: 4.8,
     machines: false,
-    stand: true,
+    held: true,
 };
 
 pub const VIOLA: Dims = Dims {
@@ -76,15 +79,15 @@ pub const VIOLA: Dims = Dims {
     pegbox: 6.4,
     scroll_r: 2.15,
     head_w: 2.75,
-    endpin: 66.0,
-    lean: 11.0,
-    roll: 10.0,
+    endpin: 0.0,
+    lean: 0.0,
+    roll: 0.0,
     gauge: [0.045, 0.033, 0.031, 0.0165],
     f_len: 8.4,
     f_upper: 2.4,
     f_lower: 5.5,
     machines: false,
-    stand: true,
+    held: true,
 };
 
 /// The violin's half-outline (mm from the lower edge; the viewer's right half), as the cello's
@@ -178,3 +181,34 @@ pub const VIOLA_HALF: [&[(f32, f32)]; 3] = [
         (0.0, 406.0),
     ],
 ];
+
+/// Where a held violin or viola is: its end button at the player's neck, the body along
+/// `TOWARD` (the scroll's way: the player's left, forward, up), its top facing `UP` (turned to the
+/// player's right), seated height. The world: x to the viewer's right, y up, z toward the
+/// viewer; the player faces the viewer.
+pub fn held(d: &Dims) -> Pose {
+    let ey = TOWARD.norm();
+    let up = UP.norm();
+    let ez = (up - ey * up.dot(ey)).norm();
+    let ex = ey.cross(ez);
+    // The instrument's middle (the body's end and the scroll's) over the room's middle.
+    let half = 0.5 * (d.body + d.neck + d.pegbox);
+    let o = v(0.0, HEIGHT, 0.0) - ey * half;
+    Pose { o, ex, ey, ez }
+}
+
+/// The body's way, end button to scroll (the player's left is the viewer's right).
+pub const TOWARD: V3 = V3 {
+    x: 0.80,
+    y: 0.20,
+    z: 0.48,
+};
+/// Where the top faces before it is squared to the body's way: up, and turned to the player's
+/// right (the viewer's left) and a little toward the hall.
+pub const UP: V3 = V3 {
+    x: -0.55,
+    y: 0.78,
+    z: 0.25,
+};
+/// The instrument's middle over the floor, cm (a seated player's shoulder).
+pub const HEIGHT: f32 = 112.0;

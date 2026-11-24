@@ -365,9 +365,10 @@ pub fn fittings(m: &mut Mesh, d: &Dims, pose: &Pose, o: &[(f32, f32)]) {
             r: 1.5 * k,
         },
     ));
-    if d.stand {
-        // A violin's or a viola's end button (the collar above) and no pin: it rests on its
-        // stand (`bowed_upper_stand`), which sets the mesh's foot. // r42:arcus-upper
+    if d.held {
+        // A violin's or a viola's end button (the collar above) and no pin: it is held; its
+        // foot (for the floor's shadow) under its middle. // r42:arcus-upper
+        m.foot = pose.at(0.0, 0.5 * d.body, -d.rib_lo); // r42:arcus-upper
         draw_strings(m, d, pose); // r42:arcus-upper
         return; // r42:arcus-upper
     }
@@ -427,7 +428,7 @@ pub fn fittings(m: &mut Mesh, d: &Dims, pose: &Pose, o: &[(f32, f32)]) {
 fn draw_strings(m: &mut Mesh, d: &Dims, pose: &Pose) {
     for i in 0..4 {
         let [t, b, n] = string_local(d, i);
-        let steel = if d.stand { i == 3 } else { i >= 2 }; // r42:arcus-upper
+        let steel = if d.held { i == 3 } else { i >= 2 }; // r42:arcus-upper
         let role = if !d.machines && steel {
             Role::Steel
         } else {

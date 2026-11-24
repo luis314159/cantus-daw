@@ -44,8 +44,10 @@ pub fn camera(b: Bowed, room: Room) -> Camera {
         Room::Hall => 7.0,
         _ => 8.0,
     };
-    // A violin or a viola on its stand: closer, as a photographer frames a small instrument. // r42:arcus-upper
-    let dist = if d.stand {
+    // A violin or a viola held: from a little higher, onto its top. // r42:arcus-upper
+    let el = if d.held { el + 12.0 } else { el }; // r42:arcus-upper
+                                                  // A violin or a viola held: closer, as a photographer frames a small instrument. // r42:arcus-upper
+    let dist = if d.held {
         140.0 + 2.2 * d.body
     } else {
         300.0 + 2.2 * d.body
@@ -66,7 +68,7 @@ pub fn points(b: Bowed) -> Vec<V3> {
     for x in [-d.head_w * 1.4, d.head_w * 1.4] {
         p.push(pose.at(x, top, -d.scroll_r));
     }
-    if !d.stand {
+    if !d.held {
         // r42:arcus-upper
         p.push(pose.at(0.0, -d.endpin, -d.rib_lo * 0.5));
     } // r42:arcus-upper
@@ -423,7 +425,10 @@ pub fn bowed_scene(b: Bowed, st: &Stage) -> Built {
     for s in &mesh.shadows {
         c.shadow_polys.push((s.clone(), 0.5));
     }
-    c.contacts.push((mesh.foot, d.rib_lo * 0.42));
+    if !d.held {
+        // r42:arcus-upper
+        c.contacts.push((mesh.foot, d.rib_lo * 0.42));
+    } // r42:arcus-upper
     shadows(&mut c);
     let prims = c.capture.take();
     drop(c);
