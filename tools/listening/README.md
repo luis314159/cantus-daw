@@ -1,14 +1,16 @@
 # listening — blind tests and listens for the owner and for strangers
 
-Round 40's listening tools: where each one lives, the exact commands, how a kit is published
+Round 40's listening tools (round 42: one page for every instrument, Tympanum's kit): where each one lives, the exact commands, how a kit is published
 as a claude.ai page, and how the results come back. The measures decide what is *tried*; these
 decide what *ships* — the owner's ear outranks every number.
 
 | what | tool | for |
 |---|---|---|
-| Chorda's blind test (ABX + preferences, three pianos) | `cantus-ui` example `chorda_abx` (page: `crates/cantus-ui/examples/chorda_kit/abx.html`) | the owner and other listeners |
-| a listener's results | `tools/listening/abx_read.py` | reading what came back |
-| the page's browser check | `crates/cantus-ui/examples/chorda_kit/abx_browser_check.mjs` | before sending a kit |
+| the blind kits' one page | `crates/cantus-ui/examples/abx_kit/` (`abx.html`, `kit.rs`, `names.rs`); each instrument's subject file (`chorda_kit/abx_subject.json`, `tympanum_abx/subject.json`) | every kit below |
+| Chorda's blind test (ABX + preferences, three pianos) | `cantus-ui` example `chorda_abx` | the owner and other listeners |
+| Tympanum's blind test (ABX + preferences: generated, hybrid, recorded) | `cantus-ui` example `tympanum_abx` | the owner and other listeners |
+| a listener's results | `tools/listening/abx_read.py` (per item too) | reading what came back |
+| the page's browser check | `crates/cantus-ui/examples/abx_kit/abx_browser_check.mjs` | before sending a kit |
 | Chorda's named previews | `tools/chorda-voicing/preview.py` | the owner, each candidate (not blind) |
 | Tympanum's listens (previous · now · recording) | `tools/tympanum-fit/make_listen.py`, `make_b4.py` | the owner, each drum iteration |
 | Tympanum's representation ladder ("escalera": MUSHRA + ABX) | `tools/tympanum-fit/ladder_kit.py` | the owner, before a model 6 |
@@ -65,8 +67,45 @@ capabilities: {
 - The page waits up to 3 s for `window.claude` (the viewer may attach it after the script's
   first run) before it treats itself as offline — keep that wait if the page is edited.
 - Before sending: `PW_DIR=<folder with node_modules/playwright-core> node
-  crates/cantus-ui/examples/chorda_kit/abx_browser_check.mjs <kit dir>` (Edge, Chrome and
+  crates/cantus-ui/examples/abx_kit/abx_browser_check.mjs <kit dir>` (Edge, Chrome and
   Firefox, over http and file://, plus the published mode against a stub of `window.claude`).
+
+### One page, a subject per instrument (round 42)
+
+The page (`abx_kit/abx.html`) knows nothing of pianos or drums: a generator fills `__SUBJECT__`
+with its instrument's subject file — the texts laid over the page's own (the lead, the help of
+each part, the sources' names `voice_<id>`, the credits), the items' names, the pairs the
+preferences count, the trials of each ABX, the form's instrument question (`play`: its answer is
+`about.<play>`), the seconds a trial and a question take. Part 1's trials draw every item as
+often as the others. `abx_kit/kit.rs` holds what the generators share (the loudness match, the
+page's fill, the writers). The browser check reads the counts, names and credits from the kit's
+`SUBJECT`, and what must stay hidden from its own table by the subject's `id`; with
+`--mock <abx.html> <subject.json>` it builds a stand-in kit of tones for any subject.
+
+## Tympanum's blind test (`tympanum_abx`)
+
+```bash
+cargo run --release -p cantus-ui --example tympanum_abx -- <kit dir> \
+    [--downloads <dir>] [--key <dir>] [--wav | --flac]
+```
+
+Tympanum as it ships — the modelled kit's generated voice and its *Hybrid* voice — against the
+recording each modelled kit was measured from (the studio kit and DRSKit, the jazz kit and
+Virtuosity Drums), the same MIDI through each, through the engine's offline render, each kit's
+own mix of its microphones. `--downloads` (default `F:/projects/daw-r42/downloads/tympanum`)
+holds `content/`, where `drskit-tympanum`, `virtuosity-drums`, `tympanum-hybrid-studio` and
+`tympanum-hybrid-jazz` are installed through Cantus's own pack code unless they are there at
+the manifest's version (the recorded kits are 1.9 and 1.5 GB: a junction to an earlier
+download at the same version saves fetching them again). The tool prints each hybrid residual's
+model hash against the build's and refuses a kit whose hybrid is not heard. Twelve items (eight
+pieces alone at two or three velocities, four grooves: pop/worship, rock, bossa nova, a ballad
+on the jazz kit with crash swells), −23 LUFS (lowered together for a −1 dBFS peak), 100 ms
+fades, 80 ms of silence before the first hit. Part 1: ABX generated vs recording (24 trials,
+each item twice); part 2: 26 preferences (every item generated vs recording and hybrid vs
+recording, two catch questions); extra: ABX hybrid vs recording (24). `<kit dir>-key` holds
+`key.json` (tokens, files, items, packs, residuals) and `levels.csv` (loudness before and after,
+the stereo balance and width, the first onset, per file). Zip the folder to send it; publish a
+`--wav` kit as Chorda's. The method and what was checked: `docs/round42/tymp-abx.md`.
 
 ### Reading results
 
