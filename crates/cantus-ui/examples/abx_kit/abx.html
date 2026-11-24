@@ -227,9 +227,13 @@ const audio = {
  },
  set(map) {
   this.stop(); this.gen++; this.map = map; this.last = null;
-  for (const k in map) this.prefetch(map[k]);
+  this.later(Object.values(map), 120);
  },
  prefetch(url) { if (this.mode === "webaudio") this.buffer(url); else this.element(url); },
+ // Load `urls` after `ms` unless the item changed meanwhile: clicking quickly through answered
+ // items fetches nothing it leaves (a burst of large WAV fetches and decodes crashed headless
+ // Chrome's browser process now and then, round 42); a press loads its clip at once anyway.
+ later(urls, ms) { const gen = this.gen; setTimeout(() => { if (gen === this.gen) for (const u of urls) this.prefetch(u); }, ms); },
  playing() { return this.cur ? this.cur.key : null; },
  position() {
   const c = this.cur; if (!c) return 0;
@@ -375,7 +379,7 @@ function show(sec, i) {
  if (shownKey !== key) {
   audio.set(sec === "pref" ? { one: file(x.phrase, x.one), two: file(x.phrase, x.two) } : { a: file(x.phrase, x.a), b: file(x.phrase, x.b), x: file(x.phrase, x.x === "a" ? x.a : x.b) });
   const n = st[sec][i + 1];
-  if (n) for (const t of sec === "pref" ? [n.one, n.two] : [n.a, n.b]) audio.prefetch(file(n.phrase, t));
+  if (n) audio.later((sec === "pref" ? [n.one, n.two] : [n.a, n.b]).map(t => file(n.phrase, t)), 600);
   shownKey = key;
  }
  if (!x.shown) { x.shown = now(); save(); }
