@@ -911,6 +911,58 @@ built as Chorda, Tympanum and Arcus were:
 6. **Hand and Latin percussion: congas, bongos, cajón, shaker, tambourine and the rest** on
    Tympanum's engine, played by hand (strokes as note properties: open, slap, muted, heel).
 
+**One piano roll that adapts to each instrument (the owner, 2026-11-24; before the guitar).**
+*"Quisiera que evaluáramos si cada instrumento debería tener su piano roll o si nuestro piano
+roll debería ser adaptativo por instrumento, de manera muy flexible, que permita que cada
+instrumento se pueda tocar o programar lo más cercano a lo real de manera sencilla."* He plays
+guitar: palm mutes, muted strings and strums must be easy. Today a note's articulation is a
+closed list of six string marks (`Articulation` in `cantus-core/src/note_art.rs`), the same
+for every instrument, so it cannot hold a guitar's or a wind's techniques.
+
+**Decision to take in round 43's contract: one piano roll, adaptive; no editor per
+instrument.** Cubase (Expression Maps), Logic (Articulation Sets) and Studio One (Sound
+Variations) keep one editor with per-instrument maps, and FL and Ableton have neither. A
+separate editor per instrument would split selection, quantize, copy and paste, the
+shortcuts and the learning across instruments, and a part moved from the guitar to the
+piano would lose its edits. To verify by research before the ADR.
+- **An instrument's playing profile.** Each native instrument (and a hosted plug-in, through a
+  map the user makes or imports) declares:
+  - its techniques, as an open set of ids, not a global enum. Some combine: palm mute with a
+    harmonic, sul ponticello with tremolo.
+  - each technique's parameters, such as a bend's amount or a slide's target;
+  - its continuous expressions;
+  - its key names: drum names, a key-switch zone hidden;
+  - its tools.
+
+  The piano roll, the score, MusicXML, the MCP server and recording all read the same
+  profile.
+- **Easy to write.**
+  - A technique brush in the toolbar: what you draw takes it.
+  - A held key while drawing: M for a palm mute, X for a dead note.
+  - A technique lane under the roll, painted across notes like a CC lane.
+  - Each note shows its technique as a glyph and colour, never as text that collides.
+  - The last technique used stays chosen.
+- **Strumming as a tool.** A selected chord, or a drawn line, becomes a down or up strum, with
+  its spread between strings, its accent and a humanise amount. Rhythm patterns are painted
+  from a strip of ↓↑ strokes, as a guitarist thinks them.
+- **Other views of the same notes, not other editors.**
+  - Tablature for the guitar and the bass: the string and fret on each note, with an
+    optional tab lane.
+  - The drum grid with its names.
+  - The score.
+
+  Editing in any view edits the same notes.
+- **Playing it live.** A key-switch zone or a pedal chooses the technique while recording, and
+  a guitar MIDI pickup (one MPE channel per string) records the string and the bends.
+- **A model change, migrated.** The six string marks become techniques of the bowed and
+  recorded-string profiles, and old projects load unchanged (schema bump, fixture, undo fuzz).
+- **Done when**:
+  - the owner, as a guitarist, writes a strummed part with palm mutes and dead notes faster
+    than in Cubase or Logic, and it sounds as he meant it;
+  - a violin part with harmonics and col legno is written the same way;
+  - a part copied between instruments keeps every technique the target understands and
+    reports the others.
+
 **Round 28 (2026-10-15; `docs/round28/sound.md`):**
 
 - **Item 4 — Chorda I is built** (ADR 0059, `docs/instruments/chorda.md`), on the published
