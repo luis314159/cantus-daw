@@ -3057,6 +3057,21 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
   CC0 quartet session (sustain and non-vibrato at 4–5 dynamics, up and down bows, legato
   intervals, harmonics, sordino, col legno; close and room); a spectral dynamics morph (not
   only the layers' crossfade and a filter); a hosted instrument's key-switch map driven by the note's articulation.
+- **Tympanum, what its blind kit measured (round 42, `docs/round42/tymp-abx.md`).** The
+  generated studio kit vs DRSKit, through the engine, at its default level and mix. The
+  owner's ABX (`listen/ABX-Tympanum.zip`) sets the order.
+  - **Peaks.** It peaks above 0 dBFS: toms +3.1, pop groove +3.8, rock +1.8, snare +1.6,
+    where DRSKit stays at −3 to −5. Its crest factor is 3–7 dB above the recording's. A user
+    who bounces to fixed point clips, so its default gain and transient shaping must keep
+    the recording's headroom.
+  - **Toms.** The rack toms get quieter from velocity 80 to 120 (−0.6 and −0.7 dB), where
+    DRSKit's grow +6 to +7. This is a dynamics bug.
+  - **Kick and snare spans.** Soft to hard, the kick spans 10.5 dB vs 15.4 and the snare
+    16.7 vs 13.1.
+  - **Width.** Side/mid is far narrower: the snare is −14.4 vs −8.3 dB.
+  - **Orientation.** The modelled kits face the audience (hats right) and the recorded kits
+    the drummer (hats left), so switching kits moves the hats across. Decide one convention,
+    or a switch, in ADR 0124.
 - **Arcus, after round 42 (ADR 0157; `docs/round42/arcus-match.md`, passes 1–4).** The gaps
   that the reference study measures (`research/instruments-next/bowed-refdb/`, judged by
   `tools/arcus/study_compare.py` on held-out notes):
