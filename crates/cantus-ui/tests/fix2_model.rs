@@ -281,7 +281,7 @@ impl Rig {
         };
         let a = &mut self.app;
         let mut out = self.ctx.run_ui(input, |ui| {
-            egui::CentralPanel::default().show_inside(ui, |ui| cantus_ui::views::piano_roll::show(a, ui));
+            egui::CentralPanel::default().show(ui, |ui| cantus_ui::views::piano_roll::show(a, ui));
         });
         out.textures_delta.clear();
     }
