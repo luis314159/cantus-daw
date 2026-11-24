@@ -15,6 +15,10 @@ pub struct Painted {
     pub rect: Rect,
     pub clip: Rect,
     pub angle: f32,
+    /// Cut to fit: the kit noted it elided (`kit::text::probe`), or egui elided the galley.
+    /// A label that ends in "…" by design (*Import…*) is whole (round 42: the audit read
+    /// any "…" as a cut, so such a label could never pass).
+    pub elided: bool,
 }
 
 /// Room for the largest window (1040 × 680 at 200 %).
@@ -28,6 +32,7 @@ fn collect(shapes: &[egui::epaint::ClippedShape]) -> Vec<Painted> {
                 rect: t.visual_bounding_rect(),
                 clip,
                 angle: t.angle,
+                elided: t.galley.elided,
             }),
             egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, clip, out)),
             _ => {}
@@ -47,11 +52,21 @@ pub fn frame(a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>) -
         events,
         ..Default::default()
     };
+    cantus_ui::kit::text::probe::start();
     let mut out = ctx.run_ui(input, |ui| {
         cantus_ui::views::inst::window_in(a, ui);
     });
+    let cut: Vec<String> = cantus_ui::kit::text::probe::take()
+        .into_iter()
+        .filter(|c| c.how == "elided")
+        .map(|c| c.shown)
+        .collect();
     out.textures_delta.clear();
-    collect(&out.shapes)
+    let mut painted = collect(&out.shapes);
+    for p in &mut painted {
+        p.elided |= cut.contains(&p.text);
+    }
+    painted
 }
 
 /// All the painted text joined, as `support::painted_text` does.
@@ -120,7 +135,7 @@ pub fn audit(texts: &[Painted], view: Rect) -> Vec<String> {
         .collect();
     let mut problems = Vec::new();
     for p in &mine {
-        if p.text.contains('\u{2026}') {
+        if p.elided {
             problems.push(format!("elided: {:?} at {:?}", p.text, p.rect.min));
         }
     }

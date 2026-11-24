@@ -285,3 +285,28 @@ fn the_editor_uses_kit_parts_and_tokens_only() {
     ]);
     assert!(found.is_empty(), "{found:#?}");
 }
+
+/// The audit reads what the kit cut, not the character: a label whose design ends in "…"
+/// is whole, a text the kit or egui elided is not (round 42).
+#[test]
+fn the_audit_reports_a_cut_text_and_not_a_designed_ellipsis() {
+    use egui::{pos2, Rect};
+    let at = |x: f32| Rect::from_min_size(pos2(x, 10.0), egui::vec2(60.0, 14.0));
+    let p = |text: &str, x: f32, elided: bool| inst_keys::Painted {
+        text: text.to_owned(),
+        rect: at(x),
+        clip: Rect::EVERYTHING,
+        angle: 0.0,
+        elided,
+    };
+    let view = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(400.0, 40.0));
+    let found = audit(
+        &[
+            p("Import\u{2026}", 0.0, false),
+            p("Realiment\u{2026}", 100.0, true),
+        ],
+        view,
+    );
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].contains("Realiment"), "{found:?}");
+}

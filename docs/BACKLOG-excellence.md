@@ -1564,6 +1564,13 @@ measurement or been decided against with the reason written down.
 - **Installer** (MSI/NSIS on Windows, DMG, AppImage/Flatpak), **code signing** (Windows
   SmartScreen and macOS notarisation), **auto-update** with release notes, file
   associations for `.cantus`, a portable mode.
+- **The Windows downloads' size** (beta.17, 2026-11-23): the setup is 399 MB, the portable
+  zip 1 GB and the plug-ins package another 1 GB, while the macOS disk image is 78 MB for the
+  same program. Find what each Windows asset carries that the dmg does not (debug
+  information, duplicated binaries, the plug-ins built twice, uncompressed content) and
+  shrink them. *Done when* every Windows asset is within 1.5× the dmg, or the release notes
+  say why not, and a release check fails when an asset grows over 10 % without a line in
+  the notes.
 - **Manual and tutorials**: a user manual (EN/ES), first-run onboarding, contextual help
   (the hint bar exists), video tutorials, keyboard-shortcut cheat sheet.
 - **Licensing and legal**: the decisions in `research/content/README.md` and
@@ -2827,3 +2834,23 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
   CC0 quartet session (sustain and non-vibrato at 4–5 dynamics, up and down bows, legato
   intervals, harmonics, sordino, col legno; close and room); a spectral dynamics morph (not
   only the layers' crossfade and a filter); a hosted instrument's key-switch map driven by the note's articulation.
+- **Arcus, after round 42 (ADR 0157; `docs/round42/arcus-match.md`, passes 1–4).** The gaps
+  that the reference study measures (`research/instruments-next/bowed-refdb/`, judged by
+  `tools/arcus/study_compare.py` on held-out notes):
+  1. **Brightness by absolute bow force.** In Lampis's robot-bowed cello, the real string
+     gains about 0.10 octave of centroid per doubling of force, with β and speed near zero.
+     Arcus brightens with force relative to speed and β, so a player's pp→ff leaves its
+     spectrum unchanged: the loud cello's centroid is 385 Hz against 523–741 Hz. The fix
+     belongs in the junction, not an EQ.
+  2. **The noise burst** at the start of the bow is still 7–22 dB outside the band per
+     class, and **`t_steady`** is 0.09–0.13 s against 0.24–0.42 s.
+  3. **A measured radiation model** for violin and viola (the body's directivity and
+     its high-frequency rolloff, measured, e.g. the CNSM bridge admittances). The vibrato's
+     amplitude modulation and the brightness are now a compromise between two bands; with
+     this model both can sit inside.
+  4. **The pluck's stiffness** (pizzicato's dispersion per string), and a reconstructed
+     thermal-friction law: Woodhouse & Galluzzo 2025's conduction equation. Pass 4 used two
+     time constants in its place, and that law measured worse than the hyperbolic one, so
+     it stays an option.
+  *Done when* every class's row sits in its band and the owner's ABX against the recordings
+  cannot pick Arcus above chance.
