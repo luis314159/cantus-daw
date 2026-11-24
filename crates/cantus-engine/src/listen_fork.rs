@@ -335,11 +335,11 @@ impl Processor {
             // A large unit's working-set figure is level with its count (Chorda 5 621
             // counted, 5 150 here): `tests/fides_image.rs` holds it within 10 %.
             I::Resonator => 1_400.0,
-            // r42:arcus — a fork of the real unit counted by the allocator: 216 KB at 48 kHz
-            // (ten voices, each a string's lines sized for 25 Hz and its torsion's — in
-            // proportion to the rate: 385 at 96 — the lanes, Fides's body): `tests/arcus_image.rs`
-            // holds it within 10 %.
-            I::BowedString => 220.0,
+            // r42:arcus — a fork of the real unit counted by the allocator: 359 KB at 48 kHz
+            // (ten voices, each a string's lines sized for 25 Hz — oversampled 4x for the violin,
+            // 2x for the viola — and its torsion's, in proportion to the rate: 528 at 96; the
+            // lanes; the upper body's 104 modes): `tests/arcus_image.rs` holds it within 10 %.
+            I::BowedString => 360.0,
         };
         let n = &self.nodes;
         let lines: usize = (0..n.lines.len())

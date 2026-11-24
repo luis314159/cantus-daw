@@ -216,7 +216,7 @@ fn the_cadence_plays_what_the_window_edits_or_says_why_not() {
     }
     // A 31-note scale: no cadence.
     let scl = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../research/tuning-library-tests/31edo.scl");
+        .join("../cantus-core/tests/data/tuning-library/31edo.scl");
     tuning::io::import(&mut a, Target::Track(own), &scl, None).expect("read");
     assert_eq!(
         tuning::audition_place(&a, Target::Track(own)),
