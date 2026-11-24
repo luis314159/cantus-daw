@@ -93,14 +93,19 @@ Every hosting of every kind (580 PNGs) can be rendered with
 
 ## Gates
 
-See the report's list (run on this branch with `CARGO_TARGET_DIR=C:/cantus-r42-target/fix2-model`,
-debug info off, through `tools/build/slot.sh`):
+Run on this branch (`CARGO_TARGET_DIR=C:/cantus-r42-target/fix2-model`, debug info off,
+through `tools/build/slot.sh`), all green:
 
-- `instruments_narrow_e2e`, `instruments_scale_e2e` — green;
-- `ux_whole_words`, `font_coverage`, `learn_everywhere`, every `inst_*` binary, the
-  `cantus-ui` lib tests — see below;
+- `instruments_narrow_e2e` (1 test, 6.6 s) and `instruments_scale_e2e` (3 tests, 26.7 s);
+- `ux_whole_words` (1, 1 ignored as before), `font_coverage` (4), `learn_everywhere` (12);
+- every `inst_*` binary: analog 9, bass 9, chorda 11, chorda_boot 1, epiano 10, faces 2,
+  fm 11, frame 4, mixer_delay_e2e 2, organ 11, pulsus 9, sampler 16, sampler_footer 1,
+  shell 3, views_scroll 1, wavetable 13;
+- the `cantus-ui` lib tests: 620 passed, 2 ignored (the i18n key check among them);
 - `cargo clippy -p cantus-ui --all-targets -- -D warnings` — clean;
 - `rustfmt --edition 2021` on each changed file.
+
+Not run: the Linux check in WSL (the integrator's), the whole workspace suite.
 
 Verified only in the editor's own host (the test's and the site's): not looked at in a live
 window on a monitor at 150 %/200 % — worth a glance on the owner's machine (`docs/beta-checklist.md`
