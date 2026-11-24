@@ -43,6 +43,56 @@ Fides's bow measured +3.1 to −1.2 cents of pitch offset from C2 to C6 and its 
   the loop's length, deterministic; the bowed pitch ≤ 1 cent from its target over the grid,
   plucked 0.1 cent.
 
+## The builder's design (round 42, the `arcus` builder)
+
+Files: `cantus-core/src/inst/arcus.rs` (the table), `cantus-dsp/src/arcus*.rs` (the DSP),
+`cantus-engine/src/inst/arcus.rs` (the unit), `cantus-ui/src/views/inst/arcus*.rs` and
+`kit/skin/arcus.rs` (the editor and its face); the measurements in `docs/round42/arcus.md`.
+
+- **A string in physical units** (`arcus_string.rs`): Fides's topology — two loops meeting at
+  the bow, the loss lumped at the bridge, the neck loop solved for the exact period on
+  `gravis::string`'s public tuning maths — in velocity waves (m/s), each string with its
+  length, tension and so its impedance `Z₀ = T/(2Lf₀)` (`arcus_tables.rs`, the sources cited
+  there and their status). No stiffness allpass: orchestral strings sit far under
+  Schelleng's 0.1 cent per n².
+- **The bow** is McIntyre–Schumacher–Woodhouse's junction solved exactly: with `R = F/(2Z)`
+  and `u = v_b − v_h`, stick while `|u| ≤ R·μs`, else the hyperbolic curve's slip is a
+  quadratic's larger root (closed form, no iteration; the Friedlander rule for its
+  hysteresis). The **thermal option** (one contact temperature heated by the slip's power,
+  `μ(θ) = μd + (μs − μd)/(1 + θ)`) is behind the same switch; measured, it keeps Helmholtz
+  motion in a narrower band and settles fewer attacks, so the hyperbolic curve is the default.
+- **The string's torsion at the contact** (added after measuring): the bow moves the string's
+  surface, translation and twist in series, so a sticking bow is not a rigid end; the twist's
+  short, heavily damped loops (speed ×5, impedance ×3, Q 5) carry away the ripple between bow
+  and bridge. Without it the Helmholtz region spanned 0.3–0.85 of Schelleng's upper force and
+  8 of 48 test attacks settled within 50 ms; with it 0.15–1.0 (Schelleng's "1 to 10") and a
+  Guettler wedge of good attacks. Its Q is below the literature's tens: said so.
+- **The gesture** (`arcus_voice*.rs`): the dynamic `d` sets speed (geometric pp → ff), β
+  (closer to the bridge as it grows) and force (0.42 of Schelleng's upper limit, the middle of
+  the measured region) together (Askenfelt 1989's direction); the velocity sets the attack in
+  the model's own measured terms — the speed gained a period `α = a·P/v` from 0.18 to 1.45,
+  the force at 0.65 of Schelleng's limit while it accelerates; a re-bow slows the bow through
+  zero on the ringing string and starts the other way; a slur moves the loop's length over the
+  finger's 3 ms with the bow going on; staccato stops the bow on the string, spiccato bounces
+  it, tremolo reverses it at its rate; the direction alternates or is the note's (`note_art`).
+- **Pizzicato** is Fides's pluck exciter on the same string (DC blocker in, as Fides's).
+- **The pitch**: the bowed offset measured offline per key × dynamic × contact point
+  (`arcus_pitch_data.rs`, `tools/arcus/pitch-table.sh`, two passes) corrects the loop while the
+  bow is on, and a closed loop trims what is left: its **ear** (`arcus::ear`) is a heterodyne
+  of the voice's own output at the target (a phasor that follows the vibrato and the glides),
+  summed over triangle-weighted windows of whole periods (at least four and 20 ms), the phase
+  of one window against the last the fundamental's offset — the quantity the gate measures.
+  The trim moves by 0.6 of each window's offset, at most 2 cents a move, within ±15. (The first
+  loop timed the main slips; on the lowest strings at pp far over the fingerboard the motion
+  settles for a second with the slips' period steady and the fundamental's phase drifting, and
+  four held-out points stayed 1.0–1.4 cents off.) The free and plucked string is exact (the
+  loop's own design).
+- **The body** is Fides's (`fides::body::Body`): the cello's, and for the double bass the
+  cello's scaled by 1.72 with a radiation corner (two first-order high-passes at 120 Hz) that
+  matches the Smolken bass's harmonic balance; vibrato is the loop's length moving, so the AM
+  comes from the body.
+- **Determinism, rest, the pool** as Fides's; voices on lanes summed in order (ADR 0038).
+
 ## Consequences
 
 - One more instrument in the null corpus and the bench; its model version stored (ADR 0059).
@@ -63,3 +113,39 @@ Fides's bow measured +3.1 to −1.2 cents of pitch offset from C2 to C6 and its 
    pool = serial, exact rest, an end-to-end test through `CantusApp::assemble`. 8. Then the
    owner's blind ABX against the recorded cello and bass, a solo note and a four-bar phrase
    with legato and a CC1 swell.
+
+## Amendment (round 42, the owner's ask): model 2, matched to recordings
+
+**Context.** The owner: "do what we did with Chorda — download high-quality recordings and do
+a spectral analysis so our base sound gets better." **Decision.** `MODEL` 2.0 (stored with every
+new Arcus; model 1 kept for anything made with it): `arcus_tables::Match` per instrument — a
+correction of twelve peaking sections after the body (`arcus::eq`, 63 Hz – 10 kHz), the
+hair's noise, the vibrato's depth and rate and the pluck's ring — fitted by
+`tools/arcus/match.sh fit` into the spread of about 1 060 recorded notes (the Iowa MIS's
+anechoic cello and bass, TinySOL, VSCO 2 CE, Karoryfer, Smolken; licences and sources in
+`docs/round42/arcus-match.md`) on two thirds of the notes, judged on the third held out.
+Also, for both models: the registers balanced (`balance_db_st`, measured: the cello fell 0.47
+dB a semitone, the bass 0.16) and the output trims at 16 dB. **Consequences.** The cello's
+held-out distances halve (harmonics 8.7 → 4.1 dB, spectrum 8.2 → 3.8, centroid 7.1 → 1.3
+semitones); the vibrato's depth falls inside the recordings' (±19 → ±15.5 cents the cello,
+±21 → ±10 the bass); the bass's correction is left flat (fitted, it moved the held-out notes
+away). The pizzicato's brightness, the attack and the bass's own body are left open, said in
+`arcus-match.md`. **What the tests hold.** Every earlier test at model 2's defaults (the
+pitch gate, the attacks, the vibrato's rate and depth within their bounds, rest, block sizes,
+the pool); `match.sh` prints the distances.
+
+## Amendment (round 42, pass 2): the reference study's recommendations
+
+**Context.** The study (`F:\projects\daw-r42\study\bowed-realism.md`, its database of 7 cellos
+and 5 basses). **Decision.** The defaults change in place (Arcus never shipped; `model` 2):
+measured bodies (`BodyKind::MeasuredCello` and the bass's own `MeasuredBass`, A0 70 Hz; Fides's
+list unchanged) with the match's correction fitted again over them; the players' dynamic (pp →
+ff force ×4.5, β ×0.5, speed ×1.8) with the pitch table measured again; a sustain's level swell
+(20 → 10 dB under over 0.25 → 0.05 s) over the clean start, détaché, staccato and spiccato
+keeping their speech; the bow noise raised to the bands; a 30 ms finger change with a 3 dB
+dip; a pluck's snap; the vibrato by dynamic and the study's rates and depths; the bass's trim
+6 dB. Not done: per-partial pizzicato decays and stiffness, the 2025 thermal friction, bow
+motion tied to the vibrato. **The measure.** `tools/arcus/study_compare.py` judges the held-out
+notes by the study's own estimator against the band of real instruments
+(`docs/round42/arcus-match.md`, pass 2). The gates hold: the pitch 168 of 168 within a cent,
+the attacks 0 of 80 over Guettler's limits.

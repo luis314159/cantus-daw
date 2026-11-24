@@ -9,6 +9,10 @@
 //!
 //! `… -- <dir> fit` also moves each preset's `gain` by its offset (five passes; never past a
 //! phrase peak of −1.2 dBFS) and writes it into `src/views/inst/fides_presets.rs`.
+//!
+//! `… -- <dir> [fit] arcus` does the same for Arcus, the bowed string (round 42, ADR 0157):
+//! its presets in `src/views/inst/arcus_presets.rs`, its notes across each instrument's own
+//! range (the cello C2 … E4, the double bass E1 … G3). `tools/arcus/presets.sh` runs it.
 
 use cantus_core::{InstrumentKind, InstrumentSpec, NativeSpec, Project, Snapshot, Ticks};
 use cantus_engine::{render, RenderOptions};
@@ -64,13 +68,13 @@ fn phrase(spec: &NativeSpec, role: cantus_ui::preset_tags::Role) -> Vec<f32> {
 }
 
 /// Five notes across the keyboard, two seconds each (at 120 BPM a beat is half a second).
-fn notes(spec: &NativeSpec) -> Vec<f32> {
+fn notes(spec: &NativeSpec, keys: [u8; 5]) -> Vec<f32> {
     let mut p = aud::phrase_project(
         InstrumentSpec::Native(spec.clone()),
         cantus_ui::preset_tags::Role::Keys,
     );
     let mut clip = p.make_clip("notes", Ticks::ZERO, Ticks::beats(20));
-    for (i, key) in [36u8, 48, 60, 72, 84].iter().enumerate() {
+    for (i, key) in keys.iter().enumerate() {
         let at = Ticks::beats(4 * i as i64);
         clip.notes.push(p.make_note(at, Ticks::beats(3), *key, 100));
     }
@@ -104,8 +108,24 @@ fn main() {
     let fit = args.iter().any(|a| a == "fit");
     std::fs::create_dir_all(&dir).expect("the folder");
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
-    let unit = Unit::Instrument(InstrumentKind::Resonator);
-    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/views/inst/fides_presets.rs");
+    let arcus = args.iter().any(|a| a == "arcus");
+    let (unit, file, prefix) = if arcus {
+        (
+            InstrumentKind::BowedString,
+            "arcus_presets.rs",
+            "arcus.preset.",
+        )
+    } else {
+        (
+            InstrumentKind::Resonator,
+            "fides_presets.rs",
+            "fides.preset.",
+        )
+    };
+    let unit = Unit::Instrument(unit);
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/views/inst")
+        .join(file);
     let mut src = std::fs::read_to_string(&source).expect("the presets' source");
     println!("| # | Preset | Role | LUFS | Off (LU) | Phrase peak | Notes peak |");
     println!("|---|---|---|---|---|---|---|");
@@ -143,9 +163,15 @@ fn main() {
             }
             write_gain(&mut src, &e.id, spec.get("gain"));
         }
-        let name = e.id.trim_start_matches("fides.preset.");
+        let name = e.id.trim_start_matches(prefix);
         write_wav(&dir.join(format!("{:02}-{name}.wav", i + 1)), &out);
-        let n = notes(&spec);
+        // Arcus's notes in each instrument's range (`inst` 1: the double bass).
+        let keys = match (arcus, spec.get("inst") >= 0.5) {
+            (false, _) => [36, 48, 60, 72, 84],
+            (true, false) => [36, 43, 50, 57, 64],
+            (true, true) => [28, 35, 40, 47, 55],
+        };
+        let n = notes(&spec, keys);
         write_wav(&dir.join(format!("{:02}-{name}-notes.wav", i + 1)), &n);
         println!(
             "| {} | {} | {:?} | {:.1} | {:+.1} | {:.1} | {:.1} |",

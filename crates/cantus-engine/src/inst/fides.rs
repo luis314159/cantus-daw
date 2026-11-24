@@ -65,6 +65,8 @@ pub fn settings_from(v: &[f32; COUNT]) -> FidesSettings {
     let round = |i: usize| v[i].round();
     let on = |i: usize| v[i] >= 0.5;
     FidesSettings {
+        // r42:arcus — Fides's model 2 (the bow Arcus plays with); a song keeps its own.
+        model: round(ix::MODEL).clamp(1.0, 2.0) as u8,
         poly: round(ix::POLY).clamp(1.0, 32.0) as usize,
         mode: PlayMode::from_index(v[ix::MODE]),
         retrig: on(ix::RETRIG),

@@ -4519,3 +4519,70 @@ fn articulated_notes_never_allocate() {
         FIRST.with(|f| f.get())
     );
 }
+
+/// r42:arcus — Arcus (ADR 0157) on the audio thread and the pool: a cello slurring and
+/// re-bowing, a pizzicato double bass in poly, live notes, a seek and a stop —
+/// not one allocation, not one free.
+#[test]
+fn an_arcus_never_allocates() {
+    for workers in [None, Some(Workers::parallel(3))] {
+        let mut p = demo_project();
+        p.tempo_bpm = 120.0;
+        let mut ids = Vec::new();
+        for (name, set) in [
+            ("Cello", vec![("mode", 2.0f32)]),
+            (
+                "Bass pizz",
+                vec![("inst", 1.0), ("tech", 1.0), ("mode", 0.0)],
+            ),
+        ] {
+            let mut t = p.make_track(name);
+            ids.push(t.id);
+            let mut spec = NativeSpec::new(InstrumentKind::BowedString);
+            for (k, v) in set {
+                spec.set(k, v).unwrap();
+            }
+            t.instrument = InstrumentSpec::Native(spec);
+            let mut c = p.make_clip("line", Ticks::ZERO, Ticks::beats(8));
+            for (b, key, len) in [(0i64, 50u8, 3i64), (2, 53, 2), (4, 57, 1), (6, 55, 2)] {
+                c.notes
+                    .push(p.make_note(Ticks::beats(b), Ticks::beats(len), key, 90));
+            }
+            t.clips.push(c);
+            p.tracks.push(t);
+        }
+        let pool = workers.is_some();
+        let mut rig = Rig::with(workers);
+        let snap = Snapshot::compile(&p, 1);
+        for u in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+            rig.tx.push(EngineMessage::AddInstrument(u)).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("arcus start", 40);
+        rig.tx
+            .push(EngineMessage::NoteOn {
+                track: ids[0],
+                pitch: 62,
+                velocity: 110,
+            })
+            .unwrap();
+        rig.play("arcus live note", 20);
+        rig.tx
+            .push(EngineMessage::NoteOff {
+                track: ids[0],
+                pitch: 62,
+            })
+            .unwrap();
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+        rig.play("arcus seek", 30);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("arcus stopped", 20);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "pool {pool}: the audio thread allocated or freed: {:?} (first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+} // r42:arcus

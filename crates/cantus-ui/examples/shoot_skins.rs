@@ -260,6 +260,7 @@ const UNITS: &[(&str, &str, What)] = &[
     ("organum", "organum", What::Inst(InstrumentKind::Organ)),
     ("chorda", "chorda", What::Inst(InstrumentKind::Chorda)),
     ("fides", "fides", What::Inst(InstrumentKind::Resonator)), // r41
+    ("arcus", "arcus", What::Inst(InstrumentKind::BowedString)), // r42:arcus
     (
         "tympanum",
         "tympanum",

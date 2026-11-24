@@ -23,6 +23,9 @@ use egui::{Pos2, Rect, Vec2};
 // r41:fides — Fides's sheet, a file of its own (ADR 0150).
 #[path = "fides.rs"]
 mod fides;
+// r42:arcus — Arcus's sheet, a file of its own (ADR 0157).
+#[path = "arcus.rs"]
+mod arcus;
 
 /// Organum's switch: a console organ's ivory stop tab in the lamp's place — standing up
 /// when off; tipped down when on, its back showing above the face and the pilot amber lit
@@ -469,7 +472,7 @@ pub const TYMPANUM: Skin = Skin {
 
 /// Every instrument sheet, Pulsus last.
 #[cfg(test)]
-pub const ALL: [&Skin; 12] = [
+pub const ALL: [&Skin; 13] = [
     &UNDA,
     &CALOR,
     &MODULUS,
@@ -482,6 +485,7 @@ pub const ALL: [&Skin; 12] = [
     &TYMPANUM, // r40:tymp-ui
     &PULSUS,
     &fides::FIDES, // r41:fides
+    &arcus::ARCUS, // r42:arcus
 ];
 
 /// The sheet of an instrument.
@@ -498,8 +502,7 @@ pub fn of(kind: InstrumentKind) -> &'static Skin {
         InstrumentKind::Dancer => &SALTATOR,
         InstrumentKind::AcousticDrums => &TYMPANUM, // r40:tymp-ui
         InstrumentKind::Resonator => &fides::FIDES, // r41:fides
-        // r42:contract — Fides's sheet until the arcus builder draws Arcus's.
-        InstrumentKind::BowedString => &fides::FIDES,
+        InstrumentKind::BowedString => &arcus::ARCUS, // r42:arcus
     }
 }
 

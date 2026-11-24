@@ -106,7 +106,10 @@ Velocidad, Liberación y la Semilla de su ruido.
   modulación.
 - **La afinación** es exacta: los lazos y filtros de la guía de onda se resuelven para la
   fundamental, y los modos se fijan por sus ángulos — medida dentro de 0,002 cent con cualquier
-  bend.
+  bend. Una cuerda **frotada** queda también a menos de un cent de su tecla: su arco es el de
+  Arcus (la fricción de un arco con resina, medida entre muestras) y escucha su propia
+  fundamental para corregir con ella la longitud de la cuerda. (Una canción hecha antes de
+  0.1.0-beta.18 conserva el arco con el que se hizo, unos cents desviado como siempre.)
 - **El pedal** sostiene las notas soltadas, como la barra apagadora de un vibráfono.
 
 ## Los presets

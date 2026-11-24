@@ -1147,3 +1147,32 @@ símbolos C (`crates/cantus-rt/tests/fake_mts/`); ningún equipo de esta ronda t
   US 7,557,288 (Yamaha: la junta de legato almacenada construida tras el note-on — aquí un
   fundido y deslizamiento de dos muestras normales, con anticipación del clip, la idea de la
   patente vencida US 7,718,885 de Lindemann).
+
+### Ronda 42 — Arcus, la cuerda frotada (ADR 0157) <!-- r42:arcus -->
+
+- [ ] **Escuchar las tomas del chelo y del contrabajo** (`F:\projects\daw-r42\listen\arcus\`):
+  una nota sola en pp, mf y ff (`*-note-*.wav`), la nota de la comparación a ciegas
+  (`*-abx-*.wav`: el La3 del chelo, el Re2 del contrabajo, en p, mf y f), cuatro compases ligados
+  con un crescendo de CC1 (`*-phrase-legato-cc1.wav`), el pizzicato y el trémolo. Para cada una:
+  ¿suena a chelo o a contrabajo *de verdad*? Anota el ataque, el arco (¿áspero, soplado, limpio?),
+  los graves, los agudos, el vibrato, el cuerpo.
+- [ ] **La comparación a ciegas (ABX)** contra el chelo Bigcat de Karoryfer y el contrabajo de
+  D. Smolken (CC0; las muestras usadas en `F:\projects\daw-r42\downloads\arcus\`): una nota y
+  la frase. Tu veredicto decide si Arcus entra en el selector (`InstrumentKind::ALL`).
+- [ ] **Tocar Arcus con un teclado solo**: notas sueltas a distintas velocidades (de pp a ff,
+  ninguna en silencio); solapa dos notas (ligado, sin retraso) y deja un hueco (arco nuevo en la
+  otra dirección); mueve la rueda de modulación sobre una nota sostenida (crescendo continuo);
+  CC21 para el vibrato; CC65 para el portamento.
+- [ ] **MPE (si tienes un controlador MPE)**: la presión de cada dedo es su dinámica, el
+  deslizamiento mueve el arco hacia el puente o el diapasón. Probado solo con expresiones
+  escritas por las pruebas.
+- [ ] **La cara (hoja de diseño v1)**: `docs/round42/arcus/sheet/` (Slate y Paper, 100 % y 200 %)
+  y `sheet-es/`: arrastra el punto del arco en el diagrama de Schelleng; ¿es la cara que quieres?
+- [ ] **Los presets de Arcus en su frase** (`F:\projects\daw-r42\listen\arcus-presets\`: cada
+  preset en la frase de su papel y en cinco notas sostenidas, a su nivel ajustado): ¿alguno
+  demasiado fuerte o flojo frente a los demás? ¿alguno que no suene a lo que dice su nombre?
+- [ ] **El arco nuevo de Fides (modelo 2)**: los presets *Bowed cello* y *Bowed strings pad* de
+  Fides en `F:\projects\daw-r42\listen\fides-presets\` (`NN-cello*.wav`, `NN-string_pad*.wav`)
+  suenan ahora con el arco de Arcus, afinados a menos de un cent. ¿Mejor o peor que antes? (Una
+  canción hecha antes conserva el arco viejo.)
+- [ ] **Arcus ajustado a las grabaciones (modelo 2)**: compara `F:\projects\daw-r42\listen\arcus\before\` (antes) con `F:\projects\daw-r42\listen\arcus\` (después), y mira las gráficas de `docs/round42/arcus-match/` (la banda azul son las grabaciones). ¿El chelo suena más a chelo? ¿Algún agudo áspero o silbante (el ajuste sube los agudos del chelo hasta +12 dB a 10 kHz)?
