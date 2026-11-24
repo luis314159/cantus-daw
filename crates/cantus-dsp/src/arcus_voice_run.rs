@@ -4,6 +4,16 @@
 
 use super::*;
 
+/// A sustain's swell: its length (s) and how far under its level it starts (dB), at pp and
+/// at ff (linear between, by the dynamic).
+const SWELL_S: (f32, f32) = (0.25, 0.05);
+const SWELL_DB: (f32, f32) = (20.0, 10.0);
+/// A pluck's snap: how long (s), its decay's time constant (s) and its level against the
+/// string's peak so far.
+const SNAP_S: f32 = 0.025;
+pub(super) const SNAP_TAU_S: f32 = 0.005;
+pub(super) const SNAP_GAIN: f32 = 0.5;
+
 impl Voice {
     /// The dynamic this voice is asked for now (0 … 1).
     pub(super) fn dynamic_target(&self, sh: &Shared) -> f32 {
@@ -81,6 +91,30 @@ impl Voice {
         };
         self.t = 0;
         self.stroke = 0.0;
+        // The level's swell over a sustain's clean start (the study §2.5, §3.4: players
+        // reach their level in 0.1–0.3 s soft, 0.03–0.08 s loud), from 9 dB under at pp to 4
+        // under at ff; a re-bow on a ringing string (détaché), a staccato or a spiccato keeps
+        // its speech.
+        self.lvl_t = 0;
+        self.dip = (0, 0.0);
+        self.swell = if tech == NoteTech::Arco && !keep {
+            let d = d_t.clamp(0.0, 1.0);
+            (
+                (SWELL_S.0 + (SWELL_S.1 - SWELL_S.0) * d) * sh.sr,
+                math::db_to_gain(-(SWELL_DB.0 + (SWELL_DB.1 - SWELL_DB.0) * d)),
+            )
+        } else {
+            (0.0, 1.0)
+        };
+        self.lvl = (self.swell.1, self.swell.1);
+        self.snap_n = 0;
+        if tech == NoteTech::Pizzicato {
+            self.snap_n = (SNAP_S * sh.sr) as u32;
+            self.snap_env = 1.0;
+            self.snap_pk = 0.0;
+            self.snap_bq = Biquad::default();
+            self.snap_bq.set(Biquad::band(2500.0, 2.6, sh.sr));
+        }
         self.stop_lift = false;
         self.rough.set(Biquad::band(2500.0, 2.5, sh.sr));
         if tech == NoteTech::Pizzicato {
@@ -173,6 +207,8 @@ impl Voice {
         self.note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
         self.glide = was - self.note;
         self.tuning = 0.0;
+        // The finger's change dips the level (the study §2.10: ~3 dB over the change).
+        self.dip = (self.lvl_t, s.finger_ms.max(0.0) * 0.001 * sh.sr);
         // The ear starts over on the new note (a window across the change hears neither).
         self.ear.reset();
         let ms = if s.porta_ms > 0.0 {

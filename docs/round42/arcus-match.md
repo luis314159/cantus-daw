@@ -117,3 +117,136 @@ model 1 renders as before. Measured by the tests listed in `arcus.md`.
 
 `F:\projects\daw-r42\listen\arcus\` (after) beside `F:\projects\daw-r42\listen\arcus\before\`
 (the same set before the match), the ABX renders with them.
+
+## Pass 2: the reference study (`F:\projects\daw-r42\study\`)
+
+The study's database (7 cellos, 5 basses, about 5 100 notes; `refdb\README.md`) and its ranked
+recommendations (`bowed-realism.md`). Arcus is now judged by **the study's own estimator**:
+`tools/arcus/study_compare.py` analyses Arcus's held-out notes (`arcus_match render`: the third
+`(key + dynamic) % 3 == 0`, pp / mf / ff, 168 notes) with the study's `bowlib_note`, gathers
+them with its `aggregate.family` as one more instrument, and compares each feature with the
+family's band across instruments ([p25, p75] with four or more, else [min, max]). "Before" is
+this branch at `58cafea8e` (pass 1), rendered from a worktree of that commit.
+
+**What changed** (the study's recommendation numbers):
+
+- **1 — measured bodies.** Two body recipes only Arcus uses (`BodyKind::MeasuredCello`,
+  `MeasuredBass`, not in Fides's list): the cello's A0 105 Hz, wood 203 / 281 / 335 / 410 /
+  560 Hz, the hill at 1.9 kHz +6.3 dB; the bass's **own** — A0 70 Hz (1.70 × the open E), T1
+  109, wood 178 / 228 / 412 Hz, the hill at 1.3 kHz — no longer the cello's ×1.72 (its 120 Hz
+  radiation corner gone: the estimate is of radiated sound). Over them the match's correction
+  was fitted again (`match.sh fit`, two thirds of the notes): the cello's is pass 1's shape
+  again (−8.1 dB at 63 Hz … +12 at 10 kHz); the bass's is no longer flat (−5.9 … +8.6 dB),
+  since over its own body it now moves the held-out notes towards the recordings (spectrum
+  5.26 → 3.76 dB on `match.sh`'s measure).
+- **2 — the players' dynamic.** pp → ff: force ×4.5, β ×0.5, speed ×1.8 (it was ×7). A
+  sustain's start swells from 20 dB under (pp) / 10 under (ff) over 0.25 / 0.05 s on top of
+  the clean Helmholtz start; a re-bow on a ringing string, staccato and spiccato keep their
+  speech. The pitch table measured again (offsets now −33 … +7 cents; the loop takes the rest).
+- **3 — bow noise**: raised towards the bands (+12 dB the cello, +18 the bass). The "louder
+  when soft" slope was measured and **not** added: Arcus's soft-to-loud difference was already
+  larger than the recordings'. Its spectrum and its pulsing with the slip are as before (the
+  roughness modulates the friction at the junction, so the body colours it).
+- **4 — legato**: the finger's change 30 ms (was 3) with a 3 dB dip; the détaché re-bow's dip is
+  the bow's own.
+- **6 — pizzicato**: a finger snap (band noise 1–6 kHz over the first 25 ms, at half the
+  string's peak). Per-partial decays, finger damping and stiffness: **not done**.
+- **7 — thermal friction (Woodhouse & Galluzzo 2025)**: **not done**; the existing thermal option
+  is unchanged and not the default.
+- **8 — vibrato**: depth by dynamic (×0.75 soft … ×1.25 loud), the cello ×0.48 at 5.06 Hz, the
+  bass ×0.38 at 5.1 Hz. Bow motion tied to the vibrato and per-cycle variation beyond the
+  existing wander: **not done**.
+
+Arcus never shipped, so the defaults changed in place: `model` stays 2, and model 1 takes the
+new bodies, map and swell too. The pitch gate holds (**168 of 168 held-out points within a
+cent, worst 0.81**), the attacks stay inside Guettler's limits (**0 of 80** over), and the arcus
+and fides DSP tests pass (32).
+
+**The distances on the held-out notes, by the study's estimator.** Each cell gives Arcus's value
+and, in brackets, how far it lies outside the band. Harmonics, noise bands and thump are RMS dB
+outside; pizzicato T60s are in octaves; a dash means the cell has too few instruments:
+
+| cello | before (outside) | after (outside) | band |
+|---|---|---|---|
+| centroid_hz.all | 399 (0.00) | 426 (0.00) | 352 … 787 |
+| centroid_hz.soft | 343 (90.74) | 413 (21.37) | 434 … 893 |
+| centroid_hz.loud | 387 (136.05) | 374 (148.16) | 523 … 741 |
+| noise_db_re_harm.all | -38.5 (3.40) | -40.6 (5.43) | -35.1 … -33.7 |
+| attack_t_rise_s.soft | 0 (0.14) | 0.062 (0.08) | 0.144 … 0.284 |
+| attack_t_rise_s.medium | 0 (0.10) | 0.039 (0.06) | 0.0978 … 0.367 |
+| attack_t_rise_s.loud | 0 (0.01) | 0.008 (0.00) | 0.00748 … 0.0726 |
+| attack_t_steady_s.all | 0.0531 (0.19) | 0.089 (0.15) | 0.241 … 0.418 |
+| attack_noise_burst_db.all | 47.9 (4.28) | 46.2 (2.63) | 17.6 … 43.6 |
+| vibrato_rate_hz.all | 5.81 (0.00) | 5.37 (0.00) | 5.19 … 6.17 |
+| vibrato_extent_cents.all | 16.6 (4.10) | 10 (0.00) | 6.19 … 12.5 |
+| harmonics.oct0_medium | (1.27) | (3.01) |  |
+| harmonics.oct1_medium | (1.83) | (3.47) |  |
+| harmonics.oct2_medium | (0.00) | (0.94) |  |
+| harmonics.oct3_medium | (6.03) | (7.33) |  |
+| hnr.soft | (2.66) | (5.35) |  |
+| hnr.medium | (0.28) | (1.37) |  |
+| hnr.loud | (0.00) | (2.41) |  |
+| body.bridge_hill_hz | 1.26e+03 (200.46) | 1.78e+03 (722.34) | 707 … 1.06e+03 |
+| body.hill_detrended_hz | 1.33e+03 (0.00) | 1.89e+03 (0.00) | 891 … 2.38e+03 |
+| body.trend_db_per_oct | -3.75 (0.00) | -4.1 (0.00) | -6.77 … -2.13 |
+| body.above_hill_db_re_wood | -29 (0.00) | -27 (0.00) | -34.6 … -22.5 |
+| dyn_slope.log2_centroid_oct | … | … |  |
+| dyn_slope.level_db | … | … |  |
+| pizz_t60_octaves | (0.26) | (0.28) |  |
+| pizz_thump | (9.62) | (11.38) |  |
+| pizz_t60_f1_s | 2.8 (0.01) | 2.79 (0.02) | 2.81 … 3.14 |
+
+| bass | before (outside) | after (outside) | band |
+|---|---|---|---|
+| centroid_hz.all | 225 (10.95) | 183 (0.00) | 165 … 214 |
+| centroid_hz.soft | 218 (32.76) | 195 (9.19) | 161 … 186 |
+| centroid_hz.loud | 248 (14.66) | 181 (7.33) | 189 … 233 |
+| noise_db_re_harm.all | -45.6 (9.85) | -42.1 (6.33) | -35.8 … -32.6 |
+| attack_t_rise_s.soft | 0.03 (0.07) | 0.064 (0.03) | 0.0978 … 0.24 |
+| attack_t_rise_s.medium | 0.028 (0.08) | 0.022 (0.09) | 0.107 … 0.151 |
+| attack_t_rise_s.loud | 0.025 (0.04) | 0.004 (0.06) | 0.0688 … 0.124 |
+| attack_t_steady_s.all | 0.0672 (0.08) | 0.0867 (0.06) | 0.146 … 0.359 |
+| attack_noise_burst_db.all | 29 (8.07) | 47.7 (26.72) | 17.8 … 20.9 |
+| vibrato_rate_hz.all | 5.57 (0.09) | 5.37 (0.00) | 3.74 … 5.48 |
+| vibrato_extent_cents.all | 8.07 (0.22) | 7.24 (0.00) | 6.49 … 7.85 |
+| harmonics.oct0_medium | (2.10) | (1.44) |  |
+| harmonics.oct1_medium | (3.85) | (1.08) |  |
+| harmonics.oct2_medium | (8.81) | (5.72) |  |
+| harmonics.oct3_medium | (12.66) | (3.46) |  |
+| hnr.soft | (2.41) | (2.78) |  |
+| hnr.medium | (1.68) | (1.79) |  |
+| hnr.loud | (3.06) | (1.28) |  |
+| body.bridge_hill_hz | 707 (235.17) | 1.12e+03 (650.52) | 354 … 472 |
+| body.hill_detrended_hz | 749 (0.00) | 1.12e+03 (0.00) | 354 … 1.59e+03 |
+| body.trend_db_per_oct | -5.38 (0.00) | -3.6 (0.06) | -7.67 … -3.66 |
+| body.above_hill_db_re_wood | -38.1 (3.13) | -30.2 (0.00) | -35 … -26 |
+| dyn_slope.log2_centroid_oct | … | … |  |
+| dyn_slope.level_db | … | … |  |
+| pizz_t60_octaves | (0.62) | (0.64) |  |
+| pizz_thump | (10.72) | (16.43) |  |
+| pizz_t60_f1_s | 2.81 (0.00) | 2.73 (0.00) | 2.56 … 2.86 |
+
+
+**Read plainly.** The **bass** moved towards the recordings almost everywhere:
+- its centroid came into the band (225 → 183 Hz);
+- the harmonics of its upper registers came closer (octave 3: 12.7 → 3.5 dB outside);
+- its vibrato came into the band, and so did its level above the hill;
+- its attack rises later, nearer the recordings.
+
+The **cello** improved in part:
+- its vibrato and its detrended hill came into the band, and its soft notes brightened
+  (centroid 343 → 413 Hz);
+- but its harmonics and noise moved 1–2 dB further out, and its loud notes stay dark (374 Hz
+  against 523–741).
+
+**Still outside for both:**
+- **The attack's rise:** 0.04–0.06 s against the recordings' 0.1–0.3 s at soft and medium. The
+  swell should be longer still.
+- **The attack's noise burst:** the bass's grew with its noise.
+- **The pizzicato's thump:** the snap moved it further from the band (the cello 9.6 → 11.4 dB,
+  the bass 10.7 → 16.4). It should be retuned, or taken out, after the owner hears it.
+- **The estimator's `bridge_hill_hz` mark** is outside, although the detrended hill is inside.
+
+The renders before pass 2 are in `F:\projects\daw-r42\listen\arcus\before-pass2\`, the renders
+after are in `F:\projects\daw-r42\listen\arcus\`, both with the same names. The measures are in
+`F:\projects\daw-r42\tmp\arcus\pass2\{before,after}.json`.

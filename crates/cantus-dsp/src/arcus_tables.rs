@@ -231,12 +231,14 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
         },
     ],
     top: 79,
-    body: BodyKind::Cello,
+    body: BodyKind::MeasuredCello,
     body_size: 1.0,
+    // The players' map (the study §3.4, Askenfelt, Schoonderwaldt): from pp to ff the force
+    // ×4.5, the bow nearer the bridge ×0.46, the speed nearly constant (×1.8).
     bowing: Bowing {
-        speed: (0.05, 0.35),
-        beta: (0.13, 0.075),
-        place: (0.42, 0.27),
+        speed: (0.15, 0.27),
+        beta: (0.14, 0.07),
+        place: (0.30, 0.36),
     },
     vib_hz: 5.5,
     vib_ct: 18.0,
@@ -281,18 +283,20 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
         },
     ],
     top: 67,
-    body: BodyKind::Cello,
-    body_size: 1.72,
+    body: BodyKind::MeasuredBass,
+    body_size: 1.0,
     bowing: Bowing {
-        speed: (0.06, 0.45),
-        beta: (0.14, 0.08),
-        place: (0.42, 0.27),
+        speed: (0.16, 0.29),
+        beta: (0.15, 0.075),
+        place: (0.30, 0.36),
     },
-    vib_hz: 5.3,
+    // The study's bass: 5.4 Hz (Mick 2024: 5.17).
+    vib_hz: 5.1,
     vib_ct: 16.0,
-    trim_db: 16.0,
+    // Pass 2: its own body and correction made it ~10 dB hotter than the cello: 6 dB.
+    trim_db: 6.0,
     corner_hz: 2000.0,
-    radiation_hz: 120.0,
+    radiation_hz: 0.0, // pass 2: the measured body carries the radiation (its estimate is of recordings)
     balance_db_st: 0.16,
     balance_key: 47.5,
     matched: BASS_MATCH,
@@ -416,22 +420,30 @@ pub fn schelleng_max(z0: f64, v_bow: f64, beta: f64) -> f64 {
 /// The cello's and the double bass's match (`tools/arcus/match.sh fit`, five passes on two
 /// thirds of the notes; `docs/round42/arcus-match.md` has the held-out distances).
 pub const CELLO_MATCH: Match = Match {
+    // Pass 2: over the measured body, what is left of the recordings' spectrum (the match's
+    // fit on two thirds of the notes; pass 1 fitted −9.7 dB at 63 Hz … +12 at 10 kHz over
+    // the scaled violin body).
     eq_db: [
-        -9.7, -6.9, -5.5, -3.1, -0.8, -1.4, -2.9, 0.6, 2.8, 1.8, 8.1, 12.0,
+        -8.1, -5.2, -3.0, -1.5, -0.8, -2.0, -1.9, 0.4, -0.2, -0.7, 6.7, 12.0,
     ],
-    noise_db: 0.0,
+    // Pass 2, measured by the study's estimator on the held-out notes: the hair's noise 3–6
+    // dB under the cellos' band, the vibrato ±16.6 cents against ±6–12 and 5.8 Hz against
+    // 5.0–5.4 at soft and medium.
+    noise_db: 12.0,
     pizz_decay: 0.81,
-    vib_depth: 0.80,
-    vib_rate: 1.00,
+    vib_depth: 0.48,
+    vib_rate: 0.92,
 };
 pub const BASS_MATCH: Match = Match {
-    // The bass's correction is left flat: fitted (… 6.4 dB at 10 kHz, −8.4 at 630 Hz) it
-    // moved the held-out notes *away* from the references (spectrum 4.76 → 5.07 dB, the
-    // centroid 0 → 2.2 semitones outside their spread): their upper bands carry the rooms'
-    // and the bows' noise more than the instrument (`docs/round42/arcus-match.md`).
-    eq_db: [0.0; EQ_BANDS],
-    noise_db: 0.0,
+    // Pass 2: over its own measured body the fitted correction now moves the held-out notes
+    // towards the recordings (spectrum 5.26 → 3.76 dB, centroid 1.8 → 0 semitones); over the
+    // scaled cello body (pass 1) it had moved them away and was left flat.
+    eq_db: [
+        -5.9, -1.2, -1.0, -3.7, -4.1, -2.5, -2.0, -2.1, 0.6, 6.1, 8.6, 7.1,
+    ],
+    // Pass 2: the noise 8–18 dB under the basses' band, the vibrato ±8 against ±6–7.8.
+    noise_db: 18.0,
     pizz_decay: 0.67,
-    vib_depth: 0.44,
+    vib_depth: 0.38,
     vib_rate: 1.0,
 };

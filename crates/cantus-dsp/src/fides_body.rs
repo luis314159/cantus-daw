@@ -24,6 +24,11 @@ pub enum BodyKind {
     Harp,
     Box,
     Shell,
+    /// Arcus's measured bodies (round 42, `docs/round42/arcus-match.md` pass 2): the cello's
+    /// and the double bass's from the reference study's harmonic-peak estimate across 6 cellos
+    /// and 5 basses. Not offered in Fides's `body.type` (not in [`BodyKind::ALL`]).
+    MeasuredCello,
+    MeasuredBass,
 }
 
 impl BodyKind {
@@ -174,6 +179,46 @@ fn recipe(kind: BodyKind) -> Recipe {
             slope_db: -3.0,
             hill: (3000.0, 1.0, 0.0),
             salt: 6,
+        },
+        // The study's cello (§2.2): A0 105 Hz (94–132), wood peaks ~200–210, 300–420 and
+        // ~560 Hz, the hill at 1.9 kHz +6.3 dB after detrending, −2 … −7 dB/oct from the wood
+        // to the hill, 10 dB down by 3 kHz.
+        BodyKind::MeasuredCello => Recipe {
+            low: &[
+                (105.0, 14.0, 0.9),
+                (150.0, 28.0, 0.45),
+                (203.0, 24.0, 1.2),
+                (281.0, 26.0, 0.75),
+                (335.0, 28.0, 0.7),
+                (410.0, 30.0, 0.65),
+                (560.0, 30.0, 0.55),
+            ],
+            cloud: (640.0, 5200.0, 33),
+            q: (35.0, 22.0),
+            // Measured through the same estimator, −4.5 read −6.7 dB/oct and the centroid
+            // under the cellos' band: −2.5 here.
+            slope_db: -2.5,
+            hill: (1900.0, 0.7, 6.3),
+            salt: 7,
+        },
+        // The study's double bass (§2.2, Askenfelt's A0 ≈ 65 and T1 ≈ 110 Hz): A0 70 Hz
+        // (62–74, 1.70 × the open E), T1 100–118, wood 170–240 and ~400–420 Hz, the hill at
+        // 1.3 kHz +6.2 dB, −4 … −8 dB/oct, 10 dB down by 2.8 kHz — its own, not the cello's
+        // scaled.
+        BodyKind::MeasuredBass => Recipe {
+            low: &[
+                (70.0, 16.0, 0.9),
+                (109.0, 22.0, 1.15),
+                (178.0, 24.0, 0.95),
+                (228.0, 26.0, 0.85),
+                (300.0, 28.0, 0.6),
+                (412.0, 30.0, 0.6),
+            ],
+            cloud: (480.0, 4500.0, 33),
+            q: (35.0, 22.0),
+            slope_db: -6.0,
+            hill: (1300.0, 0.7, 6.2),
+            salt: 8,
         },
     }
 }

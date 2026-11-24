@@ -275,6 +275,68 @@ fn write_tables(path: &Path, cello: &Match, bass: &Match) {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("render") {
+        // The held-out notes as WAVs for the study's estimator (`tools/arcus/study_compare.py`):
+        // `render <out dir>` writes `arcus-<cello|bass>-<arco|pizz>-<key>-<pp|mf|ff>.wav`,
+        // each note held 3 s (a pluck 2.5 s) and a second of release, 48 kHz 24-bit mono.
+        let out = PathBuf::from(&args[1]);
+        std::fs::create_dir_all(&out).expect("the out dir");
+        let vel = [0.2f32, 0.55, 0.95];
+        for (inst, lo, hi, name) in [
+            (Instrument::Cello, 36u8, 79u8, "cello"),
+            (Instrument::Bass, 28, 67, "bass"),
+        ] {
+            for pizz in [false, true] {
+                for key in lo..=hi {
+                    for (d, v) in vel.iter().enumerate() {
+                        if !held_out(key, d) {
+                            continue;
+                        }
+                        let mut a = Arcus::new(SR);
+                        a.set(&ArcusSettings {
+                            instrument: inst,
+                            technique: if pizz {
+                                Technique::Pizzicato
+                            } else {
+                                Technique::Arco
+                            },
+                            ..ArcusSettings::default()
+                        });
+                        a.note_on(key, *v, 1);
+                        let (hold, total) = if pizz { (2.5, 2.6) } else { (3.0, 4.0) };
+                        let frames = (total * SR) as usize;
+                        let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
+                        for at in (0..frames).step_by(256) {
+                            if at == ((hold * SR) as usize) / 256 * 256 {
+                                a.note_off(key, 1);
+                            }
+                            let n = 256.min(frames - at);
+                            a.process(&mut l[at..at + n], &mut r[at..at + n]);
+                        }
+                        let spec = hound::WavSpec {
+                            channels: 1,
+                            sample_rate: SR as u32,
+                            bits_per_sample: 24,
+                            sample_format: hound::SampleFormat::Int,
+                        };
+                        let file = format!(
+                            "arcus-{name}-{}-{key}-{}.wav",
+                            if pizz { "pizz" } else { "arco" },
+                            ["pp", "mf", "ff"][d]
+                        );
+                        let mut w = hound::WavWriter::create(out.join(file), spec).expect("a wav");
+                        for (x, y) in l.iter().zip(&r) {
+                            let s = (0.5 * (x + y)).clamp(-1.0, 1.0);
+                            w.write_sample((s * 8_388_607.0).round() as i32)
+                                .expect("a sample");
+                        }
+                        w.finalize().expect("the wav");
+                    }
+                }
+            }
+        }
+        return;
+    }
     if args.first().map(String::as_str) == Some("probe") {
         // A note's raw measures: `probe <cello|bass> <arco|pizz> <key> <0|1|2>`.
         let inst = if args[1] == "bass" {

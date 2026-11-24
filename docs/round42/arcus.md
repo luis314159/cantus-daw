@@ -105,6 +105,16 @@ the bass's centroid 175–185 Hz against 200–300; the noise between harmonics 
   (a new Arcus, gain 0) reads about −21 LUFS on the Lead phrase (the *Cello* preset's gain is
   +2.8 dB).
 
+## Pass 2: the reference study — `docs/round42/arcus-match.md` (*Pass 2*)
+
+The study's database and ranked recommendations, Arcus judged by the study's own estimator on
+the held-out notes: measured bodies (the bass its own, A0 70 Hz), the players' dynamic, the
+sustain's swell, the bow noise, the 30 ms legato with its dip, the pluck's snap, the vibrato.
+The bass moved into the recordings' band on its centroid, vibrato and upper harmonics; the
+cello on its vibrato and hill. Still outside: the attack's rise (0.04–0.06 s against 0.1–0.3),
+the attack's noise burst, the pizzicato's thump (the snap made it worse — to retune or remove
+after listening), the cello's loud brightness. The pitch gate and the attacks' gate hold.
+
 ## Matched to recordings (model 2) — `docs/round42/arcus-match.md`
 
 The owner's ask: about 1 060 recorded notes (Iowa MIS anechoic, TinySOL, VSCO 2 CE, Karoryfer,

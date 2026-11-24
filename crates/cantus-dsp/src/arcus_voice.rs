@@ -245,6 +245,19 @@ pub struct Voice {
     pub(super) trim: f64,
     /// The pitch loop's ear (`ear`): the fundamental heard against the target.
     pub(super) ear: super::ear::Ear,
+    /// The level's envelope (round 42 pass 2): samples since the note began, a sustain's
+    /// swell (its length in samples and its starting gain), a slur's dip (where it began and
+    /// its length), and the gains at the last and this control step.
+    lvl_t: u32,
+    swell: (f32, f32),
+    dip: (u32, f32),
+    lvl: (f32, f32),
+    /// A pluck's snap (the study §3.10: +12–22 dB of 1–6 kHz in its first 25 ms): samples
+    /// left, its envelope, the string's peak so far, its band.
+    snap_n: u32,
+    snap_env: f32,
+    snap_pk: f32,
+    snap_bq: Biquad,
     /// The register's balance on the output (`InstrumentSpec::balance_db_st`), linear.
     balance: f32,
     fade: f32,
@@ -313,6 +326,14 @@ impl Voice {
             stop_lift: false,
             trim: 0.0,
             ear: super::ear::Ear::default(),
+            lvl_t: 0,
+            swell: (0.0, 1.0),
+            dip: (0, 0.0),
+            lvl: (1.0, 1.0),
+            snap_n: 0,
+            snap_env: 0.0,
+            snap_pk: 0.0,
+            snap_bq: Biquad::default(),
             balance: 1.0,
             fade: 1.0,
             fade_step: 0.0,

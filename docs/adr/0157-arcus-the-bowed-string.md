@@ -133,3 +133,19 @@ away). The pizzicato's brightness, the attack and the bass's own body are left o
 `arcus-match.md`. **What the tests hold.** Every earlier test at model 2's defaults (the
 pitch gate, the attacks, the vibrato's rate and depth within their bounds, rest, block sizes,
 the pool); `match.sh` prints the distances.
+
+## Amendment (round 42, pass 2): the reference study's recommendations
+
+**Context.** The study (`F:\projects\daw-r42\study\bowed-realism.md`, its database of 7 cellos
+and 5 basses). **Decision.** The defaults change in place (Arcus never shipped; `model` 2):
+measured bodies (`BodyKind::MeasuredCello` and the bass's own `MeasuredBass`, A0 70 Hz; Fides's
+list unchanged) with the match's correction fitted again over them; the players' dynamic (pp →
+ff force ×4.5, β ×0.5, speed ×1.8) with the pitch table measured again; a sustain's level swell
+(20 → 10 dB under over 0.25 → 0.05 s) over the clean start, détaché, staccato and spiccato
+keeping their speech; the bow noise raised to the bands; a 30 ms finger change with a 3 dB
+dip; a pluck's snap; the vibrato by dynamic and the study's rates and depths; the bass's trim
+6 dB. Not done: per-partial pizzicato decays and stiffness, the 2025 thermal friction, bow
+motion tied to the vibrato. **The measure.** `tools/arcus/study_compare.py` judges the held-out
+notes by the study's own estimator against the band of real instruments
+(`docs/round42/arcus-match.md`, pass 2). The gates hold: the pitch 168 of 168 within a cent,
+the attacks 0 of 80 over Guettler's limits.

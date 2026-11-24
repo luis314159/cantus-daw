@@ -60,7 +60,8 @@ params! {
     POLY = ("poly", "arcus.poly", 1.0, 8.0, 4.0, "", false, true),
     // 0 Poly (double stops) · 1 Mono (every note re-bowed) · 2 Legato (overlaps slur)
     MODE = ("mode", "arcus.mode", 0.0, 2.0, 2.0, "", false, true),
-    FINGER = ("finger", "arcus.finger", 0.0, 30.0, 3.0, "ms", false, false),
+    // The study's legato (§2.10): a finger change takes 20–35 ms (round 42 pass 2: 30).
+    FINGER = ("finger", "arcus.finger", 0.0, 80.0, 30.0, "ms", false, false),
     // 0: no portamento (only when asked, here or by CC65).
     PORTA = ("porta", "arcus.porta", 0.0, 1000.0, 0.0, "ms", false, false),
     BEND = ("bend", "arcus.bend", 0.0, 24.0, 2.0, "st", false, true),

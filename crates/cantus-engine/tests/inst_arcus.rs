@@ -203,7 +203,8 @@ fn cc1_mpe_pressure_and_slide_move_the_bow() {
     plain.configure(&spec, &[]);
     plain.note_on(note(50, 9));
     let a = run(&mut plain, 24_000);
-    // CC1 up: a louder dynamic, a faster bow.
+    // CC1 up: a louder dynamic, a heavier bow (the players' map: the force ×4.5 from pp to
+    // ff, the speed nearly constant — round 42 pass 2).
     let mut swelled = Unit::new(SR);
     swelled.configure(&spec, &[]);
     swelled.controller(Controller::ModWheel, 1.0);
@@ -216,7 +217,7 @@ fn cc1_mpe_pressure_and_slide_move_the_bow() {
         ts[tel::DYNAMIC],
         tp[tel::DYNAMIC]
     );
-    assert!(ts[tel::SPEED].abs() > tp[tel::SPEED].abs() * 1.5);
+    assert!(ts[tel::FORCE] > tp[tel::FORCE] * 1.5);
     // MPE pressure on the dynamic, slide on the contact point.
     let mut pressed = Unit::new(SR);
     pressed.configure(&spec, &[]);

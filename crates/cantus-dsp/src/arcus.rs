@@ -262,7 +262,7 @@ impl Default for ArcusSettings {
             technique: Technique::Arco,
             poly: 4,
             mode: PlayMode::Legato,
-            finger_ms: 3.0,
+            finger_ms: 30.0,
             porta_ms: 0.0,
             bend_st: 2.0,
             transpose_st: 0.0,

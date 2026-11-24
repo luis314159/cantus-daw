@@ -11,6 +11,8 @@ const STOP_S: f32 = 0.04;
 const STOP_LIFT_S: f32 = 0.025;
 /// The bow's usable length, m (a cello bow's hair is about 0.65 m).
 const BOW_M: f32 = 0.65;
+/// A slur's level dip, dB at the middle of the finger's change (the study §2.10).
+const DIP_DB: f32 = 3.0;
 /// The pitch loop: it moves by `TRIM_GAIN` of what each of its ear's windows heard, never
 /// more than `TRIM_STEP` cents a move.
 const TRIM_GAIN: f64 = 0.6;
@@ -65,7 +67,8 @@ impl Voice {
             }
         };
         let var = s.vib_var.clamp(0.0, 1.0);
-        let widen = 1.0 + 0.12 * oct + 0.2 * (self.d - 0.5);
+        // Wider high, and wider loud (the study §3.5: the cello ±8 → ±13 cents soft to loud).
+        let widen = (1.0 + 0.12 * oct) * (0.75 + 0.5 * self.d);
         let depth = spec.vib_ct
             * s.vib_depth
             * amount
@@ -195,6 +198,22 @@ impl Voice {
                 *x *= g;
             }
         }
+        // The level's envelope at this step's end: a sustain's swell, a slur's dip.
+        let t_end = self.lvl_t + span as u32;
+        let mut g = 1.0f32;
+        if self.swell.0 > 0.0 && (t_end as f32) < self.swell.0 {
+            g = self.swell.1 + (1.0 - self.swell.1) * smooth(t_end as f32 / self.swell.0);
+        }
+        if self.dip.1 > 0.0 {
+            let e = t_end.saturating_sub(self.dip.0) as f32;
+            if e < self.dip.1 {
+                g *= math::db_to_gain(-DIP_DB * math::sin(std::f32::consts::PI * e / self.dip.1));
+            } else {
+                self.dip.1 = 0.0;
+            }
+        }
+        self.lvl = (self.lvl.1, g);
+        self.lvl_t = t_end;
         self.span = span;
         self.pos = 0;
         self.first = false;
@@ -358,8 +377,27 @@ impl Voice {
             if self.bow_on {
                 self.ear.hear(&self.tmp[..k]);
             }
+            // A pluck's snap: band noise over its first 25 ms, at the string's peak so far.
+            if self.snap_n > 0 {
+                let keep = math::exp(-1.0 / (super::run::SNAP_TAU_S * sh.sr));
+                for x in self.tmp[..k].iter_mut() {
+                    if self.snap_n == 0 {
+                        break;
+                    }
+                    self.snap_pk = self.snap_pk.max(x.abs());
+                    let w = self.rng.bipolar();
+                    *x +=
+                        super::run::SNAP_GAIN * self.snap_pk * self.snap_env * self.snap_bq.tick(w);
+                    self.snap_env *= keep;
+                    self.snap_n -= 1;
+                }
+            }
             for j in 0..k {
                 let mut x = self.tmp[j];
+                if self.lvl != (1.0, 1.0) {
+                    let u = (a + j + 1) as f32 / self.span as f32;
+                    x *= self.lvl.0 + (self.lvl.1 - self.lvl.0) * u;
+                }
                 if self.fade_step > 0.0 {
                     self.fade = (self.fade - self.fade_step).max(0.0);
                     x *= self.fade;
