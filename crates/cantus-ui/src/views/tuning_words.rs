@@ -164,7 +164,18 @@ pub fn summary_key(p: &cantus_core::Project) -> u64 {
     h.finish()
 }
 
-/// A track's override, as its inspector row reads it: "Follows the project", "Equal
+/// A track's override in the inspector's row, whose value is a narrow slot (98 pt): the
+/// short words — "Project's", "Equal" — or its own tuning's summary (r42 fix3-suite: "Follows
+/// the project" was elided there). The menu it opens names them whole.
+pub fn track_row_text(mode: &TrackTuning, key: Option<Key>) -> String {
+    match mode {
+        TrackTuning::Follow => t("tuning.track.follow_row"),
+        TrackTuning::Equal => t("tuning.track.equal_row"),
+        own => track_mode_text(own, key),
+    }
+}
+
+/// A track's override, as a sentence names it: "Follows the project", "Equal
 /// temperament", or its own tuning's summary.
 pub fn track_mode_text(mode: &TrackTuning, key: Option<Key>) -> String {
     match mode {

@@ -111,7 +111,7 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
             cache::key(("insp-tuning", id)),
             app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60),
             |b| {
-                b.push_str(&crate::views::tuning::words::track_mode_text(
+                b.push_str(&crate::views::tuning::words::track_row_text(
                     &track.tuning,
                     key,
                 ))

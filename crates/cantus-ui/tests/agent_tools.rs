@@ -595,6 +595,27 @@ fn every_project_tool_answers_through_the_server() {
         "set_song",
         json!({"key": {"root": "G", "scale": "major"}}),
     );
+    // r42 fix3-suite: the tuning, the project's and one track's own, set and read back.
+    step(
+        &mut app,
+        &mut c,
+        "set_tuning",
+        json!({"temperament": "vallotti", "key": "D", "a4_hz": 415}),
+    );
+    let read = step(&mut app, &mut c, "get_tuning", json!({}));
+    assert_eq!(read["tuning"]["temperament"], "vallotti");
+    assert_eq!(read["tuning"]["key"], "D");
+    assert_eq!(read["tuning"]["a4_hz"], 415.0);
+    step(
+        &mut app,
+        &mut c,
+        "set_tuning",
+        json!({"track_id": u, "system": "equal", "a4_hz": 432}),
+    );
+    let own = step(&mut app, &mut c, "get_tuning", json!({"track_id": u}));
+    assert_eq!(own["mode"], "own");
+    assert_eq!(own["tuning"]["system"], "equal");
+    assert_eq!(own["tuning"]["a4_hz"], 432.0);
     let m = step(
         &mut app,
         &mut c,
