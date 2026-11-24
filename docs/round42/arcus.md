@@ -115,6 +115,18 @@ cello on its vibrato and hill. Still outside: the attack's rise (0.04–0.06 s a
 the attack's noise burst, the pizzicato's thump (the snap made it worse — to retune or remove
 after listening), the cello's loud brightness. The pitch gate and the attacks' gate hold.
 
+## Pass 4: the attack, the plucks, the thermal law — `docs/round42/arcus-match.md` (*Pass 4*)
+
+A DC force on the bridge (the bow's static push, passed by the body) had stood behind the
+attack's measured rise and noise burst: an 8 Hz radiation corner takes it out, and each family's
+swell is fitted to its rise — every rise class in the band but the bass's medium, the bursts
+9–15 dB lower. The pluck's T60 comes from the references by frequency and its noise is cut (the
+thump halfway in); the snap's code is gone. The thermal option is Woodhouse & Galluzzo 2025's
+law, measured worse than the hyperbolic curve and left the option. An onset from the cellists'
+measured bow kinematics was tried twice and reverted (it broke Guettler's gate). The loud
+cello's darkness is traced to the junction (its brightness follows relative, not absolute,
+force — a real string measured the other way) and left open. The gates hold.
+
 ## Matched to recordings (model 2) — `docs/round42/arcus-match.md`
 
 The owner's ask: about 1 060 recorded notes (Iowa MIS anechoic, TinySOL, VSCO 2 CE, Karoryfer,

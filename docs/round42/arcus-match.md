@@ -338,3 +338,153 @@ after are in `F:\projects\daw-r42\listen\arcus\`, both with the same names. The 
 | pizz_thump | (16.43) | (13.90) |  |
 | pizz_t60_f1_s | 2.73 (0.00) | 2.73 (0.00) | 2.56 … 2.86 |
 
+
+## Pass 4 (before = `d534e86e9`, the same held-out method)
+
+**The cause the earlier passes measured around: a DC force.** A probe of a pp note's envelope
+(`tests_p4::probe_onset`, then the render's spectrum by bands) found most of the first second's
+power **under 2 Hz**: the bow's static push on the string reaches the bridge as a DC force, the
+string's loop keeps it (it decays with the string's own loss, about a second), and the body
+passed it. No box radiates it and no microphone records it, but the estimator's level and its
+harmonic model saw it — so its *rise* read 0.01–0.03 s (the DC step at once, the swell under
+it), its *noise burst* read the DC as residual (+40–53 dB), and pass 3's measurements of the
+onset gesture were read off it too. **Fix:** the measured bodies' radiation ends in a high-pass
+at 8 Hz (two first-order stages, `RADIATION_DC_HZ`: −0.3 dB at the bass's E1, −0.1 at the
+cello's C2). Alone it moved the cello's soft rise 0.032 → 0.13 s and every noise burst down
+9–15 dB; the release decay came into the band (74 → 43 dB/s). The renders' peaks fell with it
+(the bass's ff note −10.7 → −16.9 dBFS) at the same loudness (the ABX phrase −27.9 → −28.0 LUFS).
+
+**1 — The attack rise.** With the DC gone, the level's swell (pass 2's) is fitted per family:
+its length falls with the dynamic's square — the players hold back at soft *and* middle
+dynamics (the study §2.5) — the cello 0.30 → 0.05 s from 20 → 10 dB under, the bass 0.30 → 0.16
+s from 20 → 16 dB under (its band is narrower and its loud start's own transient stood over
+10 dB). **Every rise class is now in the band** but the bass's medium (0.01 s outside).
+*Tried and reverted* — the onset modelled from the measured bow kinematics:
+
+- *The measurement.* Pàmies-Vilà 2024's cellist (82 strokes, `tools/arcus/pass4/bow_kinematics.py`): the bow
+  reaches half its stroke's speed in 0.11 s (p10–p90 0.03–0.20), 90 % in 0.24 s (0.08–0.37),
+  its peak acceleration 1.4–6.1 m/s² (median 3.1); where a note starts from near-silence (7.2 s)
+  the level rises with the speed, ~20 dB over 0.2 s. Lampis's robot on a real cello G
+  (Zenodo 13374477, 3 948 attacks, `lampis_attacks.py`): Helmholtz motion within 11–70 ms at every force
+  0.3–1.9 N, the slowest at the lowest accelerations (0.15–0.3 m/s²).
+- *An eased onset* (the speed `v_t(1 − (1 − t/T)²)`, `T` 0.45 → 0.05 s by velocity, the force
+  in the model's Guettler region for the start's acceleration, no level swell): the rises came
+  into the band for both (the cello 0.20 / 0.15 / 0.02 s), `t_steady` into the bass's band — but
+  the noise bursts rose 10–15 dB, the build order turned positive, and **19 of 80 attacks went
+  past Guettler & Askenfelt** (low velocities at low α, the bass's low strings).
+- *A clean start at a share of the speed, then the ease* (the force in proportion to the speed):
+  at 15 % 13 of 80 over, at 30 % and 50 % 3 of 80 (the bass's E1/A1/B1 at low velocity, never
+  Helmholtz within 0.5 s); with the cello alone 0 of 80, but the pitch gate lost a point (cello C3
+  at the softest, +1.9 cents: the loop still converging when the window opens) and the bite's
+  own transient stood within 3 dB of the steady level — the cello's soft rise fell to 0.01 s.
+  The level swell over the clean start measures better on every count; kept.
+
+**2 — The loud cello's darkness: found, not fixed.** By measurement (`tests_p4::probe_lampis`,
+`probe_brightness`, `probe_instrument_brightness`; a first probe's harmonic search missed the
+flattened partials of high-force notes and read them dark — corrected, and said here):
+
+- *The string against a real one.* Lampis's robot bowing a cello A string (Zenodo 13374477's
+  static set, 94 points in Helmholtz motion, `lampis_harmonics.py`): a sawtooth at every point
+  (h2…h6 −6, −9.5, −12, −13.5, −15 dB), harmonic centroid 2.01 (p10–p90 1.82–2.13), **+0.10
+  octave a doubling of force, β and speed ≈ 0** (+0.02, −0.04). Arcus's A string on the same
+  grid: the same sawtooth, centroid 2.49 — but it brightens with *relative* force (`Fβ/v`): +0.27
+  octave a doubling of force at a fixed β and speed, and darker with speed.
+- *Under the players' map* (force ×4.5, β ×0.5, speed ×1.8 — the relative force held at 0.32–0.35
+  of Schelleng's) the string's spectrum does not move from pp to ff (D3, E4, A♯4, E5, within
+  ±5 %, vibrato and noise off); the real string's law would brighten it ~+0.2 octave. Neither
+  the bridge corner (6 or 12 kHz, or none), the torsion, nor the friction curve (Schoonderwaldt's
+  or Lampis's fit) changes that.
+- *Where it shows.* Per register the loud cello's harmonics are inside the cellos' band in
+  octaves 0–1 and dark in 2–3 (h7–h12 up to 10 dB under at octave 3); the `centroid_hz.loud`
+  class gap (385 Hz against 523–741) is partly the class's register mix (the per-register
+  harmonic centroids lie inside or at the band's lower edge).
+- *The fix it needs* is in the junction — the corner's sharpening following the *absolute*
+  force (the hair's compliance, the finite-width bow, the study §3.7) — not an equaliser.
+  **Open.**
+
+**3 — Thermal friction (recommendation 7), behind the switch, not the default.** The option is
+rebuilt on Woodhouse & Galluzzo 2025's rate-and-state law (`string::ThermalLaw`): `μ =
+h(Δ)·y(T)`, the jump curve `h = 0.5(|Δ| + 0.27)^−0.4`, the yield `y(T)` tabulated from the
+paper's steady fit `0.2(|v| + 0.011)^−0.4` (`T₀` 26.2 °C at their crossing; the cold static
+friction comes out 1.22, Lampis's measured sticking μ 1.17 median), the contact's temperature
+from two poles (0.5 ms, 20 ms; 60/40) whose steady sum is calibrated on `T₀` at 1 N — the
+paper's conduction equation is not reconstructed (its text came garbled), said so. The slip by
+Newton from `|u|`, eight fixed steps. Measured (`probe_friction_gate`, the held-out set with
+`ARCUS_FRICTION=thermal`): Helmholtz holds from lighter forces (0.07 of Schelleng's limit at β
+0.1, against 0.16 hyperbolic) as the papers say, but **1 of 80 attacks past Guettler**, the
+noise bursts 5–15 dB further out, the noise 2–4 dB further, the soft centroid out of the band
+(445 → 408 Hz). Kept as the option; the hyperbolic curve stays the default.
+
+**4 — Pizzicato.** Per-partial decays from the references: each family's T60 by frequency
+(`CELLO_PIZZ_T60`, `BASS_PIZZ_T60`, the study's `pizz_t60_by_freq`) sets the pluck's loss at its
+fundamental and eighth partial (the match's ring factors 0.81 / 0.67 retired); the finger's
+damping is in the table (the references are stopped notes). The pluck's noise share 0.15 →
+0.03: its first 25 ms carried 30–47 dB more 4–12 kHz than the next 100 ms against the
+recordings' 10–20. The thump came halfway in (cello 10.7 → 8.1, bass 13.9 → 7.4 dB outside),
+the bass's T60s 0.65 → 0.47 octave outside, both fundamentals' T60 in the band. The snap stays
+off and **its code is removed**. Stiffness: Arcus's pluck measures B ≈ 0 above octave 1 against
+the references' 1e-5 … 2e-4 — a dispersion filter in the shared loop, **not done**.
+
+| cello | before | after | band |
+|---|---|---|---|
+| attack_t_rise_s.soft | 0.032 (0.11) | **0.172 (0)** | 0.144 … 0.284 |
+| attack_t_rise_s.medium | 0.017 (0.08) | **0.138 (0)** | 0.098 … 0.367 |
+| attack_t_rise_s.loud | 0.006 (0) | 0.012 (0) | 0.0075 … 0.073 |
+| attack_t_steady_s.all | 0.092 (0.15) | 0.118 (0.12) | 0.241 … 0.418 |
+| attack_noise_burst_db.soft | 40.8 (18.8) | 32.2 (10.2) | 12.5 … 22.1 |
+| attack_noise_burst_db.medium | 41.9 (16.7) | 32.6 (7.3) | 13.8 … 25.3 |
+| attack_noise_burst_db.loud | 48.9 (23.8) | 34.1 (9.0) | 18.0 … 25.1 |
+| release_decay_db_s.all | 74.2 (4.1) | 42.9 (0) | 13.3 … 70.1 |
+| centroid_hz.loud | 386 (137) | 385 (138) | 523 … 741 |
+| noise_db_re_harm.all | −38.8 (3.7) | −38.7 (3.6) | −35.1 … −33.7 |
+| harmonics oct 0 / 1 / 2 / 3 (medium) | (1.6 / 1.5 / 3.2 / 6.6) | (1.6 / 1.5 / 3.2 / 6.6) | |
+| pizz_thump | (10.7) | **(8.1)** | |
+| pizz_t60_octaves | (0.28) | (0.27) | |
+| pizz_t60_f1_s | 2.79 (0.02) | 2.88 (0) | 2.81 … 3.14 |
+
+| bass | before | after | band |
+|---|---|---|---|
+| attack_t_rise_s.soft | 0.064 (0.03) | **0.184 (0)** | 0.098 … 0.240 |
+| attack_t_rise_s.medium | 0.022 (0.09) | 0.162 (0.01) | 0.107 … 0.151 |
+| attack_t_rise_s.loud | 0.004 (0.06) | **0.096 (0)** | 0.069 … 0.124 |
+| attack_t_steady_s.all | 0.087 (0.06) | 0.126 (0.02) | 0.146 … 0.359 |
+| attack_noise_burst_db.all | 47.4 (26.4) | 36.2 (15.3) | 17.8 … 20.9 |
+| release_decay_db_s.all | 49.4 (8.6) | 48.1 (7.2) | 16.8 … 40.8 |
+| centroid_hz.loud | 182 (7.3) | 182 (7.1) | 189 … 233 |
+| pizz_thump | (13.9) | **(7.4)** | |
+| pizz_t60_octaves | (0.65) | **(0.47)** | |
+| pizz_t60_f1_s | 2.73 (0) | 2.80 (0) | 2.56 … 2.86 |
+
+Everything else (vibrato, body marks, harmonics, HNR) within 0.1 dB of before (`tools/arcus/pass4/table.py`). The measures (`tools/arcus/pass4/measure.sh`):
+`F:\projects\daw-r42\tmp\arcus\p4\{dc8,ramp1,ramp2,swell2,thermal1}.json` (`swell2` is the
+result; `dc8` the DC fix alone; `ramp1`/`ramp2` the reverted onsets; `thermal1` the thermal law).
+
+**Gates:** the pitch 168 of 168 held-out points within a cent (median 0.015); the attacks 0 of
+80 over Guettler & Askenfelt (worst 0.67 of its limit); the arcus and fides DSP tests 32 of 32.
+**Defaults changed in place** (Arcus never shipped): the radiation's 8 Hz corner, each family's
+swell, the pluck's T60 table and noise, the match's pluck ring factors to 1, the thermal
+option's law. **Shared files** (`r42/arcus-upper`): `arcus_string.rs` — the thermal law only
+(`ThermalLaw`, its state, the `Friction::Thermal` arm; marked `r42:arcus-p4`; the hyperbolic
+path and `slip_root` untouched, so Fides's `bow2` keeps its bits); `arcus_ear.rs` untouched.
+`arcus_tables.rs` gains `swell_s`, `swell_db`, `pizz_t60` on `InstrumentSpec` (the violin's and
+viola's entries carry the cello's old swell and no pluck table).
+
+**CPU** (`tools/test/ab-compare.sh`, `tests_gate2::probe_cpu` alternately on `d534e86e9`'s Arcus
+files and this pass's, three runs each, release; no other build held a slot when it started, the
+other builders' may have run during it — not a claim): one voice 0.802 → 0.821 % of a core
+(+2.4 %, the radiation's two stages per side), eight voices 2.90 → 2.74 %.
+
+**Tests** (Windows, this branch at the end): `cantus-dsp` lib (release) 1 356 passed, 0 failed;
+`cantus-engine` + `cantus-core` (every test, `rt_memory`, block sizes, the pool, rest among
+them) 2 447 passed, 0 failed; `cantus-ui` `arcus_pick_e2e` 1 (+1 ignored until `ALL`),
+`fides_bowed_pitch` 1, `fides_pick_e2e` 2, `kit_lint` 4; clippy `--workspace --all-targets -D
+warnings` clean; rustfmt on `cantus-dsp` (`cargo fmt --all` hits Windows's command-line length
+here — not a format error). Not run: the Linux check (WSL is the integrator's).
+
+**Renders:** pass 3's set kept in `F:\projects\daw-r42\listen\arcus\before-pass4\`; the
+listening set and the ABX files re-rendered with the same names (and their `-lufs23` copies).
+
+**Still open:** the loud cello's brightness (a junction that sharpens with absolute force); the
+noise bursts (7–22 dB outside per class: the clean start's pre-Helmholtz slips, under the
+swell's gain); `t_steady` (the spectrum settles in 0.09–0.13 s against 0.24–0.42 — a level
+swell does not move it, and the eased onsets that did failed the gates); the pluck's stiffness.

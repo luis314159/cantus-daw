@@ -12,7 +12,6 @@ use crate::math;
 /// motion of the slips over the window.
 pub(super) struct Trace {
     pub rows: Vec<(f64, f64, f32, f32, f32, f32, Motion)>,
-    pub out: Vec<f32>,
 }
 
 pub(super) fn trace(inst: Instrument, key: u8, velocity: f32, seconds: f64) -> Trace {
@@ -59,7 +58,7 @@ pub(super) fn trace(inst: Instrument, key: u8, velocity: f32, seconds: f64) -> T
             m,
         ));
     }
-    Trace { rows, out: l }
+    Trace { rows }
 }
 
 #[test]
