@@ -1017,6 +1017,20 @@ built as Chorda, Tympanum and Arcus were:
      - The church pipe organ: stops, ranks, the swell box and the room, for worship music
        beside Organum's tonewheel.
 
+**Musicians and mannequins for every instrument (the owner, 2026-11-24).** Round 42 builds
+them for Arcus as a shared figure module:
+- **The figures:** the stylised musician, a realistic woman, a realistic man in a suit and a
+  wooden mannequin.
+- **How an instrument uses them:** it gives a seat or stand, hand targets with named grips,
+  a head attachment and its occluders, and the figure plays it.
+- **Next clients, each with its grips and poses:**
+  - the guitar family: fretting, pick, strum, slide, the steel's bar;
+  - Chorda's pianist: hands on the keys, the pedal foot;
+  - Tympanum's drummer: sticks, the kick and hi-hat feet;
+  - the winds: embouchure, the keys' fingers;
+  - the accordion: the bellows.
+- **Its faces are original, never a real person's likeness.**
+
 **One piano roll that adapts to each instrument (the owner, 2026-11-24; before the guitar).**
 *"Quisiera que evaluáramos si cada instrumento debería tener su piano roll o si nuestro piano
 roll debería ser adaptativo por instrumento, de manera muy flexible, que permita que cada
