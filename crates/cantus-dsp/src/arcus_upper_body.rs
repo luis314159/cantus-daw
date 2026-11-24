@@ -177,13 +177,13 @@ impl UpperBody {
             *pw = acc.max(1e-30);
         }
         self.n = used;
-        for k in 0..MODES {
+        let (nl, nr) = (1.0 / power[0].sqrt(), 1.0 / power[1].sqrt());
+        for (k, cf) in coefs.iter().enumerate() {
             let c = if k < used {
-                coefs[k]
+                *cf
             } else {
                 (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
             };
-            let (nl, nr) = (1.0 / power[0].sqrt(), 1.0 / power[1].sqrt());
             self.pr[k] = c.0 as f32;
             self.pi[k] = c.1 as f32;
             self.lr[k] = (c.2 * nl) as f32;

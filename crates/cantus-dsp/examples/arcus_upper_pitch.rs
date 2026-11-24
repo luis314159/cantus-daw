@@ -184,7 +184,38 @@ fn main() {
     );
     for (j, (inst, name, lo, keys, _)) in ranges.iter().enumerate() {
         let left = measure(*inst, *lo, *keys, Some(t1));
-        let fin: Vec<f32> = first[j].iter().zip(&left).map(|(a, b)| a + b).collect();
+        // A second pass that moved a point by more than two cents heard an unsettled motion
+        // (a light bow far over the fingerboard settles for a second): its first offset is
+        // kept. A point then more than five cents from the median of its neighbours along the
+        // keys (the same dynamic and contact) is that median — the closed loop trims the rest.
+        let per = DYN.len() * POS.len();
+        let mut fin: Vec<f32> = first[j]
+            .iter()
+            .zip(&left)
+            .map(|(a, b)| if b.abs() <= 2.0 { a + b } else { *a })
+            .collect();
+        let raw = fin.clone();
+        for (i, v) in fin.iter_mut().enumerate() {
+            let k = i / per;
+            let mut near: Vec<f32> = [k.wrapping_sub(2), k.wrapping_sub(1), k + 1, k + 2]
+                .iter()
+                .filter(|&&n| n < *keys)
+                .map(|&n| raw[n * per + i % per])
+                .collect();
+            if near.len() < 2 {
+                continue;
+            }
+            near.sort_by(|a, b| a.total_cmp(b));
+            let med = near[near.len() / 2];
+            if (*v - med).abs() > 5.0 {
+                eprintln!(
+                    "  {name} key {}: {:+.2} → {med:+.2} (its neighbours')",
+                    *lo as usize + k,
+                    v
+                );
+                *v = med;
+            }
+        }
         let worst = left.iter().fold(0f32, |m, x| m.max(x.abs()));
         for (i, l) in left.iter().enumerate() {
             if l.abs() > 1.0 {

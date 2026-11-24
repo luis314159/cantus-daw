@@ -268,7 +268,7 @@ fn dist(a: &Features, b: &Features, pizz: bool) -> [Option<f64>; 6] {
     let ltas = {
         let d: Vec<f64> = (3..23).map(|i| a.ltas[i] - b.ltas[i]).collect();
         let m = d.iter().sum::<f64>() / d.len() as f64;
-        Some((d.iter().map(|x| (x - m).powi(2)).sum::<f64>() / d.len() as f64).sqrt())
+        Some((d.iter().map(|x| math::powi(x - m, 2)).sum::<f64>() / d.len() as f64).sqrt())
     };
     let cent = Some(1200.0 * math::log2(a.centroid_hz.max(1.0) / b.centroid_hz.max(1.0)) / 100.0);
     let noise = Some(a.noise_db - b.noise_db);
@@ -289,6 +289,9 @@ fn dist(a: &Features, b: &Features, pizz: bool) -> [Option<f64>; 6] {
     };
     [harm, ltas, cent, noise, attack, decay]
 }
+
+/// Each feature's distances: Arcus–recording, recording–recording.
+type Spread = [(Vec<f64>, Vec<f64>); 6];
 
 const NAMES: [&str; 6] = [
     "harmonics 1–12 (dB rms)",
@@ -318,7 +321,7 @@ fn ltas(x: &[f32], sr: f64) -> Vec<f64> {
         let mut total = 0.0;
         for b in 1..n / 2 {
             let hz = b as f64 * sr / n as f64;
-            let p = (re[b] as f64).powi(2) + (im[b] as f64).powi(2);
+            let p = math::powi(re[b] as f64, 2) + math::powi(im[b] as f64, 2);
             total += p;
             let k = (3.0 * math::log2(hz / 100.0) + 0.5).floor();
             if k >= 0.0 && (k as usize) < bands.len() {
@@ -329,7 +332,7 @@ fn ltas(x: &[f32], sr: f64) -> Vec<f64> {
         at += n / 2;
     }
     let loud = frames.iter().fold(0.0f64, |m, f| m.max(f.0));
-    let mut sum = vec![0.0f64; 21];
+    let mut sum = [0.0f64; 21];
     for (t, b) in &frames {
         if *t > loud * 1e-5 {
             for (s, v) in sum.iter_mut().zip(b) {
@@ -346,7 +349,12 @@ fn ltas(x: &[f32], sr: f64) -> Vec<f64> {
 }
 
 fn rms_diff(a: &[f64], b: &[f64]) -> f64 {
-    (a.iter().zip(b).map(|(x, y)| (x - y).powi(2)).sum::<f64>() / a.len() as f64).sqrt()
+    (a.iter()
+        .zip(b)
+        .map(|(x, y)| math::powi(x - y, 2))
+        .sum::<f64>()
+        / a.len() as f64)
+        .sqrt()
 }
 
 /// The CNSM dataset's scales (Zenodo 10.5281/zenodo.18696786, CC BY 4.0: three violins, the
@@ -463,14 +471,12 @@ fn main() {
     eprintln!("{} reference notes", notes.len());
     // Per group (instrument, technique): Arcus vs each reference; reference vs reference at
     // the same note and dynamic from another source.
-    let mut acc: BTreeMap<(bool, bool), [(Vec<f64>, Vec<f64>); 6]> = BTreeMap::new();
+    let mut acc: BTreeMap<(bool, bool), Spread> = BTreeMap::new();
     let mut vib: BTreeMap<(bool, bool), Vec<(f64, f64)>> = BTreeMap::new();
     let mut rows = String::new();
     for n in &notes {
         let Some(f) = arcus(n) else { continue };
-        let e = acc
-            .entry((n.viola, n.pizz))
-            .or_insert_with(Default::default);
+        let e = acc.entry((n.viola, n.pizz)).or_default();
         let d = dist(&f, &n.f, n.pizz);
         for (i, v) in d.iter().enumerate() {
             if let Some(v) = v {

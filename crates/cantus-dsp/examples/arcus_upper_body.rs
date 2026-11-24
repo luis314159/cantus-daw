@@ -198,7 +198,7 @@ fn distance(a: &[f64], b: &[f64]) -> f64 {
     let off = a.iter().zip(b).map(|(x, y)| x - y).sum::<f64>() / n;
     (a.iter()
         .zip(b)
-        .map(|(x, y)| (x - y - off).powi(2))
+        .map(|(x, y)| math::powi(x - y - off, 2))
         .sum::<f64>()
         / n)
         .sqrt()
@@ -246,7 +246,7 @@ fn main() {
         let mut best = (0usize, -1.0f64);
         for i in 0..f.len() {
             let m = model(f[i], &modes, &amp);
-            let r = (h[i].0 - m.0).max(0.0).powi(2) * w[i];
+            let r = math::powi((h[i].0 - m.0).max(0.0), 2) * w[i];
             let near = modes
                 .iter()
                 .any(|(hz, q)| (f[i] / hz - 1.0).abs() < (0.25 / q).clamp(0.008, 0.02))

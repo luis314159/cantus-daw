@@ -55,10 +55,10 @@ pub(super) fn inharmonic_db(x: &[f32], from: usize, f0: f64) -> f64 {
     let (mut on, mut off) = (0.0f64, 0.0f64);
     for b in 1..n / 2 {
         let f = b as f64 * hz;
-        if f < 150.0 || f > 20_000.0 {
+        if !(150.0..=20_000.0).contains(&f) {
             continue;
         }
-        let p = (re[b] as f64).powi(2) + (im[b] as f64).powi(2);
+        let p = math::powi(re[b] as f64, 2) + math::powi(im[b] as f64, 2);
         let k = (f / f0).round();
         if k >= 1.0 && (f - k * f0).abs() <= 4.0 * hz {
             on += p;

@@ -1085,3 +1085,15 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
   suenan ahora con el arco de Arcus, afinados a menos de un cent. ¿Mejor o peor que antes? (Una
   canción hecha antes conserva el arco viejo.)
 - [ ] **Arcus ajustado a las grabaciones (modelo 2)**: compara `F:\projects\daw-r42\listen\arcus\before\` (antes) con `F:\projects\daw-r42\listen\arcus\` (después), y mira las gráficas de `docs/round42/arcus-match/` (la banda azul son las grabaciones). ¿El chelo suena más a chelo? ¿Algún agudo áspero o silbante (el ajuste sube los agudos del chelo hasta +12 dB a 10 kHz)?
+- [ ] **El violín y la viola de Arcus** <!-- r42:arcus-upper -->: escucha
+  `F:\projects\daw-r42\listen\arcus-upper\` — una nota en pp, mf y ff, cuatro compases ligados
+  con crescendo de CC1, détaché, pizzicato y trémolo de cada uno — y haz la **comparación a
+  ciegas** con `abx.html` de esa carpeta (18 pares contra el violín de VSCO 2 CE, de Iowa y de
+  TinySOL, y la viola de Iowa y TinySOL, todos a −23 LUFS). ¿Suenan a violín y a viola *de verdad*?
+  Anota el ataque (aún brusco: es el del chelo), la caída al soltar, el brillo, el pizzicato.
+  Tu veredicto decide si el violín y la viola se ofrecen con Arcus.
+- [ ] **La imagen del violín y la viola** <!-- r42:arcus-upper -->:
+  `docs/round42/arcus-upper/sheet-v2/` (noche y papel, 100 % y 200 %): ¿se leen como violín y
+  viola? Elige la pose: (A) en su estuche abierto de terciopelo sobre una mesita, vistos de tres
+  cuartos desde arriba, con el arco sobre las cuerdas cuando suenan, o (B) en el aire al ángulo
+  de tocar, con el arco.

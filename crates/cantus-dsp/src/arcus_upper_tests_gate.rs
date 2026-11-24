@@ -359,7 +359,7 @@ fn the_upper_body_is_its_fitted_modes_and_comes_to_rest() {
     for inst in [Instrument::Violin, Instrument::Viola] {
         let x = body_impulse(inst, 1 << 16);
         assert!(x.iter().all(|v| v.is_finite()));
-        let e: f64 = x.iter().map(|v| (*v as f64).powi(2)).sum();
+        let e: f64 = x.iter().map(|v| math::powi(*v as f64, 2)).sum();
         // Its power gain to white noise is one.
         assert!((e - 1.0).abs() < 0.02, "{inst:?}: energy {e}");
         let tail = x[x.len() - 4096..].iter().fold(0f32, |m, v| m.max(v.abs()));
@@ -374,8 +374,8 @@ fn the_upper_body_is_its_fitted_modes_and_comes_to_rest() {
         (1..n / 2)
             .filter(|b| (*b as f64 * hz) > lo && (*b as f64 * hz) < hi)
             .max_by(|a, b| {
-                let pa = re[*a].powi(2) + im[*a].powi(2);
-                let pb = re[*b].powi(2) + im[*b].powi(2);
+                let pa = math::powi(re[*a], 2) + math::powi(im[*a], 2);
+                let pb = math::powi(re[*b], 2) + math::powi(im[*b], 2);
                 pa.total_cmp(&pb)
             })
             .map_or(0.0, |b| b as f64 * hz)
@@ -415,7 +415,8 @@ fn the_way_back_is_flat_to_20_khz_and_folds_nothing_audible() {
             if f <= 20_000.0 {
                 // An impulse at the high rate spreads over `os` bands; a tone in the passband
                 // comes back whole: the band's share is `1/os`.
-                let db = 10.0 * math::log10((re[b] as f64).powi(2) + (im[b] as f64).powi(2))
+                let db = 10.0
+                    * math::log10(math::powi(re[b] as f64, 2) + math::powi(im[b] as f64, 2))
                     + 20.0 * math::log10(os as f64);
                 ripple = ripple.max(db.abs());
             }
@@ -442,8 +443,9 @@ fn the_way_back_is_flat_to_20_khz_and_folds_nothing_audible() {
                 d.run(os, &x[k * 256 * os..(k + 1) * 256 * os], chunk);
             }
             let tail = &y[1024..];
-            let rms =
-                (tail.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / tail.len() as f64).sqrt();
+            let rms = (tail.iter().map(|v| math::powi(*v as f64, 2)).sum::<f64>()
+                / tail.len() as f64)
+                .sqrt();
             stop = stop.max(20.0 * math::log10((rms * 2f64.sqrt()).max(1e-12)));
             f *= 1.013;
         }

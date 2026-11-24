@@ -22,15 +22,14 @@
 //! - **Stiffness**: none in the loop (Schelleng 1973's 0.1 cent·n² tolerance; Percival's
 //!   Table 3.3 measured B ≤ 10⁻⁴ on these strings, under it for the partials a bow drives).
 //!
-//! **The bowing** (re-mapped the players' way after the study's database, `study/bowed-realism.md`
-//! §0 item 2: pp → ff the force × 4–5, the bow–bridge distance × 0.4–0.5, the speed nearly
-//! constant — here ×2, which with β ×0.45 makes the Helmholtz amplitude ×4.4, 13 dB, the low
-//! end of the measured 13 – 18 dB): speeds and contact points within Askenfelt's violin measurements (*JASA* 86,
-//! 1989, doi:10.1121/1.398230: pp near 5 cm/s and β near 1/8, ff to 50 cm/s and β under 1/16
-//! — the abstract read, its tables NV) and Schoonderwaldt, Guettler & Askenfelt 2008
-//! (doi:10.3813/aaa.918070, the violin's Schelleng diagram on its D and E strings at 5 – 20
-//! cm/s: read, `downloads/study/papers/s08.txt`), the force placed in the region measured on
-//! this model (`upper_tests_gate`).
+//! **The bowing** is re-mapped the players' way after the study's database
+//! (`study/bowed-realism.md` §0, item 2: pp → ff the force × 4–5, the bow–bridge distance ×
+//! 0.4–0.5, the speed nearly constant, the level 13 – 18 dB): here the speed × 3 (10 → 30 cm/s,
+//! inside Askenfelt's violin measurements, *JASA* 86, 1989, doi:10.1121/1.398230, abstract read),
+//! β × 0.4 (0.14 → 0.055), so the Helmholtz amplitude × 7.6 (17.6 dB nominal), and the force × 5
+//! (its place from 0.36 to 0.24 of Schelleng's limit) inside the region measured on this model
+//! (`upper_tests_gate`; Schoonderwaldt, Guettler & Askenfelt 2008, doi:10.3813/aaa.918070, the
+//! violin's Schelleng diagram on its D and E strings, read in `downloads/study/papers/s08.txt`).
 
 use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec};
 use crate::fides::body::BodyKind;
@@ -60,14 +59,14 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     body: BodyKind::None,
     body_size: 1.0,
     bowing: Bowing {
-        speed: (0.15, 0.30),
-        beta: (0.13, 0.058),
-        place: (0.32, 0.32),
+        speed: (0.10, 0.30),
+        beta: (0.14, 0.055),
+        place: (0.36, 0.24),
     },
     // Mellody & Wakefield 2000 (5.9 Hz, ±15 cents mean) and MacLeod 2008 (wider high).
     vib_hz: 5.9,
     vib_ct: 17.0,
-    trim_db: 13.0,
+    trim_db: 12.0,
     corner_hz: 6000.0,
     radiation_hz: 0.0,
     balance_db_st: 0.0,
@@ -88,14 +87,14 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     body: BodyKind::None,
     body_size: 1.0,
     bowing: Bowing {
-        speed: (0.15, 0.30),
-        beta: (0.135, 0.062),
-        place: (0.32, 0.32),
+        speed: (0.10, 0.30),
+        beta: (0.145, 0.06),
+        place: (0.36, 0.24),
     },
     // MacLeod 2008: violists slightly slower and narrower than violinists.
     vib_hz: 5.7,
     vib_ct: 16.0,
-    trim_db: 13.0,
+    trim_db: 8.0,
     corner_hz: 5000.0,
     radiation_hz: 0.0,
     balance_db_st: 0.0,

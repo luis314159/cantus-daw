@@ -35,6 +35,9 @@ enum Ev {
     Art(u8, Option<Art>, Option<BowDir>),
 }
 
+/// A render: its file's name, the settings, the score (seconds, event), its length (s).
+type Job = (String, ArcusSettings, Vec<(f64, Ev)>, f64);
+
 fn id(k: u8) -> u64 {
     k as u64 + 9_000
 }
@@ -487,7 +490,7 @@ fn main() {
             instrument: inst,
             ..ArcusSettings::default()
         };
-        let mut jobs: Vec<(String, ArcusSettings, Vec<(f64, Ev)>, f64)> = Vec::new();
+        let mut jobs: Vec<Job> = Vec::new();
         for (d, vel) in [("pp", 0.22f32), ("mf", 0.6), ("ff", 0.98)] {
             jobs.push((
                 format!("{name}-note-{d}"),

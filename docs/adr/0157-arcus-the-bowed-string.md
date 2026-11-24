@@ -143,7 +143,7 @@ too short for the junction's lines and for the motion between bow and bridge: th
 `min_beta` forced β above the player's from E5 up (0.14 at E6, 0.27 at E7, against ~0.06 at
 ff), and above E6 the motion broke (−30 to −50 cents, the energy between the harmonics).
 
-**Decision.** The violin's and the viola's voices run **at 4× the rate** — the string, the
+**Decision.** The violin's voices run **at 4× the rate**, the viola's at 2× — the string, the
 bow, the pluck and the pitch loop, their control steps as often in time as the cello's — and
 come back through a linear-phase half-band cascade (23 + 75 taps, flat to 20 kHz, ≥ 90 dB
 down from 28 kHz; 21 samples of latency); the body, the match and the output stage stay at
@@ -155,9 +155,11 @@ upper strings the bridge's corner rounding is at least 6 × the note's fundament
 lightens and slows high on a string (half an octave of force and a fifth of speed at two
 octaves up), as players bow there. Their strings are Percival's measured lengths and decays
 and Rossing's tension ranges; the violin's body is **fitted to the CNSM dataset's measured
-bridge admittance** (CC BY 4.0) by positive modes; the viola's is the violin's at 1.14 × its
-size (no measured viola admittance exists in the open).
+bridge admittance** (CC BY 4.0) by positive modes; the viola's is the violin's at 1.12 × its
+size (the study's measured A0s, 250 against 281 Hz; no measured viola admittance exists in the
+open). Their dynamic is mapped the players' way (the study's database: force ×5, β ×0.4, speed
+×3 pp → ff) and their noise, vibrato and pluck matched by the study's own estimator.
 
-**Consequences.** An upper-string voice costs about twice a cello voice (a quiet bench must
-say how much); its memory is the cello's (the lines already hold its period at 4×). The
+**Consequences.** A violin voice costs about 1.5 × a cello voice at 1×, a viola voice 1.15 ×
+(measured beside each other on a loaded machine; a quiet bench must say how much); its memory is the cello's (the lines already hold its period at 4×). The
 instruments stay out of the picker until the owner's listening verdict, as the cello's.
