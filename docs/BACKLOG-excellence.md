@@ -2826,6 +2826,4 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
   VSCO's sections, a solo viola, non-vibrato sustains (but VSCO's bass). Next: Cantus's own
   CC0 quartet session (sustain and non-vibrato at 4–5 dynamics, up and down bows, legato
   intervals, harmonics, sordino, col legno; close and room); a spectral dynamics morph (not
-  only the layers' crossfade and a filter); editing a zone's articulation, bow and controller
-  crossfade in Exemplar's zone card (today they come from the instrument file: the card's
-  title shows them); a hosted instrument's key-switch map driven by the note's articulation.
+  only the layers' crossfade and a filter); a hosted instrument's key-switch map driven by the note's articulation.

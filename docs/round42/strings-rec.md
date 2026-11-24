@@ -65,7 +65,13 @@
 - Schema 82: a migration that writes nothing, `fixtures/v82.cantus` (a *Strings* Exemplar),
   `schema_82_keeps_exemplar_s_articulations_and_legato`; every older fixture loads.
 - The SFZ importer reads `xfin_loccN`…, `xf_cccurve`, `cantus_articulation`, `cantus_bow`,
-  `cantus_legato*`; the zone card's title shows a zone's articulation and bow.
+  `cantus_legato*`.
+- **The zone card's *Playing* page** (‹ Zone › / ‹ Playing › on its title): a zone's
+  articulation, bow, keyswitch, delay, controller crossfade (the CC, the ranges it fades in
+  and out across, the curve). Each edit is a command and one undo step; readouts are in words
+  (*Pizz.*, *Down*, *CC 1*, *Power*) with designed short labels in both languages, and the
+  title names the zone's articulation and bow. Shots: `docs/round42/strings-rec/art-zone-*`
+  (all eight in `F:\projects\daw-r42\listen\strings-rec\shots\`); test: `strings_rec_zone.rs`.
 
 ### The packs (on demand, credited, never in git)
 
@@ -85,13 +91,25 @@
   scripted legato on for the main instruments (90 ms crossfade, 60 ms glide, 90 ms past the
   attack). A preset is an instrument *like* another (`like`: its zones held once).
 - **Measured offline** (`tools/content/strings/map.sh` → `cantus-content/examples/strings_map`):
-  YIN pitch over each sample's steady part, searched 2.5× either side of its name; the octave
-  fix is the majority per instrument and articulation (a file more than 50 cents off its key so
-  fixed plays at its key untuned: 123 files, nearly all plucked notes and Sneakybass). The
-  loop: a whole number of periods in the steady part, its seam searched within a period,
-  crossfaded over a third (≤ 400 ms), **kept only if Exemplar plays it click-free** (the
-  seam's energy above about 5 kHz, by the second difference, within 3 dB of the loop's own
-  90th percentile); five places tried. 713 loops kept, none clicking.
+  - **The octave fix**: YIN over each sample's steady part, searched 2.5× either side of its
+    name; the majority fix per instrument and articulation is given to every file of it.
+  - **Each zone's tune** is its mean pitch made its key's (vibrato kept, only the centre
+    moved). The pitch is measured on what the zone plays: a held note through Exemplar, three
+    turns of its loop with the crossfade; a short note over its tone (20 ms after its rise to
+    −30 dB). Every search stays within 60 cents of the mapped root, so no octave or fifth is
+    taken. The measure:
+    - a sustain: the consensus of **the partials' fit** (the pitch whose first eight
+      harmonics hold the most power, Hann frames of eight periods, golden-section to 0.02
+      cent) and **YIN** — their mean where they agree within 2 cents, YIN where the fit has
+      caught another peak of an ensemble's spread;
+    - a tremolo: YIN (the bow changes break the partials apart);
+    - a short note: the partials' fit.
+    1 982 of 1 984 zones measured; two pizzicati are too short to measure and keep YIN's
+    reading.
+  - **The loop**: a whole number of periods in the steady part, its seam searched within a
+    period, crossfaded over a third (≤ 400 ms), **kept only if Exemplar plays it click-free**
+    (the seam's energy above about 5 kHz, by the second difference, within 3 dB of the loop's
+    own 90th percentile); five places tried. 713 loops kept, none clicking.
 - **Levels**: every instrument and preset levelled so its four-bar line plays at −16 LUFS
   (`render.sh` measures, `merge.py` sets `gain_db`, within ±24 dB).
 - **The cards** say what the content is: *"A finished sketch, honestly: two dynamic layers, no
@@ -131,19 +149,34 @@
   swell (×1.5), and the pizzicato decaying by its own articulation.
 - **The packs against their sources** (`cantus-content/tests/strings_packs.rs`, ignored: the
   samples are not in git; `CANTUS_STRINGS_SRC=<dir> cargo test --release -p cantus-content
-  --test strings_packs -- --ignored --nocapture`). Every zone is played by Exemplar at its root
-  with its tuning and measured by **McLeod's NSDF** (not the YIN that set the tuning): of the 709 held zones the two estimators read as one note, **88.0 % are within a cent and 98.4 % within five**; of the 1 037 short notes, 50.0 % and 91.3 %; 238 zones gave no reading (the estimators read different notes, or none). The gate holds what was measured (held ≥ 85 % and ≥ 97 %);
-  all 713 loops are click-free.
+  --test strings_packs -- --ignored --nocapture`, `CANTUS_STRINGS_MANIFEST=<file>` to measure
+  another manifest). Every zone is played by Exemplar at its root with its tune and read by a
+  **held-out check** that sets no tuning: McLeod's NSDF near the root, over the same spans.
+  - **The floor** (`examples/strings_tune_probe.rs`): the check agrees with *itself* at four
+    times its window within a cent for only 94 % of held zones. A zone is **measurable**
+    when the two readings are within 0.3 cent: 557 of 624 sustains (89 %). The 67 others are
+    listed by the test with their spread.
+  - **Before** (tune from YIN alone, as first delivered) → **after** (the consensus):
+
+    | | before | after |
+    |---|---|---|
+    | measurable sustains within 1 cent | 88.2 % (491 / 557) | **98.9 % (551 / 557)** |
+    | measurable sustains beyond 3 cents | 15 | **0** |
+    | all sustains within 1 / 5 cents | 85.3 % / 97.8 % | **97.0 % / 100 %** |
+    | tremolos within 1 / 5 cents (reported) | 75.2 % / 89.4 % | 79.6 % / 89.4 % |
+    | short notes within 1 / 5 cents (reported) | 23.6 % / 72.0 % | 46.9 % / 81.6 % |
+
+    The integrator's bar is 99 % of measurable sustains within a cent: 98.9 % falls short by
+    one zone (six are 1.09–2.72 cents off). The test holds 98.5 % until the integrator rules,
+    with all measurable sustains within 3 cents and every sustain within 5. A pluck's pitch
+    falls as it rings, so a short note has no single pitch to a cent.
+  - Every one of the 713 loops is click-free.
 - Content: 118 passed (the manifest valid, the strings build written, its validation).
 
 ## Verified only in emulation
 
-- **The ±1 cent bar**: a second estimator agrees within a cent for most held zones and within
-  five cents for nearly all (figures above). The rest are where two estimators part on an
-  ensemble's spread of players or a bow's vibrato. Zones that NSDF reads an octave or a fifth
-  away from YIN (a weak fundamental, such as a bass's low C) are counted as *no reading*.
-  Plucked notes drift in pitch as they ring, so their tune is YIN's mean over the first 0.6 s.
-  Only an ear settles these.
+- **In tune** is measured, against a check whose own repeatability is the floor (above).
+  What the ear takes as a section's pitch, with its spread of players, is the owner's call.
 - **Click-free** is a measurement (energy above about 5 kHz at the seam). A vibrato repeating
   in a 2–4 s loop is not measured: the ear decides.
 - Every sound was checked by numbers and none was heard by a person. The pictures were looked
@@ -159,7 +192,9 @@
     on the Bigcat cello and the Smolken bass, its 30 ms overlaps slurred, the bar after the
     marker plucked. These are Arcus's references.
 
-  Say which presets are acceptable. The legato's crossfade, glide and start (90 / 60 / 90 ms)
+  Rendered again after the tuning correction (same names; levels unchanged). Say which presets
+  are acceptable. The legato's crossfade, glide and start (90 / 60 / 90 ms)
   were set by measurement, not by ear.
-- The lane's look (`docs/round42/strings-rec/`) and the checklist's *Ronda 42* item.
+- The lane's and the zone card's look (`docs/round42/strings-rec/`, every shot in
+  `F:\projects\daw-r42\listen\strings-rec\shots\`) and the checklist's *Ronda 42* item.
 - A lawyer on US 7,915,514 / 8,404,958 and US 7,557,288 before release (the checklist).
