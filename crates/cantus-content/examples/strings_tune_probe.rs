@@ -57,7 +57,7 @@ fn main() {
                     continue;
                 }
                 k += 1;
-                if k % step != 0 {
+                if !k.is_multiple_of(step) {
                     continue;
                 }
                 let bytes = match zip.as_mut() {

@@ -193,7 +193,9 @@
     marker plucked. These are Arcus's references.
 
   Rendered again after the tuning correction (same names; levels unchanged). Say which presets
-  are acceptable. The legato's crossfade, glide and start (90 / 60 / 90 ms)
+  are acceptable. Each line is levelled to −16 LUFS, so a forte phrase can peak above full
+  scale inside the mix (the ABX bass rendered at +4.3 dBFS before its −1 dBFS normalising):
+  say if the strings should sit lower. The legato's crossfade, glide and start (90 / 60 / 90 ms)
   were set by measurement, not by ear.
 - The lane's and the zone card's look (`docs/round42/strings-rec/`, every shot in
   `F:\projects\daw-r42\listen\strings-rec\shots\`) and the checklist's *Ronda 42* item.
