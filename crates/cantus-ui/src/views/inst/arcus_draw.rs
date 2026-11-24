@@ -20,6 +20,8 @@ mod arm; // r42:arcus-upper
 mod body;
 #[path = "arcus_draw_hand.rs"]
 pub mod hand; // r42:arcus-upper
+#[path = "arcus_draw_lit.rs"]
+mod lit; // r42:arcus-upper
 
 use crate::app::CantusApp;
 use crate::kit::color::with_alpha;

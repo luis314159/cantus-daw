@@ -170,7 +170,7 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
             rock,
             side: ex,
         };
-        super::hand::left_arm(b, v, &arm, &l);
+        super::hand::left_arm(b, v, &figure_light(v, pl, s), &arm, &l);
     } else if st < 0.995 && pl.stop == StopShow::Finger {
         // Under a chin the finger curls over the fingerboard's edge from the hand behind
         // the neck (its first joint up, the rest down out of sight). // r42:arcus-upper
@@ -197,7 +197,7 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     // The figure's right arm to the frog (a musician's sleeve and hand, the mannequin's
     // wood). // r42:arcus-upper
     if let Some(arm) = crate::scene::bowed_hold::arm(pl.b, pl.holder) {
-        super::arm::right_arm(b, v, &arm, frog, dir, n);
+        super::arm::right_arm(b, v, &figure_light(v, pl, s), &arm, frog, dir, n);
     }
 }
 
@@ -466,4 +466,11 @@ fn marker_at(b: &mut Brush, v: &View, pl: &Play, at: V3, size: f32) {
     // further from it), as the scene's selection: 3:1 on any wood, ebony or wall.
     let edge = crate::scene::halo_for(pl.accent);
     super::hand::marker(b, v, at, size, pl.accent, edge);
+}
+
+/// r42:arcus-upper — the light the figure's live arms are shaded in: the scene's key over
+/// the instrument's middle, in the theme's mood.
+fn figure_light(v: &View, pl: &Play, s: &Style) -> super::lit::Lit {
+    let d = pl.b.dims();
+    super::lit::Lit::round(v, pl.rig.pose.at(0.0, d.body * 0.5, 0.0), s.t.dark)
 }

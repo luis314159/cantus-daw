@@ -77,7 +77,7 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
         let hr = hf.cross(hu).norm();
         let (a, bb, c) = HEAD;
         let head = chin + hu * (bb * 0.78) - hf * (c * 0.15) + hr * (a * 0.5);
-        let neck = head + down * 17.5 - f * 3.5 + r * 4.0;
+        let neck = head + down * 15.5 - f * 3.0 + r * 4.0;
         let ls = neck - r * 16.0 + down * 3.5;
         let rs = neck + r * 16.0 + down * 3.5;
         let chest = neck + down * 15.0 - f * 2.0;
@@ -126,7 +126,7 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
     let chest = contact - f * 10.0 + r * 1.0;
     let pelvis = chest + down * 27.0 - f * 3.0;
     let neck = chest + UP * 15.0 - f * 1.0;
-    let head = neck + UP * 18.5 + r * 5.0 + f * 1.0;
+    let head = neck + UP * 16.5 + r * 5.0 + f * 1.0;
     let hf = (f + down * 0.22 - r * 0.22).norm();
     let hu = (UP - r * 0.16).norm();
     let hu = (hu - hf * hu.dot(hf)).norm();
@@ -235,8 +235,16 @@ pub fn shell(
 ) {
     let e3 = e1.cross(e2).norm();
     let full = (lon.1 - lon.0) >= TAU - 1e-3;
-    let cols = if full { 28 } else { 18 };
-    let rows = 16;
+    // Finer on a large surface (a head, a chest), so the Drawn picture's flat facets
+    // read as a smooth curve.
+    let big = a.max(b).max(t) > 6.0;
+    let cols = match (full, big) {
+        (true, true) => 40,
+        (true, false) => 24,
+        (false, true) => 26,
+        (false, false) => 16,
+    };
+    let rows = if big { 22 } else { 12 };
     let at = move |ph: f32, th: f32| {
         c + e1 * (a * ph.cos() * th.sin()) + e2 * (b * ph.sin()) + e3 * (t * ph.cos() * th.cos())
     };

@@ -1,81 +1,90 @@
 //! r42:arcus-upper — the bow arm of the figure that holds an Arcus instrument (a musician's
-//! sleeve and hand, the wooden mannequin's), drawn live with the bow: the shoulder is the
-//! baked figure's (`scene::bowed_hold::arm`), the hand closes on the frog wherever the bow
-//! has travelled, the elbow falls where a two-bone arm puts it.
+//! sleeve and hand, the wooden mannequin's), drawn live with the bow and shaded as the
+//! baked body is (`lit`): from inside the shoulder, the elbow where a two-bone arm puts it
+//! (out to the player's right, at a bowing height), the hand on the frog in a relaxed bow
+//! grip — the palm over the stick, the fingers draped over it, the thumb bent under it at
+//! the frog's front, the little finger on top.
 
 use super::body::View;
-use crate::kit::appearance::rgb;
-use crate::kit::color::{mix, with_alpha};
+use super::lit::{ball, tube, Lit};
 use crate::kit::Brush;
 use crate::scene::bowed_hold::{elbow, Arm};
 use crate::scene::geo::V3;
-use egui::{Pos2, Vec2};
 
 /// The arm from its shoulder to the bow's `frog` (the bow's way `dir`, frog to tip; `n`
 /// the string's normal, the side the stick is on).
-pub fn right_arm(b: &mut Brush, v: &View, arm: &Arm, frog: V3, dir: V3, n: V3) {
-    let hand = frog + n * 2.4 - dir * 1.2;
-    let wrist = hand - dir * 4.8 + n * 2.6;
-    let el = elbow(arm.shoulder, wrist, arm.upper, arm.fore, arm.pole);
-    let (ps, pe, pw, ph) = (v.p(arm.shoulder), v.p(el), v.p(wrist), v.p(hand));
-    let sleeve = rgb(arm.sleeve);
-    let shade = rgb(arm.sleeve_shade);
-    let lit = mix(sleeve, rgb(crate::kit::skin::scene::hold::SHEEN), 0.18);
-    let wu = 2.0 * arm.r.0 * v.scale(el);
-    let wf = 2.0 * arm.r.1 * v.scale(wrist);
-    limb(b, ps, pe, wu, shade, sleeve, lit);
-    limb(b, pe, pw, wf, shade, sleeve, lit);
-    // The cuff at the wrist, a shade deeper.
-    let cuff = el.lerp(wrist, 0.92);
-    b.segment(v.p(cuff), pw, wf * 1.08, shade, true);
-    // The hand: the palm over the frog, three fingers round the stick, the thumb under it.
-    let skin = rgb(arm.hand);
-    let skin_shade = rgb(arm.hand_shade);
-    let wh = 2.0 * 3.8 * v.scale(hand);
-    b.segment(pw, ph, wh * 1.06, skin_shade, true);
-    b.segment(pw, ph, wh * 0.86, skin, true);
-    let wfi = 1.7 * v.scale(hand);
-    for k in 0..4 {
-        let a = hand + dir * ((k as f32 - 1.5) * 1.6);
-        let tip = a - n * 3.0 + dir * 0.4;
-        b.segment(v.p(a), v.p(tip), wfi * 1.15, skin_shade, true);
-        b.segment(v.p(a), v.p(tip), wfi * 0.85, skin, true);
+#[allow(clippy::too_many_arguments)]
+pub fn right_arm(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, frog: V3, dir: V3, n: V3) {
+    // The far side of the stick (away from the player): the fingers drape over to it.
+    let mut far = n.cross(dir).norm();
+    if far.dot(arm.f) < 0.0 {
+        far = -far;
     }
-    let t0 = hand - dir * 2.0 - n * 0.8;
-    let t1 = frog + dir * 0.6 - n * 0.9;
-    b.segment(v.p(t0), v.p(t1), wfi * 1.2, skin_shade, true);
-    b.segment(v.p(t0), v.p(t1), wfi * 0.9, skin, true);
-    // A soft shadow the hand throws on the stick.
-    b.segment(
-        v.p(frog),
-        v.p(frog + dir * 3.0),
-        wfi,
-        with_alpha(skin_shade, 0.25),
-        true,
+    let palm = frog + n * 2.4 + dir * 1.6 - far * 0.6;
+    let wrist = palm + n * 2.6 - dir * 3.4 - far * 1.4;
+    let el = elbow(arm.shoulder, wrist, arm.upper, arm.fore, arm.pole);
+    tube(
+        b,
+        v,
+        lit,
+        arm.shoulder,
+        el,
+        arm.r.0 * 1.05,
+        arm.r.0,
+        arm.sleeve,
     );
+    tube(
+        b,
+        v,
+        lit,
+        el,
+        wrist,
+        arm.r.1 * 1.05,
+        arm.r.1 * 0.82,
+        arm.sleeve,
+    );
+    if let Some(j) = arm.joints {
+        ball(b, v, lit, arm.shoulder, arm.r.0 * 1.25, j);
+        ball(b, v, lit, el, arm.r.0 * 1.05, j);
+        ball(b, v, lit, wrist, arm.r.1 * 0.95, j);
+    }
+    hand(b, v, lit, arm, wrist, palm, frog, dir, n, far);
 }
 
-/// A sleeve or a wooden limb: its shade, the colour over it, a highlight along its lit
-/// side.
-fn limb(
+/// The bow hand: the palm from the wrist over the stick, four fingers draped over it (the
+/// little finger short, on top), the thumb under it at the frog's front.
+#[allow(clippy::too_many_arguments)]
+fn hand(
     b: &mut Brush,
-    a: Pos2,
-    e: Pos2,
-    w: f32,
-    shade: egui::Color32,
-    col: egui::Color32,
-    lit: egui::Color32,
+    v: &View,
+    lit: &Lit,
+    arm: &Arm,
+    wrist: V3,
+    palm: V3,
+    frog: V3,
+    dir: V3,
+    n: V3,
+    far: V3,
 ) {
-    b.segment(a, e, w, shade, true);
-    let side = (e - a).normalized();
-    let off = Vec2::new(side.y, -side.x) * (w * 0.08);
-    let off = if off.y > 0.0 { -off } else { off };
-    b.segment(a + off, e + off, w * 0.8, col, true);
-    b.segment(
-        a + off * 3.5,
-        e + off * 3.5,
-        w * 0.14,
-        with_alpha(lit, 0.3),
-        true,
-    );
+    let skin = arm.hand;
+    let k = if arm.joints.is_some() { 0.9 } else { 1.0 };
+    tube(b, v, lit, wrist, palm, 2.5 * k, 2.8 * k, skin);
+    for j in 0..4 {
+        let along = (j as f32 - 1.5) * 1.65 * k;
+        let knuckle = palm + dir * along + far * (1.6 * k) - n * 0.2;
+        let (bend, reach, r) = if j == 3 {
+            // The little finger, curved, its tip on top of the stick.
+            (1.0, 0.6, 0.62)
+        } else {
+            (1.9, 2.4, 0.76)
+        };
+        let mid = knuckle + far * (bend * k) - n * (1.0 * k);
+        let tip = mid - n * (reach * k) - far * (0.2 * k) + dir * (0.2 * k);
+        tube(b, v, lit, knuckle, mid, r * 1.08 * k, r * k, skin);
+        tube(b, v, lit, mid, tip, r * k, r * 0.88 * k, skin);
+    }
+    // The thumb, bent, under the stick at the frog's front.
+    let t0 = palm - far * (1.4 * k) - dir * (1.2 * k) + n * 0.3;
+    let t1 = frog + dir * 0.7 - n * 0.4 - far * 0.3;
+    tube(b, v, lit, t0, t1, 1.0 * k, 0.85 * k, skin);
 }

@@ -8,8 +8,7 @@
 //! in the theme's accent) when that is how the stop is shown.
 
 use super::body::View;
-use crate::kit::appearance::rgb;
-use crate::kit::color::with_alpha;
+use super::lit::{ball, tube, Lit};
 use crate::kit::Brush;
 use crate::scene::bowed::Rig;
 use crate::scene::bowed_hold::{elbow, Arm};
@@ -84,35 +83,54 @@ pub fn playing_tip(l: &Left) -> Option<V3> {
     (l.semis >= 0.5).then(|| on_string(l.rig, l.string, l.semis, 0.0) + up * l.rock)
 }
 
-/// The left arm from its shoulder to the hand on the neck; returns where the playing
-/// fingertip is (none on an open string).
-pub fn left_arm(b: &mut Brush, v: &View, arm: &Arm, l: &Left) -> Option<V3> {
+/// The left arm from its shoulder to the hand on the neck, shaded as the body is: the
+/// elbow under the instrument, the palm under the neck with the thumb behind it, four
+/// fingers over the fingerboard (the one that plays on its string at the stop, the others
+/// hovering). Returns where the playing fingertip is (none on an open string).
+pub fn left_arm(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, l: &Left) -> Option<V3> {
     let rig = l.rig;
     let up = (rig.strings[l.string][2] - rig.strings[l.string][1]).norm();
     let nz = rig.pose.ez;
     let rock = up * l.rock;
-    // The hand's middle string line at its first finger, the palm under the neck there.
+    let k = if arm.joints.is_some() { 0.9 } else { 1.0 };
+    // The hand's line at its first finger (between the middle strings), the palm under the
+    // neck there, the wrist below it.
     let mid = (l.string as f32).clamp(1.0, 2.0) as usize;
     let first = on_string(rig, mid, l.at, 0.0) + rock;
-    let palm = first - nz * 2.6 + l.side * 1.8 - up * 1.2;
-    let wrist = palm - nz * 3.2 + l.side * 1.2 - up * 2.4;
+    let palm = first - nz * 2.4 + l.side * 2.0 - up * 1.0;
+    let wrist = palm - nz * 3.0 + l.side * 1.0 - up * 3.0;
     let el = elbow(arm.shoulder, wrist, arm.upper, arm.fore, arm.pole);
-    let sleeve = rgb(arm.sleeve);
-    let shade = rgb(arm.sleeve_shade);
-    let (ps, pe, pw) = (v.p(arm.shoulder), v.p(el), v.p(wrist));
-    let wu = 2.0 * arm.r.0 * v.scale(el);
-    let wf = 2.0 * arm.r.1 * v.scale(wrist);
-    b.segment(ps, pe, wu, shade, true);
-    b.segment(ps, pe, wu * 0.82, sleeve, true);
-    b.segment(pe, pw, wf, shade, true);
-    b.segment(pe, pw, wf * 0.82, sleeve, true);
-    let skin = rgb(arm.hand);
-    let skin_shade = rgb(arm.hand_shade);
-    let wh = 2.0 * 3.4 * v.scale(palm);
-    b.segment(pw, v.p(palm), wh * 1.04, skin_shade, true);
-    b.segment(pw, v.p(palm), wh * 0.84, skin, true);
-    // The four fingers: the one that plays the note lands on its string; the others hover
-    // over theirs, a little off the board.
+    tube(
+        b,
+        v,
+        lit,
+        arm.shoulder,
+        el,
+        arm.r.0 * 1.05,
+        arm.r.0,
+        arm.sleeve,
+    );
+    tube(
+        b,
+        v,
+        lit,
+        el,
+        wrist,
+        arm.r.1 * 1.05,
+        arm.r.1 * 0.82,
+        arm.sleeve,
+    );
+    if let Some(j) = arm.joints {
+        ball(b, v, lit, arm.shoulder, arm.r.0 * 1.25, j);
+        ball(b, v, lit, el, arm.r.0 * 1.05, j);
+        ball(b, v, lit, wrist, arm.r.1 * 0.95, j);
+    }
+    let skin = arm.hand;
+    tube(b, v, lit, wrist, palm, 2.4 * k, 2.7 * k, skin);
+    // The thumb behind the neck, on its far side.
+    let t0 = palm - up * (0.8 * k);
+    let t1 = first - nz * 2.0 - l.side * 1.5 + up * 0.6;
+    tube(b, v, lit, t0, t1, 1.0 * k, 0.85 * k, skin);
     let off = l.semis - l.at;
     let playing = if l.semis < 0.5 {
         None
@@ -120,30 +138,20 @@ pub fn left_arm(b: &mut Brush, v: &View, arm: &Arm, l: &Left) -> Option<V3> {
         Some(((off + 0.5) / (SPAN / 4.0)).floor().clamp(0.0, 3.0) as usize)
     };
     let mut tip_at = None;
-    let wfi = 1.7 * v.scale(palm);
     for j in 0..4 {
         let s = l.at + j as f32 * (SPAN / 4.0) * 0.95;
-        let knuckle = on_string(rig, mid, s, 0.0) + rock - nz * 1.2 + l.side * 2.4;
-        let (tip, lifted) = if playing == Some(j) {
-            (playing_tip(l).unwrap_or(knuckle), false)
+        let knuckle = on_string(rig, mid, s, 0.0) + rock - nz * 1.0 + l.side * 2.3;
+        let tip = if playing == Some(j) {
+            tip_at = playing_tip(l);
+            tip_at.unwrap_or(knuckle)
         } else {
-            (on_string(rig, l.string, s, 1.1) + rock, true)
+            on_string(rig, l.string, s, 1.0) + rock
         };
-        let knee = knuckle.lerp(tip, 0.5) + nz * 1.6 + l.side * 0.6;
-        let col = if lifted { with_alpha(skin, 0.92) } else { skin };
-        for (a, e) in [(knuckle, knee), (knee, tip)] {
-            b.segment(v.p(a), v.p(e), wfi * 1.12, skin_shade, true);
-            b.segment(v.p(a), v.p(e), wfi * 0.84, col, true);
-        }
-        if !lifted {
-            tip_at = Some(tip);
-        }
+        let knee = knuckle.lerp(tip, 0.5) + nz * 1.5 + l.side * 0.5;
+        let r = if j == 3 { 0.64 } else { 0.76 } * k;
+        tube(b, v, lit, knuckle, knee, r * 1.06, r, skin);
+        tube(b, v, lit, knee, tip, r, r * 0.86, skin);
     }
-    // The thumb under the neck, on its far side.
-    let t0 = palm - up * 1.0;
-    let t1 = first - nz * 2.2 - l.side * 1.6 + up * 0.6;
-    b.segment(v.p(t0), v.p(t1), wfi * 1.2, skin_shade, true);
-    b.segment(v.p(t0), v.p(t1), wfi * 0.92, skin, true);
     tip_at
 }
 

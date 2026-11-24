@@ -170,6 +170,12 @@ pub struct Arm {
     pub hand_shade: [u8; 3],
     /// The upper arm's and the forearm's thickness, cm.
     pub r: (f32, f32),
+    /// The mannequin's ball joints' colour (none for a person).
+    pub joints: Option<[u8; 3]>,
+    /// The figure's frame: facing, its right, down (the hands are posed in it).
+    pub f: V3,
+    pub right: V3,
+    pub down: V3,
 }
 
 /// The figure's skeleton for `b` held by `h`, worked out once and kept (the live picture
@@ -199,7 +205,8 @@ pub fn left_arm(b: Bowed, h: Holder) -> Option<Arm> {
         -sk.r + sk.down * 0.6
     };
     Some(Arm {
-        shoulder: sk.ls,
+        // From inside the shoulder, so the arm grows out of the body.
+        shoulder: sk.ls + sk.r * 3.0 + sk.down * 1.0,
         upper: 28.0,
         fore: 26.0,
         pole,
@@ -232,19 +239,25 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         )
     };
     Some(Arm {
-        shoulder: sk.rs,
+        // From inside the shoulder; the elbow out to the player's right and down, at a
+        // bowing arm's height.
+        shoulder: sk.rs - sk.r * 3.0 + sk.down * 1.0,
         upper: 29.0,
         fore: 27.0,
-        pole: sk.down * 0.8 - sk.r * 0.6,
+        pole: sk.down * 0.7 + sk.r * 0.7 - sk.f * 0.2,
         sleeve,
         sleeve_shade,
         hand,
         hand_shade,
         r: if h.hold == Hold::Player {
-            (4.4, 3.5)
+            (3.9, 3.1)
         } else {
-            (3.0, 2.4)
+            (2.8, 2.2)
         },
+        joints: (h.hold == Hold::Mannequin).then(|| hp::WOOD_JOINTS[(h.wood as usize).min(2)]),
+        f: sk.f,
+        right: sk.r,
+        down: sk.down,
     })
 }
 
