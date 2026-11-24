@@ -201,16 +201,25 @@ pub fn fit(b: Bowed, pose: &Pose) -> Vec<V3> {
         s.rs + s.r * 8.0,
     ];
     if b.dims().held {
-        // A violinist from the chest up, the violin still the picture's subject; room for
-        // the bow hand at mid-bow above the caption's band, and over the head.
+        // A violinist from the chest up, the violin still the picture's subject; room over
+        // the head, and for the bow hand at the frog above the caption's band: the frog at
+        // a little past mid-bow on the A string, where the live picture puts it.
         let d = b.dims();
-        let frog = pose.at(0.0, super::bowed::bridge_y(d), d.arch + d.bridge_h)
-            + pose.ex * 30.0
-            + s.down * 8.0;
+        let l = super::bowed::string_local(d, 2);
+        let bridge = pose.at(l[1].x, l[1].y, l[1].z);
+        let nut = pose.at(l[2].x, l[2].y, l[2].z);
+        let arc = d.arch + d.bridge_h - super::bowed::bridge_r(d);
+        let n = pose.dir(v(l[1].x, 0.0, l[1].z - arc).norm()).norm();
+        let mut dir = (nut - bridge).norm().cross(n).norm();
+        if dir.dot(pose.ex) > 0.0 {
+            dir = -dir;
+        }
+        let frog = bridge + (nut - bridge) * 0.08 - dir * (0.6 * 65.0);
         p.extend([
             s.chest + s.r * 10.0,
             s.le + s.down * 4.0,
-            frog,
+            frog + s.down * 7.0,
+            frog - dir * 7.0 + n * 5.0,
             s.head + s.hu * 14.0,
         ]);
     }

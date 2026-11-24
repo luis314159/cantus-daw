@@ -173,8 +173,9 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
     let thumb_joint;
     let thumb_knuckle;
     if d.held {
-        // The index knuckle a little toward the scroll from its tip, against the E side.
-        let base = a + bw * (along(tips[0]) - 0.7 * k) + kx * (hw + 1.5 * k) - z * (0.5 * k);
+        // The index knuckle level with the fingerboard's top, a little toward the scroll from
+        // its tip, against the E side.
+        let base = a + bw * (along(tips[0]) - 0.7 * k) + kx * (hw + 1.5 * k);
         for (j, q) in kn.iter_mut().enumerate() {
             let j = j as f32;
             *q = base + bw * (1.8 * k * j) + kx * (0.45 * k * j) + z * (0.2 * k * j);
@@ -200,7 +201,7 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
         thumb_knuckle = a + bw * (b_t + 1.4 * k) + kx * (hw + 2.2 * k) - z * (depth * 0.5);
     }
     let mid = (kn[1] + kn[2]) * 0.5;
-    let palm_len = 8.5 * k;
+    let palm_len = 7.2 * k;
     // The wrist straight: on the line from the elbow to the knuckles, a palm's length back.
     let mut wrist = mid - z * palm_len;
     let mut el = elbow(arm.shoulder, wrist, arm.upper, arm.fore, arm.pole);
@@ -211,7 +212,7 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
     let radial = (kn[0] - kn[3]).norm();
     let fwd = (mid - wrist).norm();
     let thumb = [
-        wrist + radial * (1.5 * k) + fwd * (1.6 * k),
+        wrist + radial * (1.0 * k) + fwd * (2.5 * k),
         thumb_knuckle,
         thumb_joint,
         thumb_tip,
@@ -222,7 +223,7 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
         let (p0, p1, p2) = (p0 * k, p1 * k, p2 * k);
         let t = tips[j];
         // The arch: up off the fingerboard and out toward the knuckles' side.
-        let pole = z * 0.7 + kx;
+        let pole = z * 1.0 + kx * 0.7;
         let chord = (p1 * p1 + p2 * p2).sqrt() * 0.98;
         let pip = elbow(kn[j], t, p0, chord, pole);
         let u = t - pip;
@@ -294,25 +295,25 @@ pub fn left_pieces(arm: &Arm, lp: &LeftPose) -> ([Piece; PIECES], usize) {
     let [kn0, kn1, kn2, kn3] = [0, 1, 2, 3].map(|j| lp.fingers[j][0]);
     let mid = (kn1 + kn2) * 0.5;
     let radial = (kn0 - kn3).norm();
-    // The palm: its middle, its index side, its little finger's side; the thumb's ball.
-    put(tube(lp.wrist, mid, wr * 0.95, 1.9 * k, skin));
-    put(tube(
-        lp.wrist + radial * (1.3 * k),
-        kn0,
-        1.35 * k,
-        1.05 * k,
-        skin,
-    ));
-    put(tube(
-        lp.wrist - radial * (1.2 * k),
-        kn3,
-        1.3 * k,
-        0.95 * k,
-        skin,
-    ));
-    put(tube(lp.thumb[0], lp.thumb[1], 1.4 * k, 1.05 * k, skin));
+    // The thumb first: it lies on the palm's side, under the hand's back.
+    put(tube(lp.thumb[0], lp.thumb[1], 1.25 * k, 1.0 * k, skin));
     put(tube(lp.thumb[1], lp.thumb[2], 1.0 * k, 0.9 * k, skin));
     put(tube(lp.thumb[2], lp.thumb[3], 0.9 * k, 0.78 * k, skin));
+    // The palm: a fan of five rounded strips from the wrist to the knuckles (the back of
+    // the hand reads broad and flat, not as separate bones), the thumb's ball inside it.
+    let wrist_r = lp.wrist + radial * (0.3 * k);
+    let wrist_u = lp.wrist - radial * (0.3 * k);
+    for i in 0..5 {
+        let t = i as f32 / 4.0;
+        let kn = if t <= 0.5 {
+            kn3.lerp(mid, t * 2.0)
+        } else {
+            mid.lerp(kn0, t * 2.0 - 1.0)
+        };
+        let w = wrist_u.lerp(wrist_r, t);
+        let r0 = (1.0 - (t - 0.5).abs()) * 1.5 * k;
+        put(tube(w, kn, r0.max(1.15 * k), 1.05 * k, skin));
+    }
     for (j, f) in lp.fingers.iter().enumerate() {
         let r = FINGER_R[j] * k;
         put(tube(f[0], f[1], r * 1.08, r, skin));

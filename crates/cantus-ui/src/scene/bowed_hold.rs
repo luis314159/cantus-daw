@@ -201,12 +201,12 @@ pub fn left_arm(b: Bowed, h: Holder) -> Option<Arm> {
     let sk = skel(b, h);
     // Where the elbow goes from the shoulder (the owner's photographs, 2026-11-24): a
     // violinist's down under the violin's body, toward the chest's middle line (its forearm
-    // and the neck a narrow V); a cellist's out to the side at about the hand's height, a
-    // little under it.
+    // and the neck a narrow V); a cellist's out to the side and down, a little under the
+    // hand's height.
     let pole = if b.dims().held {
         sk.down + sk.r * 0.45 + sk.f * 0.15
     } else {
-        -sk.r + sk.down * 0.4
+        -sk.r + sk.down * 1.3
     };
     Some(Arm {
         // From inside the shoulder, so the arm grows out of the body.
@@ -252,9 +252,9 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
             // A violinist's bow arm: the elbow out to the right, a little under the shoulder.
             sk.down * 12.0 + sk.r * 18.0 + sk.f * 8.0
         } else {
-            // A cellist's: the upper arm hanging out to the side, the elbow a little behind
-            // and about level with the bow, the forearm forward and in to the frog.
-            sk.r + sk.down * 0.5 - sk.f * 0.3
+            // A cellist's: the upper arm hanging down and out, the elbow about level with the
+            // bow's line, the forearm forward and in to the frog.
+            sk.r + sk.down * 1.6 + sk.f * 0.1
         },
         sleeve,
         sleeve_shade,

@@ -402,3 +402,81 @@ fn b_spec_open(b: Bowed, string: usize) -> u8 {
     };
     i.spec().strings[string].open
 }
+
+/// The left arm's angles against the owner's photographs (2026-11-24; the handoff note
+/// lists them): under a chin the elbow straight under the violin's body toward the chest's
+/// middle, the forearm and the neck a narrow V, the wrist straight; behind a cello the
+/// elbow out to the side a little under the hand, the wrist straight. Printed with
+/// `--nocapture` for the note.
+#[test]
+fn the_left_arm_keeps_the_photographs_angles() {
+    use cantus_ui::scene::geo::V3;
+    let deg = |a: V3, b: V3| a.norm().dot(b.norm()).clamp(-1.0, 1.0).acos().to_degrees();
+    for b in [Bowed::Violin, Bowed::Viola, Bowed::Cello, Bowed::Bass] {
+        for hold in [Hold::Player, Hold::Mannequin] {
+            let h = Holder::of(hold);
+            let rig = rig_for(b, h);
+            let d = b.dims();
+            let arm = cantus_ui::scene::bowed_hold::left_arm(b, h).expect("a figure");
+            for (string, semis) in [(2usize, 7.0f32), (2, 12.0)] {
+                let span = hand::span(d.held);
+                let l = hand::Left {
+                    rig: &rig,
+                    d,
+                    string,
+                    semis,
+                    at: hand::target(1.0, semis, span),
+                    rock: 0.0,
+                    side: rig.pose.ex,
+                    span,
+                };
+                let lp = hand::left_pose(&arm, &l);
+                let kn = (lp.fingers[1][0] + lp.fingers[2][0]) * 0.5;
+                let fore = lp.wrist - lp.elbow;
+                let wrist = deg(fore, kn - lp.wrist);
+                let elbow = deg(arm.shoulder - lp.elbow, lp.wrist - lp.elbow);
+                let v = deg(kn - lp.elbow, rig.pose.ey);
+                let up = V3 {
+                    x: 0.0,
+                    y: 1.0,
+                    z: 0.0,
+                };
+                let fore_up = 90.0 - deg(fore, up);
+                let upper_down = deg(lp.elbow - arm.shoulder, -up);
+                let q = lp.elbow - rig.pose.o;
+                let (ex, ey, ez) = (q.dot(rig.pose.ex), q.dot(rig.pose.ey), q.dot(rig.pose.ez));
+                let below_hand = kn.y - lp.elbow.y;
+                let out = (lp.elbow - arm.shoulder).dot(-arm.right);
+                println!(
+                    "{b:?} {hold:?} {semis} st: elbow {elbow:.0}°, wrist bend {wrist:.1}°, \
+                     forearm/neck V {v:.0}°, forearm rise {fore_up:.0}°, upper arm from down \
+                     {upper_down:.0}°, elbow in the instrument's frame ({ex:.1}, {ey:.1}, \
+                     {ez:.1}) cm, {below_hand:.0} cm under the knuckles, {out:.0} cm out"
+                );
+                assert!(wrist < 3.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
+                assert!(
+                    (50.0..=130.0).contains(&elbow),
+                    "{b:?} {hold:?}: elbow {elbow:.0}°"
+                );
+                if d.held {
+                    // Under the body (its length 0..body), below its back, a narrow V.
+                    assert!(
+                        ey > 0.0 && ey < d.body,
+                        "{b:?} {hold:?}: elbow at y {ey:.1}"
+                    );
+                    assert!(
+                        ez < -12.0,
+                        "{b:?} {hold:?}: elbow only {ez:.1} cm under the violin"
+                    );
+                    assert!(v < 65.0, "{b:?} {hold:?}: forearm and neck {v:.0}° apart");
+                } else {
+                    assert!(out > 10.0, "{b:?} {hold:?}: the elbow {out:.0} cm out");
+                    assert!(
+                        (0.0..=30.0).contains(&below_hand),
+                        "{b:?} {hold:?}: the elbow {below_hand:.0} cm under the hand"
+                    );
+                }
+            }
+        }
+    }
+}
