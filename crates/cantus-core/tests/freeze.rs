@@ -2074,3 +2074,30 @@ fn the_key_follows_the_tuning_its_tracks_play_in() {
     // Without one, the song's key is nothing the synth hears.
     assert!(!moves(&s, synth, key(7)));
 }
+
+/// r42 fix2-model (review 10, ADR 0156): which frozen targets play the MTS-ESP master's
+/// table — what the interface makes again when the master moves.
+#[test]
+fn a_target_follows_the_master_only_where_its_region_plays_external() {
+    use cantus_core::tuning::{TrackTuning, Tuning, TuningSystem};
+    let mut p = Project::new("ext");
+    for name in ["a", "b"] {
+        let t = p.make_track(name);
+        p.tracks.push(t);
+    }
+    let (a, b) = (p.tracks[0].id, p.tracks[1].id);
+    let ext = Tuning {
+        system: TuningSystem::External,
+        ..Tuning::default()
+    };
+    let follows = |p: &Project, t| freeze::follows_external(p, FreezeTarget::Track(t));
+    assert!(!follows(&p, a), "equal temperament");
+    p.tuning = ext.clone();
+    assert!(follows(&p, a), "the project's External, followed");
+    p.tracks[1].tuning = TrackTuning::Equal;
+    assert!(!follows(&p, b), "a track in Equal ignores it");
+    p.tuning = Tuning::default();
+    p.tracks[1].tuning = TrackTuning::Own { tuning: ext };
+    assert!(follows(&p, b), "its own External");
+    assert!(!follows(&p, a));
+}

@@ -258,11 +258,16 @@ impl Mts {
         if p.is_null() {
             return false;
         }
-        // SAFETY: `MTS_GetTuningTable` points at 128 doubles that live as long as the
-        // library (the client wrapper reads `table[note]` the same way). A read racing a
-        // master's write sees each double whole on every platform libMTS ships for.
-        let table = unsafe { std::slice::from_raw_parts(p, KEYS) };
-        out.copy_from_slice(table);
+        // r42 fix2-model (review 13): the table is shared memory another process (the
+        // master) may write while we read, so no `&[f64]` is ever made of it (a shared
+        // reference asserts nothing writes it — undefined behaviour in a race): each double
+        // is read with `read_volatile`, as the client wrapper reads `table[note]` one by one.
+        for (k, o) in out.iter_mut().enumerate() {
+            // SAFETY: `MTS_GetTuningTable` points at 128 aligned doubles that live as long
+            // as the library; `k < 128`. A read racing a master's write sees each double
+            // whole on every platform libMTS ships for (aligned 8-byte loads).
+            *o = unsafe { std::ptr::read_volatile(p.add(k)) };
+        }
         true
     }
 

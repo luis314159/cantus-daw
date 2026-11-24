@@ -3073,9 +3073,13 @@ impl CantusApp {
                     n.expr.as_deref(),
                     (tick - n.start).0,
                 ); // r33:mpe
+                // Both halves keep the articulation, and the tail the note's own end (its
+                // release velocity) — r42 fix2-model (review 6).
                 tails.push(cantus_core::Note {
                     muted: n.muted,
                     expr: right, // r33:mpe
+                    release: n.release,
+                    art: n.art,
                     ..tail
                 });
                 shortened.push(cantus_core::Note {
@@ -3254,6 +3258,11 @@ impl CantusApp {
                     .bus
                     .new_note(n.start + offset, n.length, n.pitch, n.velocity);
                 m.muted = n.muted;
+                // A copy plays as its note does: its expression, release and articulation
+                // (r42 fix2-model, review 6).
+                m.release = n.release;
+                m.expr = n.expr.clone();
+                m.art = n.art;
                 m
             })
             .collect();
@@ -3895,6 +3904,8 @@ impl CantusApp {
         // r42 fix-engine — the MTS-ESP master's table moved under a song that follows it.
         if views::tuning::master_moved(self) {
             self.synced_revision = u64::MAX;
+            // r42 fix2-model (review 10): a frozen render in its tuning is made again.
+            crate::freeze::master_moved(self);
         }
         let rev = self.bus.revision();
         if rev != self.synced_revision {

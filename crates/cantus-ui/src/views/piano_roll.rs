@@ -1867,6 +1867,11 @@ fn interact(
 
     // ---- clicks -------------------------------------------------------------------------
     if resp.clicked() {
+        // Which note this click draws, if any: the note's menu skips it for the second click
+        // of the same double-click, which keeps what the first drew (review 12).
+        if !resp.double_clicked() {
+            art::set_drawn(ui.ctx(), None);
+        }
         if let Some(pos) = resp.interact_pointer_pos() {
             let hit = hover_hit
                 .filter(|_| resp.hover_pos() == Some(pos))
@@ -1897,6 +1902,7 @@ fn interact(
                         }) {
                             app.selected_notes = vec![id];
                             app.audition(track, pitch);
+                            art::set_drawn(ui.ctx(), Some(id));
                         }
                     }
                     None => app.selected_notes.clear(),

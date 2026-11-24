@@ -2062,6 +2062,54 @@ fn main() {
         strings.instrument = InstrumentSpec::Native(spec);
         let at = p.tracks.len().saturating_sub(1);
         p.tracks.insert(at, strings);
+        // r42 fix2-model (review 14): the project now plays Ptolemy's intense diatonic (a
+        // seven-note Scala scale) on the white keys at A415 — a keyboard map whose black
+        // keys are unmapped (`x`), its formal octave degree 7, key 69 at 440 Hz.
+        use cantus_core::tuning::{KeyboardMap, ScalaScale, ScaleDegree, Tuning, TuningSystem};
+        let r = ScaleDegree::Ratio;
+        Command::SetProjectTuning {
+            tuning: Box::new(Tuning {
+                a4_hz: 415.0,
+                system: TuningSystem::Scale(ScalaScale {
+                    description: "Ptolemy's intense diatonic".to_string(),
+                    degrees: vec![
+                        r(9, 8),
+                        r(5, 4),
+                        r(4, 3),
+                        r(3, 2),
+                        r(5, 3),
+                        r(15, 8),
+                        r(2, 1),
+                    ],
+                }),
+                map: Some(KeyboardMap {
+                    size: 12,
+                    first_key: 0,
+                    last_key: 127,
+                    middle_key: 60,
+                    reference_key: 69,
+                    reference_hz: 440.0,
+                    octave_degree: 7,
+                    mapping: [
+                        Some(0),
+                        None,
+                        Some(1),
+                        None,
+                        Some(2),
+                        Some(3),
+                        None,
+                        Some(4),
+                        None,
+                        Some(5),
+                        None,
+                        Some(6),
+                    ]
+                    .to_vec(),
+                }),
+            }),
+        }
+        .apply(&mut p)
+        .expect("a mapped scale");
     }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with

@@ -835,23 +835,7 @@ fn scan(app: &mut CantusApp) {
             .as_deref()
             .is_some_and(|p| wired_since_installed(app, p))
         {
-            let copies = app.engine.frozen.paths_of(&content, rate);
-            app.engine.frozen.set_aside(&content, rate);
-            let own = [
-                app.engine.frozen.project_dir().map(Path::to_path_buf),
-                app.engine.frozen.app_dir().map(Path::to_path_buf),
-            ];
-            for p in &copies {
-                if own
-                    .iter()
-                    .flatten()
-                    .any(|d| p.parent() == Some(d.as_path()))
-                {
-                    let _ = std::fs::remove_file(wires_file(p));
-                    let _ = std::fs::remove_file(p);
-                }
-            }
-            app.force_resync();
+            make_again(app, &content, rate);
         }
         if app.freeze.failed.contains_key(&content)
             || app.freeze.stopped.contains(&content)
@@ -1325,6 +1309,50 @@ pub(crate) fn units_for(
             Err(tf("freeze.plugin_missing", &[("plugin", &name)]))
         }
         None => Ok((units, insts, wires)),
+    }
+}
+
+/// The render of `content` made again: every copy set aside, those in its own folders
+/// removed with their notes (review 4: a save's copy had no note), the snapshot compiled
+/// again so its target plays live meanwhile; the next scan queues its refresh.
+fn make_again(app: &mut CantusApp, content: &str, rate: u32) {
+    let copies = app.engine.frozen.paths_of(content, rate);
+    app.engine.frozen.set_aside(content, rate);
+    let own = [
+        app.engine.frozen.project_dir().map(Path::to_path_buf),
+        app.engine.frozen.app_dir().map(Path::to_path_buf),
+    ];
+    for p in &copies {
+        if own
+            .iter()
+            .flatten()
+            .any(|d| p.parent() == Some(d.as_path()))
+        {
+            let _ = std::fs::remove_file(wires_file(p));
+            let _ = std::fs::remove_file(p);
+        }
+    }
+    app.force_resync();
+}
+
+/// r42 fix2-model (review 10, ADR 0156: every offline copy follows the master) — the
+/// MTS-ESP master's table moved under the song (or was read for the first time this
+/// session: a render on disk may be from another): every frozen target whose region plays
+/// it (`cantus_core::freeze::follows_external`) is made again. Its content key cannot hold
+/// a table another program owns; until its new render is there it plays live, in the
+/// master's tuning. Called by the sync that sees the move.
+pub fn master_moved(app: &mut CantusApp) {
+    let rate = app.engine.sample_rate.round() as u32;
+    let project = app.project();
+    let stale: Vec<String> = project
+        .frozen_targets()
+        .into_iter()
+        .filter(|t| cantus_core::freeze::follows_external(project, *t))
+        .filter_map(|t| project.frozen(t).map(|f| f.content.clone()))
+        .collect();
+    for content in stale {
+        app.freeze.failed.remove(&content);
+        make_again(app, &content, rate);
     }
 }
 

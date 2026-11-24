@@ -26,7 +26,8 @@ MPE curves).
   articulation: Articulation, bow: Option<Bow> }` — `Articulation` an open list (`Sustain`,
   `Legato`, `Staccato`, `Spiccato`, `Pizzicato`, `Tremolo`, appended only, never reordered),
   `Bow` `Up`/`Down`. `None` — every older note — is "the instrument decides". Set by
-  `SetNoteArt { clip, notes, art }` (the old values its inverse), shown and edited in the piano
+  `SetNoteArt { track, clip, arts }` — `arts` a list of `(NoteId, Option<NoteArt>)`, one per
+  note, refused whole for a note not in the clip or named twice (the old values its inverse), shown and edited in the piano
   roll as a note property (a lane of articulation marks, and the note's menu); the engine hands
   it to the instrument before the note starts (`InstrumentUnit::note_art`, a no-op by default).
   A hosted instrument gets nothing (no standard carries it; a key-switch map is later work).

@@ -231,6 +231,18 @@ fn popup_id() -> egui::Id {
     egui::Id::new("pr-note-art-menu")
 }
 
+/// r42 fix2-model (review 12): the note the last click in the grid drew (`None`: that click
+/// drew none). A quick double-click on empty grid with the Draw tool draws a note with its
+/// first click; its second click lands on that new note and must not open its menu.
+pub(super) fn set_drawn(ctx: &egui::Context, note: Option<NoteId>) {
+    ctx.data_mut(|d| d.insert_temp(popup_id().with("drawn"), note));
+}
+
+fn drawn(ctx: &egui::Context) -> Option<NoteId> {
+    ctx.data(|d| d.get_temp::<Option<NoteId>>(popup_id().with("drawn")))
+        .flatten()
+}
+
 /// Open the note's menu for `note` at `at` on the next frame, as a click would (the shots).
 pub fn open_menu_for(ctx: &egui::Context, note: NoteId, at: Pos2) {
     let id = popup_id();
@@ -287,7 +299,8 @@ pub(super) fn grid_menu(
             clip_of(app, track, clip)
                 .and_then(|c| geo.hit(&c.notes, p))
                 .map(|(id, _)| (id, p))
-        });
+        })
+        .filter(|(id, _)| drawn(ui.ctx()) != Some(*id));
     if let Some((note, at)) = hit {
         open_menu_for(ui.ctx(), note, at);
     }

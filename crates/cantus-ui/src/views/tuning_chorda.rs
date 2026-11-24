@@ -317,12 +317,37 @@ pub fn a4_of(app: &CantusApp, track: TrackId) -> A4 {
         return A4::Knob;
     };
     let resolved = super::effective(&tr.tuning.resolve(&p.tuning), p.key);
-    if !cantus_core::inst::chorda::follows_tuning(&super::table_of(app, Target::Track(track))) {
+    let table = super::table_of(app, Target::Track(track));
+    if !cantus_core::inst::chorda::follows_tuning(&table) {
         return A4::Knob;
     }
+    // r42 fix2-model (review 11): in the MTS-ESP master's tuning, the A4 the master gives
+    // (what key 69 plays), not the tuning's own diapason — its table is absolute.
+    let hz = if matches!(resolved.system, TuningSystem::External) {
+        let a4 = cantus_core::tuning::A4_DEFAULT_HZ
+            * cantus_dsp::math::exp2(f64::from(table.at(69)) / 12.0);
+        if a4.is_finite() {
+            a4
+        } else {
+            resolved.a4_hz
+        }
+    } else {
+        resolved.a4_hz
+    };
     match tr.tuning {
-        TrackTuning::Own { .. } => A4::Own(resolved.a4_hz),
-        _ => A4::Project(resolved.a4_hz),
+        TrackTuning::Own { .. } => A4::Own(hz),
+        _ => A4::Project(hz),
+    }
+}
+
+/// The diapason Chorda's Edit view reads out for `track` (its keyboard's picture): [`a4_of`]'s
+/// — the tuning's, or the MTS-ESP master's — or Chorda's own knob's where the track plays
+/// 12-TET at A440. One function, so the readout and the tuning card always agree (r42
+/// fix2-model, review 11).
+pub fn shown_a4(app: &CantusApp, track: TrackId, spec: &cantus_core::NativeSpec) -> f64 {
+    match a4_of(app, track) {
+        A4::Knob => f64::from(spec.get("a4")),
+        A4::Project(hz) | A4::Own(hz) => hz,
     }
 }
 
