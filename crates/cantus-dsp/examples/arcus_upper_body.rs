@@ -19,7 +19,8 @@ use std::path::Path;
 /// The band fitted, Hz, and the modes it is fitted with.
 const LO: f64 = 120.0;
 const HI: f64 = 12_000.0;
-const MODES: usize = 64;
+/// The fitted modes at most (the body keeps `body::CLOUD` more for its fine structure).
+const MODES: usize = 44;
 
 type C = (f64, f64);
 
@@ -173,12 +174,12 @@ fn model(f: f64, modes: &[(f64, f64)], amp: &[f64]) -> C {
     y
 }
 
-/// Band levels, dB, in twelfths of an octave from `LO` to 10 kHz.
+/// Band levels, dB, in twenty-fourths of an octave from `LO` to 10 kHz.
 fn bands(f: &[f64], mag2: &dyn Fn(usize) -> f64) -> Vec<f64> {
     let mut out = Vec::new();
     let mut lo = LO;
     while lo < 10_000.0 {
-        let hi = lo * math::exp2(1.0 / 12.0);
+        let hi = lo * math::exp2(1.0 / 24.0);
         let (mut s, mut n) = (0.0, 0);
         for (i, fr) in f.iter().enumerate() {
             if *fr >= lo && *fr < hi {
@@ -249,7 +250,7 @@ fn main() {
             let r = math::powi((h[i].0 - m.0).max(0.0), 2) * w[i];
             let near = modes
                 .iter()
-                .any(|(hz, q)| (f[i] / hz - 1.0).abs() < (0.25 / q).clamp(0.008, 0.02))
+                .any(|(hz, q)| (f[i] / hz - 1.0).abs() < (0.25 / q).clamp(0.004, 0.02))
                 || tried.iter().any(|hz| (f[i] / hz - 1.0).abs() < 0.01);
             let edge = f[i] < 1.15 * LO || f[i] > HI / 1.1;
             if !near && !edge && r > best.1 {
@@ -268,7 +269,7 @@ fn main() {
         while b + 1 < f.len() && mag[b] > half && b - i < 400 {
             b += 1;
         }
-        let q = (f[i] / (f[b] - f[a]).max(1.0)).clamp(6.0, 90.0);
+        let q = (f[i] / (f[b] - f[a]).max(1.0)).clamp(6.0, 200.0);
         modes.push((f[i], q));
         amp = solve(&f, &h, &w, &modes);
         // A mode the fit gives nothing is taken out again (and its place not tried twice).
@@ -294,16 +295,16 @@ fn main() {
     };
     let (mut e, _) = err(&modes);
     eprintln!(
-        "  greedy: {} modes, {e:.2} dB from the measured (1/12 oct)",
+        "  greedy: {} modes, {e:.2} dB from the measured (1/24 oct)",
         modes.len()
     );
-    for sweep in 0..4 {
+    for sweep in 0..2 {
         for k in 0..modes.len() {
             for (dh, dq) in [(1.006, 1.0), (1.0 / 1.006, 1.0), (1.0, 1.25), (1.0, 0.8)] {
                 let mut trial = modes.clone();
                 trial[k] = (
                     (trial[k].0 * dh).clamp(LO, HI),
-                    (trial[k].1 * dq).clamp(4.0, 150.0),
+                    (trial[k].1 * dq).clamp(4.0, 250.0),
                 );
                 let (te, _) = err(&trial);
                 if te < e {
@@ -325,7 +326,7 @@ fn main() {
             distance(&target, &b)
         );
     }
-    eprintln!("fit vs {name} measured: {e:.2} dB (1/12 oct, 120 Hz – 10 kHz)\n{report}");
+    eprintln!("fit vs {name} measured: {e:.2} dB (1/24 oct, 120 Hz – 10 kHz)\n{report}");
     let peak = amp.iter().fold(0.0f64, |m, a| m.max(a.abs()));
     let mut order: Vec<usize> = (0..modes.len()).collect();
     order.sort_by(|&a, &b| modes[a].0.total_cmp(&modes[b].0));
@@ -336,7 +337,7 @@ fn main() {
          //! (`examples/arcus_upper_body.rs`); do not edit by hand. {} modes fitted to the bridge\n\
          //! admittance of the CNSM dataset's violin \"{name}\" (Pauget Ballesteros, Lalitte, Lostanlen,\n\
          //! Fritz; Zenodo 10.5281/zenodo.18696786, CC BY 4.0), its measurements averaged and the\n\
-         //! acquisition's delay taken out; {e:.2} dB from it in twelfths of an octave, 120 Hz – 10 kHz.\n",
+         //! acquisition's delay taken out; {e:.2} dB from it in twenty-fourths of an octave, 120 Hz – 10 kHz.\n",
         modes.len()
     );
     let _ = writeln!(s, "use super::Mode;\n");

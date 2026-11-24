@@ -90,9 +90,7 @@ harmonics −20 … −47 dB; at 4× −28 … −52 dB for 1.28 × the cost of 
 - **Presets** (`views/inst/arcus_upper_presets.rs`, 14: violin plain, cantabile, sul tasto,
   without vibrato, détaché, portamento, pizzicato, tremolo; viola plain, cantabile, sul tasto,
   détaché, pizzicato, tremolo), the cello's four macros; the plain ones ring 1.6 s after the
-  bow lifts (the study's release, 30 – 50 dB/s). Their gains are 0.0 until
-  `tools/arcus/presets.sh <dir> fit` runs (it now writes this file's gains too): **not run**
-  — a release UI build of the preset fit did not fit in the round's slots; the integrator's.
+  bow lifts (the study's release, 30 – 50 dB/s); their levels fitted (§5).
 - **Pitch table** (`arcus_upper_pitch_data.rs`, `tools/arcus/upper-pitch.sh`): raw offsets
   −7.9 … +14.9 ct (violin), −6.6 … +12.6 (viola); at most 0.43 ct left after the first pass.
 
@@ -166,6 +164,73 @@ way; the CNSM scales for the long-term spectrum):
   recordings' noise floor in the measure): the study's item 6, a real pizzicato, is the shared
   pluck's (the arcus builder's), left open here.
 
+### 5. The integrator's three items (after the first report)
+
+Measured each time by `tools/arcus/upper-measure.sh` — 88 notes through the study's own estimator,
+the 125 recorded notes, the CNSM scales — over ten passes (`F:\projects\daw-r42\logs\arcus-upper\m1.log`
+… `m11.log`; the chosen state is `m11`).
+
+**(1) Preset levels.** `tools/arcus/presets.sh <dir> fit` (the house tool, crest-aware: it stops
+where the phrase would pass −1.2 dBFS) now writes `arcus_upper_presets.rs` too: **all 14 at their
+role's target (0.0 LU off: lead −18 LUFS, pluck −21)**, the phrase peaks −4.6 … −9.7 dBFS, the
+held notes' peaks −3.3 … −14.2 dBFS — none near clipping. The cello's and the bass's 24 were
+left as the arcus builder has them.
+
+**(2) The vibrato's AM — why it was small, and what changed.**
+
+- *Why.* The measured admittance itself (CNSM, Klimke) moves a partial only ±0.6 dB at
+  ±10 cents and ±1.0 dB at ±17 (its level swept over that span, every frequency from 400 Hz to
+  8 kHz) — the recorded violins move ±1.5 – 2.2 dB. The rest is radiation: a microphone hears
+  each body mode with its own sign and strength above the signature modes (Weinreich's
+  directional tone colour), so neighbouring modes add or cancel, a fine structure the bridge
+  admittance does not have. And the fit (41 modes on a smoothed admittance) resolves less fine
+  structure than the measured admittance has. With a vibrato of the real band's width (the
+  violin's now ±10 ct) the fitted body moved each partial ±0.3 dB.
+- *What.* The body (`arcus_upper_body.rs`): each mode above 700 Hz radiates to each microphone
+  with its own sign (45 % in opposite phase) and strength (× 0.3 – 1.7); a **cloud of 60 modes
+  the fit does not resolve** (900 Hz – 9 kHz, Q 63 – 117, at the fitted response's level,
+  Woodhouse 2014's growing modal density) carries the fine structure; the fit itself at
+  1/24 octave (1.94 dB from Klimke's admittance; the three violins 3.4 – 3.5 dB apart at that
+  resolution). Its power stays one; the high band held by a measured trim so the brightness
+  stays in the band (below).
+- *Result* (the study's `vibrato_am_db_per_partial`, the estimator's own): **violin partials
+  2 – 12 ±1.38 dB (the real band's median ±1.71), 12 of 20 partials inside [min, max], 45 %
+  against the pitch (real: 45 – 50 %)**; **viola ±1.54 dB (real ±1.92), 58 % against**, its
+  partials mostly just under the band's lower edge (3 of 20 inside: the real violas' band is
+  narrow, min ≈ 1.5 dB). Before: ±0.31 / ±0.47 dB. The gate's vibrato test now reads up to
+  4.3 dB with the body, 0.5 without (`upper_tests_gate`).
+
+**(3) Brightness.** Where the darkness came from: the corner rounding (one-pole per round trip)
+and the correction's high bands; then the cloud added brightness of its own, and the CNSM
+recordings (a room, a microphone placement) want more air above 6 kHz than the six instruments
+of the study's band have. Settled by measurement: the corners 6 kHz (violin) / 5 kHz (viola)
+or 6 × f₀, the correction re-derived from the CNSM spectrum each pass but its top two bands held
+under the band's (−4 / −2 dB), the viola's own correction (no cut under 160 Hz where its C
+string sounds, +2 dB from 1.6 kHz), the body's high band ×0.8 on the violin.
+
+| Study estimator, all dynamics | Before | Now | Real band |
+|---|---|---|---|
+| Violin spectral centroid | 1 248 Hz | **1 580 Hz inside** | 1 530 – 1 732 |
+| Violin harmonic centroid | 2.02 | 2.58 (over) | 2.08 – 2.35 |
+| Viola spectral centroid | 895 Hz | 982 Hz (0.4 % under the edge) | 986 – 1 117 |
+| Viola harmonic centroid | 2.10 | 2.49 (over) | 1.84 – 2.11 |
+| Bow noise re harmonics (violin / viola) | −34.1 / −36.5 | **−30.7 / −34.4 inside** | −35.7…−29.1 / −37.1…−31.7 |
+| Long-term spectrum to the CNSM violins (Klimke / Levaggi / Stoppani) | 3.2 / 4.4 / 4.0 dB | 4.9 / 3.8 / 5.1 dB | violins among themselves 2.3 – 3.4 |
+| Iowa/VSCO held notes, third-octave spectrum (violin / viola) | 8.0 / 8.2 dB | **7.7 / 7.7 dB** | the two sources 10.2 dB apart |
+
+What is not inside, said plainly: the **harmonic centroid** (the partials' balance, in harmonic
+number) sits over the band on both — the fine structure that makes the AM also lifts partials
+3 – 6 a little; every pass that brought it inside (pass 4: 2.43) took half the AM away. The
+**CNSM distance grew by about a decibel** (the CNSM recordings and the study's six instruments
+disagree above 6 kHz, and the band was followed there). The viola's spectral centroid sits at
+its band's edge. These three trade against each other on this body; the next step is a measured
+radiation (CNSM's own recordings beside its admittance, the study's `cnsm_validation.json`:
+−4.2 dB/oct between them) in place of the statistical one — a round-43 item for the body.
+
+The gate after all of it (`cantus-dsp` `arcus::`, 24 green): pitch 96 of 96 held-out points
+within a cent (median 0.009 ct), attacks 0 of 120 over, the cello's and the bass's bits
+unchanged. The renders and the ABX's `ref\` copies were made again from this state.
+
 ## Renders for the owner
 
 `F:\projects\daw-r42\listen\arcus-upper\`: per instrument `*-note-{pp,mf,ff}`,
@@ -175,8 +240,9 @@ way; the CNSM scales for the long-term spectrum):
 violin D4 mf, A4 pizz; Iowa viola A4 pp/mf/ff, D4 mf, C3 mf, D4 pizz) and
 `<pair>-arcus-lufs23.wav` (Arcus on the same key, dynamic and length), both at −23 LUFS —
 18 pairs, six of them against the study's own references (TinySOL violin A4 and viola D4 at
-pp, mf, ff, `downloads/study/abx-refs`). Levels: violin pp / mf / ff −23.4 / −17.8 / −11.8 LUFS,
-viola −26.9 / −21.5 / −15.3 (12 dB pp → ff; the study: 13 – 18); no render over −3.4 dBFS.
+pp, mf, ff, `downloads/study/abx-refs`). Levels (the instrument at its defaults; the presets are fitted, §5): violin pp / mf / ff
+−27.6 / −22.1 / −16.2 LUFS, viola −30.3 / −25.3 / −18.9 (11 – 11.5 dB pp → ff; the study: 13 – 18);
+no render over −9.4 dBFS. Made again after §5.
 `study/` holds the 88 single notes the study's estimator measured, `compare/compare.txt`
 every note's distances.
 
@@ -218,7 +284,7 @@ the ADR, resolved additively). Every line I touched in Arcus's files carries `//
   later change of theirs on `r42/arcus` moves them on purpose — re-measure the same way
   (`ARCUS_UPPER_DUMP=1`).
 - Tools: `tools/arcus/upper-{body,pitch,compare,listen}.sh`, `upper_study.py` (DEVELOPING §4).
-  The preset fit for the 14 upper presets was not run (their gains are 0.0).
+  `upper-measure.sh` runs the study's estimator and the comparison in one pass.
 
 ## Left
 
@@ -230,7 +296,7 @@ the ADR, resolved additively). Every line I touched in Arcus's files carries `//
 
 *Left for the round (not owner items, shared with the arcus builder's pass 2):* the attack's
 swell and the release (outside the study's band, the shared gesture), a real pizzicato (the
-shared pluck), the body's fine structure for the vibrato's full AM, the 14 presets' level fit.
+shared pluck), and the body's radiation measured rather than statistical (§5: the harmonic centroid over its band, the CNSM distance up a decibel, the AM ±1.4 / ±1.5 dB against the real ±1.7 / ±1.9).
 
 ## Tests (Windows, this branch)
 

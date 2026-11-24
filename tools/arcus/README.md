@@ -15,6 +15,7 @@ and goes through `tools/build/slot.sh` (three builds at once on a shared machine
 | `upper-pitch.sh` | the violin's and the viola's bowed-pitch table, their voices at 4× the rate, into `arcus_upper_pitch_data.rs` (`examples/arcus_upper_pitch.rs`) |
 | `upper-compare.sh [refs-dir] [out-dir]` | the violin and the viola beside the Iowa MIS and VSCO 2 CE recordings, feature by feature, Arcus–recording beside recording–recording (`examples/arcus_upper_compare.rs`) |
 | `upper-listen.sh [out-dir] [refs-dir]` | the owner's violin and viola renders, the ABX pairs at −23 LUFS in `<out>/ref/`, `abx.html` beside them (`examples/arcus_upper_listen.rs`) |
+| `upper-measure.sh [out-dir] [refs-dir] [study-dir]` | the violin and the viola measured in one pass: the study's notes rendered and read by the study's own estimator (`upper_study.py`: arco scalars and the vibrato's AM per partial against the real instruments' band), then `upper-compare.sh` |
 | `gate.sh` | the gate's probes printed: the Schelleng diagram of the cello's open D at 10 and 20 cm/s, the Guettler diagram, the friction curves and the torsion compared (`cargo test -p cantus-dsp --lib arcus::tests_gate::probe -- --ignored --nocapture`) |
 
 The ABX references (the Karoryfer Bigcat cello and the D. Smolken double bass, both CC0) are

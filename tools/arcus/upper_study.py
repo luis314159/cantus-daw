@@ -19,7 +19,8 @@ study = Path(sys.argv[2])
 out = Path(sys.argv[3]) if len(sys.argv) > 3 else None
 sys.path.insert(0, str(study / "tools"))
 import extract  # noqa: E402  (the study's estimator, unchanged)
-from aggregate import ARCO_FEATS  # noqa: E402  (its own reading of each feature)
+from aggregate import ARCO_FEATS, vib_ok  # noqa: E402  (its own reading of each feature)
+import math  # noqa: E402
 
 DYN = {"pp": 1, "mf": 4, "ff": 6}
 GROUP = {1: "soft", 2: "soft", 3: "medium", 4: "medium", 5: "loud", 6: "loud"}
@@ -59,6 +60,33 @@ for family in sorted({r["family"] for r in records}):
             where = "inside" if lo <= m <= hi else ("under" if m < lo else "over")
             report.append(f"  {key:22} {grp:6} Arcus {m:9.3f}   band [{lo:.3f}, {hi:.3f}]"
                           f" (median {c['median']:.3f})  {where}")
+# The vibrato's AM per partial (the study's `vibrato_am_db_per_partial`: ±dB of each partial's
+# amplitude at the vibrato's rate, over the notes whose vibrato the study counts), and the share
+# of partials that swing against the pitch (|phase| > π/2).
+for family in sorted({r["family"] for r in records}):
+    band = json.loads((study / "refdb" / f"{family}.json").read_text())["vibrato_am_db_per_partial"]
+    vib = [r for r in records if r["family"] == family and r["tech"] == "arco" and vib_ok(r)
+           and (r.get("vibrato") or {}).get("am_db")]
+    if not vib:
+        continue
+    med, against = [], []
+    for k in range(20):
+        vals = [r["vibrato"]["am_db"][k] for r in vib
+                if len(r["vibrato"]["am_db"]) > k and r["vibrato"]["am_db"][k] is not None]
+        med.append(statistics.median(vals) if vals else None)
+        ph = [r["vibrato"]["am_phase_rad"][k] for r in vib
+              if len(r["vibrato"].get("am_phase_rad") or []) > k
+              and r["vibrato"]["am_phase_rad"][k] is not None]
+        against += [abs(math.remainder(x, 2 * math.pi)) > math.pi / 2 for x in ph]
+    inside = sum(1 for k, m in enumerate(med)
+                 if m is not None and band["min"][k] <= m <= band["max"][k])
+    mid = statistics.median([m for m in med[1:12] if m is not None])
+    report.append(f"{family} vibrato AM ({len(vib)} notes): partials 2-12 median ±{mid:.2f} dB"
+                  f" (the band's median ±{statistics.median(band['median'][1:12]):.2f});"
+                  f" {inside} of 20 partials inside [min, max]; against the pitch"
+                  f" {100 * sum(against) / max(len(against), 1):.0f} %")
+    report.append("  Arcus " + " ".join(f"{m:.2f}" if m is not None else "-" for m in med))
+    report.append("  band  " + " ".join(f"{a:.2f}-{b:.2f}" for a, b in zip(band["min"], band["max"])))
 print("\n".join(report))
 if out:
     out.write_text(json.dumps({"report": report, "notes": records}, indent=0))

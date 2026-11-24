@@ -61,7 +61,7 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.10, 0.30),
         beta: (0.14, 0.055),
-        place: (0.36, 0.24),
+        place: (0.33, 0.27),
     },
     // Mellody & Wakefield 2000 (5.9 Hz, ±15 cents mean) and MacLeod 2008 (wider high).
     vib_hz: 5.9,
@@ -89,7 +89,7 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     bowing: Bowing {
         speed: (0.10, 0.30),
         beta: (0.145, 0.06),
-        place: (0.36, 0.24),
+        place: (0.33, 0.27),
     },
     // MacLeod 2008: violists slightly slower and narrower than violinists.
     vib_hz: 5.7,
@@ -102,19 +102,28 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     matched: VIOLA_MATCH,
 };
 
-/// The violin's model-2 match (`ArcusSettings::model` 2): the output's correction from the CNSM
-/// dataset's scales — 14 recordings of three violins by the same players (CC BY 4.0) — their
-/// mean long-term third-octave spectrum over Arcus's playing a two-octave G major scale,
-/// read at the correction's bands (`tools/arcus/upper-compare.sh` prints it); the hair's noise
-/// raised to the study's measure (its own estimator on Arcus's notes: −42 dB re the harmonics
-/// against the real instruments' −32, `tools/arcus/upper_study.py`); the pluck's ring shortened by what the Iowa MIS's plucked notes measured (Arcus's
-/// partials 1–4 rang 1.9 octaves of T60 longer on the violin, 1.65 on the viola: Percival's
-/// decays are open strings', a stopped and plucked string loses more to the finger); the
-/// violin's vibrato narrower and slower (the study's band: 6.9 – 10.4 cents, 4.9 – 5.5 Hz;
-/// Arcus measured 17 cents and 6.2 Hz; the viola's was inside its band). Judged on the Iowa and VSCO notes, which the fit did not use.
+/// The violin's model-2 match (`ArcusSettings::model` 2), fitted by `tools/arcus/upper-measure.sh`
+/// over ten passes (logs in `docs/round42/arcus-upper.md`):
+///
+/// - **the output's correction**: started from the CNSM dataset's scales (14 recordings of
+///   three violins by the same players, CC BY 4.0: their mean long-term spectrum over Arcus's
+///   two-octave G major scale, read at the correction's bands), then held so the study's
+///   estimator puts the spectral centroid inside the real violins' band — the CNSM recordings
+///   ask for more air above 6 kHz than the six instruments of the study's band have, and the
+///   top two bands follow the band (−4 / −2 dB);
+/// - **the hair's noise** raised to the study's measure (−42 dB re the harmonics at first,
+///   against the real instruments' −32: `tools/arcus/upper_study.py`);
+/// - **the pluck's ring** shortened by what the Iowa MIS's plucked notes measured (Arcus's
+///   partials 1–4 rang 1.9 octaves of T60 longer on the violin, 1.65 on the viola: Percival's
+///   decays are open strings', a stopped and plucked string loses more to the finger);
+/// - **the vibrato** narrower and slower on the violin (the study's band: 6.9 – 10.4 cents,
+///   4.9 – 5.5 Hz; Arcus measured 17 cents and 6.2 Hz; the viola's was inside its band).
+///
+/// Judged on the Iowa and VSCO notes and the study's band, which the correction's start did not
+/// use.
 pub const VIOLIN_MATCH: Match = Match {
     eq_db: [
-        -7.6, -7.6, -9.0, 7.4, 4.9, 7.6, 2.8, 3.6, -0.7, 1.3, -1.2, 0.4,
+        0.6, 0.6, -5.0, 10.0, 1.4, -1.2, 4.1, -2.4, -5.0, -0.3, -4.0, -2.0,
     ],
     noise_db: 22.0,
     pizz_decay: 0.27,
@@ -122,11 +131,15 @@ pub const VIOLIN_MATCH: Match = Match {
     vib_rate: 0.88,
 };
 
-/// The viola's: no recordings of a viola's scales were found to fit its own, so the violin's
-/// correction stands for it (the same family's body at 1.14 × its size — an assumption, said
-/// so in `docs/round42/arcus-upper.md`), its noise as the violin's.
+/// The viola's: no recordings of a viola's scales to start from, so the violin's correction
+/// stands for it (the same family's body at 1.12 × its size — an assumption, said so in
+/// `docs/round42/arcus-upper.md`) without its cut under 160 Hz (where the viola's C string
+/// sounds) and with +2 dB from 1.6 kHz up, which brings its spectral centroid to the edge of the
+/// real violas' band; its noise as the violin's.
 pub const VIOLA_MATCH: Match = Match {
-    eq_db: VIOLIN_MATCH.eq_db,
+    eq_db: [
+        0.0, 0.0, 4.0, 10.0, 1.4, -1.2, 4.1, -0.4, -3.0, 0.0, -4.0, -2.0,
+    ],
     noise_db: 18.0,
     pizz_decay: 0.32,
     vib_depth: 0.9,

@@ -158,7 +158,7 @@ and Rossing's tension ranges; the violin's body is **fitted to the CNSM dataset'
 bridge admittance** (CC BY 4.0) by positive modes; the viola's is the violin's at 1.12 × its
 size (the study's measured A0s, 250 against 281 Hz; no measured viola admittance exists in the
 open). Their dynamic is mapped the players' way (the study's database: force ×5, β ×0.4, speed
-×3 pp → ff) and their noise, vibrato and pluck matched by the study's own estimator.
+×3 pp → ff) and their noise, vibrato and pluck matched by the study's own estimator. The body radiates each mode above 700 Hz with its own sign and strength and carries a cloud of 60 modes the fit does not resolve (900 Hz – 9 kHz): the measured admittance alone moves a vibrato's partials ±0.6 dB, the recorded violins ±1.5 – 2.2; with them ±1.4 (violin) / ±1.5 (viola).
 
 **Consequences.** A violin voice costs about 1.5 × a cello voice at 1×, a viola voice 1.15 ×
 (measured beside each other on a loaded machine; a quiet bench must say how much); its memory is the cello's (the lines already hold its period at 4×). The

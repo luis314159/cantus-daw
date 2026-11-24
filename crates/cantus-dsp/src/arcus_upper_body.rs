@@ -21,7 +21,7 @@
 use crate::math;
 
 /// Modes in the largest body.
-pub const MODES: usize = 64;
+pub const MODES: usize = 104;
 
 /// One fitted mode: Hz, Q, and its admittance at its own frequency (the fit's units: the
 /// largest mode is 1).
@@ -54,6 +54,8 @@ pub struct Shape {
     /// The modes' ring over the measured one's (Q ×).
     pub ring: f32,
     pub mix: f32,
+    /// The modes above `CLOUD_HZ.0`, fitted and cloud, × this (see [`HF_TRIM`]).
+    pub hf_trim: f32,
 }
 
 /// The body on the audio thread.
@@ -138,30 +140,35 @@ impl UpperBody {
         let nyq = 0.45 * self.sr;
         let mut used = 0;
         let mut coefs = [(0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64); MODES];
-        for (k, m) in sh.modes.iter().take(MODES).enumerate() {
+        let fitted = sh.modes.len().min(MODES - CLOUD);
+        for (k, m) in sh.modes.iter().take(fitted).enumerate() {
             let hz = m.hz as f64 / sh.size.max(0.1) as f64;
             if hz >= nyq {
                 continue;
             }
-            let w = std::f64::consts::TAU * hz;
             let q = (m.q * sh.ring.max(0.05)) as f64;
-            let sigma = w / (2.0 * q);
-            let wd = (w * w - sigma * sigma).max(1e-6).sqrt();
-            // The pole, and the bandpass mode's residue there: R = A·(ω/Q)·p / (2j·ω_d).
-            let r = math::exp(-sigma * t);
-            let (sn, cs) = math::sin_cos(wd * t);
-            let (pre, pim) = (-sigma, wd);
-            let k0 = m.a as f64 * (w / q) / (2.0 * wd);
-            // p / j = (pim, −pre)
-            let (rre, rim) = (k0 * pim, -k0 * pre);
-            // y = 2T·Re(R·s) = 2T·(Rr·Re s − Ri·Im s)
-            let (wr, wi) = (2.0 * t * rre, -2.0 * t * rim);
-            let spread = if hz < 1000.0 {
-                0.9 + 0.2 * hash(k as u64, 7)
+            let (gl, gr) = radiation(k as u64, hz);
+            let trim = if m.hz as f64 >= CLOUD_HZ.0 {
+                sh.hf_trim as f64
             } else {
-                0.55 + 0.9 * hash(k as u64, 11)
+                1.0
             };
-            coefs[used] = (r * cs, r * sn, wr, wi, wr * spread, wi * spread);
+            coefs[used] = mode_coefs(hz, q, trim * m.a as f64, gl, gr, t);
+            used += 1;
+        }
+        // The cloud: modes the fit does not resolve, at the measured response's level.
+        for c in 0..CLOUD {
+            let u = (c as f64 + 0.15 + 0.7 * hash(c as u64, 41)) / CLOUD as f64;
+            let hz0 = CLOUD_HZ.0 * math::exp2(u * math::log2(CLOUD_HZ.1 / CLOUD_HZ.0));
+            let hz = hz0 / sh.size.max(0.1) as f64;
+            if hz >= nyq {
+                continue;
+            }
+            let level = envelope(sh.modes, hz0);
+            let q = CLOUD_Q * (0.7 + 0.6 * hash(c as u64, 43)) * sh.ring.max(0.05) as f64;
+            let (gl, gr) = radiation(1000 + c as u64, hz.max(RADIATION_HZ));
+            let a = sh.hf_trim as f64 * CLOUD_GAIN * level * (0.8 + 0.4 * hash(c as u64, 47));
+            coefs[used] = mode_coefs(hz, q, a, gl, gr, t);
             used += 1;
         }
         // The body's power gain to white noise is one (each microphone): the sum of the
@@ -253,6 +260,52 @@ impl UpperBody {
     }
 }
 
+/// One mode's pole and its microphones' weights: the band-pass admittance `A·(ω/Q)·s /
+/// (s² + (ω/Q)·s + ω²)` by impulse invariance (`h[n] = 2T·Re(R·pⁿ)`, `R` the pole's residue).
+fn mode_coefs(hz: f64, q: f64, a: f64, gl: f64, gr: f64, t: f64) -> (f64, f64, f64, f64, f64, f64) {
+    let w = std::f64::consts::TAU * hz;
+    let sigma = w / (2.0 * q);
+    let wd = (w * w - sigma * sigma).max(1e-6).sqrt();
+    let r = math::exp(-sigma * t);
+    let (sn, cs) = math::sin_cos(wd * t);
+    let k0 = a * (w / q) / (2.0 * wd);
+    // R = k0·p/j = k0·(ω_d, σ); y = 2T·(Rr·Re s − Ri·Im s).
+    let (rre, rim) = (k0 * wd, k0 * sigma);
+    let (wr, wi) = (2.0 * t * rre, -2.0 * t * rim);
+    (r * cs, r * sn, wr * gl, wi * gl, wr * gr, wi * gr)
+}
+
+/// The fitted admittance's magnitude at `hz` (the modes summed, complex), the cloud's level.
+fn envelope(modes: &[Mode], hz: f64) -> f64 {
+    let (mut re, mut im) = (0.0f64, 0.0f64);
+    for m in modes {
+        let x = hz / m.hz as f64;
+        let q = m.q as f64;
+        let (dr, di) = (1.0 - x * x, x / q);
+        let d = dr * dr + di * di;
+        // (j·x/Q) / (dr + j·di)
+        re += m.a as f64 * (x / q) * di / d;
+        im += m.a as f64 * (x / q) * dr / d;
+    }
+    (re * re + im * im).sqrt()
+}
+
+/// The cloud of modes above the fitted ones: how many, where, their Q and their level over
+/// the fitted response's. A violin's body has far more modes above 1 kHz than a fit of its
+/// smoothed admittance resolves (its modal density grows with frequency; Woodhouse, "The
+/// acoustics of the violin: a review", *Rep. Prog. Phys.* 77, 2014, §5, read in
+/// `downloads/study/papers/RepProgPhys.txt`); radiating each with its own sign they make the
+/// fine structure a vibrato sweeps (`upper_tests_gate`, the study's AM per partial).
+pub const CLOUD: usize = 60;
+pub const CLOUD_HZ: (f64, f64) = (900.0, 9000.0);
+pub const CLOUD_Q: f64 = 90.0;
+pub const CLOUD_GAIN: f64 = 1.3;
+/// The fitted and the cloud's modes above `CLOUD_HZ.0` together: the cloud adds what a
+/// smooth fit leaves out but not its level, so both are held this much under the fit's
+/// (measured with the study's estimator: the violin at 0.8 sits its spectral centroid inside
+/// the real violins' band; the viola's needs none).
+pub const HF_TRIM: [f32; 2] = [0.8, 1.0];
+
 /// The cross term `Σₙ y_a[n]·y_b[n]` of two modes' impulse responses on microphone `ch`
 /// (`y[n] = wr·Re pⁿ + wi·Im pⁿ`), in closed form.
 fn cross(a: &(f64, f64, f64, f64, f64, f64), b: &(f64, f64, f64, f64, f64, f64), ch: usize) -> f64 {
@@ -282,6 +335,36 @@ fn cross(a: &(f64, f64, f64, f64, f64, f64), b: &(f64, f64, f64, f64, f64, f64),
 #[path = "arcus_upper_body_data.rs"]
 mod data;
 
+/// Above this the body's modes radiate each with its own sign and strength toward a
+/// microphone; below it they move air together (the A0 and the B1 modes, in phase).
+pub const RADIATION_HZ: f64 = 700.0;
+/// The share of the modes above [`RADIATION_HZ`] a microphone hears in opposite phase, and the
+/// spread of their strengths (× 1 ± this).
+pub const RADIATION_NEG: f64 = 0.45;
+pub const RADIATION_SPREAD: f64 = 0.7;
+
+/// What mode `k` at `hz` radiates to the left and the right microphone: a violin's radiation
+/// turns from mode to mode above the signature modes (Weinreich, "Directional tone color",
+/// *JASA* 101, 1997, doi:10.1121/1.418150 — abstract read), so at a microphone neighbouring
+/// modes add or cancel. That fine structure, beyond the bridge admittance's own, is what a
+/// vibrato's sweep turns into each partial's amplitude movement: the measured admittance alone
+/// moves a partial ±0.6 dB at ±10 cents (`docs/round42/arcus-upper.md`), the study's recorded
+/// violins ±1.5 – 2.2 dB (`study/bowed-realism.md` §2.6). Deterministic (a hash of the mode).
+fn radiation(k: u64, hz: f64) -> (f64, f64) {
+    if hz < RADIATION_HZ {
+        return (1.0, 0.9 + 0.2 * hash(k, 7));
+    }
+    let one = |salt: u64| {
+        let sign = if hash(k, salt) < RADIATION_NEG {
+            -1.0
+        } else {
+            1.0
+        };
+        sign * (1.0 + RADIATION_SPREAD * (2.0 * hash(k, salt + 1) - 1.0))
+    };
+    (one(13), one(29))
+}
+
 /// The violin's modes (fitted, `arcus_upper_body_data.rs`).
 pub const VIOLIN: &[Mode] = &data::VIOLIN;
 
@@ -296,9 +379,9 @@ pub const VIOLA_SCALE: f32 = 1.12;
 /// and the bass's (they keep Fides's).
 pub fn shape_of(s: &super::super::ArcusSettings) -> Option<Shape> {
     use super::super::tables::Instrument;
-    let scale = match s.instrument {
-        Instrument::Violin => 1.0,
-        Instrument::Viola => VIOLA_SCALE,
+    let (scale, hf_trim) = match s.instrument {
+        Instrument::Violin => (1.0, HF_TRIM[0]),
+        Instrument::Viola => (VIOLA_SCALE, HF_TRIM[1]),
         Instrument::Cello | Instrument::Bass => return None,
     };
     Some(Shape {
@@ -306,5 +389,6 @@ pub fn shape_of(s: &super::super::ArcusSettings) -> Option<Shape> {
         size: scale * s.body_size,
         ring: s.body_ring,
         mix: s.body_mix,
+        hf_trim,
     })
 }
