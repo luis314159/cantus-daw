@@ -35,6 +35,7 @@ impl Arcus {
             body,
             rad_c: 0.0,
             rad: [(0.0, 0.0); 4],
+            eq: eq::MatchEq::default(),
             out,
             hammer,
             hammer_area,
@@ -62,6 +63,14 @@ impl Arcus {
     pub fn set(&mut self, s: &ArcusSettings) {
         self.s = *s;
         self.s.poly = s.poly.clamp(1, MAX_VOICES);
+        // Model 2's match: the hair's noise and the pluck's ring on the settings the voices
+        // read, the output's correction designed.
+        let m = self.s.match_now();
+        if self.s.bow_noise_db > -60.0 {
+            self.s.bow_noise_db += m.noise_db;
+        }
+        self.s.pizz_decay *= m.pizz_decay;
+        self.eq.design(&m, self.sr);
         self.alloc.set_polyphony(self.s.poly);
         self.alloc.set_mode(self.s.mode, Default::default());
         self.body.set(&self.s.body());
@@ -349,6 +358,7 @@ impl Arcus {
         self.alloc.clear();
         self.body.reset();
         self.rad = [(0.0, 0.0); 4];
+        self.eq.reset();
         self.out.reset();
         self.clock = 0;
         self.sustain = false;
@@ -364,6 +374,7 @@ impl Arcus {
         self.voices.iter().all(|v| !v.active())
             && self.alloc.is_clear()
             && self.rad.iter().all(|r| *r == (0.0, 0.0))
+            && self.eq.is_still()
             && self.body.is_still()
             && self.out.is_still()
     }

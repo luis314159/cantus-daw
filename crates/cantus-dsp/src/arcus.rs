@@ -26,6 +26,8 @@
 
 #[path = "arcus_ear.rs"]
 pub mod ear;
+#[path = "arcus_eq.rs"]
+pub mod eq;
 #[path = "arcus_pitch.rs"]
 pub mod pitch;
 #[path = "arcus_play.rs"]
@@ -180,6 +182,13 @@ impl VibSource {
 /// Everything the unit sets (`cantus_engine::inst::arcus::settings`).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ArcusSettings {
+    /// The model a song was made with (ADR 0059's rule): 1, round 42's first; 2, matched to
+    /// the recordings (`docs/round42/arcus-match.md`: the output's correction, the hair's
+    /// noise, the pluck's ring). New instances store 2.
+    pub model: u8,
+    /// The match tool's own (`examples/arcus_match`): a match to try instead of the
+    /// instrument's table (model 2 only). `None` everywhere else.
+    pub matched: Option<tables::Match>,
     pub instrument: Instrument,
     pub technique: Technique,
     pub poly: usize,
@@ -247,6 +256,8 @@ pub struct ArcusSettings {
 impl Default for ArcusSettings {
     fn default() -> Self {
         ArcusSettings {
+            model: 2,
+            matched: None,
             instrument: Instrument::Cello,
             technique: Technique::Arco,
             poly: 4,
@@ -295,6 +306,15 @@ impl Default for ArcusSettings {
 }
 
 impl ArcusSettings {
+    /// The match this model plays with: none for model 1.
+    pub fn match_now(&self) -> tables::Match {
+        if self.model < 2 {
+            tables::NEUTRAL
+        } else {
+            self.matched.unwrap_or(self.instrument.spec().matched)
+        }
+    }
+
     /// The body's settings: the instrument's body at its size × the knob's.
     pub fn body(&self) -> BodySettings {
         let spec = self.instrument.spec();
@@ -385,6 +405,8 @@ pub struct Arcus {
     /// The radiation's first-order high-pass (its step, and each side's state `(x₁, y₁)`).
     rad_c: f32,
     rad: [(f32, f32); 4],
+    /// Model 2's correction on the output (`eq`).
+    eq: eq::MatchEq,
     out: Output,
     hammer: HammerShape,
     hammer_area: f32,

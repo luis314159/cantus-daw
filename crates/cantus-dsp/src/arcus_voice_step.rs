@@ -91,6 +91,9 @@ impl Voice {
             (self.note + self.glide + sh.ctl.bend * s.bend_st + self.tuning) as f64 + tun as f64;
         let f = 440.0 * math::exp2((semis + 0.01 * self.vib_now as f64 - 69.0) / 12.0);
         self.f0 = f;
+        // The register's balance (the vibrato left out: it is the note's level, not its
+        // wobble).
+        self.balance = math::db_to_gain(spec.balance_db_st * (semis as f32 - spec.balance_key));
         // The string's decay: a stopped string rings shorter than an open one (the finger),
         // a lifted note shorter still.
         let stopped = (st.open_hz() / f).clamp(0.1, 1.0);
@@ -321,7 +324,7 @@ impl Voice {
             }
             let k = (n - i).min(self.span - self.pos);
             let (a, b) = (self.pos, self.pos + k);
-            let gain = 2.0 * self.string.z0() * OUT;
+            let gain = 2.0 * self.string.z0() * OUT * self.balance;
             self.tmp[..k].fill(0.0);
             let bow = if self.bow_on {
                 Some(Bow {

@@ -12,6 +12,8 @@
 
 use super::tables::Instrument;
 
+// Measured data: its cents may read like π, π/2 or √2 — the generated file allows
+// `clippy::approx_constant` inside (`#![allow]`, written by `examples/arcus_pitch_table.rs`).
 #[path = "arcus_pitch_data.rs"]
 mod data;
 

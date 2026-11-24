@@ -48,6 +48,8 @@ pub fn settings(spec: &NativeSpec) -> ArcusSettings {
 pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
     let round = |i: usize| v[i].round();
     ArcusSettings {
+        model: round(ix::MODEL).clamp(1.0, 2.0) as u8,
+        matched: None,
         instrument: Instrument::from_index(v[ix::INST]),
         technique: Technique::from_index(v[ix::TECH]),
         poly: round(ix::POLY).clamp(1.0, 8.0) as usize,

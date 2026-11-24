@@ -245,6 +245,8 @@ pub struct Voice {
     pub(super) trim: f64,
     /// The pitch loop's ear (`ear`): the fundamental heard against the target.
     pub(super) ear: super::ear::Ear,
+    /// The register's balance on the output (`InstrumentSpec::balance_db_st`), linear.
+    balance: f32,
     fade: f32,
     fade_step: f32,
     peak: f32,
@@ -311,6 +313,7 @@ impl Voice {
             stop_lift: false,
             trim: 0.0,
             ear: super::ear::Ear::default(),
+            balance: 1.0,
             fade: 1.0,
             fade_step: 0.0,
             peak: 0.0,

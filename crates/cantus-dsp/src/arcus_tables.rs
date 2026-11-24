@@ -137,7 +137,42 @@ pub struct InstrumentSpec {
     /// its first harmonics level with its fundamental (120 Hz here), the Karoryfer cello's A3
     /// a strong fundamental (none: Fides's cello body alone).
     pub radiation_hz: f32,
+    /// The register's balance: dB per semitone added to the output around `balance_key`, so
+    /// a held mf note is about as loud low as high. Measured (`tests_gate2::probe_levels`, a
+    /// held note every three semitones at velocity 0.6, integrated LUFS): the cello fell
+    /// 0.47 dB a semitone from C2 to F♯5 (−21.5 to −39.9 LUFS; the body's own unevenness
+    /// ±5 dB around the line, kept), the bass 0.16 (round 42's preset fit).
+    pub balance_db_st: f32,
+    pub balance_key: f32,
+    /// Model 2's match to the recordings (`docs/round42/arcus-match.md`).
+    pub matched: Match,
 }
+
+/// The match's correction bands (Hz) and their Q.
+pub const EQ_BANDS: usize = 12;
+pub const EQ_HZ: [f32; EQ_BANDS] = [
+    63.0, 100.0, 160.0, 250.0, 400.0, 630.0, 1000.0, 1600.0, 2500.0, 4000.0, 6300.0, 10_000.0,
+];
+pub const EQ_Q: f32 = 1.4;
+
+/// Model 2's match to the recordings (round 42): what `tools/arcus/match.sh` fitted, note by
+/// note across the range, so the measurements fall within the references' spread.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Match {
+    /// The output's correction, dB per band (`EQ_HZ`): the long-term spectrum of held notes.
+    pub eq_db: [f32; EQ_BANDS],
+    /// The bow-hair noise, dB over model 1's.
+    pub noise_db: f32,
+    /// A plucked note's ring, × model 1's.
+    pub pizz_decay: f32,
+}
+
+/// No match: model 1.
+pub const NEUTRAL: Match = Match {
+    eq_db: [0.0; EQ_BANDS],
+    noise_db: 0.0,
+    pizz_decay: 1.0,
+};
 
 impl InstrumentSpec {
     /// The string a key is played on by default: the highest whose open pitch is at or
@@ -200,9 +235,12 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     },
     vib_hz: 5.5,
     vib_ct: 18.0,
-    trim_db: 8.0,
+    trim_db: 16.0,
     corner_hz: 3000.0,
     radiation_hz: 0.0,
+    balance_db_st: 0.47,
+    balance_key: 57.0,
+    matched: CELLO_MATCH,
 };
 
 /// The double bass, in orchestral tuning: E1 A1 D2 G2 over 1 060 mm.
@@ -247,9 +285,12 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     },
     vib_hz: 5.3,
     vib_ct: 16.0,
-    trim_db: 9.0,
+    trim_db: 16.0,
     corner_hz: 2000.0,
     radiation_hz: 120.0,
+    balance_db_st: 0.16,
+    balance_key: 47.5,
+    matched: BASS_MATCH,
 };
 
 /// The violin: G3 D4 A4 E5 over 328 mm.
@@ -297,6 +338,9 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     trim_db: 13.0,
     corner_hz: 5000.0,
     radiation_hz: 0.0,
+    balance_db_st: 0.0,
+    balance_key: 60.0,
+    matched: NEUTRAL,
 };
 
 /// The viola: C3 G3 D4 A4 over 370 mm.
@@ -344,6 +388,9 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     trim_db: 13.0,
     corner_hz: 4000.0,
     radiation_hz: 0.0,
+    balance_db_st: 0.0,
+    balance_key: 60.0,
+    matched: NEUTRAL,
 };
 
 /// The friction curve's constants: the hyperbolic law
@@ -360,3 +407,7 @@ pub const V0: f32 = 0.1;
 pub fn schelleng_max(z0: f64, v_bow: f64, beta: f64) -> f64 {
     2.0 * z0 * v_bow / ((MU_S - MU_D) as f64 * beta.max(1e-3))
 }
+
+/// The cello's and the double bass's match (`tools/arcus/match.sh fit`).
+pub const CELLO_MATCH: Match = NEUTRAL;
+pub const BASS_MATCH: Match = NEUTRAL;

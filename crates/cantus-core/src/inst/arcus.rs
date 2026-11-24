@@ -23,8 +23,9 @@ pub const ICON: TrackIcon = TrackIcon::Strings;
 /// in the commit that adds it to `InstrumentKind::ALL`).
 pub const READY: bool = false;
 /// The model version stored with every new instance (ADR 0059's rule): an improved model
-/// is a new number, and a song keeps the one it was made with.
-pub const MODEL: f32 = 1.0;
+/// is a new number, and a song keeps the one it was made with. 1: round 42's first; 2:
+/// matched to the recordings (`docs/round42/arcus-match.md`).
+pub const MODEL: f32 = 2.0;
 
 /// Set, never automated or modulated: the model a song was made with, and how many voices
 /// the unit holds.
@@ -51,7 +52,7 @@ macro_rules! params {
 
 params! {
     // ---- the model, the instrument, the voice ----
-    MODEL = ("model", "arcus.model", 1.0, 1.0, MODEL, "", false, true),
+    MODEL = ("model", "arcus.model", 1.0, 2.0, MODEL, "", false, true),
     // 0 Cello · 1 Double bass · 2 Violin · 3 Viola
     INST = ("inst", "arcus.inst", 0.0, 3.0, 0.0, "", false, true),
     // 0 Arco · 1 Pizzicato · 2 Tremolo

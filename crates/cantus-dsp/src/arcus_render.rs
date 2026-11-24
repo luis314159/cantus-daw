@@ -105,6 +105,8 @@ impl Arcus {
                 }
             }
             self.body.process(bl, br, self.clock, quiet);
+            let out_quiet = out_quiet && self.eq.is_still();
+            self.eq.process(bl, br, quiet && self.body.is_still());
             self.out.process(bl, br, self.clock, 0.0, out_quiet);
             for f in 0..frames {
                 let (a, b) = (bl[f], br[f]);

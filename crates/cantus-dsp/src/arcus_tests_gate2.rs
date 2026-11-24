@@ -519,3 +519,43 @@ fn probe_cpu() {
         100.0 * best.2 / secs
     );
 }
+
+/// A probe (round 42, the presets' levels): each register's loudness — a held note every
+/// three semitones at velocity 0.6 (bowed, then plucked) through the defaults (vibrato,
+/// body, output), its integrated LUFS — so the output's balance across the range is measured:
+/// `cargo test -p cantus-dsp --release --lib arcus::tests_gate2::probe_levels -- --ignored --nocapture`.
+#[test]
+#[ignore = "a probe"]
+fn probe_levels() {
+    use crate::terminus::loudness::LoudnessMeter;
+    for inst in [Instrument::Cello, Instrument::Bass] {
+        for tech in [Technique::Arco, Technique::Pizzicato] {
+            let spec = inst.spec();
+            let mut line = String::new();
+            let mut key = spec.bottom();
+            while key <= spec.top {
+                let mut a = Arcus::new(SR);
+                a.set(&ArcusSettings {
+                    instrument: inst,
+                    technique: tech,
+                    ..ArcusSettings::default()
+                });
+                a.note_on(key, 0.6, 1);
+                let frames = (2.5 * SR) as usize;
+                let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
+                for at in (0..frames).step_by(256) {
+                    let n = 256.min(frames - at);
+                    if at == (2 * SR as usize) / 256 * 256 {
+                        a.note_off(key, 1);
+                    }
+                    a.process(&mut l[at..at + n], &mut r[at..at + n]);
+                }
+                let mut m = LoudnessMeter::new(SR);
+                m.process(&l, &r);
+                line += &format!(" {key}: {:.1}", m.integrated().unwrap_or(-70.0));
+                key += 3;
+            }
+            println!("{inst:?} {tech:?}:{line}");
+        }
+    }
+}
