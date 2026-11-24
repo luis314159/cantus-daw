@@ -14,7 +14,11 @@
 //! unpack — what *Sound packs…* does) into `<downloads>/content` unless they are there at the
 //! manifest's version (default `F:/projects/daw-r42/downloads/tympanum`), read by the app's
 //! kit loader (`tympanum_load`), and played by the engine's offline render (the export's
-//! path), each kit's own mix of its microphones — what a user hears on loading it.
+//! path), each kit's own mix of its microphones — what a user hears on loading it. A modelled
+//! kit stands as its design draws it and a recorded kit as it was miked: when a pair's
+//! modelled voices are the recording's mirror (the hats on the other side), they are mirrored
+//! (left and right swapped, nothing else), decided per pair from its items' left/right
+//! balance and written in the key.
 //!
 //! Twelve items (`items.rs`): eight pieces alone at two or three velocities, four grooves.
 //! Each item's three renders are cut to one length, faded out over 100 ms and brought to
@@ -328,6 +332,10 @@ fn main() {
     let mut bytes = 0u64;
     let (mut engine, _proc) = EngineHandle::manual(SR as f64);
     let mut rev = 1;
+    // Every item's three renders first (generated, recorded, hybrid), as the kits ship.
+    let mut rendered: Vec<Vec<(Vec<f32>, Vec<f32>)>> = Vec::new();
+    let mut diffs = Vec::new();
+    let mut hits = String::from("item,voice,hit,at_s,key,velocity,rms80_db,below_loudest_db\n");
     for item in &all {
         let model = format!("model:{}", item.pair.model());
         let rec = format!("pack:{}", item.pair.recording());
@@ -353,6 +361,85 @@ fn main() {
             "{}: the hybrid is the model to {diff:.1} dB: its pack was not heard",
             item.id
         );
+        // A piece's hits, each one's level as rendered (80 ms from its note), to read the
+        // voices' dynamics against the recording's.
+        if item.bpm == 60.0 {
+            for (v, (l, r)) in renders.iter().enumerate() {
+                let lv: Vec<f64> = item
+                    .hits
+                    .iter()
+                    .map(|h| {
+                        let at = ((PRE_ROLL_S + h.0) * SR as f64) as usize;
+                        let n = (0.08 * SR as f64) as usize;
+                        let e: f64 = (at..(at + n).min(l.len()))
+                            .map(|i| 0.5 * ((l[i] as f64).powi(2) + (r[i] as f64).powi(2)))
+                            .sum();
+                        10.0 * cantus_dsp::math::log10((e / n as f64).max(1e-30))
+                    })
+                    .collect();
+                let top = lv.iter().cloned().fold(f64::MIN, f64::max);
+                for (j, (h, x)) in item.hits.iter().zip(&lv).enumerate() {
+                    let _ = writeln!(
+                        hits,
+                        "{},{},{j},{:.2},{},{},{x:.2},{:.2}",
+                        item.id,
+                        VOICES[v],
+                        h.0,
+                        h.1,
+                        h.2,
+                        top - x
+                    );
+                }
+            }
+        }
+        rendered.push(renders);
+        diffs.push(diff);
+    }
+    // The stereo picture: a modelled kit stands as its design draws it and a recorded kit as it
+    // was miked, so one may be the other's mirror (the hats on the other side). Which way each
+    // pair's modelled voices face is read off its items' left/right balance, and they are
+    // mirrored (left and right swapped, nothing else) when that brings them closer to the
+    // recording's — a convention, like the level, not a sound.
+    let mut mirrored = String::new();
+    for pair in [Pair::Studio, Pair::Jazz] {
+        let (mut as_is, mut swapped) = (0.0, 0.0);
+        for (item, r) in all.iter().zip(&rendered) {
+            if item.pair != pair {
+                continue;
+            }
+            let rec = picture(&r[1].0, &r[1].1).0;
+            for v in [0, 2] {
+                let b = picture(&r[v].0, &r[v].1).0;
+                as_is += (b - rec).abs();
+                swapped += (-b - rec).abs();
+            }
+        }
+        let mirror = swapped < as_is;
+        eprintln!(
+            "{}: modelled voices {} (left/right mismatch {as_is:.1} dB as they are, {swapped:.1} mirrored)",
+            pair.model(),
+            if mirror { "mirrored" } else { "as they are" }
+        );
+        sep(&mut mirrored);
+        let _ = write!(
+            mirrored,
+            "{}:{{\"mirrored\":{mirror},\"mismatch_as_is_db\":{as_is:.2},\"mismatch_mirrored_db\":{swapped:.2}}}",
+            js(pair.model())
+        );
+        if mirror {
+            for (item, r) in all.iter().zip(rendered.iter_mut()) {
+                if item.pair == pair {
+                    for v in [0, 2] {
+                        let (l, rr) = &mut r[v];
+                        std::mem::swap(l, rr);
+                    }
+                }
+            }
+        }
+    }
+    for ((item, mut renders), diff) in all.iter().zip(rendered).zip(diffs) {
+        let model = format!("model:{}", item.pair.model());
+        let rec = format!("pack:{}", item.pair.recording());
         let m = {
             let mut g: Vec<_> = renders.iter_mut().map(|(l, r)| (l, r)).collect();
             kit::match_group(&mut g, SR, FADE_S, TARGET, CEILING_DB)
@@ -482,13 +569,14 @@ fn main() {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let key = format!(
-        "{{\n \"kit\": {},\n \"created\": {created},\n \"instrument\": \"tympanum\",\n \"packs\": {packs},\n \"residuals\": {residuals},\n \"tokens\": {table},\n \"catch\": [{}, {}],\n \"items\": {{{key_items}}},\n \"files\": {{{key_files}}},\n \"bytes\": {bytes}\n}}\n",
+        "{{\n \"kit\": {},\n \"created\": {created},\n \"instrument\": \"tympanum\",\n \"packs\": {packs},\n \"residuals\": {residuals},\n \"stereo\": {{{mirrored}}},\n \"tokens\": {table},\n \"catch\": [{}, {}],\n \"items\": {{{key_items}}},\n \"files\": {{{key_files}}},\n \"bytes\": {bytes}\n}}\n",
         js(&kit_id),
         js(catch[0].0),
         js(catch[1].0),
     );
     std::fs::write(a.key.join("key.json"), key).expect("key.json");
     std::fs::write(a.key.join("levels.csv"), levels).expect("levels.csv");
+    std::fs::write(a.key.join("hits.csv"), hits).expect("hits.csv");
     eprintln!(
         "kit {kit_id} in {} — {:.1} MB; the key in {}",
         a.dir.display(),
