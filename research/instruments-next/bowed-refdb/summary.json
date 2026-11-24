@@ -1,0 +1,652 @@
+{
+ "cello": {
+  "instruments": [
+   "goodsounds-cello-margarita",
+   "goodsounds-cello-nico",
+   "iowa-cello",
+   "ircam-cello",
+   "karoryfer-bigcat-cello",
+   "philharmonia-cello"
+  ],
+  "notes": {
+   "arco": 1079,
+   "pizz": 191
+  },
+  "centroid_harm_all": 2.40648,
+  "noise_db_all": -34.68591,
+  "body_marks": {
+   "goodsounds-cello-margarita": {
+    "wood_peaks": [
+     {
+      "hz": 235.97,
+      "db": 13.8,
+      "prominence_db": 4.35
+     },
+     {
+      "hz": 297.3,
+      "db": 12.13,
+      "prominence_db": 5.04
+     },
+     {
+      "hz": 594.6,
+      "db": 7.61,
+      "prominence_db": 6.17
+     },
+     {
+      "hz": 374.58,
+      "db": 4.99,
+      "prominence_db": 2.09
+     }
+    ],
+    "bridge_hill_hz": 840.9,
+    "bridge_hill_db_re_wood": -0.07527272727272827,
+    "hill_detrended_hz": 1587.4,
+    "hill_detrended_db": 6.802977602985441,
+    "trend_db_per_oct": -6.3660916613498,
+    "above_hill_db_re_wood": -29.924147727272725
+   },
+   "goodsounds-cello-nico": {
+    "A0_hz": 132.43,
+    "A0_db": 4.7,
+    "wood_peaks": [
+     {
+      "hz": 157.49,
+      "db": 16.55,
+      "prominence_db": 11.85
+     },
+     {
+      "hz": 374.58,
+      "db": 11.43,
+      "prominence_db": 3.5
+     },
+     {
+      "hz": 333.71,
+      "db": 10.83,
+      "prominence_db": 6.09
+     },
+     {
+      "hz": 222.72,
+      "db": 9.98,
+      "prominence_db": 5.5
+     }
+    ],
+    "bridge_hill_hz": 840.9,
+    "bridge_hill_db_re_wood": -5.151142857142858,
+    "hill_detrended_hz": 2378.41,
+    "hill_detrended_db": 5.086368926746395,
+    "trend_db_per_oct": -5.2498725413867895,
+    "above_hill_db_re_wood": -32.18589285714286
+   },
+   "iowa-cello": {
+    "A0_hz": 105.11,
+    "A0_db": 20.25,
+    "wood_peaks": [
+     {
+      "hz": 210.22,
+      "db": 13.32,
+      "prominence_db": 11.06
+     },
+     {
+      "hz": 420.45,
+      "db": 10.77,
+      "prominence_db": 6.69
+     },
+     {
+      "hz": 333.71,
+      "db": 10.22,
+      "prominence_db": 6.14
+     },
+     {
+      "hz": 529.73,
+      "db": 1.99,
+      "prominence_db": 2.9
+     }
+    ],
+    "bridge_hill_hz": 840.9,
+    "bridge_hill_db_re_wood": 1.3891428571428568,
+    "hill_detrended_hz": 1887.75,
+    "hill_detrended_db": 8.307383479593557,
+    "trend_db_per_oct": -4.329444936871925,
+    "above_hill_db_re_wood": -29.574732142857144
+   },
+   "ircam-cello": {
+    "A0_hz": 93.64,
+    "A0_db": 11.14,
+    "wood_peaks": [
+     {
+      "hz": 198.43,
+      "db": 10.58,
+      "prominence_db": 5.93
+     },
+     {
+      "hz": 333.71,
+      "db": 7.49,
+      "prominence_db": 6.87
+     },
+     {
+      "hz": 561.23,
+      "db": 6.49,
+      "prominence_db": 7.93
+     },
+     {
+      "hz": 148.65,
+      "db": 5.28,
+      "prominence_db": 3.64
+     }
+    ],
+    "bridge_hill_hz": 1059.46,
+    "bridge_hill_db_re_wood": -0.43035714285714377,
+    "hill_detrended_hz": 2000.0,
+    "hill_detrended_db": 6.178146448088885,
+    "trend_db_per_oct": -3.0269112464342953,
+    "above_hill_db_re_wood": -25.056607142857146
+   },
+   "karoryfer-bigcat-cello": {
+    "A0_hz": 111.36,
+    "A0_db": 5.13,
+    "wood_peaks": [
+     {
+      "hz": 374.58,
+      "db": 7.6,
+      "prominence_db": 4.58
+     },
+     {
+      "hz": 396.85,
+      "db": 7.6,
+      "prominence_db": 4.58
+     },
+     {
+      "hz": 500.0,
+      "db": 6.7,
+      "prominence_db": 3.68
+     },
+     {
+      "hz": 222.72,
+      "db": 4.87,
+      "prominence_db": 2.45
+     }
+    ],
+    "bridge_hill_hz": 890.9,
+    "bridge_hill_db_re_wood": 4.2785,
+    "hill_detrended_hz": 890.9,
+    "hill_detrended_db": 6.386701011536284,
+    "trend_db_per_oct": -2.1316213870064527,
+    "above_hill_db_re_wood": -22.48
+   },
+   "philharmonia-cello": {
+    "A0_hz": 105.11,
+    "A0_db": 9.32,
+    "wood_peaks": [
+     {
+      "hz": 176.78,
+      "db": 15.76,
+      "prominence_db": 4.26
+     },
+     {
+      "hz": 198.43,
+      "db": 15.56,
+      "prominence_db": 3.82
+     },
+     {
+      "hz": 297.3,
+      "db": 15.14,
+      "prominence_db": 5.04
+     },
+     {
+      "hz": 471.94,
+      "db": 9.03,
+      "prominence_db": 1.97
+     }
+    ],
+    "bridge_hill_hz": 707.11,
+    "bridge_hill_db_re_wood": -7.601,
+    "hill_detrended_hz": 2118.93,
+    "hill_detrended_db": 5.866491122849969,
+    "trend_db_per_oct": -6.76611731174991,
+    "above_hill_db_re_wood": -34.56
+   }
+  }
+ },
+ "bass": {
+  "instruments": [
+   "iowa-bass",
+   "ircam-bass",
+   "philharmonia-bass",
+   "smolken-bass",
+   "vsco-solo-bass"
+  ],
+  "notes": {
+   "arco": 1009,
+   "pizz": 195
+  },
+  "centroid_harm_all": 1.53007,
+  "noise_db_all": -32.86424,
+  "body_marks": {
+   "iowa-bass": {
+    "A0_hz": 62.5,
+    "A0_db": 18.76,
+    "wood_peaks": [
+     {
+      "hz": 105.11,
+      "db": 22.97,
+      "prominence_db": 8.32
+     },
+     {
+      "hz": 176.78,
+      "db": 18.42,
+      "prominence_db": 6.59
+     },
+     {
+      "hz": 420.45,
+      "db": 8.23,
+      "prominence_db": 3.59
+     },
+     {
+      "hz": 374.58,
+      "db": 6.98,
+      "prominence_db": 1.76
+     }
+    ],
+    "bridge_hill_hz": 420.45,
+    "bridge_hill_db_re_wood": -5.227310344827588,
+    "hill_detrended_hz": 1587.4,
+    "hill_detrended_db": 4.0218065060304,
+    "trend_db_per_oct": -5.361715009441635,
+    "above_hill_db_re_wood": -25.988875562218894
+   },
+   "ircam-bass": {
+    "A0_hz": 70.15,
+    "A0_db": 18.85,
+    "wood_peaks": [
+     {
+      "hz": 111.36,
+      "db": 18.1,
+      "prominence_db": 3.96
+     },
+     {
+      "hz": 235.97,
+      "db": 15.47,
+      "prominence_db": 6.74
+     },
+     {
+      "hz": 420.45,
+      "db": 7.24,
+      "prominence_db": 2.75
+     }
+    ],
+    "bridge_hill_hz": 471.94,
+    "bridge_hill_db_re_wood": -4.274689655172417,
+    "hill_detrended_hz": 1334.84,
+    "hill_detrended_db": 6.153274496263827,
+    "trend_db_per_oct": -4.448397251495006,
+    "above_hill_db_re_wood": -27.275907046476767
+   },
+   "philharmonia-bass": {
+    "A0_hz": 70.15,
+    "A0_db": 33.73,
+    "wood_peaks": [
+     {
+      "hz": 99.21,
+      "db": 32.14,
+      "prominence_db": 8.95
+     },
+     {
+      "hz": 140.31,
+      "db": 24.7,
+      "prominence_db": 4.09
+     },
+     {
+      "hz": 187.29,
+      "db": 16.75,
+      "prominence_db": 2.54
+     },
+     {
+      "hz": 280.62,
+      "db": 16.08,
+      "prominence_db": 3.33
+     }
+    ],
+    "bridge_hill_hz": 353.55,
+    "bridge_hill_db_re_wood": -4.356275862068967,
+    "hill_detrended_hz": 353.55,
+    "hill_detrended_db": 2.621009802649633,
+    "trend_db_per_oct": -7.670618062108968,
+    "above_hill_db_re_wood": -34.9756671664168
+   },
+   "smolken-bass": {
+    "A0_hz": 66.22,
+    "A0_db": 13.39,
+    "wood_peaks": [
+     {
+      "hz": 396.85,
+      "db": 16.52,
+      "prominence_db": 10.37
+     },
+     {
+      "hz": 235.97,
+      "db": 14.99,
+      "prominence_db": 3.76
+     },
+     {
+      "hz": 198.43,
+      "db": 14.93,
+      "prominence_db": 3.68
+     },
+     {
+      "hz": 264.87,
+      "db": 14.82,
+      "prominence_db": 3.57
+     }
+    ],
+    "bridge_hill_hz": 396.85,
+    "bridge_hill_db_re_wood": 4.024962962962963,
+    "hill_detrended_hz": 396.85,
+    "hill_detrended_db": 8.828382457046676,
+    "trend_db_per_oct": -4.3428635955360635,
+    "above_hill_db_re_wood": -29.020080515297902
+   },
+   "vsco-solo-bass": {
+    "A0_hz": 74.33,
+    "A0_db": 12.53,
+    "wood_peaks": [
+     {
+      "hz": 117.98,
+      "db": 15.99,
+      "prominence_db": 3.31
+     },
+     {
+      "hz": 166.85,
+      "db": 10.57,
+      "prominence_db": 3.03
+     },
+     {
+      "hz": 187.29,
+      "db": 9.9,
+      "prominence_db": 1.38
+     },
+     {
+      "hz": 353.55,
+      "db": 8.21,
+      "prominence_db": 3.81
+     }
+    ],
+    "bridge_hill_hz": 396.85,
+    "bridge_hill_db_re_wood": -1.655172413793104,
+    "hill_detrended_hz": 1414.21,
+    "hill_detrended_db": 6.961125013008026,
+    "trend_db_per_oct": -3.6589018457288387,
+    "above_hill_db_re_wood": -30.656911544227892
+   }
+  }
+ },
+ "viola": {
+  "instruments": [
+   "iowa-viola",
+   "ircam-viola",
+   "philharmonia-viola"
+  ],
+  "notes": {
+   "arco": 937,
+   "pizz": 256
+  },
+  "centroid_harm_all": 2.05759,
+  "noise_db_all": -32.18148,
+  "body_marks": {
+   "iowa-viola": {
+    "A0_hz": 250.0,
+    "A0_db": 3.37,
+    "wood_peaks": [
+     {
+      "hz": 353.55,
+      "db": 8.59,
+      "prominence_db": 7.67
+     },
+     {
+      "hz": 793.7,
+      "db": 8.47,
+      "prominence_db": 4.87
+     },
+     {
+      "hz": 471.94,
+      "db": 6.7,
+      "prominence_db": 6.33
+     },
+     {
+      "hz": 280.62,
+      "db": 2.65,
+      "prominence_db": 1.73
+     }
+    ],
+    "bridge_hill_hz": 1498.31,
+    "bridge_hill_db_re_wood": -0.5788695652173912,
+    "hill_detrended_hz": 2000.0,
+    "hill_detrended_db": 9.068245710387847,
+    "trend_db_per_oct": -6.228915052298853,
+    "above_hill_db_re_wood": -24.776869565217392
+   },
+   "ircam-viola": {
+    "A0_hz": 222.72,
+    "A0_db": 5.24,
+    "wood_peaks": [
+     {
+      "hz": 353.55,
+      "db": 6.69,
+      "prominence_db": 3.42
+     },
+     {
+      "hz": 445.45,
+      "db": 6.01,
+      "prominence_db": 2.74
+     },
+     {
+      "hz": 707.11,
+      "db": 2.98,
+      "prominence_db": 8.65
+     }
+    ],
+    "bridge_hill_hz": 2118.93,
+    "bridge_hill_db_re_wood": 2.245391304347826,
+    "hill_detrended_hz": 2244.92,
+    "hill_detrended_db": 8.019393159509418,
+    "trend_db_per_oct": -3.764888320839058,
+    "above_hill_db_re_wood": -26.325608695652175
+   },
+   "philharmonia-viola": {
+    "A0_hz": 250.0,
+    "A0_db": 12.21,
+    "wood_peaks": [
+     {
+      "hz": 420.45,
+      "db": 7.63,
+      "prominence_db": 4.51
+     },
+     {
+      "hz": 749.15,
+      "db": 3.49,
+      "prominence_db": 2.05
+     }
+    ],
+    "bridge_hill_hz": 1334.84,
+    "bridge_hill_db_re_wood": -2.8873913043478265,
+    "hill_detrended_hz": 2828.43,
+    "hill_detrended_db": 4.85120733337216,
+    "trend_db_per_oct": -5.9142363755652845,
+    "above_hill_db_re_wood": -30.159391304347828
+   }
+  }
+ },
+ "violin": {
+  "instruments": [
+   "goodsounds-violin-laia",
+   "goodsounds-violin-raquel",
+   "iowa-violin",
+   "ircam-violin",
+   "philharmonia-violin",
+   "vsco-solo-violin"
+  ],
+  "notes": {
+   "arco": 1090,
+   "pizz": 329
+  },
+  "centroid_harm_all": 2.284955,
+  "noise_db_all": -31.9734725,
+  "body_marks": {
+   "goodsounds-violin-laia": {
+    "wood_peaks": [
+     {
+      "hz": 561.23,
+      "db": 7.99,
+      "prominence_db": 8.35
+     },
+     {
+      "hz": 1000.0,
+      "db": 1.82,
+      "prominence_db": 2.91
+     },
+     {
+      "hz": 793.7,
+      "db": -0.88,
+      "prominence_db": 1.27
+     }
+    ],
+    "bridge_hill_hz": 2519.84,
+    "bridge_hill_db_re_wood": -0.3353333333333337,
+    "hill_detrended_hz": 3563.59,
+    "hill_detrended_db": 7.883629131124498,
+    "trend_db_per_oct": -4.552596293190029,
+    "above_hill_db_re_wood": -28.343333333333334
+   },
+   "goodsounds-violin-raquel": {
+    "wood_peaks": [
+     {
+      "hz": 594.6,
+      "db": 0.42,
+      "prominence_db": 1.58
+     },
+     {
+      "hz": 793.7,
+      "db": 0.26,
+      "prominence_db": 3.4
+     }
+    ],
+    "bridge_hill_hz": 1781.8,
+    "bridge_hill_db_re_wood": 6.644375000000001,
+    "hill_detrended_hz": 2828.43,
+    "hill_detrended_db": 6.269191984573356,
+    "trend_db_per_oct": -1.539678998480851,
+    "above_hill_db_re_wood": -16.314196428571424
+   },
+   "iowa-violin": {
+    "A0_hz": 280.62,
+    "A0_db": 4.16,
+    "wood_peaks": [
+     {
+      "hz": 445.45,
+      "db": 6.46,
+      "prominence_db": 1.39
+     },
+     {
+      "hz": 353.55,
+      "db": 6.44,
+      "prominence_db": 1.37
+     },
+     {
+      "hz": 396.85,
+      "db": 6.26,
+      "prominence_db": 4.49
+     },
+     {
+      "hz": 793.7,
+      "db": 4.48,
+      "prominence_db": 7.31
+     }
+    ],
+    "bridge_hill_hz": 2244.92,
+    "bridge_hill_db_re_wood": 3.1298095238095236,
+    "hill_detrended_hz": 2244.92,
+    "hill_detrended_db": 8.28027036663175,
+    "trend_db_per_oct": -3.584322731659878,
+    "above_hill_db_re_wood": -25.003333333333337
+   },
+   "ircam-violin": {
+    "A0_hz": 280.62,
+    "A0_db": 5.49,
+    "wood_peaks": [
+     {
+      "hz": 561.23,
+      "db": 6.18,
+      "prominence_db": 4.31
+     },
+     {
+      "hz": 445.45,
+      "db": 3.37,
+      "prominence_db": 1.5
+     },
+     {
+      "hz": 890.9,
+      "db": 2.42,
+      "prominence_db": 5.34
+     }
+    ],
+    "bridge_hill_hz": 4000.0,
+    "bridge_hill_db_re_wood": 3.5381904761904766,
+    "hill_detrended_hz": 4000.0,
+    "hill_detrended_db": 6.9275843294524595,
+    "trend_db_per_oct": -1.3776041805145183,
+    "above_hill_db_re_wood": -21.465238095238092
+   },
+   "philharmonia-violin": {
+    "A0_hz": 280.62,
+    "A0_db": 2.95,
+    "wood_peaks": [
+     {
+      "hz": 445.45,
+      "db": 11.75,
+      "prominence_db": 3.6
+     },
+     {
+      "hz": 500.0,
+      "db": 10.38,
+      "prominence_db": 1.95
+     },
+     {
+      "hz": 561.23,
+      "db": 9.55,
+      "prominence_db": 1.4
+     },
+     {
+      "hz": 1000.0,
+      "db": 8.7,
+      "prominence_db": 10.26
+     }
+    ],
+    "bridge_hill_hz": 2118.93,
+    "bridge_hill_db_re_wood": -4.039904761904762,
+    "hill_detrended_hz": 2118.93,
+    "hill_detrended_db": 4.822010385146496,
+    "trend_db_per_oct": -5.11798872927027,
+    "above_hill_db_re_wood": -28.109047619047622
+   },
+   "vsco-solo-violin": {
+    "wood_peaks": [
+     {
+      "hz": 943.87,
+      "db": 4.0,
+      "prominence_db": 2.07
+     },
+     {
+      "hz": 1059.46,
+      "db": 3.49,
+      "prominence_db": 3.62
+     }
+    ],
+    "bridge_hill_hz": 2378.41,
+    "bridge_hill_db_re_wood": 7.196727272727272,
+    "hill_detrended_hz": 2378.41,
+    "hill_detrended_db": 7.745457176944414,
+    "trend_db_per_oct": -0.4334133157513523,
+    "above_hill_db_re_wood": -21.135844155844158
+   }
+  }
+ }
+}

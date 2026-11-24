@@ -1,0 +1,219 @@
+{
+ "Klimke": {
+  "notes": 1424,
+  "measurements": 9,
+  "r_1_12oct": -0.08590689350666521,
+  "r_1_3oct": -0.2237244227054988,
+  "tilt_db_per_oct_H_minus_Y": -4.213731814517101,
+  "r_1_3oct_after_tilt": 0.7337550281531651,
+  "bins": 56,
+  "marks_recordings": {
+   "A0_hz": 280.62,
+   "A0_db": 6.16,
+   "wood_peaks": [
+    {
+     "hz": 561.23,
+     "db": 8.69,
+     "prominence_db": 9.15
+    },
+    {
+     "hz": 420.45,
+     "db": 5.22,
+     "prominence_db": 4.72
+    },
+    {
+     "hz": 890.9,
+     "db": 4.51,
+     "prominence_db": 4.26
+    },
+    {
+     "hz": 1000.0,
+     "db": 3.83,
+     "prominence_db": 1.45
+    }
+   ],
+   "bridge_hill_hz": 2244.92,
+   "bridge_hill_db_re_wood": -2.4099047619047615,
+   "hill_detrended_hz": 3563.59,
+   "hill_detrended_db": 4.950178951237858,
+   "trend_db_per_oct": -3.1695607182509145,
+   "above_hill_db_re_wood": -24.10333333333333
+  },
+  "marks_admittance": {
+   "A0_hz": 264.87,
+   "A0_db": -3.1605836182679816,
+   "wood_peaks": [
+    {
+     "hz": 529.73,
+     "db": 7.58,
+     "prominence_db": 10.39
+    },
+    {
+     "hz": 1059.46,
+     "db": 7.36,
+     "prominence_db": 11.32
+    },
+    {
+     "hz": 445.45,
+     "db": 6.88,
+     "prominence_db": 8.57
+    },
+    {
+     "hz": 943.87,
+     "db": 4.27,
+     "prominence_db": 8.22
+    }
+   ],
+   "bridge_hill_hz": 2519.84,
+   "bridge_hill_db_re_wood": 9.201783268640279,
+   "hill_detrended_hz": 2519.84,
+   "hill_detrended_db": 6.23155569331402,
+   "trend_db_per_oct": 1.2627667698458884,
+   "above_hill_db_re_wood": -3.145395175450618
+  }
+ },
+ "Levaggi": {
+  "notes": 828,
+  "measurements": 6,
+  "r_1_12oct": 0.11401870462812931,
+  "r_1_3oct": 0.036347128511812585,
+  "tilt_db_per_oct_H_minus_Y": -3.600930434533878,
+  "r_1_3oct_after_tilt": 0.831740809957487,
+  "bins": 56,
+  "marks_recordings": {
+   "A0_hz": 280.62,
+   "A0_db": 5.89,
+   "wood_peaks": [
+    {
+     "hz": 561.23,
+     "db": 8.48,
+     "prominence_db": 7.3
+    },
+    {
+     "hz": 420.45,
+     "db": 5.87,
+     "prominence_db": 4.69
+    },
+    {
+     "hz": 840.9,
+     "db": 3.94,
+     "prominence_db": 3.91
+    }
+   ],
+   "bridge_hill_hz": 2118.93,
+   "bridge_hill_db_re_wood": -2.0408571428571425,
+   "hill_detrended_hz": 3363.59,
+   "hill_detrended_db": 6.312698055852215,
+   "trend_db_per_oct": -3.722068268929403,
+   "above_hill_db_re_wood": -24.79714285714286
+  },
+  "marks_admittance": {
+   "A0_hz": 264.87,
+   "A0_db": -2.0287850484527077,
+   "wood_peaks": [
+    {
+     "hz": 529.73,
+     "db": 10.93,
+     "prominence_db": 13.68
+    },
+    {
+     "hz": 420.45,
+     "db": 6.37,
+     "prominence_db": 9.12
+    },
+    {
+     "hz": 1000.0,
+     "db": 2.61,
+     "prominence_db": 7.03
+    },
+    {
+     "hz": 890.9,
+     "db": 2.15,
+     "prominence_db": 2.1
+    }
+   ],
+   "bridge_hill_hz": 2118.93,
+   "bridge_hill_db_re_wood": 6.016832611908252,
+   "hill_detrended_hz": 2118.93,
+   "hill_detrended_db": 4.768446243165561,
+   "trend_db_per_oct": 0.17471220888890823,
+   "above_hill_db_re_wood": -5.35558175564491
+  }
+ },
+ "Stoppani": {
+  "notes": 1311,
+  "measurements": 6,
+  "r_1_12oct": 0.10099677414781387,
+  "r_1_3oct": 0.014029892361904552,
+  "tilt_db_per_oct_H_minus_Y": -4.260087007370495,
+  "r_1_3oct_after_tilt": 0.8130463157931338,
+  "bins": 56,
+  "marks_recordings": {
+   "A0_hz": 297.3,
+   "A0_db": 5.8,
+   "wood_peaks": [
+    {
+     "hz": 561.23,
+     "db": 8.36,
+     "prominence_db": 7.04
+    },
+    {
+     "hz": 420.45,
+     "db": 7.71,
+     "prominence_db": 6.39
+    },
+    {
+     "hz": 1000.0,
+     "db": 3.64,
+     "prominence_db": 4.71
+    },
+    {
+     "hz": 890.9,
+     "db": 2.45,
+     "prominence_db": 5.72
+    }
+   ],
+   "bridge_hill_hz": 2244.92,
+   "bridge_hill_db_re_wood": -0.12295238095238137,
+   "hill_detrended_hz": 2244.92,
+   "hill_detrended_db": 5.61878267965148,
+   "trend_db_per_oct": -3.5731287592611043,
+   "above_hill_db_re_wood": -23.62952380952381
+  },
+  "marks_admittance": {
+   "A0_hz": 264.87,
+   "A0_db": -3.4756274398605242,
+   "wood_peaks": [
+    {
+     "hz": 529.73,
+     "db": 10.39,
+     "prominence_db": 8.69
+    },
+    {
+     "hz": 445.45,
+     "db": 6.43,
+     "prominence_db": 4.73
+    },
+    {
+     "hz": 1000.0,
+     "db": 4.05,
+     "prominence_db": 9.66
+    }
+   ],
+   "bridge_hill_hz": 2519.84,
+   "bridge_hill_db_re_wood": 10.429531300343388,
+   "hill_detrended_hz": 2519.84,
+   "hill_detrended_db": 6.801744631705324,
+   "trend_db_per_oct": 1.0668365675910123,
+   "above_hill_db_re_wood": -1.5594477237982587
+  }
+ },
+ "between_violins": {
+  "Klimke-Levaggi_admittance_r_1_3oct": 0.9374127488368005,
+  "Klimke-Levaggi_recordings_r_1_3oct": 0.9599750176142098,
+  "Klimke-Stoppani_admittance_r_1_3oct": 0.9342724157681552,
+  "Klimke-Stoppani_recordings_r_1_3oct": 0.8863093825856313,
+  "Levaggi-Stoppani_admittance_r_1_3oct": 0.953859793797647,
+  "Levaggi-Stoppani_recordings_r_1_3oct": 0.9560394145805152
+ }
+}
