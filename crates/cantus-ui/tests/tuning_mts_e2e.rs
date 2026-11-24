@@ -575,3 +575,118 @@ fn an_mts_instrument_is_sent_its_table_reset_when_off_and_follows_the_master() {
     assert!(near(&table_heard(&port, 8), &werck.offsets()), "it moved");
     master.resign_master();
 }
+
+/// r42 fix2-model (review 11): Chorda's Edit view reads out the diapason its tuning card
+/// shows — under the MTS-ESP master, the A4 the master gives, not the knob's 440.
+#[test]
+fn chordas_readout_and_its_tuning_card_agree_under_the_master() {
+    let _t = turn();
+    let mut a = assembled();
+    a.apply_pick(
+        PickPurpose::AddInstrument { index: None },
+        PickChoice::Instrument(InstrumentKind::Chorda),
+    );
+    let chorda = a
+        .project()
+        .tracks
+        .iter()
+        .find(|t| t.instrument.native().is_some_and(|n| n.kind == InstrumentKind::Chorda))
+        .map(|t| t.id)
+        .expect("a Chorda track");
+    let master = MtsLink::open(fake());
+    let werck = temper(Temperament::WerckmeisterIii, 3, 415.0).offsets();
+    master
+        .become_master(false, &werck, "Werckmeister III")
+        .expect("the fake master");
+    set_project_tuning(
+        &mut a,
+        Tuning {
+            system: TuningSystem::External,
+            ..Tuning::default()
+        },
+    );
+    a.sync_engine();
+    let spec = a
+        .project()
+        .track(chorda)
+        .and_then(|t| t.instrument.native())
+        .cloned()
+        .unwrap();
+    let shown = tuning::chorda::shown_a4(&a, chorda, &spec);
+    let card = match tuning::chorda::a4_of(&a, chorda) {
+        tuning::chorda::A4::Project(hz) | tuning::chorda::A4::Own(hz) => hz,
+        tuning::chorda::A4::Knob => f64::from(spec.get("a4")),
+    };
+    assert_eq!(shown, card, "one diapason");
+    let want = 440.0 * 2f64.powf(f64::from(werck.at(69)) / 12.0);
+    assert!((shown - want).abs() < 1e-6, "the master's A4: {shown} vs {want}");
+    assert!((shown - 415.0).abs() < 1e-3, "{shown}");
+    master.resign_master();
+    a.sync_engine();
+}
+
+/// r42 fix2-model (review 10, ADR 0156: every offline copy follows the master): a frozen
+/// track in the master's tuning is made again when the master's table moves — its render
+/// then plays the new table, not the one it was frozen in.
+#[test]
+fn a_frozen_track_in_the_masters_tuning_follows_the_master() {
+    let _t = turn();
+    let mut a = assembled();
+    let renders = tempfile::tempdir().unwrap();
+    a.engine.frozen.set_app_dir(renders.path().to_path_buf());
+    let ctx = egui::Context::default();
+    let master = MtsLink::open(fake());
+    let werck = temper(Temperament::WerckmeisterIii, 3, 415.0).offsets();
+    master
+        .become_master(false, &werck, "Werckmeister III")
+        .expect("the fake master");
+    set_project_tuning(
+        &mut a,
+        Tuning {
+            system: TuningSystem::External,
+            ..Tuning::default()
+        },
+    );
+    a.sync_engine();
+    let mut read = TuningTable::EQUAL;
+    assert!(a.tuning.mts.as_ref().unwrap().read(&mut read));
+    let track = a.project().tracks[0].id;
+    a.select_track(track);
+    a.run_action(cantus_ui::keymap::Action::FreezeTrack);
+    let settle = |a: &mut CantusApp| {
+        let t0 = Instant::now();
+        let mut seen_busy = false;
+        loop {
+            a.sync_engine();
+            cantus_ui::freeze::tick(a, &ctx);
+            seen_busy |= a.freeze.busy();
+            if (seen_busy && !a.freeze.busy()) || t0.elapsed() > Duration::from_secs(120) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        cantus_ui::freeze::tick(a, &ctx);
+        seen_busy
+    };
+    assert!(settle(&mut a), "a render was made");
+    assert!(a.project().any_frozen(), "frozen");
+    assert!(plays(&exported(&mut a, "frozen-werck"), 0, &read), "frozen in the master's");
+    // The master moves to ¼-comma meantone: the frozen render is made again.
+    let meantone = temper(Temperament::MeantoneQuarter, 0, 440.0).offsets();
+    master.publish_all(&meantone, "Meantone");
+    std::thread::sleep(MASTER_WAIT);
+    assert!(settle(&mut a), "the render made again");
+    let mut now = TuningTable::EQUAL;
+    assert!(a.tuning.mts.as_ref().unwrap().read(&mut now));
+    assert_ne!(now, read);
+    assert!(a.project().any_frozen(), "still frozen");
+    assert!(
+        plays(&exported(&mut a, "frozen-meantone"), 0, &now),
+        "the frozen track plays the master's new table"
+    );
+    master.resign_master();
+    a.sync_engine();
+}
+
+/// Longer than `views::tuning::MASTER_RECOMPILE`: the next sync sees the master's move.
+const MASTER_WAIT: Duration = Duration::from_millis(250);

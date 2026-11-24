@@ -33,7 +33,9 @@ narrow screen (or at 200 % on a small one) the circle and the degrees move under
   the top bar first. It can always be unticked.
 - **Scala** — a scale read from a `.scl` file (and its `.kbm` keyboard map, if it has one),
   any number of notes to any period: 31-EDO, Bohlen–Pierce, a gamelan's slendro. The
-  **Keyboard map** row opens a list: no map (degree 0 on C4), or import a `.kbm`.
+  **Keyboard map** row opens a list: no map (degree 0 on middle C, key 60, at C4 of equal
+  temperament at the chosen A4 — where Scala and Surge XT put a scale with no map), or import a
+  `.kbm`. An Ableton `.ascl` file's own reference pitch (`@ABL REFERENCE_PITCH`) is its map.
 - **MTS-ESP** — the tuning another program leads (see below).
 
 A keyboard map belongs to a scale: choosing *Equal* or *Temperament* removes it.
@@ -76,8 +78,24 @@ the tuning goes with it. A file the Scala format does not allow is refused with 
 your language ("Not read: it says 17 pitches but holds 16."), and nothing changes. A `.kbm`
 alone maps what already sounds: equal temperament or a temperament become their twelve notes
 as a Scala scale, with that map. **Export…** writes the tuning as a `.scl` (a temperament or
-equal temperament as its twelve notes in cents) and, when it has a keyboard map, the `.kbm`
-beside it — for Surge XT, Pianoteq, a hardware synth's editor, or Scala itself.
+equal temperament as its twelve notes in cents) and, whenever the `.scl` alone would sound
+elsewhere — a keyboard map, an A4 that is not 440, a temperament (its A sits on A4, so its C is
+not equal temperament's) — the `.kbm` beside it, so the two files sound the same in Surge XT,
+Pianoteq, a hardware synth's editor or Scala, and read back here to the hundredth of a cent. A
+file saved by Notepad with a byte order mark is read as any other.
+
+## The tuning in other files
+
+- **MIDI** (*Export MIDI…*): **Write the tuning** puts each tuned track's tuning at its start
+  as MIDI Tuning Standard messages — a bulk tuning dump, and the scale/octave message (a
+  twelve-note tuning within a semitone of equal temperament) or the dump's tuning program
+  selected on its channels — for synthesisers that read them. It is off unless you turn it on:
+  the file is then as before.
+- **MusicXML** writes each note's articulation as the format marks it — staccato, spiccato,
+  tenuto (sustain), the note's pizzicato, a tremolo, an up or down bow — and reads them back;
+  a legato note has no mark of its own there (MusicXML says legato with a slur).
+- **DAWproject** has no tuning and no articulation: its export report says which songs' and
+  tracks' tunings and how many notes' articulations it leaves behind.
 
 ## MTS-ESP: following another program, and leading them
 

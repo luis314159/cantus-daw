@@ -112,3 +112,36 @@ committed; in CI, Surge's MIT `tuning-library` files; MTS bytes from the MMA's p
 and Scale Workshop's exporter test (its dump's SHA-256 matched by ours); the end-to-end
 test: a project in Werckmeister III at A415 plays Chorda, Exemplar and a hosted CLAP test
 synth in tune with each other through `CantusApp::assemble`.
+
+## Amendment (round 42, `fix2-model`, the mid-round review): anchors, files and formats
+
+- **A Scala scale with no `.kbm`** has degree 0 on key 60 at middle C of 12-TET at the
+  diapason (`KeyboardMap::scala_default`: reference key 60 at `C4_DEFAULT_HZ`, 261.6256 Hz at
+  A440) — Scala's default and Surge's `tuning-library`'s (`KeyboardMapping()`:
+  `tuningConstantNote(60)` at `MIDI_0_FREQ * 32`). It was key 69 at the diapason, so 31-EDO's
+  key 60 played 359.8 Hz. The diapason still scales the whole scale (A415 moves C4 by
+  12·log2(415/440)); C4's −9 semitones are exact, never a rounded `log2`, so a 12-TET scale is
+  12-TET to the bit. **A temperament** (and equal temperament's twelve with a map) keeps A on
+  the diapason (`KeyboardMap::a4_anchored`), as Pianoteq and Logic anchor one. Tested against
+  Surge's own expected values for its test files (`tuning_offsets.rs`).
+- **Ableton's `.ascl`**: its `! @ABL REFERENCE_PITCH <octave> <index> <Hz>` is the file's
+  reference (`tuning_scala::read_ascl_map`), read as Surge reads it — the scale position
+  nearest 261.6256 Hz on key 60, a linear map with the scale's period, the reference degree's
+  key at its frequency; `31-edo.ascl` gives exactly the `31-edo.kbm` Live wrote for it, and
+  `bad/bad-reference-pitch.ascl` is refused. Without that line an `.ascl` is a plain `.scl`.
+- **Read**: a leading UTF-8 byte order mark is dropped (and says UTF-8); a description that
+  starts with `!` is written with a blank before it and read back without it.
+- **Export → import gives the same pitches to 0.01 cent**: a `.kbm` is written whenever the
+  `.scl` alone would sound elsewhere — the tuning's own map (its reference frequency scaled by
+  the diapason), or, for a diapason that is not 440, a temperament or the master's table, a
+  linear map with degree 0 on key 60 at what key 60 sounds. Our files read by Surge's rules
+  sound the same (`cantus-ui/tests/fix2_model.rs`).
+- **What each format carries** (ADR 0021: never dropped in silence): **Scala** the whole
+  tuning, as above; **MIDI** — off by default (a file is unchanged unless asked), *Write the
+  tuning* puts each tuned track's table at its start as a MIDI Tuning Standard bulk dump (into
+  its own tuning program) and, for a twelve-periodic table within ±100 cents a class, the
+  2-byte scale/octave message on its channels, otherwise the dump's program selected (RPN
+  0x0003) — never both, so no receiver tunes twice; a kit track never; **DAWproject** none:
+  its export report names the song's tuning (`x_tuning`) and each track's own or equal
+  (`x_track_tuning`); **MusicXML** none (the format has no tuning). The MCP server reads and
+  sets the tuning (`get_tuning`, `set_tuning`, through the commands).
