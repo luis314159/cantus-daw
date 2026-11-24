@@ -75,9 +75,20 @@ impl fmt::Display for ScalaError {
 
 impl std::error::Error for ScalaError {}
 
+/// The UTF-8 byte order mark an editor (Notepad, a spreadsheet's export) may put first.
+const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+
 /// The text of a file: strict UTF-8 when it carries Ableton's extensions, Latin-1 otherwise
-/// (the Scala page: "ISO 8859-1"; 125 archive files hold bytes ≥ 0x80).
+/// (the Scala page: "ISO 8859-1"; 125 archive files hold bytes ≥ 0x80). A leading UTF-8 byte
+/// order mark is dropped and says the file is UTF-8 (r42 fix2-model, review 4); a file that
+/// has one but is not UTF-8 after it is read as if it had none.
 pub fn decode(bytes: &[u8]) -> Result<String, ScalaError> {
+    if let Some(rest) = bytes.strip_prefix(&BOM[..]) {
+        if let Ok(text) = std::str::from_utf8(rest) {
+            return Ok(text.to_string());
+        }
+        return decode(rest);
+    }
     let abl = bytes.windows(4).any(|w| w == b"@ABL");
     if abl {
         return String::from_utf8(bytes.to_vec()).map_err(|_| ScalaError::NotUtf8);
@@ -191,8 +202,11 @@ pub fn read_scl(bytes: &[u8]) -> Result<ScalaScale, ScalaError> {
             continue;
         }
         if description.is_none() {
-            // The first non-comment line, possibly empty, is the description.
-            description = Some(line.to_string());
+            // The first non-comment line, possibly empty, is the description; a blank before
+            // a `!` is the escape [`write_scl`] writes, and is dropped (r42 fix2-model).
+            let escaped = line.starts_with(is_blank)
+                && line.trim_start_matches(is_blank).starts_with('!');
+            description = Some(if escaped { &line[1..] } else { line }.to_string());
             continue;
         }
         let Some(c) = count else {
@@ -273,7 +287,14 @@ pub fn write_scl(scale: &ScalaScale) -> String {
     let one_line = |s: &str| s.replace(['\r', '\n'], " ");
     let mut t = String::new();
     t.push_str("! Written by Cantus\r\n!\r\n");
-    t.push_str(&one_line(&scale.description));
+    // A description that starts with `!` (after blanks) would read as a comment: a blank
+    // before it keeps it the description, and the reader drops that blank (r42 fix2-model,
+    // review 5).
+    let description = one_line(&scale.description);
+    if description.trim_start_matches(is_blank).starts_with('!') {
+        t.push(' ');
+    }
+    t.push_str(&description);
     t.push_str("\r\n");
     t.push_str(&format!(" {}\r\n!\r\n", scale.degrees.len()));
     for d in &scale.degrees {
@@ -424,4 +445,82 @@ pub fn write_kbm(map: &KeyboardMap) -> String {
         }
     }
     t
+}
+
+/// Ableton's `! @ABL REFERENCE_PITCH <octave> <index> <Hz>` line of an `.ascl` file (Ableton's
+/// published `.ascl` specification): scale degree `index` sounds at `Hz`. Read as Surge's MIT
+/// `tuning-library` reads it (`readASCLStream`, tested there against Ableton-generated `.kbm`
+/// files): the scale position nearest middle C of 12-TET (261.6256 Hz) goes on key 60, the
+/// map is linear over every key with the scale's own period, and the reference degree's key
+/// sounds at `Hz` — the octave number adds nothing the frequency does not say. `None`: no
+/// such line (a plain `.scl`, or an `.ascl` without one). A line that is not three numbers,
+/// an octave past 32 bits, an index outside the scale, a frequency that is not positive or a
+/// scale whose period is not a positive interval is refused. r42 fix2-model (review 2).
+pub fn read_ascl_map(
+    bytes: &[u8],
+    scale: &ScalaScale,
+) -> Result<Option<KeyboardMap>, ScalaError> {
+    let text = decode(bytes)?;
+    let mut found = None;
+    for (n, line) in lines(&text) {
+        let Some(rest) = line.strip_prefix('!') else {
+            continue;
+        };
+        let mut words = rest.split(is_blank).filter(|w| !w.is_empty());
+        if words.next() != Some("@ABL") || words.next() != Some("REFERENCE_PITCH") {
+            continue;
+        }
+        let bad = || ScalaError::Bad {
+            what: "reference pitch (@ABL REFERENCE_PITCH)",
+            line: n,
+            text: line.to_string(),
+        };
+        let args: Vec<&str> = words.collect();
+        if args.len() != 3 {
+            return Err(bad());
+        }
+        let _octave: i32 = args[0].parse().map_err(|_| bad())?;
+        let index: usize = args[1].parse().map_err(|_| bad())?;
+        let hz: f64 = args[2].parse().map_err(|_| bad())?;
+        let cents: Vec<f64> = scale.degrees.iter().map(|d| d.cents()).collect();
+        let period = cents.last().copied().unwrap_or(0.0);
+        if !(hz.is_finite() && hz > 0.0)
+            || index >= cents.len()
+            || !(period.is_finite() && period > 0.0)
+        {
+            return Err(bad());
+        }
+        found = Some((index as i64, hz, cents, period));
+    }
+    let Some((index, hz, cents, period)) = found else {
+        return Ok(None);
+    };
+    let n = cents.len() as i64;
+    let at = |p: i64| {
+        let (q, r) = (p.div_euclid(n), p.rem_euclid(n));
+        q as f64 * period + if r == 0 { 0.0 } else { cents[(r - 1) as usize] }
+    };
+    // Middle C in cents above degree 0, given the reference; the position nearest it.
+    let target =
+        at(index) + 1200.0 * cantus_dsp::math::log2(crate::tuning::C4_DEFAULT_HZ / hz);
+    let q0 = (target / period).floor() as i64;
+    let mut middle = 0i64;
+    let mut best = f64::INFINITY;
+    for p in (q0 - 1) * n..(q0 + 2) * n {
+        let d = (at(p) - target).abs();
+        if d < best {
+            (best, middle) = (d, p);
+        }
+    }
+    let key = |p: i64| (60 + p - middle).clamp(0, 127) as u8;
+    Ok(Some(KeyboardMap {
+        size: n as u32,
+        first_key: 0,
+        last_key: 127,
+        middle_key: key(0),
+        reference_key: key(index),
+        reference_hz: hz,
+        octave_degree: n as u32,
+        mapping: (0..n as u32).map(Some).collect(),
+    }))
 }

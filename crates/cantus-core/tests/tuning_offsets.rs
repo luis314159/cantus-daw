@@ -242,9 +242,12 @@ fn edo_31_and_a_non_octave_period_step_as_their_files_say() {
             assert!((step - 1200.0 / 31.0).abs() < 1e-3, "key {k}: {step}");
         }
     }
+    // r42 fix2-model (review 2): degree 0 on key 60 at C4 (Scala's and Surge's anchor), so
+    // key 60 + i is i 31sts of an octave above 261.6256 Hz — key 69 is no longer 440 Hz.
+    assert_eq!(pitch(&t, 60), 60.0, "key 60 at C4 of 12-TET");
     assert!(
-        (pitch(&t, 69) - 69.0).abs() < 1e-6,
-        "key 69 on the diapason"
+        (pitch(&t, 69) - (60.0 + 9.0 * 12.0 / 31.0)).abs() < 1e-6,
+        "key 69 is degree 9"
     );
     // Bohlen–Pierce's cousin: 17 steps to 3/1.
     let e = scale("ED3-17.scl", None).offsets();
@@ -259,6 +262,92 @@ fn edo_31_and_a_non_octave_period_step_as_their_files_say() {
     // A shuffled scale: each key is its degree, not sorted.
     let s = scale("12-shuffled.scl", None).offsets();
     assert!((pitch(&s, 61) - 60.0 - 2.0).abs() < 1e-5 || pitch(&s, 61) > pitch(&s, 62));
+}
+
+/// `MIDI_0_FREQ` of Surge's `tuning-library` (`Tunings.h`): MIDI key 0 of 12-TET at A440.
+const MIDI_0_FREQ: f64 = 8.175_798_915_643_71;
+
+/// Hz of key `k` (A440 12-TET reference).
+fn hz(t: &TuningTable, k: u8) -> f64 {
+    440.0 * cantus_dsp::math::exp2((pitch(t, k) - 69.0) / 12.0)
+}
+
+/// r42 fix2-model (review 2): a scale read with no keyboard map sounds as Surge's
+/// `tuning-library` says it does — its expected values, copied from its `tests/alltests.cpp`
+/// (`Tunings::Tuning t(s)` with the default `KeyboardMapping()`), not computed by our code:
+/// - "Default KBM Constructor has Right Base": `frequencyForMidiNoteScaledByMidi0(60) == 32`
+///   for every test scale;
+/// - "12-intune tunes properly": `frequencyForMidiNote(69) == Approx(440.0)`;
+/// - "31 edo": each key 1/31 of an octave above the one before, from key 60 on;
+/// - "6 exact": `knownValues = {0, 0.22239, 0.41504, 0.58496, 0.73697, 0.87447, 1.0}`
+///   octaves above key 60 (margin 1e-5);
+/// - "ED3-17": `pow(2.0, 17 * (curr - prev)) == Approx(3.0)`;
+/// - "Carlos Alpha": each key 78 c above the one before (keys 30–80);
+/// - "Non Monotonic 12 note": key 60 + i is `order[i] / 12` octaves above key 60, with
+///   `order = {0, 2, 1, 3, 5, 4, 6, 7, 8, 10, 9, 11, 12}`.
+#[test]
+fn a_scale_with_no_map_sounds_as_surge_s_tests_say() {
+    for f in [
+        "12-intune-nodesc.scl",
+        "12-shuffled.scl",
+        "31edo.scl",
+        "31edo_dos_lineends.scl",
+        "6-exact.scl",
+        "ED3-17.scl",
+        "carlos-alpha.scl",
+    ] {
+        let t = scale(f, None).offsets();
+        let base = hz(&t, 60) / MIDI_0_FREQ;
+        assert!((base - 32.0).abs() < 1e-9, "{f}: key 60 at {base} x MIDI_0_FREQ");
+    }
+    let log2 = cantus_dsp::math::log2;
+    let i12 = scale("12-intune-nodesc.scl", None).offsets();
+    assert!((hz(&i12, 69) - 440.0).abs() < 1e-10);
+    let e31 = scale("31edo.scl", None).offsets();
+    for k in 61..91u8 {
+        let step = log2(hz(&e31, k)) - log2(hz(&e31, k - 1));
+        assert!((step - 1.0 / 31.0).abs() < 1e-6, "31edo key {k}");
+    }
+    let six = scale("6-exact.scl", None).offsets();
+    let known = [0.0, 0.22239, 0.41504, 0.58496, 0.73697, 0.87447, 1.0];
+    for (i, v) in known.iter().enumerate() {
+        let l = log2(hz(&six, 60 + i as u8)) - log2(hz(&six, 60));
+        assert!((l - v).abs() < 1e-5, "6-exact degree {i}: {l}");
+    }
+    let ed3 = scale("ED3-17.scl", None).offsets();
+    for k in 61..90u8 {
+        let d = log2(hz(&ed3, k)) - log2(hz(&ed3, k - 1));
+        assert!((cantus_dsp::math::exp2(17.0 * d) - 3.0).abs() < 1e-6, "ED3-17 {k}");
+    }
+    let alpha = scale("carlos-alpha.scl", None).offsets();
+    let diff = cantus_dsp::math::exp2(78.0 / 1200.0);
+    for k in 30..80u8 {
+        let (a, b) = (hz(&alpha, k) / MIDI_0_FREQ, hz(&alpha, k + 1) / MIDI_0_FREQ);
+        assert!((a * diff - b).abs() < 1e-5, "carlos alpha {k}");
+    }
+    let sh = scale("12-shuffled.scl", None).offsets();
+    let order = [0, 2, 1, 3, 5, 4, 6, 7, 8, 10, 9, 11, 12];
+    for (i, o) in order.iter().enumerate() {
+        let l = log2(hz(&sh, 60 + i as u8)) - log2(hz(&sh, 60));
+        assert!((l - f64::from(*o) / 12.0).abs() < 1e-6, "12-shuffled {i}");
+    }
+    // A diapason still scales the whole scale: A415 moves C4 by 12·log2(415/440).
+    let mut low = scale("31edo.scl", None);
+    low.a4_hz = 415.0;
+    let l = low.offsets();
+    assert_eq!(l.at(60), diapason_semitones(415.0));
+    // A temperament keeps A on the diapason (Pianoteq's and Logic's anchor), unchanged.
+    let w = Tuning {
+        a4_hz: A4_DEFAULT_HZ,
+        system: TuningSystem::Temperament {
+            id: Temperament::WerckmeisterIii,
+            key: 0,
+            follow_song_key: false,
+        },
+        map: None,
+    }
+    .offsets();
+    assert_eq!(w.at(69), 0.0);
 }
 
 #[test]

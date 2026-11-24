@@ -16,6 +16,9 @@ use serde::{Deserialize, Serialize};
 
 /// The reference pitch every older song has: A4 = 440 Hz.
 pub const A4_DEFAULT_HZ: f64 = 440.0;
+/// Middle C (MIDI key 60) of 12-TET at A440: `440 · 2^(−9/12)` = 261.6256 Hz — where Scala
+/// and Surge's `tuning-library` put a scale's degree 0 when no `.kbm` says otherwise.
+pub const C4_DEFAULT_HZ: f64 = 261.625_565_300_598_6;
 /// The diapason's range (ADR 0155): from a low baroque pitch to a bright modern one.
 pub const A4_MIN_HZ: f64 = 380.0;
 pub const A4_MAX_HZ: f64 = 480.0;
@@ -83,8 +86,9 @@ impl Tuning {
     ///
     /// Every system (r42:tuning): `Equal` at the diapason; a temperament rotated to its key
     /// with A at the diapason (as Pianoteq and Logic anchor it); a Scala scale through its
-    /// keyboard map (none: degree 0 on key 60, key 69 at the diapason — Scala's template),
-    /// any period, an unmapped key `NAN`. `External` takes the table its caller read from
+    /// keyboard map (none: degree 0 on key 60 at C4 of 12-TET at the diapason — as Scala and
+    /// Surge's `tuning-library` anchor a scale with no `.kbm`), any period, an unmapped key
+    /// `NAN`. `External` takes the table its caller read from
     /// the MTS-ESP master ([`Tuning::offsets_with`]).
     pub fn offsets(&self) -> TuningTable {
         self.offsets_with(None)
@@ -127,7 +131,14 @@ impl Tuning {
                     degrees[(r - 1) as usize]
                 }
         };
-        let default_map = KeyboardMap::scala_default();
+        // r42 fix2-model (review 2): with no map a Scala scale has degree 0 on key 60 at
+        // 261.6256 Hz — Scala's and Surge's anchor (`KeyboardMapping()`:
+        // `tuningConstantNote(60)` at `MIDI_0_FREQ * 32`); a temperament (and equal
+        // temperament's twelve) keeps A on the diapason, as Pianoteq and Logic anchor it.
+        let default_map = match self.system {
+            TuningSystem::Scale(_) => KeyboardMap::scala_default(),
+            _ => KeyboardMap::a4_anchored(),
+        };
         let map = self.map.as_ref().unwrap_or(&default_map);
         // The reference key's degree; a map that leaves it unmapped (refused on import)
         // takes degree 0 rather than fail here.
@@ -135,8 +146,12 @@ impl Tuning {
         let ref_cents = cents_of(ref_degree);
         // The reference key's frequency, as semitones from A440; the diapason scales the
         // whole map (a `.kbm` at 440 keeps its numbers; A415 lowers it all alike).
+        // C4's frequency is taken as exactly −9 semitones (never through a `log2` that
+        // rounds), so a 12-TET scale with no map is 12-TET to the bit.
         let ref_semis = if map.reference_hz == A4_DEFAULT_HZ {
             0.0
+        } else if map.reference_hz == C4_DEFAULT_HZ {
+            -9.0
         } else {
             12.0 * cantus_dsp::math::log2(map.reference_hz / A4_DEFAULT_HZ)
         };
@@ -334,9 +349,20 @@ pub struct KeyboardMap {
 }
 
 impl KeyboardMap {
-    /// r42:tuning — Scala's template (and what no map means): a linear map with degree 0
-    /// on key 60 and key 69 at 440 Hz.
+    /// What no map means for a Scala scale (r42 fix2-model, review 2): a linear map with
+    /// degree 0 on key 60 at middle C of 12-TET at A440 ([`C4_DEFAULT_HZ`]) — Scala's
+    /// default and Surge's `tuning-library`'s `KeyboardMapping()`. The diapason then scales it.
     pub fn scala_default() -> Self {
+        KeyboardMap {
+            reference_key: 60,
+            reference_hz: C4_DEFAULT_HZ,
+            ..Self::a4_anchored()
+        }
+    }
+
+    /// What no map means for a temperament: degree 0 (C) on key 60, key 69 (A) at the
+    /// diapason (as Pianoteq and Logic anchor a temperament).
+    pub fn a4_anchored() -> Self {
         KeyboardMap {
             size: 0,
             first_key: 0,

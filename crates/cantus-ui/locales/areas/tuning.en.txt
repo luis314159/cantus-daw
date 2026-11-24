@@ -96,6 +96,7 @@ tuning.scala.what.middle_key = middle key
 tuning.scala.what.reference_key = reference key
 tuning.scala.what.reference_hz = reference frequency
 tuning.scala.what.octave_degree = formal octave degree
+tuning.scala.what.reference_pitch = reference pitch (@ABL REFERENCE_PITCH)
 tuning.check.a4 = the diapason is out of range
 tuning.check.key = the temperament’s key is past B
 tuning.check.degrees = the scale has no degree, or more than Cantus keeps

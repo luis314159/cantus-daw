@@ -97,6 +97,7 @@ tuning.scala.what.middle_key = la tecla central
 tuning.scala.what.reference_key = la tecla de referencia
 tuning.scala.what.reference_hz = la frecuencia de referencia
 tuning.scala.what.octave_degree = el grado de la octava formal
+tuning.scala.what.reference_pitch = la altura de referencia (@ABL REFERENCE_PITCH)
 tuning.check.a4 = el diapasón está fuera de rango
 tuning.check.key = la tónica del temperamento pasa de B
 tuning.check.degrees = la escala no tiene grados, o tiene más de los que guarda Cantus

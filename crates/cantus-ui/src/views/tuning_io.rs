@@ -1,7 +1,9 @@
 //! Scala files in and out of the Tuning window (ADR 0155 §2–3): *Import…* reads a `.scl`
 //! (and the `.kbm` beside it, or one picked with it) into one `SetProjectTuning` — the song
-//! keeps the scale, never a path — and *Export…* writes the tuning as a `.scl` and, when it
-//! has a keyboard map, a `.kbm`. r42:tuning-face
+//! keeps the scale, never a path — and *Export…* writes the tuning as a `.scl` and, when the
+//! scale alone would not sound as it does (a keyboard map, a diapason that is not 440, a
+//! temperament's A anchor), a `.kbm` (r42 fix2-model, review 3). An Ableton `.ascl`'s
+//! `@ABL REFERENCE_PITCH` is its map when no `.kbm` comes with it. r42:tuning-face
 //!
 //! The files are read and written by `cantus_core::tuning_scala` (every rule of the Scala
 //! help, tested on the whole archive); this module is the window's side of them.
@@ -32,6 +34,7 @@ fn what_words(what: &str) -> String {
         "reference key" => "tuning.scala.what.reference_key",
         "reference frequency" => "tuning.scala.what.reference_hz",
         "formal octave degree" => "tuning.scala.what.octave_degree",
+        "reference pitch (@ABL REFERENCE_PITCH)" => "tuning.scala.what.reference_pitch",
         other => return other.to_string(),
     };
     t(key)
@@ -162,13 +165,15 @@ pub fn import(
         .or_else(|| beside.is_file().then_some(beside));
     let map = match &kbm_path {
         Some(p) => Some(read_kbm(&read(p)?).map_err(|e| tf("tuning.io.refused", &[("why", &e)]))?),
-        None => None,
+        // An Ableton `.ascl` says its reference in its own line (r42 fix2-model).
+        None => tuning_scala::read_ascl_map(&read(scl)?, &scale)
+            .map_err(|e| tf("tuning.io.refused", &[("why", &scala_why(&e))]))?,
     };
     let now = super::tuning_of(app, target);
     // With a map, its reference key sounds at `reference_hz × a4_hz / 440` (ADR 0155, the
     // `tuning` builder's reading): the import puts the diapason back to 440, so the map sounds
     // as written and the diapason then raises or lowers it whole. Without one the diapason
-    // stays (key 69 sounds at it, Scala's template).
+    // stays (degree 0 on key 60 at C4 of 12-TET at it — Scala's and Surge's anchor).
     let tu = Tuning {
         a4_hz: if map.is_some() { 440.0 } else { now.a4_hz },
         system: TuningSystem::Scale(scale),
@@ -199,8 +204,41 @@ pub fn import_map_dialog(app: &mut CantusApp, target: Target) {
     app.tuning.last = Some(import_map(app, target, &kbm));
 }
 
-/// *Export…*: `path` (a `.scl`) and, when the tuning has a keyboard map, the `.kbm` beside
-/// it. Returns the files written.
+/// The `.kbm` written beside an exported `.scl`, so that reading the two back (here, in Scala
+/// or in Surge) gives the same pitches (r42 fix2-model, review 3): the tuning's own map with
+/// its reference frequency scaled by the diapason; or, when the scale alone would sound
+/// elsewhere — a diapason that is not 440, a temperament (A on the diapason, so C4 is not
+/// 12-TET's) or the master's table — a linear map with degree 0 on key 60 at what key 60
+/// sounds now. `None` when the `.scl` alone says it all (Scala's default anchor).
+pub fn map_for_export(app: &CantusApp, target: Target) -> Option<KeyboardMap> {
+    let tu = super::effective(&super::tuning_of(app, target), app.project().key);
+    let scale = tu.a4_hz / cantus_core::tuning::A4_DEFAULT_HZ;
+    if let Some(mut m) = tu.map {
+        if scale != 1.0 {
+            m.reference_hz *= scale;
+        }
+        return Some(m);
+    }
+    let reference_hz = if matches!(tu.system, TuningSystem::Scale(_)) {
+        if scale == 1.0 {
+            return None;
+        }
+        cantus_core::tuning::C4_DEFAULT_HZ * scale
+    } else {
+        let c4 = f64::from(super::table_of(app, target).at(60));
+        if c4 == 0.0 {
+            return None;
+        }
+        cantus_core::tuning::C4_DEFAULT_HZ * cantus_dsp::math::exp2(c4 / 12.0)
+    };
+    Some(KeyboardMap {
+        reference_hz,
+        ..KeyboardMap::scala_default()
+    })
+}
+
+/// *Export…*: `path` (a `.scl`) and, when [`map_for_export`] gives one, the `.kbm` beside it.
+/// Returns the files written.
 pub fn export(app: &CantusApp, target: Target, path: &Path) -> Result<Vec<PathBuf>, String> {
     let scl = path.with_extension("scl");
     let write = |p: &Path, text: &str| {
@@ -208,7 +246,7 @@ pub fn export(app: &CantusApp, target: Target, path: &Path) -> Result<Vec<PathBu
     };
     write(&scl, &write_scl(&scale_for_export(app, target)))?;
     let mut out = vec![scl.clone()];
-    if let Some(m) = super::tuning_of(app, target).map {
+    if let Some(m) = map_for_export(app, target) {
         let kbm = scl.with_extension("kbm");
         write(&kbm, &write_kbm(&m))?;
         out.push(kbm);
@@ -225,7 +263,7 @@ fn file_name(p: &Path) -> String {
 /// The *Import…* key: the system's file dialog (one `.scl`, or a `.scl` and a `.kbm`).
 pub fn import_dialog(app: &mut CantusApp, target: Target) {
     let Some(files) = rfd::FileDialog::new()
-        .add_filter(t("tuning.io.filter"), &["scl", "kbm"])
+        .add_filter(t("tuning.io.filter"), &["scl", "ascl", "kbm"])
         .pick_files()
     else {
         return;
@@ -234,7 +272,10 @@ pub fn import_dialog(app: &mut CantusApp, target: Target) {
         p.extension()
             .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case(ext))
     };
-    let scl = files.iter().find(|p| is(p, "scl")).cloned();
+    let scl = files
+        .iter()
+        .find(|p| is(p, "scl") || is(p, "ascl"))
+        .cloned();
     let kbm = files.iter().find(|p| is(p, "kbm")).cloned();
     app.tuning.last = Some(match scl {
         Some(scl) => import(app, target, &scl, kbm.as_deref()),

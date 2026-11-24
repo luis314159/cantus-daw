@@ -13,9 +13,9 @@
 //! - **undone and redone**: the import is one step with its exact inverse;
 //! - the window's summary and the top bar's line say it, and say nothing at the default.
 //!
-//! The file's degree 9 is 1000 c, so with Scala's template (degree 0 on key 60, key 69 at the
-//! diapason) every key sits 100 c below its degree: A4 keeps 440 Hz, C4 moves −100 c and D4
-//! −200 c (`12-shuffled`'s 100 c degree). Its own test binary: it points `CANTUS_DATA_DIR` at a
+//! The file's degree 9 is 1000 c, so with Scala's and Surge's anchor (degree 0 on key 60 at
+//! C4 of 12-TET at the diapason — r42 fix2-model, review 2) C4 keeps 261.63 Hz, A4 moves
+//! +100 c and D4 −100 c (`12-shuffled`'s 100 c degree). Its own test binary: it points `CANTUS_DATA_DIR` at a
 //! temporary folder. r42:tuning-face
 
 use cantus_core::tuning::{ScaleDegree, TuningSystem, TuningTable};
@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 const FS: f64 = 48_000.0;
-/// The keys measured: A4 (the diapason's), C4 and D4 (in `12-shuffled.scl`, −100 c and −200 c).
+/// The keys measured: A4, C4 and D4 (in `12-shuffled.scl`, +100 c, 0 c and −100 c).
 const KEYS: [u8; 3] = [69, 60, 62];
 
 fn data() -> &'static Path {
@@ -219,7 +219,7 @@ fn a_scala_file_imported_through_the_window_is_what_chorda_plays_and_exports() {
     // Chorda plays the table every unit reads.
     let table = tu.offsets();
     let cents: Vec<f32> = KEYS.iter().map(|k| 100.0 * table.at(*k)).collect();
-    for (c, want) in cents.iter().zip([0.0f32, -100.0, -200.0]) {
+    for (c, want) in cents.iter().zip([100.0f32, 0.0, -100.0]) {
         assert!((c - want).abs() < 1e-3, "the file's table: {cents:?}");
     }
     let tuned = measured(&app, &table);

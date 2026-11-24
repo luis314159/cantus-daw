@@ -137,7 +137,12 @@ pub fn tie_legato(events: &mut [crate::snapshot::NoteEvent]) {
                 continue;
             }
             if let Some((off, oi)) = last {
-                if off <= on && on - off <= LEGATO_TIE {
+                // r42 fix2-model (review 1): never tie a repeated pitch (or the same note
+                // again, a looping clip's repetition): its off moved past the new on would
+                // end the new note on every receiver that matches offs by key.
+                let before = &events[oi - 1];
+                let same = before.pitch == events[i].pitch || before.note == events[i].note;
+                if !same && off <= on && on - off <= LEGATO_TIE {
                     events[oi].tick = on + crate::time::Ticks(1);
                     last = Some((events[oi].tick, oi));
                 }
@@ -215,6 +220,32 @@ mod tests {
         tie_legato(&mut ev);
         assert_eq!(ev[1].tick, Ticks(1_100));
         assert_eq!(ev[3].tick, Ticks(2_001));
+    }
+
+    /// r42 fix2-model (review 1): a legato note on the pitch the note before it played is not
+    /// tied — the stream would be `on 60 @1000`, `off 60 @1001`, and a receiver matching
+    /// offs by key (MIDI gear, MPE, a hosted plug-in) would end the new note.
+    #[test]
+    fn a_repeated_pitch_is_never_tied() {
+        let mut ev: Vec<NoteEvent> =
+            [pair(0, 960, 60, 1, None), pair(1_000, 1_960, 60, 2, LEG)].concat();
+        tie_legato(&mut ev);
+        assert_eq!(ev[1].tick, Ticks(960), "the first 60 still ends before the second");
+        // A looping clip: its repetitions share a note id (and the pitch).
+        let mut ev: Vec<NoteEvent> =
+            [pair(0, 900, 64, 7, LEG), pair(960, 1_860, 64, 7, LEG)].concat();
+        tie_legato(&mut ev);
+        assert_eq!(ev[1].tick, Ticks(900), "a repetition is not tied to itself");
+        // The same id on another pitch would still be its own voice: never tied either.
+        let mut ev: Vec<NoteEvent> =
+            [pair(0, 900, 64, 7, None), pair(960, 1_860, 65, 7, LEG)].concat();
+        tie_legato(&mut ev);
+        assert_eq!(ev[1].tick, Ticks(900));
+        // Another pitch is still tied.
+        let mut ev: Vec<NoteEvent> =
+            [pair(0, 960, 60, 1, None), pair(1_000, 1_960, 62, 2, LEG)].concat();
+        tie_legato(&mut ev);
+        assert_eq!(ev[1].tick, Ticks(1_001));
     }
 
     #[test]
