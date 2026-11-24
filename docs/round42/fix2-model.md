@@ -22,10 +22,40 @@ before it.
 | 13 | `Mts::read` made a `&[f64]` of shared memory | `from_raw_parts` over a table another process writes | `ptr::read_volatile` per element | the `cantus-rt` MTS tests (no behaviour a test can tell apart: the change removes undefined behaviour, which no test observes) |
 | 14 | docs | ADR 0158 named `SetNoteArt { clip, notes, art }`; schema 80's comments left out two fields; the fixture had no keyboard map | ADR 0158 says `{ track, clip, arts }`; `migrate_79_to_80` and `SCHEMA_VERSION` name `ExternalUnit::mts` and `ExternalPlugin::tuning_by`; v82's project plays Ptolemy on the white keys at A415 (five `x` keys) — v82 is unreleased, re-written | `format::tests::schema_82_keeps…` (the map, its `x` keys, an `x` key silent) |
 
+**After the review of this delivery (the coordinator):** Chorda's two presets built from a Scala
+scale (*Slightly out*, *Saloon*) now carry the A4-anchored map they were designed with
+(`KeyboardMap::a4_anchored`), so no shipped sound moves — `fix2_model::
+chordas_scala_presets_sound_as_they_were_designed` holds their 128 offsets bit-identical to the
+old path's in all twelve keys, and the engine's `null_tests`, `inst_chorda`, `tuning_null` and
+`tuning_instruments` pass unchanged. The e2e round trip also found a stale-file bug: an export
+needing no `.kbm` left an earlier export's `.kbm` of the same name beside the new `.scl` (read
+with it, here and in Surge); it is removed now, and the test checks the pair on disk.
+
 ADRs 0155, 0156 and 0158 carry amendments (anchors, `.ascl`, export, what each format
 carries; the frozen render under the master; the look-ahead and the edits). The manual's
 tuning page says the anchor, the `.kbm` on export and the tuning in other files, in both
 languages.
+
+## Gates (Windows, `CARGO_TARGET_DIR=C:/cantus-r42-target/fix2-model`, merged with
+`r42/integration` 7c1d543a0)
+
+- `cargo test -p cantus-core`: every target green (40 result lines), the undo fuzz included.
+- `-p cantus-project -p cantus-score -p cantus-ai -p cantus-rt`: green (after v82 was re-written
+  by `write_fixture` and the kit test moved to A440, where scale/octave can hold the tuning).
+- `-p cantus-engine --lib --test null_tests --test notefx --test tuning_instruments
+  --test tuning_null --test inst_chorda`: green — no golden moved.
+- `-p cantus-ui --lib` (620, the i18n test among them) and `fix2_model`, `tuning_mts_e2e`,
+  `tuning_face_e2e`, `tuning_fixes`, `interop_flows`, `notefx_flows`, `mpe`,
+  `chorda_tune_e2e`, `tuning_engine_e2e`, `tuning_whole`, `freeze`, `strings_rec_e2e`,
+  `app_flows`, `locale_isolation`: green. `ai_mcp_boot`'s golden list re-written
+  (`CANTUS_TOOLS_DUMP=1`: `get_tuning`, `set_tuning`, the `arcus` kind, the notes' `art`,
+  `export_project`'s `tuning`) and green.
+- `cargo clippy --workspace --all-targets --keep-going -- -D warnings`: clean.
+- **The fuzz's wider mix** (`random_command` over 50 arms, the tuning arm 49): each older arm
+  is drawn 1/50 instead of 1/49 (−2 %). Measured on the default 120 seeds against the same
+  test at 49 arms: commands applied per seed, mean 103.6 (was 103.0), least 86 (was 77; floor
+  75); mix commands, mean 10.95 (was 11.03), least 3 (was 3; floor 3); every per-kind floor
+  (clipboard cases, routing batches, warps, tempo gestures) passes.
 
 ## Verified only in emulation
 

@@ -41,7 +41,10 @@ fn file(p: &Project, tuning: bool) -> Vec<u8> {
 
 /// The SysEx messages and controllers of the file's track `i` (1: the first after the
 /// conductor) at tick 0.
-fn at_start(bytes: &[u8], i: usize) -> (Vec<Vec<u8>>, Vec<(u8, u8, u8)>) {
+/// A track's SysEx messages and its controllers as `(channel, controller, value)`.
+type AtStart = (Vec<Vec<u8>>, Vec<(u8, u8, u8)>);
+
+fn at_start(bytes: &[u8], i: usize) -> AtStart {
     let s = smf::read(bytes).unwrap();
     let mut sysex = Vec::new();
     let mut cc = Vec::new();

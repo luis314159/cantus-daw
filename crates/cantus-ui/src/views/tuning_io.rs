@@ -237,8 +237,9 @@ pub fn map_for_export(app: &CantusApp, target: Target) -> Option<KeyboardMap> {
     })
 }
 
-/// *Export…*: `path` (a `.scl`) and, when [`map_for_export`] gives one, the `.kbm` beside it.
-/// Returns the files written.
+/// *Export…*: `path` (a `.scl`) and, when [`map_for_export`] gives one, the `.kbm` beside it
+/// (else an earlier export's `.kbm` of that name is removed: it would be read with the new
+/// `.scl`). Returns the files written.
 pub fn export(app: &CantusApp, target: Target, path: &Path) -> Result<Vec<PathBuf>, String> {
     let scl = path.with_extension("scl");
     let write = |p: &Path, text: &str| {
@@ -246,10 +247,19 @@ pub fn export(app: &CantusApp, target: Target, path: &Path) -> Result<Vec<PathBu
     };
     write(&scl, &write_scl(&scale_for_export(app, target)))?;
     let mut out = vec![scl.clone()];
-    if let Some(m) = map_for_export(app, target) {
-        let kbm = scl.with_extension("kbm");
-        write(&kbm, &write_kbm(&m))?;
-        out.push(kbm);
+    let kbm = scl.with_extension("kbm");
+    match map_for_export(app, target) {
+        Some(m) => {
+            write(&kbm, &write_kbm(&m))?;
+            out.push(kbm);
+        }
+        // An earlier export's `.kbm` of the same name would be read with the new `.scl` (here,
+        // by Scala, by Surge) and move every key: the pair is the `.scl` alone now.
+        None => {
+            if kbm.is_file() {
+                std::fs::remove_file(&kbm).map_err(|_| cannot("tuning.io.cannot_write", &kbm))?;
+            }
+        }
     }
     Ok(out)
 }

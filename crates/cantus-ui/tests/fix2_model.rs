@@ -180,6 +180,13 @@ fn a_scala_export_reads_back_as_the_same_pitches_here_and_in_surge() {
         let files = tuning::io::export(&app, Target::Project, &dir.path().join("song")).unwrap();
         let scl_path = files[0].clone();
         let kbm_path = files.get(1).cloned();
+        // One folder for every case: an earlier case's `.kbm` never stays beside a `.scl`
+        // written without one (it would be read with it).
+        assert_eq!(
+            kbm_path.is_some(),
+            scl_path.with_extension("kbm").is_file(),
+            "{what}: the pair on disk"
+        );
         // Back to the default, then imported as a user imports the two files.
         assert!(tuning::set(&mut app, Target::Project, Tuning::default()) || tu.is_default());
         tuning::io::import(&mut app, Target::Project, &scl_path, kbm_path.as_deref())
@@ -510,13 +517,8 @@ fn chordas_scala_presets_sound_as_they_were_designed() {
             );
             let got = tu.offsets();
             let want = a4_anchored_offsets(&tu);
-            for k in 0..128 {
-                assert_eq!(
-                    got.0[k].to_bits(),
-                    want[k].to_bits(),
-                    "{} in {key}: key {k}",
-                    p.name
-                );
+            for (k, (g, w)) in got.0.iter().zip(&want).enumerate() {
+                assert_eq!(g.to_bits(), w.to_bits(), "{} in {key}: key {k}", p.name);
             }
             // A4 is the diapason, exactly.
             assert_eq!(got.at(69), 0.0);

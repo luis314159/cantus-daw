@@ -145,3 +145,9 @@ synth in tune with each other through `CantusApp::assemble`.
   its export report names the song's tuning (`x_tuning`) and each track's own or equal
   (`x_track_tuning`); **MusicXML** none (the format has no tuning). The MCP server reads and
   sets the tuning (`get_tuning`, `set_tuning`, through the commands).
+- **No shipped sound moves**: Chorda's presets built from a Scala scale (*Slightly out*,
+  *Saloon*) were designed with A4 on the diapason, so they carry that map explicitly
+  (`KeyboardMap::a4_anchored`); their tables are bit-identical to before in every key
+  (`cantus-ui/tests/fix2_model.rs`), and the engine's null and golden tests do not move.
+  An export whose `.scl` needs no `.kbm` removes an earlier export's `.kbm` of the same name,
+  which would otherwise be read with it.
