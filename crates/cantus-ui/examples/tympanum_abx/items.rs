@@ -331,7 +331,9 @@ mod tests {
         assert_eq!(ids.len(), items.len());
         // An id is in the page's data: it never says which kit or voice.
         for i in &items {
-            for w in ["jazz", "studio", "drs", "virt", "model", "hyb", "rec", "tymp"] {
+            for w in [
+                "jazz", "studio", "drs", "virt", "model", "hyb", "rec", "tymp",
+            ] {
                 assert!(!i.id.contains(w), "{} says {w}", i.id);
             }
         }

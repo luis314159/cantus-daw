@@ -30,10 +30,10 @@
 //! packs and the residuals' model hashes) and `levels.csv` (each file's loudness before and
 //! after, its stereo balance and width, its first onset).
 
+mod items;
 #[path = "../abx_kit/kit.rs"]
 #[allow(dead_code)] // shared by the listening kits: each uses part of it
 mod kit;
-mod items;
 #[path = "../abx_kit/names.rs"]
 mod names;
 
@@ -129,7 +129,13 @@ fn install(root: &Path) -> Result<String, String> {
         }
         match m.status(id) {
             cantus_content::Status::Installed { version } if version == want => {
-                let _ = write!(said, "{}{}:{}", if said.is_empty() { "" } else { "," }, js(id), version);
+                let _ = write!(
+                    said,
+                    "{}{}:{}",
+                    if said.is_empty() { "" } else { "," },
+                    js(id),
+                    version
+                );
             }
             s => return Err(format!("{id} is not installed at version {want} ({s:?})")),
         }
@@ -150,7 +156,11 @@ fn residuals(root: &Path) -> String {
         eprintln!(
             "{pack}: fitted on model {} (this build {build}){}",
             r.model,
-            if r.model == build { "" } else { " — STALE: it plays, but was fitted on other tables" }
+            if r.model == build {
+                ""
+            } else {
+                " — STALE: it plays, but was fitted on other tables"
+            }
         );
         let _ = write!(
             o,
@@ -202,7 +212,13 @@ fn project(item: &Item, kit: &str, hybrid: bool) -> Project {
 
 /// One render through the engine's offline path (the export's), as left and right, with
 /// the pre-roll's silence before it.
-fn render_item(engine: &mut EngineHandle, item: &Item, kit: &str, hybrid: bool, rev: u64) -> (Vec<f32>, Vec<f32>) {
+fn render_item(
+    engine: &mut EngineHandle,
+    item: &Item,
+    kit: &str,
+    hybrid: bool,
+    rev: u64,
+) -> (Vec<f32>, Vec<f32>) {
     let p = project(item, kit, hybrid);
     let snap = engine.compile_for_render(&p, rev);
     let r = render(
@@ -216,7 +232,11 @@ fn render_item(engine: &mut EngineHandle, item: &Item, kit: &str, hybrid: bool, 
         },
     )
     .unwrap_or_else(|e| panic!("{} on {kit}: {e:?}", item.id));
-    assert_eq!(r.cut_notes, 0, "{} on {kit}: notes cut short by streaming", item.id);
+    assert_eq!(
+        r.cut_notes, 0,
+        "{} on {kit}: notes cut short by streaming",
+        item.id
+    );
     let pre = (PRE_ROLL_S * SR as f64) as usize;
     let (mut l, mut rr) = (vec![0.0; pre], vec![0.0; pre]);
     for f in r.samples.chunks_exact(2) {
@@ -241,7 +261,11 @@ fn picture(l: &[f32], r: &[f32]) -> (f64, f64, f64) {
         .zip(r)
         .position(|(a, b)| a.abs().max(b.abs()) >= p)
         .unwrap_or(0);
-    (ten(el / er), ten(es / em), onset as f64 * 1000.0 / SR as f64)
+    (
+        ten(el / er),
+        ten(es / em),
+        onset as f64 * 1000.0 / SR as f64,
+    )
 }
 
 fn sep(s: &mut String) {
@@ -315,19 +339,37 @@ fn main() {
         // The hybrid must be heard: a pack the engine did not read plays the model to the bit.
         let diff = {
             let (g, h) = (&renders[0], &renders[2]);
-            let d: f64 = g.0.iter().zip(&h.0).chain(g.1.iter().zip(&h.1)).map(|(a, b)| ((a - b) as f64).powi(2)).sum();
+            let d: f64 =
+                g.0.iter()
+                    .zip(&h.0)
+                    .chain(g.1.iter().zip(&h.1))
+                    .map(|(a, b)| ((a - b) as f64).powi(2))
+                    .sum();
             let e: f64 = g.0.iter().chain(&g.1).map(|a| (*a as f64).powi(2)).sum();
             10.0 * cantus_dsp::math::log10((d / e.max(1e-30)).max(1e-30))
         };
-        assert!(diff > -60.0, "{}: the hybrid is the model to {diff:.1} dB: its pack was not heard", item.id);
+        assert!(
+            diff > -60.0,
+            "{}: the hybrid is the model to {diff:.1} dB: its pack was not heard",
+            item.id
+        );
         let m = {
             let mut g: Vec<_> = renders.iter_mut().map(|(l, r)| (l, r)).collect();
             kit::match_group(&mut g, SR, FADE_S, TARGET, CEILING_DB)
         };
         let secs = renders[0].0.len() as f64 / SR as f64;
-        for (i, ((l, r), ((lu, pk), g))) in renders.iter().zip(m.before.iter().zip(&m.gains)).enumerate() {
+        for (i, ((l, r), ((lu, pk), g))) in renders
+            .iter()
+            .zip(m.before.iter().zip(&m.gains))
+            .enumerate()
+        {
             let mut toks = vec![i];
-            toks.extend(catch.iter().filter(|(id, v, _)| *id == item.id && *v == i).map(|c| c.2));
+            toks.extend(
+                catch
+                    .iter()
+                    .filter(|(id, v, _)| *id == item.id && *v == i)
+                    .map(|c| c.2),
+            );
             let (bal, width, onset) = picture(l, r);
             let mut first: Option<PathBuf> = None;
             for t in toks {
@@ -335,7 +377,11 @@ fn main() {
                 let path = a.dir.join("audio").join(&file);
                 match &first {
                     None => {
-                        let w = if a.flac { kit::write_flac(&path, l, r, SR) } else { kit::write_wav(&path, l, r, SR) };
+                        let w = if a.flac {
+                            kit::write_flac(&path, l, r, SR)
+                        } else {
+                            kit::write_wav(&path, l, r, SR)
+                        };
                         w.unwrap_or_else(|e| panic!("{}: {e}", path.display()));
                         first = Some(path.clone());
                     }
@@ -345,7 +391,12 @@ fn main() {
                 }
                 bytes += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
                 sep(&mut files);
-                let _ = write!(files, "{}:{}", js(&format!("{}|{}", item.id, tok[t])), js(&file));
+                let _ = write!(
+                    files,
+                    "{}:{}",
+                    js(&format!("{}|{}", item.id, tok[t])),
+                    js(&file)
+                );
                 sep(&mut key_files);
                 let _ = write!(
                     key_files,
@@ -394,7 +445,14 @@ fn main() {
     let table = format!("{{{table}}}");
     let seed = (rng.next() >> 32) as u32 | 1;
     let pair = |x: usize, y: usize| format!("[{},{}]", js(&tok[x]), js(&tok[y]));
-    let catch_js = |c: &(&str, usize, usize)| format!("{{phrase:{},one:{},two:{}}}", js(c.0), js(&tok[c.1]), js(&tok[c.2]));
+    let catch_js = |c: &(&str, usize, usize)| {
+        format!(
+            "{{phrase:{},one:{},two:{}}}",
+            js(c.0),
+            js(&tok[c.1]),
+            js(&tok[c.2])
+        )
+    };
     // Part 1: generated vs recording; the preferences: generated vs recording and hybrid vs
     // recording; the extra part: hybrid vs recording.
     let tests = format!(
@@ -459,7 +517,15 @@ mod tests {
     #[test]
     fn the_readmes_never_name_the_sources() {
         for t in [super::README_EN, super::README_ES] {
-            for w in ["Tympanum", "DRSKit", "Virtuosity", "cargo", "Luis", "ronda", "round"] {
+            for w in [
+                "Tympanum",
+                "DRSKit",
+                "Virtuosity",
+                "cargo",
+                "Luis",
+                "ronda",
+                "round",
+            ] {
                 assert!(!t.contains(w), "{w}");
             }
         }

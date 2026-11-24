@@ -39,7 +39,9 @@ pub fn js(s: &str) -> String {
 /// check reads line by line); a subject that does not parse stops the kit.
 pub fn subject_line(text: &str) -> String {
     let v: serde_json::Value = serde_json::from_str(text).expect("the subject file is JSON");
-    for k in ["id", "play", "trials", "secs", "pairs", "items", "credits", "text"] {
+    for k in [
+        "id", "play", "trials", "secs", "pairs", "items", "credits", "text",
+    ] {
         assert!(v.get(k).is_some(), "the subject names its {k}");
     }
     v.to_string()
