@@ -147,6 +147,7 @@ tuning.summary.equal = Igual
 tuning.summary.mapped = con mapa
 tuning.summary.scale_notes = Escala Scala, {n} notas
 tuning.summary.default = Temperamento igual, A4 = 440 Hz: lo predeterminado de toda canción.
+tuning.summary.default_short = Temperamento igual, A4 = 440 Hz
 tuning.row.track = Afinación
 tuning.track.own_menu = La suya…
 tuning.chorda.project = Afinación: {tuning} (la del proyecto)
@@ -166,8 +167,9 @@ tuning.chorda.plays_project = La del proyecto
 tuning.chorda.plays_own = La suya
 tuning.chorda.preset = Afinación
 tuning.chorda.project_equal_short = La del proyecto: igual, A440
-tuning.chorda.yours = Tus archivos
 tuning.chorda.save_mine = Guardar como mía
+tuning.chorda.import = Importar .scl
+tuning.chorda.export = Exportar .scl
 tuning.chorda.mine = Mi afinación
 tuning.chorda.none_yet = Ninguna aún: Guardar como mía añade una
 tuning.chorda.a4_project = la del proyecto

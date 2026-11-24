@@ -616,9 +616,10 @@ pub fn body(
     }
     y += step;
 
-    // Files and the cadence.
+    // The files: no caption — the three buttons say what they do, and they need the
+    // caption's room to read whole in Spanish and at 75 % (r42 fix-ui).
     let (cap, ctl) = row_rects(left, y, s);
-    caption(ui, cap, "tuning.chorda.yours", s);
+    let ctl = Rect::from_min_max(cap.min, ctl.max);
     place(ui, ctl, |ui| {
         let b =
             crate::views::audio_parts::button(ui, &t("tuning.chorda.save_mine"), false, true, 0.0);
@@ -637,13 +638,13 @@ pub fn body(
             }));
         }
         ui.add_space(6.0 * k);
-        let b = crate::views::audio_parts::button(ui, &t("tuning.import"), false, true, 0.0);
+        let b = crate::views::audio_parts::button(ui, &t("tuning.chorda.import"), false, true, 0.0);
         publish(ui, "import", b.rect);
         if b.clicked() {
             super::io::import_dialog(app, Target::Track(track));
         }
         ui.add_space(6.0 * k);
-        let b = crate::views::audio_parts::button(ui, &t("tuning.export"), false, true, 0.0);
+        let b = crate::views::audio_parts::button(ui, &t("tuning.chorda.export"), false, true, 0.0);
         publish(ui, "export", b.rect);
         if b.clicked() {
             super::io::export_dialog(app, Target::Track(track));

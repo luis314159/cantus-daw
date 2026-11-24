@@ -16,44 +16,54 @@ use egui::{Align2, Id, Pos2, Rect, Response, Sense, Ui, Vec2};
 
 /// The window at 100 %.
 pub const SIZE: Vec2 = Vec2::new(1000.0, 740.0);
-/// The controls' column, at its widest.
+/// The controls' column beside the pictures.
 const LEFT: f32 = 500.0;
-/// The narrowest controls' column beside the pictures; below it they stack.
-const LEFT_MIN: f32 = 380.0;
-/// The pictures' narrowest side beside the controls.
-const RIGHT_MIN: f32 = 300.0;
+/// The pictures' side beside the controls: what their legend and the degrees' headings
+/// need whole in either language (measured: the Spanish legend and "Tercera, batidos").
+const RIGHT: f32 = 440.0;
 
 /// How the window lays out its two halves.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Layout {
     /// The controls at the left, the pictures at the right.
     Beside,
-    /// The controls above, the pictures under them (a narrow screen, or 200 % on a small
-    /// one — r42 fix-ui, review ui#18).
+    /// One column that scrolls: the controls, then the circle, its legend and the degrees
+    /// under them at the column's width (a narrow screen, or 200 % on a small one — r42
+    /// fix-ui, review ui#18: side by side, the pictures' side shrank to 136 px and below
+    /// ~560 points inverted).
     Stacked,
 }
 
 /// The controls' rect, the pictures' and the layout in the window's `body` (the room
-/// between its title and its footer) at scale `k`: side by side while the controls keep
-/// [`LEFT_MIN`] and the pictures [`RIGHT_MIN`] (the column shrinking from [`LEFT`] to half
-/// the room as the window narrows), stacked below that.
+/// between its title and its footer) at scale `k`: side by side while both keep their
+/// width ([`LEFT`] and [`RIGHT`]) — the full window — else one scrolling column, the
+/// controls' rect the whole body and the pictures' empty (they are drawn inside it).
 pub fn split(body: Rect, k: f32) -> (Rect, Rect, Layout) {
     let gap = 24.0 * k;
-    let w = body.width();
-    if w >= (LEFT_MIN + RIGHT_MIN) * k + gap {
-        // The pictures keep at least 44 % of the room; the controls the rest, up to LEFT.
-        let lw = (LEFT * k)
-            .min(w - gap - (RIGHT_MIN * k).max(0.44 * w))
-            .max(LEFT_MIN * k);
-        let left = Rect::from_min_size(body.min, Vec2::new(lw, body.height()));
+    if body.width() + 0.5 >= (LEFT + RIGHT) * k + gap {
+        let left = Rect::from_min_size(body.min, Vec2::new(LEFT * k, body.height()));
         let right = Rect::from_min_max(Pos2::new(left.right() + gap, body.top()), body.max);
         (left, right, Layout::Beside)
     } else {
-        let lh = (body.height() * 0.52).round();
-        let left = Rect::from_min_size(body.min, Vec2::new(w, lh));
-        let right = Rect::from_min_max(Pos2::new(body.left(), left.bottom() + 16.0 * k), body.max);
-        (left, right, Layout::Stacked)
+        let none = Rect::from_min_size(Pos2::new(body.left(), body.bottom()), Vec2::ZERO);
+        (body, none, Layout::Stacked)
     }
+}
+
+/// How tall the pictures are at `width` when drawn in the scrolling column: the circle (a
+/// 12-note tuning), its legend, the degrees whole.
+fn pictures_height(app: &CantusApp, target: Target, width: f32, k: f32) -> f32 {
+    let tu = super::effective(&super::tuning_of(app, target), app.project().key);
+    let rows = match &tu.system {
+        cantus_core::tuning::TuningSystem::Scale(sc)
+            if !(sc.degrees.len() == 12 && tu.map.is_none()) =>
+        {
+            return 24.0 * k + (sc.degrees.len() as f32 + 1.0) * 18.0 * k + 8.0 * k;
+        }
+        _ => 12.0,
+    };
+    let circle = width.min(330.0 * k) + 6.0 * k + 36.0 * k + 8.0 * k + 24.0 * k;
+    circle + 24.0 * k + rows * 18.0 * k + 8.0 * k
 }
 /// A row's caption column.
 pub(super) const CAPTION: f32 = 124.0;
@@ -122,32 +132,37 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
                 Pos2::new(rect.right() - 18.0 * k, foot.top() - 10.0 * k),
             );
             let (left, right, side) = split(body, k);
-            with_brush(ui.painter(), |b| {
-                let side = match side {
-                    // Side by side: the pictures' ground from the column to the edge.
-                    Layout::Beside => Rect::from_min_max(
+            if side == Layout::Beside {
+                // Side by side: the pictures' ground from the column to the edge.
+                with_brush(ui.painter(), |b| {
+                    let side = Rect::from_min_max(
                         Pos2::new(right.left() - 12.0 * k, head.bottom()),
                         Pos2::new(rect.right(), foot.top() - 4.0 * k),
-                    ),
-                    // Stacked: under the controls, the window's whole width.
-                    Layout::Stacked => Rect::from_min_max(
-                        Pos2::new(rect.left(), right.top() - 8.0 * k),
-                        Pos2::new(rect.right(), foot.top() - 4.0 * k),
-                    ),
-                };
-                crate::views::workspace_settings::side_ground(b, side, &s);
-            });
+                    );
+                    crate::views::workspace_settings::side_ground(b, side, &s);
+                });
+            }
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(left));
             egui::ScrollArea::vertical()
                 .id_salt("cantus-tuning-body")
                 .auto_shrink([false, false])
                 .max_height(left.height())
                 .show(&mut child, |ui| {
-                    ui.set_width(left.width() - 12.0 * k);
+                    let w = left.width() - 12.0 * k;
+                    ui.set_width(w);
                     ui.spacing_mut().item_spacing = Vec2::new(8.0 * k, 6.0 * k);
                     super::rows::body(app, ui, target);
+                    if side == Layout::Stacked {
+                        // The pictures under the controls, in the same scroll.
+                        ui.add_space(12.0 * k);
+                        let h = pictures_height(app, target, w, k);
+                        let (r, _) = ui.allocate_exact_size(Vec2::new(w, h), Sense::hover());
+                        pictures(app, ui, r, target);
+                    }
                 });
-            pictures(app, ui, right, target);
+            if side == Layout::Beside {
+                pictures(app, ui, right, target);
+            }
             if footer(app, ui, foot, target) {
                 close = true;
             }
@@ -514,16 +529,45 @@ fn degree_table(ui: &mut Ui, r: Rect, rows: &[circle::Row], heads: &[&str; 5], b
 fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect, target: Target) -> bool {
     let s = Style::current();
     let k = s.k;
-    let buttons = Rect::from_min_max(Pos2::new(rect.right() - 330.0 * k, rect.top()), rect.max);
+    let reset_key = match target {
+        Target::Project => "tuning.reset",
+        Target::Track(_) => "tuning.reset_track",
+    };
+    // The buttons as wide as their words (a narrow window gives the summary the rest).
+    let bw = |key: &str| {
+        let words = t(key);
+        let tx = Text::new(&words, Role::Control, s.t.text);
+        (text::measure(ui.ctx(), &tx, s.tk()).x + 32.0 * k + 2.0).max(90.0 * k)
+    };
+    let room = bw("tuning.close") + bw(reset_key) + 8.0 * k + 8.0 * k;
+    let buttons = Rect::from_min_max(
+        Pos2::new(
+            rect.right() - room.max(200.0 * k).min(330.0 * k),
+            rect.top(),
+        ),
+        rect.max,
+    );
     let status = Rect::from_min_max(
         rect.min,
         Pos2::new(buttons.left() - 16.0 * k, rect.bottom()),
     );
     let tu = super::tuning_of(app, target);
+    let fits = |w: &str| {
+        let tx = Text::new(w, Role::Body, s.t.text);
+        text::measure(ui.ctx(), &tx, s.tk()).x <= status.width()
+    };
+    // Short of room, the default's short form; a tuning's parts go whole from the end.
     let words = if tu.is_default() {
-        t("tuning.summary.default")
+        let long = t("tuning.summary.default");
+        if fits(&long) {
+            long
+        } else {
+            t("tuning.summary.default_short")
+        }
     } else {
-        super::words::summary_of(&tu, app.project().key)
+        let full = super::words::summary_of(&tu, app.project().key);
+        let first = full.find(" \u{b7} ").unwrap_or(full.len());
+        crate::views::transport::menus::fit_summary(&full, first, fits).to_string()
     };
     with_brush(ui.painter(), |b| {
         let _ = text::paint(
@@ -547,10 +591,6 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect, target: Target) -> bool 
     let reset_enabled = match target {
         Target::Project => !tu.is_default(),
         Target::Track(_) => !super::track_mode(app, target).is_some_and(|m| m.is_follow()),
-    };
-    let reset_key = match target {
-        Target::Project => "tuning.reset",
-        Target::Track(_) => "tuning.reset_track",
     };
     let b = parts::button(&mut child, &t(reset_key), false, reset_enabled, 90.0);
     put(&child, "reset", b.rect);

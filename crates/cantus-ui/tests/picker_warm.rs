@@ -224,6 +224,8 @@ fn the_warm_up_waits_while_the_song_plays() {
         t += 0.05;
         pass(&mut app, &ctx, t, Vec::new());
         steps += 1;
+        // The runner works on its own thread: give it real time.
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
     assert!(
         app.picker_view.thumbs.stats.captures > 0,

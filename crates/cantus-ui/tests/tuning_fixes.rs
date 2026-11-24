@@ -35,7 +35,15 @@ fn app() -> (CantusApp, egui::Context) {
     let files = Files::read(data(), Some(cantus_ui::i18n::Locale::En));
     let ctx = egui::Context::default();
     let (engine, _proc) = EngineHandle::manual(48_000.0);
-    let app = CantusApp::assemble(&ctx, files, None, engine, None, None, None, false);
+    let mut app = CantusApp::assemble(&ctx, files, None, engine, None, None, None, false);
+    // Two instrument tracks, added as the picker adds them.
+    for kind in [InstrumentKind::Chorda, InstrumentKind::Analog] {
+        app.apply_pick(
+            cantus_ui::picker::PickPurpose::AddInstrument { index: None },
+            cantus_ui::picker::PickChoice::Instrument(kind),
+        );
+    }
+    assert!(instrument_tracks(&app).len() >= 2, "two instrument tracks");
     (app, ctx)
 }
 
@@ -101,7 +109,7 @@ fn the_open_window_holds_the_keys_but_undo_redo_and_its_own() {
         Some(Target::Project),
         "Ctrl+Shift+T opens it"
     );
-    a.selected_tracks = ids.iter().copied().collect();
+    a.selected_tracks = ids.to_vec();
     a.selected_track = ids.first().copied();
     let before = a.project().clone();
     let name = a.project().name.clone();
@@ -320,34 +328,38 @@ fn slightly_out_is_found_in_either_language() {
     assert!(words.contains("Un poco desafinado"), "{words}");
 }
 
-/// One frame of the window with `events`.
-fn frame(ctx: &egui::Context, a: &mut CantusApp, events: Vec<egui::Event>) {
-    let input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(
-            egui::Pos2::ZERO,
-            egui::vec2(1200.0, 800.0),
-        )),
-        events,
-        ..Default::default()
-    };
-    let mut out = ctx.run_ui(input, |ui| tuning::show(a, ui.ctx()));
-    out.textures_delta.clear();
-}
-
 /// A click on the window's control `name`, as a hand gives it.
-fn click(ctx: &egui::Context, a: &mut CantusApp, name: &str) {
-    frame(ctx, a, Vec::new());
-    let at = tuning::geo(ctx, name)
-        .unwrap_or_else(|| panic!("{name} drawn"))
-        .center();
-    let button = |pressed| egui::Event::PointerButton {
-        pos: at,
-        button: egui::PointerButton::Primary,
-        pressed,
-        modifiers: Modifiers::NONE,
-    };
-    frame(ctx, a, vec![egui::Event::PointerMoved(at), button(true)]);
-    frame(ctx, a, vec![button(false)]);
+fn click(_ctx: &egui::Context, a: &mut CantusApp, name: &str) {
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx);
+    let mut at = None;
+    cantus_ui::raster::shoot_events(
+        &ctx,
+        egui::vec2(1200.0, 800.0),
+        1.0,
+        6,
+        None,
+        |n, c| {
+            if n != 3 {
+                return Vec::new();
+            }
+            let p = tuning::geo(c, name)
+                .unwrap_or_else(|| panic!("{name} drawn"))
+                .center();
+            at = Some(p);
+            let button = |pressed| egui::Event::PointerButton {
+                pos: p,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            vec![egui::Event::PointerMoved(p), button(true), button(false)]
+        },
+        |ui| tuning::show(a, &ui.ctx().clone()),
+    );
+    assert!(at.is_some(), "clicked {name}");
 }
 
 /// Review ui#3: *Follow the song's key* ticked on a song whose key was then removed can
@@ -439,5 +451,5 @@ fn choosing_mts_esp_resigns_the_master_and_the_switch_always_turns_off() {
     }
     tuning::set_master(&mut a, false, false);
     assert!(!link.is_master());
-    assert_eq!(tuning::master_switch(&a, Target::Project).0, false);
+    assert!(!tuning::master_switch(&a, Target::Project).0);
 }

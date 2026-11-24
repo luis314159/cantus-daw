@@ -146,6 +146,7 @@ tuning.summary.equal = Equal
 tuning.summary.mapped = mapped
 tuning.summary.scale_notes = Scala scale, {n} notes
 tuning.summary.default = Equal temperament, A4 = 440 Hz: every song’s default.
+tuning.summary.default_short = Equal temperament, A4 = 440 Hz
 tuning.row.track = Tuning
 tuning.track.own_menu = Its own…
 tuning.chorda.project = Tuning: {tuning} (the project’s)
@@ -165,8 +166,9 @@ tuning.chorda.plays_project = The project’s tuning
 tuning.chorda.plays_own = Its own
 tuning.chorda.preset = Tuning
 tuning.chorda.project_equal_short = The project’s: equal, A440
-tuning.chorda.yours = Your files
 tuning.chorda.save_mine = Save as mine
+tuning.chorda.import = Import .scl
+tuning.chorda.export = Export .scl
 tuning.chorda.mine = My tuning
 tuning.chorda.none_yet = None yet: Save as mine adds one
 tuning.chorda.a4_project = the project’s

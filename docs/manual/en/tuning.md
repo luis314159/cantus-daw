@@ -131,8 +131,8 @@ view has a **Temperament** card:
 - **Key**: where a historical or just tuning sits (‹ › a semitone); each Chorda track keeps its
   own. Following a temperament of the project's, it shows the key that sounds, greyed: the
   project sets it.
-- **Your files**: *Save as mine* keeps the current tuning as a Scala file of yours (in the data
-  folder's `Tuning`), listed under *Your tunings*; *Import…* and *Export…* read and write
+- *Save as mine* keeps the current tuning as a Scala file of yours (in the data
+  folder's `Tuning`), listed under *Your tunings*; *Import .scl* and *Export .scl* read and write
   `.scl` / `.kbm`.
 - **Cadence**: hear it before playing.
 - The **circle of fifths** and the **purest and roughest major thirds** (the roughest first)

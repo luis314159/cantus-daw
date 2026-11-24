@@ -194,20 +194,24 @@ fn the_tuning_window_adapts_to_a_narrow_screen() {
         "the default unchanged"
     );
     assert_eq!(tuning::split(body(600.0), 1.0).2, tuning::Layout::Stacked);
-    for w in [500.0f32, 700.0, 964.0, 1600.0] {
+    for w in [964.0f32, 1600.0] {
         let (l, r, _) = tuning::split(body(w), 1.0);
         assert!(
             l.width() > 0.0 && r.width() > 0.0 && !l.intersects(r),
             "{w}: {l:?} {r:?}"
         );
     }
+    // Stacked, the controls' rect is the whole body (one scrolling column).
+    assert_eq!(tuning::split(body(600.0), 1.0).0, body(600.0));
     for lang in [Locale::En, Locale::Es] {
         i18n::set_thread_locale(lang);
         for state in STATES {
             for room in [egui::vec2(640.0, 720.0), egui::vec2(900.0, 640.0)] {
                 let (mut app, _) = app_in(state);
                 let (words, keys) = probe_window_in(&mut app, 1.0, true, room);
-                for c in words {
+                // A row cut at the column's scrolling edge is the scroll's (it scrolls into
+                // view); words elided, abbreviated or dropped are not.
+                for c in words.into_iter().filter(|c| !c.ends_with("(clipped)")) {
                     bad.push(format!("{state} {lang:?} {room:?}: {c}"));
                 }
                 let controls: Vec<&(String, egui::Rect)> = keys

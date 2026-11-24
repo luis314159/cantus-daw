@@ -142,9 +142,9 @@ vista *Editar* tiene una tarjeta **Temperamento**:
 - **Tónica**: dónde se asienta una afinación histórica o justa (‹ › un semitono); cada pista de
   Chorda recuerda la suya. Cuando sigue un temperamento del proyecto, muestra la tónica en que
   suena, atenuada: la pone el proyecto.
-- **Tus archivos**: *Guardar como mía* guarda la afinación actual como un archivo Scala tuyo
-  (en la carpeta `Tuning` de los datos), que aparece en *Tus afinaciones*; *Importar…* y
-  *Exportar…* leen y escriben `.scl` / `.kbm`.
+- *Guardar como mía* guarda la afinación actual como un archivo Scala tuyo
+  (en la carpeta `Tuning` de los datos), que aparece en *Tus afinaciones*; *Importar .scl* y
+  *Exportar .scl* leen y escriben `.scl` / `.kbm`.
 - **Cadencia**: óyela antes de tocar.
 - El **círculo de quintas** y las **terceras mayores más puras y más ásperas** (las más ásperas
   primero) dicen qué tonalidades suenan tranquilas y cuáles ásperas; en el temperamento igual
