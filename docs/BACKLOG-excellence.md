@@ -892,6 +892,30 @@ built as Chorda, Tympanum and Arcus were:
    - **The electric.** The pickups (position, single coil or humbucker) feed the amp chain.
    - **The bar.** Ample Guitar and the modelled guitars of Logic and Native Instruments; FL
      Studio and Ableton ship no guitar at this level.
+   - **Two more fretted voices in the family (the owner, 2026-11-24): a banjo and a lap
+     steel, each with its tunings.** They share the guitar's string, pluck, strum tool and
+     tablature.
+   - **Tunings.** The tuning of the open strings is the instrument's own: presets plus any
+     tuning typed string by string. It is separate from the project's temperament
+     (ADR 0155), which still applies on top.
+   - **The banjo.**
+     - **Kinds.** Five-string (with its short drone fifth string), open-back or with a
+       resonator; four-string tenor and plectrum; six-string banjo guitar.
+     - **Tunings.** Five-string: open G (gDGBD), double C (gCGCD), open D (f♯DF♯AD), G modal or
+       sawmill (gDGCD). Tenor: CGDA, Irish GDAE. Plectrum: CGBD.
+     - **Body.** The head's tension and its bright, short decay.
+     - **Playing.** Rolls as a tool (forward, backward, forward-reverse) and clawhammer.
+   - **The lap steel.**
+     - **Strings.** Six, seven, eight and ten, single or double neck (console steel), and the
+       resonator (Dobro-style squareneck).
+     - **Tunings.** C6, A6, E13, C13, B11, open E, open G (Dobro's GBDGBD), open D and E7.
+       The ten-string's pedal-steel E9 and C6 are kept for its own item.
+     - **The bar.** It slides every string under it together, so pitch glides continuously.
+       Its vibrato, slants and lifts are written as the note's glides in the adaptive piano
+       roll's bar lane.
+     - **Playing.** Picks or fingers, and volume-pedal swells.
+     - **Later.** The pedal steel: its pedals and knee levers that raise or lower chosen
+       strings.
 2. **Winds: woodwinds and brass**, one instrument, its own and not part of Arcus. A bore is a
    waveguide with tone holes and a bell. Its exciter is a reed (clarinet, oboe, bassoon,
    saxophones), a jet at an edge (flute) or the lips (brass). Breath, embouchure and breath
