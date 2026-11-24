@@ -147,7 +147,11 @@ fn load(root: &Path) -> Vec<Note> {
     files(root, &mut all);
     let mut out = Vec::new();
     for p in all {
-        let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+        let name = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_string();
         let iowa = name.starts_with("Violin.") || name.starts_with("Viola.");
         let vsco = name.starts_with("LLVln_");
         if !iowa && !vsco {
@@ -171,7 +175,9 @@ fn load(root: &Path) -> Vec<Note> {
             let (Some(dynamic), Some(range)) = (d.and_then(|t| dyn_of(t)), range) else {
                 continue;
             };
-            let Some((lo, used)) = parse_note(range) else { continue };
+            let Some((lo, used)) = parse_note(range) else {
+                continue;
+            };
             let hi = parse_note(&range[used..]).map_or(lo, |(h, _)| h);
             let segs = audio::segments(&m);
             let span = (hi - lo + 1) as usize;
@@ -181,7 +187,12 @@ fn load(root: &Path) -> Vec<Note> {
             }
             for (i, (a, b)) in segs.iter().enumerate() {
                 let x = &m.x[*a..*b];
-                push(&mut out, x, m.sr, (viola, pizz, lo + i as u8, dynamic, "Iowa MIS"));
+                push(
+                    &mut out,
+                    x,
+                    m.sr,
+                    (viola, pizz, lo + i as u8, dynamic, "Iowa MIS"),
+                );
             }
         } else {
             // LLVln_ArcoVib_A4_f · LLVln_Pizz_A4_f (VSCO 2 CE's solo violin).
@@ -196,7 +207,12 @@ fn load(root: &Path) -> Vec<Note> {
                 continue;
             };
             let a = onset(&m.x);
-            push(&mut out, &m.x[a..], m.sr, (false, pizz, key, dynamic, "VSCO 2 CE"));
+            push(
+                &mut out,
+                &m.x[a..],
+                m.sr,
+                (false, pizz, key, dynamic, "VSCO 2 CE"),
+            );
         }
     }
     out
@@ -232,7 +248,13 @@ fn arcus(n: &Note) -> Option<Features> {
     }
     let x = &l[onset(&l)..off];
     let steady = steady_at(x.len() as f64 / SR as f64, n.pizz)?;
-    Some(features::measure(x, SR as f64, hz(n.key as f64), steady, n.pizz))
+    Some(features::measure(
+        x,
+        SR as f64,
+        hz(n.key as f64),
+        steady,
+        n.pizz,
+    ))
 }
 
 /// Each feature's distance between two notes' measures.
@@ -253,10 +275,15 @@ fn dist(a: &Features, b: &Features, pizz: bool) -> [Option<f64>; 6] {
     let (attack, decay) = if pizz {
         let r: Vec<f64> = (0..4)
             .filter_map(|k| {
-                Some(math::log2(a.t60.get(k)?.as_ref()? / b.t60.get(k)?.as_ref()?))
+                Some(math::log2(
+                    a.t60.get(k)?.as_ref()? / b.t60.get(k)?.as_ref()?,
+                ))
             })
             .collect();
-        (None, (!r.is_empty()).then(|| r.iter().sum::<f64>() / r.len() as f64))
+        (
+            None,
+            (!r.is_empty()).then(|| r.iter().sum::<f64>() / r.len() as f64),
+        )
     } else {
         (Some(a.attack_ms - b.attack_ms), None)
     };
@@ -281,7 +308,8 @@ fn ltas(x: &[f32], sr: f64) -> Vec<f64> {
     while at + n <= x.len() {
         let mut re: Vec<f32> = (0..n)
             .map(|i| {
-                x[at + i] * (0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64)) as f32
+                x[at + i]
+                    * (0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64)) as f32
             })
             .collect();
         let mut im = vec![0.0f32; n];
@@ -309,7 +337,10 @@ fn ltas(x: &[f32], sr: f64) -> Vec<f64> {
             }
         }
     }
-    let db: Vec<f64> = sum.iter().map(|v| 10.0 * math::log10(v.max(1e-30))).collect();
+    let db: Vec<f64> = sum
+        .iter()
+        .map(|v| 10.0 * math::log10(v.max(1e-30)))
+        .collect();
     let mean = db.iter().sum::<f64>() / db.len() as f64;
     db.iter().map(|v| v - mean).collect()
 }
@@ -325,19 +356,29 @@ fn cnsm(refs: &Path, report: &mut String) {
     let mut all = Vec::new();
     files(refs, &mut all);
     let mut by: BTreeMap<String, Vec<Vec<f64>>> = BTreeMap::new();
-    for p in all.iter().filter(|p| p.to_string_lossy().contains("recordings")) {
-        let s = p.to_string_lossy().replace('\', "/");
-        let Some(violin) = ["Klimke", "Levaggi", "Stoppani"].into_iter().find(|v| s.contains(v)) else {
+    for p in all
+        .iter()
+        .filter(|p| p.to_string_lossy().contains("recordings"))
+    {
+        let s = p.to_string_lossy().replace('\\', "/");
+        let Some(violin) = ["Klimke", "Levaggi", "Stoppani"]
+            .into_iter()
+            .find(|v| s.contains(v))
+        else {
             continue;
         };
         let Some(m) = audio::read(p) else { continue };
-        by.entry(violin.to_string()).or_default().push(ltas(&m.x, m.sr));
+        by.entry(violin.to_string())
+            .or_default()
+            .push(ltas(&m.x, m.sr));
     }
     if by.is_empty() {
         return;
     }
     let mean = |v: &[Vec<f64>]| -> Vec<f64> {
-        (0..21).map(|i| v.iter().map(|x| x[i]).sum::<f64>() / v.len() as f64).collect()
+        (0..21)
+            .map(|i| v.iter().map(|x| x[i]).sum::<f64>() / v.len() as f64)
+            .collect()
     };
     let violins: Vec<(String, Vec<f64>)> = by.iter().map(|(k, v)| (k.clone(), mean(v))).collect();
     // Arcus: G3 … G5 and back, 0.5 s a note, re-bowed.
@@ -348,7 +389,11 @@ fn cnsm(refs: &Path, report: &mut String) {
         mode: cantus_dsp::voices::PlayMode::Mono,
         ..ArcusSettings::default()
     });
-    let keys: Vec<u8> = scale.iter().chain(scale.iter().rev().skip(1)).cloned().collect();
+    let keys: Vec<u8> = scale
+        .iter()
+        .chain(scale.iter().rev().skip(1))
+        .cloned()
+        .collect();
     let per = (0.5 * SR) as usize;
     let mut out = vec![0.0f32; per * keys.len() + SR as usize];
     let mut r = out.clone();
@@ -357,10 +402,16 @@ fn cnsm(refs: &Path, report: &mut String) {
         let at = i * per;
         a.process(&mut out[at..at + per - 960], &mut r[at..at + per - 960]);
         a.note_off(*k, i as u64 + 1);
-        a.process(&mut out[at + per - 960..at + per], &mut r[at + per - 960..at + per]);
+        a.process(
+            &mut out[at + per - 960..at + per],
+            &mut r[at + per - 960..at + per],
+        );
     }
     let arcus = ltas(&out, SR as f64);
-    let _ = writeln!(report, "The CNSM violins' scales, long-term third-octave spectra (100 Hz – 10 kHz, dB rms):");
+    let _ = writeln!(
+        report,
+        "The CNSM violins' scales, long-term third-octave spectra (100 Hz – 10 kHz, dB rms):"
+    );
     for (i, (va, la)) in violins.iter().enumerate() {
         let others: Vec<String> = violins
             .iter()
@@ -391,7 +442,9 @@ fn main() {
     let mut rows = String::new();
     for n in &notes {
         let Some(f) = arcus(n) else { continue };
-        let e = acc.entry((n.viola, n.pizz)).or_insert_with(Default::default);
+        let e = acc
+            .entry((n.viola, n.pizz))
+            .or_insert_with(Default::default);
         let d = dist(&f, &n.f, n.pizz);
         for (i, v) in d.iter().enumerate() {
             if let Some(v) = v {
@@ -411,7 +464,9 @@ fn main() {
             }
         }
         if let (Some(a), Some(b)) = (f.vib, n.f.vib) {
-            vib.entry((n.viola, n.pizz)).or_default().push((a.0 - b.0, a.1 - b.1));
+            vib.entry((n.viola, n.pizz))
+                .or_default()
+                .push((a.0 - b.0, a.1 - b.1));
         }
         let _ = writeln!(
             rows,
