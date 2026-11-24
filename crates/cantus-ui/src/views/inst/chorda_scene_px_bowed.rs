@@ -10,8 +10,9 @@ use super::geo::{ear_clip, of, perp, vt, Geo};
 use super::mat::{finish, lin3, parts, MatId, PMat, Tex};
 use super::mesh::V3;
 use crate::kit::skin::scene::bowed as pal;
+use crate::kit::skin::scene::hold as hp; // r42:arcus-upper
 use crate::scene::bowed::Bowed;
-use crate::scene::bowed_mesh::{mesh, Role};
+use crate::scene::bowed_mesh::{mesh_for, Role};
 use std::collections::HashMap;
 
 /// The photographic material of a role.
@@ -48,7 +49,13 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Bowed::Violin => (pal::VIOLIN_TOP, pal::VIOLIN_MAPLE), // r42:arcus-upper
         Bowed::Viola => (pal::VIOLA_TOP, pal::VIOLA_MAPLE),    // r42:arcus-upper
     };
+    let held = b.dims().held; // r42:arcus-upper
     match r {
+        // r42:arcus-upper — a violin's or a viola's: its spruce's lines finer than a pixel
+        // at the picture's sizes (they fade to the wood's slow streaks, no moiré), its
+        // flame half as strong (stripes, not bars).
+        Role::Top if held => tone(&top, 1100.0, 0.0, 71),
+        Role::Maple if held => tone(&maple, 260.0, 0.45, 73),
         Role::Top => tone(&top, 520.0, 0.0, 71),
         Role::Maple => tone(&maple, 260.0, 1.0, 73),
         Role::Inside => {
@@ -78,12 +85,24 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::Wound => PMat::metal(lin3(pal::TUNGSTEN.tint), 0.22),
         Role::Chair => finish(&crate::kit::skin::scene::FINISH_WALNUT, 91),
         Role::Seat => PMat::matte(lin3(pal::SEAT.albedo)).with(Tex::Fabric),
+        // r42:arcus-upper — what holds it: the Drawn picture's materials, seen per pixel.
+        Role::Stand => PMat::lacquer(lin3(hp::STAND.albedo), 0.35, 0.25),
+        Role::Pad => PMat::matte(lin3(hp::PAD.albedo)).with(Tex::Fabric),
+        Role::Skin(i) => PMat::matte(lin3(hp::skin(i).albedo)),
+        Role::Cloth(i) => PMat::matte(lin3(hp::cloth(i).albedo)).with(Tex::Fabric),
+        Role::Trousers => PMat::matte(lin3(hp::TROUSERS)).with(Tex::Fabric),
+        Role::Shoes => PMat::lacquer(lin3(hp::SHOES), 0.4, 0.2),
+        Role::Hair => PMat::matte(lin3(hp::HAIR)),
+        Role::Feature => PMat::matte(lin3(hp::FEATURE)),
+        Role::Blush => PMat::matte(lin3(hp::BLUSH)),
+        Role::Wood(i) => PMat::lacquer(lin3(hp::wood(i, false).albedo), 0.3, 0.3),
+        Role::Joint(i) => PMat::lacquer(lin3(hp::wood(i, true).albedo), 0.3, 0.3),
     }
 }
 
 /// `b` added to `g` (its triangles after the room's).
-pub fn build(g: &mut Geo, b: Bowed) {
-    let m = mesh(b);
+pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
+    let m = mesh_for(b, h); // r42:arcus-upper
     let mut ids: HashMap<Role, MatId> = HashMap::new();
     let mut id = |g: &mut Geo, r: Role| *ids.entry(r).or_insert_with(|| g.mat(pmat(b, r)));
     let uvm = |uv: [f32; 2]| [uv[0] / 100.0, uv[1] / 100.0];

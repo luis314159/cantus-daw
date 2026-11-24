@@ -13,8 +13,11 @@
 pub mod backend;
 pub mod bowed;
 pub mod bowed_draw;
+pub mod bowed_figure; // r42:arcus-upper
+pub mod bowed_figure_parts; // r42:arcus-upper
 pub mod bowed_fit;
 pub mod bowed_head;
+pub mod bowed_hold; // r42:arcus-upper
 pub mod bowed_mesh;
 pub mod bowed_props;
 pub mod bowed_upper; // r42:arcus-upper
@@ -148,7 +151,11 @@ pub enum Subject {
     /// Arcus (r42:arcus-look): the cello or the double bass standing on its endpin. What
     /// it plays (the sounding string, the finger, the bow) is drawn live over the picture
     /// by its view, from [`bowed::rig`] and the build's camera.
-    Bowed { instrument: bowed::Bowed },
+    Bowed {
+        instrument: bowed::Bowed,
+        /// What holds it (r42:arcus-upper): nothing, a stand, a musician, a mannequin.
+        holder: bowed_hold::Holder,
+    },
 }
 
 /// One scene to draw, and what is lit in it.
@@ -276,7 +283,9 @@ pub(crate) fn build(w: &Want) -> compose::Built {
             let km = mics.then(|| kit_mics(def));
             compose::kit_scene(&pieces, &finish_mat(*finish), km.as_deref(), &st)
         }
-        Subject::Bowed { instrument } => bowed_draw::bowed_scene(*instrument, &st),
+        Subject::Bowed { instrument, holder } => {
+            bowed_draw::bowed_scene(*instrument, *holder, &st) // r42:arcus-upper
+        }
     };
     if let Some(m) = &mut b.model {
         m.subject = Some(w.subject.clone());

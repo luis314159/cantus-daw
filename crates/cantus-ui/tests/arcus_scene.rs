@@ -55,7 +55,10 @@ fn turn() -> std::sync::MutexGuard<'static, ()> {
 
 fn view(b: Bowed, room: Room, dark: bool) -> SceneView {
     SceneView {
-        subject: Subject::Bowed { instrument: b },
+        subject: Subject::Bowed {
+            instrument: b,
+            holder: Default::default(), // r42:arcus-upper
+        },
         room,
         look: Default::default(),
         dark,

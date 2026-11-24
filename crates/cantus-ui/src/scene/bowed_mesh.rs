@@ -8,8 +8,9 @@
 //! scene's size, theme or look changes, never per frame.
 
 use super::bowed::{arch, dist, outline, reach, rib, Bowed, Dims, Pose};
+use super::bowed_hold::{Hold, Holder}; // r42:arcus-upper
 use super::geo::V3;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// What a surface is made of.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -44,6 +45,20 @@ pub enum Role {
     /// The player's chair or stool: its stained wood, its seat's cloth.
     Chair,
     Seat,
+    /// What holds it (`bowed_hold`, r42:arcus-upper): a stand's steel and pads; the
+    /// musician's skin, clothes (by tone), trousers, shoes, hair, the face's strokes and
+    /// cheeks; the wooden mannequin and its joints (by tone).
+    Stand,
+    Pad,
+    Skin(u8),
+    Cloth(u8),
+    Trousers,
+    Shoes,
+    Hair,
+    Feature,
+    Blush,
+    Wood(u8),
+    Joint(u8),
 }
 
 /// A grid of points (`rows` × `cols`, row-major) with normals and grain coordinates (cm:
@@ -172,18 +187,45 @@ pub fn mesh(b: Bowed) -> Arc<Mesh> {
         Bowed::Violin => &VIOLIN, // r42:arcus-upper
         Bowed::Viola => &VIOLA,   // r42:arcus-upper
     };
-    cell.get_or_init(|| Arc::new(build(b))).clone()
+    cell.get_or_init(|| Arc::new(build(b, Holder::default())))
+        .clone()
 }
 
-fn build(b: Bowed) -> Mesh {
+/// `b`'s surfaces as `h` holds it (r42:arcus-upper): the default from [`mesh`], the others
+/// built on first use and kept (a few at a time).
+pub fn mesh_for(b: Bowed, h: Holder) -> Arc<Mesh> {
+    if h == Holder::default() {
+        return mesh(b);
+    }
+    static KEPT: Mutex<Vec<((Bowed, Holder), Arc<Mesh>)>> = Mutex::new(Vec::new());
+    let mut kept = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(i) = kept.iter().position(|(k, _)| *k == (b, h)) {
+        let e = kept.remove(i);
+        let m = e.1.clone();
+        kept.push(e);
+        return m;
+    }
+    let m = Arc::new(build(b, h));
+    if kept.len() >= 8 {
+        kept.remove(0);
+    }
+    kept.push(((b, h), m.clone()));
+    m
+}
+
+fn build(b: Bowed, h: Holder) -> Mesh {
     let d = b.dims();
-    let pose = Pose::of(b);
+    let pose = super::bowed_hold::pose(b, h); // r42:arcus-upper
     let mut m = Mesh::default();
     let o = outline(b, 8);
     body(&mut m, d, &pose, &o);
     super::bowed_head::neck(&mut m, d, &pose);
     super::bowed_fit::fittings(&mut m, d, &pose, &o);
-    super::bowed_props::furniture(&mut m, b, &pose);
+    if h.hold != Hold::Stand {
+        // r42:arcus-upper
+        super::bowed_props::furniture(&mut m, b, &pose);
+    } // r42:arcus-upper
+    super::bowed_hold::build(&mut m, b, &pose, h); // r42:arcus-upper
     m
 }
 

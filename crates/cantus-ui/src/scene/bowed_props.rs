@@ -57,7 +57,8 @@ fn rod(m: &mut Mesh, role: Role, a: V3, b: V3, r: f32) {
 
 /// The cellist's chair: a wooden chair without arms, its seat at 47 cm, behind the cello
 /// where the player sits, facing the audience.
-fn chair(m: &mut Mesh, at: V3, yaw: f32) {
+pub(super) fn chair(m: &mut Mesh, at: V3, yaw: f32) {
+    // r42:arcus-upper
     let (s, co) = yaw.sin_cos();
     let local = |x: f32, y: f32, z: f32| at + v(x * co + z * s, y, -x * s + z * co);
     block(

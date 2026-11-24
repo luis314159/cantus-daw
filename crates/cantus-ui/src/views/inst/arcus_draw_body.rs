@@ -54,6 +54,10 @@ pub struct Play<'a> {
     pub time: f64,
     pub vibrato: f32,
     pub lit: Color32,
+    /// What holds the instrument (its figure's right arm is drawn here, to the frog) and
+    /// whether the left hand's fingertip shows (this machine's preferences). // r42:arcus-upper
+    pub holder: crate::scene::bowed_hold::Holder, // r42:arcus-upper
+    pub finger: bool, // r42:arcus-upper
 }
 
 fn c(s: [u8; 3]) -> Color32 {
@@ -140,19 +144,26 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     b.glow_polyline(&line, w0, core, glow, s.s(if sounding { 3.0 } else { 1.5 }));
     // ---- the left hand's finger, stopping the string ----
     let up = along.norm();
-    if st < 0.995 {
-        let j1 = finger + ex * (1.5 * k) + ez * (2.2 * k) + up * (0.4 * k);
-        let j2 = j1 + ex * (2.6 * k) + ez * (0.9 * k) + up * (0.6 * k);
-        fingertip(b, v, finger, j1, j2, 0.78 * k, false);
+    // A person's finger whatever the instrument's size: a violinist's is a cellist's. // r42:arcus-upper
+    let kf = if d.held { 1.0 } else { k }; // r42:arcus-upper
+    if st < 0.995 && pl.finger {
+        let j1 = finger + ex * (1.5 * kf) + ez * (2.2 * kf) + up * (0.4 * kf);
+        let j2 = j1 + ex * (2.6 * kf) + ez * (0.9 * kf) + up * (0.6 * kf);
+        fingertip(b, v, finger, j1, j2, 0.78 * kf, false);
     }
     if pizz {
         let tip = contact - side * pulled;
-        let j1 = tip - ex * (1.7 * k) + ez * (2.0 * k) - up * (0.5 * k);
-        let j2 = j1 - ex * (2.6 * k) + ez * (0.7 * k) - up * (0.8 * k);
-        fingertip(b, v, tip, j1, j2, 0.72 * k, true);
+        let j1 = tip - ex * (1.7 * kf) + ez * (2.0 * kf) - up * (0.5 * kf);
+        let j2 = j1 - ex * (2.6 * kf) + ez * (0.7 * kf) - up * (0.8 * kf);
+        fingertip(b, v, tip, j1, j2, 0.72 * kf, true);
         return;
     }
-    bow(b, v, pl, contact, i);
+    let (frog, dir, n) = bow(b, v, pl, contact, i);
+    // The figure's right arm to the frog (a musician's sleeve and hand, the mannequin's
+    // wood). // r42:arcus-upper
+    if let Some(arm) = crate::scene::bowed_hold::arm(pl.b, pl.holder) {
+        super::arm::right_arm(b, v, &arm, frog, dir, n);
+    }
 }
 
 /// A finger: its tip pressing at `tip`, its joints `j1`, `j2` (its hand beyond, faded
@@ -213,8 +224,9 @@ fn measures(b: Bowed) -> (f32, f32) {
     }
 }
 
-/// The bow across string `i` at `contact`.
-fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) {
+/// The bow across string `i` at `contact`; where its frog is, its way (frog to tip) and the
+/// string's normal (r42:arcus-upper: for the arm that holds it).
+fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) -> (V3, V3, V3) {
     let rig = pl.rig;
     let k = pl.b.dims().body / 75.7;
     let [_, bridge, nut] = rig.strings[i];
@@ -352,6 +364,7 @@ fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) {
         one(b, -sign * 1.3 * speed * k, 0.24);
     }
     one(b, 0.0, 1.0);
+    (base - dir * (at * hair), dir, n) // r42:arcus-upper
 }
 
 /// Where the bow meets the string along its hair after `dt` seconds at `speed` m/s (down

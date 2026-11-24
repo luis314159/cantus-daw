@@ -928,3 +928,7 @@ pub mod ink {
 /// r42:arcus-look — the bowed strings' materials (Arcus's cello and double bass).
 #[path = "scene_bowed.rs"]
 pub mod bowed;
+
+/// r42:arcus-upper — what holds an Arcus instrument: stands, the musician, the mannequin.
+#[path = "scene_hold.rs"]
+pub mod hold; // r42:arcus-upper

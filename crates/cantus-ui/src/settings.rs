@@ -275,6 +275,14 @@ pub struct Settings {
     /// controls moved), by their key. A preference, never project data.
     #[serde(default)]
     pub notices_seen: Vec<String>,
+    /// r42:arcus-upper — what holds Arcus's instruments in their pictures (nothing, a
+    /// stand, a musician, a mannequin) and the figure's tones; the same for the four
+    /// instruments, as *Drawn* / *Photographic* is (ADR 0157 amended). A preference of this
+    /// machine, never the project's: the picture only, never heard.
+    pub arcus_holder: crate::scene::bowed_hold::Holder,
+    /// r42:arcus-upper — whether the left hand's fingertip is drawn where the note stops
+    /// the string (on by default).
+    pub arcus_finger: bool,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -410,6 +418,8 @@ impl Default for Settings {
             section_drag: Default::default(),        // r40:ripple
             instrument_pictures: Default::default(), // r40:scene
             notices_seen: Vec::new(),                // r40:chorda-src
+            arcus_holder: Default::default(),        // r42:arcus-upper
+            arcus_finger: true,                      // r42:arcus-upper
         }
     }
 }

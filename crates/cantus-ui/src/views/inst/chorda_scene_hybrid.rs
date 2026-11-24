@@ -476,21 +476,21 @@ fn bake_view(
             let r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
             raster::bake(&g, split, &r, &cam, w, h, q, threads)
         }
-        Subject::Bowed { instrument } => {
+        Subject::Bowed { instrument, holder } => {
             // r42:arcus-look — Arcus's cello or double bass, framed as the Drawn picture
             // frames it.
             use crate::scene::bowed_draw as bd;
-            let b = *instrument;
+            let (b, hd) = (*instrument, *holder); // r42:arcus-upper
             let d = b.dims();
-            let mut sc = bd::camera(b, view.room);
-            let pts = bd::points(b);
+            let mut sc = bd::camera(b, hd, view.room); // r42:arcus-upper
+            let pts = bd::points(b, hd); // r42:arcus-upper
             let fr = bd::frame_for(size);
             sc.fit(&pts, fit_box(&fr, size), fr.margin, fr.anchor);
             if let Some(c) = fitted {
                 sc = *c;
             }
             let cam = camera_of(&sc, ppp);
-            let mid = crate::scene::bowed::Pose::of(b).at(0.0, d.body * 0.5, 0.0);
+            let mid = crate::scene::bowed_hold::pose(b, hd).at(0.0, d.body * 0.5, 0.0); // r42:arcus-upper
             let built = room::build(
                 &mut g,
                 view.room,
@@ -501,8 +501,8 @@ fn bake_view(
                 m.glow,
             );
             let split = g.tris.len();
-            bowed::build(&mut g, b);
-            // Its two microphones, by the photographic gear.
+            bowed::build(&mut g, b, hd); // r42:arcus-upper
+                                         // Its two microphones, by the photographic gear.
             let km = kit::KitMats::new(
                 &mut g,
                 &finish_mat(cantus_core::inst::chorda_look::Finish::Black),
@@ -511,7 +511,13 @@ fn bake_view(
             gear::kit(&mut g, &gm, &crate::scene::bowed_props::mics(b));
             let pl = Place {
                 mid: geo::cm(mid.x, mid.y, mid.z),
-                key: geo::cm(mid.x - 110.0, 360.0, mid.z + 200.0),
+                key: if d.held && hd.hold == crate::scene::bowed_hold::Hold::Air {
+                    // r42:arcus-upper — in the air: the key near the camera, above it and to
+                    // its left, so the instrument's shadow falls on the wall behind.
+                    geo::cm(sc.pos.x - 70.0, sc.pos.y + 90.0, sc.pos.z)
+                } else {
+                    geo::cm(mid.x - 110.0, 360.0, mid.z + 200.0)
+                },
                 focus: geo::cm(mid.x, 0.0, mid.z),
                 far: far_of(&cam, &pts),
             };

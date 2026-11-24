@@ -14,8 +14,10 @@
 //!   log axes, the region of Helmholtz motion this model measures, the bow's point — the
 //!   diagram is the control too.
 
+#[path = "arcus_draw_arm.rs"]
+mod arm;
 #[path = "arcus_draw_body.rs"]
-mod body;
+mod body; // r42:arcus-upper
 
 use crate::app::CantusApp;
 use crate::kit::color::with_alpha;
@@ -125,10 +127,15 @@ pub fn bowed_of(fs: &ArcusSettings) -> crate::scene::bowed::Bowed {
 
 /// The scene `fs`'s instrument is drawn as (r42:arcus-look): the cello or the double bass
 /// standing in the studio's live room Chorda and Tympanum stand in, in the theme's light.
-pub fn scene_view(fs: &ArcusSettings, s: &Style) -> crate::scene::SceneView {
+pub fn scene_view(
+    fs: &ArcusSettings,
+    s: &Style,
+    holder: crate::scene::bowed_hold::Holder, // r42:arcus-upper
+) -> crate::scene::SceneView {
     crate::scene::SceneView {
         subject: crate::scene::Subject::Bowed {
             instrument: bowed_of(fs),
+            holder, // r42:arcus-upper
         },
         room: crate::scene::Room::Studio,
         look: Default::default(),
@@ -157,7 +164,9 @@ pub fn picture(
 ) {
     drag(app, ui, track, d.shrink(s.s(4.0)), "picture");
     let n = now(fs, tele);
-    let view = scene_view(fs, s);
+    // What holds it and whether the finger shows: this machine's preferences. // r42:arcus-upper
+    let (holder, finger) = (app.settings.arcus_holder, app.settings.arcus_finger); // r42:arcus-upper
+    let view = scene_view(fs, s, holder); // r42:arcus-upper
     let painter = ui.painter_at(d);
     let time = ui.input(|i| i.time);
     let entry = app
@@ -185,7 +194,7 @@ pub fn picture(
             shown.height() / built.size.y.max(1.0),
         ),
     };
-    let rig = crate::scene::bowed::rig(b);
+    let rig = crate::scene::bowed::rig_for(b, holder); // r42:arcus-upper
     let pl = body::Play {
         b,
         rig: &rig,
@@ -195,6 +204,8 @@ pub fn picture(
         time,
         vibrato: tele[tel::VIBRATO].clamp(0.0, 1.0),
         lit: super::face::voice2(s, s.hue),
+        holder, // r42:arcus-upper
+        finger, // r42:arcus-upper
     };
     crate::kit::with_brush(&painter, |br| body::live(br, &v, &pl, s));
     if moving || (n.live && n.level > 0.0) {

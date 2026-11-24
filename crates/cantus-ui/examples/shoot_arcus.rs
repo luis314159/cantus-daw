@@ -12,6 +12,7 @@ use cantus_core::inst::InstrumentKind;
 use cantus_engine::EngineHandle;
 use cantus_ui::kit::shell::Shell;
 use cantus_ui::raster::shoot;
+use cantus_ui::scene::bowed_hold::{Hold, Holder}; // r42:arcus-upper
 use cantus_ui::views::inst::View;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;
@@ -31,7 +32,7 @@ fn context(dark: bool) -> egui::Context {
 
 /// r42:arcus-look — `--scene`: the instrument's picture alone (the cello and the bass, Drawn
 /// and Photographic, Night and Paper) at the Play view's size, for the design sheet.
-fn scenes(dir: &std::path::Path, zoom: f32, only: Option<&str>) {
+fn scenes(dir: &std::path::Path, zoom: f32, only: Option<&str>, holds: &[Hold]) {
     use cantus_ui::scene::{self, bowed::Bowed, Room, SceneBackend, SceneView, Subject};
     cantus_ui::views::inst::chorda::scene::hybrid::register();
     scene::set_blocking(true);
@@ -42,19 +43,25 @@ fn scenes(dir: &std::path::Path, zoom: f32, only: Option<&str>) {
         ("violin", Bowed::Violin), // r42:arcus-upper
         ("viola", Bowed::Viola),   // r42:arcus-upper
     ] {
-        for (look, be) in [
+        for (look, be, &hold) in [
             ("drawn", SceneBackend::Vector),
             ("photo", SceneBackend::PerPixel),
-        ] {
+        ]
+        .into_iter()
+        .flat_map(|(l, be)| holds.iter().map(move |h| (l, be, h)))
+        {
             for (theme, dark) in [("night", true), ("paper", false)] {
-                let tag = format!("{name}-{look}-{theme}");
+                let tag = format!("{name}{}-{look}-{theme}", hold_tag(hold));
                 if only.is_some_and(|o| !tag.contains(o)) {
                     continue;
                 }
                 scene::backend::set_default(be);
                 let ctx = context(dark);
                 let view = SceneView {
-                    subject: Subject::Bowed { instrument: b },
+                    subject: Subject::Bowed {
+                        instrument: b,
+                        holder: Holder::of(hold), // r42:arcus-upper
+                    },
                     room: Room::Studio,
                     look: Default::default(),
                     dark,
@@ -199,7 +206,7 @@ fn main() {
             .map(|z| z.split(',').filter_map(|v| v.parse().ok()).collect())
             .unwrap_or_else(|| vec![1.0, 2.0]);
         for z in zooms {
-            scenes(&dir, z, only);
+            scenes(&dir, z, only, &holds(&args));
         }
         return;
     }
@@ -234,11 +241,18 @@ fn main() {
         ("photo", cantus_ui::scene::SceneBackend::PerPixel),
     ];
     for (name, view, inst, tech, string, key) in states {
-        for (look, be) in looks {
+        for (look, be, hold) in looks
+            .into_iter()
+            .flat_map(|(l, be)| holds(&args).into_iter().map(move |h| (l, be, h)))
+        {
             for dark in [true, false] {
                 for k in [1.0f32, 2.0] {
                     let theme = if dark { "night" } else { "paper" };
-                    let tag = format!("{name}-{look}-{theme}-{lang}-{}", (k * 100.0) as u32);
+                    let tag = format!(
+                        "{name}{}-{look}-{theme}-{lang}-{}",
+                        hold_tag(hold),
+                        (k * 100.0) as u32
+                    );
                     if only.is_some_and(|o| !tag.contains(o)) {
                         continue;
                     }
@@ -249,6 +263,7 @@ fn main() {
                         EngineHandle::dummy(),
                         false,
                     );
+                    app.settings.arcus_holder = Holder::of(hold); // r42:arcus-upper
                     app.demo_editor("arcus");
                     let Some(t) = app.inst.open else {
                         panic!("no Arcus editor")
@@ -280,4 +295,23 @@ fn main() {
         }
     }
     cantus_ui::scene::backend::set_default(cantus_ui::scene::SceneBackend::Vector);
+}
+
+/// r42:arcus-upper — `--hold=air,stand,player,mannequin` (or `all`): what holds the
+/// instrument in the shots; nothing by default (the names then as before).
+fn holds(args: &[String]) -> Vec<Hold> {
+    match args.iter().find_map(|a| a.strip_prefix("--hold=")) {
+        None => vec![Hold::Air],
+        Some("all") => Hold::ALL.to_vec(),
+        Some(list) => list.split(',').filter_map(Hold::from_key).collect(),
+    }
+}
+
+/// A shot's name for `h`: none for nothing (as before), else `-stand`, `-player`, ….
+fn hold_tag(h: Hold) -> String {
+    if h == Hold::Air {
+        String::new()
+    } else {
+        format!("-{}", h.key())
+    }
 }

@@ -508,8 +508,13 @@ pub struct Rig {
 }
 
 pub fn rig(b: Bowed) -> Rig {
+    rig_for(b, super::bowed_hold::Holder::default()) // r42:arcus-upper
+}
+
+/// [`rig`] as `h` holds the instrument (a violin on its stand stands otherwise). // r42:arcus-upper
+pub fn rig_for(b: Bowed, h: super::bowed_hold::Holder) -> Rig {
     let d = b.dims();
-    let pose = Pose::of(b);
+    let pose = super::bowed_hold::pose(b, h); // r42:arcus-upper
     let r = bridge_r(d);
     let top = d.arch + d.bridge_h;
     let mut strings = [[V3::default(); 3]; 4];
