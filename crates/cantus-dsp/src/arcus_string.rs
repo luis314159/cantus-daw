@@ -43,6 +43,9 @@ use crate::math;
 
 /// The lowest fundamental the lines hold, Hz (a bass's E1 bent and vibrated down).
 pub const MIN_HZ: f64 = 25.0;
+/// r42 fix2-arcus — the shortest loop, samples: the highest fundamental a rate allows is
+/// `rate / SHORTEST` ([`BowedString::max_hz`]).
+pub const SHORTEST: f64 = 12.0;
 /// A sample below this is silence for the gate.
 const QUIET: f32 = 1e-8;
 /// The DC blocker's corner, as a fraction of the fundamental (Fides's, `fides::string`).
@@ -282,7 +285,8 @@ pub struct BowedString {
     live: bool,
     /// The highest fundamental this rate allows.
     pub max_hz: f64,
-    /// The lowest its lines hold at this rate (`MIN_HZ` at the rate it was built for). // r42:arcus-upper
+    /// The lowest its lines hold at this rate (the rate over the period they were built to
+    /// hold). // r42:arcus-upper
     min_hz: f64, // r42:arcus-upper
 }
 
@@ -344,8 +348,16 @@ pub fn slip_root(k: &Curve, abs_u: f32, r: f32) -> Option<f32> {
 
 impl BowedString {
     pub fn new(sample_rate: f32) -> Self {
+        Self::with_reach(sample_rate, (sample_rate as f64 / MIN_HZ).ceil() as usize)
+    }
+
+    /// r42 fix2-arcus — a string whose lines hold a period of `held` samples (at whatever
+    /// rate it later runs: the lowest it plays is `rate / held`). Allocates: never on the
+    /// audio thread.
+    pub fn with_reach(sample_rate: f32, held: usize) -> Self {
         let sr = sample_rate as f64;
-        let longest = (sr / MIN_HZ).ceil() as usize + LINE_SPARE;
+        let held = held.max(64);
+        let longest = held + LINE_SPARE;
         BowedString {
             sr,
             neck: vec![0.0; longest],
@@ -391,20 +403,21 @@ impl BowedString {
             law: ThermalLaw::new(),
             quiet: 0,
             live: false,
-            max_hz: sr / 12.0,
-            min_hz: MIN_HZ, // r42:arcus-upper
+            max_hz: sr / SHORTEST,
+            min_hz: sr / held as f64, // r42 fix2-arcus: what the lines hold
         }
         .with_curve(Curve::default())
     }
 
     /// Run at `sample_rate` from now on (the upper strings' voices at `os ×` the rate it was
     /// built for), its waves let go. No allocation: the lines keep their length, so the
-    /// lowest fundamental they hold rises with the rate. // r42:arcus-upper
+    /// lowest fundamental they hold rises with the rate (a voice sizes them for every rate
+    /// it runs at: `voice::reach`). // r42:arcus-upper
     pub fn set_rate(&mut self, sample_rate: f32) {
         self.sr = sample_rate as f64;
-        self.max_hz = self.sr / 12.0;
+        self.max_hz = self.sr / SHORTEST;
         let held = (self.neck.len() - LINE_SPARE) as f64;
-        self.min_hz = MIN_HZ.max(self.sr / held);
+        self.min_hz = self.sr / held;
         self.set_curve(self.curve);
         self.clear();
     }
@@ -504,6 +517,11 @@ impl BowedString {
 
     pub fn z0(&self) -> f32 {
         self.z0
+    }
+
+    /// r42 fix2-arcus — the lowest fundamental its lines hold at its rate now, Hz.
+    pub fn min_hz(&self) -> f64 {
+        self.min_hz
     }
 
     /// The period now, in samples.

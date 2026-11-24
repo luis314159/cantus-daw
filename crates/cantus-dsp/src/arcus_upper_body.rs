@@ -56,6 +56,9 @@ pub struct Shape {
     pub mix: f32,
     /// The modes above `CLOUD_HZ.0`, fitted and cloud, × this (see [`HF_TRIM`]).
     pub hf_trim: f32,
+    /// r42 fix2-arcus — the instrument's own size (`size` at the knob's 1): where the power
+    /// gain is measured exactly.
+    pub own: f32,
 }
 
 /// The body on the audio thread.
@@ -77,7 +80,26 @@ pub struct UpperBody {
     wet: f32,
     still: bool,
     fed: bool,
+    /// r42 fix2-arcus — the cloud's levels (the fitted response's at each cloud mode's own
+    /// frequency, which neither the size nor the ring moves), for the modes they were taken
+    /// from.
+    cloud_for: Option<&'static [Mode]>,
+    cloud_level: [f64; CLOUD],
+    /// r42 fix2-arcus — the exact power gain (each microphone) measured at the instrument's
+    /// own size on the ring's lattice ([`RING_LATTICE`]), `NAN` until measured, for the shape
+    /// it was measured on (its modes, own size and trim).
+    norm_for: Option<(&'static [Mode], u32, u32)>,
+    norm: [[f64; 2]; RING_LATTICE],
+    /// How many exact measures were taken (each `O(n²)`): tests.
+    measured: u32,
 }
+
+/// r42 fix2-arcus — the ring's lattice: the exact power is measured at `ring = 2^(k/8)`,
+/// `k = −16 … 16` (the knob's ¼ … 4), and the power between two neighbours interpolated in
+/// the logarithm (at a lattice point, ring 1 among them, it is the measure itself).
+pub const RING_PER_OCTAVE: f64 = 8.0;
+const RING_HALF: i32 = 16;
+pub const RING_LATTICE: usize = 2 * RING_HALF as usize + 1;
 
 /// A body whose every mode is below this is still: its state is zeroed.
 const STILL: f32 = 1e-10;
@@ -100,7 +122,17 @@ impl UpperBody {
             wet: 0.0,
             still: true,
             fed: false,
+            cloud_for: None,
+            cloud_level: [0.0; CLOUD],
+            norm_for: None,
+            norm: [[f64::NAN; 2]; RING_LATTICE],
+            measured: 0,
         }
+    }
+
+    /// r42 fix2-arcus — how many exact power measures (`O(n²)` each) it has taken.
+    pub fn measures(&self) -> u32 {
+        self.measured
     }
 
     /// In use (an upper string's body is set).
@@ -135,18 +167,25 @@ impl UpperBody {
         self.wet = mix;
     }
 
-    fn design(&mut self, sh: &Shape) {
+    /// r42 fix2-arcus — the modes' poles and weights at `size` and `ring` (each mode on its
+    /// own, `O(n)`), into `coefs`; how many are in use.
+    fn coefs(&mut self, sh: &Shape, size: f32, ring: f32, coefs: &mut [Coef; MODES]) -> usize {
         let t = 1.0 / self.sr;
         let nyq = 0.45 * self.sr;
+        if !self.cloud_for.is_some_and(|m| std::ptr::eq(m, sh.modes)) {
+            for (c, level) in self.cloud_level.iter_mut().enumerate() {
+                *level = envelope(sh.modes, cloud_hz(c));
+            }
+            self.cloud_for = Some(sh.modes);
+        }
         let mut used = 0;
-        let mut coefs = [(0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64); MODES];
         let fitted = sh.modes.len().min(MODES - CLOUD);
         for (k, m) in sh.modes.iter().take(fitted).enumerate() {
-            let hz = m.hz as f64 / sh.size.max(0.1) as f64;
+            let hz = m.hz as f64 / size.max(0.1) as f64;
             if hz >= nyq {
                 continue;
             }
-            let q = (m.q * sh.ring.max(0.05)) as f64;
+            let q = (m.q * ring.max(0.05)) as f64;
             let (gl, gr) = radiation(k as u64, hz);
             let trim = if m.hz as f64 >= CLOUD_HZ.0 {
                 sh.hf_trim as f64
@@ -158,39 +197,82 @@ impl UpperBody {
         }
         // The cloud: modes the fit does not resolve, at the measured response's level.
         for c in 0..CLOUD {
-            let u = (c as f64 + 0.15 + 0.7 * hash(c as u64, 41)) / CLOUD as f64;
-            let hz0 = CLOUD_HZ.0 * math::exp2(u * math::log2(CLOUD_HZ.1 / CLOUD_HZ.0));
-            let hz = hz0 / sh.size.max(0.1) as f64;
+            let hz = cloud_hz(c) / size.max(0.1) as f64;
             if hz >= nyq {
                 continue;
             }
-            let level = envelope(sh.modes, hz0);
-            let q = CLOUD_Q * (0.7 + 0.6 * hash(c as u64, 43)) * sh.ring.max(0.05) as f64;
+            let level = self.cloud_level[c];
+            let q = CLOUD_Q * (0.7 + 0.6 * hash(c as u64, 43)) * ring.max(0.05) as f64;
             let (gl, gr) = radiation(1000 + c as u64, hz.max(RADIATION_HZ));
             let a = sh.hf_trim as f64 * CLOUD_GAIN * level * (0.8 + 0.4 * hash(c as u64, 47));
             coefs[used] = mode_coefs(hz, q, a, gl, gr, t);
             used += 1;
         }
-        // The body's power gain to white noise is one (each microphone): the sum of the
-        // squared impulse responses, from each mode's own and the pairs' cross terms.
-        let mut power = [0.0f64; 2];
-        for (ch, pw) in power.iter_mut().enumerate() {
-            let mut acc = 0.0f64;
-            for a in coefs.iter().take(used) {
-                for b in coefs.iter().take(used) {
-                    acc += cross(a, b, ch);
-                }
-            }
-            *pw = acc.max(1e-30);
+        used
+    }
+
+    /// The exact power gain at the instrument's own size `own` and the ring's lattice point
+    /// `k` (measured once per shape).
+    fn power_at(&mut self, sh: &Shape, own: f32, k: i32) -> [f64; 2] {
+        let ix = (k + RING_HALF) as usize;
+        if self.norm[ix][0].is_nan() {
+            let ring = math::exp2(k as f64 / RING_PER_OCTAVE) as f32;
+            let mut coefs = [ZERO; MODES];
+            let used = self.coefs(sh, own, ring, &mut coefs);
+            self.norm[ix] = exact_power(&coefs, used);
+            self.measured += 1;
         }
+        self.norm[ix]
+    }
+
+    /// The body's power gain to white noise (each microphone) at the shape's size and ring:
+    /// measured exactly at the instrument's own size on the ring's lattice, carried to a ring
+    /// between two lattice points in the logarithm, and to the size by its law — every mode's
+    /// frequency and bandwidth over the size, so the impulse response's energy is the own
+    /// size's × `own / size` (`h_c(t) = c·h(ct)`, which the discrete design keeps to the first
+    /// order in the sampling interval: `upper_tests_rate::the_body_s_power_law_holds`). At the
+    /// instrument's own size and a lattice point (the defaults) it is the measure itself, to
+    /// the bit.
+    ///
+    /// Before (round 42's first build), every change of the size or the ring measured the
+    /// power anew, `O(n²)` — 21 600 cross terms — and a modulated body changes them every 32
+    /// samples (r42 fix2-arcus).
+    fn power(&mut self, sh: &Shape) -> [f64; 2] {
+        let own = sh.own;
+        let key = (sh.modes, own.to_bits(), sh.hf_trim.to_bits());
+        if !self
+            .norm_for
+            .is_some_and(|o| std::ptr::eq(o.0, key.0) && o.1 == key.1 && o.2 == key.2)
+        {
+            self.norm = [[f64::NAN; 2]; RING_LATTICE];
+            self.norm_for = Some(key);
+        }
+        let u = (RING_PER_OCTAVE * math::log2(sh.ring.max(0.05) as f64))
+            .clamp(-RING_HALF as f64, RING_HALF as f64);
+        let k0 = u.floor() as i32;
+        let frac = u - k0 as f64;
+        let p0 = self.power_at(sh, own, k0);
+        let p = if frac == 0.0 {
+            p0
+        } else {
+            let p1 = self.power_at(sh, own, (k0 + 1).min(RING_HALF));
+            let mix =
+                |a: f64, b: f64| math::exp2((1.0 - frac) * math::log2(a) + frac * math::log2(b));
+            [mix(p0[0], p1[0]), mix(p0[1], p1[1])]
+        };
+        let scale = own.max(0.1) as f64 / sh.size.max(0.1) as f64;
+        [(p[0] * scale).max(1e-30), (p[1] * scale).max(1e-30)]
+    }
+
+    fn design(&mut self, sh: &Shape) {
+        let mut coefs = [ZERO; MODES];
+        let used = self.coefs(sh, sh.size, sh.ring, &mut coefs);
+        // The body's power gain to white noise is one (each microphone).
+        let power = self.power(sh);
         self.n = used;
         let (nl, nr) = (1.0 / power[0].sqrt(), 1.0 / power[1].sqrt());
         for (k, cf) in coefs.iter().enumerate() {
-            let c = if k < used {
-                *cf
-            } else {
-                (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-            };
+            let c = if k < used { *cf } else { ZERO };
             self.pr[k] = c.0 as f32;
             self.pi[k] = c.1 as f32;
             self.lr[k] = (c.2 * nl) as f32;
@@ -198,6 +280,15 @@ impl UpperBody {
             self.rr[k] = (c.4 * nr) as f32;
             self.ri[k] = (c.5 * nr) as f32;
         }
+    }
+
+    /// Tests: the exact power gain at the shape's size and ring (what every design measured
+    /// before r42 fix2-arcus), and the one [`Self::power`] gives.
+    #[cfg(test)]
+    pub(super) fn powers(&mut self, sh: &Shape) -> ([f64; 2], [f64; 2]) {
+        let mut coefs = [ZERO; MODES];
+        let used = self.coefs(sh, sh.size, sh.ring, &mut coefs);
+        (exact_power(&coefs, used), self.power(sh))
     }
 
     pub fn is_still(&self) -> bool {
@@ -260,9 +351,34 @@ impl UpperBody {
     }
 }
 
+/// A mode's pole (re, im) and its weights on the state's real and imaginary parts, left
+/// then right.
+type Coef = (f64, f64, f64, f64, f64, f64);
+const ZERO: Coef = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+
+/// The cloud's mode `c`'s frequency at the measured body's size, Hz.
+fn cloud_hz(c: usize) -> f64 {
+    let u = (c as f64 + 0.15 + 0.7 * hash(c as u64, 41)) / CLOUD as f64;
+    CLOUD_HZ.0 * math::exp2(u * math::log2(CLOUD_HZ.1 / CLOUD_HZ.0))
+}
+
+/// The body's power gain to white noise, each microphone: the sum of the squared impulse
+/// responses, from each mode's own and the pairs' cross terms (`O(n²)`; each microphone's
+/// terms summed in the order every design summed them before).
+fn exact_power(coefs: &[Coef], used: usize) -> [f64; 2] {
+    let mut acc = [0.0f64; 2];
+    for a in coefs.iter().take(used) {
+        for b in coefs.iter().take(used) {
+            acc[0] += cross(a, b, 0);
+            acc[1] += cross(a, b, 1);
+        }
+    }
+    [acc[0].max(1e-30), acc[1].max(1e-30)]
+}
+
 /// One mode's pole and its microphones' weights: the band-pass admittance `A·(ω/Q)·s /
 /// (s² + (ω/Q)·s + ω²)` by impulse invariance (`h[n] = 2T·Re(R·pⁿ)`, `R` the pole's residue).
-fn mode_coefs(hz: f64, q: f64, a: f64, gl: f64, gr: f64, t: f64) -> (f64, f64, f64, f64, f64, f64) {
+fn mode_coefs(hz: f64, q: f64, a: f64, gl: f64, gr: f64, t: f64) -> Coef {
     let w = std::f64::consts::TAU * hz;
     let sigma = w / (2.0 * q);
     let wd = (w * w - sigma * sigma).max(1e-6).sqrt();
@@ -308,7 +424,7 @@ pub const HF_TRIM: [f32; 2] = [0.8, 1.0];
 
 /// The cross term `Σₙ y_a[n]·y_b[n]` of two modes' impulse responses on microphone `ch`
 /// (`y[n] = wr·Re pⁿ + wi·Im pⁿ`), in closed form.
-fn cross(a: &(f64, f64, f64, f64, f64, f64), b: &(f64, f64, f64, f64, f64, f64), ch: usize) -> f64 {
+fn cross(a: &Coef, b: &Coef, ch: usize) -> f64 {
     let (wa, wb) = if ch == 0 {
         ((a.2, a.3), (b.2, b.3))
     } else {
@@ -390,5 +506,6 @@ pub fn shape_of(s: &super::super::ArcusSettings) -> Option<Shape> {
         ring: s.body_ring,
         mix: s.body_mix,
         hf_trim,
+        own: scale,
     })
 }

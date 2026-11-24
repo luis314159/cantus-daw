@@ -115,12 +115,41 @@ pub fn limits(z0: f64, v_bow: f64, beta: f64) -> (f64, f64) {
     (lo, hi)
 }
 
+/// The most β the bowing takes (a contact a third of the way to the nut is no longer a
+/// bowed string's).
+pub const MAX_BETA: f64 = 0.35;
+
+/// The period (samples) under which the bow–bridge segment can no longer be five samples
+/// long at [`MAX_BETA`]: `5 / 0.35`, about 14.3 samples (A7 at 48 kHz on a cello's voice,
+/// 13.4 kHz on the violin's at 4×).
+pub const SHORTEST_PERIOD: f64 = 5.0 / MAX_BETA;
+
 /// The least β the bowing takes: under it the measured region narrows past the force's
 /// place (at β 0.04 it spans 0.5–0.7 of Schelleng's limit), and the bow–bridge segment must
 /// stay five samples long at the rate (`period` the note's, in samples) for the junction's
-/// lines to hold it.
+/// lines to hold it — never more than [`MAX_BETA`] (r42 fix2-arcus: past
+/// [`SHORTEST_PERIOD`] the five samples cannot be had, the segment shortens with the period
+/// at β 0.35, the string's design keeps it two samples or more, and the voice fades out —
+/// see [`top_gain`]; before, the bounds crossed and `clamp` panicked on the audio thread).
 pub fn min_beta(period: f64) -> f64 {
-    (5.0 / period.max(1.0)).max(0.055)
+    (5.0 / period.max(1.0)).clamp(0.055, MAX_BETA)
+}
+
+/// r42 fix2-arcus — the level a note keeps at the top of what a string's loop can play
+/// (`period` the note's in samples at the voice's rate, `shortest` the loop's least, 12 at
+/// [`string::BowedString::max_hz`]): 1 down to [`SHORTEST_PERIOD`] (exactly, so every note an
+/// instrument has keeps its bits), falling smoothly to silence at `shortest` — above it the
+/// loop could only play a wrong pitch (its length is held at the shortest), so the note fades
+/// out rather than sound out of tune, and a bend or vibrato across the edge stays continuous.
+pub fn top_gain(period: f64, shortest: f64) -> f32 {
+    if period >= SHORTEST_PERIOD {
+        return 1.0;
+    }
+    if period.is_nan() || period <= shortest {
+        return 0.0;
+    }
+    let x = ((period - shortest) / (SHORTEST_PERIOD - shortest)).clamp(0.0, 1.0) as f32;
+    x * x * (3.0 - 2.0 * x)
 }
 
 /// The bowing of dynamic `d` (0 … 1) at the contact point `pos` (−1 … 1) with the force's
@@ -140,7 +169,7 @@ pub fn bowing(
     let d = d.clamp(0.0, 1.0);
     let v = b.speed.0 * math::powf(b.speed.1 / b.speed.0, d) * speed.clamp(0.25, 4.0);
     let beta = ((b.beta.0 + (b.beta.1 - b.beta.0) * d) * math::exp2(-0.5 * pos.clamp(-1.0, 1.0)))
-        .clamp(min_beta(period), 0.35);
+        .clamp(min_beta(period), MAX_BETA);
     let (f_min, f_max) = limits(z0, v, beta);
     let schelleng = schelleng_max(z0, v, beta);
     let k = (b.place.0 + (b.place.1 - b.place.0) * d) * math::exp2(place.clamp(-1.0, 1.0));
@@ -181,6 +210,28 @@ pub fn attack_of(
     let phi = 0.2 + (0.65 - 0.2) * u;
     let force = (phi * bw.schelleng).max(0.25 * bw.force);
     (accel as f32, force as f32)
+}
+
+/// r42 fix2-arcus — how far under its lowest open string an instrument's voice plays in
+/// tune, semitones: an octave (a tuning an octave down) and the bend's whole tone under it.
+/// Below, the loop's length is held at the longest the lines have.
+pub const REACH_ST: f64 = 14.0;
+
+/// r42 fix2-arcus — the period, in samples, a voice's lines hold at `sample_rate`: the
+/// longest any instrument plays [`REACH_ST`] under its lowest open string at its own factor
+/// (the bass's E1 at 1× — 2 616 samples at 48 kHz; the violin's G3 at 4× needs 2 199, the
+/// viola's C3 at 2× and the cello's C2 at 1× 1 648). A voice can be any instrument, so its
+/// lines are the longest of them, allocated when the instance is built.
+pub fn reach(sample_rate: f32) -> usize {
+    Instrument::ALL
+        .iter()
+        .map(|i| {
+            let os = super::upper::factor(*i) as f64;
+            let low = i.spec().strings[0].open_hz() * math::exp2(-REACH_ST / 12.0);
+            (os * sample_rate as f64 / low).ceil() as usize
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 /// The output's scale: the bridge's force (`2·Z₀·v`) to the instrument's level.
@@ -225,6 +276,11 @@ pub struct Voice {
     has_press: bool,
     slide: f32,
     tuning: f32,
+    /// r42 fix2-arcus — the track's tuning offset of the note's key (ADR 0155), semitones:
+    /// set where the key becomes the note (its start, a slur), followed while the table moves
+    /// (an MTS-ESP master's retuning) and held when the key's entry turns unmapped (`NAN`)
+    /// under a held note — it sounds on at its last pitch.
+    tune: f32,
     note: f32,
     glide: f32,
     glide_step: f32,
@@ -284,7 +340,7 @@ impl Voice {
             velocity: 0.0,
             tech: NoteTech::Arco,
             inst: Instrument::Cello,
-            string: BowedString::new(sample_rate),
+            string: BowedString::with_reach(sample_rate, reach(sample_rate)),
             string_ix: 0,
             pluck: Exciter::new(sample_rate),
             rng: Rng(1),
@@ -305,6 +361,7 @@ impl Voice {
             has_press: false,
             slide: 0.5,
             tuning: 0.0,
+            tune: 0.0,
             note: 60.0,
             glide: 0.0,
             glide_step: 0.0,
