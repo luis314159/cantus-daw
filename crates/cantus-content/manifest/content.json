@@ -4883,7 +4883,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 18.3,
+      "gain_db": 5.1,
       "release_ms": [
        450.0,
        250.0
@@ -5027,7 +5027,7 @@
       "name": "Violins (section) — Tremolo",
       "switch": 36,
       "dynamics_cc": 1,
-      "gain_db": 12.4,
+      "gain_db": 4.3,
       "release_ms": [
        450.0,
        250.0
@@ -5041,7 +5041,7 @@
       "name": "Violins (section) — Spiccato",
       "switch": 36,
       "dynamics_cc": 1,
-      "gain_db": 20.8,
+      "gain_db": 0.6,
       "release_ms": [
        450.0,
        250.0
@@ -5055,7 +5055,7 @@
       "name": "Violins (section) — Pizzicato",
       "switch": 36,
       "dynamics_cc": 1,
-      "gain_db": 19.5,
+      "gain_db": 3.0,
       "release_ms": [
        450.0,
        250.0
@@ -5074,7 +5074,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 8.1,
+      "gain_db": 0.5,
       "release_ms": [
        450.0,
        250.0
@@ -5231,7 +5231,7 @@
       "name": "Violas (section) — Tremolo",
       "switch": 24,
       "dynamics_cc": 1,
-      "gain_db": 9.4,
+      "gain_db": -0.2,
       "release_ms": [
        450.0,
        250.0
@@ -5245,7 +5245,7 @@
       "name": "Violas (section) — Spiccato",
       "switch": 24,
       "dynamics_cc": 1,
-      "gain_db": 15.4,
+      "gain_db": 2.2,
       "release_ms": [
        450.0,
        250.0
@@ -5259,7 +5259,7 @@
       "name": "Violas (section) — Pizzicato",
       "switch": 24,
       "dynamics_cc": 1,
-      "gain_db": 16.4,
+      "gain_db": -0.8,
       "release_ms": [
        450.0,
        250.0
@@ -5278,7 +5278,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 7.2,
+      "gain_db": -3.5,
       "release_ms": [
        450.0,
        250.0
@@ -5447,7 +5447,7 @@
       "name": "Celli (section) — Tremolo",
       "switch": 96,
       "dynamics_cc": 1,
-      "gain_db": 7.1,
+      "gain_db": -4.8,
       "release_ms": [
        450.0,
        250.0
@@ -5461,7 +5461,7 @@
       "name": "Celli (section) — Spiccato",
       "switch": 96,
       "dynamics_cc": 1,
-      "gain_db": 11.4,
+      "gain_db": -3.9,
       "release_ms": [
        450.0,
        250.0
@@ -5475,7 +5475,7 @@
       "name": "Celli (section) — Pizzicato",
       "switch": 96,
       "dynamics_cc": 1,
-      "gain_db": 16.0,
+      "gain_db": 0.2,
       "release_ms": [
        450.0,
        250.0
@@ -5494,7 +5494,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 10.5,
+      "gain_db": 4.1,
       "release_ms": [
        450.0,
        250.0
@@ -5668,7 +5668,7 @@
       "name": "Solo violin — Tremolo",
       "switch": 36,
       "dynamics_cc": 1,
-      "gain_db": 9.5,
+      "gain_db": 1.1,
       "release_ms": [
        450.0,
        250.0
@@ -5682,7 +5682,7 @@
       "name": "Solo violin — Spiccato",
       "switch": 36,
       "dynamics_cc": 1,
-      "gain_db": 13.4,
+      "gain_db": 4.8,
       "release_ms": [
        450.0,
        250.0
@@ -5696,7 +5696,7 @@
       "name": "Solo violin — Pizzicato",
       "switch": 36,
       "dynamics_cc": 1,
-      "gain_db": 24.0,
+      "gain_db": 4.5,
       "release_ms": [
        450.0,
        250.0
@@ -5715,7 +5715,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 11.5,
+      "gain_db": 13.7,
       "release_ms": [
        450.0,
        250.0
@@ -5852,7 +5852,7 @@
       "name": "Solo double bass — Tremolo",
       "switch": 84,
       "dynamics_cc": 1,
-      "gain_db": 13.6,
+      "gain_db": 4.7,
       "release_ms": [
        450.0,
        250.0
@@ -5866,7 +5866,7 @@
       "name": "Solo double bass — Spiccato",
       "switch": 84,
       "dynamics_cc": 1,
-      "gain_db": 24.0,
+      "gain_db": 15.1,
       "release_ms": [
        450.0,
        250.0
@@ -5880,7 +5880,7 @@
       "name": "Solo double bass — Pizzicato",
       "switch": 84,
       "dynamics_cc": 1,
-      "gain_db": 24.0,
+      "gain_db": 20.8,
       "release_ms": [
        450.0,
        250.0
@@ -5898,7 +5898,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 15.4,
+      "gain_db": 20.6,
       "release_ms": [
        450.0,
        250.0
@@ -6019,7 +6019,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 13.3,
+      "gain_db": -1.7,
       "release_ms": [
        450.0,
        250.0
@@ -6442,7 +6442,7 @@
       "name": "Bigcat cello — Staccato",
       "switch": 108,
       "dynamics_cc": 1,
-      "gain_db": 4.8,
+      "gain_db": -9.8,
       "release_ms": [
        450.0,
        250.0
@@ -6456,7 +6456,7 @@
       "name": "Bigcat cello — Pizzicato",
       "switch": 108,
       "dynamics_cc": 1,
-      "gain_db": 12.0,
+      "gain_db": -1.0,
       "release_ms": [
        450.0,
        250.0
@@ -6538,7 +6538,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 13.0,
+      "gain_db": -1.6,
       "release_ms": [
        450.0,
        250.0
@@ -6839,7 +6839,7 @@
       "name": "Smolken double bass — Pizzicato",
       "switch": 96,
       "dynamics_cc": 1,
-      "gain_db": 11.2,
+      "gain_db": -3.0,
       "release_ms": [
        450.0,
        250.0
@@ -6921,7 +6921,7 @@
        90.0
       ],
       "dynamics_cc": 1,
-      "gain_db": 10.8,
+      "gain_db": 8.6,
       "release_ms": [
        450.0,
        250.0
@@ -7328,7 +7328,7 @@
       "name": "Meatbass — Pizzicato",
       "switch": 96,
       "dynamics_cc": 1,
-      "gain_db": 9.2,
+      "gain_db": -2.8,
       "release_ms": [
        450.0,
        250.0
@@ -7391,7 +7391,7 @@
       "sfz": "Cantus/sneakybass.sfz",
       "name": "Sneakybass (pizzicato)",
       "dynamics_cc": 1,
-      "gain_db": 5.7,
+      "gain_db": -0.1,
       "release_ms": [
        450.0,
        250.0

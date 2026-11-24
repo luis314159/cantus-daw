@@ -16,6 +16,13 @@
 //!   the notes Arcus renders): the Bigcat cello on its "Cello" track, the Smolken bass on its
 //!   "Double bass" track, the bar after the "pizzicato" marker plucked by the notes' own
 //!   articulation, the phrase's 30 ms overlaps slurred by the scripted legato.
+//!
+//! `strings_listen -- fit <sources> <deltas.json>` levels every instrument and preset as the
+//! house's `preset_tool -- fit` levels the factory presets: its role's phrase
+//! (`preset_audition`, the mod wheel at half) to its role's target (`preset_measure`: a bass
+//! −16, a section's sustain a pad's −19, a short note a pluck's −21 LUFS), never above the
+//! headroom test's dense riff at velocity 127 **with the mod wheel full** under −1 dBFS. The
+//! decibels each needs go to `deltas.json`, which `merge.py` adds to its gain.
 
 use cantus_content::stringsbuild;
 use cantus_core::clip_lanes::{ClipLane, LaneKind};
@@ -219,8 +226,115 @@ fn abx(mid: &[u8], name: &str, p: &mut Project, c: &mut Clip) -> Ticks {
     imp.end
 }
 
+/// The role a strings instrument plays (`preset_tags::Role`): a short note a pluck, a bass a
+/// bass, everything else bowed and held a pad.
+fn role_of(sfz: &str) -> cantus_ui::preset_tags::Role {
+    use cantus_ui::preset_tags::Role;
+    let id = sfz.rsplit('/').next().unwrap_or(sfz);
+    if ["pizzicato", "spiccato", "staccato", "sneakybass"]
+        .iter()
+        .any(|a| id.contains(a))
+    {
+        Role::Pluck
+    } else if id.contains("bass") {
+        Role::Bass
+    } else {
+        Role::Pad
+    }
+}
+
+/// Every clip of the tracks playing `spec` with the mod wheel held at `v`.
+fn with_wheel(p: &mut Project, v: f32) {
+    for t in &mut p.tracks {
+        for c in &mut t.clips {
+            c.lanes.retain(|l| l.kind != LaneKind::Cc(1));
+            c.lanes.push(ClipLane::new(
+                LaneKind::Cc(1),
+                vec![AutoPoint::new(Ticks::ZERO, v)],
+            ));
+        }
+    }
+}
+
+fn render_all(p: &Project, start: Ticks, end: Option<Ticks>, tail: f64) -> (Vec<f32>, f32) {
+    let mut snap = Snapshot::compile(p, 0);
+    let errors = SampleCache::new().attach(&mut snap);
+    assert!(errors.is_empty(), "{errors:?}");
+    let r = render(
+        Arc::new(snap),
+        &RenderOptions {
+            start,
+            end,
+            tail_seconds: tail,
+            compensate_latency: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    (r.samples, r.peak)
+}
+
+/// The decibels `spec` needs: its role's target on its phrase, within the riff's headroom.
+fn fit_one(spec: &NativeSpec, sfz: &str) -> (f64, f64, f64) {
+    use cantus_ui::preset_audition as aud;
+    use cantus_ui::preset_catalog::{Entry, Payload, Source, Unit};
+    let role = role_of(sfz);
+    let e = Entry {
+        id: sfz.to_string(),
+        unit: Unit::Instrument(InstrumentKind::Sampler),
+        name: sfz.to_string(),
+        source: Source::Factory,
+        styles: Vec::new(),
+        roles: vec![role],
+        payload: Payload::Native(spec.clone()),
+    };
+    let empty = Project::new("none");
+    let mut prep = aud::prepare(&empty, aud::Target::None, &e, None, aud::TEMPO);
+    with_wheel(&mut prep.project, 0.5);
+    let (x, _) = render_all(&prep.project, prep.start, Some(prep.end), aud::TAIL);
+    let lufs = cantus_ui::preset_measure::lufs(&x, 2, 48_000.0);
+    let mut riff = aud::riff_project(spec);
+    with_wheel(&mut riff, 1.0);
+    let (_, peak) = render_all(&riff, Ticks::ZERO, None, 1.0);
+    let peak_db = 20.0 * f64::from(peak.max(1e-9)).log10();
+    let want = cantus_ui::preset_measure::role_target(role) - lufs;
+    let room = cantus_ui::preset_measure::HEADROOM_DB - peak_db;
+    (want.min(room), lufs, peak_db)
+}
+
+fn fit_all(sources: &Path, out: &Path) {
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
+    let manifest = cantus_content::Manifest::bundled();
+    let mut deltas = serde_json::Map::new();
+    for pack in manifest.packs.iter().filter(|p| p.strings.is_some()) {
+        let dir = lay_out(sources, pack);
+        for inst in &pack.strings.as_ref().unwrap().instruments {
+            let imp = cantus_ui::views::inst::sampler::read_instrument(&dir.join(&inst.sfz))
+                .expect("the instrument reads");
+            let spec = cantus_ui::views::samples_content::sounds::spec_of(&imp);
+            let (d, lufs, peak) = fit_one(&spec, &inst.sfz);
+            println!(
+                "{} {}: {lufs:.1} LUFS on its phrase, riff peak {peak:.1} dBFS at ff: {d:+.1} dB",
+                pack.id, inst.sfz
+            );
+            deltas.insert(
+                format!("{}/{}", pack.id, inst.sfz),
+                serde_json::json!((d * 10.0).round() / 10.0),
+            );
+        }
+    }
+    std::fs::write(out, serde_json::to_string_pretty(&deltas).unwrap()).unwrap();
+}
+
 fn main() {
-    let mut args = std::env::args().skip(1);
+    let mut args = std::env::args().skip(1).peekable();
+    if args.peek().map(String::as_str) == Some("fit") {
+        args.next();
+        let sources = PathBuf::from(args.next().expect("fit <sources> <deltas.json>"));
+        let out = PathBuf::from(args.next().expect("the deltas' file"));
+        fit_all(&sources, &out);
+        return;
+    }
     let sources = PathBuf::from(
         args.next()
             .expect("usage: strings_listen <sources> <out> [abx.mid]"),

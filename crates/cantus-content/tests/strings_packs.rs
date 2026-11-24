@@ -270,10 +270,18 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
     }
     // The gate (the integrator, round 42): on measurable sustains at least 99 % within a cent
     // and all within three; every sustain within five; tremolos and short notes reported.
-    // Measured on 2026-11-23: 551 of 557 (98.9 %) within a cent, the six others 1.09 to 2.72
-    // cents off: held at 98.5 % until the integrator rules (docs/round42/strings-rec.md).
+    // Held at what holds, 551 of 557 (98.9 %), the six others looked at one by one
+    // (`strings_tune_probe` with `CANTUS_PROBE_FILES`, docs/round42/strings-rec.md):
+    // - VSCO solo violin `ArcoVib_G4_f` (−1.20 c) and Smolken `arco_d2_f_down` (+2.65 c): the
+    //   player drifts 4–5 cents within the loop; the measures weigh the drift differently;
+    // - VSCO solo bass `SusNV_F#0_v3` and `SusNV_G0_v3` (−1.09 c): 23–24 Hz, the measures
+    //   spread over 2.5 cents at so few periods a frame;
+    // - VSCO violas `susvib_G4_v2` (−1.15 c): the section's spread, the partials' fit reading
+    //   1.9 cents above the time-domain measures;
+    // - Smolken `arco_a3_ff_down` (+2.72 c): unlooped, YIN alone reads 2.7 cents under the
+    //   others, and the consensus took it.
     assert!(
-        strict[1] as f64 >= 0.985 * strict[0] as f64,
+        strict[1] as f64 >= 0.989 * strict[0] as f64,
         "measurable sustains within a cent: {} of {}",
         strict[1],
         strict[0]

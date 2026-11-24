@@ -6,6 +6,11 @@
 //! so a fit on many of them reads above the fundamental the other measures hear.
 //!
 //!   CANTUS_STRINGS_SRC=<dir> cargo run --release -p cantus-content --example strings_tune_probe [step]
+//!
+//! With `CANTUS_PROBE_FILES=<file>,<file>…` it looks at those zones one by one instead: each
+//! measure over the loop's turns, over the first and second half of the loop, over the part
+//! before the loop, and the zone's tune — where a zone's pitch moves (a slow drift, a loop
+//! apart from the rest).
 
 use cantus_content::manifest::{Manifest, Source};
 use cantus_content::strings_analysis as an;
@@ -20,6 +25,10 @@ fn main() {
     let src =
         std::path::PathBuf::from(std::env::var("CANTUS_STRINGS_SRC").expect("CANTUS_STRINGS_SRC"));
     let m = Manifest::bundled();
+    let only: Vec<String> = std::env::var("CANTUS_PROBE_FILES")
+        .map(|v| v.split(',').map(str::to_string).collect())
+        .unwrap_or_default();
+    let step = if only.is_empty() { step } else { 1 };
     let names = [
         "fit8",
         "yin",
@@ -76,6 +85,39 @@ fn main() {
                 let (y, s0, s1) = an::held_play(&x, rate, z.looped, xf);
                 let s1 = s1.min(y.len());
                 let root = an::hz_of_key(z.root as f64);
+                if !only.is_empty() {
+                    if !only.iter().any(|o| z.file.ends_with(o.as_str())) {
+                        continue;
+                    }
+                    let key = z.root as f64 * 100.0;
+                    let show = |what: &str, a: usize, b: usize| {
+                        let f = |v: Option<f64>| {
+                            v.map_or("—".to_string(), |c| format!("{:+.2}", c - key))
+                        };
+                        println!(
+                            "  {what:<22} fit {}  yin {}  nsdf {}  nsdf16 {}",
+                            f(an::harmonic_cents_k(&y, rate, a, b, root, 8)),
+                            f(an::yin_cents(&y, rate, a, b, root)),
+                            f(an::nsdf_near_cents(&y, rate, a, b, root)),
+                            f(an::nsdf_near_cents_w(&y, rate, a, b, root, 16.0, 8_192)),
+                        );
+                    };
+                    println!(
+                        "{} (tune {:+.2}, loop {:?}, crossfade {:.0} ms)",
+                        z.file, z.tune, z.looped, z.xf_ms
+                    );
+                    show("the turns", s0, s1);
+                    if let Some([ls, le]) = z.looped {
+                        let (ls, le) = (ls as usize, le as usize);
+                        let mid = (ls + le) / 2;
+                        show("loop, first half", ls, mid);
+                        show("loop, second half", mid, le);
+                        if let Some((a, _)) = an::steady_span(&y, rate) {
+                            show("before the loop", a, ls);
+                        }
+                    }
+                    continue;
+                }
                 let Some(check) = an::nsdf_near_cents(&y, rate, s0, s1, root) else {
                     continue;
                 };
