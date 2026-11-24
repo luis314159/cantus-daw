@@ -15,9 +15,11 @@
 //!   diagram is the control too.
 
 #[path = "arcus_draw_arm.rs"]
-mod arm;
+mod arm; // r42:arcus-upper
 #[path = "arcus_draw_body.rs"]
-mod body; // r42:arcus-upper
+mod body;
+#[path = "arcus_draw_hand.rs"]
+pub mod hand; // r42:arcus-upper
 
 use crate::app::CantusApp;
 use crate::kit::color::with_alpha;
@@ -165,7 +167,7 @@ pub fn picture(
     drag(app, ui, track, d.shrink(s.s(4.0)), "picture");
     let n = now(fs, tele);
     // What holds it and whether the finger shows: this machine's preferences. // r42:arcus-upper
-    let (holder, finger) = (app.settings.arcus_holder, app.settings.arcus_finger); // r42:arcus-upper
+    let (holder, stop) = (app.settings.arcus_holder, app.settings.arcus_stop); // r42:arcus-upper
     let view = scene_view(fs, s, holder); // r42:arcus-upper
     let painter = ui.painter_at(d);
     let time = ui.input(|i| i.time);
@@ -195,6 +197,15 @@ pub fn picture(
         ),
     };
     let rig = crate::scene::bowed::rig_for(b, holder); // r42:arcus-upper
+                                                       // r42:arcus-upper — the figure's left hand: its position for this note, glided.
+    let hand = {
+        let st = body::stop(fs, &n);
+        let h = app.inst.arcus_hands.entry(track.0).or_insert((1.0, time));
+        let to = hand::target(h.0, hand::semis(st));
+        h.0 = hand::glide(h.0, to, (time - h.1) as f32);
+        h.1 = time;
+        (h.0, (h.0 - to).abs() > 0.005)
+    };
     let pl = body::Play {
         b,
         rig: &rig,
@@ -204,11 +215,13 @@ pub fn picture(
         time,
         vibrato: tele[tel::VIBRATO].clamp(0.0, 1.0),
         lit: super::face::voice2(s, s.hue),
-        holder, // r42:arcus-upper
-        finger, // r42:arcus-upper
+        holder,                                   // r42:arcus-upper
+        stop,                                     // r42:arcus-upper
+        hand: hand.0,                             // r42:arcus-upper
+        accent: super::face::accent_on(s, s.hue), // r42:arcus-upper
     };
     crate::kit::with_brush(&painter, |br| body::live(br, &v, &pl, s));
-    if moving || (n.live && n.level > 0.0) {
+    if moving || (n.live && n.level > 0.0) || hand.1 {
         crate::views::workspace_ticker::moving(
             ui.ctx(),
             crate::views::workspace_ticker::Reason::Live,

@@ -31,6 +31,8 @@ mod frame;
 pub use frame::*;
 
 pub mod analog;
+/// Arcus, the bowed string (round 42, ADR 0157). // r42:contract
+pub mod arcus;
 pub mod bass;
 /// Chorda, the modelled grand piano (round 28).
 pub mod chorda;
@@ -41,8 +43,6 @@ pub mod dancer; // r35:dancer
 pub mod epiano;
 /// Fides, the resonator instrument (round 41, ADR 0150). // r41:contract
 pub mod fides;
-/// Arcus, the bowed string (round 42, ADR 0157). // r42:contract
-pub mod arcus;
 pub mod fm;
 /// An instrument's own mixer (round 40 phase 3, ADR 0123): Tympanum's and Chorda's. // r40:tymp-ui
 pub mod inst_mixer;
@@ -142,6 +142,9 @@ pub struct InstEditors {
     /// r42:arcus-look — Arcus's scenes (its cello or bass in its room) by track, and where
     /// its bow meets the string along the hair (0 the frog … 1 the tip) when last drawn.
     pub arcus_scenes: std::collections::BTreeMap<u64, (crate::scene::Scene, f32, f64)>,
+    /// r42:arcus-upper — each Arcus's figure's left hand: its position (semitones) and the
+    /// time it was last drawn (the glide's clock).
+    pub arcus_hands: std::collections::BTreeMap<u64, (f32, f64)>,
     /// r40:fix-f — the song the scenes were drawn for (`CantusApp`'s epoch): another song
     /// loaded, every scene goes.
     pub scenes_epoch: u64,

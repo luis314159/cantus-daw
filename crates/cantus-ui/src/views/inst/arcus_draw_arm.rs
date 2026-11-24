@@ -25,15 +25,18 @@ pub fn right_arm(b: &mut Brush, v: &View, arm: &Arm, frog: V3, dir: V3, n: V3) {
     let wf = 2.0 * arm.r.1 * v.scale(wrist);
     limb(b, ps, pe, wu, shade, sleeve, lit);
     limb(b, pe, pw, wf, shade, sleeve, lit);
+    // The cuff at the wrist, a shade deeper.
+    let cuff = el.lerp(wrist, 0.92);
+    b.segment(v.p(cuff), pw, wf * 1.08, shade, true);
     // The hand: the palm over the frog, three fingers round the stick, the thumb under it.
     let skin = rgb(arm.hand);
     let skin_shade = rgb(arm.hand_shade);
-    let wh = 2.0 * 3.4 * v.scale(hand);
+    let wh = 2.0 * 3.8 * v.scale(hand);
     b.segment(pw, ph, wh * 1.06, skin_shade, true);
-    b.segment(pw, ph, wh * 0.84, skin, true);
-    let wfi = 1.6 * v.scale(hand);
-    for k in 0..3 {
-        let a = hand + dir * ((k as f32 - 1.0) * 1.7);
+    b.segment(pw, ph, wh * 0.86, skin, true);
+    let wfi = 1.7 * v.scale(hand);
+    for k in 0..4 {
+        let a = hand + dir * ((k as f32 - 1.5) * 1.6);
         let tip = a - n * 3.0 + dir * 0.4;
         b.segment(v.p(a), v.p(tip), wfi * 1.15, skin_shade, true);
         b.segment(v.p(a), v.p(tip), wfi * 0.85, skin, true);
@@ -71,8 +74,8 @@ fn limb(
     b.segment(
         a + off * 3.5,
         e + off * 3.5,
-        w * 0.18,
-        with_alpha(lit, 0.6),
+        w * 0.14,
+        with_alpha(lit, 0.3),
         true,
     );
 }

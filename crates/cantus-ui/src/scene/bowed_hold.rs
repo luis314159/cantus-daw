@@ -62,6 +62,33 @@ impl Hold {
     }
 }
 
+/// How the stopped note is shown on the string (a preference of this machine): the
+/// fingertip (with a figure, its own left hand), a small marker in the theme's accent, or
+/// nothing.
+#[derive(
+    Copy, Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum StopShow {
+    #[default]
+    Finger,
+    Marker,
+    None,
+}
+
+impl StopShow {
+    pub const ALL: [StopShow; 3] = [StopShow::Finger, StopShow::Marker, StopShow::None];
+
+    /// Its name's string key.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            StopShow::Finger => "arcus_upper.stop.finger",
+            StopShow::Marker => "arcus_upper.stop.marker",
+            StopShow::None => "arcus_upper.stop.none",
+        }
+    }
+}
+
 /// What holds the instrument and how it looks: the musician's skin and clothes, the
 /// mannequin's wood (indices into `kit::skin::scene::hold`).
 #[derive(
@@ -90,7 +117,7 @@ pub fn pose(b: Bowed, h: Holder) -> Pose {
     let d = b.dims();
     if d.held && h.hold == Hold::Stand {
         let rise = if b == Bowed::Viola { 66.0 } else { 70.0 };
-        return standing(d, rise, 11.0, 10.0);
+        return standing(d, rise, 16.0, 10.0);
     }
     Pose::of(b)
 }
@@ -145,6 +172,24 @@ pub struct Arm {
     pub r: (f32, f32),
 }
 
+/// `b`'s player's left arm when a figure holds it (its hand on the neck, live).
+pub fn left_arm(b: Bowed, h: Holder) -> Option<Arm> {
+    let a = arm(b, h)?;
+    let sk = super::bowed_figure::skeleton(b, &pose(b, h));
+    let pole = if b.dims().held {
+        sk.down + sk.f * 0.3 + sk.r * 0.35
+    } else {
+        -sk.r + sk.down * 0.6
+    };
+    Some(Arm {
+        shoulder: sk.ls,
+        upper: 28.0,
+        fore: 26.0,
+        pole,
+        ..a
+    })
+}
+
 /// `b`'s player's right arm when a figure holds it.
 pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
     use crate::kit::skin::scene::hold as hp;
@@ -179,9 +224,9 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         hand,
         hand_shade,
         r: if h.hold == Hold::Player {
-            (4.6, 3.8)
+            (5.0, 4.0)
         } else {
-            (3.2, 2.6)
+            (3.0, 2.4)
         },
     })
 }

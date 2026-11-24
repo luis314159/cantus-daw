@@ -2,7 +2,7 @@
 //! cello bowed, the double bass bowed, the cello plucked and its tremolo, in both pictures
 //! (Drawn, Photographic), Night and Paper, at 100 % and 200 % (`--edit` adds Edit's
 //! Schelleng diagram); `--strip` the live part frame by frame; `--scene` the picture
-//! alone (`--zoom=1,3`, `--only=<part of a name>`). `CANTUS_SHOOT_LANG=es` for Spanish.
+//! alone (`--zoom=1,3`, `--only=<part of a name>[+<another>]`). `CANTUS_SHOOT_LANG=es` for Spanish.
 //!
 //! ```text
 //! cargo run -p cantus-ui --example shoot_arcus -- <dir>
@@ -52,7 +52,7 @@ fn scenes(dir: &std::path::Path, zoom: f32, only: Option<&str>, holds: &[Hold]) 
         {
             for (theme, dark) in [("night", true), ("paper", false)] {
                 let tag = format!("{name}{}-{look}-{theme}", hold_tag(hold));
-                if only.is_some_and(|o| !tag.contains(o)) {
+                if only.is_some_and(|o| !o.split('+').all(|p| tag.contains(p))) {
                     continue;
                 }
                 scene::backend::set_default(be);
@@ -232,6 +232,9 @@ fn main() {
         ("violin-play", View::Play, 2.0, 0.0, 2.0, 76.0), // r42:arcus-upper
         ("viola-play", View::Play, 3.0, 0.0, 2.0, 67.0),  // r42:arcus-upper
         ("violin-pizz", View::Play, 2.0, 1.0, 2.0, 74.0), // r42:arcus-upper
+        // r42:arcus-upper — a second hand position: two semitones up the same string.
+        ("violin-low", View::Play, 2.0, 0.0, 2.0, 71.0),
+        ("cello-low", View::Play, 0.0, 0.0, 2.0, 52.0),
     ];
     if args.iter().any(|a| a == "--edit") {
         states.push(("cello-edit", View::Edit, 0.0, 0.0, 2.0, 57.0));
@@ -249,11 +252,12 @@ fn main() {
                 for k in [1.0f32, 2.0] {
                     let theme = if dark { "night" } else { "paper" };
                     let tag = format!(
-                        "{name}{}-{look}-{theme}-{lang}-{}",
+                        "{name}{}{}-{look}-{theme}-{lang}-{}",
                         hold_tag(hold),
+                        stop_tag(&args),
                         (k * 100.0) as u32
                     );
-                    if only.is_some_and(|o| !tag.contains(o)) {
+                    if only.is_some_and(|o| !o.split('+').all(|p| tag.contains(p))) {
                         continue;
                     }
                     cantus_ui::scene::backend::set_default(be);
@@ -264,6 +268,7 @@ fn main() {
                         false,
                     );
                     app.settings.arcus_holder = Holder::of(hold); // r42:arcus-upper
+                    app.settings.arcus_stop = stop_show(&args); // r42:arcus-upper
                     app.demo_editor("arcus");
                     let Some(t) = app.inst.open else {
                         panic!("no Arcus editor")
@@ -313,5 +318,23 @@ fn hold_tag(h: Hold) -> String {
         String::new()
     } else {
         format!("-{}", h.key())
+    }
+}
+
+/// r42:arcus-upper — `--stop=finger|marker|none`: how the stopped note is shown (the
+/// finger by default, the names then as before).
+fn stop_show(args: &[String]) -> cantus_ui::scene::bowed_hold::StopShow {
+    use cantus_ui::scene::bowed_hold::StopShow;
+    match args.iter().find_map(|a| a.strip_prefix("--stop=")) {
+        Some("marker") => StopShow::Marker,
+        Some("none") => StopShow::None,
+        _ => StopShow::Finger,
+    }
+}
+
+fn stop_tag(args: &[String]) -> String {
+    match args.iter().find_map(|a| a.strip_prefix("--stop=")) {
+        Some(s) if s != "finger" => format!("-{s}"),
+        _ => String::new(),
     }
 }

@@ -512,13 +512,18 @@ fn bake_view(
             let pl = Place {
                 mid: geo::cm(mid.x, mid.y, mid.z),
                 key: if d.held && hd.hold == crate::scene::bowed_hold::Hold::Air {
-                    // r42:arcus-upper — in the air: the key near the camera, above it and to
+                    // r42:arcus-upper — in the air: the key beside the camera, to
                     // its left, so the instrument's shadow falls on the wall behind.
-                    geo::cm(sc.pos.x - 70.0, sc.pos.y + 90.0, sc.pos.z)
+                    geo::cm(sc.pos.x - 120.0, sc.pos.y + 5.0, sc.pos.z)
                 } else {
                     geo::cm(mid.x - 110.0, 360.0, mid.z + 200.0)
                 },
-                focus: geo::cm(mid.x, 0.0, mid.z),
+                focus: if d.held && hd.hold == crate::scene::bowed_hold::Hold::Air {
+                    // r42:arcus-upper — its pool on the wall behind, the shadow inside it.
+                    geo::cm(mid.x + 30.0, mid.y - 40.0, mid.z - 180.0)
+                } else {
+                    geo::cm(mid.x, 0.0, mid.z)
+                },
                 far: far_of(&cam, &pts),
             };
             let r = rig(view.room, view.dark, &m, &pl, cam.eye, built);

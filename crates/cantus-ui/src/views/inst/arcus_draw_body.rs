@@ -57,7 +57,11 @@ pub struct Play<'a> {
     /// What holds the instrument (its figure's right arm is drawn here, to the frog) and
     /// whether the left hand's fingertip shows (this machine's preferences). // r42:arcus-upper
     pub holder: crate::scene::bowed_hold::Holder, // r42:arcus-upper
-    pub finger: bool, // r42:arcus-upper
+    pub stop: crate::scene::bowed_hold::StopShow, // r42:arcus-upper
+    /// The figure's left hand's position (semitones, glided) and the theme's accent (the
+    /// stop's marker). // r42:arcus-upper
+    pub hand: f32, // r42:arcus-upper
+    pub accent: Color32,                          // r42:arcus-upper
 }
 
 fn c(s: [u8; 3]) -> Color32 {
@@ -146,10 +150,41 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     let up = along.norm();
     // A person's finger whatever the instrument's size: a violinist's is a cellist's. // r42:arcus-upper
     let kf = if d.held { 1.0 } else { k }; // r42:arcus-upper
-    if st < 0.995 && pl.finger {
-        let j1 = finger + ex * (1.5 * kf) + ez * (2.2 * kf) + up * (0.4 * kf);
-        let j2 = j1 + ex * (2.6 * kf) + ez * (0.9 * kf) + up * (0.6 * kf);
+    use crate::scene::bowed_hold::{self as hold, Hold, StopShow}; // r42:arcus-upper
+                                                                  // On a stand nobody plays it: the string sounds, no finger, no bow. // r42:arcus-upper
+    if pl.holder.hold == Hold::Stand {
+        if st < 0.995 && pl.stop == StopShow::Marker {
+            marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(10.0));
+            // r42:arcus-upper
+        }
+        return; // r42:arcus-upper
+    }
+    // r42:arcus-upper — a figure's own left hand goes to the stop; otherwise the
+    // fingertip, the marker, or nothing.
+    if let Some(arm) = hold::left_arm(pl.b, pl.holder) {
+        let l = super::hand::Left {
+            rig,
+            string: i,
+            semis: super::hand::semis(st),
+            at: pl.hand,
+            rock,
+            side: ex,
+        };
+        super::hand::left_arm(b, v, &arm, &l);
+    } else if st < 0.995 && pl.stop == StopShow::Finger {
+        // Under a chin the finger curls over the fingerboard's edge from the hand behind
+        // the neck (its first joint up, the rest down out of sight). // r42:arcus-upper
+        let (j1, j2) = if d.held {
+            let j1 = finger + ex * (2.0 * kf) + ez * (1.5 * kf) - up * (0.3 * kf);
+            (j1, j1 + ex * (2.2 * kf) - ez * (1.8 * kf) - up * (0.5 * kf))
+        } else {
+            let j1 = finger + ex * (1.5 * kf) + ez * (2.2 * kf) + up * (0.4 * kf);
+            (j1, j1 + ex * (2.6 * kf) + ez * (0.9 * kf) + up * (0.6 * kf))
+        };
         fingertip(b, v, finger, j1, j2, 0.78 * kf, false);
+    }
+    if st < 0.995 && pl.stop == StopShow::Marker {
+        marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(10.0)); // r42:arcus-upper
     }
     if pizz {
         let tip = contact - side * pulled;
@@ -423,4 +458,9 @@ pub fn thumbnail(b: &mut Brush, r: Rect, which: Bowed, s: &Style) {
         );
         b.segment(p(x, yb), p(x * 0.45, yn), s.s(0.6), c(pal::SILVER), false);
     }
+}
+
+/// r42:arcus-upper — the stopped note's marker at `at`, a few points large at any size.
+fn marker_at(b: &mut Brush, v: &View, pl: &Play, at: V3, size: f32) {
+    super::hand::marker(b, v, at, size, pl.accent, c(pal::FROG));
 }

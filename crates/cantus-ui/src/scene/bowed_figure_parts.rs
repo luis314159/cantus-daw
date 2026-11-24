@@ -1,9 +1,9 @@
 //! r42:arcus-upper — the figures' parts (`bowed_figure`): the musician (skin, concert
 //! clothes, hair, a calm face of a few strokes) and the artist's wooden mannequin (an egg
-//! head, ball joints), both on the same skeleton. The right arm is the live picture's; only
-//! its shoulder is here.
+//! head, ball joints), both on the same skeleton. Both arms are the live picture's (the
+//! hands follow the playing); only the shoulders are here.
 
-use super::bowed_figure::{ball, limb, shell, sphere, Skel, HEAD};
+use super::bowed_figure::{ball, limb, shell, sphere, taper, Skel, HEAD};
 use super::bowed_mesh::{Mesh, Rod, Role};
 use super::geo::V3;
 use std::f32::consts::{FRAC_PI_2, PI};
@@ -12,41 +12,39 @@ use std::f32::consts::{FRAC_PI_2, PI};
 pub fn musician(m: &mut Mesh, s: &Skel, skin: u8, cloth: u8) {
     let (sk, cl) = (Role::Skin(skin), Role::Cloth(cloth));
     head(m, s, sk);
-    // The neck, the collar.
-    let chin_under = s.head - s.hu * (HEAD.1 * 0.55);
-    limb(m, sk, s.neck + s.f * 0.5, chin_under, 4.2);
+    // The neck (short, as a person's).
+    let chin_under = s.head - s.hu * (HEAD.1 * 0.62);
+    taper(m, sk, s.neck + s.f * 0.5, chin_under, 4.6, 4.2);
     // The torso: chest and waist in the shirt, the hips in the trousers.
     let (r, up) = (s.r, -s.down);
-    ball(m, cl, s.chest, (r, up), (15.5, 16.5, 9.8));
+    ball(m, cl, s.chest + up * 1.0, (r, up), (14.5, 15.0, 9.4));
     let waist = s.chest.lerp(s.pelvis, 0.55);
-    ball(m, cl, waist, (r, up), (13.8, 13.0, 9.2));
-    ball(m, Role::Trousers, s.pelvis, (r, up), (15.0, 8.5, 11.0));
+    ball(m, cl, waist, (r, up), (12.8, 12.5, 8.8));
+    ball(m, Role::Trousers, s.pelvis, (r, up), (14.0, 8.0, 10.5));
+    // The shoulders sloping from the collar.
     for sh in [s.ls, s.rs] {
-        sphere(m, cl, sh, 6.2);
-        m.rods.push((
+        taper(
+            m,
             cl,
-            Rod {
-                a: sh,
-                b: s.neck + (sh - s.neck) * 0.2 + s.down * 3.0,
-                r: 6.0,
-            },
-        ));
+            s.neck + (sh - s.neck) * 0.15 + s.down * 1.5,
+            sh,
+            5.2,
+            5.4,
+        );
     }
-    // The left arm: the sleeve to the wrist, the hand round the neck.
-    limb(m, cl, s.ls, s.le, 4.6);
-    limb(m, cl, s.le, s.lw, 3.9);
-    hand(m, s, sk, 1.0);
+    // Both arms are the live picture's: the left hand goes where the note is stopped,
+    // the right one draws the bow.
     // The legs.
     for i in 0..2 {
-        limb(m, Role::Trousers, s.hips[i], s.knees[i], 7.0);
-        limb(m, Role::Trousers, s.knees[i], s.ankles[i], 5.4);
+        taper(m, Role::Trousers, s.hips[i], s.knees[i], 6.6, 5.2);
+        taper(m, Role::Trousers, s.knees[i], s.ankles[i], 4.9, 3.8);
         let toe = s.ankles[i] + s.f * 9.0;
         ball(
             m,
             Role::Shoes,
-            s.ankles[i].lerp(toe, 0.5) + s.down * 4.0,
+            s.ankles[i].lerp(toe, 0.5) + s.down * 3.4,
             (s.r, -s.down),
-            (4.6, 3.4, 9.0),
+            (4.2, 3.0, 8.6),
         );
     }
 }
@@ -130,92 +128,34 @@ fn arc(m: &mut Mesh, on: &dyn Fn(f32, f32, f32) -> V3, th: f32, ph: f32, w: f32,
     }
 }
 
-/// The left hand round the neck: the palm from the wrist to the grip, the thumb under it;
-/// `scale` 1 for a person, smaller for the mannequin's mitten.
-fn hand(m: &mut Mesh, s: &Skel, role: Role, scale: f32) {
-    let along = (s.grip - s.lw).norm();
-    let side = along.cross(s.f).norm();
-    let palm = s.lw.lerp(s.grip, 0.5);
-    ball(
-        m,
-        role,
-        palm,
-        (along, side),
-        (4.4 * scale, 3.8 * scale, 1.8 * scale),
-    );
-    let thumb = palm + side * (2.8 * scale);
-    limb(m, role, thumb, thumb + along * (3.6 * scale), 0.9 * scale);
-    let fingers = s.grip + along * (1.2 * scale);
-    ball(
-        m,
-        role,
-        fingers,
-        (along, side),
-        (2.4 * scale, 3.6 * scale, 1.6 * scale),
-    );
-}
-
 /// The artist's mannequin in `wood`: an egg head, a chest and hips joined by a ball, ball
-/// joints at the shoulders, elbows, wrists, hips, knees and ankles, mitten hands.
+/// joints at the shoulders, hips, knees and ankles (its arms are the live picture's).
 pub fn mannequin(m: &mut Mesh, s: &Skel, wood: u8) {
     let (w, j) = (Role::Wood(wood), Role::Joint(wood));
     let (r, up) = (s.r, -s.down);
     let hr = s.hf.cross(s.hu).norm();
-    ball(m, w, s.head + s.hu * 0.5, (-hr, s.hu), (6.8, 10.2, 8.4));
-    limb(m, w, s.neck, s.head - s.hu * 7.0, 2.6);
-    ball(m, w, s.chest, (r, up), (13.5, 15.0, 8.2));
+    ball(m, w, s.head + s.hu * 0.5, (-hr, s.hu), (6.0, 9.2, 7.6));
+    limb(m, w, s.neck, s.head - s.hu * 6.5, 2.4);
+    ball(m, w, s.chest, (r, up), (12.8, 14.2, 7.8));
     let waist = s.chest.lerp(s.pelvis, 0.55);
-    sphere(m, j, waist, 5.2);
-    ball(m, w, s.pelvis, (r, up), (12.5, 8.0, 9.0));
+    sphere(m, j, waist, 5.0);
+    ball(m, w, s.pelvis, (r, up), (12.0, 7.6, 8.6));
     for sh in [s.ls, s.rs] {
-        sphere(m, j, sh, 3.9);
+        sphere(m, j, sh, 3.7);
     }
-    m.rods.push((
-        w,
-        Rod {
-            a: s.ls,
-            b: s.le,
-            r: 2.7,
-        },
-    ));
-    sphere(m, j, s.le, 2.9);
-    m.rods.push((
-        w,
-        Rod {
-            a: s.le,
-            b: s.lw,
-            r: 2.2,
-        },
-    ));
-    sphere(m, j, s.lw, 1.9);
-    hand(m, s, w, 0.85);
     for i in 0..2 {
-        sphere(m, j, s.hips[i], 4.4);
-        m.rods.push((
-            w,
-            Rod {
-                a: s.hips[i],
-                b: s.knees[i],
-                r: 4.4,
-            },
-        ));
-        sphere(m, j, s.knees[i], 4.0);
-        m.rods.push((
-            w,
-            Rod {
-                a: s.knees[i],
-                b: s.ankles[i],
-                r: 3.3,
-            },
-        ));
-        sphere(m, j, s.ankles[i], 2.6);
+        sphere(m, j, s.hips[i], 4.3);
+        taper(m, w, s.hips[i], s.knees[i], 4.6, 3.6);
+        sphere(m, j, s.knees[i], 3.9);
+        taper(m, w, s.knees[i], s.ankles[i], 3.4, 2.6);
+        sphere(m, j, s.ankles[i], 2.5);
         let toe = s.ankles[i] + s.f * 8.0;
         ball(
             m,
             w,
             s.ankles[i].lerp(toe, 0.5) + s.down * 3.0,
             (s.r, up),
-            (3.4, 2.6, 7.6),
+            (3.3, 2.5, 7.4),
         );
     }
 }

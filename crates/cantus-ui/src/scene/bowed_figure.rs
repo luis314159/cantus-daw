@@ -15,7 +15,7 @@
 use super::bowed::{board_z, nut_y, outline, Bowed, Pose};
 use super::bowed_head::grid;
 use super::bowed_hold::{elbow, Hold, Holder};
-use super::bowed_mesh::{Mesh, Rod, Role};
+use super::bowed_mesh::{Mesh, Role};
 use super::geo::{v, V3};
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
@@ -43,10 +43,16 @@ pub struct Skel {
     pub ankles: [V3; 2],
     /// The chair's place and its yaw (radians), or none (a cello's or a bass's own).
     pub seat: Option<(V3, f32)>,
+    /// The instrument's neck: its way toward the scroll, the fingerboard's up, the side the
+    /// left hand comes from; the fingerboard's top over the grip.
+    pub nd: V3,
+    pub nz: V3,
+    pub nx: V3,
+    pub top: V3,
 }
 
-/// The head's half-sizes: across, up, front to back (a little large: friendly).
-pub const HEAD: (f32, f32, f32) = (8.0, 10.8, 9.4);
+/// The head's half-sizes: across, up, front to back (a stylised adult's, a touch large).
+pub const HEAD: (f32, f32, f32) = (6.7, 9.3, 8.0);
 
 const UP: V3 = V3 {
     x: 0.0,
@@ -71,9 +77,9 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
         let hr = hf.cross(hu).norm();
         let (a, bb, c) = HEAD;
         let head = chin + hu * (bb * 0.78) - hf * (c * 0.15) + hr * (a * 0.5);
-        let neck = head + down * 19.0 - f * 3.5 + r * 4.0;
-        let ls = neck - r * 17.0 + down * 2.5;
-        let rs = neck + r * 17.0 + down * 2.5;
+        let neck = head + down * 17.5 - f * 3.5 + r * 4.0;
+        let ls = neck - r * 16.0 + down * 3.5;
+        let rs = neck + r * 16.0 + down * 3.5;
         let chest = neck + down * 15.0 - f * 2.0;
         let pelvis = chest + down * 27.0 - f * 2.0;
         let grip = pose.at(0.0, nut_y(d) - 5.5 * k, board_z(d, nut_y(d)) - 1.1 * k);
@@ -100,6 +106,10 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
             knees,
             ankles,
             seat: Some((seat, f.x.atan2(f.z))),
+            nd: pose.ey,
+            nz: pose.ez,
+            nx: -pose.ex,
+            top: grip + pose.ez * (1.35 * k),
         };
     }
     // A cellist or a bassist behind the instrument, facing the hall.
@@ -116,12 +126,12 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
     let chest = contact - f * 10.0 + r * 1.0;
     let pelvis = chest + down * 27.0 - f * 3.0;
     let neck = chest + UP * 15.0 - f * 1.0;
-    let head = neck + UP * 20.0 + r * 5.0 + f * 1.0;
+    let head = neck + UP * 18.5 + r * 5.0 + f * 1.0;
     let hf = (f + down * 0.22 - r * 0.22).norm();
     let hu = (UP - r * 0.16).norm();
     let hu = (hu - hf * hu.dot(hf)).norm();
-    let ls = neck - r * 17.0 + down * 2.5;
-    let rs = neck + r * 17.0 + down * 2.5;
+    let ls = neck - r * 16.0 + down * 3.5;
+    let rs = neck + r * 16.0 + down * 3.5;
     let grip = pose.at(0.0, nut_y(d) - 10.0 * k, board_z(d, nut_y(d)) - 2.2 * k);
     let lw = grip + pose.ex * (4.0 * k) - pose.ez * (3.0 * k) - pose.ey * (4.0 * k);
     let le = elbow(ls, lw, 29.0, 27.0, -r + down * 0.6);
@@ -158,6 +168,10 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
         knees,
         ankles,
         seat: None,
+        nd: pose.ey,
+        nz: pose.ez,
+        nx: pose.ex,
+        top: grip + pose.ez * (2.6 * k),
     }
 }
 
@@ -179,13 +193,22 @@ fn legs(pelvis: V3, f: V3, r: V3, _knee_h: f32) -> ([V3; 2], [V3; 2], [V3; 2]) {
 pub fn fit(b: Bowed, pose: &Pose) -> Vec<V3> {
     let s = skeleton(b, pose);
     let (a, bb, _) = HEAD;
-    vec![
-        s.head + s.hu * (bb + 2.5),
-        s.head - s.hf.cross(s.hu) * (a + 2.0),
-        s.head + s.hf.cross(s.hu) * (a + 2.0),
-        s.ls - s.r * 6.0,
-        s.rs + s.r * 6.0,
-    ]
+    let mut p = vec![
+        s.head + s.hu * (bb + 4.0),
+        s.head - s.hf.cross(s.hu) * (a + 3.0),
+        s.head + s.hf.cross(s.hu) * (a + 3.0),
+        s.ls - s.r * 8.0,
+        s.rs + s.r * 8.0,
+    ];
+    if b.dims().held {
+        // A violinist from the waist up, a little room round them.
+        p.extend([
+            s.pelvis + s.r * 14.0,
+            s.pelvis - s.r * 14.0,
+            s.le + s.down * 6.0,
+        ]);
+    }
+    p
 }
 
 /// The figure `h` names, posed for `b` in `pose`, added to `m`.
@@ -216,8 +239,8 @@ pub fn shell(
 ) {
     let e3 = e1.cross(e2).norm();
     let full = (lon.1 - lon.0) >= TAU - 1e-3;
-    let cols = if full { 20 } else { 14 };
-    let rows = 10;
+    let cols = if full { 28 } else { 18 };
+    let rows = 16;
     let at = move |ph: f32, th: f32| {
         c + e1 * (a * ph.cos() * th.sin()) + e2 * (b * ph.sin()) + e3 * (t * ph.cos() * th.cos())
     };
@@ -249,7 +272,42 @@ pub fn sphere(m: &mut Mesh, role: Role, c: V3, r: f32) {
 
 /// A limb from `a` to `b`, `r` thick, rounded at both ends.
 pub fn limb(m: &mut Mesh, role: Role, a: V3, b: V3, r: f32) {
-    m.rods.push((role, Rod { a, b, r }));
-    sphere(m, role, a, r);
-    sphere(m, role, b, r);
+    taper(m, role, a, b, r, r);
+}
+
+/// A limb from `a` (`ra` thick) to `b` (`rb`), rounded at both ends: a smooth tube (its
+/// normals round its axis, so neither picture shows facets), a ball at each end.
+pub fn taper(m: &mut Mesh, role: Role, a: V3, b: V3, ra: f32, rb: f32) {
+    let ax = b - a;
+    let len = ax.len().max(1e-3);
+    let u = ax * (1.0 / len);
+    let side = if u.y.abs() < 0.9 {
+        UP
+    } else {
+        v(1.0, 0.0, 0.0)
+    };
+    let p = u.cross(side).norm();
+    let q = u.cross(p).norm();
+    let rows = 6;
+    let cols = 28;
+    let at = move |r: usize, c: usize| {
+        let t = r as f32 / (rows - 1) as f32;
+        let th = TAU * c as f32 / cols as f32;
+        let rr = ra + (rb - ra) * t;
+        a + u * (len * t) + (p * th.cos() + q * th.sin()) * rr
+    };
+    let tube = grid(
+        rows,
+        cols,
+        true,
+        at,
+        move |x| {
+            let t = (x - a).dot(u).clamp(0.0, len);
+            x - (a + u * t)
+        },
+        |r, c| [c as f32, r as f32],
+    );
+    m.patches.push((role, tube));
+    sphere(m, role, a, ra);
+    sphere(m, role, b, rb);
 }

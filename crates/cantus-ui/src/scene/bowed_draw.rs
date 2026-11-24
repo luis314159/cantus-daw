@@ -52,11 +52,17 @@ pub fn camera(b: Bowed, h: Holder, room: Room) -> Camera {
     let stand = d.held && h.hold == Hold::Stand;
     let (az, el) = if d.held && !stand {
         (4.0, el + 7.0)
+    } else if stand {
+        // From higher, onto its top: its outline reads as a violin's, not a cello's.
+        (-20.0, el + 16.0)
     } else {
         (-24.0, el)
     };
     let dist = if stand {
         140.0 + 2.2 * d.body
+    } else if d.held && h.hold.figure() {
+        // Its player in the picture too: farther, so the figure keeps its proportions.
+        420.0 + 2.2 * d.body
     } else if d.held {
         250.0 + 2.2 * d.body
     } else {
@@ -482,7 +488,7 @@ pub fn bowed_scene(b: Bowed, h: Holder, st: &Stage) -> Built {
         evening: st.evening,
     });
     falloff(&mut list, st.size, &light);
-    let outline: Vec<Pos2> = points(b).iter().map(|&q| cam.p(q)).collect();
+    let outline: Vec<Pos2> = points(b, h).iter().map(|&q| cam.p(q)).collect(); // r42:arcus-upper
     let dep = cam.depth(mid);
     list.hit(Part::Bowed, hull(&outline), dep);
     let outlines = list
@@ -504,12 +510,12 @@ pub fn bowed_scene(b: Bowed, h: Holder, st: &Stage) -> Built {
 }
 
 /// r42:arcus-upper — a violin or a viola in the air: its soft shadow on the wall behind
-/// (`wall_z`), thrown by a light near the camera, above it and to its left, as a
+/// (`wall_z`), thrown by a light beside the camera to its left, as a
 /// photographer's softbox throws it — so the instrument is seen to hang in the room, not
 /// float over the picture. Wide and faint, a core a little darker.
 fn wall_shadow(c: &mut Ctx, mesh: &Mesh, wall_z: f32) {
     let eye = c.cam.eye();
-    let lamp = eye + v(-70.0, 90.0, 0.0);
+    let lamp = eye + v(-120.0, 5.0, 0.0);
     let on_wall = |p: V3, k: f32| {
         let dir = p - lamp;
         let t = (wall_z - lamp.z) / dir.z.min(-1e-3);
@@ -520,9 +526,10 @@ fn wall_shadow(c: &mut Ctx, mesh: &Mesh, wall_z: f32) {
     };
     let cam = c.cam;
     for (k, op, layer) in [
-        (1.18, 0.16, Layer::ShadowWide),
-        (1.06, 0.18, Layer::ShadowWide),
-        (0.96, 0.22, Layer::Shadow),
+        (1.22, 0.07, Layer::Far),
+        (1.12, 0.09, Layer::Far),
+        (1.04, 0.11, Layer::Far),
+        (0.97, 0.13, Layer::Far),
     ] {
         let sp: Vec<Pos2> = mesh.shadow.iter().map(|&p| cam.p(on_wall(p, k))).collect();
         c.p.on(layer);
