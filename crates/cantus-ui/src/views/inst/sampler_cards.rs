@@ -723,7 +723,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     } else {
         0.0
     };
-    let total = tools_h + a_h + b_h + 3.0 * row_h + t_h + 6.0 * gut + l_h;
+    let total = tools_h + a_h + b_h + 4.0 * row_h + t_h + 7.0 * gut + l_h;
     let (area, _) = ui.allocate_exact_size(vec2(w, total), Sense::hover());
     let mut y = area.top();
     let mut take = |h: f32| {
@@ -793,37 +793,18 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         &[MOD_ENV, VIBRATO, LFO2, VOICE],
         KnobSize::M,
     );
+    // The selected zone's group, the whole row: its cells never give room to another card.
     let e = take(row_h);
-    let ks = need(s, &KEYSWITCH, KnobSize::M);
-    let lg = need(s, &LEGATO, KnobSize::M);
-    let esplit = e.right() - ks - lg - gut;
-    group_card(
+    group_card(app, ui, track, spec, e, s, KnobSize::M);
+    // How a line is played (r42 fix3-suite): the scripted legato and the keyswitches.
+    section_row(
         app,
         ui,
         track,
         spec,
-        Rect::from_min_max(e.min, pos2(esplit - gut, e.bottom())),
+        take(row_h),
         s,
-        KnobSize::M,
-    );
-    section(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(pos2(esplit, e.top()), pos2(esplit + lg, e.bottom())),
-        s,
-        &LEGATO,
-        KnobSize::M,
-    );
-    section(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(pos2(e.right() - ks, e.top()), e.max),
-        s,
-        &KEYSWITCH,
+        &[LEGATO, KEYSWITCH],
         KnobSize::M,
     );
     map::table(app, ui, track, spec, take(t_h), s);
