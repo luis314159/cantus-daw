@@ -35,7 +35,7 @@ const VEL: [f32; 3] = [0.3, 0.6, 0.9];
 type Key = (Inst, bool, u8, Dyn);
 
 fn held_out(key: u8, d: Dyn) -> bool {
-    (key as usize + d) % 3 == 0
+    (key as usize + d).is_multiple_of(3)
 }
 
 fn render(k: Key, model: u8, m: Option<Match>) -> Features {
@@ -145,7 +145,7 @@ fn median(mut v: Vec<f64>) -> f64 {
 }
 
 /// The references grouped by note, and the ones a key's spread pools (a semitone either way).
-fn pool<'a>(all: &'a [Note], k: Key) -> Vec<&'a Note> {
+fn pool(all: &[Note], k: Key) -> Vec<&Note> {
     all.iter()
         .filter(|n| {
             n.inst == k.0

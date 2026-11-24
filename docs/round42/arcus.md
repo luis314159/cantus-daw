@@ -59,11 +59,16 @@ design* section; the player's view is `docs/manual/en/arcus.md` (and `es`).
    cello's D settled within 50 ms; after, 15 (`probe_torsion`).
 3. **Pitch** (`tests_pitch`, 168 points **held out** of the table: keys 23–49 cents off,
    dynamics and contacts between the grid's): with the table alone, 71 of 1 392 points over a
-   cent (worst 12.4); with the closed loop, **164 of 168 within a cent, median 0.003 cent**, the
-   four left 1.0–1.4 cents (pp far over the fingerboard on the lowest strings). The gate's
-   last 2 % is **not yet met** (below, *Left for the round*). Plucked: **−0.0007 cent worst**
-   (four instruments); Werckmeister III in E flat at A415: plucked within 0.001, bowed within
-   0.01 cent of the table's pitch. Before (round 41's Fides bow, no correction): +3.1 … −1.2.
+   cent (worst 12.4); with the first closed loop (timing the main slips) 164 of 168 within a
+   cent, median 0.003, four left at 1.0–1.4 (pp far over the fingerboard on the lowest strings:
+   there the motion settles for about a second with the slips' period steady and the
+   fundamental's phase drifting — `probe_the_last_points`: the force 2–3.6× the region's lower
+   limit and 0.33–0.5 of its upper, the bow at speed from the start, so inside the playable
+   wedge; nothing to clamp). With the loop that hears the fundamental's phase (`arcus::ear`,
+   ADR 0157): **168 of 168 within a cent, worst 0.52, median 0.011 cent** — the gate met.
+   Plucked: **−0.0007 cent worst** (four instruments); Werckmeister III in E flat at A415:
+   plucked within 0.001, bowed within 0.01 cent of the table's pitch. Before (round 41's Fides
+   bow, no correction): +3.1 … −1.2.
 4. **Vibrato**: at A3 **6.0 Hz, ±22.1 cents**; each harmonic's swing through the body 1.5–7.5
    dB, all different, and 0.2–1.5 dB without it — the AM is the body's.
 5. **Body**: the cello's and bass's signature modes ring within 1 % of the table over the
@@ -85,21 +90,69 @@ and the Smolken bass's `arco_d2_*_down.wav`, CC0, in `F:\projects\daw-r42\downlo
 the cello's harmonics 2–4 at −14/−34/−33 dB against −22/−35/−40, the same centroid (~230 Hz);
 the bass's centroid 175–185 Hz against 200–300; the noise between harmonics within a few dB.
 
+## Levels: the registers and the presets
+
+- **The registers** (`tests_gate2::probe_levels`: a held note every three semitones at velocity
+  0.6, integrated LUFS): the cello fell 0.47 dB a semitone from C2 to F♯5 (−21.5 to −39.9
+  LUFS), the bass 0.16. A balance around A3 / the bass's middle (`balance_db_st`) evens them —
+  the cello −18.6 … −29.0, the bass −12.0 … −21.9 (the body's own note-to-note unevenness, ±5
+  dB, kept); the trims 16 dB (the four-string chord at velocity 127 still under full scale).
+- **The presets** fitted to their roles (`tools/arcus/presets.sh fit`, Fides's tool with its
+  `arcus` argument: each preset's audition phrase through the engine, its gain moved to the
+  role's target, never past a −1.2 dBFS phrase peak), with model 2: **21 of 24 within 0.2 LU**
+  (Lead −18, Bass −16, Pluck −21 LUFS); *Cello near the bridge* −1.4 LU and *Cello slow bow*
+  −4.2 LU stop at the phrase-peak limit (their crest), *Bass tremolo* +0.2. **The default patch**
+  (a new Arcus, gain 0) reads about −21 LUFS on the Lead phrase (the *Cello* preset's gain is
+  +2.8 dB).
+
+## Matched to recordings (model 2) — `docs/round42/arcus-match.md`
+
+The owner's ask: about 1 060 recorded notes (Iowa MIS anechoic, TinySOL, VSCO 2 CE, Karoryfer,
+Smolken) measured beside Arcus note by note; model 2's correction fitted on two thirds,
+judged on the third held out: the cello's harmonics 8.7 → 4.1 dB outside the recordings'
+spread, its spectrum 8.2 → 3.8, its centroid 7.1 → 1.3 semitones; the vibrato inside the
+recordings' depth; the pluck's ring shorter. The bass's correction left flat (it moved the
+held-out notes away); the pizzicato's brightness, the attack and the bass's own body open.
+Plots in `docs/round42/arcus-match/`.
+
 ## Renders for the owner
 
-`F:\projects\daw-r42\listen\arcus\`: `abx-{cello,bass}.wav` (−1 dBFS) and `*-lufs23.wav`
-(−23 LUFS) from `tools/arcus/abx_phrase.mid`, the same notes `strings-rec` renders; notes at
-three dynamics, the reference notes, a legato phrase with a CC1 swell, pizzicato, tremolo.
+`F:\projects\daw-r42\listen\arcus\`, **re-rendered with model 2, the registers balanced and the trims at 16 dB** (the first set
+played about 5 dB hot; the set before the match is kept in `before\`):
+`abx-{cello,bass}.wav` (−1 dBFS peak) and `*-lufs23.wav` (−23 LUFS; the cello's peak there
+−8.9 dBFS, the bass's −6.0) from `tools/arcus/abx_phrase.mid`, the same notes `strings-rec`
+renders (raw, before the normalising: the cello −32.0 LUFS, peak −17.9 dBFS; the bass −20.2
+LUFS, −3.1 dBFS); notes at three dynamics (the cello's mf note −17.6 dBFS peak, −34.3 RMS; ff
+−9.1 / −26.4), the reference notes, a legato phrase with a CC1 swell, pizzicato,
+tremolo (`tools/arcus/listen.sh … levels` prints every one). The presets on their audition
+phrases and as held notes: `F:\projects\daw-r42\listen\arcus-presets\` (`tools/arcus/presets.sh`).
 
-## Fides's bowed pitch (round 41's leftover)
+## Fides's bowed pitch (round 41's leftover): Fides's model 2
 
-**Tried, not shipped.** A model-2 table for Fides (key × pressure × position, two passes) was
-built (`F:\projects\daw-r42\logs\fides-model2-attempt\`: the code, the tool, the table): at
-Fides's default bow it left +3.5 … −1.5 cents and +19.6 at C3 with a light bow near the bridge.
-Fides's bow (the STK's table) locks the period to whole samples and is chaotic at light
-pressure; a table cannot fix either. The cure is Arcus's: the slip timed between samples and the
-closed loop — a Fides model 2 built on Arcus's junction. Nothing of Fides changed; its golden
-hashes did not move.
+**Done** (ADR 0150's amendment, `DSP_VERSION` 12). The first try (a model-1 correction table,
+`F:\projects\daw-r42\logs\fides-model2-attempt\`) left +3.5 … −1.5 cents and +19.6 at C3:
+the STK's bow table locks the period to whole samples. Model 2 (`MODEL` 2.0, stored with every
+new Fides; a song keeps its own, the key stored since round 41 — no schema move) gives a bowed
+waveguide **string** Arcus's junction (`fides::bow2` on `arcus::string::slip_root`: the
+hyperbolic rosin, the stick's and the slip's ends timed between samples), scale-free in Fides's
+units (the grip a share of Schelleng's `|v_b|/((μs−μd)β)`, `v₀` half the bow's speed), the
+bridge's corner while bowed (3 kHz or 6 × f0), a five-sample bow–bridge segment at least, the
+grip scaled by `(350/f)^1.6` above 350 Hz, and the same ear-driven loop as Arcus. Tubes, pipes
+and bowed modal objects keep model 1's friction (model 2's junction on a tube grew without
+bound; a mode's pitch is its own). Model 1 is the same bits.
+
+- **Measured** (`fides::tests::a_bowed_string_plays_in_tune`, five bowings — pressure 0 … 1,
+  speed 0.2 … 1 — C2 to A♯7, 0.6–1.9 s): **model 2 within a cent everywhere, worst 0.61 cent**
+  (pressure 0 at G2; C3 and up within 0.09); model 1 at the same points +6.4 … −9.0 (C2–C6),
+  −5.0 at C7. The grip's law from `probe_model2_grip`: at the full grip C5 sat −1.0 cent, G5
+  −32, C6 −67, C7 −103; the law's grip holds each within 0.1.
+- **Through the engine** (`cantus-ui` `fides_bowed_pitch`: the presets as the browser applies
+  them, body and output on, vibrato off, C2–G5 after the attack): *Bowed cello* within 0.01
+  cent (model 1: +1.96 … +0.16), *Bowed strings pad* within 0.02 (model 1: +1.35 … −0.25). The
+  bowed modal presets (Glass harmonica, Bowed vibraphone) are model 1's friction on their modes.
+- **The size of the change** (`fides_pick_e2e`'s probe, `FIDES_MODEL` 1 against 2, every
+  factory preset's audition phrase and five notes): BITS_LINE
+- **Levels**: FIDES_LEVELS_LINE
 
 ## Verified only in emulation
 
@@ -115,20 +168,20 @@ hashes did not move.
   card).
 - **The owner's eyes** on the face (the `arcus-look` agent's picture).
 
-*Left for the round (not owner items):* the pitch gate's last four held-out points (pp sul
-tasto on the lowest strings); the violin and the viola (out of the picker: at 48 kHz their upper
-notes leave the bow–bridge segment too few samples — an oversampled junction; their bodies
-unmeasured); Fides's model 2 on Arcus's junction.
+*Left for the round (not owner items):* the violin and the viola (out of the picker: at 48 kHz
+their upper notes leave the bow–bridge segment too few samples — an oversampled junction; their
+bodies unmeasured). The pitch gate's last points and Fides's bowed pitch are closed (above).
 
-## Tests (Windows, this branch)
+## Tests (Windows, this branch, at the end)
 
-`cantus-dsp` arcus 17 (+5 probes ignored: Schelleng, curves, torsion, harmonics, quantization,
-CPU) — the pitch gate held as measured (164/168; the gate's last four points open); `cantus-core`
-inst (arcus 2 among them); `cantus-engine` `inst_arcus` 8, `arcus_image` 1,
-`rt_memory::an_arcus_never_allocates`; `cantus-ui` `arcus_pick_e2e` 1 (+1 ignored until `ALL`:
-the picker), the lib's skin, i18n and arcus tests (41), `kit_lint`; clippy `--all-targets -D
-warnings` on dsp, core, engine and ui; rustfmt. Not run here: the Linux check (WSL is the
-integrator's), the whole UI suite.
+`cantus-dsp` (release) the whole lib 1 356 passed after Fides's model 2; then `arcus::` and
+`fides::` 32 passed (+13 probes ignored) with model 2's match — the held-out pitch gate 168 of
+168 within a cent, Fides's bowed pitch within 0.61 cent C2–A♯7 at five bowings, the attacks,
+the vibrato, rest, block sizes, the pool; `cantus-engine` + `cantus-core` (debug, every test)
+**2 447 passed, 0 failed**; `cantus-ui` `arcus_pick_e2e` 1 (+1 ignored until `ALL`),
+`fides_pick_e2e` 2 (+ its bits probe), `fides_bowed_pitch` 1, `kit_lint` 4; clippy
+`--workspace --all-targets -D warnings` clean; rustfmt. Not run here: the Linux check
+(WSL is the integrator's), the whole UI suite.
 
 ## For the ALL commit (after the owner's verdict)
 

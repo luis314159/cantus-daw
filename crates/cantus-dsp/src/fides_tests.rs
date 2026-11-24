@@ -356,8 +356,10 @@ fn a_bowed_string_plays_in_tune() {
             (0.0, 0.2),
             (1.0, 1.0),
         ] {
-            let mut s = FidesSettings::default();
-            s.model = model;
+            let mut s = FidesSettings {
+                model,
+                ..FidesSettings::default()
+            };
             s.exc.kind = ExciterKind::Bow;
             s.exc.bow_pressure = pressure;
             s.exc.bow_speed = speed;
