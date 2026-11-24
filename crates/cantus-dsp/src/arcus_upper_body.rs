@@ -85,21 +85,32 @@ pub struct UpperBody {
     /// from.
     cloud_for: Option<&'static [Mode]>,
     cloud_level: [f64; CLOUD],
-    /// r42 fix2-arcus — the exact power gain (each microphone) measured at the instrument's
-    /// own size on the ring's lattice ([`RING_LATTICE`]), `NAN` until measured, for the shape
-    /// it was measured on (its modes, own size and trim).
+    /// r42 fix2-arcus — the exact power gain (each microphone) measured on the lattice
+    /// ([`LATTICE`]), `NAN` until measured, for the shape it was measured on (its modes, own
+    /// size and trim).
     norm_for: Option<(&'static [Mode], u32, u32)>,
-    norm: [[f64; 2]; RING_LATTICE],
+    norm: [[f64; 2]; LATTICE],
     /// How many exact measures were taken (each `O(n²)`): tests.
     measured: u32,
 }
 
-/// r42 fix2-arcus — the ring's lattice: the exact power is measured at `ring = 2^(k/8)`,
-/// `k = −16 … 16` (the knob's ¼ … 4), and the power between two neighbours interpolated in
-/// the logarithm (at a lattice point, ring 1 among them, it is the measure itself).
+/// r42 fix2-arcus — the lattice the exact power is measured on: the ring at `2^(k/8)`,
+/// `k = −16 … 16` (the knob's ¼ … 4), and the size at the instrument's own `× 2^(k/8)`,
+/// `k = −4 … 4` (half an octave either way: the knob's 0.8 … 1.25 and a modulation past it,
+/// clamped); a point between is carried from the four around it ([`UpperBody::measures`]
+/// counts the measures, each taken once).
 pub const RING_PER_OCTAVE: f64 = 8.0;
 const RING_HALF: i32 = 16;
 pub const RING_LATTICE: usize = 2 * RING_HALF as usize + 1;
+pub const SIZE_PER_OCTAVE: f64 = 8.0;
+const SIZE_HALF: i32 = 4;
+pub const SIZE_LATTICE: usize = 2 * SIZE_HALF as usize + 1;
+pub const LATTICE: usize = SIZE_LATTICE * RING_LATTICE;
+
+/// The size of the lattice's point `k` for an instrument whose own is `own`.
+fn size_at(own: f32, k: i32) -> f32 {
+    own * math::exp2(k as f64 / SIZE_PER_OCTAVE) as f32
+}
 
 /// A body whose every mode is below this is still: its state is zeroed.
 const STILL: f32 = 1e-10;
@@ -125,7 +136,7 @@ impl UpperBody {
             cloud_for: None,
             cloud_level: [0.0; CLOUD],
             norm_for: None,
-            norm: [[f64::NAN; 2]; RING_LATTICE],
+            norm: [[f64::NAN; 2]; LATTICE],
             measured: 0,
         }
     }
@@ -211,28 +222,28 @@ impl UpperBody {
         used
     }
 
-    /// The exact power gain at the instrument's own size `own` and the ring's lattice point
-    /// `k` (measured once per shape).
-    fn power_at(&mut self, sh: &Shape, own: f32, k: i32) -> [f64; 2] {
-        let ix = (k + RING_HALF) as usize;
+    /// The exact power gain at the lattice's point (`ks` on the size's, `kr` on the ring's),
+    /// measured once per shape.
+    fn power_at(&mut self, sh: &Shape, ks: i32, kr: i32) -> [f64; 2] {
+        let ix = (ks + SIZE_HALF) as usize * RING_LATTICE + (kr + RING_HALF) as usize;
         if self.norm[ix][0].is_nan() {
-            let ring = math::exp2(k as f64 / RING_PER_OCTAVE) as f32;
+            let ring = math::exp2(kr as f64 / RING_PER_OCTAVE) as f32;
             let mut coefs = [ZERO; MODES];
-            let used = self.coefs(sh, own, ring, &mut coefs);
+            let used = self.coefs(sh, size_at(sh.own, ks), ring, &mut coefs);
             self.norm[ix] = exact_power(&coefs, used);
             self.measured += 1;
         }
         self.norm[ix]
     }
 
-    /// The body's power gain to white noise (each microphone) at the shape's size and ring:
-    /// measured exactly at the instrument's own size on the ring's lattice, carried to a ring
-    /// between two lattice points in the logarithm, and to the size by its law — every mode's
-    /// frequency and bandwidth over the size, so the impulse response's energy is the own
-    /// size's × `own / size` (`h_c(t) = c·h(ct)`, which the discrete design keeps to the first
-    /// order in the sampling interval: `tests_fix2`, within 0.05 dB over the knobs). At the
-    /// instrument's own size and a lattice point (the defaults) it is the measure itself, to
-    /// the bit.
+    /// The body's power gain to white noise (each microphone) at the shape's size and ring,
+    /// from the lattice's exact measures around it: each carried to the shape's size by the
+    /// power's law — every mode's frequency and bandwidth go as one over the size, so the
+    /// impulse response's energy goes as `s_k / size` (`h_c(t) = c·h(ct)`, which the
+    /// discrete design keeps to the first order in the sampling interval) — and the four
+    /// mixed in the logarithm by the point's place between them (`tests_fix2`: within 0.1 dB
+    /// of the exact measure over the knobs' ranges). On a lattice point — the defaults among
+    /// them, the instrument's own size at ring 1 — it is the measure itself, to the bit.
     ///
     /// Before (round 42's first build), every change of the size or the ring measured the
     /// power anew, `O(n²)` — 21 600 cross terms — and a modulated body changes them every 32
@@ -244,24 +255,46 @@ impl UpperBody {
             .norm_for
             .is_some_and(|o| std::ptr::eq(o.0, key.0) && o.1 == key.1 && o.2 == key.2)
         {
-            self.norm = [[f64::NAN; 2]; RING_LATTICE];
+            self.norm = [[f64::NAN; 2]; LATTICE];
             self.norm_for = Some(key);
         }
-        let u = (RING_PER_OCTAVE * math::log2(sh.ring.max(0.05) as f64))
-            .clamp(-RING_HALF as f64, RING_HALF as f64);
-        let k0 = u.floor() as i32;
-        let frac = u - k0 as f64;
-        let p0 = self.power_at(sh, own, k0);
-        let p = if frac == 0.0 {
-            p0
-        } else {
-            let p1 = self.power_at(sh, own, (k0 + 1).min(RING_HALF));
-            let mix =
-                |a: f64, b: f64| math::exp2((1.0 - frac) * math::log2(a) + frac * math::log2(b));
-            [mix(p0[0], p1[0]), mix(p0[1], p1[1])]
+        let size = sh.size.max(0.1);
+        let place = |u: f64, half: i32| {
+            let u = u.clamp(-half as f64, half as f64);
+            let k = u.floor() as i32;
+            (k, u - k as f64, (k + 1).min(half))
         };
-        let scale = own.max(0.1) as f64 / sh.size.max(0.1) as f64;
-        [(p[0] * scale).max(1e-30), (p[1] * scale).max(1e-30)]
+        let (s0, sf, s1) = place(
+            SIZE_PER_OCTAVE * math::log2(size as f64 / own.max(0.1) as f64),
+            SIZE_HALF,
+        );
+        let (r0, rf, r1) = place(
+            RING_PER_OCTAVE * math::log2(sh.ring.max(0.05) as f64),
+            RING_HALF,
+        );
+        let mut corner = |ks: i32, kr: i32| {
+            let p = self.power_at(sh, ks, kr);
+            let scale = size_at(own, ks).max(0.1) as f64 / size as f64;
+            [p[0] * scale, p[1] * scale]
+        };
+        let p = if sf == 0.0 && rf == 0.0 {
+            corner(s0, r0)
+        } else {
+            let mut acc = [0.0f64; 2];
+            for (ks, ws) in [(s0, 1.0 - sf), (s1, sf)] {
+                for (kr, wr) in [(r0, 1.0 - rf), (r1, rf)] {
+                    let w = ws * wr;
+                    if w == 0.0 {
+                        continue;
+                    }
+                    let c = corner(ks, kr);
+                    acc[0] += w * math::log2(c[0]);
+                    acc[1] += w * math::log2(c[1]);
+                }
+            }
+            [math::exp2(acc[0]), math::exp2(acc[1])]
+        };
+        [p[0].max(1e-30), p[1].max(1e-30)]
     }
 
     fn design(&mut self, sh: &Shape) {

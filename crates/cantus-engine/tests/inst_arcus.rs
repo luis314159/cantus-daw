@@ -415,10 +415,10 @@ fn swept(spec: &NativeSpec, seconds: f32) -> (Unit, Vec<f32>) {
 
 /// Review finding 5: under a route the settings are rebuilt every 32 samples, and the upper
 /// body measured its power gain anew (`O(n²)`, 21 600 cross terms) at every change of the
-/// size or the ring — ~1 500 times a second under a moving mod wheel. Its size now moves by
-/// the power's law (no measure at all) and its ring on the lattice (at most its 33 points,
-/// each once): a second of a swept mod wheel takes at most the lattice's measures, and the
-/// body really moves (the output differs from an unmodulated one's).
+/// size or the ring — ~1 500 times a second under a moving mod wheel. It now measures on a
+/// lattice of sizes and rings (each point once, carried between them by the power's law): a
+/// swept size takes at most the size's nine points, the size and the ring together at most
+/// the lattice's, and the body really moves (the output differs from an unmodulated one's).
 #[test]
 fn a_modulated_body_measures_its_power_at_most_once_per_lattice_point() {
     let (still, a) = swept(&moving_body(0.0, 0.0), 0.6);
@@ -432,8 +432,9 @@ fn a_modulated_body_measures_its_power_at_most_once_per_lattice_point() {
         size.dsp().body_measures(),
         both.dsp().body_measures()
     );
-    assert_eq!(size.dsp().body_measures(), still.dsp().body_measures());
-    assert!(both.dsp().body_measures() as usize <= cantus_dsp::arcus::upper::body::RING_LATTICE);
+    use cantus_dsp::arcus::upper::body::{LATTICE, SIZE_LATTICE};
+    assert!(size.dsp().body_measures() as usize <= SIZE_LATTICE);
+    assert!(both.dsp().body_measures() as usize <= LATTICE);
 }
 
 /// Review finding 5's measure: the CPU of a violin chord with the mod wheel sweeping the

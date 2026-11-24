@@ -235,7 +235,12 @@ impl Voice {
         }
         // r42 fix2-arcus: past what the loop can play in tune, the note fades out (1 to the
         // bit for every note an instrument has).
-        g *= top_gain(sr as f64 / f, super::super::string::SHORTEST);
+        let top = top_gain(sr as f64 / f, super::super::string::SHORTEST);
+        g *= top;
+        if self.first && top < 1.0 {
+            // A note that starts past the top is quiet from its first sample.
+            self.lvl.1 *= top;
+        }
         self.lvl = (self.lvl.1, g);
         self.lvl_t = t_end;
         self.span = span;

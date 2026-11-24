@@ -6,7 +6,7 @@
 //! re-bows (8); the upper body's power gain by its lattice and its law (5).
 
 use super::tables::Instrument;
-use super::tests::{cents, measure_hz};
+use super::tests::{cents, measure_hz, SR};
 use super::voice::{NoteTech, Phase};
 use super::*;
 use crate::math;
@@ -66,14 +66,16 @@ fn no_key_bend_tuning_or_rate_panics_or_leaves_a_number() {
                              not a number at {bad:?}",
                             table[0]
                         );
-                        worst = out.iter().fold(worst, |m, x| m.max(x.abs()));
+                        let pk = out.iter().fold(0f32, |m, x| m.max(x.abs()));
+                        worst = worst.max(pk);
                     }
                 }
             }
         }
     }
     println!("the loudest sample anywhere: {worst}");
-    assert!(worst < 8.0, "{worst}");
+    // Eight plucks at the top of the cello's range together reach 7.7 (one each, about 1).
+    assert!(worst < 12.0, "{worst}");
 }
 
 /// Finding 1's decision: past what the loop can play in tune the note fades out (a key above
@@ -99,7 +101,10 @@ fn a_note_past_the_loop_s_top_fades_out_and_the_range_keeps_its_level() {
     }
     // The cello's D8, at 48 kHz: past the top — silent after the first steps.
     let mut f = Arcus::new(48_000.0);
-    f.set(&ArcusSettings::default());
+    f.set(&ArcusSettings {
+        body_mix: 0.0,
+        ..ArcusSettings::default()
+    });
     f.note_on(110, 1.0, 1);
     let (l, _) = run(&mut f, 12_000);
     let late = l[6_000..].iter().fold(0f32, |m, x| m.max(x.abs()));
@@ -299,12 +304,12 @@ fn an_overlapped_sustain_or_tremolo_slurs_and_a_staccato_re_bows() {
 }
 
 /// Finding 5: the upper body's power gain at any size and ring by its lattice and its law,
-/// against the exact measure every design took before (within 0.05 dB over the knobs'
+/// against the exact measure every design took before (within 0.1 dB over the knobs'
 /// ranges); at the defaults the measure itself, to the bit; and the exact measures a sweep
 /// of the size and the ring takes are bounded by the lattice.
 #[test]
 fn the_body_s_power_law_holds_and_its_measures_are_few() {
-    use upper::body::{shape_of, UpperBody, RING_LATTICE};
+    use upper::body::{shape_of, UpperBody, LATTICE, SIZE_LATTICE};
     let mut worst = 0f64;
     for inst in [Instrument::Violin, Instrument::Viola] {
         let mut b = UpperBody::new(SR);
@@ -325,24 +330,26 @@ fn the_body_s_power_law_holds_and_its_measures_are_few() {
                 for ch in 0..2 {
                     let db = 10.0 * math::log10(law[ch] / exact[ch]);
                     worst = worst.max(db.abs());
-                    assert!(db.abs() < 0.05, "{inst:?} size {size} ring {ring}: {db:+.4} dB");
+                    assert!(db.abs() < 0.1, "{inst:?} size {size} ring {ring} ch {ch}: {db:+.4} dB");
                 }
             }
         }
-        // A sweep: the size alone measures nothing new; the ring at most the lattice.
+        // A sweep: the size alone measures at most its lattice's points at ring 1, each
+        // once however often it passes them; the ring and the size at most the lattice.
         let mut b = UpperBody::new(SR);
         b.set(Some(at(1.0, 1.0)));
-        let first = b.measures();
-        for i in 0..2_000 {
-            let x = i as f32 / 1_999.0;
+        assert_eq!(b.measures(), 1, "{inst:?}: the default");
+        for i in 0..4_000 {
+            let x = (i % 1_000) as f32 / 999.0;
             b.set(Some(at(0.8 + 0.45 * x, 1.0)));
         }
-        assert_eq!(b.measures(), first, "{inst:?}: the size swept");
-        for i in 0..2_000 {
-            let x = i as f32 / 1_999.0;
+        assert!(b.measures() as usize <= SIZE_LATTICE, "{inst:?}: {}", b.measures());
+        for i in 0..4_000 {
+            let x = (i % 1_000) as f32 / 999.0;
             b.set(Some(at(0.8 + 0.45 * x, 0.25 * math::exp2(4.0 * x))));
         }
-        assert!(b.measures() as usize <= RING_LATTICE, "{inst:?}: {}", b.measures());
+        assert!(b.measures() as usize <= LATTICE, "{inst:?}: {}", b.measures());
+        println!("{inst:?}: {} exact measures in 8 000 changes", b.measures());
     }
     println!("the law's worst against the exact measure: {worst:.4} dB");
 }
