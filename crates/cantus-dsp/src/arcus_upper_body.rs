@@ -285,7 +285,7 @@ impl UpperBody {
     /// Tests: the exact power gain at the shape's size and ring (what every design measured
     /// before r42 fix2-arcus), and the one [`Self::power`] gives.
     #[cfg(test)]
-    pub(super) fn powers(&mut self, sh: &Shape) -> ([f64; 2], [f64; 2]) {
+    pub fn powers(&mut self, sh: &Shape) -> ([f64; 2], [f64; 2]) {
         let mut coefs = [ZERO; MODES];
         let used = self.coefs(sh, sh.size, sh.ring, &mut coefs);
         (exact_power(&coefs, used), self.power(sh))

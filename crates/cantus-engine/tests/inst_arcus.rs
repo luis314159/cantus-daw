@@ -376,3 +376,90 @@ fn voices_on_the_pool_are_the_serial_bits() {
         assert_null(&ar, &br, 0.0, name);
     }
 }
+
+/// r42 fix2-arcus — a violin whose mod wheel moves the body's size (`mod9`) and ring
+/// (`mod10`), the routes a player draws.
+fn moving_body(size: f32, ring: f32) -> NativeSpec {
+    let k = cantus_core::inst::modulation::SLOTS;
+    let mut s = arcus(&[("inst", 2.0), ("mode", 0.0)]);
+    for (slot, dst, amt) in [(8usize, "body.size", size), (9, "body.ring", ring)] {
+        if amt == 0.0 {
+            continue;
+        }
+        s.set_text(k[slot].src, Some("mw".into())).unwrap();
+        s.set_text(k[slot].dst, Some(dst.into())).unwrap();
+        s.set(k[slot].amt, amt).unwrap();
+        s.set(k[slot].on, 1.0).unwrap();
+    }
+    s
+}
+
+/// Play `spec`'s chord for `seconds`, the mod wheel swept up and down every block of 128.
+fn swept(spec: &NativeSpec, seconds: f32) -> (Unit, Vec<f32>) {
+    let mut u = Unit::new(SR);
+    u.configure(spec, &[]);
+    for (i, key) in [67u8, 74, 79].into_iter().enumerate() {
+        u.note_on(note(key, i as u64 + 1));
+    }
+    let frames = (seconds * SR) as usize;
+    let mut out = vec![0.0f32; frames];
+    let mut r = vec![0.0f32; 128];
+    for (b, at) in (0..frames).step_by(128).enumerate() {
+        let n = 128.min(frames - at);
+        let x = (b % 200) as f32 / 100.0;
+        u.controller(Controller::ModWheel, if x > 1.0 { 2.0 - x } else { x });
+        u.process(&mut out[at..at + n], &mut r[..n]);
+    }
+    (u, out)
+}
+
+/// Review finding 5: under a route the settings are rebuilt every 32 samples, and the upper
+/// body measured its power gain anew (`O(n²)`, 21 600 cross terms) at every change of the
+/// size or the ring — ~1 500 times a second under a moving mod wheel. Its size now moves by
+/// the power's law (no measure at all) and its ring on the lattice (at most its 33 points,
+/// each once): a second of a swept mod wheel takes at most the lattice's measures, and the
+/// body really moves (the output differs from an unmodulated one's).
+#[test]
+fn a_modulated_body_measures_its_power_at_most_once_per_lattice_point() {
+    let (still, a) = swept(&moving_body(0.0, 0.0), 0.6);
+    let (size, b) = swept(&moving_body(0.6, 0.0), 0.6);
+    let (both, c) = swept(&moving_body(0.6, -0.8), 1.2);
+    assert!(a != b, "the size moved nothing");
+    assert!(c.iter().all(|x| x.is_finite()));
+    println!(
+        "exact measures: still {}, the size swept {}, the size and the ring swept {}",
+        still.dsp().body_measures(),
+        size.dsp().body_measures(),
+        both.dsp().body_measures()
+    );
+    assert_eq!(size.dsp().body_measures(), still.dsp().body_measures());
+    assert!(both.dsp().body_measures() as usize <= cantus_dsp::arcus::upper::body::RING_LATTICE);
+}
+
+/// Review finding 5's measure: the CPU of a violin chord with the mod wheel sweeping the
+/// body's size and ring, against the same chord without the routes timed beside it (each
+/// keeps its least disturbed of five runs, alternating, RELEASING L3). A wall-clock ratio:
+/// on demand in release (`cargo test --release -p cantus-engine --test inst_arcus --
+/// --ignored modulated_body`).
+#[test]
+#[ignore = "timing: run in release with --ignored"]
+fn a_modulated_body_costs_about_what_a_still_one_does() {
+    use std::time::Instant;
+    let (still, moving) = (moving_body(0.0, 0.0), moving_body(0.6, -0.8));
+    let (mut best_still, mut best_moving) = (f64::MAX, f64::MAX);
+    for _ in 0..5 {
+        let t = Instant::now();
+        let _ = swept(&still, 4.0);
+        best_still = best_still.min(t.elapsed().as_secs_f64());
+        let t = Instant::now();
+        let _ = swept(&moving, 4.0);
+        best_moving = best_moving.min(t.elapsed().as_secs_f64());
+    }
+    let ratio = best_moving / best_still;
+    println!(
+        "a violin chord, 4 s: still {:.1} ms, the body swept {:.1} ms — {ratio:.3}×",
+        best_still * 1e3,
+        best_moving * 1e3
+    );
+    assert!(ratio < 1.25, "{ratio:.3}×");
+}

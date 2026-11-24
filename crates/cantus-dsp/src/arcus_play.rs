@@ -164,6 +164,12 @@ impl Arcus {
         &self.voices
     }
 
+    /// r42 fix2-arcus — the exact power measures (`O(n²)` each) the violin's and the viola's
+    /// body has taken: a modulated size takes none, a modulated ring at most its lattice.
+    pub fn body_measures(&self) -> u32 {
+        self.upper_body.measures()
+    }
+
     pub fn newest(&self) -> &Voice {
         &self.voices[self.newest.min(MAX_VOICES - 1)]
     }

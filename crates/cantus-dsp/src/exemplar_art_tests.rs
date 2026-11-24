@@ -326,3 +326,52 @@ fn a_slurred_note_plays_no_release_and_pizzicato_never_slurs() {
     render(&mut e, 64);
     assert_eq!(e.active_layers(), 2, "a pizzicato is its own note");
 }
+
+/// r42 fix2-arcus (review finding 4) — the scripted legato under a temperament: the slur's
+/// interval is the two keys' **tuned** one, as the mono glide's is. The new note's layers
+/// start where the old one's sound and both end on the new key's tuned pitch (before, the
+/// 12-TET interval: they missed each other by the two offsets' difference, here 24 cents).
+#[test]
+fn a_slur_under_a_temperament_crossfades_two_layers_that_meet_at_the_tuned_pitch() {
+    let g = Globals {
+        legato_xf_ms: 400.0,
+        legato_glide_ms: 50.0,
+        ..legato_globals()
+    };
+    let mut e = with(&[(ZoneParams::default(), sine(100, 480_000, 0.5))], g);
+    let mut t = [0.0f32; 128];
+    t[60] = 0.10;
+    t[64] = -0.14;
+    e.set_tuning(&t);
+    let pitches = |e: &Exemplar| -> Vec<(u8, f64)> {
+        e.layers
+            .iter()
+            .filter(|l| l.active)
+            .map(|l| (l.key, l.semis + l.glide))
+            .collect()
+    };
+    e.note_on_seq(60, 1.0, 1, 0);
+    render(&mut e, 4_800);
+    let before = pitches(&e);
+    assert_eq!(before.len(), 1);
+    e.note_on_seq(64, 1.0, 2, 0);
+    let start = pitches(&e);
+    assert_eq!(start.len(), 2, "both layers sound: {start:?}");
+    for (k, p) in &start {
+        assert!(
+            (p - before[0].1).abs() < 1e-9,
+            "key {k} starts at {p}, the old note sounds {}",
+            before[0].1
+        );
+    }
+    render(&mut e, 9_600); // 200 ms: past the glide, inside the crossfade
+    let end = pitches(&e);
+    assert_eq!(end.len(), 2, "both layers still sound: {end:?}");
+    let want = before[0].1 + (64.0 + f64::from(t[64])) - (60.0 + f64::from(t[60]));
+    for (k, p) in &end {
+        assert!(
+            (p - want).abs() < 1e-6,
+            "key {k} ends at {p}, the new key's tuned pitch is {want}"
+        );
+    }
+}
