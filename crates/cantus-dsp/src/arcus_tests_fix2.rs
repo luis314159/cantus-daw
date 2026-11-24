@@ -189,8 +189,14 @@ fn a_slur_moves_between_the_two_keys_tuned_pitches() {
         "slur 57 → 58 in 31-EDO: its first step {at_start:+.3} ct from the old key's pitch \
          (heard {heard_start:+.2}), its end {end:+.3} ct from the new key's"
     );
-    assert!(at_start.abs() < 0.5, "the slur's first step: {at_start:+.3} ct");
-    assert!(heard_start.abs() < 5.0, "heard at the start: {heard_start:+.2} ct");
+    assert!(
+        at_start.abs() < 0.5,
+        "the slur's first step: {at_start:+.3} ct"
+    );
+    assert!(
+        heard_start.abs() < 5.0,
+        "heard at the start: {heard_start:+.2} ct"
+    );
     assert!(end.abs() <= 1.0, "the slur's end: {end:+.3} ct");
 }
 
@@ -239,7 +245,10 @@ fn the_lines_reach_an_octave_and_a_tone_under_every_lowest_string() {
             run(&mut f, 64);
             let reach = f.newest().string.min_hz();
             let want = hz(low as f64 - voice::REACH_ST);
-            assert!(reach <= want, "{inst:?} at {sr}: {reach:.2} Hz > {want:.2} Hz");
+            assert!(
+                reach <= want,
+                "{inst:?} at {sr}: {reach:.2} Hz > {want:.2} Hz"
+            );
         }
     }
     let mut worst = (0f64, String::new());
@@ -323,14 +332,21 @@ fn the_body_s_power_law_holds_and_its_measures_are_few() {
             .unwrap()
         };
         let (exact, law) = b.powers(&at(1.0, 1.0));
-        assert_eq!(exact.map(f64::to_bits), law.map(f64::to_bits), "{inst:?}: defaults");
+        assert_eq!(
+            exact.map(f64::to_bits),
+            law.map(f64::to_bits),
+            "{inst:?}: defaults"
+        );
         for size in [0.8f32, 0.9, 1.05, 1.25] {
             for ring in [0.25f32, 0.6, 1.0, 1.7, 4.0] {
                 let (exact, law) = b.powers(&at(size, ring));
                 for ch in 0..2 {
                     let db = 10.0 * math::log10(law[ch] / exact[ch]);
                     worst = worst.max(db.abs());
-                    assert!(db.abs() < 0.1, "{inst:?} size {size} ring {ring} ch {ch}: {db:+.4} dB");
+                    assert!(
+                        db.abs() < 0.1,
+                        "{inst:?} size {size} ring {ring} ch {ch}: {db:+.4} dB"
+                    );
                 }
             }
         }
@@ -343,12 +359,20 @@ fn the_body_s_power_law_holds_and_its_measures_are_few() {
             let x = (i % 1_000) as f32 / 999.0;
             b.set(Some(at(0.8 + 0.45 * x, 1.0)));
         }
-        assert!(b.measures() as usize <= SIZE_LATTICE, "{inst:?}: {}", b.measures());
+        assert!(
+            b.measures() as usize <= SIZE_LATTICE,
+            "{inst:?}: {}",
+            b.measures()
+        );
         for i in 0..4_000 {
             let x = (i % 1_000) as f32 / 999.0;
             b.set(Some(at(0.8 + 0.45 * x, 0.25 * math::exp2(4.0 * x))));
         }
-        assert!(b.measures() as usize <= LATTICE, "{inst:?}: {}", b.measures());
+        assert!(
+            b.measures() as usize <= LATTICE,
+            "{inst:?}: {}",
+            b.measures()
+        );
         println!("{inst:?}: {} exact measures in 8 000 changes", b.measures());
     }
     println!("the law's worst against the exact measure: {worst:.4} dB");

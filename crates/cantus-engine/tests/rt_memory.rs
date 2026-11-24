@@ -4528,12 +4528,7 @@ fn articulated_notes_never_allocate() {
 /// instrument switched to `switch` inside the same instance (its voices to another rate:
 /// `enter_rate`, `set_rate`) while it plays; the project moved to the MTS-ESP master's tuning
 /// (refreshed every block); a seek and a stop. Not one allocation, not one free.
-fn arcus_rig(
-    tracks: [(&str, Vec<(&str, f32)>); 2],
-    keys: [u8; 5],
-    live: u8,
-    switch: f32,
-) {
+fn arcus_rig(tracks: [(&str, Vec<(&str, f32)>); 2], keys: [u8; 5], live: u8, switch: f32) {
     use cantus_core::inst::modulation::SLOTS;
     use cantus_core::note_art::{Articulation, Bow, NoteArt};
     for workers in [None, Some(Workers::parallel(3))] {
@@ -4550,7 +4545,7 @@ fn arcus_rig(
         };
         let mut ids = Vec::new();
         for (name, set) in &tracks {
-            let mut t = p.make_track(name);
+            let mut t = p.make_track(*name);
             ids.push(t.id);
             let mut spec = NativeSpec::new(InstrumentKind::BowedString);
             for (k, v) in set {

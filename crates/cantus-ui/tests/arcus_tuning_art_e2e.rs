@@ -108,8 +108,11 @@ fn energy(x: &[f32], from: f64, to: f64) -> f64 {
     x[a..b].iter().map(|v| (*v as f64) * (*v as f64)).sum()
 }
 
-#[test]
-fn arcus_plays_its_track_s_tuning_and_its_notes_articulations_through_the_app() {
+/// One session from a fresh app: Arcus picked, its track's own tuning (Werckmeister III in E
+/// flat at A415) by its command, the phrase inserted, and — `marked` — its second note
+/// marked staccato and its third pizzicato by `SetNoteArt`; six seconds played. The output
+/// and the track's table.
+fn session(marked: bool) -> (Vec<f32>, cantus_core::tuning::TuningTable) {
     let data = tempfile::tempdir().unwrap();
     let (mut app, mut proc_) = app_with_song(data.path());
     let purpose = PickPurpose::AddInstrument { index: None };
@@ -117,7 +120,6 @@ fn arcus_plays_its_track_s_tuning_and_its_notes_articulations_through_the_app() 
     app.apply_pick(purpose, PickChoice::Instrument(InstrumentKind::BowedString));
     app.picker = None;
     let track = app.project().tracks.last().unwrap().id;
-    // The track's own tuning, by its command.
     let werck = Tuning {
         a4_hz: 415.0,
         system: TuningSystem::Temperament {
@@ -127,15 +129,14 @@ fn arcus_plays_its_track_s_tuning_and_its_notes_articulations_through_the_app() 
         },
         map: None,
     };
-    let table = werck.offsets();
     assert!(app.exec(Command::SetTrackTuning {
         track,
         tuning: TrackTuning::Own {
             tuning: werck.clone()
         },
     }));
-    // A held bowed note (0 … 1.6 s), then a note to be marked staccato (2 s) and one to be
-    // marked pizzicato (3.5 s), at 60 BPM.
+    // A held bowed note (0 … 1.6 s), then the notes to be marked staccato (2 s) and
+    // pizzicato (3.5 s), at 60 BPM.
     let mut p = app.project().clone();
     let mut c = p.make_clip("Phrase", Ticks::ZERO, Ticks::beats(6));
     let held = p.make_note(Ticks::ZERO, Ticks(PPQ + PPQ * 3 / 5), 50, 90);
@@ -149,37 +150,47 @@ fn arcus_plays_its_track_s_tuning_and_its_notes_articulations_through_the_app() 
         clip: Box::new(c)
     }));
     assert!(app.exec(Command::SetTempo { bpm: 60.0 }));
-    let plain = play(&mut app, &mut proc_, 6);
-    assert!(plain.iter().all(|x| x.is_finite()));
+    if marked {
+        // The two notes marked, by the command the piano roll sends.
+        let art = |a| {
+            Some(NoteArt {
+                articulation: a,
+                bow: None,
+            })
+        };
+        assert!(app.exec(Command::SetNoteArt {
+            track,
+            clip,
+            arts: vec![
+                (ids.0, art(Articulation::Staccato)),
+                (ids.1, art(Articulation::Pizzicato)),
+            ],
+        }));
+    }
+    let out = play(&mut app, &mut proc_, 6);
+    assert!(out.iter().all(|x| x.is_finite()));
+    (out, werck.offsets())
+}
+
+#[test]
+fn arcus_plays_its_track_s_tuning_and_its_notes_articulations_through_the_app() {
+    let (plain, table) = session(false);
     // The bowed note sounds its table's pitch.
     let want = 440.0 * cantus_dsp::math::exp2((50.0 + f64::from(table.at(50)) - 69.0) / 12.0);
     let err = 1200.0 * cantus_dsp::math::log2(measure_hz(&plain, want, 0.6, 1.5) / want);
     println!("the held D3 in Werckmeister III at A415: {err:+.3} ct from its table");
     assert!(err.abs() <= 1.0, "{err:+.3} ct");
-    // The two notes marked, by the command the piano roll sends.
-    let art = |a| {
-        Some(NoteArt {
-            articulation: a,
-            bow: None,
-        })
-    };
-    assert!(app.exec(Command::SetNoteArt {
-        track,
-        clip,
-        arts: vec![
-            (ids.0, art(Articulation::Staccato)),
-            (ids.1, art(Articulation::Pizzicato)),
-        ],
-    }));
-    let marked = play(&mut app, &mut proc_, 6);
-    assert!(marked.iter().all(|x| x.is_finite()));
+    let (marked, _) = session(true);
     // The unmarked note is the same; the marked ones are not.
     let first: f64 = plain[..72_000]
         .iter()
         .zip(&marked[..72_000])
         .map(|(a, b)| ((a - b) as f64).powi(2))
         .sum();
-    assert!(first <= 1e-3 * energy(&plain, 0.0, 1.5), "the unmarked note moved: {first}");
+    assert!(
+        first <= 1e-3 * energy(&plain, 0.0, 1.5),
+        "the unmarked note moved: {first}"
+    );
     for (name, from, to) in [("staccato", 2.0, 3.0), ("pizzicato", 3.5, 4.5)] {
         let diff: f64 = {
             let (a, b) = ((from * 48_000.0) as usize, (to * 48_000.0) as usize);
@@ -190,7 +201,13 @@ fn arcus_plays_its_track_s_tuning_and_its_notes_articulations_through_the_app() 
                 .sum()
         };
         let base = energy(&plain, from, to);
-        println!("{name}: the difference {:.1} % of the unmarked note's energy", 100.0 * diff / base);
-        assert!(diff > 0.1 * base, "{name} changed too little: {diff} of {base}");
+        println!(
+            "{name}: the difference {:.1} % of the unmarked note's energy",
+            100.0 * diff / base
+        );
+        assert!(
+            diff > 0.1 * base,
+            "{name} changed too little: {diff} of {base}"
+        );
     }
 }

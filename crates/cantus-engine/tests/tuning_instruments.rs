@@ -766,7 +766,8 @@ fn arcus_plays_each_key_at_its_table_s_pitch_within_a_cent() {
             };
             let x = left(&offline(&p, 256));
             for (i, &key) in keys.iter().enumerate() {
-                let want = 440.0 * math::exp2((f64::from(key) + f64::from(table.at(key)) - 69.0) / 12.0);
+                let want =
+                    440.0 * math::exp2((f64::from(key) + f64::from(table.at(key)) - 69.0) / 12.0);
                 let start = i * 2 * SR as usize + SR as usize / 2;
                 let (h, f) = (1..=6usize)
                     .filter(|h| want * *h as f64 * 1.03 < f64::from(SR) * 0.45)
@@ -793,5 +794,8 @@ fn arcus_plays_each_key_at_its_table_s_pitch_within_a_cent() {
         }
     }
     println!("worst: {worst:.3} c");
-    assert!(failed.is_empty(), "off their table by more than a cent: {failed:?}");
+    assert!(
+        failed.is_empty(),
+        "off their table by more than a cent: {failed:?}"
+    );
 }
