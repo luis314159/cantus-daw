@@ -13,11 +13,14 @@
 pub mod backend;
 pub mod bowed;
 pub mod bowed_draw;
+pub mod bowed_draw_tris; // r42:arcus-upper
 pub mod bowed_figure; // r42:arcus-upper
 pub mod bowed_figure_parts; // r42:arcus-upper
 pub mod bowed_fit;
 pub mod bowed_head;
 pub mod bowed_hold; // r42:arcus-upper
+pub mod bowed_human; // r42:arcus-upper
+pub mod bowed_human_skirt; // r42:arcus-upper
 pub mod bowed_mesh;
 pub mod bowed_props;
 pub mod bowed_upper; // r42:arcus-upper

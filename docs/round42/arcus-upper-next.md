@@ -150,6 +150,111 @@ the violin and the cello (Night), and the side-by-sides with the photographs
 cellist's bow hand hangs under the stick from the camera's side (its knuckles should read
 on top). The palm's strips are visible as ridges.
 
+## Realistic figures (owner, 2026-11-24): the faces are original
+
+The owner asked for a realistic woman like his photograph `ref-owner/6-cellist-woman.png` and
+a man in a suit. **That photograph shows a real, identifiable person** (Wikimedia Commons,
+"Woman playing cello during a concert in Moscow", CC BY-SA 2.0): her likeness needs her
+consent and a derivative brings ShareAlike, which ADR 0042 excludes. So **no face is copied**:
+both faces are original (MakeHuman's generic CC0 adult averages, nothing fitted to a
+photograph). From the photograph only the posture, the clothing (the black velvet
+long-sleeved concert dress), the lighting mood and the general styling are taken. What the
+owner liked is kept by design: a serene, calm expression, the eyes lowered toward the
+instrument, soft refined features, fair skin with warm soft shading, light hair pulled back.
+The same rule for the man. Later sessions keep it.
+
+### The realistic figures: how they are made (decision, 2026-11-24)
+
+- **Source: MakeHuman 1.x's CC0 assets**, converted offline (`tools/arcus-figures/`,
+  DEVELOPING §4): the base mesh, the macro targets, the default skeleton and its weights
+  (github.com/makehumancommunity/makehuman @ a8bc2d54, `makehuman/data`; LICENSE.md §C:
+  "the base mesh and proxies, targets and modifiers, textures, clothes, poses — CC0 1.0"),
+  the suit `male_elegantsuit01`, the shoes `shoes04` and the skins
+  `young_caucasian_{female,male}` from `makehuman_system_assets_cc0.zip` (every asset
+  "license": "CC0" in its `packs/makehuman_system_assets.json`). No MakeHuman code
+  (AGPL) is copied: the converter reads the plain-text formats itself. CC0 needs no
+  credit; the in-app credits will thank MakeHuman anyway (phase 2).
+- **Why this route**: a real mesh is what makes a body read as a person; MakeHuman's is
+  the one CC0 human with a rig, weights, clothes and skins together. Modelling a human in
+  code would cost weeks and look worse; CC BY figures would add credits for nothing more.
+- **Shape**: young adult, average muscle and weight, ideal proportions 0.6; the woman a
+  mix 0.5/0.3/0.2 of MakeHuman's caucasian/asian/african averages, the man 0.45/0.3/0.25
+  — generic, original faces. The eyelids are lowered over the eyes (the upper lid's bone
+  weights turned 38° about the eye's centre, the lower 9°: a player's eyes on the
+  instrument); the lashes' line darkened on the rims; the brows painted on the skin as a
+  soft arc (no card); the skin's albedo detail (lips, cheeks) sampled per vertex from the
+  skin texture as a luminance factor and a red shift, so the tone stays the user's.
+- **Clothes**: her black velvet dress is her body's own surface cut along a scoop neckline
+  and at the wrists (the cuts follow a smooth curve: `cut()` splits the triangles along the
+  edge), the velvet 2 mm proud; the long skirt is draped in Rust round the seated legs
+  (`scene/bowed_human_skirt.rs`). His suit is MakeHuman's, its jacket, shirt, tie and shoes
+  told apart by its texture (the tie by its blue over a wide box, so its stripes stay tie),
+  the jacket 1.8 mm proud of the shirt.
+- **Hair**: a shell over the scalp cut along a hairline drawn round the head (elevation by
+  azimuth tables `HER_LINE`/`HIS_LINE`), thickening from nothing at the hairline; her low
+  bun an ellipsoid at the nape. Strand coordinates per vertex give the streaks.
+- **Size**: `woman.fig` 0.50 MB, `man.fig` 0.63 MB (14 k / 17.5 k vertices; int16 at
+  0.01 cm, four weights, the detail, half-float strand coordinates): embedded with
+  `include_bytes!` (1.1 MB in the binary) — under what ADR 0030's on-demand download is
+  for (sample packs of hundreds of MB).
+- **Posing** (`scene/bowed_human.rs`): MakeHuman's 163 bones mapped onto 53; the body
+  posed from the stylised skeleton (`bowed_figure::skeleton`): the jaw's left side on the
+  chinrest (held; the chair's height follows) or the hips on the cello's seat with the
+  trunk leaning to the head; legs by two-bone IK to the floor; skinned (4 bones a vertex).
+  The arms are **live** as the stylised figure's are: each triangle has its part (body,
+  left arm, right arm, a band over each shoulder in both); `views/inst/arcus_draw_flesh.rs`
+  skins an arm per frame to the left hand's pose (`hand::left_pose`: fingers, thumb, the
+  wrist's twist shared along the forearm) or the bow hand (`arm::bow_hand`), sorts its
+  triangles, paints them smooth (`Brush::shaded_tri`), feathers its outline
+  (`Brush::edge`) and fades it into the baked body at the band's cut.
+- **Both pictures**: `Mesh::tris` (smooth triangles with a detail per corner);
+  Photographic: `Tex::Skin` (detail, a wrapped terminator, a warm share, less rim),
+  `Tex::Velvet` (pile sheen), `Tex::Hair` (streaks); Drawn: `scene/bowed_draw_tris.rs`
+  (three shaded corners, the gradient along the brightness's change; cloth two-sided).
+- **Fixed for every figure**: the bow hand sits **over** the stick (over = up in the room
+  made square to the bow, not the string's normal: a cellist's hand hung under the stick
+  from the camera's side); the cellist's shoulders 4 cm behind the chest's front (the
+  elbow folded to 36° in fourth position).
+
+### Next: the shared figure module (owner, 2026-11-24) — after the sheet's approval
+
+The owner wants the musicians and the mannequins reusable by other instruments (the guitar
+family, the winds, Chorda's pianist, Tympanum's drummer). **Order decided**: the realistic
+figures' design sheet first (the owner is waiting for it), then this refactor — the sheet's
+code is already split along the lines the module needs (`bowed_human` is instrument-agnostic
+but for `skeleton()`'s input), so the refactor moves code rather than rewriting it.
+
+Plan (ADR 0159 unless the integrator renumbers):
+- `crates/cantus-ui/src/scene/figure/`: `rig.rs` (named joints: pelvis, spine, chest, neck,
+  head, shoulders, elbows, wrists, the fingers' joints, hips, knees, ankles; `Rot`, `Xf`,
+  `Aim`, `Posed`, two-bone IK with a pole, the wrist clamp, the photo-derived limits:
+  elbows out and down), `who.rs` (the four figures: stylised musician, realistic woman,
+  realistic man, mannequin; their tones), `real.rs` (today's `bowed_human`: the `.fig`
+  reader, skinning, emit), `stylised.rs` / `mannequin.rs` (today's `bowed_figure_parts`),
+  `pose.rs` (seated with the chair's height a parameter, standing; the instrument's layer),
+  `grip.rs` (the grip library: violin-neck, cello-neck, bow-frog now — data: finger curls and
+  spreads, plus a rule placing the knuckles/thumb from the target), `live.rs` (today's
+  `arcus_draw_flesh` + the stylised tubes: the live limbs, the behind/in-front split against
+  any occluder), `bake.rs` (meshes cached per (figure, pose, look), nothing at rest).
+- **The contract** an instrument fills (`PlayRig`): the seat (chair at a height, a stool,
+  standing) and where; each hand's target (a point, a facing, a grip name: "violin-neck",
+  "cello-neck", "bow-frog", later "pick", "fret", "keys", "stick"); the head's attachment
+  (a chin rest's point, or a look-at point); the occluders (a neck's hull, a body's outline,
+  a keyboard's lid, a drum) and which limb parts each hides. Arcus becomes its first client;
+  its tests and pictures stay identical.
+- A test with a dummy client (a "held stick": a standing figure, both hands on a rod from the
+  contract alone) proves it is not Arcus-shaped.
+
+## How to use the realistic figures (today)
+
+`Hold::Woman` / `Hold::Man` in `Holder` (key "woman" / "man"; `Holder::skin` the tone,
+`hp::REAL_SKINS`). `bowed_hold::build` bakes the body (`bowed_human::build`), `left_arm` /
+`arm` give the live arms their shoulders and lengths from the posed body, and
+`arcus_draw_body::live`/`live_behind` draw them through `arcus_draw_flesh::arm`. Shots:
+`shoot_arcus <dir> --hold=woman,man --only=cello-play+woman`. Rebuild the meshes:
+`python tools/arcus-figures/build_figures.py <makehuman/data> <system assets>
+crates/cantus-ui/assets/figures --preview <dir>` (sources in the script's header).
+
 ## Next (coordinator's order, 2026-11-24)
 
 0. **Waiting**: the owner's verdict on sheet v5's hands. Nothing below starts before he

@@ -18,6 +18,8 @@
 mod arm; // r42:arcus-upper
 #[path = "arcus_draw_body.rs"]
 mod body;
+#[path = "arcus_draw_flesh.rs"]
+mod flesh; // r42:arcus-upper
 #[path = "arcus_draw_hand.rs"]
 pub mod hand; // r42:arcus-upper
 #[path = "arcus_draw_lit.rs"]

@@ -76,7 +76,7 @@ fn the_hand_keeps_its_position_and_shifts_beyond_it() {
 fn the_figures_hand_lands_on_the_stopped_point() {
     let size = egui::vec2(590.0, 430.0);
     for b in [Bowed::Violin, Bowed::Viola, Bowed::Cello, Bowed::Bass] {
-        for hold in [Hold::Player, Hold::Mannequin] {
+        for hold in [Hold::Player, Hold::Mannequin, Hold::Woman, Hold::Man] {
             let h = Holder::of(hold);
             let rig = rig_for(b, h);
             let mut cam = bowed_draw::camera(b, h, Room::Studio);
@@ -171,7 +171,7 @@ fn the_left_hand_passes_behind_the_neck() {
     for be in [SceneBackend::Vector, SceneBackend::PerPixel] {
         scene::backend::set_default(be);
         for &(inst, b, string, key) in &cases {
-            for hold in [Hold::Player, Hold::Mannequin] {
+            for hold in [Hold::Player, Hold::Mannequin, Hold::Woman, Hold::Man] {
                 let h = Holder::of(hold);
                 let mut app =
                     CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
@@ -434,7 +434,7 @@ fn the_left_arm_keeps_the_photographs_angles() {
     use cantus_ui::scene::geo::V3;
     let deg = |a: V3, b: V3| a.norm().dot(b.norm()).clamp(-1.0, 1.0).acos().to_degrees();
     for b in [Bowed::Violin, Bowed::Viola, Bowed::Cello, Bowed::Bass] {
-        for hold in [Hold::Player, Hold::Mannequin] {
+        for hold in [Hold::Player, Hold::Mannequin, Hold::Woman, Hold::Man] {
             let h = Holder::of(hold);
             let rig = rig_for(b, h);
             let d = b.dims();

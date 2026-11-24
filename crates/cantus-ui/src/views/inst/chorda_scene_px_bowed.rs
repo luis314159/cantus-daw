@@ -98,6 +98,15 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::Blush => PMat::matte(lin3(hp::BLUSH)),
         Role::Wood(i) => PMat::lacquer(lin3(hp::wood(i, false).albedo), 0.3, 0.3),
         Role::Joint(i) => PMat::lacquer(lin3(hp::wood(i, true).albedo), 0.3, 0.3),
+        // r42:arcus-upper — the realistic figures.
+        Role::Velvet => PMat {
+            light: lin3(hp::VELVET_SHEEN),
+            ..PMat::matte(lin3(hp::VELVET)).with(Tex::Velvet)
+        },
+        Role::Wool => PMat::matte(lin3(hp::WOOL)).with(Tex::Fabric),
+        Role::Shirt => PMat::matte(lin3(hp::SHIRT)).with(Tex::Fabric),
+        Role::Tie => PMat::lacquer(lin3(hp::TIE), 0.12, 0.35),
+        Role::HairFair => PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair),
     }
 }
 
@@ -119,6 +128,43 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
             }
             if area(v[0].p, v[2].p, v[3].p) > 1e-10 {
                 g.tri(v[0], v[2], v[3], mi);
+            }
+        }
+    }
+    // r42:arcus-upper — the realistic figures' triangles; their corners' detail (the skin's
+    // albedo, the hair's strands) carried as the texture coordinates.
+    let scalp = m
+        .tris
+        .iter()
+        .find_map(|(r, _)| match r {
+            Role::Skin(i) => Some(lin3(hp::real_skin(*i).albedo).map(|c| c * 0.48)),
+            _ => None,
+        })
+        .unwrap_or([0.4, 0.3, 0.25]);
+    for (role, t) in &m.tris {
+        let mi = match role {
+            Role::Skin(i) => {
+                // Seen per pixel under the key a skin's albedo reads lighter than drawn:
+                // a little less of it, so a fair face is not chalk.
+                let a = lin3(hp::real_skin(*i).albedo).map(|c| c * 0.48);
+                g.mat(PMat::lacquer(a, 0.05, 0.5).with(Tex::Skin))
+            }
+            Role::Hair => g.mat(PMat {
+                dark: scalp,
+                ..PMat::lacquer(lin3(hp::HAIR), 0.1, 0.42).with(Tex::Hair)
+            }),
+            Role::HairFair => g.mat(PMat {
+                dark: scalp,
+                ..PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
+            }),
+            r => id(g, *r),
+        };
+        for tri in &t.idx {
+            let [a, b2, c] = tri.map(|i| i as usize);
+            let w = [a, b2, c].map(|i| vt(of(t.pts[i]), of(t.nrm[i]), t.detail[i]));
+            let fnrm = (w[1].p - w[0].p).cross(w[2].p - w[0].p);
+            if fnrm.len() > 1e-10 {
+                g.tri(w[0], w[1], w[2], mi);
             }
         }
     }

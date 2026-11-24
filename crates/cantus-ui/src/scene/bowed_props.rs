@@ -59,8 +59,24 @@ fn rod(m: &mut Mesh, role: Role, a: V3, b: V3, r: f32) {
 /// where the player sits, facing the audience.
 pub(super) fn chair(m: &mut Mesh, at: V3, yaw: f32) {
     // r42:arcus-upper
+    chair_top(m, at, yaw, SEAT_TOP);
+}
+
+/// The seat's top on the usual chair, cm.
+pub const SEAT_TOP: f32 = 47.1;
+
+/// The chair with its seat's top at `top` (a player sets the chair's height: the
+/// realistic figures, r42:arcus-upper).
+pub(super) fn chair_top(m: &mut Mesh, at: V3, yaw: f32, top: f32) {
+    let dy = top - SEAT_TOP;
     let (s, co) = yaw.sin_cos();
-    let local = |x: f32, y: f32, z: f32| at + v(x * co + z * s, y, -x * s + z * co);
+    let local = |x: f32, y: f32, z: f32| {
+        at + v(
+            x * co + z * s,
+            if y > 0.0 { y + dy } else { y },
+            -x * s + z * co,
+        )
+    };
     block(
         m,
         Role::Seat,

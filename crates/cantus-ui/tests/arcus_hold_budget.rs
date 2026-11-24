@@ -67,7 +67,7 @@ fn the_figures_live_arms_draw_in_the_frame_budget() {
     let mut bad = Vec::new();
     for (name, inst) in [("violin", 2.0f32), ("cello", 0.0)] {
         for k in [1.0f32, 2.0] {
-            for hold in [Hold::Player, Hold::Mannequin] {
+            for hold in [Hold::Player, Hold::Mannequin, Hold::Woman, Hold::Man] {
                 // The reference beside it, then the figure, best of three rounds each.
                 let mut best: Option<(f64, f64, f64, f64)> = None;
                 for _ in 0..3 {

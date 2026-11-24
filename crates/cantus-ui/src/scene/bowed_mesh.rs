@@ -61,6 +61,13 @@ pub enum Role {
     Blush,
     Wood(u8),
     Joint(u8),
+    /// The realistic figures' (`bowed_human`, r42:arcus-upper): the concert dress's black
+    /// velvet, the suit's dark wool, the shirt, the tie, fair hair (the dark is `Hair`).
+    Velvet,
+    Wool,
+    Shirt,
+    Tie,
+    HairFair,
 }
 
 /// A grid of points (`rows` × `cols`, row-major) with normals and grain coordinates (cm:
@@ -74,6 +81,17 @@ pub struct Patch {
     pub cols: usize,
     /// The last column joins the first (a closed ring).
     pub closed: bool,
+}
+
+/// Triangles with a normal and a detail at each corner (r42:arcus-upper: the realistic
+/// figures): on skin the albedo's detail (a luminance factor, a red shift: the brows, the
+/// lips, the lashes' line), on hair its strands' coordinates (cm along, across).
+#[derive(Clone, Debug, Default)]
+pub struct Tris {
+    pub pts: Vec<V3>,
+    pub nrm: Vec<V3>,
+    pub detail: Vec<[f32; 2]>,
+    pub idx: Vec<[u32; 3]>,
 }
 
 /// A flat polygon (possibly concave) lying on or just over a surface.
@@ -97,6 +115,8 @@ pub struct Mesh {
     pub patches: Vec<(Role, Patch)>,
     pub polys: Vec<(Role, Poly)>,
     pub rods: Vec<(Role, Rod)>,
+    /// Triangles (r42:arcus-upper: the realistic figures).
+    pub tris: Vec<(Role, Tris)>,
     /// Points whose floor shadow is the body's (their hull), the endpin's foot.
     pub shadow: Vec<V3>,
     pub foot: V3,

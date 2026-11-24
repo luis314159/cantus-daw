@@ -43,6 +43,33 @@ pub const WOOD_JOINTS: [Srgb; 3] = [[196, 158, 110], [164, 112, 60], [92, 58, 34
 pub const STAND: Mat = lacquer(srgb(26, 26, 28), 0.35, 0.6, 40.0);
 pub const PAD: Mat = plain(MatKind::Matte, srgb(40, 34, 32));
 
+/// The realistic figures' (`scene::bowed_human`): the concert dress's black velvet (its
+/// sheen at grazing angles is the painters'), the suit's charcoal wool, the shirt's white,
+/// a deep navy tie, her light honey-blonde hair (his is `HAIR`).
+pub const VELVET: C3 = srgb(16, 14, 18);
+pub const VELVET_SHEEN: C3 = srgb(92, 88, 100);
+pub const WOOL: C3 = srgb(30, 31, 36);
+pub const SHIRT: C3 = srgb(232, 232, 228);
+pub const TIE: C3 = srgb(30, 36, 64);
+pub const HAIR_FAIR: C3 = srgb(170, 132, 88);
+/// A realistic figure's skin tones (fair to deep): a real skin's albedo, warmer and less
+/// bright than the stylised figure's (lit by the scene's key a fair skin read as white).
+pub const REAL_SKINS: [Srgb; 5] = [
+    [218, 166, 136],
+    [196, 140, 106],
+    [164, 110, 78],
+    [124, 80, 54],
+    [86, 54, 38],
+];
+/// A realistic figure's skin in the Drawn picture: soft, a broad faint sheen (no plastic).
+pub fn real_skin(i: u8) -> Mat {
+    lacquer(c(REAL_SKINS[(i as usize).min(4)]), 0.04, 0.1, 8.0)
+}
+/// Hair with its sheen.
+pub fn hair(albedo: C3) -> Mat {
+    lacquer(albedo, 0.1, 0.2, 18.0)
+}
+
 /// A skin, a cloth or a wood as the Drawn picture's material: matte cloth, a little sheen
 /// on skin and on the waxed wood.
 pub fn skin(i: u8) -> Mat {

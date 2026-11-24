@@ -72,6 +72,13 @@ pub enum Tex {
         lines: f32,
         flame: f32,
     },
+    /// r42:arcus-upper — a realistic figure's skin: its albedo's detail in `uv` (a
+    /// luminance factor, a red shift); light through it warms its shade.
+    Skin,
+    /// Velvet: its pile's pale sheen where it turns from the eye.
+    Velvet,
+    /// Hair: streaks along its strands (`uv` cm along, across).
+    Hair,
 }
 
 /// A material.

@@ -165,7 +165,9 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
         // Its fingers' arches over the fingerboard; the rest of the hand was painted
         // behind the neck (`live_behind`).
         let lp = super::hand::left_pose(&arm, &l);
-        super::hand::left_front(b, v, &figure_light(v, pl, s), &arm, &lp, &l);
+        if !real_left(b, v, pl, s, &lp, &l, false) {
+            super::hand::left_front(b, v, &figure_light(v, pl, s), &arm, &lp, &l);
+        }
     } else if st < 0.995 && pl.stop == StopShow::Finger {
         // Under a chin the finger curls over the fingerboard's edge from the hand behind
         // the neck (its first joint up, the rest down out of sight). // r42:arcus-upper
@@ -192,8 +194,50 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     // The figure's right arm to the frog (a musician's sleeve and hand, the mannequin's
     // wood). // r42:arcus-upper
     if let Some(arm) = crate::scene::bowed_hold::arm(pl.b, pl.holder) {
-        super::arm::right_arm(b, v, &figure_light(v, pl, s), &arm, frog, dir, n);
+        if let Some(who) = crate::scene::bowed_human::who(pl.holder.hold) {
+            // r42:arcus-upper — a realistic figure's own arm, skinned to the bow hand.
+            let h = super::arm::bow_hand(&arm, frog, dir, n);
+            let aim = super::flesh::right_aim(&arm, &h);
+            let base = crate::scene::bowed_human::rest_body(pl.b, who);
+            let lit = figure_light(v, pl, s);
+            super::flesh::arm(b, v, &lit, who, pl.holder.skin, &base.0, 1, &aim, None);
+        } else {
+            super::arm::right_arm(b, v, &figure_light(v, pl, s), &arm, frog, dir, n);
+        }
     }
+}
+
+/// r42:arcus-upper — a realistic figure's left arm, skinned to the hand's pose: the part
+/// the neck hides (`hidden`) or the rest. False when the holder is not a realistic figure.
+fn real_left(
+    b: &mut Brush,
+    v: &View,
+    pl: &Play,
+    s: &Style,
+    lp: &super::hand::LeftPose,
+    l: &super::hand::Left,
+    hidden: bool,
+) -> bool {
+    let Some(who) = crate::scene::bowed_human::who(pl.holder.hold) else {
+        return false;
+    };
+    let base = crate::scene::bowed_human::rest_body(pl.b, who);
+    let aim = super::flesh::left_aim(lp);
+    let eye = v.cam.eye();
+    let hid = |p: V3| super::hand::hidden_by_neck(p, eye, l.d, &l.rig.pose);
+    let lit = figure_light(v, pl, s);
+    super::flesh::arm(
+        b,
+        v,
+        &lit,
+        who,
+        pl.holder.skin,
+        &base.0,
+        0,
+        &aim,
+        Some((hidden, &hid)),
+    );
+    true
 }
 
 /// A finger: its tip pressing at `tip`, its joints `j1`, `j2` (its hand beyond, faded
@@ -507,7 +551,9 @@ fn left_of<'a>(pl: &Play<'a>) -> Option<(crate::scene::bowed_hold::Arm, super::h
 pub fn live_behind(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     if let Some((arm, l)) = left_of(pl) {
         let lp = super::hand::left_pose(&arm, &l);
-        super::hand::left_behind(b, v, &figure_light(v, pl, s), &arm, &lp, &l);
+        if !real_left(b, v, pl, s, &lp, &l, true) {
+            super::hand::left_behind(b, v, &figure_light(v, pl, s), &arm, &lp, &l);
+        }
     }
 }
 

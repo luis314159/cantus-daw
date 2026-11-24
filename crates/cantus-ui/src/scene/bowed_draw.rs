@@ -142,6 +142,11 @@ pub fn material(b: Bowed, r: Role) -> Mat {
         Role::Blush => hp::flat(hp::BLUSH),
         Role::Wood(i) => hp::wood(i, false),
         Role::Joint(i) => hp::wood(i, true),
+        Role::Velvet => hp::flat(hp::VELVET),
+        Role::Wool => hp::flat(hp::WOOL),
+        Role::Shirt => hp::flat(hp::SHIRT),
+        Role::Tie => hp::flat(hp::TIE),
+        Role::HairFair => hp::hair(hp::HAIR_FAIR),
     }
 }
 
@@ -357,6 +362,7 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             c.p.poly(sp, paint, 1.0, seam);
         }
     }
+    super::bowed_draw_tris::draw(c, b, m); // r42:arcus-upper
     for (role, poly) in &m.polys {
         if poly.pts.len() < 3 || matches!(role, Role::Hole | Role::Cut) {
             continue;
@@ -560,5 +566,10 @@ fn figure_role(r: Role) -> bool {
             | Role::Hair
             | Role::Wood(_)
             | Role::Joint(_)
+            | Role::Velvet
+            | Role::Wool
+            | Role::Shirt
+            | Role::Tie
+            | Role::HairFair
     )
 }

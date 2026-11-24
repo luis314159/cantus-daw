@@ -38,7 +38,7 @@ impl Lit {
     }
 
     /// `col` lit at `p` with normal `n`.
-    fn shade(&self, col: [u8; 3], p: V3, n: V3) -> Color32 {
+    pub fn shade(&self, col: [u8; 3], p: V3, n: V3) -> Color32 {
         let l = (self.key - p).norm();
         let e = (self.eye - p).norm();
         let diffuse = n.dot(l).max(0.0);

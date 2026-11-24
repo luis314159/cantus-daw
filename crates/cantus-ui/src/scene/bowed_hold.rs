@@ -27,10 +27,21 @@ pub enum Hold {
     Stand,
     Player,
     Mannequin,
+    /// The realistic musicians (`bowed_human`): a woman in a black velvet concert dress,
+    /// a man in a dark suit.
+    Woman,
+    Man,
 }
 
 impl Hold {
-    pub const ALL: [Hold; 4] = [Hold::Air, Hold::Stand, Hold::Player, Hold::Mannequin];
+    pub const ALL: [Hold; 6] = [
+        Hold::Air,
+        Hold::Stand,
+        Hold::Player,
+        Hold::Mannequin,
+        Hold::Woman,
+        Hold::Man,
+    ];
 
     /// The stored word (forever once shipped).
     pub fn key(self) -> &'static str {
@@ -39,6 +50,8 @@ impl Hold {
             Hold::Stand => "stand",
             Hold::Player => "player",
             Hold::Mannequin => "mannequin",
+            Hold::Woman => "woman",
+            Hold::Man => "man",
         }
     }
 
@@ -53,12 +66,17 @@ impl Hold {
             Hold::Stand => "arcus_upper.hold.stand",
             Hold::Player => "arcus_upper.hold.player",
             Hold::Mannequin => "arcus_upper.hold.mannequin",
+            Hold::Woman => "arcus_upper.hold.woman",
+            Hold::Man => "arcus_upper.hold.man",
         }
     }
 
     /// A figure holds it (a musician or the mannequin).
     pub fn figure(self) -> bool {
-        matches!(self, Hold::Player | Hold::Mannequin)
+        matches!(
+            self,
+            Hold::Player | Hold::Mannequin | Hold::Woman | Hold::Man
+        )
     }
 }
 
@@ -144,6 +162,11 @@ pub fn build(m: &mut Mesh, b: Bowed, pose: &Pose, h: Holder) {
         Hold::Stand if d.held => upper_stand(m, d, pose),
         Hold::Stand => floor_stand(m, d, pose),
         Hold::Player | Hold::Mannequin => super::bowed_figure::build(m, b, pose, h),
+        Hold::Woman | Hold::Man => {
+            if let Some(w) = super::bowed_human::who(h.hold) {
+                super::bowed_human::build(m, b, pose, w, h.skin);
+            }
+        }
     }
 }
 
@@ -152,7 +175,13 @@ pub fn fit(b: Bowed, h: Holder) -> Vec<V3> {
     if !h.hold.figure() {
         return Vec::new();
     }
-    super::bowed_figure::fit(b, &pose(b, h))
+    let mut p = super::bowed_figure::fit(b, &pose(b, h));
+    if let Some(w) = super::bowed_human::who(h.hold) {
+        // r42:arcus-upper — a realistic figure's own head (taller than the stylised one's)
+        // and room over it.
+        p.extend(super::bowed_human::fit(b, w));
+    }
+    p
 }
 
 /// The right arm the live picture draws to the bow's frog: the shoulder, the upper arm's
@@ -199,6 +228,24 @@ fn skel(b: Bowed, h: Holder) -> super::bowed_figure::Skel {
 pub fn left_arm(b: Bowed, h: Holder) -> Option<Arm> {
     let a = arm(b, h)?;
     let sk = skel(b, h);
+    if let Some(w) = super::bowed_human::who(h.hold) {
+        // r42:arcus-upper — a realistic figure's: its own shoulder and lengths.
+        let fig = super::bowed_human::figure(w);
+        let body = super::bowed_human::rest_body(b, w);
+        let (upper, fore) = super::bowed_human::arm_lengths(fig, 0);
+        let pole = if b.dims().held {
+            sk.down + sk.r * 0.45 + sk.f * 0.15
+        } else {
+            -sk.r * 1.2 + sk.down * 1.0 - sk.f * 0.15
+        };
+        return Some(Arm {
+            shoulder: super::bowed_human::shoulder(fig, &body.0, 0),
+            upper,
+            fore,
+            pole,
+            ..a
+        });
+    }
     // Where the elbow goes from the shoulder (the owner's photographs, 2026-11-24): a
     // violinist's down under the violin's body, toward the chest's middle line (its forearm
     // and the neck a narrow V); a cellist's out to the side and down, a little under the
@@ -225,6 +272,38 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         return None;
     }
     let sk = skel(b, h);
+    if let Some(w) = super::bowed_human::who(h.hold) {
+        // r42:arcus-upper — a realistic figure's bow arm: its own shoulder and lengths;
+        // its sleeve and hand are drawn from its own surfaces (`arcus_draw_flesh`).
+        let fig = super::bowed_human::figure(w);
+        let body = super::bowed_human::rest_body(b, w);
+        let (upper, fore) = super::bowed_human::arm_lengths(fig, 1);
+        let s = (h.skin as usize).min(4);
+        let cloth = if w == super::bowed_human::Who::Woman {
+            0
+        } else {
+            0
+        };
+        return Some(Arm {
+            shoulder: super::bowed_human::shoulder(fig, &body.0, 1),
+            upper,
+            fore,
+            pole: if b.dims().held {
+                sk.down * 12.0 + sk.r * 18.0 + sk.f * 8.0
+            } else {
+                sk.r + sk.down * 1.6 + sk.f * 0.1
+            },
+            sleeve: hp::CLOTHS[cloth],
+            sleeve_shade: hp::CLOTH_SHADES[cloth],
+            hand: hp::SKINS[s],
+            hand_shade: hp::SKIN_SHADES[s],
+            r: (4.0, 3.0),
+            joints: None,
+            f: sk.f,
+            right: sk.r,
+            down: sk.down,
+        });
+    }
     let (sleeve, sleeve_shade, hand, hand_shade) = if h.hold == Hold::Player {
         let (c, s) = ((h.cloth as usize).min(3), (h.skin as usize).min(4));
         (

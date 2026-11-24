@@ -166,6 +166,32 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
             let c = lmix(m.light, m.dark, t);
             s(lmix(c, m.base, 0.3), m.coat, m.rough)
         }
+        // r42:arcus-upper — the realistic figures.
+        Tex::Skin => {
+            let (lum, red) = (uv[0].min(1.1), uv[1]);
+            let a = m.base;
+            let albedo = [
+                (a[0] * lum * (1.0 + 0.22 * red)).max(0.0),
+                (a[1] * lum * (1.0 - 0.12 * red)).max(0.0),
+                (a[2] * lum * (1.0 - 0.18 * red)).max(0.0),
+            ];
+            s(albedo, m.coat, m.rough)
+        }
+        Tex::Velvet => Surf {
+            sheen: 0.0,
+            ..s(m.base, 0.0, 1.0)
+        },
+        Tex::Hair => {
+            // Soft streaks across the strands; at the hairline (`uv[0]` 0) the skin's
+            // colour (`m.dark`) shows through, as real hair thins there.
+            let across = uv[1];
+            let streak = 0.92
+                + 0.06 * (across * 2.1).sin()
+                + 0.04 * (across * 5.3 + 1.7).sin()
+                + 0.04 * noise(across * 9.0, 0.5, 61);
+            let e = uv[0].clamp(0.0, 1.0).powf(0.6);
+            s(lmix(m.dark, lscale(m.base, streak), e), m.coat * e, m.rough)
+        }
         Tex::Floor => floor(rig, p, fp),
         Tex::Rug => rug(rig, p, fp),
         Tex::Wall | Tex::Wall2 => wall(rig, m.tex == Tex::Wall2, p, uv, fp),
@@ -655,7 +681,12 @@ pub fn shade(
     let (kc, l) = rig.key.at(p);
     let lit = kc[0] + kc[1] + kc[2] > 1e-4;
     let kv = if lit { vis(p, n) } else { 0.0 };
-    let ndl = n.dot(l).max(0.0);
+    let ndl = if m.tex == Tex::Skin {
+        // r42:arcus-upper — light through skin: the terminator wrapped, soft.
+        ((n.dot(l) + 0.15) / 1.15).max(0.0)
+    } else {
+        n.dot(l).max(0.0)
+    };
     // What a polished metal sees of the key's face: its shadow looked up a little toward
     // the key, so a thin rod never shadows its own glint (off along the normal, its far
     // side's look-ups fell in its own shadow in steps down its length).
@@ -675,14 +706,22 @@ pub fn shade(
     for i in 0..3 {
         e[i] = kc[i] * ndl * kv + fill[i] + amb[i] * ao + kf[i] * floor_alb[i] * 0.55 * below * ao;
     }
+    if m.tex == Tex::Skin {
+        // r42:arcus-upper — skin's scattered light: a warm share where the key falls off.
+        let t = (1.0 - n.dot(l).max(0.0)) * ndl;
+        e[0] += kc[0] * kv * t * 0.10;
+        e[1] += kc[1] * kv * t * 0.03;
+    }
     let mut rim = [0.0f32; 3];
     // The rim separates the instrument from the dark; the room takes none.
     let room = matches!(
         m.tex,
         Tex::Floor | Tex::Rug | Tex::Wall | Tex::Wall2 | Tex::Curtain
     );
+    // Skin takes a little of it (r42:arcus-upper: a full rim read as a white halo).
+    let rim_k = if m.tex == Tex::Skin { 0.3 } else { 1.0 };
     for &(d, c) in rig.rims.iter().filter(|_| !room) {
-        let k = n.dot(d).max(0.0) * (1.0 - ndv).powi(2);
+        let k = n.dot(d).max(0.0) * (1.0 - ndv).powi(2) * rim_k;
         rim = ladd(rim, lscale(c, k));
     }
     let r = n * (2.0 * ndv) - v;
@@ -715,6 +754,16 @@ pub fn shade(
             ladd(lmul(env, f), lmul(sf.albedo, e))
         }
         Kind::Aniso => aniso(rig, &sf, p, n, v, t, kc, kvs, ndv, e),
+        Kind::Matte if m.tex == Tex::Velvet => {
+            // r42:arcus-upper — velvet: dark where it faces the eye, its pile's pale sheen
+            // where it turns away (a light of its own, not the black's).
+            let pile = (1.0 - ndv).powi(2) * 0.28;
+            let d = lmul(sf.albedo, ladd(e, lscale(rim, 0.8)));
+            ladd(
+                d,
+                lscale(lmul(m.light, ladd(lscale(kc, kv.max(0.35)), amb)), pile),
+            )
+        }
         Kind::Matte => {
             let sheen = sf.sheen * (1.0 - ndv).powi(3);
             let d = lmul(sf.albedo, ladd(e, lscale(rim, 0.8)));

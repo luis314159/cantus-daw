@@ -49,6 +49,9 @@ pub struct Skel {
     pub nz: V3,
     pub nx: V3,
     pub top: V3,
+    /// Where the jaw's left side rests (a violin's chinrest; behind a cello, under the
+    /// head) — the realistic figures are placed by it (`bowed_human`).
+    pub chin: V3,
 }
 
 /// The head's half-sizes: across, up, front to back (a stylised adult's, a touch large).
@@ -110,6 +113,7 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
             nz: pose.ez,
             nx: -pose.ex,
             top: grip + pose.ez * (1.35 * k),
+            chin,
         };
     }
     // A cellist or a bassist behind the instrument, facing the hall.
@@ -130,8 +134,11 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
     let hf = (f + down * 0.22 - r * 0.22).norm();
     let hu = (UP - r * 0.16).norm();
     let hu = (hu - hf * hu.dot(hf)).norm();
-    let ls = neck - r * 16.0 + down * 3.5;
-    let rs = neck + r * 16.0 + down * 3.5;
+    // The shoulders' joints a hand's breadth behind the chest's front, as a person's are
+    // (r42:arcus-upper: level with it, the cello's neck passed so close to the left shoulder
+    // that the elbow folded to 36° in fourth position; a cellist's is 50–70°).
+    let ls = neck - r * 16.0 + down * 3.5 - f * 4.0;
+    let rs = neck + r * 16.0 + down * 3.5 - f * 4.0;
     let grip = pose.at(0.0, nut_y(d) - 10.0 * k, board_z(d, nut_y(d)) - 2.2 * k);
     let lw = grip + pose.ex * (4.0 * k) - pose.ez * (3.0 * k) - pose.ey * (4.0 * k);
     let le = elbow(ls, lw, 29.0, 27.0, -r + down * 0.6);
@@ -172,6 +179,7 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
         nz: pose.ez,
         nx: pose.ex,
         top: grip + pose.ez * (2.6 * k),
+        chin: head - hu * 9.0,
     }
 }
 
