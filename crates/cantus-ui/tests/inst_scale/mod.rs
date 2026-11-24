@@ -336,11 +336,7 @@ pub fn read_views(
                         h,
                         shell::INSTRUMENT * 0.75 * k,
                         false,
-                        &format!(
-                            "{name}-{view:?}-narrowest-{:.0}-{}",
-                            k * 100.0,
-                            lang.code()
-                        ),
+                        &format!("{name}-{view:?}-narrowest-{:.0}-{}", k * 100.0, lang.code()),
                     );
                     // The header is the shell's, every instrument's (its name gives way to
                     // the tools at this width: noted apart, not this view's).

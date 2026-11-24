@@ -206,7 +206,14 @@ pub fn title_need(ctx: &egui::Context, s: &Style, look: &CardLook<'_>, names: &[
     }
     let name = names
         .iter()
-        .map(|n| text::measure(ctx, &Text::new(n, Role::Control, Color32::TRANSPARENT), s.tk()).x)
+        .map(|n| {
+            text::measure(
+                ctx,
+                &Text::new(n, Role::Control, Color32::TRANSPARENT),
+                s.tk(),
+            )
+            .x
+        })
         .fold(0.0, f32::max);
     // Half for the title and the gap before the selector; half for ‹ name › and the edge.
     let left = lead + title + s.s(6.0);

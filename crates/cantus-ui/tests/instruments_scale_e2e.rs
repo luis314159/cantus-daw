@@ -93,16 +93,20 @@ fn chorda_and_tympanum_read_whole_at_every_scale_and_the_narrowest_window() {
         read > 300,
         "only {read} words were read:
 {}",
-        bad.join("
-")
+        bad.join(
+            "
+"
+        )
     );
     assert!(
         bad.is_empty(),
         "{} problems:
 {}",
         bad.len(),
-        bad.join("
-")
+        bad.join(
+            "
+"
+        )
     );
 }
 

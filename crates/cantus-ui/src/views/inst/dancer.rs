@@ -358,7 +358,9 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         s.tk(),
     )
     .y;
-    let h2 = s.s(card_h(40.0)).max(s.s(card_h(0.0)) + 3.0 * line + s.s(4.0));
+    let h2 = s
+        .s(card_h(40.0))
+        .max(s.s(card_h(0.0)) + 3.0 * line + s.s(4.0));
     let h1 = (area.height() - h2 - h3 - 2.0 * gutter).max(s.s(200.0));
     let mut rows = Rows::new(area, s);
     let r1 = rows.row(h1, &[0.6, 0.4]);

@@ -957,10 +957,7 @@ fn macro_band(
     let widths = macro_columns(ui.ctx(), s, body.width(), &names);
     let mut left = body.left();
     for ((&m, name), w) in shown.iter().zip(names).zip(widths) {
-        let cell = Rect::from_min_size(
-            Pos2::new(left, body.top()),
-            egui::vec2(w, body.height()),
-        );
+        let cell = Rect::from_min_size(Pos2::new(left, body.top()), egui::vec2(w, body.height()));
         left += w;
         let c = Pos2::new(cell.left() + d * 0.5 + 4.0 * k, cell.center().y);
         let knob_rect = Rect::from_center_size(c, egui::Vec2::splat(d + 6.0 * k));

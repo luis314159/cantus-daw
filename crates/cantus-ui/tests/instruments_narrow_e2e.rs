@@ -31,7 +31,10 @@ fn kinds() -> Vec<(InstrumentKind, &'static str)> {
         .map(|k| (k, short(k)))
         .collect();
     if !v.iter().any(|(k, _)| *k == InstrumentKind::BowedString) {
-        v.push((InstrumentKind::BowedString, short(InstrumentKind::BowedString)));
+        v.push((
+            InstrumentKind::BowedString,
+            short(InstrumentKind::BowedString),
+        ));
     }
     if let Ok(only) = std::env::var("CANTUS_INST_ONLY") {
         v.retain(|(_, name)| only.split(',').any(|o| o.trim() == *name));

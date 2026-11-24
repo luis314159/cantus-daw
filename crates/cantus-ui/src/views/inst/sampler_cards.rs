@@ -814,9 +814,8 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         + rows(&[MOD_ENV, VIBRATO, LFO2, VOICE])
         + row_h
         + rows(&[LEGATO, KEYSWITCH]);
-    let total = tools_h + a_h * a_rows + b_h * b_rows + cards_h + t_h
-        + (5.0 + a_rows + b_rows) * gut
-        + l_h;
+    let total =
+        tools_h + a_h * a_rows + b_h * b_rows + cards_h + t_h + (5.0 + a_rows + b_rows) * gut + l_h;
     let (area, _) = ui.allocate_exact_size(vec2(w, total), Sense::hover());
     let mut y = area.top();
     let mut take = |h: f32| {
@@ -828,7 +827,10 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let (map_r, zone_r) = if stacked {
         let a = take(a_h);
         let z = take(a_h);
-        (a, Rect::from_min_size(z.min, vec2(zone_w.min(z.width()), a_h)))
+        (
+            a,
+            Rect::from_min_size(z.min, vec2(zone_w.min(z.width()), a_h)),
+        )
     } else {
         let a = take(a_h);
         let split = a.right() - zone_w;
