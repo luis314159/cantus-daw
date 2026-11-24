@@ -173,12 +173,13 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
     let thumb_joint;
     let thumb_knuckle;
     if d.held {
-        // The index knuckle level with the fingerboard's top, a little toward the scroll from
-        // its tip, against the E side.
-        let base = a + bw * (along(tips[0]) - 0.7 * k) + kx * (hw + 1.5 * k);
+        // The index knuckle level with the fingerboard's top, against the E side, toward the
+        // scroll from its tip (in first position by the nut: the photographs' hand is at
+        // the scroll's end of the neck, its fingers reaching back toward the bridge).
+        let base = a + bw * (along(tips[0]) - 1.6 * k) + kx * (hw + 1.5 * k);
         for (j, q) in kn.iter_mut().enumerate() {
             let j = j as f32;
-            *q = base + bw * (1.8 * k * j) + kx * (0.45 * k * j) + z * (0.2 * k * j);
+            *q = base + bw * (1.6 * k * j) + kx * (0.45 * k * j) + z * (0.2 * k * j);
         }
         // Opposite the first and second fingers, up the G side.
         let b_t = along(tips[0]).max(0.0) * 0.6 + along(tips[1]) * 0.4;
@@ -321,22 +322,23 @@ pub fn left_pieces(arm: &Arm, lp: &LeftPose) -> ([Piece; PIECES], usize) {
         put(tube(f[2], f[3], r * 0.94, r * 0.86, skin));
     }
     if let Some(jc) = arm.joints {
-        for (c, r) in [(lp.elbow, arm.r.0 * 1.05)] {
-            put(Piece {
-                a: c,
-                b: c,
-                ra: r,
-                rb: r,
-                col: jc,
-                ball: true,
-            });
-        }
+        let r = arm.r.0 * 1.05;
+        put(Piece {
+            a: lp.elbow,
+            b: lp.elbow,
+            ra: r,
+            rb: r,
+            col: jc,
+            ball: true,
+        });
     }
     (out, n)
 }
 
 /// Whether the neck (the fingerboard and the neck under it, between the body's edge and
-/// the nut) hides `p` from `eye`: a march along the ray in the instrument's frame.
+/// the nut) hides `p` from `eye`. In the instrument's frame the neck's width and its top
+/// change linearly along it, so every face is a linear bound on the ray's parameter: the
+/// ray is hidden when the bounds leave a stretch of it (no march, a few dozen flops).
 pub fn hidden_by_neck(p: V3, eye: V3, d: &Dims, pose: &Pose) -> bool {
     use crate::scene::bowed::{board_w, board_z, nut_y};
     let loc = |w: V3| {
@@ -348,30 +350,41 @@ pub fn hidden_by_neck(p: V3, eye: V3, d: &Dims, pose: &Pose) -> bool {
         }
     };
     let (a, e) = (loc(p), loc(eye));
-    let dir = (e - a).norm();
+    let len = (e - a).len();
+    let dir = (e - a) * (1.0 / len.max(1e-6));
     let (y0, y1) = (d.body - 0.5, nut_y(d) + 0.4);
-    let (mut s0, mut s1) = (0.2f32, (e - a).len());
-    if dir.y.abs() < 1e-5 {
-        if a.y < y0 || a.y > y1 {
-            return false;
-        }
-    } else {
-        let (t0, t1) = ((y0 - a.y) / dir.y, (y1 - a.y) / dir.y);
-        s0 = s0.max(t0.min(t1));
-        s1 = s1.min(t0.max(t1));
-    }
-    s1 = s1.min(s0 + 90.0);
+    // The half width and the top as lines in y.
+    let lin = |f: &dyn Fn(f32) -> f32| {
+        let (f0, f1) = (f(y0), f(y1));
+        let k = (f1 - f0) / (y1 - y0);
+        (f0 - k * y0, k)
+    };
+    let (w0, wk) = lin(&|y| board_w(d, y) * 0.5 + 0.1);
+    let (t0, tk) = lin(&|y| board_z(d, y) + 0.05);
     let depth = neck_depth(d);
-    let mut s = s0;
-    while s <= s1 {
-        let q = a + dir * s;
-        let top = board_z(d, q.y) + 0.05;
-        if q.x.abs() <= board_w(d, q.y) * 0.5 + 0.1 && q.z <= top && q.z >= top - depth {
-            return true;
+    let (mut lo, mut hi) = (0.2f32, len);
+    // Each bound c0 + c1·s ≥ 0 narrows [lo, hi].
+    let mut bound = |c0: f32, c1: f32| {
+        if c1.abs() < 1e-7 {
+            if c0 < 0.0 {
+                hi = -1.0;
+            }
+        } else if c1 > 0.0 {
+            lo = lo.max(-c0 / c1);
+        } else {
+            hi = hi.min(-c0 / c1);
         }
-        s += 0.2;
-    }
-    false
+    };
+    let (ya, yd) = (a.y, dir.y);
+    bound(ya - y0, yd);
+    bound(y1 - ya, -yd);
+    // |x| ≤ w0 + wk·y
+    bound(w0 + wk * ya - a.x, wk * yd - dir.x);
+    bound(w0 + wk * ya + a.x, wk * yd + dir.x);
+    // top - depth ≤ z ≤ top
+    bound(t0 + tk * ya - a.z, tk * yd - dir.z);
+    bound(a.z - (t0 + tk * ya - depth), dir.z - tk * yd);
+    lo <= hi
 }
 
 /// Paint the left arm's pieces the neck hides from the eye (`hidden`: painted before the

@@ -199,7 +199,8 @@ pub fn mesh_for(b: Bowed, h: Holder) -> Arc<Mesh> {
     if h == Holder::default() {
         return mesh(b);
     }
-    static KEPT: Mutex<Vec<((Bowed, Holder), Arc<Mesh>)>> = Mutex::new(Vec::new());
+    type Kept = Vec<((Bowed, Holder), Arc<Mesh>)>;
+    static KEPT: Mutex<Kept> = Mutex::new(Vec::new());
     let mut kept = KEPT.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(i) = kept.iter().position(|(k, _)| *k == (b, h)) {
         let e = kept.remove(i);
