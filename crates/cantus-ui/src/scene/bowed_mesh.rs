@@ -41,6 +41,9 @@ pub enum Role {
     /// A plain steel string, a wound one.
     Steel,
     Wound,
+    /// The player's chair or stool: its stained wood, its seat's cloth.
+    Chair,
+    Seat,
 }
 
 /// A grid of points (`rows` × `cols`, row-major) with normals and grain coordinates (cm:
@@ -84,6 +87,9 @@ pub struct Mesh {
     /// one has the grain in its texture), and the top's normal.
     pub grain: Vec<Vec<V3>>,
     pub normal: V3,
+    /// What else stands in the room (the chair, the stool): each piece's points, whose
+    /// floor shadow is their hull.
+    pub shadows: Vec<Vec<V3>>,
 }
 
 impl Patch {
@@ -173,6 +179,7 @@ fn build(b: Bowed) -> Mesh {
     body(&mut m, d, &pose, &o);
     super::bowed_head::neck(&mut m, d, &pose);
     super::bowed_fit::fittings(&mut m, d, &pose, &o);
+    super::bowed_props::furniture(&mut m, b, &pose);
     m
 }
 

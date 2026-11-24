@@ -311,7 +311,8 @@ pub fn tonewood(u: f32, v: f32, seed: u32, lines: f32, flame: f32, fp: f32) -> f
     let f = x - x.floor();
     let late = smooth(0.55, 0.82, f) * (1.0 - smooth(0.86, 1.0, f));
     let fade = smooth(0.22, 0.55, lines * fp);
-    let mut t = 0.32 + 0.5 * (late + (0.3 - late) * fade) + 0.18 * fbm(u * 6.0, v * 40.0, seed + 3, 3);
+    let mut t =
+        0.32 + 0.5 * (late + (0.3 - late) * fade) + 0.18 * fbm(u * 6.0, v * 40.0, seed + 3, 3);
     if flame > 0.0 {
         // The curl: stripes ~1 cm apart, leaning and wavering across the board.
         let ph = u * 520.0 + v * 140.0 + 5.0 * fbm(v * 6.0, u * 1.5, seed + 9, 2);

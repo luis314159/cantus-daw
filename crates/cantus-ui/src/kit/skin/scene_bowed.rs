@@ -70,6 +70,8 @@ pub const NICKEL: Mat = super::metal([0.80, 0.80, 0.82]);
 pub const RUBBER: Mat = plain(MatKind::Black, [0.0; 3]);
 /// The tailgut's black cord.
 pub const CORD: Mat = plain(MatKind::Black, [0.0; 3]);
+/// The player's chair's seat (and the bassist's stool's): a dark cloth.
+pub const SEAT: Mat = plain(MatKind::Matte, srgb(46, 38, 36));
 /// Inside the body, seen through an f-hole: the dark of the box.
 pub const HOLE: C3 = [0.045, 0.028, 0.018];
 /// The purfling's black strips (its white core is too fine to show at the picture's size).

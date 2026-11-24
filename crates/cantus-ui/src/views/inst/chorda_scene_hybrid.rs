@@ -502,6 +502,13 @@ fn bake_view(
             );
             let split = g.tris.len();
             bowed::build(&mut g, b);
+            // Its two microphones, by the photographic gear.
+            let km = kit::KitMats::new(
+                &mut g,
+                &finish_mat(cantus_core::inst::chorda_look::Finish::Black),
+            );
+            let gm = gear::GearMats::new(&mut g, km);
+            gear::kit(&mut g, &gm, &crate::scene::bowed_props::mics(b));
             let pl = Place {
                 mid: geo::cm(mid.x, mid.y, mid.z),
                 key: geo::cm(mid.x - 110.0, 360.0, mid.z + 200.0),

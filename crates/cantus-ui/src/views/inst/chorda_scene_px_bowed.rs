@@ -65,6 +65,8 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::Silk(i) => PMat::matte(lin3(pal::SILK[(i as usize).min(3)])).with(Tex::Fabric),
         Role::Steel => parts::steel(),
         Role::Wound => PMat::metal(lin3(pal::TUNGSTEN.tint), 0.22),
+        Role::Chair => finish(&crate::kit::skin::scene::FINISH_WALNUT, 91),
+        Role::Seat => PMat::matte(lin3(pal::SEAT.albedo)).with(Tex::Fabric),
     }
 }
 

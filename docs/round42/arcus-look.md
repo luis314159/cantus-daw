@@ -1,8 +1,9 @@
 # Round 42 — `arcus-look`: Arcus's picture on the scene engine
 
 **Branch:** `r42/arcus-look` (from `r42/arcus` 58b7a0006) · **Builder:** design agent for
-Arcus's picture · **ADR:** 0126's amendment (round 42, `arcus-look`) · **Sheet:**
-`docs/round42/arcus/sheet-v3/`
+Arcus's picture · **ADR:** 0126's amendment (round 42, `arcus-look`) · **Sheets:**
+`docs/round42/arcus/sheet-v3/` (the first look), `docs/round42/arcus/sheet-v4/` (framing,
+the room furnished, the stance)
 
 ## Why
 
@@ -52,9 +53,16 @@ meshes and materials for that engine, not a new renderer.
     the traced reflections and the floor's mirror are Chorda's.
   - The setting is *Settings ▸ Appearance ▸ Instrument pictures*, as for the other
     instruments.
-- **Posed as played.** The instrument stands on its endpin in the studio's live room
-  (Chorda's and Tympanum's room, rug and walls). It is leant back and its scroll tipped
-  toward the viewer's right, seen three-quarter from the audience's left and a little above.
+- **Posed as played** (sheet v4). The instrument stands on its endpin in the studio's live
+  room (Chorda's and Tympanum's room, rug and walls). The cello is leant back 30° toward the
+  player on a 34 cm endpin in its rubber rest, with its contact shadow; the bass stands at
+  14° on 24 cm. The camera is close and low (8°), three-quarter from the audience's left, and
+  the instrument fills the picture's height above the caption.
+- **The room furnished as Chorda's** (sheet v4, `scene/bowed_props.rs`):
+  - the cellist's chair behind the cello, or the bassist's stool beside the bass;
+  - two microphones on boom stands at the instrument's sides, never in front of it: a pencil
+    low on the f-holes and a large-diaphragm condenser higher. They are the engine's own
+    `gear::KitMic` in both pictures.
 - **Live, over the baked picture** (`views/inst/arcus_draw_body.rs`, from the build's camera
   and `bowed::rig`):
   - the sounding string, lit, with its swing as loud as the level;
@@ -80,7 +88,8 @@ meshes and materials for that engine, not a new renderer.
 
 ## What the engine gained (additive)
 
-- `Subject::Bowed`, `Part::Bowed`, `bowed_draw::frame_for`.
+- `Subject::Bowed`, `Part::Bowed`, `bowed_draw::frame_for`; the microphones reuse
+  `gear::KitMic` / `gear::kit_mics` / the photographic `gear::kit` unchanged.
 - The per-pixel `Tex::Tonewood`.
 - In the Drawn path for this subject:
   - cells shaded at both row edges as a gradient;

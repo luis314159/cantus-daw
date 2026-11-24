@@ -19,7 +19,7 @@ use egui::{Pos2, Vec2};
 /// Arcus's play view: the instrument fitted tall in the middle of the picture, room round
 /// it for the bow, a band under its endpin for the read-out's caption (at 100 %).
 pub const BOWED_FRAME: Frame = Frame {
-    inset: [24.0, 12.0, 24.0, 58.0],
+    inset: [24.0, 6.0, 24.0, 52.0],
     margin: 0.0,
     anchor: (0.5, 0.5),
 };
@@ -28,23 +28,23 @@ pub const BOWED_FRAME: Frame = Frame {
 /// picture (the window's scale grows both), never under its 100 % height.
 pub fn frame_for(size: Vec2) -> Frame {
     let mut f = BOWED_FRAME;
-    f.inset[1] = f.inset[1].max(size.y * 0.03);
-    f.inset[3] = f.inset[3].max(size.y * 0.138);
+    f.inset[1] = f.inset[1].max(size.y * 0.016);
+    f.inset[3] = f.inset[3].max(size.y * 0.122);
     f
 }
 
-/// The camera an instrument is seen from: three-quarter from the audience's left, a
-/// little above.
+/// The camera an instrument is seen from: three-quarter from the audience's left, close
+/// and a little above the floor (sheet v4: the instrument fills the picture's height).
 pub fn camera(b: Bowed, room: Room) -> Camera {
     let d = b.dims();
     let pose = Pose::of(b);
     let mid = pose.at(0.0, d.body * 0.78, 0.0);
     let el = match room {
-        Room::Stage => 11.0,
-        Room::Hall => 13.0,
-        _ => 15.0,
+        Room::Stage => 6.0,
+        Room::Hall => 7.0,
+        _ => 8.0,
     };
-    Camera::new(v(mid.x, mid.y, mid.z), -20.0, el, 520.0 + 2.6 * d.body)
+    Camera::new(v(mid.x, mid.y, mid.z), -24.0, el, 300.0 + 2.2 * d.body)
 }
 
 /// The points the camera fits: the body, the head, the endpin's foot.
@@ -89,6 +89,8 @@ pub fn material(b: Bowed, r: Role) -> Mat {
         },
         Role::Steel => pal::STEEL,
         Role::Wound => pal::TUNGSTEN,
+        Role::Chair => crate::kit::skin::scene::FINISH_WALNUT,
+        Role::Seat => pal::SEAT,
     }
 }
 
@@ -403,7 +405,13 @@ pub fn bowed_scene(b: Bowed, st: &Stage) -> Built {
     let mut c = Ctx::new(cam, light, &mut list, lod);
     c.capture = st.capture.then(Vec::new);
     draw(&mut c, b, &mesh);
+    // The two microphones, by the engine's own gear.
+    let _ = super::gear::kit_mics(&mut c, &super::bowed_props::mics(b));
+    c.piece = Part::Bowed;
     c.shadow_polys.push((mesh.shadow.clone(), 0.55));
+    for s in &mesh.shadows {
+        c.shadow_polys.push((s.clone(), 0.5));
+    }
     c.contacts.push((mesh.foot, d.rib_lo * 0.42));
     shadows(&mut c);
     let prims = c.capture.take();

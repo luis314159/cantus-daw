@@ -32,6 +32,7 @@ const ON_THE_KIT: &[&str] = &[
     "scene/bowed_fit.rs",
     "scene/bowed_head.rs",
     "scene/bowed_mesh.rs",
+    "scene/bowed_props.rs",
     "views/inst/dancer.rs",
     "views/inst/dancer_controls.rs",
     "views/inst/dancer_moves.rs",

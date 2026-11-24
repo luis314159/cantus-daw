@@ -168,3 +168,10 @@ their own:
    stopping finger with the vibrato, the bow at its contact with its pressure, camber and
    travel, pizzicato's finger, tremolo) is drawn each frame through the kit's brush from the
    build's camera and `bowed::rig` — no rebuild while playing; at rest one textured quad.
+5. **The room furnished as Chorda's** (sheet v4): the cellist's chair behind the cello or the
+   bassist's stool beside the bass (`scene/bowed_props.rs`, the same surfaces for both
+   pictures), and two microphones on boom stands beside the instrument — a pencil low on
+   the f-holes, a large-diaphragm condenser higher — drawn by the engine's own gear
+   (`gear::kit_mics`, the photographic `gear::kit`) from `gear::KitMic`. The cello is
+   leant back 30° on a 34 cm endpin standing in its rubber rest with a contact shadow; the
+   camera is close and low (8° over the floor, three-quarter from the audience's left).
