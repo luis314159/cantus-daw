@@ -114,6 +114,26 @@ Files: `cantus-core/src/inst/arcus.rs` (the table), `cantus-dsp/src/arcus*.rs` (
    owner's blind ABX against the recorded cello and bass, a solo note and a four-bar phrase
    with legato and a CC1 swell.
 
+## Amendment (round 42, the owner's ask): model 2, matched to recordings
+
+**Context.** The owner: "do what we did with Chorda — download high-quality recordings and do
+a spectral analysis so our base sound gets better." **Decision.** `MODEL` 2.0 (stored with every
+new Arcus; model 1 kept for anything made with it): `arcus_tables::Match` per instrument — a
+correction of twelve peaking sections after the body (`arcus::eq`, 63 Hz – 10 kHz), the
+hair's noise, the vibrato's depth and rate and the pluck's ring — fitted by
+`tools/arcus/match.sh fit` into the spread of about 1 060 recorded notes (the Iowa MIS's
+anechoic cello and bass, TinySOL, VSCO 2 CE, Karoryfer, Smolken; licences and sources in
+`docs/round42/arcus-match.md`) on two thirds of the notes, judged on the third held out.
+Also, for both models: the registers balanced (`balance_db_st`, measured: the cello fell 0.47
+dB a semitone, the bass 0.16) and the output trims at 16 dB. **Consequences.** The cello's
+held-out distances halve (harmonics 8.7 → 4.1 dB, spectrum 8.2 → 3.8, centroid 7.1 → 1.3
+semitones); the vibrato's depth falls inside the recordings' (±19 → ±15.5 cents the cello,
+±21 → ±10 the bass); the bass's correction is left flat (fitted, it moved the held-out notes
+away). The pizzicato's brightness, the attack and the bass's own body are left open, said in
+`arcus-match.md`. **What the tests hold.** Every earlier test at model 2's defaults (the
+pitch gate, the attacks, the vibrato's rate and depth within their bounds, rest, block sizes,
+the pool); `match.sh` prints the distances.
+
 ## Amendment (round 42, the `arcus-upper` builder): the violin and the viola
 
 <!-- r42:arcus-upper -->

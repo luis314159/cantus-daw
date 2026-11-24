@@ -101,6 +101,11 @@ times, bend range, octave, transpose, fine, the seed of its small variations).
   through the body's resonances — which is how a real vibrato is heard (Mellody & Wakefield,
   2000).
 - **The tuning** of the project (Project ▸ Tuning) reaches it like every pitched instrument.
+- **Matched to recordings** — measured note by note against recorded cellos and double
+  basses (the University of Iowa's anechoic recordings, TinySOL, VSCO 2, Karoryfer's cello,
+  Smolken's bass: harmonics, spectrum, noise, vibrato, a pluck's ring) and corrected towards
+  them: the cello's tone colour, the vibrato's depth and the pizzicato's ring of both. A song
+  made with the first Arcus keeps its sound (its model is stored with it).
 
 ## Presets
 

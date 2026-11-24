@@ -190,7 +190,7 @@ pub fn measure(x: &[f32], sr: f64, near: f64, steady: f64, pizz: bool) -> Featur
     }
     // Third-octave bands over the power spectrum.
     let bin_hz = sr / NFFT as f64;
-    let mut ltas = vec![0.0; BANDS];
+    let mut ltas = [0.0; BANDS];
     for (i, v) in sp.iter().enumerate() {
         let hz = i as f64 * bin_hz;
         if hz < 44.0 {
