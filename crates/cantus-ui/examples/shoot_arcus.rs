@@ -232,9 +232,9 @@ fn main() {
         ("violin-play", View::Play, 2.0, 0.0, 2.0, 76.0), // r42:arcus-upper
         ("viola-play", View::Play, 3.0, 0.0, 2.0, 67.0),  // r42:arcus-upper
         ("violin-pizz", View::Play, 2.0, 1.0, 2.0, 74.0), // r42:arcus-upper
-        // r42:arcus-upper — a second hand position: two semitones up the same string.
-        ("violin-low", View::Play, 2.0, 0.0, 2.0, 71.0),
-        ("cello-low", View::Play, 0.0, 0.0, 2.0, 52.0),
+        // r42:arcus-upper — a second hand position: an octave up the same string.
+        ("violin-high", View::Play, 2.0, 0.0, 2.0, 81.0),
+        ("cello-high", View::Play, 0.0, 0.0, 2.0, 62.0),
     ];
     if args.iter().any(|a| a == "--edit") {
         states.push(("cello-edit", View::Edit, 0.0, 0.0, 2.0, 57.0));

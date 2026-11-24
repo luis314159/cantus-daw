@@ -172,10 +172,27 @@ pub struct Arm {
     pub r: (f32, f32),
 }
 
+/// The figure's skeleton for `b` held by `h`, worked out once and kept (the live picture
+/// asks for it every frame; at rest that must allocate nothing).
+fn skel(b: Bowed, h: Holder) -> super::bowed_figure::Skel {
+    use std::sync::Mutex;
+    static KEPT: Mutex<Vec<((Bowed, Holder), super::bowed_figure::Skel)>> = Mutex::new(Vec::new());
+    let mut kept = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((_, s)) = kept.iter().find(|(k, _)| *k == (b, h)) {
+        return *s;
+    }
+    let s = super::bowed_figure::skeleton(b, &pose(b, h));
+    if kept.len() >= 16 {
+        kept.remove(0);
+    }
+    kept.push(((b, h), s));
+    s
+}
+
 /// `b`'s player's left arm when a figure holds it (its hand on the neck, live).
 pub fn left_arm(b: Bowed, h: Holder) -> Option<Arm> {
     let a = arm(b, h)?;
-    let sk = super::bowed_figure::skeleton(b, &pose(b, h));
+    let sk = skel(b, h);
     let pole = if b.dims().held {
         sk.down + sk.f * 0.3 + sk.r * 0.35
     } else {
@@ -196,7 +213,7 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
     if !h.hold.figure() {
         return None;
     }
-    let sk = super::bowed_figure::skeleton(b, &pose(b, h));
+    let sk = skel(b, h);
     let (sleeve, sleeve_shade, hand, hand_shade) = if h.hold == Hold::Player {
         let (c, s) = ((h.cloth as usize).min(3), (h.skin as usize).min(4));
         (
@@ -224,7 +241,7 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         hand,
         hand_shade,
         r: if h.hold == Hold::Player {
-            (5.0, 4.0)
+            (4.4, 3.5)
         } else {
             (3.0, 2.4)
         },

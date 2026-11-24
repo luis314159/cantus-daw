@@ -154,7 +154,7 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
                                                                   // On a stand nobody plays it: the string sounds, no finger, no bow. // r42:arcus-upper
     if pl.holder.hold == Hold::Stand {
         if st < 0.995 && pl.stop == StopShow::Marker {
-            marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(10.0));
+            marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(12.0));
             // r42:arcus-upper
         }
         return; // r42:arcus-upper
@@ -184,7 +184,7 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
         fingertip(b, v, finger, j1, j2, 0.78 * kf, false);
     }
     if st < 0.995 && pl.stop == StopShow::Marker {
-        marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(10.0)); // r42:arcus-upper
+        marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(12.0)); // r42:arcus-upper
     }
     if pizz {
         let tip = contact - side * pulled;
@@ -462,5 +462,8 @@ pub fn thumbnail(b: &mut Brush, r: Rect, which: Bowed, s: &Style) {
 
 /// r42:arcus-upper — the stopped note's marker at `at`, a few points large at any size.
 fn marker_at(b: &mut Brush, v: &View, pl: &Play, at: V3, size: f32) {
-    super::hand::marker(b, v, at, size, pl.accent, c(pal::FROG));
+    // The theme's focus colour on a halo of its own (dark or light, whichever stands
+    // further from it), as the scene's selection: 3:1 on any wood, ebony or wall.
+    let edge = crate::scene::halo_for(pl.accent);
+    super::hand::marker(b, v, at, size, pl.accent, edge);
 }

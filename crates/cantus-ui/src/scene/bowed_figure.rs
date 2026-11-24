@@ -201,12 +201,8 @@ pub fn fit(b: Bowed, pose: &Pose) -> Vec<V3> {
         s.rs + s.r * 8.0,
     ];
     if b.dims().held {
-        // A violinist from the waist up, a little room round them.
-        p.extend([
-            s.pelvis + s.r * 14.0,
-            s.pelvis - s.r * 14.0,
-            s.le + s.down * 6.0,
-        ]);
+        // A violinist from the chest up, the violin still the picture's subject.
+        p.extend([s.chest + s.r * 16.0 + s.down * 6.0, s.le + s.down * 4.0]);
     }
     p
 }

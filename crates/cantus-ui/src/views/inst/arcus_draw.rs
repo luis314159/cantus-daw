@@ -200,7 +200,8 @@ pub fn picture(
                                                        // r42:arcus-upper — the figure's left hand: its position for this note, glided.
     let hand = {
         let st = body::stop(fs, &n);
-        let h = app.inst.arcus_hands.entry(track.0).or_insert((1.0, time));
+        let first = hand::target(1.0, hand::semis(st));
+        let h = app.inst.arcus_hands.entry(track.0).or_insert((first, time));
         let to = hand::target(h.0, hand::semis(st));
         h.0 = hand::glide(h.0, to, (time - h.1) as f32);
         h.1 = time;
@@ -215,10 +216,10 @@ pub fn picture(
         time,
         vibrato: tele[tel::VIBRATO].clamp(0.0, 1.0),
         lit: super::face::voice2(s, s.hue),
-        holder,                                   // r42:arcus-upper
-        stop,                                     // r42:arcus-upper
-        hand: hand.0,                             // r42:arcus-upper
-        accent: super::face::accent_on(s, s.hue), // r42:arcus-upper
+        holder,            // r42:arcus-upper
+        stop,              // r42:arcus-upper
+        hand: hand.0,      // r42:arcus-upper
+        accent: s.t.focus, // r42:arcus-upper
     };
     crate::kit::with_brush(&painter, |br| body::live(br, &v, &pl, s));
     if moving || (n.live && n.level > 0.0) || hand.1 {

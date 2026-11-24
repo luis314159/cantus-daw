@@ -36,8 +36,9 @@ pub fn target(at: f32, s: f32) -> f32 {
     if s < 0.5 {
         return at;
     }
+    // The note under the first finger at most, under the fourth at least.
     let lo = (s - SPAN).max(1.0);
-    let hi = (s - 1.0).max(1.0);
+    let hi = s.max(1.0);
     if at < lo - 0.25 {
         lo
     } else if at > hi + 0.25 {
@@ -74,6 +75,13 @@ pub struct Left<'a> {
     pub at: f32,
     pub rock: f32,
     pub side: V3,
+}
+
+/// Where the finger that plays the note lands: on its string at the stopped point (rocked
+/// by the vibrato); none on an open string.
+pub fn playing_tip(l: &Left) -> Option<V3> {
+    let up = (l.rig.strings[l.string][2] - l.rig.strings[l.string][1]).norm();
+    (l.semis >= 0.5).then(|| on_string(l.rig, l.string, l.semis, 0.0) + up * l.rock)
 }
 
 /// The left arm from its shoulder to the hand on the neck; returns where the playing
@@ -117,7 +125,7 @@ pub fn left_arm(b: &mut Brush, v: &View, arm: &Arm, l: &Left) -> Option<V3> {
         let s = l.at + j as f32 * (SPAN / 4.0) * 0.95;
         let knuckle = on_string(rig, mid, s, 0.0) + rock - nz * 1.2 + l.side * 2.4;
         let (tip, lifted) = if playing == Some(j) {
-            (on_string(rig, l.string, l.semis, 0.0) + rock, false)
+            (playing_tip(l).unwrap_or(knuckle), false)
         } else {
             (on_string(rig, l.string, s, 1.1) + rock, true)
         };

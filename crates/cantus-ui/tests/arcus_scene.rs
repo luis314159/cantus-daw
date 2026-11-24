@@ -191,9 +191,16 @@ fn context() -> egui::Context {
 fn at_rest_the_picture_builds_nothing_and_asks_for_nothing() {
     let _turn = turn();
     scene::set_blocking(true);
-    for inst in [0.0, 1.0] {
+    // r42:arcus-upper — the violin too, and each holder (a figure's hands settle, then
+    // ask for nothing).
+    use cantus_ui::scene::bowed_hold::{Hold, Holder};
+    let cases = [0.0, 1.0, 2.0]
+        .into_iter()
+        .flat_map(|i| Hold::ALL.into_iter().map(move |h| (i, h)));
+    for (inst, hold) in cases {
         let ctx = context();
         let (mut app, track) = app_with(InstrumentKind::BowedString, inst);
+        app.settings.arcus_holder = Holder::of(hold);
         let mut t = 0.0;
         for _ in 0..4 {
             t += 1.0 / 60.0;
@@ -228,10 +235,13 @@ fn at_rest_the_picture_builds_nothing_and_asks_for_nothing() {
             t += 1.0 / 60.0;
             let (allocs, repaint, _) = frame(&ctx, &mut app, track, InstrumentKind::BowedString, t);
             eprintln!("at rest: {allocs} allocations (an empty frame {empty})");
-            assert!(!repaint, "at rest the picture asks for no repaint");
+            assert!(
+                !repaint,
+                "at rest ({inst}, {hold:?}) the picture asks for no repaint"
+            );
             assert!(
                 allocs <= empty + 6,
-                "at rest: {allocs} allocations, an empty frame {empty}"
+                "at rest ({inst}, {hold:?}): {allocs} allocations, an empty frame {empty}"
             );
         }
         let now = app
