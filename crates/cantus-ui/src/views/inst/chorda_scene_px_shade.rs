@@ -161,6 +161,11 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
                 ..s(lscale(m.base, 0.06), 1.0, m.rough)
             }
         }
+        Tex::Tonewood { seed, lines, flame } => {
+            let t = super::mat::tonewood(uv[0], uv[1], seed, lines, flame, fp);
+            let c = lmix(m.light, m.dark, t);
+            s(lmix(c, m.base, 0.3), m.coat, m.rough)
+        }
         Tex::Floor => floor(rig, p, fp),
         Tex::Rug => rug(rig, p, fp),
         Tex::Wall | Tex::Wall2 => wall(rig, m.tex == Tex::Wall2, p, uv, fp),

@@ -11,6 +11,12 @@
 //! builder `scene`; `tymp-ui` and `chorda-src` call it and never edit it.
 
 pub mod backend;
+pub mod bowed;
+pub mod bowed_draw;
+pub mod bowed_fit;
+pub mod bowed_head;
+pub mod bowed_mesh;
+pub mod bowed_props;
 pub mod compose;
 pub mod display;
 pub mod draw;
@@ -138,6 +144,10 @@ pub enum Subject {
         finish: Finish,
         mics: bool,
     },
+    /// Arcus (r42:arcus-look): the cello or the double bass standing on its endpin. What
+    /// it plays (the sounding string, the finger, the bow) is drawn live over the picture
+    /// by its view, from [`bowed::rig`] and the build's camera.
+    Bowed { instrument: bowed::Bowed },
 }
 
 /// One scene to draw, and what is lit in it.
@@ -228,6 +238,7 @@ pub(crate) fn build(w: &Want) -> compose::Built {
         frame: w.frame.unwrap_or(match w.subject {
             Subject::Piano { .. } => compose::PIANO_FRAME,
             Subject::Kit { .. } => compose::KIT_FRAME,
+            Subject::Bowed { .. } => bowed_draw::frame_for(w.size),
         }),
     };
     let mut b = match &w.subject {
@@ -264,6 +275,7 @@ pub(crate) fn build(w: &Want) -> compose::Built {
             let km = mics.then(|| kit_mics(def));
             compose::kit_scene(&pieces, &finish_mat(*finish), km.as_deref(), &st)
         }
+        Subject::Bowed { instrument } => bowed_draw::bowed_scene(*instrument, &st),
     };
     if let Some(m) = &mut b.model {
         m.subject = Some(w.subject.clone());

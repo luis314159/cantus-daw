@@ -3,11 +3,12 @@
 //! garnet, the rosin in amber — design sheet v1 for the owner's approval). Owned by the
 //! `arcus` builder.
 //!
-//! - **Play**: the string as it is bowed and the bow's place in its Schelleng region (the
-//!   display is the control: drag the bow's point), beside the instrument's card (cello or
-//!   double bass, arco, pizzicato or tremolo, and the four numbers a player turns: the
-//!   dynamic, where the bow plays, how hard, how fast); under them the vibrato, the body and
-//!   the output.
+//! - **Play**: the instrument in its room down the whole left column (r42:arcus-look: the
+//!   scene engine's cello or bass, the string, finger and bow live over it; a drag moves
+//!   the contact and the force), its read-out a caption along its lower edge; down the
+//!   right the instrument's card (cello or double bass, arco, pizzicato or tremolo, and the
+//!   four numbers a player turns: the dynamic, where the bow plays, how hard, how fast),
+//!   the vibrato, the body and the output.
 //! - **Edit**: every part as a card in its function hue — the picture and the instrument,
 //!   the dynamic and what moves it, the bow, the vibrato, pizzicato and tremolo, the string
 //!   and the body, the voice and MPE, the output. Taller than the window, it scrolls.
@@ -20,6 +21,7 @@ mod draw;
 #[path = "arcus_presets.rs"]
 mod presets;
 
+pub use draw::picture_for_tests;
 pub use presets::FACTORY_PRESETS;
 
 use super::face;
@@ -111,13 +113,19 @@ fn picture_card(
     } else {
         "instrument.arcus"
     };
-    let cr = paint_card(ui, rect, s, &Card::new(title, Function::Source).display(display));
+    let cr = paint_card(
+        ui,
+        rect,
+        s,
+        &Card::new(title, Function::Source).display(display),
+    );
     if let Some(d) = cr.display {
         let sd = face::on_display(&ss);
         if diagram {
             draw::schelleng(app, ui, track, &fs, &tele, d, &sd);
         } else {
             draw::picture(app, ui, track, &fs, &tele, d, &sd);
+            caption(app, ui, d, spec, &sd);
         }
         with_brush(&ui.painter_at(d), |b| face::cover(b, d, &sd));
     }
@@ -131,6 +139,7 @@ fn instrument_card(
     spec: &NativeSpec,
     rect: Rect,
     s: &Style,
+    with_readout: bool,
 ) {
     let sd = s.function(Function::Dynamics);
     let cr = paint_card(ui, rect, s, &Card::new("arcus.inst", Function::Dynamics));
@@ -151,15 +160,15 @@ fn instrument_card(
         Pos2::new(cr.body.left(), r[2].bottom() + s.s(10.0)),
         cr.body.max,
     );
-    if below.height() >= s.s(16.0) {
+    if with_readout && below.height() >= s.s(16.0) {
         readout(app, ui, below, spec, &sd);
     }
 }
 
 /// The note now, as a player reads it: its name, the string it is on, its dynamic's
-/// marking, and the bow's three numbers (β, force, speed) — label and value in pairs.
-fn readout(app: &CantusApp, ui: &egui::Ui, rect: Rect, spec: &NativeSpec, s: &Style) {
-    use crate::kit::text::{paint, Policy, Role, Text};
+/// marking, and the bow's three numbers (β, force, speed) — each its label's key and its
+/// value.
+fn readout_rows(app: &CantusApp, spec: &NativeSpec) -> [(&'static str, String); 6] {
     // The notes' names in the window's language (`arcus.notes`: C … B, Do … Si).
     let names_text = crate::i18n::t("arcus.notes");
     let names: Vec<&str> = names_text.split(',').map(|n| n.trim()).collect();
@@ -181,15 +190,26 @@ fn readout(app: &CantusApp, ui: &egui::Ui, rect: Rect, spec: &NativeSpec, s: &St
         n.lo,
         n.hi
     );
-    let speed = format!("× {:.2} · {:.0} cm/s", spec.get("bow.speed"), 100.0 * n.speed.abs());
-    let rows: [(&str, &str); 6] = [
-        ("arcus.read.note", &note),
-        ("arcus.read.string", &string),
-        ("arcus.read.dynamic", &mark),
-        ("arcus.bow.pos", &contact),
-        ("arcus.bow.force", &force),
-        ("arcus.bow.speed", &speed),
-    ];
+    let speed = format!(
+        "× {:.2} · {:.0} cm/s",
+        spec.get("bow.speed"),
+        100.0 * n.speed.abs()
+    );
+    [
+        ("arcus.read.note", note),
+        ("arcus.read.string", string),
+        ("arcus.read.dynamic", mark),
+        ("arcus.bow.pos", contact),
+        ("arcus.bow.force", force),
+        ("arcus.bow.speed", speed),
+    ]
+}
+
+/// The note now, as a player reads it (Edit, beside the Schelleng diagram): label and value
+/// in pairs, a row each.
+fn readout(app: &CantusApp, ui: &egui::Ui, rect: Rect, spec: &NativeSpec, s: &Style) {
+    use crate::kit::text::{paint, Policy, Role, Text};
+    let rows = readout_rows(app, spec);
     let line = s.s(18.0);
     let label_w = (rect.width() * 0.32).min(s.s(110.0));
     with_brush(&ui.painter_at(rect), |b| {
@@ -206,8 +226,85 @@ fn readout(app: &CantusApp, ui: &egui::Ui, rect: Rect, spec: &NativeSpec, s: &St
             let mut t = Text::key(key, Role::Label, s.t.text_dim).align(egui::Align2::LEFT_CENTER);
             t.policy = Policy::Abbreviate;
             let _ = paint(b, lr, &t, s.tk());
-            let v = Text::new(value, Role::Value, s.t.text).align(egui::Align2::LEFT_CENTER);
+            let v =
+                Text::new(value.as_str(), Role::Value, s.t.text).align(egui::Align2::LEFT_CENTER);
             let _ = paint(b, vr, &v, s.tk());
+        }
+    });
+}
+
+/// r42:arcus-look — the read-out as Play shows it: a two-line caption on a plate along the
+/// picture's lower edge, under the instrument's endpin (its frame leaves the band free),
+/// each label dim and its value bright, the pairs laid in order across the two lines — a
+/// pair never split, nothing shortened, in either language.
+fn caption(app: &CantusApp, ui: &egui::Ui, d: Rect, spec: &NativeSpec, s: &Style) {
+    use crate::kit::text::{measure, paint, Role, Text};
+    let rows = readout_rows(app, spec);
+    let ctx = ui.ctx();
+    let k = s.tk();
+    let (pad, gap, inner) = (s.s(8.0), s.s(16.0), s.s(5.0));
+    let line = s.s(16.0);
+    fn label<'a>(key: &'a str, s: &Style) -> Text<'a> {
+        Text::key(key, Role::Label, s.t.text_dim)
+    }
+    fn value<'a>(v: &'a str, s: &Style) -> Text<'a> {
+        Text::new(v, Role::Value, s.t.text)
+    }
+    let widths: Vec<(f32, f32)> = rows
+        .iter()
+        .map(|(key, v)| {
+            (
+                measure(ctx, &label(key, s), k).x,
+                measure(ctx, &value(v, s), k).x,
+            )
+        })
+        .collect();
+    let avail = d.width() - 2.0 * pad - s.s(12.0);
+    // Pairs in order across the first line while they fit, the rest on the second.
+    let mut lines: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+    let mut x = 0.0;
+    let mut at = 0;
+    for (i, (lw, vw)) in widths.iter().enumerate() {
+        let w = lw + inner + vw;
+        if at == 0 && !lines[0].is_empty() && (x + gap + w > avail || i >= 3) {
+            at = 1;
+            x = 0.0;
+        }
+        x += if lines[at].is_empty() { w } else { gap + w };
+        lines[at].push(i);
+    }
+    let width_of = |l: &[usize]| {
+        l.iter()
+            .map(|&i| widths[i].0 + inner + widths[i].1)
+            .sum::<f32>()
+            + gap * l.len().saturating_sub(1) as f32
+    };
+    let w = width_of(&lines[0]).max(width_of(&lines[1])) + 2.0 * s.s(10.0);
+    let h = 2.0 * line + s.s(8.0);
+    let plate = Rect::from_min_size(
+        Pos2::new(d.center().x - w * 0.5, d.bottom() - pad - h),
+        Vec2::new(w, h),
+    );
+    with_brush(&ui.painter_at(d), |b| {
+        b.rrect(
+            plate,
+            s.r(5.0),
+            crate::kit::Fill::Solid(crate::kit::color::with_alpha(s.t.well, 0.84)),
+        );
+        for (li, l) in lines.iter().enumerate() {
+            let y = plate.top() + s.s(4.0) + li as f32 * line;
+            let mut x = plate.center().x - width_of(l) * 0.5;
+            for &i in l {
+                let (lw, vw) = widths[i];
+                let r = Rect::from_min_size(Pos2::new(x, y), Vec2::new(lw + 1.0, line));
+                let t = label(rows[i].0, s).align(egui::Align2::LEFT_CENTER);
+                let _ = paint(b, r, &t, k);
+                let r =
+                    Rect::from_min_size(Pos2::new(x + lw + inner, y), Vec2::new(vw + 1.0, line));
+                let t = value(&rows[i].1, s).align(egui::Align2::LEFT_CENTER);
+                let _ = paint(b, r, &t, k);
+                x += lw + inner + vw + gap;
+            }
         }
     });
 }
@@ -251,25 +348,38 @@ fn switched_card(
 ) {
     let sf = s.function(f);
     let cr = paint_card(ui, rect, s, &Card::new(title, f).tail(tail));
-    switch(app, ui, tail_rect(&cr, s, tail), track, spec, key, choices, &sf);
+    switch(
+        app,
+        ui,
+        tail_rect(&cr, s, tail),
+        track,
+        spec,
+        key,
+        choices,
+        &sf,
+    );
     let hs: Vec<f32> = rows.iter().map(|_| 86.0).collect();
     for (r, keys) in rows_in(cr.body, s, &hs).iter().zip(rows) {
         cells(app, ui, *r, track, spec, keys, &sf, KnobSize::M);
     }
 }
 
-/// The Play view: the picture and the instrument, then the vibrato, the body and the
-/// output — the numbers a player turns.
+/// The Play view (r42:arcus-look): the picture down the whole left column — the
+/// instrument is the point, as Chorda's piano is — its read-out a caption over its lower
+/// edge; down the right, the instrument's card (which one, how it is played, the four
+/// numbers a player turns), the vibrato, then the body and the output side by side.
 pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
     let area = ui.max_rect();
-    let gutter = s.d(4.0);
-    let h2 = s.s(card_h(86.0));
-    let h1 = (area.height() - h2 - gutter).max(s.s(card_h(24.0 + 6.0 + 24.0 + 6.0 + 86.0)));
-    let mut rows = Rows::new(area, s);
-    let r1 = rows.row(h1, &[0.58, 0.42]);
-    let r2 = rows.row(h2, &[0.40, 0.33, 0.27]);
-    picture_card(app, ui, track, spec, r1[0], s, false);
-    instrument_card(app, ui, track, spec, r1[1], s);
+    let mut cols = Rows::new(area, s);
+    let c = cols.row(area.height(), &[0.58, 0.42]);
+    picture_card(app, ui, track, spec, c[0], s, false);
+    let h_card = s.s(card_h(86.0));
+    let h_inst = (c[1].height() - 2.0 * (h_card + s.d(4.0)))
+        .max(s.s(card_h(24.0 + 6.0 + 24.0 + 6.0 + 86.0)));
+    let mut rows = Rows::new(c[1], s);
+    let r1 = rows.row(h_inst, &[1.0]);
+    instrument_card(app, ui, track, spec, r1[0], s, false);
+    let r2 = rows.row(h_card, &[1.0]);
     cells_card(
         app,
         ui,
@@ -281,12 +391,13 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         Function::Mod,
         &[&["vib.depth", "vib.rate", "vib.delay"]],
     );
+    let r3 = rows.row(h_card, &[0.6, 0.4]);
     cells_card(
         app,
         ui,
         track,
         spec,
-        r2[1],
+        r3[0],
         s,
         "arcus.body",
         Function::Tone,
@@ -297,7 +408,7 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         ui,
         track,
         spec,
-        r2[2],
+        r3[1],
         s,
         "arcus.output",
         Function::Output,
@@ -322,7 +433,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let mut rows = Rows::new(area, s);
     let r1 = rows.row(heights[0], &[0.55, 0.45]);
     picture_card(app, ui, track, spec, r1[0], s, true);
-    instrument_card(app, ui, track, spec, r1[1], s);
+    instrument_card(app, ui, track, spec, r1[1], s, true);
     let r2 = rows.row(heights[1], &[1.0]);
     switched_card(
         app,

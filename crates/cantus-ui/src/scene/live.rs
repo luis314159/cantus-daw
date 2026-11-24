@@ -245,7 +245,7 @@ fn controls(s: &Subject) -> Option<[f32; 4]> {
             room_level,
             ..
         } => Some([*lid, *persp, *width, *room_level]),
-        Subject::Kit { .. } => None,
+        Subject::Kit { .. } | Subject::Bowed { .. } => None,
     }
 }
 
