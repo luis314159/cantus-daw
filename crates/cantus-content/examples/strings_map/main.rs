@@ -101,16 +101,6 @@ struct Measured {
     fit_none: Option<&'static str>,
 }
 
-/// The span of a sample its tuning is measured over, in frames: a held note's loop (what it
-/// plays as it holds) or steady part, a short note's tone (`strings_analysis::tone_span`).
-fn tune_span(m: &[f32], rate: f32, held: bool, looped: Option<[i64; 2]>) -> (usize, usize) {
-    match (held, looped) {
-        (true, Some([ls, le])) => (ls as usize, le as usize + 1),
-        (true, None) => an::steady_span(m, rate).unwrap_or((0, m.len())),
-        (false, _) => an::tone_span(m, rate),
-    }
-}
-
 /// Each zone's tune from the partials' fit near its root (after the octave fix): the zone's
 /// mean pitch made its key's, its vibrato kept.
 fn fit_tunes(ms: &mut [Measured], fs: &[(String, Vec<u8>)]) {
@@ -130,8 +120,30 @@ fn fit_tunes(ms: &mut [Measured], fs: &[(String, Vec<u8>)]) {
                 let Ok(a) = wav::parse(b) else { continue };
                 let rate = a.rate as f32;
                 let x = an::mono(&a.samples, a.channels);
-                let (from, to) = tune_span(&x, rate, sustained(m.meta.art), m.looped);
-                match an::harmonic_cents(&x, rate, from, to, an::hz_of_key(m.root as f64)) {
+                // What a held zone plays (Exemplar through its loop, crossfaded), a short note's
+                // tone: the pitch is read where the check reads it.
+                let held = sustained(m.meta.art);
+                let xf = (m.xf_ms / 1000.0 * rate) as i64;
+                let (x, from, to) = if held {
+                    an::held_play(&x, rate, m.looped, xf)
+                } else {
+                    let (a, b) = an::tone_span(&x, rate);
+                    (x, a, b)
+                };
+                let to = to.min(x.len());
+                // A tremolo's bow changes break the partials apart frame by frame (the probe:
+                // `strings_tune_probe`): its tune comes from YIN near the root instead.
+                let root = an::hz_of_key(m.root as f64);
+                let yin = || {
+                    an::yin_cents(&x, rate, from, to, root)
+                        .filter(|c| (c - m.root as f64 * 100.0).abs() < an::NEAR_CENTS)
+                };
+                let fit = if m.meta.art == "tremolo" {
+                    yin().or_else(|| an::harmonic_cents(&x, rate, from, to, root))
+                } else {
+                    an::harmonic_cents(&x, rate, from, to, root)
+                };
+                match fit {
                     Some(c) => {
                         m.fit = Some(c);
                         m.tune = (m.root as f64 * 100.0 - c) as f32;

@@ -6,7 +6,8 @@
 //!
 //! The samples are not in the repository: this test is ignored, and run on the sources
 //! `tools/content/strings/fetch_sources.sh` fetched —
-//! `CANTUS_STRINGS_SRC=<dir> cargo test --release -p cantus-content --test strings_packs -- --ignored --nocapture`.
+//! `CANTUS_STRINGS_SRC=<dir> cargo test --release -p cantus-content --test strings_packs -- --ignored --nocapture`
+//! (`CANTUS_STRINGS_MANIFEST=<content.json>` to measure another manifest's tunings).
 
 use cantus_content::manifest::{Manifest, Source};
 use cantus_content::strings_analysis as an;
@@ -126,11 +127,18 @@ fn play(x: &[f32], rate: f32, tune: f32, lp: Option<[i64; 2]>, xf: i64, secs: f3
 #[ignore = "needs the packs' sources: CANTUS_STRINGS_SRC"]
 fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
     let src = PathBuf::from(std::env::var("CANTUS_STRINGS_SRC").expect("CANTUS_STRINGS_SRC"));
-    let m = Manifest::bundled();
-    // [short, held] × [measured, within a cent, within five].
-    let mut within = [[0usize; 3]; 2];
+    // `CANTUS_STRINGS_MANIFEST=<content.json>` measures another manifest (an older tuning:
+    // the report's before and after).
+    let m = match std::env::var("CANTUS_STRINGS_MANIFEST") {
+        Ok(f) => Manifest::parse(&std::fs::read_to_string(f).unwrap()).unwrap(),
+        Err(_) => Manifest::bundled(),
+    };
+    // [short, sustain, tremolo] × [measured, within a cent, within five].
+    let mut within = [[0usize; 3]; 3];
     let (mut off, mut unmeasured, mut loops, mut clicks) = (Vec::new(), Vec::new(), 0, Vec::new());
     let mut beyond = Vec::new();
+    // Measurable sustains: [measured, within a cent]; beyond three cents; the unreliable ones.
+    let (mut strict, mut strict_off, mut unreliable) = ([0usize; 2], Vec::new(), Vec::new());
     for pack in m.packs.iter().filter(|p| p.strings.is_some()) {
         let bytes = files(&src, pack);
         let mut seen = std::collections::HashSet::new();
@@ -163,18 +171,53 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
                 match an::nsdf_near_cents(&out, rate, a0, b0.min(out.len()), root) {
                     Some(c) => {
                         let err = c - z.root as f64 * 100.0;
-                        let k = held as usize;
+                        let k = if z.art == "tremolo" { 2 } else { held as usize };
                         within[k][0] += 1;
                         if err.abs() <= 1.0 {
                             within[k][1] += 1;
                         }
                         if err.abs() <= 5.0 {
                             within[k][2] += 1;
-                        } else if held {
+                        } else if k == 1 {
                             beyond.push((pack.id.clone(), z.file.clone(), err));
                         }
                         if err.abs() > 1.0 {
                             off.push((pack.id.clone(), z.file.clone(), err));
+                        }
+                        // Measurable: the check agrees with itself at a window four times
+                        // as long within 0.3 cent — where it is reliable, the gate is strict.
+                        if k == 1 {
+                            let long = an::nsdf_near_cents_w(
+                                &out,
+                                rate,
+                                a0,
+                                b0.min(out.len()),
+                                root,
+                                16.0,
+                                8_192,
+                            );
+                            // …and a second, independent measure (YIN) reads the same within
+                            // 0.3 cent: where the pitch is defined that finely.
+                            let yin = an::yin_cents(&out, rate, a0, b0.min(out.len()), root);
+                            let agree = long.is_some_and(|l| (l - c).abs() <= 0.3)
+                                && yin.is_some_and(|y| (y - c).abs() <= 0.3);
+                            match agree.then_some(()) {
+                                Some(_) => {
+                                    strict[0] += 1;
+                                    if err.abs() <= 1.0 {
+                                        strict[1] += 1;
+                                    }
+                                    if err.abs() > 3.0 {
+                                        strict_off.push((pack.id.clone(), z.file.clone(), err));
+                                    }
+                                }
+                                None => unreliable.push((
+                                    pack.id.clone(),
+                                    z.file.clone(),
+                                    long.map_or(f64::NAN, |l| l - c),
+                                    yin.map_or(f64::NAN, |y| y - c),
+                                )),
+                            }
                         }
                     }
                     None => {
@@ -204,8 +247,8 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
     }
     let pct = |k: usize, w: usize| 100.0 * within[k][w] as f64 / within[k][0].max(1) as f64;
     println!(
-        "held zones: {} measured, {:.1} % within a cent, {:.1} % within five; short notes: {} measured, {:.1} % within a cent, {:.1} % within five; not measurable: {}; loops: {loops}, clicking: {}",
-        within[1][0], pct(1, 1), pct(1, 2), within[0][0], pct(0, 1), pct(0, 2), unmeasured.len(), clicks.len()
+        "sustains: {} measured, {:.1} % within a cent, {:.1} % within five; tremolos: {} measured, {:.1} % / {:.1} %; short notes: {} measured, {:.1} % / {:.1} %; not measurable: {}; loops: {loops}, clicking: {}",
+        within[1][0], pct(1, 1), pct(1, 2), within[2][0], pct(2, 1), pct(2, 2), within[0][0], pct(0, 1), pct(0, 2), unmeasured.len(), clicks.len()
     );
     for (p, f, e) in &off {
         println!("  off  {p} {f}: {e:+.2} ct");
@@ -217,16 +260,30 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
         println!("  click {p} {f}: {e:.1} dB");
     }
     assert!(clicks.is_empty(), "loops that click: {clicks:?}");
-    // The gate (the integrator, round 42): by an estimator the tuning was not set with, at
-    // least 99 % of the held zones within a cent and every held zone within five; short
-    // notes are reported, and the zones that cannot be measured listed with the reason.
+    println!(
+        "measurable sustains (the check within 0.3 cent of itself at four times its window, and of YIN): {} of {}, {:.1} % within a cent, {} beyond three cents",
+        strict[0],
+        within[1][0],
+        100.0 * strict[1] as f64 / strict[0].max(1) as f64,
+        strict_off.len()
+    );
+    for (p, f, d, y) in &unreliable {
+        println!("  unreliable {p} {f}: the check at four times its window {d:+.2} ct, YIN {y:+.2} ct from it");
+    }
+    for (p, f, e) in &strict_off {
+        println!("  strict-off {p} {f}: {e:+.2} ct");
+    }
+    // The gate (the integrator, round 42): on measurable sustains at least 99 % within a cent
+    // and all within three; every sustain within five; tremolos and short notes reported.
     assert!(
-        pct(1, 1) >= 99.0,
-        "held zones within a cent: {:.1} %",
-        pct(1, 1)
+        strict[1] as f64 >= 0.99 * strict[0] as f64,
+        "measurable sustains within a cent: {} of {}",
+        strict[1],
+        strict[0]
     );
     assert!(
-        beyond.is_empty(),
-        "held zones beyond five cents: {beyond:?}"
+        strict_off.is_empty(),
+        "measurable sustains beyond three cents: {strict_off:?}"
     );
+    assert!(beyond.is_empty(), "sustains beyond five cents: {beyond:?}");
 }

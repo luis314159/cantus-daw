@@ -291,15 +291,11 @@ pub fn seam_excess_db(out: &[f32], rate: f32, seams: &[usize]) -> f32 {
 /// note the zone maps, after the octave fix).
 pub const NEAR_CENTS: f64 = 60.0;
 
-/// The trimmed mean (the middle 80 %) of `v`.
-fn trimmed_mean80(mut v: Vec<f64>) -> Option<f64> {
-    if v.is_empty() {
-        return None;
-    }
-    v.sort_by(|a, b| a.total_cmp(b));
-    let q = v.len() / 10;
-    let mid = &v[q..v.len() - q];
-    Some(mid.iter().sum::<f64>() / mid.len() as f64)
+/// The mean of `v`: the pitch's trajectory averaged over time, every frame alike — what two
+/// measures of it agree on however long their frames (a trimmed mean would cut a vibrato's
+/// or a tremolo's extremes differently for each).
+fn trimmed_mean80(v: Vec<f64>) -> Option<f64> {
+    (!v.is_empty()).then(|| v.iter().sum::<f64>() / v.len() as f64)
 }
 
 /// The power of the windowed frame `w` at frequency `f` (cycles per sample): one DFT bin at
@@ -343,10 +339,25 @@ fn voiced(x: &[f32], from: usize, to: usize, len: usize, hop: usize) -> Vec<usiz
 /// **The partials' fit** — the pitch whose first harmonics (up to eight, below 0.45 of the
 /// rate) hold the most power, frame by frame over `[from, to)` (Hann windows of at least
 /// eight periods, half overlapping), searched within [`NEAR_CENTS`] of `root_hz`: a coarse
-/// grid of 8 cents on four partials, then a golden-section search on eight to 0.02 cent. The trimmed mean (middle 80 %)
-/// of the voiced frames, in cents ([`cents_of`]) — the note's mean pitch, its vibrato kept.
+/// grid of 8 cents on four partials, then a golden-section search on eight to 0.02 cent. The mean of the voiced frames, in cents ([`cents_of`]) — the note's mean pitch, its vibrato kept.
 /// What a zone's tuning is set from.
 pub fn harmonic_cents(x: &[f32], rate: f32, from: usize, to: usize, root_hz: f64) -> Option<f64> {
+    harmonic_cents_k(x, rate, from, to, root_hz, PARTIALS)
+}
+
+/// The partials the fit weighs: the low ones that set a string's pitch, before its stiffness
+/// stretches the upper ones sharp.
+pub const PARTIALS: usize = 8;
+
+/// [`harmonic_cents`] over the first `partials` harmonics.
+pub fn harmonic_cents_k(
+    x: &[f32],
+    rate: f32,
+    from: usize,
+    to: usize,
+    root_hz: f64,
+    partials: usize,
+) -> Option<f64> {
     let period = rate as f64 / root_hz.max(10.0);
     let len = ((8.0 * period).ceil() as usize).max(4_096);
     let win: Vec<f64> = (0..len)
@@ -368,13 +379,13 @@ pub fn harmonic_cents(x: &[f32], rate: f32, from: usize, to: usize, root_hz: f64
         let mut best = (f64::MIN, 0.0);
         let mut c = -NEAR_CENTS;
         while c <= NEAR_CENTS {
-            let v = score(c, 4);
+            let v = score(c, partials.min(4));
             if v > best.0 {
                 best = (v, c);
             }
             c += 8.0;
         }
-        let score = |cents: f64| score(cents, 8);
+        let score = |cents: f64| score(cents, partials);
         // Golden section within a grid step either side.
         let g = 0.618_033_988_75;
         let (mut a, mut b) = (best.1 - 8.0, best.1 + 8.0);
@@ -403,16 +414,29 @@ pub fn harmonic_cents(x: &[f32], rate: f32, from: usize, to: usize, root_hz: f64
 /// **The held-out check** — McLeod's normalised square difference over `[from, to)`, its
 /// highest peak among the periods within [`NEAR_CENTS`] (and a margin) of `root_hz`,
 /// parabolically refined; frames of at least four periods tiling the span a third apart, the
-/// voiced ones; the trimmed mean (middle 80 %) in cents. Never used to set a tuning: what
+/// voiced ones; their mean in cents. Never used to set a tuning: what
 /// checks one.
 pub fn nsdf_near_cents(x: &[f32], rate: f32, from: usize, to: usize, root_hz: f64) -> Option<f64> {
+    nsdf_near_cents_w(x, rate, from, to, root_hz, 4.0, 2_048)
+}
+
+/// [`nsdf_near_cents`] with frames of `periods` periods, at least `min` samples.
+pub fn nsdf_near_cents_w(
+    x: &[f32],
+    rate: f32,
+    from: usize,
+    to: usize,
+    root_hz: f64,
+    periods: f64,
+    min: usize,
+) -> Option<f64> {
     let t = rate as f64 / root_hz.max(10.0);
     let span = math::exp2((NEAR_CENTS + 20.0) / 1_200.0);
     let (tmin, tmax) = (
         (t / span).floor().max(2.0) as usize,
         (t * span).ceil() as usize,
     );
-    let win = ((4.0 * t).ceil() as usize).max(2_048);
+    let win = ((periods * t).ceil() as usize).max(min);
     let mut out = Vec::new();
     for at in voiced(x, from, to, win + tmax + 2, win / 3) {
         let w = &x[at..at + win + tmax + 2];
@@ -467,6 +491,70 @@ pub fn tone_span(x: &[f32], rate: f32) -> (usize, usize) {
         .min(start + (rate * 1.5) as usize)
         .min(x.len());
     (start.min(end), end)
+}
+
+/// What a held zone plays at its root, untuned, as Exemplar plays it (its loop crossfaded):
+/// three turns of its loop, or the whole file; and the span its pitch is read over (the
+/// turns, from just after the loop starts; or the steady part).
+pub fn held_play(x: &[f32], rate: f32, lp: Option<[i64; 2]>, xf: i64) -> (Vec<f32>, usize, usize) {
+    let mut levels: [Option<std::sync::Arc<[f32]>>; cantus_dsp::exemplar::resample::MAX_LEVELS] =
+        Default::default();
+    levels[0] = Some(std::sync::Arc::from(x.to_vec()));
+    let src = cantus_dsp::exemplar::Source {
+        levels,
+        channels: 1,
+        rate,
+        frames: x.len(),
+        tune_ct: 0.0,
+        stream: None,
+    };
+    let mut e = cantus_dsp::exemplar::Exemplar::new(rate);
+    e.set_globals(&cantus_dsp::exemplar::Globals {
+        amp: [0.1, 0.1, 1_000.0, 1.0, 50.0],
+        vel_amp: 0.0,
+        ..cantus_dsp::exemplar::Globals::default()
+    });
+    let region = match lp {
+        Some([ls, le]) => cantus_dsp::exemplar::Region {
+            end: x.len() as i64,
+            looping: true,
+            ls,
+            le,
+            xf,
+            ..cantus_dsp::exemplar::Region::default()
+        },
+        None => cantus_dsp::exemplar::Region {
+            end: x.len() as i64,
+            ..cantus_dsp::exemplar::Region::default()
+        },
+    };
+    e.put_zone(
+        0,
+        &cantus_dsp::exemplar::ZoneParams {
+            root: 60,
+            region,
+            ..cantus_dsp::exemplar::ZoneParams::default()
+        },
+        &src,
+    );
+    e.note_on(60, 1.0, 1);
+    let n = match lp {
+        Some([ls, le]) => (ls + 3 * (le - ls + 1) + 2_048) as usize,
+        None => x.len(),
+    };
+    let mut out = Vec::with_capacity(n);
+    let (mut l, mut r) = (vec![0.0f32; 512], vec![0.0f32; 512]);
+    while out.len() < n {
+        l.fill(0.0);
+        r.fill(0.0);
+        e.process(&mut l, &mut r);
+        out.extend_from_slice(&l);
+    }
+    let (a, b) = match lp {
+        Some([ls, le]) => (ls as usize + 256, (ls + 3 * (le - ls + 1)) as usize),
+        None => steady_span(&out, rate).unwrap_or((0, out.len())),
+    };
+    (out, a, b)
 }
 
 #[cfg(test)]
