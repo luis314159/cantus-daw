@@ -249,7 +249,7 @@ fn main() {
             let r = (h[i].0 - m.0).max(0.0).powi(2) * w[i];
             let near = modes
                 .iter()
-                .any(|(hz, q)| (f[i] / hz - 1.0).abs() < (0.5 / q).max(0.012))
+                .any(|(hz, q)| (f[i] / hz - 1.0).abs() < (0.25 / q).clamp(0.008, 0.02))
                 || tried.iter().any(|hz| (f[i] / hz - 1.0).abs() < 0.01);
             let edge = f[i] < 1.15 * LO || f[i] > HI / 1.1;
             if !near && !edge && r > best.1 {

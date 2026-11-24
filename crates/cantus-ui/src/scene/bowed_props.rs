@@ -162,7 +162,7 @@ pub fn furniture(m: &mut Mesh, b: Bowed, pose: &Pose) {
         Bowed::Violin | Bowed::Viola => {
             // r42:arcus-upper
             super::bowed_upper_stand::stand(m, d, pose); // r42:arcus-upper
-            chair(m, v(foot.x + 14.0, 0.0, foot.z - 62.0), 0.35); // r42:arcus-upper
+            chair(m, v(foot.x - 46.0, 0.0, foot.z - 78.0), 0.55); // r42:arcus-upper
         } // r42:arcus-upper
     }
 }

@@ -420,6 +420,12 @@ fn the_way_back_is_flat_to_20_khz_and_folds_nothing_audible() {
         let hi_rate = SR as f64 * os as f64;
         let mut f = 28_000.0;
         while f < 0.5 * hi_rate {
+            // Where it lands at the rate: only what folds under 20 kHz is heard.
+            let fold = (f - SR as f64 * (f / SR as f64).round()).abs();
+            if fold > 20_000.0 {
+                f *= 1.013;
+                continue;
+            }
             let len = 8192;
             let x: Vec<f32> = (0..len * os)
                 .map(|i| math::sin(std::f64::consts::TAU * f * i as f64 / hi_rate) as f32)
@@ -436,7 +442,7 @@ fn the_way_back_is_flat_to_20_khz_and_folds_nothing_audible() {
             f *= 1.013;
         }
         println!(
-            "{os}×: passband ripple ±{ripple:.4} dB to 20 kHz; stop band at most {stop:.1} dB from 28 kHz; latency {:.2} samples",
+            "{os}×: passband ripple ±{ripple:.4} dB to 20 kHz; what folds under 20 kHz at most {stop:.1} dB; latency {:.2} samples",
             Decimator::latency(os)
         );
         assert!(ripple < 0.01, "{os}×: ripple {ripple}");

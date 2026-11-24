@@ -29,7 +29,7 @@
 //! cm/s: read, `downloads/study/papers/s08.txt`), the force placed in the region measured on
 //! this model (`upper_tests_gate`).
 
-use super::super::tables::{Bowing, InstrumentSpec, StringSpec, NEUTRAL};
+use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec};
 use crate::fides::body::BodyKind;
 
 /// A string from Percival's decay rates: the fundamental's T60 and the partials' exponent.
@@ -69,7 +69,7 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     radiation_hz: 0.0,
     balance_db_st: 0.0,
     balance_key: 72.0,
-    matched: NEUTRAL,
+    matched: VIOLIN_MATCH,
 };
 
 /// The viola: C3 G3 D4 A4 over 366 mm; its body the violin's scaled (`upper::body`).
@@ -97,5 +97,37 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     radiation_hz: 0.0,
     balance_db_st: 0.0,
     balance_key: 65.0,
-    matched: NEUTRAL,
+    matched: VIOLA_MATCH,
+};
+
+/// The violin's model-2 match (`ArcusSettings::model` 2): the output's correction from the CNSM
+/// dataset's scales — 14 recordings of three violins by the same players (CC BY 4.0) — their
+/// mean long-term third-octave spectrum over Arcus's playing a two-octave G major scale,
+/// read at the correction's bands (`tools/arcus/upper-compare.sh` prints it); the hair's noise
+/// raised by what the Iowa MIS's and VSCO's held notes have between their harmonics more than
+/// Arcus's (11 dB on the violin, 8 on the viola, taken at 8: the recordings' own floor is in
+/// theirs); the pluck's ring shortened by what the Iowa MIS's plucked notes measured (Arcus's
+/// partials 1–4 rang 1.9 octaves of T60 longer on the violin, 1.65 on the viola: Percival's
+/// decays are open strings', a stopped and plucked string loses more to the finger); the
+/// vibrato a little narrower (Arcus measured +3.7 cents wider than the recorded
+/// notes). Judged on the Iowa and VSCO notes, which the fit did not use.
+pub const VIOLIN_MATCH: Match = Match {
+    eq_db: [
+        -7.6, -7.6, -9.0, 7.4, 4.9, 7.6, 2.8, 3.6, -0.7, 1.3, -1.2, 0.4,
+    ],
+    noise_db: 8.0,
+    pizz_decay: 0.27,
+    vib_depth: 0.85,
+    vib_rate: 1.0,
+};
+
+/// The viola's: no recordings of a viola's scales were found to fit its own, so the violin's
+/// correction stands for it (the same family's body at 1.14 × its size — an assumption, said
+/// so in `docs/round42/arcus-upper.md`), its noise as the violin's.
+pub const VIOLA_MATCH: Match = Match {
+    eq_db: VIOLIN_MATCH.eq_db,
+    noise_db: 8.0,
+    pizz_decay: 0.32,
+    vib_depth: 0.9,
+    vib_rate: 1.0,
 };

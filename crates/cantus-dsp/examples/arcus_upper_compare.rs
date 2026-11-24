@@ -408,6 +408,32 @@ fn cnsm(refs: &Path, report: &mut String) {
         );
     }
     let arcus = ltas(&out, SR as f64);
+    // The match's correction it suggests (`tables::Match::eq_db` at `EQ_HZ`): the violins'
+    // mean long-term spectrum over Arcus's, read at each band's centre, its mean taken out
+    // and held within ±9 dB.
+    let target: Vec<f64> = (0..21)
+        .map(|i| violins.iter().map(|(_, l)| l[i]).sum::<f64>() / violins.len() as f64)
+        .collect();
+    let diff: Vec<f64> = target.iter().zip(&arcus).map(|(t, a)| t - a).collect();
+    let at = |hz: f64| {
+        let x = (3.0 * math::log2(hz / 100.0)).clamp(0.0, 20.0);
+        let (i, fr) = (x.floor() as usize, x - x.floor());
+        diff[i] + (diff[(i + 1).min(20)] - diff[i]) * fr
+    };
+    let eq: Vec<f64> = cantus_dsp::arcus::tables::EQ_HZ
+        .iter()
+        .map(|h| at(*h as f64))
+        .collect();
+    let m = eq.iter().sum::<f64>() / eq.len() as f64;
+    let eq: Vec<String> = eq
+        .iter()
+        .map(|v| format!("{:.1}", (v - m).clamp(-9.0, 9.0)))
+        .collect();
+    let _ = writeln!(
+        report,
+        "  the correction it suggests (dB at EQ_HZ): [{}]",
+        eq.join(", ")
+    );
     let _ = writeln!(
         report,
         "The CNSM violins' scales, long-term third-octave spectra (100 Hz – 10 kHz, dB rms):"

@@ -27,16 +27,19 @@ fn lower() -> Vec<ArcusSettings> {
         .collect()
 }
 
-/// Measured on `r42/arcus` b2691637e (merged with `r42/arcus-look`) before the upper strings'
-/// engine existed: the phrase of `tests::phrase` rendered 60 000 frames in blocks of 256.
+/// Measured on `r42/arcus` 58cafea8e (the cello's and the bass's model 2 matched) in a worktree
+/// of it with only this test added, before the upper strings' engine: the phrase of
+/// `tests::phrase` rendered 60 000 frames in blocks of 256 (`ARCUS_UPPER_DUMP=1` prints them).
+/// A later change to the cello or the bass on `r42/arcus` moves these on purpose, measured the
+/// same way.
 const LOWER_HASHES: &[u64] = &[
-    0xe63627b9f0754655,
-    0x517bd53eb7c89522,
-    0xd3a61adffe6dac70,
-    0x12dc1d0bfefdaacb,
-    0xa5d34d07f64431a4,
-    0xa6791600ae6aca10,
-    0x625c62191d7c125f,
+    0x1a21b4078f0ca02c,
+    0x2e6e7fdd44def356,
+    0x7480af8c4a7e1f00,
+    0x99d9b8c04e754489,
+    0x116db09a872adb65,
+    0xa3767968c3ccdb4b,
+    0xbeeb6e47f7b34e89,
 ];
 
 #[test]
