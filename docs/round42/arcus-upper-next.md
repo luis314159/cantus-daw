@@ -24,6 +24,32 @@ Branch `r42/arcus-upper` (worktree `F:\projects\daw-r42\arcus-upper`). Build onl
 - Shots: `shoot_arcus --hold=all|air,stand,player,mannequin --stop=marker --only=a+b`; sheet in
   `docs/round42/arcus-upper/sheet-v4-holders/`.
 
+## Now (owner, 2026-11-24, before the queue below)
+
+1. **The left hand passes behind the neck.** Design: split the live left hand into the part
+   behind the neck (sleeve, palm, thumb, finger bases knuckle→knee) and the part in front
+   (finger arch and tips knee→tip). Paint order in `arcus_draw::picture`:
+   `with_brush(live_behind)` → re-stamp the neck from the baked texture (a textured
+   `egui::Mesh` over the neck + fingerboard silhouette between the body's edge and the nut,
+   UV = (p − shown.min) / shown.size; needs `Scene::texture_id()` in `scene/live.rs`) →
+   `with_brush(live)` (string, finger tips, marker, bow, bow arm). Violin/viola: palm and
+   thumb behind/under the neck, fingers curve over and down onto the strings. Cello/bass:
+   thumb behind the neck (behind the second finger), fingers wrap from the neck's side.
+   Test: pixels on the neck's centre line at the hand, between fingertips, are the neck's or
+   fingerboard's (not the figure's skin/wood), both looks, musician and mannequin, violin
+   and cello; the fingertip still lands within 1 px.
+2. **Natural arms** (cellist read odd at 200 %). Left arm: upper arm hangs down and out
+   30–45° from the body, elbow out to the side at about chest height, forearm rising to the
+   neck, wrist in line with the forearm, no detached cuff, hand about the face's length.
+   Bow arm: upper arm hangs, elbow a little below the bow's line on low strings, level on
+   the top string; forearm forward to the frog; knuckles on top, thumb bent under. Same
+   thickness both arms; shoulders slope, the left not raised. Method: look at free
+   photographs (Wikimedia Commons: "cellist playing", "violinist playing"), note shoulder/
+   elbow/wrist angles for first and a higher position here, constrain the pole (elbow out and
+   down, never up or forward) and clamp the wrist; compare silhouettes at the same camera.
+   Apply to the violin musician and both mannequins.
+3. Shots to send: cello and violin, musician and mannequin, 100 % and 200 %.
+
 ## Next (coordinator's order, 2026-11-24)
 
 1. Violin musician: softer hairline, jaw/cheek form, neck in shade; frame higher/wider (bow
