@@ -127,7 +127,8 @@ fn the_violin_and_the_viola_play_a_legato_pair_in_tune_through_the_app() {
         let mut c = p.make_clip("Pair", Ticks::ZERO, Ticks::beats(4));
         c.notes
             .push(p.make_note(Ticks::ZERO, Ticks(2 * PPQ + PPQ / 16), low, 90));
-        c.notes.push(p.make_note(Ticks(2 * PPQ), Ticks(2 * PPQ), high, 90));
+        c.notes
+            .push(p.make_note(Ticks(2 * PPQ), Ticks(2 * PPQ), high, 90));
         assert!(app.exec(cantus_core::Command::InsertClip {
             track,
             clip: Box::new(c)
@@ -142,8 +143,14 @@ fn the_violin_and_the_viola_play_a_legato_pair_in_tune_through_the_app() {
         let second =
             1200.0 * cantus_dsp::math::log2(measure_hz(&mono, hz(high), 2.6, 3.9) / hz(high));
         println!("{name}'s legato pair: {first:+.2} ct, {second:+.2} ct");
-        assert!(first.abs() < 3.0, "{name}: the first note {first:+.2} cents");
-        assert!(second.abs() < 3.0, "{name}: the second note {second:+.2} cents");
+        assert!(
+            first.abs() < 3.0,
+            "{name}: the first note {first:+.2} cents"
+        );
+        assert!(
+            second.abs() < 3.0,
+            "{name}: the second note {second:+.2} cents"
+        );
         let rms = |a: usize, b: usize| {
             (mono[a..b].iter().map(|x| (*x as f64).powi(2)).sum::<f64>() / (b - a) as f64).sqrt()
         };

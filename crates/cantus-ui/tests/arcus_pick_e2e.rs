@@ -155,7 +155,8 @@ fn choosing_arcus_adds_a_track_whose_legato_pair_plays_in_tune() {
     let mut c = p.make_clip("Pair", Ticks::ZERO, Ticks::beats(4));
     c.notes
         .push(p.make_note(Ticks::ZERO, Ticks(2 * PPQ + PPQ / 16), 50, 90));
-    c.notes.push(p.make_note(Ticks(2 * PPQ), Ticks(2 * PPQ), 57, 90));
+    c.notes
+        .push(p.make_note(Ticks(2 * PPQ), Ticks(2 * PPQ), 57, 90));
     assert!(app.exec(cantus_core::Command::InsertClip {
         track,
         clip: Box::new(c)
