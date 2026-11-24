@@ -65,12 +65,27 @@ pub(super) fn trace(inst: Instrument, key: u8, velocity: f32, seconds: f64) -> T
 #[test]
 #[ignore = "a probe: cargo test -p cantus-dsp --release --lib arcus::tests_p4::probe_onset -- --ignored --nocapture"]
 fn probe_onset() {
-    for (inst, key, vel) in [
-        (Instrument::Cello, 51u8, 0.3f32),
-        (Instrument::Cello, 51, 0.6),
-        (Instrument::Cello, 51, 0.9),
-        (Instrument::Bass, 30, 0.3),
-    ] {
+    let notes: Vec<(Instrument, u8, f32)> = match std::env::var("ARCUS_NOTES") {
+        Ok(v) => v
+            .split(',')
+            .filter_map(|n| {
+                let p: Vec<&str> = n.split(':').collect();
+                let inst = if p[0] == "bass" {
+                    Instrument::Bass
+                } else {
+                    Instrument::Cello
+                };
+                Some((inst, p.get(1)?.parse().ok()?, p.get(2)?.parse().ok()?))
+            })
+            .collect(),
+        Err(_) => vec![
+            (Instrument::Cello, 51, 0.3),
+            (Instrument::Cello, 51, 0.6),
+            (Instrument::Cello, 51, 0.9),
+            (Instrument::Bass, 30, 0.3),
+        ],
+    };
+    for (inst, key, vel) in notes {
         let t = trace(inst, key, vel, 2.4);
         let steady: f64 = {
             let s: Vec<f64> = t.rows.iter().filter(|r| r.0 > 1.2).map(|r| r.1).collect();
@@ -404,5 +419,102 @@ fn probe_instrument_brightness() {
             }
             println!("{line}");
         }
+    }
+}
+
+/// The attack gate (`tests_gate2`'s) and the Helmholtz span at β 0.1 on the cello's D, with
+/// the friction law `ARCUS_FRICTION` (`thermal` or the default).
+#[test]
+#[ignore = "a probe: cargo test -p cantus-dsp --release --lib arcus::tests_p4::probe_friction_gate -- --ignored --nocapture"]
+fn probe_friction_gate() {
+    use super::string::Friction;
+    use super::tables::schelleng_max;
+    use super::tests_gate::{attack_time, bow_string, onsets};
+    let friction = if std::env::var("ARCUS_FRICTION").is_ok_and(|f| f == "thermal") {
+        Friction::Thermal
+    } else {
+        Friction::Hyperbolic
+    };
+    let (mut over, mut count, mut worst) = (0, 0, 0.0f64);
+    for inst in [Instrument::Cello, Instrument::Bass] {
+        let spec = inst.spec();
+        for st in spec.strings.iter() {
+            for step in [0u8, 7] {
+                let key = st.open + step;
+                for vel in [0.15f32, 0.35, 0.55, 0.75, 0.95] {
+                    let mut a = Arcus::new(SR);
+                    a.set(&ArcusSettings {
+                        instrument: inst,
+                        vib_depth: 0.0,
+                        friction,
+                        ..ArcusSettings::default()
+                    });
+                    a.note_on(key, vel, 1);
+                    let v = a.voices.iter().position(|v| v.active()).expect("a voice");
+                    a.voices[v].record = true;
+                    let frames = (0.5 * SR) as usize;
+                    let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
+                    for at in (0..frames).step_by(256) {
+                        let n = 256.min(frames - at);
+                        a.process(&mut l[at..at + n], &mut r[at..at + n]);
+                    }
+                    let f = 440.0 * math::exp2((key as f64 - 69.0) / 12.0);
+                    let b = Bowed {
+                        slips: std::mem::take(&mut a.voices[v].slips),
+                        out: l,
+                        period: SR as f64 / f,
+                        beta: a.voices[v].beta() as f64,
+                    };
+                    let t = attack_time(&b).unwrap_or(0.5);
+                    let end = ((t * SR as f64) as usize).min(b.slips.len());
+                    let o = onsets(&b.slips[..end], 0, b.period);
+                    let flyback = o
+                        .windows(2)
+                        .any(|w| ((w[1] - w[0]) as f64) < 0.75 * b.period);
+                    let periods = (b.period / SR as f64) / (1.0 / 196.0);
+                    let limit = if flyback { 0.09 } else { 0.05 } * periods.max(1.0);
+                    count += 1;
+                    worst = worst.max(t / limit);
+                    if t > limit {
+                        over += 1;
+                        println!(
+                            "  {inst:?} key {key} vel {vel}: {:.0} ms (limit {:.0})",
+                            1000.0 * t,
+                            1000.0 * limit
+                        );
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "{friction:?}: attacks over their limit {over} of {count}, worst {worst:.2} of its limit"
+    );
+    let inst = Instrument::Cello;
+    let z0 = inst.spec().strings[2].z0();
+    for speed in [0.1f32, 0.2] {
+        let fmax = schelleng_max(z0, speed as f64, 0.1);
+        let mut line = String::new();
+        for i in 0..18 {
+            let frac = 0.03 * math::powf(2.0f64, i as f64 * 0.4);
+            let b = bow_string(
+                inst,
+                2,
+                50.0,
+                0.1,
+                (fmax * frac) as f32,
+                speed,
+                20.0,
+                0.8,
+                friction,
+            );
+            line += match classify(&b, (0.5 * SR) as usize) {
+                Motion::Helmholtz => "H",
+                Motion::Multiple => "m",
+                Motion::Raucous => "R",
+                Motion::Sliding => ".",
+            };
+        }
+        println!("{friction:?} cello D β 0.1 at {speed} m/s, F/Fmax 0.03 … ×1.32 each: {line}");
     }
 }

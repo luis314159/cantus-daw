@@ -23,13 +23,17 @@
 //!   has two roots and sticking is also possible, the state decides (hysteresis, the
 //!   Friedlander construction's rule): a slipping string keeps slipping on the larger root, a
 //!   sticking one keeps sticking.
-//! - **The thermal option** (after J. H. Smith & Woodhouse 2000, doi:10.1016/S0022-5096(99)00067-8,
-//!   and Woodhouse 2003, *Acta Acustica* 89: friction a function of the contact's temperature;
-//!   Galluzzo, Woodhouse & Mansour 2017 found it closer to bowing-machine transients). Here
-//!   simplified to one contact temperature `θ` heated by the power the friction dissipates and
-//!   cooling with a time constant, `μ(θ) = μd + (μs − μd)/(1 + θ)`; while it slips `|Δ| = |u| −
-//!   R·μ(θ)` (linear: again no iteration). Its constants are set so its steady sliding matches
-//!   the hyperbolic curve at 1 N and 0.1 m/s — a simplification, said so in the report.
+//! - **The thermal option** (r42:arcus-p4: Woodhouse & Galluzzo 2025, *Tribol. Lett.* 73:128,
+//!   doi:10.1007/s11249-025-02062-4, CC BY — the "enhanced" rate-and-state law): the friction
+//!   is `μ = h(Δ)·y(T)`, the jump curve `h(Δ) = 0.5(|Δ| + 0.27)^−0.4` scaled by the rosin's
+//!   yield at the contact temperature `T` over ambient, `y(T) = Y(T)/Y(T₀)`, fixed by the
+//!   paper's steady-sliding fit `μ_steady = 0.2(|v| + 0.011)^−0.4` (`T₀` 26.2 °C where the two
+//!   curves cross). `T` is heated by the power the friction dissipates and relaxes through two
+//!   poles (a fast one inside the period, a slow one), their steady sum `κ·F·μ·|v|` with `κ`
+//!   set so steady sliding at 1 N lands on the paper's `T₀`; the two poles stand in for the
+//!   paper's conduction (its eq. 5, not reconstructed here — said so in the report). The slip
+//!   solves `Δ + R·y·h(Δ) = |u|` by Newton from `|u|` (a convex function: monotone onto the
+//!   larger root), a fixed eight steps — the same bits everywhere.
 //!
 //! What the bridge hears is the wave arriving there; its force `2·Z₀·v` drives the body.
 
@@ -46,8 +50,113 @@ const DC_CORNER: f64 = 1.0 / 64.0;
 /// Samples past the lowest period: the Lagrange taps' reach and the blocker's lead.
 const LINE_SPARE: usize = 48;
 /// The thermal contact's cooling time, s, and its steady heating, per W.
-const THERMAL_TAU_S: f32 = 0.001;
-const THERMAL_PER_W: f32 = 18.0;
+// r42:arcus-p4: the thermal law's fast pole (s) and a scale on its calibrated heating (1:
+// the paper's `T₀` at 1 N), the slow pole and the share each takes.
+const THERMAL_TAU_S: f32 = 0.0005;
+const THERMAL_PER_W: f32 = 1.0;
+const THERMAL_SLOW_S: f32 = 0.02;
+const THERMAL_FAST_SHARE: f32 = 0.6;
+/// The jump curve `h(Δ) = WG_A(|Δ| + WG_B)^−0.4` and the steady fit `WG_S(|v| + WG_C)^−0.4`.
+const WG_A: f32 = 0.5;
+const WG_B: f32 = 0.27;
+const WG_S: f32 = 0.2;
+const WG_C: f32 = 0.011;
+/// The yield table's points.
+const WG_N: usize = 64;
+/// Newton's steps on the slip (fixed: the same bits everywhere).
+const WG_STEPS: usize = 8;
+
+/// r42:arcus-p4: the rosin's yield against temperature, `y(T) = Y(T)/Y(T₀)`, tabulated from
+/// the steady-sliding fit (`T(v) = κ·1 N·μ_steady(v)·v`, `y = μ_steady(v)/h(v)`, `v` 0 … 4 m/s
+/// spaced by its square): the heating `κ` (K/W) and the table.
+#[derive(Clone, Debug)]
+pub struct ThermalLaw {
+    pub kappa: f32,
+    t: [f32; WG_N],
+    y: [f32; WG_N],
+}
+
+impl ThermalLaw {
+    fn jump(x: f32) -> f32 {
+        WG_A * math::powf(x.abs() + WG_B, -0.4)
+    }
+
+    fn steady(v: f32) -> f32 {
+        WG_S * math::powf(v.abs() + WG_C, -0.4)
+    }
+
+    pub fn new() -> Self {
+        // `T₀` where the steady and jump curves cross: bisection on their difference.
+        let (mut lo, mut hi) = (0.0f32, 1.0f32);
+        for _ in 0..40 {
+            let m = 0.5 * (lo + hi);
+            if Self::steady(m) > Self::jump(m) {
+                lo = m;
+            } else {
+                hi = m;
+            }
+        }
+        let vx = 0.5 * (lo + hi);
+        let kappa = 26.2 / (Self::steady(vx) * vx);
+        let (mut t, mut y) = ([0.0; WG_N], [0.0; WG_N]);
+        for i in 0..WG_N {
+            let u = i as f32 / (WG_N - 1) as f32;
+            let v = 4.0 * u * u;
+            t[i] = kappa * Self::steady(v) * v;
+            y[i] = Self::steady(v) / Self::jump(v);
+        }
+        ThermalLaw { kappa, t, y }
+    }
+
+    /// `y(T)`, linear between the table's points, held at its ends.
+    pub fn yield_at(&self, temp: f32) -> f32 {
+        if temp <= self.t[0] {
+            return self.y[0];
+        }
+        if temp >= self.t[WG_N - 1] {
+            return self.y[WG_N - 1];
+        }
+        let (mut a, mut b) = (0usize, WG_N - 1);
+        while b - a > 1 {
+            let m = (a + b) / 2;
+            if self.t[m] <= temp {
+                a = m;
+            } else {
+                b = m;
+            }
+        }
+        let f = (temp - self.t[a]) / (self.t[b] - self.t[a]);
+        self.y[a] + (self.y[b] - self.y[a]) * f
+    }
+
+    /// The slip of `Δ + rs·h(Δ) = |u|` (`rs` the force term times the yield): the larger root,
+    /// and the margin by which roots exist (`≥ 0`: they do; its sign change times a slip's end).
+    pub fn slip(&self, abs_u: f32, rs: f32) -> (Option<f32>, f32) {
+        let g = |x: f32| x + rs * Self::jump(x) - abs_u;
+        // `g′ = 1 − 0.4·rs·WG_A·(x + WG_B)^−1.4`: its zero is the curve's lowest point.
+        let xm = math::powf(0.4 * rs * WG_A, 1.0 / 1.4) - WG_B;
+        let margin = if xm > 0.0 { -g(xm) } else { -g(0.0) };
+        if margin < 0.0 {
+            return (None, margin);
+        }
+        let floor = xm.max(0.0);
+        let mut x = abs_u;
+        for _ in 0..WG_STEPS {
+            let d = 1.0 - 0.4 * rs * WG_A * math::powf(x + WG_B, -1.4);
+            if d <= 1e-6 {
+                break;
+            }
+            x = (x - g(x) / d).max(floor);
+        }
+        ((x > 0.0).then_some(x), margin)
+    }
+}
+
+impl Default for ThermalLaw {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Which friction law the bow meets the string with, in `bow.friction`'s order.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -164,6 +273,11 @@ pub struct BowedString {
     theta: f32,
     th_keep: f32,
     th_gain: f32,
+    // r42:arcus-p4: the slow pole's temperature, its keep and gain; the law.
+    theta2: f32,
+    th2_keep: f32,
+    th2_gain: f32,
+    law: ThermalLaw,
     quiet: u32,
     live: bool,
     /// The highest fundamental this rate allows.
@@ -199,12 +313,6 @@ impl Curve {
     #[inline]
     pub fn hyperbolic(&self, slip: f32) -> f32 {
         self.mu_d + (self.mu_s - self.mu_d) * self.v0 / (self.v0 + slip.abs())
-    }
-
-    /// The friction at a contact temperature `θ` (thermal option).
-    #[inline]
-    pub fn thermal(&self, theta: f32) -> f32 {
-        self.mu_d + (self.mu_s - self.mu_d) / (1.0 + theta.max(0.0))
     }
 }
 
@@ -275,6 +383,10 @@ impl BowedString {
             theta: 0.0,
             th_keep: 0.0,
             th_gain: 0.0,
+            theta2: 0.0,
+            th2_keep: 0.0,
+            th2_gain: 0.0,
+            law: ThermalLaw::new(),
             quiet: 0,
             live: false,
             max_hz: sr / 12.0,
@@ -290,8 +402,12 @@ impl BowedString {
     /// The friction curve's constants (no allocation; tests and the tool that measures).
     pub fn set_curve(&mut self, k: Curve) {
         self.curve = k;
+        // r42:arcus-p4: two poles, their steady sum `κ·per_w` per watt.
+        let kappa = self.law.kappa * k.per_w;
         self.th_keep = math::exp(-1.0 / (k.tau_s.max(1e-5) * self.sr as f32));
-        self.th_gain = (1.0 - self.th_keep) * k.per_w;
+        self.th_gain = (1.0 - self.th_keep) * kappa * THERMAL_FAST_SHARE;
+        self.th2_keep = math::exp(-1.0 / (THERMAL_SLOW_S * self.sr as f32));
+        self.th2_gain = (1.0 - self.th2_keep) * kappa * (1.0 - THERMAL_FAST_SHARE);
     }
 
     pub fn is_live(&self) -> bool {
@@ -305,7 +421,7 @@ impl BowedString {
 
     /// The contact's temperature (the thermal option's state).
     pub fn temperature(&self) -> f32 {
-        self.theta
+        self.theta + self.theta2
     }
 
     pub fn clear(&mut self) {
@@ -328,6 +444,7 @@ impl BowedString {
         self.disc = 0.0;
         self.last_slip = 0.0;
         self.theta = 0.0;
+        self.theta2 = 0.0;
     }
 
     /// A note starts on it with string impedance `z0`; `keep`: its waves ring on (a re-bow,
@@ -613,19 +730,45 @@ impl BowedString {
                         out
                     }
                     Friction::Thermal => {
-                        let cap = r * self.curve.thermal(self.theta);
-                        let x = au - cap;
-                        // The contact holds while the force it can bear at its temperature
-                        // does (the plastic model's rule: the hysteresis is in θ).
-                        let out = if x <= 0.0 {
-                            u
+                        // r42:arcus-p4: Woodhouse & Galluzzo 2025 (the module's notes).
+                        let y = self.law.yield_at(self.theta + self.theta2);
+                        let rs = r * y;
+                        let excess = au - rs * WG_A * math::powf(WG_B, -0.4);
+                        let (root, margin) = if self.sticking && excess <= 0.0 {
+                            (None, 0.0)
                         } else {
-                            slip = sgn * x;
-                            sgn * cap
+                            self.law.slip(au, rs)
                         };
-                        // Heated by the power the slip dissipates, cooling all the while.
-                        let power = 2.0 * self.z0 * (out * slip).abs();
+                        let out = match root {
+                            Some(x) => {
+                                slip = sgn * x;
+                                if self.sticking && self.excess <= 0.0 && excess > 0.0 {
+                                    let tau = self.excess / (self.excess - excess);
+                                    u - (1.0 - tau) * slip
+                                } else {
+                                    u - slip
+                                }
+                            }
+                            None => {
+                                if !self.sticking && self.disc >= 0.0 && margin < 0.0 {
+                                    let tau = self.disc / (self.disc - margin);
+                                    u - tau * self.last_slip
+                                } else {
+                                    u
+                                }
+                            }
+                        };
+                        self.excess = excess;
+                        self.disc = margin;
+                        self.last_slip = slip;
+                        // Heated by the power the slip dissipates (`F·μ·|Δ|`), relaxing.
+                        let power = if slip != 0.0 {
+                            force * y * ThermalLaw::jump(slip) * slip.abs()
+                        } else {
+                            0.0
+                        };
                         self.theta = self.theta * self.th_keep + self.th_gain * power;
+                        self.theta2 = self.theta2 * self.th2_keep + self.th2_gain * power;
                         out
                     }
                 };
@@ -636,10 +779,14 @@ impl BowedString {
                 inj_r = bowed - bowed * self.tor_share;
             } else {
                 self.sticking = false;
-                if self.theta != 0.0 {
+                if self.theta != 0.0 || self.theta2 != 0.0 {
                     self.theta *= self.th_keep;
+                    self.theta2 *= self.th2_keep;
                     if self.theta < 1e-9 {
                         self.theta = 0.0;
+                    }
+                    if self.theta2 < 1e-9 {
+                        self.theta2 = 0.0;
                     }
                 }
             }

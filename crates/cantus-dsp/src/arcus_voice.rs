@@ -252,12 +252,6 @@ pub struct Voice {
     swell: (f32, f32),
     dip: (u32, f32),
     lvl: (f32, f32),
-    /// A pluck's snap (the study §3.10: +12–22 dB of 1–6 kHz in its first 25 ms): samples
-    /// left, its envelope, the string's peak so far, its band.
-    snap_n: u32,
-    snap_env: f32,
-    snap_pk: f32,
-    snap_bq: Biquad,
     /// The register's balance on the output (`InstrumentSpec::balance_db_st`), linear.
     balance: f32,
     fade: f32,
@@ -330,10 +324,6 @@ impl Voice {
             swell: (0.0, 1.0),
             dip: (0, 0.0),
             lvl: (1.0, 1.0),
-            snap_n: 0,
-            snap_env: 0.0,
-            snap_pk: 0.0,
-            snap_bq: Biquad::default(),
             balance: 1.0,
             fade: 1.0,
             fade_step: 0.0,

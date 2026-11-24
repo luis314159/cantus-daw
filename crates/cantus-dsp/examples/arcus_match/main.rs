@@ -293,8 +293,15 @@ fn main() {
                             continue;
                         }
                         let mut a = Arcus::new(SR);
+                        // Pass 4: `ARCUS_FRICTION=thermal` renders with the thermal law.
+                        let thermal = std::env::var("ARCUS_FRICTION").is_ok_and(|f| f == "thermal");
                         a.set(&ArcusSettings {
                             instrument: inst,
+                            friction: if thermal {
+                                cantus_dsp::arcus::string::Friction::Thermal
+                            } else {
+                                cantus_dsp::arcus::string::Friction::Hyperbolic
+                            },
                             technique: if pizz {
                                 Technique::Pizzicato
                             } else {

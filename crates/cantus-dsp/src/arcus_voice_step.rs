@@ -101,8 +101,21 @@ impl Voice {
         // a lifted note shorter still.
         let stopped = (st.open_hz() / f).clamp(0.1, 1.0);
         let mut t60 = st.t60_s * s.decay.max(0.05) as f64 * (0.55 + 0.45 * stopped);
+        let mut p_loss = st.p;
         if plucked {
-            t60 *= s.pizz_decay.max(0.05) as f64;
+            if spec.pizz_t60.is_empty() {
+                t60 *= s.pizz_decay.max(0.05) as f64;
+            } else {
+                // Pass 4: the references' T60 by frequency, at the fundamental and the
+                // eighth partial (the loss's two design points), the controls on top.
+                let k = (s.decay.max(0.05) * s.pizz_decay.max(0.05)) as f64;
+                let (t1, t8) = (
+                    super::super::tables::t60_at(spec.pizz_t60, f),
+                    super::super::tables::t60_at(spec.pizz_t60, 8.0 * f),
+                );
+                t60 = t1 * k;
+                p_loss = (math::ln(t1 / t8) / math::ln(8.0)).max(0.0);
+            }
         }
         if self.released && !self.bowing {
             t60 = t60.min(s.ring_s.max(0.05) as f64);
@@ -164,7 +177,7 @@ impl Voice {
         let step = StringStep {
             f0: f * math::exp2(-corr / 1200.0),
             t60,
-            p: st.p,
+            p: p_loss,
             beta: if plucked { s.pizz_pos as f64 } else { bw.beta },
             dc: !self.bow_on,
             corner_hz: spec.corner_hz,
@@ -181,7 +194,7 @@ impl Voice {
             self.sus[..span].fill(0.0);
             let est = ExcStep {
                 level: 1.0,
-                noise: 0.15,
+                noise: super::run::PLUCK_NOISE,
                 ..ExcStep::default()
             };
             self.pluck.render(
@@ -376,22 +389,6 @@ impl Voice {
             }
             if self.bow_on {
                 self.ear.hear(&self.tmp[..k]);
-            }
-            // A pluck's snap (pass 2) measured the thump further from the recordings: off
-            // (`SNAP_GAIN` 0) until a pluck model with the finger's release replaces it.
-            if self.snap_n > 0 && super::run::SNAP_GAIN > 0.0 {
-                let keep = math::exp(-1.0 / (super::run::SNAP_TAU_S * sh.sr));
-                for x in self.tmp[..k].iter_mut() {
-                    if self.snap_n == 0 {
-                        break;
-                    }
-                    self.snap_pk = self.snap_pk.max(x.abs());
-                    let w = self.rng.bipolar();
-                    *x +=
-                        super::run::SNAP_GAIN * self.snap_pk * self.snap_env * self.snap_bq.tick(w);
-                    self.snap_env *= keep;
-                    self.snap_n -= 1;
-                }
             }
             for j in 0..k {
                 let mut x = self.tmp[j];

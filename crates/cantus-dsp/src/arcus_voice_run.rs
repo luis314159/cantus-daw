@@ -4,15 +4,9 @@
 
 use super::*;
 
-/// A sustain's swell: its length (s) and how far under its level it starts (dB), at pp and
-/// at ff (linear between, by the dynamic).
-const SWELL_S: (f32, f32) = (0.25, 0.05);
-const SWELL_DB: (f32, f32) = (20.0, 10.0);
-/// A pluck's snap: how long (s), its decay's time constant (s) and its level against the
-/// string's peak so far.
-const SNAP_S: f32 = 0.025;
-pub(super) const SNAP_TAU_S: f32 = 0.005;
-pub(super) const SNAP_GAIN: f32 = 0.0;
+/// Pass 4: the pluck's noise share (Fides's exciter): at 0.15 the first 25 ms carried 30–47 dB
+/// more 4–12 kHz than the next 100 ms against the recordings' 10–20 (the study's thump).
+pub(super) const PLUCK_NOISE: f32 = 0.03;
 
 impl Voice {
     /// The dynamic this voice is asked for now (0 … 1).
@@ -92,29 +86,26 @@ impl Voice {
         self.t = 0;
         self.stroke = 0.0;
         // The level's swell over a sustain's clean start (the study §2.5, §3.4: players
-        // reach their level in 0.1–0.3 s soft, 0.03–0.08 s loud), from 9 dB under at pp to 4
-        // under at ff; a re-bow on a ringing string (détaché), a staccato or a spiccato keeps
-        // its speech.
+        // reach their level in 0.1–0.3 s soft, 0.03–0.08 s loud), from 20 dB under at pp; a
+        // re-bow on a ringing string (détaché), a staccato or a spiccato keeps its speech. Pass
+        // 4: the bow's own eased onset at the measured cellists' accelerations was tried in
+        // place of it and reverted (`docs/round42/arcus-match.md`, *Pass 4*).
         self.lvl_t = 0;
         self.dip = (0, 0.0);
+        // Pass 4: the instrument's own swell (`InstrumentSpec::swell_s`, `swell_db`), its length
+        // falling with the dynamic's square (players hold back longer at soft and middle
+        // dynamics, the study §2.5).
         self.swell = if tech == NoteTech::Arco && !keep {
             let d = d_t.clamp(0.0, 1.0);
+            let (len, depth) = (spec.swell_s, spec.swell_db);
             (
-                (SWELL_S.0 + (SWELL_S.1 - SWELL_S.0) * d) * sh.sr,
-                math::db_to_gain(-(SWELL_DB.0 + (SWELL_DB.1 - SWELL_DB.0) * d)),
+                (len.0 + (len.1 - len.0) * d * d) * sh.sr,
+                math::db_to_gain(-(depth.0 + (depth.1 - depth.0) * d)),
             )
         } else {
             (0.0, 1.0)
         };
         self.lvl = (self.swell.1, self.swell.1);
-        self.snap_n = 0;
-        if tech == NoteTech::Pizzicato {
-            self.snap_n = (SNAP_S * sh.sr) as u32;
-            self.snap_env = 1.0;
-            self.snap_pk = 0.0;
-            self.snap_bq = Biquad::default();
-            self.snap_bq.set(Biquad::band(2500.0, 2.6, sh.sr));
-        }
         self.stop_lift = false;
         self.rough.set(Biquad::band(2500.0, 2.5, sh.sr));
         if tech == NoteTech::Pizzicato {
@@ -126,14 +117,14 @@ impl Voice {
             let est = ExciterSettings {
                 kind: ExciterKind::Pluck,
                 contact_ms: s.pizz_soft_ms,
-                noise: 0.15,
+                noise: PLUCK_NOISE,
                 pos: s.pizz_pos,
                 ..ExciterSettings::default()
             };
             let noise = NoiseSettings::default();
             let step = ExcStep {
                 level: 1.0,
-                noise: 0.15,
+                noise: PLUCK_NOISE,
                 noise_band: Biquad::band(2000.0, 3.0, sh.sr),
                 ..ExcStep::default()
             };
