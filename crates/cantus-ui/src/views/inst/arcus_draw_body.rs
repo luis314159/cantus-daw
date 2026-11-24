@@ -165,7 +165,7 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
         // Its fingers' arches over the fingerboard; the rest of the hand was painted
         // behind the neck (`live_behind`).
         let lp = super::hand::left_pose(&arm, &l);
-        super::hand::left_front(b, v, &figure_light(v, pl, s), &arm, &lp);
+        super::hand::left_front(b, v, &figure_light(v, pl, s), &arm, &lp, &l);
     } else if st < 0.995 && pl.stop == StopShow::Finger {
         // Under a chin the finger curls over the fingerboard's edge from the hand behind
         // the neck (its first joint up, the rest down out of sight). // r42:arcus-upper
@@ -481,21 +481,21 @@ fn left_of<'a>(pl: &Play<'a>) -> Option<(crate::scene::bowed_hold::Arm, super::h
     let rig = pl.rig;
     let d = pl.b.dims();
     let i = pl.n.string.min(3);
-    let [_, bridge, nut] = rig.strings[i];
     let k = d.body / 75.7;
     let wob = (pl.time * 5.5 * std::f64::consts::TAU).sin() as f32;
     let rock = pl.vibrato.clamp(0.0, 1.0) * 0.18 * k * wob;
-    let _ = (bridge, nut);
-    let ex = if d.held { -rig.pose.ex } else { rig.pose.ex };
     Some((
         arm,
         super::hand::Left {
             rig,
+            d,
             string: i,
             semis: super::hand::semis(stop(pl.fs, pl.n)),
             at: pl.hand,
             rock,
-            side: ex,
+            // The knuckles' side: the E string's under a chin, the player's left behind a
+            // cello (the instrument's +x for both).
+            side: rig.pose.ex,
             span: super::hand::span(d.held),
         },
     ))
@@ -507,7 +507,7 @@ fn left_of<'a>(pl: &Play<'a>) -> Option<(crate::scene::bowed_hold::Arm, super::h
 pub fn live_behind(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     if let Some((arm, l)) = left_of(pl) {
         let lp = super::hand::left_pose(&arm, &l);
-        super::hand::left_behind(b, v, &figure_light(v, pl, s), &arm, &lp);
+        super::hand::left_behind(b, v, &figure_light(v, pl, s), &arm, &lp, &l);
     }
 }
 

@@ -87,6 +87,7 @@ fn the_figures_hand_lands_on_the_stopped_point() {
             for (string, st) in [(1usize, 0.75f32), (2, 0.5), (3, 0.89)] {
                 let l = hand::Left {
                     rig: &rig,
+                    d: b.dims(),
                     string,
                     semis: hand::semis(st),
                     at: hand::target(1.0, hand::semis(st), hand::span(b.dims().held)),
@@ -106,6 +107,7 @@ fn the_figures_hand_lands_on_the_stopped_point() {
             // An open string lifts the finger.
             let open = hand::Left {
                 rig: &rig,
+                d: b.dims(),
                 string: 0,
                 semis: hand::semis(1.0),
                 at: 3.0,
@@ -218,14 +220,58 @@ fn the_left_hand_passes_behind_the_neck() {
                 let d = b.dims();
                 let l = hand::Left {
                     rig: &rig,
+                    d,
                     string,
                     semis: key as f32 - open as f32,
                     at: app.inst.arcus_hands[&t.0].0,
                     rock: 0.0,
-                    side: if d.held { -rig.pose.ex } else { rig.pose.ex },
+                    side: rig.pose.ex,
                     span: hand::span(d.held),
                 };
                 let lp = hand::left_pose(&arm, &l);
+                let eye = built.cam.eye();
+                let local = |w: cantus_ui::scene::geo::V3| {
+                    let q = w - rig.pose.o;
+                    (q.dot(rig.pose.ex), q.dot(rig.pose.ey), q.dot(rig.pose.ez))
+                };
+                // The grip the owner's photographs show: the knuckles beside the
+                // fingerboard on the fingers' side (a violin's E side, a cello's C side);
+                // the thumb up the G side under a chin, behind the neck on a cello; from the
+                // picture's eye the neck hides the thumb's joint, and the playing finger's
+                // arch shows over the fingerboard.
+                for f in &lp.fingers {
+                    let (x, _, _) = local(f[0]);
+                    assert!(
+                        x > 1.0,
+                        "{b:?} {hold:?}: a knuckle at x {x:.1}, not beside the fingerboard"
+                    );
+                }
+                let (tx, ty, tz) = local(lp.thumb[3]);
+                let top = cantus_ui::scene::bowed::board_z(d, ty);
+                if d.held {
+                    assert!(
+                        tx < -1.0,
+                        "{b:?} {hold:?}: the thumb at x {tx:.1}, not up the G side"
+                    );
+                    assert!(
+                        tz < top + 1.0,
+                        "{b:?} {hold:?}: the thumb's tip over the fingerboard"
+                    );
+                } else {
+                    assert!(
+                        tz < top - hand::neck_depth(d) + 0.2,
+                        "{b:?} {hold:?}: the thumb at z {tz:.1}, not behind the neck"
+                    );
+                }
+                assert!(
+                    hand::hidden_by_neck(lp.thumb[2], eye, d, &rig.pose),
+                    "{b:?} {hold:?}: the thumb's joint shows in front of the neck"
+                );
+                let j = lp.playing.expect("a stopped note");
+                assert!(
+                    !hand::hidden_by_neck(lp.fingers[j][1], eye, d, &rig.pose),
+                    "{b:?} {hold:?}: the playing finger's arch is behind the neck"
+                );
                 let corners: [egui::Pos2; 8] = {
                     use cantus_ui::scene::bowed::{board_w, board_z, nut_y};
                     let depth = 0.06 * d.body + 0.6;
@@ -284,29 +330,13 @@ fn the_left_hand_passes_behind_the_neck() {
                 let cm = (to_px(lp.palm + rig.pose.ex) - to_px(lp.palm)).length();
                 let clear = |p: egui::Pos2| {
                     !near_seg(p, to_px(bridge), to_px(nut), 1.5 + 0.3 * cm)
-                        && lp.fingers.iter().all(|&(_, kn, tip)| {
-                            !near_seg(p, to_px(kn), to_px(tip), 1.0 + 1.0 * cm)
+                        && lp.fingers.iter().all(|f| {
+                            (0..3)
+                                .all(|s| !near_seg(p, to_px(f[s]), to_px(f[s + 1]), 1.0 + 1.0 * cm))
                         })
                 };
-                let mut checked = 0;
-                // The palm, the thumb, and along each finger's first segment.
-                let mut samples = vec![lp.palm, lp.thumb.0, lp.thumb.1, lp.wrist, lp.elbow];
-                for t in [0.2, 0.4, 0.6, 0.8] {
-                    samples.push(lp.wrist.lerp(lp.elbow, t));
-                    samples.push(lp.elbow.lerp(arm.shoulder, t));
-                }
-                for f in &lp.fingers {
-                    for t in [0.0, 0.25, 0.5] {
-                        samples.push(lp.palm.lerp(f.0, 0.3).lerp(f.0, t * 2.0));
-                    }
-                }
-                for w in samples.iter().copied() {
-                    let p = to_px(w);
-                    if !inside(p) || !clear(p) {
-                        continue;
-                    }
-                    let (x, y) = ((p.x * PPP) as usize, (p.y * PPP) as usize);
-                    let got = canvas.pixel(x, y);
+                let pixel = |p: egui::Pos2| {
+                    let got = canvas.pixel((p.x * PPP) as usize, (p.y * PPP) as usize);
                     let (bx, by) = (
                         ((p.x - rect.min.x) * PPP) as usize,
                         ((p.y - rect.min.y) * PPP) as usize,
@@ -316,16 +346,44 @@ fn the_left_hand_passes_behind_the_neck() {
                         .abs()
                         .max((got[1] as i32 - want.g() as i32).abs())
                         .max((got[2] as i32 - want.b() as i32).abs());
+                    (got, want, diff)
+                };
+                let mut checked = 0;
+                // Along the thumb and the upper arm: where the neck or the body hides
+                // them, the picture's own pixels.
+                let mut samples = Vec::new();
+                for t in [0.1, 0.3, 0.5, 0.7, 0.9] {
+                    for s in 0..3 {
+                        samples.push((lp.thumb[s].lerp(lp.thumb[s + 1], t), true));
+                    }
+                    samples.push((lp.elbow.lerp(arm.shoulder, t), false));
+                }
+                for (w, by_neck) in samples {
+                    let p = to_px(w);
+                    let hid = if by_neck {
+                        hand::hidden_by_neck(w, eye, d, &rig.pose) && in_neck(p)
+                    } else {
+                        inside(p)
+                    };
+                    if !hid || !clear(p) {
+                        continue;
+                    }
+                    let (got, want, diff) = pixel(p);
                     assert!(
                         diff <= 40,
-                        "{be:?} {b:?} {hold:?}: at {p:?} the figure shows over the neck \
-                         (got {got:?}, the neck's {want:?})"
+                        "{be:?} {b:?} {hold:?}: at {p:?} the figure shows over the instrument                          (got {got:?}, the picture's {want:?})"
                     );
                     checked += 1;
                 }
+                // The playing finger's middle joint is the figure's, over the fingerboard.
+                let (got, want, diff) = pixel(to_px(lp.fingers[j][1]));
+                assert!(
+                    diff > 40,
+                    "{be:?} {b:?} {hold:?}: the playing finger's arch is hidden                      (got {got:?}, the picture's {want:?})"
+                );
                 assert!(
                     checked >= 1,
-                    "{be:?} {b:?} {hold:?}: no part of the arm lies behind the neck or the body"
+                    "{be:?} {b:?} {hold:?}: no part of the thumb or the arm lies behind the instrument"
                 );
             }
         }

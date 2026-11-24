@@ -72,14 +72,20 @@ fn on_string(rig: &Rig, i: usize, s: f32, lift: f32) -> V3 {
     bridge + (nut - bridge) * st + rig.normal[i] * (rig.gauge[i] + lift)
 }
 
-/// What the left hand plays: the string, its stopped note (semitones; 0 open), the hand's
-/// position, the vibrato's rock (cm along the string), the player's left (`side`).
+/// What the left hand plays: the instrument's measures, the string, its stopped note
+/// (semitones; 0 open), the hand's position, the vibrato's rock (cm along the string), the
+/// side its knuckles are on.
 pub struct Left<'a> {
     pub rig: &'a Rig,
+    pub d: &'a Dims,
     pub string: usize,
     pub semis: f32,
     pub at: f32,
     pub rock: f32,
+    /// The side the knuckles are on and the fingers come over the fingerboard from: under a
+    /// chin the E string's (the hall's side; the thumb is on the G string's), behind a cello
+    /// or a bass the C string's or the E string's — the player's left (the thumb behind the
+    /// neck). `+x` of the instrument's frame for all four.
     pub side: V3,
     /// What its four fingers reach ([`span`]).
     pub span: f32,
@@ -92,67 +98,143 @@ pub fn playing_tip(l: &Left) -> Option<V3> {
     (l.semis >= 0.5).then(|| on_string(l.rig, l.string, l.semis, 0.0) + up * l.rock)
 }
 
-/// The left arm's pose: its joints, the palm and the thumb (behind the neck), each
-/// finger's knuckle (beside the neck, on its far side), middle joint and tip.
+/// The left arm's pose: its elbow and wrist, the back of the hand's middle, the thumb (its
+/// base at the wrist, its knuckle, its joint, its tip) and each finger (its knuckle, middle
+/// joint, last joint, tip), the finger that plays and where its tip lands.
 #[derive(Copy, Clone, Debug)]
 pub struct LeftPose {
     pub elbow: V3,
     pub wrist: V3,
     pub palm: V3,
-    pub thumb: (V3, V3),
-    pub fingers: [(V3, V3, V3); 4],
+    pub thumb: [V3; 4],
+    pub fingers: [[V3; 4]; 4],
     /// Which finger plays the note (none on an open string) and where its tip lands.
     pub playing: Option<usize>,
     pub tip: Option<V3>,
 }
 
-/// Where the left arm goes for `l`: the palm under the neck on the side away from the
-/// fingerboard's face, the thumb behind it, the wrist straight in line with the forearm,
-/// the elbow where `arm`'s pole puts it (out and down), the fingers curving over the neck
-/// onto the strings.
+/// The phalanges' lengths, cm (an adult's hand: index, middle, ring, little finger), and
+/// each finger's thickness.
+const PHALANGES: [(f32, f32, f32); 4] = [
+    (4.0, 2.4, 1.9),
+    (4.5, 2.8, 2.0),
+    (4.2, 2.7, 1.9),
+    (3.4, 2.0, 1.7),
+];
+const FINGER_R: [f32; 4] = [0.8, 0.82, 0.78, 0.68];
+
+/// The neck's depth under the fingerboard's top, cm (what the stamp and the hidden test
+/// take it as).
+pub fn neck_depth(d: &Dims) -> f32 {
+    0.06 * d.body + 0.6
+}
+
+/// Where the left arm goes for `l` (the owner's photographs, 2026-11-24, and the handoff
+/// note's angles). **Under a chin**: the neck lies in the crook between the thumb and the
+/// index finger's base — the index knuckle against the neck's E side just under the
+/// fingerboard, the knuckles along the neck a little away from it toward the little finger,
+/// the thumb up the G side opposite the first and second fingers, its tip about level with
+/// the fingerboard, the palm clear of the neck; each finger rounded (its knuckles arched)
+/// over the fingerboard onto its string from above. **Behind a cello or a bass**: the
+/// knuckles beside the fingerboard's C side about level with its top, the fingers falling
+/// from above onto the strings, the thumb behind the neck behind the second finger. The
+/// wrist straight on the line from the elbow to the knuckles; the elbow where `arm`'s pole
+/// puts it (under the violin; out to the cellist's side at about the hand's height).
 pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
     let rig = l.rig;
+    let d = l.d;
     let up = (rig.strings[l.string][2] - rig.strings[l.string][1]).norm();
-    let nz = rig.pose.ez;
-    let rock = up * l.rock;
+    let (bw, kx, z) = (-up, l.side, rig.pose.ez);
     let k = if arm.joints.is_some() { 0.9 } else { 1.0 };
-    let mid = (l.string as f32).clamp(1.0, 2.0) as usize;
-    let first = on_string(rig, mid, l.at, 0.0) + rock;
-    // The palm behind the neck (under it, toward the hand's side), not touching its back.
-    let palm = first - nz * (2.9 * k) + l.side * (1.6 * k) - up * (1.2 * k);
-    // The wrist straight: on the line from the elbow to the palm, a hand's length back.
-    let mut wrist = palm - nz * 5.0 - up * 4.0 + l.side * 2.0;
+    let rock = up * l.rock;
+    // The fingerboard's top under the hand's first finger, and its half width there.
+    let first = (on_string(rig, 1, l.at, 0.0) + on_string(rig, 2, l.at, 0.0)) * 0.5 + rock;
+    let y_at = (first - rig.pose.o).dot(rig.pose.ey);
+    let hw = crate::scene::bowed::board_w(d, y_at) * 0.5;
+    let top = crate::scene::bowed::board_z(d, y_at);
+    let a = first - z * ((first - rig.pose.o).dot(z) - top);
+    let gap = l.span / 3.0;
+    let off = l.semis - l.at;
+    let playing = (l.semis >= 0.5).then(|| (off / gap).round().clamp(0.0, 3.0) as usize);
+    let tip = playing_tip(l);
+    // Each finger's tip: the playing one on its stop, the others hovering over their notes.
+    let lift = if d.held { 0.9 } else { 1.4 } * k;
+    let mut tips = [V3::default(); 4];
+    for (j, t) in tips.iter_mut().enumerate() {
+        *t = match (playing == Some(j), tip) {
+            (true, Some(p)) => p,
+            _ => on_string(rig, l.string, l.at + j as f32 * gap, lift) + rock,
+        };
+    }
+    let along = |p: V3| (p - a).dot(bw);
+    let depth = neck_depth(d);
+    let mut kn = [V3::default(); 4];
+    let thumb_tip;
+    let thumb_joint;
+    let thumb_knuckle;
+    if d.held {
+        // The index knuckle a little toward the scroll from its tip, against the E side.
+        let base = a + bw * (along(tips[0]) - 0.7 * k) + kx * (hw + 1.5 * k) - z * (0.5 * k);
+        for (j, q) in kn.iter_mut().enumerate() {
+            let j = j as f32;
+            *q = base + bw * (1.8 * k * j) + kx * (0.45 * k * j) + z * (0.2 * k * j);
+        }
+        // Opposite the first and second fingers, up the G side.
+        let b_t = along(tips[0]).max(0.0) * 0.6 + along(tips[1]) * 0.4;
+        thumb_tip = a + bw * (b_t - 0.3 * k) - kx * (hw + 0.6 * k) + z * (0.2 * k);
+        thumb_joint = a + bw * (b_t + 0.7 * k) - kx * (hw + 0.75 * k) - z * (depth * 0.7);
+        thumb_knuckle = a + bw * (b_t + 2.0 * k) - kx * (0.1 * k) - z * (depth + 1.1 * k);
+    } else {
+        // Centred on the four notes, beside the C side, level with the fingerboard's top.
+        let centre = (along(tips[0]) + along(tips[3])) * 0.5;
+        let step = 2.0 * k;
+        let base = a + bw * (centre - 1.5 * step) + kx * (hw + 2.0 * k) + z * (0.6 * k);
+        for (j, q) in kn.iter_mut().enumerate() {
+            let j = j as f32;
+            *q = base + bw * (step * j) + kx * (0.2 * k * j) - z * (0.1 * k * j);
+        }
+        // Behind the second finger, its pad on the neck's back.
+        let b_t = along(tips[1]);
+        thumb_tip = a + bw * (b_t - 0.4 * k) + kx * (0.2 * k) - z * (depth + 0.7 * k);
+        thumb_joint = a + bw * (b_t + 0.4 * k) + kx * (hw + 0.4 * k) - z * (depth + 0.9 * k);
+        thumb_knuckle = a + bw * (b_t + 1.4 * k) + kx * (hw + 2.2 * k) - z * (depth * 0.5);
+    }
+    let mid = (kn[1] + kn[2]) * 0.5;
+    let palm_len = 8.5 * k;
+    // The wrist straight: on the line from the elbow to the knuckles, a palm's length back.
+    let mut wrist = mid - z * palm_len;
     let mut el = elbow(arm.shoulder, wrist, arm.upper, arm.fore, arm.pole);
-    for _ in 0..2 {
-        wrist = palm + (el - palm).norm() * (7.5 * k);
+    for _ in 0..4 {
+        wrist = mid + (el - mid).norm() * palm_len;
         el = elbow(arm.shoulder, wrist, arm.upper, arm.fore, arm.pole);
     }
-    let thumb = (
-        palm - up * (1.0 * k) - l.side * (0.6 * k),
-        first - nz * (2.4 * k) - l.side * (1.2 * k) + up * (0.8 * k),
-    );
-    let off = l.semis - l.at;
-    let playing =
-        (l.semis >= 0.5).then(|| ((off + 0.5) / (l.span / 4.0)).floor().clamp(0.0, 3.0) as usize);
-    let tip = playing_tip(l);
-    let mut fingers = [(V3::default(), V3::default(), V3::default()); 4];
+    let radial = (kn[0] - kn[3]).norm();
+    let fwd = (mid - wrist).norm();
+    let thumb = [
+        wrist + radial * (1.5 * k) + fwd * (1.6 * k),
+        thumb_knuckle,
+        thumb_joint,
+        thumb_tip,
+    ];
+    let mut fingers = [[V3::default(); 4]; 4];
     for (j, f) in fingers.iter_mut().enumerate() {
-        let s = l.at + j as f32 * (l.span / 4.0) * 0.95;
-        // The knuckle beside the neck on its far side, a little under the fingerboard.
-        let knuckle = on_string(rig, mid, s, 0.0) + rock - nz * (1.3 * k) + l.side * (2.2 * k);
-        let t = if playing == Some(j) {
-            tip.unwrap_or(knuckle)
-        } else {
-            on_string(rig, l.string, s, 1.0) + rock
-        };
-        // The middle joint arched up over the fingerboard's edge.
-        let knee = knuckle.lerp(t, 0.45) + nz * (1.7 * k) + l.side * (0.6 * k);
-        *f = (knuckle, knee, t);
+        let (p0, p1, p2) = PHALANGES[j];
+        let (p0, p1, p2) = (p0 * k, p1 * k, p2 * k);
+        let t = tips[j];
+        // The arch: up off the fingerboard and out toward the knuckles' side.
+        let pole = z * 0.7 + kx;
+        let chord = (p1 * p1 + p2 * p2).sqrt() * 0.98;
+        let pip = elbow(kn[j], t, p0, chord, pole);
+        let u = t - pip;
+        let un = u.norm();
+        let out = (pole - un * pole.dot(un)).norm();
+        let dip = pip + u * (p1 / (p1 + p2)) + out * (0.3 * k);
+        *f = [kn[j], pip, dip, t];
     }
     LeftPose {
         elbow: el,
         wrist,
-        palm,
+        palm: wrist.lerp(mid, 0.55),
         thumb,
         fingers,
         playing,
@@ -160,12 +242,196 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
     }
 }
 
-/// What of the left arm lies behind the neck (painted before the neck is stamped back over
-/// it): the sleeve, the palm, the thumb, each finger's first segment, the mannequin's
-/// joints.
-pub fn left_behind(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, lp: &LeftPose) {
+/// One lit piece of the left arm: a tube from `a` (`ra` thick) to `b` (`rb`) in `col`, or
+/// a ball at `a` (`ra`) when `ball`.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Piece {
+    pub a: V3,
+    pub b: V3,
+    pub ra: f32,
+    pub rb: f32,
+    pub col: [u8; 3],
+    pub ball: bool,
+}
+
+/// The most pieces a left arm is drawn in.
+pub const PIECES: usize = 28;
+
+/// The left arm below the shoulder in pieces, in painting order (the forearm, the palm, the
+/// thumb, each finger from its knuckle to its tip; the mannequin's joints): a fixed array,
+/// so a frame allocates nothing for it.
+pub fn left_pieces(arm: &Arm, lp: &LeftPose) -> ([Piece; PIECES], usize) {
+    let mut out = [Piece::default(); PIECES];
+    let mut n = 0;
+    let mut put = |p: Piece| {
+        if n < PIECES {
+            out[n] = p;
+            n += 1;
+        }
+    };
+    let tube = |a: V3, b: V3, ra: f32, rb: f32, col: [u8; 3]| Piece {
+        a,
+        b,
+        ra,
+        rb,
+        col,
+        ball: false,
+    };
     let k = if arm.joints.is_some() { 0.9 } else { 1.0 };
     let wr = arm.r.1 * 0.8;
+    let skin = arm.hand;
+    put(tube(lp.elbow, lp.wrist, arm.r.1 * 1.05, wr, arm.sleeve));
+    if let Some(jc) = arm.joints {
+        put(Piece {
+            a: lp.wrist,
+            b: lp.wrist,
+            ra: wr * 1.05,
+            rb: wr * 1.05,
+            col: jc,
+            ball: true,
+        });
+    }
+    let [kn0, kn1, kn2, kn3] = [0, 1, 2, 3].map(|j| lp.fingers[j][0]);
+    let mid = (kn1 + kn2) * 0.5;
+    let radial = (kn0 - kn3).norm();
+    // The palm: its middle, its index side, its little finger's side; the thumb's ball.
+    put(tube(lp.wrist, mid, wr * 0.95, 1.9 * k, skin));
+    put(tube(
+        lp.wrist + radial * (1.3 * k),
+        kn0,
+        1.35 * k,
+        1.05 * k,
+        skin,
+    ));
+    put(tube(
+        lp.wrist - radial * (1.2 * k),
+        kn3,
+        1.3 * k,
+        0.95 * k,
+        skin,
+    ));
+    put(tube(lp.thumb[0], lp.thumb[1], 1.4 * k, 1.05 * k, skin));
+    put(tube(lp.thumb[1], lp.thumb[2], 1.0 * k, 0.9 * k, skin));
+    put(tube(lp.thumb[2], lp.thumb[3], 0.9 * k, 0.78 * k, skin));
+    for (j, f) in lp.fingers.iter().enumerate() {
+        let r = FINGER_R[j] * k;
+        put(tube(f[0], f[1], r * 1.08, r, skin));
+        put(tube(f[1], f[2], r, r * 0.94, skin));
+        put(tube(f[2], f[3], r * 0.94, r * 0.86, skin));
+    }
+    if let Some(jc) = arm.joints {
+        for (c, r) in [(lp.elbow, arm.r.0 * 1.05)] {
+            put(Piece {
+                a: c,
+                b: c,
+                ra: r,
+                rb: r,
+                col: jc,
+                ball: true,
+            });
+        }
+    }
+    (out, n)
+}
+
+/// Whether the neck (the fingerboard and the neck under it, between the body's edge and
+/// the nut) hides `p` from `eye`: a march along the ray in the instrument's frame.
+pub fn hidden_by_neck(p: V3, eye: V3, d: &Dims, pose: &Pose) -> bool {
+    use crate::scene::bowed::{board_w, board_z, nut_y};
+    let loc = |w: V3| {
+        let q = w - pose.o;
+        V3 {
+            x: q.dot(pose.ex),
+            y: q.dot(pose.ey),
+            z: q.dot(pose.ez),
+        }
+    };
+    let (a, e) = (loc(p), loc(eye));
+    let dir = (e - a).norm();
+    let (y0, y1) = (d.body - 0.5, nut_y(d) + 0.4);
+    let (mut s0, mut s1) = (0.2f32, (e - a).len());
+    if dir.y.abs() < 1e-5 {
+        if a.y < y0 || a.y > y1 {
+            return false;
+        }
+    } else {
+        let (t0, t1) = ((y0 - a.y) / dir.y, (y1 - a.y) / dir.y);
+        s0 = s0.max(t0.min(t1));
+        s1 = s1.min(t0.max(t1));
+    }
+    s1 = s1.min(s0 + 90.0);
+    let depth = neck_depth(d);
+    let mut s = s0;
+    while s <= s1 {
+        let q = a + dir * s;
+        let top = board_z(d, q.y) + 0.05;
+        if q.x.abs() <= board_w(d, q.y) * 0.5 + 0.1 && q.z <= top && q.z >= top - depth {
+            return true;
+        }
+        s += 0.2;
+    }
+    false
+}
+
+/// Paint the left arm's pieces the neck hides from the eye (`hidden`: painted before the
+/// neck is stamped back over them) or those it does not (after). A piece the neck hides in
+/// part is split where it comes out from behind it.
+#[allow(clippy::too_many_arguments)]
+pub fn left_paint(
+    b: &mut Brush,
+    v: &View,
+    lit: &Lit,
+    arm: &Arm,
+    lp: &LeftPose,
+    l: &Left,
+    hidden: bool,
+) {
+    let (pieces, n) = left_pieces(arm, lp);
+    let eye = v.cam.eye();
+    let hid = |p: V3| hidden_by_neck(p, eye, l.d, &l.rig.pose);
+    for pc in &pieces[..n] {
+        if pc.ball {
+            if hid(pc.a) == hidden {
+                ball(b, v, lit, pc.a, pc.ra, pc.col);
+            }
+            continue;
+        }
+        // Where along it the neck starts or stops hiding it (one crossing at most).
+        let (h0, hm, h1) = (hid(pc.a), hid(pc.a.lerp(pc.b, 0.5)), hid(pc.b));
+        let cut = |lo: f32, hi: f32, from: bool| {
+            let (mut lo, mut hi) = (lo, hi);
+            for _ in 0..6 {
+                let m = 0.5 * (lo + hi);
+                if hid(pc.a.lerp(pc.b, m)) == from {
+                    lo = m;
+                } else {
+                    hi = m;
+                }
+            }
+            0.5 * (lo + hi)
+        };
+        let (t, first) = if h0 == h1 && h0 == hm {
+            (1.0, h0)
+        } else if h0 != hm {
+            (cut(0.0, 0.5, h0), h0)
+        } else {
+            (cut(0.5, 1.0, h0), h0)
+        };
+        let r_at = |s: f32| pc.ra + (pc.rb - pc.ra) * s;
+        let m = pc.a.lerp(pc.b, t);
+        if first == hidden {
+            tube(b, v, lit, pc.a, m, pc.ra, r_at(t), pc.col);
+        }
+        if t < 1.0 && first != hidden {
+            tube(b, v, lit, m, pc.b, r_at(t), pc.rb, pc.col);
+        }
+    }
+}
+
+/// What of the left arm lies behind the instrument (painted before the neck and the body
+/// are stamped back over it): the upper arm (under the violin, beside the cello), the
+/// shoulder's joint, and what the neck hides of the rest.
+pub fn left_behind(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, lp: &LeftPose, l: &Left) {
     tube(
         b,
         v,
@@ -176,48 +442,15 @@ pub fn left_behind(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, lp: &LeftPose)
         arm.r.0,
         arm.sleeve,
     );
-    tube(
-        b,
-        v,
-        lit,
-        lp.elbow,
-        lp.wrist,
-        arm.r.1 * 1.05,
-        wr,
-        arm.sleeve,
-    );
-    let skin = arm.hand;
-    tube(b, v, lit, lp.wrist, lp.palm, wr * 0.92, 2.7 * k, skin);
-    tube(b, v, lit, lp.thumb.0, lp.thumb.1, 1.05 * k, 0.85 * k, skin);
-    for (j, &(knuckle, knee, _)) in lp.fingers.iter().enumerate() {
-        let r = if j == 3 { 0.64 } else { 0.78 } * k;
-        tube(
-            b,
-            v,
-            lit,
-            lp.palm.lerp(knuckle, 0.3),
-            knuckle,
-            1.1 * k,
-            r * 1.08,
-            skin,
-        );
-        tube(b, v, lit, knuckle, knee, r * 1.06, r, skin);
-    }
     if let Some(j) = arm.joints {
         ball(b, v, lit, arm.shoulder, arm.r.0 * 1.25, j);
-        ball(b, v, lit, lp.elbow, arm.r.0 * 1.05, j);
-        ball(b, v, lit, lp.wrist, arm.r.1 * 1.15, j);
     }
+    left_paint(b, v, lit, arm, lp, l, true);
 }
 
-/// What of the left hand shows over the fingerboard (painted after the neck): each
-/// finger's arch from its middle joint down to its tip.
-pub fn left_front(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, lp: &LeftPose) {
-    let k = if arm.joints.is_some() { 0.9 } else { 1.0 };
-    for (j, &(_, knee, tip)) in lp.fingers.iter().enumerate() {
-        let r = if j == 3 { 0.64 } else { 0.78 } * k;
-        tube(b, v, lit, knee, tip, r, r * 0.86, arm.hand);
-    }
+/// What of the left arm shows in front of the neck (painted after it).
+pub fn left_front(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, lp: &LeftPose, l: &Left) {
+    left_paint(b, v, lit, arm, lp, l, false);
 }
 
 /// The neck and the fingerboard as the eye sees them between the body's edge and the nut
