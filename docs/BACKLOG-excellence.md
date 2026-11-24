@@ -865,6 +865,52 @@ SWAM (modelled), BBC SO / Spitfire (recorded) and Logic's Studio Strings/Horns (
   - Presets are made by ear, 24 for each family, and every pack is on demand with its
     licence shown.
 
+**The instruments that make Cantus complete (the owner, 2026-11-24).** *"¿Qué otro instrumento
+deberíamos simular dentro de Cantus para que quede más completo?"* Today Cantus has synths
+(Unda, Calor, Modulus), keys (Chorda, Lamina, Organum), bass (Gravis), drums (Tympanum,
+Pulsus), bowed strings (Arcus), the sampler (Exemplar) and the resonators (Fides). With the
+guitar, the winds and the choir, a song in any style is made with no outside plug-in. The
+order below is the recommendation; the owner chooses at round 43's start. Each one is
+built as Chorda, Tympanum and Arcus were:
+- Recordings are studied with one estimator for the model and the recordings
+  (`tools/arcus/study`).
+- The owner takes a blind ABX before it joins `InstrumentKind::ALL`.
+- It gets the stage render in both looks, notes' articulations, the project's tuning and an
+  end-to-end test.
+- Patents and licences are checked before the design.
+
+1. **Guitar: steel-string acoustic, nylon and electric.** It is the biggest gap: the most
+   played instrument in pop, Latin and worship music, and Cantus has none. Most of the base
+   exists: Gravis's string, Fides's pluck, the amp and cabinet simulation (§3b) and the
+   study method.
+   - **Strumming from the piano roll.** A chord becomes a down or up strum, with its spread
+     between strings and its accent.
+   - **Playing.** The string and fret are chosen (by the voicing, or by hand as a note
+     property), with slides, hammer-ons, pull-offs, bends, natural and artificial harmonics,
+     palm mute and dead notes.
+   - **Noise and body.** Finger and pick noise on the strings, and the body's sympathy.
+   - **The electric.** The pickups (position, single coil or humbucker) feed the amp chain.
+   - **The bar.** Ample Guitar and the modelled guitars of Logic and Native Instruments; FL
+     Studio and Ableton ship no guitar at this level.
+2. **Winds: woodwinds and brass**, one instrument, its own and not part of Arcus. A bore is a
+   waveguide with tone holes and a bell. Its exciter is a reed (clarinet, oboe, bassoon,
+   saxophones), a jet at an edge (flute) or the lips (brass). Breath, embouchure and breath
+   noise are its controls, MPE and breath controllers drive it, and it shares Arcus's note
+   articulations, tuning, render and recorded voice (Exemplar on CC0 libraries). Its first
+   patent check is Audio Modeling's SWAM and Yamaha's VL family; several of VL's have
+   expired. The modelled-voice design is in the strings-and-winds item above.
+3. **Choir: "aah" and "ooh" by formants.** Pads and worship parts, sections of 1–16 voices
+   with seeded variation, the vowel morphed by a control. Sung lyrics come later, under §7a,
+   when a freely licensed recorded voice exists.
+4. **Tuned percussion: marimba, vibraphone (with its motor), glockenspiel, xylophone,
+   celesta, tubular bells.** It is cheap: Fides already models bars, so this needs the
+   instrument's own render, presets made by ear and the mallets as exciters.
+5. **Harp**, with its pedals (the scale set by the seven pedals), glissandi drawn from a chord
+   and the pluck shared with the guitar. It completes the orchestra beside Arcus and the
+   winds.
+6. **Hand and Latin percussion: congas, bongos, cajón, shaker, tambourine and the rest** on
+   Tympanum's engine, played by hand (strokes as note properties: open, slap, muted, heel).
+
 **Round 28 (2026-10-15; `docs/round28/sound.md`):**
 
 - **Item 4 — Chorda I is built** (ADR 0059, `docs/instruments/chorda.md`), on the published
