@@ -117,6 +117,8 @@ fn drag(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, r: Rect, salt: &
 pub fn bowed_of(fs: &ArcusSettings) -> crate::scene::bowed::Bowed {
     match fs.instrument {
         cantus_dsp::arcus::tables::Instrument::Bass => crate::scene::bowed::Bowed::Bass,
+        cantus_dsp::arcus::tables::Instrument::Violin => crate::scene::bowed::Bowed::Violin, // r42:arcus-upper
+        cantus_dsp::arcus::tables::Instrument::Viola => crate::scene::bowed::Bowed::Viola, // r42:arcus-upper
         _ => crate::scene::bowed::Bowed::Cello,
     }
 }

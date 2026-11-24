@@ -207,6 +207,8 @@ fn measures(b: Bowed) -> (f32, f32) {
     match b {
         Bowed::Cello => (60.0, 1.1),
         Bowed::Bass => (56.0, 1.6),
+        Bowed::Violin => (65.0, 1.0), // r42:arcus-upper
+        Bowed::Viola => (66.0, 1.05), // r42:arcus-upper
     }
 }
 

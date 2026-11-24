@@ -60,7 +60,10 @@ pub fn points(b: Bowed) -> Vec<V3> {
     for x in [-d.head_w * 1.4, d.head_w * 1.4] {
         p.push(pose.at(x, top, -d.scroll_r));
     }
-    p.push(pose.at(0.0, -d.endpin, -d.rib_lo * 0.5));
+    if !d.stand {
+        // r42:arcus-upper
+        p.push(pose.at(0.0, -d.endpin, -d.rib_lo * 0.5));
+    } // r42:arcus-upper
     p
 }
 
@@ -69,6 +72,8 @@ pub fn material(b: Bowed, r: Role) -> Mat {
     let (top, maple) = match b {
         Bowed::Cello => (pal::CELLO_TOP, pal::CELLO_MAPLE),
         Bowed::Bass => (pal::BASS_TOP, pal::BASS_MAPLE),
+        Bowed::Violin => (pal::VIOLIN_TOP, pal::VIOLIN_MAPLE), // r42:arcus-upper
+        Bowed::Viola => (pal::VIOLA_TOP, pal::VIOLA_MAPLE),    // r42:arcus-upper
     };
     match r {
         Role::Top => top,

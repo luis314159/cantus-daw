@@ -365,6 +365,12 @@ pub fn fittings(m: &mut Mesh, d: &Dims, pose: &Pose, o: &[(f32, f32)]) {
             r: 1.5 * k,
         },
     ));
+    if d.stand {
+        // A violin's or a viola's end button (the collar above) and no pin: it rests on its
+        // stand (`bowed_upper_stand`), which sets the mesh's foot. // r42:arcus-upper
+        draw_strings(m, d, pose); // r42:arcus-upper
+        return; // r42:arcus-upper
+    }
     m.rods.push((
         Role::Nickel,
         Rod {
@@ -414,10 +420,15 @@ pub fn fittings(m: &mut Mesh, d: &Dims, pose: &Pose, o: &[(f32, f32)]) {
             |r, k| [r as f32, k as f32],
         ),
     ));
-    // ---- the strings: steel (the cello's A and D) or wound ----
+    draw_strings(m, d, pose); // r42:arcus-upper
+}
+
+/// The strings: steel (the cello's A and D, the violin's E) or wound. // r42:arcus-upper
+fn draw_strings(m: &mut Mesh, d: &Dims, pose: &Pose) {
     for i in 0..4 {
         let [t, b, n] = string_local(d, i);
-        let role = if !d.machines && i >= 2 {
+        let steel = if d.stand { i == 3 } else { i >= 2 }; // r42:arcus-upper
+        let role = if !d.machines && steel {
             Role::Steel
         } else {
             Role::Wound

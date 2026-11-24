@@ -39,13 +39,16 @@ impl Voice {
         keep: bool,
     ) {
         let s = sh.s;
-        let keep = keep && self.active && self.inst == s.instrument;
+        let keep = keep && self.active && self.inst == s.instrument && self.same_rate(sh); // r42:arcus-upper
         if !keep {
             self.clear();
             self.vib_age = 0;
             self.trim = 0.0;
             self.ear.reset();
+            self.enter_rate(sh); // r42:arcus-upper
         }
+        let sh_rate = self.at_rate(sh); // r42:arcus-upper
+        let sh = &sh_rate; // r42:arcus-upper
         self.active = true;
         self.ended = false;
         self.released = false;
@@ -165,6 +168,8 @@ impl Voice {
     /// A slur to `key`: the bow goes on, the finger moves (at once, or as a portamento when
     /// asked); a key let go and returned to is held again.
     pub fn glide_to(&mut self, sh: &Shared, key: u8, id: u64, velocity: f32) {
+        let sh_rate = self.at_rate(sh); // r42:arcus-upper
+        let sh = &sh_rate; // r42:arcus-upper
         let s = sh.s;
         let was = self.note + self.glide;
         self.key = key;

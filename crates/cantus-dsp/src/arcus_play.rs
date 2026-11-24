@@ -33,6 +33,7 @@ impl Arcus {
             buf_l: vec![0.0; CHUNK],
             buf_r: vec![0.0; CHUNK],
             body,
+            upper_body: upper::body::UpperBody::new(sample_rate), // r42:arcus-upper
             rad_c: 0.0,
             rad: [(0.0, 0.0); 4],
             eq: eq::MatchEq::default(),
@@ -74,6 +75,7 @@ impl Arcus {
         self.alloc.set_polyphony(self.s.poly);
         self.alloc.set_mode(self.s.mode, Default::default());
         self.body.set(&self.s.body());
+        self.upper_body.set(upper::body::shape_of(&self.s)); // r42:arcus-upper
         self.out.set(&self.s.output());
         let fr = self.s.instrument.spec().radiation_hz;
         self.rad_c = if fr > 0.0 {
@@ -357,6 +359,7 @@ impl Arcus {
         }
         self.alloc.clear();
         self.body.reset();
+        self.upper_body.reset(); // r42:arcus-upper
         self.rad = [(0.0, 0.0); 4];
         self.eq.reset();
         self.out.reset();
@@ -376,6 +379,7 @@ impl Arcus {
             && self.rad.iter().all(|r| *r == (0.0, 0.0))
             && self.eq.is_still()
             && self.body.is_still()
+            && self.upper_body.is_still() // r42:arcus-upper
             && self.out.is_still()
     }
 

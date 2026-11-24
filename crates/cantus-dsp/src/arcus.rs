@@ -50,6 +50,17 @@ mod tests_gate2;
 #[cfg(test)]
 #[path = "arcus_tests_pitch.rs"]
 mod tests_pitch;
+#[path = "arcus_upper.rs"] // r42:arcus-upper
+pub mod upper; // r42:arcus-upper
+#[cfg(test)]
+#[path = "arcus_upper_tests.rs"] // r42:arcus-upper
+mod upper_tests; // r42:arcus-upper
+#[cfg(test)] // r42:arcus-upper
+#[path = "arcus_upper_tests_gate.rs"] // r42:arcus-upper
+mod upper_tests_gate; // r42:arcus-upper
+#[cfg(test)] // r42:arcus-upper
+#[path = "arcus_upper_tests_rate.rs"] // r42:arcus-upper
+mod upper_tests_rate; // r42:arcus-upper
 #[path = "arcus_voice.rs"]
 pub mod voice;
 
@@ -251,6 +262,9 @@ pub struct ArcusSettings {
     pub highcut_hz: f32,
     pub gain_db: f32,
     pub seed: u32,
+    /// The tools' override of the factor a voice runs at (`upper::factor_with`: 1, 2 or 4;
+    /// `None`, the instrument's own). Never stored. // r42:arcus-upper
+    pub oversample: Option<u8>, // r42:arcus-upper
 }
 
 impl Default for ArcusSettings {
@@ -301,6 +315,7 @@ impl Default for ArcusSettings {
             highcut_hz: 20_000.0,
             gain_db: 0.0,
             seed: 0,
+            oversample: None, // r42:arcus-upper
         }
     }
 }
@@ -402,6 +417,8 @@ pub struct Arcus {
     buf_l: Vec<f32>,
     buf_r: Vec<f32>,
     body: Body,
+    /// The violin's and the viola's body (Fides's is off for them). // r42:arcus-upper
+    upper_body: upper::body::UpperBody, // r42:arcus-upper
     /// The radiation's first-order high-pass (its step, and each side's state `(x₁, y₁)`).
     rad_c: f32,
     rad: [(f32, f32); 4],

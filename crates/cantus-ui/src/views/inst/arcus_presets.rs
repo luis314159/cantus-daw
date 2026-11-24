@@ -41,9 +41,24 @@ macro_rules! preset {
     };
 }
 
-const CELLO: &[&str] = &["preset.role.lead", "arcus.tag.cello", "preset.style.film", "preset.style.worship"];
-const BASS: &[&str] = &["preset.role.bass", "arcus.tag.bass", "preset.style.film", "preset.style.jazz"];
-const PLUCKED: &[&str] = &["preset.role.pluck", "arcus.tag.pizz", "preset.style.film", "preset.style.jazz"];
+const CELLO: &[&str] = &[
+    "preset.role.lead",
+    "arcus.tag.cello",
+    "preset.style.film",
+    "preset.style.worship",
+];
+const BASS: &[&str] = &[
+    "preset.role.bass",
+    "arcus.tag.bass",
+    "preset.style.film",
+    "preset.style.jazz",
+];
+const PLUCKED: &[&str] = &[
+    "preset.role.pluck",
+    "arcus.tag.pizz",
+    "preset.style.film",
+    "preset.style.jazz",
+];
 
 // inst: 0 Cello · 1 Double bass. tech: 0 Arco · 1 Pizzicato · 2 Tremolo. mode: 0 Poly ·
 // 1 Mono · 2 Legato.

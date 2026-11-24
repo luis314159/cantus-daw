@@ -21,7 +21,8 @@ impl Arcus {
         let n = left.len().min(right.len());
         let sounding = self.voices.iter().any(|v| v.active());
         let rad_still = self.rad.iter().all(|r| *r == (0.0, 0.0));
-        if !sounding && rad_still && self.body.is_still() && self.out.is_still() {
+        let upper_still = self.upper_body.is_still(); // r42:arcus-upper
+        if !sounding && rad_still && self.body.is_still() && upper_still && self.out.is_still() {
             self.clock += n as u64;
             self.peak = 0.0;
             return false;
@@ -82,7 +83,7 @@ impl Arcus {
                 }
             }
             let quiet = !any && self.rad.iter().all(|r| *r == (0.0, 0.0));
-            let out_quiet = quiet && self.body.is_still();
+            let out_quiet = quiet && self.body.is_still() && self.upper_body.is_still(); // r42:arcus-upper
             let (bl, br) = (&mut self.buf_l[..frames], &mut self.buf_r[..frames]);
             // The radiation: a first-order high-pass `(1 + R)/2 · (1 − z⁻¹)/(1 − R z⁻¹)`
             // (unity at Nyquist), its state let go at exact zeros so the instance rests.
@@ -105,8 +106,10 @@ impl Arcus {
                 }
             }
             self.body.process(bl, br, self.clock, quiet);
+            self.upper_body.process(bl, br, self.clock, quiet); // r42:arcus-upper
             let out_quiet = out_quiet && self.eq.is_still();
-            self.eq.process(bl, br, quiet && self.body.is_still());
+            let bodies_still = self.body.is_still() && self.upper_body.is_still(); // r42:arcus-upper
+            self.eq.process(bl, br, quiet && bodies_still); // r42:arcus-upper
             self.out.process(bl, br, self.clock, 0.0, out_quiet);
             for f in 0..frames {
                 let (a, b) = (bl[f], br[f]);

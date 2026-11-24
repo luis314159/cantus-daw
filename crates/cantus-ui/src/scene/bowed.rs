@@ -26,6 +26,8 @@ use super::geo::{v, V3};
 pub enum Bowed {
     Cello,
     Bass,
+    Violin, // r42:arcus-upper
+    Viola,  // r42:arcus-upper
 }
 
 /// An instrument's measures (cm, degrees).
@@ -79,6 +81,9 @@ pub struct Dims {
     pub f_lower: f32,
     /// Geared machines on the pegbox (the bass), not wooden pegs.
     pub machines: bool,
+    /// On an instrument stand (the violin, the viola): no endpin; `endpin` is then the
+    /// end button's height over the floor. // r42:arcus-upper
+    pub stand: bool, // r42:arcus-upper
 }
 
 pub const CELLO: Dims = Dims {
@@ -111,6 +116,7 @@ pub const CELLO: Dims = Dims {
     f_upper: 4.7,
     f_lower: 10.2,
     machines: false,
+    stand: false, // r42:arcus-upper
 };
 
 pub const BASS: Dims = Dims {
@@ -143,6 +149,7 @@ pub const BASS: Dims = Dims {
     f_upper: 7.2,
     f_lower: 14.8,
     machines: true,
+    stand: false, // r42:arcus-upper
 };
 
 impl Bowed {
@@ -150,6 +157,8 @@ impl Bowed {
         match self {
             Bowed::Cello => &CELLO,
             Bowed::Bass => &BASS,
+            Bowed::Violin => &super::bowed_upper::VIOLIN, // r42:arcus-upper
+            Bowed::Viola => &super::bowed_upper::VIOLA,   // r42:arcus-upper
         }
     }
 }
@@ -299,13 +308,20 @@ fn spline(p: &[(f32, f32)], per: usize) -> Vec<(f32, f32)> {
 /// The body's whole outline (cm), counter-clockwise seen from the top: from the lower
 /// edge's middle up the right side to the neck, down the left side; `per` points a span.
 pub fn outline(b: Bowed, per: usize) -> Vec<(f32, f32)> {
-    let half = match b {
-        Bowed::Cello => &CELLO_HALF,
-        Bowed::Bass => &BASS_HALF,
+    let (half, drawn) = match b {
+        Bowed::Cello => (&CELLO_HALF, None),
+        Bowed::Bass => (&BASS_HALF, None),
+        Bowed::Violin => (&CELLO_HALF, Some(super::bowed_upper::VIOLIN_DRAW)), // r42:arcus-upper
+        Bowed::Viola => (&CELLO_HALF, Some(super::bowed_upper::VIOLA_DRAW)),   // r42:arcus-upper
     };
     let mut right: Vec<(f32, f32)> = Vec::new();
     for (k, seg) in half.iter().enumerate() {
-        let mut s = spline(seg, per);
+        let seg: Vec<(f32, f32)> = match drawn {
+            // r42:arcus-upper
+            Some(dr) => seg.iter().map(|p| dr.at(*p)).collect(), // r42:arcus-upper
+            None => seg.to_vec(),                                // r42:arcus-upper
+        }; // r42:arcus-upper
+        let mut s = spline(&seg, per);
         if k > 0 {
             s.remove(0);
         }

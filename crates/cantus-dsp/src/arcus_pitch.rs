@@ -16,6 +16,15 @@ use super::tables::Instrument;
 // `clippy::approx_constant` inside (`#![allow]`, written by `examples/arcus_pitch_table.rs`).
 #[path = "arcus_pitch_data.rs"]
 mod data;
+use super::upper::pitch_data as up; // r42:arcus-upper
+                                    // `arcus_pitch_data.rs`'s violin and viola rows are empty and unread: the upper strings'
+                                    // table is `upper::pitch_data` (the generator may drop them). // r42:arcus-upper
+const _: usize = data::VIOLIN_KEYS
+    + data::VIOLA_KEYS
+    + data::VIOLIN.len()
+    + data::VIOLA.len()
+    + data::VIOLIN_LO as usize
+    + data::VIOLA_LO as usize; // r42:arcus-upper
 
 /// The dynamics the table is measured at.
 pub const DYN: [f64; 9] = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0];
@@ -57,15 +66,17 @@ pub const TABLE: PitchTable = PitchTable {
             keys: data::BASS_KEYS,
             cents: &data::BASS,
         },
+        // The violin's and the viola's: `upper::pitch_data` (their voices run at
+        // `upper::factor` × the rate; `examples/arcus_upper_pitch.rs`). // r42:arcus-upper
         InstTable {
-            lo: data::VIOLIN_LO,
-            keys: data::VIOLIN_KEYS,
-            cents: &data::VIOLIN,
+            lo: up::VIOLIN_LO,     // r42:arcus-upper
+            keys: up::VIOLIN_KEYS, // r42:arcus-upper
+            cents: &up::VIOLIN,    // r42:arcus-upper
         },
         InstTable {
-            lo: data::VIOLA_LO,
-            keys: data::VIOLA_KEYS,
-            cents: &data::VIOLA,
+            lo: up::VIOLA_LO,     // r42:arcus-upper
+            keys: up::VIOLA_KEYS, // r42:arcus-upper
+            cents: &up::VIOLA,    // r42:arcus-upper
         },
     ],
 };

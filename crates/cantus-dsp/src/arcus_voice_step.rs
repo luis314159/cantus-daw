@@ -130,7 +130,7 @@ impl Voice {
         }
         // The bow-hair noise: the friction's roughness, a band of noise.
         if self.bow_on && s.bow_noise_db > -60.0 {
-            let lvl = ROUGH * math::db_to_gain(s.bow_noise_db);
+            let lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale(); // r42:arcus-upper
             for j in 0..span {
                 let w = self.rng.bipolar();
                 self.roughs[j] = lvl * self.rough.tick(w);
@@ -164,7 +164,7 @@ impl Voice {
             p: st.p,
             beta: if plucked { s.pizz_pos as f64 } else { bw.beta },
             dc: !self.bow_on,
-            corner_hz: spec.corner_hz,
+            corner_hz: super::super::upper::corner_hz(self.inst, spec.corner_hz, f), // r42:arcus-upper
         };
         if self.first {
             self.string.start(st.z0() as f32, &step, true);
@@ -311,8 +311,9 @@ impl Voice {
     }
 
     /// Render the voice **added** into `l`/`r` (mono: the same into both), from the
-    /// stream's sample `sh.clock`.
-    pub fn render(&mut self, sh: &Shared, l: &mut [f32], r: &mut [f32]) {
+    /// stream's sample `sh.clock`, at the voice's own rate (`upper::render` calls it).
+    pub(super) fn render_core(&mut self, sh: &Shared, l: &mut [f32], r: &mut [f32]) {
+        // r42:arcus-upper
         let n = l.len().min(r.len());
         let mut i = 0;
         let mut peak = 0f32;

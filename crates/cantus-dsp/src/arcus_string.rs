@@ -168,6 +168,8 @@ pub struct BowedString {
     live: bool,
     /// The highest fundamental this rate allows.
     pub max_hz: f64,
+    /// The lowest its lines hold at this rate (`MIN_HZ` at the rate it was built for). // r42:arcus-upper
+    min_hz: f64, // r42:arcus-upper
 }
 
 /// A friction curve's constants: static and dynamic coefficients, and the hyperbolic law's
@@ -278,8 +280,21 @@ impl BowedString {
             quiet: 0,
             live: false,
             max_hz: sr / 12.0,
+            min_hz: MIN_HZ, // r42:arcus-upper
         }
         .with_curve(Curve::default())
+    }
+
+    /// Run at `sample_rate` from now on (the upper strings' voices at `os ×` the rate it was
+    /// built for), its waves let go. No allocation: the lines keep their length, so the
+    /// lowest fundamental they hold rises with the rate. // r42:arcus-upper
+    pub fn set_rate(&mut self, sample_rate: f32) {
+        self.sr = sample_rate as f64;
+        self.max_hz = self.sr / 12.0;
+        let held = (self.neck.len() - LINE_SPARE) as f64;
+        self.min_hz = MIN_HZ.max(self.sr / held);
+        self.set_curve(self.curve);
+        self.clear();
     }
 
     fn with_curve(mut self, k: Curve) -> Self {
@@ -391,7 +406,7 @@ impl BowedString {
 
     /// The step's loss and the two loops' lengths, reached over the next `span` samples.
     pub fn design(&mut self, s: &StringStep, span: u32) {
-        let f0 = s.f0.clamp(MIN_HZ, self.max_hz);
+        let f0 = s.f0.clamp(self.min_hz, self.max_hz); // r42:arcus-upper
         let (g, a) = self.loss(f0, s);
         let w0 = std::f64::consts::TAU * f0 / self.sr;
         let (r, dc_delay, dc_gain) = if s.dc {

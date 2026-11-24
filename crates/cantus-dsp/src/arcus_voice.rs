@@ -16,6 +16,8 @@ use crate::math;
 mod run;
 #[path = "arcus_voice_step.rs"]
 mod step;
+#[path = "arcus_upper_voice.rs"] // r42:arcus-upper
+mod upper; // r42:arcus-upper
 
 /// What every voice reads while it renders (the instance's, shared).
 pub struct Shared<'a> {
@@ -250,6 +252,8 @@ pub struct Voice {
     fade: f32,
     fade_step: f32,
     peak: f32,
+    /// The rate the voice runs at (the upper strings' `os ×`) and its way back. // r42:arcus-upper
+    rate: upper::Rate, // r42:arcus-upper
     /// Tests: every sample's slip, recorded while `record` is set.
     #[cfg(test)]
     pub record: bool,
@@ -317,6 +321,7 @@ impl Voice {
             fade: 1.0,
             fade_step: 0.0,
             peak: 0.0,
+            rate: upper::Rate::new(sample_rate), // r42:arcus-upper
             #[cfg(test)]
             record: false,
             #[cfg(test)]
@@ -325,7 +330,7 @@ impl Voice {
     }
 
     pub fn active(&self) -> bool {
-        self.active
+        self.active || self.rate.drain > 0 // r42:arcus-upper
     }
     pub fn key(&self) -> u8 {
         self.key
@@ -396,6 +401,7 @@ impl Voice {
     /// Silence at once and forget everything.
     pub fn clear(&mut self) {
         self.active = false;
+        self.rate.drain = 0; // r42:arcus-upper
         self.ended = false;
         self.released = false;
         self.string.clear();
@@ -418,7 +424,7 @@ impl Voice {
     /// Fade out over 4 ms (taken by a new note, a choke), then end.
     pub fn fade_out(&mut self, sr: f32) {
         if self.active {
-            self.fade_step = 1.0 / (0.004 * sr);
+            self.fade_step = 1.0 / (0.004 * sr * self.rate.os as f32); // r42:arcus-upper
         }
     }
 

@@ -164,9 +164,13 @@ impl Patch {
 pub fn mesh(b: Bowed) -> Arc<Mesh> {
     static CELLO: OnceLock<Arc<Mesh>> = OnceLock::new();
     static BASS: OnceLock<Arc<Mesh>> = OnceLock::new();
+    static VIOLIN: OnceLock<Arc<Mesh>> = OnceLock::new(); // r42:arcus-upper
+    static VIOLA: OnceLock<Arc<Mesh>> = OnceLock::new(); // r42:arcus-upper
     let cell = match b {
         Bowed::Cello => &CELLO,
         Bowed::Bass => &BASS,
+        Bowed::Violin => &VIOLIN, // r42:arcus-upper
+        Bowed::Viola => &VIOLA,   // r42:arcus-upper
     };
     cell.get_or_init(|| Arc::new(build(b))).clone()
 }

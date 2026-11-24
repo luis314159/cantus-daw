@@ -35,11 +35,13 @@ use cantus_dsp::arcus::tel;
 use cantus_engine::inst::arcus::settings;
 use egui::{Pos2, Rect, Sense, Vec2};
 
-/// The instruments the editor offers: the cello and the double bass (the violin and the
-/// viola wait behind the gate — `docs/round42/arcus.md`).
-const INSTRUMENTS: [Src<'static>; 2] = [
+/// The instruments the editor offers, in `inst`'s order: the cello, the double bass, the
+/// violin and the viola (`docs/round42/arcus-upper.md`). // r42:arcus-upper
+const INSTRUMENTS: [Src<'static>; 4] = [
     Src::Key("arcus.inst_kind.cello"),
     Src::Key("arcus.inst_kind.bass"),
+    Src::Key("arcus.inst_kind.violin"), // r42:arcus-upper
+    Src::Key("arcus.inst_kind.viola"),  // r42:arcus-upper
 ];
 const TECHNIQUES: [Src<'static>; 3] = [
     Src::Key("arcus.tech_kind.arco"),
