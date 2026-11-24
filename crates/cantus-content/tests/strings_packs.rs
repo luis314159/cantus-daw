@@ -1,6 +1,6 @@
 //! r42:strings-rec — the recorded strings' packs measured against their sources (ADR 0158):
 //! every zone of every strings pack in the bundled manifest, played by Exemplar at its root
-//! with the tuning the manifest gives it, is **in tune** (measured by McLeod's
+//! with the tuning the manifest gives it, is **in tune** (by the held-out NSDF near its root, McLeod's
 //! NSDF — not the YIN that set the tuning), and every loop the manifest keeps is **click-free**
 //! as Exemplar plays it (the seam no louder above 5 kHz than the loop's own playing, +3 dB).
 //!
@@ -129,7 +129,8 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
     let m = Manifest::bundled();
     // [short, held] × [measured, within a cent, within five].
     let mut within = [[0usize; 3]; 2];
-    let (mut off, mut unmeasured, mut loops, mut clicks) = (Vec::new(), 0, 0, Vec::new());
+    let (mut off, mut unmeasured, mut loops, mut clicks) = (Vec::new(), Vec::new(), 0, Vec::new());
+    let mut beyond = Vec::new();
     for pack in m.packs.iter().filter(|p| p.strings.is_some()) {
         let bytes = files(&src, pack);
         let mut seen = std::collections::HashSet::new();
@@ -142,24 +143,25 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
                 let rate = a.rate as f32;
                 let x = an::mono(&a.samples, a.channels);
                 let held = matches!(z.art.as_str(), "sustain" | "tremolo");
-                let secs = if held {
-                    (x.len() as f32 / rate).min(6.0)
-                } else {
-                    (x.len() as f32 / rate).min(0.7)
-                };
                 let xf = (z.xf_ms / 1000.0 * rate) as i64;
+                // What the zone plays: a held note through three turns of its loop (or to its
+                // end), a short note whole — and where in that its pitch is read: the loop's
+                // turns, the steady part, the tone (the spans the tuning was set over).
+                let secs = match (held, z.looped) {
+                    (true, Some([ls, le])) => (ls + 3 * (le - ls + 1) + 2_048) as f32 / rate,
+                    _ => x.len() as f32 / rate,
+                };
                 let out = play(&x, rate, z.tune, z.looped, xf, secs);
-                // In tune: over the steady part of a held note, the first 0.6 s of a short one.
-                let (a0, b0) = an::steady_span(&out, rate)
-                    .filter(|_| held)
-                    .unwrap_or(((rate * 0.03) as usize, out.len()));
-                let hint = an::hz_of_key(z.root as f64);
-                match an::nsdf_cents(&out, rate, a0, b0, hint) {
-                    // Over 50 cents away the two estimators read different notes — a weak
-                    // fundamental (a bass's low C) read an octave or a fifth up: no reading.
-                    Some(c)
-                        if (z.tune != 0.0 || held) && (c - z.root as f64 * 100.0).abs() < 50.0 =>
-                    {
+                let (a0, b0) = match (held, z.looped) {
+                    (true, Some([ls, le])) => {
+                        (ls as usize + 256, (ls + 3 * (le - ls + 1)) as usize)
+                    }
+                    (true, None) => an::steady_span(&out, rate).unwrap_or((0, out.len())),
+                    (false, _) => an::tone_span(&out, rate),
+                };
+                let root = an::hz_of_key(z.root as f64);
+                match an::nsdf_near_cents(&out, rate, a0, b0.min(out.len()), root) {
+                    Some(c) => {
                         let err = c - z.root as f64 * 100.0;
                         let k = held as usize;
                         within[k][0] += 1;
@@ -168,12 +170,21 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
                         }
                         if err.abs() <= 5.0 {
                             within[k][2] += 1;
+                        } else if held {
+                            beyond.push((pack.id.clone(), z.file.clone(), err));
                         }
                         if err.abs() > 1.0 {
                             off.push((pack.id.clone(), z.file.clone(), err));
                         }
                     }
-                    _ => unmeasured += 1,
+                    None => {
+                        let why = if b0 <= a0 + 4_096 {
+                            "too short"
+                        } else {
+                            "no voiced frame"
+                        };
+                        unmeasured.push((pack.id.clone(), z.file.clone(), why));
+                    }
                 }
                 if let Some([ls, le]) = z.looped {
                     loops += 1;
@@ -193,23 +204,29 @@ fn every_zone_is_in_tune_within_a_cent_and_every_loop_is_click_free() {
     }
     let pct = |k: usize, w: usize| 100.0 * within[k][w] as f64 / within[k][0].max(1) as f64;
     println!(
-        "held zones: {} measured, {:.1} % within a cent, {:.1} % within five; short notes: {} measured, {:.1} % within a cent, {:.1} % within five; no reading (the estimators read different notes, or none): {unmeasured}; loops: {loops}, clicking: {}",
-        within[1][0], pct(1, 1), pct(1, 2), within[0][0], pct(0, 1), pct(0, 2), clicks.len()
+        "held zones: {} measured, {:.1} % within a cent, {:.1} % within five; short notes: {} measured, {:.1} % within a cent, {:.1} % within five; not measurable: {}; loops: {loops}, clicking: {}",
+        within[1][0], pct(1, 1), pct(1, 2), within[0][0], pct(0, 1), pct(0, 2), unmeasured.len(), clicks.len()
     );
     for (p, f, e) in &off {
         println!("  off  {p} {f}: {e:+.2} ct");
+    }
+    for (p, f, why) in &unmeasured {
+        println!("  none {p} {f}: {why}");
     }
     for (p, f, e) in &clicks {
         println!("  click {p} {f}: {e:.1} dB");
     }
     assert!(clicks.is_empty(), "loops that click: {clicks:?}");
-    // The gate as measured on 2026-11-22 (docs/round42/strings-rec.md): a held note's pitch
-    // read by a second estimator agrees with the tuning to a cent for most zones and to five
-    // cents for nearly all — a section's spread of players and a bow's vibrato are where the
-    // two estimators part.
+    // The gate (the integrator, round 42): by an estimator the tuning was not set with, at
+    // least 99 % of the held zones within a cent and every held zone within five; short
+    // notes are reported, and the zones that cannot be measured listed with the reason.
     assert!(
-        pct(1, 1) >= 85.0 && pct(1, 2) >= 97.0,
-        "held zones out of tune: {:?}",
-        within[1]
+        pct(1, 1) >= 99.0,
+        "held zones within a cent: {:.1} %",
+        pct(1, 1)
+    );
+    assert!(
+        beyond.is_empty(),
+        "held zones beyond five cents: {beyond:?}"
     );
 }

@@ -782,6 +782,33 @@ pub fn write_zone(f: usize, v: f32, b: &mut String) {
         zf::RLO | zf::RHI => {
             let _ = write!(b, "{v:.2}");
         }
+        // r42:strings-rec — how the zone is played (ADR 0158).
+        zf::ART => b.push_str(&t(match v.round() as i32 {
+            1 => "art.abbr.sustain",
+            2 => "art.abbr.legato",
+            3 => "art.abbr.staccato",
+            4 => "art.abbr.spiccato",
+            5 => "art.abbr.pizzicato",
+            6 => "art.abbr.tremolo",
+            _ => "smp.zone_any",
+        })),
+        zf::BOW => b.push_str(&t(match v.round() as i32 {
+            1 => "art.abbr.down",
+            2 => "art.abbr.up",
+            _ => "smp.zone_any",
+        })),
+        zf::XFCC => {
+            if v < 0.0 {
+                b.push_str(&t("smp.xfcc_off"));
+            } else {
+                let _ = write!(b, "CC {}", v.round() as i32);
+            }
+        }
+        zf::XFCURVE => b.push_str(&t(if v >= 0.5 {
+            "smp.xfcurve_gain"
+        } else {
+            "smp.xfcurve_power"
+        })),
         _ => parts::write_value(v, info.unit, info.stepped, b),
     }
 }
@@ -856,6 +883,22 @@ pub fn zone_art_words(z: &Zone) -> String {
     }
     out
 }
+
+/// r42:strings-rec — the zone card's second page (ADR 0158): how the zone is played — its
+/// articulation and bow, the controller its layer crossfades on, the ranges it fades in and
+/// out across, the curve — and the keyswitch and delay beside them.
+pub const PLAY_FIELDS: [usize; 10] = [
+    zf::ART,
+    zf::BOW,
+    zf::SW,
+    zf::DELAY,
+    zf::XFCC,
+    zf::XFINLO,
+    zf::XFINHI,
+    zf::XFOUTLO,
+    zf::XFOUTHI,
+    zf::XFCURVE,
+];
 
 /// Cells to a row in the zone card.
 pub const ZONE_PER_ROW: usize = 8;
@@ -942,17 +985,29 @@ pub fn zone_card(
     let title = sel
         .as_ref()
         .map(|(n, z)| format!("{} \u{b7} #{n}{}", zone_name(z), zone_art_words(z))); // r42:strings-rec
+                                                                                     // r42:strings-rec — which page the card shows.
+    let page = app.inst.sampler.zone_page;
+    let page_name = t(if page == 1 {
+        "smp.zone_page.playing"
+    } else {
+        "smp.zone_page.zone"
+    });
     let look = CardLook {
         title: title
             .as_deref()
             .map(Src::Str)
             .unwrap_or(Src::Key("smp.card.zone")),
         switchable: false,
-        selector: None,
+        // r42:strings-rec — ‹ Zone › / ‹ Playing ›: the card's two pages.
+        selector: sel.as_ref().map(|_| page_name.as_str()),
         menu: false,
         display: None,
     };
     let cr = parts::card(ui, rect, s, &look, true);
+    let step = parts::selector_step(ui, &cr, s, &page_name);
+    if step != 0 {
+        app.inst.sampler.zone_page = (app.inst.sampler.zone_page + 1) % 2;
+    }
     let Some((n, z)) = sel else {
         parts::words(
             ui,
@@ -966,7 +1021,9 @@ pub fn zone_card(
         );
         return;
     };
-    let fields: &[usize] = if by_controller(&z) {
+    let fields: &[usize] = if page == 1 {
+        &PLAY_FIELDS // r42:strings-rec
+    } else if by_controller(&z) {
         &CC_ZONE_FIELDS
     } else {
         &ZONE_FIELDS

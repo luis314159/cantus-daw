@@ -94,6 +94,60 @@ struct Measured {
     frames: usize,
     /// The pitch measured, cents above key 0 (`None`: none found).
     cents: Option<f64>,
+    /// The partials' fit near the root, over what the zone plays held (its loop, or its
+    /// steady part) or a short note's tone: the zone's mean pitch, what its tune comes from;
+    /// and why there is none.
+    fit: Option<f64>,
+    fit_none: Option<&'static str>,
+}
+
+/// The span of a sample its tuning is measured over, in frames: a held note's loop (what it
+/// plays as it holds) or steady part, a short note's tone (`strings_analysis::tone_span`).
+fn tune_span(m: &[f32], rate: f32, held: bool, looped: Option<[i64; 2]>) -> (usize, usize) {
+    match (held, looped) {
+        (true, Some([ls, le])) => (ls as usize, le as usize + 1),
+        (true, None) => an::steady_span(m, rate).unwrap_or((0, m.len())),
+        (false, _) => an::tone_span(m, rate),
+    }
+}
+
+/// Each zone's tune from the partials' fit near its root (after the octave fix): the zone's
+/// mean pitch made its key's, its vibrato kept.
+fn fit_tunes(ms: &mut [Measured], fs: &[(String, Vec<u8>)]) {
+    let bytes: BTreeMap<&str, &Vec<u8>> = fs.iter().map(|(r, b)| (r.as_str(), b)).collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let slots: Vec<std::sync::Mutex<&mut Measured>> =
+        ms.iter_mut().map(std::sync::Mutex::new).collect();
+    std::thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(|| loop {
+                let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let Some(slot) = slots.get(i) else { break };
+                let mut m = slot.lock().unwrap();
+                let Some(b) = bytes.get(m.rel.as_str()) else {
+                    continue;
+                };
+                let Ok(a) = wav::parse(b) else { continue };
+                let rate = a.rate as f32;
+                let x = an::mono(&a.samples, a.channels);
+                let (from, to) = tune_span(&x, rate, sustained(m.meta.art), m.looped);
+                match an::harmonic_cents(&x, rate, from, to, an::hz_of_key(m.root as f64)) {
+                    Some(c) => {
+                        m.fit = Some(c);
+                        m.tune = (m.root as f64 * 100.0 - c) as f32;
+                    }
+                    None => {
+                        m.fit_none = Some(if to <= from + 4_096 {
+                            "too short to measure"
+                        } else {
+                            "no voiced frame"
+                        });
+                        eprintln!("{}: {}", m.rel, m.fit_none.unwrap());
+                    }
+                }
+            });
+        }
+    });
 }
 
 /// The octave fix is the library's naming, the same for every file of an instrument's
@@ -269,6 +323,8 @@ fn measure(rel: &str, bytes: &[u8], meta: libs::Meta) -> Option<Measured> {
         rms_db: 20.0 * cantus_dsp::math::log10(rms.max(1e-9)),
         frames: a.frames(),
         cents,
+        fit: None,
+        fit_none: None,
     };
     if sustained(meta.art) {
         let hz = cents.map_or(hint, |c| an::hz_of_key(c / 100.0));
@@ -477,6 +533,7 @@ fn main() {
             let mut v = done.into_inner().unwrap();
             v.sort_by(|a, b| a.rel.cmp(&b.rel));
             agree_octaves(&mut v);
+            fit_tunes(&mut v, &fs);
             v
         };
         let build = StringsBuild {
@@ -492,7 +549,7 @@ fn main() {
             .map(|m| {
                 serde_json::json!({
                     "file": m.rel, "named": m.meta.named, "root": m.root, "octave_fix": m.octave_fix,
-                    "tune": m.tune, "cents": m.cents, "loop": m.looped, "loop_err_db": m.loop_err_db,
+                    "tune": m.tune, "cents": m.cents, "fit": m.fit, "fit_none": m.fit_none, "loop": m.looped, "loop_err_db": m.loop_err_db,
                     "seam_excess_db": m.seam_excess_db, "rms_db": m.rms_db, "frames": m.frames,
                 })
             })

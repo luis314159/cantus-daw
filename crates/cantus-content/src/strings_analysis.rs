@@ -286,6 +286,189 @@ pub fn seam_excess_db(out: &[f32], rate: f32, seams: &[usize]) -> f32 {
         .fold(f32::MIN, f32::max)
 }
 
+/// How far either side of a zone's mapped root its pitch is searched, in cents: wide enough
+/// for any player's intonation, too narrow for an octave or a fifth (the root is known: the
+/// note the zone maps, after the octave fix).
+pub const NEAR_CENTS: f64 = 60.0;
+
+/// The trimmed mean (the middle 80 %) of `v`.
+fn trimmed_mean80(mut v: Vec<f64>) -> Option<f64> {
+    if v.is_empty() {
+        return None;
+    }
+    v.sort_by(|a, b| a.total_cmp(b));
+    let q = v.len() / 10;
+    let mid = &v[q..v.len() - q];
+    Some(mid.iter().sum::<f64>() / mid.len() as f64)
+}
+
+/// The power of the windowed frame `w` at frequency `f` (cycles per sample): one DFT bin at
+/// any frequency, by a rotating phasor.
+fn power_at(w: &[f64], f: f64) -> f64 {
+    let (s, c) = math::sin_cos(-std::f64::consts::TAU * f);
+    let (mut re, mut im) = (0.0f64, 0.0f64);
+    let (mut pr, mut pi) = (1.0f64, 0.0f64);
+    for (n, x) in w.iter().enumerate() {
+        re += x * pr;
+        im += x * pi;
+        let r = pr * c - pi * s;
+        pi = pr * s + pi * c;
+        pr = r;
+        // Renormalise now and then: the phasor stays on the circle.
+        if n % 1024 == 1023 {
+            let m = (pr * pr + pi * pi).sqrt();
+            pr /= m;
+            pi /= m;
+        }
+    }
+    re * re + im * im
+}
+
+/// The voiced frames tiling `[from, to)`: their starts, `len` long and `hop` apart, those whose
+/// level is within 20 dB of the loudest.
+fn voiced(x: &[f32], from: usize, to: usize, len: usize, hop: usize) -> Vec<usize> {
+    let at = frames(from, to.min(x.len()), len, hop);
+    let rms: Vec<f32> = at
+        .iter()
+        .map(|a| (x[*a..a + len].iter().map(|v| v * v).sum::<f32>() / len as f32).sqrt())
+        .collect();
+    let top = rms.iter().copied().fold(0.0f32, f32::max);
+    at.into_iter()
+        .zip(rms)
+        .filter(|(_, r)| *r > 0.0 && *r >= top * 0.1)
+        .map(|(a, _)| a)
+        .collect()
+}
+
+/// **The partials' fit** — the pitch whose first harmonics (up to eight, below 0.45 of the
+/// rate) hold the most power, frame by frame over `[from, to)` (Hann windows of at least
+/// eight periods, half overlapping), searched within [`NEAR_CENTS`] of `root_hz`: a coarse
+/// grid of 8 cents on four partials, then a golden-section search on eight to 0.02 cent. The trimmed mean (middle 80 %)
+/// of the voiced frames, in cents ([`cents_of`]) — the note's mean pitch, its vibrato kept.
+/// What a zone's tuning is set from.
+pub fn harmonic_cents(x: &[f32], rate: f32, from: usize, to: usize, root_hz: f64) -> Option<f64> {
+    let period = rate as f64 / root_hz.max(10.0);
+    let len = ((8.0 * period).ceil() as usize).max(4_096);
+    let win: Vec<f64> = (0..len)
+        .map(|n| 0.5 - 0.5 * math::cos(std::f64::consts::TAU * n as f64 / len as f64))
+        .collect();
+    let mut out = Vec::new();
+    for at in voiced(x, from, to, len, len / 2) {
+        let w: Vec<f64> = x[at..at + len]
+            .iter()
+            .zip(&win)
+            .map(|(v, h)| *v as f64 * h)
+            .collect();
+        let score = |cents: f64, most: usize| -> f64 {
+            let f = root_hz * math::exp2(cents / 1_200.0) / rate as f64;
+            let k_max = ((0.45 / f) as usize).clamp(1, most);
+            (1..=k_max).map(|k| power_at(&w, f * k as f64)).sum()
+        };
+        // Coarse: four partials on an 8-cent grid; then all eight, golden-section.
+        let mut best = (f64::MIN, 0.0);
+        let mut c = -NEAR_CENTS;
+        while c <= NEAR_CENTS {
+            let v = score(c, 4);
+            if v > best.0 {
+                best = (v, c);
+            }
+            c += 8.0;
+        }
+        let score = |cents: f64| score(cents, 8);
+        // Golden section within a grid step either side.
+        let g = 0.618_033_988_75;
+        let (mut a, mut b) = (best.1 - 8.0, best.1 + 8.0);
+        let (mut c1, mut c2) = (b - g * (b - a), a + g * (b - a));
+        let (mut f1, mut f2) = (score(c1), score(c2));
+        while b - a > 0.02 {
+            if f1 > f2 {
+                b = c2;
+                c2 = c1;
+                f2 = f1;
+                c1 = b - g * (b - a);
+                f1 = score(c1);
+            } else {
+                a = c1;
+                c1 = c2;
+                f1 = f2;
+                c2 = a + g * (b - a);
+                f2 = score(c2);
+            }
+        }
+        out.push(cents_of(root_hz) + 0.5 * (a + b));
+    }
+    trimmed_mean80(out)
+}
+
+/// **The held-out check** — McLeod's normalised square difference over `[from, to)`, its
+/// highest peak among the periods within [`NEAR_CENTS`] (and a margin) of `root_hz`,
+/// parabolically refined; frames of at least four periods tiling the span a third apart, the
+/// voiced ones; the trimmed mean (middle 80 %) in cents. Never used to set a tuning: what
+/// checks one.
+pub fn nsdf_near_cents(x: &[f32], rate: f32, from: usize, to: usize, root_hz: f64) -> Option<f64> {
+    let t = rate as f64 / root_hz.max(10.0);
+    let span = math::exp2((NEAR_CENTS + 20.0) / 1_200.0);
+    let (tmin, tmax) = (
+        (t / span).floor().max(2.0) as usize,
+        (t * span).ceil() as usize,
+    );
+    let win = ((4.0 * t).ceil() as usize).max(2_048);
+    let mut out = Vec::new();
+    for at in voiced(x, from, to, win + tmax + 2, win / 3) {
+        let w = &x[at..at + win + tmax + 2];
+        let mut n = vec![0.0f64; tmax + 2];
+        for (tau, nv) in n
+            .iter_mut()
+            .enumerate()
+            .take(tmax + 2)
+            .skip(tmin.saturating_sub(1))
+        {
+            let (mut r, mut m) = (0.0f64, 0.0f64);
+            for j in 0..win {
+                let (a, b) = (w[j] as f64, w[j + tau] as f64);
+                r += a * b;
+                m += a * a + b * b;
+            }
+            *nv = if m > 0.0 { 2.0 * r / m } else { 0.0 };
+        }
+        let mut best = tmin;
+        for tau in tmin..=tmax {
+            if n[tau] > n[best] {
+                best = tau;
+            }
+        }
+        if n[best] < 0.3 {
+            continue;
+        }
+        let p = refine(&n, best);
+        out.push(cents_of(rate as f64 / p));
+    }
+    trimmed_mean80(out)
+}
+
+/// Where a short note's tone is measured: from 20 ms after its loudest moment's rise began
+/// to where it has fallen 30 dB below its peak (at most 1.5 s), in samples.
+pub fn tone_span(x: &[f32], rate: f32) -> (usize, usize) {
+    let hop = (rate * 0.01) as usize;
+    let env = envelope(x, hop.max(1));
+    let (peak_i, peak) = env
+        .iter()
+        .copied()
+        .enumerate()
+        .fold((0, 0.0f32), |m, (i, e)| if e > m.1 { (i, e) } else { m });
+    let start = (peak_i * hop).saturating_sub(hop) + (rate * 0.02) as usize;
+    let end_i = env
+        .iter()
+        .enumerate()
+        .skip(peak_i)
+        .find(|(_, e)| **e < peak * 0.0316)
+        .map_or(env.len(), |(i, _)| i);
+    let end = (end_i * hop)
+        .min(start + (rate * 1.5) as usize)
+        .min(x.len());
+    (start.min(end), end)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,5 +523,33 @@ mod tests {
             *v += 0.3;
         }
         assert!(seam_excess_db(&clicked, rate, &[22_050]) > 6.0);
+    }
+
+    #[test]
+    fn the_partials_fit_and_the_held_out_check_find_the_mean_pitch_within_half_a_cent() {
+        // A cello's C2 whose fundamental is weak (the second partial louder), a few cents
+        // sharp, with vibrato; and a violin's A4 flat.
+        for (hz, root, vib) in [(65.406 * 1.0021, 36.0, 15.0), (440.0 * 0.9968, 69.0, 25.0)] {
+            let n = 3 * 44_100;
+            let mut ph = 0.0f64;
+            let x: Vec<f32> = (0..n)
+                .map(|i| {
+                    let t = i as f64 / 44_100.0;
+                    let f =
+                        hz * math::exp2(vib / 1_200.0 * math::sin(std::f64::consts::TAU * 5.5 * t));
+                    ph += f / 44_100.0;
+                    let p = std::f64::consts::TAU * ph;
+                    (0.1 * math::sin(p) + 0.5 * math::sin(2.0 * p) + 0.3 * math::sin(3.0 * p))
+                        as f32
+                })
+                .collect();
+            let truth = cents_of(hz);
+            let r = hz_of_key(root);
+            let h = harmonic_cents(&x, 44_100.0, 0, n, r).unwrap();
+            let c = nsdf_near_cents(&x, 44_100.0, 0, n, r).unwrap();
+            assert!((h - truth).abs() < 0.5, "the fit {h} vs {truth}");
+            assert!((c - truth).abs() < 0.5, "the check {c} vs {truth}");
+            assert!((h - c).abs() < 0.5, "the fit {h} and the check {c}");
+        }
     }
 }

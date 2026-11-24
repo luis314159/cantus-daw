@@ -1,8 +1,10 @@
 //! r42:strings-rec — shots of the piano roll's articulation lane (ADR 0158): a cello line
 //! whose notes carry their articulations and bows (a legato pair, détaché down and up,
 //! staccato, spiccato, pizzicato, tremolo, one left to the instrument), the marks in the
-//! lane under the roll, and the note's menu open; in Night and Paper, English and Spanish, at
-//! 100 and 200 %: `cargo run -p cantus-ui --example shoot_strings_rec -- <dir> [filter…]`.
+//! lane under the roll, and the note's menu open; and Exemplar's zone card on its *Playing*
+//! page (a zone's articulation, bow, keyswitch and mod-wheel crossfade); in Night and Paper,
+//! English and Spanish, at 100 and 200 %:
+//! `cargo run -p cantus-ui --example shoot_strings_rec -- <dir> [filter…]`.
 
 use cantus_core::note_art::{Articulation, Bow, NoteArt};
 use cantus_core::*;
@@ -20,7 +22,7 @@ fn main() {
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
     let filters: Vec<String> = args.collect();
     std::fs::create_dir_all(&dir).expect("output dir");
-    for what in ["lane", "menu"] {
+    for what in ["lane", "menu", "zone"] {
         for theme in ["night", "paper"] {
             for lang in [Locale::En, Locale::Es] {
                 for scale in [1.0f32, 2.0] {
@@ -34,7 +36,11 @@ fn main() {
                     }
                     cantus_ui::i18n::set_locale(lang);
                     let path = dir.join(format!("{name}.png"));
-                    shoot(&path, what, theme, scale);
+                    if what == "zone" {
+                        shoot_zone(&path, theme, scale);
+                    } else {
+                        shoot(&path, what, theme, scale);
+                    }
                     println!("wrote {}", path.display());
                 }
             }
@@ -137,5 +143,55 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(root, |ui| cantus_ui::views::piano_roll::show(&mut app, ui));
+    });
+}
+
+/// Exemplar's Edit view with a strings zone selected and its card on the *Playing* page: a
+/// sustain, down-bow, on the sustain keyswitch, fading out across the mod wheel's lower half.
+fn shoot_zone(path: &std::path::Path, theme: &str, scale: f32) {
+    use cantus_core::inst::sampler::zf;
+    use cantus_ui::kit::appearance::Mode;
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    let mut app = CantusApp::from_parts(
+        Some(cantus_ui::welcome_project()),
+        EngineHandle::dummy(),
+        false,
+    );
+    let tmp = std::env::temp_dir().join("cantus-shoot-strings-rec");
+    app.settings_path = tmp.join("settings.json");
+    app.layouts_path = tmp.join("layouts.json");
+    app.keymap_path = tmp.join("keymap.toml");
+    app.appearance_path = tmp.join("appearance.json");
+    app.appearance.mode = if theme == "paper" {
+        Mode::Light
+    } else {
+        Mode::Dark
+    };
+    app.attach(&ctx);
+    app.demo_editor("sampler");
+    let track = app.inst.open.expect("the editor is open");
+    let spec = app.native_of(track).expect("an Exemplar");
+    cantus_ui::views::inst::sampler::set_zone_fields(
+        &mut app,
+        track,
+        &spec,
+        0,
+        &[
+            (zf::ART, 1.0),
+            (zf::BOW, 1.0),
+            (zf::SW, 24.0),
+            (zf::XFCC, 1.0),
+            (zf::XFOUTLO, 0.0),
+            (zf::XFOUTHI, 64.0),
+        ],
+        false,
+    );
+    app.inst.sampler.selected = Some(0);
+    app.inst.sampler.zone_page = 1;
+    app.inst.view = cantus_ui::views::inst::View::Edit;
+    cantus_ui::raster::shoot(&ctx, vec2(1500.0, 1100.0), scale, 8, Some(path), |root| {
+        app.frame(root)
     });
 }

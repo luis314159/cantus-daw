@@ -45,6 +45,7 @@ use cantus_engine::inst::sampler::tel;
 use std::path::{Path, PathBuf};
 
 pub use map::set_fields as set_zone_fields;
+pub use map::write_zone as write_zone_value; // r42:strings-rec — a zone cell's readout (tests)
 
 /// Whether the selected zone's file is being read for its waveform (beside the window).
 pub fn wave_file_reading(app: &CantusApp) -> bool {
@@ -79,6 +80,9 @@ pub struct State {
     pub cache_size: Option<(std::time::Instant, cantus_engine::inst::stream::CacheRoom)>,
     /// The status line said once this session that notes played their start only.
     pub cut_told: bool,
+    /// r42:strings-rec — the zone card's page: 0 its ranges and levels, 1 how it is played
+    /// (articulation, bow, the controller crossfade; ADR 0158).
+    pub zone_page: u8,
 }
 
 /// Every command that replaces the instrument's zones and groups with an import's: one
