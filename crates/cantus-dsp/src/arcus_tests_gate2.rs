@@ -304,9 +304,10 @@ fn the_vibrato_s_rate_and_depth_are_its_defaults() {
     );
     // Geringer & Allen 2004: ~5.5 Hz; the gate's ±15–25 cents (a cello's A3, its D string's
     // fifth: the depth widens a little above the bottom of the range, MacLeod 2008).
-    assert!((5.3..=6.2).contains(&rate), "{rate} Hz");
+    // Round 42 pass 2: the study's cellos, 5.0–6.2 Hz and ±6–15 cents across dynamics.
+    assert!((4.9..=6.2).contains(&rate), "{rate} Hz");
     let depth = 0.5 * (max - min);
-    assert!((15.0..=25.0).contains(&depth), "±{depth} cents");
+    assert!((6.0..=15.0).contains(&depth), "±{depth} cents");
 }
 
 /// The magnitude of `ir`'s spectrum at `hz`.

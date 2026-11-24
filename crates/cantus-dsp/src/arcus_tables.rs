@@ -130,6 +130,15 @@ pub struct InstrumentSpec {
     pub trim_db: f32,
     /// The bridge's corner rounding, Hz (`string::StringStep::corner_hz`).
     pub corner_hz: f64,
+    /// A sustain's swell over its clean start: its length (s) at pp and ff (`T₀ + (T₁ − T₀)·d²`)
+    /// and how far under its level it starts (dB, linear in the dynamic) — pass 4: the
+    /// instrument's own, fitted to its family's rise (the study §2.5).
+    pub swell_s: (f32, f32),
+    pub swell_db: (f32, f32),
+    /// Pass 4: a pluck's T60 against frequency, `(Hz, s)` (the study §2.7: the references'
+    /// per-partial T60s, the band's middle; log-log between, held at the ends) — the string's
+    /// loss set from it at the note's fundamental and eighth partial. Empty: the bowed decay.
+    pub pizz_t60: &'static [(f64, f64)],
     /// Where the body's radiation efficiency stops rising, Hz: a box radiates a slow
     /// vibration poorly (its pressure follows the volume velocity's rate of change, +6 dB an
     /// octave), so below this the strings' fundamentals are heard weaker than their partials
@@ -231,22 +240,93 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
         },
     ],
     top: 79,
-    body: BodyKind::Cello,
+    body: BodyKind::MeasuredCello,
     body_size: 1.0,
+    // The players' map (the study §3.4, Askenfelt, Schoonderwaldt): from pp to ff the force
+    // ×4.5, the bow nearer the bridge ×0.46, the speed nearly constant (×1.8).
     bowing: Bowing {
-        speed: (0.05, 0.35),
-        beta: (0.13, 0.075),
-        place: (0.42, 0.27),
+        speed: (0.15, 0.27),
+        beta: (0.14, 0.07),
+        place: (0.30, 0.36),
     },
     vib_hz: 5.5,
     vib_ct: 18.0,
     trim_db: 16.0,
-    corner_hz: 3000.0,
-    radiation_hz: 0.0,
+    // Pass 3: 3 kHz rounded the cello's upper partials under the cellos' band at ff (the
+    // bow near the bridge could not brighten it): 6 kHz.
+    corner_hz: 6000.0,
+    // Pass 4: the cellos' rise 0.14–0.28 s soft, 0.10–0.37 middle, 0.01–0.07 loud.
+    swell_s: (0.30, 0.05),
+    swell_db: (20.0, 10.0),
+    pizz_t60: CELLO_PIZZ_T60,
+    // Pass 4: the bow's static push on the string reached the bridge as a DC force the body
+    // passed (most of the first second's power, decaying with the string's loss): no box
+    // radiates it, so the measured body's radiation ends in a high-pass under the strings.
+    radiation_hz: RADIATION_DC_HZ,
     balance_db_st: 0.47,
     balance_key: 57.0,
     matched: CELLO_MATCH,
 };
+
+/// Pass 4: the cellos' pluck T60 by frequency (the study's `pizz_t60_by_freq`, 7 cellos:
+/// 4–5 s at 60–125 Hz, 2.5 s at 250, 1.1 s at 1 kHz, 0.7–0.8 s at 2.5–4 kHz).
+pub const CELLO_PIZZ_T60: &[(f64, f64)] = &[
+    (62.0, 5.0),
+    (100.0, 3.9),
+    (160.0, 3.2),
+    (250.0, 2.8),
+    (400.0, 2.5),
+    (500.0, 2.2),
+    (630.0, 1.65),
+    (800.0, 1.41),
+    (1000.0, 1.15),
+    (1600.0, 0.92),
+    (2500.0, 0.78),
+    (4000.0, 0.69),
+];
+
+/// Pass 4: the basses' (5 basses: ~3 s at 80–200 Hz, 2.1 s at 400, 1.7 s at 1 kHz, 1.2 s at
+/// 2 kHz; the 39–62 Hz bands' spread is wide).
+pub const BASS_PIZZ_T60: &[(f64, f64)] = &[
+    (40.0, 4.0),
+    (62.0, 2.7),
+    (100.0, 2.8),
+    (160.0, 2.9),
+    (200.0, 2.8),
+    (250.0, 2.4),
+    (400.0, 2.1),
+    (500.0, 1.8),
+    (800.0, 1.72),
+    (1000.0, 1.7),
+    (1600.0, 1.15),
+    (2000.0, 1.1),
+    (3200.0, 1.0),
+];
+
+/// Pass 4: `table`'s T60 at `hz` (log-log between its points, held at its ends).
+pub fn t60_at(table: &[(f64, f64)], hz: f64) -> f64 {
+    let (first, last) = (table[0], table[table.len() - 1]);
+    if hz <= first.0 {
+        return first.1;
+    }
+    if hz >= last.0 {
+        return last.1;
+    }
+    let i = table
+        .iter()
+        .position(|p| p.0 >= hz)
+        .unwrap_or(table.len() - 1)
+        .max(1);
+    let (a, b) = (table[i - 1], table[i]);
+    let m = |x: f64| crate::math::ln(x);
+    let u = m(hz / a.0) / m(b.0 / a.0);
+    crate::math::exp(m(a.1) + (m(b.1) - m(a.1)) * u)
+}
+
+/// Pass 4: the measured bodies' radiation corner under the strings' fundamentals, Hz (two
+/// first-order stages: −0.3 dB at the bass's E1, −0.1 at the cello's C2): what a body never
+/// radiates — the bow's static push on the string, a DC force on the bridge — taken out.
+pub const RADIATION_DC_HZ: f32 = 8.0;
 
 /// The double bass, in orchestral tuning: E1 A1 D2 G2 over 1 060 mm.
 pub const BASS: InstrumentSpec = InstrumentSpec {
@@ -281,18 +361,27 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
         },
     ],
     top: 67,
-    body: BodyKind::Cello,
-    body_size: 1.72,
+    body: BodyKind::MeasuredBass,
+    body_size: 1.0,
     bowing: Bowing {
-        speed: (0.06, 0.45),
-        beta: (0.14, 0.08),
-        place: (0.42, 0.27),
+        speed: (0.16, 0.29),
+        beta: (0.15, 0.075),
+        place: (0.30, 0.36),
     },
-    vib_hz: 5.3,
+    // The study's bass: 5.4 Hz (Mick 2024: 5.17).
+    vib_hz: 5.1,
     vib_ct: 16.0,
-    trim_db: 16.0,
+    // Pass 2: its own body and correction made it ~10 dB hotter than the cello: 6 dB.
+    trim_db: 6.0,
     corner_hz: 2000.0,
-    radiation_hz: 120.0,
+    // Pass 4: the basses' rise is narrower (0.10–0.24 s soft, 0.11–0.15 middle, 0.07–0.12
+    // loud): a loud note's swell longer and deeper (its clean start's transient stood over
+    // 10 dB).
+    swell_s: (0.30, 0.16),
+    swell_db: (20.0, 16.0),
+    pizz_t60: BASS_PIZZ_T60,
+    // Pass 2: the measured body carries the radiation; pass 4: its DC taken out (the cello's).
+    radiation_hz: RADIATION_DC_HZ,
     balance_db_st: 0.16,
     balance_key: 47.5,
     matched: BASS_MATCH,
@@ -318,22 +407,30 @@ pub fn schelleng_max(z0: f64, v_bow: f64, beta: f64) -> f64 {
 /// The cello's and the double bass's match (`tools/arcus/match.sh fit`, five passes on two
 /// thirds of the notes; `docs/round42/arcus-match.md` has the held-out distances).
 pub const CELLO_MATCH: Match = Match {
+    // Pass 2: over the measured body, what is left of the recordings' spectrum (the match's
+    // fit on two thirds of the notes; pass 1 fitted −9.7 dB at 63 Hz … +12 at 10 kHz over
+    // the scaled violin body).
     eq_db: [
-        -9.7, -6.9, -5.5, -3.1, -0.8, -1.4, -2.9, 0.6, 2.8, 1.8, 8.1, 12.0,
+        -8.1, -5.2, -3.0, -1.5, -0.8, -2.0, -1.9, 0.4, -0.2, -0.7, 6.7, 12.0,
     ],
-    noise_db: 0.0,
-    pizz_decay: 0.81,
-    vib_depth: 0.80,
-    vib_rate: 1.00,
+    // Pass 2, measured by the study's estimator on the held-out notes: the hair's noise 3–6
+    // dB under the cellos' band, the vibrato ±16.6 cents against ±6–12 and 5.8 Hz against
+    // 5.0–5.4 at soft and medium.
+    noise_db: 12.0,
+    pizz_decay: 1.0, // pass 4: the pluck's T60 table (`CELLO_PIZZ_T60`) replaces the ring factor 0.81
+    vib_depth: 0.48,
+    vib_rate: 0.92,
 };
 pub const BASS_MATCH: Match = Match {
-    // The bass's correction is left flat: fitted (… 6.4 dB at 10 kHz, −8.4 at 630 Hz) it
-    // moved the held-out notes *away* from the references (spectrum 4.76 → 5.07 dB, the
-    // centroid 0 → 2.2 semitones outside their spread): their upper bands carry the rooms'
-    // and the bows' noise more than the instrument (`docs/round42/arcus-match.md`).
-    eq_db: [0.0; EQ_BANDS],
-    noise_db: 0.0,
-    pizz_decay: 0.67,
-    vib_depth: 0.44,
+    // Pass 2: over its own measured body the fitted correction now moves the held-out notes
+    // towards the recordings (spectrum 5.26 → 3.76 dB, centroid 1.8 → 0 semitones); over the
+    // scaled cello body (pass 1) it had moved them away and was left flat.
+    eq_db: [
+        -5.9, -1.2, -1.0, -3.7, -4.1, -2.5, -2.0, -2.1, 0.6, 6.1, 8.6, 7.1,
+    ],
+    // Pass 2: the noise 8–18 dB under the basses' band, the vibrato ±8 against ±6–7.8.
+    noise_db: 18.0,
+    pizz_decay: 1.0, // pass 4: `BASS_PIZZ_T60` replaces the ring factor 0.67
+    vib_depth: 0.38,
     vib_rate: 1.0,
 };

@@ -24,7 +24,8 @@ Arcus **never falls silent** for want of a controller: the velocity alone plays 
   attack (a harder note accelerates the bow sooner and presses more — a soft one speaks a
   little later, as a real string does, a low string later than a high one).
 - **Overlap two notes** and the second is **slurred**: the bow goes on, the finger moves —
-  at once, with no delay added (the *Finger* time is the finger's own move, 3 ms). **Leave a
+  at once, with no delay added (the *Finger* time is the finger's own move, 30 ms, with the
+  small dip in level a real finger change has). **Leave a
   gap** and it is **bowed again** in the other direction (détaché), the string still ringing.
   The **Play mode** says which: *Legato* (overlaps slur — the default), *Mono* (every note
   bowed again), *Poly* (each note its own string: double stops).

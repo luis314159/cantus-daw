@@ -31,7 +31,7 @@
 //! (`upper_tests_gate`; Schoonderwaldt, Guettler & Askenfelt 2008, doi:10.3813/aaa.918070, the
 //! violin's Schelleng diagram on its D and E strings, read in `downloads/study/papers/s08.txt`).
 
-use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec};
+use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec, RADIATION_DC_HZ};
 use crate::fides::body::BodyKind;
 
 /// A string from Percival's decay rates: the fundamental's T60 and the partials' exponent.
@@ -68,7 +68,14 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     vib_ct: 17.0,
     trim_db: 12.0,
     corner_hz: 6000.0,
-    radiation_hz: 0.0,
+    // Pass 4's: a sustain's swell over its clean start, fitted to the study's violins' rise
+    // (`tools/arcus/upper-measure.sh`, its rise classes against the band).
+    swell_s: (0.70, 0.08),
+    swell_db: (20.0, 10.0),
+    pizz_t60: VIOLIN_PIZZ_T60,
+    // Pass 4's 8 Hz high-pass: the bow's static push reaches the bridge as a DC force no body
+    // radiates (measured on the violin too: `docs/round42/arcus-upper.md` §6).
+    radiation_hz: RADIATION_DC_HZ,
     balance_db_st: 0.0,
     balance_key: 72.0,
     matched: VIOLIN_MATCH,
@@ -96,7 +103,10 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     vib_ct: 16.0,
     trim_db: 8.0,
     corner_hz: 5000.0,
-    radiation_hz: 0.0,
+    swell_s: (0.30, 0.10),
+    swell_db: (20.0, 12.0),
+    pizz_t60: VIOLA_PIZZ_T60,
+    radiation_hz: RADIATION_DC_HZ,
     balance_db_st: 0.0,
     balance_key: 65.0,
     matched: VIOLA_MATCH,
@@ -113,9 +123,8 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
 ///   top two bands follow the band (−4 / −2 dB);
 /// - **the hair's noise** raised to the study's measure (−42 dB re the harmonics at first,
 ///   against the real instruments' −32: `tools/arcus/upper_study.py`);
-/// - **the pluck's ring** shortened by what the Iowa MIS's plucked notes measured (Arcus's
-///   partials 1–4 rang 1.9 octaves of T60 longer on the violin, 1.65 on the viola: Percival's
-///   decays are open strings', a stopped and plucked string loses more to the finger);
+/// - **the pluck's ring**: now the family's T60 table (pass 4, `VIOLIN_PIZZ_T60`), the ring
+///   factor retired;
 /// - **the vibrato** narrower and slower on the violin (the study's band: 6.9 – 10.4 cents,
 ///   4.9 – 5.5 Hz; Arcus measured 17 cents and 6.2 Hz; the viola's was inside its band).
 ///
@@ -126,7 +135,7 @@ pub const VIOLIN_MATCH: Match = Match {
         0.6, 0.6, -5.0, 10.0, 1.4, -1.2, 4.1, -2.4, -5.0, -0.3, -4.0, -2.0,
     ],
     noise_db: 22.0,
-    pizz_decay: 0.27,
+    pizz_decay: 1.0,
     vib_depth: 0.5,
     vib_rate: 0.88,
 };
@@ -141,7 +150,46 @@ pub const VIOLA_MATCH: Match = Match {
         0.0, 0.0, 4.0, 10.0, 1.4, -1.2, 4.1, -0.4, -3.0, 0.0, -4.0, -2.0,
     ],
     noise_db: 18.0,
-    pizz_decay: 0.32,
+    pizz_decay: 1.0,
     vib_depth: 0.9,
     vib_rate: 1.0,
 };
+
+/// The violins' pluck T60 by frequency (the study's `pizz_t60_by_freq`, 3 violins, the bands
+/// with at least two instruments, a point held where the band's notes thin out: 1.9 s at the G
+/// string, 1.2 s at 400 Hz, 0.7 s at 1 kHz, 0.4 s at 3–4 kHz). It replaces the ring factor the
+/// first match fitted from the Iowa plucks (× 0.27: Percival's open-string decays).
+pub const VIOLIN_PIZZ_T60: &[(f64, f64)] = &[
+    (198.0, 1.9),
+    (250.0, 1.5),
+    (315.0, 1.45),
+    (400.0, 1.2),
+    (500.0, 0.9),
+    (630.0, 0.9),
+    (800.0, 0.78),
+    (1000.0, 0.7),
+    (1260.0, 0.68),
+    (1600.0, 0.56),
+    (2000.0, 0.45),
+    (2500.0, 0.44),
+    (3150.0, 0.4),
+    (4000.0, 0.39),
+];
+
+/// The violas' (2 violas; above 2 kHz their few notes read their recordings' floor, so the
+/// table holds 0.5 s there).
+pub const VIOLA_PIZZ_T60: &[(f64, f64)] = &[
+    (157.0, 1.6),
+    (198.0, 1.3),
+    (250.0, 1.3),
+    (315.0, 1.17),
+    (400.0, 1.06),
+    (500.0, 0.95),
+    (630.0, 0.93),
+    (800.0, 0.89),
+    (1000.0, 0.73),
+    (1260.0, 0.62),
+    (1600.0, 0.6),
+    (2000.0, 0.5),
+    (4000.0, 0.5),
+];

@@ -231,6 +231,58 @@ The gate after all of it (`cantus-dsp` `arcus::`, 24 green): pitch 96 of 96 held
 within a cent (median 0.009 ct), attacks 0 of 120 over, the cello's and the bass's bits
 unchanged. The renders and the ABX's `ref\` copies were made again from this state.
 
+### 6. Pass 4 merged (`r42/arcus` 2c2b6f202)
+
+`r42/arcus`'s passes 2 – 4 merged in (conflicts: `arcus_tables.rs` — its old violin and viola
+entries, kept in `upper::tables`; `DEVELOPING.md` and the ADR — both sides kept). What pass 4
+brought, applied to the upper strings and measured the same way (`upper-measure.sh`; logs
+`p4m0.log`, `p4m1.log`):
+
+- **The swell** (`swell_s`, `swell_db`), fitted to the study's rise bands as pass 4 fitted the
+  cello's: the violin 0.70 → 0.08 s from 20 → 10 dB under (its players hold back longest:
+  the band's soft rise 0.33 – 0.50 s), the viola 0.30 → 0.10 s from 20 → 12 dB. **Every rise
+  class inside on both, at the first fit** (below).
+- **The pluck's T60 by frequency** (`pizz_t60`): `VIOLIN_PIZZ_T60` and `VIOLA_PIZZ_T60` from the
+  study's `pizz_t60_by_freq` (3 violins, 2 violas; points held where their notes thin out); the
+  first match's ring factors (× 0.27 / 0.32) retired to 1. Against the Iowa plucks
+  (`upper-compare.sh`): the pluck's spectrum came far closer (harmonics 1–12 49 → 26 dB rms on the violin, 38 → 17 on the
+  viola: the pluck's noise 0.15 → 0.03), **its decay measured worse against Iowa** (partials 1–4 +0.07 → +0.39
+  octave of T60 on the violin, +0.03 → +0.54 on the viola): the table is the study's band across
+  instruments, the old factor was fitted to Iowa's one violin and one viola — kept, as pass 4 keeps the cello's.
+- **The 8 Hz radiation high-pass**: measured with and without on the upper strings — the rise
+  is the same either way (their body's modes are band-passes: it never passed the bow's DC as
+  Fides's cello body did), the attack's noise burst 1.2 dB (violin) and 2.0 dB (viola) lower
+  with it. Kept, as the cello's.
+- **The thermal law** (`arcus_string.rs`, `r42:arcus-p4`): the hyperbolic default untouched;
+  the upper strings' hyperbolic path unchanged to the bit.
+
+| Gate | Before the merge | After |
+|---|---|---|
+| Bowed pitch, violin + viola, 96 held out | 96 / 96 within a cent, median 0.009 ct | 96 / 96, median 0.009 ct (unchanged) |
+| Bowed pitch, cello + bass, 168 held out | 168 / 168, median 0.012 ct | 168 / 168, median 0.015 ct |
+| Attacks, violin + viola (Guettler & Askenfelt) | 0 / 120 over, worst violin key 90 ff 63 ms of 90 | 0 / 120, worst violin key 90 ff 63 ms of 90 (unchanged) |
+| Attacks, cello + bass | 0 / 80 over, worst bass key 33 219 ms of 321 | 0 / 80, worst bass key 28 285 ms of 428 |
+| The cello's and bass's bits | 7 hashes on 58cafea8e | re-measured on 2c2b6f202 (moved on purpose by pass 4), held |
+
+| Study estimator, all dynamics | Before the merge (violin / viola) | After | Band (violin / viola) |
+|---|---|---|---|
+| attack rise, soft | 0.012 / 0.016 s | **0.404 / 0.182 inside** | 0.33–0.50 / 0.06–0.44 |
+| attack rise, medium | 0.010 / 0.018 s | **0.288 / 0.142 inside** | 0.26–0.38 / 0.07–0.27 |
+| attack rise, loud | 0.010 / 0.022 s | **0.090 / 0.078 inside** | 0.03–0.11 / 0.07–0.09 |
+| attack to steady | 0.078 / 0.058 s | 0.207 / 0.102 (under, better) | 0.48–0.54 / 0.27–0.47 |
+| attack noise burst | 22.9 / 22.8 dB | 21.1 / 19.9 inside | 14.6–47.3 / 11.9–30.1 |
+| release decay | 153 / 112 dB/s | 153 / 113 (over, **unchanged**) | 17–50 / 2–63 |
+| spectral centroid | 1 580 / 982 Hz | 1 579 / 980 (unchanged) | 1 530–1 732 / 986–1 117 |
+| vibrato AM, partials 2–12 | ±1.38 / ±1.54 dB | ±1.44 / ±1.56 (13 / 5 of 20 inside) | median ±1.71 / ±1.92 |
+| CNSM long-term spectrum | 4.9 / 3.8 / 5.1 dB | 4.8 / 3.7 / 5.1 dB | violins 2.3–3.4 |
+
+**Measured worse:** the plucks' decay against Iowa (above); the release is still over the band — the bow's lift
+and `ring_s` are the shared gesture's (the cello's came in with the DC fix, the upper strings'
+did not move, since they never carried the DC); the plain presets ring 1.6 s.
+
+The renders: `F:\projects\daw-r42\listen\arcus-upper\` made again from this state; the earlier
+set in `before-pass4\` (with its `abx.html` and `ref\`).
+
 ## Renders for the owner
 
 `F:\projects\daw-r42\listen\arcus-upper\`: per instrument `*-note-{pp,mf,ff}`,

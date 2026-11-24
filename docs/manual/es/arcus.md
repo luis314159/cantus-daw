@@ -24,7 +24,8 @@ Arcus **nunca se queda en silencio** por falta de un controlador: la velocidad s
   músicos) y su ataque (una nota más fuerte acelera el arco antes y aprieta más — una suave
   habla un poco más tarde, como una cuerda real, una cuerda grave más tarde que una aguda).
 - **Solapa dos notas** y la segunda se **liga**: el arco sigue, el dedo se mueve — al
-  instante, sin retardo añadido (el tiempo de *Dedo* es el movimiento del dedo, 3 ms). **Deja
+  instante, sin retardo añadido (el tiempo de *Dedo* es el movimiento del dedo, 30 ms, con la
+  pequeña caída de nivel que tiene un cambio de dedo real). **Deja
   un hueco** y se toca con **arco nuevo** en la otra dirección (détaché), la cuerda aún
   sonando. El **Modo** dice cuál: *Legato* (los solapes ligan — por defecto), *Mono* (cada nota
   con arco nuevo), *Poli* (cada nota su cuerda: dobles cuerdas).

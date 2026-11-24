@@ -251,6 +251,13 @@ pub struct Voice {
     pub(super) trim: f64,
     /// The pitch loop's ear (`ear`): the fundamental heard against the target.
     pub(super) ear: super::ear::Ear,
+    /// The level's envelope (round 42 pass 2): samples since the note began, a sustain's
+    /// swell (its length in samples and its starting gain), a slur's dip (where it began and
+    /// its length), and the gains at the last and this control step.
+    lvl_t: u32,
+    swell: (f32, f32),
+    dip: (u32, f32),
+    lvl: (f32, f32),
     /// The register's balance on the output (`InstrumentSpec::balance_db_st`), linear.
     balance: f32,
     fade: f32,
@@ -321,6 +328,10 @@ impl Voice {
             stop_lift: false,
             trim: 0.0,
             ear: super::ear::Ear::default(),
+            lvl_t: 0,
+            swell: (0.0, 1.0),
+            dip: (0, 0.0),
+            lvl: (1.0, 1.0),
             balance: 1.0,
             fade: 1.0,
             fade_step: 0.0,

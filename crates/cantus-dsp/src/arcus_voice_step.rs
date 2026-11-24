@@ -11,6 +11,8 @@ const STOP_S: f32 = 0.04;
 const STOP_LIFT_S: f32 = 0.025;
 /// The bow's usable length, m (a cello bow's hair is about 0.65 m).
 const BOW_M: f32 = 0.65;
+/// A slur's level dip, dB at the middle of the finger's change (the study §2.10).
+const DIP_DB: f32 = 3.0;
 /// The pitch loop: it moves by `TRIM_GAIN` of what each of its ear's windows heard, never
 /// more than `TRIM_STEP` cents a move.
 const TRIM_GAIN: f64 = 0.6;
@@ -65,7 +67,8 @@ impl Voice {
             }
         };
         let var = s.vib_var.clamp(0.0, 1.0);
-        let widen = 1.0 + 0.12 * oct + 0.2 * (self.d - 0.5);
+        // Wider high, and wider loud (the study §3.5: the cello ±8 → ±13 cents soft to loud).
+        let widen = (1.0 + 0.12 * oct) * (0.75 + 0.5 * self.d);
         let depth = spec.vib_ct
             * s.vib_depth
             * amount
@@ -98,8 +101,21 @@ impl Voice {
         // a lifted note shorter still.
         let stopped = (st.open_hz() / f).clamp(0.1, 1.0);
         let mut t60 = st.t60_s * s.decay.max(0.05) as f64 * (0.55 + 0.45 * stopped);
+        let mut p_loss = st.p;
         if plucked {
-            t60 *= s.pizz_decay.max(0.05) as f64;
+            if spec.pizz_t60.is_empty() {
+                t60 *= s.pizz_decay.max(0.05) as f64;
+            } else {
+                // Pass 4: the references' T60 by frequency, at the fundamental and the
+                // eighth partial (the loss's two design points), the controls on top.
+                let k = (s.decay.max(0.05) * s.pizz_decay.max(0.05)) as f64;
+                let (t1, t8) = (
+                    super::super::tables::t60_at(spec.pizz_t60, f),
+                    super::super::tables::t60_at(spec.pizz_t60, 8.0 * f),
+                );
+                t60 = t1 * k;
+                p_loss = (math::ln(t1 / t8) / math::ln(8.0)).max(0.0);
+            }
         }
         if self.released && !self.bowing {
             t60 = t60.min(s.ring_s.max(0.05) as f64);
@@ -161,7 +177,7 @@ impl Voice {
         let step = StringStep {
             f0: f * math::exp2(-corr / 1200.0),
             t60,
-            p: st.p,
+            p: p_loss,
             beta: if plucked { s.pizz_pos as f64 } else { bw.beta },
             dc: !self.bow_on,
             corner_hz: super::super::upper::corner_hz(self.inst, spec.corner_hz, f), // r42:arcus-upper
@@ -178,7 +194,7 @@ impl Voice {
             self.sus[..span].fill(0.0);
             let est = ExcStep {
                 level: 1.0,
-                noise: 0.15,
+                noise: super::run::PLUCK_NOISE,
                 ..ExcStep::default()
             };
             self.pluck.render(
@@ -195,6 +211,22 @@ impl Voice {
                 *x *= g;
             }
         }
+        // The level's envelope at this step's end: a sustain's swell, a slur's dip.
+        let t_end = self.lvl_t + span as u32;
+        let mut g = 1.0f32;
+        if self.swell.0 > 0.0 && (t_end as f32) < self.swell.0 {
+            g = self.swell.1 + (1.0 - self.swell.1) * smooth(t_end as f32 / self.swell.0);
+        }
+        if self.dip.1 > 0.0 {
+            let e = t_end.saturating_sub(self.dip.0) as f32;
+            if e < self.dip.1 {
+                g *= math::db_to_gain(-DIP_DB * math::sin(std::f32::consts::PI * e / self.dip.1));
+            } else {
+                self.dip.1 = 0.0;
+            }
+        }
+        self.lvl = (self.lvl.1, g);
+        self.lvl_t = t_end;
         self.span = span;
         self.pos = 0;
         self.first = false;
@@ -362,6 +394,10 @@ impl Voice {
             }
             for j in 0..k {
                 let mut x = self.tmp[j];
+                if self.lvl != (1.0, 1.0) {
+                    let u = (a + j + 1) as f32 / self.span as f32;
+                    x *= self.lvl.0 + (self.lvl.1 - self.lvl.0) * u;
+                }
                 if self.fade_step > 0.0 {
                     self.fade = (self.fade - self.fade_step).max(0.0);
                     x *= self.fade;

@@ -48,6 +48,9 @@ mod tests_gate;
 #[path = "arcus_tests_gate2.rs"]
 mod tests_gate2;
 #[cfg(test)]
+#[path = "arcus_tests_p4.rs"]
+mod tests_p4;
+#[cfg(test)]
 #[path = "arcus_tests_pitch.rs"]
 mod tests_pitch;
 #[path = "arcus_upper.rs"] // r42:arcus-upper
@@ -276,7 +279,7 @@ impl Default for ArcusSettings {
             technique: Technique::Arco,
             poly: 4,
             mode: PlayMode::Legato,
-            finger_ms: 3.0,
+            finger_ms: 30.0,
             porta_ms: 0.0,
             bend_st: 2.0,
             transpose_st: 0.0,
