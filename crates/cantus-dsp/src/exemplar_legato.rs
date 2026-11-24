@@ -10,9 +10,10 @@
 //! - **How.** The new note's layers start past their attack ([`Globals::legato_skip_ms`]),
 //!   silent, and fade in over the crossfade while the old note's fade out (`x(2 − x)` each:
 //!   within half a decibel of equal power); both glide — the new from the old pitch, the old
-//!   toward the new — over the glide. Crossfade and glide lengthen with the interval: a
-//!   twelfth more per semitone, at most twice. The old note plays no release samples (the
-//!   line goes on) and keeps its key until its own note-off.
+//!   toward the new — over the glide, between the two keys' tuned pitches (ADR 0155).
+//!   Crossfade and glide lengthen with the interval: a twelfth more per semitone, at most
+//!   twice. The old note plays no release samples (the line goes on) and keeps its key until
+//!   its own note-off.
 //! - **Look-ahead.** A clip's legato note ties the note before it ahead of time, when the
 //!   snapshot compiles (`cantus_core::note_art::tie_legato`), so the overlap is there to
 //!   slur from even when the notes were drawn end to end.
@@ -72,7 +73,12 @@ impl Exemplar {
     /// Slur from the note in slot `from` into the one just started in slot `to`.
     pub(super) fn slur(&mut self, from: usize, to: usize) {
         self.start_skip_ms = 0.0;
-        let d = self.slots[to].key as f64 - self.slots[from].key as f64;
+        // r42 fix2-arcus — between the two keys' **tuned** pitches (ADR 0155), as the mono
+        // glide is (`glide_slot`): each layer's pitch already holds its own key's offset, so
+        // the new one starts at the old one's tuned pitch and the old one ends at the new
+        // one's (before, the 12-TET interval: both missed by the offsets' difference).
+        let tuned = |k: u8| k as f64 + f64::from(crate::tuning::at(&self.tuning, k));
+        let d = tuned(self.slots[to].key) - tuned(self.slots[from].key);
         let scale = (1.0 + d.abs() / 12.0).min(2.0) as f32;
         let ms = self.fs / 1000.0;
         let xf = (self.globals.legato_xf_ms.max(0.0) * scale * ms).max(1.0);

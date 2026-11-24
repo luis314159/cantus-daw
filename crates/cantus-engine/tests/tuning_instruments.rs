@@ -682,3 +682,120 @@ fn chorda_s_own_a4_is_its_diapason_only_where_the_track_plays_no_tuning() {
     let b = offline(&project(&c440, &KEYS[1..3], t), 256);
     assert_null(&b, &a, 0.0, "Chorda's a4 under a tuning");
 }
+
+/// r42 fix2-arcus (review finding 9) — Arcus's four instruments, bowed, keys across each
+/// one's range: each key's measured pitch is its table's within ADR 0155's cent for the bowed
+/// string, under Werckmeister III in E flat at A415 (the project's) and a 5-limit just scale
+/// of the track's own. The measure is absolute (the bowed pitch's own loop holds it to the
+/// table, as `arcus::tests_pitch` holds 12-TET): the strongest of the first six harmonics,
+/// its frequency over its number against the table's.
+#[test]
+fn arcus_plays_each_key_at_its_table_s_pitch_within_a_cent() {
+    use cantus_core::tuning::{ScalaScale, ScaleDegree};
+    let just = Tuning {
+        a4_hz: 440.0,
+        system: TuningSystem::Scale(ScalaScale {
+            description: "5-limit just".into(),
+            degrees: [
+                (16, 15),
+                (9, 8),
+                (6, 5),
+                (5, 4),
+                (4, 3),
+                (45, 32),
+                (3, 2),
+                (8, 5),
+                (5, 3),
+                (9, 5),
+                (15, 8),
+                (2, 1),
+            ]
+            .into_iter()
+            .map(|(n, d)| ScaleDegree::Ratio(n, d))
+            .collect(),
+        }),
+        map: None,
+    };
+    let insts: [(Inst, [u8; 4]); 4] = [
+        (
+            Inst {
+                name: "arcus cello",
+                kind: Some(InstrumentKind::BowedString),
+                set: &[("inst", 0.0), ("vib.depth", 0.0)],
+            },
+            [38, 45, 52, 59],
+        ),
+        (
+            Inst {
+                name: "arcus bass",
+                kind: Some(InstrumentKind::BowedString),
+                set: &[("inst", 1.0), ("vib.depth", 0.0)],
+            },
+            [31, 36, 41, 47],
+        ),
+        (
+            Inst {
+                name: "arcus violin",
+                kind: Some(InstrumentKind::BowedString),
+                set: &[("inst", 2.0), ("vib.depth", 0.0)],
+            },
+            [57, 64, 71, 78],
+        ),
+        (
+            Inst {
+                name: "arcus viola",
+                kind: Some(InstrumentKind::BowedString),
+                set: &[("inst", 3.0), ("vib.depth", 0.0)],
+            },
+            [50, 57, 64, 71],
+        ),
+    ];
+    let mut worst = 0.0f64;
+    let mut failed = Vec::new();
+    for (inst, keys) in &insts {
+        for own in [false, true] {
+            let (p, table) = if own {
+                let mut p = project(inst, keys, Tuning::default());
+                p.tracks[0].tuning = TrackTuning::Own {
+                    tuning: just.clone(),
+                };
+                (p, just.offsets())
+            } else {
+                let t = werck3_e_flat_415();
+                (project(inst, keys, t.clone()), t.offsets())
+            };
+            let x = left(&offline(&p, 256));
+            for (i, &key) in keys.iter().enumerate() {
+                let want =
+                    440.0 * math::exp2((f64::from(key) + f64::from(table.at(key)) - 69.0) / 12.0);
+                let start = i * 2 * SR as usize + SR as usize / 2;
+                let (h, f) = (1..=6usize)
+                    .filter(|h| want * *h as f64 * 1.03 < f64::from(SR) * 0.45)
+                    .map(|h| {
+                        let (m, f) = partial(&x, start, want * h as f64);
+                        (m, h, f)
+                    })
+                    .max_by(|a, b| a.0.total_cmp(&b.0))
+                    .map(|(_, h, f)| (h, f))
+                    .unwrap();
+                let err = 1200.0 * math::log2(f / (h as f64 * want));
+                worst = worst.max(err.abs());
+                println!(
+                    "{:13} {} key {key:3}: harmonic {h}, {:9.3} Hz for {:9.3} ({err:+.3} c)",
+                    inst.name,
+                    if own { "own just" } else { "W.III 415" },
+                    f / h as f64,
+                    want
+                );
+                if err.abs() > 1.0 {
+                    failed.push(format!("{} key {key} ({own}): {err:+.3} c", inst.name));
+                }
+            }
+        }
+    }
+    println!("worst: {worst:.3} c");
+    assert!(
+        failed.is_empty(),
+        "off their table by more than a cent: {failed:?}"
+    );
+}

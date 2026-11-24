@@ -89,7 +89,15 @@ impl Voice {
         };
         self.vib_age = self.vib_age.saturating_add(span as u32);
         // The pitch: the key, the slur, the bend, MPE's tuning and the track's (ADR 0155).
-        let tun = sh.tuning[(self.key as usize).min(127)];
+        // r42 fix2-arcus: the table is followed while it moves (an MTS-ESP master retunes a
+        // held note) but a key it turns unmapped (`NAN`) under a held note keeps the last
+        // offset — the note sounds on at its pitch, and nothing that is not a number reaches
+        // the string.
+        let now = sh.tuning[(self.key as usize).min(127)];
+        if now.is_finite() {
+            self.tune = now;
+        }
+        let tun = self.tune;
         let semis =
             (self.note + self.glide + sh.ctl.bend * s.bend_st + self.tuning) as f64 + tun as f64;
         let f = 440.0 * math::exp2((semis + 0.01 * self.vib_now as f64 - 69.0) / 12.0);
@@ -224,6 +232,14 @@ impl Voice {
             } else {
                 self.dip.1 = 0.0;
             }
+        }
+        // r42 fix2-arcus: past what the loop can play in tune, the note fades out (1 to the
+        // bit for every note an instrument has).
+        let top = top_gain(sr as f64 / f, super::super::string::SHORTEST);
+        g *= top;
+        if self.first && top < 1.0 {
+            // A note that starts past the top is quiet from its first sample.
+            self.lvl.1 *= top;
         }
         self.lvl = (self.lvl.1, g);
         self.lvl_t = t_end;

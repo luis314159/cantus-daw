@@ -164,6 +164,12 @@ impl Arcus {
         &self.voices
     }
 
+    /// r42 fix2-arcus — the exact power measures (`O(n²)` each) the violin's and the viola's
+    /// body has taken: a modulated size takes none, a modulated ring at most its lattice.
+    pub fn body_measures(&self) -> u32 {
+        self.upper_body.measures()
+    }
+
     pub fn newest(&self) -> &Voice {
         &self.voices[self.newest.min(MAX_VOICES - 1)]
     }
@@ -203,39 +209,46 @@ impl Arcus {
                 velocity,
                 stolen,
             } => {
-                // A slur its own art asks for, on a mono voice still bowed.
+                // A slur its own art asks for, on a mono voice still bowed (a sustained or
+                // tremolo note: a staccato's or a spiccato's stroke is not slurred out of).
                 let slur = art == Some(Art::Legato)
                     && mono
                     && voice < MAX_VOICES
                     && self.voices[voice].active()
-                    && !self.voices[voice].is_plucked();
+                    && matches!(
+                        self.voices[voice].technique(),
+                        NoteTech::Arco | NoteTech::Tremolo
+                    );
                 if slur {
-                    self.glide(voice, key, id, velocity);
+                    self.glide(voice, key, id, velocity, Some(NoteTech::Arco));
                 } else {
                     self.start(voice, key, id, velocity, stolen, art, own_bow, silent);
                 }
             }
             Action::Glide { voice, key, id } => {
-                let detache = matches!(
-                    art,
-                    Some(
-                        Art::Sustain
-                            | Art::Staccato
-                            | Art::Spiccato
-                            | Art::Pizzicato
-                            | Art::Tremolo
-                    )
-                );
-                let plucked = self.voices.get(voice).is_some_and(|v| v.is_plucked());
                 if voice >= MAX_VOICES {
                     return;
                 }
-                if detache || plucked || self.s.technique != Technique::Arco {
-                    // An overlapped note asked to be re-bowed (or a plucked or tremolo
-                    // instrument, which never slurs): the string rings on, the bow changes.
-                    self.start(voice, key, id, velocity, false, art, own_bow, false);
+                let sounding = self.voices[voice].technique();
+                // r42 fix2-arcus — an overlapped note's own articulation reads as Exemplar's
+                // does (ADR 0158, the sample libraries' convention): a sustain, a legato or
+                // a tremolo slurs out of a sustained (or tremolo) note; a staccato, a
+                // spiccato or a pizzicato is its own stroke. A note without one keeps the
+                // instrument's rule: an arco instrument slurs, a plucked or tremolo one
+                // never does.
+                let slur = match art {
+                    Some(Art::Sustain | Art::Legato | Art::Tremolo) => {
+                        matches!(sounding, NoteTech::Arco | NoteTech::Tremolo)
+                    }
+                    Some(Art::Staccato | Art::Spiccato | Art::Pizzicato) => false,
+                    None => sounding != NoteTech::Pizzicato && self.s.technique == Technique::Arco,
+                };
+                if slur {
+                    let tech = art.map(|a| NoteTech::of(self.s.technique, Some(a)));
+                    self.glide(voice, key, id, velocity, tech);
                 } else {
-                    self.glide(voice, key, id, velocity);
+                    // The string rings on, the bow changes (or the finger plucks again).
+                    self.start(voice, key, id, velocity, false, art, own_bow, false);
                 }
             }
             Action::Release { voice } => {
@@ -247,7 +260,7 @@ impl Arcus {
         }
     }
 
-    fn glide(&mut self, voice: usize, key: u8, id: u64, velocity: f32) {
+    fn glide(&mut self, voice: usize, key: u8, id: u64, velocity: f32, tech: Option<NoteTech>) {
         let sh = Shared {
             s: &self.s,
             sr: self.sr,
@@ -258,7 +271,7 @@ impl Arcus {
             table: self.table,
             clock: self.clock,
         };
-        self.voices[voice].glide_to(&sh, key, id, velocity);
+        self.voices[voice].glide_to(&sh, key, id, velocity, tech);
         self.newest = voice;
     }
 

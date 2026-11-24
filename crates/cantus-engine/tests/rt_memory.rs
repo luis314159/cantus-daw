@@ -4520,33 +4520,61 @@ fn articulated_notes_never_allocate() {
     );
 }
 
-/// r42:arcus — Arcus (ADR 0157) on the audio thread and the pool: a cello slurring and
-/// re-bowing, a pizzicato double bass in poly, live notes, a seek and a stop —
-/// not one allocation, not one free.
-#[test]
-fn an_arcus_never_allocates() {
+/// r42 fix2-arcus — one Arcus run on the audio thread and the pool, for both tests below:
+/// two tracks of `tracks`' settings, each with a route from the mod wheel to the body's size
+/// and to its ring, playing a line whose notes carry their own articulations (a sustain up-bow,
+/// a tremolo slurred out of it, a staccato, a pizzicato, a legato after it), in Werckmeister
+/// III at A415; a live note on the first; the mod wheel swept live; the first track's
+/// instrument switched to `switch` inside the same instance (its voices to another rate:
+/// `enter_rate`, `set_rate`) while it plays; the project moved to the MTS-ESP master's tuning
+/// (refreshed every block); a seek and a stop. Not one allocation, not one free.
+fn arcus_rig(tracks: [(&str, Vec<(&str, f32)>); 2], keys: [u8; 5], live: u8, switch: f32) {
+    use cantus_core::inst::modulation::SLOTS;
+    use cantus_core::note_art::{Articulation, Bow, NoteArt};
     for workers in [None, Some(Workers::parallel(3))] {
         let mut p = demo_project();
         p.tempo_bpm = 120.0;
+        p.tuning = cantus_core::tuning::Tuning {
+            a4_hz: 415.0,
+            system: cantus_core::tuning::TuningSystem::Temperament {
+                id: cantus_core::tuning::Temperament::WerckmeisterIii,
+                key: 3,
+                follow_song_key: false,
+            },
+            map: None,
+        };
         let mut ids = Vec::new();
-        for (name, set) in [
-            ("Cello", vec![("mode", 2.0f32)]),
-            (
-                "Bass pizz",
-                vec![("inst", 1.0), ("tech", 1.0), ("mode", 0.0)],
-            ),
-        ] {
-            let mut t = p.make_track(name);
+        for (name, set) in &tracks {
+            let mut t = p.make_track(*name);
             ids.push(t.id);
             let mut spec = NativeSpec::new(InstrumentKind::BowedString);
             for (k, v) in set {
-                spec.set(k, v).unwrap();
+                spec.set(k, *v).unwrap();
+            }
+            for (slot, dst, amt) in [(8usize, "body.size", 0.6f32), (9, "body.ring", -0.5)] {
+                let k = SLOTS[slot];
+                spec.set_text(k.src, Some("mw".into())).unwrap();
+                spec.set_text(k.dst, Some(dst.into())).unwrap();
+                spec.set(k.amt, amt).unwrap();
+                spec.set(k.on, 1.0).unwrap();
             }
             t.instrument = InstrumentSpec::Native(spec);
             let mut c = p.make_clip("line", Ticks::ZERO, Ticks::beats(8));
-            for (b, key, len) in [(0i64, 50u8, 3i64), (2, 53, 2), (4, 57, 1), (6, 55, 2)] {
-                c.notes
-                    .push(p.make_note(Ticks::beats(b), Ticks::beats(len), key, 90));
+            let arts = [
+                (Articulation::Sustain, Some(Bow::Up)),
+                (Articulation::Tremolo, None),
+                (Articulation::Staccato, None),
+                (Articulation::Pizzicato, None),
+                (Articulation::Legato, None),
+            ];
+            let times = [(0i64, 3i64), (2, 2), (4, 1), (5, 2), (6, 2)];
+            for ((key, (b, len)), (a, bow)) in keys.iter().zip(times).zip(arts) {
+                let mut n = p.make_note(Ticks::beats(b), Ticks::beats(len), *key, 90);
+                n.art = Some(NoteArt {
+                    articulation: a,
+                    bow,
+                });
+                c.notes.push(n);
             }
             t.clips.push(c);
             p.tracks.push(t);
@@ -4561,19 +4589,52 @@ fn an_arcus_never_allocates() {
         rig.tx.push(EngineMessage::Play).unwrap();
         rig.play("arcus start", 40);
         rig.tx
+            .push(EngineMessage::SetLiveTrack(Some(ids[0])))
+            .unwrap();
+        rig.tx
             .push(EngineMessage::NoteOn {
                 track: ids[0],
-                pitch: 62,
+                pitch: live,
                 velocity: 110,
             })
             .unwrap();
-        rig.play("arcus live note", 20);
+        // The mod wheel swept: the body's size and ring move under the notes.
+        for step in 0..12u8 {
+            rig.tx
+                .push(EngineMessage::Midi(MidiEvent {
+                    status: 0xB0,
+                    data1: 1,
+                    data2: step * 10,
+                }))
+                .unwrap();
+            rig.play("arcus body modulated", 2);
+        }
         rig.tx
             .push(EngineMessage::NoteOff {
                 track: ids[0],
-                pitch: 62,
+                pitch: live,
             })
             .unwrap();
+        // Another instrument in the same instance, while it plays.
+        let first = p.tracks.iter().position(|t| t.id == ids[0]).unwrap();
+        if let InstrumentSpec::Native(spec) = &mut p.tracks[first].instrument {
+            spec.set("inst", switch).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.play("arcus instrument switched", 40);
+        // The MTS-ESP master's tuning, read every block.
+        let link: Arc<dyn cantus_engine::tuning::ExternalTuning> =
+            Arc::new(MovingMaster::default());
+        rig.tx
+            .push(EngineMessage::SetExternalTuning(link.clone()))
+            .unwrap();
+        p.tuning = cantus_core::tuning::Tuning {
+            system: cantus_core::tuning::TuningSystem::External,
+            ..Default::default()
+        };
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
+        rig.play("arcus following the master", 60);
         rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
         rig.play("arcus seek", 30);
         rig.tx.push(EngineMessage::Stop).unwrap();
@@ -4584,71 +4645,47 @@ fn an_arcus_never_allocates() {
             rig.allocations,
             FIRST.with(|f| f.get())
         );
+        drop(link);
     }
-} // r42:arcus
+}
 
-/// r42:arcus-upper — the violin and the viola (their voices at 4× the rate, the way back,
-/// the fitted body): no allocation, with the pool and without.
+/// r42:arcus — Arcus (ADR 0157) on the audio thread and the pool: a cello slurring and
+/// re-bowing, a pizzicato double bass in poly, live notes, a seek and a stop — and (r42
+/// fix2-arcus) the notes' own articulations, a modulated body, a temperament, the MTS-ESP
+/// refresh and the cello switched to the violin in the same instance — not one allocation,
+/// not one free.
+#[test]
+fn an_arcus_never_allocates() {
+    arcus_rig(
+        [
+            ("Cello", vec![("mode", 2.0f32)]),
+            (
+                "Bass pizz",
+                vec![("inst", 1.0), ("tech", 1.0), ("mode", 0.0)],
+            ),
+        ],
+        [50, 53, 57, 55, 59],
+        62,
+        2.0,
+    );
+}
+
+/// r42:arcus-upper — the violin and the viola (ADR 0157's amendment): their voices at 4×
+/// and 2× with the way back, their measured body, on the audio thread and the pool — and
+/// (r42 fix2-arcus) the same articulations, modulation and tunings, the violin switched to
+/// the cello (its voices back to 1×) — not one allocation, not one free.
 #[test]
 fn an_arcus_violin_and_viola_never_allocate() {
-    for workers in [None, Some(Workers::parallel(3))] {
-        let mut p = demo_project();
-        p.tempo_bpm = 120.0;
-        let mut ids = Vec::new();
-        for (name, set) in [
+    arcus_rig(
+        [
             ("Violin", vec![("inst", 2.0f32), ("mode", 2.0)]),
             (
                 "Viola pizz",
                 vec![("inst", 3.0), ("tech", 1.0), ("mode", 0.0)],
             ),
-        ] {
-            let mut t = p.make_track(name);
-            ids.push(t.id);
-            let mut spec = NativeSpec::new(InstrumentKind::BowedString);
-            for (k, v) in set {
-                spec.set(k, v).unwrap();
-            }
-            t.instrument = InstrumentSpec::Native(spec);
-            let mut c = p.make_clip("line", Ticks::ZERO, Ticks::beats(8));
-            for (b, key, len) in [(0i64, 74u8, 3i64), (2, 77, 2), (4, 81, 1), (6, 79, 2)] {
-                c.notes
-                    .push(p.make_note(Ticks::beats(b), Ticks::beats(len), key, 90));
-            }
-            t.clips.push(c);
-            p.tracks.push(t);
-        }
-        let pool = workers.is_some();
-        let mut rig = Rig::with(workers);
-        let snap = Snapshot::compile(&p, 1);
-        for u in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
-            rig.tx.push(EngineMessage::AddInstrument(u)).unwrap();
-        }
-        rig.snapshot(&p);
-        rig.tx.push(EngineMessage::Play).unwrap();
-        rig.play("arcus upper start", 40);
-        rig.tx
-            .push(EngineMessage::NoteOn {
-                track: ids[0],
-                pitch: 88,
-                velocity: 110,
-            })
-            .unwrap();
-        rig.play("arcus upper live note", 20);
-        rig.tx
-            .push(EngineMessage::NoteOff {
-                track: ids[0],
-                pitch: 88,
-            })
-            .unwrap();
-        rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
-        rig.play("arcus upper seek", 30);
-        rig.tx.push(EngineMessage::Stop).unwrap();
-        rig.play("arcus upper stopped", 20);
-        assert!(
-            rig.allocations.iter().all(|(_, n)| *n == 0),
-            "pool {pool}: the audio thread allocated or freed: {:?} (first: {} B)",
-            rig.allocations,
-            FIRST.with(|f| f.get())
-        );
-    }
+        ],
+        [74, 77, 81, 79, 83],
+        88,
+        0.0,
+    );
 } // r42:arcus-upper

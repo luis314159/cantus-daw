@@ -71,13 +71,16 @@ impl Voice {
         self.fade = 1.0;
         self.fade_step = 0.0;
         self.note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
+        // r42 fix2-arcus: the key's tuned offset where the key becomes the note — the attack's
+        // bowing, the pluck and the string it is played on all hear it (ADR 0155).
+        self.tune = crate::tuning::at(sh.tuning, key);
         self.glide = 0.0;
         self.glide_step = 0.0;
         self.tuning = 0.0;
         self.has_press = false;
         self.slide = 0.5;
         let spec = self.inst.spec();
-        self.string_ix = spec.string_for(self.note);
+        self.string_ix = spec.string_for(self.note + self.tune);
         let d_t = self.dynamic_target(sh);
         if !keep {
             self.d = d_t;
@@ -131,7 +134,7 @@ impl Voice {
                 noise_band: Biquad::band(2000.0, 3.0, sh.sr),
                 ..ExcStep::default()
             };
-            let f0 = 440.0 * math::exp2((self.note - 69.0) / 12.0);
+            let f0 = 440.0 * math::exp2((self.note + self.tune - 69.0) / 12.0);
             let rng = self.rng;
             self.pluck.start(
                 &est,
@@ -150,7 +153,7 @@ impl Voice {
         // (the Guettler region measured on this model, `docs/round42/arcus.md`).
         let z0 = spec.strings[self.string_ix].z0();
         let open_hz = spec.strings[self.string_ix].open_hz(); // r42:arcus-upper
-        let f = 440.0 * math::exp2((self.note as f64 - 69.0) / 12.0);
+        let f = 440.0 * math::exp2((self.note as f64 + self.tune as f64 - 69.0) / 12.0);
         let bw = bowing(
             spec,
             self.d as f64,
@@ -192,18 +195,39 @@ impl Voice {
     }
 
     /// A slur to `key`: the bow goes on, the finger moves (at once, or as a portamento when
-    /// asked); a key let go and returned to is held again.
-    pub fn glide_to(&mut self, sh: &Shared, key: u8, id: u64, velocity: f32) {
+    /// asked) between the two keys' **tuned** pitches; a key let go and returned to is held
+    /// again. `tech`: the new note's way of bowing when its own articulation slurs it (a
+    /// sustain into a tremolo, a tremolo into a sustain — ADR 0158), `None` to keep the
+    /// voice's.
+    pub fn glide_to(
+        &mut self,
+        sh: &Shared,
+        key: u8,
+        id: u64,
+        velocity: f32,
+        tech: Option<NoteTech>,
+    ) {
         let sh_rate = self.at_rate(sh); // r42:arcus-upper
         let sh = &sh_rate; // r42:arcus-upper
         let s = sh.s;
-        let was = self.note + self.glide;
+        // r42 fix2-arcus: where the finger is, its tuned offset in it (before, the slur
+        // started at the old key's 12-TET pitch plus the new key's offset, a jump of the
+        // offsets' difference at once — 61 cents on a one-key slur in 31-EDO).
+        let was = self.note + self.glide + self.tune;
         self.key = key;
         self.id = id;
         let _ = velocity;
         self.note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
-        self.glide = was - self.note;
+        self.tune = crate::tuning::at(sh.tuning, key);
+        self.glide = was - self.note - self.tune;
         self.tuning = 0.0;
+        if let Some(t) = tech.filter(|t| *t != self.tech) {
+            // The bowing changes with the finger: a tremolo starts its strokes afresh.
+            self.tech = t;
+            if self.phase == Phase::Hold {
+                self.t = 0;
+            }
+        }
         // The finger's change dips the level (the study §2.10: ~3 dB over the change).
         self.dip = (self.lvl_t, s.finger_ms.max(0.0) * 0.001 * sh.sr);
         // The ear starts over on the new note (a window across the change hears neither).
@@ -223,7 +247,7 @@ impl Voice {
             self.glide_step = self.glide / samples;
         }
         let spec = self.inst.spec();
-        let ix = spec.string_for(self.note);
+        let ix = spec.string_for(self.note + self.tune);
         if ix != self.string_ix {
             self.string_ix = ix;
             self.string.set_z0(spec.strings[ix].z0() as f32);

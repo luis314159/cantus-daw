@@ -15,10 +15,18 @@ pub struct MatchEq {
     c: [[f32; 5]; EQ_BANDS],
     /// Transposed direct form II states, per channel and section.
     z: [[[f32; 2]; EQ_BANDS]; 2],
+    /// r42 fix2-arcus — the gains and the rate it was designed for (the bits): a modulated
+    /// instance's settings come every control step, the correction only when it moved.
+    designed: Option<([u32; EQ_BANDS], u32)>,
 }
 
 impl MatchEq {
     pub fn design(&mut self, m: &Match, sr: f32) {
+        let key = (m.eq_db.map(f32::to_bits), sr.to_bits());
+        if self.designed == Some(key) {
+            return;
+        }
+        self.designed = Some(key);
         self.on = m.eq_db.iter().any(|g| *g != 0.0);
         for (i, g) in m.eq_db.iter().enumerate() {
             let hz = EQ_HZ[i].min(0.45 * sr);

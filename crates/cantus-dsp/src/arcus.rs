@@ -42,6 +42,9 @@ pub mod tables;
 #[path = "arcus_tests.rs"]
 mod tests;
 #[cfg(test)]
+#[path = "arcus_tests_fix2.rs"] // r42 fix2-arcus
+mod tests_fix2;
+#[cfg(test)]
 #[path = "arcus_tests_gate.rs"]
 mod tests_gate;
 #[cfg(test)]
