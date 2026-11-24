@@ -25,7 +25,8 @@
 //!   claude.ai page, which serves .wav but not .flac): every name 64 random bits
 //!   drawn for this kit (`names_look_random` holds that no two share structure), two of them
 //!   the same clip under two names (the preference test's catch questions),
-//! - `index.html` — one page, no external script, no network unless published: a short form
+//! - `index.html` — the listening kits' one page (`abx_kit/abx.html`, Chorda's subject
+//!   `chorda_kit/abx_subject.json`), no external script, no network unless published: a short form
 //!   about the listener, the ABX (16 trials), the preferences (every phrase, both pairs, the
 //!   two catch questions), an optional second ABX, the reveal and the credits only at the
 //!   end; answers kept in the browser, offered as a JSON file, and saved for the owner when
@@ -36,9 +37,13 @@
 //! each token and file is, the candidate's files) and `levels.csv` (each file's loudness before
 //! and after the match).
 
+#[path = "../abx_kit/kit.rs"]
+#[allow(dead_code)] // shared by the listening kits: each uses part of it
+mod kit;
 #[path = "../chorda_kit/lab.rs"]
 #[allow(dead_code)] // shared by both examples: each uses part of it
 mod lab;
+#[path = "../abx_kit/names.rs"]
 mod names;
 #[path = "../chorda_kit/phrases.rs"]
 #[allow(dead_code)] // shared by both examples: each uses part of it
@@ -47,11 +52,12 @@ mod phrases;
 #[allow(dead_code)] // shared by both examples: each uses part of it
 mod render;
 
+use kit::js;
 use render::{Source, Stereo};
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-const PAGE: &str = include_str!("../chorda_kit/abx.html");
+const SUBJECT: &str = include_str!("../chorda_kit/abx_subject.json");
 const README_EN: &str = include_str!("../chorda_kit/abx_readme.en.md");
 const README_ES: &str = include_str!("../chorda_kit/abx_readme.es.md");
 
@@ -60,13 +66,11 @@ const TARGET: f64 = -20.0;
 const CEILING_DB: f64 = -1.0;
 
 fn lufs(s: &Stereo) -> f64 {
-    let mut m = cantus_dsp::terminus::loudness::LoudnessMeter::new(render::SR as f32);
-    m.process(&s.l, &s.r);
-    m.integrated().unwrap_or(-120.0)
+    kit::lufs(&s.l, &s.r, render::SR)
 }
 
 fn db(x: f32) -> f64 {
-    20.0 * cantus_dsp::math::log10(x.max(1e-9) as f64)
+    kit::db(x)
 }
 
 struct Args {
@@ -146,33 +150,6 @@ fn args() -> Args {
     }
 }
 
-/// A JSON string literal.
-fn js(s: &str) -> String {
-    let mut o = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => o.push_str("\\\""),
-            '\\' => o.push_str("\\\\"),
-            c if (c as u32) < 0x20 => {
-                let _ = write!(o, "\\u{:04x}", c as u32);
-            }
-            c => o.push(c),
-        }
-    }
-    o.push('"');
-    o
-}
-
-/// What the generator fills in the page.
-const PLACEHOLDERS: [&str; 6] = [
-    "__KIT__",
-    "__PHRASES__",
-    "__FILES__",
-    "__TESTS__",
-    "__SEED__",
-    "__REVEAL__",
-];
-
 /// The three pianos: an id (the key's, the owner's summary's), what plays it.
 const PIANOS: [&str; 3] = ["chorda3", "salamander", "chorda2"];
 
@@ -237,45 +214,12 @@ fn main() {
         // Chorda 2: beta.14's voicing (the lab's empty spec).
         renders.push(lab::render("", ph));
         let n = renders.iter().map(|s| s.len()).min().unwrap_or(0);
-        for s in renders.iter_mut() {
-            *s = s.slice(0, n);
-            // A 30 ms fade at the end, the same for all three.
-            let f = (0.03 * render::SR as f64) as usize;
-            for i in 0..f.min(n) {
-                let g = i as f32 / f as f32;
-                s.l[n - 1 - i] *= g;
-                s.r[n - 1 - i] *= g;
-            }
-        }
-        let before: Vec<(f64, f64)> = renders.iter().map(|s| (lufs(s), db(s.peak()))).collect();
-        // One target for the three: lowered together if any would pass the ceiling.
-        let target = before
-            .iter()
-            .map(|(l, p)| TARGET.min(l + (CEILING_DB - p)))
-            .fold(TARGET, f64::min);
-        let mut gains = Vec::new();
-        for (s, (l, _)) in renders.iter_mut().zip(&before) {
-            let g = target - l;
-            s.gain(cantus_dsp::math::powf(10.0f64, g / 20.0) as f32);
-            // Once more: BS.1770's absolute gate lets a quiet tail in or out as the level
-            // moves, so the first gain lands within about half a LU; the second on it.
-            let again = target - lufs(s);
-            s.gain(cantus_dsp::math::powf(10.0f64, again / 20.0) as f32);
-            gains.push(g + again);
-        }
-        // The second gain may lift the peak that set the target past the ceiling (the
-        // first draw of kit 5 left middle C at −0.81 dBFS): all three come down together.
-        let over = renders
-            .iter()
-            .map(|s| db(s.peak()))
-            .fold(f64::MIN, f64::max)
-            - CEILING_DB;
-        if over > 0.0 {
-            for (s, g) in renders.iter_mut().zip(gains.iter_mut()) {
-                s.gain(cantus_dsp::math::powf(10.0f64, -(over + 0.005) / 20.0) as f32);
-                *g -= over + 0.005;
-            }
-        }
+        // One length, a 30 ms fade at the end, one loudness for the three (`abx_kit`).
+        let m = {
+            let mut g: Vec<_> = renders.iter_mut().map(|s| (&mut s.l, &mut s.r)).collect();
+            kit::match_group(&mut g, render::SR, 0.03, TARGET, CEILING_DB)
+        };
+        let (target, before, gains) = (m.target, m.before, m.gains);
         for (i, (s, ((l, p), g))) in renders
             .iter_mut()
             .zip(before.iter().zip(&gains))
@@ -369,17 +313,15 @@ fn main() {
         catch_js(&catch[0]),
         catch_js(&catch[1]),
     );
-    let page = PAGE
-        .replace("__KIT__", &js(&kit))
-        .replace("__PHRASES__", &format!("[{list}]"))
-        .replace("__FILES__", &format!("{{{files}}}"))
-        .replace("__TESTS__", &tests)
-        .replace("__SEED__", &seed.to_string())
-        .replace("__REVEAL__", &js(&names::veil(&table, seed)));
-    assert!(
-        !PLACEHOLDERS.iter().any(|p| page.contains(p)),
-        "every placeholder of the page filled"
-    );
+    let page = kit::fill_page([
+        &js(&kit),
+        &format!("[{list}]"),
+        &format!("{{{files}}}"),
+        &tests,
+        &seed.to_string(),
+        &js(&names::veil(&table, seed)),
+        &kit::subject_line(SUBJECT),
+    ]);
     std::fs::write(a.dir.join("index.html"), &page).expect("index.html");
     std::fs::write(a.dir.join("README.md"), README_EN).expect("README.md");
     std::fs::write(a.dir.join("LEEME.md"), README_ES).expect("LEEME.md");
@@ -414,14 +356,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn the_page_has_every_placeholder() {
-        for p in super::PLACEHOLDERS {
-            assert!(super::PAGE.contains(p), "{p}");
-        }
-    }
-
-    #[test]
-    fn json_strings_escape() {
-        assert_eq!(super::js("a\"b\\c"), "\"a\\\"b\\\\c\"");
+    fn the_subject_is_a_subject() {
+        let s = super::kit::subject_line(super::SUBJECT);
+        assert!(s.contains("\"voice_salamander\""));
     }
 }

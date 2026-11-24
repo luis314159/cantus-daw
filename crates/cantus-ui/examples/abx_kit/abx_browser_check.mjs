@@ -1,10 +1,13 @@
-// The listening kit's page, driven in real browsers: every control clicked or keyed as a
-// listener would, and the page's state and audio checked after each (kit 5, round 40).
+// The listening kits' page, driven in real browsers: every control clicked or keyed as a
+// listener would, and the page's state and audio checked after each (Chorda's kit 5, round 40;
+// any subject since round 42 — Tympanum's kit).
 //
-//   PW_DIR=<folder with node_modules/playwright-core> node abx_browser_check.mjs <kit dir> [--mock <template>]
+//   PW_DIR=<folder with node_modules/playwright-core> node abx_browser_check.mjs <kit dir> [--mock <abx.html> <subject.json>]
 //
-// `<kit dir>` is a generated kit (`chorda_abx`), or with `--mock <abx.html>` a folder to build a
-// stand-in kit into (short tones, every phrase, the real template). Runs Edge and Chrome (the
+// `<kit dir>` is a generated kit (`chorda_abx`, `tympanum_abx`), or with `--mock` a folder to
+// build a stand-in kit into (short tones, every item of the subject, the real template). The
+// counts (trials, questions), the form's instrument question, the sources' names and the
+// credits are read from the kit's own `SUBJECT`. Runs Edge and Chrome (the
 // installed ones) and Firefox (Playwright's), each over http (Web Audio) and file:// (<audio>),
 // plus the published page's online mode against a stub of `window.claude` (Edge).
 import { createRequire } from "node:module";
@@ -36,12 +39,16 @@ function wav(freq, secs) {
  for (let i = 0; i < n; i++) { const v = Math.round(8000 * Math.sin(2 * Math.PI * freq * i / sr)); d.writeInt16LE(v, 44 + i * 4); d.writeInt16LE(v, 46 + i * 4); }
  return d;
 }
-function mock(dir, template) {
+function mock(dir, template, subjectFile) {
  fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(path.join(dir, "audio"), { recursive: true });
- const phrases = ["middle_c", "soft_chords", "fast_run", "ballad", "ff_chord", "bass", "top"];
- const tok = ["c3aa0001", "5a1a0002", "c2bb0003", "5a1a0d04", "c3aa0d05"], piano = ["chorda3", "salamander", "chorda2", "salamander", "chorda3"];
+ const subject = JSON.parse(fs.readFileSync(subjectFile, "utf8"));
+ const phrases = Object.keys(subject.items.en);
+ // The sources in the order the generators give tokens: the first pair's two, then the second's other.
+ const v = [...new Set(subject.pairs.flat())];
+ const tok = ["c3aa0001", "5a1a0002", "c2bb0003", "5a1a0d04", "c3aa0d05"], piano = [v[0], v[1], v[2], v[1], v[0]];
+ const ti = id => tok[v.indexOf(id)];
  const hex = () => [...Array(16)].map(() => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
- const files = {}, catches = [{ phrase: "bass", one: tok[1], two: tok[3] }, { phrase: "top", one: tok[0], two: tok[4] }];
+ const files = {}, catches = [{ phrase: phrases[phrases.length - 2], one: tok[1], two: tok[3] }, { phrase: phrases[phrases.length - 1], one: tok[0], two: tok[4] }];
  for (const p of phrases) for (let t = 0; t < 5; t++) {
   if (t >= 3 && !catches.some(c => c.phrase === p && c.two === tok[t])) continue;
   const name = hex() + ".wav"; files[p + "|" + tok[t]] = name;
@@ -49,18 +56,33 @@ function mock(dir, template) {
  }
  const table = JSON.stringify(Object.fromEntries(tok.map((t, i) => [t, piano[i]])));
  const seed = 12345;
- const tests = `{abx:["${tok[0]}","${tok[1]}"],pref:[["${tok[0]}","${tok[1]}"],["${tok[0]}","${tok[2]}"]],extra:["${tok[2]}","${tok[0]}"],catch:${JSON.stringify(catches)}}`;
- const page = fs.readFileSync(template, "utf8").replace("__KIT__", '"abx5-mock000000"').replace("__PHRASES__", JSON.stringify(phrases))
-  .replace("__FILES__", JSON.stringify(files)).replace("__TESTS__", tests).replace("__SEED__", String(seed)).replace("__REVEAL__", JSON.stringify(veil(table, seed)));
+ const pairs = subject.pairs.map(p => p.map(ti));
+ const tests = `{abx:${JSON.stringify(pairs[0])},pref:${JSON.stringify(pairs)},extra:${JSON.stringify(pairs[1].slice().reverse())},catch:${JSON.stringify(catches)}}`;
+ const page = fs.readFileSync(template, "utf8").replace("__KIT__", '"abx-mock000000"').replace("__PHRASES__", JSON.stringify(phrases))
+  .replace("__FILES__", JSON.stringify(files)).replace("__TESTS__", tests).replace("__SEED__", String(seed)).replace("__REVEAL__", JSON.stringify(veil(table, seed)))
+  .replace("__SUBJECT__", JSON.stringify(subject));
  fs.writeFileSync(path.join(dir, "index.html"), page);
 }
-if (args[1] === "--mock") mock(kit, path.resolve(args[2]));
+if (args[1] === "--mock") mock(kit, path.resolve(args[2]), path.resolve(args[3]));
 
 // ---- The kit's own consistency, read from its page.
 const html = fs.readFileSync(path.join(kit, "index.html"), "utf8");
 function constOf(name) { const m = html.match(new RegExp("const " + name + " = (.*);\\r?\\n")); return m && m[1]; }
 const FILES = JSON.parse(constOf("FILES")), PHRASES = JSON.parse(constOf("PHRASES"));
 const TESTS = Function("return " + constOf("TESTS"))();
+const SUBJECT = JSON.parse(constOf("SUBJECT"));
+const N1 = SUBJECT.trials.abx, NX = SUBJECT.trials.extra, NP = PHRASES.length * TESTS.pref.length + TESTS.catch.length, PLAY = SUBJECT.play;
+const VOICES = [...new Set(SUBJECT.pairs.flat())];
+// What must not show before the reveal, by subject: in the page's data, on the first screen, in
+// the readmes.
+const HIDE = {
+ chorda: { data: ["chorda", "salamander", "cand", "beta", "round", "ronda", "luis"], screen: /salamander|chorda|cantus|yamaha/,
+  readme: ["cargo", "Chorda", "Salamander", "candidat", "ronda", "round", "Luis", "voicing"] },
+ tympanum: { data: ["tympanum", "tymp", "drskit", "virtuosity", "model", "hybrid", "hibrid", "generat", "generad", "record", "grabac", "studio", "estudio", "jazz", "beta", "round", "ronda", "luis", "cantus"],
+  screen: /tympanum|drskit|virtuosity|drumgizmo|cantus|modelad|modelled|generad|generated|híbrid|hybrid|grabación|recording/,
+  readme: ["cargo", "Tympanum", "DRSKit", "Virtuosity", "DrumGizmo", "ronda", "round", "Luis", "modelo", "generad", "híbrid", "hybrid"] }
+}[SUBJECT.id];
+if (!HIDE) { console.log("no hide list for the subject " + SUBJECT.id); process.exit(2); }
 const tokens = [...new Set([...TESTS.abx, ...TESTS.pref.flat(), ...TESTS.extra])];
 for (const p of PHRASES) for (const t of tokens) ok(FILES[p + "|" + t] && fs.existsSync(path.join(kit, "audio", FILES[p + "|" + t])), `file for ${p}|${t} exists`);
 for (const c of TESTS.catch) {
@@ -74,8 +96,8 @@ for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++
 ok(worst <= 9, `no two names share structure (most shared digits ${worst} of 16)`);
 // The kit's data in the page (its code names the pianos only to label the reveal).
 const plain = ["KIT", "PHRASES", "FILES", "TESTS", "SEED", "REVEAL"].map(constOf).join("\n");
-for (const w of ["chorda", "salamander", "cand", "beta", "round", "ronda", "luis"]) ok(!plain.toLowerCase().includes(w), `the page's data never says "${w}"`);
-for (const f of ["LEEME.md", "README.md"]) { const t = fs.existsSync(path.join(kit, f)) ? fs.readFileSync(path.join(kit, f), "utf8") : ""; for (const w of ["cargo", "Chorda", "Salamander", "candidat", "ronda", "round", "Luis", "voicing"]) ok(!t.includes(w), `${f} never says "${w}"`); }
+for (const w of HIDE.data) ok(!plain.toLowerCase().includes(w), `the page's data never says "${w}"`);
+for (const f of ["LEEME.md", "README.md"]) { const t = fs.existsSync(path.join(kit, f)) ? fs.readFileSync(path.join(kit, f), "utf8") : ""; ok(t.length > 0 || args[1] === "--mock", `${f} is in the kit`); for (const w of HIDE.readme) ok(!t.includes(w), `${f} never says "${w}"`); }
 
 // ---- A static server for the http runs.
 const types = { ".html": "text/html; charset=utf-8", ".flac": "audio/flac", ".wav": "audio/wav", ".md": "text/markdown" };
@@ -104,7 +126,7 @@ async function run(name, browserType, launch, url, mode) {
  ok(await page.title() === "Prueba de escucha", `${tag} Spanish by default from es-ES`);
  // Nothing names a piano before the end.
  const before = (await page.innerText("body")).toLowerCase();
- ok(!/salamander|chorda|cantus|yamaha/.test(before), `${tag} no piano named on the first screen`);
+ ok(!HIDE.screen.test(before), `${tag} no source named on the first screen`);
  // The language toggle.
  await page.click("#lang-en"); ok(await page.title() === "Listening test" && (await page.getAttribute("#lang-en", "aria-pressed")) === "true", `${tag} EN toggle`);
  await page.click("#lang-es"); ok(await page.title() === "Prueba de escucha", `${tag} ES toggle`);
@@ -112,14 +134,14 @@ async function run(name, browserType, launch, url, mode) {
  ok(await page.isDisabled("#start"), `${tag} Start disabled until the device is chosen`);
  await page.click("label:has(#device-headphones)");
  ok(!(await page.isDisabled("#start")), `${tag} device chosen enables Start`);
- await page.click("label:has(#piano-some)"); await page.fill("#years", "4");
+ await page.click(`label:has(#${PLAY}-some)`); await page.fill("#years", "4");
  await page.click("label:has(#audio-hobby)"); await page.click("label:has(#age-40)");
  await page.fill("#who", "Tester");
  let st = await S(page, () => window.__abx.st());
- ok(st.about.device === "headphones" && st.about.piano === "some" && st.about.years === "4" && st.about.audio === "hobby" && st.about.age === "40" && st.listener === "Tester", `${tag} questionnaire recorded`);
+ ok(st.about.device === "headphones" && st.about[PLAY] === "some" && st.about.years === "4" && st.about.audio === "hobby" && st.about.age === "40" && st.listener === "Tester", `${tag} questionnaire recorded`);
  await page.click("#start");
  ok((await state(page)).view === "abx", `${tag} Start opens part 1`);
- ok((await page.textContent("#steps")).includes("1 de 16"), `${tag} progress "1 de 16"`);
+ ok((await page.textContent("#steps")).includes(`1 de ${N1}`), `${tag} progress "1 de ${N1}"`);
  ok((await state(page)).mode === mode, `${tag} audio engine is ${mode}`);
  // Transport: A plays, B switches keeping the place, B again restarts, X, Stop.
  await page.click("#play-a");
@@ -183,7 +205,7 @@ async function run(name, browserType, launch, url, mode) {
  ok(await page.isDisabled("#prev") && await page.isDisabled("#next"), `${tag} Previous/Next disabled on the first unanswered trial`);
  await page.click("#answer-a");
  st = await S(page, () => window.__abx.st()); ok(st.abx[0].answer === "a" && st.pos.abx === 1 && st.abx[0].at, `${tag} "X es A" answers and moves on`);
- ok((await page.textContent("#steps")).includes("2 de 16"), `${tag} progress "2 de 16"`);
+ ok((await page.textContent("#steps")).includes(`2 de ${N1}`), `${tag} progress "2 de ${N1}"`);
  await page.click("#prev"); st = await S(page, () => window.__abx.st());
  ok(st.pos.abx === 0 && (await page.getAttribute("#answer-a", "class")).includes("chosen"), `${tag} Previous shows the answer given`);
  await page.click("#next"); ok((await S(page, () => window.__abx.st().pos.abx)) === 1, `${tag} Next`);
@@ -193,8 +215,11 @@ async function run(name, browserType, launch, url, mode) {
  await page.click("#play-a"); await sleep(200); await page.click("#lang-en"); await sleep(100);
  s = await state(page); ok(s.playing === "a" && (await page.textContent("#answer-a")) === "X is A", `${tag} language switch keeps the clip playing`);
  await page.click("#lang-es");
- for (let i = 1; i < 16; i++) await page.click(i % 2 ? "#answer-a" : "#answer-b");
- ok((await state(page)).view === "pref", `${tag} after 16 trials, part 2`);
+ // Every item as often as the others in part 1 (one more for those the remainder draws).
+ st = await S(page, () => window.__abx.st());
+ { const c = {}; for (const x of st.abx) c[x.phrase] = (c[x.phrase] || 0) + 1; const n = Object.values(c); ok(st.abx.length === N1 && Object.keys(c).length === Math.min(N1, PHRASES.length) && Math.max(...n) - Math.min(...n) <= 1, `${tag} part 1 draws every item evenly (${JSON.stringify(c)})`); }
+ for (let i = 1; i < N1; i++) await page.click(i % 2 ? "#answer-a" : "#answer-b");
+ ok((await state(page)).view === "pref", `${tag} after ${N1} trials, part 2`);
  // Preferences: 1 / 2 / no preference, the note, keys 1 and 2.
  await page.click("#play-one"); await sleep(150); ok((await state(page)).playing === "one", `${tag} Clip 1 plays`);
  await page.click("#play-two"); await sleep(150); ok((await state(page)).playing === "two", `${tag} Clip 2 plays`);
@@ -211,17 +236,19 @@ async function run(name, browserType, launch, url, mode) {
  st = await S(page, () => window.__abx.st());
  ok(st.view === "pref" && st.pos.pref === 3 && st.pref[1].choice === "one" && st.pref[2].choice === "two", `${tag} reload resumes at question 4 with the answers`);
  ok(!(await page.isHidden("#msg")) && (await page.textContent("#msg")).includes("Bienvenido"), `${tag} welcome-back message`);
- for (let i = 3; i < 16; i++) await page.click(["#choose-one", "#choose-two", "#choose-same"][i % 3]);
- ok((await state(page)).view === "between", `${tag} after 16 questions, the end of the main test`);
+ ok((await S(page, () => window.__abx.st().pref.length)) === NP, `${tag} ${NP} preference questions`);
+ for (let i = 3; i < NP; i++) await page.click(["#choose-one", "#choose-two", "#choose-same"][i % 3]);
+ ok((await state(page)).view === "between", `${tag} after ${NP} questions, the end of the main test`);
  const checks = await S(page, () => { const s = window.__abx.st(), u = window.__abx.unveil(); return s.pref.filter(q => u[q.one] === u[q.two]).length; });
  ok(checks === 2, `${tag} two check questions among the preferences`);
  // Extra part, then results and the reveal.
  await page.click("#extra"); ok((await state(page)).view === "extra", `${tag} the extra part opens`);
- for (let i = 0; i < 16; i++) await page.click("#answer-a");
+ for (let i = 0; i < NX; i++) await page.click("#answer-a");
  ok((await state(page)).view === "results", `${tag} the extra part ends on the results`);
  const body = await page.innerText("body");
- ok(/Salamander/.test(body) && /Chorda/.test(body) && !body.includes("piano_?") && (await page.$$("table tr")).length >= 16 + 16 + 16 + 3, `${tag} the reveal names the pianos per trial`);
- ok(!!(await page.$("#credits a[href*='creativecommons.org/licenses/by/3.0']")), `${tag} credits with the CC BY 3.0 link`);
+ ok(VOICES.every(v => body.includes(SUBJECT.text.es["voice_" + v])) && !body.includes("voice_") && (await page.$$("table tr")).length >= N1 + NP + NX + 3, `${tag} the reveal names the sources per trial`);
+ for (const [t, u] of SUBJECT.credits.links) ok(!!(await page.$(`#credits a[href="${u}"]`)), `${tag} credits link ${t}`);
+ ok(SUBJECT.credits.text.every(k => body.includes(SUBJECT.text.es[k])), `${tag} the credits' words`);
  {
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
   const text = fs.readFileSync(await dl.path(), "utf8"); const d = JSON.parse(text);
@@ -238,11 +265,11 @@ async function run(name, browserType, launch, url, mode) {
 // ---- The published page: `window.claude` stubbed (user, db, downloads) as claude.ai serves it.
 const stub = ({ owner, canWrite }) => `
  window.__writes = []; window.__subs = []; window.__saves = [];
- const done = (who, dev, piano, right) => { const s = fresh(); s.listener = who; s.about = { device: dev, piano: piano, years: "", audio: "no", age: "" };
+ const done = (who, dev, piano, right) => { const s = fresh(); s.listener = who; s.about = { device: dev, years: "", audio: "no", age: "" }; s.about[PLAY] = piano;
   s.started = "2026-11-13T10:00:00Z"; s.mainDone = "2026-11-13T10:17:00Z"; s.view = "results";
   s.abx.forEach((x, i) => { x.answer = i < right ? x.x : (x.x === "a" ? "b" : "a"); x.at = s.mainDone; });
   s.pref.forEach(q => { q.choice = unveil()[q.one] === unveil()[q.two] ? "same" : "one"; q.at = s.mainDone; }); return { kit: KIT, listener: who, about: s.about, results: s }; };
- window.__mkDocs = () => [done("L1", "headphones", "yes", 16), done("L2", "speakers", "no", 8)];
+ window.__mkDocs = () => [done("L1", "headphones", "yes", TRIALS.abx), done("L2", "speakers", "no", TRIALS.abx / 2)];
  window.claude = { use: async name => {
   if (name === "user") return { id: async () => "uid-1", isOwner: async () => ${owner}, can: async () => ${canWrite} };
   if (name === "db") return {
@@ -266,7 +293,7 @@ async function online(browserType, launch) {
  let w = await S(page, () => window.__writes);
  const last = w[w.length - 1];
  ok(last && last.path === "abx/uid-1" && last.data.kit && last.data.about.device === "speakers" && last.data.results.abx[0].answer === "a" && last.data.results.abx[0].at && last.data.results.started && last.data.updatedAt, `${tag} the listener's document abx/<id> holds kit, form, answers, timestamps`);
- ok(!JSON.stringify(last.data).includes("chorda") && !JSON.stringify(last.data).includes("salamander"), `${tag} the saved document names no piano`);
+ ok(HIDE.data.every(w => !JSON.stringify(last.data).toLowerCase().includes(w)), `${tag} the saved document names no source`);
  ok((await S(page, () => window.__subs)).length === 0, `${tag} a listener never reads the collection`);
  ok((await page.textContent("#msg")).includes("saved automatically"), `${tag} "saved automatically" shown`);
  ok(!(await page.$("#owner-open")), `${tag} no summary button for a listener`);
@@ -290,9 +317,9 @@ async function online(browserType, launch) {
  await page.goto(httpUrl); await sleep(300);
  await page.click("#owner-open"); await sleep(300);
  const sum = await page.textContent("#summary");
- ok(sum.includes("L1") && sum.includes("L2") && sum.includes("16/16") && sum.includes("8/16") && sum.includes("2/2"), `${tag} owner's summary: each listener's ABX and checks`);
+ ok(sum.includes("L1") && sum.includes("L2") && sum.includes(`${N1}/${N1}`) && sum.includes(`${N1 / 2}/${N1}`) && sum.includes("2/2"), `${tag} owner's summary: each listener's ABX and checks`);
  const groups = await page.textContent("#groups");
- ok(groups.includes("24/32") && groups.includes("Auriculares") && groups.includes("Pasaron"), `${tag} owner's summary pooled by group (everyone 24/32, by device, by piano, check-passers)`);
+ ok(groups.includes(`${N1 * 1.5}/${N1 * 2}`) && groups.includes("Auriculares") && groups.includes("Pasaron"), `${tag} owner's summary pooled by group (everyone ${N1 * 1.5}/${N1 * 2}, by device, by the instrument question, check-passers)`);
  ok((await S(page, () => window.__subs)).join() === "abx", `${tag} the owner reads the collection`);
  await page.click("#back"); ok((await S(page, () => window.__abx.st().view)) === "intro", `${tag} Back from the summary`);
  await browser.close();
