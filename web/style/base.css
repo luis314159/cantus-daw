@@ -1,6 +1,9 @@
 /* Cantus site — tokens and base (round 39). The palette is logo #03's: a lapis ground, gold
    leaf and the vermilion of its waveform, over the calm grey-blue surfaces of the app's Slate.
    Lapis is the accent (what you press, and state); gold is only a fine metallic mark or rule. */
+/* Light (300) sets only the rack's tempo, below the first screen: the pre-renderer declares it
+   once the first picture has painted (prerender.rs, LATE_FACES), so the first layout does not
+   ask for it beside the hero's picture. The same face, from the same file. */
 @font-face { font-family: "Barlow Semi Condensed"; src: url("/fonts/barlow-semi-condensed-light.woff2") format("woff2"); font-weight: 300; font-display: swap; }
 @font-face { font-family: "Barlow Semi Condensed"; src: url("/fonts/barlow-semi-condensed-regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Barlow Semi Condensed"; src: url("/fonts/barlow-semi-condensed-medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
