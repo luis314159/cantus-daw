@@ -298,7 +298,10 @@ fn a_scale_with_no_map_sounds_as_surge_s_tests_say() {
     ] {
         let t = scale(f, None).offsets();
         let base = hz(&t, 60) / MIDI_0_FREQ;
-        assert!((base - 32.0).abs() < 1e-9, "{f}: key 60 at {base} x MIDI_0_FREQ");
+        assert!(
+            (base - 32.0).abs() < 1e-9,
+            "{f}: key 60 at {base} x MIDI_0_FREQ"
+        );
     }
     let log2 = cantus_dsp::math::log2;
     let i12 = scale("12-intune-nodesc.scl", None).offsets();
@@ -317,7 +320,10 @@ fn a_scale_with_no_map_sounds_as_surge_s_tests_say() {
     let ed3 = scale("ED3-17.scl", None).offsets();
     for k in 61..90u8 {
         let d = log2(hz(&ed3, k)) - log2(hz(&ed3, k - 1));
-        assert!((cantus_dsp::math::exp2(17.0 * d) - 3.0).abs() < 1e-6, "ED3-17 {k}");
+        assert!(
+            (cantus_dsp::math::exp2(17.0 * d) - 3.0).abs() < 1e-6,
+            "ED3-17 {k}"
+        );
     }
     let alpha = scale("carlos-alpha.scl", None).offsets();
     let diff = cantus_dsp::math::exp2(78.0 / 1200.0);

@@ -97,7 +97,11 @@ fn surge_pitch(scl: &ScalaScale, kbm: Option<&KeyboardMap>, k: u8) -> Option<f64
         }
         let (q, i) = (off.div_euclid(size), off.rem_euclid(size));
         let oct = if octave == 0 { n } else { octave };
-        mapping.get(i as usize).copied().flatten().map(|e| i64::from(e) + q * oct)
+        mapping
+            .get(i as usize)
+            .copied()
+            .flatten()
+            .map(|e| i64::from(e) + q * oct)
     };
     let d = degree(i64::from(k))?;
     let r = degree(refkey)?;
@@ -124,8 +128,8 @@ fn werck(key: u8, a4: f64) -> Tuning {
 fn a_scala_export_reads_back_as_the_same_pitches_here_and_in_surge() {
     let mut app = assembled(None);
     let edo31 = tuning::io::read_scl(&std::fs::read(outside("31edo.scl")).unwrap()).unwrap();
-    let white = tuning::io::read_kbm(&std::fs::read(outside("mapping-a442-7-to-12.kbm")).unwrap())
-        .unwrap();
+    let white =
+        tuning::io::read_kbm(&std::fs::read(outside("mapping-a442-7-to-12.kbm")).unwrap()).unwrap();
     let ptolemy = ScalaScale {
         description: "!Ptolemy (a description that starts with a bang)".into(),
         degrees: [(9, 8), (5, 4), (4, 3), (3, 2), (5, 3), (15, 8), (2, 1)]
@@ -133,19 +137,45 @@ fn a_scala_export_reads_back_as_the_same_pitches_here_and_in_surge() {
             .to_vec(),
     };
     let cases = [
-        ("equal at 432", Tuning { a4_hz: 432.0, ..Tuning::default() }),
+        (
+            "equal at 432",
+            Tuning {
+                a4_hz: 432.0,
+                ..Tuning::default()
+            },
+        ),
         ("Werckmeister III in E flat at 415", werck(3, 415.0)),
         ("Werckmeister III in C at 440", werck(0, 440.0)),
-        ("31-EDO at 440", Tuning { system: TuningSystem::Scale(edo31.clone()), ..Tuning::default() }),
-        ("31-EDO at 415", Tuning { a4_hz: 415.0, system: TuningSystem::Scale(edo31), map: None }),
+        (
+            "31-EDO at 440",
+            Tuning {
+                system: TuningSystem::Scale(edo31.clone()),
+                ..Tuning::default()
+            },
+        ),
+        (
+            "31-EDO at 415",
+            Tuning {
+                a4_hz: 415.0,
+                system: TuningSystem::Scale(edo31),
+                map: None,
+            },
+        ),
         (
             "Ptolemy on the white keys at 430",
-            Tuning { a4_hz: 430.0, system: TuningSystem::Scale(ptolemy), map: Some(white) },
+            Tuning {
+                a4_hz: 430.0,
+                system: TuningSystem::Scale(ptolemy),
+                map: Some(white),
+            },
         ),
     ];
     let dir = tempfile::tempdir().unwrap();
     for (what, tu) in cases {
-        assert!(tuning::set(&mut app, Target::Project, tu.clone()), "{what}: set");
+        assert!(
+            tuning::set(&mut app, Target::Project, tu.clone()),
+            "{what}: set"
+        );
         let want = pitches(&tuning::table_of(&app, Target::Project));
         let files = tuning::io::export(&app, Target::Project, &dir.path().join("song")).unwrap();
         let scl_path = files[0].clone();
@@ -170,10 +200,17 @@ fn a_scala_export_reads_back_as_the_same_pitches_here_and_in_surge() {
             // Inside the range Cantus keeps pitches in (1 Hz – 20 kHz).
             if let (Some(w), Some(s)) = (w, surge_pitch(&scl, kbm.as_ref(), k)) {
                 if (-36.0..135.0).contains(&s) {
-                    assert!((w - s).abs() * 100.0 < 0.01, "{what}: Surge's key {k}: {w} vs {s}");
+                    assert!(
+                        (w - s).abs() * 100.0 < 0.01,
+                        "{what}: Surge's key {k}: {w} vs {s}"
+                    );
                 }
             } else {
-                assert_eq!(w.is_none(), surge_pitch(&scl, kbm.as_ref(), k).is_none(), "{what}: {k}");
+                assert_eq!(
+                    w.is_none(),
+                    surge_pitch(&scl, kbm.as_ref(), k).is_none(),
+                    "{what}: {k}"
+                );
             }
         }
     }
@@ -226,7 +263,10 @@ fn slicing_keeps_the_articulation_on_both_halves() {
         assert_eq!(n.art, PIZZ, "{:?}", n.start);
     }
     let tail = ns.iter().find(|n| n.start == Ticks::beats(1)).unwrap();
-    assert_eq!(tail.release, 33, "the tail ends the note: its release velocity");
+    assert_eq!(
+        tail.release, 33,
+        "the tail ends the note: its release velocity"
+    );
     a.undo();
     assert_eq!(notes(&a, t, c).len(), 1);
 }
@@ -254,7 +294,11 @@ fn baking_note_effects_keeps_the_articulation() {
     let baked: Vec<Note> = a.project().track(t).unwrap().clips[0].notes.clone();
     assert!(baked.len() >= 3, "the chord's voices: {}", baked.len());
     for n in &baked {
-        assert_eq!(n.art, PIZZ, "voice {} keeps its note's articulation", n.pitch);
+        assert_eq!(
+            n.art, PIZZ,
+            "voice {} keeps its note's articulation",
+            n.pitch
+        );
     }
 }
 
@@ -338,8 +382,15 @@ fn a_quick_double_click_on_empty_grid_draws_a_note_and_opens_no_menu() {
     r.idle(5, at);
     r.double_click(at);
     let drawn = notes(&r.app, tid, cid);
-    assert_eq!(drawn.len(), 1, "the first click drew a note; the second hit it");
-    assert!(!r.menu_open(), "a double-click that drew the note opens no menu");
+    assert_eq!(
+        drawn.len(),
+        1,
+        "the first click drew a note; the second hit it"
+    );
+    assert!(
+        !r.menu_open(),
+        "a double-click that drew the note opens no menu"
+    );
     // A double-click on that note, later, is a request for its menu.
     r.double_click(at);
     assert_eq!(notes(&r.app, tid, cid).len(), 1);
@@ -363,14 +414,29 @@ fn the_midi_export_writes_the_tuning_only_when_asked() {
     p.tuning = werck(3, 415.0);
     let mut t = p.make_track("Lead");
     let mut c = p.make_clip("c", Ticks::ZERO, Ticks::beats(4));
-    c.notes.push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 63, 100));
+    c.notes
+        .push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 63, 100));
     t.clips.push(c);
     p.tracks.push(t);
     let mut a = assembled(Some(p));
     let dir = tempfile::tempdir().unwrap();
     let (plain, tuned) = (dir.path().join("plain.mid"), dir.path().join("tuned.mid"));
-    assert!(export_midi_with(&mut a, &plain, MidiScope::Song, 960, true, false));
-    assert!(export_midi_with(&mut a, &tuned, MidiScope::Song, 960, true, true));
+    assert!(export_midi_with(
+        &mut a,
+        &plain,
+        MidiScope::Song,
+        960,
+        true,
+        false
+    ));
+    assert!(export_midi_with(
+        &mut a,
+        &tuned,
+        MidiScope::Song,
+        960,
+        true,
+        true
+    ));
     let sysex = |p: &Path| {
         let s = cantus_project::midi::smf::read(&std::fs::read(p).unwrap()).unwrap();
         s.tracks
@@ -384,8 +450,80 @@ fn the_midi_export_writes_the_tuning_only_when_asked() {
     };
     assert!(sysex(&plain).is_empty(), "off: no tuning messages");
     let m = sysex(&tuned);
-    assert!(m.iter().any(|m| m.len() == 408 && m[4] == 0x01), "a bulk dump");
+    assert!(
+        m.iter().any(|m| m.len() == 408 && m[4] == 0x01),
+        "a bulk dump"
+    );
     // Werckmeister III at A415: each pitch class within ±100 cents? A415 is −101.4 c from
     // 440, so scale/octave cannot hold it: the dump's program is selected instead.
     assert!(!m.iter().any(|m| m.get(4) == Some(&0x09)));
+}
+
+/// The offsets the A4-anchored path gave a scale with no map before the review moved the
+/// no-map anchor to C4 — the old `Tuning::mapped`, operation for operation: degree 0 on key
+/// 60, key 69 (degree 9) at the diapason, linear, clamped to 1 Hz – 20 kHz.
+fn a4_anchored_offsets(t: &Tuning) -> [f32; 128] {
+    use cantus_core::tuning::{diapason_semitones, PITCH_MAX, PITCH_MIN};
+    let degrees = t.system.degree_cents();
+    let n = degrees.len() as i64;
+    let period = degrees[degrees.len() - 1];
+    let cents_of = |d: i64| -> f64 {
+        let (q, r) = (d.div_euclid(n), d.rem_euclid(n));
+        q as f64 * period
+            + if r == 0 {
+                0.0
+            } else {
+                degrees[(r - 1) as usize]
+            }
+    };
+    let shift = diapason_semitones(t.a4_hz);
+    let ref_cents = cents_of(9);
+    let base = 0.0 + f64::from(shift) + 69.0;
+    let mut out = [0.0f32; 128];
+    for (key, o) in out.iter_mut().enumerate() {
+        let d = key as i64 - 60;
+        let pitch = ((cents_of(d) - ref_cents) / 100.0 + base).clamp(PITCH_MIN, PITCH_MAX);
+        *o = (pitch - key as f64) as f32;
+    }
+    out
+}
+
+/// r42 fix2-model: the no-map anchor's move must not change a sound Cantus ships — Chorda's
+/// presets built from a Scala scale (*Slightly out*, *Saloon* …) carry the A4-anchored map
+/// they were designed with, and their tables are what they were, bit for bit, in every key.
+#[test]
+fn chordas_scala_presets_sound_as_they_were_designed() {
+    use cantus_ui::views::tuning::chorda::{tuning_of, PRESETS};
+    let mut scales = 0;
+    for p in &PRESETS {
+        for key in 0..12u8 {
+            let tu = tuning_of(p, key);
+            if !matches!(tu.system, TuningSystem::Scale(_)) {
+                continue;
+            }
+            scales += 1;
+            assert_eq!(
+                tu.map,
+                Some(KeyboardMap::a4_anchored()),
+                "{}: A4-anchored",
+                p.name
+            );
+            let got = tu.offsets();
+            let want = a4_anchored_offsets(&tu);
+            for k in 0..128 {
+                assert_eq!(
+                    got.0[k].to_bits(),
+                    want[k].to_bits(),
+                    "{} in {key}: key {k}",
+                    p.name
+                );
+            }
+            // A4 is the diapason, exactly.
+            assert_eq!(got.at(69), 0.0);
+        }
+    }
+    assert!(
+        scales >= 24,
+        "the Scala presets were all checked ({scales})"
+    );
 }

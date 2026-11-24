@@ -1841,12 +1841,18 @@ mod tests {
         assert_eq!(f(2, zf::ART), 5.0);
         // r42 fix2-model (review 14): the project's keyboard map, its black keys unmapped.
         let map = p.tuning.map.as_ref().expect("a keyboard map");
-        assert_eq!((map.size, map.octave_degree, map.reference_key), (12, 7, 69));
+        assert_eq!(
+            (map.size, map.octave_degree, map.reference_key),
+            (12, 7, 69)
+        );
         assert_eq!(map.mapping.iter().filter(|e| e.is_none()).count(), 5);
         assert_eq!(map.mapping[1], None);
         assert_eq!(p.tuning.a4_hz, 415.0);
         let table = p.tuning.offsets();
-        assert!(!table.sounds(61) && table.sounds(60), "an x key sounds nothing");
+        assert!(
+            !table.sounds(61) && table.sounds(60),
+            "an x key sounds nothing"
+        );
         let old = std::fs::read_to_string(dir.join("v81.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tracks.iter().all(|t| t.name != "Strings"));

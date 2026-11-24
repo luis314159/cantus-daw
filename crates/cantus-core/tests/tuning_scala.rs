@@ -283,12 +283,22 @@ fn maps_round_trip() {
 #[test]
 fn a_utf8_byte_order_mark_is_dropped() {
     let bom = |name: &str| [&[0xEF, 0xBB, 0xBF][..], &data(name)].concat();
-    for f in ["31edo.scl", "6-exact.scl", "12-shuffled.scl", "rast.ascl", "31-edo.ascl"] {
+    for f in [
+        "31edo.scl",
+        "6-exact.scl",
+        "12-shuffled.scl",
+        "rast.ascl",
+        "31-edo.ascl",
+    ] {
         let plain = read_scl(&data(f)).unwrap();
         assert_eq!(read_scl(&bom(f)).unwrap(), plain, "{f}");
     }
     for f in ["31-edo.kbm", "mapping-whitekeys-c261.kbm", "piano.kbm"] {
-        assert_eq!(read_kbm(&bom(f)).unwrap(), read_kbm(&data(f)).unwrap(), "{f}");
+        assert_eq!(
+            read_kbm(&bom(f)).unwrap(),
+            read_kbm(&data(f)).unwrap(),
+            "{f}"
+        );
     }
     let r = read_scl(&data("rast.ascl")).unwrap();
     assert_eq!(
@@ -326,10 +336,17 @@ fn a_description_starting_with_a_bang_round_trips() {
 #[test]
 fn ableton_s_reference_pitch_is_the_file_s_reference() {
     let r = read_scl(&data("rast.ascl")).unwrap();
-    let m = read_ascl_map(&data("rast.ascl"), &r).unwrap().expect("a map");
-    assert_eq!((m.reference_hz, m.middle_key, m.reference_key), (261.6256, 60, 60));
+    let m = read_ascl_map(&data("rast.ascl"), &r)
+        .unwrap()
+        .expect("a map");
+    assert_eq!(
+        (m.reference_hz, m.middle_key, m.reference_key),
+        (261.6256, 60, 60)
+    );
     let e = read_scl(&data("31-edo.ascl")).unwrap();
-    let m = read_ascl_map(&data("31-edo.ascl"), &e).unwrap().expect("a map");
+    let m = read_ascl_map(&data("31-edo.ascl"), &e)
+        .unwrap()
+        .expect("a map");
     let live = read_kbm(&data("31-edo.kbm")).unwrap();
     assert_eq!(
         (m.reference_hz, m.middle_key, m.reference_key),

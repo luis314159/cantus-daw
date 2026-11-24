@@ -7,7 +7,9 @@
 //! program change RPN 0x0003), computed here from the layout, not from our writer, and
 //! read back by our MTS reader (tested against the MMA's example and Scale Workshop's dump).
 
-use cantus_core::tuning::{ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem};
+use cantus_core::tuning::{
+    ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
+};
 use cantus_core::tuning_mts::{self, MtsMessage};
 use cantus_core::*;
 use cantus_project::midi::{self, smf, Event, ExportOptions};
@@ -92,13 +94,20 @@ fn a_twelve_note_temperament_is_a_bulk_dump_and_scale_octave_tuning() {
     assert_eq!(&dump[6..10], b"Lead");
     assert_eq!(*dump.last().unwrap(), 0xF7);
     let sum = dump[1..406].iter().fold(0u8, |a, b| a ^ b) & 0x7F;
-    assert_eq!(dump[406], sum, "CA-020's checksum: XOR of 7E … the last data byte");
+    assert_eq!(
+        dump[406], sum,
+        "CA-020's checksum: XOR of 7E … the last data byte"
+    );
     // Each key's word: the semitone below and 14 bits of a semitone above it.
     for k in [0u8, 60, 61, 69, 127] {
         let pitch = f64::from(k) + f64::from(table.at(k));
         let semi = pitch.floor();
         let frac = ((pitch - semi) * 16384.0).round() as u32;
-        let (semi, frac) = if frac == 16384 { (semi + 1.0, 0) } else { (semi, frac) };
+        let (semi, frac) = if frac == 16384 {
+            (semi + 1.0, 0)
+        } else {
+            (semi, frac)
+        };
         let at = 22 + 3 * usize::from(k);
         assert_eq!(
             &dump[at..at + 3],
@@ -153,7 +162,13 @@ fn a_tuning_scale_octave_cannot_hold_is_a_dump_and_its_program_selected() {
     // RPN 0x0003 (tuning program change) = program 0, then the null RPN.
     assert_eq!(
         cc,
-        vec![(0, 101, 0), (0, 100, 3), (0, 6, 0), (0, 101, 127), (0, 100, 127)]
+        vec![
+            (0, 101, 0),
+            (0, 100, 3),
+            (0, 6, 0),
+            (0, 101, 127),
+            (0, 100, 127)
+        ]
     );
     // A diapason more than a semitone from 440 cannot be scale/octave either.
     let low = song(Tuning {
@@ -167,7 +182,7 @@ fn a_tuning_scale_octave_cannot_hold_is_a_dump_and_its_program_selected() {
 
 #[test]
 fn a_kit_track_is_never_tuned() {
-    let mut p = song(werckmeister(415.0));
+    let mut p = song(werckmeister(440.0));
     let mut kit = p.make_track("Drums");
     kit.instrument = InstrumentSpec::Pulsus(Default::default());
     let mut c = p.make_clip("beat", Ticks::ZERO, Ticks::beats(4));

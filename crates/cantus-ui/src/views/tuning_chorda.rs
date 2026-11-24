@@ -19,7 +19,7 @@ use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::{menu_field, menu_list, segmented, MenuField};
 use crate::kit::{with_brush, Style};
 use cantus_core::tuning::{
-    ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
+    KeyboardMap, ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
 };
 use cantus_core::{Command, NativeSpec, TrackId};
 use egui::{Align2, Id, Pos2, Rect, Ui, Vec2};
@@ -216,7 +216,8 @@ pub const PRESETS: [Preset; 24] = [
 pub const SLIGHTLY_OUT_ID: &str = "Cantus slightly out";
 
 /// "Slightly out": each of the twelve a few cents off equal, the same every time (a seeded
-/// sequence), as a Scala scale (degree 0 on C4, A4 at the diapason — Scala's template).
+/// sequence), as a Scala scale: degree 0 on C4 and A4 at the diapason, by the A4-anchored
+/// keyboard map its preset carries ([`tuning_of`]).
 pub fn slightly_out() -> ScalaScale {
     let mut seed: u32 = 0x5EED_C0DA;
     let mut next = || {
@@ -251,10 +252,13 @@ pub fn tuning_of(p: &Preset, key: u8) -> Tuning {
             },
             map: None,
         },
+        // r42 fix2-model: designed with A4 on the diapason; a Scala scale with no map now
+        // sits on C4 (Scala's and Surge's anchor), so the preset names its A4-anchored map
+        // and sounds as it was designed, to the bit.
         Kind::SlightlyOut => Tuning {
             a4_hz: 440.0,
             system: TuningSystem::Scale(slightly_out()),
-            map: None,
+            map: Some(KeyboardMap::a4_anchored()),
         },
     }
 }

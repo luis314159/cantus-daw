@@ -3073,13 +3073,11 @@ impl CantusApp {
                     n.expr.as_deref(),
                     (tick - n.start).0,
                 ); // r33:mpe
-                // Both halves keep the articulation, and the tail the note's own end (its
-                // release velocity) — r42 fix2-model (review 6).
                 tails.push(cantus_core::Note {
                     muted: n.muted,
-                    expr: right, // r33:mpe
-                    release: n.release,
-                    art: n.art,
+                    expr: right,        // r33:mpe
+                    release: n.release, // the note's own end (r42 fix2-model, review 6)
+                    art: n.art,         // both halves keep it
                     ..tail
                 });
                 shortened.push(cantus_core::Note {

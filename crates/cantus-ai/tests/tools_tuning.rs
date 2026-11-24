@@ -5,10 +5,10 @@
 
 mod support;
 
+use cantus_ai::ToolError;
 use cantus_core::note_art::{Articulation, Bow, NoteArt};
 use cantus_core::tuning::{Temperament, TrackTuning, TuningSystem};
 use cantus_core::InstrumentKind;
-use cantus_ai::ToolError;
 use serde_json::{json, Value};
 use support::*;
 
@@ -34,7 +34,10 @@ fn arcus_is_in_the_instrument_table() {
     let (track, _) = strings(&mut h);
     let p = h.bus.project();
     let t = p.tracks.iter().find(|t| t.id.0 == track).unwrap();
-    assert_eq!(t.instrument.native().map(|n| n.kind), Some(InstrumentKind::BowedString));
+    assert_eq!(
+        t.instrument.native().map(|n| n.kind),
+        Some(InstrumentKind::BowedString)
+    );
     let read = read_ok(&mut h, "get_project", json!({}));
     assert_eq!(read["tracks"][0]["instrument"]["kind"], "arcus");
     assert_eq!(read["tracks"][0]["instrument"]["name"], "Arcus");
@@ -50,7 +53,10 @@ fn a_notes_articulation_is_read_and_survives_a_replace() {
     let notes = read_ok(&mut h, "get_clip_notes", json!({"clip_id": clip}));
     let list = notes["notes"].as_array().unwrap();
     assert!(list[0].get("art").is_none(), "a note without one says none");
-    assert_eq!(list[1]["art"], json!({"articulation": "pizzicato", "bow": "up"}));
+    assert_eq!(
+        list[1]["art"],
+        json!({"articulation": "pizzicato", "bow": "up"})
+    );
     assert_eq!(list[2]["art"], json!({"articulation": "legato"}));
     // Read and written back as an agent edits a clip: the articulations are kept.
     let back: Vec<Value> = list
@@ -68,7 +74,11 @@ fn a_notes_articulation_is_read_and_survives_a_replace() {
             w
         })
         .collect();
-    edit_ok(&mut h, "replace_notes", json!({"clip_id": clip, "notes": back}));
+    edit_ok(
+        &mut h,
+        "replace_notes",
+        json!({"clip_id": clip, "notes": back}),
+    );
     let arts: Vec<Option<NoteArt>> = h
         .bus
         .project()
@@ -131,7 +141,11 @@ fn the_project_s_tuning_is_read_and_set_through_its_command() {
     let a4 = t["plays"]["a4_hz"].as_f64().unwrap();
     assert!((a4 - 415.0).abs() < 1e-6, "{a4}");
     // Only the key moves; the rest stays.
-    edit_ok(&mut h, "set_tuning", json!({"key": 7, "follow_song_key": true}));
+    edit_ok(
+        &mut h,
+        "set_tuning",
+        json!({"key": 7, "follow_song_key": true}),
+    );
     assert!(matches!(
         h.bus.project().tuning.system,
         TuningSystem::Temperament {
@@ -147,7 +161,10 @@ fn the_project_s_tuning_is_read_and_set_through_its_command() {
     let TuningSystem::Scale(s) = &h.bus.project().tuning.system else {
         panic!("a scale")
     };
-    assert_eq!((s.description.as_str(), s.degrees.len()), ("Five equal steps", 5));
+    assert_eq!(
+        (s.description.as_str(), s.degrees.len()),
+        ("Five equal steps", 5)
+    );
     let kbm = "12\n0\n127\n60\n60\n261.625565\n5\n0\nx\n1\nx\n2\n3\nx\n4\nx\nx\nx\nx\n";
     edit_ok(&mut h, "set_tuning", json!({"kbm": kbm}));
     let map = h.bus.project().tuning.map.clone().expect("a map");
@@ -159,7 +176,11 @@ fn the_project_s_tuning_is_read_and_set_through_its_command() {
     edit_ok(&mut h, "set_tuning", json!({"system": "external"}));
     assert_eq!(h.bus.project().tuning.system, TuningSystem::External);
     assert!(h.bus.project().tuning.map.is_none());
-    edit_ok(&mut h, "set_tuning", json!({"system": "equal", "a4_hz": 440}));
+    edit_ok(
+        &mut h,
+        "set_tuning",
+        json!({"system": "equal", "a4_hz": 440}),
+    );
     assert!(h.bus.project().tuning.is_default());
 }
 
@@ -189,21 +210,41 @@ fn what_the_commands_refuse_the_tools_refuse() {
 fn a_track_follows_plays_equal_or_has_its_own() {
     let mut h = host();
     let (track, _) = strings(&mut h);
-    edit_ok(&mut h, "set_tuning", json!({"temperament": "vallotti", "key": "D"}));
+    edit_ok(
+        &mut h,
+        "set_tuning",
+        json!({"temperament": "vallotti", "key": "D"}),
+    );
     let t = read_ok(&mut h, "get_tuning", json!({"track_id": track}));
     assert_eq!(t["mode"], "follow");
     assert_eq!(t["plays_tuning"]["temperament"], "vallotti");
-    edit_ok(&mut h, "set_tuning", json!({"track_id": track, "mode": "equal"}));
+    edit_ok(
+        &mut h,
+        "set_tuning",
+        json!({"track_id": track, "mode": "equal"}),
+    );
     assert_eq!(h.bus.project().tracks[0].tuning, TrackTuning::Equal);
     let t = read_ok(&mut h, "get_tuning", json!({"track_id": track}));
     assert_eq!(t["plays"]["cents_c4_to_b4"][0], 0.0);
-    edit_ok(&mut h, "set_tuning", json!({"track_id": track, "a4_hz": 432}));
+    edit_ok(
+        &mut h,
+        "set_tuning",
+        json!({"track_id": track, "a4_hz": 432}),
+    );
     let TrackTuning::Own { tuning } = &h.bus.project().tracks[0].tuning else {
         panic!("its own")
     };
     assert_eq!(tuning.a4_hz, 432.0);
-    assert_eq!(tuning.system, TuningSystem::Equal, "from what it played: equal");
-    edit_ok(&mut h, "set_tuning", json!({"track_id": track, "mode": "follow"}));
+    assert_eq!(
+        tuning.system,
+        TuningSystem::Equal,
+        "from what it played: equal"
+    );
+    edit_ok(
+        &mut h,
+        "set_tuning",
+        json!({"track_id": track, "mode": "follow"}),
+    );
     assert_eq!(h.bus.project().tracks[0].tuning, TrackTuning::Follow);
     match edit_err(
         &mut h,
@@ -213,7 +254,11 @@ fn a_track_follows_plays_equal_or_has_its_own() {
         ToolError::BadArgument { .. } => {}
         e => panic!("{e:?}"),
     }
-    match edit_err(&mut h, "set_tuning", json!({"track_id": 999_999, "mode": "equal"})) {
+    match edit_err(
+        &mut h,
+        "set_tuning",
+        json!({"track_id": 999_999, "mode": "equal"}),
+    ) {
         ToolError::NotFound(_) | ToolError::BadArgument { .. } => {}
         e => panic!("{e:?}"),
     }

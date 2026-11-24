@@ -78,7 +78,9 @@ pub fn tuning_messages(
     if table.is_equal() {
         return Vec::new();
     }
-    let mut out = vec![Event::SysEx(mts::write_key_dump(0x7F, program, name, table))];
+    let mut out = vec![Event::SysEx(mts::write_key_dump(
+        0x7F, program, name, table,
+    ))];
     let class: [f64; 12] = std::array::from_fn(|pc| 100.0 * f64::from(table.at(60 + pc as u8)));
     let periodic = (0..128u8).all(|k| {
         let o = f64::from(table.at(k));
@@ -89,10 +91,18 @@ pub fn tuning_messages(
         let mask = channels
             .iter()
             .fold(0u16, |m, &c| m | (1u16 << u16::from(c & 0x0F)));
-        out.push(Event::SysEx(mts::write_octave(0x7F, false, mask, &class, true)));
+        out.push(Event::SysEx(mts::write_octave(
+            0x7F, false, mask, &class, true,
+        )));
     } else {
         for &channel in channels {
-            for (controller, value) in [(101, 0), (100, 3), (6, program & 0x7F), (101, 127), (100, 127)] {
+            for (controller, value) in [
+                (101, 0),
+                (100, 3),
+                (6, program & 0x7F),
+                (101, 127),
+                (100, 127),
+            ] {
                 out.push(Event::Controller {
                     channel,
                     controller,
@@ -336,9 +346,9 @@ pub fn to_smf_with(
         // when asked (a kit's pads are unpitched: never).
         if opts.tuning && !ct.drums && !ct.tuning.is_equal() {
             let mut channels: Vec<u8> = match &zone {
-                Some((master, members)) => {
-                    std::iter::once(*master).chain(members.iter().copied()).collect()
-                }
+                Some((master, members)) => std::iter::once(*master)
+                    .chain(members.iter().copied())
+                    .collect(),
                 None => vec![channel],
             };
             channels.sort_unstable();

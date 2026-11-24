@@ -204,8 +204,8 @@ pub fn read_scl(bytes: &[u8]) -> Result<ScalaScale, ScalaError> {
         if description.is_none() {
             // The first non-comment line, possibly empty, is the description; a blank before
             // a `!` is the escape [`write_scl`] writes, and is dropped (r42 fix2-model).
-            let escaped = line.starts_with(is_blank)
-                && line.trim_start_matches(is_blank).starts_with('!');
+            let escaped =
+                line.starts_with(is_blank) && line.trim_start_matches(is_blank).starts_with('!');
             description = Some(if escaped { &line[1..] } else { line }.to_string());
             continue;
         }
@@ -456,10 +456,7 @@ pub fn write_kbm(map: &KeyboardMap) -> String {
 /// such line (a plain `.scl`, or an `.ascl` without one). A line that is not three numbers,
 /// an octave past 32 bits, an index outside the scale, a frequency that is not positive or a
 /// scale whose period is not a positive interval is refused. r42 fix2-model (review 2).
-pub fn read_ascl_map(
-    bytes: &[u8],
-    scale: &ScalaScale,
-) -> Result<Option<KeyboardMap>, ScalaError> {
+pub fn read_ascl_map(bytes: &[u8], scale: &ScalaScale) -> Result<Option<KeyboardMap>, ScalaError> {
     let text = decode(bytes)?;
     let mut found = None;
     for (n, line) in lines(&text) {
@@ -501,8 +498,7 @@ pub fn read_ascl_map(
         q as f64 * period + if r == 0 { 0.0 } else { cents[(r - 1) as usize] }
     };
     // Middle C in cents above degree 0, given the reference; the position nearest it.
-    let target =
-        at(index) + 1200.0 * cantus_dsp::math::log2(crate::tuning::C4_DEFAULT_HZ / hz);
+    let target = at(index) + 1200.0 * cantus_dsp::math::log2(crate::tuning::C4_DEFAULT_HZ / hz);
     let q0 = (target / period).floor() as i64;
     let mut middle = 0i64;
     let mut best = f64::INFINITY;

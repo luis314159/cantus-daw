@@ -8,9 +8,7 @@ use super::args::{self, plan, Res, A};
 use super::words;
 use crate::tool::{EditPlan, Said, ToolCx, ToolError};
 use cantus_core::scale::ROOT_NAMES;
-use cantus_core::tuning::{
-    Temperament, TrackTuning, Tuning, TuningSystem, A4_MAX_HZ, A4_MIN_HZ,
-};
+use cantus_core::tuning::{Temperament, TrackTuning, Tuning, TuningSystem, A4_MAX_HZ, A4_MIN_HZ};
 use cantus_core::tuning_scala;
 use cantus_core::Command;
 use serde_json::{json, Value};
@@ -24,7 +22,10 @@ fn temperament_id(t: Temperament) -> String {
 }
 
 fn temperament_ids() -> Vec<String> {
-    Temperament::ALL.iter().map(|t| temperament_id(*t)).collect()
+    Temperament::ALL
+        .iter()
+        .map(|t| temperament_id(*t))
+        .collect()
 }
 
 /// A tuning as the tools read it.
@@ -177,17 +178,33 @@ pub fn set_tuning(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
     if track.is_none() && mode.is_some() {
         return Err(ToolError::bad("mode", "is a track's (give track_id)"));
     }
-    let shaping = ["system", "temperament", "key", "follow_song_key", "a4_hz", "scala", "kbm"]
-        .iter()
-        .any(|k| a.has(k));
+    let shaping = [
+        "system",
+        "temperament",
+        "key",
+        "follow_song_key",
+        "a4_hz",
+        "scala",
+        "kbm",
+    ]
+    .iter()
+    .any(|k| a.has(k));
     // The tuning the fields change: the project's, or what the track plays now.
     let now = match track {
         None => p.tuning.clone(),
-        Some(id) => p.track(id).expect("checked").tuning.resolve(&p.tuning).into_owned(),
+        Some(id) => p
+            .track(id)
+            .expect("checked")
+            .tuning
+            .resolve(&p.tuning)
+            .into_owned(),
     };
     if let (Some(id), Some(m @ ("follow" | "equal"))) = (track, mode) {
         if shaping {
-            return Err(ToolError::bad("mode", "follow and equal take no tuning fields"));
+            return Err(ToolError::bad(
+                "mode",
+                "follow and equal take no tuning fields",
+            ));
         }
         let (tuning, key) = if m == "follow" {
             (TrackTuning::Follow, "ai.tools.set_track_tuning_follow")
@@ -215,13 +232,18 @@ pub fn set_tuning(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
             .map_err(|e| scala_refused("scala", &e))?;
         tu.system = TuningSystem::Scale(scale);
         tu.map = ascl;
-    } else if let Some(s) = a.opt_choice("system", &["equal", "temperament", "scale", "external"])? {
+    } else if let Some(s) =
+        a.opt_choice("system", &["equal", "temperament", "scale", "external"])?
+    {
         tu.system = match (s, &tu.system) {
             ("equal", _) => TuningSystem::Equal,
             ("external", _) => TuningSystem::External,
             ("scale", TuningSystem::Scale(_)) => tu.system.clone(),
             ("scale", _) => {
-                return Err(ToolError::bad("scala", "a Scala scale needs its file's text"))
+                return Err(ToolError::bad(
+                    "scala",
+                    "a Scala scale needs its file's text",
+                ))
             }
             (_, TuningSystem::Temperament { .. }) => tu.system.clone(),
             _ => TuningSystem::Temperament {
@@ -235,7 +257,13 @@ pub fn set_tuning(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
             tu.map = None;
         }
     }
-    if let Some(name) = a.opt_choice("temperament", &temperament_ids().iter().map(String::as_str).collect::<Vec<_>>())? {
+    if let Some(name) = a.opt_choice(
+        "temperament",
+        &temperament_ids()
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+    )? {
         let id = Temperament::ALL
             .into_iter()
             .find(|t| temperament_id(*t) == name)
@@ -273,9 +301,13 @@ pub fn set_tuning(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
     }
     if let Some(text) = a.opt_str("kbm")? {
         if !matches!(tu.system, TuningSystem::Scale(_)) {
-            return Err(ToolError::bad("kbm", "a keyboard map belongs to a Scala scale"));
+            return Err(ToolError::bad(
+                "kbm",
+                "a keyboard map belongs to a Scala scale",
+            ));
         }
-        tu.map = Some(tuning_scala::read_kbm(text.as_bytes()).map_err(|e| scala_refused("kbm", &e))?);
+        tu.map =
+            Some(tuning_scala::read_kbm(text.as_bytes()).map_err(|e| scala_refused("kbm", &e))?);
     }
     // A map read with the scale sounds as written: the diapason goes back to 440 then (the
     // window's import), unless one is given.

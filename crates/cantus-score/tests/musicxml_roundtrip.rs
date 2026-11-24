@@ -21,7 +21,8 @@ fn xml_of(p: &Passage) -> String {
         &XmlOptions {
             software: "Cantus".into(),
             date: None,
-            arts: Default::default(),        },
+            arts: Default::default(),
+        },
     )
 }
 
@@ -247,7 +248,9 @@ fn articulations_and_bows_are_written_as_musicxml_names_them_and_read_back() {
         pitch,
         velocity: 80,
     };
-    p.parts[0].notes = (0..6).map(|i| note(i + 1, 960 * i as i64, 60 + 2 * i as u8)).collect();
+    p.parts[0].notes = (0..6)
+        .map(|i| note(i + 1, 960 * i as i64, 60 + 2 * i as u8))
+        .collect();
     let arts: std::collections::HashMap<u64, NoteArt> = [
         (1, A::Staccato, None),
         (2, A::Spiccato, Some(Bow::Up)),
@@ -287,7 +290,11 @@ fn articulations_and_bows_are_written_as_musicxml_names_them_and_read_back() {
     }
     assert!(!xml.contains("<slur"), "legato is not a note's mark");
     let back = musicxml_in::read(&xml).unwrap();
-    let got: Vec<_> = back.parts[0].notes.iter().map(|n| (n.pitch, n.art)).collect();
+    let got: Vec<_> = back.parts[0]
+        .notes
+        .iter()
+        .map(|n| (n.pitch, n.art))
+        .collect();
     for (id, a) in &arts {
         let pitch = 60 + 2 * (*id as u8 - 1);
         let want = (a.articulation != A::Legato).then_some(*a);
@@ -306,8 +313,14 @@ fn articulations_and_bows_are_written_as_musicxml_names_them_and_read_back() {
     assert_eq!(
         arts,
         vec![
-            Some(NoteArt { articulation: A::Staccato, bow: None }),
-            Some(NoteArt { articulation: A::Tremolo, bow: Some(Bow::Down) }),
+            Some(NoteArt {
+                articulation: A::Staccato,
+                bow: None
+            }),
+            Some(NoteArt {
+                articulation: A::Tremolo,
+                bow: Some(Bow::Down)
+            }),
             None,
         ]
     );

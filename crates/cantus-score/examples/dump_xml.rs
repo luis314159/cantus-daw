@@ -22,7 +22,8 @@ fn main() {
             &XmlOptions {
                 software: "Cantus".into(),
                 date: None,
-                arts: Default::default(),            },
+                arts: Default::default(),
+            },
         );
         let path = std::path::Path::new(&dir).join(format!("{}.musicxml", p.name));
         std::fs::write(&path, xml).expect("written");

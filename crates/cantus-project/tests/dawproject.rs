@@ -921,10 +921,7 @@ fn the_tuning_and_the_notes_articulation_are_reported_not_dropped_in_silence() {
     t.clips.push(c);
     p.tracks.push(t);
     let plain = dawproject::export(&p, "0");
-    for key in [
-        "interop.report.x_tuning",
-        "interop.report.x_track_tuning",
-    ] {
+    for key in ["interop.report.x_tuning", "interop.report.x_track_tuning"] {
         assert!(!plain.report.has(key), "{key} with no tuning");
     }
     let art = plain.report.get("interop.report.x_note_art").expect("said");
@@ -941,6 +938,9 @@ fn the_tuning_and_the_notes_articulation_are_reported_not_dropped_in_silence() {
     p.tracks[0].tuning = TrackTuning::Equal;
     let tuned = dawproject::export(&p, "0");
     assert!(tuned.report.has("interop.report.x_tuning"));
-    let tr = tuned.report.get("interop.report.x_track_tuning").expect("said");
+    let tr = tuned
+        .report
+        .get("interop.report.x_track_tuning")
+        .expect("said");
     assert_eq!(tr.arg("track"), Some("Strings"));
 }

@@ -230,7 +230,11 @@ mod tests {
         let mut ev: Vec<NoteEvent> =
             [pair(0, 960, 60, 1, None), pair(1_000, 1_960, 60, 2, LEG)].concat();
         tie_legato(&mut ev);
-        assert_eq!(ev[1].tick, Ticks(960), "the first 60 still ends before the second");
+        assert_eq!(
+            ev[1].tick,
+            Ticks(960),
+            "the first 60 still ends before the second"
+        );
         // A looping clip: its repetitions share a note id (and the pitch).
         let mut ev: Vec<NoteEvent> =
             [pair(0, 900, 64, 7, LEG), pair(960, 1_860, 64, 7, LEG)].concat();

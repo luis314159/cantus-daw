@@ -590,7 +590,11 @@ fn chordas_readout_and_its_tuning_card_agree_under_the_master() {
         .project()
         .tracks
         .iter()
-        .find(|t| t.instrument.native().is_some_and(|n| n.kind == InstrumentKind::Chorda))
+        .find(|t| {
+            t.instrument
+                .native()
+                .is_some_and(|n| n.kind == InstrumentKind::Chorda)
+        })
         .map(|t| t.id)
         .expect("a Chorda track");
     let master = MtsLink::open(fake());
@@ -619,7 +623,10 @@ fn chordas_readout_and_its_tuning_card_agree_under_the_master() {
     };
     assert_eq!(shown, card, "one diapason");
     let want = 440.0 * 2f64.powf(f64::from(werck.at(69)) / 12.0);
-    assert!((shown - want).abs() < 1e-6, "the master's A4: {shown} vs {want}");
+    assert!(
+        (shown - want).abs() < 1e-6,
+        "the master's A4: {shown} vs {want}"
+    );
     assert!((shown - 415.0).abs() < 1e-3, "{shown}");
     master.resign_master();
     a.sync_engine();
@@ -670,7 +677,10 @@ fn a_frozen_track_in_the_masters_tuning_follows_the_master() {
     };
     assert!(settle(&mut a), "a render was made");
     assert!(a.project().any_frozen(), "frozen");
-    assert!(plays(&exported(&mut a, "frozen-werck"), 0, &read), "frozen in the master's");
+    assert!(
+        plays(&exported(&mut a, "frozen-werck"), 0, &read),
+        "frozen in the master's"
+    );
     // The master moves to ¼-comma meantone: the frozen render is made again.
     let meantone = temper(Temperament::MeantoneQuarter, 0, 440.0).offsets();
     master.publish_all(&meantone, "Meantone");
