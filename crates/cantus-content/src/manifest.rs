@@ -20,7 +20,12 @@ use serde::{Deserialize, Serialize};
 ///   pack instrument ([`Plays`]: Tympanum's kits, Chorda's pianos) and a DrumGizmo kit as
 ///   its file; a build that keeps every microphone (`Build::multichannel`); a piano built
 ///   from the Salamander/bitKlavier naming ([`PianoBuild`]).
-pub const FORMAT: u32 = 5;
+/// - 6 (round 42, ADR 0158; r42:strings-rec): recorded strings instruments written at
+///   install from their measured zones (`strings`, [`crate::stringsbuild`]).
+pub const FORMAT: u32 = 6;
+
+/// The first format that may carry a strings build. // r42:strings-rec
+pub const FORMAT_STRINGS: u32 = 6;
 
 /// The first format that may carry a pack's mode, `plays`, a multichannel build or a
 /// piano build. // r40:p3
@@ -341,6 +346,10 @@ pub struct Pack {
     /// A piano built at install from the Salamander/bitKlavier naming (`chorda-src`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub piano: Option<PianoBuild>,
+    /// r42:strings-rec — recorded strings instruments written as SFZ at install, from their
+    /// zones measured offline (ADR 0158, `stringsbuild`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strings: Option<crate::stringsbuild::StringsBuild>,
 }
 
 /// How Cantus gets a pack (the owner, 2026-11-12; ADR 0042 amended). r40:p3
@@ -913,6 +922,16 @@ impl Manifest {
                     )));
                 }
             }
+            // r42:strings-rec — a strings build needs the format that knows it.
+            if p.strings.is_some() && self.format < FORMAT_STRINGS {
+                return Err(bad(format!(
+                    "a strings build needs manifest format {FORMAT_STRINGS}"
+                )));
+            }
+            if let Some(b) = &p.strings {
+                b.validate()
+                    .map_err(|e| bad(format!("strings build: {e}")))?;
+            }
             let stated = p.licence_kind();
             let licence = match stated {
                 Some(l) => l,
@@ -991,8 +1010,13 @@ impl Manifest {
                 if !i.gain_db.is_finite() || i.gain_db.abs() > 24.0 {
                     return Err(bad_inst("the gain must be within ±24 dB"));
                 }
+                // r42:strings-rec — or an instrument the strings build writes at install.
+                let built = p
+                    .strings
+                    .as_ref()
+                    .is_some_and(|b| b.instruments.iter().any(|x| x.sfz == i.file));
                 if let Source::Files(files) = &p.source {
-                    if !files.iter().any(|f| f.to.eq_ignore_ascii_case(&i.file)) {
+                    if !built && !files.iter().any(|f| f.to.eq_ignore_ascii_case(&i.file)) {
                         return Err(bad_inst("its file is not among the pack's files"));
                     }
                 }

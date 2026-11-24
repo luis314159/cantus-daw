@@ -46,6 +46,10 @@ pub mod scale;
 #[path = "piano_roll_expr.rs"]
 pub mod expr;
 
+// r42:strings-rec — the articulation lane and the note's menu (ADR 0158).
+#[path = "piano_roll_art.rs"]
+pub mod art;
+
 const KEYS_W: f32 = 64.0;
 /// Wider when the lanes are named: "Closed hat" does not fit in the width of "F#2".
 const PAD_KEYS_W: f32 = 104.0;
@@ -811,7 +815,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                 let field = match rr.row {
                     LaneRow::Velocity => Some(paint::NoteField::Velocity),
                     LaneRow::Release => Some(paint::NoteField::Release),
-                    LaneRow::Ctl(_) | LaneRow::Expr(_) => None,
+                    LaneRow::Ctl(_) | LaneRow::Expr(_) | LaneRow::Art => None,
                 };
                 match (field, rr.row) {
                     (Some(field), _) => paint::velocity(
@@ -827,6 +831,16 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                         field,
                         &s,
                     ),
+                    (None, LaneRow::Art) => art::paint(
+                        b,
+                        &geo,
+                        rr.body,
+                        clip,
+                        &v.sel,
+                        &a.selected_notes,
+                        track_color,
+                        &s,
+                    ), // r42:strings-rec
                     (None, LaneRow::Expr(k)) => {
                         expr::paint(b, a, &geo, rr.body, clip, k, track_color, v.grid, &s)
                     }
@@ -859,7 +873,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         let press = ui.input(|i| i.pointer.press_origin());
         let in_notes_lane = |p: &Pos2| {
             rows.iter().any(|r| {
-                !matches!(r.row, LaneRow::Ctl(_) | LaneRow::Expr(_)) && r.body.contains(*p)
+                !matches!(r.row, LaneRow::Ctl(_) | LaneRow::Expr(_) | LaneRow::Art) // r42:strings-rec
+                    && r.body.contains(*p)
             })
         };
         Hits {
@@ -897,6 +912,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             }
             LaneRow::Ctl(k) => lanes::ctl_input(app, ui, &geo, rr.body, r, k, track_id, clip_id),
             LaneRow::Expr(k) => expr::input(app, ui, &geo, rr.body, r, k, track_id, clip_id),
+            LaneRow::Art => art::input(app, ui, &geo, r, track_id, clip_id), // r42:strings-rec
         }
     }
     lanes::cell_input(app, ui, &rows, max_scroll, f.vel_label, track_id, clip_id);
@@ -909,6 +925,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         hint::set_text(ui.ctx(), chrome::word("pianoroll.keys_tip"), "", Caps::NONE);
     }
     interact(app, ui, &geo, &resp, &ruler_resp, &hits, track_id, clip_id);
+    art::grid_menu(app, ui, &geo, &resp, track_id, clip_id); // r42:strings-rec — the note's menu
 
     // Cursor.
     if resp.hover_pos().is_some() {

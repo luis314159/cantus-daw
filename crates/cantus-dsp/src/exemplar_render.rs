@@ -23,6 +23,8 @@ struct Ctx<'a> {
     bend: f32,
     expr: f32,
     sus: f32,
+    /// r42:strings-rec — every controller's last value, for the zones' crossfades.
+    cc: &'a [u8; 128],
 }
 
 /// What [`Exemplar::process_outputs`] hands each output's lane to: output, offset into the
@@ -147,6 +149,7 @@ impl Exemplar {
                     bend: self.bend,
                     expr: self.expr,
                     sus: self.sus,
+                    cc: &self.cc_last, // r42:strings-rec
                 };
                 let Some((ll, lr)) = lanes.split(m).next() else {
                     return any;
@@ -202,6 +205,7 @@ impl Exemplar {
             bend: self.bend,
             expr: self.expr,
             sus: self.sus,
+            cc: &self.cc_last, // r42:strings-rec
         };
         let sounding = layers.iter_mut().enumerate().filter(|(_, l)| l.active);
         let jobs = sounding.zip(lanes.split(m).zip(lane_end.iter_mut()));
@@ -248,6 +252,7 @@ impl Exemplar {
             bend: self.bend,
             expr: self.expr,
             sus: self.sus,
+            cc: &self.cc_last, // r42:strings-rec
         };
         render_into(&cx, &mut layers[li], left, right)
     }
@@ -313,6 +318,17 @@ fn render_into(cx: &Ctx, l: &mut Layer, left: &mut [f32], right: &mut [f32]) -> 
                     return true;
                 }
                 g *= l.fade;
+            }
+            // r42:strings-rec — a legato crossfade (ADR 0158): in, it stays; out, it ends.
+            if l.leg_step != 0.0 {
+                l.leg += l.leg_step;
+                if l.leg >= 1.0 {
+                    l.leg = 1.0;
+                    l.leg_step = 0.0;
+                } else if l.leg <= 0.0 {
+                    return true;
+                }
+                g *= l.leg * (2.0 - l.leg);
             }
             left[t] += a * g * l.gain[0];
             right[t] += b * g * l.gain[1];
@@ -409,7 +425,17 @@ fn control(cx: &Ctx, l: &mut Layer) {
     } else {
         None
     };
-    let gmod = if off[0] != 0.0 { db(off[0]) } else { 1.0 };
+    let mut gmod = if off[0] != 0.0 { db(off[0]) } else { 1.0 };
+    // r42:strings-rec — the zone's continuous controller crossfade (ADR 0158), ramped
+    // across the step with the rest of the gain.
+    if l.xfcc >= 0 {
+        let c = match l.xfcc {
+            1 => cx.mw * 127.0,
+            11 => cx.expr * 127.0,
+            n => cx.cc[n.min(127) as usize] as f32,
+        };
+        gmod *= super::art::cc_crossfade(l.xfin, l.xfout, l.xf_gain, c.clamp(0.0, 127.0));
+    }
     let bal = balance(l.pan + off[1] / 100.0);
     let quality = g.quality as usize;
     let readers = cx.readers;

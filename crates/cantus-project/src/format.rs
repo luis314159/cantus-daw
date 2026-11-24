@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 81; // r42: 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning (ADR 0155), 82 reserved (strings-rec); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 82; // r42: 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning (ADR 0155); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -354,6 +354,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_78_to_79, // r41:fides-input — an instrument's sidechain (ADR 0154)
     migrate_79_to_80, // r42:contract — the project's and the tracks' tuning (ADR 0155)
     migrate_80_to_81, // r42:contract — Arcus and the note's articulation (ADRs 0157, 0158)
+    migrate_81_to_82, // r42:strings-rec — Exemplar's articulations and legato (ADR 0158)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1271,6 +1272,17 @@ fn migrate_80_to_81(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 82 (round 42, ADR 0158): an Exemplar zone's articulation, bow and controller
+/// crossfade (`z{n}.art`, `.bow`, `.xfcc`, `.xfinlo` … `.xfcurve`) and the instrument's scripted
+/// legato (`legato`, `legato.xf`, `legato.glide`, `legato.skip`). Absent — every older song —
+/// is what they played (any articulation, any bow, no crossfade, no legato), so nothing is
+/// written; an older build would drop them and play every zone of a key-switched strings
+/// instrument by its keyswitch alone.
+// r42:strings-rec
+fn migrate_81_to_82(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
 /// the default character changed, an old song keeps the one it showed).
 fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
@@ -1791,6 +1803,49 @@ mod tests {
         assert!(p.tracks.iter().all(|t| t.tuning.is_follow()));
     }
 
+    /// r42:strings-rec — Schema 82 (ADR 0158): the fixture's Strings track keeps its scripted
+    /// legato and its zones' articulations, bows and mod-wheel crossfade; every older file
+    /// (81) has none of them.
+    #[test]
+    fn schema_82_keeps_exemplar_s_articulations_and_legato() {
+        use cantus_core::inst::sampler::zf;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v82.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        let t = p
+            .tracks
+            .iter()
+            .find(|t| t.name == "Strings")
+            .expect("Strings");
+        let spec = t.instrument.native().expect("Exemplar");
+        assert_eq!(
+            ["legato", "legato.xf", "legato.glide", "legato.skip"].map(|k| spec.get(k)),
+            [1.0, 90.0, 40.0, 120.0]
+        );
+        let zones = cantus_core::inst::sampler::zones(spec);
+        let f = |n: usize, i: usize| zones[n].1.get(i);
+        assert_eq!(
+            (f(0, zf::ART), f(0, zf::BOW), f(0, zf::XFCC)),
+            (1.0, 1.0, 1.0)
+        );
+        assert_eq!((f(0, zf::XFOUTLO), f(0, zf::XFOUTHI)), (0.0, 127.0));
+        assert_eq!(
+            (f(1, zf::BOW), f(1, zf::XFINHI), f(1, zf::XFCURVE)),
+            (2.0, 127.0, 1.0)
+        );
+        assert_eq!(f(2, zf::ART), 5.0);
+        let old = std::fs::read_to_string(dir.join("v81.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p.tracks.iter().all(|t| t.name != "Strings"));
+        assert!(p
+            .tracks
+            .iter()
+            .filter_map(|t| t.instrument.native())
+            .all(|n| n.get("legato") == 0.0));
+    }
+
     /// r42:contract — Schema 81 (ADRs 0157, 0158): the fixture holds an Arcus track, and the
     /// first clip's first two notes carry an articulation (pizzicato; legato with a down bow);
     /// every older file (80) has neither.
@@ -1801,7 +1856,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v81.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // r42:strings-rec — no longer the newest (82): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(81));
         let p = report.file.project;
         assert!(p.tracks.iter().any(|t| t
             .instrument

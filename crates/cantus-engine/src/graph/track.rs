@@ -239,6 +239,18 @@ impl TrackSlot {
         }
     }
 
+    /// r42:strings-rec — how the clip's note tagged `tag` that starts next is played (ADR
+    /// 0158): handed to a native instrument just before its note-on (`InstrumentUnit::
+    /// note_art`); a hosted plug-in, Firmus and a kit hear nothing (no standard carries it).
+    pub fn note_art(&mut self, pitch: u8, tag: u64, art: cantus_core::note_art::NoteArt) {
+        if self.outboard || self.instrument != SlotInstrument::Native {
+            return;
+        }
+        if let Some(n) = self.native.as_mut() {
+            n.unit.note_art(native_id(pitch, tag), art);
+        }
+    }
+
     /// A clip's note-on with its ordinal on the track ([`crate::inst::InstrumentUnit::note_on_seq`]).
     pub fn note_on_seq(&mut self, pitch: u8, velocity: u8, tag: u64, ordinal: u32) {
         if self.outboard {
@@ -438,6 +450,9 @@ impl TrackSlot {
             };
             self.drums.trigger(m.pitch, m.velocity, hit);
         } else {
+            if let Some(a) = m.art {
+                self.note_art(m.pitch, m.tag, a); // r42:strings-rec
+            }
             self.note_on_seq(m.pitch, m.velocity, m.tag, m.ordinal);
         }
     }

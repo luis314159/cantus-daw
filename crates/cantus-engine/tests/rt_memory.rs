@@ -4439,3 +4439,83 @@ fn the_mts_esp_refresh_and_a_tuning_never_allocate() {
     );
     drop(link);
 }
+
+/// r42:strings-rec — the note's articulation on the audio thread (ADR 0158): an Exemplar of
+/// articulation zones (a sustain crossfaded on the mod wheel, a pizzicato) with the scripted
+/// legato on plays a line whose notes carry their articulations — a slur by overlap, a
+/// pizzicato, a mod-wheel swell from the clip's lane — with three workers: not one
+/// allocation on the callback or a worker.
+#[test]
+fn articulated_notes_never_allocate() {
+    use cantus_core::clip_lanes::{ClipLane, LaneKind};
+    use cantus_core::note_art::{Articulation, NoteArt};
+    let mut p = Project::new("arts");
+    p.tempo_bpm = 120.0;
+    let mut spec = NativeSpec::new(InstrumentKind::Sampler);
+    for (n, (art, lo, hi)) in [
+        (1.0f32, 0.0f32, 127.0f32),
+        (1.0, 127.0, 127.0),
+        (5.0, 0.0, 0.0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        spec.set(&format!("z{n}.gen"), 1.0 + n as f32);
+        spec.set(&format!("z{n}.mode"), 2.0);
+        spec.set(&format!("z{n}.art"), art);
+        if n < 2 {
+            spec.set(&format!("z{n}.xfcc"), 1.0);
+            spec.set(&format!("z{n}.xfinlo"), 0.0);
+            spec.set(&format!("z{n}.xfinhi"), lo);
+            spec.set(&format!("z{n}.xfoutlo"), hi.min(lo));
+            spec.set(&format!("z{n}.xfouthi"), 127.0);
+        }
+    }
+    spec.set("legato", 1.0);
+    spec.set("legato.skip", 40.0);
+    let mut tr = p.make_track("Strings");
+    tr.instrument = InstrumentSpec::Native(spec);
+    let mut clip = p.make_clip("line", Ticks::ZERO, Ticks::beats(8));
+    for i in 0..8i64 {
+        let mut n = p.make_note(
+            Ticks::beats(i),
+            Ticks::beats(1) + Ticks(60),
+            50 + i as u8,
+            90,
+        );
+        n.art = Some(NoteArt {
+            articulation: if i % 4 == 3 {
+                Articulation::Pizzicato
+            } else {
+                Articulation::Legato
+            },
+            bow: None,
+        });
+        clip.notes.push(n);
+    }
+    clip.lanes.push(ClipLane::new(
+        LaneKind::Cc(1),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.1),
+            AutoPoint::new(Ticks::beats(8), 1.0),
+        ],
+    ));
+    tr.clips.push(clip);
+    p.tracks.push(tr);
+    let mut rig = Rig::with(Some(Workers::parallel(3)));
+    let snap = Snapshot::compile(&p, 1);
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+        rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("warm", 20);
+    rig.allocations.clear();
+    rig.play("the line", 400);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "articulated notes allocated or freed: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}

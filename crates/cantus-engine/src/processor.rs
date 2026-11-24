@@ -1123,6 +1123,9 @@ pub(crate) fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
         };
         slot.drums.trigger(ev.pitch, ev.velocity, hit);
     } else if ev.is_on() {
+        if let Some(a) = ev.art {
+            slot.note_art(ev.pitch, ev.note.0, a); // r42:strings-rec (ADR 0158)
+        }
         slot.note_on_seq(ev.pitch, ev.velocity, ev.note.0, ev.ordinal);
     } else {
         slot.note_off(ev.pitch, ev.note.0, ev.release);

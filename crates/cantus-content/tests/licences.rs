@@ -468,5 +468,5 @@ fn a_one_click_pack_needs_an_accepted_licence_and_the_other_modes_the_authors_pa
         m.format = FORMAT_MODES - 1;
         assert!(m.validate().is_err(), "{mode:?} in format 4");
     }
-    assert_eq!(FORMAT, FORMAT_MODES);
+    const { assert!(FORMAT >= FORMAT_MODES) }; // r42:strings-rec — 6 added the strings build
 }

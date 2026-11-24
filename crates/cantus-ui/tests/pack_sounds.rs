@@ -902,6 +902,7 @@ fn the_new_track_button_is_in_view_without_scrolling() {
                 mode: Default::default(), // r40:p3
                 author_page: None,
                 piano: None,
+                strings: None, // r42:strings-rec
                 instruments: receipt.instruments.clone(),
             });
             a.samples.manifest = Some(with_pack);

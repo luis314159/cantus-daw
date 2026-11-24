@@ -339,6 +339,41 @@ pub const PARAMS: &[InstParamInfo] = &[
         false,
         true,
     ),
+    // r42:strings-rec — the scripted legato (ADR 0158; schema 82): on, an overlapping
+    // sustained note slurs out of the held one; its crossfade and glide (ms for an interval of
+    // nothing, a twelfth longer per semitone, at most twice) and how far into its sample the
+    // slurred note starts. Off by default: every Exemplar before plays as it did.
+    p("legato", "smp.legato", 0.0, 1.0, 0.0, "", false, true),
+    p(
+        "legato.xf",
+        "smp.legato_xf",
+        1.0,
+        1_000.0,
+        80.0,
+        "ms",
+        true,
+        false,
+    ),
+    p(
+        "legato.glide",
+        "smp.legato_glide",
+        0.0,
+        1_000.0,
+        50.0,
+        "ms",
+        false,
+        false,
+    ),
+    p(
+        "legato.skip",
+        "smp.legato_skip",
+        0.0,
+        1_000.0,
+        0.0,
+        "ms",
+        false,
+        false,
+    ),
 ];
 
 /// A group's numbers, as `g{m}.<field>`. The key printed here is the template `g.<field>`.
@@ -519,6 +554,36 @@ pub const ZONE_PARAMS: &[InstParamInfo] = &[
     // A zone's own low-pass (round 37, Sectio's per-slice filter, ADR 0099; schema 55):
     // 0 is none. r37:piano
     p("z.lpf", "smp.lpf", 0.0, 20_000.0, 0.0, "Hz", false, false),
+    // r42:strings-rec — the articulation the zone plays (0 any, else
+    // `note_art::Articulation`'s index + 1) and its bow (0 any, 1 down, 2 up); a continuous
+    // crossfade by a controller (−1 none; SFZ `xfin_loccN` … `xfout_hiccN`, `xf_cccurve`: 0
+    // power, 1 gain). ADR 0158, schema 82.
+    p("z.art", "smp.zone_art", 0.0, 6.0, 0.0, "", false, true),
+    p("z.bow", "smp.zone_bow", 0.0, 2.0, 0.0, "", false, true),
+    p("z.xfcc", "smp.xfcc", -1.0, 127.0, -1.0, "", false, true),
+    p("z.xfinlo", "smp.xfinlo", 0.0, 127.0, 0.0, "", false, true),
+    p("z.xfinhi", "smp.xfinhi", 0.0, 127.0, 0.0, "", false, true),
+    p(
+        "z.xfoutlo",
+        "smp.xfoutlo",
+        0.0,
+        127.0,
+        127.0,
+        "",
+        false,
+        true,
+    ),
+    p(
+        "z.xfouthi",
+        "smp.xfouthi",
+        0.0,
+        127.0,
+        127.0,
+        "",
+        false,
+        true,
+    ),
+    p("z.xfcurve", "smp.xfcurve", 0.0, 1.0, 0.0, "", false, true),
 ];
 
 pub fn params() -> &'static [InstParamInfo] {
@@ -645,7 +710,15 @@ pub mod zf {
     pub const CCLO: usize = 38;
     pub const CCHI: usize = 39;
     pub const LPF: usize = 40; // r37:piano
-    pub const COUNT: usize = 41;
+    pub const ART: usize = 41; // r42:strings-rec
+    pub const BOW: usize = 42; // r42:strings-rec
+    pub const XFCC: usize = 43; // r42:strings-rec
+    pub const XFINLO: usize = 44; // r42:strings-rec
+    pub const XFINHI: usize = 45; // r42:strings-rec
+    pub const XFOUTLO: usize = 46; // r42:strings-rec
+    pub const XFOUTHI: usize = 47; // r42:strings-rec
+    pub const XFCURVE: usize = 48; // r42:strings-rec
+    pub const COUNT: usize = 49;
 }
 
 /// Index of each group field in [`GROUP_PARAMS`].
@@ -710,7 +783,15 @@ pub fn zone_field(field: &str) -> Option<usize> {
         "cc" => zf::CC,
         "cclo" => zf::CCLO,
         "cchi" => zf::CCHI,
-        "lpf" => zf::LPF, // r37:piano
+        "lpf" => zf::LPF,         // r37:piano
+        "art" => zf::ART,         // r42:strings-rec
+        "bow" => zf::BOW,         // r42:strings-rec
+        "xfcc" => zf::XFCC,       // r42:strings-rec
+        "xfinlo" => zf::XFINLO,   // r42:strings-rec
+        "xfinhi" => zf::XFINHI,   // r42:strings-rec
+        "xfoutlo" => zf::XFOUTLO, // r42:strings-rec
+        "xfouthi" => zf::XFOUTHI, // r42:strings-rec
+        "xfcurve" => zf::XFCURVE, // r42:strings-rec
         _ => return None,
     })
 }

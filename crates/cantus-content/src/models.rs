@@ -381,6 +381,7 @@ impl ModelManifest {
                 mode: Default::default(), // r40:p3
                 author_page: None,        // r40:p3
                 piano: None,              // r40:p3
+                strings: None,            // r42:strings-rec
             });
         }
         for m in &self.models {
@@ -404,6 +405,7 @@ impl ModelManifest {
                 mode: Default::default(), // r40:p3
                 author_page: None,        // r40:p3
                 piano: None,              // r40:p3
+                strings: None,            // r42:strings-rec
             });
         }
         Manifest {

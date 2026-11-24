@@ -54,6 +54,7 @@ pub fn pack(id: &str, licence_file: &str, source: Source) -> Pack {
         mode: Default::default(), // r40:p3
         author_page: None,
         piano: None,
+        strings: None, // r42:strings-rec
     }
 }
 

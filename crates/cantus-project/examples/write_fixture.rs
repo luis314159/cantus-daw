@@ -2020,6 +2020,49 @@ fn main() {
         .apply(&mut p)
         .expect("two notes' articulation");
     }
+    // r42:strings-rec — Schema 82 (ADR 0158): a recorded-strings Exemplar before the last
+    // track: the scripted legato on (crossfade 90 ms, glide 40 ms, 120 ms past the attack),
+    // two zones a sustain crossfaded by the mod wheel — piano down-bow, forte up-bow — and a
+    // pizzicato zone.
+    if upto >= 82 {
+        use cantus_core::inst::sampler::{zf, Zone};
+        let mut spec = NativeSpec::new(InstrumentKind::Sampler);
+        for (k, v) in [
+            ("legato", 1.0),
+            ("legato.xf", 90.0),
+            ("legato.glide", 40.0),
+            ("legato.skip", 120.0),
+        ] {
+            spec.set(k, v);
+        }
+        let mut soft = Zone::new(Some("strings/cello_p_d.wav".into()), 36, 72, 48);
+        soft.set(zf::ART, 1.0)
+            .set(zf::BOW, 1.0)
+            .set(zf::XFCC, 1.0)
+            .set(zf::XFOUTLO, 0.0)
+            .set(zf::XFOUTHI, 127.0);
+        let mut loud = Zone::new(Some("strings/cello_f_u.wav".into()), 36, 72, 48);
+        loud.set(zf::ART, 1.0)
+            .set(zf::BOW, 2.0)
+            .set(zf::XFCC, 1.0)
+            .set(zf::XFINLO, 0.0)
+            .set(zf::XFINHI, 127.0)
+            .set(zf::XFCURVE, 1.0);
+        let mut pizz = Zone::new(Some("strings/cello_pizz.wav".into()), 36, 72, 48);
+        pizz.set(zf::ART, 5.0);
+        for (n, z) in [soft, loud, pizz].into_iter().enumerate() {
+            for (k, v) in z.values_for(n) {
+                spec.set(&k, v);
+            }
+            for (k, text) in z.texts_for(n) {
+                let _ = spec.set_text(&k, Some(text));
+            }
+        }
+        let mut strings = p.make_track("Strings");
+        strings.instrument = InstrumentSpec::Native(spec);
+        let at = p.tracks.len().saturating_sub(1);
+        p.tracks.insert(at, strings);
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

@@ -1122,3 +1122,28 @@ símbolos C (`crates/cantus-rt/tests/fake_mts/`); ningún equipo de esta ronda t
   abrirla (Ctrl+Alt+T abre la terminal del sistema, por eso no es su atajo).
 - [ ] **macOS**: la app firmada carga `/Library/Application Support/MTS-ESP/libMTS.dylib` (el
   permiso *disable-library-validation*).
+
+### Ronda 42 — las cuerdas grabadas y la articulación de la nota (ADR 0158) <!-- r42:strings-rec -->
+
+- [ ] **Escucha** `F:\projects\daw-r42\listen\strings-rec\` (cada archivo a −1 dBFS de pico y
+  una copia a −23 LUFS para comparar a oído): en cada `*-line.wav`, el **par legato** del
+  primer compás (la segunda nota sale de la primera sin ataque nuevo, deslizándose — ¿suena a
+  un arco que no se levanta o a un fundido?), el **crescendo** de la rueda de modulación en la
+  nota larga (¿sube de piano a forte cambiando el color, sin escalones?) y las notas sueltas
+  (el arco alterna abajo/arriba). Di cuál de cada pack es aceptable y cuál no.
+- [ ] **Los bucles**: en las notas largas de *Celli (section)*, *Bigcat cello* y *Smolken
+  double bass*, ¿oyes la costura del bucle (un clic, un salto de vibrato que se repite)? La
+  prueba espectral dice que no; tu oído decide.
+- [ ] **ABX con Arcus**: `abx-cello.wav` y `abx-bass.wav` son las referencias grabadas de la
+  frase de la ronda (las mismas notas que renderiza Arcus); compáralas a ciegas con las de
+  Arcus.
+- [ ] **El carril de articulación**: en el piano roll, **+** del carril de velocidad ▸
+  *Articulación*; haz clic en la marca de una nota (o doble clic en la nota): elige
+  *Pizzicato* en una nota de *Bigcat cello* y escucha que esa nota, y solo esa, se pulsa.
+  Mira las marcas (tenuto, ligadura, punto, cuña, pizz., trémolo, arco abajo ⊓ y arriba V) en
+  Slate y en Paper.
+- [ ] **Abogado** (antes de publicar): el estado y las reivindicaciones de US 7,915,514 y US
+  8,404,958 (Fable Sounds: el cambio de capas por umbrales — aquí un fundido continuo) y de
+  US 7,557,288 (Yamaha: la junta de legato almacenada construida tras el note-on — aquí un
+  fundido y deslizamiento de dos muestras normales, con anticipación del clip, la idea de la
+  patente vencida US 7,718,885 de Lindemann).

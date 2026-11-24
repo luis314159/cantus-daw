@@ -200,6 +200,22 @@ impl Unit {
     }
 }
 
+/// r42:strings-rec — a note's articulation and bow as Exemplar's codes
+/// (`cantus_dsp::exemplar::art`): the articulation's index + 1, the bow 1 down, 2 up, 0 none.
+pub fn art_codes(art: cantus_core::note_art::NoteArt) -> (u8, u8) {
+    use cantus_core::note_art::{Articulation, Bow};
+    let a = Articulation::ALL
+        .iter()
+        .position(|x| *x == art.articulation)
+        .map_or(0, |i| i as u8 + 1);
+    let b = match art.bow {
+        None => 0,
+        Some(Bow::Down) => 1,
+        Some(Bow::Up) => 2,
+    };
+    (a, b)
+}
+
 /// The instrument's numbers into [`Globals`].
 fn global(g: &mut Globals, key: &str, v: f32) {
     match key {
@@ -239,6 +255,10 @@ fn global(g: &mut Globals, key: &str, v: f32) {
         "sw.hi" => g.sw_hi = v as i16,
         "sw.default" => g.sw_default = v as i16,
         "rr.order" => g.rr_in_order = v >= 0.5,
+        "legato" => g.legato = v >= 0.5,         // r42:strings-rec
+        "legato.xf" => g.legato_xf_ms = v,       // r42:strings-rec
+        "legato.glide" => g.legato_glide_ms = v, // r42:strings-rec
+        "legato.skip" => g.legato_skip_ms = v,   // r42:strings-rec
         _ => {
             if let Some(m) = MACRO_KEYS.iter().position(|k| *k == key) {
                 g.macros[m] = v;
@@ -328,6 +348,18 @@ pub fn zone_params(v: &[f32; zf::COUNT], rate: f32) -> ZoneParams {
         cc: (v[zf::CC] as u8).min(127),
         cclo: (v[zf::CCLO] as u8).min(127),
         cchi: (v[zf::CCHI] as u8).min(127),
+        art: (v[zf::ART] as u8).min(6),            // r42:strings-rec
+        bow: (v[zf::BOW] as u8).min(2),            // r42:strings-rec
+        xfcc: (v[zf::XFCC] as i16).clamp(-1, 127), // r42:strings-rec
+        xfin: [
+            (v[zf::XFINLO] as u8).min(127),
+            (v[zf::XFINHI] as u8).min(127),
+        ], // r42:strings-rec
+        xfout: [
+            (v[zf::XFOUTLO] as u8).min(127),
+            (v[zf::XFOUTHI] as u8).min(127),
+        ], // r42:strings-rec
+        xf_gain: v[zf::XFCURVE] >= 0.5,            // r42:strings-rec
     }
 }
 
@@ -574,6 +606,12 @@ impl InstrumentUnit for Unit {
 
     fn note_on(&mut self, note: NoteOn) {
         self.ex.note_on(note.key, note.velocity, note.id);
+    }
+
+    /// r42:strings-rec — the note's articulation and bow (ADR 0158), as Exemplar's codes.
+    fn note_art(&mut self, id: u64, art: cantus_core::note_art::NoteArt) {
+        let (a, b) = art_codes(art);
+        self.ex.note_art(id, a, b);
     }
 
     fn note_on_seq(&mut self, note: NoteOn, ordinal: u32) {

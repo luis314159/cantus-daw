@@ -577,6 +577,7 @@ impl Processor {
                     tag: LIVE_TAG,
                     ordinal: 0,
                     live: true,
+                    art: None, // r42:strings-rec (live input carries none)
                 };
                 let lost = s.fx_play(
                     now,

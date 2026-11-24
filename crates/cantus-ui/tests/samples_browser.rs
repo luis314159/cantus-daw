@@ -384,6 +384,7 @@ fn the_starter_offer_installs_the_recommended_pack_in_one_click() {
         mode: Default::default(), // r40:p3
         author_page: None,
         piano: None,
+        strings: None, // r42:strings-rec
     };
     let mut a = browser_app(
         &f,
@@ -1240,6 +1241,7 @@ fn the_packs_page_shows_covers_and_get_fetches_a_pack() {
         mode: Default::default(), // r40:p3
         author_page: None,
         piano: None,
+        strings: None, // r42:strings-rec
     };
     let mut a = browser_app(
         &f,
