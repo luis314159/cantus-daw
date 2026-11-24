@@ -897,3 +897,50 @@ fn a_session_only_audio_track_is_written_as_audio() {
         .unwrap();
     assert_eq!(track.attribute("contentType"), Some("audio"));
 }
+
+/// r42 fix2-model (review 7, ADRs 0155, 0158): DAWproject has no tuning and no note
+/// articulation — its export says so (ADR 0021: never dropped in silence), and says nothing
+/// of either for a song that has none.
+#[test]
+fn the_tuning_and_the_notes_articulation_are_reported_not_dropped_in_silence() {
+    use cantus_core::note_art::{Articulation, NoteArt};
+    use cantus_core::tuning::{Temperament, TrackTuning, Tuning, TuningSystem};
+    let mut p = Project::new("tuned");
+    let mut t = p.make_track("Strings");
+    let mut c = p.make_clip("line", Ticks::ZERO, Ticks::beats(4));
+    for i in 0..3 {
+        let mut n = p.make_note(Ticks::beats(i), Ticks::QUARTER, 60 + i as u8, 100);
+        if i > 0 {
+            n.art = Some(NoteArt {
+                articulation: Articulation::Pizzicato,
+                bow: None,
+            });
+        }
+        c.notes.push(n);
+    }
+    t.clips.push(c);
+    p.tracks.push(t);
+    let plain = dawproject::export(&p, "0");
+    for key in [
+        "interop.report.x_tuning",
+        "interop.report.x_track_tuning",
+    ] {
+        assert!(!plain.report.has(key), "{key} with no tuning");
+    }
+    let art = plain.report.get("interop.report.x_note_art").expect("said");
+    assert_eq!(art.arg("n"), Some("2"));
+    p.tuning = Tuning {
+        a4_hz: 415.0,
+        system: TuningSystem::Temperament {
+            id: Temperament::Vallotti,
+            key: 0,
+            follow_song_key: false,
+        },
+        map: None,
+    };
+    p.tracks[0].tuning = TrackTuning::Equal;
+    let tuned = dawproject::export(&p, "0");
+    assert!(tuned.report.has("interop.report.x_tuning"));
+    let tr = tuned.report.get("interop.report.x_track_tuning").expect("said");
+    assert_eq!(tr.arg("track"), Some("Strings"));
+}

@@ -112,6 +112,7 @@ fn export_then_import_round_trips_every_note_at_every_ppq_that_can_hold_it() {
                 scope: Scope::Song,
                 ppq,
                 notes: Default::default(),
+                tuning: false,
             },
         )
         .unwrap();
@@ -137,6 +138,7 @@ fn coarser_files_hold_their_own_grid_exactly_and_round_everything_else_to_it() {
                 scope: Scope::Song,
                 ppq,
                 notes: Default::default(),
+                tuning: false,
             },
         )
         .unwrap();
@@ -151,6 +153,7 @@ fn coarser_files_hold_their_own_grid_exactly_and_round_everything_else_to_it() {
                 scope: Scope::Song,
                 ppq,
                 notes: Default::default(),
+                tuning: false,
             },
         )
         .unwrap();
@@ -306,6 +309,7 @@ fn a_clip_exports_from_its_own_start_and_plays_what_its_window_shows() {
             },
             ppq: 960,
             notes: Default::default(),
+            tuning: false,
         },
     )
     .unwrap();

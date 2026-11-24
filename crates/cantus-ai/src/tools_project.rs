@@ -45,6 +45,8 @@ pub mod session;
 pub mod song;
 #[path = "tools_tracks.rs"]
 pub mod tracks;
+#[path = "tools_tuning.rs"]
+pub mod tuning; // r42 fix2-model (review 9)
 #[path = "tools_words.rs"]
 pub mod words;
 
@@ -101,6 +103,11 @@ pub static TOOLS: &[ToolDef] = &[
         "A tempo change on the tempo track at a position (ramp: move linearly to the next point — an accelerando). A point at the start sets the song's tempo. Removing one is remove_items. One undo step."),
     tool!("set_song", "Set the song's frame", Edit, song::song_schema, Edit(song::set_song),
         "Any of: the project's name; the time signature (from bar 1, or a metre change at a later bar); the key (root and scale, or null); the loop region (or null); the metronome. One undo step."),
+    // r42 fix2-model (review 9, ADR 0155): the project's and the tracks' tuning.
+    tool!("get_tuning", "Read the tuning", Read, tuning::get_tuning_schema, Read(tuning::get_tuning),
+        "The project's tuning (or a track's: follow, equal or its own, and what it plays): the system (equal, a temperament with its key and whether it follows the song's key, a Scala scale with its degrees and .scl text, the MTS-ESP master's), the diapason A4 in Hz, a keyboard map (.kbm text, unmapped keys), and C4…B4's cents from 12-TET at A440. Changes nothing."),
+    tool!("set_tuning", "Set the tuning", Edit, tuning::set_tuning_schema, Edit(tuning::set_tuning),
+        "Set the project's tuning (every track that follows it), or a track's (track_id): follow the project's, equal temperament at A440, or its own. Any of: the system (equal, temperament, scale, external — the MTS-ESP master's), a named temperament and its key (a note name or 0–11) or follow_song_key, the diapason a4_hz (380–480), a Scala .scl file's text (scala; an Ableton .ascl's reference pitch is read) and a .kbm's (kbm). Fields not given keep their values. A map belongs to a scale. Refused when the tuning is not valid. One undo step."),
     tool!("set_marker", "Add or change a marker", Edit, song::marker_schema, Edit(song::set_marker),
         "A new marker (at, name) — answers its marker_id — or an existing one moved or renamed. Removing is remove_items. One undo step."),
     // --- tracks and instruments ----------------------------------------------------------

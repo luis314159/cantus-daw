@@ -343,3 +343,10 @@ ai.phrase.count.changes.one = 1 cambio de acorde
 ai.phrase.count.changes.many = {n} cambios de acorde
 ai.phrase.count.files.one = 1 archivo
 ai.phrase.count.files.many = {n} archivos
+# r42 fix2-model (revisión 9): las herramientas de afinación.
+ai.tools.set_tuning = afinar la canción en {system} con A4 = {a4} Hz
+ai.tools.set_track_tuning = afinar {track} en {system} con A4 = {a4} Hz
+ai.tools.set_track_tuning_follow = hacer que {track} siga la afinación de la canción
+ai.tools.set_track_tuning_equal = tocar {track} en temperamento igual con A4 = 440 Hz
+ai.phrase.temperament_in = {temperament} en {key}
+ai.phrase.scale_of = la escala {scale} ({n} grados)

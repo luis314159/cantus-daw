@@ -343,3 +343,10 @@ ai.phrase.count.changes.one = 1 chord change
 ai.phrase.count.changes.many = {n} chord changes
 ai.phrase.count.files.one = 1 file
 ai.phrase.count.files.many = {n} files
+# r42 fix2-model (review 9): the tuning tools.
+ai.tools.set_tuning = tune the song to {system} at A4 = {a4} Hz
+ai.tools.set_track_tuning = tune {track} to {system} at A4 = {a4} Hz
+ai.tools.set_track_tuning_follow = let {track} follow the song's tuning
+ai.tools.set_track_tuning_equal = play {track} in equal temperament at A4 = 440 Hz
+ai.phrase.temperament_in = {temperament} in {key}
+ai.phrase.scale_of = the scale {scale} ({n} degrees)

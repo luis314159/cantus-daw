@@ -260,6 +260,7 @@ pub fn export_project_schema() -> Value {
             "track_id": s_id("MIDI: only this track (left out: every track)."),
             "clip_id": s_id("MIDI: only this clip (with its track_id)."),
             "as_written": {"type": "boolean", "default": false, "description": "MIDI: the notes as written, without grooves and note effects."},
+            "tuning": {"type": "boolean", "default": false, "description": "MIDI: each tuned track's tuning written at its start as MIDI Tuning Standard messages (a bulk dump, and scale/octave tuning or the program selected), for hardware that reads them."},
             "overwrite": {"type": "boolean", "default": false}
         }),
         &["format", "file"],
@@ -483,6 +484,7 @@ pub fn export_project(cx: &mut ToolCx<'_>, a: &Value) -> Res<cantus_ai::Job> {
                 scope,
                 ppq: cantus_project::midi::DEFAULT_PPQ,
                 notes,
+                tuning: a.opt_bool("tuning")?.unwrap_or(false),
             },
             Some(&hook),
         )

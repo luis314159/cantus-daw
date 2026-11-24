@@ -21,7 +21,7 @@ fn xml_of(p: &Passage) -> String {
         &XmlOptions {
             software: "Cantus".into(),
             date: None,
-        },
+            arts: Default::default(),        },
     )
 }
 
@@ -227,4 +227,88 @@ fn a_tie_through_a_cut_chord_stays_balanced() {
     for want in [(0, 1920, 64), (0, 3840, 72), (480, 480, 55)] {
         assert!(got.contains(&want), "{want:?} not in {got:?}");
     }
+}
+
+/// r42 fix2-model (review 7, ADR 0158): a note's articulation and bow are written as
+/// MusicXML 4.0 names them — the W3C Music Notation CG's reference
+/// (w3.org/2021/06/musicxml40/musicxml-reference): `<articulations>` holds `<staccato>`,
+/// `<tenuto>` and `<spiccato>`; `<technical>` holds `<up-bow>` and `<down-bow>`;
+/// `<ornaments>` holds `<tremolo>` (its text the marks, 0–8; its type `single` by default);
+/// a pizzicato note is `<note pizzicato="yes">` ("used when just this note is sounded
+/// pizzicato") — and read back as they were. A hand-written file's marks read too.
+#[test]
+fn articulations_and_bows_are_written_as_musicxml_names_them_and_read_back() {
+    use cantus_core::note_art::{Articulation as A, Bow, NoteArt};
+    let mut p = samples::melody();
+    let note = |id: u64, start: i64, pitch: u8| SourceNote {
+        id,
+        start,
+        len: 960,
+        pitch,
+        velocity: 80,
+    };
+    p.parts[0].notes = (0..6).map(|i| note(i + 1, 960 * i as i64, 60 + 2 * i as u8)).collect();
+    let arts: std::collections::HashMap<u64, NoteArt> = [
+        (1, A::Staccato, None),
+        (2, A::Spiccato, Some(Bow::Up)),
+        (3, A::Sustain, Some(Bow::Down)),
+        (4, A::Pizzicato, None),
+        (5, A::Tremolo, None),
+        (6, A::Legato, None),
+    ]
+    .into_iter()
+    .map(|(id, articulation, bow)| (id, NoteArt { articulation, bow }))
+    .collect();
+    let song = Song {
+        title: p.title.into(),
+        composer: "Cantus tests".into(),
+        tempo: &p.tempo,
+        key: p.key,
+    };
+    let score = build(&song, &p.parts, None);
+    let xml = musicxml::write(
+        &score,
+        &XmlOptions {
+            software: "Cantus".into(),
+            date: None,
+            arts: arts.clone(),
+        },
+    );
+    for el in [
+        "<articulations><staccato/></articulations>",
+        "<articulations><spiccato/></articulations>",
+        "<articulations><tenuto/></articulations>",
+        "<technical><up-bow/></technical>",
+        "<technical><down-bow/></technical>",
+        "<ornaments><tremolo type=\"single\">3</tremolo></ornaments>",
+        " pizzicato=\"yes\">",
+    ] {
+        assert_eq!(xml.matches(el).count(), 1, "{el} once in:\n{xml}");
+    }
+    assert!(!xml.contains("<slur"), "legato is not a note's mark");
+    let back = musicxml_in::read(&xml).unwrap();
+    let got: Vec<_> = back.parts[0].notes.iter().map(|n| (n.pitch, n.art)).collect();
+    for (id, a) in &arts {
+        let pitch = 60 + 2 * (*id as u8 - 1);
+        let want = (a.articulation != A::Legato).then_some(*a);
+        assert!(got.contains(&(pitch, want)), "{pitch}: {want:?} in {got:?}");
+    }
+    // Marks another program wrote: staccatissimo, an unmeasured tremolo, an accent (none).
+    let other = r#"<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>V</part-name></score-part></part-list>
+<part id="P1"><measure number="1"><attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><notations><articulations><staccatissimo/></articulations></notations></note>
+<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><notations><ornaments><tremolo type="unmeasured">0</tremolo></ornaments><technical><down-bow/></technical></notations></note>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><notations><articulations><accent/></articulations></notations></note>
+</measure></part></score-partwise>"#;
+    let o = musicxml_in::read(other).unwrap();
+    let arts: Vec<_> = o.parts[0].notes.iter().map(|n| n.art).collect();
+    assert_eq!(
+        arts,
+        vec![
+            Some(NoteArt { articulation: A::Staccato, bow: None }),
+            Some(NoteArt { articulation: A::Tremolo, bow: Some(Bow::Down) }),
+            None,
+        ]
+    );
 }

@@ -93,6 +93,9 @@ pub struct MidiExportDialog {
     /// The notes as played (grooves and note effects written out) or as written (round
     /// 31, ADR 0069).
     pub played: bool,
+    /// r42 fix2-model (review 7): each tuned track's tuning written as MIDI Tuning
+    /// Standard messages at its start (`midi::ExportOptions::tuning`). Off by default.
+    pub tuning: bool,
 }
 
 /// The resolutions offered, in ticks per quarter note.
@@ -159,6 +162,7 @@ pub fn export_midi_dialog(app: &mut CantusApp) {
         scope,
         ppq: midi::DEFAULT_PPQ,
         played: true,
+        tuning: false,
     });
 }
 
@@ -380,6 +384,19 @@ pub fn export_midi_to(app: &mut CantusApp, path: &Path, scope: MidiScope, ppq: u
     export_midi_notes(app, path, scope, ppq, true)
 }
 
+/// [`export_midi_notes`] with the tuning written as MIDI Tuning Standard messages or not
+/// (r42 fix2-model, review 7; `midi::ExportOptions::tuning`).
+pub fn export_midi_with(
+    app: &mut CantusApp,
+    path: &Path,
+    scope: MidiScope,
+    ppq: u16,
+    played: bool,
+    tuning: bool,
+) -> bool {
+    export_midi_opts(app, path, scope, ppq, played, tuning)
+}
+
 /// [`export_midi_to`], the notes as played (each clip's groove, each track's note effects
 /// written out) or as written (round 31, ADR 0069).
 pub fn export_midi_notes(
@@ -388,6 +405,17 @@ pub fn export_midi_notes(
     scope: MidiScope,
     ppq: u16,
     played: bool,
+) -> bool {
+    export_midi_opts(app, path, scope, ppq, played, false)
+}
+
+fn export_midi_opts(
+    app: &mut CantusApp,
+    path: &Path,
+    scope: MidiScope,
+    ppq: u16,
+    played: bool,
+    tuning: bool,
 ) -> bool {
     let scope = match (scope, app.selected_track, app.selected_clip) {
         (MidiScope::Clip, Some(track), Some(clip)) => midi::Scope::Clip { track, clip },
@@ -402,7 +430,12 @@ pub fn export_midi_notes(
     let hook = crate::notefx_ui::midi_hook;
     let result = midi::export_with(
         app.project(),
-        &midi::ExportOptions { scope, ppq, notes },
+        &midi::ExportOptions {
+            scope,
+            ppq,
+            notes,
+            tuning,
+        },
         Some(&hook),
     )
     .map_err(|e| e.to_string())
@@ -691,6 +724,9 @@ fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
         .zip(app.selected_clip)
         .and_then(|(t, c)| app.project().track(t)?.clip(c))
         .map(|c| c.name.clone());
+    // Whether the song has a tuning to write (r42 fix2-model, review 7).
+    let tuned = !app.project().tuning.is_default()
+        || app.project().tracks.iter().any(|t| !t.tuning.is_follow());
     let (mut export, mut close) = (false, false);
     dialog(t("interop.midi_export.title")).show(ctx, |ui| {
         if crate::kit::dialog::title(ui, &t("interop.midi_export.title")) {
@@ -761,6 +797,19 @@ fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
                 "notefx.midi.written_hint"
             }),
         );
+        // r42 fix2-model (review 7, ADR 0155): the tuning, as MIDI Tuning Standard messages.
+        form::band(ui, "tuning.midi.band");
+        if form::choice(ui, d.tuning && tuned, tuned, &t("tuning.midi.write")) {
+            d.tuning = !d.tuning;
+        }
+        hint(
+            ui,
+            t(if tuned {
+                "tuning.midi.hint"
+            } else {
+                "tuning.midi.none"
+            }),
+        );
         form::buttons(ui, |ui| {
             close |= form::button(ui, &t("interop.cancel"), false, true);
             export = form::button(ui, &t("interop.export"), true, true);
@@ -778,7 +827,7 @@ fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
             .set_file_name(format!("{base}.mid"))
             .save_file()
         {
-            export_midi_notes(app, &path, d.scope, d.ppq, d.played);
+            export_midi_with(app, &path, d.scope, d.ppq, d.played, d.tuning && tuned);
         }
     }
 }

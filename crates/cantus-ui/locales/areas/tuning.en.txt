@@ -197,3 +197,11 @@ cmd.tuning.by = Tuning by
 tuning.by = Tuning by
 tuning.by.mts_esp = MTS-ESP
 tuning.by.note_expression = Note expression
+
+# r42 fix2-model — the tuning in exported files (review 7, ADR 0155).
+tuning.midi.band = Tuning
+tuning.midi.write = Write the tuning (MIDI Tuning Standard)
+tuning.midi.hint = Each tuned track starts with a bulk tuning dump, and the scale/octave message or the tuning program selected on its channels, for synthesisers that read them. Off: the file is as before.
+tuning.midi.none = The song plays in equal temperament at 440 Hz: there is no tuning to write.
+interop.report.x_tuning = The song's tuning is not in DAWproject: it opens in equal temperament at 440 Hz there. Export it as a Scala file (Options ▸ Tuning… ▸ Export) to set it again
+interop.report.x_track_tuning = The tuning of {track} is not in DAWproject: it plays the project's tuning there

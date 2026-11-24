@@ -44,7 +44,7 @@ fn fuzz_seeds(default: std::ops::RangeInclusive<u64>) -> std::ops::RangeInclusiv
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(49) {
+    match rng.below(50) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -982,6 +982,8 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // Round 31 (ADR 0069): note-effect chains and their parameters, the key, clip
         // grooves and the pool, a commit and a bake — and the refused ones.
         48 => round31_midi_command(rng, project),
+        // r42 fix2-model (review 8): the tunings and the notes' articulation in the mix.
+        49 => tuning_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -9094,17 +9096,60 @@ fn takes_through_tempo_edits_keep_their_lines_and_undo_exactly() {
 /// (a diapason, a temperament in a key, a Scala scale, the MTS-ESP master's, back to the
 /// default, and out of range: refused), a track's (follow, equal, its own, an unknown track:
 /// refused), and some notes' articulation and bow (a note named twice: refused).
+///
+/// r42 fix2-model (review 8): also a keyboard map — linear or a pattern, `x` entries, the
+/// cases `check` refuses (first key past last, a key past 127, a reference frequency that is
+/// zero, negative or not finite, more entries than its size); a temperament key past B and
+/// a diapason that is not finite (refused).
 fn tuning_command(rng: &mut Lcg, project: &mut Project) -> Command {
     use cantus_core::note_art::{Articulation, Bow, NoteArt};
     use cantus_core::tuning::{
-        ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
+        KeyboardMap, ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
+    };
+    let key_of = |rng: &mut Lcg| -> u8 {
+        if rng.below(12) == 0 {
+            128 + rng.below(128) as u8 // past 127: refused as a first or last key
+        } else {
+            rng.below(128) as u8
+        }
+    };
+    let map = |rng: &mut Lcg| -> KeyboardMap {
+        let size = rng.below(14) as u32;
+        let (mut first, mut last) = (key_of(rng), key_of(rng));
+        if rng.below(4) != 0 && first > last {
+            std::mem::swap(&mut first, &mut last); // mostly in order; else refused
+        }
+        let entries = size + u32::from(rng.below(10) == 0); // one too many: refused
+        KeyboardMap {
+            size,
+            first_key: first,
+            last_key: last,
+            middle_key: rng.below(128) as u8,
+            reference_key: rng.below(128) as u8,
+            reference_hz: match rng.below(10) {
+                0 => f64::NAN,
+                1 => 0.0,
+                2 => -440.0,
+                3 => f64::INFINITY,
+                4 => 440.0,
+                _ => f64::from(rng.f32(20.0, 2_000.0)),
+            },
+            octave_degree: rng.below(13) as u32,
+            mapping: (0..entries)
+                .map(|_| (rng.below(4) != 0).then(|| rng.below(u64::from(size.max(1)) + 2) as u32))
+                .collect(),
+        }
     };
     let tuning = |rng: &mut Lcg| -> Tuning {
         let system = match rng.below(5) {
             0 => TuningSystem::Equal,
             1 | 2 => TuningSystem::Temperament {
                 id: Temperament::ALL[rng.below(Temperament::ALL.len() as u64) as usize],
-                key: rng.below(12) as u8,
+                key: if rng.below(10) == 0 {
+                    12 + rng.below(244) as u8 // past B: refused
+                } else {
+                    rng.below(12) as u8
+                },
                 follow_song_key: rng.below(2) == 0,
             },
             3 => TuningSystem::Scale(ScalaScale {
@@ -9121,16 +9166,18 @@ fn tuning_command(rng: &mut Lcg, project: &mut Project) -> Command {
             }),
             _ => TuningSystem::External,
         };
-        let a4_hz = match rng.below(4) {
-            0 => 440.0,
-            1 => 415.0,
-            2 => f64::from(rng.f32(380.0, 480.0)),
-            _ => 600.0, // out of range: refused
+        let a4_hz = match rng.below(7) {
+            0 | 1 => 440.0,
+            2 => 415.0,
+            3 | 4 => f64::from(rng.f32(380.0, 480.0)),
+            5 => 600.0, // out of range: refused
+            _ => [f64::NAN, f64::INFINITY, f64::NEG_INFINITY][rng.below(3) as usize], // refused
         };
+        let scale = matches!(system, TuningSystem::Scale(_));
         Tuning {
             a4_hz,
             system,
-            map: None,
+            map: (rng.below(if scale { 2 } else { 6 }) == 0).then(|| map(rng)),
         }
     };
     let tracks: Vec<TrackId> = project.tracks.iter().map(|t| t.id).collect();
@@ -9197,7 +9244,8 @@ fn tuning_command(rng: &mut Lcg, project: &mut Project) -> Command {
 /// restore the song; a stored tuning always passes its own command's check.
 #[test]
 fn tuning_and_articulation_undo_and_redo_among_the_others() {
-    let (mut applied, mut refused) = (0usize, 0usize);
+    let (mut applied, mut refused, mut merged) = (0usize, 0usize, 0usize);
+    let (mut maps, mut unmapped) = (0usize, 0usize);
     for seed in fuzz_seeds(1..=40) {
         let mut rng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(80));
         let mut bus = CommandBus::default();
@@ -9211,7 +9259,45 @@ fn tuning_and_articulation_undo_and_redo_among_the_others() {
                 random_command(&mut rng, &mut scratch)
             };
             bus.reserve_ids(scratch.next_id);
-            match bus.execute(cmd, Origin::User) {
+            // r42 fix2-model (review 8): the window's path — a tuning moved frame by frame,
+            // merged into one undo step under its control's key (`views::tuning::
+            // set_merging`) — as often as the plain one.
+            let merge = match &cmd {
+                Command::SetProjectTuning { .. } => Some(u64::MAX),
+                Command::SetTrackTuning { track, .. } => Some(track.0),
+                _ => None,
+            }
+            .filter(|_| ours && rng.below(2) == 0);
+            let result = match merge {
+                Some(salt) => {
+                    let key = MergeKey::of(&("tuning", "a4", salt));
+                    let before = bus.project().clone();
+                    let r = bus.execute_merging(cmd.clone(), Origin::User, key);
+                    if r.is_ok() {
+                        // More frames of the same gesture, each a nudged diapason.
+                        let mut frame = cmd.clone();
+                        for _ in 0..rng.below(4) {
+                            nudge_a4(&mut frame, rng.f32(-3.0, 3.0));
+                            let _ = bus.execute_merging(frame.clone(), Origin::User, key);
+                        }
+                        bus.end_gesture();
+                        merged += 1;
+                        // The gesture is one step: undone, it gives the song before it back.
+                        let after = bus.project().clone();
+                        assert!(bus.undo().is_some(), "seed {seed}: the gesture's undo");
+                        let mut back = bus.project().clone();
+                        back.next_id = before.next_id;
+                        assert_eq!(back, before, "seed {seed}: one undo step");
+                        assert!(bus.redo().is_some(), "seed {seed}: the gesture's redo");
+                        let mut again = bus.project().clone();
+                        again.next_id = after.next_id;
+                        assert_eq!(again, after, "seed {seed}: redone whole");
+                    }
+                    r
+                }
+                None => bus.execute(cmd, Origin::User),
+            };
+            match result {
                 Ok(_) if ours => applied += 1,
                 Err(_) if ours => refused += 1,
                 _ => {}
@@ -9225,6 +9311,18 @@ fn tuning_and_articulation_undo_and_redo_among_the_others() {
                 assert!(
                     cantus_core::tuning_cmd::check_track(&t.tuning).is_ok(),
                     "seed {seed}: a stored track tuning its command refuses"
+                );
+            }
+            if let Some(m) = &p.tuning.map {
+                maps += 1;
+                unmapped += usize::from(m.mapping.iter().any(Option::is_none));
+            }
+            // Every stored tuning resolves: each key a pitch in range, or unmapped.
+            for k in p.tuning.offsets().0.iter().enumerate() {
+                let (key, o) = (k.0 as f64, f64::from(*k.1));
+                assert!(
+                    o.is_nan() || (-36.0..=135.0001).contains(&(key + o)),
+                    "seed {seed}: key {key} at {o}"
                 );
             }
         }
@@ -9243,4 +9341,24 @@ fn tuning_and_articulation_undo_and_redo_among_the_others() {
         applied > 400 && refused > 40,
         "applied {applied}, refused {refused}"
     );
+    assert!(
+        merged > 40 && maps > 20 && unmapped > 5,
+        "merged {merged}, maps {maps}, with x entries {unmapped}"
+    );
+}
+
+/// r42 fix2-model (review 8): a merged frame of a tuning gesture — its diapason nudged.
+fn nudge_a4(cmd: &mut Command, by: f32) {
+    use cantus_core::tuning::TrackTuning;
+    let t = match cmd {
+        Command::SetProjectTuning { tuning } => Some(&mut **tuning),
+        Command::SetTrackTuning {
+            tuning: TrackTuning::Own { tuning },
+            ..
+        } => Some(tuning),
+        _ => None,
+    };
+    if let Some(t) = t {
+        t.a4_hz += f64::from(by);
+    }
 }

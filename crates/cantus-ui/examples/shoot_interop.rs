@@ -55,6 +55,7 @@ fn main() {
                         scope: interop::MidiScope::Song,
                         ppq: 960,
                         played: true,
+                        tuning: false,
                     })
                 }
                 _ => {

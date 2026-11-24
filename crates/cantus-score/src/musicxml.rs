@@ -13,6 +13,56 @@ pub struct XmlOptions {
     pub software: String,
     /// `<encoding-date>` (YYYY-MM-DD); none for a file that must not change by the day.
     pub date: Option<String>,
+    /// r42 fix2-model (review 7, ADR 0158): each note's articulation and bow, by note id
+    /// (`Head::id`), written as MusicXML marks them ([`art_notations`]).
+    pub arts: std::collections::HashMap<u64, cantus_core::note_art::NoteArt>,
+}
+
+/// r42 fix2-model (review 7, ADR 0158) — a note's articulation and bow as MusicXML 4.0's
+/// `<notations>` children (element names from the W3C Music Notation CG's MusicXML 4.0
+/// reference, w3.org/2021/06/musicxml40: `<articulations>` holds `<staccato>`, `<tenuto>`,
+/// `<spiccato>`; `<technical>` holds `<up-bow>`, `<down-bow>`; `<ornaments>` holds
+/// `<tremolo>`, its text the number of marks, 0–8, its type `single` by default):
+///
+/// - staccato `<staccato/>`, spiccato `<spiccato/>`, sustain `<tenuto/>` (held its whole
+///   value) in `<articulations>`;
+/// - a down bow `<down-bow/>`, an up bow `<up-bow/>` in `<technical>`;
+/// - tremolo `<tremolo type="single">3</tremolo>` in `<ornaments>` (three strokes: how a
+///   string part writes the unmeasured tremolo);
+/// - pizzicato is not a mark there but the note's own `pizzicato="yes"` attribute ("used
+///   when just this note is sounded pizzicato" — [`is_pizzicato`]);
+/// - legato nothing: MusicXML says it with a slur between two notes, which a note's own mark
+///   cannot open (ADR 0158 says so).
+pub fn art_notations(art: &cantus_core::note_art::NoteArt) -> Vec<String> {
+    use cantus_core::note_art::{Articulation as A, Bow};
+    let mut out = Vec::new();
+    let articulation = match art.articulation {
+        A::Staccato => Some("staccato"),
+        A::Spiccato => Some("spiccato"),
+        A::Sustain => Some("tenuto"),
+        _ => None,
+    };
+    if let Some(a) = articulation {
+        out.push(format!("<articulations><{a}/></articulations>"));
+    }
+    let mut technical = String::new();
+    match art.bow {
+        Some(Bow::Down) => technical.push_str("<down-bow/>"),
+        Some(Bow::Up) => technical.push_str("<up-bow/>"),
+        None => {}
+    }
+    if !technical.is_empty() {
+        out.push(format!("<technical>{technical}</technical>"));
+    }
+    if art.articulation == A::Tremolo {
+        out.push("<ornaments><tremolo type=\"single\">3</tremolo></ornaments>".into());
+    }
+    out
+}
+
+/// Whether a note is played pizzicato: MusicXML's `<note pizzicato="yes">`.
+pub fn is_pizzicato(art: Option<&cantus_core::note_art::NoteArt>) -> bool {
+    art.is_some_and(|a| a.articulation == cantus_core::note_art::Articulation::Pizzicato)
 }
 
 /// Escape text for XML.
@@ -127,14 +177,23 @@ pub fn write(score: &Score, opts: &XmlOptions) -> String {
     x.push_str("  </part-list>\n");
     for (pi, part) in score.parts.iter().enumerate() {
         let _ = writeln!(x, "  <part id=\"P{}\">", pi + 1);
-        write_part(&mut x, score, part, div, &d);
+        write_part(&mut x, score, part, div, &d, &opts.arts);
         x.push_str("  </part>\n");
     }
     x.push_str("</score-partwise>\n");
     x
 }
 
-fn write_part(x: &mut String, score: &Score, part: &Part, div: i64, d: &dyn Fn(i64) -> i64) {
+type Arts = std::collections::HashMap<u64, cantus_core::note_art::NoteArt>;
+
+fn write_part(
+    x: &mut String,
+    score: &Score,
+    part: &Part,
+    div: i64,
+    d: &dyn Fn(i64) -> i64,
+    arts: &Arts,
+) {
     let staves = part.staves.len();
     // Octave lines: where each starts and stops, by (staff, bar, voice, event).
     let mut ottava_start = std::collections::HashMap::new();
@@ -263,7 +322,7 @@ fn write_part(x: &mut String, score: &Score, part: &Part, div: i64, d: &dyn Fn(i
                             staff_tag(staves, si)
                         );
                     }
-                    write_event(x, e, v, voice_no, staves, si, bar.len, d);
+                    write_event(x, e, v, voice_no, staves, si, bar.len, d, arts);
                     if let Some(&(_, n)) = ottava_stop.get(&(si, bi, vi, ei)) {
                         let _ = writeln!(
                             x,
@@ -313,6 +372,7 @@ fn write_event(
     si: usize,
     bar_len: i64,
     d: &dyn Fn(i64) -> i64,
+    arts: &Arts,
 ) {
     let tuplet = e.tuplet.map(|t| v.tuplets[t]);
     let tuplet_mark = |idx: usize| -> Option<&'static str> {
@@ -363,9 +423,14 @@ fn write_event(
         Kind::Chord(heads) => {
             // Highest first, as MuseScore writes a chord.
             for (k, h) in heads.iter().rev().enumerate() {
+                let pizz = if is_pizzicato(arts.get(&h.id)) {
+                    " pizzicato=\"yes\""
+                } else {
+                    ""
+                };
                 let _ = writeln!(
                     x,
-                    "      <note dynamics=\"{:.2}\">",
+                    "      <note dynamics=\"{:.2}\"{pizz}>",
                     h.velocity as f64 / 0.9
                 );
                 if k > 0 {
@@ -430,7 +495,12 @@ fn write_event(
                     }
                 }
                 let tm = if k == 0 { tuplet_mark(idx) } else { None };
-                if h.tie || h.tied_from || tm.is_some() {
+                // The articulation marks the attack: never a tie's continuation.
+                let marks = match arts.get(&h.id) {
+                    Some(a) if !h.tied_from => art_notations(a),
+                    _ => Vec::new(),
+                };
+                if h.tie || h.tied_from || tm.is_some() || !marks.is_empty() {
                     x.push_str("        <notations>\n");
                     if h.tied_from {
                         x.push_str("          <tied type=\"stop\"/>\n");
@@ -445,6 +515,9 @@ fn write_event(
                             "          <tuplet type=\"{m}\" bracket=\"{}\"/>",
                             if t.bracket { "yes" } else { "no" }
                         );
+                    }
+                    for m in &marks {
+                        let _ = writeln!(x, "          {m}");
                     }
                     x.push_str("        </notations>\n");
                 }

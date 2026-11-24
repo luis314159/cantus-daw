@@ -167,6 +167,11 @@ pub fn note_json(map: &TempoMap, clip: &Clip, n: &Note) -> Value {
     if n.muted {
         v["muted"] = json!(true);
     }
+    // r42 fix2-model (review 9, ADR 0158): its articulation and bow, as replace_notes and
+    // add_notes take them back.
+    if let Some(art) = n.art {
+        v["art"] = serde_json::to_value(art).unwrap_or(Value::Null);
+    }
     v
 }
 

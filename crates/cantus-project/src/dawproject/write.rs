@@ -380,6 +380,7 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
     w.open("Lanes", &[("timeUnit", a("beats")), ("id", a(ids.next()))]);
     let mut muted_notes = 0usize;
     let mut grooved = 0usize;
+    let mut art_notes = 0usize; // r42 fix2-model (review 7)
     for (t, track_id) in project.tracks.iter().zip(&track_ids) {
         w.open("Lanes", &[("track", a(track_id)), ("id", a(ids.next()))]);
         w.open("Clips", &[("id", a(ids.next()))]);
@@ -404,6 +405,21 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
         if t.note_fx.iter().any(|e| e.enabled) {
             report.dropped("interop.report.x_note_fx", vec![("track", t.name.clone())]);
         }
+        // r42 fix2-model (review 7, ADRs 0155, 0158): DAWproject has no tuning and no note
+        // articulation — said, never dropped in silence (ADR 0021).
+        if !t.tuning.is_follow() {
+            report.dropped(
+                "interop.report.x_track_tuning",
+                vec![("track", t.name.clone())],
+            );
+        }
+        art_notes += t
+            .clips
+            .iter()
+            .filter(|c| c.lane == 0)
+            .flat_map(|c| c.notes.iter())
+            .filter(|n| n.art.is_some())
+            .count();
         grooved += t
             .clips
             .iter()
@@ -435,6 +451,10 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
     w.close(); // Project
     report.count_dropped("interop.report.x_muted_notes", muted_notes);
     report.count_dropped("interop.report.x_grooves", grooved);
+    report.count_dropped("interop.report.x_note_art", art_notes);
+    if !project.tuning.is_default() {
+        report.dropped("interop.report.x_tuning", vec![]);
+    }
     if let Some(k) = project.key {
         report.dropped(
             "interop.report.x_key",

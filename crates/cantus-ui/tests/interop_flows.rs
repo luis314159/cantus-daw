@@ -196,6 +196,7 @@ fn the_dialogs_and_the_report_render() {
         scope: interop::MidiScope::Clip,
         ppq: 480,
         played: true,
+        tuning: false,
     });
     let imported = dawproject::import(&dawproject::export(&starter_project(), "0").bytes).unwrap();
     a.interop.report = Some(interop::ReportWindow {

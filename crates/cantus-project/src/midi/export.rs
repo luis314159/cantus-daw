@@ -35,6 +35,10 @@ pub struct ExportOptions {
     /// The notes as played (grooves and note effects in them) or as written (round 31,
     /// ADR 0069).
     pub notes: Notes,
+    /// r42 fix2-model (review 7, ADR 0155): each tuned track's tuning written at its start
+    /// as MIDI Tuning Standard messages ([`tuning_messages`]). Off by default: a file is the
+    /// same as before unless asked.
+    pub tuning: bool,
 }
 
 impl Default for ExportOptions {
@@ -43,8 +47,61 @@ impl Default for ExportOptions {
             scope: Scope::Song,
             ppq: DEFAULT_PPQ,
             notes: Notes::Played,
+            tuning: false,
         }
     }
+}
+
+/// r42 fix2-model (review 7, ADR 0155) — a track's tuning as the MIDI Tuning Standard says
+/// it, for the start of its track in a file (`cantus_core::tuning_mts`'s writers, tested
+/// against the MMA's example and Scale Workshop's bytes):
+///
+/// - the **bulk tuning dump** (`F0 7E 7F 08 01 …`, every key's frequency, CA-020's checksum)
+///   into tuning program `program`, named after the track — what synthesisers with tuning
+///   memories read;
+/// - when the tuning repeats every octave and each pitch class sits within ±100 cents of
+///   12-TET (a temperament, a twelve-note scale, a diapason within a semitone of 440), the
+///   **scale/octave tuning** (2-byte form, `F0 7E 7F 08 09 …`) on `channels` — what most
+///   hardware applies at once (GM2's form);
+/// - otherwise the dump's program **selected** on each channel (RPN 0x0003, *tuning program
+///   change*, then the null RPN), as a scale/octave message cannot hold it.
+///
+/// Never both a scale/octave message and a selected program, so no receiver tunes twice.
+/// Empty for a table at 12-TET A440.
+pub fn tuning_messages(
+    name: &str,
+    table: &cantus_core::tuning::TuningTable,
+    program: u8,
+    channels: &[u8],
+) -> Vec<Event> {
+    use cantus_core::tuning_mts as mts;
+    if table.is_equal() {
+        return Vec::new();
+    }
+    let mut out = vec![Event::SysEx(mts::write_key_dump(0x7F, program, name, table))];
+    let class: [f64; 12] = std::array::from_fn(|pc| 100.0 * f64::from(table.at(60 + pc as u8)));
+    let periodic = (0..128u8).all(|k| {
+        let o = f64::from(table.at(k));
+        let c = class[usize::from(k % 12)];
+        o.is_finite() && (100.0 * o - c).abs() < 0.01
+    }) && class.iter().all(|c| (-100.0..100.0).contains(c));
+    if periodic {
+        let mask = channels
+            .iter()
+            .fold(0u16, |m, &c| m | (1u16 << u16::from(c & 0x0F)));
+        out.push(Event::SysEx(mts::write_octave(0x7F, false, mask, &class, true)));
+    } else {
+        for &channel in channels {
+            for (controller, value) in [(101, 0), (100, 3), (6, program & 0x7F), (101, 127), (100, 127)] {
+                out.push(Event::Controller {
+                    channel,
+                    controller,
+                    value,
+                });
+            }
+        }
+    }
+    out
 }
 
 /// Which notes a file holds (round 31, ADR 0069).
@@ -263,6 +320,7 @@ pub fn to_smf_with(
     }
     .into_iter()
     .cycle();
+    let mut tuned_programs = 0u32; // r42 fix2-model: one tuning program per tuned track
     for (ti, ct) in compiled.tracks.iter().enumerate() {
         let zone = zone_of(ti);
         let channel = match &zone {
@@ -274,6 +332,25 @@ pub fn to_smf_with(
             tick: 0,
             event: Event::TrackName(ct.name.clone()),
         }];
+        // r42 fix2-model (review 7): the track's tuning first, on the channels it plays,
+        // when asked (a kit's pads are unpitched: never).
+        if opts.tuning && !ct.drums && !ct.tuning.is_equal() {
+            let mut channels: Vec<u8> = match &zone {
+                Some((master, members)) => {
+                    std::iter::once(*master).chain(members.iter().copied()).collect()
+                }
+                None => vec![channel],
+            };
+            channels.sort_unstable();
+            channels.dedup();
+            let program = (tuned_programs & 0x7F) as u8;
+            tuned_programs += 1;
+            events.extend(
+                tuning_messages(&ct.name, &ct.tuning, program, &channels)
+                    .into_iter()
+                    .map(|event| TimedEvent { tick: 0, event }),
+            );
+        }
         let mpe = zone.is_some();
         let mut rotation = super::mpe::Rotation::of(zone.as_ref().map_or(&[][..], |z| &z.1[..]));
         if let Some((master, members)) = &zone {
@@ -569,6 +646,8 @@ struct CompiledTrack {
     controls: Vec<cantus_core::CtlEvent>,
     /// Its notes' expression as the engine plays it (ADR 0080).
     expr: Vec<cantus_core::model::note_expr::compile::ExprEvent>,
+    /// r42 fix2-model — the table it plays in (its resolved tuning, ADR 0155).
+    tuning: cantus_core::tuning::TuningTable,
 }
 
 struct Compiled {
@@ -617,6 +696,7 @@ impl Compiled {
                     spans,
                     controls: st.controls.clone(),
                     expr: Vec::new(),
+                    tuning: *st.tuning.table,
                 });
                 continue;
             }
@@ -648,6 +728,7 @@ impl Compiled {
                 spans,
                 controls: st.controls.clone(),
                 expr: st.expr.clone(),
+                tuning: *st.tuning.table,
             });
         }
         Compiled { tracks }
