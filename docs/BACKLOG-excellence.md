@@ -3057,6 +3057,11 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
   CC0 quartet session (sustain and non-vibrato at 4–5 dynamics, up and down bows, legato
   intervals, harmonics, sordino, col legno; close and room); a spectral dynamics morph (not
   only the layers' crossfade and a filter); a hosted instrument's key-switch map driven by the note's articulation.
+- **Instrument views reflow at narrow windows (round 42, `docs/round42/fix4-narrow.md`).**
+  Below the shell's own size, nine instruments' Play and Edit views scroll instead of
+  squeezing; Exemplar's cards wrap onto new rows. Make each of the nine reflow the same
+  way, as FL's and Bitwig's device panels do, so a small laptop screen shows every control
+  without scrolling sideways. `instruments_narrow_e2e` already holds every word whole.
 - **Tympanum, what its blind kit measured (round 42, `docs/round42/tymp-abx.md`).** The
   generated studio kit vs DRSKit, through the engine, at its default level and mix. The
   owner's ABX (`listen/ABX-Tympanum.zip`) sets the order.
