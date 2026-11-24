@@ -128,14 +128,25 @@ const LFO_SHAPES: [&str; 4] = [
 ];
 const PLAY_MODES: [&str; 3] = ["smp.play.poly", "smp.play.mono", "smp.play.legato"];
 
-/// The width a section's card needs, at this style's scale.
-fn need(s: &Style, sec: &Section<'_>, size: KnobSize) -> f32 {
+/// The width a section's card needs, at this style's scale: its cells, and its title and its
+/// selector's longest name whole (r42 fix4-narrow).
+fn need(ctx: &egui::Context, s: &Style, sec: &Section<'_>, size: KnobSize) -> f32 {
     let w = parts::card_for(s, size, sec.keys.len(), 1).x;
-    if sec.selector.is_some() {
-        w.max(172.0 * s.k)
-    } else {
-        w.max(96.0 * s.k)
-    }
+    let names: Vec<String> = sec
+        .selector
+        .map(|(_, names)| names.iter().map(|k| t(k)).collect())
+        .unwrap_or_default();
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    let look = CardLook {
+        title: Src::Key(sec.title),
+        switchable: false,
+        selector: names.first().copied(),
+        menu: false,
+        display: None,
+    };
+    let title = band::title_need(ctx, s, &look, &names);
+    let least = if sec.selector.is_some() { 172.0 } else { 96.0 };
+    w.max(title).max(least * s.k)
 }
 
 /// Paint a section's card in `rect` and its cells; the selector steps with ‹ ›.
@@ -199,7 +210,50 @@ fn centred_row(body: Rect, s: &Style, size: KnobSize) -> Rect {
     Rect::from_min_max(pos2(body.left(), top), pos2(body.right(), top + h))
 }
 
-/// Lay a row of sections out across `row`, each at least as wide as it needs.
+/// The lines a row of sections takes in `width`: in order, as many to a line as fit at
+/// their need (r42 fix4-narrow: at the narrowest window a row squeezed its cards below
+/// their need — Amp envelope's "Liberació…", Voice's "Transposic…", Output's third cell
+/// under the window's edge).
+fn lines(
+    ctx: &egui::Context,
+    s: &Style,
+    secs: &[Section<'_>],
+    size: KnobSize,
+    width: f32,
+) -> Vec<std::ops::Range<usize>> {
+    let gut = parts::GAP * s.k;
+    let mut out = Vec::new();
+    let (mut start, mut used) = (0, 0.0);
+    for (i, sec) in secs.iter().enumerate() {
+        let w = need(ctx, s, sec, size);
+        if i > start && used + gut + w > width {
+            out.push(start..i);
+            (start, used) = (i, w);
+        } else {
+            used += if i > start { gut + w } else { w };
+        }
+    }
+    if start < secs.len() {
+        out.push(start..secs.len());
+    }
+    out
+}
+
+/// The height a row of sections takes in `width`, its lines `row_h` tall each.
+fn rows_height(
+    ctx: &egui::Context,
+    s: &Style,
+    secs: &[Section<'_>],
+    size: KnobSize,
+    width: f32,
+    row_h: f32,
+) -> f32 {
+    let n = lines(ctx, s, secs, size, width).len().max(1) as f32;
+    n * row_h + (n - 1.0) * parts::GAP * s.k
+}
+
+/// Lay a row of sections out from `row`'s top, each at least as wide as it needs: across one
+/// line when they fit, else over as many lines as they need, each `row_h` tall.
 #[allow(clippy::too_many_arguments)]
 fn section_row(
     app: &mut CantusApp,
@@ -210,17 +264,24 @@ fn section_row(
     s: &Style,
     secs: &[Section<'_>],
     size: KnobSize,
+    row_h: f32,
 ) {
     let gut = parts::GAP * s.k;
-    let needs: Vec<f32> = secs.iter().map(|sec| need(s, sec, size)).collect();
-    let fr = parts::fracs(&needs, row.width(), gut);
-    let room = row.width() - gut * (secs.len().saturating_sub(1)) as f32;
-    let mut x = row.left();
-    for (sec, f) in secs.iter().zip(fr) {
-        let w = room * f;
-        let r = Rect::from_min_size(pos2(x, row.top()), vec2(w, row.height()));
-        section(app, ui, track, spec, r, s, sec, size);
-        x += w + gut;
+    let ctx = ui.ctx().clone();
+    let mut y = row.top();
+    for line in lines(&ctx, s, secs, size, row.width()) {
+        let secs = &secs[line];
+        let needs: Vec<f32> = secs.iter().map(|sec| need(&ctx, s, sec, size)).collect();
+        let fr = parts::fracs(&needs, row.width(), gut);
+        let room = row.width() - gut * (secs.len().saturating_sub(1)) as f32;
+        let mut x = row.left();
+        for (sec, f) in secs.iter().zip(fr) {
+            let w = room * f;
+            let r = Rect::from_min_size(pos2(x, y), vec2(w, row_h));
+            section(app, ui, track, spec, r, s, sec, size);
+            x += w + gut;
+        }
+        y += row_h + gut;
     }
 }
 
@@ -654,7 +715,9 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let area = ui.max_rect();
     let k = s.k;
     let gut = parts::GAP * k;
-    let cards_h = parts::card_for(s, KnobSize::M, 1, 1).y;
+    let row_h = parts::card_for(s, KnobSize::M, 1, 1).y;
+    let secs = play_sections();
+    let cards_h = rows_height(ui.ctx(), s, &secs, KnobSize::M, area.width(), row_h);
     let top_h = (area.height() - cards_h - gut).max(120.0 * k);
     let top = Rect::from_min_size(area.min, vec2(area.width(), top_h));
     let split = top.left() + (top.width() - gut) * 0.62;
@@ -680,7 +743,12 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         pos2(area.left(), top.bottom() + gut),
         vec2(area.width(), cards_h),
     );
-    let secs = [
+    section_row(app, ui, track, spec, row, s, &secs, KnobSize::M, row_h);
+}
+
+/// The Play view's four cards: the parameters that matter live.
+fn play_sections() -> [Section<'static>; 4] {
+    [
         Section {
             keys: &["amp.attack", "amp.decay", "amp.sustain", "amp.release"],
             ..AMP
@@ -699,12 +767,19 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
             selector: None,
             ..VOICE
         },
-    ];
-    section_row(app, ui, track, spec, row, s, &secs, KnobSize::M);
+    ]
 }
 
 /// The height of the Sample and Seam cards' displays, at 100 %.
 const WAVE_DISPLAY: f32 = 118.0;
+
+/// The least width the key × velocity map reads in beside the zone card, at 100 %: below
+/// it the map goes above the card.
+const MAP_MIN: f32 = 400.0;
+
+/// The least width the sample card reads in beside the seam card, at 100 %: below it the
+/// sample card goes above the seam card.
+const SAMPLE_MIN: f32 = 600.0;
 
 /// The Edit view, as tall as it needs.
 pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
@@ -723,7 +798,24 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     } else {
         0.0
     };
-    let total = tools_h + a_h + b_h + 4.0 * row_h + t_h + 7.0 * gut + l_h;
+    // The map beside the zone card, or above it where beside it the map would be narrower
+    // than it reads (r42 fix4-narrow: at the narrowest window it kept a fifth of the row, its
+    // zones' names cut and its title under its Fit button).
+    let zone_w = map::zone_card_size(s).x;
+    let stacked = w - zone_w - gut < MAP_MIN * k;
+    let a_rows = if stacked { 2.0 } else { 1.0 };
+    // The sample card beside the seam card, or above it where beside it its controls would
+    // be cut (in Spanish "Bucle mientras se mantiene" read "Mante…").
+    let b_stacked = (w - gut) * 0.64 < SAMPLE_MIN * k;
+    let b_rows = if b_stacked { 2.0 } else { 1.0 };
+    let ctx = ui.ctx().clone();
+    let rows = |secs: &[Section<'_>]| rows_height(&ctx, s, secs, KnobSize::M, w, row_h);
+    let cards_h = rows(&[AMP, FILTER, OUTPUT])
+        + rows(&[MOD_ENV, VIBRATO, LFO2, VOICE])
+        + row_h
+        + rows(&[LEGATO, KEYSWITCH]);
+    let total =
+        tools_h + a_h * a_rows + b_h * b_rows + cards_h + t_h + (5.0 + a_rows + b_rows) * gut + l_h;
     let (area, _) = ui.allocate_exact_size(vec2(w, total), Sense::hover());
     let mut y = area.top();
     let mut take = |h: f32| {
@@ -732,66 +824,57 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         r
     };
     let tools_r = take(tools_h);
-    let a = take(a_h);
-    let zone_w = map::zone_card_size(s).x;
-    let split = a.right() - zone_w;
-    map_card(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(a.min, pos2(split - gut, a.bottom())),
-        s,
-        true,
-    );
+    let (map_r, zone_r) = if stacked {
+        let a = take(a_h);
+        let z = take(a_h);
+        (
+            a,
+            Rect::from_min_size(z.min, vec2(zone_w.min(z.width()), a_h)),
+        )
+    } else {
+        let a = take(a_h);
+        let split = a.right() - zone_w;
+        (
+            Rect::from_min_max(a.min, pos2(split - gut, a.bottom())),
+            Rect::from_min_max(pos2(split, a.top()), a.max),
+        )
+    };
+    map_card(app, ui, track, spec, map_r, s, true);
     let src = s.function(Function::Source);
-    map::zone_card(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(pos2(split, a.top()), a.max),
-        &src,
-    );
-    let b = take(b_h);
-    let bsplit = b.left() + (b.width() - gut) * 0.64;
-    wave::sample_card(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(b.min, pos2(bsplit, b.bottom())),
-        &src,
-        WAVE_DISPLAY,
-    );
-    wave::seam_card(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(pos2(bsplit + gut, b.top()), b.max),
-        &src,
-        WAVE_DISPLAY,
-    );
+    map::zone_card(app, ui, track, spec, zone_r, &src);
+    let (sample_r, seam_r) = if b_stacked {
+        (take(b_h), take(b_h))
+    } else {
+        let b = take(b_h);
+        let bsplit = b.left() + (b.width() - gut) * 0.64;
+        (
+            Rect::from_min_max(b.min, pos2(bsplit, b.bottom())),
+            Rect::from_min_max(pos2(bsplit + gut, b.top()), b.max),
+        )
+    };
+    wave::sample_card(app, ui, track, spec, sample_r, &src, WAVE_DISPLAY);
+    wave::seam_card(app, ui, track, spec, seam_r, &src, WAVE_DISPLAY);
     section_row(
         app,
         ui,
         track,
         spec,
-        take(row_h),
+        take(rows(&[AMP, FILTER, OUTPUT])),
         s,
         &[AMP, FILTER, OUTPUT],
         KnobSize::M,
+        row_h,
     );
     section_row(
         app,
         ui,
         track,
         spec,
-        take(row_h),
+        take(rows(&[MOD_ENV, VIBRATO, LFO2, VOICE])),
         s,
         &[MOD_ENV, VIBRATO, LFO2, VOICE],
         KnobSize::M,
+        row_h,
     );
     // The selected zone's group, the whole row: its cells never give room to another card.
     let e = take(row_h);
@@ -802,10 +885,11 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         ui,
         track,
         spec,
-        take(row_h),
+        take(rows(&[LEGATO, KEYSWITCH])),
         s,
         &[LEGATO, KEYSWITCH],
         KnobSize::M,
+        row_h,
     );
     map::table(app, ui, track, spec, take(t_h), s);
     if show_log {

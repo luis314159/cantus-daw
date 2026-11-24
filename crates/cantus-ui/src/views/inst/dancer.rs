@@ -350,7 +350,17 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let area = ui.max_rect();
     let gutter = s.d(4.0);
     let h3 = s.s(card_h(86.0));
-    let h2 = s.s(card_h(40.0));
+    // The pads: the note's line and the move's name over two, as tall as their letters at
+    // this scale (r42 fix4-narrow: at 200 % "Paso a la / izquierda" was pressed together).
+    let line = ktext::measure(
+        ui.ctx(),
+        &Text::new("Ag", Role::Label, egui::Color32::TRANSPARENT),
+        s.tk(),
+    )
+    .y;
+    let h2 = s
+        .s(card_h(40.0))
+        .max(s.s(card_h(0.0)) + 3.0 * line + s.s(4.0));
     let h1 = (area.height() - h2 - h3 - 2.0 * gutter).max(s.s(200.0));
     let mut rows = Rows::new(area, s);
     let r1 = rows.row(h1, &[0.6, 0.4]);
