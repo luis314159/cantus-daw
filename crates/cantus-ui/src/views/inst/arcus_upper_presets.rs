@@ -57,7 +57,7 @@ const PLUCKED: &[&str] = &["preset.role.pluck", "arcus.tag.pizz", "preset.style.
 // 2 Legato.
 pub const PRESETS: &[FactoryPreset] = &[
     // ---- the violin ----
-    preset!("arcus.preset.violin", VIOLIN, ["inst" => 2.0, "gain" => 0.0]),
+    preset!("arcus.preset.violin", VIOLIN, ["inst" => 2.0, "ring" => 1.6, "gain" => 0.0]),
     preset!("arcus.preset.violin_cantabile", VIOLIN,
         ["inst" => 2.0, "vib.depth" => 1.2, "vib.delay" => 160.0, "vib.attack" => 320.0,
          "bow.pos" => 1.09, "bow.attack" => 1.4, "dyn" => 0.65, "body.ring" => 1.15,
@@ -79,7 +79,7 @@ pub const PRESETS: &[FactoryPreset] = &[
         ["inst" => 2.0, "tech" => 2.0, "trem.rate" => 15.0, "vib.depth" => 0.4,
          "gain" => 0.0]),
     // ---- the viola ----
-    preset!("arcus.preset.viola", VIOLA, ["inst" => 3.0, "gain" => 0.0]),
+    preset!("arcus.preset.viola", VIOLA, ["inst" => 3.0, "ring" => 1.6, "gain" => 0.0]),
     preset!("arcus.preset.viola_cantabile", VIOLA,
         ["inst" => 3.0, "vib.depth" => 1.2, "vib.delay" => 180.0, "vib.attack" => 340.0,
          "bow.pos" => 1.08, "bow.attack" => 1.5, "dyn" => 0.62, "body.ring" => 1.2,

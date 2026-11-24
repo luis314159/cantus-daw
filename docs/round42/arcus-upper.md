@@ -1,37 +1,116 @@
 # Round 42 — `arcus-upper`: Arcus's violin and viola
 
 *The `arcus-upper` builder's report. Branch `r42/arcus-upper`, from `r42/arcus` b2691637e with
-`r42/arcus-look` merged (the cello and bass engine, the approved picture v4).*
+`r42/arcus-look` merged; `r42/arcus` 58cafea8e merged in again (its model 2, the rest fix).*
 
 ## What was built
 
-**The violin and the viola** in Arcus, the modelled bowed string — the instrument card offers
+**The violin and the viola** in Arcus, the modelled bowed string: the Instrument card offers
 *Cello / Double bass / Violin / Viola*. Arcus stays out of the picker until the owner's
 listening verdict, as the cello does.
 
 ### 1. The engine for the short segment (`cantus-dsp/src/arcus_upper*.rs`)
 
-<!-- FILL: the measured choice -->
+At 48 kHz the bow–bridge segment of a violin's upper notes is a few samples long; the voice's
+`min_beta` forced β above the player's from E5 up (0.137 at E6, 0.275 at E7, against ~0.06 at
+ff), and above E6 the motion broke. Three options, **measured** (`upper_tests_rate::probe_rate`,
+`probe_corner`, `probe_top`; logs in `F:\projects\daw-r42\logs\arcus-upper\`):
+
+| | 1× | 2× | 4× |
+|---|---|---|---|
+| β reached at ff, E6 / E7 (target ~0.06) | 0.137 / 0.275 | 0.069 / 0.137 | 0.063 / 0.069 |
+| Bowed pitch, closed loop, top notes (E6…E7, pp/ff) | −33 … −51 ct (broken motion) | −20 … −33 ct at E7 | **within 0.03 ct** (with the corner and the lighter bow below) |
+| Energy between harmonics (aliasing; noise and vibrato off), violin E5 … A6 | −13 … −21 dB | −24 … −36 dB | −30 … −40 dB |
+| Cost, a note-second (release, two other builds running: a ratio, not a claim) | 1.0 | 1.45 | 2.3 |
+
+- **Chosen: the whole voice at 4×** — string, bow, pluck and pitch loop — back through a
+  linear-phase half-band cascade (23 + 75 Kaiser taps: ripple ±0.0005 dB to 20 kHz, ≥ 90 dB down
+  where anything folds under 20 kHz, 21.25 samples of latency). The control step runs as often
+  in time as the cello's (every 32 samples at the rate: 128 of the voice's), so the bow's jitter,
+  the vibrato and the loop behave alike. The body, the match and the output stay at the rate.
+- **Set aside**: a locally oversampled bridge segment (a rate change inside the junction's loop
+  puts an interpolator's delay and ripple round the loop every period — the pitch and the losses
+  the segment was too short to model); a fractional junction placement (the cello has it already:
+  it keeps the pitch, not the motion between bow and bridge).
+- **Two physical additions for the top**, upper strings only: the bridge's corner rounding at
+  least **6 × f₀** (at 3× the top fifth still broke; at 6× every top note is Helmholtz), and the
+  bow **lighter and slower high on a string** (0.35 octave of force and ^0.25 of speed per octave
+  stopped — two octaves up: −0.7 octave of force, 0.71 × speed), as players bow there; an ff
+  E7 with the open string's bowing goes raucous on this model (−22 … −27 ct, +50 dB between
+  harmonics), half an octave lighter brings it back.
+- **The cello and the double bass are bit-identical**: they run the code they ran at 1×
+  (`upper_tests::the_cello_and_the_bass_keep_their_bits`: seven settings × the full phrase,
+  hashes measured on `r42/arcus` 58cafea8e in a worktree with only that test added).
+- **No allocation**: the lines already hold the violin's lowest period at 4× (the bass's at 1×);
+  a voice that changes rate retunes its string and pluck in place. A voice ends on its control
+  grid and its way back rings out 64 samples from there, so the bits never depend on the blocks.
 
 ### 2. The instruments
 
-<!-- FILL: strings, body, ranges, articulations, presets -->
+- **Strings** (`arcus_upper_tables.rs`, every number cited): Percival's measured lengths
+  (Glasgow thesis 2013, Table 3.2: violin 322 mm, viola 366 mm), Rossing's tension ranges
+  (via Percival's Table 3.6; violin E 80 N, A 54, D 47, G 45; viola A 72, D 54, G 53, C 54),
+  Percival's **measured decay rates** of open strings (Table 3.5: each string's fundamental T60
+  and its partials' exponent `p = log₁₀(r₁₀/r₁)`).
+- **The violin's body fitted to a measured admittance**: the CNSM dataset (Pauget Ballesteros,
+  Lalitte, Lostanlen, Fritz; Zenodo 10.5281/zenodo.18696786, **CC BY 4.0**) — three violins'
+  bridge admittance by laser vibrometer. Only its 22 MB admittance range of the 654 MB zip was
+  fetched (byte ranges). A 1.218 ms acquisition delay makes the measured phase non-passive;
+  taken out, every point's real part is positive (0 of 16 385 left negative) — the outside
+  bytes check the model's passivity. Fitted (`examples/arcus_upper_body.rs`) by **positive**
+  band-pass modes (non-negative least squares: a driving point's modes each add a positive mass
+  term; an unconstrained fit let neighbours cancel and would have come apart under `body.ring`):
+  41 modes, **1.72 dB rms from Klimke's admittance in twelfths of an octave (120 Hz – 10 kHz),
+  where the three violins differ from each other by 3.1 – 3.2 dB**. Signature modes land where
+  a violin's are (CBR 371 Hz, B1− 445, B1+ 542, the bridge hill 2.5 – 2.9 kHz).
+- **The viola's body**: the violin's at 1.14 × its size (406 / 356 mm) — no measured viola
+  admittance exists in the open (`strings-verified.md` §3.1, checked again): its strongest
+  signature mode at 476 Hz against the violin's 543.
+- **Ranges**: violin G3 – E7, viola C3 – A6. **Articulations**: arco, legato (the finger moves,
+  the bow goes on), détaché with the bow's direction (alternating or the note's `art.bow`),
+  staccato, spiccato, pizzicato, tremolo — the cello's, all reaching the upper strings.
+- **Model 2's match** (`VIOLIN_MATCH`, `VIOLA_MATCH`): the output's correction from the CNSM
+  violins' scales (14 recordings, 3 violins, the same players: their mean long-term spectrum
+  over Arcus's two-octave G major scale); the hair's noise +8 dB and the pluck's ring × 0.27
+  (violin) / 0.32 (viola) from the Iowa notes; the vibrato ×0.85 / ×0.9. The viola takes the
+  violin's correction (no viola scales were found to fit its own — an assumption, said here).
+- **Presets** (`views/inst/arcus_upper_presets.rs`, 14: violin plain, cantabile, sul tasto,
+  without vibrato, détaché, portamento, pizzicato, tremolo; viola plain, cantabile, sul tasto,
+  détaché, pizzicato, tremolo), the cello's four macros. Their gains are 0.0 until
+  `tools/arcus/presets.sh <dir> fit` runs (it now writes this file's gains too).
+- **Pitch table** (`arcus_upper_pitch_data.rs`, `tools/arcus/upper-pitch.sh`): raw offsets
+  −7.9 … +14.9 ct (violin), −6.6 … +12.6 (viola); at most 0.43 ct left after the first pass.
 
 ### 3. The picture
 
-<!-- FILL: sheet, meshes, stand -->
+Design sheet v1, `docs/round42/arcus-upper/sheet/` (`shoot_arcus --scene --only=vio`): the
+violin and the viola as meshes on the same scene engine (`Subject::Bowed` gained `Violin` and
+`Viola`; `scene/bowed_upper.rs`: the 'Messiah' Stradivari's measures and a 16-inch viola's, the
+cello's outline drawn to their bouts; `scene/bowed_upper_stand.rs`: a chromed instrument stand
+with a padded cradle and neck fork — nobody holds them, so they stand as a maker's photograph
+shows them, leant back 11°, in the cello's studio with its two boom microphones). Both looks,
+both themes, 100 % and 200 %. The live string, finger and bow are the cello's rig on the new
+meshes. Chorda's and Tympanum's pictures untouched (`scene_identity`). **Sent to the integrator
+for the owner before going further.**
 
 ### 4. Studies and comparison
 
-<!-- FILL: distances -->
+<!-- FILL -->
 
 ## Renders for the owner
 
-<!-- FILL -->
+`F:\projects\daw-r42\listen\arcus-upper\`: per instrument `*-note-{pp,mf,ff}`,
+`*-phrase-legato-cc1`, `*-detache`, `*-pizzicato`, `*-tremolo`; **the blind ABX**:
+`abx.html` (the house page with its `SETS` set to 12 pairs) and `ref/` beside it —
+`<pair>-rec-lufs23.wav` (a recorded note: VSCO 2 CE's solo violin A4 f/p, E5 f, G3 f; Iowa MIS
+violin D4 mf, A4 pizz; Iowa viola A4 pp/mf/ff, D4 mf, C3 mf, D4 pizz) and
+`<pair>-arcus-lufs23.wav` (Arcus on the same key, dynamic and length), both at −23 LUFS.
 
 ## Verified only in emulation
 
-<!-- FILL -->
+- **The sound**: nobody has listened; every number is a measurement.
+- **The picture**: shot on the CPU renderer.
+- The viola's body (scaled) and its correction (the violin's) are assumptions, not measurements.
 
 ## For the integrator (merging with `r42/arcus`)
 
@@ -39,4 +118,7 @@ listening verdict, as the cello does.
 
 ## Left
 
-<!-- FILL -->
+- **The owner's ears**: the renders and the ABX pairs (`abx.html`); then violin and viola go
+  wherever the cello goes (they are inside Arcus, which enters the picker in the arcus builder's
+  `ALL` commit — its picker text "cello and double bass" would then name all four).
+- **The owner's eyes**: design sheet v1 (stand pose, the chair out of frame).

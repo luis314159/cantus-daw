@@ -44,7 +44,13 @@ pub fn camera(b: Bowed, room: Room) -> Camera {
         Room::Hall => 7.0,
         _ => 8.0,
     };
-    Camera::new(v(mid.x, mid.y, mid.z), -24.0, el, 300.0 + 2.2 * d.body)
+    // A violin or a viola on its stand: closer, as a photographer frames a small instrument. // r42:arcus-upper
+    let dist = if d.stand {
+        140.0 + 2.2 * d.body
+    } else {
+        300.0 + 2.2 * d.body
+    }; // r42:arcus-upper
+    Camera::new(v(mid.x, mid.y, mid.z), -24.0, el, dist) // r42:arcus-upper
 }
 
 /// The points the camera fits: the body, the head, the endpin's foot.

@@ -22,7 +22,10 @@
 //! - **Stiffness**: none in the loop (Schelleng 1973's 0.1 cent·n² tolerance; Percival's
 //!   Table 3.3 measured B ≤ 10⁻⁴ on these strings, under it for the partials a bow drives).
 //!
-//! **The bowing**: speeds and contact points from Askenfelt's violin measurements (*JASA* 86,
+//! **The bowing** (re-mapped the players' way after the study's database, `study/bowed-realism.md`
+//! §0 item 2: pp → ff the force × 4–5, the bow–bridge distance × 0.4–0.5, the speed nearly
+//! constant — here ×2, which with β ×0.45 makes the Helmholtz amplitude ×4.4, 13 dB, the low
+//! end of the measured 13 – 18 dB): speeds and contact points within Askenfelt's violin measurements (*JASA* 86,
 //! 1989, doi:10.1121/1.398230: pp near 5 cm/s and β near 1/8, ff to 50 cm/s and β under 1/16
 //! — the abstract read, its tables NV) and Schoonderwaldt, Guettler & Askenfelt 2008
 //! (doi:10.3813/aaa.918070, the violin's Schelleng diagram on its D and E strings at 5 – 20
@@ -57,9 +60,9 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     body: BodyKind::None,
     body_size: 1.0,
     bowing: Bowing {
-        speed: (0.05, 0.5),
-        beta: (0.12, 0.06),
-        place: (0.42, 0.27),
+        speed: (0.15, 0.30),
+        beta: (0.13, 0.058),
+        place: (0.32, 0.32),
     },
     // Mellody & Wakefield 2000 (5.9 Hz, ±15 cents mean) and MacLeod 2008 (wider high).
     vib_hz: 5.9,
@@ -85,9 +88,9 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     body: BodyKind::None,
     body_size: 1.0,
     bowing: Bowing {
-        speed: (0.05, 0.45),
-        beta: (0.125, 0.065),
-        place: (0.42, 0.27),
+        speed: (0.15, 0.30),
+        beta: (0.135, 0.062),
+        place: (0.32, 0.32),
     },
     // MacLeod 2008: violists slightly slower and narrower than violinists.
     vib_hz: 5.7,
@@ -104,21 +107,20 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
 /// dataset's scales — 14 recordings of three violins by the same players (CC BY 4.0) — their
 /// mean long-term third-octave spectrum over Arcus's playing a two-octave G major scale,
 /// read at the correction's bands (`tools/arcus/upper-compare.sh` prints it); the hair's noise
-/// raised by what the Iowa MIS's and VSCO's held notes have between their harmonics more than
-/// Arcus's (11 dB on the violin, 8 on the viola, taken at 8: the recordings' own floor is in
-/// theirs); the pluck's ring shortened by what the Iowa MIS's plucked notes measured (Arcus's
+/// raised to the study's measure (its own estimator on Arcus's notes: −42 dB re the harmonics
+/// against the real instruments' −32, `tools/arcus/upper_study.py`); the pluck's ring shortened by what the Iowa MIS's plucked notes measured (Arcus's
 /// partials 1–4 rang 1.9 octaves of T60 longer on the violin, 1.65 on the viola: Percival's
 /// decays are open strings', a stopped and plucked string loses more to the finger); the
-/// vibrato a little narrower (Arcus measured +3.7 cents wider than the recorded
-/// notes). Judged on the Iowa and VSCO notes, which the fit did not use.
+/// violin's vibrato narrower and slower (the study's band: 6.9 – 10.4 cents, 4.9 – 5.5 Hz;
+/// Arcus measured 17 cents and 6.2 Hz; the viola's was inside its band). Judged on the Iowa and VSCO notes, which the fit did not use.
 pub const VIOLIN_MATCH: Match = Match {
     eq_db: [
         -7.6, -7.6, -9.0, 7.4, 4.9, 7.6, 2.8, 3.6, -0.7, 1.3, -1.2, 0.4,
     ],
-    noise_db: 8.0,
+    noise_db: 22.0,
     pizz_decay: 0.27,
-    vib_depth: 0.85,
-    vib_rate: 1.0,
+    vib_depth: 0.5,
+    vib_rate: 0.88,
 };
 
 /// The viola's: no recordings of a viola's scales were found to fit its own, so the violin's
@@ -126,7 +128,7 @@ pub const VIOLIN_MATCH: Match = Match {
 /// so in `docs/round42/arcus-upper.md`), its noise as the violin's.
 pub const VIOLA_MATCH: Match = Match {
     eq_db: VIOLIN_MATCH.eq_db,
-    noise_db: 8.0,
+    noise_db: 18.0,
     pizz_decay: 0.32,
     vib_depth: 0.9,
     vib_rate: 1.0,

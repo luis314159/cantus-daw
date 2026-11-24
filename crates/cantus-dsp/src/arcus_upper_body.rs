@@ -285,13 +285,12 @@ mod data;
 /// The violin's modes (fitted, `arcus_upper_body_data.rs`).
 pub const VIOLIN: &[Mode] = &data::VIOLIN;
 
-/// The viola's body over the violin's: its length (406 / 356 mm, a 16-inch viola over a
-/// violin's 356) — no measured viola admittance was found (`strings-verified.md` §3.1's gap),
-/// so its modes are the violin's at this scale. A standard viola is acoustically small for its
-/// tuning (Hutchins: its body's modes cannot sit on its strings as a violin's do — NV, from
-/// the literature's summary), and a scale by length alone keeps it so; its A0 lands near
-/// 240 Hz, under the violin's ~280.
-pub const VIOLA_SCALE: f32 = 1.14;
+/// The viola's body over the violin's: its size, not its tuning — the study's database
+/// (`study/bowed-realism.md` §3.13) measured the viola's A0 at 250 Hz (223 – 250) against the
+/// violin's 281, a ratio of 1.12 (a 16-inch body over a violin's 356 mm); no measured viola
+/// admittance exists in the open (`strings-verified.md` §3.1). Scaled so, its A0 sits about
+/// 1.9 × over its C string (the database: 1.91), the viola's veiled lowest octave.
+pub const VIOLA_SCALE: f32 = 1.12;
 
 /// The shape an instrument's settings ask of the upper strings' body: `None` for the cello's
 /// and the bass's (they keep Fides's).

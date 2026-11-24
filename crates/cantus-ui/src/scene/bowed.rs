@@ -308,20 +308,15 @@ fn spline(p: &[(f32, f32)], per: usize) -> Vec<(f32, f32)> {
 /// The body's whole outline (cm), counter-clockwise seen from the top: from the lower
 /// edge's middle up the right side to the neck, down the left side; `per` points a span.
 pub fn outline(b: Bowed, per: usize) -> Vec<(f32, f32)> {
-    let (half, drawn) = match b {
-        Bowed::Cello => (&CELLO_HALF, None),
-        Bowed::Bass => (&BASS_HALF, None),
-        Bowed::Violin => (&CELLO_HALF, Some(super::bowed_upper::VIOLIN_DRAW)), // r42:arcus-upper
-        Bowed::Viola => (&CELLO_HALF, Some(super::bowed_upper::VIOLA_DRAW)),   // r42:arcus-upper
+    let half: &Half = match b {
+        Bowed::Cello => &CELLO_HALF,
+        Bowed::Bass => &BASS_HALF,
+        Bowed::Violin => &super::bowed_upper::VIOLIN_HALF, // r42:arcus-upper
+        Bowed::Viola => &super::bowed_upper::VIOLA_HALF,   // r42:arcus-upper
     };
     let mut right: Vec<(f32, f32)> = Vec::new();
     for (k, seg) in half.iter().enumerate() {
-        let seg: Vec<(f32, f32)> = match drawn {
-            // r42:arcus-upper
-            Some(dr) => seg.iter().map(|p| dr.at(*p)).collect(), // r42:arcus-upper
-            None => seg.to_vec(),                                // r42:arcus-upper
-        }; // r42:arcus-upper
-        let mut s = spline(&seg, per);
+        let mut s = spline(seg, per);
         if k > 0 {
             s.remove(0);
         }

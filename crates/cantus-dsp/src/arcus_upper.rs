@@ -12,7 +12,7 @@
 //!
 //! **The choice, by measurement** (`docs/round42/arcus-upper.md`, `upper_tests::probe_rate`):
 //! the whole voice — its string, its bow, its pluck, its pitch loop — runs at `os ×` the
-//! rate, and a linear-phase half-band cascade brings it back ([`Decimator`]). The body,
+//! rate (the violin 4×, the viola 2×), and a linear-phase half-band cascade brings it back ([`Decimator`]). The body,
 //! the radiation, the match and the output stage stay at the rate, after the voices' sum.
 //! A locally oversampled bridge segment was considered and set aside: the junction couples
 //! both loops every sample, so a rate change inside the loop needs an interpolator and a
@@ -35,7 +35,13 @@ pub const MAX_OS: usize = 4;
 pub fn factor(inst: Instrument) -> usize {
     match inst {
         Instrument::Cello | Instrument::Bass => 1,
-        Instrument::Violin | Instrument::Viola => 4,
+        // The violin's E string bowed near the bridge leaves the segment 2.2 samples at 48
+        // kHz (the study's §3.13: `d·f_s/(L·f_open)`, the note's own pitch does not enter);
+        // at 2× its top fifth still breaks (−20 … −33 cents), at 4× every note holds.
+        Instrument::Violin => 4,
+        // The viola's A string at 2× keeps every note Helmholtz and within 0.03 cent, β at
+        // its target to E6 (`probe_rate`), and costs 0.78 × what 4× does.
+        Instrument::Viola => 2,
     }
 }
 

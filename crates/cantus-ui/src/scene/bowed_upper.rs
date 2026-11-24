@@ -11,10 +11,8 @@
 //! 270 mm; the viola's in proportion over its string. The strings' gauges are Percival's
 //! measured diameters (Glasgow thesis 2013, Table 3.2).
 //!
-//! **The outline**: the 'Davidov' cello's three curves (`bowed::CELLO_HALF`) drawn to each
-//! instrument's length and to its own bouts' widths — the violin family shares the form, and
-//! the cello's proportions of bouts to length (0.45 / 0.31 / 0.58) are the 'Messiah''s within
-//! 0.02 — so the corners, the C-bouts' depth and the shoulders keep a luthier's line.
+//! **The outlines**: each its own three curves (`VIOLIN_HALF`, `VIOLA_HALF`), drawn from its
+//! measures — the bouts' widths and places, the corners, the waist — as the cello's are.
 //!
 //! **The stand**: a violin or a viola is not stood on the floor and cannot be held without a
 //! player, so it rests as a maker's or a photographer's picture shows it — upright on an
@@ -89,40 +87,94 @@ pub const VIOLA: Dims = Dims {
     stand: true,
 };
 
-/// How the cello's outline is drawn to an instrument (cm → the cello's mm grid): its
-/// length's scale, and its half-widths' at the lower, the middle and the upper bout (the
-/// 'Davidov''s 218 / 116 / 170 mm), between them linearly along the length.
-#[derive(Copy, Clone, Debug)]
-pub struct Draw {
-    pub y: f32,
-    pub x: [f32; 3],
-}
+/// The violin's half-outline (mm from the lower edge; the viewer's right half), as the cello's
+/// (`bowed::CELLO_HALF`): the lower bout to its corner, the C-bout, the upper bout to the neck —
+/// drawn to the 'Messiah''s measures: 356 mm long, 104 / 54.5 / 83 mm half-widths at the lower,
+/// middle and upper bouts, the corners at 147 and 229 mm, the C-bouts' waist at 190 mm.
+pub const VIOLIN_HALF: [&[(f32, f32)]; 3] = [
+    &[
+        (0.0, 0.0),
+        (32.0, 2.0),
+        (60.0, 8.0),
+        (82.0, 22.0),
+        (97.0, 43.0),
+        (104.0, 72.0),
+        (102.5, 100.0),
+        (96.0, 120.0),
+        (88.0, 133.0),
+        (82.0, 141.0),
+        (87.0, 147.0),
+    ],
+    &[
+        (87.0, 147.0),
+        (76.0, 151.0),
+        (66.0, 159.0),
+        (59.0, 170.0),
+        (55.5, 181.0),
+        (54.5, 190.0),
+        (55.5, 199.0),
+        (59.0, 209.0),
+        (65.0, 218.0),
+        (71.0, 224.0),
+        (75.0, 229.0),
+    ],
+    &[
+        (75.0, 229.0),
+        (70.0, 233.0),
+        (70.0, 240.0),
+        (74.0, 252.0),
+        (80.0, 268.0),
+        (83.0, 284.0),
+        (81.0, 302.0),
+        (75.0, 318.0),
+        (63.0, 333.0),
+        (46.0, 345.0),
+        (25.0, 353.0),
+        (0.0, 356.0),
+    ],
+];
 
-pub const VIOLIN_DRAW: Draw = Draw {
-    y: 356.0 / 757.0,
-    x: [104.0 / 218.0, 54.5 / 116.0, 83.0 / 170.0],
-};
-
-pub const VIOLA_DRAW: Draw = Draw {
-    y: 406.0 / 757.0,
-    x: [119.0 / 218.0, 66.0 / 116.0, 96.0 / 170.0],
-};
-
-impl Draw {
-    /// A point of the cello's half-outline (mm) drawn to this instrument (mm). The widths'
-    /// scale moves between the bouts' widest places on the cello (162, 396 and 600 mm up).
-    pub fn at(&self, (x, y): (f32, f32)) -> (f32, f32) {
-        let k = if y <= 162.0 {
-            self.x[0]
-        } else if y <= 396.0 {
-            let t = (y - 162.0) / (396.0 - 162.0);
-            self.x[0] + (self.x[1] - self.x[0]) * t
-        } else if y <= 600.0 {
-            let t = (y - 396.0) / (600.0 - 396.0);
-            self.x[1] + (self.x[2] - self.x[1]) * t
-        } else {
-            self.x[2]
-        };
-        (x * k, y * self.y)
-    }
-}
+/// The viola's (a 16-inch, 406 mm instrument; 119 / 66 / 96 mm half-widths, the corners at 168
+/// and 261 mm, the waist at 217 mm).
+pub const VIOLA_HALF: [&[(f32, f32)]; 3] = [
+    &[
+        (0.0, 0.0),
+        (37.0, 2.0),
+        (68.0, 9.0),
+        (93.0, 25.0),
+        (110.0, 49.0),
+        (119.0, 82.0),
+        (117.0, 114.0),
+        (110.0, 137.0),
+        (101.0, 152.0),
+        (94.0, 161.0),
+        (99.0, 168.0),
+    ],
+    &[
+        (99.0, 168.0),
+        (87.0, 173.0),
+        (77.0, 182.0),
+        (69.0, 195.0),
+        (66.5, 207.0),
+        (66.0, 217.0),
+        (67.0, 227.0),
+        (71.0, 238.0),
+        (78.0, 248.0),
+        (85.0, 255.0),
+        (89.0, 261.0),
+    ],
+    &[
+        (89.0, 261.0),
+        (83.0, 266.0),
+        (83.0, 274.0),
+        (87.0, 288.0),
+        (93.0, 306.0),
+        (96.0, 325.0),
+        (94.0, 345.0),
+        (87.0, 363.0),
+        (73.0, 380.0),
+        (53.0, 394.0),
+        (29.0, 402.0),
+        (0.0, 406.0),
+    ],
+];

@@ -102,7 +102,10 @@ fn legato(line: &[(u8, f64)], bpm: f64, vel: f32, lo: f32, hi: f32) -> (Vec<(f64
     for (i, (k, beats)) in line.iter().enumerate() {
         ev.push((t, Ev::On(*k, vel)));
         let end = t + beats * beat;
-        ev.push((if i + 1 < line.len() { end + 0.03 } else { end }, Ev::Off(*k)));
+        ev.push((
+            if i + 1 < line.len() { end + 0.03 } else { end },
+            Ev::Off(*k),
+        ));
         t = end;
     }
     let bar = 4.0 * beat;
@@ -132,18 +135,170 @@ struct Pair {
 }
 
 const PAIRS: &[Pair] = &[
-    Pair { tag: "violin-A4-f", file: "LLVln_ArcoVib_A4_f.wav", nth: 0, inst: Instrument::Violin, key: 69, vel: 0.85, pizz: false },
-    Pair { tag: "violin-A4-p", file: "LLVln_ArcoVib_A4_p.wav", nth: 0, inst: Instrument::Violin, key: 69, vel: 0.35, pizz: false },
-    Pair { tag: "violin-E5-f", file: "LLVln_ArcoVib_E5_f.wav", nth: 0, inst: Instrument::Violin, key: 76, vel: 0.85, pizz: false },
-    Pair { tag: "violin-G3-f", file: "LLVln_ArcoVib_G3_f.wav", nth: 0, inst: Instrument::Violin, key: 55, vel: 0.85, pizz: false },
-    Pair { tag: "violin-D4-mf", file: "Violin.arco.mf.sulD.D4A4.aiff", nth: 0, inst: Instrument::Violin, key: 62, vel: 0.6, pizz: false },
-    Pair { tag: "violin-A4-pizz", file: "Violin.pizz.mf.sulA.A4B4.aiff", nth: 0, inst: Instrument::Violin, key: 69, vel: 0.6, pizz: true },
-    Pair { tag: "viola-A4-mf", file: "Viola.arco.sulA.mf.A4B4.aiff", nth: 0, inst: Instrument::Viola, key: 69, vel: 0.6, pizz: false },
-    Pair { tag: "viola-A4-ff", file: "Viola.arco.sulA.ff.A4B4.aiff", nth: 0, inst: Instrument::Viola, key: 69, vel: 0.9, pizz: false },
-    Pair { tag: "viola-A4-pp", file: "Viola.arco.sulA.pp.A4B4.aiff", nth: 0, inst: Instrument::Viola, key: 69, vel: 0.3, pizz: false },
-    Pair { tag: "viola-D4-mf", file: "Viola.arco.sulD.mf.D4B4.aiff", nth: 0, inst: Instrument::Viola, key: 62, vel: 0.6, pizz: false },
-    Pair { tag: "viola-C3-mf", file: "Viola.arco.sulC.mf.C3B3.aiff", nth: 0, inst: Instrument::Viola, key: 48, vel: 0.6, pizz: false },
-    Pair { tag: "viola-D4-pizz", file: "Viola.pizz.sulD.mf.D4B4.aiff", nth: 0, inst: Instrument::Viola, key: 62, vel: 0.6, pizz: true },
+    // The study's listening references (`downloads/study/abx-refs`, TinySOL, CC BY 4.0:
+    // IRCAM's instruments, ordinario, the second string).
+    Pair {
+        tag: "violin-A4-tinysol-pp",
+        file: "violin_tinysol_A4_pp.wav",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 69,
+        vel: 0.22,
+        pizz: false,
+    },
+    Pair {
+        tag: "violin-A4-tinysol-mf",
+        file: "violin_tinysol_A4_mf.wav",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 69,
+        vel: 0.6,
+        pizz: false,
+    },
+    Pair {
+        tag: "violin-A4-tinysol-ff",
+        file: "violin_tinysol_A4_ff.wav",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 69,
+        vel: 0.95,
+        pizz: false,
+    },
+    Pair {
+        tag: "viola-D4-tinysol-pp",
+        file: "viola_tinysol_D4_pp.wav",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 62,
+        vel: 0.22,
+        pizz: false,
+    },
+    Pair {
+        tag: "viola-D4-tinysol-mf",
+        file: "viola_tinysol_D4_mf.wav",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 62,
+        vel: 0.6,
+        pizz: false,
+    },
+    Pair {
+        tag: "viola-D4-tinysol-ff",
+        file: "viola_tinysol_D4_ff.wav",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 62,
+        vel: 0.95,
+        pizz: false,
+    },
+    Pair {
+        tag: "violin-A4-f",
+        file: "LLVln_ArcoVib_A4_f.wav",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 69,
+        vel: 0.85,
+        pizz: false,
+    },
+    Pair {
+        tag: "violin-A4-p",
+        file: "LLVln_ArcoVib_A4_p.wav",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 69,
+        vel: 0.35,
+        pizz: false,
+    },
+    Pair {
+        tag: "violin-E5-f",
+        file: "LLVln_ArcoVib_E5_f.wav",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 76,
+        vel: 0.85,
+        pizz: false,
+    },
+    Pair {
+        tag: "violin-G3-f",
+        file: "LLVln_ArcoVib_G3_f.wav",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 55,
+        vel: 0.85,
+        pizz: false,
+    },
+    Pair {
+        tag: "violin-D4-mf",
+        file: "Violin.arco.mf.sulD.D4A4.aiff",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 62,
+        vel: 0.6,
+        pizz: false,
+    },
+    Pair {
+        tag: "violin-A4-pizz",
+        file: "Violin.pizz.mf.sulA.A4B4.aiff",
+        nth: 0,
+        inst: Instrument::Violin,
+        key: 69,
+        vel: 0.6,
+        pizz: true,
+    },
+    Pair {
+        tag: "viola-A4-mf",
+        file: "Viola.arco.sulA.mf.A4B4.aiff",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 69,
+        vel: 0.6,
+        pizz: false,
+    },
+    Pair {
+        tag: "viola-A4-ff",
+        file: "Viola.arco.sulA.ff.A4B4.aiff",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 69,
+        vel: 0.9,
+        pizz: false,
+    },
+    Pair {
+        tag: "viola-A4-pp",
+        file: "Viola.arco.sulA.pp.A4B4.aiff",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 69,
+        vel: 0.3,
+        pizz: false,
+    },
+    Pair {
+        tag: "viola-D4-mf",
+        file: "Viola.arco.sulD.mf.D4B4.aiff",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 62,
+        vel: 0.6,
+        pizz: false,
+    },
+    Pair {
+        tag: "viola-C3-mf",
+        file: "Viola.arco.sulC.mf.C3B3.aiff",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 48,
+        vel: 0.6,
+        pizz: false,
+    },
+    Pair {
+        tag: "viola-D4-pizz",
+        file: "Viola.pizz.sulD.mf.D4B4.aiff",
+        nth: 0,
+        inst: Instrument::Viola,
+        key: 62,
+        vel: 0.6,
+        pizz: true,
+    },
 ];
 
 fn find(dir: &Path, name: &str) -> Option<PathBuf> {
@@ -172,7 +327,9 @@ fn pairs(out: &Path, refs: &Path) -> String {
             eprintln!("  {}: {} not found under {}", p.tag, p.file, refs.display());
             continue;
         };
-        let Some(m) = audio::read(&path) else { continue };
+        let Some(m) = audio::read(&path) else {
+            continue;
+        };
         let (a, b) = if p.file.ends_with(".aiff") {
             let segs = audio::segments(&m);
             match segs.get(p.nth) {
@@ -193,12 +350,21 @@ fn pairs(out: &Path, refs: &Path) -> String {
             *v *= 1.0 - i as f32 / fade as f32;
         }
         // The key the recording sounds (its file's name can be an octave off).
-        let f0 = features::find_f0(&x, m.sr, 440.0 * math::exp2((p.key as f64 - 69.0) / 12.0), true);
+        let f0 = features::find_f0(
+            &x,
+            m.sr,
+            440.0 * math::exp2((p.key as f64 - 69.0) / 12.0),
+            true,
+        );
         let key = (69.0 + 12.0 * math::log2(f0 / 440.0)).round() as u8;
         let dur = n as f64 / m.sr;
         let s = ArcusSettings {
             instrument: p.inst,
-            technique: if p.pizz { Technique::Pizzicato } else { Technique::Arco },
+            technique: if p.pizz {
+                Technique::Pizzicato
+            } else {
+                Technique::Arco
+            },
             ..ArcusSettings::default()
         };
         let (al, ar) = render(
@@ -208,13 +374,31 @@ fn pairs(out: &Path, refs: &Path) -> String {
         );
         let (g_ref, l_ref) = to_lufs23(m.sr, &x, &x);
         let (g_arc, l_arc) = to_lufs23(SR as f64, &al, &ar);
-        write(&dir.join(format!("{}-rec-lufs23.wav", p.tag)), m.sr, &x, &x, g_ref);
-        write(&dir.join(format!("{}-arcus-lufs23.wav", p.tag)), SR as f64, &al, &ar, g_arc);
+        write(
+            &dir.join(format!("{}-rec-lufs23.wav", p.tag)),
+            m.sr,
+            &x,
+            &x,
+            g_ref,
+        );
+        write(
+            &dir.join(format!("{}-arcus-lufs23.wav", p.tag)),
+            SR as f64,
+            &al,
+            &ar,
+            g_arc,
+        );
         eprintln!(
             "  {}: {} cut {:.2} s, key {key} (named {}), {:.1} / {:.1} LUFS raw",
             p.tag, p.file, dur, p.key, l_ref, l_arc
         );
-        let source = if p.file.starts_with("LLVln") { "VSCO 2 CE" } else { "Iowa MIS" };
+        let source = if p.file.starts_with("LLVln") {
+            "VSCO 2 CE"
+        } else if p.file.contains("tinysol") {
+            "TinySOL"
+        } else {
+            "Iowa MIS"
+        };
         let _ = writeln!(
             sets,
             "  \"{}\": {{ arcus: \"ref/{}-arcus-lufs23.wav\", rec: \"ref/{}-rec-lufs23.wav\", recName: \"{} grabado ({source})\" }},",
@@ -228,14 +412,76 @@ fn pairs(out: &Path, refs: &Path) -> String {
     sets
 }
 
+/// Single notes for the study's measuring chain (`tools/arcus/upper_study.py`): each
+/// instrument's keys every four semitones, arco at pp, mf and ff (3 s) and plucked at mf, as
+/// `<out>/study/<family>/arcus_<tech>_<midi>_<dyn>.wav`.
+fn study_notes(out: &Path) {
+    for (family, inst) in [("violin", Instrument::Violin), ("viola", Instrument::Viola)] {
+        let dir = out.join("study").join(family);
+        std::fs::create_dir_all(&dir).expect("study dir");
+        let spec = inst.spec();
+        let mut key = spec.bottom();
+        while key + 3 <= spec.top {
+            for (tech, d, vel, len) in [
+                ("arco", "pp", 0.22f32, 3.0f64),
+                ("arco", "mf", 0.6, 3.0),
+                ("arco", "ff", 0.95, 3.0),
+                ("pizz", "mf", 0.6, 2.0),
+            ] {
+                let s = ArcusSettings {
+                    instrument: inst,
+                    technique: if tech == "pizz" {
+                        Technique::Pizzicato
+                    } else {
+                        Technique::Arco
+                    },
+                    ..ArcusSettings::default()
+                };
+                let (l, r) = render(
+                    &s,
+                    &[(0.05, Ev::On(key, vel)), (0.05 + len, Ev::Off(key))],
+                    len + 0.8,
+                );
+                write(
+                    &dir.join(format!("arcus_{tech}_{key}_{d}.wav")),
+                    SR as f64,
+                    &l,
+                    &r,
+                    1.0,
+                );
+            }
+            key += 4;
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let out = PathBuf::from(args.get(1).cloned().unwrap_or_else(|| "arcus-upper-listen".into()));
+    let out = PathBuf::from(
+        args.get(1)
+            .cloned()
+            .unwrap_or_else(|| "arcus-upper-listen".into()),
+    );
+    if args.get(2).is_some_and(|a| a == "study") {
+        study_notes(&out);
+        println!("study notes written to {}", out.join("study").display());
+        return;
+    }
     let refs = args.get(2).map(PathBuf::from);
     std::fs::create_dir_all(&out).expect("out dir");
     for (name, inst, note, line) in [
-        ("violin", Instrument::Violin, 74u8, [74u8, 76, 77, 79, 81, 82, 81, 79, 77, 76]),
-        ("viola", Instrument::Viola, 62u8, [62u8, 64, 65, 67, 69, 70, 69, 67, 65, 64]),
+        (
+            "violin",
+            Instrument::Violin,
+            74u8,
+            [74u8, 76, 77, 79, 81, 82, 81, 79, 77, 76],
+        ),
+        (
+            "viola",
+            Instrument::Viola,
+            62u8,
+            [62u8, 64, 65, 67, 69, 70, 69, 67, 65, 64],
+        ),
     ] {
         let base = ArcusSettings {
             instrument: inst,
