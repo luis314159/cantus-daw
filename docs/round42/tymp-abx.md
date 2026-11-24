@@ -13,7 +13,7 @@ verdict (which stays open: *done when his verdict is recorded with the numbers*)
 | what | where |
 |---|---|
 | the kit (FLAC, offline: what a listener receives) | `F:\projects\daw-r42\listen\tympanum-abx\` (`index.html`, `audio\` 38 files, `LEEME.md`, `README.md`) |
-| the zip to send | `F:\projects\daw-r42\listen\ABX-Tympanum.zip` |
+| the zip to send | `F:\projects\daw-r42\listen\ABX-Tympanum.zip` (59.8 MB, 41 entries at its root as Chorda's, `PK`, tested) |
 | the same kit as WAV (to publish as a claude.ai page; same id, names, samples, page) | `F:\projects\daw-r42\listen\tympanum-abx-wav\` |
 | the key (never sent) | `F:\projects\daw-r42\listen\tympanum-abx-key\` (`key.json`, `levels.csv`, `hits.csv`) |
 | the packs (content root) | `F:\projects\daw-r42\downloads\tympanum\content\` — the two hybrid packs (v3) installed by Cantus's pack code from the manifest (SHA-256 checked); DRSKit and Virtuosity (v1, the manifest's version) are junctions to round 40's installs in `F:\projects\daw-r40\downloads\tymp-engine\content\` |
@@ -71,7 +71,7 @@ the model by −3 to −11 dB per item.
 - **Part 1** — ABX generated vs recording, 24 trials (each of the 12 items twice).
 - **Part 2** — 26 preferences: every item generated vs recording and hybrid vs recording, plus
   two catch questions (one clip under two names: this kit draws the toms' recording and the
-  snare's generated voice), never the first question. *"¿Cuál suena más a una batería acústica
+  ballad's generated voice), never the first question. *"¿Cuál suena más a una batería acústica
   real, bien grabada?"*, with an optional word why.
 - **Extra (optional)** — ABX hybrid vs recording, 24 trials.
 
@@ -163,7 +163,7 @@ Not a verdict — the owner's ear is — but where to listen:
 - **The page in real browsers** (`abx_browser_check.mjs` on the shipped FLAC kit: Edge and
   Chrome installed, Firefox 132 of Playwright — installed for this round, the earlier copy was
   gone — each over http (Web Audio) and file:// (`<audio>`), plus the published mode against a
-  stub of `window.claude`): RESULT_FLAC. Every control: the language toggle; the form (Start
+  stub of `window.claude`): **489 checks, 0 failed** (kit `drums1-28ac6d2f91`). Every control: the language toggle; the form (Start
   disabled until the playback device; *¿Tocas la batería?*, years, audio work, age, nickname
   recorded); A / B / X playing, lit, switching at the same place, restarting when pressed
   again; Stop; **Loop** (lit and `aria-pressed`, a clip played into its end starts over, a jump
@@ -180,7 +180,8 @@ Not a verdict — the owner's ear is — but where to listen:
   Besides: every file the page names exists, 38 files = the page's table, no two names share
   more than 9 of 16 hex digits, the page's data never says tympanum / drskit / virtuosity /
   model / hybrid / record / studio / jazz / cantus / …, nor the readmes, and the first screen
-  names no source. The WAV twin: RESULT_WAV.
+  names no source. The WAV twin: **489 checks, 0 failed**. A Chorda stand-in kit (`--mock` with
+  Chorda's subject) on the same page: 316 checks, 0 failed (Edge, Firefox, published mode).
 - **The results read back**: the downloaded JSON of each browser run kept (`ABX_SAVE`) and
   read by `abx_read.py` with the key: the score and p, every trial and preference by voice name,
   the per-item table, both catch questions found (`catch(recording): …`, `catch(model): …`).
@@ -188,8 +189,11 @@ Not a verdict — the owner's ear is — but where to listen:
   process now and then (exit 0x80000003, a deliberate crash, while the check clicked through
   26 answered questions in about two seconds — 4 WAVs of up to 5 MB fetched and decoded per
   question). The page now loads an item's clips 120 ms after it is shown and the next item's
-  600 ms after, unless the item changed (a press loads its clip at once): RESULT_CHROME. A real
-  listener never clicks that fast, but one reviewing answers with *Siguiente →* could have.
+  600 ms after, unless the item changed (a press loads its clip at once): before, 2 of 5 Chrome runs on the
+  WAV twin crashed; after, 4 of 4 and both full runs passed. A real listener never clicks that
+  fast, but one reviewing answers with *Siguiente →* could have. The check now waits for the
+  first preference clip to start (up to 6 s) instead of a fixed 150 ms, since the clip may
+  still be arriving when a question has just shown.
 
 ## Only the owner's ear can judge
 

@@ -86,7 +86,7 @@ page's fill, the writers). The browser check reads the counts, names and credits
 
 ```bash
 cargo run --release -p cantus-ui --example tympanum_abx -- <kit dir> \
-    [--downloads <dir>] [--key <dir>] [--wav | --flac]
+    [--downloads <dir>] [--key <dir>] [--wav | --flac] [--wav-twin <dir>]
 ```
 
 Tympanum as it ships — the modelled kit's generated voice and its *Hybrid* voice — against the
@@ -104,8 +104,11 @@ fades, 80 ms of silence before the first hit. Part 1: ABX generated vs recording
 each item twice); part 2: 26 preferences (every item generated vs recording and hybrid vs
 recording, two catch questions); extra: ABX hybrid vs recording (24). `<kit dir>-key` holds
 `key.json` (tokens, files, items, packs, residuals) and `levels.csv` (loudness before and after,
-the stereo balance and width, the first onset, per file). Zip the folder to send it; publish a
-`--wav` kit as Chorda's. The method and what was checked: `docs/round42/tymp-abx.md`.
+the stereo balance and width, the first onset, per file) and `hits.csv` (each piece's hits'
+levels). A pair whose modelled voices face the other way from its recording (the studio kit
+against DRSKit: the hats on the other side) has them mirrored, left for right, written in the
+key. Zip the folder to send it; `--wav-twin <dir>` writes the same kit (id, names, samples)
+as WAV to publish as Chorda's, so online and offline answers pool. The method and what was checked: `docs/round42/tymp-abx.md`.
 
 ### Reading results
 

@@ -222,8 +222,11 @@ async function run(name, browserType, launch, url, mode) {
  for (let i = 1; i < N1; i++) await page.click(i % 2 ? "#answer-a" : "#answer-b");
  ok((await state(page)).view === "pref", `${tag} after ${N1} trials, part 2`);
  // Preferences: 1 / 2 / no preference, the note, keys 1 and 2.
- await page.click("#play-one"); await sleep(150); ok((await state(page)).playing === "one", `${tag} Clip 1 plays`);
- await page.click("#play-two"); await sleep(150); ok((await state(page)).playing === "two", `${tag} Clip 2 plays`);
+ // The question's clips load once it shows (a press loads its clip at once): the first press
+ // may wait for a large clip to arrive and decode — waited for, not a fixed time.
+ const plays = slot => waitFor(page, async () => (await state(page)).playing === slot, `${tag} ${slot} starts`, 6000);
+ await page.click("#play-one"); await plays("one"); ok((await state(page)).playing === "one", `${tag} Clip 1 plays`);
+ await page.click("#play-two"); await plays("two"); ok((await state(page)).playing === "two", `${tag} Clip 2 plays`);
  await page.keyboard.press("1"); await sleep(120); ok((await state(page)).playing === "one", `${tag} key 1`);
  await page.keyboard.press("2"); await sleep(120); ok((await state(page)).playing === "two", `${tag} key 2`);
  await page.fill("#note", "suena natura"); await page.keyboard.press("1");
