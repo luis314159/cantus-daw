@@ -77,3 +77,29 @@ with a legato pair and a CC1 swell, and hears it.
   octave low), the cents to its key, the loop kept only when Exemplar plays it click-free;
   the install writes them as plain SFZ with Cantus's three opcodes (`cantus_articulation`,
   `cantus_bow`, `cantus_legato*`).
+
+## Amendment (round 42, `fix2-arcus`): an overlapped note's articulation, read one way
+
+The mid-round review found Arcus and Exemplar reading a note's articulation two ways when it
+overlaps a sounding one: Arcus re-bowed an overlapped *sustain* or *tremolo*, Exemplar slurred
+it. The rule both now follow is the sample libraries' (and Exemplar's own,
+`exemplar::art::slurs`), so a part written for a recorded cello keeps its phrasing when Arcus
+plays it:
+
+- A note marked **sustain**, **legato** or **tremolo** that starts while another note of the
+  instrument is held **slurs** out of it — when the held note is itself sustained (or tremolo):
+  a staccato's or a spiccato's stroke, or a pizzicato, is never slurred out of. On Arcus the
+  bow goes on and the finger moves (the slur's glide, between the two keys' *tuned* pitches —
+  ADR 0155); the slurred note takes its own way of bowing (a sustain into a tremolo starts the
+  tremolo's strokes, a tremolo into a sustain draws the bow again), and keeps the bow
+  direction it slurs from. Exemplar's scripted legato crossfades and glides, as built.
+- A note marked **staccato**, **spiccato** or **pizzicato** is always its own stroke: Arcus
+  re-bows (or plucks again) on the ringing string; Exemplar plays the zones of that
+  articulation.
+- A note **without** an articulation keeps each instrument's own rule: Arcus's arco instrument
+  slurs an overlapped note (a plucked or tremolo instrument re-strikes it); Exemplar slurs by
+  overlap only with its legato switch on.
+
+Where they still differ is where they must: Arcus is one string set, so a mono or legato
+Arcus's overlap is always one voice; Exemplar slurs in poly mode (two crossfading recordings)
+and glides one voice in mono and legato modes.
