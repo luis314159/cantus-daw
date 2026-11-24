@@ -60,6 +60,11 @@ checklist's and menus' names and the Tuning window's key (reach 7's binding) are
   computed once and a rotating oscillator: 17 s for the 11 (the same load). The fine phase-slope measure is
   unchanged, so the results are the same to the printed digit.
 
+- **The suites** (Windows, `--no-fail-fast`): core, dsp, project and host 2 701 passed, 0
+  failed (75 ignored); engine 1 500 passed, 0 failed (26 ignored); ui 1 820 passed. The ui
+  suite's first run had 12 failures, most of them the disk filling during the run (os error
+  112; F: reached 0 bytes with four builders). Run again with room, the disk ones pass (inst_sampler, inst_wavetable, comparatio_e2e, hosted_view_isolated, hosted_view_isolated_busy). Four remain, and none is in code this branch touches. `idle_repaint_e2e` (2): the picker warm-up (`views/picker_warm.rs:96`) asks an idle window for frames. `inst_chorda` (2): Chorda's Temperament card elides "Import .scl / .kbm…" and "Export…" at 75 % and in Spanish. Both are `tuning-face`'s, for `fix-ui` and the integrator. Clippy `--all-targets` with `RUSTFLAGS=-D warnings` is clean on core, dsp, engine, project, host and ui (after two fixes: a test module moved to the end of `video_export_job.rs`, std's `powi` out of a test).
+
 ## Verified only in emulation
 
 - MTS-ESP against the fake `LIBMTS`. "Not tuned twice" was shown with the CLAP test synth, which
@@ -70,4 +75,8 @@ checklist's and menus' names and the Tuning window's key (reach 7's binding) are
 ## Left
 
 - `fix-ui`: the inspector's *Tuning by* row's look and placement (a minimal row is there); the
-  Tuning window's key and the app-reach tests of reach 7; the four "Project ▸ Tuning" texts.
+  Tuning window's key and the app-reach tests of reach 7; the four "Project ▸ Tuning" texts; the
+  two `tuning-face` failures above (`idle_repaint_e2e`, `inst_chorda`).
+- The owner: a real MTS-ESP client (checklist *Sin afinar dos veces*), a synth that reads MTS.
+- Not a test of its own: the processor hands Exemplar its table before `configure`. The streamed
+  levels test holds what `configure` does with the reach.

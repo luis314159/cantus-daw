@@ -449,7 +449,8 @@ fn live_with(
     tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
         .ok();
     let plan = cantus_engine::graph::compile(&snap);
-    tx.push(EngineMessage::SetSnapshotPlanned(snap.clone(), plan)).ok();
+    tx.push(EngineMessage::SetSnapshotPlanned(snap.clone(), plan))
+        .ok();
     proc.settle();
     while let Ok(ev) = rx.pop() {
         if let EngineEvent::PdcNeed { count, delay } = ev {
@@ -560,7 +561,10 @@ fn a_unit_swapped_in_plays_its_tracks_tuning() {
 
 /// A master that leaves when told (an `AtomicBool`).
 #[derive(Debug)]
-struct Leaving(cantus_core::tuning::TuningTable, Arc<std::sync::atomic::AtomicBool>);
+struct Leaving(
+    cantus_core::tuning::TuningTable,
+    Arc<std::sync::atomic::AtomicBool>,
+);
 
 impl cantus_engine::tuning::ExternalTuning for Leaving {
     fn read(&self, out: &mut cantus_core::tuning::TuningTable) -> bool {
@@ -594,10 +598,18 @@ fn a_track_whose_master_goes_plays_its_compiled_table_again() {
     });
     // The first key, under the master: tuned (it is not the plain song's).
     let first = ..SR as usize;
-    assert!(heard[first] != plain[first], "played the master's table first");
+    assert!(
+        heard[first] != plain[first],
+        "played the master's table first"
+    );
     // From 4 s (the third key, long after the master left): the untuned song's.
     let from = 4 * SR as usize * 2;
-    assert_null(&plain[from..frames * 2], &heard[from..], 0.0, "the master gone");
+    assert_null(
+        &plain[from..frames * 2],
+        &heard[from..],
+        0.0,
+        "the master gone",
+    );
 }
 
 #[test]

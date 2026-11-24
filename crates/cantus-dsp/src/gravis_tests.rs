@@ -1065,7 +1065,10 @@ fn a_string_slide_between_tuned_keys_starts_without_a_jump() {
     g.note_on(40, 1, 1.0);
     render(&mut g, 2400);
     let before = g.readout().pitch as f64;
-    assert!((before - 40.3).abs() < 0.01, "the first key tuned: {before}");
+    assert!(
+        (before - 40.3).abs() < 0.01,
+        "the first key tuned: {before}"
+    );
     g.note_on(52, 2, 1.0); // held over: a slide
     render(&mut g, 1);
     let start = g.readout().pitch as f64;

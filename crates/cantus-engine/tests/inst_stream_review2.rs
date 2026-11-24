@@ -1290,7 +1290,14 @@ fn a_tuning_that_raises_keys_keeps_the_levels_it_needs() {
     };
     let plain = pinned(None);
     assert!(plain.iter().any(|p| *p != 0), "a start pinned");
-    assert_eq!(pinned(Some(&cantus_core::tuning::TuningTable::EQUAL)), plain);
+    assert_eq!(
+        pinned(Some(&cantus_core::tuning::TuningTable::EQUAL)),
+        plain
+    );
     let up = cantus_core::tuning::TuningTable([24.0; 128]);
-    assert_ne!(pinned(Some(&up)), plain, "more levels for keys two octaves up");
+    assert_ne!(
+        pinned(Some(&up)),
+        plain,
+        "more levels for keys two octaves up"
+    );
 }

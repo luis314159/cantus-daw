@@ -1110,9 +1110,7 @@ fn subject_with(
     // r42 fix-engine (review correctness 4): the project's tuning the region's pitched
     // effects follow (a bus, the master, a strip its tracks disagree on) — only where it is
     // not the default and an effect there follows the song.
-    let song_tuning = project
-        .tuning
-        .resolved_for_key(project.key.map(|k| k.root));
+    let song_tuning = project.tuning.resolved_for_key(project.key.map(|k| k.root));
     if !song_tuning.is_default()
         && project
             .strips

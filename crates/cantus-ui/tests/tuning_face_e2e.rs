@@ -146,7 +146,10 @@ fn a_scala_file_imported_through_the_window_is_what_chorda_plays_and_exports() {
     );
     // r42 fix-engine (review reach 6): and hands it to the engine.
     let held = format!("{:?}", app.engine.external_tuning());
-    assert!(held.contains("MtsLink"), "the engine follows the link: {held}");
+    assert!(
+        held.contains("MtsLink"),
+        "the engine follows the link: {held}"
+    );
     let reference = cantus_engine::inst::chorda::reference();
     cantus_engine::inst::chorda::ensure(reference, 48_000.0);
     app.apply_pick(

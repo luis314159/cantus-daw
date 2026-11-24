@@ -94,7 +94,7 @@ impl Unda {
             free: [FreeLfo::default(); 8],
             free_val: [0.0; 8],
             last_pitch: None,
-            last_key: 0, // r42 fix-engine
+            last_key: 0,        // r42 fix-engine
             tuning: [0.0; 128], // r42:tuning
             stolen: 0,
             peak: [0.0; 2],

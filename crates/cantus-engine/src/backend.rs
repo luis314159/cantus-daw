@@ -401,9 +401,9 @@ impl EngineHandle {
             inst_params: Vec::new(),
             rec,
             dev: Default::default(),
-            sync: Some(sync),                                     // r33:sync
+            sync: Some(sync),                              // r33:sync
             external_tuning: crate::tuning::no_external(), // r42:tuning
-            external_sent: Vec::new(),                            // r42:tuning
+            external_sent: Vec::new(),                     // r42:tuning
         };
         handle.dev = crate::devices::HandleDevices {
             driver: driver_name,
@@ -513,9 +513,9 @@ impl EngineHandle {
             inst_params: Vec::new(),
             rec: Default::default(),
             dev: Default::default(),
-            sync: None,                                           // r33:sync
+            sync: None,                                    // r33:sync
             external_tuning: crate::tuning::no_external(), // r42:tuning
-            external_sent: Vec::new(),                            // r42:tuning
+            external_sent: Vec::new(),                     // r42:tuning
         }
     }
 

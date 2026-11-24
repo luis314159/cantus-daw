@@ -1193,8 +1193,8 @@ impl Processor {
                 if s.native.as_ref().is_some_and(|n| n.kind == kind) {
                     let old = s.native.replace(unit);
                     s.inst_quiet = 0; // fx/final
-                    // r42 fix-engine — the new unit plays the track's tuning at once (review
-                    // correctness 5): a restarted or moved plug-in starts at 12-TET.
+                                      // r42 fix-engine — the new unit plays the track's tuning at once (review
+                                      // correctness 5): a restarted or moved plug-in starts at 12-TET.
                     let t = s.tuning;
                     s.set_tuning(&t);
                     drop(s);

@@ -173,9 +173,9 @@ impl TrackSlot {
             }, // r37:drums
             tuning: cantus_core::tuning::TuningTable::EQUAL, // r42:tuning
             tuning_external: false, // r42:tuning
-            tuning_live: false,     // r42 fix-engine
-            tuning_by_mts: false,   // r42 fix-engine
-            tuning_heard: None,     // r42 fix-engine
+            tuning_live: false, // r42 fix-engine
+            tuning_by_mts: false, // r42 fix-engine
+            tuning_heard: None, // r42 fix-engine
             tuning_per_zone: false, // r42 fix-engine
         }
     }

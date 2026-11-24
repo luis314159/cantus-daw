@@ -1336,10 +1336,8 @@ impl CantusApp {
         self.midi_inputs = None;
         self.controllers.reopened();
         if self.engine.is_live() {
-            let inputs = MidiInputs::open_with(
-                self.engine.midi_sender(),
-                self.controllers.tap.clone(),
-            );
+            let inputs =
+                MidiInputs::open_with(self.engine.midi_sender(), self.controllers.tap.clone());
             self.midi_port_names = inputs.names.clone();
             self.midi_inputs = Some(inputs);
         }
@@ -3890,6 +3888,7 @@ impl CantusApp {
             self.synced_revision = u64::MAX; // r36:ara
         }
         self.ara_after_sync(); // r36:ara — the plug-in's edits and transport wishes
+
         // r42 fix-engine — the MTS-ESP master's table moved under a song that follows it.
         if views::tuning::master_moved(self) {
             self.synced_revision = u64::MAX;

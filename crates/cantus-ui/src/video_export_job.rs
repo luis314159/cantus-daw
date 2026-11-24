@@ -281,36 +281,6 @@ fn preview_snapshot(
     snapshot
 }
 
-#[cfg(test)]
-mod preview_tuning {
-    use cantus_core::tuning::{Tuning, TuningSystem, TuningTable};
-
-    #[derive(Debug)]
-    struct Master(TuningTable);
-
-    impl cantus_engine::tuning::ExternalTuning for Master {
-        fn read(&self, out: &mut TuningTable) -> bool {
-            *out = self.0;
-            true
-        }
-    }
-
-    #[test]
-    fn the_preview_plays_the_mts_esp_masters_table() {
-        let mut p = cantus_core::Project::new("v");
-        let t = p.make_track("t");
-        p.tracks.push(t);
-        p.tuning = Tuning {
-            system: TuningSystem::External,
-            ..Tuning::default()
-        };
-        let mut table = TuningTable::EQUAL;
-        table.0[60] = 0.3;
-        let snap = super::preview_snapshot(&p, 1, &Master(table));
-        assert_eq!(*snap.tracks[0].tuning.table, table);
-    }
-}
-
 /// The dancers' timelines around `at` (song seconds) for the dialog's preview: the song
 /// compiled and rendered offline as the file's render does — automation, notes and
 /// modulators — from up to four seconds before (as far back as the range's start) to just
@@ -716,5 +686,36 @@ pub fn poll_fetch(app: &mut CantusApp) {
         }
         Err(mpsc::TryRecvError::Empty) => {}
         Err(mpsc::TryRecvError::Disconnected) => app.video.openh264_fetch = None,
+    }
+}
+
+/// r42 fix-engine (review reach 13).
+#[cfg(test)]
+mod preview_tuning {
+    use cantus_core::tuning::{Tuning, TuningSystem, TuningTable};
+
+    #[derive(Debug)]
+    struct Master(TuningTable);
+
+    impl cantus_engine::tuning::ExternalTuning for Master {
+        fn read(&self, out: &mut TuningTable) -> bool {
+            *out = self.0;
+            true
+        }
+    }
+
+    #[test]
+    fn the_preview_plays_the_mts_esp_masters_table() {
+        let mut p = cantus_core::Project::new("v");
+        let t = p.make_track("t");
+        p.tracks.push(t);
+        p.tuning = Tuning {
+            system: TuningSystem::External,
+            ..Tuning::default()
+        };
+        let mut table = TuningTable::EQUAL;
+        table.0[60] = 0.3;
+        let snap = super::preview_snapshot(&p, 1, &Master(table));
+        assert_eq!(*snap.tracks[0].tuning.table, table);
     }
 }

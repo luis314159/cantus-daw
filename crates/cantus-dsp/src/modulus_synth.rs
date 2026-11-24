@@ -110,7 +110,7 @@ impl Modulus {
             bend_raw: 0.0,
             clock: 0,
             last_pitch: None,
-            last_key: 0, // r42 fix-engine
+            last_key: 0,        // r42 fix-engine
             tuning: [0.0; 128], // r42:tuning
             released: [0; MAX_VOICES],
             stolen: 0,
@@ -236,7 +236,7 @@ impl Modulus {
                 self.start_voice(voice, key, id, velocity);
                 self.last_pitch = Some(key as f32 + crate::tuning::at(&self.tuning, key));
                 self.last_key = key; // r42 fix-engine
-                // r42:tuning
+                                     // r42:tuning
             }
             Action::Glide { voice, key, id } => {
                 let tune = crate::tuning::at(&self.tuning, key); // r42:tuning

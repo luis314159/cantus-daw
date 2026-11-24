@@ -295,7 +295,7 @@ pub fn poll(app: &mut CantusApp) {
     // route is still known.
     send_tunings(app); // r42:tuning
     publish_routes(app);
-                       // Nothing outboard: nothing to look at (no port enumeration on a project without units).
+    // Nothing outboard: nothing to look at (no port enumeration on a project without units).
     if !app.project().external_units.is_empty() || app.external.is_pinging() {
         let p = presence(app);
         if app.engine.set_external_presence(p) {

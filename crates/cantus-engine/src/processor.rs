@@ -441,7 +441,7 @@ impl Processor {
             split_voices: std::env::var("CANTUS_VOICE_SPLIT").map_or(true, |v| v.trim() != "0"),
             offline: false,
             external_tuning: crate::tuning::no_external(), // r42:tuning; fix-engine: never freed here
-            master_bake: Default::default(),                      // r36:record
+            master_bake: Default::default(),               // r36:record
             low_latency: None,
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),

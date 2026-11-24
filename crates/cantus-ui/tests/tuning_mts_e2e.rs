@@ -299,7 +299,10 @@ fn a_song_in_the_masters_tuning_follows_it_through_changes_exports_and_a_new_eng
     master.publish_all(&meantone, "Meantone");
     let compiles = a.engine.compiles();
     a.sync_engine();
-    assert!(a.engine.compiles() > compiles, "the master's change recompiled");
+    assert!(
+        a.engine.compiles() > compiles,
+        "the master's change recompiled"
+    );
     let mut read2 = TuningTable::EQUAL;
     assert!(a.tuning.mts.as_ref().unwrap().read(&mut read2));
     assert_ne!(read2, read);
@@ -310,14 +313,21 @@ fn a_song_in_the_masters_tuning_follows_it_through_changes_exports_and_a_new_eng
     // Unchanged, it compiles nothing more.
     let compiles = a.engine.compiles();
     a.sync_engine();
-    assert_eq!(a.engine.compiles(), compiles, "a still master costs nothing");
+    assert_eq!(
+        a.engine.compiles(),
+        compiles,
+        "a still master costs nothing"
+    );
     assert!(plays(&exported(&mut a, "meantone"), 0, &read2));
 
     // An audio restart's new engine follows the same link.
     let (engine, _proc) = EngineHandle::manual(SR);
     a.adopt_engine(engine);
     assert!(format!("{:?}", a.engine.external_tuning()).contains("MtsLink"));
-    assert!(plays(&exported(&mut a, "restarted"), 0, &read2), "after a restart");
+    assert!(
+        plays(&exported(&mut a, "restarted"), 0, &read2),
+        "after a restart"
+    );
 
     // The master goes: the song plays equal temperament at its diapason, live too.
     master.resign_master();
@@ -366,8 +376,18 @@ fn host_the_synth(a: &mut CantusApp) -> TrackId {
         PickPurpose::ReplaceInstrument { track },
         PickChoice::Hosted(Box::new(info)),
     );
-    let ext = a.project().track(track).unwrap().instrument.external().cloned();
-    assert_eq!(ext.map(|x| x.tuning_by), Some(TuningBy::MtsEsp), "the default");
+    let ext = a
+        .project()
+        .track(track)
+        .unwrap()
+        .instrument
+        .external()
+        .cloned();
+    assert_eq!(
+        ext.map(|x| x.tuning_by),
+        Some(TuningBy::MtsEsp),
+        "the default"
+    );
     track
 }
 
@@ -411,7 +431,13 @@ fn as_the_master_cantus_publishes_its_tuning_and_tunes_no_client_twice() {
     assert!(plays(&exported(&mut a, "by-note"), 1, &table));
     a.undo();
     assert_eq!(
-        a.project().track(synth).unwrap().instrument.external().unwrap().tuning_by,
+        a.project()
+            .track(synth)
+            .unwrap()
+            .instrument
+            .external()
+            .unwrap()
+            .tuning_by,
         TuningBy::MtsEsp
     );
 
@@ -423,7 +449,10 @@ fn as_the_master_cantus_publishes_its_tuning_and_tunes_no_client_twice() {
     assert!(client.read(&mut heard));
     let want = vallotti.offsets();
     for k in 0..128 {
-        assert!((heard.0[k] - want.0[k]).abs() < 1e-5, "republished, key {k}");
+        assert!(
+            (heard.0[k] - want.0[k]).abs() < 1e-5,
+            "republished, key {k}"
+        );
     }
     tuning::set_master(&mut a, false, false);
     assert!(!client.read(&mut heard), "resigned");

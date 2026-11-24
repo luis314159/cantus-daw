@@ -284,8 +284,7 @@ pub fn set_master(app: &mut CantusApp, on: bool, reinitialize: bool) {
 pub fn follows_master(p: &cantus_core::Project) -> bool {
     let ext = |t: &Tuning| matches!(t.system, TuningSystem::External);
     ext(&p.tuning)
-        || p
-            .tracks
+        || p.tracks
             .iter()
             .any(|t| matches!(&t.tuning, TrackTuning::Own { tuning } if ext(tuning)))
 }
@@ -331,8 +330,7 @@ pub fn master_moved(app: &mut CantusApp) -> bool {
 /// correctness 3, reach 3): every export and live block of it reads the master.
 pub fn engine_replaced(app: &mut CantusApp) {
     if let Some(link) = app.tuning.mts.clone() {
-        app.engine
-            .set_external_tuning(std::sync::Arc::new(link));
+        app.engine.set_external_tuning(std::sync::Arc::new(link));
     }
 }
 

@@ -2644,8 +2644,7 @@ play-pause = [\"Enter\"]
                 })
                 .collect();
             lines.push(extra.to_string());
-            lines.join("
-")
+            lines.join("\n")
         };
         let text = v19(&["open-tuning"], "");
         assert!(!text.contains("open-tuning"));

@@ -167,7 +167,11 @@ fn an_unmapped_key_silences_pitched_zones_only() {
         ..ZoneParams::default()
     };
     e.put_zone(0, &drum, &source_of(vec![0.5; 4_800], 1, 48_000.0, false));
-    e.put_zone(1, &pitched, &source_of(vec![0.5; 4_800], 1, 48_000.0, false));
+    e.put_zone(
+        1,
+        &pitched,
+        &source_of(vec![0.5; 4_800], 1, 48_000.0, false),
+    );
     let mut table = [0.0f32; 128];
     table[38] = f32::NAN;
     table[61] = f32::NAN;

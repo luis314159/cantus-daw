@@ -362,16 +362,24 @@ fn scale_workshop_s_bulk_dump_hashes_are_ours() {
         2.0,
     ];
     let size = ratios.len() as i64;
-    let ratio = |index: i64| {
-        let equaves = index.div_euclid(size);
-        let r = index.rem_euclid(size);
-        let e = 2f64.powi(equaves as i32);
-        if r == 0 {
-            e
-        } else {
-            ratios[r as usize - 1] * e
-        }
-    };
+    let ratio =
+        |index: i64| {
+            let equaves = index.div_euclid(size);
+            let r = index.rem_euclid(size);
+            // 2^equaves, exact (a doubling or halving per equave).
+            let e = (0..equaves.unsigned_abs()).fold(1.0f64, |e, _| {
+                if equaves < 0 {
+                    e / 2.0
+                } else {
+                    e * 2.0
+                }
+            });
+            if r == 0 {
+                e
+            } else {
+                ratios[r as usize - 1] * e
+            }
+        };
     // `ftomts`: its MTS value of a frequency.
     let mts = |f: f64| -> f64 {
         if f <= 0.0 {
@@ -394,7 +402,11 @@ fn scale_workshop_s_bulk_dump_hashes_are_ours() {
     // The dump: ours, written with CA-020's checksum; Scale Workshop's convention inverts it.
     let mut dump = write_key_dump_of(0x00, 1, "Test Scale", &pitches);
     assert_eq!(dump.len(), 408);
-    assert_eq!(&dump[6..22], b"Test Scale      ", "the name padded with spaces");
+    assert_eq!(
+        &dump[6..22],
+        b"Test Scale      ",
+        "the name padded with spaces"
+    );
     assert_eq!(&dump[22..406], words.as_slice());
     let theirs = dump[1..406]
         .iter()
@@ -415,7 +427,10 @@ fn scale_workshop_s_bulk_dump_hashes_are_ours() {
             assert_eq!(name, "Test Scale");
             for (k, (got, want)) in keys.iter().zip(&pitches).enumerate() {
                 let (g, w) = (got.unwrap(), want.unwrap().clamp(0.0, PITCH_TOP));
-                assert!((g - w).abs() <= 0.5 / 16384.0 + 1e-12, "key {k}: {g} vs {w}");
+                assert!(
+                    (g - w).abs() <= 0.5 / 16384.0 + 1e-12,
+                    "key {k}: {g} vs {w}"
+                );
             }
         }
         m => panic!("{m:?}"),

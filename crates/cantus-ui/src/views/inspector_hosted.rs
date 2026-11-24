@@ -139,12 +139,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         .and_then(|tr| tr.instrument.external())
         .map_or(cantus_core::external::TuningBy::MtsEsp, |x| x.tuning_by);
     let by = crate::i18n::t(by.label_key());
-    sh.menu_row(
-        "tuning.by",
-        &by,
-        super::menus::MenuId::TuningBy(t),
-        false,
-    );
+    sh.menu_row("tuning.by", &by, super::menus::MenuId::TuningBy(t), false);
     // A stopped plug-in costs nothing: its last reading is not shown.
     if let Some(c) = h.cpu().filter(|_| !stopped) {
         let cpu = crate::views::plugin_notice::percent(c.share);
