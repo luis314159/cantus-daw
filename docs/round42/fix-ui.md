@@ -71,7 +71,11 @@ holds it (written to fail first where the finding was testable).
 
 ## Pictures
 
-`docs/round42/tuning-face/`, made by `cargo run -p cantus-ui --example shoot_tuning --
-<dir> [--lang=es]` from this branch's head: the window (equal, werck, follow, scale, track),
-the inspector row, and Chorda's card (the project's, its own, plain), Slate Lapis Night and
-Paper, 100 % and 200 %, English and Spanish.
+`docs/round42/tuning-face/` (80, replacing the builder's 24), made from this branch's head by
+`cargo run -p cantus-ui --example shoot_tuning -- <dir>` and again with `--lang=es`: the
+window (equal, werck, **narrow** — new: the same in a 760-point room, one scrolling column —
+follow, scale, track), the inspector row, and Chorda's card (the project's, its own, plain),
+Slate Lapis Night and Paper, 100 % and 200 %, English and Spanish. Looked at: one or more of
+every kind in both themes, both languages and both zooms (werck, follow, scale, track,
+equal, inspector, narrow ×2, Chorda's three cards ×5); the rest are the same views in the
+other theme or zoom, and the whole-label tests read every one of their words.
