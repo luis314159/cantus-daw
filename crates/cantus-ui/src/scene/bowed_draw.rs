@@ -133,6 +133,7 @@ pub fn material(b: Bowed, r: Role) -> Mat {
         Role::Stand => hp::STAND,
         Role::Pad => hp::PAD,
         Role::Skin(i) => hp::skin(i),
+        Role::SkinShade(i) => hp::skin_shade(i),
         Role::Cloth(i) => hp::cloth(i),
         Role::Trousers => hp::flat(hp::TROUSERS),
         Role::Shoes => hp::flat(hp::SHOES),
@@ -350,7 +351,10 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             } else {
                 Paint::Solid(super::light::lerp(ca, cb, 0.5))
             };
-            c.p.poly(sp, paint, 1.0, 0.45);
+            // A figure's fine cells overlap a little more, so no seam grid shows on its
+            // dark hair and cloth. // r42:arcus-upper
+            let seam = if figure_role(*role) { 1.1 } else { 0.45 }; // r42:arcus-upper
+            c.p.poly(sp, paint, 1.0, seam);
         }
     }
     for (role, poly) in &m.polys {
@@ -541,4 +545,20 @@ fn wall_shadow(c: &mut Ctx, mesh: &Mesh, wall_z: f32) {
         );
     }
     c.p.on(Layer::Objects);
+}
+
+/// r42:arcus-upper — a surface of the figure that holds the instrument (not the
+/// instrument's, nor the room's).
+fn figure_role(r: Role) -> bool {
+    matches!(
+        r,
+        Role::Skin(_)
+            | Role::SkinShade(_)
+            | Role::Cloth(_)
+            | Role::Trousers
+            | Role::Shoes
+            | Role::Hair
+            | Role::Wood(_)
+            | Role::Joint(_)
+    )
 }

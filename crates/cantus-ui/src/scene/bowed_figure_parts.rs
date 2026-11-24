@@ -14,7 +14,11 @@ pub fn musician(m: &mut Mesh, s: &Skel, skin: u8, cloth: u8) {
     head(m, s, sk);
     // The neck (short, as a person's).
     let chin_under = s.head - s.hu * (HEAD.1 * 0.62);
-    taper(m, sk, s.neck + s.f * 0.5, chin_under, 4.6, 4.2);
+    let neck_role = match sk {
+        Role::Skin(i) => Role::SkinShade(i),
+        r => r,
+    };
+    taper(m, neck_role, s.neck + s.f * 0.5, chin_under, 4.6, 4.2);
     // The torso: chest and waist in the shirt, the hips in the trousers.
     let (r, up) = (s.r, -s.down);
     ball(m, cl, s.chest + up * 1.0, (r, up), (14.5, 15.0, 9.4));
@@ -80,8 +84,27 @@ fn head(m: &mut Mesh, s: &Skel, sk: Role) {
         s.head + s.hu * 0.6,
         axes,
         (a + g, b + g, c + g),
-        (1.15, TAU_M),
-        (-0.55, 0.4),
+        (0.85, TAU_M),
+        (-0.45, 0.42),
+    );
+    // A fringe a little lower and fuller over the forehead, so the hairline steps down
+    // softly instead of cutting straight across.
+    shell(
+        m,
+        Role::Hair,
+        s.head + s.hu * 0.3,
+        axes,
+        (a + g * 1.3, b + g * 1.1, c + g * 1.4),
+        (-0.95, 0.95),
+        (0.2, 0.5),
+    );
+    // The jaw and the cheeks: the lower face narrower and rounded, not a block.
+    ball(
+        m,
+        sk,
+        s.head - s.hu * (b * 0.48) + s.hf * (c * 0.26),
+        axes,
+        (a * 0.74, b * 0.42, c * 0.64),
     );
     // Ears.
     for sd in [1.0f32, -1.0] {
@@ -105,8 +128,8 @@ fn head(m: &mut Mesh, s: &Skel, sk: Role) {
     arc(m, &on, 0.0, -0.38, 0.2, -0.06, 0.24);
 }
 
-/// Longitudes past the back: from the right ear round the back to the left (radians).
-const TAU_M: f32 = 2.0 * PI - 1.15;
+/// Longitudes past the back: from the right temple round the back to the left (radians).
+const TAU_M: f32 = 2.0 * PI - 0.85;
 
 /// A stroke on the face: centred at longitude `th`, latitude `ph`, `w` wide (radians),
 /// its middle `sag` lower than its ends, `r` thick.

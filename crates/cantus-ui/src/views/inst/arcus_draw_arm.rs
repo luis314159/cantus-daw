@@ -43,12 +43,13 @@ pub fn right_arm(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, frog: V3, dir: V
         arm.r.1 * 0.82,
         arm.sleeve,
     );
+    hand(b, v, lit, arm, wrist, palm, frog, dir, n, far);
+    // The mannequin's ball joints over the limbs' ends (the wrist's over the hand's).
     if let Some(j) = arm.joints {
         ball(b, v, lit, arm.shoulder, arm.r.0 * 1.25, j);
         ball(b, v, lit, el, arm.r.0 * 1.05, j);
-        ball(b, v, lit, wrist, arm.r.1 * 0.95, j);
+        ball(b, v, lit, wrist, arm.r.1 * 1.15, j);
     }
-    hand(b, v, lit, arm, wrist, palm, frog, dir, n, far);
 }
 
 /// The bow hand: the palm from the wrist over the stick, four fingers draped over it (the

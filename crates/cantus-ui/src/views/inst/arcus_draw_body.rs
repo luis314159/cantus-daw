@@ -150,8 +150,8 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     let up = along.norm();
     // A person's finger whatever the instrument's size: a violinist's is a cellist's. // r42:arcus-upper
     let kf = if d.held { 1.0 } else { k }; // r42:arcus-upper
-    use crate::scene::bowed_hold::{self as hold, Hold, StopShow}; // r42:arcus-upper
-                                                                  // On a stand nobody plays it: the string sounds, no finger, no bow. // r42:arcus-upper
+    use crate::scene::bowed_hold::{Hold, StopShow}; // r42:arcus-upper
+                                                    // On a stand nobody plays it: the string sounds, no finger, no bow. // r42:arcus-upper
     if pl.holder.hold == Hold::Stand {
         if st < 0.995 && pl.stop == StopShow::Marker {
             marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(12.0));
@@ -161,16 +161,11 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     }
     // r42:arcus-upper — a figure's own left hand goes to the stop; otherwise the
     // fingertip, the marker, or nothing.
-    if let Some(arm) = hold::left_arm(pl.b, pl.holder) {
-        let l = super::hand::Left {
-            rig,
-            string: i,
-            semis: super::hand::semis(st),
-            at: pl.hand,
-            rock,
-            side: ex,
-        };
-        super::hand::left_arm(b, v, &figure_light(v, pl, s), &arm, &l);
+    if let Some((arm, l)) = left_of(pl) {
+        // Its fingers' arches over the fingerboard; the rest of the hand was painted
+        // behind the neck (`live_behind`).
+        let lp = super::hand::left_pose(&arm, &l);
+        super::hand::left_front(b, v, &figure_light(v, pl, s), &arm, &lp);
     } else if st < 0.995 && pl.stop == StopShow::Finger {
         // Under a chin the finger curls over the fingerboard's edge from the hand behind
         // the neck (its first joint up, the rest down out of sight). // r42:arcus-upper
@@ -473,4 +468,52 @@ fn marker_at(b: &mut Brush, v: &View, pl: &Play, at: V3, size: f32) {
 fn figure_light(v: &View, pl: &Play, s: &Style) -> super::lit::Lit {
     let d = pl.b.dims();
     super::lit::Lit::round(v, pl.rig.pose.at(0.0, d.body * 0.5, 0.0), s.t.dark)
+}
+
+/// r42:arcus-upper — the figure's left arm and what it plays: the arm, and the hand's
+/// place for the note (its string, stop, position, vibrato's rock, the player's left).
+fn left_of<'a>(pl: &Play<'a>) -> Option<(crate::scene::bowed_hold::Arm, super::hand::Left<'a>)> {
+    use crate::scene::bowed_hold::{self as hold, Hold};
+    if pl.holder.hold == Hold::Stand {
+        return None;
+    }
+    let arm = hold::left_arm(pl.b, pl.holder)?;
+    let rig = pl.rig;
+    let d = pl.b.dims();
+    let i = pl.n.string.min(3);
+    let [_, bridge, nut] = rig.strings[i];
+    let k = d.body / 75.7;
+    let wob = (pl.time * 5.5 * std::f64::consts::TAU).sin() as f32;
+    let rock = pl.vibrato.clamp(0.0, 1.0) * 0.18 * k * wob;
+    let _ = (bridge, nut);
+    let ex = if d.held { -rig.pose.ex } else { rig.pose.ex };
+    Some((
+        arm,
+        super::hand::Left {
+            rig,
+            string: i,
+            semis: super::hand::semis(stop(pl.fs, pl.n)),
+            at: pl.hand,
+            rock,
+            side: ex,
+            span: super::hand::span(d.held),
+        },
+    ))
+}
+
+/// r42:arcus-upper — what of the figure lies behind the instrument's neck, painted before
+/// the neck is stamped back over it: the left arm, its palm, its thumb, its fingers' first
+/// segments. Nothing without a figure.
+pub fn live_behind(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
+    if let Some((arm, l)) = left_of(pl) {
+        let lp = super::hand::left_pose(&arm, &l);
+        super::hand::left_behind(b, v, &figure_light(v, pl, s), &arm, &lp);
+    }
+}
+
+/// r42:arcus-upper — the neck's silhouette when a figure's hand is behind it (the corners
+/// the picture's own pixels are stamped back over).
+pub fn neck_for_stamp(v: &View, pl: &Play) -> Option<[Pos2; 8]> {
+    left_of(pl)?;
+    Some(super::hand::neck_outline(v, pl.b.dims(), &pl.rig.pose))
 }

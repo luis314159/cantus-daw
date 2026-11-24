@@ -89,6 +89,7 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::Stand => PMat::lacquer(lin3(hp::STAND.albedo), 0.35, 0.25),
         Role::Pad => PMat::matte(lin3(hp::PAD.albedo)).with(Tex::Fabric),
         Role::Skin(i) => PMat::matte(lin3(hp::skin(i).albedo)),
+        Role::SkinShade(i) => PMat::matte(lin3(hp::skin_shade(i).albedo)),
         Role::Cloth(i) => PMat::matte(lin3(hp::cloth(i).albedo)).with(Tex::Fabric),
         Role::Trousers => PMat::matte(lin3(hp::TROUSERS)).with(Tex::Fabric),
         Role::Shoes => PMat::lacquer(lin3(hp::SHOES), 0.4, 0.2),

@@ -190,6 +190,7 @@ pub fn picture(
         return;
     };
     let shown = entry.0.rect().unwrap_or(d);
+    let scene_tex = entry.0.texture_id(); // r42:arcus-upper
     let v = body::View {
         cam: built.cam,
         origin: shown.min,
@@ -202,9 +203,9 @@ pub fn picture(
                                                        // r42:arcus-upper — the figure's left hand: its position for this note, glided.
     let hand = {
         let st = body::stop(fs, &n);
-        let first = hand::target(1.0, hand::semis(st));
+        let first = hand::target(1.0, hand::semis(st), hand::span(b.dims().held));
         let h = app.inst.arcus_hands.entry(track.0).or_insert((first, time));
-        let to = hand::target(h.0, hand::semis(st));
+        let to = hand::target(h.0, hand::semis(st), hand::span(b.dims().held));
         h.0 = hand::glide(h.0, to, (time - h.1) as f32);
         h.1 = time;
         (h.0, (h.0 - to).abs() > 0.005)
@@ -223,6 +224,32 @@ pub fn picture(
         hand: hand.0,      // r42:arcus-upper
         accent: s.t.focus, // r42:arcus-upper
     };
+    // r42:arcus-upper — a figure's left hand behind the neck, then the neck stamped back
+    // over it from the picture itself, then the rest in front.
+    crate::kit::with_brush(&painter, |br| body::live_behind(br, &v, &pl, s));
+    if let (Some(corners), Some(tex)) = (body::neck_for_stamp(&v, &pl), scene_tex) {
+        // The stamps change only with the picture (its place, its texture, what is shown):
+        // kept, so at rest a frame allocates nothing for them.
+        let key = (shown, tex, b, holder);
+        let kept = app.inst.arcus_stamps.get(&track.0).filter(|k| k.0 == key);
+        let meshes = match kept {
+            Some(k) => k.1.clone(),
+            None => {
+                let [m0, m1] = hand::stamp_body(&v, b, &rig.pose, shown, tex);
+                let m2 = hand::stamp(&corners, shown, tex);
+                let ms = [
+                    std::sync::Arc::new(m0),
+                    std::sync::Arc::new(m1),
+                    std::sync::Arc::new(m2),
+                ];
+                app.inst.arcus_stamps.insert(track.0, (key, ms.clone()));
+                ms
+            }
+        };
+        for m in meshes {
+            painter.add(egui::Shape::Mesh(m));
+        }
+    }
     crate::kit::with_brush(&painter, |br| body::live(br, &v, &pl, s));
     if moving || (n.live && n.level > 0.0) || hand.1 {
         crate::views::workspace_ticker::moving(

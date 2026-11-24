@@ -50,7 +50,7 @@ impl Lit {
 }
 
 /// How many strips a limb is drawn in across its width.
-const STRIPS: usize = 9;
+const STRIPS: usize = 16;
 
 /// A lit tube from `a` (`ra` thick) to `e` (`re`), its ends rounded by lit balls.
 #[allow(clippy::too_many_arguments)]
@@ -86,8 +86,8 @@ pub fn tube(b: &mut Brush, v: &View, lit: &Lit, a: V3, e: V3, ra: f32, re: f32, 
         let col = lit.shade(col, pm, nm);
         let q: [Pos2; 4] = [
             v.p(at(s0, 0.0).0),
-            v.p(at(s1 + 0.02, 0.0).0),
-            v.p(at(s1 + 0.02, 1.0).0),
+            v.p(at((s1 + 0.04).min(1.0), 0.0).0),
+            v.p(at((s1 + 0.04).min(1.0), 1.0).0),
             v.p(at(s0, 1.0).0),
         ];
         b.polygon(&q, col);

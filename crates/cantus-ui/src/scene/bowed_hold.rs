@@ -199,10 +199,13 @@ fn skel(b: Bowed, h: Holder) -> super::bowed_figure::Skel {
 pub fn left_arm(b: Bowed, h: Holder) -> Option<Arm> {
     let a = arm(b, h)?;
     let sk = skel(b, h);
+    // Where the elbow goes from the shoulder (pedagogy and photographs; the handoff note's
+    // numbers): a violinist's under the violin, forward and toward the body's middle; a
+    // cellist's out to the side at about chest height, never up or forward.
     let pole = if b.dims().held {
-        sk.down + sk.f * 0.3 + sk.r * 0.35
+        sk.down * 24.0 + sk.r * 10.0 + sk.f * 12.0
     } else {
-        -sk.r + sk.down * 0.6
+        sk.down * 30.0 - sk.r * 12.0 + sk.f * 4.0
     };
     Some(Arm {
         // From inside the shoulder, so the arm grows out of the body.
@@ -244,15 +247,21 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         shoulder: sk.rs - sk.r * 3.0 + sk.down * 1.0,
         upper: 29.0,
         fore: 27.0,
-        pole: sk.down * 0.7 + sk.r * 0.7 - sk.f * 0.2,
+        pole: if b.dims().held {
+            // A violinist's bow arm: the elbow out to the right, a little under the shoulder.
+            sk.down * 12.0 + sk.r * 18.0 + sk.f * 8.0
+        } else {
+            // A cellist's: the upper arm hanging down and out, the elbow near the bow's line.
+            sk.down * 22.0 + sk.r * 14.0 + sk.f * 6.0
+        },
         sleeve,
         sleeve_shade,
         hand,
         hand_shade,
-        r: if h.hold == Hold::Player {
-            (3.9, 3.1)
-        } else {
-            (2.8, 2.2)
+        r: match (h.hold, b.dims().held) {
+            (Hold::Player, true) => (3.3, 2.6),
+            (Hold::Player, false) => (3.9, 3.1),
+            _ => (2.8, 2.2),
         },
         joints: (h.hold == Hold::Mannequin).then(|| hp::WOOD_JOINTS[(h.wood as usize).min(2)]),
         f: sk.f,

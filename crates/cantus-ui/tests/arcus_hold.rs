@@ -51,15 +51,15 @@ fn the_hand_keeps_its_position_and_shifts_beyond_it() {
     // First position on the violin's A string (first finger a tone up): up to the fourth
     // finger's E, the hand stays.
     for s in [2.0, 4.0, 5.0, 7.0] {
-        assert_eq!(hand::target(2.0, s), 2.0, "{s} semitones");
+        assert_eq!(hand::target(2.0, s, 5.0), 2.0, "{s} semitones");
     }
     // An octave up: it shifts so the note falls under a finger.
-    let up = hand::target(2.0, 12.0);
+    let up = hand::target(2.0, 12.0, 5.0);
     assert!((7.0..=11.0).contains(&up), "{up}");
     assert!(12.0 - up <= 5.0);
     // An open string never moves it; a low note brings it back down.
-    assert_eq!(hand::target(7.0, 0.0), 7.0);
-    assert!(hand::target(7.0, 3.0) <= 3.0);
+    assert_eq!(hand::target(7.0, 0.0, 5.0), 7.0);
+    assert!(hand::target(7.0, 3.0, 5.0) <= 3.0);
     // The shift glides: about a tenth of a second at 60 Hz, never past the target.
     let mut at = 2.0;
     let mut frames = 0;
@@ -89,7 +89,8 @@ fn the_figures_hand_lands_on_the_stopped_point() {
                     rig: &rig,
                     string,
                     semis: hand::semis(st),
-                    at: hand::target(1.0, hand::semis(st)),
+                    at: hand::target(1.0, hand::semis(st), hand::span(b.dims().held)),
+                    span: hand::span(b.dims().held),
                     rock: 0.0,
                     side: rig.pose.ex,
                 };
@@ -110,6 +111,7 @@ fn the_figures_hand_lands_on_the_stopped_point() {
                 at: 3.0,
                 rock: 0.0,
                 side: rig.pose.ex,
+                span: 5.0,
             };
             assert!(hand::playing_tip(&open).is_none());
         }
@@ -139,4 +141,206 @@ fn the_stop_marker_holds_three_to_one_in_every_theme() {
         let c = contrast(t.focus, halo);
         assert!(c >= 3.0, "{id}: the marker {c:.2}:1 on its halo");
     }
+}
+
+/// The owner (2026-11-24): the left hand passes behind the neck. Where the palm, the thumb
+/// and the knuckles lie inside the neck's silhouette, the picture shows the neck's own
+/// pixels (the baked picture's), not the figure — violin and cello, musician and
+/// mannequin, both looks — away from the sounding string and the fingers' arches in front.
+#[test]
+fn the_left_hand_passes_behind_the_neck() {
+    use cantus_core::inst::InstrumentKind;
+    use cantus_engine::EngineHandle;
+    use cantus_ui::scene::{self, SceneBackend, SceneView, Subject};
+    use cantus_ui::{views, welcome_project, CantusApp};
+    cantus_ui::views::inst::chorda::scene::hybrid::register();
+    scene::set_blocking(true);
+    // At twice the scale: a cello's neck is a dozen points wide.
+    const PPP: f32 = 2.0;
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx);
+    // (inst, the scene's instrument, the string, the key)
+    let cases = [
+        (2.0f32, Bowed::Violin, 3usize, 81u8),
+        (0.0, Bowed::Cello, 3, 59),
+    ];
+    for be in [SceneBackend::Vector, SceneBackend::PerPixel] {
+        scene::backend::set_default(be);
+        for &(inst, b, string, key) in &cases {
+            for hold in [Hold::Player, Hold::Mannequin] {
+                let h = Holder::of(hold);
+                let mut app =
+                    CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+                app.settings.arcus_holder = h;
+                app.demo_editor("arcus");
+                let t = app.inst.open.expect("an Arcus editor");
+                app.set_inst_value(t, "inst", inst, false);
+                views::inst::arcus::demo_feed(&mut app);
+                if let Some(tele) = app.inst.injected.as_mut() {
+                    tele[cantus_dsp::arcus::tel::STRING] = string as f32;
+                    tele[cantus_dsp::arcus::tel::KEY] = key as f32;
+                    tele[cantus_dsp::arcus::tel::VIBRATO] = 0.0;
+                }
+                let size = views::inst::editor_size(InstrumentKind::BowedString);
+                let canvas = cantus_ui::raster::shoot(&ctx, size, PPP, 8, None, |ui| {
+                    views::inst::window_in(&mut app, ui)
+                });
+                let sc = &app.inst.arcus_scenes[&t.0].0;
+                let built = sc.built().expect("a picture");
+                let rect = sc.rect().expect("painted");
+                let k = egui::vec2(rect.width() / built.size.x, rect.height() / built.size.y);
+                let to_px = |w: cantus_ui::scene::geo::V3| {
+                    let q = built.cam.p(w);
+                    rect.min + egui::vec2(q.x * k.x, q.y * k.y)
+                };
+                // The baked picture alone, at the same size.
+                let view = SceneView {
+                    subject: Subject::Bowed {
+                        instrument: b,
+                        holder: h,
+                    },
+                    room: scene::Room::Studio,
+                    look: Default::default(),
+                    dark: true,
+                    selected: None,
+                    hovered: None,
+                    sounding: Vec::new(),
+                    accent: egui::Color32::TRANSPARENT,
+                    ink: egui::Color32::TRANSPARENT,
+                };
+                let baked = scene::image(&view, built.size, PPP);
+                // The hand as the view placed it.
+                let rig = rig_for(b, h);
+                let arm = cantus_ui::scene::bowed_hold::left_arm(b, h).expect("a figure");
+                let open = b_spec_open(b, string);
+                let d = b.dims();
+                let l = hand::Left {
+                    rig: &rig,
+                    string,
+                    semis: key as f32 - open as f32,
+                    at: app.inst.arcus_hands[&t.0].0,
+                    rock: 0.0,
+                    side: if d.held { -rig.pose.ex } else { rig.pose.ex },
+                    span: hand::span(d.held),
+                };
+                let lp = hand::left_pose(&arm, &l);
+                let corners: [egui::Pos2; 8] = {
+                    use cantus_ui::scene::bowed::{board_w, board_z, nut_y};
+                    let depth = 0.06 * d.body + 0.6;
+                    let mut c = [egui::Pos2::ZERO; 8];
+                    let mut i = 0;
+                    for y in [d.body - 0.5, nut_y(d) + 0.4] {
+                        let half = board_w(d, y) * 0.5 + 0.15;
+                        let top = board_z(d, y) + 0.5;
+                        for x in [-half, half] {
+                            c[i] = to_px(rig.pose.at(x, y, top));
+                            c[i + 1] = to_px(rig.pose.at(x, y, top - depth));
+                            i += 2;
+                        }
+                    }
+                    c
+                };
+                let (hull, n) = hand::hull8(&corners);
+                let in_neck = |p: egui::Pos2| {
+                    (0..n).all(|i| {
+                        let (a, e) = (hull[i], hull[(i + 1) % n]);
+                        (e.x - a.x) * (p.y - a.y) - (e.y - a.y) * (p.x - a.x) >= 1.5
+                    })
+                };
+                // The body's top and back outlines as the eye sees them.
+                let o = cantus_ui::scene::bowed::outline(b, 2);
+                let top: Vec<egui::Pos2> = o
+                    .iter()
+                    .map(|&(x, y)| to_px(rig.pose.at(x, y, d.arch)))
+                    .collect();
+                let back: Vec<egui::Pos2> = o
+                    .iter()
+                    .map(|&(x, y)| to_px(rig.pose.at(x, y, -cantus_ui::scene::bowed::rib(d, y))))
+                    .collect();
+                let in_poly = |poly: &[egui::Pos2], p: egui::Pos2| {
+                    let mut c = false;
+                    for i in 0..poly.len() {
+                        let (a, e) = (poly[i], poly[(i + 1) % poly.len()]);
+                        if (a.y > p.y) != (e.y > p.y)
+                            && p.x < a.x + (p.y - a.y) * (e.x - a.x) / (e.y - a.y)
+                        {
+                            c = !c;
+                        }
+                    }
+                    c
+                };
+                let inside = |p: egui::Pos2| in_neck(p) || in_poly(&top, p) || in_poly(&back, p);
+                // Away from what is drawn in front: the sounding string, the fingers' arches.
+                let [_, bridge, nut] = rig.strings[string];
+                let near_seg = |p: egui::Pos2, a: egui::Pos2, e: egui::Pos2, r: f32| {
+                    let ab = e - a;
+                    let t = ((p - a).dot(ab) / ab.length_sq().max(1e-6)).clamp(0.0, 1.0);
+                    (a + ab * t - p).length() < r
+                };
+                // A centimetre at the hand, in points: what a finger's or the string's
+                // width is kept clear by.
+                let cm = (to_px(lp.palm + rig.pose.ex) - to_px(lp.palm)).length();
+                let clear = |p: egui::Pos2| {
+                    !near_seg(p, to_px(bridge), to_px(nut), 1.5 + 0.3 * cm)
+                        && lp.fingers.iter().all(|&(_, kn, tip)| {
+                            !near_seg(p, to_px(kn), to_px(tip), 1.0 + 1.0 * cm)
+                        })
+                };
+                let mut checked = 0;
+                // The palm, the thumb, and along each finger's first segment.
+                let mut samples = vec![lp.palm, lp.thumb.0, lp.thumb.1, lp.wrist, lp.elbow];
+                for t in [0.2, 0.4, 0.6, 0.8] {
+                    samples.push(lp.wrist.lerp(lp.elbow, t));
+                    samples.push(lp.elbow.lerp(arm.shoulder, t));
+                }
+                for f in &lp.fingers {
+                    for t in [0.0, 0.25, 0.5] {
+                        samples.push(lp.palm.lerp(f.0, 0.3).lerp(f.0, t * 2.0));
+                    }
+                }
+                for w in samples.iter().copied() {
+                    let p = to_px(w);
+                    if !inside(p) || !clear(p) {
+                        continue;
+                    }
+                    let (x, y) = ((p.x * PPP) as usize, (p.y * PPP) as usize);
+                    let got = canvas.pixel(x, y);
+                    let (bx, by) = (
+                        ((p.x - rect.min.x) * PPP) as usize,
+                        ((p.y - rect.min.y) * PPP) as usize,
+                    );
+                    let want = baked.pixels[by * baked.size[0] + bx];
+                    let diff = (got[0] as i32 - want.r() as i32)
+                        .abs()
+                        .max((got[1] as i32 - want.g() as i32).abs())
+                        .max((got[2] as i32 - want.b() as i32).abs());
+                    assert!(
+                        diff <= 40,
+                        "{be:?} {b:?} {hold:?}: at {p:?} the figure shows over the neck \
+                         (got {got:?}, the neck's {want:?})"
+                    );
+                    checked += 1;
+                }
+                assert!(
+                    checked >= 1,
+                    "{be:?} {b:?} {hold:?}: no part of the arm lies behind the neck or the body"
+                );
+            }
+        }
+    }
+    scene::backend::set_default(SceneBackend::Vector);
+}
+
+/// The open string's MIDI note.
+fn b_spec_open(b: Bowed, string: usize) -> u8 {
+    use cantus_dsp::arcus::tables::Instrument;
+    let i = match b {
+        Bowed::Violin => Instrument::Violin,
+        Bowed::Viola => Instrument::Viola,
+        Bowed::Bass => Instrument::Bass,
+        Bowed::Cello => Instrument::Cello,
+    };
+    i.spec().strings[string].open
 }

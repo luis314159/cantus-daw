@@ -563,6 +563,12 @@ impl Scene {
         self.rect
     }
 
+    /// r42:arcus-upper — the picture's texture (to stamp part of it back over what a view
+    /// drew in front of it: Arcus's neck over the figure's hand behind it).
+    pub fn texture_id(&self) -> Option<egui::TextureId> {
+        self.tex.as_ref().map(|t| t.id())
+    }
+
     /// A point on the screen where the scene shown has `want` (for tests and the help:
     /// the first point of a grid over its outline that picks it).
     pub fn point_on(&self, want: Picked) -> Option<Pos2> {

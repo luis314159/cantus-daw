@@ -51,6 +51,8 @@ pub enum Role {
     Stand,
     Pad,
     Skin(u8),
+    /// Skin in its own shade (the neck under the jaw).
+    SkinShade(u8),
     Cloth(u8),
     Trousers,
     Shoes,

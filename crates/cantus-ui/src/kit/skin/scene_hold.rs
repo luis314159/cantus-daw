@@ -48,6 +48,12 @@ pub const PAD: Mat = plain(MatKind::Matte, srgb(40, 34, 32));
 pub fn skin(i: u8) -> Mat {
     lacquer(c(SKINS[(i as usize).min(4)]), 0.12, 0.25, 18.0)
 }
+/// Skin a little in shade (the neck under the jaw): between the skin and its shade.
+pub fn skin_shade(i: u8) -> Mat {
+    let (a, b) = (SKINS[(i as usize).min(4)], SKIN_SHADES[(i as usize).min(4)]);
+    let m = |k: usize| ((a[k] as u16 * 3 + b[k] as u16 * 2) / 5) as u8;
+    lacquer(c([m(0), m(1), m(2)]), 0.1, 0.2, 16.0)
+}
 pub fn cloth(i: u8) -> Mat {
     plain(MatKind::Matte, c(CLOTHS[(i as usize).min(3)]))
 }

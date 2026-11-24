@@ -145,6 +145,21 @@ pub struct InstEditors {
     /// r42:arcus-upper — each Arcus's figure's left hand: its position (semitones) and the
     /// time it was last drawn (the glide's clock).
     pub arcus_hands: std::collections::BTreeMap<u64, (f32, f64)>,
+    /// r42:arcus-upper — each Arcus's neck and body stamps (the picture's own pixels over
+    /// a figure's hand behind them), kept with what they were made for.
+    #[allow(clippy::type_complexity)]
+    pub arcus_stamps: std::collections::BTreeMap<
+        u64,
+        (
+            (
+                egui::Rect,
+                egui::TextureId,
+                crate::scene::bowed::Bowed,
+                crate::scene::bowed_hold::Holder,
+            ),
+            [std::sync::Arc<egui::Mesh>; 3],
+        ),
+    >,
     /// r40:fix-f — the song the scenes were drawn for (`CantusApp`'s epoch): another song
     /// loaded, every scene goes.
     pub scenes_epoch: u64,
