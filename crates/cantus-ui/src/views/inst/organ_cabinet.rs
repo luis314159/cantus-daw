@@ -246,10 +246,21 @@ pub fn cabinet(
             if *hot {
                 b.circle_stroke(*p, s.s(8.0), s.s(1.5), s.hue);
             }
-            let lr = Rect::from_center_size(
+            // Its letter under it, or over it where under it would run into the readouts
+            // at the display's foot (r42 fix4-narrow: the left one sat on "Horn 420 rpm").
+            let under = Rect::from_center_size(
                 *p + Vec2::new(0.0, s.s(13.0)),
                 Vec2::new(s.s(16.0), s.s(12.0)),
             );
+            let readouts = Rect::from_min_max(
+                Pos2::new(d.left(), d.bottom() - s.s(4.0) - 2.0 * s.s(15.0)),
+                d.max,
+            );
+            let lr = if under.intersects(readouts) {
+                under.translate(Vec2::new(0.0, -s.s(26.0)))
+            } else {
+                under
+            };
             let _ = ktext::paint(
                 b,
                 lr,

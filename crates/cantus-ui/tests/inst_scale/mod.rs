@@ -13,8 +13,13 @@
 //! - at the shell's own size, and at the narrowest window the editor allows at each scale
 //!   (three quarters of the shell, `inst::window`'s `min_size`), no word is elided or
 //!   dropped and none overlaps;
+//! - at that narrowest width and the view's whole height — what the narrowest window shows
+//!   as it scrolls down, the kit painting no word out of sight — none is cut either, nor
+//!   painted past its card where the view does not scroll sideways (a view that keeps the
+//!   width it was laid out for, `inst::keeps_designed`, scrolls there by design);
 //!
-//! in English and in Spanish.
+//! in English and in Spanish. A word in its designed short form (`<key>.short`) is read as
+//! the word whole: the kit's own abbreviation, not a cut.
 #![allow(dead_code)]
 
 use crate::paths_rig::Rig;
@@ -99,6 +104,23 @@ fn clock() -> f64 {
     FRAMES.fetch_add(1, Ordering::Relaxed) as f64 / 60.0
 }
 
+thread_local! {
+    /// The designed short forms (`<key>.short`) the last hosting painted.
+    static SHORTS: std::cell::RefCell<Vec<probe::Cut>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// `set` with the last hosting's designed short forms read as their words whole ("Últ."
+/// painted for "Última"): a word read in its short form at one scale and whole at another
+/// is read at both.
+fn shorts_whole(set: &mut BTreeSet<String>) {
+    SHORTS.with(|s| {
+        for c in s.borrow().iter() {
+            set.remove(c.shown.trim());
+            set.insert(c.full.trim().to_string());
+        }
+    })
+}
+
 /// What one hosting painted: the words, the kit's cuts, the buttons.
 pub type Hosted = (Vec<Word>, Vec<probe::Cut>, Vec<Rect>);
 
@@ -134,6 +156,7 @@ pub fn host(r: &mut Rig, h: &mut Host, size: Vec2, clipped: bool, shot: &str) ->
         shapes = out.shapes;
         if last {
             cuts = probe::take();
+            SHORTS.with(|s| *s.borrow_mut() = probe::take_shorts());
             buttons = cantus_ui::kit::widgets::take_buttons();
             cantus_ui::kit::widgets::record_buttons(false);
         }
@@ -174,7 +197,12 @@ pub fn check(
             c.full, c.shown, c.how, c.rect
         ));
     }
-    let whole: Vec<&Word> = words.iter().filter(|w| w.seen == w.rect).collect();
+    // Whole: seen to within a point — a line's box (its leading, past the letters' ink)
+    // clipped by a fraction of a point at another scale is no cut.
+    let whole: Vec<&Word> = words
+        .iter()
+        .filter(|w| w.seen.expand(1.0).contains_rect(w.rect))
+        .collect();
     for (i, a) in whole.iter().enumerate() {
         for b in &whole[i + 1..] {
             // One word painted in layers — an engraved or embossed plate's name, its light
@@ -253,24 +281,31 @@ pub fn read_views(
                     let shot = format!("{name}-{view:?}-{:.0}-{}", k * 100.0, lang.code());
                     let size = whole(case.kind, view) * k;
                     let (words, cuts, buttons) = host(r, h, size, true, &shot);
-                    let set = check(&at, &words, &cuts, &buttons, bad);
+                    let mut set = check(&at, &words, &cuts, &buttons, bad);
                     read += set.len();
+                    shorts_whole(&mut set);
                     match &base {
                         None => base = Some(set),
                         Some(b) => {
                             // A paragraph may break its lines at other words at another
                             // scale (fx/final: Chorda's Spanish mixer note at 1 119 points):
                             // a line is missing only when one of its words is.
-                            let words: BTreeSet<&str> =
+                            let each: BTreeSet<&str> =
                                 set.iter().flat_map(|l| l.split_whitespace()).collect();
                             let missing: Vec<&String> = b
                                 .difference(&set)
-                                .filter(|l| l.split_whitespace().any(|w| !words.contains(w)))
+                                .filter(|l| l.split_whitespace().any(|w| !each.contains(w)))
                                 .collect();
                             if !missing.is_empty() {
+                                // Where each one is painted, if it is, and the part seen.
+                                let seen: Vec<String> = missing
+                                    .iter()
+                                    .filter_map(|m| words.iter().find(|w| &&w.text == m))
+                                    .map(|w| format!("{:?} seen {:?}", w.rect, w.seen))
+                                    .collect();
                                 bad.push(format!(
                                     "{at}: {} of the {} words at 100 % are not painted: \
-                                     {missing:?}",
+                                     {missing:?} {seen:?}",
                                     missing.len(),
                                     b.len()
                                 ));

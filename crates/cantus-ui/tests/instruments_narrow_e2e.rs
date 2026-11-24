@@ -22,7 +22,8 @@ use egui::Vec2;
 use inst_scale::*;
 use paths_rig::*;
 
-/// The kinds this binary reads, and a short name for each one's pictures.
+/// The kinds this binary reads, and a short name for each one's pictures
+/// (`CANTUS_INST_ONLY=vetus,bass` reads only those, to look at a few while fixing them).
 fn kinds() -> Vec<(InstrumentKind, &'static str)> {
     let mut v: Vec<(InstrumentKind, &'static str)> = InstrumentKind::ALL
         .into_iter()
@@ -31,6 +32,9 @@ fn kinds() -> Vec<(InstrumentKind, &'static str)> {
         .collect();
     if !v.iter().any(|(k, _)| *k == InstrumentKind::BowedString) {
         v.push((InstrumentKind::BowedString, short(InstrumentKind::BowedString)));
+    }
+    if let Ok(only) = std::env::var("CANTUS_INST_ONLY") {
+        v.retain(|(_, name)| only.split(',').any(|o| o.trim() == *name));
     }
     v
 }
@@ -70,9 +74,11 @@ fn song(kinds: &[(InstrumentKind, &'static str)]) -> (Project, Vec<cantus_core::
 
 /// The editor's size at 100 % where `view` lays itself out whole: the shell's for Play; the
 /// Edit and Matrix views scroll in the shell's height, so they are read in one tall enough
-/// for every card (a row half out of sight in a scrolled view is no cut).
-fn whole(_kind: InstrumentKind, view: View) -> Vec2 {
+/// for every card (a row half out of sight in a scrolled view is no cut) — Exemplar's
+/// taller, its map above its zone card and its cards over more rows at the narrowest width.
+fn whole(kind: InstrumentKind, view: View) -> Vec2 {
     let least = match view {
+        View::Edit if kind == InstrumentKind::Sampler => Vec2::new(0.0, 2300.0),
         View::Edit => Vec2::new(0.0, 1700.0),
         View::Matrix => Vec2::new(0.0, 1200.0),
         _ => Vec2::ZERO,
@@ -119,6 +125,7 @@ fn read(kinds: &[(InstrumentKind, &'static str)], least_words: usize) {
 #[test]
 fn every_other_instrument_reads_whole_at_every_scale_and_the_narrowest_window() {
     let kinds = kinds();
-    assert!(kinds.len() >= 10, "only {} kinds", kinds.len());
-    read(&kinds, 1500);
+    let all = std::env::var("CANTUS_INST_ONLY").is_err();
+    assert!(!all || kinds.len() >= 10, "only {} kinds", kinds.len());
+    read(&kinds, if all { 1500 } else { 0 });
 }

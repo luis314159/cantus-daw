@@ -218,7 +218,23 @@ pub fn picker(
         .text(CHARACTER_KEY)
         .unwrap_or(dancer::DEFAULT_CHARACTER)
         .to_string();
-    let words_h = s.s(72.0);
+    // The chosen one's words: its name, its line over as many rows as it needs, its licence
+    // (r42 fix4-narrow: two rows cut Compás's line to "…y una estrella en el…").
+    let ch = chars
+        .iter()
+        .find(|c| c.info().id == chosen)
+        .cloned()
+        .or_else(|| chars.first().cloned());
+    let blurb_lines = ch.as_ref().map(|ch| {
+        let blurb = match &ch.info().origin {
+            Origin::Imported { format } => crate::i18n::tf("dance.imported", &[("format", format)]),
+            Origin::Builtin => character_blurb(ch).unwrap_or_default(),
+        };
+        (*crate::kit::prose::wrap(ui.ctx(), &blurb, Role::Body, s.tk(), rect.width())).clone()
+    });
+    let blurb_rows = blurb_lines.as_ref().map_or(2, |l| l.lines.len().max(2));
+    let words_row = s.s(18.0);
+    let words_h = words_row * (blurb_rows + 2) as f32;
     let grid0 = Rect::from_min_max(rect.min, Pos2::new(rect.right(), rect.bottom() - words_h));
     let gap = s.s(6.0);
     let n = chars.len() + 1;
@@ -439,18 +455,13 @@ pub fn picker(
         }
     }
     // The chosen one's words.
-    let ch = chars
-        .iter()
-        .find(|c| c.info().id == chosen)
-        .cloned()
-        .or_else(|| chars.first().cloned());
-    if let Some(ch) = ch {
+    if let (Some(ch), Some(blurb_lines)) = (ch, blurb_lines) {
         let wt = (grid.bottom() + s.s(6.0)).min(rect.bottom() - words_h);
         let w = Rect::from_min_max(
             Pos2::new(rect.left(), wt),
             Pos2::new(rect.right(), wt + words_h),
         );
-        let row = w.height() / 4.0;
+        let row = words_row;
         let line = |i: f32| {
             Rect::from_min_size(
                 Pos2::new(w.left(), w.top() + row * i),
@@ -459,10 +470,6 @@ pub fn picker(
         };
         let name = character_name(&ch);
         let imported = matches!(ch.info().origin, Origin::Imported { .. });
-        let blurb = match &ch.info().origin {
-            Origin::Imported { format } => crate::i18n::tf("dance.imported", &[("format", format)]),
-            Origin::Builtin => character_blurb(&ch).unwrap_or_default(),
-        };
         let lic = licence_line(&ch);
         if imported {
             // *Edit moves…*: the import card again, its mapping to change.
@@ -488,17 +495,13 @@ pub fn picker(
                     .policy(Policy::Elide(ktext::Elide::End)),
                 s.tk(),
             );
-            // Its line, wrapped over two rows (the second elided when it needs more).
-            let mut lines =
-                (*crate::kit::prose::wrap(b.ctx(), &blurb, Role::Body, s.tk(), w.width())).clone();
-            if lines.lines.len() > 2 {
-                lines.lines.truncate(2);
-                lines.lines[1].push('\u{2026}');
-            }
+            // Its line, wrapped over the rows it needs.
+            let mut lines = blurb_lines;
+            let n = blurb_rows as f32;
             lines.line_h = row;
             let _ = crate::kit::prose::paint(
                 b,
-                Rect::from_min_size(line(1.0).min, Vec2::new(w.width(), row * 2.0)),
+                Rect::from_min_size(line(1.0).min, Vec2::new(w.width(), row * n)),
                 &lines,
                 Role::Body,
                 s.tk(),
@@ -507,7 +510,7 @@ pub fn picker(
             );
             let _ = ktext::paint(
                 b,
-                line(3.0),
+                line(1.0 + n),
                 &Text::new(&lic, Role::Body, s.t.label)
                     .caps(false)
                     .align(Align2::LEFT_CENTER)

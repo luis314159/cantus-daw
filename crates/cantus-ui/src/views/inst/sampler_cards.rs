@@ -777,6 +777,10 @@ const WAVE_DISPLAY: f32 = 118.0;
 /// it the map goes above the card.
 const MAP_MIN: f32 = 400.0;
 
+/// The least width the sample card reads in beside the seam card, at 100 %: below it the
+/// sample card goes above the seam card.
+const SAMPLE_MIN: f32 = 600.0;
+
 /// The Edit view, as tall as it needs.
 pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
     let k = s.k;
@@ -800,14 +804,19 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let zone_w = map::zone_card_size(s).x;
     let stacked = w - zone_w - gut < MAP_MIN * k;
     let a_rows = if stacked { 2.0 } else { 1.0 };
+    // The sample card beside the seam card, or above it where beside it its controls would
+    // be cut (in Spanish "Bucle mientras se mantiene" read "Mante…").
+    let b_stacked = (w - gut) * 0.64 < SAMPLE_MIN * k;
+    let b_rows = if b_stacked { 2.0 } else { 1.0 };
     let ctx = ui.ctx().clone();
     let rows = |secs: &[Section<'_>]| rows_height(&ctx, s, secs, KnobSize::M, w, row_h);
     let cards_h = rows(&[AMP, FILTER, OUTPUT])
         + rows(&[MOD_ENV, VIBRATO, LFO2, VOICE])
         + row_h
         + rows(&[LEGATO, KEYSWITCH]);
-    let total =
-        tools_h + a_h * a_rows + b_h + cards_h + t_h + (6.0 + a_rows) * gut + l_h;
+    let total = tools_h + a_h * a_rows + b_h * b_rows + cards_h + t_h
+        + (5.0 + a_rows + b_rows) * gut
+        + l_h;
     let (area, _) = ui.allocate_exact_size(vec2(w, total), Sense::hover());
     let mut y = area.top();
     let mut take = |h: f32| {
@@ -831,26 +840,18 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     map_card(app, ui, track, spec, map_r, s, true);
     let src = s.function(Function::Source);
     map::zone_card(app, ui, track, spec, zone_r, &src);
-    let b = take(b_h);
-    let bsplit = b.left() + (b.width() - gut) * 0.64;
-    wave::sample_card(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(b.min, pos2(bsplit, b.bottom())),
-        &src,
-        WAVE_DISPLAY,
-    );
-    wave::seam_card(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(pos2(bsplit + gut, b.top()), b.max),
-        &src,
-        WAVE_DISPLAY,
-    );
+    let (sample_r, seam_r) = if b_stacked {
+        (take(b_h), take(b_h))
+    } else {
+        let b = take(b_h);
+        let bsplit = b.left() + (b.width() - gut) * 0.64;
+        (
+            Rect::from_min_max(b.min, pos2(bsplit, b.bottom())),
+            Rect::from_min_max(pos2(bsplit + gut, b.top()), b.max),
+        )
+    };
+    wave::sample_card(app, ui, track, spec, sample_r, &src, WAVE_DISPLAY);
+    wave::seam_card(app, ui, track, spec, seam_r, &src, WAVE_DISPLAY);
     section_row(
         app,
         ui,

@@ -100,26 +100,27 @@ pub fn strip(
                     6,
                 );
             }
+            let pitch_text = Text::new(
+                &pitch,
+                Role::Label,
+                if lit { s.t.text } else { s.t.text_dim },
+            )
+            .caps(false)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(ktext::Elide::End));
+            // The note's line as tall as its letters (r42 fix4-narrow: a third of the pad, at
+            // 200 % it ran into the name under it).
+            let pitch_h = ktext::measure(b.ctx(), &pitch_text, s.tk())
+                .y
+                .min(r.height() * 0.4);
             let top = Rect::from_min_size(
                 r.min + Vec2::new(s.s(4.0), s.s(1.0)),
-                Vec2::new(r.width() - s.s(8.0), r.height() * 0.32),
+                Vec2::new(r.width() - s.s(8.0), pitch_h),
             );
-            let _ = ktext::paint(
-                b,
-                top,
-                &Text::new(
-                    &pitch,
-                    Role::Label,
-                    if lit { s.t.text } else { s.t.text_dim },
-                )
-                .caps(false)
-                .align(Align2::LEFT_CENTER)
-                .policy(Policy::Elide(ktext::Elide::End)),
-                s.tk(),
-            );
+            let _ = ktext::paint(b, top, &pitch_text, s.tk());
             // Its name, over two lines when it needs them ("Paso a la / izquierda").
             let bottom = Rect::from_min_max(
-                Pos2::new(r.left() + s.s(3.0), r.top() + r.height() * 0.32),
+                Pos2::new(r.left() + s.s(3.0), top.bottom()),
                 Pos2::new(r.right() - s.s(3.0), r.bottom() - s.s(2.0)),
             );
             let mut lines =
