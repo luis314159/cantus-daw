@@ -1,0 +1,71 @@
+{
+ "id": "tympanum",
+ "play": "drums",
+ "trials": { "abx": 24, "extra": 24 },
+ "secs": { "abx": 30, "pref": 20 },
+ "pairs": [["model", "recording"], ["hybrid", "recording"]],
+ "items": {
+  "es": {
+   "kick": "Bombo, tres golpes (suave, medio, fuerte)",
+   "snare": "Caja, tres golpes (suave, medio, fuerte)",
+   "rimshot": "Caja con aro (rimshot), tres golpes",
+   "toms": "Toms: agudo, medio y de piso, dos veces",
+   "hat_closed": "Hi-hat cerrado, tres golpes",
+   "hat_open": "Hi-hat abierto, tres golpes",
+   "crash": "Platillo crash, tres golpes",
+   "ride": "Platillo ride, tres golpes",
+   "pop": "Ritmo pop / de alabanza",
+   "rock": "Ritmo de rock",
+   "bossa": "Bossa nova",
+   "ballad": "Balada con ride y crescendos de platillo"
+  },
+  "en": {
+   "kick": "Kick, three hits (soft, medium, loud)",
+   "snare": "Snare, three hits (soft, medium, loud)",
+   "rimshot": "Snare rimshot, three hits",
+   "toms": "Toms: high, mid and floor, twice",
+   "hat_closed": "Closed hi-hat, three hits",
+   "hat_open": "Open hi-hat, three hits",
+   "crash": "Crash cymbal, three hits",
+   "ride": "Ride cymbal, three hits",
+   "pop": "A pop / worship groove",
+   "rock": "A rock groove",
+   "bossa": "Bossa nova",
+   "ballad": "A ballad with ride and cymbal swells"
+  }
+ },
+ "credits": {
+  "text": ["credit_rec", "credit_tymp"],
+  "links": [["DRSKit", "https://drumgizmo.org/wiki/doku.php?id=kits:drskit"], ["CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"], ["Virtuosity Drums", "https://github.com/sfzinstruments/virtuosity_drums"], ["CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"], ["Cantus", "https://cantusdaw.com"]]
+ },
+ "text": {
+  "es": {
+   "lead": "Vas a escuchar golpes sueltos de batería y ritmos cortos, cada uno sonado de tres maneras distintas, y a responder dos cosas: si distingues dos de ellas y cuál te suena mejor. No hay respuestas correctas ni incorrectas en tus gustos.",
+   "howlong": "Dura unos 20–25 minutos (más unos 12 si haces la parte extra opcional). Puedes pararla cuando quieras: tus respuestas se guardan en este navegador y, al volver a abrir la página, sigues donde lo dejaste.",
+   "q_drums": "¿Tocas la batería?", "drums_no": "No", "drums_some": "Un poco", "drums_yes": "Sí",
+   "phrase": "Suena",
+   "abx_help": "A y B son dos sonidos de batería distintos. X es uno de los dos, elegido al azar. Escucha A, B y X cuantas veces quieras: si cambias mientras suena, sigue desde el mismo punto (pulsar otra vez el que suena vuelve al principio). Luego di cuál es X. Si no lo distingues, elige al azar: también es un resultado.",
+   "pref_help": "Dos clips de lo mismo. ¿Cuál suena más a una batería acústica real, bien grabada? Elige uno o di que no tienes preferencia. Una palabra sobre el porqué ayuda mucho (opcional).",
+   "note": "¿Por qué? (opcional: artificial, de plástico, metálico, sin cuerpo, sin aire, natural…)",
+   "main_done_2": "Si te quedan ganas, hay una parte extra opcional (24 ensayos más, unos 12 minutos) con otros dos sonidos. Si no, mira tus resultados.",
+   "reveal": "Qué sonido era cada uno",
+   "credit_rec": "Las baterías grabadas son DRSKit 2.1 (del equipo de DrumGizmo —Deva y Lars Muldjord— y Jes Eiler de DRSDrums, con licencia CC BY 4.0) en todos los clips menos la balada, y Virtuosity Drums (de Versilian Studios y Karoryfer Samples, tocada por Austin McMahon, CC0 1.0) en la balada; cada una con la mezcla de sus micrófonos tal como la carga Cantus.",
+   "credit_tymp": "Los otros dos sonidos son Tympanum, el baterista de Cantus, un estudio de música libre y gratuito: su batería de estudio (medida de DRSKit) y su batería de jazz (medida de Virtuosity), con la voz generada (el modelo solo) o con la híbrida (que pone bajo el modelo lo que la grabación tiene en los primeros milisegundos de cada golpe). Las tres versiones tocaron la misma partitura MIDI; los clips se igualaron en sonoridad (ITU-R BS.1770) y en duración, y la imagen estéreo de la batería modelada se reflejó (izquierda por derecha) donde estaba al revés que la grabada; no se les hizo nada más.",
+   "voice_model": "Tympanum, voz generada (modelo)", "voice_recording": "Batería grabada", "voice_hybrid": "Tympanum, voz híbrida (modelo + grabación)"
+  },
+  "en": {
+   "lead": "You will hear single drum hits and short grooves, each sounded three different ways, and answer two things: whether you can tell two of them apart, and which one sounds better to you. There are no right or wrong answers about taste.",
+   "howlong": "It takes about 20–25 minutes (about 12 more for the optional extra part). You can stop whenever you like: your answers are kept in this browser, and when you open the page again you carry on where you left off.",
+   "q_drums": "Do you play the drums?", "drums_no": "No", "drums_some": "A little", "drums_yes": "Yes",
+   "phrase": "Playing",
+   "abx_help": "A and B are two different drum sounds. X is one of them, picked at random. Listen to A, B and X as often as you like: switching while it plays carries on from the same point (pressing the one playing goes back to the start). Then say which one X is. If you cannot tell, pick at random: that is a result too.",
+   "pref_help": "Two clips of the same thing. Which sounds more like a real acoustic drum kit, well recorded? Choose one, or say you have no preference. A word on why helps a lot (optional).",
+   "note": "Why? (optional: artificial, plasticky, metallic, thin, airless, natural…)",
+   "main_done_2": "If you feel like more, there is an optional extra part (24 more trials, about 12 minutes) with two other sounds. Otherwise, see your results.",
+   "reveal": "Which sound was which",
+   "credit_rec": "The recorded kits are DRSKit 2.1 (by the DrumGizmo team — Deva and Lars Muldjord — and Jes Eiler of DRSDrums, licensed CC BY 4.0) in every clip but the ballad, and Virtuosity Drums (by Versilian Studios and Karoryfer Samples, played by Austin McMahon, CC0 1.0) in the ballad; each with its own mix of its microphones, as Cantus loads it.",
+   "credit_tymp": "The other two sounds are Tympanum, the drummer of Cantus, a free and open music studio: its studio kit (measured from DRSKit) and its jazz kit (measured from Virtuosity), with the generated voice (the model alone) or the hybrid one (which lays under the model what the recording holds in each hit's first milliseconds). All three played the same MIDI; the clips were matched in loudness (ITU-R BS.1770) and length, and the modelled kit's stereo image mirrored (left for right) where it stood the other way round from the recording's; nothing else was done to them.",
+   "voice_model": "Tympanum, generated voice (model)", "voice_recording": "Recorded kit", "voice_hybrid": "Tympanum, hybrid voice (model + recording)"
+  }
+ }
+}

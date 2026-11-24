@@ -1,0 +1,43 @@
+{
+ "id": "chorda",
+ "play": "piano",
+ "trials": { "abx": 16, "extra": 16 },
+ "secs": { "abx": 35, "pref": 22 },
+ "pairs": [["chorda3", "salamander"], ["chorda3", "chorda2"]],
+ "items": {
+  "es": { "middle_c": "Do central, mf", "soft_chords": "Acordes suaves, con pedal", "fast_run": "Una escala rápida", "ballad": "Una balada con pedal", "ff_chord": "Un acorde fortísimo", "bass": "Notas graves solas", "top": "La octava aguda" },
+  "en": { "middle_c": "Middle C, mf", "soft_chords": "Soft chords, pedalled", "fast_run": "A fast run", "ballad": "A pedalled ballad", "ff_chord": "A fortissimo chord", "bass": "Bass notes alone", "top": "The top octave" }
+ },
+ "credits": {
+  "text": ["credit_sal", "credit_cantus"],
+  "links": [["Salamander Grand Piano V3", "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html"], ["CC BY 3.0", "https://creativecommons.org/licenses/by/3.0/"], ["Cantus", "https://cantusdaw.com"]]
+ },
+ "text": {
+  "es": {
+   "lead": "Vas a escuchar frases cortas tocadas por tres pianos distintos y a responder dos cosas: si distingues dos de ellos y cuál te suena mejor. No hay respuestas correctas ni incorrectas en tus gustos.",
+   "howlong": "Dura unos 15–20 minutos (más unos 8 si haces la parte extra opcional). Puedes pararla cuando quieras: tus respuestas se guardan en este navegador y, al volver a abrir la página, sigues donde lo dejaste.",
+   "q_piano": "¿Tocas el piano?", "piano_no": "No", "piano_some": "Un poco", "piano_yes": "Sí",
+   "abx_help": "A y B son dos pianos distintos. X es uno de los dos, elegido al azar. Escucha A, B y X cuantas veces quieras: si cambias mientras suena, sigue desde el mismo punto (pulsar otra vez el que suena vuelve al principio). Luego di cuál es X. Si no lo distingues, elige al azar: también es un resultado.",
+   "pref_help": "Dos clips de la misma frase. ¿Cuál suena más a un buen piano de cola bien grabado? Elige uno o di que no tienes preferencia. Una palabra sobre el porqué ayuda mucho (opcional).",
+   "note": "¿Por qué? (opcional: metálico, apagado, artificial, sin cuerpo, natural…)",
+   "main_done_2": "Si te quedan ganas, hay una parte extra opcional (16 ensayos más, unos 8 minutos) con otros dos pianos. Si no, mira tus resultados.",
+   "reveal": "Qué piano era cada uno",
+   "credit_sal": "El piano grabado es el Salamander Grand Piano V3 de Alexander Holm (un Yamaha C5 muestreado), con licencia CC BY 3.0, tocado por el sampler de Cantus.",
+   "credit_cantus": "Los pianos modelados son Chorda, el piano de Cantus, un estudio de música libre y gratuito. Los clips se igualaron en sonoridad (ITU-R BS.1770) y en duración; no se les hizo nada más.",
+   "voice_salamander": "Salamander Grand (grabado)", "voice_chorda3": "Chorda, versión nueva (modelado)", "voice_chorda2": "Chorda, versión anterior (modelado)"
+  },
+  "en": {
+   "lead": "You will hear short phrases played by three different pianos and answer two things: whether you can tell two of them apart, and which one sounds better to you. There are no right or wrong answers about taste.",
+   "howlong": "It takes about 15–20 minutes (about 8 more for the optional extra part). You can stop whenever you like: your answers are kept in this browser, and when you open the page again you carry on where you left off.",
+   "q_piano": "Do you play the piano?", "piano_no": "No", "piano_some": "A little", "piano_yes": "Yes",
+   "abx_help": "A and B are two different pianos. X is one of them, picked at random. Listen to A, B and X as often as you like: switching while it plays carries on from the same point (pressing the one playing goes back to the start). Then say which one X is. If you cannot tell, pick at random: that is a result too.",
+   "pref_help": "Two clips of the same phrase. Which sounds more like a fine grand piano, well recorded? Choose one, or say you have no preference. A word on why helps a lot (optional).",
+   "note": "Why? (optional: metallic, dull, artificial, thin, natural…)",
+   "main_done_2": "If you feel like more, there is an optional extra part (16 more trials, about 8 minutes) with two other pianos. Otherwise, see your results.",
+   "reveal": "Which piano was which",
+   "credit_sal": "The recorded piano is the Salamander Grand Piano V3 by Alexander Holm (a sampled Yamaha C5), licensed under CC BY 3.0, played by Cantus's sampler.",
+   "credit_cantus": "The modelled pianos are Chorda, the piano of Cantus, a free and open music studio. The clips were matched in loudness (ITU-R BS.1770) and length; nothing else was done to them.",
+   "voice_salamander": "Salamander Grand (recorded)", "voice_chorda3": "Chorda, new version (modelled)", "voice_chorda2": "Chorda, previous version (modelled)"
+  }
+ }
+}

@@ -213,7 +213,7 @@ fn main() {
 /// default image (Stage Lid ORTF, in model 2's place: ABX 1 is it against the Salamander)
 /// and its Piano Bar (in model 1's: ABX 2 is the two images).
 fn write_abx(dir: &Path, kit: &[(String, Vec<Stereo>)]) {
-    const PAGE: &str = include_str!("../chorda_kit/abx.html");
+    const PAGE: &str = include_str!("../abx_kit/abx.html");
     std::fs::create_dir_all(dir.join("audio")).expect("the kit's folder");
     let salt = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

@@ -67,96 +67,92 @@ td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line
 "use strict";
 const KIT = __KIT__;
 const PHRASES = __PHRASES__;
-// Each clip's file, by phrase and piano token: names drawn at random for this kit.
+// Each clip's file, by item and source token: names drawn at random for this kit.
 const FILES = __FILES__;
 const TESTS = __TESTS__;
 const SEED = __SEED__;
-// Which piano each token is — read only once the test is finished (the reveal).
+// Which source each token is — read only once the test is finished (the reveal).
 const REVEAL = __REVEAL__;
-const TRIALS = 16;
+// What is compared (one page for every instrument's kit): its texts, its items' names, the
+// pairs the preferences count, the trials, the credits — the generator's subject file.
+const SUBJECT = __SUBJECT__;
+const TRIALS = SUBJECT.trials;
+// The form's instrument question ("piano", "drums"): its answer is `about[PLAY]`.
+const PLAY = SUBJECT.play;
 const STORE = "cantus-listening-" + KIT;
+// The page's own words; the subject's (`SUBJECT.text`) are laid over them: the lead, the
+// help of each part, the sources' names (`voice_<id>`), the instrument question, the credits.
 const T = {
  es: {
   title: "Prueba de escucha",
-  lead: "Vas a escuchar frases cortas tocadas por tres pianos distintos y a responder dos cosas: si distingues dos de ellos y cuál te suena mejor. No hay respuestas correctas ni incorrectas en tus gustos.",
-  howlong: "Dura unos 15–20 minutos (más unos 8 si haces la parte extra opcional). Puedes pararla cuando quieras: tus respuestas se guardan en este navegador y, al volver a abrir la página, sigues donde lo dejaste.",
   setup: "Usa auriculares o buenos altavoces en un lugar silencioso. Ajusta el volumen con el primer clip y no lo cambies después. Todos los clips tienen la misma sonoridad.",
   about: "Sobre ti", about_note: "Solo la primera pregunta es obligatoria. Sirve para leer los resultados (por ejemplo, separar auriculares de altavoces).",
   q_device: "¿Con qué vas a escuchar?", device_headphones: "Auriculares", device_monitors: "Monitores de estudio", device_speakers: "Altavoces del ordenador o del teléfono",
-  q_piano: "¿Tocas el piano?", piano_no: "No", piano_some: "Un poco", piano_yes: "Sí", q_years: "¿Cuántos años? (opcional)",
+  q_years: "¿Cuántos años? (opcional)",
   q_audio: "¿Trabajas con audio o música?", audio_no: "No", audio_hobby: "Como afición", audio_pro: "Profesionalmente",
   q_age: "Edad (opcional, el oído cambia con los años)", age_u25: "menos de 25", age_25: "25–39", age_40: "40–54", age_55: "55–69", age_70: "70 o más", age_none: "Prefiero no decirlo",
   q_name: "Nombre o apodo (opcional)", name_hint: "Puede ser un apodo: solo sirve para saber de quién es cada resultado.",
   need_device: "Elige con qué vas a escuchar para empezar.", start: "Empezar", resume: "Continuar",
   part1: "Parte 1 de 2 · ¿Los distingues?", part2: "Parte 2 de 2 · ¿Cuál prefieres?", partx: "Parte extra · ¿Los distingues?",
   count: "{i} de {n}", left: "Quedan unos {m} min",
-  abx_help: "A y B son dos pianos distintos. X es uno de los dos, elegido al azar. Escucha A, B y X cuantas veces quieras: si cambias mientras suena, sigue desde el mismo punto (pulsar otra vez el que suena vuelve al principio). Luego di cuál es X. Si no lo distingues, elige al azar: también es un resultado.",
   keys_abx: "Teclado: {a} {b} {x} reproducir, {sp} parar, {l} repetir.", keys_pref: "Teclado: {one} {two} reproducir, {sp} parar, {l} repetir.",
   seek: "Pulsa para saltar a ese punto", phrase: "Frase", stop: "Parar", loop: "Repetir", x_is_a: "X es A", x_is_b: "X es B", prev: "← Anterior", next: "Siguiente →",
-  pref_help: "Dos clips de la misma frase. ¿Cuál suena más a un buen piano de cola bien grabado? Elige uno o di que no tienes preferencia. Una palabra sobre el porqué ayuda mucho (opcional).",
-  one: "Clip 1", two: "Clip 2", same: "Sin preferencia", note: "¿Por qué? (opcional: metálico, apagado, artificial, sin cuerpo, natural…)",
+  one: "Clip 1", two: "Clip 2", same: "Sin preferencia",
   saved_local: "Tus respuestas se guardan en este navegador.", saved_online: "Tus respuestas se guardan automáticamente.",
   cant_save: "Esta página no puede guardar tus respuestas en línea: al terminar, descarga el archivo de resultados y envíalo a quien te pasó la prueba.",
   welcome_back: "Bienvenido de nuevo: sigues donde lo dejaste.",
-  main_done: "¡Gracias! Terminaste la prueba.", main_done_2: "Si te quedan ganas, hay una parte extra opcional (16 ensayos más, unos 8 minutos) con otros dos pianos. Si no, mira tus resultados.",
+  main_done: "¡Gracias! Terminaste la prueba.",
   extra: "Hacer la parte extra", extra_continue: "Continuar la parte extra", see_results: "Ver mis resultados",
   results: "Tus resultados", res_abx: "Parte 1: {k} de {n} aciertos (p = {p}).", res_extra: "Parte extra: {k} de {n} aciertos (p = {p}).",
   sig: "Los distingues de forma fiable.", nsig: "No hay una diferencia fiable: podría ser azar.",
   p_explain: "p es la probabilidad de acertar tantos o más adivinando al azar; por debajo de 0,05 se considera que los distingues.",
   res_pref: "{a} contra {b}: preferiste {a} {na} veces, {b} {nb} veces, sin preferencia {ns}.",
-  reveal: "Qué piano era cada uno", reveal_note: "Ahora que terminaste, esto es lo que sonaba.",
+  reveal_note: "Ahora que terminaste, esto es lo que sonaba.",
   trial: "Ensayo", answer: "Tu respuesta", right: "acierto", wrong: "fallo",
-  credits: "Créditos", credit_sal: "El piano grabado es el Salamander Grand Piano V3 de Alexander Holm (un Yamaha C5 muestreado), con licencia CC BY 3.0, tocado por el sampler de Cantus.", credit_cantus: "Los pianos modelados son Chorda, el piano de Cantus, un estudio de música libre y gratuito. Los clips se igualaron en sonoridad (ITU-R BS.1770) y en duración; no se les hizo nada más.",
+  credits: "Créditos",
   download: "Descargar resultados (JSON)", send: "Envía ese archivo a quien te pasó la prueba.", copy_here: "El navegador no guardó el archivo. Copia este texto y envíalo:",
   reset: "Empezar de nuevo (borra las respuestas)", reset_sure: "¿Seguro? Pulsa otra vez para borrarlo todo",
-  piano_salamander: "Salamander Grand (grabado)", piano_chorda3: "Chorda, versión nueva (modelado)", piano_chorda2: "Chorda, versión anterior (modelado)",
   owner: "Resumen de todos los oyentes", owner_open: "Ver el resumen de todos (solo tú)", back: "Volver",
   listeners: "Oyentes", import_files: "Importar archivos .json de oyentes", imported: "Importados: {n}", bad_file: "No es un archivo de resultados de esta prueba: {f}",
   everyone_dl: "Descargar todo (JSON)", group: "Grupo", all: "Todos", catch_ok: "Pasaron las 2 preguntas de control", other_kit: "otra prueba"
  },
  en: {
   title: "Listening test",
-  lead: "You will hear short phrases played by three different pianos and answer two things: whether you can tell two of them apart, and which one sounds better to you. There are no right or wrong answers about taste.",
-  howlong: "It takes about 15–20 minutes (about 8 more for the optional extra part). You can stop whenever you like: your answers are kept in this browser, and when you open the page again you carry on where you left off.",
   setup: "Use headphones or good speakers in a quiet place. Set the volume on the first clip and leave it. Every clip has the same loudness.",
   about: "About you", about_note: "Only the first question is required. It helps read the results (for example, headphones apart from speakers).",
   q_device: "What will you listen on?", device_headphones: "Headphones", device_monitors: "Studio monitors", device_speakers: "Computer or phone speakers",
-  q_piano: "Do you play the piano?", piano_no: "No", piano_some: "A little", piano_yes: "Yes", q_years: "How many years? (optional)",
+  q_years: "How many years? (optional)",
   q_audio: "Do you work with audio or music?", audio_no: "No", audio_hobby: "As a hobby", audio_pro: "Professionally",
   q_age: "Age (optional — hearing changes with the years)", age_u25: "under 25", age_25: "25–39", age_40: "40–54", age_55: "55–69", age_70: "70 or over", age_none: "Prefer not to say",
   q_name: "Name or nickname (optional)", name_hint: "A nickname is fine: it only tells whose results are whose.",
   need_device: "Choose what you will listen on to start.", start: "Start", resume: "Continue",
   part1: "Part 1 of 2 · Can you tell them apart?", part2: "Part 2 of 2 · Which do you prefer?", partx: "Extra part · Can you tell them apart?",
   count: "{i} of {n}", left: "About {m} min left",
-  abx_help: "A and B are two different pianos. X is one of them, picked at random. Listen to A, B and X as often as you like: switching while it plays carries on from the same point (pressing the one playing goes back to the start). Then say which one X is. If you cannot tell, pick at random: that is a result too.",
   keys_abx: "Keyboard: {a} {b} {x} play, {sp} stop, {l} loop.", keys_pref: "Keyboard: {one} {two} play, {sp} stop, {l} loop.",
   seek: "Click to jump to that point", phrase: "Phrase", stop: "Stop", loop: "Loop", x_is_a: "X is A", x_is_b: "X is B", prev: "← Previous", next: "Next →",
-  pref_help: "Two clips of the same phrase. Which sounds more like a fine grand piano, well recorded? Choose one, or say you have no preference. A word on why helps a lot (optional).",
-  one: "Clip 1", two: "Clip 2", same: "No preference", note: "Why? (optional: metallic, dull, artificial, thin, natural…)",
+  one: "Clip 1", two: "Clip 2", same: "No preference",
   saved_local: "Your answers are kept in this browser.", saved_online: "Your answers are saved automatically.",
   cant_save: "This page cannot save your answers online: when you finish, download the results file and send it to whoever gave you the test.",
   welcome_back: "Welcome back: you carry on where you left off.",
-  main_done: "Thank you! You have finished the test.", main_done_2: "If you feel like more, there is an optional extra part (16 more trials, about 8 minutes) with two other pianos. Otherwise, see your results.",
+  main_done: "Thank you! You have finished the test.",
   extra: "Take the extra part", extra_continue: "Continue the extra part", see_results: "See my results",
   results: "Your results", res_abx: "Part 1: {k} of {n} right (p = {p}).", res_extra: "Extra part: {k} of {n} right (p = {p}).",
   sig: "You tell them apart reliably.", nsig: "No reliable difference: it could be chance.",
   p_explain: "p is the chance of getting that many or more right by guessing; under 0.05 counts as telling them apart.",
   res_pref: "{a} against {b}: you preferred {a} {na} times, {b} {nb} times, no preference {ns}.",
-  reveal: "Which piano was which", reveal_note: "Now that you have finished, this is what was playing.",
+  reveal_note: "Now that you have finished, this is what was playing.",
   trial: "Trial", answer: "Your answer", right: "right", wrong: "wrong",
-  credits: "Credits", credit_sal: "The recorded piano is the Salamander Grand Piano V3 by Alexander Holm (a sampled Yamaha C5), licensed under CC BY 3.0, played by Cantus's sampler.", credit_cantus: "The modelled pianos are Chorda, the piano of Cantus, a free and open music studio. The clips were matched in loudness (ITU-R BS.1770) and length; nothing else was done to them.",
+  credits: "Credits",
   download: "Download results (JSON)", send: "Send that file to whoever gave you the test.", copy_here: "The browser did not save the file. Copy this text and send it:",
   reset: "Start again (erases the answers)", reset_sure: "Sure? Press again to erase everything",
-  piano_salamander: "Salamander Grand (recorded)", piano_chorda3: "Chorda, new version (modelled)", piano_chorda2: "Chorda, previous version (modelled)",
   owner: "Summary of every listener", owner_open: "See everyone's summary (only you)", back: "Back",
   listeners: "Listeners", import_files: "Import listeners' .json files", imported: "Imported: {n}", bad_file: "Not a results file of this test: {f}",
   everyone_dl: "Download everything (JSON)", group: "Group", all: "Everyone", catch_ok: "Passed both check questions", other_kit: "another test"
  }
 };
-const PHRASE_NAMES = {
- es: { middle_c: "Do central, mf", soft_chords: "Acordes suaves, con pedal", fast_run: "Una escala rápida", ballad: "Una balada con pedal", ff_chord: "Un acorde fortísimo", bass: "Notas graves solas", top: "La octava aguda" },
- en: { middle_c: "Middle C, mf", soft_chords: "Soft chords, pedalled", fast_run: "A fast run", ballad: "A pedalled ballad", ff_chord: "A fortissimo chord", bass: "Bass notes alone", top: "The top octave" }
-};
+for (const l in T) Object.assign(T[l], (SUBJECT.text || {})[l] || {});
+// The items' names, by language.
+const PHRASE_NAMES = SUBJECT.items;
 function pickLang() { const l = (navigator.languages && navigator.languages[0]) || navigator.language || "es"; return /^es\b/i.test(l) ? "es" : (/^en\b/i.test(l) ? "en" : "es"); }
 let lang = pickLang();
 function tr(k, v) { let s = (T[lang][k] !== undefined ? T[lang][k] : k); for (const n in (v || {})) s = s.split("{" + n + "}").join(v[n]); return s; }
@@ -164,7 +160,7 @@ function rnd(n) { const a = new Uint32Array(1); crypto.getRandomValues(a); retur
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function now() { return new Date().toISOString(); }
 function file(phrase, tok) { return "audio/" + FILES[phrase + "|" + tok]; }
-// Which piano each token is: veiled (a xorshift stream over base64) only against a glance.
+// Which source each token is: veiled (a xorshift stream over base64) only against a glance.
 let revealed = null;
 function unveil() {
  if (revealed) return revealed;
@@ -172,12 +168,15 @@ function unveil() {
  for (let i = 0; i < b.length; i++) { x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; x = (x ^ (x << 5)) >>> 0; out[i] = b.charCodeAt(i) ^ (x >>> 24); }
  revealed = JSON.parse(new TextDecoder().decode(out)); return revealed;
 }
-function pianoOf(tok) { return unveil()[tok] || "?"; }
-function drawAbx(pair) {
- const order = []; while (order.length < TRIALS) order.push(...PHRASES);
+function sourceOf(tok) { return unveil()[tok] || "?"; }
+// `n` trials of `pair`: every item as often as the others (one more for those the remainder
+// draws), in a random order.
+function drawAbx(pair, n) {
+ const order = []; while (order.length + PHRASES.length <= n) order.push(...PHRASES);
+ order.push(...shuffle(PHRASES.slice()).slice(0, n - order.length));
  shuffle(order);
  const out = [];
- for (let i = 0; i < TRIALS; i++) { const p = pair.slice(); if (rnd(2)) p.reverse(); out.push({ phrase: order[i], a: p[0], b: p[1], x: rnd(2) ? "a" : "b", answer: null, changes: 0, plays: 0, heard: {}, shown: null, at: null }); }
+ for (let i = 0; i < n; i++) { const p = pair.slice(); if (rnd(2)) p.reverse(); out.push({ phrase: order[i], a: p[0], b: p[1], x: rnd(2) ? "a" : "b", answer: null, changes: 0, plays: 0, heard: {}, shown: null, at: null }); }
  return out;
 }
 function drawPref() {
@@ -191,9 +190,10 @@ function drawPref() {
  return qs;
 }
 function fresh() {
- return { kit: KIT, version: 5, created: now(), lang: lang, listener: "", about: { device: "", piano: "", years: "", audio: "", age: "" },
+ const about = { device: "", years: "", audio: "", age: "" }; about[PLAY] = "";
+ return { kit: KIT, version: 6, created: now(), lang: lang, listener: "", about: about,
   view: "intro", pos: { abx: 0, pref: 0, extra: 0 }, started: null, mainDone: null, extraStarted: null, extraDone: null, sessions: [now()],
-  abx: drawAbx(TESTS.abx), pref: drawPref(), extra: drawAbx(TESTS.extra), earlier: [], ua: navigator.userAgent, engine: null };
+  abx: drawAbx(TESTS.abx, TRIALS.abx), pref: drawPref(), extra: drawAbx(TESTS.extra, TRIALS.extra), earlier: [], ua: navigator.userAgent, engine: null };
 }
 let st = null, resumed = false;
 try { st = JSON.parse(localStorage.getItem(STORE)); } catch (e) { st = null; }
@@ -227,9 +227,13 @@ const audio = {
  },
  set(map) {
   this.stop(); this.gen++; this.map = map; this.last = null;
-  for (const k in map) this.prefetch(map[k]);
+  this.later(Object.values(map), 120);
  },
  prefetch(url) { if (this.mode === "webaudio") this.buffer(url); else this.element(url); },
+ // Load `urls` after `ms` unless the item changed meanwhile: clicking quickly through answered
+ // items fetches nothing it leaves (a burst of large WAV fetches and decodes crashed headless
+ // Chrome's browser process now and then, round 42); a press loads its clip at once anyway.
+ later(urls, ms) { const gen = this.gen; setTimeout(() => { if (gen === this.gen) for (const u of urls) this.prefetch(u); }, ms); },
  playing() { return this.cur ? this.cur.key : null; },
  position() {
   const c = this.cur; if (!c) return 0;
@@ -375,7 +379,7 @@ function show(sec, i) {
  if (shownKey !== key) {
   audio.set(sec === "pref" ? { one: file(x.phrase, x.one), two: file(x.phrase, x.two) } : { a: file(x.phrase, x.a), b: file(x.phrase, x.b), x: file(x.phrase, x.x === "a" ? x.a : x.b) });
   const n = st[sec][i + 1];
-  if (n) for (const t of sec === "pref" ? [n.one, n.two] : [n.a, n.b]) audio.prefetch(file(n.phrase, t));
+  if (n) audio.later((sec === "pref" ? [n.one, n.two] : [n.a, n.b]).map(t => file(n.phrase, t)), 600);
   shownKey = key;
  }
  if (!x.shown) { x.shown = now(); save(); }
@@ -413,8 +417,9 @@ function steps() {
  box.appendChild(el("strong", tr(sec === "abx" ? "part1" : sec === "pref" ? "part2" : "partx")));
  box.appendChild(el("span", tr("count", { i: st.pos[sec] + 1, n: list.length }), "mute"));
  const bar = el("div", undefined, "bar"); const fill = el("div"); fill.style.width = (100 * done / list.length) + "%"; bar.appendChild(fill); box.appendChild(bar);
- // About 35 s an ABX trial, 22 s a preference.
- const left = sec === "extra" ? (list.length - done) * 35 : (st.abx.filter(x => x.answer === null).length * 35 + st.pref.filter(x => x.choice === null).length * 22);
+ // The subject's seconds an ABX trial and a preference (Chorda's: 35 and 22).
+ const sa = SUBJECT.secs.abx, sp = SUBJECT.secs.pref;
+ const left = sec === "extra" ? (list.length - done) * sa : (st.abx.filter(x => x.answer === null).length * sa + st.pref.filter(x => x.choice === null).length * sp);
  box.appendChild(el("span", tr("left", { m: Math.max(1, Math.ceil(left / 60)) }), "mute small"));
  s.appendChild(box);
 }
@@ -488,8 +493,8 @@ function viewIntro(c) {
  const set = (k, v) => { a[k] = v; save(); render(); };
  const group = (q, name, values) => { const fs = el("fieldset"); fs.appendChild(el("legend", tr(q))); fs.appendChild(pills(name, values, a[name], v => set(name, v))); f.appendChild(fs); return fs; };
  group("q_device", "device", ["headphones", "monitors", "speakers"]);
- const pf = group("q_piano", "piano", ["no", "some", "yes"]);
- if (a.piano === "some" || a.piano === "yes") {
+ const pf = group("q_" + PLAY, PLAY, ["no", "some", "yes"]);
+ if (a[PLAY] === "some" || a[PLAY] === "yes") {
   const y = el("input"); y.type = "number"; y.min = "0"; y.max = "90"; y.id = "years"; y.value = a.years || ""; y.style.width = "7em"; y.style.marginTop = "8px";
   y.oninput = () => { a.years = y.value; save(); };
   const l = el("label", tr("q_years") + " "); l.htmlFor = "years"; const d = el("div"); d.appendChild(l); d.appendChild(y); pf.appendChild(d);
@@ -532,26 +537,26 @@ function binomTail(k, n) {
 function signTest(a, b) { const n = a + b; return n ? Math.min(1, 2 * binomTail(Math.max(a, b), n)) : 1; }
 function fmtP(p) { return p === null || p === undefined ? "—" : p < 0.0001 ? p.toExponential(1) : p.toFixed(lang === "es" ? 3 : 3).replace(".", lang === "es" ? "," : "."); }
 function score(list) { list = list || []; const done = list.filter(x => x.answer !== null); const k = done.filter(x => x.answer === x.x).length; return { k: k, n: done.length, of: list.length, p: list.length && done.length === list.length ? binomTail(k, done.length) : null }; }
-const PAIRS = [["chorda3", "salamander"], ["chorda3", "chorda2"]];
-// One listener's preferences by pair (a = the pair's first piano chosen), and the checks.
+const PAIRS = SUBJECT.pairs;
+// One listener's preferences by pair (a = the pair's first source chosen), and the checks.
 function prefs(s) {
  const out = PAIRS.map(() => ({ a: 0, b: 0, s: 0 })); let checks = 0, checksSame = 0;
  for (const q of (s && s.pref) || []) {
   if (q.choice === null) continue;
-  const A = pianoOf(q.one), B = pianoOf(q.two);
+  const A = sourceOf(q.one), B = sourceOf(q.two);
   if (A === B) { checks++; if (q.choice === "same") checksSame++; continue; }
   const j = PAIRS.findIndex(p => [A, B].sort().join() === p.slice().sort().join()); if (j < 0) continue;
   if (q.choice === "same") out[j].s++; else if ((q.choice === "one" ? A : B) === PAIRS[j][0]) out[j].a++; else out[j].b++;
  }
  return { pairs: out, checks: checks, checksSame: checksSame };
 }
-function pianoName(id) { return tr("piano_" + id); }
+function sourceName(id) { return tr("voice_" + id); }
 function revealTable(list, label) {
  const w = el("div", undefined, "scroll"); const tb = el("table");
  const hd = el("tr"); for (const h of [tr("trial"), tr("phrase"), "A", "B", "X", tr("answer")]) hd.appendChild(el("th", h)); tb.appendChild(hd);
  list.forEach((x, i) => {
   const row = el("tr");
-  for (const v of [label + (i + 1), PHRASE_NAMES[lang][x.phrase], pianoName(pianoOf(x.a)), pianoName(pianoOf(x.b)), x.x.toUpperCase(), x.answer === null ? "—" : x.answer.toUpperCase() + " · " + tr(x.answer === x.x ? "right" : "wrong")]) row.appendChild(el("td", v));
+  for (const v of [label + (i + 1), PHRASE_NAMES[lang][x.phrase], sourceName(sourceOf(x.a)), sourceName(sourceOf(x.b)), x.x.toUpperCase(), x.answer === null ? "—" : x.answer.toUpperCase() + " · " + tr(x.answer === x.x ? "right" : "wrong")]) row.appendChild(el("td", v));
   tb.appendChild(row);
  });
  w.appendChild(tb); return w;
@@ -565,7 +570,7 @@ function viewResults(c) {
  }
  c.appendChild(el("p", tr("p_explain"), "mute small"));
  const pr = prefs(st);
- pr.pairs.forEach((x, j) => { if (x.a + x.b + x.s) c.appendChild(el("p", tr("res_pref", { a: pianoName(PAIRS[j][0]), b: pianoName(PAIRS[j][1]), na: x.a, nb: x.b, ns: x.s }))); });
+ pr.pairs.forEach((x, j) => { if (x.a + x.b + x.s) c.appendChild(el("p", tr("res_pref", { a: sourceName(PAIRS[j][0]), b: sourceName(PAIRS[j][1]), na: x.a, nb: x.b, ns: x.s }))); });
  const r = el("div", undefined, "row"); r.style.marginTop = "12px";
  r.appendChild(btn(tr("download"), () => saveFile("listening-" + slugOf(st.listener) + "-" + KIT.slice(-6) + ".json", JSON.stringify(Object.assign({}, st, { exported: now() }), null, 1), c), "primary", "download"));
  if (!st.extraDone) r.appendChild(btn(tr(st.extraStarted ? "extra_continue" : "extra"), startExtra, "", "extra"));
@@ -577,14 +582,14 @@ function viewResults(c) {
  c.appendChild(el("h3", tr("part2")));
  const w = el("div", undefined, "scroll"); const tb = el("table"); tb.id = "reveal-pref";
  const hd = el("tr"); for (const h of ["#", tr("phrase"), tr("one"), tr("two"), tr("answer")]) hd.appendChild(el("th", h)); tb.appendChild(hd);
- st.pref.forEach((q, i) => { const row = el("tr"); for (const v of [String(i + 1), PHRASE_NAMES[lang][q.phrase], pianoName(pianoOf(q.one)), pianoName(pianoOf(q.two)), q.choice === null ? "—" : tr(q.choice) + (q.note ? " — " + q.note : "")]) row.appendChild(el("td", v)); tb.appendChild(row); });
+ st.pref.forEach((q, i) => { const row = el("tr"); for (const v of [String(i + 1), PHRASE_NAMES[lang][q.phrase], sourceName(sourceOf(q.one)), sourceName(sourceOf(q.two)), q.choice === null ? "—" : tr(q.choice) + (q.note ? " — " + q.note : "")]) row.appendChild(el("td", v)); tb.appendChild(row); });
  w.appendChild(tb); c.appendChild(w);
  const cr = el("div", undefined, "card"); cr.id = "credits"; c.parentNode.appendChild(cr);
  cr.appendChild(el("h2", tr("credits")));
- cr.appendChild(el("p", tr("credit_sal")));
+ for (const k of SUBJECT.credits.text) cr.appendChild(el("p", tr(k)));
  const links = el("p", undefined, "small");
- for (const [t, u] of [["Salamander Grand Piano V3", "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html"], ["CC BY 3.0", "https://creativecommons.org/licenses/by/3.0/"], ["Cantus", "https://cantusdaw.com"]]) { const a = el("a", t); a.href = u; a.target = "_blank"; a.rel = "noopener"; links.appendChild(a); links.appendChild(document.createTextNode(" · ")); }
- cr.appendChild(el("p", tr("credit_cantus"))); cr.appendChild(links);
+ for (const [t, u] of SUBJECT.credits.links) { const a = el("a", t); a.href = u; a.target = "_blank"; a.rel = "noopener"; links.appendChild(a); links.appendChild(document.createTextNode(" · ")); }
+ cr.appendChild(links);
  const rs = btn(tr("reset"), () => {
   if (!rs.dataset.armed) { rs.dataset.armed = "1"; rs.textContent = tr("reset_sure"); setTimeout(() => { delete rs.dataset.armed; rs.textContent = tr("reset"); }, 5000); return; }
   const old = st; st = fresh(); st.listener = old.listener; st.about = old.about;
@@ -603,28 +608,28 @@ function viewSummary(c) {
  const rows = docs.map(d => { const s = d.results || {}; return { who: d.listener || s.listener || "?", ok: s.kit === KIT, s: s, about: s.about || d.about || {} }; });
  const mine = rows.filter(r => r.ok);
  const w = el("div", undefined, "scroll"); const tb = el("table"); tb.id = "summary";
- const hd = el("tr"); for (const h of [tr("listeners"), tr("q_device"), tr("q_piano"), tr("q_audio"), tr("q_age"), "ABX 1", "ABX x", pianoName("chorda3") + " / " + pianoName("salamander"), pianoName("chorda3") + " / " + pianoName("chorda2"), "check", "min"]) hd.appendChild(el("th", h)); tb.appendChild(hd);
+ const hd = el("tr"); for (const h of [tr("listeners"), tr("q_device"), tr("q_" + PLAY), tr("q_audio"), tr("q_age"), "ABX 1", "ABX x", ...PAIRS.map(p => sourceName(p[0]) + " / " + sourceName(p[1])), "check", "min"]) hd.appendChild(el("th", h)); tb.appendChild(hd);
  for (const r of rows) {
   const row = el("tr");
   if (!r.ok) { row.appendChild(el("td", r.who)); row.appendChild(el("td", tr("other_kit"), "mute")); tb.appendChild(row); continue; }
   const a = r.about, s1 = score(r.s.abx), sx = score(r.s.extra), pr = prefs(r.s);
   const mins = r.s.started && r.s.mainDone ? Math.round((Date.parse(r.s.mainDone) - Date.parse(r.s.started)) / 60000) : "—";
-  const cells = [r.who, a.device ? tr("device_" + a.device) : "—", a.piano ? tr("piano_" + a.piano) + (a.years ? " (" + a.years + ")" : "") : "—", a.audio ? tr("audio_" + a.audio) : "—", a.age ? tr("age_" + a.age) : "—",
+  const cells = [r.who, a.device ? tr("device_" + a.device) : "—", a[PLAY] ? tr(PLAY + "_" + a[PLAY]) + (a.years ? " (" + a.years + ")" : "") : "—", a.audio ? tr("audio_" + a.audio) : "—", a.age ? tr("age_" + a.age) : "—",
    s1.n ? s1.k + "/" + s1.n + (s1.p !== null ? " p " + fmtP(s1.p) : "") : "—", sx.n ? sx.k + "/" + sx.n + (sx.p !== null ? " p " + fmtP(sx.p) : "") : "—",
-   pr.pairs[0].a + " · " + pr.pairs[0].b + " · " + pr.pairs[0].s, pr.pairs[1].a + " · " + pr.pairs[1].b + " · " + pr.pairs[1].s, pr.checksSame + "/" + pr.checks, String(mins)];
+   ...pr.pairs.map(x => x.a + " · " + x.b + " · " + x.s), pr.checksSame + "/" + pr.checks, String(mins)];
   for (const v of cells) row.appendChild(el("td", v)); tb.appendChild(row);
-  const notes = (r.s.pref || []).filter(q => q.note && q.note.trim()).map(q => PHRASE_NAMES[lang][q.phrase] + " (" + pianoName(pianoOf(q.one)) + " / " + pianoName(pianoOf(q.two)) + ", " + tr(q.choice || "same") + "): " + q.note.trim());
-  if (notes.length) { const nr = el("tr"); const td = el("td", notes.join(" · "), "mute small"); td.colSpan = 11; nr.appendChild(td); tb.appendChild(nr); }
+  const notes = (r.s.pref || []).filter(q => q.note && q.note.trim()).map(q => PHRASE_NAMES[lang][q.phrase] + " (" + sourceName(sourceOf(q.one)) + " / " + sourceName(sourceOf(q.two)) + ", " + tr(q.choice || "same") + "): " + q.note.trim());
+  if (notes.length) { const nr = el("tr"); const td = el("td", notes.join(" · "), "mute small"); td.colSpan = 9 + PAIRS.length; nr.appendChild(td); tb.appendChild(nr); }
  }
  w.appendChild(tb); c.appendChild(w);
  c.appendChild(el("p", "ABX: k/n, p · " + tr("one") + "/" + tr("two") + ": a · b · " + tr("same") + " · check: " + tr("same") + " / 2", "mute small"));
- // Pooled by group: every listener, by playback, by piano, those who passed both checks.
+ // Pooled by group: every listener, by playback, by the instrument question, those who passed both checks.
  const groups = [[tr("all"), mine]];
  for (const v of ["headphones", "monitors", "speakers"]) groups.push([tr("device_" + v), mine.filter(r => r.about.device === v)]);
- for (const v of ["no", "some", "yes"]) groups.push([tr("q_piano") + " " + tr("piano_" + v), mine.filter(r => r.about.piano === v)]);
+ for (const v of ["no", "some", "yes"]) groups.push([tr("q_" + PLAY) + " " + tr(PLAY + "_" + v), mine.filter(r => r.about[PLAY] === v)]);
  groups.push([tr("catch_ok"), mine.filter(r => { const p = prefs(r.s); return p.checks === 2 && p.checksSame === 2; })]);
  const w2 = el("div", undefined, "scroll"); const t2 = el("table"); t2.id = "groups";
- const h2 = el("tr"); for (const h of [tr("group"), "n", "ABX 1 (k/N, p)", "p < 0.05", pianoName("chorda3") + " / " + pianoName("salamander"), pianoName("chorda3") + " / " + pianoName("chorda2"), "ABX x"]) h2.appendChild(el("th", h)); t2.appendChild(h2);
+ const h2 = el("tr"); for (const h of [tr("group"), "n", "ABX 1 (k/N, p)", "p < 0.05", ...PAIRS.map(p => sourceName(p[0]) + " / " + sourceName(p[1])), "ABX x"]) h2.appendChild(el("th", h)); t2.appendChild(h2);
  for (const [name, g] of groups) {
   const full = g.filter(r => score(r.s.abx).p !== null);
   let k = 0, n = 0, sig = 0; for (const r of full) { const s = score(r.s.abx); k += s.k; n += s.n; if (s.p < 0.05) sig++; }
@@ -632,7 +637,7 @@ function viewSummary(c) {
   const P = PAIRS.map(() => ({ a: 0, b: 0, s: 0 })); for (const r of g) prefs(r.s).pairs.forEach((x, j) => { P[j].a += x.a; P[j].b += x.b; P[j].s += x.s; });
   const row = el("tr");
   for (const v of [name, String(g.length), n ? k + "/" + n + ", p " + fmtP(binomTail(k, n)) : "—", full.length ? sig + "/" + full.length : "—",
-   P[0].a + " · " + P[0].b + " · " + P[0].s + " (p " + fmtP(signTest(P[0].a, P[0].b)) + ")", P[1].a + " · " + P[1].b + " · " + P[1].s + " (p " + fmtP(signTest(P[1].a, P[1].b)) + ")",
+   ...P.map(x => x.a + " · " + x.b + " · " + x.s + " (p " + fmtP(signTest(x.a, x.b)) + ")"),
    nx ? kx + "/" + nx + ", p " + fmtP(binomTail(kx, nx)) : "—"]) row.appendChild(el("td", v));
   t2.appendChild(row);
  }
@@ -696,7 +701,7 @@ save();
 render();
 if (resumed) say("welcome_back", true);
 goOnline();
-// For the page's own browser checks (chorda_kit/abx_browser_check.mjs).
+// For the page's own browser checks (abx_kit/abx_browser_check.mjs).
 window.__abx = { st: () => st, audio: audio, render: render, unveil: unveil, binomTail: binomTail };
 </script>
 </body>

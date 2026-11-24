@@ -1,9 +1,11 @@
-"""Read one listener's results file from Chorda's blind test (`chorda_abx`'s page: the JSON a
-listener downloads and sends, or one row the owner exports from the published page's summary).
-Prints the form, the ABX score (correct of answered, and the one-sided binomial p — the chance
-of that many or more by guessing), each trial with its plays and changes, and each preference
-with its note. Which piano a token is lives in the kit's key folder (`<kit>-key/key.json`):
-pass it to name them.
+"""Read one listener's results file from a blind listening kit (the `abx_kit` page that
+Chorda's `chorda_abx` and Tympanum's `tympanum_abx` make: the JSON a listener downloads and
+sends, or one row the owner exports from the published page's summary). Prints the form, the
+ABX scores (correct of answered, and the one-sided binomial p — the chance of that many or more
+by guessing), each trial with its plays and changes, each preference with its note, and — per
+item — the ABX answers and the preferences, which say *where* a source is told apart or
+preferred. Which source a token is lives in the kit's key folder (`<kit>-key/key.json`): pass
+it to name them.
 
     python -I abx_read.py <results.json> [<kit>-key/key.json]
 
@@ -29,12 +31,14 @@ def main():
     names = {}
     if len(sys.argv) > 2:
         key = json.load(open(sys.argv[2], encoding='utf-8'))
+        if key.get('kit') and d.get('kit') and key['kit'] != d['kit']:
+            print(f"warning: the results are of kit {d['kit']}, the key of {key['kit']}")
         for tok, who in (key.get('tokens') or {}).items():
             names[tok] = who if isinstance(who, str) else who.get('piano', str(who))
     nm = lambda t: names.get(t, t)
     print('kit', d.get('kit'), 'lang', d.get('lang'), 'started', d.get('started'),
           'main done', d.get('mainDone'), 'extra done', d.get('extraDone'), 'engine', d.get('engine'))
-    print('form', d.get('about'))
+    print('listener', d.get('listener'), 'form', d.get('about'))
     print('browser', (d.get('ua') or '')[:120])
     for part in ('abx', 'extra'):
         k, n = score(d.get(part, []))
@@ -49,6 +53,34 @@ def main():
     for i, q in enumerate(d.get('pref', [])):
         print(f" pref {i + 1:2d} {q['phrase']:12s} {nm(q['one'])} / {nm(q['two'])} -> {nm(q.get('choice'))}"
               f" | {q.get('note', '')} | plays {q.get('plays')}")
+    # Per item: the ABX right of answered (part 1, extra), and each preference as
+    # "chosen > other" (or "=" for no preference); a catch question (one clip twice) as such.
+    items = []
+    for part in ('abx', 'extra', 'pref'):
+        for x in d.get(part, []):
+            if x['phrase'] not in items:
+                items.append(x['phrase'])
+    if not items:
+        return
+    print('\nper item (ABX right/answered; preferences: chosen > other, = none)')
+    for it in items:
+        cols = []
+        for part in ('abx', 'extra'):
+            k, n = score([x for x in d.get(part, []) if x['phrase'] == it])
+            cols.append(f'{part} {k}/{n}' if n else f'{part} -')
+        prefs = []
+        for q in d.get('pref', []):
+            if q['phrase'] != it or not q.get('choice'):
+                continue
+            a, b = nm(q['one']), nm(q['two'])
+            if a == b:
+                prefs.append(f"catch({a}): {'passed' if q['choice'] == 'same' else 'failed'}")
+            elif q['choice'] == 'same':
+                prefs.append(f'{a} = {b}')
+            else:
+                win, lose = (a, b) if q['choice'] == 'one' else (b, a)
+                prefs.append(f'{win} > {lose}')
+        print(f" {it:12s} {cols[0]:9s} {cols[1]:11s} {'; '.join(prefs)}")
 
 
 if __name__ == '__main__':
