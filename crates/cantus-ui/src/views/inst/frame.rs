@@ -519,18 +519,18 @@ fn shell_body(
     // rows there: the Edit view keeps them).
     let mixer_shown = (app.inst.view == View::Mixer && has_mixer(spec.kind))
         || (app.inst.view == View::Play && spec.kind == InstrumentKind::Chorda);
-    let br = (!matches!(
+    let bands = (!matches!(
         spec.kind,
         InstrumentKind::Dancer | InstrumentKind::AcousticDrums
     ) && !mixer_shown)
-        .then(|| {
-            let bands = Bands {
-                macros_open: !app.inst.macros_closed,
-                mods_open: !app.inst.mods_closed,
-                keyboard: keyboard_shown(app),
-            };
-            shell::layout_bands(&mut grid, s, &bands)
+        .then(|| Bands {
+            macros_open: !app.inst.macros_closed,
+            mods_open: !app.inst.mods_closed,
+            keyboard: keyboard_shown(app),
         });
+    let br = bands
+        .as_ref()
+        .map(|bands| shell::layout_bands(&mut grid, s, bands));
     let area = grid.rest();
     let mut view = ui.new_child(
         egui::UiBuilder::new()
@@ -547,16 +547,30 @@ fn shell_body(
         View::Edit if spec.kind == InstrumentKind::AcousticDrums => View::Play,
         v => v,
     };
+    // r42 fix4-narrow — below the room a view was laid out for, it scrolls instead of
+    // squeezing its cards over each other (the narrowest window cut and stacked Calor's,
+    // Bassus's and others' cards; Exemplar reflows instead).
+    let least = least_view(spec.kind, shown, s, bands.as_ref());
     match shown {
+        View::Play if least.x > area.width() + 0.5 || least.y > area.height() + 0.5 => {
+            egui::ScrollArea::new([least.x > area.width() + 0.5, least.y > area.height() + 0.5])
+                .id_salt(("inst-play", track.0))
+                .show(&mut view, |ui| {
+                    let size = area.size().max(least);
+                    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+                    play(app, &mut inner, track, spec, s)
+                });
+        }
         View::Play => play(app, &mut view, track, spec, s),
         // r37:finish — the Edit view lays its sections out in at least `BODY_MIN` and
         // scrolls when the window is shorter (a short window crushed sections to their
         // headers and cut their labels).
         View::Edit => {
-            egui::ScrollArea::vertical()
+            egui::ScrollArea::new([least.x > area.width() + 0.5, true])
                 .id_salt(("inst-edit", track.0))
                 .show(&mut view, |ui| {
-                    at_least(ui, s, |ui| body(app, ui, track, spec, s))
+                    at_least(ui, s, least.x, |ui| body(app, ui, track, spec, s))
                 });
         }
         View::Matrix => {
@@ -583,14 +597,57 @@ fn shell_body(
     }
 }
 
+/// The room an instrument's view was laid out for, at this style's scale: the room it has in
+/// the shell's own size with the same bands under it. // r42 fix4-narrow
+fn designed_view(s: &Style, bands: Option<&Bands>) -> egui::Vec2 {
+    let size = shell::INSTRUMENT * s.k;
+    let body = Rect::from_min_size(
+        Pos2::ZERO,
+        egui::vec2(size.x, size.y - (shell::HEADER + shell::FOOTER) * s.k),
+    );
+    let mut grid = shell::Grid::new(body, s);
+    if let Some(b) = bands {
+        shell::layout_bands(&mut grid, s, b);
+    }
+    grid.rest().size()
+}
+
+/// The least room `view` of `kind` lays itself out in, at this style's scale (zero where it
+/// has none): below it the view scrolls, never squeezes. The views whose cards would cut
+/// or cross in less — the width or the height they were laid out for — keep it; Exemplar
+/// flows its cards into more rows instead, and Chorda and Tympanum size their own.
+/// r42 fix4-narrow
+fn least_view(kind: InstrumentKind, view: View, s: &Style, bands: Option<&Bands>) -> egui::Vec2 {
+    let designed = designed_view(s, bands);
+    let (w, h) = keeps_designed(kind, view);
+    egui::vec2(
+        if w { designed.x } else { 0.0 },
+        if h { designed.y } else { 0.0 },
+    )
+}
+
+/// Whether `view` of `kind` keeps the width and the height it was laid out for (and scrolls
+/// in less) — [`least_view`]'s table. r42 fix4-narrow
+pub fn keeps_designed(kind: InstrumentKind, view: View) -> (bool, bool) {
+    use InstrumentKind as K;
+    match (kind, view) {
+        // Exemplar flows its cards into more rows: only its height is kept.
+        (K::Sampler, View::Play) => (false, true),
+        (K::Sampler | K::Chorda | K::AcousticDrums, _) => (false, false),
+        (_, View::Play) => (true, true),
+        (_, View::Edit) => (true, false),
+        _ => (false, false),
+    }
+}
+
 /// The least height an instrument's Play or Edit view lays its sections out in, at 100 %:
 /// below it the view scrolls instead of crushing them. // r37:finish
 pub const BODY_MIN: f32 = 600.0;
 
 /// Run `f` in a child as wide as `ui` and as tall as `ui`'s room or [`BODY_MIN`], whichever
 /// is more, the height allocated so the scroll area around it scrolls. // r37:finish
-fn at_least(ui: &mut egui::Ui, s: &Style, f: impl FnOnce(&mut egui::Ui)) {
-    let w = ui.available_width();
+fn at_least(ui: &mut egui::Ui, s: &Style, least_w: f32, f: impl FnOnce(&mut egui::Ui)) {
+    let w = ui.available_width().max(least_w);
     let h = ui.available_height().max(BODY_MIN * s.k);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect));
@@ -886,22 +943,28 @@ fn macro_band(
     if shown.is_empty() {
         shown = (0..4).collect();
     }
-    let w = body.width() / shown.len().max(4) as f32;
     let d = KnobSize::L.diameter() * k;
-    for (slot, &m) in shown.iter().enumerate() {
+    // r41:fides-all — a factory preset names its macros by locale key (Fides's
+    // `fides.macro.*`): shown in the window's language; a name typed by hand as it is.
+    let names: Vec<String> = shown
+        .iter()
+        .map(|&m| {
+            spec.text(MACRO_NAME_KEYS[m])
+                .map(macro_name)
+                .unwrap_or_else(|| tf("inst.macro_n", &[("n", &(m + 1).to_string())]))
+        })
+        .collect();
+    let widths = macro_columns(ui.ctx(), s, body.width(), &names);
+    let mut left = body.left();
+    for ((&m, name), w) in shown.iter().zip(names).zip(widths) {
         let cell = Rect::from_min_size(
-            Pos2::new(body.left() + w * slot as f32, body.top()),
+            Pos2::new(left, body.top()),
             egui::vec2(w, body.height()),
         );
+        left += w;
         let c = Pos2::new(cell.left() + d * 0.5 + 4.0 * k, cell.center().y);
         let knob_rect = Rect::from_center_size(c, egui::Vec2::splat(d + 6.0 * k));
         let key: &'static str = MACRO_KEYS[m];
-        // r41:fides-all — a factory preset names its macros by locale key (Fides's
-        // `fides.macro.*`): shown in the window's language; a name typed by hand as it is.
-        let name = spec
-            .text(MACRO_NAME_KEYS[m])
-            .map(macro_name)
-            .unwrap_or_else(|| tf("inst.macro_n", &[("n", &(m + 1).to_string())]));
         let mut v = spec.get(key);
         let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
         let w = wire(app, track, key, &mut v, (0.0, 1.0, false), s, &mut rings);
@@ -953,6 +1016,45 @@ fn macro_band(
         });
         drag_source(ui, lr, key);
     }
+}
+
+/// The macro band's columns: a quarter of the band each (or an eighth, all eight shown), and
+/// more for a name that needs it — the knob, the name beside it whole, the room they leave
+/// shared among the others (r42 fix4-narrow: at the narrowest window "BRIGHTNESS" was cut
+/// to "BRIGHTN…" in a quarter while half the band stood empty).
+fn macro_columns(ctx: &egui::Context, s: &Style, width: f32, names: &[String]) -> Vec<f32> {
+    let k = s.k;
+    let n = names.len().max(1) as f32;
+    let base = width / names.len().max(4) as f32;
+    let value = ktext::measure(
+        ctx,
+        &Text::new("100 %", Role::Value, egui::Color32::TRANSPARENT),
+        s.tk(),
+    )
+    .x;
+    let needs: Vec<f32> = names
+        .iter()
+        .map(|name| {
+            let w = ktext::measure(
+                ctx,
+                &Text::new(name, Role::Label, egui::Color32::TRANSPARENT).caps(true),
+                s.tk(),
+            )
+            .x;
+            // The knob and its margin, the gap to the words, the words, their margin.
+            4.0 * k + KnobSize::L.diameter() * k + 6.0 * k + w.max(value) + 4.0 * k + 1.0
+        })
+        .collect();
+    let wide: Vec<f32> = needs.iter().map(|w| w.max(base)).collect();
+    if wide.iter().sum::<f32>() <= width {
+        return wide;
+    }
+    let sum: f32 = needs.iter().sum();
+    if sum <= width {
+        let spare = (width - sum) / n;
+        return needs.iter().map(|w| w + spare).collect();
+    }
+    needs.iter().map(|w| w * width / sum).collect()
 }
 
 /// Make `rect` a drag source for the modulation source `tag`.

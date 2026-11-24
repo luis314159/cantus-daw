@@ -178,6 +178,42 @@ pub struct CardRects {
     pub body: Rect,
 }
 
+/// The width a card's title bar needs to show `look`'s title whole and, when it has a type
+/// selector, the longest of `names` whole in it (the selector holds the bar's right half,
+/// so the bar is twice its longer half): what a layout that flows its cards asks for each
+/// one, beside its cells (r42 fix4-narrow: Exemplar's LFO 2 card, as wide as its one cell,
+/// cut "Triángulo" to "Triá…").
+pub fn title_need(ctx: &egui::Context, s: &Style, look: &CardLook<'_>, names: &[&str]) -> f32 {
+    let (face, caps) = s.skin.lettering.title();
+    let tt = Text {
+        src: look.title,
+        role: Role::Section,
+        caps,
+        align: Align2::LEFT_CENTER,
+        policy: Policy::Elide(Elide::End),
+        color: Color32::TRANSPARENT,
+    };
+    let title = text::measure_face(ctx, &tt, s.tk(), face).x;
+    // The LED (or the hue's tab) before the title, as `card` places them.
+    let lead = if look.switchable {
+        s.s(23.0)
+    } else {
+        s.s(17.0)
+    };
+    let menu = if look.menu { s.s(23.0) } else { s.s(8.0) };
+    if look.selector.is_none() {
+        return lead + title + menu + s.s(2.0);
+    }
+    let name = names
+        .iter()
+        .map(|n| text::measure(ctx, &Text::new(n, Role::Control, Color32::TRANSPARENT), s.tk()).x)
+        .fold(0.0, f32::max);
+    // Half for the title and the gap before the selector; half for ‹ name › and the edge.
+    let left = lead + title + s.s(6.0);
+    let right = 2.0 * (s.s(10.0) + s.s(2.0)) + name + menu;
+    2.0 * left.max(right) + s.s(2.0)
+}
+
 pub fn rects(rect: Rect, s: &Style, look: &CardLook<'_>) -> CardRects {
     let title = Rect::from_min_size(rect.min, Vec2::new(rect.width(), s.s(TITLE)));
     let led = look.switchable.then(|| {
