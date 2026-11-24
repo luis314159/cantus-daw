@@ -294,7 +294,7 @@ pub struct CantusApp {
     pub unsaved_prompt: Option<views::unsaved::Then>,
     /// The export dialog and a running export (ADR 0033).
     pub export: views::export::ExportUi,
-    /// Project ▸ Tuning and MTS-ESP's link (round 42, ADR 0155-0156). // r42:tuning-face
+    /// Options ▸ Tuning… and MTS-ESP's link (round 42, ADR 0155-0156). // r42:tuning-face
     pub tuning: views::tuning::TuningUi,
     auditions: Vec<(TrackId, u8, Instant)>,
     frame_times: Vec<f32>,
@@ -3478,6 +3478,9 @@ impl CantusApp {
         self.session_view.clipboard_scene = None;
         self.modulators.mapping = None;
         self.modulators.popup = None;
+        // r42 fix-ui — the Tuning window on the old project closes, its cadence released
+        // (a `Target::Track` id would name the new project's track of that id).
+        views::tuning::project_replaced(self);
         self.pitch.view.selected.clear();
         self.pitch.view.quantise_to = None;
         crate::external_service::project_replaced(self);
@@ -4075,6 +4078,13 @@ impl CantusApp {
         if self.export.dialog.is_some() {
             return;
         }
+        // r42 fix-ui — so is the Tuning window: Esc closes it (its own), and of the
+        // keymap only Undo, Redo and its own key pass; the typing piano lets go of what it
+        // holds and plays nothing behind the veil.
+        if views::tuning::holds_keys(self) {
+            self.tuning_window_keys(ctx);
+            return;
+        }
         // The score's keys while it has them (ADR 0075): before the keymap's.
         crate::score::keys(self, ctx);
         // A focused fader moves with the arrow keys. This dispatch runs before any panel
@@ -4113,6 +4123,11 @@ impl CantusApp {
         arrows_taken: bool,
         taken: &dyn Fn(&crate::keymap::Keymap, Action) -> bool,
     ) {
+        if views::tuning::holds_keys(self) {
+            // r42 fix-ui — a view forwarding its keys while the Tuning window is open.
+            self.tuning_window_keys(ctx);
+            return;
+        }
         let pass = crate::windows::pass_nr(ctx);
         if self.keys_pass == Some(pass) {
             return;
@@ -4152,6 +4167,26 @@ impl CantusApp {
         if self.keyboard_piano {
             for ev in self.keyboard.poll(ctx) {
                 self.apply_key_event(ev);
+            }
+        }
+    }
+
+    /// r42 fix-ui — one pass's keys while the Tuning window is open (it is modal, as the
+    /// export dialog): Undo, Redo and its own shortcut run; nothing else reaches the
+    /// project behind it (Delete, Space, Ctrl+N …), and the typing piano releases what it
+    /// holds without playing more.
+    fn tuning_window_keys(&mut self, ctx: &egui::Context) {
+        let pass = crate::windows::pass_nr(ctx);
+        if self.keys_pass == Some(pass) {
+            return;
+        }
+        self.keys_pass = Some(pass);
+        for ev in self.keyboard.release_all() {
+            self.apply_key_event(ev);
+        }
+        for action in self.keymap.pressed(ctx, false, false) {
+            if views::tuning::passes(action) {
+                self.run_action(action);
             }
         }
     }
@@ -4452,7 +4487,7 @@ impl CantusApp {
                     self.workspace.toggle_fold(p);
                 }
             }
-            // r42:tuning-face — Project ▸ Tuning (ADR 0155), or closed when open.
+            // r42:tuning-face — Options ▸ Tuning… (ADR 0155), or closed when open.
             OpenTuning => {
                 if self.tuning.open.is_some() {
                     views::tuning::close(self);
@@ -4995,7 +5030,7 @@ impl CantusApp {
         views::record_bar::frame(self, ctx); // r36:record — its questions
         views::interop::frame(self, ctx);
         views::export_dialog::show(self, ctx);
-        views::tuning::show(self, ctx); // r42:tuning-face — Project ▸ Tuning
+        views::tuning::show(self, ctx); // r42:tuning-face — Options ▸ Tuning…
         views::tuning::frame(self, ctx); // r42:tuning-face — its audition, MTS-ESP's master
         views::picker_warm::frame(self, ctx); // r42:tuning-face — pictures made ahead
         crate::video_export::frame(self, ctx); // r35:video — the video dialog and its export

@@ -25,7 +25,7 @@ is a built-in master today.
   refreshes each instrument's `TuningTable` from it once per block on the audio thread (the
   read is lock-free and allocates nothing — `rt_memory` holds it), and an offline render
   takes one table at its start (the master can change live; a render is a snapshot).
-- **Master:** *Be the MTS-ESP master* (Project ▸ Tuning) registers Cantus and publishes the
+- **Master:** *Be the MTS-ESP master* (Options ▸ Tuning…) registers Cantus and publishes the
   project's table whenever it changes, so hosted plug-ins that are clients (Surge XT, Vital,
   Pianoteq …) follow it; refused, with the reason, when another master is registered.
 - **Our own instruments never need it** (ADR 0155 hands them the table); MTS-ESP is for

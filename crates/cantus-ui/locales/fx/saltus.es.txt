@@ -33,7 +33,7 @@ fx.saltus.wsrc = El whammy lo toca
 fx.saltus.sub1 = Una octava abajo
 fx.saltus.sub2 = Dos octavas abajo
 fx.saltus.up1 = Una octava arriba
-fx.saltus.a4 = La4 de referencia
+fx.saltus.a4 = A4 de referencia
 fx.saltus.out = Salida
 # Las opciones de cada parámetro escalonado.
 fx.saltus.mode.0 = Desplazar
@@ -102,7 +102,7 @@ saltus.l.up1 = Una arriba
 saltus.l.counts = Cuenta en
 saltus.l.key = Tonalidad
 saltus.l.scale = Escala
-saltus.l.reference = La4 de referencia
+saltus.l.reference = A4 de referencia
 saltus.l.pedal = Pedal
 saltus.l.heel = Talón
 saltus.l.toe = Punta

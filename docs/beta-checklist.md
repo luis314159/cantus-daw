@@ -1059,9 +1059,11 @@ renderizador de la app en CPU, no en tu pantalla. En la release integrada:
 ### Ronda 42 — la afinación del proyecto en cada instrumento (ADR 0155) <!-- r42:tuning -->
 
 - [ ] **Escucha la afinación** en Chorda, Exemplar, Calor y Organum: un proyecto en
-  *Werckmeister III en Mi bemol, La = 415* (ventana *Proyecto ▸ Afinación*). Toca una cadencia
-  en Mi bemol mayor y otra en Fa sostenido mayor: la primera debe sonar más pura (terceras
-  más quietas), la segunda más tensa — eso es el temperamento, no un error. ¿Te suena bien?
+  *Werckmeister III en Eb, A4 = 415* (ventana *Opciones ▸ Afinación…*, Ctrl+Shift+T). Toca **a
+  mano** I–IV–V–I en Eb mayor (Eb–G–Bb, Ab–C–Eb, Bb–D–F) y luego en F# mayor (F#–A#–C#,
+  B–D#–F#, C#–E#–G#): la primera debe sonar más pura (terceras más quietas), la segunda más
+  tensa — eso es el temperamento, no un error. (El botón *Tocar una cadencia* suena siempre en
+  la tónica del temperamento, aquí Eb.) ¿Te suena bien?
 - [ ] **Un sintetizador de hardware con MTS** (si tienes uno que lea *MIDI Tuning Standard*,
   p. ej. muchos de Sequential, Novation, Korg o un módulo con MTS): crea su unidad externa
   (*Equipo externo*), enciende **MTS** en su fila y pon el proyecto en Werckmeister III. El
@@ -1082,7 +1084,7 @@ Lo verificado solo en emulación: MTS-ESP se probó contra una biblioteca falsa 
 símbolos C (`crates/cantus-rt/tests/fake_mts/`); ningún equipo de esta ronda tenía `LIBMTS`.
 
 - [ ] **Instalar MTS-ESP** (el *MTS-ESP Mini* de ODDSound, gratuito, o Surge XT) en Windows (y,
-  si puedes, en macOS y Linux). Abre Cantus: *Opciones ▸ Afinación…* (Ctrl+Alt+T). La banda
+  si puedes, en macOS y Linux). Abre Cantus: *Opciones ▸ Afinación…* (Ctrl+Shift+T). La banda
   *MTS-ESP* debe decir *Conectado* y la opción *MTS-ESP* del sistema ya no debe estar atenuada.
   Sin instalarlo, debe decir que no está instalado y por qué.
 - [ ] **Cantus como cliente de Surge XT**: en Surge XT (como programa aparte, o como plug-in en
@@ -1105,12 +1107,18 @@ símbolos C (`crates/cantus-rt/tests/fake_mts/`); ningún equipo de esta ronda t
   negarse diciendo que otro programa dirige. Cierra Cantus a la fuerza siendo maestro
   (Administrador de tareas), ábrelo otra vez: si MTS-ESP lo ofrece, *Reiniciar MTS-ESP* debe
   liberar el lugar.
-- [ ] **Escuchar la cadencia** (*Tocar una cadencia en …*) en Chorda con Equal, Werckmeister III
-  en Do y en Fa#, mesotónico de un cuarto de coma en Do y en Fa#: las terceras de Do en el
-  mesotónico deben sonar puras y quietas; las de Fa# ásperas. ¿El círculo de quintas cuenta lo
-  mismo que oyes?
+- [ ] **Escuchar la cadencia** (*Tocar una cadencia en …*) en Chorda con Igual, Werckmeister III
+  con *Tónica* = C y mesotónico de un cuarto de coma con *Tónica* = C: la cadencia suena en la
+  tónica del temperamento (aquí C), y en el mesotónico sus terceras deben sonar puras y quietas.
+  Luego, sin cambiar la tónica, toca **a mano** I–IV–V–I en F# (F#–A#–C#, B–D#–F#, C#–E#–G#):
+  en el mesotónico debe sonar áspera (girar la tónica a F# la volvería pura: el temperamento
+  entero se mueve con ella). Con una pista con afinación propia seleccionada, la cadencia del
+  proyecto debe sonar en una pista que sigue al proyecto (la ventana dice cuál). ¿El círculo de
+  quintas cuenta lo mismo que oyes?
 - [ ] **Mirar la ventana** en tu pantalla, en Slate Lapis Night y Paper, al 100 % y al 200 %,
   en inglés y en español: nada se corta ni se solapa; la línea de la barra superior dice la
-  afinación solo cuando no es la predeterminada.
+  afinación solo cuando no es la predeterminada. Con la ventana abierta, Supr, Espacio y Ctrl+N
+  no deben tocar la canción de detrás (Ctrl+Z sí deshace); en Ubuntu/GNOME, Ctrl+Shift+T debe
+  abrirla (Ctrl+Alt+T abre la terminal del sistema, por eso no es su atajo).
 - [ ] **macOS**: la app firmada carga `/Library/Application Support/MTS-ESP/libMTS.dylib` (el
   permiso *disable-library-validation*).

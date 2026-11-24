@@ -69,8 +69,9 @@ fn name_into(app: &CantusApp, out: &mut String) {
     }
 }
 
-/// The summary under the name, made again only when the song's facts change.
-fn with_summary<R>(app: &CantusApp, f: impl FnOnce(&str) -> R) -> R {
+/// The summary under the name, made again only when the song's facts change; `f` gets the
+/// whole line and where its tuning part begins (its length without it).
+fn with_summary_parts<R>(app: &CantusApp, f: impl FnOnce(&str, usize) -> R) -> R {
     SUMMARY.with(|c| {
         let mut c = c.borrow_mut();
         let pr = app.project();
@@ -78,10 +79,35 @@ fn with_summary<R>(app: &CantusApp, f: impl FnOnce(&str) -> R) -> R {
         let key = (pr.tracks.len(), pr.strips.len(), pr.content_end().0, tuning);
         if c.0 != Some(key) {
             c.0 = Some(key);
-            c.1 = summary(app);
+            let (line, base) = summary_parts(app);
+            c.1 = line;
+            c.2 = base;
         }
-        f(&c.1)
+        f(&c.1, c.2)
     })
+}
+
+/// The summary under the name, whole.
+fn with_summary<R>(app: &CantusApp, f: impl FnOnce(&str) -> R) -> R {
+    with_summary_parts(app, |w, _| f(w))
+}
+
+/// r42 fix-ui (review ui#17): the longest form of `full` that `fits` — the whole line, then
+/// without its last " · " part, and so on down to the song's own line (`full[..base]`):
+/// the tuning's parts go whole, never cut to "A4…". The song's line itself is elided by
+/// the painter as before when even it does not fit.
+pub fn fit_summary(full: &str, base: usize, fits: impl Fn(&str) -> bool) -> &str {
+    let base = base.min(full.len());
+    let mut end = full.len();
+    loop {
+        if end <= base || fits(&full[..end]) {
+            return &full[..end.max(base)];
+        }
+        end = match full[base..end].rfind(" \u{b7} ") {
+            Some(i) => base + i,
+            None => base,
+        };
+    }
 }
 
 /// The menus block's width in each form ([`Brand`] order: full, compact, minimal, bare).
@@ -191,7 +217,11 @@ fn name_line(app: &CantusApp, ui: &Ui, line: Rect, summary: bool, s: &Style) {
                 let sr =
                     Rect::from_min_max(Pos2::new(nr.right() + 8.0 * s.k, line.top()), line.max);
                 if sr.width() > 20.0 * s.k {
-                    with_summary(app, |w| {
+                    with_summary_parts(app, |full, base| {
+                        // The tuning's parts go whole when the room is short (review ui#17).
+                        let w = fit_summary(full, base, |w| {
+                            p::measure(&ctx, w, Role::Label, 11.0, s) <= sr.width()
+                        });
                         p::words(b, sr, w, Role::Label, 11.0, ink3(s), Align2::LEFT_CENTER, s)
                     });
                 }
@@ -930,12 +960,20 @@ type SummaryKey = Option<(usize, usize, i64, u64)>;
 thread_local! {
     /// The summary line and what it was made from: made again only when that changes (no
     /// allocation a frame).
-    static SUMMARY: RefCell<(SummaryKey, String)> = const { RefCell::new((None, String::new())) };
+    static SUMMARY: RefCell<(SummaryKey, String, usize)> =
+        const { RefCell::new((None, String::new(), 0)) };
 }
 
 /// The song in a line under its name: its tracks, its bars and its
 /// length. // r37:finish
+#[cfg(test)]
 pub fn summary(app: &CantusApp) -> String {
+    summary_parts(app).0
+}
+
+/// [`summary`] and the length of the song's own line in it (where the tuning's part, when
+/// there is one, begins).
+pub fn summary_parts(app: &CantusApp) -> (String, usize) {
     let p = app.project();
     let end = p.content_end();
     let bar = views::bars::bar_len(p, cantus_core::Ticks(0)).0.max(1);
@@ -950,14 +988,38 @@ pub fn summary(app: &CantusApp) -> String {
         ],
     );
     // r42:tuning-face — only when the song is not in the default tuning (ADR 0155 §5).
+    let base = line.len();
     match views::tuning::words::project_summary(p) {
-        Some(tuning) => format!("{line} \u{b7} {tuning}"),
-        None => line,
+        Some(tuning) => (format!("{line} \u{b7} {tuning}"), base),
+        None => (line, base),
     }
 }
 
 #[cfg(test)]
 mod summary_tests {
+    /// r42 fix-ui (review ui#17): short of room, the tuning's parts go whole from the end —
+    /// "· A415" first, then the temperament — never cut to "A4…"; the song's line stays.
+    #[test]
+    fn a_short_bar_drops_the_tunings_parts_whole() {
+        let full = "4 tracks \u{b7} 4 bars \u{b7} 0:08 \u{b7} Werckmeister III in Eb \u{b7} A415";
+        let base = "4 tracks \u{b7} 4 bars \u{b7} 0:08".len();
+        let room = |n: usize| move |w: &str| w.chars().count() <= n;
+        assert_eq!(super::fit_summary(full, base, room(200)), full);
+        assert_eq!(
+            super::fit_summary(full, base, room(55)),
+            "4 tracks \u{b7} 4 bars \u{b7} 0:08 \u{b7} Werckmeister III in Eb"
+        );
+        assert_eq!(
+            super::fit_summary(full, base, room(30)),
+            "4 tracks \u{b7} 4 bars \u{b7} 0:08"
+        );
+        assert_eq!(
+            super::fit_summary(full, base, room(5)),
+            "4 tracks \u{b7} 4 bars \u{b7} 0:08"
+        );
+        assert_eq!(super::fit_summary("9 tracks", 8, room(3)), "9 tracks");
+    }
+
     /// The song's summary line under its name: its tracks, bars and length (`dir-a`:
     /// "9 tracks · 64 bars · 2:03").
     #[test]

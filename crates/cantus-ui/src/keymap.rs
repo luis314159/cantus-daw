@@ -280,7 +280,7 @@ pub enum Action {
     PreviousArea,
     /// The preset browser on the selected track's instrument (Ctrl+F: find a preset).
     BrowsePresets,
-    /// Project ▸ Tuning (Ctrl+Alt+T): the song's tuning (round 42, ADR 0155). // r42:tuning-face
+    /// Options ▸ Tuning… (Ctrl+Shift+T): the song's tuning (round 42, ADR 0155). // r42:tuning-face
     OpenTuning,
 }
 
@@ -1268,14 +1268,12 @@ fn common() -> Vec<(Action, Binding)> {
         // Ctrl+F finds a preset for the selected track's instrument (Ableton's Ctrl+F finds
         // in its browser).
         (BrowsePresets, Binding::cmd(Key::F)),
-        // r42:tuning-face — Ctrl+Alt+T: the song's tuning (ADR 0155).
-        (
-            OpenTuning,
-            Binding {
-                alt: true,
-                ..Binding::cmd(Key::T)
-            },
-        ),
+        // r42:tuning-face — Ctrl+Shift+T (⌘⇧T on a Mac): the song's tuning (ADR 0155). Not
+        // Ctrl+Alt+T, which GNOME, Ubuntu and most Linux desktops take for the terminal before
+        // any application sees it (r42 fix-ui); Ctrl+Shift+T is no system's on Windows, Linux
+        // desktops or macOS, and free in every preset (T for tuning; Ctrl+T is the typing
+        // piano, and the piano never reads a key held with a modifier).
+        (OpenTuning, Binding::cmd_shift(Key::T)),
         (PreviousArea, Binding::cmd_shift(Key::F6)),
         (
             MaximizeArea,
@@ -1792,10 +1790,10 @@ struct KeymapFile {
 /// version 17 insert and delete time and the ripple mode (round 40, ADR 0116); version 18
 /// the selection to a new bus (ADR 0147); version 19 several screens' layouts (Alt+1 …
 /// Alt+9), full screen (F11), *Move to a new window* (Shift+F11) and the screens map
-/// (Ctrl+F11) (ADR 0148); version 20 the song's tuning (Ctrl+Alt+T, round 42, ADR 0155).
+/// (Ctrl+F11) (ADR 0148); version 20 the song's tuning (Ctrl+Shift+T, round 42, ADR 0155).
 pub const FILE_VERSION: u32 = 20; // r42:tuning-face
 
-/// Actions added in version 20 (round 42): Ctrl+Alt+T opens Project ▸ Tuning.
+/// Actions added in version 20 (round 42): Ctrl+Shift+T opens Options ▸ Tuning….
 const NEW_IN_V20: [Action; 1] = [Action::OpenTuning]; // r42:tuning-face
 
 /// Actions added in version 18 (ADR 0147): Ctrl+G routes the selection to a new bus.
@@ -2226,6 +2224,44 @@ play-pause = [\"Alt+D\"]
         }
     }
 
+    /// r42 fix-ui (review reach#7): a keymap of version 19 gains the tuning's key,
+    /// Ctrl+Shift+T, in every preset; one that gave Ctrl+Shift+T to something else keeps it
+    /// (the tuning stays in the Options menu and the palette); and no preset gives the
+    /// tuning a key a desktop takes first (Ctrl+Alt+T, GNOME's terminal).
+    #[test]
+    fn keymap_19_gains_the_tuning_key_where_it_is_free() {
+        for preset in ["cantus", "fl-studio", "live", "bitwig", "macos"] {
+            let map = Keymap::from_toml(&format!("version = 19\npreset = \"{preset}\"\n"))
+                .expect("reads");
+            assert_eq!(
+                map.bindings_for(Action::OpenTuning),
+                &[Binding::cmd_shift(Key::T)],
+                "{preset}"
+            );
+        }
+        let taken = "version = 19
+preset = \"custom\"
+[bindings]
+save-as = [\"Ctrl+Shift+T\"]
+";
+        let map = Keymap::from_toml(taken).expect("reads");
+        assert_eq!(
+            map.bindings_for(Action::SaveAs),
+            &[Binding::cmd_shift(Key::T)]
+        );
+        assert!(map.bindings_for(Action::OpenTuning).is_empty());
+        let gnome = Binding {
+            alt: true,
+            ..Binding::cmd(Key::T)
+        };
+        for p in Preset::ALL {
+            assert!(
+                !p.keymap().bindings_for(Action::OpenTuning).contains(&gnome),
+                "{p:?}"
+            );
+        }
+    }
+
     /// Round 33 (ADR 0077): a keymap of version 13 gains the session's keys where they are
     /// free, and one that gave Enter to something else keeps it.
     #[test]
@@ -2261,7 +2297,7 @@ play-pause = [\"Enter\"]
             &[Binding::key(Key::Enter)]
         );
         assert!(map.bindings_for(Action::SessionLaunch).is_empty());
-        // r42:tuning-face — version 20: the song's tuning (Ctrl+Alt+T).
+        // r42:tuning-face — version 20: the song's tuning (Ctrl+Shift+T).
         assert_eq!(FILE_VERSION, 20);
         // Every preset gives the session's keys and none of them twice.
         for p in Preset::ALL {

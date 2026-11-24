@@ -26,9 +26,10 @@ use cantus_ui::views::workspace_device as device;
 use cantus_ui::{raster, welcome_project, CantusApp};
 use std::path::{Path, PathBuf};
 
-const KINDS: [&str; 9] = [
+const KINDS: [&str; 10] = [
     "equal",
     "werck",
+    "narrow",
     "follow",
     "scale",
     "track",
@@ -38,6 +39,8 @@ const KINDS: [&str; 9] = [
     "chorda-plain",
 ];
 const SIZE: egui::Vec2 = egui::vec2(1440.0, 900.0);
+/// A narrow screen (r42 fix-ui): the window as one scrolling column.
+const NARROW: egui::Vec2 = egui::vec2(760.0, 860.0);
 
 fn tests_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cantus-core/tests/data/tuning-library")
@@ -56,9 +59,9 @@ fn set_up(app: &mut CantusApp, kind: &str) -> Option<Target> {
     let werck = temper(Temperament::WerckmeisterIii, 3, false, 415.0);
     match kind {
         "equal" => Some(Target::Project),
-        "werck" | "inspector" | "chorda" => {
+        "werck" | "narrow" | "inspector" | "chorda" => {
             tuning::set(app, Target::Project, werck);
-            (kind == "werck").then_some(Target::Project)
+            (kind == "werck" || kind == "narrow").then_some(Target::Project)
         }
         "follow" => {
             app.exec(Command::SetProjectKey {
@@ -150,7 +153,7 @@ fn shoot(dir: &Path, kind: &str, dark: bool, zoom: f32) {
     let mut frame = 0;
     raster::shoot_at(
         &ctx,
-        SIZE,
+        if kind == "narrow" { NARROW } else { SIZE },
         zoom,
         12,
         Some(&path),

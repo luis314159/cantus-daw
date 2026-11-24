@@ -74,10 +74,24 @@ pub fn order(app: &mut CantusApp) -> Vec<Subject> {
     out
 }
 
-/// Once a frame (the app's pass): a step of the warm-up when the window is quiet and the
-/// picker is closed (an open picker pumps its pictures itself, the warm-up's among them).
+/// Once a frame the app paints (never a frame of its own — r42 fix-ui: round 38's rest,
+/// `idle_repaint_e2e`): the list queued once the start-up is under way, the runner started
+/// on it (`Thumbs::warm_start`), and its gate set — open at the instant the start-up's delay
+/// and a quiet hand allow, closed while the song plays or records or the picker is open.
+/// At rest no frame is painted and the runner goes on by itself; what it finished is taken
+/// in by the next frame painted.
 pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
-    if !app.picker_view.thumbs.enabled || app.picker_warm.done || app.picker.is_some() {
+    if !app.picker_view.thumbs.enabled || app.picker_warm.done {
+        return;
+    }
+    let gate = app.picker_view.thumbs.gate();
+    // The picker open pumps its pictures itself, the runner's among them: it waits, and a
+    // picture it finishes asks for its frame (a tile shows it).
+    if app.picker.is_some() {
+        if let Some(g) = &gate {
+            g.close();
+            g.set_wake(true);
+        }
         return;
     }
     let (now, input) = ctx.input(|i| {
@@ -88,39 +102,58 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     if input {
         app.picker_warm.last_input = now;
     }
-    let wait_start = started + app.picker_warm.start_delay - now;
-    let wait_quiet = app.picker_warm.last_input + app.picker_warm.quiet - now;
-    let wait = wait_start.max(wait_quiet);
-    if wait > 0.0 {
-        // Wake once when it may begin; no frame is asked for before.
-        ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait));
+    if let Some(g) = &gate {
+        g.set_wake(false);
+    }
+    // r42 fix-ui (review ui#12): never while the song plays or records — the pictures can
+    // wait, the audio's cores and caches cannot; the quiet is counted again from the stop.
+    if app.engine.is_playing() || app.is_recording() {
+        app.picker_warm.last_input = now;
+        if let Some(g) = &gate {
+            g.close();
+        }
         return;
     }
-    if !app.picker_warm.queued {
+    if !app.picker_warm.queued && now - started >= QUEUE_AFTER {
         app.picker_warm.queued = true;
         let subjects = order(app);
-        // The worker draws in the look this thread draws in.
-        let s = &app.settings;
-        app.picker_view
-            .thumbs
-            .set_worker_look(super::picker_thumbs::WorkerLook {
-                faces: s.unit_faces,
-                colourways: s
-                    .unit_colourways
-                    .iter()
-                    .map(|(u, c)| (u.clone(), c.clone()))
-                    .collect(),
-                views: s
-                    .unit_views
-                    .iter()
-                    .map(|(u, v)| (u.clone(), v.clone()))
-                    .collect(),
-                locale: crate::i18n::locale(),
-            });
         app.picker_view.thumbs.warm(subjects);
     }
     app.picker_view.thumbs.pump(ctx);
-    if app.picker_view.thumbs.warm_left() == 0 && app.picker_view.thumbs.idle() {
+    if app.picker_view.thumbs.gate().is_none() && app.picker_view.thumbs.warm_left() > 0 {
+        // The runner draws in the look this thread draws in, as it is now.
+        let s = &app.settings;
+        let look = super::picker_thumbs::WorkerLook {
+            faces: s.unit_faces,
+            colourways: s
+                .unit_colourways
+                .iter()
+                .map(|(u, c)| (u.clone(), c.clone()))
+                .collect(),
+            views: s
+                .unit_views
+                .iter()
+                .map(|(u, v)| (u.clone(), v.clone()))
+                .collect(),
+            locale: crate::i18n::locale(),
+        };
+        app.picker_view.thumbs.set_worker_look(look);
+        app.picker_view.thumbs.warm_start(ctx);
+    }
+    let wait_start = started + app.picker_warm.start_delay - now;
+    let wait_quiet = app.picker_warm.last_input + app.picker_warm.quiet - now;
+    if let Some(g) = app.picker_view.thumbs.gate() {
+        g.open_in(wait_start.max(wait_quiet));
+    }
+    if app.picker_warm.queued
+        && app.picker_view.thumbs.warm_left() == 0
+        && app.picker_view.thumbs.idle()
+        && app.picker_view.thumbs.gate().is_none()
+    {
         app.picker_warm.done = true;
     }
 }
+
+/// Seconds after the first frame before the list is made (the start-up's first frames
+/// first); the runner itself waits for [`Warm::start_delay`].
+const QUEUE_AFTER: f64 = 0.5;

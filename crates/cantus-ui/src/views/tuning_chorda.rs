@@ -16,7 +16,7 @@ use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::kit::menu::{Check, Item};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
-use crate::kit::widgets::{menu_field, menu_list, segmented};
+use crate::kit::widgets::{menu_field, menu_list, segmented, MenuField};
 use crate::kit::{with_brush, Style};
 use cantus_core::tuning::{
     ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
@@ -210,6 +210,11 @@ pub const PRESETS: [Preset; 24] = [
     p("tuning.chorda.p.verdi", CHAR, Kind::Equal(432.0), &[]),
 ];
 
+/// The description *Slightly out* is stored by: fixed, never translated, so the preset is
+/// found again after a language switch and the words are the interface's
+/// (`words::scale_name`; r42 fix-ui, review ui#24).
+pub const SLIGHTLY_OUT_ID: &str = "Cantus slightly out";
+
 /// "Slightly out": each of the twelve a few cents off equal, the same every time (a seeded
 /// sequence), as a Scala scale (degree 0 on C4, A4 at the diapason — Scala's template).
 pub fn slightly_out() -> ScalaScale {
@@ -225,7 +230,7 @@ pub fn slightly_out() -> ScalaScale {
         .collect();
     degrees.push(ScaleDegree::Ratio(2, 1));
     ScalaScale {
-        description: t("tuning.chorda.p.slightly_out"),
+        description: SLIGHTLY_OUT_ID.into(),
         degrees,
     }
 }
@@ -321,20 +326,42 @@ pub fn a4_of(app: &CantusApp, track: TrackId) -> A4 {
     }
 }
 
-/// The key the card's presets rotate to: the track's temperament's, else the song's, else C.
-pub fn key_of(app: &CantusApp, track: TrackId) -> u8 {
+/// The key the card shows, rings on its circle and rotates its presets to, and whether it
+/// is set elsewhere (`true`: the project's temperament, followed, sets it — the field is
+/// greyed): the track's own temperament's key; following the project's temperament, the
+/// key that resolves to (its own, or the song's when it follows the song's key: what the
+/// piano plays — r42 fix-ui, review ui#8); else the key chosen in this track's card, else
+/// the song's, else C.
+pub fn key_of(app: &CantusApp, track: TrackId) -> (u8, bool) {
     let p = app.project();
-    let own = p.track(track).and_then(|t| match &t.tuning {
-        TrackTuning::Own { tuning } => match tuning.system {
-            TuningSystem::Temperament { key, .. } => Some(key),
-            _ => None,
-        },
+    let Some(tr) = p.track(track) else {
+        return (0, false);
+    };
+    let resolved = |tu: &Tuning| match super::effective(tu, p.key).system {
+        TuningSystem::Temperament { key, .. } => Some(key % 12),
         _ => None,
-    });
-    own.or(app.tuning.chorda_key)
+    };
+    match &tr.tuning {
+        TrackTuning::Own { tuning } => {
+            if let Some(k) = resolved(tuning) {
+                return (k, false);
+            }
+        }
+        TrackTuning::Follow => {
+            if let Some(k) = resolved(&p.tuning) {
+                return (k, true);
+            }
+        }
+        TrackTuning::Equal => {}
+    }
+    let k = app
+        .tuning
+        .chorda_key
+        .get(&track)
+        .copied()
         .or(p.key.map(|k| k.root))
-        .unwrap_or(0)
-        % 12
+        .unwrap_or(0);
+    (k % 12, false)
 }
 
 /// The user's own tunings: the Scala files of the data folder's `Tuning`, by name.
@@ -363,7 +390,13 @@ pub fn user_files() -> Vec<std::path::PathBuf> {
 /// numbered when the name is taken). Returns the file.
 pub fn save_mine(app: &CantusApp, track: TrackId) -> Result<std::path::PathBuf, String> {
     let dir = user_dir();
-    std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    // In the interface's language (review ui#16): the folder's name, not the system's words.
+    std::fs::create_dir_all(&dir).map_err(|_| {
+        tf(
+            "tuning.io.cannot_write",
+            &[("file", &dir.display().to_string())],
+        )
+    })?;
     let tu = super::tuning_of(app, Target::Track(track));
     let base: String = words::summary_of(&tu, app.project().key)
         .chars()
@@ -489,7 +522,7 @@ pub fn body(
     // The preset: its name, or the project's, or the track's own words.
     let (cap, ctl) = row_rects(left, y, s);
     caption(ui, cap, "tuning.chorda.preset", s);
-    let key = key_of(app, track);
+    let (key, key_set_elsewhere) = key_of(app, track);
     let now = current(app, track, spec);
     let shown = match (now, own) {
         (Some(p), _) => match p.kind {
@@ -536,21 +569,25 @@ pub fn body(
     // The key a temperament is rotated to.
     let (cap, ctl) = row_rects(left, y, s);
     caption(ui, cap, "tuning.row.key", s);
+    // Following the project's temperament, its key is shown greyed: the project sets it.
+    let key_words = t("tuning.row.key");
     let (kf, clicks) = place(ui, ctl, |ui| {
-        menu_field(
-            ui,
-            words::key_name(key),
-            true,
-            false,
-            &t("tuning.row.key"),
-            ctl.width() / k,
-        )
+        MenuField::new(words::key_name(key))
+            .steppers(true)
+            .name(&key_words)
+            .size(ctl.width() / k, 24.0)
+            .enabled(!key_set_elsewhere)
+            .show(ui)
     });
     publish(ui, "key", kf.rect);
     let options: Vec<(u8, String)> = (0..12u8)
         .map(|n| (n, words::key_name(n).to_string()))
         .collect();
-    let mut next = key_list(&kf, &options, key);
+    let mut next = if key_set_elsewhere {
+        None
+    } else {
+        key_list(&kf, &options, key)
+    };
     if clicks.prev {
         next = Some((key + 11) % 12);
     }
@@ -558,7 +595,7 @@ pub fn body(
         next = Some((key + 1) % 12);
     }
     if let Some(n) = next {
-        app.tuning.chorda_key = Some(n);
+        app.tuning.chorda_key.insert(track, n);
         let tu = super::tuning_of(app, Target::Track(track));
         if let (true, TuningSystem::Temperament { id, .. }) = (own, &tu.system) {
             let system = TuningSystem::Temperament {
@@ -579,9 +616,10 @@ pub fn body(
     }
     y += step;
 
-    // Files and the cadence.
+    // The files: no caption — the three buttons say what they do, and they need the
+    // caption's room to read whole in Spanish and at 75 % (r42 fix-ui).
     let (cap, ctl) = row_rects(left, y, s);
-    caption(ui, cap, "tuning.chorda.yours", s);
+    let ctl = Rect::from_min_max(cap.min, ctl.max);
     place(ui, ctl, |ui| {
         let b =
             crate::views::audio_parts::button(ui, &t("tuning.chorda.save_mine"), false, true, 0.0);
@@ -600,13 +638,13 @@ pub fn body(
             }));
         }
         ui.add_space(6.0 * k);
-        let b = crate::views::audio_parts::button(ui, &t("tuning.import"), false, true, 0.0);
+        let b = crate::views::audio_parts::button(ui, &t("tuning.chorda.import"), false, true, 0.0);
         publish(ui, "import", b.rect);
         if b.clicked() {
             super::io::import_dialog(app, Target::Track(track));
         }
         ui.add_space(6.0 * k);
-        let b = crate::views::audio_parts::button(ui, &t("tuning.export"), false, true, 0.0);
+        let b = crate::views::audio_parts::button(ui, &t("tuning.chorda.export"), false, true, 0.0);
         publish(ui, "export", b.rect);
         if b.clicked() {
             super::io::export_dialog(app, Target::Track(track));
@@ -630,23 +668,27 @@ pub fn body(
             &[("key", &words::key_name(tonic)), ("mode", &t(mode))],
         )
     };
+    // A scale not 12 to the octave has no I–IV–V–I: the cadence is off, and says why.
+    let place_ok = super::audition_place(app, Target::Track(track));
     place(ui, ctl, |ui| {
-        let b = crate::views::audio_parts::button(ui, &label, true, true, 0.0);
+        let b =
+            crate::views::audio_parts::button(ui, &label, true, playing || place_ok.is_ok(), 0.0);
         publish(ui, "audition", b.rect);
         if b.clicked() {
             if playing {
                 super::stop_audition(app);
-            } else {
+            } else if place_ok.is_ok() {
                 let now = ui.input(|i| i.time);
                 super::start_audition(app, Target::Track(track), now);
             }
         }
     });
     y += step;
-    if let Some(last) = &app.tuning.last {
+    let why = place_ok.err().map(|k| Err(t(k)));
+    if let Some(last) = app.tuning.last.as_ref().or(why.as_ref()) {
         let (words, warn) = match last {
             Ok(w) => (w.as_str(), false),
-            Err(w) => (w.as_str(), true),
+            Err(w) => (w.as_str(), app.tuning.last.is_some()),
         };
         let line =
             Rect::from_min_size(Pos2::new(left.left(), y), Vec2::new(left.width(), 18.0 * k));
@@ -666,7 +708,7 @@ pub fn body(
     // The circle and the keys that sound purest, of what the piano plays now.
     let table = super::table_of(app, Target::Track(track));
     if super::circle::twelve_to_the_octave(&table) {
-        let tonic = key_of(app, track);
+        let (tonic, _) = key_of(app, track);
         let centres = with_brush(ui.painter(), |b| {
             super::circle::paint(b, mid, s, &table, tonic)
         });
@@ -692,22 +734,31 @@ pub fn body(
     }
 }
 
-/// The major thirds nearest pure and farthest from it, named by their two notes ("E–G#").
-fn purest(ui: &Ui, r: Rect, table: &cantus_core::tuning::TuningTable, s: &Style) {
-    let k = s.k;
-    let order = super::circle::thirds_by_purity(table);
+/// The lines the card's right side says: each heading, its list of thirds, and its dot's
+/// place on the beat colours (the window's measure: the beats of the list's first third
+/// over `THIRD_TOP`). All twelve the same size (equal temperament): one line saying so.
+pub fn thirds_lines(table: &cantus_core::tuning::TuningTable) -> Vec<(&'static str, String, f64)> {
     let names = |v: &[u8]| {
         v.iter()
-            .map(|p| format!("{}\u{2013}{}", words::key_name(*p), words::key_name(*p + 4)))
+            .map(|p| format!("{}\u{2013}{}", words::key_name(*p), words::major_third(*p)))
             .collect::<Vec<_>>()
             .join(" \u{b7} ")
     };
-    let lines = [
-        ("tuning.chorda.purest", names(&order[..4]), 0.0),
-        ("tuning.chorda.roughest", names(&order[8..]), 1.0),
-    ];
+    let x = |p: u8| super::circle::third_beats(table, p) / super::circle::THIRD_TOP;
+    match super::circle::purest_and_roughest(table) {
+        Some((pure, rough)) => vec![
+            ("tuning.chorda.purest", names(&pure), x(pure[0])),
+            ("tuning.chorda.roughest", names(&rough), x(rough[0])),
+        ],
+        None => vec![("tuning.chorda.thirds", t("tuning.chorda.all_equal"), x(0))],
+    }
+}
+
+/// The major thirds nearest pure and farthest from it, named by their two notes ("E–G#").
+fn purest(ui: &Ui, r: Rect, table: &cantus_core::tuning::TuningTable, s: &Style) {
+    let k = s.k;
     let mut y = r.top() + 8.0 * k;
-    for (key, list, x) in lines {
+    for (key, list, x) in thirds_lines(table) {
         let head = Rect::from_min_size(Pos2::new(r.left(), y), Vec2::new(r.width(), 18.0 * k));
         let body = Rect::from_min_size(
             Pos2::new(r.left() + 14.0 * k, y + 18.0 * k),
@@ -896,10 +947,33 @@ pub fn a4_cell(app: &mut CantusApp, ui: &mut Ui, track: TrackId, r: Rect, a4: A4
         }
         A4::Own(hz) => {
             let words = tf("tuning.hz", &[("hz", &words::hz_text(hz))]);
+            // A value field (no list): ‹ › a hertz, or a click types one (review ui#14).
+            let name = t("chorda.a4");
             let (resp, clicks) = place(ui, value, |ui| {
-                menu_field(ui, &words, true, false, &t("chorda.a4"), value.width() / k)
+                MenuField::new(&words)
+                    .steppers(true)
+                    .list(false)
+                    .name(&name)
+                    .size(value.width() / k, 24.0)
+                    .show(ui)
             });
             publish(ui, "a4", resp.rect);
+            let mut typed = None;
+            if let Some(w) = app.tuning.typing_a4.as_mut() {
+                let field = crate::kit::well::field_rects(resp.rect, s, true).field;
+                let id = Id::new(("chorda-a4-typed", track.0));
+                typed = super::rows::type_hz(ui, field, id, w);
+            } else if clicks.open {
+                app.tuning.typing_a4 = Some(words::hz_text(hz));
+            }
+            if let Some(done) = typed {
+                app.tuning.typing_a4 = None;
+                if let Some(hz) = done {
+                    let mut tu = super::tuning_of(app, Target::Track(track));
+                    tu.a4_hz = hz;
+                    super::set_merging(app, Target::Track(track), tu, "chorda-a4");
+                }
+            }
             with_brush(ui.painter(), |b| {
                 let _ = text::paint(
                     b,

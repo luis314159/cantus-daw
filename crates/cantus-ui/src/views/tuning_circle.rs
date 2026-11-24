@@ -59,10 +59,29 @@ pub fn thirds_by_purity(table: &TuningTable) -> [u8; 12] {
     order
 }
 
+/// The four purest major thirds (purest first) and the four roughest (roughest first), or
+/// `None` when the table makes all twelve the same size (equal temperament: no third is
+/// purer than another, so naming four "purest" would only list C, C#, D, Eb).
+pub fn purest_and_roughest(table: &TuningTable) -> Option<([u8; 4], [u8; 4])> {
+    let order = thirds_by_purity(table);
+    let size = |p: u8| (third_from_pure(table, p).abs() * 100.0).round() as i64;
+    if size(order[0]) == size(order[11]) {
+        return None;
+    }
+    let purest = [order[0], order[1], order[2], order[3]];
+    let roughest = [order[11], order[10], order[9], order[8]];
+    Some((purest, roughest))
+}
+
 /// The beat rate's colour: the meters' own scale, from their low colour (pure) through
 /// their middle to their clip colour (beating fast). `x` = 0 … 1.
 pub fn beat_colour(s: &Style, x: f64) -> Color32 {
-    let x = x.clamp(0.0, 1.0) as f32;
+    // NaN (an unmapped key) clamps to NaN: the pure end, never an undefined mix.
+    let x = if x.is_finite() {
+        x.clamp(0.0, 1.0)
+    } else {
+        0.0
+    } as f32;
     if x < 0.5 {
         mix(s.t.meter_low, s.t.meter_mid, x * 2.0)
     } else {
@@ -173,6 +192,16 @@ pub fn twelve_rows(table: &TuningTable, a4_hz: f64) -> Vec<Row> {
         .map(|pc| {
             let off = f64::from(table.at(C4 + pc));
             let (f, th) = (fifth_beats(table, pc), third_beats(table, pc));
+            // A key a keyboard map leaves unmapped sounds nothing: its fifth and third are
+            // blank, never "NaN" (r42 fix-ui, review ui#4), their dot at the pure end.
+            let beats = |b: f64| {
+                if b.is_finite() {
+                    format!("{b:.2}")
+                } else {
+                    String::new()
+                }
+            };
+            let place = |b: f64, top: f64| if b.is_finite() { b / top } else { 0.0 };
             Row {
                 name: key_name(pc).to_string(),
                 cents: if off.is_nan() {
@@ -185,10 +214,10 @@ pub fn twelve_rows(table: &TuningTable, a4_hz: f64) -> Vec<Row> {
                 } else {
                     signed_cents(100.0 * (off - shift))
                 },
-                fifth: format!("{f:.2}"),
-                third: format!("{th:.2}"),
-                fifth_x: f / FIFTH_TOP,
-                third_x: th / THIRD_TOP,
+                fifth: beats(f),
+                third: beats(th),
+                fifth_x: place(f, FIFTH_TOP),
+                third_x: place(th, THIRD_TOP),
             }
         })
         .collect()
@@ -236,10 +265,11 @@ pub fn hover_words(table: &TuningTable, pc: u8) -> String {
         "tuning.circle.hover",
         &[
             ("note", &key_name(pc)),
-            ("fifth", &key_name(pc + 7)),
+            // Spelt by interval from the note (r42 fix-ui, review ui#5): E's third is G#.
+            ("fifth", &super::words::fifth_above(pc)),
             ("fbeats", &format!("{:.2}", fifth_beats(table, pc))),
             ("fcents", &signed_cents(fifth_from_pure(table, pc))),
-            ("third", &key_name(pc + 4)),
+            ("third", &super::words::major_third(pc)),
             ("tbeats", &format!("{:.2}", third_beats(table, pc))),
         ],
     )
@@ -368,6 +398,77 @@ mod tests {
             );
             assert!(a <= b + 0.01, "{order:?}: {a} then {b}");
         }
+    }
+
+    /// r42 fix-ui (review ui#5): hovering a note names its fifth and third by interval —
+    /// E's are B and G# (never Ab), F#'s C# and A#, C#'s G# and E#.
+    #[test]
+    fn the_hover_spells_the_fifth_and_the_third_from_the_note() {
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
+        let t = TuningTable::EQUAL;
+        let e = hover_words(&t, 4);
+        assert!(
+            e.contains("fifth to B ") && e.contains("third to G# "),
+            "{e}"
+        );
+        let fs = hover_words(&t, 6);
+        assert!(
+            fs.contains("fifth to C# ") && fs.contains("third to A# "),
+            "{fs}"
+        );
+        let cs = hover_words(&t, 1);
+        assert!(
+            cs.contains("fifth to G# ") && cs.contains("third to E# "),
+            "{cs}"
+        );
+        let ab = hover_words(&t, 8);
+        assert!(
+            ab.contains("fifth to Eb ") && ab.contains("third to C "),
+            "{ab}"
+        );
+    }
+
+    /// r42 fix-ui (review ui#9): equal temperament's thirds all tie — no purest, no
+    /// roughest; Werckmeister III in E lists its purest first and its roughest first.
+    #[test]
+    fn purest_and_roughest_say_a_tie_and_run_from_the_extremes() {
+        use cantus_core::tuning::{Temperament, Tuning, TuningSystem};
+        assert_eq!(purest_and_roughest(&TuningTable::EQUAL), None);
+        let w = Tuning {
+            a4_hz: 440.0,
+            system: TuningSystem::Temperament {
+                id: Temperament::WerckmeisterIii,
+                key: 4,
+                follow_song_key: false,
+            },
+            map: None,
+        }
+        .offsets();
+        let (pure, rough) = purest_and_roughest(&w).expect("not a tie");
+        assert_eq!(&pure[..2], &[4, 9]);
+        let size = |p: u8| third_from_pure(&w, p).abs();
+        for pair in rough.windows(2) {
+            assert!(size(pair[0]) + 0.01 >= size(pair[1]), "{rough:?}");
+        }
+        assert!(size(rough[0]) > size(pure[0]) + 10.0);
+    }
+
+    /// r42 fix-ui (review ui#4): a key a map leaves unmapped shows blank beats, never "NaN",
+    /// and its colour is a colour.
+    #[test]
+    fn an_unmapped_key_shows_no_nan() {
+        let mut t = TuningTable::EQUAL;
+        t.0[64] = f32::NAN; // E4 unmapped: C's third reaches it, its own row is empty.
+        let rows = twelve_rows(&t, 440.0);
+        for r in &rows {
+            for w in [&r.cents, &r.from_equal, &r.fifth, &r.third] {
+                assert!(!w.contains("NaN") && !w.contains("nan"), "{r:?}");
+            }
+            assert!(r.fifth_x.is_finite() && r.third_x.is_finite(), "{r:?}");
+        }
+        assert_eq!(rows[0].third, "");
+        assert_eq!((rows[4].fifth.as_str(), rows[4].third.as_str()), ("", ""));
+        assert_eq!(rows[4].cents, crate::i18n::t("tuning.table.unmapped"));
     }
 
     #[test]

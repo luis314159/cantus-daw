@@ -103,7 +103,7 @@ pub mod screens_map; // multimon — Screens and windows (ADR 0148 §9)
 pub mod session; // r33:launcher
 pub mod settings_audio;
 pub mod transport;
-pub mod tuning; // r42:tuning-face — Project ▸ Tuning (ADR 0155, 0156)
+pub mod tuning; // r42:tuning-face — Options ▸ Tuning… (ADR 0155, 0156)
 pub mod unsaved;
 pub mod update;
 pub mod verse;

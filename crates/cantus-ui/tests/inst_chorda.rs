@@ -290,7 +290,8 @@ fn the_inspector_reads_the_tuning_as_the_knobs_do() {
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let es = chorda::preview_text(&spec);
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
-    assert!(es.contains("La4 440.0 Hz"), "{es}");
+    // r42 fix-ui: Spanish names notes with letters, as the song's key does ("A4", not "La4").
+    assert!(es.contains("A4 440.0 Hz") && es.contains("Estir"), "{es}");
 }
 
 #[test]
