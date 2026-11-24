@@ -230,7 +230,7 @@ impl UpperBody {
     /// between two lattice points in the logarithm, and to the size by its law — every mode's
     /// frequency and bandwidth over the size, so the impulse response's energy is the own
     /// size's × `own / size` (`h_c(t) = c·h(ct)`, which the discrete design keeps to the first
-    /// order in the sampling interval: `upper_tests_rate::the_body_s_power_law_holds`). At the
+    /// order in the sampling interval: `tests_fix2`, within 0.05 dB over the knobs). At the
     /// instrument's own size and a lattice point (the defaults) it is the measure itself, to
     /// the bit.
     ///

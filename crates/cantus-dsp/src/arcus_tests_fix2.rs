@@ -346,3 +346,60 @@ fn the_body_s_power_law_holds_and_its_measures_are_few() {
     }
     println!("the law's worst against the exact measure: {worst:.4} dB");
 }
+
+/// Finding 5's measure (`cargo test --release -p cantus-dsp probe_body_modulation_cpu --
+/// --ignored --nocapture`): one second of a violin voice (the reference, timed beside) against
+/// one second of a body under a moving route — 1 500 changes of its size and ring — as it is
+/// designed now (`UpperBody::set`) and as every change was before (the modes and the exact
+/// measure). Each keeps its least disturbed of five runs, alternating.
+#[test]
+#[ignore = "timing: run in release with --ignored"]
+fn probe_body_modulation_cpu() {
+    use std::time::Instant;
+    use upper::body::{shape_of, UpperBody};
+    let shape = |i: usize| {
+        let x = (i % 200) as f32 / 199.0;
+        shape_of(&ArcusSettings {
+            instrument: Instrument::Violin,
+            body_size: 0.8 + 0.45 * x,
+            body_ring: 0.5 + x,
+            ..ArcusSettings::default()
+        })
+        .unwrap()
+    };
+    let changes = (SR as usize) / CTRL;
+    let (mut voice, mut now, mut before) = (f64::MAX, f64::MAX, f64::MAX);
+    for _ in 0..5 {
+        let mut f = Arcus::new(SR);
+        f.set(&ArcusSettings {
+            instrument: Instrument::Violin,
+            body_mix: 0.0,
+            ..ArcusSettings::default()
+        });
+        f.note_on(69, 0.7, 1);
+        let t = Instant::now();
+        let _ = run(&mut f, SR as usize);
+        voice = voice.min(t.elapsed().as_secs_f64());
+        let mut b = UpperBody::new(SR);
+        let t = Instant::now();
+        for i in 0..changes {
+            b.set(Some(shape(i)));
+        }
+        now = now.min(t.elapsed().as_secs_f64());
+        let mut b = UpperBody::new(SR);
+        let t = Instant::now();
+        for i in 0..changes {
+            std::hint::black_box(b.powers(&shape(i)));
+        }
+        before = before.min(t.elapsed().as_secs_f64());
+    }
+    println!(
+        "one violin voice, 1 s: {:.2} ms; a body changed {changes} times: now {:.2} ms \
+         ({:.3} × the voice), before {:.2} ms ({:.2} × the voice)",
+        voice * 1e3,
+        now * 1e3,
+        now / voice,
+        before * 1e3,
+        before / voice
+    );
+}
