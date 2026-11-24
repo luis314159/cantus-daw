@@ -954,6 +954,25 @@ piano would lose its edits. To verify by research before the ADR.
   Editing in any view edits the same notes.
 - **Playing it live.** A key-switch zone or a pedal chooses the technique while recording, and
   a guitar MIDI pickup (one MPE channel per string) records the string and the bends.
+- **Standards, and our instruments in other DAWs (the owner, 2026-11-24).**
+  - **Profile ids follow MIDI 2.0.** Cantus follows the MIDI 2.0 Note-On Orchestral
+    Articulation Profile (M2-123-UM v1.0, MMA/AMEI, 2024): the articulation travels in the
+    Note On's attribute, across eight instrument categories. A technique the profile has
+    keeps its code, so parts move between instruments and products.
+  - **Imports.** Cubase's Expression Maps, Logic's Articulation Sets, Studio One's Sound
+    Variations, Spitfire's UACC and Reaticulate import as maps for hosted libraries.
+  - **Exports.** VST3's `IKeyswitchController` and Note Expression and CLAP's note expressions
+    carry them out to other hosts.
+  - **Instruments as plug-ins.** Our instruments ship as CLAP/VST3 plug-ins, today the effects
+    only. Each technique is reachable four ways, so no host is left without it:
+    - a key-switch and a CC, always;
+    - the MIDI 2.0 Note On attribute where the host speaks it;
+    - VST3's key-switch list, so Cubase builds its Expression Map by itself;
+    - a CLAP extension.
+  - **A white paper and the extension's draft.** Guitar techniques, strums, tab positions and
+    the combined techniques are not in the profile. Cantus writes that gap down and proposes
+    a CLAP draft extension (`free-audio/clap`, open). Contributing to the MIDI Association's
+    profile work needs a membership, which is the owner's call.
 - **A model change, migrated.** The six string marks become techniques of the bowed and
   recorded-string profiles, and old projects load unchanged (schema bump, fixture, undo fuzz).
 - **Done when**:
