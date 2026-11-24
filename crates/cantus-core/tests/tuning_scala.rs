@@ -7,7 +7,7 @@
 
 use cantus_core::tuning::{ScalaScale, ScaleDegree};
 use cantus_core::tuning_scala::{
-    parse_degree, read_kbm, read_scl, write_kbm, write_scl, ScalaError,
+    parse_degree, read_ascl_map, read_kbm, read_scl, write_kbm, write_scl, ScalaError,
 };
 
 fn data(name: &str) -> Vec<u8> {
@@ -276,4 +276,92 @@ fn maps_round_trip() {
     // The reference key unmapped is an error (the Scala help).
     let bad = b"12\n0\n127\n60\n61\n440.0\n12\n0\nx\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n";
     assert_eq!(read_kbm(bad), Err(ScalaError::ReferenceUnmapped));
+}
+
+/// r42 fix2-model (review 4): a UTF-8 byte order mark (Notepad's, a spreadsheet export's)
+/// before Surge's own files' bytes reads as the file without it — `.scl`, `.kbm` and `.ascl`.
+#[test]
+fn a_utf8_byte_order_mark_is_dropped() {
+    let bom = |name: &str| [&[0xEF, 0xBB, 0xBF][..], &data(name)].concat();
+    for f in [
+        "31edo.scl",
+        "6-exact.scl",
+        "12-shuffled.scl",
+        "rast.ascl",
+        "31-edo.ascl",
+    ] {
+        let plain = read_scl(&data(f)).unwrap();
+        assert_eq!(read_scl(&bom(f)).unwrap(), plain, "{f}");
+    }
+    for f in ["31-edo.kbm", "mapping-whitekeys-c261.kbm", "piano.kbm"] {
+        assert_eq!(
+            read_kbm(&bom(f)).unwrap(),
+            read_kbm(&data(f)).unwrap(),
+            "{f}"
+        );
+    }
+    let r = read_scl(&data("rast.ascl")).unwrap();
+    assert_eq!(
+        read_ascl_map(&bom("rast.ascl"), &r).unwrap(),
+        read_ascl_map(&data("rast.ascl"), &r).unwrap()
+    );
+    // A Latin-1 description after a BOM that is not UTF-8 is still read (as Latin-1).
+    let s = read_scl(b"\xEF\xBB\xBFGro\xDF\n1\n2/1\n").unwrap();
+    assert_eq!(s.description, "Gro\u{df}");
+}
+
+/// r42 fix2-model (review 5): a description that starts with `!` is written with a blank
+/// before it (else it reads as a comment and the count becomes the description), and reads
+/// back as it was.
+#[test]
+fn a_description_starting_with_a_bang_round_trips() {
+    for d in ["!important scale", " !two", "\t!tab", "!", "plain", ""] {
+        let s = ScalaScale {
+            description: d.into(),
+            degrees: vec![ScaleDegree::Cents(700.0), ScaleDegree::Ratio(2, 1)],
+        };
+        let text = write_scl(&s);
+        let back = read_scl(&cantus_core::tuning_scala::latin1(&text)).unwrap();
+        assert_eq!(back, s, "{d:?}: {text:?}");
+    }
+}
+
+/// r42 fix2-model (review 2): Ableton's `! @ABL REFERENCE_PITCH` is the file's reference.
+/// Surge's `tuning-library` holds for `rast.ascl` (`REFERENCE_PITCH 3 0 261.6256`):
+/// `tuningFrequency == 261.6256`, `middleNote == 60`, `tuningConstantNote == 60`; and its
+/// "ASCL compared with Ableton-generated KBM" test holds `31-edo.ascl`'s map equal to
+/// `31-edo.kbm` — the map Ableton Live wrote for the same file (`REFERENCE_PITCH 3 23 440.0`:
+/// key 83 at 440 Hz, degree 0 on key 60). `bad/bad-reference-pitch.ascl` (an octave past
+/// any integer) is refused, as there.
+#[test]
+fn ableton_s_reference_pitch_is_the_file_s_reference() {
+    let r = read_scl(&data("rast.ascl")).unwrap();
+    let m = read_ascl_map(&data("rast.ascl"), &r)
+        .unwrap()
+        .expect("a map");
+    assert_eq!(
+        (m.reference_hz, m.middle_key, m.reference_key),
+        (261.6256, 60, 60)
+    );
+    let e = read_scl(&data("31-edo.ascl")).unwrap();
+    let m = read_ascl_map(&data("31-edo.ascl"), &e)
+        .unwrap()
+        .expect("a map");
+    let live = read_kbm(&data("31-edo.kbm")).unwrap();
+    assert_eq!(
+        (m.reference_hz, m.middle_key, m.reference_key),
+        (live.reference_hz, live.middle_key, live.reference_key)
+    );
+    assert_eq!(m, live, "the whole map Live wrote");
+    let bad = read_scl(&data("bad/bad-reference-pitch.ascl")).unwrap();
+    assert!(read_ascl_map(&data("bad/bad-reference-pitch.ascl"), &bad).is_err());
+    // A plain `.scl` has none.
+    let p = read_scl(&data("31edo.scl")).unwrap();
+    assert_eq!(read_ascl_map(&data("31edo.scl"), &p).unwrap(), None);
+    // Not three numbers, an index past the scale, a frequency of zero: refused.
+    for line in ["3 0", "3 12 440", "3 0 0", "x 0 440", "3 0 440 9"] {
+        let text = format!("x\n1\n2/1\n! @ABL REFERENCE_PITCH {line}\n");
+        let s = read_scl(text.as_bytes()).unwrap();
+        assert!(read_ascl_map(text.as_bytes(), &s).is_err(), "{line}");
+    }
 }

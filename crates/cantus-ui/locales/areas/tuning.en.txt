@@ -96,6 +96,7 @@ tuning.scala.what.middle_key = middle key
 tuning.scala.what.reference_key = reference key
 tuning.scala.what.reference_hz = reference frequency
 tuning.scala.what.octave_degree = formal octave degree
+tuning.scala.what.reference_pitch = reference pitch (@ABL REFERENCE_PITCH)
 tuning.check.a4 = the diapason is out of range
 tuning.check.key = the temperament’s key is past B
 tuning.check.degrees = the scale has no degree, or more than Cantus keeps
@@ -196,3 +197,11 @@ cmd.tuning.by = Tuning by
 tuning.by = Tuning by
 tuning.by.mts_esp = MTS-ESP
 tuning.by.note_expression = Note expression
+
+# r42 fix2-model — the tuning in exported files (review 7, ADR 0155).
+tuning.midi.band = Tuning
+tuning.midi.write = Write the tuning (MIDI Tuning Standard)
+tuning.midi.hint = Each tuned track starts with a bulk tuning dump, and the scale/octave message or the tuning program selected on its channels, for synthesisers that read them. Off: the file is as before.
+tuning.midi.none = The song plays in equal temperament at 440 Hz: there is no tuning to write.
+interop.report.x_tuning = The song's tuning is not in DAWproject: it opens in equal temperament at 440 Hz there. Export it as a Scala file (Options ▸ Tuning… ▸ Export) to set it again
+interop.report.x_track_tuning = The tuning of {track} is not in DAWproject: it plays the project's tuning there

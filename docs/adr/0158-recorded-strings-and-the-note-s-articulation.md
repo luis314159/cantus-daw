@@ -26,7 +26,8 @@ MPE curves).
   articulation: Articulation, bow: Option<Bow> }` — `Articulation` an open list (`Sustain`,
   `Legato`, `Staccato`, `Spiccato`, `Pizzicato`, `Tremolo`, appended only, never reordered),
   `Bow` `Up`/`Down`. `None` — every older note — is "the instrument decides". Set by
-  `SetNoteArt { clip, notes, art }` (the old values its inverse), shown and edited in the piano
+  `SetNoteArt { track, clip, arts }` — `arts` a list of `(NoteId, Option<NoteArt>)`, one per
+  note, refused whole for a note not in the clip or named twice (the old values its inverse), shown and edited in the piano
   roll as a note property (a lane of articulation marks, and the note's menu); the engine hands
   it to the instrument before the note starts (`InstrumentUnit::note_art`, a no-op by default).
   A hosted instrument gets nothing (no standard carries it; a key-switch map is later work).
@@ -77,3 +78,22 @@ with a legato pair and a CC1 swell, and hears it.
   octave low), the cents to its key, the loop kept only when Exemplar plays it click-free;
   the install writes them as plain SFZ with Cantus's three opcodes (`cantus_articulation`,
   `cantus_bow`, `cantus_legato*`).
+
+## Amendment (round 42, `fix2-model`, the mid-round review)
+
+- **The look-ahead never ties a repeated pitch** (nor the same note again: a looping clip's
+  repetitions share a `NoteId`): its note-off moved past the new note-on would end the new
+  note on every receiver that matches offs by key (MIDI gear, MPE, a hosted plug-in).
+- **Edits keep the articulation**: *Slice* (both halves; the tail the release velocity),
+  *Duplicate* (Ctrl+D: the articulation, the expression and the release velocity) and *Bake to
+  notes* (`BakedNote::art`, as the chain passed it on).
+- **What each format carries**: **MusicXML** writes and reads the marks MusicXML 4.0 has —
+  `<staccato/>`, `<spiccato/>`, `<tenuto/>` (sustain) in `<articulations>`; `<up-bow/>`,
+  `<down-bow/>` in `<technical>`; `<tremolo type="single">3</tremolo>` in `<ornaments>`
+  (read: three marks or more, or `unmeasured`); pizzicato as the note's own
+  `pizzicato="yes"` (MusicXML has no pizzicato mark; `<staccatissimo/>` reads as staccato) —
+  and nothing for legato, which MusicXML says with a slur between two notes; **DAWproject**
+  none: its export report counts the notes whose articulation it leaves (`x_note_art`);
+  **MIDI** none (no standard message; a key-switch map is later work). The MCP server reads a
+  note's `art` and writes it (`get_clip_notes`, `add_notes`, `replace_notes`), so a read
+  written back keeps it.

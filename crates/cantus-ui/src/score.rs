@@ -213,6 +213,15 @@ pub fn musicxml(app: &CantusApp, scope: Scope) -> String {
         &cantus_score::musicxml::XmlOptions {
             software: format!("Cantus {}", env!("CARGO_PKG_VERSION")),
             date: None,
+            // r42 fix2-model (review 7): every note's articulation, by its id.
+            arts: app
+                .project()
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter())
+                .flat_map(|c| c.notes.iter())
+                .filter_map(|n| n.art.map(|a| (n.id.0, a)))
+                .collect(),
         },
     )
 }
@@ -503,9 +512,10 @@ impl CantusApp {
                 .bus
                 .new_clip(part.name.clone(), Ticks::ZERO, Ticks(bar.max(1)));
             for n in &part.notes {
-                let note = self
+                let mut note = self
                     .bus
                     .new_note(Ticks(n.start), Ticks(n.len), n.pitch, n.velocity);
+                note.art = n.art; // r42 fix2-model (review 7): its marks read
                 clip.notes.push(note);
             }
             track.clips.push(clip);

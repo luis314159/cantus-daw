@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 82,
   "app_version": "fixture",
-  "saved_at": 1795404599,
+  "saved_at": 1795534756,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3496,7 +3496,7 @@
           "kind": "Resonator",
           "params": {
             "gain": -3.0,
-            "model": 1.0
+            "model": 2.0
           }
         },
         "clips": [],
@@ -3523,7 +3523,25 @@
           "type": "Native",
           "kind": "BowedString",
           "params": {
-            "model": 1.0
+            "mod1.amt": 0.4,
+            "mod2.amt": 0.5,
+            "mod3.amt": -0.4,
+            "mod4.amt": 0.5,
+            "model": 2.0
+          },
+          "text": {
+            "macro1.name": "arcus.macro.expression",
+            "macro2.name": "arcus.macro.contact",
+            "macro3.name": "arcus.macro.body",
+            "macro4.name": "arcus.macro.vibrato",
+            "mod1.dst": "dyn",
+            "mod1.src": "macro1",
+            "mod2.dst": "bow.pos",
+            "mod2.src": "macro2",
+            "mod3.dst": "body.mix",
+            "mod3.src": "macro3",
+            "mod4.dst": "vib.depth",
+            "mod4.src": "macro4"
           }
         },
         "clips": [],
@@ -3656,7 +3674,7 @@
         "armed": false,
         "takes_open": false,
         "frozen": {
-          "content": "56f922be994c61f0d305d666d546e2f7840eb5a52a398e51953eb2bb9a5c7eb6"
+          "content": "2753c165aa3d27c1be69163156036afae8a42dea8a3fa60572e05643a1071ae9"
         }
       }
     ],
@@ -3821,7 +3839,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "dca4f0fda915f0c7825aa8c6f2e04e06564df642151a82280c8f0a835374e247"
+          "content": "83c1d7f0059b7697ee715593f4a94021ad234a600ca4ef6f2d07138b8812e976"
         }
       },
       {
@@ -7609,12 +7627,78 @@
     "tuning": {
       "a4_hz": 415.0,
       "system": {
-        "kind": "temperament",
-        "id": "werckmeister_iii",
-        "key": 3
+        "kind": "scale",
+        "description": "Ptolemy's intense diatonic",
+        "degrees": [
+          {
+            "ratio": [
+              9,
+              8
+            ]
+          },
+          {
+            "ratio": [
+              5,
+              4
+            ]
+          },
+          {
+            "ratio": [
+              4,
+              3
+            ]
+          },
+          {
+            "ratio": [
+              3,
+              2
+            ]
+          },
+          {
+            "ratio": [
+              5,
+              3
+            ]
+          },
+          {
+            "ratio": [
+              15,
+              8
+            ]
+          },
+          {
+            "ratio": [
+              2,
+              1
+            ]
+          }
+        ]
+      },
+      "map": {
+        "size": 12,
+        "first_key": 0,
+        "last_key": 127,
+        "middle_key": 60,
+        "reference_key": 69,
+        "reference_hz": 440.0,
+        "octave_degree": 7,
+        "mapping": [
+          0,
+          null,
+          1,
+          null,
+          2,
+          3,
+          null,
+          4,
+          null,
+          5,
+          null,
+          6
+        ]
       }
     },
     "next_id": 155
   },
-  "integrity": "685c03f75a39d2e0b688d5e48a99e7b43992a436f3d9a977d7b5faaee8804860"
+  "integrity": "d2c88b864fc7e8a637fe752b9d8dce06c2c6063ff2f5441ace7bd1615411051c"
 }

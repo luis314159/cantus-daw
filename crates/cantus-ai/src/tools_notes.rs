@@ -19,7 +19,17 @@ pub fn note_item_schema() -> Value {
             "length": s_len("How long it sounds"),
             "length_beats": {"type": "number", "exclusiveMinimum": 0, "description": "The same as `length`, in beats (older callers)."},
             "pitch": {"type": ["integer", "string"], "description": "MIDI note 0-127 (60 = C4, middle C) or a name: \"C4\", \"Eb3\", \"F#5\"."},
-            "velocity": {"type": "integer", "minimum": 1, "maximum": 127, "default": 100}
+            "velocity": {"type": "integer", "minimum": 1, "maximum": 127, "default": 100},
+            "art": {
+                "type": ["object", "null"],
+                "description": "How the note is played (get_clip_notes gives it back): its articulation and, for a bowed string, its bow. Left out or null: the instrument decides.",
+                "properties": {
+                    "articulation": {"type": "string", "enum": ["sustain", "legato", "staccato", "spiccato", "pizzicato", "tremolo"]},
+                    "bow": {"type": "string", "enum": ["down", "up"]}
+                },
+                "required": ["articulation"],
+                "additionalProperties": false
+            }
         },
         "required": ["pitch"],
         "additionalProperties": false
@@ -33,6 +43,8 @@ pub struct NewNote {
     pub len: Ticks,
     pub pitch: u8,
     pub velocity: u8,
+    /// r42 fix2-model (review 9): its articulation and bow (`Note::art`, ADR 0158).
+    pub art: Option<cantus_core::note_art::NoteArt>,
 }
 
 pub fn pitch_of(v: &Value, k: &str) -> Res<u8> {
@@ -78,11 +90,21 @@ pub fn parse_notes(map: &TempoMap, items: &[Value]) -> Res<Vec<NewNote>> {
             Some(v) if (1..=127).contains(&v) => v as u8,
             Some(_) => return Err(ToolError::bad(k("velocity"), "is 1 to 127")),
         };
+        let art = match a.get("art") {
+            None | Some(Value::Null) => None,
+            Some(v) => Some(serde_json::from_value(v.clone()).map_err(|_| {
+                ToolError::bad(
+                    k("art"),
+                    "an articulation (sustain, legato, staccato, spiccato, pizzicato, tremolo) and an optional bow (down, up)",
+                )
+            })?),
+        };
         out.push(NewNote {
             at,
             len,
             pitch,
             velocity,
+            art,
         });
     }
     Ok(out)
@@ -98,7 +120,11 @@ pub fn to_clip_notes(cx: &mut ToolCx<'_>, clip_origin: Ticks, notes: &[NewNote])
     let bus = cx.bus_mut();
     notes
         .iter()
-        .map(|n| bus.new_note(n.at - clip_origin, n.len, n.pitch, n.velocity))
+        .map(|n| {
+            let mut note = bus.new_note(n.at - clip_origin, n.len, n.pitch, n.velocity);
+            note.art = n.art;
+            note
+        })
         .collect()
 }
 

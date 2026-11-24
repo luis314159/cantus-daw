@@ -14,8 +14,8 @@ pub mod mpe;
 pub mod smf;
 
 pub use export::{
-    export, export_with, to_file_ticks, to_smf, to_smf_with, ExportOptions, NoteFxPlay, Notes,
-    Scope, DEFAULT_PPQ, DRUM_CHANNEL,
+    export, export_with, to_file_ticks, to_smf, to_smf_with, tuning_messages, ExportOptions,
+    NoteFxPlay, Notes, Scope, DEFAULT_PPQ, DRUM_CHANNEL,
 };
 pub use import::{
     import_commands, read, Built, ImportOptions, ImportedNote, ImportedTrack, MidiImport,

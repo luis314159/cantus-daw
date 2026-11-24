@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 82; // r42: 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning (ADR 0155); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 82; // r42: 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -1257,9 +1257,12 @@ fn migrate_78_to_79(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 80 (round 42, ADR 0155): the project's `tuning` and each track's. Absent — every
-/// older song — is 12-TET at 440 Hz, followed by every track, which is what they played, so
-/// nothing is written; an older build would drop a tuning and play the song in 12-TET.
+/// Schema 80 (round 42, ADRs 0155, 0156): the project's `tuning` and each track's, an
+/// external unit's `mts` (MTS SysEx sent to it, `ExternalUnit::mts`) and a hosted plug-in's
+/// `tuning_by` (how it is told the tuning, `ExternalPlugin::tuning_by`). Absent — every older
+/// song — is 12-TET at 440 Hz, followed by every track, no MTS SysEx and MTS-ESP as the route,
+/// which is what they played, so nothing is written; an older build would drop them and play
+/// the song in 12-TET.
 // r42:contract
 fn migrate_79_to_80(_value: &mut Value) -> Result<(), String> {
     Ok(())
@@ -1836,6 +1839,20 @@ mod tests {
             (2.0, 127.0, 1.0)
         );
         assert_eq!(f(2, zf::ART), 5.0);
+        // r42 fix2-model (review 14): the project's keyboard map, its black keys unmapped.
+        let map = p.tuning.map.as_ref().expect("a keyboard map");
+        assert_eq!(
+            (map.size, map.octave_degree, map.reference_key),
+            (12, 7, 69)
+        );
+        assert_eq!(map.mapping.iter().filter(|e| e.is_none()).count(), 5);
+        assert_eq!(map.mapping[1], None);
+        assert_eq!(p.tuning.a4_hz, 415.0);
+        let table = p.tuning.offsets();
+        assert!(
+            !table.sounds(61) && table.sounds(60),
+            "an x key sounds nothing"
+        );
         let old = std::fs::read_to_string(dir.join("v81.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tracks.iter().all(|t| t.name != "Strings"));

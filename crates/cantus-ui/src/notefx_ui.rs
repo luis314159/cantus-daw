@@ -366,6 +366,7 @@ impl CantusApp {
                 .bus
                 .new_note(n.start - c.start, n.length, n.pitch, n.velocity);
             note.release = n.release;
+            note.art = n.art; // r42 fix2-model (review 6): the bake keeps how it was played
             baked.notes.push(note);
         }
         let id = baked.id;

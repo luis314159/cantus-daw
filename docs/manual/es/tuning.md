@@ -41,7 +41,9 @@ debajo de los controles.
 - **Scala** — una escala leída de un archivo `.scl` (y su mapa de teclado `.kbm`, si lo
   tiene), con cualquier número de notas y cualquier periodo: 31-EDO, Bohlen–Pierce, el
   slendro de un gamelán. La fila **Mapa de teclado** abre una lista: sin mapa (el grado 0 en
-  C4) o importar un `.kbm`.
+  el C central, la tecla 60, en el C4 del temperamento igual al A4 elegido — donde Scala y
+  Surge XT ponen una escala sin mapa) o importar un `.kbm`. La altura de referencia propia de
+  un archivo `.ascl` de Ableton (`@ABL REFERENCE_PITCH`) es su mapa.
 - **MTS-ESP** — la afinación que dirige otro programa (más abajo).
 
 Un mapa de teclado pertenece a una escala: al pasar a *Igual* o a *Temperamento* se quita.
@@ -86,8 +88,27 @@ alguien y la afinación viaja con ella. Un archivo que el formato Scala no admit
 el motivo, en tu idioma ("No se leyó: dice 17 alturas pero tiene 16."), y nada cambia. Un
 `.kbm` solo mapea lo que ya suena: el temperamento igual o un temperamento pasan a ser sus doce
 notas como escala Scala, con ese mapa. **Exportar…** escribe la afinación como `.scl` (un
-temperamento o el igual como sus doce notas en cents) y, cuando tiene mapa de teclado, el
-`.kbm` a su lado: para Surge XT, Pianoteq, el editor de un sintetizador o el propio Scala.
+temperamento o el igual como sus doce notas en cents) y, siempre que el `.scl` solo sonaría en
+otra altura — un mapa de teclado, un A4 que no es 440, un temperamento (su A está en el A4, así
+que su C no es el del temperamento igual) —, el `.kbm` a su lado, para que los dos archivos
+suenen igual en Surge XT, Pianoteq, el editor de un sintetizador o Scala, y se lean de vuelta
+aquí a la centésima de cent. Un archivo guardado por el Bloc de notas con marca de orden de
+bytes se lee como cualquier otro.
+
+## La afinación en otros archivos
+
+- **MIDI** (*Exportar MIDI…*): **Escribir la afinación** pone la afinación de cada pista
+  afinada a su inicio como mensajes del MIDI Tuning Standard — un volcado de afinación, y el
+  mensaje de escala/octava (una afinación de doce notas a menos de un semitono del
+  temperamento igual) o el programa de afinación del volcado elegido en sus canales — para los
+  sintetizadores que los leen. Está apagado salvo que lo enciendas: el archivo queda entonces
+  como antes.
+- **MusicXML** escribe la articulación de cada nota como la marca el formato — staccato,
+  spiccato, tenuto (sostenido), el pizzicato de la nota, un trémolo, un arco arriba o abajo — y
+  las lee de vuelta; una nota legato no tiene marca propia allí (MusicXML dice el legato con una
+  ligadura de expresión).
+- **DAWproject** no tiene afinación ni articulación: su informe de exportación dice qué
+  afinaciones de la canción y de las pistas y cuántas articulaciones de notas deja atrás.
 
 ## MTS-ESP: seguir a otro programa y dirigirlos
 

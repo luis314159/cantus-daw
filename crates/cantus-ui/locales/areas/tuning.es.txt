@@ -97,6 +97,7 @@ tuning.scala.what.middle_key = la tecla central
 tuning.scala.what.reference_key = la tecla de referencia
 tuning.scala.what.reference_hz = la frecuencia de referencia
 tuning.scala.what.octave_degree = el grado de la octava formal
+tuning.scala.what.reference_pitch = la altura de referencia (@ABL REFERENCE_PITCH)
 tuning.check.a4 = el diapasón está fuera de rango
 tuning.check.key = la tónica del temperamento pasa de B
 tuning.check.degrees = la escala no tiene grados, o tiene más de los que guarda Cantus
@@ -197,3 +198,11 @@ cmd.tuning.by = Afinación por
 tuning.by = Afinación por
 tuning.by.mts_esp = MTS-ESP
 tuning.by.note_expression = Expresión por nota
+
+# r42 fix2-model — la afinación en los archivos exportados (revisión 7, ADR 0155).
+tuning.midi.band = Afinación
+tuning.midi.write = Escribir la afinación (MIDI Tuning Standard)
+tuning.midi.hint = Cada pista afinada empieza con un volcado de afinación, y el mensaje de escala/octava o el programa de afinación elegido en sus canales, para los sintetizadores que los leen. Apagado: el archivo queda como antes.
+tuning.midi.none = La canción suena en temperamento igual a 440 Hz: no hay afinación que escribir.
+interop.report.x_tuning = La afinación de la canción no cabe en DAWproject: allí se abre en temperamento igual a 440 Hz. Expórtala como archivo Scala (Opciones ▸ Afinación… ▸ Exportar) para volver a ponerla
+interop.report.x_track_tuning = La afinación de {track} no cabe en DAWproject: allí suena con la del proyecto

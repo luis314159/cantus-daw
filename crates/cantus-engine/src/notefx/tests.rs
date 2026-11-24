@@ -49,6 +49,7 @@ fn n(start: i64, length: i64, pitch: u8) -> BakedNote {
         pitch,
         velocity: 100,
         release: 0,
+        art: None,
     }
 }
 
@@ -475,4 +476,28 @@ fn a_notes_release_rides_to_the_notes_it_makes() {
             .any(|x| x.start >= Ticks(240) && x.release == 77),
         "{held:?}"
     );
+}
+
+/// r42 fix2-model (review 6): a baked note keeps its articulation — with no effect, and
+/// through a stage that moves a note (a transposing scale lock keeps `..m`) — so *Bake to
+/// notes* does not change how the clip plays.
+#[test]
+fn a_baked_note_keeps_its_articulation() {
+    use cantus_core::note_art::{Articulation, Bow, NoteArt};
+    let pizz = Some(NoteArt {
+        articulation: Articulation::Pizzicato,
+        bow: Some(Bow::Up),
+    });
+    let mut ev = events(&[(0, 480, 60), (480, 480, 62)]);
+    ev.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));
+    for e in ev.iter_mut().filter(|e| e.is_on() && e.pitch == 60) {
+        e.art = pizz;
+    }
+    let plain = bake(&[], None, &ev, &[], Ticks(960));
+    assert_eq!(plain.len(), 2);
+    assert_eq!(plain[0].art, pizz, "the marked note keeps it");
+    assert_eq!(plain[1].art, None, "the plain note has none");
+    let mut off = arp(|_| {});
+    off.enabled = false;
+    assert_eq!(bake(&[off], None, &ev, &[], Ticks(960)), plain);
 }

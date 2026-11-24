@@ -597,6 +597,7 @@ pub fn write_drum_pattern(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
                     len: Ticks((step.0 / 2).max(1)),
                     pitch,
                     velocity: v as u8,
+                    art: None,
                 });
             }
             s += 1;

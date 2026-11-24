@@ -19,7 +19,7 @@ use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::{menu_field, menu_list, segmented, MenuField};
 use crate::kit::{with_brush, Style};
 use cantus_core::tuning::{
-    ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
+    KeyboardMap, ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
 };
 use cantus_core::{Command, NativeSpec, TrackId};
 use egui::{Align2, Id, Pos2, Rect, Ui, Vec2};
@@ -216,7 +216,8 @@ pub const PRESETS: [Preset; 24] = [
 pub const SLIGHTLY_OUT_ID: &str = "Cantus slightly out";
 
 /// "Slightly out": each of the twelve a few cents off equal, the same every time (a seeded
-/// sequence), as a Scala scale (degree 0 on C4, A4 at the diapason — Scala's template).
+/// sequence), as a Scala scale: degree 0 on C4 and A4 at the diapason, by the A4-anchored
+/// keyboard map its preset carries ([`tuning_of`]).
 pub fn slightly_out() -> ScalaScale {
     let mut seed: u32 = 0x5EED_C0DA;
     let mut next = || {
@@ -251,10 +252,13 @@ pub fn tuning_of(p: &Preset, key: u8) -> Tuning {
             },
             map: None,
         },
+        // r42 fix2-model: designed with A4 on the diapason; a Scala scale with no map now
+        // sits on C4 (Scala's and Surge's anchor), so the preset names its A4-anchored map
+        // and sounds as it was designed, to the bit.
         Kind::SlightlyOut => Tuning {
             a4_hz: 440.0,
             system: TuningSystem::Scale(slightly_out()),
-            map: None,
+            map: Some(KeyboardMap::a4_anchored()),
         },
     }
 }
@@ -317,12 +321,37 @@ pub fn a4_of(app: &CantusApp, track: TrackId) -> A4 {
         return A4::Knob;
     };
     let resolved = super::effective(&tr.tuning.resolve(&p.tuning), p.key);
-    if !cantus_core::inst::chorda::follows_tuning(&super::table_of(app, Target::Track(track))) {
+    let table = super::table_of(app, Target::Track(track));
+    if !cantus_core::inst::chorda::follows_tuning(&table) {
         return A4::Knob;
     }
+    // r42 fix2-model (review 11): in the MTS-ESP master's tuning, the A4 the master gives
+    // (what key 69 plays), not the tuning's own diapason — its table is absolute.
+    let hz = if matches!(resolved.system, TuningSystem::External) {
+        let a4 = cantus_core::tuning::A4_DEFAULT_HZ
+            * cantus_dsp::math::exp2(f64::from(table.at(69)) / 12.0);
+        if a4.is_finite() {
+            a4
+        } else {
+            resolved.a4_hz
+        }
+    } else {
+        resolved.a4_hz
+    };
     match tr.tuning {
-        TrackTuning::Own { .. } => A4::Own(resolved.a4_hz),
-        _ => A4::Project(resolved.a4_hz),
+        TrackTuning::Own { .. } => A4::Own(hz),
+        _ => A4::Project(hz),
+    }
+}
+
+/// The diapason Chorda's Edit view reads out for `track` (its keyboard's picture): [`a4_of`]'s
+/// — the tuning's, or the MTS-ESP master's — or Chorda's own knob's where the track plays
+/// 12-TET at A440. One function, so the readout and the tuning card always agree (r42
+/// fix2-model, review 11).
+pub fn shown_a4(app: &CantusApp, track: TrackId, spec: &cantus_core::NativeSpec) -> f64 {
+    match a4_of(app, track) {
+        A4::Knob => f64::from(spec.get("a4")),
+        A4::Project(hz) | A4::Own(hz) => hz,
     }
 }
 

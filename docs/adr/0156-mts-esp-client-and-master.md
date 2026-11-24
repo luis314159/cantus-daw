@@ -80,3 +80,18 @@ and plays equal temperament when the master goes; as the master, Cantus publishe
 table and republishes an edit, the hosted CLAP test synth at *Tuning by: MTS-ESP* is sent no
 per-note tuning and at *Note expression* the whole table. What only real MTS-ESP clients confirm
 (Surge XT not tuned twice) is the checklist's.
+
+## Amendment (round 42, `fix2-model`): a frozen render in the master's tuning
+
+A frozen target whose region plays the master's table (`freeze::follows_external`: a track in
+it resolved to `External`, or a pitched effect in it following a project in `External`) cannot
+hold that table in its content key — another program owns it, and the key is a function of the
+song alone (the guard's invariant). So its render is **made again whenever the master's table
+moves**, and once a session at the first read (a render on disk may be from another table): the
+sync that sees the move (`views::tuning::master_moved`) sets its copies aside and removes those
+in its own folders, as a render made with a wire is (`cantus_ui::freeze::master_moved`); it
+plays live meanwhile, in the master's tuning. Tested end to end with the fake `LIBMTS`
+(`tuning_mts_e2e.rs`): frozen in Werckmeister III, the master moves to meantone, and the frozen
+track plays meantone. Chorda's diapason readout reads the master's A4 too, as its tuning card
+does (one function, `views::tuning::chorda::shown_a4`). The library's shared table is read
+element by element with `read_volatile` (no `&[f64]` over memory another process writes).

@@ -18,6 +18,10 @@ pub struct BakedNote {
     /// Its note-off's release velocity (0 where none was given: a chain that never let
     /// go of it, or a note with none).
     pub release: u8,
+    /// Its note-on's articulation (`Note::art`, ADR 0158), as the chain passed it on (an
+    /// arpeggio's own steps carry none): *Bake to notes* keeps it, so the baked clip plays
+    /// as the chain did (r42 fix2-model, review 6).
+    pub art: Option<cantus_core::note_art::NoteArt>,
 }
 
 /// The notes `events` (sorted, as a snapshot holds them) play through `chain` in `key`:
@@ -42,17 +46,18 @@ pub fn bake_until(
         pos: t,
         tps: 1.0,
     };
-    // Open notes: (tag, pitch, start, velocity).
-    let mut open: Vec<(u64, u8, f64, u8)> = Vec::new();
+    // Open notes: (tag, pitch, start, velocity, articulation).
+    type Open = Vec<(u64, u8, f64, u8, Option<cantus_core::note_art::NoteArt>)>;
+    let mut open: Open = Vec::new();
     let mut out: Vec<BakedNote> = Vec::new();
-    let mut close = |t: f64, m: &Msg, open: &mut Vec<(u64, u8, f64, u8)>| {
+    let mut close = |t: f64, m: &Msg, open: &mut Open| {
         if m.on {
-            open.push((m.tag, m.pitch, t, m.velocity));
+            open.push((m.tag, m.pitch, t, m.velocity, m.art));
         } else if let Some(i) = open
             .iter()
-            .position(|(tag, p, _, _)| *tag == m.tag && *p == m.pitch)
+            .position(|(tag, p, ..)| *tag == m.tag && *p == m.pitch)
         {
-            let (_, pitch, start, velocity) = open.remove(i);
+            let (_, pitch, start, velocity, art) = open.remove(i);
             let release = m.release;
             let s = start.round() as i64;
             let e = (t.round() as i64).max(s + 1);
@@ -62,10 +67,11 @@ pub fn bake_until(
                 pitch,
                 velocity,
                 release,
+                art,
             });
         }
     };
-    let mut drain = |c: &mut Chain, open: &mut Vec<(u64, u8, f64, u8)>| {
+    let mut drain = |c: &mut Chain, open: &mut Open| {
         let taken: Vec<(f64, Msg)> = c.take().to_vec();
         for (t, m) in &taken {
             close(*t, m, open);
@@ -120,7 +126,7 @@ pub fn bake_until(
     }
     // Whatever a chain never let go of ends there.
     let last = last.round() as i64;
-    for (_, pitch, start, velocity) in std::mem::take(&mut open) {
+    for (_, pitch, start, velocity, art) in std::mem::take(&mut open) {
         let s = start.round() as i64;
         if s >= last {
             continue;
@@ -131,6 +137,7 @@ pub fn bake_until(
             pitch,
             velocity,
             release: 0,
+            art,
         });
     }
     out.sort_by_key(|n| (n.start, n.pitch, n.length));

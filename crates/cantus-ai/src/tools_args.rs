@@ -436,6 +436,13 @@ pub const INSTRUMENTS: &[(&str, &str, InstrumentChoice, &str)] = &[
         InstrumentChoice::Native(InstrumentKind::Resonator),
         "resonator: an exciter (pluck, pick, bow, mallet, noise) into strings, bars, plates, membranes, bells, glass and tubes through a body — marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, bowed cello, struck glass; its input exciter plays another strip's sound, the track's sidechain_strip_id (set_track)",
     ),
+    // r42 fix2-model (review 9; BUILDING.md's row for Arcus, ADR 0157).
+    (
+        "arcus",
+        "Arcus",
+        InstrumentChoice::Native(InstrumentKind::BowedString),
+        "modelled bowed string — cello, double bass, violin, viola (`inst` 0–3): arco, pizzicato or tremolo (`tech` 0–2), or each note's own articulation and bow (a note's `art`: sustain, legato, staccato, spiccato, pizzicato, tremolo; up or down bow); legato lines glide when notes overlap",
+    ),
     (
         "dancer",
         "Saltator",

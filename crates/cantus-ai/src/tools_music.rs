@@ -525,6 +525,7 @@ fn lay(
             len: n.length,
             pitch: n.pitch,
             velocity: n.velocity,
+            art: None,
         })
         .collect())
 }

@@ -954,6 +954,32 @@ fn follows_tuning(spec: &crate::EffectSpec) -> bool {
     }
 }
 
+/// r42 fix2-model (review 10, ADR 0156): whether `target`'s region plays the MTS-ESP
+/// master's table — a track in it whose resolved tuning is `External`, or a pitched effect
+/// in it following a project in `External`. Its content key cannot hold that table (another
+/// program owns it), so its render is made again whenever the master's table moves (and
+/// once a session, at the first read): the interface sets it aside then
+/// (`cantus_ui::freeze::master_moved`), as every offline copy follows the master.
+pub fn follows_external(project: &Project, target: FreezeTarget) -> bool {
+    use crate::tuning::TuningSystem;
+    let r = region(project, target);
+    let ext = |t: &crate::tuning::Tuning| matches!(t.system, TuningSystem::External);
+    let tracks = project
+        .tracks
+        .iter()
+        .filter(|t| r.tracks.contains(&t.id))
+        .any(|t| ext(&t.tuning.resolve(&project.tuning)));
+    tracks
+        || (ext(&project.tuning)
+            && project
+                .strips
+                .iter()
+                .filter(|s| r.strips.contains(&s.id))
+                .flat_map(|s| s.effects.iter())
+                .chain(project.master.effects.iter().filter(|_| r.whole))
+                .any(|e| follows_tuning(&e.spec)))
+}
+
 fn subject_with(
     project: &Project,
     r: &Region,

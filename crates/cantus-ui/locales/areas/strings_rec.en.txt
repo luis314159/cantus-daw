@@ -47,3 +47,6 @@ art.abbr.pizzicato = Pizz.
 art.abbr.tremolo = Trem.
 art.abbr.down = Down
 art.abbr.up = Up
+
+# r42 fix2-model — the articulation in exported files (review 7, ADR 0158).
+interop.report.x_note_art = {n} notes' articulations and bows (pizzicato, staccato, legato…) are not in DAWproject: they play as the instrument decides there

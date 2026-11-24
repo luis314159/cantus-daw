@@ -255,14 +255,9 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let (vs, hardness) = settings_from(&values_of(spec));
     let grip = vs.voice.damper as f32;
     let decay = vs.voice.decay;
-    // r42 — the diapason Chorda plays at: its own, or its track's tuning's (ADR 0155).
-    let a4 = cantus_core::inst::chorda::effective_a4(
-        spec,
-        &crate::views::tuning::effective(
-            &crate::views::tuning::tuning_of(app, crate::views::tuning::Target::Track(track)),
-            app.project().key,
-        ),
-    );
+    // r42 — the diapason Chorda plays at: its own, its track's tuning's, or the MTS-ESP
+    // master's — as its tuning card says it (r42 fix2-model, review 11).
+    let a4 = crate::views::tuning::chorda::shown_a4(app, track, spec);
     let gutter = s.d(4.0);
     let small = s.s(card_h(0.0, 86.0));
     // Model 2 has a fourth row: its microphones, lid and room (round 37). r37:piano

@@ -22,6 +22,7 @@ fn main() {
             &XmlOptions {
                 software: "Cantus".into(),
                 date: None,
+                arts: Default::default(),
             },
         );
         let path = std::path::Path::new(&dir).join(format!("{}.musicxml", p.name));

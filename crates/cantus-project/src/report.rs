@@ -65,6 +65,10 @@ pub const KEYS: &[&str] = &[
     "interop.report.x_warp_markers",
     "interop.report.x_audio_unread",
     "interop.report.x_clip_envelopes", // r33:session
+    // The tuning and the note's articulation (round 42, ADRs 0155, 0158)
+    "interop.report.x_tuning",
+    "interop.report.x_track_tuning",
+    "interop.report.x_note_art",
     "interop.report.d_audio_missing",
     // DAWproject import
     "interop.report.d_read",

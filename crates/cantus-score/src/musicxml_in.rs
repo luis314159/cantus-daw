@@ -5,7 +5,8 @@
 //! `<divisions>`, chords, voices and staves through `<backup>`/`<forward>`, ties joined
 //! into one note, velocity from the note's `dynamics` attribute or the last dynamic
 //! marking, tempo from `<sound tempo>`, metres and the key. Grace and cue notes are left
-//! out (they take no time of their own).
+//! out (they take no time of their own). A note's articulation and bow are read from its
+//! `<notations>` (r42 fix2-model).
 
 use cantus_core::time::{TimeSignature, PPQ};
 
@@ -16,6 +17,52 @@ pub struct InNote {
     pub len: i64,
     pub pitch: u8,
     pub velocity: u8,
+    /// r42 fix2-model (review 7, ADR 0158): its articulation and bow, from its first
+    /// piece's `<notations>` ([`art_of`]); `None` where it has none.
+    pub art: Option<cantus_core::note_art::NoteArt>,
+}
+
+/// r42 fix2-model (review 7, ADR 0158) — a `<note>`'s articulation and bow from its
+/// `<notations>` (MusicXML 4.0's element names, the writer's `art_notations` read back):
+/// `<staccato/>` and `<staccatissimo/>` staccato, `<spiccato/>` spiccato, `<tenuto/>`
+/// sustain, the note's `pizzicato="yes"` pizzicato, a `<tremolo>` (in `<ornaments>`) of
+/// three marks or more, or unmeasured, tremolo; `<up-bow/>` and `<down-bow/>` the bow. Marks
+/// Cantus has no articulation for (an accent, a fermata, a double-note tremolo) and a
+/// `<sound pizzicato>` that switches a passage are left out.
+pub fn art_of(note: roxmltree::Node) -> Option<cantus_core::note_art::NoteArt> {
+    use cantus_core::note_art::{Articulation as A, Bow, NoteArt};
+    let mut articulation = (note.attribute("pizzicato") == Some("yes")).then_some(A::Pizzicato);
+    let mut bow = None;
+    for n in note
+        .children()
+        .filter(|c| c.has_tag_name("notations"))
+        .flat_map(|c| c.children())
+        .flat_map(|g| g.children())
+    {
+        match n.tag_name().name() {
+            "staccato" | "staccatissimo" => articulation = articulation.or(Some(A::Staccato)),
+            "spiccato" => articulation = articulation.or(Some(A::Spiccato)),
+            "tenuto" => articulation = articulation.or(Some(A::Sustain)),
+            "tremolo" => {
+                let marks: u8 = n.text().and_then(|t| t.trim().parse().ok()).unwrap_or(3);
+                match n.attribute("type").unwrap_or("single") {
+                    "single" if marks >= 3 => articulation = Some(A::Tremolo),
+                    "unmeasured" => articulation = Some(A::Tremolo),
+                    _ => {}
+                }
+            }
+            "up-bow" => bow = Some(Bow::Up),
+            "down-bow" => bow = Some(Bow::Down),
+            _ => {}
+        }
+    }
+    match (articulation, bow) {
+        (None, None) => None,
+        (a, bow) => Some(NoteArt {
+            articulation: a.unwrap_or(A::Sustain),
+            bow,
+        }),
+    }
 }
 
 /// A part read from MusicXML.
@@ -297,6 +344,7 @@ fn read_part(part: roxmltree::Node, first: bool, out: &mut Imported) -> Vec<InNo
                                 len: dur,
                                 pitch,
                                 velocity: vel,
+                                art: art_of(el),
                             });
                             notes.len() - 1
                         }
