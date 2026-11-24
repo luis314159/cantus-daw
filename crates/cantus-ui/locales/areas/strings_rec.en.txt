@@ -52,6 +52,6 @@ art.abbr.up = Up
 interop.report.x_note_art = {n} notes' articulations and bows (pizzicato, staccato, legato…) are not in DAWproject: they play as the instrument decides there
 
 # r42 fix3-suite — the legato card's cells (Exemplar's Edit view).
-smp.legato_xf.short = XFADE
-smp.legato_glide.short = GLIDE
-smp.legato_skip.short = START
+smp.legato_xf.short = Crossfade
+smp.legato_glide.short = Glide
+smp.legato_skip.short = Start
