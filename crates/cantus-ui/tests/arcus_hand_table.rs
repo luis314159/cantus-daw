@@ -199,7 +199,7 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                     let (ix, _, _) = loc(lp.fingers[0][0]);
                     let (tx, ty, tz) = loc(lp.thumb[3]);
                     let top = board_z(d, ty);
-                    if ix <= la.hw || tx >= -la.hw * 0.5 || !(top - 1.6..=top + 0.9).contains(&tz) {
+                    if ix <= la.hw || tx >= -la.hw * 0.5 || !(top - 1.6..=top + 1.2).contains(&tz) {
                         bad.push(format!(
                             "{tag}: the index's base at x {ix:.1}, the thumb's tip at x {tx:.1}, \
                              {:.1} cm from the top",

@@ -187,6 +187,63 @@ def rot_x(p, c, a):
     return c + np.stack([q[:, 0], q[:, 1] * ca - q[:, 2] * sa, q[:, 1] * sa + q[:, 2] * ca], 1)
 
 
+# How much of a finger's girth is kept (the owner's review, 2026-11-24: the hands read as
+# clay — thick, short fingers): drawn in toward each phalanx's own axis, the thumb less.
+FINGER_SLIM = 0.86
+THUMB_SLIM = 0.92
+
+
+def slim_fingers(pos, wt, J):
+    """Each finger's skin drawn in toward its phalanges' axes (by its weight to them), so
+    the fingers read slender and long; the bones stay where they are."""
+    out = pos.copy()
+    for s in SIDES:
+        for f in range(1, 6):
+            k_slim = THUMB_SLIM if f == 1 else FINGER_SLIM
+            for k in range(1, 4):
+                bone = f"finger{f}-{k}.{s}"
+                if bone not in wt:
+                    continue
+                a, b = J[f"{bone}____head"], J[f"{bone}____tail"]
+                ab = b - a
+                ids = np.array([i for i, _ in wt[bone]])
+                w = np.array([x for _, x in wt[bone]])
+                q = pos[ids]
+                tt = np.clip(((q - a) @ ab) / max(ab @ ab, 1e-9), -0.3, 1.3)
+                axis = a + tt[:, None] * ab
+                out[ids] += (axis - q) * ((1.0 - k_slim) * w)[:, None]
+    return out
+
+
+def finger_tint(pos, wt, J):
+    """Per vertex (0…1): how near a finger's joint it lies (its crease, its knuckle) and
+    how much of a fingertip or the palm's little-finger edge it is."""
+    crease = np.zeros(len(pos))
+    tips = np.zeros(len(pos))
+    for s in SIDES:
+        for f in range(1, 6):
+            for k in range(1, 4):
+                bone = f"finger{f}-{k}.{s}"
+                if bone not in wt:
+                    continue
+                a, b = J[f"{bone}____head"], J[f"{bone}____tail"]
+                ab = (b - a) / max(np.linalg.norm(b - a), 1e-9)
+                ids = np.array([i for i, _ in wt[bone]])
+                w = np.array([x for _, x in wt[bone]])
+                along = (pos[ids] - a) @ ab
+                near = np.exp(-(along / 0.35) ** 2) * w
+                crease[ids] = np.maximum(crease[ids], near)
+                if k == 3:
+                    L = np.linalg.norm(b - a)
+                    tips[ids] = np.maximum(tips[ids], smooth01((along / max(L, 1e-6) - 0.3) / 0.7) * w)
+        bone = f"metacarpal4.{s}"
+        if bone in wt:
+            ids = np.array([i for i, _ in wt[bone]])
+            w = np.array([x for _, x in wt[bone]])
+            tips[ids] = np.maximum(tips[ids], 0.5 * w)
+    return crease, tips
+
+
 def close_lids(pos, wt, J):
     """The eyelids lowered over the eyes (a player's eyes on the instrument): the upper
     lid's vertices turned down about the eye's centre, the lower lid's a little up."""
@@ -202,8 +259,10 @@ def close_lids(pos, wt, J):
     return out
 
 
-UPPER_LID = 27.0
-LOWER_LID = 6.0
+# Half-open, looking down at the strings (the owner's review, 2026-11-24: closed read as
+# asleep or a mannequin).
+UPPER_LID = 14.0
+LOWER_LID = 3.0
 
 
 def scene_weights(n, wt, m2s):
@@ -467,6 +526,7 @@ def make(sex, data, assets):
     pos = shaped(base, data, sex, mix)
     J = mh.joint_positions(sk, pos)
     pos = close_lids(pos, wt, J)
+    pos = slim_fingers(pos, wt, J)
     W = scene_weights(len(pos), wt, m2s)
     tris_all, _ = triangulate(faces)
     tri_groups = [f[2] for f in faces for _ in range(len(f[0]) - 2)]
@@ -487,10 +547,29 @@ def make(sex, data, assets):
     lum, red = skin_detail(pos, faces, uvs, skin_tex, keep_v & (head_w > 0.5))
     lum = lash_line(pos, btris, lum, J, wt)
     brow = brows(pos, keep_v, J, sex)
-    lum = lum * (1.0 - (0.5 if sex == "female" else 0.66) * brow)
+    # (The owner's review, 2026-11-24: brows that read — hers a light brown, darker than
+    # her blonde; his darker.)
+    lum = lum * (1.0 - (0.74 if sex == "female" else 0.86) * brow)
     red = red - 0.15 * brow
-    # Cheeks, lips, the nose's tip and the ears a little warmer (sheet v7: a face with life).
-    red = red + 0.18 * warmth(pos, J, sex)
+    # Cheeks, lips, the nose's tip and the ears warmer (a face with life, not porcelain),
+    # the lips a natural rose, and the skin not one even tone: a little redness here and
+    # there, as real skin has.
+    red = red + 0.28 * warmth(pos, J, sex)
+    lip = lip_spot(pos, J)
+    red = red + 0.32 * lip
+    lum = lum * (1.0 - 0.1 * lip)
+    q = pos * 0.45
+    blotch = (np.sin(q[:, 0] * 1.3 + 0.7) * np.sin(q[:, 1] * 1.1 + 1.9) * np.sin(q[:, 2] * 1.7))
+    red = red + 0.05 * blotch
+    # The fingers' joints a little darker in their creases, the knuckles shaded, the
+    # fingertips and the palm's edge warmer (the owner's review: hands of clay).
+    crease, tips = finger_tint(pos, wt, J)
+    lum = lum * (1.0 - 0.16 * crease)
+    red = red + 0.06 * crease + 0.16 * tips
+    if sex == "male":
+        # His skin less pale: a little more colour all over.
+        red = red + 0.08
+        lum = lum * 0.95
     lash_p, lash_t = lashes(pos, wt, J)
     # The nails: the body cut along each nail's edge (sheet v7).
     nf = nail_field(pos, W, sk, J)
@@ -498,10 +577,15 @@ def make(sex, data, assets):
     head_w = np.array([d.get(BI["head"], 0.0) / max(sum(d.values()), 1e-9) for d in W])
     if sex == "female":
         # Swept back with soft volume at the crown (the owner's reference's styling).
+        # Strand groups (the owner's review: a shell read as a striped helmet): the hair's
+        # depth rises and falls across the head in soft locks drawn back, uneven.
         def thick(th, ph):
+            a = np.radians(th)
+            locks = 0.5 + 0.5 * np.sin(a * 11.0 + 0.8 * np.sin(a * 27.0 + 1.3))
             return (0.8 + 0.4 * smooth01((ph - 28) / 30.0)
                     + 0.45 * smooth01((np.abs(th) - 60) / 90.0)
-                    + 0.75 * smooth01((ph - 42) / 22.0) * (1.0 - smooth01((np.abs(th) - 140) / 35.0)))
+                    + 0.75 * smooth01((ph - 42) / 22.0) * (1.0 - smooth01((np.abs(th) - 140) / 35.0))
+                    + 0.28 * locks * smooth01((ph - 24) / 18.0))
         # (Rising slowly from the hairline: swept back, lying flat at the brow — a quick
         # rise read as a cap's edge across the forehead.)
         hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w, band=16.0,
@@ -509,15 +593,18 @@ def make(sex, data, assets):
         bp, bw, bt, bmat, blum, bred = dress(pos, W, btris, J, lum, red, nf)
         fig.add(bp, bw, bt, bmat, blum, bred)
         fig.add(hp, hw, ht, HAIR, uv=huv)
-        # Tied low: the bun at the nape, its strands wound round it.
+        # Tied low: a chignon at the nape — the hair twisted into a ring, its strands wound
+        # round it — over a soft core that fills its middle.
         bc = c + np.array([0.0, -6.6, -9.6])
-        ep, et, euv = ellipsoid(bc, np.eye(3), (4.3, 3.2, 3.0), twist=1.5)
+        ep, et, euv = ellipsoid(bc, np.eye(3), (3.0, 2.3, 2.2), twist=1.5)
         et = outward(ep, et, bc)
         fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, HAIR, uv=euv)
-        # Fine strands over the hair, from the hairline back to the bun, a little proud of
-        # it: at the silhouette they break the shell's edge as real hair does.
-        sp_, st_, suv = strands(hp, huv, c, bc)
-        fig.add(sp_, [{BI["head"]: 1.0}] * len(sp_), st_, HAIR, uv=suv)
+        tp, tt, tuv = torus(bc + np.array([0.0, 0.0, -0.6]), np.array([0.0, -0.25, -1.0]),
+                            2.6, 1.35)
+        fig.add(tp, [{BI["head"]: 1.0}] * len(tp), tt, HAIR, uv=tuv)
+        # A few loose strands at the temples.
+        lp_, lt_, luv = temple_strands(hp, huv, c)
+        fig.add(lp_, [{BI["head"]: 1.0}] * len(lp_), lt_, HAIR, uv=luv)
         # Small drop earrings: a bead at each lobe, a drop under it.
         for jp, jt in earrings(pos, head_w, c, J):
             fig.add(jp, [{BI["head"]: 1.0}] * len(jp), jt, JEWEL)
@@ -539,54 +626,75 @@ def make(sex, data, assets):
     return compact(fig), J
 
 
-def strands(hp, huv, c, bun, n=150, seg=9, width=0.035, seed=7):
-    """Fine strands of hair: from points along the hairline (the shell's vertices where it
-    starts) swept back over the head to the bun, each lifted 1-4 mm off the shell and waving
-    a little, as thin ribbons. Returns (positions, triangles, strand coordinates)."""
-    rng = np.random.default_rng(seed)
-    q_all = hp - c
-    r_all = np.linalg.norm(q_all, axis=1)
-    dirs = q_all / r_all[:, None]
-    th, _ = angles(hp, c)
-    # From the front and the top of the hairline (swept back over the head).
-    edge = np.where((huv[:, 1] < 0.35) & (np.abs(th) < 75.0))[0]
-    if len(edge) == 0:
-        return np.zeros((0, 3)), np.zeros((0, 3), dtype=np.int64), np.zeros((0, 2))
-    pick = rng.choice(edge, size=min(n, len(edge)), replace=False)
+def torus(c, axis, R, r, rows=12, cols=36, twist=2.5):
+    """A ring of hair round ``axis`` at ``c`` (major radius ``R``, the twist's ``r``), its
+    strands winding round the twist: points, triangles, strand coordinates."""
+    a = axis / np.linalg.norm(axis)
+    u = np.cross(a, [0.0, 1.0, 0.0])
+    u = u / max(np.linalg.norm(u), 1e-9)
+    v = np.cross(a, u)
+    pts, uv = [], []
+    for i in range(cols):
+        th = 2 * np.pi * i / cols
+        ring = u * np.cos(th) + v * np.sin(th)
+        for j in range(rows):
+            ph = 2 * np.pi * j / rows
+            pts.append(c + ring * (R + r * np.cos(ph)) + a * (r * np.sin(ph)))
+            uv.append([th * 4.0 + ph * twist, 1.0])
+    tris = []
+    for i in range(cols):
+        for j in range(rows):
+            p0 = i * rows + j
+            p1 = ((i + 1) % cols) * rows + j
+            p2 = ((i + 1) % cols) * rows + (j + 1) % rows
+            p3 = i * rows + (j + 1) % rows
+            tris += [[p0, p1, p2], [p0, p2, p3]]
+    pts, tris = np.array(pts), np.array(tris)
+    # Wound outward from the ring's own core.
+    a_, b_, d_ = pts[tris[:, 0]], pts[tris[:, 1]], pts[tris[:, 2]]
+    cen = (a_ + b_ + d_) / 3.0
+    rel = cen - c
+    core = c + (rel - np.outer(rel @ a, a)) / np.maximum(
+        np.linalg.norm(rel - np.outer(rel @ a, a), axis=1, keepdims=True), 1e-9) * R
+    fn = np.cross(b_ - a_, d_ - a_)
+    flip = ((cen - core) * fn).sum(1) < 0
+    tris[flip] = tris[flip][:, [0, 2, 1]]
+    return pts, tris, np.array(uv)
+
+
+def temple_strands(hp, huv, c, n=4, seg=8, width=0.045):
+    """A few loose strands at each temple: from the hairline there, falling softly along
+    the side of the face a few centimetres, a little off the skin."""
+    th, ph = angles(hp, c)
     pts, tris, uv = [], [], []
-    for i in pick:
-        p0 = hp[i] - c
-        p1 = bun - c
-        r0, r1 = np.linalg.norm(p0), np.linalg.norm(p1)
-        a0, a1 = p0 / r0, p1 / r1
-        lift = rng.uniform(0.1, 0.4)
-        wave = rng.uniform(-0.15, 0.15)
-        base = len(pts)
-        for k in range(seg + 1):
-            t = k / seg
-            d = a0 * (1 - t) + a1 * t
-            d /= np.linalg.norm(d)
-            # On the shell (its radius that way, the nearest of its points) and a little
-            # proud of it.
-            r = r_all[np.argmax(dirs @ d)] + lift * (0.4 + 0.6 * np.sin(np.pi * t))
-            q = c + d * r
-            # Across the strand: square to its way and to the radius.
-            nxt = a0 * (1 - min(t + 0.05, 1)) + a1 * min(t + 0.05, 1)
-            way = nxt / np.linalg.norm(nxt) - d
-            if np.linalg.norm(way) < 1e-6:
-                way = np.cross(d, [0, 1.0, 0])
-            side = np.cross(d, way)
-            side /= max(np.linalg.norm(side), 1e-9)
-            q = q + side * wave * np.sin(np.pi * t * 2.0)
-            w = width * (1.0 - 0.6 * t)
-            pts += [q - side * w, q + side * w]
-            uv += [[huv[i, 0], 1.0], [huv[i, 0], 1.0]]
-            if k > 0:
-                a_, b_ = base + 2 * (k - 1), base + 2 * k
-                tris += [[a_, b_, b_ + 1], [a_, b_ + 1, a_ + 1]]
+    for sgn in (1.0, -1.0):
+        edge = np.where((huv[:, 1] < 0.2) & (th * sgn > 58.0) & (th * sgn < 82.0))[0]
+        if len(edge) == 0:
+            continue
+        pick = edge[np.linspace(0, len(edge) - 1, n).astype(int)]
+        for k, i in enumerate(pick):
+            p0 = hp[i]
+            out = p0 - c
+            out = out / np.linalg.norm(out)
+            down = np.array([0.0, -1.0, 0.0])
+            side = np.cross(out, down)
+            side = side / max(np.linalg.norm(side), 1e-9)
+            L = 3.5 + 1.2 * (k % 2)
+            base = len(pts)
+            for j in range(seg + 1):
+                t = j / seg
+                q = (p0 + down * (L * t) + out * (0.25 + 0.35 * np.sin(np.pi * t * 0.8))
+                     + side * (0.3 * np.sin(np.pi * t + k)))
+                w = width * (1.0 - 0.7 * t)
+                pts += [q - side * w, q + side * w]
+                uv += [[huv[i, 0], 0.7], [huv[i, 0], 0.7]]
+                if j:
+                    a_, b_ = base + 2 * (j - 1), base + 2 * j
+                    tris += [[a_, b_, b_ + 1], [a_, b_ + 1, a_ + 1]]
+    if not pts:
+        return np.zeros((0, 3)), np.zeros((0, 3), dtype=np.int64), np.zeros((0, 2))
     pts = np.array(pts)
-    tris = np.array(tris, dtype=np.int64)
-    return pts, outward(pts, tris, c), np.array(uv)
+    return pts, outward(pts, np.array(tris, dtype=np.int64), c), np.array(uv)
 
 
 DEBUG_EARS = False
@@ -668,9 +776,9 @@ def warmth(pos, J, sex):
     mid = (el + er) * 0.5
     out = np.zeros(len(pos))
     spots = [
-        (el + np.array([0.6, -3.0, 0.6]), 2.2, 0.8),
-        (er + np.array([-0.6, -3.0, 0.6]), 2.2, 0.8),
-        (mid + np.array([0.0, -4.0, 2.6]), 1.0, 0.5),
+        (el + np.array([0.6, -3.0, 0.6]), 2.4, 1.0),
+        (er + np.array([-0.6, -3.0, 0.6]), 2.4, 1.0),
+        (mid + np.array([0.0, -4.0, 2.6]), 1.1, 0.7),
         (mid + np.array([0.0, -6.6, 1.3]), 1.4, 0.9),
         (el + np.array([4.6, -1.5, -5.8]), 2.0, 0.6),
         (er + np.array([-4.6, -1.5, -5.8]), 2.0, 0.6),
@@ -804,6 +912,14 @@ def lashes(pos, wt, J):
     return np.array(pts).reshape(-1, 3), np.array(tri, dtype=np.int64).reshape(-1, 3)
 
 
+def lip_spot(pos, J):
+    """The lips (0…1): a soft blob at the mouth, wider than tall."""
+    el, er = J["eye.L____head"], J["eye.R____head"]
+    c = (el + er) * 0.5 + np.array([0.0, -6.7, 1.3])
+    q = (pos - c) / np.array([2.3, 0.8, 1.4])
+    return 1.0 - smooth01(np.linalg.norm(q, axis=1))
+
+
 def lips(pos, tris, J):
     return np.zeros(len(tris), bool)
 
@@ -857,7 +973,68 @@ def dress(pos, W, tris, J, lum, red, nail):
     puff = (0.55 * smooth01((cap - 0.35) / 0.4) * np.clip(nrm[:, 1] * 1.4, 0.0, 1.0)
             * smooth01(-skin_v / 4.0))
     lift = (0.22 + puff) * smooth01(-skin_v / 0.8)
-    return p + nrm * lift[:, None], w, t, mats, ex[0], ex[1]
+    q = p + nrm * lift[:, None]
+    # A draped bodice (the owner, 2026-11-24: modest and elegant — the dress must never
+    # read as paint on the body): over the trunk the cloth is smoothed out of the body's
+    # contour (each vertex drawn toward its neighbours' middle, many times, weighted from
+    # nothing at the neckline and the cuffs to full well inside the dress) and stands off it
+    # by a loose fit's ease, more in front; the sleeves a little fuller too.
+    trunk = np.array([bone_share(d, ("spine", "chest", "hips", "breast.L", "breast.R"))
+                      for d in w])
+    arm = np.array([bone_share(d, ("upper1.L", "upper1.R", "upper2.L", "upper2.R",
+                                    "fore1.L", "fore1.R", "fore2.L", "fore2.R")) for d in w])
+    inner = smooth01(-skin_v / 3.0)
+    vel = mats == VELVET
+    on = np.zeros(len(q), bool)
+    on[t[vel].ravel()] = True
+    # (Never across the armpit: smoothed there the sleeve and the side webbed together.)
+    m = np.clip(trunk, 0.0, 1.0) * inner * (1.0 - smooth01(arm / 0.3))
+    m = np.where(on, m, 0.0)
+    # The front falls as cloth does from the shoulders: the depth of the trunk's front half
+    # blurred across (a 5 cm Gaussian over its own points), so it lies over the body's forms
+    # instead of following them.
+    zc = np.median(q[on & (trunk > 0.4), 2]) if (on & (trunk > 0.4)).any() else 0.0
+    fr = np.where(on & (trunk > 0.2) & (q[:, 2] > zc - 4.0))[0]
+    if len(fr):
+        xy = q[fr][:, :2]
+        d2 = ((xy[:, None, :] - xy[None, :, :]) ** 2).sum(-1)
+        g = np.exp(-d2 / (2.0 * 5.0 ** 2))
+        # (Weighted in softly from the trunk's middle depth and its sides: a hard edge to
+        # the blurred part left a ridge.)
+        k = (inner[fr] * smooth01((trunk[fr] - 0.2) / 0.6)
+             * smooth01((q[fr, 2] - zc + 4.0) / 8.0))
+        for _ in range(2):
+            zb = (g @ q[fr][:, 2]) / g.sum(1)
+            q[fr, 2] = q[fr, 2] + (zb - q[fr, 2]) * k
+    # Welded for the smoothing: the base mesh repeats a vertex where its pieces meet (an
+    # unwelded piece over the bust stood out of the smoothed cloth as a point).
+    keys = np.round(q * 50.0).astype(np.int64)
+    _, rep, inv = np.unique(keys, axis=0, return_index=True, return_inverse=True)
+    rep = rep[inv.ravel()]
+    e = np.concatenate([t[vel][:, [0, 1]], t[vel][:, [1, 2]], t[vel][:, [2, 0]]])
+    e = rep[e]
+    e = e[e[:, 0] != e[:, 1]]
+    deg = np.zeros(len(q))
+    np.add.at(deg, e[:, 0], 1.0)
+    np.add.at(deg, e[:, 1], 1.0)
+    for _ in range(BODICE_SMOOTH):
+        acc = np.zeros_like(q)
+        np.add.at(acc, e[:, 0], q[e[:, 1]])
+        np.add.at(acc, e[:, 1], q[e[:, 0]])
+        avg = acc / np.maximum(deg, 1.0)[:, None]
+        q = q + (avg - q) * (0.5 * m)[:, None]
+        q = q[rep]
+    nq = vnormals(q, t[vel])
+    nq = np.where(on[:, None], nq, nrm)
+    front = np.clip(nq[:, 2], 0.0, 1.0)
+    ease = m * (BODICE_EASE + 0.6 * front) + np.where(on, arm, 0.0) * inner * SLEEVE_EASE
+    return q + nq * ease[:, None], w, t, mats, ex[0], ex[1]
+
+
+# The bodice's smoothing (passes) and ease (cm), the sleeves' ease.
+BODICE_SMOOTH = 160
+BODICE_EASE = 0.7
+SLEEVE_EASE = 0.35
 
 
 def suit(assets, obj, refs, scales, pos):

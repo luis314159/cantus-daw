@@ -20,6 +20,7 @@ arcus_hand_table -- --ignored dump``. The table the app reads is written to
 ``crates/cantus-ui/assets/figures/left_hand.bin`` (format: ``scene/figure/neck_hand.rs``).
 
     python tools/arcus-figures/left_hand.py solve <dump.json> --only=woman-violin  (x4)
+    python tools/arcus-figures/left_hand.py fix <dump.json> --only=woman-violin  (x4)
     python tools/arcus-figures/left_hand.py pack <dump.json>
     python tools/arcus-figures/left_hand.py look <dump.json> <out dir> [who inst string finger at]
 
@@ -205,7 +206,10 @@ PLAY = ((45, 70), (70, 100), (25, 50))
 HOVER = ((35, 70), (60, 100), (15, 50))
 # Each finger's spread at rest (rad): the index a little toward the scroll, the little
 # finger a little away.
-SPREAD = np.array([-0.06, 0.0, 0.05, 0.12])
+SPREAD = np.array([-0.12, -0.03, 0.07, 0.17])
+# Each finger's angles near the middle of its range (deg; the owner's review: curled to
+# the ranges' ends the fingers read short, a fist on the fingerboard).
+MID = (55.0, 82.0, 32.0)
 # Where the palm faces (the owner's photographs 2-4: toward the player as much as toward the
 # neck, a little up), and how near to it it must keep.
 def PALM_WAY(pose):
@@ -268,11 +272,15 @@ class Pose:
                 d2 = hr.norm(P[f + 1, 3] - P[f + 1, 2])
                 add(f"upright{f}", 25.0 * max(0.0, 0.85 - d2 @ (-self.z)))
             else:
-                miss = np.linalg.norm(tip - self.tips[f])
+                # Hovering over its own string a little across from the playing one (each
+                # finger falls toward its own string, at its own angle — photograph 4).
+                want = self.tips[f] + self.kx * (0.35 * (f - max(p, 0)))
+                miss = np.linalg.norm(tip - want)
                 add(f"hover{f}", 3.0 * max(0.0, miss - 0.8))
             rng = PLAY if f == p else HOVER
             for k in range(3):
                 add(f"ang{f}{k}", 1.0 * over(ang[f + 1, k], *rng[k]))
+                add(f"mid{f}{k}", 0.08 * (ang[f + 1, k] - MID[k]))
             add(f"spread{f}", 1.0 * (x[6 + 4 * f + 1] - SPREAD[f]))
             # The arch: the middle joint high over the fingerboard.
             ql = loc(P[f + 1, 1])
@@ -446,6 +454,55 @@ def solve_fig(F, h, cache, verbose=False):
                     "Q": Q.reshape(15, 3, 3).tolist(), "cost": float(cost), "x": x.tolist()}
                 if verbose:
                     print(key, string, finger, at, "cost %.2f" % cost, flush=True)
+
+
+def fix_fig(F, h, cache, worse=60.0, verbose=False, tries=8, save=None):
+    """Rows solved poorly (cost over ``worse``) tried again: from the row a position lower
+    and the one higher, a fresh guess and eight moves off the best at random (seeded); the
+    best kept if better."""
+    neck = Neck(F)
+    key = f'{F["who"]}-{F["inst"]}'
+    R0, _ = start(h, rows_of(F, 0, 1)[0])
+    rng = np.random.default_rng(7)
+    ats = sorted({r["at"] for r in F["rows"]})
+    for row in F["rows"]:
+        k = f'{key}-{row["string"]}-{row["finger"]}-{row["at"]:g}'
+        c = cache[k]
+        if c["cost"] <= worse:
+            continue
+        i = ats.index(row["at"])
+        near = [cache.get(f'{key}-{row["string"]}-{row["finger"]}-{a:g}') for a in
+                (ats[i - 1] if i > 0 else None, ats[i + 1] if i + 1 < len(ats) else None)
+                if a is not None]
+        prev = np.array(near[0]["x"]) if i > 0 and near else None
+        pose = Pose(h, neck, F, row, R0)
+        fun = (lambda x: pose.residuals(x, prev))
+        best = (np.array(c["x"]), float(fun(np.array(c["x"])) @ fun(np.array(c["x"]))))
+        starts = [np.array(n["x"]) for n in near if n is not None]
+        R1, x0 = start(h, row)
+        x0[3:6] = rotlog(R1 @ R0.T)
+        starts.append(x0)
+        for x_ in starts:
+            x, cost = lm(fun, x_, iters=80)
+            if cost < best[1]:
+                best = (x, cost)
+        for _ in range(tries):
+            xs = best[0].copy()
+            xs[:3] += rng.normal(0, 0.8, 3)
+            xs[3:6] += rng.normal(0, 0.2, 3)
+            xs[6:] += rng.normal(0, 0.15, len(xs) - 6)
+            x, cost = lm(fun, xs, iters=80)
+            if cost < best[1]:
+                best = (x, cost)
+        x, cost = best
+        if verbose:
+            print(k, "cost %.1f -> %.1f" % (c["cost"], cost), flush=True)
+        if cost < c["cost"]:
+            W, Rh, Q = pose.unpack(x)
+            cache[k] = {"W": W.tolist(), "Rh": Rh.tolist(), "Q": Q.reshape(15, 3, 3).tolist(),
+                        "cost": float(cost), "x": x.tolist()}
+            if save:
+                save(cache)
 
 
 def rotlog(R):
@@ -639,6 +696,17 @@ def main():
             cache = {}
             solve_fig(F, h, cache, verbose=True)
             json.dump(cache, open(os.path.join(here, f"left_hand_cache-{key}.json"), "w"))
+    elif cmd == "fix":
+        # The poor rows of one figure and instrument again (run the four side by side).
+        for F in dump["figs"]:
+            key = f'{F["who"]}-{F["inst"]}'
+            if only and key != only:
+                continue
+            cache = cache_of(key)
+            path = os.path.join(here, f"left_hand_cache-{key}.json")
+            fix_fig(F, Hand(F["who"]), cache, verbose=True, tries=3,
+                    save=lambda c, p=path: json.dump(c, open(p, "w")))
+            json.dump(cache, open(path, "w"))
     elif cmd == "pack":
         cache = {}
         for k in keys:

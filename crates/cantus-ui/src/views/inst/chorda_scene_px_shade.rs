@@ -776,15 +776,11 @@ pub fn shade(
     let fill = rig.fill(p, n);
     let amb = rig.ambient(n);
     let mut e = [0.0f32; 3];
-    // r42:arcus-upper — a figure's creases (between the fingers, under the jaw, the
-    // clothes' folds) take the occlusion in their fill too (not in the key: the
-    // occlusion's dithered samples showed there as fine diagonal stripes at 200 %).
-    let crease = if figure { 0.6 + 0.4 * ao } else { 1.0 };
+    // (r42:arcus-upper: the screen-space occlusion stays in the ambient only — its
+    // dithered samples, carried into the key or the fill, showed on a face as fine
+    // diagonal stripes at 200 %.)
     for i in 0..3 {
-        e[i] = kc[i] * ndl * kv
-            + fill[i] * crease
-            + amb[i] * ao
-            + kf[i] * floor_alb[i] * 0.55 * below * ao;
+        e[i] = kc[i] * ndl * kv + fill[i] + amb[i] * ao + kf[i] * floor_alb[i] * 0.55 * below * ao;
     }
     if m.tex == Tex::Skin {
         // r42:arcus-upper — skin's scattered light: a warm share where the key falls off
@@ -793,7 +789,7 @@ pub fn shade(
         let t = (1.0 - n.dot(l).max(0.0)) * ndl;
         e[0] += kc[0] * kv * t * 0.18 + amb[0] * ao * 0.06;
         e[1] += kc[1] * kv * t * 0.04 + amb[1] * ao * 0.015;
-        let front = ndv.powf(2.0) * 0.07 * ao;
+        let front = ndv.powf(2.0) * 0.07;
         for (i, ei) in e.iter_mut().enumerate() {
             *ei += (kc[i] + amb[i]) * front;
         }

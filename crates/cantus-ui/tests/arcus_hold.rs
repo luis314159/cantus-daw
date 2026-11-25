@@ -559,7 +559,10 @@ fn the_left_arm_keeps_the_photographs_angles() {
                         ez < -12.0,
                         "{b:?} {hold:?}: elbow only {ez:.1} cm under the violin"
                     );
-                    assert!(v < 65.0, "{b:?} {hold:?}: forearm and neck {v:.0}° apart");
+                    // (Up the neck toward the body the forearm rises more steeply under it:
+                    // a wider V at the octave.)
+                    let v_max = if semis > 9.0 { 75.0 } else { 65.0 };
+                    assert!(v < v_max, "{b:?} {hold:?}: forearm and neck {v:.0}° apart");
                 } else {
                     assert!(out > 10.0, "{b:?} {hold:?}: the elbow {out:.0} cm out");
                     assert!(

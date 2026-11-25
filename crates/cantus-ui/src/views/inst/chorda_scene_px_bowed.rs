@@ -153,7 +153,9 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
                 // Seen per pixel under the key a skin's albedo reads lighter than drawn:
                 // a little less of it, so a fair face is not chalk.
                 let a = lin3(hp::real_skin(*i).albedo).map(|c| c * 0.48);
-                g.mat(PMat::lacquer(a, 0.05, 0.5).with(Tex::Skin))
+                // (r42:arcus-upper: a soft sheen on the nose and the forehead, as skin has —
+                // the owner's review: porcelain.)
+                g.mat(PMat::lacquer(a, 0.09, 0.38).with(Tex::Skin))
             }
             Role::Hair => g.mat(PMat {
                 dark: scalp,

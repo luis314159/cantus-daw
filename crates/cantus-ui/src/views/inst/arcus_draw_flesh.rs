@@ -474,7 +474,8 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
     let ndv = n.dot(e).clamp(0.0, 1.0);
     // The nail: the skin's own colour paler and a little pink, glossier.
     let skin_detail = match st {
-        Stuff::Nail => [detail[0].clamp(0.9, 1.1) * 1.2, detail[1] * 0.3 - 0.25],
+        // (A lighter, glossier cap than the skin round it: the owner's review.)
+        Stuff::Nail => [detail[0].clamp(0.9, 1.1) * 1.32, detail[1] * 0.3 - 0.2],
         _ => detail,
     };
     if let Some(light) = &sh.drawn {
@@ -559,7 +560,7 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         // A soft sheen (a nail's sharper).
         let h = (l + e).norm();
         let (pw, k) = if st == Stuff::Nail {
-            (60, 0.22)
+            (60, 0.34)
         } else {
             (18, 0.035)
         };
@@ -692,7 +693,7 @@ pub fn arm(
                     };
                 }
                 // A shirt's cuff lies inside its sleeve: sorted a little behind it.
-                let bias = if st == Stuff::Shirt { 1.5 } else { 0.0 };
+                let bias = if st == Stuff::Shirt { 3.0 } else { 0.0 };
                 sc.order.push((v.cam.depth(ctr) + bias, k as u32));
             }
             sc.col.push(cc);
@@ -702,7 +703,11 @@ pub fn arm(
         for (e, &(a, bb, t0, t1)) in am.edges.iter().enumerate() {
             let f0 = t0 != u32::MAX && sc.front[t0 as usize];
             let f1 = t1 != u32::MAX && sc.front[t1 as usize];
-            if f0 != f1 {
+            // r42:arcus-upper — and where two stuffs meet on the arm (a cuff on the wrist, a
+            // shirt's cuff under a sleeve): the cloth's edge feathered over what is next to it,
+            // so the cuff reads as a clean edge (triangles meet unsmoothed: a staircase).
+            let seam = f0 && f1 && rank(am.stuff[t0 as usize]) != rank(am.stuff[t1 as usize]);
+            if f0 != f1 || seam {
                 let mid = (sc.pts[a as usize] + sc.pts[bb as usize]) * 0.5;
                 sc.order.push((v.cam.depth(mid) - 0.05, tri_n + e as u32));
             }
@@ -716,7 +721,19 @@ pub fn arm(
                 b.shaded_tri(p, sc.col[k as usize]);
             } else {
                 let (a, bb, t0, t1) = am.edges[(k - tri_n) as usize];
-                let t = if t0 != u32::MAX && sc.front[t0 as usize] {
+                let both = t0 != u32::MAX
+                    && t1 != u32::MAX
+                    && sc.front[t0 as usize]
+                    && sc.front[t1 as usize];
+                let t = if both {
+                    // A seam: from the one on top (the cloth over the skin, the sleeve
+                    // over the shirt).
+                    if rank(am.stuff[t0 as usize]) >= rank(am.stuff[t1 as usize]) {
+                        t0
+                    } else {
+                        t1
+                    }
+                } else if t0 != u32::MAX && sc.front[t0 as usize] {
                     t0
                 } else {
                     t1
@@ -744,6 +761,16 @@ pub fn arm(
             }
         }
     });
+}
+
+/// r42:arcus-upper — which stuff lies over which where two meet on an arm: the sleeve's
+/// cloth over the shirt's cuff over the skin and the nails.
+fn rank(st: Stuff) -> u8 {
+    match st {
+        Stuff::Velvet | Stuff::Wool => 2,
+        Stuff::Shirt => 1,
+        _ => 0,
+    }
 }
 
 /// Each corner's share of the light round it (`sc.ao`): the hand's own pieces (the

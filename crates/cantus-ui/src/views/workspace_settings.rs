@@ -754,7 +754,7 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
             .position(|q| *q == app.settings.figure_quality)
             .unwrap_or(0);
         let labels = Quality::ALL.map(|q| Src::Key(q.label_key()));
-        if segmented(ui, &mut sel, &labels, &t("arcus_upper.quality"), 300.0).changed() {
+        if segmented(ui, &mut sel, &labels, &t("arcus_upper.quality"), 240.0).changed() {
             app.settings.figure_quality = Quality::ALL[sel];
             app.store_settings();
         }
