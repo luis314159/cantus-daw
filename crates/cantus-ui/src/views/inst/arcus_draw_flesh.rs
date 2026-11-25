@@ -439,9 +439,10 @@ fn lut_colour(
         tone,
         eye: q(sh.eye),
         key: q(sh.key),
-        // (The arm's middle to 4 cm: to the cm, a hand trembling in vibrato across a
-        // centimetre's edge remade the maps — a slow frame now and then.)
-        mid: q(mid * 0.25),
+        // (The arm's middle to 8 cm: to the cm, a hand trembling in vibrato across a
+        // centimetre's edge remade the maps — a slow frame now and then; at 4 cm the man's
+        // bowing arm still crossed one.)
+        mid: q(mid * 0.125),
     };
     LUTS.with(|l| {
         let mut all = l.borrow_mut();

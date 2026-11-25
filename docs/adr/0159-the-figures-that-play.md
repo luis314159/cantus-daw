@@ -127,14 +127,18 @@ occluding capsules in its live painter.
 
   | figure | violin Light | violin High | cello Light | cello High |
   |---|---|---|---|---|
-  | woman | +0.50 / +0.42 | +1.39 / +1.29 | +0.02 / +0.38 | +1.24 / +0.86 |
-  | man | +0.73 / +0.72 | +2.11 / +1.77 | +0.48 / +0.52 | +2.20 / +1.37 |
-  | musician | +0.34 / +0.89 | +0.40 / +0.87 | +0.37 / +0.29 | +0.16 / +0.00 |
-  | mannequin | +0.34 / +0.98 | +0.12 / +1.13 | +0.21 / +0.20 | +0.34 / +0.35 |
+  | woman | +0.16 / +0.09 | +1.26 / +1.40 | +0.23 / +0.33 | +1.44 / +1.61 |
+  | man | +0.40 / +0.33 | +1.83 / +1.68 | +0.33 / +0.32 | +1.65 / +2.37 |
+  | musician | +0.20 / +0.45 | +0.16 / +0.36 | +0.02 / −0.01 | +0.12 / +0.15 |
+  | mannequin | +0.10 / +0.38 | +0.30 / +0.51 | +0.02 / +0.16 | +0.09 / +0.07 |
+
+  (The final build, 2026-11-25: the fingertips kept unthinned and the hands' texture
+  seams welded; the light maps kept over 8 cm of the arm's motion.)
 
   Light keeps the views' +1 ms (and its slow frames, p95, within half again plus 1 ms);
   High's ceilings are written into the test (3.0 ms for the realistic figures, 1.6 ms for
-  the stylised ones), so the default's cost cannot grow unnoticed.
+  the stylised ones; the owner allowed High up to about 4 ms if it buys the look), so the
+  default's cost cannot grow unnoticed.
 
 ## What the tests hold
 

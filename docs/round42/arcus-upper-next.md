@@ -478,10 +478,10 @@ Open:
   standing for it; no creases' occlusion; the stylised limbs in 8 strips instead of 16
   (`Lit::strips`). The meshes are made once on first use and kept. The bones are High's,
   so the grip, the hand behind the neck and the fingertip are too.
-- **Measured** (release, beside the instrument alone, best of five, 2026-11-25; the
-  table in ADR 0159): Light +0.02 to +0.98 ms (the man's violin +0.73, the mannequin at
-  200 % +0.98); High: the woman +0.86 to +1.39, the man +1.37 to +2.20, the stylised
-  +0.00 to +1.13. The test's ceilings: Light +1 ms (p95 ≤ 1.5 × alone + 1 ms), High 3.0 ms
+- **Measured** (release, beside the instrument alone, best of five, the final build of
+  2026-11-25; the table in ADR 0159; the test passes): Light −0.01 to +0.45 ms; High: the
+  woman +1.26 to +1.61, the man +1.65 to +2.37, the stylised +0.07 to +0.51 (an earlier
+  build: up to +2.20 / +1.13). The test's ceilings: Light +1 ms (p95 ≤ 1.5 × alone + 1 ms), High 3.0 ms
   realistic, 1.6 ms stylised (`HIGH_100`, `HIGH_200`, `HIGH_STYLISED_MS`). The slow frames
   were the light maps remade whenever the arm's middle crossed a centimetre (vibrato):
   kept now over 4 cm.
@@ -566,3 +566,38 @@ Done (`build_figures.py` unless named):
   the live layer) keep the per-vertex colour: egui draws them untextured — open.
 - **Fingertips**: the last phalanx's last half never slimmed, and never thinned
   (`main`'s `tipv`), so the tips keep MakeHuman's round pads.
+
+### Sheet v8 and where this session leaves it (2026-11-25)
+
+`docs/round42/arcus-upper/sheet-v8/` (`tools/arcus-figures/sheet_v8.py <shoot_arcus.exe>
+<dump.json> <dir>`, the dump's solved caches beside it): the woman and the man with the
+violin and the cello, High and Light, Photographic and Drawn, Night and Paper, 100 % and
+200 % (the Light shots themselves are left out of the tree: they are in the
+`side-*-high-vs-light.png` side-by-sides); `face-woman-*` (her face at 200 %, ×2);
+`hand-left-violin-*-4up.png` (photograph 4 | the app from its angle | the app's camera at
+200 % | photograph 3, both looks, High and Light); `settings-appearance-*` (Settings ▸
+Appearance whole, the figures' rows: *Held by*, *Stopped note*, *Figure detail*).
+
+Gates (this build): `arcus_hand_table` (the table's hand: the skinned fingertip within a
+pixel at 100 % in every case tested, the playing finger's angles, upright tip, the crook;
+Figure detail's preference), `arcus_hold` 7/7 (the behind-the-neck test at Light in Drawn
+and High in Photographic), `arcus_scene`, `scene_identity`, `figure_contract`, `kit_lint`,
+`ux_whole_words`, `instruments_scale_e2e` (`instruments_narrow_e2e` lives on
+`r42/fix4-narrow`, not this branch), the lib's i18n and `figure::` tests,
+`cargo clippy -p cantus-ui --all-targets -- -D warnings`.
+
+Open:
+1. Her hair: the ponytail cards still show faint lighter and darker patches at 200 %
+   (the texture's own regions; the shade is held near its mean, the scalp under them in
+   their finish) — next: per-card colour from the texture's average and a strand-direction
+   (Kajiya–Kay) sheen shared across cards from the cards' texture tangents.
+2. The skin texture is the bake's (face, neck, the baked hands); the live arms' hands keep
+   per-vertex colour (egui draws them untextured) — next: the live arm as a textured egui
+   mesh (the same high-pass texture, its UVs in `ArmMesh`).
+3. The eyes' own textures (MakeHuman's `brownlight_eye.png`, CC0) are not used yet: the
+   eyes are half-open and small at 200 %; worth it at 400 %.
+4. The room card: Arcus has none (its picture is always the studio), so the holder rows
+   live in Settings ▸ Appearance only; a room card for Arcus would be its own design.
+5. Auto (Figure detail) is decided by the window's average frame time; it is not tested
+   end to end with a real slow frame (its state machine is, `figures_long`).
+6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
