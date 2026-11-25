@@ -3124,3 +3124,26 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
   limit moves with the bow's speed where Schoonderwaldt's machine found it fixed.
 - **The next techniques** (harmonics, sordino, sul ponticello and tasto as their own sounds,
   col legno), **sections** (seeded players, divisi), the stage and the hybrid voice (§3e).
+**The musician who plays expressively (the owner, 2026-11-25).** *"¿Nuestro músico se moverá
+conforme se toca? ¿Hará expresiones en función de saltos (quinta, cuarta, etc., y la
+emocionalidad que éstas dan), además de la velocidad y el vibrato?"* Today (ADR 0159) the arms
+are live: the bow arm follows the bow, the left hand's fingers land on their stops and the
+vibrato rocks the hand. The body, the head and the face are a baked picture that does not move.
+- **Study first.** The literature on performers' ancillary (non-sound-producing) movement
+  (Wanderley et al. on clarinettists; Dahl & Friberg; Thompson & Luck; violinists' motion
+  capture, e.g. UPF's TELMI recordings, where the licence allows) is used to find what body
+  sway, head and brow movement follow in real players: phrase structure, dynamics, leaps and
+  their direction, tempo, vibrato, the bow's changes. Measure it rather than invent it.
+- **Drive it from the music, ahead of time**, as the dancer reads the song (ADR 0087):
+  - a breath and a lift before a phrase or a large leap; the head and the torso rise on an
+    upward leap of a fourth, fifth or octave and settle on a descent;
+  - a lean in with a crescendo or CC1, and stillness in fast passages;
+  - the brow and the eyes with the vibrato's depth and long expressive notes;
+  - a release at a phrase's end; seeded variation so no two takes move alike.
+- **Make it possible to draw within the frame budget.** A torso and head that move a few
+  degrees about the hips and the neck are a warp of the baked picture, or a handful of baked
+  key poses blended. The face's expressions are a few baked variants (brows, lids, mouth)
+  cross-faded. It needs measured costs in High and Light, and the eyes setting is kept.
+- **Gates:** it is still at rest (ADR 0146's quiet window), it repeats to the bit for a
+  given song, export equals the screen, and the owner judges it by eye in a GIF before it is
+  done (as the dancer was).
