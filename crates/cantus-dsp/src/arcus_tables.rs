@@ -134,6 +134,9 @@ pub struct InstrumentSpec {
     pub trim_db: f32,
     /// The bridge's corner rounding, Hz (`string::StringStep::corner_hz`).
     pub corner_hz: f64,
+    /// r42:arcus-p6 — the hyperbolic law played with the friction's memory on this
+    /// instrument (`string::Friction::Memory`, the module's notes in `arcus_string.rs`).
+    pub memory: bool,
     /// A sustain's swell over its clean start: its length (s) at pp and ff (`T₀ + (T₁ − T₀)·d²`)
     /// and how far under its level it starts (dB, linear in the dynamic) — pass 4: the
     /// instrument's own, fitted to its family's rise (the study §2.5).
@@ -200,7 +203,28 @@ pub const NEUTRAL: Match = Match {
     vib_rate: 1.0,
 };
 
+#[cfg(test)]
+thread_local! {
+    /// The probes' override of every instrument's [`InstrumentSpec::memory`].
+    pub static MEMORY: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
 impl InstrumentSpec {
+    /// r42:arcus-p6 — the law a bow meets this instrument's strings with when the settings
+    /// ask for the hyperbolic one: with the friction's memory where [`Self::memory`].
+    pub fn friction(&self, asked: super::string::Friction) -> super::string::Friction {
+        use super::string::Friction;
+        #[cfg(test)]
+        let memory = MEMORY.with(|c| c.get()).unwrap_or(self.memory);
+        #[cfg(not(test))]
+        let memory = self.memory;
+        if asked == Friction::Hyperbolic && memory {
+            Friction::Memory
+        } else {
+            asked
+        }
+    }
+
     /// The string a key is played on by default: the highest whose open pitch is at or
     /// under it (first position; a key under the lowest plays the lowest).
     pub fn string_for(&self, key: f32) -> usize {
@@ -268,6 +292,7 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     // Pass 3: 3 kHz rounded the cello's upper partials under the cellos' band at ff (the
     // bow near the bridge could not brighten it): 6 kHz.
     corner_hz: 6000.0,
+    memory: false, // r42:arcus-p6
     // Pass 4: the cellos' rise 0.14–0.28 s soft, 0.10–0.37 middle, 0.01–0.07 loud.
     swell_s: (0.30, 0.05),
     swell_db: (20.0, 10.0),
@@ -444,6 +469,7 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     // Pass 2: its own body and correction made it ~10 dB hotter than the cello: 6 dB.
     trim_db: 6.0,
     corner_hz: 2000.0,
+    memory: false, // r42:arcus-p6
     // Pass 4: the basses' rise is narrower (0.10–0.24 s soft, 0.11–0.15 middle, 0.07–0.12
     // loud): a loud note's swell longer and deeper (its clean start's transient stood over
     // 10 dB).

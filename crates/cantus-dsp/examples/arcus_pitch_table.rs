@@ -170,6 +170,28 @@ fn main() {
          #![allow(clippy::approx_constant)] // measured cents that happen to read like π or √2\n",
         DYN, POS
     );
+    // r42:arcus-p6: `ARCUS_PITCH_PASSES` (default 2) — more passes, each adding what the
+    // last left (the bass's lowest strings with the friction's memory settle slowly).
+    let passes: usize = std::env::var("ARCUS_PITCH_PASSES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(2)
+        .max(2);
+    let mut first = first;
+    let mut t1 = t1;
+    for _ in 2..passes {
+        let mut tn = TABLE;
+        for (j, (inst, _, lo, keys)) in ranges.iter().enumerate() {
+            let left = measure(*inst, *lo, *keys, Some(t1));
+            first[j] = first[j].iter().zip(&left).map(|(a, b)| a + b).collect();
+            tn.tables[j] = InstTable {
+                lo: *lo,
+                keys: *keys,
+                cents: leak(first[j].clone()),
+            };
+        }
+        t1 = Box::leak(Box::new(tn));
+    }
     for (j, (inst, name, lo, keys)) in ranges.iter().enumerate() {
         let left = measure(*inst, *lo, *keys, Some(t1));
         let fin: Vec<f32> = first[j].iter().zip(&left).map(|(a, b)| a + b).collect();

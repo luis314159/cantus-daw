@@ -94,6 +94,7 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     vib: VIOLIN_VIB, // r42:arcus-p5
     trim_db: 12.0,
     corner_hz: 6000.0,
+    memory: false, // r42:arcus-p6
     // Pass 4's: a sustain's swell over its clean start, fitted to the study's violins' rise
     // (`tools/arcus/upper-measure.sh`, its rise classes against the band).
     swell_s: (0.70, 0.08),
@@ -134,6 +135,7 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     vib: VIOLA_VIB, // r42:arcus-p5
     trim_db: 8.0,
     corner_hz: 5000.0,
+    memory: false, // r42:arcus-p6
     swell_s: (0.30, 0.10),
     swell_db: (20.0, 12.0),
     pizz_t60: VIOLA_PIZZ_T60,

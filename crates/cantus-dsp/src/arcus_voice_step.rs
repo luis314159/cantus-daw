@@ -523,7 +523,7 @@ impl Voice {
                     v: &self.v[a..b],
                     force: &self.fbuf[a..b],
                     rough: &self.roughs[a..b],
-                    friction: sh.s.friction,
+                    friction: self.inst.spec().friction(sh.s.friction), // r42:arcus-p6
                 })
             } else {
                 None
