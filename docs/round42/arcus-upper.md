@@ -124,6 +124,15 @@ baked picture alone) and `arcus-{violin,viola}-play-*`, `arcus-violin-pizz-*` (t
 live string, finger and bow), both looks, both themes, 100 % and 200 %. **Waits for the
 owner's approval.**
 
+**Who holds it (sheets v4–v8)** — the holders (ADR 0157 amended), the realistic figures from
+MakeHuman's CC0 assets and the figure module every instrument can use (ADR 0159; the
+handoff `arcus-upper-next.md` has the detail). Sheet v8 (`docs/round42/arcus-upper/sheet-v8/`,
+2026-11-24): the violin's and the viola's left hand posed from an authored table on the
+figure's own hand (`figure::neck_hand`, `tools/arcus-figures/left_hand.py`), beside the
+owner's photographs; *Figure detail* (High, the default; Light within the +1 ms budget;
+Auto); the stylised figures posed through the same PlayRig; her original face and the
+reference's styling (hair, earrings, posture, light); soft background focus.
+
 ### 4. Studies and comparison
 
 Three measures, every one a tool in `tools/arcus/` (logs in `F:\projects\daw-r42\logs\arcus-upper\`):

@@ -198,6 +198,29 @@ fn main() {
         strips(&dir);
         return;
     }
+    // r42:arcus-upper — `--settings`: Settings ▸ Appearance's page whole (the figures' rows:
+    // Held by, Stopped note, Figure detail), Night and Paper, 100 % and 200 %.
+    if args.iter().any(|a| a == "--settings") {
+        for (theme, dark) in [("night", true), ("paper", false)] {
+            for k in scales(&args) {
+                let ctx = context(dark);
+                let mut app =
+                    CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+                app.settings.arcus_holder = Holder::of(Hold::Woman);
+                let path = dir.join(format!(
+                    "settings-appearance-{theme}-{}.png",
+                    (k * 100.0) as u32
+                ));
+                shoot(&ctx, egui::vec2(900.0, 2600.0), k, 3, Some(&path), |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        views::workspace_settings::appearance_page(&mut app, ui)
+                    });
+                });
+                println!("{}", path.display());
+            }
+        }
+        return;
+    }
     if args.iter().any(|a| a == "--scene") {
         let only = args.iter().find_map(|a| a.strip_prefix("--only="));
         let zooms: Vec<f32> = args

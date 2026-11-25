@@ -201,7 +201,7 @@ class Neck:
 # ---- the rules -------------------------------------------------------------------------
 
 # The anatomical ranges (deg): the playing finger's and a hovering one's MCP, PIP, DIP.
-PLAY = ((45, 70), (70, 100), (20, 50))
+PLAY = ((45, 70), (70, 100), (25, 50))
 HOVER = ((35, 70), (60, 100), (15, 50))
 # Each finger's spread at rest (rad): the index a little toward the scroll, the little
 # finger a little away.
@@ -266,7 +266,7 @@ class Pose:
             if f == p:
                 add(f"tip{f}", *((tip - self.tips[f]) * 40.0))
                 d2 = hr.norm(P[f + 1, 3] - P[f + 1, 2])
-                add(f"upright{f}", 6.0 * max(0.0, 0.9 - d2 @ (-self.z)))
+                add(f"upright{f}", 25.0 * max(0.0, 0.85 - d2 @ (-self.z)))
             else:
                 miss = np.linalg.norm(tip - self.tips[f])
                 add(f"hover{f}", 3.0 * max(0.0, miss - 0.8))
@@ -299,7 +299,7 @@ class Pose:
         # first and second fingers.
         qt = loc(P[0, 3])
         add("thumb_x", 4.0 * (qt[0] + nk.hw(qt[1]) + 0.65))
-        add("thumb_z", 3.0 * over(qt[2] - nk.top(qt[1]), -0.6, 0.3))
+        add("thumb_z", 6.0 * over(qt[2] - nk.top(qt[1]), -0.6, 0.3))
         y12 = loc(self.tips[0])[1] * 0.6 + loc(self.tips[1])[1] * 0.4
         add("thumb_y", 2.0 * over(qt[1] - y12, -0.8, 1.2))
         add("thumb_mcp", 0.3 * over(np.degrees(x[25]), *THUMB[0]))

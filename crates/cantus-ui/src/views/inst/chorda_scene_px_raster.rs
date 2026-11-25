@@ -568,7 +568,9 @@ impl Shadow {
             return 1.0;
         }
         let s = self.cam.project(q);
-        let bias = 0.012 + 0.004 * z;
+        // (r42:arcus-upper: a little more bias than 1.2 cm — a face turned from the key
+        // showed the map's texels as fine diagonal stripes at 200 %.)
+        let bias = 0.018 + 0.006 * z;
         let px_m = self.cam.k / z;
         let search = (self.size * px_m * 0.6).clamp(1.5, 28.0);
         let (mut sum, mut cnt) = (0.0, 0.0);

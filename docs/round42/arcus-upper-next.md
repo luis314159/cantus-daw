@@ -422,3 +422,78 @@ Open:
 - Photographic (a) wall shadow not confirmed visible (key moved beside the camera).
 - Violin figure: the bow hand clears the caption and the torso no longer crowds the left (v5); the face in Drawn is faceted.
 - Drawn: facet grid on dark hair/shirt at 200 %; live limbs show strip banding.
+
+## Session of 2026-11-24 (evening): the violin's hand from data, realism, Figure detail
+
+### The owner's words this session (record them; later sessions keep them)
+
+- On v7's frame cost: "I'd rather it look good than save ms, or make it configurable in
+  case someone wants fewer ms."
+- On v7's hands: "The violin's left hand is a disaster. I think you can make the characters
+  more realistic, and the girl even more like the photo."
+- **Her face** (settled by the owner through the coordinator): *change the features enough
+  that she is another person.* Keep the type — young, fair skin, light brows, a soft oval
+  face, serene — but never trace, fit or morph toward the photographed face; her eye shape,
+  nose, mouth and proportions clearly different from the photo's. The photo is a quality
+  bar and a styling reference only (lids with depth and lashes, soft cheekbones, a delicate
+  nose, natural lips, warm cheeks, a clean hairline, soft flattering light). Styling taken:
+  light blonde hair swept back with soft volume at the crown, tied low; black velvet, long
+  sleeves, a V neck, a fitted bodice; small drop earrings; upright, chin a little lifted,
+  leaning into the cello; soft high-key light on the face.
+
+### The violin's left hand, posed from data (`scene/figure/neck_hand.rs`)
+
+- Authored offline by `tools/arcus-figures/left_hand.py` (DEVELOPING §4): the inputs come
+  from the app (`CANTUS_HAND_DUMP=<dump.json> cargo test -p cantus-ui --test
+  arcus_hand_table -- --ignored dump`), the solve runs a process per figure and instrument
+  (`solve <dump> --only=woman-violin` × 4, ~30 min side by side), `pack` writes
+  `assets/figures/left_hand.bin`, `look <dump> <dir> who inst string finger at` renders a
+  row from the picture's camera, photograph 4's angle, photograph 3's and photograph 2's.
+- The rules (each a weighted residual, names in `Pose.residuals`): playing tip on its stop
+  (exact after the runtime shift), its last phalanx nearly upright, the others hovering
+  within 0.8 cm of their notes; MCP/PIP/DIP within 45–70/70–100/20–50° (hovering 35–70/
+  60–100/15–50); each middle joint 2.4 cm over the fingerboard; nothing inside the neck
+  but the playing tip; the index finger's base against the E side (0.85 cm out, −0.7…+0.3
+  cm from the top); the knuckles at least level with the top (photograph 2); the thumb's
+  tip on the G side, level with the top, opposite fingers 1–2; the palm 0.4 cm clear of the
+  neck, toward the player and the neck (`PALM_WAY`); the forearm straight on the hand's
+  line at its own length, the upper arm its own length from the shoulder, the elbow under
+  the violin.
+- `tests/arcus_hand_table.rs`: every figure × violin/viola × string × eight notes — the
+  skinned hand's own fingertip within a pixel of the stop at 100 %, the playing finger's
+  angles, its last phalanx upright, the index base on the E side, the thumb's tip on the G
+  side level with the fingerboard.
+- The 4-up for the owner: `tools/arcus-figures/hand_sheet.py <shoot_arcus.exe> <dump>
+  <dir> [woman|man] [photo|drawn] [night|paper] [--quality=light]` (photo 4 | the app from
+  photo 4's angle through `shoot_arcus --cam=` | the app's own camera at 200 % | photo 3).
+
+### Figure detail (`scene::figure::Quality`, `Settings::figure_quality`)
+
+- Settings ▸ Appearance, under *Held by* / *Stopped note*: **Figure detail** — High (the
+  default), Light, Auto; a hint line under it (`arcus_upper.quality*`, both locales).
+- Light: `arcus_draw_flesh::lod` merges the arm's vertices per bone on a grid
+  (`LOD_CELL`: 0.95 cm on the hand while it is drawn over `LOD_FINE_PX` px a cm, 1.5 cm
+  when smaller; the sleeve 1.8/2.8 cm), keyed by the main bone and the stuffs a vertex
+  touches (fingers, nails and cuffs never merge), each cell's vertex nearest its middle
+  standing for it; no creases' occlusion. The meshes are made once on first use and kept.
+  The bones are High's, so the grip, the hand behind the neck and the fingertip are too.
+- Auto (`figure::frames_long`): Light while `CantusApp::average_frame_ms` (the last 120
+  frames) is over 12 ms, back under 7 ms; off unless chosen (FL Studio lowers its visuals
+  under load the same way, but never by itself here: the default stays High).
+
+### Realism (Photographic) and her styling
+
+- Skin: the key's terminator wrapped wider (0.2), a stronger warm share where the key falls
+  off and a little red in the shade, a soft fill from the camera's side on what faces it
+  (`px_shade::shade`, the live arms' `flesh::colour` the same); figures' creases take the
+  screen-space occlusion in their direct light too (`crease`).
+- The room behind a realistic figure goes soft (`Rig::soft_bg`: a wider blur reached
+  sooner, only the background's own samples blurred together — a plain blur drew a halo
+  of hair round the head).
+- The soft shadow's bias 1.8 cm + 0.6 cm/m (fine diagonal stripes on a face at 200 %).
+- Her face (`FACE["female"]`, an original person — see the owner's words above); her
+  hairline rounded over the brow (`HER_LINE`), the hair 1.4 mm proud inside it (no scalp
+  through it), soft volume at the crown, the bun low at the nape; small gold drop
+  earrings found on each lobe (`earrings`, `Stuff::Jewel` → `Role::Brass`); the blonde
+  lighter (`HAIR_FAIR`). A realistic cellist leans 2.5 cm further into the cello, the chin
+  lifted 0.1 rad (`LEAN_IN`, `CHIN_UP`).

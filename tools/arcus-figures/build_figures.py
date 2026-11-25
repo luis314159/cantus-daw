@@ -131,18 +131,18 @@ FACE = {
     "female": [
         ("head/head-oval", 0.55),
         ("head/head-fat-decr", 0.3),
-        ("head/head-scale-horiz-decr", 0.22),
+        ("head/head-scale-horiz-decr", 0.12),
         ("head/head-scale-vert-incr", 0.05),
         ("forehead/forehead-scale-vert-decr", 0.3),
         *both("cheek/cheek-bones-incr", 0.3),
-        *both("cheek/cheek-volume-decr", 0.25),
+        *both("cheek/cheek-volume-decr", 0.15),
         *both("cheek/cheek-inner-decr", 0.2),
         *both("eyes/eye-trans-in", 0.22),
         *both("eyes/eye-scale-decr", 0.18),
         *both("eyes/eye-corner1-up", 0.25),
         *both("eyes/eye-height2-decr", 0.15),
         ("chin/chin-width-decr", 0.3),
-        ("chin/chin-height-incr", 0.25),
+        ("chin/chin-height-incr", 0.15),
         ("chin/chin-prominent-incr", 0.25),
         ("chin/chin-bones-incr", 0.2),
         ("nose/nose-scale-vert-incr", 0.12),
@@ -335,13 +335,14 @@ def hairline(th, table):
 
 # The hairline's elevation (degrees over the eyes' level, seen from the head's centre)
 # round the head (degrees from the front), and the hair's thickness (cm) there.
-HER_LINE = [(0, 31), (20, 32), (38, 27), (55, 19), (70, 12), (86, 9), (102, 5), (120, -14),
-            (145, -36), (165, -44), (180, -46)]
+# (Hers rounded over the brow — a straight line across read as a cap, the owner's v7.)
+HER_LINE = [(0, 34), (12, 33.5), (25, 31), (38, 26), (55, 19), (70, 12), (86, 9), (102, 5),
+            (120, -14), (145, -36), (165, -44), (180, -46)]
 HIS_LINE = [(0, 30), (16, 31), (30, 33), (42, 28), (55, 20), (68, 12), (80, 2), (90, 0),
             (100, 8), (115, -2), (135, -20), (160, -27), (180, -28)]
 
 
-def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0):
+def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0, rise=22.0):
     """A shell over the scalp: the head's skin above ``line`` (cut along it, so the
     hairline is a smooth curve), pushed out along its normal by ``thick(θ, φ)`` tapering
     to nothing at the hairline, so its edge lies on the skin. Returns (positions, weights,
@@ -359,7 +360,7 @@ def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0):
     # (1.4 mm proud a little in from the hairline: thinner, the scalp showed through the
     # hair in triangles at 200 %, the two surfaces fighting for the same depth; at the
     # hairline itself on the skin, where the hair's colour is the skin's.)
-    t = thick(th2, ph2) * smooth01(f2 / 22.0) + 0.03 + 0.11 * smooth01(f2 / 8.0)
+    t = thick(th2, ph2) * smooth01(f2 / rise) + 0.03 + 0.11 * smooth01(f2 / 8.0)
     hp = (p2 + n * t[:, None])[used]
     # Per vertex (sheet v7): the strands' across coordinate — the angle round the head's
     # front-to-back axis, so the strands run as hair drawn back does, from the hairline over
@@ -501,7 +502,10 @@ def make(sex, data, assets):
             return (0.8 + 0.4 * smooth01((ph - 28) / 30.0)
                     + 0.45 * smooth01((np.abs(th) - 60) / 90.0)
                     + 0.75 * smooth01((ph - 42) / 22.0) * (1.0 - smooth01((np.abs(th) - 140) / 35.0)))
-        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w, band=16.0)
+        # (Rising slowly from the hairline: swept back, lying flat at the brow — a quick
+        # rise read as a cap's edge across the forehead.)
+        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w, band=16.0,
+                                     rise=40.0)
         bp, bw, bt, bmat, blum, bred = dress(pos, W, btris, J, lum, red, nf)
         fig.add(bp, bw, bt, bmat, blum, bred)
         fig.add(hp, hw, ht, HAIR, uv=huv)
@@ -510,6 +514,10 @@ def make(sex, data, assets):
         ep, et, euv = ellipsoid(bc, np.eye(3), (4.3, 3.2, 3.0), twist=1.5)
         et = outward(ep, et, bc)
         fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, HAIR, uv=euv)
+        # Fine strands over the hair, from the hairline back to the bun, a little proud of
+        # it: at the silhouette they break the shell's edge as real hair does.
+        sp_, st_, suv = strands(hp, huv, c, bc)
+        fig.add(sp_, [{BI["head"]: 1.0}] * len(sp_), st_, HAIR, uv=suv)
         # Small drop earrings: a bead at each lobe, a drop under it.
         for jp, jt in earrings(pos, head_w, c, J):
             fig.add(jp, [{BI["head"]: 1.0}] * len(jp), jt, JEWEL)
@@ -529,6 +537,56 @@ def make(sex, data, assets):
         fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, emat)
     fig.add(lash_p, [{BI["head"]: 1.0}] * len(lash_p), lash_t, LASH)
     return compact(fig), J
+
+
+def strands(hp, huv, c, bun, n=150, seg=9, width=0.035, seed=7):
+    """Fine strands of hair: from points along the hairline (the shell's vertices where it
+    starts) swept back over the head to the bun, each lifted 1-4 mm off the shell and waving
+    a little, as thin ribbons. Returns (positions, triangles, strand coordinates)."""
+    rng = np.random.default_rng(seed)
+    q_all = hp - c
+    r_all = np.linalg.norm(q_all, axis=1)
+    dirs = q_all / r_all[:, None]
+    th, _ = angles(hp, c)
+    # From the front and the top of the hairline (swept back over the head).
+    edge = np.where((huv[:, 1] < 0.35) & (np.abs(th) < 75.0))[0]
+    if len(edge) == 0:
+        return np.zeros((0, 3)), np.zeros((0, 3), dtype=np.int64), np.zeros((0, 2))
+    pick = rng.choice(edge, size=min(n, len(edge)), replace=False)
+    pts, tris, uv = [], [], []
+    for i in pick:
+        p0 = hp[i] - c
+        p1 = bun - c
+        r0, r1 = np.linalg.norm(p0), np.linalg.norm(p1)
+        a0, a1 = p0 / r0, p1 / r1
+        lift = rng.uniform(0.1, 0.4)
+        wave = rng.uniform(-0.15, 0.15)
+        base = len(pts)
+        for k in range(seg + 1):
+            t = k / seg
+            d = a0 * (1 - t) + a1 * t
+            d /= np.linalg.norm(d)
+            # On the shell (its radius that way, the nearest of its points) and a little
+            # proud of it.
+            r = r_all[np.argmax(dirs @ d)] + lift * (0.4 + 0.6 * np.sin(np.pi * t))
+            q = c + d * r
+            # Across the strand: square to its way and to the radius.
+            nxt = a0 * (1 - min(t + 0.05, 1)) + a1 * min(t + 0.05, 1)
+            way = nxt / np.linalg.norm(nxt) - d
+            if np.linalg.norm(way) < 1e-6:
+                way = np.cross(d, [0, 1.0, 0])
+            side = np.cross(d, way)
+            side /= max(np.linalg.norm(side), 1e-9)
+            q = q + side * wave * np.sin(np.pi * t * 2.0)
+            w = width * (1.0 - 0.6 * t)
+            pts += [q - side * w, q + side * w]
+            uv += [[huv[i, 0], 1.0], [huv[i, 0], 1.0]]
+            if k > 0:
+                a_, b_ = base + 2 * (k - 1), base + 2 * k
+                tris += [[a_, b_, b_ + 1], [a_, b_ + 1, a_ + 1]]
+    pts = np.array(pts)
+    tris = np.array(tris, dtype=np.int64)
+    return pts, outward(pts, tris, c), np.array(uv)
 
 
 DEBUG_EARS = False

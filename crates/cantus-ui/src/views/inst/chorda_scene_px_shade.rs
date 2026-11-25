@@ -777,11 +777,12 @@ pub fn shade(
     let amb = rig.ambient(n);
     let mut e = [0.0f32; 3];
     // r42:arcus-upper — a figure's creases (between the fingers, under the jaw, the
-    // clothes' folds) take the occlusion in their direct light too, softly.
-    let crease = if figure { 0.55 + 0.45 * ao } else { 1.0 };
+    // clothes' folds) take the occlusion in their fill too (not in the key: the
+    // occlusion's dithered samples showed there as fine diagonal stripes at 200 %).
+    let crease = if figure { 0.6 + 0.4 * ao } else { 1.0 };
     for i in 0..3 {
-        e[i] = kc[i] * ndl * kv * crease
-            + fill[i]
+        e[i] = kc[i] * ndl * kv
+            + fill[i] * crease
             + amb[i] * ao
             + kf[i] * floor_alb[i] * 0.55 * below * ao;
     }

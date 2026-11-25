@@ -46,6 +46,46 @@ occluding capsules in its live painter.
     (`arcus_draw_hand::left_pose`): they are worked out from its strings and stops.
   - `live` — the occluding capsules the live limbs are shaded by (the creases between
     fingers, a finger against the stick or the neck).
+  - `neck_hand` — **the left hand on a violin's or a viola's neck, posed from data**
+    (amendment, 2026-11-24, the owner: "the violin's left hand is a disaster"). The poses
+    are authored offline on the figure's own MakeHuman hand (three phalanges a finger; the
+    thumb's CMC, MCP and IP) by `tools/arcus-figures/left_hand.py`: each one solved
+    (Levenberg–Marquardt, several starts, the best kept) against the rules a violinist's
+    hand keeps — the neck in the crook between the thumb and the index finger's base, a gap
+    under the palm; the thumb along the G side opposite the first and second fingers, its
+    tip about level with the fingerboard; each finger rising from the E side and arching
+    high (MCP 45–70°, PIP 70–100°, DIP 20–50°), the playing tip coming down nearly upright,
+    the others hovering curved over their notes; the knuckles up beside the fingerboard; the
+    palm toward the player and the neck; the wrist straight on a forearm of the figure's
+    own length — and rendered from the picture's camera, from photograph 4's angle and from
+    the G side beside the owner's photographs. What is stored
+    (`assets/figures/left_hand.bin`, 75 KB) is the result: a row per figure × instrument ×
+    string × playing finger (or none) × hand position (1, 3, 5, 7, 9, 12, 15 semitones),
+    the wrist and every bone's turn as quaternions. At run time the rows either side of the
+    hand's position are blended, the bones carried down the chain from the rest skeleton
+    (the tool's forward kinematics, the same numbers), and the hand moved by the few
+    millimetres that put the playing finger's tip exactly on its stop (the vibrato's rock
+    moves it with the hand); the elbow sits on the hand's line (the wrist straight). The
+    cello's and the bass's hands and the stylised figures' stay worked out from the stops
+    (`arcus_draw_hand::left_pose`).
+  - `stylised` — the stylised musician's and the mannequin's poser **on the same
+    contract** (amendment, 2026-11-24): Arcus fills one PlayRig for them
+    (`bowed_figure::arcus_rig`: the jaw on the chinrest or the pelvis on the cello's seat,
+    the legs, the left hand's rest) and `stylised::skel` sets their joints from it — the
+    numbers their pictures were drawn with, so the pictures are unchanged. What is the
+    instrument's (where its neck is, whether a chair stands under the figure) comes beside
+    the rig (`stylised::Beside`).
+  - `Quality` — **how finely the live arms are drawn**, a machine preference
+    (`Settings::figure_quality`, Settings ▸ Appearance ▸ *Figure detail*; amendment,
+    2026-11-24, the owner: "I'd rather it look good than save ms, or make it configurable
+    in case someone wants fewer ms"): **High** (the default) the full look; **Light** the
+    arm's vertices merged per bone on a grid (0.95 cm on the hand while it is drawn large,
+    1.5 cm when small; the sleeve 1.8/2.8 cm — two fingers, a nail and its finger, a cuff
+    and its sleeve never merge), no creases' occlusion — the grip, the hand behind the neck
+    and the fingertip on its stop exactly High's, since the bones are the same; **Auto**
+    High stepping down to Light while the window's frames average over 12 ms and back
+    under 7 ms (FL Studio's way under load) — optional, off unless chosen. A file without
+    the field reads High.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`
@@ -55,8 +95,8 @@ occluding capsules in its live painter.
   quietly become Arcus-shaped.
 - **Baking stays cached where it is** (`bowed_mesh::mesh_for`: per instrument and holder);
   at rest nothing is built or allocated (`tests/arcus_scene.rs`). The stylised musician and
-  the mannequin keep their own skeleton (`bowed_figure`) for now; they are the next to move
-  behind the contract.
+  the mannequin are posed through the contract too (`stylised`, above): all four figures
+  read one PlayRig.
 
 ## Consequences
 

@@ -586,6 +586,12 @@ pub fn demo_midi(app: &mut CantusApp, inputs: &[&str], outputs: &[&str]) {
     open(app, SettingsPage::Midi);
 }
 
+/// r42:arcus-upper — Settings ▸ Appearance's page alone, for the design sheets
+/// (`shoot_arcus --settings`: its figures' rows at every scale and theme).
+pub fn appearance_page(app: &mut CantusApp, ui: &mut Ui) {
+    look(app, ui);
+}
+
 fn look(app: &mut CantusApp, ui: &mut Ui) {
     look_family(app, ui);
     let s = Style::current();

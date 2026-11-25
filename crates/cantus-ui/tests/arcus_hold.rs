@@ -176,6 +176,13 @@ fn the_left_hand_passes_behind_the_neck() {
                 let mut app =
                     CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
                 app.settings.arcus_holder = h;
+                // Both levels of Figure detail: Light in the Drawn look, High in the
+                // Photographic (the hand behind the neck either way).
+                app.settings.figure_quality = if be == SceneBackend::Vector {
+                    cantus_ui::scene::figure::Quality::Light
+                } else {
+                    cantus_ui::scene::figure::Quality::High
+                };
                 app.demo_editor("arcus");
                 let t = app.inst.open.expect("an Arcus editor");
                 app.set_inst_value(t, "inst", inst, false);
