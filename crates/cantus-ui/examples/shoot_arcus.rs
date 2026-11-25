@@ -287,6 +287,16 @@ fn main() {
             )));
         }
     }
+    // r42:arcus-hand — `--view=<az>,<el>`: the realistic violinists' camera (the earlier one
+    // was `4,7`); tagged `-view<az>`.
+    let mut vtag = String::new();
+    if let Some(c) = args.iter().find_map(|a| a.strip_prefix("--view=")) {
+        let v: Vec<f32> = c.split(',').filter_map(|x| x.parse().ok()).collect();
+        if let [az, el] = v[..] {
+            cantus_ui::scene::bowed_draw::set_real_view(Some((az, el)));
+            vtag = format!("-view{az}");
+        }
+    }
     let quality = match args.iter().find_map(|a| a.strip_prefix("--quality=")) {
         Some("light") => cantus_ui::scene::figure::Quality::Light,
         _ => cantus_ui::scene::figure::Quality::High,
@@ -295,6 +305,17 @@ fn main() {
         "-light"
     } else {
         ""
+    };
+    // r42:arcus-hand — `--eyes=open`: the realistic figures' eyes open (tagged `-eyesopen`;
+    // closed is the default).
+    let eyes = match args.iter().find_map(|a| a.strip_prefix("--eyes=")) {
+        Some("open") => cantus_ui::scene::figure::Eyes::Open,
+        _ => cantus_ui::scene::figure::Eyes::Closed,
+    };
+    let qtag = if eyes == cantus_ui::scene::figure::Eyes::Open {
+        format!("{qtag}-eyesopen{vtag}")
+    } else {
+        format!("{qtag}{vtag}")
     };
     let looks = [
         ("drawn", cantus_ui::scene::SceneBackend::Vector),
@@ -329,6 +350,7 @@ fn main() {
                     app.settings.arcus_holder = Holder::of(hold); // r42:arcus-upper
                     app.settings.arcus_stop = stop_show(&args); // r42:arcus-upper
                     app.settings.figure_quality = quality; // r42:arcus-upper
+                    app.settings.figure_eyes = eyes; // r42:arcus-hand
                     app.demo_editor("arcus");
                     let Some(t) = app.inst.open else {
                         panic!("no Arcus editor")

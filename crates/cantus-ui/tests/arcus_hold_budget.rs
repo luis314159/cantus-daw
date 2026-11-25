@@ -25,10 +25,14 @@ use std::time::Instant;
 
 /// High's ceilings, ms over the instrument alone at the median, the realistic figures at
 /// 100 % and 200 % and the stylised ones — the release profile's measure on the owner's
-/// machine (2026-11-25) with headroom.
+/// machine with headroom. r42:arcus-hand (2026-11-25): High's hand is drawn as curved
+/// patches with the skin's texture per point, the sleeves' seams closed, the fingertips'
+/// shadows; measured +1.9 to +3.5 ms at 100 % and +2.2 to +4.1 at 200 % (the realistic
+/// violinists' camera is closer: their hands are drawn larger); the owner allows High
+/// about 4 ms if it buys the look ("I'd rather it look good than save ms").
 const HIGH_CEILING_MS: [f32; 2] = [HIGH_100, HIGH_200];
-const HIGH_100: f32 = 3.0;
-const HIGH_200: f32 = 3.0;
+const HIGH_100: f32 = 4.0;
+const HIGH_200: f32 = 4.5;
 const HIGH_STYLISED_MS: f32 = 1.6;
 
 fn rig(inst: f32, hold: Hold, k: f32, q: Quality) -> (CantusApp, egui::Context) {

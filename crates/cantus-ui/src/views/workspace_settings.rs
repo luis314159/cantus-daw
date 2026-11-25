@@ -763,6 +763,25 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
         w::row_label(ui, "", LABEL_W, 18.0);
         ui.vertical(|ui| note(ui, &t("arcus_upper.quality.hint"), false));
     });
+    // The realistic figures' eyes, closed (the default) or open (the owner, 2026-11-25).
+    // r42:arcus-hand
+    ui.horizontal(|ui| {
+        w::row_label(ui, "arcus_upper.eyes", LABEL_W, 24.0);
+        use crate::scene::figure::Eyes;
+        let mut sel = Eyes::ALL
+            .iter()
+            .position(|e| *e == app.settings.figure_eyes)
+            .unwrap_or(0);
+        let labels = Eyes::ALL.map(|e| Src::Key(e.label_key()));
+        if segmented(ui, &mut sel, &labels, &t("arcus_upper.eyes"), 160.0).changed() {
+            app.settings.figure_eyes = Eyes::ALL[sel];
+            app.store_settings();
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 18.0);
+        ui.vertical(|ui| note(ui, &t("arcus_upper.eyes.hint"), false));
+    });
     ui.horizontal(|ui| {
         w::row_label(ui, "settings.colours", LABEL_W, 24.0);
         if w::button(ui, Src::Key("settings.edit_colours"), 0.0, true).clicked() {

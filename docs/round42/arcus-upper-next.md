@@ -684,3 +684,99 @@ regenerated.
    way no coherent direction. A groomed short-hair texture would let him have a sheen.
 6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
 
+
+## arcus-hand (2026-11-25): the violin's left hand from photographs, the eyes' setting
+
+Branch `r42/arcus-hand` (worktree `F:\projects\daw-r42\arcus-hand`), from r42/integration
+f42f88109. The owner: "URGENT LA MANO IZQUIERDA DEL VIOLIN, ESFUÉRZATE BIEN EN ESO" — after
+three passes still "un desastre"; more realistic musicians; the eyes closed or open (he
+liked them closed: "parecían concentrados o disfrutando de la música"); more photographs of
+professional violinists, in orchestras too. ADR 0159 amended (`neck_hand`, `Eyes`).
+
+**References** (study only, never in the tree): `F:\projects\daw-r42\refs-violin\` — 40
+Wikimedia Commons photographs (soloists from the front and front-left, close-ups, sections,
+the player's side), `sources.md` (page, author, licence, view, position), a contact sheet,
+eight crops, `annotated/` (the landmarks drawn). Measured in
+`tools/arcus-figures/left_hand_refs.md` (forearm–neck 50–85°, the hand steeper than the
+forearm by 3–23°, the knuckles from level with the fingerboard's top to one neck thickness
+under it, the arches 1–2 neck thicknesses over it, the back at a slant, 0.5–0.9 as wide as
+long, the thumb hidden from the front).
+
+**What was wrong, and the fixes** (each with its number in `left_hand_refs.md` / the ADR):
+1. MakeHuman's finger bones begin at the webs, 1.2–1.5 cm past the real knuckle joints: the
+   fingers folded mid-phalanx, the palm ran on into them (the fist). `knuckle_fix` moves each
+   base joint back 12 % along its metacarpal and hands the skin between to the finger
+   (Rust `bowed_human::knuckle_fix` and Python `hand_rig.knuckle_fix`, alike).
+2. The hand was broadside to the camera: the solver now holds the back turned 30° toward the
+   scroll and rolled 20–26° down (within 5°), the knuckles beside the E side at the board's
+   height, the first phalanges rising, high arches (scaled by the hand's length), the tip
+   within 20° of the board's normal, the fingers parallel, the wrist's turn 0–6° (kept per
+   row: the table's version 2).
+3. The camera saw the neck from 59° toward the scroll; the photographs are square to it
+   (88–90°). The realistic violinists' camera is now azimuth −20°, 5° up
+   (`bowed_draw::REAL_HELD_VIEW`; `shoot_arcus --view=4,7` shows the earlier one).
+
+**High's hand** (`arcus_draw_flesh`): curved PN patches (`fine_tri`, ≤ 4 cuts a side, ~2.5 px)
+lit per point with the skin texture's detail (`cards::skin_detail`), the knuckles redder,
+the nails pale at their free edge (`hand_detail`), the patches' outline along their curved
+edge; each fingertip's soft shadow on the fingerboard (`arcus_draw_body::contact_shadows`).
+
+**Eyes** (`scene::figure::Eyes`, `Settings::figure_eyes`, Settings ▸ Appearance under Figure
+detail, both locales `arcus_upper.eyes*`): Closed by default; the lid morph from
+`tools/arcus-figures/lids.py` (`assets/figures/<who>_lids.bin`); `shoot_arcus --eyes=open`.
+
+**Tools**: `hand_study.py` (a pose from the app's camera, photo 5's, photo 2's and photo 4's,
+with the photographs' measures; `HAND_AZ`/`HAND_EL` turn the app's camera), `lids.py`,
+`hand_sheet_v10.py <shoot_arcus.exe> <dump.json> <out> [--old-dump=<dump>] [--refs=<dir>]`
+(the app's own picture round the hand from the earlier camera, the new one and photo 5's
+angle; the whole picture from both cameras; `numbers.txt`).
+
+**Later the same day (the owner's and the coordinator's reviews of the app sheets v1–v3)**:
+the thumb's base capped at 30° (it had turned 65°: the "mitten", the owner's "parte abultada
+gorda"); the wrist end of the forearm carrying 95 % of the hand's turn (was 70 %); her palm
+drawn in across by 0.86 (`PALM_SLIM`), his hands 0.93 (`HAND_SCALE`) — both mirrored in
+`hand_rig.py`; gentler joints (playing DIP 15–45°, hovering 5–35°), a stronger upright tip
+(within 24° in the solve, gated at 30°), more hovering slack for the little finger; the
+hand's skin warmed to the face's (`SKIN_WARM`); the sleeves' seam crack closed
+(`close_cloth_seams` — it was the "tan stripe", not skin, not a stamp: shown with the stamps
+off); a soft rim and lifted value on the live sleeves (`cloth_rim`); his shirt cuffs kept
+under the sleeves; the bake's jacket shards (the bow arm's stretched shoulder band) and the
+tie's sawtooth (`smooth_tie`) fixed, the suit 1.2 mm off the skin (`lift_suit`).
+Sheets (outside the tree: they hold the photographs): `F:\projects\daw-r42\tmp\hand-app-v3\`
+(`hand-*-vs-refs.png`, `full-*.png`), the offline previews `F:\projects\daw-r42\tmp\hand-preview\`.
+
+**Gates**: `arcus_hand_table` — the photographs' gates per figure × instrument × string ×
+note: the knuckle line on the E side (the index's base −0.5 … +2.2 cm from the edge, −1.0
+high up the G/D strings where the hand comes round), the tip within 30° of the board's
+normal, the back of the hand toward the camera (≥ 0.2) at a slant (width over length
+0.45–0.95, 1.2 high up), the wrist within 8°, no finger bent sideways over 5°, no last joint
+over its middle by more than 5°, the middle finger 0.95–1.35 of the back of the hand, the
+palm's outline at its middle ≤ 1.35 × the wrist's crease (index/middle in low positions;
+1.7 elsewhere); the eyes' setting test; `arcus_hold` (its V bound 85/88° and wrist 8° from
+the photographs).
+
+**Frame budget** (`arcus_hold_budget`, release, best of five): High realistic +1.9 to +3.1 ms
+at 100 %, +1.9 to +4.0 at 200 %; Light +0.2 to +0.6; ceilings 4.0 / 4.5 ms (passes). The
+patches were capped at 2 cuts a side (4 px) after a first measure of +6.7 ms at 200 %.
+Clippy (`-p cantus-ui --all-targets -D warnings`) clean; `arcus_hand_table`, `arcus_hold`,
+`arcus_scene`, `scene_identity`, `figure_contract`, `kit_lint` green.
+
+**Open** (honest list for the next session):
+1. The palm's outline is 1.4–1.63 × the wrist where the little or ring finger reaches or
+   the hand is high (the photographs 1.1–1.3): gated at 1.7, not yet within the photos.
+2. Tips meet the string at up to ~29° from the board's normal (the coordinator's ~25°).
+3. From the new camera, under his bow hand, small grey-blue pointed shapes by the frog
+   (not his elbow: the trunk-occlusion cull was tried and changed nothing, so it was taken
+   out) — most likely the bow's frog/slide drawn for the earlier view's angles, or the
+   inside of his sleeve's open end now that the cuff is hidden (darkening the "inside"
+   faces by the forearm's axis darkened outside faces too and was reverted).
+4. The coordinator's overall polish list (2026-11-25, the owner: "Agrega más detalles y
+   pule en general todo más"): velvet sheen and folds on her dress with a visible elbow
+   and contact shadows where an arm crosses the body; her shoulder-outline specks; the
+   hair's strand variation, specular band, a twisted bun, value against both themes; the
+   face's local variation, the closed lids' crease and lashes, chin/chinrest contact and
+   the violin's shadow on the neck; key/fill/rim light and crease occlusion; the chair's
+   grain or framing; the same for his suit, hair and skin — not started this session.
+5. A pixel gate for silhouette strays on the full pictures at both cameras: not written
+   (the full tiles were checked by eye; the causes found were fixed in the geometry).
+6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.

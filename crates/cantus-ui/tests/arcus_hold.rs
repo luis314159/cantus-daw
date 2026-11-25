@@ -543,7 +543,9 @@ fn the_left_arm_keeps_the_photographs_angles() {
                         j(nut)
                     );
                 }
-                assert!(wrist < 3.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
+                // (r42:arcus-hand: the forearm may turn up to 6° toward the little finger, as
+                // the photographs show it: within 8°.)
+                assert!(wrist < 8.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
                 // (A cellist's hand comes up beside the shoulder: the elbow folds more.)
                 assert!(
                     (if d.held { 50.0 } else { 30.0 }..=130.0).contains(&elbow),
@@ -561,7 +563,9 @@ fn the_left_arm_keeps_the_photographs_angles() {
                     );
                     // (Up the neck toward the body the forearm rises more steeply under it:
                     // a wider V at the octave.)
-                    let v_max = if semis > 9.0 { 75.0 } else { 65.0 };
+                    // (r42:arcus-hand: the photographs of professional violinists measure
+                    // 50–85° — tools/arcus-figures/left_hand_refs.md.)
+                    let v_max = if semis > 9.0 { 88.0 } else { 85.0 };
                     assert!(v < v_max, "{b:?} {hold:?}: forearm and neck {v:.0}° apart");
                 } else {
                     assert!(out > 10.0, "{b:?} {hold:?}: the elbow {out:.0} cm out");

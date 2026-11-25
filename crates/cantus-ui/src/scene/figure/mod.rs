@@ -80,3 +80,34 @@ pub fn frames_long(avg_ms: f32, was: bool) -> bool {
         avg_ms > 12.0
     }
 }
+
+/// r42:arcus-hand — the realistic figures' eyes (the owner, 2026-11-25: he liked them
+/// closed — "parecían concentrados o disfrutando de la música" — and wants the choice). A
+/// preference of this machine, never the project's; the picture is baked again when it
+/// changes (it is part of the holder the picture is cached by).
+///
+/// - **Closed** (the default): the lids at rest over the eyes, relaxed and a little
+///   downcast, the lashes on their edge (`assets/figures/<who>_lids.bin`, made by
+///   `tools/arcus-figures/lids.py`).
+/// - **Open**: the eyes on the strings, as the figures are built.
+#[derive(
+    Copy, Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum Eyes {
+    #[default]
+    Closed,
+    Open,
+}
+
+impl Eyes {
+    pub const ALL: [Eyes; 2] = [Eyes::Closed, Eyes::Open];
+
+    /// Its name's string key.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Eyes::Closed => "arcus_upper.eyes.closed",
+            Eyes::Open => "arcus_upper.eyes.open",
+        }
+    }
+}

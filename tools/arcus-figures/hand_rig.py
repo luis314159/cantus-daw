@@ -1,6 +1,7 @@
 """r42:arcus-upper — a Python mirror of the live hand's posing (scene/bowed_human.rs::arm_aims' hand part) for
 designing grips quickly: reads a .fig, poses one hand from a HandAim-like set of joint
 targets with a planar (hinge) finger IK, skins it, renders it with preview.py."""
+import os
 import struct
 import sys
 import numpy as np
@@ -23,7 +24,7 @@ def finger(f, k):
     return 6 + f * 3 + k
 
 
-def read_fig(path):
+def read_fig(path, knuckles=True):
     b = open(path, 'rb').read()
     o = 0
 
@@ -67,8 +68,122 @@ def read_fig(path):
         tris[i] = v[0:3]
         mat[i] = v[3]
         part[i] = v[4]
-    return dict(bones=bones, marks=marks, pos=pos, ids=ids, ws=ws, det=det, tris=tris,
-                mat=mat, part=part)
+    fig = dict(bones=bones, marks=marks, pos=pos, ids=ids, ws=ws, det=det, tris=tris,
+               mat=mat, part=part)
+    if knuckles:
+        name = os.path.basename(path)
+        knuckle_fix(fig, HAND_SCALE.get(name, 1.0), PALM_SLIM.get(name, 1.0))
+    return fig
+
+
+# r42:arcus-hand — MakeHuman's finger bones begin at the webs, about a centimetre and a
+# half past the knuckles' joints (the proximal phalanx 2.2-3.0 cm on her, a real one 3.7-4.2):
+# bent there, a finger folds in the middle of its first phalanx and the palm runs on into it
+# (the owner's "fist", the coordinator's "short fingers on a broad palm"). Each finger's
+# base joint is moved back along its metacarpal by this share of the wrist-to-base length
+# and the skin between is handed from the hand's bone to the finger's, smoothly, each vertex
+# by how near it lies to that finger's line. ``scene/bowed_human.rs::knuckle_fix`` does the
+# same on the figure the app reads; the two must stay alike.
+KNUCKLE_BACK = 0.12
+KNUCKLE_LANE = 0.8
+KNUCKLE_RAMP = (-0.5, 0.7)
+
+
+# r42:arcus-hand — each figure's hands scaled about the wrist (the coordinator's review: his
+# hand, wrist crease to fingertip, read longer than his face; a man's is about as long).
+HAND_SCALE = {"woman.fig": 1.0, "man.fig": 0.93}
+# r42:arcus-hand — each figure's palm drawn in across, toward the hand's middle line (the
+# owner: her hand "tosca", the palm bulging out of a slim wrist; her palm measured 1.25-1.64
+# times her wrist from the picture's camera, the photographs' about 1.25).
+PALM_SLIM = {"woman.fig": 0.86, "man.fig": 1.0}
+
+
+def slim_palm(fig, s, k):
+    B = fig["bones"]
+    pos, ids, ws = fig["pos"], fig["ids"], fig["ws"]
+    o = side(s)
+    wr = B[o + HAND][1]
+    across = norm(B[o + finger(1, 0)][1] - B[o + finger(4, 0)][1])
+    deltas = []
+    for f in range(5):
+        h0 = B[o + finger(f, 0)][1]
+        d = -across * ((h0 - wr) @ across) * (1.0 - k)
+        deltas.append(d)
+        for kk in range(3):
+            b = o + finger(f, kk)
+            par, h, t, x = B[b]
+            B[b] = (par, h + d, t + d, x)
+    move = np.zeros_like(pos)
+    for j in range(4):
+        w = ws[:, j]
+        for f in range(5):
+            m = np.isin(ids[:, j], [o + finger(f, kk) for kk in range(3)])
+            move[m] += deltas[f] * w[m, None]
+        m = ids[:, j] == o + HAND
+        off = (pos[m] - wr) @ across
+        move[m] += -across[None, :] * (off * (1.0 - k) * w[m])[:, None]
+    pos += move
+
+
+def knuckle_fix(fig, scale=1.0, slim=1.0):
+    B = fig["bones"]
+    pos, ids, ws = fig["pos"], fig["ids"], fig["ws"]
+    for s in (0, 1):
+        if slim != 1.0:
+            slim_palm(fig, s, slim)
+        o = side(s)
+        wr = B[o + HAND][1]
+        if scale != 1.0:
+            hand = list(range(o + HAND, o + finger(4, 2) + 1))
+            share = np.zeros(len(pos))
+            for k in range(4):
+                share += np.where(np.isin(ids[:, k], hand), ws[:, k], 0.0)
+            f = 1.0 - (1.0 - scale) * np.clip(share, 0, 1)
+            pos[:] = wr + (pos - wr) * f[:, None]
+            for b in hand:
+                par, h, t, x = B[b]
+                B[b] = (par, wr + (h - wr) * scale, wr + (t - wr) * scale, x)
+        heads, axes = [], []
+        for f in range(1, 5):
+            b = o + finger(f, 0)
+            par, h, t, x = B[b]
+            ax = norm(h - wr)
+            nh = h - ax * (np.linalg.norm(h - wr) * KNUCKLE_BACK)
+            B[b] = (par, nh, t, x)
+            heads.append(nh)
+            axes.append(ax)
+        heads, axes = np.array(heads), np.array(axes)
+        hb = o + HAND
+        has = (ids == hb) & (ws > 0)
+        rows = np.nonzero(has.any(1))[0]
+        for i in rows:
+            j = int(np.nonzero(has[i])[0][0])
+            wh = ws[i, j]
+            d = pos[i] - wr
+            t = d @ axes.T
+            lat = np.linalg.norm(d[None, :] - axes * t[:, None], axis=1)
+            c = np.exp(-(lat / KNUCKLE_LANE) ** 2)
+            if c.sum() < 1e-6:
+                continue
+            c = c / c.sum()
+            u = np.einsum("ij,ij->i", pos[i][None, :] - heads, axes)
+            r = np.clip((u - KNUCKLE_RAMP[0]) / (KNUCKLE_RAMP[1] - KNUCKLE_RAMP[0]), 0, 1)
+            r = r * r * (3 - 2 * r)
+            move = wh * c * r
+            if move.sum() < 1e-6:
+                continue
+            w = {int(ids[i, k]): float(ws[i, k]) for k in range(4) if ws[i, k] > 0}
+            w[hb] = w.get(hb, 0.0) - float(move.sum())
+            for f in range(4):
+                b = o + finger(f + 1, 0)
+                w[b] = w.get(b, 0.0) + float(move[f])
+            top = sorted(((v, k) for k, v in w.items() if v > 1e-6), reverse=True)[:4]
+            tot = sum(v for v, _ in top)
+            ids[i] = 0
+            ws[i] = 0
+            for k, (v, b) in enumerate(top):
+                ids[i, k] = b
+                ws[i, k] = v / tot
 
 
 def norm(v):

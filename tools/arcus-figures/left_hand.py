@@ -86,8 +86,8 @@ class Hand:
     """A figure's left hand at rest: its bones, the palm's normal, each joint's flex axis
     and its angle at rest (so the anatomical angles can be bounded)."""
 
-    def __init__(self, who):
-        self.fig = hr.read_fig(os.path.join(FIGS, f"{who}.fig"))
+    def __init__(self, who, knuckles=True):
+        self.fig = hr.read_fig(os.path.join(FIGS, f"{who}.fig"), knuckles)
         B = self.fig["bones"]
         self.B = B
         self.wr = B[HAND][1]
@@ -202,27 +202,68 @@ class Neck:
 # ---- the rules -------------------------------------------------------------------------
 
 # The anatomical ranges (deg): the playing finger's and a hovering one's MCP, PIP, DIP.
-PLAY = ((45, 70), (70, 100), (25, 50))
-HOVER = ((35, 70), (60, 100), (15, 50))
+PLAY = ((30, 62), (75, 105), (15, 45))
+HOVER = ((20, 60), (50, 95), (5, 35))
 # Each finger's spread at rest (rad): the index a little toward the scroll, the little
 # finger a little away.
-SPREAD = np.array([-0.12, -0.03, 0.07, 0.17])
+SPREAD = np.array([0.0, 0.0, 0.02, 0.05])
 # Each finger's angles near the middle of its range (deg; the owner's review: curled to
 # the ranges' ends the fingers read short, a fist on the fingerboard).
-MID = (55.0, 82.0, 32.0)
+MID = (45.0, 90.0, 25.0)
 # Where the palm faces (the owner's photographs 2-4: toward the player as much as toward the
 # neck, a little up), and how near to it it must keep.
+def back_way(pose):
+    """Where the back of the hand faces (the instrument's frame turned to the row's ways):
+    the E side, turned down by the roll (the palm up toward the neck's underside — seen from
+    the audience the back shows at a slant, the hand narrow, as photographs 2 and 5 and the
+    front views in left_hand_refs.md show it) and toward the scroll by the yaw. The roll eases
+    toward the G string, where the elbow swings in and the fingers reach further over."""
+    s = pose.row["string"]
+    roll = np.radians(ROLL[0] + (ROLL[1] - ROLL[0]) * s / 3.0)
+    yaw = np.radians(YAW)
+    return hr.norm(pose.kx * np.cos(roll) * np.cos(yaw) - pose.bw * np.cos(roll) * np.sin(yaw)
+                   - pose.z * np.sin(roll))
+
+
 def PALM_WAY(pose):
-    return hr.norm(pose.bw * 0.7 - pose.kx * 0.5 + pose.z * 0.5)
+    return -back_way(pose)
 
 
-PALM_MIN = 0.8
+# The back's roll down from the E side on the G string and the E string, its yaw toward the
+# scroll (deg).
+ROLL = (20.0, 26.0)
+YAW = 30.0
+PALM_MIN = 0.996
+PALM_W = 150.0
+# Each finger's middle joint over the fingerboard's top (cm): index, middle, ring, little.
+ARCHES = (3.0, 3.3, 3.1, 2.4)
+# The playing finger's last phalanx within this of the fingerboard's normal (cos).
+UPRIGHT_COS = 0.913
+# Each first phalanx rising from its knuckle: within this of the normal (cos 40 deg).
+RISE_COS = 0.766
+# The wrist under the neck (cm across from the E edge, below the top).
+WRIST_X = (0.0, 3.5)
+# The wrist's deviation toward the little finger (deg): its range and where it rests.
+WRIST_DEV = (0.0, 6.0)
+WRIST_DEV_MID = 3.0
+# How far a finger that does not play may hover from over its note (cm).
+HOVER_SLACK = (1.2, 1.4, 1.8, 2.6)
+WRIST_Z = (-10.5, -5.0)
 # How high the knuckles stand over the fingerboard's top, at least (cm).
-KNUCKLES = -0.2
+KNUCKLES = (-1.6, -0.2)
+# Her hand's length, wrist to the middle knuckles (cm, after knuckle_fix): the rules' unit.
+HAND_LEN = 7.61
+# How far out from the E edge the base knuckles stand (cm): beside the neck.
+KNUCKLES_OUT = (0.5, 4.0)
+# The index finger's base against the E side: out from the edge, and its height (cm).
+CROOK_X = 0.85
+CROOK_Z = (-1.2, -0.2)
 # How high each finger's middle joint stands over the fingerboard's top (cm).
 ARCH = 2.4
 # The thumb's flex (MCP, IP): relaxed.
 THUMB = ((5, 35), (5, 35))
+# The thumb's base (CMC) turn at most (deg).
+THUMB_CMC = 30.0
 
 
 def over(x, lo, hi):
@@ -239,6 +280,9 @@ class Pose:
         self.a = np.array(row["a"])
         self.bw, self.kx, self.z = (np.array(row[k]) for k in ("bw", "kx", "z"))
         self.hw, self.top = row["hw"], row["top"]
+        # The hand's size against hers (the rules' lengths are hers): the man's hand is a
+        # quarter longer, its arches higher, its knuckles further out, its wrist lower.
+        self.k = np.linalg.norm((h.heads[2, 0] + h.heads[3, 0]) * 0.5 - h.wr) / HAND_LEN
         self.tips = np.array(row["tips"])
         self.playing = row["playing"]
         self.want_names = False
@@ -248,6 +292,19 @@ class Pose:
         Rh = rotvec(x[3:6]) @ self.R0
         Q = self.h.local(x[6:])
         return W, Rh, Q
+
+    def elbow(self, x, W, Rh, P):
+        """The elbow, the forearm's way from the wrist and the wrist's deviation: the forearm
+        on the hand's line turned toward the little finger's side by ``x[27]`` (the
+        photographs' hand stands steeper to the neck than the forearm, 5-25 degrees), its own
+        length back."""
+        dev = x[27] if len(x) > 27 else 0.0
+        mid = (P[2, 0] + P[3, 0]) * 0.5
+        base = hr.norm(W - mid)
+        across = P[1, 0] - P[4, 0]
+        xp = hr.norm(across - base * (across @ base))
+        way = hr.norm(base * np.cos(dev) - xp * np.sin(dev))
+        return W + way * self.fore, way, dev
 
     def residuals(self, x, prev=None):
         h, nk = self.h, self.neck
@@ -270,22 +327,24 @@ class Pose:
             if f == p:
                 add(f"tip{f}", *((tip - self.tips[f]) * 40.0))
                 d2 = hr.norm(P[f + 1, 3] - P[f + 1, 2])
-                add(f"upright{f}", 25.0 * max(0.0, 0.85 - d2 @ (-self.z)))
+                add(f"upright{f}", 150.0 * max(0.0, UPRIGHT_COS - d2 @ (-self.z)))
             else:
                 # Hovering over its own string a little across from the playing one (each
                 # finger falls toward its own string, at its own angle — photograph 4).
                 want = self.tips[f] + self.kx * (0.35 * (f - max(p, 0)))
                 miss = np.linalg.norm(tip - want)
-                add(f"hover{f}", 3.0 * max(0.0, miss - 0.8))
+                add(f"hover{f}", 3.0 * max(0.0, miss - HOVER_SLACK[f] * self.k))
             rng = PLAY if f == p else HOVER
             for k in range(3):
                 wk = 3.0 if f == p else 1.0
                 add(f"ang{f}{k}", wk * over(ang[f + 1, k], *rng[k]))
                 add(f"mid{f}{k}", 0.08 * (ang[f + 1, k] - MID[k]))
-            add(f"spread{f}", 1.0 * (x[6 + 4 * f + 1] - SPREAD[f]))
+            add(f"spread{f}", 4.0 * (x[6 + 4 * f + 1] - SPREAD[f]))
             # The arch: the middle joint high over the fingerboard.
             ql = loc(P[f + 1, 1])
-            add(f"arch{f}", 6.0 * max(0.0, nk.top(ql[1]) + ARCH - ql[2]))
+            add(f"arch{f}", 6.0 * max(0.0, nk.top(ql[1]) + ARCHES[f] * self.k - ql[2]))
+            d1 = hr.norm(P[f + 1, 1] - P[f + 1, 0])
+            add(f"rise{f}", 3.0 * max(0.0, RISE_COS - d1 @ self.z))
             # Nothing but the playing tip inside the fingerboard and the strings.
             for k in (1, 2, 3):
                 if f == p and k == 3:
@@ -297,13 +356,14 @@ class Pose:
         # fingerboard's top.
         base = P[1, 0] * 0.7 + P[1, 1] * 0.3
         qb = loc(base)
-        add("crook_x", 5.0 * (qb[0] - (nk.hw(qb[1]) + 0.85)))
-        add("crook_z", 3.0 * over(qb[2] - nk.top(qb[1]), -0.7, 0.3))
+        add("crook_x", 5.0 * (qb[0] - (nk.hw(qb[1]) + CROOK_X)))
+        add("crook_z", 3.0 * over(qb[2] - nk.top(qb[1]), *CROOK_Z))
         # The knuckles up beside the fingerboard (the owner's photograph 2: the hand rises
         # from the wrist just under the neck to the knuckles over it).
         for f in range(1, 5):
             qk = loc(P[f, 0])
-            add("knuckles", 3.0 * max(0.0, nk.top(qk[1]) + KNUCKLES - qk[2]))
+            add("knuckles", 4.0 * over(qk[2] - nk.top(qk[1]), *KNUCKLES))
+            add("knuckles_out", 3.0 * over(qk[0] - nk.hw(qk[1]), KNUCKLES_OUT[0], KNUCKLES_OUT[1] * self.k))
         # The thumb up the G side, its tip about level with the fingerboard, opposite the
         # first and second fingers.
         qt = loc(P[0, 3])
@@ -311,6 +371,10 @@ class Pose:
         add("thumb_z", 6.0 * over(qt[2] - nk.top(qt[1]), -0.6, 0.3))
         y12 = loc(self.tips[0])[1] * 0.6 + loc(self.tips[1])[1] * 0.4
         add("thumb_y", 2.0 * over(qt[1] - y12, -0.8, 1.2))
+        # The thumb's base turned no more than a relaxed hand's (r42:arcus-hand: turned 65
+        # degrees it pushed the thumb's ball out into a mitten's bulge — the owner's "parte
+        # abultada gorda").
+        add("thumb_cmc", 3.0 * over(np.degrees(np.linalg.norm(x[22:25])), 0.0, THUMB_CMC))
         add("thumb_mcp", 0.3 * over(np.degrees(x[25]), *THUMB[0]))
         add("thumb_ip", 0.3 * over(np.degrees(x[26]), *THUMB[1]))
         # The thumb and the palm clear of the neck (the gap under the palm).
@@ -327,14 +391,17 @@ class Pose:
         # The wrist straight: the elbow on the hand's line at the forearm's length, the upper
         # arm its own length from the shoulder; under the violin, the forearm and the neck a
         # narrow V.
-        mid = (P[2, 0] + P[3, 0]) * 0.5
-        el = W + hr.norm(W - mid) * self.fore
+        el, _, dev = self.elbow(x, W, Rh, P)
+        add("wrist_dev", 1.5 * over(np.degrees(dev), *WRIST_DEV) + 0.05 * (np.degrees(dev) - WRIST_DEV_MID))
         add("upper_len", 5.0 * over(np.linalg.norm(el - self.sh) - self.upper, -1.0, 1.0))
         qe = loc(el)
         add("elbow_y", 1.0 * over(qe[1], 2.0, nk.body - 2.0))
         add("elbow_z", 1.0 * max(0.0, qe[2] + 13.0))
         # The palm toward the neck and up toward the player.
-        add("palm_way", 4.0 * max(0.0, PALM_MIN - npalm @ PALM_WAY(self)))
+        add("palm_way", PALM_W * max(0.0, PALM_MIN - npalm @ PALM_WAY(self)))
+        qw = loc(W)
+        add("wrist_x", 3.0 * over(qw[0] - nk.hw(qw[1]), *WRIST_X))
+        add("wrist_z", 3.0 * over(qw[2] - nk.top(qw[1]), WRIST_Z[0] * self.k, WRIST_Z[1] * self.k))
         if prev is not None:
             add("prev", *((x - prev) * 0.15))
         if self.want_names:
@@ -394,7 +461,16 @@ def start(h, row):
         th[4 * (f - 1):4 * f] = [55 * RAD - h.rest[f, 0], SPREAD[f - 1],
                                  85 * RAD - h.rest[f, 1], 35 * RAD - h.rest[f, 2]]
     th[19:21] = [15 * RAD, 15 * RAD]
-    return R0, np.concatenate([W, np.zeros(3), th])
+    return R0, np.concatenate([W, np.zeros(3), th, [WRIST_DEV_MID * RAD]])
+
+
+def entry(pose, x, cost):
+    """A solved row as the cache keeps it (the forearm's way from the wrist too)."""
+    W, Rh, Q = pose.unpack(x)
+    P = pose.h.fk(W, Rh, Q)
+    _, way, _ = pose.elbow(x, W, Rh, P)
+    return {"W": W.tolist(), "Rh": Rh.tolist(), "Q": Q.reshape(15, 3, 3).tolist(),
+            "fore": way.tolist(), "cost": float(cost), "x": x.tolist()}
 
 
 def rows_of(F, string, finger):
@@ -449,10 +525,7 @@ def solve_fig(F, h, cache, verbose=False):
                 x, cost = best
                 got[(string, finger, at)] = x
                 prev = x
-                W, Rh, Q = pose.unpack(x)
-                cache[f'{key}-{string}-{finger}-{at:g}'] = {
-                    "W": W.tolist(), "Rh": Rh.tolist(),
-                    "Q": Q.reshape(15, 3, 3).tolist(), "cost": float(cost), "x": x.tolist()}
+                cache[f'{key}-{string}-{finger}-{at:g}'] = entry(pose, x, cost)
                 if verbose:
                     print(key, string, finger, at, "cost %.2f" % cost, flush=True)
 
@@ -503,9 +576,7 @@ def fix_fig(F, h, cache, worse=60.0, verbose=False, tries=8, save=None):
         if verbose:
             print(k, "cost %.1f -> %.1f" % (c["cost"], cost), flush=True)
         if cost < c["cost"]:
-            W, Rh, Q = pose.unpack(x)
-            cache[k] = {"W": W.tolist(), "Rh": Rh.tolist(), "Q": Q.reshape(15, 3, 3).tolist(),
-                        "cost": float(cost), "x": x.tolist()}
+            cache[k] = entry(pose, x, cost)
             if save:
                 save(cache)
 
@@ -523,9 +594,10 @@ def rotlog(R):
 def write_bin(dump, cache, out=OUT):
     at = dump["at"]
     b = bytearray(b"CLHT")
-    b += struct.pack("<HH", 1, len(at))
+    b += struct.pack("<HH", 2, len(at))
     b += struct.pack(f"<{len(at)}f", *at)
     figs = {f'{F["who"]}-{F["inst"]}': F for F in dump["figs"]}
+    hands = {}
     for who in ("woman", "man"):
         for inst in ("violin", "viola"):
             F = figs[f"{who}-{inst}"]
@@ -538,9 +610,18 @@ def write_bin(dump, cache, out=OUT):
                         w = E @ (np.array(c["W"]) - o)
                         H = E @ np.array(c["Rh"])
                         vals = [int(round(v * 100)) for v in w]
+                        fore = c.get("fore")
+                        if fore is None:
+                            # (A cache from before the forearm's way: on the hand's line.)
+                            h = hands.setdefault(who, Hand(who))
+                            P = h.fk(np.array(c["W"]), np.array(c["Rh"]),
+                                     np.array(c["Q"]).reshape(5, 3, 3, 3))
+                            fore = hr.norm(np.array(c["W"]) - (P[2, 0] + P[3, 0]) * 0.5)
+                        fw = E @ np.array(fore)
+                        vals += [int(round(v * 32767)) for v in fw / np.linalg.norm(fw)]
                         for R in [H] + [np.array(q) for q in c["Q"]]:
                             vals += [int(round(v * 32767)) for v in quat(R)]
-                        b += struct.pack("<67h", *vals)
+                        b += struct.pack("<70h", *vals)
     open(out, "wb").write(bytes(b))
     print("wrote", out, len(b), "bytes")
 
@@ -551,12 +632,17 @@ STUFF = {0: (0.86, 0.66, 0.55), 1: (0.75, 0.42, 0.40), 3: (0.05, 0.04, 0.05),
          4: (0.10, 0.10, 0.13), 5: (0.92, 0.92, 0.90), 11: (0.93, 0.76, 0.70)}
 
 
-def hand_mesh(h, W, Rh, Q, P):
-    """The left hand and forearm skinned (the forearm carried straight on with the hand)."""
+def hand_mesh(h, W, Rh, Q, P, way=None):
+    """The left hand and forearm skinned (the forearm on ``way`` from the wrist when given,
+    else carried straight on with the hand)."""
     fig = h.fig
     xf = {HAND: (Rh, W, h.wr)}
+    Rf = Rh
+    if way is not None:
+        base = hr.norm(W - (P[2, 0] + P[3, 0]) * 0.5)
+        Rf = hr.between(base, np.asarray(way)) @ Rh
     for b in (O + hr.FORE1, O + hr.FORE2):
-        xf[b] = (Rh, W, h.wr)
+        xf[b] = (Rf, W, h.wr)
     for f in range(5):
         for k in range(3):
             xf[O + hr.finger(f, k)] = (Rh @ Q[f, k], P[f, k], h.heads[f, k])

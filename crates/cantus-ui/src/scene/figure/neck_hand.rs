@@ -19,10 +19,12 @@
 //! The table is `assets/figures/left_hand.bin` (little-endian): `CLHT`, a `u16` version, a
 //! `u16` count of positions, the positions (`f32` semitones), then the rows in order
 //! (figure: woman, man) × (violin, viola) × string (G … E) × finger (index … little, then
-//! none) × position; a row is 67 `i16`: the wrist (0.01 cm, along the instrument's x, y,
-//! z from its origin), the hand's turn in the instrument's frame and each of the fifteen
-//! finger bones' turns against the hand's (thumb, index … little; base to tip), each a
-//! quaternion (w, x, y, z) × 32767.
+//! none) × position; a row is 70 `i16`: the wrist (0.01 cm, along the instrument's x, y,
+//! z from its origin), the forearm's way from the wrist toward the elbow (a unit vector in
+//! the instrument's frame × 32767: r42:arcus-hand, version 2 — the wrist turned a little
+//! toward the little finger, as the photographs show it), the hand's turn in the
+//! instrument's frame and each of the fifteen finger bones' turns against the hand's
+//! (thumb, index … little; base to tip), each a quaternion (w, x, y, z) × 32767.
 
 use super::rig::Rot;
 use crate::scene::bowed::Pose;
@@ -77,6 +79,8 @@ impl Quat {
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Row {
     pub wrist: V3,
+    /// r42:arcus-hand — the forearm's way from the wrist (the instrument's frame).
+    pub fore: V3,
     pub hand: Quat,
     pub bones: [Quat; 15],
 }
@@ -94,6 +98,8 @@ pub struct HandRots {
 #[derive(Copy, Clone, Debug)]
 pub struct HandPlace {
     pub wrist: V3,
+    /// r42:arcus-hand — the forearm's way from the wrist toward the elbow (unit, world).
+    pub fore: V3,
     pub fingers: [[V3; 4]; 4],
     pub thumb: [V3; 4],
     pub rots: HandRots,
@@ -114,7 +120,7 @@ impl HandPlace {
     }
 }
 
-const ROW: usize = 67;
+const ROW: usize = 70;
 const STRINGS: usize = 4;
 const FINGERS: usize = 5;
 
@@ -128,7 +134,7 @@ fn parse(b: &[u8]) -> Option<Table> {
         return None;
     }
     let u16_at = |o: usize| u16::from_le_bytes([b[o], b[o + 1]]);
-    if u16_at(4) != 1 {
+    if u16_at(4) != 2 {
         return None;
     }
     let n = u16_at(6) as usize;
@@ -146,7 +152,7 @@ fn parse(b: &[u8]) -> Option<Table> {
     let mut rows = Vec::with_capacity(count);
     for _ in 0..count {
         let q = |k: usize| {
-            let p = o + 2 * (3 + 4 * k);
+            let p = o + 2 * (6 + 4 * k);
             Quat([0, 1, 2, 3].map(|i| i16_at(p + 2 * i) / 32767.0))
         };
         let mut bones = [Quat::default(); 15];
@@ -155,6 +161,7 @@ fn parse(b: &[u8]) -> Option<Table> {
         }
         rows.push(Row {
             wrist: v(i16_at(o), i16_at(o + 2), i16_at(o + 4)) * 0.01,
+            fore: v(i16_at(o + 6), i16_at(o + 8), i16_at(o + 10)) * (1.0 / 32767.0),
             hand: q(0),
             bones,
         });
@@ -196,6 +203,7 @@ pub fn row(who: Who, viola: bool, string: usize, playing: Option<usize>, at: f32
     }
     Some(Row {
         wrist: a.wrist.lerp(b.wrist, k),
+        fore: a.fore.lerp(b.fore, k).norm(),
         hand: a.hand.nlerp(&b.hand, k),
         bones,
     })
@@ -234,6 +242,7 @@ pub fn place(fig: &Figure, row: &Row, pose: &Pose) -> HandPlace {
     }
     HandPlace {
         wrist,
+        fore: frame.apply(row.fore).norm(),
         fingers: [chains[1], chains[2], chains[3], chains[4]],
         thumb: chains[0],
         rots: HandRots { hand: rh, bones },

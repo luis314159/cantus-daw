@@ -34,3 +34,8 @@ arcus_upper.quality.light = Light
 arcus_upper.quality.auto = Auto
 arcus_upper.quality.hint = High draws the figures' hands in full; Light draws them simpler and costs about a millisecond a frame; Auto uses High and steps down to Light while the window is busy.
 arcus_upper.hold.hint = Arcus's picture only: what holds the instrument (nothing, a stand, a musician, a mannequin, a realistic woman or man) and how the stopped note shows. The sound does not change.
+# r42:arcus-hand
+arcus_upper.eyes = Eyes
+arcus_upper.eyes.closed = Closed
+arcus_upper.eyes.open = Open
+arcus_upper.eyes.hint = The musicians' eyes: closed, as if listening to what they play, or open on the strings.

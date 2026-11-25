@@ -49,6 +49,10 @@ pub const PAD: Mat = plain(MatKind::Matte, srgb(40, 34, 32));
 pub const VELVET: C3 = srgb(16, 14, 18);
 pub const VELVET_SHEEN: C3 = srgb(92, 88, 100);
 pub const WOOL: C3 = srgb(30, 31, 36);
+/// r42:arcus-hand — the back light along a live sleeve's edge (the owner, 2026-11-25: the
+/// black sleeve got lost against the black dress): a cool, soft rim, as a stage's back
+/// light catches dark cloth.
+pub const CLOTH_RIM: C3 = srgb(150, 152, 170);
 pub const SHIRT: C3 = srgb(232, 232, 228);
 pub const TIE: C3 = srgb(30, 36, 64);
 pub const HAIR_FAIR: C3 = srgb(204, 178, 134);
