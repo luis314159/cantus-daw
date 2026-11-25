@@ -249,129 +249,8 @@ impl Figure {
     }
 }
 
-/// A rotation: the images of the x, y and z axes.
-#[derive(Copy, Clone, Debug)]
-pub struct Rot {
-    pub x: V3,
-    pub y: V3,
-    pub z: V3,
-}
-
-impl Default for Rot {
-    fn default() -> Rot {
-        Rot::I
-    }
-}
-
-impl Rot {
-    pub const I: Rot = Rot {
-        x: V3 {
-            x: 1.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        y: V3 {
-            x: 0.0,
-            y: 1.0,
-            z: 0.0,
-        },
-        z: V3 {
-            x: 0.0,
-            y: 0.0,
-            z: 1.0,
-        },
-    };
-
-    pub fn apply(&self, p: V3) -> V3 {
-        self.x * p.x + self.y * p.y + self.z * p.z
-    }
-
-    pub fn t(&self) -> Rot {
-        Rot {
-            x: v(self.x.x, self.y.x, self.z.x),
-            y: v(self.x.y, self.y.y, self.z.y),
-            z: v(self.x.z, self.y.z, self.z.z),
-        }
-    }
-
-    pub fn mul(&self, o: &Rot) -> Rot {
-        Rot {
-            x: self.apply(o.x),
-            y: self.apply(o.y),
-            z: self.apply(o.z),
-        }
-    }
-
-    /// The right-handed frame whose y is `y` and whose x is `x` made square to it.
-    pub fn frame(x: V3, y: V3) -> Rot {
-        let y = y.norm();
-        let mut xx = x - y * x.dot(y);
-        if xx.len() < 1e-5 {
-            xx = super::geo::basis(y).0;
-        }
-        let x = xx.norm();
-        Rot {
-            x,
-            y,
-            z: x.cross(y),
-        }
-    }
-
-    /// The turn of `a` radians about the unit axis `u`.
-    pub fn about(u: V3, a: f32) -> Rot {
-        let (s, c) = a.sin_cos();
-        let t = |p: V3| p * c + u.cross(p) * s + u * (u.dot(p) * (1.0 - c));
-        Rot {
-            x: t(v(1.0, 0.0, 0.0)),
-            y: t(v(0.0, 1.0, 0.0)),
-            z: t(v(0.0, 0.0, 1.0)),
-        }
-    }
-
-    /// The shortest turn taking the unit `a` to the unit `b`.
-    pub fn between(a: V3, b: V3) -> Rot {
-        let c = a.dot(b).clamp(-1.0, 1.0);
-        let ax = a.cross(b);
-        if ax.len() < 1e-6 {
-            return if c > 0.0 {
-                Rot::I
-            } else {
-                Rot::about(super::geo::basis(a).0, std::f32::consts::PI)
-            };
-        }
-        Rot::about(ax.norm(), c.acos())
-    }
-}
-
-/// A posed bone: a rest point `p` goes to `at + rot·S(p − head)`, `S` stretching along the
-/// bone's rest way `y0` by `k` (a finger's phalanx brought to the length of the pose it
-/// takes).
-#[derive(Copy, Clone, Debug, Default)]
-pub struct Xf {
-    pub head: V3,
-    pub y0: V3,
-    pub k: f32,
-    pub rot: Rot,
-    pub at: V3,
-}
-
-impl Xf {
-    pub fn apply(&self, p: V3) -> V3 {
-        let q = p - self.head;
-        let q = q + self.y0 * (q.dot(self.y0) * (self.k - 1.0));
-        self.at + self.rot.apply(q)
-    }
-}
-
-/// How a bone is set: its head (none: where its parent carries it), its way, its x (none:
-/// its parent's turn of its rest x), its length (none: its own).
-#[derive(Copy, Clone, Debug, Default)]
-pub struct Aim {
-    pub head: Option<V3>,
-    pub y: V3,
-    pub x: Option<V3>,
-    pub len: Option<f32>,
-}
+/// A figure's rig: moved to `figure::rig` (ADR 0159), named here as before.
+pub use super::figure::rig::{Aim, Rot, Xf};
 
 /// Every bone posed.
 #[derive(Clone, Debug)]
@@ -478,9 +357,6 @@ const SIT_BACK: f32 = 4.0;
 
 /// How far a violinist's or a violist's trunk turns to the left (radians).
 const TRUNK_TURN: f32 = 0.2;
-
-/// How far the hip joints sit over what they are seated on (cm).
-const HIP_OVER_SEAT: f32 = 9.5;
 
 /// The figure's own turn: its left (+x at rest) to the skeleton's left, its front to the
 /// skeleton's front.
@@ -635,166 +511,86 @@ fn hand_turn(fig: &Figure, s: usize, h: &HandAim, wrist: V3) -> Rot {
 
 /// A two-bone limb's middle joint (`elbow` with the realistic lengths).
 fn knee(hip: V3, ankle: V3, a: f32, b: f32, pole: V3) -> V3 {
-    super::bowed_hold::elbow(hip, ankle, a, b, pole)
+    super::figure::rig::two_bone(hip, ankle, a, b, pole)
 }
 
-/// The figure seated for the skeleton `s` (the stylised figure's, posed from the
-/// instrument): the jaw's left side on the chinrest (held) or the head where the stylised
-/// head is (behind a cello or a bass); the trunk leaning a little forward from hips on the
-/// seat (the chair's height follows, as a player sets it); the legs to the floor; the arms
-/// through `arms` (left, right) or hanging. Returns the pose and the seat's height.
+/// Arcus's rig for the stylised skeleton `s` (ADR 0159: Arcus is the PlayRig's first
+/// client): under a chin the body hangs from the jaw on the chinrest (leant 6° forward,
+/// turned toward the scroll; the chair's height follows); behind a cello or a bass the
+/// figure sits on the instrument's seat a little behind the stylised figure's place, the
+/// head where the stylised head is, the knees and the ankles where it puts them; each arm
+/// through `arms` (the live arms' pose) or resting (the left hand at the skeleton's wrist,
+/// the bow hand in front of the chest to the right).
+pub fn arcus_rig(
+    s: &super::bowed_figure::Skel,
+    held: bool,
+    arms: [Option<ArmAim>; 2],
+) -> super::figure::play::PlayRig {
+    use super::figure::play::{Hand, Head, HeadAt, Legs, PlayRig, Seat};
+    let (at, seat, legs) = if held {
+        (
+            HeadAt::Jaw(s.chin),
+            Seat::FromHead {
+                lean: 6.0f32.to_radians(),
+                turn: TRUNK_TURN,
+            },
+            Legs::Forward,
+        )
+    } else {
+        // Sat a little further back than the stylised figure (sheet v7: a realistic hand
+        // is longer; with the cello's neck at the shoulder the elbow folded under 30°).
+        let back = s.f * SIT_BACK;
+        (
+            HeadAt::Eyes(s.head - back),
+            Seat::Chair {
+                at: s.pelvis - back,
+                top: s.pelvis.y - 10.0 - back.y,
+            },
+            Legs::To {
+                knees: s.knees,
+                ankles: s.ankles,
+            },
+        )
+    };
+    let hand = |sd: usize| match arms[sd] {
+        Some(a) => Hand::Aim(a),
+        None => {
+            let (wrist, pole) = match (sd, held) {
+                (0, true) => (s.lw, s.down + s.r * 0.45 + s.f * 0.15),
+                (0, false) => (s.lw, -s.r + s.down * 1.3),
+                (_, true) => (s.chest + s.r * 14.0 + s.f * 24.0, s.down + s.r * 1.5),
+                (_, false) => (
+                    s.chest + s.r * 24.0 + s.f * 22.0 + s.down * 10.0,
+                    s.r + s.down * 1.6,
+                ),
+            };
+            Hand::Rest { wrist, pole }
+        }
+    };
+    PlayRig {
+        facing: s.f,
+        right: s.r,
+        head: Head {
+            at,
+            up: s.hu,
+            face: s.hf,
+        },
+        seat,
+        legs,
+        hands: [hand(0), hand(1)],
+        occluders: Vec::new(),
+    }
+}
+
+/// The figure posed for the skeleton `s` (the stylised figure's, posed from the
+/// instrument) through Arcus's rig: every bone and the seat's height.
 pub fn body(
     fig: &Figure,
     s: &super::bowed_figure::Skel,
     held: bool,
     arms: [Option<ArmAim>; 2],
 ) -> (Posed, f32) {
-    let b = &fig.bones;
-    let g = facing(s);
-    let head_rot = Rot::frame(s.hu.cross(s.hf), s.hu).mul(&b[HEAD].frame().t());
-    let top_rest = b[HEAD].head;
-    let (anchor, target) = if held {
-        (fig.mark("jaw.L"), s.chin)
-    } else {
-        let eyes = (fig.mark("eye.L") + fig.mark("eye.R")) * 0.5 - v(0.0, 0.0, 6.5);
-        (eyes, s.head)
-    };
-    let t_top = target - head_rot.apply(anchor - top_rest);
-    let trunk_rest = g.apply(top_rest - b[HIPS].head);
-    let (dir, hips_at) = if held {
-        // A violinist leans a little forward; the chair is set to the height that puts
-        // the jaw on the chinrest.
-        let lean = 6.0f32.to_radians();
-        let dir = (UP * lean.cos() + s.f * lean.sin()).norm();
-        (dir, t_top - dir * trunk_rest.len())
-    } else {
-        // Behind a cello or a bass the seat is the instrument's (its height fixed): the
-        // trunk leans from it toward where the head goes.
-        let seat_top = s.pelvis.y - 10.0;
-        // Sat a little further back than the stylised figure (sheet v7: a realistic hand is
-        // longer; with the cello's neck at the shoulder the elbow folded under 30°).
-        let back = s.f * SIT_BACK;
-        let hips = v(
-            s.pelvis.x,
-            seat_top + HIP_OVER_SEAT + (b[HIPS].head.y - b[side(0) + THIGH].head.y),
-            s.pelvis.z,
-        ) - back;
-        ((t_top - back - hips).norm(), hips)
-    };
-    // Under a chin the trunk turns a little to the left (the left shoulder forward toward
-    // the scroll, as violinists stand): a viola's neck is otherwise beyond a relaxed arm's
-    // reach (sheet v7: the woman's elbow opened to 132°).
-    let g = if held {
-        let turn = |a: f32| Rot::about(UP, a);
-        let a = if turn(0.2).apply(-s.r).dot(s.f) > 0.0 {
-            TRUNK_TURN
-        } else {
-            -TRUNK_TURN
-        };
-        turn(a).mul(&g)
-    } else {
-        g
-    };
-    let trunk_rest = g.apply(top_rest - b[HIPS].head);
-    let root = Rot::between(trunk_rest.norm(), dir).mul(&g);
-    let off = hips_at - root.apply(b[HIPS].head);
-    let mut aims: [Option<Aim>; BONES] = [None; BONES];
-    // The neck halfway between the trunk's way and the head's, the head as the skeleton
-    // turns it.
-    let trunk_up = root.apply((b[NECK].tail - b[NECK].head).norm());
-    aims[NECK] = Some(Aim {
-        head: None,
-        y: (trunk_up + s.hu).norm(),
-        x: None,
-        len: None,
-    });
-    aims[HEAD] = Some(Aim {
-        head: None,
-        y: s.hu,
-        x: Some(s.hu.cross(s.hf)),
-        len: None,
-    });
-    let mut first = pose(fig, &aims, &root, off);
-    let mut off = off;
-    if held {
-        // What the neck's bend moved, taken back (the chair follows).
-        off = off + (target - first.at(HEAD, anchor));
-        first = pose(fig, &aims, &root, off);
-    }
-    let sole = fig.mark("sole").y;
-    for (i, sd) in [0usize, 1].into_iter().enumerate() {
-        let o = side(sd);
-        let hip = first.at(HIPS, b[o + THIGH].head);
-        let (lt, ls) = (b[o + THIGH].len(), b[o + SHIN].len());
-        let ankle_h = b[o + FOOT].head.y - sole;
-        let out = if sd == 0 { -s.r } else { s.r };
-        let (knee_t, ankle_t) = if held {
-            let k = hip + s.f * (lt * 0.96) + out * 3.0;
-            let a = v(k.x, ankle_h, k.z) + s.f * 6.0 + out * 1.5;
-            (k, a)
-        } else {
-            let k = s.knees[i];
-            (k, v(s.ankles[i].x, ankle_h, s.ankles[i].z) + out * 2.0)
-        };
-        let kn = knee(hip, ankle_t, lt, ls, knee_t - (hip + ankle_t) * 0.5);
-        aims[o + THIGH] = Some(Aim {
-            head: None,
-            y: (kn - hip).norm(),
-            x: None,
-            len: None,
-        });
-        aims[o + SHIN] = Some(Aim {
-            head: None,
-            y: (ankle_t - kn).norm(),
-            x: None,
-            len: None,
-        });
-        // The foot flat, turned the way the knee points.
-        let fr = (b[o + FOOT].tail - b[o + FOOT].head).norm();
-        let heading = v(kn.x - hip.x, 0.0, kn.z - hip.z).norm();
-        let turn = Rot::between(v(s.f.x, 0.0, s.f.z).norm(), heading);
-        aims[o + FOOT] = Some(Aim {
-            head: None,
-            y: turn.mul(&g).apply(fr),
-            x: Some(turn.mul(&g).apply(b[o + FOOT].x)),
-            len: None,
-        });
-        let sh = first.at(o + CLAV, b[o + UPPER1].head);
-        let a = arms[sd].unwrap_or_else(|| resting_arm(fig, s, held, sd, sh));
-        arm_aims(fig, &mut aims, sd, &a, sh);
-    }
-    let posed = pose(fig, &aims, &root, off);
-    let seat = posed.at(HIPS, b[side(0) + THIGH].head).y - HIP_OVER_SEAT;
-    (posed, seat)
-}
-
-/// Where an arm is taken for the baked picture (only the shoulder's band of the body leans
-/// on it; the live arm is drawn over it): the left hand at the skeleton's wrist, the bow
-/// hand in front of the chest to the right.
-fn resting_arm(
-    fig: &Figure,
-    s: &super::bowed_figure::Skel,
-    held: bool,
-    sd: usize,
-    sh: V3,
-) -> ArmAim {
-    let (up, fo) = arm_lengths(fig, sd);
-    let (wrist, pole) = match (sd, held) {
-        (0, true) => (s.lw, s.down + s.r * 0.45 + s.f * 0.15),
-        (0, false) => (s.lw, -s.r + s.down * 1.3),
-        (_, true) => (s.chest + s.r * 14.0 + s.f * 24.0, s.down + s.r * 1.5),
-        (_, false) => (
-            s.chest + s.r * 24.0 + s.f * 22.0 + s.down * 10.0,
-            s.r + s.down * 1.6,
-        ),
-    };
-    let elbow = super::bowed_hold::elbow(sh, wrist, up, fo, pole);
-    let wrist = elbow + (wrist - elbow).norm() * fo;
-    ArmAim {
-        elbow,
-        wrist,
-        hand: None,
-    }
+    super::figure::play::pose(fig, &arcus_rig(s, held, arms))
 }
 
 /// The shoulder (the upper arm's head) where the body carries it.

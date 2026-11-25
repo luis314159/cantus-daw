@@ -365,13 +365,7 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
 /// Where the elbow of a two-bone arm from `s` to `w` falls (lengths `a`, `b`), bent toward
 /// `pole`.
 pub fn elbow(s: V3, w: V3, a: f32, b: f32, pole: V3) -> V3 {
-    let dv = w - s;
-    let dist = dv.len().clamp(1.0, a + b - 0.5);
-    let u = dv.norm();
-    let x = (a * a - b * b + dist * dist) / (2.0 * dist);
-    let hh = (a * a - x * x).max(0.0).sqrt();
-    let q = (pole - u * pole.dot(u)).norm();
-    s + u * x + q * hh
+    super::figure::rig::two_bone(s, w, a, b, pole)
 }
 
 fn rod(m: &mut Mesh, role: Role, a: V3, b: V3, r: f32) {

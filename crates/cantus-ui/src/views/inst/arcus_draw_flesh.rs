@@ -160,15 +160,8 @@ struct Scratch {
     mid: V3,
 }
 
-/// A limb's piece as an occluder: from `a` to `b`, `r` thick, the bone it is (none: an
-/// object the hand holds) — what shades the corners near it.
-#[derive(Copy, Clone, Debug)]
-pub struct Capsule {
-    pub a: V3,
-    pub b: V3,
-    pub r: f32,
-    pub bone: usize,
-}
+/// The occluding capsules (ADR 0159: shared by every figure's live limbs).
+pub use crate::scene::figure::live::Capsule;
 
 thread_local! {
     static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch::default());
@@ -232,7 +225,8 @@ struct Luts {
 }
 
 thread_local! {
-    static LUTS: RefCell<Luts> = RefCell::new(Luts::default());
+    /// One set per arm (their middles differ: one set for both was remade twice a frame).
+    static LUTS: RefCell<[Luts; 2]> = RefCell::new([Luts::default(), Luts::default()]);
 }
 
 fn stuff_slot(st: Stuff) -> usize {
@@ -272,8 +266,10 @@ fn oct_dir(u: f32, v: f32) -> V3 {
 }
 
 /// A corner's colour from the kept maps (made again when the light or the view changes).
+#[allow(clippy::too_many_arguments)]
 fn lut_colour(
     sh: &Shading,
+    side: usize,
     st: Stuff,
     tone: u8,
     detail: [f32; 2],
@@ -291,7 +287,8 @@ fn lut_colour(
         mid: q(mid),
     };
     LUTS.with(|l| {
-        let mut l = l.borrow_mut();
+        let mut all = l.borrow_mut();
+        let l = &mut all[side.min(1)];
         if l.key.as_ref() != Some(&key) {
             l.key = Some(key);
             for m in l.maps.iter_mut() {
@@ -537,7 +534,7 @@ pub fn arm(
                         kept
                     } else {
                         let d = fig.detail[am.verts[i] as usize];
-                        let mut cl = lut_colour(&shading, st, tone, d, mid, sc.nrm[i], sc.ao[i]);
+                        let mut cl = lut_colour(&shading, s, st, tone, d, mid, sc.nrm[i], sc.ao[i]);
                         if am.alpha[i] < 1.0 {
                             cl = cl.gamma_multiply(am.alpha[i]);
                         }
@@ -683,18 +680,7 @@ fn occlusion(
             if near(c.bone) {
                 continue;
             }
-            let ab = c.b - c.a;
-            let t = ((p - c.a).dot(ab) / ab.dot(ab).max(1e-6)).clamp(0.0, 1.0);
-            let q = c.a + ab * t;
-            let d = q - p;
-            let dist = d.len();
-            let gap = (dist - c.r).max(0.0);
-            if gap > 2.2 {
-                continue;
-            }
-            let facing = (n.dot(d * (1.0 / dist.max(1e-4))) * 0.7 + 0.3).max(0.0);
-            let f = 1.0 - gap / 2.2;
-            occ += f * f * facing * (c.r / (c.r + gap)).min(1.0);
+            occ += crate::scene::figure::live::shade(c, p, n);
         }
         sc.ao.push(1.0 - (occ * 0.55 * hand.min(1.0)).min(0.62));
     }

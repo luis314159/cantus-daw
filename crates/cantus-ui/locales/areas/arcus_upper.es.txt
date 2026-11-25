@@ -28,3 +28,4 @@ arcus_upper.stop = Nota pisada
 arcus_upper.stop.finger = Dedo
 arcus_upper.stop.marker = Marca
 arcus_upper.stop.none = Nada
+arcus_upper.hold.hint = Solo la imagen de Arcus: qué sostiene el instrumento (nada, un soporte, un músico, un maniquí, una mujer o un hombre realistas) y cómo se ve la nota pisada. El sonido no cambia.

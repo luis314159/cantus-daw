@@ -178,3 +178,30 @@ open). Their dynamic is mapped the players' way (the study's database: force ×5
 **Consequences.** A violin voice costs about 1.5 × a cello voice at 1×, a viola voice 1.15 ×
 (measured beside each other on a loaded machine; a quiet bench must say how much); its memory is the cello's (the lines already hold its period at 4×). The
 instruments stay out of the picker until the owner's listening verdict, as the cello's.
+
+## Amendment (round 42, the `arcus-upper` builder): who holds it
+
+<!-- r42:arcus-upper -->
+
+**Context.** The owner (2026-11-24) asked for the instrument to be shown held: on a stand, by
+a musician, by a wooden mannequin, and by realistic people (a woman in a black velvet concert
+dress, a man in a dark suit), with the left hand's fingers on the stopped note and the bow in
+the bow hand, as the reference photographs show; the faces never a photographed person's.
+
+**Decision.** What holds the instrument is **a preference of this machine, for the picture
+only** (`Settings::arcus_holder`: *Nothing*, *Stand*, *Musician*, *Mannequin*, *Woman
+(realistic)*, *Man (realistic)*, with the musician's skin and clothes and the mannequin's
+wood), and so is how the stopped note shows (`Settings::arcus_stop`: the figure's own finger,
+a marker in the theme's accent, or nothing; the old `arcus_finger` is migrated by
+`Settings::migrated`). Both are rows in *Settings ▸ Appearance* under the pictures' look, in
+both languages. The sound does not change and the project does not store them (no schema
+change). The realistic figures are MakeHuman's CC0 assets built offline
+(`tools/arcus-figures/`; credited in *About ▸ Credits* as a courtesy) with original faces;
+their arms are live (skinned per frame to the stop and the frog) and they are posed through
+the shared figure module (ADR 0159), which the next instruments with a player reuse. The bow
+meets the string at β whatever holds it; with a figure the bow starts near its frog in front
+of the body and tilts with the string it plays, as a cellist's does.
+
+**Consequences.** The holder's picture is baked once per instrument and holder; at rest
+nothing is built (`tests/arcus_scene.rs`). The live arms of the realistic figures cost more
+than the stylised ones (ADR 0159 gives the measurement and the next steps).

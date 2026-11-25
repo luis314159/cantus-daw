@@ -703,6 +703,41 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
         w::row_label(ui, "", LABEL_W, 18.0);
         ui.vertical(|ui| note(ui, &t("scene.pictures.hint"), false));
     });
+    // What holds Arcus's instrument in its picture and how its stopped note is shown (this
+    // machine's preferences; the picture only). r42:arcus-upper
+    ui.horizontal(|ui| {
+        w::row_label(ui, "arcus_upper.hold", LABEL_W, 24.0);
+        use crate::scene::bowed_hold::{Hold, Holder};
+        let mut sel = Hold::ALL
+            .iter()
+            .position(|h| *h == app.settings.arcus_holder.hold)
+            .unwrap_or(0);
+        let labels = Hold::ALL.map(|h| Src::Key(h.label_key()));
+        if segmented(ui, &mut sel, &labels, &t("arcus_upper.hold"), 560.0).changed() {
+            app.settings.arcus_holder = Holder {
+                hold: Hold::ALL[sel],
+                ..app.settings.arcus_holder
+            };
+            app.store_settings();
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "arcus_upper.stop", LABEL_W, 24.0);
+        use crate::scene::bowed_hold::StopShow;
+        let mut sel = StopShow::ALL
+            .iter()
+            .position(|s| *s == app.settings.arcus_stop)
+            .unwrap_or(0);
+        let labels = StopShow::ALL.map(|s| Src::Key(s.label_key()));
+        if segmented(ui, &mut sel, &labels, &t("arcus_upper.stop"), 240.0).changed() {
+            app.settings.arcus_stop = StopShow::ALL[sel];
+            app.store_settings();
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 18.0);
+        ui.vertical(|ui| note(ui, &t("arcus_upper.hold.hint"), false));
+    });
     ui.horizontal(|ui| {
         w::row_label(ui, "settings.colours", LABEL_W, 24.0);
         if w::button(ui, Src::Key("settings.edit_colours"), 0.0, true).clicked() {

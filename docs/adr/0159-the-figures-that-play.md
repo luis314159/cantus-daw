@@ -1,0 +1,84 @@
+# ADR 0159 — The figures that play an instrument
+
+**Status:** Accepted (round 42, the `arcus-upper` builder; the owner's direction of
+2026-11-24) · **Date:** 2026-11-24 · **Builds on:** ADR 0126 (the scene engine), ADR 0157
+(Arcus; its amendment for what holds the instrument) · **Schema:** none (the holder is a
+machine preference, `Settings::arcus_holder`)
+
+## Context
+
+Arcus's picture can show who holds the instrument: a stylised musician, a wooden mannequin,
+and — the owner's request of 2026-11-24 — a realistic woman in a black velvet concert dress
+and a realistic man in a dark suit, built offline from MakeHuman's CC0 assets
+(`tools/arcus-figures/`). Their arms are live: the left hand's fingers land on the stop, the
+bow hand rides the frog, every frame. The owner wants these figures reusable by the next
+instruments that show a player — the guitar family, the winds, Chorda's pianist, Tympanum's
+drummer — not rebuilt for each. The code that posed them was written for Arcus: the body was
+posed from Arcus's stylised skeleton, the bow hold lived in Arcus's drawing code, the
+occluding capsules in its live painter.
+
+## Decision
+
+- **A shared module, `scene/figure/`**:
+  - `rig` — turns (`Rot`), a posed bone's transform (`Xf`), how a bone is aimed (`Aim`) and
+    the two-bone reach every limb is set by (`two_bone`: an elbow, a knee, a finger's
+    middle joint). Moved from `bowed_human`/`bowed_hold`, which re-export them.
+  - `play` — **the PlayRig contract** an instrument fills, and the poser for the realistic
+    figures:
+    - the figure's facing and its right;
+    - **the head**: where it goes — a chin rest's point (`HeadAt::Jaw`: the body hangs
+      from it) or the eyes' place (`HeadAt::Eyes`) — and how it is turned;
+    - **the seat**: hung from the head (a chin rest: leant, turned, the chair follows),
+      a chair or a stool (the hips over a point, the seat's top at a height), or standing
+      (the hips over the feet at the legs' length);
+    - **the legs**: forward from a chair, to given knees and ankles, or straight;
+    - **each hand**: a pose already worked out (the live arms'), a **grip** from the
+      library with the elbow's pole, or at rest (a wrist and a pole);
+    - **the occluders**: capsules that stand in front of the limbs (the live layer paints
+      what they hide first, then stamps the picture back over it).
+  - `grip` — **the grip library**: `BowFrog` (a bow at its frog, designed against
+    photographs of real bow holds: knuckles over the stick, fingers draped to its far side,
+    the thumb bent at the frog; the little finger on top for a violin or a viola) and `Rod`
+    (a power grip round a stick, a mallet's or a drumstick's handle). A grip is data: the
+    hand's joints, which the arm is posed to (`bowed_human::arm_aims`: each phalanx turned
+    the shortest way from the hand's turn — no twist —, the non-playing fingers relaxed to
+    70–86 % of their own length, the playing one exact). The necks' grips stay Arcus's
+    (`arcus_draw_hand::left_pose`): they are worked out from its strings and stops.
+  - `live` — the occluding capsules the live limbs are shaded by (the creases between
+    fingers, a finger against the stick or the neck).
+- **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
+  stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
+  bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`
+  is `play::pose(fig, &arcus_rig(...))`. Its pictures and its tests are the same.
+- **A second client in a test** (`tests/figure_contract.rs`): a figure standing, both hands
+  on a stick held level in front of it, from the contract alone — so the contract cannot
+  quietly become Arcus-shaped.
+- **Baking stays cached where it is** (`bowed_mesh::mesh_for`: per instrument and holder);
+  at rest nothing is built or allocated (`tests/arcus_scene.rs`). The stylised musician and
+  the mannequin keep their own skeleton (`bowed_figure`) for now; they are the next to move
+  behind the contract.
+
+## Consequences
+
+- A new instrument that shows a player fills a PlayRig and, if its hands hold something
+  new, adds a grip (designed in `tools/arcus-figures/hand_design.py`, which mirrors the
+  posing and renders a grip in seconds against a photograph) — the body, the clothes, the
+  hair, the live arms and their light come with it.
+- The live arms' cost is the figure's mesh: the arms are thinned offline (short edges
+  collapsed inside each arm's own part, `tools/arcus-figures/thin.py`), lit from a normal
+  map kept while the light and the view stay (`arcus_draw_flesh::lut_colour`), skinned once
+  for both of the left arm's passes. Measured beside the instrument alone (optimised dev
+  profile, `tests/arcus_hold_budget.rs`, other builds running on the machine): the
+  realistic arms +2.6 to +3.7 ms a frame against the stylised +0.5 to +1.1 — over the
+  +1 ms budget; the next steps are a level of detail for the hands at 100 % and a quiet
+  release measurement (see `docs/round42/arcus-upper-next.md`).
+
+## What the tests hold
+
+- `figure_contract`: standing, from the contract alone: the soles on the floor, the arms'
+  lengths kept, both hands at their grips on the stick, the head turned to it, the body
+  baked into a picture's mesh — for the woman and the man.
+- `arcus_hold`: Arcus through the contract — the fingertip on its stop within a pixel for
+  every instrument and figure, the hand behind the neck (the picture's own pixels where the
+  neck hides it), the arm's angles from the photographs.
+- `arcus_scene`, `scene_identity`: at rest nothing is built; the pictures' identity.

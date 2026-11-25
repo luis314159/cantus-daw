@@ -28,3 +28,4 @@ arcus_upper.stop = Stopped note
 arcus_upper.stop.finger = Finger
 arcus_upper.stop.marker = Marker
 arcus_upper.stop.none = None
+arcus_upper.hold.hint = Arcus's picture only: what holds the instrument (nothing, a stand, a musician, a mannequin, a realistic woman or man) and how the stopped note shows. The sound does not change.

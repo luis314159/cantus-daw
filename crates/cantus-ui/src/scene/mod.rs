@@ -27,6 +27,7 @@ pub mod bowed_upper; // r42:arcus-upper
 pub mod compose;
 pub mod display;
 pub mod draw;
+pub mod figure; // r42:arcus-upper (ADR 0159)
 pub mod gear;
 pub mod geo;
 pub mod kit;

@@ -271,6 +271,94 @@ reads a little as a cap at 200 % and his face is flat in the Photographic key; t
 MakeHuman's fingers bent to the stylised poses (readable, not yet refined); tiny cuff shards
 where a shirt's cuff meets a sleeve; the skirt's sides show the knees' velvet at the hem.
 
+## Sheet v7 — the owner's verdict on v6 (2026-11-24) and what it changed
+
+The owner on v6: "Más realistas, por favor, más parecido a la foto original (sin ser la
+misma cara), y ten más cuidado con las manos". **Hard rule kept: neither face is the
+photographed woman's** (a real person, CC BY-SA 2.0): from the photo only posture, dress,
+light, hair styling.
+
+Done (commit 9be4ec6ea and after):
+- **Skin grain** gone: `raster::Shadow::soft` (the disc unrotated, twice, bilinear compares)
+  for `Tex::Skin`/`Tex::Hair` through `Shadow::light_for`; the figures' silhouette normals
+  bent to graze the eye instead of flipped (`shade`: a dark outline round faces/sleeves).
+- **Faces**: MakeHuman's CC0 face modifiers (`targets/{head,cheek,chin,nose,mouth,
+  eyebrows,neck}`, sparse-checked out beside the rest) chosen by eye on the generic average
+  (`FACE` in `build_figures.py`): hers oval, high cheekbones, narrow nose, fuller lips,
+  long neck; his squarer jaw, firm chin. Warm cheeks/lips/nose/ears (`warmth`). Lids
+  lowered 27°/6° over **eyeballs** looking down 32° (`Stuff::Eye`/`Iris`), **lashes** along
+  each upper lid's edge (`lid_margin`, `lashes`; the base mesh is closed round the eyes, so
+  the old open-edge lash line found nothing).
+- **Nails** (`Stuff::Nail`, `Role::Nail(tone)`): the body cut along each nail's outline
+  (`nail_field`: on each last phalanx's back, the hand's back from its knuckles' plane).
+- **Hair**: strand coordinates are now (across = the angle round the head's front-back axis,
+  folded under the middle; hairline blend) — the swap is read by `px_shade::Tex::Hair`,
+  `px_shade::hair` (grooves + Kajiya–Kay sheen along the strands) and
+  `bowed_draw_tris::hair_at`; a degenerate-uv triangle's tangent is now the in-plane
+  gradient of `u` (`raster::place`). Ash-blonde `HAIR_FAIR`.
+- **Dress**: a V neckline, shoulders a little gathered, soft velvet folds (`Tex::Velvet`'s
+  normal swung by slow noise).
+- **The live arms** are lit by the picture's own light (`flesh::Shading`: the Drawn `Light`
+  + `skin_tone`; the Photographic key/fill/ambient fitted to the bake, its `raster::tone`),
+  with **capsule occlusion** between the fingers, the palm and what the hand holds (the
+  stick, the neck: `flesh::Capsule`).
+- **Fingers**: each phalanx turned from the hand's turn by the shortest way (no twist —
+  the roll left to the parent crumpled the knuckles); non-playing fingers reach 70–86 % of
+  their own length (`HandAim::exact` = the playing finger, exact).
+- **Bow hold** designed in `tools/arcus-figures/hand_design.py` (+ `hand_rig.py`, a mirror
+  of `arm_aims`) against the Commons photographs "Bow hand Violoncello.jpg" (CC BY-SA 2.5)
+  and "Right hand position on bow.jpg" (Martin Morgenstern, CC BY-SA 3.0): knuckles over the
+  stick, fingers draped to its far side, thumb bent at the frog; the hand's size from the
+  figure (`Arm::palm` = forearm / 21.4 cm).
+- **Bow arm** (cellist, every figure): pole `r·0.6 + down·2 + f·0.6` (forward, low); a figure
+  starts with the bow at 0.3 of its hair (the hand in front of the body); the cello's sheet
+  shot plays the G string (the bow tilts down toward its tip as the reference's does).
+- **Violin/viola**: the realistic trunk turns 0.2 rad to the left (`TRUNK_TURN`).
+
+### Sheet v7 — delivered (2026-11-24), waiting for the owner
+
+`docs/round42/arcus-upper/sheet-v7-realistic/` (made by `tools/arcus-figures/sheet_v7.py
+<shoot_arcus.exe> <dir> <refs> [--no-shoot]`): the woman and the man with the cello, the
+bass, the violin and the viola, Photographic and Drawn, Night and Paper, 100 and 200 %
+(64 shots); `side-cello-woman-{photo,drawn}-{night,paper}-vs-reference.png` (labelled
+"posture, dress and light only"); `hand-{bow-cello-woman,bow-violin-man,left-violin-woman,
+left-cello-woman}-200-vs-photo.png` (200 % crops beside Commons photographs of real bow holds
+— "Bow hand Violoncello.jpg" CC BY-SA 2.5, "Right hand position on bow.jpg" M. Morgenstern
+CC BY-SA 3.0 — and the owner's references). Best first: the cello woman photo/night side by
+side; the violin man's bow hand; the violin woman's left hand; the photo/night violin pair.
+
+Also in v7 after the list above: the live arms **thinned** offline (`thin.py`: short edges
+collapsed in each arm's own part to 0.62 cm, ~6.5k → 3.6k triangles an arm for her), lit
+from a **kept normal map** (`lut_colour`, an octahedral 40² map per stuff, remade when the
+light or the view moves), skinned **once for both of the left arm's passes**; each hand
+placed by **its own length** (`Arm::reach`, `bowed_human::hand_reach`: the man's knuckles had
+landed 4 cm past the neck); behind a cello whatever lies deeper than the neck's middle paints
+before the stamps; the realistic cellist sits 4 cm further back (`SIT_BACK`: the man's elbow
+folded under 30°); the hair's sheen soft (Kajiya–Kay at a low level; per-triangle tangents
+showed facets when strong), its hairline broken up by noise; a narrower V (8.4 cm), the
+velvet lifted along the uncut body's normals (no fins).
+
+**Gates (this build):** `arcus_hold` 7/7 (the angles and the behind-the-neck test pass for
+every figure and instrument, the realistic arm's own skinned vertices sampled too),
+`arcus_scene`, `scene_identity`, `kit_lint` pass. **The frame budget does not:** the
+realistic arms cost +2.6 to +3.7 ms a frame at the optimised dev profile (the stylised +0.5
+to +1.1, the machine busy with other builds) — next: a level of detail for the hands at
+100 % (a second thinning at ~1 cm), and a quiet release-profile measurement.
+
+## The figure module (ADR 0159) — done
+
+`scene/figure/`: `rig` (Rot, Xf, Aim, `two_bone`; re-exported by `bowed_human`/`bowed_hold`),
+`play` (the **PlayRig** contract and the poser: head at a jaw/chin rest or the eyes; seat
+hung from the head, a chair, or standing; legs forward/to points/straight; each hand a pose,
+a grip or at rest; occluders), `grip` (`BowFrog` — the sheet's bow hold, moved from
+`arcus_draw_arm` —, `Rod`), `live` (`Capsule`, `shade`). Arcus is the first client:
+`bowed_human::arcus_rig` + `body() = play::pose(...)`. The dummy client:
+`tests/figure_contract.rs` (standing, both hands on a stick, from the contract alone).
+Settings ▸ Appearance: **Held by** and **Stopped note** rows (both locales; the hint
+`arcus_upper.hold.hint`); the old `arcus_finger` migration was already in
+`Settings::migrated`. ADR 0157 amended ("who holds it"). MakeHuman credited in About ▸
+Credits (`about.credits.figures`, both locales).
+
 ## Next (coordinator's order, 2026-11-24)
 
 0. **Waiting**: the owner's verdict on sheet v5's hands. Nothing below starts before he
