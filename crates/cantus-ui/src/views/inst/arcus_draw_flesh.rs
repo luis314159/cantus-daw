@@ -1772,7 +1772,7 @@ fn trunk_shadow(
 /// How far behind an arm (cm) the trunk may be for its shadow to fall on it, in how many
 /// steps that is looked along, and the shadow's opacity where the arm touches.
 const SHADOW_REACH: f32 = 9.0;
-const SHADOW_STEPS: usize = 6;
+const SHADOW_STEPS: usize = 3;
 const SHADOW_DEPTH: f32 = 0.42;
 
 /// r42:arcus-polish — how far in from a sleeve's edge (cm) its inside is drawn, and how

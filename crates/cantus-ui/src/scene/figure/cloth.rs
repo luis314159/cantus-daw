@@ -224,10 +224,7 @@ pub fn contact(fig: &mut Figure) {
             grid.entry(cell(fig.pos[i])).or_default().push(i as u32);
         }
     }
-    for i in 0..fig.pos.len() {
-        if !skin[i] {
-            continue;
-        }
+    for (i, _) in skin.iter().enumerate().filter(|(_, &k)| k) {
         let p = fig.pos[i];
         let c = cell(p);
         let mut best = f32::MAX;

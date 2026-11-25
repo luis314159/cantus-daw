@@ -326,6 +326,17 @@ occluding capsules in its live painter.
   a figure) and the eyes' textures (128² linear RGB, 0.2 MB each). The binary grows by the maps (`woman_hair.png`
   1.26 MB, `man_hair.png` 0.99 MB, from 0.58 / 0.43) and the eyes (2 × 28 KB).
 
+- **The polish's cost** (r42:arcus-polish, `arcus_hold_budget`, release, best of five, 
+  2026-11-25, the machine loaded by two other builders): the live arms' extra, 100 % / 200 %, 
+  High — her violin +3.65 / +5.04 ms, his +4.51 / +5.77, her cello +2.59 / +2.69, his 
+  +3.36 / +3.38; Light +0.4 to +1.0. **Over the 4.0 / 4.5 ms ceilings for the violinists at 
+  High** (and his cello's Light at 200 % +1.00 against 1.0): the arm's shadow on the trunk 
+  (`trunk_shadow`), the elbow's folds, the back of the hand's relief per point and the 
+  canonical patch edges were added this session; the shadow's steps were halved (6 → 3) 
+  after the measure, not yet measured again. The next session measures on an idle machine 
+  and, if still over, draws the trunk's shadow from the coarse Light mesh and only the 
+  triangles on the arm's silhouette.
+
 ## What the tests hold
 
 - `figure_contract`: standing, from the contract alone: the soles on the floor, the arms'
