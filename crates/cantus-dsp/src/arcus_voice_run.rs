@@ -32,7 +32,9 @@ impl Voice {
             Some(c) => c,
             None => (1.0 - s.vel_dyn) * s.dynamic + s.vel_dyn * self.velocity,
         };
-        if self.has_press && s.mpe_press > 0.0 {
+        // r42:arcus-p5: the note's pressure is the vibrato's when `vib.src` says so.
+        let press_vib = s.vib_src == super::super::VibSource::MpePressure;
+        if self.has_press && s.mpe_press > 0.0 && !press_vib {
             base += (self.press - base) * s.mpe_press.clamp(0.0, 1.0);
         }
         if s.dyn_src == super::super::DynSource::Auto {
@@ -82,6 +84,14 @@ impl Voice {
         if !keep {
             self.vib_phase = 0.25 * self.rng.unit() as f64;
             self.vib_wander = (0.0, 0.0);
+            // r42:arcus-p5: model 2's walk starts still, the note's own offsets drawn.
+            self.vib_from = (0.0, 0.0);
+            self.vib_to = (0.0, 0.0);
+            self.vib_note = if s.model >= 2 {
+                (self.rng.bipolar(), self.rng.bipolar())
+            } else {
+                (0.0, 0.0)
+            };
             self.jitter = 0.0;
         }
         self.fade = 1.0;

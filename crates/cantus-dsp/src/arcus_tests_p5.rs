@@ -86,9 +86,21 @@ pub(super) fn frame_cents(x: &[f32], want: f64, from: f64, to: f64) -> Vec<f64> 
 /// pitch, never an octave of it: each frame's cents from `want` and its aperiodicity (the
 /// dip of the difference normalised by the frames' power, 0 for a periodic signal).
 pub(super) fn yin_frames(x: &[f32], want: f64, from: f64, to: f64, hop_s: f64) -> Vec<(f64, f64)> {
+    yin_frames_p(x, want, from, to, hop_s, 3.0)
+}
+
+/// [`yin_frames`] over `periods` of the note (the study's `_track`: two).
+pub(super) fn yin_frames_p(
+    x: &[f32],
+    want: f64,
+    from: f64,
+    to: f64,
+    hop_s: f64,
+    periods: f64,
+) -> Vec<(f64, f64)> {
     let sr = SR as f64;
     let p = sr / want;
-    let w = (3.0 * p).ceil() as usize;
+    let w = (periods * p).ceil() as usize;
     let (t_lo, t_hi) = ((p / 1.12).floor() as usize, (p * 1.12).ceil() as usize);
     let hop = ((hop_s * sr) as usize).max(1);
     let (a, b) = ((from * sr) as usize, ((to * sr) as usize).min(x.len()));
@@ -1417,5 +1429,51 @@ fn probe_spiccato_scan() {
             );
         }
         println!("{line}");
+    }
+}
+
+/// A probe (ignored): each instrument's tremolo against its sustained note at the same
+/// velocity, by RMS over 0.4–1.9 s (dB), at three registers.
+#[test]
+#[ignore]
+fn probe_tremolo_level() {
+    let rms = |x: &[f32]| {
+        let a = (0.4 * SR) as usize;
+        let b = (1.9 * SR) as usize;
+        let e: f64 = x[a..b].iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / (b - a) as f64;
+        10.0 * math::log10(e + 1e-20)
+    };
+    if let Some(k) = std::env::var("ARCUS_KNOB").ok().and_then(|k| {
+        let p: Vec<f32> = k.split(':').filter_map(|x| x.parse().ok()).collect();
+        (p.len() == 4).then(|| (p[0], p[1], p[2], p[3]))
+    }) {
+        voice::TREM_KNOBS.with(|c| c.set(k));
+    }
+    for inst in Instrument::ALL {
+        let low = inst.spec().bottom();
+        let mut d = Vec::new();
+        for k in [low + 7, low + 19, low + 31] {
+            for vel in [0.4f32, 0.8] {
+                let s = plain(inst);
+                let arco = play(&s, &[(0.01, Ev::On(k, vel)), (2.0, Ev::Off(k))], 2.0);
+                let trem = play(
+                    &s,
+                    &[
+                        (0.01, Ev::Art(k, Some(Art::Tremolo), None)),
+                        (0.01, Ev::On(k, vel)),
+                        (2.0, Ev::Off(k)),
+                    ],
+                    2.0,
+                );
+                d.push(rms(&trem) - rms(&arco));
+            }
+        }
+        println!(
+            "{inst:?}: tremolo − arco {:?} dB, median {:.1}",
+            d.iter()
+                .map(|x| (x * 10.0).round() / 10.0)
+                .collect::<Vec<_>>(),
+            spread(&d).0
+        );
     }
 }

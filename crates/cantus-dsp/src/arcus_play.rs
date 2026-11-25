@@ -106,6 +106,8 @@ impl Arcus {
         let src = self.s.dyn_src;
         let vib = self.s.vib_src;
         match which {
+            // r42:arcus-p5: CC1 the vibrato's when `vib.src` says the mod wheel.
+            0 if vib == VibSource::ModWheel => self.ctl.vibrato = Some(v),
             0 if matches!(src, DynSource::Auto | DynSource::ModWheel) => self.ctl.dynamic = Some(v),
             1 => match src {
                 DynSource::Expression => self.ctl.dynamic = Some(v),

@@ -24,11 +24,16 @@ const TRIM_GAIN: f64 = 0.6;
 /// study's tracker over every instrument's strings): its speed a half-sine clipped at
 /// `TREM_KNEE` of its peak (a quick turn, then the stroke drawn), the peak over the
 /// dynamic's speed (the mean about the dynamic's); its force a light share of the dynamic's
-/// riding the speed, `TREM_FLOOR` of it left at the turn. A tremolo is played light: at the
-/// dynamic's force (round 42's) the strokes were raucous and 8–255 cents flat, and their
-/// turns rang the bodies' lowest modes louder than the note.
+/// riding the speed, `TREM_FLOOR` of it left at the turn: 0.3 of the Helmholtz region's lower
+/// limit, under it (the strokes too short to settle; a share of the dynamic's force scaled
+/// badly across the strings). A tremolo is played light: at the dynamic's force (round 42's)
+/// the strokes were raucous and 8–255 cents flat, and their turns rang the bodies' lowest
+/// modes louder than the note. Its level is the instrument's `trem_db` over the light
+/// stroke's.
 const TREM_PEAK: f32 = 1.2;
-const TREM_FORCE: f32 = 0.12;
+/// … the force a share of the region's lower limit at the dynamic's speed (negative: of
+/// `f_min`; a positive value would be a share of the dynamic's force).
+const TREM_FORCE: f32 = -0.3;
 const TREM_FLOOR: f32 = 0.2;
 const TREM_KNEE: f32 = 0.3;
 const TRIM_STEP: f64 = 2.0;
@@ -78,6 +83,24 @@ fn trem_knobs() -> (f32, f32, f32, f32) {
     (TREM_PEAK, TREM_FORCE, TREM_FLOOR, TREM_KNEE)
 }
 
+/// r42:arcus-p5 — model 2's ramp into the vibrato: the delay longer for a soft note and
+/// shorter for a loud one (`VibSpec::onset_dyn`), then the rise; 1 under a controller.
+fn age_ramp(v: &Voice, s: &ArcusSettings, sr: f32, plucked: bool, ctl: Option<f32>) -> f32 {
+    if ctl.is_some() {
+        return 1.0;
+    }
+    if plucked {
+        return 0.0;
+    }
+    let od = v.inst.spec().vib.onset_dyn;
+    let delay = s.vib_delay_ms * (1.0 + od * (0.5 - v.d)).clamp(0.3, 2.5);
+    let age_ms = 1000.0 * v.vib_age as f32 / sr;
+    smooth((age_ms - delay) / s.vib_attack_ms.max(1.0))
+}
+
+/// r42:arcus-p5 — the per-cycle walk's memory from one cycle to the next.
+const VIB_RHO: f32 = 0.0;
+
 fn smooth(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);
     x * x * (3.0 - 2.0 * x)
@@ -115,6 +138,12 @@ impl Voice {
         } else {
             sh.ctl.vibrato
         };
+        // r42:arcus-p5: the vibrato from the note's own pressure when it is MPE's.
+        let ctl_vib = if s.vib_src == VibSource::MpePressure {
+            self.has_press.then_some(self.press)
+        } else {
+            ctl_vib
+        };
         let (amount, ramp) = match ctl_vib {
             Some(c) => (2.0 * c, 1.0),
             None if plucked => (0.0, 0.0),
@@ -126,27 +155,18 @@ impl Voice {
                 )
             }
         };
-        let var = s.vib_var.clamp(0.0, 1.0);
-        // Wider high, and wider loud (the study §3.5: the cello ±8 → ±13 cents soft to loud).
-        let widen = (1.0 + 0.12 * oct) * (0.75 + 0.5 * self.d);
-        let depth = spec.vib_ct
-            * s.vib_depth
-            * amount
-            * widen
-            * ramp
-            * (1.0 + 0.25 * var * self.vib_wander.1);
-        let rate =
-            spec.vib_hz * s.vib_rate * (1.0 + 0.03 * oct) * (1.0 + 0.08 * var * self.vib_wander.0);
-        let before = self.vib_phase;
-        self.vib_phase += rate as f64 * dt as f64;
-        if self.vib_phase.floor() != before.floor() {
-            self.vib_wander = (self.rng.bipolar(), self.rng.bipolar());
-        }
-        self.vib_now = if depth > 0.0 {
-            depth * math::sin(std::f32::consts::TAU * self.vib_phase.fract() as f32)
+        if s.model < 2 {
+            self.vibrato_model1(spec, s, oct, amount, ramp, dt);
         } else {
-            0.0
-        };
+            self.vibrato_model2(
+                spec,
+                s,
+                oct,
+                amount,
+                age_ramp(self, s, sr, plucked, ctl_vib),
+                dt,
+            );
+        }
         self.vib_age = self.vib_age.saturating_add(span as u32);
         // The pitch: the key, the slur, the bend, MPE's tuning and the track's (ADR 0155).
         // r42 fix2-arcus: the table is followed while it moves (an MTS-ESP master retunes a
@@ -311,6 +331,19 @@ impl Voice {
         }
         // r42 fix2-arcus: past what the loop can play in tune, the note fades out (1 to the
         // bit for every note an instrument has).
+        // r42:arcus-p5: a tremolo's level (`InstrumentSpec::trem_db`), glided (20 ms) so a
+        // slur from a sustain into a tremolo does not step.
+        let want_t = if self.tech == NoteTech::Tremolo {
+            math::db_to_gain(spec.trem_db)
+        } else {
+            1.0
+        };
+        if self.first {
+            self.trem_g = want_t;
+        } else {
+            self.trem_g += (want_t - self.trem_g) * (1.0 - math::exp(-dt / 0.02));
+        }
+        g *= self.trem_g;
         let top = top_gain(sr as f64 / f, super::super::string::SHORTEST);
         g *= top;
         if self.first && top < 1.0 {
@@ -393,7 +426,12 @@ impl Voice {
                     let (peak, fk, floor, knee) = trem_knobs();
                     let shape = (math::sin(std::f32::consts::PI * fr) / knee).min(1.0);
                     self.v_mag = peak * tv * shape;
-                    self.force = fk * tf * (floor + (1.0 - floor) * shape);
+                    let base = if fk < 0.0 {
+                        -fk * bw.f_min as f32
+                    } else {
+                        fk * tf
+                    };
+                    self.force = base * (floor + (1.0 - floor) * shape);
                 }
                 _ => {
                     self.v_mag += (tv - self.v_mag) * c_v;
@@ -544,3 +582,95 @@ impl Voice {
         self.ended = true;
     }
 }
+
+impl Voice {
+    /// Model 1's vibrato (round 42's first), to the bit.
+    fn vibrato_model1(
+        &mut self,
+        spec: &InstrumentSpec,
+        s: &ArcusSettings,
+        oct: f32,
+        amount: f32,
+        ramp: f32,
+        dt: f32,
+    ) {
+        let var = s.vib_var.clamp(0.0, 1.0);
+        // Wider high, and wider loud (the study §3.5: the cello ±8 → ±13 cents soft to loud).
+        let widen = (1.0 + 0.12 * oct) * (0.75 + 0.5 * self.d);
+        let depth = spec.vib_ct
+            * s.vib_depth
+            * amount
+            * widen
+            * ramp
+            * (1.0 + 0.25 * var * self.vib_wander.1);
+        let rate =
+            spec.vib_hz * s.vib_rate * (1.0 + 0.03 * oct) * (1.0 + 0.08 * var * self.vib_wander.0);
+        let before = self.vib_phase;
+        self.vib_phase += rate as f64 * dt as f64;
+        if self.vib_phase.floor() != before.floor() {
+            self.vib_wander = (self.rng.bipolar(), self.rng.bipolar());
+        }
+        self.vib_now = if depth > 0.0 {
+            depth * math::sin(std::f32::consts::TAU * self.vib_phase.fract() as f32)
+        } else {
+            0.0
+        };
+    }
+
+    /// r42:arcus-p5 — model 2's vibrato, the players' as the study measured it
+    /// (`InstrumentSpec::vib`): its rate rising with the dynamic and the register, its extent
+    /// widening with both (`vib.dyn` how much with the dynamic), and both wandering — a slow
+    /// random walk from cycle to cycle, glided through each cycle (no step, no metronome),
+    /// and a little per note — at `vib.var` 0.25 as much as the players'. Seeded by the note
+    /// (`rng`): the same bits at every block size. The string's length moves; the body's
+    /// modes make the partials' amplitudes move with it.
+    fn vibrato_model2(
+        &mut self,
+        spec: &InstrumentSpec,
+        s: &ArcusSettings,
+        oct: f32,
+        amount: f32,
+        ramp: f32,
+        dt: f32,
+    ) {
+        let v = spec.vib;
+        let life = s.vib_var.clamp(0.0, 1.0) / 0.25;
+        let reg = oct - 1.5;
+        let d = self.d - 0.5;
+        let fr = self.vib_phase.fract() as f32;
+        let w = (
+            self.vib_from.0 + (self.vib_to.0 - self.vib_from.0) * fr,
+            self.vib_from.1 + (self.vib_to.1 - self.vib_from.1) * fr,
+        );
+        let pp = v.pp_ct
+            * (1.0 + v.pp_oct * reg).max(0.3)
+            * (1.0 + v.pp_dyn * s.vib_dyn.clamp(0.0, 2.0) * d).max(0.2)
+            * (1.0 + life * (v.jitter.1 * w.1 + VIB_NOTE.1 * self.vib_note.1)).max(0.2);
+        let depth = 0.5 * pp * s.vib_depth * amount * ramp;
+        let rate = v.hz
+            * s.vib_rate
+            * (1.0 + v.hz_dyn * d)
+            * (1.0 + v.hz_oct * reg)
+            * (1.0 + life * (v.jitter.0 * w.0 + VIB_NOTE.0 * self.vib_note.0)).max(0.5);
+        let before = self.vib_phase;
+        self.vib_phase += rate as f64 * dt as f64;
+        if self.vib_phase.floor() != before.floor() {
+            // The walk's next step: unit variance, `VIB_RHO` of the last kept.
+            let k = (1.0 - VIB_RHO * VIB_RHO).sqrt() * 3f32.sqrt();
+            self.vib_from = self.vib_to;
+            self.vib_to = (
+                VIB_RHO * self.vib_to.0 + k * self.rng.bipolar(),
+                VIB_RHO * self.vib_to.1 + k * self.rng.bipolar(),
+            );
+        }
+        self.vib_now = if depth > 0.0 {
+            depth * math::sin(std::f32::consts::TAU * self.vib_phase.fract() as f32)
+        } else {
+            0.0
+        };
+    }
+}
+
+/// r42:arcus-p5 — a note's own vibrato, ± its share of the rate and the extent (uniform),
+/// at `vib.var` 0.25 (players do not vibrate two notes alike).
+const VIB_NOTE: (f32, f32) = (0.04, 0.1);

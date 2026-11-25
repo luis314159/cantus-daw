@@ -31,7 +31,7 @@
 //! (`upper_tests_gate`; Schoonderwaldt, Guettler & Askenfelt 2008, doi:10.3813/aaa.918070, the
 //! violin's Schelleng diagram on its D and E strings, read in `downloads/study/papers/s08.txt`).
 
-use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec, RADIATION_SHARE};
+use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec, VibSpec, RADIATION_SHARE};
 use crate::fides::body::BodyKind;
 
 /// A string from Percival's decay rates: the fundamental's T60 and the partials' exponent.
@@ -44,6 +44,31 @@ const fn string(open: u8, length_m: f64, tension_n: f64, r1: f64, p: f64) -> Str
         p,
     }
 }
+
+/// r42:arcus-p5 — the violins' vibrato (512 notes: 4.9 / 5.1 / 5.5 Hz soft / medium / loud,
+/// 19.5 / 22 / 38 cents peak to peak; `tables::VibSpec`).
+pub const VIOLIN_VIB: VibSpec = VibSpec {
+    hz: 5.2,
+    hz_dyn: 0.22,
+    hz_oct: 0.015,
+    pp_ct: 17.9,
+    pp_oct: 0.15,
+    pp_dyn: 1.27,
+    jitter: (0.2, 0.2),
+    onset_dyn: 1.08,
+};
+
+/// r42:arcus-p5 — the violas' (510: 5.5 / 5.5 / 5.7 Hz, 27 / 29 / 44 cents).
+pub const VIOLA_VIB: VibSpec = VibSpec {
+    hz: 5.6,
+    hz_dyn: 0.08,
+    hz_oct: 0.01,
+    pp_ct: 23.2,
+    pp_oct: 0.11,
+    pp_dyn: 0.97,
+    jitter: (0.18, 0.17),
+    onset_dyn: 0.98,
+};
 
 /// The violin: G3 D4 A4 E5 over 322 mm. Its body is Arcus's own (`upper::body`), fitted to
 /// a measured admittance; Fides's is off (`BodyKind::None`).
@@ -66,6 +91,7 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     // Mellody & Wakefield 2000 (5.9 Hz, ±15 cents mean) and MacLeod 2008 (wider high).
     vib_hz: 5.9,
     vib_ct: 17.0,
+    vib: VIOLIN_VIB, // r42:arcus-p5
     trim_db: 12.0,
     corner_hz: 6000.0,
     // Pass 4's: a sustain's swell over its clean start, fitted to the study's violins' rise
@@ -74,6 +100,7 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     swell_db: (20.0, 10.0),
     pizz_t60: VIOLIN_PIZZ_T60,
     spic_ring: 0.27, // r42:arcus-p5
+    trem_db: 3.0,    // r42:arcus-p5
     // Pass 4's 8 Hz high-pass: the bow's static push reaches the bridge as a DC force no body
     // radiates (measured on the violin too: `docs/round42/arcus-upper.md` §6).
     radiation_hz: RADIATION_SHARE * 196.0, // r42:arcus-p5: G3
@@ -102,12 +129,14 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     // MacLeod 2008: violists slightly slower and narrower than violinists.
     vib_hz: 5.7,
     vib_ct: 16.0,
+    vib: VIOLA_VIB, // r42:arcus-p5
     trim_db: 8.0,
     corner_hz: 5000.0,
     swell_s: (0.30, 0.10),
     swell_db: (20.0, 12.0),
     pizz_t60: VIOLA_PIZZ_T60,
     spic_ring: 0.35,                        // r42:arcus-p5
+    trem_db: 5.0,                           // r42:arcus-p5
     radiation_hz: RADIATION_SHARE * 130.81, // r42:arcus-p5: C3
     balance_db_st: 0.0,
     balance_key: 65.0,
@@ -138,8 +167,9 @@ pub const VIOLIN_MATCH: Match = Match {
     ],
     noise_db: 22.0,
     pizz_decay: 1.0,
-    vib_depth: 0.5,
-    vib_rate: 0.88,
+    // Pass 5: model 2's vibrato is the study's own (`VIOLIN_VIB`); 0.5 / 0.88 retired.
+    vib_depth: 1.0,
+    vib_rate: 1.0,
 };
 
 /// The viola's: no recordings of a viola's scales to start from, so the violin's correction
@@ -153,7 +183,8 @@ pub const VIOLA_MATCH: Match = Match {
     ],
     noise_db: 18.0,
     pizz_decay: 1.0,
-    vib_depth: 0.9,
+    // Pass 5: model 2's vibrato is the study's own (`VIOLA_VIB`); 0.9 retired.
+    vib_depth: 1.0,
     vib_rate: 1.0,
 };
 

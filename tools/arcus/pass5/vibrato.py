@@ -10,8 +10,9 @@ note from its onset to its end), the cents track against the note's median is de
   period from one cycle to the next over the mean period);
 - `extent_pp_cents` (peak to trough, the cycles' median over the full part),
   `extent_jitter` (the mean |change| from cycle to cycle over the mean extent);
-- `onset_s` (from the note's onset to the first cycle at a quarter of the full extent) and
-  `rise_s` (from there to the first at 90 %), `plain_s` (how long the note starts within
+- `onset_s` (from the note's onset to the first cycle at a quarter of the full extent, the
+  first 100 ms — the attack's own glide — not counted) and `rise_s` (from there to the first
+  at 90 %), `plain_s` (how long the note starts within
   +-3 cents of its plain pitch, the vibrato not yet there);
 - `centre_cents` (the vibrato's mean over its full part against the plain start's pitch,
   where a plain start of 80 ms or more exists: negative, the vibrato sits under the note);
@@ -128,8 +129,10 @@ def analyse(x, sr, family, t_on=None, t_end=None):
     if full < 8.0:
         return {"f0_hz": f_med, "dur_s": float(t_end - t_on), "present": False,
                 "extent_pp_cents": full}
-    k25 = np.nonzero(ext >= 0.25 * full)[0]
-    k90 = np.nonzero(ext >= 0.9 * full)[0]
+    # the first 100 ms are the attack's own pitch (a glide into the note), not a cycle
+    late = ct >= t[0] + 0.1
+    k25 = np.nonzero((ext >= 0.25 * full) & late)[0]
+    k90 = np.nonzero((ext >= 0.9 * full) & late)[0]
     onset = float(ct[k25[0]] - 0.5 * per[k25[0]]) if len(k25) else float("nan")
     rise = float(ct[k90[0]] - ct[k25[0]]) if len(k90) and len(k25) else float("nan")
     on_full = ct >= (ct[k90[0]] if len(k90) else ct[0])
@@ -191,24 +194,30 @@ def midi_of(f):
     return 69 + 12 * np.log2(f / 440.0)
 
 
+def _one(j):
+    try:
+        x, sr = read(j["path"])
+    except Exception:
+        return j, None
+    r = analyse(x, sr, j["family"])
+    if r is not None:
+        r["dyn"] = j["dyn_id"]
+        r["source"] = j["source"]
+    return j, r
+
+
 def refs(out):
     refdb = Path(os.environ.get("CANTUS_STUDY_REFDB", r"F:\projects\daw-r42\study\refdb"))
     cat = json.loads((refdb / "catalog.json").read_text())
     rows = {}
-    for j in cat:
-        if j["tech"] != "arco" or j["section"] or j["multi"]:
-            continue
-        try:
-            x, sr = read(j["path"])
-        except Exception:
-            continue
-        r = analyse(x, sr, j["family"])
-        if r is None:
-            continue
-        r["dyn"] = j["dyn_id"]
-        r["source"] = j["source"]
-        rows.setdefault(j["family"], []).append(r)
-        print(j["family"], Path(j["path"]).name, r.get("rate_hz"), r.get("extent_pp_cents"), flush=True)
+    jobs = [j for j in cat if j["tech"] == "arco" and not j["section"] and not j["multi"]]
+    import multiprocessing as mp
+    with mp.Pool(int(os.environ.get("ARCUS_WORKERS", "3"))) as pool:
+        for j, r in pool.imap(_one, jobs, chunksize=8):
+            if r is None:
+                continue
+            rows.setdefault(j["family"], []).append(r)
+            print(j["family"], Path(j["path"]).name, r.get("rate_hz"), r.get("extent_pp_cents"), flush=True)
     # slurred notes and crescendos: Philharmonia's phrases (transitions from phrases.jsonl)
     phrases = [json.loads(l) for l in (refdb / "phrases.jsonl").read_text().splitlines() if l.strip()]
     slurred, cresc = {}, {}
@@ -234,11 +243,17 @@ def refs(out):
                 slurred.setdefault(p["family"], []).append(r)
             if cr:
                 cresc.setdefault(p["family"], []).append(r)
+    Path(str(out) + ".rows.json").write_text(json.dumps({"notes": rows, "slurred": slurred, "crescendo": cresc}))
+    summarise(rows, slurred, cresc, out)
+
+
+def summarise(rows, slurred, cresc, out):
     res = {}
     for fam, rs in rows.items():
         d = {"all": table(rs)}
-        for name, sel in (("soft", lambda r: r["dyn"] <= 2), ("medium", lambda r: 3 <= r["dyn"] <= 4),
-                          ("loud", lambda r: r["dyn"] >= 5)):
+        for name, sel in (("soft", lambda r: (r["dyn"] or 0) in (1, 2)),
+                          ("medium", lambda r: (r["dyn"] or 0) in (3, 4)),
+                          ("loud", lambda r: (r["dyn"] or 0) >= 5)):
             d[name] = table([r for r in rs if sel(r)])
         for name, sel in (("short", lambda r: r["dur_s"] < 1.0), ("long", lambda r: r["dur_s"] >= 2.0)):
             d[name] = table([r for r in rs if sel(r)])
@@ -254,6 +269,10 @@ def refs(out):
 def main():
     if sys.argv[1] == "refs":
         refs(sys.argv[2])
+        return
+    if sys.argv[1] == "summary":
+        d = json.loads(Path(sys.argv[2] + ".rows.json").read_text())
+        summarise(d["notes"], d["slurred"], d["crescendo"], sys.argv[2])
         return
     fam = os.environ.get("ARCUS_FAMILY", "cello")
     for f in sys.argv[2:]:

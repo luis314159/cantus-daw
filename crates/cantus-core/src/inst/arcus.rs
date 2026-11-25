@@ -98,11 +98,15 @@ params! {
     // ---- the vibrato ----
     VIB_DEPTH = ("vib.depth", "arcus.vib.depth", 0.0, 2.0, 1.0, "%", false, false),
     VIB_RATE = ("vib.rate", "arcus.vib.rate", 0.5, 2.0, 1.0, "%", true, false),
-    VIB_DELAY = ("vib.delay", "arcus.vib.delay", 0.0, 2000.0, 250.0, "ms", false, false),
-    VIB_ATTACK = ("vib.attack", "arcus.vib.attack", 1.0, 2000.0, 450.0, "ms", true, false),
+    // r42:arcus-p5: the players' medians (the study): 250 / 450 → 130 / 330.
+    VIB_DELAY = ("vib.delay", "arcus.vib.delay", 0.0, 2000.0, 130.0, "ms", false, false),
+    VIB_ATTACK = ("vib.attack", "arcus.vib.attack", 1.0, 2000.0, 330.0, "ms", true, false),
     VIB_VAR = ("vib.var", "arcus.vib.var", 0.0, 1.0, 0.25, "%", false, false),
-    // 0 CC21 · 1 CC2 (breath) · 2 Aftertouch · 3 Automatic only
-    VIB_SRC = ("vib.src", "arcus.vib.src", 0.0, 3.0, 0.0, "", false, true),
+    // 0 CC21 · 1 CC2 (breath) · 2 Aftertouch · 3 Automatic only · 4 CC1 (the mod wheel) ·
+    // 5 each note's MPE pressure (r42:arcus-p5)
+    VIB_SRC = ("vib.src", "arcus.vib.src", 0.0, 5.0, 0.0, "", false, true),
+    // r42:arcus-p5: how much the vibrato widens with the dynamic (1: as the players')
+    VIB_DYN = ("vib.dyn", "arcus.vib.dyn", 0.0, 2.0, 1.0, "%", false, false),
 
     // ---- pizzicato and the string ----
     PIZZ_POS = ("pizz.pos", "arcus.pizz.pos", 0.05, 0.5, 0.22, "%", false, false),
@@ -138,7 +142,7 @@ pub const MODES: [&str; 3] = ["poly", "mono", "legato"];
 /// The dynamic's sources, in `dyn.src`'s order (locale keys `arcus.dyn_src_kind.<name>`).
 pub const DYN_SOURCES: [&str; 6] = ["auto", "cc1", "cc11", "breath", "at", "vel"];
 /// The vibrato's sources, in `vib.src`'s order (locale keys `arcus.vib_src_kind.<name>`).
-pub const VIB_SOURCES: [&str; 4] = ["cc21", "cc2", "at", "auto"];
+pub const VIB_SOURCES: [&str; 6] = ["cc21", "cc2", "at", "auto", "mw", "mpe"];
 /// The friction laws, in `bow.friction`'s order (locale keys `arcus.friction_kind.<name>`).
 pub const FRICTIONS: [&str; 2] = ["hyperbolic", "thermal"];
 /// The bow's directions, in `bow.dir`'s order (locale keys `arcus.dir_kind.<name>`).

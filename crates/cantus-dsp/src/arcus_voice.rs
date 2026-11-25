@@ -293,6 +293,11 @@ pub struct Voice {
     vib_phase: f64,
     vib_age: u32,
     vib_wander: (f32, f32),
+    /// r42:arcus-p5 — model 2's vibrato walk: the last cycle's and this cycle's values (rate,
+    /// extent), glided between through the cycle; the note's own offsets.
+    vib_from: (f32, f32),
+    vib_to: (f32, f32),
+    vib_note: (f32, f32),
     vib_now: f32,
     beta: f32,
     f_min: f32,
@@ -324,6 +329,8 @@ pub struct Voice {
     balance: f32,
     fade: f32,
     fade_step: f32,
+    /// r42:arcus-p5 — the tremolo's level now (1 for any other stroke).
+    trem_g: f32,
     peak: f32,
     /// The rate the voice runs at (the upper strings' `os ×`) and its way back. // r42:arcus-upper
     rate: upper::Rate, // r42:arcus-upper
@@ -375,6 +382,9 @@ impl Voice {
             vib_phase: 0.0,
             vib_age: 0,
             vib_wander: (0.0, 0.0),
+            vib_from: (0.0, 0.0),
+            vib_to: (0.0, 0.0),
+            vib_note: (0.0, 0.0),
             vib_now: 0.0,
             beta: 0.1,
             f_min: 0.0,
@@ -399,6 +409,7 @@ impl Voice {
             balance: 1.0,
             fade: 1.0,
             fade_step: 0.0,
+            trem_g: 1.0,
             peak: 0.0,
             rate: upper::Rate::new(sample_rate), // r42:arcus-upper
             #[cfg(test)]

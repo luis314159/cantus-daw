@@ -178,3 +178,56 @@ open). Their dynamic is mapped the players' way (the study's database: force ×5
 **Consequences.** A violin voice costs about 1.5 × a cello voice at 1×, a viola voice 1.15 ×
 (measured beside each other on a loaded machine; a quiet bench must say how much); its memory is the cello's (the lines already hold its period at 4×). The
 instruments stay out of the picker until the owner's listening verdict, as the cello's.
+
+## Amendment (round 42, pass 5): what music found, and a player's vibrato
+
+<!-- r42:arcus-p5 -->
+
+**Context.** A musical demo (`examples/arcus_demo`) measured faults no single-note gate had:
+the tremolo 12–80 cents out (the bass's lowest never periodic), bow changes with a 4–6 ms
+high-frequency click on the bass, a spiccato that never left the string, the violin and the
+viola 6–7 LU under the cello and the bass in music. The owner asked for a vibrato that sounds
+natural, studied on real players, and programmable.
+
+**Decision.**
+
+- **The tremolo** is a light stroke: its speed a clipped half-sine, its force 0.3 of the
+  Helmholtz region's lower limit riding the speed, its level the instrument's `trem_db` over
+  that; the pitch loop's ear is cut at every reversal (a sawtooth turned over is not a pitch)
+  and holds its trim through a tremolo, and a tremolo has its own measured pitch table
+  (`pitch::TremTable`, `tools/arcus/trem-table.sh`). The bodies radiate through a
+  second-order high-pass at 0.55 of each instrument's lowest open string (the bow's push
+  reversed at every stroke rang the lowest modes louder than the note).
+- **A bow change** eases its force with the speed into the turn (to half the stroke's) and
+  re-bows quickly with the force building with the speed — no start's heavy attack on a
+  ringing string; a re-bow to a new note moves the finger over 6 ms.
+- **A spiccato** bounces: a 40 ms contact, the string ringing free between strokes at
+  `spic_ring` × its T60, fitted to the references' strokes.
+- **The presets' gains** are fitted on one musical phrase with CC1 dynamics in each
+  instrument's register (`cantus_ui::arcus_level`), not on the audition phrases.
+- **Model 2's vibrato** is the players' as the study measured it cycle by cycle
+  (`research/instruments-next/bowed-realism.md` §2.6b, `tables::VibSpec`): its rate rising
+  with the dynamic and the register, its extent widening with both, a per-cycle variation
+  glided through each cycle and a per-note one (seeded, deterministic), a delay that is
+  longer for a soft note; model 1 keeps its vibrato to the bit. **Programmable:** delay,
+  rise, rate, extent, variation (as before) and `vib.dyn` (how much the extent follows the
+  dynamic); the depth from CC21, CC2, aftertouch, **CC1 (the mod wheel)** or **each note's
+  MPE pressure** (`vib.src`), MPE's per-note pitch passing through as before.
+- **The hook for round 43** (BACKLOG, "One piano roll that adapts"): a note-level vibrato
+  choice — *senza vibrato*, *molto vibrato*, a note's own delay — belongs with the note's
+  techniques in the adaptive piano roll. No schema field is added now. When it comes it is
+  a per-note scale on the voice's vibrato (`Voice::vibrato_model2`'s `amount` and the delay
+  of `age_ramp`), handed in beside the note's articulation as ADR 0158's `note_art` hands
+  in its art, so an older song plays every note at 1 (unchanged).
+
+**Consequences.** Arcus has not shipped: the defaults change in place (as passes 2–4 did;
+schema 81's Arcus gains `vib.dyn` and two `vib.src` values, older Arcus specs read `vib.dyn`
+at its default). The cello's and the bass's bits move: `upper_tests::LOWER_HASHES` re-made
+and `DSP_VERSION` 13 (the measured size of the change in `docs/round42/arcus-match.md`,
+*Pass 5*). The timbre flicker the vibrato brings comes from the bodies as the string's
+length moves — measured at about half the players' depth (the measured bodies are smoother
+than real ones); not added by hand. **What the tests hold:** `tests_p5_gate` (the tremolo
+in tune on every string, the violin's top at ff, no click at a bow change against the
+references, the spiccato's bounce against the references), `tests_vib` (the vibrato's rate,
+extent, onset and jitter inside the study's band per family, wider and not slower loud),
+`cantus-ui`'s `arcus_level_e2e` (every bowed preset within 1.5 LU in music).
