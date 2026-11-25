@@ -241,8 +241,8 @@ PALM_MIN = 0.996
 PALM_W = 150.0
 # Each finger's middle joint over the fingerboard's top (cm): index, middle, ring, little.
 ARCHES = (3.5, 3.8, 3.6, 3.0)
-# The playing finger's last phalanx within this of the fingerboard's normal (cos 19 deg; was 24).
-UPRIGHT_COS = 0.945
+# The playing finger's last phalanx within this of the fingerboard's normal (cos 21.5 deg; was 24).
+UPRIGHT_COS = 0.93
 # Each first phalanx rising from its knuckle: within this of the normal (cos 31 deg; was 40).
 RISE_COS = 0.857
 # The wrist under the neck (cm across from the E edge, below the top).
@@ -261,13 +261,17 @@ HAND_LEN = 7.61
 KNUCKLES_OUT = (0.5, 4.0)
 # The index finger's base against the E side: out from the edge, and its height (cm).
 CROOK_X = 0.85
-CROOK_Z = (-1.2, -0.2)
+CROOK_Z = (-1.2, 0.3)
 # How high each finger's middle joint stands over the fingerboard's top (cm).
 ARCH = 2.4
 # The thumb's flex (MCP, IP): relaxed.
 THUMB = ((5, 35), (5, 35))
 # The thumb's base (CMC) turn at most (deg).
 THUMB_CMC = 30.0
+# r42:arcus-hands — the hand's line (wrist to the middle knuckles) and the forearm's at
+# least this steep to the neck, seen from the E side (deg; left_hand_refs.md).
+HAND_UP = 78.0
+FORE_UP = 64.0
 
 
 def over(x, lo, hi):
@@ -395,7 +399,16 @@ class Pose:
         # The wrist straight: the elbow on the hand's line at the forearm's length, the upper
         # arm its own length from the shoulder; under the violin, the forearm and the neck a
         # narrow V.
-        el, _, dev = self.elbow(x, W, Rh, P)
+        el, way, dev = self.elbow(x, W, Rh, P)
+        # r42:arcus-hands — the hand and the forearm standing up from the neck as the
+        # photographs' front views show them (left_hand_refs.md: the hand's line 70-89 deg to
+        # the neck, the forearm's 50-85; the table before this pass: 53-55 and 48 — the
+        # hand leant toward the scroll, its fingers crossing the board slantwise, a ring).
+        hd = hr.norm((P[2, 0] + P[3, 0]) * 0.5 - W)
+        up_h = np.degrees(np.arctan2(hd @ self.z, hd @ (-self.bw)))
+        add("hand_up", 0.6 * over(up_h, HAND_UP, 100.0))
+        up_f = np.degrees(np.arctan2(-way @ self.z, -way @ (-self.bw)))
+        add("fore_up", 0.4 * over(up_f, FORE_UP, 100.0))
         add("wrist_dev", 1.5 * over(np.degrees(dev), *WRIST_DEV) + 0.05 * (np.degrees(dev) - WRIST_DEV_MID))
         add("upper_len", 5.0 * over(np.linalg.norm(el - self.sh) - self.upper, -1.0, 1.0))
         qe = loc(el)

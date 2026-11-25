@@ -56,6 +56,15 @@ struct ArmMesh {
     /// r42:arcus-hands — the hand's fine marks (the joints' creases) on this mesh; none on
     /// Light's.
     marks: Vec<super::marks::Line>,
+    /// r42:arcus-hands — each triangle's edges (corner k to k + 1) as indices into the
+    /// mesh's distinct edges (by vertex), and how many there are: a patch's edge points are
+    /// worked out once a frame and shared by the two patches on that edge.
+    tri_edges: Vec<[u32; 3]>,
+    n_edges: usize,
+    /// r42:arcus-hands — each vertex's skin texture and the back of the hand's relief, as
+    /// the patches take them per point: the flat triangles round the wrist lit without
+    /// them showed a lighter band across the back of his hand where the patches end.
+    vtex: Vec<f32>,
 }
 
 /// r42:arcus-upper — the arm at a level of detail: 0 the full one (High), 1 and 2 Light's
@@ -194,6 +203,8 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
     let vdet = verts.iter().map(|&g| fig.detail[g as usize]).collect();
     let seam = seams(fig, &verts, &edges);
     let curved = vec![0; tris.len()];
+    let (tri_edges, n_edges) = edge_index(&tris);
+    let vtex = vertex_tex(fig, s, &verts);
     ArmMesh {
         verts,
         tris,
@@ -207,6 +218,9 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         curved,
         vdet,
         marks: Vec::new(),
+        tri_edges,
+        n_edges,
+        vtex,
     }
 }
 
@@ -319,6 +333,8 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
     let seam = seams(fig, &verts, &edges);
     let curved = curved_edges(&tris, &fine, &weld);
     let marks = super::marks::build(fig, s, &verts, &tris, &stuff);
+    let (tri_edges, n_edges) = edge_index(&tris);
+    let vtex = vertex_tex(fig, s, &verts);
     ArmMesh {
         verts,
         tris,
@@ -332,6 +348,9 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         curved,
         vdet,
         marks,
+        tri_edges,
+        n_edges,
+        vtex,
     }
 }
 
@@ -574,6 +593,11 @@ struct Scratch {
     nrm: Vec<V3>,
     sp: Vec<Pos2>,
     front: Vec<bool>,
+    /// r42:arcus-hands — each triangle drawn split between the passes (a hand patch across
+    /// the neck's edge).
+    split: Vec<bool>,
+    /// r42:arcus-hands — the patches' shared points (kept while the skinning is).
+    fine: RefCell<FineCache>,
     col: Vec<[Color32; 3]>,
     order: Vec<(f32, u32)>,
     ao: Vec<f32>,
@@ -1001,6 +1025,12 @@ pub fn arm(
         let mid = if same {
             sc.mid
         } else {
+            let mut fc = sc.fine.borrow_mut();
+            fc.v.clear();
+            fc.v.resize(n, None);
+            fc.e.clear();
+            fc.e.resize(am.n_edges, None);
+            drop(fc);
             arm_setup(fig, am, base, s, aim, v, held, sc, light)
         };
         // r42:arcus-polish — the tests' measure of the arm from the app's camera.
@@ -1058,6 +1088,7 @@ pub fn arm(
             trunk_shadow(b, v, lit, fig, base, am, sc, &shading, s, tone, mid);
         }
         sc.front.clear();
+        sc.split.clear();
         sc.col.clear();
         sc.order.clear();
         for (k, t) in am.tris.iter().enumerate() {
@@ -1066,6 +1097,7 @@ pub fn arm(
             // The figure's triangles are wound outward (MakeHuman's, kept by the converter).
             let fnrm = (sc.pts[bb] - sc.pts[a]).cross(sc.pts[c] - sc.pts[a]);
             let mut show = fnrm.dot(eye - ctr) > 0.0;
+            let mut split = false;
             // r42:arcus-hand — the shirt's cuff stays under the jacket's sleeve: drawn live
             // its thinned band broke into white specks and jagged teeth against the wrist
             // (the review, both wrists, both cameras).
@@ -1095,15 +1127,21 @@ pub fn arm(
                     // (r42:arcus-hand: behind if any corner is — a triangle across the neck's
                     // edge painted in front showed the hand over the neck; painted behind, the
                     // neck's stamp covers just the part it hides.)
-                    let behind = am.upper[k]
-                        || hid(ctr)
-                        || hid(sc.pts[a])
-                        || hid(sc.pts[bb])
-                        || hid(sc.pts[c]);
-                    show = behind == want;
+                    let hs = [hid(ctr), hid(sc.pts[a]), hid(sc.pts[bb]), hid(sc.pts[c])];
+                    let behind = am.upper[k] || hs.iter().any(|&x| x);
+                    // r42:arcus-hands — a hand patch across the neck's edge is drawn in both
+                    // passes, each of its small triangles in the pass its own middle belongs
+                    // to (painted behind whole, the neck's stamp cut it along its triangles:
+                    // the dark shards and stair-steps on the fingers at 100 % and 200 %).
+                    if !am.upper[k] && fine_n > 1 && am.fine[k] && !hs.iter().all(|&x| x) && behind {
+                        split = true;
+                    } else {
+                        show = behind == want;
+                    }
                 }
             }
             sc.front.push(show);
+            sc.split.push(split);
             let st = am.stuff[k];
             let mut cc = [Color32::TRANSPARENT; 3];
             if show && inside {
@@ -1125,7 +1163,10 @@ pub fn arm(
                     cc[j] = if kept_st == Some(st) {
                         kept
                     } else {
-                        let d = am.vdet[i];
+                        let mut d = am.vdet[i];
+                        if st == Stuff::Skin {
+                            d[0] *= am.vtex[i];
+                        }
                         let mut cl = lut_colour(&shading, s, st, tone, d, mid, sc.nrm[i], sc.ao[i]);
                         if am.alpha[i] < 1.0 {
                             cl = cl.gamma_multiply(am.alpha[i]);
@@ -1159,6 +1200,13 @@ pub fn arm(
             let seam = f0 && f1 && rank(am.stuff[t0 as usize]) != rank(am.stuff[t1 as usize]);
             if f0 != f1 || seam {
                 let mid = (sc.pts[a as usize] + sc.pts[bb as usize]) * 0.5;
+                // (r42:arcus-hands: a split patch's outline only in its middle's pass.)
+                let split = [t0, t1]
+                    .iter()
+                    .any(|&t| t != u32::MAX && sc.split[t as usize]);
+                if split && hidden.is_some_and(|(want, hid)| hid(mid) != want) {
+                    continue;
+                }
                 // (r42:arcus-hand: a shirt's edge sorted with its cuff, behind the sleeve and
                 // the wrist — drawn at its own depth it laid white threads over his wrist.)
                 let shirt = [t0, t1]
@@ -1197,7 +1245,11 @@ pub fn arm(
                         tone,
                         mid,
                     };
-                    fine_tri(b, &fc, sc, am, k as usize, fine_n);
+                    if sc.split[k as usize] {
+                        fine_tri(b, &fc, sc, am, k as usize, SPLIT_N, hidden);
+                    } else {
+                        fine_tri(b, &fc, sc, am, k as usize, fine_n, None);
+                    }
                     continue;
                 }
                 let t = am.tris[k as usize];
@@ -1295,6 +1347,51 @@ pub fn arm(
             }
         }
     });
+}
+
+/// r42:arcus-hands — each vertex's skin texture (`cards::skin_detail` at its place) and
+/// the back of the hand's relief there (`Relief`): what a patch's corner is lit with.
+fn vertex_tex(fig: &Figure, s: usize, verts: &[u32]) -> Vec<f32> {
+    let relief = Relief::of(fig, s);
+    verts
+        .iter()
+        .map(|&g| {
+            let g = g as usize;
+            let t = match fig.uv.get(g) {
+                Some(uv) if uv[0] >= 0.0 => crate::scene::figure::cards::skin_detail(uv[0], uv[1]),
+                _ => 1.0,
+            };
+            t * relief.at(fig.pos[g])
+        })
+        .collect()
+}
+
+/// r42:arcus-hands — each triangle's three edges as indices into the mesh's distinct edges
+/// (by its own vertices: a texture seam's two copies are two edges, as their colours
+/// differ), and how many distinct edges there are.
+fn edge_index(tris: &[[u16; 3]]) -> (Vec<[u32; 3]>, usize) {
+    let mut seen: std::collections::HashMap<(u16, u16), u32> = Default::default();
+    let out = tris
+        .iter()
+        .map(|t| {
+            [0, 1, 2].map(|k| {
+                let (a, b) = (t[k], t[(k + 1) % 3]);
+                let n = seen.len() as u32;
+                *seen.entry((a.min(b), a.max(b))).or_insert(n)
+            })
+        })
+        .collect();
+    (out, seen.len())
+}
+
+/// r42:arcus-hands — the hand patches' shared points this frame: each corner's and each
+/// edge midpoint's place on screen, place in the room and colour, with what it was lit as
+/// (the stuff and whether textured): two patches on one edge work it out once (the
+/// budget: every point of 1 850 patches lit on its own cost 2.7–3.3 ms at 200 %).
+#[derive(Default)]
+struct FineCache {
+    v: Vec<Option<(u8, Pos2, V3, Color32)>>,
+    e: Vec<Option<(u8, Pos2, V3, Color32)>>,
 }
 
 /// r42:arcus-polish — which of each fine triangle's edges are shared with another fine
@@ -1396,6 +1493,9 @@ const RELIEF: (f32, f32, f32) = (0.1, 0.13, 0.08);
 const FINE_EDGE: f32 = 0.62;
 const FINE_PX: f32 = 4.0;
 const FINE_MAX: usize = 2;
+/// r42:arcus-hands — the cuts a side of a hand patch split between the passes (its small
+/// triangles follow the neck's edge to about a pixel).
+const SPLIT_N: usize = 4;
 /// r42:arcus-hands — how far (cm) a crease is sorted in front of the skin it lies on.
 const MARK_AHEAD: f32 = 0.12;
 
@@ -1425,7 +1525,15 @@ fn lerp_c(a: Color32, b: Color32, t: f32) -> Color32 {
 /// from its own normal with the skin's own texture at its place (MakeHuman's knuckle
 /// creases, the lines of the fingers' joints, the pores; as the bake does the face), the
 /// corners' detail and occlusion between.
-fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n: usize) {
+fn fine_tri(
+    b: &mut Brush,
+    fc: &FineCtx,
+    sc: &Scratch,
+    am: &ArmMesh,
+    k: usize,
+    n: usize,
+    only: Option<(bool, &dyn Fn(V3) -> bool)>,
+) {
     let t = am.tris[k].map(|i| i as usize);
     let st = am.stuff[k];
     let p = t.map(|i| sc.pts[i]);
@@ -1453,10 +1561,39 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
     let relief = (st == Stuff::Skin).then(|| Relief::of(fc.fig, fc.side));
     let ao = t.map(|i| sc.ao[i]);
     let mut pts = [Pos2::ZERO; 15];
+    let mut room = [V3::default(); 15];
     let mut cols = [Color32::TRANSPARENT; 15];
     let row = |i: usize| i * (n + 1) - i * i.saturating_sub(1) / 2;
+    let lit_as = stuff_slot(st) as u8 * 2 + textured as u8;
+    let mut cache = sc.fine.borrow_mut();
     for i in 0..=n {
         for j in 0..=(n - i) {
+            // r42:arcus-hands — a corner or an edge's midpoint once a frame (two cuts a
+            // side: every point is one of them).
+            let shared = (n == 2).then(|| match (i, j) {
+                (0, 0) => (true, t[0]),
+                (0, 2) => (true, t[1]),
+                (2, 0) => (true, t[2]),
+                (0, 1) => (false, am.tri_edges[k][0] as usize),
+                (1, 1) => (false, am.tri_edges[k][1] as usize),
+                _ => (false, am.tri_edges[k][2] as usize),
+            });
+            let at = row(i) + j;
+            if let Some((corner, ix)) = shared {
+                let slot = if corner {
+                    cache.v.get(ix)
+                } else {
+                    cache.e.get(ix)
+                };
+                if let Some(Some((key, sp, q, c))) = slot {
+                    if *key == lit_as {
+                        pts[at] = *sp;
+                        room[at] = *q;
+                        cols[at] = *c;
+                        continue;
+                    }
+                }
+            }
             let (w1, w2) = (j as f32 / n as f32, i as f32 / n as f32);
             let w0 = 1.0 - w1 - w2;
             // r42:arcus-polish — a point on an edge is worked out the same way from either
@@ -1519,18 +1656,37 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
                 d[0] *= r.at(rest[0] * w0 + rest[1] * w1 + rest[2] * w2);
             }
             let a = ao[0] * w0 + ao[1] * w1 + ao[2] * w2;
-            let at = row(i) + j;
+            room[at] = q;
             pts[at] = fc.v.p(q);
             cols[at] = lut_colour(fc.sh, fc.side, st, fc.tone, d, fc.mid, nq, a);
+            if let Some((corner, ix)) = shared {
+                let slot = if corner {
+                    cache.v.get_mut(ix)
+                } else {
+                    cache.e.get_mut(ix)
+                };
+                if let Some(x) = slot {
+                    *x = Some((lit_as, pts[at], q, cols[at]));
+                }
+            }
         }
     }
+    drop(cache);
     for i in 0..n {
         for j in 0..(n - i) {
             let (a, bb, c) = (row(i) + j, row(i) + j + 1, row(i + 1) + j);
-            b.shaded_tri([pts[a], pts[bb], pts[c]], [cols[a], cols[bb], cols[c]]);
+            // (r42:arcus-hands: a split patch's small triangle only in its own pass.)
+            let mine = |x: usize, y: usize, z: usize| {
+                only.is_none_or(|(want, hid)| hid((room[x] + room[y] + room[z]) * (1.0 / 3.0)) == want)
+            };
+            if mine(a, bb, c) {
+                b.shaded_tri([pts[a], pts[bb], pts[c]], [cols[a], cols[bb], cols[c]]);
+            }
             if j + 1 < n - i {
                 let d = row(i + 1) + j + 1;
-                b.shaded_tri([pts[bb], pts[d], pts[c]], [cols[bb], cols[d], cols[c]]);
+                if mine(bb, d, c) {
+                    b.shaded_tri([pts[bb], pts[d], pts[c]], [cols[bb], cols[d], cols[c]]);
+                }
             }
         }
     }

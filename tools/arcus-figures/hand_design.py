@@ -22,8 +22,9 @@ who = sys.argv[1] if len(sys.argv) > 1 else 'woman'
 held = (sys.argv[2] == 'violin') if len(sys.argv) > 2 else False
 out = sys.argv[3] if len(sys.argv) > 3 else 'bowhold.png'
 P = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
-fig = hr.read_fig(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'crates',
-                               'cantus-ui', 'assets', 'figures', f'{who}.fig'))
+fig = hr.read_fig(os.path.join(os.environ.get('CANTUS_FIGURE_DIR') or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..', '..', 'crates', 'cantus-ui', 'assets',
+    'figures'), f'{who}.fig'))  # (r42:arcus-hands: CANTUS_FIGURE_DIR as the app reads it)
 s = 1
 D = np.array([1.0, 0, 0])
 U = np.array([0, 1.0, 0])
@@ -39,11 +40,11 @@ def g(name, d):
     return P.get(name, d)
 
 
-kc = at(*g('kc', [0.8, 3.6, -1.8]))
+kc = at(*g('kc', [0.8, 4.0, -1.6]))  # (r42:arcus-hands: grip.rs's)
 hd = hr.norm(F * g('hdf', 0.8) - U * g('hdu', 0.45) + D * g('hdd', 0.2))
 kx = hr.norm(D - U * g('kxu', 0.3))
 wrist = kc - hd * 8.6 * k
-along = g('along', [2.4, 0.7, -1.0, -2.6])
+along = g('along', [2.0, 0.5, -1.1, -2.6])
 fingers = []
 for j in range(4):
     knuckle = kc + kx * ((1.5 - j) * 1.9 * k)
@@ -53,8 +54,8 @@ for j in range(4):
     elif j == 3:
         mid, tip = at(*g('m3', [u, 1.3, 0.55])), at(*g('t3', [u - 0.2, -0.2, 0.95]))
     else:
-        hang = g('hang', [1.5, 1.7, 1.5])[j]
-        mid, tip = at(u, *g('mid', [1.1, 0.7])), at(u + 0.15, -hang, g('tipf', 0.75))
+        hang = g('hang', [0.3, 0.5, 0.5])[j]
+        mid, tip = at(u, *g('mid', [1.9, 1.0])), at(u + g('tipu', [1.0, 0.6, 0.2])[j], -hang, g('tipf', 0.2))
     fingers.append([knuckle, mid, mid * 0.45 + tip * 0.55, tip])
 palm = kc - hd * 3.6 * k
 t3 = at(*g('t3t', [0.3, -0.35, -0.45]))

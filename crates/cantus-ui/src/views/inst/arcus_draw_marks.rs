@@ -21,17 +21,9 @@ pub struct Anchor {
     pub w: [f32; 3],
 }
 
-/// What a line is.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Kind {
-    /// A skin crease over a joint's back: darker than the skin.
-    Crease,
-}
-
-/// One line of anchors (at most [`LINE_PTS`]), how strong it is and its width (cm).
+/// One crease: a line of anchors (at most [`LINE_PTS`]), how strong it is and its width (cm).
 #[derive(Copy, Clone, Debug)]
 pub struct Line {
-    pub kind: Kind,
     pub pts: [Anchor; LINE_PTS],
     pub n: u8,
     pub strength: f32,
@@ -155,7 +147,6 @@ pub fn build(fig: &Figure, s: usize, verts: &[u32], tris: &[[u16; 3]], stuff: &[
             .collect();
         for &(u, half, strength) in lines {
             let mut line = Line {
-                kind: Kind::Crease,
                 pts: [Anchor::default(); LINE_PTS],
                 n: 0,
                 strength,

@@ -19,12 +19,12 @@ from PIL import Image, ImageDraw
 
 # (case, state, who, box as fractions of the shot: x0, y0, x1, y1)
 CROPS = [
-    ("left hand, first position", "violin-play", "woman", (0.37, 0.20, 0.49, 0.38)),
-    ("bow hand", "violin-play", "woman", (0.22, 0.31, 0.36, 0.47)),
-    ("left hand, high", "violin-high", "woman", (0.28, 0.20, 0.42, 0.40)),
-    ("left hand, first position", "violin-play", "man", (0.37, 0.19, 0.49, 0.38)),
-    ("bow hand", "violin-play", "man", (0.22, 0.31, 0.36, 0.47)),
-    ("left hand, high", "violin-high", "man", (0.28, 0.19, 0.42, 0.40)),
+    ("left hand, first position", "violin-play", "woman", (0.37, 0.19, 0.49, 0.37)),
+    ("bow hand", "violin-play", "woman", (0.22, 0.39, 0.33, 0.55)),
+    ("left hand, high", "violin-high", "woman", (0.33, 0.17, 0.45, 0.37)),
+    ("left hand, first position", "violin-play", "man", (0.37, 0.19, 0.49, 0.37)),
+    ("bow hand", "violin-play", "man", (0.22, 0.39, 0.33, 0.55)),
+    ("left hand, high", "violin-high", "man", (0.33, 0.17, 0.45, 0.37)),
 ]
 # Reference crops (file in --refs, box as fractions) for each case.
 REFS = {

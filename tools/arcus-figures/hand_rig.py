@@ -347,7 +347,56 @@ def natural(l, dist, mcp=0.55, couple=0.7):
 
 EXACT = [False] * 5
 EXACT_F = -1
-RELAX = (0.7, 0.86)
+# r42:arcus-hands — (scene/bowed_human.rs::RELAX, the two alike; was 0.7.)
+RELAX = (0.55, 0.86)
+# r42:arcus-hands — the last joint's bend for the middle one's (scene/figure/fingers.rs).
+COUPLE = 0.7
+CURL_MOST = 2.0
+
+
+def _reach(l, b):
+    c = COUPLE * b
+    return (l[0] + l[1] * np.cos(b) + l[2] * np.cos(b + c),
+            -l[1] * np.sin(b) - l[2] * np.sin(b + c))
+
+
+def curl(k0, tip, pole, l):
+    """``scene/figure/fingers.rs::curl``: a finger's joints from its knuckle ``k0`` to
+    ``tip``, its middle and last joints bent together (the last COUPLE of the middle), bent
+    away from ``pole``; out of reach it straightens and stretches."""
+    d = tip - k0
+    dist = np.linalg.norm(d)
+    e = d / dist if dist > 1e-5 else np.array([0.0, 1.0, 0.0])
+    pr = pole - (k0 + tip) * 0.5
+    y = pr - e * (pr @ e)
+    if np.linalg.norm(y) < 1e-5:
+        y = np.cross(e, [1.0, 0.0, 0.0])
+    y = norm(y)
+    l = list(l)
+    full = sum(l)
+    if dist >= full * 0.999:
+        k = dist / max(full, 1e-5)
+        l, b = [x * k for x in l], 0.0
+    else:
+        ln = lambda b: np.hypot(*_reach(l, b))
+        if ln(CURL_MOST) >= dist:
+            b = CURL_MOST
+        else:
+            lo, hi = 0.0, CURL_MOST
+            for _ in range(24):
+                m = (lo + hi) * 0.5
+                if ln(m) > dist:
+                    lo = m
+                else:
+                    hi = m
+            b = (lo + hi) * 0.5
+    rx, ry = _reach(l, b)
+    phi = -np.arctan2(ry, rx)
+    way = lambda a: e * np.cos(a) + y * np.sin(a)
+    p1 = k0 + way(phi) * l[0]
+    p2 = p1 + way(phi - b) * l[1]
+    p3 = p2 + way(phi - b - COUPLE * b) * l[2]
+    return [k0, p1, p2, p3]
 
 
 def pose_hand(fig, s, wrist, fingers, thumb, couple=0.7):
@@ -472,14 +521,18 @@ def pose_joints(fig, s, wrist, fingers, thumb):
             d_ = tip - k0
             dl = np.clip(np.linalg.norm(d_), RELAX[0] * L, RELAX[1] * L)
             tip = k0 + norm(d_) * dl
-        reach = np.linalg.norm(tip - k0)
-        sc = max(reach / ((l0 + l1 + l2) * 0.97), 1.0)
-        l0, l1, l2 = l0 * sc, l1 * sc, l2 * sc
-        pole = j[1] - (k0 + tip) * 0.5
-        pip = knee(k0, tip, l0, l1 + l2, pole)
-        along = norm(tip - pip)
-        bend = norm(pole - along * (pole @ along))
-        dip = pip + along * (np.linalg.norm(tip - pip) * l1 / (l1 + l2)) + bend * (0.12 * sc)
+        if f > 0:
+            # r42:arcus-hands — the three joints together (curl).
+            k0, pip, dip, tip = curl(k0, tip, j[1], [l0, l1, l2])
+        else:
+            reach = np.linalg.norm(tip - k0)
+            sc = max(reach / ((l0 + l1 + l2) * 0.97), 1.0)
+            l0, l1, l2 = l0 * sc, l1 * sc, l2 * sc
+            pole = j[1] - (k0 + tip) * 0.5
+            pip = knee(k0, tip, l0, l1 + l2, pole)
+            along = norm(tip - pip)
+            bend = norm(pole - along * (pole @ along))
+            dip = pip + along * (np.linalg.norm(tip - pip) * l1 / (l1 + l2)) + bend * (0.12 * sc)
         at = k0
         for k, (a_, b_) in enumerate([(k0, pip), (pip, dip), (dip, tip)]):
             b = bs[k]

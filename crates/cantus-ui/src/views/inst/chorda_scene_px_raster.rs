@@ -1229,23 +1229,37 @@ fn tubes(
                     } else {
                         n_at(u - du)
                     };
-                    let p = at + n * s.rod.r;
                     let kv = key_at(&s.key, tw);
-                    let c = shade(
-                        rig,
-                        m,
-                        eye,
-                        p,
-                        n,
-                        n2 - n,
-                        s.axis,
-                        [tw * s.len, 0.0],
-                        z / cam.k,
-                        1.0,
-                        &|_, _| kv,
-                        None,
-                        None,
-                    );
+                    let lit = |n: V3, dn: V3| {
+                        shade(
+                            rig,
+                            m,
+                            eye,
+                            at + n * s.rod.r,
+                            n,
+                            dn,
+                            s.axis,
+                            [tw * s.len, 0.0],
+                            z / cam.k,
+                            1.0,
+                            &|_, _| kv,
+                            None,
+                            None,
+                        )
+                    };
+                    // r42:arcus-hands — a tube under a pixel and a half wide: its round
+                    // averaged (five ways across it), as the pixel sees all of it.
+                    let c = if geo.spread_thin && wpx < 1.5 {
+                        let mut acc = [0.0f32; 3];
+                        for i in 0..5 {
+                            let ui = -0.8 + 0.4 * i as f32;
+                            let ni = n_at(ui);
+                            acc = ladd(acc, lscale(lit(ni, n_at(ui + 0.4) - ni), 0.2));
+                        }
+                        acc
+                    } else {
+                        lit(n, n2 - n)
+                    };
                     // A chrome tube's edges dark (what a photograph's polished stand shows
                     // where it turns away), its mirror bright down the middle.
                     let c = if m.kind == Kind::Metal {

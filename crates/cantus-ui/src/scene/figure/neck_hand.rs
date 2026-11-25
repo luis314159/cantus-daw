@@ -172,7 +172,14 @@ fn parse(b: &[u8]) -> Option<Table> {
 
 fn table() -> Option<&'static Table> {
     static T: OnceLock<Option<Table>> = OnceLock::new();
-    T.get_or_init(|| parse(TABLE)).as_ref()
+    // (r42:arcus-hands: `CANTUS_FIGURE_DIR`'s `left_hand.bin` while the table is being
+    // solved, as `bowed_human` reads the figures from there — DEVELOPING §4.)
+    T.get_or_init(|| {
+        let dir = std::env::var_os("CANTUS_FIGURE_DIR")
+            .and_then(|d| std::fs::read(std::path::Path::new(&d).join("left_hand.bin")).ok());
+        parse(dir.as_deref().unwrap_or(TABLE))
+    })
+    .as_ref()
 }
 
 /// The pose for `who` on a violin (or a viola), `string` (G 0 … E 3), the finger that

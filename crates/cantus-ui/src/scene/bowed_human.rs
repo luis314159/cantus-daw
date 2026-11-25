@@ -849,6 +849,11 @@ pub struct HandAim {
 
 /// Set one arm's bones (`s` 0 left, 1 right) in `aims` through `a`, the shoulder where
 /// the body carries it.
+/// r42:arcus-hands — how far from its knuckle a finger that does not play may reach toward
+/// its pose's tip, as shares of its length (a curled finger round a bow's stick reaches
+/// about 0.6 of it; was 0.7).
+pub const RELAX: (f32, f32) = (0.55, 0.86);
+
 pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &ArmAim, sh: V3) {
     let o = side(s);
     let u = (a.elbow - sh).norm();
@@ -949,10 +954,28 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
             let tip = if f > 0 && h.exact != Some(f - 1) {
                 let d = j[3] - k0;
                 let full = l0 + l1 + l2;
-                k0 + d.norm() * d.len().clamp(0.7 * full, 0.86 * full)
+                k0 + d.norm() * d.len().clamp(RELAX.0 * full, RELAX.1 * full)
             } else {
                 j[3]
             };
+            // r42:arcus-hands — a finger's three joints bend together toward its tip (the
+            // last following the middle: `figure::fingers::curl`).
+            if f > 0 {
+                let c = super::figure::fingers::curl(k0, tip, j[1], [l0, l1, l2]);
+                for k in 0..3 {
+                    let (from, to) = (c[k], c[k + 1]);
+                    let d = to - from;
+                    let bone = &fig.bones[o + finger(f, k)];
+                    let rest = r.apply((bone.tail - bone.head).norm());
+                    aims[o + finger(f, k)] = Some(Aim {
+                        head: Some(from),
+                        y: d.norm(),
+                        x: Some(Rot::between(rest, d.norm()).mul(&r).apply(bone.x)),
+                        len: Some(d.len().max(0.2)),
+                    });
+                }
+                continue;
+            }
             let reach = (tip - k0).len();
             let sc = (reach / ((l0 + l1 + l2) * 0.97)).max(1.0);
             let (l0, l1, l2) = (l0 * sc, l1 * sc, l2 * sc);

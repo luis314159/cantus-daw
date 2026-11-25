@@ -274,8 +274,55 @@ def slim_fingers(pos, wt, J):
                 # The fingertip kept round (the owner's review: drawn in to the axis's end
                 # the tips read as claws): no slimming over the last phalanx's last half.
                 keep = 1.0 - smooth01((tt - 0.5) / 0.5) if k == 3 else np.ones(len(tt))
-                out[ids] += (axis - q) * ((1.0 - k_slim) * w * keep)[:, None]
+                # r42:arcus-hands — a real finger's form: its joints a little fuller than
+                # the shafts between them (the PIP's and the DIP's knuckles), and each
+                # phalanx a little slimmer than the one before (the taper to the tip).
+                kk = np.full(len(tt), k_slim)
+                if f > 1:
+                    near = np.maximum(np.exp(-(tt / JOINT_W) ** 2),
+                                      np.exp(-((1.0 - tt) / JOINT_W) ** 2) * (k < 3))
+                    if k == 1:
+                        # (The base knuckle is the hand's: only its far end bulges.)
+                        near = np.exp(-((1.0 - tt) / JOINT_W) ** 2)
+                    shaft = k_slim * (1.0 - TAPER * (k - 1)) * SHAFT
+                    kk = shaft + (np.minimum(k_slim * JOINT, 1.0) - shaft) * near
+                pull = (axis - q) * ((1.0 - kk) * w * keep)[:, None]
+                # And the pad's side flatter than the back (a finger's section is a
+                # rounded D: the nail's side round, the pad's broad), but the tip's pad
+                # kept full.
+                if f > 1:
+                    r = q - axis
+                    side = (r @ PALMAR[s]) > 0.0
+                    flat = PALMAR[s][None, :] * (r @ PALMAR[s])[:, None] * (FLAT * w * keep * side)[:, None]
+                    pull = pull - flat
+                out[ids] += pull
     return out
+
+
+# r42:arcus-hands — the fingers' joints fuller than their shafts (the share of girth kept
+# at a joint over the finger's, the shafts' over it), how far along a phalanx a joint's
+# fullness reaches, each phalanx's taper toward the tip, and the pad side's flattening.
+JOINT = 1.06
+SHAFT = 0.965
+JOINT_W = 0.2
+TAPER = 0.035
+FLAT = 0.12
+# Each hand's palm side at rest (MakeHuman's A pose: the palms face in and a little back),
+# set by palmar_ways().
+PALMAR = {}
+
+
+def palmar_ways(J):
+    """r42:arcus-hands — each hand's palm side at rest: the normal of the knuckles' plane
+    turned toward the body's middle (as nail_field's back, reversed)."""
+    for s_ in SIDES:
+        k = [J[f"finger{f}-1.{s_}____head"] for f in (2, 3, 4, 5)]
+        wr = J[f"wrist.{s_}____head"]
+        nb = np.cross(k[0] - k[3], (k[1] + k[2]) * 0.5 - wr)
+        nb = nb / np.linalg.norm(nb)
+        if nb[0] * (1 if s_ == "L" else -1) < 0:
+            nb = -nb
+        PALMAR[s_] = -nb
 
 
 # r42:arcus-polish — her arms' girth along each arm (the owner, 2026-11-25: "thick, long,
@@ -1003,6 +1050,7 @@ def make(sex, data, assets):
     J = mh.joint_positions(sk, pos)
     pos = close_lids(pos, wt, J)
     pos = lengthen_fingers(pos, wt, J)  # r42:arcus-hands
+    palmar_ways(J)  # r42:arcus-hands
     pos = slim_fingers(pos, wt, J)
     pos = shape_arms(pos, wt, J, sex)  # r42:arcus-polish
     pos = slim_hand(pos, wt, J)  # r42:arcus-polish
@@ -1400,6 +1448,12 @@ def warmth(pos, J, sex):
     return out * (1.0 if sex == "female" else 0.6)
 
 
+# r42:arcus-hands — how far round the finger from its back a nail reaches (deg).
+# (MakeHuman's numbering: 1 the thumb ... 5 the little finger; the little finger's nail
+# lies rolled off the hand's back, so it is given more.)
+NAIL_ARC = {1: 54.0, 2: 58.0, 3: 52.0, 4: 54.0, 5: 68.0}
+
+
 def nail_field(pos, W, sk, J):
     """Per vertex: inside a nail (> 0) or outside it, cm-ish — on each fingertip's back,
     from 42 % of its last phalanx to its end, as wide as 0.6 of the finger, its base
@@ -1437,7 +1491,10 @@ def nail_field(pos, W, sk, J):
             fx = w - np.abs(x)
             fa = (al - 0.42 * L) - 0.6 * (np.abs(x) / w) ** 2 * w
             fe = 0.96 * L - al
-            fy = (y / rad - 0.42) * 1.5
+            # (r42:arcus-hands: the nail within NAIL_ARC of the finger's back — was 65°,
+            # the nail 0.8-0.85 of the slimmed middle and ring fingers' width; a real one's
+            # 0.6-0.7.)
+            fy = (y / rad - np.cos(np.radians(NAIL_ARC[f]))) * 1.5
             fl = np.minimum(np.minimum(fx, fa), np.minimum(fy, fe))
             out = np.maximum(out, np.where(share > 0.3, fl, -9.0))
     return out

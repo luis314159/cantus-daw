@@ -107,13 +107,17 @@ pub fn bow_frog(frog: V3, dir: V3, n: V3, facing: V3, held: bool, k: f32) -> Joi
     // The stick's middle at the frog's front corner (Arcus's stick: 2.1 cm over the hair).
     let s = frog + n * 1.95;
     let at = |u: f32, o: f32, f: f32| s + (dir * u + over * o + far * f) * k;
-    let kc = at(0.8, 3.6, -1.8);
+    // (r42:arcus-hands: the knuckles higher over the stick and the fingers curled round it,
+    // slanting toward the tip — `figure::fingers::curl` bends their three joints together;
+    // against the Commons photograph "Right hand position on bow.jpg".)
+    let kc = at(0.8, 4.0, -1.6);
     let hd = (far * 0.8 - over * 0.45 + dir * 0.2).norm();
     let kx = (dir - over * 0.3).norm();
     let wrist = kc - hd * (8.6 * k);
     let palm = kc - hd * (3.6 * k);
-    let along = [2.4, 0.7, -1.0, -2.6];
-    let hang = [1.5, 1.7, 1.5];
+    let along = [2.0, 0.5, -1.1, -2.6];
+    let hang = [0.3, 0.5, 0.5];
+    let slant = [1.0, 0.6, 0.2];
     let mut fingers = [[V3::default(); 4]; 4];
     for (j, f) in fingers.iter_mut().enumerate() {
         let knuckle = kc + kx * ((1.5 - j as f32) * 1.9 * k);
@@ -124,7 +128,7 @@ pub fn bow_frog(frog: V3, dir: V3, n: V3, facing: V3, held: bool, k: f32) -> Joi
         } else if j == 3 {
             (at(u, 1.3, 0.55), at(u - 0.2, -0.2, 0.95))
         } else {
-            (at(u, 1.1, 0.7), at(u + 0.15, -hang[j], 0.75))
+            (at(u, 1.9, 1.0), at(u + slant[j], -hang[j], 0.2))
         };
         *f = [knuckle, mid, mid.lerp(tip, 0.55), tip];
     }

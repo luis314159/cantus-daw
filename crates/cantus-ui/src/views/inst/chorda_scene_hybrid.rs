@@ -503,6 +503,7 @@ fn bake_view(
         Subject::Bowed { instrument, holder } => {
             // r42:arcus-look — Arcus's cello or double bass, framed as the Drawn picture
             // frames it.
+            g.spread_thin = true; // r42:arcus-hands
             use crate::scene::bowed_draw as bd;
             let (b, hd) = (*instrument, *holder); // r42:arcus-upper
             let d = b.dims();
