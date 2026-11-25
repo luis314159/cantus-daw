@@ -590,7 +590,15 @@ pub fn show(
     body: impl FnOnce(&mut egui::Ui, &Style, Rect, &mut dyn FxHost),
 ) -> Out {
     let kind = look.kind;
-    let shell = shell_of(kind);
+    // r42:editor-windows (ADR 0161): two editors of one kind on screen at once — their
+    // headers' keys under ids of their own.
+    let key = host.device_key();
+    let shell = match (key, host.daw()) {
+        (Some(key), Some((app, _, effect))) if app.twin_editor_open(effect, kind) => {
+            shell_of(kind).salted(key)
+        }
+        _ => shell_of(kind),
+    };
     let ctx = ui.ctx().clone();
     // The words of the header, kept until the host or the language changes.
     let rev = host.revision();

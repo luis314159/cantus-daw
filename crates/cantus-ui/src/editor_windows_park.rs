@@ -88,7 +88,10 @@ impl Family for Inst {
         crate::views::inst::editor_id(key).value()
     }
     fn exists(app: &CantusApp, key: TrackId) -> bool {
-        app.native_of(key).is_some()
+        // Without cloning the spec: this runs after every command.
+        app.project()
+            .track(key)
+            .is_some_and(|t| t.instrument.native().is_some())
     }
 }
 
@@ -196,6 +199,13 @@ pub struct FxSlot {
     kind: Option<Editor>,
     hosted: crate::views::plugins::Editor,
     filter: String,
+}
+
+impl FxSlot {
+    /// The kind of the effect this parked editor edits.
+    pub(crate) fn kind(&self) -> Option<EffectKind> {
+        self.open.map(|o| o.2)
+    }
 }
 
 /// Exchange the state of `kind` in `fx` with `ed`'s (both directions).

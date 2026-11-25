@@ -711,6 +711,8 @@ pub enum Spot {
     /// A minimised device's chip in the tray, and its ×.
     TrayChip(DeviceKey),
     TrayClose(DeviceKey),
+    /// r42:editor-windows — an instrument editor's on-screen keys (its keyboard card).
+    InstKeys(TrackId),
 }
 
 type Spots = std::sync::Arc<std::sync::Mutex<std::collections::HashMap<Spot, Rect>>>;

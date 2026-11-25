@@ -1820,10 +1820,24 @@ in view. <!-- r40:docs -->
   cell to route, drag for the level (`Shift` for fine), `Ctrl+drag` copies down a column.
   Strips and groups move by dragging or with `Alt+Left`/`Alt+Right`; a track header dropped
   on a strip plays into it.
-- **Device windows** have *Swap*, minimise (to the tray in the status bar), maximise and
-  close. `F8` opens the selected track's instrument (or brings it to the front, or closes
-  it when it is already in front), `Esc` closes the device you used last,
-  `F12` closes every floating one.
+- **Device windows** have *Swap*, a **pin**, minimise (to the tray in the status bar),
+  maximise and close. `F8` opens the selected track's instrument (or brings it to the front,
+  or closes it when it is already in front), `Esc` closes the device you used last,
+  `F12` closes every floating one that is not pinned.
+- **Closing an editor brings back what you were looking at**: an instrument opened over the
+  mixer, the arrangement or the session view gives that view back when it closes — by its ✕,
+  `Esc`, `F8`, the tray's ×, or its track or effect deleted. If you brought another view
+  forward while the editor was open, closing it leaves you there.
+- **Pin an editor** with the push pin left of minimise (it stands upright and lights while
+  pinned): it stays on screen when another instrument or effect opens, stays above the
+  editors that are not pinned, never goes behind a tab (a pinned tab floats where it is), and
+  only its own ✕, `Esc` after you clicked it, or the tray close it. Pin several to keep
+  them all; a new editor opens beside them where the screen has room. The one you touched
+  last is the one whose meters and analyser move; the others keep their controls live and
+  show their readings at rest until you click them.
+- **Several at once**: *Settings ▸ Editing ▸ Editor windows ▸ Editors open: Several at
+  once* keeps every editor open until you close it, pinned or not (*One at a time*, the
+  default, closes the last one you opened unless it is pinned).
 
 **Solo** follows the routing: a soloed strip is heard with what feeds it and what it feeds.
 

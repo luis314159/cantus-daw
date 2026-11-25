@@ -1015,4 +1015,55 @@ mod tests {
         wanted(&ctx, &mut keys);
         assert!(keys.is_empty());
     }
+
+    /// Round 42 (ADR 0161): a device opening where others are goes where it covers them
+    /// least — its own place when that is free enough, else beside them.
+    #[test]
+    fn a_device_opens_beside_the_others_where_there_is_room() {
+        let area = Rect::from_min_size(Pos2::ZERO, Vec2::new(2560.0, 1400.0));
+        let size = Vec2::new(1040.0, 700.0);
+        // Alone: where it asked, or the centre.
+        let alone = place_beside(&[], size, area, None);
+        assert_eq!(alone.center(), area.center());
+        let asked = place_beside(&[], size, area, Some(Pos2::new(100.0, 60.0)));
+        assert_eq!(asked.min, Pos2::new(100.0, 60.0));
+        // One in the middle: beside it, not over it.
+        let other = Rect::from_center_size(area.center(), size);
+        let next = place_beside(&[other], size, area, Some(other.min));
+        assert!(
+            !next.intersects(other) || next.intersect(other).area() < size.x * size.y * 0.25,
+            "{next:?} over {other:?}"
+        );
+        assert!(area.contains_rect(next), "inside the workspace: {next:?}");
+        // Two at the left and right top corners: the third takes a bottom one, inside.
+        let a = Rect::from_min_size(Pos2::new(8.0, 8.0), size);
+        let b = Rect::from_min_size(Pos2::new(2560.0 - 8.0 - size.x, 8.0), size);
+        let c = place_beside(&[a, b], size, area, Some(a.min));
+        assert!(c.top() > a.top(), "below them: {c:?}");
+        assert!(area.contains_rect(c));
+    }
+
+    #[test]
+    fn a_pin_is_kept_by_the_registry_and_asks_a_shared_tab_to_float() {
+        let ctx = Context::default();
+        let id = Id::new(("inst-editor", 3));
+        let key = id.value();
+        let mut open = true;
+        run(&ctx, |ui| {
+            let _ = DeviceWindow::new("Calor")
+                .id(id)
+                .open(&mut open)
+                .show(ui.ctx(), |_| ());
+        });
+        assert!(!is_pinned(&ctx, key));
+        assert!(toggle_pin(&ctx, key));
+        assert!(is_pinned(&ctx, key));
+        let mut pending = Vec::new();
+        take_pending(&ctx, &mut pending);
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].1, Pending::Float, "a tab pinned floats where it is");
+        assert!(!toggle_pin(&ctx, key));
+        take_pending(&ctx, &mut pending);
+        assert!(pending.is_empty(), "unpinning moves nothing");
+    }
 }

@@ -1,0 +1,14 @@
+# Área: ventanas de editor que se comportan (ronda 42, ADR 0161) — la chincheta, el ajuste.
+
+# --- la chincheta, a la izquierda de minimizar en cada ventana de dispositivo ---
+editors.tip.pin = Fijar: se queda en pantalla cuando se abre otro editor, y encima de los demás
+editors.tip.unpin = Soltar: el próximo editor que abras vuelve a ocupar su lugar
+editors.status.pinned = {name} fijado: se queda en pantalla hasta que lo cierres
+editors.status.unpinned = {name} soltado
+
+# --- Ajustes ▸ Edición ---
+editors.settings.band = Ventanas de editor
+editors.settings.open = Editores abiertos
+editors.open.one = De uno en uno
+editors.open.several = Varios a la vez
+editors.settings.note = De uno en uno: al abrir un instrumento o un efecto se cierra el último que abriste, salvo que esté fijado. Varios a la vez: cada editor se queda hasta que lo cierres. En los dos casos, al cerrar un editor vuelve la vista que estaba delante antes de abrirlo.

@@ -509,34 +509,36 @@ impl Workspace {
     /// End of a frame: every leaf whose front is a device that was not in front last frame
     /// learns what it covered — the tab of that leaf that was in front last frame.
     pub(super) fn watch_fronts(&mut self) {
-        let mut found: Vec<(DeviceKey, Pane)> = Vec::new();
+        // A frame allocates nothing here: a few leaves, kept in fixed room.
+        let mut found = [(0u64, Pane::Arrangement); 8];
+        let mut n = 0;
         for (_, leaf) in self.dock.iter_leaves() {
             let Some(front) = leaf.tabs.get(leaf.active.0).copied() else {
                 continue;
             };
             if let Pane::Device(key) = front {
-                if !self.fronts.contains(&front) {
+                if !self.fronts.contains(&front) && n < found.len() {
                     if let Some(was) = leaf
                         .tabs
                         .iter()
                         .copied()
                         .find(|t| *t != front && self.fronts.contains(t))
                     {
-                        found.push((key, was));
+                        found[n] = (key, was);
+                        n += 1;
                     }
                 }
             }
         }
-        for (k, p) in found {
+        for &(k, p) in &found[..n] {
             self.note_covered(k, p);
         }
-        self.fronts.clear();
-        let fronts: Vec<Pane> = self
-            .dock
-            .iter_leaves()
-            .filter_map(|(_, l)| l.tabs.get(l.active.0).copied())
-            .collect();
-        self.fronts.extend(fronts);
+        let Workspace { dock, fronts, .. } = self;
+        fronts.clear();
+        fronts.extend(
+            dock.iter_leaves()
+                .filter_map(|(_, l)| l.tabs.get(l.active.0).copied()),
+        );
     }
 
     /// Make `pane` the tab showing in its leaf, putting it back in the dock if it is not
@@ -967,6 +969,84 @@ mod tests {
             ws.find(Pane::Arrangement).unwrap().node_path()
         );
         assert!(ws.is_visible(Pane::Device(7)));
+    }
+}
+
+#[cfg(test)]
+mod device_leaves_tests {
+    //! Round 42 (ADR 0161): a device tab that leaves its leaf while in front gives the front
+    //! back to the tab it covered — and only then.
+    use super::*;
+
+    fn front_of(ws: &Workspace, pane: Pane) -> Pane {
+        let p = ws.find(pane).unwrap();
+        let leaf = ws.dock.leaf(p.node_path()).unwrap();
+        leaf.tabs[leaf.active.0]
+    }
+
+    /// A workspace whose arrangement is hidden: a device opens over the lower zone.
+    fn over_the_mixer() -> Workspace {
+        let mut ws = Workspace::default();
+        ws.hide(Pane::Arrangement);
+        ws.reveal(Pane::Mixer);
+        assert_eq!(front_of(&ws, Pane::Mixer), Pane::Mixer);
+        ws
+    }
+
+    #[test]
+    fn a_device_closed_in_front_gives_back_the_tab_it_covered() {
+        let mut ws = over_the_mixer();
+        ws.reveal(Pane::Device(7));
+        assert_eq!(front_of(&ws, Pane::Mixer), Pane::Device(7), "it covers the mixer");
+        ws.hide(Pane::Device(7));
+        // egui_dock alone would show the tab before it: the channel rack.
+        assert_eq!(front_of(&ws, Pane::Mixer), Pane::Mixer);
+    }
+
+    #[test]
+    fn a_device_floated_out_gives_back_the_tab_it_covered() {
+        let mut ws = over_the_mixer();
+        ws.reveal(Pane::Device(7));
+        ws.toggle_float(Pane::Device(7));
+        assert!(ws.is_floating(Pane::Device(7)));
+        assert_eq!(front_of(&ws, Pane::Mixer), Pane::Mixer);
+    }
+
+    #[test]
+    fn a_device_closed_behind_another_tab_changes_nothing() {
+        let mut ws = over_the_mixer();
+        ws.reveal(Pane::Device(7));
+        // The user brings the piano roll forward while the editor is open.
+        ws.reveal(Pane::PianoRoll);
+        ws.hide(Pane::Device(7));
+        assert_eq!(
+            front_of(&ws, Pane::Mixer),
+            Pane::PianoRoll,
+            "never pulled back to the mixer"
+        );
+    }
+
+    #[test]
+    fn devices_stacked_give_the_front_back_in_turn() {
+        let mut ws = over_the_mixer();
+        ws.reveal(Pane::Device(7));
+        ws.reveal(Pane::Device(8));
+        assert_eq!(front_of(&ws, Pane::Mixer), Pane::Device(8));
+        // The first closes while behind: the second now covers what the first covered.
+        ws.hide(Pane::Device(7));
+        assert_eq!(front_of(&ws, Pane::Mixer), Pane::Device(8));
+        ws.hide(Pane::Device(8));
+        assert_eq!(front_of(&ws, Pane::Mixer), Pane::Mixer);
+    }
+
+    #[test]
+    fn a_device_over_the_session_leaves_the_session_in_front() {
+        let mut ws = Workspace::default();
+        ws.reveal(Pane::Session);
+        assert_eq!(front_of(&ws, Pane::Arrangement), Pane::Session);
+        ws.reveal(Pane::Device(7));
+        ws.hide(Pane::Device(7));
+        assert_eq!(front_of(&ws, Pane::Arrangement), Pane::Session);
     }
 }
 

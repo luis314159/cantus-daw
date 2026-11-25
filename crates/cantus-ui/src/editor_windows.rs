@@ -326,6 +326,12 @@ impl CantusApp {
         self.set_status(crate::i18n::tf(words, &[("name", &name)]));
     }
 
+    /// Settings ▸ Editing: one editor at a time, or several (stored at once).
+    pub fn set_editors_open(&mut self, mode: EditorsOpen) {
+        self.settings.editors_open = mode;
+        self.store_settings();
+    }
+
     /// Whether an open asked for now has to wait for the parked editors to be drawn (rule
     /// 6): it is kept, and run once they are.
     pub(crate) fn defer_open(&mut self, what: Deferred) -> bool {
@@ -402,6 +408,30 @@ impl CantusApp {
     /// Whether an effect's editor is open in any slot, parked or not.
     pub fn effect_editor_open(&self, effect: EffectId) -> bool {
         is_open::<Fx>(self, effect) || is_open::<Eq>(self, effect) || is_open::<Comp>(self, effect)
+    }
+
+    /// Whether an editor of another effect of `kind` is open, in its slot or parked: the two
+    /// windows' headers then take ids of their own (`Shell::salted`).
+    pub(crate) fn twin_editor_open(&self, effect: EffectId, kind: cantus_core::EffectKind) -> bool {
+        use cantus_core::EffectKind as K;
+        let other = |e: Option<EffectId>| e.is_some_and(|e| e != effect);
+        match kind {
+            K::Eq => {
+                other(self.eq_editor.open.map(|o| o.1)) || self.editors.eq.iter().any(|p| p.0 != effect)
+            }
+            K::Compressor => {
+                other(self.comp_editor.open.map(|o| o.1))
+                    || self.editors.comp.iter().any(|p| p.0 != effect)
+            }
+            _ => {
+                self.fx.open.is_some_and(|o| o.1 != effect && o.2 == kind)
+                    || self
+                        .editors
+                        .fx
+                        .iter()
+                        .any(|p| p.0 != effect && p.1.kind() == Some(kind))
+            }
+        }
     }
 
     /// A parked effect editor comes into its slot and is the live one. True if one did.
