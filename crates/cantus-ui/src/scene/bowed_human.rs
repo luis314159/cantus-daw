@@ -151,8 +151,7 @@ static MAN_LIDS: &[u8] = include_bytes!("../../assets/figures/man_lids.bin");
 /// `u32` index and its offset at rest (three `i16` at 0.001 cm): the lids closed over the
 /// eyes (`tools/arcus-figures/lids.py`). Empty when the bytes are not that.
 fn parse_lids(b: &[u8]) -> Vec<(u32, V3)> {
-    let mut r = Rd { b, o: 0 };
-    let ok = (|| {
+    fn read(r: &mut Rd) -> Option<Vec<(u32, V3)>> {
         if r.take::<4>()? != *b"CLID" || r.u16()? != 1 {
             return None;
         }
@@ -164,8 +163,8 @@ fn parse_lids(b: &[u8]) -> Vec<(u32, V3)> {
             out.push((i, d));
         }
         Some(out)
-    })();
-    ok.unwrap_or_default()
+    }
+    read(&mut Rd { b, o: 0 }).unwrap_or_default()
 }
 
 /// r42:arcus-hand — the offsets at rest that close `w`'s eyes (vertex, offset), read once.
@@ -182,9 +181,100 @@ pub fn lids(w: Who) -> &'static [(u32, V3)] {
 pub fn figure(w: Who) -> &'static Figure {
     static W: OnceLock<Figure> = OnceLock::new();
     static M: OnceLock<Figure> = OnceLock::new();
+    let read = |b: &[u8]| {
+        let mut f = parse(b).unwrap_or_default();
+        knuckle_fix(&mut f);
+        f
+    };
     match w {
-        Who::Woman => W.get_or_init(|| parse(WOMAN).unwrap_or_default()),
-        Who::Man => M.get_or_init(|| parse(MAN).unwrap_or_default()),
+        Who::Woman => W.get_or_init(|| read(WOMAN)),
+        Who::Man => M.get_or_init(|| read(MAN)),
+    }
+}
+
+/// r42:arcus-hand — each finger's base joint where a hand's knuckle is. MakeHuman's finger
+/// bones begin at the webs, about a centimetre and a half past the knuckles' joints (her
+/// first phalanges 2.2–3.0 cm, a real one's 3.7–4.2): bent there, a finger folded in the
+/// middle of its first phalanx and the palm ran on into it — the owner's "fist", short
+/// fingers on a broad palm. Each finger's base joint moves back along its metacarpal by
+/// [`KNUCKLE_BACK`] of the wrist-to-base length, and the skin between is handed from the
+/// hand's bone to the finger's, smoothly (a ramp round the new joint), each vertex by how
+/// near it lies to that finger's line. `tools/arcus-figures/hand_rig.py::knuckle_fix` does
+/// the same for the table's solve; the two must stay alike.
+pub const KNUCKLE_BACK: f32 = 0.12;
+const KNUCKLE_LANE: f32 = 0.8;
+const KNUCKLE_RAMP: (f32, f32) = (-0.5, 0.7);
+
+fn knuckle_fix(fig: &mut Figure) {
+    if fig.bones.len() < BONES {
+        return;
+    }
+    for s in 0..2 {
+        let o = side(s);
+        let wr = fig.bones[o + HAND].head;
+        let mut heads = [V3::default(); 4];
+        let mut axes = [V3::default(); 4];
+        for f in 0..4 {
+            let b = o + finger(f + 1, 0);
+            let h = fig.bones[b].head;
+            let ax = (h - wr).norm();
+            let nh = h - ax * ((h - wr).len() * KNUCKLE_BACK);
+            fig.bones[b].head = nh;
+            heads[f] = nh;
+            axes[f] = ax;
+        }
+        let hb = (o + HAND) as u8;
+        for (i, w) in fig.bw.iter_mut().enumerate() {
+            let Some(j) = w.iter().position(|&(b, x)| b == hb && x > 0.0) else {
+                continue;
+            };
+            let wh = w[j].1;
+            let p = fig.pos[i];
+            let d = p - wr;
+            let mut c = [0.0f32; 4];
+            for f in 0..4 {
+                let t = d.dot(axes[f]);
+                let lat = (d - axes[f] * t).len();
+                c[f] = (-(lat / KNUCKLE_LANE).powi(2)).exp();
+            }
+            let sum: f32 = c.iter().sum();
+            if sum < 1e-6 {
+                continue;
+            }
+            let mut mv = [0.0f32; 4];
+            for f in 0..4 {
+                let u = (p - heads[f]).dot(axes[f]);
+                let r = ((u - KNUCKLE_RAMP.0) / (KNUCKLE_RAMP.1 - KNUCKLE_RAMP.0)).clamp(0.0, 1.0);
+                mv[f] = wh * c[f] / sum * r * r * (3.0 - 2.0 * r);
+            }
+            let total: f32 = mv.iter().sum();
+            if total < 1e-6 {
+                continue;
+            }
+            // Up to nine bones, then the four heaviest kept, renormalised.
+            let mut all: Vec<(u8, f32)> = w.iter().copied().filter(|&(_, x)| x > 0.0).collect();
+            for e in all.iter_mut() {
+                if e.0 == hb {
+                    e.1 -= total;
+                }
+            }
+            for (f, m) in mv.iter().enumerate() {
+                let b = (o + finger(f + 1, 0)) as u8;
+                match all.iter_mut().find(|e| e.0 == b) {
+                    Some(e) => e.1 += m,
+                    None => all.push((b, *m)),
+                }
+            }
+            all.retain(|e| e.1 > 1e-6);
+            all.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            all.truncate(4);
+            let tot: f32 = all.iter().map(|e| e.1).sum();
+            let mut out = [(0u8, 0.0f32); 4];
+            for (k, e) in all.iter().enumerate() {
+                out[k] = (e.0, e.1 / tot);
+            }
+            *w = out;
+        }
     }
 }
 

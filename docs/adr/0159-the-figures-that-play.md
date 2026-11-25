@@ -68,6 +68,53 @@ occluding capsules in its live painter.
     moves it with the hand); the elbow sits on the hand's line (the wrist straight). The
     cello's and the bass's hands and the stylised figures' stay worked out from the stops
     (`arcus_draw_hand::left_pose`).
+    **From photographs of professional violinists** (amendment, 2026-11-25, r42:arcus-hand —
+    the owner, after three passes: "URGENT LA MANO IZQUIERDA DEL VIOLIN", still "un
+    desastre"). Forty Wikimedia Commons photographs of soloists, sections and close-ups,
+    plus the owner's five, were measured (`tools/arcus-figures/left_hand_refs.md`; the
+    photographs are study material outside the repository, never in it or the app), and
+    three causes were found, each fixed and gated:
+    - **The rig bent the fingers in the wrong place.** MakeHuman's finger bones begin at
+      the webs, about a centimetre and a half past the knuckles' joints (her first
+      phalanges 2.2–3.0 cm where a real one is 3.7–4.2). Bent there, a finger folded
+      halfway along its first phalanx and the palm ran on into it: a fist, short fingers on
+      a broad palm. Each finger's base joint now moves back 12 % of the wrist-to-base
+      length along its metacarpal, and the skin between passes smoothly from the hand's
+      bone to the finger's (`bowed_human::knuckle_fix`, mirrored in
+      `hand_rig.py::knuckle_fix` for the solve). The middle finger over the back of the
+      hand goes from 0.87 to about 1.1.
+    - **The hand faced the camera broadside.** The rules now hold the back of the hand
+      turned 30° toward the scroll and rolled 20–26° down (the palm up toward the neck's
+      underside and toward the player), within 5°. The base knuckles sit beside the E side
+      at the fingerboard's height, a little under it. The first phalanges rise (within 40°
+      of the board's normal), the middle joints stand 3.0–3.3 cm over the board (scaled by
+      the hand's length: his are a quarter higher), and the playing tip comes down within
+      20° of the normal. Abduction is near zero (the fingers parallel), and the wrist turns
+      at most 6° toward the little finger. The forearm's way is now kept per row: the table
+      is version 2, 70 `i16` a row.
+    - **The camera.** Measured in the instrument's frame, the picture's camera looked from
+      59° round the neck toward the scroll. The photographs are taken square to it: photo 5
+      at 88°, photo 2 at 90°, both 23–31° over the board's plane. From 59° no reachable pose
+      showed the back narrower than 1.4 times its length (photographs: 0.5–0.9), because the
+      hand's length foreshortens. The realistic violinists are now seen from azimuth −20°,
+      5° up (`bowed_draw::REAL_HELD_VIEW`: 86° to the neck, 31° over the board). The
+      stylised figures keep their view.
+    The study tool `hand_study.py` measures any pose as the photographs are measured, and
+    `hand_sheet_v10.py` draws the app's own picture from the earlier camera, the new one
+    and photo 5's angle. High's hand is drawn as curved patches (`arcus_draw_flesh::fine_tri`:
+    PN triangles, Vlachos et al. 2001, cut to about 2.5 px a side) with the skin's own
+    texture per point, the knuckles a little redder, the nails paler at their free edge,
+    and each fingertip's soft shadow on the fingerboard.
+  - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
+    (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
+    2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la
+    música"). **Closed** is the default. Closing is a morph over the built figure
+    (`tools/arcus-figures/lids.py` → `assets/figures/<who>_lids.bin`, 11 KB each). About
+    each eye's centre the upper lid turns down by the opening's own angle plus 3°, fully at
+    its margin and fading toward the fold, the corners and the brow, so it slides over the
+    eyeball and never into it; the lower lid rises 3°; the lashes ride with their lid. The
+    eyes are part of the holder the picture is cached by (`Holder::eyes`, never written with
+    it), so a change bakes the picture again.
   - `stylised` — the stylised musician's and the mannequin's poser **on the same
     contract** (amendment, 2026-11-24): Arcus fills one PlayRig for them
     (`bowed_figure::arcus_rig`: the jaw on the chinrest or the pelvis on the cello's seat,

@@ -52,7 +52,23 @@ fn test_camera() -> Option<(V3, V3, f32)> {
 
 /// r42:arcus-hand — a realistic figure holding a violin or a viola: the camera's azimuth
 /// (degrees) and its height over the room's own (degrees).
-pub const REAL_HELD_VIEW: (f32, f32) = (-12.0, 3.0);
+pub const REAL_HELD_VIEW: (f32, f32) = (-20.0, -3.0);
+
+/// r42:arcus-hand — design sheets only: another view for the realistic violinists (the
+/// earlier one beside the new, `shoot_arcus --view=4,7`). Never set by the app.
+static REAL_VIEW: std::sync::Mutex<Option<(f32, f32)>> = std::sync::Mutex::new(None);
+
+/// r42:arcus-hand — set (or clear) [`REAL_VIEW`]. For design sheets only.
+pub fn set_real_view(v: Option<(f32, f32)>) {
+    *REAL_VIEW.lock().unwrap_or_else(|e| e.into_inner()) = v;
+}
+
+fn real_view() -> (f32, f32) {
+    REAL_VIEW
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .unwrap_or(REAL_HELD_VIEW)
+}
 
 /// The camera an instrument is seen from: three-quarter from the audience's left, close
 /// and a little above the floor (sheet v4: the instrument fills the picture's height).
@@ -84,7 +100,8 @@ pub fn camera(b: Bowed, h: Holder, room: Room) -> Camera {
         // professional violinists measured in tools/arcus-figures/left_hand_refs.md: from
         // the hall the left hand shows its back at a slant, the fingers arched over the
         // fingerboard; from over the scroll it was foreshortened into a paw).
-        (REAL_HELD_VIEW.0, el + REAL_HELD_VIEW.1)
+        let (a, e) = real_view();
+        (a, el + e)
     } else if d.held && !stand {
         (4.0, el + 7.0)
     } else if stand {

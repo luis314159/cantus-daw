@@ -287,6 +287,16 @@ fn main() {
             )));
         }
     }
+    // r42:arcus-hand — `--view=<az>,<el>`: the realistic violinists' camera (the earlier one
+    // was `4,7`); tagged `-view<az>`.
+    let mut vtag = String::new();
+    if let Some(c) = args.iter().find_map(|a| a.strip_prefix("--view=")) {
+        let v: Vec<f32> = c.split(',').filter_map(|x| x.parse().ok()).collect();
+        if let [az, el] = v[..] {
+            cantus_ui::scene::bowed_draw::set_real_view(Some((az, el)));
+            vtag = format!("-view{az}");
+        }
+    }
     let quality = match args.iter().find_map(|a| a.strip_prefix("--quality=")) {
         Some("light") => cantus_ui::scene::figure::Quality::Light,
         _ => cantus_ui::scene::figure::Quality::High,
@@ -303,9 +313,9 @@ fn main() {
         _ => cantus_ui::scene::figure::Eyes::Closed,
     };
     let qtag = if eyes == cantus_ui::scene::figure::Eyes::Open {
-        format!("{qtag}-eyesopen")
+        format!("{qtag}-eyesopen{vtag}")
     } else {
-        qtag.to_string()
+        format!("{qtag}{vtag}")
     };
     let looks = [
         ("drawn", cantus_ui::scene::SceneBackend::Vector),

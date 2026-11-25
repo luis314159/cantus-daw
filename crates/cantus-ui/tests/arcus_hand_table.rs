@@ -101,7 +101,16 @@ const UPRIGHT: f32 = 25.0;
 /// never its palm nor its edge), and where the index finger's base knuckle sits against the
 /// neck's E side (cm out from the fingerboard's edge) and the knuckles' height against the
 /// fingerboard's top (cm).
-const WRIST: f32 = 15.0;
+const WRIST: f32 = 8.0;
+/// The back of the hand's width at the knuckles over its length (wrist to knuckles) as the
+/// picture shows it: the photographs' front views 0.5–0.9 (the hand at a slant, never
+/// broadside); a high position, the forearm straight up under the neck, a little broader.
+const BACK_WL: (f32, f32) = (0.45, 0.95);
+const BACK_WL_HIGH: f32 = 1.2;
+/// The middle finger (its base joint to its tip, along its bones) over the back of the hand
+/// (the wrist to that joint): a real hand's about 1 (the knuckle fix; MakeHuman's own rig
+/// read 0.87, its fingers bending a centimetre and a half past the knuckles).
+const FINGER_PALM: (f32, f32) = (0.95, 1.35);
 const BACK_TO_CAMERA: f32 = 0.2;
 const INDEX_OUT: (f32, f32) = (0.2, 2.0);
 const KNUCKLES_UP: (f32, f32) = (-1.6, 2.6);
@@ -128,6 +137,19 @@ fn the_tables_hand_plays_as_a_violinists_does() {
             let d = b.dims();
             let arm = left_arm(b, h).expect("a figure");
             let fig = hu::figure(who);
+            {
+                let o = side(0);
+                let bn = |k: usize| fig.bones[o + finger(2, k)];
+                let finger_len = (bn(0).tail - bn(0).head).len()
+                    + (bn(1).tail - bn(1).head).len()
+                    + (bn(2).tail - bn(2).head).len();
+                let palm = (bn(0).head - fig.bones[o + hu::HAND].head).len();
+                let r = finger_len / palm;
+                assert!(
+                    (FINGER_PALM.0..=FINGER_PALM.1).contains(&r),
+                    "{who:?}: the middle finger {finger_len:.1} cm over the back of the hand {palm:.1} cm = {r:.2}"
+                );
+            }
             let base = hu::rest_body(b, who);
             let mut cam = bowed_draw::camera(b, h, Room::Studio);
             // The palm's normal at rest (out of the palm), as the tool takes it.
@@ -252,6 +274,13 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                     worst[4] = worst[4].max(-facing);
                     if facing < BACK_TO_CAMERA {
                         bad.push(format!("{tag}: the back of the hand faces the camera at {facing:.2}"));
+                    }
+                    // The back at a slant in the picture (BACK_WL).
+                    let wl = (cam.p(lp.fingers[0][0]) - cam.p(lp.fingers[3][0])).length()
+                        / (cam.p(mid) - cam.p(lp.wrist)).length().max(1e-3);
+                    let hi = if at > 8.0 { BACK_WL_HIGH } else { BACK_WL.1 };
+                    if !(BACK_WL.0..=hi).contains(&wl) {
+                        bad.push(format!("{tag}: the back of the hand {wl:.2} wide over long"));
                     }
                     let wrist = deg(lp.wrist - lp.elbow, mid - lp.wrist);
                     worst[5] = worst[5].max(wrist);

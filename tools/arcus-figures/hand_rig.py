@@ -23,7 +23,7 @@ def finger(f, k):
     return 6 + f * 3 + k
 
 
-def read_fig(path):
+def read_fig(path, knuckles=True):
     b = open(path, 'rb').read()
     o = 0
 
@@ -67,8 +67,73 @@ def read_fig(path):
         tris[i] = v[0:3]
         mat[i] = v[3]
         part[i] = v[4]
-    return dict(bones=bones, marks=marks, pos=pos, ids=ids, ws=ws, det=det, tris=tris,
-                mat=mat, part=part)
+    fig = dict(bones=bones, marks=marks, pos=pos, ids=ids, ws=ws, det=det, tris=tris,
+               mat=mat, part=part)
+    if knuckles:
+        knuckle_fix(fig)
+    return fig
+
+
+# r42:arcus-hand — MakeHuman's finger bones begin at the webs, about a centimetre and a
+# half past the knuckles' joints (the proximal phalanx 2.2-3.0 cm on her, a real one 3.7-4.2):
+# bent there, a finger folds in the middle of its first phalanx and the palm runs on into it
+# (the owner's "fist", the coordinator's "short fingers on a broad palm"). Each finger's
+# base joint is moved back along its metacarpal by this share of the wrist-to-base length
+# and the skin between is handed from the hand's bone to the finger's, smoothly, each vertex
+# by how near it lies to that finger's line. ``scene/bowed_human.rs::knuckle_fix`` does the
+# same on the figure the app reads; the two must stay alike.
+KNUCKLE_BACK = 0.12
+KNUCKLE_LANE = 0.8
+KNUCKLE_RAMP = (-0.5, 0.7)
+
+
+def knuckle_fix(fig):
+    B = fig["bones"]
+    pos, ids, ws = fig["pos"], fig["ids"], fig["ws"]
+    for s in (0, 1):
+        o = side(s)
+        wr = B[o + HAND][1]
+        heads, axes = [], []
+        for f in range(1, 5):
+            b = o + finger(f, 0)
+            par, h, t, x = B[b]
+            ax = norm(h - wr)
+            nh = h - ax * (np.linalg.norm(h - wr) * KNUCKLE_BACK)
+            B[b] = (par, nh, t, x)
+            heads.append(nh)
+            axes.append(ax)
+        heads, axes = np.array(heads), np.array(axes)
+        hb = o + HAND
+        has = (ids == hb) & (ws > 0)
+        rows = np.nonzero(has.any(1))[0]
+        for i in rows:
+            j = int(np.nonzero(has[i])[0][0])
+            wh = ws[i, j]
+            d = pos[i] - wr
+            t = d @ axes.T
+            lat = np.linalg.norm(d[None, :] - axes * t[:, None], axis=1)
+            c = np.exp(-(lat / KNUCKLE_LANE) ** 2)
+            if c.sum() < 1e-6:
+                continue
+            c = c / c.sum()
+            u = np.einsum("ij,ij->i", pos[i][None, :] - heads, axes)
+            r = np.clip((u - KNUCKLE_RAMP[0]) / (KNUCKLE_RAMP[1] - KNUCKLE_RAMP[0]), 0, 1)
+            r = r * r * (3 - 2 * r)
+            move = wh * c * r
+            if move.sum() < 1e-6:
+                continue
+            w = {int(ids[i, k]): float(ws[i, k]) for k in range(4) if ws[i, k] > 0}
+            w[hb] = w.get(hb, 0.0) - float(move.sum())
+            for f in range(4):
+                b = o + finger(f + 1, 0)
+                w[b] = w.get(b, 0.0) + float(move[f])
+            top = sorted(((v, k) for k, v in w.items() if v > 1e-6), reverse=True)[:4]
+            tot = sum(v for v, _ in top)
+            ids[i] = 0
+            ws[i] = 0
+            for k, (v, b) in enumerate(top):
+                ids[i, k] = b
+                ws[i, k] = v / tot
 
 
 def norm(v):

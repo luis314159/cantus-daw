@@ -684,3 +684,49 @@ regenerated.
    way no coherent direction. A groomed short-hair texture would let him have a sheen.
 6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
 
+
+## arcus-hand (2026-11-25): the violin's left hand from photographs, the eyes' setting
+
+Branch `r42/arcus-hand` (worktree `F:\projects\daw-r42\arcus-hand`), from r42/integration
+f42f88109. The owner: "URGENT LA MANO IZQUIERDA DEL VIOLIN, ESFUÉRZATE BIEN EN ESO" — after
+three passes still "un desastre"; more realistic musicians; the eyes closed or open (he
+liked them closed: "parecían concentrados o disfrutando de la música"); more photographs of
+professional violinists, in orchestras too. ADR 0159 amended (`neck_hand`, `Eyes`).
+
+**References** (study only, never in the tree): `F:\projects\daw-r42\refs-violin\` — 40
+Wikimedia Commons photographs (soloists from the front and front-left, close-ups, sections,
+the player's side), `sources.md` (page, author, licence, view, position), a contact sheet,
+eight crops, `annotated/` (the landmarks drawn). Measured in
+`tools/arcus-figures/left_hand_refs.md` (forearm–neck 50–85°, the hand steeper than the
+forearm by 3–23°, the knuckles from level with the fingerboard's top to one neck thickness
+under it, the arches 1–2 neck thicknesses over it, the back at a slant, 0.5–0.9 as wide as
+long, the thumb hidden from the front).
+
+**What was wrong, and the fixes** (each with its number in `left_hand_refs.md` / the ADR):
+1. MakeHuman's finger bones begin at the webs, 1.2–1.5 cm past the real knuckle joints: the
+   fingers folded mid-phalanx, the palm ran on into them (the fist). `knuckle_fix` moves each
+   base joint back 12 % along its metacarpal and hands the skin between to the finger
+   (Rust `bowed_human::knuckle_fix` and Python `hand_rig.knuckle_fix`, alike).
+2. The hand was broadside to the camera: the solver now holds the back turned 30° toward the
+   scroll and rolled 20–26° down (within 5°), the knuckles beside the E side at the board's
+   height, the first phalanges rising, high arches (scaled by the hand's length), the tip
+   within 20° of the board's normal, the fingers parallel, the wrist's turn 0–6° (kept per
+   row: the table's version 2).
+3. The camera saw the neck from 59° toward the scroll; the photographs are square to it
+   (88–90°). The realistic violinists' camera is now azimuth −20°, 5° up
+   (`bowed_draw::REAL_HELD_VIEW`; `shoot_arcus --view=4,7` shows the earlier one).
+
+**High's hand** (`arcus_draw_flesh`): curved PN patches (`fine_tri`, ≤ 4 cuts a side, ~2.5 px)
+lit per point with the skin texture's detail (`cards::skin_detail`), the knuckles redder,
+the nails pale at their free edge (`hand_detail`), the patches' outline along their curved
+edge; each fingertip's soft shadow on the fingerboard (`arcus_draw_body::contact_shadows`).
+
+**Eyes** (`scene::figure::Eyes`, `Settings::figure_eyes`, Settings ▸ Appearance under Figure
+detail, both locales `arcus_upper.eyes*`): Closed by default; the lid morph from
+`tools/arcus-figures/lids.py` (`assets/figures/<who>_lids.bin`); `shoot_arcus --eyes=open`.
+
+**Tools**: `hand_study.py` (a pose from the app's camera, photo 5's, photo 2's and photo 4's,
+with the photographs' measures; `HAND_AZ`/`HAND_EL` turn the app's camera), `lids.py`,
+`hand_sheet_v10.py <shoot_arcus.exe> <dump.json> <out> [--old-dump=<dump>] [--refs=<dir>]`
+(the app's own picture round the hand from the earlier camera, the new one and photo 5's
+angle; the whole picture from both cameras; `numbers.txt`).
