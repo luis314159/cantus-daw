@@ -122,29 +122,65 @@ fn project(cam: &Camera, tris: &[Tri], skip: &[bool]) -> Vec<(u32, PTri)> {
     out
 }
 
-/// A projected triangle's card (r42:arcus-upper): its texture and its corners' coordinates
-/// — the samples its alpha leaves bare are not its.
-type Cut = Option<(&'static crate::scene::figure::cards::Card, [[f32; 2]; 3])>;
+/// A projected triangle's card (r42:arcus-upper): its texture, its corners' coordinates
+/// and (r42:arcus-hair) their degrees in from the hairline (the hair feathers out over the
+/// front edge) — the samples its coverage leaves bare are not its. The scalp under the
+/// cards (no texture) is cut the same way at its edge, so it thins into the skin.
+#[derive(Copy, Clone)]
+struct Cut {
+    card: Option<&'static crate::scene::figure::cards::Card>,
+    uv: [[f32; 2]; 3],
+    line: [f32; 3],
+    who: u8,
+}
 
 /// Each projected triangle's card, if it is one.
-fn cuts(geo: &Geo, pt: &[(u32, PTri)]) -> Vec<Cut> {
+fn cuts(geo: &Geo, pt: &[(u32, PTri)]) -> Vec<Option<Cut>> {
     pt.iter()
         .map(|&(i, _)| {
             let t = &geo.tris[i as usize];
             match geo.mats[t.m as usize].tex {
-                Tex::Card(k) => {
-                    crate::scene::figure::cards::card(k).map(|c| (c, t.v.map(|v| v.uv)))
-                }
+                Tex::Scalp(who) => Some(Cut {
+                    card: None,
+                    uv: t.v.map(|v| v.uv),
+                    line: t.v.map(|v| v.uv[1]),
+                    who,
+                }),
+                Tex::Card(k) => crate::scene::figure::cards::card(k).map(|card| Cut {
+                    card: Some(card),
+                    uv: t.v.map(|v| v.uv),
+                    // (A hair card's degrees in from the hairline ride in `uv2`; a brow's or a
+                    // lash's is whole: far inside.)
+                    line: t.v.map(|v| {
+                        if k % 3 == 0 && v.uv2[1] > 0.5 {
+                            v.uv2[0]
+                        } else {
+                            90.0
+                        }
+                    }),
+                    who: k / 3,
+                }),
                 _ => None,
             }
         })
         .collect()
 }
 
+/// r42:arcus-hair — alpha to coverage: the level a sample's coverage must pass, an ordered
+/// 4 × 4 pattern (each 2 × 2 block of it — a pixel's samples at two a side — four evenly
+/// spaced levels), turned by the triangle so that two layers of hair at half coverage
+/// cover three quarters, not the same half twice.
+fn coverage_level(px: usize, py: usize, tri: u32) -> f32 {
+    const BAYER: [u8; 16] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    let b = (BAYER[(py & 3) * 4 + (px & 3)] as f32 + 0.5) / 16.0;
+    let h = (tri.wrapping_mul(0x9E37_79B9) >> 8) as f32 / (1u32 << 24) as f32;
+    (b + h).fract()
+}
+
 /// Rasterise into rows `y0..y1` of a `w`-wide buffer: depth and (when given) triangle.
 fn raster_rows(
     pt: &[(u32, PTri)],
-    cut: &[Cut],
+    cut: &[Option<Cut>],
     w: usize,
     y0: usize,
     y1: usize,
@@ -154,10 +190,13 @@ fn raster_rows(
     for (j, &(i, ref t)) in pt.iter().enumerate() {
         let card = cut.get(j).copied().flatten();
         // (A card casts no shadow — the shadow map is the pass without triangles: its
-        // strands' shadows on the scalp under them read as dark patches in the hair.)
-        if card.is_some() && tri.is_none() {
-            continue;
-        }
+        // strands' shadows on the scalp under them read as dark patches in the hair. The
+        // scalp casts its own, whole.)
+        let card = match card {
+            Some(c) if tri.is_none() && c.card.is_some() => continue,
+            Some(_) if tri.is_none() => None,
+            c => c,
+        };
         if t.hi.y < y0 as f32 || t.lo.y > y1 as f32 || t.hi.x < 0.0 || t.lo.x > w as f32 {
             continue;
         }
@@ -166,6 +205,15 @@ fn raster_rows(
             continue;
         }
         let inv = 1.0 / area;
+        // (r42:arcus-hair: a card's texture read at the level its texels reach a sample.)
+        // (A brow's or a lash's hairs, a sample wide, read a level softer: their coverage
+        // a soft tone, not a line of dots.)
+        let lod = card
+            .and_then(|c| {
+                c.card
+                    .map(|t| t.lod(c.uv, area * 0.5) + if t.hair { 0.0 } else { 3.0 })
+            })
+            .unwrap_or(0.0);
         let ya = ((t.lo.y - 0.5).ceil().max(y0 as f32)) as usize;
         let yb = ((t.hi.y - 0.5).floor() + 1.0).min(y1 as f32).max(0.0) as usize;
         let xa = ((t.lo.x - 0.5).ceil().max(0.0)) as usize;
@@ -190,12 +238,31 @@ fn raster_rows(
                 let z = 1.0 / (w0 * t.iz[0] + w1 * t.iz[1] + w2 * t.iz[2]);
                 let k = row + px;
                 if z < depth[k] {
-                    if let Some((c, uv)) = card {
+                    if let Some(c) = card {
                         // Perspective-correct: the coordinates over depth, interpolated.
                         let (a, b, d) = (w0 * t.iz[0], w1 * t.iz[1], w2 * t.iz[2]);
+                        let uv = c.uv;
                         let u = (a * uv[0][0] + b * uv[1][0] + d * uv[2][0]) * z;
                         let v = (a * uv[0][1] + b * uv[1][1] + d * uv[2][1]) * z;
-                        if !c.covers([u, v]) {
+                        let line = (a * c.line[0] + b * c.line[1] + d * c.line[2]) * z;
+                        // (r42:arcus-hair: its coverage over the pixel's samples, not cut
+                        // at half: soft strands, soft edges.)
+                        // (The scalp's pattern the same over all its triangles: a smooth ramp,
+                        // never a seam of dither where two meet.)
+                        let (cover, seed) = match c.card {
+                            Some(tex) if tex.hair => (
+                                crate::scene::figure::cards::thin(
+                                    tex.alpha([u, v], lod),
+                                    crate::scene::figure::cards::feather(c.who, line),
+                                ),
+                                i,
+                            ),
+                            // (A brow's or a lash's softer level's coverage, its hairs' tone
+                            // kept: thin, it fell to a few dots.)
+                            Some(tex) => ((tex.alpha([u, v], lod) * 3.0).min(1.0), i),
+                            None => (crate::scene::figure::cards::scalp_cover(c.who, line, u), 0),
+                        };
+                        if cover <= coverage_level(px, py, seed) {
                             continue;
                         }
                     }
@@ -362,14 +429,47 @@ fn gbuf(
     (depth, tri)
 }
 
-/// r42:arcus-upper — whether `t` is hair (its grain the in-plane way its `u` grows).
-fn hair_of(geo: &Geo, t: &Tri) -> bool {
-    geo.mats[t.m as usize].tex == Tex::Hair
+/// r42:arcus-hair — whether `m` is a realistic figure's (skin, cloth, hair, eyes).
+fn figure_mat(m: &super::mat::PMat) -> bool {
+    matches!(
+        m.tex,
+        Tex::Skin | Tex::Velvet | Tex::Hair | Tex::Card(_) | Tex::Scalp(_) | Tex::Eye
+    )
+}
+
+/// What a triangle's grain is read from.
+#[derive(Copy, Clone, PartialEq)]
+enum Grain {
+    /// `dP/du` from its corners' coordinates.
+    Uv,
+    /// r42:arcus-upper — hair, or the scalp under the cards: the in-plane way its `u` (the
+    /// across coordinate) grows.
+    Hair,
+    /// r42:arcus-hair — a card (`figure::cards`): a hair card's strands run the way its
+    /// texture's maps say.
+    Card(u8),
+    /// r42:arcus-upper — a realistic figure's skin: its texture's fine detail on its
+    /// albedo's.
+    Skin,
+    /// r42:arcus-hair — an eye: its uv the place in its texture (`uv2`).
+    Eye,
+}
+
+fn grain_of(geo: &Geo, t: &Tri) -> Grain {
+    match geo.mats[t.m as usize].tex {
+        Tex::Hair | Tex::Scalp(_) => Grain::Hair,
+        Tex::Card(k) => Grain::Card(k),
+        Tex::Skin => Grain::Skin,
+        Tex::Eye => Grain::Eye,
+        _ => Grain::Uv,
+    }
 }
 
 /// Where the sample `(sx, sy)` of `cam` meets triangle `t`: the point, the smooth normal,
-/// the uv and the grain (`dP/du`).
-fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, hair: bool) -> (V3, V3, [f32; 2], V3) {
+/// the uv and the grain (`dP/du`). A hair card's uv is its strand's detail (and 1), its
+/// grain the way its strands run (r42:arcus-hair).
+fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, grain: Grain) -> (V3, V3, [f32; 2], V3) {
+    let hair = grain == Grain::Hair;
     let p: [V3; 3] = std::array::from_fn(|i| world(cam, t.v[i].p));
     let d = cam.fwd + cam.right * ((sx - cam.c.x) / cam.k) - cam.up * ((sy - cam.c.y) / cam.k);
     let (e1, e2) = (p[1] - p[0], p[2] - p[0]);
@@ -401,7 +501,12 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, hair: bool) -> (V3, V3, [f32; 
     ];
     // r42:arcus-upper — a realistic figure's skin: its own texture's fine detail (pores,
     // the brows' hairs, the lips' lines) on the vertex detail's luminance.
-    if v[0].uv2[0] >= 0.0 {
+    if grain == Grain::Eye {
+        uv = [
+            v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2,
+            v[0].uv2[1] * b0 + v[1].uv2[1] * b1 + v[2].uv2[1] * b2,
+        ];
+    } else if v[0].uv2[0] >= 0.0 && grain == Grain::Skin {
         let u2 = v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2;
         let v2 = v[0].uv2[1] * b0 + v[1].uv2[1] * b1 + v[2].uv2[1] * b2;
         uv[0] *= crate::scene::figure::cards::skin_detail(u2, v2);
@@ -425,6 +530,38 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, hair: bool) -> (V3, V3, [f32; 
             a1
         }
     };
+    // r42:arcus-hair — a hair card: its strand's detail at the level a sample reaches, and
+    // the way its strands run (dP/du·du + dP/dv·dv along the texture's way).
+    if let Grain::Card(k) = grain {
+        if let Some(c) = crate::scene::figure::cards::card(k).filter(|c| c.hair) {
+            // (A card triangle whose texture coordinates are degenerate still takes its
+            // strand's detail — given back as its raw coordinate, it read as pale patches
+            // over his crown — at the first level, its grain its edge's.)
+            let ok = det.abs() > 1e-12;
+            let dpdv = if ok {
+                (a2 * du1 - a1 * du2) * (1.0 / det)
+            } else {
+                V3::default()
+            };
+            let texel = tg.cross(dpdv).len() / (c.w * c.h) as f32;
+            let z = (world(cam, pw) - cam.eye).dot(cam.fwd).max(NEAR);
+            let foot = z / cam.k;
+            let lod = if texel > 1e-14 {
+                0.5 * (foot * foot / texel).max(1.0).log2()
+            } else {
+                0.0
+            };
+            let (detail, way) = c.strand(uv, lod);
+            let detail =
+                1.0 + (detail - 1.0) * crate::scene::figure::cards::hair_look(k / 3).detail;
+            let along = match way {
+                Some(w) if ok => tg * w[0] + dpdv * w[1],
+                _ => tg,
+            };
+            let along = if along.len() > 1e-9 { along } else { a1 };
+            return (pw, n, [detail, 1.0], along.norm());
+        }
+    }
     (pw, n, uv, tg.norm())
 }
 
@@ -659,7 +796,7 @@ impl Shadow {
 
     /// r42:arcus-upper — the key's reach for a surface of `m`: smooth on skin and hair.
     pub fn light_for(&self, m: &PMat, p: V3, n: V3) -> f32 {
-        if matches!(m.tex, Tex::Skin | Tex::Hair) {
+        if matches!(m.tex, Tex::Skin | Tex::Hair | Tex::Scalp(_) | Tex::Card(_)) {
             self.soft(p, n)
         } else {
             self.light(p, n)
@@ -1157,7 +1294,7 @@ fn mirror(
                 }
                 let tr = &geo.tris[split + t as usize];
                 let (p, n, uv, tg) =
-                    place(&mcam, tr, x as f32 + 0.5, y as f32 + 0.5, hair_of(geo, tr));
+                    place(&mcam, tr, x as f32 + 0.5, y as f32 + 0.5, grain_of(geo, tr));
                 let m = &geo.mats[tr.m as usize];
                 let fp = md[y * w + x] / mcam.k;
                 let c = shade(
@@ -1302,7 +1439,13 @@ pub fn bake(
                     }
                     let trg = &geo.tris[t as usize];
                     let m = &geo.mats[trg.m as usize];
-                    let (p, n, uv, _) = place(&scam, trg, sx as f32 + 0.5, sy as f32 + 0.5, false);
+                    let (p, n, uv, _) = place(
+                        &scam,
+                        trg,
+                        sx as f32 + 0.5,
+                        sy as f32 + 0.5,
+                        grain_of(geo, trg),
+                    );
                     let fp = depth[k] / scam.k * ss as f32;
                     if let Some(c) = reflection(
                         rig,
@@ -1378,8 +1521,20 @@ pub fn bake(
                     let mut acc = [0.0f32; 3];
                     let mut wsum = 0.0f32;
                     let mut zmin = f32::MAX;
+                    // r42:arcus-hair — ...but a pixel a figure's silhouette crosses sums its
+                    // samples evenly: her light hair or a lit jaw weighted down against the
+                    // room behind lost its share of the edge, and the silhouette stepped.
+                    let even = ss > 1
+                        && (0..ss * ss).any(|i| {
+                            let t = tri[(y * ss + i / ss) * sw + x * ss + i % ss];
+                            t != u32::MAX && figure_mat(&geo.mats[geo.tris[t as usize].m as usize])
+                        });
                     let mut add = |acc: &mut Lin, c: Lin| {
-                        let wt = 1.0 / (1.0 + ex * (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]));
+                        let wt = if even {
+                            1.0
+                        } else {
+                            1.0 / (1.0 + ex * (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]))
+                        };
                         *acc = ladd(*acc, lscale(c, wt));
                         wsum += wt;
                     };
@@ -1404,7 +1559,7 @@ pub fn bake(
                         let tr = &geo.tris[t0 as usize];
                         let c = (ss as f32) * 0.5;
                         let (sxf, syf) = (x as f32 * ss as f32 + c, y as f32 * ss as f32 + c);
-                        let (p, n, uv, tg) = place(&scam, tr, sxf, syf, hair_of(geo, tr));
+                        let (p, n, uv, tg) = place(&scam, tr, sxf, syf, grain_of(geo, tr));
                         let sv = shadow.light_for(&geo.mats[tr.m as usize], p, n);
                         (tr, p, n, uv, tg, sv)
                     });
@@ -1471,7 +1626,7 @@ pub fn bake(
                                 tr,
                                 sx as f32 + 0.5,
                                 sy as f32 + 0.5,
-                                hair_of(geo, tr),
+                                grain_of(geo, tr),
                             );
                             let m = &geo.mats[tr.m as usize];
                             let fp = depth[k] / scam.k;

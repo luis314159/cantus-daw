@@ -763,7 +763,9 @@ base mesh, its macro and face targets, the default skeleton and its weights
 suit `male_elegantsuit01`, the shoes `shoes04`, the skins `young_caucasian_female/male` (also
 as the skin's fine detail, `{woman,man}_skin.png`), the hair `ponytail01` and `short02`, the
 brows `eyebrow001` and `eyebrow010` and the lashes `eyelashes01` (their textures as
-`{woman,man}_{hair,brow,lash}.png`) (`makehuman_system_assets_cc0.zip`,
+`{woman,man}_{hair,brow,lash}.png`; the hair's as its strands' maps), the eyes' textures
+`bluegreen_eye.png` and `brownlight_eye.png` (cropped round the iris as
+`{woman,man}_eye.png`) (`makehuman_system_assets_cc0.zip`,
 files.makehumancommunity.org; each asset's licence CC0 in its pack manifest). CC0 asks for no credit;
 it is given gladly, here and in *Help ▸ About Cantus*. No MakeHuman code (AGPL) is used: the
 converter reads the assets' plain-text formats itself. The faces are original (generic

@@ -88,6 +88,50 @@ occluding capsules in its live painter.
     strands are not broken dots. The Drawn picture has no textures: it keeps the hair's
     thick shell and the painted brows (`Stuff::Shell`); the Photographic one draws a thin
     scalp (`Stuff::Scalp`) under the cards instead.
+    **One head of hair** (amendment, 2026-11-25, r42:arcus-hair — the owner's review of
+    sheet v8: her hair rendered as camouflage, the hairline a hard edge). The patches were
+    the scalp — it stood 2.5–3.9 mm over the skin, over a quarter of MakeHuman's ponytail
+    cards, which hug the skull — and the texture's own large-scale light. Now:
+    - a hair card's texture is stored as its *maps* (`tools/arcus-figures/hair_maps.py`,
+      RGBA, 1024 px): the strands' detail (the grey over its own alpha-weighted blur,
+      σ 10 texels, so no region is lighter or darker than another), the way the strands
+      run (the structure tensor's minor axis, as a doubled angle) and the coverage; the
+      bake reads it at the mip level a sample reaches (`cards::Card::levels`);
+    - **alpha to coverage** over the picture's samples — a realistic figure's picture is
+      baked at three a side while it fits three times the bound, else two
+      (`hybrid::figure_samples`, for the app's own path `render_of` too: it had baked a
+      200 % picture at one, every card's coverage and every silhouette all or nothing) —
+      an ordered pattern turned by the triangle (two layers at half cover three quarters),
+      the texture's soft fringe drawn in toward the strands' cores; a pixel a figure's
+      silhouette crosses sums its samples evenly (Karis's weighting by brightness gave a
+      light jaw or her hair too small a share of its edge);
+      brows and lashes read a level and a half softer, their coverage raised (a tone, not
+      dots); no card in the shadow map, as before;
+    - every card, the scalp and the chignon **lit as one** (`px_shade::strands`): the
+      diffuse from the head of hair's smooth normal (the cards' middle, for the scalp too),
+      wrapped (0.35); one base colour (her blonde at 0.6 of the Drawn colour: per pixel under
+      the key it clipped to white) with each strand's own detail; **Kajiya–Kay** along the
+      strands' way from the texture — a narrow near-white highlight and a broad tinted one,
+      her sheen band; his hair is dark and his short curls run every way, so his sheen
+      stays faint and his detail at a third (`cards::hair_look`); no screen-space
+      occlusion on hair (its cards lie in layers a centimetre apart); the scalp deeper
+      than the hair over it (0.57 / 0.55 of the Drawn colour: the gaps between cards);
+    - the scalp 0.4 mm over the skin and every card at least 1.2 mm over it
+      (`build_figures.py::lift_cards`); her front cards drawn 8° down to the hairline
+      (`reach_line`: they ended about a centimetre short, and the scalp showed as a band);
+    - **the hairline**: each card vertex carries its degrees in from the hairline (the
+      `.fig`'s luminance byte, unused on a card); her cards' coverage thins over the last
+      eight degrees (`cards::feather`, the faint parts of the strands first, the cores
+      last) and the scalp under them thins over six at its edge, unevenly along it
+      (`cards::scalp_cover`), so strands, not a line, meet the forehead.
+    **The eyes** (same review: open, on the strings): MakeHuman's CC0 eye textures
+    (`bluegreen_eye.png` hers, `brownlight_eye.png` his — CC0 in the pack's manifest and
+    their `.mhmat` headers — cropped round the iris, `assets/figures/<who>_eye.png`,
+    128 px) mapped down each eye's gaze, a natural grey-blue (half the texture's
+    saturation, 0.62 of its light) under the upper lid's shadow, wet
+    (coat 0.6, rough 0.04: the key's catch-light); the lids raised (upper 5°, lower 2°,
+    from 14° and 3°) and the gaze 28° down and 12° to the player's left. Her lips a touch
+    more rose.
   - `Quality` — **how finely the live arms are drawn**, a machine preference
     (`Settings::figure_quality`, Settings ▸ Appearance ▸ *Figure detail*; amendment,
     2026-11-24, the owner: "I'd rather it look good than save ms, or make it configurable
@@ -139,6 +183,20 @@ occluding capsules in its live painter.
   High's ceilings are written into the test (3.0 ms for the realistic figures, 1.6 ms for
   the stylised ones; the owner allowed High up to about 4 ms if it buys the look), so the
   default's cost cannot grow unnoticed.
+
+- **The hair's cost is the bake's, not the frame's** (r42:arcus-hair): the hair, the
+  scalp and the eyes are in the baked picture; the live layer is unchanged, so the frame
+  budget's numbers above stand (`arcus_hold_budget` re-run in release on this build,
+  2026-11-25: High realistic held p50 1.69–2.23 ms, the arms +1.18 to +1.75 ms; Light +0.07
+  to +0.33; the test's ceilings kept, it passes). A
+  realistic figure's bake now takes nine samples a pixel while the picture has at most
+  about 1.07 M pixels (`3 × MAX_SAMPLES / 9`: a 100 % picture), four above it (a 200 %
+  one) — where the app had been baking one at 200 %: the bake's time and its peak (about
+  30 bytes a sample, for the seconds it bakes) grow with the samples, up to the bound of
+  three times `MAX_SAMPLES` (some 290 MB at the most). Memory kept from the first bake
+  with a realistic figure: the hair maps' levels (1024² RGBA and their mips, about 5.6 MB
+  a figure) and the eyes' textures (128² linear RGB, 0.2 MB each). The binary grows by the maps (`woman_hair.png`
+  1.26 MB, `man_hair.png` 0.99 MB, from 0.58 / 0.43) and the eyes (2 × 28 KB).
 
 ## What the tests hold
 

@@ -37,6 +37,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hair_maps  # noqa: E402
 import mh  # noqa: E402
 import thin  # noqa: E402
 
@@ -270,8 +271,15 @@ def close_lids(pos, wt, J):
 
 # Half-open, looking down at the strings (the owner's review, 2026-11-24: closed read as
 # asleep or a mannequin).
-UPPER_LID = 14.0
-LOWER_LID = 3.0
+UPPER_LID = 5.0
+LOWER_LID = 2.0
+# How far the eyes look down (degrees). (r42:arcus-hair: the owner's review of sheet v8 —
+# the eyes should read open, on the strings: the lids raised from 14 and 3 degrees and the
+# gaze from 32, so the iris and its pupil show under the lid from the picture's camera.)
+GAZE_DOWN = 28.0
+# And toward the player's left, where the strings are (under a violin's chin, beside a
+# cello's neck): the eyes on the instrument, not on the viewer.
+GAZE_LEFT = 12.0
 
 
 def scene_weights(n, wt, m2s):
@@ -410,7 +418,12 @@ HIS_LINE = [(0, 30), (16, 31), (30, 33), (42, 28), (55, 20), (68, 12), (80, 2), 
             (100, 8), (115, -2), (135, -20), (160, -27), (180, -28)]
 
 
-def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0, rise=22.0):
+# r42:arcus-hair — where her scalp under the cards begins at the front (degrees from the
+# hairline; it was set back 5° — the owner's review of sheet v8: a hard edge at the brow).
+SCALP_IN = -2.5
+
+
+def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0, rise=22.0, base=None):
     """A shell over the scalp: the head's skin above ``line`` (cut along it, so the
     hairline is a smooth curve), pushed out along its normal by ``thick(θ, φ)`` tapering
     to nothing at the hairline, so its edge lies on the skin. Returns (positions, weights,
@@ -428,7 +441,8 @@ def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0, rise=22.0):
     # (1.4 mm proud a little in from the hairline: thinner, the scalp showed through the
     # hair in triangles at 200 %, the two surfaces fighting for the same depth; at the
     # hairline itself on the skin, where the hair's colour is the skin's.)
-    t = thick(th2, ph2) * smooth01(f2 / rise) + 0.03 + 0.11 * smooth01(f2 / 8.0)
+    t = thick(th2, ph2) * smooth01(f2 / rise) + (
+        0.03 + 0.11 * smooth01(f2 / 8.0) if base is None else base)
     hp = (p2 + n * t[:, None])[used]
     # Per vertex (sheet v7): the strands' across coordinate — the angle round the head's
     # front-to-back axis, so the strands run as hair drawn back does, from the hairline over
@@ -515,6 +529,39 @@ def split_seams(pos, W, head_w, tris, tuv, uvs):
     for (v, t_), i in extra.items():
         vuv[i] = uvs[t_]
     return pos[src], [W[i] for i in src], head_w[src], out, src, vuv
+
+
+# r42:arcus-hair — the eyes' irises: MakeHuman's CC0 eye textures (the system assets'
+# ``eyes/materials/<colour>_eye.png``; CC0 per its .mhmat header and the pack's manifest):
+# hers blue-green, his light brown. In the texture the eye is seen from the front, its
+# pupil at ``EYE_PUPIL`` px (of 1024) and its iris ``EYE_IRIS`` px across the radius; the
+# crop keeps ``EYE_CROP`` px round the pupil, written at ``EYE_SIDE`` px.
+EYE_TEX = {"woman": "bluegreen_eye.png", "man": "brownlight_eye.png"}
+EYE_PUPIL = (723, 303)
+EYE_IRIS = 120.0
+EYE_CROP = 168
+EYE_SIDE = 128
+# The iris's half-angle on our eyeball (its rings to 26°, the white from 30°).
+IRIS_DEG = 28.0
+
+
+def eye_texture(assets, out, name):
+    """The iris and the white round it for ``name``'s eyes, sRGB, ``<name>_eye.png``."""
+    im = Image.open(os.path.join(assets, "eyes", "materials", EYE_TEX[name])).convert("RGB")
+    x, y = EYE_PUPIL
+    im = im.crop((x - EYE_CROP, y - EYE_CROP, x + EYE_CROP, y + EYE_CROP))
+    im.resize((EYE_SIDE, EYE_SIDE), Image.LANCZOS).save(
+        os.path.join(out, f"{name}_eye.png"), optimize=True)
+
+
+def eye_uv(pts, c, gaze, up, side, sex):
+    """Each eyeball point's place in its eye texture (0…1, v up; his 2…3 in u, as the skin's):
+    the eye seen down its gaze, the iris's edge at ``IRIS_DEG``."""
+    q = (pts - c) / np.linalg.norm(pts - c, axis=1)[:, None]
+    k = EYE_IRIS / np.sin(np.radians(IRIS_DEG)) / (2.0 * EYE_CROP)
+    u = 0.5 + q @ side * k
+    v = 0.5 + q @ up * k
+    return np.stack([u + (0.0 if sex == "female" else 2.0), v], 1)
 
 
 def skin_texture(assets, out, name, sex):
@@ -617,8 +664,9 @@ def make(sex, data, assets):
     # there, as real skin has.
     red = red + 0.28 * warmth(pos, J, sex)
     lip = lip_spot(pos, J)
-    red = red + 0.32 * lip
-    lum = lum * (1.0 - 0.1 * lip)
+    # (r42:arcus-hair: a touch more natural rose — the coordinator's review: still pale.)
+    red = red + 0.45 * lip
+    lum = lum * (1.0 - 0.14 * lip)
     q = pos * 0.45
     blotch = (np.sin(q[:, 0] * 1.3 + 0.7) * np.sin(q[:, 1] * 1.1 + 1.9) * np.sin(q[:, 2] * 1.7))
     red = red + 0.05 * blotch
@@ -660,9 +708,15 @@ def make(sex, data, assets):
         fig.add(hp, hw, ht, SHELL, uv=huv)
         # (The scalp a few degrees in from the hairline: the cards' own strands make the
         # hairline, soft, not the scalp's edge — the owner's review: a hard band.)
-        scalp_line = [(a_, e_ + 5.0 * (a_ < 100)) for a_, e_ in HER_LINE]
+        # (r42:arcus-hair: now reaching a little past the hairline, its colour the skin's
+        # at its edge and the hair's a few degrees in — ``uv[1]`` the degrees in from the
+        # hairline, the bake's blend — so the gaps between the feathered strands at the
+        # front show hair over skin, not a band of scalp.)
+        scalp_line = [(a_, e_ + SCALP_IN * (a_ < 100)) for a_, e_ in HER_LINE]
         sp_, sw_, st_, suv_ = hair_shell(pos, W, btris, c, scalp_line, scalp_thick, head_w,
-                                         band=16.0, rise=40.0)
+                                         band=16.0, rise=40.0, base=SCALP_BASE)
+        th_, ph_ = angles(sp_, c)
+        suv_[:, 1] = ph_ - hairline(th_, HER_LINE)
         fig.add(sp_, sw_, st_, SCALP, uv=suv_)
         # Tied low: a chignon at the nape — the hair twisted into a ring, its strands wound
         # round it — over a soft core that fills its middle.
@@ -685,14 +739,19 @@ def make(sex, data, assets):
         fig.add(pos, W, btris, np.where(nf[btris].mean(1) > 0, NAIL, SKIN), lum, red, uv=vuv)
         fig.add(hp, hw, ht, SHELL, uv=huv)
         sp_, sw_, st_, suv_ = hair_shell(pos, W, btris, c, HIS_LINE, scalp_thick, head_w,
-                                         band=6.0)
+                                         band=6.0, base=SCALP_BASE)
+        th_, ph_ = angles(sp_, c)
+        suv_[:, 1] = ph_ - hairline(th_, HIS_LINE)
         fig.add(sp_, sw_, st_, SCALP, uv=suv_)
         sp, st, smat = suit(assets, obj, refs, scales, pos, J)
         fig.add(sp, mh.proxy_weights(refs, W), st, smat)
     fig.add(shp, shw, sht, SHOES)
     for s_ in SIDES:
-        ep, et, emat = eyeball(J[f"eye.{s_}____head"])
-        fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, emat)
+        ec = J[f"eye.{s_}____head"]
+        ep, et, emat, (gz, up_, sd_) = eyeball(ec)
+        # (r42:arcus-hair: each point's place in the eye's texture.)
+        fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, emat,
+                uv=eye_uv(ep, ec, gz, up_, sd_, sex))
     fig.add(lash_p, [{BI["head"]: 1.0}] * len(lash_p), lash_t, LASH)
     # The proxies' cards (the owner's review, 2026-11-24: hair, brows and lashes that read
     # as hair, not paint): MakeHuman's own, fitted to this body, each card's texture
@@ -707,7 +766,17 @@ def make(sex, data, assets):
             # The ponytail's tail is the chignon's: only the cards over the head kept.
             cen = cp[ct].mean(1)
             ct = ct[~((cen[:, 1] < c[1] - 4.0) & (cen[:, 2] < c[2] - 3.0))]
-        fig.add(cp, cw, ct, mat, uv=cuv)
+        lum = None
+        if kind == "hair":
+            if sex == "female":
+                cp = reach_line(cp, c, HER_LINE)
+            cp = lift_cards(cp, pos, btris, head_w)
+            # (r42:arcus-hair: how far in from the hairline each vertex lies — the bake
+            # feathers the cards' coverage at the front of the hair, so the strands thin
+            # out onto the forehead instead of ending in a line.)
+            th_, ph_ = angles(cp, c)
+            lum = line_lum(ph_ - hairline(th_, HER_LINE if sex == "female" else HIS_LINE))
+        fig.add(cp, cw, ct, mat, lum=lum, uv=cuv)
     return compact(fig), J
 
 
@@ -725,16 +794,77 @@ CARD_TEX = {
 def cards(assets, out, name):
     """The cards' textures for ``name`` (woman, man): each MakeHuman texture scaled down and
     kept as grey and alpha (the strands' light and coverage; the colour is the figure's),
-    written as ``<name>_<hair|brow|lash>.png``."""
+    written as ``<name>_<hair|brow|lash>.png``. A hair card's as its maps (r42:arcus-hair,
+    ``hair_maps.py``: the strands' detail without the texture's large-scale light, the way
+    they run, the coverage) in RGBA."""
     for (folder, asset, tex, side), kind in zip(CARD_TEX[name], ("hair", "brow", "lash")):
         im = Image.open(os.path.join(assets, folder, asset, tex)).convert("RGBA")
         im = im.resize((side, side), Image.LANCZOS)
-        im.convert("LA").save(os.path.join(out, f"{name}_{kind}.png"), optimize=True)
+        path = os.path.join(out, f"{name}_{kind}.png")
+        if kind == "hair":
+            Image.fromarray(hair_maps.maps(np.array(im)), "RGBA").save(path, optimize=True)
+        else:
+            im.convert("LA").save(path, optimize=True)
+
+
+def line_lum(f):
+    """r42:arcus-hair — degrees in from the hairline (negative: out over the skin), carried
+    in a hair card vertex's luminance byte (unused on a card): 128 + 2 × f, so half a degree
+    a step over −64 … +63.5 (``bowed_human::parse`` reads it back)."""
+    return 0.35 + np.clip(np.round(np.asarray(f) * 2.0 + 128.0), 0, 255) / 255.0
 
 
 def scalp_thick(th, ph):
-    """The scalp under the cards: a thin even layer of hair's colour (cm)."""
-    return np.full(np.shape(th), 0.25)
+    """The scalp under the cards: a thin even layer of hair's colour (cm). (r42:arcus-hair:
+    0.25 cm stood over a quarter of her cards — MakeHuman's ponytail hugs the skull — and
+    the scalp showing through them in patches was the owner's "camouflage": now it lies
+    just over the skin, ``SCALP_BASE``, and the cards are lifted clear of it.)"""
+    return np.zeros(np.shape(th))
+
+
+# r42:arcus-hair — the scalp's height over the skin, and the least a hair card stands over
+# the skin (cm).
+SCALP_BASE = 0.04
+CARD_CLEAR = 0.12
+
+
+# r42:arcus-hair — how far her front cards are drawn down to the hairline (degrees; the
+# ponytail's cards end about a centimetre short of it, and the scalp showed there as a band).
+REACH = 8.0
+
+
+def reach_line(cp, c, line):
+    """The hair cards' front drawn down over the head toward the hairline: each vertex within
+    15° of it turned down (about the head's centre, keeping its distance) by up to ``REACH``
+    — the strands, combed back, run a little longer; nothing past the temples moves."""
+    q = cp - c
+    r = np.linalg.norm(q, axis=1)
+    th, ph = angles(cp, c)
+    f = ph - hairline(th, line)
+    front = 1.0 - smooth01((np.abs(th) - 55.0) / 45.0)
+    d = REACH * front * (1.0 - smooth01((f - 4.0) / 14.0))
+    ph2 = np.radians(ph - d)
+    h = np.cos(ph2) * r
+    a = np.radians(th)
+    return c + np.stack([np.sin(a) * h, np.sin(ph2) * r, np.cos(a) * h], 1)
+
+
+def lift_cards(cp, pos, tris, head_w):
+    """Each hair card vertex lifted along the head's skin normal under it until it stands
+    ``CARD_CLEAR`` over the skin (a card under the scalp or the skin is hidden: patches)."""
+    head = tris[(head_w[tris] > 0.2).all(1)]
+    n = vnormals(pos, head)
+    hv = np.unique(head.ravel())
+    out = cp.copy()
+    for a in range(0, len(cp), 512):
+        q = cp[a:a + 512]
+        d = np.linalg.norm(q[:, None, :] - pos[hv][None, :, :], axis=2)
+        j = hv[d.argmin(1)]
+        h = ((q - pos[j]) * n[j]).sum(1)
+        near = d.min(1) < 3.0
+        lift = np.where(near, np.maximum(CARD_CLEAR - h, 0.0), 0.0)
+        out[a:a + 512] = q + n[j] * lift[:, None]
+    return out
 
 
 def card_proxy(path, pos, W):
@@ -926,10 +1056,11 @@ def nail_field(pos, W, sk, J):
 
 
 def eyeball(c):
-    """An eye under its lowered lid: a ball in the socket, looking down 32° toward the
+    """An eye under its lowered lid: a ball in the socket, looking down ``GAZE_DOWN`` toward the
     instrument, its iris (a grey-green disc 30° across its half) and the white round it."""
     r = 1.18
-    gaze = np.array([0.0, -np.sin(np.radians(32.0)), np.cos(np.radians(32.0))])
+    dn, lf = np.radians(GAZE_DOWN), np.radians(GAZE_LEFT)
+    gaze = np.array([np.sin(lf) * np.cos(dn), -np.sin(dn), np.cos(lf) * np.cos(dn)])
     up = np.cross(np.cross(gaze, np.array([0.0, 1.0, 0.0])), gaze)
     up = up / np.linalg.norm(up)
     side = np.cross(up, gaze)
@@ -961,7 +1092,7 @@ def eyeball(c):
         tri.append([a0, last, a1])
         mat.append(EYE)
     tri = outward(pts, np.array(tri), c)
-    return pts, tri, np.array(mat)
+    return pts, tri, np.array(mat), (gaze, up, side)
 
 
 def lid_margin(pos, wt, J, s_):
@@ -1359,6 +1490,7 @@ def main():
         rest = bone_rest(sk, J)
         cards(assets, out, name)
         skin_texture(assets, out, name, sex)
+        eye_texture(assets, out, name)
         size = write_fig(os.path.join(out, f"{name}.fig"), fig, rest, marks(J, fig), part)
         print(f"{name}: {len(fig.pos)} vertices, {len(fig.tris)} triangles, {size} bytes")
         if prev:

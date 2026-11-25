@@ -601,3 +601,86 @@ Open:
 5. Auto (Figure detail) is decided by the window's average frame time; it is not tested
    end to end with a real slow frame (its state machine is, `figures_long`).
 6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
+
+## arcus-hair (2026-11-25): one head of hair, the hairline, the eyes
+
+Branch `r42/arcus-hair` (worktree `F:\projects\daw-r42\arcus-hair`), from r42/integration
+e3396db94. The owner's most visible defect on sheet v8: her ponytail cards rendered as
+camouflage at 200 % (large lighter and darker patches across the crown) and the hairline a
+hard edge against the forehead. ADR 0159's `cards` amended ("One head of hair").
+
+**What the patches were**: (1) the scalp under the cards stood 2.5–3.9 mm over the skin
+while a quarter of MakeHuman's ponytail cards lie within 2.4 mm of the skull — wherever a
+card dipped under it the scalp (its own normal, its own finish) showed instead; (2) the
+ponytail's texture carries large baked light and dark regions (its butterfly layout: dark
+round the crown, light patches over the sides) and the bake read its grey as the hair's
+light. Found with a debug render that painted the scalp dark (`CANTUS_HAIR_TUNE` during the
+session, taken out before the commit).
+
+**What changed** (`build_figures.py`, `hair_maps.py`, `scene/figure/cards.rs`,
+`px_raster.rs`, `px_shade.rs::strands`, `px_bowed.rs`):
+- the hair textures stored as maps (detail without large-scale light, the strands' way,
+  coverage), read at the mip level a sample reaches;
+- alpha to coverage over the 2 × 2 samples (ordered, turned per triangle), the strands'
+  soft fringe drawn in toward their cores;
+- Kajiya–Kay from the texture's strand way (dP/du·du + dP/dv·dv), one diffuse from the
+  hair's middle for the cards, the scalp and the chignon; her blonde at 0.6 of the Drawn
+  colour (it clipped to white per pixel); his sheen faint and his detail at a third (his
+  short curls run every way: a strong sheen read as white blotches);
+- the scalp 0.4 mm over the skin, every card ≥ 1.2 mm over it (`lift_cards`), her front
+  cards drawn 8° down to the hairline (`reach_line`);
+- the hairline: degrees-in-from-the-hairline per card vertex (the `.fig`'s luminance byte;
+  `Figure::line`), her cards thinning over the last 5° (`cards::feather`, `cards::thin`),
+  her scalp thinning at its edge with a waviness along it (`cards::scalp_cover`);
+- brows and lashes a level and a half softer with their coverage raised (no dotted lines);
+  lashes 1.8 × lighter in the bake (black blobs over the eye);
+- the eyes: MakeHuman's CC0 `bluegreen_eye.png` (hers) and `brownlight_eye.png` (his),
+  cropped round the iris (`assets/figures/<who>_eye.png`), mapped down the gaze
+  (`build_figures.py::eye_uv`, `Tex::Eye`, `cards::eye`), wet (coat 0.6, rough 0.04); lids
+  5°/2° (from 14°/3°), the gaze 28° down and 12° to the player's left (`GAZE_DOWN`,
+  `GAZE_LEFT`). Notices: `xtask/notices/head.md` names the eye textures.
+
+**The coordinator's review of the first faces** (same day) and what it changed:
+- the silhouette (hair, jaw) stepped against the soft room and the hairline was a jagged
+  staircase: **the app's own pictures never had the realistic figure's extra samples** —
+  `hybrid::render` forced 2 × 2 for a realistic figure, but the app (and `shoot_arcus`)
+  bakes through `render_of`, which did not; at 200 % the picture was baked at one sample a
+  pixel, so every card's coverage was all or nothing (the hair's dots) and no edge was
+  smoothed. Now `hybrid::figure_samples` serves both: three samples a side while the
+  picture fits three times the bound (`MAX_SAMPLES`: a 100 % picture), else two (200 %). A pixel a figure's
+  silhouette crosses sums its samples evenly (`raster::figure_mat`; Karis's brightness
+  weighting gave a light jaw or her hair too small a share of its edge). Her hairline's
+  ramps widened (cards over 8°, the scalp's edge over 6°);
+- the irises a natural grey-blue (half their saturation, 0.62 of their light) with the
+  upper lid's shadow over the top of the iris (`cards::eye`);
+- her lips a touch more rose (`lip_spot`: red +0.45, luminance −14 %);
+- his scalp darker than his hair (0.55: his short cards leave wide gaps, and a scalp as
+  light as the hair read as pale patches over his crown — `HairLook::scalp`).
+
+**Shots**: `tools/arcus-figures/hair_sheet.py <shoot_arcus.exe> <dir> <sheet-v8 dir>` —
+the woman with the violin and the cello, the man with both, Photographic, Night and Paper,
+200 %: `face-*` (×2), `head-*` and `before-after-<who>-<inst>-<theme>.png` (sheet v8's own
+shot cropped the same way beside the new one). Sheet: `docs/round42/arcus-upper/sheet-v9-hair/`.
+
+**Gates (this build, 528de5064 and after)**: `arcus_hold` 7/7, `arcus_hand_table`,
+`arcus_scene`, `scene_identity` (Chorda's and Tympanum's pictures unchanged: the hair's
+paths are a realistic figure's only), `figure_contract`, `kit_lint`; the lib's `figure::`
+tests (6, among them the maps' no-large-scale-light test: every covered 64-texel block's
+mean within 16 % of 1, sheet v8's texture 0.27 … 1.97); `cargo clippy -p cantus-ui
+--all-targets -- -D warnings`; `arcus_hold_budget` in release (High realistic held p50
+1.69–2.23 ms, within 3.0); rustfmt on every touched file; `THIRD-PARTY-NOTICES.md`
+regenerated.
+
+**Open**:
+1. The hairline is soft at 100 % and 200 % but still shows a faint lighter band at her
+   temples on the violin (Night): the cards there end a little short even after
+   `reach_line`; a longer reach at the sides (|θ| 40–90°) or a few strands' cards of our own
+   along the hairline would close it.
+2. The Drawn look's hair is unchanged (the thick shell): the cards are the Photographic
+   bake's only.
+3. The live arms' hands still use per-vertex colour (egui draws them untextured).
+4. Fine loose strands (flyaways) at the temples need cards of their own; not done.
+5. The man's hair keeps a faint sheen only: his short02 texture's curls give the strands'
+   way no coherent direction. A groomed short-hair texture would let him have a sheen.
+6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
+

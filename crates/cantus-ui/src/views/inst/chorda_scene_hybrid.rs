@@ -312,17 +312,31 @@ pub fn render(
     q: Quality,
     threads: usize,
 ) -> (egui::ColorImage, Stats) {
-    let (w, h, mut q) = shape(size, ppp, q);
-    // r42:arcus-upper — a realistic figure keeps two samples a pixel side at any size: its
-    // hair, brows and lashes are alpha-tested cards, and one sample a pixel shows their
-    // strands as broken dots (the owner's review). The bake's peak grows with it (about
-    // 30 bytes a sample: 150 MB for a 200 % picture, for the seconds it bakes).
-    if let crate::scene::Subject::Bowed { holder, .. } = &view.subject {
+    let (w, h, q) = shape(size, ppp, q);
+    let q = figure_samples(&view.subject, w, h, q);
+    render_px(view, size, w, h, q, threads)
+}
+
+/// r42:arcus-upper — a realistic figure keeps more than one sample a pixel side at any size:
+/// its hair, brows and lashes are cards whose coverage is spread over a pixel's samples,
+/// and at one sample a pixel their strands are broken dots (the owner's review) and its
+/// silhouette against the soft room steps (r42:arcus-hair, the coordinator's review: the
+/// app's own pictures, through `render_of`, never had it — only [`render`] did). Three a
+/// side while the picture fits three times the bound (nine levels of coverage), else two.
+/// The bake's peak grows with it (about 30 bytes a sample, for the seconds it bakes: at
+/// most some 290 MB).
+fn figure_samples(subject: &crate::scene::Subject, w: usize, h: usize, q: Quality) -> Quality {
+    let mut q = q;
+    if let crate::scene::Subject::Bowed { holder, .. } = subject {
         if crate::scene::bowed_human::who(holder.hold).is_some() && q.full {
-            q.ss = q.ss.max(2);
+            q.ss = if w * h * 9 <= 3 * MAX_SAMPLES {
+                q.ss.max(3)
+            } else {
+                q.ss.max(2)
+            };
         }
     }
-    render_px(view, size, w, h, q, threads)
+    q
 }
 
 /// The picture of `view` (`size` points) baked `w` × `h` pixels, with no bound (pictures for
@@ -692,6 +706,7 @@ pub fn render_of(model: &Model, ppp: f32, q: Quality, threads: usize) -> (egui::
                 ink: egui::Color32::WHITE,
             };
             let (w, h, q) = shape(model.size, ppp, q);
+            let q = figure_samples(&view.subject, w, h, q);
             bake_view(&view, model.size, w, h, q, threads, Some(&model.cam))
         }
         None => render_model(model, ppp, q, threads),
