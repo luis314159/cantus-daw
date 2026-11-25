@@ -266,6 +266,68 @@ occluding capsules in its live painter.
       his strands combed one way in the light so a sheen band can cross his head.
     - **Small**: the nails' lunulae, the creases over the middle and last joints, faint
       veins on the back of the hand; the chair's back rail slimmer.
+  - **The polish, pass 2** (amendment, 2026-11-25, r42:arcus-polish2 — the owner: "the
+    musicians can still look much, much better"; then "no te preocupes por los tiempos,
+    luego optimizamos o hacemos configurable": the look first):
+    - **The shoulders' band.** Where an arm's part meets the body (the band, in both parts)
+      the live arm fades into the baked body. The bake poses the band with the arms at rest;
+      the live arm poses it raised, so the faded live triangles stood off the baked ones —
+      the dark and grey shards round her bow-side shoulder and the spikes under his upper
+      arm by the frog. Now the band's vertices keep the bake's place until the arm's share
+      reaches the opaque line (`bowed_human::ARM_COVERS`, 0.38, where the bake leaves the
+      bow arm's band out) and turn with the arm over the next 0.4 of share
+      (`arcus_draw_flesh::BAND_TURN`): where the two overlap they are the same surface.
+    - **Dual-quaternion skinning** for the live arms (Kavan et al. 2007; a bone the pose
+      stretches — a finger's phalanx — and the vertices on it keep linear blending): linear
+      blending drew the raised shoulder in on top and out under it, broad.
+    - **Sleeves follow the forearm**: a sleeve's vertices (only its cloth round them) take
+      the hand's bones' share from the forearm's second bone, so the cuff no longer turns
+      with the wrist into spikes and a jagged end.
+    - **The outline mitred**: each live arm's outline corner takes the mean of its edges'
+      ways out, so neighbouring soft strips meet instead of overlapping at a turn (the
+      dotted rim lines and the pixel notches the stray-pixel gate found).
+    - **Strings drawn even.** The Photographic bake shades a string a pixel or two wide
+      (`raster::WIRE_PX` 2.5) at its round's middle with only its coverage falling off
+      across (`Geo::wires`: the bowed strings and her loose hairs); the Drawn picture draws a
+      string thinner than a point and a half in one colour (`TubeOpts::flat`). Shaded from
+      the pixel's place across, a slanted string was bright where it crossed a pixel's
+      middle and dark between: a dashed line. Chorda's and Tympanum's rods are untouched.
+    - **The trunk's shadow** from the arm's three pieces (upper arm, forearm, hand as soft
+      bands cast along the key onto the trunk's capsules, wider and fainter the farther the
+      trunk lies, drawn in where their sides find no trunk) instead of every arm triangle:
+      softer, as the key is a softbox, and 0.45 ms cheaper.
+    - **Hair.** Hers: the underlayer deeper where the hair turns down (the nape, under the
+      crown's fall, round the bun), the roots deeper for the first degrees in from the
+      hairline (a card's hairline degrees now ride in its shading coordinates), the
+      lengths a little lighter toward the crown — all along the strands; broad isotropic
+      sections were tried and taken out (camouflage again, the coordinator). His: the
+      Kajiya–Kay band tinted warm (`HairLook::warm`), strong enough to read (0.6 / 0.45) and
+      broken along the strands into clumps (`broken`), his hairline feathered over a
+      narrow ramp. Her loose hairs: baby hairs from the front of her hairline and a few
+      flyaways off her crown, rods finer than a pixel (`Role::Wisp`, the Photographic
+      picture's only). The Drawn picture: her hair's edge blends into its own deeper roots
+      over the band's first third (the pale pink stripe at her temple was the skin blended
+      over the whole band), its underlayer deeper, and drawn strand lines along its
+      across coordinate (`bowed_draw_tris::strand_lines`).
+    - **His collar and tie.** The suit's parts were told apart per triangle, so the lines
+      where shirt, lapel and tie meet ran in teeth: those lines are smoothed
+      (`smooth_borders`). The shade under a cloth's free edge on the shirt and the tie
+      (`figure::cloth::under_edges`: a collar's points, the lapels) gives the collar its
+      thickness; the shirt and the tie have their own surface in the bake (`Tex::Shirt`:
+      that shade, a rolled edge), the tie's silk softer. A four-in-hand knot is built over
+      the tie's top (`tie_knot`: an inverted trapezoid standing off the shirt with the
+      wrap's diagonal fold).
+    - **The faces.** The lids' crease, the lash line and, with the eyes closed, the lashes'
+      soft shadow under the margin, from the lids' own morph (`lid_shade`); her earrings
+      polished gold, so the key's glint shows.
+    - **The instrument.** Rosin's faint dust on a played top under the strings, from past
+      the bridge toward the fingerboard (`with_rosin`, the Photographic picture); a cloth's
+      edge roll over the centimetre the mesh can hold (`EDGE_ROLL_CM`: at 0.4 cm the
+      lapels' roll was a dotted line).
+    - **Gates**: `arcus_figure_shape` measures each arm where its mesh crosses the plane
+      across it (the thinned forearm's rings lie farther apart than the old slab) and is
+      on; `arcus_figure_specks` is on; `arcus_figure_auto` (new) holds Light's coarse arms
+      and Auto's step down on long frames and back.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`

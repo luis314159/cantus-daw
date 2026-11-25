@@ -82,6 +82,9 @@ pub enum Role {
     /// Photographic picture's only): the figure (0 her, 1 him).
     Shell(u8),
     Scalp(u8),
+    /// r42:arcus-polish2 — her loose hairs: the baby hairs at her hairline and a few
+    /// flyaways off her crown (rods finer than a pixel; the Photographic picture's only).
+    Wisp,
 }
 
 /// A grid of points (`rows` × `cols`, row-major) with normals and grain coordinates (cm:

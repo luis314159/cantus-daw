@@ -214,6 +214,7 @@ pub fn material(b: Bowed, r: Role) -> Mat {
         Role::Card(_) | Role::Scalp(_) => hp::flat(hp::LASH),
         Role::Shell(0) => hp::hair(hp::HAIR_FAIR),
         Role::Shell(_) => hp::hair(hp::HAIR),
+        Role::Wisp => hp::hair(hp::HAIR_FAIR),
     }
 }
 
@@ -446,6 +447,11 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
         c.p.poly(sp, Paint::Solid(col), 1.0, 0.3);
     }
     for (role, rod) in &m.rods {
+        // (r42:arcus-polish2: her loose hairs are the Photographic picture's: drawn as
+        // tubes a point wide they were wires.)
+        if *role == Role::Wisp {
+            continue;
+        }
         let mat = material(b, *role);
         let len = (rod.b - rod.a).len();
         // Long rods (the strings, the endpin) in pieces, each sorted by its own middle.
@@ -646,5 +652,6 @@ fn figure_role(r: Role) -> bool {
             | Role::Lash
             | Role::Nail(_)
             | Role::Shell(_)
+            | Role::Wisp
     )
 }

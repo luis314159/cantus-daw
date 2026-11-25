@@ -1058,6 +1058,18 @@ impl Brush {
         self.tri(i0, i2, i3);
     }
 
+    /// [`Brush::edge`] with each end's own offset (`oa`, `ob`, in points: the strip's
+    /// outer side), so neighbouring edges of an outline meet mitred instead of overlapping
+    /// at a turn (r42:arcus-polish2, the live arms' outline).
+    pub fn edge_joined(&mut self, a: Pos2, b: Pos2, ca: Color32, cb: Color32, oa: Vec2, ob: Vec2) {
+        let i0 = self.v(a, ca);
+        let i1 = self.v(b, cb);
+        let i2 = self.v(b + ob, Color32::TRANSPARENT);
+        let i3 = self.v(a + oa, Color32::TRANSPARENT);
+        self.tri(i0, i1, i2);
+        self.tri(i0, i2, i3);
+    }
+
     /// A filled convex polygon (glyphs: chevrons, arrows), feathered.
     pub fn polygon(&mut self, pts: &[Pos2], color: Color32) {
         let m = pts.len();

@@ -31,10 +31,17 @@ fn hair_at(base: &Mat, d: [f32; 2], scalp: C3) -> Mat {
         + 0.07 * (across * 2.1).sin()
         + 0.05 * (across * 5.3 + 1.7).sin()
         + 0.04 * (across * 13.0 + 0.4).sin();
-    let e = d[1].clamp(0.0, 1.0).powf(0.6);
+    // r42:arcus-polish2 — the edge blends over the first third of the band only, and into
+    // the hair's own deeper roots with a little of the skin (blended into the skin over the
+    // whole band, her hairline read as a pale pink stripe across the temple — the owner's
+    // review of the Drawn picture).
+    let e = (d[1] / 0.35).clamp(0.0, 1.0).powf(0.6);
+    let root: C3 = std::array::from_fn(|i| base.albedo[i] * 0.62 * 0.7 + scalp[i] * 0.3);
+    // The roots a little deeper for a while in from the edge.
+    let deep = 1.0 - 0.16 * (1.0 - (d[1] / 0.6).clamp(0.0, 1.0));
     Mat {
         albedo: std::array::from_fn(|i| {
-            (scalp[i] + (base.albedo[i] * k - scalp[i]) * e).clamp(0.0, 1.0)
+            (root[i] + (base.albedo[i] * k * deep - root[i]) * e).clamp(0.0, 1.0)
         }),
         ..*base
     }
@@ -133,11 +140,22 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
                 };
                 let mut col = c.light.shade(&mat, n, vv, p, None, 1.0);
                 let ndv = n.dot(vv).clamp(0.0, 1.0);
+                if matches!(role, Role::HairFair | Role::Shell(_)) {
+                    // r42:arcus-polish2 — the underlayer: hair turned down lies in its own
+                    // shade (her Drawn hair read as one flat yellow cap).
+                    let under = 1.0 - 0.3 * ((0.25 - n.y) / 0.9).clamp(0.0, 1.0);
+                    col = col.map(|x| x * under);
+                }
                 if warm {
                     col = skin_tone(&mat, col, ndv);
                 }
                 if inside {
                     col = col.map(|x| x * 0.6);
+                }
+                if matches!(role, Role::Shirt | Role::Tie) {
+                    // r42:arcus-polish2 — the shade under the collar's and lapels' edges.
+                    let k = t.detail[i][0].clamp(0.3, 1.2);
+                    col = col.map(|x| x * k);
                 }
                 if *role == Role::Velvet {
                     // Velvet: its pile catches the light where it turns away.
@@ -149,9 +167,64 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             let sp = c.sps(&q);
             // Overlapping a little more than a pixel: no seam grid on a light theme.
             c.p.poly(sp.clone(), gradient(&sp, &cols), 1.0, 1.0);
+            // (Not over the hair's edge band, where it blends into its roots: light strands
+            // there read as white dashes along the hairline.)
+            let edge = [i0, i1, i2].iter().any(|&i| t.detail[i][1] < 0.45);
+            if !inside && !edge && matches!(role, Role::HairFair | Role::Shell(0)) {
+                strand_lines(c, &sp, [i0, i1, i2].map(|i| t.detail[i][0]), &cols);
+            }
         }
     }
 }
+
+/// r42:arcus-polish2 — her hair's drawn strands (the owner: "a few drawn strand lines,
+/// hatches … in the Drawn look's own style: clean vector shapes"): over each triangle of
+/// her hair, fine lines where its strands' across coordinate passes a strand's (every
+/// [`STRAND_STEP`], unevenly), so they run as the hair is combed — back from the hairline
+/// over the head, wound round the bun — each a shade deeper or lighter than the hair under
+/// it, half seen.
+fn strand_lines(c: &mut Ctx, sp: &[egui::Pos2], across: [f32; 3], cols: &[C3; 3]) {
+    use super::display::Cap;
+    let (lo, hi) = (
+        across.iter().copied().fold(f32::MAX, f32::min),
+        across.iter().copied().fold(f32::MIN, f32::max),
+    );
+    if hi - lo < 1e-4 || hi - lo > 40.0 * STRAND_STEP {
+        return;
+    }
+    let mean: C3 = std::array::from_fn(|k| (cols[0][k] + cols[1][k] + cols[2][k]) / 3.0);
+    let mut s = (lo / STRAND_STEP).ceil();
+    while s * STRAND_STEP <= hi {
+        let a = s * STRAND_STEP;
+        // Its crossings of the triangle's three edges.
+        let mut ends = [egui::Pos2::ZERO; 2];
+        let mut n = 0;
+        for e in 0..3 {
+            let (i, j) = (e, (e + 1) % 3);
+            let (u, v) = (across[i], across[j]);
+            if (u - a) * (v - a) < 0.0 && n < 2 {
+                let t = (a - u) / (v - u);
+                ends[n] = sp[i] + (sp[j] - sp[i]) * t;
+                n += 1;
+            }
+        }
+        if n == 2 {
+            // Each strand its own: deeper or lighter, some faint (a hash of its number).
+            let h = ((s as i32).wrapping_mul(1_103_515_245).wrapping_add(12_345) >> 8) & 255;
+            let light = h % 3 == 0;
+            let k = if light { 1.22 } else { 0.66 };
+            let col: C3 = mean.map(|x| (x * k).min(1.0));
+            let op = 0.4 + 0.3 * ((h >> 2) % 4) as f32 / 3.0;
+            let w = if light { 0.45 } else { 0.6 };
+            c.p.line(ends[0], ends[1], w, Paint::Solid(col), Cap::Butt, op);
+        }
+        s += 1.0;
+    }
+}
+
+/// How far apart (in the hair's across coordinate: about three degrees round the
+/// head) her drawn strands lie.
+const STRAND_STEP: f32 = 0.5;
 
 /// The linear gradient that matches three corner colours best: along the way the
 /// brightness changes, from the darkest-projecting corner's colour to the brightest's.

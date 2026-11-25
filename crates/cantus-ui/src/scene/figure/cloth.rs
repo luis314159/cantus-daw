@@ -248,6 +248,87 @@ pub fn contact(fig: &mut Figure) {
     }
 }
 
+/// r42:arcus-polish2 — the shade a cloth's free edge lays on the shirt or the tie under it
+/// (the owner's list: "his collar's thickness"): a collar's points, a lapel's edge and the
+/// jacket's front stand a few millimetres off what they cover, and in a photograph each
+/// has a soft dark line under it — what tells a collar is a folded piece of cloth, not paint.
+/// Each shirt or tie vertex away from its own edge, with another cloth's edge over it (in
+/// front of it along its normal, at rest) within [`UNDER`]'s reach, darkened in its
+/// luminance detail (the bake's shirt and tie read it, `Tex::Shirt` and the Drawn picture).
+pub fn under_edges(fig: &mut Figure) {
+    let (depth, sigma) = UNDER;
+    let reach = sigma * 2.0;
+    let n = fig.pos.len();
+    let mut shirt = vec![false; n];
+    let mut nrm = vec![V3::default(); n];
+    for (t, s) in fig.tris.iter().zip(&fig.stuff) {
+        let [a, b, c] = t.map(|i| i as usize);
+        if matches!(s, Stuff::Shirt | Stuff::Tie) {
+            for i in [a, b, c] {
+                shirt[i] = true;
+            }
+        }
+        let f = (fig.pos[b] - fig.pos[a]).cross(fig.pos[c] - fig.pos[a]);
+        for i in [a, b, c] {
+            let w = fig.weld[i] as usize;
+            nrm[w] = nrm[w] + f;
+        }
+    }
+    // The cloths' free edges' points, in cells of `reach`.
+    let cell = |p: V3| [p.x, p.y, p.z].map(|c| (c / reach).floor() as i32);
+    let mut grid: std::collections::HashMap<[i32; 3], Vec<u32>> = Default::default();
+    for (t, s) in fig.tris.iter().zip(&fig.stuff) {
+        if !is_cloth(*s) {
+            continue;
+        }
+        for &i in t {
+            if fig.edge.get(i as usize).is_some_and(|&e| e < 0.05) {
+                grid.entry(cell(fig.pos[i as usize]))
+                    .or_default()
+                    .push(i as u32);
+            }
+        }
+    }
+    for v in grid.values_mut() {
+        v.sort_unstable();
+        v.dedup();
+    }
+    for i in 0..n {
+        if !shirt[i] || fig.edge.get(i).is_none_or(|&e| e < 0.6) {
+            continue;
+        }
+        let p = fig.pos[i];
+        let nn = nrm[fig.weld[i] as usize];
+        if nn.len() < 1e-9 {
+            continue;
+        }
+        let nn = nn.norm();
+        let c = cell(p);
+        let mut most = 0.0f32;
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for dz in -1..=1 {
+                    if let Some(v) = grid.get(&[c[0] + dx, c[1] + dy, c[2] + dz]) {
+                        for &j in v {
+                            let d = fig.pos[j as usize] - p;
+                            let over = d.dot(nn);
+                            if over < 0.12 {
+                                continue;
+                            }
+                            let r = d.len() / sigma;
+                            most = most.max((-r * r).exp() * (over / 0.3).min(1.0));
+                        }
+                    }
+                }
+            }
+        }
+        fig.detail[i][0] *= 1.0 - depth * most;
+    }
+}
+
+/// How deep the shade under a cloth's free edge is at most, and over how far (cm).
+pub const UNDER: (f32, f32) = (0.42, 0.7);
+
 /// A cloth's fold at a point, from its carried coordinates `[code, coord]`
 /// (`build_figures.py::cloth_folds`): −1 the bottom of a crease … +1 a fold's crest; 0 none.
 pub fn fold(code: f32, coord: f32) -> f32 {
