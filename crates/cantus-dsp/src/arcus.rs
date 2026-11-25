@@ -54,8 +54,20 @@ mod tests_gate2;
 #[path = "arcus_tests_p4.rs"]
 mod tests_p4;
 #[cfg(test)]
+#[path = "arcus_tests_p5.rs"] // r42:arcus-p5
+#[allow(clippy::needless_range_loop, clippy::type_complexity)]
+mod tests_p5;
+#[cfg(test)]
+#[path = "arcus_tests_p5_gate.rs"] // r42:arcus-p5
+#[allow(clippy::needless_range_loop, clippy::type_complexity)]
+mod tests_p5_gate;
+#[cfg(test)]
 #[path = "arcus_tests_pitch.rs"]
 mod tests_pitch;
+#[cfg(test)]
+#[path = "arcus_tests_vib.rs"] // r42:arcus-p5
+#[allow(clippy::needless_range_loop, clippy::type_complexity)]
+mod tests_vib;
 #[path = "arcus_upper.rs"] // r42:arcus-upper
 pub mod upper; // r42:arcus-upper
 #[cfg(test)]
@@ -87,6 +99,11 @@ pub const MAX_VOICES: usize = 8;
 pub const GHOSTS: usize = 2;
 /// The render's chunk.
 pub const CHUNK: usize = 256;
+/// r42:arcus-p5 — the vibrato's delay and rise by default, ms: a mf note's vibrato a quarter
+/// in at about 0.2 s and full 0.2–0.3 s later, the players' medians (the study; round 42's
+/// first 250 / 450 came in a quarter at 0.4 s).
+pub const VIB_DELAY_MS: f32 = 130.0;
+pub const VIB_ATTACK_MS: f32 = 330.0;
 
 /// How a note is played: the instrument's technique, or a note's own articulation.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -183,6 +200,10 @@ pub enum VibSource {
     Aftertouch,
     /// Automatic only.
     Auto,
+    /// r42:arcus-p5 — CC1 (the mod wheel), which then leaves the dynamic.
+    ModWheel,
+    /// r42:arcus-p5 — each note's own MPE pressure, which then leaves the dynamic.
+    MpePressure,
 }
 
 impl VibSource {
@@ -191,6 +212,8 @@ impl VibSource {
             1 => VibSource::Cc2,
             2 => VibSource::Aftertouch,
             3 => VibSource::Auto,
+            4 => VibSource::ModWheel,
+            5 => VibSource::MpePressure,
             _ => VibSource::Cc21,
         }
     }
@@ -249,6 +272,9 @@ pub struct ArcusSettings {
     pub vib_attack_ms: f32,
     pub vib_var: f32,
     pub vib_src: VibSource,
+    /// r42:arcus-p5 — how much the vibrato's extent follows the dynamic (model 2): 0 not at
+    /// all, 1 as the players' (the study's), 2 twice.
+    pub vib_dyn: f32,
     /// Pizzicato: where it is plucked (from the bridge), the finger's softness (ms), how
     /// long it rings (× the string's).
     pub pizz_pos: f32,
@@ -303,10 +329,11 @@ impl Default for ArcusSettings {
             trem_rate: 14.0,
             vib_depth: 1.0,
             vib_rate: 1.0,
-            vib_delay_ms: 250.0,
-            vib_attack_ms: 450.0,
+            vib_delay_ms: VIB_DELAY_MS,   // r42:arcus-p5
+            vib_attack_ms: VIB_ATTACK_MS, // r42:arcus-p5
             vib_var: 0.25,
             vib_src: VibSource::Cc21,
+            vib_dyn: 1.0, // r42:arcus-p5
             pizz_pos: 0.22,
             pizz_soft_ms: 1.2,
             pizz_decay: 1.0,
@@ -425,9 +452,11 @@ pub struct Arcus {
     body: Body,
     /// The violin's and the viola's body (Fides's is off for them). // r42:arcus-upper
     upper_body: upper::body::UpperBody, // r42:arcus-upper
-    /// The radiation's first-order high-pass (its step, and each side's state `(x₁, y₁)`).
-    rad_c: f32,
-    rad: [(f32, f32); 4],
+    /// The radiation's high-pass (r42:arcus-p5: a second-order Butterworth, its
+    /// coefficients `b₀ b₁ b₂ a₁ a₂`; none when `b₀` is 0) and each side's state
+    /// `(x₁, x₂, y₁, y₂)`.
+    rad_c: [f32; 5],
+    rad: [[f32; 4]; 2],
     /// Model 2's correction on the output (`eq`).
     eq: eq::MatchEq,
     out: Output,

@@ -8,6 +8,22 @@ use super::*;
 /// more 4–12 kHz than the next 100 ms against the recordings' 10–20 (the study's thump).
 pub(super) const PLUCK_NOISE: f32 = 0.03;
 
+/// r42:arcus-p5 — how long a re-bow's finger takes to a new note on a ringing string, ms.
+pub(super) const REBOW_FINGER_MS: f32 = 6.0;
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static REBOW_FINGER: std::cell::Cell<f32> = const { std::cell::Cell::new(REBOW_FINGER_MS) };
+}
+#[cfg(test)]
+fn rebow_finger_ms() -> f32 {
+    REBOW_FINGER.with(|c| c.get())
+}
+#[cfg(not(test))]
+fn rebow_finger_ms() -> f32 {
+    REBOW_FINGER_MS
+}
+
 impl Voice {
     /// The dynamic this voice is asked for now (0 … 1).
     pub(super) fn dynamic_target(&self, sh: &Shared) -> f32 {
@@ -16,7 +32,9 @@ impl Voice {
             Some(c) => c,
             None => (1.0 - s.vel_dyn) * s.dynamic + s.vel_dyn * self.velocity,
         };
-        if self.has_press && s.mpe_press > 0.0 {
+        // r42:arcus-p5: the note's pressure is the vibrato's when `vib.src` says so.
+        let press_vib = s.vib_src == super::super::VibSource::MpePressure;
+        if self.has_press && s.mpe_press > 0.0 && !press_vib {
             base += (self.press - base) * s.mpe_press.clamp(0.0, 1.0);
         }
         if s.dyn_src == super::super::DynSource::Auto {
@@ -66,16 +84,36 @@ impl Voice {
         if !keep {
             self.vib_phase = 0.25 * self.rng.unit() as f64;
             self.vib_wander = (0.0, 0.0);
+            // r42:arcus-p5: model 2's walk starts still, the note's own offsets drawn.
+            self.vib_from = (0.0, 0.0);
+            self.vib_to = (0.0, 0.0);
+            self.vib_note = if s.model >= 2 {
+                (self.rng.bipolar(), self.rng.bipolar())
+            } else {
+                (0.0, 0.0)
+            };
             self.jitter = 0.0;
         }
         self.fade = 1.0;
         self.fade_step = 0.0;
+        // r42:arcus-p5: where the finger was, on a string still bowed.
+        let was = self.note + self.glide + self.tune;
         self.note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
         // r42 fix2-arcus: the key's tuned offset where the key becomes the note — the attack's
         // bowing, the pluck and the string it is played on all hear it (ADR 0155).
         self.tune = crate::tuning::at(sh.tuning, key);
         self.glide = 0.0;
         self.glide_step = 0.0;
+        // r42:arcus-p5: a re-bow to a new note on a ringing string moves the finger over the
+        // bow change's first milliseconds (`REBOW_FINGER_MS`), not in one sample: the loop's
+        // length jumping under a ringing wave was a step in what the bridge hears — a click
+        // 4 ms wide on the cello's and the bass's every détaché (`docs/round42/arcus-match.md`,
+        // *Pass 5*).
+        let finger = rebow_finger_ms() * 0.001 * sh.sr;
+        if keep && self.bowing && tech.is_bowed() && finger >= 1.0 {
+            self.glide = was - self.note - self.tune;
+            self.glide_step = self.glide / finger;
+        }
         self.tuning = 0.0;
         self.has_press = false;
         self.slide = 0.5;
@@ -167,13 +205,17 @@ impl Voice {
             attack_of(s, self.velocity, &bw, tech == NoteTech::Staccato, 1.0 / f);
         self.accel = accel;
         self.f_attack = f_attack;
+        self.rebow = false;
         if keep && self.bowing {
             // A bow change on the ringing string: slow to the reversal, then the new
             // stroke's attack in its direction.
             self.phase = Phase::Change;
             self.next_dir = sign;
         } else {
-            self.phase = if tech == NoteTech::Spiccato {
+            // r42:arcus-p5: a tremolo's first stroke is its attack (before, an attack to
+            // the dynamic's speed, then the strokes from rest: the speed fell to zero within
+            // a control step).
+            self.phase = if matches!(tech, NoteTech::Spiccato | NoteTech::Tremolo) {
                 Phase::Hold
             } else {
                 Phase::Attack
@@ -185,7 +227,7 @@ impl Voice {
             } else {
                 0.0
             };
-            self.force = if tech == NoteTech::Spiccato {
+            self.force = if matches!(tech, NoteTech::Spiccato | NoteTech::Tremolo) {
                 0.0
             } else {
                 self.f_attack

@@ -81,6 +81,7 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         vib_attack_ms: v[ix::VIB_ATTACK],
         vib_var: v[ix::VIB_VAR],
         vib_src: VibSource::from_index(v[ix::VIB_SRC]),
+        vib_dyn: v[ix::VIB_DYN], // r42:arcus-p5
         pizz_pos: v[ix::PIZZ_POS],
         pizz_soft_ms: v[ix::PIZZ_SOFT],
         pizz_decay: v[ix::PIZZ_DECAY],

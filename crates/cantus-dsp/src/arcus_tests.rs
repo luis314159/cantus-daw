@@ -468,7 +468,7 @@ fn probe_rest() {
                 "{i}: voices {} alloc {} rad {} eq {} body {} out {} peak {:e}",
                 f.voices.iter().filter(|v| v.active()).count(),
                 f.alloc.is_clear(),
-                f.rad.iter().all(|r| *r == (0.0, 0.0)),
+                f.rad.iter().all(|r| *r == [0.0; 4]),
                 f.eq.is_still(),
                 f.body.is_still(),
                 f.out.is_still(),

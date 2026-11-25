@@ -126,6 +126,10 @@ pub struct InstrumentSpec {
     /// violin's wider than the cello's).
     pub vib_hz: f32,
     pub vib_ct: f32,
+    /// r42:arcus-p5 — model 2's vibrato, the players' as the study measured it
+    /// (`research/instruments-next/bowed-realism.md`, *The vibrato*); model 1 plays
+    /// `vib_hz` and `vib_ct`.
+    pub vib: VibSpec,
     /// The output's trim (dB), so each instrument at mf sits at about the same level.
     pub trim_db: f32,
     /// The bridge's corner rounding, Hz (`string::StringStep::corner_hz`).
@@ -139,6 +143,14 @@ pub struct InstrumentSpec {
     /// per-partial T60s, the band's middle; log-log between, held at the ends) — the string's
     /// loss set from it at the note's fundamental and eighth partial. Empty: the bowed decay.
     pub pizz_t60: &'static [(f64, f64)],
+    /// r42:arcus-p5 — between a spiccato's bounces the string rings free, its T60 × this:
+    /// fitted to the references' strokes (`tools/arcus/pass5/strokes.py`: VSCO's solo violin
+    /// and contrabass, single strokes, and Philharmonia's cello and viola phrases — how far a
+    /// stroke falls 40–250 ms after its peak).
+    pub spic_ring: f32,
+    /// r42:arcus-p5 — a tremolo's level over its light stroke's, dB: about a sustain's at
+    /// the same dynamic (`tests_p5::probe_tremolo_level`: the stroke alone sat 4–17 dB under).
+    pub trem_db: f32,
     /// Where the body's radiation efficiency stops rising, Hz: a box radiates a slow
     /// vibration poorly (its pressure follows the volume velocity's rate of change, +6 dB an
     /// octave), so below this the strings' fundamentals are heard weaker than their partials
@@ -251,6 +263,7 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     },
     vib_hz: 5.5,
     vib_ct: 18.0,
+    vib: CELLO_VIB, // r42:arcus-p5
     trim_db: 16.0,
     // Pass 3: 3 kHz rounded the cello's upper partials under the cellos' band at ff (the
     // bow near the bridge could not brighten it): 6 kHz.
@@ -259,10 +272,12 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     swell_s: (0.30, 0.05),
     swell_db: (20.0, 10.0),
     pizz_t60: CELLO_PIZZ_T60,
+    spic_ring: 0.4, // r42:arcus-p5
+    trem_db: 8.0,   // r42:arcus-p5
     // Pass 4: the bow's static push on the string reached the bridge as a DC force the body
     // passed (most of the first second's power, decaying with the string's loss): no box
     // radiates it, so the measured body's radiation ends in a high-pass under the strings.
-    radiation_hz: RADIATION_DC_HZ,
+    radiation_hz: RADIATION_SHARE * 65.406, // r42:arcus-p5: C2
     balance_db_st: 0.47,
     balance_key: 57.0,
     matched: CELLO_MATCH,
@@ -326,7 +341,61 @@ pub fn t60_at(table: &[(f64, f64)], hz: f64) -> f64 {
 /// Pass 4: the measured bodies' radiation corner under the strings' fundamentals, Hz (two
 /// first-order stages: −0.3 dB at the bass's E1, −0.1 at the cello's C2): what a body never
 /// radiates — the bow's static push on the string, a DC force on the bridge — taken out.
+/// Pass 5 (r42:arcus-p5) moved each instrument's to [`RADIATION_SHARE`] of its lowest open
+/// string (a second-order Butterworth); the constant stays for the record.
 pub const RADIATION_DC_HZ: f32 = 8.0;
+/// r42:arcus-p5 — the radiation's corner over each instrument's lowest open string (a
+/// second-order Butterworth: −0.4 dB on that string, −0.03 an octave up): the push a bow
+/// reverses at a tremolo's every stroke (its cycle at half the stroke rate, 5–9 Hz, and the
+/// harmonics of its turn) and at a bow change is a force on the bridge under any note the
+/// body radiates — at the old 8 Hz it rang the bodies' lowest modes louder than the
+/// tremolo's own fundamental (`docs/round42/arcus-match.md`, *Pass 5*).
+pub const RADIATION_SHARE: f32 = 0.55;
+
+/// r42:arcus-p5 — a family's vibrato as the reference study measured it, cycle by cycle
+/// (`tools/arcus/pass5/vibrato.py` on 2 000 single notes of 4 families; the medians, at mf in
+/// the register's middle — octave 1.5 over the lowest string): its rate and how it rises with
+/// the dynamic (per unit of dynamic from 0.5) and the register (per octave), its extent peak
+/// to peak and how it widens with the register and the dynamic, the cycle-to-cycle variation
+/// of both (σ of a slow random walk per cycle, at `vib.var` 0.25), and how much later a soft
+/// note's vibrato comes in (the delay's share per unit of dynamic under 0.5).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct VibSpec {
+    pub hz: f32,
+    pub hz_dyn: f32,
+    pub hz_oct: f32,
+    pub pp_ct: f32,
+    pub pp_oct: f32,
+    pub pp_dyn: f32,
+    pub jitter: (f32, f32),
+    pub onset_dyn: f32,
+}
+
+/// r42:arcus-p5 — the cellos' (551 notes with vibrato: 5.0 / 5.1 / 5.5 Hz soft / medium /
+/// loud, 19 / 26 / 32 cents peak to peak; 17 → 34 cents from the C string to the A's top).
+pub const CELLO_VIB: VibSpec = VibSpec {
+    hz: 5.35,
+    hz_dyn: 0.17,
+    hz_oct: 0.035,
+    pp_ct: 23.3,
+    pp_oct: 0.21,
+    pp_dyn: 0.98,
+    jitter: (0.15, 0.16),
+    onset_dyn: 0.46,
+};
+
+/// r42:arcus-p5 — the basses' (403: 4.6 / 5.0 / 5.35 Hz, 15 / 16.5 / 21 cents; a soft note's
+/// vibrato 0.44 s in, a loud one's 0.18).
+pub const BASS_VIB: VibSpec = VibSpec {
+    hz: 5.5,
+    hz_dyn: 0.27,
+    hz_oct: 0.02,
+    pp_ct: 12.2,
+    pp_oct: 0.14,
+    pp_dyn: 0.62,
+    jitter: (0.28, 0.45),
+    onset_dyn: 1.33,
+};
 
 /// The double bass, in orchestral tuning: E1 A1 D2 G2 over 1 060 mm.
 pub const BASS: InstrumentSpec = InstrumentSpec {
@@ -371,6 +440,7 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     // The study's bass: 5.4 Hz (Mick 2024: 5.17).
     vib_hz: 5.1,
     vib_ct: 16.0,
+    vib: BASS_VIB, // r42:arcus-p5
     // Pass 2: its own body and correction made it ~10 dB hotter than the cello: 6 dB.
     trim_db: 6.0,
     corner_hz: 2000.0,
@@ -380,8 +450,10 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     swell_s: (0.30, 0.16),
     swell_db: (20.0, 16.0),
     pizz_t60: BASS_PIZZ_T60,
+    spic_ring: 0.55, // r42:arcus-p5
+    trem_db: 5.0,    // r42:arcus-p5
     // Pass 2: the measured body carries the radiation; pass 4: its DC taken out (the cello's).
-    radiation_hz: RADIATION_DC_HZ,
+    radiation_hz: RADIATION_SHARE * 41.203, // r42:arcus-p5: E1
     balance_db_st: 0.16,
     balance_key: 47.5,
     matched: BASS_MATCH,
@@ -418,8 +490,9 @@ pub const CELLO_MATCH: Match = Match {
     // 5.0–5.4 at soft and medium.
     noise_db: 12.0,
     pizz_decay: 1.0, // pass 4: the pluck's T60 table (`CELLO_PIZZ_T60`) replaces the ring factor 0.81
-    vib_depth: 0.48,
-    vib_rate: 0.92,
+    // Pass 5: model 2's vibrato is the study's own (`CELLO_VIB`); pass 2's 0.48 / 0.92 retired.
+    vib_depth: 1.0,
+    vib_rate: 1.0,
 };
 pub const BASS_MATCH: Match = Match {
     // Pass 2: over its own measured body the fitted correction now moves the held-out notes
@@ -431,6 +504,7 @@ pub const BASS_MATCH: Match = Match {
     // Pass 2: the noise 8–18 dB under the basses' band, the vibrato ±8 against ±6–7.8.
     noise_db: 18.0,
     pizz_decay: 1.0, // pass 4: `BASS_PIZZ_T60` replaces the ring factor 0.67
-    vib_depth: 0.38,
+    // Pass 5: model 2's vibrato is the study's own (`BASS_VIB`); pass 2's 0.38 retired.
+    vib_depth: 1.0,
     vib_rate: 1.0,
 };

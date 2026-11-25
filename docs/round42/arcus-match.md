@@ -488,3 +488,218 @@ listening set and the ABX files re-rendered with the same names (and their `-luf
 noise bursts (7–22 dB outside per class: the clean start's pre-Helmholtz slips, under the
 swell's gain); `t_steady` (the spectrum settles in 0.09–0.13 s against 0.24–0.42 — a level
 swell does not move it, and the eased onsets that did failed the gates); the pluck's stiffness.
+
+## Pass 5 (before = `11e6b8cad`; the faults a musical demo found, and the owner's vibrato)
+
+The demo (`examples/arcus_demo`, `tools/arcus/demo.sh`) measured six faults no single-note
+gate had. Each is measured here the same way before and after — the before on a worktree of
+`11e6b8cad` with only the probes added (`arcus_tests_p5.rs`'s `probe_report`,
+`arcus_tests_vib.rs`'s `probe_vibrato_band`) — and each has a gate now
+(`arcus_tests_p5_gate.rs`, `arcus_tests_vib.rs`, `cantus-ui/tests/arcus_level_e2e.rs`). The
+pitch is read as the study reads it: YIN (`tests_p5::yin_cents`, the same steps as
+`bowlib_core.yin_track`; checked against it on the same renders: within 0.2 cents), because a
+bow's reversal turns a Helmholtz sawtooth over — the fundamental's phase jumps half a turn — and
+a phase-slope measure reads that as pitch.
+
+**1 — The tremolo out of tune.** *Causes, by measurement* (`probe_tremolo_trace`,
+`probe_tremolo_scan`, `probe_reversal`, the spectra of the dumps):
+
+- the stroke kept the dynamic's force (0.9 ×) while its speed went through zero at every turn:
+  the bow dragged the string, the motion raucous most of each 71 ms stroke, its periods long —
+  the cello's open A at −90 cents, B2 −150, the bass's B2 −210;
+- the strokes' turns reversed the bow's static push on the bridge at half the stroke rate (7 Hz
+  and its harmonics): under the bodies' 8 Hz radiation corner it rang their lowest modes (the
+  cello's air mode by B2: the 100–118 Hz band 5 dB over the note's own fundamental) and the
+  output's strongest band was 0–60 Hz;
+- the pitch loop's ear heard each reversal's half-turn of phase as an error — up to ±2 cents a
+  window, a random walk the trim followed (±10 cents within a second);
+- a tremolo note began with an attack to the dynamic's speed and dropped to zero within one
+  control step when its strokes began.
+
+*Fix.* A light stroke: the speed a half-sine clipped at 0.3 of its peak (1.2 × the dynamic's), the
+force 0.3 of the Helmholtz region's lower limit riding the speed (0.2 of it left at the turn);
+the strokes start at once (no attack); the ear is cut at every bow reversal (`Ear::cut`, also
+at a détaché's) and the trim held through a tremolo; the tremolo's own pitch table (per key ×
+five dynamics, by YIN, `tools/arcus/trem-table.sh`: offsets −12 … +10 cents, left after it ≤ 4.8);
+its level the instrument's `trem_db` (+3 … +8 dB) over the light stroke's, glided 20 ms; the
+bodies' radiation a second-order Butterworth at 0.55 of each instrument's lowest open string
+(−0.4 dB on that string). Tried and set aside: the force following the speed at the dynamic's
+force (still raucous, the cello's B2 −150), a share of the dynamic's force (scaled badly across
+strings: the bass's E string never periodic at forte), 0.6–1.4 of the lower limit (louder, but
+5–35 cents flat and the bass's E string aperiodic).
+
+| tremolo, YIN cents (open and a fourth up on every string, alone and slurred) | before | after |
+|---|---|---|
+| cello: mean \|c\|, worst | 11.4, +39.8 (C2) | **0.3, +1.1** |
+| bass | no periodic frame on the E string | **1.1, +2.5** |
+| violin | 4.9, −11.5 (G3) | **0.7, −3.2** |
+| viola | 5.4, −14.5 (C3 slurred) | **0.4, +0.9** |
+| the gate's 128 (two velocities): mean, worst | — | **0.55, +3.2** (bass A1) |
+
+The demo's own cases: the viola's G4/A4 were +12 … +23, the cello's D3 −24 … +36, its open A3
+−45 slurred / −80 alone; now within 3 cents (the gate covers each string's open note). The bass's
+E string at forte is the least periodic tremolo (YIN finds a period in 31 % of its frames; the
+Philharmonia bass's arco tremolo phrases 36–50 %).
+
+**2 — The violin's B5 flat at forte: not reproduced, gated.** Measured on the demo's own violin
+stem (`listen/arcus-demo/stems/01 Violín.wav`, before this pass) the two B5s of the climax are
+−0.5 and +0.3 cents by YIN and +0.1 / +0.2 by the phase slope of harmonics 1–3; the climax
+re-played note by note in the DSP (`probe_violin_climax`) within 1.3 cents with the vibrato
+off, and E5–A6 held at ff (`probe_violin_top`) within 0.6. Whatever the demo's estimator read
+(−8 … −13) is not in the rendered audio by these two. The gate holds E5–A6 at CC1 = 1 within a
+cent held and 1.5 in a half-second note (worst 1.03).
+
+**3 — The presets' level in music.** *Cause:* the gains were fitted on the browser's audition
+phrases — velocity-only, around middle C — where the violin sounds its loud low strings; in its
+own register with CC1 it sat 8 LU under the cello, and its level fell 0.17 dB a semitone up its
+range (the viola 0.12) with no register balance. *Fix:* the violin's and the viola's register
+balance measured (`tests_gate2::probe_levels`, now over all four instruments) and set; every
+bowed preset fitted on one musical phrase with CC1 dynamics in its instrument's register
+(`cantus_ui::arcus_level`: the same cantabile line from D5, D4, D3, D2; −19 LUFS), never past
+−1.2 dBFS on it or on its audition phrase (`fides_listen … fit arcus`); the pizzicato presets
+keep their role's fit.
+
+**4 — The bow change's tick.** *Cause* (`probe_rebow_trace` on the demo's bass line): through a
+change the force stayed at 0.85 of the stroke's while the bow slowed to zero, then the new
+stroke began with a start's attack force (nearly twice the stroke's) — the string dragged at the
+turn, a 4–6 ms burst in 4–12 kHz up to 20 dB over the bass's own high end. Measured on the
+references the same way (`tools/arcus/pass5/strokes.py`, Philharmonia's détaché phrases: the
+band's loudest 3 ms within 15 ms of a note boundary over its median 25–65 ms after,
+`bowed-refdb/strokes.json`): the cellos 0.0 dB median (p90 8.5), the basses 7.6 (16.2), the
+violas −1.8 (2.7), the violins −3.7 (26 changes). *Fix:* the force eases with the speed into
+the turn to half the stroke's; a re-bow's new stroke turns at twice the attack's acceleration
+with the force building with the speed; a re-bow to a new note moves the finger over 6 ms
+(not in one sample).
+
+**5 — The spiccato that never left the string.** *Cause:* a 70 ms stroke, then the string
+rang at its held decay — each eighth fell 4–8 dB before the next. *Fix:* a 40 ms contact and,
+between bounces, the string's T60 × `spic_ring` (0.27 violin … 0.55 bass), fitted to the
+references' strokes (VSCO's solo violin and contrabass single strokes; Philharmonia's cello and
+viola phrases).
+
+**6 — The plain re-bow's noise** was the same change (its force at the turn); the re-bow's ticks
+are measured and gated with the détaché's.
+
+| strokes (Rust `tick_parts` / `bounce_at` at the notes' own times) | before | after | references |
+|---|---|---|---|
+| the demo's bass line (section III, the cantabile preset, CC1 0.38–0.48): ticks over the band after, median / loudest | +17.2 / +21.0 dB | **+2.2 / +6.5** | the basses' median +7.6, p90 +16.2 |
+| the demo's own bass stem, changes down / onto the same pitch / up (the boundaries found by `strokes.py`) | +18.3 / +14.6 / +14.7 | **+2.1 / +2.8 / +3.7** | (as above) |
+| the demo's cello stem, changes down / same / up | +3.0 / −1.7 / +1.0 | +0.9 / +0.1 / −0.7 | the cellos' 0.0 (p90 8.5) |
+| a détaché an octave over each instrument's lowest string (CC1 0.6, 120 BPM eighths), median / p90 / loudest: cello | +1.1 / +5.5 / +6.4 | +0.9 / +4.2 / +7.4 | 0.0 / 8.5 |
+| bass | +5.2 / +6.4 / +9.2 | +2.2 / +3.2 / +4.2 | 7.6 / 16.2 |
+| violin | −0.4 / +3.0 / +3.2 | +0.6 / +4.0 / +7.2 | the upper strings' −1.8 / 2.7 |
+| viola | −0.2 / +0.8 / +3.1 | +1.0 / +2.3 / +4.4 | (as above) |
+| a plain re-bow on one pitch, median / loudest: cello, bass, violin, viola | −0.2 / 0.8, +1.5 / 3.7, −0.6 / 0.3, 0.0 / 1.6 | +0.4 / 1.5, −1.0 / 1.5, +0.7 / 2.0, +0.6 / 3.4 | |
+| spiccato at 74 BPM eighths, the fall 40 / 80 / 150 / 250 ms after a stroke's peak, and the gap before the next: cello | 2.5 / 5.3 / 5.1 / 8.0, gap 11.1 dB | **3.7 / 6.1 / 10.1 / 14.8, gap 20.0** | the cellos' phrases 1.9 / 3.7 / 8.7 / 14.3, gap 24 |
+| bass | 5.8 / 8.5 / 9.2 / 10.4, gap 16.1 | **6.7 / 10.3 / 9.5 / 16.7, gap 19.3** | VSCO's strokes 3.4 / 6.6 / 9.7 / 13.2 |
+| violin | 0.9 / 3.5 / 4.9 / 7.3, gap 10.6 | **7.2 / 10.2 / 17.8 / 27.2, gap 35.3** | VSCO's strokes 4.8 / 9.6 / 16.7 / 27.6 |
+| viola | 0.5 / 1.8 / 3.9 / 5.5, gap 8.3 | **4.2 / 7.8 / 11.7 / 17.2, gap 26.8** | the violas' phrases 5.8 / 8.2 / 9.1 / 8.8, gap 16 (at 90 ms strokes) |
+
+The synthetic détaché (CC1 0.6, an octave up) did not show the fault before — it lived in the
+bass's low register at a soft CC1, where its own high end is 85–90 dB down; the gate holds both.
+The spiccato's ring (`spic_ring`) is fitted on the single strokes where the references have them
+(the violin, the bass) and on the phrases for the cello and the viola, whose room fills the
+falls in (their lower band is loose).
+
+**The presets' level in music** (`arcus_level_e2e`, integrated LUFS on the common phrase, the
+presets as the browser loads them):
+
+| | before | after |
+|---|---|---|
+| the violin's 7 bowed presets | −26.5 … −31.5 | −19.0 … −19.2 |
+| the viola's 5 | −19.5 … −24.4 | −19.0 |
+| the cello's 12 | −18.0 … −29.0 | −18.9 … −19.4 |
+| the bass's 8 | −16.8 … −25.8 | −19.0 … −19.8 |
+| the spread | **14.7 LU** | **0.97 LU** |
+
+(The before is measured with this pass's tremolo, whose light stroke had not yet its level; the
+round's own tremolo presets sat 5–10 LU under their instruments' sustains.) The gains moved:
+the violin's by +6.4 … +8.0 dB, the viola's by +0.5 … +0.7, the cello's and the bass's as their
+music level asked (`arcus_presets.rs`, `arcus_upper_presets.rs`); the audition phrases keep
+their −1.2 dBFS headroom, and `instrument_levels`'s dense riff passes full scale on none.
+
+**The demo after** (`listen/arcus-demo-p5/`, the violin's and the bass's faders at 0 dB — they
+were +7 and −4 — every check passing): the stems at −18.8 (violin), −20.7 (viola), −19.9
+(cello), −19.8 LUFS (bass); before, with the offsets, −19.2 / −21.7 / −20.2 / −22.0 — without
+them the violin would have sat at −26.2 and the bass at −18.0. The four now lie within 1.9 LU
+playing different parts, unaided.
+
+## Pass 5's vibrato (the owner's ask: natural, studied, programmable)
+
+**The study** (`tools/arcus/pass5/vibrato.py`, every single-note arco file of the reference
+catalogue and Philharmonia's legato and crescendo phrases, cycle by cycle — the table is in
+`research/instruments-next/bowed-realism.md` §2.6b and `bowed-refdb/vibrato.json`): the
+players' vibrato is 5.0–5.6 Hz, faster loud and a little higher up; 15–32 cents peak to trough,
+widening 1.4–1.9 × from soft to loud and with the register, but *not* following the level
+cycle by cycle within a note; a quarter in at 0.2–0.25 s (later soft) and full 0.2–0.3 s
+after; nearly sinusoidal; centred; and never metronomic — the period changes 11–23 % and the
+extent 12–27 % from one cycle to the next.
+
+**Round 42's model 2** measured the same way: rates and extents in or near the bands but
+metronomic (rate jitter 0.04–0.08, extent 0.04–0.06), the extent only 1.25–1.33 × wider loud,
+the rate not moving with the dynamic, the viola too fast and too wide, the onset 0.36–0.53 s on
+the bass and the viola.
+
+**Rebuilt** (`arcus_voice_step.rs`'s `vibrato_model2`, `tables::VibSpec` per family; model 1
+keeps its own to the bit): the rate and the extent per family from the study, each rising with
+the dynamic and the register by the study's slopes; a per-cycle variation (a new value each
+cycle, glided through the cycle — no step, no metronome) and a per-note one (±4 % rate, ±10 %
+extent), seeded by the note; the delay longer for a soft note (`onset_dyn`); the defaults'
+delay and rise 130 / 330 ms (were 250 / 450). **Programmable:** `vib.delay`, `vib.attack` (the
+rise), `vib.rate`, `vib.depth`, `vib.var` (the variation: 0.25 the players'), and **`vib.dyn`**
+(new: how much the extent follows the dynamic, 1 the players'); the depth from CC21, CC2,
+aftertouch, **the mod wheel** or **each note's MPE pressure** (`vib.src`, both new; the
+controller then leaves the dynamic), MPE's per-note pitch passing through as always. Note-level
+choices (*senza* / *molto vibrato*) are round 43's adaptive piano roll's — the hook is in ADR
+0157's pass-5 amendment; no schema field added.
+
+| long notes (3 s; three registers × three dynamics × four seeds; the study's estimator) | before | after | the players (p25 … p75) |
+|---|---|---|---|
+| cello: rate, extent, onset | 5.26 Hz, 21.1 ct, 0.22 s | 5.19, 25.6, 0.17 | 4.89–5.42, 17.2–32.8, 0.13–0.47 |
+| cello: jitter rate / extent | 0.048 / 0.057 | **0.143 / 0.137** | 0.079–0.167 / 0.097–0.164 |
+| cello: extent soft → loud, rate soft → loud | 18.7 → 24.9, 5.26 → 5.26 | 21.4 → 35.4, 5.00 → 5.26 | 19.3 → 32.3, 5.01 → 5.49 |
+| bass: rate, extent, onset | 5.33, 15.9, 0.53 | 4.76, 15.8, 0.30 | 4.31–5.42, 12.1–22.2, 0.10–0.56 |
+| bass: jitter | 0.062 / 0.063 | **0.241 / 0.261** | 0.154–0.319 / 0.191–0.357 |
+| bass: soft → loud | 13.9 → 17.0, 5.26 → 5.33 | 12.8 → 18.2, 4.40 → 5.97 | 15.0 → 20.8, 4.61 → 5.35 |
+| violin: rate, extent, onset | 5.41, 22.7, 0.39 | 5.13, 23.3, 0.19 | 4.89–5.35, 17.1–28.2, 0.15–0.60 |
+| violin: jitter | 0.082 / 0.064 | **0.199 / 0.119** | 0.106–0.232 / 0.110–0.183 |
+| violin: soft → loud | 19.7 → 25.0, 5.48 → 5.41 | 16.8 → 31.1, 4.88 → 5.26 | 19.5 → 37.8, 4.92 → 5.53 |
+| viola: rate, extent, onset | 5.97, 33.5, 0.36 | 5.41, 24.2, 0.12 | 5.28–5.57, 19.5–32.4, 0.10–0.41 |
+| viola: jitter | 0.042 / 0.039 | **0.145 / 0.134** | 0.088–0.237 / 0.096–0.165 |
+| viola: soft → loud | 29.3 → 38.3, 5.97 → 5.97 | 20.0 → 32.0, 5.48 → 5.41 (the estimator's step) | 26.8 → 44.4, 5.49 → 5.73 |
+
+**The timbre flicker** comes from the bodies as the string's length moves — verified by the
+study's own `analyse_arco` on the renders: the partials 1–10 swing ±1.1 (cello), ±0.5 (bass),
+±1.5 (viola), ±0.9 dB (violin), half to three quarters of them against the pitch (the players'
+half), against the players' ±2.0–2.3 dB. The physics gives it; its depth is half the players'
+because the measured bodies are smoother than real ones (pass 2's fit, §3.1 of the research):
+said so, not added by hand. **Open:** the flicker's depth (the bodies' modal density), the
+short notes' faster and wider vibrato (the study: 5.7–6.0 Hz, 38–48 cents under 1 s — not
+modelled: a note's length is not known at its start), the rate's rise with the dynamic on the
+viola (the study's is small, 0.24 Hz; the model's sampling shows none).
+
+**Gates** (Windows, this branch at the end, the dev profile with cantus-dsp at opt-level 3):
+`cantus-dsp` lib 1 390 passed, 0 failed (106 ignored probes) — among them the held-out bowed
+pitch (168 of 168 within a cent), the attacks (0 of 80 past Guettler & Askenfelt), the pass-5
+gates and the vibrato's; `cantus-core`'s Arcus table 2; `cantus-engine`'s `inst_arcus` 1,
+`arcus_image` 9, `rt_memory` 67; `cantus-ui`'s `arcus_tuning_art_e2e`, `arcus_pick_e2e`,
+`strings_rec_e2e`, `arcus_upper_e2e`, `arcus_level_e2e`, `instrument_levels`, the i18n keys —
+all green; clippy `-p cantus-dsp -p cantus-core -p cantus-engine -p cantus-ui --all-targets -D
+warnings` clean; rustfmt on every changed file. Not run: the Linux check (WSL is the
+integrator's).
+
+**Hashes.** `DSP_VERSION` 13; `upper_tests::LOWER_HASHES` re-made: the seven cello and bass
+renders' RMS −0.3, +0.0, −0.4, −3.2, −0.8, −3.2, +1.3 dB against `11e6b8cad`, their sample
+difference at the signal's level (the vibrato's phase and the tremolo's strokes decorrelate
+them; `tests_p5::probe_dump_lower` in both trees). No golden hash moved (none holds Arcus).
+
+**Renders for the owner** (pass 4's set stays in `listen/arcus/`, the demo's first take in
+`listen/arcus-demo/`): `listen/arcus-p5/` — the cello and the bass (`tools/arcus/listen.sh`)
+and the violin and the viola with their ABX pairs (`upper-listen.sh`), and `presets/` (every
+preset on its audition phrase, its notes, and the bowed ones on the music phrase,
+`NN-<preset>-music.wav`); `listen/arcus-demo-p5/` — the demo with the faders at 0 dB.
+
+**For the ear:** the tremolo's sound (light, a little airy; its level `trem_db`), the bow
+changes now soft-edged (the bass's 15–20 dB click gone; whether a little more bite is wanted at
+the change is the ear's), the spiccato's bounce and ring, the new vibrato's life (its variation
+per cycle and per note), the violin's level against the others in the demo.

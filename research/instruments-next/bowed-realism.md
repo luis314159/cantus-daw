@@ -311,6 +311,72 @@ partials 2–12 **±1.5–2.2 dB**, in every family. 45–50 % of partials swing
 Arcus measured "1.5–7.5 dB" per harmonic at ±22 cents. Compare through `vibrato_stats` (a
 ±dB sinusoid) at the references' extent before concluding.
 
+### 2.6b The vibrato cycle by cycle (round 42, pass 5)
+
+Measured by `tools/arcus/pass5/vibrato.py` on every single-note arco file of the catalogue
+(the sections and the non-vibrato takes left out; 3 102 notes, 1 976 with a vibrato of 8 cents
+or more), and on Philharmonia's legato and crescendo phrases. The study's tracker (YIN over
+two periods, hop 2.5 ms), the drift taken out over two vibrato periods, the cycles cut at
+alternate extrema. **Extents are peak to trough** (the ± figures of §2.6 are the
+sinusoid-equivalent half: about a third under half of these, the cycles' median of their
+larger half). Medians, [p25, p75]; the full table, by register and by long, short, slurred and
+crescendo notes, is `bowed-refdb/vibrato.json`.
+
+| Family | Rate soft / medium / loud (Hz) | Extent soft / medium / loud (cents p-p) | Extent by octave 0 → 3 | Onset (s) soft / loud | Rise (s) | Rate jitter | Extent jitter |
+|---|---|---|---|---|---|---|---|
+| Cello (551) | 5.0 / 5.1 / 5.5 | 19 / 26 / 32 | 17 → 27 → 29 → 34 | 0.26 / 0.20 | 0.18 [0, 0.47] | 0.114 [0.076, 0.17] | 0.123 [0.092, 0.167] |
+| Bass (403) | 4.6 / 5.0 / 5.35 | 15 / 16.5 / 21 | 14 → 15 → 20 → 21 | 0.44 / 0.18 | 0.24 [0, 0.99] | 0.23 [0.15, 0.33] | 0.27 [0.20, 0.38] |
+| Viola (510) | 5.5 / 5.5 / 5.7 | 27 / 29 / 44 | 30 → 32 → 32 → 41 | 0.36 / 0.20 | 0.33 [0, 0.51] | 0.131 [0.079, 0.22] | 0.127 [0.091, 0.172] |
+| Violin (512) | 4.9 / 5.1 / 5.5 | 19.5 / 22 / 38 | 25 → 24 → 25 → 38 | 0.41 / 0.21 | 0 [0, 0.55] | 0.152 [0.098, 0.23] | 0.144 [0.110, 0.204] |
+
+- **Rate** rises with the dynamic (+0.2 to +0.7 Hz soft → loud) and a little with the register
+  (about +0.1 Hz an octave on the cello, less on the others); within a long note it barely
+  drifts (−0.04 Hz/s median, every family).
+- **Extent** follows the dynamic strongly — loud 1.4 × (bass) to 1.9 × (violin) soft — and
+  the register (wider high), as MacLeod 2008 and Mick 2024 report (§3.5). *Within* a note,
+  cycle by cycle, it does not follow the level: Pearson's r of extent against level is −0.08
+  (cello), −0.01 (viola), −0.11 (violin), −0.57 (bass; the level falls as the vibrato grows
+  in after the attack); in Philharmonia's crescendo phrases −0.3. Players set the width by the
+  dynamic they play at, not by the swell under the bow.
+- **Onset**: a note starts with little or no plain part (the ±3-cent plain start is 0–0.05 s
+  at the median) and reaches a quarter of its extent at 0.2–0.25 s, later when soft (0.26 –
+  0.44 s) than loud (0.18 – 0.21 s); full 0.2–0.3 s after that. Short notes (under 1 s) vibrate
+  faster and wider (5.7–6.0 Hz, 38–48 cents: they are played with intent), slurred ones (the
+  cello's 13 phrase notes) at 5.8 Hz and 31 cents with the vibrato carried through the slur.
+- **Shape**: nearly sinusoidal — the rising half takes 50–52 % of a cycle (asymmetry +0.02
+  cello, −0.01 violin, 0.0 viola and bass), the second harmonic of the pitch track 20 dB under
+  its fundamental (13 dB on the bass, whose tracks are the noisiest).
+- **Centre**: not measurable this way — the plain start's pitch is the attack's own glide
+  (the "centre" medians of 14–60 cents are that glide, not a vibrato's offset); at soft
+  dynamics, where the start is long enough, the cello's vibrato sits 1.3 cents under it and the
+  violin's 1.6 over: centred, as Brown & Vaughn's listeners heard (the perceived pitch at the
+  mean of the swing).
+- **Jitter**: cycle-to-cycle, the period changes by 11–23 % of itself and the extent by 12–27 %
+  (the mean |change|) — no vibrato is metronomic. The tracker's own noise is in these figures
+  (the bass's most: its tracks are the longest-windowed); the model is measured by the same
+  estimator, so it cancels.
+- **The timbre flicker** (`am_db`, §2.6, the same notes): the partials 1–10 swing ±2.3 dB
+  (cello), ±2.0 (bass), ±2.3 (viola, violin) at the vibrato's rate, half of them against the
+  pitch.
+
+**The literature beside it.** Rates of 5.5 Hz for violinists and cellists alike (Geringer &
+Allen 2004, abstract as cited by later work), 5.26 Hz for the TinySOL cellos and 6.48 Hz in
+commercial concerto recordings (Hu et al. 2025, arXiv 2512.18162, its own YIN measure; their
+depths are half-widths), a professional soloist's 6.6 Hz and 63 cents (a four-violinist pilot
+study, University of Illinois), 0.2–0.35 semitone peak to peak in general (Meyer 1992, cited by
+Hu et al.); the double bass 5.17 Hz (Mick 2024). The sample libraries and studio takes measured
+here sit at the slower and narrower end of that — the performers of the concerto recordings
+vibrate faster. Prame's method (1994, 1997, for singers) is the one used: rate and extent per
+cycle, between alternate extrema.
+
+**Arcus (pass 5, measured by the same estimator, long notes over three registers, three
+dynamics and four seeds):** cello 5.19 Hz, 25.6 cents, onset 0.17 s, jitter 0.143 / 0.137;
+bass 4.76, 15.8, 0.30 s, 0.241 / 0.261; viola 5.41, 24.2, 0.12 s, 0.145 / 0.134; violin 5.13,
+23.3, 0.19 s, 0.199 / 0.119 — each inside the family's p25–p75 (`arcus_tests_vib.rs`). Its
+flicker comes from the body as the string's length moves (verified: ±0.5–1.5 dB, half the
+partials against the pitch), at about half the players' depth — the measured bodies are
+smoother than real ones (§3.1); said so, not added by hand.
+
 ### 2.7 Pizzicato
 
 | Family | T60 of the fundamental | T60 with frequency | B (by octave up the string) |

@@ -5,8 +5,12 @@ use super::*;
 /// How long a staccato stroke draws before the bow stops on the string, a spiccato's
 /// bounce, and how long a stopped bow holds the string before it lifts (s).
 const STACCATO_S: f32 = 0.09;
-const SPICCATO_S: f32 = 0.07;
+/// r42:arcus-p5: 0.07 → 0.04 s — a bounce's contact is short (the references' strokes peak
+/// and fall 5–10 dB within 80 ms).
+const SPICCATO_S: f32 = 0.04;
 const STOP_S: f32 = 0.04;
+/// A spiccato's force at the bounce's middle over the dynamic's.
+const SPICCATO_FORCE: f32 = 1.3;
 /// A stopped bow's lift, s.
 const STOP_LIFT_S: f32 = 0.025;
 /// The bow's usable length, m (a cello bow's hair is about 0.65 m).
@@ -16,7 +20,86 @@ const DIP_DB: f32 = 3.0;
 /// The pitch loop: it moves by `TRIM_GAIN` of what each of its ear's windows heard, never
 /// more than `TRIM_STEP` cents a move.
 const TRIM_GAIN: f64 = 0.6;
+/// r42:arcus-p5 — a tremolo's stroke (`docs/round42/arcus-match.md`, *Pass 5*, by the
+/// study's tracker over every instrument's strings): its speed a half-sine clipped at
+/// `TREM_KNEE` of its peak (a quick turn, then the stroke drawn), the peak over the
+/// dynamic's speed (the mean about the dynamic's); its force a light share of the dynamic's
+/// riding the speed, `TREM_FLOOR` of it left at the turn: 0.3 of the Helmholtz region's lower
+/// limit, under it (the strokes too short to settle; a share of the dynamic's force scaled
+/// badly across the strings). A tremolo is played light: at the dynamic's force (round 42's)
+/// the strokes were raucous and 8–255 cents flat, and their turns rang the bodies' lowest
+/// modes louder than the note. Its level is the instrument's `trem_db` over the light
+/// stroke's.
+const TREM_PEAK: f32 = 1.2;
+/// … the force a share of the region's lower limit at the dynamic's speed (negative: of
+/// `f_min`; a positive value would be a share of the dynamic's force).
+const TREM_FORCE: f32 = -0.3;
+const TREM_FLOOR: f32 = 0.2;
+const TREM_KNEE: f32 = 0.3;
 const TRIM_STEP: f64 = 2.0;
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TREM_KNOBS: std::cell::Cell<(f32, f32, f32, f32)> =
+        const { std::cell::Cell::new((TREM_PEAK, TREM_FORCE, TREM_FLOOR, TREM_KNEE)) };
+}
+/// r42:arcus-p5 — a bow change: the force's share of the stroke's left at the turn, and a
+/// re-bow's acceleration over the attack's (`tests_p5::probe_bass_line`, the demo's bass).
+const CHANGE_FLOOR: f32 = 0.5;
+const REBOW_ACCEL: f32 = 2.0;
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static CHANGE_KNOBS: std::cell::Cell<(f32, f32)> =
+        const { std::cell::Cell::new((CHANGE_FLOOR, REBOW_ACCEL)) };
+}
+#[cfg(test)]
+fn change_knobs() -> (f32, f32) {
+    CHANGE_KNOBS.with(|c| c.get())
+}
+#[cfg(not(test))]
+fn change_knobs() -> (f32, f32) {
+    (CHANGE_FLOOR, REBOW_ACCEL)
+}
+#[cfg(test)]
+thread_local! {
+    pub(crate) static SPIC_KNOBS: std::cell::Cell<(f32, f32, f32)> =
+        const { std::cell::Cell::new((SPICCATO_S, 1.0, SPICCATO_FORCE)) };
+}
+#[cfg(test)]
+fn spic_knobs() -> (f32, f32, f32) {
+    SPIC_KNOBS.with(|c| c.get())
+}
+#[cfg(not(test))]
+fn spic_knobs() -> (f32, f32, f32) {
+    (SPICCATO_S, 1.0, SPICCATO_FORCE)
+}
+#[cfg(test)]
+fn trem_knobs() -> (f32, f32, f32, f32) {
+    TREM_KNOBS.with(|c| c.get())
+}
+#[cfg(not(test))]
+fn trem_knobs() -> (f32, f32, f32, f32) {
+    (TREM_PEAK, TREM_FORCE, TREM_FLOOR, TREM_KNEE)
+}
+
+/// r42:arcus-p5 — model 2's ramp into the vibrato: the delay longer for a soft note and
+/// shorter for a loud one (`VibSpec::onset_dyn`), then the rise; 1 under a controller.
+fn age_ramp(v: &Voice, s: &ArcusSettings, sr: f32, plucked: bool, ctl: Option<f32>) -> f32 {
+    if ctl.is_some() {
+        return 1.0;
+    }
+    if plucked {
+        return 0.0;
+    }
+    let od = v.inst.spec().vib.onset_dyn;
+    let delay = s.vib_delay_ms * (1.0 + od * (0.5 - v.d)).clamp(0.3, 2.5);
+    let age_ms = 1000.0 * v.vib_age as f32 / sr;
+    smooth((age_ms - delay) / s.vib_attack_ms.max(1.0))
+}
+
+/// r42:arcus-p5 — the per-cycle walk's memory from one cycle to the next.
+const VIB_RHO: f32 = 0.0;
 
 fn smooth(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);
@@ -55,6 +138,12 @@ impl Voice {
         } else {
             sh.ctl.vibrato
         };
+        // r42:arcus-p5: the vibrato from the note's own pressure when it is MPE's.
+        let ctl_vib = if s.vib_src == VibSource::MpePressure {
+            self.has_press.then_some(self.press)
+        } else {
+            ctl_vib
+        };
         let (amount, ramp) = match ctl_vib {
             Some(c) => (2.0 * c, 1.0),
             None if plucked => (0.0, 0.0),
@@ -66,27 +155,18 @@ impl Voice {
                 )
             }
         };
-        let var = s.vib_var.clamp(0.0, 1.0);
-        // Wider high, and wider loud (the study §3.5: the cello ±8 → ±13 cents soft to loud).
-        let widen = (1.0 + 0.12 * oct) * (0.75 + 0.5 * self.d);
-        let depth = spec.vib_ct
-            * s.vib_depth
-            * amount
-            * widen
-            * ramp
-            * (1.0 + 0.25 * var * self.vib_wander.1);
-        let rate =
-            spec.vib_hz * s.vib_rate * (1.0 + 0.03 * oct) * (1.0 + 0.08 * var * self.vib_wander.0);
-        let before = self.vib_phase;
-        self.vib_phase += rate as f64 * dt as f64;
-        if self.vib_phase.floor() != before.floor() {
-            self.vib_wander = (self.rng.bipolar(), self.rng.bipolar());
-        }
-        self.vib_now = if depth > 0.0 {
-            depth * math::sin(std::f32::consts::TAU * self.vib_phase.fract() as f32)
+        if s.model < 2 {
+            self.vibrato_model1(spec, s, oct, amount, ramp, dt);
         } else {
-            0.0
-        };
+            self.vibrato_model2(
+                spec,
+                s,
+                oct,
+                amount,
+                age_ramp(self, s, sr, plucked, ctl_vib),
+                dt,
+            );
+        }
         self.vib_age = self.vib_age.saturating_add(span as u32);
         // The pitch: the key, the slur, the bend, MPE's tuning and the track's (ADR 0155).
         // r42 fix2-arcus: the table is followed while it moves (an MTS-ESP master retunes a
@@ -128,6 +208,12 @@ impl Voice {
         if self.released && !self.bowing {
             t60 = t60.min(s.ring_s.max(0.05) as f64);
         }
+        if self.tech == NoteTech::Spiccato && !self.bowing {
+            // r42:arcus-p5: between a spiccato's bounces the string rings free, shorter
+            // than a held note (`InstrumentSpec::spic_ring`): before, it rang at the bowed
+            // string's own decay and each eighth fell 4–9 dB — a light détaché.
+            t60 *= (spec.spic_ring * spic_knobs().1) as f64;
+        }
         // The bowing for the dynamic, and the gesture's step.
         let pos = self.contact(sh);
         let bw = bowing(
@@ -167,7 +253,11 @@ impl Voice {
         // left, held within 15 cents: it hears the fundamental's phase against the target
         // (`ear`) and moves by what each of its windows heard.
         if self.bow_on && sh.table.is_some() {
-            if let Some(heard) = self.ear.take() {
+            // r42:arcus-p5: a tremolo's strokes are heard, never trimmed by — each stroke
+            // is a new start, its settling not the note's pitch (the loop followed it 2–4
+            // cents sharp, and before the ear's cut it random-walked with every reversal).
+            let held = self.tech == NoteTech::Tremolo;
+            if let Some(heard) = self.ear.take().filter(|_| !held) {
                 self.trim = (self.trim + (TRIM_GAIN * heard).clamp(-TRIM_STEP, TRIM_STEP))
                     .clamp(-15.0, 15.0);
             }
@@ -177,7 +267,13 @@ impl Voice {
         }
         let corr = if self.bow_on {
             sh.table.map_or(0.0, |t| {
-                t.cents(self.inst, semis, self.d as f64, pos as f64) + self.trim
+                // r42:arcus-p5: a tremolo's own table (its strokes light and short).
+                let c = if self.tech == NoteTech::Tremolo {
+                    t.trem_cents(self.inst, semis, self.d as f64)
+                } else {
+                    t.cents(self.inst, semis, self.d as f64, pos as f64)
+                };
+                c + self.trim
             })
         } else {
             0.0
@@ -235,6 +331,19 @@ impl Voice {
         }
         // r42 fix2-arcus: past what the loop can play in tune, the note fades out (1 to the
         // bit for every note an instrument has).
+        // r42:arcus-p5: a tremolo's level (`InstrumentSpec::trem_db`), glided (20 ms) so a
+        // slur from a sustain into a tremolo does not step.
+        let want_t = if self.tech == NoteTech::Tremolo {
+            math::db_to_gain(spec.trem_db)
+        } else {
+            1.0
+        };
+        if self.first {
+            self.trem_g = want_t;
+        } else {
+            self.trem_g += (want_t - self.trem_g) * (1.0 - math::exp(-dt / 0.02));
+        }
+        g *= self.trem_g;
         let top = top_gain(sr as f64 / f, super::super::string::SHORTEST);
         g *= top;
         if self.first && top < 1.0 {
@@ -270,23 +379,35 @@ impl Voice {
                 self.force = 0.0;
             }
             Phase::Attack => {
-                self.v_mag = (self.v_mag + self.accel * dt).min(tv);
-                self.force = self.f_attack;
+                if self.rebow {
+                    // r42:arcus-p5: a re-bow's new stroke on the ringing string: a quick
+                    // turn (`REBOW_ACCEL` × the attack's acceleration), the force building
+                    // with the speed from `CHANGE_FLOOR` of the stroke's — not a start's
+                    // heavier attack force on a string already sounding.
+                    let (cf, ra) = change_knobs();
+                    self.v_mag = (self.v_mag + ra * self.accel * dt).min(tv);
+                    self.force = tf * (cf + (1.0 - cf) * (self.v_mag / tv.max(1e-6)).min(1.0));
+                } else {
+                    self.v_mag = (self.v_mag + self.accel * dt).min(tv);
+                    self.force = self.f_attack;
+                }
                 if self.v_mag >= tv {
                     self.phase = Phase::Hold;
+                    self.rebow = false;
                     self.t = 0;
                 }
             }
             Phase::Hold => match self.tech {
                 NoteTech::Spiccato => {
-                    let x = t_s / SPICCATO_S;
+                    let (len, _, fk) = spic_knobs();
+                    let x = t_s / len;
                     if x >= 1.0 {
                         self.phase = Phase::Off;
                         self.v_mag = 0.0;
                         self.force = 0.0;
                     } else {
                         self.v_mag = 1.2 * tv;
-                        self.force = 1.3 * tf * math::sin(std::f32::consts::PI * x);
+                        self.force = fk * tf * math::sin(std::f32::consts::PI * x);
                     }
                 }
                 NoteTech::Tremolo => {
@@ -298,8 +419,19 @@ impl Voice {
                     } else {
                         -self.next_dir
                     };
-                    self.v_mag = 1.5 * tv * math::sin(std::f32::consts::PI * fr);
-                    self.force += (0.9 * tf - self.force) * c_f;
+                    // r42:arcus-p5: the stroke's speed a clipped half-sine and a light force
+                    // riding it (`TREM_*`), instead of the dynamic's steady force over a
+                    // speed through zero (the bow dragging the string at every reversal:
+                    // raucous, the pitch 8–255 cents flat and wandering).
+                    let (peak, fk, floor, knee) = trem_knobs();
+                    let shape = (math::sin(std::f32::consts::PI * fr) / knee).min(1.0);
+                    self.v_mag = peak * tv * shape;
+                    let base = if fk < 0.0 {
+                        -fk * bw.f_min as f32
+                    } else {
+                        fk * tf
+                    };
+                    self.force = base * (floor + (1.0 - floor) * shape);
                 }
                 _ => {
                     self.v_mag += (tv - self.v_mag) * c_v;
@@ -314,17 +446,26 @@ impl Voice {
                 let half = 0.0005 * s.change_ms.max(2.0);
                 let dec = tv.max(self.v_mag) / half;
                 self.v_mag -= dec * dt;
-                self.force += (0.85 * tf - self.force) * c_f;
+                // r42:arcus-p5: the force eases with the speed into the turn (to
+                // `CHANGE_FLOOR` of the stroke's), as a player's fingers soften a change —
+                // held at 0.85 of it while the bow stopped, the string was dragged at the
+                // turn: an HF tick 15–20 dB over the bass's own high end
+                // (`docs/round42/arcus-match.md`, *Pass 5*).
+                let (cf, _) = change_knobs();
+                let share = (self.v_mag.max(0.0) / tv.max(1e-6)).min(1.0);
+                self.force = tf * (cf + (1.0 - cf) * share);
                 if self.v_mag <= 0.0 {
                     self.v_mag = 0.0;
                     self.dir = self.next_dir;
                     self.t = 0;
-                    if self.tech == NoteTech::Spiccato {
+                    if matches!(self.tech, NoteTech::Spiccato | NoteTech::Tremolo) {
+                        // r42:arcus-p5: a tremolo's strokes start from the reversal.
                         self.phase = Phase::Hold;
                         self.force = 0.0;
                     } else {
                         self.phase = Phase::Attack;
-                        self.force = self.f_attack;
+                        self.rebow = true;
+                        self.force = tf * change_knobs().0;
                     }
                 }
             }
@@ -353,6 +494,7 @@ impl Voice {
         }
         if self.dir != dir_was {
             self.stroke = 0.0;
+            self.ear.cut(); // r42:arcus-p5
         }
         self.stroke += (self.v_mag * dt) as f64;
         self.bowing = self.phase != Phase::Off;
@@ -440,3 +582,95 @@ impl Voice {
         self.ended = true;
     }
 }
+
+impl Voice {
+    /// Model 1's vibrato (round 42's first), to the bit.
+    fn vibrato_model1(
+        &mut self,
+        spec: &InstrumentSpec,
+        s: &ArcusSettings,
+        oct: f32,
+        amount: f32,
+        ramp: f32,
+        dt: f32,
+    ) {
+        let var = s.vib_var.clamp(0.0, 1.0);
+        // Wider high, and wider loud (the study §3.5: the cello ±8 → ±13 cents soft to loud).
+        let widen = (1.0 + 0.12 * oct) * (0.75 + 0.5 * self.d);
+        let depth = spec.vib_ct
+            * s.vib_depth
+            * amount
+            * widen
+            * ramp
+            * (1.0 + 0.25 * var * self.vib_wander.1);
+        let rate =
+            spec.vib_hz * s.vib_rate * (1.0 + 0.03 * oct) * (1.0 + 0.08 * var * self.vib_wander.0);
+        let before = self.vib_phase;
+        self.vib_phase += rate as f64 * dt as f64;
+        if self.vib_phase.floor() != before.floor() {
+            self.vib_wander = (self.rng.bipolar(), self.rng.bipolar());
+        }
+        self.vib_now = if depth > 0.0 {
+            depth * math::sin(std::f32::consts::TAU * self.vib_phase.fract() as f32)
+        } else {
+            0.0
+        };
+    }
+
+    /// r42:arcus-p5 — model 2's vibrato, the players' as the study measured it
+    /// (`InstrumentSpec::vib`): its rate rising with the dynamic and the register, its extent
+    /// widening with both (`vib.dyn` how much with the dynamic), and both wandering — a slow
+    /// random walk from cycle to cycle, glided through each cycle (no step, no metronome),
+    /// and a little per note — at `vib.var` 0.25 as much as the players'. Seeded by the note
+    /// (`rng`): the same bits at every block size. The string's length moves; the body's
+    /// modes make the partials' amplitudes move with it.
+    fn vibrato_model2(
+        &mut self,
+        spec: &InstrumentSpec,
+        s: &ArcusSettings,
+        oct: f32,
+        amount: f32,
+        ramp: f32,
+        dt: f32,
+    ) {
+        let v = spec.vib;
+        let life = s.vib_var.clamp(0.0, 1.0) / 0.25;
+        let reg = oct - 1.5;
+        let d = self.d - 0.5;
+        let fr = self.vib_phase.fract() as f32;
+        let w = (
+            self.vib_from.0 + (self.vib_to.0 - self.vib_from.0) * fr,
+            self.vib_from.1 + (self.vib_to.1 - self.vib_from.1) * fr,
+        );
+        let pp = v.pp_ct
+            * (1.0 + v.pp_oct * reg).max(0.3)
+            * (1.0 + v.pp_dyn * s.vib_dyn.clamp(0.0, 2.0) * d).max(0.2)
+            * (1.0 + life * (v.jitter.1 * w.1 + VIB_NOTE.1 * self.vib_note.1)).max(0.2);
+        let depth = 0.5 * pp * s.vib_depth * amount * ramp;
+        let rate = v.hz
+            * s.vib_rate
+            * (1.0 + v.hz_dyn * d)
+            * (1.0 + v.hz_oct * reg)
+            * (1.0 + life * (v.jitter.0 * w.0 + VIB_NOTE.0 * self.vib_note.0)).max(0.5);
+        let before = self.vib_phase;
+        self.vib_phase += rate as f64 * dt as f64;
+        if self.vib_phase.floor() != before.floor() {
+            // The walk's next step: unit variance, `VIB_RHO` of the last kept.
+            let k = (1.0 - VIB_RHO * VIB_RHO).sqrt() * 3f32.sqrt();
+            self.vib_from = self.vib_to;
+            self.vib_to = (
+                VIB_RHO * self.vib_to.0 + k * self.rng.bipolar(),
+                VIB_RHO * self.vib_to.1 + k * self.rng.bipolar(),
+            );
+        }
+        self.vib_now = if depth > 0.0 {
+            depth * math::sin(std::f32::consts::TAU * self.vib_phase.fract() as f32)
+        } else {
+            0.0
+        };
+    }
+}
+
+/// r42:arcus-p5 — a note's own vibrato, ± its share of the rate and the extent (uniform),
+/// at `vib.var` 0.25 (players do not vibrate two notes alike).
+const VIB_NOTE: (f32, f32) = (0.04, 0.1);

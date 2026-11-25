@@ -68,11 +68,13 @@ const DYN_SOURCES: [Src<'static>; 6] = [
     Src::Key("arcus.dyn_src_kind.at"),
     Src::Key("arcus.dyn_src_kind.vel"),
 ];
-const VIB_SOURCES: [Src<'static>; 4] = [
+const VIB_SOURCES: [Src<'static>; 6] = [
     Src::Key("arcus.vib_src_kind.cc21"),
     Src::Key("arcus.vib_src_kind.cc2"),
     Src::Key("arcus.vib_src_kind.at"),
     Src::Key("arcus.vib_src_kind.auto"),
+    Src::Key("arcus.vib_src_kind.mw"),  // r42:arcus-p5
+    Src::Key("arcus.vib_src_kind.mpe"), // r42:arcus-p5
 ];
 const FRICTIONS: [Src<'static>; 2] = [
     Src::Key("arcus.friction_kind.hyperbolic"),
@@ -505,7 +507,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         280.0,
         &[
             &["vib.depth", "vib.rate", "vib.delay"],
-            &["vib.attack", "vib.var"],
+            &["vib.attack", "vib.var", "vib.dyn"], // r42:arcus-p5: vib.dyn
         ],
     );
     cells_card(

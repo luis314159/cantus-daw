@@ -13,6 +13,9 @@
 //! `… -- <dir> [fit] arcus` does the same for Arcus, the bowed string (round 42, ADR 0157):
 //! its presets in `src/views/inst/arcus_presets.rs`, its notes across each instrument's own
 //! range (the cello C2 … E4, the double bass E1 … G3). `tools/arcus/presets.sh` runs it.
+//! r42:arcus-p5: Arcus's bowed presets are fitted on a musical phrase with CC1 dynamics in
+//! each instrument's register (`cantus_ui::arcus_level`, `<dir>/NN-<preset>-music.wav`) to
+//! its common target, not on the role's audition phrase; its pizzicato ones as before.
 
 use cantus_core::{InstrumentKind, InstrumentSpec, NativeSpec, Project, Snapshot, Ticks};
 use cantus_engine::{render, RenderOptions};
@@ -138,9 +141,28 @@ fn main() {
         };
         let mut spec = spec.clone();
         let role = e.role();
-        let want = target(e);
-        let mut out = phrase(&spec, role);
-        let mut level = lufs(&out, 2, RATE as f32);
+        // r42:arcus-p5: a bowed Arcus preset is fitted on the musical phrase.
+        let music = arcus && cantus_ui::arcus_level::is_bowed(&spec);
+        let want = if music {
+            cantus_ui::arcus_level::TARGET
+        } else {
+            target(e)
+        };
+        let tune = |spec: &NativeSpec| -> (Vec<f32>, f64) {
+            if music {
+                let m = render_project(
+                    &cantus_ui::arcus_level::project(spec),
+                    Ticks((cantus_ui::arcus_level::BEATS * cantus_core::PPQ as f64) as i64),
+                );
+                let l = lufs(&m, 2, RATE as f32);
+                (m, l)
+            } else {
+                let o = phrase(spec, role);
+                let l = lufs(&o, 2, RATE as f32);
+                (o, l)
+            }
+        };
+        let (mut out, mut level) = tune(&spec);
         if fit {
             for _ in 0..5 {
                 let off = want - level;
@@ -149,20 +171,24 @@ fn main() {
                 }
                 let g = (spec.get("gain") + off as f32).clamp(-48.0, 12.0);
                 spec.set("gain", (g * 10.0).round() / 10.0);
-                out = phrase(&spec, role);
-                level = lufs(&out, 2, RATE as f32);
+                (out, level) = tune(&spec);
             }
             // The fit stops where the phrase would pass −1.2 dBFS (the render check's
             // headroom): a preset with that much crest sits under its window by its dynamics.
             for _ in 0..3 {
-                let p = peak_db(&out);
+                // r42:arcus-p5: a preset fitted on the music phrase keeps the headroom on its
+                // audition phrase too (the browser plays that one).
+                let p = if music {
+                    peak_db(&out).max(peak_db(&phrase(&spec, role)))
+                } else {
+                    peak_db(&out)
+                };
                 if p <= -1.2 {
                     break;
                 }
                 let g = (spec.get("gain") - (p + 1.3) as f32).clamp(-48.0, 12.0);
                 spec.set("gain", (g * 10.0).floor() / 10.0);
-                out = phrase(&spec, role);
-                level = lufs(&out, 2, RATE as f32);
+                (out, level) = tune(&spec);
             }
             if arcus && spec.get("inst") >= 1.5 {
                 // r42:arcus-upper
@@ -173,6 +199,10 @@ fn main() {
             } // r42:arcus-upper
         }
         let name = e.id.trim_start_matches(prefix);
+        if music {
+            write_wav(&dir.join(format!("{:02}-{name}-music.wav", i + 1)), &out);
+            out = phrase(&spec, role);
+        }
         write_wav(&dir.join(format!("{:02}-{name}.wav", i + 1)), &out);
         // Arcus's notes in each instrument's range (`inst` 1: the double bass).
         let keys = match (arcus, spec.get("inst").round() as i32) {

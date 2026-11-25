@@ -47,10 +47,25 @@ impl InstTable {
     }
 }
 
+/// r42:arcus-p5 — the dynamics a tremolo's table is measured at.
+pub const TREM_DYN: [f64; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
+
+/// r42:arcus-p5 — one instrument's tremolo table: cents for each key from `lo` and each of
+/// [`TREM_DYN`] (`cents[k·TREM_DYN.len() + d]`), as the study's tracker hears the strokes.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct TremTable {
+    pub lo: u8,
+    pub keys: usize,
+    pub cents: &'static [f32],
+}
+
 /// Every instrument's table.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct PitchTable {
     pub tables: [InstTable; 4],
+    /// r42:arcus-p5 — the tremolo's: a stroke is short and light, its pitch not a held
+    /// note's (measured by `tools/arcus/trem-table.sh`, `tests_p5::write_tremolo_table`).
+    pub trem: [TremTable; 4],
 }
 
 /// The table measured on this model (`arcus_pitch_data.rs`).
@@ -79,7 +94,33 @@ pub const TABLE: PitchTable = PitchTable {
             cents: &up::VIOLA,    // r42:arcus-upper
         },
     ],
+    trem: [
+        TremTable {
+            lo: trem::CELLO_LO,
+            keys: trem::CELLO_KEYS,
+            cents: &trem::CELLO,
+        },
+        TremTable {
+            lo: trem::BASS_LO,
+            keys: trem::BASS_KEYS,
+            cents: &trem::BASS,
+        },
+        TremTable {
+            lo: trem::VIOLIN_LO,
+            keys: trem::VIOLIN_KEYS,
+            cents: &trem::VIOLIN,
+        },
+        TremTable {
+            lo: trem::VIOLA_LO,
+            keys: trem::VIOLA_KEYS,
+            cents: &trem::VIOLA,
+        },
+    ],
 };
+
+/// r42:arcus-p5 — the measured tremolo table (`arcus_trem_pitch_data.rs`).
+#[path = "arcus_trem_pitch_data.rs"]
+mod trem;
 
 /// Where `x` falls on `grid` (ascending): the cell's first index and the fraction into it.
 fn cell(grid: &[f64], x: f64) -> (usize, f64) {
@@ -120,6 +161,34 @@ impl PitchTable {
                     if w != 0.0 {
                         acc += w * t.at(ki, di, pi);
                     }
+                }
+            }
+        }
+        acc
+    }
+}
+
+impl PitchTable {
+    /// r42:arcus-p5 — the cents a tremolo of `inst` at `semis` and dynamic `d` sounds from
+    /// its loop (interpolated between the measured keys and dynamics; none measured: 0).
+    pub fn trem_cents(&self, inst: Instrument, semis: f64, d: f64) -> f64 {
+        let t = &self.trem[inst as usize];
+        if t.keys == 0 {
+            return 0.0;
+        }
+        let kx = (semis - t.lo as f64).clamp(0.0, (t.keys - 1) as f64);
+        let k0 = (kx.floor() as usize).min(t.keys.saturating_sub(2));
+        let fk = if t.keys < 2 { 0.0 } else { kx - k0 as f64 };
+        let k1 = (k0 + 1).min(t.keys - 1);
+        let (d0, fd) = cell(&TREM_DYN, d);
+        let at =
+            |k: usize, d: usize| t.cents.get(k * TREM_DYN.len() + d).copied().unwrap_or(0.0) as f64;
+        let mut acc = 0.0;
+        for (ki, wk) in [(k0, 1.0 - fk), (k1, fk)] {
+            for (di, wd) in [(d0, 1.0 - fd), (d0 + 1, fd)] {
+                let w = wk * wd;
+                if w != 0.0 {
+                    acc += w * at(ki, di);
                 }
             }
         }
