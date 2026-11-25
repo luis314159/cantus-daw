@@ -647,7 +647,7 @@ session, taken out before the commit).
   bakes through `render_of`, which did not; at 200 % the picture was baked at one sample a
   pixel, so every card's coverage was all or nothing (the hair's dots) and no edge was
   smoothed. Now `hybrid::figure_samples` serves both: three samples a side while the
-  picture fits three times the bound (`MAX_SAMPLES`), else two. A pixel a figure's
+  picture fits three times the bound (`MAX_SAMPLES`: a 100 % picture), else two (200 %). A pixel a figure's
   silhouette crosses sums its samples evenly (`raster::figure_mat`; Karis's brightness
   weighting gave a light jaw or her hair too small a share of its edge). Her hairline's
   ramps widened (cards over 8°, the scalp's edge over 6°);

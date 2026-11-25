@@ -323,8 +323,8 @@ pub fn render(
 /// silhouette against the soft room steps (r42:arcus-hair, the coordinator's review: the
 /// app's own pictures, through `render_of`, never had it — only [`render`] did). Three a
 /// side while the picture fits three times the bound (nine levels of coverage), else two.
-/// The bake's peak grows with it (about 30 bytes a sample: some 270 MB for a 200 %
-/// picture, for the seconds it bakes).
+/// The bake's peak grows with it (about 30 bytes a sample, for the seconds it bakes: at
+/// most some 290 MB).
 fn figure_samples(subject: &crate::scene::Subject, w: usize, h: usize, q: Quality) -> Quality {
     let mut q = q;
     if let crate::scene::Subject::Bowed { holder, .. } = subject {
