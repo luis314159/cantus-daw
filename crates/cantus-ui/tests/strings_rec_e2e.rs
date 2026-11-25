@@ -218,6 +218,9 @@ fn song() -> Project {
             Some(NoteArt {
                 articulation: Articulation::Pizzicato,
                 bow: None,
+                start: None,
+                part: None,
+                string: None,
             }),
         ),
     ] {

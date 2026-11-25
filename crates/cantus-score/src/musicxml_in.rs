@@ -61,6 +61,9 @@ pub fn art_of(note: roxmltree::Node) -> Option<cantus_core::note_art::NoteArt> {
         (a, bow) => Some(NoteArt {
             articulation: a.unwrap_or(A::Sustain),
             bow,
+            start: None,
+            part: None,
+            string: None,
         }),
     }
 }

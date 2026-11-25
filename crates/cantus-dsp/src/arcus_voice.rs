@@ -5,7 +5,7 @@
 use super::pitch::PitchTable;
 use super::string::{Bow, BowedString, StringStep};
 use super::tables::{schelleng_max, Instrument, InstrumentSpec};
-use super::{ArcusSettings, Art, BowDir, Controls, Technique, VibSource, CTRL};
+use super::{bow, ArcusSettings, Art, BowDir, Controls, NoteHow, Technique, VibSource, CTRL};
 use crate::fides::exciter::{
     Biquad, ExcStep, Exciter, ExciterKind, ExciterSettings, NoiseSettings, Rng,
 };
@@ -273,6 +273,16 @@ pub struct Voice {
     f_attack: f32,
     /// r42:arcus-p5 — the attack is a re-bow's, on a ringing string.
     rebow: bool,
+    /// r42 arcus-expr — the player's bow (`bow`): its place along the stick (0 the frog … 1
+    /// the tip), how this stroke started (0 the classic attack, 1 from the string, 2 from
+    /// the air) and an air start's landing force; the note's fingering (an open string) and
+    /// the vibrato's factor for it, now and aimed at.
+    bx: f32,
+    kind: u8,
+    land: f32,
+    open: bool,
+    vib_k: f32,
+    vib_kn: f32,
     t: u32,
     stroke: f64,
     jitter: f32,
@@ -367,6 +377,12 @@ impl Voice {
             accel: 0.0,
             f_attack: 0.0,
             rebow: false,
+            bx: 0.5,
+            kind: 0,
+            land: 0.0,
+            open: false,
+            vib_k: 1.0,
+            vib_kn: 1.0,
             t: 0,
             stroke: 0.0,
             jitter: 0.0,
@@ -481,6 +497,25 @@ impl Voice {
     /// Whether the bow is on the string in this step.
     pub fn bow_on(&self) -> bool {
         self.bow_on
+    }
+
+    /// r42 arcus-expr — where the bow is along the stick (0 the frog … 1 the tip).
+    pub fn bow_x(&self) -> f32 {
+        self.bx
+    }
+
+    /// r42 arcus-expr — whether the note is played on an open string.
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    /// r42 arcus-expr — which way the bow moves now, when it is drawn.
+    pub fn bow_moving(&self) -> Option<BowDir> {
+        (self.active && self.bowing && self.tech.is_bowed()).then_some(if self.dir >= 0.0 {
+            BowDir::Down
+        } else {
+            BowDir::Up
+        })
     }
 
     /// It ended since the last call (the instance hands its slot back).

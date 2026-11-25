@@ -53,12 +53,86 @@ pub enum Bow {
     Up,
 }
 
-/// A note's articulation, and its bow when it is bowed (`None`: the instrument alternates).
+/// r42 arcus-expr (schema 83, ADR 0162) — where the bow comes from at a bowed note's start.
+/// **Append only, never reorder** (a song stores the name). Round 43's playing profile maps
+/// each to a technique id of its own (`bow.start.string`, `bow.start.air`) and, for MIDI 2.0,
+/// to a profile-specific note-on attribute (`docs/adr/0162-*.md`).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BowStart {
+    /// Set on the string first, the force placed before the motion (a smooth start).
+    String,
+    /// Landing from the air, already moving (a thrown attack, a little crunch).
+    Air,
+}
+
+impl BowStart {
+    pub const ALL: [BowStart; 2] = [BowStart::String, BowStart::Air];
+
+    /// Its locale key (`areas/arcus_expr.*`).
+    pub fn name_key(self) -> &'static str {
+        match self {
+            BowStart::String => "art.start.string",
+            BowStart::Air => "art.start.air",
+        }
+    }
+}
+
+/// r42 arcus-expr (schema 83, ADR 0162) — which part of the bow a stroke is played with.
+/// **Append only, never reorder.**
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BowPart {
+    Frog,
+    Middle,
+    Tip,
+    /// The whole bow, from one end.
+    Whole,
+}
+
+impl BowPart {
+    pub const ALL: [BowPart; 4] = [BowPart::Frog, BowPart::Middle, BowPart::Tip, BowPart::Whole];
+
+    /// Its locale key (`areas/arcus_expr.*`).
+    pub fn name_key(self) -> &'static str {
+        match self {
+            BowPart::Frog => "art.part.frog",
+            BowPart::Middle => "art.part.middle",
+            BowPart::Tip => "art.part.tip",
+            BowPart::Whole => "art.part.whole",
+        }
+    }
+}
+
+/// A note's articulation, and its bow when it is bowed (`None`: the instrument alternates);
+/// r42 arcus-expr (schema 83, ADR 0162): where the bow comes from, which part of it plays,
+/// and the string (*sul G*) — each `None` (every older note): the instrument's player decides.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NoteArt {
     pub articulation: Articulation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bow: Option<Bow>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<BowStart>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<BowPart>,
+    /// The string, counted as MusicXML's `<string>` counts it: 1 the highest. A bowed
+    /// instrument plays the note on it where the string reaches the note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub string: Option<u8>,
+}
+
+impl NoteArt {
+    /// The articulation alone, every other choice the instrument's.
+    pub fn of(articulation: Articulation) -> NoteArt {
+        NoteArt {
+            articulation,
+            bow: None,
+            start: None,
+            part: None,
+            string: None,
+        }
+    }
 }
 
 /// Apply `Command::SetNoteArt`: refused whole (nothing changed) for a note that is not in the
@@ -181,6 +255,9 @@ mod tests {
     const LEG: Option<NoteArt> = Some(NoteArt {
         articulation: Articulation::Legato,
         bow: None,
+        start: None,
+        part: None,
+        string: None,
     });
 
     #[test]
@@ -259,6 +336,9 @@ mod tests {
         let pizz = Some(NoteArt {
             articulation: Articulation::Pizzicato,
             bow: Some(Bow::Up),
+            start: None,
+            part: None,
+            string: None,
         });
         let song = |arts: [Option<NoteArt>; 3]| {
             let mut p = Project::new("arts");

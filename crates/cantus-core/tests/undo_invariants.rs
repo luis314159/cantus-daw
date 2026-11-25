@@ -9102,7 +9102,7 @@ fn takes_through_tempo_edits_keep_their_lines_and_undo_exactly() {
 /// zero, negative or not finite, more entries than its size); a temperament key past B and
 /// a diapason that is not finite (refused).
 fn tuning_command(rng: &mut Lcg, project: &mut Project) -> Command {
-    use cantus_core::note_art::{Articulation, Bow, NoteArt};
+    use cantus_core::note_art::{Articulation, Bow, BowPart, BowStart, NoteArt};
     use cantus_core::tuning::{
         KeyboardMap, ScalaScale, ScaleDegree, Temperament, TrackTuning, Tuning, TuningSystem,
     };
@@ -9222,6 +9222,15 @@ fn tuning_command(rng: &mut Lcg, project: &mut Project) -> Command {
                         1 => Some(Bow::Down),
                         _ => Some(Bow::Up),
                     },
+                    // r42 arcus-expr (ADR 0162): the bow's start, its part, the string.
+                    start: match rng.below(3) {
+                        0 => None,
+                        1 => Some(BowStart::String),
+                        _ => Some(BowStart::Air),
+                    },
+                    part: (rng.below(2) == 0)
+                        .then(|| BowPart::ALL[rng.below(BowPart::ALL.len() as u64) as usize]),
+                    string: (rng.below(3) == 0).then(|| 1 + rng.below(4) as u8),
                 })
             };
             let mut arts = Vec::new();

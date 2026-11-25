@@ -176,6 +176,9 @@ fn art(a: Articulation, bow: Option<Bow>) -> Option<NoteArt> {
     Some(NoteArt {
         articulation: a,
         bow,
+        start: None,
+        part: None,
+        string: None,
     })
 }
 

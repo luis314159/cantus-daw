@@ -59,8 +59,11 @@ impl Voice {
         tech: NoteTech,
         dir: BowDir,
         keep: bool,
+        how: &NoteHow,
+        fast: bool,
     ) {
         let s = sh.s;
+        let was_bowing = keep && self.active && self.bowing; // r42 arcus-expr
         let keep = keep && self.active && self.inst == s.instrument && self.same_rate(sh); // r42:arcus-upper
         if !keep {
             self.clear();
@@ -118,7 +121,24 @@ impl Voice {
         self.has_press = false;
         self.slide = 0.5;
         let spec = self.inst.spec();
-        self.string_ix = spec.string_for(self.note + self.tune);
+        // r42 arcus-expr: the fingering (`bow::finger`): the string, an open one's rules.
+        let p = s.player.clamp(0.0, 1.0);
+        if p > 0.0 {
+            let from = (keep && was_bowing).then_some((was, self.string_ix));
+            let fing = bow::finger(spec, self.note + self.tune, how.string, !fast, from);
+            self.string_ix = fing.string;
+            self.open = fing.open && tech.is_bowed();
+            let k = bow::vib_scale(self.open, fast, false);
+            self.vib_k = 1.0 + (k - 1.0) * p;
+        } else {
+            self.string_ix = spec.string_for(self.note + self.tune);
+            self.open = false;
+            self.vib_k = 1.0;
+        }
+        // An open string cannot vibrate: the finger is off it at once.
+        if !keep || (self.open && fast) {
+            self.vib_kn = self.vib_k;
+        }
         let d_t = self.dynamic_target(sh);
         if !keep {
             self.d = d_t;
@@ -201,8 +221,36 @@ impl Voice {
             z0,
             sh.sr as f64 / f,
         );
-        let (accel, f_attack) =
+        let (accel, mut f_attack) =
             attack_of(s, self.velocity, &bw, tech == NoteTech::Staccato, 1.0 / f);
+        // r42 arcus-expr: a stroke from silence starts where its direction and part put the
+        // bow, with the arm's weight there, from the string or from the air (`bow`).
+        self.kind = 0;
+        if p > 0.0 && !was_bowing {
+            self.bx = bow::start_x(dir, how.part, fast || tech == NoteTech::Spiccato);
+            let w = bow::weight(self.bx, s.bow_weight * p);
+            if matches!(tech, NoteTech::Arco | NoteTech::Staccato) {
+                let start = how
+                    .start
+                    .unwrap_or_else(|| bow::auto_start(self.velocity, tech == NoteTech::Staccato));
+                match start {
+                    // The arm's weight on the attack too, on the cello and the bass (measured:
+                    // without it the bass's soft E2 took 288 ms to settle, Guettler's limit
+                    // 214; on the violin and the viola the soft attacks settle without it and
+                    // not reliably with it — the open G at 0.15, 94–224 ms against 90).
+                    bow::Start::String => {
+                        self.kind = 1;
+                        if matches!(self.inst, Instrument::Cello | Instrument::Bass) {
+                            f_attack *= w;
+                        }
+                    }
+                    bow::Start::Air => {
+                        self.kind = 2;
+                        self.land = bow::LAND_FORCE * bw.force as f32 * w;
+                    }
+                }
+            }
+        }
         self.accel = accel;
         self.f_attack = f_attack;
         self.rebow = false;
@@ -224,10 +272,13 @@ impl Voice {
             self.next_dir = sign;
             self.v_mag = if tech == NoteTech::Spiccato {
                 1.2 * bw.speed as f32
+            } else if self.kind == 2 {
+                bow::LAND_SPEED * bw.speed as f32
             } else {
                 0.0
             };
-            self.force = if matches!(tech, NoteTech::Spiccato | NoteTech::Tremolo) {
+            self.force = if matches!(tech, NoteTech::Spiccato | NoteTech::Tremolo) || self.kind == 2
+            {
                 0.0
             } else {
                 self.f_attack
@@ -248,6 +299,8 @@ impl Voice {
         id: u64,
         velocity: f32,
         tech: Option<NoteTech>,
+        how: &NoteHow,
+        fast: bool,
     ) {
         let sh_rate = self.at_rate(sh); // r42:arcus-upper
         let sh = &sh_rate; // r42:arcus-upper
@@ -270,8 +323,39 @@ impl Voice {
                 self.t = 0;
             }
         }
+        // r42 arcus-expr: the fingering (`bow::finger`): the string the slur stays on, a
+        // shift (the hand travels: a longer finger change, the vibrato stopping and growing
+        // back), an open string's rules.
+        let p = s.player.clamp(0.0, 1.0);
+        let spec = self.inst.spec();
+        let mut extra_ms = 0.0;
+        let ix = if p > 0.0 {
+            let fing = bow::finger(
+                spec,
+                self.note + self.tune,
+                how.string,
+                !fast,
+                Some((was, self.string_ix)),
+            );
+            self.open = fing.open;
+            self.vib_k = 1.0 + (bow::vib_scale(fing.open, fast, true) - 1.0) * p;
+            if fing.open && fast {
+                self.vib_kn = self.vib_k;
+            }
+            if fing.shift {
+                let st = (self.note + self.tune - was).abs();
+                extra_ms = p * ((st - 2.0).max(0.0) * bow::SHIFT_MS_PER_ST).min(bow::SHIFT_MS_MAX);
+                self.vib_kn *= 1.0 - 0.85 * p;
+            }
+            fing.string
+        } else {
+            spec.string_for(self.note + self.tune)
+        };
         // The finger's change dips the level (the study §2.10: ~3 dB over the change).
-        self.dip = (self.lvl_t, s.finger_ms.max(0.0) * 0.001 * sh.sr);
+        self.dip = (
+            self.lvl_t,
+            (s.finger_ms.max(0.0) + extra_ms) * 0.001 * sh.sr,
+        );
         // The ear starts over on the new note (a window across the change hears neither).
         self.ear.reset();
         let ms = if s.porta_ms > 0.0 {
@@ -279,7 +363,7 @@ impl Voice {
         } else if sh.ctl.porta {
             150.0
         } else {
-            s.finger_ms
+            s.finger_ms + extra_ms
         };
         let samples = ms * 0.001 * sh.sr;
         if samples < 1.0 {
@@ -288,8 +372,6 @@ impl Voice {
         } else {
             self.glide_step = self.glide / samples;
         }
-        let spec = self.inst.spec();
-        let ix = spec.string_for(self.note + self.tune);
         if ix != self.string_ix {
             self.string_ix = ix;
             self.string.set_z0(spec.strings[ix].z0() as f32);

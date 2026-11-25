@@ -144,7 +144,8 @@ pub fn render(out: &Path) -> bool {
     for (who, name, piece) in &SOLOS {
         for (style, tag) in [(Style::Plain, "plano"), (Style::Performed, "interpretado")] {
             let data = tempfile::tempdir().expect("a data folder");
-            let (mut app, _proc) = super::app_on(data.path(), cantus_core::Project::new(piece.title));
+            let (mut app, _proc) =
+                super::app_on(data.path(), cantus_core::Project::new(piece.title));
             let built = build::build(&mut app, piece, style);
             let stem = format!("{name}-{tag}");
             app.save_to_path(&out.join(format!("{stem}.cantus")));
@@ -164,11 +165,17 @@ pub fn render(out: &Path) -> bool {
             for c in &p.track(track).expect("the track").clips {
                 for n in &c.notes {
                     at.push((tm.seconds_at((c.start + n.start).0 as f64), "start"));
-                    at.push((tm.seconds_at((c.start + n.start + n.length).0 as f64), "end"));
+                    at.push((
+                        tm.seconds_at((c.start + n.start + n.length).0 as f64),
+                        "end",
+                    ));
                 }
             }
             let edges = measure::edges(&x, a.rate, &at);
-            let worst = edges.iter().map(|e| e.over_db).fold(f64::NEG_INFINITY, f64::max);
+            let worst = edges
+                .iter()
+                .map(|e| e.over_db)
+                .fold(f64::NEG_INFINITY, f64::max);
             let pass = same && lv.dbtp <= -0.9 && lv.full_scale == 0 && worst < 15.0;
             ok &= pass;
             println!(

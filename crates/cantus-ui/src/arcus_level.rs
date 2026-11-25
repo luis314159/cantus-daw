@@ -73,6 +73,9 @@ pub fn project(spec: &NativeSpec) -> Project {
             n.art = Some(NoteArt {
                 articulation: Articulation::Legato,
                 bow: None,
+                start: None,
+                part: None,
+                string: None,
             });
         }
         clip.notes.push(n);

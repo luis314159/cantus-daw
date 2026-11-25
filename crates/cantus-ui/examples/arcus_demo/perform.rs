@@ -195,9 +195,8 @@ pub fn phrases(w: &[Written]) -> Vec<Phrase> {
     let mut out = Vec::new();
     let mut first = 0;
     for i in 0..w.len() {
-        let end = i + 1 == w.len()
-            || w[i].breath
-            || w[i + 1].at - (w[i].at + w[i].len) >= 0.25 - 1e-9;
+        let end =
+            i + 1 == w.len() || w[i].breath || w[i + 1].at - (w[i].at + w[i].len) >= 0.25 - 1e-9;
         if end {
             let peak = (first..=i)
                 .max_by(|&a, &b| {
@@ -301,9 +300,10 @@ pub fn perform(part: &Part, written: &[Written], beats: f64, role: Role, ctx: &C
 
     // ---- the dynamic the player is at, before CC11 (for the attacks and the vibrato) ----
     let arc = |t: f64| -> f32 {
-        let Some(p) = ph.iter().find(|p| {
-            t >= w[p.first].at - 1e-9 && t <= w[p.last].at + w[p.last].len + 1e-9
-        }) else {
+        let Some(p) = ph
+            .iter()
+            .find(|p| t >= w[p.first].at - 1e-9 && t <= w[p.last].at + w[p.last].len + 1e-9)
+        else {
             return 0.0;
         };
         let (s, e) = (w[p.first].at, w[p.last].at + w[p.last].len);
@@ -373,22 +373,37 @@ pub fn perform(part: &Part, written: &[Written], beats: f64, role: Role, ctx: &C
             Some(Articulation::Pizzicato) => Some(NoteArt {
                 articulation: Articulation::Pizzicato,
                 bow: None,
+                start: None,
+                part: None,
+                string: None,
             }),
             _ if x.flags.contains('m') && !slurred => Some(NoteArt {
                 articulation: Articulation::Staccato,
                 bow,
+                start: None,
+                part: None,
+                string: None,
             }),
             Some(other) => Some(NoteArt {
                 articulation: other,
                 bow,
+                start: None,
+                part: None,
+                string: None,
             }),
             None if slurred => Some(NoteArt {
                 articulation: Articulation::Legato,
                 bow,
+                start: None,
+                part: None,
+                string: None,
             }),
             None => Some(NoteArt {
                 articulation: Articulation::Sustain,
                 bow,
+                start: None,
+                part: None,
+                string: None,
             }),
         };
         // Intonation: tendency tones on the melodic parts.
@@ -538,7 +553,9 @@ pub fn perform(part: &Part, written: &[Written], beats: f64, role: Role, ctx: &C
     for (i, x) in notes.iter().enumerate() {
         times11.extend([x.at - 0.002, x.at, x.at + x.len - 0.002]);
         if w[i].flags.contains('-') || w[i].flags.contains('f') || w[i].flags.contains('z') {
-            for ms in [-30.0, 0.0, 20.0, 40.0, 60.0, 90.0, 120.0, 150.0, 200.0, 300.0, 500.0] {
+            for ms in [
+                -30.0, 0.0, 20.0, 40.0, 60.0, 90.0, 120.0, 150.0, 200.0, 300.0, 500.0,
+            ] {
                 times11.push(x.at + beat(ms * 0.001));
             }
         }

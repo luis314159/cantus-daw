@@ -491,7 +491,11 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         "bow.dir",
         &DIRECTIONS,
         190.0,
-        &[&["trem.rate", "pizz.pos"], &["pizz.soft", "pizz.decay"]],
+        // r42 arcus-expr: the player and the arm's weight beside the bow's direction.
+        &[
+            &["trem.rate", "pizz.pos", "player"],
+            &["pizz.soft", "pizz.decay", "bow.weight"],
+        ],
     );
     let r4 = rows.row(heights[3], &[0.6, 0.4]);
     switched_card(

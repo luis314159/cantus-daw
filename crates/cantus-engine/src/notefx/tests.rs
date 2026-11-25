@@ -487,6 +487,9 @@ fn a_baked_note_keeps_its_articulation() {
     let pizz = Some(NoteArt {
         articulation: Articulation::Pizzicato,
         bow: Some(Bow::Up),
+        start: None,
+        part: None,
+        string: None,
     });
     let mut ev = events(&[(0, 480, 60), (480, 480, 62)]);
     ev.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));

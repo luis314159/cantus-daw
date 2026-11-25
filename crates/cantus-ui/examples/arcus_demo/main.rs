@@ -24,9 +24,11 @@
 //! r42 arcus-expr: the quartet is **performed** by default (`perform.rs`: bows, attacks,
 //! dynamics, vibrato, timing and intonation entered as a user enters them);
 //! `ARCUS_DEMO_STYLE=plain` builds pass 6's take. `arcus_demo -- <out-dir> solos` renders the
-//! solo showcase (`solos.rs`), every instrument plain and performed.
+//! solo showcase (`solos.rs`), every instrument plain and performed; `… fiddle` the fiddle's
+//! hoedown with its band and one passage classical and fiddle (`fiddle.rs`).
 
 mod build;
+mod fiddle;
 mod measure;
 mod page;
 mod parts;
@@ -105,6 +107,7 @@ fn export(app: &mut CantusApp, target: &Path, stems: bool) -> String {
 
 fn main() {
     let solos_only = std::env::args().nth(2).is_some_and(|a| a == "solos");
+    let fiddle_only = std::env::args().nth(2).is_some_and(|a| a == "fiddle");
     let out: PathBuf = std::env::args_os()
         .nth(1)
         .map(PathBuf::from)
@@ -113,11 +116,19 @@ fn main() {
         });
     std::fs::create_dir_all(&out).expect("the output folder");
     let since = std::time::Instant::now();
-    if solos_only {
-        let ok = solos::render(&out);
+    if solos_only || fiddle_only {
+        let ok = if fiddle_only {
+            fiddle::render(&out)
+        } else {
+            solos::render(&out)
+        };
         println!(
             "{} in {:.0} s",
-            if ok { "ALL CHECKS PASS" } else { "A CHECK FAILED" },
+            if ok {
+                "ALL CHECKS PASS"
+            } else {
+                "A CHECK FAILED"
+            },
             since.elapsed().as_secs_f64()
         );
         std::process::exit(if ok { 0 } else { 1 });

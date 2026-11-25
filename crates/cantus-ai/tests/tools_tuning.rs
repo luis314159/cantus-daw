@@ -94,11 +94,17 @@ fn a_notes_articulation_is_read_and_survives_a_replace() {
             None,
             Some(NoteArt {
                 articulation: Articulation::Pizzicato,
-                bow: Some(Bow::Up)
+                bow: Some(Bow::Up),
+                start: None,
+                part: None,
+                string: None,
             }),
             Some(NoteArt {
                 articulation: Articulation::Legato,
-                bow: None
+                bow: None,
+                start: None,
+                part: None,
+                string: None,
             }),
         ]
     );

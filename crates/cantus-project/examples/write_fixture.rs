@@ -2006,6 +2006,9 @@ fn main() {
                     Some(NoteArt {
                         articulation: Articulation::Pizzicato,
                         bow: None,
+                        start: None,
+                        part: None,
+                        string: None,
                     }),
                 ),
                 (
@@ -2013,6 +2016,9 @@ fn main() {
                     Some(NoteArt {
                         articulation: Articulation::Legato,
                         bow: Some(Bow::Down),
+                        start: None,
+                        part: None,
+                        string: None,
                     }),
                 ),
             ],
@@ -2110,6 +2116,30 @@ fn main() {
         }
         .apply(&mut p)
         .expect("a mapped scale");
+    }
+    // r42 arcus-expr — Schema 83 (ADR 0162): the first clip's second note (legato, down-bow)
+    // lands from the air at the tip, on the highest string.
+    if upto >= 83 {
+        use cantus_core::note_art::{Articulation, Bow, BowPart, BowStart, NoteArt};
+        let track = p.tracks[0].id;
+        let clip = p.tracks[0].clips[0].id;
+        let note = p.tracks[0].clips[0].notes[1].id;
+        Command::SetNoteArt {
+            track,
+            clip,
+            arts: vec![(
+                note,
+                Some(NoteArt {
+                    articulation: Articulation::Legato,
+                    bow: Some(Bow::Down),
+                    start: Some(BowStart::Air),
+                    part: Some(BowPart::Tip),
+                    string: Some(1),
+                }),
+            )],
+        }
+        .apply(&mut p)
+        .expect("the note's bow");
     }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with

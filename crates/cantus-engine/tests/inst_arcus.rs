@@ -265,6 +265,9 @@ fn a_note_s_own_articulation_and_bow_reach_it() {
             NoteArt {
                 articulation: art,
                 bow,
+                start: None,
+                part: None,
+                string: None,
             },
         );
         u.note_on(note(50, 4));
@@ -278,6 +281,9 @@ fn a_note_s_own_articulation_and_bow_reach_it() {
             NoteArt {
                 articulation: art,
                 bow,
+                start: None,
+                part: None,
+                string: None,
             },
         );
         v.note_on(note(50, 4));

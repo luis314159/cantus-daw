@@ -914,6 +914,9 @@ fn the_tuning_and_the_notes_articulation_are_reported_not_dropped_in_silence() {
             n.art = Some(NoteArt {
                 articulation: Articulation::Pizzicato,
                 bow: None,
+                start: None,
+                part: None,
+                string: None,
             });
         }
         c.notes.push(n);

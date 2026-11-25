@@ -59,6 +59,9 @@ pub fn project() -> Project {
         Some(NoteArt {
             articulation: art,
             bow,
+            start: None,
+            part: None,
+            string: None,
         })
     };
     use Articulation::*;

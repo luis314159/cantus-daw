@@ -4490,6 +4490,9 @@ fn articulated_notes_never_allocate() {
                 Articulation::Legato
             },
             bow: None,
+            start: None,
+            part: None,
+            string: None,
         });
         clip.notes.push(n);
     }
@@ -4573,6 +4576,9 @@ fn arcus_rig(tracks: [(&str, Vec<(&str, f32)>); 2], keys: [u8; 5], live: u8, swi
                 n.art = Some(NoteArt {
                     articulation: a,
                     bow,
+                    start: None,
+                    part: None,
+                    string: None,
                 });
                 c.notes.push(n);
             }

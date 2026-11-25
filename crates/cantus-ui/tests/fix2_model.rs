@@ -228,6 +228,9 @@ fn a_scala_export_reads_back_as_the_same_pitches_here_and_in_surge() {
 const PIZZ: Option<NoteArt> = Some(NoteArt {
     articulation: Articulation::Pizzicato,
     bow: Some(Bow::Up),
+    start: None,
+    part: None,
+    string: None,
 });
 
 /// One track, one clip, one note of two beats: pizzicato, up bow, a release velocity, a bend.

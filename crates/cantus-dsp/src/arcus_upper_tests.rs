@@ -48,7 +48,28 @@ fn lower() -> Vec<ArcusSettings> {
 /// cello renders' RMS −0.03, −0.03, +0.06, +0.20 dB, their difference −10.9, −11.0, −11.5, −2.9
 /// dB re each render (max |Δ| 0.13–0.19: the spectrum above 2 kHz moved, the vibrato's partials
 /// sweep more modes); the three bass renders the same to the bit (difference under −267 dB).
+///
+/// r42 arcus-expr (`DSP_VERSION` 15, ADR 0162): re-made for the player on by default — the bow
+/// along the stick and the arm's weight there, a stroke from the string with its force's
+/// contour, the open string's and the fast passage's vibrato, the shift's finger. The measured
+/// size (`probe_player_size`, the player off — pass 6's bits, [`PASS6_HASHES`] — against on):
+/// the RMS of the cello's four renders +0.09, −0.01, +0.01, −0.23 dB and the bass's three −3.50,
+/// −1.18, −0.08 dB; their difference +2.7, −2.0, −11.3, −12.5 (cello) and −0.8, −6.4, −11.4 dB
+/// (bass) re each render — the bowed ones at the signal's level (the vibrato's and the strokes'
+/// shapes move them), every one on purpose.
 const LOWER_HASHES: &[u64] = &[
+    0x087841e8d0723fec,
+    0xb195bbb88760cfa7,
+    0xf1c2da52e814d278,
+    0x1b0e73603bd2a934,
+    0xdbe7450453b5385c,
+    0x7354e5a49d266776,
+    0x371f19da15004043,
+];
+
+/// r42 arcus-expr — pass 6's [`LOWER_HASHES`] (`DSP_VERSION` 14): the null of the player
+/// (ADR 0162). With `player` 0 every one of the seven renders keeps pass 6's bits.
+const PASS6_HASHES: &[u64] = &[
     0x6d5e0259952247da,
     0xe01dd2f1fccb542d,
     0xa568fb3f43a76064,
@@ -57,6 +78,19 @@ const LOWER_HASHES: &[u64] = &[
     0xd0b07d0d827ca234,
     0x368b8fa3f06e79bf,
 ];
+
+#[test]
+fn the_player_off_keeps_pass_six_s_bits() {
+    let got: Vec<u64> = lower()
+        .iter()
+        .map(|s| {
+            let s = ArcusSettings { player: 0.0, ..*s };
+            let (l, r) = render(&s, &phrase(), 60_000, &|_| 256, &Serial);
+            hash(&l, &r)
+        })
+        .collect();
+    assert_eq!(got.as_slice(), PASS6_HASHES);
+}
 
 #[test]
 fn the_cello_and_the_bass_keep_their_bits() {
@@ -114,5 +148,30 @@ fn the_upper_strings_render_the_same_at_every_block_size_at_every_factor() {
                 );
             }
         }
+    }
+}
+
+/// r42 arcus-expr — the size of the player's change (ADR 0162): the seven renders of
+/// [`LOWER_HASHES`] with the player off (pass 6's bits) and on, each one's RMS and their
+/// difference, dB.
+#[test]
+#[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::upper_tests::probe_player_size -- --ignored --nocapture"]
+fn probe_player_size() {
+    let db = |x: &[f32]| {
+        10.0 * (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64 + 1e-30).log10()
+    };
+    for s in lower() {
+        let off = ArcusSettings { player: 0.0, ..s };
+        let (a, _) = render(&off, &phrase(), 60_000, &|_| 256, &Serial);
+        let (b, _) = render(&s, &phrase(), 60_000, &|_| 256, &Serial);
+        let d: Vec<f32> = a.iter().zip(&b).map(|(x, y)| x - y).collect();
+        println!(
+            "{:?} {:?}: off {:.2} dB, on {:.2} dB, difference {:.1} dB re off",
+            s.instrument,
+            s.technique,
+            db(&a),
+            db(&b),
+            db(&d) - db(&a)
+        );
     }
 }

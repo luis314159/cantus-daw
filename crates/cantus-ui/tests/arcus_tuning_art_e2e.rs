@@ -156,6 +156,9 @@ fn session(marked: bool) -> (Vec<f32>, cantus_core::tuning::TuningTable) {
             Some(NoteArt {
                 articulation: a,
                 bow: None,
+                start: None,
+                part: None,
+                string: None,
             })
         };
         assert!(app.exec(Command::SetNoteArt {
