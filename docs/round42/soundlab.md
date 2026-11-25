@@ -78,11 +78,73 @@ $CANTUS_PY -I tools/soundlab/lab.py kit     tools/soundlab/subjects/arcus-cello/
 
 ### 3.1 What the report says (held-out cells, 12 arco and 11 pizzicato groups)
 
-RESULTS_PLACEHOLDER
+Lower is closer; a scalar's distance in band widths outside the real cellos' p10–p90, a
+vector's the RMS of its partials' or bands' distances outside (dB, s). `p4-dc8` → now, means
+over the groups (the HTML page has every group and every partial):
+
+| feature | arco: in band · now (before) | pizzicato: in band · now (before) |
+|---|---|---|
+| harmonics 1–20, dB re the strongest (RMS outside) | 78 % of partials · 2.34 dB (2.27) | 36 % · 10.5 dB (8.5) |
+| harmonic centroid (harmonic numbers) | 9 of 12 groups · 0.07 widths (0.07) | — |
+| spectral centroid, the note's mean | 6/12 · 0.12 (0.12) | 5/11 · 0.38 (0.39) |
+| noise between harmonics, valid bands (dB re harmonics) | 5/12 · 0.11 (0.15) | HNR median 0/11 · 2.06 (2.74): Arcus's plucks 50–100 dB clean against the recordings' floor (§5) |
+| HNR per third octave (RMS outside) | 53 % · 2.5 dB (2.7) | 0 % · 32 dB (37) |
+| vibrato rate · extent | 11/12 · 0.01 (0.00) · 12/12 · 0 (0.03) | — |
+| t_steady | 3/10 · 0.23 (0.28) | — |
+| 10–90 % rise | 12/12 · 0 (0) | 8/11 · 0.14 (0.14) |
+| T60 per partial (RMS outside, s) · T60 of the fundamental | — | 64 % · 0.21 s (0.25) · 9/11 · 0.13 (0.29) |
+| crest factor | 5/12 · 0.18 (0.17) | 4/11 · 0.32 (0.26) |
+| the room's T20 | 10/12 · 0 (0.01) | 8/11 · 1.14 (1.54) |
+
+What it says, for the next pass on Arcus (measures decide what is *tried*): the bowed cello
+sits inside the real cellos on pitch, vibrato (rate, extent, jitter, onset), rise and release;
+its harmonics are close (2.3 dB RMS outside, a quarter of the partials out of band — in line
+with `arcus-match.md`'s 4.1 dB by its own estimator on the same held-out cells); its t_steady
+and its crest factor are the bowed features most often out. The pizzicato is further: its
+partials' levels (10.5 dB RMS outside, worse than pass 4's 8.5) and its clean spectrum; its
+decays came in (the fundamental's T60 0.29 → 0.13 band widths). Every other line of the report
+moved less than 5 % between the two runs.
 
 ## 4. What was verified
 
-TESTS_PLACEHOLDER
+- **`python -I tools/soundlab/tests/run.py`** (the study's venv: numpy 2.3.3, scipy 1.16.2,
+  soundfile 0.13.1), with `SOUNDLAB_REFS`, `SOUNDLAB_STUDY`, `SOUNDLAB_KIT_KEY` set: every test
+  green (the EBU files' test skipped, below). `--light`: 53 tests, 5 skipped, 50 s.
+  - BS.1770-4's 48 kHz coefficients to 1e-10; Tech 3341 cases 1–5 within 0.1 LU, momentary and
+    short-term on cases 1–2; Tech 3342 cases 1–4 within 1 LU; one channel at 0 dBFS −3.01;
+    a fs/4 sine's true peak 0 dBTP where its samples read −3.01.
+  - **The kits' Rust meter**: Tympanum's shipped kit (`listen/tympanum-abx-key/levels.csv`,
+    written by `cantus-dsp`'s `LoudnessMeter`): every sampled file within 0.05 LU of this
+    BS.1770.
+  - **TinySOL's published pitches**: 34 cello and bass notes, median −1.3 cents, worst 10.1
+    with the note known; over the family's whole range one octave error (the bass's A1, its
+    fundamental weak) — why the lab narrows YIN to ±7 semitones of a known note.
+  - **The study's records**: 12 TinySOL cello notes, the port at the file's rate to 7e-5 cents
+    and 5e-6 dB (f0, harmonics, vibrato, noise); through the lab's 48 kHz pipeline within
+    0.38 cents and 0.24 dB.
+  - Synthetic truths: f0 at 41–880 Hz within 1 cent; partials within 0.5 dB; B within 2 %;
+    the pluck's peaks within 1 dB from 98 Hz (at 41 Hz an 8-period window reads a fast partial
+    up to 2.3 dB low: documented, not hidden); centroid within 1 % (harmonic) and 5 % along a
+    decay; noise within 1.5 dB; 10–90 % rise within 3 ms + 10 %; T60 per partial within 5 %;
+    per band within 8 %; T20 and EDT within 5 %; vibrato rate ±0.05 Hz, extent ±1 cent,
+    jitter of a regular vibrato under 0.06; stereo balance, width and correlation exact.
+  - The band method, the listening statistics (12 of 16: p = 0.0384; critical 12 of 16,
+    15 of 20; power 0.798 at p1 = 0.8; t CI; sign test; the post-screening), the kit's
+    guarantees on a built kit (including the page's JS unveil run by node).
+- **The page in real browsers** (`abx_browser_check.mjs`, Playwright 1.49.1 installed to
+  `F:\projects\daw-r42\tmp\pw`, outside the repository): the Arcus kit **552 checks, 0 failed**
+  (Edge, Chrome, Firefox 132, each over http and file://, plus the published mode), its WAV twin
+  **552, 0 failed** — every MUSHRA control (the reference and the samples playing and switching
+  at the same place, keys R and 1–9, Next shut until every sample is played and rated, a
+  changed rating counted, the hidden reference the reference's bytes under another name) on
+  top of every earlier check. Chorda's mock **190, 0 failed** and Tympanum's **229, 0 failed**
+  (Edge + published) on the changed page; the worked example's kit (one pair, no extra part)
+  **198, 0 failed**. The saved results read back by `abx_read.py` with the key (6 runs pooled;
+  the robot's answers flagged as they should be: a failed catch, the hidden reference rated
+  under 90 → excluded).
+- **Rust**: `kit.rs`'s `the_sound_labs_subjects_are_page_subjects`, `cargo test -p cantus-ui
+  --example tympanum_abx --example chorda_abx` and `cargo clippy` on both: CARGO_PLACEHOLDER
+  `rustfmt --edition 2021` on `kit.rs`.
 
 ## 5. What is open
 

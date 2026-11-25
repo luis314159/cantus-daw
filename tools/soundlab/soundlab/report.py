@@ -21,7 +21,7 @@ def build(subject, ref_rows, cand_rows, run, before_rows=None, before_run=None, 
     s = summarise(b)
     rep = {"subject": subject.id, "name": subject.d.get("name"), "run": run,
            "made": time.strftime("%Y-%m-%d %H:%M"), "split": subject.split,
-           "references": {"files": len({r["id"].split("#")[0] for r in ref_rows}), "notes": len(ref_rows),
+           "references": {"files": len({r["id"].rsplit("#", 1)[0] for r in ref_rows}), "notes": len(ref_rows),
                           "held_out_notes": len(held),
                           "by_source": dict(Counter(f"{r['source']} ({r['licence']})" for r in ref_rows)),
                           "instruments": sorted({r["inst"] for r in ref_rows})},
@@ -53,7 +53,7 @@ main{max-width:1100px;margin:0 auto;padding:20px 16px 60px}h1{font-size:22px;mar
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
 .mute{color:var(--ink2)}.small{font-size:13px}table{border-collapse:collapse;width:100%;font-size:13px}
 td,th{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top;font-variant-numeric:tabular-nums}
-.scroll{overflow-x:auto}.in{color:var(--in)}.out{color:var(--out)}svg{display:block;max-width:100%;height:auto}
+.scroll{overflow-x:auto}.sum{min-width:560px}.sum td:first-child{font-family:ui-monospace,Consolas,monospace;font-size:12px}.in{color:var(--in)}.out{color:var(--out)}svg{display:block;max-width:100%;height:auto}
 svg text{fill:var(--ink2);font:11px system-ui,sans-serif}.legend span{display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:13px}
 .sw{width:14px;height:10px;border-radius:2px;display:inline-block}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
 """
@@ -156,9 +156,9 @@ def page(rep, subject):
     rows = []
     for k, v in s.items():
         if "in" in v:
-            score = f'{v["in"]} of {v["groups"]} groups in the band · {_f(v["widths_mean"])} band widths out (mean)'
+            score = f'{v["in"]}/{v["groups"]} groups in · {_f(v["widths_mean"])} widths out'
         else:
-            score = f'{100 * v["in_share"]:.0f} % of elements in · RMS outside {_f(v["outside_rms_mean"])} (mean)'
+            score = f'{100 * v["in_share"]:.0f} % of elements in · RMS {_f(v["outside_rms_mean"])} out'
         c = cmp_.get(k)
         bt = f'{_f(c["before"])} → {_f(c["now"])} <span class="{"in" if c["verdict"] == "closer" else ("out" if c["verdict"] == "further" else "mute")}">{c["verdict"]}</span>' if c else "—"
         rows.append(f"<tr><td>{e(k)}</td><td>{score}</td><td>{bt}</td></tr>")
@@ -177,7 +177,7 @@ def page(rep, subject):
 <h1>{e(rep.get("name") or rep["subject"])} — sound lab report</h1>
 <p class="mute">Run <b>{e(rep["run"])}</b>{f" against <b>{e(br)}</b>" if br else ""} · made {e(rep["made"])} · split {e(json.dumps(rep["split"].get("rule")))} {e(rep["split"].get("expr", ""))}{e(" seed " + str(rep["split"].get("seed"))) if rep["split"].get("seed") is not None else ""}</p>
 <div class="card small"><b>How to read it.</b> The references are split by cell (articulation, note, dynamic) with the subject's seeded rule; the third held out is never used to fit the model. Per group (articulation · register octave · dynamic class) and per feature, the band is the held-out references' 10th–90th percentile, each physical instrument weighing one. The candidate's median in the same held-out cells is placed in the band or outside it: a scalar by how many band widths it lies out, a vector by the RMS of its elements' distances outside (in the feature's units). Lower is closer; 0 is inside.</div>
-<div class="card"><h2 style="margin-top:0">Summary</h2><div class="scroll"><table><tr><th>feature</th><th>now</th><th>before → now</th></tr>{"".join(rows)}</table></div></div>
+<div class="card"><h2 style="margin-top:0">Summary</h2><p class="small mute">Scalars: groups in the band, and the mean distance outside in band widths. Vectors: the share of elements in, and the mean RMS of their distances outside (the feature's units). Before → now: that mean.</p><div class="scroll"><table class="sum"><tr><th>feature</th><th>now</th><th>before → now</th></tr>{"".join(rows)}</table></div></div>
 <div class="card small"><b>References</b>: {rep["references"]["files"]} files, {rep["references"]["notes"]} notes ({rep["references"]["held_out_notes"]} held out), {len(rep["references"]["instruments"])} instruments. Candidate: {rep["candidate"]["notes"]} notes ({rep["candidate"]["held_out_notes"]} in held-out cells).
 <div class="scroll"><table><tr><th>source (licence)</th><th>notes</th></tr>{src}</table></div></div>
 <h2>Every feature</h2>{legend}{"".join(plots)}
