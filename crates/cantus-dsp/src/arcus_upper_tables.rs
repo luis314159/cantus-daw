@@ -73,6 +73,7 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     swell_s: (0.70, 0.08),
     swell_db: (20.0, 10.0),
     pizz_t60: VIOLIN_PIZZ_T60,
+    spic_ring: 0.27, // r42:arcus-p5
     // Pass 4's 8 Hz high-pass: the bow's static push reaches the bridge as a DC force no body
     // radiates (measured on the violin too: `docs/round42/arcus-upper.md` §6).
     radiation_hz: RADIATION_SHARE * 196.0, // r42:arcus-p5: G3
@@ -106,6 +107,7 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     swell_s: (0.30, 0.10),
     swell_db: (20.0, 12.0),
     pizz_t60: VIOLA_PIZZ_T60,
+    spic_ring: 0.35,                        // r42:arcus-p5
     radiation_hz: RADIATION_SHARE * 130.81, // r42:arcus-p5: C3
     balance_db_st: 0.0,
     balance_key: 65.0,

@@ -17,7 +17,9 @@ mod run;
 #[path = "arcus_voice_step.rs"]
 mod step;
 #[cfg(test)]
-pub(crate) use step::TREM_KNOBS; // r42:arcus-p5
+pub(crate) use run::REBOW_FINGER; // r42:arcus-p5
+#[cfg(test)]
+pub(crate) use step::{CHANGE_KNOBS, SPIC_KNOBS, TREM_KNOBS}; // r42:arcus-p5
 #[path = "arcus_upper_voice.rs"] // r42:arcus-upper
 mod upper; // r42:arcus-upper
 
@@ -269,6 +271,8 @@ pub struct Voice {
     pub(super) force: f32,
     accel: f32,
     f_attack: f32,
+    /// r42:arcus-p5 — the attack is a re-bow's, on a ringing string.
+    rebow: bool,
     t: u32,
     stroke: f64,
     jitter: f32,
@@ -355,6 +359,7 @@ impl Voice {
             force: 0.0,
             accel: 0.0,
             f_attack: 0.0,
+            rebow: false,
             t: 0,
             stroke: 0.0,
             jitter: 0.0,

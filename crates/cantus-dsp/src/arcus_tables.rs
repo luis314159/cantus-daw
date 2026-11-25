@@ -139,6 +139,11 @@ pub struct InstrumentSpec {
     /// per-partial T60s, the band's middle; log-log between, held at the ends) — the string's
     /// loss set from it at the note's fundamental and eighth partial. Empty: the bowed decay.
     pub pizz_t60: &'static [(f64, f64)],
+    /// r42:arcus-p5 — between a spiccato's bounces the string rings free, its T60 × this:
+    /// fitted to the references' strokes (`tools/arcus/pass5/strokes.py`: VSCO's solo violin
+    /// and contrabass, single strokes, and Philharmonia's cello and viola phrases — how far a
+    /// stroke falls 40–250 ms after its peak).
+    pub spic_ring: f32,
     /// Where the body's radiation efficiency stops rising, Hz: a box radiates a slow
     /// vibration poorly (its pressure follows the volume velocity's rate of change, +6 dB an
     /// octave), so below this the strings' fundamentals are heard weaker than their partials
@@ -259,6 +264,7 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     swell_s: (0.30, 0.05),
     swell_db: (20.0, 10.0),
     pizz_t60: CELLO_PIZZ_T60,
+    spic_ring: 0.4, // r42:arcus-p5
     // Pass 4: the bow's static push on the string reached the bridge as a DC force the body
     // passed (most of the first second's power, decaying with the string's loss): no box
     // radiates it, so the measured body's radiation ends in a high-pass under the strings.
@@ -389,6 +395,7 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     swell_s: (0.30, 0.16),
     swell_db: (20.0, 16.0),
     pizz_t60: BASS_PIZZ_T60,
+    spic_ring: 0.55, // r42:arcus-p5
     // Pass 2: the measured body carries the radiation; pass 4: its DC taken out (the cello's).
     radiation_hz: RADIATION_SHARE * 41.203, // r42:arcus-p5: E1
     balance_db_st: 0.16,

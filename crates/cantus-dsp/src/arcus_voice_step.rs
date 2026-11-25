@@ -5,8 +5,12 @@ use super::*;
 /// How long a staccato stroke draws before the bow stops on the string, a spiccato's
 /// bounce, and how long a stopped bow holds the string before it lifts (s).
 const STACCATO_S: f32 = 0.09;
-const SPICCATO_S: f32 = 0.07;
+/// r42:arcus-p5: 0.07 → 0.04 s — a bounce's contact is short (the references' strokes peak
+/// and fall 5–10 dB within 80 ms).
+const SPICCATO_S: f32 = 0.04;
 const STOP_S: f32 = 0.04;
+/// A spiccato's force at the bounce's middle over the dynamic's.
+const SPICCATO_FORCE: f32 = 1.3;
 /// A stopped bow's lift, s.
 const STOP_LIFT_S: f32 = 0.025;
 /// The bow's usable length, m (a cello bow's hair is about 0.65 m).
@@ -33,6 +37,37 @@ const TRIM_STEP: f64 = 2.0;
 thread_local! {
     pub(crate) static TREM_KNOBS: std::cell::Cell<(f32, f32, f32, f32)> =
         const { std::cell::Cell::new((TREM_PEAK, TREM_FORCE, TREM_FLOOR, TREM_KNEE)) };
+}
+/// r42:arcus-p5 — a bow change: the force's share of the stroke's left at the turn, and a
+/// re-bow's acceleration over the attack's (`tests_p5::probe_bass_line`, the demo's bass).
+const CHANGE_FLOOR: f32 = 0.5;
+const REBOW_ACCEL: f32 = 2.0;
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static CHANGE_KNOBS: std::cell::Cell<(f32, f32)> =
+        const { std::cell::Cell::new((CHANGE_FLOOR, REBOW_ACCEL)) };
+}
+#[cfg(test)]
+fn change_knobs() -> (f32, f32) {
+    CHANGE_KNOBS.with(|c| c.get())
+}
+#[cfg(not(test))]
+fn change_knobs() -> (f32, f32) {
+    (CHANGE_FLOOR, REBOW_ACCEL)
+}
+#[cfg(test)]
+thread_local! {
+    pub(crate) static SPIC_KNOBS: std::cell::Cell<(f32, f32, f32)> =
+        const { std::cell::Cell::new((SPICCATO_S, 1.0, SPICCATO_FORCE)) };
+}
+#[cfg(test)]
+fn spic_knobs() -> (f32, f32, f32) {
+    SPIC_KNOBS.with(|c| c.get())
+}
+#[cfg(not(test))]
+fn spic_knobs() -> (f32, f32, f32) {
+    (SPICCATO_S, 1.0, SPICCATO_FORCE)
 }
 #[cfg(test)]
 fn trem_knobs() -> (f32, f32, f32, f32) {
@@ -152,6 +187,12 @@ impl Voice {
         }
         if self.released && !self.bowing {
             t60 = t60.min(s.ring_s.max(0.05) as f64);
+        }
+        if self.tech == NoteTech::Spiccato && !self.bowing {
+            // r42:arcus-p5: between a spiccato's bounces the string rings free, shorter
+            // than a held note (`InstrumentSpec::spic_ring`): before, it rang at the bowed
+            // string's own decay and each eighth fell 4–9 dB — a light détaché.
+            t60 *= (spec.spic_ring * spic_knobs().1) as f64;
         }
         // The bowing for the dynamic, and the gesture's step.
         let pos = self.contact(sh);
@@ -305,23 +346,35 @@ impl Voice {
                 self.force = 0.0;
             }
             Phase::Attack => {
-                self.v_mag = (self.v_mag + self.accel * dt).min(tv);
-                self.force = self.f_attack;
+                if self.rebow {
+                    // r42:arcus-p5: a re-bow's new stroke on the ringing string: a quick
+                    // turn (`REBOW_ACCEL` × the attack's acceleration), the force building
+                    // with the speed from `CHANGE_FLOOR` of the stroke's — not a start's
+                    // heavier attack force on a string already sounding.
+                    let (cf, ra) = change_knobs();
+                    self.v_mag = (self.v_mag + ra * self.accel * dt).min(tv);
+                    self.force = tf * (cf + (1.0 - cf) * (self.v_mag / tv.max(1e-6)).min(1.0));
+                } else {
+                    self.v_mag = (self.v_mag + self.accel * dt).min(tv);
+                    self.force = self.f_attack;
+                }
                 if self.v_mag >= tv {
                     self.phase = Phase::Hold;
+                    self.rebow = false;
                     self.t = 0;
                 }
             }
             Phase::Hold => match self.tech {
                 NoteTech::Spiccato => {
-                    let x = t_s / SPICCATO_S;
+                    let (len, _, fk) = spic_knobs();
+                    let x = t_s / len;
                     if x >= 1.0 {
                         self.phase = Phase::Off;
                         self.v_mag = 0.0;
                         self.force = 0.0;
                     } else {
                         self.v_mag = 1.2 * tv;
-                        self.force = 1.3 * tf * math::sin(std::f32::consts::PI * x);
+                        self.force = fk * tf * math::sin(std::f32::consts::PI * x);
                     }
                 }
                 NoteTech::Tremolo => {
@@ -355,7 +408,14 @@ impl Voice {
                 let half = 0.0005 * s.change_ms.max(2.0);
                 let dec = tv.max(self.v_mag) / half;
                 self.v_mag -= dec * dt;
-                self.force += (0.85 * tf - self.force) * c_f;
+                // r42:arcus-p5: the force eases with the speed into the turn (to
+                // `CHANGE_FLOOR` of the stroke's), as a player's fingers soften a change —
+                // held at 0.85 of it while the bow stopped, the string was dragged at the
+                // turn: an HF tick 15–20 dB over the bass's own high end
+                // (`docs/round42/arcus-match.md`, *Pass 5*).
+                let (cf, _) = change_knobs();
+                let share = (self.v_mag.max(0.0) / tv.max(1e-6)).min(1.0);
+                self.force = tf * (cf + (1.0 - cf) * share);
                 if self.v_mag <= 0.0 {
                     self.v_mag = 0.0;
                     self.dir = self.next_dir;
@@ -366,7 +426,8 @@ impl Voice {
                         self.force = 0.0;
                     } else {
                         self.phase = Phase::Attack;
-                        self.force = self.f_attack;
+                        self.rebow = true;
+                        self.force = tf * change_knobs().0;
                     }
                 }
             }

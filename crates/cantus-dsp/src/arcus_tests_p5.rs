@@ -637,3 +637,780 @@ fn write_tremolo_table() {
     std::fs::write(&path, out).expect("the table written");
     eprintln!("written {}", path.display());
 }
+
+/// The violin's cantabile preset as the engine reads it (`bow.pos` 1.09 → −0.25, the
+/// vibrato 1.2 × from 160 ms over 320 ms, `bow.attack` 1.4), the dynamic from CC1.
+pub(super) fn violin_cantabile(vib: bool) -> ArcusSettings {
+    ArcusSettings {
+        instrument: Instrument::Violin,
+        vib_depth: if vib { 1.2 } else { 0.0 },
+        vib_delay_ms: 160.0,
+        vib_attack_ms: 320.0,
+        bow_pos: -0.249,
+        bow_attack: 1.4,
+        body_ring: 1.15,
+        ..ArcusSettings::default()
+    }
+}
+
+/// A note at `key` held `len` s at CC1 `cc` (velocity 0.8): its YIN cents over its body.
+pub(super) fn held_cents(s: &ArcusSettings, key: u8, cc: f32, len: f64) -> (f64, f64, f64, f64) {
+    let score = [
+        (0.0, Ev::Cc(0, cc)),
+        (0.01, Ev::On(key, 0.8)),
+        (0.01 + len, Ev::Off(key)),
+    ];
+    let x = play(s, &score, len + 0.1);
+    yin_cents(&x, hz(key as f64), 0.15, len)
+}
+
+/// A probe (ignored): the violin's top octave and a half at ff and mf, short and long,
+/// vibrato on and off.
+#[test]
+#[ignore]
+fn probe_violin_top() {
+    for key in 74u8..=93 {
+        let mut line = String::new();
+        for (cc, vib, len) in [
+            (1.0, false, 1.5),
+            (1.0, true, 1.5),
+            (1.0, true, 0.5),
+            (0.6, true, 0.5),
+            (0.85, false, 0.5),
+        ] {
+            let (m, lo, hi, share) = held_cents(&violin_cantabile(vib), key, cc, len);
+            line += &format!(
+                " cc{cc} v{} {len}s: {m:+.1} [{lo:+.0},{hi:+.0} {share:.2}] |",
+                vib as u8
+            );
+        }
+        println!("violin {key}:{line}");
+    }
+}
+
+/// The demo's climax for the violin (`examples/arcus_demo/parts.rs`, section V): each note
+/// `(key, beats, slurred, velocity)` at 74 BPM, CC1 along its points, an off and the next
+/// note's on at the same sample.
+pub(super) const CLIMAX: [(u8, f64, bool, f32); 21] = [
+    (78, 1.5, false, 0.66),
+    (76, 0.5, true, 0.63),
+    (78, 1.0, true, 0.63),
+    (81, 1.0, true, 0.63),
+    (83, 1.5, false, 0.66),
+    (81, 0.5, true, 0.63),
+    (79, 1.0, true, 0.63),
+    (76, 1.0, true, 0.63),
+    (79, 1.0, false, 0.66),
+    (76, 1.0, true, 0.63),
+    (81, 1.0, false, 0.66),
+    (85, 1.0, true, 0.63),
+    (86, 2.0, false, 0.77),
+    (83, 1.5, false, 0.66),
+    (79, 0.5, true, 0.63),
+    (82, 1.0, false, 0.66),
+    (81, 1.0, true, 0.63),
+    (78, 1.0, false, 0.66),
+    (76, 1.0, true, 0.63),
+    (74, 3.0, false, 0.66),
+    (74, 0.0, false, 0.0),
+];
+
+/// A phrase's score: `notes` at `bpm`, CC1 from `cc1` (beats, value) every 50 ms; and each
+/// note's (key, start s, end s).
+pub(super) fn phrase_score(
+    notes: &[(u8, f64, bool, f32)],
+    cc1: &[(f64, f32)],
+    bpm: f64,
+) -> (Vec<(f64, Ev)>, Vec<(u8, f64, f64)>) {
+    let beat = 60.0 / bpm;
+    let mut score = Vec::new();
+    let mut spans = Vec::new();
+    let total: f64 = notes.iter().map(|n| n.1).sum();
+    let mut t = 0.0;
+    while t <= total * beat {
+        let b = t / beat;
+        let i = cc1.iter().rposition(|p| p.0 <= b).unwrap_or(0);
+        let v = match cc1.get(i + 1) {
+            Some(n) => cc1[i].1 + (n.1 - cc1[i].1) * ((b - cc1[i].0) / (n.0 - cc1[i].0)) as f32,
+            None => cc1[i].1,
+        };
+        score.push((t, Ev::Cc(0, v)));
+        t += 0.05;
+    }
+    let mut at = 0.01;
+    let mut last: Option<u8> = None;
+    for &(key, beats, slurred, vel) in notes {
+        if beats == 0.0 {
+            continue;
+        }
+        if let Some(k) = last {
+            score.push((at, Ev::Off(k)));
+        }
+        if slurred {
+            score.push((at, Ev::Art(key, Some(Art::Legato), None)));
+        }
+        score.push((at, Ev::On(key, vel)));
+        spans.push((key, at, at + beats * beat));
+        last = Some(key);
+        at += beats * beat;
+    }
+    if let Some(k) = last {
+        score.push((at, Ev::Off(k)));
+    }
+    score.sort_by(|a, b| a.0.total_cmp(&b.0));
+    (score, spans)
+}
+
+/// A probe (ignored): the demo's climax on the violin — each note's pitch.
+#[test]
+#[ignore]
+fn probe_violin_climax() {
+    let cc1 = [
+        (0.0, 0.64),
+        (8.0, 0.76),
+        (12.0, 0.9),
+        (14.0, 0.92),
+        (18.0, 0.74),
+        (20.0, 0.62),
+        (24.0, 0.48),
+    ];
+    for vib in [false, true] {
+        let (score, spans) = phrase_score(&CLIMAX, &cc1, 74.0);
+        let end = spans.last().unwrap().2 + 0.5;
+        let x = play(&violin_cantabile(vib), &score, end);
+        let mut line = String::new();
+        for (key, a, b) in spans {
+            let (m, _, _, _) = yin_cents(&x, hz(key as f64), a + 0.12, b - 0.03);
+            line += &format!(" {key}:{m:+.1}");
+        }
+        println!("vibrato {vib}:{line}");
+    }
+}
+
+/// The phrases the bow-change and spiccato measures read (`tools/arcus/pass5/strokes.py`):
+/// for `inst`, a détaché scale down and up at 120 BPM eighths (each note its own bow, the
+/// last descending change onto the lowest), the same pitch re-bowed eight times, and
+/// spiccato eighths at 74 BPM — as (name, score, seconds).
+pub(super) fn stroke_phrases(inst: Instrument) -> Vec<(&'static str, Vec<(f64, Ev)>, f64)> {
+    let spec = inst.spec();
+    let low = spec.strings[0].open;
+    let scale = [7u8, 5, 4, 2, 0, 2, 4, 5, 7, 12, 7, 0];
+    let mut out = Vec::new();
+    let eighth = |bpm: f64| 30.0 / bpm;
+    let mut det = vec![(0.0, Ev::Cc(0, 0.6))];
+    let mut t = 0.05;
+    let d = eighth(120.0);
+    for (i, s) in scale.iter().enumerate() {
+        let k = low + 12 + s;
+        if i > 0 {
+            det.push((t, Ev::Off(low + 12 + scale[i - 1])));
+        }
+        det.push((t, Ev::On(k, 0.7)));
+        t += d;
+    }
+    det.push((t, Ev::Off(low + 12 + scale[scale.len() - 1])));
+    out.push(("detache", det, t + 0.4));
+    let mut re = vec![(0.0, Ev::Cc(0, 0.6))];
+    let k = low + 19;
+    let mut t = 0.05;
+    for i in 0..8 {
+        if i > 0 {
+            re.push((t, Ev::Off(k)));
+        }
+        re.push((t, Ev::On(k, 0.7)));
+        t += eighth(100.0);
+    }
+    re.push((t, Ev::Off(k)));
+    out.push(("rebow", re, t + 0.4));
+    let mut sp = vec![(0.0, Ev::Cc(0, 0.6))];
+    let mut t = 0.05;
+    let d = eighth(74.0);
+    for s in [0u8, 4, 7, 12, 7, 4, 0, 4] {
+        let k = low + 12 + s;
+        sp.push((t, Ev::Art(k, Some(Art::Spiccato), None)));
+        sp.push((t, Ev::On(k, 0.75)));
+        sp.push((t + d, Ev::Off(k)));
+        t += d;
+    }
+    sp.sort_by(|a, b| a.0.total_cmp(&b.0));
+    out.push(("spiccato", sp, t + 0.6));
+    out
+}
+
+/// A probe (ignored): the stroke phrases of every instrument written raw for
+/// `tools/arcus/pass5/strokes.py` — `ARCUS_DUMP=<folder>`.
+#[test]
+#[ignore]
+fn probe_dump_strokes() {
+    let dir = std::path::PathBuf::from(std::env::var("ARCUS_DUMP").expect("ARCUS_DUMP"));
+    for inst in Instrument::ALL {
+        for (name, score, secs) in stroke_phrases(inst) {
+            let x = play(
+                &ArcusSettings {
+                    instrument: inst,
+                    ..ArcusSettings::default()
+                },
+                &score,
+                secs,
+            );
+            let bytes: Vec<u8> = x.iter().flat_map(|v| v.to_le_bytes()).collect();
+            std::fs::write(dir.join(format!("{inst:?}-{name}.f32")), bytes).unwrap();
+        }
+    }
+}
+
+/// A second-order Butterworth section, low- or high-pass at `fc` with quality `q`.
+fn biquad(x: &[f64], fc: f64, q: f64, high: bool) -> Vec<f64> {
+    let w = std::f64::consts::TAU * fc / SR as f64;
+    let (sn, cs) = math::sin_cos(w);
+    let alpha = sn / (2.0 * q);
+    let a0 = 1.0 + alpha;
+    let (b0, b1, b2) = if high {
+        ((1.0 + cs) / 2.0, -(1.0 + cs), (1.0 + cs) / 2.0)
+    } else {
+        ((1.0 - cs) / 2.0, 1.0 - cs, (1.0 - cs) / 2.0)
+    };
+    let (a1, a2) = (-2.0 * cs / a0, (1.0 - alpha) / a0);
+    let (b0, b1, b2) = (b0 / a0, b1 / a0, b2 / a0);
+    let (mut x1, mut x2, mut y1, mut y2) = (0.0, 0.0, 0.0, 0.0);
+    x.iter()
+        .map(|&v| {
+            let y = b0 * v + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            (x2, x1, y2, y1) = (x1, v, y1, y);
+            y
+        })
+        .collect()
+}
+
+/// The high band `strokes.py` reads (4–12 kHz, fourth order at each edge).
+pub(super) fn high_band(x: &[f32]) -> Vec<f64> {
+    let mut y: Vec<f64> = x.iter().map(|v| *v as f64).collect();
+    for (q, high, fc) in [
+        (0.5412, true, 4000.0),
+        (1.3066, true, 4000.0),
+        (0.5412, false, 12_000.0),
+        (1.3066, false, 12_000.0),
+    ] {
+        y = biquad(&y, fc, q, high);
+    }
+    y
+}
+
+/// RMS in dB over `win` s frames hopped by `hop` s: (centre s, dB).
+pub(super) fn level_db(x: &[f64], win: f64, hop: f64) -> Vec<(f64, f64)> {
+    let sr = SR as f64;
+    let (w, h) = ((win * sr) as usize, ((hop * sr) as usize).max(1));
+    let mut c = vec![0.0f64; x.len() + 1];
+    for (i, v) in x.iter().enumerate() {
+        c[i + 1] = c[i] + v * v;
+    }
+    let mut out = Vec::new();
+    let mut a = 0;
+    while a + w <= x.len() {
+        let e = (c[a + w] - c[a]) / w as f64;
+        out.push((
+            (a as f64 + w as f64 / 2.0) / sr,
+            10.0 * math::log10(e + 1e-20),
+        ));
+        a += h;
+    }
+    out
+}
+
+fn median(mut v: Vec<f64>) -> f64 {
+    v.sort_by(f64::total_cmp);
+    if v.is_empty() {
+        f64::NAN
+    } else {
+        v[v.len() / 2]
+    }
+}
+
+/// `strokes.py`'s tick at a note boundary `tb` (s): the high band's loudest 3 ms within
+/// 15 ms over the louder of its medians 60–20 ms before and 25–65 ms after, dB.
+pub(super) fn tick_at(hb: &[(f64, f64)], tb: f64) -> f64 {
+    let pick = |a: f64, b: f64| -> Vec<f64> {
+        hb.iter()
+            .filter(|f| f.0 >= tb + a && f.0 <= tb + b)
+            .map(|f| f.1)
+            .collect()
+    };
+    let near = pick(-0.015, 0.015).into_iter().fold(f64::MIN, f64::max);
+    near - median(pick(-0.060, -0.020)).max(median(pick(0.025, 0.065)))
+}
+
+/// `strokes.py`'s `tick_parts` at a boundary `tb`: the high band's loudest 3 ms within 15 ms
+/// over its median 60–20 ms before and 25–65 ms after (dB), and how long it stays within
+/// 6 dB of that frame (ms: a click is a few, a bite tens).
+pub(super) fn tick_parts(hb: &[(f64, f64)], tb: f64) -> (f64, f64, f64) {
+    let pick = |a: f64, b: f64| -> Vec<f64> {
+        hb.iter()
+            .filter(|f| f.0 >= tb + a && f.0 <= tb + b)
+            .map(|f| f.1)
+            .collect()
+    };
+    let (mut k, mut p) = (0usize, f64::MIN);
+    for (i, f) in hb.iter().enumerate() {
+        if f.0 >= tb - 0.015 && f.0 <= tb + 0.015 && f.1 > p {
+            (k, p) = (i, f.1);
+        }
+    }
+    let (mut a, mut b) = (k, k);
+    while a > 0 && hb[a - 1].1 > p - 6.0 {
+        a -= 1;
+    }
+    while b + 1 < hb.len() && hb[b + 1].1 > p - 6.0 {
+        b += 1;
+    }
+    (
+        p - median(pick(-0.060, -0.020)),
+        p - median(pick(0.025, 0.065)),
+        1000.0 * (hb[b].0 - hb[a].0) + 1.0,
+    )
+}
+
+/// `strokes.py`'s bounce for a stroke starting at `a` s and lasting to `b`: its fall from
+/// its peak (the loudest 5 ms frame within 60 ms of `a`) at 40, 80, 150 and 250 ms, and the
+/// gap (the peak over the least level before `b`), dB.
+pub(super) fn bounce_at(lv: &[(f64, f64)], a: f64, b: f64) -> ([f64; 4], f64) {
+    let span: Vec<&(f64, f64)> = lv.iter().filter(|f| f.0 >= a && f.0 < b).collect();
+    let (mut k, mut p) = (0usize, f64::MIN);
+    for (i, f) in span.iter().enumerate() {
+        if f.0 <= a + 0.06 && f.1 > p {
+            (k, p) = (i, f.1);
+        }
+    }
+    let tk = span.get(k).map_or(a, |f| f.0);
+    let at = |ms: f64| -> f64 {
+        span.iter()
+            .find(|f| f.0 >= tk + 0.001 * ms)
+            .map_or(f64::NAN, |f| p - f.1)
+    };
+    let gap = p - span[k..].iter().map(|f| f.1).fold(f64::MAX, f64::min);
+    ([at(40.0), at(80.0), at(150.0), at(250.0)], gap)
+}
+
+/// The bow changes' ticks of `score`'s notes (every note-on after the first), dB.
+pub(super) fn ticks_of(x: &[f32], score: &[(f64, Ev)]) -> Vec<f64> {
+    parts_of(x, score).iter().map(|p| p.1).collect()
+}
+
+/// The bow changes' `tick_parts` of `score`'s notes (every note-on after the first).
+pub(super) fn parts_of(x: &[f32], score: &[(f64, Ev)]) -> Vec<(f64, f64, f64)> {
+    let hb = level_db(&high_band(x), 0.003, 0.001);
+    score
+        .iter()
+        .filter(|e| matches!(e.1, Ev::On(..)))
+        .skip(1)
+        .map(|e| tick_parts(&hb, e.0))
+        .collect()
+}
+
+/// A probe (ignored): every instrument's bow-change ticks and spiccato bounce, as
+/// `strokes.py` measures them, at the notes' own times.
+#[test]
+#[ignore]
+fn probe_strokes() {
+    for inst in Instrument::ALL {
+        let mut line = format!("{inst:?}:");
+        for (name, score, secs) in stroke_phrases(inst) {
+            let s = ArcusSettings {
+                instrument: inst,
+                ..ArcusSettings::default()
+            };
+            let x = play(&s, &score, secs);
+            if name == "spiccato" {
+                let lv = level_db(
+                    &x.iter().map(|v| *v as f64).collect::<Vec<_>>(),
+                    0.005,
+                    0.001,
+                );
+                let ons: Vec<f64> = score
+                    .iter()
+                    .filter(|e| matches!(e.1, Ev::On(..)))
+                    .map(|e| e.0)
+                    .collect();
+                let mut falls = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+                let mut gaps = Vec::new();
+                for (i, a) in ons.iter().enumerate() {
+                    let b = ons.get(i + 1).copied().unwrap_or(a + 0.405);
+                    let (f, g) = bounce_at(&lv, *a, b);
+                    for j in 0..4 {
+                        falls[j].push(f[j]);
+                    }
+                    gaps.push(g);
+                }
+                line += &format!(
+                    " spiccato fall {:.1}/{:.1}/{:.1}/{:.1} gap {:.1} dB |",
+                    median(falls[0].clone()),
+                    median(falls[1].clone()),
+                    median(falls[2].clone()),
+                    median(falls[3].clone()),
+                    median(gaps)
+                );
+            } else {
+                let t = ticks_of(&x, &score);
+                let mut s = t.clone();
+                s.sort_by(f64::total_cmp);
+                line += &format!(
+                    " {name} ticks median {:+.1} p90 {:+.1} max {:+.1} |",
+                    median(t),
+                    s[(0.9 * (s.len() - 1) as f64).round() as usize],
+                    s[s.len() - 1]
+                );
+            }
+        }
+        println!("{line}");
+    }
+}
+
+/// One instrument's strokes as `strokes.py` reads them: the détaché's and the re-bow's ticks
+/// (dB) and the spiccato's falls at 40/80/150/250 ms and gaps (dB), per stroke.
+pub(super) struct Strokes {
+    pub detache: Vec<f64>,
+    /// The détaché's and the re-bow's ticks' widths, ms.
+    pub widths: Vec<f64>,
+    pub rebow: Vec<f64>,
+    pub falls: [Vec<f64>; 4],
+    pub gaps: Vec<f64>,
+}
+
+pub(super) fn strokes_of(s: &ArcusSettings) -> Strokes {
+    let mut out = Strokes {
+        detache: Vec::new(),
+        widths: Vec::new(),
+        rebow: Vec::new(),
+        falls: [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
+        gaps: Vec::new(),
+    };
+    for (name, score, secs) in stroke_phrases(s.instrument) {
+        let x = play(s, &score, secs);
+        match name {
+            "spiccato" => {
+                let lv = level_db(
+                    &x.iter().map(|v| *v as f64).collect::<Vec<_>>(),
+                    0.005,
+                    0.001,
+                );
+                let ons: Vec<f64> = score
+                    .iter()
+                    .filter(|e| matches!(e.1, Ev::On(..)))
+                    .map(|e| e.0)
+                    .collect();
+                for (i, a) in ons.iter().enumerate() {
+                    let b = ons.get(i + 1).copied().unwrap_or(a + 0.405);
+                    let (f, g) = bounce_at(&lv, *a, b);
+                    for j in 0..4 {
+                        out.falls[j].push(f[j]);
+                    }
+                    out.gaps.push(g);
+                }
+            }
+            "detache" => {
+                let p = parts_of(&x, &score);
+                out.widths.extend(p.iter().map(|p| p.2));
+                out.detache = p.iter().map(|p| p.1).collect();
+            }
+            _ => {
+                let p = parts_of(&x, &score);
+                out.widths.extend(p.iter().map(|p| p.2));
+                out.rebow = p.iter().map(|p| p.1).collect();
+            }
+        }
+    }
+    out
+}
+
+/// A probe (ignored): every fault of pass 5 measured in one run (the before and after of
+/// `docs/round42/arcus-match.md`, *Pass 5*): the tremolo's pitch over every string, the
+/// violin's top at ff, the bow changes' ticks, the spiccato's bounce.
+#[test]
+#[ignore]
+fn probe_report() {
+    for inst in Instrument::ALL {
+        let spec = inst.spec();
+        let mut all = Vec::new();
+        let mut worst = (0f64, String::new());
+        for st in spec.strings {
+            for key in [st.open, st.open + 5] {
+                for slurred in [false, true] {
+                    let (c, _) = tremolo_cents(&plain(inst), key, 0.6, slurred);
+                    all.push(c.abs());
+                    if c.abs() > worst.0 || c.is_nan() {
+                        worst = (
+                            c.abs(),
+                            format!("{key}{} {c:+.1}", if slurred { "s" } else { "" }),
+                        );
+                    }
+                }
+            }
+        }
+        println!(
+            "{inst:?} tremolo: mean |c| {:.1}, worst {} ct",
+            all.iter().sum::<f64>() / all.len() as f64,
+            worst.1
+        );
+        let st = strokes_of(&ArcusSettings {
+            instrument: inst,
+            ..ArcusSettings::default()
+        });
+        let q = |v: &Vec<f64>| {
+            let (m, _, hi) = spread(v);
+            let mx = v.iter().cloned().fold(f64::MIN, f64::max);
+            format!("median {m:+.1} p90 {hi:+.1} max {mx:+.1}")
+        };
+        println!(
+            "{inst:?} détaché ticks {} | re-bow ticks {}",
+            q(&st.detache),
+            q(&st.rebow)
+        );
+        println!(
+            "{inst:?} spiccato falls {:.1}/{:.1}/{:.1}/{:.1} dB, gap {:.1} dB",
+            spread(&st.falls[0]).0,
+            spread(&st.falls[1]).0,
+            spread(&st.falls[2]).0,
+            spread(&st.falls[3]).0,
+            spread(&st.gaps).0
+        );
+    }
+    let mut worst = (0f64, 0u8);
+    for key in 76u8..=93 {
+        for len in [0.5, 1.5] {
+            let (m, ..) = held_cents(&violin_cantabile(true), key, 1.0, len);
+            if m.abs() > worst.0 {
+                worst = (m.abs(), key);
+            }
+        }
+    }
+    println!(
+        "violin E5–A6 at ff: worst {:.1} ct (key {})",
+        worst.0, worst.1
+    );
+}
+
+/// A probe (ignored): the bow change scanned — `ARCUS_CHANGE=floor:accel×;…` (the force's
+/// share left at the reversal, the re-bow's acceleration over the attack's).
+#[test]
+#[ignore]
+fn probe_change_scan() {
+    let knobs: Vec<(f32, f32)> = std::env::var("ARCUS_CHANGE")
+        .unwrap_or_else(|_| "0.5:2".into())
+        .split(';')
+        .filter_map(|k| {
+            let p: Vec<f32> = k.split(':').filter_map(|x| x.parse().ok()).collect();
+            (p.len() == 2).then(|| (p[0], p[1]))
+        })
+        .collect();
+    if let Some(f) = std::env::var("ARCUS_FINGER")
+        .ok()
+        .and_then(|f| f.parse().ok())
+    {
+        voice::REBOW_FINGER.with(|c| c.set(f));
+    }
+    for k in knobs {
+        voice::CHANGE_KNOBS.with(|c| c.set(k));
+        let mut line = format!("{k:?}:");
+        for inst in Instrument::ALL {
+            let st = strokes_of(&ArcusSettings {
+                instrument: inst,
+                oversample: std::env::var("ARCUS_OS").ok().and_then(|o| o.parse().ok()),
+                body_mix: if std::env::var_os("ARCUS_NOBODY").is_some() {
+                    0.0
+                } else {
+                    1.0
+                },
+                bow_noise_db: if std::env::var_os("ARCUS_NONOISE").is_some() {
+                    -60.0
+                } else {
+                    0.0
+                },
+                ..ArcusSettings::default()
+            });
+            let w: Vec<f64> = st.widths.clone();
+            let (m, _, hi) = spread(&st.detache);
+            let (rm, _, rhi) = spread(&st.rebow);
+            line += &format!(
+                " {inst:?} det {m:+.1}/{hi:+.1} re {rm:+.1}/{rhi:+.1} w {:.0} |",
+                spread(&w).0
+            );
+        }
+        println!("{line}");
+    }
+}
+
+/// A probe (ignored): one plain re-bow on the cello's G3, ms by ms around it — the high
+/// band's level, the bow's speed and force and its phase. `ARCUS_TREM`'s form picks another.
+#[test]
+#[ignore]
+fn probe_rebow_trace() {
+    let (inst, key, vel) = std::env::var("ARCUS_TREM")
+        .ok()
+        .and_then(|v| {
+            let p: Vec<&str> = v.split(':').collect();
+            Some((
+                Instrument::ALL[p.first()?.parse::<usize>().ok()?],
+                p.get(1)?.parse::<u8>().ok()?,
+                p.get(2)?.parse::<f32>().ok()?,
+            ))
+        })
+        .unwrap_or((Instrument::Cello, 55, 0.7));
+    let mut a = Arcus::new(SR);
+    let to: u8 = std::env::var("ARCUS_TO")
+        .ok()
+        .and_then(|t| t.parse().ok())
+        .unwrap_or(key);
+    if inst == Instrument::Bass && std::env::var_os("ARCUS_CANT").is_some() {
+        a.set(&bass_cantabile());
+    } else {
+        a.set(&ArcusSettings {
+            instrument: inst,
+            ..ArcusSettings::default()
+        });
+    }
+    a.controller(0, 0.45);
+    a.note_on(key, vel, 1);
+    let frames = (0.8 * SR) as usize;
+    let t_re = (0.5 * SR) as usize;
+    let hop = (0.001 * SR) as usize;
+    let mut out = vec![0.0f32; frames];
+    let mut rows = Vec::new();
+    let mut at = 0;
+    let mut r = vec![0.0f32; hop];
+    while at < frames {
+        if at == t_re {
+            a.note_off(key, 1);
+            a.note_on(to, vel, 2);
+        }
+        a.process(&mut out[at..at + hop], &mut r);
+        r.fill(0.0);
+        let v = &a.voices[a.voices.iter().position(|v| v.active()).unwrap_or(0)];
+        let (lo, hi) = v.limits();
+        rows.push((
+            at,
+            v.bow_velocity(),
+            v.bow_force() / lo.max(1e-6),
+            v.bow_force() / hi.max(1e-6),
+            v.phase(),
+        ));
+        at += hop;
+    }
+    let hb = high_band(&out);
+    for (i, (at, vb, f, fh, ph)) in rows.iter().enumerate() {
+        if *at + 10 * hop < t_re || *at > t_re + 40 * hop {
+            continue;
+        }
+        let e: f64 = hb[*at..*at + hop].iter().map(|x| x * x).sum::<f64>() / hop as f64;
+        let l: f64 = out[*at..*at + hop]
+            .iter()
+            .map(|x| (*x as f64).powi(2))
+            .sum::<f64>()
+            / hop as f64;
+        println!(
+            "{:+3} ms  hf {:6.1} dB  all {:6.1} dB  v {:+.3}  F/lo {:.2} F/hi {:.2}  {:?}",
+            i as i64 - (t_re / hop) as i64,
+            10.0 * math::log10(e + 1e-20),
+            10.0 * math::log10(l + 1e-20),
+            vb,
+            f,
+            fh,
+            ph
+        );
+    }
+}
+
+/// The bass's cantabile preset as the engine reads it (`bow.pos` 1.07 → −0.195, the vibrato
+/// 1.25 × from 200 ms, `bow.attack` 1.4).
+pub(super) fn bass_cantabile() -> ArcusSettings {
+    ArcusSettings {
+        instrument: Instrument::Bass,
+        vib_depth: 1.25,
+        vib_delay_ms: 200.0,
+        bow_pos: -0.195,
+        bow_attack: 1.4,
+        ..ArcusSettings::default()
+    }
+}
+
+/// The demo's bass in section III (`parts.rs`): D2 G2 F#2 E2 A1 A1 D2 C#2 B1 A1 G1 A1, each
+/// its own bow, CC1 0.38 → 0.48.
+pub(super) const BASS_III: [(u8, f64, bool, f32); 12] = [
+    (38, 4.0, false, 0.55),
+    (43, 3.0, false, 0.55),
+    (42, 1.0, false, 0.55),
+    (40, 2.0, false, 0.55),
+    (33, 2.0, false, 0.55),
+    (33, 4.0, false, 0.55),
+    (38, 2.0, false, 0.55),
+    (37, 2.0, false, 0.55),
+    (35, 2.0, false, 0.55),
+    (33, 2.0, false, 0.55),
+    (31, 2.0, false, 0.55),
+    (33, 2.0, false, 0.55),
+];
+
+/// A probe (ignored): the demo's bass line (section III) — each bow change's tick.
+#[test]
+#[ignore]
+fn probe_bass_line() {
+    if let Some(f) = std::env::var("ARCUS_FINGER")
+        .ok()
+        .and_then(|f| f.parse().ok())
+    {
+        voice::REBOW_FINGER.with(|c| c.set(f));
+    }
+    if let Some(k) = std::env::var("ARCUS_CHANGE").ok().and_then(|k| {
+        let p: Vec<f32> = k.split(':').filter_map(|x| x.parse().ok()).collect();
+        (p.len() == 2).then(|| (p[0], p[1]))
+    }) {
+        voice::CHANGE_KNOBS.with(|c| c.set(k));
+    }
+    let (score, spans) = phrase_score(&BASS_III, &[(0.0, 0.38), (22.0, 0.48)], 74.0);
+    let end = spans.last().unwrap().2 + 0.5;
+    let x = play(&bass_cantabile(), &score, end);
+    let p = parts_of(&x, &score);
+    for (s, q) in spans.iter().skip(1).zip(&p) {
+        println!(
+            "key {} at {:.2}s: over pre {:+.1} over post {:+.1} width {:.0}",
+            s.0, s.1, q.0, q.1, q.2
+        );
+    }
+    let post: Vec<f64> = p.iter().map(|q| q.1).collect();
+    println!("median over post {:+.1}", spread(&post).0);
+    if let Ok(d) = std::env::var("ARCUS_DUMP") {
+        let bytes: Vec<u8> = x.iter().flat_map(|v| v.to_le_bytes()).collect();
+        std::fs::write(std::path::Path::new(&d).join("bass_line.f32"), bytes).unwrap();
+    }
+}
+
+/// A probe (ignored): the spiccato scanned — `ARCUS_SPIC=stroke s:ring ×:force ×;…`.
+#[test]
+#[ignore]
+fn probe_spiccato_scan() {
+    let knobs: Vec<(f32, f32, f32)> = std::env::var("ARCUS_SPIC")
+        .unwrap_or_else(|_| "0.07:1:1.3".into())
+        .split(';')
+        .filter_map(|k| {
+            let p: Vec<f32> = k.split(':').filter_map(|x| x.parse().ok()).collect();
+            (p.len() == 3).then(|| (p[0], p[1], p[2]))
+        })
+        .collect();
+    for k in knobs {
+        voice::SPIC_KNOBS.with(|c| c.set(k));
+        let mut line = format!("{k:?}:");
+        for inst in Instrument::ALL {
+            let st = strokes_of(&ArcusSettings {
+                instrument: inst,
+                ..ArcusSettings::default()
+            });
+            line += &format!(
+                " {inst:?} {:.1}/{:.1}/{:.1}/{:.1} gap {:.1} |",
+                spread(&st.falls[0]).0,
+                spread(&st.falls[1]).0,
+                spread(&st.falls[2]).0,
+                spread(&st.falls[3]).0,
+                spread(&st.gaps).0
+            );
+        }
+        println!("{line}");
+    }
+}
