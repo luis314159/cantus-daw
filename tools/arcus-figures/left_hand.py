@@ -206,14 +206,17 @@ class Neck:
 # (r42:arcus-hands: the base joints straighter and the middle joints less bent — the owner,
 # 2026-11-25: the fingers "short and stubby, curled tight near the board"; in the
 # photographs the first phalanges rise high from the knuckles, nearly on the back's line.)
-PLAY = ((18, 52), (62, 100), (10, 40))
-HOVER = ((12, 52), (40, 90), (5, 32))
+# (r42:arcus-hands, the coordinator on sheet hands-1: still hooks — in crop-08 and crop-11
+# each finger is a smooth open arch, the last phalanx coming down nearly straight onto
+# the string: the DIP 5-20 deg on a playing finger, the bend spread over MCP and PIP.)
+PLAY = ((18, 60), (55, 100), (4, 25))
+HOVER = ((12, 55), (35, 85), (3, 24))
 # Each finger's spread at rest (rad): the index a little toward the scroll, the little
 # finger a little away.
 SPREAD = np.array([0.0, 0.0, 0.02, 0.05])
 # Each finger's angles near the middle of its range (deg; the owner's review: curled to
 # the ranges' ends the fingers read short, a fist on the fingerboard).
-MID = (32.0, 80.0, 20.0)
+MID = (36.0, 72.0, 10.0)
 # Where the palm faces (the owner's photographs 2-4: toward the player as much as toward the
 # neck, a little up), and how near to it it must keep.
 def back_way(pose):
@@ -242,10 +245,12 @@ PALM_MIN = 0.996
 PALM_W = 150.0
 # Each finger's middle joint over the fingerboard's top (cm): index, middle, ring, little.
 ARCHES = (3.5, 3.8, 3.6, 3.0)
-# The playing finger's last phalanx within this of the fingerboard's normal (cos 21.5 deg; was 24).
-UPRIGHT_COS = 0.93
-# Each first phalanx rising from its knuckle: within this of the normal (cos 31 deg; was 40).
-RISE_COS = 0.857
+# The playing finger's last phalanx within this of the fingerboard's normal (cos 25 deg; was 24 — with the last joint nearly straight, the middle joint takes the
+# bend).
+UPRIGHT_COS = 0.906
+# Each first phalanx rising from its knuckle: within this of the normal (cos 50 deg; was 40 — the first phalanx leans over the board toward the string, as in
+# crop-08 and crop-11, so the bend is spread over three joints, not folded at two).
+RISE_COS = 0.64
 # The wrist under the neck (cm across from the E edge, below the top).
 WRIST_X = (0.0, 3.5)
 # The wrist's deviation toward the little finger (deg): its range and where it rests.
@@ -257,7 +262,7 @@ WRIST_DEV_MID = 9.0
 HOVER_SLACK = (1.2, 1.4, 1.8, 2.6)
 WRIST_Z = (-10.5, -5.0)
 # How high the knuckles stand over the fingerboard's top, at least (cm).
-KNUCKLES = (-1.0, 0.4)
+KNUCKLES = (-0.8, 0.8)
 # Her hand's length, wrist to the middle knuckles (cm, after knuckle_fix): the rules' unit.
 HAND_LEN = 7.61
 # How far out from the E edge the base knuckles stand (cm): beside the neck.
@@ -479,8 +484,8 @@ def start(h, row):
     W = mid - R0 @ (rest_mid - h.wr)
     th = np.zeros(21)
     for f in range(1, 5):
-        th[4 * (f - 1):4 * f] = [55 * RAD - h.rest[f, 0], SPREAD[f - 1],
-                                 85 * RAD - h.rest[f, 1], 35 * RAD - h.rest[f, 2]]
+        th[4 * (f - 1):4 * f] = [40 * RAD - h.rest[f, 0], SPREAD[f - 1],
+                                 75 * RAD - h.rest[f, 1], 12 * RAD - h.rest[f, 2]]
     th[19:21] = [15 * RAD, 15 * RAD]
     return R0, np.concatenate([W, np.zeros(3), th, [WRIST_DEV_MID * RAD]])
 

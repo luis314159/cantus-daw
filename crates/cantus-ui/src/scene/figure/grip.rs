@@ -107,34 +107,39 @@ pub fn bow_frog(frog: V3, dir: V3, n: V3, facing: V3, held: bool, k: f32) -> Joi
     // The stick's middle at the frog's front corner (Arcus's stick: 2.1 cm over the hair).
     let s = frog + n * 1.95;
     let at = |u: f32, o: f32, f: f32| s + (dir * u + over * o + far * f) * k;
-    // (r42:arcus-hands: the knuckles higher over the stick and the fingers curled round it,
-    // slanting toward the tip — `figure::fingers::curl` bends their three joints together;
-    // against the Commons photograph "Right hand position on bow.jpg".)
-    let kc = at(0.8, 4.0, -1.6);
-    let hd = (far * 0.8 - over * 0.45 + dir * 0.2).norm();
-    let kx = (dir - over * 0.3).norm();
+    let g = bow_design();
+    // (r42:arcus-hands: the knuckles high and round over the stick, the hand leant toward
+    // the index (its knuckles' line falling toward the tip), the fingers curled round the
+    // stick and slanting toward the tip — `figure::fingers::curl` bends their three joints
+    // together; against the Commons photograph "Right hand position on bow.jpg".)
+    let kc = at(g.kc[0], g.kc[1], g.kc[2]);
+    let hd = (far * g.hd[0] - over * g.hd[1] + dir * g.hd[2]).norm();
+    let kx = (dir - over * g.lean).norm();
     let wrist = kc - hd * (8.6 * k);
     let palm = kc - hd * (3.6 * k);
-    let along = [2.0, 0.5, -1.1, -2.6];
-    let hang = [0.3, 0.5, 0.5];
-    let slant = [1.0, 0.6, 0.2];
     let mut fingers = [[V3::default(); 4]; 4];
     for (j, f) in fingers.iter_mut().enumerate() {
         let knuckle = kc + kx * ((1.5 - j as f32) * 1.9 * k);
-        let u = along[j];
+        let u = g.along[j];
         let (mid, tip) = if j == 3 && held {
             // Curved on top: its middle joint arched up, its tip standing on the stick.
-            (at(-2.2, 2.8, -0.6), at(-2.9, 0.55, 0.0))
+            (
+                at(g.little_mid[0], g.little_mid[1], g.little_mid[2]),
+                at(g.little_tip[0], g.little_tip[1], g.little_tip[2]),
+            )
         } else if j == 3 {
             (at(u, 1.3, 0.55), at(u - 0.2, -0.2, 0.95))
         } else {
-            (at(u, 1.9, 1.0), at(u + slant[j], -hang[j], 0.2))
+            (
+                at(u, g.mid[0], g.mid[1]),
+                at(u + g.slant[j], -g.hang[j], g.tip_far),
+            )
         };
         *f = [knuckle, mid, mid.lerp(tip, 0.55), tip];
     }
     // The thumb: bent, its tip at the frog's front corner under the stick's near side.
-    let t3 = at(0.3, -0.35, -0.45);
-    let t2 = at(-0.5, -1.0, -1.45);
+    let t3 = at(g.thumb_tip[0], g.thumb_tip[1], g.thumb_tip[2]);
+    let t2 = at(g.thumb_ip[0], g.thumb_ip[1], g.thumb_ip[2]);
     let t1 = palm.lerp(t2, 0.45) - far * 0.6 - over * 0.4;
     let t0 = wrist.lerp(kc, 0.35) - far * 1.0 - over * 0.6;
     Joints {
@@ -143,6 +148,84 @@ pub fn bow_frog(frog: V3, dir: V3, n: V3, facing: V3, held: bool, k: f32) -> Joi
         fingers,
         thumb: [t0, t1, t2, t3],
     }
+}
+
+/// r42:arcus-hands — the bow hold's numbers (cm in the stick's frame at the frog's front
+/// corner: along it toward the tip, over it, to its far side; the woman's hand).
+#[derive(Copy, Clone, Debug)]
+struct BowDesign {
+    /// The knuckles' middle.
+    kc: [f32; 3],
+    /// The hand's way from the wrist (far, down, toward the tip).
+    hd: [f32; 3],
+    /// How far the knuckles' line falls toward the tip (the hand leant to the index).
+    lean: f32,
+    /// Each finger's middle joint along the stick.
+    along: [f32; 4],
+    /// The middle joints over the stick and to its far side.
+    mid: [f32; 2],
+    /// Each tip under the stick, slanted toward the tip, and to the far side.
+    hang: [f32; 3],
+    slant: [f32; 3],
+    tip_far: f32,
+    little_mid: [f32; 3],
+    little_tip: [f32; 3],
+    thumb_tip: [f32; 3],
+    thumb_ip: [f32; 3],
+}
+
+const BOW: BowDesign = BowDesign {
+    kc: [0.8, 4.0, -1.6],
+    hd: [0.8, 0.45, 0.2],
+    lean: 0.3,
+    along: [2.0, 0.5, -1.1, -2.6],
+    mid: [1.9, 1.0],
+    hang: [0.3, 0.5, 0.5],
+    slant: [1.0, 0.6, 0.2],
+    tip_far: 0.2,
+    little_mid: [-2.2, 2.8, -0.6],
+    little_tip: [-2.9, 0.55, 0.0],
+    thumb_tip: [0.3, -0.35, -0.45],
+    thumb_ip: [-0.5, -1.0, -1.45],
+};
+
+/// [`BOW`], or while a bow hold is being designed in the app (`CANTUS_BOW_GRIP` =
+/// `name=a,b,c;…` over its fields, read once — DEVELOPING §4; unset in the app).
+fn bow_design() -> BowDesign {
+    static D: std::sync::OnceLock<BowDesign> = std::sync::OnceLock::new();
+    *D.get_or_init(|| {
+        let mut g = BOW;
+        let Ok(spec) = std::env::var("CANTUS_BOW_GRIP") else {
+            return g;
+        };
+        for item in spec.split(';') {
+            let Some((name, vals)) = item.split_once('=') else {
+                continue;
+            };
+            let v: Vec<f32> = vals.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+            let put = |dst: &mut [f32]| {
+                for (d, x) in dst.iter_mut().zip(&v) {
+                    *d = *x;
+                }
+            };
+            match name.trim() {
+                "kc" => put(&mut g.kc),
+                "hd" => put(&mut g.hd),
+                "lean" => put(std::slice::from_mut(&mut g.lean)),
+                "along" => put(&mut g.along),
+                "mid" => put(&mut g.mid),
+                "hang" => put(&mut g.hang),
+                "slant" => put(&mut g.slant),
+                "tip_far" => put(std::slice::from_mut(&mut g.tip_far)),
+                "little_mid" => put(&mut g.little_mid),
+                "little_tip" => put(&mut g.little_tip),
+                "thumb_tip" => put(&mut g.thumb_tip),
+                "thumb_ip" => put(&mut g.thumb_ip),
+                _ => {}
+            }
+        }
+        g
+    })
 }
 
 /// A power grip round a rod: the knuckles over it on the `back` side, the fingers wrapping
