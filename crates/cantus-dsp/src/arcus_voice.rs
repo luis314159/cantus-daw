@@ -16,6 +16,8 @@ use crate::math;
 mod run;
 #[path = "arcus_voice_step.rs"]
 mod step;
+#[cfg(test)]
+pub(crate) use step::TREM_KNOBS; // r42:arcus-p5
 #[path = "arcus_upper_voice.rs"] // r42:arcus-upper
 mod upper; // r42:arcus-upper
 

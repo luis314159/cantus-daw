@@ -262,7 +262,7 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     // Pass 4: the bow's static push on the string reached the bridge as a DC force the body
     // passed (most of the first second's power, decaying with the string's loss): no box
     // radiates it, so the measured body's radiation ends in a high-pass under the strings.
-    radiation_hz: RADIATION_DC_HZ,
+    radiation_hz: RADIATION_SHARE * 65.406, // r42:arcus-p5: C2
     balance_db_st: 0.47,
     balance_key: 57.0,
     matched: CELLO_MATCH,
@@ -326,7 +326,16 @@ pub fn t60_at(table: &[(f64, f64)], hz: f64) -> f64 {
 /// Pass 4: the measured bodies' radiation corner under the strings' fundamentals, Hz (two
 /// first-order stages: −0.3 dB at the bass's E1, −0.1 at the cello's C2): what a body never
 /// radiates — the bow's static push on the string, a DC force on the bridge — taken out.
+/// Pass 5 (r42:arcus-p5) moved each instrument's to [`RADIATION_SHARE`] of its lowest open
+/// string (a second-order Butterworth); the constant stays for the record.
 pub const RADIATION_DC_HZ: f32 = 8.0;
+/// r42:arcus-p5 — the radiation's corner over each instrument's lowest open string (a
+/// second-order Butterworth: −0.4 dB on that string, −0.03 an octave up): the push a bow
+/// reverses at a tremolo's every stroke (its cycle at half the stroke rate, 5–9 Hz, and the
+/// harmonics of its turn) and at a bow change is a force on the bridge under any note the
+/// body radiates — at the old 8 Hz it rang the bodies' lowest modes louder than the
+/// tremolo's own fundamental (`docs/round42/arcus-match.md`, *Pass 5*).
+pub const RADIATION_SHARE: f32 = 0.55;
 
 /// The double bass, in orchestral tuning: E1 A1 D2 G2 over 1 060 mm.
 pub const BASS: InstrumentSpec = InstrumentSpec {
@@ -381,7 +390,7 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     swell_db: (20.0, 16.0),
     pizz_t60: BASS_PIZZ_T60,
     // Pass 2: the measured body carries the radiation; pass 4: its DC taken out (the cello's).
-    radiation_hz: RADIATION_DC_HZ,
+    radiation_hz: RADIATION_SHARE * 41.203, // r42:arcus-p5: E1
     balance_db_st: 0.16,
     balance_key: 47.5,
     matched: BASS_MATCH,

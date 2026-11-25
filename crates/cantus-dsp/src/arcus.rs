@@ -54,6 +54,9 @@ mod tests_gate2;
 #[path = "arcus_tests_p4.rs"]
 mod tests_p4;
 #[cfg(test)]
+#[path = "arcus_tests_p5.rs"] // r42:arcus-p5
+mod tests_p5;
+#[cfg(test)]
 #[path = "arcus_tests_pitch.rs"]
 mod tests_pitch;
 #[path = "arcus_upper.rs"] // r42:arcus-upper
@@ -425,9 +428,11 @@ pub struct Arcus {
     body: Body,
     /// The violin's and the viola's body (Fides's is off for them). // r42:arcus-upper
     upper_body: upper::body::UpperBody, // r42:arcus-upper
-    /// The radiation's first-order high-pass (its step, and each side's state `(x₁, y₁)`).
-    rad_c: f32,
-    rad: [(f32, f32); 4],
+    /// The radiation's high-pass (r42:arcus-p5: a second-order Butterworth, its
+    /// coefficients `b₀ b₁ b₂ a₁ a₂`; none when `b₀` is 0) and each side's state
+    /// `(x₁, x₂, y₁, y₂)`.
+    rad_c: [f32; 5],
+    rad: [[f32; 4]; 2],
     /// Model 2's correction on the output (`eq`).
     eq: eq::MatchEq,
     out: Output,

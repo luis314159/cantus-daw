@@ -34,8 +34,8 @@ impl Arcus {
             buf_r: vec![0.0; CHUNK],
             body,
             upper_body: upper::body::UpperBody::new(sample_rate), // r42:arcus-upper
-            rad_c: 0.0,
-            rad: [(0.0, 0.0); 4],
+            rad_c: [0.0; 5],
+            rad: [[0.0; 4]; 2],
             eq: eq::MatchEq::default(),
             out,
             hammer,
@@ -79,12 +79,7 @@ impl Arcus {
         self.body.set(&self.s.body());
         self.upper_body.set(upper::body::shape_of(&self.s)); // r42:arcus-upper
         self.out.set(&self.s.output());
-        let fr = self.s.instrument.spec().radiation_hz;
-        self.rad_c = if fr > 0.0 {
-            math::exp(-std::f32::consts::TAU * fr / self.sr)
-        } else {
-            0.0
-        };
+        self.rad_c = radiation(self.s.instrument.spec().radiation_hz, self.sr);
     }
 
     /// The pitch table the bowed notes are corrected by (`None`: none — the tool that
@@ -375,7 +370,7 @@ impl Arcus {
         self.alloc.clear();
         self.body.reset();
         self.upper_body.reset(); // r42:arcus-upper
-        self.rad = [(0.0, 0.0); 4];
+        self.rad = [[0.0; 4]; 2];
         self.eq.reset();
         self.out.reset();
         self.clock = 0;
@@ -391,7 +386,7 @@ impl Arcus {
     pub fn at_rest(&self) -> bool {
         self.voices.iter().all(|v| !v.active())
             && self.alloc.is_clear()
-            && self.rad.iter().all(|r| *r == (0.0, 0.0))
+            && self.rad.iter().all(|r| *r == [0.0; 4])
             && self.eq.is_still()
             && self.body.is_still()
             && self.upper_body.is_still() // r42:arcus-upper
@@ -406,4 +401,26 @@ impl Arcus {
     pub fn take_stolen(&mut self) -> u32 {
         std::mem::take(&mut self.stolen)
     }
+}
+
+/// r42:arcus-p5 — the radiation's second-order Butterworth high-pass at `hz` (`b₀ b₁ b₂ a₁
+/// a₂`, all zeros for none): a box radiates a vibration under its lowest resonance poorly,
+/// so what the bow pushes on the bridge slower than the strings sound — the static push
+/// of a held bow, its reversal at a tremolo's every stroke and a bow change — is not heard.
+pub(super) fn radiation(hz: f32, sr: f32) -> [f32; 5] {
+    if hz <= 0.0 {
+        return [0.0; 5];
+    }
+    let w = std::f64::consts::TAU * hz as f64 / sr as f64;
+    let (sn, cs) = math::sin_cos(w);
+    let alpha = sn / std::f64::consts::SQRT_2;
+    let a0 = 1.0 + alpha;
+    let b0 = 0.5 * (1.0 + cs) / a0;
+    [
+        b0 as f32,
+        (-2.0 * b0) as f32,
+        b0 as f32,
+        (-2.0 * cs / a0) as f32,
+        ((1.0 - alpha) / a0) as f32,
+    ]
 }

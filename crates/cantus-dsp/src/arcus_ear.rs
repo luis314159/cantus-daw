@@ -38,6 +38,9 @@ pub struct Ear {
     /// What the windows ended since the last `take` heard: the summed offsets (cycles per
     /// sample) and how many.
     heard: (f64, u32),
+    /// r42:arcus-p5 — cut at a bow's reversal: the next window to close starts the chain
+    /// again (its phase is the new stroke's settling, not a pitch).
+    settle: bool,
 }
 
 impl Ear {
@@ -47,6 +50,18 @@ impl Ear {
             z: (1.0, 0.0),
             ..Ear::default()
         };
+    }
+
+    /// r42:arcus-p5 — the bow reversed: a Helmholtz sawtooth turns over (the fundamental's
+    /// phase jumps by half a turn) and the new stroke settles, so no window across it, and
+    /// none comparing with one before it, is heard — the window under way is dropped, the
+    /// next one closed only starts the chain again. (Before, a tremolo's every reversal
+    /// was heard as up to ±2 cents of error, a random walk the trim followed.)
+    pub fn cut(&mut self) {
+        self.acc = (0.0, 0.0);
+        self.n = 0;
+        self.prev = None;
+        self.settle = true;
     }
 
     /// The control step's target, `f` cycles per sample at the rate `sr` (the next window
@@ -110,7 +125,10 @@ impl Ear {
 
     fn close(&mut self) {
         let len = self.len;
-        if self.acc != (0.0, 0.0) {
+        if self.settle {
+            self.settle = false;
+            self.prev = None;
+        } else if self.acc != (0.0, 0.0) {
             let phase = math::atan2(self.acc.1, self.acc.0);
             if let Some((last, last_len)) = self.prev {
                 let mut d = phase - last;

@@ -173,7 +173,10 @@ impl Voice {
             self.phase = Phase::Change;
             self.next_dir = sign;
         } else {
-            self.phase = if tech == NoteTech::Spiccato {
+            // r42:arcus-p5: a tremolo's first stroke is its attack (before, an attack to
+            // the dynamic's speed, then the strokes from rest: the speed fell to zero within
+            // a control step).
+            self.phase = if matches!(tech, NoteTech::Spiccato | NoteTech::Tremolo) {
                 Phase::Hold
             } else {
                 Phase::Attack
@@ -185,7 +188,7 @@ impl Voice {
             } else {
                 0.0
             };
-            self.force = if tech == NoteTech::Spiccato {
+            self.force = if matches!(tech, NoteTech::Spiccato | NoteTech::Tremolo) {
                 0.0
             } else {
                 self.f_attack

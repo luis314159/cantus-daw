@@ -20,7 +20,7 @@ impl Arcus {
     fn render(&mut self, left: &mut [f32], right: &mut [f32], par: &dyn Parallel) -> bool {
         let n = left.len().min(right.len());
         let sounding = self.voices.iter().any(|v| v.active());
-        let rad_still = self.rad.iter().all(|r| *r == (0.0, 0.0));
+        let rad_still = self.rad.iter().all(|r| *r == [0.0; 4]);
         let upper_still = self.upper_body.is_still(); // r42:arcus-upper
         if !sounding
             && rad_still
@@ -88,27 +88,29 @@ impl Arcus {
                     self.alloc.voice_finished(i);
                 }
             }
-            let quiet = !any && self.rad.iter().all(|r| *r == (0.0, 0.0));
+            let quiet = !any && self.rad.iter().all(|r| *r == [0.0; 4]);
             let out_quiet = quiet && self.body.is_still() && self.upper_body.is_still(); // r42:arcus-upper
             let (bl, br) = (&mut self.buf_l[..frames], &mut self.buf_r[..frames]);
-            // The radiation: a first-order high-pass `(1 + R)/2 · (1 − z⁻¹)/(1 − R z⁻¹)`
-            // (unity at Nyquist), its state let go at exact zeros so the instance rests.
-            if self.rad_c > 0.0 {
-                let (r, k) = (self.rad_c, 0.5 * (1.0 + self.rad_c));
-                // Two stages: 12 dB an octave under the corner.
-                for stage in 0..4 {
-                    let buf: &mut [f32] = if stage % 2 == 0 { &mut *bl } else { &mut *br };
-                    let (mut x1, mut y1) = self.rad[stage];
-                    if quiet && x1 == 0.0 && y1 == 0.0 {
+            // The radiation (r42:arcus-p5: a second-order Butterworth high-pass, 12 dB an
+            // octave under the corner), its state let go at exact zeros so the instance rests.
+            let [b0, b1, b2, a1, a2] = self.rad_c;
+            if b0 != 0.0 {
+                for side in 0..2 {
+                    let buf: &mut [f32] = if side == 0 { &mut *bl } else { &mut *br };
+                    let [mut x1, mut x2, mut y1, mut y2] = self.rad[side];
+                    if quiet && [x1, x2, y1, y2] == [0.0; 4] {
                         continue;
                     }
                     for x in buf.iter_mut() {
-                        let y = k * (*x - x1) + r * y1;
-                        x1 = *x;
-                        y1 = if y.abs() < 1e-20 && *x == 0.0 { 0.0 } else { y };
+                        let v = *x;
+                        let y = b0 * v + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+                        (x2, x1, y2, y1) = (x1, v, y1, y);
+                        if v == 0.0 && x2 == 0.0 && y.abs() < 1e-20 && y2.abs() < 1e-20 {
+                            (x1, x2, y1, y2) = (0.0, 0.0, 0.0, 0.0);
+                        }
                         *x = y1;
                     }
-                    self.rad[stage] = (x1, y1);
+                    self.rad[side] = [x1, x2, y1, y2];
                 }
             }
             self.body.process(bl, br, self.clock, quiet);

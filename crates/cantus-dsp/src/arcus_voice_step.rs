@@ -16,7 +16,32 @@ const DIP_DB: f32 = 3.0;
 /// The pitch loop: it moves by `TRIM_GAIN` of what each of its ear's windows heard, never
 /// more than `TRIM_STEP` cents a move.
 const TRIM_GAIN: f64 = 0.6;
+/// r42:arcus-p5 — a tremolo's stroke (`docs/round42/arcus-match.md`, *Pass 5*, by the
+/// study's tracker over every instrument's strings): its speed a half-sine clipped at
+/// `TREM_KNEE` of its peak (a quick turn, then the stroke drawn), the peak over the
+/// dynamic's speed (the mean about the dynamic's); its force a light share of the dynamic's
+/// riding the speed, `TREM_FLOOR` of it left at the turn. A tremolo is played light: at the
+/// dynamic's force (round 42's) the strokes were raucous and 8–255 cents flat, and their
+/// turns rang the bodies' lowest modes louder than the note.
+const TREM_PEAK: f32 = 1.2;
+const TREM_FORCE: f32 = 0.15;
+const TREM_FLOOR: f32 = 0.2;
+const TREM_KNEE: f32 = 0.3;
 const TRIM_STEP: f64 = 2.0;
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TREM_KNOBS: std::cell::Cell<(f32, f32, f32, f32)> =
+        const { std::cell::Cell::new((TREM_PEAK, TREM_FORCE, TREM_FLOOR, TREM_KNEE)) };
+}
+#[cfg(test)]
+fn trem_knobs() -> (f32, f32, f32, f32) {
+    TREM_KNOBS.with(|c| c.get())
+}
+#[cfg(not(test))]
+fn trem_knobs() -> (f32, f32, f32, f32) {
+    (TREM_PEAK, TREM_FORCE, TREM_FLOOR, TREM_KNEE)
+}
 
 fn smooth(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);
@@ -167,7 +192,11 @@ impl Voice {
         // left, held within 15 cents: it hears the fundamental's phase against the target
         // (`ear`) and moves by what each of its windows heard.
         if self.bow_on && sh.table.is_some() {
-            if let Some(heard) = self.ear.take() {
+            // r42:arcus-p5: a tremolo's strokes are heard, never trimmed by — each stroke
+            // is a new start, its settling not the note's pitch (the loop followed it 2–4
+            // cents sharp, and before the ear's cut it random-walked with every reversal).
+            let held = self.tech == NoteTech::Tremolo;
+            if let Some(heard) = self.ear.take().filter(|_| !held) {
                 self.trim = (self.trim + (TRIM_GAIN * heard).clamp(-TRIM_STEP, TRIM_STEP))
                     .clamp(-15.0, 15.0);
             }
@@ -177,7 +206,13 @@ impl Voice {
         }
         let corr = if self.bow_on {
             sh.table.map_or(0.0, |t| {
-                t.cents(self.inst, semis, self.d as f64, pos as f64) + self.trim
+                // r42:arcus-p5: a tremolo's own table (its strokes light and short).
+                let c = if self.tech == NoteTech::Tremolo {
+                    t.trem_cents(self.inst, semis, self.d as f64)
+                } else {
+                    t.cents(self.inst, semis, self.d as f64, pos as f64)
+                };
+                c + self.trim
             })
         } else {
             0.0
@@ -298,8 +333,14 @@ impl Voice {
                     } else {
                         -self.next_dir
                     };
-                    self.v_mag = 1.5 * tv * math::sin(std::f32::consts::PI * fr);
-                    self.force += (0.9 * tf - self.force) * c_f;
+                    // r42:arcus-p5: the stroke's speed a clipped half-sine and a light force
+                    // riding it (`TREM_*`), instead of the dynamic's steady force over a
+                    // speed through zero (the bow dragging the string at every reversal:
+                    // raucous, the pitch 8–255 cents flat and wandering).
+                    let (peak, fk, floor, knee) = trem_knobs();
+                    let shape = (math::sin(std::f32::consts::PI * fr) / knee).min(1.0);
+                    self.v_mag = peak * tv * shape;
+                    self.force = fk * tf * (floor + (1.0 - floor) * shape);
                 }
                 _ => {
                     self.v_mag += (tv - self.v_mag) * c_v;
@@ -319,7 +360,8 @@ impl Voice {
                     self.v_mag = 0.0;
                     self.dir = self.next_dir;
                     self.t = 0;
-                    if self.tech == NoteTech::Spiccato {
+                    if matches!(self.tech, NoteTech::Spiccato | NoteTech::Tremolo) {
+                        // r42:arcus-p5: a tremolo's strokes start from the reversal.
                         self.phase = Phase::Hold;
                         self.force = 0.0;
                     } else {
@@ -353,6 +395,7 @@ impl Voice {
         }
         if self.dir != dir_was {
             self.stroke = 0.0;
+            self.ear.cut(); // r42:arcus-p5
         }
         self.stroke += (self.v_mag * dt) as f64;
         self.bowing = self.phase != Phase::Off;

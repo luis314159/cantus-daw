@@ -31,7 +31,7 @@
 //! (`upper_tests_gate`; Schoonderwaldt, Guettler & Askenfelt 2008, doi:10.3813/aaa.918070, the
 //! violin's Schelleng diagram on its D and E strings, read in `downloads/study/papers/s08.txt`).
 
-use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec, RADIATION_DC_HZ};
+use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec, RADIATION_SHARE};
 use crate::fides::body::BodyKind;
 
 /// A string from Percival's decay rates: the fundamental's T60 and the partials' exponent.
@@ -75,7 +75,7 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     pizz_t60: VIOLIN_PIZZ_T60,
     // Pass 4's 8 Hz high-pass: the bow's static push reaches the bridge as a DC force no body
     // radiates (measured on the violin too: `docs/round42/arcus-upper.md` §6).
-    radiation_hz: RADIATION_DC_HZ,
+    radiation_hz: RADIATION_SHARE * 196.0, // r42:arcus-p5: G3
     balance_db_st: 0.0,
     balance_key: 72.0,
     matched: VIOLIN_MATCH,
@@ -106,7 +106,7 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     swell_s: (0.30, 0.10),
     swell_db: (20.0, 12.0),
     pizz_t60: VIOLA_PIZZ_T60,
-    radiation_hz: RADIATION_DC_HZ,
+    radiation_hz: RADIATION_SHARE * 130.81, // r42:arcus-p5: C3
     balance_db_st: 0.0,
     balance_key: 65.0,
     matched: VIOLA_MATCH,
