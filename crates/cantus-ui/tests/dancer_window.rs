@@ -417,9 +417,36 @@ fn frame_at(a: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, events: Ve
     out.textures_delta.clear();
 }
 
-/// fix-c (R2-C3): in an editor smaller than its default the cast does not fit the picker's
-/// card, so its grid scrolls; the wheel over
-/// the tiles brings the lower rows up and a click on a tile there chooses that character —
+/// The dancer's project saved in a folder of its own with characters imported into it, one
+/// at a time, until the picker's grid is taller than its card in the editor's own size; the
+/// folder (kept alive by the caller) and that size. Since r42 fix4-narrow the Edit view keeps
+/// the width it was laid out for and scrolls as a whole below it, so the built-in cast alone
+/// always fits its card: a project with many imported characters is how a person reaches
+/// the picker's own scroll.
+fn crowded(a: &mut CantusApp, ctx: &egui::Context) -> (tempfile::TempDir, egui::Vec2) {
+    use cantus_dance::import::{self, package, samples};
+    let project = tempfile::tempdir().unwrap();
+    a.path = Some(project.path().join("crowded.cantus"));
+    let src = tempfile::tempdir().unwrap();
+    let size = egui::vec2(1040.0, 680.0);
+    for i in 0..80 {
+        frame_at(a, ctx, size, vec![]);
+        if a.inst.dancer.pick.hidden_rows > 0 {
+            return (project, size);
+        }
+        let name = format!("pal{i:02}");
+        samples::write(src.path(), &samples::aseprite(&name)).unwrap();
+        let file = src.path().join(format!("{name}.json"));
+        let found = import::inspect(&file).unwrap();
+        let settings = import::guessed(&found);
+        let licence = found.licence.clone();
+        package::copy_into(project.path(), &file, &found, &settings, &licence).unwrap();
+    }
+    panic!("80 imported characters and the picker still fits its card");
+}
+
+/// fix-c (R2-C3): when the cast does not fit the picker's card (a project with many imported
+/// characters, [`crowded`]) its grid scrolls; the wheel over the tiles brings the lower rows up and a click on a tile there chooses that character —
 /// the one drawn under the pointer, not one scrolled away (one undo step).
 #[test]
 fn the_picker_scrolled_chooses_a_tile_from_its_lower_rows() {
@@ -427,18 +454,8 @@ fn the_picker_scrolled_chooses_a_tile_from_its_lower_rows() {
     let (mut a, track) = dancer_app();
     a.inst.view = View::Edit;
     let c = ctx();
-    // An editor smaller than its default (1 040 × 680, where the cast fits its card): the
-    // size at which the cast is taller than the card.
-    let mut tried = Vec::new();
-    let size = [1040.0f32, 800.0, 640.0, 520.0, 440.0, 380.0]
-        .into_iter()
-        .flat_map(|w| [680.0f32, 520.0, 400.0, 320.0].map(|h| egui::vec2(w, h)))
-        .find(|s| {
-            frame_at(&mut a, &c, *s, vec![]);
-            tried.push((*s, a.inst.dancer.placed.get("pick.first").copied()));
-            a.inst.dancer.pick.hidden_rows > 0
-        })
-        .unwrap_or_else(|| panic!("a window where the picker scrolls: {tried:?}"));
+    // A project whose cast is taller than the card.
+    let (_project, size) = crowded(&mut a, &c);
     let frame = |a: &mut CantusApp, events| frame_at(a, &c, size, events);
     let click = |a: &mut CantusApp, at: Pos2| {
         frame(a, vec![egui::Event::PointerMoved(at)]);
@@ -506,21 +523,14 @@ fn the_picker_scrolls_with_the_kits_scrollbar_and_the_wheel() {
     let (mut a, _track) = dancer_app();
     // The Edit view, whose card is the smaller one.
     a.inst.view = View::Edit;
-    // An editor small enough that the cast is taller than the card (as fix-c's test finds).
+    // A project whose cast is taller than the card (as fix-c's test makes it).
     let ctx = ctx();
-    let size = [1040.0f32, 800.0, 640.0, 520.0, 440.0, 380.0]
-        .into_iter()
-        .flat_map(|w| [680.0f32, 520.0, 400.0, 320.0].map(|h| egui::vec2(w, h)))
-        .find(|s| {
-            frame_at(&mut a, &ctx, *s, vec![]);
-            a.inst.dancer.pick.hidden_rows > 0
-        })
-        .expect("a window where the picker scrolls");
+    let (_project, size) = crowded(&mut a, &ctx);
     let small = |a: &mut CantusApp, ctx: &egui::Context, events| frame_at(a, ctx, size, events);
     for _ in 0..3 {
         small(&mut a, &ctx, vec![]);
     }
-    // Twenty characters and *Import…* in the Edit view's card: they scroll.
+    // The cast, the imports and *Import…* in the Edit view's card: they scroll.
     let bar = a
         .inst
         .dancer
