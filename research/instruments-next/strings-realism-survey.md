@@ -1425,3 +1425,261 @@ is in the bow or the body) and 12 (contacts and collisions).
 - Cantus's own: ADR 0157, ADR 0158, ADR 0160; `docs/round42/arcus-match.md`;
   `research/instruments-next/bowed-realism.md`; `research/instruments-next/bowed-refdb/README.md`;
   `docs/BACKLOG-excellence.md` §3e and "One piano roll that adapts".
+
+---
+
+## 11. Solo libraries from the owner's video (2026-11-25)
+
+*The owner sent a comparison video and asked (translated): "Can you study these to see what we
+should implement from them to improve?" The scope was then narrowed to the libraries that hold
+**solo** instruments, because Arcus is a solo instrument today. The section libraries are parked
+for round 43 (§11.5). This section adds only what §§0–10 do not already hold. SWAM, Spitfire Solo
+Strings, CSSS, VSL and Embertone are not repeated here.*
+
+### 11.1 The video
+
+- **Title:** "I Tested 18 String Libraries (FREE vs $1,800)".
+- **Channel:** Leo Brennauer (https://www.youtube.com/@leobrennauer).
+- **Published:** 2026-11-15. The video runs 31:26 [YouTube page and oEmbed].
+- **The method, in the description's words:** "scoring the same two tracks with each of them". The
+  video opens with a 7-minute "Comparison (no talking)", then gives one chapter to each library.
+- **Disclosures** [description]: the video is not sponsored; some libraries were given to the
+  author for the test; some links are affiliate links.
+- **Not learned:**
+  - The page lists an auto-generated English caption track, but YouTube's caption endpoint
+    returned an empty body to a plain request. It was not bypassed, so there is **no transcript**.
+  - **No audio was fetched.** What the video plays, which MIDI it uses, its mix settings and the
+    author's verdicts are **unknown** and are not guessed here.
+
+### 11.2 Which of the 18 have solo strings
+
+One check per library. Only three of the 18 hold a solo violin, viola, cello or bass.
+
+| Library | Solo strings? | Source |
+|---|---|---|
+| **Pēteris Vasks Strings** (Orchestral Tools, 2023) | **Yes.** Five first chairs: violin 1, violin 2, viola, cello and bass | [R SOS; V KVR] |
+| **Spitfire Symphony Orchestra** (Spitfire, solo update 2025-02-18) | **Yes.** Solo violin, solo violin 2, solo viola and solo cello. Each has "All techniques" and "Performance" patches. | [M SSO manual v5 pp. 62–68; R rekkerd] |
+| **Berlin Free Orchestra** (Orchestral Tools, 2025, free) | **Yes, basic.** A solo violin and a solo cello, with one dynamic layer (mf) | [M OT helpdesk] |
+| LUX Strings and LUX Strings Elements (Sonuscore) | No: five sections, 18/16/14/12/10 | [M] |
+| Synchron Prime I (VSL) | No: ensembles 14/10/8/8/6 and 6/5/4/4/3 | [V] |
+| Duality Strings (VSL) | No. Its "Solo" is the name of a mic position. | [V] |
+| Vista / Vista II, Pacific (Performance Samples) | No. The smallest group is 2/2/2/1. | [V] |
+| Lineage Strings (ProjectSAM) | No: "no soloists" | [V] |
+| Cinematic Studio Strings | No. CSSS is a separate product (§1.3). | [R] |
+| Areia (Audio Imperia) | No: sections and ensembles only | [V] |
+| Berlin Symphonic Strings (OT) | No. It has a "Leader" mic only; Berlin Solo Strings is separate. | [R SOS] |
+| CineStrings Core (Cinesamples) | No: sections only | [M] |
+| Hollywood Strings I (EastWest) | No: sections and divisi only | [R SOS] |
+| Spitfire Chamber Strings | No: ensemble and section patches | [M; I] |
+| Benjamin Wallfisch Strings (OT, 2023) | No: ensembles and divisi | [R SOS] |
+| Abbey Road Orchestra: Strings (Spitfire) | No: five sections | [R KVR, MusicRadar] |
+
+**The ranking for realistic solo playing:**
+
+1. **Pēteris Vasks Strings.** These are the only solos among the 18 that an independent review
+   praised.
+   - The first violin has "a lovely timbre with a heart-melting emotive delivery".
+   - The viola and cello give "great heartfelt performances".
+   - "The playing is of a high standard" [R SOS, Dave Stewart, 2024].
+   - The library as a whole is "incredibly convincing" [R MusicRadar].
+2. **Spitfire Symphony Orchestra's soloists.** They come with Spitfire's performance-legato engine
+   (§1.3), and Andrew Haveron, a concertmaster, plays the violin [M].
+   - **No independent review of these solos was found.**
+   - SOS's 2024 review of SSO, written before the solos were added, had faulted the library for
+     lacking them: "Some users may miss the inclusion of solo strings".
+   - It is not verified whether the separately sold "Symphonic Strings" holds them.
+3. **Berlin Free Orchestra's solo violin and cello.** They are free, with a single mf layer, a
+   sustain + legato patch, a sustain and a staccato (2 round robins) [M].
+   - A forum user found the library "doesn't seem very responsive to dynamics" [R Steinberg
+     forum].
+
+### 11.3 The three, in depth
+
+**Pēteris Vasks Strings: the first chairs** (Orchestral Tools, 2023-04, €549).
+
+- **The recording.** Sinfonietta Rīga, conducted by Normunds Šnē, in St John's Church, Riga, "a
+  large, reverberant space", with the composer guiding the sessions [V KVR; R SOS].
+  - Six mic positions: an omni Decca tree (the default) and a cardioid tree, "thinner and less
+    ambient"; close spots; ribbons; an AB pair; surround mics [R SOS].
+  - The soloists' close spots are **panned as a quintet is seated**: violin 1 left, violin 2 and
+    viola between, cello right, and the bass in the centre behind [R SOS].
+- **Three legato styles, kept apart** [R SOS; V KVR]:
+  - *Lyrical*: "fairly quiet, moderate vibrato", "mournful and reflective".
+  - *Expressive*: loud, with "a strong vibrato", "forthright and romantic".
+  - *Sul tasto*: "very quiet, minimal vibrato", "tentative and tender".
+  - The sections cross their dynamics in one patch. The soloists' styles stay separate patches,
+    because "crossfading them would have compromised realism", given their differences in
+    vibrato [R SOS].
+- **The library's sound** [V KVR; R]:
+  - little vibrato overall;
+  - the soft layers con sordino, with the mutes coming off as the dynamic rises;
+  - vibrato that grows with the dynamic.
+- **Gestures.** The first chairs play the same gestures as the sections [R SOS]:
+  - short glissandi (a 5th, an octave or two octaves) ending in a 2–3 s sustain;
+  - glissando trills;
+  - "waving longs": a semitone trill that turns into random slithering as CC1 rises;
+  - finger tremolos;
+  - "upbeats" (two quick short notes);
+  - glissandi up the whole length of a string;
+  - trills of a minor 2nd, a major 2nd and a minor 3rd, "animated, colourful" in stabs and
+    flourishes.
+- **The faults.**
+  - The legato's latency is "considerable", deliberately so, and parts must be moved earlier
+    [R MusicRadar].
+  - "Legato playing will require some practice" [R MusicRadar].
+  - Round robins and portamento are not described [R SOS].
+
+**Spitfire Symphony Orchestra: the solo strings** (Spitfire; a free update on 2025-02-18, when SSO
+was offered at £399).
+
+- **The players** [M]:
+  - violin: Andrew Haveron (concertmaster of the Sydney Symphony);
+  - viola: Bruce White;
+  - cello: Caroline Dale;
+  - and **a second, separate solo violin** ("Solo Violin 2"), with its own patches [M p.68].
+- **The patches** [M; R rekkerd]:
+  - *Performance* holds fingered, bowed and portamento legatos.
+  - *All techniques* holds long (with and without vibrato), spiccato, pizzicato, and short and long
+    harmonics.
+- **The rest** [M pp.62–66]:
+  - The solos were tracked at AIR Studios with Close, Tree and Ambient mics.
+  - "All our musicians are recorded in situ, i.e. where they would be seated on a standard scoring
+    session".
+  - The controls are those of Spitfire Solo Strings (§1.3):
+    - Dynamics, Vibrato, Release and Expression;
+    - Tightness, which "does detract from realism";
+    - neighbouring-zone round robins;
+    - the Hall Trigger;
+    - speed-of-playing triggers.
+
+**Berlin Free Orchestra: the solo violin and cello** [M].
+
+- The violin plays G2–D6 and the cello C1–C5.
+- Each has a single mf layer and no dynamic crossfade.
+- For Cantus it is the free floor of the video's "FREE vs $1,800" range [I].
+
+### 11.4 What is new for Arcus solo, and the changes to the plan
+
+**The lessons** (only those §§0–7 do not already hold):
+
+1. **A playing character is a bundle, not a knob** [R SOS on Vasks; I].
+   - Each of Vasks's lyrical, expressive and sul tasto styles ties together a loudness, a vibrato
+     depth and a bow contact point (tasto).
+   - The vendor would not crossfade them: a crossfade between two recordings gives a vibrato that
+     belongs to neither.
+   - Arcus can morph between them because it has no recordings. Its danger is the reverse:
+     independent knobs (CC1, vibrato, bow position) set in combinations no player would use.
+   - The lesson is a **character** control. It moves bow force, speed and β, the vibrato's depth,
+     rate and onset, and the portamento tendency **together**, along trajectories measured from
+     players.
+2. **Gestures are a composer's vocabulary, and the soloist plays them too** [R SOS].
+   - The gestures are short glissandi into a sustain, glissando trills, upbeats, finger tremolos,
+     trills up to a minor 3rd, and the aleatoric "waving long" on CC1.
+   - Samples fix each gesture's length and tempo; a model can play it at any pitch, length and
+     tempo [I].
+   - Lineage's grace notes (up and down) and flourishes [V ProjectSAM] belong to the same family.
+3. **A solo is one particular player, and two solos must be two players** [M SSO; R SOS].
+   - Spitfire recorded a second solo violinist rather than reuse the first.
+   - Vasks's five first chairs are five people, their close spots seated as a quintet.
+   - Arcus varies its notes, but every instance plays with the same body and the same habits, so
+     two Arcus violins in a duet are one player twice [I].
+4. **The soloist sits in the room where the section sits** [M SSO; R SOS Vasks].
+   - SSO recorded its solos in situ in the hall.
+   - Vasks layers the first chairs over their sections "for focus".
+   - Every Spitfire and OT section library adds a **Leader** spot mic.
+   - A realistic solo is therefore placed at the front desk of round 43's stage, with its own
+     spot. It is not a dry, centred mono voice [I].
+5. **Sul tasto is a legato style, not only a timbre** [R SOS].
+   - Vasks's third legato is a whole expressive mode: very quiet, minimal vibrato, tender.
+   - §7 item 9 treats tasto as a technique switch. It should also be reachable as a phrase colour,
+     through lesson 1's character [I].
+6. **Beating the free floor is a test that can be run now** [I].
+   - Berlin Free Orchestra's solo violin and cello are free, and the owner can install them.
+   - The comparison is by ear only. Their audio never enters `bowed-refdb/`, which holds CC0 and
+     CC BY recordings (ADR 0042).
+
+**Changes to the ranked plan (§0.2, §7):**
+
+| Change | What | Why |
+|---|---|---|
+| **New item 16: playing characters** (Player; S; med-high) | Presets for lyrical, expressive, tasto, senza and folk playing. Each moves force, speed, β, the vibrato's depth, rate and onset, and the portamento tendency together. The presets are measured from labelled recordings and morph continuously. Coordinate with the player layer in progress. | Lessons 1 and 5. The parameters exist; moving them together is cheap. **Rank it just after item 6, before item 7**, because a character colours every note. |
+| **New item 17: gestures as note properties** (Player + piano roll; S–M; low-med) | Grace notes (up and down), upbeats, short glissandi into a sustain, glissando trills, finger tremolo and the aleatoric waving long, each a note property in round 43's adaptive piano roll | Lesson 2. It extends items 10 and 14, so **rank it after item 14**. |
+| **Item 6 widened: a seeded player identity** | A seed per instance for the player's habits: an intonation tendency, vibrato rate and width habits, the bow's drift, and a small perturbation of the body. Two solos are then two players. | Lesson 3. This is item 15's "seeded players" at a size of one, and it is cheap. **Move it forward from item 15 into item 6**, so quartets benefit before the sections exist. |
+| **Item 4 widened: the solo's seat** | Item 4's early reflections and radiation take a seat: the leader's chair, or quartet and quintet seating (vn1 left, vn2, va, vc right, cb behind), with a spot and a tree | Lesson 4. No re-rank. |
+| **The ABX gains a free floor** | The owner compares Arcus with Berlin Free Orchestra's solo violin and cello in the same phrase. Neither their samples nor their audio enter the repository. | Lesson 6. The test costs nothing. |
+
+The order of items 1–3 is unchanged. None of the three solo offerings goes past §1's products on
+transitions, fingering or attacks.
+
+### 11.5 Parked for round 43's sections
+
+The other fifteen are section libraries. Their study waits for round 43's sections work (BACKLOG
+"Strings and winds, modelled and recorded"; §7 item 15):
+
+- LUX Strings and LUX Strings Elements;
+- Synchron Prime I and Duality Strings;
+- Vista II, Pacific and Lineage;
+- Cinematic Studio Strings and Areia;
+- Berlin Symphonic Strings and CineStrings Core;
+- Hollywood Strings I and Spitfire Chamber Strings;
+- Benjamin Wallfisch Strings and Abbey Road Orchestra: Strings.
+
+A first pass gathered a few facts for that work, kept here so they are not redone:
+
+- **True divisi.** Benjamin Wallfisch Strings is the only one recorded as half-sections (front and
+  back desks, or left and right) [R SOS].
+- **Fake divisi.** Hollywood Strings' A/B are the left and right close mics of one take [R SOS].
+  LUX's "Chordal Divisi" only shares out the notes [M].
+- **Spill between sections.** LUX has 22 mics in the empty wind and brass seats; the review heard
+  them as "glue" [R SOS].
+- **Two section sizes at once.** Duality recorded a 52-player and a 27-player section at the same
+  time, in two rooms [V; R SOS].
+- **Mixed technique inside a section.** Vasks's sections take off their mutes half at a time as the
+  dynamic rises [R SOS]. Spitfire's "CS Blend" mutes one player of each desk [M].
+- **Bowing and timing.** Lineage records up- and down-bows and alternates them automatically. It
+  has a "Precision Control" from focused to looser timing [V].
+- **Sustains that never loop.** Benjamin Wallfisch Strings' 23–25 s sustains are its most praised
+  feature [R SOS].
+
+### 11.6 Sources for §11
+
+- The video: https://www.youtube.com/watch?v=baoVzLXuXiY
+  - its oEmbed: https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=baoVzLXuXiY&format=json
+- Sound On Sound:
+  - Pēteris Vasks Strings: https://www.soundonsound.com/reviews/orchestral-tools-peteris-vasks-strings
+  - Spitfire Symphony Orchestra (Aug 2024): https://www.soundonsound.com/node/4932258
+  - Benjamin Wallfisch Strings: https://www.soundonsound.com/reviews/orchestral-tools-benjamin-wallfisch-strings-stringscapes
+  - LUX Orchestral Strings: https://www.soundonsound.com/reviews/sonuscore-lux-orchestral-strings
+  - Duality Strings: https://www.soundonsound.com/reviews/vienna-symphonic-library-synchron-duality-strings
+  - Hollywood Strings: https://www.soundonsound.com/reviews/ewql-hollywood-strings
+  - Berlin Symphonic Strings: https://www.soundonsound.com/reviews/orchestral-tools-berlin-symphonic-strings
+- Pēteris Vasks Strings, elsewhere:
+  - MusicRadar's review: https://www.musicradar.com/reviews/orchestral-tools-peteris-vasks-strings-review
+  - KVR's details: https://www.kvraudio.com/product/peteris-vasks-strings-by-orchestral-tools/details
+- Spitfire Symphony Orchestra:
+  - manual v5, read as text and not kept: https://www.spitfireaudio.com/cdn/shop/files/Spitfire_Symphony_Orchestra_Manual_v5.pdf
+  - the solo update: https://rekkerd.org/spitfire-audio-updates-spitfire-symphony-orchestra/
+- Berlin Free Orchestra:
+  - the Orchestral Tools helpdesk: https://orchestraltools.helpscoutdocs.com/article/514-berlin-free-orchestra
+  - the Steinberg forum: https://forums.steinberg.net/t/orchestral-tools-berlin-free-orchestra/979636
+- VSL:
+  - Synchron Prime Orchestra: https://www.vsl.co.at/instruments/starter-editions/prime-orchestra
+  - Duality Strings: https://vsl.co.at/instruments/synchron/duality-strings
+- Sonuscore's manuals:
+  - https://manuals.sonuscore.com/lux-orchestral-strings.html
+  - https://manuals.sonuscore.com/lux-orchestral-strings-elements.html
+- ProjectSAM, Lineage Strings: https://projectsam.com/libraries/lineage-strings
+- Performance Samples:
+  - https://www.performancesamples.com/vista/
+  - https://www.performancesamples.com/pacific-ensemblestrings/
+- Audio Imperia, Areia: https://www.audioimperia.com/product/areia
+- CineStrings Core's manual: https://ms.bestservice.com/download_files.php/5528/en
+- Spitfire Chamber Strings Pro's manual: https://www.spitfireaudio.com/cdn/shop/files/Chamber_Strings_Pro.pdf
+- Abbey Road Orchestra:
+  - MusicRadar's review: https://www.musicradar.com/music-tech/plugins/spitfire-audio-abbey-road-orchestra-symphonic-strings-professional-review
+  - KVR: https://www.kvraudio.com/product/abbey-road-orchestra-1st-violins-professional-by-spitfire-audio
+- **Refused and not bypassed:**
+  - VI-Control (403);
+  - spitfireaudio.com's product pages (429);
+  - orchestraltools.com's product pages (they render through JavaScript and came back empty);
+  - YouTube's caption endpoint (an empty body).
