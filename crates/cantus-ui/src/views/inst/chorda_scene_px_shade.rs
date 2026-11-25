@@ -192,7 +192,7 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
             // r42:arcus-upper — a card's strands: its texture's grey shades the base.
             let f = crate::scene::figure::cards::card(k).map_or(1.0, |c| c.shade(uv));
             Surf {
-                sheen: 0.35,
+                sheen: 0.0,
                 ..s(lscale(m.base, f), m.coat, m.rough)
             }
         }

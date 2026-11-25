@@ -105,6 +105,8 @@ pub struct Tris {
     pub pts: Vec<V3>,
     pub nrm: Vec<V3>,
     pub detail: Vec<[f32; 2]>,
+    /// r42:arcus-upper — the skin's texture coordinates (none: negative).
+    pub uv: Vec<[f32; 2]>,
     pub idx: Vec<[u32; 3]>,
 }
 

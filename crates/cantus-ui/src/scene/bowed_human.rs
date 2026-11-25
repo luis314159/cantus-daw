@@ -123,6 +123,12 @@ pub struct Figure {
     pub stuff: Vec<Stuff>,
     /// A bit each: 1 the body, 2 the left arm, 4 the right.
     pub part: Vec<u8>,
+    /// r42:arcus-upper — each vertex's texture coordinates (the skin's: her 0…1 in u, his
+    /// 2…3; a card's; a hair's strands), and the vertex it shares its place with (a copy
+    /// made at a texture seam names the first: normals are summed over both, so no seam
+    /// shows in the light).
+    pub uv: Vec<[f32; 2]>,
+    pub weld: Vec<u32>,
 }
 
 /// Which figure.
@@ -261,7 +267,21 @@ pub fn parse(b: &[u8]) -> Option<Figure> {
             }
         }
     }
+    f.uv = strand;
+    f.weld = weld(&f.pos);
     Some(f)
+}
+
+/// r42:arcus-upper — for each point the first point at the same place (to 0.01 cm).
+fn weld(pos: &[V3]) -> Vec<u32> {
+    let mut first: std::collections::HashMap<[i32; 3], u32> = Default::default();
+    pos.iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let k = [p.x, p.y, p.z].map(|c| (c * 100.0).round() as i32);
+            *first.entry(k).or_insert(i as u32)
+        })
+        .collect()
 }
 
 impl Figure {
@@ -680,12 +700,16 @@ pub fn arm_lengths(fig: &Figure, s: usize) -> (f32, f32) {
 pub fn skin(fig: &Figure, p: &Posed) -> (Vec<V3>, Vec<V3>) {
     let pts: Vec<V3> = (0..fig.pos.len()).map(|i| p.vertex(fig, i)).collect();
     let mut nrm = vec![V3::default(); pts.len()];
+    let w = |i: usize| fig.weld.get(i).map_or(i, |&x| x as usize);
     for t in &fig.tris {
         let [a, b, c] = t.map(|i| i as usize);
         let n = (pts[b] - pts[a]).cross(pts[c] - pts[a]);
         for i in [a, b, c] {
-            nrm[i] = nrm[i] + n;
+            nrm[w(i)] = nrm[w(i)] + n;
         }
+    }
+    for i in 0..nrm.len() {
+        nrm[i] = nrm[w(i)];
     }
     for n in &mut nrm {
         *n = n.norm();
@@ -760,6 +784,11 @@ pub fn emit(
                 tr.pts.push(pts[i]);
                 tr.nrm.push(nrm[i]);
                 tr.detail.push(fig.detail[i]);
+                tr.uv.push(if matches!(r, Role::Skin(_)) {
+                    fig.uv.get(i).copied().unwrap_or([-1.0, -1.0])
+                } else {
+                    [-1.0, -1.0]
+                });
             }
             map[i]
         });

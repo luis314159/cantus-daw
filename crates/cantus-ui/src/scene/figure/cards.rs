@@ -58,6 +58,33 @@ fn decode(bytes: &[u8]) -> Option<Card> {
     Some(Card { w, h, texels, mean })
 }
 
+static SKINS: [&[u8]; 2] = [
+    include_bytes!("../../../assets/figures/woman_skin.png"),
+    include_bytes!("../../../assets/figures/man_skin.png"),
+];
+
+/// The skin's fine detail at texture coordinates (`u` 0…1 hers, 2…3 his): the MakeHuman
+/// skin's luminance over its own blur (pores, the brows' hairs, the lips' lines; about
+/// 0.6 … 1.4), bilinear.
+pub fn skin_detail(u: f32, v: f32) -> f32 {
+    static TEX: OnceLock<Vec<Option<Card>>> = OnceLock::new();
+    let t = TEX.get_or_init(|| SKINS.iter().map(|b| decode(b)).collect());
+    let (k, u) = if u >= 2.0 { (1, u - 2.0) } else { (0, u) };
+    let Some(Some(c)) = t.get(k) else {
+        return 1.0;
+    };
+    let x = (u.clamp(0.0, 1.0) * c.w as f32 - 0.5).max(0.0);
+    let y = ((1.0 - v.clamp(0.0, 1.0)) * c.h as f32 - 0.5).max(0.0);
+    let (x0, y0) = (x.floor() as usize, y.floor() as usize);
+    let (x1, y1) = ((x0 + 1).min(c.w - 1), (y0 + 1).min(c.h - 1));
+    let (x0, y0) = (x0.min(c.w - 1), y0.min(c.h - 1));
+    let (tx, ty) = (x - x0 as f32, y - y0 as f32);
+    let g = |x: usize, y: usize| c.texels[y * c.w + x][0] as f32;
+    let a = g(x0, y0) * (1.0 - tx) + g(x1, y0) * tx;
+    let b = g(x0, y1) * (1.0 - tx) + g(x1, y1) * tx;
+    ((a * (1.0 - ty) + b * ty) / 128.0).clamp(0.6, 1.4)
+}
+
 /// Card `k`'s texture (none past the six).
 pub fn card(k: u8) -> Option<&'static Card> {
     static CARDS: OnceLock<Vec<Option<Card>>> = OnceLock::new();
@@ -75,9 +102,10 @@ impl Card {
         self.texels[y.min(self.h - 1) * self.w + x.min(self.w - 1)]
     }
 
-    /// Its strands' light at `uv` against its mean (about 0.6 … 1.4).
+    /// Its strands' light at `uv` against its mean, held near it (0.85 … 1.18: the
+    /// texture's darker regions read as patches of another colour — the review).
     pub fn shade(&self, uv: [f32; 2]) -> f32 {
-        (self.at(uv)[0] as f32 / self.mean).clamp(0.55, 1.4)
+        (self.at(uv)[0] as f32 / self.mean).clamp(0.85, 1.18)
     }
 
     /// Whether the card covers `uv` (its alpha over half).

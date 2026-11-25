@@ -153,6 +153,11 @@ fn raster_rows(
 ) {
     for (j, &(i, ref t)) in pt.iter().enumerate() {
         let card = cut.get(j).copied().flatten();
+        // (A card casts no shadow — the shadow map is the pass without triangles: its
+        // strands' shadows on the scalp under them read as dark patches in the hair.)
+        if card.is_some() && tri.is_none() {
+            continue;
+        }
         if t.hi.y < y0 as f32 || t.lo.y > y1 as f32 || t.hi.x < 0.0 || t.lo.x > w as f32 {
             continue;
         }
@@ -390,10 +395,17 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, hair: bool) -> (V3, V3, [f32; 
     let v = &t.v;
     let pw = v[0].p * b0 + v[1].p * b1 + v[2].p * b2;
     let n = (v[0].n * b0 + v[1].n * b1 + v[2].n * b2).norm();
-    let uv = [
+    let mut uv = [
         v[0].uv[0] * b0 + v[1].uv[0] * b1 + v[2].uv[0] * b2,
         v[0].uv[1] * b0 + v[1].uv[1] * b1 + v[2].uv[1] * b2,
     ];
+    // r42:arcus-upper — a realistic figure's skin: its own texture's fine detail (pores,
+    // the brows' hairs, the lips' lines) on the vertex detail's luminance.
+    if v[0].uv2[0] >= 0.0 {
+        let u2 = v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2;
+        let v2 = v[0].uv2[1] * b0 + v[1].uv2[1] * b1 + v[2].uv2[1] * b2;
+        uv[0] *= crate::scene::figure::cards::skin_detail(u2, v2);
+    }
     // dP/du from the triangle's uv.
     let (du1, dv1) = (v[1].uv[0] - v[0].uv[0], v[1].uv[1] - v[0].uv[1]);
     let (du2, dv2) = (v[2].uv[0] - v[0].uv[0], v[2].uv[1] - v[0].uv[1]);

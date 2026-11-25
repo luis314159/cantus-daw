@@ -736,8 +736,11 @@ The realistic woman and man who may hold an Arcus instrument
 public domain under **CC0 1.0** (<https://creativecommons.org/publicdomain/zero/1.0/>): the
 base mesh, its macro and face targets, the default skeleton and its weights
 (<https://github.com/makehumancommunity/makehuman>, `makehuman/data`; its LICENSE.md §C), the
-suit `male_elegantsuit01`, the shoes `shoes04` and the skins `young_caucasian_female/male`
-(`makehuman_system_assets_cc0.zip`, files.makehumancommunity.org). CC0 asks for no credit;
+suit `male_elegantsuit01`, the shoes `shoes04`, the skins `young_caucasian_female/male` (also
+as the skin's fine detail, `{woman,man}_skin.png`), the hair `ponytail01` and `short02`, the
+brows `eyebrow001` and `eyebrow010` and the lashes `eyelashes01` (their textures as
+`{woman,man}_{hair,brow,lash}.png`) (`makehuman_system_assets_cc0.zip`,
+files.makehumancommunity.org; each asset's licence CC0 in its pack manifest). CC0 asks for no credit;
 it is given gladly, here and in *Help ▸ About Cantus*. No MakeHuman code (AGPL) is used: the
 converter reads the assets' plain-text formats itself. The faces are original (generic
 averages and modifiers chosen by eye), not any person's.

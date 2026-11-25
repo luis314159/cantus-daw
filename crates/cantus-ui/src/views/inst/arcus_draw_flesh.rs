@@ -35,6 +35,9 @@ struct ArmMesh {
     /// fades into the baked body without a seam.
     alpha: Vec<f32>,
     edges: Vec<(u16, u16, u32, u32)>,
+    /// r42:arcus-upper — each vertex's first copy at its place (a texture seam's copies
+    /// share one normal).
+    weld: Vec<u16>,
 }
 
 /// r42:arcus-upper — the arm at a level of detail: 0 the full one (High), 1 and 2 Light's
@@ -168,6 +171,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         .map(|((a, b), (t0, t1))| (a, b, t0, t1))
         .collect();
     edges.sort_unstable();
+    let weld = weld_of(fig, &verts);
     ArmMesh {
         verts,
         tris,
@@ -175,7 +179,21 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         upper,
         alpha,
         edges,
+        weld,
     }
+}
+
+/// For each of an arm's vertices, the arm's own index of the first at its place.
+fn weld_of(fig: &Figure, verts: &[u32]) -> Vec<u16> {
+    let mut first: std::collections::HashMap<u32, u16> = Default::default();
+    verts
+        .iter()
+        .enumerate()
+        .map(|(i, &g)| {
+            let w = fig.weld.get(g as usize).copied().unwrap_or(g);
+            *first.entry(w).or_insert(i as u16)
+        })
+        .collect()
 }
 
 fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
@@ -212,9 +230,12 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         stuff.push(fig.stuff[k]);
         upper.push(t.iter().map(|&i| up_share(i as usize)).sum::<f32>() / 3.0 > 0.5);
     }
+    // (Edges by place: a texture seam's copies are one edge, not an outline.)
+    let wl = weld_of(fig, &verts);
     let mut e: std::collections::HashMap<(u16, u16), (u32, u32)> = Default::default();
     for (ti, t) in tris.iter().enumerate() {
         for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            let (a, b) = (wl[a as usize], wl[b as usize]);
             let key = (a.min(b), a.max(b));
             let slot = e.entry(key).or_insert((u32::MAX, u32::MAX));
             if slot.0 == u32::MAX {
@@ -226,9 +247,11 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
     }
     // An edge with one triangle in the arm but two in the figure is where the part was cut.
     let mut whole: std::collections::HashMap<(u32, u32), u8> = Default::default();
+    let gw = |i: u16| fig.weld.get(i as usize).copied().unwrap_or(i as u32);
     for t in &fig.tris {
         for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
-            let key = (a.min(b) as u32, a.max(b) as u32);
+            let (a, b) = (gw(a), gw(b));
+            let key = (a.min(b), a.max(b));
             *whole.entry(key).or_insert(0) += 1;
         }
     }
@@ -253,7 +276,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         .into_iter()
         .filter_map(|((a, b), (t0, t1))| {
             if t1 == u32::MAX {
-                let (ga, gb) = (verts[a as usize], verts[b as usize]);
+                let (ga, gb) = (gw(verts[a as usize] as u16), gw(verts[b as usize] as u16));
                 if whole.get(&(ga.min(gb), ga.max(gb))).copied().unwrap_or(0) > 1 {
                     alpha[a as usize] = 0.0;
                     alpha[b as usize] = 0.0;
@@ -263,6 +286,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
             Some((a, b, t0, t1))
         })
         .collect();
+    let weld = weld_of(fig, &verts);
     ArmMesh {
         verts,
         tris,
@@ -270,6 +294,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         upper,
         alpha,
         edges,
+        weld,
     }
 }
 
@@ -894,8 +919,12 @@ fn arm_setup(
         let [a, bb, c] = t.map(|i| i as usize);
         let f = (sc.pts[bb] - sc.pts[a]).cross(sc.pts[c] - sc.pts[a]);
         for i in [a, bb, c] {
-            sc.nrm[i] = sc.nrm[i] + f;
+            let w = am.weld[i] as usize;
+            sc.nrm[w] = sc.nrm[w] + f;
         }
+    }
+    for i in 0..n {
+        sc.nrm[i] = sc.nrm[am.weld[i] as usize];
     }
     for q in &mut sc.nrm {
         *q = q.norm();

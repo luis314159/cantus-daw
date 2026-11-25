@@ -6,7 +6,7 @@
 //! bridge's pale maple, nickel, brass, the strings' steel and the silks; the f-holes and
 //! the bridge's cut-outs dark, the strings and rods round.
 
-use super::geo::{ear_clip, of, perp, vt, Geo};
+use super::geo::{ear_clip, of, perp, vt, Geo, Vert};
 use super::mat::{finish, lin3, parts, MatId, PMat, Tex};
 use super::mesh::V3;
 use crate::kit::skin::scene::bowed as pal;
@@ -178,21 +178,34 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
                 dark: scalp,
                 ..PMat::lacquer(lin3(hp::HAIR), 0.1, 0.42).with(Tex::Hair)
             }),
-            Role::HairFair | Role::Scalp(0) => g.mat(PMat {
+            Role::HairFair => g.mat(PMat {
                 dark: scalp,
                 ..PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
             }),
-            Role::Scalp(_) => g.mat(PMat {
-                dark: scalp,
-                ..PMat::lacquer(lin3(hp::HAIR), 0.1, 0.42).with(Tex::Hair)
-            }),
+            // The scalp under the cards in the cards' own finish (no streaks of its own:
+            // where it showed between them it read as patches of another hair).
+            Role::Scalp(0) => g.mat(PMat::lacquer(lin3(hp::HAIR_FAIR), 0.06, 0.45)),
+            Role::Scalp(_) => g.mat(PMat::lacquer(lin3(hp::HAIR), 0.06, 0.45)),
             // The thick shell is the Drawn picture's (here the cards over the scalp).
             Role::Shell(_) => continue,
             r => id(g, *r),
         };
+        // r42:arcus-upper — a hair card is lit as the head of hair it belongs to (each card's
+        // own normal showed as light and dark patches, the owner's review): its normal the
+        // way out from the hair's middle, one smooth light over every card.
+        let radial = matches!(role, Role::Card(k) if k % 3 == 0).then(|| {
+            t.pts.iter().fold(V3::default(), |a, &p| a + of(p)) * (1.0 / t.pts.len().max(1) as f32)
+        });
         for tri in &t.idx {
             let [a, b2, c] = tri.map(|i| i as usize);
-            let w = [a, b2, c].map(|i| vt(of(t.pts[i]), of(t.nrm[i]), t.detail[i]));
+            let w = [a, b2, c].map(|i| {
+                let p = of(t.pts[i]);
+                let n = radial.map_or(of(t.nrm[i]), |m| (p - m).norm());
+                Vert {
+                    uv2: t.uv.get(i).copied().unwrap_or([-1.0, -1.0]),
+                    ..vt(p, n, t.detail[i])
+                }
+            });
             let fnrm = (w[1].p - w[0].p).cross(w[2].p - w[0].p);
             if fnrm.len() > 1e-10 {
                 g.tri(w[0], w[1], w[2], mi);

@@ -541,3 +541,28 @@ Done (`build_figures.py` unless named):
   (`finger_tint`); the nails lighter and glossier (`flesh::colour`); the table's fingers
   spread (`SPREAD`), held near the middle of their ranges (`MID`), each hovering toward its
   own string.
+
+### The review of prev4/prev5 (2026-11-25): cards, skin texture, fingertips
+
+- **Cards** (`scene/figure/cards.rs`, ADR 0159 amended): MakeHuman's CC0 `ponytail01`
+  (hers; the tail cut, the chignon is ours) and `short02` (his) hair, `eyebrow001` /
+  `eyebrow010` brows and `eyelashes01` lashes, fitted by `build_figures.py::card_proxy`,
+  textures as grey + alpha (`assets/figures/<who>_<hair|brow|lash>.png`, `cards()`). The
+  Photographic raster alpha-tests them per sample (`raster::cuts`, `raster_rows`), a
+  realistic figure's picture keeps 2×2 samples at any size (`hybrid::render`); a card casts
+  no shadow (its strands' shadows on the scalp read as dark patches); a hair card is lit
+  by its head of hair's radial normal (one smooth light over every card), its texture's
+  grey held near its mean (`Card::shade`, 0.85…1.18); a thin scalp in the cards' finish
+  under them, set back 5° from the hairline so the strands make the hairline
+  (`Stuff::Scalp`); the thick shell stays the Drawn picture's (`Stuff::Shell`).
+- **Skin texture** (face and hands in the bake): the body's vertices split at the skin
+  texture's seams (`split_seams`: copies appended, so every proxy's references still name
+  the base mesh), each vertex's texture coordinates in the `.fig` (hers u 0…1, his 2…3);
+  the skin's fine detail — MakeHuman's own diffuse, its luminance over a 6 px blur of it
+  (`skin_texture`, `assets/figures/<who>_skin.png`, 1024 px) — sampled per sample in the
+  bake (`raster::place` → `cards::skin_detail`) on the vertex detail's luminance. The
+  copies share one normal (`Figure::weld`: `bowed_human::skin`, the live arms'
+  `weld_of`), and an edge between copies is not an outline. The live arms (the hands in
+  the live layer) keep the per-vertex colour: egui draws them untextured — open.
+- **Fingertips**: the last phalanx's last half never slimmed, and never thinned
+  (`main`'s `tipv`), so the tips keep MakeHuman's round pads.

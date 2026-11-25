@@ -488,6 +488,51 @@ class Fig:
         self.mat = np.concatenate([self.mat, m])
 
 
+def split_seams(pos, W, head_w, tris, tuv, uvs):
+    """Each vertex copied for every further texture coordinate its corners have (a seam
+    of the skin's texture), the copies appended: (positions, weights, head share,
+    triangles, each vertex's source, each vertex's texture coordinates)."""
+    n = len(pos)
+    first = -np.ones(n, dtype=np.int64)
+    extra = {}
+    src = list(range(n))
+    out = tris.copy()
+    for k in range(len(tris)):
+        for j in range(3):
+            v, t_ = int(tris[k, j]), int(max(tuv[k, j], 0))
+            if first[v] < 0:
+                first[v] = t_
+            elif first[v] != t_:
+                key = (v, t_)
+                if key not in extra:
+                    extra[key] = len(src)
+                    src.append(v)
+                out[k, j] = extra[key]
+    src = np.array(src)
+    vt_ = np.maximum(first, 0)
+    vuv = np.zeros((len(src), 2))
+    vuv[:n] = uvs[vt_] if len(uvs) else 0.0
+    for (v, t_), i in extra.items():
+        vuv[i] = uvs[t_]
+    return pos[src], [W[i] for i in src], head_w[src], out, src, vuv
+
+
+def skin_texture(assets, out, name, sex):
+    """The skin's fine detail for the bake (pores, the brows' hairs, the lips' lines): the
+    MakeHuman skin's luminance over a blur of itself (128 the mean), 1024 px."""
+    im = Image.open(os.path.join(
+        assets, "skins", f"young_caucasian_{sex}",
+        "young_lightskinned_female_diffuse.png" if sex == "female"
+        else "young_lightskinned_male_diffuse.png")).convert("RGB").resize((1024, 1024),
+                                                                           Image.LANCZOS)
+    from PIL import ImageFilter
+    lum = np.asarray(im.convert("L"), dtype=np.float64)
+    blur = np.asarray(im.convert("L").filter(ImageFilter.GaussianBlur(6)), dtype=np.float64)
+    hp = np.clip(lum / np.maximum(blur, 1.0), 0.6, 1.4)
+    Image.fromarray(np.clip(hp * 128.0, 0, 255).astype(np.uint8), "L").save(
+        os.path.join(out, f"{name}_skin.png"), optimize=True)
+
+
 def body_parts(pos, faces, tris_all, tri_groups, deleted):
     """The body's triangles (its skin, not the helpers) and which vertices remain."""
     keep_t = np.array([g == "body" for g in tri_groups])
@@ -537,7 +582,7 @@ def make(sex, data, assets):
     pos = close_lids(pos, wt, J)
     pos = slim_fingers(pos, wt, J)
     W = scene_weights(len(pos), wt, m2s)
-    tris_all, _ = triangulate(faces)
+    tris_all, tuv_all = triangulate(faces)
     tri_groups = [f[2] for f in faces for _ in range(len(f[0]) - 2)]
     fig = Fig()
     c, _ = head_frame(J)
@@ -552,8 +597,15 @@ def make(sex, data, assets):
         obj, refs, scales, sdel, _ = mh.read_mhclo(os.path.join(
             assets, "clothes", "male_elegantsuit01", "male_elegantsuit01.mhclo"))
         deleted |= set(sdel)
+    # The skin's own texture per pixel (the owner's review, 2026-11-24: porcelain): each
+    # vertex split where its corners' texture coordinates differ, the copies after the
+    # originals (so the proxies' references still name the base mesh's vertices).
+    n0 = len(pos)
+    pos, W, head_w, tris_all, src, vuv = split_seams(pos, W, head_w, tris_all, tuv_all, uvs)
+    deleted = set(np.where(np.isin(src, list(deleted)))[0]) if deleted else deleted
     btris, keep_v = body_parts(pos, faces, tris_all, tri_groups, deleted)
-    lum, red = skin_detail(pos, faces, uvs, skin_tex, keep_v & (head_w > 0.5))
+    lum, red = skin_detail(pos[:n0], faces, uvs, skin_tex, (keep_v & (head_w > 0.5))[:n0])
+    lum, red = lum[src], red[src]
     lum = lash_line(pos, btris, lum, J, wt)
     brow = brows(pos, keep_v, J, sex)
     # (The owner's review, 2026-11-24: brows that read — hers a light brown, darker than
@@ -572,7 +624,8 @@ def make(sex, data, assets):
     red = red + 0.05 * blotch
     # The fingers' joints a little darker in their creases, the knuckles shaded, the
     # fingertips and the palm's edge warmer (the owner's review: hands of clay).
-    crease, tips = finger_tint(pos, wt, J)
+    crease, tips = finger_tint(pos[:n0], wt, J)
+    crease, tips = crease[src], tips[src]
     lum = lum * (1.0 - 0.16 * crease)
     red = red + 0.06 * crease + 0.16 * tips
     if sex == "male":
@@ -582,7 +635,10 @@ def make(sex, data, assets):
     lash_p, lash_t = lashes(pos, wt, J)
     # The nails: the body cut along each nail's edge (sheet v7).
     nf = nail_field(pos, W, sk, J)
-    pos, W, (lum, red), btris, nf = cut(pos, W, [lum, red], btris, nf)
+    pos, W, (lum, red, su, sv), btris, nf = cut(pos, W, [lum, red, vuv[:, 0], vuv[:, 1]],
+                                                btris, nf)
+    # Her or his texture told apart by u (his 2 … 3): the bake picks the texture by it.
+    vuv = np.stack([su + (0.0 if sex == "female" else 2.0), sv], 1)
     head_w = np.array([d.get(BI["head"], 0.0) / max(sum(d.values()), 1e-9) for d in W])
     if sex == "female":
         # Swept back with soft volume at the crown (the owner's reference's styling).
@@ -599,10 +655,13 @@ def make(sex, data, assets):
         # rise read as a cap's edge across the forehead.)
         hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w, band=16.0,
                                      rise=40.0)
-        bp, bw, bt, bmat, blum, bred = dress(pos, W, btris, J, lum, red, nf)
-        fig.add(bp, bw, bt, bmat, blum, bred)
+        bp, bw, bt, bmat, blum, bred, buv = dress(pos, W, btris, J, lum, red, nf, vuv)
+        fig.add(bp, bw, bt, bmat, blum, bred, uv=buv)
         fig.add(hp, hw, ht, SHELL, uv=huv)
-        sp_, sw_, st_, suv_ = hair_shell(pos, W, btris, c, HER_LINE, scalp_thick, head_w,
+        # (The scalp a few degrees in from the hairline: the cards' own strands make the
+        # hairline, soft, not the scalp's edge — the owner's review: a hard band.)
+        scalp_line = [(a_, e_ + 5.0 * (a_ < 100)) for a_, e_ in HER_LINE]
+        sp_, sw_, st_, suv_ = hair_shell(pos, W, btris, c, scalp_line, scalp_thick, head_w,
                                          band=16.0, rise=40.0)
         fig.add(sp_, sw_, st_, SCALP, uv=suv_)
         # Tied low: a chignon at the nape — the hair twisted into a ring, its strands wound
@@ -623,7 +682,7 @@ def make(sex, data, assets):
                     - 0.15 * smooth01((np.abs(th) - 75) / 45.0))
         # His short hair's edge crisper (a groomed hairline; a wide band read as teeth).
         hp, hw, ht, huv = hair_shell(pos, W, btris, c, HIS_LINE, thick, head_w, band=6.0)
-        fig.add(pos, W, btris, np.where(nf[btris].mean(1) > 0, NAIL, SKIN), lum, red)
+        fig.add(pos, W, btris, np.where(nf[btris].mean(1) > 0, NAIL, SKIN), lum, red, uv=vuv)
         fig.add(hp, hw, ht, SHELL, uv=huv)
         sp_, sw_, st_, suv_ = hair_shell(pos, W, btris, c, HIS_LINE, scalp_thick, head_w,
                                          band=6.0)
@@ -963,7 +1022,7 @@ def bone_share(d, names):
     return sum(w for b, w in d.items() if BONES[b][0] in names) / tot
 
 
-def dress(pos, W, tris, J, lum, red, nail):
+def dress(pos, W, tris, J, lum, red, nail, vuv=None):
     """The woman's black velvet concert dress on her body: long sleeves to the wrists, a
     soft scoop neckline in front (the collarbones' line showing, the shoulders covered);
     the skirt is draped by the scene round the seated legs. The body is cut along each
@@ -987,7 +1046,9 @@ def dress(pos, W, tris, J, lum, red, nail):
     # The uncut body's normals carried through the cuts (a sliver's own normal pushed the
     # velvet out in fins along the neckline).
     n0 = vnormals(pos, tris)
-    p, w, ex, t = pos, W, [lum, red, nail, n0[:, 0], n0[:, 1], n0[:, 2]], tris
+    if vuv is None:
+        vuv = np.zeros((len(pos), 2))
+    p, w, ex, t = pos, W, [lum, red, nail, n0[:, 0], n0[:, 1], n0[:, 2], vuv[:, 0], vuv[:, 1]], tris
     for k in range(2):
         f = fields(p, w)[k]
         p, w, ex, t, _ = cut(p, w, ex, t, f)
@@ -1062,7 +1123,7 @@ def dress(pos, W, tris, J, lum, red, nail):
     nq = np.where(on[:, None], nq, nrm)
     front = np.clip(nq[:, 2], 0.0, 1.0)
     ease = m * (BODICE_EASE + 0.6 * front) + np.where(on, arm, 0.0) * inner * SLEEVE_EASE
-    return q + nq * ease[:, None], w, t, mats, ex[0], ex[1]
+    return q + nq * ease[:, None], w, t, mats, ex[0], ex[1], np.stack([ex[6], ex[7]], 1)
 
 
 # The bodice's smoothing (passes) and ease (cm), the sleeves' ease.
@@ -1284,6 +1345,11 @@ def main():
         # each arm's own part, so a hand is not three thousand triangles.
         n0 = len(fig.tris)
         movable = ((part & 1) == 0) & ((part & 6) != 0)
+        # (Never the fingertips: thinned, a fingertip's round pad folded to a point — the
+        # owner's review: claws.)
+        tipv = np.array([bone_share(d, tuple(f"f{f}_3.{s_}" for f in range(1, 6)
+                                             for s_ in SIDES)) for d in fig.w])
+        movable &= tipv[fig.tris].max(1) < 0.3
         uv = [fig.uv[:, 0], fig.uv[:, 1]]
         p2, w2, ex, t2, m2, part = thin.thin(fig.pos, fig.w, [fig.lum, fig.red] + uv,
                                               fig.tris, fig.mat, part, THIN, movable)
@@ -1292,6 +1358,7 @@ def main():
         print(f"{name}: arms thinned, {n0} -> {len(fig.tris)} triangles")
         rest = bone_rest(sk, J)
         cards(assets, out, name)
+        skin_texture(assets, out, name, sex)
         size = write_fig(os.path.join(out, f"{name}.fig"), fig, rest, marks(J, fig), part)
         print(f"{name}: {len(fig.pos)} vertices, {len(fig.tris)} triangles, {size} bytes")
         if prev:
