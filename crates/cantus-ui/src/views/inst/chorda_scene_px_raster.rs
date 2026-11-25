@@ -326,9 +326,14 @@ fn gbuf(
     (depth, tri)
 }
 
+/// r42:arcus-upper — whether `t` is hair (its grain the in-plane way its `u` grows).
+fn hair_of(geo: &Geo, t: &Tri) -> bool {
+    geo.mats[t.m as usize].tex == Tex::Hair
+}
+
 /// Where the sample `(sx, sy)` of `cam` meets triangle `t`: the point, the smooth normal,
 /// the uv and the grain (`dP/du`).
-fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32) -> (V3, V3, [f32; 2], V3) {
+fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, hair: bool) -> (V3, V3, [f32; 2], V3) {
     let p: [V3; 3] = std::array::from_fn(|i| world(cam, t.v[i].p));
     let d = cam.fwd + cam.right * ((sx - cam.c.x) / cam.k) - cam.up * ((sy - cam.c.y) / cam.k);
     let (e1, e2) = (p[1] - p[0], p[2] - p[0]);
@@ -363,12 +368,12 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32) -> (V3, V3, [f32; 2], V3) {
     let (du2, dv2) = (v[2].uv[0] - v[0].uv[0], v[2].uv[1] - v[0].uv[1]);
     let det = du1 * dv2 - du2 * dv1;
     let (a1, a2) = (v[1].p - v[0].p, v[2].p - v[0].p);
-    let tg = if det.abs() > 1e-12 {
+    let tg = if det.abs() > 1e-12 && !hair {
         (a1 * dv2 - a2 * dv1) * (1.0 / det)
     } else {
-        // r42:arcus-upper — `v` the same at every corner (a hair's strands beyond its
-        // hairline): the way `u` grows in the triangle's plane (an edge stood in for it, a
-        // different one each triangle: a faceted sheen).
+        // r42:arcus-upper — `v` the same at every corner, or hair (its `v` the hairline's
+        // blend, not a way): the way `u` grows in the triangle's plane (an edge, or `dP/du`
+        // along a sliver at the hairline, stood in for it: a faceted sheen).
         let nn = a1.cross(a2);
         let g = (nn.cross(a1) * du2 + a2.cross(nn) * du1) * (1.0 / nn.dot(nn).max(1e-12));
         if g.len() > 1e-9 {
@@ -1105,7 +1110,8 @@ fn mirror(
                     continue;
                 }
                 let tr = &geo.tris[split + t as usize];
-                let (p, n, uv, tg) = place(&mcam, tr, x as f32 + 0.5, y as f32 + 0.5);
+                let (p, n, uv, tg) =
+                    place(&mcam, tr, x as f32 + 0.5, y as f32 + 0.5, hair_of(geo, tr));
                 let m = &geo.mats[tr.m as usize];
                 let fp = md[y * w + x] / mcam.k;
                 let c = shade(
@@ -1250,7 +1256,7 @@ pub fn bake(
                     }
                     let trg = &geo.tris[t as usize];
                     let m = &geo.mats[trg.m as usize];
-                    let (p, n, uv, _) = place(&scam, trg, sx as f32 + 0.5, sy as f32 + 0.5);
+                    let (p, n, uv, _) = place(&scam, trg, sx as f32 + 0.5, sy as f32 + 0.5, false);
                     let fp = depth[k] / scam.k * ss as f32;
                     if let Some(c) = reflection(
                         rig,
@@ -1352,7 +1358,7 @@ pub fn bake(
                         let tr = &geo.tris[t0 as usize];
                         let c = (ss as f32) * 0.5;
                         let (sxf, syf) = (x as f32 * ss as f32 + c, y as f32 * ss as f32 + c);
-                        let (p, n, uv, tg) = place(&scam, tr, sxf, syf);
+                        let (p, n, uv, tg) = place(&scam, tr, sxf, syf, hair_of(geo, tr));
                         let sv = shadow.light_for(&geo.mats[tr.m as usize], p, n);
                         (tr, p, n, uv, tg, sv)
                     });
@@ -1414,7 +1420,13 @@ pub fn bake(
                             }
                             zmin = zmin.min(depth[k]);
                             let tr = &geo.tris[t as usize];
-                            let (p, n, uv, tg) = place(&scam, tr, sx as f32 + 0.5, sy as f32 + 0.5);
+                            let (p, n, uv, tg) = place(
+                                &scam,
+                                tr,
+                                sx as f32 + 0.5,
+                                sy as f32 + 0.5,
+                                hair_of(geo, tr),
+                            );
                             let m = &geo.mats[tr.m as usize];
                             let fp = depth[k] / scam.k;
                             let ao = if q.full {

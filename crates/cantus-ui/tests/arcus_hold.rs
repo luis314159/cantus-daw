@@ -370,6 +370,43 @@ fn the_left_hand_passes_behind_the_neck() {
                     }
                     samples.push((lp.elbow.lerp(arm.shoulder, t), false));
                 }
+                // A realistic figure's own arm (sheet v7): its skinned vertices, as the live
+                // layer poses them (the thumb behind a cello's neck, the upper arm behind its
+                // body), every seventh.
+                if let Some(who) = cantus_ui::scene::bowed_human::who(hold) {
+                    use cantus_ui::scene::bowed_human as hu;
+                    let fig = hu::figure(who);
+                    let base = hu::rest_body(b, who);
+                    let aim = hu::ArmAim {
+                        elbow: lp.elbow,
+                        wrist: lp.wrist,
+                        hand: Some(hu::HandAim {
+                            fingers: lp.fingers,
+                            thumb: lp.thumb,
+                            exact: lp.playing,
+                        }),
+                    };
+                    let posed = hu::repose_arm(fig, &base.0, 0, &aim);
+                    let mut seen = std::collections::HashSet::new();
+                    for (k, t) in fig.tris.iter().enumerate() {
+                        if fig.part[k] & 2 == 0 || fig.part[k] & 1 != 0 {
+                            continue;
+                        }
+                        for &i in t {
+                            if i % 7 == 0 && seen.insert(i) {
+                                let w = posed.vertex(fig, i as usize);
+                                let by_neck = hand::hidden_by_neck(w, eye, d, &rig.pose);
+                                let (_, y, z) = local(w);
+                                // Behind a held instrument's body the bow crosses (its
+                                // stick is drawn over the picture): only the neck's there.
+                                let behind = !d.held && z < -cantus_ui::scene::bowed::rib(d, y) - 0.5;
+                                if by_neck || behind {
+                                    samples.push((w, by_neck));
+                                }
+                            }
+                        }
+                    }
+                }
                 for (w, by_neck) in samples {
                     let p = to_px(w);
                     let hid = if by_neck {
@@ -474,6 +511,29 @@ fn the_left_arm_keeps_the_photographs_angles() {
                      {upper_down:.0}°, elbow in the instrument's frame ({ex:.1}, {ey:.1}, \
                      {ez:.1}) cm, {below_hand:.0} cm under the knuckles, {out:.0} cm out"
                 );
+                // `CANTUS_DUMP_HAND=1`: the pose as JSON, for tools/arcus-figures/hand_design.py.
+                if std::env::var("CANTUS_DUMP_HAND").is_ok() {
+                    let j = |p: V3| format!("[{:.3},{:.3},{:.3}]", p.x, p.y, p.z);
+                    let js = |ps: &[V3]| ps.iter().map(|&p| j(p)).collect::<Vec<_>>().join(",");
+                    let fs: Vec<String> =
+                        lp.fingers.iter().map(|f| format!("[{}]", js(f))).collect();
+                    let [_, br, nut] = rig.strings[string];
+                    println!(
+                        "HAND {{\"b\":\"{b:?}\",\"hold\":\"{hold:?}\",\"semis\":{semis},\"wrist\":{},\"elbow\":{},\"shoulder\":{},\"fingers\":[{}],\"thumb\":[{}],\"playing\":{},\"o\":{},\"ex\":{},\"ey\":{},\"ez\":{},\"bridge\":{},\"nut\":{}}}",
+                        j(lp.wrist),
+                        j(lp.elbow),
+                        j(arm.shoulder),
+                        fs.join(","),
+                        js(&lp.thumb),
+                        lp.playing.map_or(-1, |p| p as i32),
+                        j(rig.pose.o),
+                        j(rig.pose.ex),
+                        j(rig.pose.ey),
+                        j(rig.pose.ez),
+                        j(br),
+                        j(nut)
+                    );
+                }
                 assert!(wrist < 3.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
                 // (A cellist's hand comes up beside the shoulder: the elbow folds more.)
                 assert!(

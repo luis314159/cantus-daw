@@ -153,6 +153,11 @@ struct Scratch {
     order: Vec<(f32, u32)>,
     ao: Vec<f32>,
     caps: Vec<Capsule>,
+    /// Each vertex's colour this frame and the stuff it was lit as.
+    vcol: Vec<(Option<Stuff>, Color32)>,
+    /// What the kept skinning was made for, and the arm's middle.
+    key: Option<[V3; 8]>,
+    mid: V3,
 }
 
 /// A limb's piece as an occluder: from `a` to `b`, `r` thick, the bone it is (none: an
@@ -201,6 +206,138 @@ impl Shading {
             dark: lit.dark,
         }
     }
+}
+
+/// The light by the normal's way, worked out once for a stuff and kept (an octahedral map,
+/// `LUT`² ways): a frame looks a corner's colour up instead of lighting it (the frame
+/// budget: lit per corner, the realistic arms cost 3–4 ms a frame). Taken at the arm's
+/// middle and with the skin's plain albedo; the skin's detail and the occlusion scale it.
+const LUT: usize = 40;
+
+#[derive(Clone, PartialEq)]
+struct LutKey {
+    photo: bool,
+    dark: bool,
+    tone: u8,
+    eye: [i32; 3],
+    key: [i32; 3],
+    mid: [i32; 3],
+}
+
+#[derive(Default)]
+struct Luts {
+    key: Option<LutKey>,
+    /// Per stuff (by `stuff_slot`): its colours, display-referred 0…1.
+    maps: [Vec<[f32; 3]>; 8],
+}
+
+thread_local! {
+    static LUTS: RefCell<Luts> = RefCell::new(Luts::default());
+}
+
+fn stuff_slot(st: Stuff) -> usize {
+    match st {
+        Stuff::Skin | Stuff::Lips => 0,
+        Stuff::Nail => 1,
+        Stuff::Velvet => 2,
+        Stuff::Wool => 3,
+        Stuff::Shirt => 4,
+        Stuff::Tie => 5,
+        Stuff::Hair => 6,
+        _ => 7,
+    }
+}
+
+/// The octahedral map's place for a unit vector, and back.
+fn oct_uv(n: V3) -> (f32, f32) {
+    let s = n.x.abs() + n.y.abs() + n.z.abs();
+    let (mut x, mut y) = (n.x / s, n.y / s);
+    if n.z < 0.0 {
+        let (ox, oy) = (x, y);
+        x = (1.0 - oy.abs()) * ox.signum();
+        y = (1.0 - ox.abs()) * oy.signum();
+    }
+    (x * 0.5 + 0.5, y * 0.5 + 0.5)
+}
+
+fn oct_dir(u: f32, v: f32) -> V3 {
+    let (x, y) = (u * 2.0 - 1.0, v * 2.0 - 1.0);
+    let z = 1.0 - x.abs() - y.abs();
+    let (x, y) = if z < 0.0 {
+        ((1.0 - y.abs()) * x.signum(), (1.0 - x.abs()) * y.signum())
+    } else {
+        (x, y)
+    };
+    v3(x, y, z).norm()
+}
+
+/// A corner's colour from the kept maps (made again when the light or the view changes).
+fn lut_colour(
+    sh: &Shading,
+    st: Stuff,
+    tone: u8,
+    detail: [f32; 2],
+    mid: V3,
+    n: V3,
+    ao: f32,
+) -> Color32 {
+    let q = |p: V3| [p.x.round() as i32, p.y.round() as i32, p.z.round() as i32];
+    let key = LutKey {
+        photo: sh.drawn.is_none(),
+        dark: sh.dark,
+        tone,
+        eye: q(sh.eye),
+        key: q(sh.key),
+        mid: q(mid),
+    };
+    LUTS.with(|l| {
+        let mut l = l.borrow_mut();
+        if l.key.as_ref() != Some(&key) {
+            l.key = Some(key);
+            for m in l.maps.iter_mut() {
+                m.clear();
+            }
+        }
+        let slot = stuff_slot(st);
+        if l.maps[slot].is_empty() {
+            let plain = [1.0, 0.0];
+            let mut map = Vec::with_capacity(LUT * LUT);
+            for j in 0..LUT {
+                for i in 0..LUT {
+                    let d = oct_dir((i as f32 + 0.5) / LUT as f32, (j as f32 + 0.5) / LUT as f32);
+                    let c = colour(sh, st, tone, plain, mid, d, 1.0);
+                    map.push([c.r(), c.g(), c.b()].map(|x| x as f32 / 255.0));
+                }
+            }
+            l.maps[slot] = map;
+        }
+        let map = &l.maps[slot];
+        let (u, v) = oct_uv(n);
+        let (fx, fy) = (u * LUT as f32 - 0.5, v * LUT as f32 - 0.5);
+        let (x0, y0) = (fx.floor().max(0.0), fy.floor().max(0.0));
+        let (tx, ty) = ((fx - x0).clamp(0.0, 1.0), (fy - y0).clamp(0.0, 1.0));
+        let (x0, y0) = ((x0 as usize).min(LUT - 1), (y0 as usize).min(LUT - 1));
+        let (x1, y1) = ((x0 + 1).min(LUT - 1), (y0 + 1).min(LUT - 1));
+        let at = |x: usize, y: usize| map[y * LUT + x];
+        let mut c = [0.0f32; 3];
+        for (k, ck) in c.iter_mut().enumerate() {
+            let a = at(x0, y0)[k] * (1.0 - tx) + at(x1, y0)[k] * tx;
+            let b = at(x0, y1)[k] * (1.0 - tx) + at(x1, y1)[k] * tx;
+            *ck = a * (1.0 - ty) + b * ty;
+        }
+        // The skin's detail (brows, lips, the knuckles' creases, the nails) and the
+        // occlusion.
+        if matches!(st, Stuff::Skin | Stuff::Lips) {
+            let (lum, red) = (detail[0].min(1.1), detail[1]);
+            let f = [1.0 + 0.22 * red, 1.0 - 0.12 * red, 1.0 - 0.18 * red];
+            for (ck, fk) in c.iter_mut().zip(f) {
+                *ck *= lum * fk;
+            }
+        }
+        let k = 0.38 + 0.62 * ao;
+        let b = |x: f32| ((x * k).clamp(0.0, 1.0) * 255.0).round() as u8;
+        Color32::from_rgb(b(c[0]), b(c[1]), b(c[2]))
+    })
 }
 
 /// A corner's colour: its stuff lit (`ao`: how much of the light round it reaches, the
@@ -342,32 +479,37 @@ pub fn arm(
 ) {
     let fig = hu::figure(who);
     let am = arm_mesh(who, s);
-    let posed = hu::repose_arm(fig, base, s, aim);
     let shading = Shading::of(lit);
     SCRATCH.with(|sc| {
         let mut sc = sc.borrow_mut();
         let sc = &mut *sc;
         let n = am.verts.len();
-        sc.pts.clear();
-        sc.nrm.clear();
-        sc.sp.clear();
-        for &i in &am.verts {
-            let p = posed.vertex(fig, i as usize);
-            sc.pts.push(p);
-            sc.sp.push(v.p(p));
-        }
-        sc.nrm.resize(n, V3::default());
-        for t in &am.tris {
-            let [a, bb, c] = t.map(|i| i as usize);
-            let f = (sc.pts[bb] - sc.pts[a]).cross(sc.pts[c] - sc.pts[a]);
-            for i in [a, bb, c] {
-                sc.nrm[i] = sc.nrm[i] + f;
-            }
-        }
-        for q in &mut sc.nrm {
-            *q = q.norm();
-        }
-        occlusion(fig, &posed, s, am, held, sc);
+        // The left arm is painted in two passes (behind the neck, then in front): the
+        // second finds the arm skinned and lit by the first.
+        let h = aim
+            .hand
+            .map_or([V3::default(); 2], |h| [h.fingers[1][3], h.thumb[3]]);
+        let key = [
+            aim.elbow,
+            aim.wrist,
+            h[0],
+            h[1],
+            v.cam.eye(),
+            lit.key,
+            base.xf[hu::side(s)].at,
+            V3 {
+                x: who as u8 as f32,
+                y: s as f32 + tone as f32 * 2.0,
+                z: shading.drawn.is_some() as u8 as f32 + v.origin.x * 3.0 + v.k.x,
+            },
+        ];
+        let same = sc.key == Some(key) && sc.pts.len() == n;
+        sc.key = Some(key);
+        let mid = if same {
+            sc.mid
+        } else {
+            arm_setup(fig, am, base, s, aim, v, held, sc)
+        };
         let eye = v.cam.eye();
         sc.front.clear();
         sc.col.clear();
@@ -388,11 +530,20 @@ pub fn arm(
             let mut cc = [Color32::TRANSPARENT; 3];
             if show {
                 for (j, &i) in [a, bb, c].iter().enumerate() {
-                    let d = fig.detail[am.verts[i] as usize];
-                    cc[j] = colour(&shading, st, tone, d, sc.pts[i], sc.nrm[i], sc.ao[i]);
-                    if am.alpha[i] < 1.0 {
-                        cc[j] = cc[j].gamma_multiply(am.alpha[i]);
-                    }
+                    // Each corner lit once a frame (a vertex where two stuffs meet, once
+                    // each way).
+                    let (kept_st, kept) = sc.vcol[i];
+                    cc[j] = if kept_st == Some(st) {
+                        kept
+                    } else {
+                        let d = fig.detail[am.verts[i] as usize];
+                        let mut cl = lut_colour(&shading, st, tone, d, mid, sc.nrm[i], sc.ao[i]);
+                        if am.alpha[i] < 1.0 {
+                            cl = cl.gamma_multiply(am.alpha[i]);
+                        }
+                        sc.vcol[i] = (Some(st), cl);
+                        cl
+                    };
                 }
                 // A shirt's cuff lies inside its sleeve: sorted a little behind it.
                 let bias = if st == Stuff::Shirt { 1.5 } else { 0.0 };
@@ -547,6 +698,47 @@ fn occlusion(
         }
         sc.ao.push(1.0 - (occ * 0.55 * hand.min(1.0)).min(0.62));
     }
+}
+
+/// Skin arm `s`, its normals, its occlusion; clear the kept colours. Returns the arm's
+/// middle (where its light is taken).
+#[allow(clippy::too_many_arguments)]
+fn arm_setup(
+    fig: &Figure,
+    am: &ArmMesh,
+    base: &Posed,
+    s: usize,
+    aim: &ArmAim,
+    v: &View,
+    held: &[Capsule],
+    sc: &mut Scratch,
+) -> V3 {
+    let posed = hu::repose_arm(fig, base, s, aim);
+    let n = am.verts.len();
+    sc.pts.clear();
+    sc.nrm.clear();
+    sc.sp.clear();
+    for &i in &am.verts {
+        let p = posed.vertex(fig, i as usize);
+        sc.pts.push(p);
+        sc.sp.push(v.p(p));
+    }
+    sc.nrm.resize(n, V3::default());
+    for t in &am.tris {
+        let [a, bb, c] = t.map(|i| i as usize);
+        let f = (sc.pts[bb] - sc.pts[a]).cross(sc.pts[c] - sc.pts[a]);
+        for i in [a, bb, c] {
+            sc.nrm[i] = sc.nrm[i] + f;
+        }
+    }
+    for q in &mut sc.nrm {
+        *q = q.norm();
+    }
+    occlusion(fig, &posed, s, am, held, sc);
+    sc.vcol.clear();
+    sc.vcol.resize(n, (None, Color32::TRANSPARENT));
+    sc.mid = sc.pts.iter().fold(V3::default(), |a, &p| a + p) * (1.0 / n.max(1) as f32);
+    sc.mid
 }
 
 /// The left arm's aim from the hand's pose.

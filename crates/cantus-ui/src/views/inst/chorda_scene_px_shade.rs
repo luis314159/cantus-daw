@@ -199,7 +199,10 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
                 + 0.05 * (across * 5.3 + 1.7).sin()
                 + 0.06 * noise(across * 13.0, 0.5, 61)
                 - 0.05 * noise(across * 31.0, 1.5, 67);
-            let e = uv[1].clamp(0.0, 1.0).powf(0.6);
+            // The hairline broken up as hair's own tips are (a smooth blend read as the
+            // triangles' teeth).
+            let tips = 0.45 * (noise(across * 41.0, 0.7, 73) - 0.5);
+            let e = (uv[1] + tips * (1.0 - uv[1])).clamp(0.0, 1.0).powf(0.6);
             s(lmix(m.dark, lscale(m.base, streak), e), m.coat * e, m.rough)
         }
         Tex::Floor => floor(rig, p, fp),
@@ -681,19 +684,18 @@ fn hair(
     let u = uv[0];
     let ph = u * 5.2 + 1.3 * noise(u * 1.9, 0.3, 83) + 0.5 * (u * 11.0).sin();
     // Fading in from the hairline, where the hair thins to the skin.
-    let hairline = uv[1].clamp(0.0, 1.0).powf(0.6);
     let inside = smooth(0.25, 0.9, uv[1]);
-    let nn = (n + across * (0.2 * inside * ph.sin())).norm();
+    let nn = (n + across * (0.14 * inside * ph.sin())).norm();
     let groove = (1.0 + 0.9 * (nn.dot(l) - n.dot(l))).clamp(0.75, 1.2);
     let d = lmul(sf.albedo, ladd(lscale(e, groove), lscale(rim, 0.6)));
     // The sheen along the strands.
     let h = (l + v).norm();
     let lit = (n.dot(l) * 2.5 + 0.5).clamp(0.0, 1.0) * kv;
     let th = along.dot(h);
-    let s1 = (1.0 - th * th).max(0.0).sqrt().powi(80) * 0.14;
+    let s1 = (1.0 - th * th).max(0.0).sqrt().powi(40) * 0.025;
     let t2 = (along + nn * 0.18).norm();
     let th2 = t2.dot(h);
-    let s2 = (1.0 - th2 * th2).max(0.0).sqrt().powi(18) * 0.12;
+    let s2 = (1.0 - th2 * th2).max(0.0).sqrt().powi(12) * 0.03;
     let tint = lscale(m.base, 1.6);
     let spec: Lin = std::array::from_fn(|i| kc[i] * lit * inside * groove * (s1 + s2 * tint[i]));
     ladd(d, spec)
@@ -730,7 +732,17 @@ pub fn shade(
         _ => f(),
     };
     let v = (eye - p).norm();
-    let mut n = if n.dot(v) < 0.0 { -n } else { n };
+    let figure = matches!(m.tex, Tex::Skin | Tex::Hair | Tex::Velvet);
+    let mut n = if figure && n.dot(v) < 0.0 && n.dot(v) > -0.35 {
+        // r42:arcus-upper — at a figure's silhouette the smooth normal turns just past the
+        // eye: bent back to graze it, not flipped (flipped it faced away from every light:
+        // a dark outline round a face, a neck, a sleeve).
+        (n - v * (n.dot(v) - 0.02)).norm()
+    } else if n.dot(v) < 0.0 {
+        -n
+    } else {
+        n
+    };
     if sf.dn.dot(sf.dn) > 0.0 {
         let nn = (n + sf.dn).norm();
         if nn.dot(v) > 0.02 {

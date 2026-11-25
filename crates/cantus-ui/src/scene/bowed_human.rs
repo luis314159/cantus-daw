@@ -473,6 +473,9 @@ const UP: V3 = V3 {
     z: 0.0,
 };
 
+/// How far back of the stylised figure's place a realistic cellist or bassist sits (cm).
+const SIT_BACK: f32 = 4.0;
+
 /// How far a violinist's or a violist's trunk turns to the left (radians).
 const TRUNK_TURN: f32 = 0.2;
 
@@ -668,12 +671,15 @@ pub fn body(
         // Behind a cello or a bass the seat is the instrument's (its height fixed): the
         // trunk leans from it toward where the head goes.
         let seat_top = s.pelvis.y - 10.0;
+        // Sat a little further back than the stylised figure (sheet v7: a realistic hand is
+        // longer; with the cello's neck at the shoulder the elbow folded under 30°).
+        let back = s.f * SIT_BACK;
         let hips = v(
             s.pelvis.x,
             seat_top + HIP_OVER_SEAT + (b[HIPS].head.y - b[side(0) + THIGH].head.y),
             s.pelvis.z,
-        );
-        ((t_top - hips).norm(), hips)
+        ) - back;
+        ((t_top - back - hips).norm(), hips)
     };
     // Under a chin the trunk turns a little to the left (the left shoulder forward toward
     // the scroll, as violinists stand): a viola's neck is otherwise beyond a relaxed arm's
@@ -794,6 +800,14 @@ fn resting_arm(
 /// The shoulder (the upper arm's head) where the body carries it.
 pub fn shoulder(fig: &Figure, p: &Posed, s: usize) -> V3 {
     p.at(side(s) + CLAV, fig.bones[side(s) + UPPER1].head)
+}
+
+/// The hand's length from the wrist to its knuckles' middle (side `s`), cm.
+pub fn hand_reach(fig: &Figure, s: usize) -> f32 {
+    let o = side(s);
+    let b = &fig.bones;
+    let mid = (b[o + finger(2, 0)].head + b[o + finger(3, 0)].head) * 0.5;
+    (mid - b[o + HAND].head).len()
 }
 
 /// The rest lengths of an arm (upper, fore), cm.

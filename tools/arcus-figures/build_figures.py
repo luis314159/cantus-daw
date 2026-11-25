@@ -38,6 +38,10 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mh  # noqa: E402
+import thin  # noqa: E402
+
+# The live arms' shortest edge after thinning (cm).
+THIN = 0.62
 
 # The scene's bones: (name, MakeHuman bones merged into it, parent).
 SIDES = ("L", "R")
@@ -322,7 +326,7 @@ HIS_LINE = [(0, 30), (16, 31), (30, 33), (42, 28), (55, 20), (68, 12), (80, 2), 
             (100, 8), (115, -2), (135, -20), (160, -27), (180, -28)]
 
 
-def hair_shell(pos, W, tris, c, line, thick, head_w):
+def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0):
     """A shell over the scalp: the head's skin above ``line`` (cut along it, so the
     hairline is a smooth curve), pushed out along its normal by ``thick(θ, φ)`` tapering
     to nothing at the hairline, so its edge lies on the skin. Returns (positions, weights,
@@ -347,7 +351,7 @@ def hair_shell(pos, W, tris, c, line, thick, head_w):
     q = p2[used] - c
     # (Folded under the head's middle, so no seam runs down the nape.)
     across = np.arctan2(q[:, 0], np.abs(q[:, 1]) + 0.5) * 9.0
-    uv = np.stack([across, smooth01(f2[used] / 16.0)], 1)
+    uv = np.stack([across, smooth01(f2[used] / band)], 1)
     return hp, [w2[i] for i in used], remap[keep], uv
 
 
@@ -477,7 +481,7 @@ def make(sex, data, assets):
         def thick(th, ph):
             return (0.75 + 0.35 * smooth01((ph - 30) / 30.0)
                     + 0.45 * smooth01((np.abs(th) - 60) / 90.0))
-        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w)
+        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w, band=10.0)
         bp, bw, bt, bmat, blum, bred = dress(pos, W, btris, J, lum, red, nf)
         fig.add(bp, bw, bt, bmat, blum, bred)
         fig.add(hp, hw, ht, HAIR, uv=huv)
@@ -490,7 +494,8 @@ def make(sex, data, assets):
         def thick(th, ph):
             return (0.45 + 0.55 * smooth01((ph - 25) / 30.0)
                     - 0.15 * smooth01((np.abs(th) - 75) / 45.0))
-        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HIS_LINE, thick, head_w)
+        # His short hair's edge crisper (a groomed hairline; a wide band read as teeth).
+        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HIS_LINE, thick, head_w, band=6.0)
         fig.add(pos, W, btris, np.where(nf[btris].mean(1) > 0, NAIL, SKIN), lum, red)
         fig.add(hp, hw, ht, HAIR, uv=huv)
         sp, st, smat = suit(assets, obj, refs, scales, pos)
@@ -713,12 +718,15 @@ def dress(pos, W, tris, J, lum, red, nail):
         # breastbone's middle, its point softly rounded.
         ax = np.sqrt(x * x + 0.9 ** 2)
         depth = 15.0 * np.clip(1.0 - ax / 9.6, 0.0, 1.0) ** 1.1 + 1.0
-        scoop = np.minimum(np.minimum(z + 1.5, y + depth), 9.6 - np.abs(x))
+        scoop = np.minimum(np.minimum(z + 1.5, y + depth), 8.4 - np.abs(x))
         g_neck = np.maximum(10.0 * (hn - 0.5), scoop)
         g_hand = 10.0 * (np.array([hand_share(d) for d in w]) - 0.55)
         return g_neck, g_hand
 
-    p, w, ex, t = pos, W, [lum, red, nail], tris
+    # The uncut body's normals carried through the cuts (a sliver's own normal pushed the
+    # velvet out in fins along the neckline).
+    n0 = vnormals(pos, tris)
+    p, w, ex, t = pos, W, [lum, red, nail, n0[:, 0], n0[:, 1], n0[:, 2]], tris
     for k in range(2):
         f = fields(p, w)[k]
         p, w, ex, t, _ = cut(p, w, ex, t, f)
@@ -730,7 +738,8 @@ def dress(pos, W, tris, J, lum, red, nail):
     skin_v = np.maximum(g_neck, g_hand)
     mats = np.where(skin_v[t].mean(1) > 0, SKIN, VELVET)
     mats = np.where((mats == SKIN) & (ex[2][t].mean(1) > 0), NAIL, mats)
-    nrm = vnormals(p, t)
+    nrm = np.stack(ex[3:6], 1)
+    nrm = nrm / np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-9)
     # The velvet stands proud of the skin, more over the shoulder's top (the reference's
     # dress: its sleeves gathered a little at the shoulder).
     cap = np.array([bone_share(d, ("upper1.L", "upper1.R", "clav.L", "clav.R")) for d in w])
@@ -916,6 +925,16 @@ def main():
     for sex, name in (("female", "woman"), ("male", "man")):
         fig, J = make(sex, data, assets)
         part = parts(fig)
+        # The live arms thinned (sheet v7's frame budget): short edges collapsed inside
+        # each arm's own part, so a hand is not three thousand triangles.
+        n0 = len(fig.tris)
+        movable = ((part & 1) == 0) & ((part & 6) != 0)
+        uv = [fig.uv[:, 0], fig.uv[:, 1]]
+        p2, w2, ex, t2, m2, part = thin.thin(fig.pos, fig.w, [fig.lum, fig.red] + uv,
+                                              fig.tris, fig.mat, part, THIN, movable)
+        fig.pos, fig.w, fig.tris, fig.mat = p2, w2, t2, m2
+        fig.lum, fig.red, fig.uv = ex[0], ex[1], np.stack([ex[2], ex[3]], 1)
+        print(f"{name}: arms thinned, {n0} -> {len(fig.tris)} triangles")
         rest = bone_rest(sk, J)
         size = write_fig(os.path.join(out, f"{name}.fig"), fig, rest, marks(J, fig), part)
         print(f"{name}: {len(fig.pos)} vertices, {len(fig.tris)} triangles, {size} bytes")

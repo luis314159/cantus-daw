@@ -202,7 +202,8 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
         thumb_knuckle = a + bw * (b_t + 1.4 * k) + kx * (hw + 2.2 * k) - z * (depth * 0.5);
     }
     let mid = (kn[1] + kn[2]) * 0.5;
-    let palm_len = 7.2 * k;
+    // A realistic figure's own hand's length (its knuckles land where they are put).
+    let palm_len = arm.reach.unwrap_or(7.2 * k);
     // The wrist straight: on the line from the elbow to the knuckles, a palm's length back.
     let mut wrist = mid - z * palm_len;
     let mut el = elbow(arm.shoulder, wrist, arm.upper, arm.fore, arm.pole);

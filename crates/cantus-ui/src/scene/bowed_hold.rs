@@ -207,6 +207,9 @@ pub struct Arm {
     pub down: V3,
     /// The hand's size against the woman's (a realistic figure's own; 1 for the stylised).
     pub palm: f32,
+    /// A realistic figure's own hand: the wrist to its knuckles' middle, cm (the hand is
+    /// placed so its own knuckles land where the grip puts them; sheet v7).
+    pub reach: Option<f32>,
 }
 
 /// The figure's skeleton for `b` held by `h`, worked out once and kept (the live picture
@@ -307,6 +310,7 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
             right: sk.r,
             down: sk.down,
             palm: fore / 21.4,
+            reach: Some(super::bowed_human::hand_reach(fig, 1)),
         });
     }
     let (sleeve, sleeve_shade, hand, hand_shade) = if h.hold == Hold::Player {
@@ -354,6 +358,7 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         right: sk.r,
         down: sk.down,
         palm: 1.0,
+        reach: None,
     })
 }
 

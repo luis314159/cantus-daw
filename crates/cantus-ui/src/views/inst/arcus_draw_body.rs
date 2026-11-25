@@ -251,7 +251,22 @@ fn real_left(
     let base = crate::scene::bowed_human::rest_body(pl.b, who);
     let aim = super::flesh::left_aim(lp);
     let eye = v.cam.eye();
-    let hid = |p: V3| super::hand::hidden_by_neck(p, eye, l.d, &l.rig.pose);
+    // What the neck hides, or what lies behind the body's back (the body's stamp covers it
+    // where the body is in front; sheet v7: a forearm passing behind a cello was painted
+    // over it).
+    // Behind a cello or a bass (played from behind) whatever lies deeper than the neck's
+    // middle is behind the instrument too: the forearm, the wrist, the thumb (the stamps
+    // cover it only where the instrument is; elsewhere it shows as drawn).
+    let pose = l.rig.pose;
+    let held = l.d.held;
+    let half = super::hand::neck_depth(l.d) * 0.5;
+    let hid = |p: V3| {
+        let q = p - pose.o;
+        let (y, z) = (q.dot(pose.ey), q.dot(pose.ez));
+        super::hand::hidden_by_neck(p, eye, l.d, &pose)
+            || ((0.0..=l.d.body).contains(&y) && z < -crate::scene::bowed::rib(l.d, y) - 0.3)
+            || (!held && z < crate::scene::bowed::board_z(l.d, y) - half)
+    };
     let lit = figure_light(v, pl, s);
     // The neck in the hand shades the fingers and the thumb round it.
     let rig = l.rig;
