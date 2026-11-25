@@ -188,7 +188,13 @@ impl Rig {
             .iter()
             .position(|t| t.id == track)
             .unwrap();
-        self.app.engine.meters().tracks.get(i).copied().unwrap_or(0.0)
+        self.app
+            .engine
+            .meters()
+            .tracks
+            .get(i)
+            .copied()
+            .unwrap_or(0.0)
     }
 
     /// The loudest `track` was over `frames` frames.
@@ -249,7 +255,11 @@ fn closing_an_instrument_opened_over_the_mixer_brings_the_mixer_back() {
     assert!(!r.app.workspace.contains(Pane::Device(key)));
     assert_eq!(r.front_of(Pane::Mixer), Pane::Mixer, "the mixer is back");
     assert_eq!(r.app.central, CentralView::Mixer);
-    assert_eq!(r.app.workspace.dock.main_surface().len(), nodes, "the same layout");
+    assert_eq!(
+        r.app.workspace.dock.main_surface().len(),
+        nodes,
+        "the same layout"
+    );
     // Esc closes it too, the same way.
     r.key(Key::F8);
     let body = r.leaf_rect(Pane::Device(key));
@@ -272,7 +282,11 @@ fn an_instrument_opened_over_the_session_or_the_arrangement_leaves_it_in_front()
     r.key(Key::F8);
     let key = inst_key(a);
     assert!(r.app.workspace.is_floating(Pane::Device(key)), "it floats");
-    assert_eq!(r.front_of(Pane::Arrangement), Pane::Session, "opening kept it");
+    assert_eq!(
+        r.front_of(Pane::Arrangement),
+        Pane::Session,
+        "opening kept it"
+    );
     r.click(r.buttons(key).close.unwrap().center());
     assert_eq!(r.front_of(Pane::Arrangement), Pane::Session, "closing too");
     // The arrangement in front: the same.
@@ -303,7 +317,11 @@ fn closing_never_pulls_the_user_back_to_a_view_they_left() {
     r.app.close_instrument_window(a);
     r.idle(3);
     assert!(!r.app.workspace.contains(Pane::Device(key)));
-    assert_eq!(r.front_of(Pane::Mixer), Pane::PianoRoll, "where the user went");
+    assert_eq!(
+        r.front_of(Pane::Mixer),
+        Pane::PianoRoll,
+        "where the user went"
+    );
 }
 
 // ---- pinned editors -----------------------------------------------------------------------
@@ -320,11 +338,23 @@ fn a_pinned_instrument_stays_through_an_effect_a_click_elsewhere_and_esc() {
     let pin = r.buttons(ka).pin.expect("every device window has its pin");
     r.click(pin.center());
     assert!(device::is_pinned(&r.ctx, ka), "pinned by its key");
-    assert!(r.app.status.text.contains("pinned"), "and said: {}", r.app.status.text);
+    assert!(
+        r.app.status.text.contains("pinned"),
+        "and said: {}",
+        r.app.status.text
+    );
     // An effect opens: the mixer's insert slot calls this.
     let strip = r.app.project().tracks[0].strip.unwrap();
     r.app.add_effect(strip, EffectKind::Limiter);
-    let fx = r.app.project().strip(strip).unwrap().effects.last().unwrap().id;
+    let fx = r
+        .app
+        .project()
+        .strip(strip)
+        .unwrap()
+        .effects
+        .last()
+        .unwrap()
+        .id;
     r.app.open_effect_editor(strip, fx);
     r.idle(4);
     let kf = cantus_ui::views::fx::device_id(fx).value();
@@ -333,7 +363,10 @@ fn a_pinned_instrument_stays_through_an_effect_a_click_elsewhere_and_esc() {
     let order: Vec<egui::LayerId> = r.ctx.memory(|m| m.layer_ids().collect());
     let layer = |k: u64| device::with_registry(&r.ctx, |g| g.get(k).and_then(|e| e.layer));
     let at = |l: Option<egui::LayerId>| order.iter().position(|x| Some(*x) == l).unwrap();
-    assert!(at(layer(ka)) > at(layer(kf)), "the pinned window stays above");
+    assert!(
+        at(layer(ka)) > at(layer(kf)),
+        "the pinned window stays above"
+    );
     // A click in the arrangement, where no editor is.
     let arr = r.leaf_rect(Pane::Arrangement);
     let spot = [
@@ -349,9 +382,15 @@ fn a_pinned_instrument_stays_through_an_effect_a_click_elsewhere_and_esc() {
     })
     .expect("a free spot in the arrangement");
     r.click(spot);
-    assert!(r.drawn(ka) && r.drawn(kf), "a click elsewhere hides neither");
+    assert!(
+        r.drawn(ka) && r.drawn(kf),
+        "a click elsewhere hides neither"
+    );
     r.key(Key::Escape);
-    assert!(r.drawn(ka) && r.drawn(kf), "Esc aimed at no editor closes none");
+    assert!(
+        r.drawn(ka) && r.drawn(kf),
+        "Esc aimed at no editor closes none"
+    );
     // A click in the effect, then Esc: the effect closes, the pinned instrument stays.
     let (fx_rect, _) = device::shown(&r.ctx, kf).unwrap();
     let (inst_rect, _) = device::shown(&r.ctx, ka).unwrap();
@@ -370,7 +409,10 @@ fn a_pinned_instrument_stays_through_an_effect_a_click_elsewhere_and_esc() {
     r.app.select_track(b);
     r.key(Key::F8);
     r.idle(3);
-    assert!(r.drawn(ka) && r.drawn(inst_key(b)), "both instruments on screen");
+    assert!(
+        r.drawn(ka) && r.drawn(inst_key(b)),
+        "both instruments on screen"
+    );
     assert!(r.app.instrument_window_open(a) && r.app.instrument_window_open(b));
     // Unpinned, the next one opened replaces it again (one at a time): Modulus closed and
     // opened again closes Calor.
@@ -426,7 +468,10 @@ fn two_instruments_open_play_their_own_held_notes_and_close_with_notes_off() {
     let (ka, kb) = (keys(&r, a), keys(&r, b));
     assert!(!ka.intersects(kb), "two keyboards apart: {ka:?} {kb:?}");
     let quiet = 1e-4;
-    assert!(r.loudest(a, 30) < quiet && r.loudest(b, 30) < quiet, "silence first");
+    assert!(
+        r.loudest(a, 30) < quiet && r.loudest(b, 30) < quiet,
+        "silence first"
+    );
     // Hold a key on Calor's keyboard: Calor sounds, Modulus does not.
     let on_a = Pos2::new(ka.center().x, ka.bottom() - ka.height() * 0.2);
     r.button(on_a, true);
@@ -435,7 +480,11 @@ fn two_instruments_open_play_their_own_held_notes_and_close_with_notes_off() {
     assert!(lb < quiet, "Modulus is silent: {lb}");
     r.button(on_a, false);
     assert!(r.loudest(a, 180) > 0.0);
-    assert!(r.level(a) < quiet, "Calor's note ended with the key: {}", r.level(a));
+    assert!(
+        r.level(a) < quiet,
+        "Calor's note ended with the key: {}",
+        r.level(a)
+    );
     // Hold a key on Modulus's keyboard: Modulus sounds, Calor does not.
     let on_b = Pos2::new(kb.center().x, kb.bottom() - kb.height() * 0.2);
     r.button(on_b, true);
@@ -455,7 +504,11 @@ fn two_instruments_open_play_their_own_held_notes_and_close_with_notes_off() {
     assert!(r.loudest(a, 30) > 1e-3);
     r.app.close_instrument_window(a);
     let _ = r.loudest(a, 240);
-    assert!(r.level(a) < quiet, "closed with its note off: {}", r.level(a));
+    assert!(
+        r.level(a) < quiet,
+        "closed with its note off: {}",
+        r.level(a)
+    );
     r.button(on_a, false);
 }
 
@@ -474,13 +527,20 @@ fn deleting_a_track_closes_its_pinned_editor_and_undo_brings_no_editor_back() {
     r.app.select_track(b);
     r.key(Key::F8);
     r.idle(3);
-    assert_eq!(r.app.editors.parked_instruments(), vec![a], "Calor parked, pinned");
+    assert_eq!(
+        r.app.editors.parked_instruments(),
+        vec![a],
+        "Calor parked, pinned"
+    );
     // The track header's *Delete track*.
     r.app.delete_track(a);
     r.idle(4);
     assert!(r.app.project().track(a).is_none());
     assert!(!r.app.instrument_window_open(a), "its editor closed");
-    assert!(r.app.editors.parked_instruments().is_empty(), "nothing parked");
+    assert!(
+        r.app.editors.parked_instruments().is_empty(),
+        "nothing parked"
+    );
     assert!(!r.app.workspace.contains(Pane::Device(ka)), "no tab");
     assert!(
         device::with_registry(&r.ctx, |g| g.get(ka).is_none()),

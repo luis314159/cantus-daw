@@ -639,7 +639,9 @@ pub fn open_window_sized(
             // least (several editors side by side).
             None => {
                 let want = frame::position(ctx, *pos, size);
-                let r = device::free_spot(ctx, key, size, ctx.content_rect(), Some(want));
+                // Inside the workspace (never over the top bar or the status line).
+                let area = device::workspace_area(ctx).unwrap_or_else(|| ctx.content_rect());
+                let r = device::free_spot(ctx, key, size, area, Some(want));
                 (r.min, size)
             }
         },

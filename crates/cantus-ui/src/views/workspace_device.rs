@@ -656,6 +656,11 @@ pub fn toggle_pin(ctx: &Context, key: DeviceKey) -> bool {
     set_pinned(ctx, key, on)
 }
 
+/// The workspace's area last frame, if it was laid out.
+pub fn workspace_area(ctx: &Context) -> Option<Rect> {
+    with_registry(ctx, |r| r.area.filter(|a| a.is_positive()))
+}
+
 /// Note the layer an area-hosted device is drawn on (a tab's comes with its body).
 pub fn note_layer(ctx: &Context, key: DeviceKey, layer: LayerId) {
     with_registry(ctx, |r| {
@@ -687,10 +692,7 @@ pub fn keep_pinned_above(ctx: &Context) {
                 continue;
             }
             let hit = entries.iter().find(|e| {
-                e.layer == Some(l)
-                    && !e.minimised
-                    && !e.closed
-                    && pass.saturating_sub(e.seen) <= 2
+                e.layer == Some(l) && !e.minimised && !e.closed && pass.saturating_sub(e.seen) <= 2
             });
             if let Some(e) = hit {
                 scratch.push((i, l, e.pinned));
@@ -767,7 +769,7 @@ pub fn place_beside(others: &[Rect], size: Vec2, area: Rect, wanted: Option<Pos2
             .sum()
     };
     if let Some(w) = wanted {
-        let r = Rect::from_min_size(w, size);
+        let r = fit(w);
         if covered(r) < size.x * size.y * 0.25 {
             return r;
         }
@@ -1071,7 +1073,11 @@ mod tests {
         let mut pending = Vec::new();
         take_pending(&ctx, &mut pending);
         assert_eq!(pending.len(), 1);
-        assert_eq!(pending[0].1, Pending::Float, "a tab pinned floats where it is");
+        assert_eq!(
+            pending[0].1,
+            Pending::Float,
+            "a tab pinned floats where it is"
+        );
         assert!(!toggle_pin(&ctx, key));
         take_pending(&ctx, &mut pending);
         assert!(pending.is_empty(), "unpinning moves nothing");

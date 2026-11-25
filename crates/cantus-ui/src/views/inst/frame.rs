@@ -1153,7 +1153,11 @@ pub(crate) fn keyboard_band(
         shell::keyboard_card(b, rect, s, lo, hi, &held)
     });
     let keys = rect.shrink(4.0 * s.k);
-    crate::views::device_chrome::publish(ui.ctx(), crate::views::device_chrome::Spot::InstKeys(track), keys); // r42:editor-windows
+    crate::views::device_chrome::publish(
+        ui.ctx(),
+        crate::views::device_chrome::Spot::InstKeys(track),
+        keys,
+    ); // r42:editor-windows
     let resp = ui.interact(
         keys,
         ui.id().with(("inst-keys", track.0)),

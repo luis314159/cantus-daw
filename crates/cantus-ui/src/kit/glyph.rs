@@ -856,8 +856,18 @@ fn window(g: Glyph, o: &mut dyn FnMut(Op<'_>)) {
             // drawing sits on the box's centre; its body outlined (not driven in).
             let h = std::f32::consts::FRAC_1_SQRT_2;
             let r = |(x, y): P| (x * h - y * h - 0.9, x * h + y * h + 0.9);
-            let head = [r((-2.8, -5.0)), r((2.8, -5.0)), r((2.8, -3.0)), r((-2.8, -3.0))];
-            let body = [r((-1.6, -3.0)), r((1.6, -3.0)), r((2.2, 0.4)), r((-2.2, 0.4))];
+            let head = [
+                r((-2.8, -5.0)),
+                r((2.8, -5.0)),
+                r((2.8, -3.0)),
+                r((-2.8, -3.0)),
+            ];
+            let body = [
+                r((-1.6, -3.0)),
+                r((1.6, -3.0)),
+                r((2.2, 0.4)),
+                r((-2.2, 0.4)),
+            ];
             let collar = [r((-4.0, 0.4)), r((4.0, 0.4)), r((4.0, 1.8)), r((-4.0, 1.8))];
             o(Solid(&head));
             o(Loop(&body));

@@ -997,7 +997,11 @@ mod device_leaves_tests {
     fn a_device_closed_in_front_gives_back_the_tab_it_covered() {
         let mut ws = over_the_mixer();
         ws.reveal(Pane::Device(7));
-        assert_eq!(front_of(&ws, Pane::Mixer), Pane::Device(7), "it covers the mixer");
+        assert_eq!(
+            front_of(&ws, Pane::Mixer),
+            Pane::Device(7),
+            "it covers the mixer"
+        );
         ws.hide(Pane::Device(7));
         // egui_dock alone would show the tab before it: the channel rack.
         assert_eq!(front_of(&ws, Pane::Mixer), Pane::Mixer);

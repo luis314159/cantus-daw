@@ -246,7 +246,10 @@ pub(crate) fn is_open<F: Family>(app: &CantusApp, key: F::Key) -> bool {
 /// but `keep`.
 pub(crate) fn close_unpinned<F: Family>(app: &mut CantusApp, keep: Option<F::Key>) {
     let ctx = app.theme_ctx.clone();
-    let pinned = |k: F::Key| ctx.as_ref().is_some_and(|c| device::is_pinned(c, F::device(k)));
+    let pinned = |k: F::Key| {
+        ctx.as_ref()
+            .is_some_and(|c| device::is_pinned(c, F::device(k)))
+    };
     if let Some(r) = F::resident(app).filter(|r| Some(*r) != keep && !pinned(*r)) {
         let _ = r;
         F::close(app);
@@ -417,7 +420,8 @@ impl CantusApp {
         let other = |e: Option<EffectId>| e.is_some_and(|e| e != effect);
         match kind {
             K::Eq => {
-                other(self.eq_editor.open.map(|o| o.1)) || self.editors.eq.iter().any(|p| p.0 != effect)
+                other(self.eq_editor.open.map(|o| o.1))
+                    || self.editors.eq.iter().any(|p| p.0 != effect)
             }
             K::Compressor => {
                 other(self.comp_editor.open.map(|o| o.1))
@@ -601,7 +605,10 @@ mod tests {
     fn one_at_a_time_closes_only_what_is_not_pinned() {
         assert!(opening_closes(false, false), "today's single editor");
         assert!(!opening_closes(false, true), "a pinned editor stays");
-        assert!(!opening_closes(true, false), "several at once: nothing closes");
+        assert!(
+            !opening_closes(true, false),
+            "several at once: nothing closes"
+        );
         assert!(!opening_closes(true, true));
     }
 

@@ -229,7 +229,15 @@ fn run(dir: &Path) {
     r.open(1);
     let strip = r.app.project().tracks[1].strip.unwrap();
     r.app.add_effect(strip, EffectKind::Limiter);
-    let fx = r.app.project().strip(strip).unwrap().effects.last().unwrap().id;
+    let fx = r
+        .app
+        .project()
+        .strip(strip)
+        .unwrap()
+        .effects
+        .last()
+        .unwrap()
+        .id;
     r.app.open_effect_editor(strip, fx);
     r.idle(SETTLE);
     r.pointer = Pos2::new(size.x * 0.5, size.y - 4.0);

@@ -76,7 +76,7 @@ Reproduced by `tests/editor_windows_e2e.rs` and the unit tests `device_leaves_te
 | `src/views/device_chrome.rs` | `ctl` shows the pin; `on_event` handles `Event::Pin`; `Pending::Float` carried out; floats go through `detach_device` and `free_spot`; the instrument window helpers know parked editors; `Spot::InstKeys`. |
 | `src/kit/window_ctl.rs`, `src/kit/shell.rs`, `src/kit/glyph.rs` | The pin key (`WindowCtl::pin`, `WindowRects::pin`, `WinHot::Pin`, `Event::Pin`), its paint and tooltips; `Glyph::Pin` (leaning) and `Glyph::Pinned` (upright). |
 | `src/views/inst/mod.rs` | `open_inst_editor`/`close_inst_editor`: deferred while a parked editor draws, a parked one unparked, room made; the probe through `sync_editor_engine`; `inst_telemetry` at rest for a parked one. **Lines 246–289** of the file as merged (the three functions only). |
-| `src/views/inst/frame.rs` | **Two lines**: the `Event::Pin` arm joins the window buttons' arm (line 484), and the keyboard publishes `Spot::InstKeys` (line 1149). |
+| `src/views/inst/frame.rs` | **Two places**: the `Event::Pin` arm joins the window buttons' arm (line 484), and the keyboard publishes `Spot::InstKeys` (lines 1156–1160, one statement). |
 | `src/views/fx/mod.rs`, `eq_editor.rs`, `comp_editor.rs`, `fx/host.rs`, `fx/frame.rs` | The effects' opens make room or unpark; the analyser through `sync_editor_engine`; the pairs, telemetry, EQ deltas and compressor meter only for the analysed editor; the fx frame's `Event::Pin`; a first opening placed by `free_spot`. |
 | `src/views/pulsus_editor.rs`, `src/hosted_view.rs`, `fx/fxd.rs`, `fx/fxd_window.rs` | Pulsus and the hosted view as families; the controllers' windows have no pin. |
 | `src/app.rs` | `CantusApp::editors`; `device_editors` calls `draw_editor_windows`; `prune_editors` after exec, exec_merging, undo, redo; another project forgets the parked editors. |
@@ -103,7 +103,32 @@ versioned; the new field defaults.
 
 ## Tests
 
-See the final section, filled at the end of the round.
+New (19):
+
+- `tests/editor_windows_e2e.rs` (7, its own binary, `CantusApp::assemble` on a real
+  processor): `closing_an_instrument_opened_over_the_mixer_brings_the_mixer_back`,
+  `an_instrument_opened_over_the_session_or_the_arrangement_leaves_it_in_front`,
+  `closing_never_pulls_the_user_back_to_a_view_they_left`,
+  `a_pinned_instrument_stays_through_an_effect_a_click_elsewhere_and_esc`,
+  `several_at_once_keeps_every_editor_open_without_a_pin`,
+  `two_instruments_open_play_their_own_held_notes_and_close_with_notes_off`,
+  `deleting_a_track_closes_its_pinned_editor_and_undo_brings_no_editor_back`.
+  **Checked against the old behaviour**: with the restore rule switched off, the first two
+  fail exactly as the owner described (`left: ChannelRack` where the mixer was;
+  `left: Arrangement` where the session was).
+- `views::workspace::device_leaves_tests` (5): closed in front, floated out, closed behind
+  another tab, stacked devices, over the session.
+- `views::workspace_device::tests` (2 new): `a_device_opens_beside_the_others_where_there_is_room`,
+  `a_pin_is_kept_by_the_registry_and_asks_a_shared_tab_to_float`.
+- `editor_windows::tests` (2): rule 1 and rule 4.
+- The glyph family (`kit_glyphs`) now walks `Pin` and `Pinned` (67 glyphs) and passes.
+
+Run green on Windows (`-p cantus-ui`): the lib (635 passed, 2 ignored) and `editor_windows_e2e`
+7, `device_ux` 22, `quick_gestures` 23, `hosted_instruments` 5, `hosted_plugins` 3,
+`inst_frame` 4, `dancer_window` 11, `delay_window_e2e` 9, `comparatio_drag` 5,
+`preset_browser_e2e` 3, `r41_whole` 4, `ux_signs_e2e` 1, `settings_scroll` 2, `kit_glyphs` 5,
+`kit_lint` 4, `fx_lint` 1. `cargo clippy -p cantus-ui --all-targets -- -D warnings` clean.
+Not run: the workspace suite and the WSL (Linux) check — the integrator's.
 
 ## Verified only in tests
 

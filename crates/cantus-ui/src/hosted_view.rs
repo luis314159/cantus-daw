@@ -423,9 +423,7 @@ impl CantusApp {
                     && self.editors.parked_effects().contains(&e)
                     && self.unpark_effect(e)
             }
-            Target::Instrument(t) => {
-                self.fx.hosted.inst_open != Some(t) && self.unpark_hosted(t)
-            }
+            Target::Instrument(t) => self.fx.hosted.inst_open != Some(t) && self.unpark_hosted(t),
         };
         if parked || self.cantus_view_open(target) {
             let key = match target {
