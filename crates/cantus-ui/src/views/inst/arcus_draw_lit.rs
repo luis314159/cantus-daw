@@ -18,6 +18,11 @@ pub struct Lit {
     pub key: V3,
     pub ambient: f32,
     pub rim: f32,
+    /// r42:arcus-upper — a dark theme's (the evening's light), and the instrument's middle
+    /// (where the Drawn picture's key is aimed): a realistic figure's live arms are lit by
+    /// the picture's own light (`flesh::Shading`).
+    pub dark: bool,
+    pub mid: V3,
 }
 
 impl Lit {
@@ -34,6 +39,8 @@ impl Lit {
                 },
             ambient: if dark { 0.30 } else { 0.42 },
             rim: if dark { 0.22 } else { 0.12 },
+            dark,
+            mid,
         }
     }
 

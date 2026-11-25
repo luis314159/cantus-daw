@@ -10,7 +10,7 @@
 
 use super::geo::{Geo, Rod, Tri};
 use super::light::Rig;
-use super::mat::{noise, Kind, Tex};
+use super::mat::{noise, Kind, PMat, Tex};
 use super::mesh::{ladd, lmix, lscale, Camera, Lin, V3};
 use super::shade::{reflection, shade};
 use egui::Pos2;
@@ -366,7 +366,16 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32) -> (V3, V3, [f32; 2], V3) {
     let tg = if det.abs() > 1e-12 {
         (a1 * dv2 - a2 * dv1) * (1.0 / det)
     } else {
-        a1
+        // r42:arcus-upper — `v` the same at every corner (a hair's strands beyond its
+        // hairline): the way `u` grows in the triangle's plane (an edge stood in for it, a
+        // different one each triangle: a faceted sheen).
+        let nn = a1.cross(a2);
+        let g = (nn.cross(a1) * du2 + a2.cross(nn) * du1) * (1.0 / nn.dot(nn).max(1e-12));
+        if g.len() > 1e-9 {
+            g
+        } else {
+            a1
+        }
     };
     (pw, n, uv, tg.norm())
 }
@@ -542,6 +551,70 @@ impl Shadow {
         }
         lit / DISC.len() as f32
     }
+
+    /// r42:arcus-upper — [`Shadow::light`] without its grain, for skin and hair (the owner,
+    /// 2026-11-24: a speckle on the face and the chest): the disc turned the same way
+    /// everywhere and twice (32 points), each look-up compared bilinearly, so a penumbra
+    /// over a cheek or a neck is a smooth ramp.
+    pub fn soft(&self, p: V3, n: V3) -> f32 {
+        let q = p + n * 0.008;
+        let z = (q - self.cam.eye).dot(self.cam.fwd);
+        if z < 0.05 {
+            return 1.0;
+        }
+        let s = self.cam.project(q);
+        let bias = 0.012 + 0.004 * z;
+        let px_m = self.cam.k / z;
+        let search = (self.size * px_m * 0.6).clamp(1.5, 28.0);
+        let (mut sum, mut cnt) = (0.0, 0.0);
+        for (dx, dy) in DISC {
+            let d = self.at(s.x + dx * search, s.y + dy * search);
+            if d < z - bias {
+                sum += d;
+                cnt += 1.0;
+            }
+        }
+        if cnt == 0.0 {
+            return 1.0;
+        }
+        let zb = sum / cnt;
+        let pen = (self.size * (z - zb) / zb.max(0.05) * px_m).clamp(1.5, 36.0);
+        // The second turn: the first disc rotated by half its mean angle between points.
+        let (cr, sr) = (0.98079f32, 0.19509f32);
+        let mut lit = 0.0;
+        for (dx, dy) in DISC {
+            for (rx, ry) in [(dx, dy), (dx * cr - dy * sr, dx * sr + dy * cr)] {
+                lit += self.lit_bilinear(s.x + rx * pen, s.y + ry * pen, z - bias);
+            }
+        }
+        lit / (2 * DISC.len()) as f32
+    }
+
+    /// Whether depth `z` is lit at `(x, y)`, its four texels' answers blended bilinearly.
+    fn lit_bilinear(&self, x: f32, y: f32, z: f32) -> f32 {
+        let (fx, fy) = (x - 0.5, y - 0.5);
+        let (x0, y0) = (fx.floor(), fy.floor());
+        let (tx, ty) = (fx - x0, fy - y0);
+        let l = |xx: f32, yy: f32| {
+            if self.at(xx + 0.5, yy + 0.5) >= z {
+                1.0
+            } else {
+                0.0
+            }
+        };
+        let a = l(x0, y0) * (1.0 - tx) + l(x0 + 1.0, y0) * tx;
+        let b = l(x0, y0 + 1.0) * (1.0 - tx) + l(x0 + 1.0, y0 + 1.0) * tx;
+        a * (1.0 - ty) + b * ty
+    }
+
+    /// r42:arcus-upper — the key's reach for a surface of `m`: smooth on skin and hair.
+    pub fn light_for(&self, m: &PMat, p: V3, n: V3) -> f32 {
+        if matches!(m.tex, Tex::Skin | Tex::Hair) {
+            self.soft(p, n)
+        } else {
+            self.light(p, n)
+        }
+    }
 }
 
 /// The occlusion at sample `(x, y)` from the depths round it.
@@ -646,8 +719,9 @@ fn aces(x: f32) -> f32 {
 }
 
 /// The filmic curve on the luminance (the hue kept, the saturation trimmed by `sat`), the
-/// brightest highlights rolling to white as film's do.
-fn tone(c: Lin, sat: f32) -> Lin {
+/// brightest highlights rolling to white as film's do (r42:arcus-upper: public, the live
+/// arms are toned as the bake is).
+pub fn tone(c: Lin, sat: f32) -> Lin {
     let l = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     if l <= 1e-6 {
         return [0.0; 3];
@@ -1279,7 +1353,7 @@ pub fn bake(
                         let c = (ss as f32) * 0.5;
                         let (sxf, syf) = (x as f32 * ss as f32 + c, y as f32 * ss as f32 + c);
                         let (p, n, uv, tg) = place(&scam, tr, sxf, syf);
-                        let sv = shadow.light(p, n);
+                        let sv = shadow.light_for(&geo.mats[tr.m as usize], p, n);
                         (tr, p, n, uv, tg, sv)
                     });
                     if let Some((tr, p, n, uv, tg, sv)) =
@@ -1289,7 +1363,7 @@ pub fn bake(
                             if q == p && nq == n {
                                 sv
                             } else {
-                                shadow.light(q, nq)
+                                shadow.light_for(&geo.mats[tr.m as usize], q, nq)
                             }
                         };
                         let m = &geo.mats[tr.m as usize];
@@ -1393,7 +1467,7 @@ pub fn bake(
                                     uv,
                                     fp,
                                     ao,
-                                    &|p, n| shadow.light(p, n),
+                                    &|p, n| shadow.light_for(m, p, n),
                                     trace,
                                     given,
                                 )

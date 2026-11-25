@@ -225,7 +225,9 @@ fn main() {
     cantus_ui::scene::set_blocking(true);
     let only = args.iter().find_map(|a| a.strip_prefix("--only="));
     let mut states: Vec<(&str, View, f32, f32, f32, f32)> = vec![
-        ("cello-play", View::Play, 0.0, 0.0, 2.0, 57.0),
+        // r42:arcus-upper — on the G string (D3), the bow tilted toward its tip as the
+        // reference's is.
+        ("cello-play", View::Play, 0.0, 0.0, 1.0, 50.0),
         ("bass-play", View::Play, 1.0, 0.0, 2.0, 45.0),
         ("cello-pizz", View::Play, 0.0, 1.0, 1.0, 50.0),
         ("cello-trem", View::Play, 0.0, 2.0, 3.0, 64.0),
@@ -249,7 +251,9 @@ fn main() {
             .flat_map(|(l, be)| holds(&args).into_iter().map(move |h| (l, be, h)))
         {
             for dark in [true, false] {
-                for k in [1.0f32, 2.0] {
+                // r42:arcus-upper — `--scales=1,2,4`: which window scales (a 400 % shot
+                // for the hands' crops).
+                for k in scales(&args) {
                     let theme = if dark { "night" } else { "paper" };
                     let tag = format!(
                         "{name}{}{}-{look}-{theme}-{lang}-{}",
@@ -300,6 +304,14 @@ fn main() {
         }
     }
     cantus_ui::scene::backend::set_default(cantus_ui::scene::SceneBackend::Vector);
+}
+
+/// r42:arcus-upper — `--scales=1,2,4` (default 1 and 2): the window's scales.
+fn scales(args: &[String]) -> Vec<f32> {
+    args.iter()
+        .find_map(|a| a.strip_prefix("--scales="))
+        .map(|z| z.split(',').filter_map(|v| v.parse().ok()).collect())
+        .unwrap_or_else(|| vec![1.0, 2.0])
 }
 
 /// r42:arcus-upper — `--hold=air,stand,player,mannequin` (or `all`): what holds the

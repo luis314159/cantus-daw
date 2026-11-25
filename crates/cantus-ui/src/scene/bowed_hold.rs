@@ -205,6 +205,8 @@ pub struct Arm {
     pub f: V3,
     pub right: V3,
     pub down: V3,
+    /// The hand's size against the woman's (a realistic figure's own; 1 for the stylised).
+    pub palm: f32,
 }
 
 /// The figure's skeleton for `b` held by `h`, worked out once and kept (the live picture
@@ -288,10 +290,12 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
             shoulder: super::bowed_human::shoulder(fig, &body.0, 1),
             upper,
             fore,
+            // The bow arm forward in front of the body, the elbow low (the owner's
+            // reference, sheet v7).
             pole: if b.dims().held {
                 sk.down * 12.0 + sk.r * 18.0 + sk.f * 8.0
             } else {
-                sk.r + sk.down * 1.6 + sk.f * 0.1
+                sk.r * 0.6 + sk.down * 2.0 + sk.f * 0.6
             },
             sleeve: hp::CLOTHS[cloth],
             sleeve_shade: hp::CLOTH_SHADES[cloth],
@@ -302,6 +306,7 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
             f: sk.f,
             right: sk.r,
             down: sk.down,
+            palm: fore / 21.4,
         });
     }
     let (sleeve, sleeve_shade, hand, hand_shade) = if h.hold == Hold::Player {
@@ -331,9 +336,9 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
             // A violinist's bow arm: the elbow out to the right, a little under the shoulder.
             sk.down * 12.0 + sk.r * 18.0 + sk.f * 8.0
         } else {
-            // A cellist's: the upper arm hanging down and out, the elbow about level with the
-            // bow's line, the forearm forward and in to the frog.
-            sk.r + sk.down * 1.6 + sk.f * 0.1
+            // A cellist's: the upper arm hanging down, a little out and forward, the elbow
+            // low, the forearm forward and in to the frog (sheet v7).
+            sk.r * 0.6 + sk.down * 2.0 + sk.f * 0.6
         },
         sleeve,
         sleeve_shade,
@@ -348,6 +353,7 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         f: sk.f,
         right: sk.r,
         down: sk.down,
+        palm: 1.0,
     })
 }
 

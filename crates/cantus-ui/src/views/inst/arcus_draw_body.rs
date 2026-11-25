@@ -196,13 +196,40 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     if let Some(arm) = crate::scene::bowed_hold::arm(pl.b, pl.holder) {
         if let Some(who) = crate::scene::bowed_human::who(pl.holder.hold) {
             // r42:arcus-upper — a realistic figure's own arm, skinned to the bow hand.
-            let h = super::arm::bow_hand(&arm, frog, dir, n);
+            let h = super::arm::bow_hand(&arm, frog, dir, n, pl.b.dims().held);
             let aim = super::flesh::right_aim(&arm, &h);
             let base = crate::scene::bowed_human::rest_body(pl.b, who);
             let lit = figure_light(v, pl, s);
-            super::flesh::arm(b, v, &lit, who, pl.holder.skin, &base.0, 1, &aim, None);
+            // The stick in the hand shades the fingers draped over it.
+            let stick = super::flesh::Capsule {
+                a: frog + n * 2.0 - dir * 3.0,
+                b: frog + n * 1.9 + dir * 14.0,
+                r: 0.45,
+                bone: usize::MAX,
+            };
+            super::flesh::arm(
+                b,
+                v,
+                &lit,
+                who,
+                pl.holder.skin,
+                &base.0,
+                1,
+                &aim,
+                None,
+                &[stick],
+            );
         } else {
-            super::arm::right_arm(b, v, &figure_light(v, pl, s), &arm, frog, dir, n);
+            super::arm::right_arm(
+                b,
+                v,
+                &figure_light(v, pl, s),
+                &arm,
+                frog,
+                dir,
+                n,
+                pl.b.dims().held,
+            );
         }
     }
 }
@@ -226,6 +253,19 @@ fn real_left(
     let eye = v.cam.eye();
     let hid = |p: V3| super::hand::hidden_by_neck(p, eye, l.d, &l.rig.pose);
     let lit = figure_light(v, pl, s);
+    // The neck in the hand shades the fingers and the thumb round it.
+    let rig = l.rig;
+    let (s1, s2) = (rig.strings[1], rig.strings[2]);
+    let (nut, bridge) = ((s1[2] + s2[2]) * 0.5, (s1[1] + s2[1]) * 0.5);
+    let nrm = (rig.normal[1] + rig.normal[2]).norm();
+    let depth = super::hand::neck_depth(l.d);
+    let down = nrm * (depth * 0.5 + 0.4);
+    let neck = super::flesh::Capsule {
+        a: nut - down,
+        b: nut.lerp(bridge, 0.5) - down,
+        r: depth * 0.5,
+        bone: usize::MAX,
+    };
     super::flesh::arm(
         b,
         v,
@@ -236,6 +276,7 @@ fn real_left(
         0,
         &aim,
         Some((hidden, &hid)),
+        &[neck],
     );
     true
 }

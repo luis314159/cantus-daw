@@ -177,19 +177,29 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
             ];
             s(albedo, m.coat, m.rough)
         }
-        Tex::Velvet => Surf {
-            sheen: 0.0,
-            ..s(m.base, 0.0, 1.0)
-        },
+        Tex::Velvet => {
+            // Soft folds (sheet v7): the normal swung by slow, mostly vertical waves, so
+            // the pile's sheen runs in the long soft streaks a hanging velvet shows.
+            let a = noise(p.x * 14.0 + 0.4 * (p.y * 5.0).sin(), p.y * 3.0, 91) - 0.5;
+            let b = noise(p.z * 14.0 + 0.4 * (p.y * 4.0).cos(), p.y * 3.0 + 7.0, 97) - 0.5;
+            Surf {
+                sheen: 0.0,
+                dn: v3(a * 0.55, 0.0, b * 0.55),
+                ..s(m.base, 0.0, 1.0)
+            }
+        }
         Tex::Hair => {
-            // Soft streaks across the strands; at the hairline (`uv[0]` 0) the skin's
-            // colour (`m.dark`) shows through, as real hair thins there.
-            let across = uv[1];
-            let streak = 0.92
-                + 0.06 * (across * 2.1).sin()
-                + 0.04 * (across * 5.3 + 1.7).sin()
-                + 0.04 * noise(across * 9.0, 0.5, 61);
-            let e = uv[0].clamp(0.0, 1.0).powf(0.6);
+            // Soft streaks across the strands (`uv[0]`, the angle round the head's
+            // front-to-back axis); at the hairline (`uv[1]` 0) the skin's colour (`m.dark`)
+            // shows through, as real hair thins there. Its grooves and its sheen along the
+            // strands are `shade`'s (sheet v7).
+            let across = uv[0];
+            let streak = 0.9
+                + 0.07 * (across * 2.1).sin()
+                + 0.05 * (across * 5.3 + 1.7).sin()
+                + 0.06 * noise(across * 13.0, 0.5, 61)
+                - 0.05 * noise(across * 31.0, 1.5, 67);
+            let e = uv[1].clamp(0.0, 1.0).powf(0.6);
             s(lmix(m.dark, lscale(m.base, streak), e), m.coat * e, m.rough)
         }
         Tex::Floor => floor(rig, p, fp),
@@ -639,6 +649,56 @@ fn env_rough(
     lscale(acc, 1.0 / 6.0)
 }
 
+/// r42:arcus-upper — hair (sheet v7: "a real hair volume with strands' sheen, never a
+/// helmet"): the combed strands' fine grooves turn the light across them (a ridge and a
+/// furrow every few millimetres, each strand bundle its own width), and the light runs
+/// along the strands as Kajiya and Kay's model has it — a white sheen where the strands
+/// stand square to the half-way vector, a second broader one tinted by the hair, shifted
+/// toward the tips. `t` is the across way (`dP/du`, `u` the across coordinate); the
+/// strands run square to it in the surface.
+#[allow(clippy::too_many_arguments)]
+fn hair(
+    m: &PMat,
+    sf: &Surf,
+    n: V3,
+    v: V3,
+    l: V3,
+    t: V3,
+    uv: [f32; 2],
+    kc: Lin,
+    kv: f32,
+    e: Lin,
+    rim: Lin,
+) -> Lin {
+    let across = (t - n * t.dot(n)).norm();
+    let across = if across.len() < 0.5 {
+        super::geo::perp(n)
+    } else {
+        across
+    };
+    let along = n.cross(across).norm();
+    // The grooves: the normal swung across the strands, bundles of uneven width.
+    let u = uv[0];
+    let ph = u * 5.2 + 1.3 * noise(u * 1.9, 0.3, 83) + 0.5 * (u * 11.0).sin();
+    // Fading in from the hairline, where the hair thins to the skin.
+    let hairline = uv[1].clamp(0.0, 1.0).powf(0.6);
+    let inside = smooth(0.25, 0.9, uv[1]);
+    let nn = (n + across * (0.2 * inside * ph.sin())).norm();
+    let groove = (1.0 + 0.9 * (nn.dot(l) - n.dot(l))).clamp(0.75, 1.2);
+    let d = lmul(sf.albedo, ladd(lscale(e, groove), lscale(rim, 0.6)));
+    // The sheen along the strands.
+    let h = (l + v).norm();
+    let lit = (n.dot(l) * 2.5 + 0.5).clamp(0.0, 1.0) * kv;
+    let th = along.dot(h);
+    let s1 = (1.0 - th * th).max(0.0).sqrt().powi(80) * 0.14;
+    let t2 = (along + nn * 0.18).norm();
+    let th2 = t2.dot(h);
+    let s2 = (1.0 - th2 * th2).max(0.0).sqrt().powi(18) * 0.12;
+    let tint = lscale(m.base, 1.6);
+    let spec: Lin = std::array::from_fn(|i| kc[i] * lit * inside * groove * (s1 + s2 * tint[i]));
+    ladd(d, spec)
+}
+
 /// The light leaving the surface of `m` at `p` toward `eye`. `n` is the shading normal,
 /// `turn` how far it turns over one sample (a thin tube's: its mirror is spread over it),
 /// `t` the grain (`dP/du`), `vis` how much of the key reaches (its shadow), `ao` the
@@ -725,6 +785,9 @@ pub fn shade(
         rim = ladd(rim, lscale(c, k));
     }
     let r = n * (2.0 * ndv) - v;
+    if m.tex == Tex::Hair {
+        return rig.hazed(p, hair(m, &sf, n, v, l, t, uv, kc, kv, e, rim));
+    }
     let c = match m.kind {
         Kind::Metal => {
             let f: Lin = std::array::from_fn(|i| schlick(sf.f0[i], ndv));

@@ -179,7 +179,12 @@ pub fn picture(
         .inst
         .arcus_scenes
         .entry(track.0)
-        .or_insert_with(|| (crate::scene::Scene::default(), 0.5, time));
+        // r42:arcus-upper — a figure starts with its hand near the frog, in front of its
+        // body (the owner's reference), the bow alone at its middle.
+        .or_insert_with(|| {
+            let start = if holder.hold.figure() { 0.3 } else { 0.5 };
+            (crate::scene::Scene::default(), start, time)
+        });
     let moving = entry.0.paint(&painter, d, &view);
     let b = bowed_of(fs);
     // The bow's place along its hair, carried from frame to frame as it moves.

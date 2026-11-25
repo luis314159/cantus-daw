@@ -55,6 +55,11 @@ pub enum Stuff {
     Shirt,
     Tie,
     Shoes,
+    /// The eyes' whites and irises under the lowered lids, the lashes, the nails (sheet v7).
+    Eye,
+    Iris,
+    Lash,
+    Nail,
 }
 
 impl Stuff {
@@ -67,6 +72,10 @@ impl Stuff {
             4 => Stuff::Wool,
             5 => Stuff::Shirt,
             6 => Stuff::Tie,
+            8 => Stuff::Eye,
+            9 => Stuff::Iris,
+            10 => Stuff::Lash,
+            11 => Stuff::Nail,
             _ => Stuff::Shoes,
         }
     }
@@ -464,6 +473,9 @@ const UP: V3 = V3 {
     z: 0.0,
 };
 
+/// How far a violinist's or a violist's trunk turns to the left (radians).
+const TRUNK_TURN: f32 = 0.2;
+
 /// How far the hip joints sit over what they are seated on (cm).
 const HIP_OVER_SEAT: f32 = 9.5;
 
@@ -493,6 +505,11 @@ pub struct HandAim {
     pub fingers: [[V3; 4]; 4],
     /// The thumb's base, knuckle, joint, tip.
     pub thumb: [V3; 4],
+    /// The finger (index … little) whose tip must land exactly (the left hand's playing
+    /// finger on its stop); the others are relaxed: their tips reach the pose's way at
+    /// 70–86 % of their own length, so a smaller or a larger hand curls as a hand does
+    /// instead of crumpling (sheet v7).
+    pub exact: Option<usize>,
 }
 
 /// Set one arm's bones (`s` 0 left, 1 right) in `aims` through `a`, the shoulder where
@@ -555,7 +572,9 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
         // Each finger from its own knuckle where the turned hand carries it (the figure's
         // fingers keep their width and spacing) to the pose's fingertip, bent through a
         // two-bone reach toward the pose's middle joint; stretched only when the tip is out
-        // of reach (the playing finger lands on its stop exactly).
+        // of reach (the playing finger lands on its stop exactly). Each phalanx turned from
+        // the hand's turn by the shortest way to its own (sheet v7: no twist — a finger's
+        // roll left to the parent's turn crumpled the skin at the knuckles).
         let wr = hb.head;
         for f in 0..5 {
             let j = if f == 0 { h.thumb } else { h.fingers[f - 1] };
@@ -566,7 +585,13 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
                 fig.bones[o + finger(f, 2)].len(),
             );
             let k0 = a.wrist + r.apply(b0.head - wr);
-            let tip = j[3];
+            let tip = if f > 0 && h.exact != Some(f - 1) {
+                let d = j[3] - k0;
+                let full = l0 + l1 + l2;
+                k0 + d.norm() * d.len().clamp(0.7 * full, 0.86 * full)
+            } else {
+                j[3]
+            };
             let reach = (tip - k0).len();
             let sc = (reach / ((l0 + l1 + l2) * 0.97)).max(1.0);
             let (l0, l1, l2) = (l0 * sc, l1 * sc, l2 * sc);
@@ -577,10 +602,12 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
             let dip = pip + along * ((tip - pip).len() * l1 / (l1 + l2)) + bend * (0.12 * sc);
             for (k, (from, to)) in [(k0, pip), (pip, dip), (dip, tip)].into_iter().enumerate() {
                 let d = to - from;
+                let bone = &fig.bones[o + finger(f, k)];
+                let rest = r.apply((bone.tail - bone.head).norm());
                 aims[o + finger(f, k)] = Some(Aim {
                     head: Some(from),
                     y: d.norm(),
-                    x: None,
+                    x: Some(Rot::between(rest, d.norm()).mul(&r).apply(bone.x)),
                     len: Some(d.len().max(0.2)),
                 });
             }
@@ -648,6 +675,21 @@ pub fn body(
         );
         ((t_top - hips).norm(), hips)
     };
+    // Under a chin the trunk turns a little to the left (the left shoulder forward toward
+    // the scroll, as violinists stand): a viola's neck is otherwise beyond a relaxed arm's
+    // reach (sheet v7: the woman's elbow opened to 132°).
+    let g = if held {
+        let turn = |a: f32| Rot::about(UP, a);
+        let a = if turn(0.2).apply(-s.r).dot(s.f) > 0.0 {
+            TRUNK_TURN
+        } else {
+            -TRUNK_TURN
+        };
+        turn(a).mul(&g)
+    } else {
+        g
+    };
+    let trunk_rest = g.apply(top_rest - b[HIPS].head);
     let root = Rot::between(trunk_rest.norm(), dir).mul(&g);
     let off = hips_at - root.apply(b[HIPS].head);
     let mut aims: [Option<Aim>; BONES] = [None; BONES];
@@ -802,6 +844,10 @@ pub fn role(st: Stuff, who: Who, tone: u8) -> super::bowed_mesh::Role {
         Stuff::Shirt => Role::Shirt,
         Stuff::Tie => Role::Tie,
         Stuff::Shoes => Role::Shoes,
+        Stuff::Eye => Role::Eye,
+        Stuff::Iris => Role::Iris,
+        Stuff::Lash => Role::Lash,
+        Stuff::Nail => Role::Nail(tone),
     }
 }
 

@@ -51,7 +51,7 @@ pub const VELVET_SHEEN: C3 = srgb(92, 88, 100);
 pub const WOOL: C3 = srgb(30, 31, 36);
 pub const SHIRT: C3 = srgb(232, 232, 228);
 pub const TIE: C3 = srgb(30, 36, 64);
-pub const HAIR_FAIR: C3 = srgb(170, 132, 88);
+pub const HAIR_FAIR: C3 = srgb(176, 150, 116);
 /// A realistic figure's skin tones (fair to deep): a real skin's albedo, warmer and less
 /// bright than the stylised figure's (lit by the scene's key a fair skin read as white).
 pub const REAL_SKINS: [Srgb; 5] = [
@@ -61,6 +61,26 @@ pub const REAL_SKINS: [Srgb; 5] = [
     [124, 80, 54],
     [86, 54, 38],
 ];
+/// A realistic figure's eyes under their lowered lids (whites in the lids' shade, a grey-
+/// green iris), the lashes' dark brown (sheet v7).
+pub const EYE_WHITE: C3 = srgb(206, 198, 192);
+pub const IRIS: C3 = srgb(78, 88, 86);
+pub const LASH: C3 = srgb(40, 30, 26);
+/// The eyes' gloss.
+pub fn eye(albedo: C3) -> Mat {
+    lacquer(albedo, 0.3, 0.5, 40.0)
+}
+/// A realistic figure's nail: its skin paler and pinker, glossier.
+pub fn nail(i: u8) -> Mat {
+    let s = REAL_SKINS[(i as usize).min(4)];
+    let f = |x: u8, k: f32, add: f32| ((x as f32 * k + add) / 255.0).clamp(0.0, 1.0);
+    lacquer(
+        [f(s[0], 1.0, 22.0), f(s[1], 1.0, 18.0), f(s[2], 1.0, 22.0)],
+        0.12,
+        0.2,
+        30.0,
+    )
+}
 /// A realistic figure's skin in the Drawn picture: soft, a broad faint sheen (no plastic).
 pub fn real_skin(i: u8) -> Mat {
     lacquer(c(REAL_SKINS[(i as usize).min(4)]), 0.02, 0.04, 8.0)

@@ -22,13 +22,24 @@ pub struct BowHand {
     pub thumb: [V3; 4],
 }
 
-/// Where the hand holds the bow at its `frog` (the bow's way `dir`, frog to tip; `n` the
-/// string's normal, the side the stick is on): the palm **over** the stick — over is up
-/// in the room, made square to the bow (a cellist's hand sits on top of the stick, its
-/// knuckles up, as a violinist's does; the string's normal alone put a cellist's hand
-/// beside the stick, hanging under it from the camera's side) — the fingers draped over
-/// its far side, the little finger curved on top, the thumb bent under it at the frog.
-pub fn bow_hand(arm: &Arm, frog: V3, dir: V3, n: V3) -> BowHand {
+/// Where the hand holds the bow at its `frog` (the hair's point there; the bow's way `dir`,
+/// frog to tip; `n` the string's normal, the side the stick is on; `held` a violin's or a
+/// viola's bow) — the hold the owner's reference and the method books show (sheet v7):
+///
+/// - the hand **on top of the stick**, its knuckles three centimetres over it and a little
+///   toward the player, the knuckles' line along the stick, the hand rolled onto the index
+///   (over is up in the room made square to the bow, not the string's normal: a cellist's
+///   hand hung under the stick from the camera's side);
+/// - the wrist relaxed, behind and over the knuckles, the forearm coming from the player's
+///   side;
+/// - the **fingers draped over the stick** to its far side, spread a little, the stick
+///   across them at the middle phalanx (the index resting on it, toward the tip), the
+///   middle finger opposite the thumb, the ring finger over the frog;
+/// - the little finger draped as the others on a cello or a bass, **curved on top of the
+///   stick** on a violin or a viola, its tip standing on it;
+/// - the **thumb bent**, its tip touching the stick at the frog's front corner from the near
+///   side underneath, its joint bowed out.
+pub fn bow_hand(arm: &Arm, frog: V3, dir: V3, n: V3, held: bool) -> BowHand {
     let up = V3 {
         x: 0.0,
         y: 1.0,
@@ -42,35 +53,68 @@ pub fn bow_hand(arm: &Arm, frog: V3, dir: V3, n: V3) -> BowHand {
     if far.dot(arm.f) < 0.0 {
         far = -far;
     }
-    let k = if arm.joints.is_some() { 0.9 } else { 1.0 };
-    let palm = frog + over * 2.4 + dir * 1.6 - far * 0.6;
-    let wrist = palm + over * 2.6 - dir * 3.4 - far * 1.4;
+    // The hand's size: a realistic figure's own (its forearm against the woman's), the
+    // mannequin's a little smaller.
+    let k = arm.palm * if arm.joints.is_some() { 0.9 } else { 1.0 };
+    // The stick's middle at the frog's front corner (`bow`'s stick: 2.1 cm over the hair).
+    let s = frog + n * 1.95;
+    let at = |u: f32, o: f32, f: f32| s + (dir * u + over * o + far * f) * k;
+    // The hand (designed against the reference photographs at 3 × in
+    // `tools/arcus-figures/hand_design.py`): its knuckles' middle over the stick and toward
+    // the player, the way from the wrist to them sloping out and down to the stick, the
+    // knuckles' line along the stick rolled onto the index.
+    let kc = at(0.8, 3.6, -1.8);
+    let hd = (far * 0.8 - over * 0.45 + dir * 0.2).norm();
+    let kx = (dir - over * 0.3).norm();
+    let wrist = kc - hd * (8.6 * k);
+    let palm = kc - hd * (3.6 * k);
+    // Each finger: where the stick crosses it (along the stick), its knuckle on the hand's
+    // line, its middle joint over the stick's far top, its tip hanging on the far side.
+    let along = [2.4, 0.7, -1.0, -2.6];
+    let hang = [1.5, 1.7, 1.5];
     let mut fingers = [[V3::default(); 4]; 4];
     for (j, f) in fingers.iter_mut().enumerate() {
-        let along = (j as f32 - 1.5) * 1.65 * k;
-        let knuckle = palm + dir * along + far * (1.6 * k) - over * 0.2;
-        let (bend, reach) = if j == 3 { (1.0, 0.6) } else { (1.9, 2.4) };
-        let mid = knuckle + far * (bend * k) - over * (1.0 * k);
-        let tip = mid - over * (reach * k) - far * (0.2 * k) + dir * (0.2 * k);
-        let last = mid.lerp(tip, 0.55) + far * (0.25 * k);
+        let knuckle = kc + kx * ((1.5 - j as f32) * 1.9 * k);
+        let u = along[j];
+        let (mid, tip) = if j == 3 && held {
+            // Curved on top: its middle joint arched up, its tip standing on the stick.
+            (at(-2.2, 2.8, -0.6), at(-2.9, 0.55, 0.0))
+        } else if j == 3 {
+            (at(u, 1.3, 0.55), at(u - 0.2, -0.2, 0.95))
+        } else {
+            (at(u, 1.1, 0.7), at(u + 0.15, -hang[j], 0.75))
+        };
+        let last = mid.lerp(tip, 0.55);
         *f = [knuckle, mid, last, tip];
     }
-    let t0 = palm - far * (1.4 * k) - dir * (1.2 * k) + over * 0.3;
-    let t1 = frog + dir * 0.7 - over * 0.4 - far * 0.3;
-    let base = wrist.lerp(t0, 0.45) - far * (0.6 * k);
+    // The thumb: bent, its tip at the frog's front corner under the stick's near side.
+    let t3 = at(0.3, -0.35, -0.45);
+    let t2 = at(-0.5, -1.0, -1.45);
+    let t1 = palm.lerp(t2, 0.45) - far * 0.6 - over * 0.4;
+    let t0 = wrist.lerp(kc, 0.35) - far * 1.0 - over * 0.6;
     BowHand {
         wrist,
         palm,
         fingers,
-        thumb: [base, t0, t0.lerp(t1, 0.5) - over * (0.2 * k), t1],
+        thumb: [t0, t1, t2, t3],
     }
 }
 
 /// The arm from its shoulder to the bow's `frog` (the bow's way `dir`, frog to tip; `n`
 /// the string's normal, the side the stick is on).
 #[allow(clippy::too_many_arguments)]
-pub fn right_arm(b: &mut Brush, v: &View, lit: &Lit, arm: &Arm, frog: V3, dir: V3, n: V3) {
-    let h = bow_hand(arm, frog, dir, n);
+#[allow(clippy::too_many_arguments)]
+pub fn right_arm(
+    b: &mut Brush,
+    v: &View,
+    lit: &Lit,
+    arm: &Arm,
+    frog: V3,
+    dir: V3,
+    n: V3,
+    held: bool,
+) {
+    let h = bow_hand(arm, frog, dir, n, held);
     let wrist = h.wrist;
     let el = elbow(arm.shoulder, wrist, arm.upper, arm.fore, arm.pole);
     tube(

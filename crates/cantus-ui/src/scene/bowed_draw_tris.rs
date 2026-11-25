@@ -12,7 +12,7 @@ use super::prims::Ctx;
 use crate::kit::skin::scene::{hold as hp, Mat, C3};
 
 /// A corner's material: the skin's albedo with its detail (`lum`, `red`).
-fn skin_at(base: &Mat, d: [f32; 2]) -> Mat {
+pub fn skin_at(base: &Mat, d: [f32; 2]) -> Mat {
     let (lum, red) = (d[0].min(1.1), d[1]);
     let a = base.albedo;
     let albedo = [
@@ -26,9 +26,12 @@ fn skin_at(base: &Mat, d: [f32; 2]) -> Mat {
 /// A hair corner's albedo: soft streaks across its strands, blended into the skin's
 /// `scalp` colour at the hairline (`d[0]`: 0 at the hairline, 1 inside it).
 fn hair_at(base: &Mat, d: [f32; 2], scalp: C3) -> Mat {
-    let across = d[1];
-    let k = 0.92 + 0.06 * (across * 2.1).sin() + 0.04 * (across * 5.3 + 1.7).sin();
-    let e = d[0].clamp(0.0, 1.0).powf(0.6);
+    let across = d[0];
+    let k = 0.9
+        + 0.07 * (across * 2.1).sin()
+        + 0.05 * (across * 5.3 + 1.7).sin()
+        + 0.04 * (across * 13.0 + 0.4).sin();
+    let e = d[1].clamp(0.0, 1.0).powf(0.6);
     Mat {
         albedo: std::array::from_fn(|i| {
             (scalp[i] + (base.albedo[i] * k - scalp[i]) * e).clamp(0.0, 1.0)
@@ -41,7 +44,7 @@ fn hair_at(base: &Mat, d: [f32; 2], scalp: C3) -> Mat {
 /// ambient turned a face grey-green), a warm glow of light through it (more where it turns
 /// from the eye), the brightest eased so a face full in the key keeps its modelling, and
 /// never past white in one channel (a clipped red turned it yellow).
-fn skin_tone(mat: &Mat, shaded: C3, ndv: f32) -> C3 {
+pub fn skin_tone(mat: &Mat, shaded: C3, ndv: f32) -> C3 {
     let lum = |c: C3| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     let a = mat.albedo;
     let k = lum(shaded) / lum(a).max(1e-3);

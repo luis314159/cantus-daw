@@ -107,6 +107,12 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::Shirt => PMat::matte(lin3(hp::SHIRT)).with(Tex::Fabric),
         Role::Tie => PMat::lacquer(lin3(hp::TIE), 0.12, 0.35),
         Role::HairFair => PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair),
+        Role::Eye => PMat::lacquer(lin3(hp::EYE_WHITE), 0.35, 0.08),
+        Role::Iris => PMat::lacquer(lin3(hp::IRIS), 0.35, 0.08),
+        Role::Lash => PMat::matte(lin3(hp::LASH)),
+        Role::Nail(i) => {
+            PMat::lacquer(lin3(hp::nail(i).albedo).map(|c| c * 0.5), 0.18, 0.22).with(Tex::Skin)
+        }
     }
 }
 

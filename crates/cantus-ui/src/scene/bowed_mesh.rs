@@ -68,6 +68,12 @@ pub enum Role {
     Shirt,
     Tie,
     HairFair,
+    /// The realistic figures' eyes (whites, irises) under their lowered lids, their lashes,
+    /// their nails (by the skin's tone) — sheet v7.
+    Eye,
+    Iris,
+    Lash,
+    Nail(u8),
 }
 
 /// A grid of points (`rows` × `cols`, row-major) with normals and grain coordinates (cm:

@@ -147,6 +147,10 @@ pub fn material(b: Bowed, r: Role) -> Mat {
         Role::Shirt => hp::flat(hp::SHIRT),
         Role::Tie => hp::flat(hp::TIE),
         Role::HairFair => hp::hair(hp::HAIR_FAIR),
+        Role::Eye => hp::eye(hp::EYE_WHITE),
+        Role::Iris => hp::eye(hp::IRIS),
+        Role::Lash => hp::flat(hp::LASH),
+        Role::Nail(i) => hp::nail(i),
     }
 }
 
@@ -571,5 +575,9 @@ fn figure_role(r: Role) -> bool {
             | Role::Shirt
             | Role::Tie
             | Role::HairFair
+            | Role::Eye
+            | Role::Iris
+            | Role::Lash
+            | Role::Nail(_)
     )
 }

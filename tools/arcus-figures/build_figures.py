@@ -78,7 +78,7 @@ BI = {b[0]: i for i, b in enumerate(BONES)}
 ARM_PREFIX = ("upper1", "upper2", "fore1", "fore2", "hand", "f")
 
 # Materials (the scene's `Role`s, by number; `scene/bowed_human.rs` names them).
-SKIN, LIPS, HAIR, VELVET, WOOL, SHIRT, TIE, SHOES = range(8)
+SKIN, LIPS, HAIR, VELVET, WOOL, SHIRT, TIE, SHOES, EYE, IRIS, LASH, NAIL = range(12)
 
 
 def mh_to_scene(sk):
@@ -103,7 +103,63 @@ def shaped(base, root, sex, mix):
         t.append((f"macrodetails/{race}-{sex}-young.target", w))
     t.append((f"macrodetails/proportions/{sex}-young-averagemuscle-averageweight-"
               "idealproportions.target", 0.6))
+    t += [(k + ".target", w) for k, w in FACE[sex]]
     return mh.apply_targets(base, root, t) * 10.0  # decimetres → cm
+
+
+def both(name, w):
+    """A face modifier on both sides (MakeHuman's ``l-``/``r-`` pair)."""
+    d, f = name.split("/")
+    return [(f"{d}/l-{f}", w), (f"{d}/r-{f}", w)]
+
+
+# r42:arcus-upper — the faces' own features (sheet v7; the owner: "more realistic", the face
+# never the photographed woman's). Chosen by eye on the generic average, nothing fitted to
+# a photograph: hers refined and serene (an oval head, high cheekbones over a soft hollow, a
+# defined jaw and a small chin, a narrow straight nose, fuller lips with a clear bow, a long
+# slender neck); his a squarer jaw, cheekbones, a straight brow, a firm chin.
+FACE = {
+    "female": [
+        ("head/head-oval", 0.45),
+        ("head/head-fat-decr", 0.25),
+        *both("cheek/cheek-bones-incr", 0.45),
+        *both("cheek/cheek-volume-decr", 0.35),
+        *both("cheek/cheek-inner-decr", 0.2),
+        ("chin/chin-width-decr", 0.25),
+        ("chin/chin-prominent-incr", 0.2),
+        ("chin/chin-bones-incr", 0.25),
+        ("nose/nose-scale-horiz-decr", 0.3),
+        ("nose/nose-point-width-decr", 0.35),
+        ("nose/nose-volume-decr", 0.25),
+        ("nose/nose-nostrils-width-decr", 0.25),
+        ("nose/nose-point-up", 0.15),
+        ("nose/nose-hump-decr", 0.3),
+        ("mouth/mouth-upperlip-volume-incr", 0.35),
+        ("mouth/mouth-lowerlip-volume-incr", 0.4),
+        ("mouth/mouth-cupidsbow-incr", 0.45),
+        ("mouth/mouth-scale-horiz-decr", 0.1),
+        ("mouth/mouth-angles-up", 0.12),
+        ("eyebrows/eyebrows-angle-up", 0.15),
+        ("neck/neck-scale-horiz-decr", 0.2),
+        ("neck/neck-scale-vert-incr", 0.3),
+    ],
+    "male": [
+        ("head/head-square", 0.3),
+        ("head/head-fat-decr", 0.2),
+        *both("cheek/cheek-bones-incr", 0.35),
+        *both("cheek/cheek-volume-decr", 0.35),
+        ("chin/chin-bones-incr", 0.45),
+        ("chin/chin-width-incr", 0.15),
+        ("chin/chin-prominent-incr", 0.25),
+        ("nose/nose-hump-decr", 0.2),
+        ("nose/nose-point-width-decr", 0.2),
+        ("nose/nose-scale-horiz-decr", 0.1),
+        ("mouth/mouth-lowerlip-volume-incr", 0.15),
+        ("mouth/mouth-upperlip-volume-decr", 0.1),
+        ("eyebrows/eyebrows-trans-down", 0.2),
+        ("eyebrows/eyebrows-angle-down", 0.1),
+    ],
+}
 
 
 def rot_x(p, c, a):
@@ -127,8 +183,8 @@ def close_lids(pos, wt, J):
     return out
 
 
-UPPER_LID = 38.0
-LOWER_LID = 9.0
+UPPER_LID = 27.0
+LOWER_LID = 6.0
 
 
 def scene_weights(n, wt, m2s):
@@ -283,9 +339,15 @@ def hair_shell(pos, W, tris, c, line, thick, head_w):
     th2, ph2 = angles(p2, c)
     t = thick(th2, ph2) * smooth01(f2 / 22.0) + 0.03
     hp = (p2 + n * t[:, None])[used]
-    # Per vertex: how far in from the hairline (0 at it, 1 beyond 2.5 cm: the hair's edge
-    # blends into the skin, as real hair thins there) and the strands' across coordinate.
-    uv = np.stack([smooth01(f2[used] / 16.0), np.radians(th2[used]) * 9.0], 1)
+    # Per vertex (sheet v7): the strands' across coordinate — the angle round the head's
+    # front-to-back axis, so the strands run as hair drawn back does, from the hairline over
+    # the head to the nape (the picture's grooves and sheen follow it) — and how far in
+    # from the hairline (0 at it, 1 beyond 2.5 cm: the hair's edge blends into the skin, as
+    # real hair thins there).
+    q = p2[used] - c
+    # (Folded under the head's middle, so no seam runs down the nape.)
+    across = np.arctan2(q[:, 0], np.abs(q[:, 1]) + 0.5) * 9.0
+    uv = np.stack([across, smooth01(f2[used] / 16.0)], 1)
     return hp, [w2[i] for i in used], remap[keep], uv
 
 
@@ -300,7 +362,7 @@ def ellipsoid(c, axes, radii, rows=14, cols=24, twist=0.0):
             q = (axes[0] * radii[0] * np.cos(ph) * np.cos(a) + axes[1] * radii[1] * np.sin(ph)
                  + axes[2] * radii[2] * np.cos(ph) * np.sin(a))
             pts.append(c + q)
-            uv.append([1.0, a * 3.0 + twist * ph * 4.0])
+            uv.append([a * 3.0 + twist * ph * 4.0, 1.0])
     tri = []
     for r in range(rows):
         for k in range(cols):
@@ -400,16 +462,23 @@ def make(sex, data, assets):
         deleted |= set(sdel)
     btris, keep_v = body_parts(pos, faces, tris_all, tri_groups, deleted)
     lum, red = skin_detail(pos, faces, uvs, skin_tex, keep_v & (head_w > 0.5))
-    lum = lash_line(pos, btris, lum, J)
+    lum = lash_line(pos, btris, lum, J, wt)
     brow = brows(pos, keep_v, J, sex)
     lum = lum * (1.0 - (0.5 if sex == "female" else 0.66) * brow)
     red = red - 0.15 * brow
+    # Cheeks, lips, the nose's tip and the ears a little warmer (sheet v7: a face with life).
+    red = red + 0.18 * warmth(pos, J, sex)
+    lash_p, lash_t = lashes(pos, wt, J)
+    # The nails: the body cut along each nail's edge (sheet v7).
+    nf = nail_field(pos, W, sk, J)
+    pos, W, (lum, red), btris, nf = cut(pos, W, [lum, red], btris, nf)
+    head_w = np.array([d.get(BI["head"], 0.0) / max(sum(d.values()), 1e-9) for d in W])
     if sex == "female":
         def thick(th, ph):
             return (0.75 + 0.35 * smooth01((ph - 30) / 30.0)
                     + 0.45 * smooth01((np.abs(th) - 60) / 90.0))
         hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w)
-        bp, bw, bt, bmat, blum, bred = dress(pos, W, btris, J, lum, red)
+        bp, bw, bt, bmat, blum, bred = dress(pos, W, btris, J, lum, red, nf)
         fig.add(bp, bw, bt, bmat, blum, bred)
         fig.add(hp, hw, ht, HAIR, uv=huv)
         # The low bun at the back of the head, its strands wound round it.
@@ -422,11 +491,15 @@ def make(sex, data, assets):
             return (0.45 + 0.55 * smooth01((ph - 25) / 30.0)
                     - 0.15 * smooth01((np.abs(th) - 75) / 45.0))
         hp, hw, ht, huv = hair_shell(pos, W, btris, c, HIS_LINE, thick, head_w)
-        fig.add(pos, W, btris, SKIN, lum, red)
+        fig.add(pos, W, btris, np.where(nf[btris].mean(1) > 0, NAIL, SKIN), lum, red)
         fig.add(hp, hw, ht, HAIR, uv=huv)
         sp, st, smat = suit(assets, obj, refs, scales, pos)
         fig.add(sp, mh.proxy_weights(refs, W), st, smat)
     fig.add(shp, shw, sht, SHOES)
+    for s_ in SIDES:
+        ep, et, emat = eyeball(J[f"eye.{s_}____head"])
+        fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, emat)
+    fig.add(lash_p, [{BI["head"]: 1.0}] * len(lash_p), lash_t, LASH)
     return compact(fig), J
 
 
@@ -454,31 +527,165 @@ def brows(pos, keep_v, J, sex):
     return out
 
 
-def lash_line(pos, tris, lum, J):
-    """The closed lids' lashes: the eye openings' rims (the body's open edges round each
-    eye) a dark line, their neighbours a shade darker."""
-    edges = {}
-    for t in tris:
-        for a, b in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
-            k = (min(a, b), max(a, b))
-            edges[k] = edges.get(k, 0) + 1
+def lash_line(pos, tris, lum, J, wt):
+    """The lowered lids' lash line: each upper lid's edge (``lid_margin``) a dark line, the
+    vertices round it a shade darker."""
     rim = set()
-    for (a, b), n in edges.items():
-        if n == 1:
-            for s_ in SIDES:
-                e = J[f"eye.{s_}____head"]
-                if np.linalg.norm(pos[a] - e) < 2.6 and np.linalg.norm(pos[b] - e) < 2.6:
-                    rim |= {a, b}
+    for s_ in SIDES:
+        rim |= set(lid_margin(pos, wt, J, s_))
     out = lum.copy()
     near = set()
     for t in tris:
         if rim & set(t.tolist()):
             near |= set(t.tolist())
     for i in near:
-        out[i] = min(out[i], 0.8)
+        out[i] = min(out[i], 0.78)
     for i in rim:
         out[i] = 0.42
     return out
+
+
+def warmth(pos, J, sex):
+    """Where a face is warmer (0…1): the cheeks' apples, the lips, the nose's tip, the
+    ears' rims — soft blobs round points taken from the eyes' places."""
+    el, er = J["eye.L____head"], J["eye.R____head"]
+    mid = (el + er) * 0.5
+    out = np.zeros(len(pos))
+    spots = [
+        (el + np.array([0.6, -3.0, 0.6]), 2.2, 0.8),
+        (er + np.array([-0.6, -3.0, 0.6]), 2.2, 0.8),
+        (mid + np.array([0.0, -4.0, 2.6]), 1.0, 0.5),
+        (mid + np.array([0.0, -6.6, 1.3]), 1.4, 0.9),
+        (el + np.array([4.6, -1.5, -5.8]), 2.0, 0.6),
+        (er + np.array([-4.6, -1.5, -5.8]), 2.0, 0.6),
+    ]
+    for c, r, k in spots:
+        d = np.linalg.norm(pos - c, axis=1)
+        out = np.maximum(out, k * (1.0 - smooth01(d / r)))
+    return out * (1.0 if sex == "female" else 0.6)
+
+
+def nail_field(pos, W, sk, J):
+    """Per vertex: inside a nail (> 0) or outside it, cm-ish — on each fingertip's back,
+    from 42 % of its last phalanx to its end, as wide as 0.6 of the finger, its base
+    rounded (a cuticle's curve). The fingers' backs face the hand's back (its knuckles'
+    plane); the thumb's its own, turned 20° about it."""
+    out = np.full(len(pos), -9.0)
+    for s_ in SIDES:
+        def kn(f):
+            return J[sk["bones"][f"finger{f}-1.{s_}"]["head"]]
+        wr = J[sk["bones"][f"wrist.{s_}"]["head"]]
+        nb = np.cross(kn(2) - kn(5), (kn(3) + kn(4)) * 0.5 - wr)
+        nb = nb / np.linalg.norm(nb)
+        # At rest (MakeHuman's A pose) the back of each hand faces out, away from the body.
+        if nb[0] * (1 if s_ == "L" else -1) < 0:
+            nb = -nb
+        for f in range(1, 6):
+            b = sk["bones"][f"finger{f}-3.{s_}"]
+            h, tl = J[b["head"]], J[b["tail"]]
+            L = np.linalg.norm(tl - h)
+            a = (tl - h) / L
+            d = nb - a * (nb @ a)
+            d = d / np.linalg.norm(d)
+            if f == 1:
+                ang = np.radians(20.0 if s_ == "L" else -20.0)
+                d = d * np.cos(ang) + np.cross(a, d) * np.sin(ang)
+            side = np.cross(a, d)
+            q = pos - h
+            al = q @ a
+            r = q - np.outer(al, a)
+            rad = np.maximum(np.linalg.norm(r, axis=1), 1e-6)
+            x, y = r @ side, r @ d
+            sb = BI[f"f{f}_3.{s_}"]
+            share = np.array([dd.get(sb, 0.0) / max(sum(dd.values()), 1e-9) for dd in W])
+            w = 0.36 * L * (0.62 if f > 1 else 0.7)
+            fx = w - np.abs(x)
+            fa = (al - 0.42 * L) - 0.6 * (np.abs(x) / w) ** 2 * w
+            fe = 0.96 * L - al
+            fy = (y / rad - 0.42) * 1.5
+            fl = np.minimum(np.minimum(fx, fa), np.minimum(fy, fe))
+            out = np.maximum(out, np.where(share > 0.3, fl, -9.0))
+    return out
+
+
+def eyeball(c):
+    """An eye under its lowered lid: a ball in the socket, looking down 32° toward the
+    instrument, its iris (a grey-green disc 30° across its half) and the white round it."""
+    r = 1.18
+    gaze = np.array([0.0, -np.sin(np.radians(32.0)), np.cos(np.radians(32.0))])
+    up = np.cross(np.cross(gaze, np.array([0.0, 1.0, 0.0])), gaze)
+    up = up / np.linalg.norm(up)
+    side = np.cross(up, gaze)
+    rings = [0, 6, 12, 19, 26, 30, 36, 48, 64, 82, 100, 125, 150, 180]
+    cols = 20
+    pts = [c + gaze * r]
+    for th in rings[1:-1]:
+        t = np.radians(th)
+        for k in range(cols):
+            a = 2 * np.pi * k / cols
+            pts.append(c + (gaze * np.cos(t) + (up * np.cos(a) + side * np.sin(a)) * np.sin(t)) * r)
+    pts.append(c - gaze * r)
+    pts = np.array(pts)
+    tri, mat = [], []
+    n_r = len(rings) - 2
+    for k in range(cols):
+        tri.append([0, 1 + k, 1 + (k + 1) % cols])
+        mat.append(IRIS)
+    for i in range(n_r - 1):
+        for k in range(cols):
+            a0, a1 = 1 + i * cols + k, 1 + i * cols + (k + 1) % cols
+            b0, b1 = a0 + cols, a1 + cols
+            m = IRIS if rings[i + 1] < 30 else EYE
+            tri += [[a0, b0, b1], [a0, b1, a1]]
+            mat += [m, m]
+    last = len(pts) - 1
+    for k in range(cols):
+        a0, a1 = 1 + (n_r - 1) * cols + k, 1 + (n_r - 1) * cols + (k + 1) % cols
+        tri.append([a0, last, a1])
+        mat.append(EYE)
+    tri = outward(pts, np.array(tri), c)
+    return pts, tri, np.array(mat)
+
+
+def lid_margin(pos, wt, J, s_):
+    """The upper lid's edge over eye ``s_`` (the base mesh is closed round the eyes, so the
+    edge is found, not read): the upper lid's lowest vertex in front of the eye in each
+    3 mm column across it, ordered from the inner corner out."""
+    e = J[f"eye.{s_}____head"]
+    ids = np.array([i for i, w in wt[f"orbicularis03.{s_}"] if w > 0.5])
+    q = pos[ids] - e
+    r = np.linalg.norm(q, axis=1)
+    ids, q = ids[(r < 1.75) & (q[:, 2] > 0.8)], q[(r < 1.75) & (q[:, 2] > 0.8)]
+    cols = {}
+    for i, qq in zip(ids, q):
+        k = int(np.round(qq[0] / 0.3))
+        if k not in cols or qq[1] < pos[cols[k]][1] - e[1]:
+            cols[k] = i
+    return [cols[k] for k in sorted(cols)]
+
+
+def lashes(pos, wt, J):
+    """The upper lids' lashes: a short dark fringe along each lid's edge, curving out and
+    down over the lowered lid (both windings, so it is seen from either side)."""
+    pts, tri = [], []
+    for s_ in SIDES:
+        e = J[f"eye.{s_}____head"]
+        m = lid_margin(pos, wt, J, s_)
+        for a, b in zip(m, m[1:]):
+            if np.linalg.norm(pos[a] - pos[b]) > 0.7:
+                continue
+            o = len(pts)
+            for v_ in (a, b):
+                p = pos[v_]
+                out = p - e
+                out = out / np.linalg.norm(out)
+                # Longer in the middle of the lid than at its corners.
+                mid = 1.0 - min(abs(p[0] - e[0]) / 1.3, 1.0) ** 2
+                d = out * 0.55 + np.array([0.0, -0.7, 0.3])
+                d = d / np.linalg.norm(d) * (0.14 + 0.16 * mid)
+                pts += [p + out * 0.02, p + d]
+            tri += [[o, o + 1, o + 3], [o, o + 3, o + 2], [o, o + 3, o + 1], [o, o + 2, o + 3]]
+    return np.array(pts).reshape(-1, 3), np.array(tri, dtype=np.int64).reshape(-1, 3)
 
 
 def lips(pos, tris, J):
@@ -490,7 +697,7 @@ def bone_share(d, names):
     return sum(w for b, w in d.items() if BONES[b][0] in names) / tot
 
 
-def dress(pos, W, tris, J, lum, red):
+def dress(pos, W, tris, J, lum, red, nail):
     """The woman's black velvet concert dress on her body: long sleeves to the wrists, a
     soft scoop neckline in front (the collarbones' line showing, the shoulders covered);
     the skirt is draped by the scene round the seated legs. The body is cut along each
@@ -502,13 +709,16 @@ def dress(pos, W, tris, J, lum, red):
     def fields(p, w):
         x, y, z = p[:, 0] - neck[0], p[:, 1] - neck[1], p[:, 2] - neck[2]
         hn = np.array([bone_share(d, ("head", "neck")) for d in w])
-        depth = 8.5 * np.clip(1.0 - (x / 10.5) ** 2, 0.0, 1.0)
-        scoop = np.minimum(np.minimum(z + 1.5, y + depth), 10.5 - np.abs(x))
+        # A V neckline (sheet v7, the reference's dress): from beside the neck down to the
+        # breastbone's middle, its point softly rounded.
+        ax = np.sqrt(x * x + 0.9 ** 2)
+        depth = 15.0 * np.clip(1.0 - ax / 9.6, 0.0, 1.0) ** 1.1 + 1.0
+        scoop = np.minimum(np.minimum(z + 1.5, y + depth), 9.6 - np.abs(x))
         g_neck = np.maximum(10.0 * (hn - 0.5), scoop)
         g_hand = 10.0 * (np.array([hand_share(d) for d in w]) - 0.55)
         return g_neck, g_hand
 
-    p, w, ex, t = pos, W, [lum, red], tris
+    p, w, ex, t = pos, W, [lum, red, nail], tris
     for k in range(2):
         f = fields(p, w)[k]
         p, w, ex, t, _ = cut(p, w, ex, t, f)
@@ -519,8 +729,14 @@ def dress(pos, W, tris, J, lum, red):
     t = t[shin[t].mean(1) < 0.5]
     skin_v = np.maximum(g_neck, g_hand)
     mats = np.where(skin_v[t].mean(1) > 0, SKIN, VELVET)
+    mats = np.where((mats == SKIN) & (ex[2][t].mean(1) > 0), NAIL, mats)
     nrm = vnormals(p, t)
-    lift = 0.22 * smooth01(-skin_v / 0.8)
+    # The velvet stands proud of the skin, more over the shoulder's top (the reference's
+    # dress: its sleeves gathered a little at the shoulder).
+    cap = np.array([bone_share(d, ("upper1.L", "upper1.R", "clav.L", "clav.R")) for d in w])
+    puff = (0.55 * smooth01((cap - 0.35) / 0.4) * np.clip(nrm[:, 1] * 1.4, 0.0, 1.0)
+            * smooth01(-skin_v / 4.0))
+    lift = (0.22 + puff) * smooth01(-skin_v / 0.8)
     return p + nrm * lift[:, None], w, t, mats, ex[0], ex[1]
 
 
@@ -664,7 +880,8 @@ def write_fig(path, fig, rest, mk, part):
 
 MAT_COL = {SKIN: (0.86, 0.68, 0.58), LIPS: (0.75, 0.45, 0.45), HAIR: (0.78, 0.64, 0.42),
            VELVET: (0.08, 0.08, 0.09), WOOL: (0.13, 0.13, 0.15), SHIRT: (0.92, 0.92, 0.9),
-           TIE: (0.15, 0.2, 0.42), SHOES: (0.04, 0.04, 0.04)}
+           TIE: (0.15, 0.2, 0.42), SHOES: (0.04, 0.04, 0.04), EYE: (0.8, 0.78, 0.75),
+           IRIS: (0.3, 0.34, 0.33), LASH: (0.12, 0.09, 0.08), NAIL: (0.95, 0.78, 0.74)}
 
 
 def look_at(fig, name, out, part=None):
