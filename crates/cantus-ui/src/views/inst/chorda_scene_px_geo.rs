@@ -73,11 +73,10 @@ pub struct Geo {
     pub lines: Vec<Line>,
     pub rods: Vec<Rod>,
     pub mats: Vec<PMat>,
-    /// r42:arcus-hands — a tube thinner than a pixel is shaded as the average of its round
-    /// (a pixel sees the whole of it): Arcus's strings, whose one mirror sample a pixel
-    /// caught the room's vertical light strips in turn and dashed every string along the
-    /// fingerboard. Off elsewhere (the pianos' pictures stay as they were).
-    pub spread_thin: bool,
+    /// r42:arcus-polish2 — the materials of an instrument's strings: drawn thinner than a
+    /// pixel, a string's tube is shaded as the pixel sees it whole (its round averaged), so
+    /// a slanted string reads as one even line, not a dashed one.
+    pub wires: Vec<MatId>,
 }
 
 /// A box's face: its corners (as fractions along the box's edges) and its normal.

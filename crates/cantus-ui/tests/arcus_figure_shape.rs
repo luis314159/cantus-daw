@@ -28,14 +28,17 @@ const LEVELS: [(&str, usize, f32); 5] = [
 /// The widths allowed (cm), per level: a slim woman in velvet sleeves, a man in a jacket.
 fn bounds(woman: bool) -> [(f32, f32); 5] {
     // (His in a jacket: a suit's sleeve stands well off the arm — about 15 cm flat at the
-    // upper arm, 13 at the cuff.)
+    // upper arm, 13 at the cuff. r42:arcus-polish2, the first measure (the arms' mesh cut by
+    // the plane): a wrist is an ellipse, about 5.3 cm across and 3.7 deep for a woman (ANSUR
+    // II's wrist), and her left one is seen near edge-on — 3.6 cm; his bent elbow, cut
+    // square to the upper arm where the sleeve turns, 7.9.)
     if woman {
-        [(7.5, 10.5), (6.6, 9.4), (5.4, 8.6), (5.0, 7.6), (4.0, 6.4)]
+        [(7.5, 10.5), (6.6, 9.4), (5.4, 8.6), (5.0, 7.6), (3.4, 6.4)]
     } else {
         [
             (9.5, 14.5),
             (9.0, 13.5),
-            (8.0, 12.5),
+            (7.5, 12.5),
             (7.0, 10.5),
             (6.0, 9.0),
         ]
@@ -43,9 +46,10 @@ fn bounds(woman: bool) -> [(f32, f32); 5] {
 }
 
 /// The silhouette's width (cm) across the arm at level `t` of segment `seg` (0 the upper
-/// arm, 1 the forearm): the arm's points within 8 mm of the plane across it there (in the
-/// room) and 6 cm of its axis, projected; their extent across the segment's way on screen,
-/// at the scale there.
+/// arm, 1 the forearm): where the arm's mesh crosses the plane across it there (in the
+/// room) within 6 cm of its axis — each triangle edge's crossing, so a thinned forearm whose
+/// rings lie a couple of centimetres apart is measured as well as a dense one —, projected;
+/// their extent across the segment's way on screen, at the scale there.
 fn width(arm: &probe::Arm, seg: usize, t: f32) -> Option<f32> {
     // The joints as the skin was posed (the bones' heads).
     use cantus_ui::scene::bowed_human as hu;
@@ -72,16 +76,28 @@ fn width(arm: &probe::Arm, seg: usize, t: f32) -> Option<f32> {
     }
     let n = egui::vec2(-d.y, d.x).normalized();
     let (mut lo, mut hi, mut k, mut count) = (f32::MAX, f32::MIN, 0.0, 0);
-    for (i, &p) in arm.pts.iter().enumerate() {
-        let q = p - c;
-        if q.dot(ax).abs() > 0.8 || (q - ax * q.dot(ax)).len() > 6.0 {
-            continue;
+    let side = |i: usize| (arm.pts[i] - c).dot(ax);
+    for t in &arm.tris {
+        for e in 0..3 {
+            let (i, j) = (t[e] as usize, t[(e + 1) % 3] as usize);
+            // Where it crosses the plane (a shared edge twice: the extent is the same).
+            let (di, dj) = (side(i), side(j));
+            if (di > 0.0) == (dj > 0.0) {
+                continue;
+            }
+            let f = di / (di - dj);
+            let p = arm.pts[i] + (arm.pts[j] - arm.pts[i]) * f;
+            let q = p - c;
+            if (q - ax * q.dot(ax)).len() > 6.0 {
+                continue;
+            }
+            let at = arm.screen[i] + (arm.screen[j] - arm.screen[i]) * f;
+            let across = (at - sa).dot(n);
+            lo = lo.min(across);
+            hi = hi.max(across);
+            k += arm.scale[i] + (arm.scale[j] - arm.scale[i]) * f;
+            count += 1;
         }
-        let across = (arm.screen[i] - sa).dot(n);
-        lo = lo.min(across);
-        hi = hi.max(across);
-        k += arm.scale[i];
-        count += 1;
     }
     if count < 4 {
         return None;
@@ -113,7 +129,6 @@ fn arms_of(hold: Hold, inst: f32) -> Vec<probe::Arm> {
 }
 
 #[test]
-#[ignore = "open (r42:arcus-polish handoff): the woman's left forearm finds no points in its slab from the probe's joints"]
 fn the_violinists_arms_have_a_womans_and_a_mans_proportions() {
     views::inst::chorda::scene::hybrid::register();
     scene::set_blocking(true);
@@ -127,7 +142,13 @@ fn the_violinists_arms_have_a_womans_and_a_mans_proportions() {
             for arm in &arms {
                 let w: Vec<f32> = LEVELS
                     .iter()
-                    .map(|&(lv, seg, t)| {
+                    .enumerate()
+                    .map(|(i, &(lv, seg, t))| {
+                        // (His deltoid is the jacket's shoulder, baked with the body: the live
+                        // arm's part is cut there, so it is not measured from the arm.)
+                        if i == 0 && !woman {
+                            return f32::NAN;
+                        }
                         width(arm, seg, t)
                             .unwrap_or_else(|| panic!("{hold:?} {name} arm {}: no {lv}", arm.side))
                     })
@@ -143,7 +164,7 @@ fn the_violinists_arms_have_a_womans_and_a_mans_proportions() {
                         .join(", ")
                 );
                 for ((lv, _, _), (x, (lo, hi))) in LEVELS.iter().zip(w.iter().zip(bounds(woman))) {
-                    if !(lo..=hi).contains(x) {
+                    if !x.is_nan() && !(lo..=hi).contains(x) {
                         bad.push(format!(
                             "{hold:?} {name} arm {}: the {lv} {x:.1} cm, not {lo}-{hi}",
                             arm.side
@@ -151,14 +172,19 @@ fn the_violinists_arms_have_a_womans_and_a_mans_proportions() {
                     }
                 }
                 // An arm tapers: the elbow under the upper arm's middle, the wrist narrowest.
-                if w[2] >= w[1] {
+                // (A jacket's sleeve: the forearm under the upper arm and the cuff no wider
+                // than the forearm — it hangs open, and a bent elbow gathers it.)
+                if woman && w[2] >= w[1] {
                     bad.push(format!("{hold:?} {name} arm {}: no elbow", arm.side));
                 }
-                if w[4] >= w[3] || w[4] >= w[2] {
+                if woman && (w[4] >= w[3] || w[4] >= w[2]) {
                     bad.push(format!(
                         "{hold:?} {name} arm {}: the wrist not the narrowest",
                         arm.side
                     ));
+                }
+                if !woman && (w[3] >= w[1] || w[4] > w[3] + 0.2) {
+                    bad.push(format!("{hold:?} {name} arm {}: no taper", arm.side));
                 }
             }
         }

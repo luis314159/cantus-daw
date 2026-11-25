@@ -199,12 +199,15 @@ fn at(a: &Anchor, tris: &[[u16; 3]], pts: &[V3]) -> V3 {
     pts[t[0] as usize] * a.w[0] + pts[t[1] as usize] * a.w[1] + pts[t[2] as usize] * a.w[2]
 }
 
-/// How much darker a crease is than the skin under it, at its full strength.
-const CREASE_DARK: f32 = 0.58;
-/// A crease drawn no thinner than this share of a pixel (thinner, its colour is thinned).
-const MIN_PX: f32 = 0.9;
-/// The hand drawn smaller than this (points a centimetre): no creases (they would be dots).
-const MIN_SCALE: f32 = 9.0;
+/// How much darker a crease is than the skin under it, at its full strength (soft and low:
+/// a crease is a shadow in a fold, not a line drawn on the skin).
+const CREASE_DARK: f32 = 0.3;
+/// A crease drawn no thinner than this many pixels (thinner, its colour is thinned in
+/// proportion): band-limited, never a one-pixel dark line.
+const MIN_PX: f32 = 1.6;
+/// The hand drawn smaller than this (points a centimetre): no creases; they fade in over
+/// the next as much again.
+const MIN_SCALE: f32 = 12.0;
 
 /// Draws `line` from the arm's skinned corners (`pts`, `nrm`), the corners' colours this
 /// frame (`col`, per triangle) and the eye: faded where its skin turns from the eye, its

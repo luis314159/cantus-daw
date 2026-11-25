@@ -236,7 +236,8 @@ def PALM_WAY(pose):
 # The back's roll down from the E side on the G string and the E string, its yaw toward the
 # scroll (deg).
 ROLL = (20.0, 26.0)
-YAW = 30.0
+# (r42:arcus-hands: 10 — turned 30 deg toward the scroll the hand leant along the neck.)
+YAW = 10.0
 PALM_MIN = 0.996
 PALM_W = 150.0
 # Each finger's middle joint over the fingerboard's top (cm): index, middle, ring, little.
@@ -248,8 +249,10 @@ RISE_COS = 0.857
 # The wrist under the neck (cm across from the E edge, below the top).
 WRIST_X = (0.0, 3.5)
 # The wrist's deviation toward the little finger (deg): its range and where it rests.
-WRIST_DEV = (0.0, 6.0)
-WRIST_DEV_MID = 3.0
+# (r42:arcus-hands: 0-14, resting at 9 — the photographs' hand stands steeper than the
+# forearm by 3-23 deg, median ~10; at most 6 the hand could not stand up from the neck.)
+WRIST_DEV = (0.0, 14.0)
+WRIST_DEV_MID = 9.0
 # How far a finger that does not play may hover from over its note (cm).
 HOVER_SLACK = (1.2, 1.4, 1.8, 2.6)
 WRIST_Z = (-10.5, -5.0)
@@ -260,7 +263,8 @@ HAND_LEN = 7.61
 # How far out from the E edge the base knuckles stand (cm): beside the neck.
 KNUCKLES_OUT = (0.5, 4.0)
 # The index finger's base against the E side: out from the edge, and its height (cm).
-CROOK_X = 0.85
+# (r42:arcus-hands: 1.4, the knuckles a little further out with the hand upright.)
+CROOK_X = 1.4
 CROOK_Z = (-1.2, 0.3)
 # How high each finger's middle joint stands over the fingerboard's top (cm).
 ARCH = 2.4

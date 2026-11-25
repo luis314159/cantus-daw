@@ -102,7 +102,9 @@ const UPRIGHT: f32 = 30.0;
 /// never its palm nor its edge), and where the index finger's base knuckle sits against the
 /// neck's E side (cm out from the fingerboard's edge) and the knuckles' height against the
 /// fingerboard's top (cm).
-const WRIST: f32 = 8.0;
+/// (r42:arcus-hands: 16 — the photographs' 3–23°, median ~10; was 8, which kept the hand
+/// leaning along the neck.)
+const WRIST: f32 = 16.0;
 /// How much wider the hand's outline may be at its middle than at the wrist's crease where
 /// the index or the middle finger plays low on the neck (the photographs: 1.1–1.3; ours
 /// 1.05–1.3 but one viola case at 1.42).

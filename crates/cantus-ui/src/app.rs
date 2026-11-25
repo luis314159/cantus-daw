@@ -5181,6 +5181,14 @@ impl CantusApp {
             self.frame_times.iter().sum::<f32>() / self.frame_times.len() as f32 * 1000.0
         }
     }
+
+    /// For the tests (r42:arcus-polish2): the window's recent frames as if each took `ms`
+    /// (what `figure::Quality::Auto` steps by — a slow machine without one).
+    #[doc(hidden)]
+    pub fn set_frame_ms_for_tests(&mut self, ms: f32) {
+        self.frame_times.clear();
+        self.frame_times.resize(120, ms / 1000.0);
+    }
 }
 
 impl eframe::App for CantusApp {

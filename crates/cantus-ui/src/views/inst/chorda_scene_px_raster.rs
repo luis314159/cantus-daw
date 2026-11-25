@@ -1059,6 +1059,10 @@ fn lines(
 /// stand's mast is 3–6 pixels wide in the kit's picture).
 const THIN_PX: f32 = 8.0;
 
+/// r42:arcus-polish2 — how wide on screen (pixels) an instrument's string is drawn evenly
+/// across (its round averaged over the pixel), not as a lit tube.
+const WIRE_PX: f32 = 2.5;
+
 /// The rods `cam` sees thinner than [`THIN_PX`] (and long beside their width).
 fn thin_rods(geo: &Geo, cam: &Camera) -> Vec<Rod> {
     geo.rods
@@ -1221,7 +1225,14 @@ fn tubes(
                         let u = u.clamp(-0.995, 0.995);
                         (across * u + side * (1.0 - u * u).sqrt()).norm()
                     };
-                    let u = (sd / hw).clamp(-1.0, 1.0);
+                    // r42:arcus-polish2 — a string a pixel or two wide: the pixel sees most
+                    // of its round, so it is shaded nearer the round's middle (the edges'
+                    // share below) and only its coverage falls off across — shaded from the
+                    // pixel's place across, a slanted string turned bright where it crossed
+                    // a pixel's middle and dark between: a dashed line.
+                    let wire = wpx < WIRE_PX && geo.wires.contains(&s.rod.m);
+                    let fill = if wire { wpx / WIRE_PX } else { 1.0 };
+                    let u = ((sd / hw) * fill).clamp(-1.0, 1.0);
                     let du = 1.0 / hw;
                     let n = n_at(u);
                     let n2 = if u + du <= 1.0 {
@@ -1229,41 +1240,29 @@ fn tubes(
                     } else {
                         n_at(u - du)
                     };
+                    let p = at + n * s.rod.r;
                     let kv = key_at(&s.key, tw);
-                    let lit = |n: V3, dn: V3| {
-                        shade(
-                            rig,
-                            m,
-                            eye,
-                            at + n * s.rod.r,
-                            n,
-                            dn,
-                            s.axis,
-                            [tw * s.len, 0.0],
-                            z / cam.k,
-                            1.0,
-                            &|_, _| kv,
-                            None,
-                            None,
-                        )
-                    };
-                    // r42:arcus-hands — a tube under a pixel and a half wide: its round
-                    // averaged (five ways across it), as the pixel sees all of it.
-                    let c = if geo.spread_thin && wpx < 1.5 {
-                        let mut acc = [0.0f32; 3];
-                        for i in 0..5 {
-                            let ui = -0.8 + 0.4 * i as f32;
-                            let ni = n_at(ui);
-                            acc = ladd(acc, lscale(lit(ni, n_at(ui + 0.4) - ni), 0.2));
-                        }
-                        acc
-                    } else {
-                        lit(n, n2 - n)
-                    };
+                    let c = shade(
+                        rig,
+                        m,
+                        eye,
+                        p,
+                        n,
+                        n2 - n,
+                        s.axis,
+                        [tw * s.len, 0.0],
+                        z / cam.k,
+                        1.0,
+                        &|_, _| kv,
+                        None,
+                        None,
+                    );
                     // A chrome tube's edges dark (what a photograph's polished stand shows
                     // where it turns away), its mirror bright down the middle.
                     let c = if m.kind == Kind::Metal {
                         let e = 1.0 - 0.6 * super::mat::smooth(0.55, 1.0, u.abs());
+                        // (A whole sub-pixel string's dark edges, averaged: 0.135 of it.)
+                        let e = e * (1.0 - 0.135 * (1.0 - fill));
                         lscale(c, e)
                     } else {
                         c

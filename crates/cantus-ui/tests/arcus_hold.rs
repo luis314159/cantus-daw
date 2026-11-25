@@ -543,9 +543,10 @@ fn the_left_arm_keeps_the_photographs_angles() {
                         j(nut)
                     );
                 }
-                // (r42:arcus-hand: the forearm may turn up to 6° toward the little finger, as
-                // the photographs show it: within 8°.)
-                assert!(wrist < 8.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
+                // (r42:arcus-hand: the forearm may turn toward the little finger, as the
+                // photographs show it — r42:arcus-hands: they measure 3–23°, median ~10
+                // (`left_hand_refs.md`); the table rests at 9 and turns at most 14: within 16°.)
+                assert!(wrist < 16.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
                 // (A cellist's hand comes up beside the shoulder: the elbow folds more.)
                 assert!(
                     (if d.held { 50.0 } else { 30.0 }..=130.0).contains(&elbow),
