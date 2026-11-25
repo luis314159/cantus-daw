@@ -1,0 +1,21 @@
+<h2>Cómo está hecha</h2>
+<p>Composición original. Un proyecto de Cantus normal: cuatro pistas de Arcus con su preset
+<i>cantabile</i> (violín, viola, violonchelo, contrabajo), sentadas como un cuarteto visto desde
+la sala —el violín a la izquierda, el violonchelo al centro, la viola a la derecha y el
+contrabajo detrás del violonchelo—, con envíos a una sala de conciertos de Aula en un retorno.
+Las articulaciones son las de cada nota (ligado, détaché, staccato, spiccato, pizzicato,
+trémolo) y la dinámica es el CC1 de cada clip; el tempo frena en las dos cadencias.</p>
+<p>Exportado desde Cantus a 48 kHz y 24 bits, normalizado a −16 LUFS con los picos por debajo de
+−1 dBTP. Las pistas por separado salen al nivel de la mezcla, sin normalizar; la sala va en su
+propia pista.</p>
+<p class="foot">Ábrelo en Cantus: <a href="arcus-cuarteto.cantus">arcus-cuarteto.cantus</a>
+(<i>Archivo ▸ Abrir</i>) para ver cada parte en el piano roll, con sus articulaciones y su CC1.</p>
+</main>
+<script>
+const song = document.getElementById('song');
+for (const b of document.querySelectorAll('.form button')) {
+  b.addEventListener('click', () => { song.currentTime = parseFloat(b.dataset.t); song.play(); });
+}
+</script>
+</body>
+</html>
