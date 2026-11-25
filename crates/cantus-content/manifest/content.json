@@ -1855,7 +1855,7 @@
    ],
    "build": {
     "kit": "DRSKit_basic.xml",
-    "unpacked_size": 2659715215,
+    "unpacked_size": 4302568083,
     "sfz": "DRSKit.sfz",
     "folder": "Mics",
     "gain_db": -1.0,

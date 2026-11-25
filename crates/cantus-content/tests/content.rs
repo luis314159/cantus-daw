@@ -486,3 +486,46 @@ fn the_starter_pack_downloads_for_real() {
     let wavs = cantus_content::library::Index::build(&[m.pack_dir(&id)]);
     assert!(wavs.hits.len() as u64 >= count - 3);
 }
+
+/// r42: packs built from the same archive (the same SHA-256, keeping the same entries)
+/// declare the same unpacked size — the install's budget is drawn from it, and
+/// `drskit-tympanum` said 2.66 GB of an archive that unpacks to 4.30 GB (as `drskit` says),
+/// so it could never be installed. Measured on the archive itself (DRSKit2_1.zip, 658
+/// entries, 4 302 568 083 bytes) when the bug was found.
+#[test]
+fn packs_from_one_archive_declare_one_unpacked_size() {
+    use std::collections::HashMap;
+    let m = Manifest::bundled();
+    let mut seen: HashMap<String, (String, u64)> = HashMap::new();
+    for p in &m.packs {
+        let z = match &p.source {
+            Source::Zip(z) | Source::TarGz(z) => z,
+            Source::Files(_) => continue,
+        };
+        let Some(unpacked) = p
+            .build
+            .as_ref()
+            .map(|b| b.unpacked_size)
+            .or_else(|| p.piano.as_ref().and_then(|b| b.unpacked_size))
+        else {
+            continue;
+        };
+        let key = format!("{} {} {:?} {:?}", z.sha256, z.strip, z.include, z.exclude);
+        if let Some((other, size)) = seen.get(&key) {
+            assert_eq!(
+                *size, unpacked,
+                "{} and {other} unpack the same archive but declare {unpacked} and {size} bytes",
+                p.id
+            );
+        } else {
+            seen.insert(key, (p.id.clone(), unpacked));
+        }
+    }
+    // The archive this test was written for, as measured.
+    let drs = m
+        .packs
+        .iter()
+        .find(|p| p.id == "drskit-tympanum")
+        .expect("drskit-tympanum");
+    assert!(install::budget(drs.build.as_ref().unwrap().unpacked_size) >= 4_302_568_083);
+}
