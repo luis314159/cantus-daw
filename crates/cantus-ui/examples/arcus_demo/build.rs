@@ -266,7 +266,12 @@ pub fn build(app: &mut CantusApp, piece: &Piece, style: Style) -> Built {
             who.preset()
         );
         app.close_preset_browser();
-        let (pan, gain, send, color) = desk(who, piece.solo);
+        let (pan, mut gain, send, color) = desk(who, piece.solo);
+        // r42 arcus-expr: measured (the HSD quartet's viola sits 1 dB under the four's mean,
+        // pass 6's 7), the performed viola 2.5 dB up.
+        if style == Style::Performed && who == Who::Viola && !piece.solo {
+            gain += 2.5;
+        }
         let name = who.name().to_string();
         exec(
             app,

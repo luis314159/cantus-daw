@@ -50,7 +50,7 @@ impl Role {
         match self {
             Role::Melody => 0.06,
             Role::Counter => 0.0,
-            Role::Inner => -0.06,
+            Role::Inner => -0.03,
             Role::Bass => -0.02,
         }
     }
@@ -489,9 +489,11 @@ pub fn perform(part: &Part, written: &[Written], beats: f64, role: Role, ctx: &C
         }
         // A long bow swells to its middle and eases (messa di voce).
         if len_s >= 0.9 {
+            // Measured against the HSD stems (`arcus-expr.md` §2): at 0.24 / 0.15 the long
+            // notes started 4 dB and ended 3 under their peak (the players 12 and 14).
             let m = match role {
-                Role::Melody | Role::Counter => 0.24,
-                _ => 0.15,
+                Role::Melody | Role::Counter => 0.45,
+                _ => 0.30,
             } * (len_s / 2.5).min(1.0);
             let x = u / (e - s);
             let peak = 0.55;
@@ -508,7 +510,7 @@ pub fn perform(part: &Part, written: &[Written], beats: f64, role: Role, ctx: &C
             let ll = notes[last].len;
             let k0 = lx + 0.45 * ll;
             if t > k0 {
-                v *= 1.0 - 0.45 * smooth((t - k0) / (lx + ll - k0));
+                v *= 1.0 - 0.6 * smooth((t - k0) / (lx + ll - k0));
             }
         }
         // Portato: a pulse at the note's start inside the slur.

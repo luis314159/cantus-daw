@@ -20,7 +20,9 @@ within 80 ms (median |dt| and its spread).
     python -I tools/arcus/expr/phrase_study.py refs <out.json>
     python -I tools/arcus/expr/phrase_study.py stems <out.json> <name>=<wav>:<family> ...
 
-`stems` measures renders (e.g. a demo's stems) the same way, without the calibration.
+`stems` measures renders (e.g. a demo's stems) the same way, without the calibration;
+`quartet <out.json> <stems-dir>` finds the demo's four stems by name (Violín, Viola,
+Violonchelo, Contrabajo).
 """
 import json
 import sys
@@ -242,8 +244,23 @@ def stems_cmd(out, specs):
     print("wrote", out)
 
 
+def quartet(out, d):
+    d = Path(d)
+    pick = {"Vl": ("Violín", "violin"), "Vla": ("Viola", "viola"),
+            "Vlc": ("Violonchelo", "cello"), "Cb": ("Contrabajo", "bass")}
+    files = {}
+    for k, (name, fam) in pick.items():
+        hit = [f for f in d.glob("*.wav") if f.stem.split(" ", 1)[-1] == name]
+        files[k] = (hit[0], fam)
+    res = take(files)
+    Path(out).write_text(json.dumps(res, indent=1))
+    print("wrote", out)
+
+
 def main():
-    if len(sys.argv) >= 3 and sys.argv[1] == "refs":
+    if len(sys.argv) >= 4 and sys.argv[1] == "quartet":
+        quartet(sys.argv[2], sys.argv[3])
+    elif len(sys.argv) >= 3 and sys.argv[1] == "refs":
         refs(sys.argv[2])
     elif len(sys.argv) >= 4 and sys.argv[1] == "stems":
         stems_cmd(sys.argv[2], sys.argv[3:])
