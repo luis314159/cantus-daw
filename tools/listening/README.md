@@ -9,7 +9,8 @@ decide what *ships* — the owner's ear outranks every number.
 | the blind kits' one page | `crates/cantus-ui/examples/abx_kit/` (`abx.html`, `kit.rs`, `names.rs`); each instrument's subject file (`chorda_kit/abx_subject.json`, `tympanum_abx/subject.json`) | every kit below |
 | Chorda's blind test (ABX + preferences, three pianos) | `cantus-ui` example `chorda_abx` | the owner and other listeners |
 | Tympanum's blind test (ABX + preferences: generated, hybrid, recorded) | `cantus-ui` example `tympanum_abx` | the owner and other listeners |
-| a listener's results | `tools/listening/abx_read.py` (per item too) | reading what came back |
+| any instrument's blind test from a subject file (ABX, preferences, **MUSHRA**) | `tools/soundlab/lab.py kit` (`tools/soundlab/README.md`; Arcus's cello: `subjects/arcus-cello/`) | the owner and other listeners |
+| a listener's results, and many pooled | `tools/listening/abx_read.py` (per item, power, catch flags, MUSHRA) | reading what came back |
 | the page's browser check | `crates/cantus-ui/examples/abx_kit/abx_browser_check.mjs` | before sending a kit |
 | Chorda's named previews | `tools/chorda-voicing/preview.py` | the owner, each candidate (not blind) |
 | Tympanum's listens (previous · now · recording) | `tools/tympanum-fit/make_listen.py`, `make_b4.py` | the owner, each drum iteration |
@@ -110,11 +111,40 @@ against DRSKit: the hats on the other side) has them mirrored, left for right, w
 key. Zip the folder to send it; `--wav-twin <dir>` writes the same kit (id, names, samples)
 as WAV to publish as Chorda's, so online and offline answers pool. The method and what was checked: `docs/round42/tymp-abx.md`.
 
+### MUSHRA, and the parts' order (round 42, the sound lab)
+
+The page has a third kind of part beside the ABX and the preferences: **MUSHRA** (ITU-R
+BS.1534-3). Per item, an open reference and its samples in a random order of the listener's
+own — the reference itself hidden among them, the candidates, the anchors (the reference
+low-passed at 3.5 and 7 kHz) — each played and rated 0–100 before Next opens (keys: `R` the
+reference, `1`–`9` the samples, space, `L`); switching keeps the place as in the ABX. The
+subject's `parts` orders the main parts (`["abx", "mushra", "pref"]` for Arcus's cello; Chorda's
+and Tympanum's subjects say nothing: ABX then preferences, as before). A kit's `TESTS.mushra`
+(`items`, `ref`, `stims`) names the tokens; the hidden reference is the reference's clip under
+another name, which the browser check verifies by bytes. The results hold `mushra` (each item's
+order, ratings, plays, changes); the owner's summary shows each listener's medians per source.
+
+Any instrument's kit from files (renders and recordings, any rate, mono or stereo):
+`python -I tools/soundlab/lab.py kit <subject.json> <kit dir> [--wav-twin <dir>] --run <run>` —
+the same page, the same guarantees (`tools/soundlab/soundlab/kit.py`), the key in `<kit dir>-key`.
+A subject's `hide` lists what the page's data, first screen and readmes must not say; the
+browser check reads it (Chorda's and Tympanum's lists stay in the check).
+
 ### Reading results
 
 ```bash
-python -I tools/listening/abx_read.py <results.json> [<kit dir>-key/key.json]
+python -I tools/listening/abx_read.py <results.json> [<more results.json> ...] [<kit dir>-key/key.json] [--alpha 0.05] [--power 0.8] [--quiet]
 ```
+
+Since round 42 (the sound lab): any number of files (or the owner's *download everything*);
+per listener the ABX's p, its critical count and its power against p1 = 0.6–0.9 at the kit's
+trial count, and the trials a stated power needs (16 trials: 12 right for p < 0.05, power 0.80
+only against p1 = 0.8; 37 trials for 80 % against p1 = 0.7); catch questions **FLAGGED** when
+failed; MUSHRA per source (median with a bootstrap 95 % CI, mean ± Student's t), the BS.1534-3
+post-screening (the hidden reference under 90 in more than 15 % of the items excludes the
+listener) and the anchor check (a low anchor rated at or over the hidden reference); pooled:
+everyone and only those passing every check, and each source against the hidden reference by
+a sign test.
 
 The form, the ABX score with its one-sided binomial p, every trial (plays, changes) and every
 preference with its note; with the key, tokens become piano names. **Results files are personal

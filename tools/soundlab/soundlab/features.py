@@ -240,7 +240,12 @@ def between_partials(m, sr, a0, length, f0, B, per_oct=3, half_width=0.2):
         dens = P[nb].mean()
         h = P[hb].sum() - dens * hb.sum()
         nz = dens * sel.sum()
-        hnr.append(float(10 * np.log10(max(h, 1e-30) / max(nz, 1e-30))))
+        if h <= 0.1 * dens * hb.sum():
+            # the partial bins hold no more than the noise: no partial to set the noise against
+            hnr.append(None)
+            valid.append(False)
+            continue
+        hnr.append(float(10 * np.log10(h / max(nz, 1e-30))))
         valid.append(bool(c >= 300 and c >= 2 * f0 and c <= 0.42 * sr))
     return [float(v) for v in fc], hnr, valid
 

@@ -14,7 +14,7 @@ Modules:
 - `kit`       the blind kit (ABX, preferences, MUSHRA) on the shared page
               `crates/cantus-ui/examples/abx_kit/abx.html`
 
-Run every script with `python -I` (numpy, scipy, soundfile, matplotlib: requirements.txt).
+Run every script with `python -I` (numpy, scipy, soundfile: requirements.txt).
 """
 
-VERSION = "2"
+VERSION = "3"

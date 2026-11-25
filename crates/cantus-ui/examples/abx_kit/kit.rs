@@ -203,6 +203,46 @@ mod tests {
         }
     }
 
+    /// The sound lab's subjects (`tools/soundlab/subjects/*/subject.json`, round 42) fill
+    /// this page from Python (`tools/soundlab/soundlab/kit.py`): each one's page subject is
+    /// one the page takes, names a voice for every source of its pairs in both languages and
+    /// every item in both, and its parts are the page's.
+    #[test]
+    fn the_sound_labs_subjects_are_page_subjects() {
+        for text in [
+            include_str!("../../../../tools/soundlab/subjects/arcus-cello/subject.json"),
+            include_str!("../../../../tools/soundlab/subjects/example-tibia/subject.json"),
+        ] {
+            let lab: serde_json::Value = serde_json::from_str(text).expect("a subject is JSON");
+            let l = &lab["listening"];
+            let line = subject_line(&l["page"].to_string());
+            assert!(!line.contains('\n'));
+            for p in l["parts"].as_array().expect("its parts") {
+                assert!(
+                    ["abx", "pref", "mushra"].contains(&p.as_str().unwrap()),
+                    "{p}"
+                );
+            }
+            for pair in l["page"]["pairs"].as_array().unwrap() {
+                for v in pair.as_array().unwrap() {
+                    for lang in ["es", "en"] {
+                        let k = format!("voice_{}", v.as_str().unwrap());
+                        assert!(l["page"]["text"][lang][&k].is_string(), "{k} in {lang}");
+                    }
+                }
+            }
+            for item in l["items"].as_array().unwrap() {
+                for lang in ["es", "en"] {
+                    assert!(l["page"]["items"][lang][item.as_str().unwrap()].is_string());
+                }
+            }
+        }
+        assert!(
+            PAGE.contains("function viewMushra"),
+            "the page's MUSHRA part"
+        );
+    }
+
     #[test]
     fn json_strings_escape() {
         assert_eq!(js("a\"b\\c"), "\"a\\\"b\\\\c\"");

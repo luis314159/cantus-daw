@@ -1,0 +1,213 @@
+{
+ "id": "example-tibia",
+ "name": "Tibia, a hypothetical struck bar (the lab's worked example)",
+ "kind": "decaying",
+ "f_range": [
+  200,
+  1400
+ ],
+ "lowest_note": 60,
+ "features": [
+  "loudness",
+  "pitch",
+  "harmonics",
+  "centroid",
+  "attack",
+  "decay",
+  "band_decay",
+  "room"
+ ],
+ "exclude": [
+  "loudness.integrated_lufs",
+  "loudness.momentary_max_lufs",
+  "loudness.short_term_max_lufs",
+  "loudness.sample_peak_dbfs",
+  "loudness.true_peak_dbtp",
+  "centroid.at_s"
+ ],
+ "references": {
+  "root": "$SOUNDLAB_REFS",
+  "catalogue": "references.json",
+  "made_by": "{python} {subject}/synth_bar.py refs $SOUNDLAB_REFS/soundlab-example"
+ },
+ "split": {
+  "rule": "hash",
+  "seed": 2026
+ },
+ "candidate": {
+  "inst": "tibia",
+  "render": [
+   "{python}",
+   "{subject}/synth_bar.py",
+   "candidate",
+   "{out}"
+  ],
+  "cwd": "{subject}",
+  "files": "tibia-(?P<note>\\d+)-(?P<dyn>p|mf|f)\\.wav",
+  "fixed": {
+   "art": "struck"
+  },
+  "what": "every note of the range at p / mf / f (a real instrument: its cargo example's render)"
+ },
+ "listening": {
+  "kit_prefix": "bars1",
+  "items": [
+   "phrase",
+   "note_mf",
+   "note_f"
+  ],
+  "voices": {
+   "tibia": {
+    "render": [
+     [
+      "{python}",
+      "{subject}/synth_bar.py",
+      "candidate",
+      "{out}"
+     ]
+    ],
+    "files": {
+     "phrase": "tibia-phrase.wav",
+     "note_mf": "tibia-72-mf.wav",
+     "note_f": "tibia-72-f.wav"
+    }
+   },
+   "recording": {
+    "dir": "$SOUNDLAB_REFS/soundlab-example",
+    "files": {
+     "phrase": "bar1-phrase.wav",
+     "note_mf": "bar1-72-mf.wav",
+     "note_f": "bar1-72-f.wav"
+    },
+    "licence": "CC0-1.0"
+   }
+  },
+  "parts": [
+   "abx",
+   "mushra",
+   "pref"
+  ],
+  "abx": [
+   "tibia",
+   "recording"
+  ],
+  "extra": null,
+  "pref": [
+   [
+    "tibia",
+    "recording"
+   ]
+  ],
+  "catch": 2,
+  "mushra": {
+   "reference": "recording",
+   "conditions": [
+    "tibia"
+   ],
+   "anchors": [
+    3500
+   ]
+  },
+  "target_lufs": -23.0,
+  "ceiling_db": -1.0,
+  "fade_s": 0.1,
+  "pre_roll_s": 0.08,
+  "max_s": 6.0,
+  "readme": {
+   "es": "# Prueba de escucha: láminas\n\nAbre `index.html` con el navegador; al terminar, descarga los resultados (JSON) y envíalos.\n",
+   "en": "# Listening test: bars\n\nOpen `index.html` in a browser; when you finish, download the results (JSON) and send them.\n"
+  },
+  "page": {
+   "id": "tibia",
+   "play": "mallets",
+   "trials": {
+    "abx": 12,
+    "extra": 12
+   },
+   "secs": {
+    "abx": 20,
+    "pref": 15,
+    "mushra": 60
+   },
+   "pairs": [
+    [
+     "tibia",
+     "recording"
+    ]
+   ],
+   "hide": {
+    "data": [
+     "tibia",
+     "bar1",
+     "synth",
+     "record",
+     "grabac",
+     "cantus"
+    ],
+    "screen": "tibia|synth|grabad|recorded|cantus",
+    "readme": [
+     "Tibia",
+     "synth",
+     "cargo"
+    ]
+   },
+   "items": {
+    "es": {
+     "phrase": "Una frase corta",
+     "note_mf": "Una nota, mezzoforte",
+     "note_f": "Una nota, forte"
+    },
+    "en": {
+     "phrase": "A short phrase",
+     "note_mf": "A note, mezzo-forte",
+     "note_f": "A note, forte"
+    }
+   },
+   "credits": {
+    "text": [
+     "credit_all"
+    ],
+    "links": [
+     [
+      "CC0 1.0",
+      "https://creativecommons.org/publicdomain/zero/1.0/"
+     ]
+    ]
+   },
+   "text": {
+    "es": {
+     "lead": "Vas a escuchar láminas percutidas sonadas de dos maneras y a responder si las distingues, cuánto se parecen a una referencia y cuál prefieres.",
+     "howlong": "Dura unos 8 minutos. Tus respuestas se guardan en este navegador.",
+     "q_mallets": "¿Tocas marimba o vibráfono?",
+     "mallets_no": "No",
+     "mallets_some": "Un poco",
+     "mallets_yes": "Sí",
+     "abx_help": "A y B son dos sonidos distintos; X es uno de los dos. Di cuál es X.",
+     "pref_help": "Dos clips de lo mismo. ¿Cuál suena más a una lámina real bien grabada?",
+     "note": "¿Por qué? (opcional)",
+     "main_done_2": "Mira tus resultados.",
+     "reveal": "Qué sonido era cada uno",
+     "credit_all": "Ambos sonidos son sintéticos (el ejemplo del laboratorio de sonido de Cantus), CC0.",
+     "voice_tibia": "Tibia (el candidato)",
+     "voice_recording": "La «grabación» (sintética)"
+    },
+    "en": {
+     "lead": "You will hear struck bars sounded two ways and answer whether you tell them apart, how close they are to a reference and which you prefer.",
+     "howlong": "It takes about 8 minutes. Your answers are kept in this browser.",
+     "q_mallets": "Do you play marimba or vibraphone?",
+     "mallets_no": "No",
+     "mallets_some": "A little",
+     "mallets_yes": "Yes",
+     "abx_help": "A and B are two different sounds; X is one of them. Say which one X is.",
+     "pref_help": "Two clips of the same thing. Which sounds more like a real bar, well recorded?",
+     "note": "Why? (optional)",
+     "main_done_2": "See your results.",
+     "reveal": "Which sound was which",
+     "credit_all": "Both sounds are synthetic (the worked example of Cantus's sound lab), CC0.",
+     "voice_tibia": "Tibia (the candidate)",
+     "voice_recording": "The \"recording\" (synthetic)"
+    }
+   }
+  }
+ }
+}

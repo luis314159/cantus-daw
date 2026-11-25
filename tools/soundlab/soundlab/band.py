@@ -113,7 +113,8 @@ def place(value, band):
         return None
     lo, hi = band["p10"], band["p90"]
     out = max(lo - value, 0.0, value - hi)
-    width = max(hi - lo, 1e-9)
+    # A band of identical references has no width: count it as 1 % of its value (or 1e-3).
+    width = max(hi - lo, 0.01 * abs(band["p50"]), 1e-3)
     return {"value": float(value), "outside": float(out), "widths": float(out / width),
             "status": "in" if out == 0 else ("below" if value < lo else "above")}
 

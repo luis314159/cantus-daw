@@ -1,0 +1,1172 @@
+[
+{
+"path": "soundlab-example/bar1-60-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 60,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-60-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 60,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-60-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 60,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-62-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 62,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-62-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 62,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-62-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 62,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-64-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 64,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-64-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 64,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-64-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 64,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-66-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 66,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-66-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 66,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-66-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 66,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-68-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 68,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-68-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 68,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-68-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 68,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-70-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 70,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-70-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 70,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-70-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 70,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-72-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 72,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-72-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 72,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-72-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 72,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-74-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 74,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-74-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 74,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-74-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 74,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-76-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 76,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-76-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 76,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-76-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 76,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-78-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 78,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-78-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 78,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-78-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 78,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-80-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 80,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-80-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 80,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-80-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 80,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-82-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 82,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-82-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 82,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-82-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 82,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar1-84-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 84,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar1-84-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 84,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar1-84-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar1",
+"art": "struck",
+"note": 84,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-60-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 60,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-60-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 60,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-60-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 60,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-62-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 62,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-62-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 62,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-62-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 62,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-64-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 64,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-64-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 64,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-64-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 64,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-66-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 66,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-66-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 66,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-66-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 66,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-68-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 68,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-68-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 68,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-68-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 68,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-70-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 70,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-70-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 70,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-70-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 70,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-72-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 72,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-72-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 72,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-72-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 72,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-74-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 74,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-74-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 74,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-74-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 74,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-76-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 76,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-76-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 76,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-76-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 76,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-78-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 78,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-78-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 78,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-78-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 78,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-80-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 80,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-80-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 80,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-80-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 80,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-82-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 82,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-82-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 82,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-82-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 82,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar2-84-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 84,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar2-84-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 84,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar2-84-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar2",
+"art": "struck",
+"note": 84,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-60-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 60,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-60-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 60,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-60-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 60,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-62-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 62,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-62-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 62,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-62-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 62,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-64-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 64,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-64-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 64,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-64-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 64,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-66-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 66,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-66-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 66,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-66-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 66,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-68-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 68,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-68-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 68,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-68-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 68,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-70-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 70,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-70-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 70,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-70-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 70,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-72-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 72,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-72-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 72,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-72-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 72,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-74-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 74,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-74-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 74,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-74-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 74,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-76-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 76,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-76-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 76,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-76-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 76,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-78-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 78,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-78-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 78,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-78-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 78,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-80-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 80,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-80-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 80,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-80-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 80,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-82-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 82,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-82-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 82,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-82-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 82,
+"dyn": "f"
+},
+{
+"path": "soundlab-example/bar3-84-p.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 84,
+"dyn": "p"
+},
+{
+"path": "soundlab-example/bar3-84-mf.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 84,
+"dyn": "mf"
+},
+{
+"path": "soundlab-example/bar3-84-f.wav",
+"source": "synthetic",
+"licence": "CC0-1.0",
+"credit": "synth_bar.py (the worked example's stand-in for recordings)",
+"inst": "bar3",
+"art": "struck",
+"note": 84,
+"dyn": "f"
+}
+]

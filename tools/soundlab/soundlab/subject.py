@@ -20,11 +20,12 @@ id: CC0-1.0, CC-BY-3.0, CC-BY-4.0, or one the subject allows with its terms), `c
 `inst` (one physical instrument: the band weighs each as one), `art`, `note` (MIDI; null with
 `multi` for a file of several notes, each then named by its own pitch), `dyn`.
 Paths and strings may hold `$NAME` / `${NAME}` (the environment) and `{repo}`, `{lab}`,
-`{subject}` (this file's folder), `{work}`.
+`{subject}` (this file's folder), `{work}`, `{python}` (the interpreter running the lab).
 """
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 LAB = Path(__file__).resolve().parents[1]
@@ -43,7 +44,7 @@ def expand(s, subject=None):
     if not isinstance(s, str):
         return s
     s = os.path.expandvars(s)
-    ctx = {"repo": str(REPO), "lab": str(LAB)}
+    ctx = {"repo": str(REPO), "lab": str(LAB), "python": sys.executable}
     if subject is not None:
         ctx["subject"] = str(subject.dir)
         ctx["work"] = str(subject.work)
