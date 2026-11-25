@@ -677,7 +677,7 @@ fn hair_card(t: Tex) -> bool {
 /// pixel (`fp` metres) cannot hold them.
 fn scalp_strands(uv: [f32; 2], fp: f32) -> f32 {
     let (a, l) = (uv[0], uv[1]);
-    let keep = |cycles_cm: f32| smooth(3.0, 6.0, 0.01 / cycles_cm / fp.max(1e-6));
+    let keep = |cycles_cm: f32| smooth(1.5, 3.0, 0.01 / cycles_cm / fp.max(1e-6));
     let coarse = noise(a * 5.0 + 0.11 * l, l * 0.05, 101) - 0.5;
     let fine = noise(a * 11.0 + 0.07 * l, l * 0.09 + 3.0, 103) - 0.5;
     (1.0 + 0.36 * coarse * keep(5.0) + 0.3 * fine * keep(11.0)).clamp(0.6, 1.4)
@@ -692,6 +692,8 @@ struct Strands {
     along: V3,
     kc: Lin,
     kv: f32,
+    /// Whose hair (0 hers, 1 his).
+    who: u8,
 }
 
 /// r42:arcus-hair — a head of hair (the owner's review of sheet v8: her ponytail's cards
@@ -703,6 +705,7 @@ struct Strands {
 /// soft sheen band across the head, as a tied-back head of hair shows. `k` how much of the
 /// surface is hair (the scalp's edge is skin); `detail` the strand's own light.
 fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f32) -> Lin {
+    let look = crate::scene::figure::cards::hair_look(s.who);
     let n = s.n;
     let along = s.along - n * s.along.dot(n);
     let along = if along.len() < 0.2 {
@@ -716,9 +719,8 @@ fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f
     let lit = (n.dot(s.l) * 2.0 + 0.6).clamp(0.0, 1.0) * s.kv;
     let th = along.dot(h);
     let sin = (1.0 - th * th).max(0.0).sqrt();
-    let tune = crate::scene::figure::cards::tune;
-    let s1 = sin.powf(tune(8, 60.0)) * tune(9, 0.3);
-    let s2 = sin.powf(tune(10, 10.0)) * tune(11, 0.25);
+    let s1 = sin.powf(look.shine.0) * look.shine.1;
+    let s2 = sin.powf(look.sheen.0) * look.sheen.1;
     let tint = lscale(m.base, 1.5);
     // (A bright strand catches more of it; the gaps' deeper hair less.)
     let g = detail * detail * k;
@@ -768,6 +770,10 @@ pub fn shade(
         t if hair_card(t) => Some(1.0),
         _ => None,
     };
+    // (The screen's occlusion is not a head of hair's: its cards lie in layers a centimetre
+    // apart, and the depths between them darkened each lower layer — his crown read as
+    // lighter and darker patches.)
+    let ao = if hairy.is_some() { 1.0 } else { ao };
     let mut n = if figure && n.dot(v) < 0.0 && n.dot(v) > -0.35 {
         // r42:arcus-upper — at a figure's silhouette the smooth normal turns just past the
         // eye: bent back to graze it, not flipped (flipped it faced away from every light:
@@ -794,7 +800,7 @@ pub fn shade(
         ((n.dot(l) + 0.2) / 1.2).max(0.0)
     } else if hairy.is_some() {
         // r42:arcus-hair — light through hair: a head of hair's terminator is softer still.
-        let w = crate::scene::figure::cards::tune(7, 0.35);
+        let w = 0.35;
         ((n.dot(l) + w) / (1.0 + w)).max(0.0)
     } else {
         n.dot(l).max(0.0)
@@ -856,6 +862,11 @@ pub fn shade(
         } else {
             scalp_strands(uv, fp)
         };
+        let who = match m.tex {
+            Tex::Card(k) => k / 3,
+            Tex::Scalp(w) => w,
+            _ => 0,
+        };
         let lit = Strands {
             n,
             v,
@@ -863,6 +874,7 @@ pub fn shade(
             along,
             kc,
             kv,
+            who,
         };
         return rig.hazed(p, strands(m, &sf, &lit, e, rim, detail, k));
     }

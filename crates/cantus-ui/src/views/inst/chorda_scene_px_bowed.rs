@@ -128,7 +128,7 @@ fn pmat(b: Bowed, r: Role) -> PMat {
             };
             let base = match k % 3 {
                 2 => lin3(base).map(|c| c * 1.8),
-                0 => lin3(base).map(|c| c * crate::scene::figure::cards::hair_albedo()),
+                0 => lin3(base).map(|c| c * crate::scene::figure::cards::hair_look(k / 3).albedo),
                 _ => lin3(base),
             };
             PMat::lacquer(base, 0.06, 0.45).with(Tex::Card(k))
@@ -200,7 +200,8 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
             Role::HairFair => g.mat(PMat {
                 dark: scalp,
                 ..PMat::lacquer(
-                    lin3(hp::HAIR_FAIR).map(|c| c * crate::scene::figure::cards::hair_albedo()),
+                    lin3(hp::HAIR_FAIR)
+                        .map(|c| c * crate::scene::figure::cards::hair_look(0).albedo),
                     0.1,
                     0.42,
                 )
@@ -212,22 +213,12 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
             // at its edge by the hairline.)
             Role::Scalp(w) => {
                 let hair = if *w == 0 { hp::HAIR_FAIR } else { hp::HAIR };
-                let deep = crate::scene::figure::cards::tune(6, 0.95)
-                    * crate::scene::figure::cards::hair_albedo();
-                g.mat(
-                    PMat::lacquer(lin3(hair).map(|c| c * deep), 0.06, 0.45).with(Tex::Scalp(*w)),
-                )
+                let deep = crate::scene::figure::cards::hair_look(*w).scalp;
+                g.mat(PMat::lacquer(lin3(hair).map(|c| c * deep), 0.06, 0.45).with(Tex::Scalp(*w)))
             }
             // (r42:arcus-hair: the eyes from their texture — the iris, its pupil, the white —
             // wet: a catch-light from the key.)
-            Role::Eye | Role::Iris => g.mat(
-                PMat::lacquer(
-                    [1.0; 3],
-                    crate::scene::figure::cards::tune(12, 0.6),
-                    crate::scene::figure::cards::tune(13, 0.04),
-                )
-                .with(Tex::Eye),
-            ),
+            Role::Eye | Role::Iris => g.mat(PMat::lacquer([1.0; 3], 0.6, 0.04).with(Tex::Eye)),
             // The thick shell is the Drawn picture's (here the cards over the scalp).
             Role::Shell(_) => continue,
             r => id(g, *r),

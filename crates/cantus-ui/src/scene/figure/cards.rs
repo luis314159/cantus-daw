@@ -150,22 +150,6 @@ pub fn skin_detail(u: f32, v: f32) -> f32 {
     ((a * (1.0 - ty) + b * ty) / 128.0).clamp(0.6, 1.4)
 }
 
-/// r42:arcus-hair — development tuning (`CANTUS_HAIR_TUNE`, numbers by comma), read once.
-pub fn tune(i: usize, default: f32) -> f32 {
-    static T: OnceLock<Vec<Option<f32>>> = OnceLock::new();
-    T.get_or_init(|| {
-        std::env::var("CANTUS_HAIR_TUNE")
-            .unwrap_or_default()
-            .split(',')
-            .map(|x| x.trim().parse().ok())
-            .collect()
-    })
-    .get(i)
-    .copied()
-    .flatten()
-    .unwrap_or(default)
-}
-
 fn smooth(a: f32, b: f32, x: f32) -> f32 {
     let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
@@ -176,27 +160,65 @@ fn smooth(a: f32, b: f32, x: f32) -> f32 {
 /// hair, so it meets the forehead softly (the owner's review of sheet v8: a hard edge).
 pub fn feather(who: u8, line: f32) -> f32 {
     if who == 0 {
-        smooth(tune(0, -4.0), tune(1, 1.0), line)
+        smooth(-6.0, 2.0, line)
     } else {
-        smooth(tune(2, -60.0), tune(3, -40.0), line)
+        // (His short hair's edge is its cards' own, as it read well on sheet v8.)
+        1.0
     }
 }
 
 /// r42:arcus-hair — a strand's coverage `alpha` where the hair keeps `fade` of itself: the
 /// fainter parts of the strands go first and the cores last (multiplied, every strand
-/// faded alike and the coverage's dither read as a sand of dots at 200 %).
+/// faded alike and the coverage's dither read as a sand of dots at 200 %). The texture's
+/// soft edges are drawn in toward the strands' cores (a strand's faint fringe over the
+/// skin, a quarter of a pixel's samples, read as a dot).
 pub fn thin(alpha: f32, fade: f32) -> f32 {
+    let alpha = smooth(0.2, 0.8, alpha);
     if fade >= 1.0 {
         return alpha;
     }
     ((alpha - (1.0 - fade)) / fade.max(0.05)).clamp(0.0, 1.0)
 }
 
-/// r42:arcus-hair — the hair's albedo in the Photographic bake against the Drawn picture's
-/// colour (seen per pixel under the key a blonde read near white, its strands and its sheen
-/// clipped away).
-pub fn hair_albedo() -> f32 {
-    tune(18, 0.7)
+/// r42:arcus-hair — how a figure's head of hair takes the light in the Photographic bake.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct HairLook {
+    /// Its albedo against the Drawn picture's colour (seen per pixel under the key her
+    /// blonde read near white, its strands and its sheen clipped away).
+    pub albedo: f32,
+    /// The narrow, near white highlight along the strands: its sharpness and strength.
+    pub shine: (f32, f32),
+    /// The broad one tinted by the hair.
+    pub sheen: (f32, f32),
+    /// How much of the strands' own detail shows (1 the maps' as stored).
+    pub detail: f32,
+    /// The scalp's colour under the cards against the Drawn picture's hair colour: the
+    /// deeper hair in the gaps between the cards (his short cards leave wide ones, and a
+    /// scalp as light as his hair read as pale patches over the crown).
+    pub scalp: f32,
+}
+
+/// `who`'s (0 her, 1 him) hair. His short hair runs every way (its curls' way changes
+/// from strand to strand) and is dark (the key's highlight dwarfs its diffuse): a sheen
+/// that suits her blonde read on him as pale glossy blotches, so his stays faint.
+pub fn hair_look(who: u8) -> HairLook {
+    if who == 0 {
+        HairLook {
+            albedo: 0.6,
+            shine: (60.0, 0.3),
+            sheen: (10.0, 0.25),
+            detail: 1.0,
+            scalp: 0.57,
+        }
+    } else {
+        HairLook {
+            albedo: 1.0,
+            shine: (60.0, 0.004),
+            sheen: (12.0, 0.006),
+            detail: 0.35,
+            scalp: 0.55,
+        }
+    }
 }
 
 /// r42:arcus-hair — how much of the scalp under the cards stands at `line` degrees in from
@@ -205,8 +227,10 @@ pub fn hair_albedo() -> f32 {
 /// between the feathered strands and no band of scalp is drawn.
 pub fn scalp_cover(who: u8, line: f32, across: f32) -> f32 {
     if who == 0 {
-        let wave = (across * tune(15, 7.0)).sin() * 0.6 + (across * 2.3 * tune(15, 7.0)).sin() * 0.4;
-        smooth(tune(4, -1.0), tune(5, 2.0), line + wave * tune(16, 1.5))
+        let wave = (across * 7.0).sin() * 0.6 + (across * 2.3 * 7.0).sin() * 0.4;
+        // (Over six degrees, about two millimetres a degree: a narrower ramp read as a
+        // jagged staircase at 200 %, the coordinator's review.)
+        smooth(-3.5, 2.5, line + wave)
     } else {
         1.0
     }
@@ -258,11 +282,17 @@ pub fn eye(uv: [f32; 2]) -> [f32; 3] {
     let (x0, y0) = (x.floor() as usize, y.floor() as usize);
     let (x1, y1) = ((x0 + 1).min(w - 1), (y0 + 1).min(h - 1));
     let (tx, ty) = (x - x0 as f32, y - y0 as f32);
-    std::array::from_fn(|i| {
+    let rgb: [f32; 3] = std::array::from_fn(|i| {
         let a = px[y0 * w + x0][i] * (1.0 - tx) + px[y0 * w + x1][i] * tx;
         let b = px[y1 * w + x0][i] * (1.0 - tx) + px[y1 * w + x1][i] * tx;
         a * (1.0 - ty) + b * ty
-    })
+    });
+    // (Deeper and greyer than the texture — in the bake's light a blue-green iris read as
+    // a small saturated doll's dot, the coordinator's review: a natural grey-blue — and the
+    // upper lid's shadow over the top of the iris, as an eye under a lid has it.)
+    let y = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    let lid = 1.0 - 0.6 * smooth(0.5, 0.78, uv[1]);
+    rgb.map(|c| (c * 0.5 + y * 0.5) * 0.62 * lid)
 }
 
 /// Card `k`'s texture (none past the six).
@@ -371,10 +401,111 @@ mod tests {
             let c = super::card(k).expect("a card's texture");
             let t = &c.levels[0].texels;
             let covered = t.iter().filter(|t| t[1] >= 128).count();
-            assert!(
-                covered > 0 && covered < t.len(),
-                "card {k}: {covered}"
-            );
+            assert!(covered > 0 && covered < t.len(), "card {k}: {covered}");
+        }
+    }
+
+    /// r42:arcus-hair — the owner's camouflage, in the data: a hair card's detail has no
+    /// large-scale light left (its mean over every covered 64-texel block within a few
+    /// per cent of 1), and nearly every covered texel knows its strands' way.
+    #[test]
+    fn hair_maps_carry_no_large_scale_light_and_know_the_strands_way() {
+        for k in [0u8, 3] {
+            let c = super::card(k).expect("a hair card");
+            assert!(c.hair, "card {k} is stored as its maps");
+            let l = &c.levels[0];
+            let mut means = Vec::new();
+            for by in (0..l.h).step_by(64) {
+                for bx in (0..l.w).step_by(64) {
+                    let (mut sum, mut n) = (0.0f32, 0usize);
+                    for y in by..(by + 64).min(l.h) {
+                        for x in bx..(bx + 64).min(l.w) {
+                            let t = l.texels[y * l.w + x];
+                            if t[1] >= 200 {
+                                sum += t[0] as f32 / 128.0;
+                                n += 1;
+                            }
+                        }
+                    }
+                    if n > 1024 {
+                        means.push(sum / n as f32);
+                    }
+                }
+            }
+            assert!(means.len() > 10, "card {k}: {} blocks", means.len());
+            for m in &means {
+                assert!((m - 1.0).abs() < 0.08, "card {k}: a block's mean {m}");
+            }
+            let (mut way, mut n) = (0usize, 0usize);
+            for y in (0..l.h).step_by(7) {
+                for x in (0..l.w).step_by(7) {
+                    if l.texels[y * l.w + x][1] < 200 {
+                        continue;
+                    }
+                    n += 1;
+                    let uv = [
+                        (x as f32 + 0.5) / l.w as f32,
+                        1.0 - (y as f32 + 0.5) / l.h as f32,
+                    ];
+                    if let (_, Some(d)) = c.strand(uv, 0.0) {
+                        assert!((d[0] * d[0] + d[1] * d[1] - 1.0).abs() < 1e-3);
+                        way += 1;
+                    }
+                }
+            }
+            assert!(way * 10 >= n * 9, "card {k}: the way at {way} of {n}");
+        }
+        for k in [1u8, 2, 4, 5] {
+            assert!(!super::card(k).expect("a card").hair);
+        }
+    }
+
+    /// Each level halves the side, down to 16 texels, and keeps the coverage's mean.
+    #[test]
+    fn card_levels_halve_and_keep_the_coverage() {
+        let c = super::card(0).expect("her hair");
+        let mean = |l: &super::Level| {
+            l.texels.iter().map(|t| t[1] as f64).sum::<f64>() / l.texels.len() as f64
+        };
+        let m0 = mean(&c.levels[0]);
+        for w in c.levels.windows(2) {
+            assert_eq!(w[1].w * 2, w[0].w);
+            assert!((mean(&w[1]) - m0).abs() < 2.0, "{} vs {m0}", mean(&w[1]));
+        }
+        assert_eq!(c.levels.last().map(|l| l.w), Some(16));
+    }
+
+    /// The hairline: her cards whole well inside it and gone well out over the skin, the
+    /// strands' cores kept longest; the scalp's edge thinning the same way.
+    #[test]
+    fn the_hair_thins_out_over_the_hairline() {
+        use super::{feather, scalp_cover, thin};
+        assert_eq!(feather(0, 10.0), 1.0);
+        assert_eq!(feather(0, -10.0), 0.0);
+        assert_eq!(feather(1, -30.0), 1.0);
+        let mut last = 0.0;
+        for i in 0..=40 {
+            let f = feather(0, -8.0 + i as f32 * 0.3);
+            assert!(f >= last);
+            last = f;
+        }
+        // Half the hair kept: a strand's core stays, its faint fringe goes.
+        assert!(thin(1.0, 0.5) > 0.99);
+        assert_eq!(thin(0.3, 0.5), 0.0);
+        assert_eq!(thin(0.9, 0.0), 0.0);
+        for a in [0.0, 0.4, 1.0] {
+            assert!(scalp_cover(0, 10.0, a) > 0.99 && scalp_cover(0, -5.0, a) < 0.01);
+        }
+    }
+
+    /// The eyes: a dark pupil in the middle of each texture, the white lighter round it.
+    #[test]
+    fn the_eyes_have_a_pupil_and_a_white() {
+        for u0 in [0.0f32, 2.0] {
+            let y = |c: [f32; 3]| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+            let pupil = y(super::eye([u0 + 0.5, 0.5]));
+            let white = y(super::eye([u0 + 0.05, 0.5]));
+            assert!(pupil * 4.0 < white, "{u0}: pupil {pupil}, white {white}");
         }
     }
 }

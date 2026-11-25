@@ -88,6 +88,41 @@ occluding capsules in its live painter.
     strands are not broken dots. The Drawn picture has no textures: it keeps the hair's
     thick shell and the painted brows (`Stuff::Shell`); the Photographic one draws a thin
     scalp (`Stuff::Scalp`) under the cards instead.
+    **One head of hair** (amendment, 2026-11-25, r42:arcus-hair — the owner's review of
+    sheet v8: her hair rendered as camouflage, the hairline a hard edge). The patches were
+    the scalp — it stood 2.5–3.9 mm over the skin, over a quarter of MakeHuman's ponytail
+    cards, which hug the skull — and the texture's own large-scale light. Now:
+    - a hair card's texture is stored as its *maps* (`tools/arcus-figures/hair_maps.py`,
+      RGBA, 1024 px): the strands' detail (the grey over its own alpha-weighted blur,
+      σ 10 texels, so no region is lighter or darker than another), the way the strands
+      run (the structure tensor's minor axis, as a doubled angle) and the coverage; the
+      bake reads it at the mip level a sample reaches (`cards::Card::levels`);
+    - **alpha to coverage** over the picture's 2 × 2 samples: an ordered pattern turned by
+      the triangle (two layers at half cover three quarters), the texture's soft fringe
+      drawn in toward the strands' cores (a quarter-covered pixel over skin read as a dot);
+      brows and lashes read a level and a half softer, their coverage raised (a tone, not
+      dots); no card in the shadow map, as before;
+    - every card, the scalp and the chignon **lit as one** (`px_shade::strands`): the
+      diffuse from the head of hair's smooth normal (the cards' middle, for the scalp too),
+      wrapped (0.35); one base colour (her blonde at 0.6 of the Drawn colour: per pixel under
+      the key it clipped to white) with each strand's own detail; **Kajiya–Kay** along the
+      strands' way from the texture — a narrow near-white highlight and a broad tinted one,
+      her sheen band; his short curls run every way, so his sheen stays faint and his
+      detail at a third (`cards::hair_look`);
+    - the scalp 0.4 mm over the skin and every card at least 1.2 mm over it
+      (`build_figures.py::lift_cards`); her front cards drawn 8° down to the hairline
+      (`reach_line`: they ended about a centimetre short, and the scalp showed as a band);
+    - **the hairline**: each card vertex carries its degrees in from the hairline (the
+      `.fig`'s luminance byte, unused on a card); her cards' coverage thins over the last
+      five degrees (`cards::feather`, the faint parts of the strands first, the cores last)
+      and the scalp under them thins at its edge, unevenly along it
+      (`cards::scalp_cover`), so strands, not a line, meet the forehead.
+    **The eyes** (same review: open, on the strings): MakeHuman's CC0 eye textures
+    (`bluegreen_eye.png` hers, `brownlight_eye.png` his — CC0 in the pack's manifest and
+    their `.mhmat` headers — cropped round the iris, `assets/figures/<who>_eye.png`,
+    128 px) mapped down each eye's gaze, a little deeper and greyer than the texture, wet
+    (coat 0.6, rough 0.04: the key's catch-light); the lids raised (upper 5°, lower 2°,
+    from 14° and 3°) and the gaze 28° down and 12° to the player's left.
   - `Quality` — **how finely the live arms are drawn**, a machine preference
     (`Settings::figure_quality`, Settings ▸ Appearance ▸ *Figure detail*; amendment,
     2026-11-24, the owner: "I'd rather it look good than save ms, or make it configurable

@@ -210,14 +210,8 @@ fn raster_rows(
         // a soft tone, not a line of dots.)
         let lod = card
             .and_then(|c| {
-                c.card.map(|t| {
-                    t.lod(c.uv, area * 0.5)
-                        + if t.hair {
-                            0.0
-                        } else {
-                            crate::scene::figure::cards::tune(17, 1.5)
-                        }
-                })
+                c.card
+                    .map(|t| t.lod(c.uv, area * 0.5) + if t.hair { 0.0 } else { 3.0 })
             })
             .unwrap_or(0.0);
         let ya = ((t.lo.y - 0.5).ceil().max(y0 as f32)) as usize;
@@ -265,15 +259,8 @@ fn raster_rows(
                             ),
                             // (A brow's or a lash's softer level's coverage, its hairs' tone
                             // kept: thin, it fell to a few dots.)
-                            Some(tex) => (
-                                (tex.alpha([u, v], lod) * crate::scene::figure::cards::tune(19, 2.0))
-                                    .min(1.0),
-                                i,
-                            ),
-                            None => (
-                                crate::scene::figure::cards::scalp_cover(c.who, line, u),
-                                0,
-                            ),
+                            Some(tex) => ((tex.alpha([u, v], lod) * 3.0).min(1.0), i),
+                            None => (crate::scene::figure::cards::scalp_cover(c.who, line, u), 0),
                         };
                         if cover <= coverage_level(px, py, seed) {
                             continue;
@@ -442,6 +429,14 @@ fn gbuf(
     (depth, tri)
 }
 
+/// r42:arcus-hair — whether `m` is a realistic figure's (skin, cloth, hair, eyes).
+fn figure_mat(m: &super::mat::PMat) -> bool {
+    matches!(
+        m.tex,
+        Tex::Skin | Tex::Velvet | Tex::Hair | Tex::Card(_) | Tex::Scalp(_) | Tex::Eye
+    )
+}
+
 /// What a triangle's grain is read from.
 #[derive(Copy, Clone, PartialEq)]
 enum Grain {
@@ -538,8 +533,16 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, grain: Grain) -> (V3, V3, [f32
     // r42:arcus-hair — a hair card: its strand's detail at the level a sample reaches, and
     // the way its strands run (dP/du·du + dP/dv·dv along the texture's way).
     if let Grain::Card(k) = grain {
-        if let Some(c) = crate::scene::figure::cards::card(k).filter(|c| c.hair && det.abs() > 1e-12) {
-            let dpdv = (a2 * du1 - a1 * du2) * (1.0 / det);
+        if let Some(c) = crate::scene::figure::cards::card(k).filter(|c| c.hair) {
+            // (A card triangle whose texture coordinates are degenerate still takes its
+            // strand's detail — given back as its raw coordinate, it read as pale patches
+            // over his crown — at the first level, its grain its edge's.)
+            let ok = det.abs() > 1e-12;
+            let dpdv = if ok {
+                (a2 * du1 - a1 * du2) * (1.0 / det)
+            } else {
+                V3::default()
+            };
             let texel = tg.cross(dpdv).len() / (c.w * c.h) as f32;
             let z = (world(cam, pw) - cam.eye).dot(cam.fwd).max(NEAR);
             let foot = z / cam.k;
@@ -549,8 +552,13 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, grain: Grain) -> (V3, V3, [f32
                 0.0
             };
             let (detail, way) = c.strand(uv, lod);
-            let along = way.map_or(tg, |w| tg * w[0] + dpdv * w[1]);
-            let along = if along.len() > 1e-9 { along } else { tg };
+            let detail =
+                1.0 + (detail - 1.0) * crate::scene::figure::cards::hair_look(k / 3).detail;
+            let along = match way {
+                Some(w) if ok => tg * w[0] + dpdv * w[1],
+                _ => tg,
+            };
+            let along = if along.len() > 1e-9 { along } else { a1 };
             return (pw, n, [detail, 1.0], along.norm());
         }
     }
@@ -1513,8 +1521,20 @@ pub fn bake(
                     let mut acc = [0.0f32; 3];
                     let mut wsum = 0.0f32;
                     let mut zmin = f32::MAX;
+                    // r42:arcus-hair — ...but a pixel a figure's silhouette crosses sums its
+                    // samples evenly: her light hair or a lit jaw weighted down against the
+                    // room behind lost its share of the edge, and the silhouette stepped.
+                    let even = ss > 1
+                        && (0..ss * ss).any(|i| {
+                            let t = tri[(y * ss + i / ss) * sw + x * ss + i % ss];
+                            t != u32::MAX && figure_mat(&geo.mats[geo.tris[t as usize].m as usize])
+                        });
                     let mut add = |acc: &mut Lin, c: Lin| {
-                        let wt = 1.0 / (1.0 + ex * (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]));
+                        let wt = if even {
+                            1.0
+                        } else {
+                            1.0 / (1.0 + ex * (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]))
+                        };
                         *acc = ladd(*acc, lscale(c, wt));
                         wsum += wt;
                     };

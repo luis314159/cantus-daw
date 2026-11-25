@@ -271,12 +271,15 @@ def close_lids(pos, wt, J):
 
 # Half-open, looking down at the strings (the owner's review, 2026-11-24: closed read as
 # asleep or a mannequin).
-UPPER_LID = 0.0
+UPPER_LID = 5.0
 LOWER_LID = 2.0
 # How far the eyes look down (degrees). (r42:arcus-hair: the owner's review of sheet v8 —
 # the eyes should read open, on the strings: the lids raised from 14 and 3 degrees and the
 # gaze from 32, so the iris and its pupil show under the lid from the picture's camera.)
-GAZE_DOWN = 22.0
+GAZE_DOWN = 28.0
+# And toward the player's left, where the strings are (under a violin's chin, beside a
+# cello's neck): the eyes on the instrument, not on the viewer.
+GAZE_LEFT = 12.0
 
 
 def scene_weights(n, wt, m2s):
@@ -661,8 +664,9 @@ def make(sex, data, assets):
     # there, as real skin has.
     red = red + 0.28 * warmth(pos, J, sex)
     lip = lip_spot(pos, J)
-    red = red + 0.32 * lip
-    lum = lum * (1.0 - 0.1 * lip)
+    # (r42:arcus-hair: a touch more natural rose — the coordinator's review: still pale.)
+    red = red + 0.45 * lip
+    lum = lum * (1.0 - 0.14 * lip)
     q = pos * 0.45
     blotch = (np.sin(q[:, 0] * 1.3 + 0.7) * np.sin(q[:, 1] * 1.1 + 1.9) * np.sin(q[:, 2] * 1.7))
     red = red + 0.05 * blotch
@@ -764,6 +768,8 @@ def make(sex, data, assets):
             ct = ct[~((cen[:, 1] < c[1] - 4.0) & (cen[:, 2] < c[2] - 3.0))]
         lum = None
         if kind == "hair":
+            if sex == "female":
+                cp = reach_line(cp, c, HER_LINE)
             cp = lift_cards(cp, pos, btris, head_w)
             # (r42:arcus-hair: how far in from the hairline each vertex lies — the bake
             # feathers the cards' coverage at the front of the hair, so the strands thin
@@ -820,6 +826,27 @@ def scalp_thick(th, ph):
 # the skin (cm).
 SCALP_BASE = 0.04
 CARD_CLEAR = 0.12
+
+
+# r42:arcus-hair — how far her front cards are drawn down to the hairline (degrees; the
+# ponytail's cards end about a centimetre short of it, and the scalp showed there as a band).
+REACH = 8.0
+
+
+def reach_line(cp, c, line):
+    """The hair cards' front drawn down over the head toward the hairline: each vertex within
+    15° of it turned down (about the head's centre, keeping its distance) by up to ``REACH``
+    — the strands, combed back, run a little longer; nothing past the temples moves."""
+    q = cp - c
+    r = np.linalg.norm(q, axis=1)
+    th, ph = angles(cp, c)
+    f = ph - hairline(th, line)
+    front = 1.0 - smooth01((np.abs(th) - 55.0) / 45.0)
+    d = REACH * front * (1.0 - smooth01((f - 4.0) / 14.0))
+    ph2 = np.radians(ph - d)
+    h = np.cos(ph2) * r
+    a = np.radians(th)
+    return c + np.stack([np.sin(a) * h, np.sin(ph2) * r, np.cos(a) * h], 1)
 
 
 def lift_cards(cp, pos, tris, head_w):
@@ -1032,7 +1059,8 @@ def eyeball(c):
     """An eye under its lowered lid: a ball in the socket, looking down ``GAZE_DOWN`` toward the
     instrument, its iris (a grey-green disc 30° across its half) and the white round it."""
     r = 1.18
-    gaze = np.array([0.0, -np.sin(np.radians(GAZE_DOWN)), np.cos(np.radians(GAZE_DOWN))])
+    dn, lf = np.radians(GAZE_DOWN), np.radians(GAZE_LEFT)
+    gaze = np.array([np.sin(lf) * np.cos(dn), -np.sin(dn), np.cos(lf) * np.cos(dn)])
     up = np.cross(np.cross(gaze, np.array([0.0, 1.0, 0.0])), gaze)
     up = up / np.linalg.norm(up)
     side = np.cross(up, gaze)
