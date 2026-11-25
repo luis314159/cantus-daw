@@ -62,6 +62,16 @@ pub enum Stuff {
     Nail,
     /// r42:arcus-upper — her small drop earrings (gold).
     Jewel,
+    /// r42:arcus-upper — MakeHuman's CC0 hair, brow and lash proxies: alpha-tested cards
+    /// in the Photographic bake (their textures `assets/figures/<who>_<kind>.png`), left out
+    /// of the Drawn picture; their vertices carry the cards' texture coordinates.
+    CardHair,
+    CardBrow,
+    CardLash,
+    /// r42:arcus-upper — the hair as a thick shell (the Drawn picture's) and a thin scalp
+    /// under the cards (the Photographic picture's).
+    Shell,
+    Scalp,
 }
 
 impl Stuff {
@@ -79,6 +89,11 @@ impl Stuff {
             10 => Stuff::Lash,
             11 => Stuff::Nail,
             12 => Stuff::Jewel,
+            13 => Stuff::CardHair,
+            14 => Stuff::CardBrow,
+            15 => Stuff::CardLash,
+            16 => Stuff::Shell,
+            17 => Stuff::Scalp,
             _ => Stuff::Shoes,
         }
     }
@@ -232,7 +247,15 @@ pub fn parse(b: &[u8]) -> Option<Figure> {
     }
     // A hair vertex carries its strand coordinates instead of the skin's detail.
     for (t, s) in f.tris.iter().zip(&f.stuff) {
-        if *s == Stuff::Hair {
+        if matches!(
+            *s,
+            Stuff::Hair
+                | Stuff::CardHair
+                | Stuff::CardBrow
+                | Stuff::CardLash
+                | Stuff::Shell
+                | Stuff::Scalp
+        ) {
             for &i in t {
                 f.detail[i as usize] = strand[i as usize];
             }
@@ -696,6 +719,11 @@ pub fn role(st: Stuff, who: Who, tone: u8) -> super::bowed_mesh::Role {
         Stuff::Lash => Role::Lash,
         Stuff::Nail => Role::Nail(tone),
         Stuff::Jewel => Role::Brass,
+        Stuff::CardHair => Role::Card(who as u8 * 3),
+        Stuff::CardBrow => Role::Card(who as u8 * 3 + 1),
+        Stuff::CardLash => Role::Card(who as u8 * 3 + 2),
+        Stuff::Shell => Role::Shell(who as u8),
+        Stuff::Scalp => Role::Scalp(who as u8),
     }
 }
 

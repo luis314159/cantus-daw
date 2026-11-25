@@ -16,6 +16,7 @@
 //! nothing at rest); the stylised musician and the mannequin keep their own skeleton
 //! (`bowed_figure`).
 
+pub mod cards;
 pub mod grip;
 pub mod live;
 pub mod neck_hand;

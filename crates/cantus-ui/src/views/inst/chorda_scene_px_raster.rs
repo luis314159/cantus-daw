@@ -122,16 +122,37 @@ fn project(cam: &Camera, tris: &[Tri], skip: &[bool]) -> Vec<(u32, PTri)> {
     out
 }
 
+/// A projected triangle's card (r42:arcus-upper): its texture and its corners' coordinates
+/// — the samples its alpha leaves bare are not its.
+type Cut = Option<(&'static crate::scene::figure::cards::Card, [[f32; 2]; 3])>;
+
+/// Each projected triangle's card, if it is one.
+fn cuts(geo: &Geo, pt: &[(u32, PTri)]) -> Vec<Cut> {
+    pt.iter()
+        .map(|&(i, _)| {
+            let t = &geo.tris[i as usize];
+            match geo.mats[t.m as usize].tex {
+                Tex::Card(k) => {
+                    crate::scene::figure::cards::card(k).map(|c| (c, t.v.map(|v| v.uv)))
+                }
+                _ => None,
+            }
+        })
+        .collect()
+}
+
 /// Rasterise into rows `y0..y1` of a `w`-wide buffer: depth and (when given) triangle.
 fn raster_rows(
     pt: &[(u32, PTri)],
+    cut: &[Cut],
     w: usize,
     y0: usize,
     y1: usize,
     depth: &mut [f32],
     mut tri: Option<&mut [u32]>,
 ) {
-    for &(i, ref t) in pt {
+    for (j, &(i, ref t)) in pt.iter().enumerate() {
+        let card = cut.get(j).copied().flatten();
         if t.hi.y < y0 as f32 || t.lo.y > y1 as f32 || t.hi.x < 0.0 || t.lo.x > w as f32 {
             continue;
         }
@@ -164,6 +185,15 @@ fn raster_rows(
                 let z = 1.0 / (w0 * t.iz[0] + w1 * t.iz[1] + w2 * t.iz[2]);
                 let k = row + px;
                 if z < depth[k] {
+                    if let Some((c, uv)) = card {
+                        // Perspective-correct: the coordinates over depth, interpolated.
+                        let (a, b, d) = (w0 * t.iz[0], w1 * t.iz[1], w2 * t.iz[2]);
+                        let u = (a * uv[0][0] + b * uv[1][0] + d * uv[2][0]) * z;
+                        let v = (a * uv[0][1] + b * uv[1][1] + d * uv[2][1]) * z;
+                        if !c.covers([u, v]) {
+                            continue;
+                        }
+                    }
                     depth[k] = z;
                     if let Some(tr) = tri.as_deref_mut() {
                         tr[k] = i;
@@ -308,6 +338,7 @@ fn gbuf(
     skip: &[bool],
 ) -> (Vec<f32>, Vec<u32>) {
     let pt = project(cam, &geo.tris, skip);
+    let cut = cuts(geo, &pt);
     let mut depth = vec![f32::MAX; w * h];
     let mut tri = if tris {
         vec![u32::MAX; w * h]
@@ -316,11 +347,11 @@ fn gbuf(
     };
     if tris {
         rows2(h, w, crew, &mut depth, &mut tri, |y0, y1, d, t| {
-            raster_rows(&pt, w, y0, y1, d, Some(t))
+            raster_rows(&pt, &cut, w, y0, y1, d, Some(t))
         });
     } else {
         rows1(h, w, crew, &mut depth, |y0, y1, d| {
-            raster_rows(&pt, w, y0, y1, d, None)
+            raster_rows(&pt, &cut, w, y0, y1, d, None)
         });
     }
     (depth, tri)
@@ -1094,7 +1125,8 @@ fn mirror(
     let mut md = vec![f32::MAX; w * h];
     let mut mt = vec![u32::MAX; w * h];
     rows2(h, w, crew, &mut md, &mut mt, |y0, y1, d, t| {
-        raster_rows(&pt, w, y0, y1, d, Some(t))
+        // (No cards in the floor's soft mirror: a figure's hair there is a blur.)
+        raster_rows(&pt, &[], w, y0, y1, d, Some(t))
     });
     let bytes = pt.len() * std::mem::size_of::<(u32, PTri)>() + w * h * 20;
     drop(pt);

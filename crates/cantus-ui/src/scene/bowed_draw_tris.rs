@@ -87,6 +87,11 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
         })
         .unwrap_or(hp::real_skin(0).albedo);
     for (role, t) in &m.tris {
+        // r42:arcus-upper — the cards are the Photographic picture's (this one draws no
+        // texture; the hair's shell and the painted brows stand for them).
+        if matches!(role, Role::Card(_) | Role::Scalp(_)) {
+            continue;
+        }
         let base = match role {
             Role::Skin(i) => hp::real_skin(*i),
             Role::Hair => hp::hair(hp::HAIR),
@@ -121,7 +126,9 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
                 let vv = c.view(p);
                 let mat = match role {
                     Role::Skin(_) => skin_at(&base, t.detail[i]),
-                    Role::Hair | Role::HairFair => hair_at(&base, t.detail[i], scalp),
+                    Role::Hair | Role::HairFair | Role::Shell(_) => {
+                        hair_at(&base, t.detail[i], scalp)
+                    }
                     _ => base,
                 };
                 let mut col = c.light.shade(&mat, n, vv, p, None, 1.0);

@@ -312,7 +312,16 @@ pub fn render(
     q: Quality,
     threads: usize,
 ) -> (egui::ColorImage, Stats) {
-    let (w, h, q) = shape(size, ppp, q);
+    let (w, h, mut q) = shape(size, ppp, q);
+    // r42:arcus-upper — a realistic figure keeps two samples a pixel side at any size: its
+    // hair, brows and lashes are alpha-tested cards, and one sample a pixel shows their
+    // strands as broken dots (the owner's review). The bake's peak grows with it (about
+    // 30 bytes a sample: 150 MB for a 200 % picture, for the seconds it bakes).
+    if let crate::scene::Subject::Bowed { holder, .. } = &view.subject {
+        if crate::scene::bowed_human::who(holder.hold).is_some() && q.full {
+            q.ss = q.ss.max(2);
+        }
+    }
     render_px(view, size, w, h, q, threads)
 }
 

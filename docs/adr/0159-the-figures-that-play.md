@@ -75,13 +75,27 @@ occluding capsules in its live painter.
     numbers their pictures were drawn with, so the pictures are unchanged. What is the
     instrument's (where its neck is, whether a chair stands under the figure) comes beside
     the rig (`stylised::Beside`).
+  - `cards` — **hair, brows and lashes as alpha-tested cards** (amendment, 2026-11-25,
+    the review: a shell read as a helmet and brows painted on a half-centimetre vertex grid
+    vanished): MakeHuman's own CC0 proxies (`ponytail01` for her — its tail left out, the
+    chignon is ours —, `short02` for him, `eyebrow001`/`eyebrow010`, `eyelashes01`; each
+    asset's licence checked CC0 in `packs/makehuman_system_assets.json` and its `.mhmat`),
+    fitted to each body by the converter, their textures kept as grey and alpha
+    (`assets/figures/<who>_<hair|brow|lash>.png`, 512/256 px, 370 KB in all). The
+    Photographic raster alpha-tests them (a sample the card's alpha leaves bare is not the
+    card's — in the picture and in the shadow map) and shades them by the texture's grey;
+    a picture with a realistic figure keeps two samples a pixel side at any size so their
+    strands are not broken dots. The Drawn picture has no textures: it keeps the hair's
+    thick shell and the painted brows (`Stuff::Shell`); the Photographic one draws a thin
+    scalp (`Stuff::Scalp`) under the cards instead.
   - `Quality` — **how finely the live arms are drawn**, a machine preference
     (`Settings::figure_quality`, Settings ▸ Appearance ▸ *Figure detail*; amendment,
     2026-11-24, the owner: "I'd rather it look good than save ms, or make it configurable
     in case someone wants fewer ms"): **High** (the default) the full look; **Light** the
-    arm's vertices merged per bone on a grid (0.95 cm on the hand while it is drawn large,
-    1.5 cm when small; the sleeve 1.8/2.8 cm — two fingers, a nail and its finger, a cuff
-    and its sleeve never merge), no creases' occlusion — the grip, the hand behind the neck
+    arm's vertices merged per bone on a grid (1.15 cm on the hand while it is drawn large,
+    1.6 cm when small; the sleeve 2.6/3.6 cm — two fingers, a nail and its finger, a cuff
+    and its sleeve never merge), no creases' occlusion, the stylised limbs in half the
+    strips — the grip, the hand behind the neck
     and the fingertip on its stop exactly High's, since the bones are the same; **Auto**
     High stepping down to Light while the window's frames average over 12 ms and back
     under 7 ms (FL Studio's way under load) — optional, off unless chosen. A file without
@@ -106,12 +120,21 @@ occluding capsules in its live painter.
   hair, the live arms and their light come with it.
 - The live arms' cost is the figure's mesh: the arms are thinned offline (short edges
   collapsed inside each arm's own part, `tools/arcus-figures/thin.py`), lit from a normal
-  map kept while the light and the view stay (`arcus_draw_flesh::lut_colour`), skinned once
-  for both of the left arm's passes. Measured beside the instrument alone (optimised dev
-  profile, `tests/arcus_hold_budget.rs`, other builds running on the machine): the
-  realistic arms +2.6 to +3.7 ms a frame against the stylised +0.5 to +1.1 — over the
-  +1 ms budget; the next steps are a level of detail for the hands at 100 % and a quiet
-  release measurement (see `docs/round42/arcus-upper-next.md`).
+  map kept while the light and the view stay within 4 cm (`arcus_draw_flesh::lut_colour`),
+  skinned once for both of the left arm's passes. Measured in the release profile beside
+  the instrument alone, best of five (`tests/arcus_hold_budget.rs`, 2026-11-25, the
+  machine not idle), the arms' extra at the median, 100 % / 200 %:
+
+  | figure | violin Light | violin High | cello Light | cello High |
+  |---|---|---|---|---|
+  | woman | +0.50 / +0.42 | +1.39 / +1.29 | +0.02 / +0.38 | +1.24 / +0.86 |
+  | man | +0.73 / +0.72 | +2.11 / +1.77 | +0.48 / +0.52 | +2.20 / +1.37 |
+  | musician | +0.34 / +0.89 | +0.40 / +0.87 | +0.37 / +0.29 | +0.16 / +0.00 |
+  | mannequin | +0.34 / +0.98 | +0.12 / +1.13 | +0.21 / +0.20 | +0.34 / +0.35 |
+
+  Light keeps the views' +1 ms (and its slow frames, p95, within half again plus 1 ms);
+  High's ceilings are written into the test (3.0 ms for the realistic figures, 1.6 ms for
+  the stylised ones), so the default's cost cannot grow unnoticed.
 
 ## What the tests hold
 

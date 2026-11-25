@@ -83,6 +83,12 @@ ARM_PREFIX = ("upper1", "upper2", "fore1", "fore2", "hand", "f")
 
 # Materials (the scene's `Role`s, by number; `scene/bowed_human.rs` names them).
 SKIN, LIPS, HAIR, VELVET, WOOL, SHIRT, TIE, SHOES, EYE, IRIS, LASH, NAIL, JEWEL = range(13)
+# MakeHuman's CC0 hair, brow and lash proxies: alpha-tested cards in the Photographic bake
+# (their textures beside the .fig files), left out of the Drawn picture.
+CARD_HAIR, CARD_BROW, CARD_LASH = 13, 14, 15
+# The hair as a thick shell (the Drawn picture's) and a thin scalp under the cards (the
+# Photographic picture's).
+SHELL, SCALP = 16, 17
 
 
 def mh_to_scene(sk):
@@ -211,7 +217,10 @@ def slim_fingers(pos, wt, J):
                 q = pos[ids]
                 tt = np.clip(((q - a) @ ab) / max(ab @ ab, 1e-9), -0.3, 1.3)
                 axis = a + tt[:, None] * ab
-                out[ids] += (axis - q) * ((1.0 - k_slim) * w)[:, None]
+                # The fingertip kept round (the owner's review: drawn in to the axis's end
+                # the tips read as claws): no slimming over the last phalanx's last half.
+                keep = 1.0 - smooth01((tt - 0.5) / 0.5) if k == 3 else np.ones(len(tt))
+                out[ids] += (axis - q) * ((1.0 - k_slim) * w * keep)[:, None]
     return out
 
 
@@ -592,7 +601,10 @@ def make(sex, data, assets):
                                      rise=40.0)
         bp, bw, bt, bmat, blum, bred = dress(pos, W, btris, J, lum, red, nf)
         fig.add(bp, bw, bt, bmat, blum, bred)
-        fig.add(hp, hw, ht, HAIR, uv=huv)
+        fig.add(hp, hw, ht, SHELL, uv=huv)
+        sp_, sw_, st_, suv_ = hair_shell(pos, W, btris, c, HER_LINE, scalp_thick, head_w,
+                                         band=16.0, rise=40.0)
+        fig.add(sp_, sw_, st_, SCALP, uv=suv_)
         # Tied low: a chignon at the nape — the hair twisted into a ring, its strands wound
         # round it — over a soft core that fills its middle.
         bc = c + np.array([0.0, -6.6, -9.6])
@@ -612,15 +624,73 @@ def make(sex, data, assets):
         # His short hair's edge crisper (a groomed hairline; a wide band read as teeth).
         hp, hw, ht, huv = hair_shell(pos, W, btris, c, HIS_LINE, thick, head_w, band=6.0)
         fig.add(pos, W, btris, np.where(nf[btris].mean(1) > 0, NAIL, SKIN), lum, red)
-        fig.add(hp, hw, ht, HAIR, uv=huv)
-        sp, st, smat = suit(assets, obj, refs, scales, pos)
+        fig.add(hp, hw, ht, SHELL, uv=huv)
+        sp_, sw_, st_, suv_ = hair_shell(pos, W, btris, c, HIS_LINE, scalp_thick, head_w,
+                                         band=6.0)
+        fig.add(sp_, sw_, st_, SCALP, uv=suv_)
+        sp, st, smat = suit(assets, obj, refs, scales, pos, J)
         fig.add(sp, mh.proxy_weights(refs, W), st, smat)
     fig.add(shp, shw, sht, SHOES)
     for s_ in SIDES:
         ep, et, emat = eyeball(J[f"eye.{s_}____head"])
         fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, emat)
     fig.add(lash_p, [{BI["head"]: 1.0}] * len(lash_p), lash_t, LASH)
+    # The proxies' cards (the owner's review, 2026-11-24: hair, brows and lashes that read
+    # as hair, not paint): MakeHuman's own, fitted to this body, each card's texture
+    # coordinates kept (``uv``).
+    hair_name = "ponytail01" if sex == "female" else "short02"
+    brow_name = "eyebrow001" if sex == "female" else "eyebrow010"
+    for kind, folder, name, mat in (("hair", "hair", hair_name, CARD_HAIR),
+                                     ("brow", "eyebrows", brow_name, CARD_BROW),
+                                     ("lash", "eyelashes", "eyelashes01", CARD_LASH)):
+        cp, cw, ct, cuv = card_proxy(os.path.join(assets, folder, name, f"{name}.mhclo"), pos, W)
+        if kind == "hair" and sex == "female":
+            # The ponytail's tail is the chignon's: only the cards over the head kept.
+            cen = cp[ct].mean(1)
+            ct = ct[~((cen[:, 1] < c[1] - 4.0) & (cen[:, 2] < c[2] - 3.0))]
+        fig.add(cp, cw, ct, mat, uv=cuv)
     return compact(fig), J
+
+
+# The cards' textures as written beside the .fig files: (folder, asset, texture, side px).
+CARD_TEX = {
+    "woman": [("hair", "ponytail01", "ponytail01_diffuse.png", 1024),
+              ("eyebrows", "eyebrow001", "eyebrow001.png", 256),
+              ("eyelashes", "eyelashes01", "eyelashes01.png", 256)],
+    "man": [("hair", "short02", "short02_diffuse.png", 1024),
+            ("eyebrows", "eyebrow010", "eyebrow010.png", 256),
+            ("eyelashes", "eyelashes01", "eyelashes01.png", 256)],
+}
+
+
+def cards(assets, out, name):
+    """The cards' textures for ``name`` (woman, man): each MakeHuman texture scaled down and
+    kept as grey and alpha (the strands' light and coverage; the colour is the figure's),
+    written as ``<name>_<hair|brow|lash>.png``."""
+    for (folder, asset, tex, side), kind in zip(CARD_TEX[name], ("hair", "brow", "lash")):
+        im = Image.open(os.path.join(assets, folder, asset, tex)).convert("RGBA")
+        im = im.resize((side, side), Image.LANCZOS)
+        im.convert("LA").save(os.path.join(out, f"{name}_{kind}.png"), optimize=True)
+
+
+def scalp_thick(th, ph):
+    """The scalp under the cards: a thin even layer of hair's colour (cm)."""
+    return np.full(np.shape(th), 0.25)
+
+
+def card_proxy(path, pos, W):
+    """A MakeHuman proxy (hair, brows, lashes) fitted to the body ``pos``: its vertices,
+    weights, triangles and texture coordinates (a vertex split where its corners' texture
+    coordinates differ)."""
+    obj, refs, scales, _, _ = mh.read_mhclo(path)
+    sp, suv, sfaces = mh.read_obj(os.path.join(os.path.dirname(path), obj))
+    fitted = mh.fit_proxy(refs, scales, pos / 10.0) * 10.0
+    w = mh.proxy_weights(refs, W)
+    tris, tuv = triangulate(sfaces)
+    pairs = np.stack([tris.ravel(), np.maximum(tuv.ravel(), 0)], 1)
+    uniq, inv = np.unique(pairs, axis=0, return_inverse=True)
+    return (fitted[uniq[:, 0]], [w[i] for i in uniq[:, 0]], inv.reshape(-1, 3),
+            suv[uniq[:, 1]] if len(suv) else np.zeros((len(uniq), 2)))
 
 
 def torus(c, axis, R, r, rows=12, cols=36, twist=2.5):
@@ -705,8 +775,10 @@ def brows(pos, keep_v, J, sex):
         t = np.clip((x - x0) / (x1 - x0), 0.0, 1.0)
         rise = 0.42 if sex == "female" else 0.22
         yc = 1.25 + rise * np.sin(np.pi * np.clip(t, 0, 1) ** 0.75) - 0.25 * t
-        half = (0.26 - 0.15 * t) * full
-        across = 1.0 - smooth01((np.abs(y - yc) - half) / 0.22 + 0.5)
+        # (Wider than a real brow's hairs: the forehead's vertices are half a centimetre
+        # apart, and a thinner arc vanished between them — the owner's review: no brows.)
+        half = (0.42 - 0.2 * t) * full
+        across = 1.0 - smooth01((np.abs(y - yc) - half) / 0.3 + 0.5)
         ends = smooth01((x - x0) / 0.35) * (1.0 - smooth01((x - x1) / 0.35 + 1.0))
         amt = np.where(front, across * ends * (1.0 - 0.35 * t), 0.0)
         out = np.maximum(out, amt)
@@ -999,7 +1071,7 @@ BODICE_EASE = 0.7
 SLEEVE_EASE = 0.35
 
 
-def suit(assets, obj, refs, scales, pos):
+def suit(assets, obj, refs, scales, pos, J=None):
     """The man's suit (MakeHuman's male_elegantsuit01, CC0): fitted to his body, each
     face's material told by its texture — the jacket's and the trousers' wool, the
     shirt's collar and cuffs, the tie, the shoes."""
@@ -1019,11 +1091,39 @@ def suit(assets, obj, refs, scales, pos):
     mats = np.where(tie, TIE, mats)
     in_shoe = (u > 0.72) & (v > 0.46) & (v < 0.7)
     mats = np.where(in_shoe, SHOES, mats)
+    if J is not None:
+        mats = cuffs(fitted, tris, mats, J)
     # The jacket a little proud of the shirt where they meet (no shirt showing through).
     wool = np.zeros(len(fitted), bool)
     wool[tris[mats == WOOL].ravel()] = True
     fitted = fitted + vnormals(fitted, tris) * (0.18 * wool)[:, None]
     return fitted, tris, mats
+
+
+# The shirt's cuff showing below the jacket's sleeve, cm.
+CUFF = 1.3
+
+
+def cuffs(p, tris, mats, J):
+    """Each sleeve's end made a tidy band (the owner's review: a white/black sawtooth at
+    the wrists, where the texture told shirt from wool triangle by triangle): over the
+    forearm's last centimetres the cloth is the shirt's cuff within ``CUFF`` of the wrist,
+    the jacket's wool above it — rings round the forearm, not the texture's zigzag."""
+    out = mats.copy()
+    cen = p[tris].mean(1)
+    for s in SIDES:
+        wr = J[f"wrist.{s}____head"]
+        el = J[f"lowerarm01.{s}____head"]
+        ax = (wr - el) / np.linalg.norm(wr - el)
+        along = (cen - wr) @ ax
+        lo = ((p[tris] - wr) @ ax).min(1)
+        radial = np.linalg.norm((cen - wr) - np.outer(along, ax), axis=1)
+        near = (along > -10.0) & (along < 3.0) & (radial < 6.0) & np.isin(mats, (SHIRT, WOOL))
+        # Shirt only where the whole triangle lies within the cuff (no white point up
+        # into the sleeve).
+        out = np.where(near & (lo > -CUFF), SHIRT, out)
+        out = np.where(near & (lo <= -CUFF), WOOL, out)
+    return out
 
 
 def compact(fig):
@@ -1141,7 +1241,8 @@ MAT_COL = {SKIN: (0.86, 0.68, 0.58), LIPS: (0.75, 0.45, 0.45), HAIR: (0.78, 0.64
            VELVET: (0.08, 0.08, 0.09), WOOL: (0.13, 0.13, 0.15), SHIRT: (0.92, 0.92, 0.9),
            TIE: (0.15, 0.2, 0.42), SHOES: (0.04, 0.04, 0.04), EYE: (0.8, 0.78, 0.75),
            IRIS: (0.3, 0.34, 0.33), LASH: (0.12, 0.09, 0.08), NAIL: (0.95, 0.78, 0.74),
-           JEWEL: (0.85, 0.7, 0.35)}
+           JEWEL: (0.85, 0.7, 0.35), CARD_HAIR: (0.8, 0.68, 0.45), CARD_BROW: (0.4, 0.3, 0.2),
+           CARD_LASH: (0.1, 0.08, 0.06), SHELL: (0.78, 0.64, 0.42), SCALP: (0.6, 0.5, 0.35)}
 
 
 def look_at(fig, name, out, part=None):
@@ -1190,6 +1291,7 @@ def main():
         fig.lum, fig.red, fig.uv = ex[0], ex[1], np.stack([ex[2], ex[3]], 1)
         print(f"{name}: arms thinned, {n0} -> {len(fig.tris)} triangles")
         rest = bone_rest(sk, J)
+        cards(assets, out, name)
         size = write_fig(os.path.join(out, f"{name}.fig"), fig, rest, marks(J, fig), part)
         print(f"{name}: {len(fig.pos)} vertices, {len(fig.tris)} triangles, {size} bytes")
         if prev:

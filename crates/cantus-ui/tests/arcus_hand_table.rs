@@ -182,7 +182,9 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                     worst[3] = worst[3].max((dip - 35.0).abs());
                     if !(35.0..=80.0).contains(&mcp)
                         || !(60.0..=110.0).contains(&pip)
-                        || !(10.0..=60.0).contains(&dip)
+                        // (The little finger, the shortest, may land with its last joint
+                        // near straight, as a violist's often does on a long reach.)
+                        || !((if j == 3 { 0.0 } else { 10.0 })..=60.0).contains(&dip)
                         || upright > UPRIGHT
                     {
                         bad.push(format!(

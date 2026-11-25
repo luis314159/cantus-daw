@@ -79,6 +79,10 @@ pub enum Tex {
     Velvet,
     /// Hair: streaks along its strands (`uv` cm along, across).
     Hair,
+    /// r42:arcus-upper — a realistic figure's alpha-tested card (`figure::cards`): its
+    /// texture's grey at `uv` shades the base; where its alpha is under half the raster
+    /// sees through it.
+    Card(u8),
 }
 
 /// A material.

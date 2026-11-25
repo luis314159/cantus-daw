@@ -23,12 +23,13 @@ use cantus_ui::{views, welcome_project, CantusApp};
 use egui::{Pos2, Rect};
 use std::time::Instant;
 
-/// High's ceilings, ms over the instrument alone at the median (realistic figures; the
-/// stylised ones keep Light's +1 ms at High too), at 100 % and 200 % — the release
-/// profile's measure on the owner's machine (2026-11-24) with headroom.
+/// High's ceilings, ms over the instrument alone at the median, the realistic figures at
+/// 100 % and 200 % and the stylised ones — the release profile's measure on the owner's
+/// machine (2026-11-25) with headroom.
 const HIGH_CEILING_MS: [f32; 2] = [HIGH_100, HIGH_200];
-const HIGH_100: f32 = 4.0;
-const HIGH_200: f32 = 5.0;
+const HIGH_100: f32 = 3.0;
+const HIGH_200: f32 = 3.0;
+const HIGH_STYLISED_MS: f32 = 1.6;
 
 fn rig(inst: f32, hold: Hold, k: f32, q: Quality) -> (CantusApp, egui::Context) {
     let ctx = egui::Context::default();
@@ -101,10 +102,10 @@ fn the_figures_live_arms_draw_in_the_frame_budget() {
                         (k * 100.0) as u32,
                     );
                     let real = matches!(hold, Hold::Woman | Hold::Man);
-                    let ceiling = if q == Quality::High && real {
-                        f64::from(HIGH_CEILING_MS[ki])
-                    } else {
-                        1.0
+                    let ceiling = match (q, real) {
+                        (Quality::High, true) => f64::from(HIGH_CEILING_MS[ki]),
+                        (Quality::High, false) => f64::from(HIGH_STYLISED_MS),
+                        _ => 1.0,
                     };
                     let slow = q == Quality::Light && f95 > r95 * 1.5 + 1.0;
                     if extra > ceiling || slow {

@@ -279,7 +279,8 @@ class Pose:
                 add(f"hover{f}", 3.0 * max(0.0, miss - 0.8))
             rng = PLAY if f == p else HOVER
             for k in range(3):
-                add(f"ang{f}{k}", 1.0 * over(ang[f + 1, k], *rng[k]))
+                wk = 3.0 if f == p else 1.0
+                add(f"ang{f}{k}", wk * over(ang[f + 1, k], *rng[k]))
                 add(f"mid{f}{k}", 0.08 * (ang[f + 1, k] - MID[k]))
             add(f"spread{f}", 1.0 * (x[6 + 4 * f + 1] - SPREAD[f]))
             # The arch: the middle joint high over the fingerboard.
@@ -456,6 +457,10 @@ def solve_fig(F, h, cache, verbose=False):
                     print(key, string, finger, at, "cost %.2f" % cost, flush=True)
 
 
+# Rows `fix` takes again whatever their cost (`--keys=0-3-1,0-3-3`: string-finger-position).
+FORCE = []
+
+
 def fix_fig(F, h, cache, worse=60.0, verbose=False, tries=8, save=None):
     """Rows solved poorly (cost over ``worse``) tried again: from the row a position lower
     and the one higher, a fresh guess and eight moves off the best at random (seeded); the
@@ -468,7 +473,7 @@ def fix_fig(F, h, cache, worse=60.0, verbose=False, tries=8, save=None):
     for row in F["rows"]:
         k = f'{key}-{row["string"]}-{row["finger"]}-{row["at"]:g}'
         c = cache[k]
-        if c["cost"] <= worse:
+        if c["cost"] <= worse and not (FORCE and any(k.endswith(x) for x in FORCE)):
             continue
         i = ats.index(row["at"])
         near = [cache.get(f'{key}-{row["string"]}-{row["finger"]}-{a:g}') for a in
@@ -697,6 +702,9 @@ def main():
             solve_fig(F, h, cache, verbose=True)
             json.dump(cache, open(os.path.join(here, f"left_hand_cache-{key}.json"), "w"))
     elif cmd == "fix":
+        keys_arg = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--keys=")), None)
+        if keys_arg:
+            FORCE.extend("-" + k for k in keys_arg.split(","))
         # The poor rows of one figure and instrument again (run the four side by side).
         for F in dump["figs"]:
             key = f'{F["who"]}-{F["inst"]}'

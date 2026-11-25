@@ -113,6 +113,23 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::Nail(i) => {
             PMat::lacquer(lin3(hp::nail(i).albedo).map(|c| c * 0.5), 0.18, 0.22).with(Tex::Skin)
         }
+        // r42:arcus-upper — the cards: her hair fair, his dark; brows a shade darker than
+        // the hair; lashes near black.
+        Role::Card(k) => {
+            let woman = k < 3;
+            let base = match (k % 3, woman) {
+                (0, true) => hp::HAIR_FAIR,
+                (0, false) => hp::HAIR,
+                (1, true) => hp::BROW_FAIR,
+                (1, false) => hp::HAIR,
+                _ => hp::LASH,
+            };
+            PMat::lacquer(lin3(base), 0.06, 0.45).with(Tex::Card(k))
+        }
+        Role::Shell(0) | Role::Scalp(0) => {
+            PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
+        }
+        Role::Shell(_) | Role::Scalp(_) => PMat::matte(lin3(hp::HAIR)),
     }
 }
 
@@ -161,10 +178,16 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
                 dark: scalp,
                 ..PMat::lacquer(lin3(hp::HAIR), 0.1, 0.42).with(Tex::Hair)
             }),
-            Role::HairFair => g.mat(PMat {
+            Role::HairFair | Role::Scalp(0) => g.mat(PMat {
                 dark: scalp,
                 ..PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
             }),
+            Role::Scalp(_) => g.mat(PMat {
+                dark: scalp,
+                ..PMat::lacquer(lin3(hp::HAIR), 0.1, 0.42).with(Tex::Hair)
+            }),
+            // The thick shell is the Drawn picture's (here the cards over the scalp).
+            Role::Shell(_) => continue,
             r => id(g, *r),
         };
         for tri in &t.idx {

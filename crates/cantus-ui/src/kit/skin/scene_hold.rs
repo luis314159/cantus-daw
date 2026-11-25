@@ -52,6 +52,8 @@ pub const WOOL: C3 = srgb(30, 31, 36);
 pub const SHIRT: C3 = srgb(232, 232, 228);
 pub const TIE: C3 = srgb(30, 36, 64);
 pub const HAIR_FAIR: C3 = srgb(204, 178, 134);
+/// r42:arcus-upper — fair brows: a light brown, darker than the blonde (the owner's review).
+pub const BROW_FAIR: C3 = srgb(122, 92, 64);
 /// A realistic figure's skin tones (fair to deep): a real skin's albedo, warmer and less
 /// bright than the stylised figure's (lit by the scene's key a fair skin read as white).
 pub const REAL_SKINS: [Srgb; 5] = [

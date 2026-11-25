@@ -181,6 +181,10 @@ pub fn material(b: Bowed, r: Role) -> Mat {
         Role::Iris => hp::eye(hp::IRIS),
         Role::Lash => hp::flat(hp::LASH),
         Role::Nail(i) => hp::nail(i),
+        // r42:arcus-upper — never drawn in this picture (`bowed_draw_tris` leaves them out).
+        Role::Card(_) | Role::Scalp(_) => hp::flat(hp::LASH),
+        Role::Shell(0) => hp::hair(hp::HAIR_FAIR),
+        Role::Shell(_) => hp::hair(hp::HAIR),
     }
 }
 
@@ -609,5 +613,6 @@ fn figure_role(r: Role) -> bool {
             | Role::Iris
             | Role::Lash
             | Role::Nail(_)
+            | Role::Shell(_)
     )
 }

@@ -571,7 +571,12 @@ fn marker_at(b: &mut Brush, v: &View, pl: &Play, at: V3, size: f32) {
 /// the instrument's middle, in the theme's mood.
 fn figure_light(v: &View, pl: &Play, s: &Style) -> super::lit::Lit {
     let d = pl.b.dims();
-    super::lit::Lit::round(v, pl.rig.pose.at(0.0, d.body * 0.5, 0.0), s.t.dark)
+    let mut lit = super::lit::Lit::round(v, pl.rig.pose.at(0.0, d.body * 0.5, 0.0), s.t.dark);
+    // r42:arcus-upper — Light: the stylised limbs in half the strips.
+    if pl.light {
+        lit.strips /= 2;
+    }
+    lit
 }
 
 /// r42:arcus-upper — the figure's left arm and what it plays: the arm, and the hand's

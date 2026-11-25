@@ -472,11 +472,19 @@ Open:
 - Settings ▸ Appearance, under *Held by* / *Stopped note*: **Figure detail** — High (the
   default), Light, Auto; a hint line under it (`arcus_upper.quality*`, both locales).
 - Light: `arcus_draw_flesh::lod` merges the arm's vertices per bone on a grid
-  (`LOD_CELL`: 0.95 cm on the hand while it is drawn over `LOD_FINE_PX` px a cm, 1.5 cm
-  when smaller; the sleeve 1.8/2.8 cm), keyed by the main bone and the stuffs a vertex
+  (`LOD_CELL`: 1.15 cm on the hand while it is drawn over `LOD_FINE_PX` px a cm, 1.6 cm
+  when smaller; the sleeve 2.6/3.6 cm), keyed by the main bone and the stuffs a vertex
   touches (fingers, nails and cuffs never merge), each cell's vertex nearest its middle
-  standing for it; no creases' occlusion. The meshes are made once on first use and kept.
-  The bones are High's, so the grip, the hand behind the neck and the fingertip are too.
+  standing for it; no creases' occlusion; the stylised limbs in 8 strips instead of 16
+  (`Lit::strips`). The meshes are made once on first use and kept. The bones are High's,
+  so the grip, the hand behind the neck and the fingertip are too.
+- **Measured** (release, beside the instrument alone, best of five, 2026-11-25; the
+  table in ADR 0159): Light +0.02 to +0.98 ms (the man's violin +0.73, the mannequin at
+  200 % +0.98); High: the woman +0.86 to +1.39, the man +1.37 to +2.20, the stylised
+  +0.00 to +1.13. The test's ceilings: Light +1 ms (p95 ≤ 1.5 × alone + 1 ms), High 3.0 ms
+  realistic, 1.6 ms stylised (`HIGH_100`, `HIGH_200`, `HIGH_STYLISED_MS`). The slow frames
+  were the light maps remade whenever the arm's middle crossed a centimetre (vibrato):
+  kept now over 4 cm.
 - Auto (`figure::frames_long`): Light while `CantusApp::average_frame_ms` (the last 120
   frames) is over 12 ms, back under 7 ms; off unless chosen (FL Studio lowers its visuals
   under load the same way, but never by itself here: the default stays High).
@@ -524,8 +532,10 @@ Done (`build_figures.py` unless named):
   looking down at the strings); the skin's sheen up (`chorda_scene_px_bowed`, lacquer
   0.09/0.38).
 - **Hair**: locks across the head (`thick`'s `locks`), a chignon (`torus`) over a smaller
-  core, a few loose strands at each temple (`temple_strands`); the bright strands at the
-  hairline gone.
+  core; the bright strands at the hairline gone. Loose strands at the temples were tried
+  (thin ribbons) and taken out: at 200 % in the Photographic look they read as bright
+  scratches on the skin (the per-pixel bake has no coverage for a strand thinner than a
+  sample) — open: real fine strands need an alpha-tested hair card in the bake.
 - **Hands**: the fingers drawn in toward their phalanges' axes (`slim_fingers`, 0.86, the
   thumb 0.92); the joints' creases darker, the fingertips and the palm's edge warmer
   (`finger_tint`); the nails lighter and glossier (`flesh::colour`); the table's fingers

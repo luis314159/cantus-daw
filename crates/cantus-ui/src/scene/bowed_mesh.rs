@@ -74,6 +74,14 @@ pub enum Role {
     Iris,
     Lash,
     Nail(u8),
+    /// r42:arcus-upper — a realistic figure's alpha-tested card (`figure::cards`: the
+    /// figure × 3 + hair 0, brows 1, lashes 2): the Photographic picture's only.
+    Card(u8),
+    /// r42:arcus-upper — a realistic figure's hair as one shell (the Drawn picture's; the
+    /// Photographic one has the cards over a thin scalp instead), and that scalp (the
+    /// Photographic picture's only): the figure (0 her, 1 him).
+    Shell(u8),
+    Scalp(u8),
 }
 
 /// A grid of points (`rows` × `cols`, row-major) with normals and grain coordinates (cm:

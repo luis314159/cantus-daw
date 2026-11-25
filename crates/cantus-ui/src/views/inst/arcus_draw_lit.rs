@@ -23,6 +23,9 @@ pub struct Lit {
     /// the picture's own light (`flesh::Shading`).
     pub dark: bool,
     pub mid: V3,
+    /// r42:arcus-upper — the strips a limb is drawn in across its width (Figure detail:
+    /// [`STRIPS`] at High, half at Light).
+    pub strips: usize,
 }
 
 impl Lit {
@@ -41,6 +44,7 @@ impl Lit {
             rim: if dark { 0.22 } else { 0.12 },
             dark,
             mid,
+            strips: STRIPS,
         }
     }
 
@@ -85,9 +89,10 @@ pub fn tube(b: &mut Brush, v: &View, lit: &Lit, a: V3, e: V3, ra: f32, re: f32, 
         let n = side * s + front * (1.0 - s * s).max(0.0).sqrt();
         (a + axis * t + n * r, n)
     };
-    for i in 0..STRIPS {
-        let s0 = -1.0 + 2.0 * i as f32 / STRIPS as f32;
-        let s1 = -1.0 + 2.0 * (i + 1) as f32 / STRIPS as f32;
+    let n = lit.strips.clamp(4, STRIPS);
+    for i in 0..n {
+        let s0 = -1.0 + 2.0 * i as f32 / n as f32;
+        let s1 = -1.0 + 2.0 * (i + 1) as f32 / n as f32;
         let sm = 0.5 * (s0 + s1);
         let (pm, nm) = at(sm, 0.5);
         let col = lit.shade(col, pm, nm);

@@ -188,6 +188,14 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
                 ..s(m.base, 0.0, 1.0)
             }
         }
+        Tex::Card(k) => {
+            // r42:arcus-upper — a card's strands: its texture's grey shades the base.
+            let f = crate::scene::figure::cards::card(k).map_or(1.0, |c| c.shade(uv));
+            Surf {
+                sheen: 0.35,
+                ..s(lscale(m.base, f), m.coat, m.rough)
+            }
+        }
         Tex::Hair => {
             // Soft streaks across the strands (`uv[0]`, the angle round the head's
             // front-to-back axis); at the hairline (`uv[1]` 0) the skin's colour (`m.dark`)
@@ -732,7 +740,7 @@ pub fn shade(
         _ => f(),
     };
     let v = (eye - p).norm();
-    let figure = matches!(m.tex, Tex::Skin | Tex::Hair | Tex::Velvet);
+    let figure = matches!(m.tex, Tex::Skin | Tex::Hair | Tex::Velvet | Tex::Card(_));
     let mut n = if figure && n.dot(v) < 0.0 && n.dot(v) > -0.35 {
         // r42:arcus-upper — at a figure's silhouette the smooth normal turns just past the
         // eye: bent back to graze it, not flipped (flipped it faced away from every light:
