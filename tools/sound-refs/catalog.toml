@@ -777,7 +777,7 @@ id = "piano-bitklavier"
 dir = "piano"
 shared_dir = true
 title = "The bitKlavier Grand's two images Chorda's recorded-piano listening uses (Stage Lid ORTF, Piano Bar)"
-urls = ["https://doi.org/10.5281/zenodo.6366430"]
+urls = ["https://bitklavier.com/the-bitklavier-grand/"]
 licence = "CC-BY-4.0"
 terms = "CC BY 4.0 (Princeton University, bitKlavier)"
 use = "ship-credit"
@@ -798,7 +798,7 @@ dir = "ebu-loudness"
 title = "The EBU loudness test set (Tech 3341 / 3342 signals as WAV)"
 urls = ["https://tech.ebu.ch/publications/ebu_loudness_test_set"]
 licence = "custom"
-terms = "the EBU's test material, free to download from its page"
+terms = "the EBU's test material, offered for download on its page; its terms are the page's (not recorded here: read them when fetching)"
 use = "measure"
 tools = ["tools/soundlab/tests/test_loudness.py (SOUNDLAB_EBU, default $CANTUS_REFS/ebu-loudness)"]
 fetch = "manual"
@@ -806,7 +806,7 @@ expect = ["seq-3341-1-16bit.wav", "seq-3341-2-16bit.wav", "seq-3341-3-16bit-v02.
 manual = """
 tech.ebu.ch answers automated clients with a browser challenge (Cloudflare), which is never
 worked around. In a browser: open https://tech.ebu.ch/publications/ebu_loudness_test_set,
-download the test set's zip (it needs no account), and unpack the seq-3341-*.wav files listed
+download the test set (read its terms there), and unpack the seq-3341-*.wav files listed
 below into $CANTUS_REFS/ebu-loudness/ (flat). Then:
     python -I tools/sound-refs/fetch.py record ebu-loudness     # their sizes and SHA-256
     python -I tools/soundlab/tests/run.py                       # test_loudness reads them
