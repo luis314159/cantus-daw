@@ -1,0 +1,101 @@
+{
+ "id": "arcus-cello",
+ "name": "Arcus, the cello (r42)",
+ "kind": {"arco": "sustained", "pizz": "decaying"},
+ "f_range": [60, 1100],
+ "lowest_note": 36,
+ "features": {
+  "arco": ["loudness", "pitch", "harmonics", "inharmonicity", "centroid", "noise", "attack", "t_steady", "decay", "vibrato", "room"],
+  "pizz": ["loudness", "pitch", "harmonics", "inharmonicity", "centroid", "noise", "attack", "decay", "band_decay", "room"]
+ },
+ "exclude": ["loudness.integrated_lufs", "loudness.momentary_max_lufs", "loudness.short_term_max_lufs", "loudness.sample_peak_dbfs", "loudness.true_peak_dbtp", "centroid.at_s"],
+ "references": {
+  "root": "$SOUNDLAB_REFS",
+  "catalogue": "references.json",
+  "also_allowed": {
+   "Iowa-MIS": "The University of Iowa Electronic Music Studios' Musical Instrument Samples \"may be downloaded and used for any projects, without restrictions\" (theremin.music.uiowa.edu)."
+  },
+  "made_by": "python -I tools/soundlab/adapters/study_catalogue.py <study refdb>/catalog.json cello $SOUNDLAB_REFS references.json"
+ },
+ "split": {"rule": "mod", "expr": "(note + dyn) % 3 == 0", "dyn_index": {"pp": 0, "p": 0, "mp": 1, "mf": 1, "f": 2, "ff": 2},
+           "why": "Arcus's own held-out rule (crates/cantus-dsp/examples/arcus_match: (key + dynamic) % 3 == 0): model 2's match was fitted on the other cells' references"},
+ "candidate": {
+  "inst": "arcus",
+  "render": ["bash", "{repo}/tools/build/slot.sh", "cargo", "run", "-p", "cantus-dsp", "--release", "--example", "arcus_match", "--", "render", "{out}"],
+  "cwd": "{repo}",
+  "files": "arcus-cello-(?P<art>arco|pizz)-(?P<note>\\d+)-(?P<dyn>pp|mf|ff)\\.wav",
+  "what": "the held-out cells of the cello, arco and pizzicato, at pp / mf / ff (velocity 0.2 / 0.55 / 0.95), each note held 3 s (a pluck 2.5 s) and a second of release, 48 kHz 24-bit mono, Arcus at its defaults"
+ },
+ "listening": {
+  "kit_prefix": "strings1",
+  "items": ["phrase", "note_p", "note_mf", "note_f"],
+  "voices": {
+   "arcus": {"render": [["bash", "{repo}/tools/build/slot.sh", "cargo", "run", "-p", "cantus-dsp", "--release", "--example", "arcus_abx", "--", "{repo}/tools/arcus/abx_phrase.mid", "{out}"],
+                        ["bash", "{repo}/tools/build/slot.sh", "cargo", "run", "-p", "cantus-dsp", "--release", "--example", "arcus_listen", "--", "{out}"]],
+             "files": {"phrase": "abx-cello.wav", "note_p": "cello-abx-57-p.wav", "note_mf": "cello-abx-57-mf.wav", "note_f": "cello-abx-57-f.wav"},
+             "what": "Arcus at this run: tools/arcus/abx_phrase.mid (arcus_abx) and A3 held at p / mf / f (arcus_listen)"},
+   "arcus_m1": {"dir": "$SOUNDLAB_LISTEN/arcus/before",
+                "files": {"phrase": "abx-cello.wav", "note_p": "cello-abx-57-p.wav", "note_mf": "cello-abx-57-mf.wav", "note_f": "cello-abx-57-f.wav"},
+                "what": "Arcus before its match to recordings (model 1, kept by the arcus builder in listen/arcus/before)"},
+   "recording": {"dir": "$SOUNDLAB_REFS",
+                 "files": {"phrase": "../listen/strings-rec/karoryfer-bigcat-cello-cello-line.wav", "note_p": "arcus/cello_A2_p_d.wav", "note_mf": "arcus/cello_A2_mf_d.wav", "note_f": "arcus/cello_A2_f_d.wav"},
+                 "licence": "CC0-1.0",
+                 "credit": "Karoryfer Samples, Bigcat cello (the phrase: its samples played by Cantus's sampler from the same MIDI; the notes: its A3 sustains, named A2 an octave low)"}
+  },
+  "parts": ["abx", "mushra", "pref"],
+  "abx": ["arcus", "recording"],
+  "extra": ["arcus_m1", "arcus"],
+  "pref": [["arcus", "recording"], ["arcus_m1", "recording"]],
+  "catch": 2,
+  "mushra": {"reference": "recording", "conditions": ["arcus", "arcus_m1"], "anchors": [3500, 7000]},
+  "target_lufs": -23.0, "ceiling_db": -1.0, "fade_s": 0.1, "pre_roll_s": 0.08, "max_s": 12.0,
+  "readme": {
+   "es": "# Prueba de escucha: violonchelo\n\n1. Descomprime la carpeta y abre `index.html` con el navegador (doble clic). Funciona sin internet.\n2. Usa auriculares o buenos altavoces, en un lugar silencioso. Ajusta el volumen con el primer clip y no lo cambies: los clips de cada pregunta tienen la misma sonoridad.\n3. Tres partes: distinguir dos sonidos (A, B y X), puntuar de 0 a 100 cuánto se parecen varias muestras a una referencia, y elegir el que prefieres. Unos 20 minutos.\n4. Puedes parar cuando quieras: las respuestas se guardan en el navegador.\n5. Al terminar, pulsa «Descargar resultados (JSON)» y envía ese archivo a quien te pasó la prueba.\n",
+   "en": "# Listening test: cello\n\n1. Unzip the folder and open `index.html` in a browser (double-click). It works offline.\n2. Use headphones or good speakers somewhere quiet. Set the volume on the first clip and leave it: the clips of each question have the same loudness.\n3. Three parts: telling two sounds apart (A, B and X), rating from 0 to 100 how close several samples are to a reference, and choosing the one you prefer. About 20 minutes.\n4. You can stop whenever you like: your answers are kept in the browser.\n5. When you finish, press \"Download results (JSON)\" and send that file to whoever gave you the test.\n"
+  },
+  "page": {
+   "id": "arcus",
+   "play": "strings",
+   "trials": {"abx": 16, "extra": 16},
+   "secs": {"abx": 30, "pref": 20, "mushra": 120},
+   "pairs": [["arcus", "recording"], ["arcus_m1", "recording"]],
+   "hide": {"data": ["arcus", "karoryfer", "bigcat", "record", "grabac", "model", "cantus", "beta", "round", "ronda", "luis"],
+            "screen": "arcus|karoryfer|bigcat|cantus|modelad|modelled|grabad|recorded",
+            "readme": ["cargo", "Arcus", "Karoryfer", "Bigcat", "ronda", "round", "Luis", "modelo", "model"]},
+   "items": {
+    "es": {"phrase": "Una frase legato", "note_p": "Una nota larga, piano", "note_mf": "Una nota larga, mezzoforte", "note_f": "Una nota larga, forte"},
+    "en": {"phrase": "A legato phrase", "note_p": "A long note, piano", "note_mf": "A long note, mezzo-forte", "note_f": "A long note, forte"}
+   },
+   "credits": {"text": ["credit_rec", "credit_cantus"],
+               "links": [["Karoryfer Samples", "https://www.karoryfer.com/karoryfer-samples"], ["CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"], ["Cantus", "https://cantusdaw.com"]]},
+   "text": {
+    "es": {
+     "lead": "Vas a escuchar una frase y notas largas de violonchelo, cada una sonada de tres maneras distintas, y a responder tres cosas: si distingues dos de ellas, cuánto se parecen a una referencia y cuál te suena mejor. No hay respuestas correctas ni incorrectas en tus gustos.",
+     "howlong": "Dura unos 20 minutos (más unos 8 si haces la parte extra opcional). Puedes pararla cuando quieras: tus respuestas se guardan en este navegador y, al volver a abrir la página, sigues donde lo dejaste.",
+     "q_strings": "¿Tocas un instrumento de cuerda frotada?", "strings_no": "No", "strings_some": "Un poco", "strings_yes": "Sí",
+     "abx_help": "A y B son dos violonchelos distintos. X es uno de los dos, elegido al azar. Escucha A, B y X cuantas veces quieras: si cambias mientras suena, sigue desde el mismo punto (pulsar otra vez el que suena vuelve al principio). Luego di cuál es X. Si no lo distingues, elige al azar: también es un resultado.",
+     "pref_help": "Dos clips de lo mismo. ¿Cuál suena más a un buen violonchelo real, bien grabado? Elige uno o di que no tienes preferencia. Una palabra sobre el porqué ayuda mucho (opcional).",
+     "note": "¿Por qué? (opcional: artificial, áspero, apagado, sin cuerpo, sin arco, natural…)",
+     "main_done_2": "Si te quedan ganas, hay una parte extra opcional (16 ensayos más, unos 8 minutos) con otros dos sonidos. Si no, mira tus resultados.",
+     "reveal": "Qué sonido era cada uno",
+     "credit_rec": "El violonchelo grabado es el Bigcat cello de Karoryfer Samples (CC0 1.0): en la frase, sus muestras tocadas por el sampler de Cantus con el mismo MIDI; en las notas, sus notas largas de La3.",
+     "credit_cantus": "Los otros dos sonidos son Arcus, la cuerda frotada modelada de Cantus, un estudio de música libre y gratuito: la versión de ahora y la de antes de ajustarla a grabaciones. Los clips se igualaron en sonoridad (ITU-R BS.1770) y en duración, y su primera nota se alineó; no se les hizo nada más. Las anclas son la grabación con paso bajo (ITU-R BS.1534).",
+     "voice_arcus": "Arcus, versión actual (modelado)", "voice_arcus_m1": "Arcus, antes del ajuste (modelado)", "voice_recording": "Violonchelo grabado"
+    },
+    "en": {
+     "lead": "You will hear a phrase and long notes on a cello, each sounded three different ways, and answer three things: whether you can tell two of them apart, how close they are to a reference, and which one sounds better to you. There are no right or wrong answers about taste.",
+     "howlong": "It takes about 20 minutes (about 8 more for the optional extra part). You can stop whenever you like: your answers are kept in this browser, and when you open the page again you carry on where you left off.",
+     "q_strings": "Do you play a bowed string instrument?", "strings_no": "No", "strings_some": "A little", "strings_yes": "Yes",
+     "abx_help": "A and B are two different cellos. X is one of them, picked at random. Listen to A, B and X as often as you like: switching while it plays carries on from the same point (pressing the one playing goes back to the start). Then say which one X is. If you cannot tell, pick at random: that is a result too.",
+     "pref_help": "Two clips of the same thing. Which sounds more like a fine real cello, well recorded? Choose one, or say you have no preference. A word on why helps a lot (optional).",
+     "note": "Why? (optional: artificial, harsh, dull, thin, no bow, natural…)",
+     "main_done_2": "If you feel like more, there is an optional extra part (16 more trials, about 8 minutes) with two other sounds. Otherwise, see your results.",
+     "reveal": "Which sound was which",
+     "credit_rec": "The recorded cello is Karoryfer Samples' Bigcat cello (CC0 1.0): in the phrase, its samples played by Cantus's sampler from the same MIDI; in the notes, its long A3 notes.",
+     "credit_cantus": "The other two sounds are Arcus, the modelled bowed string of Cantus, a free and open music studio: the version of now and the one from before it was matched to recordings. The clips were matched in loudness (ITU-R BS.1770) and length, and their first note aligned; nothing else was done to them. The anchors are the recording low-passed (ITU-R BS.1534).",
+     "voice_arcus": "Arcus, current version (modelled)", "voice_arcus_m1": "Arcus, before the match (modelled)", "voice_recording": "Recorded cello"
+    }
+   }
+  }
+ }
+}

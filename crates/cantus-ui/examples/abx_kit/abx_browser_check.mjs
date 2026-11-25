@@ -72,11 +72,13 @@ function constOf(name) { const m = html.match(new RegExp("const " + name + " = (
 const FILES = JSON.parse(constOf("FILES")), PHRASES = JSON.parse(constOf("PHRASES"));
 const TESTS = Function("return " + constOf("TESTS"))();
 const SUBJECT = JSON.parse(constOf("SUBJECT"));
-const N1 = SUBJECT.trials.abx, NX = SUBJECT.trials.extra, NP = PHRASES.length * TESTS.pref.length + TESTS.catch.length, PLAY = SUBJECT.play;
+const PARTS = SUBJECT.parts || ["abx", "pref"], MUSHRA = TESTS.mushra || null;
+const N1 = SUBJECT.trials.abx, NX = TESTS.extra ? SUBJECT.trials.extra : 0, NP = PARTS.includes("pref") ? PHRASES.length * TESTS.pref.length + TESTS.catch.length : 0, PLAY = SUBJECT.play;
+const NM = MUSHRA ? (MUSHRA.items || PHRASES).length : 0;
 const VOICES = [...new Set(SUBJECT.pairs.flat())];
-// What must not show before the reveal, by subject: in the page's data, on the first screen, in
-// the readmes.
-const HIDE = {
+// What must not show before the reveal, by subject (or the subject's own `hide`, round 42's sound
+// lab): in the page's data, on the first screen, in the readmes.
+const HIDE = SUBJECT.hide ? { data: SUBJECT.hide.data, screen: new RegExp(SUBJECT.hide.screen), readme: SUBJECT.hide.readme } : {
  chorda: { data: ["chorda", "salamander", "cand", "beta", "round", "ronda", "luis"], screen: /salamander|chorda|cantus|yamaha/,
   readme: ["cargo", "Chorda", "Salamander", "candidat", "ronda", "round", "Luis", "voicing"] },
  tympanum: { data: ["tympanum", "tymp", "drskit", "virtuosity", "model", "hybrid", "hibrid", "generat", "generad", "record", "grabac", "studio", "estudio", "jazz", "beta", "round", "ronda", "luis", "cantus"],
@@ -84,7 +86,17 @@ const HIDE = {
   readme: ["cargo", "Tympanum", "DRSKit", "Virtuosity", "DrumGizmo", "ronda", "round", "Luis", "modelo", "generad", "híbrid", "hybrid"] }
 }[SUBJECT.id];
 if (!HIDE) { console.log("no hide list for the subject " + SUBJECT.id); process.exit(2); }
-const tokens = [...new Set([...TESTS.abx, ...TESTS.pref.flat(), ...TESTS.extra])];
+const tokens = [...new Set([...TESTS.abx, ...TESTS.pref.flat(), ...(TESTS.extra || []), ...(MUSHRA ? [MUSHRA.ref, ...MUSHRA.stims] : [])])];
+if (MUSHRA) {
+ // The hidden reference is the reference's clip under another name; every sample is a file.
+ const tbl = (() => { const b = Buffer.from(JSON.parse(constOf("REVEAL")), "base64"); let x = (+constOf("SEED")) >>> 0; for (let i = 0; i < b.length; i++) { x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; x = (x ^ (x << 5)) >>> 0; b[i] ^= x >>> 24; } return JSON.parse(b.toString("utf8")); })();
+ const hidden = MUSHRA.stims.filter(t => t !== MUSHRA.ref && tbl[t] === tbl[MUSHRA.ref]);
+ ok(hidden.length === 1, `MUSHRA: one hidden reference among the samples (${hidden.length})`);
+ for (const p of (MUSHRA.items || PHRASES)) {
+  const a = FILES[p + "|" + MUSHRA.ref], b = FILES[p + "|" + hidden[0]];
+  ok(a && b && a !== b && fs.readFileSync(path.join(kit, "audio", a)).equals(fs.readFileSync(path.join(kit, "audio", b))), `MUSHRA ${p}: the hidden reference is the reference's clip under another name`);
+ }
+}
 for (const p of PHRASES) for (const t of tokens) ok(FILES[p + "|" + t] && fs.existsSync(path.join(kit, "audio", FILES[p + "|" + t])), `file for ${p}|${t} exists`);
 for (const c of TESTS.catch) {
  const a = FILES[c.phrase + "|" + c.one], b = FILES[c.phrase + "|" + c.two];
@@ -116,6 +128,36 @@ async function S(page, expr, arg) { return page.evaluate(expr, arg); }
 const state = page => S(page, () => { const a = window.__abx.audio; return { playing: a.playing(), pos: a.position(), dur: a.duration(), loop: a.loop, mode: a.mode, view: window.__abx.st().view }; });
 async function waitFor(page, fn, what, ms = 4000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await sleep(50); } ok(false, what + " (timed out)"); return false; }
 
+// The MUSHRA part (round 42): the reference and every sample play and switch at the same place,
+// Next stays shut until every sample is played and rated, the ratings and plays are kept.
+async function mushraPart(page, tag) {
+ ok((await state(page)).view === "mushra", `${tag} after the ABX, the MUSHRA part`);
+ ok((await page.textContent("#steps")).includes(`1 de ${NM}`), `${tag} MUSHRA progress "1 de ${NM}"`);
+ const rate = (j, v) => page.$eval("#rate-" + j, (e, v) => { e.value = v; e.dispatchEvent(new Event("input")); }, String(v));
+ for (let i = 0; i < NM; i++) {
+  const x = await S(page, () => { const s = window.__abx.st(); return s.mushra[s.pos.mushra]; });
+  const n = x.order.length;
+  if (i === 0) {
+   ok(await page.isDisabled("#next") && !(await page.isHidden("#need-all")), `${tag} MUSHRA: Next shut before any rating`);
+   await page.click("#play-ref"); await waitFor(page, async () => (await state(page)).pos > 0.4, `${tag} the reference plays`, 6000);
+   const p0 = (await state(page)).pos; await page.click("#play-m0");
+   await waitFor(page, async () => (await state(page)).playing === "m0", `${tag} sample 1 takes over`, 6000);
+   const s1 = await state(page); ok(s1.pos >= p0 - 0.05 && s1.pos < p0 + 0.8, `${tag} MUSHRA: reference → sample 1 keeps the place (${p0.toFixed(2)} → ${s1.pos.toFixed(2)} s)`);
+   await page.keyboard.press("r"); await sleep(150); ok((await state(page)).playing === "ref", `${tag} key R plays the reference`);
+   await page.keyboard.press("2"); await sleep(250); ok((await state(page)).playing === "m1", `${tag} key 2 plays sample 2`);
+   for (let j = 0; j < n; j++) await rate(j, 10 * j + 7);
+   ok(await page.isDisabled("#next"), `${tag} MUSHRA: every sample rated but not every one played: Next still shut`);
+  } else for (let j = 0; j < n; j++) await rate(j, 10 * j + 7);
+  for (let j = 0; j < n; j++) await page.click("#play-m" + j);
+  await page.click("#stop");
+  ok(!(await page.isDisabled("#next")), `${tag} MUSHRA item ${i + 1}: every sample played and rated opens Next`);
+  const y = await S(page, () => { const s = window.__abx.st(); return s.mushra[s.pos.mushra]; });
+  ok(y.order.every((t, j) => y.scores[t] === 10 * j + 7 && y.played[t]) && y.at, `${tag} MUSHRA item ${i + 1}: ratings and plays kept`);
+  if (i === 0) { await rate(0, 100); ok((await S(page, () => window.__abx.st().mushra[0].changes)) >= 1, `${tag} MUSHRA: a changed rating is counted`); await rate(0, 7); }
+  await page.click("#next");
+ }
+}
+
 async function run(name, browserType, launch, url, mode) {
  const tag = `[${name} ${mode}]`;
  log.push(tag);
@@ -141,7 +183,7 @@ async function run(name, browserType, launch, url, mode) {
  let st = await S(page, () => window.__abx.st());
  ok(st.about.device === "headphones" && st.about[PLAY] === "some" && st.about.years === "4" && st.about.audio === "hobby" && st.about.age === "40" && st.listener === "Tester", `${tag} questionnaire recorded`);
  await page.click("#start");
- ok((await state(page)).view === "abx", `${tag} Start opens part 1`);
+ ok((await state(page)).view === PARTS[0], `${tag} Start opens part 1 (${PARTS[0]})`);
  ok((await page.textContent("#steps")).includes(`1 de ${N1}`), `${tag} progress "1 de ${N1}"`);
  ok((await state(page)).mode === mode, `${tag} audio engine is ${mode}`);
  // Transport: A plays, B switches keeping the place, B again restarts, X, Stop.
@@ -220,7 +262,8 @@ async function run(name, browserType, launch, url, mode) {
  st = await S(page, () => window.__abx.st());
  { const c = {}; for (const x of st.abx) c[x.phrase] = (c[x.phrase] || 0) + 1; const n = Object.values(c); ok(st.abx.length === N1 && Object.keys(c).length === Math.min(N1, PHRASES.length) && Math.max(...n) - Math.min(...n) <= 1, `${tag} part 1 draws every item evenly (${JSON.stringify(c)})`); }
  for (let i = 1; i < N1; i++) await page.click(i % 2 ? "#answer-a" : "#answer-b");
- ok((await state(page)).view === "pref", `${tag} after ${N1} trials, part 2`);
+ if (PARTS[PARTS.indexOf("abx") + 1] === "mushra") await mushraPart(page, tag);
+ ok((await state(page)).view === "pref", `${tag} after ${N1} trials${NM ? " and the MUSHRA" : ""}, the preferences`);
  // Preferences: 1 / 2 / no preference, the note, keys 1 and 2.
  // The question's clips load once it shows (a press loads its clip at once): the first press
  // may wait for a large clip to arrive and decode — waited for, not a fixed time.
@@ -246,8 +289,10 @@ async function run(name, browserType, launch, url, mode) {
  const checks = await S(page, () => { const s = window.__abx.st(), u = window.__abx.unveil(); return s.pref.filter(q => u[q.one] === u[q.two]).length; });
  ok(checks === 2, `${tag} two check questions among the preferences`);
  // Extra part, then results and the reveal.
- await page.click("#extra"); ok((await state(page)).view === "extra", `${tag} the extra part opens`);
- for (let i = 0; i < NX; i++) await page.click("#answer-a");
+ if (NX) {
+  await page.click("#extra"); ok((await state(page)).view === "extra", `${tag} the extra part opens`);
+  for (let i = 0; i < NX; i++) await page.click("#answer-a");
+ } else { ok(!(await page.$("#extra")), `${tag} no extra part offered when the kit has none`); await page.click("#see-results"); }
  ok((await state(page)).view === "results", `${tag} the extra part ends on the results`);
  const body = await page.innerText("body");
  ok(VOICES.every(v => body.includes(SUBJECT.text.es["voice_" + v])) && !body.includes("voice_") && (await page.$$("table tr")).length >= N1 + NP + NX + 3, `${tag} the reveal names the sources per trial`);
@@ -258,7 +303,7 @@ async function run(name, browserType, launch, url, mode) {
   const text = fs.readFileSync(await dl.path(), "utf8"); const d = JSON.parse(text);
   // ABX_SAVE=<dir>: keep each run's downloaded results (to read back with abx_read.py).
   if (process.env.ABX_SAVE) { fs.mkdirSync(process.env.ABX_SAVE, { recursive: true }); fs.writeFileSync(path.join(process.env.ABX_SAVE, `${name}-${mode}-${dl.suggestedFilename()}`), text); }
-  ok(d.kit && d.about.device === "headphones" && d.listener === "Tester" && d.abx.every(x => x.answer && x.at) && d.pref.every(q => q.choice && q.at) && d.extra.every(x => x.answer) && d.started && d.mainDone && d.extraDone && d.exported, `${tag} Download: the JSON holds answers, form, timestamps (${dl.suggestedFilename()})`);
+  ok(d.kit && d.about.device === "headphones" && d.listener === "Tester" && d.abx.every(x => x.answer && x.at) && d.pref.every(q => q.choice && q.at) && d.extra.every(x => x.answer) && (d.mushra || []).every(x => x.order.every(t => typeof x.scores[t] === "number") && x.at) && (d.mushra || []).length === NM && d.started && d.mainDone && (d.extraDone || !NX) && d.exported, `${tag} Download: the JSON holds answers, form, timestamps (${dl.suggestedFilename()})`);
  }
  // Start again: two presses.
  await page.click("#reset"); ok((await state(page)).view === "results" && (await page.textContent("#reset")).includes("Seguro"), `${tag} Start again asks once`);
