@@ -909,3 +909,13 @@ iteration, in this order:**
    (item 6) — the streaks and the ash tint alone did not carry it.
 5. *The hands at 100 %*: dark speckles and jaggies on both left hands in the full tiles, the
    bow hands small and unclear — the antialiasing at 100 % as well as 200 %.
+
+**Frame budget and clippy at the end of the session**: `arcus_hold_budget` (release, 
+loaded machine) **failed**: High violinists +3.65 / +5.04 ms (her, 100 / 200 %), +4.51 / +5.77 
+(him), over the 4.0 / 4.5 ceilings; his cello Light 200 % +1.00 at its 1.0 ceiling (numbers in 
+ADR 0159). The trunk shadow's steps were halved afterwards, unmeasured. `arcus_hand_table` 
+fails one rule ("Woman Viola string 3 +1: the palm 4.3 cm wide at its middle, the wrist 2.9"): 
+the offline palm thinning (`build_figures.py::slim_hand`, `PALM_VOLAR`) narrows the wrist from 
+the camera — handed to the arcus-hands builder, who now owns the hands. Clippy 
+(`-p cantus-ui --all-targets -D warnings`): one finding fixed (`cloth::contact`'s loop), 
+re-run at the session's end (see the final commit).
