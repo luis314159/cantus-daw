@@ -134,6 +134,9 @@ pub struct InstrumentSpec {
     pub trim_db: f32,
     /// The bridge's corner rounding, Hz (`string::StringStep::corner_hz`).
     pub corner_hz: f64,
+    /// r42:arcus-p6 — the hyperbolic law played with the friction's memory on this
+    /// instrument (`string::Friction::Memory`, the module's notes in `arcus_string.rs`).
+    pub memory: bool,
     /// A sustain's swell over its clean start: its length (s) at pp and ff (`T₀ + (T₁ − T₀)·d²`)
     /// and how far under its level it starts (dB, linear in the dynamic) — pass 4: the
     /// instrument's own, fitted to its family's rise (the study §2.5).
@@ -200,7 +203,28 @@ pub const NEUTRAL: Match = Match {
     vib_rate: 1.0,
 };
 
+#[cfg(test)]
+thread_local! {
+    /// The probes' override of every instrument's [`InstrumentSpec::memory`].
+    pub static MEMORY: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
 impl InstrumentSpec {
+    /// r42:arcus-p6 — the law a bow meets this instrument's strings with when the settings
+    /// ask for the hyperbolic one: with the friction's memory where [`Self::memory`].
+    pub fn friction(&self, asked: super::string::Friction) -> super::string::Friction {
+        use super::string::Friction;
+        #[cfg(test)]
+        let memory = MEMORY.with(|c| c.get()).unwrap_or(self.memory);
+        #[cfg(not(test))]
+        let memory = self.memory;
+        if asked == Friction::Hyperbolic && memory {
+            Friction::Memory
+        } else {
+            asked
+        }
+    }
+
     /// The string a key is played on by default: the highest whose open pitch is at or
     /// under it (first position; a key under the lowest plays the lowest).
     pub fn string_for(&self, key: f32) -> usize {
@@ -264,10 +288,13 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     vib_hz: 5.5,
     vib_ct: 18.0,
     vib: CELLO_VIB, // r42:arcus-p5
-    trim_db: 16.0,
+    // r42:arcus-p6: the cloud to 10 kHz radiates 2.8 dB more (`upper_tests::LOWER_HASHES`'s
+    // renders): taken back here, so the cello sounds at the level it had (was 16.0).
+    trim_db: 13.2,
     // Pass 3: 3 kHz rounded the cello's upper partials under the cellos' band at ff (the
     // bow near the bridge could not brighten it): 6 kHz.
     corner_hz: 6000.0,
+    memory: false, // r42:arcus-p6
     // Pass 4: the cellos' rise 0.14–0.28 s soft, 0.10–0.37 middle, 0.01–0.07 loud.
     swell_s: (0.30, 0.05),
     swell_db: (20.0, 10.0),
@@ -444,6 +471,7 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     // Pass 2: its own body and correction made it ~10 dB hotter than the cello: 6 dB.
     trim_db: 6.0,
     corner_hz: 2000.0,
+    memory: false, // r42:arcus-p6
     // Pass 4: the basses' rise is narrower (0.10–0.24 s soft, 0.11–0.15 middle, 0.07–0.12
     // loud): a loud note's swell longer and deeper (its clean start's transient stood over
     // 10 dB).
@@ -469,6 +497,27 @@ pub const MU_S: f32 = 0.8;
 pub const MU_D: f32 = 0.3;
 pub const V0: f32 = 0.1;
 
+/// r42:arcus-p6 — the friction's memory (`string::Curve::lag_s`, `slip_dc`; the module's
+/// notes in `arcus_string.rs`): the time it relaxes over, s, and the slip distance, m (0:
+/// that term off).
+pub const FRICTION_TAU_S: f32 = 250e-6;
+pub const FRICTION_DC_M: f32 = 50e-6;
+
+#[cfg(test)]
+thread_local! {
+    /// The probes' override of [`FRICTION_TAU_S`] and [`FRICTION_DC_M`].
+    pub static FRICTION_MEM: std::cell::Cell<Option<(f32, f32)>> = const { std::cell::Cell::new(None) };
+}
+
+/// The friction's memory every new string takes, `(τ, D_c)` (the probes may override it).
+pub fn friction_memory() -> (f32, f32) {
+    #[cfg(test)]
+    if let Some(l) = FRICTION_MEM.with(|c| c.get()) {
+        return l;
+    }
+    (FRICTION_TAU_S, FRICTION_DC_M)
+}
+
 /// Schelleng's upper force limit for Helmholtz motion, N (Schelleng 1973; the bow's static
 /// friction holding the string through the Helmholtz corner's step):
 /// `F_max = 2·Z₀·v_b / ((μs − μd)·β)`.
@@ -482,8 +531,11 @@ pub const CELLO_MATCH: Match = Match {
     // Pass 2: over the measured body, what is left of the recordings' spectrum (the match's
     // fit on two thirds of the notes; pass 1 fitted −9.7 dB at 63 Hz … +12 at 10 kHz over
     // the scaled violin body).
+    // r42:arcus-p6: fitted again over the cello body's cloud to 10 kHz (`match.sh fit`, the
+    // same two thirds; only the correction taken). Pass 2's: −8.1 −5.2 −3.0 −1.5 −0.8 −2.0 −1.9
+    // +0.4 −0.2 −0.7 +6.7 +12.0 (the cap at 10 kHz, lifting a body that radiated nothing there).
     eq_db: [
-        -8.1, -5.2, -3.0, -1.5, -0.8, -2.0, -1.9, 0.4, -0.2, -0.7, 6.7, 12.0,
+        -6.4, -3.1, -1.5, -0.7, 1.0, 0.1, -0.9, 1.1, 1.6, 0.5, 2.5, 6.0,
     ],
     // Pass 2, measured by the study's estimator on the held-out notes: the hair's noise 3–6
     // dB under the cellos' band, the vibrato ±16.6 cents against ±6–12 and 5.8 Hz against

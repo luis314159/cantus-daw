@@ -108,6 +108,22 @@ for fam in ("cello", "bass"):
             vals = [b["marks"].get(m_key) for b in ref["body"].values() if isinstance(b.get("marks", {}).get(m_key), (int, float))]
             if vals and isinstance(mk[m_key], (int, float)):
                 res[f"body.{m_key}"] = {"arcus": mk[m_key], "band": (min(vals), max(vals)), "outside": outside(mk[m_key], (min(vals), max(vals)))}
+    # r42:arcus-p6: the body's harmonic-peak curve (the study's `body.body_estimate`) against
+    # the measured instruments' [min, max] per 1/12-octave bin, RMS dB outside, by octave band
+    # from 250 Hz to 10 kHz (the curves are levelled on 200 Hz - 4 kHz by the estimator).
+    if ours["body"].get("arcus") and ref.get("body"):
+        a = ours["body"]["arcus"]
+        fc = np.array(a["fc_hz"], float)
+        ha = np.array([np.nan if v is None else v for v in a["H_db"]], float)
+        hr = np.array([[np.nan if v is None else v for v in b["H_db"]] for b in ref["body"].values()], float)
+        lo, hi = np.nanmin(hr, axis=0), np.nanmax(hr, axis=0)
+        med = np.nanmedian(hr, axis=0)
+        for f0, f1 in ((250, 500), (500, 1000), (1000, 2000), (2000, 4000), (4000, 7000), (7000, 10000)):
+            m = (fc >= f0) & (fc < f1) & np.isfinite(ha) & np.isfinite(lo)
+            if m.sum():
+                d = np.maximum(np.maximum(lo[m] - ha[m], 0.0), ha[m] - hi[m])
+                res[f"body_curve.{f0}_{f1}"] = {"arcus": float(np.mean(ha[m])), "band": (float(np.mean(lo[m])), float(np.mean(hi[m]))),
+                                                "outside": float(np.sqrt(np.mean(d * d))), "ref_median": float(np.mean(med[m]))}
     if ref.get("pizz_t60_by_freq") and ours.get("pizz_t60_by_freq"):
         ds = []
         for fq, d in ref["pizz_t60_by_freq"].items():

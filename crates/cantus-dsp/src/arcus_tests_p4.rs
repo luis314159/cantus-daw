@@ -429,10 +429,10 @@ fn probe_friction_gate() {
     use super::string::Friction;
     use super::tables::schelleng_max;
     use super::tests_gate::{attack_time, bow_string, onsets};
-    let friction = if std::env::var("ARCUS_FRICTION").is_ok_and(|f| f == "thermal") {
-        Friction::Thermal
-    } else {
-        Friction::Hyperbolic
+    let friction = match std::env::var("ARCUS_FRICTION").as_deref() {
+        Ok("thermal") => Friction::Thermal,
+        Ok("memory") => Friction::Memory, // r42:arcus-p6
+        _ => Friction::Hyperbolic,
     };
     let (mut over, mut count, mut worst) = (0, 0, 0.0f64);
     for inst in [Instrument::Cello, Instrument::Bass] {
