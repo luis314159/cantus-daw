@@ -661,3 +661,26 @@ session, taken out before the commit).
 the woman with the violin and the cello, the man with both, Photographic, Night and Paper,
 200 %: `face-*` (×2), `head-*` and `before-after-<who>-<inst>-<theme>.png` (sheet v8's own
 shot cropped the same way beside the new one). Sheet: `docs/round42/arcus-upper/sheet-v9-hair/`.
+
+**Gates (this build, 528de5064 and after)**: `arcus_hold` 7/7, `arcus_hand_table`,
+`arcus_scene`, `scene_identity` (Chorda's and Tympanum's pictures unchanged: the hair's
+paths are a realistic figure's only), `figure_contract`, `kit_lint`; the lib's `figure::`
+tests (6, among them the maps' no-large-scale-light test: every covered 64-texel block's
+mean within 16 % of 1, sheet v8's texture 0.27 … 1.97); `cargo clippy -p cantus-ui
+--all-targets -- -D warnings`; `arcus_hold_budget` in release (High realistic held p50
+1.69–2.23 ms, within 3.0); rustfmt on every touched file; `THIRD-PARTY-NOTICES.md`
+regenerated.
+
+**Open**:
+1. The hairline is soft at 100 % and 200 % but still shows a faint lighter band at her
+   temples on the violin (Night): the cards there end a little short even after
+   `reach_line`; a longer reach at the sides (|θ| 40–90°) or a few strands' cards of our own
+   along the hairline would close it.
+2. The Drawn look's hair is unchanged (the thick shell): the cards are the Photographic
+   bake's only.
+3. The live arms' hands still use per-vertex colour (egui draws them untextured).
+4. Fine loose strands (flyaways) at the temples need cards of their own; not done.
+5. The man's hair keeps a faint sheen only: his short02 texture's curls give the strands'
+   way no coherent direction. A groomed short-hair texture would let him have a sheen.
+6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
+

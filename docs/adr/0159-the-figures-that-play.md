@@ -186,7 +186,9 @@ occluding capsules in its live painter.
 
 - **The hair's cost is the bake's, not the frame's** (r42:arcus-hair): the hair, the
   scalp and the eyes are in the baked picture; the live layer is unchanged, so the frame
-  budget's numbers above stand (`arcus_hold_budget` re-run on this build, below). A
+  budget's numbers above stand (`arcus_hold_budget` re-run in release on this build,
+  2026-11-25: High realistic held p50 1.69–2.23 ms, the arms +1.18 to +1.75 ms; Light +0.07
+  to +0.33; the test's ceilings kept, it passes). A
   realistic figure's bake now takes nine samples a pixel while the picture has at most
   about 1.07 M pixels (`3 × MAX_SAMPLES / 9`: a 100 % picture), four above it (a 200 %
   one) — where the app had been baking one at 200 %: the bake's time and its peak (about
