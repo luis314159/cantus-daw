@@ -189,24 +189,27 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
             }
         }
         Tex::Card(k) => {
-            // r42:arcus-upper — a card's strands: its texture's grey shades the base.
-            let f = crate::scene::figure::cards::card(k).map_or(1.0, |c| c.shade(uv));
+            // r42:arcus-upper — a card's strands: its texture's grey shades the base; a hair
+            // card's `uv[0]` is already its strand's detail (r42:arcus-hair, `raster::place`).
+            let f = if hair_card(m.tex) {
+                uv[0]
+            } else {
+                crate::scene::figure::cards::card(k).map_or(1.0, |c| c.shade(uv))
+            };
             Surf {
                 sheen: 0.0,
                 ..s(lscale(m.base, f), m.coat, m.rough)
             }
         }
+        Tex::Eye => s(crate::scene::figure::cards::eye(uv), m.coat, m.rough),
+        Tex::Scalp(_) => s(lscale(m.base, scalp_strands(uv, fp)), m.coat, m.rough),
         Tex::Hair => {
-            // Soft streaks across the strands (`uv[0]`, the angle round the head's
-            // front-to-back axis); at the hairline (`uv[1]` 0) the skin's colour (`m.dark`)
-            // shows through, as real hair thins there. Its grooves and its sheen along the
-            // strands are `shade`'s (sheet v7).
+            // Strand bundles across the strands (`uv[0]`), the scalp's under the cards
+            // (r42:arcus-hair: one head of hair — the chignon as the hair drawn into it); at
+            // the hairline (`uv[1]` 0) the skin's colour (`m.dark`) shows through, as real
+            // hair thins there. Its sheen along the strands is `strands`'.
             let across = uv[0];
-            let streak = 0.9
-                + 0.07 * (across * 2.1).sin()
-                + 0.05 * (across * 5.3 + 1.7).sin()
-                + 0.06 * noise(across * 13.0, 0.5, 61)
-                - 0.05 * noise(across * 31.0, 1.5, 67);
+            let streak = scalp_strands([across, 0.0], fp);
             // The hairline broken up as hair's own tips are (a smooth blend read as the
             // triangles' teeth).
             let tips = 0.45 * (noise(across * 41.0, 0.7, 73) - 0.5);
@@ -660,52 +663,66 @@ fn env_rough(
     lscale(acc, 1.0 / 6.0)
 }
 
-/// r42:arcus-upper — hair (sheet v7: "a real hair volume with strands' sheen, never a
-/// helmet"): the combed strands' fine grooves turn the light across them (a ridge and a
-/// furrow every few millimetres, each strand bundle its own width), and the light runs
-/// along the strands as Kajiya and Kay's model has it — a white sheen where the strands
-/// stand square to the half-way vector, a second broader one tinted by the hair, shifted
-/// toward the tips. `t` is the across way (`dP/du`, `u` the across coordinate); the
-/// strands run square to it in the surface.
-#[allow(clippy::too_many_arguments)]
-fn hair(
-    m: &PMat,
-    sf: &Surf,
+/// r42:arcus-hair — whether `t` is a hair card's (its maps carry the strands' detail and
+/// way; a brow's or a lash's card is grey and coverage).
+fn hair_card(t: Tex) -> bool {
+    matches!(t, Tex::Card(k) if k % 3 == 0
+        && crate::scene::figure::cards::card(k).is_some_and(|c| c.hair))
+}
+
+/// r42:arcus-hair — the strands combed back over the scalp under the cards (where the
+/// cards end short of the hairline, it is what shows): bundles across the head (`uv[0]`,
+/// about a centimetre a unit) drifting slowly along it (`uv[1]`, degrees in from the
+/// hairline), each its own light, as the cards' detail is; the finer bundles fade where a
+/// pixel (`fp` metres) cannot hold them.
+fn scalp_strands(uv: [f32; 2], fp: f32) -> f32 {
+    let (a, l) = (uv[0], uv[1]);
+    let keep = |cycles_cm: f32| smooth(3.0, 6.0, 0.01 / cycles_cm / fp.max(1e-6));
+    let coarse = noise(a * 5.0 + 0.11 * l, l * 0.05, 101) - 0.5;
+    let fine = noise(a * 11.0 + 0.07 * l, l * 0.09 + 3.0, 103) - 0.5;
+    (1.0 + 0.36 * coarse * keep(5.0) + 0.3 * fine * keep(11.0)).clamp(0.6, 1.4)
+}
+
+/// What lights a strand: the normal (the head of hair's, smooth), the eye's and the key's
+/// way, the way the strand runs, the key's colour and how much of it reaches.
+struct Strands {
     n: V3,
     v: V3,
     l: V3,
-    t: V3,
-    uv: [f32; 2],
+    along: V3,
     kc: Lin,
     kv: f32,
-    e: Lin,
-    rim: Lin,
-) -> Lin {
-    let across = (t - n * t.dot(n)).norm();
-    let across = if across.len() < 0.5 {
+}
+
+/// r42:arcus-hair — a head of hair (the owner's review of sheet v8: her ponytail's cards
+/// read as camouflage): every card and the scalp under them lit as one — the diffuse from
+/// the head of hair's smooth normal (`e`, wrapped), the colour one base with each strand's
+/// own detail, and the light along the strands as Kajiya and Kay have it, from the way the
+/// strands run in the card's texture: a narrow, near white highlight where the strands
+/// stand square to the half-way vector and a broader one tinted by the hair — together a
+/// soft sheen band across the head, as a tied-back head of hair shows. `k` how much of the
+/// surface is hair (the scalp's edge is skin); `detail` the strand's own light.
+fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f32) -> Lin {
+    let n = s.n;
+    let along = s.along - n * s.along.dot(n);
+    let along = if along.len() < 0.2 {
         super::geo::perp(n)
     } else {
-        across
+        along.norm()
     };
-    let along = n.cross(across).norm();
-    // The grooves: the normal swung across the strands, bundles of uneven width.
-    let u = uv[0];
-    let ph = u * 5.2 + 1.3 * noise(u * 1.9, 0.3, 83) + 0.5 * (u * 11.0).sin();
-    // Fading in from the hairline, where the hair thins to the skin.
-    let inside = smooth(0.25, 0.9, uv[1]);
-    let nn = (n + across * (0.14 * inside * ph.sin())).norm();
-    let groove = (1.0 + 0.9 * (nn.dot(l) - n.dot(l))).clamp(0.75, 1.2);
-    let d = lmul(sf.albedo, ladd(lscale(e, groove), lscale(rim, 0.6)));
-    // The sheen along the strands.
-    let h = (l + v).norm();
-    let lit = (n.dot(l) * 2.5 + 0.5).clamp(0.0, 1.0) * kv;
+    let d = lmul(sf.albedo, ladd(e, lscale(rim, 0.5)));
+    let h = (s.l + s.v).norm();
+    // The highlight fades over the terminator (a strand's back is not lit).
+    let lit = (n.dot(s.l) * 2.0 + 0.6).clamp(0.0, 1.0) * s.kv;
     let th = along.dot(h);
-    let s1 = (1.0 - th * th).max(0.0).sqrt().powi(40) * 0.025;
-    let t2 = (along + nn * 0.18).norm();
-    let th2 = t2.dot(h);
-    let s2 = (1.0 - th2 * th2).max(0.0).sqrt().powi(12) * 0.03;
-    let tint = lscale(m.base, 1.6);
-    let spec: Lin = std::array::from_fn(|i| kc[i] * lit * inside * groove * (s1 + s2 * tint[i]));
+    let sin = (1.0 - th * th).max(0.0).sqrt();
+    let tune = crate::scene::figure::cards::tune;
+    let s1 = sin.powf(tune(8, 60.0)) * tune(9, 0.3);
+    let s2 = sin.powf(tune(10, 10.0)) * tune(11, 0.25);
+    let tint = lscale(m.base, 1.5);
+    // (A bright strand catches more of it; the gaps' deeper hair less.)
+    let g = detail * detail * k;
+    let spec: Lin = std::array::from_fn(|i| s.kc[i] * lit * g * (s1 + s2 * tint[i]));
     ladd(d, spec)
 }
 
@@ -740,7 +757,17 @@ pub fn shade(
         _ => f(),
     };
     let v = (eye - p).norm();
-    let figure = matches!(m.tex, Tex::Skin | Tex::Hair | Tex::Velvet | Tex::Card(_));
+    let figure = matches!(
+        m.tex,
+        Tex::Skin | Tex::Hair | Tex::Velvet | Tex::Card(_) | Tex::Scalp(_) | Tex::Eye
+    );
+    // r42:arcus-hair — one head of hair: the hair cards and the scalp under them (how much
+    // of the scalp is hair, not the skin at its edge).
+    let hairy = match m.tex {
+        Tex::Scalp(_) | Tex::Hair => Some(1.0),
+        t if hair_card(t) => Some(1.0),
+        _ => None,
+    };
     let mut n = if figure && n.dot(v) < 0.0 && n.dot(v) > -0.35 {
         // r42:arcus-upper — at a figure's silhouette the smooth normal turns just past the
         // eye: bent back to graze it, not flipped (flipped it faced away from every light:
@@ -765,6 +792,10 @@ pub fn shade(
         // r42:arcus-upper — light through skin: the terminator wrapped wide and soft (the
         // owner, 2026-11-24: skin, not paint).
         ((n.dot(l) + 0.2) / 1.2).max(0.0)
+    } else if hairy.is_some() {
+        // r42:arcus-hair — light through hair: a head of hair's terminator is softer still.
+        let w = crate::scene::figure::cards::tune(7, 0.35);
+        ((n.dot(l) + w) / (1.0 + w)).max(0.0)
     } else {
         n.dot(l).max(0.0)
     };
@@ -815,8 +846,25 @@ pub fn shade(
         rim = ladd(rim, lscale(c, k));
     }
     let r = n * (2.0 * ndv) - v;
-    if m.tex == Tex::Hair {
-        return rig.hazed(p, hair(m, &sf, n, v, l, t, uv, kc, kv, e, rim));
+    if let Some(k) = hairy {
+        // The scalp's `t` is across its strands (its `u`); a card's runs along them.
+        let along = if hair_card(m.tex) { t } else { n.cross(t) };
+        let detail = if hair_card(m.tex) {
+            uv[0]
+        } else if m.tex == Tex::Hair {
+            scalp_strands([uv[0], 0.0], fp)
+        } else {
+            scalp_strands(uv, fp)
+        };
+        let lit = Strands {
+            n,
+            v,
+            l,
+            along,
+            kc,
+            kv,
+        };
+        return rig.hazed(p, strands(m, &sf, &lit, e, rim, detail, k));
     }
     let c = match m.kind {
         Kind::Metal => {

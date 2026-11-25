@@ -83,6 +83,13 @@ pub enum Tex {
     /// texture's grey at `uv` shades the base; where its alpha is under half the raster
     /// sees through it.
     Card(u8),
+    /// r42:arcus-hair — the scalp under figure `who`'s hair cards: the skin's colour (`dark`)
+    /// at its edge, the hair's (`base`) a few degrees in (`uv[1]` the degrees in from the
+    /// hairline), lit as the hair is.
+    Scalp(u8),
+    /// r42:arcus-hair — a realistic figure's eye: its iris and white from its texture at
+    /// `uv` (`figure::cards::eye`).
+    Eye,
 }
 
 /// A material.

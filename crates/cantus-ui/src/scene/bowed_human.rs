@@ -129,6 +129,9 @@ pub struct Figure {
     /// shows in the light).
     pub uv: Vec<[f32; 2]>,
     pub weld: Vec<u32>,
+    /// r42:arcus-hair — a hair card vertex's degrees in from the hairline (negative: out
+    /// over the skin; `build_figures.py::line_lum`): the bake feathers the cards there.
+    pub line: Vec<f32>,
 }
 
 /// Which figure.
@@ -233,7 +236,9 @@ pub fn parse(b: &[u8]) -> Option<Figure> {
         );
         let ids = [r.u8()?, r.u8()?, r.u8()?, r.u8()?];
         let ws = [r.u8()?, r.u8()?, r.u8()?, r.u8()?];
-        let lum = 0.35 + r.u8()? as f32 / 255.0;
+        let lum_b = r.u8()?;
+        f.line.push((lum_b as f32 - 128.0) * 0.5);
+        let lum = 0.35 + lum_b as f32 / 255.0;
         let red = r.u8()? as i8 as f32 / 100.0;
         let uv = [r.f16()?, r.f16()?];
         f.pos.push(p);
@@ -784,10 +789,14 @@ pub fn emit(
                 tr.pts.push(pts[i]);
                 tr.nrm.push(nrm[i]);
                 tr.detail.push(fig.detail[i]);
-                tr.uv.push(if matches!(r, Role::Skin(_)) {
-                    fig.uv.get(i).copied().unwrap_or([-1.0, -1.0])
-                } else {
-                    [-1.0, -1.0]
+                tr.uv.push(match r {
+                    // (r42:arcus-hair: an eye's place in its texture too.)
+                    Role::Skin(_) | Role::Eye | Role::Iris => {
+                        fig.uv.get(i).copied().unwrap_or([-1.0, -1.0])
+                    }
+                    // (r42:arcus-hair: a hair card's hairline, flagged by its second.)
+                    Role::Card(k) if k % 3 == 0 => [fig.line[i], 1.0],
+                    _ => [-1.0, -1.0],
                 });
             }
             map[i]

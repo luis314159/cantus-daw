@@ -109,7 +109,9 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::HairFair => PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair),
         Role::Eye => PMat::lacquer(lin3(hp::EYE_WHITE), 0.35, 0.08),
         Role::Iris => PMat::lacquer(lin3(hp::IRIS), 0.35, 0.08),
-        Role::Lash => PMat::matte(lin3(hp::LASH)),
+        // (r42:arcus-hair: a little lighter than the Drawn picture's — near black, each lash
+        // a sample wide read as a black blob over the eye at 200 %.)
+        Role::Lash => PMat::matte(lin3(hp::LASH).map(|c| c * 1.8)),
         Role::Nail(i) => {
             PMat::lacquer(lin3(hp::nail(i).albedo).map(|c| c * 0.5), 0.18, 0.22).with(Tex::Skin)
         }
@@ -124,13 +126,30 @@ fn pmat(b: Bowed, r: Role) -> PMat {
                 (1, false) => hp::HAIR,
                 _ => hp::LASH,
             };
-            PMat::lacquer(lin3(base), 0.06, 0.45).with(Tex::Card(k))
+            let base = match k % 3 {
+                2 => lin3(base).map(|c| c * 1.8),
+                0 => lin3(base).map(|c| c * crate::scene::figure::cards::hair_albedo()),
+                _ => lin3(base),
+            };
+            PMat::lacquer(base, 0.06, 0.45).with(Tex::Card(k))
         }
         Role::Shell(0) | Role::Scalp(0) => {
             PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
         }
         Role::Shell(_) | Role::Scalp(_) => PMat::matte(lin3(hp::HAIR)),
     }
+}
+
+/// r42:arcus-upper — the middle of hair card `k`'s head of hair (its vertices' mean).
+fn middle(tris: &[(Role, crate::scene::bowed_mesh::Tris)], k: u8) -> V3 {
+    let (mut sum, mut n) = (V3::default(), 0usize);
+    for (_, t) in tris.iter().filter(|(r, _)| *r == Role::Card(k)) {
+        for &p in &t.pts {
+            sum = sum + of(p);
+            n += 1;
+        }
+    }
+    sum * (1.0 / n.max(1) as f32)
 }
 
 /// `b` added to `g` (its triangles after the room's).
@@ -180,12 +199,35 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
             }),
             Role::HairFair => g.mat(PMat {
                 dark: scalp,
-                ..PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
+                ..PMat::lacquer(
+                    lin3(hp::HAIR_FAIR).map(|c| c * crate::scene::figure::cards::hair_albedo()),
+                    0.1,
+                    0.42,
+                )
+                .with(Tex::Hair)
             }),
             // The scalp under the cards in the cards' own finish (no streaks of its own:
             // where it showed between them it read as patches of another hair).
-            Role::Scalp(0) => g.mat(PMat::lacquer(lin3(hp::HAIR_FAIR), 0.06, 0.45)),
-            Role::Scalp(_) => g.mat(PMat::lacquer(lin3(hp::HAIR), 0.06, 0.45)),
+            // (r42:arcus-hair: the hair's colour, lit as the cards over it are, thinning out
+            // at its edge by the hairline.)
+            Role::Scalp(w) => {
+                let hair = if *w == 0 { hp::HAIR_FAIR } else { hp::HAIR };
+                let deep = crate::scene::figure::cards::tune(6, 0.95)
+                    * crate::scene::figure::cards::hair_albedo();
+                g.mat(
+                    PMat::lacquer(lin3(hair).map(|c| c * deep), 0.06, 0.45).with(Tex::Scalp(*w)),
+                )
+            }
+            // (r42:arcus-hair: the eyes from their texture — the iris, its pupil, the white —
+            // wet: a catch-light from the key.)
+            Role::Eye | Role::Iris => g.mat(
+                PMat::lacquer(
+                    [1.0; 3],
+                    crate::scene::figure::cards::tune(12, 0.6),
+                    crate::scene::figure::cards::tune(13, 0.04),
+                )
+                .with(Tex::Eye),
+            ),
             // The thick shell is the Drawn picture's (here the cards over the scalp).
             Role::Shell(_) => continue,
             r => id(g, *r),
@@ -193,9 +235,14 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
         // r42:arcus-upper — a hair card is lit as the head of hair it belongs to (each card's
         // own normal showed as light and dark patches, the owner's review): its normal the
         // way out from the hair's middle, one smooth light over every card.
-        let radial = matches!(role, Role::Card(k) if k % 3 == 0).then(|| {
-            t.pts.iter().fold(V3::default(), |a, &p| a + of(p)) * (1.0 / t.pts.len().max(1) as f32)
-        });
+        // (r42:arcus-hair: the scalp under them lit from the same middle — by its own normal
+        // its strip along the hairline, where the cards end short, faced the key more and
+        // read as a pale band.)
+        let radial = match role {
+            Role::Card(k) if k % 3 == 0 => Some(middle(&m.tris, *k)),
+            Role::Scalp(w) => Some(middle(&m.tris, *w * 3)),
+            _ => None,
+        };
         for tri in &t.idx {
             let [a, b2, c] = tri.map(|i| i as usize);
             let w = [a, b2, c].map(|i| {

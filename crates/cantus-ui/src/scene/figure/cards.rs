@@ -17,45 +17,100 @@ static PNGS: [&[u8]; 6] = [
     include_bytes!("../../../assets/figures/man_lash.png"),
 ];
 
-/// A card's texture: its side and each texel's grey and coverage (0…255).
+/// One level of a card's texture: its side and each texel's `[grey, coverage, way's cos 2θ,
+/// way's sin 2θ]` (0…255; the way 128 where it has none).
+pub struct Level {
+    pub w: usize,
+    pub h: usize,
+    pub texels: Vec<[u8; 4]>,
+}
+
+/// A card's texture: its levels (the first the texture as stored, each next half its side:
+/// a strand pattern finer than a sample is taken as its coverage and mean, not sampled at
+/// random — the owner's review of sheet v8: hair as noise and camouflage).
 pub struct Card {
     pub w: usize,
     pub h: usize,
-    pub texels: Vec<[u8; 2]>,
+    pub levels: Vec<Level>,
+    /// r42:arcus-hair — a hair card's maps (`tools/arcus-figures/hair_maps.py`): the grey is
+    /// the strands' own detail over 128 (the texture's large-scale light taken away), the
+    /// way the strands run is kept; a brow's or a lash's is grey and coverage.
+    pub hair: bool,
     /// The mean grey where it covers (its strands' light is taken against it, so a card's
     /// colour is the figure's hair colour on average, as the scalp under it is).
     pub mean: f32,
 }
 
-fn decode(bytes: &[u8]) -> Option<Card> {
+fn decode(bytes: &[u8], mips: bool) -> Option<Card> {
     let mut dec = png::Decoder::new(std::io::Cursor::new(bytes));
     dec.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = dec.read_info().ok()?;
     let mut buf = vec![0u8; reader.output_buffer_size()?];
     let frame = reader.next_frame(&mut buf).ok()?;
     let (w, h) = (frame.width as usize, frame.height as usize);
-    let ch = match frame.color_type {
-        png::ColorType::GrayscaleAlpha => 2,
-        png::ColorType::Rgba => 4,
-        png::ColorType::Grayscale => 1,
-        png::ColorType::Rgb => 3,
+    let (ch, hair) = match frame.color_type {
+        png::ColorType::GrayscaleAlpha => (2, false),
+        png::ColorType::Rgba => (4, true),
+        png::ColorType::Grayscale => (1, false),
+        png::ColorType::Rgb => (3, false),
         _ => return None,
     };
     let texels = buf[..w * h * ch]
         .chunks(ch)
         .map(|c| match ch {
-            2 => [c[0], c[1]],
-            4 => [((c[0] as u16 + c[1] as u16 + c[2] as u16) / 3) as u8, c[3]],
-            1 => [c[0], 255],
-            _ => [((c[0] as u16 + c[1] as u16 + c[2] as u16) / 3) as u8, 255],
+            2 => [c[0], c[1], 128, 128],
+            4 => [c[0], c[3], c[1], c[2]],
+            1 => [c[0], 255, 128, 128],
+            _ => [
+                ((c[0] as u16 + c[1] as u16 + c[2] as u16) / 3) as u8,
+                255,
+                128,
+                128,
+            ],
         })
-        .collect::<Vec<[u8; 2]>>();
+        .collect::<Vec<[u8; 4]>>();
     let (sum, n) = texels
         .iter()
         .filter(|t| t[1] >= 128)
         .fold((0.0f32, 0usize), |(s, n), t| (s + t[0] as f32, n + 1));
     let mean = if n > 0 { sum / n as f32 } else { 128.0 }.max(8.0);
-    Some(Card { w, h, texels, mean })
+    let mut levels = vec![Level { w, h, texels }];
+    while let Some(l) = levels.last().filter(|l| mips && l.w >= 32 && l.h >= 32) {
+        let next = half(l);
+        levels.push(next);
+    }
+    Some(Card {
+        w,
+        h,
+        levels,
+        hair,
+        mean,
+    })
+}
+
+/// A level at half the side: coverage averaged; the grey and the way averaged over what
+/// covers (a strand's colour is not thinned by the gaps beside it).
+fn half(l: &Level) -> Level {
+    let (w, h) = (l.w / 2, l.h / 2);
+    let mut texels = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let q = [
+                l.texels[2 * y * l.w + 2 * x],
+                l.texels[2 * y * l.w + 2 * x + 1],
+                l.texels[(2 * y + 1) * l.w + 2 * x],
+                l.texels[(2 * y + 1) * l.w + 2 * x + 1],
+            ];
+            let a: u32 = q.iter().map(|t| t[1] as u32).sum();
+            let wsum = q.iter().map(|t| t[1] as u32 + 1).sum::<u32>();
+            let avg = |k: usize| {
+                let s: u32 = q.iter().map(|t| t[k] as u32 * (t[1] as u32 + 1)).sum();
+                ((s + wsum / 2) / wsum) as u8
+            };
+            texels.push([avg(0), ((a + 2) / 4) as u8, avg(2), avg(3)]);
+        }
+    }
+    Level { w, h, texels }
 }
 
 static SKINS: [&[u8]; 2] = [
@@ -67,50 +122,244 @@ static SKINS: [&[u8]; 2] = [
 /// skin's luminance over its own blur (pores, the brows' hairs, the lips' lines; about
 /// 0.6 … 1.4), bilinear.
 pub fn skin_detail(u: f32, v: f32) -> f32 {
-    static TEX: OnceLock<Vec<Option<Card>>> = OnceLock::new();
-    let t = TEX.get_or_init(|| SKINS.iter().map(|b| decode(b)).collect());
+    // (Kept as one grey byte a texel: a skin is never a card.)
+    static TEX: OnceLock<Vec<Option<(usize, usize, Vec<u8>)>>> = OnceLock::new();
+    let t = TEX.get_or_init(|| {
+        SKINS
+            .iter()
+            .map(|b| {
+                let c = decode(b, false)?;
+                Some((c.w, c.h, c.levels[0].texels.iter().map(|t| t[0]).collect()))
+            })
+            .collect()
+    });
     let (k, u) = if u >= 2.0 { (1, u - 2.0) } else { (0, u) };
-    let Some(Some(c)) = t.get(k) else {
+    let Some(Some((w, h, grey))) = t.get(k) else {
         return 1.0;
     };
-    let x = (u.clamp(0.0, 1.0) * c.w as f32 - 0.5).max(0.0);
-    let y = ((1.0 - v.clamp(0.0, 1.0)) * c.h as f32 - 0.5).max(0.0);
+    let (w, h) = (*w, *h);
+    let x = (u.clamp(0.0, 1.0) * w as f32 - 0.5).max(0.0);
+    let y = ((1.0 - v.clamp(0.0, 1.0)) * h as f32 - 0.5).max(0.0);
     let (x0, y0) = (x.floor() as usize, y.floor() as usize);
-    let (x1, y1) = ((x0 + 1).min(c.w - 1), (y0 + 1).min(c.h - 1));
-    let (x0, y0) = (x0.min(c.w - 1), y0.min(c.h - 1));
+    let (x1, y1) = ((x0 + 1).min(w - 1), (y0 + 1).min(h - 1));
+    let (x0, y0) = (x0.min(w - 1), y0.min(h - 1));
     let (tx, ty) = (x - x0 as f32, y - y0 as f32);
-    let g = |x: usize, y: usize| c.texels[y * c.w + x][0] as f32;
+    let g = |x: usize, y: usize| grey[y * w + x] as f32;
     let a = g(x0, y0) * (1.0 - tx) + g(x1, y0) * tx;
     let b = g(x0, y1) * (1.0 - tx) + g(x1, y1) * tx;
     ((a * (1.0 - ty) + b * ty) / 128.0).clamp(0.6, 1.4)
+}
+
+/// r42:arcus-hair — development tuning (`CANTUS_HAIR_TUNE`, numbers by comma), read once.
+pub fn tune(i: usize, default: f32) -> f32 {
+    static T: OnceLock<Vec<Option<f32>>> = OnceLock::new();
+    T.get_or_init(|| {
+        std::env::var("CANTUS_HAIR_TUNE")
+            .unwrap_or_default()
+            .split(',')
+            .map(|x| x.trim().parse().ok())
+            .collect()
+    })
+    .get(i)
+    .copied()
+    .flatten()
+    .unwrap_or(default)
+}
+
+fn smooth(a: f32, b: f32, x: f32) -> f32 {
+    let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// r42:arcus-hair — how much of a hair card's coverage stands at `line` degrees in from
+/// figure `who`'s hairline (0 her, 1 him): the strands thin out over the front edge of the
+/// hair, so it meets the forehead softly (the owner's review of sheet v8: a hard edge).
+pub fn feather(who: u8, line: f32) -> f32 {
+    if who == 0 {
+        smooth(tune(0, -4.0), tune(1, 1.0), line)
+    } else {
+        smooth(tune(2, -60.0), tune(3, -40.0), line)
+    }
+}
+
+/// r42:arcus-hair — a strand's coverage `alpha` where the hair keeps `fade` of itself: the
+/// fainter parts of the strands go first and the cores last (multiplied, every strand
+/// faded alike and the coverage's dither read as a sand of dots at 200 %).
+pub fn thin(alpha: f32, fade: f32) -> f32 {
+    if fade >= 1.0 {
+        return alpha;
+    }
+    ((alpha - (1.0 - fade)) / fade.max(0.05)).clamp(0.0, 1.0)
+}
+
+/// r42:arcus-hair — the hair's albedo in the Photographic bake against the Drawn picture's
+/// colour (seen per pixel under the key a blonde read near white, its strands and its sheen
+/// clipped away).
+pub fn hair_albedo() -> f32 {
+    tune(18, 0.7)
+}
+
+/// r42:arcus-hair — how much of the scalp under the cards stands at `line` degrees in from
+/// `who`'s hairline, `across` its strands' across coordinate (the angle round the head, × 9):
+/// it thins out at its edge, unevenly along it as a hairline does, so the skin shows
+/// between the feathered strands and no band of scalp is drawn.
+pub fn scalp_cover(who: u8, line: f32, across: f32) -> f32 {
+    if who == 0 {
+        let wave = (across * tune(15, 7.0)).sin() * 0.6 + (across * 2.3 * tune(15, 7.0)).sin() * 0.4;
+        smooth(tune(4, -1.0), tune(5, 2.0), line + wave * tune(16, 1.5))
+    } else {
+        1.0
+    }
+}
+
+static EYES: [&[u8]; 2] = [
+    include_bytes!("../../../assets/figures/woman_eye.png"),
+    include_bytes!("../../../assets/figures/man_eye.png"),
+];
+
+/// r42:arcus-hair — an eye's albedo (linear) at its texture coordinates (`u` 0…1 hers, 2…3
+/// his): MakeHuman's CC0 iris, its pupil and the white round it, bilinear; outside the
+/// crop the white at its edge.
+pub fn eye(uv: [f32; 2]) -> [f32; 3] {
+    static TEX: OnceLock<Vec<Option<(usize, usize, Vec<[f32; 3]>)>>> = OnceLock::new();
+    let t = TEX.get_or_init(|| {
+        EYES.iter()
+            .map(|b| {
+                let mut dec = png::Decoder::new(std::io::Cursor::new(*b));
+                dec.set_transformations(png::Transformations::normalize_to_color8());
+                let mut reader = dec.read_info().ok()?;
+                let mut buf = vec![0u8; reader.output_buffer_size()?];
+                let f = reader.next_frame(&mut buf).ok()?;
+                let ch = match f.color_type {
+                    png::ColorType::Rgb => 3,
+                    png::ColorType::Rgba => 4,
+                    _ => return None,
+                };
+                let lin = |c: u8| (c as f32 / 255.0).powf(2.2);
+                let px = buf[..f.width as usize * f.height as usize * ch]
+                    .chunks(ch)
+                    .map(|c| [lin(c[0]), lin(c[1]), lin(c[2])])
+                    .collect();
+                Some((f.width as usize, f.height as usize, px))
+            })
+            .collect()
+    });
+    let (k, u) = if uv[0] >= 1.5 {
+        (1, uv[0] - 2.0)
+    } else {
+        (0, uv[0])
+    };
+    let Some(Some((w, h, px))) = t.get(k) else {
+        return [0.6; 3];
+    };
+    let (w, h) = (*w, *h);
+    let x = (u.clamp(0.0, 1.0) * w as f32 - 0.5).clamp(0.0, (w - 1) as f32);
+    let y = ((1.0 - uv[1].clamp(0.0, 1.0)) * h as f32 - 0.5).clamp(0.0, (h - 1) as f32);
+    let (x0, y0) = (x.floor() as usize, y.floor() as usize);
+    let (x1, y1) = ((x0 + 1).min(w - 1), (y0 + 1).min(h - 1));
+    let (tx, ty) = (x - x0 as f32, y - y0 as f32);
+    std::array::from_fn(|i| {
+        let a = px[y0 * w + x0][i] * (1.0 - tx) + px[y0 * w + x1][i] * tx;
+        let b = px[y1 * w + x0][i] * (1.0 - tx) + px[y1 * w + x1][i] * tx;
+        a * (1.0 - ty) + b * ty
+    })
 }
 
 /// Card `k`'s texture (none past the six).
 pub fn card(k: u8) -> Option<&'static Card> {
     static CARDS: OnceLock<Vec<Option<Card>>> = OnceLock::new();
     CARDS
-        .get_or_init(|| PNGS.iter().map(|b| decode(b)).collect())
+        .get_or_init(|| PNGS.iter().map(|b| decode(b, true)).collect())
         .get(k as usize)?
         .as_ref()
 }
 
-impl Card {
+impl Level {
     /// The texel at `uv` (the proxy's coordinates: v up), nearest.
-    pub fn at(&self, uv: [f32; 2]) -> [u8; 2] {
+    fn at(&self, uv: [f32; 2]) -> [u8; 4] {
         let x = (uv[0].rem_euclid(1.0) * self.w as f32) as usize;
         let y = ((1.0 - uv[1].rem_euclid(1.0)) * self.h as f32) as usize;
         self.texels[y.min(self.h - 1) * self.w + x.min(self.w - 1)]
     }
 
+    /// The four channels at `uv`, bilinear (wrapping), as 0…255 floats.
+    fn bilinear(&self, uv: [f32; 2]) -> [f32; 4] {
+        let x = uv[0].rem_euclid(1.0) * self.w as f32 - 0.5;
+        let y = (1.0 - uv[1].rem_euclid(1.0)) * self.h as f32 - 0.5;
+        let (x0, y0) = (x.floor(), y.floor());
+        let (tx, ty) = (x - x0, y - y0);
+        let wrap = |v: f32, n: usize| (v as isize).rem_euclid(n as isize) as usize;
+        let (xa, xb) = (wrap(x0, self.w), wrap(x0 + 1.0, self.w));
+        let (ya, yb) = (wrap(y0, self.h), wrap(y0 + 1.0, self.h));
+        let t = |x: usize, y: usize| self.texels[y * self.w + x];
+        let (a, b, c, d) = (t(xa, ya), t(xb, ya), t(xa, yb), t(xb, yb));
+        std::array::from_fn(|k| {
+            let top = a[k] as f32 * (1.0 - tx) + b[k] as f32 * tx;
+            let bot = c[k] as f32 * (1.0 - tx) + d[k] as f32 * tx;
+            top * (1.0 - ty) + bot * ty
+        })
+    }
+}
+
+impl Card {
+    /// The texel at `uv` (the proxy's coordinates: v up), nearest, on the first level.
+    pub fn at(&self, uv: [f32; 2]) -> [u8; 4] {
+        self.levels[0].at(uv)
+    }
+
+    fn level(&self, lod: f32) -> &Level {
+        let i = (lod.max(0.0) + 0.25) as usize;
+        &self.levels[i.min(self.levels.len() - 1)]
+    }
+
+    /// The level to read for a triangle with texture coordinates `uv` covering `area`
+    /// samples on screen: texels a sample, as a power of two.
+    pub fn lod(&self, uv: [[f32; 2]; 3], area: f32) -> f32 {
+        let (a, b) = (
+            [uv[1][0] - uv[0][0], uv[1][1] - uv[0][1]],
+            [uv[2][0] - uv[0][0], uv[2][1] - uv[0][1]],
+        );
+        let texels = (a[0] * b[1] - a[1] * b[0]).abs() * 0.5 * (self.w * self.h) as f32;
+        let area = area.abs().max(1e-6);
+        if texels <= area {
+            return 0.0;
+        }
+        0.5 * (texels / area).log2()
+    }
+
     /// Its strands' light at `uv` against its mean, held near it (0.85 … 1.18: the
-    /// texture's darker regions read as patches of another colour — the review).
+    /// texture's darker regions read as patches of another colour — the review). A brow's
+    /// or a lash's.
     pub fn shade(&self, uv: [f32; 2]) -> f32 {
         (self.at(uv)[0] as f32 / self.mean).clamp(0.85, 1.18)
     }
 
-    /// Whether the card covers `uv` (its alpha over half).
-    pub fn covers(&self, uv: [f32; 2]) -> bool {
-        self.at(uv)[1] >= 128
+    /// Its coverage at `uv` (0…1) at level `lod`, bilinear.
+    pub fn alpha(&self, uv: [f32; 2], lod: f32) -> f32 {
+        self.level(lod).bilinear(uv)[1] / 255.0
+    }
+
+    /// r42:arcus-hair — a hair card's strand at `uv`, level `lod`: its detail (about
+    /// 0.55 … 1.45, 1 on average) and the way its strands run in the texture's coordinates
+    /// (`du`, `dv`; a line: its sign means nothing), unit, or `None` where it has none.
+    pub fn strand(&self, uv: [f32; 2], lod: f32) -> (f32, Option<[f32; 2]>) {
+        let t = self.level(lod).bilinear(uv);
+        let detail = if self.hair {
+            (t[0] / 128.0).clamp(0.5, 1.5)
+        } else {
+            1.0
+        };
+        let (c2, s2) = ((t[2] - 128.0) / 127.0, (t[3] - 128.0) / 127.0);
+        let m = (c2 * c2 + s2 * s2).sqrt();
+        if !self.hair || m < 0.05 {
+            return (detail, None);
+        }
+        let (c2, s2) = (c2 / m, s2 / m);
+        // The half angle: cos θ ≥ 0, sin θ with sin 2θ's sign (image space, y down; the
+        // texture's v runs up).
+        let c = ((1.0 + c2) * 0.5).max(0.0).sqrt();
+        let s = ((1.0 - c2) * 0.5).max(0.0).sqrt().copysign(s2);
+        (detail, Some([c, -s]))
     }
 }
 
@@ -120,9 +369,10 @@ mod tests {
     fn every_card_texture_decodes_with_coverage_and_gaps() {
         for k in 0..6 {
             let c = super::card(k).expect("a card's texture");
-            let covered = c.texels.iter().filter(|t| t[1] >= 128).count();
+            let t = &c.levels[0].texels;
+            let covered = t.iter().filter(|t| t[1] >= 128).count();
             assert!(
-                covered > 0 && covered < c.texels.len(),
+                covered > 0 && covered < t.len(),
                 "card {k}: {covered}"
             );
         }
