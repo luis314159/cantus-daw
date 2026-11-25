@@ -4,10 +4,16 @@
 //! the tempo track with its two ritardandos, the key, the section markers; then each part's
 //! clip, its notes' articulations (`SetNoteArt`, the piano roll's lane) and its CC1 lane —
 //! every change one command, as the interface sends it.
+//!
+//! r42 arcus-expr: the same build plays a [`Piece`] — the quartet, or one of the solos — in
+//! a [`Style`]: pass 6's (the notes, their slurs and marks, the written CC1) or performed
+//! (`perform.rs`: the bows, the attacks, CC1/CC11/CC21/CC65, the intonation, the timing and
+//! the rubato, all as a user enters them).
 
-use super::parts::PARTS;
-use super::score::{self, Who, BAR, BPM, SECTIONS};
+use super::perform::{self, Ctx, Role};
+use super::score::{self, Part, Section, Who, BAR};
 use cantus_core::clip_lanes::{ClipLane, LaneKind};
+use cantus_core::model::note_expr::{ExprKind, ExprPoint, NoteExpr};
 use cantus_core::scale::{Key, ScaleKind};
 use cantus_core::tempo::{Marker, MarkerId, TempoPoint};
 use cantus_core::{
@@ -22,7 +28,11 @@ use std::collections::HashMap;
 /// Where each instrument sits (a seated quartet seen from the hall: the violin on the
 /// left, the cello inside, the viola on the right, the bass behind the cello), its fader
 /// and its send to the hall (the bass further back: more of the room).
-fn desk(who: Who) -> (f32, f32, f32, Color) {
+fn desk(who: Who, solo: bool) -> (f32, f32, f32, Color) {
+    if solo {
+        let (_, _, _, c) = desk(who, false);
+        return (0.0, 0.0, -13.0, c);
+    }
     match who {
         // r42:arcus-p5: the violin's and the bass's faders back at 0 dB — the presets'
         // gains are fitted on a musical phrase now (`cantus_ui::arcus_level`); before, the
@@ -32,6 +42,37 @@ fn desk(who: Who) -> (f32, f32, f32, Color) {
         Who::Cello => (0.12, 0.0, -13.0, Color::rgb(0x9C, 0x5A, 0x33)),
         Who::Bass => (0.22, 0.0, -11.0, Color::rgb(0x6E, 0x45, 0x2C)),
     }
+}
+
+/// How the notes are played.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Style {
+    /// Pass 6's build: the notes as written with their slurs and marks, a velocity per
+    /// part with a fixed wobble, the written CC1 (the quartet), or one velocity and a flat
+    /// CC1 (a solo's plain take).
+    Plain,
+    /// The player's (`perform.rs`).
+    Performed,
+}
+
+/// A piece the build plays.
+pub struct Piece {
+    pub title: &'static str,
+    pub bpm: f64,
+    /// The tempo track: `(bar, bpm, ramp to the next)`.
+    pub tempo: &'static [(u32, f64, bool)],
+    pub sections: &'static [Section],
+    pub parts: &'static [Part],
+    pub who: &'static [Who],
+    /// Semitones each instrument's part is moved by (the solos share one line).
+    pub transpose: fn(Who) -> i32,
+    /// A part's place in a section's texture.
+    pub role: fn(Who, usize) -> Role,
+    /// The climax's and the coda's sections.
+    pub climax: Option<usize>,
+    pub intimate: Option<usize>,
+    /// A solo: centred, and its plain take one velocity and a flat CC1.
+    pub solo: bool,
 }
 
 /// What the build made: each instrument's track and strip.
@@ -52,35 +93,90 @@ pub fn bar_tick(bar: u32) -> Ticks {
     tick(f64::from(bar - 1) * BAR)
 }
 
-pub fn build(app: &mut CantusApp) -> Built {
+/// The written tempo at `beat` (from the song's start) of a piece's tempo track.
+fn tempo_at(piece: &Piece, beat: f64) -> f64 {
+    let pts = piece.tempo;
+    let at = |k: usize| f64::from(pts[k].0 - 1) * BAR;
+    let mut bpm = piece.bpm;
+    for k in 0..pts.len() {
+        if beat < at(k) {
+            break;
+        }
+        bpm = pts[k].1;
+        if pts[k].2 && k + 1 < pts.len() && beat < at(k + 1) {
+            let u = (beat - at(k)) / (at(k + 1) - at(k));
+            return pts[k].1 + (pts[k + 1].1 - pts[k].1) * u;
+        }
+    }
+    bpm
+}
+
+/// The tempo track: the written points, and in the performed style the melody's rubato
+/// around them (`perform::rubato`), away from the written ramps.
+fn tempo_points(piece: &Piece, style: Style) -> Vec<TempoPoint> {
+    let mut pts: Vec<(f64, f64, bool)> = piece
+        .tempo
+        .iter()
+        .map(|&(bar, bpm, ramp)| (f64::from(bar - 1) * BAR, bpm, ramp))
+        .collect();
+    if style == Style::Performed {
+        let mut keep: Vec<(f64, f64)> = Vec::new();
+        for k in 0..pts.len() {
+            keep.push((pts[k].0 - 1.0, pts[k].0 + 1.0));
+            if pts[k].2 && k + 1 < pts.len() {
+                keep.push((pts[k].0 - 2.0, pts[k + 1].0 + 1.0));
+            }
+        }
+        let mut phrases = Vec::new();
+        for part in piece.parts {
+            if (piece.role)(part.who, part.section) != Role::Melody {
+                continue;
+            }
+            let sec = &piece.sections[part.section];
+            let base = f64::from(sec.bar - 1) * BAR;
+            let (w, _) = score::parse_t(part, (piece.transpose)(part.who));
+            let ph = perform::phrases(&w);
+            for (k, p) in ph.iter().enumerate() {
+                let next = ph.get(k + 1).map_or(f64::INFINITY, |q| w[q.first].at);
+                let pk = &w[p.peak];
+                phrases.push((
+                    base + w[p.first].at,
+                    base + pk.at,
+                    base + pk.at + pk.len,
+                    base + w[p.last].at + w[p.last].len,
+                    base + next,
+                ));
+            }
+        }
+        pts.extend(perform::rubato(&phrases, |b| tempo_at(piece, b), &keep));
+        pts.sort_by(|a, b| a.0.total_cmp(&b.0));
+    }
+    pts.into_iter()
+        .map(|(b, bpm, ramp)| TempoPoint {
+            tick: tick(b),
+            bpm,
+            ramp,
+        })
+        .collect()
+}
+
+pub fn build(app: &mut CantusApp, piece: &Piece, style: Style) -> Built {
     exec(
         app,
         "the name",
         Command::SetProjectName {
-            name: super::TITLE.to_string(),
+            name: piece.title.to_string(),
         },
     );
-    exec(app, "the tempo", Command::SetTempo { bpm: BPM });
-    // Ritardando into the climax's cadence (bar 37 → 38), a calmer a tempo after it, and
-    // the coda held back to the last chord (bar 43 → 46).
-    let pt = |bar: u32, bpm: f64, ramp: bool| TempoPoint {
-        tick: bar_tick(bar),
-        bpm,
-        ramp,
-    };
+    exec(app, "the tempo", Command::SetTempo { bpm: piece.bpm });
+    // The quartet: a ritardando into the climax's cadence (bar 37 → 38), a calmer a tempo
+    // after it, and the coda held back to the last chord (bar 43 → 46).
     exec(
         app,
         "the tempo track",
         Command::SetTempoTrack {
-            bpm: BPM,
-            points: vec![
-                pt(1, BPM, false),
-                pt(37, BPM, true),
-                pt(38, 64.0, false),
-                pt(39, 70.0, false),
-                pt(43, 70.0, true),
-                pt(46, 58.0, false),
-            ],
+            bpm: piece.bpm,
+            points: tempo_points(piece, style),
         },
     );
     exec(
@@ -90,7 +186,7 @@ pub fn build(app: &mut CantusApp) -> Built {
             key: Some(Key::new(2, ScaleKind::Major)),
         },
     );
-    for s in &SECTIONS {
+    for s in piece.sections {
         let id = MarkerId(app.bus.alloc_id());
         exec(
             app,
@@ -156,7 +252,7 @@ pub fn build(app: &mut CantusApp) -> Built {
 
     // ---- the four instruments ----
     let mut tracks = HashMap::new();
-    for who in Who::ALL {
+    for &who in piece.who {
         let purpose = PickPurpose::AddInstrument { index: None };
         app.open_picker(purpose.clone());
         app.apply_pick(purpose, PickChoice::Instrument(InstrumentKind::BowedString));
@@ -170,7 +266,7 @@ pub fn build(app: &mut CantusApp) -> Built {
             who.preset()
         );
         app.close_preset_browser();
-        let (pan, gain, send, color) = desk(who);
+        let (pan, gain, send, color) = desk(who, piece.solo);
         let name = who.name().to_string();
         exec(
             app,
@@ -226,10 +322,10 @@ pub fn build(app: &mut CantusApp) -> Built {
     }
 
     // ---- the parts ----
-    for part in PARTS {
+    for part in piece.parts {
         let (track, _) = tracks[&part.who];
-        let sec = &SECTIONS[part.section];
-        let (written, beats) = score::parse(part);
+        let sec = &piece.sections[part.section];
+        let (mut written, beats) = score::parse_t(part, (piece.transpose)(part.who));
         let length = f64::from(sec.bars) * BAR;
         assert!(
             beats <= length + 1e-9,
@@ -237,16 +333,54 @@ pub fn build(app: &mut CantusApp) -> Built {
             part.who,
             part.section
         );
+        // A solo's plain take: one velocity, no dynamic but the flat one.
+        if style == Style::Plain && piece.solo {
+            for w in written.iter_mut() {
+                w.vel = part.vel;
+            }
+        }
+        let perf = (style == Style::Performed).then(|| {
+            let ctx = Ctx {
+                bpm: tempo_at(piece, f64::from(sec.bar - 1) * BAR),
+                climax: piece.climax == Some(part.section),
+                intimate: piece.intimate == Some(part.section),
+                seed: 0xA5C0_5EED ^ ((part.who as u64) << 8) ^ part.section as u64,
+            };
+            let role = (piece.role)(part.who, part.section);
+            perform::perform(part, &written, length, role, &ctx)
+        });
         // Ids from the project's counter, as the piano roll takes them.
         let mut scratch = app.project().clone();
         let mut clip = scratch.make_clip(sec.name, bar_tick(sec.bar), tick(length));
         let mut arts = Vec::new();
-        for w in &written {
-            let n = scratch.make_note(tick(w.at), tick(w.len), w.key, w.vel);
-            if w.art.is_some() {
-                arts.push((n.id, w.art));
+        match &perf {
+            None => {
+                for w in &written {
+                    let n = scratch.make_note(tick(w.at), tick(w.len), w.key, w.vel);
+                    if w.art.is_some() {
+                        arts.push((n.id, w.art));
+                    }
+                    clip.notes.push(n);
+                }
             }
-            clip.notes.push(n);
+            Some(p) => {
+                for w in &p.notes {
+                    let mut n = scratch.make_note(tick(w.at), tick(w.len), w.key, w.vel);
+                    if w.bend != 0.0 {
+                        // The intonation: a per-note bend, as the piano roll's MPE lane
+                        // draws it.
+                        n.expr = NoteExpr {
+                            bend: vec![ExprPoint(0, ExprKind::Bend.store(w.bend))],
+                            ..NoteExpr::default()
+                        }
+                        .boxed();
+                    }
+                    if w.art.is_some() {
+                        arts.push((n.id, w.art));
+                    }
+                    clip.notes.push(n);
+                }
+            }
         }
         app.bus.reserve_ids(scratch.next_id);
         let id = clip.id;
@@ -269,18 +403,36 @@ pub fn build(app: &mut CantusApp) -> Built {
                 },
             );
         }
-        let points = part
-            .cc1
-            .iter()
-            .map(|(b, v)| AutoPoint::new(tick(*b), *v))
-            .collect();
+        let lane = |kind: LaneKind, pts: &[(f64, f32)]| {
+            ClipLane::new(
+                kind,
+                pts.iter()
+                    .map(|(b, v)| AutoPoint::new(tick(*b), *v))
+                    .collect(),
+            )
+        };
+        let lanes = match &perf {
+            None if piece.solo => vec![lane(LaneKind::Cc(1), &[(0.0, 0.5)])],
+            None => vec![lane(LaneKind::Cc(1), part.cc1)],
+            Some(p) => {
+                let mut l = vec![
+                    lane(LaneKind::Cc(1), &p.cc1),
+                    lane(LaneKind::Cc(11), &p.cc11),
+                    lane(LaneKind::Cc(21), &p.cc21),
+                ];
+                if !p.cc65.is_empty() {
+                    l.push(lane(LaneKind::Cc(65), &p.cc65));
+                }
+                l
+            }
+        };
         exec(
             app,
-            "the CC1 lane",
+            "the controller lanes",
             Command::SetClipLanes {
                 track,
                 clip: id,
-                lanes: vec![ClipLane::new(LaneKind::Cc(1), points)],
+                lanes,
             },
         );
     }
