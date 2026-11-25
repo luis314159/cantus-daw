@@ -109,7 +109,7 @@ moved less than 5 % between the two runs.
 
 - **`python -I tools/soundlab/tests/run.py`** (the study's venv: numpy 2.3.3, scipy 1.16.2,
   soundfile 0.13.1), with `SOUNDLAB_REFS`, `SOUNDLAB_STUDY`, `SOUNDLAB_KIT_KEY` set: every test
-  green (the EBU files' test skipped, below). `--light`: 53 tests, 5 skipped, 50 s.
+  green: 53 tests, 1 skipped (the EBU files' own WAVs, below), 139 s. `--light`: 53 tests, 5 skipped, 50 s.
   - BS.1770-4's 48 kHz coefficients to 1e-10; Tech 3341 cases 1–5 within 0.1 LU, momentary and
     short-term on cases 1–2; Tech 3342 cases 1–4 within 1 LU; one channel at 0 dBFS −3.01;
     a fs/4 sine's true peak 0 dBTP where its samples read −3.01.
@@ -143,7 +143,7 @@ moved less than 5 % between the two runs.
   the robot's answers flagged as they should be: a failed catch, the hidden reference rated
   under 90 → excluded).
 - **Rust**: `kit.rs`'s `the_sound_labs_subjects_are_page_subjects`, `cargo test -p cantus-ui
-  --example tympanum_abx --example chorda_abx` and `cargo clippy` on both: CARGO_PLACEHOLDER
+  --example tympanum_abx --example chorda_abx`: 8 + 12 passed (one more each than before: the new test); `cargo clippy -p cantus-ui --example tympanum_abx --example chorda_abx -- -D warnings`: clean;
   `rustfmt --edition 2021` on `kit.rs`.
 
 ## 5. What is open
