@@ -412,7 +412,22 @@ impl CantusApp {
 
     /// Open Cantus's view of `target`, or bring it to the front.
     pub fn open_cantus_view(&mut self, target: Target) {
-        if self.cantus_view_open(target) {
+        // r42:editor-windows (ADR 0161): asked while a parked editor draws, once they are;
+        // parked beside its slot, it comes back into it and to the front.
+        if self.defer_open(crate::editor_windows::Deferred::Hosted(target)) {
+            return;
+        }
+        let parked = match target {
+            Target::Insert(e) => {
+                self.fx.open.map(|o| o.1) != Some(e)
+                    && self.editors.parked_effects().contains(&e)
+                    && self.unpark_effect(e)
+            }
+            Target::Instrument(t) => {
+                self.fx.hosted.inst_open != Some(t) && self.unpark_hosted(t)
+            }
+        };
+        if parked || self.cantus_view_open(target) {
             let key = match target {
                 Target::Insert(e) => crate::views::fx::device_id(e),
                 Target::Instrument(t) => crate::views::plugin_view_inst::inst_device_id(t),
@@ -427,16 +442,14 @@ impl CantusApp {
                 let Some(strip) = self.project().effect_host(e) else {
                     return;
                 };
-                self.close_eq_editor();
-                self.close_comp_editor();
+                // r42:editor-windows — the effects' family makes room (ADR 0161).
                 self.open_fx_editor(strip, e, EffectKind::External);
             }
             Target::Instrument(t) => {
                 if self.project().track(t).is_some() {
-                    // Another instrument's frame replaced: no longer waited for.
-                    if let Some(old) = self.fx.hosted.inst_open.filter(|o| *o != t) {
-                        self.fx.hosted.views.forget_pending(Target::Instrument(old));
-                    }
+                    // r42:editor-windows — the unpinned view closes (another instrument's
+                    // frame replaced: no longer waited for), a pinned one is parked.
+                    self.room_for_hosted();
                     self.fx.hosted.inst_open = Some(t);
                 }
             }
@@ -446,6 +459,16 @@ impl CantusApp {
     /// Close Cantus's view of `target`, if it is the one open.
     pub fn close_cantus_view(&mut self, target: Target) {
         if !self.cantus_view_open(target) {
+            // r42:editor-windows — parked beside its slot: closed there (ADR 0161).
+            match target {
+                Target::Insert(e) if self.editors.parked_effects().contains(&e) => {
+                    self.close_effect_editor(e)
+                }
+                Target::Instrument(t) if self.instrument_parked(t) => {
+                    self.close_parked_instrument(t)
+                }
+                _ => {}
+            }
             return;
         }
         match target {

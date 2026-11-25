@@ -243,12 +243,22 @@ pub fn kind_from_name(name: &str) -> Option<InstrumentKind> {
 impl CantusApp {
     /// The open editor's telemetry: injected (demos, tests) or the engine's.
     pub fn inst_telemetry(&self) -> cantus_engine::Telemetry {
-        self.inst
-            .injected
-            .unwrap_or_else(|| self.engine.meters().inst)
+        self.inst.injected.unwrap_or_else(|| {
+            let mut t = self.engine.meters().inst;
+            // r42:editor-windows — the probe reports on the slot's editor only (ADR 0161):
+            // a parked one drawn in the slot shows its readings at rest.
+            if self.editors.probed.is_none() || self.editors.probed != self.inst.open {
+                t.fill(0.0);
+            }
+            t
+        })
     }
 
     pub fn open_inst_editor(&mut self, track: TrackId) {
+        // r42:editor-windows — asked while a parked editor draws: once they are drawn.
+        if self.defer_open(crate::editor_windows::Deferred::NativeInstrument(track)) {
+            return;
+        }
         // A hosted instrument opens in its view: the plug-in's own window (ADR 0028) or
         // Cantus's view of its parameters (ADR 0073).
         if self.is_hosted_instrument(track) {
@@ -258,15 +268,17 @@ impl CantusApp {
         // Already open (shown, behind another tab, under another window or in the tray):
         // brought back and to the front as it is (round 27, ADR 0051) — closing and
         // opening it again would leave a minimised one in the tray.
-        if self.inst.open == Some(track) {
+        // r42:editor-windows — parked beside the slot (pinned, several open): likewise.
+        if self.inst.open == Some(track) || self.unpark_instrument(track) {
             if let Some(ctx) = &self.theme_ctx {
                 crate::views::workspace_device::present(ctx, editor_id(track).value());
             }
             return;
         }
-        self.close_inst_editor();
+        // r42:editor-windows (ADR 0161) — the unpinned one closes, a pinned one is parked.
+        self.room_for_instrument();
         self.inst.open = Some(track);
-        self.engine.set_instrument_probe(Some(track));
+        self.sync_editor_engine();
     }
 
     pub fn close_inst_editor(&mut self) {
@@ -274,7 +286,7 @@ impl CantusApp {
             for key in std::mem::take(&mut self.inst.held) {
                 self.engine.note_off(track, key);
             }
-            self.engine.set_instrument_probe(None);
+            self.sync_editor_engine(); // r42:editor-windows — the probe follows the slot
         }
     }
 

@@ -35,6 +35,13 @@
 //! set of buttons serve every device. It remembers where each device floated, so a device
 //! closed and opened again comes back where it was ([`Registry::places`]), and which
 //! device was clicked last, so **Esc** closes it ([`focused`]).
+//!
+//! **Round 42: pinned editors** (ADR 0161). The registry keeps whether each device is
+//! **pinned** ([`toggle_pin`]): a pinned device stays open when another of its family opens,
+//! is skipped by F12 and by an Esc aimed at no device, floats out of a leaf it shares with
+//! other tabs (so no click on a tab can put it behind one), and is kept above the device
+//! windows that are not pinned ([`keep_pinned_above`]). A device opening while others are
+//! on screen takes the place that covers them least ([`free_spot`]).
 
 use crate::kit::Function;
 use egui::{Context, Id, LayerId, Pos2, Rect, Ui, UiBuilder, Vec2};
@@ -87,6 +94,11 @@ pub struct Entry {
     /// windows (by the device itself, the next time it is drawn).
     pub reveal: bool,
     pub raise: bool,
+    /// Round 42 (ADR 0161): pinned by its pin key — it stays on screen.
+    pub pinned: bool,
+    /// The layer it was drawn on last (a floating tab's window, an effect's area): what
+    /// [`keep_pinned_above`] orders.
+    pub layer: Option<LayerId>,
 }
 
 /// A change of place the workspace carries out on a device's tab.
@@ -94,6 +106,9 @@ pub struct Entry {
 pub enum Pending {
     Maximise,
     Restore,
+    /// Round 42 (ADR 0161): pinned while it shares a leaf with other tabs — float it where
+    /// it is, so no tab can be put in front of it.
+    Float,
 }
 
 /// A docked tab's body, recorded by the workspace while laying the dock out.
@@ -120,6 +135,8 @@ pub struct Registry {
     /// old size for the frame it moves, and a window that was maximised is pushed back
     /// against the workspace's corner by it.
     pub settle: Vec<(DeviceKey, Pos2, u8)>,
+    /// Scratch for [`keep_pinned_above`]: kept, so a frame allocates nothing.
+    scratch: Vec<(usize, LayerId, bool)>,
 }
 
 impl Registry {
@@ -165,6 +182,8 @@ impl Entry {
             buttons: None,
             reveal: false,
             raise: false,
+            pinned: false,
+            layer: None,
         }
     }
 }
@@ -597,6 +616,182 @@ pub fn set_maximised(ctx: &Context, key: DeviceKey, on: bool, restore: Option<Re
     });
 }
 
+// ---- pinned devices (round 42, ADR 0161) --------------------------------------------------
+
+/// Whether the device is pinned.
+pub fn is_pinned(ctx: &Context, key: DeviceKey) -> bool {
+    with_registry(ctx, |r| r.get(key).is_some_and(|e| e.pinned))
+}
+
+/// Pin or unpin a registered device. Pinning a tab that shares its leaf asks the workspace
+/// to float it where it is ([`Pending::Float`]). Returns whether it is pinned now.
+pub fn set_pinned(ctx: &Context, key: DeviceKey, on: bool) -> bool {
+    let now = with_registry(ctx, |r| match r.get_mut(key) {
+        Some(e) => {
+            if on && !e.pinned && !e.area && !e.maximised {
+                e.pending = Some(Pending::Float);
+            }
+            e.pinned = on;
+            on
+        }
+        None => false,
+    });
+    ctx.request_repaint();
+    now
+}
+
+/// The pin key: pin the device, or unpin it. Returns whether it is pinned now.
+pub fn toggle_pin(ctx: &Context, key: DeviceKey) -> bool {
+    let on = !is_pinned(ctx, key);
+    set_pinned(ctx, key, on)
+}
+
+/// Note the layer an area-hosted device is drawn on (a tab's comes with its body).
+pub fn note_layer(ctx: &Context, key: DeviceKey, layer: LayerId) {
+    with_registry(ctx, |r| {
+        if let Some(e) = r.get_mut(key) {
+            e.layer = Some(layer);
+        }
+    });
+}
+
+/// After the editors are drawn: when a device window that is not pinned lies above a pinned
+/// one (it opened, it was clicked, it was brought forward), the pinned ones go back on top,
+/// keeping their own order. Only device windows are compared: a dialog opened over a pinned
+/// editor stays over it. Docked tabs (the background) are never raised. Nothing is
+/// allocated: the registry keeps its scratch.
+pub fn keep_pinned_above(ctx: &Context) {
+    let pass = ctx.cumulative_pass_nr();
+    let reg = registry(ctx);
+    let mut g = reg.lock().unwrap_or_else(|e| e.into_inner());
+    let r = &mut *g;
+    if !r.entries.iter().any(|e| e.pinned) {
+        return;
+    }
+    r.scratch.clear();
+    let entries = &r.entries;
+    let scratch = &mut r.scratch;
+    ctx.memory(|m| {
+        for (i, l) in m.layer_ids().enumerate() {
+            if l.order == egui::Order::Background {
+                continue;
+            }
+            let hit = entries.iter().find(|e| {
+                e.layer == Some(l)
+                    && !e.minimised
+                    && !e.closed
+                    && pass.saturating_sub(e.seen) <= 2
+            });
+            if let Some(e) = hit {
+                scratch.push((i, l, e.pinned));
+            }
+        }
+    });
+    let lowest_pinned = r.scratch.iter().filter(|s| s.2).map(|s| s.0).min();
+    let highest_free = r.scratch.iter().filter(|s| !s.2).map(|s| s.0).max();
+    if let (Some(p), Some(f)) = (lowest_pinned, highest_free) {
+        if f > p {
+            // `scratch` is in the layers' order, back to front: raising them in it keeps
+            // the pinned ones' own order.
+            for s in r.scratch.iter().filter(|s| s.2) {
+                ctx.move_to_top(s.1);
+            }
+        }
+    }
+}
+
+/// Where a device of `size` opening now goes inside `area`: its own `wanted` place when it
+/// covers the other device windows on screen by less than a quarter of itself; else, of the
+/// centre, the corners and the sides of `area` (inset by 8 points), the place that covers
+/// them least — the first such, so with nothing else on screen it is `wanted`, or the
+/// centre. Several editors open beside each other where the screen has room (ADR 0161).
+pub fn free_spot(
+    ctx: &Context,
+    key: DeviceKey,
+    size: Vec2,
+    area: Rect,
+    wanted: Option<Pos2>,
+) -> Rect {
+    let pass = ctx.cumulative_pass_nr();
+    let mut others = [Rect::NOTHING; 8];
+    let mut n = 0;
+    with_registry(ctx, |r| {
+        for e in &r.entries {
+            if e.key == key || e.minimised || e.closed || pass.saturating_sub(e.seen) > 2 {
+                continue;
+            }
+            if let (Some((whole, _)), true) = (e.shown, n < others.len()) {
+                others[n] = whole;
+                n += 1;
+            }
+        }
+    });
+    place_beside(&others[..n], size, area, wanted)
+}
+
+/// [`free_spot`]'s rule, pure: the place for a rect of `size` in `area` that covers
+/// `others` least — `wanted` first, then the centre, the four corners and the four sides.
+pub fn place_beside(others: &[Rect], size: Vec2, area: Rect, wanted: Option<Pos2>) -> Rect {
+    let inner = area.shrink(8.0);
+    let size = size.min(inner.size().max(Vec2::splat(1.0)));
+    let fit = |min: Pos2| {
+        let x = min
+            .x
+            .clamp(inner.left(), (inner.right() - size.x).max(inner.left()));
+        let y = min
+            .y
+            .clamp(inner.top(), (inner.bottom() - size.y).max(inner.top()));
+        Rect::from_min_size(Pos2::new(x, y), size)
+    };
+    let covered = |r: Rect| -> f32 {
+        others
+            .iter()
+            .map(|o| {
+                let i = o.intersect(r);
+                if i.is_positive() {
+                    i.area()
+                } else {
+                    0.0
+                }
+            })
+            .sum()
+    };
+    if let Some(w) = wanted {
+        let r = Rect::from_min_size(w, size);
+        if covered(r) < size.x * size.y * 0.25 {
+            return r;
+        }
+    }
+    let (l, t) = (inner.left(), inner.top());
+    let (rx, by) = (inner.right() - size.x, inner.bottom() - size.y);
+    let (cx, cy) = (
+        inner.center().x - size.x * 0.5,
+        inner.center().y - size.y * 0.5,
+    );
+    let candidates = [
+        Pos2::new(cx, cy),
+        Pos2::new(l, t),
+        Pos2::new(rx, t),
+        Pos2::new(l, by),
+        Pos2::new(rx, by),
+        Pos2::new(l, cy),
+        Pos2::new(rx, cy),
+        Pos2::new(cx, t),
+        Pos2::new(cx, by),
+    ];
+    let mut best = fit(candidates[0]);
+    let mut least = covered(best);
+    for c in &candidates[1..] {
+        let r = fit(*c);
+        let v = covered(r);
+        if v + 0.5 < least {
+            best = r;
+            least = v;
+        }
+    }
+    best
+}
+
 /// Alt+K (`Action::ToggleDeviceKeyboard`, user-editable in the keymap): ask the instrument
 /// whose editor is in front to show or hide its keyboard card. Called by the application.
 pub fn request_keyboard_toggle(ctx: &Context) {
@@ -728,6 +923,9 @@ impl<'open> DeviceWindow<'open> {
                 None
             } else {
                 let body = e.body.filter(|b| b.pass == pass);
+                if let Some(b) = body {
+                    e.layer = Some(b.layer);
+                }
                 // Asked to come to the front: raised once it has a body to raise.
                 let raise = e.raise && body.is_some();
                 if raise {

@@ -850,7 +850,14 @@ fn cycle_placement(host: &mut dyn FxHost, st: &EqEditor) {
 impl CantusApp {
     /// Open an EQ's editor and point the analyser at it.
     pub fn open_eq_editor(&mut self, strip: StripId, effect: EffectId) {
-        self.comp_editor.open = None;
+        // r42:editor-windows (ADR 0161): parked, it comes back as it was; a new one makes
+        // room — the unpinned effect editors close, a pinned one is parked.
+        if self.eq_editor.open.map(|o| o.1) != Some(effect) {
+            if self.unpark_effect(effect) {
+                return;
+            }
+            self.room_for_effect(crate::editor_windows::EffectSlot::Eq);
+        }
         let ed = &mut self.eq_editor;
         ed.open = Some((strip, effect));
         ed.typing = None;
@@ -867,7 +874,8 @@ impl CantusApp {
             .effect(strip, effect)
             .and_then(|e| (0..EQ_BANDS).find(|b| used(&e.spec, *b)));
         self.eq_editor.select(first.as_slice());
-        self.engine.set_analyser(Some(effect));
+        self.editors.live_effect = Some(effect);
+        self.sync_editor_engine(); // r42:editor-windows — the analyser follows
     }
 
     /// Close the editor. An audition in progress ends with it — a solo left on in a saved
@@ -881,14 +889,19 @@ impl CantusApp {
             if soloed {
                 self.set_eq_solo(strip, effect, None);
             }
-            self.engine.set_analyser(None);
+            self.sync_editor_engine(); // r42:editor-windows
         }
     }
 
     /// Move the analyser's samples into the open plug-in editor. Called once a frame.
     /// (The EQ's own analyser drains through its host, in [`editor`].)
     pub(crate) fn pump_analyser(&mut self) {
-        if self.fx.open.is_some() {
+        // r42:editor-windows — the plug-in editor the analyser looks at (ADR 0161).
+        if self
+            .fx
+            .open
+            .is_some_and(|o| self.editors.analysed == Some(o.1))
+        {
             let mut pairs = std::mem::take(&mut self.eq_editor.scratch);
             pairs.clear();
             self.engine.drain_analyser(&mut pairs);

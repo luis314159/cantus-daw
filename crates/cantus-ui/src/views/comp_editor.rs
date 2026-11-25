@@ -591,15 +591,24 @@ impl CompEditor {
 }
 impl CantusApp {
     pub fn open_comp_editor(&mut self, strip: StripId, effect: EffectId) {
+        // r42:editor-windows (ADR 0161): parked, it comes back as it was; a new one makes
+        // room — the unpinned effect editors close, a pinned one is parked.
+        if self.comp_editor.open.map(|o| o.1) != Some(effect) {
+            if self.unpark_effect(effect) {
+                return;
+            }
+            self.room_for_effect(crate::editor_windows::EffectSlot::Comp);
+        }
         let ed = &mut self.comp_editor;
         ed.open = Some((strip, effect));
         ed.restart();
-        self.engine.set_analyser(Some(effect));
+        self.editors.live_effect = Some(effect);
+        self.sync_editor_engine();
     }
 
     pub fn close_comp_editor(&mut self) {
         if self.comp_editor.open.take().is_some() {
-            self.engine.set_analyser(None);
+            self.sync_editor_engine(); // r42:editor-windows — the analyser follows
         }
         // A demo's stand-in telemetry must not outlive it.
         if self.comp_editor.demo.take().is_some() {
@@ -611,6 +620,10 @@ impl CantusApp {
     /// another window, or in the tray), bring it back and to the front as it is (round 27,
     /// ADR 0051): the mixer's *Open the editor*, the inspector's slot.
     pub fn open_effect_editor(&mut self, strip: StripId, effect: EffectId) {
+        // r42:editor-windows — asked while a parked editor draws: once they are drawn.
+        if self.defer_open(crate::editor_windows::Deferred::Effect(strip, effect)) {
+            return;
+        }
         // A hosted plug-in opens in its view: its own window or Cantus's (ADR 0073).
         if self.project().effect(strip, effect).map(|e| e.spec.kind) == Some(EffectKind::External) {
             self.open_hosted(crate::views::plugin_notice::Target::Insert(effect));
@@ -629,7 +642,9 @@ impl CantusApp {
         let at = Some((strip, effect));
         let open = self.eq_editor.open == at
             || self.comp_editor.open == at
-            || self.fx.open.map(|(s, e, _)| (s, e)) == at;
+            || self.fx.open.map(|(s, e, _)| (s, e)) == at
+            // r42:editor-windows — parked beside its slot: back into it, to the front.
+            || self.unpark_effect(effect);
         if open {
             if let Some(ctx) = &self.theme_ctx {
                 let key = crate::views::fx::device_id(effect).value();
@@ -638,22 +653,12 @@ impl CantusApp {
             return;
         }
         let kind = self.project().effect(strip, effect).map(|e| e.spec.kind);
+        // r42:editor-windows (ADR 0161): each open makes room in the effects' family — the
+        // unpinned editors close, the pinned ones stay (several at once: none close).
         match kind {
-            Some(EffectKind::Eq) => {
-                self.close_comp_editor();
-                self.close_fx_editor();
-                self.open_eq_editor(strip, effect);
-            }
-            Some(EffectKind::Compressor) => {
-                self.close_eq_editor();
-                self.close_fx_editor();
-                self.open_comp_editor(strip, effect);
-            }
-            Some(kind) if kind.has_editor() => {
-                self.close_eq_editor();
-                self.close_comp_editor();
-                self.open_fx_editor(strip, effect, kind);
-            }
+            Some(EffectKind::Eq) => self.open_eq_editor(strip, effect),
+            Some(EffectKind::Compressor) => self.open_comp_editor(strip, effect),
+            Some(kind) if kind.has_editor() => self.open_fx_editor(strip, effect, kind),
             _ => {}
         }
     }
@@ -1000,7 +1005,7 @@ fn pump(host: &mut dyn FxHost, st: &mut State) {
     let playing = playing_at.is_some();
     st.scratch.clear();
     let [inp, out, gr] = match host.daw() {
-        Some((app, _, _)) => {
+        Some((app, _, effect)) => {
             // A real engine reporting ends a demo (`--editor comp` with a device).
             if st.demo.is_some() && app.engine.meters().fx[tele::SAMPLE_RATE] > 0.0 {
                 st.demo = None;
@@ -1011,9 +1016,15 @@ fn pump(host: &mut dyn FxHost, st: &mut State) {
             let ts = map.signature_at(app.engine.position());
             st.beats = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
             st.map = (!map.is_one_metre()).then_some(map);
-            app.engine.drain_analyser(&mut st.scratch);
-            // The largest of every block since the last frame.
-            app.engine.take_comp_meter()
+            // r42:editor-windows — the engine's numbers are the analysed editor's only.
+            if !app.effect_reads_engine(effect) {
+                st.scratch.clear();
+                Default::default()
+            } else {
+                app.engine.drain_analyser(&mut st.scratch);
+                // The largest of every block since the last frame.
+                app.engine.take_comp_meter()
+            }
         }
         None => {
             // A plug-in window: the unit's last block, and the tap the plug-in keeps.

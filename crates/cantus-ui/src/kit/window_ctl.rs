@@ -8,6 +8,10 @@
 //! danger colour under the pointer, as a window's does. *Swap* is a labelled cap — a word
 //! and a glyph — because an icon alone for "put another device here" is a riddle.
 //!
+//! **Pin** (round 42, ADR 0161): a push pin left of minimise. Lit, the window is pinned — it
+//! stays on screen when another device opens, and above the windows that are not pinned;
+//! the pin leans when it is not.
+//!
 //! Pure painters and a layout, like the rest of the kit; [`super::shell::Shell::show`]
 //! senses the rects and turns clicks into [`super::shell::Event`]s.
 
@@ -20,7 +24,15 @@ use super::{State, Style, Tok};
 use egui::{Align2, Pos2, Rect, Vec2};
 
 /// The tokens the buttons paint with (for inspect mode).
-pub const TOKENS: &[Tok] = &[Tok::Panel, Tok::Text, Tok::TextDim, Tok::Danger, Tok::Cap];
+pub const TOKENS: &[Tok] = &[
+    Tok::Panel,
+    Tok::Text,
+    Tok::TextDim,
+    Tok::Danger,
+    Tok::Cap,
+    Tok::Selection,
+    Tok::SelectionTint,
+];
 
 /// A window button's width at 100 %: the full height of the header, a little wider.
 pub const BUTTON_W: f32 = 30.0;
@@ -39,6 +51,8 @@ pub struct WindowCtl {
     /// `Some(maximised)` shows the maximise key, or the restore key when maximised.
     pub maximised: Option<bool>,
     pub close: bool,
+    /// `Some(pinned)` shows the pin key (r42:editor-windows, ADR 0161), lit when pinned.
+    pub pin: Option<bool>,
 }
 
 impl WindowCtl {
@@ -48,6 +62,7 @@ impl WindowCtl {
         minimise: true,
         maximised: Some(false),
         close: true,
+        pin: Some(false),
     };
 }
 
@@ -58,6 +73,8 @@ pub struct WindowRects {
     pub minimise: Option<Rect>,
     pub maximise: Option<Rect>,
     pub close: Option<Rect>,
+    /// The pin key, left of minimise (ADR 0161).
+    pub pin: Option<Rect>,
     /// The hairline between the swap cap and the window keys.
     pub divider: Option<f32>,
     pub left: f32,
@@ -72,6 +89,7 @@ pub enum WinHot {
     Minimise,
     Maximise,
     Close,
+    Pin,
 }
 
 /// Lay the buttons out at the right end of `header` (the header's full rect). `compact`
@@ -92,6 +110,7 @@ pub fn layout(header: Rect, s: &Style, c: &WindowCtl, compact: bool) -> WindowRe
     let close = key(c.close);
     let maximise = key(c.maximised.is_some());
     let minimise = key(c.minimise);
+    let pin = key(c.pin.is_some());
     let mut divider = None;
     let swap = c.swap.map(|_| {
         let gap = 8.0 * k;
@@ -109,7 +128,10 @@ pub fn layout(header: Rect, s: &Style, c: &WindowCtl, compact: bool) -> WindowRe
         minimise,
         maximise,
         close,
-        divider: divider.filter(|_| close.is_some() || maximise.is_some() || minimise.is_some()),
+        pin,
+        divider: divider.filter(|_| {
+            close.is_some() || maximise.is_some() || minimise.is_some() || pin.is_some()
+        }),
         left: x,
     }
 }
@@ -174,6 +196,43 @@ pub fn paint(
             let _ = text::paint(b, tr, &label, s.tk());
         }
     }
+    // The pin: lit (the selection's tint under the upright pin in the selection's ink) while
+    // pinned, so its state reads at a glance; the leaning pin, flat, while not.
+    if let Some(rect) = r.pin {
+        let on = c.pin == Some(true);
+        let lit = hot == WinHot::Pin;
+        let fill = match (on, lit) {
+            (true, _) => Some(if lit && down {
+                shade(t.selection_tint, -0.06)
+            } else {
+                t.selection_tint
+            }),
+            (false, true) => Some(shade(
+                t.panel,
+                match (t.dark, down) {
+                    (true, false) => 0.09,
+                    (true, true) => 0.04,
+                    (false, false) => -0.07,
+                    (false, true) => -0.11,
+                },
+            )),
+            (false, false) => None,
+        };
+        if let Some(f) = fill {
+            b.rect(b.snap_rect(rect), Fill::Solid(f));
+        }
+        let (g, ink) = match (on, lit) {
+            (true, _) => (Glyph::Pinned, t.selection),
+            (false, true) => (Glyph::Pin, t.text),
+            (false, false) => (Glyph::Pin, t.text_dim),
+        };
+        glyph::paint(
+            b,
+            Rect::from_center_size(rect.center(), Vec2::splat(12.0 * k)),
+            g,
+            ink,
+        );
+    }
     let keys = [
         (r.minimise, WinHot::Minimise, Glyph::Minimise),
         (
@@ -233,6 +292,8 @@ pub fn tip(c: &WindowCtl, h: WinHot) -> &'static str {
         WinHot::Maximise if c.maximised == Some(true) => "swap.tip.restore",
         WinHot::Maximise => "swap.tip.maximise",
         WinHot::Close => "swap.tip.close",
+        WinHot::Pin if c.pin == Some(true) => "editors.tip.unpin",
+        WinHot::Pin => "editors.tip.pin",
         WinHot::None => "",
     }
 }

@@ -150,6 +150,9 @@ pub struct CantusApp {
     pub inst: views::inst::InstEditors,
     /// Pulsus II's editor (round 17).
     pub pulsus: views::pulsus_editor::State,
+    /// r42:editor-windows (ADR 0161): the editors parked beside each family's slot, and
+    /// what the engine reports on.
+    pub editors: crate::editor_windows::Editors,
     /// What swapping a device keeps beyond what it always keeps (round 20, `crate::swap`).
     pub swap_keep: crate::swap::Keep,
     /// Where the recorder's samples are drained into each frame; reused, never shrunk.
@@ -765,6 +768,7 @@ impl CantusApp {
             plugin_crashes: Default::default(),
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
+            editors: Default::default(),
             swap_keep: Default::default(),
             capture_scratch: Vec::new(),
             central: CentralView::Mixer,
@@ -915,6 +919,7 @@ impl CantusApp {
                     self.other_project(); // r41:ids
                 }
                 crate::views::transport::sync_service::tempo_edited(self, tempo_edit); // r33:sync
+                self.prune_editors(); // r42:editor-windows — a deleted track's editor goes
                 true
             }
             // A frozen sound refused it (ADR 0064): which, and how to give it back.
@@ -947,6 +952,7 @@ impl CantusApp {
         match self.bus.execute_merging(cmd, Origin::User, key) {
             Ok(()) => {
                 crate::views::transport::sync_service::tempo_edited(self, tempo_edit); // r33:sync
+                self.prune_editors(); // r42:editor-windows
                 true
             }
             Err(cantus_core::CommandError::Frozen(target)) => {
@@ -1035,6 +1041,7 @@ impl CantusApp {
             self.other_project(); // r41:ids
         }
         self.validate_selection();
+        self.prune_editors(); // r42:editor-windows — never an editor on what undo took away
     }
 
     pub fn redo(&mut self) {
@@ -1053,6 +1060,7 @@ impl CantusApp {
             self.other_project(); // r41:ids
         }
         self.validate_selection();
+        self.prune_editors(); // r42:editor-windows
     }
 
     pub(crate) fn validate_selection(&mut self) {
@@ -3471,6 +3479,7 @@ impl CantusApp {
         self.eq_editor.open = None;
         self.comp_editor.open = None;
         self.inst.forget_project();
+        self.editors.forget_project(); // r42:editor-windows
         self.pulsus.open = None;
         self.pulsus.selected = None;
         self.pulsus.kit_name.clear();
@@ -4838,13 +4847,9 @@ impl CantusApp {
     /// dialogs (fx/final: an instrument's editor moved to a window of its own vanished
     /// from it at a click in the main window).
     pub(crate) fn device_editors(&mut self, ctx: &egui::Context) {
-        views::eq_editor::window(self, ctx);
-        views::comp_editor::window(self, ctx);
-        views::fx::window(self, ctx);
-        views::fx::fxd_window::window(self, ctx); // fxd: the controllers' windows
-        views::inst::window(self, ctx);
-        views::plugin_view_inst::window(self, ctx);
-        views::pulsus_editor::window(self, ctx);
+        // r42:editor-windows (ADR 0161): each family's editor in its slot, then the ones
+        // parked beside it (pinned, or several at once), each with its own state.
+        self.draw_editor_windows(ctx);
     }
 
     /// Every window that floats over the layout: About, the shortcuts editor, the layout

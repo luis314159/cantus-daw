@@ -262,6 +262,13 @@ pub struct Workspace {
     pub(crate) move_targets: Vec<(String, crate::windows::Target)>,
     /// The tab being dragged, as of the last pass.
     pub(crate) tab_drag: Option<Pane>,
+    /// Round 42 (ADR 0161): what each device tab covered when it came to the front of its
+    /// leaf — the tab that was showing there before. A device tab that leaves its leaf
+    /// while it is still in front (closed, floated) gives the front back to it.
+    pub(crate) covered: Vec<(DeviceKey, Pane)>,
+    /// The tab in front of each leaf at the end of the last frame: how a device tab that
+    /// came forward by any road (placed, its tab clicked, dragged in) learns what it covered.
+    pub(super) fronts: Vec<Pane>,
 }
 
 impl Default for Workspace {
@@ -302,6 +309,8 @@ impl Workspace {
             adds_devices: true,
             move_targets: Vec::new(),
             tab_drag: None,
+            covered: Vec::with_capacity(4),
+            fronts: Vec::with_capacity(8),
         }
     }
 
@@ -389,14 +398,145 @@ impl Workspace {
         }
     }
 
-    /// Take `pane` out of the dock.
+    /// Take `pane` out of the dock. A device's tab gives its leaf back to what it covered
+    /// (round 42, ADR 0161, [`Self::device_leaves`]).
     pub fn hide(&mut self, pane: Pane) {
         if self.maximised.is_some() && !matches!(pane, Pane::Device(_)) {
             self.restore_maximised();
         }
         if let Some(path) = self.find(pane) {
-            self.dock.remove_tab(path);
+            if let Pane::Device(key) = pane {
+                self.device_leaves(key, path, |dock| {
+                    dock.remove_tab(path);
+                });
+                self.forget_covered(key);
+            } else {
+                self.dock.remove_tab(path);
+            }
         }
+    }
+
+    /// Float a docked device's tab in a window of its own at `rect` (round 42): what it
+    /// covered in its leaf comes back in front, as when it closes.
+    pub(crate) fn detach_device(
+        &mut self,
+        key: DeviceKey,
+        path: TabPath,
+        rect: Rect,
+    ) -> SurfaceIndex {
+        let mut surface = SurfaceIndex::main();
+        self.device_leaves(key, path, |dock| surface = dock.detach_tab(path, rect));
+        surface
+    }
+
+    /// **The view comes back** (round 42, ADR 0161): run `take` — which takes the device
+    /// `key`'s tab at `path` out of its leaf — and, when that tab was the one in front of
+    /// its leaf, bring forward the tab it covered when it came there, if that tab is still
+    /// in the same leaf. A device tab that was behind another (the user brought the mixer or
+    /// the arrangement forward while it was open) changes nothing: closing it never pulls
+    /// the user back to a view they left. Keys that acted in the device's leaf act in the
+    /// tab brought back.
+    pub(crate) fn device_leaves(
+        &mut self,
+        key: DeviceKey,
+        path: TabPath,
+        take: impl FnOnce(&mut DockState<Pane>),
+    ) {
+        let leaf = self
+            .dock
+            .leaf(path.node_path())
+            .ok()
+            .map(|l| (l.active == path.tab, l.tabs.len()));
+        let was_front = leaf.is_some_and(|(front, _)| front);
+        let focused_here = self.dock.focused_leaf() == Some(path.node_path());
+        take(&mut self.dock);
+        if !was_front || leaf.is_some_and(|(_, n)| n < 2) {
+            return;
+        }
+        let Some(back) = self.covered_by(key) else {
+            return;
+        };
+        if let Some(at) = self
+            .find(back)
+            .filter(|p| p.node_path() == path.node_path())
+        {
+            let _ = self.dock.set_active_tab(at);
+            if focused_here {
+                self.dock.set_focused_node_and_surface(at.node_path());
+            }
+        }
+    }
+
+    /// What device `key` covered, following devices since closed down to a tab that is
+    /// still in the dock (a device opened over another that has gone gives the front to what
+    /// that one covered).
+    fn covered_by(&self, key: DeviceKey) -> Option<Pane> {
+        let mut at = key;
+        for _ in 0..8 {
+            let p = self.covered.iter().find(|c| c.0 == at).map(|c| c.1)?;
+            match p {
+                Pane::Device(k) if !self.contains(p) => at = k,
+                _ => return Some(p),
+            }
+        }
+        None
+    }
+
+    /// Record that device `key` came to the front of a leaf over `pane`.
+    pub(crate) fn note_covered(&mut self, key: DeviceKey, pane: Pane) {
+        if pane == Pane::Device(key) {
+            return;
+        }
+        match self.covered.iter_mut().find(|c| c.0 == key) {
+            Some(c) => c.1 = pane,
+            None => self.covered.push((key, pane)),
+        }
+    }
+
+    /// A device left the dock for good: devices that covered it now cover what it covered.
+    fn forget_covered(&mut self, key: DeviceKey) {
+        let under = self.covered.iter().find(|c| c.0 == key).map(|c| c.1);
+        self.covered.retain(|c| c.0 != key);
+        if let Some(u) = under {
+            for c in &mut self.covered {
+                if c.1 == Pane::Device(key) {
+                    c.1 = u;
+                }
+            }
+        }
+    }
+
+    /// End of a frame: every leaf whose front is a device that was not in front last frame
+    /// learns what it covered — the tab of that leaf that was in front last frame.
+    pub(super) fn watch_fronts(&mut self) {
+        let mut found: Vec<(DeviceKey, Pane)> = Vec::new();
+        for (_, leaf) in self.dock.iter_leaves() {
+            let Some(front) = leaf.tabs.get(leaf.active.0).copied() else {
+                continue;
+            };
+            if let Pane::Device(key) = front {
+                if !self.fronts.contains(&front) {
+                    if let Some(was) = leaf
+                        .tabs
+                        .iter()
+                        .copied()
+                        .find(|t| *t != front && self.fronts.contains(t))
+                    {
+                        found.push((key, was));
+                    }
+                }
+            }
+        }
+        for (k, p) in found {
+            self.note_covered(k, p);
+        }
+        self.fronts.clear();
+        let fronts: Vec<Pane> = self
+            .dock
+            .iter_leaves()
+            .filter_map(|(_, l)| l.tabs.get(l.active.0).copied())
+            .collect();
+        self.fronts.extend(fronts);
     }
 
     /// Make `pane` the tab showing in its leaf, putting it back in the dock if it is not
@@ -516,8 +656,19 @@ impl Workspace {
                 }
             }
             Pane::Stage => crate::stage::dock::place(s, inspector, inspector_share), // r35:stage
-            Pane::Device(_) => match arrangement.or(lower) {
-                Some(node) => append(s, node, pane),
+            // Round 42 (ADR 0161): what it covers is remembered, so it comes back in front
+            // when the device's tab leaves.
+            Pane::Device(key) => match arrangement.or(lower) {
+                Some(node) => {
+                    let under = match &s[node] {
+                        Node::Leaf(leaf) => leaf.tabs.get(leaf.active.0).copied(),
+                        _ => None,
+                    };
+                    append(s, node, pane);
+                    if let Some(u) = under {
+                        self.note_covered(key, u);
+                    }
+                }
                 None => s.push_to_first_leaf(pane),
             },
             // A tab just before the arrangement's, as Live's two views share the centre: a
@@ -584,7 +735,8 @@ impl Workspace {
         self.dock.iter_all_tabs().any(|(_, p)| p.is_lower())
     }
 
-    /// F12: close every floating device window.
+    /// F12: close every floating device window — but the pinned ones (round 42, ADR 0161:
+    /// a pinned editor stays until it is closed by its own ✕).
     pub fn close_floating_devices(&mut self, ctx: &Context) {
         // One at a time: taking a tab out can move the others' nodes.
         loop {
@@ -592,15 +744,15 @@ impl Workspace {
                 .dock
                 .iter_all_tabs()
                 .filter(|(path, _)| !path.surface.is_main())
-                .find_map(|(path, p)| match p {
-                    Pane::Device(k) => Some((path, *k)),
+                .find_map(|(_, p)| match p {
+                    Pane::Device(k) if !device::is_pinned(ctx, *k) => Some(*k),
                     _ => None,
                 });
-            let Some((path, key)) = next else {
+            let Some(key) = next else {
                 break;
             };
             device::mark_closed(ctx, key);
-            self.dock.remove_tab(path);
+            self.hide(Pane::Device(key));
         }
     }
 
@@ -609,21 +761,23 @@ impl Workspace {
         let Some(pos) = ctx.pointer_hover_pos() else {
             return false;
         };
+        // A pinned window is closed by Esc only when it is the one clicked last (round 42,
+        // ADR 0161): the pointer resting over it is not aiming at it.
         let hit = self
             .dock
             .iter_all_tabs()
             .filter(|(path, _)| !path.surface.is_main())
             .find_map(|(path, p)| match p {
-                Pane::Device(k) => {
+                Pane::Device(k) if !device::is_pinned(ctx, *k) => {
                     let leaf = self.dock.leaf(path.node_path()).ok()?;
-                    leaf.rect.contains(pos).then_some((path, *k))
+                    leaf.rect.contains(pos).then_some(*k)
                 }
                 _ => None,
             });
         match hit {
-            Some((path, key)) => {
+            Some(key) => {
                 device::mark_closed(ctx, key);
-                self.dock.remove_tab(path);
+                self.hide(Pane::Device(key));
                 true
             }
             None => false,
@@ -649,7 +803,14 @@ impl Workspace {
             } else {
                 Pos2::new(120.0, 120.0)
             };
-            self.dock.detach_tab(path, Rect::from_min_size(at, size));
+            match pane {
+                Pane::Device(key) => {
+                    self.detach_device(key, path, Rect::from_min_size(at, size));
+                }
+                _ => {
+                    self.dock.detach_tab(path, Rect::from_min_size(at, size));
+                }
+            }
         } else {
             self.dock.remove_tab(path);
             self.place(pane);

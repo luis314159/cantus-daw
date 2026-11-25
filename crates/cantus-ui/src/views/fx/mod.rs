@@ -244,12 +244,16 @@ impl CantusApp {
     }
 
     pub(crate) fn open_fx_editor(&mut self, strip: StripId, effect: EffectId, kind: EffectKind) {
-        // Another editor in the frame's place: a hosted plug-in waiting there for its
-        // helper no longer opens its own window when it is in (ADR 0073).
-        self.forget_waiting_frame(effect);
+        // r42:editor-windows (ADR 0161): parked beside its slot, it comes back into it; a
+        // new one makes room — the unpinned effect editors close (closing one forgets the
+        // hosted plug-in waiting in its frame, ADR 0073), a pinned one is parked.
+        if self.fx.open.map(|o| o.1) != Some(effect) && !self.unpark_effect(effect) {
+            self.room_for_effect(crate::editor_windows::EffectSlot::Fx);
+        }
         self.fx.open = Some((strip, effect, kind));
         self.fx.pairs.clear();
-        self.engine.set_analyser(Some(effect));
+        self.editors.live_effect = Some(effect);
+        self.sync_editor_engine();
     }
 
     pub fn close_fx_editor(&mut self) {
@@ -257,7 +261,7 @@ impl CantusApp {
         // helper no longer opens its own window when it is in (ADR 0073).
         self.forget_waiting_frame(EffectId(u64::MAX));
         if self.fx.open.take().is_some() {
-            self.engine.set_analyser(None);
+            self.sync_editor_engine(); // r42:editor-windows — the analyser follows
         }
     }
 
@@ -275,7 +279,12 @@ impl CantusApp {
     }
 
     pub(crate) fn pump_fx_pairs(&mut self, pairs: &[f32]) {
-        if self.fx.open.is_some() {
+        // r42:editor-windows — only into the editor the analyser looks at (ADR 0161).
+        if self
+            .fx
+            .open
+            .is_some_and(|o| self.editors.analysed == Some(o.1))
+        {
             self.fx.feed(pairs);
         }
     }
@@ -623,10 +632,21 @@ pub fn open_window_sized(
     let size = designed * frame::shell_of(kind).scale(ctx);
     let (at, size) = match st.maximised {
         Some(area) => (area.min, area.size()),
-        None => (frame::position(ctx, st.place.or(*pos), size), size),
+        None => match st.place {
+            Some(p) => (frame::position(ctx, Some(p), size), size),
+            // r42:editor-windows (ADR 0161): opening for the first time where the last one
+            // was — unless that covers another editor on screen, then where it covers them
+            // least (several editors side by side).
+            None => {
+                let want = frame::position(ctx, *pos, size);
+                let r = device::free_spot(ctx, key, size, ctx.content_rect(), Some(want));
+                (r.min, size)
+            }
+        },
     };
     let mut out = frame::Out::default();
     frame::place(ctx, id, at, size, |ui| out = add(ui));
+    device::note_layer(ctx, key, egui::LayerId::new(egui::Order::Middle, id));
     let whole = egui::Rect::from_min_size(at, size);
     let header = egui::Rect::from_min_max(at, egui::pos2(whole.right(), out.body.top()));
     device::note_shown(ctx, key, whole, header, out.window);

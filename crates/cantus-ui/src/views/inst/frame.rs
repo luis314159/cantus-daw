@@ -481,7 +481,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             Event::Scale(k) => shell.set_scale(ctx, k),
             Event::Favourite | Event::Help | Event::Bypass => {}
             // The window's own buttons (round 20).
-            Event::Close | Event::Minimise | Event::Maximise | Event::Swap => {
+            Event::Close | Event::Minimise | Event::Maximise | Event::Swap | Event::Pin => {
                 use crate::views::device_chrome::{on_event, Asked};
                 let swap = crate::picker::PickPurpose::ReplaceInstrument { track };
                 if on_event(app, ctx, key, ev, swap) == Asked::Close {

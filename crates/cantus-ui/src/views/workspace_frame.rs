@@ -76,6 +76,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         ws.tab_drag = found;
     }
     let (unfold, maximise);
+    let closed_devices;
     {
         let Workspace {
             dock,
@@ -101,6 +102,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             folded: &folded,
             unfold: None,
             maximise: None,
+            closed_devices: Vec::new(),
             buf: String::new(),
             tk: s.tk(),
         };
@@ -122,6 +124,12 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             );
         unfold = viewer.unfold;
         maximise = viewer.maximise;
+        closed_devices = viewer.closed_devices;
+    }
+    // A device's tab closed by its ✕ (round 42, ADR 0161): taken out here rather than by
+    // the dock, so what it covered comes back in front of its leaf.
+    for key in closed_devices {
+        ws.hide(Pane::Device(key));
     }
     // A tab let go outside the window: a window of its own where it fell.
     let screen = ctx.content_rect();
@@ -184,6 +192,8 @@ struct Viewer<'a> {
     /// A folded area clicked open, a tab double-clicked: done once the dock is back.
     unfold: Option<Pane>,
     maximise: Option<Pane>,
+    /// Device tabs closed by their ✕ this frame.
+    closed_devices: Vec<device::DeviceKey>,
     buf: String,
     tk: f32,
 }
@@ -321,6 +331,10 @@ impl TabViewer for Viewer<'_> {
     fn on_close(&mut self, tab: &mut Pane) -> OnCloseResponse {
         if let Pane::Device(key) = *tab {
             device::mark_closed(&self.ctx, key);
+            // Taken out once the dock is drawn (`Workspace::hide`): the view it covered
+            // comes back (round 42, ADR 0161).
+            self.closed_devices.push(key);
+            return OnCloseResponse::Ignore;
         }
         OnCloseResponse::Close
     }
@@ -586,6 +600,8 @@ impl Workspace {
 
     fn after(&mut self, app: &mut CantusApp, ui: &Ui, area: Rect, tab_bar: f32) -> Option<After> {
         let ctx = ui.ctx().clone();
+        // Round 42 (ADR 0161): a device tab that came to the front learns what it covered.
+        self.watch_fronts();
         // The dock → the central view: the lower zone's tab showing is `app.central` — the
         // main window's lower zone (ADR 0148: another window's editors do not take it in
         // turns with the main window's every pass).

@@ -168,6 +168,8 @@ pub enum Event {
     Minimise,
     Maximise,
     Close,
+    /// The pin key (round 42, ADR 0161): pin the window, or unpin it.
+    Pin,
 }
 
 /// Where each part of the header is; `None` for the parts it does not show.
@@ -1246,6 +1248,7 @@ impl Shell {
         if let (Some(c), Some(w)) = (&header.window, &r.window) {
             let keys = [
                 (w.swap, WinHot::Swap, Event::Swap),
+                (w.pin, WinHot::Pin, Event::Pin),
                 (w.minimise, WinHot::Minimise, Event::Minimise),
                 (w.maximise, WinHot::Maximise, Event::Maximise),
                 (w.close, WinHot::Close, Event::Close),

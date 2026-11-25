@@ -224,6 +224,7 @@ pub fn window_ctl(maximised: bool) -> crate::kit::window_ctl::WindowCtl {
         minimise: true,
         maximised: Some(maximised),
         close: true,
+        pin: None,
     }
 }
 
@@ -763,6 +764,17 @@ pub fn show(
             Event::Maximise => {
                 if let Some(key) = host.device_key() {
                     crate::views::workspace_device::toggle_maximise(&ctx, key);
+                }
+            }
+            // r42:editor-windows (ADR 0161): the pin, said on the status line in Cantus.
+            Event::Pin => {
+                if let Some(key) = host.device_key() {
+                    match host.daw() {
+                        Some((app, _, _)) => app.toggle_editor_pin(&ctx, key),
+                        None => {
+                            crate::views::workspace_device::toggle_pin(&ctx, key);
+                        }
+                    }
                 }
             }
         }
