@@ -314,6 +314,7 @@ pub fn repose_arm(fig: &Figure, base: &Posed, s: usize, a: &ArmAim) -> Posed {
     arm_aims(fig, &mut aims, s, a, sh);
     let mut out = base.clone();
     let o = side(s);
+    #[allow(clippy::needless_range_loop)] // each bone posed after its parent, in order
     for b in o + UPPER1..=o + finger(4, 2) {
         out.xf[b] = step(fig, b, &out.xf, aims[b], &Rot::I, V3::default());
     }

@@ -318,3 +318,17 @@ release 2.3.0 (<https://github.com/Celemony/ARA_API>), Copyright (c) 2012-2025 C
 Software GmbH, published under the **Apache License, Version 2.0** (text: `LICENSE-APACHE` in
 the repository). The bindings are marked as generated from it. "ARA" is Celemony's name;
 Cantus claims no endorsement by, or partnership with, Celemony Software GmbH.
+
+## Arcus's realistic musicians (MakeHuman) <!-- r42:arcus-upper -->
+
+The realistic woman and man who may hold an Arcus instrument
+(`crates/cantus-ui/assets/figures/{woman,man}.fig`) are built by
+`tools/arcus-figures/build_figures.py` from **MakeHuman 1.x**'s assets, dedicated to the
+public domain under **CC0 1.0** (<https://creativecommons.org/publicdomain/zero/1.0/>): the
+base mesh, its macro and face targets, the default skeleton and its weights
+(<https://github.com/makehumancommunity/makehuman>, `makehuman/data`; its LICENSE.md §C), the
+suit `male_elegantsuit01`, the shoes `shoes04` and the skins `young_caucasian_female/male`
+(`makehuman_system_assets_cc0.zip`, files.makehumancommunity.org). CC0 asks for no credit;
+it is given gladly, here and in *Help ▸ About Cantus*. No MakeHuman code (AGPL) is used: the
+converter reads the assets' plain-text formats itself. The faces are original (generic
+averages and modifiers chosen by eye), not any person's.

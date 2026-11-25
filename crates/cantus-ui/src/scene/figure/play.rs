@@ -64,7 +64,9 @@ pub enum Legs {
     Straight,
 }
 
-/// What a hand does.
+/// What a hand does. (A rig is built where a picture is baked, not per frame: the
+/// worked-out pose is kept inline rather than boxed.)
+#[allow(clippy::large_enum_variant)]
 #[derive(Copy, Clone, Debug)]
 pub enum Hand {
     /// A pose already worked out (the live arms: the elbow, the wrist, the fingers).

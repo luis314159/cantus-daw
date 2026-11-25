@@ -728,6 +728,20 @@ Software GmbH, published under the **Apache License, Version 2.0** (text: `LICEN
 the repository). The bindings are marked as generated from it. "ARA" is Celemony's name;
 Cantus claims no endorsement by, or partnership with, Celemony Software GmbH.
 
+## Arcus's realistic musicians (MakeHuman) <!-- r42:arcus-upper -->
+
+The realistic woman and man who may hold an Arcus instrument
+(`crates/cantus-ui/assets/figures/{woman,man}.fig`) are built by
+`tools/arcus-figures/build_figures.py` from **MakeHuman 1.x**'s assets, dedicated to the
+public domain under **CC0 1.0** (<https://creativecommons.org/publicdomain/zero/1.0/>): the
+base mesh, its macro and face targets, the default skeleton and its weights
+(<https://github.com/makehumancommunity/makehuman>, `makehuman/data`; its LICENSE.md §C), the
+suit `male_elegantsuit01`, the shoes `shoes04` and the skins `young_caucasian_female/male`
+(`makehuman_system_assets_cc0.zip`, files.makehumancommunity.org). CC0 asks for no credit;
+it is given gladly, here and in *Help ▸ About Cantus*. No MakeHuman code (AGPL) is used: the
+converter reads the assets' plain-text formats itself. The faces are original (generic
+averages and modifiers chosen by eye), not any person's.
+
 ## Content
 
 No samples are bundled with Cantus. *Sound packs…* (in the sample browser) downloads a pack only when you click *Install*, and installs it only with its licence file, which stays in the pack's folder (`%LOCALAPPDATA%\Cantus\Content\<pack>`) beside a receipt (`cantus-pack.json`) that keeps its credit. Content is accepted under **CC0 1.0** and **CC BY 3.0 / 4.0** only (ADR 0042); nothing non-commercial, no-derivatives or share-alike. Music you make with these sounds is yours. *Help ▸ About Cantus* shows the same credits.

@@ -284,11 +284,8 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         let body = super::bowed_human::rest_body(b, w);
         let (upper, fore) = super::bowed_human::arm_lengths(fig, 1);
         let s = (h.skin as usize).min(4);
-        let cloth = if w == super::bowed_human::Who::Woman {
-            0
-        } else {
-            0
-        };
+        // Both wear dark cloth (her velvet, his wool): the stylised sleeve's tone.
+        let cloth = 0;
         return Some(Arm {
             shoulder: super::bowed_human::shoulder(fig, &body.0, 1),
             upper,

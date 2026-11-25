@@ -26,7 +26,6 @@ pub fn bow_hand(arm: &Arm, frog: V3, dir: V3, n: V3, held: bool) -> BowHand {
 /// The arm from its shoulder to the bow's `frog` (the bow's way `dir`, frog to tip; `n`
 /// the string's normal, the side the stick is on).
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 pub fn right_arm(
     b: &mut Brush,
     v: &View,
