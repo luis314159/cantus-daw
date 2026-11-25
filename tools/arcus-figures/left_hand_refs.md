@@ -83,8 +83,39 @@ What every front view shares:
 | a finger not playing (`HOVER_SLACK`) | within 1.4 cm of over its note | the fingers fall toward their own strings, loosely |
 | the thumb (`thumb_x/z/y`) | the G side, its tip −0.6 … +0.3 cm from the top, opposite fingers 1–2 | 5 |
 
-## Our hand, measured the same way
+## Our hand, measured the same way (table v12, `hand_study.picture`)
 
-See the round's sheet (`docs/round42/arcus-upper/sheet-v10-hand/`) and its
-`numbers.txt`, written by `hand_sheet_v10.py`: each case's picture measures from the app's
-camera, photograph 5's and photograph 2's beside the table above.
+The first position is the A string, first finger; the high one the E string an octave up.
+"app (new)" is the realistic violinists' camera (`bowed_draw::REAL_HELD_VIEW`, azimuth −20°,
+5° up); the earlier one looked from 59° round the neck toward the scroll, where no reachable
+pose showed the back narrower than 1.4 times its length.
+
+| figure | instrument | case | camera | forearm–neck | hand–neck | wrist | knuckles | arch | back w/l |
+|---|---|---|---|---|---|---|---|---|---|
+| woman | violin | first | app (new) | 48° | 53° | 5° | −0.6…−0.9 | +1.4 | 0.66 |
+| woman | violin | first | photo 5's | 50° | 55° | 5° | −0.5…−0.7 | +1.4 | 0.61 |
+| woman | violin | high | app (new) | 78° | 77° | 0° | −0.6…−1.6 | +1.2 | 0.85 |
+| woman | viola | first | app (new) | 37° | 42° | 5° | −0.6…−0.4 | +1.3 | 0.55 |
+| woman | viola | high | app (new) | 65° | 65° | 0° | −0.5…−1.4 | +1.0 | 0.78 |
+| man | violin | first | app (new) | 60° | 64° | 4° | −0.6…−1.7 | +1.3 | 0.75 |
+| man | violin | first | photo 5's | 61° | 65° | 4° | −0.5…−1.4 | +1.4 | 0.67 |
+| man | violin | high | app (new) | 88° | 87° | 1° | −0.7…−2.2 | +1.4 | 0.99 |
+| man | viola | first | app (new) | 50° | 54° | 4° | −0.6…−1.3 | +1.4 | 0.75 |
+| man | viola | high | app (new) | 77° | 76° | 0° | −0.7…−1.9 | +1.2 | 0.94 |
+
+The photographs: forearm–neck 50–85°, the hand steeper by 3–23°, knuckles 0 … −1 neck
+thicknesses, arches +0.3 … +2, back w/l 0.5–0.9. Ours sit inside those ranges, except the
+high positions' back (0.85–0.99: the forearm straight up under the neck shows the hand end-on;
+ref-02, ref-11 and ref-12 show the same broadening) and the wrist's turn, kept at 0–6° (the
+coordinator's gate: 8°).
+
+**The hand's outline** (`widths.py`-style, the gate in `arcus_hand_table`): her palm at its
+middle over the wrist's crease 1.05–1.21 in first position (the photographs 1.1–1.3; before
+the thumb's base cap and the palm's slimming 1.55); with the little or ring finger reaching,
+or high up, up to 1.63 (gated at 1.7, open).
+
+**Measured causes found on the way** (kept here so nobody reintroduces them): MakeHuman's
+finger joints 1.2–1.5 cm past the knuckles (fixed: `knuckle_fix`); the thumb's base turned
+65° by an unconstrained solve (capped at 30°: the "mitten"); the wrist lagging the hand's
+turn by 30 % (now 5 %); the camera 30° round toward the scroll from where photographs are
+taken (the realistic violinists' camera).

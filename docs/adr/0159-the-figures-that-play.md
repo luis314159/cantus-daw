@@ -99,12 +99,29 @@ occluding capsules in its live painter.
       hand's length foreshortens. The realistic violinists are now seen from azimuth −20°,
       5° up (`bowed_draw::REAL_HELD_VIEW`: 86° to the neck, 31° over the board). The
       stylised figures keep their view.
+    - **The hand's bulk** (the owner on v2: "tosca… la parte abultada gorda"): the solve
+      had left the thumb's base free and it turned 65°, ballooning the thumb's ball; it is
+      capped at 30°. The forearm's wrist end now carries 95 % of the hand's turn (70 %
+      left the wrist pinched under the hand). Her palm is drawn in across by 0.86 toward
+      the hand's middle line with the fingers' bases (`PALM_SLIM`); his hands are scaled
+      0.93 about the wrist (`HAND_SCALE`: wrist to fingertip about his face's length).
+      Both are load-time edits mirrored in `hand_rig.py`, so the table is solved on the
+      hands the app draws.
     The study tool `hand_study.py` measures any pose as the photographs are measured, and
     `hand_sheet_v10.py` draws the app's own picture from the earlier camera, the new one
     and photo 5's angle. High's hand is drawn as curved patches (`arcus_draw_flesh::fine_tri`:
     PN triangles, Vlachos et al. 2001, cut to about 2.5 px a side) with the skin's own
-    texture per point, the knuckles a little redder, the nails paler at their free edge,
-    and each fingertip's soft shadow on the fingerboard.
+    texture per point, warmed to the face's (`SKIN_WARM`), the knuckles and the fingertips'
+    pads a little redder, the nails paler at their free edge, and each fingertip's soft
+    shadow on the fingerboard. The sleeves read as arms in front of the body: a soft cool
+    rim and a lifted value (`cloth_rim`), the
+    texture seam the thinning had split down each sleeve (a crack the wall showed through)
+    is closed when the arm's mesh is made (`close_cloth_seams`); his shirt's cuffs stay
+    under the jacket's sleeves (drawn live they broke into specks). From the new camera
+    the bake's own defects showed and were fixed at load: the jacket, the shirt and the
+    tie told apart with clean edges (`smooth_tie`, a two-neighbour majority), the suit
+    1.2 mm further off the skin (`lift_suit`), and the bow arm's shoulder-band triangles
+    the live arm covers or the bake's pose stretches left out of the bake (`emit`).
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

@@ -278,10 +278,10 @@ fn lift_suit(fig: &mut Figure) {
             }
         }
     }
-    for i in 0..n {
-        if suit[i] {
+    for (i, (p, &on)) in fig.pos.iter_mut().zip(suit.iter()).enumerate() {
+        if on {
             let wi = fig.weld.get(i).map_or(i, |&x| x as usize);
-            fig.pos[i] = fig.pos[i] + nrm[wi].norm() * SUIT_LIFT;
+            *p = *p + nrm[wi].norm() * SUIT_LIFT;
         }
     }
 }
@@ -774,7 +774,10 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
     // (r42:arcus-hand: the wrist's end of the forearm takes nearly all of the hand's turn,
     // as the radius carries the hand — at 0.7 the wrist lagged the hand by a third of its
     // turn, a pinched wrist under a hand that read swollen beside it.)
-    for (k, b, head, share) in [(0, FORE1, a.elbow, 0.45), (1, FORE2, a.elbow + w * f1, 0.95)] {
+    for (k, b, head, share) in [
+        (0, FORE1, a.elbow, 0.45),
+        (1, FORE2, a.elbow + w * f1, 0.95),
+    ] {
         let _ = k;
         aims[o + b] = Some(Aim {
             head: Some(head),

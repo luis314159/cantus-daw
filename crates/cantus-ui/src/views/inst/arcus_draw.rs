@@ -172,8 +172,8 @@ pub fn picture(
     let n = now(fs, tele);
     // What holds it and whether the finger shows: this machine's preferences. // r42:arcus-upper
     let (holder, stop) = (app.settings.arcus_holder, app.settings.arcus_stop); // r42:arcus-upper
-    // r42:arcus-hand — the figure's eyes, this machine's choice (part of what the picture is
-    // cached by: a change bakes it again).
+                                                                               // r42:arcus-hand — the figure's eyes, this machine's choice (part of what the picture is
+                                                                               // cached by: a change bakes it again).
     let holder = crate::scene::bowed_hold::Holder {
         eyes: app.settings.figure_eyes,
         ..holder

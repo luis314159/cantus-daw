@@ -482,13 +482,16 @@ fn hand_detail(
             let mut d = fig.detail[g];
             let p = fig.pos[g];
             // The finger this vertex mostly follows, and its bone.
-            let (bone, _) = fig.bw[g].iter().fold((0u8, -1.0f32), |b, &(x, w)| {
-                if w > b.1 {
-                    (x, w)
-                } else {
-                    b
-                }
-            });
+            let (bone, _) = fig.bw[g].iter().fold(
+                (0u8, -1.0f32),
+                |b, &(x, w)| {
+                    if w > b.1 {
+                        (x, w)
+                    } else {
+                        b
+                    }
+                },
+            );
             let bone = bone as usize;
             if !(o + hu::finger(0, 0)..=o + hu::finger(4, 2)).contains(&bone) {
                 return d;
@@ -499,7 +502,10 @@ fn hand_detail(
             if nail[i] {
                 // The free edge pale, the bed pink.
                 let edge = ((t - 0.78) / 0.12).clamp(0.0, 1.0);
-                d = [d[0] * (1.0 + 0.16 * edge), d[1] + 0.25 * (1.0 - edge) - 0.45 * edge];
+                d = [
+                    d[0] * (1.0 + 0.16 * edge),
+                    d[1] + 0.25 * (1.0 - edge) - 0.45 * edge,
+                ];
                 return d;
             }
             // Over a joint on the back: the base and middle knuckles.
@@ -961,6 +967,12 @@ pub fn arm(
             // The figure's triangles are wound outward (MakeHuman's, kept by the converter).
             let fnrm = (sc.pts[bb] - sc.pts[a]).cross(sc.pts[c] - sc.pts[a]);
             let mut show = fnrm.dot(eye - ctr) > 0.0;
+            // r42:arcus-hand — the shirt's cuff stays under the jacket's sleeve: drawn live
+            // its thinned band broke into white specks and jagged teeth against the wrist
+            // (the review, both wrists, both cameras).
+            if am.stuff[k] == Stuff::Shirt {
+                show = false;
+            }
             if show {
                 if let Some((want, hid)) = hidden {
                     // (r42:arcus-hand: behind if any corner is — a triangle across the neck's
@@ -1008,7 +1020,8 @@ pub fn arm(
             // A seam's side: closed solid across the crack, then no outline (r42:arcus-hand).
             if am.seam[e] {
                 if f0 {
-                    sc.order.push((v.cam.depth(sc.pts[a as usize]) + 0.01, tri_n + e as u32));
+                    sc.order
+                        .push((v.cam.depth(sc.pts[a as usize]) + 0.01, tri_n + e as u32));
                 }
                 continue;
             }
@@ -1024,7 +1037,8 @@ pub fn arm(
                     .iter()
                     .any(|&t| t != u32::MAX && am.stuff[t as usize] == Stuff::Shirt);
                 let bias = if shirt { 3.0 } else { 0.0 };
-                sc.order.push((v.cam.depth(mid) - 0.05 + bias, tri_n + e as u32));
+                sc.order
+                    .push((v.cam.depth(mid) - 0.05 + bias, tri_n + e as u32));
             }
         }
         sc.order
@@ -1056,7 +1070,11 @@ pub fn arm(
                         sc.col[t0 as usize][j]
                     };
                     let (pa, pb) = (sc.sp[a as usize], sc.sp[bb as usize]);
-                    let third = tri.iter().find(|&&x| x != a && x != bb).copied().unwrap_or(a);
+                    let third = tri
+                        .iter()
+                        .find(|&&x| x != a && x != bb)
+                        .copied()
+                        .unwrap_or(a);
                     let d = pb - pa;
                     let mut out = egui::vec2(-d.y, d.x).normalized() * (1.5 * b.px());
                     if out.dot(sc.sp[third as usize] - pa) > 0.0 {
@@ -1150,7 +1168,12 @@ struct FineCtx<'a> {
 
 fn lerp_c(a: Color32, b: Color32, t: f32) -> Color32 {
     let m = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
-    Color32::from_rgba_premultiplied(m(a.r(), b.r()), m(a.g(), b.g()), m(a.b(), b.b()), m(a.a(), b.a()))
+    Color32::from_rgba_premultiplied(
+        m(a.r(), b.r()),
+        m(a.g(), b.g()),
+        m(a.b(), b.b()),
+        m(a.a(), b.a()),
+    )
 }
 
 /// r42:arcus-hand — a hand triangle as a curved patch (PN triangles, Vlachos, Peters, Boyd
@@ -1164,8 +1187,10 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
     let st = am.stuff[k];
     let p = t.map(|i| sc.pts[i]);
     let nn = t.map(|i| sc.nrm[i]);
-    let e = |i: usize, j: usize| (p[i] * 2.0 + p[j] - nn[i] * (p[j] - p[i]).dot(nn[i])) * (1.0 / 3.0);
-    let (b210, b120, b021, b012, b102, b201) = (e(0, 1), e(1, 0), e(1, 2), e(2, 1), e(2, 0), e(0, 2));
+    let e =
+        |i: usize, j: usize| (p[i] * 2.0 + p[j] - nn[i] * (p[j] - p[i]).dot(nn[i])) * (1.0 / 3.0);
+    let (b210, b120, b021, b012, b102, b201) =
+        (e(0, 1), e(1, 0), e(1, 2), e(2, 1), e(2, 0), e(0, 2));
     let ee = (b210 + b120 + b021 + b012 + b102 + b201) * (1.0 / 6.0);
     let vv = (p[0] + p[1] + p[2]) * (1.0 / 3.0);
     let b111 = ee + (ee - vv) * 0.5;

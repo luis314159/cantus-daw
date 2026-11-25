@@ -730,3 +730,47 @@ with the photographs' measures; `HAND_AZ`/`HAND_EL` turn the app's camera), `lid
 `hand_sheet_v10.py <shoot_arcus.exe> <dump.json> <out> [--old-dump=<dump>] [--refs=<dir>]`
 (the app's own picture round the hand from the earlier camera, the new one and photo 5's
 angle; the whole picture from both cameras; `numbers.txt`).
+
+**Later the same day (the owner's and the coordinator's reviews of the app sheets v1–v3)**:
+the thumb's base capped at 30° (it had turned 65°: the "mitten", the owner's "parte abultada
+gorda"); the wrist end of the forearm carrying 95 % of the hand's turn (was 70 %); her palm
+drawn in across by 0.86 (`PALM_SLIM`), his hands 0.93 (`HAND_SCALE`) — both mirrored in
+`hand_rig.py`; gentler joints (playing DIP 15–45°, hovering 5–35°), a stronger upright tip
+(within 24° in the solve, gated at 30°), more hovering slack for the little finger; the
+hand's skin warmed to the face's (`SKIN_WARM`); the sleeves' seam crack closed
+(`close_cloth_seams` — it was the "tan stripe", not skin, not a stamp: shown with the stamps
+off); a soft rim and lifted value on the live sleeves (`cloth_rim`); his shirt cuffs kept
+under the sleeves; the bake's jacket shards (the bow arm's stretched shoulder band) and the
+tie's sawtooth (`smooth_tie`) fixed, the suit 1.2 mm off the skin (`lift_suit`).
+Sheets (outside the tree: they hold the photographs): `F:\projects\daw-r42\tmp\hand-app-v3\`
+(`hand-*-vs-refs.png`, `full-*.png`), the offline previews `F:\projects\daw-r42\tmp\hand-preview\`.
+
+**Gates**: `arcus_hand_table` — the photographs' gates per figure × instrument × string ×
+note: the knuckle line on the E side (the index's base −0.5 … +2.2 cm from the edge, −1.0
+high up the G/D strings where the hand comes round), the tip within 30° of the board's
+normal, the back of the hand toward the camera (≥ 0.2) at a slant (width over length
+0.45–0.95, 1.2 high up), the wrist within 8°, no finger bent sideways over 5°, no last joint
+over its middle by more than 5°, the middle finger 0.95–1.35 of the back of the hand, the
+palm's outline at its middle ≤ 1.35 × the wrist's crease (index/middle in low positions;
+1.7 elsewhere); the eyes' setting test; `arcus_hold` (its V bound 85/88° and wrist 8° from
+the photographs).
+
+**Open** (honest list for the next session):
+1. The palm's outline is 1.4–1.63 × the wrist where the little or ring finger reaches or
+   the hand is high (the photographs 1.1–1.3): gated at 1.7, not yet within the photos.
+2. Tips meet the string at up to ~29° from the board's normal (the coordinator's ~25°).
+3. From the new camera, under his bow hand, small grey-blue pointed shapes by the frog
+   (not his elbow: the trunk-occlusion cull was tried and changed nothing, so it was taken
+   out) — most likely the bow's frog/slide drawn for the earlier view's angles, or the
+   inside of his sleeve's open end now that the cuff is hidden (darkening the "inside"
+   faces by the forearm's axis darkened outside faces too and was reverted).
+4. The coordinator's overall polish list (2026-11-25, the owner: "Agrega más detalles y
+   pule en general todo más"): velvet sheen and folds on her dress with a visible elbow
+   and contact shadows where an arm crosses the body; her shoulder-outline specks; the
+   hair's strand variation, specular band, a twisted bun, value against both themes; the
+   face's local variation, the closed lids' crease and lashes, chin/chinrest contact and
+   the violin's shadow on the neck; key/fill/rim light and crease occlusion; the chair's
+   grain or framing; the same for his suit, hair and skin — not started this session.
+5. A pixel gate for silhouette strays on the full pictures at both cameras: not written
+   (the full tiles were checked by eye; the causes found were fixed in the geometry).
+6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
