@@ -1477,3 +1477,21 @@ fn probe_tremolo_level() {
         );
     }
 }
+
+/// A probe (ignored): `upper_tests`'s seven cello and bass renders (the phrase, 60 000 frames,
+/// blocks of 256) written raw to `ARCUS_DUMP` — the measured size of a change to their bits.
+#[test]
+#[ignore]
+fn probe_dump_lower() {
+    use super::tests::{phrase, render, variety};
+    let dir = std::path::PathBuf::from(std::env::var("ARCUS_DUMP").expect("ARCUS_DUMP"));
+    let lower: Vec<ArcusSettings> = variety()
+        .into_iter()
+        .filter(|s| matches!(s.instrument, Instrument::Cello | Instrument::Bass))
+        .collect();
+    for (i, s) in lower.iter().enumerate() {
+        let (l, _) = render(s, &phrase(), 60_000, &|_| 256, &crate::par::Serial);
+        let bytes: Vec<u8> = l.iter().flat_map(|v| v.to_le_bytes()).collect();
+        std::fs::write(dir.join(format!("lower{i}.f32")), bytes).unwrap();
+    }
+}

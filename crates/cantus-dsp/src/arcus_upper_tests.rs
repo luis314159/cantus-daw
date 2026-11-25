@@ -32,14 +32,22 @@ fn lower() -> Vec<ArcusSettings> {
 /// strings' engine: the phrase of `tests::phrase` rendered 60 000 frames in blocks of 256
 /// (`ARCUS_UPPER_DUMP=1` prints them). A later change to the cello or the bass on `r42/arcus`
 /// moves these on purpose, measured the same way.
+///
+/// r42:arcus-p5 (`DSP_VERSION` 13): re-made for pass 5 — the radiation's Butterworth under the
+/// lowest string, the tremolo's light stroke and its table, the bow change's eased force and
+/// quick re-bow, the re-bow's finger, the spiccato's bounce, model 2's vibrato (the players').
+/// The measured size against 11e6b8cad (`tests_p5::probe_dump_lower` in both trees): the seven
+/// renders' RMS moved −0.3, +0.0, −0.4, −3.2, −0.8, −3.2, +1.3 dB, their difference at the
+/// level of the signal (RMS −4.1 … +3.8 dB re each render, max |Δ| 0.17–0.47: the vibrato's
+/// phase and the tremolo's strokes decorrelate them) — every note changed on purpose.
 const LOWER_HASHES: &[u64] = &[
-    0x8c90ff206568ceb2,
-    0xfde5106e2a355ca9,
-    0x06859cfdc1c68103,
-    0x11f4a1cc1eb7cf57,
-    0x658c4bfc2af6e611,
-    0x199adb9ab11b6354,
-    0xe02a0c46446dc293,
+    0x914d942f0d0453f9,
+    0xc02bf7e99fbacc61,
+    0xa1ff370904415db3,
+    0x3fe5a485e8e429d1,
+    0xca2c6a870093b044,
+    0xd0b07d0d827ca234,
+    0x368b8fa3f06e79bf,
 ];
 
 #[test]
