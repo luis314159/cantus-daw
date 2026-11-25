@@ -57,6 +57,9 @@ mod tests_p4;
 #[path = "arcus_tests_p5.rs"] // r42:arcus-p5
 mod tests_p5;
 #[cfg(test)]
+#[path = "arcus_tests_p5_gate.rs"] // r42:arcus-p5
+mod tests_p5_gate;
+#[cfg(test)]
 #[path = "arcus_tests_pitch.rs"]
 mod tests_pitch;
 #[path = "arcus_upper.rs"] // r42:arcus-upper

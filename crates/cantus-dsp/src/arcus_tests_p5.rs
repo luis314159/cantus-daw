@@ -349,6 +349,7 @@ fn probe_tremolo_scan() {
         (Instrument::Cello, 40),
         (Instrument::Bass, 40),
         (Instrument::Bass, 28),
+        (Instrument::Bass, 33),
         (Instrument::Bass, 47),
         (Instrument::Viola, 55),
         (Instrument::Violin, 69),
@@ -363,7 +364,11 @@ fn probe_tremolo_scan() {
             if std::env::var_os("ARCUS_NOBODY").is_some() {
                 s.body_mix = 0.0;
             }
-            let (med, q) = tremolo_cents(&s, key, 0.6, false);
+            let vel = std::env::var("ARCUS_VEL")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0.6);
+            let (med, q) = tremolo_cents(&s, key, vel, false);
             worst = worst.max(med.abs());
             line += &format!(
                 " {inst:?}{key} {med:+.1}[{:+.0},{:+.0} {:.2}]",

@@ -28,7 +28,7 @@ const TRIM_GAIN: f64 = 0.6;
 /// dynamic's force (round 42's) the strokes were raucous and 8–255 cents flat, and their
 /// turns rang the bodies' lowest modes louder than the note.
 const TREM_PEAK: f32 = 1.2;
-const TREM_FORCE: f32 = 0.15;
+const TREM_FORCE: f32 = 0.12;
 const TREM_FLOOR: f32 = 0.2;
 const TREM_KNEE: f32 = 0.3;
 const TRIM_STEP: f64 = 2.0;
