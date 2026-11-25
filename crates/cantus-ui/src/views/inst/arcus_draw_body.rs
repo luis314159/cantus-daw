@@ -267,7 +267,7 @@ fn real_left(
         let q = p - pose.o;
         let (y, z) = (q.dot(pose.ey), q.dot(pose.ez));
         super::hand::hidden_by_neck(p, eye, l.d, &pose)
-            || super::hand::hidden_by_body(p, eye, pl.b, &pose)
+            || ((0.0..=l.d.body).contains(&y) && z < -crate::scene::bowed::rib(l.d, y) - 0.3)
             || (!held && z < crate::scene::bowed::board_z(l.d, y) - half)
     };
     let lit = figure_light(v, pl, s);

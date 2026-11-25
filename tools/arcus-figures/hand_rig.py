@@ -71,7 +71,8 @@ def read_fig(path, knuckles=True):
     fig = dict(bones=bones, marks=marks, pos=pos, ids=ids, ws=ws, det=det, tris=tris,
                mat=mat, part=part)
     if knuckles:
-        knuckle_fix(fig, HAND_SCALE.get(os.path.basename(path), 1.0))
+        name = os.path.basename(path)
+        knuckle_fix(fig, HAND_SCALE.get(name, 1.0), PALM_SLIM.get(name, 1.0))
     return fig
 
 
@@ -91,12 +92,45 @@ KNUCKLE_RAMP = (-0.5, 0.7)
 # r42:arcus-hand — each figure's hands scaled about the wrist (the coordinator's review: his
 # hand, wrist crease to fingertip, read longer than his face; a man's is about as long).
 HAND_SCALE = {"woman.fig": 1.0, "man.fig": 0.93}
+# r42:arcus-hand — each figure's palm drawn in across, toward the hand's middle line (the
+# owner: her hand "tosca", the palm bulging out of a slim wrist; her palm measured 1.25-1.64
+# times her wrist from the picture's camera, the photographs' about 1.25).
+PALM_SLIM = {"woman.fig": 0.86, "man.fig": 1.0}
 
 
-def knuckle_fix(fig, scale=1.0):
+def slim_palm(fig, s, k):
+    B = fig["bones"]
+    pos, ids, ws = fig["pos"], fig["ids"], fig["ws"]
+    o = side(s)
+    wr = B[o + HAND][1]
+    across = norm(B[o + finger(1, 0)][1] - B[o + finger(4, 0)][1])
+    deltas = []
+    for f in range(5):
+        h0 = B[o + finger(f, 0)][1]
+        d = -across * ((h0 - wr) @ across) * (1.0 - k)
+        deltas.append(d)
+        for kk in range(3):
+            b = o + finger(f, kk)
+            par, h, t, x = B[b]
+            B[b] = (par, h + d, t + d, x)
+    move = np.zeros_like(pos)
+    for j in range(4):
+        w = ws[:, j]
+        for f in range(5):
+            m = np.isin(ids[:, j], [o + finger(f, kk) for kk in range(3)])
+            move[m] += deltas[f] * w[m, None]
+        m = ids[:, j] == o + HAND
+        off = (pos[m] - wr) @ across
+        move[m] += -across[None, :] * (off * (1.0 - k) * w[m])[:, None]
+    pos += move
+
+
+def knuckle_fix(fig, scale=1.0, slim=1.0):
     B = fig["bones"]
     pos, ids, ws = fig["pos"], fig["ids"], fig["ws"]
     for s in (0, 1):
+        if slim != 1.0:
+            slim_palm(fig, s, slim)
         o = side(s)
         wr = B[o + HAND][1]
         if scale != 1.0:

@@ -181,14 +181,16 @@ pub fn lids(w: Who) -> &'static [(u32, V3)] {
 pub fn figure(w: Who) -> &'static Figure {
     static W: OnceLock<Figure> = OnceLock::new();
     static M: OnceLock<Figure> = OnceLock::new();
-    let read = |b: &[u8], scale: f32| {
+    let read = |b: &[u8], k: usize| {
         let mut f = parse(b).unwrap_or_default();
-        knuckle_fix(&mut f, scale);
+        knuckle_fix(&mut f, HAND_SCALE[k], PALM_SLIM[k]);
+        smooth_tie(&mut f);
+        lift_suit(&mut f);
         f
     };
     match w {
-        Who::Woman => W.get_or_init(|| read(WOMAN, HAND_SCALE[0])),
-        Who::Man => M.get_or_init(|| read(MAN, HAND_SCALE[1])),
+        Who::Woman => W.get_or_init(|| read(WOMAN, 0)),
+        Who::Man => M.get_or_init(|| read(MAN, 1)),
     }
 }
 
@@ -205,16 +207,139 @@ pub const KNUCKLE_BACK: f32 = 0.12;
 const KNUCKLE_LANE: f32 = 0.8;
 const KNUCKLE_RAMP: (f32, f32) = (-0.5, 0.7);
 
+/// r42:arcus-hand — the suit's parts with clean edges: the converter told the jacket, the
+/// shirt and the tie apart per triangle by the suit texture's light and blue, so single
+/// triangles of one stuck into another along their edges (a white sawtooth down his tie and
+/// the jacket's front, plain from the new camera). A triangle of the three with two or three
+/// edge-neighbours of one other of them takes that one's stuff (twice over).
+fn smooth_tie(fig: &mut Figure) {
+    use std::collections::HashMap;
+    let w = |i: u16| fig.weld.get(i as usize).copied().unwrap_or(i as u32);
+    let mut by_edge: HashMap<(u32, u32), Vec<usize>> = HashMap::new();
+    for (k, t) in fig.tris.iter().enumerate() {
+        if !matches!(fig.stuff[k], Stuff::Tie | Stuff::Shirt | Stuff::Wool) {
+            continue;
+        }
+        for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            let (a, b) = (w(a), w(b));
+            by_edge.entry((a.min(b), a.max(b))).or_default().push(k);
+        }
+    }
+    for _ in 0..2 {
+        let mut flip = Vec::new();
+        for (k, t) in fig.tris.iter().enumerate() {
+            let st = fig.stuff[k];
+            if !matches!(st, Stuff::Tie | Stuff::Shirt | Stuff::Wool) {
+                continue;
+            }
+            for other in [Stuff::Tie, Stuff::Shirt, Stuff::Wool] {
+                if other == st {
+                    continue;
+                }
+                let mut n = 0;
+                for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+                    let (a, b) = (w(a), w(b));
+                    if let Some(ks) = by_edge.get(&(a.min(b), a.max(b))) {
+                        if ks.iter().any(|&j| j != k && fig.stuff[j] == other) {
+                            n += 1;
+                        }
+                    }
+                }
+                if n >= 2 {
+                    flip.push((k, other));
+                    break;
+                }
+            }
+        }
+        for (k, st) in flip {
+            fig.stuff[k] = st;
+        }
+    }
+}
+
+/// r42:arcus-hand — the suit a little further off the skin: his collar's edge showed the
+/// neck's skin through it in a sawtooth (the review, from the new camera). Every vertex of
+/// the jacket, the shirt and the tie rises [`SUIT_LIFT`] cm along its normal (all three
+/// together, so the jacket stays over the shirt and the tie).
+fn lift_suit(fig: &mut Figure) {
+    let n = fig.pos.len();
+    let mut suit = vec![false; n];
+    let mut nrm = vec![V3::default(); n];
+    let w = |i: u16, fig: &Figure| fig.weld.get(i as usize).map_or(i as usize, |&x| x as usize);
+    for (k, t) in fig.tris.iter().enumerate() {
+        let [a, b, c] = t.map(|i| fig.pos[i as usize]);
+        let f = (b - a).cross(c - a);
+        for &i in t {
+            nrm[w(i, fig)] = nrm[w(i, fig)] + f;
+        }
+        if matches!(fig.stuff[k], Stuff::Wool | Stuff::Shirt | Stuff::Tie) {
+            for &i in t {
+                suit[i as usize] = true;
+            }
+        }
+    }
+    for i in 0..n {
+        if suit[i] {
+            let wi = fig.weld.get(i).map_or(i, |&x| x as usize);
+            fig.pos[i] = fig.pos[i] + nrm[wi].norm() * SUIT_LIFT;
+        }
+    }
+}
+
+/// How far the suit rises off the skin (cm).
+const SUIT_LIFT: f32 = 0.12;
+
 /// r42:arcus-hand — each figure's hands scaled about the wrist (hers, his): the review
 /// found his hand, wrist crease to fingertip, longer than his face (a man's is about as
 /// long). `hand_rig.py::HAND_SCALE` is the same.
 pub const HAND_SCALE: [f32; 2] = [1.0, 0.93];
 
-fn knuckle_fix(fig: &mut Figure, scale: f32) {
+/// r42:arcus-hand — each figure's palm drawn in across toward the hand's middle line (hers,
+/// his): the owner found her hand "tosca", the palm bulging out of a slim wrist (her palm
+/// 1.25–1.64 times her wrist from the picture's camera; the photographs' about 1.25). The
+/// fingers' bases come in with it. `hand_rig.py::PALM_SLIM` is the same.
+pub const PALM_SLIM: [f32; 2] = [0.86, 1.0];
+
+fn slim_palm(fig: &mut Figure, s: usize, k: f32) {
+    let o = side(s);
+    let wr = fig.bones[o + HAND].head;
+    let across = (fig.bones[o + finger(1, 0)].head - fig.bones[o + finger(4, 0)].head).norm();
+    let mut deltas = [V3::default(); 5];
+    for (f, d) in deltas.iter_mut().enumerate() {
+        let h0 = fig.bones[o + finger(f, 0)].head;
+        *d = across * (-(h0 - wr).dot(across) * (1.0 - k));
+        for kk in 0..3 {
+            let b = &mut fig.bones[o + finger(f, kk)];
+            b.head = b.head + *d;
+            b.tail = b.tail + *d;
+        }
+    }
+    for (p, w) in fig.pos.iter_mut().zip(fig.bw.iter()) {
+        let mut mv = V3::default();
+        for &(b, x) in w {
+            let b = b as usize;
+            if x <= 0.0 {
+                continue;
+            }
+            if b == o + HAND {
+                mv = mv + across * (-(*p - wr).dot(across) * (1.0 - k) * x);
+            } else if (o + finger(0, 0)..=o + finger(4, 2)).contains(&b) {
+                let f = (b - o - finger(0, 0)) / 3;
+                mv = mv + deltas[f] * x;
+            }
+        }
+        *p = *p + mv;
+    }
+}
+
+fn knuckle_fix(fig: &mut Figure, scale: f32, slim: f32) {
     if fig.bones.len() < BONES {
         return;
     }
     for s in 0..2 {
+        if slim != 1.0 {
+            slim_palm(fig, s, slim);
+        }
         let o = side(s);
         let wr = fig.bones[o + HAND].head;
         if scale != 1.0 {
@@ -646,7 +771,10 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
         }
     });
     let f1 = fig.bones[o + FORE1].len() * kf;
-    for (k, b, head, share) in [(0, FORE1, a.elbow, 0.25), (1, FORE2, a.elbow + w * f1, 0.7)] {
+    // (r42:arcus-hand: the wrist's end of the forearm takes nearly all of the hand's turn,
+    // as the radius carries the hand — at 0.7 the wrist lagged the hand by a third of its
+    // turn, a pinched wrist under a hand that read swollen beside it.)
+    for (k, b, head, share) in [(0, FORE1, a.elbow, 0.45), (1, FORE2, a.elbow + w * f1, 0.95)] {
         let _ = k;
         aims[o + b] = Some(Aim {
             head: Some(head),
@@ -958,8 +1086,22 @@ pub fn emit(
         // whole (each corner the arm's): baked in the bake's arm pose, they stuck out as dark
         // shards beside the jacket where the live arm had moved on (the review, his jacket
         // under the bow arm from the new camera).
-        if mask == 1 && fig.part[k] & 6 != 0 && covered_by_arm(fig, t, fig.part[k]) {
+        // (The bow arm's band only: the left arm's passes behind the instrument, where the
+        // picture is stamped back over the live arm — left out of the bake it left holes.)
+        if mask == 1 && fig.part[k] & 4 != 0 && covered_by_arm(fig, t, fig.part[k]) {
             continue;
+        }
+        // (And a band triangle the bake's arm pose stretched well past its size at rest:
+        // the body's cloth dragged toward an arm the bake does not draw.)
+        if mask == 1 && fig.part[k] & 4 != 0 {
+            let [a, b, c] = t.map(|i| i as usize);
+            let stretch = [(a, b), (b, c), (c, a)]
+                .iter()
+                .map(|&(i, j)| (pts[i] - pts[j]).len() / (fig.pos[i] - fig.pos[j]).len().max(0.05))
+                .fold(0.0f32, f32::max);
+            if stretch > 1.6 {
+                continue;
+            }
         }
         let r = role(fig.stuff[k], who, tone);
         let e = match out.iter().position(|(x, _, _)| *x == r) {

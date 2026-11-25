@@ -724,36 +724,6 @@ pub fn stamp_body(
 }
 
 /// `b`'s outline (local cm), worked out once and kept.
-/// r42:arcus-hand — whether the instrument's body stands between `p` and the eye: the ray
-/// from `p` to the eye crosses the body's middle depth inside its outline. (Before, a point
-/// under the body's length and deeper than its back counted as hidden wherever it was: the
-/// body's stamp then laid the picture's wall over the forearm beside the body — the tan
-/// stripe along the sleeve the review found.)
-pub fn hidden_by_body(p: V3, eye: V3, b: crate::scene::bowed::Bowed, pose: &Pose) -> bool {
-    let d = b.dims();
-    let loc = |w: V3| {
-        let q = w - pose.o;
-        (q.dot(pose.ex), q.dot(pose.ey), q.dot(pose.ez))
-    };
-    let (px, py, pz) = loc(p);
-    let (ex, ey, ez) = loc(eye);
-    let mid = -crate::scene::bowed::rib(d, py.clamp(0.0, d.body)) * 0.5;
-    if pz >= mid - 0.3 || ez <= mid {
-        return false;
-    }
-    let t = (mid - pz) / (ez - pz);
-    let (qx, qy) = (px + (ex - px) * t, py + (ey - py) * t);
-    if !(0.0..=d.body).contains(&qy) {
-        return false;
-    }
-    let hw = outline_of(b)
-        .iter()
-        .filter(|(_, y)| (y - qy).abs() < 0.8)
-        .map(|(x, _)| x.abs())
-        .fold(0.0f32, f32::max);
-    qx.abs() < hw - 0.2
-}
-
 fn outline_of(b: crate::scene::bowed::Bowed) -> std::sync::Arc<Vec<(f32, f32)>> {
     use std::sync::{Arc, Mutex};
     type Kept = Vec<(crate::scene::bowed::Bowed, Arc<Vec<(f32, f32)>>)>;
