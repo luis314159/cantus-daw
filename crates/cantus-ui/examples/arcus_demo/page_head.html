@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arcus · Andante cantabile</title>
+<style>
+:root {
+  --bg: #f6f1e8; --card: #fffdf8; --ink: #2a2118; --soft: #6b5b4a; --line: #e2d6c4;
+  --accent: #8a4b24; --accent-soft: #f0e2d2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17130f; --card: #211b15; --ink: #f1e8dc; --soft: #b9a792; --line: #3a3027;
+    --accent: #e0a06a; --accent-soft: #3a2a1d;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.55 Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+}
+main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+h1 { font-size: 2.1rem; font-weight: normal; margin: 0 0 4px; letter-spacing: .01em; }
+h1 em { color: var(--accent); }
+h2 { font-size: 1.15rem; font-weight: normal; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--soft); margin: 40px 0 12px; }
+h3 { font-size: 1.05rem; margin: 0 0 4px; font-weight: bold; }
+p { margin: 0 0 10px; }
+.lead { color: var(--soft); font-size: 1.05rem; }
+.meta { color: var(--soft); font: 14px/1.4 system-ui, sans-serif; margin: 18px 0 8px; }
+audio { width: 100%; }
+#song { margin: 4px 0 8px; }
+.form { list-style: none; padding: 0; margin: 0; }
+.form li { display: flex; gap: 16px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px; margin: 0 0 10px; }
+.form button { flex: none; width: 104px; height: 34px; border: 1px solid var(--line);
+  border-radius: 17px; background: var(--accent-soft); color: var(--ink); cursor: pointer;
+  font: 14px system-ui, sans-serif; }
+.form button:hover { border-color: var(--accent); }
+.form .who { color: var(--soft); font: 14px/1.5 system-ui, sans-serif; margin: 0; }
+.form .who b { color: var(--ink); font-weight: 600; }
+.stems { list-style: none; padding: 0; margin: 0; }
+.stems li { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 12px;
+  padding: 6px 0; border-bottom: 1px solid var(--line); font: 15px system-ui, sans-serif; }
+.foot { color: var(--soft); font: 14px/1.5 system-ui, sans-serif; }
+a { color: var(--accent); }
+@media (max-width: 560px) {
+  .form li { flex-direction: column; gap: 8px; }
+  .stems li { grid-template-columns: 1fr; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Andante cantabile <em>en re mayor</em></h1>
+<p class="lead">Una pieza breve para violín, viola, violonchelo y contrabajo, escrita para
+escuchar Arcus —las cuerdas frotadas modeladas de Cantus— como música: los instrumentos entran
+uno a uno, llevan el tema a un clímax y se retiran, hasta que el violín y el violonchelo
+terminan solos.</p>
