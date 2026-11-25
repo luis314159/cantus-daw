@@ -292,6 +292,10 @@ pub struct Settings {
     /// preference of this machine; a file without it reads High.
     #[serde(default)]
     pub figure_quality: crate::scene::figure::Quality,
+    /// r42:arcus-hand — the realistic figures' eyes: closed (the default; the owner liked
+    /// them so) or open. A preference of this machine; a file without it reads Closed.
+    #[serde(default)]
+    pub figure_eyes: crate::scene::figure::Eyes,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -431,6 +435,7 @@ impl Default for Settings {
             arcus_stop: Default::default(),          // r42:arcus-upper
             arcus_finger_was: None,                  // r42:arcus-upper
             figure_quality: Default::default(),      // r42:arcus-upper
+            figure_eyes: Default::default(),         // r42:arcus-hand
         }
     }
 }

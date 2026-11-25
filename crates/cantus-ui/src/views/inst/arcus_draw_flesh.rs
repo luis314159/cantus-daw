@@ -38,6 +38,12 @@ struct ArmMesh {
     /// r42:arcus-upper — each vertex's first copy at its place (a texture seam's copies
     /// share one normal).
     weld: Vec<u16>,
+    /// r42:arcus-hand — High's hand: whether each triangle is the hand's skin or a nail
+    /// (every corner on the hand's or the fingers' bones), drawn as a curved patch.
+    fine: Vec<bool>,
+    /// r42:arcus-hand — each vertex's detail (luminance, red) for the hand: the figure's,
+    /// with the nails' free edges paler and the knuckles a little redder.
+    vdet: Vec<[f32; 2]>,
 }
 
 /// r42:arcus-upper — the arm at a level of detail: 0 the full one (High), 1 and 2 Light's
@@ -172,6 +178,8 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         .collect();
     edges.sort_unstable();
     let weld = weld_of(fig, &verts);
+    let fine = vec![false; tris.len()];
+    let vdet = verts.iter().map(|&g| fig.detail[g as usize]).collect();
     ArmMesh {
         verts,
         tris,
@@ -180,6 +188,8 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         alpha,
         edges,
         weld,
+        fine,
+        vdet,
     }
 }
 
@@ -287,6 +297,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         })
         .collect();
     let weld = weld_of(fig, &verts);
+    let (fine, vdet) = hand_detail(fig, s, &verts, &tris, &stuff);
     ArmMesh {
         verts,
         tris,
@@ -295,7 +306,95 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         alpha,
         edges,
         weld,
+        fine,
+        vdet,
     }
+}
+
+/// r42:arcus-hand — which of an arm's triangles are its hand's skin or nails (`fine`), and
+/// each vertex's detail for the hand: the figure's own, a nail paler toward its free edge
+/// (the last fifth of its finger's last bone) and pink over its bed, the skin over the
+/// middle and base knuckles on the back a little redder and darker (a hand's knuckles,
+/// what a photograph of a violinist's left hand shows first).
+fn hand_detail(
+    fig: &Figure,
+    s: usize,
+    verts: &[u32],
+    tris: &[[u16; 3]],
+    stuff: &[Stuff],
+) -> (Vec<bool>, Vec<[f32; 2]>) {
+    let o = hu::side(s);
+    let handy = |g: usize| {
+        fig.bw[g]
+            .iter()
+            .filter(|(b, _)| (*b as usize) >= o + hu::HAND && (*b as usize) <= o + hu::finger(4, 2))
+            .map(|x| x.1)
+            .sum::<f32>()
+            > 0.98
+    };
+    let fine = tris
+        .iter()
+        .zip(stuff)
+        .map(|(t, st)| {
+            matches!(st, Stuff::Skin | Stuff::Nail)
+                && t.iter().all(|&i| handy(verts[i as usize] as usize))
+        })
+        .collect();
+    let mut nail = vec![false; verts.len()];
+    for (t, st) in tris.iter().zip(stuff) {
+        if *st == Stuff::Nail {
+            for &i in t {
+                nail[i as usize] = true;
+            }
+        }
+    }
+    // The back of the hand at rest (away from the palm): the knuckles' side.
+    let kn = |f: usize| fig.bones[o + hu::finger(f, 0)].head;
+    let wr = fig.bones[o + hu::HAND].head;
+    let mut back = (kn(1) - kn(4)).cross((kn(2) + kn(3)) * 0.5 - wr).norm();
+    if (back.x < 0.0) == (s == 0) {
+        back = back * -1.0;
+    }
+    let vdet = verts
+        .iter()
+        .enumerate()
+        .map(|(i, &g)| {
+            let g = g as usize;
+            let mut d = fig.detail[g];
+            let p = fig.pos[g];
+            // The finger this vertex mostly follows, and its bone.
+            let (bone, _) = fig.bw[g].iter().fold((0u8, -1.0f32), |b, &(x, w)| {
+                if w > b.1 {
+                    (x, w)
+                } else {
+                    b
+                }
+            });
+            let bone = bone as usize;
+            if !(o + hu::finger(0, 0)..=o + hu::finger(4, 2)).contains(&bone) {
+                return d;
+            }
+            let bn = &fig.bones[bone];
+            let ax = bn.tail - bn.head;
+            let t = (p - bn.head).dot(ax) / ax.dot(ax).max(1e-6);
+            if nail[i] {
+                // The free edge pale, the bed pink.
+                let edge = ((t - 0.78) / 0.12).clamp(0.0, 1.0);
+                d = [d[0] * (1.0 + 0.16 * edge), d[1] + 0.25 * (1.0 - edge) - 0.45 * edge];
+                return d;
+            }
+            // Over a joint on the back: the base and middle knuckles.
+            let k = (bone - o - hu::finger(0, 0)) % 3;
+            let near_head = (1.0 - (t / 0.22).abs()).max(0.0);
+            let on_back = (p - (bn.head + ax * t)).norm().dot(back).max(0.0);
+            if k <= 1 && bone >= o + hu::finger(1, 0) {
+                let w = near_head * on_back;
+                d = [d[0] * (1.0 - 0.06 * w), d[1] + 0.35 * w];
+            }
+            d
+        })
+        .collect();
+    (fine, vdet)
 }
 
 #[derive(Default)]
@@ -651,6 +750,13 @@ pub fn arm(
     };
     let am = arm_mesh_at(who, s, level);
     let shading = Shading::of(lit);
+    // r42:arcus-hand — High's hand as curved patches cut to a few px a side (none when the
+    // hand is small on screen).
+    let fine_n = if light {
+        1
+    } else {
+        ((v.scale(aim.wrist) * FINE_EDGE / FINE_PX).ceil() as usize).clamp(1, FINE_MAX)
+    };
     SCRATCH.with(|sc| {
         let mut sc = sc.borrow_mut();
         let sc = &mut *sc;
@@ -712,7 +818,7 @@ pub fn arm(
                     cc[j] = if kept_st == Some(st) {
                         kept
                     } else {
-                        let d = fig.detail[am.verts[i] as usize];
+                        let d = am.vdet[i];
                         let mut cl = lut_colour(&shading, s, st, tone, d, mid, sc.nrm[i], sc.ao[i]);
                         if am.alpha[i] < 1.0 {
                             cl = cl.gamma_multiply(am.alpha[i]);
@@ -745,6 +851,18 @@ pub fn arm(
             .sort_unstable_by(|x, y| y.0.partial_cmp(&x.0).unwrap_or(std::cmp::Ordering::Equal));
         for &(_, k) in &sc.order {
             if k < tri_n {
+                if fine_n > 1 && am.fine[k as usize] {
+                    let fc = FineCtx {
+                        v,
+                        fig,
+                        sh: &shading,
+                        side: s,
+                        tone,
+                        mid,
+                    };
+                    fine_tri(b, &fc, sc, am, k as usize, fine_n);
+                    continue;
+                }
                 let t = am.tris[k as usize];
                 let p = t.map(|i| sc.sp[i as usize]);
                 b.shaded_tri(p, sc.col[k as usize]);
@@ -785,11 +903,127 @@ pub fn arm(
                     out = -out;
                 }
                 if out.length() > 1e-4 {
-                    b.edge(pa, pb, corner(a), corner(bb), out);
+                    if fine_n > 1 && am.fine[t] {
+                        // Along the patch's curved edge (r42:arcus-hand).
+                        let (ia, ib) = (a as usize, bb as usize);
+                        let (p0, p1, n0, n1) = (sc.pts[ia], sc.pts[ib], sc.nrm[ia], sc.nrm[ib]);
+                        let c0 = (p0 * 2.0 + p1 - n0 * (p1 - p0).dot(n0)) * (1.0 / 3.0);
+                        let c1 = (p1 * 2.0 + p0 - n1 * (p0 - p1).dot(n1)) * (1.0 / 3.0);
+                        let at = |t: f32| {
+                            let u = 1.0 - t;
+                            p0 * (u * u * u)
+                                + c0 * (3.0 * u * u * t)
+                                + c1 * (3.0 * u * t * t)
+                                + p1 * (t * t * t)
+                        };
+                        let (ca, cb) = (corner(a), corner(bb));
+                        let mut prev = (pa, ca);
+                        for j in 1..=fine_n {
+                            let t = j as f32 / fine_n as f32;
+                            let q = (v.p(at(t)), lerp_c(ca, cb, t));
+                            b.edge(prev.0, q.0, prev.1, q.1, out);
+                            prev = q;
+                        }
+                    } else {
+                        b.edge(pa, pb, corner(a), corner(bb), out);
+                    }
                 }
             }
         }
     });
+}
+
+/// r42:arcus-hand — High's hand patches: a thinned triangle's edge (cm) and the px a
+/// patch's small triangle may take on screen; at most this many cuts a side.
+const FINE_EDGE: f32 = 0.62;
+const FINE_PX: f32 = 2.5;
+const FINE_MAX: usize = 4;
+
+/// What a hand patch is lit and placed by.
+struct FineCtx<'a> {
+    v: &'a View,
+    fig: &'a Figure,
+    sh: &'a Shading,
+    side: usize,
+    tone: u8,
+    mid: V3,
+}
+
+fn lerp_c(a: Color32, b: Color32, t: f32) -> Color32 {
+    let m = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    Color32::from_rgba_premultiplied(m(a.r(), b.r()), m(a.g(), b.g()), m(a.b(), b.b()), m(a.a(), b.a()))
+}
+
+/// r42:arcus-hand — a hand triangle as a curved patch (PN triangles, Vlachos, Peters, Boyd
+/// and Mitchell 2001: the cubic through its corners that meets their normals, so the thinned
+/// hand's facets round off and its outline is smooth), cut `n` times a side, each point lit
+/// from its own normal with the skin's own texture at its place (MakeHuman's knuckle
+/// creases, the lines of the fingers' joints, the pores; as the bake does the face), the
+/// corners' detail and occlusion between.
+fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n: usize) {
+    let t = am.tris[k].map(|i| i as usize);
+    let st = am.stuff[k];
+    let p = t.map(|i| sc.pts[i]);
+    let nn = t.map(|i| sc.nrm[i]);
+    let e = |i: usize, j: usize| (p[i] * 2.0 + p[j] - nn[i] * (p[j] - p[i]).dot(nn[i])) * (1.0 / 3.0);
+    let (b210, b120, b021, b012, b102, b201) = (e(0, 1), e(1, 0), e(1, 2), e(2, 1), e(2, 0), e(0, 2));
+    let ee = (b210 + b120 + b021 + b012 + b102 + b201) * (1.0 / 6.0);
+    let vv = (p[0] + p[1] + p[2]) * (1.0 / 3.0);
+    let b111 = ee + (ee - vv) * 0.5;
+    let uv = t.map(|i| {
+        fc.fig
+            .uv
+            .get(am.verts[i] as usize)
+            .copied()
+            .unwrap_or([-1.0, -1.0])
+    });
+    let textured = st == Stuff::Skin && uv.iter().all(|u| u[0] >= 0.0);
+    let det = t.map(|i| am.vdet[i]);
+    let ao = t.map(|i| sc.ao[i]);
+    let mut pts = [Pos2::ZERO; 15];
+    let mut cols = [Color32::TRANSPARENT; 15];
+    let row = |i: usize| i * (n + 1) - i * i.saturating_sub(1) / 2;
+    for i in 0..=n {
+        for j in 0..=(n - i) {
+            let (w1, w2) = (j as f32 / n as f32, i as f32 / n as f32);
+            let w0 = 1.0 - w1 - w2;
+            let q = p[0] * (w0 * w0 * w0)
+                + p[1] * (w1 * w1 * w1)
+                + p[2] * (w2 * w2 * w2)
+                + (b210 * (w0 * w0 * w1)
+                    + b120 * (w0 * w1 * w1)
+                    + b201 * (w0 * w0 * w2)
+                    + b021 * (w1 * w1 * w2)
+                    + b102 * (w0 * w2 * w2)
+                    + b012 * (w1 * w2 * w2))
+                    * 3.0
+                + b111 * (6.0 * w0 * w1 * w2);
+            let nq = (nn[0] * w0 + nn[1] * w1 + nn[2] * w2).norm();
+            let mut d = [
+                det[0][0] * w0 + det[1][0] * w1 + det[2][0] * w2,
+                det[0][1] * w0 + det[1][1] * w1 + det[2][1] * w2,
+            ];
+            if textured {
+                let u = uv[0][0] * w0 + uv[1][0] * w1 + uv[2][0] * w2;
+                let vt = uv[0][1] * w0 + uv[1][1] * w1 + uv[2][1] * w2;
+                d[0] *= crate::scene::figure::cards::skin_detail(u, vt);
+            }
+            let a = ao[0] * w0 + ao[1] * w1 + ao[2] * w2;
+            let at = row(i) + j;
+            pts[at] = fc.v.p(q);
+            cols[at] = lut_colour(fc.sh, fc.side, st, fc.tone, d, fc.mid, nq, a);
+        }
+    }
+    for i in 0..n {
+        for j in 0..(n - i) {
+            let (a, bb, c) = (row(i) + j, row(i) + j + 1, row(i + 1) + j);
+            b.shaded_tri([pts[a], pts[bb], pts[c]], [cols[a], cols[bb], cols[c]]);
+            if j + 1 < n - i {
+                let d = row(i + 1) + j + 1;
+                b.shaded_tri([pts[bb], pts[d], pts[c]], [cols[bb], cols[d], cols[c]]);
+            }
+        }
+    }
 }
 
 /// r42:arcus-upper — which stuff lies over which where two meet on an arm: the sleeve's

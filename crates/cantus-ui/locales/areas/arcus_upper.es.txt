@@ -34,3 +34,8 @@ arcus_upper.quality.light = Ligero
 arcus_upper.quality.auto = Automático
 arcus_upper.quality.hint = Alto dibuja las manos de las figuras con todo detalle; Ligero las dibuja más simples y cuesta cerca de un milisegundo por fotograma; Automático usa Alto y baja a Ligero mientras la ventana está ocupada.
 arcus_upper.hold.hint = Solo la imagen de Arcus: qué sostiene el instrumento (nada, un soporte, un músico, un maniquí, una mujer o un hombre realistas) y cómo se ve la nota pisada. El sonido no cambia.
+# r42:arcus-hand
+arcus_upper.eyes = Ojos
+arcus_upper.eyes.closed = Cerrados
+arcus_upper.eyes.open = Abiertos
+arcus_upper.eyes.hint = Los ojos de los músicos: cerrados, como escuchando lo que tocan, o abiertos sobre las cuerdas.

@@ -144,6 +144,40 @@ pub enum Who {
 static WOMAN: &[u8] = include_bytes!("../../assets/figures/woman.fig");
 static MAN: &[u8] = include_bytes!("../../assets/figures/man.fig");
 
+static WOMAN_LIDS: &[u8] = include_bytes!("../../assets/figures/woman_lids.bin");
+static MAN_LIDS: &[u8] = include_bytes!("../../assets/figures/man_lids.bin");
+
+/// r42:arcus-hand — `CLID`, a `u16` version (1), a `u32` count, then per moved vertex its
+/// `u32` index and its offset at rest (three `i16` at 0.001 cm): the lids closed over the
+/// eyes (`tools/arcus-figures/lids.py`). Empty when the bytes are not that.
+fn parse_lids(b: &[u8]) -> Vec<(u32, V3)> {
+    let mut r = Rd { b, o: 0 };
+    let ok = (|| {
+        if r.take::<4>()? != *b"CLID" || r.u16()? != 1 {
+            return None;
+        }
+        let n = r.u32()? as usize;
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            let i = r.u32()?;
+            let d = v(r.i16()? as f32, r.i16()? as f32, r.i16()? as f32) * 0.001;
+            out.push((i, d));
+        }
+        Some(out)
+    })();
+    ok.unwrap_or_default()
+}
+
+/// r42:arcus-hand — the offsets at rest that close `w`'s eyes (vertex, offset), read once.
+pub fn lids(w: Who) -> &'static [(u32, V3)] {
+    static W: OnceLock<Vec<(u32, V3)>> = OnceLock::new();
+    static M: OnceLock<Vec<(u32, V3)>> = OnceLock::new();
+    match w {
+        Who::Woman => W.get_or_init(|| parse_lids(WOMAN_LIDS)),
+        Who::Man => M.get_or_init(|| parse_lids(MAN_LIDS)),
+    }
+}
+
 /// The figure, read once.
 pub fn figure(w: Who) -> &'static Figure {
     static W: OnceLock<Figure> = OnceLock::new();
@@ -387,7 +421,11 @@ impl Posed {
 
     /// Vertex `i` of `fig` posed.
     pub fn vertex(&self, fig: &Figure, i: usize) -> V3 {
-        let p = fig.pos[i];
+        self.vertex_at(fig, i, fig.pos[i])
+    }
+
+    /// Vertex `i` of `fig` posed from `p` at rest (its own place, or a morph's).
+    pub fn vertex_at(&self, fig: &Figure, i: usize, p: V3) -> V3 {
         let mut o = V3::default();
         for &(b, w) in &fig.bw[i] {
             if w > 0.0 {
@@ -703,7 +741,18 @@ pub fn arm_lengths(fig: &Figure, s: usize) -> (f32, f32) {
 
 /// Every vertex of `fig` posed, and smooth normals over all its triangles.
 pub fn skin(fig: &Figure, p: &Posed) -> (Vec<V3>, Vec<V3>) {
-    let pts: Vec<V3> = (0..fig.pos.len()).map(|i| p.vertex(fig, i)).collect();
+    skin_with(fig, p, &[])
+}
+
+/// [`skin`] with offsets at rest added first (`morph`: vertex, offset — the closed lids).
+pub fn skin_with(fig: &Figure, p: &Posed, morph: &[(u32, V3)]) -> (Vec<V3>, Vec<V3>) {
+    let mut pts: Vec<V3> = (0..fig.pos.len()).map(|i| p.vertex(fig, i)).collect();
+    for &(i, d) in morph {
+        let i = i as usize;
+        if let Some(q) = fig.pos.get(i) {
+            pts[i] = p.vertex_at(fig, i, *q + d);
+        }
+    }
     let mut nrm = vec![V3::default(); pts.len()];
     let w = |i: usize| fig.weld.get(i).map_or(i, |&x| x as usize);
     for t in &fig.tris {
@@ -814,6 +863,7 @@ pub fn build(
     pose: &super::bowed::Pose,
     who: Who,
     tone: u8,
+    eyes: super::figure::Eyes,
 ) {
     let s = super::bowed_figure::skeleton(b, pose);
     let fig = figure(who);
@@ -824,7 +874,12 @@ pub fn build(
         let at = v(hips.x, 0.0, hips.z) - s.f * 6.0;
         super::bowed_props::chair_top(m, at, s.f.x.atan2(s.f.z), seat);
     }
-    let (pts, nrm) = skin(fig, &posed);
+    // r42:arcus-hand — the eyes closed (the default) or open.
+    let morph = match eyes {
+        super::figure::Eyes::Closed => lids(who),
+        super::figure::Eyes::Open => &[],
+    };
+    let (pts, nrm) = skin_with(fig, &posed, morph);
     emit(m, fig, &pts, &nrm, who, tone, 1);
     // What the floor's shadow takes: the body's outline points.
     m.shadows.push(

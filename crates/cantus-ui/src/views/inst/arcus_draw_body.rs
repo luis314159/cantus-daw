@@ -284,6 +284,9 @@ fn real_left(
         r: depth * 0.5,
         bone: usize::MAX,
     };
+    if !hidden && !pl.light {
+        contact_shadows(b, v, lp, l);
+    }
     super::flesh::arm(
         b,
         v,
@@ -298,6 +301,51 @@ fn real_left(
         pl.light,
     );
     true
+}
+
+/// r42:arcus-hand — each fingertip's soft shadow on the fingerboard under it (High): dark
+/// where a tip presses its string, fading as it hovers higher (gone by 1.6 cm), a little
+/// wider than the finger — what grounds a photographed violinist's fingers on the board.
+fn contact_shadows(b: &mut Brush, v: &View, lp: &super::hand::LeftPose, l: &super::hand::Left) {
+    let pose = l.rig.pose;
+    let shadow = c(pal::SHADOW);
+    for f in &lp.fingers {
+        let tip = f[3];
+        let q = tip - pose.o;
+        let y = q.dot(pose.ey);
+        if !(l.d.body..=crate::scene::bowed::nut_y(l.d) + 0.5).contains(&y) {
+            continue;
+        }
+        let x = q.dot(pose.ex);
+        let hw = crate::scene::bowed::board_w(l.d, y) * 0.5;
+        if x.abs() > hw + 0.2 {
+            continue;
+        }
+        let top = crate::scene::bowed::board_z(l.d, y);
+        let h = q.dot(pose.ez) - top;
+        let k = (1.0 - h.max(0.0) / 1.6).clamp(0.0, 1.0);
+        if k <= 0.0 {
+            continue;
+        }
+        let on = tip - pose.ez * (h + 0.02);
+        let px = v.scale(on);
+        let r = (0.5 + 0.25 * h.max(0.0)) * px;
+        if r < 1.0 {
+            continue;
+        }
+        let a = 0.42 * k * k;
+        b.radial(
+            Rect::EVERYTHING,
+            v.p(on),
+            Vec2::new(r * 1.15, r),
+            &[
+                (0.0, with_alpha(shadow, a)),
+                (0.55, with_alpha(shadow, a * 0.45)),
+                (1.0, with_alpha(shadow, 0.0)),
+            ],
+            8,
+        );
+    }
 }
 
 /// A finger: its tip pressing at `tip`, its joints `j1`, `j2` (its hand beyond, faded

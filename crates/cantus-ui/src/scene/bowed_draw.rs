@@ -50,6 +50,10 @@ fn test_camera() -> Option<(V3, V3, f32)> {
     *TEST_CAMERA.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// r42:arcus-hand — a realistic figure holding a violin or a viola: the camera's azimuth
+/// (degrees) and its height over the room's own (degrees).
+pub const REAL_HELD_VIEW: (f32, f32) = (-12.0, 3.0);
+
 /// The camera an instrument is seen from: three-quarter from the audience's left, close
 /// and a little above the floor (sheet v4: the instrument fills the picture's height).
 pub fn camera(b: Bowed, h: Holder, room: Room) -> Camera {
@@ -73,7 +77,15 @@ pub fn camera(b: Bowed, h: Holder, room: Room) -> Camera {
     // higher, onto its top and across the bow; closer, as a photographer frames a small
     // instrument. On its stand: as the cello, closer.
     let stand = d.held && h.hold == Hold::Stand;
-    let (az, el) = if d.held && !stand {
+    let real = matches!(h.hold, Hold::Woman | Hold::Man);
+    let (az, el) = if d.held && real {
+        // r42:arcus-hand — a realistic violinist from the audience's side, squarer to the
+        // neck and lower than the stylised figure's view (the owner's photograph 5 and the
+        // professional violinists measured in tools/arcus-figures/left_hand_refs.md: from
+        // the hall the left hand shows its back at a slant, the fingers arched over the
+        // fingerboard; from over the scroll it was foreshortened into a paw).
+        (REAL_HELD_VIEW.0, el + REAL_HELD_VIEW.1)
+    } else if d.held && !stand {
         (4.0, el + 7.0)
     } else if stand {
         // From higher, onto its top: its outline reads as a violin's, not a cello's.

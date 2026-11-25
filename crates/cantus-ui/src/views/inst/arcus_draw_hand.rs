@@ -213,10 +213,10 @@ fn left_pose_table(arm: &Arm, l: &Left, who: crate::scene::bowed_human::Who) -> 
         }
     };
     hp.shift(shift);
-    // The wrist straight: the forearm on the line from the knuckles' middle through the
-    // wrist, its own length back.
+    // The forearm on the table's way (r42:arcus-hand: the wrist straight but for a little
+    // turn toward the little finger, as the photographs show it), its own length back.
     let mid = (hp.fingers[1][0] + hp.fingers[2][0]) * 0.5;
-    let el = hp.wrist + (hp.wrist - mid).norm() * arm.fore;
+    let el = hp.wrist + hp.fore * arm.fore;
     Some(LeftPose {
         elbow: el,
         wrist: hp.wrist,

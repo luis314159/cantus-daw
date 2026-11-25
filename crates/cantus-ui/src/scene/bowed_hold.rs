@@ -118,6 +118,10 @@ pub struct Holder {
     pub skin: u8,
     pub cloth: u8,
     pub wood: u8,
+    /// r42:arcus-hand — a realistic figure's eyes (`Settings::figure_eyes`, set when the
+    /// picture is drawn; never written with the holder).
+    #[serde(skip)]
+    pub eyes: super::figure::Eyes,
 }
 
 impl Holder {
@@ -164,7 +168,7 @@ pub fn build(m: &mut Mesh, b: Bowed, pose: &Pose, h: Holder) {
         Hold::Player | Hold::Mannequin => super::bowed_figure::build(m, b, pose, h),
         Hold::Woman | Hold::Man => {
             if let Some(w) = super::bowed_human::who(h.hold) {
-                super::bowed_human::build(m, b, pose, w, h.skin);
+                super::bowed_human::build(m, b, pose, w, h.skin, h.eyes);
             }
         }
     }
