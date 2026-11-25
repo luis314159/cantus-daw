@@ -273,6 +273,7 @@ pub fn arm_for(fig: &Figure, sd: usize, sh: V3, hand: &Hand) -> ArmAim {
                     fingers: j.fingers,
                     thumb: j.thumb,
                     exact: None,
+                    rots: None,
                 }),
             }
         }

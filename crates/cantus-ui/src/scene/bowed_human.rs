@@ -60,6 +60,8 @@ pub enum Stuff {
     Iris,
     Lash,
     Nail,
+    /// r42:arcus-upper — her small drop earrings (gold).
+    Jewel,
 }
 
 impl Stuff {
@@ -76,6 +78,7 @@ impl Stuff {
             9 => Stuff::Iris,
             10 => Stuff::Lash,
             11 => Stuff::Nail,
+            12 => Stuff::Jewel,
             _ => Stuff::Shoes,
         }
     }
@@ -356,6 +359,11 @@ const UP: V3 = V3 {
 /// How far back of the stylised figure's place a realistic cellist or bassist sits (cm).
 const SIT_BACK: f32 = 4.0;
 
+/// How far a realistic cellist's head comes forward of the stylised figure's, leaning into
+/// the instrument (cm), and how far the chin lifts (radians).
+const LEAN_IN: f32 = 2.5;
+const CHIN_UP: f32 = 0.1;
+
 /// How far a violinist's or a violist's trunk turns to the left (radians).
 const TRUNK_TURN: f32 = 0.2;
 
@@ -390,6 +398,10 @@ pub struct HandAim {
     /// 70–86 % of their own length, so a smaller or a larger hand curls as a hand does
     /// instead of crumpling (sheet v7).
     pub exact: Option<usize>,
+    /// r42:arcus-upper — the hand's and the finger bones' turns given outright (the neck
+    /// hand's authored table, `figure::neck_hand`): the bones are set as they say, from the
+    /// joints above, with no reach worked out.
+    pub rots: Option<super::figure::neck_hand::HandRots>,
 }
 
 /// Set one arm's bones (`s` 0 left, 1 right) in `aims` through `a`, the shoulder where
@@ -421,7 +433,10 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
         len: Some(fig.bones[o + UPPER2].len() * ku),
     });
     // The hand's turn, and the forearm's twist toward it (shared out along the forearm).
-    let hand_rot = a.hand.map(|h| hand_turn(fig, s, &h, a.wrist));
+    let hand_rot = a.hand.map(|h| {
+        h.rots
+            .map_or_else(|| hand_turn(fig, s, &h, a.wrist), |r| r.hand)
+    });
     let twist = hand_rot.map_or(0.0, |r| {
         let q = r.apply(fig.bones[o + FORE2].x);
         let q = q - w * q.dot(w);
@@ -455,6 +470,23 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
         // of reach (the playing finger lands on its stop exactly). Each phalanx turned from
         // the hand's turn by the shortest way to its own (sheet v7: no twist — a finger's
         // roll left to the parent's turn crumpled the skin at the knuckles).
+        if let Some(rots) = h.rots {
+            // Every bone as the table turns it, its head where the chain carries it.
+            for f in 0..5 {
+                let j = if f == 0 { h.thumb } else { h.fingers[f - 1] };
+                for k in 0..3 {
+                    let bone = &fig.bones[o + finger(f, k)];
+                    let rb = rots.bones[f * 3 + k];
+                    aims[o + finger(f, k)] = Some(Aim {
+                        head: Some(j[k]),
+                        y: rb.apply((bone.tail - bone.head).norm()),
+                        x: Some(rb.apply(bone.x)),
+                        len: None,
+                    });
+                }
+            }
+            return;
+        }
         let wr = hb.head;
         for f in 0..5 {
             let j = if f == 0 { h.thumb } else { h.fingers[f - 1] };
@@ -541,8 +573,10 @@ pub fn arcus_rig(
         // Sat a little further back than the stylised figure (sheet v7: a realistic hand
         // is longer; with the cello's neck at the shoulder the elbow folded under 30°).
         let back = s.f * SIT_BACK;
+        // Upright, leaning into the cello, the chin a little lifted (the owner's reference's
+        // posture, 2026-11-24).
         (
-            HeadAt::Eyes(s.head - back),
+            HeadAt::Eyes(s.head - back + s.f * LEAN_IN),
             Seat::Chair {
                 at: s.pelvis - back,
                 top: s.pelvis.y - 10.0 - back.y,
@@ -568,14 +602,16 @@ pub fn arcus_rig(
             Hand::Rest { wrist, pole }
         }
     };
+    let (up, face) = if held {
+        (s.hu, s.hf)
+    } else {
+        let (sn, cs) = CHIN_UP.sin_cos();
+        (s.hu * cs - s.hf * sn, s.hf * cs + s.hu * sn)
+    };
     PlayRig {
         facing: s.f,
         right: s.r,
-        head: Head {
-            at,
-            up: s.hu,
-            face: s.hf,
-        },
+        head: Head { at, up, face },
         seat,
         legs,
         hands: [hand(0), hand(1)],
@@ -659,6 +695,7 @@ pub fn role(st: Stuff, who: Who, tone: u8) -> super::bowed_mesh::Role {
         Stuff::Iris => Role::Iris,
         Stuff::Lash => Role::Lash,
         Stuff::Nail => Role::Nail(tone),
+        Stuff::Jewel => Role::Brass,
     }
 }
 

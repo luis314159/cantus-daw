@@ -51,7 +51,7 @@ pub const VELVET_SHEEN: C3 = srgb(92, 88, 100);
 pub const WOOL: C3 = srgb(30, 31, 36);
 pub const SHIRT: C3 = srgb(232, 232, 228);
 pub const TIE: C3 = srgb(30, 36, 64);
-pub const HAIR_FAIR: C3 = srgb(176, 150, 116);
+pub const HAIR_FAIR: C3 = srgb(204, 178, 134);
 /// A realistic figure's skin tones (fair to deep): a real skin's albedo, warmer and less
 /// bright than the stylised figure's (lit by the scene's key a fair skin read as white).
 pub const REAL_SKINS: [Srgb; 5] = [

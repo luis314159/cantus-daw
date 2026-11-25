@@ -1561,17 +1561,44 @@ pub fn bake(
 fn post(rig: &Rig, cam: &Camera, col: &mut [Lin], pdepth: &[f32], w: usize, h: usize, crew: &Crew) {
     let far_end = rig.focus_far;
     let mut far = col.to_vec();
-    blur(&mut far, w, h, ((cam.k / 700.0) as usize).clamp(1, 4), crew);
+    // r42:arcus-upper — behind a realistic figure: a wider blur, reached sooner.
+    let (radius, ramp) = if rig.soft_bg > 0.0 {
+        (((cam.k / 300.0) as usize).clamp(2, 9), 0.22)
+    } else {
+        (((cam.k / 700.0) as usize).clamp(1, 4), 0.6)
+    };
+    let coc_at = |z: f32| {
+        if z == f32::MAX {
+            1.0
+        } else {
+            ((z - far_end) / (far_end * ramp)).clamp(0.0, 1.0)
+        }
+    };
+    if rig.soft_bg > 0.0 {
+        // Only what lies behind is blurred into what lies behind (each sample weighted by
+        // how far behind it is, the sum over the weights): a wide blur of everything drew
+        // the figure's bright hair out into a halo round it.
+        let mut wt: Vec<Lin> = pdepth.iter().map(|&z| [coc_at(z); 3]).collect();
+        for (c, m) in far.iter_mut().zip(wt.iter()) {
+            *c = lscale(*c, m[0]);
+        }
+        blur(&mut far, w, h, radius, crew);
+        blur(&mut wt, w, h, radius, crew);
+        for ((c, m), o) in far.iter_mut().zip(wt.iter()).zip(col.iter()) {
+            *c = if m[0] > 1e-3 {
+                lscale(*c, 1.0 / m[0])
+            } else {
+                *o
+            };
+        }
+    } else {
+        blur(&mut far, w, h, radius, crew);
+    }
     {
         let far = &far;
         rows1(h, w, crew, col, |y0, y1, c| {
             for k in y0 * w..y1 * w {
-                let z = pdepth[k];
-                let coc = if z == f32::MAX {
-                    1.0
-                } else {
-                    ((z - far_end) / (far_end * 0.6)).clamp(0.0, 1.0)
-                };
+                let coc = coc_at(pdepth[k]);
                 if coc > 0.0 {
                     let o = &mut c[k - y0 * w];
                     *o = lmix(*o, far[k], coc);

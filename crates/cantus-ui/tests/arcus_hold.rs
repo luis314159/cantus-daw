@@ -384,6 +384,7 @@ fn the_left_hand_passes_behind_the_neck() {
                             fingers: lp.fingers,
                             thumb: lp.thumb,
                             exact: lp.playing,
+                            rots: lp.rots,
                         }),
                     };
                     let posed = hu::repose_arm(fig, &base.0, 0, &aim);
@@ -399,7 +400,8 @@ fn the_left_hand_passes_behind_the_neck() {
                                 let (_, y, z) = local(w);
                                 // Behind a held instrument's body the bow crosses (its
                                 // stick is drawn over the picture): only the neck's there.
-                                let behind = !d.held && z < -cantus_ui::scene::bowed::rib(d, y) - 0.5;
+                                let behind =
+                                    !d.held && z < -cantus_ui::scene::bowed::rib(d, y) - 0.5;
                                 if by_neck || behind {
                                     samples.push((w, by_neck));
                                 }

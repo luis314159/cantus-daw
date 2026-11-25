@@ -111,6 +111,9 @@ pub struct LeftPose {
     /// Which finger plays the note (none on an open string) and where its tip lands.
     pub playing: Option<usize>,
     pub tip: Option<V3>,
+    /// r42:arcus-upper — a realistic figure's hand bones turned from the authored table
+    /// (none: the joints above are aimed at, as for the stylised figures).
+    pub rots: Option<crate::scene::figure::neck_hand::HandRots>,
 }
 
 /// The phalanges' lengths, cm (an adult's hand: index, middle, ring, little finger), and
@@ -129,18 +132,27 @@ pub fn neck_depth(d: &Dims) -> f32 {
     0.06 * d.body + 0.6
 }
 
-/// Where the left arm goes for `l` (the owner's photographs, 2026-11-24, and the handoff
-/// note's angles). **Under a chin**: the neck lies in the crook between the thumb and the
-/// index finger's base — the index knuckle against the neck's E side just under the
-/// fingerboard, the knuckles along the neck a little away from it toward the little finger,
-/// the thumb up the G side opposite the first and second fingers, its tip about level with
-/// the fingerboard, the palm clear of the neck; each finger rounded (its knuckles arched)
-/// over the fingerboard onto its string from above. **Behind a cello or a bass**: the
-/// knuckles beside the fingerboard's C side about level with its top, the fingers falling
-/// from above onto the strings, the thumb behind the neck behind the second finger. The
-/// wrist straight on the line from the elbow to the knuckles; the elbow where `arm`'s pole
-/// puts it (under the violin; out to the cellist's side at about the hand's height).
-pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
+/// Where the left hand plays for `l`: the fingerboard's top under its first finger (`a`),
+/// the way toward the bridge (`bw`), the knuckles' side (`kx`), the fingerboard's normal
+/// (`z`), its half width (`hw`) and its top (`top`, in the instrument's frame) there; the
+/// finger that plays and where it lands; each finger's tip (the playing one on its stop,
+/// the others hovering over their notes); the hand's size (`k`).
+#[derive(Copy, Clone, Debug)]
+pub struct LeftAt {
+    pub a: V3,
+    pub bw: V3,
+    pub kx: V3,
+    pub z: V3,
+    pub hw: f32,
+    pub top: f32,
+    pub playing: Option<usize>,
+    pub tip: Option<V3>,
+    pub tips: [V3; 4],
+    pub k: f32,
+}
+
+/// [`LeftAt`] for `l`.
+pub fn left_at(arm: &Arm, l: &Left) -> LeftAt {
     let rig = l.rig;
     let d = l.d;
     let up = (rig.strings[l.string][2] - rig.strings[l.string][1]).norm();
@@ -166,6 +178,90 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
             _ => on_string(rig, l.string, l.at + j as f32 * gap, lift) + rock,
         };
     }
+    LeftAt {
+        a,
+        bw,
+        kx,
+        z,
+        hw,
+        top,
+        playing,
+        tip,
+        tips,
+        k,
+    }
+}
+
+/// r42:arcus-upper — a realistic figure's left hand on a held neck from the authored table:
+/// its bones turned as the table says for this string, this finger and this position (the
+/// positions between its rows blended), the hand moved so the playing finger's tip lands on
+/// its stop exactly (the vibrato's rock moves it with the hand), the elbow on the line of
+/// the hand (the wrist straight). None when the table has no row for it.
+fn left_pose_table(arm: &Arm, l: &Left, who: crate::scene::bowed_human::Who) -> Option<LeftPose> {
+    use crate::scene::figure::neck_hand;
+    let at = left_at(arm, l);
+    let viola = l.d.body > crate::scene::bowed::Bowed::Violin.dims().body + 1.0;
+    let row = neck_hand::row(who, viola, l.string, at.playing, l.at)?;
+    let fig = crate::scene::bowed_human::figure(who);
+    let mut hp = neck_hand::place(fig, &row, &l.rig.pose);
+    // The playing finger's tip onto its stop; on an open string the hand rides the rock.
+    let shift = match (at.playing, at.tip) {
+        (Some(j), Some(t)) => t - hp.fingers[j][3],
+        _ => {
+            let up = (l.rig.strings[l.string][2] - l.rig.strings[l.string][1]).norm();
+            up * l.rock
+        }
+    };
+    hp.shift(shift);
+    // The wrist straight: the forearm on the line from the knuckles' middle through the
+    // wrist, its own length back.
+    let mid = (hp.fingers[1][0] + hp.fingers[2][0]) * 0.5;
+    let el = hp.wrist + (hp.wrist - mid).norm() * arm.fore;
+    Some(LeftPose {
+        elbow: el,
+        wrist: hp.wrist,
+        palm: hp.wrist.lerp(mid, 0.55),
+        thumb: hp.thumb,
+        fingers: hp.fingers,
+        playing: at.playing,
+        tip: at.tip,
+        rots: Some(hp.rots),
+    })
+}
+
+/// Where the left arm goes for `l` (the owner's photographs, 2026-11-24, and the handoff
+/// note's angles). **Under a chin**: the neck lies in the crook between the thumb and the
+/// index finger's base — the index knuckle against the neck's E side just under the
+/// fingerboard, the knuckles along the neck a little away from it toward the little finger,
+/// the thumb up the G side opposite the first and second fingers, its tip about level with
+/// the fingerboard, the palm clear of the neck; each finger rounded (its knuckles arched)
+/// over the fingerboard onto its string from above. **Behind a cello or a bass**: the
+/// knuckles beside the fingerboard's C side about level with its top, the fingers falling
+/// from above onto the strings, the thumb behind the neck behind the second finger. The
+/// wrist straight on the line from the elbow to the knuckles; the elbow where `arm`'s pole
+/// puts it (under the violin; out to the cellist's side at about the hand's height).
+pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
+    // r42:arcus-upper — a realistic figure's hand on a violin's or a viola's neck: its own
+    // bones posed from the authored table (`figure::neck_hand`, made offline against the
+    // owner's photographs by tools/arcus-figures/left_hand.py).
+    if let (Some(who), true) = (arm.who, l.d.held) {
+        if let Some(lp) = left_pose_table(arm, l, who) {
+            return lp;
+        }
+    }
+    let d = l.d;
+    let LeftAt {
+        a,
+        bw,
+        kx,
+        z,
+        hw,
+        playing,
+        tip,
+        tips,
+        k,
+        ..
+    } = left_at(arm, l);
     let along = |p: V3| (p - a).dot(bw);
     let depth = neck_depth(d);
     let mut kn = [V3::default(); 4];
@@ -242,6 +338,7 @@ pub fn left_pose(arm: &Arm, l: &Left) -> LeftPose {
         fingers,
         playing,
         tip,
+        rots: None,
     }
 }
 
@@ -511,22 +608,49 @@ pub fn marker(b: &mut Brush, v: &View, at: V3, size: f32, accent: Color32, edge:
 pub fn stamp(corners: &[Pos2; 8], shown: egui::Rect, tex: egui::TextureId) -> egui::Mesh {
     let (hull, n) = hull8(corners);
     let mut m = egui::Mesh::with_texture(tex);
-    for p in &hull[..n] {
-        let uv = Pos2::new(
+    let uv = |p: Pos2| {
+        Pos2::new(
             (p.x - shown.min.x) / shown.width().max(1.0),
             (p.y - shown.min.y) / shown.height().max(1.0),
-        );
+        )
+    };
+    for p in &hull[..n] {
         m.vertices.push(egui::epaint::Vertex {
             pos: *p,
-            uv,
+            uv: uv(*p),
             color: Color32::WHITE,
         });
     }
     for i in 1..n.saturating_sub(1) {
         m.indices.extend_from_slice(&[0, i as u32, i as u32 + 1]);
     }
+    // r42:arcus-upper — a feathered rim (the owner's v7 review: the edge where the live
+    // layer meets the picture read stair-stepped at 200 %): each corner again a little
+    // outside, clear, so the stamp fades into what is under it over [`FEATHER`] points.
+    let c = hull[..n]
+        .iter()
+        .fold(egui::Vec2::ZERO, |a, p| a + p.to_vec2())
+        / n.max(1) as f32;
+    for i in 0..n {
+        let p = hull[i];
+        let out = (p.to_vec2() - c).normalized() * FEATHER;
+        let q = p + out;
+        m.vertices.push(egui::epaint::Vertex {
+            pos: q,
+            uv: uv(q),
+            color: Color32::TRANSPARENT,
+        });
+    }
+    for i in 0..n {
+        let j = (i + 1) % n;
+        let (a, b, oa, ob) = (i as u32, j as u32, (n + i) as u32, (n + j) as u32);
+        m.indices.extend_from_slice(&[a, oa, ob, a, ob, b]);
+    }
     m
 }
+
+/// How far a stamp's edge fades into the live layer under it (points).
+const FEATHER: f32 = 0.8;
 
 /// The convex hull of eight points, counter-clockwise, without allocating (Andrew's
 /// monotone chain on a fixed array).

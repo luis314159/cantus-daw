@@ -261,6 +261,7 @@ fn rig(room: Room, evening: bool, m: &Mood, pl: &Place, eye: V3, built: room::Bu
         exposure: if evening { 1.25 } else { 1.15 },
         focus_far: pl.far,
         eye,
+        soft_bg: 0.0,
     }
 }
 
@@ -526,7 +527,12 @@ fn bake_view(
                 },
                 far: far_of(&cam, &pts),
             };
-            let r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
+            let mut r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
+            // r42:arcus-upper — behind a realistic figure the room goes soft, as behind a
+            // portrait.
+            if crate::scene::bowed_human::who(hd.hold).is_some() {
+                r.soft_bg = 1.0;
+            }
             raster::bake(&g, split, &r, &cam, w, h, q, threads)
         }
     }

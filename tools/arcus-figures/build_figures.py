@@ -17,7 +17,7 @@ Sources (verified 2026-11-24; every asset CC0 1.0 per its pack's manifest
 
 Usage:
     python tools/arcus-figures/build_figures.py <makehuman/data> <system assets dir> \
-        <out dir> [--preview <dir>]
+        <out dir> [--preview <dir>] [--only=woman|man]
 
 What it does: shapes the base mesh (female / male, young adult, average muscle and weight,
 ideal proportions), closes the eyelids (the eyes lowered, as a player's), keeps the body's
@@ -82,7 +82,7 @@ BI = {b[0]: i for i, b in enumerate(BONES)}
 ARM_PREFIX = ("upper1", "upper2", "fore1", "fore2", "hand", "f")
 
 # Materials (the scene's `Role`s, by number; `scene/bowed_human.rs` names them).
-SKIN, LIPS, HAIR, VELVET, WOOL, SHIRT, TIE, SHOES, EYE, IRIS, LASH, NAIL = range(12)
+SKIN, LIPS, HAIR, VELVET, WOOL, SHIRT, TIE, SHOES, EYE, IRIS, LASH, NAIL, JEWEL = range(13)
 
 
 def mh_to_scene(sk):
@@ -117,33 +117,48 @@ def both(name, w):
     return [(f"{d}/l-{f}", w), (f"{d}/r-{f}", w)]
 
 
-# r42:arcus-upper — the faces' own features (sheet v7; the owner: "more realistic", the face
-# never the photographed woman's). Chosen by eye on the generic average, nothing fitted to
-# a photograph: hers refined and serene (an oval head, high cheekbones over a soft hollow, a
-# defined jaw and a small chin, a narrow straight nose, fuller lips with a clear bow, a long
-# slender neck); his a squarer jaw, cheekbones, a straight brow, a firm chin.
+# r42:arcus-upper — the faces' own features (sheet v7; the owner, 2026-11-24: she must be
+# clearly another person than the photographed woman — a real, identifiable person in a CC
+# BY-SA photograph — "change the features enough that she is another person"). Chosen by eye
+# on the generic average, nothing fitted to or morphed toward any photograph, and in every
+# feature away from the reference's: hers a long, narrow oval (not a round, broad face), a
+# lower brow line, almond eyes set closer and smaller (not large, wide-set), a straight,
+# slim nose with a longer bridge and a level tip (not small and upturned), a smaller mouth
+# with natural lips (not full), a defined, longer chin and slim cheeks under soft
+# cheekbones, a long neck; the type kept — young, fair, light brows, serene. His a squarer
+# jaw, cheekbones, a straight brow, a firm chin.
 FACE = {
     "female": [
-        ("head/head-oval", 0.45),
-        ("head/head-fat-decr", 0.25),
-        *both("cheek/cheek-bones-incr", 0.45),
-        *both("cheek/cheek-volume-decr", 0.35),
+        ("head/head-oval", 0.55),
+        ("head/head-fat-decr", 0.3),
+        ("head/head-scale-horiz-decr", 0.22),
+        ("head/head-scale-vert-incr", 0.05),
+        ("forehead/forehead-scale-vert-decr", 0.3),
+        *both("cheek/cheek-bones-incr", 0.3),
+        *both("cheek/cheek-volume-decr", 0.25),
         *both("cheek/cheek-inner-decr", 0.2),
-        ("chin/chin-width-decr", 0.25),
-        ("chin/chin-prominent-incr", 0.2),
-        ("chin/chin-bones-incr", 0.25),
+        *both("eyes/eye-trans-in", 0.22),
+        *both("eyes/eye-scale-decr", 0.18),
+        *both("eyes/eye-corner1-up", 0.25),
+        *both("eyes/eye-height2-decr", 0.15),
+        ("chin/chin-width-decr", 0.3),
+        ("chin/chin-height-incr", 0.25),
+        ("chin/chin-prominent-incr", 0.25),
+        ("chin/chin-bones-incr", 0.2),
+        ("nose/nose-scale-vert-incr", 0.12),
         ("nose/nose-scale-horiz-decr", 0.3),
         ("nose/nose-point-width-decr", 0.35),
-        ("nose/nose-volume-decr", 0.25),
+        ("nose/nose-volume-decr", 0.2),
         ("nose/nose-nostrils-width-decr", 0.25),
-        ("nose/nose-point-up", 0.15),
-        ("nose/nose-hump-decr", 0.3),
-        ("mouth/mouth-upperlip-volume-incr", 0.35),
-        ("mouth/mouth-lowerlip-volume-incr", 0.4),
-        ("mouth/mouth-cupidsbow-incr", 0.45),
-        ("mouth/mouth-scale-horiz-decr", 0.1),
+        ("nose/nose-point-down", 0.12),
+        ("nose/nose-greek-incr", 0.15),
+        ("nose/nose-hump-decr", 0.2),
+        ("mouth/mouth-scale-horiz-decr", 0.22),
+        ("mouth/mouth-upperlip-volume-decr", 0.1),
+        ("mouth/mouth-lowerlip-volume-incr", 0.1),
+        ("mouth/mouth-cupidsbow-incr", 0.3),
         ("mouth/mouth-angles-up", 0.12),
-        ("eyebrows/eyebrows-angle-up", 0.15),
+        ("eyebrows/eyebrows-angle-up", 0.1),
         ("neck/neck-scale-horiz-decr", 0.2),
         ("neck/neck-scale-vert-incr", 0.3),
     ],
@@ -341,7 +356,10 @@ def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0):
     remap[used] = np.arange(len(used))
     n = vnormals(p2, t2)
     th2, ph2 = angles(p2, c)
-    t = thick(th2, ph2) * smooth01(f2 / 22.0) + 0.03
+    # (1.4 mm proud a little in from the hairline: thinner, the scalp showed through the
+    # hair in triangles at 200 %, the two surfaces fighting for the same depth; at the
+    # hairline itself on the skin, where the hair's colour is the skin's.)
+    t = thick(th2, ph2) * smooth01(f2 / 22.0) + 0.03 + 0.11 * smooth01(f2 / 8.0)
     hp = (p2 + n * t[:, None])[used]
     # Per vertex (sheet v7): the strands' across coordinate — the angle round the head's
     # front-to-back axis, so the strands run as hair drawn back does, from the hairline over
@@ -478,18 +496,23 @@ def make(sex, data, assets):
     pos, W, (lum, red), btris, nf = cut(pos, W, [lum, red], btris, nf)
     head_w = np.array([d.get(BI["head"], 0.0) / max(sum(d.values()), 1e-9) for d in W])
     if sex == "female":
+        # Swept back with soft volume at the crown (the owner's reference's styling).
         def thick(th, ph):
-            return (0.75 + 0.35 * smooth01((ph - 30) / 30.0)
-                    + 0.45 * smooth01((np.abs(th) - 60) / 90.0))
-        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w, band=10.0)
+            return (0.8 + 0.4 * smooth01((ph - 28) / 30.0)
+                    + 0.45 * smooth01((np.abs(th) - 60) / 90.0)
+                    + 0.75 * smooth01((ph - 42) / 22.0) * (1.0 - smooth01((np.abs(th) - 140) / 35.0)))
+        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w, band=16.0)
         bp, bw, bt, bmat, blum, bred = dress(pos, W, btris, J, lum, red, nf)
         fig.add(bp, bw, bt, bmat, blum, bred)
         fig.add(hp, hw, ht, HAIR, uv=huv)
-        # The low bun at the back of the head, its strands wound round it.
-        bc = c + np.array([0.0, -5.2, -10.2])
-        ep, et, euv = ellipsoid(bc, np.eye(3), (4.6, 3.5, 3.1), twist=1.5)
+        # Tied low: the bun at the nape, its strands wound round it.
+        bc = c + np.array([0.0, -6.6, -9.6])
+        ep, et, euv = ellipsoid(bc, np.eye(3), (4.3, 3.2, 3.0), twist=1.5)
         et = outward(ep, et, bc)
         fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, HAIR, uv=euv)
+        # Small drop earrings: a bead at each lobe, a drop under it.
+        for jp, jt in earrings(pos, head_w, c, J):
+            fig.add(jp, [{BI["head"]: 1.0}] * len(jp), jt, JEWEL)
     else:
         def thick(th, ph):
             return (0.45 + 0.55 * smooth01((ph - 25) / 30.0)
@@ -506,6 +529,36 @@ def make(sex, data, assets):
         fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, emat)
     fig.add(lash_p, [{BI["head"]: 1.0}] * len(lash_p), lash_t, LASH)
     return compact(fig), J
+
+
+DEBUG_EARS = False
+
+
+def earrings(pos, head_w, c, J):
+    """Each earlobe found on the mesh (the lowest point of the ear's outer rim) and a small
+    drop earring hung from it: a bead and, under it, a teardrop."""
+    eyes = (J["eye.L____head"] + J["eye.R____head"]) * 0.5
+    out = []
+    for sgn in (1.0, -1.0):
+        q = pos - c
+        side = q[:, 0] * sgn
+        band = (head_w > 0.5) & (q[:, 1] < eyes[1] - c[1] - 1.5) & (q[:, 1] > eyes[1] - c[1] - 4.5)             & (np.abs(q[:, 2] + 0.5) < 3.0)
+        if not band.any():
+            continue
+        far = side[band].max()
+        ear = band & (side > far - 1.0)
+        lobe = pos[ear][np.argmin(pos[ear][:, 1])]
+        if DEBUG_EARS:
+            print("lobe", sgn, np.round(lobe - eyes, 2), "far", round(far, 2))
+        # Through the lobe, a little in from its rim.
+        bead = lobe + np.array([-0.25 * sgn, -0.2, 0.0])
+        bp, bt, _ = ellipsoid(bead, np.eye(3), (0.2, 0.2, 0.2), rows=6, cols=10)
+        dp, dt, _ = ellipsoid(bead + np.array([0.0, -0.62, 0.0]), np.eye(3), (0.22, 0.42, 0.22),
+                              rows=8, cols=10)
+        bt = outward(bp, bt, bead)
+        dt = outward(dp, dt, bead + np.array([0.0, -0.62, 0.0]))
+        out.append((np.vstack([bp, dp]), np.vstack([bt, dt + len(bp)])))
+    return out
 
 
 def brows(pos, keep_v, J, sex):
@@ -890,7 +943,8 @@ def write_fig(path, fig, rest, mk, part):
 MAT_COL = {SKIN: (0.86, 0.68, 0.58), LIPS: (0.75, 0.45, 0.45), HAIR: (0.78, 0.64, 0.42),
            VELVET: (0.08, 0.08, 0.09), WOOL: (0.13, 0.13, 0.15), SHIRT: (0.92, 0.92, 0.9),
            TIE: (0.15, 0.2, 0.42), SHOES: (0.04, 0.04, 0.04), EYE: (0.8, 0.78, 0.75),
-           IRIS: (0.3, 0.34, 0.33), LASH: (0.12, 0.09, 0.08), NAIL: (0.95, 0.78, 0.74)}
+           IRIS: (0.3, 0.34, 0.33), LASH: (0.12, 0.09, 0.08), NAIL: (0.95, 0.78, 0.74),
+           JEWEL: (0.85, 0.7, 0.35)}
 
 
 def look_at(fig, name, out, part=None):
@@ -922,7 +976,10 @@ def main():
     prev = sys.argv[sys.argv.index("--preview") + 1] if "--preview" in sys.argv else None
     BASE = mh.read_obj(os.path.join(data, "3dobjs", "base.obj"))
     sk, _ = mh.read_skeleton(data)
+    only = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--only=")), None)
     for sex, name in (("female", "woman"), ("male", "man")):
+        if only and name != only:
+            continue
         fig, J = make(sex, data, assets)
         part = parts(fig)
         # The live arms thinned (sheet v7's frame budget): short edges collapsed inside

@@ -37,15 +37,144 @@ struct ArmMesh {
     edges: Vec<(u16, u16, u32, u32)>,
 }
 
-fn arm_mesh(who: Who, s: usize) -> &'static ArmMesh {
-    static M: [OnceLock<ArmMesh>; 4] = [
-        OnceLock::new(),
-        OnceLock::new(),
-        OnceLock::new(),
-        OnceLock::new(),
-    ];
-    let k = (who == Who::Man) as usize * 2 + s.min(1);
-    M[k].get_or_init(|| build_arm(hu::figure(who), s))
+/// r42:arcus-upper — the arm at a level of detail: 0 the full one (High), 1 and 2 Light's
+/// (its vertices merged per bone on a grid of [`LOD_CELL`] cm: 1 for a hand drawn large,
+/// 2 for one drawn small). Made once, the first time it is drawn, and kept.
+fn arm_mesh_at(who: Who, s: usize, level: usize) -> &'static ArmMesh {
+    const N: usize = 12;
+    static M: [OnceLock<ArmMesh>; N] = [const { OnceLock::new() }; N];
+    let level = level.min(2);
+    let k = ((who == Who::Man) as usize * 2 + s.min(1)) * 3 + level;
+    M[k].get_or_init(|| {
+        let fig = hu::figure(who);
+        if level == 0 {
+            build_arm(fig, s)
+        } else {
+            lod(fig, s, arm_mesh_at(who, s, 0), LOD_CELL[level - 1])
+        }
+    })
+}
+
+/// Light's grid (cm): the hand's and the sleeve's cells for a hand drawn large, small.
+const LOD_CELL: [(f32, f32); 2] = [(0.95, 1.8), (1.5, 2.8)];
+
+/// The px a cm takes on screen over which Light draws its finer level.
+const LOD_FINE_PX: f32 = 2.6;
+
+/// `full` with its vertices merged: each vertex goes to the cell of a grid (`cell.0` cm on
+/// the hand, `cell.1` on the arm) its main bone, the stuffs it touches and its place at rest
+/// name — so two fingers, a nail and its finger, a cuff and its sleeve never merge — and
+/// stands for the cell by the vertex nearest the cell's middle; triangles that fold to an
+/// edge go. A finger keeps its own bones, so it bends as High's does.
+fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
+    use std::collections::HashMap;
+    let o = hu::side(s);
+    let n = full.verts.len();
+    let mut touch = vec![0u32; n];
+    for (k, t) in full.tris.iter().enumerate() {
+        for &i in t {
+            touch[i as usize] |= 1 << stuff_slot(full.stuff[k]);
+        }
+    }
+    let main = |g: usize| {
+        fig.bw[g]
+            .iter()
+            .fold(
+                (0u8, -1.0f32),
+                |b, &(bone, w)| if w > b.1 { (bone, w) } else { b },
+            )
+            .0
+    };
+    let mut cells: HashMap<(u8, u32, [i32; 3]), Vec<usize>> = HashMap::new();
+    for (i, &g) in full.verts.iter().enumerate() {
+        let g = g as usize;
+        let bone = main(g);
+        let handy = bone as usize >= o + hu::HAND && (bone as usize) <= o + hu::finger(4, 2);
+        let c = if handy { cell.0 } else { cell.1 };
+        let p = fig.pos[g];
+        let key = [p.x, p.y, p.z].map(|x| (x / c).floor() as i32);
+        cells.entry((bone, touch[i], key)).or_default().push(i);
+    }
+    let mut rep = vec![0usize; n];
+    for members in cells.values() {
+        let m = members
+            .iter()
+            .fold(V3::default(), |a, &i| a + fig.pos[full.verts[i] as usize])
+            * (1.0 / members.len() as f32);
+        let best = members
+            .iter()
+            .copied()
+            .min_by(|&a, &b| {
+                let da = (fig.pos[full.verts[a] as usize] - m).len();
+                let db = (fig.pos[full.verts[b] as usize] - m).len();
+                da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap_or(members[0]);
+        for &i in members {
+            rep[i] = best;
+        }
+    }
+    // The kept vertices renumbered.
+    let mut map = vec![u16::MAX; n];
+    let mut verts = Vec::new();
+    let mut alpha = Vec::new();
+    let mut tris = Vec::new();
+    let mut stuff = Vec::new();
+    let mut upper = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for (k, t) in full.tris.iter().enumerate() {
+        let r = t.map(|i| rep[i as usize]);
+        if r[0] == r[1] || r[1] == r[2] || r[0] == r[2] {
+            continue;
+        }
+        let mut sorted = r;
+        sorted.sort_unstable();
+        if !seen.insert((sorted, full.stuff[k] as u8)) {
+            continue;
+        }
+        let local = r.map(|i| {
+            if map[i] == u16::MAX {
+                map[i] = verts.len() as u16;
+                verts.push(full.verts[i]);
+                alpha.push(full.alpha[i]);
+            }
+            map[i]
+        });
+        tris.push(local);
+        stuff.push(full.stuff[k]);
+        upper.push(full.upper[k]);
+    }
+    let mut e: HashMap<(u16, u16), (u32, u32)> = HashMap::new();
+    for (ti, t) in tris.iter().enumerate() {
+        for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            let slot = e
+                .entry((a.min(b), a.max(b)))
+                .or_insert((u32::MAX, u32::MAX));
+            if slot.0 == u32::MAX {
+                slot.0 = ti as u32;
+            } else {
+                slot.1 = ti as u32;
+            }
+        }
+    }
+    // An open edge whose ends are both clear (where the arm's part was cut inside the body)
+    // draws no outline, as High's does not.
+    let mut edges: Vec<(u16, u16, u32, u32)> = e
+        .into_iter()
+        .filter(|&((a, b), (_, t1))| {
+            t1 != u32::MAX || alpha[a as usize] > 0.0 || alpha[b as usize] > 0.0
+        })
+        .map(|((a, b), (t0, t1))| (a, b, t0, t1))
+        .collect();
+    edges.sort_unstable();
+    ArmMesh {
+        verts,
+        tris,
+        stuff,
+        upper,
+        alpha,
+        edges,
+    }
 }
 
 fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
@@ -418,9 +547,15 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
     }
     if skin {
         // Light through skin: warm where the key falls off.
+        // (r42:arcus-upper: stronger, with the picture's: a red share in the shade and the
+        // portrait's soft fill from the camera's side.)
         let t = (dif - ndl.max(0.0)).max(0.0) * key_k * ao;
-        rad[0] += albedo[0] * t * 0.55;
-        rad[1] += albedo[1] * t * 0.12;
+        rad[0] += albedo[0] * (t * 0.75 + amb * ao * 0.06);
+        rad[1] += albedo[1] * (t * 0.16 + amb * ao * 0.015);
+        let front = ndv.powf(2.0) * 0.07 * ao;
+        for (i, r) in rad.iter_mut().enumerate() {
+            *r += albedo[i] * (key_k + amb) * front;
+        }
         // A soft sheen (a nail's sharper).
         let h = (l + e).norm();
         let (pw, k) = if st == Stuff::Nail {
@@ -473,9 +608,18 @@ pub fn arm(
     aim: &ArmAim,
     hidden: Option<(bool, &dyn Fn(V3) -> bool)>,
     held: &[Capsule],
+    light: bool,
 ) {
     let fig = hu::figure(who);
-    let am = arm_mesh(who, s);
+    // r42:arcus-upper — Light: the merged mesh, finer while the hand is drawn large.
+    let level = if !light {
+        0
+    } else if v.scale(aim.wrist) > LOD_FINE_PX {
+        1
+    } else {
+        2
+    };
+    let am = arm_mesh_at(who, s, level);
     let shading = Shading::of(lit);
     SCRATCH.with(|sc| {
         let mut sc = sc.borrow_mut();
@@ -500,12 +644,17 @@ pub fn arm(
                 z: shading.drawn.is_some() as u8 as f32 + v.origin.x * 3.0 + v.k.x,
             },
         ];
+        let key = {
+            let mut k = key;
+            k[7].x += level as f32 * 16.0;
+            k
+        };
         let same = sc.key == Some(key) && sc.pts.len() == n;
         sc.key = Some(key);
         let mid = if same {
             sc.mid
         } else {
-            arm_setup(fig, am, base, s, aim, v, held, sc)
+            arm_setup(fig, am, base, s, aim, v, held, sc, light)
         };
         let eye = v.cam.eye();
         sc.front.clear();
@@ -698,6 +847,7 @@ fn arm_setup(
     v: &View,
     held: &[Capsule],
     sc: &mut Scratch,
+    light: bool,
 ) -> V3 {
     let posed = hu::repose_arm(fig, base, s, aim);
     let n = am.verts.len();
@@ -720,7 +870,13 @@ fn arm_setup(
     for q in &mut sc.nrm {
         *q = q.norm();
     }
-    occlusion(fig, &posed, s, am, held, sc);
+    if light {
+        // Light: no creases' occlusion (the hand's own capsules a frame).
+        sc.ao.clear();
+        sc.ao.resize(n, 1.0);
+    } else {
+        occlusion(fig, &posed, s, am, held, sc);
+    }
     sc.vcol.clear();
     sc.vcol.resize(n, (None, Color32::TRANSPARENT));
     sc.mid = sc.pts.iter().fold(V3::default(), |a, &p| a + p) * (1.0 / n.max(1) as f32);
@@ -736,6 +892,7 @@ pub fn left_aim(lp: &super::hand::LeftPose) -> ArmAim {
             fingers: lp.fingers,
             thumb: lp.thumb,
             exact: lp.playing,
+            rots: lp.rots,
         }),
     }
 }
@@ -750,6 +907,7 @@ pub fn right_aim(arm: &crate::scene::bowed_hold::Arm, h: &super::arm::BowHand) -
             fingers: h.fingers,
             thumb: h.thumb,
             exact: None,
+            rots: None,
         }),
     }
 }

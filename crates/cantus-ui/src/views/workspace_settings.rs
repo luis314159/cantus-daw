@@ -738,6 +738,25 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
         w::row_label(ui, "", LABEL_W, 18.0);
         ui.vertical(|ui| note(ui, &t("arcus_upper.hold.hint"), false));
     });
+    // How finely the figures' hands are drawn (the owner, 2026-11-24: configurable for
+    // whoever wants fewer ms). r42:arcus-upper
+    ui.horizontal(|ui| {
+        w::row_label(ui, "arcus_upper.quality", LABEL_W, 24.0);
+        use crate::scene::figure::Quality;
+        let mut sel = Quality::ALL
+            .iter()
+            .position(|q| *q == app.settings.figure_quality)
+            .unwrap_or(0);
+        let labels = Quality::ALL.map(|q| Src::Key(q.label_key()));
+        if segmented(ui, &mut sel, &labels, &t("arcus_upper.quality"), 300.0).changed() {
+            app.settings.figure_quality = Quality::ALL[sel];
+            app.store_settings();
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 18.0);
+        ui.vertical(|ui| note(ui, &t("arcus_upper.quality.hint"), false));
+    });
     ui.horizontal(|ui| {
         w::row_label(ui, "settings.colours", LABEL_W, 24.0);
         if w::button(ui, Src::Key("settings.edit_colours"), 0.0, true).clicked() {

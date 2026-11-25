@@ -217,6 +217,16 @@ pub fn picture(
         h.1 = time;
         (h.0, (h.0 - to).abs() > 0.005)
     };
+    // r42:arcus-upper — how finely the figure's hands are drawn (Auto: Light while the
+    // window's frames run long).
+    let light = {
+        let q = app.settings.figure_quality;
+        if q == crate::scene::figure::Quality::Auto {
+            let avg = app.average_frame_ms();
+            app.inst.figures_long = crate::scene::figure::frames_long(avg, app.inst.figures_long);
+        }
+        q.light(app.inst.figures_long)
+    };
     let pl = body::Play {
         b,
         rig: &rig,
@@ -229,6 +239,7 @@ pub fn picture(
         holder,            // r42:arcus-upper
         stop,              // r42:arcus-upper
         hand: hand.0,      // r42:arcus-upper
+        light,             // r42:arcus-upper
         accent: s.t.focus, // r42:arcus-upper
     };
     // r42:arcus-upper — a figure's left hand behind the neck, then the neck stamped back

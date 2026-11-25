@@ -241,6 +241,38 @@ fn main() {
     if args.iter().any(|a| a == "--edit") {
         states.push(("cello-edit", View::Edit, 0.0, 0.0, 2.0, 57.0));
     }
+    // r42:arcus-upper — `--note=<string>,<key>`: every state plays that note instead;
+    // `--cam=<eye x,y,z>,<at x,y,z>,<half>`: a test camera (world cm) for the hands' crops;
+    // `--quality=high|light`: the figures' detail (Light shots are tagged `-light`).
+    if let Some(n) = args.iter().find_map(|a| a.strip_prefix("--note=")) {
+        let v: Vec<f32> = n.split(',').filter_map(|x| x.parse().ok()).collect();
+        if let [s, k] = v[..] {
+            for st in &mut states {
+                st.4 = s;
+                st.5 = k;
+            }
+        }
+    }
+    if let Some(c) = args.iter().find_map(|a| a.strip_prefix("--cam=")) {
+        let v: Vec<f32> = c.split(',').filter_map(|x| x.parse().ok()).collect();
+        if v.len() == 7 {
+            use cantus_ui::scene::geo::v as v3;
+            cantus_ui::scene::bowed_draw::set_test_camera(Some((
+                v3(v[0], v[1], v[2]),
+                v3(v[3], v[4], v[5]),
+                v[6],
+            )));
+        }
+    }
+    let quality = match args.iter().find_map(|a| a.strip_prefix("--quality=")) {
+        Some("light") => cantus_ui::scene::figure::Quality::Light,
+        _ => cantus_ui::scene::figure::Quality::High,
+    };
+    let qtag = if quality == cantus_ui::scene::figure::Quality::Light {
+        "-light"
+    } else {
+        ""
+    };
     let looks = [
         ("drawn", cantus_ui::scene::SceneBackend::Vector),
         ("photo", cantus_ui::scene::SceneBackend::PerPixel),
@@ -256,7 +288,7 @@ fn main() {
                 for k in scales(&args) {
                     let theme = if dark { "night" } else { "paper" };
                     let tag = format!(
-                        "{name}{}{}-{look}-{theme}-{lang}-{}",
+                        "{name}{}{}{qtag}-{look}-{theme}-{lang}-{}",
                         hold_tag(hold),
                         stop_tag(&args),
                         (k * 100.0) as u32
@@ -273,6 +305,7 @@ fn main() {
                     );
                     app.settings.arcus_holder = Holder::of(hold); // r42:arcus-upper
                     app.settings.arcus_stop = stop_show(&args); // r42:arcus-upper
+                    app.settings.figure_quality = quality; // r42:arcus-upper
                     app.demo_editor("arcus");
                     let Some(t) = app.inst.open else {
                         panic!("no Arcus editor")

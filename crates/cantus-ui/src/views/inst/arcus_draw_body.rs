@@ -61,7 +61,9 @@ pub struct Play<'a> {
     /// The figure's left hand's position (semitones, glided) and the theme's accent (the
     /// stop's marker). // r42:arcus-upper
     pub hand: f32, // r42:arcus-upper
-    pub accent: Color32,                          // r42:arcus-upper
+    /// r42:arcus-upper — the figures' hands drawn at the light level (`figure::Quality`).
+    pub light: bool,
+    pub accent: Color32, // r42:arcus-upper
 }
 
 fn c(s: [u8; 3]) -> Color32 {
@@ -218,6 +220,7 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
                 &aim,
                 None,
                 &[stick],
+                pl.light,
             );
         } else {
             super::arm::right_arm(
@@ -292,6 +295,7 @@ fn real_left(
         &aim,
         Some((hidden, &hid)),
         &[neck],
+        pl.light,
     );
     true
 }

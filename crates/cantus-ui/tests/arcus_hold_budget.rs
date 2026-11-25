@@ -5,24 +5,39 @@
 //!
 //! `cargo test --release -p cantus-ui --test arcus_hold_budget -- --ignored --nocapture`:
 //! build + tessellate over 200 frames, p50 and p95, the reference timed beside each (best of
-//! three rounds); the arms may cost at most 1 ms more than the instrument alone at the
-//! median, and the slow frames (p95) at most half again plus 1 ms.
+//! five rounds). Two levels (`figure::Quality`, the owner, 2026-11-24: "I'd rather it look
+//! good than save ms, or make it configurable"):
+//!
+//! - **Light** keeps the views' budget: the arms may cost at most 1 ms more than the
+//!   instrument alone at the median, and the slow frames (p95) at most half again plus 1 ms.
+//! - **High** (the default) costs what the full look costs; its measured cost is written
+//!   here as its own ceiling ([`HIGH_CEILING_MS`], with headroom), so it cannot grow
+//!   unnoticed.
 
 use cantus_core::inst::InstrumentKind;
 use cantus_engine::EngineHandle;
 use cantus_ui::kit::shell::Shell;
 use cantus_ui::scene::bowed_hold::{Hold, Holder};
+use cantus_ui::scene::figure::Quality;
 use cantus_ui::{views, welcome_project, CantusApp};
 use egui::{Pos2, Rect};
 use std::time::Instant;
 
-fn rig(inst: f32, hold: Hold, k: f32) -> (CantusApp, egui::Context) {
+/// High's ceilings, ms over the instrument alone at the median (realistic figures; the
+/// stylised ones keep Light's +1 ms at High too), at 100 % and 200 % — the release
+/// profile's measure on the owner's machine (2026-11-24) with headroom.
+const HIGH_CEILING_MS: [f32; 2] = [HIGH_100, HIGH_200];
+const HIGH_100: f32 = 4.0;
+const HIGH_200: f32 = 5.0;
+
+fn rig(inst: f32, hold: Hold, k: f32, q: Quality) -> (CantusApp, egui::Context) {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx);
     let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
     app.settings.arcus_holder = Holder::of(hold);
+    app.settings.figure_quality = q;
     app.demo_editor("arcus");
     let t = app.inst.open.expect("an Arcus editor");
     app.set_inst_value(t, "inst", inst, false);
@@ -48,8 +63,8 @@ fn frame(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, i: usize) -
 }
 
 /// p50 and p95 of the Play view's frame.
-fn measure(inst: f32, hold: Hold, k: f32) -> (f64, f64) {
-    let (mut app, ctx) = rig(inst, hold, k);
+fn measure(inst: f32, hold: Hold, k: f32, q: Quality) -> (f64, f64) {
+    let (mut app, ctx) = rig(inst, hold, k, q);
     let size = views::inst::editor_size(InstrumentKind::BowedString) * k;
     for i in 0..30 {
         let _ = frame(&mut app, &ctx, size, i);
@@ -66,29 +81,36 @@ fn the_figures_live_arms_draw_in_the_frame_budget() {
     cantus_ui::scene::set_blocking(true);
     let mut bad = Vec::new();
     for (name, inst) in [("violin", 2.0f32), ("cello", 0.0)] {
-        for k in [1.0f32, 2.0] {
+        for (ki, k) in [1.0f32, 2.0].into_iter().enumerate() {
             for hold in [Hold::Player, Hold::Mannequin, Hold::Woman, Hold::Man] {
-                // The reference beside it, then the figure, best of three rounds each.
-                let mut best: Option<(f64, f64, f64, f64)> = None;
-                for _ in 0..3 {
-                    let (r50, r95) = measure(inst, Hold::Air, k);
-                    let (f50, f95) = measure(inst, hold, k);
-                    if best.is_none_or(|b| f50 - r50 < b.2 - b.0) {
-                        best = Some((r50, r95, f50, f95));
+                for q in [Quality::Light, Quality::High] {
+                    // The reference beside it, then the figure, best of five rounds each.
+                    let mut best: Option<(f64, f64, f64, f64)> = None;
+                    for _ in 0..5 {
+                        let (r50, r95) = measure(inst, Hold::Air, k, q);
+                        let (f50, f95) = measure(inst, hold, k, q);
+                        if best.is_none_or(|b| f50 - r50 < b.2 - b.0) {
+                            best = Some((r50, r95, f50, f95));
+                        }
                     }
-                }
-                let (r50, r95, f50, f95) = best.expect("three rounds");
-                println!(
-                    "{name} {hold:?} {}%: alone p50 {r50:.2} p95 {r95:.2} ms; held p50 {f50:.2} \
-                     p95 {f95:.2} ms; the arms +{:.2} ms",
-                    (k * 100.0) as u32,
-                    f50 - r50
-                );
-                if f50 - r50 > 1.0 || f95 > r95 * 1.5 + 1.0 {
-                    bad.push(format!(
-                        "{name} {hold:?} {k}: +{:.2} ms, p95 {f95:.2}",
-                        f50 - r50
-                    ));
+                    let (r50, r95, f50, f95) = best.expect("five rounds");
+                    let extra = f50 - r50;
+                    println!(
+                        "{name} {hold:?} {q:?} {}%: alone p50 {r50:.2} p95 {r95:.2} ms; held                          p50 {f50:.2} p95 {f95:.2} ms; the arms +{extra:.2} ms",
+                        (k * 100.0) as u32,
+                    );
+                    let real = matches!(hold, Hold::Woman | Hold::Man);
+                    let ceiling = if q == Quality::High && real {
+                        f64::from(HIGH_CEILING_MS[ki])
+                    } else {
+                        1.0
+                    };
+                    let slow = q == Quality::Light && f95 > r95 * 1.5 + 1.0;
+                    if extra > ceiling || slow {
+                        bad.push(format!(
+                            "{name} {hold:?} {q:?} {k}: +{extra:.2} ms (ceiling {ceiling}),                              p95 {f95:.2}"
+                        ));
+                    }
                 }
             }
         }

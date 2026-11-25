@@ -145,6 +145,9 @@ pub struct InstEditors {
     /// r42:arcus-upper — each Arcus's figure's left hand: its position (semitones) and the
     /// time it was last drawn (the glide's clock).
     pub arcus_hands: std::collections::BTreeMap<u64, (f32, f64)>,
+    /// r42:arcus-upper — whether the window's frames run long (`figure::Quality::Auto`
+    /// steps the figures down to Light while they do).
+    pub figures_long: bool,
     /// r42:arcus-upper — each Arcus's neck and body stamps (the picture's own pixels over
     /// a figure's hand behind them), kept with what they were made for.
     #[allow(clippy::type_complexity)]

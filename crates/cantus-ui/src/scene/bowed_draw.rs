@@ -35,9 +35,32 @@ pub fn frame_for(size: Vec2) -> Frame {
     f
 }
 
+/// r42:arcus-upper — a test camera for design sheets (`shoot_arcus --cam=…`): the eye and
+/// what it looks at (world cm) and the half size of the box round it the picture fits.
+/// Never set by the app.
+static TEST_CAMERA: std::sync::Mutex<Option<(V3, V3, f32)>> = std::sync::Mutex::new(None);
+
+/// r42:arcus-upper — look from `eye` at `at`, the picture fitting a box `half` cm round
+/// it (None: the instrument's own camera). For design sheets only.
+pub fn set_test_camera(cam: Option<(V3, V3, f32)>) {
+    *TEST_CAMERA.lock().unwrap_or_else(|e| e.into_inner()) = cam;
+}
+
+fn test_camera() -> Option<(V3, V3, f32)> {
+    *TEST_CAMERA.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The camera an instrument is seen from: three-quarter from the audience's left, close
 /// and a little above the floor (sheet v4: the instrument fills the picture's height).
 pub fn camera(b: Bowed, h: Holder, room: Room) -> Camera {
+    if let Some((eye, at, _)) = test_camera() {
+        // r42:arcus-upper
+        let d = eye - at;
+        let dist = d.len();
+        let el = (d.y / dist).asin().to_degrees();
+        let az = d.x.atan2(d.z).to_degrees();
+        return Camera::new(at, az, el, dist);
+    }
     let d = b.dims();
     let pose = hold::pose(b, h); // r42:arcus-upper
     let mid = pose.at(0.0, d.body * 0.78, 0.0);
@@ -74,6 +97,13 @@ pub fn camera(b: Bowed, h: Holder, room: Room) -> Camera {
 /// The points the camera fits: the body, the head, the endpin's foot (r42:arcus-upper: a
 /// held instrument's margin, a figure's head and shoulders).
 pub fn points(b: Bowed, h: Holder) -> Vec<V3> {
+    if let Some((_, at, r)) = test_camera() {
+        // r42:arcus-upper
+        return [-1.0f32, 1.0]
+            .iter()
+            .flat_map(|&x| [-1.0f32, 1.0].map(move |y| at + v(x * r, y * r * 0.8, 0.0)))
+            .collect();
+    }
     let d = b.dims();
     let pose = hold::pose(b, h); // r42:arcus-upper
     let o = bowed::outline(b, 2);

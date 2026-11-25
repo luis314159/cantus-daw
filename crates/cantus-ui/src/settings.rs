@@ -287,6 +287,11 @@ pub struct Settings {
     /// (false: nothing) and never written again.
     #[serde(rename = "arcus_finger", skip_serializing)]
     pub arcus_finger_was: Option<bool>,
+    /// r42:arcus-upper — how finely the figures' live arms and hands are drawn (High, the
+    /// default; Light, within the +1 ms budget; Auto, High stepping down under load). A
+    /// preference of this machine; a file without it reads High.
+    #[serde(default)]
+    pub figure_quality: crate::scene::figure::Quality,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -425,6 +430,7 @@ impl Default for Settings {
             arcus_holder: Default::default(),        // r42:arcus-upper
             arcus_stop: Default::default(),          // r42:arcus-upper
             arcus_finger_was: None,                  // r42:arcus-upper
+            figure_quality: Default::default(),      // r42:arcus-upper
         }
     }
 }

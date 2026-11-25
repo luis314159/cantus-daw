@@ -14,7 +14,7 @@
 
 use super::bowed::{board_z, nut_y, outline, Bowed, Pose};
 use super::bowed_head::grid;
-use super::bowed_hold::{elbow, Hold, Holder};
+use super::bowed_hold::{Hold, Holder};
 use super::bowed_mesh::{Mesh, Role};
 use super::geo::{v, V3};
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
@@ -65,6 +65,24 @@ const UP: V3 = V3 {
 
 /// The figure posed for `b` in `pose`.
 pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
+    let (rig, beside) = arcus_rig(b, pose);
+    super::figure::stylised::skel(&rig, &beside)
+}
+
+/// r42:arcus-upper — what Arcus asks of the stylised figure (ADR 0159: the PlayRig, the
+/// contract every figure is posed from): a violinist's or a violist's jaw on the chinrest,
+/// the face turned along the strings, hung from it onto a chair, the legs forward; a
+/// cellist's or a bassist's pelvis on the instrument's seat, its back against the chest,
+/// the knees either side of the lower bout; the left hand at rest round the neck.
+pub fn arcus_rig(
+    b: Bowed,
+    pose: &Pose,
+) -> (
+    super::figure::play::PlayRig,
+    super::figure::stylised::Beside,
+) {
+    use super::figure::play::{Hand, Head, HeadAt, Legs, PlayRig, Seat};
+    use super::figure::stylised::Beside;
     let d = b.dims();
     let down = -UP;
     if d.held {
@@ -77,44 +95,42 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
         let hf = (t * 0.55 + f * 0.45 + down * 0.28).norm();
         let hu = (UP - r * 0.24).norm();
         let hu = (hu - hf * hu.dot(hf)).norm();
-        let hr = hf.cross(hu).norm();
-        let (a, bb, c) = HEAD;
-        let head = chin + hu * (bb * 0.78) - hf * (c * 0.15) + hr * (a * 0.5);
-        let neck = head + down * 15.5 - f * 3.0 + r * 4.0;
-        let ls = neck - r * 16.0 + down * 3.5;
-        let rs = neck + r * 16.0 + down * 3.5;
-        let chest = neck + down * 15.0 - f * 2.0;
-        let pelvis = chest + down * 27.0 - f * 2.0;
         let grip = pose.at(0.0, nut_y(d) - 5.5 * k, board_z(d, nut_y(d)) - 1.1 * k);
         let lw = grip - pose.ez * (3.8 * k) - pose.ey * (3.0 * k) - pose.ex * (1.2 * k);
-        let le = elbow(ls, lw, 28.0, 25.0, down + f * 0.3 + r * 0.35);
-        let (hips, knees, ankles) = legs(pelvis, f, r, pelvis.y - 9.0);
-        let seat = v(pelvis.x, 0.0, pelvis.z) - f * 6.0;
-        return Skel {
-            f,
-            r,
-            down,
-            head,
-            hf,
-            hu,
-            neck,
-            chest,
-            pelvis,
-            ls,
-            rs,
-            le,
-            lw,
+        let rig = PlayRig {
+            facing: f,
+            right: r,
+            head: Head {
+                at: HeadAt::Jaw(chin),
+                up: hu,
+                face: hf,
+            },
+            seat: Seat::FromHead {
+                lean: 0.0,
+                turn: 0.0,
+            },
+            legs: Legs::Forward,
+            hands: [
+                Hand::Rest {
+                    wrist: lw,
+                    pole: down + f * 0.3 + r * 0.35,
+                },
+                Hand::Rest {
+                    wrist: lw,
+                    pole: down,
+                },
+            ],
+            occluders: Vec::new(),
+        };
+        let beside = Beside {
             grip,
-            hips,
-            knees,
-            ankles,
-            seat: Some((seat, f.x.atan2(f.z))),
             nd: pose.ey,
             nz: pose.ez,
             nx: -pose.ex,
             top: grip + pose.ez * (1.35 * k),
-            chin,
+            chair: true,
         };
+        return (rig, beside);
     }
     // A cellist or a bassist behind the instrument, facing the hall.
     let k = d.body / 75.7;
@@ -129,19 +145,11 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
     let contact = pose.at(0.0, y_c, back);
     let chest = contact - f * 10.0 + r * 1.0;
     let pelvis = chest + down * 27.0 - f * 3.0;
-    let neck = chest + UP * 15.0 - f * 1.0;
-    let head = neck + UP * 16.5 + r * 5.0 + f * 1.0;
     let hf = (f + down * 0.22 - r * 0.22).norm();
     let hu = (UP - r * 0.16).norm();
     let hu = (hu - hf * hu.dot(hf)).norm();
-    // The shoulders' joints a hand's breadth behind the chest's front, as a person's are
-    // (r42:arcus-upper: level with it, the cello's neck passed so close to the left shoulder
-    // that the elbow folded to 36° in fourth position; a cellist's is 50–70°).
-    let ls = neck - r * 16.0 + down * 3.5 - f * 4.0;
-    let rs = neck + r * 16.0 + down * 3.5 - f * 4.0;
     let grip = pose.at(0.0, nut_y(d) - 10.0 * k, board_z(d, nut_y(d)) - 2.2 * k);
     let lw = grip + pose.ex * (4.0 * k) - pose.ez * (3.0 * k) - pose.ey * (4.0 * k);
-    let le = elbow(ls, lw, 29.0, 27.0, -r + down * 0.6);
     // The knees either side of the lower bout.
     let half = outline(b, 2)
         .iter()
@@ -151,50 +159,46 @@ pub fn skeleton(b: Bowed, pose: &Pose) -> Skel {
     for (i, s) in [1.0f32, -1.0].into_iter().enumerate() {
         knees[i] = pose.at(s * (half + 3.0 * k), d.body * 0.22, -d.rib_lo * 0.4);
     }
-    let hips = [pelvis - r * 9.5, pelvis + r * 9.5];
     let ankles = [
         v(knees[0].x - r.x * 4.0, 9.0, knees[0].z + 8.0),
         v(knees[1].x + r.x * 4.0, 9.0, knees[1].z + 8.0),
     ];
-    Skel {
-        f,
-        r,
-        down,
-        head,
-        hf,
-        hu,
-        neck,
-        chest,
-        pelvis,
-        ls,
-        rs,
-        le,
-        lw,
+    // The eyes where the stylised head is (the chain up from the pelvis).
+    let head = pelvis + UP * 58.5 + f * 3.0 + r * 5.0;
+    let rig = PlayRig {
+        facing: f,
+        right: r,
+        head: Head {
+            at: HeadAt::Eyes(head),
+            up: hu,
+            face: hf,
+        },
+        seat: Seat::Chair {
+            at: pelvis,
+            top: pelvis.y - 10.0,
+        },
+        legs: Legs::To { knees, ankles },
+        hands: [
+            Hand::Rest {
+                wrist: lw,
+                pole: -r + down * 0.6,
+            },
+            Hand::Rest {
+                wrist: lw,
+                pole: down,
+            },
+        ],
+        occluders: Vec::new(),
+    };
+    let beside = Beside {
         grip,
-        hips,
-        knees,
-        ankles,
-        seat: None,
         nd: pose.ey,
         nz: pose.ez,
         nx: pose.ex,
         top: grip + pose.ez * (2.6 * k),
-        chin: head - hu * 9.0,
-    }
-}
-
-/// A seated figure's legs from `pelvis`: hips, knees forward, ankles on the floor.
-fn legs(pelvis: V3, f: V3, r: V3, _knee_h: f32) -> ([V3; 2], [V3; 2], [V3; 2]) {
-    let hips = [pelvis - r * 9.5, pelvis + r * 9.5];
-    let knees = [
-        hips[0] + f * 42.0 - r * 3.0 + v(0.0, -2.0, 0.0),
-        hips[1] + f * 42.0 + r * 3.0 + v(0.0, -2.0, 0.0),
-    ];
-    let ankles = [
-        v(knees[0].x, 9.0, knees[0].z) + f * 5.0,
-        v(knees[1].x, 9.0, knees[1].z) + f * 5.0,
-    ];
-    (hips, knees, ankles)
+        chair: false,
+    };
+    (rig, beside)
 }
 
 /// The points the camera fits when a figure holds `b`: its head, its shoulders.

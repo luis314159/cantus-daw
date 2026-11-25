@@ -754,8 +754,9 @@ pub fn shade(
     let lit = kc[0] + kc[1] + kc[2] > 1e-4;
     let kv = if lit { vis(p, n) } else { 0.0 };
     let ndl = if m.tex == Tex::Skin {
-        // r42:arcus-upper — light through skin: the terminator wrapped, soft.
-        ((n.dot(l) + 0.15) / 1.15).max(0.0)
+        // r42:arcus-upper — light through skin: the terminator wrapped wide and soft (the
+        // owner, 2026-11-24: skin, not paint).
+        ((n.dot(l) + 0.2) / 1.2).max(0.0)
     } else {
         n.dot(l).max(0.0)
     };
@@ -775,14 +776,26 @@ pub fn shade(
     let fill = rig.fill(p, n);
     let amb = rig.ambient(n);
     let mut e = [0.0f32; 3];
+    // r42:arcus-upper — a figure's creases (between the fingers, under the jaw, the
+    // clothes' folds) take the occlusion in their direct light too, softly.
+    let crease = if figure { 0.55 + 0.45 * ao } else { 1.0 };
     for i in 0..3 {
-        e[i] = kc[i] * ndl * kv + fill[i] + amb[i] * ao + kf[i] * floor_alb[i] * 0.55 * below * ao;
+        e[i] = kc[i] * ndl * kv * crease
+            + fill[i]
+            + amb[i] * ao
+            + kf[i] * floor_alb[i] * 0.55 * below * ao;
     }
     if m.tex == Tex::Skin {
-        // r42:arcus-upper — skin's scattered light: a warm share where the key falls off.
+        // r42:arcus-upper — skin's scattered light: a warm share where the key falls off
+        // (stronger: the light under skin is red), a little red in the shade, and a soft
+        // high-key fill from the camera's side on whatever faces it (a portrait's light).
         let t = (1.0 - n.dot(l).max(0.0)) * ndl;
-        e[0] += kc[0] * kv * t * 0.10;
-        e[1] += kc[1] * kv * t * 0.03;
+        e[0] += kc[0] * kv * t * 0.18 + amb[0] * ao * 0.06;
+        e[1] += kc[1] * kv * t * 0.04 + amb[1] * ao * 0.015;
+        let front = ndv.powf(2.0) * 0.07 * ao;
+        for (i, ei) in e.iter_mut().enumerate() {
+            *ei += (kc[i] + amb[i]) * front;
+        }
     }
     let mut rim = [0.0f32; 3];
     // The rim separates the instrument from the dark; the room takes none.
