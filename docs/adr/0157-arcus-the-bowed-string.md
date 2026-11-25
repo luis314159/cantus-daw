@@ -232,6 +232,40 @@ references, the spiccato's bounce against the references), `tests_vib` (the vibr
 extent, onset and jitter inside the study's band per family, wider and not slower loud),
 `cantus-ui`'s `arcus_level_e2e` (every bowed preset within 1.5 LU in music).
 
+## Amendment (round 42, pass 6): the cello's body radiates to 10 kHz; a friction with memory, kept for the tools
+
+<!-- r42:arcus-p6 -->
+
+**Context.** The study measured the loud cello darker than real ones and Lampis's robot-bowed
+cello brightening +0.10 octave of harmonic centroid a doubling of the bow's force (β and speed
+held); Arcus's string brightened only with the force relative to β and speed.
+
+**Decision.**
+
+- **The cello's measured body** (`fides::body::BodyKind::MeasuredCello`) carries its cloud of
+  modes from 640 Hz to 10 kHz (55 modes; was 33 to 5.2 kHz, above which it radiated nothing
+  and the match's correction stood at its +12 dB cap). `fides::body::BODY_MODES` is 64; every
+  other body keeps its modes, bits and cost. The match is fitted again over it, the cello's
+  output trim 2.8 dB lower so its level holds. The bass's body is unchanged (its cloud to
+  9 kHz measured mixed).
+- **The friction's memory** (`string::Friction::Memory`): the hyperbolic curve's coefficient
+  reached through a rate-and-state memory (a time τ 250 µs and a slip distance `D_c` 50 µm,
+  one implicit step a sample, the junction's closed form kept). It is fitted on Lampis's grid,
+  where it gives the real string's sensitivities to force, β and speed. **Not the default and
+  not a user's choice:** `from_index` never reaches it and `InstrumentSpec::memory` is off for
+  all four. In the instrument it measured worse on the two thirds (the cello's centroid and
+  upper registers; the bass mixed, its lowest string off the pitch gate with its own table).
+  The instant law's string is already a saturated sawtooth; the loud cello's darkness was not
+  in the string.
+
+**Consequences.** `DSP_VERSION` 14; `upper_tests::LOWER_HASHES` re-made (the cello's four
+renders moved, the bass's three the same to the bit); no golden hash moved. The measures, what
+is open (the attack's pre-Helmholtz start, the pluck's thump, the body curve at 2–4 and 7–10
+kHz) and the tools are in `docs/round42/arcus-match.md`, *Pass 6*. **What the tests hold:**
+every earlier gate at the new defaults (pitch, attacks, the tremolo, the vibrato, the presets
+in music within their spread); `tests_p6`'s probes measure the string on Lampis's grid and
+under the players' map.
+
 ## Amendment (round 42, the `arcus-upper` builder): who holds it
 
 <!-- r42:arcus-upper -->

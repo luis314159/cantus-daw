@@ -703,3 +703,208 @@ preset on its audition phrase, its notes, and the bowed ones on the music phrase
 changes now soft-edged (the bass's 15–20 dB click gone; whether a little more bite is wanted at
 the change is the ear's), the spiccato's bounce and ring, the new vibrato's life (its variation
 per cycle and per note), the violin's level against the others in the demo.
+
+## Pass 6 (before = `46aeca0b1`; brightness by the bow's force, the attack, the radiated high end)
+
+The same held-out protocol as passes 2–5, plus a **training split**. `arcus_match render`
+with `ARCUS_SPLIT=train` writes the other two thirds, and every choice below was made on them.
+The held-out third judged each change once. The measures are `tools/arcus/pass4/measure.sh`'s
+(the study's estimator through `study_compare.py`), in `F:\projects\daw-r42\tmp\arcus\p6\`:
+`before.json` and `after3.json` hold out, `train\{B,M2,C1,D1}.json` train.
+`study_compare.py` now also scores the body's harmonic-peak curve (`body_curve.*`, the study's
+`body.body_estimate`) against the measured instruments' band.
+
+### 1 — Brightness by the bow's absolute force: the string, measured; a friction with memory, built and not kept
+
+*What the string does.* `tests_p6::probe_string_map` and `probe_corner_leverage` bow the
+string alone under the players' map. It is a saturated sawtooth at every dynamic: h2–h10 at
+−6, −9.5, −12, −14, −15.6 … dB, the 1/n of an ideal Helmholtz corner. Any rounding in the loop
+is undone at the next release, because the hyperbolic curve's slope at the stick's end,
+`F(μs − μd)/(2Z₀v₀)`, is 6–14 at the map's forces: every release is a fold, an instant jump.
+A 500 Hz bridge corner leaves the harmonic centroid where 6 kHz or none puts it (2.04–2.51
+against 2.44–2.65 on the cello's C string).
+
+*Two mechanisms, tried.*
+
+- **A tangential contact compliance** (Mindlin's, stiffening with the force): no change of
+  slope, and the Helmholtz region shrank (a spring against a falling friction curve is a
+  stick-slip oscillator of its own). Reverted.
+- **The friction's memory** (`string::Friction::Memory`; the rate-and-state laws of Dieterich
+  and Ruina, the time healing τ and the slip distance `D_c`, one implicit step a sample, so
+  the junction keeps its closed form: `Δ + R(1 − k)μ(Δ) = |u| − R·k·μₙ₋₁`). On Lampis's grid
+  (`tests_p6::probe_contact_lampis`; the real cello's A string +0.10, −0.04, +0.02 octave of
+  harmonic centroid a doubling of force, β and speed, median 2.01):
+
+| law | Helmholtz points | force | β | speed | median |
+|---|---|---|---|---|---|
+| instant (the default) | 18 / 27 | +0.42 | +0.43 | −0.49 | 2.22 |
+| memory τ 120 µs | 22 / 27 | +0.08 | +0.10 | −0.12 | 1.83 |
+| memory `D_c` 50 µm | 17 / 27 | +0.06 | −0.11 | +0.11 | 1.79 |
+| **memory τ 250 µs, `D_c` 50 µm** | 20 / 27 | **+0.07** | **−0.06** | **−0.00** | **1.93** |
+| real string (Lampis) | — | +0.10 | −0.04 | +0.02 | 2.01 |
+
+The memory makes the junction a real string's on that grid: the first time its sensitivities
+to force, β and speed sit near the measured ones. The attack gate holds with it (0 of 80
+past Guettler & Askenfelt, worst 0.79 of the limit; `tests_p4::probe_friction_gate` with
+`ARCUS_FRICTION=memory`), and Helmholtz motion holds from a lighter force.
+
+*In the instrument it did not win.* With its own pitch table (`pitch-table.sh`, three passes:
+offsets −70 … 0 cents on the cello, −86 … +0.7 on the bass) and the match fitted again over
+it, the two thirds measured:
+
+- **cello, worse:** centroid medium 56 → 85 Hz outside, loud 121 → 160; octave 3's harmonics
+  loud 5.6 → 8.5 dB outside; the soft noise burst 7.4 → 10.9;
+- **cello, better:** the HNR, the soft noise;
+- **bass, mixed:** medium centroid 0.3 → 13.9 Hz outside; octave 0 and 3 loud and the soft
+  HNR better;
+- **the pitch gate:** 166 of 168 within a cent (median 0.037), the bass's lowest string not
+  converging (its B1 cell oscillates, worst 2.19 cents).
+
+So it stays a law for the tools and probes, not a user's choice: `Friction::from_index` never
+reaches it, and `InstrumentSpec::memory` is off for all four instruments.
+
+*Why it cannot brighten the loud cello.* A memory only rounds the corner, and the instant
+law's string is already at the sawtooth's limit — brighter than Lampis's real string on its
+grid (median 2.22 against 2.01; the real one's h10–h20 fall 8–12 dB under the 1/n line, and
+rise 3–4 dB with the force). The loud cello's darkness was not in the string (§3).
+
+### 2 — The attack: measured, left open
+
+- **The noise burst is not the hair's noise.** With the roughness scaled by the bow's share
+  of the stroke's speed, the training rows did not move (the bass's soft burst 35.6 → 35.5,
+  the cello's 32.5 → 32.5). Reverted.
+- **It is the pre-Helmholtz start.** By the study's own YIN (`tools/arcus/pass5/yin_pitch.py`),
+  the bass's soft notes are aperiodic for their first 80 ms, −47 to −126 cents where a period
+  is found at all, then −5 to −9 cents until about 0.2 s. The estimator's harmonic model holds
+  f0 constant, so that start reads as a burst. It is the transient pass 4's eased onsets
+  shortened and the Guettler gate then failed on (13–19 of 80 attacks).
+- **`t_steady`** stays 0.10–0.13 s against 0.24–0.42. The level swell does not change the
+  spectrum's shape, and the estimator asks the shape to settle. **Open**: a start shaped as
+  the bow is (the force placed before the motion, the acceleration Guettler's diagram allows)
+  is the physically grounded next step, not a gentler junction.
+
+### 3 — The radiated high end: the cello's body to 10 kHz (the default now)
+
+*Found.* The cello's measured body (`fides::body::BodyKind::MeasuredCello`) carried its cloud of
+modes from 640 Hz to 5.2 kHz only (the bass's to 4.5 kHz). Above that it radiated nothing, and
+the match's peaking correction stood at its +12 dB cap at 10 kHz, lifting near-silence. Through
+the study's harmonic-peak estimator, the cello's body curve was inside the measured cellos'
+band from 130 Hz to 3 kHz, but 7 dB too hot at 4–7 kHz: the correction, fitted to the
+recordings' third-octave spectrum, chased their bow and room noise with harmonics.
+
+*Changed.* The cello's cloud runs 640 Hz – 10 kHz with 55 modes (14 an octave, was 11). Fides's
+`BODY_MODES` is 64 (was 40); every other body keeps its modes, and the loop runs over the
+chunks a body uses, so Fides keeps its bits and its cost. The match was fitted again over it
+on the same two thirds (`match.sh fit`, only the correction taken: −6.4 −3.1 −1.5 −0.7 +1.0
++0.1 −0.9 +1.1 +1.6 +0.5 +2.5 +6.0 dB, was … +6.7 +12.0). **The cap no longer binds.** The
+cello's output trim is 2.8 dB lower (13.2), what the cloud added, so its level holds.
+
+*Tried and not kept:*
+
+- **The bass's cloud to 9 kHz** (56 modes), mixed on the two thirds: medium centroid 0.3 →
+  11.7 Hz outside, the pluck's T60s 0.52 → 1.01 octave outside.
+- **The cello's correction fitted to the body curve** instead of the third-octave spectrum
+  (`tools/arcus/pass6/body_fit.py`, one step). On the two thirds it brought the body curve in
+  at 2–4 kHz (3.4 → 2.8) and 7–10 kHz (4.0 → 1.7), and the bridge hill into its band. But it
+  lost the noise (3.8 → 6.6 dB outside), the loud centroid (87 → 139) and octave 3's harmonics
+  (loud 4.3 → 6.3).
+
+*The cello on the held-out third* (outside the band in brackets: dB, Hz or octaves as the
+feature's):
+
+| cello | before | after | band |
+|---|---|---|---|
+| centroid_hz.loud | 383 (139) | 386 (137) | 523 … 741 |
+| centroid_harm.loud / medium | 1.80 (0.25) / 1.63 (0.69) | 1.78 (0.28) / 1.71 (0.60) | 2.06 … 2.95 / 2.32 … 3.18 |
+| harmonics oct 3 loud / medium / soft | (9.29 / 6.54 / 3.00) | **(8.36 / 2.74 / 2.55)** | |
+| harmonics oct 2 loud / medium / soft | (3.60 / 3.40 / 2.20) | (4.00 / **1.40** / **1.68**) | |
+| harmonics oct 1 loud / medium / soft | (0.46 / 1.45 / 1.81) | (0.95 / **0.70** / **0.74**) | |
+| harmonics oct 0 loud | (0.27) | (0.92) | |
+| vibrato_am_db (the flicker) | (0.86) | **(0.67)** | |
+| body.bridge_hill_hz | 1 780 (722) | **1 590 (528)** | 707 … 1 059 |
+| body_curve 2–4 / 4–7 / 7–10 kHz | (0.62 / 6.98 / 0.00) | (3.23 / **1.59** / 3.79) | |
+| ltas.medium | (4.67) | **(2.88)** | |
+| hnr medium / loud | (1.06 / 1.67) | **(0.79 / 1.29)** | |
+| noise_db_re_harm.all | −38.7 (3.58) | −38.8 (3.70) | −35.1 … −33.7 |
+| attack_noise_burst_db medium / soft | 26.4 (1.08) / 25.1 (3.04) | **25.3 (0)** / 25.2 (3.17) | 13.8 … 25.3 / 12.5 … 22.1 |
+| attack_build_order_rho.all | 0.09 (0.15) | **0.02 (0.07)** | −0.26 … −0.06 |
+| pizz_thump | (8.15) | (10.75) | |
+
+The bass's, the violin's and the viola's rows are unchanged (the bass's renders are the same
+to the bit).
+
+*Read plainly.*
+
+- **Better:** the cello's high registers (octave 3 medium 6.5 → 2.7 dB outside), the
+  vibrato's partial movement towards the players', the bridge hill, the 4–7 kHz excess gone,
+  the attack's build order and the medium burst into their bands.
+- **Worse:** the loud octaves 0–2 (+0.4 to +0.7 dB outside); the body curve at 2–4 kHz and
+  7–10 kHz (the new modes' levels there, fitted through the spectrum and not the body curve);
+  the pluck's thump (8.2 → 10.8 dB outside). The thump came with the refit's low bands
+  (+1.7 to +2.1 dB at 63–160 Hz, which the pluck shares), not with the new modes. A pluck
+  path with its own excitation shaping is what it needs.
+- **The loud centroid is not in its band.** The estimator's `centroid_hz` is harmonic only
+  (f0 × the harmonic centroid). Arcus's loud held-out notes sit lower than the references'
+  loud notes, and in harmonic number the gap is 0.28. Most of the Hz gap is which keys the
+  class holds, not the tone.
+
+**The violin and the viola** do not have the truncation. Their bodies (`arcus::upper::body`)
+carry a 60-mode cloud to 9 kHz (the viola's to 8 kHz), and their corrections cut there (−4.0
+dB at 6.3 kHz, −2.0 at 10 kHz). Nothing changed for them.
+
+### 4 — Pass 5's open items
+
+Not reached in this pass. The flicker's depth moved with the cello's body (§3:
+`vibrato_am_db` 0.86 → 0.67 dB outside the players' band); its rate and extent on short notes
+and the bass's E string in tremolo at forte are as pass 5 left them.
+
+### Gates, tests, hashes
+
+- **Gates** (Windows, this branch at the end, release): `cantus-dsp` lib 1 390 passed, 0
+  failed (109 ignored probes). Among them the bowed pitch (168 of 168 held-out points within a
+  cent), the attacks (0 of 80 past Guettler & Askenfelt), the tremolo in tune, the vibrato's
+  band, the bodies passive and at rest, `LOWER_HASHES`.
+- **`cantus-ui`:** `arcus_level_e2e` (every bowed preset within its spread of −19 LUFS in
+  music, the presets fitted again: the cello's gains moved −0.2 … −0.6 dB), `instrument_levels`,
+  `arcus_pick_e2e`, `arcus_upper_e2e`, `strings_rec_e2e` — green.
+- **`cantus-engine`:** `inst_arcus` 1, `arcus_image` 9, `inst_fides` 2, `fides_image` 7, `null_tests` 26, `rt_memory` 67 — green.
+- **clippy** `-p cantus-dsp -p cantus-ui --all-targets -D warnings`: clean. rustfmt on
+  every changed file. Not run: the Linux check (WSL is the integrator's).
+- **Hashes.** `DSP_VERSION` 14; `upper_tests::LOWER_HASHES` re-made. The measured size against
+  `c305bc540` (`tests_p5::probe_dump_lower` in both states): the four cello renders' RMS
+  −0.03, −0.03, +0.06, +0.20 dB, their difference −10.9, −11.0, −11.5, −2.9 dB re each render;
+  the three bass renders the same to the bit. No golden hash moved (none holds Arcus; Fides's
+  bodies keep their modes).
+
+### For the owner's ears
+
+`F:\projects\daw-r42\listen\arcus-p6\escuchar.html` (Spanish):
+
+- **The pp → mf → ff swell per instrument** (new: where a change of brightness with the
+  dynamic is easiest heard), pass 5 against pass 6, and the memory law for the cello and the
+  bass.
+- **The cello's and the bass's notes, phrase, ABX notes, pizzicato and tremolo**, pass 5
+  against pass 6 (and the memory law).
+- **The violin's and the viola's set**, identical in both.
+- **The bowed presets on the music phrase** and **the quartet** (`demo.sh`: every check
+  passes, the mix −16.0 LUFS, −1.1 dBTP), pass 5 against pass 6.
+
+The clips: `pase5\` (the default before), `pase6\` (after), `memoria\` (the memory law with
+its own pitch table and refit, cello and bass), `presets\`, and `listen\arcus-demo-p6\`.
+
+### Not closed (said plainly)
+
+- **Brightness by the bow's force** in the instrument. The friction's memory gives the string
+  a real string's law on Lampis's grid but loses in the instrument, so it is not the default.
+  The loud cello's centroid in Hz stays outside its band, mostly because of the class's keys
+  (in harmonic number 0.28 outside).
+- **The attack:** the noise burst (the cello's soft 3.2 dB outside, the bass's 6–18) and
+  `t_steady` (0.08–0.13 s against 0.24–0.42) — the pre-Helmholtz start; a start shaped as the
+  bow is (the force before the motion) is the next step.
+- **The cello's regressions from the new body:** the body curve at 2–4 kHz (3.2 dB outside)
+  and 7–10 kHz (3.8), the loud octaves 0–2 (+0.4 to +0.7 dB), the pluck's thump (8.2 → 10.8 dB
+  outside: the refit's low bands, which the pluck shares — a pluck path with its own
+  excitation shaping).
+- **The bass's** soft centroid (29.6 Hz outside) and its high end; its own measured body to
+  9 kHz measured mixed.
+- **Pass 5's** short-note vibrato and the bass's E-string tremolo at forte: not reached.
