@@ -963,7 +963,15 @@ pub fn arm(
             let mut show = fnrm.dot(eye - ctr) > 0.0;
             if show {
                 if let Some((want, hid)) = hidden {
-                    show = (am.upper[k] || hid(ctr)) == want;
+                    // (r42:arcus-hand: behind if any corner is — a triangle across the neck's
+                    // edge painted in front showed the hand over the neck; painted behind, the
+                    // neck's stamp covers just the part it hides.)
+                    let behind = am.upper[k]
+                        || hid(ctr)
+                        || hid(sc.pts[a])
+                        || hid(sc.pts[bb])
+                        || hid(sc.pts[c]);
+                    show = behind == want;
                 }
             }
             sc.front.push(show);
@@ -1010,7 +1018,13 @@ pub fn arm(
             let seam = f0 && f1 && rank(am.stuff[t0 as usize]) != rank(am.stuff[t1 as usize]);
             if f0 != f1 || seam {
                 let mid = (sc.pts[a as usize] + sc.pts[bb as usize]) * 0.5;
-                sc.order.push((v.cam.depth(mid) - 0.05, tri_n + e as u32));
+                // (r42:arcus-hand: a shirt's edge sorted with its cuff, behind the sleeve and
+                // the wrist — drawn at its own depth it laid white threads over his wrist.)
+                let shirt = [t0, t1]
+                    .iter()
+                    .any(|&t| t != u32::MAX && am.stuff[t as usize] == Stuff::Shirt);
+                let bias = if shirt { 3.0 } else { 0.0 };
+                sc.order.push((v.cam.depth(mid) - 0.05 + bias, tri_n + e as u32));
             }
         }
         sc.order

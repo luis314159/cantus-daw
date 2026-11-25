@@ -103,6 +103,9 @@ const UPRIGHT: f32 = 30.0;
 /// neck's E side (cm out from the fingerboard's edge) and the knuckles' height against the
 /// fingerboard's top (cm).
 const WRIST: f32 = 8.0;
+/// How much wider the hand's outline may be at its middle than at the wrist (the
+/// photographs: the back narrows smoothly into the wrist).
+const PALM_WIDE: f32 = 1.25;
 /// How far a finger's last phalanx may leave the plane of its first two (degrees).
 const SIDEWAYS: f32 = 5.0;
 /// The back of the hand's width at the knuckles over its length (wrist to knuckles) as the
@@ -210,6 +213,47 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                     let posed = hu::repose_arm(fig, &base.0, 0, &aim);
                     let bone = side(0) + finger(j + 1, 2);
                     let tip = posed.at(bone, fig.bones[bone].tail);
+                    // r42:arcus-hand — no mitten (the owner: "la parte abultada gorda"): the
+                    // hand's outline from the camera at its middle no wider than PALM_WIDE
+                    // times at the wrist.
+                    {
+                        let o = side(0);
+                        let arm_share = |i: usize| {
+                            fig.bw[i]
+                                .iter()
+                                .filter(|(b, _)| {
+                                    (*b as usize) >= o + hu::FORE1 && (*b as usize) <= o + finger(4, 2)
+                                })
+                                .map(|x| x.1)
+                                .sum::<f32>()
+                        };
+                        let mid = (lp.fingers[1][0] + lp.fingers[2][0]) * 0.5;
+                        let ax = (mid - lp.wrist).norm();
+                        let len = (mid - lp.wrist).len();
+                        let width = |t: f32| {
+                            let c = lp.wrist + ax * (len * t);
+                            let across = (cam.eye() - c).norm().cross(ax).norm();
+                            let (mut lo, mut hi) = (f32::MAX, f32::MIN);
+                            for i in 0..fig.pos.len() {
+                                if arm_share(i) < 0.5 {
+                                    continue;
+                                }
+                                let p = posed.vertex(fig, i);
+                                if ((p - c).dot(ax)).abs() < 0.35 {
+                                    let w = (p - c).dot(across);
+                                    lo = lo.min(w);
+                                    hi = hi.max(w);
+                                }
+                            }
+                            hi - lo
+                        };
+                        let (w0, w1) = (width(0.0), width(0.5));
+                        if w0 > 0.0 && w1 > w0 * PALM_WIDE {
+                            bad.push(format!(
+                                "{tag}: the palm {w1:.1} cm wide at its middle, the wrist {w0:.1}"
+                            ));
+                        }
+                    }
                     let stop = lp.tip.expect("its stop");
                     let off = cam.p(tip) - cam.p(stop);
                     assert!(off.length() < 1.0, "{tag}: the fingertip {off:?} px off");

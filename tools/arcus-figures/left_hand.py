@@ -262,6 +262,8 @@ CROOK_Z = (-1.2, -0.2)
 ARCH = 2.4
 # The thumb's flex (MCP, IP): relaxed.
 THUMB = ((5, 35), (5, 35))
+# The thumb's base (CMC) turn at most (deg).
+THUMB_CMC = 30.0
 
 
 def over(x, lo, hi):
@@ -369,6 +371,10 @@ class Pose:
         add("thumb_z", 6.0 * over(qt[2] - nk.top(qt[1]), -0.6, 0.3))
         y12 = loc(self.tips[0])[1] * 0.6 + loc(self.tips[1])[1] * 0.4
         add("thumb_y", 2.0 * over(qt[1] - y12, -0.8, 1.2))
+        # The thumb's base turned no more than a relaxed hand's (r42:arcus-hand: turned 65
+        # degrees it pushed the thumb's ball out into a mitten's bulge — the owner's "parte
+        # abultada gorda").
+        add("thumb_cmc", 3.0 * over(np.degrees(np.linalg.norm(x[22:25])), 0.0, THUMB_CMC))
         add("thumb_mcp", 0.3 * over(np.degrees(x[25]), *THUMB[0]))
         add("thumb_ip", 0.3 * over(np.degrees(x[26]), *THUMB[1]))
         # The thumb and the palm clear of the neck (the gap under the palm).

@@ -918,6 +918,25 @@ pub fn role(st: Stuff, who: Who, tone: u8) -> super::bowed_mesh::Role {
     }
 }
 
+/// r42:arcus-hand — whether a band triangle (in the body and an arm) lies where the live
+/// arm draws it opaque: every corner at least [`ARM_COVERS`] the arm's (the live arm's fade
+/// is whole from 0.38).
+fn covered_by_arm(fig: &Figure, t: &[u16; 3], part: u8) -> bool {
+    let s = if part & 2 != 0 { 0 } else { 1 };
+    let o = side(s);
+    t.iter().all(|&i| {
+        fig.bw[i as usize]
+            .iter()
+            .filter(|(b, _)| (*b as usize) >= o + UPPER1 && (*b as usize) <= o + finger(4, 2))
+            .map(|x| x.1)
+            .sum::<f32>()
+            >= ARM_COVERS
+    })
+}
+
+/// How much of a corner's weight is its arm's for the live arm to draw it opaque.
+const ARM_COVERS: f32 = 0.5;
+
 /// The triangles of `fig` in any of the parts `mask` names, posed as `pts`/`nrm`, added
 /// to `m` a role each.
 pub fn emit(
@@ -933,6 +952,13 @@ pub fn emit(
     let mut out: Vec<(Role, Tris, Vec<u32>)> = Vec::new();
     for (k, t) in fig.tris.iter().enumerate() {
         if fig.part[k] & mask == 0 {
+            continue;
+        }
+        // r42:arcus-hand — the baked body leaves out the band triangles its live arm covers
+        // whole (each corner the arm's): baked in the bake's arm pose, they stuck out as dark
+        // shards beside the jacket where the live arm had moved on (the review, his jacket
+        // under the bow arm from the new camera).
+        if mask == 1 && fig.part[k] & 6 != 0 && covered_by_arm(fig, t, fig.part[k]) {
             continue;
         }
         let r = role(fig.stuff[k], who, tone);
