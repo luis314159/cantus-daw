@@ -251,7 +251,10 @@ def f_noise(n):
         return {}
     if n.kind == "sustained":
         z = b["noise"]
-        return {"bands_hz": z["bands_hz"], "hnr_band_db": _vec(z["hnr_band_db"], 99),
+        # Only the valid bands (>= 300 Hz, >= 5 f0, <= 0.42 fs: under 5 f0 the vibrato's AM
+        # leaks into the residual — the study's rule); the others are left out (None).
+        hnr = [v if ok else None for v, ok in zip(_vec(z["hnr_band_db"], 99), z["band_valid"])]
+        return {"bands_hz": z["bands_hz"], "hnr_band_db": hnr,
                 "res_total_db_re_harm": float(z["res_total_db_re_harm"]),
                 "res_valid_db_re_harm": _f(z.get("res_valid_db_re_harm"))}
     a0 = int((b["t_on_s"] + 0.05) * n.sr)
@@ -260,7 +263,7 @@ def f_noise(n):
         return {}
     fc, hnr, valid = between_partials(n.m, n.sr, a0, length, b["f0_hz"], b["B"])
     vv = [h for h, v in zip(hnr, valid) if v and h is not None]
-    return {"bands_hz": fc, "hnr_band_db": hnr,
+    return {"bands_hz": fc, "hnr_band_db": [h if v else None for h, v in zip(hnr, valid)],
             "hnr_valid_median_db": float(np.median(vv)) if vv else None}
 
 

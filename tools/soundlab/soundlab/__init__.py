@@ -17,4 +17,4 @@ Modules:
 Run every script with `python -I` (numpy, scipy, soundfile, matplotlib: requirements.txt).
 """
 
-VERSION = "1"
+VERSION = "2"
