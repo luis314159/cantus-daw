@@ -1153,8 +1153,8 @@ pub fn arm(
 /// r42:arcus-hand — High's hand patches: a thinned triangle's edge (cm) and the px a
 /// patch's small triangle may take on screen; at most this many cuts a side.
 const FINE_EDGE: f32 = 0.62;
-const FINE_PX: f32 = 2.5;
-const FINE_MAX: usize = 4;
+const FINE_PX: f32 = 4.0;
+const FINE_MAX: usize = 2;
 
 /// What a hand patch is lit and placed by.
 struct FineCtx<'a> {

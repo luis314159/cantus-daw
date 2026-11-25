@@ -755,6 +755,12 @@ palm's outline at its middle ≤ 1.35 × the wrist's crease (index/middle in low
 1.7 elsewhere); the eyes' setting test; `arcus_hold` (its V bound 85/88° and wrist 8° from
 the photographs).
 
+**Frame budget** (`arcus_hold_budget`, release, best of five): High realistic +1.9 to +3.1 ms
+at 100 %, +1.9 to +4.0 at 200 %; Light +0.2 to +0.6; ceilings 4.0 / 4.5 ms (passes). The
+patches were capped at 2 cuts a side (4 px) after a first measure of +6.7 ms at 200 %.
+Clippy (`-p cantus-ui --all-targets -D warnings`) clean; `arcus_hand_table`, `arcus_hold`,
+`arcus_scene`, `scene_identity`, `figure_contract`, `kit_lint` green.
+
 **Open** (honest list for the next session):
 1. The palm's outline is 1.4–1.63 × the wrist where the little or ring finger reaches or
    the hand is high (the photographs 1.1–1.3): gated at 1.7, not yet within the photos.

@@ -248,6 +248,12 @@ occluding capsules in its live painter.
   the stylised ones; the owner allowed High up to about 4 ms if it buys the look), so the
   default's cost cannot grow unnoticed.
 
+- **The hand's look costs** (r42:arcus-hand, release, best of five, 2026-11-25): High's
+  curved patches (≤ 2 cuts a side at ~4 px), the texture per point, the closed seams and
+  the fingertips' shadows put the realistic arms at +1.9 to +3.1 ms at 100 % and +1.9 to
+  +4.0 ms at 200 % (the violinists' new camera draws their hands larger); Light unchanged
+  (+0.2 to +0.6). High's ceilings are now 4.0 / 4.5 ms (the owner allows about 4 ms for
+  the look); the test passes.
 - **The hair's cost is the bake's, not the frame's** (r42:arcus-hair): the hair, the
   scalp and the eyes are in the baked picture; the live layer is unchanged, so the frame
   budget's numbers above stand (`arcus_hold_budget` re-run in release on this build,
