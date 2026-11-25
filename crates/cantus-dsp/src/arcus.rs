@@ -62,6 +62,10 @@ mod tests_p5;
 #[allow(clippy::needless_range_loop, clippy::type_complexity)]
 mod tests_p5_gate;
 #[cfg(test)]
+#[path = "arcus_tests_p6.rs"] // r42:arcus-p6
+#[allow(clippy::needless_range_loop, clippy::type_complexity)]
+mod tests_p6;
+#[cfg(test)]
 #[path = "arcus_tests_pitch.rs"]
 mod tests_pitch;
 #[cfg(test)]

@@ -469,6 +469,27 @@ pub const MU_S: f32 = 0.8;
 pub const MU_D: f32 = 0.3;
 pub const V0: f32 = 0.1;
 
+/// r42:arcus-p6 — the friction's memory (`string::Curve::lag_s`, `slip_dc`; the module's
+/// notes in `arcus_string.rs`): the time it relaxes over, s, and the slip distance, m (0:
+/// that term off).
+pub const FRICTION_TAU_S: f32 = 0.0;
+pub const FRICTION_DC_M: f32 = 0.0;
+
+#[cfg(test)]
+thread_local! {
+    /// The probes' override of [`FRICTION_TAU_S`] and [`FRICTION_DC_M`].
+    pub static FRICTION_MEM: std::cell::Cell<Option<(f32, f32)>> = const { std::cell::Cell::new(None) };
+}
+
+/// The friction's memory every new string takes, `(τ, D_c)` (the probes may override it).
+pub fn friction_memory() -> (f32, f32) {
+    #[cfg(test)]
+    if let Some(l) = FRICTION_MEM.with(|c| c.get()) {
+        return l;
+    }
+    (FRICTION_TAU_S, FRICTION_DC_M)
+}
+
 /// Schelleng's upper force limit for Helmholtz motion, N (Schelleng 1973; the bow's static
 /// friction holding the string through the Helmholtz corner's step):
 /// `F_max = 2·Z₀·v_b / ((μs − μd)·β)`.

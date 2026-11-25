@@ -35,9 +35,26 @@
 //!   solves `Δ + R·y·h(Δ) = |u|` by Newton from `|u|` (a convex function: monotone onto the
 //!   larger root), a fixed eight steps — the same bits everywhere.
 //!
+//! - **The friction's memory** (r42:arcus-p6): rosin cannot let go at once — its friction
+//!   follows the sliding through the contact's state, which evolves over a slip distance
+//!   `D_c` (the rate-and-state laws of Dieterich 1979 and Ruina 1983; for rosin, Woodhouse &
+//!   Galluzzo 2025's "enhanced" law above, whose state is the contact's temperature). Here the
+//!   hyperbolic curve's coefficient is reached through that memory, which relaxes both in
+//!   time (`τ`, the contact's own healing) and over the slip (`D_c`): one implicit step of
+//!   `dμ/dt = (μ(Δ) − μ)(1/τ + |Δ|/D_c)` a sample, `μₙ = k·μₙ₋₁ + (1 − k)·μ(Δₙ)`,
+//!   `k = 1/(1 + T/τ + |Δₙ₋₁|T/D_c)`
+//!   (the last sample's slip sets the step, so the closed form stays: `Δ + R(1 − k)·μ(Δ) =
+//!   |u| − R·k·μₙ₋₁`, the same quadratic with a smaller force term and a reduced pull). While
+//!   it sticks the coefficient is what the stick holds (`|f|/F`), so a slip starts from it
+//!   and gathers speed over `D_c`: the Helmholtz corner is not re-sharpened at once at every
+//!   release. Measured on Lampis's grid (`tests_p6::probe_contact_lampis`; the real cello's A
+//!   string +0.10, −0.04, +0.02 octave of harmonic centroid a doubling of force, β and speed):
+//!   the instant curve brightens +0.42, +0.43, −0.49 — with the force *relative* to β and
+//!   speed — and the memory brings it towards the real string's (`docs/round42/arcus-match.md`).
+//!
 //! What the bridge hears is the wave arriving there; its force `2·Z₀·v` drives the body.
 
-use super::tables::{MU_D, MU_S, V0};
+use super::tables::{friction_memory, MU_D, MU_S, V0};
 use crate::gravis::string::{lagrange, lagrange_delay, loss_delay, loss_design};
 use crate::math;
 
@@ -273,6 +290,11 @@ pub struct BowedString {
     disc: f32,
     last_slip: f32,
     curve: Curve,
+    // r42:arcus-p6: the friction's memory, `T/τ` and `T/D_c` (0: that term off), and the
+    // coefficient last sample (the rosin's state: `μs` healed while the bow is off).
+    t_tau: f32,
+    t_dc: f32,
+    mu_prev: f32,
     theta: f32,
     th_keep: f32,
     th_gain: f32,
@@ -300,6 +322,11 @@ pub struct Curve {
     pub v0: f32,
     pub tau_s: f32,
     pub per_w: f32,
+    /// r42:arcus-p6 — the hyperbolic curve's memory: the time it relaxes over, s, and the
+    /// slip distance it evolves over, m (each 0: that term off; both: the curve at once; the
+    /// module's notes).
+    pub lag_s: f32,
+    pub slip_dc: f32,
 }
 
 impl Default for Curve {
@@ -310,6 +337,8 @@ impl Default for Curve {
             v0: V0,
             tau_s: THERMAL_TAU_S,
             per_w: THERMAL_PER_W,
+            lag_s: friction_memory().0, // r42:arcus-p6
+            slip_dc: friction_memory().1,
         }
     }
 }
@@ -394,6 +423,9 @@ impl BowedString {
             disc: 0.0,
             last_slip: 0.0,
             curve: Curve::default(),
+            t_tau: 0.0, // r42:arcus-p6
+            t_dc: 0.0,
+            mu_prev: MU_S,
             theta: 0.0,
             th_keep: 0.0,
             th_gain: 0.0,
@@ -436,6 +468,18 @@ impl BowedString {
         self.th_gain = (1.0 - self.th_keep) * kappa * THERMAL_FAST_SHARE;
         self.th2_keep = math::exp(-1.0 / (THERMAL_SLOW_S * self.sr as f32));
         self.th2_gain = (1.0 - self.th2_keep) * kappa * (1.0 - THERMAL_FAST_SHARE);
+        // r42:arcus-p6: the friction's memory: a sample's time over its time and over its
+        // slip distance.
+        self.t_tau = if k.lag_s > 0.0 {
+            1.0 / (k.lag_s * self.sr as f32)
+        } else {
+            0.0
+        };
+        self.t_dc = if k.slip_dc > 0.0 {
+            1.0 / (k.slip_dc * self.sr as f32)
+        } else {
+            0.0
+        };
     }
 
     pub fn is_live(&self) -> bool {
@@ -473,6 +517,7 @@ impl BowedString {
         self.last_slip = 0.0;
         self.theta = 0.0;
         self.theta2 = 0.0;
+        self.mu_prev = self.curve.mu_s; // r42:arcus-p6
     }
 
     /// A note starts on it with string impedance `z0`; `keep`: its waves ring on (a re-bow,
@@ -719,10 +764,20 @@ impl BowedString {
                 let bowed = match b.friction {
                     Friction::Hyperbolic => {
                         let excess = au - r * self.curve.mu_s;
+                        // r42:arcus-p6: with the friction's memory the slip meets the
+                        // curve's share `1 − k` of the force, the pull less what last
+                        // sample's friction still holds (the module's notes).
+                        let lag = self.t_tau > 0.0 || self.t_dc > 0.0;
+                        let (rr, uu) = if lag {
+                            let keep = 1.0 / (1.0 + self.t_tau + self.last_slip.abs() * self.t_dc);
+                            (r * (1.0 - keep), au - r * keep * self.mu_prev)
+                        } else {
+                            (r, au)
+                        };
                         let out = if self.sticking && excess <= 0.0 {
                             u
                         } else {
-                            match slip_root(&self.curve, au, r) {
+                            match slip_root(&self.curve, uu, rr) {
                                 Some(x) => {
                                     slip = sgn * x;
                                     if self.sticking && self.excess <= 0.0 && excess > 0.0 {
@@ -743,8 +798,8 @@ impl BowedString {
                                     // The slip ended between the samples: where the
                                     // quadratic's discriminant crossed zero (its roots
                                     // vanish), the stick holding for the rest of it.
-                                    let b = self.curve.v0 + r * self.curve.mu_d - au;
-                                    let c = self.curve.v0 * (r * self.curve.mu_s - au);
+                                    let b = self.curve.v0 + rr * self.curve.mu_d - uu;
+                                    let c = self.curve.v0 * (rr * self.curve.mu_s - uu);
                                     let disc = b * b - 4.0 * c;
                                     if !self.sticking && self.disc >= 0.0 && disc < 0.0 {
                                         let tau = self.disc / (self.disc - disc);
@@ -756,10 +811,19 @@ impl BowedString {
                             }
                         };
                         self.excess = excess;
-                        let b = self.curve.v0 + r * self.curve.mu_d - au;
-                        let c = self.curve.v0 * (r * self.curve.mu_s - au);
+                        let b = self.curve.v0 + rr * self.curve.mu_d - uu;
+                        let c = self.curve.v0 * (rr * self.curve.mu_s - uu);
                         self.disc = b * b - 4.0 * c;
                         self.last_slip = slip;
+                        if lag {
+                            // The coefficient the bow held with: what it gave over what
+                            // it could (`|f|/F`), never past the static one.
+                            self.mu_prev = if r > 1e-9 {
+                                (out.abs() / r).min(self.curve.mu_s)
+                            } else {
+                                self.curve.mu_s
+                            };
+                        }
                         out
                     }
                     Friction::Thermal => {
@@ -812,6 +876,7 @@ impl BowedString {
                 inj_r = bowed - bowed * self.tor_share;
             } else {
                 self.sticking = false;
+                self.mu_prev = self.curve.mu_s; // r42:arcus-p6: the rosin heals
                 if self.theta != 0.0 || self.theta2 != 0.0 {
                     self.theta *= self.th_keep;
                     self.theta2 *= self.th2_keep;
