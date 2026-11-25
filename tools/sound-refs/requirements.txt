@@ -1,0 +1,9 @@
+# Every sound tool's Python packages, pinned (round 42, sound-data): tools/soundlab, tools/arcus
+# (study, pass4-6, study_compare, upper_study), tools/listening, tools/chorda-voicing,
+# tools/tympanum-fit. The versions the round-42 study and lab ran with (Python 3.13).
+#   python -m venv <venv> && <venv>/Scripts/python -m pip install -r tools/sound-refs/requirements.txt
+# (bin/python on Linux and macOS). fetch.py itself needs only the standard library.
+numpy==2.3.3
+scipy==1.16.2
+soundfile==0.13.1
+matplotlib==3.10.6

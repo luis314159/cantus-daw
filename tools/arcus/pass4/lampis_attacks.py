@@ -1,6 +1,8 @@
 import sys, glob, re, numpy as np, soundfile as sf
 from collections import defaultdict
-root = r"F:\projects\daw-r42\downloads\study\zenodo-lampis-bridge-force-attack\waveforms"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs")); import cantus_paths as cp  # noqa: E402
+root = str(cp.refs("study", "zenodo-lampis-bridge-force-attack", "waveforms"))  # $CANTUS_REFS
 P = 50000 / 98.0
 res = defaultdict(list)
 files = sorted(glob.glob(root + r"\model_*_2\*\*.wav"))

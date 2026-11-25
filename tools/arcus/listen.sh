@@ -6,13 +6,14 @@
 #
 #   bash tools/arcus/listen.sh [out-dir] [levels]
 #
-# out-dir defaults to $ARCUS_LISTEN or ../listen/arcus beside the worktree; `levels` prints
+# out-dir defaults to $ARCUS_LISTEN or $CANTUS_WORK/listen/arcus (tools/sound-refs); `levels` prints
 # each render's peak and RMS. Every cargo command goes through tools/build/slot.sh (three
 # builds at once on a shared machine); set SLOT to the slot script's path if this tree has
 # none of its own.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
-out=${1:-${ARCUS_LISTEN:-$here/../listen/arcus}}
+. "$here/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK (tools/sound-refs)
+out=${1:-${ARCUS_LISTEN:-$CANTUS_WORK/listen/arcus}}
 shift || true
 slot=${SLOT:-$here/tools/build/slot.sh}
 mkdir -p "$out"

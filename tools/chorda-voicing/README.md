@@ -14,19 +14,19 @@ runs with `python -I`.
 
 ```bash
 python -m venv ~/venvs/chorda && ~/venvs/chorda/Scripts/pip install -r tools/chorda-voicing/requirements.txt
-export CANTUS_PY=~/venvs/chorda/Scripts/python.exe      # bin/python on Linux
-export CHORDA_LAB=/f/chorda-lab                          # optional: default <repo>/target/chorda-lab
+export CANTUS_PY=~/venvs/chorda/Scripts/python.exe      # or the shared venv: tools/sound-refs/setup.md
+export CHORDA_LAB=/f/chorda-lab                          # optional: default $CANTUS_WORK/chorda-lab
 bash tools/chorda-voicing/build_lab.sh base              # chorda_compare in release → <lab>/bin/chorda_compare_base
 export CHORDA_EXE=chorda_compare_base                    # a bare name is looked up in <lab>/bin
-bash tools/chorda-voicing/references.sh <downloads dir>  # the Salamander (~1 GB) + the reference renders
+bash tools/chorda-voicing/references.sh [<downloads dir>] # the Salamander (~1 GB; default $CANTUS_REFS/piano) + the reference renders
 ```
 
 | variable | what | default |
 |---|---|---|
-| `CHORDA_LAB` | the lab: renders, results, the lab builds in `bin/` | `<repo>/target/chorda-lab` |
+| `CHORDA_LAB` | the lab: renders, results, the lab builds in `bin/` | `$CANTUS_WORK/chorda-lab` (tools/sound-refs) |
 | `CHORDA_SHARE` | previews and kits for the owner | `<lab>/share` |
 | `CHORDA_TMP` | scratch (the lab's TMP/TEMP) | `<lab>/tmp` |
-| `CANTUS_PY` | the Python with `requirements.txt` | `python` |
+| `CANTUS_PY` | the Python with `requirements.txt` | the venv `$CANTUS_REFS/venv`, else `python` |
 | `CHORDA_EXE` | the voicing lab: a path, or a name in `<lab>/bin` | `<repo>/target/release/examples/chorda_compare` |
 | `CHORDA_PARTIALS`, `CHORDA_LEVELS` | the candidate's two tables, read by every lab render | none (probes: `PARTIALS`/`LEVELS`, default candidate 16's) |
 | `BASE` | a probe's base spec | `candidates/c16/spec.txt` |

@@ -1,0 +1,32 @@
+# study-freesound-cc0-previews: the files under $CANTUS_REFS/study/freesound-cc0-previews/ — written by `fetch.py record study-freesound-cc0-previews`; origins in catalog.toml
+# path	size	sha256	origin	member
+SOURCE.md	2197	a49899a9eef6ff3203a237295aa4d79c75eb68f45cfb861e2040814d7c12f984	source	
+audio/159107_Cello_Play_C_-_04.wav.preview-hq.mp3	326188	fee443325daddf8f1171699b788944511686c0d242711154e67c5c67b9da8ca4	preview	https://cdn.freesound.org/previews/159/159107_2018306-hq.mp3
+audio/159108_Cello_Play_C_-_03.wav.preview-hq.mp3	966622	1f8b8aed3c5ce2b6d98167e47ecdab99417eb1b7a2d92157cfbb5788a2f9677d	preview	https://cdn.freesound.org/previews/159/159108_2018306-hq.mp3
+audio/159109_Cello_Play_C_-_02.wav.preview-hq.mp3	708753	677b769455ebb25402ac965dc86ec2423dcf7c2eef2cc7bfd891026aae9aa9d3	preview	https://cdn.freesound.org/previews/159/159109_2018306-hq.mp3
+audio/159110_Cello_Play_C_-_01.wav.preview-hq.mp3	302400	d2abf08b098c300fd689cbc6364feff1e4ac1adc8308c8fbc1377034c6964d38	preview	https://cdn.freesound.org/previews/159/159110_2018306-hq.mp3
+audio/159111_Cello_Play_C_-_08.wav.preview-hq.mp3	350957	a52704c8fc5199425758a371519289efbe6711f545b50453e5f241fa522d1235	preview	https://cdn.freesound.org/previews/159/159111_2018306-hq.mp3
+audio/159112_Cello_Play_C_-_07.wav.preview-hq.mp3	379130	ed2e3828459564ee9e82180193529a4d1e5d13f6e159f1f1c40fcfc4b03a4b07	preview	https://cdn.freesound.org/previews/159/159112_2018306-hq.mp3
+audio/159113_Cello_Play_C_-_06.wav.preview-hq.mp3	1908447	d37c0d4b7357bff60b58bf2d885cd2b20d82841f12afb6b333873b1e80fa9505	preview	https://cdn.freesound.org/previews/159/159113_2018306-hq.mp3
+audio/159114_Cello_Play_C_-_05.wav.preview-hq.mp3	2224375	85e8f09cd8977eb348b7ac4d85480f5557a283232af74d21c9b1e7d4f937bc75	preview	https://cdn.freesound.org/previews/159/159114_2018306-hq.mp3
+audio/159115_Cello_Play_C_-_10.wav.preview-hq.mp3	1205028	395f686520990486220655a597505a609e8c334104400523af1d79a3e97539cc	preview	https://cdn.freesound.org/previews/159/159115_2018306-hq.mp3
+audio/159116_Cello_Play_C_-_09.wav.preview-hq.mp3	3423942	be0cb0ce443112602dad20b831a160c0a83d8d37cda9ca680e2fd7a39813156b	preview	https://cdn.freesound.org/previews/159/159116_2018306-hq.mp3
+audio/383700_Standup_Bass_Stop_Finger_C2.wav.preview-hq.mp3	32668	c89a11ff1f95ad8bec697cf0936c39f9ded7ab76c479ec77491c6226ecb2b323	preview	https://cdn.freesound.org/previews/383/383700_394391-hq.mp3
+audio/383701_Standup_Bass_Stop_Finger_C3.wav.preview-hq.mp3	32670	29210213fa28227b534d9970a7ecc520458361172ee749159742f0636486f9bb	preview	https://cdn.freesound.org/previews/383/383701_394391-hq.mp3
+audio/383702_Standup_Bass_Stop_Bartok_A_3.wav.preview-hq.mp3	46863	911d0545861982817c8975d2dd3064e0e26ea5210ca5013d38c9b4a705830691	preview	https://cdn.freesound.org/previews/383/383702_394391-hq.mp3
+audio/383703_Standup_Bass_Stop_Bartok_A_2.wav.preview-hq.mp3	119509	db5a66d092deeef833b8a1e6e6300855600afb615d7399cfedad83fa8c423677	preview	https://cdn.freesound.org/previews/383/383703_394391-hq.mp3
+audio/383704_Standup_Bass_Stop_Bartok_A_1.wav.preview-hq.mp3	107611	87d0838ecaf8c44367faf2d004f631f74891928db7ffc2cd148e1bb6c567161e	preview	https://cdn.freesound.org/previews/383/383704_394391-hq.mp3
+audio/383705_Standup_Bass_Normal_G3.wav.preview-hq.mp3	81716	c342e982823740918d64c3efd96f51faee1cc86ce8e9fd118838ddb5c9793ab8	preview	https://cdn.freesound.org/previews/383/383705_394391-hq.mp3
+audio/383706_Standup_Bass_Normal_G2.wav.preview-hq.mp3	120015	f5837d4da9afb154f2e6084e587d24350bd687d84e80e32041318f36ca23c204	preview	https://cdn.freesound.org/previews/383/383706_394391-hq.mp3
+audio/383707_Standup_Bass_Normal_G1.wav.preview-hq.mp3	205702	fb9a40d4386533a3e7d74b7247eccaa214aaf8053ba841a43f86b48bf58a1321	preview	https://cdn.freesound.org/previews/383/383707_394391-hq.mp3
+audio/383708_Standup_Bass_Normal_G_3.wav.preview-hq.mp3	85784	2405dbe351f4587779f198ef056b71bb171a8905ab9cfd432b7252285db95a19	preview	https://cdn.freesound.org/previews/383/383708_394391-hq.mp3
+audio/383709_Standup_Bass_Normal_G_2.wav.preview-hq.mp3	104466	cd42095495cb9214d220a52e9efe8d2a4e0ddee14f5fba5159177ca3e5605cd0	preview	https://cdn.freesound.org/previews/383/383709_394391-hq.mp3
+audio/383710_Standup_Bass_Normal_G_1.wav.preview-hq.mp3	79106	348d8c3b6a0dcea57f155332b0db5c9b1b224efca41b3de8b5987bc9fe0b555f	preview	https://cdn.freesound.org/previews/383/383710_394391-hq.mp3
+audio/383711_Standup_Bass_Normal_F4.wav.preview-hq.mp3	29068	5d5420082bd9290991724f7bf3c8d93f9a0cafd1c8e453c1f50205a28eeda335	preview	https://cdn.freesound.org/previews/383/383711_394391-hq.mp3
+audio/48024_A3.wav.preview-hq.mp3	289555	81428e83e3c8236e1e3d67912afb2f2e3f70276f769c910a34a31e3945a702c0	preview	https://cdn.freesound.org/previews/48/48024_539799-hq.mp3
+audio/48025_C2.wav.preview-hq.mp3	226115	8058cf2cc2aa5960d77b0fb4d8d7cc1550ed7c4cdb89ca3dc148680c5cc998ee	preview	https://cdn.freesound.org/previews/48/48025_539799-hq.mp3
+audio/48026_Chord.wav.preview-hq.mp3	333275	8c45932b680c13a6afeb389b77aa770ec1d50c6d539f6139b993c2584ad09aef	preview	https://cdn.freesound.org/previews/48/48026_539799-hq.mp3
+audio/48027_D3.wav.preview-hq.mp3	298738	9e63af5428455743cb48f24b5997f96c581c99c3b581bc05b57af7ccf2747bac	preview	https://cdn.freesound.org/previews/48/48027_539799-hq.mp3
+audio/48028_G2.wav.preview-hq.mp3	328475	0227cf2fc2e3efd11a3ed092ffef544eeeaeba1a54c05ecbc7e67bce4010779e	preview	https://cdn.freesound.org/previews/48/48028_539799-hq.mp3
+audio/567145_Double_bass_gut_stringed_pizzicato_ponticello.preview-hq.mp3	223884	5e97ae36ec8a500c025683a9ce68c94ce3a87a18b645d3fb77de9067c16e67e2	preview	https://cdn.freesound.org/previews/567/567145_11200003-hq.mp3
+audio/freesound_manifest.json	9347	55cf6fc77ab6d892b9ae6ab3a397b3dfb8a0e0709e5ba53476a938e9cd492348	source	

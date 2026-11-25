@@ -9,19 +9,23 @@ Python 3 with `requirements.txt` (numpy, scipy, soundfile; matplotlib is not nee
 draws its own SVG); every script runs with `python -I`. The tests run with one command:
 
 ```bash
-python -m venv ~/venvs/soundlab && ~/venvs/soundlab/Scripts/pip install -r tools/soundlab/requirements.txt
-export CANTUS_PY=~/venvs/soundlab/Scripts/python.exe        # bin/python on Linux
-export SOUNDLAB_REFS=/f/projects/daw-r42/downloads           # the references: outside the repository
+python -m venv /f/projects/cantus-refs/venv && /f/projects/cantus-refs/venv/Scripts/pip install -r tools/sound-refs/requirements.txt
+export CANTUS_PY=/f/projects/cantus-refs/venv/Scripts/python.exe   # bin/python on Linux
+export CANTUS_REFS=/f/projects/cantus-refs                   # the references: outside the repository
+export CANTUS_STUDY_REFDB=$CANTUS_REFS/derived/refdb         # the study's records (test_agreement)
+python -I tools/sound-refs/fetch.py fetch arcus              # what the full run reads (TinySOL)
 $CANTUS_PY -I tools/soundlab/tests/run.py                    # every test (--light: no downloads needed)
 ```
 
+The references are the sets of `tools/sound-refs/catalog.toml` (`tools/sound-refs/setup.md`).
+
 | variable | what | default |
 |---|---|---|
-| `SOUNDLAB_REFS` | the downloads folder the catalogues' paths are under | (required by the subjects) |
-| `SOUNDLAB_WORK` | the lab's work: `<id>/refs/` (the references' cache), `<id>/runs/<run>/` | `<repo>/../soundlab-work` |
-| `SOUNDLAB_LISTEN` | the listening renders a kit's voices may name | `<repo>/../listen` |
+| `SOUNDLAB_REFS` | the references folder the catalogues' paths are under | `$CANTUS_REFS` (`F:\projects\cantus-refs`) |
+| `SOUNDLAB_WORK` | the lab's work: `<id>/refs/` (the references' cache), `<id>/runs/<run>/` | `$CANTUS_WORK/soundlab` |
+| `SOUNDLAB_LISTEN` | the listening renders a kit's voices may name | `$CANTUS_WORK/listen` |
 | `SOUNDLAB_WORKERS` | parallel measurers | 3 |
-| `SOUNDLAB_STUDY`, `SOUNDLAB_EBU`, `SOUNDLAB_KIT_KEY` | optional test data: the Arcus study's records, the EBU loudness test set, a generated kit's key | none (those tests skip) |
+| `SOUNDLAB_STUDY` (or `CANTUS_STUDY_REFDB`), `SOUNDLAB_EBU`, `SOUNDLAB_KIT_KEY` | optional test data: the Arcus study's records, the EBU loudness test set (`$CANTUS_REFS/ebu-loudness`, fetched by hand), a generated kit's key | none (those tests skip) |
 
 ## What is here
 
@@ -44,8 +48,9 @@ $CANTUS_PY -I tools/soundlab/tests/run.py                    # every test (--lig
 1. **References with licences.** Find recordings of the real instrument: CC0 or CC BY only
    (a source whose terms are as free, like the Iowa MIS's "used for any projects, without
    restrictions", only with its terms quoted in the subject's `also_allowed`; never NC, ND,
-   SA or "listening only"). Download them **outside the repository** (`SOUNDLAB_REFS`,
-   e.g. `F:\projects\daw-r42\downloads\<set>\`), with a `SOURCE.md` per set: the URL, the
+   SA or "listening only"). Download them **outside the repository** (`$CANTUS_REFS/<set>/`,
+   e.g. `F:\projects\cantus-refs\<set>\`) and catalogue them (`tools/sound-refs/setup.md`,
+   *Maintaining the catalogue*), with a `SOURCE.md` per set: the URL, the
    date, the licence verbatim, what was taken. Prefer several physical instruments over many
    notes of one: the band weighs each instrument as one.
 2. **The subject file** (`subjects/<id>/subject.json`; copy `example-tibia`'s):

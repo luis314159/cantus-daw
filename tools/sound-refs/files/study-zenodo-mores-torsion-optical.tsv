@@ -1,0 +1,14 @@
+# study-zenodo-mores-torsion-optical: the files under $CANTUS_REFS/study/zenodo-mores-torsion-optical/ — written by `fetch.py record study-zenodo-mores-torsion-optical`; origins in catalog.toml
+# path	size	sha256	origin	member
+SOURCE.md	1706	a2ab63a4d7fd04c0680ed75fb53d96ccbf8a6e88f244c105b26412a9f7535192	source	
+data/3_bottom.mqa	99120	3f5378f098da432c1bea033b570f00b11f15797a48187d281854e8184dd2d30c	zenodo	3_bottom.mqa
+data/3_top.mqa	103840	d83aece4f83de8a55693a36801ff64dfc0e9a028f13a32949f26c16e3fe79eec	zenodo	3_top.mqa
+data/3_transverse.mqa	103840	66838df7ba0a4ae7909782416e3ebc046a3506d1e3366c54af2d26958f7d9e71	zenodo	3_transverse.mqa
+data/5_bottom.mqa	105944	9f3d3fe3c5183043820f6d0e09dd8525e4a3fa3d9b6789955df2d58c851bd92c	zenodo	5_bottom.mqa
+data/5_top.mqa	110989	55ce0a5988bd28aaef633e93829761ca24071ea2232f5eac774f3687063b9cbc	zenodo	5_top.mqa
+data/5_transverse.mqa	110989	d3ba581fcc28228d049ec9b199681e7eeb62f5d2bd1a06692832a8c9c7553ff1	zenodo	5_transverse.mqa
+data/6_bottom.mqa	94625	3b7c53ce162030432ab248772baf99f5172abe749de114d9c583814ea066809b	zenodo	6_bottom.mqa
+data/6_top.mqa	99132	5f113f853bcefd219d586b9272c79a729e2fb607493ddb80a6784eb64b5939d3	zenodo	6_top.mqa
+data/6_transverse.mqa	99131	c816e9dd7709813e348ed946dd64990a537d974179fded2f759f44ba408e4a88	zenodo	6_transverse.mqa
+data/torsion_angle_vs_3_force_levels.eps	23490	fe41cb6e4384fa6d26baefdc238327abcb7f9783c7a23e7d64868dcd2de5f88c	zenodo	torsion_angle_vs_3_force_levels.eps
+data/torsion_angle_vs_3_force_levels.fig	33429	fe985e8d049aa0c351aadd429b5ae9e93dfbed167da85ea08406fec31b2025ed	zenodo	torsion_angle_vs_3_force_levels.fig

@@ -1,5 +1,7 @@
 import sys, numpy as np, soundfile as sf
-d = r"F:\projects\daw-r42\downloads\study\zenodo-pamies-vila-bow-kinematics\data"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs")); import cantus_paths as cp  # noqa: E402
+d = str(cp.refs("study", "zenodo-pamies-vila-bow-kinematics", "data"))  # $CANTUS_REFS (tools/sound-refs)
 which = sys.argv[1] if len(sys.argv) > 1 else "Player"
 M = np.genfromtxt(d + rf"\DataMocap_{which}.csv", delimiter=",", skip_header=1)
 t = M[:, 0]; fs = 240.0

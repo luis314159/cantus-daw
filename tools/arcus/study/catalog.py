@@ -14,7 +14,10 @@ import re
 import sys
 from pathlib import Path
 
-D = Path(os.environ.get("CANTUS_STUDY_DOWNLOADS", r"F:\projects\daw-r42\downloads"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402  ($CANTUS_REFS, $CANTUS_STUDY_REFDB: tools/sound-refs)
+
+D = (Path(os.environ.get("CANTUS_STUDY_DOWNLOADS") or cp.refs()))
 FAM = {"cello": (60.0, 1100.0), "bass": (28.0, 520.0), "viola": (120.0, 1700.0),
        "violin": (180.0, 3400.0)}
 DYN = {"pp": 1, "p": 2, "mp": 3, "mf": 4, "f": 5, "ff": 6, "pianissimo": 1, "molto-pianissimo": 1,
@@ -144,7 +147,7 @@ def goodsounds(jobs):
 
 
 def main():
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb" / "catalog.json"
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else cp.env_or("CANTUS_STUDY_REFDB", Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb") / "catalog.json"
     jobs = []
     for f in (iowa, tinysol, karoryfer, smolken, vsco, philharmonia, goodsounds):
         f(jobs)

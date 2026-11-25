@@ -9,14 +9,14 @@
 #   bash tools/arcus/upper-listen.sh [out-dir] [refs-dir]
 set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
+. "$here/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK (tools/sound-refs)
 slot=${SLOT:-$here/tools/build/slot.sh}
-out=${1:-$here/../listen/arcus-upper}
-refs=${2:-${ARCUS_UPPER_REFS:-$here/../downloads/arcus-upper/refs}}
+out=${1:-$CANTUS_WORK/listen/arcus-upper}
+refs=${2:-${ARCUS_UPPER_REFS:-$CANTUS_REFS/arcus-upper/refs}}
 cd "$here"
 bash "$slot" cargo run -p cantus-dsp --release --example arcus_upper_listen -- "$out" "$refs"
 # The ABX page beside the pairs, its SETS the ones just written.
 page=${ABX_PAGE:-$here/tools/listen/abx.html}
-[ -f "$page" ] || page=$here/../contract/tools/listen/abx.html
 python -I - "$page" "$out/sets.js.txt" "$out/abx.html" <<'PYX'
 import re, sys
 page = open(sys.argv[1], encoding="utf-8").read()

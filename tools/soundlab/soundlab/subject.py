@@ -21,6 +21,8 @@ id: CC0-1.0, CC-BY-3.0, CC-BY-4.0, or one the subject allows with its terms), `c
 `multi` for a file of several notes, each then named by its own pitch), `dyn`.
 Paths and strings may hold `$NAME` / `${NAME}` (the environment) and `{repo}`, `{lab}`,
 `{subject}` (this file's folder), `{work}`, `{python}` (the interpreter running the lab).
+`$SOUNDLAB_REFS` and `$CANTUS_REFS` default to the references folder, `$CANTUS_WORK` to the
+work folder, `$SOUNDLAB_LISTEN` to `$CANTUS_WORK/listen` (tools/sound-refs/cantus_paths.py).
 """
 import json
 import os
@@ -30,8 +32,14 @@ from pathlib import Path
 
 LAB = Path(__file__).resolve().parents[1]
 REPO = LAB.parents[1]
+sys.path.insert(0, str(REPO / "tools" / "sound-refs"))
+import cantus_paths as cp  # noqa: E402
 # Where the listening renders live on this machine (the kits' voices may name it).
-os.environ.setdefault("SOUNDLAB_LISTEN", str(REPO.parent / "listen"))
+os.environ.setdefault("SOUNDLAB_LISTEN", str(cp.work("listen")))
+# What a subject's `$NAME` means when the environment does not set it (no name prefixes another).
+DEFAULTS = {"SOUNDLAB_LISTEN": lambda: os.environ["SOUNDLAB_LISTEN"],
+            "SOUNDLAB_REFS": lambda: os.environ.get("CANTUS_REFS") or str(cp.refs()),
+            "CANTUS_REFS": lambda: str(cp.refs()), "CANTUS_WORK": lambda: str(cp.work())}
 FREE = {"CC0-1.0", "CC-BY-3.0", "CC-BY-4.0", "PD"}
 REQUIRED = ("id", "name", "kind", "f_range", "features", "references", "split")
 
@@ -43,6 +51,9 @@ class SubjectError(ValueError):
 def expand(s, subject=None):
     if not isinstance(s, str):
         return s
+    for k, v in DEFAULTS.items():
+        if not os.environ.get(k) and k in s:
+            s = s.replace("${" + k + "}", v()).replace("$" + k, v())
     s = os.path.expandvars(s)
     ctx = {"repo": str(REPO), "lab": str(LAB), "python": sys.executable}
     if subject is not None:
@@ -65,7 +76,7 @@ class Subject:
             if k not in self.d:
                 raise SubjectError(f"{self.path}: the subject names no `{k}`")
         self.id = self.d["id"]
-        w = os.environ.get("SOUNDLAB_WORK") or str(REPO.parent / "soundlab-work")
+        w = os.environ.get("SOUNDLAB_WORK") or str(cp.work("soundlab"))
         self.work = Path(expand(self.d.get("work", w + "/" + self.id)))
 
     # ---- what each articulation is
@@ -113,7 +124,7 @@ class Subject:
                 problems.append(f"also_allowed {k}: give the terms verbatim")
         root = self.ref_root()
         if not self.d["references"].get("root") and not os.environ.get("SOUNDLAB_REFS"):
-            problems.append("references: no root (set SOUNDLAB_REFS to the downloads folder)")
+            problems.append("references: no root (set SOUNDLAB_REFS or CANTUS_REFS to the references folder)")
         try:
             if root.resolve().is_relative_to(REPO.resolve()):
                 problems.append(f"references: the root {root} is inside the repository: downloads stay outside it")

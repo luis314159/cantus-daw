@@ -1,0 +1,110 @@
+set_and_year,string,medium_tension_lb_at_700mm (Pirastro published 690mm value in brackets),windings,core,tension_N_approx
+Pirastro Eudoxa 1922,G,28.1 (27.3)*,Silver,Natural gut,125.0
+Pirastro Eudoxa 1922,C,27.6 (26.8) *,Silver,Natural gut,122.8
+Thomastik-Infeld Spirocore 1949,G,30.8,Tungsten ¤,Steel rope,137.0
+Thomastik-Infeld Spirocore 1949,C,29.7,Tungsten,Steel rope,132.1
+Jargar 1956,A,37.4,Alloys,Solid steel filament,166.4
+Jargar 1956,D,31.7,Alloys,Solid steel filament,141.0
+Thomastik-Infeld Dominant 1970,A,30.8,Chrome,Multi-strand nylon,137.0
+Thomastik-Infeld Dominant 1970,D,24.9,Chrome,Multi-strand nylon,110.8
+Thomastik-Infeld Dominant 1970,G,22.9,Chrome,Multi-strand nylon,101.9
+Thomastik-Infeld Dominant 1970,C,22.5,Chrome,Multi-strand nylon,100.1
+Larsen Strings Standard 1991,A,39.3,SF/ Iron alloy,Solid steel,174.8
+Larsen Strings Standard 1991,D,29.7,Al/Iron alloy,Solid steel,132.1
+Larsen Strings Standard 1991,G,27.6,Tungsten,Solid steel,122.8
+Larsen Strings Standard 1991,C,30.1,Tungsten,Solid steel,133.9
+Larsen Strings Soloist 1993,A,40.7,SF/Iron alloy,Solid steel,181.0
+Larsen Strings Soloist 1993,D,29.7,Al/Iron alloy,Solid steel,132.1
+Larsen Strings Soloist 1993,G,32.2,Tungsten,Solid steel,143.2
+D’Addario Helicore 1994,G,29.4,T & S,Steel rope,130.8
+D’Addario Helicore 1994,C,28.8,T & S,Steel rope,128.1
+Pirastro Permanent 1996,A,"38,2 (37.1)*",Chrome steel,Solid steel,169.0
+Pirastro Permanent 1996,D,32.3 (31.4)*,Chrome steel,Solid steel,143.7
+Pirastro Permanent 1996,G,31.0 (30.1)*,Tungsten,Steel rope,137.9
+Pirastro Permanent 1996,C,30.3 (29.4)*,Tungsten,Steel rope,134.8
+Pirastro Permanent Soloist 1996/7,A,37.8 (36.7)*,Chrome steel,Solid steel,168.1
+Pirastro Permanent Soloist 1996/7,D,31.9 (31.0)*,Chrome steel,Solid steel,141.9
+Pirastro Permanent Soloist 1996/7,G,30.1 (29.2)*,Tungsten,Steel rope,133.9
+Pirastro Permanent Soloist 1996/7,C,28.9 (28.1)*,Tungsten,Steel rope,128.6
+Pirastro Obligato 2000,A,38.0 (36.9)*,Chrome steel,Solid steel,169.0
+Pirastro Obligato 2000,D,30.8 (29.9)*,Chrome steel,SF,137.0
+Pirastro Obligato 2000,G,31.7 (30.8)*,Tungsten,SF,141.0
+Pirastro Obligato 2000,C,29.9 (28.1)*,Tungsten,SF,133.0
+Pirastro Evah Pirazzi 2004,A,40.1 (38.9)*,Chrome steel,Solid steel,178.4
+Pirastro Evah Pirazzi 2004,D,31.7 (30.8)*,Chrome steel,Solid steel,141.0
+Pirastro Evah Pirazzi 2004,G,28.5 (27.7)*,Tungsten,Steel rope,126.8
+Pirastro Evah Pirazzi 2004,C,28.9 (28.1)*,Tungsten,Steel rope,128.6
+Pirastro Evah Pirazzi Soloist 2005,A,40.1 (38.9)*,Chrome steel,Solid steel,178.4
+Pirastro Evah Pirazzi Soloist 2005,D,29.5 (29.5)*,Chrome steel,Solid steel,131.2
+Pirastro Evah Pirazzi Soloist 2005,G,28.9 (28.1)*,Tungsten,Steel rope,128.6
+Pirastro Evah Pirazzi Soloist 2005,C,30.1 (29.2)*,Tungsten,Steel rope,133.9
+D’Addario Kaplan Solutions 2005/2009,A,39,Titanium,Solid steel,173.5
+D’Addario Kaplan Solutions 2005/2009,D,31,Nickel,Solid steel,137.9
+D’Addario Kaplan Solutions 2005/2009,G,30.9,Tungsten,Stranded steel,137.4
+D’Addario Kaplan Solutions 2005/2009,C,30,Tungsten,Stranded steel,133.4
+Pirastro Passione 2008/2009,A,40.3 (39.1)*,Chrome steel,Solid steel,179.3
+Pirastro Passione 2008/2009,D,30.1 (29.2)*,Chrome steel,Solid steel,133.9
+Pirastro Passione 2008/2009,G,27.8 (26.8)*,Chrome steel,Natural gut,123.7
+Pirastro Passione 2008/2009,C,28.5 (27.7)*,Tungsten,Natural gut,126.8
+Warchal Brilliant 2010,A,35.77,H/SS,Advanced Synthetic,159.1
+Warchal Brilliant 2010,D,29.41,H/S,Advanced Synthetic,130.8
+Warchal Brilliant 2010,G,30.12,T/S,Advanced Synthetic,134.0
+Warchal Brilliant 2010,C,29.29,T/S,Advanced Synthetic,130.3
+Jargar Special,A,unavailable,Chrome alloy,Solid steel,
+Jargar Special,D,,Chrome alloy,Solid steel,
+Jargar Superior A & D 2011-12 G & C 2016,A,40.8,Chrome alloy,Solid steel,181.5
+Jargar Superior A & D 2011-12 G & C 2016,D,32.4,Chrome alloy,Solid steel,144.1
+Jargar Superior A & D 2011-12 G & C 2016,G,31.1,T & C alloy,Rope core,138.3
+Jargar Superior A & D 2011-12 G & C 2016,C,31.9,T & C alloy,Rope core,141.9
+Larsen Magnacore 2014 A&D; 2013 G&C,A,40.4,Tungsten,Stranded steel,179.7
+Larsen Magnacore 2014 A&D; 2013 G&C,D,31.6,Tungsten,Stranded steel,140.6
+Larsen Magnacore 2014 A&D; 2013 G&C,G,30.8,Tungsten,Stranded steel,137.0
+Larsen Magnacore 2014 A&D; 2013 G&C,C,30.2,Tungsten,Stranded steel,134.3
+Warchal Prototype A 2012,A,38.91,SS Alloy,SS Alloy,173.1
+Pirastro Evah Pirazzi Gold 2014,A,41.3 (40.1)*,Chrome steel,Steel,183.7
+Pirastro Evah Pirazzi Gold 2014,D,31.3 (30.4)*,Chrome steel,Steel,139.2
+Pirastro Evah Pirazzi Gold 2014,G,31.5 (30.6)*,Tungsten,Rope core,140.1
+Pirastro Evah Pirazzi Gold 2014,C,30.8 (29.9)*,Tungsten,Rope core,137.0
+Thomastik Versum 2015,A,38.8,Multialloy,Steel,172.6
+Thomastik Versum 2015,D,31.5,Multialloy,Steel,140.1
+Thomastik Versum 2015,G,31.5,Tungsten and chrome,Spiral,140.1
+Thomastik Versum 2015,C,30.2,Tungsten and chrome,Spiral,134.3
+Pirastro Perpetual Medium 2016,A,40.8 (39.6)*,Chrome steel,Steel,181.5
+Pirastro Perpetual Medium 2016,D,31.3 (30.4)*,Chrome steel,Steel,139.2
+Pirastro Perpetual Medium 2016,G,31.7 (30.8)*,Tungsten,Rope core,141.0
+Pirastro Perpetual Medium 2016,C,30.6 (29.7)*,Tungsten,Rope core,136.1
+Pirastro Perpetual Soloist 2016,A,39.9 (38.7)*,Steel,Chrome Steel,177.5
+Pirastro Perpetual Soloist 2016,D,31.7 (30.8)*,Steel,Chrome Steel,141.0
+Pirastro Perpetual Soloist 2016,G,31.5 (30.6)*,Tungsten,Rope core,140.1
+Pirastro Perpetual Soloist 2016,C,30.1 (29.5)*,Tungsten,Rope core,133.9
+Larsen Magnacore Arioso 2016,A,41.5,Tungsten,Solid steel,184.6
+Larsen Magnacore Arioso 2016,D,32,Tungsten,Solid steel,142.3
+Larsen Magnacore Arioso 2016,G,30.2,Tungsten,Stranded steel,134.3
+Larsen Magnacore Arioso 2016,C,28.2,Tungsten,Stranded steel,125.4
+Warchal Amber 2016,A,37.43,SS,Metal helix,166.5
+Warchal Amber 2016,A,36.37,H/SS,Advanced synthetic,161.8
+Warchal Amber 2016,D,30.28,H/S,Advanced synthetic,134.7
+Warchal Amber 2016,G,30.66,T/S,Advanced synthetic,136.4
+Warchal Amber 2016,C,30.24,T/SS/S,Advanced synthetic,134.5
+Thomastik Versum Solo 2017,A,40.1,Multialloy,Steel,178.4
+Thomastik Versum Solo 2017,D,31.5,Multialloy,Sttel,140.1
+Thomastik Versum Solo 2017,G,31.5,Tungsten/chrome,Spiral,140.1
+Thomastik Versum Solo 2017,C,30.2,Tungsten/chrome,Spiral,134.3
+Pirastro Perpetual Edition 2019,A,39.2 (38.1)*,Chrome steel,Steel,174.4
+Pirastro Perpetual Edition 2019,D,31.1 (30.2)*,Chrome steel,Steel,138.3
+Pirastro Perpetual Edition 2019,G,30.9 (30.0)*,Tungsten,Rope core,137.4
+Pirastro Perpetual Edition 2019,C,30.0 (29.1)*,Tungsten,Rope core,133.4
+Thomastik Rondo 2020,A,41.4,Multialloy,Carbon steel,184.2
+Thomastik Rondo 2020,D,31.5,Multialloy,Carbon steel,140.1
+Thomastik Rondo 2020,G,31.5,Tungsten/Chrome,Spiral,140.1
+Thomastik Rondo 2020,C,30.4,Tungsten/Chrome,Spiral,135.2
+Larsen Il Cannone Direct and Focussed 2020,A,40.8,Unique material being patented,Unique material being patented,181.5
+Larsen Il Cannone Direct and Focussed 2020,D,31.1,Solid steel core,Stainless steel,138.3
+Larsen Il Cannone Direct and Focussed 2020,G,30.6,Steel rope core,Tungsten,136.1
+Larsen Il Cannone Direct and Focussed 2020,C,29.8,Steel rope core,Tungsten,132.6
+Larsen Il Cannone Warm and Broad 2020,A,40.8,Solid steel core,Stainless steel,181.5
+Larsen Il Cannone Warm and Broad 2020,D,31.1,Solid steel core,Stainless steel,138.3
+Larsen Il Cannone Warm and Broad 2020,G,30.4,Steel rope core,Tungsten,135.2
+Larsen Il Cannone Warm and Broad 2020,C,29.8,Steel rope core,Tungsten,132.6
+Pirastro Cadenza 2021,G,30.4 (29.5)*,Rope core,Tungsten,135.2
+Pirastro Cadenza 2021,C,29.0 (28.2)*,Rope core,Tungsten,129.0

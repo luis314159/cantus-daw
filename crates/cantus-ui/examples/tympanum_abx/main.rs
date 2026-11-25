@@ -12,7 +12,7 @@
 //! The four packs (`drskit-tympanum`, `virtuosity-drums`, `tympanum-hybrid-studio`,
 //! `tympanum-hybrid-jazz`) are installed through Cantus's own pack code (download, SHA-256,
 //! unpack — what *Sound packs…* does) into `<downloads>/content` unless they are there at the
-//! manifest's version (default `F:/projects/daw-r42/downloads/tympanum`), read by the app's
+//! manifest's version (default `$CANTUS_REFS/tympanum`, tools/sound-refs), read by the app's
 //! kit loader (`tympanum_load`), and played by the engine's offline render (the export's
 //! path), each kit's own mix of its microphones — what a user hears on loading it. A modelled
 //! kit stands as its design draws it and a recorded kit as it was miked: when a pair's
@@ -53,6 +53,22 @@ use items::{Item, Pair};
 use kit::js;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+
+/// `$CANTUS_REFS` joined with `sub`: the sound references' home outside every round's folder
+/// (`tools/sound-refs`; default `F:/projects/cantus-refs` on Windows, `~/cantus-refs` elsewhere).
+fn refs_dir(sub: &str) -> PathBuf {
+    let root = std::env::var_os("CANTUS_REFS")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            if cfg!(windows) {
+                PathBuf::from("F:/projects/cantus-refs")
+            } else {
+                PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join("cantus-refs")
+            }
+        });
+    root.join(sub)
+}
 
 const SUBJECT: &str = include_str!("subject.json");
 const README_EN: &str = include_str!("readme.en.md");
@@ -114,8 +130,7 @@ fn args() -> Args {
     });
     Args {
         dir,
-        downloads: downloads
-            .unwrap_or_else(|| PathBuf::from("F:/projects/daw-r42/downloads/tympanum")),
+        downloads: downloads.unwrap_or_else(|| refs_dir("tympanum")),
         key,
         flac,
         twin,

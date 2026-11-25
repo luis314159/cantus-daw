@@ -2,7 +2,7 @@
 this one place, so nothing names a machine's folders. Override with the environment:
 
     CHORDA_LAB     the lab's working folder: renders and results (default
-                   <repo>/target/chorda-lab — under target/, so git never sees it)
+                   $CANTUS_WORK/chorda-lab — outside every worktree, tools/sound-refs)
     CHORDA_SHARE   where previews and listening kits are written (default <lab>/share)
     CHORDA_TMP     scratch (default <lab>/tmp)
     CANTUS_PY      the Python that runs the analyses (default: this one)
@@ -17,11 +17,14 @@ a candidate's phrases, `ana/out_<tag>/` and `ana2/out_<tag>/` the two analyses' 
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'sound-refs'))
+import cantus_paths  # noqa: E402
+
 __all__ = ['TOOLS', 'REPO', 'LAB', 'SHARE', 'TMP', 'PY', 'EXE', 'C16', 'tool_path']
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(TOOLS))
-LAB = os.environ.get('CHORDA_LAB') or os.path.join(REPO, 'target', 'chorda-lab')
+LAB = os.environ.get('CHORDA_LAB') or str(cantus_paths.work('chorda-lab'))
 SHARE = os.environ.get('CHORDA_SHARE') or os.path.join(LAB, 'share')
 TMP = os.environ.get('CHORDA_TMP') or os.path.join(LAB, 'tmp')
 PY = os.environ.get('CANTUS_PY') or sys.executable

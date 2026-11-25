@@ -3,8 +3,9 @@
     python -I tools/soundlab/tests/run.py [--light] [-v] [pattern]
 
 `--light` (SOUNDLAB_LIGHT=1) skips what needs downloaded references or a generated kit.
-Optional data, each test skipped when absent: SOUNDLAB_REFS (the downloads folder: TinySOL's
-published pitches, the study's estimator against the lab's on reference files), SOUNDLAB_EBU
+Optional data, each test skipped when absent: SOUNDLAB_REFS or CANTUS_REFS (the references:
+TinySOL's published pitches; with SOUNDLAB_STUDY or CANTUS_STUDY_REFDB, the study's estimator
+against the lab's on reference files), SOUNDLAB_EBU
 (the EBU loudness test set), SOUNDLAB_KIT_KEY (a generated kit's key folder: the kits' Rust
 meter against this BS.1770). Exit 1 on any failure.
 """

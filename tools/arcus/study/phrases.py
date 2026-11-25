@@ -22,9 +22,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bowlib_core import load, yin_track, rms_db, median_filter  # noqa: E402
 from bowlib_feat import vibrato_stats  # noqa: E402
-from catalog import FAM  # noqa: E402
+from catalog import FAM, cp  # noqa: E402
 
-S = Path(os.environ.get("CANTUS_STUDY_DOWNLOADS", r"F:\projects\daw-r42\downloads")) / "study"
+S = (Path(os.environ.get("CANTUS_STUDY_DOWNLOADS") or cp.refs())) / "study"
 PH = {"cello": "cello", "double-bass": "bass", "viola": "viola", "violin": "violin"}
 ANE = {"cello": "cello", "doublebass": "bass", "viola": "viola", "violin": "violin", "bass": "bass"}
 
@@ -116,7 +116,7 @@ def analyse(path, family):
 
 
 def main():
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb" / "phrases.jsonl"
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else cp.env_or("CANTUS_STUDY_REFDB", Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb") / "phrases.jsonl"
     with open(out, "w") as fh:
         for k, j in enumerate(files()):
             try:

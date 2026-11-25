@@ -8,13 +8,14 @@
 #   bash tools/arcus/upper-body.sh [admittances-dir] [violin]
 #
 # The admittances are the `admittances/` folder of the dataset's zip, never in the worktree:
-# by default `$ARCUS_UPPER_REFS/cnsm/admittances` (`../downloads/arcus-upper`). Only that part
-# of the 654 MB zip is needed — fetch its byte range (the zip's central directory names the
-# offsets; `docs/round42/arcus-upper.md` says how).
+# by default `$ARCUS_UPPER_REFS/cnsm/admittances` (`$CANTUS_REFS/arcus-upper`). Only that part
+# of the 654 MB zip is needed: `python -I tools/sound-refs/fetch.py fetch arcus-upper` reads
+# just those members by range requests.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
+. "$here/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK (tools/sound-refs)
 slot=${SLOT:-$here/tools/build/slot.sh}
-refs=${ARCUS_UPPER_REFS:-$here/../downloads/arcus-upper}
+refs=${ARCUS_UPPER_REFS:-$CANTUS_REFS/arcus-upper}
 dir=${1:-$refs/cnsm/admittances}
 violin=${2:-Klimke}
 cd "$here"

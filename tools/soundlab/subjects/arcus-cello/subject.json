@@ -38,7 +38,7 @@
                 "files": {"phrase": "abx-cello.wav", "note_p": "cello-abx-57-p.wav", "note_mf": "cello-abx-57-mf.wav", "note_f": "cello-abx-57-f.wav"},
                 "what": "Arcus before its match to recordings (model 1, kept by the arcus builder in listen/arcus/before)"},
    "recording": {"dir": "$SOUNDLAB_REFS",
-                 "files": {"phrase": "../listen/strings-rec/karoryfer-bigcat-cello-cello-line.wav", "note_p": "arcus/cello_A2_p_d.wav", "note_mf": "arcus/cello_A2_mf_d.wav", "note_f": "arcus/cello_A2_f_d.wav"},
+                 "files": {"phrase": "$SOUNDLAB_LISTEN/strings-rec/karoryfer-bigcat-cello-cello-line.wav", "note_p": "arcus/cello_A2_p_d.wav", "note_mf": "arcus/cello_A2_mf_d.wav", "note_f": "arcus/cello_A2_f_d.wav"},
                  "licence": "CC0-1.0",
                  "credit": "Karoryfer Samples, Bigcat cello (the phrase: its samples played by Cantus's sampler from the same MIDI; the notes: its A3 sustains, named A2 an octave low)"}
   },

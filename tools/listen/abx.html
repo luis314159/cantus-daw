@@ -1,0 +1,231 @@
+<!doctype html>
+<!-- tools/listen/abx.html: a blind ABX page. Copy it next to the renders and set SETS below (two files per set, paths relative to the page); open it in a browser. Made for Arcus against the recorded cello and bass (round 42). -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ABX a ciegas — Arcus</title>
+<style>
+  :root { --bg:#0f1420; --panel:#182033; --line:#2a3550; --text:#e8ecf4; --muted:#9aa6bf;
+          --accent:#e2b84a; --a:#5b8def; --b:#d9748b; --ok:#4cc38a; --bad:#e5674f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:16px/1.45 "Segoe UI", system-ui, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:28px 18px 60px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 22px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+          padding:20px; margin-bottom:16px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  button { font:inherit; border:1px solid var(--line); background:#202a42; color:var(--text);
+           border-radius:10px; padding:12px 18px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.big { font-size:22px; font-weight:600; min-width:120px; padding:18px 22px; }
+  button.on { outline:3px solid var(--accent); }
+  button.s1 { border-color:var(--a); } button.s2 { border-color:var(--b); }
+  button.x { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#1a1405; border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.4; cursor:default; }
+  .progress { height:8px; background:#0b1020; border-radius:6px; overflow:hidden; margin:10px 0 0; }
+  .progress > div { height:100%; background:var(--accent); width:0%; }
+  .muted { color:var(--muted); font-size:14px; }
+  .time { font-variant-numeric:tabular-nums; color:var(--muted); min-width:110px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  td, th { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .big-result { font-size:30px; font-weight:700; margin:6px 0; }
+  kbd { background:#0b1020; border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:13px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ABX a ciegas — Arcus</h1>
+  <p class="sub">El chelo y el contrabajo modelados de Arcus contra grabaciones reales (el chelo Bigcat
+    de Karoryfer y el contrabajo de Smolken, CC0), la misma frase y el mismo volumen.</p>
+
+  <section id="start" class="card">
+    <p>Elige el instrumento. Son <b>10 pruebas</b>. En cada una hay dos sonidos, <b>1</b> y <b>2</b>
+      (cuál es cuál cambia al azar en cada prueba), y una <b>X</b> que es uno de los dos.
+      Escucha lo que quieras, cambia entre ellos en cualquier momento (siguen en el mismo punto de
+      la música) y responde si X es 1 o 2, y cuál de los dos te suena más real.</p>
+    <p class="muted">Teclas: <kbd>1</kbd> <kbd>2</kbd> <kbd>X</kbd> para escuchar, <kbd>Espacio</kbd> pausa,
+      <kbd>←</kbd> volver al inicio.</p>
+    <div class="row">
+      <button class="primary big" data-set="chelo">Chelo</button>
+      <button class="primary big" data-set="contrabajo">Contrabajo</button>
+    </div>
+  </section>
+
+  <section id="trial" class="card hidden">
+    <div class="row" style="justify-content:space-between">
+      <div><b id="setname"></b> · prueba <b id="n"></b> de 10</div>
+      <div class="time" id="time">0:00 / 0:00</div>
+    </div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="row" style="margin:20px 0">
+      <button class="big s1" data-play="1">1</button>
+      <button class="big s2" data-play="2">2</button>
+      <button class="big x" data-play="X">X</button>
+      <button id="pause">Pausa</button>
+      <button id="rewind">Al inicio</button>
+    </div>
+    <p><b>X es…</b></p>
+    <div class="row" id="xans">
+      <button data-x="1">el sonido 1</button>
+      <button data-x="2">el sonido 2</button>
+    </div>
+    <p style="margin-top:18px"><b>¿Cuál suena más real?</b></p>
+    <div class="row" id="real">
+      <button data-real="1">el 1</button>
+      <button data-real="2">el 2</button>
+      <button data-real="0">igual</button>
+    </div>
+    <div class="row" style="margin-top:22px">
+      <button class="primary" id="next" disabled>Siguiente prueba</button>
+    </div>
+  </section>
+
+  <section id="result" class="card hidden">
+    <h2 style="margin-top:0">Resultado — <span id="rset"></span></h2>
+    <div class="big-result" id="score"></div>
+    <p id="verdict"></p>
+    <p id="pref"></p>
+    <table id="detail"></table>
+    <div class="row" style="margin-top:18px">
+      <button class="primary" id="again">Otra vez</button>
+      <button id="copy">Copiar resultado</button>
+    </div>
+  </section>
+</main>
+
+<script>
+// The two files of each set: what Arcus renders, and the recording. Relative to this page.
+const SETS = {
+  chelo: { arcus: "../arcus/abx-cello-lufs23.wav",
+           rec: "../strings-rec/before/abx-cello-lufs23.wav",
+           recName: "chelo grabado (Karoryfer Bigcat)" },
+  contrabajo: { arcus: "../arcus/abx-bass-lufs23.wav",
+                rec: "../strings-rec/before/abx-bass-lufs23.wav",
+                recName: "contrabajo grabado (Smolken)" },
+};
+const TRIALS = 10;
+const $ = (s) => document.querySelector(s);
+const rnd = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+
+let set, name, trial, plan, answers, cur = null, xAns = null, realAns = null;
+const audio = { arcus: new Audio(), rec: new Audio() };
+for (const a of Object.values(audio)) { a.preload = "auto"; a.addEventListener("timeupdate", tick); }
+
+function begin(key) {
+  name = key; set = SETS[key];
+  audio.arcus.src = set.arcus; audio.rec.src = set.rec;
+  plan = Array.from({ length: TRIALS }, () => ({
+    oneIsArcus: rnd() < 0.5,           // which source "1" is in this trial
+    xIsOne: rnd() < 0.5,               // whether X is "1"
+  }));
+  answers = []; trial = 0;
+  $("#start").classList.add("hidden"); $("#result").classList.add("hidden");
+  $("#trial").classList.remove("hidden");
+  $("#setname").textContent = key === "chelo" ? "Chelo" : "Contrabajo";
+  show();
+}
+
+function srcOf(label) {
+  const p = plan[trial];
+  const one = p.oneIsArcus ? "arcus" : "rec", two = p.oneIsArcus ? "rec" : "arcus";
+  if (label === "1") return one;
+  if (label === "2") return two;
+  return p.xIsOne ? one : two;
+}
+
+function play(label) {
+  const want = srcOf(label);
+  const t = cur ? audio[cur].currentTime : 0;
+  for (const [k, a] of Object.entries(audio)) if (k !== want) a.pause();
+  audio[want].currentTime = Math.min(t, (audio[want].duration || t + 1) - 0.01);
+  audio[want].play();
+  cur = want;
+  document.querySelectorAll("[data-play]").forEach((b) => b.classList.toggle("on", b.dataset.play === label));
+}
+
+function stopAll() { for (const a of Object.values(audio)) a.pause();
+  document.querySelectorAll("[data-play]").forEach((b) => b.classList.remove("on")); }
+
+function tick() {
+  const a = cur ? audio[cur] : audio.arcus;
+  const f = (s) => isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "0:00";
+  $("#time").textContent = `${f(a.currentTime)} / ${f(a.duration)}`;
+}
+
+function show() {
+  stopAll(); cur = null; xAns = null; realAns = null;
+  for (const a of Object.values(audio)) a.currentTime = 0;
+  $("#n").textContent = trial + 1;
+  $("#bar").style.width = `${(trial / TRIALS) * 100}%`;
+  document.querySelectorAll("[data-x],[data-real]").forEach((b) => b.classList.remove("on"));
+  $("#next").disabled = true;
+  $("#next").textContent = trial + 1 === TRIALS ? "Ver resultado" : "Siguiente prueba";
+  tick();
+}
+
+function pick(attr, val) {
+  if (attr === "x") xAns = val; else realAns = val;
+  document.querySelectorAll(`[data-${attr}]`).forEach((b) => b.classList.toggle("on", b.dataset[attr] === val));
+  $("#next").disabled = !(xAns && realAns);
+}
+
+function next() {
+  const p = plan[trial];
+  const xIs = p.xIsOne ? "1" : "2";
+  const realSrc = realAns === "0" ? "igual" : srcOf(realAns);
+  answers.push({ right: xAns === xIs, real: realSrc, oneIsArcus: p.oneIsArcus });
+  trial++;
+  if (trial < TRIALS) show(); else finish();
+}
+
+// P(at least k of n right by guessing), the binomial tail at 1/2.
+function tail(k, n) { let s = 0, c = 1; for (let i = 0; i <= n; i++) { if (i > 0) c = c * (n - i + 1) / i; if (i >= k) s += c; } return s / 2 ** n; }
+
+function finish() {
+  stopAll();
+  $("#trial").classList.add("hidden"); $("#result").classList.remove("hidden");
+  $("#rset").textContent = name === "chelo" ? "chelo" : "contrabajo";
+  const right = answers.filter((a) => a.right).length;
+  const p = tail(right, TRIALS);
+  $("#score").textContent = `${right} de ${TRIALS} aciertos`;
+  $("#verdict").innerHTML = right >= 9
+    ? `<span class="bad">Los distingues claramente</span> (adivinando, la probabilidad de acertar ${right} o más es ${(p * 100).toFixed(1)} %).`
+    : right >= 7
+      ? `Los distingues a veces (adivinando, ${(p * 100).toFixed(1)} % de acertar ${right} o más): hay diferencias, no siempre claras.`
+      : `<span class="ok">No los distingues</span> (adivinando se acierta ${right} o más el ${(p * 100).toFixed(0)} % de las veces).`;
+  const arc = answers.filter((a) => a.real === "arcus").length;
+  const rec = answers.filter((a) => a.real === "rec").length;
+  const eq = answers.filter((a) => a.real === "igual").length;
+  $("#pref").innerHTML = `Más real: <b>Arcus ${arc}</b> · <b>${set.recName} ${rec}</b> · igual ${eq}.`;
+  $("#detail").innerHTML = "<tr><th>Prueba</th><th>X</th><th>Sonido 1 era</th><th>Más real</th></tr>" +
+    answers.map((a, i) => `<tr><td>${i + 1}</td><td class="${a.right ? "ok" : "bad"}">${a.right ? "acierto" : "fallo"}</td>` +
+      `<td>${a.oneIsArcus ? "Arcus" : "la grabación"}</td><td>${a.real === "arcus" ? "Arcus" : a.real === "rec" ? "la grabación" : "igual"}</td></tr>`).join("");
+  try { localStorage.setItem(`abx-${name}-${Date.now()}`, JSON.stringify({ right, arc, rec, eq })); } catch (e) {}
+}
+
+document.querySelectorAll("[data-set]").forEach((b) => b.onclick = () => begin(b.dataset.set));
+document.querySelectorAll("[data-play]").forEach((b) => b.onclick = () => play(b.dataset.play));
+document.querySelectorAll("[data-x]").forEach((b) => b.onclick = () => pick("x", b.dataset.x));
+document.querySelectorAll("[data-real]").forEach((b) => b.onclick = () => pick("real", b.dataset.real));
+$("#pause").onclick = stopAll;
+$("#rewind").onclick = () => { for (const a of Object.values(audio)) a.currentTime = 0; tick(); };
+$("#next").onclick = next;
+$("#again").onclick = () => { $("#result").classList.add("hidden"); $("#start").classList.remove("hidden"); };
+$("#copy").onclick = () => navigator.clipboard?.writeText(`${$("#rset").textContent}: ${$("#score").textContent}. ${$("#pref").textContent}`);
+document.addEventListener("keydown", (e) => {
+  if ($("#trial").classList.contains("hidden")) return;
+  const k = e.key.toLowerCase();
+  if (k === "1" || k === "2") play(k);
+  else if (k === "x") play("X");
+  else if (k === " ") { e.preventDefault(); stopAll(); }
+  else if (k === "arrowleft") { for (const a of Object.values(audio)) a.currentTime = 0; tick(); }
+});
+</script>
+</body>
+</html>

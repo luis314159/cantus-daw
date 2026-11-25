@@ -6,9 +6,10 @@
 _here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 T=$_here
 REPO=$(cd "$T/../.." && pwd)
+. "$REPO/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK, CANTUS_PY
 _native() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi; }
 _posix() { if command -v cygpath >/dev/null 2>&1; then cygpath -u "$1"; else printf '%s\n' "$1"; fi; }
-V=$(_posix "${CHORDA_LAB:-$REPO/target/chorda-lab}")
+V=$(_posix "${CHORDA_LAB:-$CANTUS_WORK/chorda-lab}")
 mkdir -p "$V"
 VW=$(_native "$V")
 TW=$(_native "$T")

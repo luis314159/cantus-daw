@@ -114,11 +114,11 @@ Nothing names a machine's folders; the environment does (defaults in brackets):
 
 | variable | what |
 |---|---|
-| `TYMP_WORK` [`<repo>/target/tympanum-work` for the cycles, `.` for the Python] | the measuring work folder: `meas9/` the recorded kits' hits (`tympanum_measure hits <TYMP_WORK>/meas9 <content root> pack:drskit-tympanum/kit pack:virtuosity-drums/kit …`), `out/` the fits and gains, one folder per render |
+| `TYMP_WORK` [`$CANTUS_WORK/tympanum-work` for the cycles, `.` for the Python] | the measuring work folder: `meas9/` the recorded kits' hits (`tympanum_measure hits <TYMP_WORK>/meas9 <content root> pack:drskit-tympanum/kit pack:virtuosity-drums/kit …`), `out/` the fits and gains, one folder per render |
 | `TYMP_MEAS` [`$TYMP_WORK/meas9`] | the recorded hits `accept_b10.py` and the analyses read |
-| `TYMP_CONTENT` (required by the cycles) | the content root holding the recorded packs (Cantus's own installs: DRSKit, Virtuosity Drums, Crocell, Muldjord, Big Rusty — downloaded on demand, never in the repository) |
+| `TYMP_CONTENT` [`$CANTUS_REFS/tympanum/content`] | the content root holding the recorded packs (Cantus's own installs: DRSKit, Virtuosity Drums, Crocell, Muldjord, Big Rusty — downloaded on demand, never in the repository; `python -I tools/sound-refs/fetch.py fetch tympanum tympanum-extra --packs --cargo` puts them there) |
 | `TYMP_LISTEN`, `TYMP_ANALYSIS_OUT` | the analyses' input (a listen's folder, `make_listen.py`'s files) and output |
-| `CANTUS_PY` [`python`] | the Python with `requirements.txt` |
+| `CANTUS_PY` [the venv `$CANTUS_REFS/venv`, else `python`] | the Python with `requirements.txt` (or `tools/sound-refs/requirements.txt`, which covers every sound tool) |
 | `SLOT` [`bash tools/build/slot.sh`] | the build-slot wrapper (`tools/build/README.md`); empty inside a slot |
 
 ## The two analyses (round 40: independent analysts, audio only)

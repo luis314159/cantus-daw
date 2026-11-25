@@ -9,8 +9,8 @@
 #
 #   bash tools/test/scala-archive.sh [dir]
 #
-# dir: where the zip and its files go (default $SCALA_ARCHIVE_DIR, else
-# ~/.cantus-tools/scala-archive). Wrap the cargo step in tools/build/slot.sh on a machine
+# dir: where the zip and its files go (default $SCALA_ARCHIVE_DIR, else $CANTUS_REFS/tuning —
+# the `tuning` set of tools/sound-refs, the same layout). Wrap the cargo step in tools/build/slot.sh on a machine
 # whose builds share slots (SLOT=1 does it). A corporate proxy may answer with an HTML page
 # for a while: the script checks the bytes and says so — wait and run it again; never
 # bypass the proxy or TLS. A hand-run tool, never part of CI (ADR 0155): the download retries
@@ -24,7 +24,8 @@ sha256() {
     shasum -a 256 "$1" | cut -d' ' -f1
   fi
 }
-dir="${1:-${SCALA_ARCHIVE_DIR:-$HOME/.cantus-tools/scala-archive}}"
+. "$(cd "$(dirname "$0")/../sound-refs" && pwd)/cantus_paths.sh"
+dir="${1:-${SCALA_ARCHIVE_DIR:-$CANTUS_REFS/tuning}}"
 url='https://web.archive.org/web/20260404005834id_/https://huygens-fokker.org/docs/scales.zip'
 want='d2218f2fa6acd3b11c116e0626bd178af927636e2ed26d0ab7a4c27741b97b9a'
 here="$(cd "$(dirname "$0")/../.." && pwd)"

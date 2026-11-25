@@ -1,0 +1,7 @@
+# study-pointers: the files under $CANTUS_REFS/study/ — written by `fetch.py record study-pointers`; origins in catalog.toml
+# path	size	sha256	origin	member
+iowa-cello-bass/SOURCE.md	1415	45327f16b2e499a2c87296fb850174e6dd89bf30cf757c3fd8fe90cbb8de1c01	source	
+karoryfer-bigcat-cello/SOURCE.md	1110	fde2bbbbaa41b631e045d84516f54d18492eb4e6e01d842cdf3ec64e8886b11c	source	
+smolken-bass/SOURCE.md	949	e08c6fc947c291a126aba2e11bd66cac982a8abad9ae2fff1f0b50cc06783f0c	source	
+tinysol-cello-bass/SOURCE.md	800	0b38ea31df885507cf6d12fc46969084dc6969fdaaa450eaef74bc24a03c3aa9	source	
+vsco-2-ce/SOURCE.md	1031	b6bd5628a67e9090048b593c17af0f97092d2c079d7945424609ed3075a1677a	source	

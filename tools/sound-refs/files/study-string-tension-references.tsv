@@ -1,0 +1,6 @@
+# study-string-tension-references: the files under $CANTUS_REFS/study/string-tension-references/ — written by `fetch.py record study-string-tension-references`; origins in catalog.toml
+# path	size	sha256	origin	member
+SOURCE.md	2034	9a70c057f25d90c19ec4df3d6405e4e0104db3cd3f81ce780eeedd6ba13ad1c3	source	
+aitchison_cello_tensions_extracted.csv	7637	9ab097a9f1b67810c348bf8f9d4609130250d18e3eccee56f10f8fbca5e83360	source	
+raw/aitchison_cello_string_tensions.html	176037	271a72296cd02a32e330a7fc221031ec38e6a81a26880f60bf18e87feac36799	aitchison	
+raw/daddario_orchestral-strings-comparison-chart.pdf	269726	4e224c115bba0f24777e954263b9d6e4a42771e2c34190bcebcd797a3e0f5a15	daddario	

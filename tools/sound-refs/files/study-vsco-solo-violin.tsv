@@ -1,0 +1,4 @@
+# study-vsco-solo-violin: the files under $CANTUS_REFS/study/vsco-solo-violin/ — written by `fetch.py record study-vsco-solo-violin`; origins in catalog.toml
+# path	size	sha256	origin	member
+LICENSE-CC0-from-repo.txt	6555	36ffd9dc085d529a7e60e1276d73ae5a030b020313e6c5408593a6ae2af39673	copy	strings-rec/vsco_LICENSE
+SOURCE.md	1550	c03ad277fb5b1b8cca23153fc159cc933364d1a1c4ec91b48c561df2ea00f2a1	source	

@@ -2,14 +2,14 @@
 # The lab's reference renders, made once per lab (and again after a change to the engine's
 # render path or to the phrases): the Salamander Grand through the engine (the picker's
 # install, Exemplar), beta.14's Chorda through the lab, and the first analysis's slot 2.
-#   bash references.sh <downloads dir>
+#   bash references.sh [<downloads dir>]     # default $CANTUS_REFS/piano (tools/sound-refs)
 # <downloads dir> receives the Salamander (CC BY 3.0, Alexander Holm; ~1 GB, fetched by
 # Cantus's own pack code into <downloads>/content — `chorda_compare install`).
 # Writes into the lab (CHORDA_LAB): eng40/wav/{salamander,chorda2}, notes5/wav/{salamander,b14},
 # keys/wav/salamander, c7/vs/wav/salamander, lab4/wav/candB.
 set -eu
 . "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-D=${1:?usage: references.sh <downloads dir>}
+D=${1:-$CANTUS_REFS/piano}
 PH=middle_c,soft_chords,fast_run,ballad,ff_chord,bass,top,triad
 NOTES=notes_pp,notes_mf,notes_ff
 "$CHORDA_EXE" install "$D"

@@ -11,6 +11,8 @@
 //!     [<salamander-root>] [--abx <kit-dir>]
 //! ```
 //!
+//! `<salamander-root>` defaults to `$CANTUS_REFS/piano/content` (tools/sound-refs).
+//!
 //! Writes `<phrase> - <n> <source>.flac` (24-bit, 48 kHz), every source of a phrase at one
 //! loudness (ITU-R BS.1770 integrated, −20 LUFS, lowered together if a peak would pass
 //! −1 dBFS), and `levels.csv`. With `--abx`, the blind ABX and preference kit
@@ -29,6 +31,22 @@ use cantus_core::{InstrumentKind, NativeSpec};
 use render::Stereo;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+
+/// `$CANTUS_REFS` joined with `sub`: the sound references' home outside every round's folder
+/// (`tools/sound-refs`; default `F:/projects/cantus-refs` on Windows, `~/cantus-refs` elsewhere).
+fn refs_dir(sub: &str) -> PathBuf {
+    let root = std::env::var_os("CANTUS_REFS")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            if cfg!(windows) {
+                PathBuf::from("F:/projects/cantus-refs")
+            } else {
+                PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join("cantus-refs")
+            }
+        });
+    root.join(sub)
+}
 
 const TARGET: f64 = -20.0;
 const CEILING_DB: f64 = -1.0;
@@ -113,7 +131,7 @@ fn main() {
     let salamander_root = args
         .get(2)
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("F:/projects/daw-r37/downloads/piano/content"));
+        .unwrap_or_else(|| refs_dir("piano").join("content"));
     let pianos = [
         Piano {
             label: "Salamander",

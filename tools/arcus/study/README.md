@@ -15,12 +15,19 @@ own biases cancel.
 
 ```
 python -m venv <venv>
-<venv>\Scripts\python.exe -m pip install numpy==2.3.3 scipy==1.16.2 matplotlib==3.10.6 soundfile==0.13.1
-set CANTUS_STUDY_DOWNLOADS=<the folder holding the downloaded recordings>
+<venv>\Scripts\python.exe -m pip install -r tools/sound-refs/requirements.txt
+python -I tools/sound-refs/fetch.py fetch arcus strings-rec study-*   # the recordings, ~7 GB
 ```
 
-The recordings never enter the repository. `catalog.py` lists the sources it expects under
-`CANTUS_STUDY_DOWNLOADS`. Each source's own `SOURCE.md` there gives its licence.
+The recordings never enter the repository: they are the sets of `tools/sound-refs/catalog.toml`
+under `CANTUS_REFS` (default `F:\projects\cantus-refs`; `CANTUS_STUDY_DOWNLOADS` overrides).
+`catalog.py` lists the sources it expects there; each source's `SOURCE.md` gives its licence
+(the repository keeps a copy in `tools/sound-refs/sources/`).
+
+The scripts write into `CANTUS_STUDY_REFDB` when it is set, else into
+`research/instruments-next/bowed-refdb/` (the committed distributions). `bash
+tools/sound-refs/rebuild_refdb.sh` runs the whole chain below into `$CANTUS_REFS/derived/refdb`
+and compares the result with the committed files.
 
 ## Running
 
@@ -33,7 +40,7 @@ Run from the repository's root with `<venv>\Scripts\python.exe -I tools/arcus/st
 3. The extra studies: `cnsm.py` (body against measured bridge admittances), `friction.py`
    (rosin friction against the hyperbolic curve), `bowing.py` (centroid against force, speed
    and β).
-4. `make_abx.py`: the blind-listening set. It writes under `CANTUS_STUDY_DOWNLOADS`, never
+4. `make_abx.py`: the blind-listening set. It writes under `CANTUS_REFS/study/abx-refs`, never
    into the repository.
 
 The regenerable outputs stay out of git, as the refdb's `.gitignore` lists: the per-note

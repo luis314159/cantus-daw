@@ -24,10 +24,12 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from body import body_estimate, body_marks  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402  ($CANTUS_REFS, $CANTUS_STUDY_REFDB: tools/sound-refs)
 from bowlib_core import load, yin_track, refine_track, phase_of, project, rms_db, median_filter  # noqa: E402
 
-C = Path(os.environ.get("CANTUS_STUDY_DOWNLOADS", r"F:\projects\daw-r42\downloads")) / "study" / "cnsm-violin"
-R = Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb"
+C = (Path(os.environ.get("CANTUS_STUDY_DOWNLOADS") or cp.refs())) / "study" / "cnsm-violin"
+R = cp.env_or("CANTUS_STUDY_REFDB", Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb")
 
 
 def admittance(violin):

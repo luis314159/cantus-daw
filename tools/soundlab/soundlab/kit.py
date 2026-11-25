@@ -180,7 +180,7 @@ def voice_files(subject, L, run, log):
                     subprocess.run(c, cwd=expand(spec.get("cwd", "{repo}"), subject), check=True)
         else:
             d = Path(expand(spec["dir"], subject))
-        out[v] = {it: d / f for it, f in spec["files"].items()}
+        out[v] = {it: d / expand(f, subject) for it, f in spec["files"].items()}
         for it, p in out[v].items():
             if not p.exists():
                 raise SystemExit(f"voice {v}, item {it}: {p} is missing")

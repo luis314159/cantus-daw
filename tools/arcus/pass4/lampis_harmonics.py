@@ -1,5 +1,7 @@
-import numpy as np, soundfile as sf, json
-D = r"F:\projects\daw-r42\downloads\study\zenodo-lampis-bridge-force-static-dynamic"
+import numpy as np, soundfile as sf, json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs")); import cantus_paths as cp  # noqa: E402
+D = str(cp.refs("study", "zenodo-lampis-bridge-force-static-dynamic"))  # $CANTUS_REFS
 A = np.genfromtxt(D + r"\features.csv", delimiter=",", names=True)
 out = []
 for r in A:
