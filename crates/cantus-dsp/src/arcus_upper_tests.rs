@@ -40,11 +40,19 @@ fn lower() -> Vec<ArcusSettings> {
 /// renders' RMS moved −0.3, +0.0, −0.4, −3.2, −0.8, −3.2, +1.3 dB, their difference at the
 /// level of the signal (RMS −4.1 … +3.8 dB re each render, max |Δ| 0.17–0.47: the vibrato's
 /// phase and the tremolo's strokes decorrelate them) — every note changed on purpose.
+///
+/// r42:arcus-p6 (`DSP_VERSION` 14): re-made for pass 6 — the cello's measured body radiates to
+/// 10 kHz (its cloud 640 Hz – 10 kHz, 55 modes, was 33 to 5.2 kHz), the match's correction
+/// fitted again over it, the cello's output trim 2.8 dB lower (what the cloud added). The
+/// measured size against c305bc540 (`tests_p5::probe_dump_lower` in both states): the four
+/// cello renders' RMS −0.03, −0.03, +0.06, +0.20 dB, their difference −10.9, −11.0, −11.5, −2.9
+/// dB re each render (max |Δ| 0.13–0.19: the spectrum above 2 kHz moved, the vibrato's partials
+/// sweep more modes); the three bass renders the same to the bit (difference under −267 dB).
 const LOWER_HASHES: &[u64] = &[
-    0x914d942f0d0453f9,
-    0xc02bf7e99fbacc61,
-    0xa1ff370904415db3,
-    0x3fe5a485e8e429d1,
+    0x6d5e0259952247da,
+    0xe01dd2f1fccb542d,
+    0xa568fb3f43a76064,
+    0x7427607794f02a73,
     0xca2c6a870093b044,
     0xd0b07d0d827ca234,
     0x368b8fa3f06e79bf,

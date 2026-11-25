@@ -11,7 +11,10 @@
 use crate::math;
 
 /// Modes in the largest body.
-pub const BODY_MODES: usize = 40;
+// r42:arcus-p6: 64 (was 40) for Arcus's measured cello and bass, whose clouds now reach the
+// recordings' 9-10 kHz; every other body keeps its count, and the loop runs only over the
+// chunks a body uses, so their bits and cost are unchanged.
+pub const BODY_MODES: usize = 64;
 
 /// Which body, in `body.type`'s order.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -193,7 +196,10 @@ fn recipe(kind: BodyKind) -> Recipe {
                 (410.0, 30.0, 0.65),
                 (560.0, 30.0, 0.55),
             ],
-            cloud: (640.0, 5200.0, 33),
+            // r42:arcus-p6: to 10 kHz (was 5.2), 55 modes (was 33, 11 an octave; now 14): above
+            // 5.2 kHz the body radiated nothing, and the match's correction stood at its
+            // +12 dB cap at 10 kHz on that silence (`docs/round42/arcus-match.md`, *Pass 6*).
+            cloud: (640.0, 10_000.0, 55),
             q: (35.0, 22.0),
             // Measured through the same estimator, −4.5 read −6.7 dB/oct and the centroid
             // under the cellos' band: −2.5 here.
@@ -214,6 +220,8 @@ fn recipe(kind: BodyKind) -> Recipe {
                 (300.0, 28.0, 0.6),
                 (412.0, 30.0, 0.6),
             ],
+            // r42:arcus-p6: tried to 9 kHz with 56 modes, measured mixed on the two thirds (the
+            // medium centroid and the pluck's decays further out): kept at 4.5 kHz.
             cloud: (480.0, 4500.0, 33),
             q: (35.0, 22.0),
             slope_db: -6.0,

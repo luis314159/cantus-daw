@@ -288,7 +288,9 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     vib_hz: 5.5,
     vib_ct: 18.0,
     vib: CELLO_VIB, // r42:arcus-p5
-    trim_db: 16.0,
+    // r42:arcus-p6: the cloud to 10 kHz radiates 2.8 dB more (`upper_tests::LOWER_HASHES`'s
+    // renders): taken back here, so the cello sounds at the level it had (was 16.0).
+    trim_db: 13.2,
     // Pass 3: 3 kHz rounded the cello's upper partials under the cellos' band at ff (the
     // bow near the bridge could not brighten it): 6 kHz.
     corner_hz: 6000.0,
@@ -529,8 +531,11 @@ pub const CELLO_MATCH: Match = Match {
     // Pass 2: over the measured body, what is left of the recordings' spectrum (the match's
     // fit on two thirds of the notes; pass 1 fitted −9.7 dB at 63 Hz … +12 at 10 kHz over
     // the scaled violin body).
+    // r42:arcus-p6: fitted again over the cello body's cloud to 10 kHz (`match.sh fit`, the
+    // same two thirds; only the correction taken). Pass 2's: −8.1 −5.2 −3.0 −1.5 −0.8 −2.0 −1.9
+    // +0.4 −0.2 −0.7 +6.7 +12.0 (the cap at 10 kHz, lifting a body that radiated nothing there).
     eq_db: [
-        -8.1, -5.2, -3.0, -1.5, -0.8, -2.0, -1.9, 0.4, -0.2, -0.7, 6.7, 12.0,
+        -6.4, -3.1, -1.5, -0.7, 1.0, 0.1, -0.9, 1.1, 1.6, 0.5, 2.5, 6.0,
     ],
     // Pass 2, measured by the study's estimator on the held-out notes: the hair's noise 3–6
     // dB under the cellos' band, the vibrato ±16.6 cents against ±6–12 and 5.8 Hz against
