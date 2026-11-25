@@ -458,6 +458,9 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             c.p.at(cam.depth((a + e) * 0.5) - bias(*role), Part::Bowed);
             let mut o = NS;
             o.minw = if matches!(role, Role::Steel | Role::Wound | Role::Silk(_)) {
+                // (r42:arcus-polish2: a string one even colour while thinner than a
+                // point and a half — its gradient across dotted it.)
+                o.flat = 1.5;
                 0.55
             } else {
                 1.0

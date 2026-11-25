@@ -62,7 +62,9 @@ fn frame(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, i: usize) -
     let t0 = Instant::now();
     let mut out = ctx.run_ui(input, |ui| views::inst::window_in(app, ui));
     out.textures_delta.clear();
+    let tt = views::inst::arcus::probe::t0();
     let prims = ctx.tessellate(out.shapes, out.pixels_per_point);
+    views::inst::arcus::probe::lap("TESSELLATE", tt);
     std::hint::black_box(prims);
     t0.elapsed().as_secs_f64() * 1e3
 }
@@ -74,9 +76,35 @@ fn measure(inst: f32, hold: Hold, k: f32, q: Quality) -> (f64, f64) {
     for i in 0..30 {
         let _ = frame(&mut app, &ctx, size, i);
     }
+    let timed = hold != Hold::Air && std::env::var_os("CANTUS_BUDGET_TIMES").is_some();
+    views::inst::arcus::probe::timing(timed);
     let mut ms: Vec<f64> = (30..230).map(|i| frame(&mut app, &ctx, size, i)).collect();
+    if timed {
+        let parts: Vec<String> = views::inst::arcus::probe::times()
+            .iter()
+            .map(|(n, t, c)| format!("{n} {:.3} ms ({:.1}/f)", t / 200.0, *c as f64 / 200.0))
+            .collect();
+        println!("  {hold:?} {q:?} {k}: {}", parts.join(", "));
+        views::inst::arcus::probe::timing(false);
+    }
     ms.sort_by(f64::total_cmp);
     (ms[ms.len() / 2], ms[ms.len() * 95 / 100])
+}
+
+/// `CANTUS_BUDGET_ONLY=violin,Woman,High` (any of the instrument, the holder, the level, comma
+/// separated) measures only the matching cases — for a builder's quick look; the gate is the
+/// whole run.
+fn wanted(name: &str, hold: Hold, q: Quality) -> bool {
+    let Ok(only) = std::env::var("CANTUS_BUDGET_ONLY") else {
+        return true;
+    };
+    let (h, l) = (format!("{hold:?}"), format!("{q:?}"));
+    let words: Vec<&str> = only.split(',').map(str::trim).collect();
+    let pick =
+        |group: &[&str], v: &str| !words.iter().any(|w| group.contains(w)) || words.contains(&v);
+    pick(&["violin", "cello"], name)
+        && pick(&["Player", "Mannequin", "Woman", "Man"], &h)
+        && pick(&["Light", "High"], &l)
 }
 
 #[test]
@@ -89,6 +117,9 @@ fn the_figures_live_arms_draw_in_the_frame_budget() {
         for (ki, k) in [1.0f32, 2.0].into_iter().enumerate() {
             for hold in [Hold::Player, Hold::Mannequin, Hold::Woman, Hold::Man] {
                 for q in [Quality::Light, Quality::High] {
+                    if !wanted(name, hold, q) {
+                        continue;
+                    }
                     // The reference beside it, then the figure, best of five rounds each.
                     let mut best: Option<(f64, f64, f64, f64)> = None;
                     for _ in 0..5 {

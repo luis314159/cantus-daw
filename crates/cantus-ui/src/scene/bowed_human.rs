@@ -1184,8 +1184,10 @@ fn covered_by_arm(fig: &Figure, t: &[u16; 3], part: u8) -> bool {
     })
 }
 
-/// How much of a corner's weight is its arm's for the live arm to draw it opaque.
-const ARM_COVERS: f32 = 0.5;
+/// How much of a corner's weight is its arm's for the live arm to draw it opaque (its fade
+/// is whole from 0.38; r42:arcus-polish2: the bake leaves out every bow-arm band triangle
+/// from there — the live band is the bake's surface below it, `arcus_draw_flesh`'s `live`).
+pub const ARM_COVERS: f32 = 0.38;
 
 /// The triangles of `fig` in any of the parts `mask` names, posed as `pts`/`nrm`, added
 /// to `m` a role each.

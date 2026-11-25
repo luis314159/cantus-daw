@@ -1059,6 +1059,10 @@ fn lines(
 /// stand's mast is 3–6 pixels wide in the kit's picture).
 const THIN_PX: f32 = 8.0;
 
+/// r42:arcus-polish2 — how wide on screen (pixels) an instrument's string is drawn evenly
+/// across (its round averaged over the pixel), not as a lit tube.
+const WIRE_PX: f32 = 2.5;
+
 /// The rods `cam` sees thinner than [`THIN_PX`] (and long beside their width).
 fn thin_rods(geo: &Geo, cam: &Camera) -> Vec<Rod> {
     geo.rods
@@ -1221,7 +1225,14 @@ fn tubes(
                         let u = u.clamp(-0.995, 0.995);
                         (across * u + side * (1.0 - u * u).sqrt()).norm()
                     };
-                    let u = (sd / hw).clamp(-1.0, 1.0);
+                    // r42:arcus-polish2 — a string a pixel or two wide: the pixel sees most
+                    // of its round, so it is shaded nearer the round's middle (the edges'
+                    // share below) and only its coverage falls off across — shaded from the
+                    // pixel's place across, a slanted string turned bright where it crossed
+                    // a pixel's middle and dark between: a dashed line.
+                    let wire = wpx < WIRE_PX && geo.wires.contains(&s.rod.m);
+                    let fill = if wire { wpx / WIRE_PX } else { 1.0 };
+                    let u = ((sd / hw) * fill).clamp(-1.0, 1.0);
                     let du = 1.0 / hw;
                     let n = n_at(u);
                     let n2 = if u + du <= 1.0 {
@@ -1250,6 +1261,8 @@ fn tubes(
                     // where it turns away), its mirror bright down the middle.
                     let c = if m.kind == Kind::Metal {
                         let e = 1.0 - 0.6 * super::mat::smooth(0.55, 1.0, u.abs());
+                        // (A whole sub-pixel string's dark edges, averaged: 0.135 of it.)
+                        let e = e * (1.0 - 0.135 * (1.0 - fill));
                         lscale(c, e)
                     } else {
                         c

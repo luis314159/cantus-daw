@@ -279,6 +279,11 @@ pub struct TubeOpts {
     /// dark room mirrored either side of the bright core, the edges dark where it turns
     /// away — what makes a tube read round, not a flat grey bar.
     pub bands: bool,
+    /// r42:arcus-polish2 — below this width on screen (points) the tube is drawn in one
+    /// colour, its round's mean: across a line thinner than a pixel the gradient is sampled
+    /// once per pixel, bright where the line crosses a pixel's middle and dark between — a
+    /// violin's strings read dotted. 0 never (the default: every other picture as it was).
+    pub flat: f32,
 }
 
 /// Round caps, a shadow, sorted with its group.
@@ -288,6 +293,7 @@ pub const T: TubeOpts = TubeOpts {
     minw: 1.0,
     own: false,
     bands: false,
+    flat: 0.0,
 };
 /// Round caps, a shadow, its own group.
 pub const OWN: TubeOpts = TubeOpts { own: true, ..T };
@@ -385,11 +391,22 @@ pub fn tube(c: &mut Ctx, a: V3, b: V3, r: f32, mat: &Mat, o: TubeOpts) {
         };
         *st = (k as f32 / 8.0, col);
     }
-    let g = lin(
-        Pos2::new(m.x - px * w / 2.0, m.y - py * w / 2.0),
-        Pos2::new(m.x + px * w / 2.0, m.y + py * w / 2.0),
-        &stops,
-    );
+    let g = if w < o.flat {
+        let mean = stops.iter().fold([0.0f32; 3], |a, s| {
+            [
+                a[0] + s.1[0] / 9.0,
+                a[1] + s.1[1] / 9.0,
+                a[2] + s.1[2] / 9.0,
+            ]
+        });
+        Paint::Solid(mean)
+    } else {
+        lin(
+            Pos2::new(m.x - px * w / 2.0, m.y - py * w / 2.0),
+            Pos2::new(m.x + px * w / 2.0, m.y + py * w / 2.0),
+            &stops,
+        )
+    };
     c.p.line(pa, pb, w, g, o.cap, 1.0);
     if o.shadow {
         c.shadow_segs.push((a, b, r));

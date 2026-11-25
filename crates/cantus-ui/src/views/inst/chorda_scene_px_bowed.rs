@@ -270,5 +270,10 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
     for (role, r) in &m.rods {
         let mi = id(g, *role);
         g.rod(of(r.a), of(r.b), r.r / 100.0, mi);
+        // r42:arcus-polish2 — the strings (dashed white and black down the fingerboard
+        // at 100 %, the owner's review).
+        if matches!(role, Role::Steel | Role::Wound) && !g.wires.contains(&mi) {
+            g.wires.push(mi);
+        }
     }
 }

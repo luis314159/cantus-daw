@@ -165,8 +165,9 @@ pub fn feather(who: u8, line: f32) -> f32 {
     if who == 0 {
         smooth(-6.0, 2.0, line)
     } else {
-        // (His short hair's edge is its cards' own, as it read well on sheet v8.)
-        1.0
+        // (His short hair's edge thins over a narrower ramp — a groomed hairline; r42:
+        // arcus-polish2: his cards' own edge read as jagged teeth at 200 %.)
+        smooth(-2.5, 1.5, line)
     }
 }
 
@@ -203,6 +204,14 @@ pub struct HairLook {
     /// of the back light (the rim that tells the hair from the room) it takes.
     pub streaks: f32,
     pub rim: f32,
+    /// r42:arcus-polish2 — the broad sections' share in the streaks, how deep the darker
+    /// ones go (1 as the fine streaks), how much deeper the underlayer reads, the sheen's
+    /// tint (linear gains: warm on dark brown) and how broken along the strands it is.
+    pub sections: f32,
+    pub lowlight: f32,
+    pub under: f32,
+    pub warm: [f32; 3],
+    pub broken: f32,
 }
 
 /// `who`'s (0 her, 1 him) hair. His short hair runs every way (its curls' way changes
@@ -218,20 +227,32 @@ pub fn hair_look(who: u8) -> HairLook {
             sheen: (9.0, 0.3),
             detail: 1.0,
             scalp: 0.5,
-            streaks: 1.0,
+            streaks: 1.35,
             rim: 1.6,
+            sections: 0.55,
+            lowlight: 1.35,
+            under: 0.38,
+            warm: [1.0, 1.0, 1.0],
+            broken: 0.45,
         }
     } else {
         // (r42:arcus-polish: a soft sheen band now his strands are combed one way in the
         // light, `px_shade::strands` — stronger, his dark hair read grey; his locks' streaks.)
+        // (r42:arcus-polish2: the band narrow, warm and broken — the owner on sheet v11: a
+        // grey sheet then, too faint to read once lowered.)
         HairLook {
             albedo: 1.0,
-            shine: (80.0, 0.012),
-            sheen: (14.0, 0.018),
+            shine: (90.0, 0.07),
+            sheen: (26.0, 0.07),
             detail: 0.45,
             scalp: 0.55,
             streaks: 0.9,
             rim: 1.4,
+            sections: 0.2,
+            lowlight: 1.0,
+            under: 0.25,
+            warm: [1.25, 1.0, 0.72],
+            broken: 0.7,
         }
     }
 }
@@ -247,7 +268,9 @@ pub fn scalp_cover(who: u8, line: f32, across: f32) -> f32 {
         // jagged staircase at 200 %, the coordinator's review.)
         smooth(-3.5, 2.5, line + wave)
     } else {
-        1.0
+        // (r42:arcus-polish2: his thins as well, over a narrower, less uneven edge.)
+        let wave = (across * 9.0).sin() * 0.3 + (across * 2.7 * 9.0).sin() * 0.2;
+        smooth(-2.5, 1.5, line + wave)
     }
 }
 
@@ -498,7 +521,8 @@ mod tests {
         use super::{feather, scalp_cover, thin};
         assert_eq!(feather(0, 10.0), 1.0);
         assert_eq!(feather(0, -10.0), 0.0);
-        assert_eq!(feather(1, -30.0), 1.0);
+        assert_eq!(feather(1, 10.0), 1.0);
+        assert_eq!(feather(1, -10.0), 0.0);
         let mut last = 0.0;
         for i in 0..=40 {
             let f = feather(0, -8.0 + i as f32 * 0.3);

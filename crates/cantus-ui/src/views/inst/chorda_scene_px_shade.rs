@@ -759,17 +759,29 @@ fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f
     // hair, not one tone (the owner: "yellow-flat, helmet-like").
     let across = along.cross(n);
     let (xa, xl) = (s.p.dot(across), s.p.dot(along));
+    // (r42:arcus-polish2: and broad sections a few centimetres across, each its own shade —
+    // a blonde's lowlights and lighter lengths, the owner's "tonal bands".)
     let band = 0.6 * (super::mat::noise(xa * 190.0, xl * 22.0, 211) - 0.5)
-        + 0.4 * (super::mat::noise(xa * 55.0, xl * 7.0, 223) - 0.5);
+        + 0.4 * (super::mat::noise(xa * 55.0, xl * 7.0, 223) - 0.5)
+        + look.sections * (super::mat::noise(xa * 26.0, xl * 3.0, 227) - 0.5);
     let streak = (band * look.streaks).clamp(-0.5, 0.5);
     let tone: Lin = if streak < 0.0 {
         let k = -streak * 2.0;
-        [1.0 - 0.36 * k, 1.0 - 0.42 * k, 1.0 - 0.5 * k]
+        // (r42:arcus-polish2: a fair head's lowlights toward honey-brown, deeper.)
+        let w = look.lowlight;
+        [1.0 - 0.36 * w * k, 1.0 - 0.42 * w * k, 1.0 - 0.5 * w * k]
     } else {
         let k = streak * 2.0;
         [1.0 + 0.2 * k, 1.0 + 0.22 * k, 1.0 + 0.26 * k]
     };
-    let d = lmul(lmul(sf.albedo, tone), ladd(e, lscale(rim, look.rim)));
+    // r42:arcus-polish2 — the underlayer: hair turned down and in (under the crown's
+    // fall, at the nape, round the bun) lies in its own shade and reads deeper, as the
+    // roots do (the owner: "darker roots and underlayer").
+    let under = 1.0 - look.under * smooth(0.25, -0.65, n.y);
+    let d = lscale(
+        lmul(lmul(sf.albedo, tone), ladd(e, lscale(rim, look.rim))),
+        under,
+    );
     let h = (s.l + s.v).norm();
     // The highlight fades over the terminator (a strand's back is not lit).
     let lit = (n.dot(s.l) * 2.0 + 0.6).clamp(0.0, 1.0) * s.kv;
@@ -782,9 +794,12 @@ fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f
     };
     let s1 = kk(along + n * 0.12).powf(look.shine.0) * look.shine.1;
     let s2 = kk(along - n * 0.18).powf(look.sheen.0) * look.sheen.1;
-    let tint = lscale(lmul(m.base, tone), 1.5);
+    let tint = lmul(lscale(lmul(m.base, tone), 1.5), look.warm);
     // (A bright strand catches more of it; the gaps' deeper hair less.)
-    let g = detail * detail * k * (1.0 + streak);
+    // r42:arcus-polish2 — the band broken along the strands into clumps (a groomed head's
+    // sheen is a broken band of light, never a sheet: the owner on sheet v11).
+    let clumps = smooth(0.3, 0.72, super::mat::noise(xa * 300.0, xl * 36.0, 239));
+    let g = detail * detail * k * (1.0 + streak) * (1.0 - look.broken * (1.0 - clumps)) * under;
     // (His primary tinted too: a white one over dark brown read as a grey sheet, the owner's
     // review of sheet v11.)
     let white = if s.who == 1 { 0.0 } else { 1.0 };
