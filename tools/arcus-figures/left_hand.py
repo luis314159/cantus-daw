@@ -39,7 +39,8 @@ sys.path.insert(0, HERE)
 import hand_rig as hr  # noqa: E402
 
 ROOT = os.path.join(HERE, "..", "..")
-FIGS = os.path.join(ROOT, "crates", "cantus-ui", "assets", "figures")
+# (r42:arcus-hands: CANTUS_FIGURE_DIR names a folder build_figures.py wrote, as the app reads it.)
+FIGS = os.environ.get("CANTUS_FIGURE_DIR") or os.path.join(ROOT, "crates", "cantus-ui", "assets", "figures")
 OUT = os.path.join(FIGS, "left_hand.bin")
 O = hr.side(0)
 HAND = O + hr.HAND
@@ -202,14 +203,17 @@ class Neck:
 # ---- the rules -------------------------------------------------------------------------
 
 # The anatomical ranges (deg): the playing finger's and a hovering one's MCP, PIP, DIP.
-PLAY = ((30, 62), (75, 105), (15, 45))
-HOVER = ((20, 60), (50, 95), (5, 35))
+# (r42:arcus-hands: the base joints straighter and the middle joints less bent — the owner,
+# 2026-11-25: the fingers "short and stubby, curled tight near the board"; in the
+# photographs the first phalanges rise high from the knuckles, nearly on the back's line.)
+PLAY = ((18, 52), (62, 100), (10, 40))
+HOVER = ((12, 52), (40, 90), (5, 32))
 # Each finger's spread at rest (rad): the index a little toward the scroll, the little
 # finger a little away.
 SPREAD = np.array([0.0, 0.0, 0.02, 0.05])
 # Each finger's angles near the middle of its range (deg; the owner's review: curled to
 # the ranges' ends the fingers read short, a fist on the fingerboard).
-MID = (45.0, 90.0, 25.0)
+MID = (32.0, 80.0, 20.0)
 # Where the palm faces (the owner's photographs 2-4: toward the player as much as toward the
 # neck, a little up), and how near to it it must keep.
 def back_way(pose):
@@ -236,11 +240,11 @@ YAW = 30.0
 PALM_MIN = 0.996
 PALM_W = 150.0
 # Each finger's middle joint over the fingerboard's top (cm): index, middle, ring, little.
-ARCHES = (3.0, 3.3, 3.1, 2.4)
-# The playing finger's last phalanx within this of the fingerboard's normal (cos).
-UPRIGHT_COS = 0.913
-# Each first phalanx rising from its knuckle: within this of the normal (cos 40 deg).
-RISE_COS = 0.766
+ARCHES = (3.5, 3.8, 3.6, 3.0)
+# The playing finger's last phalanx within this of the fingerboard's normal (cos 19 deg; was 24).
+UPRIGHT_COS = 0.945
+# Each first phalanx rising from its knuckle: within this of the normal (cos 31 deg; was 40).
+RISE_COS = 0.857
 # The wrist under the neck (cm across from the E edge, below the top).
 WRIST_X = (0.0, 3.5)
 # The wrist's deviation toward the little finger (deg): its range and where it rests.
@@ -250,7 +254,7 @@ WRIST_DEV_MID = 3.0
 HOVER_SLACK = (1.2, 1.4, 1.8, 2.6)
 WRIST_Z = (-10.5, -5.0)
 # How high the knuckles stand over the fingerboard's top, at least (cm).
-KNUCKLES = (-1.6, -0.2)
+KNUCKLES = (-1.0, 0.4)
 # Her hand's length, wrist to the middle knuckles (cm, after knuckle_fix): the rules' unit.
 HAND_LEN = 7.61
 # How far out from the E edge the base knuckles stand (cm): beside the neck.

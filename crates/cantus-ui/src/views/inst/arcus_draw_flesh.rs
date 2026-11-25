@@ -53,6 +53,9 @@ struct ArmMesh {
     /// r42:arcus-hand — each vertex's detail (luminance, red) for the hand: the figure's,
     /// with the nails' free edges paler and the knuckles a little redder.
     vdet: Vec<[f32; 2]>,
+    /// r42:arcus-hands — the hand's fine marks (the joints' creases) on this mesh; none on
+    /// Light's.
+    marks: Vec<super::marks::Line>,
 }
 
 /// r42:arcus-upper — the arm at a level of detail: 0 the full one (High), 1 and 2 Light's
@@ -203,6 +206,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         fine,
         curved,
         vdet,
+        marks: Vec::new(),
     }
 }
 
@@ -314,6 +318,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
     let (fine, vdet) = hand_detail(fig, s, &verts, &tris, &stuff);
     let seam = seams(fig, &verts, &edges);
     let curved = curved_edges(&tris, &fine, &weld);
+    let marks = super::marks::build(fig, s, &verts, &tris, &stuff);
     ArmMesh {
         verts,
         tris,
@@ -326,6 +331,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         fine,
         curved,
         vdet,
+        marks,
     }
 }
 
@@ -1163,9 +1169,24 @@ pub fn arm(
                     .push((v.cam.depth(mid) - 0.05 + bias, tri_n + e as u32));
             }
         }
+        // r42:arcus-hands — the hand's creases, sorted a little in front of their skin.
+        let marks_at = tri_n + am.edges.len() as u32;
+        if fine_n > 1 {
+            for (li, line) in am.marks.iter().enumerate() {
+                let p = super::marks::middle(line, &am.tris, &sc.pts);
+                if hidden.is_none_or(|(want, hid)| hid(p) == want) {
+                    sc.order.push((v.cam.depth(p) - MARK_AHEAD, marks_at + li as u32));
+                }
+            }
+        }
         sc.order
             .sort_unstable_by(|x, y| y.0.partial_cmp(&x.0).unwrap_or(std::cmp::Ordering::Equal));
         for &(_, k) in &sc.order {
+            if k >= marks_at {
+                let line = &am.marks[(k - marks_at) as usize];
+                super::marks::stroke(b, v, line, &am.tris, &sc.pts, &sc.nrm, &sc.col, eye);
+                continue;
+            }
             if k < tri_n {
                 if fine_n > 1 && am.fine[k as usize] {
                     let fc = FineCtx {
@@ -1375,6 +1396,8 @@ const RELIEF: (f32, f32, f32) = (0.1, 0.13, 0.08);
 const FINE_EDGE: f32 = 0.62;
 const FINE_PX: f32 = 4.0;
 const FINE_MAX: usize = 2;
+/// r42:arcus-hands — how far (cm) a crease is sorted in front of the skin it lies on.
+const MARK_AHEAD: f32 = 0.12;
 
 /// What a hand patch is lit and placed by.
 struct FineCtx<'a> {

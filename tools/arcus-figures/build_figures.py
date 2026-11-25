@@ -207,6 +207,49 @@ THUMB_SLIM = 0.92
 FINGER_EXTRA = {3: 0.9, 4: 0.95, 5: 0.84}
 
 
+# r42:arcus-hands — each finger's three segments stretched along their own bones (index,
+# middle, ring, little: MakeHuman's 2-5), so the fingers keep a real hand's proportions (the
+# owner, 2026-11-25: "short and stubby"; measured on her hand after knuckle_fix: the index
+# 7.7 cm and the little finger 6.0 against the middle's 8.6 — a real hand's index and ring
+# about 0.93-0.96 of the middle, the little finger reaching the ring's last joint; her
+# little finger's middle phalanx 0.49 of its first, a real one's ~0.6). (first, middle,
+# last) a finger.
+FINGER_STRETCH = {2: (1.08, 1.0, 1.0), 3: (1.04, 1.0, 1.0), 4: (1.04, 1.0, 1.0),
+                  5: (1.03, 1.25, 1.0)}
+
+
+def lengthen_fingers(pos, wt, J):
+    """r42:arcus-hands — ``FINGER_STRETCH``: each finger's joints moved down its chain and
+    its skin carried with the bone it is weighted to (stretched along that bone between its
+    head and its tail, moved with its head before and with its tail past it), so the skin
+    stays smooth through every joint; ``J`` is updated in place."""
+    out = pos.copy()
+    for s in SIDES:
+        for f, scale in FINGER_STRETCH.items():
+            names = [f"finger{f}-{k}.{s}" for k in (1, 2, 3)]
+            if any(n not in wt or f"{n}____head" not in J for n in names):
+                continue
+            j = [J[f"{n}____head"].copy() for n in names] + [J[f"{names[2]}____tail"].copy()]
+            nj = [j[0]]
+            for k in range(3):
+                nj.append(nj[k] + (j[k + 1] - j[k]) * scale[k])
+            for k, n in enumerate(names):
+                a = j[k + 1] - j[k]
+                L = max(np.linalg.norm(a), 1e-9)
+                a = a / L
+                ids = np.array([i for i, _ in wt[n] if i < len(pos)])
+                w = np.array([x for i, x in wt[n] if i < len(pos)])
+                if len(ids) == 0:
+                    continue
+                u = np.clip((pos[ids] - j[k]) @ a, 0.0, L)
+                d = (nj[k] - j[k])[None, :] + (scale[k] - 1.0) * u[:, None] * a[None, :]
+                out[ids] += d * w[:, None]
+            for k, n in enumerate(names):
+                J[f"{n}____head"] = nj[k]
+                J[f"{n}____tail"] = nj[k + 1]
+    return out
+
+
 def slim_fingers(pos, wt, J):
     """Each finger's skin drawn in toward its phalanges' axes (by its weight to them), so
     the fingers read slender and long; the bones stay where they are."""
@@ -266,6 +309,10 @@ THENAR = 0.7
 PALM_THICK = 0.9
 # The palm's own side (its pad and heel) drawn in toward the metacarpals.
 PALM_VOLAR = 0.45
+# r42:arcus-hands — where the volar thinning starts and how long it ramps (shares of the
+# wrist-to-knuckles length): started at 0.08 it narrowed the wrist's crease as the camera
+# sees it (arcus_hand_table: her viola, E string, the palm 4.3 cm over a 2.9 cm wrist).
+PALM_RAMP = (0.16, 0.22)
 
 
 def slim_hand(pos, wt, J):
@@ -318,7 +365,7 @@ def slim_hand(pos, wt, J):
         L = max(np.linalg.norm((k2 + k5) * 0.5 - wr), 1e-6)
         # (Not at the wrist's crease itself: thinned there the wrist read pinched under the
         # palm — arcus_hand_table's palm-to-wrist rule.)
-        tt = smooth01((((q - wr) @ along) / L - 0.08) / 0.25)
+        tt = smooth01((((q - wr) @ along) / L - PALM_RAMP[0]) / PALM_RAMP[1])
         k = np.where(off > 0.0, 1.0 - PALM_VOLAR, 1.0 - PALM_THICK)
         out[ids] = q - n[None, :] * (off * k * pshare[ids] * tt)[:, None]
     return out
@@ -955,6 +1002,7 @@ def make(sex, data, assets):
     pos = shaped(base, data, sex, mix)
     J = mh.joint_positions(sk, pos)
     pos = close_lids(pos, wt, J)
+    pos = lengthen_fingers(pos, wt, J)  # r42:arcus-hands
     pos = slim_fingers(pos, wt, J)
     pos = shape_arms(pos, wt, J, sex)  # r42:arcus-polish
     pos = slim_hand(pos, wt, J)  # r42:arcus-polish

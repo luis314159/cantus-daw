@@ -24,6 +24,8 @@ mod flesh; // r42:arcus-upper
 pub mod hand; // r42:arcus-upper
 #[path = "arcus_draw_lit.rs"]
 mod lit; // r42:arcus-upper
+#[path = "arcus_draw_marks.rs"]
+mod marks; // r42:arcus-hands
 
 /// r42:arcus-polish — what the live arms were drawn as, for the tests that measure them from
 /// the app's own camera (`tests/arcus_figure_shape.rs`): off unless a test turns it on.
