@@ -35,6 +35,10 @@ struct ArmMesh {
     /// fades into the baked body without a seam.
     alpha: Vec<f32>,
     edges: Vec<(u16, u16, u32, u32)>,
+    /// r42:arcus-hand — which open edges are a texture seam's two sides drawn apart by the
+    /// thinning (each side's copy collapsed on its own): painted solid across the crack,
+    /// not feathered (the thin light line along the sleeve the review found).
+    seam: Vec<bool>,
     /// r42:arcus-upper — each vertex's first copy at its place (a texture seam's copies
     /// share one normal).
     weld: Vec<u16>,
@@ -180,6 +184,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
     let weld = weld_of(fig, &verts);
     let fine = vec![false; tris.len()];
     let vdet = verts.iter().map(|&g| fig.detail[g as usize]).collect();
+    let seam = seams(fig, &verts, &edges);
     ArmMesh {
         verts,
         tris,
@@ -187,6 +192,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         upper,
         alpha,
         edges,
+        seam,
         weld,
         fine,
         vdet,
@@ -240,6 +246,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         stuff.push(fig.stuff[k]);
         upper.push(t.iter().map(|&i| up_share(i as usize)).sum::<f32>() / 3.0 > 0.5);
     }
+    close_cloth_seams(fig, &verts, &mut tris, &mut stuff, &mut upper);
     // (Edges by place: a texture seam's copies are one edge, not an outline.)
     let wl = weld_of(fig, &verts);
     let mut e: std::collections::HashMap<(u16, u16), (u32, u32)> = Default::default();
@@ -298,6 +305,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         .collect();
     let weld = weld_of(fig, &verts);
     let (fine, vdet) = hand_detail(fig, s, &verts, &tris, &stuff);
+    let seam = seams(fig, &verts, &edges);
     ArmMesh {
         verts,
         tris,
@@ -305,11 +313,122 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         upper,
         alpha,
         edges,
+        seam,
         weld,
         fine,
         vdet,
     }
 }
+
+/// r42:arcus-hand — a sleeve's seam closed. The cloth's texture seam split its vertices in
+/// two copies, and the offline thinning collapsed each side on its own, so the two sides of
+/// the seam no longer meet: a crack down the sleeve the wall showed through (the review's
+/// "tan stripe"). Each cloth vertex on an edge open in the whole figure is joined to the
+/// nearest such vertex on the seam's other side (not one it shares a triangle with) within
+/// [`SEAM_NEAR`] cm; triangles that fold to an edge go. Cloth only: the skin's seams keep
+/// their copies (their texture coordinates differ).
+fn close_cloth_seams(
+    fig: &Figure,
+    verts: &[u32],
+    tris: &mut Vec<[u16; 3]>,
+    stuff: &mut Vec<Stuff>,
+    upper: &mut Vec<bool>,
+) {
+    use std::collections::{HashMap, HashSet};
+    let cloth = |st: Stuff| matches!(st, Stuff::Velvet | Stuff::Wool | Stuff::Shirt);
+    let gw = |g: u32| fig.weld.get(g as usize).copied().unwrap_or(g);
+    let mut whole: HashMap<(u32, u32), u8> = HashMap::new();
+    for t in &fig.tris {
+        for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            let (a, b) = (gw(a as u32), gw(b as u32));
+            *whole.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+        }
+    }
+    let mut open: Vec<u16> = Vec::new();
+    let mut near: HashSet<(u16, u16)> = HashSet::new();
+    for (k, t) in tris.iter().enumerate() {
+        for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            near.insert((a.min(b), a.max(b)));
+            let (ga, gb) = (gw(verts[a as usize]), gw(verts[b as usize]));
+            if cloth(stuff[k]) && whole.get(&(ga.min(gb), ga.max(gb))).copied() == Some(1) {
+                open.push(a);
+                open.push(b);
+            }
+        }
+        for &i in t {
+            for &j in t {
+                if i < j {
+                    near.insert((i, j));
+                }
+            }
+        }
+    }
+    open.sort_unstable();
+    open.dedup();
+    let pos = |i: u16| fig.pos[verts[i as usize] as usize];
+    let mut map: Vec<u16> = (0..verts.len() as u16).collect();
+    let root = |m: &Vec<u16>, mut i: u16| {
+        while m[i as usize] != i {
+            i = m[i as usize];
+        }
+        i
+    };
+    for &i in &open {
+        let best = open
+            .iter()
+            .copied()
+            .filter(|&j| j != i && !near.contains(&(i.min(j), i.max(j))))
+            .map(|j| (j, (pos(i) - pos(j)).len()))
+            .filter(|&(_, d)| d < SEAM_NEAR)
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        if let Some((j, _)) = best {
+            let (ri, rj) = (root(&map, i), root(&map, j));
+            if ri != rj {
+                map[ri.max(rj) as usize] = ri.min(rj);
+            }
+        }
+    }
+    let mut k = 0;
+    while k < tris.len() {
+        let t = tris[k].map(|i| root(&map, i));
+        if t[0] == t[1] || t[1] == t[2] || t[0] == t[2] {
+            tris.swap_remove(k);
+            stuff.swap_remove(k);
+            upper.swap_remove(k);
+        } else {
+            tris[k] = t;
+            k += 1;
+        }
+    }
+}
+
+/// r42:arcus-hand — the open edges that are a seam's sides: each open edge whose middle
+/// lies within [`SEAM_NEAR`] cm (at rest) of another open edge's middle.
+fn seams(fig: &Figure, verts: &[u32], edges: &[(u16, u16, u32, u32)]) -> Vec<bool> {
+    let mid = |e: &(u16, u16, u32, u32)| {
+        (fig.pos[verts[e.0 as usize] as usize] + fig.pos[verts[e.1 as usize] as usize]) * 0.5
+    };
+    let open: Vec<(usize, V3)> = edges
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.3 == u32::MAX)
+        .map(|(i, e)| (i, mid(e)))
+        .collect();
+    let mut seam = vec![false; edges.len()];
+    for (k, &(i, m)) in open.iter().enumerate() {
+        if open
+            .iter()
+            .enumerate()
+            .any(|(j, &(_, n))| j != k && (m - n).len() < SEAM_NEAR)
+        {
+            seam[i] = true;
+        }
+    }
+    seam
+}
+
+/// How near two open edges lie to be one seam's sides (cm; the thinning's shortest edge).
+const SEAM_NEAR: f32 = 0.62;
 
 /// r42:arcus-hand — which of an arm's triangles are its hand's skin or nails (`fine`), and
 /// each vertex's detail for the hand: the figure's own, a nail paler toward its free edge
@@ -385,6 +504,11 @@ fn hand_detail(
             }
             // Over a joint on the back: the base and middle knuckles.
             let k = (bone - o - hu::finger(0, 0)) % 3;
+            // The fingertips' pads warmer (blood near the skin).
+            if k == 2 {
+                let tipw = ((t - 0.5) / 0.5).clamp(0.0, 1.0);
+                d = [d[0] * (1.0 - 0.04 * tipw), d[1] + 0.3 * tipw];
+            }
             let near_head = (1.0 - (t / 0.22).abs()).max(0.0);
             let on_back = (p - (bn.head + ax * t)).norm().dot(back).max(0.0);
             if k <= 1 && bone >= o + hu::finger(1, 0) {
@@ -634,6 +758,12 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
             let k = (1.0 - ndv).powi(2) * 0.55;
             c = [c[0] + s[0] * k, c[1] + s[1] * k, c[2] + s[2] * k];
         }
+        if matches!(st, Stuff::Velvet | Stuff::Wool) {
+            // r42:arcus-hand — the sleeve's rim (as the Photographic picture's).
+            let (rim, lift) = cloth_rim(n, e);
+            let s = hp::CLOTH_RIM;
+            c = [0, 1, 2].map(|i| c[i] * lift + s[i] * rim * 0.8);
+        }
         let k = 0.35 + 0.65 * ao;
         return c3(c.map(|x| x * k));
     }
@@ -655,7 +785,10 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
     let amb = amb_k * (0.8 + 0.2 * n.y);
     let albedo: [f32; 3] = match st {
         Stuff::Skin | Stuff::Lips | Stuff::Nail => {
-            let a = lin(rgbf(hp::REAL_SKINS[tone as usize])).map(|c| c * 0.48);
+            // (r42:arcus-hand: warmer, as her face in the same picture is — the review found
+            // the hand clay-grey beside it: the face's red over blue 1.7, the hand's 1.4.)
+            let a = lin(rgbf(hp::REAL_SKINS[tone as usize]));
+            let a = [0, 1, 2].map(|i| a[i] * 0.48 * SKIN_WARM[i]);
             let (lum, red) = (skin_detail[0].min(1.25), skin_detail[1]);
             [
                 (a[0] * lum * (1.0 + 0.22 * red)).max(0.0),
@@ -703,10 +836,36 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
             *r += s[i] * pile * (key_k * dif.max(0.35) + amb);
         }
     }
+    if matches!(st, Stuff::Velvet | Stuff::Wool) {
+        // r42:arcus-hand — the sleeve against the dark body behind it: a back light along
+        // its edge and its own value a little lifted, so the arm reads as an arm in front.
+        let (rim, lift) = cloth_rim(n, e);
+        let s = lin(hp::CLOTH_RIM);
+        for (i, r) in rad.iter_mut().enumerate() {
+            *r = *r * lift + s[i] * rim;
+        }
+    }
     let t = crate::views::inst::chorda::scene::hybrid::raster::tone(rad.map(|x| x * ex), 0.85);
     let g = |x: f32| egui::ecolor::gamma_u8_from_linear_f32(x);
     Color32::from_rgb(g(t[0]), g(t[1]), g(t[2]))
 }
+
+/// r42:arcus-hand — a live sleeve's back light: its share where the cloth turns away from
+/// the eye toward a light behind the figure and a little over it (`n` the normal, `e` the
+/// way to the eye), and how much its own value is lifted (the arm a shade lighter than the
+/// dress or the jacket behind it).
+fn cloth_rim(n: V3, e: V3) -> (f32, f32) {
+    let back = (v3(0.0, 0.6, 0.0) - e).norm();
+    let edge = (1.0 - n.dot(e).clamp(0.0, 1.0)).powi(3);
+    (edge * n.dot(back).max(0.0).sqrt() * CLOTH_RIM_K, CLOTH_LIFT)
+}
+
+/// r42:arcus-hand — the live hand's skin warmed to the baked face's (linear gains).
+const SKIN_WARM: [f32; 3] = [1.1, 0.95, 0.78];
+
+/// How strong the sleeve's rim is and how much its value is lifted.
+const CLOTH_RIM_K: f32 = 0.34;
+const CLOTH_LIFT: f32 = 1.3;
 
 fn c3(c: crate::kit::skin::scene::C3) -> Color32 {
     let b = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
@@ -838,6 +997,13 @@ pub fn arm(
         for (e, &(a, bb, t0, t1)) in am.edges.iter().enumerate() {
             let f0 = t0 != u32::MAX && sc.front[t0 as usize];
             let f1 = t1 != u32::MAX && sc.front[t1 as usize];
+            // A seam's side: closed solid across the crack, then no outline (r42:arcus-hand).
+            if am.seam[e] {
+                if f0 {
+                    sc.order.push((v.cam.depth(sc.pts[a as usize]) + 0.01, tri_n + e as u32));
+                }
+                continue;
+            }
             // r42:arcus-upper — and where two stuffs meet on the arm (a cuff on the wrist, a
             // shirt's cuff under a sleeve): the cloth's edge feathered over what is next to it,
             // so the cuff reads as a clean edge (triangles meet unsmoothed: a staircase).
@@ -868,6 +1034,25 @@ pub fn arm(
                 b.shaded_tri(p, sc.col[k as usize]);
             } else {
                 let (a, bb, t0, t1) = am.edges[(k - tri_n) as usize];
+                if am.seam[(k - tri_n) as usize] {
+                    // Solid, a px and a half across the crack, the triangle's own colours.
+                    let tri = am.tris[t0 as usize];
+                    let corner = |i: u16| {
+                        let j = tri.iter().position(|&x| x == i).unwrap_or(0);
+                        sc.col[t0 as usize][j]
+                    };
+                    let (pa, pb) = (sc.sp[a as usize], sc.sp[bb as usize]);
+                    let third = tri.iter().find(|&&x| x != a && x != bb).copied().unwrap_or(a);
+                    let d = pb - pa;
+                    let mut out = egui::vec2(-d.y, d.x).normalized() * (1.5 * b.px());
+                    if out.dot(sc.sp[third as usize] - pa) > 0.0 {
+                        out = -out;
+                    }
+                    let (ca, cb) = (corner(a), corner(bb));
+                    b.shaded_tri([pa, pb, pb + out], [ca, cb, cb]);
+                    b.shaded_tri([pa, pb + out, pa + out], [ca, cb, ca]);
+                    continue;
+                }
                 let both = t0 != u32::MAX
                     && t1 != u32::MAX
                     && sc.front[t0 as usize]

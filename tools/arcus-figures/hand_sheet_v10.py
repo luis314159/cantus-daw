@@ -136,11 +136,17 @@ def main():
                     views.append(("earlier camera", np.array(F_old["eye"]), cams[0][2], cams[0][3], cams[0][4]))
                 views.append(("new camera",) + tuple(cams[0][1:]))
                 views.append(("photo 5's angle",) + tuple(next(x for x in cams if x[0] == "photo5")[1:]))
+                # The hand and the sleeve together from the new camera (the owner's review:
+                # the sleeve got lost against the dress).
+                el = hs.elbow_of(F, W, P, way)
+                views.append(("new camera, hand and sleeve", cams[0][1], (c * 0.6 + el * 0.4),
+                              cams[0][3], cams[0][4]))
                 tiles = []
                 for cname, eye, tgt, up, fov in views:
                     eye2 = tgt + hr.norm(eye - tgt) * 120.0
-                    tag = f"{who}-{inst}-{name}-{cname.split()[0]}-{look}-{theme}"
-                    shot = shoot(exe, out, who, inst, case, (eye2, tgt, 10.0), look, theme, tag)
+                    half = 17.0 if "sleeve" in cname else 10.0
+                    tag = f"{who}-{inst}-{name}-{cname.replace(' ', '_').replace(',', '')}-{look}-{theme}"
+                    shot = shoot(exe, out, who, inst, case, (eye2, tgt, half), look, theme, tag)
                     if shot is None:
                         continue
                     im = picture_box(shot)

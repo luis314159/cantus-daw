@@ -181,14 +181,14 @@ pub fn lids(w: Who) -> &'static [(u32, V3)] {
 pub fn figure(w: Who) -> &'static Figure {
     static W: OnceLock<Figure> = OnceLock::new();
     static M: OnceLock<Figure> = OnceLock::new();
-    let read = |b: &[u8]| {
+    let read = |b: &[u8], scale: f32| {
         let mut f = parse(b).unwrap_or_default();
-        knuckle_fix(&mut f);
+        knuckle_fix(&mut f, scale);
         f
     };
     match w {
-        Who::Woman => W.get_or_init(|| read(WOMAN)),
-        Who::Man => M.get_or_init(|| read(MAN)),
+        Who::Woman => W.get_or_init(|| read(WOMAN, HAND_SCALE[0])),
+        Who::Man => M.get_or_init(|| read(MAN, HAND_SCALE[1])),
     }
 }
 
@@ -205,13 +205,36 @@ pub const KNUCKLE_BACK: f32 = 0.12;
 const KNUCKLE_LANE: f32 = 0.8;
 const KNUCKLE_RAMP: (f32, f32) = (-0.5, 0.7);
 
-fn knuckle_fix(fig: &mut Figure) {
+/// r42:arcus-hand — each figure's hands scaled about the wrist (hers, his): the review
+/// found his hand, wrist crease to fingertip, longer than his face (a man's is about as
+/// long). `hand_rig.py::HAND_SCALE` is the same.
+pub const HAND_SCALE: [f32; 2] = [1.0, 0.93];
+
+fn knuckle_fix(fig: &mut Figure, scale: f32) {
     if fig.bones.len() < BONES {
         return;
     }
     for s in 0..2 {
         let o = side(s);
         let wr = fig.bones[o + HAND].head;
+        if scale != 1.0 {
+            let hand = (o + HAND) as u8..=(o + finger(4, 2)) as u8;
+            for (p, w) in fig.pos.iter_mut().zip(fig.bw.iter()) {
+                let share: f32 = w
+                    .iter()
+                    .filter(|(b, _)| hand.contains(b))
+                    .map(|x| x.1)
+                    .sum::<f32>()
+                    .clamp(0.0, 1.0);
+                let f = 1.0 - (1.0 - scale) * share;
+                *p = wr + (*p - wr) * f;
+            }
+            for b in o + HAND..=o + finger(4, 2) {
+                let bn = &mut fig.bones[b];
+                bn.head = wr + (bn.head - wr) * scale;
+                bn.tail = wr + (bn.tail - wr) * scale;
+            }
+        }
         let mut heads = [V3::default(); 4];
         let mut axes = [V3::default(); 4];
         for f in 0..4 {

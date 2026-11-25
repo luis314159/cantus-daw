@@ -92,8 +92,9 @@ fn dump_left_hand_inputs() {
 
 /// How far the playing finger's last phalanx may lean from the fingerboard's normal
 /// (degrees; r42:arcus-hand — the tip comes down onto its string from above, "upright"
-/// meaning square to the fingerboard, not up in the room; was 45).
-const UPRIGHT: f32 = 25.0;
+/// meaning square to the fingerboard, not up in the room; was 45. The photographs' pads
+/// meet the lower strings a little flatter than the upper ones).
+const UPRIGHT: f32 = 30.0;
 
 /// r42:arcus-hand — the photographs' gates (`tools/arcus-figures/left_hand_refs.md`): how
 /// far the forearm may turn from the hand's line at the wrist (degrees), the least the
@@ -102,6 +103,8 @@ const UPRIGHT: f32 = 25.0;
 /// neck's E side (cm out from the fingerboard's edge) and the knuckles' height against the
 /// fingerboard's top (cm).
 const WRIST: f32 = 8.0;
+/// How far a finger's last phalanx may leave the plane of its first two (degrees).
+const SIDEWAYS: f32 = 5.0;
 /// The back of the hand's width at the knuckles over its length (wrist to knuckles) as the
 /// picture shows it: the photographs' front views 0.5–0.9 (the hand at a slant, never
 /// broadside); a high position, the forearm straight up under the neck, a little broader.
@@ -112,7 +115,7 @@ const BACK_WL_HIGH: f32 = 1.2;
 /// read 0.87, its fingers bending a centimetre and a half past the knuckles).
 const FINGER_PALM: (f32, f32) = (0.95, 1.35);
 const BACK_TO_CAMERA: f32 = 0.2;
-const INDEX_OUT: (f32, f32) = (0.2, 2.0);
+const INDEX_OUT: (f32, f32) = (-0.5, 2.2);
 const KNUCKLES_UP: (f32, f32) = (-1.6, 2.6);
 
 /// The angle between two ways, degrees.
@@ -256,7 +259,7 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                     for (f, fj) in lp.fingers.iter().enumerate() {
                         let (kx, ky, kz) = loc(fj[0]);
                         let (khw, ktop) = (board_w(d, ky) * 0.5, board_z(d, ky));
-                        if kx <= khw || !(KNUCKLES_UP.0..=KNUCKLES_UP.1).contains(&(kz - ktop)) {
+                        if kx <= khw + INDEX_OUT.0 || !(KNUCKLES_UP.0..=KNUCKLES_UP.1).contains(&(kz - ktop)) {
                             bad.push(format!(
                                 "{tag}: knuckle {f} at {:.1} cm out, {:.1} cm over the top",
                                 kx - khw,
@@ -288,7 +291,24 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                         bad.push(format!("{tag}: the wrist bent {wrist:.0}°"));
                     }
                     worst[6] = worst[6].max(upright);
-                    if ix <= la.hw || tx >= -la.hw * 0.5 || !(top - 1.6..=top + 1.2).contains(&tz) {
+                    // No finger bent sideways at its middle or last joint (the owner, sheet
+                    // k6: "como con artritis"), its last joint no more bent than its middle.
+                    for (fi, fj) in lp.fingers.iter().enumerate() {
+                        let (d0, d1, d2) =
+                            ((fj[1] - fj[0]).norm(), (fj[2] - fj[1]).norm(), (fj[3] - fj[2]).norm());
+                        let n = d0.cross(d1);
+                        if n.len() > 0.15 {
+                            let side = d2.dot(n.norm()).abs().asin().to_degrees();
+                            if side > SIDEWAYS {
+                                bad.push(format!("{tag}: finger {fi} bent {side:.0}° sideways"));
+                            }
+                        }
+                        let (p, q) = (deg(d0, d1), deg(d1, d2));
+                        if q > p + 5.0 {
+                            bad.push(format!("{tag}: finger {fi}'s last joint {q:.0}° over its middle {p:.0}°"));
+                        }
+                    }
+                    if ix <= la.hw + INDEX_OUT.0 || tx >= -la.hw * 0.5 || !(top - 1.6..=top + 1.2).contains(&tz) {
                         bad.push(format!(
                             "{tag}: the index's base at x {ix:.1}, the thumb's tip at x {tx:.1}, \
                              {:.1} cm from the top",

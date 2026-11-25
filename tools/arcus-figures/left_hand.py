@@ -202,14 +202,14 @@ class Neck:
 # ---- the rules -------------------------------------------------------------------------
 
 # The anatomical ranges (deg): the playing finger's and a hovering one's MCP, PIP, DIP.
-PLAY = ((25, 60), (75, 105), (25, 50))
-HOVER = ((20, 60), (60, 100), (15, 50))
+PLAY = ((30, 62), (75, 105), (15, 45))
+HOVER = ((20, 60), (50, 95), (5, 35))
 # Each finger's spread at rest (rad): the index a little toward the scroll, the little
 # finger a little away.
 SPREAD = np.array([0.0, 0.0, 0.02, 0.05])
 # Each finger's angles near the middle of its range (deg; the owner's review: curled to
 # the ranges' ends the fingers read short, a fist on the fingerboard).
-MID = (38.0, 90.0, 35.0)
+MID = (45.0, 90.0, 25.0)
 # Where the palm faces (the owner's photographs 2-4: toward the player as much as toward the
 # neck, a little up), and how near to it it must keep.
 def back_way(pose):
@@ -238,7 +238,7 @@ PALM_W = 150.0
 # Each finger's middle joint over the fingerboard's top (cm): index, middle, ring, little.
 ARCHES = (3.0, 3.3, 3.1, 2.4)
 # The playing finger's last phalanx within this of the fingerboard's normal (cos).
-UPRIGHT_COS = 0.94
+UPRIGHT_COS = 0.913
 # Each first phalanx rising from its knuckle: within this of the normal (cos 40 deg).
 RISE_COS = 0.766
 # The wrist under the neck (cm across from the E edge, below the top).
@@ -247,7 +247,7 @@ WRIST_X = (0.0, 3.5)
 WRIST_DEV = (0.0, 6.0)
 WRIST_DEV_MID = 3.0
 # How far a finger that does not play may hover from over its note (cm).
-HOVER_SLACK = 1.4
+HOVER_SLACK = (1.2, 1.4, 1.8, 2.6)
 WRIST_Z = (-10.5, -5.0)
 # How high the knuckles stand over the fingerboard's top, at least (cm).
 KNUCKLES = (-1.6, -0.2)
@@ -325,13 +325,13 @@ class Pose:
             if f == p:
                 add(f"tip{f}", *((tip - self.tips[f]) * 40.0))
                 d2 = hr.norm(P[f + 1, 3] - P[f + 1, 2])
-                add(f"upright{f}", 60.0 * max(0.0, UPRIGHT_COS - d2 @ (-self.z)))
+                add(f"upright{f}", 150.0 * max(0.0, UPRIGHT_COS - d2 @ (-self.z)))
             else:
                 # Hovering over its own string a little across from the playing one (each
                 # finger falls toward its own string, at its own angle — photograph 4).
                 want = self.tips[f] + self.kx * (0.35 * (f - max(p, 0)))
                 miss = np.linalg.norm(tip - want)
-                add(f"hover{f}", 3.0 * max(0.0, miss - HOVER_SLACK * self.k))
+                add(f"hover{f}", 3.0 * max(0.0, miss - HOVER_SLACK[f] * self.k))
             rng = PLAY if f == p else HOVER
             for k in range(3):
                 wk = 3.0 if f == p else 1.0

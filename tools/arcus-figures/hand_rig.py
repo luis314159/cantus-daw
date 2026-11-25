@@ -1,6 +1,7 @@
 """r42:arcus-upper — a Python mirror of the live hand's posing (scene/bowed_human.rs::arm_aims' hand part) for
 designing grips quickly: reads a .fig, poses one hand from a HandAim-like set of joint
 targets with a planar (hinge) finger IK, skins it, renders it with preview.py."""
+import os
 import struct
 import sys
 import numpy as np
@@ -70,7 +71,7 @@ def read_fig(path, knuckles=True):
     fig = dict(bones=bones, marks=marks, pos=pos, ids=ids, ws=ws, det=det, tris=tris,
                mat=mat, part=part)
     if knuckles:
-        knuckle_fix(fig)
+        knuckle_fix(fig, HAND_SCALE.get(os.path.basename(path), 1.0))
     return fig
 
 
@@ -87,12 +88,27 @@ KNUCKLE_LANE = 0.8
 KNUCKLE_RAMP = (-0.5, 0.7)
 
 
-def knuckle_fix(fig):
+# r42:arcus-hand — each figure's hands scaled about the wrist (the coordinator's review: his
+# hand, wrist crease to fingertip, read longer than his face; a man's is about as long).
+HAND_SCALE = {"woman.fig": 1.0, "man.fig": 0.93}
+
+
+def knuckle_fix(fig, scale=1.0):
     B = fig["bones"]
     pos, ids, ws = fig["pos"], fig["ids"], fig["ws"]
     for s in (0, 1):
         o = side(s)
         wr = B[o + HAND][1]
+        if scale != 1.0:
+            hand = list(range(o + HAND, o + finger(4, 2) + 1))
+            share = np.zeros(len(pos))
+            for k in range(4):
+                share += np.where(np.isin(ids[:, k], hand), ws[:, k], 0.0)
+            f = 1.0 - (1.0 - scale) * np.clip(share, 0, 1)
+            pos[:] = wr + (pos - wr) * f[:, None]
+            for b in hand:
+                par, h, t, x = B[b]
+                B[b] = (par, wr + (h - wr) * scale, wr + (t - wr) * scale, x)
         heads, axes = [], []
         for f in range(1, 5):
             b = o + finger(f, 0)
