@@ -37,6 +37,32 @@ fn hair_at(base: &Mat, d: [f32; 2], scalp: C3) -> Mat {
     }
 }
 
+/// Skin lit: the light's brightness on it in the skin's own hue (a light theme's cool
+/// ambient turned a face grey-green), a warm glow of light through it (more where it turns
+/// from the eye), the brightest eased so a face full in the key keeps its modelling, and
+/// never past white in one channel (a clipped red turned it yellow).
+fn skin_tone(mat: &Mat, shaded: C3, ndv: f32) -> C3 {
+    let lum = |c: C3| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    let a = mat.albedo;
+    let k = lum(shaded) / lum(a).max(1e-3);
+    let glow = 0.05 + (1.0 - ndv).powi(2) * 0.12;
+    let mut c = [
+        a[0] * (k + glow),
+        a[1] * (k + glow * 0.5),
+        a[2] * (k + glow * 0.3),
+    ];
+    let l = lum(c);
+    if l > 0.5 {
+        let e = (0.5 + (l - 0.5) * 0.4) / l;
+        c = c.map(|x| x * e);
+    }
+    let top = c[0].max(c[1]).max(c[2]);
+    if top > 0.97 {
+        c = c.map(|x| x * 0.97 / top);
+    }
+    c
+}
+
 fn add(c: C3, d: C3, k: f32) -> C3 {
     [
         (c[0] + d[0] * k).min(1.0),
@@ -98,21 +124,10 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
                 let mut col = c.light.shade(&mat, n, vv, p, None, 1.0);
                 let ndv = n.dot(vv).clamp(0.0, 1.0);
                 if warm {
-                    // Light through the skin: a warm glow, more where it turns from the eye.
-                    let k = 0.05 + (1.0 - ndv).powi(2) * 0.12;
-                    col = add(
-                        col,
-                        [mat.albedo[0], mat.albedo[1] * 0.5, mat.albedo[2] * 0.3],
-                        k,
-                    );
+                    col = skin_tone(&mat, col, ndv);
                 }
                 if inside {
                     col = col.map(|x| x * 0.6);
-                }
-                if warm {
-                    // A face full in the key keeps its modelling: the brightest tones eased
-                    // (a light theme's key read a fair face as white).
-                    col = col.map(|x| if x > 0.62 { 0.62 + (x - 0.62) * 0.45 } else { x });
                 }
                 if *role == Role::Velvet {
                     // Velvet: its pile catches the light where it turns away.

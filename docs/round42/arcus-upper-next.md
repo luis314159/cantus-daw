@@ -255,6 +255,22 @@ Plan (ADR 0159 unless the integrator renumbers):
 `python tools/arcus-figures/build_figures.py <makehuman/data> <system assets>
 crates/cantus-ui/assets/figures --preview <dir>` (sources in the script's header).
 
+### Sheet v6 (the realistic figures) — sent for approval, 2026-11-24
+
+`docs/round42/arcus-upper/sheet-v6-realistic/`: the woman with the cello and the man with the
+violin, Photographic and Drawn, Night and Paper, 100 and 200 %; `side-cello-woman-*-vs-
+reference.png` beside the owner's reference photograph (credited; posture, dress and light
+only). **Waiting for the owner's verdict** before the rest (the other instruments' shots, the
+Settings rows, the module refactor above).
+
+Known, to do after approval: `arcus_hold` with the realistic figures — the woman's viola
+elbow opens to 132° (her shoulder far from a viola's neck: lean her in or seat her closer),
+and the behind-the-neck pixel test's cello man (the flesh arm's behind pass not yet seen by
+the test's sampling); the frame budget for the flesh arms not measured yet; the man's hair
+reads a little as a cap at 200 % and his face is flat in the Photographic key; the hands are
+MakeHuman's fingers bent to the stylised poses (readable, not yet refined); tiny cuff shards
+where a shirt's cuff meets a sleeve; the skirt's sides show the knees' velvet at the hem.
+
 ## Next (coordinator's order, 2026-11-24)
 
 0. **Waiting**: the owner's verdict on sheet v5's hands. Nothing below starts before he

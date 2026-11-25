@@ -63,7 +63,7 @@ pub const REAL_SKINS: [Srgb; 5] = [
 ];
 /// A realistic figure's skin in the Drawn picture: soft, a broad faint sheen (no plastic).
 pub fn real_skin(i: u8) -> Mat {
-    lacquer(c(REAL_SKINS[(i as usize).min(4)]), 0.04, 0.1, 8.0)
+    lacquer(c(REAL_SKINS[(i as usize).min(4)]), 0.02, 0.04, 8.0)
 }
 /// Hair with its sheen.
 pub fn hair(albedo: C3) -> Mat {
