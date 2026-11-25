@@ -71,6 +71,8 @@ mod windows_root; // multimon // r40:tymp-engine — Tympanum's recorded kits re
                   // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod arcus_level; // r42:arcus-p5 — Arcus's presets levelled on a musical phrase
 pub mod editor; // r36:editor — the audio editor (ADR 0096)
+pub mod editor_windows; // r42:editor-windows — pinned editors, several at once (ADR 0161)
+mod editor_windows_park; // r42:editor-windows
 pub mod engines;
 pub mod esc; // r39:ux-b — Esc closes what opened last (ADR 0110)
 pub mod external_service; // r36:external — external units and the ping (ADR 0094)

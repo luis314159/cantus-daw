@@ -778,7 +778,13 @@ impl FxHost for DawHost<'_> {
     }
 
     fn telemetry(&self) -> Telemetry {
-        self.app.fx_telemetry()
+        let mut t = self.app.fx_telemetry();
+        // r42:editor-windows (ADR 0161): the engine reports on the analysed editor only;
+        // another one on screen shows its readings at rest until it is touched.
+        if !self.app.effect_reads_engine(self.effect) {
+            t.fill(0.0);
+        }
+        t
     }
 
     fn pairs(&self) -> &VecDeque<(f32, f32)> {
@@ -1192,15 +1198,22 @@ impl FxHost for DawHost<'_> {
     }
 
     fn eq_deltas(&self) -> Option<[f32; cantus_core::EQ_BANDS]> {
-        let d = &self.app.engine.meters().eq_deltas;
         let mut out = [0.0; cantus_core::EQ_BANDS];
-        let n = out.len().min(d.len());
-        out[..n].copy_from_slice(&d[..n]);
+        // r42:editor-windows — the analysed editor's (ADR 0161).
+        if self.app.effect_reads_engine(self.effect) {
+            let d = &self.app.engine.meters().eq_deltas;
+            let n = out.len().min(d.len());
+            out[..n].copy_from_slice(&d[..n]);
+        }
         Some(out)
     }
 
     fn drain_analyser(&mut self, out: &mut Vec<f32>) -> bool {
-        self.app.engine.drain_analyser(out);
+        // r42:editor-windows — the pairs are the analysed editor's (ADR 0161): another
+        // one drains nothing, and leaves them for it.
+        if self.app.effect_reads_engine(self.effect) {
+            self.app.engine.drain_analyser(out);
+        }
         true
     }
 

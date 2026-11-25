@@ -1981,10 +1981,26 @@ nombre de la banda sigue a la vista. <!-- r40:docs -->
   para afinar), `Ctrl+arrastrar` copia hacia abajo en una columna. Los canales y grupos se
   mueven arrastrando o con `Alt+Izquierda`/`Alt+Derecha`; una cabecera de pista soltada
   sobre un canal suena por él.
-- **Las ventanas de los dispositivos** tienen *Cambiar*, minimizar (a la bandeja de la
-  barra de estado), maximizar y cerrar. `F8` abre el instrumento de la pista seleccionada
-  (o lo trae delante, o lo cierra si ya está delante),
-  `Esc` cierra el último dispositivo que usaste y `F12` cierra todos los flotantes.
+- **Las ventanas de los dispositivos** tienen *Cambiar*, una **chincheta**, minimizar (a la
+  bandeja de la barra de estado), maximizar y cerrar. `F8` abre el instrumento de la pista
+  seleccionada (o lo trae delante, o lo cierra si ya está delante),
+  `Esc` cierra el último dispositivo que usaste y `F12` cierra todos los flotantes que no
+  estén fijados.
+- **Al cerrar un editor vuelve lo que estabas mirando**: un instrumento abierto sobre el
+  mezclador, el arreglo o la vista de sesión devuelve esa vista al cerrarse — con su ✕,
+  `Esc`, `F8`, la × de la bandeja, o al borrar su pista o su efecto. Si mientras estaba
+  abierto trajiste delante otra vista, al cerrarlo te quedas en ella.
+- **Fija un editor** con la chincheta a la izquierda de minimizar (se pone derecha y se
+  ilumina mientras está fijado): se queda en pantalla cuando se abre otro instrumento o
+  efecto, queda encima de los editores que no están fijados, nunca pasa detrás de una
+  pestaña (una pestaña fijada flota donde está), y solo lo cierran su ✕, `Esc` después de
+  hacer clic en él, o la bandeja. Fija varios para tenerlos todos; un editor nuevo se abre
+  a su lado si la pantalla tiene sitio. El último que tocaste es el que mueve sus medidores
+  y su analizador; los demás mantienen sus controles vivos y muestran sus lecturas en
+  reposo hasta que hagas clic en ellos.
+- **Varios a la vez**: *Ajustes ▸ Edición ▸ Ventanas de editor ▸ Editores abiertos: Varios
+  a la vez* deja cada editor abierto hasta que lo cierres, fijado o no (*De uno en uno*, lo
+  predeterminado, cierra el último que abriste salvo que esté fijado).
 
 **El solo** sigue el ruteo: un canal en solo se oye con lo que lo alimenta y aquello a lo
 que alimenta.

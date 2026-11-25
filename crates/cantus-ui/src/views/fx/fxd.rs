@@ -110,6 +110,7 @@ fn header<'a>(ui: &egui::Ui, formula: bool, look: u8, name: &'a str, c: &Chrome<
             minimise: false,
             maximised: None,
             close: true,
+            pin: None,
         })),
     }
 }

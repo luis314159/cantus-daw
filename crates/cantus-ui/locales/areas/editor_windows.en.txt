@@ -1,0 +1,14 @@
+# Area: editor windows that behave (round 42, ADR 0161) — the pin key, the setting. Every key here needs its twin in editor_windows.es.txt.
+
+# --- the pin key, left of minimise in every device window ---
+editors.tip.pin = Pin: stays on screen when another editor opens, and above the others
+editors.tip.unpin = Unpin: the next editor you open takes its place again
+editors.status.pinned = {name} pinned: it stays on screen until you close it
+editors.status.unpinned = {name} unpinned
+
+# --- Settings ▸ Editing ---
+editors.settings.band = Editor windows
+editors.settings.open = Editors open
+editors.open.one = One at a time
+editors.open.several = Several at once
+editors.settings.note = One at a time: opening an instrument or an effect closes the last one you opened, unless it is pinned. Several at once: each editor stays until you close it. Either way, closing an editor brings back the view that was in front before it opened.

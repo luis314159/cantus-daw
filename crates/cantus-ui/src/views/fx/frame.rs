@@ -224,6 +224,7 @@ pub fn window_ctl(maximised: bool) -> crate::kit::window_ctl::WindowCtl {
         minimise: true,
         maximised: Some(maximised),
         close: true,
+        pin: None,
     }
 }
 
@@ -589,7 +590,15 @@ pub fn show(
     body: impl FnOnce(&mut egui::Ui, &Style, Rect, &mut dyn FxHost),
 ) -> Out {
     let kind = look.kind;
-    let shell = shell_of(kind);
+    // r42:editor-windows (ADR 0161): two editors of one kind on screen at once — their
+    // headers' keys under ids of their own.
+    let key = host.device_key();
+    let shell = match (key, host.daw()) {
+        (Some(key), Some((app, _, effect))) if app.twin_editor_open(effect, kind) => {
+            shell_of(kind).salted(key)
+        }
+        _ => shell_of(kind),
+    };
     let ctx = ui.ctx().clone();
     // The words of the header, kept until the host or the language changes.
     let rev = host.revision();
@@ -763,6 +772,17 @@ pub fn show(
             Event::Maximise => {
                 if let Some(key) = host.device_key() {
                     crate::views::workspace_device::toggle_maximise(&ctx, key);
+                }
+            }
+            // r42:editor-windows (ADR 0161): the pin, said on the status line in Cantus.
+            Event::Pin => {
+                if let Some(key) = host.device_key() {
+                    match host.daw() {
+                        Some((app, _, _)) => app.toggle_editor_pin(&ctx, key),
+                        None => {
+                            crate::views::workspace_device::toggle_pin(&ctx, key);
+                        }
+                    }
                 }
             }
         }

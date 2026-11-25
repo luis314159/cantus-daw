@@ -168,6 +168,8 @@ pub enum Event {
     Minimise,
     Maximise,
     Close,
+    /// The pin key (round 42, ADR 0161): pin the window, or unpin it.
+    Pin,
 }
 
 /// Where each part of the header is; `None` for the parts it does not show.
@@ -1094,6 +1096,8 @@ pub struct Shell {
     /// The unit's face (round 32, ADR 0074): the style handed to the header, the body and
     /// the footer is [`Style::skinned`] in it.
     pub skin: &'static super::skin::Skin,
+    /// Where its scale is kept when that is not `id` ([`Shell::salted`]).
+    scale_id: Option<egui::Id>,
 }
 
 thread_local! {
@@ -1105,7 +1109,17 @@ impl Shell {
         Shell {
             id: egui::Id::new(("cantus-shell", id)),
             skin: &super::skin::PLAIN,
+            scale_id: None,
         }
+    }
+
+    /// This shell's widgets under ids of their own, `salt`'s, its scale still kept where it
+    /// was (round 42, ADR 0161): two windows of one effect kind on screen at once never share
+    /// their header's keys.
+    pub fn salted(mut self, salt: impl std::hash::Hash + std::fmt::Debug) -> Shell {
+        self.scale_id = Some(self.scale_id.unwrap_or(self.id));
+        self.id = self.id.with(salt);
+        self
     }
 
     /// This shell in a unit's skin.
@@ -1116,12 +1130,14 @@ impl Shell {
 
     /// The scale this shell shows at (kept per id; 100 % until set).
     pub fn scale(&self, ctx: &egui::Context) -> f32 {
-        ctx.data(|d| d.get_temp::<f32>(self.id)).unwrap_or(1.0)
+        let id = self.scale_id.unwrap_or(self.id);
+        ctx.data(|d| d.get_temp::<f32>(id)).unwrap_or(1.0)
     }
 
     /// Set the scale (snapped to a step): from the ⤢ menu, or the stored choice.
     pub fn set_scale(&self, ctx: &egui::Context, k: f32) {
-        ctx.data_mut(|d| d.insert_temp(self.id, snap_scale(k)));
+        let id = self.scale_id.unwrap_or(self.id);
+        ctx.data_mut(|d| d.insert_temp(id, snap_scale(k)));
     }
 
     pub fn show(
@@ -1246,6 +1262,7 @@ impl Shell {
         if let (Some(c), Some(w)) = (&header.window, &r.window) {
             let keys = [
                 (w.swap, WinHot::Swap, Event::Swap),
+                (w.pin, WinHot::Pin, Event::Pin),
                 (w.minimise, WinHot::Minimise, Event::Minimise),
                 (w.maximise, WinHot::Maximise, Event::Maximise),
                 (w.close, WinHot::Close, Event::Close),

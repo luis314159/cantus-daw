@@ -481,7 +481,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             Event::Scale(k) => shell.set_scale(ctx, k),
             Event::Favourite | Event::Help | Event::Bypass => {}
             // The window's own buttons (round 20).
-            Event::Close | Event::Minimise | Event::Maximise | Event::Swap => {
+            Event::Close | Event::Minimise | Event::Maximise | Event::Swap | Event::Pin => {
                 use crate::views::device_chrome::{on_event, Asked};
                 let swap = crate::picker::PickPurpose::ReplaceInstrument { track };
                 if on_event(app, ctx, key, ev, swap) == Asked::Close {
@@ -1153,6 +1153,11 @@ pub(crate) fn keyboard_band(
         shell::keyboard_card(b, rect, s, lo, hi, &held)
     });
     let keys = rect.shrink(4.0 * s.k);
+    crate::views::device_chrome::publish(
+        ui.ctx(),
+        crate::views::device_chrome::Spot::InstKeys(track),
+        keys,
+    ); // r42:editor-windows
     let resp = ui.interact(
         keys,
         ui.id().with(("inst-keys", track.0)),

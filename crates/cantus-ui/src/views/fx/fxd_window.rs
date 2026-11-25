@@ -416,6 +416,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         minimise: true,
         maximised: Some(maximised),
         close: true,
+        pin: None,
     };
     let mut st_ui = std::mem::take(&mut app.fx.fxd);
     let words = st_ui.words.take();

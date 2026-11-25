@@ -163,6 +163,11 @@ pub struct Settings {
     /// a **linked** copy, the same clip in another place (FL's pattern clips, ADR 0037),
     /// or a copy of its own. On by default; *Make unique* detaches one copy either way.
     pub link_copies: bool,
+    /// r42:editor-windows (ADR 0161): how many instrument and effect editors stay open —
+    /// one at a time (the pinned ones besides), or several. A file from before has none:
+    /// one at a time, as before (no migration: the field defaults).
+    #[serde(default)]
+    pub editors_open: crate::editor_windows::EditorsOpen,
     /// The folder Exemplar's streamed samples are decoded into (ADR 0050): its size limit,
     /// GB, or `None` — automatic: the smaller of 16 GB, a tenth of the disk and what leaves
     /// 5 GB free (second review #10). The least recently used go first.
@@ -397,6 +402,7 @@ impl Default for Settings {
             // r36:external
             surfaces: Vec::new(),
             link_copies: true,
+            editors_open: Default::default(), // r42:editor-windows
             sample_cache_gb: None,
             topbar: TopBarSettings::default(),
             plugin_isolation: DEFAULT_PLUGIN_ISOLATION,

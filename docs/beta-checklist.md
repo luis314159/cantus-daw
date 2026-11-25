@@ -1188,3 +1188,28 @@ símbolos C (`crates/cantus-rt/tests/fake_mts/`); ningún equipo de esta ronda t
   viola? Elige la pose: (A) en su estuche abierto de terciopelo sobre una mesita, vistos de tres
   cuartos desde arriba, con el arco sobre las cuerdas cuando suenan, o (B) en el aire al ángulo
   de tocar, con el arco.
+
+### Ronda 42 — las ventanas de editor: vuelve la vista, la chincheta, varios a la vez (ADR 0161) <!-- r42:editor-windows -->
+
+Verificado solo en pruebas sin pantalla (`tests/editor_windows_e2e.rs`). En tu pantalla:
+
+- [ ] **Vuelve la vista**: maximiza el mezclador (doble clic en su pestaña), elige una pista y
+  pulsa `F8`; cierra el instrumento con su ✕, con `Esc` y con `F8`. Cada vez debe volver el
+  **mezclador** (antes salía la *Channel rack*). Repite con la vista de sesión delante (`Tab`):
+  al abrir y al cerrar debe seguir la **sesión**.
+- [ ] **No te devuelve a donde dejaste**: con el instrumento abierto sobre el mezclador, pulsa
+  `F7` (piano roll) y cierra el instrumento desde el inspector: debe quedarse el piano roll.
+- [ ] **La chincheta**: en un instrumento, clic en la chincheta (a la izquierda de minimizar):
+  ¿se ve claro que está fijado (derecha, iluminada)? Abre otro instrumento y un efecto del
+  mezclador: el fijado sigue en pantalla y por encima; clic en el arreglo: siguen los dos;
+  `Esc` con el puntero sobre el arreglo no cierra nada.
+- [ ] **Varios a la vez**: *Ajustes ▸ Edición ▸ Ventanas de editor ▸ Varios a la vez*, abre
+  tres editores: ¿se colocan uno al lado del otro en tu pantalla? ¿Arrastrar uno fijado contra
+  los bordes (el imán de 8 pt) va bien?
+- [ ] **Dos teclados**: con dos instrumentos abiertos, toca en el teclado de pantalla de cada
+  uno: cada uno suena en su pista. Los medidores del que no tocaste quedan en reposo hasta que
+  hagas clic en él (decidido así: el motor informa de un editor a la vez).
+- [ ] **Un plug-in alojado (CLAP/VST3) en la vista de Cantus**, fijado junto a un efecto
+  nativo: ¿se queda, se mueve y se cierra como los nativos?
+- [ ] **Dos pantallas (ADR 0148)**: un editor fijado en una ventana propia en la otra pantalla:
+  ¿se queda al abrir otro en la principal?

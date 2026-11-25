@@ -105,10 +105,18 @@ impl State {
 /// Open the editor on a track's kit — or, already open, bring it back from the tray and to
 /// the front (round 27, ADR 0051).
 pub fn open(app: &mut CantusApp, track: TrackId) {
-    if app.pulsus.open == Some(track) {
+    // r42:editor-windows (ADR 0161): asked while a parked editor draws, once they are; a
+    // parked one comes back into the slot; a new one makes room (the unpinned one closes,
+    // a pinned one is parked).
+    if app.defer_open(crate::editor_windows::Deferred::Pulsus(track)) {
+        return;
+    }
+    if app.pulsus.open == Some(track) || app.unpark_pulsus(track) {
         if let Some(ctx) = &app.theme_ctx {
             crate::views::workspace_device::present(ctx, editor_id(track).value());
         }
+    } else {
+        app.room_for_pulsus();
     }
     app.pulsus.open = Some(track);
     if let Some(kit) = kit_of(app, track) {
@@ -381,7 +389,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             Event::Scale(k) => shell.set_scale(ctx, k),
             Event::Ab(_) | Event::Favourite | Event::Help | Event::Bypass => {}
             // The window's own buttons (round 20).
-            Event::Close | Event::Minimise | Event::Maximise | Event::Swap => {
+            Event::Close | Event::Minimise | Event::Maximise | Event::Swap | Event::Pin => {
                 use crate::views::device_chrome::{on_event, Asked};
                 let swap = crate::picker::PickPurpose::ReplaceInstrument { track };
                 let key = editor_id(track).value();

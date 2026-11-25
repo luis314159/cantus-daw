@@ -40,6 +40,8 @@ pub fn ctl(ctx: &Context, key: DeviceKey, swap_tip: &'static str) -> WindowCtl {
         minimise: true,
         maximised: Some(device::is_maximised(ctx, key)),
         close: true,
+        // r42:editor-windows (ADR 0161): every device window in Cantus has its pin.
+        pin: Some(device::is_pinned(ctx, key)),
     }
 }
 
@@ -76,6 +78,10 @@ pub fn on_event(
             app.open_picker(swap);
             Asked::Nothing
         }
+        Event::Pin => {
+            app.toggle_editor_pin(ctx, key);
+            Asked::Nothing
+        }
         _ => Asked::Nothing,
     }
 }
@@ -106,7 +112,10 @@ impl CantusApp {
             InstrumentSpec::Native(_) => Some(super::inst::editor_id(track).value()),
             InstrumentSpec::Pulsus(_) => Some(super::pulsus_editor::editor_id(track).value()),
             // A hosted instrument in Cantus's view (ADR 0073); its own window has no key.
-            InstrumentSpec::External(_) if self.fx.hosted.inst_open == Some(track) => {
+            InstrumentSpec::External(_)
+                if self.fx.hosted.inst_open == Some(track)
+                    || self.editors.hosted.iter().any(|p| p.0 == track) =>
+            {
                 Some(super::plugin_view_inst::inst_device_id(track).value())
             }
             _ => None,
@@ -118,6 +127,8 @@ impl CantusApp {
         self.inst.open == Some(track)
             || self.pulsus.open == Some(track)
             || self.fx.hosted.inst_open == Some(track)
+            // r42:editor-windows — parked beside its slot (pinned, several open).
+            || self.instrument_parked(track)
             || self.plugins.instrument_window_open(track)
     }
 
@@ -125,6 +136,10 @@ impl CantusApp {
     /// (round 27, ADR 0051). A track whose instrument has no window of its own (Firmus,
     /// edited in the inspector) shows the inspector instead.
     pub fn open_instrument_window(&mut self, track: TrackId) {
+        // r42:editor-windows — asked while a parked editor draws: once they are drawn.
+        if self.defer_open(crate::editor_windows::Deferred::Instrument(track)) {
+            return;
+        }
         let Some(spec) = self.project().track(track).map(|t| t.instrument.clone()) else {
             return;
         };
@@ -159,6 +174,8 @@ impl CantusApp {
         if self.pulsus.open == Some(track) {
             super::pulsus_editor::close(self);
         }
+        // r42:editor-windows — or parked beside its slot (ADR 0161).
+        self.close_parked_instrument(track);
         // Its Cantus view, and no longer waiting for its helper (ADR 0073).
         self.close_cantus_view(crate::views::plugin_notice::Target::Instrument(track));
         self.plugins.close_instrument_window(track);
@@ -230,6 +247,30 @@ impl Workspace {
                     self.refloat(pane, area);
                     device::set_maximised(ctx, key, true, was);
                 }
+                // r42:editor-windows — pinned while sharing its leaf: it floats where it
+                // is drawn (its leaf's rect), so no tab can be put in front of it. Alone in
+                // a leaf, or already floating, it stays where it is.
+                Pending::Float => {
+                    let shared = path.surface.is_main()
+                        && self
+                            .dock
+                            .leaf(path.node_path())
+                            .is_ok_and(|l| l.tabs.len() > 1);
+                    if shared {
+                        let leaf = self
+                            .dock
+                            .leaf(path.node_path())
+                            .ok()
+                            .map(|l| l.rect)
+                            .filter(|r| r.is_positive());
+                        // At its own size, from the corner of the leaf it was drawn in.
+                        let (size, _) = device::sizes(ctx, key).unwrap_or_default();
+                        let at = leaf.map(|l| l.min);
+                        let rect = device::free_spot(ctx, key, size, area, at);
+                        self.refloat(pane, rect);
+                        device::settle(ctx, key, rect.min);
+                    }
+                }
                 Pending::Restore => {
                     match restore {
                         Some(r) => {
@@ -288,7 +329,10 @@ impl Workspace {
         let Some(path) = self.find(pane).filter(|p| p.surface.is_main()) else {
             return;
         };
-        let surface = self.dock.detach_tab(path, rect);
+        let surface = match pane {
+            Pane::Device(key) => self.detach_device(key, path, rect),
+            _ => self.dock.detach_tab(path, rect),
+        };
         if let Some(w) = self.dock.get_window_state_mut(surface) {
             w.set_position(rect.min).set_size(rect.size());
         }
@@ -329,14 +373,18 @@ impl Workspace {
                 let size = (size + around)
                     .min(area.size() - Vec2::splat(16.0))
                     .max(min.min(area.size()));
-                Rect::from_center_size(area.center(), size)
+                // Round 42 (ADR 0161): over the middle of the workspace when it is alone,
+                // else where it covers the other editors on screen least.
+                device::free_spot(ctx, key, size, area, None)
             })
         });
         let Some(rect) = rect else {
             return;
         };
         if let Some(path) = self.find(Pane::Device(key)).filter(|p| p.surface.is_main()) {
-            let surface = self.dock.detach_tab(path, rect);
+            // What it covered for the frame it was docked comes back in front at once
+            // (round 42: a leaf showing the session or the mixer switched to its last tab).
+            let surface = self.detach_device(key, path, rect);
             if let Some(w) = self.dock.get_window_state_mut(surface) {
                 w.set_position(rect.min).set_size(rect.size());
             }
@@ -663,6 +711,8 @@ pub enum Spot {
     /// A minimised device's chip in the tray, and its ×.
     TrayChip(DeviceKey),
     TrayClose(DeviceKey),
+    /// r42:editor-windows — an instrument editor's on-screen keys (its keyboard card).
+    InstKeys(TrackId),
 }
 
 type Spots = std::sync::Arc<std::sync::Mutex<std::collections::HashMap<Spot, Rect>>>;

@@ -21,6 +21,8 @@ mod audio_scene;
 mod auto_scene;
 #[path = "shoot_auto/modes.rs"]
 mod automodes_scene;
+#[path = "shoot_editors/scene.rs"] // r42:editor-windows
+mod editors_scene;
 #[path = "shoot_hosted_view/scene.rs"]
 mod hosted_view_scene;
 #[path = "shoot_issue1/scene.rs"]
@@ -103,6 +105,13 @@ fn main() {
     // `multimon`: the design pictures for several screens (ADR 0148, proposed).
     if kinds.iter().any(|k| k == "multimon") {
         multimon_scene::shots(&dir);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
+    // r42:editor-windows: the pin key before and after, and several editors beside the mixer.
+    if kinds.iter().any(|k| k == "editors") {
+        editors_scene::shots(&dir);
         if kinds.len() == 1 {
             return;
         }

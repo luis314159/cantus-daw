@@ -165,6 +165,10 @@ pub enum Glyph {
     Maximise,
     /// ❐ restore: two windows, one behind the other.
     Restore,
+    /// A push pin leaning on its side: the window is not pinned (r42:editor-windows, ADR 0161).
+    Pin,
+    /// The push pin upright, driven in: the window is pinned and stays on screen.
+    Pinned,
     /// Swap the device for another: two cards with a turning arrow between them.
     Replace,
     /// A linked clip (ADR 0037): two links of a chain, one through the other.
@@ -208,7 +212,7 @@ pub enum Glyph {
 
 impl Glyph {
     /// Every glyph, in the order above (the family test walks it).
-    pub const ALL: [Glyph; 65] = [
+    pub const ALL: [Glyph; 67] = [
         Glyph::Menu,
         Glyph::Down,
         Glyph::Prev,
@@ -259,6 +263,8 @@ impl Glyph {
         Glyph::Minimise,
         Glyph::Maximise,
         Glyph::Restore,
+        Glyph::Pin,
+        Glyph::Pinned,
         Glyph::Replace,
         Glyph::Link,
         Glyph::Key,
@@ -843,6 +849,37 @@ fn window(g: Glyph, o: &mut dyn FnMut(Op<'_>)) {
             o(Frame(-4.8, -2.0, 2.4, 4.8));
             o(Block(-4.8, -2.0, 2.4, 0.0));
         }
+        // r42:editor-windows (ADR 0161): a push pin. Loose, it leans at 45° (its point to
+        // the lower left); driven in, it stands upright, its head solid.
+        Glyph::Pin => {
+            // The upright pin below turned 45°, its point to the lower left, nudged so the
+            // drawing sits on the box's centre; its body outlined (not driven in).
+            let h = std::f32::consts::FRAC_1_SQRT_2;
+            let r = |(x, y): P| (x * h - y * h - 0.9, x * h + y * h + 0.9);
+            let head = [
+                r((-2.8, -5.0)),
+                r((2.8, -5.0)),
+                r((2.8, -3.0)),
+                r((-2.8, -3.0)),
+            ];
+            let body = [
+                r((-1.6, -3.0)),
+                r((1.6, -3.0)),
+                r((2.2, 0.4)),
+                r((-2.2, 0.4)),
+            ];
+            let collar = [r((-4.0, 0.4)), r((4.0, 0.4)), r((4.0, 1.8)), r((-4.0, 1.8))];
+            o(Solid(&head));
+            o(Loop(&body));
+            o(Solid(&collar));
+            o(Line(&[r((0.0, 1.8)), r((0.0, 5.8))]));
+        }
+        Glyph::Pinned => {
+            o(Block(-2.8, -5.0, 2.8, -3.0));
+            o(Solid(&[(-1.6, -3.0), (1.6, -3.0), (2.2, 0.4), (-2.2, 0.4)]));
+            o(Block(-4.0, 0.4, 4.0, 1.8));
+            o(Line(&[(0.0, 1.8), (0.0, 5.0)]));
+        }
         Glyph::Replace => {
             // Two cards, and an arrow turning from one to the other above them.
             o(Frame(-5.0, -0.2, -1.2, 5.0));
@@ -1075,6 +1112,8 @@ pub fn family_name(g: Glyph) -> &'static str {
         Glyph::Minimise => "minimise",
         Glyph::Maximise => "maximise",
         Glyph::Restore => "restore",
+        Glyph::Pin => "pin",
+        Glyph::Pinned => "pinned",
         Glyph::Replace => "replace",
         Glyph::Link => "link",      // set 3
         Glyph::Key => "key",        // set 3

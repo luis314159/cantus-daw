@@ -55,4 +55,24 @@ pub fn page(app: &mut CantusApp, ui: &mut Ui) {
     });
     note(ui, &t("clipfx.settings.insert_note"), false);
     super::ripple_settings::rows(app, ui); // r40:ripple
+    editor_rows(app, ui); // r42:editor-windows
+}
+
+/// r42:editor-windows (ADR 0161): how many instrument and effect editors stay open.
+fn editor_rows(app: &mut CantusApp, ui: &mut Ui) {
+    use crate::editor_windows::EditorsOpen;
+    w::band(ui, Src::Key("editors.settings.band"));
+    ui.horizontal(|ui| {
+        w::row_label(ui, "editors.settings.open", LABEL_W, 24.0);
+        let all = [EditorsOpen::OneAtATime, EditorsOpen::Several];
+        let mut sel = all
+            .iter()
+            .position(|m| *m == app.settings.editors_open)
+            .unwrap_or(0);
+        let labels = all.map(|m| Src::Key(m.label_key()));
+        if segmented(ui, &mut sel, &labels, &t("editors.settings.open"), 320.0).changed() {
+            app.set_editors_open(all[sel]);
+        }
+    });
+    note(ui, &t("editors.settings.note"), false);
 }
