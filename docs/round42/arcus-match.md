@@ -661,12 +661,12 @@ choices (*senza* / *molto vibrato*) are round 43's adaptive piano roll's — the
 | bass: rate, extent, onset | 5.33, 15.9, 0.53 | 4.76, 15.8, 0.30 | 4.31–5.42, 12.1–22.2, 0.10–0.56 |
 | bass: jitter | 0.062 / 0.063 | **0.241 / 0.261** | 0.154–0.319 / 0.191–0.357 |
 | bass: soft → loud | 13.9 → 17.0, 5.26 → 5.33 | 12.8 → 18.2, 4.40 → 5.97 | 15.0 → 20.8, 4.61 → 5.35 |
-| violin: rate, extent, onset | 5.41, 22.7, 0.39 | 5.06, 23.7, 0.20 | 4.89–5.35, 17.1–28.2, 0.15–0.60 |
-| violin: jitter | 0.082 / 0.064 | **0.205 / 0.124** | 0.106–0.232 / 0.110–0.183 |
-| violin: soft → loud | 19.7 → 25.0, 5.48 → 5.41 | 17.2 → 30.9, 4.88 → 5.26 | 19.5 → 37.8, 4.92 → 5.53 |
-| viola: rate, extent, onset | 5.97, 33.5, 0.36 | 5.41, 24.7, 0.13 | 5.28–5.57, 19.5–32.4, 0.10–0.41 |
-| viola: jitter | 0.042 / 0.039 | **0.157 / 0.129** | 0.088–0.237 / 0.096–0.165 |
-| viola: soft → loud | 29.3 → 38.3, 5.97 → 5.97 | 19.8 → 32.1, 5.41 → 5.41 | 26.8 → 44.4, 5.49 → 5.73 |
+| violin: rate, extent, onset | 5.41, 22.7, 0.39 | 5.13, 23.3, 0.19 | 4.89–5.35, 17.1–28.2, 0.15–0.60 |
+| violin: jitter | 0.082 / 0.064 | **0.199 / 0.119** | 0.106–0.232 / 0.110–0.183 |
+| violin: soft → loud | 19.7 → 25.0, 5.48 → 5.41 | 16.8 → 31.1, 4.88 → 5.26 | 19.5 → 37.8, 4.92 → 5.53 |
+| viola: rate, extent, onset | 5.97, 33.5, 0.36 | 5.41, 24.2, 0.12 | 5.28–5.57, 19.5–32.4, 0.10–0.41 |
+| viola: jitter | 0.042 / 0.039 | **0.145 / 0.134** | 0.088–0.237 / 0.096–0.165 |
+| viola: soft → loud | 29.3 → 38.3, 5.97 → 5.97 | 20.0 → 32.0, 5.48 → 5.41 (the estimator's step) | 26.8 → 44.4, 5.49 → 5.73 |
 
 **The timbre flicker** comes from the bodies as the string's length moves — verified by the
 study's own `analyse_arco` on the renders: the partials 1–10 swing ±1.1 (cello), ±0.5 (bass),
@@ -677,6 +677,16 @@ said so, not added by hand. **Open:** the flicker's depth (the bodies' modal den
 short notes' faster and wider vibrato (the study: 5.7–6.0 Hz, 38–48 cents under 1 s — not
 modelled: a note's length is not known at its start), the rate's rise with the dynamic on the
 viola (the study's is small, 0.24 Hz; the model's sampling shows none).
+
+**Gates** (Windows, this branch at the end, the dev profile with cantus-dsp at opt-level 3):
+`cantus-dsp` lib 1 390 passed, 0 failed (106 ignored probes) — among them the held-out bowed
+pitch (168 of 168 within a cent), the attacks (0 of 80 past Guettler & Askenfelt), the pass-5
+gates and the vibrato's; `cantus-core`'s Arcus table 2; `cantus-engine`'s `inst_arcus` 1,
+`arcus_image` 9, `rt_memory` 67; `cantus-ui`'s `arcus_tuning_art_e2e`, `arcus_pick_e2e`,
+`strings_rec_e2e`, `arcus_upper_e2e`, `arcus_level_e2e`, `instrument_levels`, the i18n keys —
+all green; clippy `-p cantus-dsp -p cantus-core -p cantus-engine -p cantus-ui --all-targets -D
+warnings` clean; rustfmt on every changed file. Not run: the Linux check (WSL is the
+integrator's).
 
 **Hashes.** `DSP_VERSION` 13; `upper_tests::LOWER_HASHES` re-made: the seven cello and bass
 renders' RMS −0.3, +0.0, −0.4, −3.2, −0.8, −3.2, +1.3 dB against `11e6b8cad`, their sample

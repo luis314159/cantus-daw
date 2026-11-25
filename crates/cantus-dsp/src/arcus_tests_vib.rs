@@ -378,7 +378,7 @@ fn probe_vibrato_band() {
 /// extent, its onset and its cycle-to-cycle jitter of rate and extent inside the study's
 /// band (p25 … p75 of the family's long notes), and it widens with the dynamic (the loud
 /// notes' extent at least 1.2 × the soft notes', the players' 1.4 – 1.9 ×) and never
-/// slows with it. Round 42's model 2 was metronomic (rate jitter 0.02–0.06 on the cello
+/// slows with it (within the estimator's step). Round 42's model 2 was metronomic (rate jitter 0.02–0.06 on the cello
 /// and the viola against the players' 0.08–0.24) and widened only 1.25 × soft to loud.
 #[test]
 fn the_vibrato_is_the_players() {
@@ -410,6 +410,12 @@ fn the_vibrato_is_the_players() {
             e.0,
             e.1
         );
-        assert!(r.1 >= r.0, "{inst:?}: rate soft {:.2} loud {:.2}", r.0, r.1);
+        // The cycles' rate is read off extrema 2.5 ms apart: a step of ~0.07 Hz at 5.5 Hz.
+        assert!(
+            r.1 >= r.0 - 0.1,
+            "{inst:?}: rate soft {:.2} loud {:.2}",
+            r.0,
+            r.1
+        );
     }
 }

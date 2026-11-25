@@ -371,8 +371,8 @@ cycle, between alternate extrema.
 
 **Arcus (pass 5, measured by the same estimator, long notes over three registers, three
 dynamics and four seeds):** cello 5.19 Hz, 25.6 cents, onset 0.17 s, jitter 0.143 / 0.137;
-bass 4.76, 15.8, 0.30 s, 0.241 / 0.261; viola 5.41, 24.7, 0.13 s, 0.157 / 0.129; violin 5.06,
-23.7, 0.20 s, 0.205 / 0.124 — each inside the family's p25–p75 (`arcus_tests_vib.rs`). Its
+bass 4.76, 15.8, 0.30 s, 0.241 / 0.261; viola 5.41, 24.2, 0.12 s, 0.145 / 0.134; violin 5.13,
+23.3, 0.19 s, 0.199 / 0.119 — each inside the family's p25–p75 (`arcus_tests_vib.rs`). Its
 flicker comes from the body as the string's length moves (verified: ±0.5–1.5 dB, half the
 partials against the pitch), at about half the players' depth — the measured bodies are
 smoother than real ones (§3.1); said so, not added by hand.

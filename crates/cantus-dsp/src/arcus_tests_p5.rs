@@ -107,7 +107,10 @@ pub(super) fn yin_frames_p(
     let mut out = Vec::new();
     let mut at = a;
     while at + w + t_hi + 1 < b {
-        let e1: f64 = x[at..at + w].iter().map(|v| (*v as f64).powi(2)).sum();
+        let e1: f64 = x[at..at + w]
+            .iter()
+            .map(|v| (*v as f64) * (*v as f64))
+            .sum();
         let mut d = Vec::with_capacity(t_hi - t_lo + 3);
         for tau in t_lo - 1..=t_hi + 1 {
             let (mut e2, mut acf) = (0.0f64, 0.0f64);
@@ -943,19 +946,6 @@ fn median(mut v: Vec<f64>) -> f64 {
     }
 }
 
-/// `strokes.py`'s tick at a note boundary `tb` (s): the high band's loudest 3 ms within
-/// 15 ms over the louder of its medians 60–20 ms before and 25–65 ms after, dB.
-pub(super) fn tick_at(hb: &[(f64, f64)], tb: f64) -> f64 {
-    let pick = |a: f64, b: f64| -> Vec<f64> {
-        hb.iter()
-            .filter(|f| f.0 >= tb + a && f.0 <= tb + b)
-            .map(|f| f.1)
-            .collect()
-    };
-    let near = pick(-0.015, 0.015).into_iter().fold(f64::MIN, f64::max);
-    near - median(pick(-0.060, -0.020)).max(median(pick(0.025, 0.065)))
-}
-
 /// `strokes.py`'s `tick_parts` at a boundary `tb`: the high band's loudest 3 ms within 15 ms
 /// over its median 60–20 ms before and 25–65 ms after (dB), and how long it stays within
 /// 6 dB of that frame (ms: a click is a few, a bite tens).
@@ -1319,7 +1309,7 @@ fn probe_rebow_trace() {
         let e: f64 = hb[*at..*at + hop].iter().map(|x| x * x).sum::<f64>() / hop as f64;
         let l: f64 = out[*at..*at + hop]
             .iter()
-            .map(|x| (*x as f64).powi(2))
+            .map(|x| (*x as f64) * (*x as f64))
             .sum::<f64>()
             / hop as f64;
         println!(
@@ -1440,7 +1430,11 @@ fn probe_tremolo_level() {
     let rms = |x: &[f32]| {
         let a = (0.4 * SR) as usize;
         let b = (1.9 * SR) as usize;
-        let e: f64 = x[a..b].iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / (b - a) as f64;
+        let e: f64 = x[a..b]
+            .iter()
+            .map(|v| (*v as f64) * (*v as f64))
+            .sum::<f64>()
+            / (b - a) as f64;
         10.0 * math::log10(e + 1e-20)
     };
     if let Some(k) = std::env::var("ARCUS_KNOB").ok().and_then(|k| {

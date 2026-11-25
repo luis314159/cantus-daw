@@ -55,15 +55,18 @@ mod tests_gate2;
 mod tests_p4;
 #[cfg(test)]
 #[path = "arcus_tests_p5.rs"] // r42:arcus-p5
+#[allow(clippy::needless_range_loop, clippy::type_complexity)]
 mod tests_p5;
 #[cfg(test)]
 #[path = "arcus_tests_p5_gate.rs"] // r42:arcus-p5
+#[allow(clippy::needless_range_loop, clippy::type_complexity)]
 mod tests_p5_gate;
 #[cfg(test)]
 #[path = "arcus_tests_pitch.rs"]
 mod tests_pitch;
 #[cfg(test)]
 #[path = "arcus_tests_vib.rs"] // r42:arcus-p5
+#[allow(clippy::needless_range_loop, clippy::type_complexity)]
 mod tests_vib;
 #[path = "arcus_upper.rs"] // r42:arcus-upper
 pub mod upper; // r42:arcus-upper
