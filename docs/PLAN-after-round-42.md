@@ -65,6 +65,14 @@ market and liked by real users before the next one starts.
    - The backlog's §3e table marks updated: the arpeggiator, Fides and Tympanum are done.
 3. Ship it: beta.18 through `docs/RELEASING.md`'s preflight.
 
+**The order, revised (the owner, 2026-11-25).** The adaptive piano roll moves forward. It
+leads round 43, beside the musicians' polish to 100 % and Chorda's sound. It gives Arcus the
+per-note control it lacks today (the bowing's direction, the techniques, the vibrato), and every
+later instrument is built on it. The guitar's engine follows in round 44, on top of it. The
+expressive musician (BACKLOG, "The musician who plays expressively") waits until both
+musicians are at 100 %. The depth items below run beside the piano roll as their inputs
+(testers, listeners) arrive.
+
 **2. A depth round before new instruments (round 43a): make what exists excellent**
 - **Chorda's sound.** The owner's ABX against Salamander was 0–7. The goal: listeners cannot
   tell them apart, or Chorda is preferred. This is the most heard instrument; it matters
@@ -82,7 +90,7 @@ market and liked by real users before the next one starts.
 - **The look against FL.** Measured again with blind judges since the round-39 redesign.
 - **The testers' three main complaints**, as they arrive.
 
-**3. Round 43b: the adaptive piano roll, then the guitar family on one engine**
+**3. Round 43 leads with the adaptive piano roll; round 44 brings the guitar family on one engine**
 - The adaptive piano roll comes first (backlog: playing profiles, the technique brush, the
   strum tool, tablature, MIDI 2.0's articulation profile).
 - Then **one plucked-string engine** done to the bar: the acoustic and electric guitar first,
