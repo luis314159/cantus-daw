@@ -157,7 +157,10 @@ static MAN_LIDS: &[u8] = include_bytes!("../../assets/figures/man_lids.bin");
 fn asset(name: &str, embedded: &'static [u8]) -> std::borrow::Cow<'static, [u8]> {
     std::env::var_os("CANTUS_FIGURE_DIR")
         .and_then(|d| std::fs::read(std::path::Path::new(&d).join(name)).ok())
-        .map_or(std::borrow::Cow::Borrowed(embedded), std::borrow::Cow::Owned)
+        .map_or(
+            std::borrow::Cow::Borrowed(embedded),
+            std::borrow::Cow::Owned,
+        )
 }
 
 /// r42:arcus-hand — `CLID`, a `u16` version (1), a `u32` count, then per moved vertex its
@@ -376,7 +379,10 @@ pub const EDGE_IN: f32 = 0.5;
 fn thumb_web(fig: &mut Figure, s: usize) {
     let o = side(s);
     let wr = fig.bones[o + HAND].head;
-    let (ix, lt) = (fig.bones[o + finger(1, 0)].head, fig.bones[o + finger(4, 0)].head);
+    let (ix, lt) = (
+        fig.bones[o + finger(1, 0)].head,
+        fig.bones[o + finger(4, 0)].head,
+    );
     let along_end = (fig.bones[o + finger(2, 0)].head + fig.bones[o + finger(3, 0)].head) * 0.5;
     let along = (along_end - wr).norm();
     let len = (along_end - wr).len().max(1e-3);
@@ -386,15 +392,6 @@ fn thumb_web(fig: &mut Figure, s: usize) {
     };
     let line = (ix - wr).dot(across);
     let ulnar = (lt - wr).dot(across);
-    // DEBUG-POLISH (taken out before the commit): tuning by env.
-    let tune: Vec<f32> = std::env::var("CANTUS_DBG_EDGE")
-        .ok()
-        .map(|s| s.split(',').filter_map(|x| x.parse().ok()).collect())
-        .unwrap_or_default();
-    let (edge_in, web_in) = (
-        tune.first().copied().unwrap_or(EDGE_IN),
-        tune.get(1).copied().unwrap_or(WEB_IN),
-    );
     let hb = (o + HAND) as u8;
     let tb = (o + finger(0, 0)) as u8;
     for (p, w) in fig.pos.iter_mut().zip(fig.bw.iter_mut()) {
@@ -409,9 +406,11 @@ fn thumb_web(fig: &mut Figure, s: usize) {
         // violin's body — the lobe the bone-coloured render showed between the fingers'
         // bases and the wrist).
         let ru = ulnar - d.dot(across);
-        if ru > 0.0 && (-0.1..1.05).contains(&t) {
-            let ramp = smooth((t + 0.1) / 0.3) * (1.0 - smooth((t - 0.8) / 0.3));
-            *p = *p + across * (ru * edge_in * ramp * wh);
+        // (Not at the wrist's crease: drawn in there, the wrist read pinched under the palm
+        // — arcus_hand_table's palm-to-wrist rule.)
+        if ru > 0.0 && (0.1..1.05).contains(&t) {
+            let ramp = smooth((t - 0.12) / 0.3) * (1.0 - smooth((t - 0.8) / 0.3));
+            *p = *p + across * (ru * EDGE_IN * ramp * wh);
             continue;
         }
         let r = d.dot(across) - line;
@@ -420,7 +419,7 @@ fn thumb_web(fig: &mut Figure, s: usize) {
         }
         // Fading in from the wrist and out at the knuckles.
         let ramp = smooth((t + 0.1) / 0.3) * (1.0 - smooth((t - 0.75) / 0.3));
-        *p = *p - across * (r * web_in * ramp * wh);
+        *p = *p - across * (r * WEB_IN * ramp * wh);
         let give = wh * WEB_TO_THUMB * ramp * smooth(r / 1.5);
         if give < 1e-4 {
             continue;
@@ -1223,26 +1222,6 @@ pub fn emit(
                 .map(|&(i, j)| (pts[i] - pts[j]).len() / (fig.pos[i] - fig.pos[j]).len().max(0.05))
                 .fold(0.0f32, f32::max);
             if stretch > 1.6 {
-                continue;
-            }
-        }
-        // DEBUG-POLISH (taken out before the commit): which bake triangles are the shards.
-        if let Ok(d) = std::env::var("CANTUS_DBG_FIG") {
-            let thigh = |i: u16| {
-                fig.bw[i as usize]
-                    .iter()
-                    .filter(|(b, _)| {
-                        let b = *b as usize;
-                        b == side(0) + THIGH || b == side(1) + THIGH
-                    })
-                    .map(|x| x.1)
-                    .sum::<f32>()
-            };
-            let st = fig.stuff[k];
-            if d.contains("thigh") && st == Stuff::Wool && t.iter().any(|&i| thigh(i) > 0.2) {
-                continue;
-            }
-            if d.contains("band") && fig.part[k] & 6 != 0 {
                 continue;
             }
         }

@@ -113,8 +113,8 @@ def thumb_web(fig, s):
         d = pos[i] - wr
         t = d @ along / ln
         ru = ulnar - d @ across
-        if ru > 0.0 and -0.1 <= t < 1.05:
-            ramp = _smooth((t + 0.1) / 0.3) * (1.0 - _smooth((t - 0.8) / 0.3))
+        if ru > 0.0 and 0.1 <= t < 1.05:
+            ramp = _smooth((t - 0.12) / 0.3) * (1.0 - _smooth((t - 0.8) / 0.3))
             pos[i] = pos[i] + across * (ru * EDGE_IN * ramp * wh)
             continue
         r = d @ across - line

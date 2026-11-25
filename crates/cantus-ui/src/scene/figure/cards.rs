@@ -222,12 +222,12 @@ pub fn hair_look(who: u8) -> HairLook {
             rim: 1.6,
         }
     } else {
-        // (r42:arcus-polish: a real sheen band now his strands are combed one way in the
-        // light, `px_shade::strands`; his locks' streaks.)
+        // (r42:arcus-polish: a soft sheen band now his strands are combed one way in the
+        // light, `px_shade::strands` — stronger, his dark hair read grey; his locks' streaks.)
         HairLook {
             albedo: 1.0,
-            shine: (55.0, 0.05),
-            sheen: (10.0, 0.05),
+            shine: (80.0, 0.012),
+            sheen: (14.0, 0.018),
             detail: 0.45,
             scalp: 0.55,
             streaks: 0.9,

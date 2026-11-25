@@ -208,6 +208,64 @@ occluding capsules in its live painter.
     High stepping down to Light while the window's frames average over 12 ms and back
     under 7 ms (FL Studio's way under load) — optional, off unless chosen. A file without
     the field reads High.
+  - **The polish** (amendment, 2026-11-25, r42:arcus-polish — the owner's lists: "estamos
+    cerca pero buscamos la excelencia"):
+    - **The left hand's lobe** (the owner on sheet v10: "la mano aún sale algo tosca o
+      gorda"). A render of the app's own hand with each corner coloured by its bone showed
+      the lobe from under the neck to the wrist was the *hand bone's* skin — the palm's pad
+      and heel seen from below (the camera is 5° up) and its ulnar edge — not the thumb,
+      which the neck hides, and not High's curved patches (Light's merged mesh had the same
+      outline). Offline the palm's own side is drawn in toward the metacarpals
+      (`build_figures.py::slim_hand`, `PALM_VOLAR` 0.45, the back 0.9); at load the hand
+      bone's skin past the little finger's line is drawn in (`bowed_human::thumb_web`,
+      `EDGE_IN` 0.5) and past the index's toward the thumb drawn in and partly handed to the
+      thumb's first bone (`WEB_IN` 0.45, `WEB_TO_THUMB` 0.6), mirrored in
+      `hand_rig.py::thumb_web`; High's patches tone the back of the hand per point with the
+      extensor tendons, the valleys between the metacarpals and the knuckles (`Relief`), and
+      a patch edge is worked out the same way from both its triangles and drawn straight
+      against a flat neighbour (`curved_edges`: two ways of summing it left pixel cracks —
+      the dark dots across the back of his hand). Gated from the app's camera
+      (`tests/arcus_hand_shape.rs`, through a test probe of the live arm,
+      `views::inst::arcus::probe`).
+    - **Her arms and shoulders** (`build_figures.py::shape_arms`): each arm's girth tapered
+      along it (the deltoid kept, a narrower elbow, the forearm fuller under the elbow and
+      slim at the wrist — `ARM_GIRTH`), her shoulders' top let down 1.5 cm toward the
+      acromion and the deltoid's cap drawn in 0.5 cm (a trapezius's slope, not a pad), the
+      dress's puff over the shoulder 0.55 → 0.1 cm and the sleeves' ease 0.35 → 0.18 cm; the
+      joints never move, so every pose solved on them stands. Measured with
+      `measure_arms.py` (her velvet sleeve: upper arm 28.3 → 26.9 cm, elbow 25.6 → 23.2,
+      forearm's top 24.6 → 23.4) and gated from the app's camera
+      (`tests/arcus_figure_shape.rs`).
+    - **Skin**: no softbox in its mirror — the room's tall strip lights, meant for the
+      pianos' lacquer, were the pale vertical streak down both faces at 200 % — and a key
+      sheen of its own instead (two lobes, Schlick's Fresnel; `px_shade::skin_sheen`).
+      Offline, per vertex: the neck and the neckline a little cooler and paler than the
+      face, the suprasternal notch and the skin under the jaw shaded, the jaw cooler, the
+      ears warmer and redder (MakeHuman's own ear-flap target as the ear's mask) and tilted
+      back 15° (`ear-rot-backward` 0.6: they stood upright), his beard's blue-grey shadow on
+      the jaw, the chin and over the lip, and the cavities' occlusion traced on the head at
+      rest (the conchae, the nostrils, the mouth's and the eyes' corners —
+      `build_figures.py::tones`, `cavities`); the sternocleidomastoids, the collarbones and
+      the notch in relief on the mesh (`relief`).
+    - **Where cloth meets skin** (`figure::cloth`, worked out once when a figure is read):
+      each cloth vertex's distance to its cloth's edge (the neckline, a cuff, a lapel) —
+      the edge's roll catches the light —; the skin's contact shadow by its nearness to the
+      cloth; the skin under a cloth's edge drawn in a few millimetres (`sink`: his collar's
+      sawtooth on his neck).
+    - **Velvet**: a bright rim where the pile turns fully away, the back light along its
+      edge, the bodice's soft folds at the waist (`build_figures.py::cloth_folds`, carried as
+      the vertex's texture coordinates and drawn per pixel by `cloth::fold`), the live
+      sleeves' folds in the elbow's crook (`arcus_draw_flesh::elbow_folds`, as deep as the
+      elbow is bent) and the arm's soft shadow on the trunk it crosses
+      (`trunk_shadow`). **His wool** (`Tex::Wool`): a heather where a pixel holds it, a faint
+      twill, its edges' roll. The hem's inside seen through a sleeve's open end drawn in the
+      sleeve's shade (the grey-blue points by his bow hand).
+    - **Light**: a portrait's back light for a realistic figure (the rim ×1.7 by night, ×2.2
+      by day); **hair**: tonal streaks along the strands (`HairLook::streaks`), Kajiya–Kay's
+      two lobes shifted along the strand, her blonde a little toward ash and deeper (0.52),
+      his strands combed one way in the light so a sheen band can cross his head.
+    - **Small**: the nails' lunulae, the creases over the middle and last joints, faint
+      veins on the back of the hand; the chair's back rail slimmer.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`

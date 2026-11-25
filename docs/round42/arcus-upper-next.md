@@ -780,3 +780,132 @@ Clippy (`-p cantus-ui --all-targets -D warnings`) clean; `arcus_hand_table`, `ar
 5. A pixel gate for silhouette strays on the full pictures at both cameras: not written
    (the full tiles were checked by eye; the causes found were fixed in the geometry).
 6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
+
+
+## arcus-polish (2026-11-25): the musicians' polish toward 100 %
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from r42/integration
+a61af28dc. The owner's three polish lists of 2026-11-25 (above, arcus-hand's Open 4) and,
+mid-session, the coordinator's reorder: **the left hand first** (the owner on sheet v10: "la
+mano aún sale algo tosca o gorda"). ADR 0159 amended ("The polish").
+
+**How to look at a figure while building it** (new): `build_figures.py <mh data> <assets>
+<folder>` then `lids.py --dir=<folder>`, and run `shoot_arcus` with
+`CANTUS_FIGURE_DIR=<folder>` — the app reads the `.fig` and the lids from there (no compile:
+45 s a figure instead of ~10 min). The MakeHuman sources on this machine:
+`C:\Users\luis1\AppData\Local\Temp\claude\mh-src\mh\makehuman\data` and
+`C:\Users\luis1\AppData\Local\Temp\claude\mh-dl\sys` (a temp folder — copy them somewhere
+durable before a clean-up; the converter reproduced the committed figures byte for byte).
+
+**Done** (what changed and where; the measures):
+1. *The left hand.* A render with each corner coloured by its bone (a debug switch during
+   the session, taken out) showed the lobe from under the neck to the wrist is the **hand
+   bone's skin** — the palm's pad and heel seen from below (the camera is 5° up) and its
+   ulnar edge —, not the thumb (hidden by the neck, as in the photographs) and not High's
+   PN patches (Light, no patches, the same outline). Fixed: the palm's own side drawn in
+   toward the metacarpals offline (`build_figures.py::slim_hand`, `PALM_VOLAR` 0.45, the back
+   0.9); at load `bowed_human::thumb_web` (mirrored `hand_rig.py::thumb_web`): the ulnar
+   edge drawn in (`EDGE_IN` 0.5), the web past the index drawn in and 60 % handed to the
+   thumb's first bone; the middle and the little fingers slimmer (`FINGER_EXTRA`); High's
+   patches tone the back of the hand with tendons, metacarpal valleys and knuckles per point
+   (`Relief`); the live skin's wrap narrower (0.45 → 0.25) and the camera-side fill halved,
+   so the back of the hand is modelled, not flat; patch edges canonical (`curved_edges`:
+   the dark crack dots on his hand). Gate `tests/arcus_hand_shape.rs` (the app's own arm
+   through `views::inst::arcus::probe`): the lobe's share of the back of the hand (before
+   0.21/0.23 her violin/viola, 0.21/0.18 him; after 0.17/0.17, 0.18/0.16; gate ≤ 0.19),
+   the edge's sagitta ≤ 4 mm (the photographs ≤ ~3 mm against the fingerboard), breadth and
+   thickness at the MCPs within an adult's, fingers under a ceiling.
+2. *Her arms and shoulders* (`shape_arms`, `ARM_GIRTH`, `SHOULDER_SLOPE` 1.5, `SHOULDER_IN`
+   0.5; the dress's puff 0.1, the sleeves' ease 0.18). `measure_arms.py`: her sleeve's
+   upper arm 28.3 → 26.9 cm, elbow 25.6 → 23.2, forearm top 24.6 → 23.4; joints unchanged.
+   Gate `tests/arcus_figure_shape.rs` (silhouette widths across each arm from the app's
+   camera, cm at depth, a woman's and a man's in a jacket, and the taper).
+3. *Neck and neckline*: tones (cooler, paler, the notch, under the jaw), relief (the
+   sternocleidomastoids, collarbones, notch), the V edge's contact shadow and the velvet's
+   edge roll (`figure::cloth`).
+4. *The dress*: velvet rim at grazing angles and back light, waist folds
+   (`cloth_folds` + `cloth::fold`), the live sleeves' folds in the elbow's crook, the arm's
+   shadow on the trunk it crosses (`trunk_shadow`).
+5. *Light*: a portrait's back light for a realistic figure (rim ×1.7 night, ×2.2 day).
+6. *Ears*: tilted back 15°, warmer and redder (MakeHuman's ear-flap target as the mask),
+   the conchae's occlusion traced at rest (`cavities`).
+7. *Hair*: tonal streaks, shifted Kajiya–Kay lobes, her blonde toward ash and deeper (0.52),
+   his combed sheen band.
+8. *Faces*: **the pale vertical streak was the room's tall strip softboxes in the skin's
+   mirror** (meant for the pianos' lacquer) — skin now mirrors no softbox and has a key
+   sheen of its own (`px_shade::skin_sheen`); jaw cooler; his beard's shadow; cavities.
+9. *His suit*: `Tex::Wool` (heather, twill, edge roll), the skin under a cloth's edge
+   sunk (`cloth::sink`: the collar's sawtooth), the contact shadows; the sleeve hem's inside
+   drawn in shade (the grey-blue points by his bow hand were the hem's inward faces lit by
+   the sleeve's rim).
+10. *Small*: lunulae, joint creases, faint veins; the chair's back rail slimmer.
+11. *The stray-pixel gate* `tests/arcus_figure_specks.rs`: both figures, violin and viola,
+    both cameras, both themes, both looks (32 shots); the subject's mask rasterised from the
+    baked mesh, the live arms (probe) and the bow; strays (groups darker or lighter than
+    every pixel touching them, on smooth surroundings) outside the grown mask (≤ 30 px) or on
+    the figure's skin and clothes shrunk by 3 px (≤ 3 px) fail.
+
+**Gates** (this session, release): `arcus_hold` 7/7, `arcus_scene`, `scene_identity`
+(Chorda's and Tympanum's pictures unchanged), `figure_contract`, `kit_lint`,
+`arcus_hand_shape` (new), `arcus_hand_table` (after keeping the wrist's crease out of the
+palm's thinning — the first build pinched her wrist under the palm, the table's
+palm-to-wrist rule caught it); `figure::cloth`'s unit tests. Two new gates are written
+and **ignored with their reason** until the next session finishes them:
+`arcus_figure_shape` (her left forearm finds no points in its slab from the probe's joints
+— a measuring bug to find) and `arcus_figure_specks` (40 strays at this state: e.g. her
+violin at (399, 324) in every look, (151, 287) and (418, 312) from the earlier camera, his
+(319, 325) and (253, 334) — `CANTUS_SPECKS_DIR=<folder>` saves every shot to look; each is
+a real speck to fix or a feature to tell apart). The frame budget and clippy: see the end of
+this section.
+
+**Open** (honest list for the next session, in the order the owner will see them):
+1. *The hand's proportion* (the coordinator, after the first sheet): the lobe is smaller but
+   the change reads modest at 200 %; what still reads "gordo" is the back of the hand facing
+   the camera with fingers curled tight and low. Raise the MCPs (knuckles higher over the
+   board), flex the PIPs less, arches higher and longer within the rules (tips ≤ 30°,
+   parallel), and **re-solve the table rows for first position** (`left_hand.py solve`, its
+   rules in `left_hand.py`; not done this session). Her middle and little fingers measured
+   1.9 / 1.8 cm at the PIP before `FINGER_EXTRA`; tighten `arcus_hand_shape`'s finger
+   ceilings to her ≤ 1.8 / 1.5, him ≤ 2.1 / 1.7 once re-measured on the new figures.
+2. *His sleeve at the bow hand*: the grey-blue points by the frog persist from the new
+   camera (the hem's inward faces rule did not catch them — `fig.edge` near his jacket's hem
+   may not reach them; colour them per triangle by `fig.edge` in a debug render), and the
+   room shows through the gap between his wrist and sleeve (the shirt's cuff is hidden;
+   drawing it again broke into specks in arcus-hand). The coordinator saw a black ring and
+   spike at his wrist on the first `polish-hand1` sheet: that was the first "inside" version
+   (back faces near the edge), replaced by the inward-faces rule — re-check his viola too.
+3. *Aliasing at 200 %*: the strings drawn as dashed white lines along the fingerboard and
+   hard stair-steps at the fingertips and the strings' crossings — the live layer at 200 %
+   (`Brush::segment` is coverage-correct for thin lines; look at how the strings and the
+   neck's stamp are drawn), not investigated.
+4. *The raking key on the back of the hand*: the live skin's wrap and camera fill were
+   reduced; a key that rakes across the back so the tendon relief reads is not done.
+5. *Hair*: the bun as twisted strands, flyaways and baby hairs at the hairline — not done.
+6. *Faces*: the closed lids' crease and lash shadows not specifically drawn (the cavities'
+   occlusion darkens the eyes' corners); the violin's shadow on the neck is the bake's own.
+7. *His collar and tie*: thickness and the knot's folds not modelled (the collar's skin is
+   sunk under it and shaded).
+8. *Small*: the bow hand's fingers touching the stick, rosin dust, fabric seams — not done.
+9. *Hand table item 11* (palm outline 1.4–1.63 × the wrist high up; tips ~29°) — not done.
+10. *Arm widths*: `arcus_figure_shape` measures from the posed joints (the probe's); his
+    bounds allow a suit's sleeve. The woman's deltoid/upper arm read 9–10 cm sleeved; the
+    bow arm's shoulder still reads broad from the new camera (linear skinning at the raised
+    shoulder) — a corrective shape or dual-quaternion skinning for the shoulder is the
+    next lever.
+11. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
+
+**The owner's review of sheet v11 (2026-11-25, through the coordinator) — the next
+iteration, in this order:**
+1. *His hair*: the sheen read as a grey, helmet-like sheet over his crown. After the sheet
+   his lobes were lowered (`hair_look(1)`: shine 0.012, sheen 0.018) and his primary tinted
+   by his hair (`px_shade::strands`) — **not yet looked at**; the band should be narrow,
+   broken along the strands, warm; keep the dark roots and the breakup.
+2. *Her shoulder*: jagged dark shards at the top of the bow-side shoulder (round the seam),
+   and the velvet's sheen there faceted (polygonal) — smooth its normals or raise its
+   tessellation (the live shoulder band and the bake's). The stray-pixel gate is the check.
+3. *His bow arm*: the dark shard under the elbow beside the frog (before and after) and his
+   left sleeve's jagged end at the wrist. Gate: the stray-pixel gate.
+4. *Her hair* still yellow-flat at 100 %: roots and underlayer, tonal bands, the twisted bun
+   (item 6) — the streaks and the ash tint alone did not carry it.
+5. *The hands at 100 %*: dark speckles and jaggies on both left hands in the full tiles, the
+   bow hands small and unclear — the antialiasing at 100 % as well as 200 %.

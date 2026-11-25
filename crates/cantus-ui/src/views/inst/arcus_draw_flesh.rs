@@ -821,7 +821,9 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
     } else {
         (1.0, 0.42, 0.24, 1.15)
     };
-    let wrap = if skin { 0.45 } else { 0.1 };
+    // (r42:arcus-polish: a narrower wrap on the live skin — the back of the hand lit flat hid
+    // its tendons and knuckles, the coordinator against crop-08's raking light.)
+    let wrap = if skin { 0.25 } else { 0.1 };
     let dif = ((ndl + wrap) / (1.0 + wrap)).max(0.0);
     let fill = (n.dot((e + v3(0.0, 0.25, 0.0)).norm())).max(0.0) * fill_k;
     let amb = amb_k * (0.8 + 0.2 * n.y);
@@ -856,7 +858,7 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         let t = (dif - ndl.max(0.0)).max(0.0) * key_k * ao;
         rad[0] += albedo[0] * (t * 0.75 + amb * ao * 0.06);
         rad[1] += albedo[1] * (t * 0.16 + amb * ao * 0.015);
-        let front = ndv.powf(2.0) * 0.07 * ao;
+        let front = ndv.powf(2.0) * 0.035 * ao;
         for (i, r) in rad.iter_mut().enumerate() {
             *r += albedo[i] * (key_k + amb) * front;
         }
@@ -959,8 +961,6 @@ pub fn arm(
         1
     } else {
         ((v.scale(aim.wrist) * FINE_EDGE / FINE_PX).ceil() as usize).clamp(1, FINE_MAX)
-            * (std::env::var_os("CANTUS_DBG_HAND").is_none() as usize).max(1)
-            / if std::env::var_os("CANTUS_DBG_HAND").is_some() { FINE_MAX } else { 1 }
     };
     SCRATCH.with(|sc| {
         let mut sc = sc.borrow_mut();
@@ -1013,7 +1013,10 @@ pub fn arm(
                     .map(|&g| {
                         fig.bw[g as usize]
                             .iter()
-                            .fold((0u8, -1.0f32), |b, &(x, w)| if w > b.1 { (x, w) } else { b })
+                            .fold(
+                                (0u8, -1.0f32),
+                                |b, &(x, w)| if w > b.1 { (x, w) } else { b },
+                            )
                             .0
                     })
                     .collect(),
@@ -1063,21 +1066,24 @@ pub fn arm(
             if am.stuff[k] == Stuff::Shirt {
                 show = false;
             }
-            // r42:arcus-polish — the inside of a sleeve's open end: a cloth is one layer, so
-            // looking into the cuff the camera saw its back faces culled and the room
-            // through the arm (with the shirt's cuff hidden, the review's grey-blue points
-            // and the tan wedge by his bow hand). Within a few centimetres of the cloth's
-            // edge its back is drawn too, deep in the sleeve's shade.
-            let mut inside = false;
-            if !show
+            // r42:arcus-polish — the inside of a sleeve's open end: near the cloth's edge, a
+            // face turned in toward the forearm's axis is the hem's inside seen through the
+            // opening (lit by the sleeve's rim it read as grey-blue points beside his bow
+            // hand, the review): drawn deep in the sleeve's shade.
+            let inside = show
                 && matches!(am.stuff[k], Stuff::Velvet | Stuff::Wool)
                 && t.iter().all(|&i| {
-                    fig.edge.get(am.verts[i as usize] as usize).copied().unwrap_or(9.0) < SLEEVE_INSIDE
+                    fig.edge
+                        .get(am.verts[i as usize] as usize)
+                        .copied()
+                        .unwrap_or(9.0)
+                        < SLEEVE_INSIDE
                 })
-            {
-                show = true;
-                inside = true;
-            }
+                && {
+                    let ax = aim.wrist - aim.elbow;
+                    let tt = ((ctr - aim.elbow).dot(ax) / ax.dot(ax).max(1e-6)).clamp(0.0, 1.2);
+                    fnrm.dot(ctr - (aim.elbow + ax * tt)) < 0.0
+                };
             if show {
                 if let Some((want, hid)) = hidden {
                     // (r42:arcus-hand: behind if any corner is — a triangle across the neck's
@@ -1125,27 +1131,6 @@ pub fn arm(
                 // A shirt's cuff lies inside its sleeve: sorted a little behind it.
                 let bias = if st == Stuff::Shirt { 3.0 } else { 0.0 };
                 sc.order.push((v.cam.depth(ctr) + bias, k as u32));
-            }
-            // DEBUG-POLISH (taken out before the commit): each corner by its main bone.
-            if show && std::env::var_os("CANTUS_DBG_HAND").is_some() {
-                let o = hu::side(s);
-                cc = t.map(|i| {
-                    let g = am.verts[i as usize] as usize;
-                    let (bone, _) = fig.bw[g]
-                        .iter()
-                        .fold((0u8, -1.0f32), |b, &(x, w)| if w > b.1 { (x, w) } else { b });
-                    let bone = bone as usize;
-                    let lv = (sc.nrm[i as usize].dot((v.cam.eye() - sc.pts[i as usize]).norm()).max(0.0) * 200.0) as u8 + 40;
-                    if bone == o + hu::HAND {
-                        Color32::from_rgb(0, lv, 0)
-                    } else if (o + hu::finger(0, 0)..=o + hu::finger(0, 2)).contains(&bone) {
-                        Color32::from_rgb(lv, 0, 0)
-                    } else if (o + hu::finger(1, 0)..=o + hu::finger(4, 2)).contains(&bone) {
-                        Color32::from_rgb(0, 0, lv)
-                    } else {
-                        Color32::from_rgb(lv, lv, 0)
-                    }
-                });
             }
             sc.col.push(cc);
         }
@@ -1369,7 +1354,8 @@ impl Relief {
                 along = t;
             }
             let dk = (p - h).len();
-            knuckle = knuckle.max((-((dk - 0.2) / 0.45).powi(2)).exp() * (q.dot(self.back) > 0.0) as u8 as f32);
+            knuckle = knuckle
+                .max((-((dk - 0.2) / 0.45).powi(2)).exp() * (q.dot(self.back) > 0.0) as u8 as f32);
         }
         if on_back <= 0.0 {
             return 1.0;
@@ -1382,7 +1368,7 @@ impl Relief {
 }
 
 /// The tendons' lift, the valleys' shade, the knuckles' lift (luminance shares).
-const RELIEF: (f32, f32, f32) = (0.07, 0.09, 0.06);
+const RELIEF: (f32, f32, f32) = (0.1, 0.13, 0.08);
 
 /// r42:arcus-hand — High's hand patches: a thinned triangle's edge (cm) and the px a
 /// patch's small triangle may take on screen; at most this many cuts a side.
@@ -1476,22 +1462,25 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
                 if curved {
                     let (ca, cb) = (e(ka, kb), e(kb, ka));
                     let u = 1.0 - s_;
-                    pa * (u * u * u) + ca * (3.0 * u * u * s_) + cb * (3.0 * u * s_ * s_) + pb * (s_ * s_ * s_)
+                    pa * (u * u * u)
+                        + ca * (3.0 * u * u * s_)
+                        + cb * (3.0 * u * s_ * s_)
+                        + pb * (s_ * s_ * s_)
                 } else {
                     pa * (1.0 - s_) + pb * s_
                 }
             } else {
                 p[0] * (w0 * w0 * w0)
-                + p[1] * (w1 * w1 * w1)
-                + p[2] * (w2 * w2 * w2)
-                + (b210 * (w0 * w0 * w1)
-                    + b120 * (w0 * w1 * w1)
-                    + b201 * (w0 * w0 * w2)
-                    + b021 * (w1 * w1 * w2)
-                    + b102 * (w0 * w2 * w2)
-                    + b012 * (w1 * w2 * w2))
-                    * 3.0
-                + b111 * (6.0 * w0 * w1 * w2)
+                    + p[1] * (w1 * w1 * w1)
+                    + p[2] * (w2 * w2 * w2)
+                    + (b210 * (w0 * w0 * w1)
+                        + b120 * (w0 * w1 * w1)
+                        + b201 * (w0 * w0 * w2)
+                        + b021 * (w1 * w1 * w2)
+                        + b102 * (w0 * w2 * w2)
+                        + b012 * (w1 * w2 * w2))
+                        * 3.0
+                    + b111 * (6.0 * w0 * w1 * w2)
             };
             let nq = (nn[0] * w0 + nn[1] * w1 + nn[2] * w2).norm();
             let mut d = [
@@ -1709,7 +1698,20 @@ fn trunk_shadow(
         })
     };
     let eye = v.cam.eye();
-    let deep = lut_colour(sh, s, Stuff::Velvet, tone, [1.0, 0.0], mid, V3 { x: 0.0, y: -1.0, z: 0.0 }, 0.0);
+    let deep = lut_colour(
+        sh,
+        s,
+        Stuff::Velvet,
+        tone,
+        [1.0, 0.0],
+        mid,
+        V3 {
+            x: 0.0,
+            y: -1.0,
+            z: 0.0,
+        },
+        0.0,
+    );
     for t in &am.tris {
         let [a, bb, c] = t.map(|i| i as usize);
         let ctr = (sc.pts[a] + sc.pts[bb] + sc.pts[c]) * (1.0 / 3.0);
@@ -1752,7 +1754,7 @@ const SHADOW_DEPTH: f32 = 0.42;
 
 /// r42:arcus-polish — how far in from a sleeve's edge (cm) its inside is drawn, and how
 /// deep its shade is (of the cloth's own colour facing away).
-const SLEEVE_INSIDE: f32 = 3.0;
+const SLEEVE_INSIDE: f32 = 2.5;
 const INSIDE_SHADE: f32 = 0.35;
 
 /// r42:arcus-polish — how strongly the back of the hand's veins show.

@@ -141,9 +141,7 @@ fn pmat(b: Bowed, r: Role) -> PMat {
             };
             PMat::lacquer(base, 0.06, 0.45).with(Tex::Card(k))
         }
-        Role::Shell(0) | Role::Scalp(0) => {
-            PMat::lacquer(fair(), 0.1, 0.42).with(Tex::Hair)
-        }
+        Role::Shell(0) | Role::Scalp(0) => PMat::lacquer(fair(), 0.1, 0.42).with(Tex::Hair),
         Role::Shell(_) | Role::Scalp(_) => PMat::matte(lin3(hp::HAIR)),
     }
 }
@@ -208,8 +206,7 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
             Role::HairFair => g.mat(PMat {
                 dark: scalp,
                 ..PMat::lacquer(
-                    fair()
-                        .map(|c| c * crate::scene::figure::cards::hair_look(0).albedo),
+                    fair().map(|c| c * crate::scene::figure::cards::hair_look(0).albedo),
                     0.1,
                     0.42,
                 )

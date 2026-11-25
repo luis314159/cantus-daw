@@ -219,12 +219,17 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
             let heather = (noise(p.x * 420.0 + p.y * 130.0, p.z * 420.0 - p.y * 90.0, 131) - 0.5)
                 * 0.16
                 * hold;
-            let twill = ((p.x + p.y + p.z) * 2400.0).sin() * 0.04 * (1.0 - smooth(0.0004, 0.0012, fp));
+            let twill =
+                ((p.x + p.y + p.z) * 2400.0).sin() * 0.04 * (1.0 - smooth(0.0004, 0.0012, fp));
             let roll = (-(uv[0] / 0.4) * (uv[0] / 0.4)).exp();
             Surf {
                 sheen: 0.35,
                 edge: roll,
-                ..s(lscale(m.base, 1.0 + heather + twill + 0.25 * roll), 0.0, 1.0)
+                ..s(
+                    lscale(m.base, 1.0 + heather + twill + 0.25 * roll),
+                    0.0,
+                    1.0,
+                )
             }
         }
         Tex::Scalp(_) => s(lscale(m.base, scalp_strands(uv, fp)), m.coat, m.rough),
@@ -780,13 +785,18 @@ fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f
     let tint = lscale(lmul(m.base, tone), 1.5);
     // (A bright strand catches more of it; the gaps' deeper hair less.)
     let g = detail * detail * k * (1.0 + streak);
-    let spec: Lin = std::array::from_fn(|i| s.kc[i] * lit * g * (s1 + s2 * tint[i]));
+    // (His primary tinted too: a white one over dark brown read as a grey sheet, the owner's
+    // review of sheet v11.)
+    let white = if s.who == 1 { 0.0 } else { 1.0 };
+    let spec: Lin = std::array::from_fn(|i| {
+        s.kc[i] * lit * g * (s1 * (white + (1.0 - white) * tint[i]) + s2 * tint[i])
+    });
     ladd(d, spec)
 }
 
 /// r42:arcus-polish — how much the back light lifts a velvet's turned-away edge (its rim
 /// over the dark room: the arm, the shoulder told from what is behind them).
-const VELVET_BACK: f32 = 2.6;
+const VELVET_BACK: f32 = 1.8;
 
 /// r42:arcus-polish — skin's sheen from the key alone (the room's softboxes left out of its
 /// reflection): a broad lobe and a tighter one (the forehead's, the nose's, the lips'
@@ -795,7 +805,7 @@ fn skin_sheen(n: V3, v: V3, l: V3, kc: Lin, kv: f32, ndl: f32) -> Lin {
     let h = (l + v).norm();
     let ndh = n.dot(h).max(0.0);
     let f = schlick(0.028, l.dot(h).max(0.0));
-    let lobe = 1.6 * ndh.powi(14) + 4.0 * ndh.powi(70);
+    let lobe = 0.8 * ndh.powi(14) + 3.0 * ndh.powi(70);
     let k = f * lobe * ndl.min(1.0) * kv;
     std::array::from_fn(|i| kc[i] * k)
 }

@@ -217,9 +217,7 @@ pub fn contact(fig: &mut Figure) {
         }
     }
     // The cloth's points in cells of `reach`.
-    let cell = |p: V3| {
-        [p.x, p.y, p.z].map(|c| (c / reach).floor() as i32)
-    };
+    let cell = |p: V3| [p.x, p.y, p.z].map(|c| (c / reach).floor() as i32);
     let mut grid: std::collections::HashMap<[i32; 3], Vec<u32>> = Default::default();
     for (i, &c) in cloth.iter().enumerate() {
         if c {
@@ -263,7 +261,11 @@ pub fn fold(code: f32, coord: f32) -> f32 {
         let a = (code - 10.0).min(1.0);
         let x = coord / 3.1;
         let s = (TAU * x + 0.9 * (TAU * x * 0.37 + 1.3).sin()).sin();
-        a * if s < 0.0 { -(-s).powf(0.55) } else { s.powf(1.4) }
+        a * if s < 0.0 {
+            -(-s).powf(0.55)
+        } else {
+            s.powf(1.4)
+        }
     } else if (20.0..21.5).contains(&code) {
         // A seam: a fine groove with the cloth raised a little either side.
         let a = (code - 20.0).min(1.0);
@@ -304,6 +306,9 @@ mod tests {
             .flat_map(|(t, _)| t.iter())
             .filter(|&&i| e[i as usize] < 0.01)
             .count();
-        assert!(on_edge > 50, "the neckline and the cuffs: {on_edge} edge corners");
+        assert!(
+            on_edge > 50,
+            "the neckline and the cuffs: {on_edge} edge corners"
+        );
     }
 }

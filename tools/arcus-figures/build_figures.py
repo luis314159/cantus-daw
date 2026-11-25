@@ -202,6 +202,9 @@ def rot_x(p, c, a):
 # clay — thick, short fingers): drawn in toward each phalanx's own axis, the thumb less.
 FINGER_SLIM = 0.86
 THUMB_SLIM = 0.92
+# r42:arcus-polish — per finger (MakeHuman's numbering: 3 the middle, 4 the ring, 5 the
+# little), on top of FINGER_SLIM.
+FINGER_EXTRA = {3: 0.9, 4: 0.95, 5: 0.84}
 
 
 def slim_fingers(pos, wt, J):
@@ -210,7 +213,10 @@ def slim_fingers(pos, wt, J):
     out = pos.copy()
     for s in SIDES:
         for f in range(1, 6):
-            k_slim = THUMB_SLIM if f == 1 else FINGER_SLIM
+            # (r42:arcus-polish: the middle and the little finger a little more — measured
+            # from the app at their middle joints her 1.9 and 1.8 cm, an adult woman's 1.7
+            # and 1.4; tests/arcus_hand_shape.rs.)
+            k_slim = THUMB_SLIM if f == 1 else FINGER_SLIM * FINGER_EXTRA.get(f, 1.0)
             for k in range(1, 4):
                 bone = f"finger{f}-{k}.{s}"
                 if bone not in wt:
@@ -306,11 +312,13 @@ def slim_hand(pos, wt, J):
         if tv.any() and ((out[tv] - c0) @ n).mean() < 0.0:
             n = -n
         off = (q - c0) @ n
-        # From the wrist's crease (the heel of the hand is the palm's too) to the knuckles;
+        # From just past the wrist's crease (the heel of the hand is the palm's too) to the knuckles;
         # the palm's side drawn in more than the back (seen from below, as the picture's
         # camera sees a violinist's left hand, the palm's pad and heel were the lobe).
         L = max(np.linalg.norm((k2 + k5) * 0.5 - wr), 1e-6)
-        tt = smooth01((((q - wr) @ along) / L + 0.15) / 0.25)
+        # (Not at the wrist's crease itself: thinned there the wrist read pinched under the
+        # palm — arcus_hand_table's palm-to-wrist rule.)
+        tt = smooth01((((q - wr) @ along) / L - 0.08) / 0.25)
         k = np.where(off > 0.0, 1.0 - PALM_VOLAR, 1.0 - PALM_THICK)
         out[ids] = q - n[None, :] * (off * k * pshare[ids] * tt)[:, None]
     return out
