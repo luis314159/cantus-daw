@@ -1,0 +1,832 @@
+# The sound tools' reference sets (round 42, sound-data) — read by tools/sound-refs/fetch.py.
+#
+# One [[set]] per folder under $CANTUS_REFS (default F:\projects\cantus-refs). The sub-path
+# (`dir`) is the layout the tools expect: the study's catalog.py, the lab's subjects and the
+# Arcus scripts name files relative to $CANTUS_REFS, so keep it. Each set's files, with their
+# sizes, SHA-256 and the origin each comes from, are in files/<id>.tsv (`fetch.py record`).
+# No audio is in the repository; the texts in sources/ are the sets' own notes (SOURCE.md:
+# the licence verbatim, what was taken, when).
+#
+# Fields: id, dir, title; urls / doi / version (where it comes from); licence (SPDX, or
+# `custom`); terms (the licence in one line); use (`ship` / `ship-credit` — may ship, with
+# the credit; `measure` — analysis only, never ship; `reading` — documents read, not
+# measured); tools (who reads it); fetch (`manual` when no part can be downloaded by a
+# script); origins (how each file arrives: kind url / zip / tar / repo / derived / meta /
+# manual / pack — fetch.py's header says what each means; `match` the globs of the paths an
+# origin covers, tried in order; a file no origin claims and whose bytes are another
+# catalogued file's is a `copy`); ignore (globs of scratch that is not catalogued).
+
+[catalog]
+version = 1
+refs_default = 'F:\projects\cantus-refs'
+work_default = 'F:\projects\cantus-work'
+zenodo = "https://zenodo.org/records/"
+
+# ============================================================ Arcus (round 42, the bowed strings)
+
+[[set]]
+id = "arcus"
+dir = "arcus"
+title = "Arcus's first references: Iowa MIS cello and bass, TinySOL cello and bass, VSCO 2 CE solo contrabass, the Karoryfer cello's and Smolken bass's notes"
+urls = ["https://theremin.music.uiowa.edu/MIScello.html", "https://theremin.music.uiowa.edu/MISdoublebass.html", "https://zenodo.org/records/3685367", "https://github.com/sgossner/VSCO-2-CE"]
+doi = "10.5281/zenodo.3685367 (TinySOL 6.0)"
+licence = "custom (Iowa MIS) + CC-BY-4.0 (TinySOL) + CC0-1.0 (VSCO, Karoryfer, Smolken)"
+terms = "Iowa: 'may be downloaded and used for any projects, without restrictions'; TinySOL CC BY 4.0 (Cella et al., IRCAM); VSCO/Karoryfer/Smolken CC0"
+use = "measure (Iowa); ship-credit (TinySOL); ship (CC0)"
+tools = ["crates/cantus-dsp/examples/arcus_match (tools/arcus/match.sh, ARCUS_REFS)", "tools/arcus/study/catalog.py", "tools/soundlab/subjects/arcus-cello", "tools/soundlab/tests (TinySOL: test_features, test_agreement)", "docs/round42/arcus.md"]
+ignore = ["*.log"]
+[set.origins.iowa-cello]
+kind = "url"
+base = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/cello/"
+match = ["iowa/Cello.*.aif*"]
+strip = "iowa/"
+[set.origins.iowa-bass]
+kind = "url"
+base = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/doublebass/"
+match = ["iowa/Bass.*.aif*"]
+strip = "iowa/"
+[set.origins.iowa-cello-page]
+kind = "url"
+url = "https://theremin.music.uiowa.edu/MIScello.html"
+match = ["iowa/cello_index.html"]
+loose = true
+[set.origins.iowa-bass-page]
+kind = "url"
+url = "https://theremin.music.uiowa.edu/MISdoublebass.html"
+match = ["iowa/bass_index.html"]
+loose = true
+[set.origins.tinysol-metadata]
+kind = "url"
+url = "https://zenodo.org/records/3685367/files/TinySOL_metadata.csv"
+match = ["tinysol/TinySOL_metadata.csv"]
+[set.origins.tinysol]
+kind = "tar"
+url = "https://zenodo.org/records/3685367/files/TinySOL.tar.gz"
+size = 1026917185
+md5 = "36030a7fe389da86c3419e5ee48e3b7f"
+cache_name = "TinySOL.tar.gz"
+match = ["tinysol/Strings/*"]
+[set.origins.notes]
+kind = "meta"
+match = ["iowa/*.txt", "*_tree.json", "vsco/*.txt", "sus_map.sfz"]
+
+[[set]]
+id = "arcus-upper"
+dir = "arcus-upper"
+title = "Arcus's violin and viola: the CNSM violins (admittances, all three recording sessions), Iowa MIS violin and viola runs, and the listening references (copies)"
+urls = ["https://doi.org/10.5281/zenodo.18696785", "https://theremin.music.uiowa.edu/MISviolin.html", "https://theremin.music.uiowa.edu/MISviola.html"]
+doi = "10.5281/zenodo.18696786 (CNSM Dataset 1.0.0)"
+licence = "CC-BY-4.0 (CNSM) + custom (Iowa MIS) + CC0-1.0 (VSCO) "
+terms = "CNSM CC BY 4.0 (Pauget Ballesteros, Lalitte, Lostanlen, Fritz); Iowa 'without restrictions'; VSCO CC0"
+use = "ship-credit (CNSM); measure (Iowa); ship (VSCO)"
+tools = ["tools/arcus/upper-body.sh, upper-compare.sh, upper-listen.sh, upper-measure.sh, upper-pitch.sh (ARCUS_UPPER_REFS)", "tools/arcus/upper_study.py", "docs/round42/arcus-upper.md"]
+ignore = ["*.bin"]  # pieces of a zip read by hand in round 42, not data
+[set.origins.cnsm]
+kind = "zip"
+url = "https://zenodo.org/records/18696786/files/dataset.zip"
+size = 654025212
+match = ["cnsm/*"]
+
+[[set]]
+id = "strings-rec"
+dir = "strings-rec"
+title = "The recorded strings' upstream sources: Karoryfer x bigcat cello, D. Smolken double bass, Karoryfer Meatbass and Sneakybass (release zips, unpacked), VSCO 2 CE strings (raw files at a pinned commit)"
+urls = ["https://github.com/sfzinstruments/karoryfer-bigcat.cello", "https://github.com/sfzinstruments/dsmolken.double-bass", "https://github.com/sfzinstruments/karoryfer.meatbass", "https://github.com/sfzinstruments/karoryfer.sneakybass", "https://github.com/sgossner/VSCO-2-CE"]
+version = "bigcat v1.001, smolken v1.001, meatbass v1.001, sneakybass v1.000; VSCO-2-CE 440300901dfe9275fd84e0b7763af1f8443ae62e (SFZ branch 6dd651d55dde97fd4028699be9d4481f26917891)"
+licence = "CC0-1.0"
+terms = "every library CC0 1.0 (its LICENSE in the zip / repository)"
+use = "ship"
+tools = ["tools/content/strings/fetch_sources.sh, map.sh, render.sh, merge.py (the vsco2-strings and bass packs)", "tools/arcus/study/catalog.py (karoryfer-bigcat-cello, dsmolken-double-bass, vsco)", "tools/soundlab/subjects/arcus-cello", "docs/round42/strings-rec.md"]
+ignore = ["*.log"]
+derive = "bash tools/content/strings/map.sh $CANTUS_REFS/strings-rec   (x/*/Cantus, vsco/Cantus, *.laid, strings.json); deltas*.json: tools/content/strings/render.sh fit"
+[set.origins.bigcat-release]
+kind = "url"
+url = "https://github.com/sfzinstruments/karoryfer-bigcat.cello/releases/download/v1.001/Karoryfer_Bigcat_cello.v1.001.zip"
+match = ["bigcat.zip"]
+[set.origins.smolken-release]
+kind = "url"
+url = "https://github.com/sfzinstruments/dsmolken.double-bass/releases/download/v1.001/DSmolken.double_bass.v1.001.zip"
+match = ["smolken.zip"]
+[set.origins.meatbass-release]
+kind = "url"
+url = "https://github.com/sfzinstruments/karoryfer.meatbass/releases/download/v1.001/Karoryfer.Meatbass.v1.001.zip"
+match = ["meatbass.zip"]
+[set.origins.sneakybass-release]
+kind = "url"
+url = "https://github.com/sfzinstruments/karoryfer.sneakybass/releases/download/v1.000/Sneakybass_v1.000.zip"
+match = ["sneakybass.zip"]
+[set.origins.built]
+kind = "derived"
+match = ["*/Cantus/*", "*.laid", "strings.json", "strings_before.json", "deltas*.json"]
+[set.origins.vsco-licence]
+kind = "url"
+url = "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/LICENSE"
+match = ["vsco_LICENSE"]
+[set.origins.vsco-sfz]
+kind = "url"
+base = "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/6dd651d55dde97fd4028699be9d4481f26917891/"
+match = ["vsco/*.sfz"]
+strip = "vsco/"
+[set.origins.vsco]
+kind = "url"
+base = "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/"
+match = ["vsco/Strings/*"]
+strip = "vsco/"
+[set.origins.bigcat]
+kind = "zip"
+local = "bigcat.zip"
+url = "https://github.com/sfzinstruments/karoryfer-bigcat.cello/releases/download/v1.001/Karoryfer_Bigcat_cello.v1.001.zip"
+match = ["x/*"]
+[set.origins.smolken]
+kind = "zip"
+local = "smolken.zip"
+url = "https://github.com/sfzinstruments/dsmolken.double-bass/releases/download/v1.001/DSmolken.double_bass.v1.001.zip"
+match = ["x/*"]
+[set.origins.meatbass]
+kind = "zip"
+local = "meatbass.zip"
+url = "https://github.com/sfzinstruments/karoryfer.meatbass/releases/download/v1.001/Karoryfer.Meatbass.v1.001.zip"
+match = ["x/*"]
+[set.origins.sneakybass]
+kind = "zip"
+local = "sneakybass.zip"
+url = "https://github.com/sfzinstruments/karoryfer.sneakybass/releases/download/v1.000/Sneakybass_v1.000.zip"
+match = ["x/*"]
+[set.origins.saved]
+kind = "meta"
+match = ["*.json", "vsco_files.txt", "abx_phrase.*"]
+
+# ============================================================ the bowed-strings reference study
+# tools/arcus/study (catalog.py → extract.py → phrases.py → aggregate.py; cnsm.py, friction.py,
+# bowing.py, make_abx.py) reads these; research/instruments-next/bowed-realism.md is what it found.
+
+[[set]]
+id = "study-aalto-anechoic-orchestra"
+dir = "study/aalto-anechoic-orchestra"
+title = "Aalto anechoic symphonic recordings: the cello, double-bass, violin and viola parts (mic 6, MP3)"
+urls = ["https://research.cs.aalto.fi/acoustics/virtual-acoustics/research/acoustic-measurement-and-analysis/85-anechoic-recordings.html"]
+version = "the MP3 zips as served 2026-11-23"
+licence = "custom"
+terms = "'The samples can be used free for academic research' (cite Pätynen, Pulkki, Lokki 2008)"
+use = "measure"
+tools = ["tools/arcus/study/phrases.py (via phenicx's denoised copies)", "listening"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.mozart]
+kind = "zip"
+url = "https://mediatech.aalto.fi/images/research/virtualacoustics/recordings/mozart_mp3.zip"
+match = ["mozart/*"]
+[set.origins.beethoven]
+kind = "zip"
+url = "https://mediatech.aalto.fi/images/research/virtualacoustics/recordings/beethoven_mp3.zip"
+match = ["beethoven/*"]
+[set.origins.bruckner]
+kind = "zip"
+url = "https://mediatech.aalto.fi/images/research/virtualacoustics/recordings/bruckner_mp3.zip"
+match = ["bruckner/*"]
+[set.origins.mahler]
+kind = "zip"
+url = "https://mediatech.aalto.fi/images/research/virtualacoustics/recordings/mahler_mp3.zip"
+match = ["mahler/*"]
+
+[[set]]
+id = "study-abx-refs"
+dir = "study/abx-refs"
+title = "The blind-listening references: one note per dynamic and one phrase per source, every family, at -23 LUFS (made from the sets above)"
+licence = "per file (index.json): CC-BY-4.0 / CC0-1.0 / custom"
+terms = "each file keeps its source's licence; index.json names it"
+use = "ship-credit (TinySOL, HSD) / ship (CC0) / measure (Philharmonia, PHENICX)"
+tools = ["tools/arcus/abx.sh", "tools/arcus/upper-listen.sh (refs/study-abx)", "docs/round42/arcus-upper.md"]
+derive = "python -I tools/arcus/study/make_abx.py"
+[set.origins.readme]
+kind = "repo"
+match = ["README.md"]
+[set.origins.made]
+kind = "derived"
+match = ["*"]
+command = "python -I tools/arcus/study/make_abx.py   (writes $CANTUS_REFS/study/abx-refs)"
+
+[[set]]
+id = "study-cnsm-violin"
+dir = "study/cnsm-violin"
+title = "CNSM violin dataset: bridge admittances of three violins, session-1 recordings, the indexes"
+urls = ["https://doi.org/10.5281/zenodo.18696785", "https://github.com/hugo-paugesteros/CNSM-dataset"]
+doi = "10.5281/zenodo.18696786"
+version = "1.0.0 (2026-02-19)"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (Pauget Ballesteros, Lalitte, Lostanlen, Fritz)"
+use = "ship-credit"
+tools = ["tools/arcus/study/cnsm.py", "tools/arcus/upper-body.sh"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.dataset]
+kind = "zip"
+url = "https://zenodo.org/records/18696786/files/dataset.zip"
+size = 654025212
+
+[[set]]
+id = "study-freesound-cc0-previews"
+dir = "study/freesound-cc0-previews"
+title = "Freesound CC0 cello and double-bass sounds (the public lossy previews)"
+urls = ["https://freesound.org/people/cms4f/packs/9834/", "https://freesound.org/people/smoseson/packs/3071/", "https://freesound.org/people/pjcohen/packs/21521/", "https://freesound.org/people/giac.biagi/sounds/567145/"]
+licence = "CC0-1.0"
+terms = "CC0 on each sound's page (the originals need a Freesound login; these are its -hq.mp3 previews)"
+use = "measure (the previews are lossy; the originals may ship)"
+tools = ["listening"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md", "audio/freesound_manifest.json"]
+[set.origins.preview]
+kind = "url"
+base = "https://cdn.freesound.org/previews/"
+match = ["audio/*.mp3"]
+
+[[set]]
+id = "study-good-sounds-cello"
+dir = "study/good-sounds"
+title = "Good-sounds (MTG-UPF): the cello packs (Neumann mic), annotations, database, CORA's metadata"
+urls = ["https://zenodo.org/records/820937", "https://doi.org/10.34810/DATA2314"]
+doi = "10.5281/zenodo.820937; 10.34810/DATA2314 (CORA, metadata)"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (Romaní Picas, Parra Rodríguez, Dabiri, Serra; MTG-UPF)"
+use = "ship-credit"
+tools = ["tools/arcus/study/catalog.py (meta/sounds.json, packs.json)", "tools/arcus/study/extract.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.cora-readme]
+kind = "url"
+url = "https://dataverse.csuc.cat/api/access/datafile/291828"
+match = ["meta/Good-sounds-dataset-readme.txt"]
+[set.origins.cora-packs]
+kind = "url"
+url = "https://dataverse.csuc.cat/api/access/datafile/280586"
+match = ["meta/packs.json"]
+[set.origins.cora-ratings]
+kind = "url"
+url = "https://dataverse.csuc.cat/api/access/datafile/280587"
+match = ["meta/ratings.json"]
+[set.origins.cora-sounds]
+kind = "url"
+url = "https://dataverse.csuc.cat/api/access/datafile/280588"
+match = ["meta/sounds.json"]
+[set.origins.cora-takes]
+kind = "url"
+url = "https://dataverse.csuc.cat/api/access/datafile/280584"
+match = ["meta/takes.json"]
+[set.origins.zenodo]
+kind = "zip"
+url = "https://zenodo.org/records/820937/files/good-sounds.zip"
+size = 13906331564
+match = ["zenodo/*"]
+
+[[set]]
+id = "study-good-sounds-violin"
+dir = "study/good-sounds-violin"
+title = "Good-sounds (MTG-UPF): the violin packs, raquel and laia (Neumann mic)"
+urls = ["https://zenodo.org/records/820937"]
+doi = "10.5281/zenodo.820937"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (MTG-UPF)"
+use = "ship-credit"
+tools = ["tools/arcus/study/catalog.py", "tools/arcus/study/extract.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.zenodo]
+kind = "zip"
+url = "https://zenodo.org/records/820937/files/good-sounds.zip"
+size = 13906331564
+match = ["good-sounds/*"]
+
+[[set]]
+id = "study-hsd-string-quartet-k465"
+dir = "study/hsd-string-quartet-k465"
+title = "HSD Düsseldorf string quartet (Mozart K465), each instrument recorded alone: stems, phrases, levels, documentation"
+urls = ["https://doi.org/10.5281/zenodo.3601097"]
+doi = "10.5281/zenodo.3601097"
+version = "1.1 (2020-02-20)"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (D. Leckschat, C. Epe, Hochschule Düsseldorf)"
+use = "ship-credit"
+tools = ["tools/arcus/study/phrases.py", "tools/arcus/study/make_abx.py (the viola and violin phrases)"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.documentation]
+kind = "url"
+url = "https://zenodo.org/records/3601097/files/Dokumentation_HSD%20Streichquartett_V1.1.pdf"
+match = ["Dokumentation_HSD Streichquartett_V1.1.pdf"]
+[set.origins.project]
+kind = "zip"
+url = "https://zenodo.org/records/3601097/files/Streicherquartett_Complete_Project.zip"
+size = 442204830
+match = ["Streicherquartett_Complete_Project/*"]
+
+[[set]]
+id = "study-iowa-violin-viola"
+dir = "study/iowa-violin-viola"
+title = "University of Iowa MIS: violin and viola (the pre-2012 anechoic set, every string, pp/mf/ff, arco and pizz)"
+urls = ["https://theremin.music.uiowa.edu/MISviolin.html", "https://theremin.music.uiowa.edu/MISviola.html"]
+licence = "custom"
+terms = "'may be downloaded and used for any projects, without restrictions' (not a standard licence)"
+use = "measure"
+tools = ["tools/arcus/study/catalog.py", "tools/arcus/upper-*.sh (arcus-upper/iowa holds copies)"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.violin]
+kind = "url"
+base = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/violin/"
+match = ["violin/*"]
+strip = "violin/"
+[set.origins.viola]
+kind = "url"
+base = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/viola/"
+match = ["viola/*"]
+strip = "viola/"
+[set.origins.pages]
+kind = "url"
+base = "https://theremin.music.uiowa.edu/"
+match = ["meta/*.html"]
+strip = "meta/"
+loose = true
+[set.origins.lists]
+kind = "meta"
+match = ["meta/*.txt"]
+
+[[set]]
+id = "study-papers"
+dir = "study/papers"
+title = "The open papers read for the study (Woodhouse's euphonics.org copies, Mores 2019, Percival 2013, Desvages, Askenfelt 1982, Schoonderwaldt 2008, Guettler, Woodhouse & Galluzzo 2025, …) and their text"
+licence = "custom"
+terms = "each paper under its publisher's or author's own terms: read, never redistributed"
+use = "reading"
+tools = ["research/instruments-next/bowed-realism.md (cited)"]
+fetch = "manual"
+manual = """
+These PDFs were saved by hand from the authors' and publishers' open pages (euphonics.org,
+the journals' open-access copies, the theses' repositories); research/instruments-next/
+bowed-realism.md cites each. No tool reads them. Find each by its title in that file, save it
+under $CANTUS_REFS/study/papers/ with the name below, and `fetch.py verify study-papers` checks
+it is the same copy. The .txt files are `pdftotext` of each PDF (made here).
+"""
+[set.origins.saved]
+kind = "manual"
+match = ["*"]
+
+[[set]]
+id = "study-phenicx-anechoic"
+dir = "study/phenicx-anechoic"
+title = "PHENICX-Anechoic: the Aalto recordings denoised by the MTG, string parts, with note annotations"
+urls = ["https://zenodo.org/records/840025"]
+doi = "10.5281/zenodo.840025"
+licence = "custom"
+terms = "audio: Aalto's terms (academic research); annotations: CC BY-NC-SA 3.0, non-commercial, no redistribution"
+use = "measure"
+tools = ["tools/arcus/study/phrases.py", "tools/arcus/study/make_abx.py (the phrases' excerpts)"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.zenodo]
+kind = "zip"
+url = "https://zenodo.org/records/840025/files/PHENICX-Anechoic.zip"
+size = 763716294
+
+[[set]]
+id = "study-philharmonia"
+dir = "study/philharmonia"
+title = "Philharmonia Orchestra sound samples: cello and double bass (MP3)"
+urls = ["https://philharmonia.co.uk/audio-sound-samples/"]
+licence = "custom"
+terms = "'free to use … including … a commercial work'; 'must not be sold or made available as is (as samples)'"
+use = "measure"
+tools = ["tools/arcus/study/catalog.py", "tools/arcus/study/phrases.py", "tools/arcus/study/make_abx.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.strings]
+kind = "zip"
+url = "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Strings.zip"
+size = 171467548
+match = ["raw/*"]
+
+[[set]]
+id = "study-philharmonia-violin-viola"
+dir = "study/philharmonia-violin-viola"
+title = "Philharmonia Orchestra sound samples: violin and viola (MP3)"
+urls = ["https://philharmonia.co.uk/audio-sound-samples/"]
+licence = "custom"
+terms = "as study-philharmonia"
+use = "measure"
+tools = ["tools/arcus/study/catalog.py", "tools/arcus/study/phrases.py", "tools/arcus/study/make_abx.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.strings]
+kind = "zip"
+url = "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Strings.zip"
+size = 171467548
+match = ["raw/*"]
+
+[[set]]
+id = "study-string-tension-references"
+dir = "study/string-tension-references"
+title = "Cello string tensions (Aitchison & Mnatzaganian's chart, extracted) and D'Addario's comparison chart, for range checks"
+urls = ["https://www.aitchisoncellos.com/string-tensions-charts/", "https://integration.daddario.com/globalassets/pdfs/orchestral/orchestral-strings-comparison-chart.pdf"]
+licence = "custom"
+terms = "both pages are their publishers'; the figures are used as range checks, the pages never redistributed"
+use = "reading"
+tools = ["research/instruments-next/bowed-realism.md"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md", "aitchison_cello_tensions_extracted.csv"]
+[set.origins.aitchison]
+kind = "url"
+url = "https://www.aitchisoncellos.com/string-tensions-charts/"
+match = ["raw/aitchison_cello_string_tensions.html"]
+loose = true
+[set.origins.daddario]
+kind = "url"
+url = "https://integration.daddario.com/globalassets/pdfs/orchestral/orchestral-strings-comparison-chart.pdf"
+match = ["raw/daddario_orchestral-strings-comparison-chart.pdf"]
+loose = true
+
+[[set]]
+id = "study-tinysol-violin-viola"
+dir = "study/tinysol-violin-viola"
+title = "TinySOL (IRCAM Studio On Line subset): violin and viola, ordinario"
+urls = ["https://zenodo.org/records/3685367"]
+doi = "10.5281/zenodo.3685367"
+version = "6.0"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (Cella, Ghisi, Lostanlen, Lévy, Fineberg, Maresz; IRCAM)"
+use = "ship-credit"
+tools = ["tools/arcus/study/catalog.py", "tools/arcus/study/make_abx.py"]
+ignore = ["**/.DS_Store", "*.DS_Store"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.metadata]
+kind = "url"
+url = "https://zenodo.org/records/3685367/files/TinySOL_metadata.csv"
+match = ["TinySOL_metadata.csv"]
+[set.origins.tinysol]
+kind = "tar"
+url = "https://zenodo.org/records/3685367/files/TinySOL.tar.gz"
+size = 1026917185
+md5 = "36030a7fe389da86c3419e5ee48e3b7f"
+cache_name = "TinySOL.tar.gz"
+match = ["audio/*"]
+
+[[set]]
+id = "study-vsco-solo-violin"
+dir = "study/vsco-solo-violin"
+title = "VSCO 2 CE solo violin and the sections: a pointer (the audio is strings-rec/vsco) and the licence"
+urls = ["https://github.com/sgossner/VSCO-2-CE"]
+licence = "CC0-1.0"
+terms = "CC0 1.0"
+use = "ship"
+tools = ["tools/arcus/study/catalog.py (reads strings-rec/vsco)"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+
+[[set]]
+id = "study-pointers"
+dir = "study"
+shared_dir = true
+title = "The study's notes for sources whose audio lives in another set (Iowa cello and bass, TinySOL cello and bass: arcus; Karoryfer, Smolken, VSCO: strings-rec)"
+licence = "see each SOURCE.md"
+terms = "the notes themselves"
+use = "reading"
+tools = ["tools/arcus/study/catalog.py (the audio)"]
+[set.origins.source]
+kind = "repo"
+match = ["iowa-cello-bass/SOURCE.md", "karoryfer-bigcat-cello/SOURCE.md", "smolken-bass/SOURCE.md", "tinysol-cello-bass/SOURCE.md", "vsco-2-ce/SOURCE.md"]
+
+# ------------------------------------------------------------ the bow and string, measured
+
+[[set]]
+id = "study-zenodo-lampis-bridge-force-attack"
+dir = "study/zenodo-lampis-bridge-force-attack"
+title = "Lampis 2024: bridge-force attacks of four cello G-string models (one Guettler session each)"
+urls = ["https://doi.org/10.5281/zenodo.13374477", "https://doi.org/10.1121/10.0034330"]
+doi = "10.5281/zenodo.13374477"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (A. Lampis, mdw Vienna)"
+use = "ship-credit"
+tools = ["tools/arcus/pass4/lampis_attacks.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.waveforms]
+kind = "zip"
+url = "https://zenodo.org/records/13374477/files/waveforms.zip"
+size = 3007564144
+match = ["waveforms/*"]
+
+[[set]]
+id = "study-zenodo-lampis-bridge-force-static-dynamic"
+dir = "study/zenodo-lampis-bridge-force-static-dynamic"
+title = "Lampis et al. 2024: static and dynamic bridge-force components of a bowed cello string (the processed part)"
+urls = ["https://doi.org/10.5281/zenodo.10619541"]
+doi = "10.5281/zenodo.10619541"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (A. Lampis et al., mdw Vienna)"
+use = "ship-credit"
+tools = ["tools/arcus/study/bowing.py (features.csv)", "tools/arcus/pass4/lampis_harmonics.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.database]
+kind = "zip"
+url = "https://zenodo.org/records/10619541/files/Database-Examination_of_bridge_force.zip"
+size = 1310765535
+
+[[set]]
+id = "study-zenodo-lampis-friction-force"
+dir = "study/zenodo-lampis-friction-force"
+title = "Lampis 2025: friction force reconstructed at the bowing point, cello G strings"
+urls = ["https://doi.org/10.5281/zenodo.15879128"]
+doi = "10.5281/zenodo.15879128"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (A. Lampis, mdw Vienna)"
+use = "ship-credit"
+tools = ["tools/arcus/study/friction.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.function]
+kind = "url"
+url = "https://zenodo.org/records/15879128/files/function.zip"
+match = ["archive/function.zip"]
+[set.origins.main]
+kind = "url"
+url = "https://zenodo.org/records/15879128/files/main_measurements_reconstruction.m"
+match = ["archive/main_measurements_reconstruction.m"]
+[set.origins.output]
+kind = "zip"
+url = "https://zenodo.org/records/15879128/files/output_measurements.zip"
+size = 46738546
+match = ["output_measurements/*"]
+
+[[set]]
+id = "study-zenodo-mores-torsion-electrical"
+dir = "study/zenodo-mores-torsion-electrical"
+title = "Mores 2018: transverse and torsional vibration of a bowed cello G steel string (electrical pickups)"
+urls = ["https://doi.org/10.5281/zenodo.1257872", "https://doi.org/10.1371/journal.pone.0211217"]
+doi = "10.5281/zenodo.1257872"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (R. Mores, HAW Hamburg)"
+use = "ship-credit"
+tools = ["research/instruments-next/bowed-realism.md (torsion)"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.zenodo]
+kind = "url"
+base = "https://zenodo.org/records/1257872/files/"
+match = ["data/*"]
+strip = "data/"
+
+[[set]]
+id = "study-zenodo-mores-torsion-letter"
+dir = "study/zenodo-mores-torsion-letter"
+title = "Mores 2019: the PLOS ONE response to reviewers (a document)"
+urls = ["https://doi.org/10.5281/zenodo.2546399"]
+doi = "10.5281/zenodo.2546399"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0"
+use = "reading"
+tools = []
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.zenodo]
+kind = "url"
+base = "https://zenodo.org/records/2546399/files/"
+match = ["*.pdf"]
+
+[[set]]
+id = "study-zenodo-mores-torsion-optical"
+dir = "study/zenodo-mores-torsion-optical"
+title = "Mores & Plath 2018: optically measured torsional waves on a bowed cello string (the traces; not the 3 GB films)"
+urls = ["https://doi.org/10.5281/zenodo.1302895"]
+doi = "10.5281/zenodo.1302895"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (Mores, Plath)"
+use = "ship-credit"
+tools = ["research/instruments-next/bowed-realism.md (torsion)"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.zenodo]
+kind = "url"
+base = "https://zenodo.org/records/1302895/files/"
+match = ["data/*"]
+strip = "data/"
+
+[[set]]
+id = "study-zenodo-pamies-vila-bow-kinematics"
+dir = "study/zenodo-pamies-vila-bow-kinematics"
+title = "Pàmies-Vilà et al. 2024: cello bow kinematics, player and robot (motion capture and audio)"
+urls = ["https://doi.org/10.5281/zenodo.10696680"]
+doi = "10.5281/zenodo.10696680"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (Pàmies-Vilà, Mayer, Matusiak, Chatziioannou; mdw Vienna)"
+use = "ship-credit"
+tools = ["tools/arcus/pass4/bow_kinematics.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.zenodo]
+kind = "url"
+base = "https://zenodo.org/records/10696680/files/"
+match = ["data/*"]
+strip = "data/"
+
+[[set]]
+id = "study-zenodo-pamies-vila-contemporary-bowing"
+dir = "study/zenodo-pamies-vila-contemporary-bowing"
+title = "Pàmies-Vilà 2025: motion capture and audio of bowing techniques, participants 1 and 3"
+urls = ["https://doi.org/10.5281/zenodo.17207713"]
+doi = "10.5281/zenodo.17207713"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (M. Pàmies-Vilà, mdw Vienna)"
+use = "ship-credit"
+tools = ["tools/arcus/pass5/strokes.py (refs)"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.participant1]
+kind = "zip"
+url = "https://zenodo.org/records/17207713/files/Participant1.zip"
+size = 95260776
+match = ["Participant1/*"]
+[set.origins.participant3]
+kind = "zip"
+url = "https://zenodo.org/records/17207713/files/Participant3.zip"
+size = 125624732
+match = ["Participant3/*"]
+[set.origins.zenodo]
+kind = "url"
+base = "https://zenodo.org/records/17207713/files/"
+match = ["ReadMe_*", "MusicScore_*", "BeginningsDurationsR3.csv"]
+
+# ============================================================ the other instruments and the lab
+
+[[set]]
+id = "tuning"
+dir = "tuning"
+title = "The Scala scale archive, version 94 (5 401 .scl files), from its fixed Wayback Machine copy"
+urls = ["https://huygens-fokker.org/docs/scales.zip", "https://web.archive.org/web/20260404005834id_/https://huygens-fokker.org/docs/scales.zip"]
+version = "94"
+licence = "none stated"
+terms = "the archive states no licence: never committed, read by an ignored test only (ADR 0155)"
+use = "measure"
+tools = ["tools/test/scala-archive.sh (SCALA_ARCHIVE_DIR, default $CANTUS_REFS/tuning)", "docs/round42/tuning.md"]
+[set.origins.archive]
+kind = "url"
+url = "https://web.archive.org/web/20260404005834id_/https://huygens-fokker.org/docs/scales.zip"
+match = ["scales-v94.zip"]
+[set.origins.licence]
+kind = "url"
+url = "https://raw.githubusercontent.com/surge-synthesizer/tuning-library/main/LICENSE.md"
+match = ["tuning-library-LICENSE.md"]
+loose = true
+[set.origins.scl]
+kind = "zip"
+local = "scales-v94.zip"
+url = "https://web.archive.org/web/20260404005834id_/https://huygens-fokker.org/docs/scales.zip"
+match = ["v94/*"]
+
+[[set]]
+id = "soundlab-example"
+dir = "soundlab-example"
+title = "The sound lab's worked example: a hypothetical struck bar's synthetic references"
+licence = "CC0-1.0"
+terms = "made by synth_bar.py (no recording)"
+use = "ship"
+tools = ["tools/soundlab/subjects/example-tibia", "tools/soundlab/tests/test_kit.py"]
+derive = "python -I tools/soundlab/subjects/example-tibia/synth_bar.py refs $CANTUS_REFS/soundlab-example"
+[set.origins.made]
+kind = "derived"
+match = ["*"]
+command = "python -I tools/soundlab/subjects/example-tibia/synth_bar.py refs $CANTUS_REFS/soundlab-example"
+
+[[set]]
+id = "tympanum"
+dir = "tympanum"
+title = "Tympanum's packs as the app installs them: DRSKit (Tympanum), Virtuosity Drums, the two hybrid packs (v3)"
+urls = ["https://drumgizmo.org/wiki/doku.php?id=kits:drskit", "https://github.com/sfzinstruments/virtuosity_drums"]
+version = "the manifest's (crates/cantus-content/manifest/content.json)"
+licence = "CC-BY-4.0 (DRSKit) + CC0-1.0 (Virtuosity, hybrids)"
+terms = "the packs' own LICENSE files; the manifest names the credits"
+use = "ship-credit"
+tools = ["crates/cantus-ui/examples/tympanum_abx (--downloads, default $CANTUS_REFS/tympanum)", "tools/tympanum-fit", "docs/round42/tymp-abx.md"]
+packs = ["drskit-tympanum", "virtuosity-drums", "tympanum-hybrid-jazz", "tympanum-hybrid-studio"]
+content = "content"
+install = "bash tools/build/slot.sh cargo run --release -p cantus-ui --example tympanum_abx -- {work}/tympanum-install-kit --downloads {dir}"
+ignore = ["content/.staging/*", "content/.downloads/*", "stream-cache/*", "content/crocellkit-tympanum/*", "content/muldjordkit-tympanum/*", "content/big-rusty-drums/*"]
+[set.origins.pack]
+kind = "pack"
+match = ["content/*"]
+
+[[set]]
+id = "tympanum-extra"
+dir = "tympanum"
+shared_dir = true
+title = "The other recorded kits Tympanum's fit may measure (README, TYMP_CONTENT): Crocell and Muldjord (Tympanum builds), Big Rusty Drums"
+urls = ["https://drumgizmo.org/wiki/doku.php?id=kits:crocellkit", "https://drumgizmo.org/wiki/doku.php?id=kits:muldjordkit"]
+version = "the manifest's"
+licence = "CC-BY-4.0 (Crocell, Muldjord) + CC0-1.0 (Big Rusty)"
+terms = "the packs' own LICENSE files; the manifest names the credits"
+use = "ship-credit"
+tools = ["tools/tympanum-fit (TYMP_CONTENT = $CANTUS_REFS/tympanum/content; optional: the cycles read DRSKit and Virtuosity)"]
+packs = ["crocellkit-tympanum", "muldjordkit-tympanum", "big-rusty-drums"]
+content = "content"
+install = "CHORDA_INSTALL={packs} bash tools/build/slot.sh cargo run --release -p cantus-ui --example chorda_pianos -- {work}/pack-install {content} --measure"
+ignore = ["content/drskit-tympanum/*", "content/virtuosity-drums/*", "content/tympanum-hybrid-*", "content/.staging/*", "content/.downloads/*", "stream-cache/*"]
+[set.origins.pack]
+kind = "pack"
+match = ["content/crocellkit-tympanum/*", "content/muldjordkit-tympanum/*", "content/big-rusty-drums/*"]
+
+[[set]]
+id = "piano"
+dir = "piano"
+title = "The Salamander Grand (CC BY 3.0, Alexander Holm) as the app installs it: Chorda's reference piano"
+urls = ["https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html"]
+version = "the manifest's (SalamanderGrandPiano-SFZ+FLAC-V3+20200602)"
+licence = "CC-BY-3.0"
+terms = "CC BY 3.0 (Alexander Holm; FLAC edition by FreePats)"
+use = "ship-credit"
+tools = ["crates/cantus-ui/examples/chorda_compare (install|render <downloads>)", "crates/cantus-ui/examples/chorda_abx (--downloads)", "tools/chorda-voicing/references.sh", "tools/listening (chorda kits)"]
+packs = ["salamander-grand-piano"]
+content = "content"
+install = "bash tools/build/slot.sh cargo run --release -p cantus-ui --example chorda_compare -- install {dir}"
+ignore = ["content/.staging/*", "content/.downloads/*", "content/bitklavier-*"]
+[set.origins.pack]
+kind = "pack"
+match = ["content/salamander-grand-piano/*"]
+
+[[set]]
+id = "piano-bitklavier"
+dir = "piano"
+shared_dir = true
+title = "The bitKlavier Grand's two images Chorda's recorded-piano listening uses (Stage Lid ORTF, Piano Bar)"
+urls = ["https://doi.org/10.5281/zenodo.6366430"]
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 (Princeton University, bitKlavier)"
+use = "ship-credit"
+tools = ["crates/cantus-ui/examples/chorda_pianos (<content-root> = $CANTUS_REFS/piano/content)"]
+packs = ["bitklavier-grand-stage-lid-ortf", "bitklavier-grand-piano-bar"]
+content = "content"
+ignore = ["content/salamander-*", "content/.staging/*", "content/.downloads/*", "content/.stream-cache/*"]
+install = "CHORDA_INSTALL={packs} bash tools/build/slot.sh cargo run --release -p cantus-ui --example chorda_pianos -- {work}/chorda-pianos {content} --measure"
+[set.origins.pack]
+kind = "pack"
+match = ["content/bitklavier-*"]
+
+# ============================================================ by hand only
+
+[[set]]
+id = "ebu-loudness"
+dir = "ebu-loudness"
+title = "The EBU loudness test set (Tech 3341 / 3342 signals as WAV)"
+urls = ["https://tech.ebu.ch/publications/ebu_loudness_test_set"]
+licence = "custom"
+terms = "the EBU's test material, free to download from its page"
+use = "measure"
+tools = ["tools/soundlab/tests/test_loudness.py (SOUNDLAB_EBU, default $CANTUS_REFS/ebu-loudness)"]
+fetch = "manual"
+expect = ["seq-3341-1-16bit.wav", "seq-3341-2-16bit.wav", "seq-3341-3-16bit-v02.wav", "seq-3341-4-16bit-v02.wav", "seq-3341-5-16bit-v02.wav"]
+manual = """
+tech.ebu.ch answers automated clients with a browser challenge (Cloudflare), which is never
+worked around. In a browser: open https://tech.ebu.ch/publications/ebu_loudness_test_set,
+download the test set's zip (it needs no account), and unpack the seq-3341-*.wav files listed
+below into $CANTUS_REFS/ebu-loudness/ (flat). Then:
+    python -I tools/sound-refs/fetch.py record ebu-loudness     # their sizes and SHA-256
+    python -I tools/soundlab/tests/run.py                       # test_loudness reads them
+Keep the other files of the zip beside them if you like; record catalogues every file.
+"""
+
+[[set]]
+id = "mdb-drums"
+dir = "mdb-drums"
+title = "MDB Drums (Southall et al., ISMIR 2017): MedleyDB's drum stems with hand-annotated hits"
+urls = ["https://github.com/CarlSouthall/MDBDrums"]
+licence = "CC-BY-NC-SA-4.0"
+terms = "CC BY-NC-SA 4.0: measuring only, never committed, never shipped"
+use = "measure"
+tools = ["crates/cantus-dsp/tests/onset_drums_mdb.rs (CANTUS_MDB_DRUMS = $CANTUS_REFS/mdb-drums/MDBDrums-master/MDB Drums)", "crates/cantus-ui/tests/sectio_mdb.rs (CANTUS_MDB_DRUMS: a folder holding audio/drum_only and annotations/class flattened)"]
+fetch = "manual"
+manual = """
+Not on disk since round 37's folder was deleted (no checksums recorded). Fetch the repository's
+zip by hand (GitHub serves it to scripts, but it is not pinned to a commit, so record it):
+    curl -sSL --fail -o "$CANTUS_REFS/mdb-drums/MDBDrums-master.zip" https://github.com/CarlSouthall/MDBDrums/archive/refs/heads/master.zip
+    (check it starts with PK; behind the proxy it may be an HTML page for ~10 minutes: wait, again)
+    unzip it there, then: python -I tools/sound-refs/fetch.py record mdb-drums
+"""

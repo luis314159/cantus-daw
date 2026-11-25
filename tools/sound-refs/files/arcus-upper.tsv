@@ -1,0 +1,257 @@
+# arcus-upper: the files under $CANTUS_REFS/arcus-upper/ — written by `fetch.py record arcus-upper`; origins in catalog.toml
+# path	size	sha256	origin	member
+cnsm/admittances/Phase 1/Klimke/measurement_1.csv	1861415	a16a2480a33565f9cd4686141836d3274dec40db461d602c7702fd5783c83c90	cnsm	admittances/Phase 1/Klimke/measurement_1.csv
+cnsm/admittances/Phase 1/Klimke/measurement_2.csv	1855773	6113416327d20a4c014dd5afc291bf11cb9835c68f2a60d2583815e3819985e6	cnsm	admittances/Phase 1/Klimke/measurement_2.csv
+cnsm/admittances/Phase 1/Klimke/measurement_3.csv	1857744	1379ef8abb5883ce8e1edec6f074948021bd56209fc13e3fd5a056571838543e	cnsm	admittances/Phase 1/Klimke/measurement_3.csv
+cnsm/admittances/Phase 1/Klimke/measurement_4.csv	7572824	26b7e32d5b1fba19e8c1895087f89588918b4a58fb939fd718ba8c9e8ca63370	cnsm	admittances/Phase 1/Klimke/measurement_4.csv
+cnsm/admittances/Phase 1/Levaggi/measurement_1.csv	7574824	7f84a5a22a9e417d3433d577312b2c98943177a58bc51648fa6935308d24d561	cnsm	admittances/Phase 1/Levaggi/measurement_1.csv
+cnsm/admittances/Phase 1/Levaggi/measurement_2.csv	1872103	1d523f98b162991f296fe84b4c5f639ed11b939baa26a1b0a0f750686da178eb	cnsm	admittances/Phase 1/Levaggi/measurement_2.csv
+cnsm/admittances/Phase 1/Levaggi/measurement_3.csv	1868463	89782ca17b98c28e76d1453b50216b75b9f8e822a636146a5eebffbdc51ea22c	cnsm	admittances/Phase 1/Levaggi/measurement_3.csv
+cnsm/admittances/Phase 1/Levaggi/measurement_4.csv	1866027	3fa581cf875e7918be305a48866c9a366a40a6db64829394c240aecf507dfc28	cnsm	admittances/Phase 1/Levaggi/measurement_4.csv
+cnsm/admittances/Phase 1/Stoppani/measurement_1.csv	1849075	c3259d2757202b0282a85e2540ccd549f9ea2d59d329f8d75aaa160beea65fb2	cnsm	admittances/Phase 1/Stoppani/measurement_1.csv
+cnsm/admittances/Phase 1/Stoppani/measurement_2.csv	1868436	50f4f40eed7480758aa1b10b22f758045488397af358f58ba9000045a5fdcc93	cnsm	admittances/Phase 1/Stoppani/measurement_2.csv
+cnsm/admittances/Phase 1/Stoppani/measurement_3.csv	1852620	dc5448f32fc622eaf0b003d5adc6efb5a8a8256355d0a3cc85d767a079de96d2	cnsm	admittances/Phase 1/Stoppani/measurement_3.csv
+cnsm/admittances/Phase 1/Stoppani/measurement_4.csv	1868318	59905633304a9d27b7a3faebe8d4066a0d6bc39660b6cfade58c3c3b2db5f813	cnsm	admittances/Phase 1/Stoppani/measurement_4.csv
+cnsm/admittances/Phase 2/Klimke/measurement_1.csv	1862997	fdcbe008b12dfba1edf1da6f785c7894a20a55a5076b02e6b1e9ea50225d7f07	cnsm	admittances/Phase 2/Klimke/measurement_1.csv
+cnsm/admittances/Phase 2/Klimke/measurement_2.csv	1862851	90deb3e8a368271d6e3ca248fc5101fee3b54ec5e9938521419b02fc844fe81a	cnsm	admittances/Phase 2/Klimke/measurement_2.csv
+cnsm/admittances/Phase 2/Klimke/measurement_3.csv	1862131	bd8bfff92eb5ff11d7092f39e53ce9a3fb667206f9ee66e084822f5e1ece25ea	cnsm	admittances/Phase 2/Klimke/measurement_3.csv
+cnsm/admittances/Phase 2/Klimke/measurement_4.csv	1860915	bc9eef5a8dfb8067b1fef2131e0b3f6537f48abc7a4d52b220d7080b4462dc7a	cnsm	admittances/Phase 2/Klimke/measurement_4.csv
+cnsm/admittances/Phase 2/Klimke/measurement_5.csv	1864658	50193e2ae933e75364882327064726d51467c0c2dfa0e2d0ab26ee07604ea9ed	cnsm	admittances/Phase 2/Klimke/measurement_5.csv
+cnsm/admittances/Phase 2/Levaggi/measurement_1.csv	1872453	a0d342f9e1cc5d229ca4b6a80ac4ecb44d90f3d74ff72663d0aecb307cbfff56	cnsm	admittances/Phase 2/Levaggi/measurement_1.csv
+cnsm/admittances/Phase 2/Levaggi/measurement_2.csv	1868560	3b7563b21083fd522958d482c6165bdd5a00babd53bdb603561e7cdbcaae7592	cnsm	admittances/Phase 2/Levaggi/measurement_2.csv
+cnsm/admittances/Phase 2/Stoppani/measurement_1.csv	1861503	0aa9e354fef77e692712333958153d1c835d606f540f22603c8f4437886a3ba7	cnsm	admittances/Phase 2/Stoppani/measurement_1.csv
+cnsm/admittances/Phase 2/Stoppani/measurement_2.csv	1844008	924bd56599ff9faa0d8cf6cef36a3c53730ea1ef63157f3532103c4931086079	cnsm	admittances/Phase 2/Stoppani/measurement_2.csv
+cnsm/admittances/dataset.csv	616	d1db9eff8a1870c4b238f3fe83fdd8a353bded2745e0d07850b578c3be84e730	cnsm	admittances/dataset.csv
+cnsm/recordings/Session 1/Klimke/Player 11/scale_01.wav	3727124	2f38d6302e961f6c72268263200adbd0d7ecbbc44db7b56a87a4f66709881042	cnsm	recordings/Session 1/Klimke/Player 11/scale_01.wav
+cnsm/recordings/Session 1/Klimke/Player 12/scale_01.wav	4172948	58ced201b31032c4bdf8416e04ef1ed51a4d9c998ed2465afa34e858503fb46f	cnsm	recordings/Session 1/Klimke/Player 12/scale_01.wav
+cnsm/recordings/Session 1/Klimke/Player 2/scale_01.wav	5116842	ab0cf3a155eca6d03c6a36f46626c548bb74efcbdeae937f2b964e1bb5ce4604	cnsm	recordings/Session 1/Klimke/Player 2/scale_01.wav
+cnsm/recordings/Session 1/Levaggi/Player 2/scale_01.wav	3185414	9163180d8d6f7e41cfc1fcf25b521ddceb9db1bb4b22763a8655752df19bbaea	cnsm	recordings/Session 1/Levaggi/Player 2/scale_01.wav
+cnsm/recordings/Session 1/Stoppani/Player 2/scale_01.wav	3238900	c5d60239aadb73299416a395dec51ed0fe33a5b540ff0fd8c1f9bb571aebe691	cnsm	recordings/Session 1/Stoppani/Player 2/scale_01.wav
+cnsm/recordings/Session 2/Klimke/Player 11/scale_01.wav	2642732	31c9facff4b3b8aed3a82b7b8a5edd9f6d80279390746035c79072da0889ad4f	cnsm	recordings/Session 2/Klimke/Player 11/scale_01.wav
+cnsm/recordings/Session 2/Klimke/Player 12/scale_01.wav	3316652	a47abffcf421f643e8c8a9d1aff5e6ccbfe776b66fc46eca4979d1ffc9e27241	cnsm	recordings/Session 2/Klimke/Player 12/scale_01.wav
+cnsm/recordings/Session 2/Klimke/Player 2/scale_01.wav	2767732	2f96d202fea38d4e3c000f772936c3d73557ad855fd2364345b006b97ff27efe	cnsm	recordings/Session 2/Klimke/Player 2/scale_01.wav
+cnsm/recordings/Session 2/Levaggi/Player 2/scale_01.wav	2265848	896c60c7d05726a298582980dd6adbd9232cf4490224944da3565ad7f6f36df3	cnsm	recordings/Session 2/Levaggi/Player 2/scale_01.wav
+cnsm/recordings/Session 2/Stoppani/Player 2/scale_01.wav	3163540	b20adef22285d267db2577f6cb4ca62093d8a484b7523692caf7ce6e68446652	cnsm	recordings/Session 2/Stoppani/Player 2/scale_01.wav
+cnsm/recordings/Session 3/Klimke/Player 12/scale_01.wav	3830154	c3f5178c2a4fd026383569c34edbd04b4db228029a77f6ea6175dd8994a5bdcf	cnsm	recordings/Session 3/Klimke/Player 12/scale_01.wav
+cnsm/recordings/Session 3/Klimke/Player 2/scale_01.wav	3094650	19bef5e85d83769ab3c4c034e2297733d2b7c8b27f66d7d0c931c58a36448e37	cnsm	recordings/Session 3/Klimke/Player 2/scale_01.wav
+cnsm/recordings/Session 3/Levaggi/Player 2/scale_01.wav	3392106	44747cbbb8f20941037e6f4d453ee8d204d81e707a1406db32bff023500fdbc2	cnsm	recordings/Session 3/Levaggi/Player 2/scale_01.wav
+cnsm/recordings/Session 3/Stoppani/Player 2/scale_01.wav	2756866	4dc8082783228eb7c34a2bbd7ea0fec1b7600af229c13d5a8fa8326cb1ff13d1	cnsm	recordings/Session 3/Stoppani/Player 2/scale_01.wav
+cnsm/recordings/dataset.csv	22645	20e3baea9a84f26e9acff8419c3c50b64a012fbe343e661d4399e95246a66197	cnsm	recordings/dataset.csv
+iowa/MISviola.html	26800	7a4027355599adcb55ee2b4932930748dbb82e1918f8e0e747d66dc870b12ece	copy	study/iowa-violin-viola/meta/MISviola.html
+iowa/MISviolin.html	28968	e000f0994149b777bdf1f2ee3879804758f6d46a89bea78d5b2e6d861d233674	copy	study/iowa-violin-viola/meta/MISviolin.html
+iowa/Viola.arco.sulA.ff.A4B4.aiff	1335164	f1c5a9ab792afacb308cd7ebc63341f76b7b5243c1074b4eaa35281f760d7963	copy	study/iowa-violin-viola/viola/Viola.arco.sulA.ff.A4B4.aiff
+iowa/Viola.arco.sulA.mf.A4B4.aiff	1203290	53bcbf77a8b92d7cca0bc4bc58e242bfe14ef5b1d866b3e9d32fca74594b2284	copy	study/iowa-violin-viola/viola/Viola.arco.sulA.mf.A4B4.aiff
+iowa/Viola.arco.sulA.pp.A4B4.aiff	1243412	3e73a1970738e58ec80ad36ab7bd9719695a2c783709af19f02cb64ea27e5efb	copy	study/iowa-violin-viola/viola/Viola.arco.sulA.pp.A4B4.aiff
+iowa/Viola.arco.sulC.mf.C3B3.aiff	5502272	c718be7173117c1aa0fc0039a2df54191bc3c40582bf4fed1376f482c2f52e1e	copy	study/iowa-violin-viola/viola/Viola.arco.sulC.mf.C3B3.aiff
+iowa/Viola.arco.sulD.mf.D4B4.aiff	5366874	eefd4a8d9e913da891c716439d5bfd4112a3c51210037c48f5f316051fb7f2ef	copy	study/iowa-violin-viola/viola/Viola.arco.sulD.mf.D4B4.aiff
+iowa/Viola.arco.sulG.mf.G3B3.aiff	2592500	531cdc507259bdf51a74a7cc42429077e75e0b945e4d5e95a716a327cfc0f97a	copy	study/iowa-violin-viola/viola/Viola.arco.sulG.mf.G3B3.aiff
+iowa/Viola.pizz.sulA.mf.A4B4.aiff	270610	fb9ae953f3af750abbcbb352f60346655f7495340876825a87f2ae9eed8c96d7	copy	study/iowa-violin-viola/viola/Viola.pizz.sulA.mf.A4B4.aiff
+iowa/Viola.pizz.sulD.mf.D4B4.aiff	1876616	a34a5cc7de348733ba5c12e5ef5c7951bb46dbf543660a74bdc6350c1f6b571a	copy	study/iowa-violin-viola/viola/Viola.pizz.sulD.mf.D4B4.aiff
+iowa/Violin.arco.ff.sulA.A4B4.aiff	2268582	a16a1281b31a703ec275baa5aed7e538692d049e9f1b01b163c49a40baef24e2	copy	study/iowa-violin-viola/violin/Violin.arco.ff.sulA.A4B4.aiff
+iowa/Violin.arco.mf.sulA.A4B4.aiff	2688346	d314f949de13cd2326e539131e59d8c63fd9c044bc1000baac0684b0d5c3b57b	copy	study/iowa-violin-viola/violin/Violin.arco.mf.sulA.A4B4.aiff
+iowa/Violin.arco.mf.sulD.D4A4.aiff	8526086	412bc9f34bc2ba15242aacc18eff105277d746cb52878c478f7704c5f6b079b6	copy	study/iowa-violin-viola/violin/Violin.arco.mf.sulD.D4A4.aiff
+iowa/Violin.arco.mf.sulE.E5B5.aiff	7289672	aec7ba76149b5bf7fd7cdaf5631a619966bc91ea472a7effaf50726811f4812f	copy	study/iowa-violin-viola/violin/Violin.arco.mf.sulE.E5B5.aiff
+iowa/Violin.arco.mf.sulG.G3B3.aiff	4421332	50c53128788531062b239f5007fb48cf17c4e8b4474f9caf871163993d46b80d	copy	study/iowa-violin-viola/violin/Violin.arco.mf.sulG.G3B3.aiff
+iowa/Violin.arco.pp.sulA.A4B4.aiff	2875692	e2e761ed114eec59eec000cc220d0cccef6a32a9fb06dd89d54c0c667ddaddca	copy	study/iowa-violin-viola/violin/Violin.arco.pp.sulA.A4B4.aiff
+iowa/Violin.pizz.mf.sulA.A4B4.aiff	1295444	21c3f7ca986b6c1b47ca2690d4d788f437f17843229380ec5a11cc8721ca230a	copy	study/iowa-violin-viola/violin/Violin.pizz.mf.sulA.A4B4.aiff
+iowa/Violin.pizz.mf.sulD.D4Ab4.aiff	5609840	fdc451de00c8707a6b8fb75fd151a38d1c062dfc533bc5f9f5f9d1651d7c0f93	copy	study/iowa-violin-viola/violin/Violin.pizz.mf.sulD.D4Ab4.aiff
+refs/cnsm-recordings/Session 1/Klimke/Player 11/scale_01.wav	3727124	2f38d6302e961f6c72268263200adbd0d7ecbbc44db7b56a87a4f66709881042	copy	arcus-upper/cnsm/recordings/Session 1/Klimke/Player 11/scale_01.wav
+refs/cnsm-recordings/Session 1/Klimke/Player 12/scale_01.wav	4172948	58ced201b31032c4bdf8416e04ef1ed51a4d9c998ed2465afa34e858503fb46f	copy	arcus-upper/cnsm/recordings/Session 1/Klimke/Player 12/scale_01.wav
+refs/cnsm-recordings/Session 1/Klimke/Player 2/scale_01.wav	5116842	ab0cf3a155eca6d03c6a36f46626c548bb74efcbdeae937f2b964e1bb5ce4604	copy	arcus-upper/cnsm/recordings/Session 1/Klimke/Player 2/scale_01.wav
+refs/cnsm-recordings/Session 1/Levaggi/Player 2/scale_01.wav	3185414	9163180d8d6f7e41cfc1fcf25b521ddceb9db1bb4b22763a8655752df19bbaea	copy	arcus-upper/cnsm/recordings/Session 1/Levaggi/Player 2/scale_01.wav
+refs/cnsm-recordings/Session 1/Stoppani/Player 2/scale_01.wav	3238900	c5d60239aadb73299416a395dec51ed0fe33a5b540ff0fd8c1f9bb571aebe691	copy	arcus-upper/cnsm/recordings/Session 1/Stoppani/Player 2/scale_01.wav
+refs/cnsm-recordings/Session 2/Klimke/Player 11/scale_01.wav	2642732	31c9facff4b3b8aed3a82b7b8a5edd9f6d80279390746035c79072da0889ad4f	copy	arcus-upper/cnsm/recordings/Session 2/Klimke/Player 11/scale_01.wav
+refs/cnsm-recordings/Session 2/Klimke/Player 12/scale_01.wav	3316652	a47abffcf421f643e8c8a9d1aff5e6ccbfe776b66fc46eca4979d1ffc9e27241	copy	arcus-upper/cnsm/recordings/Session 2/Klimke/Player 12/scale_01.wav
+refs/cnsm-recordings/Session 2/Klimke/Player 2/scale_01.wav	2767732	2f96d202fea38d4e3c000f772936c3d73557ad855fd2364345b006b97ff27efe	copy	arcus-upper/cnsm/recordings/Session 2/Klimke/Player 2/scale_01.wav
+refs/cnsm-recordings/Session 2/Levaggi/Player 2/scale_01.wav	2265848	896c60c7d05726a298582980dd6adbd9232cf4490224944da3565ad7f6f36df3	copy	arcus-upper/cnsm/recordings/Session 2/Levaggi/Player 2/scale_01.wav
+refs/cnsm-recordings/Session 2/Stoppani/Player 2/scale_01.wav	3163540	b20adef22285d267db2577f6cb4ca62093d8a484b7523692caf7ce6e68446652	copy	arcus-upper/cnsm/recordings/Session 2/Stoppani/Player 2/scale_01.wav
+refs/cnsm-recordings/Session 3/Klimke/Player 12/scale_01.wav	3830154	c3f5178c2a4fd026383569c34edbd04b4db228029a77f6ea6175dd8994a5bdcf	copy	arcus-upper/cnsm/recordings/Session 3/Klimke/Player 12/scale_01.wav
+refs/cnsm-recordings/Session 3/Klimke/Player 2/scale_01.wav	3094650	19bef5e85d83769ab3c4c034e2297733d2b7c8b27f66d7d0c931c58a36448e37	copy	arcus-upper/cnsm/recordings/Session 3/Klimke/Player 2/scale_01.wav
+refs/cnsm-recordings/Session 3/Levaggi/Player 2/scale_01.wav	3392106	44747cbbb8f20941037e6f4d453ee8d204d81e707a1406db32bff023500fdbc2	copy	arcus-upper/cnsm/recordings/Session 3/Levaggi/Player 2/scale_01.wav
+refs/cnsm-recordings/Session 3/Stoppani/Player 2/scale_01.wav	2756866	4dc8082783228eb7c34a2bbd7ea0fec1b7600af229c13d5a8fa8326cb1ff13d1	copy	arcus-upper/cnsm/recordings/Session 3/Stoppani/Player 2/scale_01.wav
+refs/cnsm-recordings/dataset.csv	22645	20e3baea9a84f26e9acff8419c3c50b64a012fbe343e661d4399e95246a66197	copy	arcus-upper/cnsm/recordings/dataset.csv
+refs/iowa/MISviola.html	26800	7a4027355599adcb55ee2b4932930748dbb82e1918f8e0e747d66dc870b12ece	copy	study/iowa-violin-viola/meta/MISviola.html
+refs/iowa/MISviolin.html	28968	e000f0994149b777bdf1f2ee3879804758f6d46a89bea78d5b2e6d861d233674	copy	study/iowa-violin-viola/meta/MISviolin.html
+refs/iowa/Viola.arco.sulA.ff.A4B4.aiff	1335164	f1c5a9ab792afacb308cd7ebc63341f76b7b5243c1074b4eaa35281f760d7963	copy	study/iowa-violin-viola/viola/Viola.arco.sulA.ff.A4B4.aiff
+refs/iowa/Viola.arco.sulA.mf.A4B4.aiff	1203290	53bcbf77a8b92d7cca0bc4bc58e242bfe14ef5b1d866b3e9d32fca74594b2284	copy	study/iowa-violin-viola/viola/Viola.arco.sulA.mf.A4B4.aiff
+refs/iowa/Viola.arco.sulA.pp.A4B4.aiff	1243412	3e73a1970738e58ec80ad36ab7bd9719695a2c783709af19f02cb64ea27e5efb	copy	study/iowa-violin-viola/viola/Viola.arco.sulA.pp.A4B4.aiff
+refs/iowa/Viola.arco.sulC.mf.C3B3.aiff	5502272	c718be7173117c1aa0fc0039a2df54191bc3c40582bf4fed1376f482c2f52e1e	copy	study/iowa-violin-viola/viola/Viola.arco.sulC.mf.C3B3.aiff
+refs/iowa/Viola.arco.sulD.mf.D4B4.aiff	5366874	eefd4a8d9e913da891c716439d5bfd4112a3c51210037c48f5f316051fb7f2ef	copy	study/iowa-violin-viola/viola/Viola.arco.sulD.mf.D4B4.aiff
+refs/iowa/Viola.arco.sulG.mf.G3B3.aiff	2592500	531cdc507259bdf51a74a7cc42429077e75e0b945e4d5e95a716a327cfc0f97a	copy	study/iowa-violin-viola/viola/Viola.arco.sulG.mf.G3B3.aiff
+refs/iowa/Viola.pizz.sulA.mf.A4B4.aiff	270610	fb9ae953f3af750abbcbb352f60346655f7495340876825a87f2ae9eed8c96d7	copy	study/iowa-violin-viola/viola/Viola.pizz.sulA.mf.A4B4.aiff
+refs/iowa/Viola.pizz.sulD.mf.D4B4.aiff	1876616	a34a5cc7de348733ba5c12e5ef5c7951bb46dbf543660a74bdc6350c1f6b571a	copy	study/iowa-violin-viola/viola/Viola.pizz.sulD.mf.D4B4.aiff
+refs/iowa/Violin.arco.ff.sulA.A4B4.aiff	2268582	a16a1281b31a703ec275baa5aed7e538692d049e9f1b01b163c49a40baef24e2	copy	study/iowa-violin-viola/violin/Violin.arco.ff.sulA.A4B4.aiff
+refs/iowa/Violin.arco.mf.sulA.A4B4.aiff	2688346	d314f949de13cd2326e539131e59d8c63fd9c044bc1000baac0684b0d5c3b57b	copy	study/iowa-violin-viola/violin/Violin.arco.mf.sulA.A4B4.aiff
+refs/iowa/Violin.arco.mf.sulD.D4A4.aiff	8526086	412bc9f34bc2ba15242aacc18eff105277d746cb52878c478f7704c5f6b079b6	copy	study/iowa-violin-viola/violin/Violin.arco.mf.sulD.D4A4.aiff
+refs/iowa/Violin.arco.mf.sulE.E5B5.aiff	7289672	aec7ba76149b5bf7fd7cdaf5631a619966bc91ea472a7effaf50726811f4812f	copy	study/iowa-violin-viola/violin/Violin.arco.mf.sulE.E5B5.aiff
+refs/iowa/Violin.arco.mf.sulG.G3B3.aiff	4421332	50c53128788531062b239f5007fb48cf17c4e8b4474f9caf871163993d46b80d	copy	study/iowa-violin-viola/violin/Violin.arco.mf.sulG.G3B3.aiff
+refs/iowa/Violin.arco.pp.sulA.A4B4.aiff	2875692	e2e761ed114eec59eec000cc220d0cccef6a32a9fb06dd89d54c0c667ddaddca	copy	study/iowa-violin-viola/violin/Violin.arco.pp.sulA.A4B4.aiff
+refs/iowa/Violin.pizz.mf.sulA.A4B4.aiff	1295444	21c3f7ca986b6c1b47ca2690d4d788f437f17843229380ec5a11cc8721ca230a	copy	study/iowa-violin-viola/violin/Violin.pizz.mf.sulA.A4B4.aiff
+refs/iowa/Violin.pizz.mf.sulD.D4Ab4.aiff	5609840	fdc451de00c8707a6b8fb75fd151a38d1c062dfc533bc5f9f5f9d1651d7c0f93	copy	study/iowa-violin-viola/violin/Violin.pizz.mf.sulD.D4Ab4.aiff
+refs/study-abx/viola_tinysol_D4_ff.wav	1300644	28ed44496599a924c140c74c7a7df01d356d1f4db0ce32eea88e08c2916dede7	copy	study/abx-refs/viola/viola_tinysol_D4_ff.wav
+refs/study-abx/viola_tinysol_D4_mf.wav	1368750	69526bec2a8bdb0ce657b0fd8cc1a37001120bed3b479ddc0cbc070589ed2a9c	copy	study/abx-refs/viola/viola_tinysol_D4_mf.wav
+refs/study-abx/viola_tinysol_D4_pp.wav	1526160	f1699d27bf9bcdb1aa6b96dd3cbe23152f47dea8402634cdc305ae13210460bf	copy	study/abx-refs/viola/viola_tinysol_D4_pp.wav
+refs/study-abx/violin_tinysol_A4_ff.wav	1345124	7a23f76b308d2dd7f5dd3f01fbd6750b5ed90c29fad57c5595fcc8052396d055	copy	study/abx-refs/violin/violin_tinysol_A4_ff.wav
+refs/study-abx/violin_tinysol_A4_mf.wav	1148522	700b73f4bf3cbd497acbb612843254d348d5bcaa139f36417f836dad953d5d04	copy	study/abx-refs/violin/violin_tinysol_A4_mf.wav
+refs/study-abx/violin_tinysol_A4_pp.wav	1076292	925980e65ec76a67f1de21862248d32438b738fa881bdcb9ab32dc2378065edd	copy	study/abx-refs/violin/violin_tinysol_A4_pp.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_A3_f.wav	2864482	76934f3a85e4ba3b6518132c2fe6effa340c33fbb02f94e88c60b00073dc722f	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A3_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_A3_p.wav	2911130	8daa4ca0eba8a834814435047e36b47826e730a7796c325966323f53debc9e46	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A3_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_A4_f.wav	2488526	19e5374658351508a9e2c929e871a43caff41e62d5e3363ead6f88428a9ab863	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A4_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_A4_p.wav	2612122	0d05607b46b78690893006d5aa7923ac304c7fb497df1e96536dc88ac5ac487f	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A4_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_A5_f.wav	1986834	0558d79d23db55c710e664e6283b62619f5a582ce261a5c082700a0d01536627	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A5_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_A5_p.wav	2562122	204834bfb91ee62d53d3b2c9e9d37928617f643922f434323508a15a70ee591c	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A5_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_A6_f.wav	2052254	37f6cc2f12b1b443a77d3ee370178da4a002a2ac3b6529663cc7ee002728ddcf	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A6_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_A6_p.wav	2614110	0f212759660b2fb0d645b2089adbf4222eebc829927c1e002caa434ecd804f0b	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A6_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_C4_f.wav	2334170	4169605b51a72454f11bc2c34efc66c1d9993fd2b7d5f097a025ef9d3a2dbdfa	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C4_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_C4_p.wav	3096650	592ebf4404ccafc7164c13cc543911ba9a2fe5f5e70dbb200807e2ae37b25035	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C4_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_C5_f.wav	2497990	af72f852ef2892233699851dacf5f8d97d446822d8eb4ce9e0ec27d5a721b118	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C5_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_C5_p.wav	2498790	77a2133b5f97e1ec0edb759c0c552fc3efa7caf4ce1e0a4aa22625cf4c9da130	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C5_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_C6_f.wav	2162774	7ec8e0c2dde75282a4aaacccc713c84faa3e84daa9cf43df45ffc0e209964d46	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C6_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_C6_p.wav	2358906	48039f28964328d0b8235b8d61e39b06f8d22f836a6940fa036fe7004fc58e6c	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C6_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_C7_f.wav	2176486	f8223aed62911ef3f6937111bf3cdcc36fc25a636d4f99480b97029c4d28f393	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C7_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_C7_p.wav	2274706	02b077cecc5002156fb439c5e0edfb75dbed94a97502a0252e57a76930415889	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C7_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_E4_f.wav	2416566	418512905f3294a23cf999f0587bf8e04d60192fe317ea8c80c150a85670eda2	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E4_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_E4_p.wav	2600174	57c5aec0678a5d582d87ab33cd2f8954fea26ffd04c932eb6753d6a78e08736b	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E4_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_E5_f.wav	2365174	5c278e263fd59650190fc58294945cd291906eb1abd8293f728a96a878d1d478	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E5_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_E5_p.wav	2517094	c60c3bcfc64ea00ebf8d97b16f2876c892393839a017a945c5e557359b6369a4	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E5_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_E6_f.wav	2363554	8d1712f5659274a83aa90807132084559633e4817027c8a5b5f40826b3d9bc84	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E6_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_E6_p.wav	2514702	f1f0f8062eda1af6147852bf61b39e6b8734d4b0236737810c9d660297a34f0c	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E6_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_G3_f.wav	2936890	80bae3776b0ccd3d4774f47429e829c7764f5fe6061ff844a8affc6ac68b7899	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G3_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_G3_p.wav	2788822	c52d8ef3e2882984c09da1b7c7ef40b82e997bc78cfdd380fe167bbcb94b03de	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G3_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_G4_f.wav	2366050	14e3ea3d5172722d4d2686bae5da3d603800a7a474fa295d98275a9410913822	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G4_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_G4_p.wav	2594066	ad1ba8442a6b40919093c9c831a8171c7030f7e651fbe075ab87764665deef88	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G4_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_G5_f.wav	2222106	b5bb27541d6187e6eeb20baf50625ca35fc9d44c7f113936a9369bc7ce490a68	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G5_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_G5_p.wav	2596714	537df6072b0922a0231a6b3fad117e84bcaaa3e60ca68c665776a83c9bd9062d	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G5_p.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_G6_f.wav	2164026	68c49e55565810ea822866e3d39e51c1a5ad53cfa1a67bc25836ca7feac3fe0c	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G6_f.wav
+refs/vsco-solo-violin/Arco Vib/LLVln_ArcoVib_G6_p.wav	2417222	eb40e796d0e40ff4a729fd93dc9436ac08b30de308a8191e944351fee49aef9d	copy	strings-rec/vsco/Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G6_p.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A3_f_RR1.wav	455042	8f400b390219271d04eb9fc0247493d92089f2ca982b9a23be682bec18b7972d	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A3_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A3_f_RR2.wav	352286	f8aed0fad17c902ee245c556ee604f87222160f5fb273fe51caffd966cc69a0b	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A3_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A3_p_RR1.wav	252226	9a7cc4d7c6c848e6302f1a35e499781240ccf66c5acf72779f0da03b91bf73e9	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A3_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A3_p_RR2.wav	236542	2ebc13ead350e7e70704d3c93a77d2931fa60754afc2e33ce623d0c6aa8ed9aa	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A3_p_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A4_f_RR1.wav	407654	bf68ed22022538e70f6b04098a03a224dc0acb7b35334bce3af0b3196bc24455	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A4_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A4_f_RR2.wav	487638	4d74eb16c8c55e983ff86c1a9cb20b58675278132d560ac582f4f337dd191e78	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A4_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A4_p_RR1.wav	407194	43bc6f4e22da0bbb56de421f97f2c609df9193036b126c581df8e37303e795e0	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A4_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A4_p_RR2.wav	392590	434c0b38f8bed901de8bb1921b327421e7b15fa41c8adfa61c600e2d136ceaac	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A4_p_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A5_f_RR1.wav	329810	3eba1cba37e7bb60a879474b070a4d2bf0af03d65bee9f5f45d013c67fe0e5ae	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A5_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A5_f_RR2.wav	355430	e502977cadbe96d79910f5931885efd8a0d3e5b85d160bedb1ca3112eb2e9771	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A5_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A5_p_RR1.wav	231858	cd13bd60250ba2011651d54409791c05e7b2b16316d81155aaed5af775c53c38	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A5_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A5_p_RR2.wav	259234	9fc6088286632466955f3306a45c200594f6da3084cc128d528d6ef993a56105	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A5_p_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A6_f_RR1.wav	158874	667b41d61ec54a033ff1f7024cff95ba6162f4d4bdb8b595740f306fd8588460	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A6_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_A6_f_RR2.wav	170638	f450315f1875b9054ed905c2168f4083ac961d64ebff42b24f4305c65b8e4796	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_A6_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C4_f_RR1.wav	266734	f2836918ed710f19d1e63a6884409f1c9138cdb525d6295d9cdb473f0d56be95	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C4_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C4_f_RR2.wav	243210	ce9c5aef57a88446a0febeab6ce143317bacbaab3329e5f29c3cf24867b02ea0	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C4_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C4_p_RR1.wav	202686	95b9db0c0dafdabac63e18618b7d98b31ae41cdacf9e9a703850211113b6754a	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C4_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C4_p_RR2.wav	180622	975d64141752349499780e6509729d95c5718a3021bf4a4ba1b22c31ce3e3480	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C4_p_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C5_f_RR1.wav	314458	df52150f00c233e6d270d7c557d90e741ef856577571f3a875b2868a5047b6a0	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C5_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C5_f_RR2.wav	245206	28046880d71a116098059dceb98c4973926a3c2134325368eddcdbbf0b66ee52	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C5_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C5_p_RR1.wav	146346	30e4c83fcb263c9ae3d92481083ebfdf84b2c8abed59a290b58d19084425c2da	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C5_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C5_p_RR2.wav	132558	d5348bd101d6596eaa4d2995601fd5659d2a313b54df4e32a9f16a61c33addbb	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C5_p_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_C7_f.wav	186922	fccd76254ab12434dd3e41958b8c9f6a5058102ed9b507e5a6e5df953dd04f02	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_C7_f.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E4_f_RR1.wav	343798	96e609d2d3ad1d01f898763ee1554ce69416238d9b2c598a89f0fad2b710eab9	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E4_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E4_f_RR2.wav	340118	b9816fe7508b46b4617bfbe47588f0b9b5bad07c7c6fa8156b1a372129a2bbf1	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E4_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E4_p_RR1.wav	219786	090cc6a411d0e37c4c524b54cd81f268d96f9ad58cd542f26f06dd824a35b7cd	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E4_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E4_p_RR2.wav	244910	ea8fa4d781ecaf2f6d79a4d477b90d3dbb0b57cc57db9af6492dc7d39dbe1d6a	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E4_p_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E5_f_RR1.wav	549454	5704be5d372702464b44fecf10669c8181001ffc9ad29f63397f3634405d2f07	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E5_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E5_f_RR2.wav	587006	b917c66686118628c23a997c7c25534644236d4ddf7df03ed6cbf3df9a22baae	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E5_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E5_p_RR1.wav	309230	9590a957b38d05f1cab495b77a9a8895b8308c37a1a1077092cdf46f9dc57ffb	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E5_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E5_p_RR2.wav	374842	30de38d27467d66af4a58da5f9ee0408d50491b865503c9f5c3a5d452032ef37	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E5_p_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E6_f_RR1.wav	221638	37a372a0a56301179b2dfc3e25ccf7b3b392617d512da57214ab8b85e66d264a	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E6_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_E6_f_RR2.wav	179286	4026da1bc8ebd09c7053c7e58a5de8c7d72fc5233942c36c2fade30fb687c069	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_E6_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G3_f_RR1.wav	708714	dc56b8193aaa29d9a0704aeee8672437a00bd12ec5e964e9a02765ead48fcdf6	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G3_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G3_f_RR2.wav	853698	75db2279cd1908e4187f04a1b1af43d8841d943d217e9d6b5a8a89374d122643	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G3_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G3_p_RR1.wav	670770	7bc900aa6b34b87d89ff035cd56066a9ecbdd584d12bafadcbd243b9e0a9bba1	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G3_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G4_f_RR1.wav	229234	006bd7c4ae323a1b2076895ca74350a3cd7e2c82acfef3fcb1fb1b6f601c40dd	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G4_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G4_f_RR2.wav	244566	fed514fb316eda3691b2e11dd3ca89b9f64d28ca9863762fcfa609fefce8d475	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G4_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G4_p_RR1.wav	237770	8117f03620a33be4d6ee0f6d631cab022e035b222d7780e9d94cdcca843568cd	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G4_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G4_p_RR2.wav	204786	ffc72d552ca2a86c8e3dc56c4f6f511ea5826e913994957ac508b4569ac62a03	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G4_p_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G5_f_RR1.wav	210570	855b7dfd084573bd84189a539ffd08ce05d701d7a2fcf7df7a87ce81e90af738	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G5_f_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G5_f_RR2.wav	246934	faeda347d3d85c5b6c90508dde61d88a2795f7caa4bc6a6ddd299e24dc9ca5c8	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G5_f_RR2.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G5_p_RR1.wav	160246	1378f2083a3832529cd2bc3fa77d9dddaab6909d1b23f5261a6255ba8186040f	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G5_p_RR1.wav
+refs/vsco-solo-violin/Pizz/LLVln_Pizz_G5_p_RR2.wav	164818	77fd229877c3b2e7f253a273192ed8099302aabdc1255cbd1f293bfc44517e90	copy	strings-rec/vsco/Strings/Solo Violin/Pizz/LLVln_Pizz_G5_p_RR2.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_A2_v1_rr1.wav	1242096	fe010776f8724749465bf9f136164870b3234c7d27c213ee713c280599d04fc3	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_A2_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_A2_v2_rr1.wav	1434720	de42f26ee9a7ef124a63d161076d11532bbbca4fa8f6a9809b546e9d65807849	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_A2_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_A3_v1_rr1.wav	1325428	1ec8588ff79e6d9e4d4203ad58d35b7a90317dcb3901f0d1b1a3d8ff1a0aa29d	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_A3_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_A3_v2_rr1.wav	1234852	18d686151114a52c334019694bb216f48c811faab28660d608a6a0de948093a0	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_A3_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_A4_v1_rr1.wav	1341468	92ef887f011ede53a9771fc1e9c50a8f53b3547695f268c3223fce0f2893a48e	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_A4_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_A4_v2_rr1.wav	1308108	8b16f91a40de749788d400b9c31ead5cb47bde6e00343138afb6b3a8582be0c5	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_A4_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_C3_v1_rr1.wav	1207480	2eaac72dde26d26dac3738fc828e9741d22e45cbeb83b0ab63fa4bccc0d0932f	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_C3_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_C3_v2_rr1.wav	1268928	517c2b9e2b5f46416bde88d732cd69fabe8a4cf2c3cef3873620f66a5166dfe8	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_C3_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_C4_v1_rr1.wav	1185856	0f54c1a9ddc014871828146aaa53aea2e2b12f5c59f08f12b846dedeb10eb60e	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_C4_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_C4_v2_rr1.wav	1385804	e047a8a4cf8a4668cde2490ccbbc0532af2df1afb2a72a2e205dce3303c09d9a	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_C4_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_C5_v1_rr1.wav	1156076	c6d2bf86329435006532e5e5afdc89808db4c28599675dd3218c7402b887f6bd	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_C5_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_C5_v2_rr1.wav	1042900	cad9537e5a89258546021e75e3907e9359c34696b7afc4c4845e83268718f76f	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_C5_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_C6_v2_rr1.wav	1666564	53faf1a9b503ce710f977175eecbd15abb06d8a1ba32ca9e83eb3abc87861d16	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_C6_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_E3_v1_rr1.wav	1357076	99ebaf1666d05d45e7e5e1c39535545433d7c64472bb6721d4bc98c9e6b09474	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_E3_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_E3_v2_rr1.wav	1358384	9adb581924e9502d305e573a41997f914edab8b7a56ebfa02f136d9342e6923b	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_E3_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_E4_v1_rr1.wav	988948	20dca8ab716c68fc8445e31dbac57ff69bfeaee45335712d1418dbf40de37d9e	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_E4_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_E4_v2_rr1.wav	1248160	aa1b1923f469f8718c005f4f65c91967c1c7cada96f92f9426fac3d6316c60ae	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_E4_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_E5_v1_rr1.wav	1206932	40307288922d7fd2ce86e43816b089ce2e0f50a66a561d3285a0b7c714815e88	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_E5_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_E5_v2_rr1.wav	1340880	49cdf4a1e96dcd7800174c7f565897fe05fe19b23e9e97be302cb594094c4791	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_E5_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_G2_v1_rr1.wav	1168480	b924e25d576d64a76c7adb4e1a05aba25db4917c18b754c34c669104d0470c1e	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_G2_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_G2_v2_rr1.wav	1055924	d18c1ece6b2170cc721fec7df6e93d88605817c835ee9e64cc2bbde12a2c86b2	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_G2_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_G3_v1_rr1.wav	1167032	0225a017e47470c944a2931bb9df8441824895c5ab152f5b19f409cc724f3aa2	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_G3_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_G3_v2_rr1.wav	1408600	c4b0206ef3bb7dd6889172e1b38ebc47ae6f8c438056523b5b556392367e9895	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_G3_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_G4_v1_rr1.wav	1106004	82460e41596463e64e0106efabc2767043067d16c84274b49ab169e8e50d8d2a	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_G4_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_G4_v2_rr1.wav	1157700	93990f54d3a2ab64c97c35cbe81b60260681dc65a56c3aa10de723b6e1ab3dcc	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_G4_v2_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_G5_v1_rr1.wav	1489688	f3299b48f8c082c2c0d2bf7fcb8e84f69df44e7de55a713b897f2365b911f372	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_G5_v1_rr1.wav
+refs/vsco-solo-violin/Trem/LLVln_trem_G5_v2_rr1.wav	1105492	4bad7f2518e4b40771fc7535c3dda0ea3036304dcb2c37d2555f390e0c61301f	copy	strings-rec/vsco/Strings/Solo Violin/Trem/LLVln_trem_G5_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A2_v1_rr1.wav	212172	5317473e0c3acd60eac63cf641e3947dcd3ab8f99b8fa5d4c7b1e7806f33cbae	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A2_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A2_v1_rr2.wav	147868	ef40155b657e6b13bf73e3035b51c146fea267abf5e8ba5378a82c58b6385303	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A2_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A2_v2_rr1.wav	292356	4d7f9520bbde4f43324554b53bf147d2b5ea1a8c1234a7375793420f8a29f1d6	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A2_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A2_v2_rr2.wav	334496	d3579f437be1f0c713a0407fada47f75e26b18da1f4984a365356382bc6618f9	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A2_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A3_v1_rr1.wav	181484	1f21dc936b765b7e9e0ceb65949f3b22205a61a43af21cb7a0307aabcb654cbb	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A3_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A3_v1_rr2.wav	163712	6cfe01a4c8f753c13a7be78be6cfd14b0d21c0a8956d41cd462ca5c936d7215e	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A3_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A3_v2_rr1.wav	245852	cda80f0f3d2deebc97d313581f810cb1b42b516cd26d617252e62e12ea205a1b	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A3_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A3_v2_rr2.wav	315832	7b1025869c74c8a937ecbed90636f25c2adcfe94d3751879a4b9177a07b19fd4	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A3_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A4_v1_rr1.wav	243708	13477c70ee092b81f2537a6624546b1eea1ffaba0cbe0a93797003ba6d862bc6	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A4_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A4_v1_rr2.wav	235924	9fa515ac27ad4354826560feec06502ae993ffc5bb41ed922c34e792d5eca1c8	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A4_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A4_v2_rr1.wav	244532	6c506b5fccacbbbadb70993ff00d77c68a185af79febb35dc7101eb616046650	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A4_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A4_v2_rr2.wav	342108	c7a1418539041e1428f6aff88f66aa184e9dfff61857b725acdefff4993c1435	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A4_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A5_v1_rr1.wav	190168	b45eef0c35bfd1a213f23d5f992b8569e5dc4e12814c05e2bb0e5f61ec79b8f6	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A5_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A5_v1_rr2.wav	159720	b2eb0ffbf6133f352d7479562cde60174f21a4adb43d7c32d35f01b70c2bb120	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A5_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A5_v2_rr1.wav	239996	c5e2925c08a55dd4329c74bc9f0b832dac4e405d04da7a19fd790bff71f02162	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A5_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_A5_v2_rr2.wav	169368	ed2da319deea36dc872cfb3c09828d51fc0ba02bf4626a8bc43b8075e59cfd14	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_A5_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C3_v1_rr1.wav	147328	9ed4ccbf955d179b4b1791e09cc4e18caf79934d769880ac55530a927426a3d9	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C3_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C3_v1_rr2.wav	143016	83e0736736771534a986994e66fe0712df677db0a4c049d341fbc6457e906672	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C3_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C3_v2_rr1.wav	201628	004ab9c49db15533ee5f47d626138a5af3f044f19131827a0911ec3648c0e68e	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C3_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C3_v2_rr2.wav	208516	0910dd0f25c3455cd8164de1037d35053164fe7b0b640be219fef281a415b2c7	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C3_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C4_v1_rr1.wav	150832	6d75b28586d150dce0f9cd4ccf649dbc125afaf43762a2f5676f3d916289963e	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C4_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C4_v1_rr2.wav	158924	b24d6b61e64d27aa6ccddbb56e9c64aea2ed504078d0f2b9e13ef8bec3c923a8	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C4_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C4_v2_rr1.wav	211868	0071c0e2cf8ee18b6502f392015dc89ed39a6320f8a430779a50c48b1cb37f42	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C4_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C4_v2_rr2.wav	209452	bde86277c2a400799bd7bd15500b10a8f9249d9fdf7929a9499977fe39d0e625	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C4_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C5_v1_rr1.wav	221532	72e3baa8e22c1797dbda56f4665c7808a44e6f2561bddfbb10a5171e19752015	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C5_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C5_v1_rr2.wav	165968	a7d040d9a36369aa9c1f3a9ced12c4f30deeca81eaa67230abfc940cc86b4094	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C5_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C5_v2_rr1.wav	217828	28788d5a97438d739403627aea0f8aa42fa6582d75c4e8f4f2431cfae1cd4738	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C5_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C5_v2_rr2.wav	226964	2c9a17f8848c55c3fd94ac8b742e5e552a9815b417ccf2ff0696accd0c566c35	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C5_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C6_v1_rr1.wav	216652	5322bc5235a2c1433a2fb00e0dea8f33620bfa37ebad3198398f119eaa8c0fbf	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C6_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C6_v1_rr2.wav	191664	348a34eb4a954ad56554a1e03d5d2e78d1420b76099f914af99f4eba65517345	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C6_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C6_v2_rr1.wav	196924	4e854001e15c23bb42e1f9dd8ca276e54d279423c6dd94db9bab6385cd9641c2	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C6_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_C6_v2_rr2.wav	206584	46796f4235be0817e2106b9e20ec626092db29808937e0c957eb325da8893905	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_C6_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E3_v1_rr1.wav	225092	a6b5f0bff98ac81134f6ac53e3d639944e3d5d4d008e9757d56951b58163b239	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E3_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E3_v1_rr2.wav	220480	293f6dfd8be16c2319ef704c5841cd7bb60d218411ee15b76a7ab33089489e34	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E3_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E3_v2_rr1.wav	290760	b4a9d9a85016a0ee4db54256d3a7384288823821b866df4bd1cd226a05cf2396	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E3_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E3_v2_rr2.wav	215624	31ec1ba3c100ff966464f532baab9303e3cfe58c27367fba912ec01a5967de90	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E3_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E4_v1_rr1.wav	291860	635445fb882ea6988a9a17fdfb4b1f461316a882475e48877e2dae9c3f57a2ab	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E4_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E4_v1_rr2.wav	297672	b55073fdcc7c410e735f0d20692b2e3ba1bd4a7e76bb4c1be8950e8716cea75d	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E4_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E4_v2_rr1.wav	326208	365e59e228e7af42d9277381d16bbd088983d99190e746da6ae81f9b10cb48fe	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E4_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E4_v2_rr2.wav	353820	02a5a5b7a5f88258059d2b4af2596eb974060968a5c8033b4d53465e8f43daa8	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E4_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E5_v1_rr1.wav	235416	0b1887a463b3a0506fe2193ba5d6086849a603cd30dc761f5c77ff6bce658338	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E5_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E5_v1_rr2.wav	236520	6d6c9490e5ebc4f1eb0b548b3ff48659628b094d784d2fe9d570c0b4923c9bdc	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E5_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E5_v2_rr1.wav	204612	3c440d43b09b1a152fdf9308f4773ec8c55cea05b97ed06e50dbce1a9d2a2256	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E5_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_E5_v2_rr2.wav	173228	76a1aff68c93f1d0607b348536967de3fb5baa2775bbc9527172ee5a99eaed73	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_E5_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G2_v1_rr1.wav	161360	0826f0c0c1b6cd850deefdcd3376a16c1ad2cb19a0ee81b71141529dcdbbf5b8	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G2_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G2_v1_rr2.wav	209040	12b59cd786b629aba2fbae9138ad60b2cbff9491d5eb1523be8c060f8f0d18f3	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G2_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G2_v2_rr1.wav	391880	3bcd4edde6d9c9882ad16d3ba8d1999b6190581cb4af77df6b0d6606d7b4a60e	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G2_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G2_v2_rr2.wav	368676	72b722d23d17719c85602d152bdc1b80894f3564f6b53262c953d4ec3a7d5985	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G2_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G3_v1_rr1.wav	262440	b9c82d49a3575fa514586b89de6f10c735dcb8a2e1c3b1408aa0715298479365	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G3_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G3_v1_rr2.wav	178892	b7ea30516346a214f22a9ed07e17e3e1ad1044513dc035fe2a44b3d8b8137878	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G3_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G3_v2_rr1.wav	207440	af5163b8b919a07cb85abeb1fbb2f1f124889f9b0417e4f41571f6d7588f5665	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G3_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G3_v2_rr2.wav	196268	bada8ff79015d7d9129e205925331d3663b592e194ced971cf44c499c1cc0b7f	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G3_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G4_v1_rr1.wav	220868	4859b51dc4a991898f637454a63f81a80f3b45c141cd5feba9dd3a0f06e6330d	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G4_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G4_v1_rr2.wav	199328	804a09eb742a8eeec6a66173ca107de11686b9b6f2dd4669569c63f90a1bf8e5	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G4_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G4_v2_rr1.wav	226544	acfee187b8d0e781aaae2c2f68250c42e1d8f410a595673502fb96f1469a789e	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G4_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G4_v2_rr2.wav	243868	fe962a6aa6e8c01de0e5d9cf2e498d3f2f9be66f944152ca8e4e73726d71c512	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G4_v2_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G5_v1_rr1.wav	144376	3deba0200c7d0fbb5428b4771ba675223d05f193cce70ac19fe536769e30d538	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G5_v1_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G5_v1_rr2.wav	180720	0d58953ef25096583d6553b4ad69ed118e3d238297cacd63445e06f2df0f7d00	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G5_v1_rr2.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G5_v2_rr1.wav	163952	f83bc69d68304da0f24d042ce01f5e8c9f824cc70fe19eea8b11e8fc6131df99	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G5_v2_rr1.wav
+refs/vsco-solo-violin/spic/LLVln_spic_G5_v2_rr2.wav	212520	5b6a703c73566b5f3f18656902369e4434bd223dc01cb6abd2ba373361ea1db7	copy	strings-rec/vsco/Strings/Solo Violin/spic/LLVln_spic_G5_v2_rr2.wav

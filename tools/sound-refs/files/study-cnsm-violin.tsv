@@ -1,0 +1,124 @@
+# study-cnsm-violin: the files under $CANTUS_REFS/study/cnsm-violin/ — written by `fetch.py record study-cnsm-violin`; origins in catalog.toml
+# path	size	sha256	origin	member
+SOURCE.md	3746	53793c81d023456296289e1895d53ac23539345bb051c4a8b56ef04a557efb19	source	
+admittances/Phase 1/Klimke/measurement_1.csv	1861415	a16a2480a33565f9cd4686141836d3274dec40db461d602c7702fd5783c83c90	dataset	admittances/Phase 1/Klimke/measurement_1.csv
+admittances/Phase 1/Klimke/measurement_2.csv	1855773	6113416327d20a4c014dd5afc291bf11cb9835c68f2a60d2583815e3819985e6	dataset	admittances/Phase 1/Klimke/measurement_2.csv
+admittances/Phase 1/Klimke/measurement_3.csv	1857744	1379ef8abb5883ce8e1edec6f074948021bd56209fc13e3fd5a056571838543e	dataset	admittances/Phase 1/Klimke/measurement_3.csv
+admittances/Phase 1/Klimke/measurement_4.csv	7572824	26b7e32d5b1fba19e8c1895087f89588918b4a58fb939fd718ba8c9e8ca63370	dataset	admittances/Phase 1/Klimke/measurement_4.csv
+admittances/Phase 1/Levaggi/measurement_1.csv	7574824	7f84a5a22a9e417d3433d577312b2c98943177a58bc51648fa6935308d24d561	dataset	admittances/Phase 1/Levaggi/measurement_1.csv
+admittances/Phase 1/Levaggi/measurement_2.csv	1872103	1d523f98b162991f296fe84b4c5f639ed11b939baa26a1b0a0f750686da178eb	dataset	admittances/Phase 1/Levaggi/measurement_2.csv
+admittances/Phase 1/Levaggi/measurement_3.csv	1868463	89782ca17b98c28e76d1453b50216b75b9f8e822a636146a5eebffbdc51ea22c	dataset	admittances/Phase 1/Levaggi/measurement_3.csv
+admittances/Phase 1/Levaggi/measurement_4.csv	1866027	3fa581cf875e7918be305a48866c9a366a40a6db64829394c240aecf507dfc28	dataset	admittances/Phase 1/Levaggi/measurement_4.csv
+admittances/Phase 1/Stoppani/measurement_1.csv	1849075	c3259d2757202b0282a85e2540ccd549f9ea2d59d329f8d75aaa160beea65fb2	dataset	admittances/Phase 1/Stoppani/measurement_1.csv
+admittances/Phase 1/Stoppani/measurement_2.csv	1868436	50f4f40eed7480758aa1b10b22f758045488397af358f58ba9000045a5fdcc93	dataset	admittances/Phase 1/Stoppani/measurement_2.csv
+admittances/Phase 1/Stoppani/measurement_3.csv	1852620	dc5448f32fc622eaf0b003d5adc6efb5a8a8256355d0a3cc85d767a079de96d2	dataset	admittances/Phase 1/Stoppani/measurement_3.csv
+admittances/Phase 1/Stoppani/measurement_4.csv	1868318	59905633304a9d27b7a3faebe8d4066a0d6bc39660b6cfade58c3c3b2db5f813	dataset	admittances/Phase 1/Stoppani/measurement_4.csv
+admittances/Phase 2/Klimke/measurement_1.csv	1862997	fdcbe008b12dfba1edf1da6f785c7894a20a55a5076b02e6b1e9ea50225d7f07	dataset	admittances/Phase 2/Klimke/measurement_1.csv
+admittances/Phase 2/Klimke/measurement_2.csv	1862851	90deb3e8a368271d6e3ca248fc5101fee3b54ec5e9938521419b02fc844fe81a	dataset	admittances/Phase 2/Klimke/measurement_2.csv
+admittances/Phase 2/Klimke/measurement_3.csv	1862131	bd8bfff92eb5ff11d7092f39e53ce9a3fb667206f9ee66e084822f5e1ece25ea	dataset	admittances/Phase 2/Klimke/measurement_3.csv
+admittances/Phase 2/Klimke/measurement_4.csv	1860915	bc9eef5a8dfb8067b1fef2131e0b3f6537f48abc7a4d52b220d7080b4462dc7a	dataset	admittances/Phase 2/Klimke/measurement_4.csv
+admittances/Phase 2/Klimke/measurement_5.csv	1864658	50193e2ae933e75364882327064726d51467c0c2dfa0e2d0ab26ee07604ea9ed	dataset	admittances/Phase 2/Klimke/measurement_5.csv
+admittances/Phase 2/Levaggi/measurement_1.csv	1872453	a0d342f9e1cc5d229ca4b6a80ac4ecb44d90f3d74ff72663d0aecb307cbfff56	dataset	admittances/Phase 2/Levaggi/measurement_1.csv
+admittances/Phase 2/Levaggi/measurement_2.csv	1868560	3b7563b21083fd522958d482c6165bdd5a00babd53bdb603561e7cdbcaae7592	dataset	admittances/Phase 2/Levaggi/measurement_2.csv
+admittances/Phase 2/Stoppani/measurement_1.csv	1861503	0aa9e354fef77e692712333958153d1c835d606f540f22603c8f4437886a3ba7	dataset	admittances/Phase 2/Stoppani/measurement_1.csv
+admittances/Phase 2/Stoppani/measurement_2.csv	1844008	924bd56599ff9faa0d8cf6cef36a3c53730ea1ef63157f3532103c4931086079	dataset	admittances/Phase 2/Stoppani/measurement_2.csv
+admittances/dataset.csv	616	d1db9eff8a1870c4b238f3fe83fdd8a353bded2745e0d07850b578c3be84e730	dataset	admittances/dataset.csv
+mocap/dataset.csv	6729	b76792d3f998143456e607dec2c7b0316f7258fcdcb6080ceb6c482716269b89	dataset	mocap/dataset.csv
+recordings/Session 1/Klimke/Player 0/scale_01.wav	1836436	bef0ed19ffdfd5dcfd2634ddc16485ca392c03691d64cb837901d6907cac92c8	dataset	recordings/Session 1/Klimke/Player 0/scale_01.wav
+recordings/Session 1/Klimke/Player 0/scale_02.wav	2339888	680547301a1c890465bca9eb9fe2b1cc48501b3c713e1e6e9da1ce28b0274743	dataset	recordings/Session 1/Klimke/Player 0/scale_02.wav
+recordings/Session 1/Klimke/Player 10/scale_01.wav	1277996	25eba23b44705323967e13943888a5f8428a37f6a38b35e8393b4f4992d2219c	dataset	recordings/Session 1/Klimke/Player 10/scale_01.wav
+recordings/Session 1/Klimke/Player 10/scale_02.wav	919818	de7a9d27e8f6cf35a3e9d648803dd5ea0d34551732a5ba0d78cda8cdcf52dac6	dataset	recordings/Session 1/Klimke/Player 10/scale_02.wav
+recordings/Session 1/Klimke/Player 10/scale_03.wav	610314	9d8e61b15c5219c29eb05ffdd3b16fd2e5bfcc6d323a38ffdb5e39949472d294	dataset	recordings/Session 1/Klimke/Player 10/scale_03.wav
+recordings/Session 1/Klimke/Player 10/scale_04.wav	449322	cddfb99d0914088a24d3f5ead5b9af0b03c9fa9b6878dfc1894d12cde2a74949	dataset	recordings/Session 1/Klimke/Player 10/scale_04.wav
+recordings/Session 1/Klimke/Player 11/scale_01.wav	3727124	2f38d6302e961f6c72268263200adbd0d7ecbbc44db7b56a87a4f66709881042	dataset	recordings/Session 1/Klimke/Player 11/scale_01.wav
+recordings/Session 1/Klimke/Player 11/scale_02.wav	3477464	4b47aa532c14c21dc4da72fcacfc197df39b2553f47dcd839f40e6404e310936	dataset	recordings/Session 1/Klimke/Player 11/scale_02.wav
+recordings/Session 1/Klimke/Player 12/scale_01.wav	4172948	58ced201b31032c4bdf8416e04ef1ed51a4d9c998ed2465afa34e858503fb46f	dataset	recordings/Session 1/Klimke/Player 12/scale_01.wav
+recordings/Session 1/Klimke/Player 12/scale_02.wav	4065950	c516db7eca5f440119cca58a8b7e36a2d9628523c1ee3f3b5904afdcaaa2081a	dataset	recordings/Session 1/Klimke/Player 12/scale_02.wav
+recordings/Session 1/Klimke/Player 2/scale_01.wav	5116842	ab0cf3a155eca6d03c6a36f46626c548bb74efcbdeae937f2b964e1bb5ce4604	dataset	recordings/Session 1/Klimke/Player 2/scale_01.wav
+recordings/Session 1/Klimke/Player 2/scale_02.wav	3120044	2d1d8aac1d6165d2059e65a7a9015e9c8720fe3dc9213169ff623a1b72443c87	dataset	recordings/Session 1/Klimke/Player 2/scale_02.wav
+recordings/Session 1/Klimke/Player 2/scale_03.wav	1744744	42e66fb6b97ea9cff69a5bd4e88ad59bb8fa37f1bfc26cc3f1ba6c9cdcc8b11b	dataset	recordings/Session 1/Klimke/Player 2/scale_03.wav
+recordings/Session 1/Klimke/Player 3/scale_01.wav	2100428	b034548d74657a3381bb74617ee9d083a9de3d41b905da7b6153061766df6d66	dataset	recordings/Session 1/Klimke/Player 3/scale_01.wav
+recordings/Session 1/Klimke/Player 3/scale_02.wav	1944426	f9a0cce70ba4160ea82d72f705d3961008a71e831d8a1c19704acb88e45b9800	dataset	recordings/Session 1/Klimke/Player 3/scale_02.wav
+recordings/Session 1/Klimke/Player 3/scale_03.wav	1966890	26b3445a1bc94e2e1a8aa2f242fc00f63c8ebb43c1960c6d83700d8d4a9cc9b4	dataset	recordings/Session 1/Klimke/Player 3/scale_03.wav
+recordings/Session 1/Klimke/Player 3/scale_04.wav	1838346	03b3cf5e37371578a56c7077ec01df26d564beac1919d845ba821c67f389e1f1	dataset	recordings/Session 1/Klimke/Player 3/scale_04.wav
+recordings/Session 1/Klimke/Player 4/scale_01.wav	1230514	5e8d91ab87613df8c1dec0a519de43025a7b3ff5807d0fd73afe21d81b905ace	dataset	recordings/Session 1/Klimke/Player 4/scale_01.wav
+recordings/Session 1/Klimke/Player 4/scale_02.wav	1266180	2ba1e3722f2106b9cc3ed91561b6f734cce565f3e906f08d7bbe891513f361c4	dataset	recordings/Session 1/Klimke/Player 4/scale_02.wav
+recordings/Session 1/Klimke/Player 4/scale_03.wav	1355346	658ee1afbbe0ac20f7de340e429be5b7d0356adf284fc6f0f11fe6bb7f179ce6	dataset	recordings/Session 1/Klimke/Player 4/scale_03.wav
+recordings/Session 1/Klimke/Player 4/scale_04.wav	1284014	9c0c93145a3776ea5abb27e0b5e014fdaeac99d2366be840fa1fc67e6a7d555e	dataset	recordings/Session 1/Klimke/Player 4/scale_04.wav
+recordings/Session 1/Klimke/Player 5/scale_01.wav	480524	ad2cd9a80b506017280d782088d1843be4f7ed3a483ea92918756bf6b19d141b	dataset	recordings/Session 1/Klimke/Player 5/scale_01.wav
+recordings/Session 1/Klimke/Player 5/scale_02.wav	515466	7843e8c8c660e638e2b46b7b60576d064f8b6de1bc7c1afaa9043ba784a78694	dataset	recordings/Session 1/Klimke/Player 5/scale_02.wav
+recordings/Session 1/Klimke/Player 5/scale_03.wav	673962	2ad6f6608aae596008e117356142d71952bd02180130066e803fbfeedba95530	dataset	recordings/Session 1/Klimke/Player 5/scale_03.wav
+recordings/Session 1/Klimke/Player 5/scale_04.wav	486764	c4cd2ac1b7ea6c0a70e8e330644a37cc0a598d9c1c6f30a07dd71fe39a645a40	dataset	recordings/Session 1/Klimke/Player 5/scale_04.wav
+recordings/Session 1/Klimke/Player 6/scale_01.wav	1032138	4b4cf39624e4b5fdd8df74176e20f8f71d21b86fb80c1a20997b15f97a161440	dataset	recordings/Session 1/Klimke/Player 6/scale_01.wav
+recordings/Session 1/Klimke/Player 6/scale_02.wav	946026	6f889ec1ec426e1cad719bdc149bd6fd27875a35587adb723116bcc7a3a3c258	dataset	recordings/Session 1/Klimke/Player 6/scale_02.wav
+recordings/Session 1/Klimke/Player 6/scale_03.wav	1084556	a5369e6883fe3cb3536bb8d60322f8cad07caa69c84272bb2257efd04728b0c6	dataset	recordings/Session 1/Klimke/Player 6/scale_03.wav
+recordings/Session 1/Klimke/Player 6/scale_04.wav	1027148	ab7b46c8781fe92f27e2afd5742cc05ae133f41651fde97f76bb345df0dc95fc	dataset	recordings/Session 1/Klimke/Player 6/scale_04.wav
+recordings/Session 1/Klimke/Player 7/scale_01.wav	1195968	837fe68776ea069afa80d74a0569877722e3eaa75d046023ece70c1ae017b315	dataset	recordings/Session 1/Klimke/Player 7/scale_01.wav
+recordings/Session 1/Klimke/Player 7/scale_02.wav	519870	21936fae4676f0eda6e81c17fc51eca6e29f2a0422f2557a50e7d351566897fe	dataset	recordings/Session 1/Klimke/Player 7/scale_02.wav
+recordings/Session 1/Klimke/Player 7/scale_03.wav	553878	98c20093318d030e713e946c6beaed61b54af5115bb949ab0fee2278b1835347	dataset	recordings/Session 1/Klimke/Player 7/scale_03.wav
+recordings/Session 1/Klimke/Player 8/scale_01.wav	2811786	372fde24f485647d421d1473ae0c9caa253c09bd0703041f72dafe973a117a0c	dataset	recordings/Session 1/Klimke/Player 8/scale_01.wav
+recordings/Session 1/Klimke/Player 8/scale_02.wav	3881324	d4077d47fdd4d316d040f5982c96a291886f5fb09c9b4dc3fc054a8b2f37de55	dataset	recordings/Session 1/Klimke/Player 8/scale_02.wav
+recordings/Session 1/Klimke/Player 8/scale_03.wav	3279788	98bb043ebe1f6f664de4ebc3a609b81e1dd6c3b0bbe97cf93a61f11c38da4fa1	dataset	recordings/Session 1/Klimke/Player 8/scale_03.wav
+recordings/Session 1/Klimke/Player 9/scale_01.wav	1009676	98eb210951db24bb5b1704e2f8a80975631202c6b2b4c2d74d01a588a8b0416e	dataset	recordings/Session 1/Klimke/Player 9/scale_01.wav
+recordings/Session 1/Klimke/Player 9/scale_02.wav	1340394	44d293f824f767db82b4ac8907d74f75a85e93936650f62d0eb5a453c6733c3e	dataset	recordings/Session 1/Klimke/Player 9/scale_02.wav
+recordings/Session 1/Klimke/Player 9/scale_03.wav	844940	ebcac70a7cf77be4f164d08739a34ff9dda052c199a5d2551f7e6cd4831d9fae	dataset	recordings/Session 1/Klimke/Player 9/scale_03.wav
+recordings/Session 1/Klimke/Player 9/scale_04.wav	712650	406d88a4b030c2cf7bb982d2691acf14df3114f35771ffd7a9be79bc26447ef4	dataset	recordings/Session 1/Klimke/Player 9/scale_04.wav
+recordings/Session 1/Levaggi/Player 0/scale_01.wav	2085144	b3d5ec69a422995c2e32664b32059891a727d37b74cf193c16a1c1fc09af39f3	dataset	recordings/Session 1/Levaggi/Player 0/scale_01.wav
+recordings/Session 1/Levaggi/Player 10/scale_01.wav	576620	2e6d81f9e657f0078a64e7775dc5dba541272807df58cd0921e7454de7ff25ae	dataset	recordings/Session 1/Levaggi/Player 10/scale_01.wav
+recordings/Session 1/Levaggi/Player 10/scale_02.wav	450570	379dccf035c62017e4c0d9f81ccca28ecbf5036af88d64a221611080af0751b6	dataset	recordings/Session 1/Levaggi/Player 10/scale_02.wav
+recordings/Session 1/Levaggi/Player 11/scale_01.wav	4921930	0d0d4c4a6ae0dd84da624ca96e1272bab74c0f652ff5b238d81cc0aff7ccbba6	dataset	recordings/Session 1/Levaggi/Player 11/scale_01.wav
+recordings/Session 1/Levaggi/Player 12/scale_01.wav	3744958	fc8fd1b22282ea372c1c911d07fe28da43c9ef2cc8182d1a48b26c327fbb9dfd	dataset	recordings/Session 1/Levaggi/Player 12/scale_01.wav
+recordings/Session 1/Levaggi/Player 2/scale_01.wav	3185414	9163180d8d6f7e41cfc1fcf25b521ddceb9db1bb4b22763a8655752df19bbaea	dataset	recordings/Session 1/Levaggi/Player 2/scale_01.wav
+recordings/Session 1/Levaggi/Player 3/scale_01.wav	2084204	98583e90e2b7b59940abe7ca10a2612289d5fd0653a388a03fdfc9f2675e2c77	dataset	recordings/Session 1/Levaggi/Player 3/scale_01.wav
+recordings/Session 1/Levaggi/Player 3/scale_02.wav	1843340	dbd27ba31355aad4435288d7e73d048fae1adc292d27be9fbb3b835c09a3c5bb	dataset	recordings/Session 1/Levaggi/Player 3/scale_02.wav
+recordings/Session 1/Levaggi/Player 4/scale_01.wav	1177016	8754b053d2dd2af94c7b09d459cd9fff967d7bf078fe2d8263f1ec1a242f3a19	dataset	recordings/Session 1/Levaggi/Player 4/scale_01.wav
+recordings/Session 1/Levaggi/Player 4/scale_02.wav	1266180	fcb2147a641ede3c5c91e93d985a6349755b46c0da5b213e2723212860e2b035	dataset	recordings/Session 1/Levaggi/Player 4/scale_02.wav
+recordings/Session 1/Levaggi/Player 5/scale_01.wav	483018	6155cbf7101498482e11045d28f1fd87a1835095b6135d8bc1dcf0963490c6a4	dataset	recordings/Session 1/Levaggi/Player 5/scale_01.wav
+recordings/Session 1/Levaggi/Player 5/scale_02.wav	517962	6d89ffb8e167693fee842c7d7f85e19e2ac76c1eaac8266cf4ec323f63aa3503	dataset	recordings/Session 1/Levaggi/Player 5/scale_02.wav
+recordings/Session 1/Levaggi/Player 5/scale_03.wav	516476	0e9c02152471ebe5408ed1ee4dee8902df7a54515cb6ad9081d37c5c9155cd6e	dataset	recordings/Session 1/Levaggi/Player 5/scale_03.wav
+recordings/Session 1/Levaggi/Player 6/scale_01.wav	1728522	6863b279cb8ee83b13847e8d49b0721182616f838b1fc3341672171d34e4f73a	dataset	recordings/Session 1/Levaggi/Player 6/scale_01.wav
+recordings/Session 1/Levaggi/Player 6/scale_02.wav	705162	93b0cc58249a348859f308bcfd42b8851da39aa10aacc41465dab5749ebf08b0	dataset	recordings/Session 1/Levaggi/Player 6/scale_02.wav
+recordings/Session 1/Levaggi/Player 6/scale_03.wav	1731018	a1b8cb547bb17a93770e0ce057199887a9aa9a5870db8995558a49c1e0bc07cc	dataset	recordings/Session 1/Levaggi/Player 6/scale_03.wav
+recordings/Session 1/Levaggi/Player 7/scale_01.wav	1763870	580f02096dea97fd6c87459182ce535ab054319f9d5b0f9d5702c99190b50287	dataset	recordings/Session 1/Levaggi/Player 7/scale_01.wav
+recordings/Session 1/Levaggi/Player 7/scale_02.wav	1315752	24f256d5457a492ae4647d20c7c8300c96d2e295253f70e29ac0feb392d396a8	dataset	recordings/Session 1/Levaggi/Player 7/scale_02.wav
+recordings/Session 1/Levaggi/Player 8/scale_01.wav	2874186	31cd62e3314b1f135dc4ec8dc9fc284a38e1ebcd9294d619f059df9e0e62bb1a	dataset	recordings/Session 1/Levaggi/Player 8/scale_01.wav
+recordings/Session 1/Levaggi/Player 9/scale_01.wav	747594	4187ae3f0d33248f419d4fdfe25872bd7daaa67b056e594a6a89e8b1647247ea	dataset	recordings/Session 1/Levaggi/Player 9/scale_01.wav
+recordings/Session 1/Levaggi/Player 9/scale_02.wav	708908	a1f1450a08590cf4dc052a86a7919a67adb19dbf685216f554090b02b5fb435d	dataset	recordings/Session 1/Levaggi/Player 9/scale_02.wav
+recordings/Session 1/Stoppani/Player 0/scale_01.wav	1726390	6854af4f6e1541aae70af6a9b82b3ebab7bd7164396e9f86368fc91d62447b3b	dataset	recordings/Session 1/Stoppani/Player 0/scale_01.wav
+recordings/Session 1/Stoppani/Player 0/scale_02.wav	1720880	b6d2d0cc4fe6208ee15806618bbd6209e712faaf849bb83e3b17c5cfb81c3704	dataset	recordings/Session 1/Stoppani/Player 0/scale_02.wav
+recordings/Session 1/Stoppani/Player 10/scale_01.wav	531692	5594e8e65b02f7201b0ac59897ab93ec9733285952d4c560ca3e36a766491d81	dataset	recordings/Session 1/Stoppani/Player 10/scale_01.wav
+recordings/Session 1/Stoppani/Player 10/scale_02.wav	541674	92d8b40fe6daf7e0b6d7eb722077bf0179cbcfaf8fb34b36017ad9a49e88f21f	dataset	recordings/Session 1/Stoppani/Player 10/scale_02.wav
+recordings/Session 1/Stoppani/Player 10/scale_03.wav	622796	0b9984f93ea66a0fa43c7a2b5224676ec21b1813044799fb1b9d087bd909356a	dataset	recordings/Session 1/Stoppani/Player 10/scale_03.wav
+recordings/Session 1/Stoppani/Player 10/scale_04.wav	516716	dfebd5f8c8092c565edfa3054639c73120e428eb05f0133b09ac5f4e8e0ba023	dataset	recordings/Session 1/Stoppani/Player 10/scale_04.wav
+recordings/Session 1/Stoppani/Player 11/scale_01.wav	3673626	c73ed44bbe4f9d7a743ba136ceb1654307cd24d33c2c7929c7b76f53cf882f7f	dataset	recordings/Session 1/Stoppani/Player 11/scale_01.wav
+recordings/Session 1/Stoppani/Player 11/scale_02.wav	3530962	b660241c2f6e7ce481c07aa6d578c57387d9e45a7f83e36bab240a94cb0e50dd	dataset	recordings/Session 1/Stoppani/Player 11/scale_02.wav
+recordings/Session 1/Stoppani/Player 12/scale_01.wav	3470006	d34bc54409726b9f0db6fbf314f77aa4faa1fe43388acc4b2cdc375eb9a97da2	dataset	recordings/Session 1/Stoppani/Player 12/scale_01.wav
+recordings/Session 1/Stoppani/Player 12/scale_02.wav	5171592	8bbaab0ed1f5a79fc88f36e452d22f519725d94d21aa6a337839515bd3b6b16a	dataset	recordings/Session 1/Stoppani/Player 12/scale_02.wav
+recordings/Session 1/Stoppani/Player 2/scale_01.wav	3238900	c5d60239aadb73299416a395dec51ed0fe33a5b540ff0fd8c1f9bb571aebe691	dataset	recordings/Session 1/Stoppani/Player 2/scale_01.wav
+recordings/Session 1/Stoppani/Player 2/scale_02.wav	3470672	677259de3aad596e680cfb596dbb97863b5d93f44d955d7d3ebc93d3bc0d66a9	dataset	recordings/Session 1/Stoppani/Player 2/scale_02.wav
+recordings/Session 1/Stoppani/Player 3/scale_01.wav	2137868	655b8128c0eeaf2a23fb4c304eca59eb0564ed87234db94c44d2bccfa0c044c6	dataset	recordings/Session 1/Stoppani/Player 3/scale_01.wav
+recordings/Session 1/Stoppani/Player 3/scale_02.wav	2013066	f1151d4b243f2dc3ce2de6fdf7d97c0c9a5be20c9b556f857064bc03853f5848	dataset	recordings/Session 1/Stoppani/Player 3/scale_02.wav
+recordings/Session 1/Stoppani/Player 3/scale_03.wav	2041770	f1046422835a4d876cf2d911f19348793a1facb91729419de24474c7b166c5c4	dataset	recordings/Session 1/Stoppani/Player 3/scale_03.wav
+recordings/Session 1/Stoppani/Player 3/scale_04.wav	1920716	6003201f418cd8611807b678627a513714431e6538c22933f2d1293224afb5d6	dataset	recordings/Session 1/Stoppani/Player 3/scale_04.wav
+recordings/Session 1/Stoppani/Player 4/scale_01.wav	1694170	3c5824f8708e38d3e25596790d38fbfeac3de6fa948de31342c272643e516cff	dataset	recordings/Session 1/Stoppani/Player 4/scale_01.wav
+recordings/Session 1/Stoppani/Player 4/scale_02.wav	1569340	d5842870e317e5798e19e8be2675ebbf90fe64dbc5de1900a24d8a7ebed9600b	dataset	recordings/Session 1/Stoppani/Player 4/scale_02.wav
+recordings/Session 1/Stoppani/Player 4/scale_03.wav	1212682	56acffda1ad17adbb2f94993dbe43ec2342dd1010fc57cb00512ede879b1697f	dataset	recordings/Session 1/Stoppani/Player 4/scale_03.wav
+recordings/Session 1/Stoppani/Player 4/scale_04.wav	1177016	6d5d1af7bb7d8537c685b7cc4e40b940352ecc24ff612899d613b8fd90332d80	dataset	recordings/Session 1/Stoppani/Player 4/scale_04.wav
+recordings/Session 1/Stoppani/Player 5/scale_01.wav	536684	7857cb92cc1c9508b349cd4a5c983a2261031bca715a14ec4699edc0111e8b88	dataset	recordings/Session 1/Stoppani/Player 5/scale_01.wav
+recordings/Session 1/Stoppani/Player 5/scale_02.wav	540428	3b962aed65577b4554eff04b8adfdb472b2902cdc74f8dee26da02f3b105eb45	dataset	recordings/Session 1/Stoppani/Player 5/scale_02.wav
+recordings/Session 1/Stoppani/Player 5/scale_03.wav	493004	c380f4143096c45a84f5ce83f5596c918494a947bd4f51e173a49f967adbca86	dataset	recordings/Session 1/Stoppani/Player 5/scale_03.wav
+recordings/Session 1/Stoppani/Player 5/scale_04.wav	507978	1cbe69ed5162cd001f1b148703447cf35ead63f2278b688fc152f36e2cbc8e86	dataset	recordings/Session 1/Stoppani/Player 5/scale_04.wav
+recordings/Session 1/Stoppani/Player 6/scale_01.wav	1040876	6efe8a73bedeb6776500a9fa6c81d4c12f4f792becff0c50c00c2e4bd37ed275	dataset	recordings/Session 1/Stoppani/Player 6/scale_01.wav
+recordings/Session 1/Stoppani/Player 6/scale_02.wav	961002	d0998a93bc36de383f659ac832b3a9eff314232ab20fb2a58669091294dd4b2d	dataset	recordings/Session 1/Stoppani/Player 6/scale_02.wav
+recordings/Session 1/Stoppani/Player 6/scale_03.wav	1129484	ff796de376680ddf16627aba7b72f0c6bba6ba01d31e30b7433fff68b49823f9	dataset	recordings/Session 1/Stoppani/Player 6/scale_03.wav
+recordings/Session 1/Stoppani/Player 6/scale_04.wav	1074572	6779237c3490b4672de1da7f863abb30f5d7094fc98d84a2aeaabb2dac06e6a7	dataset	recordings/Session 1/Stoppani/Player 6/scale_04.wav
+recordings/Session 1/Stoppani/Player 7/scale_01.wav	659862	84939b07a9a203ae83b26b5710b0b65b1f4c99151963628bf453ca3435e33971	dataset	recordings/Session 1/Stoppani/Player 7/scale_01.wav
+recordings/Session 1/Stoppani/Player 7/scale_02.wav	633256	816a08fb3285e418714eaecc7ba510d11313415188383b207707ea84cc69cf9c	dataset	recordings/Session 1/Stoppani/Player 7/scale_02.wav
+recordings/Session 1/Stoppani/Player 7/scale_03.wav	1172858	0b45e3f0a763e821a1ac5c178ab68bd8f060f5dc9a72460cd163e9c59758681f	dataset	recordings/Session 1/Stoppani/Player 7/scale_03.wav
+recordings/Session 1/Stoppani/Player 8/scale_01.wav	4430444	ce284669343ff85f6a621c43835e16e13c9ae1b36474dc8b164416d465147c7e	dataset	recordings/Session 1/Stoppani/Player 8/scale_01.wav
+recordings/Session 1/Stoppani/Player 8/scale_02.wav	4685036	e5399eeefe8ef0831cdc6af133934982221219e6f60ee7b8f37ea57b8a1b0880	dataset	recordings/Session 1/Stoppani/Player 8/scale_02.wav
+recordings/Session 1/Stoppani/Player 8/scale_03.wav	3148746	dfe84cee6e0429e9735e4f5a0eb5f38e3cd997eb658baf02da9bb03fc0ae2757	dataset	recordings/Session 1/Stoppani/Player 8/scale_03.wav
+recordings/Session 1/Stoppani/Player 9/scale_01.wav	836204	d164fccc1230ff12b25b7caa547fde3942b9bd44e79d423264afdb596482e5de	dataset	recordings/Session 1/Stoppani/Player 9/scale_01.wav
+recordings/Session 1/Stoppani/Player 9/scale_02.wav	947274	cdbeba78ae80ad51c70ece31d2436c01abfc5d2012e4ee1780db086e376b40f4	dataset	recordings/Session 1/Stoppani/Player 9/scale_02.wav
+recordings/Session 1/Stoppani/Player 9/scale_03.wav	690188	564f4d88babace4f9a194d6e06601b965e3edea0bf830cc59da66b1fd8afb6b5	dataset	recordings/Session 1/Stoppani/Player 9/scale_03.wav
+recordings/dataset.csv	22645	20e3baea9a84f26e9acff8419c3c50b64a012fbe343e661d4399e95246a66197	dataset	recordings/dataset.csv
