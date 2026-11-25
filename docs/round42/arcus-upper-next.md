@@ -497,3 +497,37 @@ Open:
   earrings found on each lobe (`earrings`, `Stuff::Jewel` → `Role::Brass`); the blonde
   lighter (`HAIR_FAIR`). A realistic cellist leans 2.5 cm further into the cello, the chin
   lifted 0.1 rad (`LEAN_IN`, `CHIN_UP`).
+
+### The coordinator's review of the first previews (2026-11-24, late) and what it changed
+
+The review: the left hand "a real step forward" (it wraps the neck, the thumb under it,
+the tips on the strings); then, in order: hands like clay (short thick fingers, no nails,
+creases or tendons, flat pale colour; the man's fingers a fist on the board); ragged cuffs
+(a white/black sawtooth); her face porcelain (brows, lashes, lid lines, rose lips, warmth,
+uneven skin, a sheen; eyes half-open looking down; he too pale, brows); the hair a
+striped helmet (locks, a soft hairline without a band or sparks, loose strands at the
+temples, a real bun); **modesty — her dress read as body paint: a draped concert dress,
+a looser bodice, soft folds, no anatomical contour; long sleeves with some bulk; the
+figures clearly modest and elegant** (the owner's Christian values); the cellist's face
+and hair the same.
+
+Done (`build_figures.py` unless named):
+- **Bodice** (`dress`): the trunk's front half blurred in depth (a 5 cm Gaussian, two
+  passes, weighted in softly) so the cloth lies over the forms, a welded Laplacian
+  smoothing (160 passes; never across the armpit), an ease off the body (0.7 cm + 0.6 in
+  front), the sleeves 0.35 cm fuller. Checked from the front, three-quarter and side.
+- **Cuffs** (`arcus_draw_flesh`): where two stuffs meet on a live arm the upper one's edge
+  is feathered over the other (`rank`: sleeve over shirt over skin); the shirt's cuff sorted
+  3 cm behind the sleeve.
+- **Face**: brows darker (hers light brown), a rose lip spot (`lip_spot`), cheeks/nose
+  warmer, a soft uneven redness, his skin warmer; the lids 14°/3° (half-open over eyes
+  looking down at the strings); the skin's sheen up (`chorda_scene_px_bowed`, lacquer
+  0.09/0.38).
+- **Hair**: locks across the head (`thick`'s `locks`), a chignon (`torus`) over a smaller
+  core, a few loose strands at each temple (`temple_strands`); the bright strands at the
+  hairline gone.
+- **Hands**: the fingers drawn in toward their phalanges' axes (`slim_fingers`, 0.86, the
+  thumb 0.92); the joints' creases darker, the fingertips and the palm's edge warmer
+  (`finger_tint`); the nails lighter and glossier (`flesh::colour`); the table's fingers
+  spread (`SPREAD`), held near the middle of their ranges (`MID`), each hovering toward its
+  own string.

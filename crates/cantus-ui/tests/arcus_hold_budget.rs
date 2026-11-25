@@ -96,7 +96,8 @@ fn the_figures_live_arms_draw_in_the_frame_budget() {
                     let (r50, r95, f50, f95) = best.expect("five rounds");
                     let extra = f50 - r50;
                     println!(
-                        "{name} {hold:?} {q:?} {}%: alone p50 {r50:.2} p95 {r95:.2} ms; held                          p50 {f50:.2} p95 {f95:.2} ms; the arms +{extra:.2} ms",
+                        "{name} {hold:?} {q:?} {}%: alone p50 {r50:.2} p95 {r95:.2} ms; held \
+                         p50 {f50:.2} p95 {f95:.2} ms; the arms +{extra:.2} ms",
                         (k * 100.0) as u32,
                     );
                     let real = matches!(hold, Hold::Woman | Hold::Man);
@@ -108,7 +109,8 @@ fn the_figures_live_arms_draw_in_the_frame_budget() {
                     let slow = q == Quality::Light && f95 > r95 * 1.5 + 1.0;
                     if extra > ceiling || slow {
                         bad.push(format!(
-                            "{name} {hold:?} {q:?} {k}: +{extra:.2} ms (ceiling {ceiling}),                              p95 {f95:.2}"
+                            "{name} {hold:?} {q:?} {k}: +{extra:.2} ms (ceiling {ceiling}), \
+                             p95 {f95:.2}"
                         ));
                     }
                 }

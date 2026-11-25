@@ -55,8 +55,9 @@ fn arm_mesh_at(who: Who, s: usize, level: usize) -> &'static ArmMesh {
     })
 }
 
-/// Light's grid (cm): the hand's and the sleeve's cells for a hand drawn large, small.
-const LOD_CELL: [(f32, f32); 2] = [(0.95, 1.8), (1.5, 2.8)];
+/// Light's grid (cm): the hand's and the sleeve's cells for a hand drawn large, small (the
+/// release profile's measure: the man's suit at 0.95/1.8 cm still cost +1.0 ms).
+const LOD_CELL: [(f32, f32); 2] = [(1.15, 2.6), (1.6, 3.6)];
 
 /// The px a cm takes on screen over which Light draws its finer level.
 const LOD_FINE_PX: f32 = 2.6;
@@ -413,7 +414,9 @@ fn lut_colour(
         tone,
         eye: q(sh.eye),
         key: q(sh.key),
-        mid: q(mid),
+        // (The arm's middle to 4 cm: to the cm, a hand trembling in vibrato across a
+        // centimetre's edge remade the maps — a slow frame now and then.)
+        mid: q(mid * 0.25),
     };
     LUTS.with(|l| {
         let mut all = l.borrow_mut();

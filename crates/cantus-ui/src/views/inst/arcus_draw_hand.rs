@@ -631,8 +631,7 @@ pub fn stamp(corners: &[Pos2; 8], shown: egui::Rect, tex: egui::TextureId) -> eg
         .iter()
         .fold(egui::Vec2::ZERO, |a, p| a + p.to_vec2())
         / n.max(1) as f32;
-    for i in 0..n {
-        let p = hull[i];
+    for &p in &hull[..n] {
         let out = (p.to_vec2() - c).normalized() * FEATHER;
         let q = p + out;
         m.vertices.push(egui::epaint::Vertex {

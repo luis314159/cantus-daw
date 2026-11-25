@@ -549,7 +549,7 @@ def make(sex, data, assets):
     brow = brows(pos, keep_v, J, sex)
     # (The owner's review, 2026-11-24: brows that read — hers a light brown, darker than
     # her blonde; his darker.)
-    lum = lum * (1.0 - (0.74 if sex == "female" else 0.86) * brow)
+    lum = lum * (1.0 - (0.84 if sex == "female" else 0.9) * brow)
     red = red - 0.15 * brow
     # Cheeks, lips, the nose's tip and the ears warmer (a face with life, not porcelain),
     # the lips a natural rose, and the skin not one even tone: a little redness here and
@@ -602,9 +602,6 @@ def make(sex, data, assets):
         tp, tt, tuv = torus(bc + np.array([0.0, 0.0, -0.6]), np.array([0.0, -0.25, -1.0]),
                             2.6, 1.35)
         fig.add(tp, [{BI["head"]: 1.0}] * len(tp), tt, HAIR, uv=tuv)
-        # A few loose strands at the temples.
-        lp_, lt_, luv = temple_strands(hp, huv, c)
-        fig.add(lp_, [{BI["head"]: 1.0}] * len(lp_), lt_, HAIR, uv=luv)
         # Small drop earrings: a bead at each lobe, a drop under it.
         for jp, jt in earrings(pos, head_w, c, J):
             fig.add(jp, [{BI["head"]: 1.0}] * len(jp), jt, JEWEL)
@@ -660,41 +657,6 @@ def torus(c, axis, R, r, rows=12, cols=36, twist=2.5):
     flip = ((cen - core) * fn).sum(1) < 0
     tris[flip] = tris[flip][:, [0, 2, 1]]
     return pts, tris, np.array(uv)
-
-
-def temple_strands(hp, huv, c, n=4, seg=8, width=0.045):
-    """A few loose strands at each temple: from the hairline there, falling softly along
-    the side of the face a few centimetres, a little off the skin."""
-    th, ph = angles(hp, c)
-    pts, tris, uv = [], [], []
-    for sgn in (1.0, -1.0):
-        edge = np.where((huv[:, 1] < 0.2) & (th * sgn > 58.0) & (th * sgn < 82.0))[0]
-        if len(edge) == 0:
-            continue
-        pick = edge[np.linspace(0, len(edge) - 1, n).astype(int)]
-        for k, i in enumerate(pick):
-            p0 = hp[i]
-            out = p0 - c
-            out = out / np.linalg.norm(out)
-            down = np.array([0.0, -1.0, 0.0])
-            side = np.cross(out, down)
-            side = side / max(np.linalg.norm(side), 1e-9)
-            L = 3.5 + 1.2 * (k % 2)
-            base = len(pts)
-            for j in range(seg + 1):
-                t = j / seg
-                q = (p0 + down * (L * t) + out * (0.25 + 0.35 * np.sin(np.pi * t * 0.8))
-                     + side * (0.3 * np.sin(np.pi * t + k)))
-                w = width * (1.0 - 0.7 * t)
-                pts += [q - side * w, q + side * w]
-                uv += [[huv[i, 0], 0.7], [huv[i, 0], 0.7]]
-                if j:
-                    a_, b_ = base + 2 * (j - 1), base + 2 * j
-                    tris += [[a_, b_, b_ + 1], [a_, b_ + 1, a_ + 1]]
-    if not pts:
-        return np.zeros((0, 3)), np.zeros((0, 3), dtype=np.int64), np.zeros((0, 2))
-    pts = np.array(pts)
-    return pts, outward(pts, np.array(tris, dtype=np.int64), c), np.array(uv)
 
 
 DEBUG_EARS = False
