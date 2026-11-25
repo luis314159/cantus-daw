@@ -529,7 +529,7 @@ fn probe_cpu() {
 #[ignore = "a probe"]
 fn probe_levels() {
     use crate::terminus::loudness::LoudnessMeter;
-    for inst in [Instrument::Cello, Instrument::Bass] {
+    for inst in Instrument::ALL {
         for tech in [Technique::Arco, Technique::Pizzicato] {
             let spec = inst.spec();
             let mut line = String::new();

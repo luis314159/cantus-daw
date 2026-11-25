@@ -24,10 +24,13 @@ use std::collections::HashMap;
 /// and its send to the hall (the bass further back: more of the room).
 fn desk(who: Who) -> (f32, f32, f32, Color) {
     match who {
-        Who::Violin => (-0.38, 7.0, -13.0, Color::rgb(0xD9, 0xA4, 0x41)),
+        // r42:arcus-p5: the violin's and the bass's faders back at 0 dB — the presets'
+        // gains are fitted on a musical phrase now (`cantus_ui::arcus_level`); before, the
+        // demo lifted the violin 7 dB and lowered the bass 4 to sit them with the others.
+        Who::Violin => (-0.38, 0.0, -13.0, Color::rgb(0xD9, 0xA4, 0x41)),
         Who::Viola => (0.40, 0.5, -13.0, Color::rgb(0xC2, 0x7A, 0x3A)),
         Who::Cello => (0.12, 0.0, -13.0, Color::rgb(0x9C, 0x5A, 0x33)),
-        Who::Bass => (0.22, -4.0, -11.0, Color::rgb(0x6E, 0x45, 0x2C)),
+        Who::Bass => (0.22, 0.0, -11.0, Color::rgb(0x6E, 0x45, 0x2C)),
     }
 }
 

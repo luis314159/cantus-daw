@@ -176,7 +176,13 @@ fn main() {
             // The fit stops where the phrase would pass −1.2 dBFS (the render check's
             // headroom): a preset with that much crest sits under its window by its dynamics.
             for _ in 0..3 {
-                let p = peak_db(&out);
+                // r42:arcus-p5: a preset fitted on the music phrase keeps the headroom on its
+                // audition phrase too (the browser plays that one).
+                let p = if music {
+                    peak_db(&out).max(peak_db(&phrase(&spec, role)))
+                } else {
+                    peak_db(&out)
+                };
                 if p <= -1.2 {
                     break;
                 }

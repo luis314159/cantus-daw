@@ -104,7 +104,9 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     // Pass 4's 8 Hz high-pass: the bow's static push reaches the bridge as a DC force no body
     // radiates (measured on the violin too: `docs/round42/arcus-upper.md` §6).
     radiation_hz: RADIATION_SHARE * 196.0, // r42:arcus-p5: G3
-    balance_db_st: 0.0,
+    // r42:arcus-p5: measured (`tests_gate2::probe_levels`, every three semitones G3–E7):
+    // the violin fell 0.17 dB a semitone, its top 6 dB under its G string.
+    balance_db_st: 0.17,
     balance_key: 72.0,
     matched: VIOLIN_MATCH,
 };
@@ -138,7 +140,8 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     spic_ring: 0.35,                        // r42:arcus-p5
     trem_db: 5.0,                           // r42:arcus-p5
     radiation_hz: RADIATION_SHARE * 130.81, // r42:arcus-p5: C3
-    balance_db_st: 0.0,
+    // r42:arcus-p5: measured the same way, the viola 0.12 dB a semitone C3–A6.
+    balance_db_st: 0.12,
     balance_key: 65.0,
     matched: VIOLA_MATCH,
 };
