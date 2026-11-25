@@ -1,7 +1,8 @@
 import json, re, sys
 from pathlib import Path
 import numpy as np
-tools = Path(r"F:\projects\daw-r42\study\tools"); sys.path.insert(0, str(tools))
+tools = Path(__file__).resolve().parents[1] / "study"; sys.path.insert(0, str(tools))  # the study's estimator
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs")); import cantus_paths as cp  # noqa: E402
 from bowlib_core import load
 from bowlib_note import analyse_pizz
 from catalog import FAM
@@ -19,7 +20,7 @@ for fam in ("cello", "bass"):
                "string": None, "index": 0, "sr": sr, "midi": float(69 + 12 * np.log2(r["f0_hz"] / 440.0))}
         rec.update(r); recs.append(rec)
     ours = aggregate.family(recs, fam)
-    ref = json.loads(Path(rf"F:\projects\daw-r42\study\refdb\{fam}.json").read_text())
+    ref = json.loads(cp.refdb(f"{fam}.json").read_text())  # $CANTUS_STUDY_REFDB
     print("==", fam, len(recs), "plucks")
     for fq, d in ref["pizz_t60_by_freq"].items():
         o = ours["pizz_t60_by_freq"].get(fq)

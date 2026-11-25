@@ -18,7 +18,10 @@ import numpy as np
 import soundfile as sf
 from scipy import signal
 
-D = Path(os.environ.get("CANTUS_STUDY_DOWNLOADS", r"F:\projects\daw-r42\downloads"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402  ($CANTUS_REFS, $CANTUS_STUDY_REFDB: tools/sound-refs)
+
+D = (Path(os.environ.get("CANTUS_STUDY_DOWNLOADS") or cp.refs()))
 S = D / "study"
 TS_C = D / "arcus" / "tinysol" / "Strings"
 TS_U = S / "tinysol-violin-viola" / "audio" / "Strings"

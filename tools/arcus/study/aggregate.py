@@ -20,8 +20,10 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from body import body_estimate, body_marks  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402  ($CANTUS_REFS, $CANTUS_STUDY_REFDB: tools/sound-refs)
 
-R = Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb"
+R = cp.env_or("CANTUS_STUDY_REFDB", Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb")
 FAMS = ["cello", "bass", "viola", "violin"]
 LOW = {"cello": 36, "bass": 28, "viola": 48, "violin": 55}
 DCLS = {1: "soft", 2: "soft", 3: "medium", 4: "medium", 5: "loud", 6: "loud"}

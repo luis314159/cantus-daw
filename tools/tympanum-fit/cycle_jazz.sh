@@ -6,8 +6,9 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-W=${TYMP_WORK:-$ROOT/target/tympanum-work}
-CONTENT=${TYMP_CONTENT:?set TYMP_CONTENT to the content root holding the recorded packs}
+. "$ROOT/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK, CANTUS_PY
+W=${TYMP_WORK:-$CANTUS_WORK/tympanum-work}
+CONTENT=${TYMP_CONTENT:-$CANTUS_REFS/tympanum/content}
 P=${CANTUS_PY:-python}
 SLOT=${SLOT-bash $ROOT/tools/build/slot.sh}
 export OPENBLAS_NUM_THREADS=1

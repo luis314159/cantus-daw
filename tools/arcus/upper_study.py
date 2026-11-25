@@ -5,7 +5,8 @@ arco scalar's median per dynamic group set beside the family's band of real inst
 (refdb/<family>.json: [p25, p75] with four or more instruments, else [min, max]).
 
 Usage (the study's venv: numpy, scipy, soundfile):
-  <study>/venv/Scripts/python.exe -I tools/arcus/upper_study.py <renders>/study <study dir> [out.json]
+  $CANTUS_PY -I tools/arcus/upper_study.py <renders>/study [<refdb> | <study dir>] [out.json]
+(<refdb> defaults to $CANTUS_STUDY_REFDB; an older study folder holding tools/ and refdb/ works too)
 
 Nothing is written into the study's folder; the per-note records go to out.json if named.
 """
@@ -15,9 +16,13 @@ import sys
 from pathlib import Path
 
 renders = Path(sys.argv[1])
-study = Path(sys.argv[2])
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402
+study = Path(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else cp.refdb()
 out = Path(sys.argv[3]) if len(sys.argv) > 3 else None
-sys.path.insert(0, str(study / "tools"))
+# The estimator: the study folder's own copy when given one, else the repository's.
+sys.path.insert(0, str(study / "tools" if (study / "tools").is_dir() else Path(__file__).resolve().parent / "study"))
+refdb = study / "refdb" if (study / "refdb").is_dir() else study
 import extract  # noqa: E402  (the study's estimator, unchanged)
 from aggregate import ARCO_FEATS, vib_ok  # noqa: E402  (its own reading of each feature)
 import math  # noqa: E402
@@ -43,7 +48,7 @@ for fam_dir in sorted(p for p in renders.iterdir() if p.is_dir()):
 
 report = []
 for family in sorted({r["family"] for r in records}):
-    band = json.loads((study / "refdb" / f"{family}.json").read_text())
+    band = json.loads((refdb / f"{family}.json").read_text())
     report.append(f"{family} (Arcus {sum(1 for r in records if r['family'] == family)} notes, "
                   f"the band of {len(band['instruments'])} real instruments):")
     arco = [r for r in records if r["family"] == family and r["tech"] == "arco"]
@@ -64,7 +69,7 @@ for family in sorted({r["family"] for r in records}):
 # amplitude at the vibrato's rate, over the notes whose vibrato the study counts), and the share
 # of partials that swing against the pitch (|phase| > π/2).
 for family in sorted({r["family"] for r in records}):
-    band = json.loads((study / "refdb" / f"{family}.json").read_text())["vibrato_am_db_per_partial"]
+    band = json.loads((refdb / f"{family}.json").read_text())["vibrato_am_db_per_partial"]
     vib = [r for r in records if r["family"] == family and r["tech"] == "arco" and vib_ok(r)
            and (r.get("vibrato") or {}).get("am_db")]
     if not vib:

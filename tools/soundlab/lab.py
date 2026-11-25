@@ -8,9 +8,9 @@
     python -I tools/soundlab/lab.py all     <subject.json> <run> [--before <run>] [--from <dir>]
     python -I tools/soundlab/lab.py kit     <subject.json> <kit dir> [--wav] [--wav-twin <dir>] [--run <run>]
 
-The work folder is <SOUNDLAB_WORK or the repository's parent/soundlab-work>/<subject id>:
+The work folder is <SOUNDLAB_WORK or $CANTUS_WORK/soundlab>/<subject id>:
 refs/ (the references' cache), runs/<run>/ (renders/, measures.json, report.json, report.html).
-The references live under the subject's root (SOUNDLAB_REFS, the downloads folder), never in
+The references live under the subject's root (SOUNDLAB_REFS, else CANTUS_REFS), never in
 the repository. SOUNDLAB_WORKERS sets the parallel measurers (3).
 """
 import json

@@ -1,6 +1,6 @@
 """The lab against the estimator it generalises, on real recordings: the Arcus study's
-per-note records (`<study>/refdb/notes/ircam-cello.jsonl`, SOUNDLAB_STUDY the study's
-folder; its files under SOUNDLAB_REFS) read the same TinySOL cello notes the lab reads. At the
+per-note records (`<refdb>/notes/ircam-cello.jsonl`: SOUNDLAB_STUDY the study's folder, or
+CANTUS_STUDY_REFDB the refdb itself; its files under SOUNDLAB_REFS or CANTUS_REFS) read the same TinySOL cello notes the lab reads. At the
 file's own rate the port must give the study's numbers; through the lab's pipeline (48 kHz,
 the note's pitch known) within the study's measured accuracy."""
 import json
@@ -10,24 +10,22 @@ from pathlib import Path
 
 import numpy as np
 
-from common import lab  # noqa: F401
+from common import lab, local, study_refdb  # noqa: F401
 from soundlab import audio
 from soundlab.features import Note, analyse
 
 
-@unittest.skipUnless(os.environ.get("SOUNDLAB_STUDY") and os.environ.get("SOUNDLAB_REFS")
+@unittest.skipUnless(study_refdb() and os.environ.get("SOUNDLAB_REFS")
                      and os.environ.get("SOUNDLAB_LIGHT") != "1", "SOUNDLAB_STUDY / SOUNDLAB_REFS not set")
 class AgainstTheStudy(unittest.TestCase):
     def test_tinysol_cello_notes(self):
-        notes = Path(os.environ["SOUNDLAB_STUDY"]) / "refdb" / "notes" / "ircam-cello.jsonl"
+        notes = study_refdb() / "notes" / "ircam-cello.jsonl"
         rows = [json.loads(line) for line in notes.read_text(encoding="utf-8").splitlines() if line.strip()]
         rows = [r for r in rows if r.get("dyn") == "mf"][::8][:12]
         self.assertGreaterEqual(len(rows), 8)
         worst = {"f0": 0.0, "h": 0.0, "vib": 0.0, "noise": 0.0, "f0_48": 0.0, "h_48": 0.0}
         for r in rows:
-            p = Path(r["path"])
-            if not p.exists():
-                p = Path(os.environ["SOUNDLAB_REFS"]) / Path(*p.parts[p.parts.index("downloads") + 1:])
+            p = local(r["path"])
             x, sr = audio.read(p, channels=1)
             a = analyse(Note(x, sr, "sustained", (60, 1100), hint=False), ["pitch", "harmonics", "vibrato", "noise"])
             worst["f0"] = max(worst["f0"], abs(1200 * np.log2(a["pitch"]["f0_hz"] / r["f0_hz"])))

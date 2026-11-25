@@ -12,11 +12,12 @@
 #
 #   bash tools/arcus/match.sh [refs-dir] [out-dir] [fit]
 #
-# refs-dir defaults to $ARCUS_REFS or ../downloads/arcus beside the worktree; out-dir to
+# refs-dir defaults to $ARCUS_REFS or $CANTUS_REFS/arcus (tools/sound-refs); out-dir to
 # docs/round42/arcus-match. Every cargo command goes through tools/build/slot.sh.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
-refs=${1:-${ARCUS_REFS:-$here/../downloads/arcus}}
+. "$here/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK (tools/sound-refs)
+refs=${1:-${ARCUS_REFS:-$CANTUS_REFS/arcus}}
 out=${2:-$here/docs/round42/arcus-match}
 shift 2 || true
 slot=${SLOT:-$here/tools/build/slot.sh}

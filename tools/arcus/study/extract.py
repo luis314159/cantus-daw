@@ -18,9 +18,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bowlib_core import load, segment  # noqa: E402
 from bowlib_note import analyse_arco, analyse_pizz  # noqa: E402
-from catalog import FAM  # noqa: E402
+from catalog import FAM, cp  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb"
+ROOT = cp.env_or("CANTUS_STUDY_REFDB", Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb")
 
 
 def clean(o):
@@ -40,7 +40,7 @@ def clean(o):
 
 def run(j):
     try:
-        x, sr = load(j["path"])
+        x, sr = load(str(cp.rebase(j["path"])))
         fmin, fmax = FAM[j["family"]]
         if j.get("multi"):
             segs = segment(x, sr)

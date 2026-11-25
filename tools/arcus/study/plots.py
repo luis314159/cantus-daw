@@ -14,7 +14,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-R = Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb"
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402  ($CANTUS_REFS, $CANTUS_STUDY_REFDB: tools/sound-refs)
+R = cp.env_or("CANTUS_STUDY_REFDB", Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb")
 P = R / "plots"
 CAT = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 SEQ = {"soft": "#9ec5f0", "medium": "#2a78d6", "loud": "#0f3f80"}

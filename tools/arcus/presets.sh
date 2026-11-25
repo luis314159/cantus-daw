@@ -9,12 +9,13 @@
 #
 #   bash tools/arcus/presets.sh [out-dir] [fit]
 #
-# out-dir defaults to $ARCUS_PRESETS or ../listen/arcus-presets beside the worktree. Every
+# out-dir defaults to $ARCUS_PRESETS or $CANTUS_WORK/listen/arcus-presets (tools/sound-refs). Every
 # cargo command goes through tools/build/slot.sh; set SLOT to the slot script's path if this
 # tree has none of its own.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
-out=${1:-${ARCUS_PRESETS:-$here/../listen/arcus-presets}}
+. "$here/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK (tools/sound-refs)
+out=${1:-${ARCUS_PRESETS:-$CANTUS_WORK/listen/arcus-presets}}
 shift || true
 slot=${SLOT:-$here/tools/build/slot.sh}
 mkdir -p "$out"

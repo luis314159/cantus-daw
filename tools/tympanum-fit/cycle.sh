@@ -3,13 +3,15 @@
 # as they are, calibrate level and tonal weight against DRSKit, regenerate the tables.
 #   bash cycle.sh <in gains> <out gains> <meas dir name> [ab]
 # Environment (README.md, "Paths"): TYMP_CONTENT (the content root with the recorded packs
-# installed), TYMP_WORK (fits in out/, renders in <meas dir name>/, the recordings' hits in
-# meas9/; default <repo>/target/tympanum-work), CANTUS_PY, SLOT (empty inside a build slot).
+# installed; default $CANTUS_REFS/tympanum/content, tools/sound-refs), TYMP_WORK (fits in
+# out/, renders in <meas dir name>/, the recordings' hits in meas9/; default
+# $CANTUS_WORK/tympanum-work), CANTUS_PY, SLOT (empty inside a build slot).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-W=${TYMP_WORK:-$ROOT/target/tympanum-work}
-CONTENT=${TYMP_CONTENT:?set TYMP_CONTENT to the content root holding the recorded packs}
+. "$ROOT/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK, CANTUS_PY
+W=${TYMP_WORK:-$CANTUS_WORK/tympanum-work}
+CONTENT=${TYMP_CONTENT:-$CANTUS_REFS/tympanum/content}
 P=${CANTUS_PY:-python}
 SLOT=${SLOT-bash $ROOT/tools/build/slot.sh}
 export OPENBLAS_NUM_THREADS=1

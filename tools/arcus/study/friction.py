@@ -19,9 +19,12 @@ import re
 from pathlib import Path
 
 import numpy as np
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402  ($CANTUS_REFS, $CANTUS_STUDY_REFDB: tools/sound-refs)
 
-R = Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb"
-D = Path(os.environ.get("CANTUS_STUDY_DOWNLOADS", r"F:\projects\daw-r42\downloads")) / "study" / "zenodo-lampis-friction-force" / "output_measurements" / "output_measurements" / "reconstructions"
+R = cp.env_or("CANTUS_STUDY_REFDB", Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb")
+D = (Path(os.environ.get("CANTUS_STUDY_DOWNLOADS") or cp.refs())) / "study" / "zenodo-lampis-friction-force" / "output_measurements" / "output_measurements" / "reconstructions"
 
 
 def main():

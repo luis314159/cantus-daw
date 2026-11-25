@@ -9,13 +9,14 @@
 #
 #   bash tools/arcus/demo.sh [out-dir]
 #
-# out-dir defaults to $ARCUS_DEMO or ../listen/arcus-demo beside the worktree; it gets
+# out-dir defaults to $ARCUS_DEMO or $CANTUS_WORK/listen/arcus-demo (tools/sound-refs); it gets
 # arcus-cuarteto.wav, arcus-cuarteto.cantus, stems/ and index.html. Exits 1 when a check fails.
 # Every cargo command goes through tools/build/slot.sh; set SLOT to the slot script's path if
 # this tree has none of its own.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
-out=${1:-${ARCUS_DEMO:-$here/../listen/arcus-demo}}
+. "$here/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK (tools/sound-refs)
+out=${1:-${ARCUS_DEMO:-$CANTUS_WORK/listen/arcus-demo}}
 slot=${SLOT:-$here/tools/build/slot.sh}
 mkdir -p "$out"
 cd "$here"

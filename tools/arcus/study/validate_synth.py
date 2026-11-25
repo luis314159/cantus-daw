@@ -15,6 +15,8 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402  ($CANTUS_REFS, $CANTUS_STUDY_REFDB: tools/sound-refs)
 from bowlib_core import band_powers  # noqa: E402
 from bowlib_note import analyse_arco, analyse_pizz  # noqa: E402
 
@@ -96,7 +98,7 @@ def synth_pizz(f0, B, rng, dur=4.0):
 
 
 def main():
-    out_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb" / "validation.json"
+    out_path = Path(sys.argv[1]) if len(sys.argv) > 1 else cp.env_or("CANTUS_STUDY_REFDB", Path(__file__).resolve().parents[3] / "research" / "instruments-next" / "bowed-refdb") / "validation.json"
     rng = np.random.default_rng(42)
     rep = {"arco": [], "pizz": []}
     for f0, fmin, fmax in [(41.2, 30, 500), (98.0, 55, 1100), (196.0, 170, 3000), (440.0, 170, 3000), (880.0, 170, 3000)]:

@@ -12,7 +12,7 @@
 set -eu
 dir=${1:?usage: map.sh <sources dir> [pack]}
 here=$(cd "$(dirname "$0")/../../.." && pwd)
-slot=${CANTUS_SLOT:-/f/projects/cantus/tools/build/slot.sh}
+slot=${CANTUS_SLOT:-$here/tools/build/slot.sh}
 cd "$here"
 bash "$slot" cargo run --release -p cantus-content --example strings_map -- "$dir" "$dir/strings.json" ${2:-}
 python -I tools/content/strings/merge.py "$dir" "$dir/strings.json" crates/cantus-content/manifest/content.json

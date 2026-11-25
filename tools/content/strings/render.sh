@@ -13,6 +13,6 @@ set -eu
 src=${1:?usage: render.sh <sources> <out> [abx.mid]}
 out=${2:?the output folder}
 here=$(cd "$(dirname "$0")/../../.." && pwd)
-slot=${CANTUS_SLOT:-/f/projects/cantus/tools/build/slot.sh}
+slot=${CANTUS_SLOT:-$here/tools/build/slot.sh}
 cd "$here"
 bash "$slot" cargo run --release -p cantus-ui --example strings_listen -- "$src" "$out" ${3:-}

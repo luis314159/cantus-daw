@@ -139,7 +139,7 @@ fn files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Every reference note under `root` (`F:\projects\daw-r42\downloads\arcus`).
+/// Every reference note under `root` (`$CANTUS_REFS/arcus`: tools/sound-refs, set `arcus`).
 pub fn load(root: &Path) -> Vec<Note> {
     let mut all = Vec::new();
     files(root, &mut all);

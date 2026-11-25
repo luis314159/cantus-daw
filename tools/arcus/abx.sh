@@ -3,10 +3,11 @@
 # and the double bass, 48 kHz 24-bit, peak −1 dBFS (abx-cello.wav, abx-bass.wav) and
 # loudness-matched to −23 LUFS (abx-*-lufs23.wav) — the names the recorded strings use.
 #
-#   bash tools/arcus/abx.sh [out-dir]      # default: $ARCUS_LISTEN or ../listen/arcus
+#   bash tools/arcus/abx.sh [out-dir]      # default: $ARCUS_LISTEN or $CANTUS_WORK/listen/arcus
 set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
-out=${1:-${ARCUS_LISTEN:-$here/../listen/arcus}}
+. "$here/tools/sound-refs/cantus_paths.sh"  # CANTUS_REFS, CANTUS_WORK (tools/sound-refs)
+out=${1:-${ARCUS_LISTEN:-$CANTUS_WORK/listen/arcus}}
 slot=${SLOT:-$here/tools/build/slot.sh}
 mkdir -p "$out"
 cd "$here"

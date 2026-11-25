@@ -93,11 +93,12 @@ cargo run --release -p cantus-ui --example tympanum_abx -- <kit dir> \
 Tympanum as it ships — the modelled kit's generated voice and its *Hybrid* voice — against the
 recording each modelled kit was measured from (the studio kit and DRSKit, the jazz kit and
 Virtuosity Drums), the same MIDI through each, through the engine's offline render, each kit's
-own mix of its microphones. `--downloads` (default `F:/projects/daw-r42/downloads/tympanum`)
+own mix of its microphones. `--downloads` (default `$CANTUS_REFS/tympanum`, tools/sound-refs)
 holds `content/`, where `drskit-tympanum`, `virtuosity-drums`, `tympanum-hybrid-studio` and
 `tympanum-hybrid-jazz` are installed through Cantus's own pack code unless they are there at
-the manifest's version (the recorded kits are 1.9 and 1.5 GB: a junction to an earlier
-download at the same version saves fetching them again). The tool prints each hybrid residual's
+the manifest's version (the recorded kits are 1.9 and 1.5 GB: `python -I
+tools/sound-refs/fetch.py fetch tympanum --packs` copies them from the app's own folder when it
+holds them, `--cargo` installs the rest). The tool prints each hybrid residual's
 model hash against the build's and refuses a kit whose hybrid is not heard. Twelve items (eight
 pieces alone at two or three velocities, four grooves: pop/worship, rock, bossa nova, a ballad
 on the jazz kit with crash swells), −23 LUFS (lowered together for a −1 dBFS peak), 100 ms

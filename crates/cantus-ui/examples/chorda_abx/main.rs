@@ -14,7 +14,7 @@
 //! `--levels` its per-key tables (`CHORDA_PARTIALS` / `CHORDA_LEVELS`, as the lab reads them;
 //! the environment's are used when the flags are absent). The Salamander is installed through
 //! Cantus's own pack code into `<downloads>/content` (default
-//! `F:/projects/daw-r37/downloads/piano`) and played by the engine, as is Chorda 2; Chorda 3
+//! `$CANTUS_REFS/piano`, tools/sound-refs) and played by the engine, as is Chorda 2; Chorda 3
 //! through the lab (model 2's DSP at the candidate's voicing). Every phrase's three renders are
 //! trimmed to one length, given one 30 ms fade and brought to one loudness (ITU-R BS.1770
 //! integrated, −20 LUFS, lowered together if a peak would pass −1 dBFS).
@@ -56,6 +56,22 @@ use kit::js;
 use render::{Source, Stereo};
 use std::fmt::Write as _;
 use std::path::PathBuf;
+
+/// `$CANTUS_REFS` joined with `sub`: the sound references' home outside every round's folder
+/// (`tools/sound-refs`; default `F:/projects/cantus-refs` on Windows, `~/cantus-refs` elsewhere).
+fn refs_dir(sub: &str) -> PathBuf {
+    let root = std::env::var_os("CANTUS_REFS")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            if cfg!(windows) {
+                PathBuf::from("F:/projects/cantus-refs")
+            } else {
+                PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join("cantus-refs")
+            }
+        });
+    root.join(sub)
+}
 
 const SUBJECT: &str = include_str!("../chorda_kit/abx_subject.json");
 const README_EN: &str = include_str!("../chorda_kit/abx_readme.en.md");
@@ -138,8 +154,7 @@ fn args() -> Args {
     });
     Args {
         dir,
-        downloads: downloads
-            .unwrap_or_else(|| PathBuf::from("F:/projects/daw-r37/downloads/piano")),
+        downloads: downloads.unwrap_or_else(|| refs_dir("piano")),
         key,
         spec_file,
         spec,

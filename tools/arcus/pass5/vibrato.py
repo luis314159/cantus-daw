@@ -23,8 +23,8 @@ note from its onset to its end), the cents track against the note's median is de
     python -I tools/arcus/pass5/vibrato.py refs <out.json>       the references
     python -I tools/arcus/pass5/vibrato.py note <file> [<file>...] one row per file
 
-`refs` reads the catalogue (`F:/projects/daw-r42/study/refdb/catalog.json`, or
-`$CANTUS_STUDY_REFDB`): every single-note arco file of each family (not the sections, not the
+`refs` reads the catalogue (`$CANTUS_STUDY_REFDB/catalog.json`, default
+`$CANTUS_REFS/derived/refdb`: tools/sound-refs/setup.md rebuilds it): every single-note arco file of each family (not the sections, not the
 non-vibrato takes), and Philharmonia's legato and crescendo phrases (the notes after a
 transition: slurred notes; the crescendo's cycles: extent against level). A `.f32` file is raw
 little-endian float32 at 48 kHz.
@@ -40,6 +40,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "study"))
 from bowlib_core import load, rms_db  # noqa: E402
 from bowlib_feat import _f0_steady, _track, detrend_at  # noqa: E402
 from bowlib_note import onset_end  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs"))
+import cantus_paths as cp  # noqa: E402
 
 FAMILY_RANGE = {"cello": (60, 1100), "bass": (38, 450), "viola": (120, 1500), "violin": (180, 3200)}
 LOWEST = {"cello": 36, "bass": 28, "viola": 48, "violin": 55}
@@ -196,7 +198,7 @@ def midi_of(f):
 
 def _one(j):
     try:
-        x, sr = read(j["path"])
+        x, sr = read(str(cp.rebase(j["path"])))
     except Exception:
         return j, None
     r = analyse(x, sr, j["family"])
@@ -207,7 +209,7 @@ def _one(j):
 
 
 def refs(out):
-    refdb = Path(os.environ.get("CANTUS_STUDY_REFDB", r"F:\projects\daw-r42\study\refdb"))
+    refdb = cp.refdb()
     cat = json.loads((refdb / "catalog.json").read_text())
     rows = {}
     jobs = [j for j in cat if j["tech"] == "arco" and not j["section"] and not j["multi"]]
@@ -229,7 +231,7 @@ def refs(out):
         if not (legato or cr):
             continue
         try:
-            x, sr = read(p["path"])
+            x, sr = read(str(cp.rebase(p["path"])))
         except Exception:
             continue
         edges = [tr["t_s"] for tr in p["transitions"]]

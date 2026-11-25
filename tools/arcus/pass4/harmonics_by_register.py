@@ -1,10 +1,11 @@
 import sys, json, re, numpy as np
 from pathlib import Path
-tools = Path(r"F:\projects\daw-r42\study\tools"); sys.path.insert(0, str(tools))
+tools = Path(__file__).resolve().parents[1] / "study"; sys.path.insert(0, str(tools))  # the study's estimator
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sound-refs")); import cantus_paths as cp  # noqa: E402
 from bowlib_core import load
 from bowlib_note import analyse_arco
 fam = sys.argv[2] if len(sys.argv) > 2 else "cello"
-ref = json.loads(Path(rf"F:\projects\daw-r42\study\refdb\{fam}.json").read_text())
+ref = json.loads(cp.refdb(f"{fam}.json").read_text())  # $CANTUS_STUDY_REFDB
 lo = {"cello": 36, "bass": 28}[fam]
 cls = {"pp": "soft", "mf": "medium", "ff": "loud"}
 acc = {}
