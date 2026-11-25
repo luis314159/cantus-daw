@@ -567,7 +567,14 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, grain: Grain) -> (V3, V3, [f32
                 _ => tg,
             };
             let along = if along.len() > 1e-9 { along } else { a1 };
-            return (pw, n, [detail, 1.0], along.norm());
+            // (r42:arcus-polish2: and its degrees in from the hairline, for the roots'
+            // shade — `uv2`'s, as the feather reads it; far inside where it has none.)
+            let line = if v[0].uv2[1] > 0.5 {
+                v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2
+            } else {
+                90.0
+            };
+            return (pw, n, [detail, line], along.norm());
         }
     }
     (pw, n, uv, tg.norm())

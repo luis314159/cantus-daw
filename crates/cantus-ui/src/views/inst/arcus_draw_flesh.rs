@@ -60,6 +60,9 @@ struct ArmMesh {
     /// live pose, the band's triangles stood off the baked shoulder (the arm at rest there)
     /// as dark and grey shards round her shoulder's seam (the owner's review of sheet v11).
     live: Vec<f32>,
+    /// r42:arcus-polish2 — the sleeve's vertices (only a sleeve's cloth touches them): they
+    /// follow the forearm, never the hand.
+    sleeve: Vec<bool>,
 }
 
 /// r42:arcus-upper — the arm at a level of detail: 0 the full one (High), 1 and 2 Light's
@@ -145,6 +148,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
     let mut verts = Vec::new();
     let mut alpha = Vec::new();
     let mut live = Vec::new();
+    let mut sleeve = Vec::new();
     let mut tris = Vec::new();
     let mut stuff = Vec::new();
     let mut upper = Vec::new();
@@ -165,6 +169,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
                 verts.push(full.verts[i]);
                 alpha.push(full.alpha[i]);
                 live.push(full.live[i]);
+                sleeve.push(full.sleeve[i]);
             }
             map[i]
         });
@@ -213,6 +218,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         curved,
         vdet,
         live,
+        sleeve,
     }
 }
 
@@ -321,19 +327,27 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         })
         .collect();
     let weld = weld_of(fig, &verts);
-    // (The bow arm's band: the bake's surface below the arm's share where the live arm turns
-    // opaque — `bowed_human::ARM_COVERS`, where the bake leaves it out —, turning with the arm
-    // over [`BAND_TURN`] of share above it.)
+    // (The band round each shoulder: the bake's surface below the arm's share where the live
+    // arm turns opaque — `bowed_human::ARM_COVERS`, where the bake leaves the bow arm's out —,
+    // turning with the arm over [`BAND_TURN`] of share above it. The left arm's too: its
+    // armpit's corners, pulled between the chest and the raised arm, stood out as spikes
+    // under his upper arm beside the frog, the owner's review of sheet v11.)
     let live: Vec<f32> = verts
         .iter()
         .map(|&g| {
-            if s == 0 {
-                return 1.0;
-            }
             let t = ((side_share(g as usize) - hu::ARM_COVERS) / BAND_TURN).clamp(0.0, 1.0);
             t * t * (3.0 - 2.0 * t)
         })
         .collect();
+    // (A sleeve's vertex: every triangle round it is the sleeve's cloth.)
+    let mut sleeve = vec![true; verts.len()];
+    for (t, st) in tris.iter().zip(&stuff) {
+        if !matches!(st, Stuff::Velvet | Stuff::Wool) {
+            for &i in t {
+                sleeve[i as usize] = false;
+            }
+        }
+    }
     let (fine, vdet) = hand_detail(fig, s, &verts, &tris, &stuff);
     let seam = seams(fig, &verts, &edges);
     let curved = curved_edges(&tris, &fine, &weld);
@@ -350,8 +364,13 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         curved,
         vdet,
         live,
+        sleeve,
     }
 }
+
+/// r42:arcus-polish2 — how far a sleeve's triangle may be drawn out past its size at rest
+/// (an edge's length) before it is taken for a fold's inside.
+const STRETCH_MAX: f32 = 1.9;
 
 /// r42:arcus-polish2 — over how much of the arm's share (above where it turns opaque) the
 /// bow arm's band turns from the bake's place to the arm's.
@@ -612,6 +631,104 @@ struct Scratch {
     depth: Vec<f32>,
     hidv: Vec<bool>,
     cls_hid: bool,
+    /// r42:arcus-polish2 — the outline's way out at each corner (summed over its edges) and
+    /// along each edge (unit, on screen).
+    vout: Vec<egui::Vec2>,
+    eout: Vec<egui::Vec2>,
+    /// r42:arcus-polish2 — each bone as a dual quaternion this frame (none: stretched).
+    dq: Vec<Option<Dq>>,
+}
+
+/// A rigid turn and move as a unit dual quaternion: the real part's (w, x, y, z) and the
+/// dual part's.
+type Dq = ([f32; 4], [f32; 4]);
+
+/// Bone transform `x` as a dual quaternion, unless it stretches its bone.
+fn dual(x: &hu::Xf) -> Option<Dq> {
+    if (x.k - 1.0).abs() > 1e-3 {
+        return None;
+    }
+    let r = &x.rot;
+    // The rotation's matrix: its columns are the images of the axes.
+    let (m00, m01, m02) = (r.x.x, r.y.x, r.z.x);
+    let (m10, m11, m12) = (r.x.y, r.y.y, r.z.y);
+    let (m20, m21, m22) = (r.x.z, r.y.z, r.z.z);
+    let tr = m00 + m11 + m22;
+    let q = if tr > 0.0 {
+        let s = (tr + 1.0).sqrt() * 2.0;
+        [0.25 * s, (m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s]
+    } else if m00 > m11 && m00 > m22 {
+        let s = (1.0 + m00 - m11 - m22).sqrt() * 2.0;
+        [(m21 - m12) / s, 0.25 * s, (m01 + m10) / s, (m02 + m20) / s]
+    } else if m11 > m22 {
+        let s = (1.0 + m11 - m00 - m22).sqrt() * 2.0;
+        [(m02 - m20) / s, (m01 + m10) / s, 0.25 * s, (m12 + m21) / s]
+    } else {
+        let s = (1.0 + m22 - m00 - m11).sqrt() * 2.0;
+        [(m10 - m01) / s, (m02 + m20) / s, (m12 + m21) / s, 0.25 * s]
+    };
+    let n = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt();
+    if n < 1e-6 {
+        return None;
+    }
+    let q = q.map(|c| c / n);
+    // p' = at + R(p − head) = R p + t, t = at − R head.
+    let t = x.at - r.apply(x.head);
+    // The dual part: ½ (0, t) q.
+    let d = [
+        -0.5 * (t.x * q[1] + t.y * q[2] + t.z * q[3]),
+        0.5 * (t.x * q[0] + t.y * q[3] - t.z * q[2]),
+        0.5 * (-t.x * q[3] + t.y * q[0] + t.z * q[1]),
+        0.5 * (t.x * q[2] - t.y * q[1] + t.z * q[0]),
+    ];
+    Some((q, d))
+}
+
+/// Vertex `i` of `fig` skinned by its bones' dual quaternions blended (none if a bone it
+/// follows has none).
+fn dq_vertex(fig: &Figure, posed: &Posed, dq: &[Option<Dq>], i: usize) -> Option<V3> {
+    let w = &fig.bw[i];
+    let first = dq.get(w.first()?.0 as usize).copied().flatten()?;
+    let (mut r, mut d) = ([0.0f32; 4], [0.0f32; 4]);
+    for &(b, x) in w {
+        if x <= 0.0 {
+            continue;
+        }
+        let (q, e) = dq.get(b as usize).copied().flatten()?;
+        // The shorter way round: each turn on the first one's side.
+        let s = if q.iter().zip(first.0).map(|(a, b)| a * b).sum::<f32>() < 0.0 {
+            -x
+        } else {
+            x
+        };
+        for k in 0..4 {
+            r[k] += q[k] * s;
+            d[k] += e[k] * s;
+        }
+    }
+    let n = (r[0] * r[0] + r[1] * r[1] + r[2] * r[2] + r[3] * r[3]).sqrt();
+    if n < 1e-6 {
+        return None;
+    }
+    let (r, d) = (r.map(|c| c / n), d.map(|c| c / n));
+    let p = fig.pos[i];
+    // Rotate p by r, then move by t = 2 d r*.
+    let (w0, v) = (
+        r[0],
+        V3 {
+            x: r[1],
+            y: r[2],
+            z: r[3],
+        },
+    );
+    let rot = p + v.cross(v.cross(p) + p * w0) * 2.0;
+    let t = V3 {
+        x: 2.0 * (-d[0] * r[1] + d[1] * r[0] - d[2] * r[3] + d[3] * r[2]),
+        y: 2.0 * (-d[0] * r[2] + d[1] * r[3] + d[2] * r[0] - d[3] * r[1]),
+        z: 2.0 * (-d[0] * r[3] - d[1] * r[2] + d[2] * r[1] + d[3] * r[0]),
+    };
+    let _ = posed;
+    Some(rot + t)
 }
 
 /// A triangle faces the eye (and is drawn: not a shirt's cuff), is a sleeve's inside, lies
@@ -1131,6 +1248,11 @@ pub fn arm(
                 sc.hidv.extend(sc.pts.iter().map(|&p| hid(p)));
             }
             sc.cls_hid = hidden.is_some();
+            let near_side = {
+                let o = hu::side(s);
+                v.cam
+                    .depth(base.at(o + hu::UPPER1, fig.bones[o + hu::UPPER1].head))
+            };
             for (k, t) in am.tris.iter().enumerate() {
                 let [a, bb, c] = t.map(|i| i as usize);
                 let ctr = (sc.pts[a] + sc.pts[bb] + sc.pts[c]) * (1.0 / 3.0);
@@ -1142,7 +1264,40 @@ pub fn arm(
                 // live its thinned band broke into white specks and jagged teeth against
                 // the wrist (the review, both wrists, both cameras).
                 let facing = fnrm.dot(eye - ctr) > 0.0 && am.stuff[k] != Stuff::Shirt;
-                if !facing {
+                // r42:arcus-polish2 — a sleeve's triangle the pose drew out to over
+                // [`STRETCH_MAX`] times its length at rest: the crook of a sharply bent
+                // elbow, whose corners the two bones pull apart, poked out of the sleeve
+                // as spikes (his left elbow beside the frog, the owner's review). It lies in
+                // the fold; left out, the sleeve round it closes the view.
+                // (Never in the band round the shoulder, which is drawn out on purpose.)
+                let stretched = matches!(am.stuff[k], Stuff::Velvet | Stuff::Wool)
+                    && [a, bb, c].iter().all(|&i| am.live[i] >= 1.0)
+                    && {
+                        let rest = |i: usize, j: usize| {
+                            (fig.pos[am.verts[i] as usize] - fig.pos[am.verts[j] as usize]).len()
+                        };
+                        [(a, bb), (bb, c), (c, a)].iter().any(|&(i, j)| {
+                            (sc.pts[i] - sc.pts[j]).len() > STRETCH_MAX * rest(i, j).max(0.05)
+                        })
+                    };
+                // r42:arcus-polish2 — the band round the bow arm's shoulder turned away: drawn
+                // as cloth's inside (deep in its shade). The bake leaves that band out where
+                // the live arm is opaque; turned away in the arm's pose, the gap showed the
+                // room as a bright pixel by the sleeve (the stray-pixel gate's).
+                // (Only on the shoulder's near side: its far side lies behind the body.)
+                let band_back = !facing
+                    && matches!(am.stuff[k], Stuff::Velvet | Stuff::Wool)
+                    && [a, bb, c].iter().any(|&i| am.live[i] < 1.0)
+                    && sc.depth[k] < near_side;
+                if band_back {
+                    let behind = hidden.is_some_and(|(_, hid)| {
+                        am.upper[k] || sc.hidv[a] || sc.hidv[bb] || sc.hidv[c] || hid(ctr)
+                    });
+                    sc.cls
+                        .push(CLS_FACING | CLS_INSIDE | (CLS_BEHIND * behind as u8));
+                    continue;
+                }
+                if !facing || stretched {
                     sc.cls.push(0);
                     continue;
                 }
@@ -1249,6 +1404,29 @@ pub fn arm(
         let tt = super::probe::t0();
         // The outline: an edge between a shown triangle and one not shown (or none).
         let tri_n = am.tris.len() as u32;
+        // r42:arcus-polish2 — each outline corner's way out, the mean of its edges' (by place:
+        // a texture seam's copies are one corner), so neighbouring edges' soft strips meet
+        // mitred: each edge's own strip overlapped its neighbour's at a turn (a brighter dot
+        // on a sleeve's rim light, a darker one on a dark edge) and left a notch on the other
+        // side (the room showing through) — the stray-pixel gate's dotted lines.
+        sc.vout.clear();
+        sc.vout.resize(am.verts.len(), egui::Vec2::ZERO);
+        sc.eout.clear();
+        sc.eout.resize(am.edges.len(), egui::Vec2::ZERO);
+        for (e, &(a, bb, t0, t1)) in am.edges.iter().enumerate() {
+            let f0 = t0 != u32::MAX && sc.front[t0 as usize];
+            let f1 = t1 != u32::MAX && sc.front[t1 as usize];
+            let seam = f0 && f1 && rank(am.stuff[t0 as usize]) != rank(am.stuff[t1 as usize]);
+            if am.seam[e] || !(f0 != f1 || seam) {
+                continue;
+            }
+            let o = outline_out(am, sc, e);
+            sc.eout[e] = o;
+            for i in [a, bb] {
+                let w = am.weld[i as usize] as usize;
+                sc.vout[w] += o;
+            }
+        }
         for (e, &(a, bb, t0, t1)) in am.edges.iter().enumerate() {
             let f0 = t0 != u32::MAX && sc.front[t0 as usize];
             let f1 = t1 != u32::MAX && sc.front[t1 as usize];
@@ -1358,6 +1536,7 @@ pub fn arm(
                 if out.dot(inside - pa) > 0.0 {
                     out = -out;
                 }
+                let e = (k - tri_n) as usize;
                 // (r42:arcus-polish: curved only where the patch curves that edge.)
                 let ka = tri.iter().position(|&x| x == a).unwrap_or(0);
                 let kb = tri.iter().position(|&x| x == bb).unwrap_or(0);
@@ -1385,13 +1564,72 @@ pub fn arm(
                             prev = q;
                         }
                     } else {
-                        b.edge(pa, pb, corner(a), corner(bb), out);
+                        // (r42:arcus-polish2: mitred with its neighbours.)
+                        let o = sc.eout[e];
+                        let join = |i: u16| {
+                            let m = sc.vout[am.weld[i as usize] as usize];
+                            if m.length() < 1e-3 || o == egui::Vec2::ZERO {
+                                return o;
+                            }
+                            let m = m.normalized();
+                            // (A sharp turn keeps the edge's own way: a long miter spikes.)
+                            let c = m.dot(o);
+                            if c < 0.5 {
+                                o
+                            } else {
+                                m / c
+                            }
+                        };
+                        let px = b.px();
+                        // (r42:arcus-polish2: the strip in its corners' colours drawn halfway
+                        // toward the triangle's inner corner's: a sleeve's rim light is
+                        // brightest exactly on its outline, and its corners alternate there
+                        // between more and less grazing — the strip in their own colours
+                        // drew a dotted bright line a pixel wide along every sleeve.)
+                        let ci = corner(third);
+                        let (ca, cb) = (lerp_c(corner(a), ci, 0.5), lerp_c(corner(bb), ci, 0.5));
+                        b.edge_joined(pa, pb, ca, cb, join(a) * px, join(bb) * px);
                     }
                 }
             }
         }
         super::probe::lap("paint(incl fine)", tt);
     });
+}
+
+/// r42:arcus-polish2 — outline edge `e`'s way out on screen (unit), away from the shown
+/// triangle it belongs to (the one on top where two stuffs meet), as the outline is drawn.
+fn outline_out(am: &ArmMesh, sc: &Scratch, e: usize) -> egui::Vec2 {
+    let (a, bb, t0, t1) = am.edges[e];
+    let shown = |t: u32| t != u32::MAX && sc.front[t as usize];
+    let t = if shown(t0) && shown(t1) {
+        if rank(am.stuff[t0 as usize]) >= rank(am.stuff[t1 as usize]) {
+            t0
+        } else {
+            t1
+        }
+    } else if shown(t0) {
+        t0
+    } else {
+        t1
+    } as usize;
+    let tri = am.tris[t];
+    let third = tri
+        .iter()
+        .find(|&&x| x != a && x != bb)
+        .copied()
+        .unwrap_or(a);
+    let (pa, pb) = (sc.sp[a as usize], sc.sp[bb as usize]);
+    let d = pb - pa;
+    let mut out = egui::vec2(-d.y, d.x);
+    if out.dot(sc.sp[third as usize] - pa) > 0.0 {
+        out = -out;
+    }
+    if out.length() > 1e-4 {
+        out.normalized()
+    } else {
+        egui::Vec2::ZERO
+    }
 }
 
 /// r42:arcus-polish — which of each fine triangle's edges are shared with another fine
@@ -1952,8 +2190,39 @@ fn arm_setup(
     sc.pts.clear();
     sc.nrm.clear();
     sc.sp.clear();
+    // r42:arcus-polish2 — the arm's own bones as dual quaternions (none for a bone the pose
+    // stretches: a finger's phalanx), so a vertex the shoulder's or the elbow's bones share
+    // turns round the joint instead of being averaged through it: linear blending drew the
+    // raised bow arm's shoulder in toward the joint on top and out underneath — broad, a
+    // pad (the owner's review). Kavan, Collins, Žára and O'Sullivan 2007.
+    sc.dq.clear();
+    sc.dq.extend(posed.xf.iter().map(dual));
+    let o = hu::side(s);
+    let hand = o + hu::HAND..=o + hu::finger(4, 2);
     for (j, &i) in am.verts.iter().enumerate() {
-        let mut p = posed.vertex(fig, i as usize);
+        // r42:arcus-polish2 — a sleeve's cuff follows the forearm: the share of the hand's
+        // bones in the hem's weights turned it with the wrist into spikes and a jagged end
+        // (his left sleeve, the owner's review of sheet v11).
+        let mut p = if am.sleeve[j]
+            && fig.bw[i as usize]
+                .iter()
+                .any(|(b, _)| hand.contains(&(*b as usize)))
+        {
+            let q = fig.pos[i as usize];
+            fig.bw[i as usize]
+                .iter()
+                .fold(V3::default(), |acc, &(b, w)| {
+                    let b = if hand.contains(&(b as usize)) {
+                        o + hu::FORE2
+                    } else {
+                        b as usize
+                    };
+                    acc + posed.xf[b.min(hu::BONES - 1)].apply(q) * w
+                })
+        } else {
+            dq_vertex(fig, &posed, &sc.dq, i as usize)
+                .unwrap_or_else(|| posed.vertex(fig, i as usize))
+        };
         if am.live[j] < 1.0 {
             p = base.vertex(fig, i as usize).lerp(p, am.live[j]);
         }

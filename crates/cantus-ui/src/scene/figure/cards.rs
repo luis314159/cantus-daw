@@ -212,6 +212,10 @@ pub struct HairLook {
     pub under: f32,
     pub warm: [f32; 3],
     pub broken: f32,
+    /// r42:arcus-polish2 — how much deeper the roots read by the hairline, how much lighter
+    /// the lengths toward the crown.
+    pub roots: f32,
+    pub ends: f32,
 }
 
 /// `who`'s (0 her, 1 him) hair. His short hair runs every way (its curls' way changes
@@ -227,13 +231,15 @@ pub fn hair_look(who: u8) -> HairLook {
             sheen: (9.0, 0.3),
             detail: 1.0,
             scalp: 0.5,
-            streaks: 1.35,
+            streaks: 1.0,
             rim: 1.6,
-            sections: 0.55,
-            lowlight: 1.35,
+            sections: 0.0,
+            lowlight: 1.0,
             under: 0.38,
             warm: [1.0, 1.0, 1.0],
             broken: 0.45,
+            roots: 0.3,
+            ends: 0.08,
         }
     } else {
         // (r42:arcus-polish: a soft sheen band now his strands are combed one way in the
@@ -242,8 +248,8 @@ pub fn hair_look(who: u8) -> HairLook {
         // grey sheet then, too faint to read once lowered.)
         HairLook {
             albedo: 1.0,
-            shine: (90.0, 0.07),
-            sheen: (26.0, 0.07),
+            shine: (60.0, 0.32),
+            sheen: (22.0, 0.2),
             detail: 0.45,
             scalp: 0.55,
             streaks: 0.9,
@@ -251,8 +257,10 @@ pub fn hair_look(who: u8) -> HairLook {
             sections: 0.2,
             lowlight: 1.0,
             under: 0.25,
-            warm: [1.25, 1.0, 0.72],
+            warm: [1.12, 1.0, 0.86],
             broken: 0.7,
+            roots: 0.12,
+            ends: 0.0,
         }
     }
 }

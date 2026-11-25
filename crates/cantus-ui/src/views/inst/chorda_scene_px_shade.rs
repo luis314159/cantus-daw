@@ -167,10 +167,37 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
                 ..s(lscale(m.base, 0.06), 1.0, m.rough)
             }
         }
-        Tex::Tonewood { seed, lines, flame } => {
+        Tex::Tonewood {
+            seed,
+            lines,
+            flame,
+            rosin,
+        } => {
             let t = super::mat::tonewood(uv[0], uv[1], seed, lines, flame, fp);
             let c = lmix(m.light, m.dark, t);
-            s(lmix(c, m.base, 0.3), m.coat, m.rough)
+            let c = lmix(c, m.base, 0.3);
+            // r42:arcus-polish2 — the rosin's dust: thickest under the strings near where
+            // the bow plays, thinning toward the fingerboard and either side, in a fine
+            // uneven grain (faded where a pixel cannot hold it); it dulls the varnish's coat.
+            let [y0, y1, w, k] = rosin;
+            let r = if k > 0.0 {
+                let along = smooth(y0 - 0.004, y0 + 0.006, uv[0])
+                    * (1.0 - smooth(y0 + 0.01, y1, uv[0]) * 0.75)
+                    * (1.0 - smooth(y1 - 0.01, y1 + 0.004, uv[0]));
+                let across = 1.0 - smooth(w * 0.55, w, uv[1].abs());
+                let grain = 1.0
+                    + (noise(uv[0] * 2600.0, uv[1] * 2600.0, 241) - 0.5)
+                        * 0.9
+                        * (1.0 - smooth(0.0002, 0.0007, fp));
+                (k * along * across * grain).clamp(0.0, 0.4)
+            } else {
+                0.0
+            };
+            s(
+                lmix(c, ROSIN_DUST, r),
+                m.coat * (1.0 - 1.5 * r).max(0.0),
+                m.rough,
+            )
         }
         // r42:arcus-upper — the realistic figures.
         Tex::Skin => {
@@ -193,7 +220,9 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
                 sheen: 0.0,
                 dn: v3(a * 0.55, 0.0, b * 0.55),
                 fold: uv[1].clamp(-1.0, 1.0),
-                edge: (-(uv[0] / 0.45) * (uv[0] / 0.45)).exp(),
+                // (r42:arcus-polish2: over the centimetre the mesh holds — narrower, the
+                // distance's straight runs between corners drew the roll as teeth.)
+                edge: (-(uv[0] / EDGE_ROLL_CM) * (uv[0] / EDGE_ROLL_CM)).exp() * 0.7,
                 ..s(m.base, 0.0, 1.0)
             }
         }
@@ -221,7 +250,10 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
                 * hold;
             let twill =
                 ((p.x + p.y + p.z) * 2400.0).sin() * 0.04 * (1.0 - smooth(0.0004, 0.0012, fp));
-            let roll = (-(uv[0] / 0.4) * (uv[0] / 0.4)).exp();
+            // (r42:arcus-polish2: over the centimetre the mesh holds — at 0.4 cm the
+            // distance's straight runs between corners drew the lapel's roll as a dotted
+            // line, the stray-pixel gate's.)
+            let roll = (-(uv[0] / EDGE_ROLL_CM) * (uv[0] / EDGE_ROLL_CM)).exp() * 0.6;
             Surf {
                 sheen: 0.35,
                 edge: roll,
@@ -229,6 +261,24 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
                     lscale(m.base, 1.0 + heather + twill + 0.25 * roll),
                     0.0,
                     1.0,
+                )
+            }
+        }
+        Tex::Shirt => {
+            // r42:arcus-polish2 — poplin: a fine weave a pixel cannot hold at these sizes
+            // (a faint unevenness), the shade under the collar's points and the lapels, the
+            // collar's rolled edge a little lighter.
+            let lum = uv[0].clamp(0.3, 1.2);
+            let roll = (-(uv[1] / EDGE_ROLL_CM) * (uv[1] / EDGE_ROLL_CM)).exp();
+            let weave = (noise(p.x * 300.0 + p.y * 90.0, p.z * 300.0 - p.y * 70.0, 137) - 0.5)
+                * 0.05
+                * (1.0 - smooth(0.0012, 0.004, fp));
+            Surf {
+                sheen: 0.4,
+                ..s(
+                    lscale(m.base, lum * (1.0 + 0.06 * roll + weave)),
+                    m.coat,
+                    m.rough,
                 )
             }
         }
@@ -726,6 +776,8 @@ struct Strands {
     who: u8,
     /// r42:arcus-polish — where (m): the tonal streaks along the strands.
     p: V3,
+    /// r42:arcus-polish2 — how far in from the hairline (degrees; far: 90): the roots.
+    line: f32,
 }
 
 /// r42:arcus-hair — a head of hair (the owner's review of sheet v8: her ponytail's cards
@@ -778,6 +830,12 @@ fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f
     // fall, at the nape, round the bun) lies in its own shade and reads deeper, as the
     // roots do (the owner: "darker roots and underlayer").
     let under = 1.0 - look.under * smooth(0.25, -0.65, n.y);
+    // r42:arcus-polish2 — the roots a little deeper for the first centimetres in from the
+    // hairline, the lengths drawn back lighter toward the crown and the bun (a fair head of
+    // hair is never one tone from root to end; the coordinator: along the strands, no blobs).
+    let roots = (1.0 - look.roots * (1.0 - smooth(0.0, 14.0, s.line)))
+        * (1.0 + look.ends * smooth(20.0, 70.0, s.line));
+    let under = under * roots;
     let d = lscale(
         lmul(lmul(sf.albedo, tone), ladd(e, lscale(rim, look.rim))),
         under,
@@ -808,6 +866,13 @@ fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f
     });
     ladd(d, spec)
 }
+
+/// r42:arcus-polish2 — rosin's dust (linear): a pale, slightly warm grey.
+const ROSIN_DUST: Lin = [0.62, 0.58, 0.5];
+
+/// r42:arcus-polish2 — how wide a cloth's edge roll is (cm from the edge): what the
+/// figure's mesh, a vertex a centimetre or so, can draw smoothly.
+const EDGE_ROLL_CM: f32 = 1.0;
 
 /// r42:arcus-polish — how much the back light lifts a velvet's turned-away edge (its rim
 /// over the dark room: the arm, the shoulder told from what is behind them).
@@ -973,6 +1038,11 @@ pub fn shade(
             kv,
             who,
             p,
+            line: if matches!(m.tex, Tex::Card(_) | Tex::Scalp(_)) {
+                uv[1]
+            } else {
+                90.0
+            },
         };
         return rig.hazed(p, strands(m, &sf, &lit, e, rim, detail, k));
     }

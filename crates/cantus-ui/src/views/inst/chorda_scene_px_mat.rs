@@ -71,12 +71,20 @@ pub enum Tex {
         seed: u32,
         lines: f32,
         flame: f32,
+        /// r42:arcus-polish2 — the rosin's dust on a played top (none: strength 0): from
+        /// `y0` to `y1` along it and `w` either side of its middle (metres, the top's own
+        /// coordinates), at most `k` of the dust's colour over the varnish.
+        rosin: [f32; 4],
     },
     /// r42:arcus-upper — a realistic figure's skin: its albedo's detail in `uv` (a
     /// luminance factor, a red shift); light through it warms its shade.
     Skin,
     /// Velvet: its pile's pale sheen where it turns from the eye.
     Velvet,
+    /// r42:arcus-polish2 — a realistic figure's shirt or tie: its luminance detail in
+    /// `uv[0]` (the shade under a collar's or a lapel's edge), its edge's distance (cm) in
+    /// `uv[1]` (a collar's rolled edge a little lighter).
+    Shirt,
     /// Hair: streaks along its strands (`uv` cm along, across).
     Hair,
     /// r42:arcus-upper — a realistic figure's alpha-tested card (`figure::cards`): its

@@ -22,6 +22,25 @@ fn fair() -> super::mesh::Lin {
     [c[0] * 0.93, c[1] * 0.96, c[2] * 1.08]
 }
 
+/// r42:arcus-polish2 — a played top's rosin (the owner's list: "very faint rosin dust under
+/// the strings"): the bow sheds it where it crosses the strings, so it lies on the top from
+/// just past the bridge toward the fingerboard's end, under the strings' span — a faint pale
+/// haze over the varnish, as every played violin in the photographs shows.
+fn with_rosin(b: Bowed, mut m: PMat) -> PMat {
+    let d = b.dims();
+    let yb = crate::scene::bowed::bridge_y(&d);
+    let ye = crate::scene::bowed::nut_y(&d) - d.board;
+    let y1 = yb + 0.75 * (ye - yb).max(1.0);
+    let w = d.spacing.1 * 1.5 + 0.35 * d.body / 35.5;
+    if let Tex::Tonewood { rosin, .. } = &mut m.tex {
+        *rosin = [(yb + 0.4) / 100.0, y1 / 100.0, w / 100.0, ROSIN];
+    }
+    m
+}
+
+/// How much of the rosin's colour lies over the varnish at its thickest.
+const ROSIN: f32 = 0.2;
+
 /// The photographic material of a role.
 fn pmat(b: Bowed, r: Role) -> PMat {
     // The varnish seen per pixel: its colour deeper than the Drawn picture's flat facets
@@ -41,7 +60,12 @@ fn pmat(b: Bowed, r: Role) -> PMat {
             }
         };
         PMat {
-            tex: Tex::Tonewood { seed, lines, flame },
+            tex: Tex::Tonewood {
+                seed,
+                lines,
+                flame,
+                rosin: [0.0; 4],
+            },
             base: k(f.base),
             dark: k(f.dark),
             light: k(f.light),
@@ -61,9 +85,9 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         // r42:arcus-upper — a violin's or a viola's: its spruce's lines finer than a pixel
         // at the picture's sizes (they fade to the wood's slow streaks, no moiré), its
         // flame half as strong (stripes, not bars).
-        Role::Top if held => tone(&top, 1100.0, 0.0, 71),
+        Role::Top if held => with_rosin(b, tone(&top, 1100.0, 0.0, 71)),
         Role::Maple if held => tone(&maple, 260.0, 0.45, 73),
-        Role::Top => tone(&top, 520.0, 0.0, 71),
+        Role::Top => with_rosin(b, tone(&top, 520.0, 0.0, 71)),
         Role::Maple => tone(&maple, 260.0, 1.0, 73),
         Role::Inside => {
             let mut m = tone(&maple, 260.0, 1.0, 73);
@@ -78,6 +102,7 @@ fn pmat(b: Bowed, r: Role) -> PMat {
                 seed: 77,
                 lines: 380.0,
                 flame: 0.3,
+                rosin: [0.0; 4],
             },
             ..finish(&pal::BRIDGE, 77)
         },
@@ -114,6 +139,12 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::Shirt => PMat::matte(lin3(hp::SHIRT)).with(Tex::Fabric),
         Role::Tie => PMat::lacquer(lin3(hp::TIE), 0.12, 0.35),
         Role::HairFair => PMat::lacquer(fair(), 0.1, 0.42).with(Tex::Hair),
+        // r42:arcus-polish2 — a loose hair: her blonde, a strand's gloss.
+        Role::Wisp => PMat::lacquer(
+            fair().map(|c| c * crate::scene::figure::cards::hair_look(0).albedo * 1.15),
+            0.2,
+            0.3,
+        ),
         Role::Eye => PMat::lacquer(lin3(hp::EYE_WHITE), 0.35, 0.08),
         Role::Iris => PMat::lacquer(lin3(hp::IRIS), 0.35, 0.08),
         // (r42:arcus-hair: a little lighter than the Drawn picture's — near black, each lash
@@ -164,8 +195,21 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
     let mut ids: HashMap<Role, MatId> = HashMap::new();
     let mut id = |g: &mut Geo, r: Role| *ids.entry(r).or_insert_with(|| g.mat(pmat(b, r)));
     let uvm = |uv: [f32; 2]| [uv[0] / 100.0, uv[1] / 100.0];
+    // (r42:arcus-polish2: the top's edge band's coordinates are its outline's columns, not
+    // the top's place: it takes no rosin.)
+    let mut top_edge = None;
     for (role, p) in &m.patches {
-        let mi = id(g, *role);
+        let mi = if *role == Role::Top && p.rows == 2 {
+            *top_edge.get_or_insert_with(|| {
+                let mut t = pmat(b, Role::Top);
+                if let Tex::Tonewood { rosin, .. } = &mut t.tex {
+                    *rosin = [0.0; 4];
+                }
+                g.mat(t)
+            })
+        } else {
+            id(g, *role)
+        };
         for cell in p.cells() {
             let v: [_; 4] = std::array::from_fn(|k| {
                 vt(of(p.pts[cell[k]]), of(p.nrm[cell[k]]), uvm(p.uv[cell[k]]))
@@ -226,6 +270,14 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
             Role::Eye | Role::Iris => g.mat(PMat::lacquer([1.0; 3], 0.6, 0.04).with(Tex::Eye)),
             // The thick shell is the Drawn picture's (here the cards over the scalp).
             Role::Shell(_) => continue,
+            // r42:arcus-polish2 — his shirt and tie with their shade under the collar; the
+            // tie's silk softer (its tight highlights read as wet plastic at 200 %).
+            Role::Shirt => g.mat(PMat::matte(lin3(hp::SHIRT)).with(Tex::Shirt)),
+            Role::Tie => g.mat(PMat::matte(lin3(hp::TIE)).with(Tex::Shirt)),
+            // r42:arcus-polish2 — her earrings polished gold, a little rough, so the key's
+            // glint on the bead spreads over a pixel or two (the owner's list: "the
+            // earring's glint"; as brass fittings they read as a dull brown dot).
+            Role::Brass => g.mat(PMat::metal([0.95, 0.72, 0.38], 0.16)),
             r => id(g, *r),
         };
         // r42:arcus-upper — a hair card is lit as the head of hair it belongs to (each card's
@@ -272,7 +324,7 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
         g.rod(of(r.a), of(r.b), r.r / 100.0, mi);
         // r42:arcus-polish2 — the strings (dashed white and black down the fingerboard
         // at 100 %, the owner's review).
-        if matches!(role, Role::Steel | Role::Wound) && !g.wires.contains(&mi) {
+        if matches!(role, Role::Steel | Role::Wound | Role::Wisp) && !g.wires.contains(&mi) {
             g.wires.push(mi);
         }
     }
