@@ -1116,7 +1116,7 @@ impl Shell {
     /// This shell's widgets under ids of their own, `salt`'s, its scale still kept where it
     /// was (round 42, ADR 0161): two windows of one effect kind on screen at once never share
     /// their header's keys.
-    pub fn salted(mut self, salt: impl std::hash::Hash) -> Shell {
+    pub fn salted(mut self, salt: impl std::hash::Hash + std::fmt::Debug) -> Shell {
         self.scale_id = Some(self.scale_id.unwrap_or(self.id));
         self.id = self.id.with(salt);
         self

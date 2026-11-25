@@ -26,6 +26,14 @@ use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Vec2};
 use std::path::Path;
 
 const RATE: f64 = 48_000.0;
+/// Ctrl as egui-winit reports it on Windows and Linux: `ctrl` and `command` both.
+const CTRL: Modifiers = Modifiers {
+    alt: false,
+    ctrl: true,
+    shift: false,
+    mac_cmd: false,
+    command: true,
+};
 /// One frame of the window, in samples: 60 frames a second.
 const FRAME: usize = 800;
 
@@ -52,6 +60,8 @@ struct Rig {
     size: Vec2,
     t: f64,
     pointer: Option<Pos2>,
+    /// The modifiers held, as egui-winit reports them with every frame.
+    mods: Modifiers,
 }
 
 fn assembled(project: Project, size: Vec2) -> Rig {
@@ -68,6 +78,7 @@ fn assembled(project: Project, size: Vec2) -> Rig {
         size,
         t: 0.0,
         pointer: None,
+        mods: Modifiers::NONE,
     };
     r.idle(4);
     r
@@ -79,7 +90,8 @@ impl Rig {
         let mut buf = vec![0f32; FRAME * 2];
         self.proc_.process(&mut buf, 2);
         self.t += 1.0 / 60.0;
-        let mut ev: Vec<Event> = self.pointer.map(Event::PointerMoved).into_iter().collect();
+        let mut ev = vec![Event::ModifiersChanged(self.mods)];
+        ev.extend(self.pointer.map(Event::PointerMoved));
         ev.extend(events);
         let input = egui::RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
@@ -120,6 +132,7 @@ impl Rig {
     }
 
     fn key_with(&mut self, key: Key, modifiers: Modifiers) {
+        self.mods = modifiers;
         for pressed in [true, false] {
             self.frame(vec![Event::Key {
                 key,
@@ -129,6 +142,7 @@ impl Rig {
                 modifiers,
             }]);
         }
+        self.mods = Modifiers::NONE;
         self.idle(3);
     }
 
@@ -340,9 +354,13 @@ fn a_pinned_instrument_stays_through_an_effect_a_click_elsewhere_and_esc() {
     assert!(r.drawn(ka) && r.drawn(kf), "Esc aimed at no editor closes none");
     // A click in the effect, then Esc: the effect closes, the pinned instrument stays.
     let (fx_rect, _) = device::shown(&r.ctx, kf).unwrap();
-    let in_fx = [fx_rect.right_bottom() - Vec2::new(30.0, 30.0), fx_rect.center()]
-        .into_iter()
-        .find(|p| !device::shown(&r.ctx, ka).is_some_and(|(w, _)| w.contains(*p)))
+    let (inst_rect, _) = device::shown(&r.ctx, ka).unwrap();
+    let in_fx = (1..10)
+        .flat_map(|i| (1..10).map(move |j| (i, j)))
+        .map(|(i, j)| {
+            fx_rect.min + Vec2::new(fx_rect.width() * i as f32, fx_rect.height() * j as f32) / 10.0
+        })
+        .find(|p| !inst_rect.expand(4.0).contains(*p) && p.y > fx_rect.top() + 40.0)
         .expect("part of the effect is not under the instrument");
     r.click(in_fx);
     r.key(Key::Escape);
@@ -354,15 +372,18 @@ fn a_pinned_instrument_stays_through_an_effect_a_click_elsewhere_and_esc() {
     r.idle(3);
     assert!(r.drawn(ka) && r.drawn(inst_key(b)), "both instruments on screen");
     assert!(r.app.instrument_window_open(a) && r.app.instrument_window_open(b));
-    // Unpinned, the next one opened replaces it again (one at a time).
+    // Unpinned, the next one opened replaces it again (one at a time): Modulus closed and
+    // opened again closes Calor.
     r.click(r.buttons(ka).pin.unwrap().center());
     assert!(!device::is_pinned(&r.ctx, ka));
-    r.app.select_track(a);
+    r.app.close_instrument_window(b);
+    r.idle(3);
+    r.app.select_track(b);
     r.key(Key::F8);
     r.idle(3);
     assert!(
-        r.app.instrument_window_open(a) && !r.app.instrument_window_open(b),
-        "one at a time: Modulus, not pinned, closed for Calor"
+        r.app.instrument_window_open(b) && !r.app.instrument_window_open(a),
+        "one at a time: Calor, no longer pinned, closed for Modulus"
     );
 }
 
@@ -467,8 +488,12 @@ fn deleting_a_track_closes_its_pinned_editor_and_undo_brings_no_editor_back() {
     );
     assert!(r.drawn(inst_key(b)), "the other editor stays");
     // Undo: the track is back, its editor is not.
-    r.key_with(Key::Z, Modifiers::COMMAND);
-    assert!(r.app.project().track(a).is_some(), "undo brought the track back");
+    let step = r.app.bus.undo_label_key().map(str::to_string);
+    r.key_with(Key::Z, CTRL);
+    assert!(
+        r.app.project().track(a).is_some(),
+        "Ctrl+Z undid {step:?}: the track is back"
+    );
     r.idle(4);
     assert!(!r.app.instrument_window_open(a), "and no editor with it");
     assert!(!r.app.workspace.contains(Pane::Device(ka)));
@@ -483,7 +508,7 @@ fn deleting_a_track_closes_its_pinned_editor_and_undo_brings_no_editor_back() {
     r.app.delete_track(a);
     r.idle(4);
     assert_eq!(r.app.inst.open, None);
-    r.key_with(Key::Z, Modifiers::COMMAND);
+    r.key_with(Key::Z, CTRL);
     r.idle(4);
     assert!(r.app.project().track(a).is_some() && r.app.inst.open.is_none());
     assert!(!r.app.workspace.contains(Pane::Device(ka)));

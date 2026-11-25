@@ -539,7 +539,7 @@ impl CantusApp {
     /// the opens they asked for run; empty slots take a parked editor; the engine follows;
     /// pinned windows stay above the others.
     pub(crate) fn draw_editor_windows(&mut self, ctx: &egui::Context) {
-        if let Some(f) = device::focused(ctx) {
+        if let Some(f) = device::take_touched(ctx) {
             if let Some(e) = touch::<Fx>(self, f)
                 .or_else(|| touch::<Eq>(self, f))
                 .or_else(|| touch::<Comp>(self, f))

@@ -135,6 +135,8 @@ pub struct Registry {
     /// old size for the frame it moves, and a window that was maximised is pushed back
     /// against the workspace's corner by it.
     pub settle: Vec<(DeviceKey, Pos2, u8)>,
+    /// The device pressed or brought forward last, not yet acted on ([`take_touched`]).
+    pub touched: Option<DeviceKey>,
     /// Scratch for [`keep_pinned_above`]: kept, so a frame allocates nothing.
     scratch: Vec<(usize, LayerId, bool)>,
 }
@@ -303,8 +305,15 @@ pub fn present(ctx: &Context, key: DeviceKey) {
             e.raise = true;
         }
         r.focused = Some(key);
+        r.touched = Some(key);
     });
     ctx.request_repaint();
+}
+
+/// Round 42 (ADR 0161): the device pressed or brought forward since this was last asked —
+/// taken, so a device touched once moves into its family's slot once.
+pub fn take_touched(ctx: &Context) -> Option<DeviceKey> {
+    with_registry(ctx, |r| r.touched.take())
 }
 
 /// The devices whose tab is to be brought in front this frame (taken: done once).
@@ -379,6 +388,7 @@ pub fn note_shown(
         }
         if pressed {
             r.focused = Some(key);
+            r.touched = Some(key);
         }
     });
 }
