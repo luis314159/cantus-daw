@@ -1,0 +1,179 @@
+//! r42:arcus-upper — the grip library (ADR 0159): where a hand's joints go to hold a thing,
+//! as data a figure's arm is then posed to (the wrist by the arm's two bones; the fingers by
+//! `bowed_human::arm_aims`, each phalanx turned the shortest way, the non-playing fingers
+//! relaxed to their own length). Each grip is designed against photographs of real hands
+//! (`tools/arcus-figures/hand_design.py` renders one in seconds).
+//!
+//! - **BowFrog** — a bow held at its frog, as the owner's reference and the method books
+//!   show it (sheet v7).
+//! - **Rod** — a plain power grip round a rod (a stick, a mallet's handle, a drumstick's):
+//!   the second client's, which keeps the contract from being a bow's.
+//!
+//! The necks' grips (a violin's, a cello's) are worked out by Arcus from its strings
+//! (`views/inst/arcus_draw_hand::left_pose`), the fingertips on their stops.
+
+use crate::scene::geo::V3;
+
+/// The woman's hand from the wrist to its knuckles' middle (cm): the grips' unit.
+pub const WOMAN_REACH: f32 = 8.64;
+
+/// A hand's joints: the wrist, the palm's middle, each finger's knuckle, middle joint, last
+/// joint and tip (index … little finger), the thumb's base, knuckle, joint and tip.
+#[derive(Copy, Clone, Debug)]
+pub struct Joints {
+    pub wrist: V3,
+    pub palm: V3,
+    pub fingers: [[V3; 4]; 4],
+    pub thumb: [V3; 4],
+}
+
+/// What a hand holds.
+#[derive(Copy, Clone, Debug)]
+pub enum Grip {
+    /// A bow at its `frog` (the hair's point there; `dir` frog to tip; `n` the side the
+    /// stick is on; `facing` the player's, the side away from the player is the far side;
+    /// `held` a violin's or a viola's bow: the little finger curved on top).
+    BowFrog {
+        frog: V3,
+        dir: V3,
+        n: V3,
+        facing: V3,
+        held: bool,
+    },
+    /// A rod from `a` to `b` (`r` thick) held at `at` (0…1 along it), the hand's back
+    /// toward `back`, the fingers wrapping over toward `wrap`.
+    Rod {
+        a: V3,
+        b: V3,
+        at: f32,
+        r: f32,
+        back: V3,
+        wrap: V3,
+    },
+}
+
+/// The joints for grip `g`, the hand `k` times the woman's (`side` 0 the left hand, 1 the
+/// right).
+pub fn joints(g: &Grip, k: f32, side: usize) -> Joints {
+    match *g {
+        Grip::BowFrog {
+            frog,
+            dir,
+            n,
+            facing,
+            held,
+        } => bow_frog(frog, dir, n, facing, held, k),
+        Grip::Rod {
+            a,
+            b,
+            at,
+            r,
+            back,
+            wrap,
+        } => rod(a, b, at, r, back, wrap, k, side),
+    }
+}
+
+/// The bow hold (sheet v7, designed against the Commons photographs "Bow hand
+/// Violoncello.jpg" and "Right hand position on bow.jpg"):
+///
+/// - the hand **on top of the stick**, its knuckles over it and a little toward the player,
+///   the knuckles' line along the stick, rolled onto the index (over is up in the room made
+///   square to the bow, not the string's normal: a cellist's hand hung under the stick from
+///   the camera's side);
+/// - the wrist relaxed, behind and over the knuckles, the forearm coming from the player's
+///   side;
+/// - the **fingers draped over the stick** to its far side, spread a little, the stick
+///   across them at the middle phalanx (the index resting on it, toward the tip), the middle
+///   finger opposite the thumb, the ring finger over the frog;
+/// - the little finger draped as the others on a cello or a bass, **curved on top of the
+///   stick** on a violin or a viola, its tip standing on it;
+/// - the **thumb bent**, its tip touching the stick at the frog's front corner from the near
+///   side underneath, its joint bowed out.
+pub fn bow_frog(frog: V3, dir: V3, n: V3, facing: V3, held: bool, k: f32) -> Joints {
+    let up = V3 {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+    let lift = (up - dir * up.dot(dir)).norm();
+    let mut over = (lift + n * 0.35).norm();
+    over = (over - dir * over.dot(dir)).norm();
+    // The far side of the stick (away from the player): the fingers drape over to it.
+    let mut far = over.cross(dir).norm();
+    if far.dot(facing) < 0.0 {
+        far = -far;
+    }
+    // The stick's middle at the frog's front corner (Arcus's stick: 2.1 cm over the hair).
+    let s = frog + n * 1.95;
+    let at = |u: f32, o: f32, f: f32| s + (dir * u + over * o + far * f) * k;
+    let kc = at(0.8, 3.6, -1.8);
+    let hd = (far * 0.8 - over * 0.45 + dir * 0.2).norm();
+    let kx = (dir - over * 0.3).norm();
+    let wrist = kc - hd * (8.6 * k);
+    let palm = kc - hd * (3.6 * k);
+    let along = [2.4, 0.7, -1.0, -2.6];
+    let hang = [1.5, 1.7, 1.5];
+    let mut fingers = [[V3::default(); 4]; 4];
+    for (j, f) in fingers.iter_mut().enumerate() {
+        let knuckle = kc + kx * ((1.5 - j as f32) * 1.9 * k);
+        let u = along[j];
+        let (mid, tip) = if j == 3 && held {
+            // Curved on top: its middle joint arched up, its tip standing on the stick.
+            (at(-2.2, 2.8, -0.6), at(-2.9, 0.55, 0.0))
+        } else if j == 3 {
+            (at(u, 1.3, 0.55), at(u - 0.2, -0.2, 0.95))
+        } else {
+            (at(u, 1.1, 0.7), at(u + 0.15, -hang[j], 0.75))
+        };
+        *f = [knuckle, mid, mid.lerp(tip, 0.55), tip];
+    }
+    // The thumb: bent, its tip at the frog's front corner under the stick's near side.
+    let t3 = at(0.3, -0.35, -0.45);
+    let t2 = at(-0.5, -1.0, -1.45);
+    let t1 = palm.lerp(t2, 0.45) - far * 0.6 - over * 0.4;
+    let t0 = wrist.lerp(kc, 0.35) - far * 1.0 - over * 0.6;
+    Joints {
+        wrist,
+        palm,
+        fingers,
+        thumb: [t0, t1, t2, t3],
+    }
+}
+
+/// A power grip round a rod: the knuckles over it on the `back` side, the fingers wrapping
+/// over toward `wrap` and round under it, the thumb round the other way; the index toward
+/// the thumb's side of the hand (the rod's `a` end for a right hand, `b` for a left).
+#[allow(clippy::too_many_arguments)]
+pub fn rod(a: V3, b: V3, at: f32, r: f32, back: V3, wrap: V3, k: f32, side: usize) -> Joints {
+    let ax = (b - a).norm();
+    let back = (back - ax * back.dot(ax)).norm();
+    let wrap = (wrap - ax * wrap.dot(ax) - back * wrap.dot(back)).norm();
+    let p = a + (b - a) * at;
+    // The index lies toward the thumb: a right hand's thumb toward the rod's `a` end.
+    let toward = if side == 1 { -ax } else { ax };
+    let kc = p + back * (r + 1.9 * k) - wrap * (0.6 * k);
+    let hd = (wrap * 0.75 + back * -0.2 - toward * 0.15).norm();
+    let wrist = kc - hd * (8.6 * k);
+    let palm = kc - hd * (3.6 * k);
+    let mut fingers = [[V3::default(); 4]; 4];
+    for (j, f) in fingers.iter_mut().enumerate() {
+        let u = (1.5 - j as f32) * 1.9 * k;
+        let knuckle = kc + toward * u;
+        let c = p + toward * (u * 0.95);
+        let mid = c + wrap * (r + 1.2 * k) + back * (0.6 * k);
+        let tip = c + wrap * (r * 0.4) - back * (r + 0.7 * k);
+        *f = [knuckle, mid, mid.lerp(tip, 0.5), tip];
+    }
+    let c = p + toward * (2.6 * k);
+    let t3 = c - back * (r + 0.6 * k) + wrap * (0.4 * k);
+    let t2 = c - wrap * (r + 1.0 * k) - back * (0.3 * k);
+    let t1 = palm.lerp(t2, 0.4) - back * (0.8 * k);
+    let t0 = wrist.lerp(kc, 0.35) + toward * (1.5 * k) - back * (0.8 * k);
+    Joints {
+        wrist,
+        palm,
+        fingers,
+        thumb: [t0, t1, t2, t3],
+    }
+}

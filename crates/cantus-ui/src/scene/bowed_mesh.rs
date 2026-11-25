@@ -8,8 +8,9 @@
 //! scene's size, theme or look changes, never per frame.
 
 use super::bowed::{arch, dist, outline, reach, rib, Bowed, Dims, Pose};
+use super::bowed_hold::{Hold, Holder}; // r42:arcus-upper
 use super::geo::V3;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// What a surface is made of.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -44,6 +45,43 @@ pub enum Role {
     /// The player's chair or stool: its stained wood, its seat's cloth.
     Chair,
     Seat,
+    /// What holds it (`bowed_hold`, r42:arcus-upper): a stand's steel and pads; the
+    /// musician's skin, clothes (by tone), trousers, shoes, hair, the face's strokes and
+    /// cheeks; the wooden mannequin and its joints (by tone).
+    Stand,
+    Pad,
+    Skin(u8),
+    /// Skin in its own shade (the neck under the jaw).
+    SkinShade(u8),
+    Cloth(u8),
+    Trousers,
+    Shoes,
+    Hair,
+    Feature,
+    Blush,
+    Wood(u8),
+    Joint(u8),
+    /// The realistic figures' (`bowed_human`, r42:arcus-upper): the concert dress's black
+    /// velvet, the suit's dark wool, the shirt, the tie, fair hair (the dark is `Hair`).
+    Velvet,
+    Wool,
+    Shirt,
+    Tie,
+    HairFair,
+    /// The realistic figures' eyes (whites, irises) under their lowered lids, their lashes,
+    /// their nails (by the skin's tone) — sheet v7.
+    Eye,
+    Iris,
+    Lash,
+    Nail(u8),
+    /// r42:arcus-upper — a realistic figure's alpha-tested card (`figure::cards`: the
+    /// figure × 3 + hair 0, brows 1, lashes 2): the Photographic picture's only.
+    Card(u8),
+    /// r42:arcus-upper — a realistic figure's hair as one shell (the Drawn picture's; the
+    /// Photographic one has the cards over a thin scalp instead), and that scalp (the
+    /// Photographic picture's only): the figure (0 her, 1 him).
+    Shell(u8),
+    Scalp(u8),
 }
 
 /// A grid of points (`rows` × `cols`, row-major) with normals and grain coordinates (cm:
@@ -57,6 +95,19 @@ pub struct Patch {
     pub cols: usize,
     /// The last column joins the first (a closed ring).
     pub closed: bool,
+}
+
+/// Triangles with a normal and a detail at each corner (r42:arcus-upper: the realistic
+/// figures): on skin the albedo's detail (a luminance factor, a red shift: the brows, the
+/// lips, the lashes' line), on hair its strands' coordinates (cm along, across).
+#[derive(Clone, Debug, Default)]
+pub struct Tris {
+    pub pts: Vec<V3>,
+    pub nrm: Vec<V3>,
+    pub detail: Vec<[f32; 2]>,
+    /// r42:arcus-upper — the skin's texture coordinates (none: negative).
+    pub uv: Vec<[f32; 2]>,
+    pub idx: Vec<[u32; 3]>,
 }
 
 /// A flat polygon (possibly concave) lying on or just over a surface.
@@ -80,6 +131,8 @@ pub struct Mesh {
     pub patches: Vec<(Role, Patch)>,
     pub polys: Vec<(Role, Poly)>,
     pub rods: Vec<(Role, Rod)>,
+    /// Triangles (r42:arcus-upper: the realistic figures).
+    pub tris: Vec<(Role, Tris)>,
     /// Points whose floor shadow is the body's (their hull), the endpin's foot.
     pub shadow: Vec<V3>,
     pub foot: V3,
@@ -172,18 +225,46 @@ pub fn mesh(b: Bowed) -> Arc<Mesh> {
         Bowed::Violin => &VIOLIN, // r42:arcus-upper
         Bowed::Viola => &VIOLA,   // r42:arcus-upper
     };
-    cell.get_or_init(|| Arc::new(build(b))).clone()
+    cell.get_or_init(|| Arc::new(build(b, Holder::default())))
+        .clone()
 }
 
-fn build(b: Bowed) -> Mesh {
+/// `b`'s surfaces as `h` holds it (r42:arcus-upper): the default from [`mesh`], the others
+/// built on first use and kept (a few at a time).
+pub fn mesh_for(b: Bowed, h: Holder) -> Arc<Mesh> {
+    if h == Holder::default() {
+        return mesh(b);
+    }
+    type Kept = Vec<((Bowed, Holder), Arc<Mesh>)>;
+    static KEPT: Mutex<Kept> = Mutex::new(Vec::new());
+    let mut kept = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(i) = kept.iter().position(|(k, _)| *k == (b, h)) {
+        let e = kept.remove(i);
+        let m = e.1.clone();
+        kept.push(e);
+        return m;
+    }
+    let m = Arc::new(build(b, h));
+    if kept.len() >= 8 {
+        kept.remove(0);
+    }
+    kept.push(((b, h), m.clone()));
+    m
+}
+
+fn build(b: Bowed, h: Holder) -> Mesh {
     let d = b.dims();
-    let pose = Pose::of(b);
+    let pose = super::bowed_hold::pose(b, h); // r42:arcus-upper
     let mut m = Mesh::default();
     let o = outline(b, 8);
     body(&mut m, d, &pose, &o);
     super::bowed_head::neck(&mut m, d, &pose);
     super::bowed_fit::fittings(&mut m, d, &pose, &o);
-    super::bowed_props::furniture(&mut m, b, &pose);
+    if h.hold != Hold::Stand {
+        // r42:arcus-upper
+        super::bowed_props::furniture(&mut m, b, &pose);
+    } // r42:arcus-upper
+    super::bowed_hold::build(&mut m, b, &pose, h); // r42:arcus-upper
     m
 }
 

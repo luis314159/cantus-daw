@@ -14,8 +14,16 @@
 //!   log axes, the region of Helmholtz motion this model measures, the bow's point — the
 //!   diagram is the control too.
 
+#[path = "arcus_draw_arm.rs"]
+mod arm; // r42:arcus-upper
 #[path = "arcus_draw_body.rs"]
 mod body;
+#[path = "arcus_draw_flesh.rs"]
+mod flesh; // r42:arcus-upper
+#[path = "arcus_draw_hand.rs"]
+pub mod hand; // r42:arcus-upper
+#[path = "arcus_draw_lit.rs"]
+mod lit; // r42:arcus-upper
 
 use crate::app::CantusApp;
 use crate::kit::color::with_alpha;
@@ -125,10 +133,15 @@ pub fn bowed_of(fs: &ArcusSettings) -> crate::scene::bowed::Bowed {
 
 /// The scene `fs`'s instrument is drawn as (r42:arcus-look): the cello or the double bass
 /// standing in the studio's live room Chorda and Tympanum stand in, in the theme's light.
-pub fn scene_view(fs: &ArcusSettings, s: &Style) -> crate::scene::SceneView {
+pub fn scene_view(
+    fs: &ArcusSettings,
+    s: &Style,
+    holder: crate::scene::bowed_hold::Holder, // r42:arcus-upper
+) -> crate::scene::SceneView {
     crate::scene::SceneView {
         subject: crate::scene::Subject::Bowed {
             instrument: bowed_of(fs),
+            holder, // r42:arcus-upper
         },
         room: crate::scene::Room::Studio,
         look: Default::default(),
@@ -157,14 +170,21 @@ pub fn picture(
 ) {
     drag(app, ui, track, d.shrink(s.s(4.0)), "picture");
     let n = now(fs, tele);
-    let view = scene_view(fs, s);
+    // What holds it and whether the finger shows: this machine's preferences. // r42:arcus-upper
+    let (holder, stop) = (app.settings.arcus_holder, app.settings.arcus_stop); // r42:arcus-upper
+    let view = scene_view(fs, s, holder); // r42:arcus-upper
     let painter = ui.painter_at(d);
     let time = ui.input(|i| i.time);
     let entry = app
         .inst
         .arcus_scenes
         .entry(track.0)
-        .or_insert_with(|| (crate::scene::Scene::default(), 0.5, time));
+        // r42:arcus-upper — a figure starts with its hand near the frog, in front of its
+        // body (the owner's reference), the bow alone at its middle.
+        .or_insert_with(|| {
+            let start = if holder.hold.figure() { 0.3 } else { 0.5 };
+            (crate::scene::Scene::default(), start, time)
+        });
     let moving = entry.0.paint(&painter, d, &view);
     let b = bowed_of(fs);
     // The bow's place along its hair, carried from frame to frame as it moves.
@@ -177,6 +197,7 @@ pub fn picture(
         return;
     };
     let shown = entry.0.rect().unwrap_or(d);
+    let scene_tex = entry.0.texture_id(); // r42:arcus-upper
     let v = body::View {
         cam: built.cam,
         origin: shown.min,
@@ -185,7 +206,27 @@ pub fn picture(
             shown.height() / built.size.y.max(1.0),
         ),
     };
-    let rig = crate::scene::bowed::rig(b);
+    let rig = crate::scene::bowed::rig_for(b, holder); // r42:arcus-upper
+                                                       // r42:arcus-upper — the figure's left hand: its position for this note, glided.
+    let hand = {
+        let st = body::stop(fs, &n);
+        let first = hand::target(1.0, hand::semis(st), hand::span(b.dims().held));
+        let h = app.inst.arcus_hands.entry(track.0).or_insert((first, time));
+        let to = hand::target(h.0, hand::semis(st), hand::span(b.dims().held));
+        h.0 = hand::glide(h.0, to, (time - h.1) as f32);
+        h.1 = time;
+        (h.0, (h.0 - to).abs() > 0.005)
+    };
+    // r42:arcus-upper — how finely the figure's hands are drawn (Auto: Light while the
+    // window's frames run long).
+    let light = {
+        let q = app.settings.figure_quality;
+        if q == crate::scene::figure::Quality::Auto {
+            let avg = app.average_frame_ms();
+            app.inst.figures_long = crate::scene::figure::frames_long(avg, app.inst.figures_long);
+        }
+        q.light(app.inst.figures_long)
+    };
     let pl = body::Play {
         b,
         rig: &rig,
@@ -195,9 +236,40 @@ pub fn picture(
         time,
         vibrato: tele[tel::VIBRATO].clamp(0.0, 1.0),
         lit: super::face::voice2(s, s.hue),
+        holder,            // r42:arcus-upper
+        stop,              // r42:arcus-upper
+        hand: hand.0,      // r42:arcus-upper
+        light,             // r42:arcus-upper
+        accent: s.t.focus, // r42:arcus-upper
     };
+    // r42:arcus-upper — a figure's left hand behind the neck, then the neck stamped back
+    // over it from the picture itself, then the rest in front.
+    crate::kit::with_brush(&painter, |br| body::live_behind(br, &v, &pl, s));
+    if let (Some(corners), Some(tex)) = (body::neck_for_stamp(&v, &pl), scene_tex) {
+        // The stamps change only with the picture (its place, its texture, what is shown):
+        // kept, so at rest a frame allocates nothing for them.
+        let key = (shown, tex, b, holder);
+        let kept = app.inst.arcus_stamps.get(&track.0).filter(|k| k.0 == key);
+        let meshes = match kept {
+            Some(k) => k.1.clone(),
+            None => {
+                let [m0, m1] = hand::stamp_body(&v, b, &rig.pose, shown, tex);
+                let m2 = hand::stamp(&corners, shown, tex);
+                let ms = [
+                    std::sync::Arc::new(m0),
+                    std::sync::Arc::new(m1),
+                    std::sync::Arc::new(m2),
+                ];
+                app.inst.arcus_stamps.insert(track.0, (key, ms.clone()));
+                ms
+            }
+        };
+        for m in meshes {
+            painter.add(egui::Shape::Mesh(m));
+        }
+    }
     crate::kit::with_brush(&painter, |br| body::live(br, &v, &pl, s));
-    if moving || (n.live && n.level > 0.0) {
+    if moving || (n.live && n.level > 0.0) || hand.1 {
         crate::views::workspace_ticker::moving(
             ui.ctx(),
             crate::views::workspace_ticker::Reason::Live,

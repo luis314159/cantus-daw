@@ -5,14 +5,16 @@
 //! the flame's figure), sorted far to near, and the picture's falloff — composed as
 //! `compose::piano_scene` and `compose::kit_scene` compose theirs.
 
-use super::bowed::{self, Bowed, Pose};
-use super::bowed_mesh::{mesh, Mesh, Role};
+use super::bowed::{self, Bowed};
+use super::bowed_hold::{self as hold, Hold, Holder}; // r42:arcus-upper
+use super::bowed_mesh::{mesh_for, Mesh, Role};
 use super::compose::{Built, Frame, Stage};
 use super::display::{rad, Layer, List, Paint, Part};
 use super::geo::{hull, v, Camera, V3};
 use super::light::{scale_mat, Light};
 use super::prims::{shadows, tube, Ctx, NS};
 use super::{rooms, Room};
+use crate::kit::skin::scene::hold as hp; // r42:arcus-upper
 use crate::kit::skin::scene::{bowed as pal, ink, mat as pm, Mat, MatKind};
 use egui::{Pos2, Vec2};
 
@@ -33,30 +35,77 @@ pub fn frame_for(size: Vec2) -> Frame {
     f
 }
 
+/// r42:arcus-upper — a test camera for design sheets (`shoot_arcus --cam=…`): the eye and
+/// what it looks at (world cm) and the half size of the box round it the picture fits.
+/// Never set by the app.
+static TEST_CAMERA: std::sync::Mutex<Option<(V3, V3, f32)>> = std::sync::Mutex::new(None);
+
+/// r42:arcus-upper — look from `eye` at `at`, the picture fitting a box `half` cm round
+/// it (None: the instrument's own camera). For design sheets only.
+pub fn set_test_camera(cam: Option<(V3, V3, f32)>) {
+    *TEST_CAMERA.lock().unwrap_or_else(|e| e.into_inner()) = cam;
+}
+
+fn test_camera() -> Option<(V3, V3, f32)> {
+    *TEST_CAMERA.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The camera an instrument is seen from: three-quarter from the audience's left, close
 /// and a little above the floor (sheet v4: the instrument fills the picture's height).
-pub fn camera(b: Bowed, room: Room) -> Camera {
+pub fn camera(b: Bowed, h: Holder, room: Room) -> Camera {
+    if let Some((eye, at, _)) = test_camera() {
+        // r42:arcus-upper
+        let d = eye - at;
+        let dist = d.len();
+        let el = (d.y / dist).asin().to_degrees();
+        let az = d.x.atan2(d.z).to_degrees();
+        return Camera::new(at, az, el, dist);
+    }
     let d = b.dims();
-    let pose = Pose::of(b);
+    let pose = hold::pose(b, h); // r42:arcus-upper
     let mid = pose.at(0.0, d.body * 0.78, 0.0);
     let el = match room {
         Room::Stage => 6.0,
         Room::Hall => 7.0,
         _ => 8.0,
     };
-    // A violin or a viola on its stand: closer, as a photographer frames a small instrument. // r42:arcus-upper
-    let dist = if d.stand {
+    // r42:arcus-upper — a violin or a viola held: from the hall's middle and a little
+    // higher, onto its top and across the bow; closer, as a photographer frames a small
+    // instrument. On its stand: as the cello, closer.
+    let stand = d.held && h.hold == Hold::Stand;
+    let (az, el) = if d.held && !stand {
+        (4.0, el + 7.0)
+    } else if stand {
+        // From higher, onto its top: its outline reads as a violin's, not a cello's.
+        (-20.0, el + 16.0)
+    } else {
+        (-24.0, el)
+    };
+    let dist = if stand {
         140.0 + 2.2 * d.body
+    } else if d.held && h.hold.figure() {
+        // Its player in the picture too: farther, so the figure keeps its proportions.
+        420.0 + 2.2 * d.body
+    } else if d.held {
+        250.0 + 2.2 * d.body
     } else {
         300.0 + 2.2 * d.body
-    }; // r42:arcus-upper
-    Camera::new(v(mid.x, mid.y, mid.z), -24.0, el, dist) // r42:arcus-upper
+    };
+    Camera::new(v(mid.x, mid.y, mid.z), az, el, dist) // r42:arcus-upper
 }
 
-/// The points the camera fits: the body, the head, the endpin's foot.
-pub fn points(b: Bowed) -> Vec<V3> {
+/// The points the camera fits: the body, the head, the endpin's foot (r42:arcus-upper: a
+/// held instrument's margin, a figure's head and shoulders).
+pub fn points(b: Bowed, h: Holder) -> Vec<V3> {
+    if let Some((_, at, r)) = test_camera() {
+        // r42:arcus-upper
+        return [-1.0f32, 1.0]
+            .iter()
+            .flat_map(|&x| [-1.0f32, 1.0].map(move |y| at + v(x * r, y * r * 0.8, 0.0)))
+            .collect();
+    }
     let d = b.dims();
-    let pose = Pose::of(b);
+    let pose = hold::pose(b, h); // r42:arcus-upper
     let o = bowed::outline(b, 2);
     let mut p: Vec<V3> = o
         .iter()
@@ -66,10 +115,18 @@ pub fn points(b: Bowed) -> Vec<V3> {
     for x in [-d.head_w * 1.4, d.head_w * 1.4] {
         p.push(pose.at(x, top, -d.scroll_r));
     }
-    if !d.stand {
+    if !d.held {
         // r42:arcus-upper
         p.push(pose.at(0.0, -d.endpin, -d.rib_lo * 0.5));
+    } else if h.hold != Hold::Stand {
+        // Held: a margin round it, so the room shows as round the cello. // r42:arcus-upper
+        let mid = pose.at(0.0, 0.5 * (d.body + d.neck), 0.0);
+        let len = d.body + d.neck + d.pegbox;
+        for (dx, dy) in [(-0.47, 0.0), (0.47, 0.0), (0.0, 0.3), (0.0, -0.3)] {
+            p.push(mid + v(dx * len, dy * len, 0.0));
+        }
     } // r42:arcus-upper
+    p.extend(hold::fit(b, h)); // r42:arcus-upper
     p
 }
 
@@ -102,6 +159,32 @@ pub fn material(b: Bowed, r: Role) -> Mat {
         Role::Wound => pal::TUNGSTEN,
         Role::Chair => crate::kit::skin::scene::FINISH_WALNUT,
         Role::Seat => pal::SEAT,
+        // r42:arcus-upper — what holds it.
+        Role::Stand => hp::STAND,
+        Role::Pad => hp::PAD,
+        Role::Skin(i) => hp::skin(i),
+        Role::SkinShade(i) => hp::skin_shade(i),
+        Role::Cloth(i) => hp::cloth(i),
+        Role::Trousers => hp::flat(hp::TROUSERS),
+        Role::Shoes => hp::flat(hp::SHOES),
+        Role::Hair => hp::flat(hp::HAIR),
+        Role::Feature => hp::flat(hp::FEATURE),
+        Role::Blush => hp::flat(hp::BLUSH),
+        Role::Wood(i) => hp::wood(i, false),
+        Role::Joint(i) => hp::wood(i, true),
+        Role::Velvet => hp::flat(hp::VELVET),
+        Role::Wool => hp::flat(hp::WOOL),
+        Role::Shirt => hp::flat(hp::SHIRT),
+        Role::Tie => hp::flat(hp::TIE),
+        Role::HairFair => hp::hair(hp::HAIR_FAIR),
+        Role::Eye => hp::eye(hp::EYE_WHITE),
+        Role::Iris => hp::eye(hp::IRIS),
+        Role::Lash => hp::flat(hp::LASH),
+        Role::Nail(i) => hp::nail(i),
+        // r42:arcus-upper — never drawn in this picture (`bowed_draw_tris` leaves them out).
+        Role::Card(_) | Role::Scalp(_) => hp::flat(hp::LASH),
+        Role::Shell(0) => hp::hair(hp::HAIR_FAIR),
+        Role::Shell(_) => hp::hair(hp::HAIR),
     }
 }
 
@@ -263,7 +346,10 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             continue;
         }
         let mat = material(b, *role);
-        let bi = bias(*role);
+        // Held, the fingerboard runs toward the camera over the top's large cells: its ebony
+        // a little nearer, so no cell of the top shows through its side. // r42:arcus-upper
+        let held = b.dims().held && *role == Role::Ebony; // r42:arcus-upper
+        let bi = bias(*role) + if held { 1.0 } else { 0.0 }; // r42:arcus-upper
         for cell in p.cells() {
             let mut q: Vec<V3> = Vec::with_capacity(4);
             let mut nq: Vec<V3> = Vec::with_capacity(4);
@@ -308,9 +394,13 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             } else {
                 Paint::Solid(super::light::lerp(ca, cb, 0.5))
             };
-            c.p.poly(sp, paint, 1.0, 0.45);
+            // A figure's fine cells overlap a little more, so no seam grid shows on its
+            // dark hair and cloth. // r42:arcus-upper
+            let seam = if figure_role(*role) { 1.1 } else { 0.45 }; // r42:arcus-upper
+            c.p.poly(sp, paint, 1.0, seam);
         }
     }
+    super::bowed_draw_tris::draw(c, b, m); // r42:arcus-upper
     for (role, poly) in &m.polys {
         if poly.pts.len() < 3 || matches!(role, Role::Hole | Role::Cut) {
             continue;
@@ -368,9 +458,9 @@ fn falloff(list: &mut List, size: Vec2, light: &Light) {
 }
 
 /// Arcus's cello or double bass standing in its room.
-pub fn bowed_scene(b: Bowed, st: &Stage) -> Built {
+pub fn bowed_scene(b: Bowed, h: Holder, st: &Stage) -> Built {
     let stage = st.room == Room::Stage;
-    let pose = Pose::of(b);
+    let pose = hold::pose(b, h); // r42:arcus-upper
     let d = b.dims();
     let mid = pose.at(0.0, d.body * 0.5, 0.0);
     let mut light = Light::new(
@@ -383,7 +473,7 @@ pub fn bowed_scene(b: Bowed, st: &Stage) -> Built {
         light.m.spot_r = 120.0 + d.body * 0.6;
     }
     light.floor = rooms::floor_paint(st.look.floor.unwrap_or(rooms::def(st.room).floor)).a;
-    let mut cam = camera(b, st.room);
+    let mut cam = camera(b, h, st.room); // r42:arcus-upper
     let fb = {
         let [l, t, r, bt] = st.frame.inset;
         (
@@ -393,8 +483,8 @@ pub fn bowed_scene(b: Bowed, st: &Stage) -> Built {
             (st.size.y - t - bt).max(8.0),
         )
     };
-    cam.fit(&points(b), fb, st.frame.margin, st.frame.anchor);
-    let mesh = mesh(b);
+    cam.fit(&points(b, h), fb, st.frame.margin, st.frame.anchor); // r42:arcus-upper
+    let mesh = mesh_for(b, h); // r42:arcus-upper
     let mut list = List::default();
     let lod = if st.size.x.min(st.size.y) * st.ppp < 200.0 {
         super::prims::LOW
@@ -423,7 +513,13 @@ pub fn bowed_scene(b: Bowed, st: &Stage) -> Built {
     for s in &mesh.shadows {
         c.shadow_polys.push((s.clone(), 0.5));
     }
-    c.contacts.push((mesh.foot, d.rib_lo * 0.42));
+    if !d.held || h.hold == Hold::Stand {
+        // r42:arcus-upper
+        c.contacts.push((mesh.foot, d.rib_lo * 0.42));
+    } // r42:arcus-upper
+    if d.held && h.hold == Hold::Air {
+        wall_shadow(&mut c, &mesh, mid.z - rooms::def(st.room).back); // r42:arcus-upper
+    }
     shadows(&mut c);
     let prims = c.capture.take();
     drop(c);
@@ -440,7 +536,7 @@ pub fn bowed_scene(b: Bowed, st: &Stage) -> Built {
         evening: st.evening,
     });
     falloff(&mut list, st.size, &light);
-    let outline: Vec<Pos2> = points(b).iter().map(|&q| cam.p(q)).collect();
+    let outline: Vec<Pos2> = points(b, h).iter().map(|&q| cam.p(q)).collect(); // r42:arcus-upper
     let dep = cam.depth(mid);
     list.hit(Part::Bowed, hull(&outline), dep);
     let outlines = list
@@ -459,4 +555,64 @@ pub fn bowed_scene(b: Bowed, st: &Stage) -> Built {
         pieces: Vec::new(),
         model,
     }
+}
+
+/// r42:arcus-upper — a violin or a viola in the air: its soft shadow on the wall behind
+/// (`wall_z`), thrown by a light beside the camera to its left, as a
+/// photographer's softbox throws it — so the instrument is seen to hang in the room, not
+/// float over the picture. Wide and faint, a core a little darker.
+fn wall_shadow(c: &mut Ctx, mesh: &Mesh, wall_z: f32) {
+    let eye = c.cam.eye();
+    let lamp = eye + v(-120.0, 5.0, 0.0);
+    let on_wall = |p: V3, k: f32| {
+        let dir = p - lamp;
+        let t = (wall_z - lamp.z) / dir.z.min(-1e-3);
+        let q = lamp + dir * t;
+        let m = super::geo::centre(&mesh.shadow);
+        let w = lamp + (m - lamp) * ((wall_z - lamp.z) / (m - lamp).z.min(-1e-3));
+        w + (q - w) * k
+    };
+    let cam = c.cam;
+    for (k, op, layer) in [
+        (1.22, 0.07, Layer::Far),
+        (1.12, 0.09, Layer::Far),
+        (1.04, 0.11, Layer::Far),
+        (0.97, 0.13, Layer::Far),
+    ] {
+        let sp: Vec<Pos2> = mesh.shadow.iter().map(|&p| cam.p(on_wall(p, k))).collect();
+        c.p.on(layer);
+        c.p.poly(
+            hull(&sp),
+            Paint::Solid(ink::SHADE),
+            op * c.light.m.shadow,
+            0.0,
+        );
+    }
+    c.p.on(Layer::Objects);
+}
+
+/// r42:arcus-upper — a surface of the figure that holds the instrument (not the
+/// instrument's, nor the room's).
+fn figure_role(r: Role) -> bool {
+    matches!(
+        r,
+        Role::Skin(_)
+            | Role::SkinShade(_)
+            | Role::Cloth(_)
+            | Role::Trousers
+            | Role::Shoes
+            | Role::Hair
+            | Role::Wood(_)
+            | Role::Joint(_)
+            | Role::Velvet
+            | Role::Wool
+            | Role::Shirt
+            | Role::Tie
+            | Role::HairFair
+            | Role::Eye
+            | Role::Iris
+            | Role::Lash
+            | Role::Nail(_)
+            | Role::Shell(_)
+    )
 }

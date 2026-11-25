@@ -202,6 +202,9 @@ pub struct Rig {
     /// In focus up to this distance from the eye (m); softer beyond.
     pub focus_far: f32,
     pub eye: V3,
+    /// r42:arcus-upper — the room behind softer (a realistic figure's picture reads as a
+    /// photograph: a portrait lens's shallow focus); 0 for every other picture.
+    pub soft_bg: f32,
 }
 
 pub fn inside(o: &[(f32, f32)], x: f32, z: f32) -> bool {

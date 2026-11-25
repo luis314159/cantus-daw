@@ -6,12 +6,13 @@
 //! bridge's pale maple, nickel, brass, the strings' steel and the silks; the f-holes and
 //! the bridge's cut-outs dark, the strings and rods round.
 
-use super::geo::{ear_clip, of, perp, vt, Geo};
+use super::geo::{ear_clip, of, perp, vt, Geo, Vert};
 use super::mat::{finish, lin3, parts, MatId, PMat, Tex};
 use super::mesh::V3;
 use crate::kit::skin::scene::bowed as pal;
+use crate::kit::skin::scene::hold as hp; // r42:arcus-upper
 use crate::scene::bowed::Bowed;
-use crate::scene::bowed_mesh::{mesh, Role};
+use crate::scene::bowed_mesh::{mesh_for, Role};
 use std::collections::HashMap;
 
 /// The photographic material of a role.
@@ -22,7 +23,16 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         let f = finish(m, seed);
         // Deeper and more saturated (red kept, blue taken): under the clear coat's white
         // reflection a varnish's orange must still read orange, not brown or salmon.
-        let k = |c: [f32; 3]| [c[0] * 0.56, c[1] * 0.40, c[2] * 0.26];
+        // A violin's or a viola's oil varnish kept nearer its amber-brown, less of the blue
+        // taken (the Photographic picture's orange read as plastic at a violin's size).
+        let held = b.dims().held; // r42:arcus-upper
+        let k = |c: [f32; 3]| {
+            if held {
+                [c[0] * 0.40, c[1] * 0.31, c[2] * 0.23] // r42:arcus-upper
+            } else {
+                [c[0] * 0.56, c[1] * 0.40, c[2] * 0.26]
+            }
+        };
         PMat {
             tex: Tex::Tonewood { seed, lines, flame },
             base: k(f.base),
@@ -39,7 +49,13 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Bowed::Violin => (pal::VIOLIN_TOP, pal::VIOLIN_MAPLE), // r42:arcus-upper
         Bowed::Viola => (pal::VIOLA_TOP, pal::VIOLA_MAPLE),    // r42:arcus-upper
     };
+    let held = b.dims().held; // r42:arcus-upper
     match r {
+        // r42:arcus-upper — a violin's or a viola's: its spruce's lines finer than a pixel
+        // at the picture's sizes (they fade to the wood's slow streaks, no moiré), its
+        // flame half as strong (stripes, not bars).
+        Role::Top if held => tone(&top, 1100.0, 0.0, 71),
+        Role::Maple if held => tone(&maple, 260.0, 0.45, 73),
         Role::Top => tone(&top, 520.0, 0.0, 71),
         Role::Maple => tone(&maple, 260.0, 1.0, 73),
         Role::Inside => {
@@ -69,12 +85,57 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         Role::Wound => PMat::metal(lin3(pal::TUNGSTEN.tint), 0.22),
         Role::Chair => finish(&crate::kit::skin::scene::FINISH_WALNUT, 91),
         Role::Seat => PMat::matte(lin3(pal::SEAT.albedo)).with(Tex::Fabric),
+        // r42:arcus-upper — what holds it: the Drawn picture's materials, seen per pixel.
+        Role::Stand => PMat::lacquer(lin3(hp::STAND.albedo), 0.35, 0.25),
+        Role::Pad => PMat::matte(lin3(hp::PAD.albedo)).with(Tex::Fabric),
+        Role::Skin(i) => PMat::matte(lin3(hp::skin(i).albedo)),
+        Role::SkinShade(i) => PMat::matte(lin3(hp::skin_shade(i).albedo)),
+        Role::Cloth(i) => PMat::matte(lin3(hp::cloth(i).albedo)).with(Tex::Fabric),
+        Role::Trousers => PMat::matte(lin3(hp::TROUSERS)).with(Tex::Fabric),
+        Role::Shoes => PMat::lacquer(lin3(hp::SHOES), 0.4, 0.2),
+        Role::Hair => PMat::matte(lin3(hp::HAIR)),
+        Role::Feature => PMat::matte(lin3(hp::FEATURE)),
+        Role::Blush => PMat::matte(lin3(hp::BLUSH)),
+        Role::Wood(i) => PMat::lacquer(lin3(hp::wood(i, false).albedo), 0.3, 0.3),
+        Role::Joint(i) => PMat::lacquer(lin3(hp::wood(i, true).albedo), 0.3, 0.3),
+        // r42:arcus-upper — the realistic figures.
+        Role::Velvet => PMat {
+            light: lin3(hp::VELVET_SHEEN),
+            ..PMat::matte(lin3(hp::VELVET)).with(Tex::Velvet)
+        },
+        Role::Wool => PMat::matte(lin3(hp::WOOL)).with(Tex::Fabric),
+        Role::Shirt => PMat::matte(lin3(hp::SHIRT)).with(Tex::Fabric),
+        Role::Tie => PMat::lacquer(lin3(hp::TIE), 0.12, 0.35),
+        Role::HairFair => PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair),
+        Role::Eye => PMat::lacquer(lin3(hp::EYE_WHITE), 0.35, 0.08),
+        Role::Iris => PMat::lacquer(lin3(hp::IRIS), 0.35, 0.08),
+        Role::Lash => PMat::matte(lin3(hp::LASH)),
+        Role::Nail(i) => {
+            PMat::lacquer(lin3(hp::nail(i).albedo).map(|c| c * 0.5), 0.18, 0.22).with(Tex::Skin)
+        }
+        // r42:arcus-upper — the cards: her hair fair, his dark; brows a shade darker than
+        // the hair; lashes near black.
+        Role::Card(k) => {
+            let woman = k < 3;
+            let base = match (k % 3, woman) {
+                (0, true) => hp::HAIR_FAIR,
+                (0, false) => hp::HAIR,
+                (1, true) => hp::BROW_FAIR,
+                (1, false) => hp::HAIR,
+                _ => hp::LASH,
+            };
+            PMat::lacquer(lin3(base), 0.06, 0.45).with(Tex::Card(k))
+        }
+        Role::Shell(0) | Role::Scalp(0) => {
+            PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
+        }
+        Role::Shell(_) | Role::Scalp(_) => PMat::matte(lin3(hp::HAIR)),
     }
 }
 
 /// `b` added to `g` (its triangles after the room's).
-pub fn build(g: &mut Geo, b: Bowed) {
-    let m = mesh(b);
+pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
+    let m = mesh_for(b, h); // r42:arcus-upper
     let mut ids: HashMap<Role, MatId> = HashMap::new();
     let mut id = |g: &mut Geo, r: Role| *ids.entry(r).or_insert_with(|| g.mat(pmat(b, r)));
     let uvm = |uv: [f32; 2]| [uv[0] / 100.0, uv[1] / 100.0];
@@ -90,6 +151,64 @@ pub fn build(g: &mut Geo, b: Bowed) {
             }
             if area(v[0].p, v[2].p, v[3].p) > 1e-10 {
                 g.tri(v[0], v[2], v[3], mi);
+            }
+        }
+    }
+    // r42:arcus-upper — the realistic figures' triangles; their corners' detail (the skin's
+    // albedo, the hair's strands) carried as the texture coordinates.
+    let scalp = m
+        .tris
+        .iter()
+        .find_map(|(r, _)| match r {
+            Role::Skin(i) => Some(lin3(hp::real_skin(*i).albedo).map(|c| c * 0.48)),
+            _ => None,
+        })
+        .unwrap_or([0.4, 0.3, 0.25]);
+    for (role, t) in &m.tris {
+        let mi = match role {
+            Role::Skin(i) => {
+                // Seen per pixel under the key a skin's albedo reads lighter than drawn:
+                // a little less of it, so a fair face is not chalk.
+                let a = lin3(hp::real_skin(*i).albedo).map(|c| c * 0.48);
+                // (r42:arcus-upper: a soft sheen on the nose and the forehead, as skin has —
+                // the owner's review: porcelain.)
+                g.mat(PMat::lacquer(a, 0.09, 0.38).with(Tex::Skin))
+            }
+            Role::Hair => g.mat(PMat {
+                dark: scalp,
+                ..PMat::lacquer(lin3(hp::HAIR), 0.1, 0.42).with(Tex::Hair)
+            }),
+            Role::HairFair => g.mat(PMat {
+                dark: scalp,
+                ..PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
+            }),
+            // The scalp under the cards in the cards' own finish (no streaks of its own:
+            // where it showed between them it read as patches of another hair).
+            Role::Scalp(0) => g.mat(PMat::lacquer(lin3(hp::HAIR_FAIR), 0.06, 0.45)),
+            Role::Scalp(_) => g.mat(PMat::lacquer(lin3(hp::HAIR), 0.06, 0.45)),
+            // The thick shell is the Drawn picture's (here the cards over the scalp).
+            Role::Shell(_) => continue,
+            r => id(g, *r),
+        };
+        // r42:arcus-upper — a hair card is lit as the head of hair it belongs to (each card's
+        // own normal showed as light and dark patches, the owner's review): its normal the
+        // way out from the hair's middle, one smooth light over every card.
+        let radial = matches!(role, Role::Card(k) if k % 3 == 0).then(|| {
+            t.pts.iter().fold(V3::default(), |a, &p| a + of(p)) * (1.0 / t.pts.len().max(1) as f32)
+        });
+        for tri in &t.idx {
+            let [a, b2, c] = tri.map(|i| i as usize);
+            let w = [a, b2, c].map(|i| {
+                let p = of(t.pts[i]);
+                let n = radial.map_or(of(t.nrm[i]), |m| (p - m).norm());
+                Vert {
+                    uv2: t.uv.get(i).copied().unwrap_or([-1.0, -1.0]),
+                    ..vt(p, n, t.detail[i])
+                }
+            });
+            let fnrm = (w[1].p - w[0].p).cross(w[2].p - w[0].p);
+            if fnrm.len() > 1e-10 {
+                g.tri(w[0], w[1], w[2], mi);
             }
         }
     }

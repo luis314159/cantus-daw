@@ -752,6 +752,23 @@ Standard is the MIDI Manufacturers Association's; ODDSound's MTS-ESP client (0BS
 for its behaviour, and a test ports its decoding as an independent oracle. The historical
 temperaments are built from their published construction rules.
 
+## Arcus's realistic musicians (MakeHuman) <!-- r42:arcus-upper -->
+
+The realistic woman and man who may hold an Arcus instrument
+(`crates/cantus-ui/assets/figures/{woman,man}.fig`) are built by
+`tools/arcus-figures/build_figures.py` from **MakeHuman 1.x**'s assets, dedicated to the
+public domain under **CC0 1.0** (<https://creativecommons.org/publicdomain/zero/1.0/>): the
+base mesh, its macro and face targets, the default skeleton and its weights
+(<https://github.com/makehumancommunity/makehuman>, `makehuman/data`; its LICENSE.md §C), the
+suit `male_elegantsuit01`, the shoes `shoes04`, the skins `young_caucasian_female/male` (also
+as the skin's fine detail, `{woman,man}_skin.png`), the hair `ponytail01` and `short02`, the
+brows `eyebrow001` and `eyebrow010` and the lashes `eyelashes01` (their textures as
+`{woman,man}_{hair,brow,lash}.png`) (`makehuman_system_assets_cc0.zip`,
+files.makehumancommunity.org; each asset's licence CC0 in its pack manifest). CC0 asks for no credit;
+it is given gladly, here and in *Help ▸ About Cantus*. No MakeHuman code (AGPL) is used: the
+converter reads the assets' plain-text formats itself. The faces are original (generic
+averages and modifiers chosen by eye), not any person's.
+
 ## Content
 
 No samples are bundled with Cantus. *Sound packs…* (in the sample browser) downloads a pack only when you click *Install*, and installs it only with its licence file, which stays in the pack's folder (`%LOCALAPPDATA%\Cantus\Content\<pack>`) beside a receipt (`cantus-pack.json`) that keeps its credit. Content is accepted under **CC0 1.0** and **CC BY 3.0 / 4.0** only (ADR 0042); nothing non-commercial, no-derivatives or share-alike. Music you make with these sounds is yours. *Help ▸ About Cantus* shows the same credits.

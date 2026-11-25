@@ -2,7 +2,7 @@
 //! cello bowed, the double bass bowed, the cello plucked and its tremolo, in both pictures
 //! (Drawn, Photographic), Night and Paper, at 100 % and 200 % (`--edit` adds Edit's
 //! Schelleng diagram); `--strip` the live part frame by frame; `--scene` the picture
-//! alone (`--zoom=1,3`, `--only=<part of a name>`). `CANTUS_SHOOT_LANG=es` for Spanish.
+//! alone (`--zoom=1,3`, `--only=<part of a name>[+<another>]`). `CANTUS_SHOOT_LANG=es` for Spanish.
 //!
 //! ```text
 //! cargo run -p cantus-ui --example shoot_arcus -- <dir>
@@ -12,6 +12,7 @@ use cantus_core::inst::InstrumentKind;
 use cantus_engine::EngineHandle;
 use cantus_ui::kit::shell::Shell;
 use cantus_ui::raster::shoot;
+use cantus_ui::scene::bowed_hold::{Hold, Holder}; // r42:arcus-upper
 use cantus_ui::views::inst::View;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;
@@ -31,7 +32,7 @@ fn context(dark: bool) -> egui::Context {
 
 /// r42:arcus-look — `--scene`: the instrument's picture alone (the cello and the bass, Drawn
 /// and Photographic, Night and Paper) at the Play view's size, for the design sheet.
-fn scenes(dir: &std::path::Path, zoom: f32, only: Option<&str>) {
+fn scenes(dir: &std::path::Path, zoom: f32, only: Option<&str>, holds: &[Hold]) {
     use cantus_ui::scene::{self, bowed::Bowed, Room, SceneBackend, SceneView, Subject};
     cantus_ui::views::inst::chorda::scene::hybrid::register();
     scene::set_blocking(true);
@@ -42,19 +43,25 @@ fn scenes(dir: &std::path::Path, zoom: f32, only: Option<&str>) {
         ("violin", Bowed::Violin), // r42:arcus-upper
         ("viola", Bowed::Viola),   // r42:arcus-upper
     ] {
-        for (look, be) in [
+        for (look, be, &hold) in [
             ("drawn", SceneBackend::Vector),
             ("photo", SceneBackend::PerPixel),
-        ] {
+        ]
+        .into_iter()
+        .flat_map(|(l, be)| holds.iter().map(move |h| (l, be, h)))
+        {
             for (theme, dark) in [("night", true), ("paper", false)] {
-                let tag = format!("{name}-{look}-{theme}");
-                if only.is_some_and(|o| !tag.contains(o)) {
+                let tag = format!("{name}{}-{look}-{theme}", hold_tag(hold));
+                if only.is_some_and(|o| !o.split('+').all(|p| tag.contains(p))) {
                     continue;
                 }
                 scene::backend::set_default(be);
                 let ctx = context(dark);
                 let view = SceneView {
-                    subject: Subject::Bowed { instrument: b },
+                    subject: Subject::Bowed {
+                        instrument: b,
+                        holder: Holder::of(hold), // r42:arcus-upper
+                    },
                     room: Room::Studio,
                     look: Default::default(),
                     dark,
@@ -191,6 +198,29 @@ fn main() {
         strips(&dir);
         return;
     }
+    // r42:arcus-upper — `--settings`: Settings ▸ Appearance's page whole (the figures' rows:
+    // Held by, Stopped note, Figure detail), Night and Paper, 100 % and 200 %.
+    if args.iter().any(|a| a == "--settings") {
+        for (theme, dark) in [("night", true), ("paper", false)] {
+            for k in scales(&args) {
+                let ctx = context(dark);
+                let mut app =
+                    CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+                app.settings.arcus_holder = Holder::of(Hold::Woman);
+                let path = dir.join(format!(
+                    "settings-appearance-{theme}-{}.png",
+                    (k * 100.0) as u32
+                ));
+                shoot(&ctx, egui::vec2(900.0, 2600.0), k, 3, Some(&path), |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        views::workspace_settings::appearance_page(&mut app, ui)
+                    });
+                });
+                println!("{}", path.display());
+            }
+        }
+        return;
+    }
     if args.iter().any(|a| a == "--scene") {
         let only = args.iter().find_map(|a| a.strip_prefix("--only="));
         let zooms: Vec<f32> = args
@@ -199,7 +229,7 @@ fn main() {
             .map(|z| z.split(',').filter_map(|v| v.parse().ok()).collect())
             .unwrap_or_else(|| vec![1.0, 2.0]);
         for z in zooms {
-            scenes(&dir, z, only);
+            scenes(&dir, z, only, &holds(&args));
         }
         return;
     }
@@ -218,25 +248,75 @@ fn main() {
     cantus_ui::scene::set_blocking(true);
     let only = args.iter().find_map(|a| a.strip_prefix("--only="));
     let mut states: Vec<(&str, View, f32, f32, f32, f32)> = vec![
-        ("cello-play", View::Play, 0.0, 0.0, 2.0, 57.0),
+        // r42:arcus-upper — on the G string (D3), the bow tilted toward its tip as the
+        // reference's is.
+        ("cello-play", View::Play, 0.0, 0.0, 1.0, 50.0),
         ("bass-play", View::Play, 1.0, 0.0, 2.0, 45.0),
         ("cello-pizz", View::Play, 0.0, 1.0, 1.0, 50.0),
         ("cello-trem", View::Play, 0.0, 2.0, 3.0, 64.0),
+        ("violin-play", View::Play, 2.0, 0.0, 2.0, 76.0), // r42:arcus-upper
+        ("viola-play", View::Play, 3.0, 0.0, 2.0, 67.0),  // r42:arcus-upper
+        ("violin-pizz", View::Play, 2.0, 1.0, 2.0, 74.0), // r42:arcus-upper
+        // r42:arcus-upper — a second hand position: an octave up the same string.
+        ("violin-high", View::Play, 2.0, 0.0, 2.0, 81.0),
+        ("cello-high", View::Play, 0.0, 0.0, 2.0, 62.0),
     ];
     if args.iter().any(|a| a == "--edit") {
         states.push(("cello-edit", View::Edit, 0.0, 0.0, 2.0, 57.0));
     }
+    // r42:arcus-upper — `--note=<string>,<key>`: every state plays that note instead;
+    // `--cam=<eye x,y,z>,<at x,y,z>,<half>`: a test camera (world cm) for the hands' crops;
+    // `--quality=high|light`: the figures' detail (Light shots are tagged `-light`).
+    if let Some(n) = args.iter().find_map(|a| a.strip_prefix("--note=")) {
+        let v: Vec<f32> = n.split(',').filter_map(|x| x.parse().ok()).collect();
+        if let [s, k] = v[..] {
+            for st in &mut states {
+                st.4 = s;
+                st.5 = k;
+            }
+        }
+    }
+    if let Some(c) = args.iter().find_map(|a| a.strip_prefix("--cam=")) {
+        let v: Vec<f32> = c.split(',').filter_map(|x| x.parse().ok()).collect();
+        if v.len() == 7 {
+            use cantus_ui::scene::geo::v as v3;
+            cantus_ui::scene::bowed_draw::set_test_camera(Some((
+                v3(v[0], v[1], v[2]),
+                v3(v[3], v[4], v[5]),
+                v[6],
+            )));
+        }
+    }
+    let quality = match args.iter().find_map(|a| a.strip_prefix("--quality=")) {
+        Some("light") => cantus_ui::scene::figure::Quality::Light,
+        _ => cantus_ui::scene::figure::Quality::High,
+    };
+    let qtag = if quality == cantus_ui::scene::figure::Quality::Light {
+        "-light"
+    } else {
+        ""
+    };
     let looks = [
         ("drawn", cantus_ui::scene::SceneBackend::Vector),
         ("photo", cantus_ui::scene::SceneBackend::PerPixel),
     ];
     for (name, view, inst, tech, string, key) in states {
-        for (look, be) in looks {
+        for (look, be, hold) in looks
+            .into_iter()
+            .flat_map(|(l, be)| holds(&args).into_iter().map(move |h| (l, be, h)))
+        {
             for dark in [true, false] {
-                for k in [1.0f32, 2.0] {
+                // r42:arcus-upper — `--scales=1,2,4`: which window scales (a 400 % shot
+                // for the hands' crops).
+                for k in scales(&args) {
                     let theme = if dark { "night" } else { "paper" };
-                    let tag = format!("{name}-{look}-{theme}-{lang}-{}", (k * 100.0) as u32);
-                    if only.is_some_and(|o| !tag.contains(o)) {
+                    let tag = format!(
+                        "{name}{}{}{qtag}-{look}-{theme}-{lang}-{}",
+                        hold_tag(hold),
+                        stop_tag(&args),
+                        (k * 100.0) as u32
+                    );
+                    if only.is_some_and(|o| !o.split('+').all(|p| tag.contains(p))) {
                         continue;
                     }
                     cantus_ui::scene::backend::set_default(be);
@@ -246,6 +326,9 @@ fn main() {
                         EngineHandle::dummy(),
                         false,
                     );
+                    app.settings.arcus_holder = Holder::of(hold); // r42:arcus-upper
+                    app.settings.arcus_stop = stop_show(&args); // r42:arcus-upper
+                    app.settings.figure_quality = quality; // r42:arcus-upper
                     app.demo_editor("arcus");
                     let Some(t) = app.inst.open else {
                         panic!("no Arcus editor")
@@ -257,7 +340,8 @@ fn main() {
                         tele[cantus_dsp::arcus::tel::STRING] = string;
                         tele[cantus_dsp::arcus::tel::KEY] = key;
                         tele[cantus_dsp::arcus::tel::VIBRATO] = 0.4;
-                        if inst > 0.5 {
+                        if (inst - 1.0).abs() < 0.5 {
+                            // r42:arcus-upper (the bass alone)
                             tele[cantus_dsp::arcus::tel::FORCE] = 2.6;
                             tele[cantus_dsp::arcus::tel::FMIN] = 0.9;
                             tele[cantus_dsp::arcus::tel::FMAX] = 3.6;
@@ -276,4 +360,49 @@ fn main() {
         }
     }
     cantus_ui::scene::backend::set_default(cantus_ui::scene::SceneBackend::Vector);
+}
+
+/// r42:arcus-upper — `--scales=1,2,4` (default 1 and 2): the window's scales.
+fn scales(args: &[String]) -> Vec<f32> {
+    args.iter()
+        .find_map(|a| a.strip_prefix("--scales="))
+        .map(|z| z.split(',').filter_map(|v| v.parse().ok()).collect())
+        .unwrap_or_else(|| vec![1.0, 2.0])
+}
+
+/// r42:arcus-upper — `--hold=air,stand,player,mannequin` (or `all`): what holds the
+/// instrument in the shots; nothing by default (the names then as before).
+fn holds(args: &[String]) -> Vec<Hold> {
+    match args.iter().find_map(|a| a.strip_prefix("--hold=")) {
+        None => vec![Hold::Air],
+        Some("all") => Hold::ALL.to_vec(),
+        Some(list) => list.split(',').filter_map(Hold::from_key).collect(),
+    }
+}
+
+/// A shot's name for `h`: none for nothing (as before), else `-stand`, `-player`, ….
+fn hold_tag(h: Hold) -> String {
+    if h == Hold::Air {
+        String::new()
+    } else {
+        format!("-{}", h.key())
+    }
+}
+
+/// r42:arcus-upper — `--stop=finger|marker|none`: how the stopped note is shown (the
+/// finger by default, the names then as before).
+fn stop_show(args: &[String]) -> cantus_ui::scene::bowed_hold::StopShow {
+    use cantus_ui::scene::bowed_hold::StopShow;
+    match args.iter().find_map(|a| a.strip_prefix("--stop=")) {
+        Some("marker") => StopShow::Marker,
+        Some("none") => StopShow::None,
+        _ => StopShow::Finger,
+    }
+}
+
+fn stop_tag(args: &[String]) -> String {
+    match args.iter().find_map(|a| a.strip_prefix("--stop=")) {
+        Some(s) if s != "finger" => format!("-{s}"),
+        _ => String::new(),
+    }
 }

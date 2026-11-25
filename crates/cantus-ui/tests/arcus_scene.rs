@@ -55,7 +55,10 @@ fn turn() -> std::sync::MutexGuard<'static, ()> {
 
 fn view(b: Bowed, room: Room, dark: bool) -> SceneView {
     SceneView {
-        subject: Subject::Bowed { instrument: b },
+        subject: Subject::Bowed {
+            instrument: b,
+            holder: Default::default(), // r42:arcus-upper
+        },
         room,
         look: Default::default(),
         dark,
@@ -84,9 +87,15 @@ fn every_bowed_scene_draws_finite_and_inside_its_picture() {
                     x0 >= 0.0 && y0 >= 0.0 && x1 <= size.x && y1 <= size.y,
                     "{b:?} in {room:?}: inside the picture ({x0} {y0} {x1} {y1})"
                 );
-                // Standing: taller than wide, filling the picture's height above the
-                // caption's band.
-                assert!(y1 - y0 > 0.75 * size.y && y1 - y0 > 1.4 * (x1 - x0));
+                if b.dims().held {
+                    // r42:arcus-upper — held at the playing angle: wider than tall, filling
+                    // the picture's width.
+                    assert!(x1 - x0 > 0.6 * size.x && x1 - x0 > 1.2 * (y1 - y0), "{b:?}");
+                } else {
+                    // Standing: taller than wide, filling the picture's height above the
+                    // caption's band.
+                    assert!(y1 - y0 > 0.75 * size.y && y1 - y0 > 1.4 * (x1 - x0));
+                }
                 assert!(y1 <= size.y - 50.0, "{b:?}: the caption's band is free");
             }
         }
@@ -182,9 +191,16 @@ fn context() -> egui::Context {
 fn at_rest_the_picture_builds_nothing_and_asks_for_nothing() {
     let _turn = turn();
     scene::set_blocking(true);
-    for inst in [0.0, 1.0] {
+    // r42:arcus-upper — the violin too, and each holder (a figure's hands settle, then
+    // ask for nothing).
+    use cantus_ui::scene::bowed_hold::{Hold, Holder};
+    let cases = [0.0, 1.0, 2.0]
+        .into_iter()
+        .flat_map(|i| Hold::ALL.into_iter().map(move |h| (i, h)));
+    for (inst, hold) in cases {
         let ctx = context();
         let (mut app, track) = app_with(InstrumentKind::BowedString, inst);
+        app.settings.arcus_holder = Holder::of(hold);
         let mut t = 0.0;
         for _ in 0..4 {
             t += 1.0 / 60.0;
@@ -219,10 +235,13 @@ fn at_rest_the_picture_builds_nothing_and_asks_for_nothing() {
             t += 1.0 / 60.0;
             let (allocs, repaint, _) = frame(&ctx, &mut app, track, InstrumentKind::BowedString, t);
             eprintln!("at rest: {allocs} allocations (an empty frame {empty})");
-            assert!(!repaint, "at rest the picture asks for no repaint");
+            assert!(
+                !repaint,
+                "at rest ({inst}, {hold:?}) the picture asks for no repaint"
+            );
             assert!(
                 allocs <= empty + 6,
-                "at rest: {allocs} allocations, an empty frame {empty}"
+                "at rest ({inst}, {hold:?}): {allocs} allocations, an empty frame {empty}"
             );
         }
         let now = app

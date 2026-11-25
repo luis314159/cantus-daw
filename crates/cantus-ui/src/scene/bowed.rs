@@ -81,9 +81,9 @@ pub struct Dims {
     pub f_lower: f32,
     /// Geared machines on the pegbox (the bass), not wooden pegs.
     pub machines: bool,
-    /// On an instrument stand (the violin, the viola): no endpin; `endpin` is then the
-    /// end button's height over the floor. // r42:arcus-upper
-    pub stand: bool, // r42:arcus-upper
+    /// Held in the air at the playing angle (the violin, the viola: `bowed_upper::held`), not
+    /// stood on an endpin. // r42:arcus-upper
+    pub held: bool, // r42:arcus-upper
 }
 
 pub const CELLO: Dims = Dims {
@@ -116,7 +116,7 @@ pub const CELLO: Dims = Dims {
     f_upper: 4.7,
     f_lower: 10.2,
     machines: false,
-    stand: false, // r42:arcus-upper
+    held: false, // r42:arcus-upper
 };
 
 pub const BASS: Dims = Dims {
@@ -149,7 +149,7 @@ pub const BASS: Dims = Dims {
     f_upper: 7.2,
     f_lower: 14.8,
     machines: true,
-    stand: false, // r42:arcus-upper
+    held: false, // r42:arcus-upper
 };
 
 impl Bowed {
@@ -374,6 +374,10 @@ pub struct Pose {
 impl Pose {
     pub fn of(b: Bowed) -> Pose {
         let d = b.dims();
+        if d.held {
+            // r42:arcus-upper
+            return super::bowed_upper::held(d); // r42:arcus-upper
+        } // r42:arcus-upper
         let (sl, cl) = d.lean.to_radians().sin_cos();
         let (sr, cr) = d.roll.to_radians().sin_cos();
         let rot = |p: V3| v(p.x * cr + p.y * sr, -p.x * sr + p.y * cr, p.z);
@@ -434,7 +438,13 @@ pub fn bridge_r(d: &Dims) -> f32 {
 
 /// String `i`'s place across at the bridge and the nut (lowest at the viewer's right).
 pub fn string_x(d: &Dims, i: usize) -> (f32, f32) {
-    let k = 1.5 - i as f32;
+    // Held under the chin, the lowest string lies on the player's left, -x (on the cello
+    // and the bass, played from behind, on +x). // r42:arcus-upper
+    let k = if d.held {
+        i as f32 - 1.5
+    } else {
+        1.5 - i as f32
+    }; // r42:arcus-upper
     (k * d.spacing.1, k * d.spacing.0)
 }
 
@@ -498,8 +508,13 @@ pub struct Rig {
 }
 
 pub fn rig(b: Bowed) -> Rig {
+    rig_for(b, super::bowed_hold::Holder::default()) // r42:arcus-upper
+}
+
+/// [`rig`] as `h` holds the instrument (a violin on its stand stands otherwise). // r42:arcus-upper
+pub fn rig_for(b: Bowed, h: super::bowed_hold::Holder) -> Rig {
     let d = b.dims();
-    let pose = Pose::of(b);
+    let pose = super::bowed_hold::pose(b, h); // r42:arcus-upper
     let r = bridge_r(d);
     let top = d.arch + d.bridge_h;
     let mut strings = [[V3::default(); 3]; 4];

@@ -268,6 +268,9 @@ fn credits(app: &mut CantusApp, ui: &mut Ui, s: &Style) {
     if let Some(c) = crate::video_export::job::openh264_credit() {
         para(ui, c, Role::Label, s.t.text_dim);
     } // r35:video — Cisco's words while its codec is here
+      // r42:arcus-upper — Arcus's realistic musicians: MakeHuman's CC0 assets (a courtesy;
+      // CC0 asks for none).
+    para(ui, &t("about.credits.figures"), Role::Label, s.t.text_dim);
     ui.add_space(4.0 * s.k);
     para(ui, &t("about.credits.sounds"), Role::Control, s.t.brand);
     para(

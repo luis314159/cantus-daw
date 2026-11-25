@@ -9,6 +9,9 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+# r42:arcus-upper — the realistic figures' card textures (MakeHuman's CC0 hair, brows,
+# lashes), decoded once; already in the tree through tiny-skia.
+png = "0.18"
 cantus-core.workspace = true
 cantus-dsp.workspace = true
 # The system font fallback reads character maps (font_fallback.rs) with the parser egui

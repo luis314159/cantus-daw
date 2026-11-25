@@ -1,5 +1,5 @@
 //! r42:arcus-upper — Arcus's violin and viola for the scene engine (the cello's subject,
-//! `scene::bowed`): their measures, their outline and the stand they rest on.
+//! `scene::bowed`): their measures, their outline, the pose they are held in and the chinrest.
 //!
 //! **Sources** (measures are facts; no drawing is copied): the violin's body and bouts are the
 //! Stradivari "Messiah" (1716) as its published measures give them — 356 mm long, 166 / 109 /
@@ -14,12 +14,18 @@
 //! **The outlines**: each its own three curves (`VIOLIN_HALF`, `VIOLA_HALF`), drawn from its
 //! measures — the bouts' widths and places, the corners, the waist — as the cello's are.
 //!
-//! **The stand**: a violin or a viola is not stood on the floor and cannot be held without a
-//! player, so it rests as a maker's or a photographer's picture shows it — upright on an
-//! instrument stand, its lower bout in a padded cradle, its neck in a padded fork, leant back a
-//! little — at a seated player's height, in the cello's room (chair, microphones).
+//! **The pose** (the owner's choice, B): a violin or a viola cannot stand on the floor and
+//! nobody holds it here, so it floats where a seated player holds it — on the left shoulder at
+//! about 1.1 m, its scroll to the player's left and forward and a little up, its top turned
+//! up and toward the player's right, as every photograph of a violinist from the hall shows
+//! it — with the bow across its strings at the contact (the live picture's, the cello's). Held
+//! under the chin its lowest string lies on the player's left (`bowed::string_x` mirrors it),
+//! so the bow's frog comes from the player's right. The room is the cello's, without its chair
+//! and microphones: at a violin's distance their stands would cross it.
 
-use super::bowed::Dims;
+use super::bowed::{Dims, Pose};
+use super::bowed_mesh::{Mesh, Rod, Role};
+use super::geo::{v, V3};
 
 pub const VIOLIN: Dims = Dims {
     body: 35.6,
@@ -36,22 +42,22 @@ pub const VIOLIN: Dims = Dims {
     board_w: (2.35, 4.25),
     spacing: (0.55, 1.13),
     clear: 0.35,
-    overstand: 0.6,
+    overstand: 1.3,
     after: 5.5,
     tail_len: 11.0,
     tail_w: (1.6, 4.0),
     pegbox: 5.6,
     scroll_r: 1.9,
     head_w: 2.45,
-    endpin: 70.0,
-    lean: 11.0,
-    roll: 10.0,
+    endpin: 0.0,
+    lean: 0.0,
+    roll: 0.0,
     gauge: [0.040, 0.036, 0.031, 0.014],
     f_len: 7.4,
     f_upper: 2.1,
     f_lower: 4.8,
     machines: false,
-    stand: true,
+    held: true,
 };
 
 pub const VIOLA: Dims = Dims {
@@ -69,22 +75,22 @@ pub const VIOLA: Dims = Dims {
     board_w: (2.5, 4.7),
     spacing: (0.6, 1.25),
     clear: 0.4,
-    overstand: 0.7,
+    overstand: 1.5,
     after: 6.2,
     tail_len: 12.5,
     tail_w: (1.7, 4.4),
     pegbox: 6.4,
     scroll_r: 2.15,
     head_w: 2.75,
-    endpin: 66.0,
-    lean: 11.0,
-    roll: 10.0,
+    endpin: 0.0,
+    lean: 0.0,
+    roll: 0.0,
     gauge: [0.045, 0.033, 0.031, 0.0165],
     f_len: 8.4,
     f_upper: 2.4,
     f_lower: 5.5,
     machines: false,
-    stand: true,
+    held: true,
 };
 
 /// The violin's half-outline (mm from the lower edge; the viewer's right half), as the cello's
@@ -178,3 +184,84 @@ pub const VIOLA_HALF: [&[(f32, f32)]; 3] = [
         (0.0, 406.0),
     ],
 ];
+
+/// Where a held violin or viola is: its end button at the player's neck, the body along
+/// `TOWARD` (the scroll's way: the player's left, forward, up), its top facing `UP` (turned to the
+/// player's right), seated height. The world: x to the viewer's right, y up, z toward the
+/// viewer; the player faces the viewer.
+pub fn held(d: &Dims) -> Pose {
+    let ey = TOWARD.norm();
+    let up = UP.norm();
+    let ez = (up - ey * up.dot(ey)).norm();
+    let ex = ey.cross(ez);
+    // The instrument's middle (the body's end and the scroll's) over the room's middle.
+    let half = 0.5 * (d.body + d.neck + d.pegbox);
+    let o = v(0.0, HEIGHT, 0.0) - ey * half;
+    Pose { o, ex, ey, ez }
+}
+
+/// The body's way, end button to scroll (the player's left is the viewer's right).
+pub const TOWARD: V3 = V3 {
+    x: 0.85,
+    y: 0.30,
+    z: 0.40,
+};
+/// Where the top faces before it is squared to the body's way: up, and turned to the player's
+/// right (the viewer's left) and a little toward the hall.
+pub const UP: V3 = V3 {
+    x: -0.45,
+    y: 0.82,
+    z: 0.36,
+};
+/// The instrument's middle over the floor, cm (a seated player's shoulder).
+pub const HEIGHT: f32 = 112.0;
+
+/// The chinrest a violin or a viola is never seen without: an ebony cup over the lower bout on
+/// the bass side (where the player's jaw rests, left of the tailpiece as the player sees it),
+/// clamped to the end block by two nickel barrels — its measures the usual Guarneri model's
+/// (a cup about 7 × 5 cm for the violin, its rim 2 cm over the top), in proportion on the viola.
+pub fn chinrest(m: &mut Mesh, d: &Dims, pose: &Pose) {
+    let k = d.body / 35.6;
+    let z = d.arch * 0.55;
+    // The cup, its rounded hollow facing the jaw, and its raised outer lip.
+    let cup = pose.at(-4.4 * k, 3.3 * k, z + 1.3 * k);
+    super::bowed_head::paddle(
+        m,
+        Role::Ebony,
+        cup,
+        pose.ex,
+        pose.ey,
+        3.5 * k,
+        2.6 * k,
+        0.75 * k,
+    );
+    let lip = pose.at(-6.2 * k, 3.0 * k, z + 1.9 * k);
+    let tilt = (pose.ez * 0.8 - pose.ex * 0.6).norm();
+    super::bowed_head::paddle(
+        m,
+        Role::Ebony,
+        lip,
+        pose.ey,
+        tilt,
+        3.0 * k,
+        0.75 * k,
+        0.6 * k,
+    );
+    // Its foot over the edge, and the two barrels down the ribs.
+    let foot = pose.at(-3.0 * k, 0.9 * k, z + 0.4 * k);
+    super::bowed_head::paddle(
+        m,
+        Role::Ebony,
+        foot,
+        pose.ex,
+        pose.ey,
+        2.2 * k,
+        0.9 * k,
+        0.5 * k,
+    );
+    for x in [-2.2f32, -6.4] {
+        let a = pose.at(x * k, 1.2 * k, d.arch * 0.5 + 0.9 * k);
+        let b = pose.at(x * k, -0.15 * k, -d.rib_lo * 0.5);
+        m.rods.push((Role::Nickel, Rod { a, b, r: 0.22 * k }));
+    }
+}

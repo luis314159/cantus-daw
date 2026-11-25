@@ -261,6 +261,7 @@ fn rig(room: Room, evening: bool, m: &Mood, pl: &Place, eye: V3, built: room::Bu
         exposure: if evening { 1.25 } else { 1.15 },
         focus_far: pl.far,
         eye,
+        soft_bg: 0.0,
     }
 }
 
@@ -311,7 +312,16 @@ pub fn render(
     q: Quality,
     threads: usize,
 ) -> (egui::ColorImage, Stats) {
-    let (w, h, q) = shape(size, ppp, q);
+    let (w, h, mut q) = shape(size, ppp, q);
+    // r42:arcus-upper — a realistic figure keeps two samples a pixel side at any size: its
+    // hair, brows and lashes are alpha-tested cards, and one sample a pixel shows their
+    // strands as broken dots (the owner's review). The bake's peak grows with it (about
+    // 30 bytes a sample: 150 MB for a 200 % picture, for the seconds it bakes).
+    if let crate::scene::Subject::Bowed { holder, .. } = &view.subject {
+        if crate::scene::bowed_human::who(holder.hold).is_some() && q.full {
+            q.ss = q.ss.max(2);
+        }
+    }
     render_px(view, size, w, h, q, threads)
 }
 
@@ -476,21 +486,21 @@ fn bake_view(
             let r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
             raster::bake(&g, split, &r, &cam, w, h, q, threads)
         }
-        Subject::Bowed { instrument } => {
+        Subject::Bowed { instrument, holder } => {
             // r42:arcus-look — Arcus's cello or double bass, framed as the Drawn picture
             // frames it.
             use crate::scene::bowed_draw as bd;
-            let b = *instrument;
+            let (b, hd) = (*instrument, *holder); // r42:arcus-upper
             let d = b.dims();
-            let mut sc = bd::camera(b, view.room);
-            let pts = bd::points(b);
+            let mut sc = bd::camera(b, hd, view.room); // r42:arcus-upper
+            let pts = bd::points(b, hd); // r42:arcus-upper
             let fr = bd::frame_for(size);
             sc.fit(&pts, fit_box(&fr, size), fr.margin, fr.anchor);
             if let Some(c) = fitted {
                 sc = *c;
             }
             let cam = camera_of(&sc, ppp);
-            let mid = crate::scene::bowed::Pose::of(b).at(0.0, d.body * 0.5, 0.0);
+            let mid = crate::scene::bowed_hold::pose(b, hd).at(0.0, d.body * 0.5, 0.0); // r42:arcus-upper
             let built = room::build(
                 &mut g,
                 view.room,
@@ -501,8 +511,8 @@ fn bake_view(
                 m.glow,
             );
             let split = g.tris.len();
-            bowed::build(&mut g, b);
-            // Its two microphones, by the photographic gear.
+            bowed::build(&mut g, b, hd); // r42:arcus-upper
+                                         // Its two microphones, by the photographic gear.
             let km = kit::KitMats::new(
                 &mut g,
                 &finish_mat(cantus_core::inst::chorda_look::Finish::Black),
@@ -511,11 +521,27 @@ fn bake_view(
             gear::kit(&mut g, &gm, &crate::scene::bowed_props::mics(b));
             let pl = Place {
                 mid: geo::cm(mid.x, mid.y, mid.z),
-                key: geo::cm(mid.x - 110.0, 360.0, mid.z + 200.0),
-                focus: geo::cm(mid.x, 0.0, mid.z),
+                key: if d.held && hd.hold == crate::scene::bowed_hold::Hold::Air {
+                    // r42:arcus-upper — in the air: the key beside the camera, to
+                    // its left, so the instrument's shadow falls on the wall behind.
+                    geo::cm(sc.pos.x - 120.0, sc.pos.y + 5.0, sc.pos.z)
+                } else {
+                    geo::cm(mid.x - 110.0, 360.0, mid.z + 200.0)
+                },
+                focus: if d.held && hd.hold == crate::scene::bowed_hold::Hold::Air {
+                    // r42:arcus-upper — its pool on the wall behind, the shadow inside it.
+                    geo::cm(mid.x + 30.0, mid.y - 40.0, mid.z - 180.0)
+                } else {
+                    geo::cm(mid.x, 0.0, mid.z)
+                },
                 far: far_of(&cam, &pts),
             };
-            let r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
+            let mut r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
+            // r42:arcus-upper — behind a realistic figure the room goes soft, as behind a
+            // portrait.
+            if crate::scene::bowed_human::who(hd.hold).is_some() {
+                r.soft_bg = 1.0;
+            }
             raster::bake(&g, split, &r, &cam, w, h, q, threads)
         }
     }

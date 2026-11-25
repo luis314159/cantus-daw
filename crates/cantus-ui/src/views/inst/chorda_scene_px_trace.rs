@@ -103,6 +103,7 @@ impl<'a> Bvh<'a> {
                 p,
                 n,
                 uv: [p.x, p.z],
+                uv2: [-1.0, -1.0],
             };
             // In pieces of at most 12 cm: a long diagonal wire in one box would overlap
             // half the frame's.

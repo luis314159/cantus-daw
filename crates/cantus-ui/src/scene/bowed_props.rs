@@ -57,9 +57,26 @@ fn rod(m: &mut Mesh, role: Role, a: V3, b: V3, r: f32) {
 
 /// The cellist's chair: a wooden chair without arms, its seat at 47 cm, behind the cello
 /// where the player sits, facing the audience.
-fn chair(m: &mut Mesh, at: V3, yaw: f32) {
+pub(super) fn chair(m: &mut Mesh, at: V3, yaw: f32) {
+    // r42:arcus-upper
+    chair_top(m, at, yaw, SEAT_TOP);
+}
+
+/// The seat's top on the usual chair, cm.
+pub const SEAT_TOP: f32 = 47.1;
+
+/// The chair with its seat's top at `top` (a player sets the chair's height: the
+/// realistic figures, r42:arcus-upper).
+pub(super) fn chair_top(m: &mut Mesh, at: V3, yaw: f32, top: f32) {
+    let dy = top - SEAT_TOP;
     let (s, co) = yaw.sin_cos();
-    let local = |x: f32, y: f32, z: f32| at + v(x * co + z * s, y, -x * s + z * co);
+    let local = |x: f32, y: f32, z: f32| {
+        at + v(
+            x * co + z * s,
+            if y > 0.0 { y + dy } else { y },
+            -x * s + z * co,
+        )
+    };
     block(
         m,
         Role::Seat,
@@ -159,11 +176,8 @@ pub fn furniture(m: &mut Mesh, b: Bowed, pose: &Pose) {
     match b {
         Bowed::Cello => chair(m, v(foot.x + 8.0, 0.0, foot.z - 80.0), 0.12),
         Bowed::Bass => stool(m, v(foot.x - 46.0, 0.0, foot.z - 50.0)),
-        Bowed::Violin | Bowed::Viola => {
-            // r42:arcus-upper
-            super::bowed_upper_stand::stand(m, d, pose); // r42:arcus-upper
-            chair(m, v(foot.x - 46.0, 0.0, foot.z - 78.0), 0.55); // r42:arcus-upper
-        } // r42:arcus-upper
+        // Held in the air, framed close: nothing beside it to cross the picture.
+        Bowed::Violin | Bowed::Viola => {} // r42:arcus-upper
     }
 }
 
@@ -173,6 +187,10 @@ pub fn furniture(m: &mut Mesh, b: Bowed, pose: &Pose) {
 /// boom stands, both beside the instrument.
 pub fn mics(b: Bowed) -> Vec<KitMic> {
     let d = b.dims();
+    if d.held {
+        // A violin or a viola, framed close: any stand would cross it. // r42:arcus-upper
+        return Vec::new(); // r42:arcus-upper
+    } // r42:arcus-upper
     let pose = Pose::of(b);
     let k = d.body / 75.7;
     // The pencil's target: the bridge, between the f-holes, where an engineer aims a

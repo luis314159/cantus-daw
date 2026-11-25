@@ -15,3 +15,22 @@ arcus.preset.viola_tasto = Viola sul tasto
 arcus.preset.viola_detache = Viola détaché
 arcus.preset.viola_pizz = Viola pizzicato
 arcus.preset.viola_tremolo = Viola trémolo
+
+# Lo que sostiene el instrumento en su imagen (preferencia de este equipo; solo la imagen).
+arcus_upper.hold = Sostenido por
+arcus_upper.hold.air = Nada
+arcus_upper.hold.stand = Soporte
+arcus_upper.hold.player = Músico
+arcus_upper.hold.mannequin = Maniquí
+arcus_upper.hold.woman = Mujer (realista)
+arcus_upper.hold.man = Hombre (realista)
+arcus_upper.stop = Nota pisada
+arcus_upper.stop.finger = Dedo
+arcus_upper.stop.marker = Marca
+arcus_upper.stop.none = Nada
+arcus_upper.quality = Detalle de las figuras
+arcus_upper.quality.high = Alto
+arcus_upper.quality.light = Ligero
+arcus_upper.quality.auto = Automático
+arcus_upper.quality.hint = Alto dibuja las manos de las figuras con todo detalle; Ligero las dibuja más simples y cuesta cerca de un milisegundo por fotograma; Automático usa Alto y baja a Ligero mientras la ventana está ocupada.
+arcus_upper.hold.hint = Solo la imagen de Arcus: qué sostiene el instrumento (nada, un soporte, un músico, un maniquí, una mujer o un hombre realistas) y cómo se ve la nota pisada. El sonido no cambia.

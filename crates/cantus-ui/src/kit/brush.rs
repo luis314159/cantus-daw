@@ -1036,6 +1036,28 @@ impl Brush {
         }
     }
 
+    /// A triangle shaded smoothly between its corners' colours, unfeathered (a mesh's
+    /// inside: its neighbours meet it edge to edge; r42:arcus-upper, the realistic figures'
+    /// live arms). Its outline is feathered with [`Brush::edge`].
+    pub fn shaded_tri(&mut self, p: [Pos2; 3], c: [Color32; 3]) {
+        let a = self.v(p[0], c[0]);
+        let b = self.v(p[1], c[1]);
+        let d = self.v(p[2], c[2]);
+        self.tri(a, b, d);
+    }
+
+    /// A soft edge along a mesh's outline from `a` to `b` (their colours `ca`, `cb`): a
+    /// strip a physical pixel wide, from the colour on the line to clear on `out`'s side.
+    pub fn edge(&mut self, a: Pos2, b: Pos2, ca: Color32, cb: Color32, out: Vec2) {
+        let o = out.normalized() * self.px();
+        let i0 = self.v(a, ca);
+        let i1 = self.v(b, cb);
+        let i2 = self.v(b + o, Color32::TRANSPARENT);
+        let i3 = self.v(a + o, Color32::TRANSPARENT);
+        self.tri(i0, i1, i2);
+        self.tri(i0, i2, i3);
+    }
+
     /// A filled convex polygon (glyphs: chevrons, arrows), feathered.
     pub fn polygon(&mut self, pts: &[Pos2], color: Color32) {
         let m = pts.len();

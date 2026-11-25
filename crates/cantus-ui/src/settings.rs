@@ -275,6 +275,23 @@ pub struct Settings {
     /// controls moved), by their key. A preference, never project data.
     #[serde(default)]
     pub notices_seen: Vec<String>,
+    /// r42:arcus-upper — what holds Arcus's instruments in their pictures (nothing, a
+    /// stand, a musician, a mannequin) and the figure's tones; the same for the four
+    /// instruments, as *Drawn* / *Photographic* is (ADR 0157 amended). A preference of this
+    /// machine, never the project's: the picture only, never heard.
+    pub arcus_holder: crate::scene::bowed_hold::Holder,
+    /// r42:arcus-upper — how the stopped note is shown on the string: the fingertip (with
+    /// a figure, its own left hand), a marker, or nothing.
+    pub arcus_stop: crate::scene::bowed_hold::StopShow,
+    /// r42:arcus-upper — the fingertip's earlier switch, read once into `arcus_stop`
+    /// (false: nothing) and never written again.
+    #[serde(rename = "arcus_finger", skip_serializing)]
+    pub arcus_finger_was: Option<bool>,
+    /// r42:arcus-upper — how finely the figures' live arms and hands are drawn (High, the
+    /// default; Light, within the +1 ms budget; Auto, High stepping down under load). A
+    /// preference of this machine; a file without it reads High.
+    #[serde(default)]
+    pub figure_quality: crate::scene::figure::Quality,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -410,6 +427,10 @@ impl Default for Settings {
             section_drag: Default::default(),        // r40:ripple
             instrument_pictures: Default::default(), // r40:scene
             notices_seen: Vec::new(),                // r40:chorda-src
+            arcus_holder: Default::default(),        // r42:arcus-upper
+            arcus_stop: Default::default(),          // r42:arcus-upper
+            arcus_finger_was: None,                  // r42:arcus-upper
+            figure_quality: Default::default(),      // r42:arcus-upper
         }
     }
 }
@@ -473,12 +494,23 @@ impl Settings {
     /// user broke while editing. Either way the defaults are correct and the app opens.
     pub fn load(path: &Path) -> Settings {
         match std::fs::read_to_string(path) {
-            Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
-                log::warn!("settings.json is not wholly readable ({e}); keeping what is");
-                Settings::lenient(&text).unwrap_or_default()
-            }),
+            Ok(text) => serde_json::from_str::<Settings>(&text)
+                .unwrap_or_else(|e| {
+                    log::warn!("settings.json is not wholly readable ({e}); keeping what is");
+                    Settings::lenient(&text).unwrap_or_default()
+                })
+                .migrated(), // r42:arcus-upper
             Err(_) => Settings::default(),
         }
+    }
+
+    /// r42:arcus-upper — earlier preferences read into their newer form: the fingertip's
+    /// switch (`arcus_finger`) into how the stopped note is shown.
+    pub fn migrated(mut self) -> Settings {
+        if self.arcus_finger_was.take() == Some(false) {
+            self.arcus_stop = crate::scene::bowed_hold::StopShow::None;
+        }
+        self
     }
 
     /// The settings a file holds, one top-level field at a time: a field this build

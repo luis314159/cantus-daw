@@ -10,7 +10,7 @@
 
 use super::geo::{Geo, Rod, Tri};
 use super::light::Rig;
-use super::mat::{noise, Kind, Tex};
+use super::mat::{noise, Kind, PMat, Tex};
 use super::mesh::{ladd, lmix, lscale, Camera, Lin, V3};
 use super::shade::{reflection, shade};
 use egui::Pos2;
@@ -122,16 +122,42 @@ fn project(cam: &Camera, tris: &[Tri], skip: &[bool]) -> Vec<(u32, PTri)> {
     out
 }
 
+/// A projected triangle's card (r42:arcus-upper): its texture and its corners' coordinates
+/// — the samples its alpha leaves bare are not its.
+type Cut = Option<(&'static crate::scene::figure::cards::Card, [[f32; 2]; 3])>;
+
+/// Each projected triangle's card, if it is one.
+fn cuts(geo: &Geo, pt: &[(u32, PTri)]) -> Vec<Cut> {
+    pt.iter()
+        .map(|&(i, _)| {
+            let t = &geo.tris[i as usize];
+            match geo.mats[t.m as usize].tex {
+                Tex::Card(k) => {
+                    crate::scene::figure::cards::card(k).map(|c| (c, t.v.map(|v| v.uv)))
+                }
+                _ => None,
+            }
+        })
+        .collect()
+}
+
 /// Rasterise into rows `y0..y1` of a `w`-wide buffer: depth and (when given) triangle.
 fn raster_rows(
     pt: &[(u32, PTri)],
+    cut: &[Cut],
     w: usize,
     y0: usize,
     y1: usize,
     depth: &mut [f32],
     mut tri: Option<&mut [u32]>,
 ) {
-    for &(i, ref t) in pt {
+    for (j, &(i, ref t)) in pt.iter().enumerate() {
+        let card = cut.get(j).copied().flatten();
+        // (A card casts no shadow — the shadow map is the pass without triangles: its
+        // strands' shadows on the scalp under them read as dark patches in the hair.)
+        if card.is_some() && tri.is_none() {
+            continue;
+        }
         if t.hi.y < y0 as f32 || t.lo.y > y1 as f32 || t.hi.x < 0.0 || t.lo.x > w as f32 {
             continue;
         }
@@ -164,6 +190,15 @@ fn raster_rows(
                 let z = 1.0 / (w0 * t.iz[0] + w1 * t.iz[1] + w2 * t.iz[2]);
                 let k = row + px;
                 if z < depth[k] {
+                    if let Some((c, uv)) = card {
+                        // Perspective-correct: the coordinates over depth, interpolated.
+                        let (a, b, d) = (w0 * t.iz[0], w1 * t.iz[1], w2 * t.iz[2]);
+                        let u = (a * uv[0][0] + b * uv[1][0] + d * uv[2][0]) * z;
+                        let v = (a * uv[0][1] + b * uv[1][1] + d * uv[2][1]) * z;
+                        if !c.covers([u, v]) {
+                            continue;
+                        }
+                    }
                     depth[k] = z;
                     if let Some(tr) = tri.as_deref_mut() {
                         tr[k] = i;
@@ -308,6 +343,7 @@ fn gbuf(
     skip: &[bool],
 ) -> (Vec<f32>, Vec<u32>) {
     let pt = project(cam, &geo.tris, skip);
+    let cut = cuts(geo, &pt);
     let mut depth = vec![f32::MAX; w * h];
     let mut tri = if tris {
         vec![u32::MAX; w * h]
@@ -316,19 +352,24 @@ fn gbuf(
     };
     if tris {
         rows2(h, w, crew, &mut depth, &mut tri, |y0, y1, d, t| {
-            raster_rows(&pt, w, y0, y1, d, Some(t))
+            raster_rows(&pt, &cut, w, y0, y1, d, Some(t))
         });
     } else {
         rows1(h, w, crew, &mut depth, |y0, y1, d| {
-            raster_rows(&pt, w, y0, y1, d, None)
+            raster_rows(&pt, &cut, w, y0, y1, d, None)
         });
     }
     (depth, tri)
 }
 
+/// r42:arcus-upper — whether `t` is hair (its grain the in-plane way its `u` grows).
+fn hair_of(geo: &Geo, t: &Tri) -> bool {
+    geo.mats[t.m as usize].tex == Tex::Hair
+}
+
 /// Where the sample `(sx, sy)` of `cam` meets triangle `t`: the point, the smooth normal,
 /// the uv and the grain (`dP/du`).
-fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32) -> (V3, V3, [f32; 2], V3) {
+fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, hair: bool) -> (V3, V3, [f32; 2], V3) {
     let p: [V3; 3] = std::array::from_fn(|i| world(cam, t.v[i].p));
     let d = cam.fwd + cam.right * ((sx - cam.c.x) / cam.k) - cam.up * ((sy - cam.c.y) / cam.k);
     let (e1, e2) = (p[1] - p[0], p[2] - p[0]);
@@ -354,19 +395,35 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32) -> (V3, V3, [f32; 2], V3) {
     let v = &t.v;
     let pw = v[0].p * b0 + v[1].p * b1 + v[2].p * b2;
     let n = (v[0].n * b0 + v[1].n * b1 + v[2].n * b2).norm();
-    let uv = [
+    let mut uv = [
         v[0].uv[0] * b0 + v[1].uv[0] * b1 + v[2].uv[0] * b2,
         v[0].uv[1] * b0 + v[1].uv[1] * b1 + v[2].uv[1] * b2,
     ];
+    // r42:arcus-upper — a realistic figure's skin: its own texture's fine detail (pores,
+    // the brows' hairs, the lips' lines) on the vertex detail's luminance.
+    if v[0].uv2[0] >= 0.0 {
+        let u2 = v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2;
+        let v2 = v[0].uv2[1] * b0 + v[1].uv2[1] * b1 + v[2].uv2[1] * b2;
+        uv[0] *= crate::scene::figure::cards::skin_detail(u2, v2);
+    }
     // dP/du from the triangle's uv.
     let (du1, dv1) = (v[1].uv[0] - v[0].uv[0], v[1].uv[1] - v[0].uv[1]);
     let (du2, dv2) = (v[2].uv[0] - v[0].uv[0], v[2].uv[1] - v[0].uv[1]);
     let det = du1 * dv2 - du2 * dv1;
     let (a1, a2) = (v[1].p - v[0].p, v[2].p - v[0].p);
-    let tg = if det.abs() > 1e-12 {
+    let tg = if det.abs() > 1e-12 && !hair {
         (a1 * dv2 - a2 * dv1) * (1.0 / det)
     } else {
-        a1
+        // r42:arcus-upper — `v` the same at every corner, or hair (its `v` the hairline's
+        // blend, not a way): the way `u` grows in the triangle's plane (an edge, or `dP/du`
+        // along a sliver at the hairline, stood in for it: a faceted sheen).
+        let nn = a1.cross(a2);
+        let g = (nn.cross(a1) * du2 + a2.cross(nn) * du1) * (1.0 / nn.dot(nn).max(1e-12));
+        if g.len() > 1e-9 {
+            g
+        } else {
+            a1
+        }
     };
     (pw, n, uv, tg.norm())
 }
@@ -542,6 +599,72 @@ impl Shadow {
         }
         lit / DISC.len() as f32
     }
+
+    /// r42:arcus-upper — [`Shadow::light`] without its grain, for skin and hair (the owner,
+    /// 2026-11-24: a speckle on the face and the chest): the disc turned the same way
+    /// everywhere and twice (32 points), each look-up compared bilinearly, so a penumbra
+    /// over a cheek or a neck is a smooth ramp.
+    pub fn soft(&self, p: V3, n: V3) -> f32 {
+        let q = p + n * 0.008;
+        let z = (q - self.cam.eye).dot(self.cam.fwd);
+        if z < 0.05 {
+            return 1.0;
+        }
+        let s = self.cam.project(q);
+        // (r42:arcus-upper: a little more bias than 1.2 cm — a face turned from the key
+        // showed the map's texels as fine diagonal stripes at 200 %.)
+        let bias = 0.018 + 0.006 * z;
+        let px_m = self.cam.k / z;
+        let search = (self.size * px_m * 0.6).clamp(1.5, 28.0);
+        let (mut sum, mut cnt) = (0.0, 0.0);
+        for (dx, dy) in DISC {
+            let d = self.at(s.x + dx * search, s.y + dy * search);
+            if d < z - bias {
+                sum += d;
+                cnt += 1.0;
+            }
+        }
+        if cnt == 0.0 {
+            return 1.0;
+        }
+        let zb = sum / cnt;
+        let pen = (self.size * (z - zb) / zb.max(0.05) * px_m).clamp(1.5, 36.0);
+        // The second turn: the first disc rotated by half its mean angle between points.
+        let (cr, sr) = (0.98079f32, 0.19509f32);
+        let mut lit = 0.0;
+        for (dx, dy) in DISC {
+            for (rx, ry) in [(dx, dy), (dx * cr - dy * sr, dx * sr + dy * cr)] {
+                lit += self.lit_bilinear(s.x + rx * pen, s.y + ry * pen, z - bias);
+            }
+        }
+        lit / (2 * DISC.len()) as f32
+    }
+
+    /// Whether depth `z` is lit at `(x, y)`, its four texels' answers blended bilinearly.
+    fn lit_bilinear(&self, x: f32, y: f32, z: f32) -> f32 {
+        let (fx, fy) = (x - 0.5, y - 0.5);
+        let (x0, y0) = (fx.floor(), fy.floor());
+        let (tx, ty) = (fx - x0, fy - y0);
+        let l = |xx: f32, yy: f32| {
+            if self.at(xx + 0.5, yy + 0.5) >= z {
+                1.0
+            } else {
+                0.0
+            }
+        };
+        let a = l(x0, y0) * (1.0 - tx) + l(x0 + 1.0, y0) * tx;
+        let b = l(x0, y0 + 1.0) * (1.0 - tx) + l(x0 + 1.0, y0 + 1.0) * tx;
+        a * (1.0 - ty) + b * ty
+    }
+
+    /// r42:arcus-upper — the key's reach for a surface of `m`: smooth on skin and hair.
+    pub fn light_for(&self, m: &PMat, p: V3, n: V3) -> f32 {
+        if matches!(m.tex, Tex::Skin | Tex::Hair) {
+            self.soft(p, n)
+        } else {
+            self.light(p, n)
+        }
+    }
 }
 
 /// The occlusion at sample `(x, y)` from the depths round it.
@@ -646,8 +769,9 @@ fn aces(x: f32) -> f32 {
 }
 
 /// The filmic curve on the luminance (the hue kept, the saturation trimmed by `sat`), the
-/// brightest highlights rolling to white as film's do.
-fn tone(c: Lin, sat: f32) -> Lin {
+/// brightest highlights rolling to white as film's do (r42:arcus-upper: public, the live
+/// arms are toned as the bake is).
+pub fn tone(c: Lin, sat: f32) -> Lin {
     let l = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     if l <= 1e-6 {
         return [0.0; 3];
@@ -1013,7 +1137,8 @@ fn mirror(
     let mut md = vec![f32::MAX; w * h];
     let mut mt = vec![u32::MAX; w * h];
     rows2(h, w, crew, &mut md, &mut mt, |y0, y1, d, t| {
-        raster_rows(&pt, w, y0, y1, d, Some(t))
+        // (No cards in the floor's soft mirror: a figure's hair there is a blur.)
+        raster_rows(&pt, &[], w, y0, y1, d, Some(t))
     });
     let bytes = pt.len() * std::mem::size_of::<(u32, PTri)>() + w * h * 20;
     drop(pt);
@@ -1031,7 +1156,8 @@ fn mirror(
                     continue;
                 }
                 let tr = &geo.tris[split + t as usize];
-                let (p, n, uv, tg) = place(&mcam, tr, x as f32 + 0.5, y as f32 + 0.5);
+                let (p, n, uv, tg) =
+                    place(&mcam, tr, x as f32 + 0.5, y as f32 + 0.5, hair_of(geo, tr));
                 let m = &geo.mats[tr.m as usize];
                 let fp = md[y * w + x] / mcam.k;
                 let c = shade(
@@ -1176,7 +1302,7 @@ pub fn bake(
                     }
                     let trg = &geo.tris[t as usize];
                     let m = &geo.mats[trg.m as usize];
-                    let (p, n, uv, _) = place(&scam, trg, sx as f32 + 0.5, sy as f32 + 0.5);
+                    let (p, n, uv, _) = place(&scam, trg, sx as f32 + 0.5, sy as f32 + 0.5, false);
                     let fp = depth[k] / scam.k * ss as f32;
                     if let Some(c) = reflection(
                         rig,
@@ -1278,8 +1404,8 @@ pub fn bake(
                         let tr = &geo.tris[t0 as usize];
                         let c = (ss as f32) * 0.5;
                         let (sxf, syf) = (x as f32 * ss as f32 + c, y as f32 * ss as f32 + c);
-                        let (p, n, uv, tg) = place(&scam, tr, sxf, syf);
-                        let sv = shadow.light(p, n);
+                        let (p, n, uv, tg) = place(&scam, tr, sxf, syf, hair_of(geo, tr));
+                        let sv = shadow.light_for(&geo.mats[tr.m as usize], p, n);
                         (tr, p, n, uv, tg, sv)
                     });
                     if let Some((tr, p, n, uv, tg, sv)) =
@@ -1289,7 +1415,7 @@ pub fn bake(
                             if q == p && nq == n {
                                 sv
                             } else {
-                                shadow.light(q, nq)
+                                shadow.light_for(&geo.mats[tr.m as usize], q, nq)
                             }
                         };
                         let m = &geo.mats[tr.m as usize];
@@ -1340,7 +1466,13 @@ pub fn bake(
                             }
                             zmin = zmin.min(depth[k]);
                             let tr = &geo.tris[t as usize];
-                            let (p, n, uv, tg) = place(&scam, tr, sx as f32 + 0.5, sy as f32 + 0.5);
+                            let (p, n, uv, tg) = place(
+                                &scam,
+                                tr,
+                                sx as f32 + 0.5,
+                                sy as f32 + 0.5,
+                                hair_of(geo, tr),
+                            );
                             let m = &geo.mats[tr.m as usize];
                             let fp = depth[k] / scam.k;
                             let ao = if q.full {
@@ -1393,7 +1525,7 @@ pub fn bake(
                                     uv,
                                     fp,
                                     ao,
-                                    &|p, n| shadow.light(p, n),
+                                    &|p, n| shadow.light_for(m, p, n),
                                     trace,
                                     given,
                                 )
@@ -1475,17 +1607,44 @@ pub fn bake(
 fn post(rig: &Rig, cam: &Camera, col: &mut [Lin], pdepth: &[f32], w: usize, h: usize, crew: &Crew) {
     let far_end = rig.focus_far;
     let mut far = col.to_vec();
-    blur(&mut far, w, h, ((cam.k / 700.0) as usize).clamp(1, 4), crew);
+    // r42:arcus-upper — behind a realistic figure: a wider blur, reached sooner.
+    let (radius, ramp) = if rig.soft_bg > 0.0 {
+        (((cam.k / 300.0) as usize).clamp(2, 9), 0.22)
+    } else {
+        (((cam.k / 700.0) as usize).clamp(1, 4), 0.6)
+    };
+    let coc_at = |z: f32| {
+        if z == f32::MAX {
+            1.0
+        } else {
+            ((z - far_end) / (far_end * ramp)).clamp(0.0, 1.0)
+        }
+    };
+    if rig.soft_bg > 0.0 {
+        // Only what lies behind is blurred into what lies behind (each sample weighted by
+        // how far behind it is, the sum over the weights): a wide blur of everything drew
+        // the figure's bright hair out into a halo round it.
+        let mut wt: Vec<Lin> = pdepth.iter().map(|&z| [coc_at(z); 3]).collect();
+        for (c, m) in far.iter_mut().zip(wt.iter()) {
+            *c = lscale(*c, m[0]);
+        }
+        blur(&mut far, w, h, radius, crew);
+        blur(&mut wt, w, h, radius, crew);
+        for ((c, m), o) in far.iter_mut().zip(wt.iter()).zip(col.iter()) {
+            *c = if m[0] > 1e-3 {
+                lscale(*c, 1.0 / m[0])
+            } else {
+                *o
+            };
+        }
+    } else {
+        blur(&mut far, w, h, radius, crew);
+    }
     {
         let far = &far;
         rows1(h, w, crew, col, |y0, y1, c| {
             for k in y0 * w..y1 * w {
-                let z = pdepth[k];
-                let coc = if z == f32::MAX {
-                    1.0
-                } else {
-                    ((z - far_end) / (far_end * 0.6)).clamp(0.0, 1.0)
-                };
+                let coc = coc_at(pdepth[k]);
                 if coc > 0.0 {
                     let o = &mut c[k - y0 * w];
                     *o = lmix(*o, far[k], coc);

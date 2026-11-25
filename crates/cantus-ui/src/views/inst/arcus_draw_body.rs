@@ -54,6 +54,16 @@ pub struct Play<'a> {
     pub time: f64,
     pub vibrato: f32,
     pub lit: Color32,
+    /// What holds the instrument (its figure's right arm is drawn here, to the frog) and
+    /// whether the left hand's fingertip shows (this machine's preferences). // r42:arcus-upper
+    pub holder: crate::scene::bowed_hold::Holder, // r42:arcus-upper
+    pub stop: crate::scene::bowed_hold::StopShow, // r42:arcus-upper
+    /// The figure's left hand's position (semitones, glided) and the theme's accent (the
+    /// stop's marker). // r42:arcus-upper
+    pub hand: f32, // r42:arcus-upper
+    /// r42:arcus-upper — the figures' hands drawn at the light level (`figure::Quality`).
+    pub light: bool,
+    pub accent: Color32, // r42:arcus-upper
 }
 
 fn c(s: [u8; 3]) -> Color32 {
@@ -74,9 +84,10 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     let [_, bridge, nut] = rig.strings[i];
     let along = nut - bridge;
     let st = stop(pl.fs, pl.n);
-    let ex = rig.pose.ex;
-    let ez = rig.pose.ez;
     let d = pl.b.dims();
+    // The player's left, where the left hand comes from: +x behind a cello, -x under a chin.
+    let ex = if d.held { -rig.pose.ex } else { rig.pose.ex }; // r42:arcus-upper
+    let ez = rig.pose.ez;
     let k = d.body / 75.7;
     // The finger rocks along the string with the vibrato.
     let wob = (pl.time * 5.5 * std::f64::consts::TAU).sin() as f32;
@@ -139,19 +150,154 @@ pub fn live(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
     b.glow_polyline(&line, w0, core, glow, s.s(if sounding { 3.0 } else { 1.5 }));
     // ---- the left hand's finger, stopping the string ----
     let up = along.norm();
-    if st < 0.995 {
-        let j1 = finger + ex * (1.5 * k) + ez * (2.2 * k) + up * (0.4 * k);
-        let j2 = j1 + ex * (2.6 * k) + ez * (0.9 * k) + up * (0.6 * k);
-        fingertip(b, v, finger, j1, j2, 0.78 * k, false);
+    // A person's finger whatever the instrument's size: a violinist's is a cellist's. // r42:arcus-upper
+    let kf = if d.held { 1.0 } else { k }; // r42:arcus-upper
+    use crate::scene::bowed_hold::{Hold, StopShow}; // r42:arcus-upper
+                                                    // On a stand nobody plays it: the string sounds, no finger, no bow. // r42:arcus-upper
+    if pl.holder.hold == Hold::Stand {
+        if st < 0.995 && pl.stop == StopShow::Marker {
+            marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(12.0));
+            // r42:arcus-upper
+        }
+        return; // r42:arcus-upper
+    }
+    // r42:arcus-upper — a figure's own left hand goes to the stop; otherwise the
+    // fingertip, the marker, or nothing.
+    if let Some((arm, l)) = left_of(pl) {
+        // Its fingers' arches over the fingerboard; the rest of the hand was painted
+        // behind the neck (`live_behind`).
+        let lp = super::hand::left_pose(&arm, &l);
+        if !real_left(b, v, pl, s, &lp, &l, false) {
+            super::hand::left_front(b, v, &figure_light(v, pl, s), &arm, &lp, &l);
+        }
+    } else if st < 0.995 && pl.stop == StopShow::Finger {
+        // Under a chin the finger curls over the fingerboard's edge from the hand behind
+        // the neck (its first joint up, the rest down out of sight). // r42:arcus-upper
+        let (j1, j2) = if d.held {
+            let j1 = finger + ex * (2.0 * kf) + ez * (1.5 * kf) - up * (0.3 * kf);
+            (j1, j1 + ex * (2.2 * kf) - ez * (1.8 * kf) - up * (0.5 * kf))
+        } else {
+            let j1 = finger + ex * (1.5 * kf) + ez * (2.2 * kf) + up * (0.4 * kf);
+            (j1, j1 + ex * (2.6 * kf) + ez * (0.9 * kf) + up * (0.6 * kf))
+        };
+        fingertip(b, v, finger, j1, j2, 0.78 * kf, false);
+    }
+    if st < 0.995 && pl.stop == StopShow::Marker {
+        marker_at(b, v, pl, finger + rig.normal[i] * rig.gauge[i], s.s(12.0)); // r42:arcus-upper
     }
     if pizz {
         let tip = contact - side * pulled;
-        let j1 = tip - ex * (1.7 * k) + ez * (2.0 * k) - up * (0.5 * k);
-        let j2 = j1 - ex * (2.6 * k) + ez * (0.7 * k) - up * (0.8 * k);
-        fingertip(b, v, tip, j1, j2, 0.72 * k, true);
+        let j1 = tip - ex * (1.7 * kf) + ez * (2.0 * kf) - up * (0.5 * kf);
+        let j2 = j1 - ex * (2.6 * kf) + ez * (0.7 * kf) - up * (0.8 * kf);
+        fingertip(b, v, tip, j1, j2, 0.72 * kf, true);
         return;
     }
-    bow(b, v, pl, contact, i);
+    let (frog, dir, n) = bow(b, v, pl, contact, i);
+    // The figure's right arm to the frog (a musician's sleeve and hand, the mannequin's
+    // wood). // r42:arcus-upper
+    if let Some(arm) = crate::scene::bowed_hold::arm(pl.b, pl.holder) {
+        if let Some(who) = crate::scene::bowed_human::who(pl.holder.hold) {
+            // r42:arcus-upper — a realistic figure's own arm, skinned to the bow hand.
+            let h = super::arm::bow_hand(&arm, frog, dir, n, pl.b.dims().held);
+            let aim = super::flesh::right_aim(&arm, &h);
+            let base = crate::scene::bowed_human::rest_body(pl.b, who);
+            let lit = figure_light(v, pl, s);
+            // The stick in the hand shades the fingers draped over it.
+            let stick = super::flesh::Capsule {
+                a: frog + n * 2.0 - dir * 3.0,
+                b: frog + n * 1.9 + dir * 14.0,
+                r: 0.45,
+                bone: usize::MAX,
+            };
+            super::flesh::arm(
+                b,
+                v,
+                &lit,
+                who,
+                pl.holder.skin,
+                &base.0,
+                1,
+                &aim,
+                None,
+                &[stick],
+                pl.light,
+            );
+        } else {
+            super::arm::right_arm(
+                b,
+                v,
+                &figure_light(v, pl, s),
+                &arm,
+                frog,
+                dir,
+                n,
+                pl.b.dims().held,
+            );
+        }
+    }
+}
+
+/// r42:arcus-upper — a realistic figure's left arm, skinned to the hand's pose: the part
+/// the neck hides (`hidden`) or the rest. False when the holder is not a realistic figure.
+fn real_left(
+    b: &mut Brush,
+    v: &View,
+    pl: &Play,
+    s: &Style,
+    lp: &super::hand::LeftPose,
+    l: &super::hand::Left,
+    hidden: bool,
+) -> bool {
+    let Some(who) = crate::scene::bowed_human::who(pl.holder.hold) else {
+        return false;
+    };
+    let base = crate::scene::bowed_human::rest_body(pl.b, who);
+    let aim = super::flesh::left_aim(lp);
+    let eye = v.cam.eye();
+    // What the neck hides, or what lies behind the body's back (the body's stamp covers it
+    // where the body is in front; sheet v7: a forearm passing behind a cello was painted
+    // over it).
+    // Behind a cello or a bass (played from behind) whatever lies deeper than the neck's
+    // middle is behind the instrument too: the forearm, the wrist, the thumb (the stamps
+    // cover it only where the instrument is; elsewhere it shows as drawn).
+    let pose = l.rig.pose;
+    let held = l.d.held;
+    let half = super::hand::neck_depth(l.d) * 0.5;
+    let hid = |p: V3| {
+        let q = p - pose.o;
+        let (y, z) = (q.dot(pose.ey), q.dot(pose.ez));
+        super::hand::hidden_by_neck(p, eye, l.d, &pose)
+            || ((0.0..=l.d.body).contains(&y) && z < -crate::scene::bowed::rib(l.d, y) - 0.3)
+            || (!held && z < crate::scene::bowed::board_z(l.d, y) - half)
+    };
+    let lit = figure_light(v, pl, s);
+    // The neck in the hand shades the fingers and the thumb round it.
+    let rig = l.rig;
+    let (s1, s2) = (rig.strings[1], rig.strings[2]);
+    let (nut, bridge) = ((s1[2] + s2[2]) * 0.5, (s1[1] + s2[1]) * 0.5);
+    let nrm = (rig.normal[1] + rig.normal[2]).norm();
+    let depth = super::hand::neck_depth(l.d);
+    let down = nrm * (depth * 0.5 + 0.4);
+    let neck = super::flesh::Capsule {
+        a: nut - down,
+        b: nut.lerp(bridge, 0.5) - down,
+        r: depth * 0.5,
+        bone: usize::MAX,
+    };
+    super::flesh::arm(
+        b,
+        v,
+        &lit,
+        who,
+        pl.holder.skin,
+        &base.0,
+        0,
+        &aim,
+        Some((hidden, &hid)),
+        &[neck],
+        pl.light,
+    );
+    true
 }
 
 /// A finger: its tip pressing at `tip`, its joints `j1`, `j2` (its hand beyond, faded
@@ -212,8 +358,9 @@ fn measures(b: Bowed) -> (f32, f32) {
     }
 }
 
-/// The bow across string `i` at `contact`.
-fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) {
+/// The bow across string `i` at `contact`; where its frog is, its way (frog to tip) and the
+/// string's normal (r42:arcus-upper: for the arm that holds it).
+fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) -> (V3, V3, V3) {
     let rig = pl.rig;
     let k = pl.b.dims().body / 75.7;
     let [_, bridge, nut] = rig.strings[i];
@@ -223,6 +370,10 @@ fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) {
     if dir.dot(rig.pose.ex) < 0.0 {
         dir = -dir;
     }
+    // The frog toward the player's right: -x behind a cello, +x under a chin. // r42:arcus-upper
+    if pl.b.dims().held {
+        dir = -dir;
+    } // r42:arcus-upper
     let (hair, ribbon) = measures(pl.b);
     let press = (pl.n.force / pl.n.hi.max(1e-3)).clamp(0.0, 1.6);
     let trem = pl.fs.technique == Technique::Tremolo;
@@ -347,6 +498,7 @@ fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) {
         one(b, -sign * 1.3 * speed * k, 0.24);
     }
     one(b, 0.0, 1.0);
+    (base - dir * (at * hair), dir, n) // r42:arcus-upper
 }
 
 /// Where the bow meets the string along its hair after `dt` seconds at `speed` m/s (down
@@ -405,4 +557,74 @@ pub fn thumbnail(b: &mut Brush, r: Rect, which: Bowed, s: &Style) {
         );
         b.segment(p(x, yb), p(x * 0.45, yn), s.s(0.6), c(pal::SILVER), false);
     }
+}
+
+/// r42:arcus-upper — the stopped note's marker at `at`, a few points large at any size.
+fn marker_at(b: &mut Brush, v: &View, pl: &Play, at: V3, size: f32) {
+    // The theme's focus colour on a halo of its own (dark or light, whichever stands
+    // further from it), as the scene's selection: 3:1 on any wood, ebony or wall.
+    let edge = crate::scene::halo_for(pl.accent);
+    super::hand::marker(b, v, at, size, pl.accent, edge);
+}
+
+/// r42:arcus-upper — the light the figure's live arms are shaded in: the scene's key over
+/// the instrument's middle, in the theme's mood.
+fn figure_light(v: &View, pl: &Play, s: &Style) -> super::lit::Lit {
+    let d = pl.b.dims();
+    let mut lit = super::lit::Lit::round(v, pl.rig.pose.at(0.0, d.body * 0.5, 0.0), s.t.dark);
+    // r42:arcus-upper — Light: the stylised limbs in half the strips.
+    if pl.light {
+        lit.strips /= 2;
+    }
+    lit
+}
+
+/// r42:arcus-upper — the figure's left arm and what it plays: the arm, and the hand's
+/// place for the note (its string, stop, position, vibrato's rock, the player's left).
+fn left_of<'a>(pl: &Play<'a>) -> Option<(crate::scene::bowed_hold::Arm, super::hand::Left<'a>)> {
+    use crate::scene::bowed_hold::{self as hold, Hold};
+    if pl.holder.hold == Hold::Stand {
+        return None;
+    }
+    let arm = hold::left_arm(pl.b, pl.holder)?;
+    let rig = pl.rig;
+    let d = pl.b.dims();
+    let i = pl.n.string.min(3);
+    let k = d.body / 75.7;
+    let wob = (pl.time * 5.5 * std::f64::consts::TAU).sin() as f32;
+    let rock = pl.vibrato.clamp(0.0, 1.0) * 0.18 * k * wob;
+    Some((
+        arm,
+        super::hand::Left {
+            rig,
+            d,
+            string: i,
+            semis: super::hand::semis(stop(pl.fs, pl.n)),
+            at: pl.hand,
+            rock,
+            // The knuckles' side: the E string's under a chin, the player's left behind a
+            // cello (the instrument's +x for both).
+            side: rig.pose.ex,
+            span: super::hand::span(d.held),
+        },
+    ))
+}
+
+/// r42:arcus-upper — what of the figure lies behind the instrument's neck, painted before
+/// the neck is stamped back over it: the left arm, its palm, its thumb, its fingers' first
+/// segments. Nothing without a figure.
+pub fn live_behind(b: &mut Brush, v: &View, pl: &Play, s: &Style) {
+    if let Some((arm, l)) = left_of(pl) {
+        let lp = super::hand::left_pose(&arm, &l);
+        if !real_left(b, v, pl, s, &lp, &l, true) {
+            super::hand::left_behind(b, v, &figure_light(v, pl, s), &arm, &lp, &l);
+        }
+    }
+}
+
+/// r42:arcus-upper — the neck's silhouette when a figure's hand is behind it (the corners
+/// the picture's own pixels are stamped back over).
+pub fn neck_for_stamp(v: &View, pl: &Play) -> Option<[Pos2; 8]> {
+    left_of(pl)?;
+    Some(super::hand::neck_outline(v, pl.b.dims(), &pl.rig.pose))
 }

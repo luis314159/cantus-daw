@@ -24,10 +24,18 @@ pub struct Vert {
     pub p: V3,
     pub n: V3,
     pub uv: [f32; 2],
+    /// r42:arcus-upper — a realistic figure's skin texture coordinates (her u 0…1, his
+    /// 2…3), or none (negative): the skin's fine detail sampled per sample (`place`).
+    pub uv2: [f32; 2],
 }
 
 pub fn vt(p: V3, n: V3, uv: [f32; 2]) -> Vert {
-    Vert { p, n, uv }
+    Vert {
+        p,
+        n,
+        uv,
+        uv2: [-1.0, -1.0],
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
