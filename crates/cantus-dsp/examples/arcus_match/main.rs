@@ -282,6 +282,9 @@ fn main() {
         let out = PathBuf::from(&args[1]);
         std::fs::create_dir_all(&out).expect("the out dir");
         let vel = [0.2f32, 0.55, 0.95];
+        // r42:arcus-p6: `ARCUS_SPLIT=train` renders the other two thirds instead (what a
+        // change is tuned on; the held-out third judges it once).
+        let train = std::env::var("ARCUS_SPLIT").is_ok_and(|s| s == "train");
         for (inst, lo, hi, name) in [
             (Instrument::Cello, 36u8, 79u8, "cello"),
             (Instrument::Bass, 28, 67, "bass"),
@@ -289,18 +292,19 @@ fn main() {
             for pizz in [false, true] {
                 for key in lo..=hi {
                     for (d, v) in vel.iter().enumerate() {
-                        if !held_out(key, d) {
+                        if held_out(key, d) == train {
                             continue;
                         }
                         let mut a = Arcus::new(SR);
-                        // Pass 4: `ARCUS_FRICTION=thermal` renders with the thermal law.
-                        let thermal = std::env::var("ARCUS_FRICTION").is_ok_and(|f| f == "thermal");
+                        // Pass 4: `ARCUS_FRICTION=thermal` renders with the thermal law;
+                        // r42:arcus-p6: `memory` with the friction's memory.
+                        let law = std::env::var("ARCUS_FRICTION").unwrap_or_default();
                         a.set(&ArcusSettings {
                             instrument: inst,
-                            friction: if thermal {
-                                cantus_dsp::arcus::string::Friction::Thermal
-                            } else {
-                                cantus_dsp::arcus::string::Friction::Hyperbolic
+                            friction: match law.as_str() {
+                                "thermal" => cantus_dsp::arcus::string::Friction::Thermal,
+                                "memory" => cantus_dsp::arcus::string::Friction::Memory,
+                                _ => cantus_dsp::arcus::string::Friction::Hyperbolic,
                             },
                             technique: if pizz {
                                 Technique::Pizzicato

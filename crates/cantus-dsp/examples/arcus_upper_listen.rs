@@ -96,6 +96,24 @@ fn to_lufs23(sr: f64, l: &[f32], r: &[f32]) -> (f32, f64) {
     (math::db_to_gain((-23.0 - lufs) as f32), lufs)
 }
 
+/// r42:arcus-p6 — one held note swelled by CC1 from pp through mf to ff over 6 s and back
+/// over 2 (where the brightness following the bow's force is easiest to hear).
+fn swell(key: u8) -> (Vec<(f64, Ev)>, f64) {
+    let mut ev = vec![(0.0, Ev::Cc1(0.05)), (0.1, Ev::On(key, 0.5))];
+    let steps = 160;
+    for j in 0..=steps {
+        let u = j as f64 / steps as f64;
+        let v = if u < 0.75 {
+            0.05 + 0.95 * u / 0.75
+        } else {
+            1.0 - 0.95 * (u - 0.75) / 0.25
+        };
+        ev.push((0.4 + 8.0 * u, Ev::Cc1(v as f32)));
+    }
+    ev.push((8.6, Ev::Off(key)));
+    (ev, 10.0)
+}
+
 /// A legato line (key, beats) at `bpm`, each note overlapping the next by 30 ms, with a CC1
 /// swell over bars 2–3 and back over bar 4 (the cello's, `arcus_listen.rs`).
 fn legato(line: &[(u8, f64)], bpm: f64, vel: f32, lo: f32, hi: f32) -> (Vec<(f64, Ev)>, f64) {
@@ -486,8 +504,15 @@ fn main() {
             [62u8, 64, 65, 67, 69, 70, 69, 67, 65, 64],
         ),
     ] {
+        // r42:arcus-p6: `ARCUS_FRICTION=memory` renders with the friction's memory.
+        let memory = std::env::var("ARCUS_FRICTION").is_ok_and(|f| f == "memory");
         let base = ArcusSettings {
             instrument: inst,
+            friction: if memory {
+                cantus_dsp::arcus::string::Friction::Memory
+            } else {
+                cantus_dsp::arcus::string::Friction::Hyperbolic
+            },
             ..ArcusSettings::default()
         };
         let mut jobs: Vec<Job> = Vec::new();
@@ -499,6 +524,9 @@ fn main() {
                 5.5,
             ));
         }
+        // r42:arcus-p6: the swell.
+        let (ev, secs) = swell(note);
+        jobs.push((format!("{name}-swell"), base, ev, secs));
         let beats = [2.0, 1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 4.0];
         let phrase: Vec<(u8, f64)> = line.iter().zip(beats).map(|(k, b)| (*k, b)).collect();
         let (ev, secs) = legato(&phrase, 72.0, 0.55, 0.3, 0.85);

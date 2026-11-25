@@ -50,7 +50,11 @@
 //!   release. Measured on Lampis's grid (`tests_p6::probe_contact_lampis`; the real cello's A
 //!   string +0.10, −0.04, +0.02 octave of harmonic centroid a doubling of force, β and speed):
 //!   the instant curve brightens +0.42, +0.43, −0.49 — with the force *relative* to β and
-//!   speed — and the memory brings it towards the real string's (`docs/round42/arcus-match.md`).
+//!   speed — and the memory (τ 250 µs, `D_c` 50 µm) to +0.07, −0.06, −0.00, its median 1.93
+//!   against the real 2.01. It is `Friction::Memory`, for the probes and the tools only: on
+//!   the held-out notes the instrument measured worse with it (the cello's upper registers
+//!   darker, its soft centroid out of the band) and the top octave 10–66 cents flat with the
+//!   hyperbolic curve's pitch table (`docs/round42/arcus-match.md`, *Pass 6*).
 //!
 //! What the bridge hears is the wave arriving there; its force `2·Z₀·v` drives the body.
 
@@ -184,6 +188,11 @@ pub enum Friction {
     #[default]
     Hyperbolic,
     Thermal,
+    /// r42:arcus-p6 — the hyperbolic curve with the friction's memory (the module's notes):
+    /// for the probes and the tools only, never a user's choice (`from_index` does not reach
+    /// it): measured worse than the hyperbolic curve on the held-out notes and flat on the top
+    /// octave with the hyperbolic curve's pitch table (`docs/round42/arcus-match.md`, *Pass 6*).
+    Memory,
 }
 
 impl Friction {
@@ -762,12 +771,13 @@ impl BowedString {
                 let au = u.abs();
                 let sgn = if u < 0.0 { -1.0 } else { 1.0 };
                 let bowed = match b.friction {
-                    Friction::Hyperbolic => {
+                    Friction::Hyperbolic | Friction::Memory => {
                         let excess = au - r * self.curve.mu_s;
                         // r42:arcus-p6: with the friction's memory the slip meets the
                         // curve's share `1 − k` of the force, the pull less what last
                         // sample's friction still holds (the module's notes).
-                        let lag = self.t_tau > 0.0 || self.t_dc > 0.0;
+                        let lag =
+                            b.friction == Friction::Memory && (self.t_tau > 0.0 || self.t_dc > 0.0);
                         let (rr, uu) = if lag {
                             let keep = 1.0 / (1.0 + self.t_tau + self.last_slip.abs() * self.t_dc);
                             (r * (1.0 - keep), au - r * keep * self.mu_prev)

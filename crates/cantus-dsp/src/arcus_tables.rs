@@ -472,8 +472,8 @@ pub const V0: f32 = 0.1;
 /// r42:arcus-p6 — the friction's memory (`string::Curve::lag_s`, `slip_dc`; the module's
 /// notes in `arcus_string.rs`): the time it relaxes over, s, and the slip distance, m (0:
 /// that term off).
-pub const FRICTION_TAU_S: f32 = 0.0;
-pub const FRICTION_DC_M: f32 = 0.0;
+pub const FRICTION_TAU_S: f32 = 250e-6;
+pub const FRICTION_DC_M: f32 = 50e-6;
 
 #[cfg(test)]
 thread_local! {

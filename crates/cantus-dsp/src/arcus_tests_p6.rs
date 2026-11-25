@@ -132,7 +132,7 @@ fn probe_contact_lampis() {
                         v,
                         1.0,
                         1.2,
-                        Friction::Hyperbolic,
+                        Friction::Memory,
                     );
                     if classify(&b, (0.6 * SR) as usize) != Motion::Helmholtz {
                         continue;
@@ -179,6 +179,7 @@ pub(super) fn held(inst: Instrument, key: u8, velocity: f32, live: bool) -> Vec<
         instrument: inst,
         vib_depth: if live { d.vib_depth } else { 0.0 },
         bow_noise_db: if live { d.bow_noise_db } else { -80.0 },
+        friction: Friction::Memory,
         ..d
     });
     a.note_on(key, velocity, 1);
@@ -285,7 +286,7 @@ fn probe_string_map() {
                         bw.speed as f32,
                         accel,
                         1.4,
-                        Friction::Hyperbolic,
+                        Friction::Memory,
                     );
                     let m = classify(&b, (0.6 * SR) as usize);
                     let seg = &b.out[(0.6 * SR) as usize..];
