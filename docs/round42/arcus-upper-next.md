@@ -359,6 +359,26 @@ Settings ▸ Appearance: **Held by** and **Stopped note** rows (both locales; th
 `Settings::migrated`. ADR 0157 amended ("who holds it"). MakeHuman credited in About ▸
 Credits (`about.credits.figures`, both locales).
 
+### Gates at b8f362e4a and what is still open (2026-11-24, end of the v7 session)
+
+Green: `arcus_hold` 7/7, `figure_contract`, `arcus_scene` (nothing built or allocated at
+rest — the light maps are kept per arm), `scene_identity`, `kit_lint`, the i18n lib tests,
+`cargo clippy -p cantus-ui --all-targets -- -D warnings`; `THIRD-PARTY-NOTICES.md`
+regenerated (MakeHuman's section in `xtask/notices/head.md`).
+
+Open:
+1. **The frame budget** (`arcus_hold_budget`, ignored): the realistic arms +2.6 to +3.7 ms
+   (dev profile, busy machine) against +1 ms. Next: a hands' level of detail at 100 % (thin
+   again to ~1 cm for small views), measure in release on a quiet machine.
+2. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
+3. The Settings rows are not shot yet; the room card's holder rows (the earlier plan) are
+   not done — Settings ▸ Appearance holds them.
+4. The violin's left hand reads as a hand but its arches are low from the camera's side;
+   the man's hairline still shows the shell's triangles faintly at 200 % (Photographic).
+5. The stylised musician and the mannequin still pose from `bowed_figure` (the next to move
+   behind the PlayRig).
+6. The owner's verdict on sheet v7.
+
 ## Next (coordinator's order, 2026-11-24)
 
 0. **Waiting**: the owner's verdict on sheet v5's hands. Nothing below starts before he
