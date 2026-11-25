@@ -25,6 +25,77 @@ pub mod hand; // r42:arcus-upper
 #[path = "arcus_draw_lit.rs"]
 mod lit; // r42:arcus-upper
 
+/// r42:arcus-polish — what the live arms were drawn as, for the tests that measure them from
+/// the app's own camera (`tests/arcus_figure_shape.rs`): off unless a test turns it on.
+pub mod probe {
+    use crate::scene::geo::V3;
+    use std::cell::RefCell;
+
+    /// One live arm as last drawn: whose, which side, its joints, its skinned points with
+    /// the bones they follow most, and the camera's scale (points a centimetre) and
+    /// projection at each point.
+    #[derive(Clone, Debug, Default)]
+    pub struct Arm {
+        pub who: u8,
+        pub side: usize,
+        pub shoulder: V3,
+        pub elbow: V3,
+        pub wrist: V3,
+        pub pts: Vec<V3>,
+        pub bone: Vec<u8>,
+        pub screen: Vec<egui::Pos2>,
+        pub scale: Vec<f32>,
+        /// Its triangles (into `pts`).
+        pub tris: Vec<[u16; 3]>,
+        /// Each of the arm's bones' heads as posed (the figure's bone numbering), on screen.
+        pub joints: Vec<(usize, egui::Pos2, V3)>,
+        /// Whether each point is skin's (not a sleeve's).
+        pub skin: Vec<bool>,
+    }
+
+    thread_local! {
+        static ON: RefCell<bool> = const { RefCell::new(false) };
+        static ARMS: RefCell<Vec<Arm>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Start (or stop) recording the arms drawn on this thread; clears what was kept.
+    pub fn record(on: bool) {
+        ON.with(|o| *o.borrow_mut() = on);
+        ARMS.with(|a| a.borrow_mut().clear());
+    }
+
+    pub fn on() -> bool {
+        ON.with(|o| *o.borrow())
+    }
+
+    pub(super) fn keep(a: Arm) {
+        ARMS.with(|v| {
+            let mut v = v.borrow_mut();
+            v.retain(|x| !(x.who == a.who && x.side == a.side));
+            v.push(a);
+        });
+    }
+
+    /// The arms drawn since recording began (the last of each figure and side).
+    pub fn arms() -> Vec<Arm> {
+        ARMS.with(|a| a.borrow().clone())
+    }
+
+    thread_local! {
+        static BOW: RefCell<Option<(egui::Pos2, egui::Pos2, f32)>> = const { RefCell::new(None) };
+    }
+
+    /// The bow as last drawn: its frog's end and its tip on screen (points), and how many
+    /// points a centimetre spans there.
+    pub fn bow() -> Option<(egui::Pos2, egui::Pos2, f32)> {
+        BOW.with(|b| *b.borrow())
+    }
+
+    pub(super) fn keep_bow(frog: egui::Pos2, tip: egui::Pos2, scale: f32) {
+        BOW.with(|b| *b.borrow_mut() = Some((frog, tip, scale)));
+    }
+}
+
 use crate::app::CantusApp;
 use crate::kit::color::with_alpha;
 use crate::kit::text::{self as ktext, Role, Text};

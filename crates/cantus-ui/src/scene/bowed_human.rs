@@ -132,6 +132,9 @@ pub struct Figure {
     /// r42:arcus-hair — a hair card vertex's degrees in from the hairline (negative: out
     /// over the skin; `build_figures.py::line_lum`): the bake feathers the cards there.
     pub line: Vec<f32>,
+    /// r42:arcus-polish — a cloth vertex's distance (cm) to its cloth's edge
+    /// (`figure::cloth::edges`; `EDGE_FAR` for skin and the rest).
+    pub edge: Vec<f32>,
 }
 
 /// Which figure.
@@ -146,6 +149,16 @@ static MAN: &[u8] = include_bytes!("../../assets/figures/man.fig");
 
 static WOMAN_LIDS: &[u8] = include_bytes!("../../assets/figures/woman_lids.bin");
 static MAN_LIDS: &[u8] = include_bytes!("../../assets/figures/man_lids.bin");
+
+/// r42:arcus-polish — a figure's asset: the embedded bytes, or, while the figures are being
+/// built (`CANTUS_FIGURE_DIR` names a folder `tools/arcus-figures/build_figures.py` wrote),
+/// that folder's file of the same name, read once — so a rebuilt figure is looked at in
+/// `shoot_arcus` without compiling the app again (DEVELOPING §4). Unset in the app.
+fn asset(name: &str, embedded: &'static [u8]) -> std::borrow::Cow<'static, [u8]> {
+    std::env::var_os("CANTUS_FIGURE_DIR")
+        .and_then(|d| std::fs::read(std::path::Path::new(&d).join(name)).ok())
+        .map_or(std::borrow::Cow::Borrowed(embedded), std::borrow::Cow::Owned)
+}
 
 /// r42:arcus-hand — `CLID`, a `u16` version (1), a `u32` count, then per moved vertex its
 /// `u32` index and its offset at rest (three `i16` at 0.001 cm): the lids closed over the
@@ -172,8 +185,8 @@ pub fn lids(w: Who) -> &'static [(u32, V3)] {
     static W: OnceLock<Vec<(u32, V3)>> = OnceLock::new();
     static M: OnceLock<Vec<(u32, V3)>> = OnceLock::new();
     match w {
-        Who::Woman => W.get_or_init(|| parse_lids(WOMAN_LIDS)),
-        Who::Man => M.get_or_init(|| parse_lids(MAN_LIDS)),
+        Who::Woman => W.get_or_init(|| parse_lids(&asset("woman_lids.bin", WOMAN_LIDS))),
+        Who::Man => M.get_or_init(|| parse_lids(&asset("man_lids.bin", MAN_LIDS))),
     }
 }
 
@@ -184,13 +197,24 @@ pub fn figure(w: Who) -> &'static Figure {
     let read = |b: &[u8], k: usize| {
         let mut f = parse(b).unwrap_or_default();
         knuckle_fix(&mut f, HAND_SCALE[k], PALM_SLIM[k]);
+        // r42:arcus-polish — the thumb's web and thenar.
+        if f.bones.len() >= BONES {
+            for s in 0..2 {
+                thumb_web(&mut f, s);
+            }
+        }
         smooth_tie(&mut f);
         lift_suit(&mut f);
+        // r42:arcus-polish — where the clothes meet the skin: the cloth's edges, the
+        // skin's contact shadow.
+        super::figure::cloth::sink(&mut f);
+        f.edge = super::figure::cloth::edges(&f);
+        super::figure::cloth::contact(&mut f);
         f
     };
     match w {
-        Who::Woman => W.get_or_init(|| read(WOMAN, 0)),
-        Who::Man => M.get_or_init(|| read(MAN, 1)),
+        Who::Woman => W.get_or_init(|| read(&asset("woman.fig", WOMAN), 0)),
+        Who::Man => M.get_or_init(|| read(&asset("man.fig", MAN), 1)),
     }
 }
 
@@ -330,6 +354,102 @@ fn slim_palm(fig: &mut Figure, s: usize, k: f32) {
         }
         *p = *p + mv;
     }
+}
+
+/// r42:arcus-polish — the first web space and the thenar made a hand's, not a mitten's (the
+/// owner, 2026-11-25, sheet v10's left hand: "aún sale algo tosca o gorda"; the coordinator:
+/// one big convex lobe from under the neck to the wrist, "like a mitten's thumb pocket"). The
+/// app's own render with each corner coloured by its bone showed the lobe was the hand
+/// bone's skin on the thumb's side of the index's metacarpal: MakeHuman weights the web and
+/// the thenar to the wrist and the metacarpals, so when the thumb goes under the neck that
+/// flesh stays out. Each such vertex (its weight mostly the hand's, past the index's line
+/// toward the thumb by `r`, between the wrist and the knuckles) is drawn in across by
+/// [`WEB_IN`] of `r`, and hands [`WEB_TO_THUMB`] of its hand weight (by how far out it lies)
+/// to the thumb's first bone, so the thenar goes with the thumb. The bones do not move.
+/// `tools/arcus-figures/hand_rig.py::thumb_web` does the same for the table's tools.
+pub const WEB_IN: f32 = 0.45;
+pub const WEB_TO_THUMB: f32 = 0.6;
+/// How much of its overhang past the little finger's line the palm's ulnar edge keeps
+/// drawn in.
+pub const EDGE_IN: f32 = 0.5;
+
+fn thumb_web(fig: &mut Figure, s: usize) {
+    let o = side(s);
+    let wr = fig.bones[o + HAND].head;
+    let (ix, lt) = (fig.bones[o + finger(1, 0)].head, fig.bones[o + finger(4, 0)].head);
+    let along_end = (fig.bones[o + finger(2, 0)].head + fig.bones[o + finger(3, 0)].head) * 0.5;
+    let along = (along_end - wr).norm();
+    let len = (along_end - wr).len().max(1e-3);
+    let across = {
+        let a = ix - lt;
+        (a - along * a.dot(along)).norm()
+    };
+    let line = (ix - wr).dot(across);
+    let ulnar = (lt - wr).dot(across);
+    // DEBUG-POLISH (taken out before the commit): tuning by env.
+    let tune: Vec<f32> = std::env::var("CANTUS_DBG_EDGE")
+        .ok()
+        .map(|s| s.split(',').filter_map(|x| x.parse().ok()).collect())
+        .unwrap_or_default();
+    let (edge_in, web_in) = (
+        tune.first().copied().unwrap_or(EDGE_IN),
+        tune.get(1).copied().unwrap_or(WEB_IN),
+    );
+    let hb = (o + HAND) as u8;
+    let tb = (o + finger(0, 0)) as u8;
+    for (p, w) in fig.pos.iter_mut().zip(fig.bw.iter_mut()) {
+        let wh: f32 = w.iter().filter(|e| e.0 == hb).map(|e| e.1).sum();
+        if wh < 0.4 {
+            continue;
+        }
+        let d = *p - wr;
+        let t = d.dot(along) / len;
+        // The palm's other edge, past the little finger's line: the hypothenar and the
+        // heel drawn in too (seen from the audience it is the hand's edge toward the
+        // violin's body — the lobe the bone-coloured render showed between the fingers'
+        // bases and the wrist).
+        let ru = ulnar - d.dot(across);
+        if ru > 0.0 && (-0.1..1.05).contains(&t) {
+            let ramp = smooth((t + 0.1) / 0.3) * (1.0 - smooth((t - 0.8) / 0.3));
+            *p = *p + across * (ru * edge_in * ramp * wh);
+            continue;
+        }
+        let r = d.dot(across) - line;
+        if r <= 0.0 || !(-0.1..1.05).contains(&t) {
+            continue;
+        }
+        // Fading in from the wrist and out at the knuckles.
+        let ramp = smooth((t + 0.1) / 0.3) * (1.0 - smooth((t - 0.75) / 0.3));
+        *p = *p - across * (r * web_in * ramp * wh);
+        let give = wh * WEB_TO_THUMB * ramp * smooth(r / 1.5);
+        if give < 1e-4 {
+            continue;
+        }
+        let mut all: Vec<(u8, f32)> = w.iter().copied().filter(|e| e.1 > 0.0).collect();
+        for e in all.iter_mut() {
+            if e.0 == hb {
+                e.1 -= give;
+            }
+        }
+        match all.iter_mut().find(|e| e.0 == tb) {
+            Some(e) => e.1 += give,
+            None => all.push((tb, give)),
+        }
+        all.retain(|e| e.1 > 1e-6);
+        all.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        all.truncate(4);
+        let tot: f32 = all.iter().map(|e| e.1).sum();
+        let mut out = [(0u8, 0.0f32); 4];
+        for (k, e) in all.iter().enumerate() {
+            out[k] = (e.0, e.1 / tot);
+        }
+        *w = out;
+    }
+}
+
+fn smooth(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
 }
 
 fn knuckle_fix(fig: &mut Figure, scale: f32, slim: f32) {
@@ -1106,6 +1226,26 @@ pub fn emit(
                 continue;
             }
         }
+        // DEBUG-POLISH (taken out before the commit): which bake triangles are the shards.
+        if let Ok(d) = std::env::var("CANTUS_DBG_FIG") {
+            let thigh = |i: u16| {
+                fig.bw[i as usize]
+                    .iter()
+                    .filter(|(b, _)| {
+                        let b = *b as usize;
+                        b == side(0) + THIGH || b == side(1) + THIGH
+                    })
+                    .map(|x| x.1)
+                    .sum::<f32>()
+            };
+            let st = fig.stuff[k];
+            if d.contains("thigh") && st == Stuff::Wool && t.iter().any(|&i| thigh(i) > 0.2) {
+                continue;
+            }
+            if d.contains("band") && fig.part[k] & 6 != 0 {
+                continue;
+            }
+        }
         let r = role(fig.stuff[k], who, tone);
         let e = match out.iter().position(|(x, _, _)| *x == r) {
             Some(i) => i,
@@ -1121,8 +1261,21 @@ pub fn emit(
                 map[i] = tr.pts.len() as u32;
                 tr.pts.push(pts[i]);
                 tr.nrm.push(nrm[i]);
-                tr.detail.push(fig.detail[i]);
+                // r42:arcus-polish — a cloth's corner: its distance to the cloth's edge (the
+                // roll of a neckline, a cuff, a lapel), its folds' coordinates as its uv.
+                let cloth = matches!(r, Role::Velvet | Role::Wool);
+                tr.detail.push(if cloth {
+                    [fig.edge.get(i).copied().unwrap_or(9.0), 0.0]
+                } else {
+                    fig.detail[i]
+                });
                 tr.uv.push(match r {
+                    // (None carried: no fold, along the height at rest — what a fold's
+                    // run is laid along, so a fold's corner and its plain neighbour blend.)
+                    _ if cloth => match fig.uv.get(i) {
+                        Some(&uv) if uv[0] >= 10.0 => uv,
+                        _ => [10.0, fig.pos[i].y],
+                    },
                     // (r42:arcus-hair: an eye's place in its texture too.)
                     Role::Skin(_) | Role::Eye | Role::Iris => {
                         fig.uv.get(i).copied().unwrap_or([-1.0, -1.0])

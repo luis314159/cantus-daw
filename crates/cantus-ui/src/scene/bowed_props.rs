@@ -97,11 +97,13 @@ pub(super) fn chair_top(m: &mut Mesh, at: V3, yaw: f32, top: f32) {
             1.4,
         );
     }
+    // (r42:arcus-polish: a slimmer rail, its edge rounded by the light — at 13 cm tall it
+    // read beside the violinists as a flat brown slab, the owner's review.)
     block(
         m,
         Role::Chair,
-        local(0.0, 79.0, -21.5),
-        v(19.5, 6.5, 1.1),
+        local(0.0, 82.0, -21.5),
+        v(19.0, 3.6, 0.9),
         yaw,
     );
     rod(

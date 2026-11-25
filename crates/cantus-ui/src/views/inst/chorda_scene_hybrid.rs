@@ -555,6 +555,12 @@ fn bake_view(
             // portrait.
             if crate::scene::bowed_human::who(hd.hold).is_some() {
                 r.soft_bg = 1.0;
+                // r42:arcus-polish — a portrait's back light: the cool rim that tells her
+                // hair, the shoulders and the arms from the room (the owner, 2026-11-25:
+                // "lit flat"), stronger by day, where the room behind is light.
+                for rim in &mut r.rims {
+                    rim.1 = lscale(rim.1, if view.dark { 1.7 } else { 2.2 });
+                }
             }
             raster::bake(&g, split, &r, &cam, w, h, q, threads)
         }

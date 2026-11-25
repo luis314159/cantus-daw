@@ -15,6 +15,13 @@ use crate::scene::bowed::Bowed;
 use crate::scene::bowed_mesh::{mesh_for, Role};
 use std::collections::HashMap;
 
+/// r42:arcus-polish — her blonde seen per pixel, a little toward ash (the owner,
+/// 2026-11-25: "platinum reads yellow-flat"), linear.
+fn fair() -> super::mesh::Lin {
+    let c = lin3(hp::HAIR_FAIR);
+    [c[0] * 0.93, c[1] * 0.96, c[2] * 1.08]
+}
+
 /// The photographic material of a role.
 fn pmat(b: Bowed, r: Role) -> PMat {
     // The varnish seen per pixel: its colour deeper than the Drawn picture's flat facets
@@ -103,10 +110,10 @@ fn pmat(b: Bowed, r: Role) -> PMat {
             light: lin3(hp::VELVET_SHEEN),
             ..PMat::matte(lin3(hp::VELVET)).with(Tex::Velvet)
         },
-        Role::Wool => PMat::matte(lin3(hp::WOOL)).with(Tex::Fabric),
+        Role::Wool => PMat::matte(lin3(hp::WOOL)).with(Tex::Wool), // r42:arcus-polish
         Role::Shirt => PMat::matte(lin3(hp::SHIRT)).with(Tex::Fabric),
         Role::Tie => PMat::lacquer(lin3(hp::TIE), 0.12, 0.35),
-        Role::HairFair => PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair),
+        Role::HairFair => PMat::lacquer(fair(), 0.1, 0.42).with(Tex::Hair),
         Role::Eye => PMat::lacquer(lin3(hp::EYE_WHITE), 0.35, 0.08),
         Role::Iris => PMat::lacquer(lin3(hp::IRIS), 0.35, 0.08),
         // (r42:arcus-hair: a little lighter than the Drawn picture's — near black, each lash
@@ -128,13 +135,14 @@ fn pmat(b: Bowed, r: Role) -> PMat {
             };
             let base = match k % 3 {
                 2 => lin3(base).map(|c| c * 1.8),
+                0 if woman => fair().map(|c| c * crate::scene::figure::cards::hair_look(0).albedo),
                 0 => lin3(base).map(|c| c * crate::scene::figure::cards::hair_look(k / 3).albedo),
                 _ => lin3(base),
             };
             PMat::lacquer(base, 0.06, 0.45).with(Tex::Card(k))
         }
         Role::Shell(0) | Role::Scalp(0) => {
-            PMat::lacquer(lin3(hp::HAIR_FAIR), 0.1, 0.42).with(Tex::Hair)
+            PMat::lacquer(fair(), 0.1, 0.42).with(Tex::Hair)
         }
         Role::Shell(_) | Role::Scalp(_) => PMat::matte(lin3(hp::HAIR)),
     }
@@ -200,7 +208,7 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
             Role::HairFair => g.mat(PMat {
                 dark: scalp,
                 ..PMat::lacquer(
-                    lin3(hp::HAIR_FAIR)
+                    fair()
                         .map(|c| c * crate::scene::figure::cards::hair_look(0).albedo),
                     0.1,
                     0.42,
@@ -212,9 +220,9 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
             // (r42:arcus-hair: the hair's colour, lit as the cards over it are, thinning out
             // at its edge by the hairline.)
             Role::Scalp(w) => {
-                let hair = if *w == 0 { hp::HAIR_FAIR } else { hp::HAIR };
+                let hair = if *w == 0 { fair() } else { lin3(hp::HAIR) };
                 let deep = crate::scene::figure::cards::hair_look(*w).scalp;
-                g.mat(PMat::lacquer(lin3(hair).map(|c| c * deep), 0.06, 0.45).with(Tex::Scalp(*w)))
+                g.mat(PMat::lacquer(hair.map(|c| c * deep), 0.06, 0.45).with(Tex::Scalp(*w)))
             }
             // (r42:arcus-hair: the eyes from their texture — the iris, its pupil, the white —
             // wet: a catch-light from the key.)

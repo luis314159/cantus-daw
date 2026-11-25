@@ -45,6 +45,11 @@ struct ArmMesh {
     /// r42:arcus-hand — High's hand: whether each triangle is the hand's skin or a nail
     /// (every corner on the hand's or the fingers' bones), drawn as a curved patch.
     fine: Vec<bool>,
+    /// r42:arcus-polish — per triangle, a bit for each edge (corner k to k + 1) that a fine
+    /// patch draws curved: only where the triangle beyond it is a fine patch too (a curved
+    /// edge against a flat neighbour opened pixel cracks the jacket or the instrument showed
+    /// through: dark dots across the back of his hand).
+    curved: Vec<u8>,
     /// r42:arcus-hand — each vertex's detail (luminance, red) for the hand: the figure's,
     /// with the nails' free edges paler and the knuckles a little redder.
     vdet: Vec<[f32; 2]>,
@@ -185,6 +190,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
     let fine = vec![false; tris.len()];
     let vdet = verts.iter().map(|&g| fig.detail[g as usize]).collect();
     let seam = seams(fig, &verts, &edges);
+    let curved = vec![0; tris.len()];
     ArmMesh {
         verts,
         tris,
@@ -195,6 +201,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         seam,
         weld,
         fine,
+        curved,
         vdet,
     }
 }
@@ -306,6 +313,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
     let weld = weld_of(fig, &verts);
     let (fine, vdet) = hand_detail(fig, s, &verts, &tris, &stuff);
     let seam = seams(fig, &verts, &edges);
+    let curved = curved_edges(&tris, &fine, &weld);
     ArmMesh {
         verts,
         tris,
@@ -316,6 +324,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         seam,
         weld,
         fine,
+        curved,
         vdet,
     }
 }
@@ -493,6 +502,24 @@ fn hand_detail(
                 },
             );
             let bone = bone as usize;
+            // r42:arcus-polish — the back of the hand's faint veins: three soft lines from
+            // the wrist's middle toward the gaps between the knuckles, a little blue under
+            // the skin (the owner's small details, 2026-11-25).
+            if bone == o + hu::HAND {
+                let on_back = (p - wr).norm().dot(back).max(0.0);
+                let mut vein = 0.0f32;
+                for (f1, f2) in [(1usize, 2usize), (2, 3), (3, 4)] {
+                    let a = wr.lerp((kn(f1) + kn(f2)) * 0.5, 0.18);
+                    let b = wr.lerp((kn(f1) + kn(f2)) * 0.5, 0.82);
+                    let ab = b - a;
+                    let tt = ((p - a).dot(ab) / ab.dot(ab).max(1e-6)).clamp(0.0, 1.0);
+                    let dd = (p - (a + ab * tt)).len();
+                    vein = vein.max((-(dd / 0.32) * (dd / 0.32)).exp() * (1.0 - tt * 0.5));
+                }
+                let w = vein * on_back.powf(0.5) * VEIN;
+                d = [d[0] * (1.0 - 0.05 * w), d[1] - 0.3 * w];
+                return d;
+            }
             if !(o + hu::finger(0, 0)..=o + hu::finger(4, 2)).contains(&bone) {
                 return d;
             }
@@ -502,9 +529,11 @@ fn hand_detail(
             if nail[i] {
                 // The free edge pale, the bed pink.
                 let edge = ((t - 0.78) / 0.12).clamp(0.0, 1.0);
+                // r42:arcus-polish — and the lunula at its root, a paler crescent.
+                let lunula = (1.0 - ((t - 0.45) / 0.1).clamp(0.0, 1.0)) * (1.0 - edge);
                 d = [
-                    d[0] * (1.0 + 0.16 * edge),
-                    d[1] + 0.25 * (1.0 - edge) - 0.45 * edge,
+                    d[0] * (1.0 + 0.16 * edge + 0.1 * lunula),
+                    d[1] + 0.25 * (1.0 - edge - lunula) - 0.45 * edge - 0.2 * lunula,
                 ];
                 return d;
             }
@@ -520,6 +549,12 @@ fn hand_detail(
             if k <= 1 && bone >= o + hu::finger(1, 0) {
                 let w = near_head * on_back;
                 d = [d[0] * (1.0 - 0.06 * w), d[1] + 0.35 * w];
+            }
+            // r42:arcus-polish — the creases over the middle and the last joints: a narrow
+            // darker band across the finger's back.
+            if k >= 1 && bone >= o + hu::finger(1, 0) {
+                let c = (-(t / 0.07) * (t / 0.07)).exp() * on_back;
+                d = [d[0] * (1.0 - 0.12 * c), d[1] + 0.08 * c];
             }
             d
         })
@@ -761,7 +796,8 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         }
         if st == Stuff::Velvet {
             let s = hp::VELVET_SHEEN;
-            let k = (1.0 - ndv).powi(2) * 0.55;
+            let g = 1.0 - ndv;
+            let k = g * g * 0.55 + g.powi(5) * 0.6; // r42:arcus-polish
             c = [c[0] + s[0] * k, c[1] + s[1] * k, c[2] + s[2] * k];
         }
         if matches!(st, Stuff::Velvet | Stuff::Wool) {
@@ -836,7 +872,9 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
     }
     if st == Stuff::Velvet {
         // Velvet's pile catches the light where it turns away.
-        let pile = (1.0 - ndv).powi(2) * 0.28;
+        // (r42:arcus-polish: and a bright rim where it turns fully away — the bake's.)
+        let g = 1.0 - ndv;
+        let pile = g * g * 0.28 + g.powi(5) * 0.42;
         let s = lin(hp::VELVET_SHEEN);
         for (i, r) in rad.iter_mut().enumerate() {
             *r += s[i] * pile * (key_k * dif.max(0.35) + amb);
@@ -921,6 +959,8 @@ pub fn arm(
         1
     } else {
         ((v.scale(aim.wrist) * FINE_EDGE / FINE_PX).ceil() as usize).clamp(1, FINE_MAX)
+            * (std::env::var_os("CANTUS_DBG_HAND").is_none() as usize).max(1)
+            / if std::env::var_os("CANTUS_DBG_HAND").is_some() { FINE_MAX } else { 1 }
     };
     SCRATCH.with(|sc| {
         let mut sc = sc.borrow_mut();
@@ -957,7 +997,57 @@ pub fn arm(
         } else {
             arm_setup(fig, am, base, s, aim, v, held, sc, light)
         };
+        // r42:arcus-polish — the tests' measure of the arm from the app's camera.
+        if super::probe::on() {
+            let o = hu::side(s);
+            super::probe::keep(super::probe::Arm {
+                who: who as u8,
+                side: s,
+                shoulder: base.at(o + hu::UPPER1, fig.bones[o + hu::UPPER1].head),
+                elbow: aim.elbow,
+                wrist: aim.wrist,
+                pts: sc.pts.clone(),
+                bone: am
+                    .verts
+                    .iter()
+                    .map(|&g| {
+                        fig.bw[g as usize]
+                            .iter()
+                            .fold((0u8, -1.0f32), |b, &(x, w)| if w > b.1 { (x, w) } else { b })
+                            .0
+                    })
+                    .collect(),
+                screen: sc.sp.clone(),
+                scale: sc.pts.iter().map(|&p| v.scale(p)).collect(),
+                tris: am.tris.clone(),
+                skin: {
+                    let mut k = vec![false; am.verts.len()];
+                    for (t, st) in am.tris.iter().zip(&am.stuff) {
+                        if matches!(st, Stuff::Skin | Stuff::Nail) {
+                            for &i in t {
+                                k[i as usize] = true;
+                            }
+                        }
+                    }
+                    k
+                },
+                joints: {
+                    let posed = hu::repose_arm(fig, base, s, aim);
+                    (o + hu::UPPER1..=o + hu::finger(4, 2))
+                        .map(|b| {
+                            let w = posed.at(b, fig.bones[b].head);
+                            (b, v.p(w), w)
+                        })
+                        .collect()
+                },
+            });
+        }
         let eye = v.cam.eye();
+        // r42:arcus-polish — the arm's soft shadow where it crosses in front of the trunk
+        // (once: in the left arm's first pass).
+        if hidden.is_none_or(|h| h.0) {
+            trunk_shadow(b, v, lit, fig, base, am, sc, &shading, s, tone, mid);
+        }
         sc.front.clear();
         sc.col.clear();
         sc.order.clear();
@@ -972,6 +1062,21 @@ pub fn arm(
             // (the review, both wrists, both cameras).
             if am.stuff[k] == Stuff::Shirt {
                 show = false;
+            }
+            // r42:arcus-polish — the inside of a sleeve's open end: a cloth is one layer, so
+            // looking into the cuff the camera saw its back faces culled and the room
+            // through the arm (with the shirt's cuff hidden, the review's grey-blue points
+            // and the tan wedge by his bow hand). Within a few centimetres of the cloth's
+            // edge its back is drawn too, deep in the sleeve's shade.
+            let mut inside = false;
+            if !show
+                && matches!(am.stuff[k], Stuff::Velvet | Stuff::Wool)
+                && t.iter().all(|&i| {
+                    fig.edge.get(am.verts[i as usize] as usize).copied().unwrap_or(9.0) < SLEEVE_INSIDE
+                })
+            {
+                show = true;
+                inside = true;
             }
             if show {
                 if let Some((want, hid)) = hidden {
@@ -989,7 +1094,18 @@ pub fn arm(
             sc.front.push(show);
             let st = am.stuff[k];
             let mut cc = [Color32::TRANSPARENT; 3];
-            if show {
+            if show && inside {
+                let c = lut_colour(&shading, s, st, tone, [1.0, 0.0], mid, -sc.nrm[a], 0.0);
+                cc = [c; 3].map(|x| {
+                    let k = INSIDE_SHADE;
+                    Color32::from_rgb(
+                        (x.r() as f32 * k) as u8,
+                        (x.g() as f32 * k) as u8,
+                        (x.b() as f32 * k) as u8,
+                    )
+                });
+                sc.order.push((v.cam.depth(ctr) + 0.02, k as u32));
+            } else if show {
                 for (j, &i) in [a, bb, c].iter().enumerate() {
                     // Each corner lit once a frame (a vertex where two stuffs meet, once
                     // each way).
@@ -1009,6 +1125,27 @@ pub fn arm(
                 // A shirt's cuff lies inside its sleeve: sorted a little behind it.
                 let bias = if st == Stuff::Shirt { 3.0 } else { 0.0 };
                 sc.order.push((v.cam.depth(ctr) + bias, k as u32));
+            }
+            // DEBUG-POLISH (taken out before the commit): each corner by its main bone.
+            if show && std::env::var_os("CANTUS_DBG_HAND").is_some() {
+                let o = hu::side(s);
+                cc = t.map(|i| {
+                    let g = am.verts[i as usize] as usize;
+                    let (bone, _) = fig.bw[g]
+                        .iter()
+                        .fold((0u8, -1.0f32), |b, &(x, w)| if w > b.1 { (x, w) } else { b });
+                    let bone = bone as usize;
+                    let lv = (sc.nrm[i as usize].dot((v.cam.eye() - sc.pts[i as usize]).norm()).max(0.0) * 200.0) as u8 + 40;
+                    if bone == o + hu::HAND {
+                        Color32::from_rgb(0, lv, 0)
+                    } else if (o + hu::finger(0, 0)..=o + hu::finger(0, 2)).contains(&bone) {
+                        Color32::from_rgb(lv, 0, 0)
+                    } else if (o + hu::finger(1, 0)..=o + hu::finger(4, 2)).contains(&bone) {
+                        Color32::from_rgb(0, 0, lv)
+                    } else {
+                        Color32::from_rgb(lv, lv, 0)
+                    }
+                });
             }
             sc.col.push(cc);
         }
@@ -1119,8 +1256,12 @@ pub fn arm(
                 if out.dot(inside - pa) > 0.0 {
                     out = -out;
                 }
+                // (r42:arcus-polish: curved only where the patch curves that edge.)
+                let ka = tri.iter().position(|&x| x == a).unwrap_or(0);
+                let kb = tri.iter().position(|&x| x == bb).unwrap_or(0);
+                let ke = if (ka + 1) % 3 == kb { ka } else { kb };
                 if out.length() > 1e-4 {
-                    if fine_n > 1 && am.fine[t] {
+                    if fine_n > 1 && am.fine[t] && am.curved[t] & (1 << ke) != 0 {
                         // Along the patch's curved edge (r42:arcus-hand).
                         let (ia, ib) = (a as usize, bb as usize);
                         let (p0, p1, n0, n1) = (sc.pts[ia], sc.pts[ib], sc.nrm[ia], sc.nrm[ib]);
@@ -1149,6 +1290,99 @@ pub fn arm(
         }
     });
 }
+
+/// r42:arcus-polish — which of each fine triangle's edges are shared with another fine
+/// triangle (by place: a texture seam's copies count as one), so the patch may curve them.
+fn curved_edges(tris: &[[u16; 3]], fine: &[bool], weld: &[u16]) -> Vec<u8> {
+    let key = |a: u16, b: u16| {
+        let (a, b) = (weld[a as usize], weld[b as usize]);
+        (a.min(b), a.max(b))
+    };
+    let mut count: std::collections::HashMap<(u16, u16), u8> = Default::default();
+    for (t, &f) in tris.iter().zip(fine) {
+        if f {
+            for k in 0..3 {
+                *count.entry(key(t[k], t[(k + 1) % 3])).or_insert(0) += 1;
+            }
+        }
+    }
+    tris.iter()
+        .zip(fine)
+        .map(|(t, &f)| {
+            if !f {
+                return 0;
+            }
+            (0..3).fold(0u8, |m, k| {
+                if count.get(&key(t[k], t[(k + 1) % 3])).copied().unwrap_or(0) >= 2 {
+                    m | (1 << k)
+                } else {
+                    m
+                }
+            })
+        })
+        .collect()
+}
+
+/// r42:arcus-polish — the back of a hand's forms at rest, for the tone per point of High's
+/// patches: the extensor tendons from the wrist's middle to each knuckle a little lighter,
+/// the valleys between the metacarpals a little darker, each base knuckle's top lighter with
+/// a soft shade round it — light and shade only (the mesh, a centimetre a vertex there, holds
+/// no such relief; the light comes from the upper front, so ridges read lighter).
+struct Relief {
+    wr: V3,
+    heads: [V3; 4],
+    back: V3,
+}
+
+impl Relief {
+    fn of(fig: &Figure, s: usize) -> Relief {
+        let o = hu::side(s);
+        let kn = |f: usize| fig.bones[o + hu::finger(f, 0)].head;
+        let wr = fig.bones[o + hu::HAND].head;
+        let mut back = (kn(1) - kn(4)).cross((kn(2) + kn(3)) * 0.5 - wr).norm();
+        if (back.x < 0.0) == (s == 0) {
+            back = back * -1.0;
+        }
+        Relief {
+            wr,
+            heads: [kn(1), kn(2), kn(3), kn(4)],
+            back,
+        }
+    }
+
+    /// The luminance factor at `p` (rest, cm).
+    fn at(&self, p: V3) -> f32 {
+        let mut near = f32::MAX;
+        let mut knuckle = 0.0f32;
+        let mut on_back = 0.0f32;
+        let mut along = 0.0f32;
+        for &h in &self.heads {
+            let a = self.wr.lerp(h, 0.2);
+            let ab = h - a;
+            let t = ((p - a).dot(ab) / ab.dot(ab).max(1e-6)).clamp(0.0, 1.0);
+            let q = p - (a + ab * t);
+            let up = q.dot(self.back);
+            let lat = (q - self.back * up).len();
+            if lat < near {
+                near = lat;
+                on_back = (up / 0.6).clamp(0.0, 1.0);
+                along = t;
+            }
+            let dk = (p - h).len();
+            knuckle = knuckle.max((-((dk - 0.2) / 0.45).powi(2)).exp() * (q.dot(self.back) > 0.0) as u8 as f32);
+        }
+        if on_back <= 0.0 {
+            return 1.0;
+        }
+        let ridge = (-(near / 0.22) * (near / 0.22)).exp();
+        let valley = 1.0 - (-(near / 0.5) * (near / 0.5)).exp();
+        let span = smooth01((along - 0.05) / 0.25) * (1.0 - smooth01((along - 0.9) / 0.15));
+        1.0 + on_back * (span * (RELIEF.0 * ridge - RELIEF.1 * valley) + RELIEF.2 * knuckle)
+    }
+}
+
+/// The tendons' lift, the valleys' shade, the knuckles' lift (luminance shares).
+const RELIEF: (f32, f32, f32) = (0.07, 0.09, 0.06);
 
 /// r42:arcus-hand — High's hand patches: a thinned triangle's edge (cm) and the px a
 /// patch's small triangle may take on screen; at most this many cuts a side.
@@ -1203,6 +1437,11 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
     });
     let textured = st == Stuff::Skin && uv.iter().all(|u| u[0] >= 0.0);
     let det = t.map(|i| am.vdet[i]);
+    // r42:arcus-polish — the back of the hand's forms (the owner: "a puffy, featureless
+    // dome… no tendon, metacarpal or knuckle definition"), per point from where it lies at
+    // rest.
+    let rest = t.map(|i| fc.fig.pos[am.verts[i] as usize]);
+    let relief = (st == Stuff::Skin).then(|| Relief::of(fc.fig, fc.side));
     let ao = t.map(|i| sc.ao[i]);
     let mut pts = [Pos2::ZERO; 15];
     let mut cols = [Color32::TRANSPARENT; 15];
@@ -1211,7 +1450,38 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
         for j in 0..=(n - i) {
             let (w1, w2) = (j as f32 / n as f32, i as f32 / n as f32);
             let w0 = 1.0 - w1 - w2;
-            let q = p[0] * (w0 * w0 * w0)
+            // r42:arcus-polish — a point on an edge is worked out the same way from either
+            // triangle (from the edge's lower-numbered end; straight against a flat
+            // neighbour): two ways of summing it differed in the last bit and left pixel
+            // cracks between the patches.
+            let on_edge = if i == 0 {
+                Some((0usize, 1usize, w1))
+            } else if i + j == n {
+                Some((1, 2, w2))
+            } else if j == 0 {
+                Some((2, 0, w0))
+            } else {
+                None
+            };
+            let q = if let Some((ka, kb, sa)) = on_edge {
+                let curved = am.curved[k] & (1 << ka) != 0;
+                let (ka, kb, s_) = if am.weld[t[ka]] > am.weld[t[kb]]
+                    || (am.weld[t[ka]] == am.weld[t[kb]] && t[ka] > t[kb])
+                {
+                    (kb, ka, 1.0 - sa)
+                } else {
+                    (ka, kb, sa)
+                };
+                let (pa, pb) = (p[ka], p[kb]);
+                if curved {
+                    let (ca, cb) = (e(ka, kb), e(kb, ka));
+                    let u = 1.0 - s_;
+                    pa * (u * u * u) + ca * (3.0 * u * u * s_) + cb * (3.0 * u * s_ * s_) + pb * (s_ * s_ * s_)
+                } else {
+                    pa * (1.0 - s_) + pb * s_
+                }
+            } else {
+                p[0] * (w0 * w0 * w0)
                 + p[1] * (w1 * w1 * w1)
                 + p[2] * (w2 * w2 * w2)
                 + (b210 * (w0 * w0 * w1)
@@ -1221,7 +1491,8 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
                     + b102 * (w0 * w2 * w2)
                     + b012 * (w1 * w2 * w2))
                     * 3.0
-                + b111 * (6.0 * w0 * w1 * w2);
+                + b111 * (6.0 * w0 * w1 * w2)
+            };
             let nq = (nn[0] * w0 + nn[1] * w1 + nn[2] * w2).norm();
             let mut d = [
                 det[0][0] * w0 + det[1][0] * w1 + det[2][0] * w2,
@@ -1231,6 +1502,9 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
                 let u = uv[0][0] * w0 + uv[1][0] * w1 + uv[2][0] * w2;
                 let vt = uv[0][1] * w0 + uv[1][1] * w1 + uv[2][1] * w2;
                 d[0] *= crate::scene::figure::cards::skin_detail(u, vt);
+            }
+            if let Some(r) = &relief {
+                d[0] *= r.at(rest[0] * w0 + rest[1] * w1 + rest[2] * w2);
             }
             let a = ao[0] * w0 + ao[1] * w1 + ao[2] * w2;
             let at = row(i) + j;
@@ -1349,6 +1623,149 @@ fn occlusion(
     }
 }
 
+/// r42:arcus-polish — the sleeve gathered in the elbow's crook (the owner, 2026-11-25:
+/// folds at the inner elbow; "the arm must read as an arm, with a visible elbow"): round
+/// the bent elbow, on the side the arm folds toward, the normals swung to and fro along the
+/// arm (soft folds about [`FOLD_CM`] apart) and their creases shaded, as deep as the elbow
+/// is bent. The hand's skin is never touched.
+fn elbow_folds(fig: &Figure, posed: &Posed, s: usize, am: &ArmMesh, sc: &mut Scratch) {
+    let o = hu::side(s);
+    let at = |b: usize| posed.at(o + b, fig.bones[o + b].head);
+    let (sh, el, wr) = (at(hu::UPPER1), at(hu::FORE1), at(hu::HAND));
+    let (u, f) = ((sh - el).norm(), (wr - el).norm());
+    // 0 straight … 1 bent square or more.
+    let bend = ((u.dot(f) + 1.0) * 1.2).clamp(0.0, 1.0);
+    if bend < 0.05 {
+        return;
+    }
+    let crook = (u + f).norm();
+    for (j, &g) in am.verts.iter().enumerate() {
+        let hand: f32 = fig.bw[g as usize]
+            .iter()
+            .filter(|(b, _)| (*b as usize) >= o + hu::HAND && (*b as usize) <= o + hu::finger(4, 2))
+            .map(|x| x.1)
+            .sum();
+        if hand > 0.3 {
+            continue;
+        }
+        let d = sc.pts[j] - el;
+        let (a, b) = (d.dot(u), d.dot(f));
+        // Along the arm from the elbow: + up the upper arm, − down the forearm.
+        let t = if a >= b { a } else { -b };
+        let near = 1.0 - smooth01((t.abs() - 2.0) / 5.0);
+        let n = sc.nrm[j];
+        let inside = n.dot(crook).max(0.0).powf(0.7);
+        let w = bend * near * inside * (1.0 - hand / 0.3);
+        if w < 0.02 {
+            continue;
+        }
+        let ph = t / FOLD_CM * std::f32::consts::TAU + 0.6 * (t * 0.9).sin();
+        let ax = if t >= 0.0 { u } else { -f };
+        sc.nrm[j] = (n + ax * (0.75 * w * ph.sin())).norm();
+        sc.ao[j] *= 1.0 - 0.45 * w * (-ph.cos()).max(0.0).powi(2);
+    }
+}
+
+/// r42:arcus-polish — the shadow an arm lays on the trunk it crosses in front of (the
+/// owner, 2026-11-25: "wherever an arm crosses the torso, a contact shadow"): the trunk as
+/// three capsules (the hips, the spine, the chest, posed as baked, a little inside the
+/// figure's own surface); each arm triangle facing the key whose point has the trunk close
+/// behind it along the eye's ray ([`SHADOW_REACH`] cm) is cast along the key's way onto it
+/// and drawn as a soft shade — darker the closer the arm lies, faded at the lit side's
+/// terminator so the shadow's edge is soft. Never over the room: only where the trunk is
+/// behind.
+#[allow(clippy::too_many_arguments)]
+fn trunk_shadow(
+    b: &mut Brush,
+    v: &View,
+    lit: &Lit,
+    fig: &Figure,
+    base: &Posed,
+    am: &ArmMesh,
+    sc: &Scratch,
+    sh: &Shading,
+    s: usize,
+    tone: u8,
+    mid: V3,
+) {
+    let at = |k: usize| base.at(k, fig.bones[k].head);
+    let r = if fig.bones.is_empty() {
+        return;
+    } else {
+        // The trunk's half width at the chest, from the shoulders' joints.
+        let span = (at(hu::side(0) + hu::UPPER1) - at(hu::side(1) + hu::UPPER1)).len();
+        span * 0.29
+    };
+    let caps = [
+        (at(hu::HIPS), at(hu::SPINE), r * 1.05),
+        (at(hu::SPINE), at(hu::CHEST), r * 0.95),
+        (at(hu::CHEST), at(hu::NECK), r),
+    ];
+    let inside = |p: V3| {
+        caps.iter().any(|&(a, c, rr)| {
+            let ab = c - a;
+            let t = ((p - a).dot(ab) / ab.dot(ab).max(1e-6)).clamp(0.0, 1.0);
+            (p - (a + ab * t)).len() < rr
+        })
+    };
+    let eye = v.cam.eye();
+    let deep = lut_colour(sh, s, Stuff::Velvet, tone, [1.0, 0.0], mid, V3 { x: 0.0, y: -1.0, z: 0.0 }, 0.0);
+    for t in &am.tris {
+        let [a, bb, c] = t.map(|i| i as usize);
+        let ctr = (sc.pts[a] + sc.pts[bb] + sc.pts[c]) * (1.0 / 3.0);
+        let l = (lit.key - ctr).norm();
+        let n = (sc.pts[bb] - sc.pts[a]).cross(sc.pts[c] - sc.pts[a]);
+        if n.dot(l) <= 0.0 {
+            continue;
+        }
+        // How far behind it, along the eye's ray, the trunk is.
+        let ray = (ctr - eye).norm();
+        let mut gap = None;
+        for k in 1..=SHADOW_STEPS {
+            let d = SHADOW_REACH * k as f32 / SHADOW_STEPS as f32;
+            if inside(ctr + ray * d) {
+                gap = Some(d);
+                break;
+            }
+        }
+        let Some(gap) = gap else {
+            continue;
+        };
+        let k = (1.0 - gap / SHADOW_REACH).clamp(0.0, 1.0) * SHADOW_DEPTH;
+        let cast = |i: usize| {
+            let soft = sc.nrm[i].dot(l).clamp(0.0, 1.0).sqrt();
+            let p = sc.pts[i] - l * gap;
+            (v.p(p), deep.gamma_multiply(k * soft))
+        };
+        let (pa, ca) = cast(a);
+        let (pb, cb) = cast(bb);
+        let (pc, cc) = cast(c);
+        b.shaded_tri([pa, pb, pc], [ca, cb, cc]);
+    }
+}
+
+/// How far behind an arm (cm) the trunk may be for its shadow to fall on it, in how many
+/// steps that is looked along, and the shadow's opacity where the arm touches.
+const SHADOW_REACH: f32 = 9.0;
+const SHADOW_STEPS: usize = 6;
+const SHADOW_DEPTH: f32 = 0.42;
+
+/// r42:arcus-polish — how far in from a sleeve's edge (cm) its inside is drawn, and how
+/// deep its shade is (of the cloth's own colour facing away).
+const SLEEVE_INSIDE: f32 = 3.0;
+const INSIDE_SHADE: f32 = 0.35;
+
+/// r42:arcus-polish — how strongly the back of the hand's veins show.
+const VEIN: f32 = 0.8;
+
+/// How far apart the elbow's folds lie (cm).
+const FOLD_CM: f32 = 2.4;
+
+fn smooth01(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
+
 /// Skin arm `s`, its normals, its occlusion; clear the kept colours. Returns the arm's
 /// middle (where its light is taken).
 #[allow(clippy::too_many_arguments)]
@@ -1395,6 +1812,7 @@ fn arm_setup(
     } else {
         occlusion(fig, &posed, s, am, held, sc);
     }
+    elbow_folds(fig, &posed, s, am, sc);
     sc.vcol.clear();
     sc.vcol.resize(n, (None, Color32::TRANSPARENT));
     sc.mid = sc.pts.iter().fold(V3::default(), |a, &p| a + p) * (1.0 / n.max(1) as f32);

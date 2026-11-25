@@ -73,7 +73,68 @@ def read_fig(path, knuckles=True):
     if knuckles:
         name = os.path.basename(path)
         knuckle_fix(fig, HAND_SCALE.get(name, 1.0), PALM_SLIM.get(name, 1.0))
+        for s in (0, 1):
+            thumb_web(fig, s)
     return fig
+
+
+# r42:arcus-polish — the first web space and the thenar (``scene/bowed_human.rs::thumb_web``,
+# the two alike): the hand bone's skin past the index's metacarpal toward the thumb drawn in
+# across and partly handed to the thumb's first bone, so it goes under the neck with the
+# thumb instead of standing out as a mitten's thumb pocket.
+WEB_IN = 0.45
+WEB_TO_THUMB = 0.6
+EDGE_IN = 0.5
+
+
+def _smooth(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def thumb_web(fig, s):
+    B = fig["bones"]
+    pos, ids, ws = fig["pos"], fig["ids"], fig["ws"]
+    o = side(s)
+    wr = B[o + HAND][1]
+    ix, lt = B[o + finger(1, 0)][1], B[o + finger(4, 0)][1]
+    end = (B[o + finger(2, 0)][1] + B[o + finger(3, 0)][1]) * 0.5
+    along = norm(end - wr)
+    ln = max(np.linalg.norm(end - wr), 1e-3)
+    a = ix - lt
+    across = norm(a - along * (a @ along))
+    line = (ix - wr) @ across
+    ulnar = (lt - wr) @ across
+    hb, tb = o + HAND, o + finger(0, 0)
+    for i in range(len(pos)):
+        wh = float(np.sum(np.where(ids[i] == hb, ws[i], 0.0)))
+        if wh < 0.4:
+            continue
+        d = pos[i] - wr
+        t = d @ along / ln
+        ru = ulnar - d @ across
+        if ru > 0.0 and -0.1 <= t < 1.05:
+            ramp = _smooth((t + 0.1) / 0.3) * (1.0 - _smooth((t - 0.8) / 0.3))
+            pos[i] = pos[i] + across * (ru * EDGE_IN * ramp * wh)
+            continue
+        r = d @ across - line
+        if r <= 0.0 or not (-0.1 <= t < 1.05):
+            continue
+        ramp = _smooth((t + 0.1) / 0.3) * (1.0 - _smooth((t - 0.75) / 0.3))
+        pos[i] = pos[i] - across * (r * WEB_IN * ramp * wh)
+        give = wh * WEB_TO_THUMB * ramp * _smooth(r / 1.5)
+        if give < 1e-4:
+            continue
+        w = {int(ids[i, k]): float(ws[i, k]) for k in range(4) if ws[i, k] > 0}
+        w[hb] = w.get(hb, 0.0) - give
+        w[tb] = w.get(tb, 0.0) + give
+        top = sorted(((v, k) for k, v in w.items() if v > 1e-6), reverse=True)[:4]
+        tot = sum(v for v, _ in top)
+        ids[i] = 0
+        ws[i] = 0
+        for k, (v, b) in enumerate(top):
+            ids[i, k] = b
+            ws[i, k] = v / tot
 
 
 # r42:arcus-hand — MakeHuman's finger bones begin at the webs, about a centimetre and a

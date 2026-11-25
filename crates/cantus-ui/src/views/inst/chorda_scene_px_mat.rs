@@ -90,6 +90,10 @@ pub enum Tex {
     /// r42:arcus-hair — a realistic figure's eye: its iris and white from its texture at
     /// `uv` (`figure::cards::eye`).
     Eye,
+    /// r42:arcus-polish — a realistic figure's worsted wool (his suit): a fine heather where
+    /// a pixel holds it, its edges' roll (`uv[0]` cm to the cloth's edge: a lapel, a hem)
+    /// catching the light.
+    Wool,
 }
 
 /// A material.

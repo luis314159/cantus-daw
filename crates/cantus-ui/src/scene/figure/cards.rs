@@ -199,6 +199,10 @@ pub struct HairLook {
     /// deeper hair in the gaps between the cards (his short cards leave wide ones, and a
     /// scalp as light as his hair read as pale patches over the crown).
     pub scalp: f32,
+    /// r42:arcus-polish — how strong the tonal streaks along the strands are, and how much
+    /// of the back light (the rim that tells the hair from the room) it takes.
+    pub streaks: f32,
+    pub rim: f32,
 }
 
 /// `who`'s (0 her, 1 him) hair. His short hair runs every way (its curls' way changes
@@ -206,20 +210,28 @@ pub struct HairLook {
 /// that suits her blonde read on him as pale glossy blotches, so his stays faint.
 pub fn hair_look(who: u8) -> HairLook {
     if who == 0 {
+        // (r42:arcus-polish: a little deeper, so her blonde holds its strands against the
+        // light Paper room, with streaks and the back light along its edge.)
         HairLook {
-            albedo: 0.6,
-            shine: (60.0, 0.3),
-            sheen: (10.0, 0.25),
+            albedo: 0.52,
+            shine: (70.0, 0.34),
+            sheen: (9.0, 0.3),
             detail: 1.0,
-            scalp: 0.57,
+            scalp: 0.5,
+            streaks: 1.0,
+            rim: 1.6,
         }
     } else {
+        // (r42:arcus-polish: a real sheen band now his strands are combed one way in the
+        // light, `px_shade::strands`; his locks' streaks.)
         HairLook {
             albedo: 1.0,
-            shine: (60.0, 0.004),
-            sheen: (12.0, 0.006),
-            detail: 0.35,
+            shine: (55.0, 0.05),
+            sheen: (10.0, 0.05),
+            detail: 0.45,
             scalp: 0.55,
+            streaks: 0.9,
+            rim: 1.4,
         }
     }
 }

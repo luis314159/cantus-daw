@@ -22,6 +22,10 @@ pub struct Surf {
     /// A nudge to the normal (a curtain's folds, a cymbal's dents).
     pub dn: V3,
     pub sheen: f32,
+    /// r42:arcus-polish — a figure's cloth: its fold here (−1 a crease … +1 a crest) and
+    /// how near its edge it is (1 at the edge's roll, 0 a centimetre in).
+    pub fold: f32,
+    pub edge: f32,
 }
 
 fn s(albedo: Lin, coat: f32, rough: f32) -> Surf {
@@ -32,6 +36,8 @@ fn s(albedo: Lin, coat: f32, rough: f32) -> Surf {
         rough,
         dn: V3::default(),
         sheen: 0.0,
+        fold: 0.0,
+        edge: 0.0,
     }
 }
 
@@ -182,9 +188,12 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
             // the pile's sheen runs in the long soft streaks a hanging velvet shows.
             let a = noise(p.x * 14.0 + 0.4 * (p.y * 5.0).sin(), p.y * 3.0, 91) - 0.5;
             let b = noise(p.z * 14.0 + 0.4 * (p.y * 4.0).cos(), p.y * 3.0 + 7.0, 97) - 0.5;
+            // (r42:arcus-polish: its folds and its edge's roll, `raster::place`.)
             Surf {
                 sheen: 0.0,
                 dn: v3(a * 0.55, 0.0, b * 0.55),
+                fold: uv[1].clamp(-1.0, 1.0),
+                edge: (-(uv[0] / 0.45) * (uv[0] / 0.45)).exp(),
                 ..s(m.base, 0.0, 1.0)
             }
         }
@@ -202,6 +211,22 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
             }
         }
         Tex::Eye => s(crate::scene::figure::cards::eye(uv), m.coat, m.rough),
+        Tex::Wool => {
+            // r42:arcus-polish — worsted: a heather of fibres a couple of millimetres
+            // across (faded where a pixel cannot hold it) and a faint twill along the
+            // diagonal; its edges' roll lighter (a lapel's, a pocket's, a hem's).
+            let hold = 1.0 - smooth(0.0012, 0.004, fp);
+            let heather = (noise(p.x * 420.0 + p.y * 130.0, p.z * 420.0 - p.y * 90.0, 131) - 0.5)
+                * 0.16
+                * hold;
+            let twill = ((p.x + p.y + p.z) * 2400.0).sin() * 0.04 * (1.0 - smooth(0.0004, 0.0012, fp));
+            let roll = (-(uv[0] / 0.4) * (uv[0] / 0.4)).exp();
+            Surf {
+                sheen: 0.35,
+                edge: roll,
+                ..s(lscale(m.base, 1.0 + heather + twill + 0.25 * roll), 0.0, 1.0)
+            }
+        }
         Tex::Scalp(_) => s(lscale(m.base, scalp_strands(uv, fp)), m.coat, m.rough),
         Tex::Hair => {
             // Strand bundles across the strands (`uv[0]`), the scalp's under the cards
@@ -694,6 +719,8 @@ struct Strands {
     kv: f32,
     /// Whose hair (0 hers, 1 his).
     who: u8,
+    /// r42:arcus-polish — where (m): the tonal streaks along the strands.
+    p: V3,
 }
 
 /// r42:arcus-hair — a head of hair (the owner's review of sheet v8: her ponytail's cards
@@ -707,25 +734,70 @@ struct Strands {
 fn strands(m: &PMat, sf: &Surf, s: &Strands, e: Lin, rim: Lin, detail: f32, k: f32) -> Lin {
     let look = crate::scene::figure::cards::hair_look(s.who);
     let n = s.n;
-    let along = s.along - n * s.along.dot(n);
+    // r42:arcus-polish — his short hair's own way runs every way (its curls): combed back
+    // and up from the face instead, so a sheen band can cross his head as it crosses a
+    // groomed man's (the owner, 2026-11-25: "a specular band, no helmet").
+    let way = if s.who == 1 {
+        let away = v3(-s.v.x, 0.0, -s.v.z).norm();
+        (away + v3(0.0, 0.55, 0.0)).norm()
+    } else {
+        s.along
+    };
+    let along = way - n * way.dot(n);
     let along = if along.len() < 0.2 {
         super::geo::perp(n)
     } else {
         along.norm()
     };
-    let d = lmul(sf.albedo, ladd(e, lscale(rim, 0.5)));
+    // r42:arcus-polish — tonal streaks along the strands (locks a little darker and warmer
+    // or lighter and cooler, half a centimetre to two across, long along them): a head of
+    // hair, not one tone (the owner: "yellow-flat, helmet-like").
+    let across = along.cross(n);
+    let (xa, xl) = (s.p.dot(across), s.p.dot(along));
+    let band = 0.6 * (super::mat::noise(xa * 190.0, xl * 22.0, 211) - 0.5)
+        + 0.4 * (super::mat::noise(xa * 55.0, xl * 7.0, 223) - 0.5);
+    let streak = (band * look.streaks).clamp(-0.5, 0.5);
+    let tone: Lin = if streak < 0.0 {
+        let k = -streak * 2.0;
+        [1.0 - 0.36 * k, 1.0 - 0.42 * k, 1.0 - 0.5 * k]
+    } else {
+        let k = streak * 2.0;
+        [1.0 + 0.2 * k, 1.0 + 0.22 * k, 1.0 + 0.26 * k]
+    };
+    let d = lmul(lmul(sf.albedo, tone), ladd(e, lscale(rim, look.rim)));
     let h = (s.l + s.v).norm();
     // The highlight fades over the terminator (a strand's back is not lit).
     let lit = (n.dot(s.l) * 2.0 + 0.6).clamp(0.0, 1.0) * s.kv;
-    let th = along.dot(h);
-    let sin = (1.0 - th * th).max(0.0).sqrt();
-    let s1 = sin.powf(look.shine.0) * look.shine.1;
-    let s2 = sin.powf(look.sheen.0) * look.sheen.1;
-    let tint = lscale(m.base, 1.5);
+    // r42:arcus-polish — Kajiya–Kay's two lobes shifted along the strand as Marschner's are
+    // (the cuticle's tilt): the white one toward the root, the tinted one toward the tip, so
+    // they read as two bands, not one smear.
+    let kk = |t: V3| {
+        let th = t.norm().dot(h);
+        (1.0 - th * th).max(0.0).sqrt()
+    };
+    let s1 = kk(along + n * 0.12).powf(look.shine.0) * look.shine.1;
+    let s2 = kk(along - n * 0.18).powf(look.sheen.0) * look.sheen.1;
+    let tint = lscale(lmul(m.base, tone), 1.5);
     // (A bright strand catches more of it; the gaps' deeper hair less.)
-    let g = detail * detail * k;
+    let g = detail * detail * k * (1.0 + streak);
     let spec: Lin = std::array::from_fn(|i| s.kc[i] * lit * g * (s1 + s2 * tint[i]));
     ladd(d, spec)
+}
+
+/// r42:arcus-polish — how much the back light lifts a velvet's turned-away edge (its rim
+/// over the dark room: the arm, the shoulder told from what is behind them).
+const VELVET_BACK: f32 = 2.6;
+
+/// r42:arcus-polish — skin's sheen from the key alone (the room's softboxes left out of its
+/// reflection): a broad lobe and a tighter one (the forehead's, the nose's, the lips'
+/// light), Schlick's Fresnel at the half-way vector, in the key's shadow none.
+fn skin_sheen(n: V3, v: V3, l: V3, kc: Lin, kv: f32, ndl: f32) -> Lin {
+    let h = (l + v).norm();
+    let ndh = n.dot(h).max(0.0);
+    let f = schlick(0.028, l.dot(h).max(0.0));
+    let lobe = 1.6 * ndh.powi(14) + 4.0 * ndh.powi(70);
+    let k = f * lobe * ndl.min(1.0) * kv;
+    std::array::from_fn(|i| kc[i] * k)
 }
 
 /// The light leaving the surface of `m` at `p` toward `eye`. `n` is the shading normal,
@@ -875,6 +947,7 @@ pub fn shade(
             kc,
             kv,
             who,
+            p,
         };
         return rig.hazed(p, strands(m, &sf, &lit, e, rim, detail, k));
     }
@@ -910,11 +983,27 @@ pub fn shade(
         Kind::Matte if m.tex == Tex::Velvet => {
             // r42:arcus-upper — velvet: dark where it faces the eye, its pile's pale sheen
             // where it turns away (a light of its own, not the black's).
-            let pile = (1.0 - ndv).powi(2) * 0.28;
+            // r42:arcus-polish — and a bright rim where it turns fully away (the pile seen
+            // along its length), the back light's along its edge too; its folds' crests
+            // catch it and their creases go dark; an edge's roll catches it as well.
+            let g = 1.0 - ndv;
+            let fold = sf.fold;
+            let pile = (g * g * 0.28 + g.powi(5) * 0.42 + sf.edge * 0.22) * (1.0 + 0.85 * fold);
+            let lift = 1.0 + 0.35 * fold.min(0.0) + 0.2 * fold.max(0.0);
+            let back: f32 = rig
+                .rims
+                .iter()
+                .map(|&(dd, _)| n.dot(dd).max(0.0) * g.powi(3))
+                .sum::<f32>();
             let d = lmul(sf.albedo, ladd(e, lscale(rim, 0.8)));
-            ladd(
-                d,
-                lscale(lmul(m.light, ladd(lscale(kc, kv.max(0.35)), amb)), pile),
+            let sheen = lmul(m.light, ladd(lscale(kc, kv.max(0.35)), amb));
+            let rimc = rig.rims.first().map_or([0.0; 3], |r| r.1);
+            lscale(
+                ladd(
+                    ladd(d, lscale(sheen, pile.max(0.0))),
+                    lscale(lmul(m.light, rimc), back * VELVET_BACK),
+                ),
+                lift,
             )
         }
         Kind::Matte => {
@@ -927,7 +1016,11 @@ pub fn shade(
         }
         _ => {
             let f = schlick(sf.f0[0], ndv) * sf.coat;
-            let panels = m.tex != Tex::Floor;
+            // r42:arcus-polish — skin mirrors no softbox: the room's tall strips (the
+            // pianos' long crisp bars) read on a face and a neck as pale vertical streaks
+            // (the owner's 200 % sheet, her cheek, his forehead); its sheen is the key's own,
+            // below.
+            let panels = m.tex != Tex::Floor && m.tex != Tex::Skin;
             let env = traced(sf.rough, panels, &|| {
                 env_rough(
                     rig,
@@ -943,7 +1036,12 @@ pub fn shade(
                 )
             });
             let d = lmul(sf.albedo, ladd(e, lscale(rim, 0.5)));
-            ladd(lscale(d, 1.0 - f), lscale(env, f))
+            let c = ladd(lscale(d, 1.0 - f), lscale(env, f));
+            if m.tex == Tex::Skin {
+                ladd(c, skin_sheen(n, v, l, kc, kv, ndl))
+            } else {
+                c
+            }
         }
     };
     let c = if m.kind == Kind::Lacquer || m.kind == Kind::Metal {

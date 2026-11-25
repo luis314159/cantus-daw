@@ -546,6 +546,12 @@ fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) -> (V3, V3, V3
         one(b, -sign * 1.3 * speed * k, 0.24);
     }
     one(b, 0.0, 1.0);
+    // r42:arcus-polish — the tests' record of where the bow was drawn.
+    if super::probe::on() {
+        let frog = base - dir * (at * hair + 8.0);
+        let tip = base + dir * ((1.0 - at) * hair + 2.0);
+        super::probe::keep_bow(v.p(frog), v.p(tip), v.scale(base));
+    }
     (base - dir * (at * hair), dir, n) // r42:arcus-upper
 }
 

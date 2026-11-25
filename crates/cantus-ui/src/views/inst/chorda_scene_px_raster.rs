@@ -453,6 +453,9 @@ enum Grain {
     Skin,
     /// r42:arcus-hair — an eye: its uv the place in its texture (`uv2`).
     Eye,
+    /// r42:arcus-polish — a figure's velvet: its uv its edge's distance and its fold (from
+    /// the fold's coordinates in `uv2`, `figure::cloth::fold`).
+    Cloth,
 }
 
 fn grain_of(geo: &Geo, t: &Tri) -> Grain {
@@ -461,6 +464,7 @@ fn grain_of(geo: &Geo, t: &Tri) -> Grain {
         Tex::Card(k) => Grain::Card(k),
         Tex::Skin => Grain::Skin,
         Tex::Eye => Grain::Eye,
+        Tex::Velvet => Grain::Cloth,
         _ => Grain::Uv,
     }
 }
@@ -510,6 +514,10 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, grain: Grain) -> (V3, V3, [f32
         let u2 = v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2;
         let v2 = v[0].uv2[1] * b0 + v[1].uv2[1] * b1 + v[2].uv2[1] * b2;
         uv[0] *= crate::scene::figure::cards::skin_detail(u2, v2);
+    } else if grain == Grain::Cloth {
+        let code = v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2;
+        let at = v[0].uv2[1] * b0 + v[1].uv2[1] * b1 + v[2].uv2[1] * b2;
+        uv[1] = crate::scene::figure::cloth::fold(code, at);
     }
     // dP/du from the triangle's uv.
     let (du1, dv1) = (v[1].uv[0] - v[0].uv[0], v[1].uv[1] - v[0].uv[1]);

@@ -20,7 +20,7 @@ version 1, ``u32`` count, then per moved vertex its ``u32`` index and its offset
 (three ``i16`` at 0.001 cm). ``scene/bowed_human.rs`` adds the offsets before skinning when
 the eyes are closed.
 
-    python tools/arcus-figures/lids.py [--preview <dir>]
+    python tools/arcus-figures/lids.py [--dir=<figures>] [--preview <dir>]
 """
 import os
 import struct
@@ -134,11 +134,15 @@ def preview(f, off, out):
 
 def main():
     pdir = sys.argv[sys.argv.index("--preview") + 1] if "--preview" in sys.argv else None
+    # (r42:arcus-polish: `--dir=<folder>` — the figures a build wrote elsewhere, the lids
+    # beside them; the assets' folder by default. Run after every build of the figures: the
+    # morph names vertices by their index.)
+    figs = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--dir=")), FIGS)
     for who in ("woman", "man"):
         print(who)
-        f = hr.read_fig(os.path.join(FIGS, f"{who}.fig"))
+        f = hr.read_fig(os.path.join(figs, f"{who}.fig"))
         off = morph(f)
-        write(os.path.join(FIGS, f"{who}_lids.bin"), off)
+        write(os.path.join(figs, f"{who}_lids.bin"), off)
         if pdir:
             os.makedirs(pdir, exist_ok=True)
             preview(f, off, os.path.join(pdir, f"lids-{who}"))
