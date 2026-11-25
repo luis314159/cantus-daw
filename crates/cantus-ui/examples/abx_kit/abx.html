@@ -435,7 +435,7 @@ function transport(keys, labels) {
 }
 function paintTransport() {
  const p = audio.playing();
- for (const k of ["a", "b", "x", "one", "two", ...Object.keys(audio.map)]) { const b = $("play-" + k); if (b) { b.className = "big" + (p === k ? " on" : ""); b.setAttribute("aria-pressed", p === k ? "true" : "false"); } }
+ for (const k of ["a", "b", "x", "one", "two", ...Object.keys(audio.map)]) { const b = $("play-" + k); if (b) { b.className = (/^md/.test(k) ? "" : "big") + (p === k ? " on" : ""); b.setAttribute("aria-pressed", p === k ? "true" : "false"); } }
  const l = $("loop"); if (l) { l.className = audio.loop ? "on" : ""; l.setAttribute("aria-pressed", audio.loop ? "true" : "false"); }
 }
 audio.onchange = paintTransport;
@@ -585,7 +585,7 @@ function viewBetween(c) {
  c.appendChild(el("h2", tr("main_done")));
  c.appendChild(el("p", tr("main_done_2")));
  const r = el("div", undefined, "row");
- if (!st.extraDone) r.appendChild(btn(tr(st.extraStarted ? "extra_continue" : "extra"), startExtra, "", "extra"));
+ if (!st.extraDone && st.extra.length) r.appendChild(btn(tr(st.extraStarted ? "extra_continue" : "extra"), startExtra, "", "extra"));
  r.appendChild(btn(tr("see_results"), () => { st.view = "results"; save(); render(); window.scrollTo(0, 0); }, "primary", "see-results"));
  c.appendChild(r);
 }
@@ -642,7 +642,7 @@ function viewResults(c) {
  pr.pairs.forEach((x, j) => { if (x.a + x.b + x.s) c.appendChild(el("p", tr("res_pref", { a: sourceName(PAIRS[j][0]), b: sourceName(PAIRS[j][1]), na: x.a, nb: x.b, ns: x.s }))); });
  const r = el("div", undefined, "row"); r.style.marginTop = "12px";
  r.appendChild(btn(tr("download"), () => saveFile("listening-" + slugOf(st.listener) + "-" + KIT.slice(-6) + ".json", JSON.stringify(Object.assign({}, st, { exported: now() }), null, 1), c), "primary", "download"));
- if (!st.extraDone) r.appendChild(btn(tr(st.extraStarted ? "extra_continue" : "extra"), startExtra, "", "extra"));
+ if (!st.extraDone && st.extra.length) r.appendChild(btn(tr(st.extraStarted ? "extra_continue" : "extra"), startExtra, "", "extra"));
  c.appendChild(r);
  if (!online.writable) c.appendChild(el("p", tr("send"), "mute small"));
  c.appendChild(el("h3", tr("reveal"))); c.appendChild(el("p", tr("reveal_note"), "mute small"));

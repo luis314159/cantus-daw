@@ -292,7 +292,7 @@ async function run(name, browserType, launch, url, mode) {
  if (NX) {
   await page.click("#extra"); ok((await state(page)).view === "extra", `${tag} the extra part opens`);
   for (let i = 0; i < NX; i++) await page.click("#answer-a");
- } else await page.click("#see-results");
+ } else { ok(!(await page.$("#extra")), `${tag} no extra part offered when the kit has none`); await page.click("#see-results"); }
  ok((await state(page)).view === "results", `${tag} the extra part ends on the results`);
  const body = await page.innerText("body");
  ok(VOICES.every(v => body.includes(SUBJECT.text.es["voice_" + v])) && !body.includes("voice_") && (await page.$$("table tr")).length >= N1 + NP + NX + 3, `${tag} the reveal names the sources per trial`);
@@ -303,7 +303,7 @@ async function run(name, browserType, launch, url, mode) {
   const text = fs.readFileSync(await dl.path(), "utf8"); const d = JSON.parse(text);
   // ABX_SAVE=<dir>: keep each run's downloaded results (to read back with abx_read.py).
   if (process.env.ABX_SAVE) { fs.mkdirSync(process.env.ABX_SAVE, { recursive: true }); fs.writeFileSync(path.join(process.env.ABX_SAVE, `${name}-${mode}-${dl.suggestedFilename()}`), text); }
-  ok(d.kit && d.about.device === "headphones" && d.listener === "Tester" && d.abx.every(x => x.answer && x.at) && d.pref.every(q => q.choice && q.at) && d.extra.every(x => x.answer) && (d.mushra || []).every(x => x.order.every(t => typeof x.scores[t] === "number") && x.at) && (d.mushra || []).length === NM && d.started && d.mainDone && d.extraDone && d.exported, `${tag} Download: the JSON holds answers, form, timestamps (${dl.suggestedFilename()})`);
+  ok(d.kit && d.about.device === "headphones" && d.listener === "Tester" && d.abx.every(x => x.answer && x.at) && d.pref.every(q => q.choice && q.at) && d.extra.every(x => x.answer) && (d.mushra || []).every(x => x.order.every(t => typeof x.scores[t] === "number") && x.at) && (d.mushra || []).length === NM && d.started && d.mainDone && (d.extraDone || !NX) && d.exported, `${tag} Download: the JSON holds answers, form, timestamps (${dl.suggestedFilename()})`);
  }
  // Start again: two presses.
  await page.click("#reset"); ok((await state(page)).view === "results" && (await page.textContent("#reset")).includes("Seguro"), `${tag} Start again asks once`);
