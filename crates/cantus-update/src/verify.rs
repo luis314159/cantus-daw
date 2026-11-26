@@ -16,7 +16,19 @@ use std::path::Path;
 /// The publisher whose certificate signs Cantus's releases, set when the release workflow
 /// builds a signed release (`CANTUS_PUBLISHER`, the certificate's common name). A build
 /// made without it (every development build, and unsigned releases) checks hashes only.
-pub const PUBLISHER: Option<&str> = option_env!("CANTUS_PUBLISHER");
+pub const PUBLISHER: Option<&str> = publisher(option_env!("CANTUS_PUBLISHER"));
+
+/// `CANTUS_PUBLISHER` as the build saw it: a name, or none when it was unset **or empty**.
+/// The release workflow passes `${{ vars.CANTUS_PUBLISHER }}`, which is an empty string when
+/// the variable does not exist, and `option_env!` reads an empty variable as `Some("")`:
+/// 0.1.0-beta.16 and beta.17 were built so, and refused every unsigned installer as "not
+/// signed by Cantus's publisher" — a publisher named nothing, whom no certificate names.
+pub const fn publisher(built: Option<&'static str>) -> Option<&'static str> {
+    match built {
+        Some(name) if !name.trim_ascii().is_empty() => Some(name),
+        _ => None,
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VerifyError {
@@ -41,6 +53,8 @@ pub enum VerifyError {
         expected: String,
         got: String,
     },
+    /// Windows could not be asked (PowerShell failed, or this is not Windows).
+    NoCheck(String),
 }
 
 impl VerifyError {
@@ -51,9 +65,11 @@ impl VerifyError {
             VerifyError::Empty | VerifyError::Html => "update.error.held",
             VerifyError::Size { .. } | VerifyError::Hash { .. } => "update.error.hash",
             VerifyError::NoHash => "update.error.no_hash",
-            VerifyError::Unsigned | VerifyError::Signature(_) | VerifyError::Publisher { .. } => {
-                "update.error.signature"
-            }
+            // Each says what failed and offers the release's page (its button stays).
+            VerifyError::Unsigned => "update.error.unsigned",
+            VerifyError::Signature(_) => "update.error.signature",
+            VerifyError::Publisher { .. } => "update.error.publisher",
+            VerifyError::NoCheck(_) => "update.error.signature_check",
         }
     }
 
@@ -198,7 +214,12 @@ pub fn authenticode(path: &Path) -> Result<Signature, String> {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
     }
     // UTF-8 asked for above; lossy all the same, so a localised message never fails it.
-    let text = String::from_utf8_lossy(&out.stdout);
+    parse_authenticode(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// What [`authenticode`]'s PowerShell prints (one JSON object: `status`, `subject`,
+/// `thumbprint`, `message`), read.
+pub fn parse_authenticode(text: &str) -> Result<Signature, String> {
     let json = text.trim().trim_start_matches('\u{feff}');
     let v: serde_json::Value =
         serde_json::from_str(json).map_err(|e| format!("powershell: {e}"))?;
@@ -219,11 +240,26 @@ pub fn authenticode(_path: &Path) -> Result<Signature, String> {
     Err("Authenticode is Windows-only".into())
 }
 
-/// Step 4, when this build has a publisher.
+/// A publisher worth checking for: none when it is missing or blank (an unsigned
+/// release's build; see [`publisher`]).
+fn named(publisher: Option<&str>) -> Option<&str> {
+    publisher.filter(|p| !p.trim().is_empty())
+}
+
+/// Step 4's verdict on what Windows answered about a file: by `publisher` when this build
+/// has one; with none (an unsigned release), the hashes have decided and any answer passes.
+pub fn verdict(sig: &Signature, publisher: Option<&str>) -> Result<(), VerifyError> {
+    match named(publisher) {
+        Some(p) => check_signature(sig, p),
+        None => Ok(()),
+    }
+}
+
+/// Step 4, when this build has a publisher: Windows is asked only then.
 pub fn check_publisher(path: &Path, publisher: Option<&str>) -> Result<(), VerifyError> {
-    let Some(publisher) = publisher else {
+    if named(publisher).is_none() {
         return Ok(());
-    };
-    let sig = authenticode(path).map_err(VerifyError::Signature)?;
-    check_signature(&sig, publisher)
+    }
+    let sig = authenticode(path).map_err(VerifyError::NoCheck)?;
+    verdict(&sig, publisher)
 }

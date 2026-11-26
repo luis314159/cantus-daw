@@ -42,7 +42,10 @@ update.error.rate_limited = GitHub is limiting requests from this network. Cantu
 update.error.answer = GitHub's answer was not a release Cantus can read.
 update.error.hash = The download did not match its published SHA-256, so it was deleted.
 update.error.no_hash = The release publishes no SHA-256 for this file, so Cantus will not install it.
-update.error.signature = The installer is not signed by Cantus's publisher, so it was deleted.
+update.error.unsigned = The installer is not signed, and this copy of Cantus installs only signed updates, so it was deleted. Download it from the release page instead.
+update.error.signature = Windows did not accept the installer's signature, so it was deleted. Download it from the release page instead.
+update.error.publisher = The installer is signed by someone other than Cantus's publisher, so it was deleted. Download it from the release page instead.
+update.error.signature_check = Windows could not check the installer's signature, so it was deleted. Download it from the release page instead.
 update.error.io = The download could not be saved.
 update.error.launch = The installer did not start: {error}
 

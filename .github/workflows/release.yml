@@ -112,8 +112,11 @@ jobs:
   package:
     needs: test
     runs-on: windows-latest
-    env:
-      CANTUS_PUBLISHER: ${{ vars.CANTUS_PUBLISHER }}
+    # No CANTUS_PUBLISHER here: `${{ vars.CANTUS_PUBLISHER }}` is an empty string when the
+    # variable does not exist, `option_env!` reads that as Some(""), and 0.1.0-beta.16 and
+    # beta.17 shipped demanding a signature from a publisher named nothing — their unsigned
+    # updates were all refused (docs/RELEASING.md L9). A signing step exports it, and only
+    # when it set signing up.
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -146,10 +149,12 @@ jobs:
         env:
           PFX_BASE64: ${{ secrets.CANTUS_SIGN_PFX_BASE64 }}
           PFX_PASSWORD: ${{ secrets.CANTUS_SIGN_PFX_PASSWORD }}
+          PUBLISHER: ${{ vars.CANTUS_PUBLISHER }}
         run: |
           if (-not $env:PFX_BASE64) { "No PFX secret: unsigned unless Azure is set."; exit 0 }
           $pfx = "$env:RUNNER_TEMP\sign.pfx"
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          "CANTUS_PUBLISHER=$env:PUBLISHER" >> $env:GITHUB_ENV
           "CANTUS_SIGN=pfx" >> $env:GITHUB_ENV
           "CANTUS_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
           "CANTUS_SIGN_PFX_PASSWORD=$env:PFX_PASSWORD" >> $env:GITHUB_ENV
@@ -162,7 +167,9 @@ jobs:
           ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
           ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
           PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          PUBLISHER: ${{ vars.CANTUS_PUBLISHER }}
         run: |
+          "CANTUS_PUBLISHER=$env:PUBLISHER" >> $env:GITHUB_ENV
           nuget install Microsoft.Trusted.Signing.Client -OutputDirectory "$env:RUNNER_TEMP\tsc" -NonInteractive
           $dlib = Get-ChildItem "$env:RUNNER_TEMP\tsc" -Recurse -Filter Azure.CodeSigning.Dlib.dll |
             Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
@@ -180,6 +187,19 @@ jobs:
         run: |
           choco install nasm -y --no-progress
           echo "C:\Program Files\NASM" >> "$GITHUB_PATH"
+
+      # L9: the program checks updates for the publisher it is built with; the installer must
+      # carry that signature. Signed with no name, or a name with no signing, stops here.
+      - name: The publisher the program checks for is the signing's
+        shell: pwsh
+        run: |
+          $sign = "$env:CANTUS_SIGN"
+          $pub = "$env:CANTUS_PUBLISHER".Trim()
+          if ($sign -and -not $pub) { throw "Signing is set up ($sign) but vars.CANTUS_PUBLISHER is empty: the program would not check its updates' signature." }
+          if ($pub -and -not $sign) { throw "CANTUS_PUBLISHER is '$pub' but nothing signs: every update would be refused as unsigned." }
+          if ($sign) { "Signed ($sign) by '$pub': the program checks its updates for that publisher." }
+          else { "Unsigned release: no CANTUS_PUBLISHER, the program checks its updates by SHA-256." }
+
       - name: Package (one edition, ASIO and WASAPI; the x86-64-v3 and v2 programs and the launcher)
         shell: bash
         env:
@@ -187,6 +207,21 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: cargo run -p xtask -- package $SIGN_FLAG
+
+      # L9, the other half: the installer passes the very check the program it carries will
+      # run on the next update (verify.rs: Valid, and the signer's CN the publisher).
+      - name: The installer passes the program's own update check
+        shell: pwsh
+        run: |
+          $pub = "$env:CANTUS_PUBLISHER".Trim()
+          $setups = Get-ChildItem target/package/dist -Filter *-windows-x64-setup.exe
+          if (-not $setups) { throw "no installer in target/package/dist" }
+          foreach ($f in $setups) {
+            $s = Get-AuthenticodeSignature -LiteralPath $f.FullName
+            $cn = if ($s.SignerCertificate) { $s.SignerCertificate.GetNameInfo('SimpleName', $false) } else { '' }
+            "$($f.Name): $($s.Status) $cn"
+            if ($pub -and ($s.Status -ne 'Valid' -or $cn -ne $pub)) { throw "$($f.Name) is $($s.Status) by '$cn'; the program demands '$pub'." }
+          }
 
       - name: Forget the certificate file
         if: always()

@@ -91,6 +91,42 @@ fn every_system_s_stable_name_is_in_the_workflow_and_on_the_site() {
     assert!(wf.contains("bash packaging/macos/build-dmg.sh \"$version\" dist"));
 }
 
+/// The publisher the program checks its updates for comes from a signing step only, and
+/// the job stops when the program and the installer disagree (RELEASING L9: 0.1.0-beta.16
+/// and beta.17 were built with `CANTUS_PUBLISHER: ${{ vars.CANTUS_PUBLISHER }}` in the
+/// job's env, an empty string with no such variable, and refused every unsigned update).
+#[test]
+fn the_publisher_comes_only_from_a_signing_step_and_is_checked() {
+    let wf = read(".github/workflows/release.yml");
+    let blank = "CANTUS_PUBLISHER: ${{ vars.CANTUS_PUBLISHER }}";
+    assert!(
+        !wf.contains(blank),
+        "release.yml gives CANTUS_PUBLISHER straight from the variable (blank when unset)"
+    );
+    // Each signing step exports it after it has set signing up, never before its exit.
+    for step in ["Signing with a PFX", "Signing with Azure Trusted Signing"] {
+        let at = wf.find(step).unwrap_or_else(|| panic!("no step {step}"));
+        let body = &wf[at..at + wf[at..].find("\n      - ").unwrap_or(wf.len() - at)];
+        let export = body
+            .find("\"CANTUS_PUBLISHER=$env:PUBLISHER\" >> $env:GITHUB_ENV")
+            .unwrap_or_else(|| panic!("{step} does not export the publisher"));
+        if let Some(exit) = body.find("exit 0") {
+            assert!(
+                exit < export,
+                "{step} exports the publisher before it knows it signs"
+            );
+        }
+    }
+    let guard = wf
+        .find("The publisher the program checks for is the signing's")
+        .expect("the guard before packaging");
+    let package = wf.find("cargo run -p xtask -- package").unwrap();
+    let after = wf
+        .find("The installer passes the program's own update check")
+        .expect("the installer's check after packaging");
+    assert!(guard < package && package < after);
+}
+
 /// The release's Linux job builds on the system packages CI tests with (ADR 0067): both
 /// install them with the one script, `packaging/linux/deps.sh` (ADR 0065), which also
 /// points pkg-config at newer PipeWire headers on Ubuntu 22.04.
