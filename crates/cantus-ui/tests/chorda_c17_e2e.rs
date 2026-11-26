@@ -122,7 +122,10 @@ fn a_new_chorda_knocks_like_a_grand_and_its_colour_knob_moves_the_middle() {
     let knock = band(&own, ms(5.0), ms(60.0), 500.0, 2_400.0);
     let note = band(&own, ms(0.0), ms(60.0), 30.0, 12_000.0);
     let rel = 10.0 * (knock / note).log10();
-    assert!(rel > -22.0 && rel < -4.0, "C8's knock {rel:.1} dB under its note");
+    assert!(
+        rel > -22.0 && rel < -4.0,
+        "C8's knock {rel:.1} dB under its note"
+    );
 
     // Colour 1, as the editor's knob sets it.
     assert!(app.exec(Command::SetInstrumentValue {
