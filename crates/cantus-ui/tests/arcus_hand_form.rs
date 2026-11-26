@@ -69,10 +69,14 @@ fn the_fingers_have_a_real_hands_proportions() {
                 s[0], s[1], s[2]
             );
             if !(0.52..=0.72).contains(&m) {
-                bad.push(format!("{who:?} finger {f}: the middle phalanx {m:.2} of the first"));
+                bad.push(format!(
+                    "{who:?} finger {f}: the middle phalanx {m:.2} of the first"
+                ));
             }
             if !(0.45..=0.75).contains(&d) {
-                bad.push(format!("{who:?} finger {f}: the last segment {d:.2} of the first"));
+                bad.push(format!(
+                    "{who:?} finger {f}: the last segment {d:.2} of the first"
+                ));
             }
         }
         let mid = len(2);
@@ -80,7 +84,9 @@ fn the_fingers_have_a_real_hands_proportions() {
             let r = len(f) / mid;
             report += &format!("{who:?} finger {f} over the middle: {r:.2}\n");
             if !(lo..=hi).contains(&r) {
-                bad.push(format!("{who:?} finger {f}: {r:.2} of the middle finger, not {lo}-{hi}"));
+                bad.push(format!(
+                    "{who:?} finger {f}: {r:.2} of the middle finger, not {lo}-{hi}"
+                ));
             }
         }
         let (little_tip, _) = reach(fig, 4);
@@ -104,7 +110,9 @@ fn the_fingers_have_a_real_hands_proportions() {
         // 0.97-1.01 ± 0.08 for men; the hands were set to ANSUR II's stature regressions,
         // tools/arcus-figures/hand_anthro.py, and read 1.01 / 1.00. Was 1.05.)
         if !(0.95..=1.35).contains(&r) {
-            bad.push(format!("{who:?}: the middle finger {r:.2} of the back of the hand"));
+            bad.push(format!(
+                "{who:?}: the middle finger {r:.2} of the back of the hand"
+            ));
         }
     }
     eprintln!("{report}");
@@ -142,7 +150,9 @@ fn the_nails_are_a_real_nails_share_of_the_finger() {
             let (lo, hi) = mine
                 .iter()
                 .filter(|&&i| nail[i])
-                .fold((f32::MAX, f32::MIN), |(l, h), &i| (l.min(along(i)), h.max(along(i))));
+                .fold((f32::MAX, f32::MIN), |(l, h), &i| {
+                    (l.min(along(i)), h.max(along(i)))
+                });
             if lo > hi {
                 bad.push(format!("{who:?} finger {f}: no nail"));
                 continue;
@@ -155,13 +165,16 @@ fn the_nails_are_a_real_nails_share_of_the_finger() {
                     .filter(|&i| pick(i) && (along(i) - c).abs() < 0.18)
                     .map(|i| (fig.pos[i] - bn.head).dot(side))
                     .collect();
-                xs.iter().copied().fold(f32::MIN, f32::max) - xs.iter().copied().fold(f32::MAX, f32::min)
+                xs.iter().copied().fold(f32::MIN, f32::max)
+                    - xs.iter().copied().fold(f32::MAX, f32::min)
             };
             let (wn, wf) = (width(&|i| nail[i]), width(&|_| true));
             let share = wn / wf.max(1e-3);
             report += &format!("{who:?} finger {f}: the nail {wn:.2} of {wf:.2} cm = {share:.2}\n");
             if !(0.55..=0.8).contains(&share) {
-                bad.push(format!("{who:?} finger {f}: the nail {share:.2} of the finger's width"));
+                bad.push(format!(
+                    "{who:?} finger {f}: the nail {share:.2} of the finger's width"
+                ));
             }
         }
     }
@@ -226,7 +239,11 @@ fn hand_mask(a: &probe::Arm, w: usize, h: usize, ppp: f32, inset: usize) -> Vec<
         for y in y0..y1 {
             for x in x0..x1 {
                 let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
-                let s = [e(p[0], p[1], fx, fy), e(p[1], p[2], fx, fy), e(p[2], p[0], fx, fy)];
+                let s = [
+                    e(p[0], p[1], fx, fy),
+                    e(p[1], p[2], fx, fy),
+                    e(p[2], p[0], fx, fy),
+                ];
                 if s.iter().all(|&v| v >= 0.0) || s.iter().all(|&v| v <= 0.0) {
                     m[y * w + x] = true;
                 }
@@ -356,7 +373,11 @@ fn no_dark_specks_on_the_hands() {
                     &sp[..sp.len().min(6)]
                 );
                 if !sp.is_empty() {
-                    bad.push(format!("{hold:?} {pct}% hand {}: {} dark specks", a.side, sp.len()));
+                    bad.push(format!(
+                        "{hold:?} {pct}% hand {}: {} dark specks",
+                        a.side,
+                        sp.len()
+                    ));
                 }
             }
         }
