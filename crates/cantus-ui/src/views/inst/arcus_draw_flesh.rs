@@ -637,6 +637,9 @@ struct Scratch {
     eout: Vec<egui::Vec2>,
     /// r42:arcus-polish2 — each bone as a dual quaternion this frame (none: stretched).
     dq: Vec<Option<Dq>>,
+    /// r42:arcus-polish2 — the cuffs' edge corners posed, and which corners are skin.
+    ring: Vec<V3>,
+    skin_v: Vec<bool>,
 }
 
 /// A rigid turn and move as a unit dual quaternion: the real part's (w, x, y, z) and the
@@ -1285,7 +1288,9 @@ pub fn arm(
                 // the live arm is opaque; turned away in the arm's pose, the gap showed the
                 // room as a bright pixel by the sleeve (the stray-pixel gate's).
                 // (Only on the shoulder's near side: its far side lies behind the body.)
+                // (The bow arm's only: the bake keeps the left arm's band.)
                 let band_back = !facing
+                    && s == 1
                     && matches!(am.stuff[k], Stuff::Velvet | Stuff::Wool)
                     && [a, bb, c].iter().any(|&i| am.live[i] < 1.0)
                     && sc.depth[k] < near_side;
@@ -1346,7 +1351,11 @@ pub fn arm(
                 let st = am.stuff[k];
                 let mut cc = [Color32::TRANSPARENT; 3];
                 if show && inside {
-                    let c = lut.colour(st, [1.0, 0.0], -sc.nrm[a], 0.0);
+                    // (r42:arcus-polish2: lit as the cloth's own outside a little in shade —
+                    // drawn from the turned-away normal in deep shade, the cuff's inside read
+                    // as a black ring at her bow wrist once the sleeve stopped turning with
+                    // the hand.)
+                    let c = lut.colour(st, [1.0, 0.0], sc.nrm[a], 0.6);
                     cc = [c; 3].map(|x| {
                         let k = INSIDE_SHADE;
                         Color32::from_rgb(
@@ -1377,8 +1386,26 @@ pub fn arm(
                     let bias = if st == Stuff::Shirt { 3.0 } else { 0.0 };
                     sc.order.push((sc.depth[k] + bias, k as u32));
                 }
-                // TEMP r42:arcus-polish2 debug: tint by side and band.
-                if std::env::var_os("CANTUS_ARM_DEBUG").is_some() {
+                // TEMP r42:arcus-polish2 debug: stretch (red) and slivers (blue).
+                if std::env::var("CANTUS_ARM_DEBUG").is_ok_and(|v| v == "2") {
+                    let rest = |i: usize, j: usize| {
+                        (fig.pos[am.verts[i] as usize] - fig.pos[am.verts[j] as usize]).len()
+                    };
+                    let ratio = [(a, bb), (bb, c), (c, a)]
+                        .iter()
+                        .map(|&(i, j)| (sc.pts[i] - sc.pts[j]).len() / rest(i, j).max(0.05))
+                        .fold(0.0f32, f32::max);
+                    let (p0, p1, p2) = (sc.sp[a], sc.sp[bb], sc.sp[c]);
+                    let area = ((p1 - p0).x * (p2 - p0).y - (p1 - p0).y * (p2 - p0).x).abs();
+                    let long = (p1 - p0)
+                        .length()
+                        .max((p2 - p1).length())
+                        .max((p0 - p2).length());
+                    let thin = area / (long * long).max(1e-3);
+                    let r = ((ratio - 1.0) * 180.0).clamp(0.0, 255.0) as u8;
+                    let bl = if thin < 0.08 && long > 4.0 { 255 } else { 40 };
+                    cc = [Color32::from_rgb(r, 40, bl); 3];
+                } else if std::env::var_os("CANTUS_ARM_DEBUG").is_some() {
                     for (j, &i) in [a, bb, c].iter().enumerate() {
                         let x = cc[j];
                         let f = am.live[i];
@@ -2157,7 +2184,7 @@ const SHADOW_DEPTH: f32 = 0.42;
 /// r42:arcus-polish — how far in from a sleeve's edge (cm) its inside is drawn, and how
 /// deep its shade is (of the cloth's own colour facing away).
 const SLEEVE_INSIDE: f32 = 2.5;
-const INSIDE_SHADE: f32 = 0.35;
+const INSIDE_SHADE: f32 = 0.72;
 
 /// r42:arcus-polish — how strongly the back of the hand's veins show.
 const VEIN: f32 = 0.8;
@@ -2254,6 +2281,7 @@ fn arm_setup(
         occlusion(fig, &posed, s, am, held, sc);
     }
     super::probe::lap("  occl", tt);
+    cuff_shadow(fig, am, sc);
     let tt = super::probe::t0();
     elbow_folds(fig, &posed, s, am, sc);
     super::probe::lap("  folds", tt);
@@ -2262,6 +2290,50 @@ fn arm_setup(
     sc.mid = sc.pts.iter().fold(V3::default(), |a, &p| a + p) * (1.0 / n.max(1) as f32);
     sc.mid
 }
+
+/// r42:arcus-polish2 — the sleeve's end lays a soft shadow on the wrist under it (the
+/// coordinator: "the sleeve's end meets the wrist softly … a contact shadow on the skin"):
+/// each skin corner near the sleeve's edge (posed: the cuff's ring of cloth corners at its
+/// edge) takes a little less of the light round it, the nearer the more.
+fn cuff_shadow(fig: &Figure, am: &ArmMesh, sc: &mut Scratch) {
+    sc.ring.clear();
+    let mut skin = std::mem::take(&mut sc.skin_v);
+    skin.clear();
+    skin.resize(am.verts.len(), false);
+    for (t, st) in am.tris.iter().zip(&am.stuff) {
+        for &i in t {
+            let i = i as usize;
+            if matches!(st, Stuff::Velvet | Stuff::Wool) {
+                if am.sleeve[i] && fig.edge.get(am.verts[i] as usize).is_some_and(|&e| e < 0.1) {
+                    sc.ring.push(sc.pts[i]);
+                }
+            } else if *st == Stuff::Skin {
+                skin[i] = true;
+            }
+        }
+    }
+    if !sc.ring.is_empty() {
+        let (depth, reach) = CUFF_SHADOW;
+        for (i, &k) in skin.iter().enumerate() {
+            if !k {
+                continue;
+            }
+            let p = sc.pts[i];
+            let d = sc
+                .ring
+                .iter()
+                .map(|&q| (q - p).len())
+                .fold(f32::MAX, f32::min);
+            if d < reach * 2.0 {
+                sc.ao[i] *= 1.0 - depth * (-(d / reach) * (d / reach)).exp();
+            }
+        }
+    }
+    sc.skin_v = skin;
+}
+
+/// How much light the sleeve's end takes from the skin under it, and over how far (cm).
+const CUFF_SHADOW: (f32, f32) = (0.32, 0.9);
 
 /// The left arm's aim from the hand's pose.
 pub fn left_aim(lp: &super::hand::LeftPose) -> ArmAim {
