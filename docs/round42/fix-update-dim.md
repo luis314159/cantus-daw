@@ -128,4 +128,32 @@ Spanish:
 
 ## 3. Something drawn over the Updates window ("Neon Tide · 124 BPM")
 
-See the section added with its commit below.
+**Cause.** Nothing in the main window's own paint covers the dialog. The new e2e test
+checks every word painted after the window's last one, with the pointer at six places, on
+the project the program opens on (Neon Tide). The tag is the **stage companion** ("Cantus
+Stage", ADR 0091), the dancer's window of its own. Its defaults are a see-through backdrop,
+the song chip on ("Neon Tide" over "124 BPM", `views/stage_vis_paint.rs` `song()`), and
+`on_top: true` (`stage_companion.rs`: a topmost layered window on Windows, `AlwaysOnTop`
+elsewhere). Only its glass chips show, so it reads as a tag floating over every window,
+Cantus's own dialogs included.
+
+**Fix.**
+- `kit::dialog::mark_modal` and `modal_up`: a dialog that wants the window to itself says so
+  each pass. The scrim says it, and so do Classic's dialogs, which have no scrim.
+- `stage::companion::keeps_on_top(settings, ctx)`: *On top*, except while a dialog is up.
+  It drives the native window's topmost state and the egui viewport's level. On Windows, a
+  window leaving the top band is also put just behind the main window
+  (`cantus_rt::window::Layered::set_behind`), since otherwise it would still sit over it.
+  It returns to the front when the dialog closes. An OBS capture does not depend on the
+  window's place.
+
+**Test.** `nothing_draws_over_the_updates_window` in `update_dim_e2e.rs` checks:
+- the companion keeps on top at rest and with the notice up;
+- it steps back while the Updates window is open, wherever the pointer rests;
+- nothing is painted over the window;
+- it is in front again after `Esc`.
+
+**Verified only in emulation.** The native window's z-order on a real desktop needs the owner's
+eye: with the companion open and *On top*, open *Help ▸ Check for updates…*. The song chip
+must go behind Cantus while the window is open, and come back in front after it closes
+(added to the beta-checklist entry).

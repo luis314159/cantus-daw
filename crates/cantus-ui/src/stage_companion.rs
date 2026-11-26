@@ -420,6 +420,15 @@ pub fn obs_setup(backdrop: Backdrop) -> String {
     )
 }
 
+/// Whether the companion stays in front of every window now: as its *On top* says, except
+/// while a dialog is up in Cantus (`kit::dialog::modal_up`) — nothing draws over a dialog
+/// that wants the window to itself (the owner, beta.16: the companion's see-through song
+/// chip, "Neon Tide · 124 BPM", floated over the Updates window). It goes back in front when
+/// the dialog closes; a capture of it (OBS) does not depend on its place.
+pub fn keeps_on_top(st: &StageSettings, ctx: &egui::Context) -> bool {
+    st.on_top && !crate::kit::dialog::modal_up(ctx)
+}
+
 /// Open or close the companion window (View ▸ Companion window, its shortcut).
 pub fn toggle(app: &mut CantusApp) {
     let s = &mut app.settings.stage;
@@ -752,7 +761,7 @@ fn run(app: &mut CantusApp, ctx: &egui::Context, in_pass: bool) {
         .with_resizable(!st.streaming)
         .with_inner_size(opened.0)
         .with_min_inner_size(MIN_SIZE)
-        .with_window_level(if st.on_top {
+        .with_window_level(if keeps_on_top(&st, ctx) {
             egui::WindowLevel::AlwaysOnTop
         } else {
             egui::WindowLevel::Normal

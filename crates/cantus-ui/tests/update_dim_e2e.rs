@@ -252,3 +252,88 @@ fn the_update_notice_and_window_leave_no_dark_veil() {
         assert_eq!(veils(&r), Vec::<usize>::new(), "{how}: no veil at the end");
     }
 }
+
+/// The words painted after the window's last word ("Later") that fall on the window: what
+/// draws over it.
+fn over_the_window(r: &Rig) -> Vec<String> {
+    let win = r
+        .ctx
+        .memory(|m| m.area_rect(egui::Id::new("cantus-update")))
+        .expect("the window's place");
+    let last = painted_at(r, "Later").expect("the window's buttons");
+    let mut out = Vec::new();
+    for (i, c) in r.shapes().iter().enumerate().skip(last + 1) {
+        let mut words = Vec::new();
+        texts_in(&c.shape, c.clip_rect, &mut words);
+        for (w, at) in words {
+            if at.intersects(win) {
+                out.push(format!("#{i} {w:?} at {at:?}"));
+            }
+        }
+    }
+    out
+}
+
+fn texts_in(s: &Shape, clip: Rect, out: &mut Vec<(String, Rect)>) {
+    match s {
+        Shape::Text(t) => {
+            let at = t.visual_bounding_rect().intersect(clip);
+            if at.is_positive() {
+                out.push((t.galley.text().to_owned(), at));
+            }
+        }
+        Shape::Vec(v) => v.iter().for_each(|s| texts_in(s, clip, out)),
+        _ => {}
+    }
+}
+
+/// Nothing draws over the Updates window (the owner, beta.16: the stage companion's
+/// "Neon Tide · 124 BPM" song chip floated over it — the companion is a see-through window
+/// of its own, always on top, so it is held to `keeps_on_top`), on the project the program
+/// opens on, wherever the pointer rests.
+#[test]
+fn nothing_draws_over_the_updates_window() {
+    let mut r = Rig::new(cantus_ui::demos::startup_project());
+    r.begin(Pos2::new(700.0, 300.0));
+    let on_top = |r: &Rig| cantus_ui::stage::companion::keeps_on_top(&r.app.settings.stage, &r.ctx);
+    assert!(
+        r.app.settings.stage.on_top,
+        "the companion is on top by default"
+    );
+    assert!(on_top(&r), "and stays there with no dialog up");
+    let state = tempfile::tempdir().unwrap();
+    offered(&mut r, state.path());
+    assert!(on_top(&r), "the notice is no dialog");
+    let notice = r.must(NOTICE);
+    r.click(notice.center());
+    assert!(r.app.update.open);
+    assert!(
+        !on_top(&r),
+        "the companion steps back while the window is open"
+    );
+    let win = r
+        .ctx
+        .memory(|m| m.area_rect(egui::Id::new("cantus-update")))
+        .unwrap();
+    let mut seen = Vec::new();
+    for at in [
+        Pos2::new(200.0, 300.0),
+        win.center(),
+        Pos2::new(win.left() + 40.0, win.top() + 15.0),
+        Pos2::new(560.0, 20.0),
+        Pos2::new(60.0, 30.0),
+        notice.center(),
+    ] {
+        r.hover(at);
+        r.settle();
+        assert!(!on_top(&r), "still behind, the pointer at {at:?}");
+        let over = over_the_window(&r);
+        if !over.is_empty() {
+            seen.push(format!("pointer at {at:?}: {over:?}"));
+        }
+    }
+    assert!(seen.is_empty(), "drawn over the Updates window: {seen:#?}");
+    r.key(Key::Escape, NONE);
+    assert!(!r.app.update.open);
+    assert!(on_top(&r), "in front again once the window has closed");
+}

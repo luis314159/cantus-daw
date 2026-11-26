@@ -1252,3 +1252,8 @@ y **después de cada versión, antes de anunciarla** (RELEASING L9), en tu PC:
   a la derecha, la app **no** debe verse oscura; al hacer clic se abre *Actualizaciones* y el
   fondo se oscurece, con la ventana nítida encima; ciérrala con ✕, *Later*, `Esc` o *Skip this
   version*: el fondo vuelve a verse normal y la app responde a los clics.
+- [ ] **La ventana de escenario no tapa un diálogo**: abre la ventana de escenario (*Ver ▸
+  Ventana de compañía*) con *Siempre encima* activo y la canción mostrando «Neon Tide» y
+  «124 BPM». Abre *Ayuda ▸ Buscar actualizaciones…*: mientras la ventana de Actualizaciones
+  está abierta, la etiqueta de la canción debe quedar **detrás** de Cantus; al cerrarla, vuelve
+  a estar delante de todo. Lo mismo con *Ajustes* y con *Exportar*.
