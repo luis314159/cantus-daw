@@ -1174,6 +1174,16 @@ piano would lose its edits. To verify by research before the ADR.
   round's) with the numbers: if the Salamander is still told apart and preferred, his words
   aim the next voicing pass (the knobs are merged; a new default is one commit:
   `DSP_VERSION` bump, the pins, ADR 0098); if not, Chorda's sound is called done.
+  **Taken 2026-11-25** (`docs/round42/chorda-abx16-verdict.md`). The owner told Chorda and
+  the Salamander apart 16/16 and preferred the Salamander on 5 of 7 phrases. He preferred
+  candidate 16 over beta.14's voicing on 7 of 7. His aims for the next pass:
+  - the ugly mids at middle C;
+  - metallic fast runs with no mids;
+  - the top octave's missing hammer and action noise;
+  - Chorda's constant timbre cue;
+  - colours a user can reach with the piano, the mics or EQ.
+  The second listener's result is excluded: chance, with plays skipped and both catch
+  questions failed.
 - **Tympanum's blind listening kit and the owner's verdict** (round 40, owner 2026-11-14:
   *"the same for Tympanum"*): Tympanum is in the picker since round 40's close, its sound not
   yet judged blind. Build a kit like `chorda_abx` (`examples/tympanum_abx`, offline HTML,
