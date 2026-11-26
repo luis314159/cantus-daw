@@ -1,7 +1,9 @@
 # Round 42 — `chorda-c17`: Chorda's next voicing pass (candidate 17)
 
-**Status: in progress.** Branch `r42/chorda-c17` from `r42/integration` a17fd209e. The
-owner's blind ABX of candidate 16 (2026-11-25, `chorda-abx16-verdict.md`) set the aims.
+**Status: candidate 17 ships as the default (`DSP_VERSION` 16, schema 84) — awaiting the owner's
+ear and his blind test.** Branch `r42/chorda-c17` from `r42/integration` a17fd209e, merged with
+it at 79f17cbbb (arcus-expr: `DSP_VERSION` 15, schema 83). The owner's blind ABX of candidate
+16 (2026-11-25, `chorda-abx16-verdict.md`) set the aims. ADR 0098's sixth amendment.
 
 ## The lab this pass measures with
 
@@ -80,6 +82,75 @@ dB re the note's first 60 ms):
   case's knock, Chorda nothing — "no mids". Its 2–8 kHz is not over the grands'; the metallic
   impression is the clean, low-less balance and the empty space between the partials.
 
+
+## 4. The bass
+
+Measured on the held-out bass groups of the sound lab and the bass phrase: the partials' colour
+lies in the grands' spread; what stands out is the clean space between partials (as everywhere,
+fixed by the knock), the inharmonicity of A0–G♯1 (B 2.8–3.1·10⁻⁴ against the grands'
+0.7–2.0·10⁻⁴: round 40's `keyboard.bass_b` 1.3 followed the Salamander's tuning stretch, and the
+technician's and unison passes are built on it — left, see Open), the attack's peak later
+(61 against ≤ 56 ms) and the centroid a little low. The knock helps the first and the last.
+
+## 6. Colours a user can reach
+
+`colour` (Output card, beside *Tilt*; −1 … 1, 0 Chorda's own): the Salamander's middle phrases
+minus candidate 17's, octave by octave and median over middle C, the soft chords, the run and the
+ballad — `SHAPE` = +2.9 / −2.6 / +0.6 / +3.2 / +2.6 dB at 250 / 500 / 1 k / 2 k / 4 kHz: the
+recorded grand has less 500 Hz and more 250 Hz and presence. At 1, the middle phrases' octaves
+stand on the Salamander's (by construction; the end-to-end test holds the knob to the shape on a
+held middle C through the engine). The preset *Recorded Grand Colour* (`colour` 1, the concert
+grand's other values); *Concert Grand* keeps Chorda's own. `hardness` (the felt) and `persp`
+(the microphones) remain the other two ways to colour it, as the owner listed.
+
+## What ships (`chorda::voicing::c17`, over the unison pass)
+
+`partial3.59/60/61`, `partial6.60` (middle C's nasal partials); `key_return=1`; the knock:
+`knock.noise=300.42` (×31.6 at C8), `tail=0.63` (τ 0.16 s), `tau=2.1 ms`, band 90 Hz – 1.66 kHz,
+`noise_vel=-0.375`, `knock_treble=0.0258`, `t60=1.2`, `knock_vel=0.8`; `damper_t60=1.6`;
+`landing.hi=500`; the top keys' cells `partial2.90/91/95/97/99/100`, `partial3.97`.
+
+## Before → after (shipped `DSP_VERSION` 15 → candidate 17; Salamander / bitKlavier)
+
+| measure | c16 (shipped) | c17 | grands |
+|---|---|---|---|
+| sound lab, noise between partials (median, band widths out; per-band RMS out) | 1.17; 12.5 dB | 0.22; 5.0 dB | 0 |
+| sound lab, harmonics in band; centroid; attack peak (widths out) | 72 %; 0.063; 0.136 | 76 %; 0.016; 0.067 | — |
+| middle C's third partial, dB vs the Salamander, 0–0.08 / 0.08–0.3 / 0.3–0.8 / 0.8–1.6 s | +8.6 / +13.1 / +25.2 / +13.8 | −0.7 / +1.9 / +14.1 / +2.7 | bitKlavier −12.9 / +2.2 / +9.9 / −6.9 |
+| the run's in-note 125 / 250 Hz vs the Salamander | −16.2 / −11.5 | −7.4 / −6.7 | bitKlavier +6.8 / +5.6 |
+| top keys' knock (0 = inside the grands' span), fit keys / held C6–C7 | 10.3 / 9.7 | 5.4 / 6.7 | 0 |
+| noise between partials 0.32–0.82 s, middle / treble (dB re note) | −39.0 / −35.0 | −23.9 / −16.3 | −27.4 / −21.3; −20.2 / −14.1 |
+| pedal tail at 0.5 / 1 s | −35.5 / −61.8 | −31.7 / −50.0 | −30.5 / −45.1; −16.3 / −30.4 |
+| top keys' release (sub-fundamental, dB re note) | none (−80 … −97) | −21 … −34 | −32 … −45; −12 … −22 |
+| spectral flatness 4–12 kHz, middle C / top phrase | −39.8 / −30.8 | −32.1 / −29.2 (c17d) | −25.9 / −24.1; −16.2 / −21.1 |
+
+## The method, and what the analysis before the blind test changed
+
+1. Signature (`sig.py`, sound lab) → the clean space between partials.
+2. The knock model (Rust, neutral at its default) and its fit (`ksearch.py`: `knockfit.py`'s
+   top-key envelope + the middle's between-partials, 8/16 kHz one-sided against hiss, held-out
+   C6–C7 and the bass), four searches (k1–k4): k1 found hiss (no HF guard, one-pole band), so the
+   band went to 24 dB/oct and the score gained the guard.
+3. Middle C's cells, the top keys' cells (`keys_mf` every key against both grands).
+4. The owner asked for a full difference analysis (`report17.py`:
+   `F:\projects\cantus-work\listen\chorda-c17nalisis\`, Spanish `resumen.html`): it found the
+   knock's 70 Hz ring (its modes at the fit's bound, ×4), the late case ring short, the pedal tail
+   short, the run's 60 Hz, the bass release click; v3 and v4 fixed what was physical.
+
+## Listening
+
+Named previews (not blind), each with `escuchar.html` in Spanish and 16-bit WAVs:
+`F:\projects\cantus-work\listen\chorda-c17\` (v1, c17c: had hiss), `v2\` (c17d), `v3\` (c17e),
+`v4\` (c17g = what ships but for D♯7/A♯6, in no phrase). The owner on v2: "Va sonando muy bien".
+The blind kit (`chorda_abx`, kit 17) waits for his word.
+
 ## Open
 
-(being written)
+- The top phrase's 4/7/12 kHz peaks (+10…+20 dB over both grands; c16 had them; the fix would cost
+  the top's dynamics he liked) and its 300–500 Hz (+12; not the knock — every action noise off
+  moves it < 1 dB; c16 had it).
+- The bass releases' 4–8 kHz click (+9 against ≈0): half the felt, half the strings being damped.
+- A♯6's third partial and D♯7's second still stand over both grands (the unison gate).
+- A0–G♯1's inharmonicity over both grands (a keyboard change: the tuning passes rest on it).
+- The soft chords' air above 8 kHz (−10…−15; the owner prefers Chorda there).
+- Not verified by ear yet: everything. The blind kit after his named listen.

@@ -35,9 +35,14 @@ pub fn curve_of(v: &Voicing) -> [tables::Key; tables::KEYS] {
     tables::keyboard_for(&t)
 }
 
-/// A model-2 unit voiced `v` on its own keyboard.
+/// A model-2 unit voiced `v` on its own keyboard, its action's noises off: a tuner measures
+/// the strings. (Round 42, candidate 17: the knock now rings through the case for a quarter
+/// of a second at a recorded grand's level — 60–180 Hz included — and read as a partial's
+/// phase it moved A0's fundamental 4 cents and two bass loops a cent and a half, none of it a
+/// string's pitch. Until candidate 17 the round-40 thud was too small to matter; every key's
+/// pitch at the noises' default was measured and gated through `DSP_VERSION` 15.)
 pub fn unit(v: &Voicing) -> Chorda {
-    unit_with(v, None)
+    unit_with(v, Some(0.0))
 }
 
 /// [`unit`], its action's noises (the key's thud, the blow in the frame, the damper's

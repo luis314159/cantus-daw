@@ -82,6 +82,7 @@ pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
             "gain" => s.gain_db = x,
             "sym" => s.sympathetic = x,
             "detune" => s.voice.detune_ct = x,
+            "colour" => s.colour = x,
             _ => assert!(v.set(k, x), "no voicing key {k}"),
         }
     }

@@ -489,3 +489,79 @@ unisons (render and freeze caches key on the version); model 1 untouched; no sch
 
 Each key at mezzo-forte against `DSP_VERSION` 10: 0.93 / 4.17 / 4.47 dB rms over 0–0.5 /
 0.25–1.25 / 1.25–3.4 s (key by key in `docs/round41/chorda-tune.md`).
+
+## Amended by candidate 17: the action as a grand's case rings it (round 42, `DSP_VERSION` 16 — awaiting the owner's ear)
+
+The owner's blind test of candidate 16 against the Salamander (2026-11-25,
+`docs/round42/chorda-abx16-verdict.md`): told apart 16 of 16, the Salamander preferred on five
+phrases of seven — middle C's mid "somewhat ugly", fast runs "no mids, very metallic", the top
+octave without "the hammers' mechanism", the bass close. `docs/round42/chorda-c17.md` has every
+number.
+
+### 11. Two recorded grands, never one
+
+Every measure of this pass stands Chorda against the Salamander *and* the bitKlavier Grand
+(Princeton, CC BY 4.0), both through the engine as the picker installs them. A difference both
+grands share against Chorda is Chorda's; the grands' own difference is the natural spread, and a
+cell inside it counts nothing. Fits use some keys and are judged on others; the sound lab's
+subject `chorda-grand` (ADR 0160) judges single notes on its seeded held-out third.
+
+### 12. The constant cue, and what fixes it
+
+1. **Chorda was too clean between its partials** — outside both grands' band in 8 of 8
+   held-out groups (the sound lab's `noise`), 10–20 dB under them in 0.02–0.3 s and gone sooner.
+   The round-40 knock was a low two-mode click whose noise (`KEY_NOISE`) lay 80 dB under a
+   note: nothing in the model sounded between the partials once the strings had the blow.
+2. **The knock as the case rings it** (`chorda::noise::Thud`'s second stage and steep band,
+   `VoiceSettings::knock_shape`, `Voicing::knock_shape` and `knock_noise_reg`; spec keys
+   `knock.noise`, `.tau`, `.lo`, `.hi`, `.tail`, `.tail_tau`, `.t60`, `.noise_vel`,
+   `.noise_bass`, `.noise_treble`): the noise scaled by register and by the hammer's speed,
+   band-limited at 24 dB an octave above (a case's knock has no hiss) and 12 below, a slower
+   second stage, the keybed's modes ringing longer — each neutral at its default
+   (`voice::KNOCK_AS_IS`), so every earlier voicing renders its old bits. Fitted against both
+   grands' top-key knock (under the fundamental, where no string of the key sounds) and the
+   middle's noise between partials, judged on C6–C7 and the bass.
+3. **Middle C's nasal mid is its third partial** (785 Hz): 10–13 dB over both grands at every
+   key measure, its neighbours B3 and C♯4 too; voiced key by key in the partial table, which a
+   spec now reaches cell by cell (`partial<n>.<key>`). Six top keys whose second or third
+   partial stood 10–30 dB over both grands likewise.
+4. **What the analysis before the blind test added**: the keybed's ring shorter and its noise
+   from 90 Hz (a 70 Hz boom on middle C), the dampers' hold after the pedal (the pedalled
+   tails 5–10 dB short at 0.5–1 s), the soft strikes' knock law, the damper felt's noise band.
+5. An undamped top key thumps as it comes up (`key_return`), between the two grands' levels.
+
+### 13. Colour, a control (`colour`, schema 84)
+
+The owner asked that Chorda reach both colours. `colour` (−1 … 1, 0 Chorda's own voicing and
+then not run at all) moves model 2's board sound along the measured difference between the
+Salamander's middle phrases and Chorda's (`chorda::colour::SHAPE`, five octave bands
+250 Hz – 4 kHz, the median over four phrases); before the lid and the room, as a technician's
+voicing would be. A factory preset, *Recorded Grand Colour*, sets it to 1. An older song
+reads 0: its sound unchanged by the control.
+
+### What the tests hold (sixth amendment)
+
+| What | Test |
+|---|---|
+| The knock's shape at its default is the round-40 thud; set and set back, a unit plays as one never set | `tests_voicing4::the_knock_as_is_is_the_round_40_thud` |
+| Its noise in its band, its tail ringing on; a reshaped thud keeps its ringing | `tests_voicing4::the_knocks_noise_sits_in_its_band_and_its_tail_rings_on`, `a_thud_reshaped_keeps_its_ringing_and_its_tail_falls` |
+| The register laws move their registers alone | `tests_voicing4::the_knocks_register_laws_move_their_registers_alone` |
+| Every part on: the same bits at every block size and thread count; an idle unit as a new one; rest | `tests_voicing4::the_pass_gives_the_same_bits_at_every_block_size_and_on_threads`, `an_idle_unit_with_the_pass_plays_as_a_new_one_and_comes_to_rest` |
+| Colour 0 is nothing; its stage follows its shape; a coloured unit keeps every block size and rests | `tests_voicing4::the_colour_at_zero_is_nothing_and_its_stage_follows_its_shape`, `a_coloured_unit_keeps_every_block_size_and_comes_to_rest` |
+| The shipped voicing is candidate 17 over the unison pass; the unison pass renders its old bits | `tests_voicing3::the_shipped_voicing_is_candidate_17_over_the_unison_pass_and_a_new_unit_plays_it`, `model_2_at_the_unison_pass_renders_to_the_bits_it_did` |
+| The tuning kits measure the strings with the action's noises off (the knock is no pitch); every gate holds | `chorda::tests_tune_gate`, `tests_strings`, `tests_unison` |
+| A Chorda added through the app knocks as a grand under C8, and its *Colour* knob moves the middle by the shape; undone, the bits return | `cantus-ui` `chorda_c17_e2e` |
+| Schema 84 keeps the colour; every older file reads 0 | `cantus-project` `format::tests::schema_84_keeps_chordas_colour` |
+
+### The size of the change (`DSP_VERSION` 15 → 16)
+
+| Render | max \|Δ\| | RMS of Δ | |
+|---|---|---|---|
+| Every other unit's goldens, model 1, beta.14's, candidate 16's, the technician's and the unison pass's voicings | 0 | 0 | pinned, held |
+| Model 2 at its default (the pinned 0.5 s phrase) | 0.142 | 0.0253 (−31.9 dBFS) | the phrase's RMS 0.2180 → 0.2191 (+0.05 dB); new pin `0x9fe3_49b2_b228_bc8f` |
+
+Two cells of the analysis's voicing were held back by the unison gate (ADR 0098's fifth
+amendment, `no_unison_beats_deeper_than_a_recorded_grands`): cut 21–24 dB, A♯6's third partial
+and D♯7's second left the board's share of each to beat against the strings past the ceiling;
+A♯6 is not voiced and D♯7's second partial is cut 15 dB. The tuning kits measure with the
+action's noises off since this amendment (the knock moved A0's measured fundamental 4 cents).

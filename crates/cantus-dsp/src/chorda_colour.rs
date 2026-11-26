@@ -17,9 +17,10 @@ use crate::math;
 /// The bands' centres (Hz) and each one's gain (dB) at a colour of 1.
 pub const CENTRES: [f64; BANDS] = [250.0, 500.0, 1_000.0, 2_000.0, 4_000.0];
 pub const BANDS: usize = 5;
-/// Measured: the Salamander's middle phrases minus Chorda's (`DSP_VERSION` 15's voicing),
-/// median over the four phrases, per octave (dB).
-pub const SHAPE: [f64; BANDS] = [0.0, 0.0, 0.0, 0.0, 0.0];
+/// Measured: the Salamander's middle phrases minus Chorda's (candidate 17, `DSP_VERSION`
+/// 16's voicing) at −20 LUFS — middle C, the soft chords, the run, the ballad — each octave's
+/// three thirds summed, the median over the four (`probes/c17/shape.py`; dB).
+pub const SHAPE: [f64; BANDS] = [2.9, -2.6, 0.6, 3.2, 2.6];
 /// Each band's width (an octave).
 const Q: f64 = std::f64::consts::SQRT_2;
 

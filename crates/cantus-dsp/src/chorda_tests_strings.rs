@@ -167,7 +167,12 @@ fn resonance(design: &LoopDesign, phase: &dyn Fn(f64) -> f64, k: u32, hz: f64) -
 /// designed partials and predicted.
 pub fn loop_tune(v: &Voicing, m: u8, index: usize, vel: f32, quiet: bool) -> LoopTune {
     let i = (m - tables::LOWEST) as usize;
-    let mut c = unit_with(v, quiet.then_some(0.0));
+    // Round 42 (candidate 17): the action's noises off in both runs — the knock now rings
+    // through the case at a recorded grand's level, and read as a loop's phase it moved two
+    // bass loops past their tolerance; a loop's pitch is the strings'. `quiet` stays as the
+    // record of which run asked for it.
+    let _ = quiet;
+    let mut c = unit_with(v, Some(0.0));
     let mut keep = [0.0; MAX_STRINGS];
     keep[index] = 1.0;
     c.set_loops_kept(m, keep);
