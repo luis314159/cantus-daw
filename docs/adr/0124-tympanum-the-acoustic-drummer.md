@@ -515,7 +515,7 @@ left for model 6.
 **Decision 2 — the jazz rack toms' burst** (`BURST`): table 22 alone carried a stick burst, and it
 made the toms' first 3 ms swing 0.4–10 kHz from take to take; it is scaled to 0 (the knock stays).
 
-**Measured and left as they are:** the closed hat's length (with the pedal closed, as a song
+**Measured and left as they are:** the jazz closed hat's 6.1-dB take-to-take change (its close partials beating under the phase draw: a table refit; scaling its level draw moved nothing); the closed hat's length (with the pedal closed, as a song
 without CC4 plays it, 241 ms at 8 kHz against the recordings' 193–224); brightness rising with
 level holds for kick, toms and cymbals but not for a snare (four of seven recorded snares are
 brighter soft — the wires dominate a ghost note).

@@ -115,9 +115,12 @@ velocities before anything changed.
 2. **The jazz rack toms' attack (changed).** Table 22 alone had a stick burst; its first 3 ms
    ranged 0.4–10 kHz from take to take at one velocity (Virtuosity's own tom 1.3–2.1 kHz, every
    recorded tom 0.4–2.1 kHz). `BURST` scales it to 0; the knock stays.
-3. **The jazz closed hat's variation (changed).** 6.1 dB from one closed stroke to the next
+3. **The jazz closed hat's variation (diagnosed).** 6.1 dB from one closed stroke to the next
    (third octaves, 250 Hz – 16 kHz) against 1.4–2.0 for every recorded closed hat and 1.65 for the
-   studio hat: a few strong partials carry its bands. `SPREAD` draws its per-hit variation at 0.35.
+   studio hat. Scaling its per-hit level draw (modes ± 1.5 dB, bands ± 0.7) to 0.35 changed it by
+   nothing measurable (6.13 → 6.13 dB), so it was taken out: the change is the phase draw — a few
+   strong, close partials in its table beat differently each hit inside one third octave. The
+   fix is in the table (close partials merged, or their phases drawn together), a refit.
 4. **The crest (diagnosed, not changed).** In the grooves Tympanum's crest (peak − loudness) is
    2–10 dB above the recorded kits' in almost every genre. Per hit, the snare is the cause: its
    waveform peaks at 0.6–1.2 ms (DRSKit 7.5 ms, Virtuosity 7.1 ms), and **every band of the
@@ -203,11 +206,11 @@ python -I tools/tympanum-real/law.py law.log <work>/hits <crates/cantus-dsp/src/
 packs joined from the app's folder; MuldjordKit stopped at 0.8 GB when F: neared its floor — the
 manifest's `muldjordkit-tympanum` pack fetches it later; ShittyKit's old DrumGizmo format the
 builder refuses, removed); the tools above; the measures of eight recorded kits and Tympanum's two;
-the level law, the jazz toms' burst and the jazz hat's spread
+the level law and the jazz toms' burst
 (`DSP_VERSION` 19, ADR 0124's sixth amendment); the owner's previews and report.
 
 **Tests:** cantus-dsp `pulsus::measured` (the law interpolates; every table grows at every step;
-the burst and spread tables; the existing block-size, rest and
+the burst table; the existing block-size, rest and
 choke tests), cantus-engine's Tympanum lib tests (14), `inst_contract` (51) and `rt_memory` (68) on
 the law; cantus-ui `tympanum_e2e`'s `every_modelled_piece_grows_with_the_velocity_through_the_app`
 through `CantusApp::assemble`.
