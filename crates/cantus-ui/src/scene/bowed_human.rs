@@ -382,7 +382,9 @@ const SUIT_LIFT: f32 = 0.12;
 /// r42:arcus-hand — each figure's hands scaled about the wrist (hers, his): the review
 /// found his hand, wrist crease to fingertip, longer than his face (a man's is about as
 /// long). `hand_rig.py::HAND_SCALE` is the same.
-pub const HAND_SCALE: [f32; 2] = [1.0, 0.93];
+/// (r42:arcus-hands: hers 1.08 — wrist crease to middle fingertip 15.5 cm, 0.095 of her
+/// 162.8 cm; a woman's hand is about 0.105 of her height: a small fist at the neck.)
+pub const HAND_SCALE: [f32; 2] = [1.08, 0.93];
 
 /// r42:arcus-hand — each figure's palm drawn in across toward the hand's middle line (hers,
 /// his): the owner found her hand "tosca", the palm bulging out of a slim wrist (her palm

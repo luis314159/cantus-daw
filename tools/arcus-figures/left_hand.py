@@ -213,7 +213,9 @@ PLAY = ((18, 60), (55, 100), (4, 25))
 HOVER = ((12, 55), (35, 85), (3, 24))
 # Each finger's spread at rest (rad): the index a little toward the scroll, the little
 # finger a little away.
-SPREAD = np.array([0.0, 0.0, 0.02, 0.05])
+# (r42:arcus-hands: the little finger reaching out toward the bridge, the hand's span
+# open as in crop-08 and crop-11; was 0.02 / 0.05.)
+SPREAD = np.array([0.0, 0.0, 0.05, 0.13])
 # Each finger's angles near the middle of its range (deg; the owner's review: curled to
 # the ranges' ends the fingers read short, a fist on the fingerboard).
 MID = (36.0, 72.0, 10.0)
@@ -282,6 +284,10 @@ THUMB_CMC = 30.0
 # r42:arcus-hands — the upper arm this far below level, shoulder to elbow (deg; the
 # photographs ~52; polish2's tests/arcus_arm_pose.rs holds it within 30-80).
 UPPER_BELOW = (35.0, 60.0)
+# r42:arcus-hands — the violin's upper bout as a slab (half-width, length back from the
+# neck's root, cm) and the clearance the hand and forearm keep over its top plate.
+BOUT = (8.5, 12.0)
+CLEAR = 0.4
 HAND_UP = 78.0
 FORE_UP = 64.0
 
@@ -426,6 +432,17 @@ class Pose:
         # r42:arcus-hands — the upper arm hanging from the shoulder to an elbow under the
         # violin, not out to the side like a wing (the owner: "ese brazo aún se ve raro";
         # ref-10: ~52 deg below level; the table had hers at 2 and his at 26).
+        # r42:arcus-hands — the hand and the forearm clear of the violin's body (the owner:
+        # high up, "se solapa la mano y antebrazo con el cuerpo"): their points stay over
+        # the top plate's height by CLEAR where they lie over the upper bout (the body as a
+        # slab: BOUT cm across, from the neck's root back), so in high positions the wrist
+        # rises over the bout as players' does.
+        zt = nk.top(nk.body) - 1.6 + CLEAR
+        pts = [W + way * t for t in np.arange(0.0, self.fore, 2.0)]
+        pts += [P[f, k] for f in range(5) for k in range(4)]
+        for q in nk.loc(np.array(pts)):
+            if abs(q[0]) < BOUT[0] and nk.body - BOUT[1] < q[1] < nk.body + 0.3:
+                add("bout", 4.0 * max(0.0, zt - q[2]))
         ua = el - self.sh
         below = np.degrees(np.arcsin(np.clip(-ua[1] / max(np.linalg.norm(ua), 1e-6), -1, 1)))
         add("elbow_down", 1.0 * over(below, *UPPER_BELOW))

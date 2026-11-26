@@ -152,7 +152,8 @@ KNUCKLE_RAMP = (-0.5, 0.7)
 
 # r42:arcus-hand — each figure's hands scaled about the wrist (the coordinator's review: his
 # hand, wrist crease to fingertip, read longer than his face; a man's is about as long).
-HAND_SCALE = {"woman.fig": 1.0, "man.fig": 0.93}
+# (r42:arcus-hands: hers 1.08 — her hand 0.095 of her height, a woman's ~0.105.)
+HAND_SCALE = {"woman.fig": 1.08, "man.fig": 0.93}
 # r42:arcus-hand — each figure's palm drawn in across, toward the hand's middle line (the
 # owner: her hand "tosca", the palm bulging out of a slim wrist; her palm measured 1.25-1.64
 # times her wrist from the picture's camera, the photographs' about 1.25).

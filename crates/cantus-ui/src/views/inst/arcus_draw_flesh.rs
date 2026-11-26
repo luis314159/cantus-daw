@@ -642,6 +642,10 @@ struct Scratch {
     split: Vec<bool>,
     /// r42:arcus-hands — the patches' shared points (kept while the skinning is).
     fine: RefCell<FineCache>,
+    /// r42:arcus-hands — High's samples with their depths (`raster`), and what each pass's
+    /// last picture was filled for (the skinning's key and its rectangle).
+    ras: RefCell<super::raster::Raster>,
+    ras_key: [Option<([V3; 8], egui::Rect)>; 4],
     col: Vec<[Color32; 3]>,
     order: Vec<(f32, u32)>,
     ao: Vec<f32>,
@@ -1530,10 +1534,48 @@ pub fn arm(
             .sort_unstable_by(|x, y| y.0.partial_cmp(&x.0).unwrap_or(std::cmp::Ordering::Equal));
         super::probe::lap("edges+sort", tt);
         let tt = super::probe::t0();
+        // r42:arcus-hands — High fills the arm's samples with their depths over its own
+        // screen rectangle (`raster`); Light paints its triangles in depth order.
+        let slot = s * 2 + matches!(hidden, Some((false, _))) as usize;
+        let rast = !light;
+        let ras_rect = if rast {
+            let mut r = egui::Rect::NOTHING;
+            for (k, t) in am.tris.iter().enumerate() {
+                if sc.front[k] {
+                    for &i in t {
+                        r.extend_with(sc.sp[i as usize]);
+                    }
+                }
+            }
+            r.expand(3.0).intersect(b.clip)
+        } else {
+            egui::Rect::NOTHING
+        };
+        let fresh = rast
+            && (sc.ras_key[slot] != Some((key, ras_rect)) || super::raster::stale(b.ctx(), slot));
+        if rast && ras_rect.is_positive() && !fresh {
+            // At rest: the last picture again (nothing filled, nothing uploaded).
+            let rect = sc.ras.borrow().rect();
+            let tex = super::raster::upload(b.ctx(), slot, &mut sc.ras.borrow_mut(), false);
+            if let Some(tex) = tex {
+                b.foreign(tex, rect);
+            }
+            return;
+        }
+        if rast {
+            sc.ras_key[slot] = Some((key, ras_rect));
+            let ss = if b.ppp() >= 1.5 { 2 } else { 3 };
+            sc.ras.borrow_mut().begin(ras_rect, b.ppp(), ss);
+        }
+        let depth_of = |q: V3| v.cam.depth(q);
         for &(_, k) in &sc.order {
             if k >= marks_at {
                 let line = &am.marks[(k - marks_at) as usize];
-                super::marks::stroke(b, v, line, &am.tris, &sc.pts, &sc.nrm, &sc.col, eye);
+                if rast {
+                    super::marks::stroke_into(&mut sc.ras.borrow_mut(), v, line, &am.tris, &sc.pts, &sc.nrm, &sc.col, eye);
+                } else {
+                    super::marks::stroke(b, v, line, &am.tris, &sc.pts, &sc.nrm, &sc.col, eye);
+                }
                 continue;
             }
             if k < tri_n {
@@ -1547,17 +1589,25 @@ pub fn arm(
                         mid,
                     };
                     let t1 = super::probe::t0();
-                    if sc.split[k as usize] {
-                        fine_tri(b, &fc, sc, am, k as usize, SPLIT_N, hidden);
+                    let n = if sc.split[k as usize] { SPLIT_N } else { fine_n };
+                    let only = if sc.split[k as usize] { hidden } else { None };
+                    if rast {
+                        let mut r = sc.ras.borrow_mut();
+                        fine_tri(&mut |p, q, c| r.tri(p, q.map(depth_of), c, None), &fc, sc, am, k as usize, n, only);
                     } else {
-                        fine_tri(b, &fc, sc, am, k as usize, fine_n, None);
+                        fine_tri(&mut |p, _, c| b.shaded_tri(p, c), &fc, sc, am, k as usize, n, only);
                     }
                     super::probe::lap("fine_tri", t1);
                     continue;
                 }
                 let t = am.tris[k as usize];
                 let p = t.map(|i| sc.sp[i as usize]);
-                b.shaded_tri(p, sc.col[k as usize]);
+                if rast {
+                    let z = t.map(|i| depth_of(sc.pts[i as usize]));
+                    sc.ras.borrow_mut().tri(p, z, sc.col[k as usize], None);
+                } else {
+                    b.shaded_tri(p, sc.col[k as usize]);
+                }
             } else {
                 let (a, bb, t0, t1) = am.edges[(k - tri_n) as usize];
                 if am.seam[(k - tri_n) as usize] {
@@ -1579,8 +1629,19 @@ pub fn arm(
                         out = -out;
                     }
                     let (ca, cb) = (corner(a), corner(bb));
-                    b.shaded_tri([pa, pb, pb + out], [ca, cb, cb]);
-                    b.shaded_tri([pa, pb + out, pa + out], [ca, cb, ca]);
+                    if rast {
+                        let (za, zb) = (depth_of(sc.pts[a as usize]), depth_of(sc.pts[bb as usize]));
+                        let mut r = sc.ras.borrow_mut();
+                        r.tri([pa, pb, pb + out], [za, zb, zb], [ca, cb, cb], None);
+                        r.tri([pa, pb + out, pa + out], [za, zb, za], [ca, cb, ca], None);
+                    } else {
+                        b.shaded_tri([pa, pb, pb + out], [ca, cb, cb]);
+                        b.shaded_tri([pa, pb + out, pa + out], [ca, cb, ca]);
+                    }
+                    continue;
+                }
+                // (r42:arcus-hands: High's samples cover the outline themselves.)
+                if rast {
                     continue;
                 }
                 let both = t0 != u32::MAX
@@ -1672,6 +1733,13 @@ pub fn arm(
                         b.edge_joined(pa, pb, ca, cb, join(a) * px, join(bb) * px);
                     }
                 }
+            }
+        }
+        if rast && ras_rect.is_positive() {
+            let rect = sc.ras.borrow().rect();
+            let tex = super::raster::upload(b.ctx(), slot, &mut sc.ras.borrow_mut(), true);
+            if let Some(tex) = tex {
+                b.foreign(tex, rect);
             }
         }
         super::probe::lap("paint(incl fine)", tt);
@@ -1893,7 +1961,7 @@ fn lerp_c(a: Color32, b: Color32, t: f32) -> Color32 {
 /// creases, the lines of the fingers' joints, the pores; as the bake does the face), the
 /// corners' detail and occlusion between.
 fn fine_tri(
-    b: &mut Brush,
+    out: &mut dyn FnMut([Pos2; 3], [V3; 3], [Color32; 3]),
     fc: &FineCtx,
     sc: &Scratch,
     am: &ArmMesh,
@@ -2047,12 +2115,12 @@ fn fine_tri(
                 only.is_none_or(|(want, hid)| hid((room[x] + room[y] + room[z]) * (1.0 / 3.0)) == want)
             };
             if mine(a, bb, c) {
-                b.shaded_tri([pts[a], pts[bb], pts[c]], [cols[a], cols[bb], cols[c]]);
+                out([pts[a], pts[bb], pts[c]], [room[a], room[bb], room[c]], [cols[a], cols[bb], cols[c]]);
             }
             if j + 1 < n - i {
                 let d = row(i + 1) + j + 1;
                 if mine(bb, d, c) {
-                    b.shaded_tri([pts[bb], pts[d], pts[c]], [cols[bb], cols[d], cols[c]]);
+                    out([pts[bb], pts[d], pts[c]], [room[bb], room[d], room[c]], [cols[bb], cols[d], cols[c]]);
                 }
             }
         }

@@ -264,6 +264,58 @@ pub fn stroke(
     }
 }
 
+/// [`stroke`] into High's samples (`raster`): each piece a quad laid over the skin where
+/// it is no deeper than the skin there (a crease never shows through a finger in front).
+#[allow(clippy::too_many_arguments)]
+pub fn stroke_into(
+    r: &mut super::raster::Raster,
+    v: &super::body::View,
+    line: &Line,
+    tris: &[[u16; 3]],
+    pts: &[V3],
+    nrm: &[V3],
+    col: &[[egui::Color32; 3]],
+    eye: V3,
+) {
+    let px = 1.0 / r.ppp.max(0.1);
+    let n = line.n as usize;
+    let mut prev: Option<(egui::Pos2, f32, [f32; 3], f32, f32)> = None;
+    for a in &line.pts[..n] {
+        let t = tris[a.tri as usize].map(|i| i as usize);
+        let p = at(a, tris, pts);
+        let nn = (nrm[t[0]] * a.w[0] + nrm[t[1]] * a.w[1] + nrm[t[2]] * a.w[2]).norm();
+        let c = col[a.tri as usize];
+        let fade = ((nn.dot((eye - p).norm()) - 0.12) / 0.3).clamp(0.0, 1.0) * (c[0].a() > 0) as u8 as f32;
+        let rgb = [0, 1, 2].map(|ch| {
+            (0..3)
+                .map(|k| [c[k].r(), c[k].g(), c[k].b()][ch] as f32 * a.w[k])
+                .sum::<f32>()
+        });
+        let q = (v.p(p), fade, rgb, v.scale(p), v.cam.depth(p));
+        if let Some(pr) = prev {
+            let f = (pr.1 + q.1) * 0.5;
+            let sc = (pr.3 + q.3) * 0.5;
+            if f > 0.01 && sc > MIN_SCALE {
+                let w = line.width * sc;
+                let min = px * MIN_PX;
+                let alpha = line.strength * f * (w / min).min(1.0) * ((sc - MIN_SCALE) / MIN_SCALE).clamp(0.0, 1.0);
+                let k = 1.0 - CREASE_DARK;
+                let m = |ch: usize| ((pr.2[ch] + q.2[ch]) * 0.5 * k * alpha).round() as u8;
+                let colour = egui::Color32::from_rgba_premultiplied(m(0), m(1), m(2), (alpha * 255.0) as u8);
+                let d = q.0 - pr.0;
+                let len = d.length();
+                if len > 1e-4 {
+                    let o = egui::vec2(-d.y, d.x) / len * (w.max(min) * 0.5);
+                    let z = [pr.4, q.4, q.4];
+                    r.tri([pr.0 - o, q.0 - o, q.0 + o], z, [colour; 3], Some(0.3));
+                    r.tri([pr.0 - o, q.0 + o, pr.0 + o], [pr.4, q.4, pr.4], [colour; 3], Some(0.3));
+                }
+            }
+        }
+        prev = Some(q);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
