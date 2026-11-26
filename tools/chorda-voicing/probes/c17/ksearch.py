@@ -33,7 +33,8 @@ def trial(tag, i, spec):
         del knockfit.CACHE[k]
     mid = [k for k in knockfit.KEYS if 48 <= k <= 72]
     bass = [k for k in knockfit.KEYS if 24 <= k <= 45]
-    s = knockfit.score(d, FIT) + knockfit.between_score(d, mid)
+    top = [k for k in knockfit.KEYS if 84 <= k <= 105]
+    s = knockfit.score(d, FIT) + knockfit.between_score(d, mid) + knockfit.between_score(d, top)
     h = knockfit.score(d, HELD) + knockfit.between_score(d, bass)
     shutil.rmtree(out, ignore_errors=True)
     return s, h
@@ -51,7 +52,7 @@ def main():
     log = open(os.path.join(LAB, 'c17', f'search-{tag}.log'), 'a')
 
     def spec_of(cur):
-        return ','.join(['base=shipped'] + [s for s in fixed.split(',') if s] + [f'{k}={v:.5g}' for k, v in cur.items()])
+        return ','.join([os.environ.get('C17_BASE', 'base=shipped')] + [s for s in fixed.split(',') if s] + [f'{k}={v:.5g}' for k, v in cur.items()])
 
     cur = {k: v[2] for k, v in P.items()}
     # A `log` knob steps by ratios: a quarter of its range in octaves of its own.
