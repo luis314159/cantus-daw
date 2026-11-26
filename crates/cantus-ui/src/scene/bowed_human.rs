@@ -1671,28 +1671,30 @@ fn clear_of_the_body(
         d.arch + 4.0,
         -(super::bowed::rib(d, d.body * 0.2) + d.arch_back + 1.0),
     );
-    let local = |p: V3| {
-        let q = p - pose.o;
-        (q.dot(pose.ex), q.dot(pose.ey), q.dot(pose.ez))
-    };
+    let (ex, ey, ez) = (pose.ex, pose.ey, pose.ez);
     for (role, t) in m.tris.iter_mut() {
         // The shirt through the body's whole depth; the jacket's cloth only over its top (the
         // suit's painted tie, jacket cloth now, flared over the lower bout as well; the
-        // jacket's shoulder under the back stays).
+        // jacket's shoulder under the back stays). Not left out (the coordinator: half a
+        // collar reads wrong at once): pressed flat and tucked under the back, as a player's
+        // collar is under the lower bout — the band stays whole round the neck.
         let low = match role {
             Role::Shirt => back,
             Role::Wool => d.arch - 0.5,
             _ => continue,
         };
-        let pts = &t.pts;
-        t.idx.retain(|tri| {
-            let c =
-                (pts[tri[0] as usize] + pts[tri[1] as usize] + pts[tri[2] as usize]) * (1.0 / 3.0);
-            let (x, y, z) = local(c);
-            !(z < top && z > low && inside(&o, x, y))
-        });
+        for p in t.pts.iter_mut() {
+            let q = *p - pose.o;
+            let (x, y, z) = (q.dot(ex), q.dot(ey), q.dot(ez));
+            if z < top && z > low && inside(&o, x, y) {
+                *p = pose.o + ex * x + ey * y + ez * (back - TUCK);
+            }
+        }
     }
 }
+
+/// r42:arcus-polish4 — how far under a held instrument's back its collar is tucked (cm).
+const TUCK: f32 = 0.4;
 
 /// r42:arcus-polish4 — his hair's top against the room (the coordinator: a hard dark cap's
 /// outline): short tips standing out of the combed-back top, each from a card vertex over
@@ -1939,11 +1941,21 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
             // (A little lower where it turns under at its sides — the knot's and the
             // blade's own shade — and the dimple's groove in its shade; no edge of its own.)
             let side = 1.0 - 0.15 * smooth_k((u.abs() - 0.7) / 0.3);
+            // (r42:arcus-polish4: the knot's form by value — the coordinator, at 400 % a navy
+            // smear: its top face lit and its underside in shade, its outline a crisp darker
+            // edge apart from the blade's, the knot's cast shadow on the blade just under it,
+            // a crease where the blade comes out, the dimple below.)
             let dim = if v < 0.0 {
                 let s = -v * BLADE_STEP;
-                1.0 - 0.18 * (-(u / 0.18) * (u / 0.18)).exp() * (1.0 - smooth_k(s / 3.2))
+                let dimple =
+                    1.0 - 0.18 * (-(u / 0.18) * (u / 0.18)).exp() * (1.0 - smooth_k(s / 3.2));
+                let shadow = 0.5 + 0.5 * smooth_k(s / 1.8);
+                let crease = 1.0 - 0.25 * (-(s / 0.5) * (s / 0.5)).exp();
+                dimple * shadow * crease
             } else {
-                1.0
+                let face = 0.72 + 0.4 * smooth_k((v - 0.1) / 0.7);
+                let rim = 1.0 - 0.3 * smooth_k((u.abs() - 0.82) / 0.18);
+                face * rim
             };
             t.detail.push([side * dim, 9.0]);
             t.uv.push([-1.0, -1.0]);

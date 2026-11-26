@@ -481,6 +481,9 @@ fn no_stray_pixels_round_or_on_the_violinists() {
 /// looks; inside the live sleeve's outline, drawn in by 2 px (not its hem, nor the hand, nor
 /// the bow over it), no pixel may be skin-coloured — and none in a 12 px band under the
 /// forearm's sleeve, where the neckline's point showed.
+/// The sleeve test shoots at 200 %: at 100 % the V's point under the arm is a few pixels.
+const SLEEVE_PPP: f32 = 2.0;
+
 #[test]
 fn no_skin_shows_through_or_under_her_bow_sleeve() {
     views::inst::chorda::scene::hybrid::register();
@@ -503,7 +506,7 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
             app.set_inst_value(t, "inst", inst, false);
             views::inst::arcus::demo_feed(&mut app);
             let size = views::inst::editor_size(InstrumentKind::BowedString);
-            let _ = cantus_ui::raster::shoot(&ctx, size, PPP, 2, None, |ui| {
+            let _ = cantus_ui::raster::shoot(&ctx, size, SLEEVE_PPP, 2, None, |ui| {
                 views::inst::window_in(&mut app, ui)
             });
             for along in [0.05f32, 0.5, 0.92] {
@@ -511,7 +514,7 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                     e.1 = along;
                 }
                 probe::record(true);
-                let canvas = cantus_ui::raster::shoot(&ctx, size, PPP, 1, None, |ui| {
+                let canvas = cantus_ui::raster::shoot(&ctx, size, SLEEVE_PPP, 1, None, |ui| {
                     views::inst::window_in(&mut app, ui)
                 });
                 let arms = probe::arms();
@@ -524,12 +527,12 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                     for tr in &arm.tris {
                         let q = tr.map(|i| {
                             let p = arm.screen[i as usize];
-                            Pos2::new(p.x * PPP, p.y * PPP)
+                            Pos2::new(p.x * SLEEVE_PPP, p.y * SLEEVE_PPP)
                         });
                         if tr.iter().all(|&i| !arm.skin[i as usize]) {
                             sleeve.tri(q);
-                            // The band under it: the triangle moved 12 px down the screen.
-                            let d = egui::vec2(0.0, 12.0);
+                            // The band under it: the triangle moved 12 px (at 100 %) down.
+                            let d = egui::vec2(0.0, 12.0 * SLEEVE_PPP);
                             under.tri([q[0] + d, q[1] + d, q[2] + d]);
                         } else {
                             skin.tri(q);
@@ -538,9 +541,9 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 }
                 if let Some((f, tip, cm)) = bow {
                     skin.seg(
-                        Pos2::new(f.x * PPP, f.y * PPP),
-                        Pos2::new(tip.x * PPP, tip.y * PPP),
-                        2.2 * cm * PPP,
+                        Pos2::new(f.x * SLEEVE_PPP, f.y * SLEEVE_PPP),
+                        Pos2::new(tip.x * SLEEVE_PPP, tip.y * SLEEVE_PPP),
+                        2.2 * cm * SLEEVE_PPP,
                     );
                 }
                 // Drawn in by 2 px: its outline's own antialiasing is not a hole.
@@ -579,7 +582,7 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 eprintln!(
                     "{b:?} {be:?} bow at {along}: sleeve {area} px, {inside_n} skin px inside,                      {under_n} under"
                 );
-                if area < 400 {
+                if area < (400.0 * SLEEVE_PPP * SLEEVE_PPP) as usize {
                     bad.push(format!(
                         "{b:?} {be:?} bow at {along}: no bow sleeve drawn ({area} px)"
                     ));

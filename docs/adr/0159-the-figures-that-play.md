@@ -457,10 +457,14 @@ occluding capsules in its live painter.
       joint, and the finer sleeves showed it (her elbows 9.5–9.8 cm across the crook); drawn
       in toward the joint by up to 0.16 as it bends from 30° to 100° (`ELBOW`): 7.9–9.2 cm.
       Both correctives are tunable while measuring (`CANTUS_DELTOID`, `CANTUS_ELBOW`).
-    - **A held instrument presses the collar flat**: the shirt's triangles inside a held
-      violin's or viola's body (its outline, its depth and a centimetre) are left out of the
-      bake (`bowed_human::clear_of_the_body`) — the collar's far point stood through the
-      lower bout (a white wedge on the varnish; shards in Drawn).
+    - **A held instrument presses the collar flat**: the shirt's points inside a held
+      violin's or viola's body (its outline, its depth, 4 cm over its top) are pressed flat
+      and tucked under its back (`bowed_human::clear_of_the_body`, `TUCK`) — the collar's far
+      point stood through the lower bout (a white wedge on the varnish; shards in Drawn);
+      left out instead, half a collar read wrong at once. The band stays whole.
+    - **The knot by value**: a richer navy silk (`hp::TIE`, a faint sheen), its top face lit
+      and its underside in shade, a darker rim apart from the blade, its cast shadow and a
+      crease where the blade comes out, the dimple below.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`

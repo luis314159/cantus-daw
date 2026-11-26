@@ -1189,7 +1189,9 @@ system assets on this machine now also hold `hair/short01`, `short03`, `short04`
 5. *Specks*: on cloth the live outline strip takes its triangle's inner corner's colour
    (was halfway: the dotted light line on her bow shoulder) and none is drawn on a cloth
    contour edge under 1.6 px (`SMALL_EDGE_PX`: the tops of his cuff buttons each drew a
-   lone light dot); his sleeves smoothed after they are made finer (`soften`, `SOFTEN` 4).
+   lone light dot); his sleeves smoothed after they are made finer (`soften`, `SOFTEN` 10:
+   the suit's cuff buttons rounder — their sharp tops each caught the back light on one
+   pixel).
 6. *The tie, modelled whole* (`bowed_human::tie_knot`; the coordinator twice: a navy blob
    with white flecks): the knot a smooth tapered trapezoid (1.9 → 3.0 cm, 3 cm tall, its
    wrap a soft crest, not a crease) and the blade following the shirt down from the knot's
@@ -1197,10 +1199,13 @@ system assets on this machine now also hold `hair/short01`, `short03`, `short04`
    with one dimple under the knot and a pointed end, never narrower than the suit's painted
    tie under it (up to 1.2 × its own shape, `REACH_MOST`); the painted tie region becomes
    jacket cloth under it (its staircase edges and the navy fragments at the collar are gone).
-   The shirt's triangles inside a held violin's or viola's body are left out of the bake
-   (`clear_of_the_body`: the collar's far point stood through the lower bout — the white
-   wedge in Photographic, the shards in Drawn), and the jacket's cloth over its top (the
-   painted tie flared there too).
+   The shirt's points inside a held violin's or viola's body (and the jacket's cloth over
+   its top: the painted tie flared there too) are pressed flat and tucked under its back
+   (`clear_of_the_body`, `TUCK` 0.4 cm): the collar's far point stood through the lower
+   bout — the white wedge in Photographic, the shards in Drawn; culled (an earlier build)
+   the collar was half a band. The knot by value (the coordinator, at 400 % a navy smear):
+   `hp::TIE` (40, 50, 96) with silk's faint sheen; the knot's top face lit, its underside
+   in shade, a darker rim, its cast shadow and a crease on the blade under it.
 7. *The deltoid, decided by realism* — the geometry was wrong, not the band: her bow-arm
    cap measured 11.4/11.6 cm (violin/viola) against her left arm's 9.5 (the same cap at
    rest) and ref-04's raised bare arm, 8–9 cm against her bow hand's breadth (~7.5 cm): the
@@ -1216,7 +1221,7 @@ system assets on this machine now also hold `hair/short01`, `short03`, `short04`
    test `arcus_figure_specks::no_skin_shows_through_or_under_her_bow_sleeve` (her bow arm at
    the frog, the middle and the tip, violin and viola, both looks): no skin-coloured pixel
    inside the live sleeve's outline (drawn in by 2 px; the hand and the bow left out) and at
-   most two in a 6 px band under it.
+   most two in a 12 px band under it, shot at 200 % (`SLEEVE_PPP`).
 
 **Gates at the end** (build 14 of this session, release, the committed figures):
 `arcus_light_measure` ✓, `kit_lint` ✓, `figure_contract` ✓, `arcus_scene` ✓,
@@ -1236,11 +1241,19 @@ beside the lower bout. `arcus_hold_budget` not re-measured: the machine was neve
 (three builders' builds the whole session; a build took 35–70 minutes).
 
 **Open** (in the order the owner will see them):
-1. *The knot at 400 %*: clean now (no white or navy fragments, the far collar point gone
-   where the violin lies on it), but the knot is plain — the collar's near point lying
-   over its corner and a visible collar band all round are not modelled (the far side of
-   the collar is culled with the body's slab, `clear_of_the_body`, its top 4 cm over the
-   arching).
+1. *The collar band on the violin's side* (the coordinator's review of iteration 4, first):
+   the far collar must stay a continuous band round the neck, pressed flat and its point
+   tucked under the lower bout / chin rest. `clear_of_the_body` tucks every shirt point
+   inside the body's outline up to 4 cm over its arching — and that slab still takes the
+   visible part of the far band beside the knot (the neck's skin meets the tie on the
+   violin's side in `sheet-it5`). Next: tuck only the point (the shirt points farther than
+   ~2 cm from the neck's surface, or under the arching's top + 1 cm), keep the band, and
+   drape the tucked part along the back rather than moving it straight under (a fold at the
+   edge, not a stretched wall). The knot: by value now (its top lit, the underside and the
+   blade under it in its shade, a darker rim, the crease and dimple; `hp::TIE` a richer
+   navy with silk's sheen) — the coordinator asked to see it at 400 % under the Concert key
+   once the collar reads; the near collar point lying over the knot's corner is not
+   modelled.
 2. *His Photographic hair*: the crossing card layers still read as a fine weave at 200 %
    (detail 0.3); the top's outline still nearly a smooth cap — the tips (`his_tips`) barely
    read against the dark room. A groomed hair texture of our own (strands one way, no

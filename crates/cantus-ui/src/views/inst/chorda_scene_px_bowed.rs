@@ -302,7 +302,8 @@ pub fn build_lit(
             // r42:arcus-polish2 — his shirt and tie with their shade under the collar; the
             // tie's silk softer (its tight highlights read as wet plastic at 200 %).
             Role::Shirt => g.mat(PMat::matte(lin3(hp::SHIRT)).with(Tex::Shirt)),
-            Role::Tie => g.mat(PMat::matte(lin3(hp::TIE)).with(Tex::Shirt)),
+            // (r42:arcus-polish4: silk's faint sheen, so the knot's faces read by value.)
+            Role::Tie => g.mat(PMat::lacquer(lin3(hp::TIE), 0.08, 0.35).with(Tex::Shirt)),
             // r42:arcus-polish2 — her earrings polished gold, a little rough, so the key's
             // glint on the bead spreads over a pixel or two (the owner's list: "the
             // earring's glint"; as brass fittings they read as a dull brown dot).

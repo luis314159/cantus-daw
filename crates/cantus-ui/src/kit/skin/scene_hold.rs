@@ -57,7 +57,9 @@ pub const WOOL: C3 = srgb(30, 31, 36);
 /// light catches dark cloth.
 pub const CLOTH_RIM: C3 = srgb(150, 152, 170);
 pub const SHIRT: C3 = srgb(232, 232, 228);
-pub const TIE: C3 = srgb(30, 36, 64);
+/// (r42:arcus-polish4: a richer navy that holds its form under the concert key — at 30, 36,
+/// 64 the knot read near black, a smear; the coordinator.)
+pub const TIE: C3 = srgb(40, 50, 96);
 pub const HAIR_FAIR: C3 = srgb(204, 178, 134);
 /// r42:arcus-upper — fair brows: a light brown, darker than the blonde (the owner's review).
 pub const BROW_FAIR: C3 = srgb(122, 92, 64);

@@ -1789,7 +1789,7 @@ def subdivide(p, w, t, mats, extra, sel):
 # r42:arcus-polish4 — his sleeves' smoothing passes after they are made finer: the suit's
 # cuff buttons kept as soft domes (sharp-topped, each caught the back light on one pixel:
 # `arcus_figure_specks`' row of dots along his cuff).
-SOFTEN = 4
+SOFTEN = 10
 
 
 def soften(p, t, mats, sel, passes):
